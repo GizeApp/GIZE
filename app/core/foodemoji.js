@@ -76,7 +76,7 @@ const RULES = [
 ];
 
 const CAT = {
-  "Lácteos": "🥛", "Quesos": "🧀", "Huevos": "🥚", "Carne vacuna": "🥩", "Cerdo": "🥩", "Pollo y aves": "🍗",
+  "Lácteos": "🥛", "Quesos": "🧀", "Huevos": "🥚", "Carne vacuna": "🥩", "Cerdo": "🥩", "Cordero y cabrito": "🍖", "Pollo y aves": "🍗",
   "Pescados y mariscos": "🐟", "Fiambres y embutidos": "🥓", "Verduras": "🥦", "Frutas": "🍎", "Legumbres": "🫘",
   "Cereales, harinas y pastas": "🌾", "Pastas frescas y rellenas (cocidas)": "🍝", "Panificados": "🍞",
   "Aceites, aderezos y untables": "🫙", "Frutos secos y semillas": "🥜", "Dulces y azúcares": "🍯",

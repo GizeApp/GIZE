@@ -29,6 +29,8 @@ export const AR_SECTIONS = [
   ["Ubre a la parrilla", 262, 20, 0.5, 20, 150],
   ["Pan de carne casero", 191, 19, 5.8, 10.2, 150],
   ["Hígado encebollado", 173, 16.2, 7.5, 8.7, 250],
+]],
+["Cordero y cabrito", [
   ["Cabrito asado", 136, 27.1, 0, 3, 200, {src:"S"}],
 ]],
 ["Cerdo", [
