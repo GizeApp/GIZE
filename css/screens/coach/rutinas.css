@@ -387,3 +387,13 @@
 .opt-add-card { min-height: 96px; border: 1.5px dashed var(--border); border-radius: 4px; background: transparent; color: var(--gize-blue); font-weight: 700; font-size: var(--text-body); cursor: pointer; }
 .opt-add-card:hover { border-color: var(--gize-blue); }
 @media (max-width: 560px) { .opt-grid { grid-template-columns: 1fr; } .opt-add-card { min-height: 48px; } }
+
+/* Comidas plegables: se ve el nombre y cuántas opciones tiene; la flecha despliega. */
+.opt-sec-head { margin-bottom: 0; }
+.opt-sec.open .opt-sec-head { margin-bottom: 12px; }
+.opt-toggle { flex: none; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 4px; background: transparent; color: var(--gize-blue); cursor: pointer; }
+.opt-toggle svg { width: 18px; height: 18px; transition: transform .2s ease; transform: rotate(-90deg); }
+.opt-sec.open .opt-toggle svg { transform: none; }
+button.opt-count { background: none; border: 0; cursor: pointer; padding: 6px 4px; }
+button.opt-count:hover { color: var(--gize-blue); }
+@media (prefers-reduced-motion: reduce) { .opt-toggle svg { transition: none; } }

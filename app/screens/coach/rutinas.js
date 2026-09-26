@@ -96,15 +96,18 @@ export function optionsEditor(p){
         '<textarea class="opt-body" rows="'+Math.max(4, lines+1)+'" data-coach="pl-optbody" data-i="'+i+'" data-j="'+j+'" placeholder="Un alimento por rengl\u00f3n, por ejemplo:\n2 huevos revueltos\n1 tostada integral\n1 fruta">'+esc(o.body||"")+'</textarea>'+
       '</div>';
     }).join("");
-    return '<div class="opt-sec">'+
+    // Se despliega de a una comida: tocando la flecha se abre y se cierra la anterior.
+    const open=CoachState.coachOptOpen===i;
+    return '<div class="opt-sec'+(open?' open':'')+'">'+
       '<div class="opt-sec-head">'+
+        '<button class="opt-toggle" data-coach="pl-opttoggle" data-i="'+i+'" aria-expanded="'+open+'" aria-label="'+(open?'Cerrar':'Ver')+' opciones">'+chevronDownSvg+'</button>'+
         '<input class="ml-in opt-sectitle" data-coach="pl-optsec" data-i="'+i+'" value="'+esc(sec.title||"")+'" placeholder="Desayuno, Almuerzo, Merienda…">'+
-        '<span class="opt-count">'+n+' opci'+(n===1?'\u00f3n':'ones')+'</span>'+
+        '<button class="opt-count" data-coach="pl-opttoggle" data-i="'+i+'">'+n+' opci'+(n===1?'\u00f3n':'ones')+'</button>'+
         '<button class="ml-del" data-coach="pl-optsecdel" data-i="'+i+'" title="Borrar comida" aria-label="Borrar comida">\u2715</button>'+
       '</div>'+
-      '<div class="opt-grid">'+opts+
+      (open ? '<div class="opt-grid">'+opts+
         '<button class="opt-add-card" data-coach="pl-optadd" data-i="'+i+'">+ Agregar opci\u00f3n '+String.fromCharCode(65+n)+'</button>'+
-      '</div>'+
+      '</div>' : '')+
     '</div>';
   }).join("");
   return '<div class="co-note-lbl" style="margin-top:4px">Opciones de comidas (el cliente elige)</div>'+

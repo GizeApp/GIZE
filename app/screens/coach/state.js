@@ -36,6 +36,8 @@ export const CoachState = {
   coachSec: null,
   // Sección abierta del plan nutricional (null = menú).
   coachPlanSec: null,
+  // Comida desplegada en las opciones del plan (índice o null = todas cerradas).
+  coachOptOpen: null,
 
   coachTpls: [],
 
