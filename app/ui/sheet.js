@@ -9,6 +9,14 @@ export const SheetState = {
 
 };
 
+// De dónde sale cada alimento de la base genérica (src en foods.js).
+const SRC_TXT = {
+  S: "tabla oficial del Ministerio de Salud de la Nación (SARA 2)",
+  A: "tabla argentina de composición de alimentos (Argenfoods, UNLu)",
+  R: "rótulo o información oficial de la marca en Argentina",
+  OFF: "Open Food Facts (rótulo del producto)",
+};
+
 export function renderSheet(){
   let title, grams, base, isEdit;
   const sf = ComidaState.selectedFood;
@@ -41,6 +49,7 @@ export function renderSheet(){
         <button class="ctrl ghost" data-action="portion-cancel">Cancelar</button>
         <button class="ctrl primary" data-action="${isEdit?'portion-save':'portion-add'}">${isEdit?'Guardar':'Agregar'}</button>
       </div>
+      ${sf && SRC_TXT[sf.src] ? `<div class="sheet-src">Fuente: ${SRC_TXT[sf.src]}</div>` : ""}
       ${sf && sf.src==="GIZE" && sf.gid ? `<div class="sheet-src">${sf.verified?'<b>✓ Verificado por GIZE</b>':'Cargado por la comunidad de GIZE'} · <button class="sheet-report" data-action="prod-report">¿Algún dato está mal?</button></div>` : ""}
     </div>`;
 }
