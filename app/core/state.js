@@ -60,6 +60,11 @@ if (!Array.isArray(state.foods)) state.foods = [];
 // el dispositivo para encontrarlos rápido y sin internet la próxima vez.
 if (!Array.isArray(state.offRecent)) state.offRecent = [];
 
+// Buscador de Comida con la búsqueda vacía: los últimos alimentos elegidos al buscar
+// (recentSearch, 5) y los últimos que se anotaron (recentFoods, con los gramos de esa vez).
+if (!Array.isArray(state.recentSearch)) state.recentSearch = [];
+if (!Array.isArray(state.recentFoods)) state.recentFoods = [];
+
 // Calorías totales de cada día pasado ({ "2026-09-22": 1850, … }), para el promedio de
 // 7 días en Comida. Se llena al pasar de día y con lo que hay en la nube.
 if (!state.kcalLog || typeof state.kcalLog !== "object") state.kcalLog = {};
