@@ -3,13 +3,11 @@
 import sys, os, io, subprocess
 import numpy as np
 import cairosvg
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageChops
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'reel-atleta'))
-sys.path.insert(0, os.path.join(HERE, '..', 'triptico-energize'))
 import reel as R
 from reel import W, H, FPS, TEXT, TEXT2, BLUE, GAMA, ease_out, ease_io, fade
-import bigger
 import importlib.util
 _s = importlib.util.spec_from_file_location('reel6', os.path.join(HERE, '..', 'reel-ios', 'reel.py'))
 R6 = importlib.util.module_from_spec(_s)
@@ -23,7 +21,7 @@ BORDER = (40, 45, 58)
 def icon(name, size):
     svg = open(os.path.join(HERE, name + '.svg')).read().replace('<path ', '<path fill="#FFFFFF" ')
     return Image.open(io.BytesIO(cairosvg.svg2png(bytestring=svg.encode(), output_width=size, output_height=size))).convert('RGBA')
-APPLE, ANDROID = icon('apple', 64), icon('android', 64)
+APPLE, ANDROID = icon('apple', 70), icon('android', 70)
 FIRMA = R.svg('gize-firma-horizontal.svg', 420)
 
 def gama_color(t):
@@ -33,6 +31,54 @@ def gama_color(t):
 def kicker(c, text, y, a):
     lay = Image.new('RGBA', (W, 60), (0, 0, 0, 0)); d = ImageDraw.Draw(lay); fk = R.F_MONO(34)
     d.text(((W - d.textlength(text, font=fk)) / 2, 6), text, font=fk, fill=BLUE)
+    c.alpha_composite(fade(lay, a), (0, int(y + (1 - a) * 16)))
+
+# ---------- neón (mismo tubo que el 14 del comienzo, con caja a medida y supersampleo) ----------
+_neon = {}
+def neon(text, size, box=None, stroke=11):
+    key = (text, size, box)
+    if key in _neon: return _neon[key]
+    SS = 3; font = R.F_H(size * SS); P = 90
+    d = ImageDraw.Draw(Image.new('L', (1, 1)))
+    l, t, r, b = d.textbbox((0, 0), box or text, font=font)
+    w, h = (r - l) // SS + 2 * P, (b - t) // SS + 2 * P
+    tw, tw0 = d.textlength(text, font=font), d.textlength(box or text, font=font)
+    big = Image.new('L', (w * SS, h * SS), 0)
+    ImageDraw.Draw(big).text((P * SS - l + (tw0 - tw) / 2, P * SS - t), text, font=font, fill=255)
+    inner_big = big.filter(ImageFilter.MinFilter(stroke * SS | 1))
+    alpha = big.resize((w, h), Image.LANCZOS)
+    inner = inner_big.resize((w, h), Image.LANCZOS)
+    edge = ImageChops.subtract(alpha, inner)
+    col = Image.fromarray(R6.gama_h(w, h, GAMA[:3]).astype(np.uint8))
+    out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    g = col.convert('RGBA'); g.putalpha(edge.filter(ImageFilter.GaussianBlur(22)).point(lambda v: min(255, int(v * 2.6))))
+    g2 = col.convert('RGBA'); g2.putalpha(edge.filter(ImageFilter.GaussianBlur(6)).point(lambda v: min(255, int(v * 1.6))))
+    fl = col.convert('RGBA'); fl.putalpha(inner.point(lambda v: int(v * .10)))
+    tube = col.convert('RGBA'); tube.putalpha(edge)
+    core = Image.new('RGBA', (w, h), (255, 255, 255, 0))
+    core.putalpha(edge.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(.8)).point(lambda v: int(v * .8)))
+    for L in (g, g2, fl, tube, core): out.alpha_composite(L)
+    _neon[key] = (out, P)
+    return _neon[key]
+
+def put_neon(c, text, base_y, size, a=1.0, box=None, stroke=11):
+    """Neón centrado con la base del texto en base_y y su reflejo abajo."""
+    im, P = neon(text, size, box, stroke)
+    x, y = (W - im.width) // 2, base_y - (im.height - P)
+    c.alpha_composite(fade(im, a), (x, y))
+    ref = im.transpose(Image.FLIP_TOP_BOTTOM).crop((0, P, im.width, P + 150)).filter(ImageFilter.GaussianBlur(5))
+    fa = np.linspace(.20, 0, 150)[:, None] * np.asarray(ref.getchannel('A'), np.float32) * a
+    ref.putalpha(Image.fromarray(fa.astype(np.uint8)))
+    c.alpha_composite(ref, (x, base_y + 10))
+
+def kicker_lines(c, text, y, a):
+    """Rótulo en mono con dos filetes finos a los lados, como en el comienzo."""
+    fk = R.F_MONO(34); d = ImageDraw.Draw(c); tw = d.textlength(text, font=fk)
+    lay = Image.new('RGBA', (W, 60), (0, 0, 0, 0)); ld = ImageDraw.Draw(lay)
+    ld.text(((W - tw) / 2, 6), text, font=fk, fill=BLUE)
+    L = int(60 * a)
+    ld.line(((W - tw) / 2 - 28 - L, 28, (W - tw) / 2 - 28, 28), fill=BLUE + (150,), width=2)
+    ld.line(((W + tw) / 2 + 28, 28, (W + tw) / 2 + 28 + L, 28), fill=BLUE + (150,), width=2)
     c.alpha_composite(fade(lay, a), (0, int(y + (1 - a) * 16)))
 
 # ---------- A · coaches: 14 días que se prenden uno por uno ----------
@@ -72,54 +118,44 @@ def grid(c, f):
 
 def scene_a(f):
     c = R.aurora(f / FPS + 20, strength=.26, cy=.42).convert('RGBA')
-    kicker(c, 'SI SOS COACH', 540, ease_out((f - 2) / 12))
+    kicker_lines(c, 'SI SOS COACH', 540, ease_out((f - 2) / 12))
     grid(c, f)
     lit = int(np.clip((f - LIT0) // STEP + 1, 0, 14))
     if lit > 0:
         flick = 1.0 if lit < 14 else [.5, 1, .6, 1][min((f - (LIT0 + 13 * STEP)) // 2, 3)]
-        R6.put_neon(c, str(lit), 1210, 1.0, size=300, flicker=flick)
+        put_neon(c, str(lit), 1200, 300, flick, box='14')
     a = ease_out((f - 60) / 14)
-    if a > 0: R6.centered(c, 'días de prueba gratis', R.F_H(78), 1270 + (1 - a) * 18, TEXT, a)
+    if a > 0: R6.centered(c, 'días de prueba gratis', R.F_H(84), 1262 + (1 - a) * 18, TEXT, a)
     a = ease_out((f - 72) / 14)
-    if a > 0: R6.centered(c, 'Sin tarjeta. Probás todo con tus alumnos.', R.F_S(40), 1380 + (1 - a) * 14, TEXT2, a)
+    if a > 0: R6.centered(c, 'Sin tarjeta. Probás todo con tus alumnos.', R.F_M(40), 1374 + (1 - a) * 14, (196, 202, 212), a)
     return c
 
 # ---------- B · sin coach: gratis en las tiendas ----------
-def gratis_layer():
-    m, _ = bigger.word_mask('GRATIS', 200)
-    P = 80
-    a = Image.new('L', (m.width + 2 * P, m.height + 2 * P), 0); a.paste(m, (P, P))
-    col = Image.fromarray(R6.gama_h(a.width, a.height, GAMA[:3]).astype(np.uint8)).convert('RGBA')
-    out = Image.new('RGBA', a.size, (0, 0, 0, 0))
-    g = col.copy(); g.putalpha(a.filter(ImageFilter.GaussianBlur(28)).point(lambda v: int(v * .8))); out.alpha_composite(g)
-    t = col.copy(); t.putalpha(a); out.alpha_composite(t)
-    return out
-GRATIS = gratis_layer()
-
-STORES = [(APPLE, 'App Store', 'desde el 29.09'), (ANDROID, 'Google Play', 'desde el 10.10')]
+STORES = [(APPLE, 'App Store', 'DESDE 29.09'), (ANDROID, 'Google Play', 'DESDE 10.10')]
 def store_badge(ic, name, when):
-    bw, bh = 420, 150
+    bw, bh = 440, 166
     lay = Image.new('RGBA', (bw, bh), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
     d.rounded_rectangle((1, 1, bw - 2, bh - 2), 34, fill=(14, 17, 24, 235), outline=(70, 78, 96, 255), width=2)
     lay.alpha_composite(ic, (34, (bh - ic.height) // 2))
-    d.text((122, 30), name, font=R.F_H(46), fill=TEXT)
-    d.text((124, 88), when, font=R.F_MONO(24), fill=BLUE)
+    d.text((128, 30), name, font=R.F_H(50), fill=TEXT)
+    d.text((130, 98), when, font=R.F_MONO(28), fill=BLUE)
     return lay
 BADGES = [store_badge(*s) for s in STORES]
 
 def scene_b(f):
     c = R.aurora(f / FPS + 60, strength=.28, cy=.45).convert('RGBA')
-    kicker(c, '¿ENTRENÁS SIN COACH?', 540, ease_out((f - 2) / 12))
-    k = ease_out((f - 10) / 12); s = 1.25 - .25 * k
-    g = GRATIS.resize((int(GRATIS.width * s), int(GRATIS.height * s)), Image.LANCZOS)
-    if k > 0: c.alpha_composite(fade(g, min(1, k * 1.5)), ((W - g.width) // 2, 740 - (g.height - GRATIS.height) // 2))
+    kicker_lines(c, 'SIN COACH', 540, ease_out((f - 2) / 12))
+    k = f - 8
+    if k >= 0:
+        flick = [0, .6, 0, .3, 1, .5, 1][k // 2] if k < 14 else 1.0
+        put_neon(c, 'gratis', 960, 250, flick, stroke=10)
     a = ease_out((f - 26) / 14)
-    if a > 0: R6.centered(c, 'La app es gratis para vos.', R.F_H(64), 1080 + (1 - a) * 16, TEXT, a)
+    if a > 0: R6.centered(c, 'La app es tuya, sin pagar nada.', R.F_H(62), 1092 + (1 - a) * 16, TEXT, a)
     for i, b in enumerate(BADGES):
         a = ease_out((f - 40 - i * 6) / 12)
         if a <= 0: continue
-        x = [W // 2 - b.width - 16, W // 2 + 16][i]
-        c.alpha_composite(fade(b, a), (x, int(1230 + (1 - a) * 30)))
+        x = [W // 2 - b.width - 14, W // 2 + 14][i]
+        c.alpha_composite(fade(b, a), (x, int(1234 + (1 - a) * 30)))
     return c
 
 # ---------- C · firma ----------
@@ -134,6 +170,8 @@ def scene_c(f):
     if a > 0: R6.centered(c, 'gize.ar', R.F_MONO(44), 1060 + (1 - a) * 12, TEXT, a)
     return c
 
+GRAIN = np.random.default_rng(7).uniform(-1, 1, (H, W, 1)).astype(np.float32)
+
 def frame(f):
     if f < A_END: img = scene_a(f).convert('RGB')
     elif f < B_START: img = R.wipe(scene_a(f), scene_b(f - A_END), ease_io((f - A_END) / (B_START - A_END)))
@@ -141,12 +179,13 @@ def frame(f):
     elif f < C_START + 8: img = R.wipe(scene_b(f - A_END), scene_c(f - C_START), ease_io((f - C_START) / 8))
     else: img = scene_c(f - C_START).convert('RGB')
     out = 1 - ease_io((f - (N - 10)) / 10)
-    if out < 1: img = Image.fromarray((np.asarray(img).astype(np.float32) * out).astype(np.uint8))
-    return img
+    a = np.asarray(img).astype(np.float32) * out
+    a += GRAIN                                  # dither fijo: sin escalones en el degradé y sin inflar el archivo
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
 
 def main(out):
     ff = subprocess.Popen(['ffmpeg', '-y', '-v', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-',
-                           '-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-pix_fmt', 'yuv420p', '-profile:v', 'high',
+                           '-c:v', 'libx264', '-preset', 'slow', '-crf', '14', '-x264-params', 'aq-mode=3', '-pix_fmt', 'yuv420p', '-profile:v', 'high',
                            '-movflags', '+faststart', out], stdin=subprocess.PIPE)
     for f in range(N):
         ff.stdin.write(frame(f).tobytes())
