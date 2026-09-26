@@ -119,47 +119,48 @@ export function habitsEditor(p){
   return rows+'<button class="pl-add" data-coach="pl-habitadd">+ Agregar hábito</button>';
 }
 
+// Plan nutricional en secciones, como la ficha del alumno: un menú de tarjetas y cada una
+// abre su editor. Lo que se va cargando queda en CoachState.coachPlanForm aunque se cambie de
+// sección, y se guarda todo junto con «Guardar plan nutricional».
 export function renderCoachPlan(d){
   const p = coachPlanObj(d);
-  const restOpen = !!CoachState.coachPlanRestOpen;
-  const hasRest = (p.restDays||[]).length>0;
   const card=(title, body, extra)=>'<div class="ci-card plan-edit"><div class="pl-sub-row"><div class="pl-sub">'+title+'</div>'+(extra||"")+'</div>'+body+'</div>';
-
-  return '<div class="co-page-title">Plan nutricional</div>'+
-
-    card("Días de entrenamiento — reparto de comidas", mealRows(p,"trainDays"))+
-
-    card("Días de descanso — reparto de comidas",
-      restOpen ? mealRows(p,"restDays") : '',
-      '<button class="pl-toggle" data-coach="pl-rest-toggle">'+(restOpen?"Ocultar":(hasRest?"Mostrar":"Sin configurar"))+' '+(restOpen?"▾":"▸")+'</button>')+
-
-    card("Hidratación",
+  const tot=k=>{ let t=0; (p[k]||[]).forEach(r=>{ t+=+r.kcal||0; }); return t; };
+  const meals=k=>{ const n=(p[k]||[]).length, t=tot(k); return n ? n+" comida"+(n===1?"":"s")+(t?" · "+t+" kcal":"") : "Sin cargar"; };
+  const cnt=(n,one,many)=>n+" "+(n===1?one:many);
+  const SECS=[
+    ["train","Días de entrenamiento", ()=>card("Reparto de comidas", mealRows(p,"trainDays")), ()=>meals("trainDays")],
+    ["rest","Días de descanso", ()=>card("Reparto de comidas", mealRows(p,"restDays")), ()=>meals("restDays")],
+    ["agua","Hidratación", ()=>card("Hidratación",
       '<div class="ci-grid-2">'+
         '<div class="ci-f"><label>Agua por día (litros)</label><input class="co-note" data-coach="pl-water" value="'+esc(p.water||"")+'" placeholder=""></div>'+
         '<div class="ci-f"><label>Sal por día (g)</label><input class="co-note" data-coach="pl-salt" value="'+esc(p.salt||"")+'" placeholder=""></div>'+
-      '</div>')+
-
-    card("Indicaciones",
+      '</div>'), ()=>[p.water?p.water+" L de agua":"", p.salt?p.salt+" g de sal":""].filter(Boolean).join(" · ")||"Sin cargar"],
+    ["ind","Indicaciones", ()=>card("Indicaciones",
       '<div class="ci-grid-2">'+
         '<div>'+listEditor(p,"guidelines","Pautas nutricionales","")+'</div>'+
         '<div>'+listEditor(p,"supps","Suplementos recomendados","")+'</div>'+
-      '</div>')+
-
-    card("Personalización del menú",
+      '</div>'), ()=>{ const g=(p.guidelines||[]).length, sp=(p.supps||[]).length; return g||sp ? [g?cnt(g,"pauta","pautas"):"", sp?cnt(sp,"suplemento","suplementos"):""].filter(Boolean).join(" · ") : "Sin cargar"; }],
+    ["menu","Personalización del menú", ()=>card("Personalización del menú",
       optionsEditor(p)+
       '<div class="pl-divider"></div>'+
       '<div class="ci-grid-2">'+
         '<div>'+listEditor(p,"extras","Adicionales (aderezos, condimentos permitidos)","")+'</div>'+
         '<div>'+swapsEditor(p)+'</div>'+
-      '</div>')+
-
-    card("Cardio prescripto",
+      '</div>'), ()=>{ const o=(p.options||[]); return o.length ? o.map(x=>x.title||"Sección").slice(0,3).join(", ")+(o.length>3?"…":"") : "Sin opciones"; }],
+    ["cardio","Cardio prescripto", ()=>card("Cardio prescripto",
       '<div class="co-note-wrap" style="margin-top:0"><span class="co-note-lbl">Indicación general de cardio</span><input class="co-note" data-coach="pl-cardiotext" value="'+esc((p.cardio&&p.cardio.text)||"")+'" placeholder=""></div>'+
-      cardioItemsEditor(p))+
-
-    card("Hábitos diarios (checklist del cliente)", habitsEditor(p))+
-
-    '<button class="co-save-rt" data-coach="plan-save">Guardar plan nutricional</button>';
+      cardioItemsEditor(p)), ()=>(p.cardio&&p.cardio.text)||((p.cardio&&p.cardio.items||[]).length?cnt(p.cardio.items.length,"sesión","sesiones"):"Sin cargar")],
+    ["habitos","Hábitos diarios", ()=>card("Checklist del cliente", habitsEditor(p)), ()=>{ const n=Array.isArray(p.habits)?p.habits.length:0; return n?cnt(n,"hábito","hábitos"):"Sin cargar"; }],
+  ];
+  const save='<button class="co-save-rt" data-coach="plan-save">Guardar plan nutricional</button>';
+  const cur=SECS.find(x=>x[0]===CoachState.coachPlanSec);
+  if(cur){
+    return '<div class="form-head co-sec-head"><button class="form-back" data-coach="plsec-close" aria-label="Volver al plan">‹</button><div class="form-title">'+cur[1]+'</div></div>'+cur[2]()+save;
+  }
+  return '<div class="co-page-title">Plan nutricional</div>'+
+    '<div class="ptiles co-ptiles">'+SECS.map(x=>'<button class="ptile" data-coach="plsec-open" data-v="'+x[0]+'"><span class="ptile-t">'+x[1]+'</span><span class="ptile-s">'+esc(String(x[3]()))+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+
+    save;
 }
 
 export function renderCoachBlock(d){
