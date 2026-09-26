@@ -104,7 +104,7 @@ function planCards(b){
     : '<div class="pl-fine pl-mail-line">Pagás con la cuenta de Mercado Pago de <b>' + esc(mail) + '</b> · <button class="pl-link" data-plan="mail-edit">¿Otro mail?</button></div>';
   return '<div class="pl-cards">' + cards + '</div>' + '<div class="pl-mp">' + mpBadge + '</div>' + mailBox +
     '<div class="pl-fine">Se cobra una vez por mes con tarjeta o dinero en cuenta, y lo podés cancelar cuando quieras.</div>' +
-    '<div class="pl-fine">¿Más de 100 alumnos? <a class="pl-link" href="mailto:jeronimoperpi@gmail.com?subject=GIZE%20para%20mi%20gimnasio">Escribinos</a> y armamos un plan a medida.</div>';
+    '<div class="pl-fine">¿Más de 100 alumnos? <a class="pl-link" href="mailto:contacto@gize.ar?subject=GIZE%20para%20mi%20gimnasio">Escribinos</a> y armamos un plan a medida.</div>';
 }
 
 function statusLine(b){
