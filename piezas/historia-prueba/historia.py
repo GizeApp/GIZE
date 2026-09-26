@@ -15,7 +15,7 @@ _argv, sys.argv = sys.argv, sys.argv[:1]          # ese módulo lee la fecha de 
 _s.loader.exec_module(R6); sys.argv = _argv         # neón, filete y texto centrado
 
 N = 10 * FPS
-A_END, B_START, C_START = 138, 150, 258          # coaches · sin coach · firma
+B_END, A_START, C_START = 120, 132, 258          # gratis para todos · coaches · firma
 BORDER = (40, 45, 58)
 
 def icon(name, size):
@@ -81,7 +81,7 @@ def kicker_lines(c, text, y, a):
     ld.line(((W + tw) / 2 + 28, 28, (W + tw) / 2 + 28 + L, 28), fill=BLUE + (150,), width=2)
     c.alpha_composite(fade(lay, a), (0, int(y + (1 - a) * 16)))
 
-# ---------- A · coaches: 14 días que se prenden uno por uno ----------
+# ---------- 2 · coaches: 14 días que se prenden uno por uno ----------
 CELL, GAP, COLS = 100, 18, 7
 GX = (W - (COLS * CELL + (COLS - 1) * GAP)) // 2
 GY = 660
@@ -118,7 +118,7 @@ def grid(c, f):
 
 def scene_a(f):
     c = R.aurora(f / FPS + 20, strength=.26, cy=.42).convert('RGBA')
-    kicker_lines(c, 'SI SOS COACH', 540, ease_out((f - 2) / 12))
+    kicker_lines(c, '¿SOS COACH?', 540, ease_out((f - 2) / 12))
     grid(c, f)
     lit = int(np.clip((f - LIT0) // STEP + 1, 0, 14))
     if lit > 0:
@@ -130,7 +130,7 @@ def scene_a(f):
     if a > 0: R6.centered(c, 'Sin tarjeta. Probás todo con tus alumnos.', R.F_M(40), 1374 + (1 - a) * 14, (196, 202, 212), a)
     return c
 
-# ---------- B · sin coach: gratis en las tiendas ----------
+# ---------- 1 · para todos: gratis en las tiendas ----------
 STORES = [(APPLE, 'App Store', 'DESDE 29.09'), (ANDROID, 'Google Play', 'DESDE 10.10')]
 def store_badge(ic, name, when):
     bw, bh = 440, 166
@@ -144,13 +144,13 @@ BADGES = [store_badge(*s) for s in STORES]
 
 def scene_b(f):
     c = R.aurora(f / FPS + 60, strength=.28, cy=.45).convert('RGBA')
-    kicker_lines(c, 'SIN COACH', 540, ease_out((f - 2) / 12))
+    kicker_lines(c, 'PARA TODOS', 540, ease_out((f - 2) / 12))
     k = f - 8
     if k >= 0:
         flick = [0, .6, 0, .3, 1, .5, 1][k // 2] if k < 14 else 1.0
         put_neon(c, 'gratis', 960, 250, flick, stroke=10)
     a = ease_out((f - 26) / 14)
-    if a > 0: R6.centered(c, 'La app es tuya, sin pagar nada.', R.F_H(62), 1092 + (1 - a) * 16, TEXT, a)
+    if a > 0: R6.centered(c, 'En iPhone y en Android.', R.F_H(62), 1092 + (1 - a) * 16, TEXT, a)
     for i, b in enumerate(BADGES):
         a = ease_out((f - 40 - i * 6) / 12)
         if a <= 0: continue
@@ -173,10 +173,10 @@ def scene_c(f):
 GRAIN = np.random.default_rng(7).uniform(-1, 1, (H, W, 1)).astype(np.float32)
 
 def frame(f):
-    if f < A_END: img = scene_a(f).convert('RGB')
-    elif f < B_START: img = R.wipe(scene_a(f), scene_b(f - A_END), ease_io((f - A_END) / (B_START - A_END)))
-    elif f < C_START: img = scene_b(f - A_END).convert('RGB')
-    elif f < C_START + 8: img = R.wipe(scene_b(f - A_END), scene_c(f - C_START), ease_io((f - C_START) / 8))
+    if f < B_END: img = scene_b(f).convert('RGB')
+    elif f < A_START: img = R.wipe(scene_b(f), scene_a(f - B_END), ease_io((f - B_END) / (A_START - B_END)))
+    elif f < C_START: img = scene_a(f - B_END).convert('RGB')
+    elif f < C_START + 8: img = R.wipe(scene_a(f - B_END), scene_c(f - C_START), ease_io((f - C_START) / 8))
     else: img = scene_c(f - C_START).convert('RGB')
     out = 1 - ease_io((f - (N - 10)) / 10)
     a = np.asarray(img).astype(np.float32) * out
