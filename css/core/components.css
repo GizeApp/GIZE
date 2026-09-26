@@ -596,3 +596,18 @@
   .set .goal { padding: 3px 4px; }
   .set .rm { padding: 2px; }
 }
+
+/* Historial del coach: este entreno al lado de la vez pasada, con la diferencia en color. */
+.sc-row { display: grid; grid-template-columns: 22px minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr); align-items: center; gap: 8px; padding: 5px 0; font-variant-numeric: tabular-nums; }
+.sc-head { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--txt-3); padding-bottom: 2px; }
+.sc-now { font-weight: 800; color: var(--gize-text); }
+.sc-now i { font-style: normal; font-weight: 500; color: var(--txt-3); }
+.sc-prev { color: var(--txt-3); font-weight: 500; }
+.sc-d { display: flex; flex-wrap: wrap; gap: 4px; }
+.sc-d b { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.sc-d b.up { color: var(--gize-success); background: color-mix(in srgb, var(--gize-success) 14%, transparent); }
+.sc-d b.down { color: var(--gize-danger); background: color-mix(in srgb, var(--gize-danger) 14%, transparent); }
+.sc-d b.eq { color: var(--txt-3); background: var(--card-2); }
+.sc-ex .sd-ex-meta { font-family: inherit; }
+.sc-now, .sc-prev { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+@media (max-width: 460px) { .sc-row { gap: 6px; grid-template-columns: 20px minmax(0,1.15fr) minmax(0,1fr) auto; } .sc-now, .sc-prev { font-size: 13px; } .sc-d b { padding: 2px 4px; } }
