@@ -154,7 +154,7 @@ export function diaryTotals(){ return state.diary.reduce((a,e)=>({kcal:a.kcal+e.
 
 export function renderResults(q){
   const nq = norm(q);
-  if(!nq) return '<div class="cal-hint">Escribí para buscar un alimento</div>';
+  if(!nq) return renderRecents();
   // Orden: mis alimentos, los productos de marca que ya usé (Open Food Facts) y la base.
   const all = (state.foods||[]).concat(state.offRecent||[], FOODS);
   // Primero los que empiezan con lo buscado, después los que tienen una palabra que
@@ -167,6 +167,21 @@ export function renderResults(q){
   const local = lastResults.length ? lastResults.map((f,i)=>foodRow(f, "food-pick", i)).join("")
     : (nq.length < 3 ? '<div class="cal-hint">Sin resultados en la base. Probá crear el alimento 👇</div>' : '');
   return local + '<div id="offResults">'+renderOffResults()+'</div>';
+}
+
+// Sin nada escrito: «Búsquedas recientes» (los últimos 5 alimentos que eligió buscando) y
+// «Comidas recientes» (lo último que anotó, sin repetir). Tocar uno abre la porción con los
+// gramos de la última vez.
+function renderRecents(){
+  const same = (a, b) => a.name === b.name && (a.code || "") === (b.code || "");
+  // Si también lo anotó, se usa esa copia (trae los gramos de la última vez).
+  const searched = (state.recentSearch || []).slice(0, 5).map(f => (state.recentFoods || []).find(r => same(r, f)) || f);
+  const recent = (state.recentFoods || []).filter(f => !searched.some(s => same(s, f))).slice(0, 10);
+  lastResults = searched.concat(recent);
+  if (!lastResults.length) return '<div class="cal-hint">Escribí para buscar un alimento</div>';
+  let i = 0;
+  const block = (title, list) => list.length ? '<div class="rs-head">' + title + '</div>' + list.map(f => foodRow(f, "food-pick", i++)).join("") : "";
+  return block("Búsquedas recientes", searched) + block("Comidas recientes", recent);
 }
 
 function foodRow(f, action, i){

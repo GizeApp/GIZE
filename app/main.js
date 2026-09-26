@@ -12,7 +12,7 @@ import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
 import { afterLogin, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, mergeLocalProgress, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
 
-import { fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, parseSecs, tabRipple, today, uid } from './core/utils.js';
+import { fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, norm, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
 import { runningSetId, startTimer, stopTimer } from './ui/settimer.js';
 
@@ -367,11 +367,17 @@ document.body.addEventListener("click", async e => {
     reportShared(f.gid, why).then(ok=>alert(ok?"Gracias, lo vamos a revisar.":"No se pudo enviar el reporte. Probá de nuevo más tarde."));
     return;
   }
-  if (a === "off-pick") { SheetState.sheetGen++; ComidaState.selectedFood = offResults[parseInt(el.dataset.idx)]; ComidaState.cookState = null; ComidaState.sheetGrams = null; renderApp(); return; }
+  if (a === "off-pick") { SheetState.sheetGen++; ComidaState.selectedFood = offResults[parseInt(el.dataset.idx)]; ComidaState.cookState = null; ComidaState.sheetGrams = null; rememberSearch(ComidaState.selectedFood); renderApp(); return; }
   if (a === "scan-open") { openScanner(onScannedCode); return; }
   if (a === "scan-close") { closeScanner(); return; }
   if (a === "scan-manual") { scannerManualCode(); return; }
-  if (a === "food-pick") { SheetState.sheetGen++; ComidaState.selectedFood = lastResults[parseInt(el.dataset.idx)]; ComidaState.cookState = defaultCookState(ComidaState.selectedFood); ComidaState.sheetGrams = null; renderApp(); return; }
+  if (a === "food-pick") {
+    SheetState.sheetGen++; const f=lastResults[parseInt(el.dataset.idx)]; ComidaState.selectedFood = f;
+    ComidaState.cookState = f && f.lastCook ? f.lastCook : defaultCookState(f);
+    // Desde recientes se abre con los gramos de la última vez.
+    ComidaState.sheetGrams = f && f.lastGrams && !norm(ComidaState.foodQuery||"") ? String(f.lastGrams) : null;
+    rememberSearch(f); renderApp(); return;
+  }
   // Crudo / cocido: si el cliente no tocó los gramos se pasa a la porción sugerida en el
   // otro estado; si ya escribió cuánto pesó, se respeta ese número.
   if (a === "portion-cook") {
@@ -421,7 +427,7 @@ document.body.addEventListener("click", async e => {
     const f0 = ComidaState.selectedFood; if(!f0){ return; } const fc = g/100;
     // Con crudo/cocido se guardan los valores del estado elegido y queda en el nombre.
     const f = selectedFoodValues(); if(f0.cook) rememberCookState(f0, ComidaState.cookState);
-    rememberOffProduct(f0);
+    rememberOffProduct(f0); rememberRecent(f0, roundG(g), f0.cook ? ComidaState.cookState : null);
     // Base compartida: sube en la búsqueda si ya estaba; si vino de Open Food Facts, queda guardado.
     if(f0.src==="GIZE" && f0.gid) useShared(f0.gid); else if(f0.src==="OFF" && f0.code) saveShared(f0, f0.code, "off");
     curDiary().push({ id:newId(), meal:ComidaState.sheetMeal||ComidaState.meal||mealNow(), name:f0.name+(f0.cook?" ("+ComidaState.cookState+")":""), grams:roundG(g), kcal:Math.round(f.kcal*fc), p:+(f.p*fc).toFixed(1), c:+(f.c*fc).toFixed(1), f:+(f.f*fc).toFixed(1), unit:f.unit||"g", base:{kcal:f.kcal,p:f.p,c:f.c,f:f.f,unit:f.unit||"g"} });
@@ -1207,6 +1213,20 @@ function scheduleOffSearch(q){
     }
     paintOff();
   }, 450);
+}
+
+// Buscador de Comida: lo último que eligió buscando (5) y lo último que anotó (30), el más
+// reciente primero y sin repetir. Se guardan copias sin los datos de la vez anterior.
+const sameFood = (a, b) => a && b && a.name === b.name && (a.code || "") === (b.code || "");
+const foodCopy = f => { const o = Object.assign({}, f); delete o.lastGrams; delete o.lastCook; return o; };
+function rememberSearch(f){
+  if(!f || !norm(ComidaState.foodQuery||"")) return;
+  state.recentSearch = [foodCopy(f)].concat((state.recentSearch||[]).filter(x => !sameFood(x, f))).slice(0, 5);
+  save();
+}
+function rememberRecent(f, grams, cook){
+  const o = foodCopy(f); o.lastGrams = grams; if(cook) o.lastCook = cook;
+  state.recentFoods = [o].concat((state.recentFoods||[]).filter(x => !sameFood(x, f))).slice(0, 30);
 }
 
 // Producto de marca agregado al diario → queda guardado en el dispositivo para
