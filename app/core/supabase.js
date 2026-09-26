@@ -1,3 +1,4 @@
+import { mergeVisits } from '../ui/racha.js';
 import { DAILY_COLUMNS } from './questions.js';
 
 import { syncPush } from './push.js';
@@ -604,6 +605,8 @@ export async function loadCloud(){
     // (water_ml lo escribe siempre la app); si no, se conserva lo local y se sube.
     _lastDay=null;
     const todayRow=(!dl.error && Array.isArray(dl.data)) ? dl.data.find(r=>r.log_date===today()) : null;
+    // Racha: los días que la app abrió con esta cuenta (también desde otros celulares).
+    if(!dl.error && Array.isArray(dl.data)) mergeVisits(dl.data.map(r=>r.log_date));
     if(!fe.error && todayRow && todayRow.water_ml!=null){
       state.diaryDate=state.waterDate=state.stepsDate=state.habitsDate=today();
       state.water=todayRow.water_ml||0;

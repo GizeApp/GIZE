@@ -272,25 +272,41 @@ function renderCoachGoal(){
     </div>`;
 }
 
+// Estado de la lectura de la foto de la tabla (ver readLabel en core/etiqueta.js).
+export function ocrStatus(o){
+  if (!o) return "";
+  if (o.status === "loading") return '<span class="cf-spin" aria-hidden="true"></span>' + esc(o.msg || "Leyendo la etiqueta…");
+  if (o.status === "error") return "No pudimos leer la foto. Probá de nuevo o cargá los valores a mano.";
+  if (o.status === "none") return "No encontramos la tabla en la foto. Sacala más de cerca, derecha y con buena luz, o cargá los valores a mano.";
+  if (o.status === "portion") return "Leímos los valores por porción, pero no el tamaño de la porción: escribilo abajo y calculamos el resto.";
+  if (o.status === "ok") return "✓ Completamos los valores con la foto. Revisá que coincidan con la etiqueta.";
+  return "Leímos parte de la tabla. Revisá los números marcados y completá lo que falta.";
+}
+
 export function renderFoodForm(){
   const f = ComidaState.foodForm;
+  const u = (f.unit||"g")==="ml" ? "ml" : "g";
   const ub=(v,l)=>`<button class="${(f.unit||"g")===v?'on':''}" data-action="cf-unit" data-val="${v}">${l}</button>`;
+  const filled = k => f.ocrFilled && f.ocrFilled.indexOf(k) >= 0 ? " ocr" : "";
+  const o = f.ocr, oCls = !o ? "" : o.status === "ok" ? " ok" : o.status === "loading" ? " busy" : " warn";
   return `
     <div class="form-head"><button class="form-back" data-action="food-create-cancel">‹</button><div class="form-title">Crear alimento</div></div>
-    <div class="form-sub">Cargá los valores por cada 100 ${(f.unit||"g")==="ml"?"ml":"g"}.</div>
-    ${f.code ? `<div class="cf-code">Código de barras <b>${esc(f.code)}</b><span>Cuando lo guardes va a quedar disponible para todos los usuarios de GIZE. Copiá los valores de la tabla del paquete, cada 100 ${(f.unit||"g")==="ml"?"ml":"g"}.</span></div>` : ''}
+    <div class="form-sub">Cargá los valores por cada 100 ${u}, o sacale una foto a la tabla del paquete y los completamos.</div>
+    ${f.code ? `<div class="cf-code">Código de barras <b>${esc(f.code)}</b><span>Cuando lo guardes va a quedar disponible para todos los usuarios de GIZE. Revisá que los valores sean los de la tabla del paquete, cada 100 ${u}.</span></div>` : ''}
     <div class="form-group"><label class="form-label">Nombre</label><input class="form-input" type="text" value="${esc(f.name)}" data-action="cf-field" data-field="name" placeholder="${f.code?'Ej: Yogur firme frutilla':''}"></div>
-    ${f.code ? `<div class="form-group"><label class="form-label">Foto de la tabla nutricional</label>
+    <div class="form-group"><label class="form-label">Foto de la tabla nutricional${f.code ? '' : ' <span class="form-opt">(opcional)</span>'}</label>
       <label class="cf-photo${f.photoUrl?' has':''}">${f.photoUrl ? `<img src="${esc(f.photoUrl)}" alt="Foto de la tabla nutricional">` : ''}<span>${f.photoUrl ? 'Cambiar foto' : '📷 Sacar foto de la tabla'}</span><input type="file" accept="image/*" capture="environment" data-action="cf-photo" hidden></label>
-      <div class="cf-photo-h">Es obligatoria: sirve para revisar que los datos estén bien.</div></div>` : ''}
+      <div class="cf-ocr${oCls}" id="cfOcr" role="status" aria-live="polite">${ocrStatus(o)}</div>
+      ${f.code && !o ? '<div class="cf-photo-h">Es obligatoria: la leemos para completar los valores y sirve para revisar que estén bien.</div>' : ''}</div>
     ${f.code ? `<div class="form-group"><label class="form-label">Marca</label><input class="form-input" type="text" value="${esc(f.brand||"")}" data-action="cf-field" data-field="brand" placeholder="Ej: La Serenísima"></div>` : ''}
     <div class="form-group"><label class="form-label">Se mide en</label><div class="seg">${ub("g","Gramos (sólido)")}${ub("ml","Mililitros (líquido)")}</div></div>
-    <div class="form-group"><label class="form-label">Calorías (kcal)</label><input class="form-input" type="text" inputmode="numeric" value="${esc(f.kcal)}" data-action="cf-field" data-field="kcal"></div>
+    <div class="form-group"><label class="form-label">Calorías (kcal) <span class="form-opt">cada 100 ${u}</span></label><input id="cf_kcal" class="form-input${filled("kcal")}" type="text" inputmode="numeric" value="${esc(f.kcal)}" data-action="cf-field" data-field="kcal"></div>
     <div class="form-row2">
-      <div class="form-group"><label class="form-label">Proteína (g)</label><input class="form-input" type="text" inputmode="decimal" value="${esc(f.p)}" data-action="cf-field" data-field="p"></div>
-      <div class="form-group"><label class="form-label">Carbos (g)</label><input class="form-input" type="text" inputmode="decimal" value="${esc(f.c)}" data-action="cf-field" data-field="c"></div>
-      <div class="form-group"><label class="form-label">Grasas (g)</label><input class="form-input" type="text" inputmode="decimal" value="${esc(f.f)}" data-action="cf-field" data-field="f"></div>
+      <div class="form-group"><label class="form-label">Proteína (g)</label><input id="cf_p" class="form-input${filled("p")}" type="text" inputmode="decimal" value="${esc(f.p)}" data-action="cf-field" data-field="p"></div>
+      <div class="form-group"><label class="form-label">Carbos (g)</label><input id="cf_c" class="form-input${filled("c")}" type="text" inputmode="decimal" value="${esc(f.c)}" data-action="cf-field" data-field="c"></div>
+      <div class="form-group"><label class="form-label">Grasas (g)</label><input id="cf_f" class="form-input${filled("f")}" type="text" inputmode="decimal" value="${esc(f.f)}" data-action="cf-field" data-field="f"></div>
     </div>
+    <div class="form-group"><label class="form-label">Porción <span class="form-opt">(${u}, opcional)</span></label><input id="cf_portion" class="form-input${filled("portion")}${o && o.status === "portion" ? " need" : ""}" type="text" inputmode="decimal" value="${esc(f.portion||"")}" data-action="cf-field" data-field="portion" placeholder="Ej: 30"></div>
     <button class="form-save" data-action="food-create-save">Guardar alimento</button>`;
 }
 
