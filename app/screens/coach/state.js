@@ -34,6 +34,8 @@ export const CoachState = {
   coachClientTab: "ficha",
   // Sección abierta de la ficha del alumno (null = menú de tarjetas).
   coachSec: null,
+  // Sección abierta del plan nutricional (null = menú).
+  coachPlanSec: null,
 
   coachTpls: [],
 

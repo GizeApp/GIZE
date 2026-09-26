@@ -839,7 +839,7 @@ document.body.addEventListener("click", async e => {
     }catch(err){ alert("No se pudo cambiar el código: "+((err&&err.message)||err)); }
     renderCoach(); return;
   }
-  if(a==="open"){ CoachState.coachClientTab="ficha"; CoachState.coachSec=null; openClient(b.dataset.id); return; }
+  if(a==="open"){ CoachState.coachClientTab="ficha"; CoachState.coachSec=null; CoachState.coachPlanSec=null; openClient(b.dataset.id); return; }
   if(a==="back"){ CoachState.coachSel=null; CoachState.coachData=null; renderCoach(); refreshCoachClients(); return; }
   if(a==="refresh"){ if(CoachState.coachSel) openClient(CoachState.coachSel); return; }
   if(a==="open-settings"){ CoachState.coachNameForm=null; CoachState.coachSettingsOpen=true; renderCoachSettings(); return; }
@@ -931,7 +931,9 @@ document.body.addEventListener("click", async e => {
     CoachState.coachTplEdit=null; CoachState.coachView="tpls"; renderCoach(); return;
   }
   if(!CoachState.coachData && !CoachState.coachTplEdit) return;
-  if(a==="client-tab"){ CoachState.coachClientTab=b.dataset.t; CoachState.coachSec=null; renderCoach(); return; }
+  if(a==="client-tab"){ CoachState.coachClientTab=b.dataset.t; CoachState.coachSec=null; CoachState.coachPlanSec=null; renderCoach(); return; }
+  if(a==="plsec-open"){ CoachState.coachPlanSec=b.dataset.v; renderCoach(); window.scrollTo(0,0); return; }
+  if(a==="plsec-close"){ CoachState.coachPlanSec=null; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="sec-open"){ CoachState.coachSec=b.dataset.v; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="sec-close"){ CoachState.coachSec=null; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="edit-day"){ CoachState.coachEditDay=+b.dataset.i||0; renderCoach(); return; }
@@ -1129,8 +1131,10 @@ document.body.addEventListener("input", async e => {
     const si=document.querySelector(".co-search"); if(si){ si.focus(); si.setSelectionRange(si.value.length, si.value.length); }
     return;
   }
-  if(!rtDays()) return;
-  const a=a0; const day=(rtDays()||[])[CoachState.coachEditDay]; if(!day) return;
+  // Sin rutina cargada igual se puede escribir la ficha, el bloque y el plan: solo lo de la
+  // rutina necesita un día.
+  const a=a0; const day=(rtDays()||[])[CoachState.coachEditDay];
+  if(!day && /^(rt-|day-)/.test(a)) return;
   if(a==="rt-name"){ if(day.exercises[+el.dataset.i]) day.exercises[+el.dataset.i].name=el.value; }
   else if(a==="day-name"){ day.name=el.value; }
   else if(a==="rt-target"){ const ex=day.exercises[+el.dataset.i]; const st=ex&&ex.sets[+el.dataset.j]; if(st){ const v=el.value.trim(); if(v) st.target=v; else delete st.target; } }
