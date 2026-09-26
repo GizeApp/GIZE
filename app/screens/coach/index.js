@@ -118,7 +118,7 @@ export function renderCoach(){
       const sessKey=se=>String(se.ts||se.date);
       const sessSel=sessSorted.some(se=>sessKey(se)===CoachState.coachSessSel) ? CoachState.coachSessSel : "";
       const sessOne=sessSorted.find(se=>sessKey(se)===sessSel);
-      const sess=sessSorted.length ? picker("sess-pick", sessSorted.map(se=>{ const n=(se.exercises||[]).reduce((t,e)=>t+(e.sets||[]).length,0); return {v:sessKey(se), t:fmtDate(se.date)+" · "+(se.day||"Entreno")+" ("+n+(n===1?" serie)":" series)")}; }), sessSel, "Entreno")+(sessOne?renderSessionItem(sessOne,{open:true}):"") : "";
+      const sess=sessSorted.length ? picker("sess-pick", sessSorted.map(se=>{ const n=(se.exercises||[]).reduce((t,e)=>t+(e.sets||[]).length,0); return {v:sessKey(se), t:fmtDate(se.date)+" · "+(se.day||"Entreno")+" ("+n+(n===1?" serie)":" series)")}; }), sessSel, "Entreno")+(sessOne?renderSessionItem(sessOne,{open:true, history:d.sessions}):"") : "";
       const vol=(d.routine&&d.routine.length)?renderVolumen(d.routine):'<div class="cal-hint">Sin rutina cargada.</div>';
       const tab=CoachState.coachClientTab||"ficha";
       const tabs='<div class="co-tabs">'+
