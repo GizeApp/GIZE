@@ -1087,8 +1087,9 @@ document.body.addEventListener("click", async e => {
   if(a==="pl-mealdel"){ const p=coachPlanObj(CoachState.coachData); p[b.dataset.key].splice(+b.dataset.i,1); renderCoach(); return; }
   if(a==="pl-listadd"){ const p=coachPlanObj(CoachState.coachData); (p[b.dataset.key]=p[b.dataset.key]||[]).push(""); renderCoach(); return; }
   if(a==="pl-listdel"){ const p=coachPlanObj(CoachState.coachData); p[b.dataset.key].splice(+b.dataset.i,1); renderCoach(); return; }
-  if(a==="pl-optsecadd"){ const p=coachPlanObj(CoachState.coachData); (p.options=p.options||[]).push({title:"",opts:[{label:"Opción A",body:""}]}); renderCoach(); return; }
-  if(a==="pl-optsecdel"){ const p=coachPlanObj(CoachState.coachData); p.options.splice(+b.dataset.i,1); renderCoach(); return; }
+  if(a==="pl-optsecadd"){ const p=coachPlanObj(CoachState.coachData); (p.options=p.options||[]).push({title:"",opts:[{label:"Opción A",body:""}]}); CoachState.coachOptOpen=p.options.length-1; renderCoach(); return; }
+  if(a==="pl-opttoggle"){ const i=+b.dataset.i; CoachState.coachOptOpen = CoachState.coachOptOpen===i ? null : i; renderCoach(); return; }
+  if(a==="pl-optsecdel"){ const p=coachPlanObj(CoachState.coachData); p.options.splice(+b.dataset.i,1); CoachState.coachOptOpen=null; renderCoach(); return; }
   if(a==="pl-optadd"){ const p=coachPlanObj(CoachState.coachData); const sec=p.options[+b.dataset.i]; sec.opts=sec.opts||[]; const L="Opción "+String.fromCharCode(65+sec.opts.length); sec.opts.push({label:L,body:""}); renderCoach(); return; }
   if(a==="pl-optdel"){ const p=coachPlanObj(CoachState.coachData); p.options[+b.dataset.i].opts.splice(+b.dataset.j,1); renderCoach(); return; }
   if(a==="pl-swapadd"){ const p=coachPlanObj(CoachState.coachData); (p.swaps=p.swaps||[]).push({from:"",to:""}); renderCoach(); return; }
