@@ -28,11 +28,6 @@ def gama_color(t):
     p = t * 2; i = min(int(p), 1); fr = p - i
     return tuple(int(GAMA[i][k] * (1 - fr) + GAMA[i + 1][k] * fr) for k in range(3))
 
-def kicker(c, text, y, a):
-    lay = Image.new('RGBA', (W, 60), (0, 0, 0, 0)); d = ImageDraw.Draw(lay); fk = R.F_MONO(34)
-    d.text(((W - d.textlength(text, font=fk)) / 2, 6), text, font=fk, fill=BLUE)
-    c.alpha_composite(fade(lay, a), (0, int(y + (1 - a) * 16)))
-
 # ---------- neón (mismo tubo que el 14 del comienzo, con caja a medida y supersampleo) ----------
 _neon = {}
 def neon(text, size, box=None, stroke=11):
@@ -72,13 +67,13 @@ def put_neon(c, text, base_y, size, a=1.0, box=None, stroke=11):
     c.alpha_composite(ref, (x, base_y + 10))
 
 def kicker_lines(c, text, y, a):
-    """Rótulo en mono con dos filetes finos a los lados, como en el comienzo."""
-    fk = R.F_MONO(34); d = ImageDraw.Draw(c); tw = d.textlength(text, font=fk)
-    lay = Image.new('RGBA', (W, 60), (0, 0, 0, 0)); ld = ImageDraw.Draw(lay)
-    ld.text(((W - tw) / 2, 6), text, font=fk, fill=BLUE)
-    L = int(60 * a)
-    ld.line(((W - tw) / 2 - 28 - L, 28, (W - tw) / 2 - 28, 28), fill=BLUE + (150,), width=2)
-    ld.line(((W + tw) / 2 + 28, 28, (W + tw) / 2 + 28 + L, 28), fill=BLUE + (150,), width=2)
+    """Rótulo en Outfit con dos filetes finos a los lados, como en el comienzo."""
+    fk = R.F_M(58); d = ImageDraw.Draw(c); tw = d.textlength(text, font=fk)
+    lay = Image.new('RGBA', (W, 90), (0, 0, 0, 0)); ld = ImageDraw.Draw(lay)
+    ld.text(((W - tw) / 2, 4), text, font=fk, fill=TEXT)
+    L = int(70 * a)
+    ld.line(((W - tw) / 2 - 32 - L, 44, (W - tw) / 2 - 32, 44), fill=BLUE + (170,), width=3)
+    ld.line(((W + tw) / 2 + 32, 44, (W + tw) / 2 + 32 + L, 44), fill=BLUE + (170,), width=3)
     c.alpha_composite(fade(lay, a), (0, int(y + (1 - a) * 16)))
 
 # ---------- 2 · coaches: 14 días que se prenden uno por uno ----------
@@ -94,7 +89,7 @@ def cell_glow():
 GLOW = cell_glow()
 
 def grid(c, f):
-    d = ImageDraw.Draw(c); fn = R.F_MONO(30)
+    d = ImageDraw.Draw(c); fn = R.F_M(34)
     for i in range(14):
         col, row = i % COLS, i // COLS
         x, y = GX + col * (CELL + GAP), GY + row * (CELL + GAP)
@@ -113,12 +108,12 @@ def grid(c, f):
             ImageDraw.Draw(lay).rounded_rectangle((0, 0, CELL - 1, CELL - 1), 24, outline=BORDER + (int(255 * appear),), width=3)
             c.alpha_composite(lay, (x, y))
         n = str(i + 1); tw = d.textlength(n, font=fn)
-        d.text((x + (CELL - tw) / 2, y + CELL / 2 - 20), n, font=fn,
+        d.text((x + (CELL - tw) / 2, y + CELL / 2 - 24), n, font=fn,
                fill=(255, 255, 255) if on > .5 else (90, 96, 110))
 
 def scene_a(f):
     c = R.aurora(f / FPS + 20, strength=.26, cy=.42).convert('RGBA')
-    kicker_lines(c, '¿SOS COACH?', 540, ease_out((f - 2) / 12))
+    kicker_lines(c, '¿Sos coach?', 520, ease_out((f - 2) / 12))
     grid(c, f)
     lit = int(np.clip((f - LIT0) // STEP + 1, 0, 14))
     if lit > 0:
@@ -131,20 +126,20 @@ def scene_a(f):
     return c
 
 # ---------- 1 · para todos: gratis en las tiendas ----------
-STORES = [(APPLE, 'App Store', 'DESDE 29.09'), (ANDROID, 'Google Play', 'DESDE 10.10')]
+STORES = [(APPLE, 'App Store', 'Desde el 29.09'), (ANDROID, 'Google Play', 'Desde el 10.10')]
 def store_badge(ic, name, when):
     bw, bh = 440, 166
     lay = Image.new('RGBA', (bw, bh), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
     d.rounded_rectangle((1, 1, bw - 2, bh - 2), 34, fill=(14, 17, 24, 235), outline=(70, 78, 96, 255), width=2)
     lay.alpha_composite(ic, (34, (bh - ic.height) // 2))
     d.text((128, 30), name, font=R.F_H(50), fill=TEXT)
-    d.text((130, 98), when, font=R.F_MONO(28), fill=BLUE)
+    d.text((130, 94), when, font=R.F_M(30), fill=BLUE)
     return lay
 BADGES = [store_badge(*s) for s in STORES]
 
 def scene_b(f):
     c = R.aurora(f / FPS + 60, strength=.28, cy=.45).convert('RGBA')
-    kicker_lines(c, 'PARA TODOS', 540, ease_out((f - 2) / 12))
+    kicker_lines(c, 'Para todos', 520, ease_out((f - 2) / 12))
     k = f - 8
     if k >= 0:
         flick = [0, .6, 0, .3, 1, .5, 1][k // 2] if k < 14 else 1.0
@@ -167,7 +162,7 @@ def scene_c(f):
     a = ease_out((f - 8) / 12)
     if a > 0: R6.rgb_line(c, 1010, 300, W - 300, a)
     a = ease_out((f - 12) / 12)
-    if a > 0: R6.centered(c, 'gize.ar', R.F_MONO(44), 1060 + (1 - a) * 12, TEXT, a)
+    if a > 0: R6.centered(c, 'gize.ar', R.F_M(48), 1060 + (1 - a) * 12, TEXT, a)
     return c
 
 GRAIN = np.random.default_rng(7).uniform(-1, 1, (H, W, 1)).astype(np.float32)
