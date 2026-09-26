@@ -76,6 +76,83 @@ def kicker_lines(c, text, y, a):
     ld.line(((W + tw) / 2 + 32, 44, (W + tw) / 2 + 32 + L, 44), fill=BLUE + (170,), width=3)
     c.alpha_composite(fade(lay, a), (0, int(y + (1 - a) * 16)))
 
+# ---------- fondo: glows de la gama, tubos de neón desenfocados y fundido arriba/abajo ----------
+NEON3 = [(47, 160, 255), (166, 92, 255), (255, 61, 174)]
+AW, AH = W // 6, H // 6
+_yy, _xx = np.mgrid[0:AH, 0:AW].astype(np.float32)
+_v = np.linspace(0, 1, H, dtype=np.float32)
+FADE = (.30 + .70 * np.clip(np.minimum(_v / .30, (1 - _v) / .32), 0, 1) ** 1.6)[:, None, None]   # oscuro arriba y abajo
+
+def tube_layer(p0, p1, cols, width, blur_focus=0.0):
+    """Tubo recto con degradé de la gama, brillo ancho y núcleo claro. Devuelve (float RGB, x, y)."""
+    M = 170
+    x0, y0 = min(p0[0], p1[0]) - M, min(p0[1], p1[1]) - M
+    w, h = int(abs(p1[0] - p0[0]) + 2 * M), int(abs(p1[1] - p0[1]) + 2 * M)
+    SS = 2
+    m = Image.new('L', (w * SS, h * SS), 0)
+    ImageDraw.Draw(m).line([((p0[0] - x0) * SS, (p0[1] - y0) * SS), ((p1[0] - x0) * SS, (p1[1] - y0) * SS)],
+                           fill=255, width=width * SS, joint='curve')
+    r = width * SS // 2
+    for (px, py) in (p0, p1):
+        ImageDraw.Draw(m).ellipse(((px - x0) * SS - r, (py - y0) * SS - r, (px - x0) * SS + r, (py - y0) * SS + r), fill=255)
+    m = m.resize((w, h), Image.LANCZOS)
+    if blur_focus: m = m.filter(ImageFilter.GaussianBlur(blur_focus))
+    # color a lo largo del tubo
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+    t = np.clip(((xx + x0 - p0[0]) * dx + (yy + y0 - p0[1]) * dy) / (dx * dx + dy * dy), 0, 1) * (len(cols) - 1)
+    i0 = np.minimum(t.astype(int), len(cols) - 2); fr = (t - i0)[..., None]
+    st = np.array(cols, np.float32); col = st[i0] * (1 - fr) + st[i0 + 1] * fr
+    a = f32(m)
+    wide = f32(m.filter(ImageFilter.GaussianBlur(46))) * 1.6
+    mid = f32(m.filter(ImageFilter.GaussianBlur(12))) * 1.2
+    core = f32(m.filter(ImageFilter.MinFilter(3))) * (0 if blur_focus > 4 else .7)
+    out = col * np.clip(wide * .7 + mid * .75 + a, 0, 2.0)[..., None] + (255 - col) * core[..., None] * .8
+    return out.astype(np.float32), x0, y0
+
+def f32(im): return np.asarray(im, np.float32) / 255
+
+# (p0, p1, colores, grosor, desenfoque, deriva px/s, dirección de deriva, fase)
+TUBES = [
+    ((-60, 330), (430, 40), NEON3[:2], 12, 0, 14, (1, -.6), 0.0),        # arriba a la izquierda, nítido
+    ((760, -40), (1160, 240), NEON3[1:], 10, 6, 10, (-1, -.7), 1.3),     # arriba a la derecha, un poco fuera de foco
+    ((640, 1880), (1150, 1520), NEON3[1:][::-1], 12, 0, 12, (1, -.7), 2.1),  # abajo a la derecha, nítido
+    ((-80, 1640), (330, 1960), NEON3[:2][::-1], 22, 14, 8, (1, .8), 3.4),  # abajo a la izquierda, desenfocado
+]
+TUBE_L = [tube_layer(p0, p1, cols, wd, bf) for p0, p1, cols, wd, bf, *_ in TUBES]
+
+def add_at(fr, lay, x, y, k):
+    h, w = lay.shape[:2]
+    x, y = int(round(x)), int(round(y))
+    ax0, ay0, ax1, ay1 = max(0, x), max(0, y), min(W, x + w), min(H, y + h)
+    if ax0 >= ax1 or ay0 >= ay1 or k <= 0: return
+    fr[ay0:ay1, ax0:ax1] += lay[ay0 - y:ay1 - y, ax0 - x:ax1 - x] * k
+
+TUBE_ON = [0, .8, 0, 0, .5, 1, .2, 1, 1, .4, 1]    # encendido tipo cartel al abrir la historia
+def fondo(g):
+    """g = cuadro global (así el fondo sigue de corrido entre escenas)."""
+    t = g / FPS
+    acc = np.zeros((AH, AW, 3), np.float32)
+    spots = [(.15, .22, 0), (.85, .30, 1), (.80, .78, 2), (.20, .70, 1)]
+    for i, (bx, by, ci) in enumerate(spots):
+        ph = t / 9 * 2 * np.pi + i * 1.9
+        x, y = (bx + .09 * np.sin(ph)) * AW, (by + .06 * np.cos(ph * .8)) * AH
+        sg = (.24 + .03 * np.sin(ph * 1.3)) * AW
+        gk = np.exp(-(((_xx - x) ** 2 + (_yy - y) ** 2) / (2 * sg * sg)))
+        acc = 1 - (1 - acc) * (1 - gk[..., None] * np.array(NEON3[ci], np.float32) / 255 * .42)
+    fr = np.asarray(Image.fromarray((acc * 255).astype(np.uint8)).resize((W, H), Image.BICUBIC), np.float32).copy()
+    fr += np.array([4, 5, 9], np.float32)
+    for (lay, x0, y0), (_, _, _, _, _, speed, (dx, dy), ph) in zip(TUBE_L, TUBES):
+        on = TUBE_ON[g // 2] if g // 2 < len(TUBE_ON) else 1.0
+        breath = .82 + .18 * np.sin(t * 1.6 + ph)
+        drift = np.sin(t * .35 + ph) * speed * 3
+        add_at(fr, lay, x0 + dx * drift, y0 + dy * drift, on * breath * 1.35)
+    return fr * FADE
+
+_G = [0]
+def bg():
+    return Image.fromarray(np.clip(fondo(_G[0]), 0, 255).astype(np.uint8)).convert('RGBA')
+
 # ---------- 2 · coaches: 14 días que se prenden uno por uno ----------
 CELL, GAP, COLS = 100, 18, 7
 GX = (W - (COLS * CELL + (COLS - 1) * GAP)) // 2
@@ -112,7 +189,7 @@ def grid(c, f):
                fill=(255, 255, 255) if on > .5 else (90, 96, 110))
 
 def scene_a(f):
-    c = R.aurora(f / FPS + 20, strength=.26, cy=.42).convert('RGBA')
+    c = bg()
     kicker_lines(c, '¿Sos coach?', 520, ease_out((f - 2) / 12))
     grid(c, f)
     lit = int(np.clip((f - LIT0) // STEP + 1, 0, 14))
@@ -138,7 +215,7 @@ def store_badge(ic, name, when):
 BADGES = [store_badge(*s) for s in STORES]
 
 def scene_b(f):
-    c = R.aurora(f / FPS + 60, strength=.28, cy=.45).convert('RGBA')
+    c = bg()
     kicker_lines(c, 'Para todos', 520, ease_out((f - 2) / 12))
     k = f - 8
     if k >= 0:
@@ -155,7 +232,7 @@ def scene_b(f):
 
 # ---------- C · firma ----------
 def scene_c(f):
-    c = R.aurora(f / FPS + 90, strength=.30, cy=.5).convert('RGBA')
+    c = bg()
     a = ease_out(f / 14); s = .94 + .06 * a
     fi = FIRMA.resize((int(FIRMA.width * s), int(FIRMA.height * s)), Image.LANCZOS)
     c.alpha_composite(fade(fi, a), ((W - fi.width) // 2, 880 - fi.height // 2))
@@ -168,6 +245,7 @@ def scene_c(f):
 GRAIN = np.random.default_rng(7).uniform(-1, 1, (H, W, 1)).astype(np.float32)
 
 def frame(f):
+    _G[0] = f
     if f < B_END: img = scene_b(f).convert('RGB')
     elif f < A_START: img = R.wipe(scene_b(f), scene_a(f - B_END), ease_io((f - B_END) / (A_START - B_END)))
     elif f < C_START: img = scene_a(f - B_END).convert('RGB')

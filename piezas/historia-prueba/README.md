@@ -7,7 +7,7 @@ Historia de Instagram 1080×1920, 30 fps, 10 s, sin audio.
 3. Firma y gize.ar.
 
 Tipografía: toda en Outfit — rótulos «Para todos» / «¿Sos coach?» con filetes, cifras y palabra clave en neón de Outfit
-(supersampleado 3×), titulares en Outfit Bold. Grano fino contra el banding y x264 crf 14.
+(supersampleado 3×), titulares en Outfit Bold. Fondo: glows azul/violeta/magenta que se mueven, cuatro tubos de neón en las esquinas (se encienden al abrir) y fundido a negro arriba y abajo. Grano fino contra el banding y x264 crf 14.
 Los datos salen de la landing (`index.html`, planes) y del onboarding del coach.
 
 ```bash
