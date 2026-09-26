@@ -32,7 +32,7 @@ import { renderCoachSettings } from './screens/coach/settings.js';
 // Registra los eventos del editor de preguntas del coach (efecto al importarlo).
 import './screens/coach/preguntas.js';
 
-import { coachPlanObj, cpApply, loadTpls, planDefault, renderApplyPicker, renderCoachPicker, renderCopyPicker, rtDays } from './screens/coach/rutinas.js';
+import { coachPlanObj, cpApply, loadTpls, planDefault, renderApplyPicker, renderCoachPicker, renderCopyPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
 
@@ -1151,7 +1151,7 @@ document.body.addEventListener("input", async e => {
   else if(a==="pl-salt"){ coachPlanObj(CoachState.coachData).salt=el.value; }
   else if(a==="pl-optsec"){ const p=coachPlanObj(CoachState.coachData); p.options[+el.dataset.i].title=el.value; }
   else if(a==="pl-optlabel"){ const p=coachPlanObj(CoachState.coachData); p.options[+el.dataset.i].opts[+el.dataset.j].label=el.value; }
-  else if(a==="pl-optbody"){ const p=coachPlanObj(CoachState.coachData); p.options[+el.dataset.i].opts[+el.dataset.j].body=el.value; }
+  else if(a==="pl-optbody"){ const p=coachPlanObj(CoachState.coachData); p.options[+el.dataset.i].opts[+el.dataset.j].body=el.value; fitOptBody(el); }
   else if(a==="pl-swap"){ const p=coachPlanObj(CoachState.coachData); p.swaps[+el.dataset.i][el.dataset.k]=el.value; }
   else if(a==="pl-cardiotext"){ const p=coachPlanObj(CoachState.coachData); p.cardio=p.cardio||{text:"",items:[]}; p.cardio.text=el.value; }
   else if(a==="pl-cardioitem"){ const p=coachPlanObj(CoachState.coachData); p.cardio.items[+el.dataset.i]=el.value; }

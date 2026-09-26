@@ -75,30 +75,42 @@ export function listEditor(p, key, label, ph){
   return '<div class="co-note-lbl" style="margin-top:16px">'+label+'</div>'+rows+'<button class="pl-add" data-coach="pl-listadd" data-key="'+key+'">+ Agregar</button>';
 }
 
+// Cuadro de texto que crece con lo que tiene: la opción se lee entera, sin scrollear adentro.
+export function fitOptBody(t){ if(!t) return; t.style.height="auto"; t.style.height=(t.scrollHeight+2)+"px"; }
+
+// Opciones de comidas (Desayuno → Opción A, B, C…). Cada comida muestra sus opciones en
+// tarjetas una al lado de la otra (en el celular, una debajo de la otra) y cada tarjeta
+// muestra el texto completo.
 export function optionsEditor(p){
   const arr=(p.options||[]);
+  requestAnimationFrame(()=>document.querySelectorAll("#coachHost .opt-body").forEach(fitOptBody));
   const blocks=arr.map((sec,i)=>{
-    const opts=(sec.opts||[]).map((o,j)=>
-      '<div class="opt-item">'+
+    const n=(sec.opts||[]).length;
+    const opts=(sec.opts||[]).map((o,j)=>{
+      const lines=String(o.body||"").split("\n").length;
+      return '<div class="opt-item">'+
         '<div class="opt-item-head">'+
-          '<input class="ml-in opt-label" data-coach="pl-optlabel" data-i="'+i+'" data-j="'+j+'" value="'+esc(o.label||"")+'" placeholder="">'+
-          '<button class="ml-del" data-coach="pl-optdel" data-i="'+i+'" data-j="'+j+'" title="Quitar opción">\u2715</button>'+
+          '<input class="ml-in opt-label" data-coach="pl-optlabel" data-i="'+i+'" data-j="'+j+'" value="'+esc(o.label||"")+'" placeholder="Opción '+String.fromCharCode(65+j)+'">'+
+          '<button class="ml-del" data-coach="pl-optdel" data-i="'+i+'" data-j="'+j+'" title="Quitar opción" aria-label="Quitar opción">\u2715</button>'+
         '</div>'+
-        '<textarea class="opt-body" rows="3" data-coach="pl-optbody" data-i="'+i+'" data-j="'+j+'" placeholder="Un alimento por rengl\u00f3n (Enter para separar)">'+esc(o.body||"")+'</textarea>'+
-      '</div>').join("");
+        '<textarea class="opt-body" rows="'+Math.max(4, lines+1)+'" data-coach="pl-optbody" data-i="'+i+'" data-j="'+j+'" placeholder="Un alimento por rengl\u00f3n, por ejemplo:\n2 huevos revueltos\n1 tostada integral\n1 fruta">'+esc(o.body||"")+'</textarea>'+
+      '</div>';
+    }).join("");
     return '<div class="opt-sec">'+
       '<div class="opt-sec-head">'+
-        '<input class="ml-in opt-sectitle" data-coach="pl-optsec" data-i="'+i+'" value="'+esc(sec.title||"")+'" placeholder="">'+
-        '<button class="ml-del" data-coach="pl-optsecdel" data-i="'+i+'" title="Borrar sección">\u2715</button>'+
+        '<input class="ml-in opt-sectitle" data-coach="pl-optsec" data-i="'+i+'" value="'+esc(sec.title||"")+'" placeholder="Desayuno, Almuerzo, Merienda…">'+
+        '<span class="opt-count">'+n+' opci'+(n===1?'\u00f3n':'ones')+'</span>'+
+        '<button class="ml-del" data-coach="pl-optsecdel" data-i="'+i+'" title="Borrar comida" aria-label="Borrar comida">\u2715</button>'+
       '</div>'+
-      opts+
-      '<button class="pl-add sm" data-coach="pl-optadd" data-i="'+i+'">+ Agregar opción (A, B, C...)</button>'+
+      '<div class="opt-grid">'+opts+
+        '<button class="opt-add-card" data-coach="pl-optadd" data-i="'+i+'">+ Agregar opci\u00f3n '+String.fromCharCode(65+n)+'</button>'+
+      '</div>'+
     '</div>';
   }).join("");
-  return '<div class="co-note-lbl" style="margin-top:16px">Opciones de comidas (el cliente elige)</div>'+
-    '<div class="pl-help">Cre\u00e1 una <b>secci\u00f3n</b> (Desayuno, Merienda, Almuerzo...) y adentro cada <b>opci\u00f3n</b> con su t\u00edtulo (Opci\u00f3n A) y su texto. As\u00ed el cliente lo ve como un men\u00fa ordenado.</div>'+
+  return '<div class="co-note-lbl" style="margin-top:4px">Opciones de comidas (el cliente elige)</div>'+
+    '<div class="pl-help">Cre\u00e1 cada <b>comida</b> (Desayuno, Almuerzo, Merienda…) y adentro sus <b>opciones</b> (A, B, C…), un alimento por rengl\u00f3n. El cliente las ve como un men\u00fa ordenado.</div>'+
     blocks+
-    '<button class="pl-add" data-coach="pl-optsecadd">+ Agregar secci\u00f3n (Desayuno, Almuerzo...)</button>';
+    '<button class="pl-add" data-coach="pl-optsecadd">+ Agregar comida (Desayuno, Almuerzo\u2026)</button>';
 }
 
 export function swapsEditor(p){

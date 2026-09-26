@@ -376,3 +376,14 @@
 .co-sched-info span { font-size: var(--text-meta); color: var(--txt-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .co-sched-new { width: 100%; justify-content: center; margin-top: 8px; }
 .co-sched-edit-t { font-size: var(--text-emphasis); font-weight: 700; margin: 4px 0 2px; }
+
+/* Opciones de comidas: tarjetas una al lado de la otra, el texto completo sin scrollear adentro. */
+.opt-sec { padding: 14px; }
+.opt-sec-head { align-items: center; }
+.opt-count { flex: none; font-size: var(--text-meta); color: var(--txt-3); white-space: nowrap; }
+.opt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; align-items: start; }
+.opt-grid .opt-item { margin: 0; display: flex; flex-direction: column; }
+.opt-body { resize: none; overflow: hidden; min-height: 96px; line-height: 1.5; }
+.opt-add-card { min-height: 96px; border: 1.5px dashed var(--border); border-radius: 4px; background: transparent; color: var(--gize-blue); font-weight: 700; font-size: var(--text-body); cursor: pointer; }
+.opt-add-card:hover { border-color: var(--gize-blue); }
+@media (max-width: 560px) { .opt-grid { grid-template-columns: 1fr; } .opt-add-card { min-height: 48px; } }
