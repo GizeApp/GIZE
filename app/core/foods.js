@@ -13,7 +13,7 @@
 //   cocido: f      → los valores son del alimento COCIDO (mismo factor f).
 //   src: "S"       → valores de SARA 2, la tabla oficial del Ministerio de Salud de la
 //                    Nación (2022, incluye los datos de Argenfoods), comparados uno por uno.
-//                    La app lo muestra como fuente en la ficha del alimento.
+//                    Es solo interno: la app no muestra la fuente.
 //                    Sin src: estimación de referencia (tablas USDA / rótulos), sin dato oficial.
 // Sin "crudo"/"cocido" = no aplica (leche, quesos, frutas, fiambres, preparados…).
 //
@@ -96,7 +96,7 @@ export const FOOD_SECTIONS = [
   ["Paleta", 125, 19, 0, 5.5, 150, {crudo:C_VAC}],
   ["Bife de chorizo / bife angosto", 190, 21, 0, 12, 200, {crudo:C_VAC}],
   ["Bife ancho (ojo de bife)", 230, 19, 0, 17, 200, {crudo:C_VAC}],
-  ["Asado de tira", 170, 18.4, 0, 10.7, 200, {crudo:C_VAC}],
+  ["Asado de tira", 250, 17.5, 0, 20, 200, {crudo:C_VAC}],
   ["Vacío", 171, 23.8, 0, 8.4, 200, {crudo:C_VAC}],
   ["Matambre", 220, 19, 0, 16, 150, {crudo:C_VAC}],
   ["Entraña", 205, 19, 0, 14, 180, {crudo:C_VAC}],
@@ -111,8 +111,6 @@ export const FOOD_SECTIONS = [
   ["Riñón vacuno", 99, 17.4, 0.3, 3.1, 150, {crudo:C_VAC, src:"S"}],
   ["Chinchulines (a la parrilla)", 270, 13.8, 0, 23.9, 150, {src:"S"}],
   ["Carne vacuna en conserva", 224, 23.7, 0, 14.4, 100],
-  ["Cordero (paleta)", 99, 18.7, 0, 2.7, 150, {crudo:C_VAC}],
-  ["Cordero (pierna)", 200, 18.5, 0, 13.5, 150, {crudo:C_VAC}],
 ]],
 ["Cerdo", [
   ["Bondiola de cerdo", 200, 17, 0, 14, 150, {crudo:C_VAC}],
@@ -122,6 +120,10 @@ export const FOOD_SECTIONS = [
   ["Panceta", 389, 13.7, 0, 37.1, 30, {src:"S"}],
   ["Panceta ahumada / bacon (crocante)", 541, 37, 1.4, 42, 20],
   ["Chorizo", 296, 13.6, 3.8, 25.1, 100, {crudo:0.75, src:"S"}],
+]],
+["Cordero y cabrito", [
+  ["Cordero (paleta)", 175, 18, 0, 11.5, 150, {crudo:C_VAC}],
+  ["Cordero (pierna)", 200, 18.5, 0, 13.5, 150, {crudo:C_VAC}],
 ]],
 ["Pollo y aves", [
   ["Pechuga / suprema de pollo", 114, 22.5, 0, 2.6, 150, {crudo:C_POLLO, src:"S"}],
@@ -159,7 +161,7 @@ export const FOOD_SECTIONS = [
   ["Calamar", 99, 18.5, 3.1, 1.4, 120, {crudo:C_PESC, src:"S"}],
   ["Pulpo", 78, 14.9, 2.2, 1, 120, {crudo:C_PESC, src:"S"}],
   ["Mejillones", 83, 11.9, 3.7, 2.2, 120, {crudo:C_PESC, src:"S"}],
-  ["Centolla", 66, 13.9, 0, 1.1, 120, {crudo:C_PESC}],
+  ["Centolla", 84, 18.3, 0, 0.6, 120, {crudo:C_PESC}],
   ["Kani kama / palitos de mar", 96, 15.2, 6.9, 0.9, 100, {src:"S"}],
   ["Atún al natural (lata, escurrido)", 86, 19.4, 0, 1, 120, {src:"S"}],
   ["Atún en aceite (lata, escurrido)", 190, 29.1, 0, 8.2, 120, {src:"S"}],
@@ -268,7 +270,7 @@ export const FOOD_SECTIONS = [
   ["Lentejas", 301, 20.8, 52.7, 0.8, 60, {crudo:2.6, src:"S"}],
   ["Garbanzos", 339, 20.5, 50.8, 6, 60, {crudo:2.1, src:"S"}],
   ["Porotos alubia", 276, 21.1, 45.3, 1.1, 60, {crudo:2.2, src:"S"}],
-  ["Porotos negros", 132, 8.9, 24, 0.5, 150, {cocido:2.4}],
+  ["Porotos negros", 118, 8.9, 15, 0.5, 150, {cocido:2.4}],
   ["Porotos de soja", 413, 34.6, 23.8, 19.9, 60, {crudo:2.5, src:"S"}],
   ["Arvejas secas partidas", 311, 22, 49.1, 2.9, 60, {crudo:2.4, src:"S"}],
 ]],
@@ -289,8 +291,8 @@ export const FOOD_SECTIONS = [
   ["Harina de trigo 000 / 0000", 329, 10.3, 69.8, 1, 50, {src:"S"}],
   ["Harina integral", 308, 11.4, 58.8, 3, 50, {src:"S"}],
   ["Harina leudante", 329, 10.3, 69.8, 1, 50, {src:"S"}],
-  ["Harina de avena", 389, 17, 66, 7, 40],
-  ["Harina de almendras", 579, 21, 22, 50, 30],
+  ["Harina de avena", 375, 13, 58, 7.5, 40],
+  ["Harina de almendras", 579, 21, 9.1, 50, 30],
   ["Fécula de maíz (Maizena)", 363, 0.3, 90.4, 0.1, 15, {src:"S"}],
   ["Semolín", 336, 12.7, 68.9, 1.1, 50, {src:"S"}],
   ["Pan rallado", 371, 13.4, 67.5, 5.3, 15, {src:"S"}],
@@ -305,7 +307,7 @@ export const FOOD_SECTIONS = [
   ["Ravioles de carne", 180, 8, 24, 5.5, 200],
   ["Sorrentinos de jamón y queso", 210, 9, 26, 7.5, 220],
   ["Capelettis / pastas rellenas", 211, 9.8, 30.1, 5.7, 200, {src:"S"}],
-  ["Canelones de verdura (con salsa)", 220, 9, 24, 9, 250],
+  ["Canelones de verdura (con salsa)", 165, 7.5, 15, 8.5, 250],
   ["Salsa de tomate casera", 35, 1.3, 7, 0.4, 100],
   ["Salsa filetto", 50, 1.2, 8, 1.5, 100],
   ["Salsa bolognesa", 110, 8, 6, 6, 150],
@@ -361,15 +363,15 @@ export const FOOD_SECTIONS = [
 ]],
 ["Frutos secos y semillas", [
   ["Maní tostado", 596, 24.4, 12.9, 49.7, 30, {src:"S"}],
-  ["Maní crudo con piel", 576, 33.2, 11.1, 44.3, 30],
+  ["Maní crudo con piel", 567, 25.8, 7.6, 49.2, 30],
   ["Maní salado (snack)", 596, 24.4, 12.9, 49.7, 30, {src:"S"}],
   ["Almendras", 570, 21.2, 9.1, 49.9, 30, {src:"S"}],
   ["Nueces", 690, 13.9, 7, 67.4, 30, {src:"S"}],
-  ["Nuez pecán", 691, 9, 14, 72, 30],
+  ["Nuez pecán", 691, 9.2, 4.3, 72, 30],
   ["Avellanas", 631, 12.7, 8, 60.9, 30, {src:"S"}],
   ["Castañas de cajú", 553, 18, 30, 44, 30],
   ["Pistachos", 566, 21.1, 17.3, 45.8, 30, {src:"S"}],
-  ["Castañas de Pará", 731, 18.1, 2.4, 72.1, 30],
+  ["Castañas de Pará", 659, 14.3, 4.2, 67.1, 30],
   ["Piñones", 673, 13.7, 13.1, 68.4, 30],
   ["Mix de frutos secos y pasas", 515, 14.1, 33.5, 36.1, 30, {src:"S"}],
   ["Semillas de chía", 374, 16.5, 7.7, 30.7, 15, {src:"S"}],
@@ -456,7 +458,7 @@ export const FOOD_SECTIONS = [
   ["Licuado de banana con leche", 95, 3, 17, 2, 250, {ml:true}],
   ["Licuado de frutas con agua", 45, 0.5, 11, 0.2, 250, {ml:true}],
   ["Leche de almendras", 17, 0.6, 0.6, 1.5, 200, {ml:true}],
-  ["Leche de coco (bebida)", 25, 0.2, 3, 2, 200, {ml:true}],
+  ["Leche de coco (bebida)", 31, 0.2, 3, 2, 200, {ml:true}],
   ["Leche de avena", 45, 1, 7, 1.5, 200, {ml:true}],
   ["Bebida isotónica casera", 10, 0, 2.5, 0, 500, {ml:true}],
 ]],
@@ -468,7 +470,7 @@ export const FOOD_SECTIONS = [
   ["Vino blanco", 83, 0.1, 2.6, 0, 150, {ml:true, src:"S"}],
   ["Espumante / champagne", 83, 0.1, 2.6, 0, 150, {ml:true, src:"S"}],
   ["Sidra", 43, 0, 4.3, 0, 200, {ml:true, src:"S"}],
-  ["Fernet (medida 50 ml)", 236, 0, 20, 0, 50, {ml:true}],
+  ["Fernet (medida 50 ml)", 245, 0, 7.5, 0, 50, {ml:true}],
   ["Campari (medida 50 ml)", 240, 0, 30, 0, 50, {ml:true}],
   ["Aperol spritz", 60, 0.1, 6, 0, 200, {ml:true}],
   ["Whisky (medida 45 ml)", 234, 0, 0, 0, 45, {ml:true, src:"S"}],
