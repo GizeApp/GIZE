@@ -24,34 +24,48 @@ export function streakCount(){
 function keep(set){
   const t = today();
   state.visits = [...set].filter(d => DAY_RE.test(d) && d <= t).sort().slice(-KEEP);
-  const n = streakCount();
-  if (!(state.streakBest >= n)) state.streakBest = n;
+  // Mejor racha: la más larga de todo lo guardado (incluye las que trae la nube).
+  let best = 0, run = 0, prev = null;
+  for (const d of state.visits){ run = prev && addDays(prev, 1) === d ? run + 1 : 1; if (run > best) best = run; prev = d; }
+  if (!(state.streakBest >= best)) state.streakBest = best;
 }
 
-// Hoy entró. Si ayer no y venía con racha de 2 días o más, queda anotado que se apagó
-// (se muestra una vez: la llama apagada que se vuelve a prender).
-export function markVisit(){
-  const t = today(), s = visitSet();
-  if (s.has(t)) return false;
+// ¿Se cortó la racha? Se mira una vez por día. Con cuenta, recién cuando llegaron los días
+// de la nube (mergeVisits): si ayer entró desde otro celular, la racha no se cortó.
+function evaluateLost(){
+  const t = today();
+  if (state.streakChecked === t) return;
+  const s = visitSet();
   const prevEnd = [...s].filter(d => d < t).sort().pop();
   if (prevEnd && prevEnd < addDays(t, -1)){
     const lost = runEnding(s, prevEnd);
     if (lost >= 2) state.streakLost = { days: lost, on: t };
   }
+  state.streakChecked = t; save();
+  paintStreak();
+}
+
+// Hoy entró.
+export function markVisit(){
+  const t = today(), s = visitSet();
+  if (s.has(t)) return false;
   s.add(t); keep(s); save();
+  if (!state.cloudSeen) evaluateLost(); // sin cuenta en la nube: alcanza con lo del celular
   return true;
 }
 
-// Días con actividad que trae la nube (daily_logs.log_date). Si justo completan el día que
-// faltaba, la racha no se había apagado.
+// Días con actividad que trae la nube (daily_logs.log_date).
 export function mergeVisits(dates){
   const s = visitSet(), before = s.size;
   (dates || []).forEach(d => { if (DAY_RE.test(String(d))) s.add(String(d)); });
-  if (s.size === before) return;
-  keep(s);
-  const L = state.streakLost;
-  if (L && L.on === today() && s.has(addDays(today(), -1))) state.streakLost = null;
-  save(); paintStreak();
+  if (s.size !== before){
+    keep(s);
+    const L = state.streakLost;
+    if (L && L.on === today() && !L.shown && s.has(addDays(today(), -1))) state.streakLost = null;
+    save();
+  }
+  evaluateLost();
+  paintStreak();
 }
 
 // ---- Dibujo ----
@@ -73,27 +87,41 @@ export function flameSvg(size, cls){
 export function paintStreak(){
   const b = document.getElementById("streakBtn");
   if (!b) return;
+  noteHost(); // el aviso ya existe vacío: así el lector de pantalla anuncia el texto cuando llega
+  if (b._anim) return; // dejar terminar la animación de "se apagó / se vuelve a prender"
   const n = streakCount(), L = state.streakLost, lostNow = L && L.on === today() && !L.shown;
   b.hidden = false;
   b.setAttribute("aria-label", n === 1 ? "Racha: 1 día" : "Racha: " + n + " días seguidos");
-  if (lostNow){
-    // Apagada con el número de antes; después se vuelve a prender en 1.
+  if (lostNow && !document.body.classList.contains("is-booting")){
+    // Apagada con el número de antes; después se vuelve a prender con el de hoy.
     L.shown = true; save(); // se muestra una sola vez
+    b._anim = true;
     b.className = "streak out";
     b.innerHTML = flameSvg(22) + `<b>${L.days}</b>`;
-    setTimeout(() => { b.className = "streak relight"; b.innerHTML = flameSvg(22) + `<b>${n}</b>`; showLostNote(L.days); }, 1600);
+    setTimeout(() => {
+      b.className = "streak relight"; b.innerHTML = flameSvg(22) + `<b>${streakCount()}</b>`; showLostNote(L.days);
+      setTimeout(() => { b._anim = false; paintStreak(); }, 1200);
+    }, 1600);
     return;
   }
-  if (b.classList.contains("relight")) return; // dejar terminar la animación
+  if (lostNow) setTimeout(paintStreak, 400); // todavía está la pantalla de inicio: se muestra después
   b.className = "streak" + (n > 0 ? " lit" : " out");
   b.innerHTML = flameSvg(22) + `<b>${n}</b>`;
 }
 
+function noteHost(){
+  let host = document.getElementById("streakNote");
+  if (!host){
+    host = document.createElement("div"); host.id = "streakNote"; host.className = "streak-note";
+    host.setAttribute("role", "status"); host.setAttribute("aria-live", "polite");
+    document.body.appendChild(host);
+  }
+  return host;
+}
+
 function showLostNote(days){
-  const host = document.getElementById("streakNote") || Object.assign(document.createElement("div"), { id: "streakNote", className: "streak-note" });
-  host.setAttribute("role", "status");
+  const host = noteHost();
   host.innerHTML = flameSvg(20, "off") + `<span>Se apagó tu racha de ${days} días. ¡Hoy arranca una nueva!</span>`;
-  if (!host.isConnected) document.body.appendChild(host);
   requestAnimationFrame(() => host.classList.add("on"));
   clearTimeout(host._t); host._t = setTimeout(() => host.classList.remove("on"), 4200);
 }
@@ -118,11 +146,13 @@ export function openStreak(){
       <button class="form-save stk-ok" data-action="streak-close">Listo</button>
     </div>`;
   if (!host.isConnected) document.body.appendChild(host);
-  requestAnimationFrame(() => host.classList.add("on"));
+  const card = host.querySelector(".stk-card"); card.tabIndex = -1;
+  requestAnimationFrame(() => { host.classList.add("on"); card.focus({ preventScroll: true }); });
 }
 export function closeStreak(){
   const host = document.getElementById("streakHost");
   if (!host) return;
   host.classList.remove("on");
+  const b = document.getElementById("streakBtn"); if (b) b.focus({ preventScroll: true });
   setTimeout(() => { if (!host.classList.contains("on")) host.innerHTML = ""; }, 220);
 }

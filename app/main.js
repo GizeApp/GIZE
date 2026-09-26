@@ -207,7 +207,13 @@ document.body.addEventListener("input", async e => {
     // Lo que el cliente corrige deja de estar marcado como leído de la foto.
     if(ff.ocrFilled && ff.ocrFilled.indexOf(k)>=0){ ff.ocrFilled=ff.ocrFilled.filter(x=>x!==k); t.classList.remove("ocr"); }
     // Tabla por porción sin la porción legible: al escribirla se calcula cada 100.
-    if(k==="portion" && ff.ocrPer){ const S=parseFloat(String(t.value).replace(",", ".")); if(S>0 && S<=2000) fillOcrPerPortion(ff, S); }
+    if(k==="portion" && ff.ocrPer){
+      const S=parseFloat(String(t.value).replace(",", "."));
+      if(S>0 && S<=2000){
+        fillOcrPerPortion(ff, S);
+        if(ff.ocr && ff.ocr.status==="portion"){ ff.ocr={ status:"partial" }; t.classList.remove("need"); const el=document.getElementById("cfOcr"); if(el){ el.className="cf-ocr warn"; el.innerHTML=ocrStatus(ff.ocr); } }
+      }
+    }
     return;
   }
   if (a === "macro-field") { const g=k=>parseFloat(String((document.getElementById("macro_"+k)||{}).value||"").replace(",", "."))||0; const el2=document.getElementById("macroSum"); if(el2) el2.innerHTML=macroSumText({p:g("p"),c:g("c"),f:g("f")}); return; }
@@ -1230,6 +1236,13 @@ function scheduleOffSearch(q){
   }, 450);
 }
 
+// Racha: si la app vuelve de segundo plano en un día nuevo, ese día también cuenta (y el
+// día nuevo se sube a la nube como cualquier otro, ver checkDaily).
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState!=="visible" || (State.cloudProfile && State.cloudProfile.role==="coach")) return;
+  if((state.visits||[]).indexOf(today())<0) renderApp();
+});
+
 // ---- Crear alimento: lectura de la foto de la tabla (core/etiqueta.js) ----
 // Completa lo que está vacío o lo que había completado otra foto; lo que escribió el
 // cliente no se toca. Lo completado queda marcado hasta que lo corrija.
@@ -1252,27 +1265,46 @@ function readLabelInto(ff, file){
   const gen = (ff.ocrGen||0) + 1; ff.ocrGen = gen; ff.ocrPer = null;
   ff.ocr = { status: "loading", msg: "Preparando el lector…" };
   const live = () => ComidaState.foodForm===ff && ff.ocrGen===gen && ComidaState.creatingFood;
-  const paint = () => { const el=document.getElementById("cfOcr"); if(el){ el.className = "cf-ocr" + (ff.ocr.status==="ok" ? " ok" : ff.ocr.status==="loading" ? " busy" : " warn"); el.innerHTML = ocrStatus(ff.ocr); } };
+  const paint = () => {
+    const el=document.getElementById("cfOcr");
+    if(el){ el.className = "cf-ocr" + (ff.ocr.status==="ok" ? " ok" : ff.ocr.status==="loading" ? " busy" : " warn"); el.innerHTML = ocrStatus(ff.ocr); }
+    const pe=document.getElementById("cf_portion"); if(pe) pe.classList.toggle("need", ff.ocr.status==="portion");
+  };
   readLabel(file, (st, pr) => {
     if(!live()) return;
     ff.ocr = { status: "loading", msg: /recogniz/.test(st||"") ? "Leyendo la etiqueta… " + Math.round((pr||0)*100) + "%" : "Preparando el lector…" };
     paint();
   }).then(res => {
     if(!live()) return;
+    const unit0 = ff.unit;
     // La porción calculada (no leída) se usa solo si todo cerró.
     if(res.portion && (res.ok || res.notes.indexOf("porcion-calculada")<0)){
       setOcrField(ff, "portion", res.portion);
-      if(res.unit==="ml" && ff.unit!=="ml") ff.unit = "ml";
+      if(res.unit==="ml") ff.unit = "ml";
+    } else if(res.unit==="ml") ff.unit = "ml";
+    if(res.perPortion){
+      // Tabla por porción sin la porción: con la porción que ya está escrita se calcula ya;
+      // si no, se pide.
+      ff.ocrPer = res.perPortion;
+      const S0 = parseFloat(String(ff.portion||"").replace(",", "."));
+      if(S0>0 && S0<=2000){ fillOcrPerPortion(ff, S0); ff.ocr = { status: "partial" }; }
+      else ff.ocr = { status: "portion" };
+    } else {
+      // Si la lectura cerró por completo, manda la foto (lo escrito antes se reemplaza y queda marcado).
+      OCR_FIELDS.forEach(k => setOcrField(ff, k, res[k], res.ok));
+      ff.ocr = { status: res.found===0 ? "none" : res.ok ? "ok" : "partial" };
     }
-    // Si la lectura cerró por completo, manda la foto (lo escrito antes se reemplaza y queda marcado).
-    OCR_FIELDS.forEach(k => setOcrField(ff, k, res[k], res.ok));
-    if(res.perPortion && !res.found){ ff.ocrPer = res.perPortion; ff.ocr = { status: "portion" }; }
-    else ff.ocr = { status: res.found===0 ? "none" : res.ok ? "ok" : "partial" };
-    renderApp();
+    // Los campos ya se escribieron en su lugar: se redibuja todo solo si cambió la unidad
+    // (así no se pierde el foco si el cliente estaba escribiendo el nombre o la marca).
+    if(ff.unit!==unit0){
+      const ae=document.activeElement, fld=ae && ae.dataset && ae.dataset.field, pos=fld && ae.selectionStart;
+      renderApp();
+      if(fld){ const el=document.querySelector('[data-action="cf-field"][data-field="'+fld+'"]'); if(el){ el.focus({preventScroll:true}); try{ el.setSelectionRange(pos, pos); }catch(e){} } }
+    } else paint();
   }).catch(e => {
     console.error("etiqueta", e);
     if(!live()) return;
-    ff.ocr = { status: "error" }; renderApp();
+    ff.ocr = { status: "error" }; paint();
   });
 }
 

@@ -1,8 +1,10 @@
 /* Racha (app/ui/racha.js): llama violeta con neón en la barra de arriba. Prendida mientras
    la racha sigue; gris y con humito cuando se apagó; al volver se prende de nuevo. */
-.topbar-r { display: flex; align-items: center; gap: 12px; }
+.topbar-r { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.topbar-r .client-tag { min-width: 0; }
+.topbar-r .client-name { overflow: hidden; text-overflow: ellipsis; }
 
-.streak { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 12px 0 8px; border-radius: 999px; cursor: pointer;
+.streak { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 12px 0 8px; border-radius: 999px; cursor: pointer;
   background: color-mix(in srgb, var(--gize-r2) 10%, var(--gize-surface)); border: 1px solid color-mix(in srgb, var(--gize-r2) 45%, transparent);
   color: var(--gize-text); font: 800 15px var(--gize-font); font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent;
   box-shadow: 0 0 14px color-mix(in srgb, var(--gize-r2) 28%, transparent), inset 0 0 10px color-mix(in srgb, var(--gize-r2) 12%, transparent);
