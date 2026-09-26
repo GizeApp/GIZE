@@ -354,7 +354,7 @@ export const AR_SECTIONS = [
   ["Sopa paraguaya", 256, 8.7, 22.3, 14.7, 150],
   ["Pebete de jamón y queso (1 u. ≈ 130 g)", 266, 12.8, 28.9, 11, 130],
   ["Carlito (tostado rosarino de jamón, queso y kétchup)", 226, 12, 21.7, 10.1, 165],
-  ["Sándwich de vacío (con chimichurri)", 251, 21.9, 21.7, 8.5, 265],
+  ["Sándwich de vacío (con chimichurri)", 268, 18.5, 20.8, 12.5, 265],
   ["Sándwich de matambre", 226, 10.7, 24.3, 9.6, 200],
   ["Sándwich de salame y queso", 313, 14.3, 31.3, 14.5, 150],
   ["Picada de fiambres y quesos (sin pan)", 326, 20.2, 5.3, 24.9, 150],
