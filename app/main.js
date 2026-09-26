@@ -36,7 +36,7 @@ import { coachPlanObj, cpApply, loadTpls, planDefault, renderApplyPicker, render
 
 import { CoachState } from './screens/coach/state.js';
 
-import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderOffResults, renderResults, selectedFoodValues } from './screens/comida.js';
+import { ComidaState, mealNow, ocrStatus, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderOffResults, renderResults, selectedFoodValues } from './screens/comida.js';
 
 import { EntrenoState, REST_DEFAULT, day, expandedOverride, liveCounting, renderEntreno, renderExList, renderExSheet, effectiveRest, restKey, wkElapsedText, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
@@ -59,12 +59,14 @@ import { renderConfig } from './screens/config.js';
 import { removeMyAvatar, uploadMyAvatar } from './core/avatar.js';
 
 import { productByCode, searchOFF } from './core/off.js';
+import { readLabel } from './core/etiqueta.js';
 import { kcalMismatch, productByCodeShared, reportShared, saveShared, searchShared, uploadLabelPhoto, useShared } from './core/productos.js';
 
 import { addDays, dayItems, loadDay, retryDay, setDayItems } from './screens/comida-historial.js';
 import { EditState, cleanSessionEdit, openSessionEdit, removeSessionEditSet, renderSessionEdit, setSessionEditVal } from './ui/sessionedit.js';
 import { closeScanner, openScanner, scannerManualCode } from './ui/scanner.js';
 import { initUpdateCheck } from './ui/actualizar.js';
+import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
 const autoKg = new Set();
@@ -75,6 +77,7 @@ export function renderApp(){
   if(State.cloudProfile && State.cloudProfile.role==="coach"){ const v=document.getElementById("view"); if(v) v.innerHTML=""; renderCoach(); return; }
   setTimeout(renderFeedback,0);
   checkDaily();
+  markVisit(); paintStreak(); // racha: hoy entró
   document.getElementById("nav-entreno").classList.toggle("active", State.view==="entreno");
   document.getElementById("nav-habitos").classList.toggle("active", State.view==="habitos");
   document.getElementById("nav-cardio").classList.toggle("active", State.view==="cardio");
@@ -199,7 +202,14 @@ document.body.addEventListener("input", async e => {
   if (a === "food-search") { ComidaState.foodQuery = t.value; scheduleOffSearch(t.value); const r=document.getElementById("foodResults"); if(r) r.innerHTML = renderResults(ComidaState.foodQuery); return; }
   if (a === "ex-search") { EntrenoState.exQuery = t.value; const l=document.getElementById("exList"); if(l) l.innerHTML = renderExList(); return; }
   if (a === "portion-grams") { const base = ComidaState.selectedFood ? selectedFoodValues() : (ComidaState.editEntry ? entryBase(ComidaState.editEntry) : null); if(base){ const pv=document.getElementById("portionPreview"); if(pv) pv.textContent = previewStr(base, t.value); const pu=document.getElementById("portionUnits"); const uf=sheetUnitFood(); if(pu && uf) pu.textContent = unitsLabel(t.value, cookPortion(uf.food, uf.cook), base.unit, uf.food); } ComidaState.sheetGrams = t.value; return; }
-  if (a === "cf-field") { ComidaState.foodForm[t.dataset.field] = t.value; return; }
+  if (a === "cf-field") {
+    const ff=ComidaState.foodForm, k=t.dataset.field; ff[k] = t.value;
+    // Lo que el cliente corrige deja de estar marcado como leído de la foto.
+    if(ff.ocrFilled && ff.ocrFilled.indexOf(k)>=0){ ff.ocrFilled=ff.ocrFilled.filter(x=>x!==k); t.classList.remove("ocr"); }
+    // Tabla por porción sin la porción legible: al escribirla se calcula cada 100.
+    if(k==="portion" && ff.ocrPer){ const S=parseFloat(String(t.value).replace(",", ".")); if(S>0 && S<=2000) fillOcrPerPortion(ff, S); }
+    return;
+  }
   if (a === "macro-field") { const g=k=>parseFloat(String((document.getElementById("macro_"+k)||{}).value||"").replace(",", "."))||0; const el2=document.getElementById("macroSum"); if(el2) el2.innerHTML=macroSumText({p:g("p"),c:g("c"),f:g("f")}); return; }
   if (a === "cal-field") { ComidaState.calForm[t.dataset.field] = t.value; return; }
   if (a === "wkg-field") { ProgresoState.weightForm.kg = t.value; return; }
@@ -270,7 +280,7 @@ document.body.addEventListener("change", async e => {
     if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach();
     return;
   }
-  if (a === "cf-photo") { const file=t.files&&t.files[0]; if(file){ const ff=ComidaState.foodForm; if(ff.photoUrl) URL.revokeObjectURL(ff.photoUrl); ff.photo=file; ff.photoUrl=URL.createObjectURL(file); renderApp(); } return; }
+  if (a === "cf-photo") { const file=t.files&&t.files[0]; if(file){ const ff=ComidaState.foodForm; if(ff.photoUrl) URL.revokeObjectURL(ff.photoUrl); ff.photo=file; ff.photoUrl=URL.createObjectURL(file); readLabelInto(ff, file); renderApp(); } return; }
 });
 
 document.body.addEventListener("mousemove", e => {
@@ -288,6 +298,10 @@ document.body.addEventListener("click", async e => {
   const el = e.target.closest("[data-action]"); if(!el) return;
   const a = el.dataset.action;
   if (routineLocked() && ["addday","delday","removeex","addset","removeset","ex-add-open","ex-swap","ex-insert","ex-choose","ex-custom","load-default-routine"].indexOf(a)>=0) return;
+
+  // Racha
+  if (a === "streak-open") { openStreak(); return; }
+  if (a === "streak-close") { closeStreak(); return; }
 
   // Hábitos
   if (a === "habit-add") { addHabit(); return; }
@@ -337,13 +351,14 @@ document.body.addEventListener("click", async e => {
     ComidaState.calEditing=false; save(); renderApp(); return;
   }
   if (a === "cal-manual") { const m=parseInt((document.getElementById("calManual")||{}).value); if(m>0){ state.calTarget=m; if(state.calProfile && state.calProfile.macros){ state.calProfile=Object.assign({}, state.calProfile); delete state.calProfile.macros; } ComidaState.calEditing=false; save(); renderApp(); } else alert("Ingresá un número de calorías válido."); return; }
-  if (a === "food-create-open") { ComidaState.searchOpen=false; ComidaState.foodForm={name:"",kcal:"",p:"",c:"",f:"",unit:"g"}; ComidaState.creatingFood=true; renderApp(); return; }
+  if (a === "food-create-open") { ComidaState.searchOpen=false; ComidaState.foodForm={name:"",kcal:"",p:"",c:"",f:"",portion:"",unit:"g"}; ComidaState.creatingFood=true; renderApp(); return; }
   if (a === "food-create-cancel") { ComidaState.creatingFood=false; renderApp(); return; }
   if (a === "cf-unit") { ComidaState.foodForm.unit = el.dataset.val; renderApp(); return; }
   if (a === "food-create-save") {
     const ff=ComidaState.foodForm, num=v=>parseFloat(String(v==null?"":v).replace(",", "."))||0;
     if(!ff.name.trim() || ff.kcal==="" || !(num(ff.kcal)>=0)){ alert("Poné al menos nombre y calorías."); return; }
-    const nf={ name:ff.name.trim()+(ff.brand&&ff.brand.trim()?" · "+ff.brand.trim():""), kcal:Math.round(num(ff.kcal)), p:num(ff.p), c:num(ff.c), f:num(ff.f), portion:100, unit:ff.unit||"g" };
+    const por=num(ff.portion);
+    const nf={ name:ff.name.trim()+(ff.brand&&ff.brand.trim()?" · "+ff.brand.trim():""), kcal:Math.round(num(ff.kcal)), p:num(ff.p), c:num(ff.c), f:num(ff.f), portion:por>=1&&por<=2000?Math.round(por):100, unit:ff.unit||"g" };
     if(nf.kcal>950 || nf.p>100 || nf.c>100 || nf.f>100 || nf.p+nf.c+nf.f>105){ alert("Revisá los valores: tienen que ser cada 100 "+(nf.unit==="ml"?"ml":"g")+" (como en la tabla del paquete)."); return; }
     if(ff.code && kcalMismatch(nf.kcal, nf.p, nf.c, nf.f) && !confirm("Las calorías ("+nf.kcal+") no coinciden con los macros (darían unas "+Math.round(nf.p*4+nf.c*4+nf.f*9)+").\n\n¿Los copiaste bien de la etiqueta? Tocá Aceptar para guardar igual.")) return;
     if(ff.code && !ff.photo){ alert("Falta la foto de la tabla nutricional del paquete."); return; }
@@ -1215,6 +1230,52 @@ function scheduleOffSearch(q){
   }, 450);
 }
 
+// ---- Crear alimento: lectura de la foto de la tabla (core/etiqueta.js) ----
+// Completa lo que está vacío o lo que había completado otra foto; lo que escribió el
+// cliente no se toca. Lo completado queda marcado hasta que lo corrija.
+const OCR_FIELDS = ["kcal", "p", "c", "f"];
+function setOcrField(ff, k, v, force){
+  if(v==null) return;
+  const cur = String(ff[k]==null ? "" : ff[k]).trim();
+  if(cur && !force && (!ff.ocrFilled || ff.ocrFilled.indexOf(k)<0)) return;
+  ff[k] = String(v).replace(".", ",");
+  ff.ocrFilled = (ff.ocrFilled||[]).filter(x=>x!==k).concat(k);
+  const el = document.getElementById("cf_"+k);
+  if(el){ el.value = ff[k]; el.classList.add("ocr"); }
+}
+function fillOcrPerPortion(ff, S){
+  const r1 = v => Math.round(v*10)/10, pp = ff.ocrPer;
+  if(pp.kcal!=null) setOcrField(ff, "kcal", Math.round(pp.kcal*100/S));
+  ["p","c","f"].forEach(k=>{ if(pp[k]!=null) setOcrField(ff, k, r1(pp[k]*100/S)); });
+}
+function readLabelInto(ff, file){
+  const gen = (ff.ocrGen||0) + 1; ff.ocrGen = gen; ff.ocrPer = null;
+  ff.ocr = { status: "loading", msg: "Preparando el lector…" };
+  const live = () => ComidaState.foodForm===ff && ff.ocrGen===gen && ComidaState.creatingFood;
+  const paint = () => { const el=document.getElementById("cfOcr"); if(el){ el.className = "cf-ocr" + (ff.ocr.status==="ok" ? " ok" : ff.ocr.status==="loading" ? " busy" : " warn"); el.innerHTML = ocrStatus(ff.ocr); } };
+  readLabel(file, (st, pr) => {
+    if(!live()) return;
+    ff.ocr = { status: "loading", msg: /recogniz/.test(st||"") ? "Leyendo la etiqueta… " + Math.round((pr||0)*100) + "%" : "Preparando el lector…" };
+    paint();
+  }).then(res => {
+    if(!live()) return;
+    // La porción calculada (no leída) se usa solo si todo cerró.
+    if(res.portion && (res.ok || res.notes.indexOf("porcion-calculada")<0)){
+      setOcrField(ff, "portion", res.portion);
+      if(res.unit==="ml" && ff.unit!=="ml") ff.unit = "ml";
+    }
+    // Si la lectura cerró por completo, manda la foto (lo escrito antes se reemplaza y queda marcado).
+    OCR_FIELDS.forEach(k => setOcrField(ff, k, res[k], res.ok));
+    if(res.perPortion && !res.found){ ff.ocrPer = res.perPortion; ff.ocr = { status: "portion" }; }
+    else ff.ocr = { status: res.found===0 ? "none" : res.ok ? "ok" : "partial" };
+    renderApp();
+  }).catch(e => {
+    console.error("etiqueta", e);
+    if(!live()) return;
+    ff.ocr = { status: "error" }; renderApp();
+  });
+}
+
 // Buscador de Comida: lo último que eligió buscando (5) y lo último que anotó (30), el más
 // reciente primero y sin repetir. Se guardan copias sin los datos de la vez anterior.
 const sameFood = (a, b) => a && b && a.name === b.name && (a.code || "") === (b.code || "");
@@ -1250,7 +1311,7 @@ async function onScannedCode(code){
   }
   if(!food){
     if(confirm("Todavía nadie cargó el código " + code + ".\n\n¿Lo cargás vos con los datos de la etiqueta? Va a quedar disponible para todos los usuarios de GIZE.")){
-      ComidaState.searchOpen=false; ComidaState.foodForm = {name:"",brand:"",kcal:"",p:"",c:"",f:"",unit:"g",code:String(code).replace(/\D/g,"")}; ComidaState.creatingFood = true; renderApp();
+      ComidaState.searchOpen=false; ComidaState.foodForm = {name:"",brand:"",kcal:"",p:"",c:"",f:"",portion:"",unit:"g",code:String(code).replace(/\D/g,"")}; ComidaState.creatingFood = true; renderApp();
     }
     return;
   }

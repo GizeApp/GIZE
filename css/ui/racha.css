@@ -1,0 +1,74 @@
+/* Racha (app/ui/racha.js): llama violeta con neón en la barra de arriba. Prendida mientras
+   la racha sigue; gris y con humito cuando se apagó; al volver se prende de nuevo. */
+.topbar-r { display: flex; align-items: center; gap: 12px; }
+
+.streak { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 12px 0 8px; border-radius: 999px; cursor: pointer;
+  background: color-mix(in srgb, var(--gize-r2) 10%, var(--gize-surface)); border: 1px solid color-mix(in srgb, var(--gize-r2) 45%, transparent);
+  color: var(--gize-text); font: 800 15px var(--gize-font); font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--gize-r2) 28%, transparent), inset 0 0 10px color-mix(in srgb, var(--gize-r2) 12%, transparent);
+  transition: box-shadow .4s, border-color .4s, background .4s; }
+.streak[hidden] { display: none; }
+.streak:active { transform: scale(.96); }
+.streak b { min-width: 1ch; text-shadow: 0 0 10px color-mix(in srgb, var(--gize-r2) 70%, transparent); }
+
+/* La llama: neón violeta con núcleo rosado, titilando. */
+.flame { display: block; overflow: visible; }
+.flame .fl-out, .flame .fl-in { transform-box: fill-box; transform-origin: 50% 100%; }
+.flame .fl-smoke { fill: none; stroke: #8F98A6; stroke-width: 1.2; stroke-linecap: round; opacity: 0; }
+.streak.lit .flame, .stk-big .flame:not(.off), .stk-day.on .flame {
+  filter: drop-shadow(0 0 3px #C58BFF) drop-shadow(0 0 8px color-mix(in srgb, var(--gize-r2) 85%, transparent)) drop-shadow(0 0 16px color-mix(in srgb, var(--gize-r3) 35%, transparent)); }
+.streak.lit .fl-out, .stk-big .flame:not(.off) .fl-out { animation: flOut 1.6s ease-in-out infinite; }
+.streak.lit .fl-in, .stk-big .flame:not(.off) .fl-in { animation: flIn 1.1s ease-in-out infinite; }
+@keyframes flOut { 0%, 100% { transform: scale(1, 1) rotate(0); } 30% { transform: scale(.97, 1.05) rotate(-2deg); } 60% { transform: scale(1.03, .96) rotate(1.5deg); } }
+@keyframes flIn { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.9, 1.1); opacity: .85; } }
+
+/* Apagada: gris, sin brillo y con humito. */
+.flame.off, .streak.out .flame { filter: grayscale(1) brightness(.7); opacity: .55; }
+.flame.off .fl-in, .streak.out .fl-in { opacity: 0; }
+.streak.out { border-color: var(--gize-border); background: var(--gize-surface); box-shadow: none; color: var(--gize-text-2); }
+.streak.out b { text-shadow: none; }
+.streak.out .fl-smoke, .stk-big .flame.off .fl-smoke { opacity: 1; animation: flSmoke 1.6s ease-out infinite; }
+@keyframes flSmoke { 0% { opacity: 0; transform: translateY(3px); } 40% { opacity: .9; } 100% { opacity: 0; transform: translateY(-4px); } }
+
+/* Se vuelve a prender. */
+.streak.relight .flame { animation: flRelight .9s cubic-bezier(.2, .9, .3, 1.4) both; }
+.streak.relight { animation: stkGlow 1.2s ease-out both; }
+@keyframes flRelight { 0% { filter: grayscale(1) brightness(.6); opacity: .5; transform: scale(.6); }
+  60% { filter: drop-shadow(0 0 10px #C58BFF) drop-shadow(0 0 22px var(--gize-r2)); opacity: 1; transform: scale(1.25); }
+  100% { filter: drop-shadow(0 0 3px #C58BFF) drop-shadow(0 0 8px color-mix(in srgb, var(--gize-r2) 85%, transparent)); transform: scale(1); } }
+@keyframes stkGlow { 0% { box-shadow: none; } 50% { box-shadow: 0 0 26px var(--gize-r2); } 100% { box-shadow: 0 0 14px color-mix(in srgb, var(--gize-r2) 28%, transparent); } }
+
+/* Aviso de "se apagó tu racha". */
+.streak-note { position: fixed; z-index: 60; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translate(-50%, -12px); opacity: 0; pointer-events: none;
+  display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100% - 32px); padding: 12px 16px; border-radius: 14px;
+  background: var(--gize-surface-2); border: 1px solid var(--gize-border); color: var(--gize-text); font: 600 var(--text-meta, 13px) var(--gize-font);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .5); transition: opacity .3s, transform .3s; }
+.streak-note.on { opacity: 1; transform: translate(-50%, 0); }
+.streak-note .flame { flex: none; }
+
+/* Detalle al tocar la llama. */
+#streakHost .stk-bg { position: fixed; inset: 0; z-index: 70; background: rgba(0, 0, 0, .6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); opacity: 0; transition: opacity .2s; }
+#streakHost .stk-card { position: fixed; z-index: 71; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); width: min(420px, calc(100% - 32px)); transform: translate(-50%, 24px); opacity: 0;
+  padding: 26px 20px 18px; border-radius: 22px; text-align: center; background: var(--gize-surface); border: 1px solid color-mix(in srgb, var(--gize-r2) 35%, var(--gize-border));
+  box-shadow: 0 0 40px color-mix(in srgb, var(--gize-r2) 18%, transparent), 0 20px 50px rgba(0, 0, 0, .6); transition: opacity .2s, transform .25s; }
+#streakHost.on .stk-bg { opacity: 1; }
+#streakHost.on .stk-card { opacity: 1; transform: translate(-50%, 0); }
+.stk-big { display: flex; justify-content: center; margin-bottom: 4px; }
+.stk-n { font: 800 44px/1 var(--gize-font); color: var(--gize-text); font-variant-numeric: tabular-nums; text-shadow: 0 0 18px color-mix(in srgb, var(--gize-r2) 70%, transparent); }
+.stk-t { margin-top: 6px; color: var(--gize-text-2); font-size: var(--text-body, 15px); }
+.stk-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 20px 0 16px; }
+.stk-day { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border-radius: 12px; }
+.stk-day span { font-size: 11px; font-weight: 700; color: var(--gize-text-2); }
+.stk-day.today { background: color-mix(in srgb, var(--gize-r2) 12%, transparent); }
+.stk-day.today span { color: var(--gize-text); }
+.stk-best { font-size: var(--text-body, 15px); color: var(--gize-text-2); }
+.stk-best b { color: var(--gize-text); }
+.stk-h { margin: 8px 0 16px; font-size: var(--text-meta, 13px); color: var(--gize-text-2); line-height: 1.4; }
+.stk-ok { width: 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .streak .fl-out, .streak .fl-in, .stk-big .fl-out, .stk-big .fl-in, .flame .fl-smoke { animation: none !important; }
+  .streak.relight .flame, .streak.relight { animation: none; }
+}
+html.lite .streak .fl-out, html.lite .streak .fl-in, html.lite .stk-big .fl-out, html.lite .stk-big .fl-in { animation: none; }
+html.lite #streakHost .stk-bg { backdrop-filter: none; -webkit-backdrop-filter: none; }
