@@ -17,16 +17,35 @@ export function rowToFood(r){
     src: "GIZE", gid: r.id, code: r.code || "", verified: !!r.verified };
 }
 
+// Formas equivalentes de una misma palabra en los nombres de los productos.
+const SYN = {
+  lactal: ["lactal", "molde", "lactead"], molde: ["molde", "lactal", "lactead"],
+  galletitas: ["galletit", "galleta"], galletita: ["galletit", "galleta"], galletas: ["galleta", "galletit"],
+  yogur: ["yogur"], yogurt: ["yogur"], yoghurt: ["yogur"],
+  fideos: ["fideo", "pasta", "spaghetti", "tallarin"], fideo: ["fideo", "pasta", "spaghetti", "tallarin"],
+  muzzarella: ["muzzarella", "mozzarella", "muzarella"], mozzarella: ["muzzarella", "mozzarella", "muzarella"],
+};
+
+const STOP = new Set(["de", "del", "la", "el", "los", "las", "y", "con", "en", "x"]);
+
 function ready(){ return !!(State.sb && State.cloudUser); }
 
 // Búsqueda por nombre o marca (sin tildes). Los verificados y los más usados primero; después,
 // los más escaneados en Open Food Facts (los productos conocidos antes que los raros).
 export async function searchShared(q){
   if (!ready()) return [];
-  const k = norm(q).replace(/[%_\\]/g, " ").trim();
+  const k = norm(q).replace(/[^a-z0-9ñ ]/g, " ").replace(/\s+/g, " ").trim();
   if (k.length < 3) return [];
-  const r = await State.sb.from("products").select(COLS).like("search", "%" + k + "%")
-    .order("verified", { ascending: false }).order("uses", { ascending: false }).order("scans", { ascending: false }).limit(15);
+  // Cada palabra tiene que estar (en cualquier orden) o alguna de sus formas equivalentes:
+  // "pan lactal" encuentra también los que la marca llama "pan de molde".
+  const words = k.split(" ").filter(w => w.length >= 2 && !STOP.has(w)).slice(0, 5);
+  if (!words.length) return [];
+  let qb = State.sb.from("products").select(COLS);
+  words.forEach(w => {
+    const alts = SYN[w] || [w];
+    qb = alts.length > 1 ? qb.or(alts.map(a => "search.like.%" + a + "%").join(",")) : qb.like("search", "%" + w + "%");
+  });
+  const r = await qb.order("verified", { ascending: false }).order("uses", { ascending: false }).order("scans", { ascending: false }).limit(25);
   if (r.error) throw r.error;
   return (r.data || []).map(rowToFood);
 }
