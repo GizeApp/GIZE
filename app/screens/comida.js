@@ -162,11 +162,14 @@ export function renderResults(q){
   // Se busca en el nombre sin la aclaración de la unidad ("bana" no trae "Pan lactal (1
   // rebanada…)").
   const key = f => norm(shortName(f.name));
+  // Los productos de marca siempre antes que los genéricos.
+  const brand = f => f.src==="OFF" || f.src==="GIZE" ? 0 : 1;
   const rank = f => { const n=key(f); return n.startsWith(nq) ? 0 : (n.includes(" "+nq) ? 1 : 2); };
-  lastResults = all.filter(f=>key(f).includes(nq)).sort((a,b)=>rank(a)-rank(b)).slice(0,40);
-  const local = lastResults.length ? lastResults.map((f,i)=>foodRow(f, "food-pick", i)).join("")
+  lastResults = all.filter(f=>key(f).includes(nq)).sort((a,b)=>brand(a)-brand(b) || rank(a)-rank(b)).slice(0,40);
+  const local = lastResults.length ? '<div class="off-head">Alimentos</div>' + lastResults.map((f,i)=>foodRow(f, "food-pick", i)).join("")
     : (nq.length < 3 ? '<div class="cal-hint">Sin resultados en la base. Probá crear el alimento 👇</div>' : '');
-  return local + '<div id="offResults">'+renderOffResults()+'</div>';
+  // Arriba los productos de marca de la base compartida; abajo la base de alimentos.
+  return '<div id="offResults">'+renderOffResults()+'</div>' + local;
 }
 
 // Sin nada escrito: «Búsquedas recientes» (los últimos 5 alimentos que eligió buscando) y
@@ -192,18 +195,18 @@ function foodRow(f, action, i){
   </div>`;
 }
 
-// Resultados de Open Food Facts (productos de marca), debajo de los de la base propia.
+// Resultados de productos de marca (base compartida y Open Food Facts), arriba de la base propia.
 // Se buscan aparte y sin bloquear la escritura (ver "food-search" en main.js).
 export let offResults = [];
 export function renderOffResults(){
   const o = ComidaState.off || {};
   if (!o.q || o.q.length < 3) return "";
-  const head = '<div class="off-head">Productos de marca <span>GIZE y Open Food Facts</span></div>';
+  const head = '<div class="off-head">Productos de marca</div>';
   if (o.status === "loading") return head + '<div class="cal-hint">Buscando productos de marca…</div>';
-  if (o.status === "error") return head + '<div class="cal-hint">No se pudo buscar productos de marca (¿sin conexión?). La base propia sigue funcionando.</div>';
+  if (o.status === "error") return ""; // sin señal: quedan los alimentos de abajo
   const shown = new Set((state.offRecent||[]).map(f=>f.code));
   offResults = (o.items||[]).filter(f=>!f.code || !shown.has(f.code));
-  if (!offResults.length) return o.status === "done" ? head + '<div class="cal-hint">Sin productos de marca para esa búsqueda. Podés escanear el código de barras o crear el alimento.</div>' : "";
+  if (!offResults.length) return "";
   return head + offResults.map((f,i)=>foodRow(f, "off-pick", i)).join("");
 }
 
