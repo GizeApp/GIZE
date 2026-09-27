@@ -1,10 +1,6 @@
-// Sugerencia de progresión (doble progresión): con lo que hiciste la última vez en ese
-// ejercicio y el rango de reps del coach ("8-12"), propone el paso de hoy.
-//   · Si en la vez pasada todas las series llegaron al tope del rango → subí el peso y
-//     volvé al piso del rango.
-//   · Si no → mismo peso y una rep más (sin pasar el tope).
-//   · Sin peso (peso corporal) → una rep más. Por tiempo → 5 segundos más.
-// Es solo una sugerencia: no cambia nada hasta que tocás «Usar».
+// Recomendación de peso para hipertrofia: si la vez pasada, con el peso más alto, alguna serie
+// pasó el tope del rango de reps del coach por al menos una ("8-12" y hizo 13 o más), conviene
+// subir 2,5 kg. Si no, no se recomienda nada. Es solo un aviso: no cambia ningún dato.
 
 const num = v => parseFloat(String(v == null ? "" : v).replace(",", ".")) || 0;
 export const kgText = k => (Math.round(k * 100) / 100).toString().replace(".", ",");
@@ -17,33 +13,23 @@ export function repRange(t){
   return one ? [+one[1], +one[1]] : null;
 }
 
-// Cuánto subir: 1 kg hasta 10 kg, 2 kg hasta 20 kg (los saltos de las mancuernas) y
-// después 2,5 kg.
-export function nextKg(kg){ return kg < 10 ? kg + 1 : kg < 20 ? kg + 2 : Math.round((kg + 2.5) * 2) / 2; }
+export const STEP_KG = 2.5;
 
 export function suggest(ex, prevSets, timed){
-  const prev = (prevSets || []).filter(s => num(s.kg) > 0 || num(s.reps) > 0 || num(s.secs) > 0);
+  if (timed) return null;
+  const prev = (prevSets || []).filter(s => num(s.kg) > 0 && num(s.reps) > 0);
   if (!prev.length) return null;
-  if (timed){
-    const best = Math.max(...prev.map(s => num(s.secs)));
-    if (!(best > 0)) return null;
-    return { kg: null, text: (best + 5) + " s", why: "La vez pasada aguantaste " + best + " s: sumá 5 segundos." };
-  }
-  // Serie de referencia: la de más peso (y a igual peso, la de más reps).
-  const top = prev.reduce((a, s) => (num(s.kg) > num(a.kg) || (num(s.kg) === num(a.kg) && num(s.reps) > num(a.reps))) ? s : a, prev[0]);
-  const kg = num(top.kg), reps = Math.round(num(top.reps));
-  if (!(reps > 0)) return null;
-  if (!(kg > 0)) return { kg: null, text: (reps + 1) + " reps", why: "La vez pasada hiciste " + reps + ": sumá una más." };
-  // Rango del coach, serie por serie (si no hay, el de la primera serie que tenga).
+  // Rango del coach, serie por serie (si una no tiene, el de la primera serie que tenga).
   const sets = ex.sets || [];
-  const rangeOf = i => repRange((sets[i] || {}).target) || repRange((sets.find(s => repRange(s.target)) || {}).target);
-  const r = rangeOf(0);
-  const atTop = r && prev.every((s, i) => { const ri = rangeOf(i) || r; return num(s.kg) < kg || Math.round(num(s.reps)) >= ri[1]; });
-  if (atTop){
-    const nk = nextKg(kg);
-    return { kg: nk, text: kgText(nk) + " kg × " + r[0], why: "Llegaste a " + r[1] + " reps con " + kgText(kg) + " kg: subí el peso." };
-  }
-  if (r && reps >= r[1]) return { kg, text: kgText(kg) + " kg × " + r[1], why: "Completá " + r[1] + " reps en todas las series antes de subir." };
-  const nr = r ? Math.min(r[1], reps + 1) : reps + 1;
-  return { kg, text: kgText(kg) + " kg × " + nr, why: "Mismo peso que la vez pasada, una rep más." };
+  const any = repRange((sets.find(s => repRange(s.target)) || {}).target);
+  if (!any) return null;
+  const rangeOf = i => repRange((sets[i] || {}).target) || any;
+  // Las series con el peso más alto de la vez pasada: ¿alguna pasó el tope del rango?
+  const kg = Math.max(...prev.map(s => num(s.kg)));
+  const over = prev.map((s, i) => ({ s, r: rangeOf(i) })).filter(x => num(x.s.kg) === kg && Math.round(num(x.s.reps)) > x.r[1]);
+  if (!over.length) return null;
+  const best = over.reduce((a, x) => Math.round(num(x.s.reps)) > Math.round(num(a.s.reps)) ? x : a, over[0]);
+  const nk = Math.round((kg + STEP_KG) * 100) / 100;
+  return { kg: nk, text: "Subí " + kgText(STEP_KG) + " kg: " + kgText(nk) + " kg",
+    why: "La vez pasada hiciste " + Math.round(num(best.s.reps)) + " reps con " + kgText(kg) + " kg y el rango es " + best.r[0] + "-" + best.r[1] + "." };
 }

@@ -504,7 +504,7 @@ export function renderCoachRoutine(d){
     '</div>'+
     // Sugerencia automática de peso: una sola llave para toda la rutina (la ve el cliente en
     // cada ejercicio sin peso propuesto). Se guarda como noSug en los días.
-    (()=>{ const off=rt.some(x=>x.noSug); return '<div class="co-sug-all"><div class="co-sug-txt"><b>Sugerencia automática de peso</b>'+(off?'Apagada: el cliente solo ve el peso que vos propongas.':'GIZE le sugiere el peso según su última vez, salvo donde cargues tu peso propuesto.')+'</div><button type="button" class="co-sug-tg'+(off?'':' on')+'" data-coach="rt-nosug-all" role="switch" aria-checked="'+(!off)+'" aria-label="Sugerencia automática de peso"><span></span></button></div>'; })()+
+    (()=>{ const off=rt.some(x=>x.noSug); return '<div class="co-sug-all"><div class="co-sug-txt"><b>Sugerencia automática de peso</b>'+(off?'Apagada: el cliente solo ve el peso que vos propongas.':'GIZE le recomienda subir 2,5 kg cuando la vez pasada se pasó del rango de reps, salvo donde cargues tu peso propuesto.')+'</div><button type="button" class="co-sug-tg'+(off?'':' on')+'" data-coach="rt-nosug-all" role="switch" aria-checked="'+(!off)+'" aria-label="Sugerencia automática de peso"><span></span></button></div>'; })()+
     '<div class="co-exc-section-head"><span class="co-sec" style="margin:0">Ejercicios</span><button class="co-rt-add" data-coach="rt-add">+ Agregar ejercicio</button></div>'+
     (cards||'<div class="cal-hint">D\u00eda vac\u00edo. Agreg\u00e1 ejercicios ac\u00e1 abajo.</div>')+
     (cards ? '<button class="co-rt-add-end" data-coach="rt-add">+ Agregar ejercicio al final</button>' : '')+
