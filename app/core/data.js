@@ -3,7 +3,7 @@ import { mkEx, mkExT } from './utils.js';
 // La base de alimentos vive en ./foods.js (curada, sin repetidos, con crudo/cocido).
 export { FOODS } from './foods.js';
 
-export const EX_CATS = [["pecho","Pecho"],["espalda","Espalda"],["hombros","Hombros"],["biceps","Bíceps"],["triceps","Tríceps"],["cuadriceps","Cuádriceps"],["isquios","Isquios"],["gluteos","Glúteos"],["gemelos","Gemelos"],["abs","Abdominales"],["antebrazo","Antebrazo"],["cuello","Cuello"]];
+export const EX_CATS = [["pecho","Pecho"],["espalda","Espalda"],["hombros","Hombros"],["biceps","Bíceps"],["triceps","Tríceps"],["cuadriceps","Cuádriceps"],["isquios","Isquios"],["gluteos","Glúteos"],["aductores","Aductores"],["gemelos","Gemelos"],["abs","Abdominales"],["antebrazo","Antebrazo"],["cuello","Cuello"]];
 
 export const EX_DB = {
   pecho:["Press de banca plano (barra)","Press de banca inclinado (barra)","Press de banca declinado","Press plano con mancuernas","Press inclinado con mancuernas","Press plano en Smith","Press inclinado en Smith","Aperturas con mancuernas","Aperturas inclinadas","Aperturas en máquina","Cruce de poleas","Vuelos en polea","Fondos en paralelas","Flexiones de brazos","Press de pecho en máquina","Peck deck","Cruce de poleas descendente","Press declinado con mancuernas","Aperturas en polea baja","Flexiones diamante","Press de pecho en máquina inclinado"],
@@ -13,7 +13,9 @@ export const EX_DB = {
   triceps:["Press francés con barra","Press francés con mancuernas","Extensión en polea","Extensión con soga","Patada de tríceps","Press cerrado","Fondos entre bancos","Extensión sobre la cabeza","Katana en polea","Fondos en paralelas","Extensión de tríceps unilateral en polea","Fondos en máquina","Extensión de tríceps en máquina","Press JM"],
   cuadriceps:["Sentadilla libre","Sentadilla frontal","Sentadilla en Smith","Sentadilla hack","Prensa 45","Prensa horizontal","Extensión de cuádriceps","Extensión de cuádriceps a una pierna","Zancadas","Sentadilla búlgara","Sentadilla con mancuerna al pecho","Subida al cajón","Sentadilla sissy","Cuadricera","Sentadilla goblet","Sentadilla pendular","Sentadilla con cinturón","Zancadas caminando","Zancada inversa","Sentadilla sumo"],
   isquios:["Curl femoral acostado","Curl femoral sentado","Curl femoral de pie","Peso muerto rumano","Peso muerto rumano con mancuernas","Peso muerto piernas rígidas","Peso muerto convencional","Buenos días","Curl nórdico","Camilla de isquios","Peso muerto rumano a una pierna","Curl femoral con fitball"],
-  gluteos:["Empuje de cadera","Empuje de cadera en máquina","Puente de glúteo","Patada de glúteo en polea","Patada de glúteo en máquina","Abductores","Abducción en polea","Aductores","Peso muerto sumo","Empuje de cadera a una pierna","Patada de glúteo en cuadrupedia","Caminata lateral con banda","Hiperextensión para glúteo","Step-up para glúteo"],
+  gluteos:["Empuje de cadera","Empuje de cadera en máquina","Puente de glúteo","Patada de glúteo en polea","Patada de glúteo en máquina","Abductores","Abducción en polea","Peso muerto sumo","Empuje de cadera a una pierna","Patada de glúteo en cuadrupedia","Caminata lateral con banda","Hiperextensión para glúteo","Step-up para glúteo"],
+  // Aductores: cara interna del muslo (no son glúteo). Los abductores sí van en glúteos (glúteo medio).
+  aductores:["Aductores","Aductores en máquina"],
   gemelos:["Gemelos de pie","Gemelos sentado","Gemelos en prensa","Gemelos en Smith","Gemelos burro","Gemelos a una pierna","Gemelos en máquina","Elevación de tibial"],
   abs:["Encogimiento abdominal","Encogimiento declinado","Elevación de piernas","Elevación de piernas colgado","Plancha","Rueda abdominal","Encogimiento en polea","Giro ruso","Escaladores","Oblicuos","Plancha lateral","Encogimiento invertido","Bicicleta abdominal","Puntas a la barra","Plancha invertida","Bicho muerto","Leñador en polea","Encogimiento en máquina","Bandera","Abdominales en V","Crunch en banco","Pallof press","Elevación de rodillas en paralelas","Plancha con toque de hombros"],
   antebrazo:["Curl de muñeca","Curl de muñeca invertido","Curl invertido con barra","Caminata del granjero","Curl de antebrazo en polea","Curl de muñeca con mancuerna","Curl Zottman","Enrollador de muñeca","Colgarse de la barra","Pinza con disco"],
@@ -37,7 +39,7 @@ export const DEFAULT = {
       note:"ENTRADA EN CALOR — A1 Movilidad de cadera en estocada lateral: 2×8 c/lado · A2 Sentadilla de copa isométrica: 2×20 seg",
       exercises:[
       mkExT("Camilla de isquios","isquios",["8-12","8-12","8-12"],"Pausa en contracción + excéntrica muy controlada y rango completo.",{o:"B1",rir:"2-0",rest:"2'-3'",goal:"Progreso en reps"}),
-      mkExT("Aductores en máquina","gluteos",["10-16","10-16"],"Excéntrica controlada y pausa 1/2\" en contracción.",{o:"C1",rir:"2-0",rest:"2'-3'",goal:"Progreso en reps"}),
+      mkExT("Aductores en máquina","aductores",["10-16","10-16"],"Excéntrica controlada y pausa 1/2\" en contracción.",{o:"C1",rir:"2-0",rest:"2'-3'",goal:"Progreso en reps"}),
       mkExT("Sentadilla en Smith","cuadriceps",["6-9","6-9"],"Excéntrica controlada 3\". Pies en la parte baja de la máquina. Ancho de hombros, puntas rotadas hacia afuera. Abrir las rodillas al bajar.",{o:"D1",rir:"2-0",rest:"3'-5'",goal:"Progreso en reps"}),
       mkExT("Prensa 45°","cuadriceps",["7-10","7-10"],"Excéntrica 2\". Set up de pies igual a la hack.",{o:"E1",rir:"2-0",rest:"3'-5'",goal:"Progreso en reps"}),
       mkExT("Cuadricera","cuadriceps",["11-15","11-15"],"Pausa arriba, máximo control en la excéntrica, terminar con parciales.",{o:"F1",rir:"2-0",rest:"2'-3'",goal:"Aumentar cargas"}),
@@ -95,7 +97,7 @@ export const PPL_DAYS = [
     mkEx("Curl femoral acostado",3,"isquios"),
     mkEx("Sentadilla libre",2,"cuadriceps"),
     mkEx("Extensión de cuádriceps",2,"cuadriceps"),
-    mkEx("Aductores en máquina",2,"gluteos"),
+    mkEx("Aductores en máquina",2,"aductores"),
     mkEx("Encogimiento abdominal",2,"abs")
   ]},
   { id:"ppl4", name:"Descanso Activo", subtitle:"Jueves · Cardio", note:"Descanso activo: 30 minutos de cardio intenso.", exercises:[] },
@@ -114,7 +116,7 @@ export const PPL_DAYS = [
     mkEx("Peso muerto rumano",2,"isquios"),
     mkEx("Prensa 45",3,"cuadriceps"),
     mkEx("Extensión de cuádriceps",2,"cuadriceps"),
-    mkEx("Aductores en máquina",2,"gluteos"),
+    mkEx("Aductores en máquina",2,"aductores"),
     mkEx("Bandera",2,"abs")
   ]}
 ];

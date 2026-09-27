@@ -9,7 +9,7 @@ import { State } from '../../core/state.js';
 
 import { migrateNames } from '../../core/storage.js';
 
-import { esc, isTimedEx, mkEx, muscleOf, today } from '../../core/utils.js';
+import { esc, exMuscle, isTimedEx, mkEx, muscleOf, today } from '../../core/utils.js';
 
 import { coachDatalist, coachLogFor, exChart, exSummary, exTable } from './clientes.js';
 import { kgText, suggest } from '../../core/progresion.js';
@@ -292,7 +292,7 @@ export function renderApplyPicker(){
 // del grupo a una paleta fija.
 const EX_SWATCH_COLORS=["var(--blue)","var(--purple)","var(--pink)","var(--cyan)","var(--green-2)"];
 function exSwatchColor(ex){
-  const mus=ex.mus||muscleOf(ex.name)||"otros";
+  const mus=exMuscle(ex)||"otros";
   let h=0; for(let i=0;i<mus.length;i++) h=(h*31+mus.charCodeAt(i))>>>0;
   return EX_SWATCH_COLORS[h%EX_SWATCH_COLORS.length];
 }

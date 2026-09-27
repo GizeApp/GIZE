@@ -54,7 +54,7 @@ export function renderWChart(ws, evenX, sz){
 }
 
 export function renderVolumen(daysArg){
-  const labels={pecho:"Pecho",espalda:"Espalda",hombros:"Hombros",biceps:"Bíceps",triceps:"Tríceps",cuadriceps:"Cuádriceps",isquios:"Isquios",gluteos:"Glúteos",gemelos:"Gemelos",abs:"Abdominales",antebrazo:"Antebrazo",cuello:"Cuello",otros:"Otros"};
+  const labels={pecho:"Pecho",espalda:"Espalda",hombros:"Hombros",biceps:"Bíceps",triceps:"Tríceps",cuadriceps:"Cuádriceps",isquios:"Isquios",gluteos:"Glúteos",aductores:"Aductores",gemelos:"Gemelos",abs:"Abdominales",antebrazo:"Antebrazo",cuello:"Cuello",otros:"Otros"};
   const tally={};
   ((daysArg||state.days)||[]).forEach(d=>{ (d.exercises||[]).forEach(ex=>{ const m=exMuscle(ex); const sets=(ex.sets||[]).length; tally[m]=(tally[m]||0)+sets; }); });
   const rows=Object.keys(tally).filter(k=>tally[k]>0).map(k=>({label:labels[k]||k,sets:tally[k]})).sort((a,b)=>b.sets-a.sets);
