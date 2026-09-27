@@ -550,46 +550,106 @@ async function sendReply(btn){
 }
 
 // ---------- Productos ----------
+// Pendientes / reportados / ocultos: lo que falta revisar. «Toda la base»: buscar cualquier
+// producto (nombre, marca o código), editarlo, ocultarlo o borrarlo. «+ Agregar producto»:
+// cargar uno nuevo, que queda de GIZE y verificado (supabase/productos-admin.sql).
+const PTABS = [["pendientes", "Pendientes"], ["reportados", "Reportados"], ["ocultos", "Ocultos"], ["todos", "Toda la base"]];
 async function loadProductos(){
-  page("Productos", "Base compartida: lo que cargan los usuarios al escanear. Compará con la foto de la tabla, corregí y verificá.", `
-    <div class="seg">${[["pendientes", "Pendientes"], ["reportados", "Reportados"], ["ocultos", "Ocultos"]].map(([k, l]) => `<button class="${S.prodTab === k ? "on" : ""}" data-a="ptab" data-v="${k}">${l}</button>`).join("")}</div>
+  const all = S.prodTab === "todos";
+  page("Productos", all ? "Toda la base compartida: buscá un producto para corregirlo, ocultarlo o borrarlo, o agregá uno nuevo. Valores cada 100 g o ml."
+      : "Base compartida: lo que cargan los usuarios al escanear. Compará con la foto de la tabla, corregí y verificá.", `
+    <div class="prod-top"><div class="seg">${PTABS.map(([k, l]) => `<button class="${S.prodTab === k ? "on" : ""}" data-a="ptab" data-v="${k}">${l}</button>`).join("")}</div>
+      <button class="btn pri" data-a="padd">+ Agregar producto</button></div>
+    <div id="pAdd"></div>
+    ${all ? `<div class="prod-q"><input class="in" id="pQ" type="search" placeholder="Buscar por nombre, marca o código de barras" value="${esc(S.prodQ || "")}" autocomplete="off"><button class="btn" data-a="pfind">Buscar</button></div>` : ""}
     <div id="pList" class="empty">Cargando…</div>`);
+  if (S.prodAdding) paintAdd();
   const box = document.getElementById("pList");
-  try { S.prods = await rpc("admin_products", { kind: S.prodTab }); } catch (e) { box.textContent = errMsg(e); return; }
+  try { S.prods = all ? await rpc("admin_products_search", { q: S.prodQ || "", lim: 60 }) : await rpc("admin_products", { kind: S.prodTab }); }
+  catch (e) { box.textContent = errMsg(e); return; }
   paintProds();
   const paths = S.prods.map(p => p.photo_path).filter(x => x && !S.urls[x]);
   if (paths.length){ try { const r = await sb.storage.from("productos").createSignedUrls(paths, 3600); (r.data || []).forEach(x => { if (x.signedUrl) S.urls[x.path] = x.signedUrl; }); } catch (e) {} paintProds(); }
   try { const o = await rpc("admin_overview"); setPend(o.pending); } catch (e) {}
 }
+const SRC = { off: "Open Food Facts", gize: "GIZE", user: "cargado por un usuario" };
 function paintProds(){
   const box = document.getElementById("pList"); if (!box) return;
-  if (!S.prods.length){ box.className = "empty"; box.textContent = "No hay nada para revisar acá."; return; }
+  const all = S.prodTab === "todos";
+  if (!S.prods.length){ box.className = "empty"; box.textContent = all ? (S.prodQ ? "No hay productos con «" + S.prodQ + "»." : "La base está vacía.") : "No hay nada para revisar acá."; return; }
   box.className = "grid";
-  box.innerHTML = S.prods.map(p => {
+  box.innerHTML = (all ? `<div class="muted small">${S.prods.length === 60 ? "Los primeros 60 resultados: escribí más para achicar la búsqueda." : S.prods.length + " producto" + (S.prods.length === 1 ? "" : "s")}</div>` : "") + S.prods.map(p => {
     const u = S.urls[p.photo_path];
     const ph = p.photo_path ? (u ? `<button class="prod-ph" data-a="zoom" data-url="${esc(u)}"><img src="${esc(u)}" alt="Tabla nutricional"></button>` : '<div class="prod-ph none">Cargando foto…</div>') : `<div class="prod-ph none">Sin foto${p.source === "off" ? "<br>(Open Food Facts)" : ""}</div>`;
     const inp = (k, v, l, w) => `<label class="${w || ""}">${l}<input data-k="${k}" value="${esc(v == null ? "" : v)}"></label>`;
+    const tags = (p.verified ? '<span class="ptag ok">✓ Verificado</span>' : "") + (p.hidden ? '<span class="ptag off">Oculto</span>' : "");
+    const btns = all
+      ? `<button class="btn bad" data-a="pdel">Borrar</button>${p.hidden ? `<button class="btn" data-a="psave" data-mode="show">Volver a mostrar</button>` : `<button class="btn" data-a="psave" data-mode="hide">Ocultar</button>`}<button class="btn pri" data-a="psave" data-mode="keep">Guardar cambios</button>`
+      : (p.hidden ? `<button class="btn" data-a="psave" data-verify="0" data-hide="0">Volver a mostrar</button><button class="btn pri" data-a="psave" data-verify="1" data-hide="0">Corregir y verificar</button>`
+        : `<button class="btn bad" data-a="psave" data-verify="0" data-hide="1">Ocultar</button><button class="btn pri" data-a="psave" data-verify="1" data-hide="0">✓ Verificar</button>`);
     return `<div class="card" data-prod="${esc(p.id)}"><div class="prod">${ph}<div>
-      <b>${esc(p.code || "sin código")}</b> <span class="muted small">· ${p.source === "off" ? "Open Food Facts" : "cargado por un usuario"} · ${n0(p.uses)} usos · ${fmtD(p.created_at)}</span>
-      ${p.reports ? `<div class="small" style="color:var(--warn);margin-top:4px">⚠ ${p.reports} reporte${p.reports === 1 ? "" : "s"}: ${esc(p.reasons || "")}</div>` : ""}
+      <b>${esc(p.code || "sin código")}</b> <span class="muted small">· ${esc(SRC[p.source] || p.source)} · ${n0(p.uses)} usos · ${fmtD(p.created_at)}</span> ${tags}
+      ${p.reports ? `<div class="small" style="color:var(--warn);margin-top:4px">⚠ ${p.reports} reporte${p.reports === 1 ? "" : "s"}${p.reasons ? ": " + esc(p.reasons) : ""}</div>` : ""}
       <div class="muted small" style="margin-top:4px">Calorías según los macros: ${Math.round(num(p.protein) * 4 + num(p.carbs) * 4 + num(p.fat) * 9)} · valores cada 100 ${p.unit === "ml" ? "ml" : "g"}</div>
       <div class="pgrid">${inp("name", p.name, "Nombre", "wide")}${inp("brand", p.brand, "Marca", "wide")}${inp("kcal", p.kcal, "Kcal")}${inp("protein", p.protein, "Proteína")}${inp("carbs", p.carbs, "Carbos")}${inp("fat", p.fat, "Grasas")}</div>
-      <div class="row-btns">${p.hidden ? `<button class="btn" data-a="psave" data-verify="0" data-hide="0">Volver a mostrar</button><button class="btn pri" data-a="psave" data-verify="1" data-hide="0">Corregir y verificar</button>`
-        : `<button class="btn bad" data-a="psave" data-verify="0" data-hide="1">Ocultar</button><button class="btn pri" data-a="psave" data-verify="1" data-hide="0">✓ Verificar</button>`}</div>
+      <div class="row-btns">${btns}</div>
     </div></div></div>`;
   }).join("");
 }
-async function saveProd(btn){
-  const c = btn.closest("[data-prod]"), v = k => c.querySelector(`[data-k="${k}"]`).value.trim();
-  const p = S.prods.find(x => x.id === c.dataset.prod);
+// Valores del formulario de un producto (cada 100 g o ml), con los mismos topes que la base.
+function prodValues(c){
+  const v = k => { const i = c.querySelector(`[data-k="${k}"]`); return i ? i.value.trim() : ""; };
   const row = { p_name: v("name"), p_brand: v("brand") || null, p_kcal: num(v("kcal")), p_protein: num(v("protein")), p_carbs: num(v("carbs")), p_fat: num(v("fat")) };
-  if (row.p_name.length < 2) return toast("Poné el nombre del producto.");
-  if (row.p_kcal > 950 || row.p_protein > 100 || row.p_carbs > 100 || row.p_fat > 100 || row.p_protein + row.p_carbs + row.p_fat > 105) return toast("Revisá los valores: son cada 100 g o ml.");
+  if (row.p_name.length < 2) return toast("Poné el nombre del producto."), null;
+  if (row.p_name.length > 120 || (row.p_brand || "").length > 60) return toast("El nombre o la marca son demasiado largos."), null;
+  if (row.p_kcal > 950 || row.p_protein > 100 || row.p_carbs > 100 || row.p_fat > 100 || row.p_protein + row.p_carbs + row.p_fat > 105) return toast("Revisá los valores: son cada 100 g o ml."), null;
+  return row;
+}
+async function saveProd(btn){
+  const c = btn.closest("[data-prod]");
+  const p = S.prods.find(x => x.id === c.dataset.prod); if (!p) return;
+  const row = prodValues(c); if (!row) return;
+  const mode = btn.dataset.mode; // «Toda la base»: keep / hide / show (la verificación no cambia)
+  const verified = mode ? p.verified : btn.dataset.verify === "1", hidden = mode ? (mode === "keep" ? p.hidden : mode === "hide") : btn.dataset.hide === "1";
+  if (mode === "hide" && !confirm("¿Ocultar «" + row.p_name + "»? Deja de aparecer en la app (lo podés volver a mostrar).")) return;
   btn.disabled = true;
-  try { await rpc("admin_product_save", Object.assign({ pid: p.id, p_unit: p.unit, p_verified: btn.dataset.verify === "1", p_hidden: btn.dataset.hide === "1" }, row)); }
+  try { await rpc("admin_product_save", Object.assign({ pid: p.id, p_unit: p.unit, p_verified: verified, p_hidden: hidden }, row)); }
   catch (e) { btn.disabled = false; return toast(errMsg(e)); }
-  S.prods = S.prods.filter(x => x.id !== p.id); paintProds();
-  toast(btn.dataset.hide === "1" ? "Producto oculto" : btn.dataset.verify === "1" ? "Producto verificado ✓" : "Producto visible otra vez");
+  if (mode){ Object.assign(p, { name: row.p_name, brand: row.p_brand, kcal: row.p_kcal, protein: row.p_protein, carbs: row.p_carbs, fat: row.p_fat, hidden }); if (!hidden) p.reports = mode === "show" ? 0 : p.reports; }
+  else S.prods = S.prods.filter(x => x.id !== p.id);
+  paintProds();
+  toast(mode === "keep" ? "Cambios guardados ✓" : hidden ? "Producto oculto" : (mode === "show" || !verified) ? "Producto visible otra vez" : "Producto verificado ✓");
+}
+async function deleteProd(btn){
+  const c = btn.closest("[data-prod]"), p = S.prods.find(x => x.id === c.dataset.prod); if (!p) return;
+  if (!confirm("¿Borrar «" + p.name + "»" + (p.code ? " (" + p.code + ")" : "") + " de la base? Desaparece de la app para todos y no se puede deshacer.\n\nLo que la gente ya anotó en su diario no cambia.")) return;
+  btn.disabled = true;
+  try { await rpc("admin_product_delete", { pid: p.id }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  S.prods = S.prods.filter(x => x.id !== p.id); paintProds(); toast("Producto borrado");
+}
+// «+ Agregar producto»: formulario arriba de la lista.
+function paintAdd(){
+  const box = document.getElementById("pAdd"); if (!box) return;
+  if (!S.prodAdding){ box.innerHTML = ""; return; }
+  const inp = (k, l, w, ph, im) => `<label class="${w || ""}">${l}<input data-k="${k}" placeholder="${ph || ""}"${im ? ` inputmode="${im}"` : ""}></label>`;
+  box.innerHTML = `<div class="card padd" data-new="1"><div class="sec-t">Producto nuevo</div>
+    <div class="muted small">Queda en la base como de GIZE y verificado, y aparece en la app para todos. Valores cada 100 g (o 100 ml si es líquido).</div>
+    <div class="pgrid">${inp("name", "Nombre", "wide", "Ej: Pan lactal blanco")}${inp("brand", "Marca", "wide", "Ej: Fargo")}${inp("kcal", "Kcal", "", "", "decimal")}${inp("protein", "Proteína", "", "", "decimal")}${inp("carbs", "Carbos", "", "", "decimal")}${inp("fat", "Grasas", "", "", "decimal")}
+      ${inp("code", "Código de barras (opcional)", "wide", "Ej: 7790000000000", "numeric")}${inp("portion", "Porción (opcional)", "", "Ej: 25", "decimal")}
+      <label>Unidad<select data-k="unit"><option value="g">g (sólido)</option><option value="ml">ml (líquido)</option></select></label></div>
+    <div class="row-btns"><button class="btn" data-a="paddCancel">Cancelar</button><button class="btn pri" data-a="paddSave">Agregar a la base</button></div></div>`;
+  const f = box.querySelector('[data-k="name"]'); if (f) f.focus();
+}
+async function addProd(btn){
+  const c = btn.closest("[data-new]"); const row = prodValues(c); if (!row) return;
+  const code = c.querySelector('[data-k="code"]').value.replace(/\s/g, ""), portion = num(c.querySelector('[data-k="portion"]').value);
+  if (code && !/^[0-9]{6,14}$/.test(code)) return toast("El código de barras tiene que ser de 6 a 14 números (o dejalo vacío).");
+  if (portion && (portion < 1 || portion > 2000)) return toast("La porción tiene que ser entre 1 y 2000.");
+  btn.disabled = true;
+  try { await rpc("admin_product_add", Object.assign({ p_code: code || null, p_unit: c.querySelector('[data-k="unit"]').value, p_portion: portion || null }, row)); }
+  catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  S.prodAdding = false; toast("Producto agregado ✓");
+  S.prodTab = "todos"; S.prodQ = row.p_name; loadProductos();
 }
 
 // ---------- Avisos ----------
@@ -653,7 +713,7 @@ async function loadSeguridad(){
   const what = a => ({ rol: "Cambió el rol a " + ((a.detail || {}).role === "coach" ? "coach" : "alumno"), desvincular: "Desvinculó de su coach", admin_si: "Hizo administrador", admin_no: "Quitó administrador",
     plan: ({ cortesia: "Dio cortesía", trial: "Extendió la prueba", sin_cortesia: "Quitó la cortesía" }[(a.detail || {}).mode] || "Cambió el plan"), config: "Cambió el cartel de actualización",
     aviso: "Mandó una notificación a " + (a.target || ""), eliminar: "Eliminó la cuenta",
-    contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto",
+    contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto", producto_nuevo: "Agregó un producto", producto_borrar: "Borró un producto",
     fin_gasto_nuevo: "Agregó un gasto", fin_gasto: "Cambió un gasto", fin_gasto_borrar: "Borró un gasto", fin_ajustes: "Cambió los ajustes de finanzas",
     fin_pendiente_nuevo: "Agregó un pendiente", fin_pendiente_hecho: "Marcó un pendiente como hecho", fin_pendiente_deshacer: "Volvió a abrir un pendiente", fin_pendiente_borrar: "Borró un pendiente" }[a.action] || a.action);
   const extra = a => a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : (a.target_name || "");
@@ -670,6 +730,7 @@ document.addEventListener("input", e => {
 });
 document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.id === "uQ"){ S.q = e.target.value.trim(); searchUsers(); }
+  if (e.key === "Enter" && e.target.id === "pQ"){ S.prodQ = e.target.value.trim(); loadProductos(); }
   if (e.key === "Enter" && e.target.id === "fTodoIn"){ const b = document.querySelector('[data-a="fTodoAdd"]'); if (b) b.click(); }
   if (e.key === "Escape") closeDrawer();
 });
@@ -708,6 +769,11 @@ document.addEventListener("click", async e => {
     if (a === "msend"){ sendReply(b); return; }
     if (a === "ptab"){ S.prodTab = b.dataset.v; loadProductos(); return; }
     if (a === "psave"){ saveProd(b); return; }
+    if (a === "pdel"){ deleteProd(b); return; }
+    if (a === "pfind"){ const q = document.getElementById("pQ"); S.prodQ = q ? q.value.trim() : ""; loadProductos(); return; }
+    if (a === "padd"){ S.prodAdding = !S.prodAdding; paintAdd(); return; }
+    if (a === "paddCancel"){ S.prodAdding = false; paintAdd(); return; }
+    if (a === "paddSave"){ addProd(b); return; }
     if (a === "zoom"){ const z = document.createElement("div"); z.className = "zoom"; z.innerHTML = `<img src="${esc(b.dataset.url)}" alt="">`; z.onclick = () => z.remove(); document.body.appendChild(z); return; }
     if (a === "avT"){ document.querySelectorAll("#avT button").forEach(x => x.classList.toggle("on", x === b)); return; }
     if (a === "avSend"){ sendAviso(b); return; }

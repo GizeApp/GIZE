@@ -240,3 +240,15 @@ textarea.in { resize: vertical; min-height: 90px; line-height: 1.45; }
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); animation: gize-spin 5s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .btn.dirty, .gate .btn.pri::before { animation: none; } }
+
+/* Productos: pestañas + botón de agregar, buscador de toda la base y etiquetas */
+.prod-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.prod-top .seg { margin-bottom: 0; }
+.prod-q { display: flex; gap: 8px; margin-bottom: 14px; }
+.prod-q .in { flex: 1; min-width: 0; }
+.padd { margin-bottom: 14px; border-color: var(--blue); }
+.pgrid select { padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card-2); color: inherit; font-weight: 600; }
+.ptag { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; vertical-align: middle; }
+.ptag.ok { background: color-mix(in srgb, var(--blue) 20%, transparent); color: var(--txt); }
+.ptag.off { background: color-mix(in srgb, var(--warn, #f5a524) 22%, transparent); color: var(--txt); }
+@media (max-width: 560px) { .pgrid { grid-template-columns: repeat(2, 1fr); } }
