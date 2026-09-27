@@ -37,7 +37,7 @@ import { coachPlanObj, cpApply, loadTpls, planDefault, refreshBlockWeeks, render
 import { CoachState } from './screens/coach/state.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
-import { ComidaState, mealNow, ocrStatus, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderOffResults, renderResults, selectedFoodValues } from './screens/comida.js';
+import { ComidaState, mealNow, ocrStatus, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
 
 import { EntrenoState, REST_DEFAULT, day, expandedOverride, liveCounting, renderEntreno, renderExList, renderExSheet, effectiveRest, restKey, wkElapsedText, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
@@ -1387,7 +1387,8 @@ if (!IS_NATIVE && "serviceWorker" in navigator) { window.addEventListener("load"
 // Búsqueda con espera de 450 ms desde la última tecla y cancelando la anterior: así no
 // se pide nada por cada letra ni llega tarde una respuesta vieja.
 let offTimer = null, offCtrl = null;
-function paintOff(){ const box=document.getElementById("offResults"); if(box) box.innerHTML = renderOffResults(); }
+// Cuando llegan los productos de marca se vuelve a ordenar toda la lista (van mezclados por parecido).
+function paintOff(){ const box=document.getElementById("foodResults"); if(box) box.innerHTML = renderResults(ComidaState.foodQuery); }
 function scheduleOffSearch(q){
   clearTimeout(offTimer); if(offCtrl){ offCtrl.abort(); offCtrl=null; }
   const qq = String(q||"").trim();
