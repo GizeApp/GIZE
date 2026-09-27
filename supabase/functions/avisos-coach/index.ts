@@ -141,8 +141,14 @@ Deno.serve(async () => {
     return !!(r && typeof r === "object" && (r.start || b!.start_date) === b!.start_date);
   };
   const nameOf = (id: string) => ((people || []).find((p) => p.id === id)?.full_name || "").trim().split(/\s+/)[0] || "Un alumno";
-  // Adentro de una frase ("A un alumno le toca…").
-  const nameIn = (id: string) => { const n = nameOf(id); return n === "Un alumno" ? "un alumno" : n; };
+  // Varios alumnos adentro de una frase: "Ana, Beto y un alumno" (los que no tienen nombre
+  // cargado van juntos: "2 alumnos más"). Cuántos son, para el singular o el plural.
+  const who = (ids: string[]) => {
+    const named = ids.map(nameOf).filter((n) => n !== "Un alumno"), u = ids.length - named.length;
+    const list = named.concat(u === 1 ? [named.length ? "un alumno más" : "un alumno"] : u > 1 ? [u + " alumnos" + (named.length ? " más" : "")] : []);
+    return { text: names(list), many: ids.length > 1 };
+  };
+  const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
   // El alumno se pudo haber desvinculado entre que se anotó el aviso y ahora.
   const stillMine = (a: { coach_id: string; client_id: string }) => (people || []).some((p) => p.id === a.client_id && p.coach_id === a.coach_id);
 
@@ -174,25 +180,25 @@ Deno.serve(async () => {
     // Esta semana les toca descarga: primero los que todavía no tienen la rutina armada.
     const dl = list.filter((a) => a.kind === "descarga");
     if (dl.length) {
-      const todo = dl.filter((a) => !planned(String(a.key))).map((a) => nameIn(a.client_id));
-      const ready = dl.filter((a) => planned(String(a.key))).map((a) => nameOf(a.client_id));
+      const todo = who(dl.filter((a) => !planned(String(a.key))).map((a) => a.client_id));
+      const ready = who(dl.filter((a) => planned(String(a.key))).map((a) => a.client_id));
       const parts: string[] = [];
-      if (todo.length) parts.push(todo.length === 1
-        ? "A " + todo[0] + " le toca semana de descarga y todavía no tiene rutina de descarga. Armala en su ficha → Bloque / mesociclo."
-        : "A " + names(todo) + " les toca semana de descarga y todavía no tienen rutina de descarga. Armalas en sus fichas → Bloque / mesociclo.");
-      if (ready.length) parts.push(ready.length === 1
-        ? ready[0] + " está en semana de descarga, con su rutina de descarga lista."
-        : names(ready) + " están en semana de descarga, con sus rutinas de descarga listas.");
+      if (todo.text) parts.push(!todo.many
+        ? "A " + todo.text + " le toca semana de descarga y todavía no tiene rutina de descarga. Armala en su ficha → Bloque / mesociclo."
+        : "A " + todo.text + " les toca semana de descarga y todavía no tienen rutina de descarga. Armalas en sus fichas → Bloque / mesociclo.");
+      if (ready.text) parts.push(!ready.many
+        ? cap(ready.text) + " está en semana de descarga, con su rutina de descarga lista."
+        : cap(ready.text) + " están en semana de descarga, con sus rutinas de descarga listas.");
       gone.push(...await send(mine, "Semana de descarga", parts.join(" "), "gize-descarga"));
       sent++;
     }
 
     // La semana que viene es de descarga y todavía no hay rutina (se vuelve a mirar al mandar).
-    const soon = list.filter((a) => a.kind === "descarga_prox" && !planned(String(a.key))).map((a) => nameIn(a.client_id));
-    if (soon.length) {
-      const body = soon.length === 1
-        ? "A " + soon[0] + " le toca semana de descarga la semana que viene. Armale la rutina de descarga en su ficha → Bloque / mesociclo."
-        : "A " + names(soon) + " les toca semana de descarga la semana que viene. Armales las rutinas de descarga en sus fichas → Bloque / mesociclo.";
+    const soon = who(list.filter((a) => a.kind === "descarga_prox" && !planned(String(a.key))).map((a) => a.client_id));
+    if (soon.text) {
+      const body = !soon.many
+        ? "A " + soon.text + " le toca semana de descarga la semana que viene. Armale la rutina de descarga en su ficha → Bloque / mesociclo."
+        : "A " + soon.text + " les toca semana de descarga la semana que viene. Armales las rutinas de descarga en sus fichas → Bloque / mesociclo.";
       gone.push(...await send(mine, "Descarga la semana que viene", body, "gize-descarga-prox"));
       sent++;
     }
