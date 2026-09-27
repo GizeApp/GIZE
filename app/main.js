@@ -72,6 +72,11 @@ import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
 const autoKg = new Set();
 
+// Nombre del día (rutina propia): el campo crece hacia abajo para que un nombre largo
+// ("Hombro, espalda, pecho, bíceps, tríceps") se vea entero. Enter no hace otra línea.
+function fitDayName(t){ t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }
+document.addEventListener("keydown", e => { if(e.key === "Enter" && e.target.matches && e.target.matches("textarea.day-name")){ e.preventDefault(); e.target.blur(); } });
+
 export function renderApp(){
   // Una cuenta de coach ve solo su panel: si algo pedía la pantalla del cliente, quedaba
   // dibujada debajo del panel (que es transparente) y se veían las dos encimadas.
@@ -107,6 +112,7 @@ export function renderApp(){
   renderRestBar();
   const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : "");
   if (State.view==="habitos" && HabitosState.pendingFocusHabit) { const i=document.getElementById("habitInput"); if(i) i.focus(); HabitosState.pendingFocusHabit=false; }
+  if (State.view==="entreno") v.querySelectorAll("textarea.day-name").forEach(fitDayName);
   if (State.view==="entreno" && HabitosState.pendingFocusDay) { const i=v.querySelector(".day-name"); if(i){ i.focus(); i.select(); } HabitosState.pendingFocusDay=false; }
 }
 
@@ -224,7 +230,7 @@ document.body.addEventListener("input", async e => {
   if (a === "cal-field") { ComidaState.calForm[t.dataset.field] = t.value; return; }
   if (a === "wkg-field") { ProgresoState.weightForm.kg = t.value; return; }
   const d = day();
-  if (a === "dayname") d.name = t.value;
+  if (a === "dayname"){ d.name = t.value.replace(/\s*\n\s*/g, " "); fitDayName(t); }
   else if (a === "subtitle") d.subtitle = t.value;
   else if (a === "exname") { const ex=d.exercises.find(x=>x.id===t.dataset.ex); if(ex) ex.name=t.value; }
   else if (a === "secs") {

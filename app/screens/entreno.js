@@ -304,7 +304,7 @@ export function renderEntreno(){
     <div class="tabs">${tabs}</div>
     <div class="day-head" data-reveal="dayhead-${esc(d.id)}">
       <div class="day-top">
-        <input class="day-name" type="text" value="${esc(d.name)}" data-action="dayname" ${routineLocked()?'readonly':''}>
+        ${routineLocked() ? `<h2 class="day-name">${esc(d.name)}</h2>` : `<textarea class="day-name" rows="1" data-action="dayname" enterkeyhint="done" aria-label="Nombre del día">${esc(d.name)}</textarea>`}
         ${routineLocked()?'':`<button class="day-del" data-action="delday" title="Eliminar día">${trashSvg}</button>`}
       </div>
       ${wkStarted(d) ? `<div class="wk-live"><span class="wk-dot"></span>Entrenando hace <b id="wkTime">${wkElapsedText()}</b></div>
