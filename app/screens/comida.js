@@ -155,21 +155,38 @@ export function diaryTotals(){ return state.diary.reduce((a,e)=>({kcal:a.kcal+e.
 export function renderResults(q){
   const nq = norm(q);
   if(!nq) return renderRecents();
-  // Orden: mis alimentos, los productos de marca que ya usé (Open Food Facts) y la base.
+  // Mis alimentos, los productos de marca que ya usé y la base. Se busca en el nombre sin la
+  // aclaración de la unidad ("bana" no trae "Pan lactal (1 rebanada…)").
   const all = (state.foods||[]).concat(state.offRecent||[], FOODS);
-  // Primero los que empiezan con lo buscado, después los que tienen una palabra que
-  // empieza así y al final el resto ("pan" → Pan francés antes que Sartén de pan…).
-  // Se busca en el nombre sin la aclaración de la unidad ("bana" no trae "Pan lactal (1
-  // rebanada…)").
-  const key = f => norm(shortName(f.name));
-  // Los productos de marca siempre antes que los genéricos.
-  const brand = f => f.src==="OFF" || f.src==="GIZE" ? 0 : 1;
-  const rank = f => { const n=key(f); return n.startsWith(nq) ? 0 : (n.includes(" "+nq) ? 1 : 2); };
-  lastResults = all.filter(f=>key(f).includes(nq)).sort((a,b)=>brand(a)-brand(b) || rank(a)-rank(b)).slice(0,40);
-  const local = lastResults.length ? '<div class="off-head">Alimentos</div>' + lastResults.map((f,i)=>foodRow(f, "food-pick", i)).join("")
-    : (nq.length < 3 ? '<div class="cal-hint">Sin resultados en la base. Probá crear el alimento 👇</div>' : '');
-  // Arriba los productos de marca de la base compartida; abajo la base de alimentos.
-  return '<div id="offResults">'+renderOffResults()+'</div>' + local;
+  const own = new Set(state.foods||[]);
+  lastResults = all.filter(f=>norm(shortName(f.name)).includes(nq)).slice(0,60);
+  offResults = brandResults(); // los de marca (base compartida y Open Food Facts), cuando llegan
+  // Una sola lista, de lo más parecido a lo buscado a lo menos, sea de marca o no.
+  const words = nq.split(/\s+/).filter(Boolean);
+  const items = lastResults.map((f,i)=>({f, i, act:"food-pick"})).concat(offResults.map((f,i)=>({f, i, act:"off-pick"})));
+  items.forEach(it=>{ it.r = relevance(it.f, nq, words); it.own = own.has(it.f) ? 0 : 1; it.len = norm(shortName(it.f.name)).length; });
+  items.sort((a,b)=>a.r[0]-b.r[0] || a.r[1]-b.r[1] || a.own-b.own || a.len-b.len);
+  const rows = items.slice(0,60).map(it=>foodRow(it.f, it.act, it.i)).join("");
+  const o = ComidaState.off || {};
+  const loading = o.q && o.q.length >= 3 && o.status === "loading" ? '<div class="cal-hint">Buscando productos de marca…</div>' : '';
+  if (!rows) return loading || (nq.length < 3 || (o.status && o.status !== "loading") ? '<div class="cal-hint">Sin resultados. Probá crear el alimento 👇</div>' : '');
+  return rows + loading;
+}
+
+// Qué tan parecido es un alimento a lo buscado: [nivel, palabras de más] (menos = más parecido).
+// Nivel: 0 el nombre exacto, 1 empieza con lo buscado como palabra entera ("pan" → Pan
+// francés), 2 empieza con lo buscado ("pan" → Panceta), 3 todas las palabras buscadas son
+// comienzo de palabras del nombre (la primera al principio), 4 igual pero en otro orden,
+// 5 lo buscado aparece dentro del nombre, 6 solo coincide la marca u otra parte.
+function relevance(f, nq, words){
+  const name = norm(shortName(f.name)).split(" · ")[0].trim();
+  const ws = name.split(/[\s,()\/+-]+/).filter(Boolean);
+  const extra = Math.max(0, ws.length - words.length);
+  if (name === nq) return [0, 0];
+  if (name.startsWith(nq)) return [/[a-z0-9ñ]/.test(name.charAt(nq.length)) ? 2 : 1, extra];
+  if (words.every(w=>ws.some(x=>x.startsWith(w)))) return [ws[0] && ws[0].startsWith(words[0]) ? 3 : 4, extra];
+  if (name.includes(nq)) return [5, extra];
+  return [6, extra];
 }
 
 // Sin nada escrito: «Búsquedas recientes» (los últimos 5 alimentos que eligió buscando) y
@@ -198,16 +215,12 @@ function foodRow(f, action, i){
 // Resultados de productos de marca (base compartida y Open Food Facts), arriba de la base propia.
 // Se buscan aparte y sin bloquear la escritura (ver "food-search" en main.js).
 export let offResults = [];
-export function renderOffResults(){
+// Productos de marca que llegaron para la búsqueda (sin los que ya están entre los usados).
+function brandResults(){
   const o = ComidaState.off || {};
-  if (!o.q || o.q.length < 3) return "";
-  const head = '<div class="off-head">Productos de marca</div>';
-  if (o.status === "loading") return head + '<div class="cal-hint">Buscando productos de marca…</div>';
-  if (o.status === "error") return ""; // sin señal: quedan los alimentos de abajo
+  if (!o.q || o.q.length < 3 || o.status !== "done") return [];
   const shown = new Set((state.offRecent||[]).map(f=>f.code));
-  offResults = (o.items||[]).filter(f=>!f.code || !shown.has(f.code));
-  if (!offResults.length) return "";
-  return head + offResults.map((f,i)=>foodRow(f, "off-pick", i)).join("");
+  return (o.items||[]).filter(f=>!f.code || !shown.has(f.code));
 }
 
 export function entryBase(e){ return e.base ? e.base : { kcal: e.grams? e.kcal/e.grams*100:0, p: e.grams? e.p/e.grams*100:0, c: e.grams? e.c/e.grams*100:0, f: e.grams? e.f/e.grams*100:0, unit: e.unit||"g" }; }
