@@ -16,7 +16,7 @@ import { esc, fmt, fmtSecs, isTimedEx, norm, parseSecs, setText, today } from '.
 
 import { renderApp } from '../main.js';
 
-import { allSetsDone, bestKgBefore, bestSetOf, lastSessionFor, renderLastSession } from './progreso.js';
+import { allSetsDone, bestKgBefore, bestSetOf, lastPlan, lastSessionFor, renderLastSession } from './progreso.js';
 import { kgText, suggest } from '../core/progresion.js';
 import { prSets } from '../ui/festejo.js';
 
@@ -249,11 +249,14 @@ export function renderEntreno(){
         ${routineLocked()?'':`<button class="rm" data-action="removeset" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}" title="Quitar serie">${xSvg}</button>`}
       </div>`;
     };
+    // Repeticiones de la vez pasada como guía (en gris) en cada serie vacía.
+    const prevLS = timed ? null : lastSessionFor(ex.name);
+    const lp = prevLS ? lastPlan(ex, prevLS.sets) : [];
     const sets = timed ? ex.sets.map(setRow).join("") : ex.sets.map((s,i) => `
       <div class="set">
         <span class="idx${prSets.has(s.id)?' has-pr':''}">${prSets.has(s.id)?`<span class="pr-mark">${trophySvg}</span>`:''}${i+1}</span>
         <div class="field"><input class="kg" type="text" inputmode="decimal" placeholder="0" value="${esc(s.kg)}" data-action="kg" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}"><span class="unit">kg</span></div>
-        <div class="field"><input class="reps" type="text" inputmode="numeric" placeholder="0" value="${esc(s.reps)}" data-action="reps" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}"><span class="unit">reps</span></div>
+        <div class="field"><input class="reps" type="text" inputmode="numeric" placeholder="${lp[i]&&lp[i].reps>0?lp[i].reps:0}" value="${esc(s.reps)}" data-action="reps" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}"><span class="unit">reps</span></div>
         ${s.target?`<span class="goal" title="Objetivo del coach">${esc(s.target)}</span>`:''}
         <button class="done${s.done?' on':''}" data-action="toggle" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}">${s.done?checkSvg:''}</button>
         ${routineLocked()?'':`<button class="rm" data-action="removeset" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}" title="Quitar serie">${xSvg}</button>`}
@@ -271,7 +274,7 @@ export function renderEntreno(){
         ${ex.rir?`<span class="ep-chip">RIR ${esc(ex.rir)}</span>`:''}
         ${ex.goal?`<span class="ep-goal">${esc(ex.goal)}</span>`:''}
       </div>`:''}
-      ${renderLastSession(ex.name)}
+      ${renderLastSession(ex.name, ex)}
       ${renderSuggestion(ex, timed)}
       ${sets}
       ${ex.note?`<div class="ex-note"><span class="ex-note-t">Nota de tu coach</span>${esc(ex.note)}</div>`:''}

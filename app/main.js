@@ -43,7 +43,7 @@ import { EntrenoState, REST_DEFAULT, day, expandedOverride, liveCounting, render
 
 import { HabitosState, addHabit, checkDaily, renderHabitos } from './screens/habitos.js';
 
-import { ProgresoState, allSetsDone, renderProgreso } from './screens/progreso.js';
+import { ProgresoState, allSetsDone, lastPlan, lastSessionFor, renderProgreso } from './screens/progreso.js';
 
 import { beep, initAudio } from './ui/audio.js';
 
@@ -624,6 +624,15 @@ document.body.addEventListener("click", async e => {
     if(!ex) return;
     if(el.dataset.coach){ ex.sets.forEach(s=>{ const k=parseFloat(String(s.targetKg||"").replace(",", "."))||0; if(!s.done && k>0){ s.kg=String(k); autoKg.delete(s.id); } }); }
     else { const kg=parseFloat(el.dataset.kg); if(kg>0) ex.sets.forEach(s=>{ if(!s.done){ s.kg=String(kg); autoKg.delete(s.id); } }); }
+    save(); renderApp(); return;
+  }
+  // «La vez pasada» → Usar estos pesos: cada serie sin tildar toma el peso de la misma serie
+  // de la vez pasada (las de más, el de la última). Quedan como cargados a mano.
+  if (a === "last-use") {
+    if(!ex) return;
+    const prev=lastSessionFor(ex.name); if(!prev) return;
+    const plan=lastPlan(ex, prev.sets);
+    ex.sets.forEach((s,i)=>{ const k=plan[i]&&plan[i].kg; if(!s.done && k>0){ s.kg=String(k); autoKg.delete(s.id); forgetPR(s.id); } });
     save(); renderApp(); return;
   }
   if (a === "ex-expand") { expandedOverride.add(ex.id); renderApp(); return; }

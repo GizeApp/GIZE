@@ -130,11 +130,27 @@ export function lastSessionFor(exName){
   return { date:se.date, sets:ex.sets };
 }
 
-export function renderLastSession(exName){
+// Lo de la vez pasada para cada serie de hoy, por orden ({kg, reps} en números). Si hoy hay
+// más series que la vez pasada, las de más toman la última.
+export function lastPlan(ex, prevSets){
+  const ps=(prevSets||[]).filter(Boolean); if(!ps.length || !ex) return [];
+  return (ex.sets||[]).map((s,i)=>{ const p=ps[Math.min(i, ps.length-1)]; return { kg:+p.kg||0, reps:parseInt(p.reps)||0 }; });
+}
+const kgNum = v => parseFloat(String(v==null?"":v).replace(",", "."))||0;
+// ¿El botón "Usar estos pesos" cambiaría algo? (solo series sin tildar con peso distinto)
+export function lastKgsUseful(ex, plan){
+  return (ex.sets||[]).some((s,i)=>!s.done && plan[i] && plan[i].kg>0 && kgNum(s.kg)!==plan[i].kg);
+}
+
+// «La vez pasada» arriba de las series. Con el ejercicio de hoy (ex), un botón para cargar
+// esos pesos en las series que faltan.
+export function renderLastSession(exName, ex){
   const prev=lastSessionFor(exName);
   if(!prev) return "";
   const sets=prev.sets.map((s,i)=>(+s.secs>0) ? '<span class="ls-set"><b>'+esc(setText(s))+'</b></span>' : '<span class="ls-set"><b>'+(s.kg||0)+'</b>kg × <b>'+(s.reps||0)+'</b></span>').join('<span class="ls-sep">·</span>');
-  return '<div class="last-sess"><span class="ls-lbl">La vez pasada ('+fmtDate(prev.date)+')</span><div class="ls-sets">'+sets+'</div></div>';
+  const use = ex && lastKgsUseful(ex, lastPlan(ex, prev.sets))
+    ? '<button class="ls-use" data-action="last-use" data-ex="'+esc(ex.id)+'">Usar estos pesos</button>' : '';
+  return '<div class="last-sess"><div class="ls-head"><span class="ls-lbl">La vez pasada ('+fmtDate(prev.date)+')</span>'+use+'</div><div class="ls-sets">'+sets+'</div></div>';
 }
 
 export function bestKgBefore(exName, priorSessions){

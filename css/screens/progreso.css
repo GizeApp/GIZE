@@ -128,3 +128,10 @@
 .co-ptiles { margin: 6px 0 16px; }
 .co-sec-head { margin: 4px 0 10px; }
 .co-sec-body .nt-panel > .co-sec:first-child { display: none; }
+
+/* «La vez pasada»: título y, a la derecha, el botón para usar esos pesos. */
+.ls-head { display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+.ls-head .ls-lbl { flex:1; min-width:0; margin-bottom:0; }
+.ls-use { flex:none; padding:6px 12px; border-radius:var(--gize-radius-pill); border:1px solid color-mix(in srgb, var(--gize-blue) 55%, transparent);
+  background:none; color:var(--gize-blue); font:700 var(--text-meta) var(--gize-font); cursor:pointer; }
+.ls-use:active { background:color-mix(in srgb, var(--gize-blue) 15%, transparent); }
