@@ -54,5 +54,7 @@ export function renderCoachSettings(){
       '<button class="cp-copt cs-q-btn" data-coach="q-open">Editar preguntas del registro diario y del check-in</button>'+
     '</div>'+
     '<button class="logout-btn" data-auth="logout">Cerrar sesión</button>'+
+    // Mismo botón que en Ajustes del alumno (ver cfg-delete-account en screens/config.js).
+    '<button class="logout-btn cfg-danger" data-action="cfg-delete-account">Eliminar cuenta</button>'+
   '</div>';
 }

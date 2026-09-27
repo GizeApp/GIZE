@@ -254,12 +254,24 @@ document.body.addEventListener("click", async function (e) {
   const delAccBtn = e.target.closest('[data-action="cfg-delete-account"]');
   if (delAccBtn) {
     if (!State.sb || !State.cloudUser) { alert("Iniciá sesión para poder eliminar tu cuenta."); return; }
-    if (!confirm("¿Seguro que querés eliminar tu cuenta? Se va a borrar tu rutina, tus registros y tu vínculo con tu coach de forma permanente. Esta acción no se puede deshacer.")) return;
+    const isCoach = !!(State.cloudProfile && State.cloudProfile.role === "coach");
+    if (!confirm(isCoach
+      ? "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se cancela tu suscripción de GIZE. Tus alumnos no pierden nada: quedan sin coach y conservan su rutina y sus registros. Esta acción no se puede deshacer."
+      : "¿Seguro que querés eliminar tu cuenta? Se va a borrar tu rutina, tus registros y tu vínculo con tu coach de forma permanente. Esta acción no se puede deshacer.")) return;
     const typed = prompt('Para confirmar, escribí ELIMINAR (en mayúsculas):');
     if (typed !== "ELIMINAR") { if (typed !== null) alert("No coincide, no se eliminó nada."); return; }
     const prevHtml = delAccBtn.innerHTML;
     delAccBtn.disabled = true; delAccBtn.innerHTML = "Eliminando…";
     try {
+      // Coach con suscripción activa en Mercado Pago: se cancela antes, así no le sigue
+      // cobrando. Si no se puede, no se borra nada (se puede reintentar).
+      if (isCoach) {
+        const bl = await State.sb.from("coach_billing").select("mp_status, mp_preapproval_id").eq("coach_id", State.cloudUser.id).maybeSingle();
+        if (bl.data && bl.data.mp_preapproval_id && bl.data.mp_status === "authorized") {
+          const rc = await State.sb.functions.invoke("suscripcion", { body: { action: "cancel" } });
+          if (rc.error || (rc.data && rc.data.error)) throw new Error("no se pudo cancelar tu suscripción en Mercado Pago. Probá de nuevo o escribinos a contacto@gize.ar");
+        }
+      }
       // Primero las fotos (check-in y perfil): la función de abajo no puede borrar archivos
       // de Storage. Si esto falla se corta acá, con la cuenta intacta, para poder reintentar
       // en vez de dejar fotos sin dueño.
