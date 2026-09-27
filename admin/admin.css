@@ -1,9 +1,18 @@
 /* Panel de administrador de GIZE (gize.ar/admin). Mismos tokens que la app (brand/tokens.css). */
 :root { --bg: var(--gize-bg); --card: var(--gize-surface); --card-2: var(--gize-surface-2); --border: var(--gize-border);
-  --txt: var(--gize-text); --txt-2: var(--gize-text-2); --blue: var(--gize-blue); --red: var(--gize-danger); --ok: var(--gize-success); --warn: var(--gize-warning); }
+  --txt: var(--gize-text); --txt-2: var(--gize-text-2); --blue: var(--gize-blue); --red: var(--gize-danger); --ok: var(--gize-success); --warn: var(--gize-warning);
+  /* Neón: brillos con la gama RGB de la marca */
+  --glow: color-mix(in srgb, var(--gize-r1) 32%, transparent); --glow-v: color-mix(in srgb, var(--gize-r2) 38%, transparent);
+  --glow-p: color-mix(in srgb, var(--gize-r3) 50%, transparent); --glow-ok: color-mix(in srgb, var(--ok) 45%, transparent);
+  --glow-bad: color-mix(in srgb, var(--red) 45%, transparent);
+  --rgb-fade: linear-gradient(90deg, transparent, var(--gize-r1), var(--gize-r2), var(--gize-r3), transparent); }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { background: var(--bg); color: var(--txt); font-family: var(--gize-font); -webkit-font-smoothing: antialiased; }
-body { min-height: 100vh; font-variant-numeric: tabular-nums; }
+body { min-height: 100vh; font-variant-numeric: tabular-nums;
+  /* Resplandor de fondo, muy suave: violeta arriba a la derecha y verde agua abajo */
+  background: radial-gradient(900px 420px at 88% -8%, color-mix(in srgb, var(--gize-r2) 11%, transparent), transparent 70%),
+    radial-gradient(800px 380px at 8% 108%, color-mix(in srgb, var(--gize-r4) 7%, transparent), transparent 70%), var(--bg);
+  background-attachment: fixed; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 a { color: var(--blue); }
@@ -43,6 +52,7 @@ a { color: var(--blue); }
 .kpi small { display: block; margin-top: 6px; font-size: 12px; color: var(--txt-2); }
 .kpi.hi { border: 1.5px solid transparent; background: linear-gradient(var(--card), var(--card)) padding-box, var(--gize-rgb-ring) border-box; }
 .two { grid-template-columns: 1fr 1fr; }
+.grid > * { min-width: 0; } /* una tabla ancha scrollea adentro de su tarjeta, no estira la columna */
 @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
 .sec-t { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
 .sec-s { font-size: 12.5px; color: var(--txt-2); margin-bottom: 14px; }
@@ -144,3 +154,89 @@ textarea.in { resize: vertical; min-height: 90px; line-height: 1.45; }
 .msg-reply textarea { width: 100%; min-height: 120px; }
 .msg [hidden], .nav i[hidden] { display: none !important; }
 .msg-warn { margin-top: 8px; padding: 8px 10px; border-radius: 8px; font-size: 13px; color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); }
+
+/* Finanzas */
+.mt { margin-top: 12px; }
+.kpis.wide { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.kpis.wide .kpi b { white-space: nowrap; }
+.card-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.vgrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 560px) { .vgrid2 { grid-template-columns: 1fr; } }
+.table tr.dim td { opacity: .55; }
+.big-line { font-size: 16px; color: var(--txt-2); margin-bottom: 12px; }
+.big-line b { display: block; font-size: 30px; font-weight: 800; line-height: 1.15; }
+.neon-t { color: #fff; text-shadow: 0 0 10px var(--glow-p), 0 0 26px var(--glow-v); }
+.neon-ok { color: var(--ok); text-shadow: 0 0 14px var(--glow-ok); }
+.kpi.good b { color: var(--ok); text-shadow: 0 0 16px var(--glow-ok); }
+.kpi.bad b { color: var(--red); text-shadow: 0 0 16px var(--glow-bad); }
+.meter { height: 8px; border-radius: 99px; background: #15181f; overflow: hidden; margin: 8px 0 6px; }
+.meter i { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: var(--gize-rgb-line); box-shadow: 0 0 12px var(--glow-v); transition: width .4s ease; }
+.meter.over i { background: var(--red); box-shadow: 0 0 12px var(--glow-bad); }
+.share { padding: 6px 0; }
+.share-h { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+.mono { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--border); line-height: 1.5; }
+.warn-card { margin-bottom: 12px; border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
+.warn-card .search { margin: 0; flex-wrap: wrap; }
+.warn-card .in { flex: 1; min-width: 120px; }
+.todo { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid #141821; }
+.todo:last-child { border-bottom: 0; }
+.todo span { flex: 1; font-size: 13.5px; line-height: 1.45; padding-top: 2px; overflow-wrap: anywhere; }
+.todo.done span { color: var(--txt-2); text-decoration: line-through; }
+.chk { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #394150; background: none; display: grid; place-items: center; transition: box-shadow .2s, border-color .2s; }
+.chk:hover { border-color: var(--ok); box-shadow: 0 0 12px -2px var(--glow-ok); }
+.todo.done .chk { background: var(--ok); border-color: var(--ok); box-shadow: 0 0 12px var(--glow-ok); }
+.todo.done .chk::after { content: "✓"; color: #000; font-weight: 800; font-size: 13px; line-height: 1; }
+.x-sm { flex: none; background: none; border: 0; color: var(--txt-2); font-size: 20px; line-height: 1; padding: 0 4px; }
+.x-sm:hover { color: var(--red); text-shadow: 0 0 10px var(--glow-bad); }
+
+/* Neón en todo el panel */
+.side::after { content: ""; position: absolute; top: 0; right: -1px; bottom: 0; width: 1px; pointer-events: none; opacity: .75;
+  background: linear-gradient(180deg, transparent, var(--gize-r1) 18%, var(--gize-r2) 45%, var(--gize-r3) 72%, var(--gize-r4) 90%, transparent);
+  box-shadow: 0 0 14px var(--glow-v); }
+.side img { filter: drop-shadow(0 0 10px var(--glow)); }
+.nav { transition: background .2s, color .2s, box-shadow .2s; }
+.nav.on { background: linear-gradient(90deg, color-mix(in srgb, var(--blue) 22%, transparent), color-mix(in srgb, var(--gize-r2) 7%, transparent));
+  box-shadow: inset 3px 0 0 var(--blue), 0 0 24px -8px var(--glow); text-shadow: 0 0 14px var(--glow); }
+.nav i { box-shadow: 0 0 12px var(--glow-p); }
+@media (max-width: 860px) {
+  .side::after { display: none; }
+  .side { border-bottom: 1px solid transparent; border-image: linear-gradient(90deg, var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4)) 1; box-shadow: 0 6px 22px -14px var(--glow-v); background: rgba(5,7,10,.92); }
+  .nav.on { box-shadow: inset 0 -2px 0 var(--blue), 0 0 18px -8px var(--glow); }
+}
+.h1::after { content: ""; display: block; width: 64px; height: 3px; margin-top: 10px; border-radius: 3px; background: var(--gize-rgb-line); box-shadow: 0 0 14px var(--glow-v); }
+.sec-t::before { content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 8px 2px 0; border-radius: 50%; background: var(--blue); box-shadow: 0 0 8px var(--blue), 0 0 16px var(--glow); vertical-align: middle; }
+.card { position: relative; }
+.card::before { content: ""; position: absolute; top: -1px; left: 22px; right: 22px; height: 1px; background: var(--rgb-fade); opacity: .6; pointer-events: none; }
+.neon::before { display: none; }
+.neon { box-shadow: 0 0 30px -12px var(--glow-v), 0 0 46px -22px var(--glow); }
+.kpi { transition: border-color .2s, box-shadow .2s; }
+.kpi:hover { border-color: color-mix(in srgb, var(--blue) 45%, var(--border)); box-shadow: 0 0 26px -10px var(--glow); }
+.kpi.hi { box-shadow: 0 0 28px -12px var(--glow-v); }
+.kpi.hi b { text-shadow: 0 0 18px var(--glow); }
+.chart .bar { filter: drop-shadow(0 0 6px var(--glow)); }
+.table tr.row:hover td:first-child { box-shadow: inset 2px 0 0 var(--blue); }
+.pill.ok { background: color-mix(in srgb, var(--ok) 8%, transparent); box-shadow: 0 0 10px -3px var(--glow-ok); }
+.pill.warn { background: color-mix(in srgb, var(--warn) 8%, transparent); box-shadow: 0 0 10px -3px color-mix(in srgb, var(--warn) 45%, transparent); }
+.pill.bad { background: color-mix(in srgb, var(--red) 8%, transparent); box-shadow: 0 0 10px -3px var(--glow-bad); }
+.pill.blue { background: color-mix(in srgb, var(--blue) 8%, transparent); box-shadow: 0 0 10px -3px var(--glow); }
+.in:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 18%, transparent), 0 0 20px -6px var(--glow); }
+.btn { transition: box-shadow .2s, border-color .2s; }
+.btn.blue { box-shadow: 0 0 16px -3px var(--glow); }
+.btn.blue:hover { box-shadow: 0 0 24px 0 var(--glow); }
+.btn.pri:hover { box-shadow: 0 0 22px -2px rgba(255,255,255,.35); }
+.btn.bad:hover { box-shadow: 0 0 18px -4px var(--glow-bad); }
+.btn.dirty { animation: neon-pulse 1.6s ease-in-out infinite; }
+@keyframes neon-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--glow); } 50% { box-shadow: 0 0 24px 2px var(--glow); } }
+.seg button.on { box-shadow: 0 0 18px -3px var(--glow); }
+.drawer { border-left: 1px solid transparent; border-image: linear-gradient(180deg, var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4)) 1; box-shadow: -16px 0 50px -24px var(--glow-v); }
+.toast { box-shadow: 0 10px 30px rgba(0,0,0,.5), 0 0 26px -4px var(--glow-v); }
+/* Entrada: aurora de fondo y el botón principal con el anillo RGB girando (como en la app) */
+.aurora-bg { position: fixed; inset: 0; overflow: hidden; pointer-events: none; opacity: .4; }
+.gate { position: relative; }
+.gate .card { background: color-mix(in srgb, var(--card) 88%, transparent); backdrop-filter: blur(8px); }
+.gate .btn.pri { position: relative; isolation: isolate; }
+.gate .btn.pri::before { content: ""; position: absolute; inset: -2px; padding: 2px; border-radius: inherit; pointer-events: none;
+  background: conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); animation: gize-spin 5s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .btn.dirty, .gate .btn.pri::before { animation: none; } }
