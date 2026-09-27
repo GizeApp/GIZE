@@ -18,7 +18,7 @@ export const EX_DB = {
   aductores:["Aductores","Aductores en máquina"],
   gemelos:["Gemelos de pie","Gemelos sentado","Gemelos en prensa","Gemelos en Smith","Gemelos burro","Gemelos a una pierna","Gemelos en máquina","Elevación de tibial"],
   abs:["Encogimiento abdominal","Encogimiento declinado","Elevación de piernas","Elevación de piernas colgado","Plancha","Rueda abdominal","Encogimiento en polea","Giro ruso","Escaladores","Oblicuos","Plancha lateral","Encogimiento invertido","Bicicleta abdominal","Puntas a la barra","Plancha invertida","Bicho muerto","Leñador en polea","Encogimiento en máquina","Bandera","Abdominales en V","Crunch en banco","Pallof press","Elevación de rodillas en paralelas","Plancha con toque de hombros"],
-  antebrazo:["Curl de muñeca","Curl de muñeca invertido","Curl invertido con barra","Caminata del granjero","Curl de antebrazo en polea","Curl de muñeca con mancuerna","Curl Zottman","Enrollador de muñeca","Colgarse de la barra","Pinza con disco"],
+  antebrazo:["Curl martillo","Curl de muñeca","Curl de muñeca invertido","Curl invertido con barra","Caminata del granjero","Curl de antebrazo en polea","Curl de muñeca con mancuerna","Curl Zottman","Enrollador de muñeca","Colgarse de la barra","Pinza con disco"],
   cuello:["Flexión de cuello con disco","Extensión de cuello con disco","Flexión lateral de cuello","Flexión de cuello con arnés","Puente de cuello","Rotaciones de cuello"]
 };
 

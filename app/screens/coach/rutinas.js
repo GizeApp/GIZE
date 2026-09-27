@@ -9,7 +9,7 @@ import { State } from '../../core/state.js';
 
 import { migrateNames } from '../../core/storage.js';
 
-import { esc, exMuscle, isTimedEx, mkEx, muscleOf, today } from '../../core/utils.js';
+import { esc, exMuscle, isTimedEx, mkEx, muscleOf, pickMuscle, searchExercises, today } from '../../core/utils.js';
 
 import { coachDatalist, coachLogFor, exChart, exSummary, exTable } from './clientes.js';
 import { kgText, suggest } from '../../core/progresion.js';
@@ -516,14 +516,14 @@ export function coachPickerMarkup(){
   const q=CoachState.coachPQ.trim().toLowerCase();
   let inner;
   if(q){
-    const res=[]; Object.keys(EX_DB).forEach(k=>EX_DB[k].forEach(n=>{ if(n.toLowerCase().indexOf(q)>=0) res.push(n); }));
-    inner='<div class="cp-exs">'+(res.length?res.map(n=>'<button class="cp-ex" data-cp="choose" data-name="'+esc(n)+'">'+esc(n)+'</button>').join(""):'<div class="cal-hint">Sin resultados</div>')+'</div>';
+    const res=searchExercises(n=>n.toLowerCase().indexOf(q)>=0, EX_CATS);
+    inner='<div class="cp-exs">'+(res.length?res.map(r=>'<button class="cp-ex" data-cp="choose" data-name="'+esc(r.name)+'" data-cat="'+esc(r.cat)+'">'+esc(r.label)+'</button>').join(""):'<div class="cal-hint">Sin resultados</div>')+'</div>';
   } else if(!CoachState.coachPCat){
     inner='<div class="cp-step">1. Eleg\u00ed el grupo muscular</div><div class="cp-cats">'+EX_CATS.map(c=>'<button class="cp-cat" data-cp="cat" data-c="'+c[0]+'">'+c[1]+'</button>').join("")+'</div>';
   } else {
     const lb=(EX_CATS.find(c=>c[0]===CoachState.coachPCat)||["",""])[1];
     inner='<div class="cp-bar"><button class="cp-back" data-cp="cats">\u2039 Grupos</button><span class="cp-catname">'+esc(lb)+'</span></div>'+
-      '<div class="cp-exs">'+(EX_DB[CoachState.coachPCat]||[]).map(n=>'<button class="cp-ex" data-cp="choose" data-name="'+esc(n)+'">'+esc(n)+'</button>').join("")+'</div>';
+      '<div class="cp-exs">'+(EX_DB[CoachState.coachPCat]||[]).map(n=>'<button class="cp-ex" data-cp="choose" data-name="'+esc(n)+'" data-cat="'+esc(CoachState.coachPCat)+'">'+esc(n)+'</button>').join("")+'</div>';
   }
   return '<div class="cp-head"><div class="cp-title">'+(CoachState.coachPicker.mode==="swap"?"Cambiar ejercicio":"Elegir ejercicio")+'</div><button class="cp-x" data-cp="cancel">\u2715</button></div>'+
     '<div class="search-wrap"><span class="search-ic">'+searchSvg+'</span><input class="cp-search" placeholder="Buscar ejercicio en toda la base..." value="'+esc(CoachState.coachPQ)+'" data-cp="search"></div>'+
@@ -539,10 +539,10 @@ export function renderCoachPicker(){
   host.innerHTML='<div class="cp-bg" data-cp="cancel"></div><div class="cp-modal">'+coachPickerMarkup()+'</div>';
 }
 
-export function cpApply(name){
+export function cpApply(name, cat){
   if(!rtDays()) return;
   const day=(rtDays()||[])[CoachState.coachEditDay]; if(!day) return;
-  const mm=(muscleOf(name)!=="otros")?muscleOf(name):(CoachState.coachPCat||"otros");
+  const mm=pickMuscle(name, cat||CoachState.coachPCat);
   let ex;
   if(CoachState.coachPicker.mode==="swap"){ ex=day.exercises[CoachState.coachPicker.i]; if(ex){ ex.name=name; ex.mus=mm; } }
   else if(CoachState.coachPicker.mode==="insert"){ ex=mkEx(name,3,mm); day.exercises.splice(CoachState.coachPicker.idx,0,ex); }

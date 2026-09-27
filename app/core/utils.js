@@ -47,6 +47,22 @@ export function muscleOf(name){ const n=(name||"").trim().toLowerCase(); for(con
 
 // Los aductores estaban dentro de glúteos: las rutinas guardadas antes siguen diciendo "gluteos".
 const ADUCTOR_RE = /\baducci[oó]n|\baductor/i;
+// Grupo de un ejercicio que se elige de la lista. Si está en más de un grupo (Curl martillo:
+// bíceps y antebrazo), cuenta para el grupo desde donde se eligió.
+export function pickMuscle(name, cat){
+  const n=(name||"").trim().toLowerCase();
+  if(cat && EX_DB[cat] && EX_DB[cat].some(x=>x.toLowerCase()===n)) return cat;
+  const m=muscleOf(name); return m!=="otros" ? m : (cat||"otros");
+}
+// Resultados de búsqueda en todos los grupos: [{name, cat, label}]; si el nombre está en más
+// de un grupo, sale una vez por grupo con el grupo al lado ("Curl martillo · Antebrazo").
+export function searchExercises(match, cats){
+  const res=[], count={};
+  for(const k in EX_DB) EX_DB[k].forEach(n=>{ if(match(n)){ res.push({name:n, cat:k}); count[n]=(count[n]||0)+1; } });
+  const lbl=k=>((cats||[]).find(c=>c[0]===k)||[k,k])[1];
+  return res.map(r=>Object.assign(r, {label: count[r.name]>1 ? r.name+" · "+lbl(r.cat) : r.name}));
+}
+
 export function exMuscle(ex){
   if(ex && ADUCTOR_RE.test(ex.name || "") && (!ex.mus || ex.mus === "gluteos" || !EX_DB[ex.mus])) return "aductores";
   if(ex && ex.mus && EX_DB[ex.mus]) return ex.mus;
