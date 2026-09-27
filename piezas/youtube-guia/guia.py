@@ -5,9 +5,13 @@ que aparece línea por línea sincronizada con las «marcas» que dejó el graba
 Mismo diseño que la historia y el reel: glows de la gama, tubos de neón, Outfit y palabra clave en neón.
 
 Uso:  python3 guia.py salida.mp4                 (todo, en 4 partes en paralelo)
+      python3 guia.py --video usuarios salida.mp4    (solo el plan gratuito; «coach» para solo el panel)
       python3 guia.py --cuadros 100 2000 ...     (cuadros sueltos para revisar)
       python3 guia.py --capitulos                (marcas de tiempo para la descripción de YouTube)"""
 import sys, os, json, glob, subprocess
+if len(sys.argv) > 2 and sys.argv[1] == '--video':
+    os.environ['GUIA_VIDEO'] = sys.argv[2]; del sys.argv[1:3]
+VIDEO = os.environ.get('GUIA_VIDEO', 'completa')          # completa · usuarios · coach
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -208,14 +212,16 @@ def flick(k): return [0, .6, 0, .3, 1, .5, 1][k // 2] if 0 <= k < 14 else (1.0 i
 
 def bg_card(): return Image.fromarray(np.clip(fondo(_G[0]), 0, 255).astype(np.uint8)).convert('RGBA')
 
-def intro(f):
-    c = bg_card(); a = ease_out(f / 20)
-    c.alpha_composite(fade(FIRMA_L, a), ((W - FIRMA_L.width) // 2, int(300 + (1 - a) * 20)))
-    a = ease_out((f - 16) / 16)
-    if a > 0: HI.R6.rgb_line(c, 300 + FIRMA_L.height + 50, 700, W - 700, a)
-    centered(c, 'Todo lo que hace la app, función por función.', R.F_H(60), 300 + FIRMA_L.height + 90, TEXT, ease_out((f - 26) / 16))
-    centered(c, 'Primero el plan gratuito. Después, el panel del coach.', R.F_M(36), 300 + FIRMA_L.height + 180, SUB, ease_out((f - 38) / 16))
-    return c
+def make_intro(head, sub):
+    def fn(f):
+        c = bg_card(); a = ease_out(f / 20)
+        c.alpha_composite(fade(FIRMA_L, a), ((W - FIRMA_L.width) // 2, int(300 + (1 - a) * 20)))
+        a = ease_out((f - 16) / 16)
+        if a > 0: HI.R6.rgb_line(c, 300 + FIRMA_L.height + 50, 700, W - 700, a)
+        centered(c, head, R.F_H(60), 300 + FIRMA_L.height + 90, TEXT, ease_out((f - 26) / 16))
+        centered(c, sub, R.F_M(36), 300 + FIRMA_L.height + 180, SUB, ease_out((f - 38) / 16))
+        return c
+    return fn
 
 def part_card(kick, word, head, sub):
     def fn(f):
@@ -227,13 +233,16 @@ def part_card(kick, word, head, sub):
         return c
     return fn
 
-def outro(f):
+def badges(c, f, y, delay):
+    for i, b in enumerate(HI.BADGES):
+        a = ease_out((f - delay - i * 6) / 12)
+        if a > 0: c.alpha_composite(fade(b, a), ([W // 2 - b.width - 16, W // 2 + 16][i], int(y + (1 - a) * 24)))
+
+def outro_completa(f):
     c = bg_card(); a = ease_out(f / 16)
     c.alpha_composite(fade(FIRMA_S, a), ((W - FIRMA_S.width) // 2, int(170 + (1 - a) * 16)))
     centered(c, 'Gratis en iPhone y Android.', R.F_H(62), 330, TEXT, ease_out((f - 12) / 14))
-    for i, b in enumerate(HI.BADGES):
-        a = ease_out((f - 22 - i * 6) / 12)
-        if a > 0: c.alpha_composite(fade(b, a), ([W // 2 - b.width - 16, W // 2 + 16][i], int(440 + (1 - a) * 24)))
+    badges(c, f, 440, 22)
     a = ease_out((f - 44) / 14)
     if a > 0: HI.R6.rgb_line(c, 670, 640, W - 640, a)
     centered(c, '¿Sos coach? Probá el panel 14 días gratis, sin tarjeta.', R.F_H(48), 710, TEXT, ease_out((f - 50) / 14))
@@ -241,12 +250,49 @@ def outro(f):
     centered(c, 'gize.ar', R.F_M(54), 880, BLUE, ease_out((f - 70) / 14))
     return c
 
-add_card(intro, 6 * FPS, 'Introducción')
-add_card(part_card('Parte 1', 'gratis', 'El plan gratuito: para entrenar por tu cuenta.', 'Sin coach y sin pagar nada. En iPhone y en Android.'), 6 * FPS, 'Parte 1 · Plan gratuito')
-add_part('solo', SOLO, 'Plan gratuito')
-add_card(part_card('Parte 2', 'tu panel', 'El panel del coach: para guiar a tus alumnos.', 'Probalo 14 días gratis, sin tarjeta.'), 6 * FPS, 'Parte 2 · Panel del coach')
-add_part('coach', COACH, 'Panel del coach')
-add_card(outro, 9 * FPS, 'Cierre')
+def outro_usuarios(f):
+    c = bg_card(); a = ease_out(f / 16)
+    c.alpha_composite(fade(FIRMA_S, a), ((W - FIRMA_S.width) // 2, int(170 + (1 - a) * 16)))
+    centered(c, 'Gratis en iPhone y Android.', R.F_H(62), 330, TEXT, ease_out((f - 12) / 14))
+    badges(c, f, 440, 22)
+    a = ease_out((f - 44) / 14)
+    if a > 0: HI.R6.rgb_line(c, 670, 640, W - 640, a)
+    centered(c, '¿Entrenás con un coach? Pedile su código y vinculate.', R.F_H(48), 710, TEXT, ease_out((f - 50) / 14))
+    centered(c, 'Así ve tus entrenos y te arma la rutina desde su panel.', R.F_M(34), 790, SUB, ease_out((f - 58) / 14))
+    centered(c, 'gize.ar', R.F_M(54), 880, BLUE, ease_out((f - 70) / 14))
+    return c
+
+def outro_coach(f):
+    c = bg_card(); a = ease_out(f / 16)
+    c.alpha_composite(fade(FIRMA_S, a), ((W - FIRMA_S.width) // 2, int(170 + (1 - a) * 16)))
+    centered(c, 'Probá el panel 14 días gratis, sin tarjeta.', R.F_H(58), 320, TEXT, ease_out((f - 12) / 14))
+    centered(c, 'Después elegís el plan según cuántos alumnos tengas.', R.F_M(36), 410, SUB, ease_out((f - 20) / 14))
+    a = ease_out((f - 32) / 14)
+    if a > 0: HI.R6.rgb_line(c, 510, 640, W - 640, a)
+    centered(c, 'Tus alumnos usan la app gratis, en iPhone y Android.', R.F_H(44), 550, TEXT, ease_out((f - 38) / 14))
+    badges(c, f, 640, 46)
+    centered(c, 'gize.ar', R.F_M(54), 880, BLUE, ease_out((f - 70) / 14))
+    return c
+
+PART1 = part_card('Parte 1', 'gratis', 'El plan gratuito: para entrenar por tu cuenta.', 'Sin coach y sin pagar nada. En iPhone y en Android.')
+PART2 = part_card('Parte 2', 'tu panel', 'El panel del coach: para guiar a tus alumnos.', 'Probalo 14 días gratis, sin tarjeta.')
+if VIDEO == 'usuarios':
+    add_card(make_intro('Guía del plan gratuito.', 'Todo lo que podés hacer en GIZE sin coach y sin pagar nada.'), 6 * FPS, 'Introducción')
+    add_card(part_card('Plan gratuito', 'gratis', 'Para entrenar por tu cuenta.', 'Sin coach y sin pagar nada. En iPhone y en Android.'), 6 * FPS, 'Plan gratuito')
+    add_part('solo', SOLO, 'Plan gratuito')
+    add_card(outro_usuarios, 9 * FPS, 'Cierre')
+elif VIDEO == 'coach':
+    add_card(make_intro('Guía del panel del coach.', 'Todo lo que tenés para guiar a tus alumnos, función por función.'), 6 * FPS, 'Introducción')
+    add_card(part_card('Panel del coach', 'tu panel', 'Para guiar a tus alumnos.', 'Probalo 14 días gratis, sin tarjeta.'), 6 * FPS, 'Panel del coach')
+    add_part('coach', COACH, 'Panel del coach')
+    add_card(outro_coach, 9 * FPS, 'Cierre')
+else:
+    add_card(make_intro('Todo lo que hace la app, función por función.', 'Primero el plan gratuito. Después, el panel del coach.'), 6 * FPS, 'Introducción')
+    add_card(PART1, 6 * FPS, 'Parte 1 · Plan gratuito')
+    add_part('solo', SOLO, 'Plan gratuito')
+    add_card(PART2, 6 * FPS, 'Parte 2 · Panel del coach')
+    add_part('coach', COACH, 'Panel del coach')
+    add_card(outro_completa, 9 * FPS, 'Cierre')
 STARTS = np.cumsum([0] + [sg['n'] for sg in SEGS[:-1]]).tolist()
 N = STARTS[-1] + SEGS[-1]['n']
 _G = [0]
