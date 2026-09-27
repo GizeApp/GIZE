@@ -45,7 +45,13 @@ export function fmtDInput(d){ const p=(d||"").split("-"); if(p.length!==3) retur
 
 export function muscleOf(name){ const n=(name||"").trim().toLowerCase(); for(const cat in EX_DB){ if(EX_DB[cat].some(x=>x.toLowerCase()===n)) return cat; } return "otros"; }
 
-export function exMuscle(ex){ if(ex && ex.mus && EX_DB[ex.mus]) return ex.mus; return muscleOf(ex && ex.name); }
+// Los aductores estaban dentro de glúteos: las rutinas guardadas antes siguen diciendo "gluteos".
+const ADUCTOR_RE = /\baducci[oó]n|\baductor/i;
+export function exMuscle(ex){
+  if(ex && ADUCTOR_RE.test(ex.name || "") && (!ex.mus || ex.mus === "gluteos" || !EX_DB[ex.mus])) return "aductores";
+  if(ex && ex.mus && EX_DB[ex.mus]) return ex.mus;
+  return muscleOf(ex && ex.name);
+}
 
 export function tabRipple(btn, clientX, clientY){
   const rect = btn.getBoundingClientRect();

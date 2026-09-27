@@ -4,7 +4,7 @@ import { state } from './state.js';
 
 import { cloudSyncCore } from './supabase.js';
 
-import { muscleOf, uid } from './utils.js';
+import { exMuscle, muscleOf, uid } from './utils.js';
 
 export const KEY = "rutina_jero_v1";
 
@@ -50,6 +50,7 @@ export function migrateNames(days){
       if(ex.video && !/^https:\/\//i.test(String(ex.video))){ delete ex.video; changed=true; }
       if(ES_MAP[ex.name]){ ex.name=ES_MAP[ex.name]; changed=true; }
       if(!ex.mus || !EX_DB[ex.mus]){ const m=muscleOf(ex.name); if(m!=="otros"){ ex.mus=m; changed=true; } }
+      { const m=exMuscle(ex); if(m==="aductores" && ex.mus!==m){ ex.mus=m; changed=true; } }
     });
   });
   return changed;
