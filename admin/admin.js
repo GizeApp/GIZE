@@ -9,8 +9,8 @@ const REPO = "GizeApp/gize";
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "implicit", detectSessionInUrl: true } });
 
 const $root = document.getElementById("root");
-const S = { user: null, view: "resumen", overview: null, users: null, q: "", coaches: null, prodTab: "pendientes", prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false };
-const SECTIONS = [["resumen", "Resumen"], ["contacto", "Mensajes"], ["usuarios", "Usuarios"], ["coaches", "Coaches y pagos"], ["productos", "Productos"], ["avisos", "Avisos"], ["seguridad", "Seguridad y sistema"]];
+const S = { user: null, view: "resumen", overview: null, users: null, q: "", coaches: null, fin: null, dolar: null, prodTab: "pendientes", prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false };
+const SECTIONS = [["resumen", "Resumen"], ["contacto", "Mensajes"], ["usuarios", "Usuarios"], ["coaches", "Coaches y pagos"], ["finanzas", "Finanzas"], ["productos", "Productos"], ["avisos", "Avisos"], ["seguridad", "Seguridad y sistema"]];
 
 // ---------- utilidades ----------
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -39,7 +39,7 @@ const errMsg = e => (e && (e.message || e.error_description)) || "Algo salió ma
 
 // ---------- entrada ----------
 function gate(msg, withLogin){
-  $root.innerHTML = `<div class="gate"><img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE"><p>${msg}</p>
+  $root.innerHTML = `<div class="aurora-bg" aria-hidden="true"><div class="gize-aurora"><span></span><span></span><span></span><span></span></div></div><div class="gate"><img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE"><p>${msg}</p>
     ${withLogin ? `<div class="card">
       <button class="btn pri" data-a="google">Entrar con Google</button>
       <div class="or">o con tu mail</div>
@@ -73,7 +73,7 @@ function shell(){
 function go(view){
   S.view = view; history.replaceState(null, "", "#" + view);
   document.querySelectorAll(".nav").forEach(b => b.classList.toggle("on", b.dataset.go === view));
-  ({ resumen: loadResumen, contacto: loadContacto, usuarios: loadUsuarios, coaches: loadCoaches, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
+  ({ resumen: loadResumen, contacto: loadContacto, usuarios: loadUsuarios, coaches: loadCoaches, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
 }
 const main = () => document.getElementById("main");
 function page(title, lead, body){ main().innerHTML = `<div class="h1">${title}</div><div class="lead">${lead}</div>${body}`; }
@@ -245,6 +245,250 @@ async function openCoach(id){
   } catch (e) { box.textContent = "No se pudieron traer los cobros: " + errMsg(e); }
 }
 
+// ---------- Finanzas ----------
+// Gastos fijos (en pesos o dólares) y quién paga cada uno, lo que entra por las suscripciones
+// de los coaches y cuántos faltan para cubrir los gastos (supabase/finanzas.sql). El dólar se
+// trae de dolarapi.com y queda guardado en la base para cuando no responda.
+//
+// Comisión de Mercado Pago por cobro de suscripción según cuándo libera la plata, sin IVA (se
+// le suma el 21%). mercadopago.com.ar/herramientas-para-vender/suscripciones, septiembre 2026.
+const MP_PLAZOS = [["0", "Al instante", 6.99], ["10", "A 10 días", 4.49], ["18", "A 18 días", 3.39], ["35", "A 35 días", 1.49]];
+// Monotributo, prestación de servicios, desde agosto 2026: [tope de ingresos por año, cuota por
+// mes]. ARCA los actualiza en febrero y agosto.
+const MONO = { A: [12009410, 49527], B: [17595182, 56379], C: [24670494, 66020], D: [30628651, 84614], E: [36028231, 119811],
+  F: [45151659, 150784], G: [53995798, 230612], H: [81924660, 522706], I: [91699761, 963747], J: [105012519, 1167299], K: [126610839, 1614446] };
+const PERIOD = { mensual: "por mes", anual: "por año", unico: "pago único" };
+const COST_ST = { activo: '<span class="pill ok">Activo</span>', pensando: '<span class="pill warn">Lo estoy pensando</span>', pausado: '<span class="pill">Pausado</span>' };
+const dec = v => (Number(v) || 0).toLocaleString("es-AR", { maximumFractionDigits: 2 });
+const amountTxt = c => (c.currency === "USD" ? "US$ " : "$") + dec(c.amount);
+const bigMoney = v => Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toLocaleString("es-AR", { maximumFractionDigits: 2 }) + " M" : money(v);
+const signed = v => (v < 0 ? "−" : "") + money(Math.abs(v));
+const pct = v => (v * 100).toLocaleString("es-AR", { maximumFractionDigits: 2 }) + "%";
+const dateOnly = d => d ? d + "T12:00:00" : null; // "2027-03-01" sin correrse de día por el huso horario
+
+async function loadFinanzas(){
+  const lead = "Gastos, lo que entra por los coaches y cuánto falta para cubrir todo. Los montos en dólares se pasan a pesos con la cotización del día.";
+  page("Finanzas", lead, '<div class="empty">Cargando…</div>');
+  try { S.fin = await rpc("admin_fin"); }
+  catch (e) {
+    const falta = /admin_fin|schema cache/i.test(errMsg(e));
+    return page("Finanzas", lead, `<div class="card"><div class="empty">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/finanzas.sql</b>." : esc(errMsg(e))}</div></div>`);
+  }
+  const st = S.fin.settings = S.fin.settings || {};
+  if (!S.dolar || !S.dolar.live) S.dolar = { tarjeta: num(st.dolar_tarjeta), mep: num(st.dolar_mep), at: st.dolar_at, live: false };
+  page("Finanzas", lead, `
+    <div class="grid kpis wide" id="fKpis"></div>
+    <div id="fDolar"></div>
+    <div class="grid two">
+      <div class="card neon"><div class="sec-t">Punto de equilibrio</div><div class="sec-s">Coaches que hacen falta para cubrir los gastos, ya descontada la comisión de Mercado Pago.</div><div id="fEq"></div></div>
+      <div class="card"><div class="sec-t">Quién pone qué</div><div class="sec-s">Gastos activos de cada socio, pasados a pesos por mes.</div><div id="fWho"></div></div>
+    </div>
+    <div class="card mt"><div class="card-h"><div><div class="sec-t">Gastos</div><div class="sec-s">Tocá uno para cambiarlo. Los que estás pensando y los pausados no suman.</div></div><button class="btn blue" data-a="fCost">+ Agregar gasto</button></div><div id="fCosts"></div></div>
+    <div class="grid two mt">
+      <div class="card"><div class="sec-t">Cobros y facturación</div><div class="sec-s">Las cuentas cambian al momento; «Guardar» deja los cambios fijos.</div>
+        <label class="lbl">Mercado Pago libera la plata</label>
+        <select class="in" data-fs="mp_plazo">${MP_PLAZOS.map(([k, l, p]) => `<option value="${k}"${String(st.mp_plazo || "0") === k ? " selected" : ""}>${l} · ${dec(p)}% + IVA</option>`).join("")}</select>
+        <label class="lbl">Los gastos en dólares se pagan</label>
+        <select class="in" data-fs="usd_pago"><option value="tarjeta">Con la tarjeta, en pesos (dólar tarjeta)</option><option value="mep"${st.usd_pago === "mep" ? " selected" : ""}>Con dólares propios (dólar MEP)</option></select>
+        <div class="vgrid2"><label><span class="lbl">Quién factura</span><input class="in" data-fs="titular" maxlength="80" value="${esc(st.titular || "")}" placeholder="Nombre"></label>
+          <label><span class="lbl">Categoría del monotributo</span><select class="in" data-fs="categoria"><option value="">—</option>${Object.keys(MONO).map(k => `<option${st.categoria === k ? " selected" : ""}>${k}</option>`).join("")}</select></label></div>
+        <label class="lbl">Otros ingresos por año de quien factura (aparte de GIZE)</label>
+        <input class="in" data-fs="otros_ingresos" type="number" min="0" step="1000" value="${num(st.otros_ingresos) || ""}" placeholder="0">
+        <div id="fMono"></div>
+        <div class="row-btns"><button class="btn pri" data-a="fSave">Guardar</button></div></div>
+      <div class="card"><div class="sec-t">Pendientes</div><div class="sec-s">Lo que falta ordenar. Tocá el círculo cuando esté hecho.</div><div id="fTodos"></div>
+        <div class="search" style="margin:12px 0 0"><input class="in" id="fTodoIn" maxlength="200" placeholder="Agregar un pendiente…"><button class="btn" data-a="fTodoAdd">Agregar</button></div></div>
+    </div>
+    <div class="card mt"><div class="sec-t">Notas</div><div class="sec-s">Acuerdos entre socios, decisiones y lo que haya que recordar. Solo lo ven los administradores.</div>
+      <textarea class="in" data-fs="notas" maxlength="5000" placeholder="Ej: la ganancia se reparte mitad y mitad; la cuenta de Apple está a nombre de…">${esc(st.notas || "")}</textarea>
+      <div class="row-btns"><button class="btn" data-a="fSave">Guardar notas</button></div></div>`);
+  paintFin();
+  if (!S.dolar.live || Date.now() - S.dolar.fetched > 600000) fetchDolar();
+}
+function paintFin(){ paintFinCalc(); paintCosts(); paintTodos(); }
+
+// Cuentas con los ajustes que están en pantalla (aunque todavía no se hayan guardado).
+function finCalc(){
+  const f = S.fin, st = f.settings;
+  const fee = (MP_PLAZOS.find(p => p[0] === String(st.mp_plazo || "0")) || MP_PLAZOS[0])[2] * 1.21 / 100;
+  const kind = st.usd_pago === "mep" ? "mep" : "tarjeta", other = kind === "mep" ? "tarjeta" : "mep";
+  const perMonth = (c, k) => { const a = num(c.amount) * (c.currency === "USD" ? S.dolar[k || kind] || 0 : 1); return c.period === "mensual" ? a : c.period === "anual" ? a / 12 : 0; };
+  const sum = (list, k) => list.reduce((s, c) => s + perMonth(c, k), 0);
+  const act = f.costs.filter(c => c.status === "activo");
+  const cost = sum(act), costOther = sum(act, other), maybe = sum(f.costs.filter(c => c.status === "pensando"));
+  const gross = f.plans.reduce((s, p) => s + num(p.price) * p.paid, 0), paid = f.plans.reduce((s, p) => s + p.paid, 0), net = gross * (1 - fee);
+  const noRate = f.costs.some(c => c.currency === "USD" && c.status !== "pausado") && !(S.dolar.tarjeta && S.dolar.mep);
+  return { st, fee, kind, perMonth, act, cost, costOther, maybe, gross, paid, net, result: net - cost, gap: Math.max(0, cost - net), noRate };
+}
+function paintFinCalc(){
+  if (!document.getElementById("fKpis")) return;
+  const c = finCalc(), st = c.st, d = S.dolar, p25 = S.fin.plans.find(p => p.id === "p25");
+  const k = (v, l, sub, cls) => `<div class="kpi${cls ? " " + cls : ""}"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
+  const cheaper = c.kind === "tarjeta" && c.costOther < c.cost - 1 ? " · con dólares propios: " + money(c.costOther) : "";
+  const dAt = d.at ? (d.live ? "dolarapi.com · " + fmtD(d.at) : "guardada el " + fmtD(d.at)) : "sin cotización";
+  document.getElementById("fKpis").innerHTML =
+    k(money(c.cost), "Gastos por mes", bigMoney(c.cost * 12) + " por año" + cheaper + (c.maybe ? " · +" + money(c.maybe) + " si sumás lo que estás pensando" : ""), "hi") +
+    k(money(c.net), "Entra por mes", n0(c.paid) + " suscripcion" + (c.paid === 1 ? "" : "es") + " al día · " + pct(c.fee) + " de comisión", c.net > 0 ? "good" : "") +
+    k(signed(c.result), "Resultado por mes", c.result < 0 ? "lo ponen los socios" : c.result > 0 ? "ganancia para repartir" : "ni se gana ni se pierde", c.result < 0 ? "bad" : c.result > 0 ? "good" : "") +
+    k(d[c.kind] ? money(d[c.kind]) : "—", c.kind === "mep" ? "Dólar MEP" : "Dólar tarjeta", (d[c.kind === "mep" ? "tarjeta" : "mep"] ? (c.kind === "mep" ? "tarjeta " : "MEP ") + money(d[c.kind === "mep" ? "tarjeta" : "mep"]) + " · " : "") + dAt);
+  // Si dolarapi.com no respondió: la cotización se puede poner a mano.
+  document.getElementById("fDolar").innerHTML = d.failed ? `<div class="card warn-card"><div class="sec-t">No se pudo traer el dólar de dolarapi.com</div>
+    <div class="sec-s">${d.at ? "Se usa la cotización guardada el " + fmtD(d.at) + "." : "No hay una cotización guardada."} Podés ponerla a mano:</div>
+    <div class="search"><input class="in" id="fdT" type="number" min="1" step="0.01" placeholder="Tarjeta" value="${d.tarjeta || ""}"><input class="in" id="fdM" type="number" min="1" step="0.01" placeholder="MEP" value="${d.mep || ""}"><button class="btn blue" data-a="fDolarSave">Guardar</button></div></div>` : "";
+
+  // Punto de equilibrio
+  const eq = document.getElementById("fEq");
+  if (!c.act.length) eq.innerHTML = '<div class="empty">Cargá los gastos para ver cuántos coaches hacen falta.</div>';
+  else if (c.noRate) eq.innerHTML = '<div class="empty">Falta la cotización del dólar para pasar los gastos a pesos.</div>';
+  else {
+    eq.innerHTML = (c.gap > 0 ? `<div class="big-line">Faltan <b class="neon-t">${money(c.gap)}</b> por mes</div>` : `<div class="big-line">Gastos cubiertos: sobran <b class="neon-ok">${money(c.result)}</b> por mes</div>`) +
+      `<div class="tscroll"><table class="table"><thead><tr><th>Plan</th><th>Precio</th><th>Te queda</th><th>${c.gap > 0 ? "Coaches que faltan" : "Al día"}</th></tr></thead><tbody>${S.fin.plans.map(p => {
+        const netP = num(p.price) * (1 - c.fee), need = c.gap > 0 ? Math.ceil(c.gap / netP - 1e-9) : 0;
+        return `<tr><td>${esc(planTxt(p.id))}</td><td>${money(p.price)}</td><td>${money(netP)}</td><td><b>${c.gap > 0 ? n0(need) : n0(p.paid)}</b>${c.gap > 0 && p.paid ? ` <span class="muted small">(hoy ${n0(p.paid)})</span>` : ""}</td></tr>`;
+      }).join("")}</tbody></table></div>` +
+      `<div class="muted small" style="margin-top:10px">Si todos los que faltan entran en ese plan. ${S.fin.trial && p25 ? `Hay ${n0(S.fin.trial)} coach${S.fin.trial === 1 ? "" : "es"} en prueba: si pasan al plan de 25 entran ${money(S.fin.trial * num(p25.price) * (1 - c.fee))} más por mes.` : ""}</div>`;
+  }
+
+  // Quién pone qué
+  const who = {}, names = {};
+  c.act.forEach(x => { const n = (x.paid_by || "").trim() || "Sin asignar", key = n.toLowerCase(); names[key] = names[key] || n; who[key] = (who[key] || 0) + c.perMonth(x); });
+  const rows = Object.keys(who).map(key => [names[key], who[key]]).filter(r => r[1] > 0).sort((a, b) => b[1] - a[1]);
+  document.getElementById("fWho").innerHTML = !rows.length ? '<div class="empty">Cuando cargues los gastos y quién paga cada uno, acá se ve cuánto pone cada socio.</div>' :
+    rows.map(([n, v]) => `<div class="share"><div class="share-h"><b>${esc(n)}</b><span>${money(v)} <span class="muted small">· ${pct(c.cost ? v / c.cost : 0)}</span></span></div><div class="meter"><i style="width:${c.cost ? Math.round(v / c.cost * 100) : 0}%"></i></div></div>`).join("") +
+    (c.act.some(x => x.period === "anual") ? '<div class="muted small" style="margin-top:8px">Los gastos anuales van divididos por 12.</div>' : "");
+
+  // Monotributo de quien factura
+  const mono = document.getElementById("fMono"), cat = st.categoria;
+  if (!cat || !MONO[cat]) { mono.innerHTML = '<div class="muted small" style="margin-top:12px">Elegí la categoría para ver cuánto margen queda antes del tope.</div>'; return; }
+  const [tope, cuota] = MONO[cat], anual = c.gross * 12, total = anual + num(st.otros_ingresos), letters = Object.keys(MONO);
+  const per25 = (p25 ? num(p25.price) : 15000) * 12;
+  let txt;
+  if (total <= tope){
+    const nx = letters[letters.indexOf(cat) + 1];
+    txt = `Usa el <b>${pct(total / tope)}</b> del tope de la ${cat} (${bigMoney(tope)} por año): GIZE a este ritmo factura ${bigMoney(anual)} por año y lo demás suma ${bigMoney(num(st.otros_ingresos))}. ` +
+      `Entran <b>${n0(Math.floor((tope - total) / per25))} coaches más</b> del plan de 25 antes de ${nx ? `pasar a la ${nx} (cuota ${money(MONO[nx][1])}, ${money(MONO[nx][1] - cuota)} más por mes)` : "llegar al tope del monotributo"}.`;
+  } else {
+    const need = letters.find(l => MONO[l][0] >= total);
+    txt = need ? `Se pasa del tope de la ${cat}: con ${bigMoney(total)} por año le corresponde la <b>${need}</b> (cuota ${money(MONO[need][1])} por mes).`
+      : `Supera el tope del monotributo (${bigMoney(MONO.K[0])} por año): habría que pasar a responsable inscripto. Conviene hablarlo con un contador.`;
+  }
+  mono.innerHTML = `<div class="mono"><div class="meter${total > tope ? " over" : ""}"><i style="width:${Math.min(100, Math.round(total / tope * 100))}%"></i></div><div class="small">${txt}</div></div>`;
+}
+function paintCosts(){
+  const box = document.getElementById("fCosts"); if (!box) return;
+  const c = finCalc(), today = new Date(); today.setHours(0, 0, 0, 0);
+  if (!S.fin.costs.length){ box.innerHTML = '<div class="empty">Todavía no hay gastos. Tocá «Agregar gasto».</div>'; return; }
+  const next = x => {
+    if (!x.next_date) return '<span class="muted">—</span>';
+    const days = Math.round((new Date(x.next_date + "T00:00:00") - today) / 86400000);
+    return fmtD(dateOnly(x.next_date)) + (x.status === "activo" && days < 0 ? ' <span class="pill bad">Vencido</span>' : x.status === "activo" && days <= 15 ? ` <span class="pill warn">${days ? "en " + days + " días" : "hoy"}</span>` : "");
+  };
+  box.className = "tscroll";
+  box.innerHTML = `<table class="table"><thead><tr><th>Gasto</th><th>Monto</th><th>En pesos por mes</th><th>Paga</th><th>Próximo pago</th><th>Estado</th></tr></thead><tbody>${S.fin.costs.map(x => `
+    <tr class="row${x.status === "activo" ? "" : " dim"}" data-cost="${esc(x.id)}"><td><b>${esc(x.name)}</b>${x.note ? `<div class="muted small">${esc(x.note)}</div>` : ""}</td>
+      <td>${amountTxt(x)} <span class="muted small">${PERIOD[x.period] || ""}</span></td>
+      <td>${x.period === "unico" ? '<span class="muted">—</span>' : c.noRate && x.currency === "USD" ? "?" : money(c.perMonth(x))}</td>
+      <td class="muted">${esc(x.paid_by || "—")}</td><td>${next(x)}</td><td>${COST_ST[x.status] || esc(x.status)}</td></tr>`).join("")}</tbody></table>`;
+}
+function paintTodos(){
+  const box = document.getElementById("fTodos"); if (!box) return;
+  box.innerHTML = S.fin.todos.length ? S.fin.todos.map(t => `<div class="todo${t.done ? " done" : ""}">
+      <button class="chk" data-a="fTodo" data-id="${esc(t.id)}" data-v="${t.done ? "deshacer" : "hecho"}" aria-label="${t.done ? "Marcar como pendiente" : "Marcar como hecho"}"></button>
+      <span>${esc(t.label)}</span><button class="x-sm" data-a="fTodoDel" data-id="${esc(t.id)}" aria-label="Borrar">×</button></div>`).join("")
+    : '<div class="empty">No hay pendientes. 🎉</div>';
+}
+async function fetchDolar(){
+  const d = S.dolar;
+  try {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch("https://dolarapi.com/v1/dolares", { signal: ctl.signal }); clearTimeout(t);
+    if (!r.ok) throw new Error("dolarapi " + r.status);
+    const list = await r.json(), get = k => (Array.isArray(list) && list.find(x => x.casa === k)) || {};
+    const tarjeta = Number(get("tarjeta").venta), mep = Number(get("bolsa").venta);
+    if (!(tarjeta > 0 && mep > 0)) throw new Error("dolarapi sin datos");
+    S.dolar = { tarjeta, mep, at: get("tarjeta").fechaActualizacion || new Date().toISOString(), live: true, fetched: Date.now() };
+    // Se guarda en la base para cuando dolarapi.com no responda.
+    const st = S.fin && S.fin.settings;
+    if (st && (num(st.dolar_tarjeta) !== tarjeta || num(st.dolar_mep) !== mep))
+      rpc("admin_fin_dolar", { p_tarjeta: tarjeta, p_mep: mep }).then(() => Object.assign(st, { dolar_tarjeta: tarjeta, dolar_mep: mep, dolar_at: new Date().toISOString() })).catch(() => {});
+  } catch (e) { S.dolar = Object.assign({}, d, { live: false, failed: true }); }
+  if (S.view === "finanzas" && S.fin){ paintFinCalc(); paintCosts(); }
+}
+async function saveDolar(btn){
+  const tarjeta = num(document.getElementById("fdT").value), mep = num(document.getElementById("fdM").value);
+  if (!(tarjeta > 0 && mep > 0)) return toast("Poné el dólar tarjeta y el MEP.");
+  btn.disabled = true;
+  try { await rpc("admin_fin_dolar", { p_tarjeta: tarjeta, p_mep: mep }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  Object.assign(S.fin.settings, { dolar_tarjeta: tarjeta, dolar_mep: mep, dolar_at: new Date().toISOString() });
+  S.dolar = { tarjeta, mep, at: S.fin.settings.dolar_at, live: false };
+  toast("Cotización guardada"); paintFinCalc(); paintCosts();
+}
+// Un ajuste cambiado en pantalla: se recalcula al momento y «Guardar» queda marcado.
+function finField(el){
+  S.fin.settings[el.dataset.fs] = el.value;
+  document.querySelectorAll('[data-a="fSave"]').forEach(b => b.classList.add("dirty"));
+  if (el.dataset.fs !== "notas") paintFinCalc();
+}
+async function saveFinSettings(btn){
+  const st = S.fin.settings;
+  if (num(st.otros_ingresos) < 0) return toast("Los otros ingresos no pueden ser negativos.");
+  btn.disabled = true;
+  try { await rpc("admin_fin_settings_save", { p_mp_plazo: String(st.mp_plazo || "0"), p_usd_pago: st.usd_pago === "mep" ? "mep" : "tarjeta", p_titular: st.titular || null,
+    p_categoria: st.categoria || null, p_otros: num(st.otros_ingresos), p_notas: st.notas || null }); }
+  catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  btn.disabled = false;
+  document.querySelectorAll('[data-a="fSave"]').forEach(b => b.classList.remove("dirty"));
+  toast("Guardado ✓");
+}
+// Después de cambiar un gasto o un pendiente se vuelve a pedir todo, sin pisar los ajustes que
+// están en pantalla sin guardar.
+async function reloadFin(){
+  const st = S.fin.settings;
+  try { S.fin = await rpc("admin_fin"); } catch (e) { return toast(errMsg(e)); }
+  S.fin.settings = st;
+  paintFin();
+}
+function openCost(id){
+  const c = id ? S.fin.costs.find(x => x.id === id) : { currency: "USD", period: "mensual", status: "activo" };
+  if (!c) return;
+  const who = [...new Set(S.fin.costs.map(x => x.paid_by).concat(S.fin.settings.titular).filter(Boolean))];
+  const opt = (list, v) => list.map(([k, l]) => `<option value="${k}"${v === k ? " selected" : ""}>${l}</option>`).join("");
+  drawer(`<div class="h1" style="font-size:22px">${id ? "Cambiar gasto" : "Nuevo gasto"}</div>
+    <label class="lbl">Qué es</label><input class="in" id="fcName" maxlength="80" value="${esc(c.name || "")}" placeholder="Ej: Apple Developer">
+    <div class="vgrid2"><label><span class="lbl">Monto</span><input class="in" id="fcAmount" type="number" min="0" step="0.01" value="${c.amount != null ? esc(c.amount) : ""}"></label>
+      <label><span class="lbl">Moneda</span><select class="in" id="fcCur">${opt([["USD", "Dólares"], ["ARS", "Pesos"]], c.currency)}</select></label></div>
+    <div class="vgrid2"><label><span class="lbl">Cada cuánto</span><select class="in" id="fcPer">${opt([["mensual", "Por mes"], ["anual", "Por año"], ["unico", "Pago único"]], c.period)}</select></label>
+      <label><span class="lbl">Estado</span><select class="in" id="fcSt">${opt([["activo", "Activo"], ["pensando", "Lo estoy pensando"], ["pausado", "Pausado"]], c.status)}</select></label></div>
+    <div class="vgrid2"><label><span class="lbl">Quién lo paga</span><input class="in" id="fcWho" maxlength="60" list="fcWhoL" value="${esc(c.paid_by || "")}" placeholder="Nombre del socio">
+        <datalist id="fcWhoL">${who.map(w => `<option value="${esc(w)}">`).join("")}</datalist></label>
+      <label><span class="lbl">Próximo pago</span><input class="in" id="fcNext" type="date" value="${esc(c.next_date || "")}"></label></div>
+    <label class="lbl">Nota</label><input class="in" id="fcNote" maxlength="300" value="${esc(c.note || "")}" placeholder="Opcional">
+    <div class="row-btns"><button class="btn pri" data-a="fCostSave" data-id="${id ? esc(id) : ""}">Guardar</button>${id ? `<button class="btn bad" data-a="fCostDel" data-id="${esc(id)}">Borrar</button>` : ""}</div>`);
+  if (!id) document.getElementById("fcName").focus();
+}
+async function saveCost(btn){
+  const v = id => document.getElementById(id).value.trim(), amount = num(v("fcAmount"));
+  if (!v("fcName")) return toast("Poné qué es el gasto.");
+  if (!(amount > 0)) return toast("Poné el monto.");
+  btn.disabled = true;
+  try { await rpc("admin_fin_cost_save", { p_id: btn.dataset.id ? Number(btn.dataset.id) : null, p_name: v("fcName"), p_amount: amount, p_currency: v("fcCur"), p_period: v("fcPer"),
+    p_status: v("fcSt"), p_paid_by: v("fcWho") || null, p_next: v("fcNext") || null, p_note: v("fcNote") || null }); }
+  catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  closeDrawer(); toast("Gasto guardado ✓"); reloadFin();
+}
+async function deleteCost(btn){
+  const c = S.fin.costs.find(x => x.id === Number(btn.dataset.id));
+  if (!confirm("¿Borrar el gasto «" + (c ? c.name : "") + "»?")) return;
+  btn.disabled = true;
+  try { await rpc("admin_fin_cost_delete", { p_id: Number(btn.dataset.id) }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  closeDrawer(); toast("Gasto borrado"); reloadFin();
+}
+async function finTodo(mode, id, label, btn){
+  if (btn) btn.disabled = true;
+  try { await rpc("admin_fin_todo", { p_mode: mode, p_id: id, p_label: label }); } catch (e) { if (btn) btn.disabled = false; return toast(errMsg(e)); }
+  reloadFin();
+}
+
 // ---------- Mensajes (contacto@gize.ar) ----------
 // Los mails que llegan a contacto@gize.ar (supabase/functions/contacto). Se responden desde
 // acá: la respuesta sale de contacto@gize.ar, así nadie ve el mail personal de quien contesta.
@@ -409,8 +653,10 @@ async function loadSeguridad(){
   const what = a => ({ rol: "Cambió el rol a " + ((a.detail || {}).role === "coach" ? "coach" : "alumno"), desvincular: "Desvinculó de su coach", admin_si: "Hizo administrador", admin_no: "Quitó administrador",
     plan: ({ cortesia: "Dio cortesía", trial: "Extendió la prueba", sin_cortesia: "Quitó la cortesía" }[(a.detail || {}).mode] || "Cambió el plan"), config: "Cambió el cartel de actualización",
     aviso: "Mandó una notificación a " + (a.target || ""), eliminar: "Eliminó la cuenta",
-    contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto" }[a.action] || a.action);
-  const extra = a => a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : (a.target_name || "");
+    contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto",
+    fin_gasto_nuevo: "Agregó un gasto", fin_gasto: "Cambió un gasto", fin_gasto_borrar: "Borró un gasto", fin_ajustes: "Cambió los ajustes de finanzas",
+    fin_pendiente_nuevo: "Agregó un pendiente", fin_pendiente_hecho: "Marcó un pendiente como hecho", fin_pendiente_deshacer: "Volvió a abrir un pendiente", fin_pendiente_borrar: "Borró un pendiente" }[a.action] || a.action);
+  const extra = a => a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : (a.target_name || "");
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Sobre</th></tr></thead><tbody>${S.audit.map(a => `<tr><td class="muted">${fmtDT(a.created_at)}</td><td>${esc(a.admin_name || "—")}</td><td>${esc(what(a))}</td><td class="muted">${esc(extra(a) || "")}</td></tr>`).join("")}</tbody></table>`;
 }
@@ -420,12 +666,18 @@ document.addEventListener("input", e => {
   const mr = e.target.closest && e.target.closest(".msg-reply"); if (mr) S.drafts[mr.closest("[data-msg]").dataset.msg] = e.target.value;
   if (e.target.id === "avTitle") document.getElementById("pvT").textContent = e.target.value || "Título";
   if (e.target.id === "avBody") document.getElementById("pvB").textContent = e.target.value || "Mensaje";
+  if (e.target.dataset && e.target.dataset.fs && S.fin) finField(e.target);
 });
-document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "uQ"){ S.q = e.target.value.trim(); searchUsers(); } if (e.key === "Escape") closeDrawer(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.id === "uQ"){ S.q = e.target.value.trim(); searchUsers(); }
+  if (e.key === "Enter" && e.target.id === "fTodoIn"){ const b = document.querySelector('[data-a="fTodoAdd"]'); if (b) b.click(); }
+  if (e.key === "Escape") closeDrawer();
+});
 document.addEventListener("click", async e => {
   const g = e.target.closest("[data-go]"); if (g){ closeDrawer(); go(g.dataset.go); return; }
   const tr = e.target.closest("tr[data-user]"); if (tr){ openUser(tr.dataset.user); return; }
   const tc = e.target.closest("tr[data-coach]"); if (tc){ openCoach(tc.dataset.coach); return; }
+  const tf = e.target.closest("tr[data-cost]"); if (tf){ openCost(Number(tf.dataset.cost)); return; }
   const b = e.target.closest("[data-a]"); if (!b) return;
   const a = b.dataset.a;
   try {
@@ -460,6 +712,14 @@ document.addEventListener("click", async e => {
     if (a === "avT"){ document.querySelectorAll("#avT button").forEach(x => x.classList.toggle("on", x === b)); return; }
     if (a === "avSend"){ sendAviso(b); return; }
     if (a === "cfgSave"){ saveConfig(b); return; }
+    if (a === "fCost"){ openCost(null); return; }
+    if (a === "fCostSave"){ saveCost(b); return; }
+    if (a === "fCostDel"){ deleteCost(b); return; }
+    if (a === "fSave"){ saveFinSettings(b); return; }
+    if (a === "fDolarSave"){ saveDolar(b); return; }
+    if (a === "fTodo"){ finTodo(b.dataset.v, Number(b.dataset.id), null, b); return; }
+    if (a === "fTodoDel"){ if (!confirm("¿Borrar este pendiente?")) return; finTodo("borrar", Number(b.dataset.id), null, b); return; }
+    if (a === "fTodoAdd"){ const i = document.getElementById("fTodoIn"), t = i.value.trim(); if (!t) return toast("Escribí el pendiente."); finTodo("nuevo", null, t, b); return; }
   } catch (err) { b.disabled = false; toast(errMsg(err)); }
 });
 
