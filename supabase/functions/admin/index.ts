@@ -245,9 +245,10 @@ Deno.serve(async (req) => {
     if (text.length > 10000) return json({ error: "La respuesta es demasiado larga." }, 400);
     const key = Deno.env.get("RESEND_API_KEY");
     if (!key) return json({ error: "Falta RESEND_API_KEY" }, 500);
-    const { data: m } = await db.from("contact_messages").select("id, from_email, from_name, subject, body, message_id, created_at").eq("id", mid).maybeSingle();
+    const { data: m } = await db.from("contact_messages").select("id, from_email, from_name, reply_to, subject, body, message_id, created_at").eq("id", mid).maybeSingle();
     if (!m) return json({ error: "No existe ese mensaje." }, 404);
-    const subject = /^re:/i.test(m.subject || "") ? m.subject : "Re: " + (m.subject || "Tu mensaje a GIZE");
+    const subj0 = String(m.subject || "").replace(/[\r\n]+/g, " ").trim();
+    const subject = /^re:/i.test(subj0) ? subj0 : "Re: " + (subj0 || "Tu mensaje a GIZE");
     // Se cita el mensaje original debajo, como en cualquier respuesta de mail.
     const when = new Date(m.created_at).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
     const quoted = String(m.body || "").slice(0, 4000).split("\n").map((l: string) => "> " + l).join("\n");
@@ -258,17 +259,18 @@ Deno.serve(async (req) => {
       '<div style="margin-top:18px;color:#666;font-size:13px">El ' + esc(when) + ", " + esc(m.from_name || m.from_email) + ' escribió:</div>' +
       '<blockquote style="margin:6px 0 0;padding-left:10px;border-left:3px solid #ccc;color:#666;font-size:13px">' + esc(String(m.body || "").slice(0, 4000)).replace(/\n/g, "<br>") + "</blockquote>";
     const headers: Record<string, string> = {};
-    if (m.message_id) { headers["In-Reply-To"] = m.message_id; headers["References"] = m.message_id; }
+    if (m.message_id && /^<[^<>\s]+>$/.test(m.message_id)) { headers["In-Reply-To"] = m.message_id; headers["References"] = m.message_id; }
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: "GIZE <contacto@gize.ar>", to: [m.from_email], reply_to: "contacto@gize.ar", subject, text: full, html, headers }),
+      // Al Reply-To del mail si lo trae (listas, formularios); si no, a quien lo mandó.
+      body: JSON.stringify({ from: "GIZE <contacto@gize.ar>", to: [m.reply_to || m.from_email], reply_to: "contacto@gize.ar", subject, text: full, html, headers }),
     });
     if (!r.ok) { const t = await r.text(); console.error("resend", r.status, t); return json({ error: "No se pudo mandar el mail (" + r.status + ")." }, 502); }
     const now = new Date().toISOString();
     await db.from("contact_messages").update({ replied_at: now, replied_by: adminId, reply: text }).eq("id", mid);
     await db.from("contact_messages").update({ read_at: now, read_by: adminId }).eq("id", mid).is("read_at", null);
-    await log("contacto_respuesta", String(mid), { a: m.from_email, asunto: subject });
+    await log("contacto_respuesta", String(mid), { a: m.reply_to || m.from_email, asunto: subject });
     return json({ ok: true });
   }
 

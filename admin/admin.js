@@ -9,7 +9,7 @@ const REPO = "GizeApp/gize";
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "implicit", detectSessionInUrl: true } });
 
 const $root = document.getElementById("root");
-const S = { user: null, view: "resumen", overview: null, users: null, q: "", coaches: null, prodTab: "pendientes", prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0 };
+const S = { user: null, view: "resumen", overview: null, users: null, q: "", coaches: null, prodTab: "pendientes", prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false };
 const SECTIONS = [["resumen", "Resumen"], ["contacto", "Mensajes"], ["usuarios", "Usuarios"], ["coaches", "Coaches y pagos"], ["productos", "Productos"], ["avisos", "Avisos"], ["seguridad", "Seguridad y sistema"]];
 
 // ---------- utilidades ----------
@@ -86,7 +86,13 @@ function setUnread(n){
 }
 async function refreshUnread(){
   if (!S.user) return;
-  try { const n = await rpc("admin_contact_unread"); if (n > S.unread && S.view === "contacto" && S.msgTab === "nuevos") loadContacto(); setUnread(n); } catch (e) {}
+  try {
+    const n = await rpc("admin_contact_unread");
+    // Llegó uno nuevo y se está mirando "Sin leer": se recarga la lista (salvo que estés escribiendo o mandando una respuesta).
+    const busy = S.sending || document.querySelector("#mList .msg-reply:not([hidden])");
+    if (n > S.unread && S.view === "contacto" && S.msgTab === "nuevos" && !busy) loadContacto();
+    setUnread(n);
+  } catch (e) {}
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshUnread(); });
 
@@ -258,7 +264,8 @@ function paintMsgs(){
   box.innerHTML = S.msgs.map(m => `<div class="card msg${m.read_at ? "" : " unread"}" data-msg="${esc(m.id)}">
       <div class="msg-h"><div><b>${esc(m.from_name || m.from_email)}</b>${m.from_name ? ` <span class="muted small">&lt;${esc(m.from_email)}&gt;</span>` : ""}</div>
         <span class="muted small">${fmtDT(m.created_at)}</span></div>
-      <div class="msg-s">${esc(m.subject || "(sin asunto)")}${m.to_email && m.to_email !== "contacto@gize.ar" ? ` <span class="pill">${esc(m.to_email)}</span>` : ""}${m.attachments ? ` <span class="pill">${m.attachments} adjunto${m.attachments === 1 ? "" : "s"}</span>` : ""}${m.replied_at ? ' <span class="pill ok">Respondido</span>' : ""}</div>
+      ${m.auth_dmarc === "pass" || m.body_missing ? "" : '<div class="msg-warn">⚠ Remitente sin verificar: puede ser otra persona haciéndose pasar por esta dirección. No borres cuentas ni des datos por un mail así; pedí que lo confirme desde la app.</div>'}
+      <div class="msg-s">${esc(m.subject || "(sin asunto)")}${m.to_email && m.to_email !== "contacto@gize.ar" ? ` <span class="pill">${esc(m.to_email)}</span>` : ""}${m.reply_to ? ` <span class="pill blue">responder a ${esc(m.reply_to)}</span>` : ""}${m.attachments ? ` <span class="pill">${m.attachments} adjunto${m.attachments === 1 ? "" : "s"}</span>` : ""}${m.replied_at ? ' <span class="pill ok">Respondido</span>' : ""}</div>
       <div class="msg-b">${m.body_missing ? '<span class="muted">Todavía no se pudo leer el texto de este mail (se vuelve a intentar solo).</span>' : esc(m.body || "(vacío)")}</div>
       ${m.replied_at ? `<div class="msg-r"><div class="muted small">Respuesta de ${esc(m.replied_by_name || "un administrador")} · ${fmtDT(m.replied_at)}</div>${esc(m.reply || "")}</div>` : ""}
       <div class="msg-reply" hidden><textarea class="in" maxlength="10000" placeholder="Escribí la respuesta. Le llega desde contacto@gize.ar, con el mensaje original citado abajo."></textarea>
@@ -266,6 +273,12 @@ function paintMsgs(){
       <div class="row-btns msg-acts"><button class="btn blue" data-a="mreply">${m.replied_at ? "Responder otra vez" : "Responder"}</button>
         <button class="btn" data-a="mread" data-v="${m.read_at ? "0" : "1"}">${m.read_at ? "Marcar sin leer" : "Marcar como leído"}</button></div>
     </div>`).join("");
+  // Las respuestas a medio escribir vuelven a su lugar (la lista se redibuja entera).
+  Object.keys(S.drafts).forEach(id => {
+    const c = box.querySelector(`[data-msg="${id}"]`); if (!c) return;
+    c.querySelector(".msg-reply").hidden = false; c.querySelector(".msg-acts").hidden = true;
+    c.querySelector(".msg-reply textarea").value = S.drafts[id];
+  });
 }
 async function markMsg(btn){
   const c = btn.closest("[data-msg]"), id = Number(c.dataset.msg), leido = btn.dataset.v === "1";
@@ -280,9 +293,12 @@ async function sendReply(btn){
   const c = btn.closest("[data-msg]"), id = Number(c.dataset.msg), t = c.querySelector(".msg-reply textarea"), text = t.value.trim();
   const m = S.msgs.find(x => x.id === id);
   if (text.length < 2) return toast("Escribí la respuesta.");
-  if (!confirm("¿Mandar la respuesta a " + (m ? m.from_email : "esta persona") + "?")) return;
-  btn.disabled = true;
-  try { await fn({ action: "responder", message_id: id, text }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  if (!confirm("¿Mandar la respuesta a " + (m ? (m.reply_to || m.from_email) : "esta persona") + "?")) return;
+  btn.disabled = true; S.sending = true;
+  try { await fn({ action: "responder", message_id: id, text }); }
+  catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  finally { S.sending = false; }
+  delete S.drafts[id];
   toast("Respuesta enviada ✓");
   if (m){ const was = !m.read_at; m.replied_at = new Date().toISOString(); m.reply = text; m.replied_by_name = "vos"; m.read_at = m.read_at || m.replied_at; if (was) setUnread(Math.max(0, S.unread - 1)); }
   if (S.msgTab === "nuevos") S.msgs = S.msgs.filter(x => x.id !== id);
@@ -401,6 +417,7 @@ async function loadSeguridad(){
 
 // ---------- acciones ----------
 document.addEventListener("input", e => {
+  const mr = e.target.closest && e.target.closest(".msg-reply"); if (mr) S.drafts[mr.closest("[data-msg]").dataset.msg] = e.target.value;
   if (e.target.id === "avTitle") document.getElementById("pvT").textContent = e.target.value || "Título";
   if (e.target.id === "avBody") document.getElementById("pvB").textContent = e.target.value || "Mensaje";
 });
@@ -432,10 +449,10 @@ document.addEventListener("click", async e => {
       await rpc("admin_set_plan", { cid: b.dataset.id, mode, p_max: max ? parseInt(max.value, 10) || 10 : null, p_days: days ? parseInt(days.value, 10) || 14 : null });
       toast("Listo"); closeDrawer(); loadCoaches(); return;
     }
-    if (a === "mtab"){ S.msgTab = b.dataset.v; loadContacto(); return; }
+    if (a === "mtab"){ if (Object.values(S.drafts).some(v => v.trim()) && !confirm("Tenés una respuesta sin mandar. ¿Cambiar de lista igual? (queda guardada si el mensaje aparece en la otra lista)")) return; S.msgTab = b.dataset.v; loadContacto(); return; }
     if (a === "mread"){ markMsg(b); return; }
-    if (a === "mreply"){ const c = b.closest("[data-msg]"), r = c.querySelector(".msg-reply"); r.hidden = false; c.querySelector(".msg-acts").hidden = true; r.querySelector("textarea").focus(); return; }
-    if (a === "mcancel"){ const c = b.closest("[data-msg]"); c.querySelector(".msg-reply").hidden = true; c.querySelector(".msg-acts").hidden = false; return; }
+    if (a === "mreply"){ const c = b.closest("[data-msg]"), r = c.querySelector(".msg-reply"); r.hidden = false; c.querySelector(".msg-acts").hidden = true; S.drafts[c.dataset.msg] = S.drafts[c.dataset.msg] || ""; r.querySelector("textarea").focus(); return; }
+    if (a === "mcancel"){ const c = b.closest("[data-msg]"); delete S.drafts[c.dataset.msg]; c.querySelector(".msg-reply").hidden = true; c.querySelector(".msg-acts").hidden = false; return; }
     if (a === "msend"){ sendReply(b); return; }
     if (a === "ptab"){ S.prodTab = b.dataset.v; loadProductos(); return; }
     if (a === "psave"){ saveProd(b); return; }

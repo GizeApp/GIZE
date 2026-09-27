@@ -56,26 +56,49 @@ async function signatureOk(req: Request, raw: string, secret: string): Promise<b
 }
 
 // ---- Texto del mail ----
+const NAMED: Record<string, string> = {
+  nbsp: " ", lt: "<", gt: ">", quot: '"', apos: "'", aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
+  Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú", ntilde: "ñ", Ntilde: "Ñ", uuml: "ü", Uuml: "Ü",
+  iquest: "¿", iexcl: "¡", ordm: "º", ordf: "ª", laquo: "«", raquo: "»", euro: "€", hellip: "…", mdash: "—", ndash: "–", deg: "°",
+};
+// Patrones lineales (sin reintentos que crezcan con el largo): un mail enorme no puede trabar la función.
 function htmlToText(html: string): string {
   return html
-    .replace(/<(style|script|head)[\s\S]*?<\/\1>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<(style|script|head)\b[\s\S]*?<\/\1>/gi, "")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|li|tr|h[1-6]|blockquote)>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/<[^<>]*>/g, "")
+    .replace(/&#(x[0-9a-f]+|\d+);/gi, (_, n: string) => {
+      const c = n[0] === "x" || n[0] === "X" ? parseInt(n.slice(1), 16) : Number(n);
+      return c > 0 && c <= 0x10ffff && (c < 0xd800 || c > 0xdfff) ? String.fromCodePoint(c) : "";
+    })
+    .replace(/&([a-z]+);/gi, (m, n: string) => NAMED[n] ?? m)
     .replace(/&amp;/g, "&");
 }
 function tidy(s: string): string {
-  return s.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  return s.replace(/\r\n?/g, "\n").split("\n").map((l) => l.trimEnd()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+// Recorte seguro para la base: sin el carácter nulo y sin dejar un emoji partido al medio
+// (Postgres rechaza el texto y el mail se perdería).
+function clip(v: unknown, n: number): string {
+  return String(v ?? "").replace(/\u0000/g, "").slice(0, n).replace(/[\uD800-\uDBFF]$/, "") // el emoji que quedó cortado al final se saca
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "\uFFFD");
 }
 // "Juan Pérez <juan@mail.com>" → { name, email }
 function parseAddress(v: unknown): { name: string | null; email: string } {
   const s = String(Array.isArray(v) ? v[0] || "" : v || "").trim();
-  const m = /^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/.exec(s);
-  if (m) return { name: m[1].trim() || null, email: m[2].trim().toLowerCase() };
+  const m = /^(.*?)<([^<>]+)>\s*$/.exec(s);
+  if (m){
+    let name = m[1].trim();
+    if (/^".*"$/.test(name)) name = name.slice(1, -1).replace(/\\"/g, '"').trim(); // "Juan \"Tito\" Pérez"
+    return { name: name || null, email: m[2].trim().toLowerCase() };
+  }
+  const c = /^\s*([^\s()]+@[^\s()]+)\s*\((.*)\)\s*$/.exec(s); // "juan@mail.com (Juan Pérez)"
+  if (c) return { name: c[2].trim() || null, email: c[1].toLowerCase() };
   return { name: null, email: s.toLowerCase() };
 }
+const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 
 // ---- Notificaciones (mismo envío que la función "admin") ----
 type Sub = { id: string; user_id: string; endpoint: string; p256dh: string; auth: string };
@@ -185,7 +208,8 @@ Deno.serve(async (req) => {
   if (!resendId) return json({ error: "Falta el id del mail" }, 400);
 
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { data: prev } = await db.from("contact_messages").select("id, body_missing").eq("resend_id", resendId).maybeSingle();
+  const { data: prev, error: prevErr } = await db.from("contact_messages").select("id, body_missing").eq("resend_id", resendId).maybeSingle();
+  if (prevErr) { console.error("select", prevErr.message); return json({ error: "No se pudo leer la base" }, 500); }
   if (prev && !prev.body_missing) return json({ ok: true, duplicado: true }); // Resend reintenta: ya estaba
 
   // El aviso de Resend no trae el texto: se baja aparte (hace falta la clave con acceso completo).
@@ -198,26 +222,39 @@ Deno.serve(async (req) => {
     } catch (e) { console.error("resend", (e as Error).message); }
   }
 
+  // La dirección sale del campo de Resend (ya viene limpia); el nombre, del encabezado From.
   const headers = (full && full.headers) || {};
-  const from = parseAddress((headers && (headers.from || headers.From)) || (full && full.from) || d.from);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(from.email)) return json({ ignored: true, motivo: "remitente inválido" });
+  const addr = parseAddress((full && full.from) || d.from);
+  const from = { email: addr.email, name: parseAddress(headers.from || headers.From).name || addr.name };
+  if (!EMAIL.test(from.email)) console.error("remitente raro", clip(from.email, 80));
   const toList = ((full && full.to) || d.to || []) as unknown[];
   const to = toList.map((x) => parseAddress(x).email).find((x) => x.endsWith("@gize.ar")) || (toList.length ? parseAddress(toList[0]).email : null);
-  const subject = String((full && full.subject) ?? d.subject ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || null;
-  const text = full ? tidy(String(full.text || "") || htmlToText(String(full.html || ""))) : "";
-  const body = text.slice(0, 20000);
+  const replyTo = ((full && full.reply_to) || []) as unknown[];
+  const rt = (Array.isArray(replyTo) ? replyTo : [replyTo]).map((x) => parseAddress(x).email).find((x) => EMAIL.test(x) && x !== from.email) || null;
+  const auth = (full && full.authentication) || {};
+  const subject = clip(String((full && full.subject) ?? d.subject ?? "").replace(/\s+/g, " ").trim(), 300) || null;
+  // Se recorta ANTES de procesar (un mail gigante no traba la función) y otra vez al guardar.
+  const text = full ? tidy(String(full.text || "").slice(0, 100000) || htmlToText(String(full.html || "").slice(0, 500000))) : "";
+  const body = clip(text, 20000);
   const missing = !full;
   const atts = Array.isArray((full && full.attachments) || d.attachments) ? ((full && full.attachments) || d.attachments).length : 0;
+  const verdict = (v: unknown) => v == null ? null : clip(v, 40) || null;
 
   if (prev){
     // Ya estaba guardado sin el texto (falló la primera vez): se completa.
-    if (!missing) await db.from("contact_messages").update({ body, body_missing: false, subject, from_name: from.name }).eq("id", prev.id);
-    return missing ? json({ error: "No se pudo leer el mail" }, 502) : json({ ok: true, completado: true });
+    if (missing) return json({ error: "No se pudo leer el mail" }, 502);
+    const { error: upErr } = await db.from("contact_messages").update({
+      body, body_missing: false, subject, from_name: from.name ? clip(from.name, 200) : null, reply_to: rt ? clip(rt, 320) : null,
+      auth_dmarc: verdict(auth.dmarc), auth_spf: verdict(auth.spf), auth_dkim: verdict(auth.dkim),
+    }).eq("id", prev.id);
+    if (upErr) { console.error("update", upErr.message); return json({ error: "No se pudo guardar" }, 500); }
+    return json({ ok: true, completado: true });
   }
 
   const row = {
-    resend_id: resendId, message_id: String((full && full.message_id) || d.message_id || "").slice(0, 500) || null,
-    from_email: from.email.slice(0, 320), from_name: from.name ? from.name.slice(0, 200) : null, to_email: to ? to.slice(0, 320) : null,
+    resend_id: resendId, message_id: clip((full && full.message_id) || d.message_id || "", 500) || null,
+    from_email: clip(from.email, 320) || "desconocido", from_name: from.name ? clip(from.name, 200) : null, to_email: to ? clip(to, 320) : null,
+    reply_to: rt ? clip(rt, 320) : null, auth_dmarc: verdict(auth.dmarc), auth_spf: verdict(auth.spf), auth_dkim: verdict(auth.dkim),
     subject, body, body_missing: missing, attachments: atts,
   };
   const { data: ins, error } = await db.from("contact_messages").upsert(row, { onConflict: "resend_id", ignoreDuplicates: true }).select("id");
@@ -230,8 +267,10 @@ Deno.serve(async (req) => {
     if (ids.length) {
       const { data: subs } = await db.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth").in("user_id", ids);
       if (subs && subs.length) {
-        const who = from.name || from.email;
-        const gone = await send(subs as Sub[], "Nuevo mensaje de contacto", (who + ": " + (subject || "(sin asunto)")).slice(0, 180), "gize-contacto", "./admin/#contacto");
+        // Si el remitente no se pudo verificar, el aviso lo dice (puede ser alguien haciéndose pasar).
+        const who = from.name || from.email, unverified = row.auth_dmarc !== "pass";
+        const gone = await send(subs as Sub[], unverified ? "Mensaje de contacto (remitente sin verificar)" : "Nuevo mensaje de contacto",
+          clip(who + ": " + (subject || "(sin asunto)"), 180), "gize-contacto", "./admin/#contacto");
         if (gone.length) await db.from("push_subscriptions").delete().in("id", gone);
       }
     }

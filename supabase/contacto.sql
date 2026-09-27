@@ -27,6 +27,13 @@ create table if not exists public.contact_messages (
   replied_by   uuid references auth.users(id) on delete set null,
   reply        text check (reply is null or char_length(reply) <= 10000)
 );
+-- A quién hay que contestar (Reply-To del mail, si lo trae) y si el remitente se pudo
+-- verificar (DMARC que informa Resend: pass / fail / …). Un mail que no pasa DMARC puede
+-- estar mandado por otra persona haciéndose pasar por esa dirección.
+alter table public.contact_messages add column if not exists reply_to text check (reply_to is null or char_length(reply_to) <= 320);
+alter table public.contact_messages add column if not exists auth_dmarc text check (auth_dmarc is null or char_length(auth_dmarc) <= 40);
+alter table public.contact_messages add column if not exists auth_spf text check (auth_spf is null or char_length(auth_spf) <= 40);
+alter table public.contact_messages add column if not exists auth_dkim text check (auth_dkim is null or char_length(auth_dkim) <= 40);
 create index if not exists contact_messages_unread_idx on public.contact_messages (created_at desc) where read_at is null;
 create index if not exists contact_messages_created_idx on public.contact_messages (created_at desc);
 
@@ -45,14 +52,16 @@ revoke execute on function public.admin_contact_unread() from public, anon;
 grant execute on function public.admin_contact_unread() to authenticated;
 
 -- Lista de mensajes: 'nuevos' (sin leer), 'leidos' o 'todos'. Los más nuevos primero.
+-- (drop antes: create or replace no puede cambiar las columnas que devuelve)
+drop function if exists public.admin_contact_list(text, int);
 create or replace function public.admin_contact_list(kind text default 'nuevos', lim int default 100)
-returns table (id bigint, from_email text, from_name text, to_email text, subject text, body text, body_missing boolean,
+returns table (id bigint, from_email text, from_name text, to_email text, reply_to text, auth_dmarc text, subject text, body text, body_missing boolean,
   attachments int, created_at timestamptz, read_at timestamptz, replied_at timestamptz, reply text, replied_by_name text)
 language plpgsql stable security definer set search_path = public as $$
 begin
   perform public.admin_assert();
   return query
-    select m.id, m.from_email, m.from_name, m.to_email, m.subject, m.body, m.body_missing, m.attachments, m.created_at,
+    select m.id, m.from_email, m.from_name, m.to_email, m.reply_to, m.auth_dmarc, m.subject, m.body, m.body_missing, m.attachments, m.created_at,
       m.read_at, m.replied_at, m.reply, p.full_name
     from public.contact_messages m
     left join public.profiles p on p.id = m.replied_by
