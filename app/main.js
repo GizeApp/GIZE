@@ -10,7 +10,7 @@ import { State, state } from './core/state.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
-import { afterLogin, applyCoachRoutine, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
+import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
 
 import { fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, norm, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
@@ -32,7 +32,7 @@ import { renderCoachSettings } from './screens/coach/settings.js';
 // Registra los eventos del editor de preguntas del coach (efecto al importarlo).
 import './screens/coach/preguntas.js';
 
-import { coachPlanObj, cpApply, loadTpls, planDefault, renderApplyPicker, renderCoachPicker, renderCopyPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
+import { coachPlanObj, cpApply, loadTpls, planDefault, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
@@ -78,6 +78,9 @@ export function renderApp(){
   if(State.cloudProfile && State.cloudProfile.role==="coach"){ const v=document.getElementById("view"); if(v) v.innerHTML=""; renderCoach(); return; }
   setTimeout(renderFeedback,0);
   checkDaily();
+  // Semana de descarga: si empezó o terminó (app abierta de un día a otro, o sin señal), cambia
+  // de rutina con lo guardado del bloque; la nube lo confirma cuando carga.
+  if((!State.cloudProfile || routineLocked()) && coachRoutineDue() && applyCoachRoutine()) save();
   markVisit(); paintStreak(); // racha: hoy entró
   document.getElementById("nav-entreno").classList.toggle("active", State.view==="entreno");
   document.getElementById("nav-habitos").classList.toggle("active", State.view==="habitos");
@@ -914,7 +917,8 @@ document.body.addEventListener("click", async e => {
       if(!e.saved){ if(JSON.stringify(e.days)!==e.orig && !confirm("¿Descartar esta rutina de descarga?")) return; leave(); return; }
       if(!confirm("¿Borrar la rutina de descarga de la semana "+e.wk+"? Esa semana el alumno sigue con su rutina de siempre.")) return;
       const f=blockForm(); if(f.deload_routines && typeof f.deload_routines==="object") delete f.deload_routines[e.wk];
-      if(await saveBlock(f)){ alert("Rutina de descarga borrada ✓"); leave(); }
+      b.disabled=true;
+      if(await saveBlock(f)){ alert("Rutina de descarga borrada ✓"); leave(); } else b.disabled=false;
       return;
     }
     // Guardar: días sin ejercicios no cuentan; tiene que quedar al menos uno.
@@ -922,10 +926,10 @@ document.body.addEventListener("click", async e => {
     if(!days.length){ alert("La rutina de descarga no tiene ejercicios."); return; }
     const f=blockForm();
     if(deloadWeeks(f).indexOf(e.wk)<0) f.deloads=deloadWeeks(f).concat(e.wk).sort((x,y)=>x-y);
-    f.deload_routines=Object.assign({}, (f.deload_routines&&typeof f.deload_routines==="object")?f.deload_routines:{}, {[e.wk]:{days:days}});
-    b.textContent="Guardando...";
+    f.deload_routines=Object.assign({}, (f.deload_routines&&typeof f.deload_routines==="object")?f.deload_routines:{}, {[e.wk]:{days:days, start:f.start_date}});
+    b.textContent="Guardando..."; b.disabled=true;
     if(await saveBlock(f)){ alert("Rutina de descarga guardada ✓ El alumno la usa solo esa semana."); leave(); }
-    else b.textContent="Guardar rutina de descarga";
+    else { b.textContent="Guardar rutina de descarga"; b.disabled=false; }
     return;
   }
   // Rutina programada (ver supabase/rutina-programada.sql): usa el mismo editor que las rutinas
@@ -1151,6 +1155,7 @@ document.body.addEventListener("click", async e => {
   }
   if(a==="blk-save"){
     const bf=CoachState.coachBlockForm||CoachState.coachData.block||{};
+    b.disabled=true;
     if(await saveBlock(bf)) alert("Bloque guardado ✓");
     renderCoach(); return;
   }
@@ -1191,9 +1196,6 @@ document.body.addEventListener("change", async e => {
   else if(a==="ck-pick"){ CoachState.coachCkSel=el.value; renderCoach(); }
   else if(a==="sess-pick"){ CoachState.coachSessSel=el.value; renderCoach(); }
   else if(a==="photo-pick-date"){ CoachState.coachPhotoSel=el.value; renderCoach(); }
-  // La grilla de semanas y la semana actual. Después del evento: redibujar saca el campo que
-  // tiene el foco y eso no se puede hacer adentro de su propio "change".
-  else if(a==="blk-weeks"||a==="blk-start_date"){ setTimeout(renderCoach, 0); }
 });
 
 document.body.addEventListener("input", async e => {
@@ -1228,7 +1230,12 @@ document.body.addEventListener("input", async e => {
   else if(a==="day-note"){ const v=el.value.trim(); if(v) day.note=v; else delete day.note; }
   else if(a==="rt-rir"||a==="rt-rest"||a==="rt-goal"||a==="rt-video"){ const ex=day.exercises[+el.dataset.i]; if(ex){ const k=(a==="rt-video")?"video":a.slice(3); let v=el.value.trim(); if(k==="video"&&v&&!/^https:\/\//i.test(v)) v="https://"+v.replace(/^[a-z][a-z0-9+.-]*:(\/\/)?/i,""); if(v) ex[k]=v; else delete ex[k]; } }
   else if(a.indexOf("info-")===0){ CoachState.coachInfoForm = CoachState.coachInfoForm || Object.assign({}, CoachState.coachData.info||{}); CoachState.coachInfoForm[a.slice(5)] = el.value; return; }
-  else if(a.indexOf("blk-")===0){ blockForm()[a.slice(4)] = el.value; return; }
+  else if(a.indexOf("blk-")===0){
+    blockForm()[a.slice(4)] = el.value;
+    // Semanas o inicio: se redibuja solo la grilla de semanas (el campo sigue con el foco).
+    if(a==="blk-weeks"||a==="blk-start_date") refreshBlockWeeks();
+    return;
+  }
   else if(a==="wk-goal"||a==="wk-note"){
     const w=parseInt(el.dataset.w); if(!(w>=1)) return;
     const f=blockForm(); const wp=f.week_plan=(f.week_plan&&typeof f.week_plan==="object")?f.week_plan:{};
@@ -1271,18 +1278,30 @@ function deloadFromRoutine(routine){
 }
 
 // Guarda el bloque del alumno abierto. Las semanas de descarga, el plan y las rutinas se
-// recortan a las semanas del bloque (avisando si se pierde alguna rutina armada).
+// recortan a las semanas del bloque (avisando si se pierde alguna rutina armada). Cada rutina
+// guarda la fecha de inicio del bloque (start): si el coach la cambió, se pregunta si las ya
+// armadas siguen valiendo con las fechas nuevas. Una sola vez a la vez (doble toque).
+let _savingBlock=false;
 async function saveBlock(bf){
-  if(!bf.start_date){ alert("Pon\u00e9 la fecha de inicio del bloque (un lunes)."); return false; }
+  if(_savingBlock) return false;
+  if(!bf.start_date){ alert("Poné la fecha de inicio del bloque (un lunes)."); return false; }
   const weeks=Math.max(1, Math.min(52, parseInt(bf.weeks)||8));
   const dls=[...new Set(deloadWeeks(bf))].filter(w=>w<=weeks).sort((x,y)=>x-y);
+  const oldStart=(CoachState.coachData.block&&CoachState.coachData.block.start_date)||null;
   const drAll=(bf.deload_routines&&typeof bf.deload_routines==="object")?bf.deload_routines:{};
-  const dr={}, lost=[];
+  const dr={}, lost=[], carry=[];
   Object.keys(drAll).forEach(k=>{
     const r=drAll[k]; if(!(r && Array.isArray(r.days) && r.days.length)) return;
-    if(dls.indexOf(+k)>=0) dr[+k]={days:r.days}; else lost.push(+k);
+    const st=r.start||oldStart||bf.start_date;
+    if(st!==bf.start_date && st!==oldStart) return; // de un ciclo anterior: ya no valía
+    if(dls.indexOf(+k)<0){ lost.push(+k); return; }
+    if(st===bf.start_date) dr[+k]={days:r.days, start:bf.start_date}; else carry.push(+k);
   });
-  if(lost.length && !confirm("La rutina de descarga de la semana "+lost.join(", ")+" queda afuera (la semana ya no es de descarga o el bloque es m\u00e1s corto) y se borra. \u00bfGuardar igual?")) return false;
+  if(lost.length && !confirm("La rutina de descarga de la semana "+lost.join(", ")+" queda afuera (la semana ya no es de descarga o el bloque es más corto) y se borra. ¿Guardar igual?")) return false;
+  if(carry.length){
+    if(confirm("Cambiaste la fecha de inicio del bloque. ¿Las rutinas de descarga ya armadas (semana "+carry.join(", ")+") siguen valiendo con las fechas nuevas?\n\nAceptar: se mantienen · Cancelar: se borran (por ejemplo, si es un mesociclo nuevo)."))
+      carry.forEach(k=>{ dr[k]={days:drAll[k].days, start:bf.start_date}; });
+  }
   const wpAll=(bf.week_plan&&typeof bf.week_plan==="object")?bf.week_plan:{}, wp={};
   Object.keys(wpAll).forEach(k=>{
     const w=+k, x=wpAll[k]||{}; if(!(w>=1 && w<=weeks)) return;
@@ -1292,16 +1311,22 @@ async function saveBlock(bf){
   const row={client_id:CoachState.coachData.id, name:bf.name||null, start_date:bf.start_date, weeks:weeks,
     phase:bf.phase||null, calories:bf.calories||null, deloads:dls, notes:bf.notes||null, active:true,
     week_plan:wp, deload_routines:dr};
+  const data=CoachState.coachData;
+  _savingBlock=true;
   try{
-    if(CoachState.coachData.block && CoachState.coachData.block.id){ sbOk(await State.sb.from("blocks").update(row).eq("id",CoachState.coachData.block.id)); row.id=CoachState.coachData.block.id; }
+    if(data.block && data.block.id){ sbOk(await State.sb.from("blocks").update(row).eq("id",data.block.id)); row.id=data.block.id; }
     else { const r=sbOk(await State.sb.from("blocks").insert(row).select("id").single()); if(r.data) row.id=r.data.id; }
-    CoachState.coachData.block=row; CoachState.coachBlockForm=null;
+    data.block=row; if(CoachState.coachData===data) CoachState.coachBlockForm=null;
     return true;
   }catch(e){ alert("No se pudo: "+((e&&e.message)||e)); return false; }
+  finally{ _savingBlock=false; }
 }
 
 document.addEventListener("visibilitychange", async ()=>{
-  if(document.visibilityState!=="visible" || !State.sb || !State.cloudUser || !routineLocked()) return;
+  if(document.visibilityState!=="visible" || !routineLocked()) return;
+  // Primero con lo guardado (sin señal también): si cambió la semana, cambia la rutina ya.
+  if(coachRoutineDue() && applyCoachRoutine()){ save(); renderApp(); }
+  if(!State.sb || !State.cloudUser) return;
   try{
     // La rutina y el bloque (la semana de descarga puede haber empezado o terminado).
     const uid=State.cloudUser.id;
@@ -1321,7 +1346,7 @@ document.addEventListener("visibilitychange", async ()=>{
 if (migrateNames(state.days)) save();
 // Sin señal al abrir: si empezó o terminó la semana de descarga, cambia igual de rutina con lo
 // que quedó guardado del bloque (la nube lo confirma cuando vuelve la conexión).
-if (Array.isArray(state.regularDays) && state.regularDays.length && applyCoachRoutine()) save();
+if (coachRoutineDue() && applyCoachRoutine()) save();
 
 cloudBoot();
 

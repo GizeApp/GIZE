@@ -181,6 +181,21 @@ export function renderCoachPlan(d){
 
 export function renderCoachBlock(d){
   const b = CoachState.coachBlockForm || d.block || {};
+  const F=(k,lbl,ph,type)=>'<div class="ci-f"><label>'+lbl+'</label><input class="co-note" data-coach="blk-'+k+'" value="'+esc(b[k]==null?"":String(b[k]))+'" placeholder="'+ph+'"'+(type?' type="'+type+'"':'')+'></div>';
+  return '<div class="ci-grid">'+
+      F("name","Nombre del bloque","")+F("start_date","Inicio (lunes)","",'date')+
+      F("weeks","Semanas","","numeric")+F("phase","Fase","")+
+    '</div>'+
+    F("calories","Estrategia cal\u00f3rica","")+
+    F("notes","Nota del bloque (la ve el cliente)","")+
+    '<div id="bwWrap">'+weeksHtml(d)+'</div>'+
+    '<button class="co-save-rt" data-coach="blk-save">Guardar bloque</button>';
+}
+
+// Grilla de semanas, leyenda, panel de la semana elegida y aviso de cambios sin guardar. Va
+// aparte para redibujarla sola al escribir las semanas o la fecha de inicio (refreshBlockWeeks).
+function weeksHtml(d){
+  const b = CoachState.coachBlockForm || d.block || {};
   const wks = Math.max(1, Math.min(52, parseInt(b.weeks)||8));
   const dls = deloadWeeks(b);
   const cur = b.start_date ? blockWeek(b, today()) : 0;
@@ -193,20 +208,15 @@ export function renderCoachBlock(d){
     grid+='<button class="bw'+(on?' dl':'')+(w===cur?' now':'')+(selW===w?' sel':'')+(hasNote?' has-note':'')+'" data-coach="blk-week" data-w="'+w+'" aria-pressed="'+on+'" aria-label="'+lbl+'">'+w+
       (rt?'<span class="bw-ok" aria-hidden="true">'+checkSvg+'</span>':'')+'</button>';
   }
-  const F=(k,lbl,ph,type)=>'<div class="ci-f"><label>'+lbl+'</label><input class="co-note" data-coach="blk-'+k+'" value="'+esc(b[k]==null?"":String(b[k]))+'" placeholder="'+ph+'"'+(type?' type="'+type+'"':'')+'></div>';
-  const dirty=!!CoachState.coachBlockForm;
-  return '<div class="ci-grid">'+
-      F("name","Nombre del bloque","")+F("start_date","Inicio (lunes)","",'date')+
-      F("weeks","Semanas","","numeric")+F("phase","Fase","")+
-    '</div>'+
-    F("calories","Estrategia calórica","")+
-    F("notes","Nota del bloque (la ve el cliente)","")+
-    '<div class="co-note-lbl" style="margin-top:14px">Semanas de descarga — tocá una semana para marcarla y planificarla'+(cur&&cur<=wks?' · el cliente está en la semana '+cur:'')+'</div>'+
+  return '<div class="co-note-lbl" style="margin-top:14px">Semanas de descarga \u2014 toc\u00e1 una semana para marcarla y planificarla'+(cur&&cur<=wks?' \u00b7 el cliente est\u00e1 en la semana '+cur:'')+'</div>'+
     '<div class="bw-grid">'+grid+'</div>'+
     '<div class="bw-legend"><span><i class="bw-k dl"></i>Descarga</span><span><i class="bw-k ok">'+checkSvg+'</i>Con rutina de descarga</span>'+(cur&&cur<=wks?'<span><i class="bw-k now"></i>Semana actual</span>':'')+'</div>'+
     (selW!==null && selW>=1 && selW<=wks ? weekPanel(b, selW, cur, d) : '')+
-    (dirty?'<div class="blk-dirty">Tenés cambios sin guardar.</div>':'')+
-    '<button class="co-save-rt" data-coach="blk-save">Guardar bloque</button>';
+    (CoachState.coachBlockForm?'<div class="blk-dirty">Ten\u00e9s cambios sin guardar.</div>':'');
+}
+export function refreshBlockWeeks(){
+  const host=document.getElementById("bwWrap");
+  if(host && CoachState.coachData) host.innerHTML=weeksHtml(CoachState.coachData);
 }
 
 // Panel de la semana elegida: descarga sí/no, su rutina de descarga y lo que ve el alumno.

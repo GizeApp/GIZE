@@ -352,9 +352,11 @@ export function applyCoachRoutine(){
   const dl = activeDeload(state.block, today());
   const mode = dl ? dl.key : "regular", prev = state.routineMode || "regular";
   if(!dl && !regular){
-    // Sin rutina de siempre en la nube: al terminar la descarga vuelve lo que tenía antes.
-    if(prev === "regular" || !Array.isArray(state.preDeloadDays)) return false;
-    state.days = state.preDeloadDays; state.preDeloadDays = null; state.routineMode = "regular";
+    // Sin rutina de siempre en la nube: al terminar la descarga vuelve lo que tenía antes (si
+    // no hay nada guardado, queda la de descarga hasta que el coach cargue otra).
+    if(prev === "regular") return false;
+    if(Array.isArray(state.preDeloadDays) && state.preDeloadDays.length) state.days = state.preDeloadDays;
+    state.preDeloadDays = null; state.routineMode = "regular";
     if(!state.days.find(d=>d.id===State.activeId)) State.activeId = state.days[0] ? state.days[0].id : null;
     return true;
   }
@@ -373,14 +375,28 @@ export function applyCoachRoutine(){
   return mode !== prev;
 }
 
+// ¿Toca cambiar de rutina? (empezó o terminó la semana de descarga desde la última vez). Es
+// barato: se mira en cada renderApp para que cambie aunque la app siga abierta o sin señal.
+export function coachRoutineDue(){
+  const mode = state.routineMode || "regular";
+  if(mode === "regular" && !(Array.isArray(state.regularDays) && state.regularDays.length)) return false;
+  const dl = activeDeload(state.block, today());
+  return (dl ? dl.key : "regular") !== mode;
+}
+
 // Sin coach la rutina es del alumno: si quedó mostrando una de descarga (se desvinculó en esa
-// semana), vuelve a la de siempre antes de que se suba como propia.
+// semana), vuelve a la de siempre (o a la que tenía antes) antes de que se suba como propia.
 function leaveCoachRoutine(){
-  if(state.routineMode && state.routineMode !== "regular" && Array.isArray(state.regularDays) && state.regularDays.length){
-    state.days = mergeLocalProgress(JSON.parse(JSON.stringify(state.regularDays)), state.preDeloadDays || state.days);
+  if(state.routineMode && state.routineMode !== "regular"){
+    if(Array.isArray(state.regularDays) && state.regularDays.length)
+      state.days = mergeLocalProgress(JSON.parse(JSON.stringify(state.regularDays)), state.preDeloadDays || state.days);
+    else if(Array.isArray(state.preDeloadDays) && state.preDeloadDays.length) state.days = state.preDeloadDays;
+    if(!state.days.find(d=>d.id===State.activeId)) State.activeId = state.days[0] ? state.days[0].id : null;
   }
   state.routineMode = "regular"; state.regularDays = null; state.preDeloadDays = null;
 }
+// Mientras se muestra una rutina de descarga no se sube la rutina como propia del alumno.
+const onRegular = () => (state.routineMode || "regular") === "regular";
 
 export function applyBrand(){
   const t=document.getElementById("brandTag"), n=document.getElementById("brandName");
@@ -587,6 +603,9 @@ export async function loadCloud(){
     const pr=sbOk(pr0);
     State.cloudProfile=pr.data||null;
     saveCachedProfile(State.cloudProfile);
+    // Sin coach: si quedó en una rutina de descarga, vuelve a la suya ya, antes de cualquier
+    // otra lectura (si la de la rutina falla, igual no se sube la de descarga como propia).
+    if(!(State.cloudProfile && State.cloudProfile.role==="coach") && !routineLocked()) leaveCoachRoutine();
     // Link de la foto de perfil propia (no frena el arranque; redibuja Ajustes al llegar).
     if(State.cloudProfile && State.cloudProfile.avatar_path){
       resolveAvatars([State.cloudProfile.avatar_path]).then(ok=>{ if(ok && State.view==="config") renderApp(); }).catch(()=>{});
@@ -598,13 +617,13 @@ export async function loadCloud(){
     // Una rutina que la base rechaza (datos viejos o inválidos, ver seguridad-base.sql) no se va
     // a poder subir nunca: se deja la local y sigue la carga, en vez de trabar toda la cuenta.
     const upRoutine=async()=>{
+      if(!onRegular()) return false;
       const r=await State.sb.from("routines").upsert({client_id:State.cloudUser.id, days:state.days, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"});
       if(r.error && r.error.code==="22023"){ console.error("rutina rechazada",r.error); return false; }
       sbOk(r); return true;
     };
-    if(!isCoach && !routineLocked()) leaveCoachRoutine();
     if(isCoach){}
-    else if(routineLocked() && ((rt.data && Array.isArray(rt.data.days) && rt.data.days.length) || (!bl.error && bl.data && bl.data[0] && activeDeload(bl.data[0], today())))){
+    else if(routineLocked() && ((rt.data && Array.isArray(rt.data.days) && rt.data.days.length) || !onRegular() || (!bl.error && bl.data && bl.data[0] && activeDeload(bl.data[0], today())))){
       // Con coach, la rutina manda el coach: se toma la de la nube y solo se conserva lo
       // que el cliente cargó a mano (kg, reps, tildes) de cada serie. En una semana de
       // descarga con rutina armada, la de descarga (ver applyCoachRoutine).
@@ -786,7 +805,7 @@ export function cloudSyncCore(){
     try{
       // Con coach asignado la rutina es SOLO del coach: subir la copia del cliente en cada
       // save() pisaba lo que el coach acababa de cambiar.
-      if(!routineLocked()){
+      if(!routineLocked() && onRegular()){
         const days=state.days, h=routineHash(days);
         sbOk(await State.sb.from("routines").upsert({client_id:State.cloudUser.id, days:days, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}));
         if(routineHash(state.days)===h) markRoutineSynced(state.days); // si cambió mientras subía, queda pendiente para la próxima
@@ -926,12 +945,12 @@ export function pendingCount(){ return myPending().length; }
 export function localUnsynced(){
   if(pendingCount()>0) return true;
   const coach = State.cloudProfile && State.cloudProfile.role==="coach";
-  return !coach && !routineLocked() && state.routineHash!==routineHash(state.days);
+  return !coach && !routineLocked() && onRegular() && state.routineHash!==routineHash(state.days);
 }
 
 // Sube la rutina ya (sin esperar la demora de cloudSyncCore). Devuelve true si quedó en la nube.
 export async function syncRoutineNow(){
-  if(!State.sb || !State.cloudUser || !State.cloudReady || routineLocked()) return false;
+  if(!State.sb || !State.cloudUser || !State.cloudReady || routineLocked() || !onRegular()) return false;
   try{
     const days=state.days, h=routineHash(days);
     sbOk(await State.sb.from("routines").upsert({client_id:State.cloudUser.id, days:days, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}));

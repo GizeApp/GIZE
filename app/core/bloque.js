@@ -35,11 +35,14 @@ export function weekPlanOf(b, wk){
   return (p && typeof p === "object" && p[wk] && typeof p[wk] === "object") ? p[wk] : {};
 }
 
-// Rutina de descarga guardada para la semana wk ({days, name}), o null.
+// Rutina de descarga guardada para la semana wk ({days, start}), o null. Solo la de este
+// ciclo del bloque: cada una guarda la fecha de inicio con la que se armó (start) y, si el
+// coach re-fechó el bloque para otro mesociclo, las del anterior ya no valen.
 export function deloadRoutineOf(b, wk){
   const all = b && b.deload_routines;
   const r = (all && typeof all === "object") ? all[wk] : null;
-  return (r && Array.isArray(r.days) && r.days.length) ? r : null;
+  if(!(r && Array.isArray(r.days) && r.days.length)) return null;
+  return (!r.start || !b.start_date || r.start === b.start_date) ? r : null;
 }
 
 // La que corresponde hoy: solo si la semana está marcada como descarga y tiene rutina.
