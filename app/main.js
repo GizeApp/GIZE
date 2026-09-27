@@ -1127,16 +1127,15 @@ document.body.addEventListener("click", async e => {
     renderCoach(); return;
   }
   // Bloque: tocar una semana la marca como descarga (queda en azul) y abre su panel abajo;
-  // tocar una que ya es de descarga la desmarca (si tiene rutina armada, pregunta antes).
-  // Cada semana de descarga se abre desde la lista de abajo de la grilla (wk-open).
+  // tocar una que ya es de descarga la desmarca. Su rutina de descarga queda en el bloque
+  // mientras no se guarde: si la vuelve a marcar, vuelve; si guarda así, saveBlock pregunta
+  // antes de borrarla. Cada semana de descarga se abre desde la lista de abajo (wk-open).
   if(a==="blk-week"){
     const w=parseInt(b.dataset.w); if(!(w>=1)) return;
     const cur=CoachState.coachBlockForm||CoachState.coachData.block||{};
     if(deloadWeeks(cur).indexOf(w)<0){ const f=blockForm(); f.deloads=deloadWeeks(f).concat(w).sort((x,y)=>x-y); CoachState.coachWeekSel=w; }
     else {
-      if(deloadRoutineOf(cur, w, savedBlockStart()) && !confirm("La semana "+w+" tiene rutina de descarga armada. Si la desmarcás, esa rutina se borra al guardar el bloque. ¿Desmarcarla?")) return;
       const f=blockForm(); f.deloads=deloadWeeks(f).filter(x=>x!==w);
-      if(f.deload_routines && typeof f.deload_routines==="object") delete f.deload_routines[w];
       if(CoachState.coachWeekSel===w) CoachState.coachWeekSel=null;
     }
     renderCoach(); return;
@@ -1146,11 +1145,9 @@ document.body.addEventListener("click", async e => {
   if(a==="wk-dl"){
     const w=parseInt(b.dataset.w); if(!(w>=1)) return;
     const f=blockForm(); const dls=deloadWeeks(f);
-    if(dls.indexOf(w)>=0){
-      if(deloadRoutineOf(f, w, savedBlockStart()) && !confirm("La semana "+w+" tiene rutina de descarga armada. Si le sacás la descarga, esa rutina se borra al guardar el bloque. ¿Seguir?")) return;
-      f.deloads=dls.filter(x=>x!==w);
-      if(f.deload_routines && typeof f.deload_routines==="object") delete f.deload_routines[w];
-    } else f.deloads=dls.concat(w).sort((x,y)=>x-y);
+    // Igual que tocarla en la grilla: la rutina queda hasta guardar (saveBlock pregunta).
+    if(dls.indexOf(w)>=0) f.deloads=dls.filter(x=>x!==w);
+    else f.deloads=dls.concat(w).sort((x,y)=>x-y);
     renderCoach(); return;
   }
   // Rutina de descarga: se arma con el mismo editor de las rutinas y se guarda en el bloque.
