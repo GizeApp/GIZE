@@ -208,11 +208,22 @@ function weeksHtml(d){
     grid+='<button class="bw'+(on?' dl':'')+(w===cur?' now':'')+(selW===w?' sel':'')+(hasNote?' has-note':'')+'" data-coach="blk-week" data-w="'+w+'" aria-pressed="'+on+'" aria-label="'+lbl+'">'+w+
       (rt?'<span class="bw-ok" aria-hidden="true">'+checkSvg+'</span>':'')+'</button>';
   }
-  return '<div class="co-note-lbl" style="margin-top:14px">Semanas de descarga \u2014 toc\u00e1 una semana para marcarla y planificarla'+(cur&&cur<=wks?' \u00b7 el cliente est\u00e1 en la semana '+cur:'')+'</div>'+
+  // Lista de las semanas de descarga: cada una abre su panel (para armar o editar su rutina).
+  const list=dls.filter(w=>w<=wks).map(w=>{
+    const rt=!!deloadRoutineOf(b, w, savedStart(d)), rg=weekRange(b, w);
+    return '<button class="bw-row'+(selW===w?' on':'')+'" data-coach="wk-open" data-w="'+w+'" aria-expanded="'+(selW===w)+'">'+
+      '<span class="bw-row-t">Semana '+w+(w===cur?' \u00b7 actual':'')+(rg?'<small>'+esc(fmtDia(rg[0]))+' al '+esc(fmtDia(rg[1]))+'</small>':'')+'</span>'+
+      '<span class="bw-row-s'+(rt?' ok':'')+'">'+(rt?checkSvg+' Rutina lista':'Sin rutina')+'</span>'+
+      '<span class="bw-row-go" aria-hidden="true">'+(selW===w?chevronDownSvg:chevronRightSvg)+'</span></button>'+
+      (selW===w ? weekPanel(b, w, cur, d) : '');
+  }).join("");
+  return '<div class="co-note-lbl" style="margin-top:14px">Semanas de descarga \u2014 toc\u00e1 una semana para marcarla o desmarcarla'+(cur&&cur<=wks?' \u00b7 el cliente est\u00e1 en la semana '+cur:'')+'</div>'+
     '<div class="bw-grid">'+grid+'</div>'+
     '<div class="bw-legend"><span><i class="bw-k dl"></i>Descarga</span><span><i class="bw-k ok">'+checkSvg+'</i>Con rutina de descarga</span>'+(cur&&cur<=wks?'<span><i class="bw-k now"></i>Semana actual</span>':'')+'</div>'+
-    (selW!==null && selW>=1 && selW<=wks ? weekPanel(b, selW, cur, d) : '')+
-    (CoachState.coachBlockForm?'<div class="blk-dirty">Ten\u00e9s cambios sin guardar.</div>':'');
+    (list ? '<div class="bw-list">'+list+'</div>' : '')+
+    // Una semana normal abierta desde su panel (después de tocar "Quitar descarga").
+    (selW!==null && selW>=1 && selW<=wks && dls.indexOf(selW)<0 ? weekPanel(b, selW, cur, d) : '')+
+    (CoachState.coachBlockForm?'<div class="blk-dirty">Ten\u00e9s cambios sin guardar: toc\u00e1 <b>Guardar bloque</b>.</div>':'');
 }
 // Fecha de inicio guardada (las rutinas de descarga armadas con ella siguen valiendo hasta guardar).
 const savedStart = d => (d && d.block && d.block.start_date) || null;

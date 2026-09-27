@@ -432,3 +432,17 @@ button.opt-count:hover { color: var(--gize-blue); }
 .wk-rt-a .co-save-rt { flex:1 1 220px; margin:0; }
 .wk-rt-a .co-copy-btn { flex:0 1 auto; }
 .blk-dirty { margin:6px 0 -4px; font-size:12px; color:var(--gize-text-2); }
+
+/* Lista de las semanas de descarga (abajo de la grilla): cada una abre su panel. */
+.bw-list { display:flex; flex-direction:column; gap:8px; margin:0 0 12px; }
+.bw-row { display:flex; align-items:center; gap:10px; width:100%; padding:12px 14px; border-radius:12px; cursor:pointer; text-align:left;
+  background:color-mix(in srgb, var(--gize-blue) 8%, transparent); border:1px solid color-mix(in srgb, var(--gize-blue) 40%, transparent); color:var(--gize-text); font:inherit; }
+.bw-row.on { border-color:var(--gize-blue); }
+.bw-row-t { flex:1; min-width:0; font-weight:700; }
+.bw-row-t small { display:block; margin-top:2px; font-weight:500; font-size:12px; color:var(--gize-text-2); }
+.bw-row-s { flex:none; display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:700; color:var(--gize-text-2); }
+.bw-row-s.ok { color:var(--gize-text); }
+.bw-row-s svg { width:14px; height:14px; }
+.bw-row-go { flex:none; display:grid; place-items:center; width:18px; height:18px; color:var(--gize-text-2); }
+.bw-row-go svg { width:16px; height:16px; }
+.bw-list .week-editor { margin:0; }
