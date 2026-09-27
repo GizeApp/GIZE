@@ -16,9 +16,10 @@ import { kgText, suggest } from '../../core/progresion.js';
 
 import { renderCoach } from './index.js';
 
-import { CoachState, coachWeekSel } from './state.js';
+import { CoachState } from './state.js';
 
-import { blockWeek, restLabel } from '../entreno.js';
+import { restLabel } from '../entreno.js';
+import { blockWeek, deloadRoutineOf, deloadWeeks, weekPlanOf, weekRange } from '../../core/bloque.js';
 import { parseRest } from '../../ui/restbar.js';
 
 import { closeSheet } from '../../ui/sheet.js';
@@ -180,17 +181,6 @@ export function renderCoachPlan(d){
 
 export function renderCoachBlock(d){
   const b = CoachState.coachBlockForm || d.block || {};
-  const wks = parseInt(b.weeks)||8;
-  const dls = Array.isArray(b.deloads)?b.deloads:[];
-  const cur = b.start_date ? blockWeek(b, today()) : 0;
-  let grid="";
-  const wPlan=(CoachState.coachBlockForm||b).weekPlan||{};
-  for(let w=1; w<=wks; w++){
-    const on=dls.indexOf(w)>=0;
-    const hasNote=!!(wPlan[w]&&(wPlan[w].goal||wPlan[w].note));
-    const sel=coachWeekSel===w;
-    grid+='<button class="bw'+(on?' dl':'')+(w===cur?' now':'')+(sel?' sel':'')+(hasNote?' has-note':'')+'" data-coach="blk-week" data-w="'+w+'">'+w+(hasNote?'<span class="bw-dot">•</span>':'')+'</button>';
-  }
   const F=(k,lbl,ph,type)=>'<div class="ci-f"><label>'+lbl+'</label><input class="co-note" data-coach="blk-'+k+'" value="'+esc(b[k]==null?"":String(b[k]))+'" placeholder="'+ph+'"'+(type?' type="'+type+'"':'')+'></div>';
   return '<div class="ci-grid">'+
       F("name","Nombre del bloque","")+F("start_date","Inicio (lunes)","",'date')+
@@ -198,22 +188,72 @@ export function renderCoachBlock(d){
     '</div>'+
     F("calories","Estrategia cal\u00f3rica","")+
     F("notes","Nota del bloque (la ve el cliente)","")+
-    '<div class="co-note-lbl" style="margin-top:14px">Semanas de descarga \u2014 toc\u00e1 para marcarlas'+(cur?' \u00b7 el cliente est\u00e1 en la semana '+cur:'')+'</div>'+
-    '<div class="bw-grid">'+grid+'</div>'+
-    (coachWeekSel!==null ? (() => {
-      const wp=(wPlan[coachWeekSel]||{});
-      const isDl=dls.indexOf(coachWeekSel)>=0;
-      return '<div class="week-editor">'+
-        '<div class="week-ed-head">Semana '+coachWeekSel+(cur===coachWeekSel?' · semana actual':'')+(isDl?' · DESCARGA':'')+
-        '<button class="co-copy-btn" style="margin-left:auto" data-coach="wk-dl" data-w="'+coachWeekSel+'">'+(isDl?checkSvg+' Descarga':'Marcar descarga')+'</button></div>'+
-        '<div class="ci-f" style="margin-top:10px"><label>Objetivo de la semana</label><input class="co-note" data-coach="wk-goal" value="'+esc(wp.goal||'')+'"></div>'+
-        '<div class="ci-f" style="margin-top:8px"><label>Indicaciones para el cliente</label><input class="co-note" data-coach="wk-note" value="'+esc(wp.note||'')+'"></div>'+
-        '<div style="margin-top:10px;display:flex;gap:8px">'+
-          '<button class="co-save-rt" style="flex:1" data-coach="wk-save">Guardar semana '+coachWeekSel+'</button>'+
-          '<button class="co-copy-btn" data-coach="wk-close">'+xSvg+' Cerrar</button>'+
-        '</div></div>';
-    })() : '')+
+    '<div id="bwWrap">'+weeksHtml(d)+'</div>'+
     '<button class="co-save-rt" data-coach="blk-save">Guardar bloque</button>';
+}
+
+// Grilla de semanas, leyenda, panel de la semana elegida y aviso de cambios sin guardar. Va
+// aparte para redibujarla sola al escribir las semanas o la fecha de inicio (refreshBlockWeeks).
+function weeksHtml(d){
+  const b = CoachState.coachBlockForm || d.block || {};
+  const wks = Math.max(1, Math.min(52, parseInt(b.weeks)||8));
+  const dls = deloadWeeks(b);
+  const cur = b.start_date ? blockWeek(b, today()) : 0;
+  const selW = CoachState.coachWeekSel;
+  let grid="";
+  for(let w=1; w<=wks; w++){
+    const on=dls.indexOf(w)>=0, rt=on && !!deloadRoutineOf(b, w, savedStart(d));
+    const wp=weekPlanOf(b, w), hasNote=!!(wp.goal||wp.note);
+    const lbl='Semana '+w+(on?', de descarga':'')+(rt?', con rutina de descarga':'')+(w===cur?', semana actual':'');
+    grid+='<button class="bw'+(on?' dl':'')+(w===cur?' now':'')+(selW===w?' sel':'')+(hasNote?' has-note':'')+'" data-coach="blk-week" data-w="'+w+'" aria-pressed="'+on+'" aria-label="'+lbl+'">'+w+
+      (rt?'<span class="bw-ok" aria-hidden="true">'+checkSvg+'</span>':'')+'</button>';
+  }
+  return '<div class="co-note-lbl" style="margin-top:14px">Semanas de descarga \u2014 toc\u00e1 una semana para marcarla y planificarla'+(cur&&cur<=wks?' \u00b7 el cliente est\u00e1 en la semana '+cur:'')+'</div>'+
+    '<div class="bw-grid">'+grid+'</div>'+
+    '<div class="bw-legend"><span><i class="bw-k dl"></i>Descarga</span><span><i class="bw-k ok">'+checkSvg+'</i>Con rutina de descarga</span>'+(cur&&cur<=wks?'<span><i class="bw-k now"></i>Semana actual</span>':'')+'</div>'+
+    (selW!==null && selW>=1 && selW<=wks ? weekPanel(b, selW, cur, d) : '')+
+    (CoachState.coachBlockForm?'<div class="blk-dirty">Ten\u00e9s cambios sin guardar.</div>':'');
+}
+// Fecha de inicio guardada (las rutinas de descarga armadas con ella siguen valiendo hasta guardar).
+const savedStart = d => (d && d.block && d.block.start_date) || null;
+export function refreshBlockWeeks(){
+  const host=document.getElementById("bwWrap");
+  if(host && CoachState.coachData) host.innerHTML=weeksHtml(CoachState.coachData);
+}
+
+// Panel de la semana elegida: descarga sí/no, su rutina de descarga y lo que ve el alumno.
+function weekPanel(b, w, cur, d){
+  const isDl=deloadWeeks(b).indexOf(w)>=0;
+  const wp=weekPlanOf(b, w);
+  const rg=weekRange(b, w);
+  const when=rg ? ' · del '+fmtDia(rg[0])+' al '+fmtDia(rg[1]) : '';
+  const rt=isDl ? deloadRoutineOf(b, w, savedStart(d)) : null;
+  let dlBox='';
+  if(isDl){
+    if(rt){
+      const nd=rt.days.length, nex=rt.days.reduce((n,x)=>n+((x.exercises||[]).length),0), ns=rt.days.reduce((n,x)=>n+(x.exercises||[]).reduce((m,e)=>m+((e.sets||[]).length),0),0);
+      dlBox='<div class="wk-rt on"><div class="wk-rt-t">'+checkSvg+' Rutina de descarga lista</div>'+
+        '<div class="wk-rt-s">'+nd+' día'+(nd===1?'':'s')+' · '+nex+' ejercicio'+(nex===1?'':'s')+' · '+ns+' serie'+(ns===1?'':'s')+'. El alumno la usa solo esta semana; el lunes siguiente vuelve sola su rutina de siempre.</div>'+
+        '<div class="wk-rt-a"><button class="co-save-rt" data-coach="dl-edit" data-w="'+w+'">Editar rutina de descarga</button>'+
+        '<button class="co-copy-btn" data-coach="dl-del" data-w="'+w+'">'+trashSvg+' Borrar</button></div></div>';
+    } else {
+      const has=!!(d.routine&&d.routine.length);
+      dlBox='<div class="wk-rt"><div class="wk-rt-t">Planificá la semana de descarga</div>'+
+        '<div class="wk-rt-s">Armale una rutina para esta semana: el alumno la usa solo esos 7 días y el lunes siguiente vuelve sola su rutina de siempre, con los pesos que tenía cargados.</div>'+
+        '<div class="wk-rt-a">'+(has?'<button class="co-save-rt" data-coach="dl-new" data-w="'+w+'" data-from="rutina">Armar desde su rutina (mitad de series)</button>':'')+
+        '<button class="co-copy-btn" data-coach="dl-new" data-w="'+w+'" data-from="cero">Empezar de cero</button></div></div>';
+    }
+  }
+  return '<div class="week-editor">'+
+    '<div class="week-ed-head"><span>Semana '+w+(cur===w?' · semana actual':'')+esc(when)+'</span>'+
+      '<button class="co-copy-btn" style="margin-left:auto" data-coach="wk-close" aria-label="Cerrar la semana '+w+'">'+xSvg+'</button></div>'+
+    '<div class="wk-dl-row">'+(isDl
+      ? '<span class="wk-dl-tag">Semana de descarga</span><button class="co-copy-btn" data-coach="wk-dl" data-w="'+w+'">Quitar descarga</button>'
+      : '<span class="wk-dl-off">Semana normal</span><button class="co-copy-btn" data-coach="wk-dl" data-w="'+w+'">Marcar como descarga</button>')+'</div>'+
+    dlBox+
+    '<div class="ci-f" style="margin-top:12px"><label>Objetivo de la semana (lo ve el alumno)</label><input class="co-note" data-coach="wk-goal" data-w="'+w+'" maxlength="300" value="'+esc(wp.goal||'')+'"></div>'+
+    '<div class="ci-f" style="margin-top:8px"><label>Indicaciones para el alumno</label><input class="co-note" data-coach="wk-note" data-w="'+w+'" maxlength="1000" value="'+esc(wp.note||'')+'"></div>'+
+  '</div>';
 }
 
 export function applyPickerMarkup(){

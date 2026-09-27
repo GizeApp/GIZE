@@ -9,6 +9,7 @@ import { renderApplyPicker, renderCoachBlock, renderCoachPlan, renderCoachRoutin
 import { picker, renderCoachCheckins, renderCoachDaily, renderCoachWeekly } from './seguimiento.js';
 
 import { CoachState } from './state.js';
+import { blockWeek, isDeload, weekRange } from '../../core/bloque.js';
 
 import { renderVolumen, renderWChart } from '../progreso.js';
 
@@ -93,16 +94,20 @@ export function renderCoach(){
     let ed="";
     if(!rt.length){ ed='<div class="cal-hint">Esta rutina no tiene días todavía.</div><button class="co-add-day" data-coach="day-add">+ Agregar día</button>'; }
     else { ed=renderCoachRoutine({routine:rt, sessions:[]}); }
-    const sch=!!CoachState.coachTplEdit.sched;
+    const sch=!!CoachState.coachTplEdit.sched, dle=!!CoachState.coachTplEdit.deload;
+    const who=esc((CoachState.coachData&&CoachState.coachData.name)||"el alumno");
+    const dlRange=dle ? weekRange(CoachState.coachBlockForm||(CoachState.coachData&&CoachState.coachData.block), CoachState.coachTplEdit.wk) : null;
     host.innerHTML='<div class="co-wrap">'+
       '<div class="co-head"><button class="co-back" data-coach="tpl-back">‹ Volver</button>'+
-      '<button class="co-logout" data-coach="tpl-del">'+(sch?'Borrar programación':'Borrar rutina')+'</button></div>'+
+      '<button class="co-logout" data-coach="tpl-del">'+(dle?(CoachState.coachTplEdit.saved?'Borrar rutina de descarga':'Descartar'):sch?'Borrar programación':'Borrar rutina')+'</button></div>'+
+      (dle ? '<div class="co-sched-edit-t">Rutina de descarga \u00b7 semana '+CoachState.coachTplEdit.wk+' de '+who+'</div>'+
+        '<div class="co-sched-sub">'+(dlRange?'Del '+esc(fmtDate(dlRange[0]))+' al '+esc(fmtDate(dlRange[1]))+': ':'')+'esa semana la usa en lugar de su rutina de siempre, que vuelve sola el lunes siguiente con los pesos que tenía cargados.</div>' : '')+
       (sch ? '<div class="co-sched-edit-t">Rutina programada para '+esc((CoachState.coachData&&CoachState.coachData.name)||"el alumno")+'</div>'+
         '<div class="co-sched-sub">Hasta esa fecha el alumno sigue con su rutina de ahora. Ese día le cambia sola por esta.</div>'+
         '<div class="ci-f" style="margin-bottom:10px"><label>Empieza el</label><input class="co-note" type="date" data-coach="sched-date" min="'+esc(today())+'" value="'+esc(CoachState.coachTplEdit.starts_on||"")+'"></div>' : '')+
-      '<div class="ci-f" style="margin-bottom:14px"><label>Nombre de la rutina'+(sch?' (opcional)':'')+'</label><input class="co-note" data-coach="tpl-name" value="'+esc(CoachState.coachTplEdit.name||"")+'"></div>'+
+      (dle ? '' : '<div class="ci-f" style="margin-bottom:14px"><label>Nombre de la rutina'+(sch?' (opcional)':'')+'</label><input class="co-note" data-coach="tpl-name" value="'+esc(CoachState.coachTplEdit.name||"")+'"></div>')+
       ed+
-      '<button class="co-save-rt" data-coach="tpl-save">'+(sch?'Guardar rutina programada':'Guardar rutina')+'</button>'+
+      '<button class="co-save-rt" data-coach="tpl-save">'+(dle?'Guardar rutina de descarga':sch?'Guardar rutina programada':'Guardar rutina')+'</button>'+
     '</div>';
   } else {
     const d=CoachState.coachData; let body="";
@@ -136,7 +141,7 @@ export function renderCoach(){
         const SECS=[
           ["notif","Notificación al cliente", ()=>renderCoachNotify(d), ()=>{ const m=(d.notify&&d.notify.msgs)||[]; return m.length?"Último: "+fmtDate(String(m[0].created_at).slice(0,10)):"Mandale un mensaje"; }],
           ["ficha","Ficha del cliente", ()=>renderCoachInfo(d), ()=>d.info&&Object.keys(d.info).length?"Datos y objetivos":"Sin completar"],
-          ["bloque","Bloque / mesociclo", ()=>renderCoachBlock(d), ()=>d.block?(d.block.name||"Bloque cargado"):"Sin bloque"],
+          ["bloque","Bloque / mesociclo", ()=>renderCoachBlock(d), ()=>{ const b=d.block; if(!b) return "Sin bloque"; const w=blockWeek(b, today()); const n=parseInt(b.weeks)||0; return (b.name||"Bloque cargado")+(w>=1&&(!n||w<=n)?" \u00b7 semana "+w+(isDeload(b,w)?" de descarga":""):""); }],
           ["daily","Seguimiento diario", ()=>secHead("Seguimiento diario","daily")+renderCoachDaily(d), ()=>{ const n=(d.daily||[]).length; return n?n+" registro"+(n===1?"":"s"):"Sin registros"; }],
           ["checkin","Check-in semanal", ()=>secHead("Check-in semanal","checkin")+renderCoachCheckins(d), ()=>{ const n=(d.checkins||[]).length; return n?n+" check-in"+(n===1?"":"s"):"Sin check-ins"; }],
           ["hist","Historial de entrenos", ()=>sess||'<div class="cal-hint">El cliente todavía no registró entrenos.</div>', ()=>{ const n=d.sessions.length; return n?n+" entreno"+(n===1?"":"s")+(sessSorted[0]?" · último "+fmtDate(sessSorted[0].date):""):"Sin entrenos"; }],

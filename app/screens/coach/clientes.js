@@ -154,7 +154,7 @@ export async function openClient(id){
     const photos=phRows.map(p=>({id:p.id, taken_on:p.taken_on, url:urls[p.path]||""}));
     const c=CoachState.coachClients.find(x=>x.id===id);
     CoachState.coachData={id:id, info:(ci.data||{}), block:((bl.data&&bl.data[0])||null), name:(c&&c.full_name)||"Cliente", avatar:(c&&c.avatar_path)||null, weights:weights, sessions:sessions, routine:routine, loadEx:null, daily:(dl.data||[]), checkins:(ck.data||[]), plan:(np.data||null), photos:photos, schedule:(sc&&!sc.error&&sc.data)||[]};
-    CoachState.coachPlanForm=null; CoachState.coachInfoForm=null; CoachState.coachBlockForm=null;
+    CoachState.coachPlanForm=null; CoachState.coachInfoForm=null; CoachState.coachBlockForm=null; CoachState.coachWeekSel=null;
     // Notificaciones: si el cliente las tiene activadas y los últimos mensajes. Aparte,
     // para no demorar la ficha; se redibuja cuando llega.
     const dRef=CoachState.coachData;
