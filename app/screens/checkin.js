@@ -123,7 +123,7 @@ export function renderDaily(){
   const rows = clientQuestions("daily").map(q=>{
     if(q.type==="options"){
       const opts = q.options.map(o=>'<button class="sc-opt'+(String(d[q.id])===o?' on':'')+'" data-action="daily-set" data-k="'+esc(q.id)+'" data-v="'+esc(o)+'">'+esc(o)+'</button>').join("");
-      return '<div class="sc-row"><span class="sc-lbl">'+esc(q.label)+'</span><div class="sc-opts">'+opts+'</div></div>';
+      return '<div class="dq-row"><span class="sc-lbl">'+esc(q.label)+'</span><div class="sc-opts">'+opts+'</div></div>';
     }
     return '<div class="dfield" style="margin-top:10px"><label>'+esc(q.label)+'</label><input class="form-input" value="'+esc(d[q.id]||"")+'" data-action="daily-text" data-k="'+esc(q.id)+'"></div>';
   }).join("");

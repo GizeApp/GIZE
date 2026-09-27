@@ -127,7 +127,8 @@
 
 .dfield label { display:block; font-size:10px; color:var(--txt-3); text-transform:uppercase; letter-spacing:.08em; font-weight:700; margin-bottom:5px; }
 
-.sc-row { margin-bottom:10px; }
+/* Pregunta del registro diario (antes .sc-row, que choca con la grilla del historial del coach). */
+.dq-row { display:block; margin-bottom:12px; }
 
 .sc-lbl { display:block; font-size:11px; color:var(--txt-2); font-weight:600; margin-bottom:6px; }
 
