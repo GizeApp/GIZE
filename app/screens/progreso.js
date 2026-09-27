@@ -18,6 +18,8 @@ export const ProgresoState = {
 
   wAll: false,     // historial de peso completo (si no, los últimos 5)
 
+  sessSel: null,   // entreno elegido en «Historial de entrenos» (null: el último)
+
 };
 
 export function renderWChart(ws, evenX, sz){
@@ -110,15 +112,21 @@ export function renderCargas(){
     '<div class="load-cap" style="margin-top:18px">Historial detallado</div>'+histBlock;
 }
 
+// Como en el panel del coach: una lista desplegable para elegir el entreno y abajo ese entreno
+// abierto, comparado con la vez anterior. Arranca en el último.
 export function renderHistorial(){
   const sess=(state.sessions||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0));
   if(!sess.length) return "";
-  // Todos los entrenos (antes solo los últimos 20): cerrados ocupan una fila cada uno.
-  const items=sess.map(se=>renderSessionItem(se, {
-    removeBtn:'<div class="sess-acts"><button class="diary-rm sess-edit" data-action="session-edit" data-id="'+esc(se.id)+'" title="Editar entreno" aria-label="Editar entreno">'+pencilSvg+'</button>'+
-      '<button class="diary-rm" data-action="session-remove" data-id="'+esc(se.id)+'" title="Borrar entreno" aria-label="Borrar entreno">'+xSvg+'</button></div>'
-  })).join("");
-  return '<div class="hb-head" style="margin-top:28px"><div class="hb-title">Historial de entrenos</div><div class="title-accent"></div></div><div class="sess-hint">Tocá un entreno para ver los pesos y las series.</div>'+items;
+  const key=se=>String(se.id||se.ts||se.date);
+  const one=sess.find(se=>key(se)===ProgresoState.sessSel) || sess[0];
+  const opts=sess.map(se=>{ const n=(se.exercises||[]).reduce((t,e)=>t+(e.sets||[]).length,0);
+    return '<option value="'+esc(key(se))+'"'+(se===one?' selected':'')+'>'+esc(fmtDate(se.date)+' · '+(se.day||'Entreno')+' ('+n+(n===1?' serie)':' series)'))+'</option>'; }).join("");
+  const pick='<label class="co-pick sess-pick"><span>Entreno</span><select class="co-select" data-action="sess-pick" aria-label="Elegir entreno">'+opts+'</select></label>';
+  const item=renderSessionItem(one, { open:true, history:state.sessions,
+    removeBtn:'<div class="sess-acts"><button class="diary-rm sess-edit" data-action="session-edit" data-id="'+esc(one.id)+'" title="Editar entreno" aria-label="Editar entreno">'+pencilSvg+'</button>'+
+      '<button class="diary-rm" data-action="session-remove" data-id="'+esc(one.id)+'" title="Borrar entreno" aria-label="Borrar entreno">'+xSvg+'</button></div>' });
+  return '<div class="hb-head" style="margin-top:28px"><div class="hb-title">Historial de entrenos</div><div class="title-accent"></div></div>'+
+    '<div class="sess-hint">Elegí un entreno para ver los pesos y las series ('+sess.length+' en total).</div>'+pick+item;
 }
 
 // occ: si el día tiene el mismo ejercicio más de una vez, cuál es (0 = el primero): el segundo

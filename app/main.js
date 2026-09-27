@@ -296,6 +296,7 @@ document.body.addEventListener("change", async e => {
   if (a === "daily-kg" || a === "daily-steps" || a === "daily-text") { CheckinState.dailyForm = CheckinState.dailyForm || Object.assign({}, state.daily[today()]||{}); CheckinState.dailyForm[a==="daily-kg"?"kg":(a==="daily-steps"?"steps":t.dataset.k)] = t.value; return; }
   if (a === "ci-set") { CheckinState.checkinForm = CheckinState.checkinForm || JSON.parse(JSON.stringify(state.checkins[mondayOf(today())]||{})); CheckinState.checkinForm[t.dataset.k] = t.value; return; }
   if (a === "load-ex") { EntrenoState.loadEx = t.value; renderApp(); return; }
+  if (a === "sess-pick") { ProgresoState.sessSel = t.value; renderApp(); return; }
   // Foto de perfil (Ajustes del cliente y Configuración del coach).
   if (a === "avatar-pick") {
     const file=t.files&&t.files[0]; t.value=""; if(!file) return;
