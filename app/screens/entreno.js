@@ -181,14 +181,13 @@ function renderSuggestion(ex, timed, occ){
     const set = kgs.filter(k => k > 0), same = set.every(k => k === set[0]);
     const reps = ex.sets.find(s => s.target) ? ex.sets.find(s => s.target).target : "";
     const txt = same ? kgText(set[0]) + " kg" + (reps && !timed ? " × " + reps : "") : kgs.map(k => k > 0 ? kgText(k) : "–").join(" · ") + " kg";
-    const canUse = ex.sets.some((s, i) => !s.done && kgs[i] > 0 && String(s.kg||"") !== String(kgs[i]));
-    return `<div class="prog-sug coach"><span class="ps-ic">${upSvg}</span><div class="ps-txt"><span class="ps-lbl">Tu coach propone</span> <b>${esc(txt)}</b>${same?'':'<span class="ps-why">Peso de cada serie.</span>'}</div>${canUse?`<button class="ps-use" data-action="sug-use" data-ex="${esc(ex.id)}" data-coach="1">Usar</button>`:''}</div>`;
+    return `<div class="prog-sug coach"><span class="ps-ic">${upSvg}</span><div class="ps-txt"><span class="ps-lbl">Tu coach propone</span> <b>${esc(txt)}</b>${same?'':'<span class="ps-why">Peso de cada serie.</span>'}</div></div>`;
   }
   if (ex.noSug || state.days.some(x => x && x.noSug)) return "";
+  // Recomendación (core/progresion.js): solo si la vez pasada se pasó del rango del coach.
   const prev = lastSessionFor(ex.name, occ); if (!prev) return "";
   const sg = suggest(ex, prev.sets, timed); if (!sg) return "";
-  const canUse = sg.kg != null && ex.sets.some(s => !s.done && String(s.kg||"") !== String(sg.kg));
-  return `<div class="prog-sug"><span class="ps-ic">${upSvg}</span><div class="ps-txt"><span class="ps-lbl">Hoy probá</span> <b>${esc(sg.text)}</b><span class="ps-why">${esc(sg.why)}</span></div>${canUse?`<button class="ps-use" data-action="sug-use" data-ex="${esc(ex.id)}" data-kg="${sg.kg}">Usar</button>`:''}</div>`;
+  return `<div class="prog-sug"><span class="ps-ic">${upSvg}</span><div class="ps-txt"><span class="ps-lbl">Recomendación</span> <b>${esc(sg.text)}</b><span class="ps-why">${esc(sg.why)}</span></div></div>`;
 }
 
 export function renderEntreno(){
