@@ -12,7 +12,7 @@ import { save } from '../core/storage.js';
 
 import { syncFootText } from '../core/supabase.js';
 
-import { esc, fmt, fmtSecs, isTimedEx, norm, parseSecs, setText, today } from '../core/utils.js';
+import { esc, fmt, fmtSecs, isTimedEx, norm, parseSecs, searchExercises, setText, today } from '../core/utils.js';
 
 import { renderApp } from '../main.js';
 
@@ -327,11 +327,10 @@ export function renderEntreno(){
 export function renderExList(){
   const nq = norm(EntrenoState.exQuery);
   if(nq){
-    const all=[]; for(const k in EX_DB){ EX_DB[k].forEach(n=>all.push(n)); }
-    const res = all.filter(n=>norm(n).includes(nq)).slice(0,60);
-    return res.length ? res.map(n=>`<button class="ex-pick" data-action="ex-choose" data-name="${esc(n)}">${esc(n)}</button>`).join("") : '<div class="cal-hint">Sin resultados</div>';
+    const res = searchExercises(n=>norm(n).includes(nq), EX_CATS).slice(0,60);
+    return res.length ? res.map(r=>`<button class="ex-pick" data-action="ex-choose" data-name="${esc(r.name)}" data-cat="${esc(r.cat)}">${esc(r.label)}</button>`).join("") : '<div class="cal-hint">Sin resultados</div>';
   }
-  return (EX_DB[EntrenoState.exCat]||[]).map(n=>`<button class="ex-pick" data-action="ex-choose" data-name="${esc(n)}">${esc(n)}</button>`).join("");
+  return (EX_DB[EntrenoState.exCat]||[]).map(n=>`<button class="ex-pick" data-action="ex-choose" data-name="${esc(n)}" data-cat="${esc(EntrenoState.exCat)}">${esc(n)}</button>`).join("");
 }
 
 export function renderExSheet(){
