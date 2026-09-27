@@ -1,6 +1,6 @@
 // Supabase Edge Function "avisos-coach": manda al coach los avisos que anotó la base en
-// public.coach_alerts (ver supabase/avisos-coach.sql): check-in semanal nuevo y alumnos
-// que llevan 4 días o más sin entrenar. La llama pg_cron cada minuto, solo si hay alguno.
+// public.coach_alerts (ver supabase/avisos-coach.sql y descarga.sql): check-in semanal nuevo,
+// alumnos que llevan 4 días o más sin entrenar y semanas de descarga. La llama pg_cron cada minuto, solo si hay alguno.
 // Va sin "Verify JWT" (la llama la base, sin sesión). Llamarla de más no hace nada: toma
 // solo los avisos sin mandar y cada uno sale una vez (se marca al tomarlo).
 // Usa los mismos secrets que notificar-cliente (VAPID, FCM_SERVICE_ACCOUNT y los de Apple).
@@ -116,7 +116,7 @@ Deno.serve(async () => {
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   // Tomar y marcar de una los pendientes: si dos llamadas se pisan, cada aviso sale una vez.
   const { data: alerts, error } = await db.from("coach_alerts").update({ sent_at: new Date().toISOString() })
-    .is("sent_at", null).select("coach_id, client_id, kind, days");
+    .is("sent_at", null).select("coach_id, client_id, kind, key, days");
   if (error) return json({ error: error.message }, 500);
   if (!alerts || !alerts.length) return json({ sent: 0 });
 
@@ -126,7 +126,29 @@ Deno.serve(async () => {
     db.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth").in("user_id", coachIds),
     db.from("profiles").select("id, full_name, coach_id").in("id", clientIds),
   ]);
-  const nameOf = (id: string) => ((people || []).find((p) => p.id === id)?.full_name || "Un alumno").split(" ")[0];
+  // Semanas de descarga: ¿ya tiene armada la rutina de esa semana, para este ciclo del bloque?
+  // (la clave es "bloque:semana:inicio"; cada rutina guarda el inicio con el que se armó)
+  type Blk = { id: string; start_date: string; deload_routines: Record<string, { start?: string } | null> | null };
+  const dlKeys = alerts.filter((a) => a.kind === "descarga" || a.kind === "descarga_prox").map((a) => String(a.key));
+  const blockIds = [...new Set(dlKeys.map((k) => k.split(":")[0]).filter((id) => /^[0-9a-f-]{36}$/i.test(id)))];
+  const { data: blocks } = blockIds.length
+    ? await db.from("blocks").select("id, start_date, deload_routines").in("id", blockIds)
+    : { data: [] as Blk[] };
+  const planned = (key: string) => {
+    const [bid, wk] = key.split(":");
+    const b = ((blocks || []) as Blk[]).find((x) => x.id === bid);
+    const r = b && b.deload_routines && typeof b.deload_routines === "object" ? b.deload_routines[wk] : null;
+    return !!(r && typeof r === "object" && (r.start || b!.start_date) === b!.start_date);
+  };
+  const nameOf = (id: string) => ((people || []).find((p) => p.id === id)?.full_name || "").trim().split(/\s+/)[0] || "Un alumno";
+  // Varios alumnos adentro de una frase: "Ana, Beto y un alumno" (los que no tienen nombre
+  // cargado van juntos: "2 alumnos más"). Cuántos son, para el singular o el plural.
+  const who = (ids: string[]) => {
+    const named = ids.map(nameOf).filter((n) => n !== "Un alumno"), u = ids.length - named.length;
+    const list = named.concat(u === 1 ? [named.length ? "un alumno más" : "un alumno"] : u > 1 ? [u + " alumnos" + (named.length ? " más" : "")] : []);
+    return { text: names(list), many: ids.length > 1 };
+  };
+  const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
   // El alumno se pudo haber desvinculado entre que se anotó el aviso y ahora.
   const stillMine = (a: { coach_id: string; client_id: string }) => (people || []).some((p) => p.id === a.client_id && p.coach_id === a.coach_id);
 
@@ -152,6 +174,32 @@ Deno.serve(async () => {
         ? nameOf(idle[0].client_id) + " lleva " + (idle[0].days || 4) + " días sin entrenar."
         : names(idle.map((a) => nameOf(a.client_id))) + " llevan 4 días o más sin entrenar.";
       gone.push(...await send(mine, "Alumnos sin entrenar", body, "gize-inactivo"));
+      sent++;
+    }
+
+    // Esta semana les toca descarga: primero los que todavía no tienen la rutina armada.
+    const dl = list.filter((a) => a.kind === "descarga");
+    if (dl.length) {
+      const todo = who(dl.filter((a) => !planned(String(a.key))).map((a) => a.client_id));
+      const ready = who(dl.filter((a) => planned(String(a.key))).map((a) => a.client_id));
+      const parts: string[] = [];
+      if (todo.text) parts.push(!todo.many
+        ? "A " + todo.text + " le toca semana de descarga y todavía no tiene rutina de descarga. Armala en su ficha → Bloque / mesociclo."
+        : "A " + todo.text + " les toca semana de descarga y todavía no tienen rutina de descarga. Armalas en sus fichas → Bloque / mesociclo.");
+      if (ready.text) parts.push(!ready.many
+        ? cap(ready.text) + " está en semana de descarga, con su rutina de descarga lista."
+        : cap(ready.text) + " están en semana de descarga, con sus rutinas de descarga listas.");
+      gone.push(...await send(mine, "Semana de descarga", parts.join(" "), "gize-descarga"));
+      sent++;
+    }
+
+    // La semana que viene es de descarga y todavía no hay rutina (se vuelve a mirar al mandar).
+    const soon = who(list.filter((a) => a.kind === "descarga_prox" && !planned(String(a.key))).map((a) => a.client_id));
+    if (soon.text) {
+      const body = !soon.many
+        ? "A " + soon.text + " le toca semana de descarga la semana que viene. Armale la rutina de descarga en su ficha → Bloque / mesociclo."
+        : "A " + soon.text + " les toca semana de descarga la semana que viene. Armales las rutinas de descarga en sus fichas → Bloque / mesociclo.";
+      gone.push(...await send(mine, "Descarga la semana que viene", body, "gize-descarga-prox"));
       sent++;
     }
   }
