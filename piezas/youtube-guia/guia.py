@@ -24,7 +24,7 @@ HI = importlib.util.module_from_spec(_s); _s.loader.exec_module(HI)   # neón, i
 
 W, H = 1920, 1080
 GR = os.path.join(HERE, 'grabacion', 'frames')
-SUB, DIM = (196, 202, 212), (120, 128, 142)
+SUB, DIM = (196, 202, 212), (150, 158, 174)
 NEON3 = [(47, 160, 255), (166, 92, 255), (255, 61, 174)]
 LEAD, TAIL, XF = int(1.0 * FPS), int(1.2 * FPS), 8        # antes y después de cada grabación; fundido del teléfono
 
@@ -113,18 +113,20 @@ def title_layer(text):
     return lay
 
 CAP_F = R.F_M(38)
+CAP_PAD = 32                                   # margen para el brillo del punto
 def caption_layers(text):
     """Dos versiones de la explicación: actual (blanca, con punto de neón) y pasada (atenuada)."""
     lines = wrap(text, CAP_F, COLW - 60); h = 52 * len(lines) + 10
     out = []
     for col, dot in ((TEXT, True), (DIM, False)):
-        lay = Image.new('RGBA', (COLW + 60, h + 20), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
-        c = NEON3[0] if dot else (70, 76, 90)
+        lay = Image.new('RGBA', (COLW + 60 + CAP_PAD, h + 20 + CAP_PAD), (0, 0, 0, 0)); d = ImageDraw.Draw(lay)
+        c = NEON3[0] if dot else (90, 98, 114)
+        o = CAP_PAD
         if dot:
-            g = Image.new('L', lay.size, 0); ImageDraw.Draw(g).ellipse((4, 12, 24, 32), fill=255)
+            g = Image.new('L', lay.size, 0); ImageDraw.Draw(g).ellipse((o + 4, o // 2 + 12, o + 24, o // 2 + 32), fill=255)
             gl = Image.new('RGBA', lay.size, c + (0,)); gl.putalpha(g.filter(ImageFilter.GaussianBlur(7))); lay.alpha_composite(gl)
-        d.ellipse((8, 16, 20, 28), fill=c + (255,))
-        for i, ln in enumerate(lines): d.text((44, i * 52), ln, font=CAP_F, fill=col)
+        d.ellipse((o + 8, o // 2 + 16, o + 20, o // 2 + 28), fill=c + (255,))
+        for i, ln in enumerate(lines): d.text((o + 44, o // 2 + i * 52), ln, font=CAP_F, fill=col)
         out.append(lay)
     return out, h
 
@@ -174,17 +176,33 @@ def draw_text(c, seg, f, a_all=1.0):
     for i, (t0, cur, old, h) in enumerate(shown):
         a = ease_out((f - t0) / 12) * a_all
         latest = i == len(shown) - 1
-        if latest: put(c, cur, X0, y, a, 14)
+        x, yy = X0 - CAP_PAD, y - CAP_PAD // 2
+        if latest: put(c, cur, x, yy, a, 14)
         else:
             k = ease_io((f - shown[i + 1][0]) / 10)                # la anterior se atenúa
-            if k < 1: put(c, cur, X0, y, (1 - k) * a_all, 0)
-            put(c, old, X0, y, k * a_all, 0)
+            if k < 1: put(c, cur, x, yy, (1 - k) * a_all, 0)
+            put(c, old, x, yy, k * a_all, 0)
         y += h + 16
+
+def make_panel():
+    x0, y0, x1, y1 = 96, 200, 1010, H - 104
+    SS = 2; m = Image.new('L', (W * SS, H * SS), 0)
+    ImageDraw.Draw(m).rounded_rectangle((x0 * SS, y0 * SS, x1 * SS, y1 * SS), 40 * SS, fill=255)
+    m = m.resize((W, H), Image.LANCZOS)
+    p = Image.new('RGBA', (W, H), (6, 8, 14, 0)); p.putalpha(m.point(lambda v: int(v * .62)))
+    b = Image.new('L', (W * SS, H * SS), 0)
+    ImageDraw.Draw(b).rounded_rectangle((x0 * SS, y0 * SS, x1 * SS, y1 * SS), 40 * SS, outline=255, width=2 * SS)
+    br = Image.new('RGBA', (W, H), (255, 255, 255, 0)); br.putalpha(b.resize((W, H), Image.LANCZOS).point(lambda v: int(v * .10)))
+    p.alpha_composite(br)
+    return p.crop((x0 - 4, y0 - 4, x1 + 4, y1 + 4)), (x0 - 4, y0 - 4)
+PANEL, PANEL_XY = make_panel()
 
 def feature(k, f):
     c = Image.fromarray(np.clip(fondo(_G[0]), 0, 255).astype(np.uint8)).convert('RGBA')
     seg, prev = SEGS[k], SEGS[k - 1]; cl = clip(k)
     cur = cl[f - LEAD]
+    pa = ease_out(f / 16) if prev['kind'] != 'feat' else 1.0
+    c.alpha_composite(fade(PANEL, pa) if pa < 1 else PANEL, PANEL_XY)
     if prev['kind'] != 'feat':
         a = ease_out(f / 16); put_phone(c, cur, a, int((1 - a) * 80))
     else:
