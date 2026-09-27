@@ -151,6 +151,9 @@ export async function openClient(id){
     migrateNames(routine);
     const phRows=ph.data||[];
     const urls=await signedUrls(phRows.map(p=>p.path));
+    // Si mientras cargaba el coach abrió otro cliente, esto ya no va: si no, los datos de
+    // este quedarían mostrados (y guardados) como si fueran del otro.
+    if(CoachState.coachSel!==id) return;
     const photos=phRows.map(p=>({id:p.id, taken_on:p.taken_on, url:urls[p.path]||""}));
     const c=CoachState.coachClients.find(x=>x.id===id);
     CoachState.coachData={id:id, info:(ci.data||{}), block:((bl.data&&bl.data[0])||null), name:(c&&c.full_name)||"Cliente", avatar:(c&&c.avatar_path)||null, weights:weights, sessions:sessions, routine:routine, loadEx:null, daily:(dl.data||[]), checkins:(ck.data||[]), plan:(np.data||null), photos:photos, schedule:(sc&&!sc.error&&sc.data)||[]};
@@ -162,7 +165,7 @@ export async function openClient(id){
     // La foto casi siempre ya tiene link desde la lista; si venció o todavía no llegó, se pide y se redibuja.
     if(CoachState.coachData.avatar) resolveAvatars([CoachState.coachData.avatar]).then(ok=>{ if(ok&&CoachState.coachSel===id) renderCoach(); }).catch(()=>{});
     CoachState.coachExpandedEx=new Set(); CoachState.coachExMenu=null; CoachState.coachPlanRestOpen=null;
-  }catch(e){ CoachState.coachData={error:true}; console.error("openClient",e); }
+  }catch(e){ if(CoachState.coachSel!==id) return; CoachState.coachData={error:true}; console.error("openClient",e); }
   renderCoach();
 }
 
