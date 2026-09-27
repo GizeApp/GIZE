@@ -135,3 +135,4 @@
 .ls-use { flex:none; padding:6px 12px; border-radius:var(--gize-radius-pill); border:1px solid color-mix(in srgb, var(--gize-blue) 55%, transparent);
   background:none; color:var(--gize-blue); font:700 var(--text-meta) var(--gize-font); cursor:pointer; }
 .ls-use:active { background:color-mix(in srgb, var(--gize-blue) 15%, transparent); }
+.ls-use[hidden] { display:none; }

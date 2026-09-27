@@ -121,14 +121,19 @@ export function renderHistorial(){
   return '<div class="hb-head" style="margin-top:28px"><div class="hb-title">Historial de entrenos</div><div class="title-accent"></div></div><div class="sess-hint">Tocá un entreno para ver los pesos y las series.</div>'+items;
 }
 
-export function lastSessionFor(exName){
+// occ: si el día tiene el mismo ejercicio más de una vez, cuál es (0 = el primero): el segundo
+// va con el segundo de la vez pasada (si esa vez hubo menos, con el último).
+export function lastSessionFor(exName, occ){
   const list=(state.sessions||[]).filter(se=>(se.exercises||[]).some(e=>e.name===exName && (e.sets||[]).length));
   if(!list.length) return null;
   list.sort((a,b)=>(b.ts||0)-(a.ts||0));
   const se=list[0];
-  const ex=se.exercises.find(e=>e.name===exName);
+  const same=se.exercises.filter(e=>e.name===exName && (e.sets||[]).length);
+  const ex=same[Math.min(Math.max(0, occ||0), same.length-1)];
   return { date:se.date, sets:ex.sets };
 }
+// Cuál de los ejercicios del día con ese nombre es ex (para lastSessionFor).
+export function exOccurrence(exs, ex){ return Math.max(0, (exs||[]).filter(x=>x && x.name===ex.name).indexOf(ex)); }
 
 // Lo de la vez pasada para cada serie de hoy, por orden ({kg, reps} en números). Si hoy hay
 // más series que la vez pasada, las de más toman la última.
@@ -143,13 +148,15 @@ export function lastKgsUseful(ex, plan){
 }
 
 // «La vez pasada» arriba de las series. Con el ejercicio de hoy (ex), un botón para cargar
-// esos pesos en las series que faltan.
-export function renderLastSession(exName, ex){
-  const prev=lastSessionFor(exName);
+// esos pesos en las series que faltan: está si la vez pasada hubo peso y se oculta mientras
+// no cambiaría nada (se vuelve a mirar al escribir un peso, ver el input "kg" en main.js).
+export function renderLastSession(exName, ex, occ){
+  const prev=lastSessionFor(exName, occ);
   if(!prev) return "";
   const sets=prev.sets.map((s,i)=>(+s.secs>0) ? '<span class="ls-set"><b>'+esc(setText(s))+'</b></span>' : '<span class="ls-set"><b>'+(s.kg||0)+'</b>kg × <b>'+(s.reps||0)+'</b></span>').join('<span class="ls-sep">·</span>');
-  const use = ex && lastKgsUseful(ex, lastPlan(ex, prev.sets))
-    ? '<button class="ls-use" data-action="last-use" data-ex="'+esc(ex.id)+'">Usar estos pesos</button>' : '';
+  const plan = ex ? lastPlan(ex, prev.sets) : [];
+  const use = ex && (ex.sets||[]).some((s,i)=>!s.done && plan[i] && plan[i].kg>0)
+    ? '<button class="ls-use" data-action="last-use" data-ex="'+esc(ex.id)+'"'+(lastKgsUseful(ex, plan)?'':' hidden')+'>Usar estos pesos</button>' : '';
   return '<div class="last-sess"><div class="ls-head"><span class="ls-lbl">La vez pasada ('+fmtDate(prev.date)+')</span>'+use+'</div><div class="ls-sets">'+sets+'</div></div>';
 }
 
