@@ -7,6 +7,7 @@ import { resolveAvatars } from './avatar.js';
 import { loadCoachQuestions } from '../screens/coach/preguntas.js';
 
 import { State, state } from './state.js';
+import { activeDeload } from './bloque.js';
 
 import { DEFAULT } from './data.js';
 
@@ -341,6 +342,46 @@ export function mergeLocalProgress(cloudDays, localDays){
   return cloudDays;
 }
 
+// Alumno con coach: pone en state.days la rutina que va hoy. En una semana de descarga con
+// rutina armada por el coach, esa; si no, la de siempre (state.regularDays, la de la tabla
+// routines). Lo cargado a mano (kg, reps, tildes) se conserva como siempre, y al pasar a la
+// de descarga se guarda lo de la de siempre para devolverlo cuando vuelve (el lunes siguiente).
+// Devuelve true si cambió de una a otra.
+export function applyCoachRoutine(){
+  const regular = Array.isArray(state.regularDays) && state.regularDays.length ? state.regularDays : null;
+  const dl = activeDeload(state.block, today());
+  const mode = dl ? dl.key : "regular", prev = state.routineMode || "regular";
+  if(!dl && !regular){
+    // Sin rutina de siempre en la nube: al terminar la descarga vuelve lo que tenía antes.
+    if(prev === "regular" || !Array.isArray(state.preDeloadDays)) return false;
+    state.days = state.preDeloadDays; state.preDeloadDays = null; state.routineMode = "regular";
+    if(!state.days.find(d=>d.id===State.activeId)) State.activeId = state.days[0] ? state.days[0].id : null;
+    return true;
+  }
+  const clone = d => JSON.parse(JSON.stringify(d));
+  if(mode !== "regular" && prev === "regular") state.preDeloadDays = state.days;
+  if(!dl && prev !== "regular" && Array.isArray(state.preDeloadDays)){
+    state.days = mergeLocalProgress(clone(regular), state.preDeloadDays);
+    state.preDeloadDays = null;
+  } else {
+    state.days = mergeLocalProgress(clone(dl ? dl.days : regular), state.days);
+  }
+  if(mode === "regular") state.preDeloadDays = null;
+  state.routineMode = mode;
+  migrateNames(state.days);
+  if(!state.days.find(d=>d.id===State.activeId)) State.activeId = state.days[0] ? state.days[0].id : null;
+  return mode !== prev;
+}
+
+// Sin coach la rutina es del alumno: si quedó mostrando una de descarga (se desvinculó en esa
+// semana), vuelve a la de siempre antes de que se suba como propia.
+function leaveCoachRoutine(){
+  if(state.routineMode && state.routineMode !== "regular" && Array.isArray(state.regularDays) && state.regularDays.length){
+    state.days = mergeLocalProgress(JSON.parse(JSON.stringify(state.regularDays)), state.preDeloadDays || state.days);
+  }
+  state.routineMode = "regular"; state.regularDays = null; state.preDeloadDays = null;
+}
+
 export function applyBrand(){
   const t=document.getElementById("brandTag"), n=document.getElementById("brandName");
   if(!t||!n) return;
@@ -561,13 +602,20 @@ export async function loadCloud(){
       if(r.error && r.error.code==="22023"){ console.error("rutina rechazada",r.error); return false; }
       sbOk(r); return true;
     };
+    if(!isCoach && !routineLocked()) leaveCoachRoutine();
     if(isCoach){}
+    else if(routineLocked() && ((rt.data && Array.isArray(rt.data.days) && rt.data.days.length) || (!bl.error && bl.data && bl.data[0] && activeDeload(bl.data[0], today())))){
+      // Con coach, la rutina manda el coach: se toma la de la nube y solo se conserva lo
+      // que el cliente cargó a mano (kg, reps, tildes) de cada serie. En una semana de
+      // descarga con rutina armada, la de descarga (ver applyCoachRoutine).
+      if(!bl.error) state.block = (bl.data && bl.data[0]) ? bl.data[0] : null;
+      if(rt.data && Array.isArray(rt.data.days) && rt.data.days.length) state.regularDays = rt.data.days;
+      applyCoachRoutine();
+      if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
+      markRoutineSynced(state.days);
+    }
     else if(rt.data && Array.isArray(rt.data.days) && rt.data.days.length){
-      if(routineLocked()){
-        // Con coach, la rutina manda el coach: se toma la de la nube y solo se conserva lo
-        // que el cliente cargó a mano (kg, reps, tildes) de cada serie.
-        state.days = mergeLocalProgress(rt.data.days, state.days);
-      } else if(localRoutineWins(rt.data)){
+      if(localRoutineWins(rt.data)){
         // El cliente cambió su rutina en el celular sin poder subirla (sin señal) y ese
         // cambio es más nuevo que la nube: se sube en vez de perderlo.
         if(!await upRoutine()) state.days = rt.data.days;

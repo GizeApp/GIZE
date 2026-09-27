@@ -10,7 +10,7 @@ import { State, state } from './core/state.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
-import { afterLogin, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, mergeLocalProgress, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
+import { afterLogin, applyCoachRoutine, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
 
 import { fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, norm, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
@@ -35,6 +35,7 @@ import './screens/coach/preguntas.js';
 import { coachPlanObj, cpApply, loadTpls, planDefault, renderApplyPicker, renderCoachPicker, renderCopyPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
+import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, ocrStatus, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderOffResults, renderResults, selectedFoodValues } from './screens/comida.js';
 
@@ -900,6 +901,33 @@ document.body.addEventListener("click", async e => {
   }
   if(a==="tpl-new"){ CoachState.coachTplEdit={id:null, name:"", days:[]}; CoachState.coachEditDay=0; renderCoach(); return; }
   if(a==="tpl-open"){ const t=CoachState.coachTpls.find(x=>x.id===b.dataset.id); if(t){ CoachState.coachTplEdit=JSON.parse(JSON.stringify(t)); CoachState.coachEditDay=0; renderCoach(); } return; }
+  // Rutina de descarga (ver supabase/descarga.sql): mismo editor, se guarda en el bloque del
+  // alumno y al volver o guardar se queda en Ficha → Bloque, con la semana abierta.
+  if(CoachState.coachTplEdit && CoachState.coachTplEdit.deload && (a==="tpl-back"||a==="tpl-save"||a==="tpl-del")){
+    const e=CoachState.coachTplEdit;
+    const leave=()=>{ CoachState.coachTplEdit=null; CoachState.coachEditDay=0; CoachState.coachClientTab="ficha"; CoachState.coachSec="bloque"; CoachState.coachWeekSel=e.wk; renderCoach(); window.scrollTo(0,0); };
+    if(a==="tpl-back"){
+      if(JSON.stringify(e.days)!==e.orig && !confirm("¿Salir sin guardar la rutina de descarga?")) return;
+      leave(); return;
+    }
+    if(a==="tpl-del"){
+      if(!e.saved){ if(JSON.stringify(e.days)!==e.orig && !confirm("¿Descartar esta rutina de descarga?")) return; leave(); return; }
+      if(!confirm("¿Borrar la rutina de descarga de la semana "+e.wk+"? Esa semana el alumno sigue con su rutina de siempre.")) return;
+      const f=blockForm(); if(f.deload_routines && typeof f.deload_routines==="object") delete f.deload_routines[e.wk];
+      if(await saveBlock(f)){ alert("Rutina de descarga borrada ✓"); leave(); }
+      return;
+    }
+    // Guardar: días sin ejercicios no cuentan; tiene que quedar al menos uno.
+    const days=(e.days||[]).filter(d=>(d.exercises||[]).length);
+    if(!days.length){ alert("La rutina de descarga no tiene ejercicios."); return; }
+    const f=blockForm();
+    if(deloadWeeks(f).indexOf(e.wk)<0) f.deloads=deloadWeeks(f).concat(e.wk).sort((x,y)=>x-y);
+    f.deload_routines=Object.assign({}, (f.deload_routines&&typeof f.deload_routines==="object")?f.deload_routines:{}, {[e.wk]:{days:days}});
+    b.textContent="Guardando...";
+    if(await saveBlock(f)){ alert("Rutina de descarga guardada ✓ El alumno la usa solo esa semana."); leave(); }
+    else b.textContent="Guardar rutina de descarga";
+    return;
+  }
   // Rutina programada (ver supabase/rutina-programada.sql): usa el mismo editor que las rutinas
   // guardadas, con la fecha de inicio. Al volver o guardar se queda en la pestaña Rutina del alumno.
   if(a==="sched-new"){
@@ -1082,22 +1110,48 @@ document.body.addEventListener("click", async e => {
     catch(e){ alert("No se pudo: "+((e&&e.message)||e)); }
     renderCoach(); return;
   }
-  if(a==="blk-dl"){
-    CoachState.coachBlockForm = CoachState.coachBlockForm || Object.assign({}, CoachState.coachData.block||{});
-    const w=parseInt(b.dataset.w); const arr=Array.isArray(CoachState.coachBlockForm.deloads)?CoachState.coachBlockForm.deloads.slice():[];
-    const k=arr.indexOf(w); if(k>=0) arr.splice(k,1); else arr.push(w);
-    CoachState.coachBlockForm.deloads=arr.sort((x,y)=>x-y); renderCoach(); return;
+  // Bloque: tocar una semana la marca como descarga (queda en azul) y abre su panel abajo;
+  // tocar una que ya es de descarga abre o cierra su panel.
+  if(a==="blk-week"){
+    const w=parseInt(b.dataset.w); if(!(w>=1)) return;
+    const cur=CoachState.coachBlockForm||CoachState.coachData.block||{};
+    if(deloadWeeks(cur).indexOf(w)<0){ const f=blockForm(); f.deloads=deloadWeeks(f).concat(w).sort((x,y)=>x-y); CoachState.coachWeekSel=w; }
+    else CoachState.coachWeekSel = CoachState.coachWeekSel===w ? null : w;
+    renderCoach(); return;
+  }
+  if(a==="wk-close"){ CoachState.coachWeekSel=null; renderCoach(); return; }
+  if(a==="wk-dl"){
+    const w=parseInt(b.dataset.w); if(!(w>=1)) return;
+    const f=blockForm(); const dls=deloadWeeks(f);
+    if(dls.indexOf(w)>=0){
+      if(deloadRoutineOf(f, w) && !confirm("La semana "+w+" tiene rutina de descarga armada. Si le sacás la descarga, esa rutina se borra al guardar el bloque. ¿Seguir?")) return;
+      f.deloads=dls.filter(x=>x!==w);
+      if(f.deload_routines && typeof f.deload_routines==="object") delete f.deload_routines[w];
+    } else f.deloads=dls.concat(w).sort((x,y)=>x-y);
+    renderCoach(); return;
+  }
+  // Rutina de descarga: se arma con el mismo editor de las rutinas y se guarda en el bloque.
+  if(a==="dl-new"||a==="dl-edit"){
+    const w=parseInt(b.dataset.w); if(!(w>=1)) return;
+    const f=CoachState.coachBlockForm||CoachState.coachData.block||{};
+    if(!f.start_date){ alert("Primero poné la fecha de inicio del bloque (un lunes)."); return; }
+    const old=a==="dl-edit" ? deloadRoutineOf(f, w) : null;
+    const days = old ? JSON.parse(JSON.stringify(old.days)) : (b.dataset.from==="rutina" ? deloadFromRoutine(CoachState.coachData.routine) : []);
+    CoachState.coachTplEdit={deload:true, wk:w, saved:!!old, name:"", days:days, orig:JSON.stringify(days)};
+    CoachState.coachEditDay=0; CoachState.coachExpandedEx=new Set(); CoachState.coachExMenu=null;
+    renderCoach(); window.scrollTo(0,0); return;
+  }
+  if(a==="dl-del"){
+    const w=parseInt(b.dataset.w); if(!(w>=1)) return;
+    if(!confirm("¿Borrar la rutina de descarga de la semana "+w+"? Esa semana el alumno sigue con su rutina de siempre.")) return;
+    const f=blockForm(); if(f.deload_routines && typeof f.deload_routines==="object") delete f.deload_routines[w];
+    b.disabled=true;
+    if(await saveBlock(f)) alert("Rutina de descarga borrada ✓");
+    renderCoach(); return;
   }
   if(a==="blk-save"){
     const bf=CoachState.coachBlockForm||CoachState.coachData.block||{};
-    if(!bf.start_date){ alert("Pon\u00e9 la fecha de inicio del bloque (un lunes)."); return; }
-    const row={client_id:CoachState.coachData.id, name:bf.name||null, start_date:bf.start_date, weeks:parseInt(bf.weeks)||8,
-      phase:bf.phase||null, calories:bf.calories||null, deloads:Array.isArray(bf.deloads)?bf.deloads:[], notes:bf.notes||null, active:true};
-    try{
-      if(CoachState.coachData.block && CoachState.coachData.block.id){ sbOk(await State.sb.from("blocks").update(row).eq("id",CoachState.coachData.block.id)); row.id=CoachState.coachData.block.id; }
-      else { const r=sbOk(await State.sb.from("blocks").insert(row).select("id").single()); if(r.data) row.id=r.data.id; }
-      CoachState.coachData.block=row; CoachState.coachBlockForm=null; alert("Bloque guardado \u2713");
-    }catch(e){ alert("No se pudo: "+((e&&e.message)||e)); }
+    if(await saveBlock(bf)) alert("Bloque guardado ✓");
     renderCoach(); return;
   }
   if(a==="plan-save"){
@@ -1137,6 +1191,9 @@ document.body.addEventListener("change", async e => {
   else if(a==="ck-pick"){ CoachState.coachCkSel=el.value; renderCoach(); }
   else if(a==="sess-pick"){ CoachState.coachSessSel=el.value; renderCoach(); }
   else if(a==="photo-pick-date"){ CoachState.coachPhotoSel=el.value; renderCoach(); }
+  // La grilla de semanas y la semana actual. Después del evento: redibujar saca el campo que
+  // tiene el foco y eso no se puede hacer adentro de su propio "change".
+  else if(a==="blk-weeks"||a==="blk-start_date"){ setTimeout(renderCoach, 0); }
 });
 
 document.body.addEventListener("input", async e => {
@@ -1171,7 +1228,12 @@ document.body.addEventListener("input", async e => {
   else if(a==="day-note"){ const v=el.value.trim(); if(v) day.note=v; else delete day.note; }
   else if(a==="rt-rir"||a==="rt-rest"||a==="rt-goal"||a==="rt-video"){ const ex=day.exercises[+el.dataset.i]; if(ex){ const k=(a==="rt-video")?"video":a.slice(3); let v=el.value.trim(); if(k==="video"&&v&&!/^https:\/\//i.test(v)) v="https://"+v.replace(/^[a-z][a-z0-9+.-]*:(\/\/)?/i,""); if(v) ex[k]=v; else delete ex[k]; } }
   else if(a.indexOf("info-")===0){ CoachState.coachInfoForm = CoachState.coachInfoForm || Object.assign({}, CoachState.coachData.info||{}); CoachState.coachInfoForm[a.slice(5)] = el.value; return; }
-  else if(a.indexOf("blk-")===0){ CoachState.coachBlockForm = CoachState.coachBlockForm || Object.assign({}, CoachState.coachData.block||{}); CoachState.coachBlockForm[a.slice(4)] = el.value; return; }
+  else if(a.indexOf("blk-")===0){ blockForm()[a.slice(4)] = el.value; return; }
+  else if(a==="wk-goal"||a==="wk-note"){
+    const w=parseInt(el.dataset.w); if(!(w>=1)) return;
+    const f=blockForm(); const wp=f.week_plan=(f.week_plan&&typeof f.week_plan==="object")?f.week_plan:{};
+    wp[w]=Object.assign({}, wp[w]||{}, {[a==="wk-goal"?"goal":"note"]:el.value}); return;
+  }
   else if(a==="plan-kcal"||a==="plan-protein"||a==="plan-carbs"||a==="plan-fat"||a==="plan-notes"){ CoachState.coachPlanForm = CoachState.coachPlanForm || Object.assign({}, CoachState.coachData.plan||{}); CoachState.coachPlanForm[a.slice(5)] = el.value; }
   else if(a==="pl-meal"){ const p=coachPlanObj(CoachState.coachData); const r=p[el.dataset.key][+el.dataset.i]; if(r) r[el.dataset.k]=el.value; }
   else if(a==="pl-list"){ const p=coachPlanObj(CoachState.coachData); p[el.dataset.key][+el.dataset.i]=el.value; }
@@ -1186,20 +1248,80 @@ document.body.addEventListener("input", async e => {
   else if(a==="pl-habit"){ const p=coachPlanObj(CoachState.coachData); p.habits[+el.dataset.i]=el.value; }
 });
 
+// ---- Bloque del alumno (coach) ----
+// Lo que el coach está editando del bloque: copia del guardado (copia completa: el plan de
+// semanas y las rutinas de descarga son objetos y no tienen que cambiar el guardado antes de
+// tocar Guardar).
+function blockForm(){
+  if(!CoachState.coachBlockForm) CoachState.coachBlockForm=JSON.parse(JSON.stringify((CoachState.coachData&&CoachState.coachData.block)||{}));
+  return CoachState.coachBlockForm;
+}
+
+// Rutina de descarga a partir de la de siempre: los mismos ejercicios con la mitad de las
+// series (redondeando para arriba, mínimo 1) y sin pesos ni repeticiones cargados.
+function deloadFromRoutine(routine){
+  const days=JSON.parse(JSON.stringify(routine||[]));
+  days.forEach(d=>{ d.id=uid(); (d.exercises||[]).forEach(ex=>{
+    ex.id=uid();
+    const sets=Array.isArray(ex.sets)?ex.sets:[];
+    ex.sets=sets.slice(0, Math.max(1, Math.ceil(sets.length/2)));
+    ex.sets.forEach(st=>{ st.id=uid(); st.kg=""; st.reps=""; st.done=false; if("secs" in st) st.secs=""; });
+  }); });
+  return days;
+}
+
+// Guarda el bloque del alumno abierto. Las semanas de descarga, el plan y las rutinas se
+// recortan a las semanas del bloque (avisando si se pierde alguna rutina armada).
+async function saveBlock(bf){
+  if(!bf.start_date){ alert("Pon\u00e9 la fecha de inicio del bloque (un lunes)."); return false; }
+  const weeks=Math.max(1, Math.min(52, parseInt(bf.weeks)||8));
+  const dls=[...new Set(deloadWeeks(bf))].filter(w=>w<=weeks).sort((x,y)=>x-y);
+  const drAll=(bf.deload_routines&&typeof bf.deload_routines==="object")?bf.deload_routines:{};
+  const dr={}, lost=[];
+  Object.keys(drAll).forEach(k=>{
+    const r=drAll[k]; if(!(r && Array.isArray(r.days) && r.days.length)) return;
+    if(dls.indexOf(+k)>=0) dr[+k]={days:r.days}; else lost.push(+k);
+  });
+  if(lost.length && !confirm("La rutina de descarga de la semana "+lost.join(", ")+" queda afuera (la semana ya no es de descarga o el bloque es m\u00e1s corto) y se borra. \u00bfGuardar igual?")) return false;
+  const wpAll=(bf.week_plan&&typeof bf.week_plan==="object")?bf.week_plan:{}, wp={};
+  Object.keys(wpAll).forEach(k=>{
+    const w=+k, x=wpAll[k]||{}; if(!(w>=1 && w<=weeks)) return;
+    const goal=String(x.goal||"").trim().slice(0,300), note=String(x.note||"").trim().slice(0,1000);
+    if(goal||note) wp[w]=Object.assign({}, goal?{goal}:{}, note?{note}:{});
+  });
+  const row={client_id:CoachState.coachData.id, name:bf.name||null, start_date:bf.start_date, weeks:weeks,
+    phase:bf.phase||null, calories:bf.calories||null, deloads:dls, notes:bf.notes||null, active:true,
+    week_plan:wp, deload_routines:dr};
+  try{
+    if(CoachState.coachData.block && CoachState.coachData.block.id){ sbOk(await State.sb.from("blocks").update(row).eq("id",CoachState.coachData.block.id)); row.id=CoachState.coachData.block.id; }
+    else { const r=sbOk(await State.sb.from("blocks").insert(row).select("id").single()); if(r.data) row.id=r.data.id; }
+    CoachState.coachData.block=row; CoachState.coachBlockForm=null;
+    return true;
+  }catch(e){ alert("No se pudo: "+((e&&e.message)||e)); return false; }
+}
+
 document.addEventListener("visibilitychange", async ()=>{
   if(document.visibilityState!=="visible" || !State.sb || !State.cloudUser || !routineLocked()) return;
   try{
-    const rt=await State.sb.from("routines").select("days").eq("client_id",State.cloudUser.id).maybeSingle();
-    if(rt.data && Array.isArray(rt.data.days) && rt.data.days.length){
-      state.days=mergeLocalProgress(rt.data.days, state.days); // conserva lo que el cliente ya cargó
-      migrateNames(state.days);
-      if(!state.days.find(x=>x.id===State.activeId)) State.activeId=state.days[0].id;
-      renderApp();
-    }
+    // La rutina y el bloque (la semana de descarga puede haber empezado o terminado).
+    const uid=State.cloudUser.id;
+    const [rt, bl]=await Promise.all([
+      State.sb.from("routines").select("days").eq("client_id",uid).maybeSingle(),
+      State.sb.from("blocks").select("*").eq("client_id",uid).eq("active",true).order("start_date",{ascending:false}).limit(1)
+    ]);
+    if(!routineLocked()) return;
+    if(!bl.error) state.block=(bl.data && bl.data[0]) ? bl.data[0] : null;
+    if(!rt.error && rt.data && Array.isArray(rt.data.days) && rt.data.days.length) state.regularDays=rt.data.days;
+    if(rt.error && bl.error) return;
+    applyCoachRoutine(); // conserva lo que el cliente ya cargó
+    save(); renderApp();
   }catch(e){}
 });
 
 if (migrateNames(state.days)) save();
+// Sin señal al abrir: si empezó o terminó la semana de descarga, cambia igual de rutina con lo
+// que quedó guardado del bloque (la nube lo confirma cuando vuelve la conexión).
+if (Array.isArray(state.regularDays) && state.regularDays.length && applyCoachRoutine()) save();
 
 cloudBoot();
 

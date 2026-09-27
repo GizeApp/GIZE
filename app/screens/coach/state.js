@@ -86,8 +86,10 @@ export const CoachState = {
   // menú de acciones (subir/bajar/insertar/cambiar) abierto en la card de ejercicio, por id
   coachExMenu: null,
 
+  // Bloque: semana elegida en la grilla (se abre su panel abajo)
+  coachWeekSel: null,
+
 };
 
 export let coachCopyPicker = false;
 
-export let coachWeekSel = null;

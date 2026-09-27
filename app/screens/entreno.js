@@ -6,6 +6,7 @@ import { EX_CATS, EX_DB, RC } from '../core/data.js';
 import { checkSvg, chevronDownSvg, pencilSvg, playSvg, resetSvg, searchSvg, swapSvg, trashSvg, trophySvg, xSvg } from '../core/icons.js';
 
 import { State, state } from '../core/state.js';
+import { activeDeload, blockWeek as bBlockWeek, isDeload as bIsDeload, weekPlanOf } from '../core/bloque.js';
 
 import { save } from '../core/storage.js';
 
@@ -67,14 +68,8 @@ function restRow(ex){
     `<button class="rest-edit" data-action="rest-edit" data-ex="${esc(ex.id)}" aria-label="Cambiar el descanso, ahora ${esc(restLabel(r.sec))}"><span class="rest-edit-t">${esc(restLabel(r.sec))}</span><span class="rest-edit-h">cambiar</span></button></div>`;
 }
 
-export function blockWeek(b, dstr){
-  if(!b || !b.start_date) return 0;
-  const a=new Date(b.start_date+"T00:00:00"), c=new Date((dstr||today())+"T00:00:00");
-  const w=Math.floor((c-a)/(7*24*3600*1000))+1;
-  return (w<1) ? 0 : w;
-}
-
-export function isDeload(b, wk){ return !!(b && Array.isArray(b.deloads) && b.deloads.indexOf(wk)>=0); }
+// Semanas del bloque: ver core/bloque.js (se re-exportan para los que las importaban de acá).
+export { blockWeek, isDeload } from '../core/bloque.js';
 
 export let expandedOverride = new Set();
 
@@ -121,15 +116,19 @@ export function routineLocked(){ try { return !!(State.cloudProfile && State.clo
 
 export function renderBlockBanner(){
   const b=state.block; if(!b) return "";
-  const wk=blockWeek(b, today());
+  const wk=bBlockWeek(b, today());
   if(wk<1) return "";
-  const dl=isDeload(b,wk);
+  const dl=bIsDeload(b,wk);
   const meta=[b.phase, b.calories].filter(Boolean).join(" \u00b7 ");
-  const wkData=(b.weekPlan||{})[wk]||{};
+  const wkData=weekPlanOf(b, wk);
   const wkGoal=wkData.goal||''; const wkNote=wkData.note||'';
+  // Con rutina de descarga armada por el coach, la de hoy ya es esa (ver applyCoachRoutine).
+  const dlRt=dl && state.routineMode && state.routineMode!=="regular" && activeDeload(b, today());
   return '<div class="blk'+(dl?' deload':'')+'">'+
     '<div class="blk-top"><span class="blk-w">Semana '+wk+(b.weeks?' de '+(parseInt(b.weeks)||''):'')+'</span>'+(meta?'<span class="blk-meta">'+esc(meta)+'</span>':'')+'</div>'+
-    (dl?'<div class="blk-dl">SEMANA DE DESCARGA \u2014 No faltes al gimnasio: baj\u00e1 series y cargas para recuperarte.</div>':'')+
+    (dl?'<div class="blk-dl">SEMANA DE DESCARGA \u2014 '+(dlRt
+      ? 'Esta semana entren\u00e1s con la rutina de descarga que te arm\u00f3 tu coach. El lunes vuelve tu rutina de siempre.'
+      : 'No faltes al gimnasio: baj\u00e1 series y cargas para recuperarte.')+'</div>':'')+
     (b.notes?'<div class="blk-note">'+esc(b.notes)+'</div>':'')+
     (wkGoal?'<div class="blk-wkgoal">⭐ Objetivo: '+esc(wkGoal)+'</div>':'')+
     (wkNote&&wkNote!==b.notes?'<div class="blk-note">'+esc(wkNote)+'</div>':'')+

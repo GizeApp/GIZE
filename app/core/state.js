@@ -81,6 +81,13 @@ if (typeof state.info === "undefined") state.info = null;
 
 if (typeof state.block === "undefined") state.block = null;
 
+// Semana de descarga (ver applyCoachRoutine en core/supabase.js): la rutina de siempre del
+// coach, cuál se está mostrando ("regular" o la de descarga) y lo cargado en la de siempre
+// antes de pasar a la de descarga (vuelve el lunes siguiente).
+if (!Array.isArray(state.regularDays)) state.regularDays = null;
+if (typeof state.routineMode !== "string") state.routineMode = "regular";
+if (!Array.isArray(state.preDeloadDays)) state.preDeloadDays = null;
+
 if (typeof state.calProfile === "undefined") state.calProfile = null;
 
 if (typeof state.steps === "undefined") state.steps = 0;
