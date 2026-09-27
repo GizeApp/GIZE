@@ -347,10 +347,15 @@ export function mergeLocalProgress(cloudDays, localDays){
 // routines). Lo cargado a mano (kg, reps, tildes) se conserva como siempre, y al pasar a la
 // de descarga se guarda lo de la de siempre para devolverlo cuando vuelve (el lunes siguiente).
 // Devuelve true si cambió de una a otra.
+// ¿Hay un entreno en curso? (empezado hace menos de 6 horas: uno olvidado no frena nada)
+const training = () => !!(state.wkStart && Date.now() - (state.wkStart.ts || 0) < 6 * 3600 * 1000);
 export function applyCoachRoutine(){
   const regular = Array.isArray(state.regularDays) && state.regularDays.length ? state.regularDays : null;
   const dl = activeDeload(state.block, today());
   const mode = dl ? dl.key : "regular", prev = state.routineMode || "regular";
+  // En medio de un entreno que pasa la medianoche del domingo no se cambia de rutina (se
+  // perdería lo cargado): cambia al guardarlo o cancelarlo, en el próximo dibujo de la app.
+  if(mode !== prev && training()) return false;
   if(!dl && !regular){
     // Sin rutina de siempre en la nube: al terminar la descarga vuelve lo que tenía antes (si
     // no hay nada guardado, queda la de descarga hasta que el coach cargue otra).
@@ -378,6 +383,7 @@ export function applyCoachRoutine(){
 // ¿Toca cambiar de rutina? (empezó o terminó la semana de descarga desde la última vez). Es
 // barato: se mira en cada renderApp para que cambie aunque la app siga abierta o sin señal.
 export function coachRoutineDue(){
+  if(training()) return false;
   const mode = state.routineMode || "regular";
   if(mode === "regular" && !(Array.isArray(state.regularDays) && state.regularDays.length)) return false;
   const dl = activeDeload(state.block, today());

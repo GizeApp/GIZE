@@ -1128,7 +1128,7 @@ document.body.addEventListener("click", async e => {
     const w=parseInt(b.dataset.w); if(!(w>=1)) return;
     const f=blockForm(); const dls=deloadWeeks(f);
     if(dls.indexOf(w)>=0){
-      if(deloadRoutineOf(f, w) && !confirm("La semana "+w+" tiene rutina de descarga armada. Si le sacás la descarga, esa rutina se borra al guardar el bloque. ¿Seguir?")) return;
+      if(deloadRoutineOf(f, w, savedBlockStart()) && !confirm("La semana "+w+" tiene rutina de descarga armada. Si le sacás la descarga, esa rutina se borra al guardar el bloque. ¿Seguir?")) return;
       f.deloads=dls.filter(x=>x!==w);
       if(f.deload_routines && typeof f.deload_routines==="object") delete f.deload_routines[w];
     } else f.deloads=dls.concat(w).sort((x,y)=>x-y);
@@ -1139,7 +1139,7 @@ document.body.addEventListener("click", async e => {
     const w=parseInt(b.dataset.w); if(!(w>=1)) return;
     const f=CoachState.coachBlockForm||CoachState.coachData.block||{};
     if(!f.start_date){ alert("Primero poné la fecha de inicio del bloque (un lunes)."); return; }
-    const old=a==="dl-edit" ? deloadRoutineOf(f, w) : null;
+    const old=a==="dl-edit" ? deloadRoutineOf(f, w, savedBlockStart()) : null;
     const days = old ? JSON.parse(JSON.stringify(old.days)) : (b.dataset.from==="rutina" ? deloadFromRoutine(CoachState.coachData.routine) : []);
     CoachState.coachTplEdit={deload:true, wk:w, saved:!!old, name:"", days:days, orig:JSON.stringify(days)};
     CoachState.coachEditDay=0; CoachState.coachExpandedEx=new Set(); CoachState.coachExMenu=null;
@@ -1282,8 +1282,9 @@ function deloadFromRoutine(routine){
 // guarda la fecha de inicio del bloque (start): si el coach la cambió, se pregunta si las ya
 // armadas siguen valiendo con las fechas nuevas. Una sola vez a la vez (doble toque).
 let _savingBlock=false;
+const savedBlockStart = () => (CoachState.coachData && CoachState.coachData.block && CoachState.coachData.block.start_date) || null;
 async function saveBlock(bf){
-  if(_savingBlock) return false;
+  if(_savingBlock){ alert("Todavía se está guardando el bloque. Probá de nuevo en un momento."); return false; }
   if(!bf.start_date){ alert("Poné la fecha de inicio del bloque (un lunes)."); return false; }
   const weeks=Math.max(1, Math.min(52, parseInt(bf.weeks)||8));
   const dls=[...new Set(deloadWeeks(bf))].filter(w=>w<=weeks).sort((x,y)=>x-y);
@@ -1299,8 +1300,10 @@ async function saveBlock(bf){
   });
   if(lost.length && !confirm("La rutina de descarga de la semana "+lost.join(", ")+" queda afuera (la semana ya no es de descarga o el bloque es más corto) y se borra. ¿Guardar igual?")) return false;
   if(carry.length){
-    if(confirm("Cambiaste la fecha de inicio del bloque. ¿Las rutinas de descarga ya armadas (semana "+carry.join(", ")+") siguen valiendo con las fechas nuevas?\n\nAceptar: se mantienen · Cancelar: se borran (por ejemplo, si es un mesociclo nuevo)."))
+    const wks="semana"+(carry.length>1?"s ":" ")+carry.join(", ");
+    if(confirm("Cambiaste la fecha de inicio del bloque. ¿Las rutinas de descarga ya armadas ("+wks+") siguen valiendo con las fechas nuevas?"))
       carry.forEach(k=>{ dr[k]={days:drAll[k].days, start:bf.start_date}; });
+    else if(!confirm("¿Borrar las rutinas de descarga de "+(carry.length>1?"las ":"la ")+wks+"? (por ejemplo, si es un mesociclo nuevo)\n\nSi cancelás, no se guarda nada.")) return false;
   }
   const wpAll=(bf.week_plan&&typeof bf.week_plan==="object")?bf.week_plan:{}, wp={};
   Object.keys(wpAll).forEach(k=>{
@@ -1311,12 +1314,14 @@ async function saveBlock(bf){
   const row={client_id:CoachState.coachData.id, name:bf.name||null, start_date:bf.start_date, weeks:weeks,
     phase:bf.phase||null, calories:bf.calories||null, deloads:dls, notes:bf.notes||null, active:true,
     week_plan:wp, deload_routines:dr};
-  const data=CoachState.coachData;
+  const data=CoachState.coachData, snap=JSON.stringify(bf);
   _savingBlock=true;
   try{
     if(data.block && data.block.id){ sbOk(await State.sb.from("blocks").update(row).eq("id",data.block.id)); row.id=data.block.id; }
     else { const r=sbOk(await State.sb.from("blocks").insert(row).select("id").single()); if(r.data) row.id=r.data.id; }
-    data.block=row; if(CoachState.coachData===data) CoachState.coachBlockForm=null;
+    // Si mientras se guardaba el coach cambió algo más, eso queda como cambio sin guardar.
+    data.block=row;
+    if(CoachState.coachData===data && (!CoachState.coachBlockForm || JSON.stringify(CoachState.coachBlockForm)===snap)) CoachState.coachBlockForm=null;
     return true;
   }catch(e){ alert("No se pudo: "+((e&&e.message)||e)); return false; }
   finally{ _savingBlock=false; }

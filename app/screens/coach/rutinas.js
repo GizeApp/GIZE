@@ -202,7 +202,7 @@ function weeksHtml(d){
   const selW = CoachState.coachWeekSel;
   let grid="";
   for(let w=1; w<=wks; w++){
-    const on=dls.indexOf(w)>=0, rt=on && !!deloadRoutineOf(b, w);
+    const on=dls.indexOf(w)>=0, rt=on && !!deloadRoutineOf(b, w, savedStart(d));
     const wp=weekPlanOf(b, w), hasNote=!!(wp.goal||wp.note);
     const lbl='Semana '+w+(on?', de descarga':'')+(rt?', con rutina de descarga':'')+(w===cur?', semana actual':'');
     grid+='<button class="bw'+(on?' dl':'')+(w===cur?' now':'')+(selW===w?' sel':'')+(hasNote?' has-note':'')+'" data-coach="blk-week" data-w="'+w+'" aria-pressed="'+on+'" aria-label="'+lbl+'">'+w+
@@ -214,6 +214,8 @@ function weeksHtml(d){
     (selW!==null && selW>=1 && selW<=wks ? weekPanel(b, selW, cur, d) : '')+
     (CoachState.coachBlockForm?'<div class="blk-dirty">Ten\u00e9s cambios sin guardar.</div>':'');
 }
+// Fecha de inicio guardada (las rutinas de descarga armadas con ella siguen valiendo hasta guardar).
+const savedStart = d => (d && d.block && d.block.start_date) || null;
 export function refreshBlockWeeks(){
   const host=document.getElementById("bwWrap");
   if(host && CoachState.coachData) host.innerHTML=weeksHtml(CoachState.coachData);
@@ -225,7 +227,7 @@ function weekPanel(b, w, cur, d){
   const wp=weekPlanOf(b, w);
   const rg=weekRange(b, w);
   const when=rg ? ' · del '+fmtDia(rg[0])+' al '+fmtDia(rg[1]) : '';
-  const rt=isDl ? deloadRoutineOf(b, w) : null;
+  const rt=isDl ? deloadRoutineOf(b, w, savedStart(d)) : null;
   let dlBox='';
   if(isDl){
     if(rt){
