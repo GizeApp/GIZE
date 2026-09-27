@@ -43,7 +43,7 @@ import { EntrenoState, REST_DEFAULT, day, expandedOverride, liveCounting, render
 
 import { HabitosState, addHabit, checkDaily, renderHabitos } from './screens/habitos.js';
 
-import { ProgresoState, allSetsDone, renderProgreso } from './screens/progreso.js';
+import { ProgresoState, allSetsDone, exOccurrence, lastKgsUseful, lastPlan, lastSessionFor, renderProgreso } from './screens/progreso.js';
 
 import { beep, initAudio } from './ui/audio.js';
 
@@ -246,6 +246,9 @@ document.body.addEventListener("input", async e => {
           o.kg=t.value; if(t.value) autoKg.add(o.id); else autoKg.delete(o.id);
           const inp=document.querySelector('input.kg[data-set="'+o.id+'"]'); if(inp && inp!==t) inp.value=t.value;
         });
+        // «Usar estos pesos»: aparece si ahora cambiaría algo y se oculta si ya están esos pesos.
+        const ub=t.closest("[data-ex-id]"), use=ub && ub.querySelector(".ls-use");
+        if(use){ const prev=lastSessionFor(ex.name, exOccurrence(d.exercises, ex)); use.hidden=!(prev && lastKgsUseful(ex, lastPlan(ex, prev.sets))); }
       }
     }
   }
@@ -624,6 +627,15 @@ document.body.addEventListener("click", async e => {
     if(!ex) return;
     if(el.dataset.coach){ ex.sets.forEach(s=>{ const k=parseFloat(String(s.targetKg||"").replace(",", "."))||0; if(!s.done && k>0){ s.kg=String(k); autoKg.delete(s.id); } }); }
     else { const kg=parseFloat(el.dataset.kg); if(kg>0) ex.sets.forEach(s=>{ if(!s.done){ s.kg=String(kg); autoKg.delete(s.id); } }); }
+    save(); renderApp(); return;
+  }
+  // «La vez pasada» → Usar estos pesos: cada serie sin tildar toma el peso de la misma serie
+  // de la vez pasada (las de más, el de la última). Quedan como cargados a mano.
+  if (a === "last-use") {
+    if(!ex) return;
+    const prev=lastSessionFor(ex.name, exOccurrence(d.exercises, ex)); if(!prev) return;
+    const plan=lastPlan(ex, prev.sets);
+    ex.sets.forEach((s,i)=>{ const k=plan[i]&&plan[i].kg; if(!s.done && k>0){ s.kg=String(k); autoKg.delete(s.id); forgetPR(s.id); } });
     save(); renderApp(); return;
   }
   if (a === "ex-expand") { expandedOverride.add(ex.id); renderApp(); return; }

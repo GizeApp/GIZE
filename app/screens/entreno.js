@@ -16,7 +16,7 @@ import { esc, fmt, fmtSecs, isTimedEx, norm, parseSecs, setText, today } from '.
 
 import { renderApp } from '../main.js';
 
-import { allSetsDone, bestKgBefore, bestSetOf, lastSessionFor, renderLastSession } from './progreso.js';
+import { allSetsDone, bestKgBefore, bestSetOf, lastPlan, lastSessionFor, renderLastSession } from './progreso.js';
 import { kgText, suggest } from '../core/progresion.js';
 import { prSets } from '../ui/festejo.js';
 
@@ -173,7 +173,7 @@ export function wkElapsedText(){ return fmt(wkElapsedMs()); }
 
 // Sugerencia de progresión (app/core/progresion.js), debajo de «La vez pasada».
 const upSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>';
-function renderSuggestion(ex, timed){
+function renderSuggestion(ex, timed, occ){
   if (allSetsDone(ex)) return "";
   // Propuesta del coach: el peso que cargó por serie en su editor. Manda sobre la automática.
   const kgs = ex.sets.map(s => parseFloat(String(s.targetKg||"").replace(",", ".")) || 0);
@@ -185,7 +185,7 @@ function renderSuggestion(ex, timed){
     return `<div class="prog-sug coach"><span class="ps-ic">${upSvg}</span><div class="ps-txt"><span class="ps-lbl">Tu coach propone</span> <b>${esc(txt)}</b>${same?'':'<span class="ps-why">Peso de cada serie.</span>'}</div>${canUse?`<button class="ps-use" data-action="sug-use" data-ex="${esc(ex.id)}" data-coach="1">Usar</button>`:''}</div>`;
   }
   if (ex.noSug || state.days.some(x => x && x.noSug)) return "";
-  const prev = lastSessionFor(ex.name); if (!prev) return "";
+  const prev = lastSessionFor(ex.name, occ); if (!prev) return "";
   const sg = suggest(ex, prev.sets, timed); if (!sg) return "";
   const canUse = sg.kg != null && ex.sets.some(s => !s.done && String(s.kg||"") !== String(sg.kg));
   return `<div class="prog-sug"><span class="ps-ic">${upSvg}</span><div class="ps-txt"><span class="ps-lbl">Hoy probá</span> <b>${esc(sg.text)}</b><span class="ps-why">${esc(sg.why)}</span></div>${canUse?`<button class="ps-use" data-action="sug-use" data-ex="${esc(ex.id)}" data-kg="${sg.kg}">Usar</button>`:''}</div>`;
@@ -249,11 +249,16 @@ export function renderEntreno(){
         ${routineLocked()?'':`<button class="rm" data-action="removeset" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}" title="Quitar serie">${xSvg}</button>`}
       </div>`;
     };
+    // Repeticiones de la vez pasada como guía (en gris) en cada serie sin tildar. Si el día
+    // tiene el mismo ejercicio dos veces, cada uno con el suyo de la vez pasada (occ).
+    const occ = d.exercises.slice(0, exIdx).filter(x => x.name === ex.name).length;
+    const prevLS = timed ? null : lastSessionFor(ex.name, occ);
+    const lp = prevLS ? lastPlan(ex, prevLS.sets) : [];
     const sets = timed ? ex.sets.map(setRow).join("") : ex.sets.map((s,i) => `
       <div class="set">
         <span class="idx${prSets.has(s.id)?' has-pr':''}">${prSets.has(s.id)?`<span class="pr-mark">${trophySvg}</span>`:''}${i+1}</span>
         <div class="field"><input class="kg" type="text" inputmode="decimal" placeholder="0" value="${esc(s.kg)}" data-action="kg" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}"><span class="unit">kg</span></div>
-        <div class="field"><input class="reps" type="text" inputmode="numeric" placeholder="0" value="${esc(s.reps)}" data-action="reps" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}"><span class="unit">reps</span></div>
+        <div class="field"><input class="reps" type="text" inputmode="numeric" placeholder="${!s.done&&lp[i]&&lp[i].reps>0?lp[i].reps:0}" value="${esc(s.reps)}" data-action="reps" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}"><span class="unit">reps</span></div>
         ${s.target?`<span class="goal" title="Objetivo del coach">${esc(s.target)}</span>`:''}
         <button class="done${s.done?' on':''}" data-action="toggle" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}">${s.done?checkSvg:''}</button>
         ${routineLocked()?'':`<button class="rm" data-action="removeset" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}" title="Quitar serie">${xSvg}</button>`}
@@ -271,8 +276,8 @@ export function renderEntreno(){
         ${ex.rir?`<span class="ep-chip">RIR ${esc(ex.rir)}</span>`:''}
         ${ex.goal?`<span class="ep-goal">${esc(ex.goal)}</span>`:''}
       </div>`:''}
-      ${renderLastSession(ex.name)}
-      ${renderSuggestion(ex, timed)}
+      ${renderLastSession(ex.name, ex, occ)}
+      ${renderSuggestion(ex, timed, occ)}
       ${sets}
       ${ex.note?`<div class="ex-note"><span class="ex-note-t">Nota de tu coach</span>${esc(ex.note)}</div>`:''}
       ${routineLocked()?'':`<button class="add-set" data-action="addset" data-ex="${esc(ex.id)}">+ Serie</button>`}
