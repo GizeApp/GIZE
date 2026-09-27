@@ -77,6 +77,14 @@ const autoKg = new Set();
 function fitDayName(t){ t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }
 document.addEventListener("keydown", e => { if(e.key === "Enter" && e.target.matches && e.target.matches("textarea.day-name")){ e.preventDefault(); e.target.blur(); } });
 
+// Historial de entrenos: se abre y cierra desde acá (en el iPhone, Safari no despliega el
+// <details> tocando el resumen cuando este tiene display:flex).
+document.addEventListener("click", e => {
+  const s = e.target.closest && e.target.closest("summary.sess-sum"); if(!s) return;
+  const d = s.parentElement; if(!d || d.tagName !== "DETAILS") return;
+  e.preventDefault(); d.open = !d.open;
+});
+
 export function renderApp(){
   // Una cuenta de coach ve solo su panel: si algo pedía la pantalla del cliente, quedaba
   // dibujada debajo del panel (que es transparente) y se veían las dos encimadas.
