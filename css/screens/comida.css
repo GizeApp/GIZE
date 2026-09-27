@@ -333,3 +333,15 @@ button.search-open { flex: 1; background: var(--card-2); border: 1px solid var(-
 /* Buscador sin nada escrito: búsquedas y comidas recientes. */
 .rs-head { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--txt-3); margin: 14px 2px 6px; }
 .rs-head:first-child { margin-top: 4px; }
+
+/* Botón del escáner con neón: borde con los colores de GIZE girando y un halo violeta. */
+.scan-btn { border: 1.5px solid transparent; color: #E7B8FF;
+  background: linear-gradient(var(--gize-surface-2), var(--gize-surface-2)) padding-box,
+    conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--gize-r2) 45%, transparent), inset 0 0 10px color-mix(in srgb, var(--gize-r2) 18%, transparent);
+  animation: gize-spin 5s linear infinite; }
+.scan-btn svg { filter: drop-shadow(0 0 4px #C58BFF) drop-shadow(0 0 8px color-mix(in srgb, var(--gize-r2) 70%, transparent)); }
+.scan-btn:hover { border-color: transparent; box-shadow: 0 0 20px color-mix(in srgb, var(--gize-r2) 60%, transparent), inset 0 0 12px color-mix(in srgb, var(--gize-r2) 22%, transparent); }
+.scan-btn:active { transform: scale(.96); }
+@media (prefers-reduced-motion: reduce) { .scan-btn { animation: none; } }
+html.lite .scan-btn { animation: none; }
