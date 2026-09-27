@@ -15,6 +15,10 @@
 #   RESEND_API_KEY         opcional. Clave de Resend ("Sending access") para los avisos de pagos
 #                          a los socios (tarea "secrets").
 #   AVISOS_PAGOS           opcional. Mails que reciben los avisos de pagos, separados por coma.
+#   RESEND_FULL_KEY        para "secrets". Clave de Resend con acceso completo ("Full access"): la
+#                          función "contacto" la usa para leer los mails que llegan a contacto@gize.ar.
+#   RESEND_WEBHOOK_SECRET  para "secrets". El "Signing secret" (whsec_…) del webhook de Resend que
+#                          avisa los mails recibidos (función "contacto").
 #   DEMO_PASSWORD          para "cuentas-demo". Contraseña de las cuentas demo de Google Play.
 #                          Va como secret y no como dato del formulario: el repo es público y
 #                          los datos del formulario quedan escritos en el log de la ejecución.
@@ -66,13 +70,14 @@ jobs:
 
       # La app llama a la función de mensajes "rapid-worker" (el nombre que le puso
       # Supabase al crearla desde el panel); el código es el de notificar-cliente.
-      # Las dos van sin "Verify JWT": suscripcion recibe los avisos de Mercado Pago sin
-      # sesión, y las dos validan al usuario por su cuenta con auth.getUser().
+      # Todas van sin "Verify JWT": suscripcion recibe los avisos de Mercado Pago sin
+      # sesión, contacto los mails que avisa Resend (valida la firma del webhook), y las que
+      # usa la app validan al usuario por su cuenta con auth.getUser().
       - name: Publicar funciones
         if: inputs.tarea == 'funciones'
         run: |
           cp -r supabase/functions/notificar-cliente supabase/functions/rapid-worker
-          for fn in rapid-worker suscripcion descanso avisos-coach admin; do
+          for fn in rapid-worker suscripcion descanso avisos-coach admin contacto; do
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt --use-api
           done
 
@@ -84,6 +89,8 @@ jobs:
           APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FULL_KEY: ${{ secrets.RESEND_FULL_KEY }}
+          RESEND_WEBHOOK_SECRET: ${{ secrets.RESEND_WEBHOOK_SECRET }}
           AVISOS_PAGOS: ${{ secrets.AVISOS_PAGOS }}
         run: |
           # Se cargan los que estén en GitHub: Mercado Pago y, para la app de iPhone, la clave de Apple.
@@ -91,8 +98,10 @@ jobs:
           [ -n "$MP_ACCESS_TOKEN" ] && set -- "$@" MP_ACCESS_TOKEN="$MP_ACCESS_TOKEN"
           [ -n "$APNS_KEY_P8" ] && set -- "$@" APNS_KEY_P8="$APNS_KEY_P8" APNS_KEY_ID="$APNS_KEY_ID" APPLE_TEAM_ID="$APPLE_TEAM_ID"
           [ -n "$RESEND_API_KEY" ] && set -- "$@" RESEND_API_KEY="$RESEND_API_KEY"
+          [ -n "$RESEND_FULL_KEY" ] && set -- "$@" RESEND_FULL_KEY="$RESEND_FULL_KEY"
+          [ -n "$RESEND_WEBHOOK_SECRET" ] && set -- "$@" RESEND_WEBHOOK_SECRET="$RESEND_WEBHOOK_SECRET"
           [ -n "$AVISOS_PAGOS" ] && set -- "$@" AVISOS_PAGOS="$AVISOS_PAGOS"
-          if [ $# -eq 0 ]; then echo "::error::No hay secrets para cargar (MP_ACCESS_TOKEN o APNS_KEY_P8)"; exit 1; fi
+          if [ $# -eq 0 ]; then echo "::error::No hay secrets para cargar en GitHub (Settings → Secrets and variables → Actions)"; exit 1; fi
           supabase secrets set --project-ref "$PROJECT_REF" "$@"
           # Solo los nombres: la lista trae también un resumen (hash) de cada valor y el log es público.
           supabase secrets list --project-ref "$PROJECT_REF" | awk -F'|' '{print $1}'

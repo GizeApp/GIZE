@@ -28,7 +28,7 @@ const LINKS = {
   terms: "https://gize.ar/privacidad/",
   instagram: "https://instagram.com/gize.app",
   website: "https://gize.ar/",
-  email: "jeronimoperpi@gmail.com",
+  email: "contacto@gize.ar",
   whatsapp: "5493413490705",
 };
 

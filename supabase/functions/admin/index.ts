@@ -5,7 +5,10 @@
 //   { action: "aviso", target, title, body } → notificación a todos / coaches / alumnos
 //   { action: "eliminar", user_id }          → borra la cuenta (antes cancela su suscripción en MP
 //                                              y borra sus fotos de Storage)
-// Usa los secrets de siempre: MP_ACCESS_TOKEN, VAPID, FCM_SERVICE_ACCOUNT y los de Apple.
+//   { action: "responder", message_id, text } → contesta un mensaje de contacto (ver
+//                                              supabase/contacto.sql) desde contacto@gize.ar
+// Usa los secrets de siempre: MP_ACCESS_TOKEN, VAPID, FCM_SERVICE_ACCOUNT, los de Apple y
+// RESEND_API_KEY (el mismo con el que salen los avisos de pagos).
 // Va sin "Verify JWT" (como las demás) y valida la sesión con auth.getUser().
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -165,7 +168,7 @@ Deno.serve(async (req) => {
   if (isAdmin !== true) return json({ error: "Solo administradores." }, 403);
   const adminId = u.user.id;
 
-  let input: { action?: string; coach_id?: string; user_id?: string; target?: string; title?: string; body?: string };
+  let input: { action?: string; coach_id?: string; user_id?: string; target?: string; title?: string; body?: string; message_id?: number; text?: string };
   try { input = await req.json(); } catch { return json({ error: "Pedido inválido" }, 400); }
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const log = (action: string, target: string | null, detail: unknown) =>
@@ -232,6 +235,42 @@ Deno.serve(async (req) => {
     const { error } = await db.auth.admin.deleteUser(uid);
     if (error) return json({ error: error.message }, 500);
     await log("eliminar", uid, { nombre: prof && prof.full_name, rol: prof && prof.role, archivos });
+    return json({ ok: true });
+  }
+
+  if (input.action === "responder") {
+    const mid = Number(input.message_id), text = String(input.text || "").replace(/\r\n?/g, "\n").trim();
+    if (!Number.isInteger(mid) || mid <= 0) return json({ error: "Falta el mensaje" }, 400);
+    if (text.length < 2) return json({ error: "Escribí la respuesta." }, 400);
+    if (text.length > 10000) return json({ error: "La respuesta es demasiado larga." }, 400);
+    const key = Deno.env.get("RESEND_API_KEY");
+    if (!key) return json({ error: "Falta RESEND_API_KEY" }, 500);
+    const { data: m } = await db.from("contact_messages").select("id, from_email, from_name, reply_to, subject, body, message_id, created_at").eq("id", mid).maybeSingle();
+    if (!m) return json({ error: "No existe ese mensaje." }, 404);
+    const subj0 = String(m.subject || "").replace(/[\r\n]+/g, " ").trim();
+    const subject = /^re:/i.test(subj0) ? subj0 : "Re: " + (subj0 || "Tu mensaje a GIZE");
+    // Se cita el mensaje original debajo, como en cualquier respuesta de mail.
+    const when = new Date(m.created_at).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const quoted = String(m.body || "").slice(0, 4000).split("\n").map((l: string) => "> " + l).join("\n");
+    const full = text + "\n\n— Equipo GIZE\nhttps://gize.ar\n\nEl " + when + ", " + (m.from_name || m.from_email) + " escribió:\n" + quoted;
+    const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const html = '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#111">' + esc(text).replace(/\n/g, "<br>") +
+      '<br><br>— Equipo GIZE<br><a href="https://gize.ar">gize.ar</a></div>' +
+      '<div style="margin-top:18px;color:#666;font-size:13px">El ' + esc(when) + ", " + esc(m.from_name || m.from_email) + ' escribió:</div>' +
+      '<blockquote style="margin:6px 0 0;padding-left:10px;border-left:3px solid #ccc;color:#666;font-size:13px">' + esc(String(m.body || "").slice(0, 4000)).replace(/\n/g, "<br>") + "</blockquote>";
+    const headers: Record<string, string> = {};
+    if (m.message_id && /^<[^<>\s]+>$/.test(m.message_id)) { headers["In-Reply-To"] = m.message_id; headers["References"] = m.message_id; }
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
+      // Al Reply-To del mail si lo trae (listas, formularios); si no, a quien lo mandó.
+      body: JSON.stringify({ from: "GIZE <contacto@gize.ar>", to: [m.reply_to || m.from_email], reply_to: "contacto@gize.ar", subject, text: full, html, headers }),
+    });
+    if (!r.ok) { const t = await r.text(); console.error("resend", r.status, t); return json({ error: "No se pudo mandar el mail (" + r.status + ")." }, 502); }
+    const now = new Date().toISOString();
+    await db.from("contact_messages").update({ replied_at: now, replied_by: adminId, reply: text }).eq("id", mid);
+    await db.from("contact_messages").update({ read_at: now, read_by: adminId }).eq("id", mid).is("read_at", null);
+    await log("contacto_respuesta", String(mid), { a: m.reply_to || m.from_email, asunto: subject });
     return json({ ok: true });
   }
 

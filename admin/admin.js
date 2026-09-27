@@ -9,8 +9,8 @@ const REPO = "GizeApp/gize";
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "implicit", detectSessionInUrl: true } });
 
 const $root = document.getElementById("root");
-const S = { user: null, view: "resumen", overview: null, users: null, q: "", coaches: null, prodTab: "pendientes", prods: null, urls: {}, audit: null, backups: null, config: null };
-const SECTIONS = [["resumen", "Resumen"], ["usuarios", "Usuarios"], ["coaches", "Coaches y pagos"], ["productos", "Productos"], ["avisos", "Avisos"], ["seguridad", "Seguridad y sistema"]];
+const S = { user: null, view: "resumen", overview: null, users: null, q: "", coaches: null, prodTab: "pendientes", prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false };
+const SECTIONS = [["resumen", "Resumen"], ["contacto", "Mensajes"], ["usuarios", "Usuarios"], ["coaches", "Coaches y pagos"], ["productos", "Productos"], ["avisos", "Avisos"], ["seguridad", "Seguridad y sistema"]];
 
 // ---------- utilidades ----------
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -58,6 +58,7 @@ async function boot(){
   if (!ok) return gate("La cuenta <b>" + esc(S.user.email) + "</b> no es administradora de GIZE.", false);
   const v = (location.hash || "").replace("#", ""); if (SECTIONS.some(s => s[0] === v)) S.view = v;
   shell(); go(S.view);
+  refreshUnread(); setInterval(refreshUnread, 60000);
 }
 sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !S.user) boot(); if (ev === "SIGNED_OUT") { S.user = null; gate("Cerraste la sesión.", true); } });
 
@@ -65,18 +66,35 @@ sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !S.user) boot(); i
 function shell(){
   $root.innerHTML = `<div class="shell"><nav class="side">
       <img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE"><div class="side-sub">Administración</div>
-      ${SECTIONS.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : ""}</button>`).join("")}
+      ${SECTIONS.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : ""}</button>`).join("")}
       <div class="side-foot">${esc(S.user.email)}<br><button data-a="logout">Salir</button> · <a href="../app/">Ir a la app</a></div>
     </nav><main class="main" id="main"></main></div>`;
 }
 function go(view){
   S.view = view; history.replaceState(null, "", "#" + view);
   document.querySelectorAll(".nav").forEach(b => b.classList.toggle("on", b.dataset.go === view));
-  ({ resumen: loadResumen, usuarios: loadUsuarios, coaches: loadCoaches, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
+  ({ resumen: loadResumen, contacto: loadContacto, usuarios: loadUsuarios, coaches: loadCoaches, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
 }
 const main = () => document.getElementById("main");
 function page(title, lead, body){ main().innerHTML = `<div class="h1">${title}</div><div class="lead">${lead}</div>${body}`; }
 function setPend(n){ const i = document.getElementById("navPend"); if (i){ i.hidden = !n; i.textContent = n; } }
+// Mensajes de contacto sin leer: número en el menú y en la pestaña del navegador.
+function setUnread(n){
+  S.unread = n || 0;
+  const i = document.getElementById("navMsg"); if (i){ i.hidden = !S.unread; i.textContent = S.unread; }
+  document.title = (S.unread ? "(" + S.unread + ") " : "") + "GIZE · Administración";
+}
+async function refreshUnread(){
+  if (!S.user) return;
+  try {
+    const n = await rpc("admin_contact_unread");
+    // Llegó uno nuevo y se está mirando "Sin leer": se recarga la lista (salvo que estés escribiendo o mandando una respuesta).
+    const busy = S.sending || document.querySelector("#mList .msg-reply:not([hidden])");
+    if (n > S.unread && S.view === "contacto" && S.msgTab === "nuevos" && !busy) loadContacto();
+    setUnread(n);
+  } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshUnread(); });
 
 // ---------- gráfico de columnas (una serie, con detalle al pasar el dedo o el mouse) ----------
 function columns(data, label){
@@ -227,6 +245,66 @@ async function openCoach(id){
   } catch (e) { box.textContent = "No se pudieron traer los cobros: " + errMsg(e); }
 }
 
+// ---------- Mensajes (contacto@gize.ar) ----------
+// Los mails que llegan a contacto@gize.ar (supabase/functions/contacto). Se responden desde
+// acá: la respuesta sale de contacto@gize.ar, así nadie ve el mail personal de quien contesta.
+async function loadContacto(){
+  page("Mensajes", "Lo que la gente manda a <b>contacto@gize.ar</b>. Cuando llega uno nuevo, les avisa a los administradores que tienen las notificaciones prendidas.", `
+    <div class="seg">${[["nuevos", "Sin leer"], ["leidos", "Leídos"], ["todos", "Todos"]].map(([k, l]) => `<button class="${S.msgTab === k ? "on" : ""}" data-a="mtab" data-v="${k}">${l}</button>`).join("")}</div>
+    <div id="mList" class="empty">Cargando…</div>`);
+  const box = document.getElementById("mList");
+  try { S.msgs = await rpc("admin_contact_list", { kind: S.msgTab, lim: 200 }); } catch (e) { box.textContent = errMsg(e); return; }
+  paintMsgs();
+  try { setUnread(await rpc("admin_contact_unread")); } catch (e) {}
+}
+function paintMsgs(){
+  const box = document.getElementById("mList"); if (!box) return;
+  if (!S.msgs.length){ box.className = "empty"; box.textContent = S.msgTab === "nuevos" ? "No hay mensajes sin leer. 🎉" : "Todavía no hay mensajes."; return; }
+  box.className = "grid";
+  box.innerHTML = S.msgs.map(m => `<div class="card msg${m.read_at ? "" : " unread"}" data-msg="${esc(m.id)}">
+      <div class="msg-h"><div><b>${esc(m.from_name || m.from_email)}</b>${m.from_name ? ` <span class="muted small">&lt;${esc(m.from_email)}&gt;</span>` : ""}</div>
+        <span class="muted small">${fmtDT(m.created_at)}</span></div>
+      ${m.auth_dmarc === "pass" || m.body_missing ? "" : '<div class="msg-warn">⚠ Remitente sin verificar: puede ser otra persona haciéndose pasar por esta dirección. No borres cuentas ni des datos por un mail así; pedí que lo confirme desde la app.</div>'}
+      <div class="msg-s">${esc(m.subject || "(sin asunto)")}${m.to_email && m.to_email !== "contacto@gize.ar" ? ` <span class="pill">${esc(m.to_email)}</span>` : ""}${m.reply_to ? ` <span class="pill blue">responder a ${esc(m.reply_to)}</span>` : ""}${m.attachments ? ` <span class="pill">${m.attachments} adjunto${m.attachments === 1 ? "" : "s"}</span>` : ""}${m.replied_at ? ' <span class="pill ok">Respondido</span>' : ""}</div>
+      <div class="msg-b">${m.body_missing ? '<span class="muted">Todavía no se pudo leer el texto de este mail (se vuelve a intentar solo).</span>' : esc(m.body || "(vacío)")}</div>
+      ${m.replied_at ? `<div class="msg-r"><div class="muted small">Respuesta de ${esc(m.replied_by_name || "un administrador")} · ${fmtDT(m.replied_at)}</div>${esc(m.reply || "")}</div>` : ""}
+      <div class="msg-reply" hidden><textarea class="in" maxlength="10000" placeholder="Escribí la respuesta. Le llega desde contacto@gize.ar, con el mensaje original citado abajo."></textarea>
+        <div class="row-btns"><button class="btn" data-a="mcancel">Cancelar</button><button class="btn pri" data-a="msend">Enviar respuesta</button></div></div>
+      <div class="row-btns msg-acts"><button class="btn blue" data-a="mreply">${m.replied_at ? "Responder otra vez" : "Responder"}</button>
+        <button class="btn" data-a="mread" data-v="${m.read_at ? "0" : "1"}">${m.read_at ? "Marcar sin leer" : "Marcar como leído"}</button></div>
+    </div>`).join("");
+  // Las respuestas a medio escribir vuelven a su lugar (la lista se redibuja entera).
+  Object.keys(S.drafts).forEach(id => {
+    const c = box.querySelector(`[data-msg="${id}"]`); if (!c) return;
+    c.querySelector(".msg-reply").hidden = false; c.querySelector(".msg-acts").hidden = true;
+    c.querySelector(".msg-reply textarea").value = S.drafts[id];
+  });
+}
+async function markMsg(btn){
+  const c = btn.closest("[data-msg]"), id = Number(c.dataset.msg), leido = btn.dataset.v === "1";
+  btn.disabled = true;
+  try { await rpc("admin_contact_mark", { mid: id, leido }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  const m = S.msgs.find(x => x.id === id);
+  if (m) m.read_at = leido ? new Date().toISOString() : null;
+  if ((S.msgTab === "nuevos" && leido) || (S.msgTab === "leidos" && !leido)) S.msgs = S.msgs.filter(x => x.id !== id);
+  paintMsgs(); setUnread(Math.max(0, S.unread + (leido ? -1 : 1)));
+}
+async function sendReply(btn){
+  const c = btn.closest("[data-msg]"), id = Number(c.dataset.msg), t = c.querySelector(".msg-reply textarea"), text = t.value.trim();
+  const m = S.msgs.find(x => x.id === id);
+  if (text.length < 2) return toast("Escribí la respuesta.");
+  if (!confirm("¿Mandar la respuesta a " + (m ? (m.reply_to || m.from_email) : "esta persona") + "?")) return;
+  btn.disabled = true; S.sending = true;
+  try { await fn({ action: "responder", message_id: id, text }); }
+  catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  finally { S.sending = false; }
+  delete S.drafts[id];
+  toast("Respuesta enviada ✓");
+  if (m){ const was = !m.read_at; m.replied_at = new Date().toISOString(); m.reply = text; m.replied_by_name = "vos"; m.read_at = m.read_at || m.replied_at; if (was) setUnread(Math.max(0, S.unread - 1)); }
+  if (S.msgTab === "nuevos") S.msgs = S.msgs.filter(x => x.id !== id);
+  paintMsgs();
+}
+
 // ---------- Productos ----------
 async function loadProductos(){
   page("Productos", "Base compartida: lo que cargan los usuarios al escanear. Compará con la foto de la tabla, corregí y verificá.", `
@@ -330,14 +408,16 @@ async function loadSeguridad(){
   if (!S.audit.length){ box.textContent = "Todavía no hay acciones registradas."; return; }
   const what = a => ({ rol: "Cambió el rol a " + ((a.detail || {}).role === "coach" ? "coach" : "alumno"), desvincular: "Desvinculó de su coach", admin_si: "Hizo administrador", admin_no: "Quitó administrador",
     plan: ({ cortesia: "Dio cortesía", trial: "Extendió la prueba", sin_cortesia: "Quitó la cortesía" }[(a.detail || {}).mode] || "Cambió el plan"), config: "Cambió el cartel de actualización",
-    aviso: "Mandó una notificación a " + (a.target || ""), eliminar: "Eliminó la cuenta", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto" }[a.action] || a.action);
-  const extra = a => a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : (a.target_name || "");
+    aviso: "Mandó una notificación a " + (a.target || ""), eliminar: "Eliminó la cuenta",
+    contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto" }[a.action] || a.action);
+  const extra = a => a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : (a.target_name || "");
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Sobre</th></tr></thead><tbody>${S.audit.map(a => `<tr><td class="muted">${fmtDT(a.created_at)}</td><td>${esc(a.admin_name || "—")}</td><td>${esc(what(a))}</td><td class="muted">${esc(extra(a) || "")}</td></tr>`).join("")}</tbody></table>`;
 }
 
 // ---------- acciones ----------
 document.addEventListener("input", e => {
+  const mr = e.target.closest && e.target.closest(".msg-reply"); if (mr) S.drafts[mr.closest("[data-msg]").dataset.msg] = e.target.value;
   if (e.target.id === "avTitle") document.getElementById("pvT").textContent = e.target.value || "Título";
   if (e.target.id === "avBody") document.getElementById("pvB").textContent = e.target.value || "Mensaje";
 });
@@ -369,6 +449,11 @@ document.addEventListener("click", async e => {
       await rpc("admin_set_plan", { cid: b.dataset.id, mode, p_max: max ? parseInt(max.value, 10) || 10 : null, p_days: days ? parseInt(days.value, 10) || 14 : null });
       toast("Listo"); closeDrawer(); loadCoaches(); return;
     }
+    if (a === "mtab"){ if (Object.values(S.drafts).some(v => v.trim()) && !confirm("Tenés una respuesta sin mandar. ¿Cambiar de lista igual? (queda guardada si el mensaje aparece en la otra lista)")) return; S.msgTab = b.dataset.v; loadContacto(); return; }
+    if (a === "mread"){ markMsg(b); return; }
+    if (a === "mreply"){ const c = b.closest("[data-msg]"), r = c.querySelector(".msg-reply"); r.hidden = false; c.querySelector(".msg-acts").hidden = true; S.drafts[c.dataset.msg] = S.drafts[c.dataset.msg] || ""; r.querySelector("textarea").focus(); return; }
+    if (a === "mcancel"){ const c = b.closest("[data-msg]"); delete S.drafts[c.dataset.msg]; c.querySelector(".msg-reply").hidden = true; c.querySelector(".msg-acts").hidden = false; return; }
+    if (a === "msend"){ sendReply(b); return; }
     if (a === "ptab"){ S.prodTab = b.dataset.v; loadProductos(); return; }
     if (a === "psave"){ saveProd(b); return; }
     if (a === "zoom"){ const z = document.createElement("div"); z.className = "zoom"; z.innerHTML = `<img src="${esc(b.dataset.url)}" alt="">`; z.onclick = () => z.remove(); document.body.appendChild(z); return; }

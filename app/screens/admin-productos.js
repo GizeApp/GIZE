@@ -8,7 +8,7 @@
 import { State } from '../core/state.js';
 import { esc } from '../core/utils.js';
 
-export const AdminState = { uid: null, isAdmin: false, pending: 0, tab: "pendientes", items: null, err: "", urls: {} };
+export const AdminState = { uid: null, isAdmin: false, pending: 0, unread: 0, tab: "pendientes", items: null, err: "", urls: {} };
 const TABS = [["pendientes", "Pendientes"], ["reportados", "Reportados"], ["ocultos", "Ocultos"]];
 const num = v => parseFloat(String(v == null ? "" : v).replace(",", ".")) || 0;
 const fmtN = v => (Math.round((Number(v) || 0) * 10) / 10).toString().replace(".", ",");
@@ -22,7 +22,10 @@ export async function checkAdmin(rerender){
   try {
     const r = await State.sb.rpc("is_app_admin");
     AdminState.isAdmin = !r.error && !!r.data;
-    if (AdminState.isAdmin){ const c = await State.sb.rpc("admin_pending"); AdminState.pending = (c && c.data) || 0; }
+    if (AdminState.isAdmin){
+      const c = await State.sb.rpc("admin_pending"); AdminState.pending = (c && c.data) || 0;
+      const m = await State.sb.rpc("admin_contact_unread"); AdminState.unread = (m && !m.error && m.data) || 0; // mensajes de contacto sin leer
+    }
   } catch (e) { AdminState.isAdmin = false; }
   if (AdminState.isAdmin && rerender) rerender();
 }
@@ -30,7 +33,7 @@ export async function checkAdmin(rerender){
 // Botón de entrada (Ajustes del cliente y Configuración del coach).
 export function adminEntry(){
   if (!AdminState.isAdmin) return "";
-  return `<a class="adm-entry" href="https://gize.ar/admin/" target="_blank" rel="noopener"><span><b>Panel de administración</b><small>Resumen, usuarios, coaches y pagos, avisos y seguridad</small></span><em aria-hidden="true">›</em></a>
+  return `<a class="adm-entry" href="https://gize.ar/admin/${AdminState.unread ? "#contacto" : ""}" target="_blank" rel="noopener"><span><b>Panel de administración</b><small>${AdminState.unread ? AdminState.unread + (AdminState.unread === 1 ? " mensaje de contacto sin leer" : " mensajes de contacto sin leer") : "Mensajes, resumen, usuarios, coaches y pagos, avisos y seguridad"}</small></span>${AdminState.unread ? `<i>${AdminState.unread}</i>` : ""}<em aria-hidden="true">›</em></a>
     <button class="adm-entry" data-adm="open"><span><b>Revisar productos</b><small>Base compartida de GIZE · verificá lo que cargan los usuarios</small></span>${AdminState.pending ? `<i>${AdminState.pending}</i>` : ""}<em aria-hidden="true">›</em></button>`;
 }
 
