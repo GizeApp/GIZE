@@ -1127,14 +1127,21 @@ document.body.addEventListener("click", async e => {
     renderCoach(); return;
   }
   // Bloque: tocar una semana la marca como descarga (queda en azul) y abre su panel abajo;
-  // tocar una que ya es de descarga abre o cierra su panel.
+  // tocar una que ya es de descarga la desmarca (si tiene rutina armada, pregunta antes).
+  // Cada semana de descarga se abre desde la lista de abajo de la grilla (wk-open).
   if(a==="blk-week"){
     const w=parseInt(b.dataset.w); if(!(w>=1)) return;
     const cur=CoachState.coachBlockForm||CoachState.coachData.block||{};
     if(deloadWeeks(cur).indexOf(w)<0){ const f=blockForm(); f.deloads=deloadWeeks(f).concat(w).sort((x,y)=>x-y); CoachState.coachWeekSel=w; }
-    else CoachState.coachWeekSel = CoachState.coachWeekSel===w ? null : w;
+    else {
+      if(deloadRoutineOf(cur, w, savedBlockStart()) && !confirm("La semana "+w+" tiene rutina de descarga armada. Si la desmarcás, esa rutina se borra al guardar el bloque. ¿Desmarcarla?")) return;
+      const f=blockForm(); f.deloads=deloadWeeks(f).filter(x=>x!==w);
+      if(f.deload_routines && typeof f.deload_routines==="object") delete f.deload_routines[w];
+      if(CoachState.coachWeekSel===w) CoachState.coachWeekSel=null;
+    }
     renderCoach(); return;
   }
+  if(a==="wk-open"){ const w=parseInt(b.dataset.w); if(!(w>=1)) return; CoachState.coachWeekSel = CoachState.coachWeekSel===w ? null : w; renderCoach(); return; }
   if(a==="wk-close"){ CoachState.coachWeekSel=null; renderCoach(); return; }
   if(a==="wk-dl"){
     const w=parseInt(b.dataset.w); if(!(w>=1)) return;
