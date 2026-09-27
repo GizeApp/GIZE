@@ -161,8 +161,32 @@ async function searchUsers(){
   box.className = "empty"; box.textContent = "Cargando…";
   try { S.users = await rpc("admin_users", { q: S.q }); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.users.length){ box.textContent = "Sin resultados."; return; }
+  paintUsers();
+}
+// Columnas de la tabla de usuarios: tocar el título ordena por esa columna (ascendente) y
+// tocarlo otra vez la da vuelta (descendente). Los vacíos van siempre al final.
+const USER_COLS = [
+  ["name", "Usuario", u => (u.full_name || "").toLocaleLowerCase("es") || null],
+  ["role", "Rol", u => u.role === "coach" ? "coach" : "alumno"],
+  ["coach", "Coach", u => (u.coach_name || "").toLocaleLowerCase("es") || null],
+  ["alta", "Alta", u => u.created_at ? Date.parse(u.created_at) : null],
+  ["visto", "Última vez", u => (u.last_seen_at || u.last_sign_in_at) ? Date.parse(u.last_seen_at || u.last_sign_in_at) : null],
+  ["app", "App", u => u.app_platform ? platformTxt(u.app_platform, u.app_version).toLowerCase() : null],
+];
+function paintUsers(){
+  const box = document.getElementById("uList"); if (!box || !S.users) return;
+  const so = S.uSort || null, col = so && USER_COLS.find(c => c[0] === so.k);
+  const list = S.users.slice();
+  if (col){
+    const dir = so.dir === "desc" ? -1 : 1;
+    list.sort((a, b) => { const x = col[2](a), y = col[2](b);
+      if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+      return (typeof x === "string" ? x.localeCompare(y, "es") : x - y) * dir; });
+  }
+  const th = ([k, l]) => { const on = so && so.k === k, arrow = on ? (so.dir === "desc" ? " ▼" : " ▲") : "";
+    return `<th aria-sort="${on ? (so.dir === "desc" ? "descending" : "ascending") : "none"}"><button class="th-sort${on ? " on" : ""}" data-a="usort" data-k="${k}">${l}<span class="th-arr">${arrow || " ↕"}</span></button></th>`; };
   box.className = "tscroll";
-  box.innerHTML = `<table class="table"><thead><tr><th>Usuario</th><th>Rol</th><th>Coach</th><th>Alta</th><th>Última vez</th><th>App</th></tr></thead><tbody>${S.users.map(u => `
+  box.innerHTML = `<table class="table"><thead><tr>${USER_COLS.map(th).join("")}</tr></thead><tbody>${list.map(u => `
     <tr class="row" data-user="${esc(u.id)}"><td><b>${esc(u.full_name || "Sin nombre")}</b>${u.is_admin ? ' <span class="pill blue">admin</span>' : ""}<div class="muted small">${esc(u.email)}</div></td>
       <td>${u.role === "coach" ? '<span class="pill ok">Coach</span>' : '<span class="pill">Alumno</span>'}</td>
       <td class="muted">${esc(u.coach_name || "—")}</td><td class="muted">${fmtD(u.created_at)}</td>
@@ -767,6 +791,7 @@ document.addEventListener("click", async e => {
     if (a === "mreply"){ const c = b.closest("[data-msg]"), r = c.querySelector(".msg-reply"); r.hidden = false; c.querySelector(".msg-acts").hidden = true; S.drafts[c.dataset.msg] = S.drafts[c.dataset.msg] || ""; r.querySelector("textarea").focus(); return; }
     if (a === "mcancel"){ const c = b.closest("[data-msg]"); delete S.drafts[c.dataset.msg]; c.querySelector(".msg-reply").hidden = true; c.querySelector(".msg-acts").hidden = false; return; }
     if (a === "msend"){ sendReply(b); return; }
+    if (a === "usort"){ const k = b.dataset.k, so = S.uSort; S.uSort = { k, dir: so && so.k === k && so.dir === "asc" ? "desc" : "asc" }; paintUsers(); return; }
     if (a === "ptab"){ S.prodTab = b.dataset.v; loadProductos(); return; }
     if (a === "psave"){ saveProd(b); return; }
     if (a === "pdel"){ deleteProd(b); return; }
