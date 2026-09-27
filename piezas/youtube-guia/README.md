@@ -20,6 +20,8 @@ python3 -m http.server 8766 &                    # desde una copia de main
 node grabacion/guia_solo.js                      # → grabacion/frames/solo/ (una escena: node grabacion/guia_solo.js comida)
 node grabacion/guia_coach.js                     # → grabacion/frames/coach/
 python3 guia.py salida/gize-guia-completa.mp4
+# versión final más liviana (misma calidad a la vista, entra en GitHub):
+# ffmpeg -i salida/gize-guia-completa.mp4 -vf hqdn3d=3:2:4:4 -c:v libx264 -preset slow -crf 25 -tune stillimage -pix_fmt yuv420p -g 60 -movflags +faststart final.mp4
 python3 guia.py --capitulos                      # capítulos para la descripción
 python3 guia.py --cuadros 700 11000              # cuadros sueltos para revisar
 ```
