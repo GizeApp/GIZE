@@ -263,3 +263,11 @@ body:not(#_) .ss-group :is(.card, .ex-collapsed) { border: 0; border-radius: 0; 
 .wk-finish svg { width: 16px; height: 16px; color: var(--gize-success); }
 .wk-cancel { padding: 6px 12px; border-radius: 4px; border: 1px solid var(--gize-danger); background: color-mix(in srgb, var(--gize-danger) 12%, transparent); color: var(--gize-danger); font-size: var(--text-meta); font-weight: 700; cursor: pointer; }
 .wk-cancel:active { background: color-mix(in srgb, var(--gize-danger) 24%, transparent); }
+
+/* Explicación de voz del coach (app/screens/entreno.js → exAudioBtn). Va al lado del video. */
+.ex-audio { display:inline-flex; align-items:center; gap:6px; background:var(--card-2); border:1px solid var(--gize-r2); color:var(--txt); font:700 var(--text-meta) var(--gize-font);
+  padding:7px 11px; border-radius:4px; margin:0 0 10px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.ex-video + .ex-audio { margin-left:6px; }
+.ex-audio svg { width:var(--icon-sm); height:var(--icon-sm); flex-shrink:0; color:var(--gize-r2); }
+.ex-audio.on { background:color-mix(in srgb, var(--gize-r2) 18%, var(--card-2)); }
+.ex-audio-t { font-weight:500; color:var(--txt-3); font-variant-numeric:tabular-nums; }

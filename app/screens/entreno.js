@@ -1,3 +1,4 @@
+import { Player, audioState, mmss } from '../ui/grabar.js';
 import { ssGroups, ssName } from '../core/superserie.js';
 import { exVideo } from '../core/videos.js';
 
@@ -271,6 +272,7 @@ export function renderEntreno(){
         <button class="trash" data-action="removeex" data-ex="${esc(ex.id)}" title="Eliminar ejercicio">${trashSvg}</button>`}
       </div>
       ${(()=>{ const v=exVideo(ex); return v?`<a class="ex-video" href="${esc(v.url)}" target="_blank" rel="noopener">${playSvg} Ver video del ejercicio${v.channel?`<span class="ex-video-by">· ${esc(v.channel)}</span>`:''}</a>`:''; })()}
+      ${exAudioBtn(ex)}
       ${(ex.rir||ex.goal)?`<div class="ex-prog">
         ${ex.rir?`<span class="ep-chip">RIR ${esc(ex.rir)}</span>`:''}
         ${ex.goal?`<span class="ep-goal">${esc(ex.goal)}</span>`:''}
@@ -353,3 +355,21 @@ export function exerciseIsLivePR(ex){
   const prev=bestKgBefore(ex.name, state.sessions);
   return prev!==null && num(best.kg)>prev;
 }
+
+// Explicación de voz del coach en el ejercicio (app/screens/coach/audio-ej.js).
+const EX_AUDIO_RE = /^[0-9a-f-]{36}\/ex\/[A-Za-z0-9_-]{8,64}\.(webm|mp4|m4a|ogg|aac)$/;
+const hpSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="3" y="14" width="4" height="7" rx="1.5"/><rect x="17" y="14" width="4" height="7" rx="1.5"/></svg>';
+function exAudioLabel(path, secs){
+  const st = audioState("ex:" + path);
+  return (st.playing ? 'Pausar' : 'Escuchar a tu coach') + ' <span class="ex-audio-t">' + (st.on && st.time > 0 ? mmss(st.time) + ' / ' : '') + mmss(secs) + '</span>';
+}
+export function exAudioBtn(ex){
+  if(!ex || !ex.audio || !EX_AUDIO_RE.test(ex.audio)) return '';
+  return '<button class="ex-audio" data-action="ex-audio" data-path="' + esc(ex.audio) + '" data-secs="' + (parseInt(ex.audioSecs) || 0) + '">' + hpSvg + ' <span class="ex-audio-l">' + exAudioLabel(ex.audio, ex.audioSecs) + '</span></button>';
+}
+Player.subs.add(() => {
+  document.querySelectorAll('#view .ex-audio').forEach(b => {
+    const l = b.querySelector('.ex-audio-l'); if(l) l.innerHTML = exAudioLabel(b.dataset.path, +b.dataset.secs);
+    b.classList.toggle('on', audioState("ex:" + b.dataset.path).playing);
+  });
+});
