@@ -14,7 +14,7 @@ import { esc, exMuscle, isTimedEx, mkEx, muscleOf, num, pickMuscle, searchExerci
 import { coachDatalist, coachLogFor, exChart, exSummary, exTable } from './clientes.js';
 import { kgText, suggest } from '../../core/progresion.js';
 
-import { renderCoach } from './index.js';
+import { renderCoach, routineDirty } from './index.js';
 
 import { CoachState } from './state.js';
 
@@ -509,7 +509,7 @@ export function renderCoachRoutine(d){
     '<div class="co-exc-section-head"><span class="co-sec" style="margin:0">Ejercicios</span><button class="co-rt-add" data-coach="rt-add">+ Agregar ejercicio</button></div>'+
     (cards||'<div class="cal-hint">D\u00eda vac\u00edo. Agreg\u00e1 ejercicios ac\u00e1 abajo.</div>')+
     (cards ? '<button class="co-rt-add-end" data-coach="rt-add">+ Agregar ejercicio al final</button>' : '')+
-    (CoachState.coachTplEdit ? '' : '<button class="co-save-rt" data-coach="save-routine">Guardar rutina</button>')+
+    (CoachState.coachTplEdit ? '' : (routineDirty() ? '<div class="co-unsaved">'+(CoachState.coachData.draftRestored ? 'Recuperamos los cambios que no se habían guardado. ' : 'Cambios sin guardar. ')+'Tocá <b>Guardar rutina</b> para que le lleguen al cliente.</div>' : '')+'<button class="co-save-rt" data-coach="save-routine">Guardar rutina</button>')+
     (CoachState.coachTplEdit ? "" : "<div class='rt-actions'><button class='co-copy-btn' data-coach='rt-apply'>"+downloadSvg+" Aplicar una de mis rutinas</button><button class='co-copy-btn' data-coach='rt-copy'>"+copySvg+" Copiar a otro cliente</button><button class='co-copy-btn' data-coach='rt-tosave'>"+saveSvg+" Guardar como rutina</button></div>");
 }
 

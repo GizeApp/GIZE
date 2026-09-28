@@ -14,7 +14,7 @@ import { loadClientNotify } from './notificar.js';
 
 import { esc, fmtDate, fmtSecs, mondayOf, today } from '../../core/utils.js';
 
-import { renderCoach } from './index.js';
+import { dropRoutineDraft, readRoutineDraft, renderCoach } from './index.js';
 
 import { loadTpls } from './rutinas.js';
 
@@ -147,8 +147,18 @@ export async function openClient(id){
     ]);
     const weights=(ws.data||[]).map(w=>({date:w.measured_on, kg:Number(w.kg)}));
     const sessions=(ss.data||[]).map(sessionFromRow);
-    const routine=(rt.data&&Array.isArray(rt.data.days))?JSON.parse(JSON.stringify(rt.data.days)):[];
+    let routine=(rt.data&&Array.isArray(rt.data.days))?JSON.parse(JSON.stringify(rt.data.days)):[];
     migrateNames(routine);
+    // Cambios sin guardar de una vez anterior en este dispositivo (ver persistRoutineDraft):
+    // si la rutina guardada no cambió desde entonces se recuperan solos; si cambió, se pregunta.
+    let routineOrig, restored=false;
+    const dr=readRoutineDraft(id), saved=JSON.stringify(routine);
+    if(dr && Array.isArray(dr.days) && JSON.stringify(dr.days)!==saved){
+      const c0=CoachState.coachClients.find(x=>x.id===id);
+      if(dr.base===saved || confirm("Hay cambios en la rutina de "+((c0&&c0.full_name)||"este cliente")+" que no se guardaron, pero la rutina guardada cambió desde entonces. ¿Recuperar tus cambios? (Si cancelás, se descartan.)")){
+        routineOrig=saved; routine=dr.days; migrateNames(routine); restored=true;
+      } else dropRoutineDraft(id);
+    } else if(dr) dropRoutineDraft(id);
     const phRows=ph.data||[];
     const urls=await signedUrls(phRows.map(p=>p.path));
     // Si mientras cargaba el coach abrió otro cliente, esto ya no va: si no, los datos de
@@ -156,7 +166,8 @@ export async function openClient(id){
     if(CoachState.coachSel!==id) return;
     const photos=phRows.map(p=>({id:p.id, taken_on:p.taken_on, url:urls[p.path]||""}));
     const c=CoachState.coachClients.find(x=>x.id===id);
-    CoachState.coachData={id:id, info:(ci.data||{}), block:((bl.data&&bl.data[0])||null), name:(c&&c.full_name)||"Cliente", avatar:(c&&c.avatar_path)||null, weights:weights, sessions:sessions, routine:routine, loadEx:null, daily:(dl.data||[]), checkins:(ck.data||[]), plan:(np.data||null), photos:photos, schedule:(sc&&!sc.error&&sc.data)||[]};
+    CoachState.coachData={id:id, info:(ci.data||{}), block:((bl.data&&bl.data[0])||null), name:(c&&c.full_name)||"Cliente", avatar:(c&&c.avatar_path)||null, weights:weights, sessions:sessions, routine:routine, routineOrig:routineOrig, draftRestored:restored, loadEx:null, daily:(dl.data||[]), checkins:(ck.data||[]), plan:(np.data||null), photos:photos, schedule:(sc&&!sc.error&&sc.data)||[]};
+    if(restored) CoachState.coachClientTab="rutina";
     CoachState.coachPlanForm=null; CoachState.coachInfoForm=null; CoachState.coachBlockForm=null; CoachState.coachWeekSel=null;
     // Notificaciones: si el cliente las tiene activadas y los últimos mensajes. Aparte,
     // para no demorar la ficha; se redibuja cuando llega.

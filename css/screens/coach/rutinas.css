@@ -448,3 +448,4 @@ button.opt-count:hover { color: var(--gize-blue); }
 .bw-list .week-editor { margin:0; }
 .co-day-dup { width:100%; margin-top:8px; }
 .co-day-dup svg { width:15px; height:15px; }
+.co-unsaved { margin:14px 0 -4px; padding:10px 12px; border-radius:8px; border:1px solid color-mix(in srgb, var(--gize-warning, #FFB547) 55%, transparent); background:color-mix(in srgb, var(--gize-warning, #FFB547) 10%, transparent); color:var(--txt); font-size:var(--text-meta); line-height:1.45; }
