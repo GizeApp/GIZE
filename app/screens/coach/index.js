@@ -20,7 +20,7 @@ import { renderSessionItem } from '../../ui/sessiondetail.js';
 
 import { avatarHtml } from '../../core/avatar.js';
 
-import { renderCoachNotify } from './notificar.js';
+import { unreadFor } from '../../ui/chat.js';
 
 import { billing, renderPaywall, renderPlanBanner } from './plan.js';
 
@@ -111,7 +111,7 @@ export function renderCoach(){
         const act=coachActivity(st.lastSess);
         const statusLine=act.has ? '<div class="co-act-status"><span class="co-dot'+(act.active?' on':'')+'"></span>'+act.statusLabel+'</div>' : "";
         return '<div class="co-trow" data-coach="open" data-id="'+esc(c.id)+'">'+
-            '<div class="co-td co-td-name">'+avatarHtml(c.avatar_path, coachInitials(c.full_name), 'co-avatar')+'<span class="co-cname">'+esc(c.full_name||"Sin nombre")+'</span></div>'+
+            '<div class="co-td co-td-name">'+avatarHtml(c.avatar_path, coachInitials(c.full_name), 'co-avatar')+'<span class="co-cname">'+esc(c.full_name||"Sin nombre")+'</span>'+(unreadFor(c.id)?'<span class="chat-badge" title="Mensajes sin leer">'+unreadFor(c.id)+'</span>':'')+'</div>'+
             '<div class="co-td co-td-email'+(c.email?'':' co-empty')+'">'+esc(c.email||"Sin email")+'</div>'+
             '<div class="co-td co-td-activity"><div class="co-act-date">'+esc(act.label)+'</div>'+statusLine+'</div>'+
             '<div class="co-td co-td-actions"><span class="co-arrow">›</span></div>'+
@@ -179,7 +179,8 @@ export function renderCoach(){
       } else {
         // Ficha en secciones, como Progreso del alumno: un menú de tarjetas y cada una abre su parte.
         const SECS=[
-          ["notif","Notificación al cliente", ()=>renderCoachNotify(d), ()=>{ const m=(d.notify&&d.notify.msgs)||[]; return m.length?"Último: "+fmtDate(String(m[0].created_at).slice(0,10)):"Mandale un mensaje"; }],
+          // El chat se abre encima (app/ui/chat.js), no como sección: ver "sec-open" en main.js.
+          ["chat","Chat con "+esc(String(d.name||"el cliente").split(" ")[0]), null, ()=>{ const n=unreadFor(d.id); if(n) return n+(n===1?" mensaje nuevo":" mensajes nuevos"); if(d.notify&&d.notify.devices===0) return "Mensajes y audios · no tiene los avisos activados"; return "Mensajes y audios"; }],
           ["ficha","Ficha del cliente", ()=>renderCoachInfo(d), ()=>d.info&&Object.keys(d.info).length?"Datos y objetivos":"Sin completar"],
           ["bloque","Bloque / mesociclo", ()=>renderCoachBlock(d), ()=>{ const b=d.block; if(!b) return "Sin bloque"; const w=blockWeek(b, today()); const n=parseInt(b.weeks)||0; return (b.name||"Bloque cargado")+(w>=1&&(!n||w<=n)?" \u00b7 semana "+w+(isDeload(b,w)?" de descarga":""):""); }],
           ["daily","Seguimiento diario", ()=>secHead("Seguimiento diario","daily")+renderCoachDaily(d), ()=>{ const n=(d.daily||[]).length; return n?n+" registro"+(n===1?"":"s"):"Sin registros"; }],
@@ -188,7 +189,7 @@ export function renderCoach(){
           ["volumen","Volumen semanal por músculo", ()=>vol, ()=>{ let t=0; (d.routine||[]).forEach(x=>(x.exercises||[]).forEach(ex=>{ t+=(ex.sets||[]).length; })); return t?t+" series por semana":"Sin rutina"; }],
           ["peso","Peso corporal", ()=>'<div class="co-sec">Promedio semanal</div>'+renderCoachWeekly(d)+'<div class="co-sec">Día a día</div>'+wblock, ()=>{ const w=d.weights; return w.length?Number(w[w.length-1].kg).toFixed(1).replace(".",",")+" kg":"Sin registros"; }],
         ];
-        const cur=SECS.find(x=>x[0]===CoachState.coachSec);
+        const cur=SECS.find(x=>x[0]===CoachState.coachSec && x[2]);
         if(cur){
           panel='<div class="form-head co-sec-head"><button class="form-back" data-coach="sec-close" aria-label="Volver a la ficha">‹</button><div class="form-title">'+cur[1]+'</div></div>'+
             '<div class="co-panel co-sec-body">'+cur[2]()+'</div>';
