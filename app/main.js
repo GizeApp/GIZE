@@ -329,6 +329,9 @@ document.body.addEventListener("click", async e => {
   const navBtn = e.target.closest("[data-view]");
   if (navBtn) { State.view = navBtn.dataset.view; ComidaState.selectedFood=null; ComidaState.editEntry=null; ComidaState.calEditing=false; ComidaState.planOpen=false; ProgresoState.section=null; ComidaState.creatingFood=false; EntrenoState.exPicker=null; renderApp(); return; }
   const el = e.target.closest("[data-action]"); if(!el) return;
+  // Si pasó la medianoche con la app abierta, primero se pasa al día nuevo: si no, lo que se
+  // anota ahora (comida, agua, pasos) caía en el día anterior y el redibujo lo borraba.
+  checkDaily();
   const a = el.dataset.action;
   if (routineLocked() && ["addday","delday","removeex","addset","removeset","ex-add-open","ex-swap","ex-insert","ex-choose","ex-custom","load-default-routine"].indexOf(a)>=0) return;
 
