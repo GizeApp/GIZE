@@ -37,7 +37,22 @@
 
 .hb-coach-tag { margin-left:auto; font-size:9px; color:var(--blue-2); text-transform:uppercase; letter-spacing:.06em; font-weight:800; background:var(--card-2); padding:3px 6px; border-radius:3px; }
 
-/* Días y aviso de cada hábito (⏰, ver app/screens/habitos.js). */
+/* Neón por fuera de cada nota: las del coach con azul y violeta, las propias con rosa y
+   verde agua (la otra mitad de la gama de GIZE). body:not(#_) le gana a las capas de
+   cajas (theme.css / gize-surfaces.css), igual que ahí. */
+.hb-item { --hb-neon: linear-gradient(135deg, var(--gize-r3), var(--gize-r4)); --hb-glow: var(--gize-r3); }
+.hb-item.coach { --hb-neon: linear-gradient(135deg, var(--gize-r1), var(--gize-r2)); --hb-glow: var(--gize-r1); }
+body:not(#_) .hb-item { border: 1.5px solid transparent; border-radius: 10px;
+  background: linear-gradient(var(--card), var(--card)) padding-box, var(--hb-neon) border-box;
+  box-shadow: 0 0 22px -12px color-mix(in srgb, var(--hb-glow) 75%, transparent); }
+body:not(#_) .hb-item:active { background: linear-gradient(var(--card-2), var(--card-2)) padding-box, var(--hb-neon) border-box; }
+.hb-coach-tag { color: var(--gize-r1); }
+
+/* Hoja de días y aviso: un poco de neón (el filete de colores arriba y un brillo suave). */
+.hba-sheet { box-shadow: 0 -12px 40px -20px color-mix(in srgb, var(--gize-r2) 80%, transparent); }
+.hba-sheet::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--gize-rgb-line); pointer-events: none; }
+
+/* Días y aviso de cada hábito (campanita, ver app/screens/habitos.js). */
 .hb-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .hb-main .hb-name { flex: none; overflow-wrap: anywhere; }
 /* .done es también el botón de tildar series (44 × 44 con borde, components.css): acá es solo el tachado. */

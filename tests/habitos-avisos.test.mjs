@@ -51,7 +51,7 @@ export default async function ({ base, t }){
   await addHabit(p, 'Tomar agua');
   const ownId = await p.evaluate(() => document.querySelector('[data-action="habit-toggle"]')?.dataset.id);
   await p.click(`[data-action="habit-alarm"][data-kind="own"][data-key="${ownId}"]`); await wait(300);
-  t.has(await text(p, '.hba-sheet'), 'El aviso suena en la app de Android y iPhone', 'en la web avisa que suena en las apps');
+  t.ok(!/suena|Android|iPhone/.test(await text(p, '.hba-sheet')), 'la hoja no tiene carteles sobre la alarma (web)');
   // Cambiar días u hora no vuelve a abrir la hoja (se actualiza en el lugar: es la misma hoja).
   await p.evaluate(() => { document.querySelector('.hba-sheet').dataset.marca = '1'; });
   await p.click('[data-action="hba-day"][data-d="1"]'); await wait(150);
@@ -64,7 +64,8 @@ export default async function ({ base, t }){
   t.eq(await p.evaluate(() => [document.querySelectorAll('#twMin .tw-item').length, document.querySelectorAll('#twSec .tw-item').length]), [24, 60], 'de 00 a 23 horas y de 00 a 59 minutos');
   await p.click('#timePick [data-tp="close"]'); await wait(200);
   await pickTime(p, '09:00'); await p.click('[data-action="hba-save"]'); await wait(400);
-  t.has(await text(p, '.hb-list'), '⏰ 09:00 · Todos los días', 'se ve la hora del aviso');
+  t.has(await text(p, '.hb-list'), '09:00 · Todos los días', 'se ve la hora del aviso');
+  t.ok(!(await text(p, 'body')).includes('⏰'), 'sin el reloj en ningún lado');
 
   // Cardio solo otro día: pasa a "Otros días" y no cuenta hoy.
   await addHabit(p, 'Cardio 30 min');
@@ -89,6 +90,12 @@ export default async function ({ base, t }){
   await p.click(`[data-action="habit-toggle"][data-id="${ownId}"]`); await wait(300);
   const w = await p.evaluate(() => document.querySelector('.hb-name.done')?.getBoundingClientRect().width || 0);
   t.ok(w > 120, 'un hábito tachado se ve entero: ' + w);
+  t.eq(await p.evaluate(() => getComputedStyle(document.querySelector('.hb-name.done')).borderTopStyle), 'none', 'el nombre tachado no tiene borde');
+  // Neón por fuera: las del coach azul/violeta, las propias rosa/verde agua.
+  const neon = await p.evaluate(() => { const bg = sel => { const e = document.querySelector(sel); return e ? getComputedStyle(e).backgroundImage : ''; };
+    return { coach: bg('.hb-list .hb-item.coach'), own: bg('.hb-list .hb-item:not(.coach)') }; });
+  t.ok(/rgb\(47, 160, 255\)/.test(neon.coach) && /rgb\(166, 92, 255\)/.test(neon.coach), 'nota del coach con neón azul y violeta: ' + neon.coach.slice(0, 120));
+  t.ok(/rgb\(255, 61, 174\)/.test(neon.own) && /rgb\(37, 232, 200\)/.test(neon.own), 'nota propia con neón rosa y verde agua: ' + neon.own.slice(0, 120));
   t.eq(errs, [], 'errores de la página (web)');
   await close();
 
@@ -97,7 +104,7 @@ export default async function ({ base, t }){
   await addHabit(p, 'Creatina propia');
   const id2 = await p.evaluate(() => document.querySelector('[data-action="habit-toggle"]')?.dataset.id);
   await p.click(`[data-action="habit-alarm"][data-key="${id2}"]`); await wait(300);
-  t.has(await text(p, '.hba-sheet'), 'aunque la app esté cerrada', 'en la app nativa explica que suena con la app cerrada');
+  t.ok(!/suena|cerrada/.test(await text(p, '.hba-sheet')), 'la hoja no tiene carteles sobre la alarma (Android)');
   await pickTime(p, '09:05'); await p.click('[data-action="hba-save"]'); await wait(1200);
   let sched = await p.evaluate(() => window.__sched.map(n => ({ title: n.title, on: n.schedule.on })));
   t.eq(sched, [{ title: 'Creatina propia', on: { hour: 9, minute: 5 } }], 'aviso diario programado');

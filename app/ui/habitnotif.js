@@ -1,4 +1,4 @@
-// Avisos de los hábitos (Hábitos → ⏰): a la hora elegida, los días elegidos, suena una
+// Avisos de los hábitos (Hábitos → campanita): a la hora elegida, los días elegidos, suena una
 // notificación del celular aunque la app esté cerrada y sin internet (plugin
 // LocalNotifications de Capacitor: el celular la repite solo cada semana o cada día, y la
 // vuelve a programar si se reinicia). Tocarla abre Hábitos para tacharlo.
