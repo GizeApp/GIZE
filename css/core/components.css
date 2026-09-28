@@ -12,22 +12,27 @@
      tiene su propio efecto de foco por scroll (.ex-focused, ver más abajo) — agregarle
      un hover encima lo pisaría. El resto (Hábitos/Cardio/Comida/Progreso/Ajustes) no
      tenía ningún feedback de hover, solo :active para tap; esto lo suma sin tocar nada
-     de Entreno. Mismo :is()+nesting que las familias de cajas de css/ui/theme.css, una sola lista. */
+     de Entreno. Una sola lista con :is(), sin anidar: los motores web de antes de 2023
+     (celulares Android que no actualizaron el WebView) ignoran el CSS anidado entero. */
 :is(.hb-item, .food-row, .diary-item, .w-chart, .w-item, .water-card, .vol-card,
     .fi-card, .mc-block, .cardio-rx, .plan-banner, .join-box, .daily-card, .ci-card,
     .sess-item, .hx-row) {
     transition: transform var(--duration-standard) var(--ease-drawer),
                 border-color var(--duration-standard) ease,
                 box-shadow var(--duration-standard) ease;
-    &:hover {
-      transform: translateY(-2px);
-      border-color: color-mix(in srgb, var(--gize-blue) 50%, transparent);
-      box-shadow: var(--shadow-card), 0 0 16px var(--glow);
-    }
-    @media (prefers-reduced-motion: reduce) {
-      &:hover { transform: none; }
-    }
   }
+:is(.hb-item, .food-row, .diary-item, .w-chart, .w-item, .water-card, .vol-card,
+    .fi-card, .mc-block, .cardio-rx, .plan-banner, .join-box, .daily-card, .ci-card,
+    .sess-item, .hx-row):hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--gize-blue) 50%, transparent);
+    box-shadow: var(--shadow-card), 0 0 16px var(--glow);
+  }
+@media (prefers-reduced-motion: reduce) {
+  :is(.hb-item, .food-row, .diary-item, .w-chart, .w-item, .water-card, .vol-card,
+      .fi-card, .mc-block, .cardio-rx, .plan-banner, .join-box, .daily-card, .ci-card,
+      .sess-item, .hx-row):hover { transform: none; }
+}
 
 .view { position: relative; z-index: 1; max-width: 540px; margin: 0 auto; padding: 10px 16px calc(112px + env(safe-area-inset-bottom)); }
 

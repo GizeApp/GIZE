@@ -10,6 +10,10 @@
    decorativos (ripples, glow que sigue al mouse, meteoros en botones).
    ========================================================================== */
 
+/* Sin CSS anidado: los motores web de antes de 2023 (celulares Android que nunca
+   actualizaron el WebView) descartan la regla anidada entera, y con ella todo este
+   archivo. Por eso cada regla lleva adelante su body:not(#_) (el peso extra que le
+   gana a las capas de antes). */
 body:not(#_) {
   --btn-r: 10px;
   --btn-line: rgba(255,255,255,.18);
@@ -22,174 +26,183 @@ body:not(#_) {
   --acc-hi: color-mix(in srgb, var(--gize-blue) 80%, var(--gize-text));
   --acc-tint: color-mix(in srgb, var(--gize-blue) 16%, transparent);
   --danger: var(--gize-danger);
-
-  /* ---------- 2) SECUNDARIOS: borde neutro marcado ---------- */
-  :is(.co-back, .co-logout, .co-gear, .top-btn, .clear, .reset-routine, .logout-btn,
-      .load-def, .co-copy-btn, .qbtn, .ctrl.ghost, .co-exc-btn, .co-daynav-btn, .bw,
-      .cp-back, .pl-toggle, .cal-edit, .water-goal, .ex-custom, .cp-copt, .cp-cat, .cp-ex,
-      .ap-radio, .ex-pick, .co-exc-menu button, .co-rt-add) {
-    background: var(--btn-fill);
-    border: 1px solid var(--btn-line);
-    color: var(--btn-txt);
-    border-radius: var(--btn-r);
-    font-weight: 600;
-    text-decoration: none;
-    box-shadow: none;
-    transition: background-color .15s, border-color .15s, color .15s, transform .12s;
-    &:hover { background: var(--btn-fill-hi); border-color: var(--btn-line-hi); color: var(--gize-text); }
-    &:active { transform: scale(.98); }
-  }
-  :is(.co-back, .co-logout, .co-copy-btn, .load-def, .clear, .reset-routine, .logout-btn, .qbtn) { min-height: 38px; }
-  :is(.co-gear, .top-btn) { width: 38px; height: 38px; }
-  /* Eran links de texto (padding casi 0): con borde quedaban como una pastilla apretada */
-  :is(.cal-edit, .water-goal) {
-    display: block; min-height: 38px; padding: 8px 16px; line-height: 1.2;
-    font-size: var(--text-meta); color: var(--btn-txt-dim);
-  }
-  .cal-edit { margin: 0 auto 22px; }
-  .water-goal { margin: 12px auto 0; }
-
-  /* ---------- Selección: chips / tabs / toggles ---------- */
-  :is(.tab, .cmode, .seg button, .ex-chip, .rest-opt, .fb-n, .sc-opt, .preset, .co-daytab, .ap-day) {
-    background: transparent;
-    border: 1px solid var(--btn-line);
-    color: var(--btn-txt-dim);
-    border-radius: var(--btn-r);
-    font-weight: 600;
-    box-shadow: none;
-    transition: background-color .15s, border-color .15s, color .15s;
-    &:hover { border-color: var(--btn-line-hi); color: var(--gize-text); }
-  }
-  :is(.tab.active, .cmode.active, .seg button.on, .ex-chip.on, .rest-opt.on, .fb-n.on,
-      .sc-opt.on, .preset.on, .co-daytab.on, .ap-day.on, .ap-radio.on) {
-    background: var(--acc-tint);
-    border-color: var(--acc);
-    color: var(--gize-text);
-    box-shadow: none;
-  }
-  /* fuera glow que sigue al mouse + ripple de los tabs de día */
-  .tab::before, .tab .tab-ripple { display: none; }
-  .tab { padding: 10px 16px; overflow: visible; }
-
-  /* ---------- 1) PRINCIPALES: blanco de marca (como .gize-btn) ----------
-     "Guardar ficha / Guardar rutina" (coach), "Guardar sesión" (entreno) e "Iniciar"
-     (cardio, .ctrl.primary) son LA acción de su pantalla: llevan además el anillo RGB girando (regla 1 de brand/BRAND.md, uno
-     por pantalla). El resto de principales va blanco sin anillo, porque en algunas
-     pantallas hay varios a la vez (check-in) y el anillo dejaría de señalar algo. */
-  /* .ctrl.primary va aparte de la lista: dentro de :is() su peso (dos clases) se le
-     aplicaría a todas y le ganaría a la regla del anillo de abajo. */
-  .ctrl.primary, :is(.form-save, .save-session, .co-save-rt, .hb-add-btn) {
-    background: #fff;
-    border: 2px solid transparent;
-    color: var(--gize-bg);
-    border-radius: var(--gize-radius-pill);
-    font-family: var(--gize-font);
-    font-weight: 700;
-    letter-spacing: 0;
-    box-shadow: none;
-    transition: filter .15s, transform .12s;
-    &:hover { filter: brightness(.94); transform: none; }
-    &:active { transform: scale(.985); filter: none; }
-  }
-  .ctrl.primary, :is(.save-session, .co-save-rt, .rq-send) {
-    background: linear-gradient(#fff, #fff) padding-box,
-      conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box;
-    animation: gize-spin 5s linear infinite;
-    @media (prefers-reduced-motion: reduce) { animation: none; }
-  }
-  .hb-add-btn { border-radius: var(--btn-r); }
-
-  /* ---------- Estados: azul funcional ---------- */
-  :is(.bw.dl) {
-    background: var(--acc);
-    border: 1px solid var(--acc);
-    color: var(--gize-text);
-    border-radius: var(--btn-r);
-    font-weight: 600;
-    letter-spacing: 0;
-    box-shadow: none;
-    transition: background-color .15s, transform .12s, filter .15s;
-    &:hover { background: var(--acc-hi); border-color: var(--acc-hi); transform: none; }
-    &:active { transform: scale(.98); filter: none; }
-  }
-
-  /* ---------- "Agregar": borde punteado más marcado ---------- */
-  :is(.add-set, .cal-create, .co-add-day, .co-set-add, .pl-add, .cp-custom) {
-    background: transparent;
-    border: 1px dashed var(--btn-line-hi);
-    border-radius: var(--btn-r);
-    color: var(--gize-blue);
-    font-weight: 600;
-    opacity: 1;
-    &:hover { border-color: var(--acc); color: var(--gize-text); background: var(--acc-tint); }
-  }
-
-  /* botones "+" de insertar entre ejercicios: discretos a propósito */
-  :is(.ins-ex, .co-rt-ins) { border-radius: var(--btn-r); border-color: var(--btn-line); opacity: .55; }
-  :is(.ins-ex, .co-rt-ins):hover { opacity: 1; border-color: var(--acc); color: var(--gize-text); }
-
-  /* ---------- Destructivo ---------- */
-  .co-day-del { border: 1px solid color-mix(in srgb, var(--gize-danger) 55%, transparent); color: var(--danger); border-radius: var(--btn-r); background: transparent; }
-  .co-day-del:hover { background: var(--gize-danger-bg); border-color: var(--danger); }
-
-  /* ---------- Check de serie / hábito ---------- */
-  .done:not(.hb-name), .hb-check { border-radius: var(--btn-r); border: 1px solid var(--btn-line-hi); background: transparent; }
-  /* Completado = --gize-success (brand/BRAND.md), con el ícono en negro para que se lea sobre el verde agua. */
-  .done.on, .hb-check.on { background: var(--gize-success); border-color: var(--gize-success); color: var(--gize-bg); box-shadow: none; }
-
-  /* Botón de descanso en la card */
-  .rest-btn-full { border-radius: var(--btn-r); background: var(--btn-fill); border-color: var(--btn-line); color: var(--gize-text); }
-
-  /* ---------- Navegación inferior ---------- */
-  .nav-item { position: relative; border-radius: var(--btn-r); color: var(--btn-txt-dim); font-weight: 600; }
-  .nav-item.active { color: var(--gize-text); background: transparent; }
-  .nav-item.active svg { filter: none; }
-  .nav-item.active::before {
-    content: ""; position: absolute; top: -9px; left: 50%; width: 26px; height: 2px;
-    transform: translateX(-50%); border-radius: 2px; background: var(--acc);
-  }
-  .nav-item:hover { color: var(--gize-text); }
-
-  /* ---------- Tabs segmentados (Ficha / Rutina / Plan · Clientes / Mis rutinas) ---------- */
-  .co-tabs {
-    --n: 2; --i: 0;
-    position: relative; display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 0;
-    padding: 4px; margin: 6px 0 16px;
-    background: var(--gize-surface); border: 1px solid var(--btn-line); border-radius: 12px;
-    &:has(> .co-tab:nth-child(3)) { --n: 3; }
-    &:has(> .co-tab:nth-child(2).on) { --i: 1; }
-    &:has(> .co-tab:nth-child(3).on) { --i: 2; }
-    /* indicador que se desliza */
-    &::before {
-      content: ""; position: absolute; top: 4px; bottom: 4px;
-      left: calc(4px + var(--i) * (100% - 8px) / var(--n));
-      width: calc((100% - 8px) / var(--n));
-      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.2); border-radius: 9px;
-      transition: left .28s cubic-bezier(.4,0,.2,1);
-    }
-    &::after {
-      content: ""; position: absolute; bottom: 4px;
-      left: calc(4px + var(--i) * (100% - 8px) / var(--n));
-      width: calc((100% - 8px) / var(--n)); height: 2px;
-      transition: left .28s cubic-bezier(.4,0,.2,1);
-      background: linear-gradient(var(--acc), var(--acc)) center / 24px 2px no-repeat;
-      pointer-events: none;
-    }
-  }
-  .co-tab {
-    position: relative; z-index: 1; overflow: visible; isolation: auto;
-    background: transparent; border: 0; border-radius: 9px; box-shadow: none;
-    color: var(--btn-txt-dim); font-weight: 600; font-size: 13px; padding: 11px 12px;
-    &::before, &::after { display: none; }
-    &.on { background: transparent; color: var(--gize-text); }
-    &:hover { color: var(--gize-text); }
-    .co-tab-count { color: inherit; opacity: .7; font-weight: 600; }
-  }
-  .co-tab.on .co-tab-count { color: var(--gize-text); opacity: .85; }
-
-  /* Foco de teclado consistente en todos los botones */
-  :is(button, [role="button"]):focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 }
+
+/* ---------- 2) SECUNDARIOS: borde neutro marcado ---------- */
+body:not(#_) :is(.co-back, .co-logout, .co-gear, .top-btn, .clear, .reset-routine, .logout-btn,
+    .load-def, .co-copy-btn, .qbtn, .ctrl.ghost, .co-exc-btn, .co-daynav-btn, .bw,
+    .cp-back, .pl-toggle, .cal-edit, .water-goal, .ex-custom, .cp-copt, .cp-cat, .cp-ex,
+    .ap-radio, .ex-pick, .co-exc-menu button, .co-rt-add) {
+  background: var(--btn-fill);
+  border: 1px solid var(--btn-line);
+  color: var(--btn-txt);
+  border-radius: var(--btn-r);
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: none;
+  transition: background-color .15s, border-color .15s, color .15s, transform .12s;
+}
+body:not(#_) :is(.co-back, .co-logout, .co-gear, .top-btn, .clear, .reset-routine, .logout-btn,
+    .load-def, .co-copy-btn, .qbtn, .ctrl.ghost, .co-exc-btn, .co-daynav-btn, .bw,
+    .cp-back, .pl-toggle, .cal-edit, .water-goal, .ex-custom, .cp-copt, .cp-cat, .cp-ex,
+    .ap-radio, .ex-pick, .co-exc-menu button, .co-rt-add):hover { background: var(--btn-fill-hi); border-color: var(--btn-line-hi); color: var(--gize-text); }
+body:not(#_) :is(.co-back, .co-logout, .co-gear, .top-btn, .clear, .reset-routine, .logout-btn,
+    .load-def, .co-copy-btn, .qbtn, .ctrl.ghost, .co-exc-btn, .co-daynav-btn, .bw,
+    .cp-back, .pl-toggle, .cal-edit, .water-goal, .ex-custom, .cp-copt, .cp-cat, .cp-ex,
+    .ap-radio, .ex-pick, .co-exc-menu button, .co-rt-add):active { transform: scale(.98); }
+body:not(#_) :is(.co-back, .co-logout, .co-copy-btn, .load-def, .clear, .reset-routine, .logout-btn, .qbtn) { min-height: 38px; }
+body:not(#_) :is(.co-gear, .top-btn) { width: 38px; height: 38px; }
+/* Eran links de texto (padding casi 0): con borde quedaban como una pastilla apretada */
+body:not(#_) :is(.cal-edit, .water-goal) {
+  display: block; min-height: 38px; padding: 8px 16px; line-height: 1.2;
+  font-size: var(--text-meta); color: var(--btn-txt-dim);
+}
+body:not(#_) .cal-edit { margin: 0 auto 22px; }
+body:not(#_) .water-goal { margin: 12px auto 0; }
+
+/* ---------- Selección: chips / tabs / toggles ---------- */
+body:not(#_) :is(.tab, .cmode, .seg button, .ex-chip, .rest-opt, .fb-n, .sc-opt, .preset, .co-daytab, .ap-day) {
+  background: transparent;
+  border: 1px solid var(--btn-line);
+  color: var(--btn-txt-dim);
+  border-radius: var(--btn-r);
+  font-weight: 600;
+  box-shadow: none;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+body:not(#_) :is(.tab, .cmode, .seg button, .ex-chip, .rest-opt, .fb-n, .sc-opt, .preset, .co-daytab, .ap-day):hover { border-color: var(--btn-line-hi); color: var(--gize-text); }
+body:not(#_) :is(.tab.active, .cmode.active, .seg button.on, .ex-chip.on, .rest-opt.on, .fb-n.on,
+    .sc-opt.on, .preset.on, .co-daytab.on, .ap-day.on, .ap-radio.on) {
+  background: var(--acc-tint);
+  border-color: var(--acc);
+  color: var(--gize-text);
+  box-shadow: none;
+}
+/* fuera glow que sigue al mouse + ripple de los tabs de día */
+body:not(#_) .tab::before, body:not(#_) .tab .tab-ripple { display: none; }
+body:not(#_) .tab { padding: 10px 16px; overflow: visible; }
+
+/* ---------- 1) PRINCIPALES: blanco de marca (como .gize-btn) ----------
+   "Guardar ficha / Guardar rutina" (coach), "Guardar sesión" (entreno) e "Iniciar"
+   (cardio, .ctrl.primary) son LA acción de su pantalla: llevan además el anillo RGB girando (regla 1 de brand/BRAND.md, uno
+   por pantalla). El resto de principales va blanco sin anillo, porque en algunas
+   pantallas hay varios a la vez (check-in) y el anillo dejaría de señalar algo. */
+/* .ctrl.primary va aparte de la lista: dentro de :is() su peso (dos clases) se le
+   aplicaría a todas y le ganaría a la regla del anillo de abajo. (En :hover, :active y
+   el movimiento reducido sí van todos juntos: ahí no compiten con nada de acá.) */
+body:not(#_) .ctrl.primary, body:not(#_) :is(.form-save, .save-session, .co-save-rt, .hb-add-btn) {
+  background: #fff;
+  border: 2px solid transparent;
+  color: var(--gize-bg);
+  border-radius: var(--gize-radius-pill);
+  font-family: var(--gize-font);
+  font-weight: 700;
+  letter-spacing: 0;
+  box-shadow: none;
+  transition: filter .15s, transform .12s;
+}
+body:not(#_) :is(.ctrl.primary, .form-save, .save-session, .co-save-rt, .hb-add-btn):hover { filter: brightness(.94); transform: none; }
+body:not(#_) :is(.ctrl.primary, .form-save, .save-session, .co-save-rt, .hb-add-btn):active { transform: scale(.985); filter: none; }
+body:not(#_) .ctrl.primary, body:not(#_) :is(.save-session, .co-save-rt, .rq-send) {
+  background: linear-gradient(#fff, #fff) padding-box,
+    conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box;
+  animation: gize-spin 5s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  body:not(#_) :is(.ctrl.primary, .save-session, .co-save-rt, .rq-send) { animation: none; }
+}
+body:not(#_) .hb-add-btn { border-radius: var(--btn-r); }
+
+/* ---------- Estados: azul funcional ---------- */
+body:not(#_) .bw.dl {
+  background: var(--acc);
+  border: 1px solid var(--acc);
+  color: var(--gize-text);
+  border-radius: var(--btn-r);
+  font-weight: 600;
+  letter-spacing: 0;
+  box-shadow: none;
+  transition: background-color .15s, transform .12s, filter .15s;
+}
+body:not(#_) .bw.dl:hover { background: var(--acc-hi); border-color: var(--acc-hi); transform: none; }
+body:not(#_) .bw.dl:active { transform: scale(.98); filter: none; }
+
+/* ---------- "Agregar": borde punteado más marcado ---------- */
+body:not(#_) :is(.add-set, .cal-create, .co-add-day, .co-set-add, .pl-add, .cp-custom) {
+  background: transparent;
+  border: 1px dashed var(--btn-line-hi);
+  border-radius: var(--btn-r);
+  color: var(--gize-blue);
+  font-weight: 600;
+  opacity: 1;
+}
+body:not(#_) :is(.add-set, .cal-create, .co-add-day, .co-set-add, .pl-add, .cp-custom):hover { border-color: var(--acc); color: var(--gize-text); background: var(--acc-tint); }
+
+/* botones "+" de insertar entre ejercicios: discretos a propósito */
+body:not(#_) :is(.ins-ex, .co-rt-ins) { border-radius: var(--btn-r); border-color: var(--btn-line); opacity: .55; }
+body:not(#_) :is(.ins-ex, .co-rt-ins):hover { opacity: 1; border-color: var(--acc); color: var(--gize-text); }
+
+/* ---------- Destructivo ---------- */
+body:not(#_) .co-day-del { border: 1px solid color-mix(in srgb, var(--gize-danger) 55%, transparent); color: var(--danger); border-radius: var(--btn-r); background: transparent; }
+body:not(#_) .co-day-del:hover { background: var(--gize-danger-bg); border-color: var(--danger); }
+
+/* ---------- Check de serie / hábito ---------- */
+body:not(#_) .done:not(.hb-name), body:not(#_) .hb-check { border-radius: var(--btn-r); border: 1px solid var(--btn-line-hi); background: transparent; }
+/* Completado = --gize-success (brand/BRAND.md), con el ícono en negro para que se lea sobre el verde agua. */
+body:not(#_) .done.on, body:not(#_) .hb-check.on { background: var(--gize-success); border-color: var(--gize-success); color: var(--gize-bg); box-shadow: none; }
+
+/* Botón de descanso en la card */
+body:not(#_) .rest-btn-full { border-radius: var(--btn-r); background: var(--btn-fill); border-color: var(--btn-line); color: var(--gize-text); }
+
+/* ---------- Navegación inferior ---------- */
+body:not(#_) .nav-item { position: relative; border-radius: var(--btn-r); color: var(--btn-txt-dim); font-weight: 600; }
+body:not(#_) .nav-item.active { color: var(--gize-text); background: transparent; }
+body:not(#_) .nav-item.active svg { filter: none; }
+body:not(#_) .nav-item.active::before {
+  content: ""; position: absolute; top: -9px; left: 50%; width: 26px; height: 2px;
+  transform: translateX(-50%); border-radius: 2px; background: var(--acc);
+}
+body:not(#_) .nav-item:hover { color: var(--gize-text); }
+
+/* ---------- Tabs segmentados (Ficha / Rutina / Plan · Clientes / Mis rutinas) ---------- */
+body:not(#_) .co-tabs {
+  --n: 2; --i: 0;
+  position: relative; display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 0;
+  padding: 4px; margin: 6px 0 16px;
+  background: var(--gize-surface); border: 1px solid var(--btn-line); border-radius: 12px;
+}
+body:not(#_) .co-tabs:has(> .co-tab:nth-child(3)) { --n: 3; }
+body:not(#_) .co-tabs:has(> .co-tab:nth-child(2).on) { --i: 1; }
+body:not(#_) .co-tabs:has(> .co-tab:nth-child(3).on) { --i: 2; }
+/* indicador que se desliza */
+body:not(#_) .co-tabs::before {
+  content: ""; position: absolute; top: 4px; bottom: 4px;
+  left: calc(4px + var(--i) * (100% - 8px) / var(--n));
+  width: calc((100% - 8px) / var(--n));
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.2); border-radius: 9px;
+  transition: left .28s cubic-bezier(.4,0,.2,1);
+}
+body:not(#_) .co-tabs::after {
+  content: ""; position: absolute; bottom: 4px;
+  left: calc(4px + var(--i) * (100% - 8px) / var(--n));
+  width: calc((100% - 8px) / var(--n)); height: 2px;
+  transition: left .28s cubic-bezier(.4,0,.2,1);
+  background: linear-gradient(var(--acc), var(--acc)) center / 24px 2px no-repeat;
+  pointer-events: none;
+}
+body:not(#_) .co-tab {
+  position: relative; z-index: 1; overflow: visible; isolation: auto;
+  background: transparent; border: 0; border-radius: 9px; box-shadow: none;
+  color: var(--btn-txt-dim); font-weight: 600; font-size: 13px; padding: 11px 12px;
+}
+body:not(#_) .co-tab::before, body:not(#_) .co-tab::after { display: none; }
+body:not(#_) .co-tab.on { background: transparent; color: var(--gize-text); }
+body:not(#_) .co-tab:hover { color: var(--gize-text); }
+body:not(#_) .co-tab .co-tab-count { color: inherit; opacity: .7; font-weight: 600; }
+body:not(#_) .co-tab.on .co-tab-count { color: var(--gize-text); opacity: .85; }
+
+/* Foco de teclado consistente en todos los botones */
+body:not(#_) :is(button, [role="button"]):focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 
 /* En los coach y cards con "meteoros", los botones internos no heredan la decoración */
 body.silk-coach .co-daytab::before, body.silk-coach .co-daytab::after,
