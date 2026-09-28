@@ -18,7 +18,7 @@
 // Sin "crudo"/"cocido" = no aplica (leche, quesos, frutas, fiambres, preparados…).
 //
 // Factores de rendimiento usados (peso cocido / peso crudo): arroz blanco 2,6 · integral
-// 2,5 · fideos secos 2,3 · lentejas 2,6 · garbanzos 2,1 · porotos 2,2–2,4 · quinoa 2,75 ·
+// 2,8 (cocido ≈ 125 kcal, como USDA) · fideos secos 2,3 · lentejas 2,6 · garbanzos 2,1 · porotos 2,2–2,4 · quinoa 2,75 ·
 // polenta 5 · burgol 3,9 · carne vacuna y cerdo 0,72 · pollo 0,73 · pescado 0,8 · papa 0,87.
 
 import { EXTRA_SECTIONS } from './foods-extra.js';
@@ -189,7 +189,7 @@ export const FOOD_SECTIONS = [
 ["Verduras", [
   ["Papa", 79, 2.7, 16.9, 0.1, 150, {crudo:C_PAPA, src:"S"}],
   ["Batata", 73, 1.1, 17.1, 0.1, 150, {crudo:C_PAPA, src:"S"}],
-  ["Zapallo anco", 36, 1, 7.8, 0.1, 150, {src:"S"}],
+  ["Zapallo anco / calabaza", 36, 1, 7.8, 0.1, 150, {src:"S"}],
   ["Zapallo criollo", 36, 1, 7.8, 0.1, 150],
   ["Zapallito", 15, 0.8, 2.1, 0.3, 150, {src:"S"}],
   ["Zucchini", 16, 1.2, 2.1, 0.3, 150, {src:"S"}],
@@ -276,7 +276,7 @@ export const FOOD_SECTIONS = [
 ]],
 ["Cereales, harinas y pastas", [
   ["Arroz blanco", 339, 6.9, 77.5, 0.2, 80, {crudo:2.6, src:"S"}],
-  ["Arroz integral / yamaní", 350, 7.5, 72.7, 3.2, 80, {crudo:2.5, src:"S"}],
+  ["Arroz integral / yamaní", 350, 7.5, 72.7, 3.2, 80, {crudo:2.8, src:"S"}],
   ["Fideos secos", 352, 13, 71.5, 1.5, 80, {crudo:2.3, src:"S"}],
   ["Fideos integrales", 346, 11.6, 71.2, 1.6, 80, {crudo:2.3, src:"S"}],
   ["Fideos sin TACC", 322, 7.5, 68.3, 2.1, 80, {crudo:2.3, src:"S"}],
