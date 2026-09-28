@@ -29,6 +29,7 @@
 .pl-price span { font-size:14px; font-weight:500; color:var(--txt-2); margin-left:2px; }
 .pl-choose { margin-top:auto; padding:11px 12px; border-radius:10px; border:0; cursor:pointer; font:inherit; font-weight:600;
   background:var(--blue); color:#000; }
+a.pl-choose { display:block; text-align:center; text-decoration:none; }
 .pl-choose:disabled { background:var(--card-2); color:var(--txt-2); cursor:default; }
 .pl-mail { margin:14px 0 0; }
 .pl-mail-line { margin-top:14px; }
@@ -42,13 +43,6 @@
 .pl-wall-hero { text-align:center; margin:28px 0 22px; }
 .pl-wall-t { font-size:clamp(26px,5vw,34px); font-weight:700; color:var(--txt); margin-bottom:8px; }
 .pl-wall-s { font-size:15px; color:var(--txt-2); max-width:520px; margin:0 auto 14px; line-height:1.5; }
-
-/* Sello de Mercado Pago debajo de los planes */
-.pl-mp { display:flex; justify-content:center; margin-top:14px; }
-.mp-badge { display:inline-flex; align-items:center; gap:10px; padding:6px 14px 6px 6px; border-radius:999px;
-  background:rgba(0,158,227,.10); border:1px solid rgba(0,158,227,.35); color:var(--txt-2); font-size:13px; }
-.mp-badge b { color:var(--txt); font-weight:600; }
-.mp-ic { width:24px; height:24px; padding:4px; border-radius:50%; background:#009EE3; color:#fff; flex:none; }
 
 .pl-name { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--gize-success); }
 .pl-oc { margin-top:22px; }
