@@ -66,7 +66,9 @@ export function billing(){
   return {
     known: true, active, trial, paid, comp, count, max, overCap,
     atCap: count >= max,
-    daysLeft: trial ? Math.max(1, Math.ceil((trialEnd - now) / 864e5)) : 0,
+    daysLeft: trialEnd > now ? Math.max(1, Math.ceil((trialEnd - now) / 864e5)) : 0,
+    // Pagó antes de que termine la prueba: el plan arranca cuando la prueba termina.
+    trialFirst: paid && !comp && trialEnd > now,
     plan: PLANS.find(p => p.id === r.plan) || null,
     until: paid ? r.paid_until : (trial ? r.trial_ends_at : null),
     renews: r.mp_status === "authorized",
@@ -74,7 +76,8 @@ export function billing(){
   };
 }
 
-function ymd(iso){ const d = new Date(iso); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+// Último día cubierto: el pago manual vence a las 00:00 del día siguiente (supabase/cobro-manual.sql).
+function ymd(iso){ const d = new Date(new Date(iso).getTime() - 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 
 // Tira debajo del código de invitación.
 export function renderPlanBanner(){
@@ -82,6 +85,7 @@ export function renderPlanBanner(){
   let txt, cls = "";
   if(b.comp) txt = "Plan cortesía · " + b.count + "/" + b.max + " clientes";
   else if(b.trial){ txt = "Prueba gratis · te quedan <b>" + b.daysLeft + " día" + (b.daysLeft === 1 ? "" : "s") + "</b> · " + b.count + "/" + b.max + " clientes"; if(b.daysLeft <= 3) cls = " warn"; }
+  else if(b.trialFirst) txt = "Prueba gratis · te quedan <b>" + b.daysLeft + " día" + (b.daysLeft === 1 ? "" : "s") + "</b> · después sigue tu plan · " + b.count + "/" + b.max + " clientes";
   else if(b.paid) txt = (b.max >= 100 ? "Plan Gimnasio" : "Plan " + b.max + " clientes") + " · " + b.count + "/" + b.max + (b.renews ? "" : " · vence el " + fmtDate(ymd(b.until)));
   else { txt = "Sin plan vigente"; cls = " warn"; }
   return '<button class="pl-banner' + cls + (b.atCap ? " warn" : "") + '" data-plan="open"><span>' + txt + '</span><span class="pl-banner-go">' + (b.trial && !IS_NATIVE ? "Ver planes" : "Mi plan") + ' ›</span></button>';
@@ -112,6 +116,7 @@ function planCards(b){
 function statusLine(b){
   if(!b.known) return "";
   if(b.comp) return '<div class="pl-status ok">Tenés un plan de cortesía, sin vencimiento.</div>';
+  if(b.trialFirst) return '<div class="pl-status ok">Tu plan de ' + b.max + ' clientes ya está pago. Primero termina tu prueba gratis (te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ') y después arranca el plan, al día hasta el ' + fmtDate(ymd(b.until)) + '.</div>';
   if(b.paid) return '<div class="pl-status ok">Plan de ' + b.max + ' clientes · ' + (b.renews ? 'se renueva solo cada mes' : 'al día hasta el ' + fmtDate(ymd(b.until))) + '.</div>';
   if(b.trial) return '<div class="pl-status">Estás en la prueba gratis: te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ' (hasta ' + b.max + ' clientes).' + (IS_NATIVE ? '' : ' Elegí un plan y contratalo por WhatsApp para seguir después.') + '</div>';
   return '<div class="pl-status warn">Tu ' + (B.row && B.row.paid_until ? 'plan venció' : 'prueba gratis terminó') + '.</div>';
