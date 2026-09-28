@@ -1121,6 +1121,12 @@ document.body.addEventListener("click", async e => {
   if(a==="day-prev"){ const D=rtDays(); if(D&&D.length){ CoachState.coachEditDay=(CoachState.coachEditDay-1+D.length)%D.length; renderCoach(); } return; }
   if(a==="day-next"){ const D=rtDays(); if(D&&D.length){ CoachState.coachEditDay=(CoachState.coachEditDay+1)%D.length; renderCoach(); } return; }
   if(a==="day-left"||a==="day-right"){ const D=rtDays(), i=CoachState.coachEditDay, j=i+(a==="day-left"?-1:1); if(D&&D[i]&&D[j]){ const t=D[i]; D[i]=D[j]; D[j]=t; CoachState.coachEditDay=j; renderCoach(); } return; }
+  // Copia del día abierto, justo después, con los mismos ejercicios, series y objetivos
+  // (sin pesos ni reps cargados): para armar, por ejemplo, "Piernas B" a partir de "Piernas A".
+  if(a==="day-dup"){ const D=rtDays(), i=CoachState.coachEditDay; if(!D||!D[i]) return;
+    const c=JSON.parse(JSON.stringify(D[i])); c.id=uid(); c.name=((D[i].name||"Día")+" (copia)").slice(0,60);
+    (c.exercises||[]).forEach(ex=>{ ex.id=uid(); (ex.sets||[]).forEach(st=>{ st.id=uid(); st.kg=""; st.reps=""; st.done=false; }); });
+    D.splice(i+1, 0, c); CoachState.coachEditDay=i+1; renderCoach(); return; }
   if(a==="day-del"){ const D=rtDays(); if(D&&D.length>1){ D.splice(CoachState.coachEditDay,1); CoachState.coachEditDay=0; renderCoach(); } return; }
   if(a==="rt-setadd"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex) ex.sets.push(mkSet()); renderCoach(); return; }
   if(a==="rt-setdel"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex && ex.sets.length>1) ex.sets.splice(+b.dataset.j,1); renderCoach(); return; }
