@@ -102,11 +102,18 @@ export function parseSecs(v){
   m = t.match(/(\d+)/); return m ? Math.min(+m[1], 36000) : 0;
 }
 export function fmtSecs(s){ s = Math.max(0, Math.round(+s || 0)); const m = Math.floor(s / 60), r = s % 60; return m ? m + ":" + String(r).padStart(2, "0") : r + " s"; }
+// Ejercicios asistidos (dominadas o fondos en máquina con contrapeso): el peso se anota en
+// negativo (-30 = 30 kg de ayuda) y progresar es acercarse a 0. Con eso, "más peso = mejor"
+// sigue valiendo en récords, sugerencias y gráficos (-25 es más que -30).
+export const isAssisted = name => /asistid/i.test(String(name || ""));
+// Peso de un ejercicio asistido: lo que se escribe (30) se guarda como -30.
+export function assistedKg(v){ const t = String(v == null ? "" : v).trim(); return !t || t.charAt(0) === "-" || !(parseFloat(t.replace(",", ".")) > 0) ? t : "-" + t; }
+
 // Texto de una serie ya hecha: "40 kg × 8", "12 reps", "45 s", "10 kg · 1:00".
 export function setText(st){
   const kg = parseFloat(String(st && st.kg || 0).replace(",", ".")) || 0, reps = +(st && st.reps) || 0, secs = +(st && st.secs) || 0;
   const k = (Math.round(kg * 100) / 100).toString().replace(".", ",");
-  if(secs > 0) return (kg > 0 ? k + " kg · " : "") + fmtSecs(secs);
-  if(kg > 0) return k + " kg" + (reps > 0 ? " × " + reps : "");
+  if(secs > 0) return (kg !== 0 ? k + " kg · " : "") + fmtSecs(secs);
+  if(kg !== 0) return k + " kg" + (reps > 0 ? " × " + reps : "");
   return reps > 0 ? reps + " reps" : "—";
 }

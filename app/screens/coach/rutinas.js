@@ -408,7 +408,7 @@ function exerciseCard(d, day, ex, i, rt){
   // Lo que hizo el cliente la última vez en este ejercicio (primero en este mismo día, si no
   // en cualquiera): se ve arriba de las series.
   const log=coachLogFor(d.sessions, day.name, ex.name); const lastLog=log[0] || coachLogFor(d.sessions, null, ex.name)[0] || null;
-  const setTxt=st=>st.secs>0 ? st.secs+' s' : (st.kg>0 ? kgText(st.kg)+' kg × '+st.reps : st.reps+' reps');
+  const setTxt=st=>st.secs>0 ? st.secs+' s' : (st.kg ? kgText(st.kg)+' kg × '+st.reps : st.reps+' reps');
   const sets=(ex.sets||[]).map((st,j)=>
     '<div class="co-set-row">'+
       '<span class="co-set-n">'+(j+1)+'</span>'+

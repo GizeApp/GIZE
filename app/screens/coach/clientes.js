@@ -115,20 +115,20 @@ export function coachActivity(lastSess){
 
 export function coachExercises(sessions){ const m={}; (sessions||[]).forEach(se=>se.exercises.forEach(ex=>{ if(ex.name) m[ex.name]=1; })); return Object.keys(m).sort((a,b)=>a.localeCompare(b,"es")); }
 
-export function coachSeries(sessions,name){ const out=[]; (sessions||[]).slice().sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(se=>{ let mx=0; se.exercises.forEach(ex=>{ if(ex.name===name) ex.sets.forEach(x=>{ const k=+x.kg||0; if(k>mx) mx=k; }); }); if(mx>0) out.push({date:se.date, kg:mx}); }); return out; }
+export function coachSeries(sessions,name){ const out=[]; (sessions||[]).slice().sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(se=>{ let mx=null; se.exercises.forEach(ex=>{ if(ex.name===name) ex.sets.forEach(x=>{ const k=+x.kg||0; if(k!==0 && (mx===null || k>mx)) mx=k; }); }); if(mx!==null) out.push({date:se.date, kg:mx}); }); return out; }
 
 export function coachLogFor(sessions, dayName, name){
   const out=[];
   (sessions||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).forEach(se=>{
     if(dayName && se.day && se.day!==dayName) return;
     const sets=[];
-    se.exercises.forEach(ex=>{ if(ex.name===name) ex.sets.forEach(st=>{ if((+st.kg||0)>0||(+st.reps||0)>0||(+st.secs||0)>0) sets.push({kg:+st.kg||0, reps:+st.reps||0, secs:+st.secs||0}); }); });
+    se.exercises.forEach(ex=>{ if(ex.name===name) ex.sets.forEach(st=>{ if((+st.kg||0)!==0||(+st.reps||0)>0||(+st.secs||0)>0) sets.push({kg:+st.kg||0, reps:+st.reps||0, secs:+st.secs||0}); }); });
     if(sets.length) out.push({date:se.date, ts:se.ts, sets:sets});
   });
   return out;
 }
 
-export function coachExerciseLog(sessions,name){ const out=[]; (sessions||[]).slice().sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(se=>{ const sets=[]; se.exercises.forEach(ex=>{ if(ex.name===name) ex.sets.forEach(st=>{ if((+st.kg||0)>0||(+st.reps||0)>0||(+st.secs||0)>0) sets.push({kg:+st.kg||0, reps:+st.reps||0, secs:+st.secs||0}); }); }); if(sets.length) out.push({date:se.date, ts:se.ts, sets:sets}); }); return out; }
+export function coachExerciseLog(sessions,name){ const out=[]; (sessions||[]).slice().sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(se=>{ const sets=[]; se.exercises.forEach(ex=>{ if(ex.name===name) ex.sets.forEach(st=>{ if((+st.kg||0)!==0||(+st.reps||0)>0||(+st.secs||0)>0) sets.push({kg:+st.kg||0, reps:+st.reps||0, secs:+st.secs||0}); }); }); if(sets.length) out.push({date:se.date, ts:se.ts, sets:sets}); }); return out; }
 
 export async function openClient(id){
   CoachState.coachSel=id; CoachState.coachData={loading:true}; CoachState.coachDailySel=null; CoachState.coachCkSel=null; CoachState.coachSessSel=null; CoachState.coachPhotoSel=null; CoachState.notifDraft=""; CoachState.notifSending=false; CoachState.coachDayFilter=null; CoachState.coachEditDay=0; renderCoach();
@@ -210,7 +210,7 @@ export function renderCoachCargas(d){
   const cch=series.length?renderWChart(series,true,true):'<div class="cal-hint">Sin kg registrados en este ejercicio'+(CoachState.coachDayFilter?' para este día':'')+'.</div>';
   const flog=coachExerciseLog(fsess,d.loadEx);
   const fkg=k=>(Math.round((+k||0)*10)/10);
-  const detail=flog.slice().reverse().map(e=>{ const chips=e.sets.map((st,ix)=>{ const kg=+st.kg||0, rp=+st.reps||0, sc=+st.secs||0; const val=sc>0?((kg>0?fkg(kg)+' kg \u00b7 ':'')+fmtSecs(sc)):kg>0?(fkg(kg)+' kg'+(rp>0?' \u00d7 '+rp+' reps':'')):(rp>0?rp+' reps':'\u2014'); return '<div class="co-setline"><span class="co-setno">Serie '+(ix+1)+'</span><span class="co-setval">'+val+'</span></div>'; }).join(""); return '<div class="co-slog"><div class="co-slog-date">'+fmtDate(e.date)+'</div><div class="co-sets">'+chips+'</div></div>'; }).join("");
+  const detail=flog.slice().reverse().map(e=>{ const chips=e.sets.map((st,ix)=>{ const kg=+st.kg||0, rp=+st.reps||0, sc=+st.secs||0; const val=sc>0?((kg!==0?fkg(kg)+' kg \u00b7 ':'')+fmtSecs(sc)):kg!==0?(fkg(kg)+' kg'+(rp>0?' \u00d7 '+rp+' reps':'')):(rp>0?rp+' reps':'\u2014'); return '<div class="co-setline"><span class="co-setno">Serie '+(ix+1)+'</span><span class="co-setval">'+val+'</span></div>'; }).join(""); return '<div class="co-slog"><div class="co-slog-date">'+fmtDate(e.date)+'</div><div class="co-sets">'+chips+'</div></div>'; }).join("");
   out+='<select class="form-input" data-coach="ex">'+exOpts+'</select><div class="load-cap">Gráfico: máximo de kg por sesión</div>'+cch+(detail?'<div class="co-sub">Registro por sesión (peso \u00d7 reps de cada serie)</div>'+detail:'');
   return out;
 }
@@ -218,7 +218,8 @@ export function renderCoachCargas(d){
 export function exChart(d, dayName, exName){
   const log=coachLogFor(d.sessions, dayName, exName);
   const asc=log.slice().reverse();
-  const series=asc.map(e=>({date:e.date, kg:Math.max.apply(null,e.sets.map(x=>x.kg||0))})).filter(x=>x.kg>0);
+  // Máximo de cada día sin contar series sin peso (en los asistidos, el peso es negativo).
+  const series=asc.map(e=>{ const ks=e.sets.map(x=>x.kg||0).filter(k=>k!==0); return {date:e.date, kg:ks.length?Math.max.apply(null,ks):0}; }).filter(x=>x.kg!==0);
   if(!series.length) return '<div class="co-noprog">Sin registros</div>';
   return renderWChart(series,true,"mini");
 }
@@ -233,7 +234,7 @@ export function exTable(d, dayName, exName){
     for(let i=0;i<maxS;i++){
       const st=e.sets[i];
       if(!st) tds.push('<td class="em">\u2014</td>');
-      else { const kg=+st.kg||0, rp=+st.reps||0, sc=+st.secs||0; if(sc>0) tds.push('<td>'+(kg>0?(Math.round(kg*10)/10)+' kg \u00b7 ':'')+fmtSecs(sc)+'</td>'); else tds.push('<td>'+(kg>0?(Math.round(kg*10)/10)+' kg':'\u2014')+(rp>0?' <span class="rp">\u00d7 '+rp+'</span>':'')+'</td>'); }
+      else { const kg=+st.kg||0, rp=+st.reps||0, sc=+st.secs||0; if(sc>0) tds.push('<td>'+(kg!==0?(Math.round(kg*10)/10)+' kg \u00b7 ':'')+fmtSecs(sc)+'</td>'); else tds.push('<td>'+(kg!==0?(Math.round(kg*10)/10)+' kg':'\u2014')+(rp>0?' <span class="rp">\u00d7 '+rp+'</span>':'')+'</td>'); }
     }
     const mx=Math.max.apply(null,e.sets.map(x=>x.kg||0)), mxs=Math.max.apply(null,e.sets.map(x=>x.secs||0));
     tds.push('<td class="mx">'+(mx>0?(Math.round(mx*10)/10)+' kg':mxs>0?fmtSecs(mxs):'\u2014')+'</td>');
@@ -249,12 +250,12 @@ export function exSummary(d, dayName, exName){
   if(!log.length) return "";
   const last=log[0];
   let best=null;
-  last.sets.forEach(st=>{ if(!best || (st.kg||0)>=(best.kg||0)) best=st; });
+  last.sets.forEach(st=>{ if(!best || (st.kg||0)!==0 && ((best.kg||0)===0 || st.kg>=best.kg)) best=st; });
   if(!best) return "";
   const mxs=Math.max.apply(null,last.sets.map(x=>x.secs||0));
-  if(mxs>0 && !(best.kg>0)) return fmtDate(last.date)+": máx "+fmtSecs(mxs);
+  if(mxs>0 && !(best.kg)) return fmtDate(last.date)+": máx "+fmtSecs(mxs);
   const kg=Math.round((best.kg||0)*10)/10;
-  const parts=[]; if(kg>0) parts.push(kg+" kg"); if((best.reps||0)>0) parts.push(best.reps+" reps");
+  const parts=[]; if(kg!==0) parts.push(kg+" kg"); if((best.reps||0)>0) parts.push(best.reps+" reps");
   if(!parts.length) return "";
   return fmtDate(last.date)+": "+parts.join(" × ");
 }

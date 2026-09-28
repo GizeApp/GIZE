@@ -14,12 +14,12 @@ const fmtKg = n => { const v = Number(n) || 0; return (Math.round(v * 100) / 100
 
 function exerciseBlock(ex){
   const sets = ex.sets || [];
-  const best = sets.reduce((b, s) => (Number(s.kg) || 0) > (Number(b && b.kg) || 0) ? s : b, null);
+  const best = sets.reduce((b, s) => (Number(s.kg) || 0) !== 0 && (!b || Number(s.kg) > Number(b.kg)) ? s : b, null);
   // Series por tiempo (plancha, isométricos): el tiempo va donde van las reps y el kg solo si hubo.
   const rows = sets.map((s, i) => (Number(s.secs) || 0) > 0 ?
     '<div class="sd-set"><span class="sd-n">' + (i + 1) + '</span>' +
-    '<span class="sd-kg">' + ((Number(s.kg) || 0) > 0 ? fmtKg(s.kg) + '<small>kg</small>' : '') + '</span>' +
-    '<span class="sd-x">' + ((Number(s.kg) || 0) > 0 ? '·' : '') + '</span>' +
+    '<span class="sd-kg">' + ((Number(s.kg) || 0) !== 0 ? fmtKg(s.kg) + '<small>kg</small>' : '') + '</span>' +
+    '<span class="sd-x">' + ((Number(s.kg) || 0) !== 0 ? '·' : '') + '</span>' +
     '<span class="sd-reps">' + fmtSecs(s.secs) + '</span></div>' :
     '<div class="sd-set"><span class="sd-n">' + (i + 1) + '</span>' +
     '<span class="sd-kg">' + fmtKg(s.kg) + '<small>kg</small></span>' +
@@ -27,7 +27,7 @@ function exerciseBlock(ex){
     '<span class="sd-reps">' + (Number(s.reps) || 0) + '<small>reps</small></span></div>'
   ).join("");
   const meta = [sets.length + (sets.length === 1 ? " serie" : " series")];
-  if (best && Number(best.kg) > 0) meta.push("mejor " + fmtKg(best.kg) + " kg");
+  if (best) meta.push("mejor " + fmtKg(best.kg) + " kg");
   const maxSecs = sets.reduce((m, s) => Math.max(m, Number(s.secs) || 0), 0);
   if (maxSecs > 0) meta.push("máx " + fmtSecs(maxSecs));
   return '<div class="sd-ex"><div class="sd-ex-h"><span class="sd-ex-name">' + esc(ex.name || "") + '</span>' +
@@ -36,7 +36,7 @@ function exerciseBlock(ex){
 
 // Coach: cada ejercicio de este entreno al lado de la vez pasada que lo hizo (el entreno
 // anterior con ese ejercicio), serie por serie, con la diferencia marcada en color.
-const setTxt = s => !s ? "—" : (Number(s.secs) || 0) > 0 ? ((Number(s.kg) || 0) > 0 ? fmtKg(s.kg) + " kg · " : "") + fmtSecs(s.secs)
+const setTxt = s => !s ? "—" : (Number(s.secs) || 0) > 0 ? ((Number(s.kg) || 0) !== 0 ? fmtKg(s.kg) + " kg · " : "") + fmtSecs(s.secs)
   : fmtKg(s.kg) + " kg × " + (Number(s.reps) || 0);
 function setDiff(s, p){
   if (!s || !p) return '<span class="sc-d none"></span>';

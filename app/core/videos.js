@@ -51,6 +51,7 @@ const V = {
   "Remo con mancuerna en banco inclinado": "https://www.youtube.com/shorts/9u5yLR9zmAs",
   "Remo invertido": "https://www.youtube.com/watch?v=intBkUz1hgM",
   "Dominadas asistidas": "https://www.youtube.com/shorts/BOBowsKJvh4",
+  "Dominadas asistidas en máquina": "https://www.youtube.com/shorts/BOBowsKJvh4",
   "Jalón supino": "https://www.youtube.com/shorts/VnLY_duYJKI",
   "Remo Meadows": "https://www.youtube.com/watch?v=yTqX3JHtwUY",
   "Rack pull": "https://www.youtube.com/shorts/ydUEFSCsChY",

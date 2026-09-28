@@ -18,7 +18,7 @@ export const STEP_KG = 2.5;
 
 export function suggest(ex, prevSets, timed){
   if (timed) return null;
-  const prev = (prevSets || []).filter(s => num(s.kg) > 0 && num(s.reps) > 0);
+  const prev = (prevSets || []).filter(s => num(s.kg) !== 0 && num(s.reps) > 0);
   if (!prev.length) return null;
   // Rango del coach, serie por serie (si una no tiene, el de la primera serie que tenga).
   const sets = ex.sets || [];
@@ -30,7 +30,9 @@ export function suggest(ex, prevSets, timed){
   const over = prev.map((s, i) => ({ s, r: rangeOf(i) })).filter(x => num(x.s.kg) === kg && Math.round(num(x.s.reps)) > x.r[1]);
   if (!over.length) return null;
   const best = over.reduce((a, x) => Math.round(num(x.s.reps)) > Math.round(num(a.s.reps)) ? x : a, over[0]);
-  const nk = Math.round((kg + STEP_KG) * 100) / 100;
-  return { kg: nk, text: "Subí " + kgText(STEP_KG) + " kg: " + kgText(nk) + " kg",
+  // Asistido (peso negativo): 2,5 kg menos de ayuda, sin pasar de 0.
+  const nk = Math.min(kg < 0 ? 0 : Infinity, Math.round((kg + STEP_KG) * 100) / 100);
+  if (kg < 0 && nk === kg) return null;
+  return { kg: nk, text: kg < 0 ? "Sacá " + kgText(nk - kg) + " kg de ayuda: " + kgText(nk) + " kg" : "Subí " + kgText(STEP_KG) + " kg: " + kgText(nk) + " kg",
     why: "La vez pasada hiciste " + Math.round(num(best.s.reps)) + " reps con " + kgText(kg) + " kg y el rango es " + best.r[0] + "-" + best.r[1] + "." };
 }

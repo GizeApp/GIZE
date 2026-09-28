@@ -12,7 +12,7 @@ import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
 import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
 
-import { fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, intNum, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
+import { assistedKg, isAssisted, fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, intNum, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
 import { runningSetId, startTimer, stopTimer } from './ui/settimer.js';
 
@@ -260,7 +260,9 @@ document.body.addEventListener("input", async e => {
   else if (a === "kg" || a === "reps") {
     const ex=d.exercises.find(x=>x.id===t.dataset.ex); const s=ex&&ex.sets.find(x=>x.id===t.dataset.set);
     if(s){
-      s[a]=t.value;
+      // Asistidos: se escribe la ayuda (30) y se guarda en negativo (-30), ver utils.
+      const val = (a === "kg" && isAssisted(ex.name)) ? assistedKg(t.value) : t.value;
+      s[a]=val;
       if(a === "kg"){
         forgetPR(s.id); // si era la serie del récord y corrige el peso, puede volver a festejar
         // El peso casi siempre se repite: se copia a las series de abajo que están vacías o
@@ -269,7 +271,7 @@ document.body.addEventListener("input", async e => {
         const i=ex.sets.indexOf(s);
         ex.sets.slice(i+1).forEach(o=>{
           if(o.done || (String(o.kg||"")!=="" && !autoKg.has(o.id))) return;
-          o.kg=t.value; if(t.value) autoKg.add(o.id); else autoKg.delete(o.id);
+          o.kg=val; if(val) autoKg.add(o.id); else autoKg.delete(o.id);
           const inp=document.querySelector('input.kg[data-set="'+o.id+'"]'); if(inp && inp!==t) inp.value=t.value;
         });
         // «Usar estos pesos»: aparece si ahora cambiaría algo y se oculta si ya están esos pesos.
@@ -664,7 +666,7 @@ document.body.addEventListener("click", async e => {
   if (a === "sug-use") {
     if(!ex) return;
     if(el.dataset.coach){ ex.sets.forEach(s=>{ const k=parseFloat(String(s.targetKg||"").replace(",", "."))||0; if(!s.done && k>0){ s.kg=String(k); autoKg.delete(s.id); } }); }
-    else { const kg=parseFloat(el.dataset.kg); if(kg>0) ex.sets.forEach(s=>{ if(!s.done){ s.kg=String(kg); autoKg.delete(s.id); } }); }
+    else { const kg=parseFloat(el.dataset.kg); if(kg || kg===0 && isAssisted(ex.name)) ex.sets.forEach(s=>{ if(!s.done){ s.kg=String(kg); autoKg.delete(s.id); } }); }
     save(); renderApp(); return;
   }
   // «La vez pasada» → Usar estos pesos: cada serie sin tildar toma el peso de la misma serie
@@ -673,7 +675,7 @@ document.body.addEventListener("click", async e => {
     if(!ex) return;
     const prev=lastSessionFor(ex.name, exOccurrence(d.exercises, ex)); if(!prev) return;
     const plan=lastPlan(ex, prev.sets);
-    ex.sets.forEach((s,i)=>{ const k=plan[i]&&plan[i].kg; if(!s.done && k>0){ s.kg=String(k); autoKg.delete(s.id); forgetPR(s.id); } });
+    ex.sets.forEach((s,i)=>{ const k=plan[i]&&plan[i].kg; if(!s.done && k){ s.kg=String(k); autoKg.delete(s.id); forgetPR(s.id); } });
     save(); renderApp(); return;
   }
   if (a === "ex-expand") { expandedOverride.add(ex.id); renderApp(); return; }
