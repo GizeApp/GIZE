@@ -258,3 +258,14 @@ textarea.in { resize: vertical; min-height: 90px; line-height: 1.45; }
 .th-sort:hover, .th-sort.on { color: var(--txt); }
 .th-arr { margin-left: 4px; opacity: .45; font-size: .85em; }
 .th-sort.on .th-arr { opacity: 1; color: var(--blue); }
+
+/* Celular: las pestañas de Productos no entraban y la tarjeta se salía del ancho. */
+.prod > * { min-width: 0; }
+@media (max-width: 560px) {
+  .seg { display: flex; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .seg::-webkit-scrollbar { display: none; }
+  .seg button { white-space: nowrap; flex: none; }
+  .prod-top .seg { width: 100%; }
+}
+.pgrid > * { min-width: 0; }
+@media (max-width: 560px) { .pgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

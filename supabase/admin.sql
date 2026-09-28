@@ -209,6 +209,11 @@ begin
   perform public.admin_assert();
   insert into public.coach_billing (coach_id) values (cid) on conflict (coach_id) do nothing;
   if mode = 'cortesia' then
+    -- Con la suscripción de Mercado Pago activa se le seguiría cobrando, y el próximo aviso de
+    -- pago le devolvería el plan pago: primero tiene que cancelarla (Mi plan → Cancelar).
+    if exists (select 1 from public.coach_billing where coach_id = cid and mp_status = 'authorized') then
+      raise exception 'Este coach tiene una suscripción de Mercado Pago activa. Pedile que la cancele desde Mi plan y después dale la cortesía.' using errcode = 'P0001';
+    end if;
     update public.coach_billing set plan = 'cortesia', max_clients = greatest(1, least(coalesce(p_max, 10), 1000)), updated_at = now() where coach_id = cid;
   elsif mode = 'trial' then
     update public.coach_billing set trial_ends_at = greatest(trial_ends_at, now()) + make_interval(days => greatest(1, least(coalesce(p_days, 14), 365))), updated_at = now() where coach_id = cid;

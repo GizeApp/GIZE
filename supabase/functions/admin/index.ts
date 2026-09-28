@@ -195,11 +195,17 @@ Deno.serve(async (req) => {
     const title = String(input.title || "").trim().slice(0, 60), body = String(input.body || "").trim().slice(0, 180);
     const target = ["todos", "coaches", "alumnos"].includes(String(input.target)) ? String(input.target) : "";
     if (!title || !body || !target) return json({ error: "Completá el título, el mensaje y a quién va." }, 400);
-    let q = db.from("profiles").select("id");
-    if (target === "coaches") q = q.eq("role", "coach");
-    if (target === "alumnos") q = q.neq("role", "coach");
-    const { data: people } = await q;
-    const ids = (people || []).map((p) => p.id);
+    // De a 1000 (el tope de cada lectura): antes el aviso llegaba solo a los primeros 1000.
+    const ids: string[] = [];
+    for (let from = 0; ; from += 1000) {
+      let q = db.from("profiles").select("id").order("id").range(from, from + 999);
+      if (target === "coaches") q = q.eq("role", "coach");
+      if (target === "alumnos") q = q.or("role.is.null,role.neq.coach");
+      const { data: page, error } = await q;
+      if (error) return json({ error: error.message }, 500);
+      (page || []).forEach((p) => ids.push(p.id));
+      if (!page || page.length < 1000) break;
+    }
     let subs: Sub[] = [];
     for (let i = 0; i < ids.length; i += 200) {
       const { data } = await db.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth").in("user_id", ids.slice(i, i + 200));
