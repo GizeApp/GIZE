@@ -1006,6 +1006,8 @@ async function sendItem(it){
     if(p.entries && p.entries.length){
       sbOk(await sb.from("session_entries").upsert(p.entries.map(e=>({id:e.id, session_id:p.id, client_id:uid, exercise_name:e.name, set_order:e.order, kg:e.kg, reps:e.reps, ...(e.secs>0?{secs:e.secs}:{})})),{onConflict:"id", ignoreDuplicates:true}));
     }
+  } else if(it.k==="sessionDelete"){
+    sbOk(await sb.from("sessions").delete().eq("id",p.id).eq("client_id",uid));
   } else if(it.k==="feedback"){
     // Con RLS, un UPDATE que ninguna política permite NO da error: simplemente cambia 0
     // filas. Sin pedir las filas de vuelta el feedback "se guardaba" sin llegar nunca.
@@ -1126,6 +1128,8 @@ function applyPending(){
     } else if(it.k==="sessionEdit"){
       const s=state.sessions.find(x=>x.id===p.id || x.cloudId===p.id);
       if(s) s.exercises=p.exercises;
+    } else if(it.k==="sessionDelete"){
+      state.sessions=state.sessions.filter(x=>x.id!==p.id && x.cloudId!==p.id);
     } else if(it.k==="feedback"){
       const s=state.sessions.find(x=>x.id===p.id);
       if(s){ if(p.rpe) s.rpe=p.rpe; if(p.pump) s.pump=p.pump; if(typeof p.joint==="boolean") s.joint=p.joint; }
@@ -1205,9 +1209,9 @@ export async function cloudDeleteSession(cid){
   // Si todavía no salió de la cola (o tiene feedback pendiente), se descarta: si no,
   // volvería a aparecer en la nube después de borrarlo.
   writeQueue(OUTBOX_KEY, readQueue(OUTBOX_KEY).filter(i=>!((i.k==="session"||i.k==="feedback"||i.k==="sessionEdit") && i.p && i.p.id===cid)));
-  refreshSyncFoot();
-  try{ sbOk(await State.sb.from("sessions").delete().eq("id",cid)); return true; }
-  catch(e){ console.error("deleteSession",e); return false; }
+  // El borrado también va por la cola: sin señal, antes solo se intentaba una vez y el
+  // entreno volvía a aparecer al recargar desde la nube.
+  return enqueueAndSend("sessionDelete", {id:cid}, cid);
 }
 
 // Cartel "mail confirmado" al volver del link del mail. La app se arma por detrás
