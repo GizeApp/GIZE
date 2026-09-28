@@ -79,8 +79,6 @@ jobs:
         if: inputs.tarea == 'funciones'
         run: |
           cp -r supabase/functions/notificar-cliente supabase/functions/rapid-worker
-          # ia-comida usa la base de alimentos de la app (misma lista que ve el usuario).
-          cp app/core/foods.js app/core/foods-extra.js app/core/foods-ar.js supabase/functions/ia-comida/
           for fn in rapid-worker suscripcion descanso avisos-coach admin contacto ia-comida; do
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt --use-api
           done
