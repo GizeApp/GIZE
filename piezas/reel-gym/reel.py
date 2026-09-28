@@ -13,7 +13,8 @@ _s = importlib.util.spec_from_file_location('historia', os.path.join(HERE, '..',
 HI = importlib.util.module_from_spec(_s)
 _argv, sys.argv = sys.argv, sys.argv[:1]; _s.loader.exec_module(HI); sys.argv = _argv
 
-SRC = os.path.join(HERE, 'src', 'gimnasio-lautaro.mp4')
+SRC_HD = os.path.join(HERE, 'src', 'gimnasio-lautaro-hd.mp4')     # mejorado con Real-ESRGAN (sr/mejorar.py)
+SRC = SRC_HD if os.path.exists(SRC_HD) else os.path.join(HERE, 'src', 'gimnasio-lautaro.mp4')
 SUB = (214, 220, 230)
 CLIP_N = 10 * FPS                     # el video dura 10 s
 END_N = int(5.5 * FPS)
@@ -23,7 +24,8 @@ N = CLIP_N + END_N
 # ---------- video de Lautaro: escalado a 1080×1920, con color de marca ----------
 def load_clip():
     cmd = ['ffmpeg', '-v', 'error', '-i', SRC, '-vf',
-           'scale=1080:-2:flags=lanczos,crop=1080:1920,unsharp=5:5:0.6:5:5:0,eq=contrast=1.06:saturation=1.15:brightness=0.03:gamma=1.22',
+           ('scale=1080:-2:flags=lanczos,crop=1080:1920,' + ('unsharp=3:3:0.25:3:3:0' if SRC == SRC_HD else 'unsharp=5:5:0.6:5:5:0') +
+            ',eq=contrast=1.06:saturation=1.15:brightness=0.03:gamma=1.22'),
            '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']
     raw = subprocess.run(cmd, capture_output=True, check=True).stdout
     fr = np.frombuffer(raw, np.uint8).reshape(-1, H, W, 3)
