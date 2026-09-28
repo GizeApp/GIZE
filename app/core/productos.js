@@ -117,20 +117,24 @@ export async function sendProductRequest({ name, brand, code, label, front }){
 }
 
 // Pedidos ya resueltos que el usuario todavía no vio: se avisan una vez al entrar a la app.
+// Si se rechazó, se le ofrece mandarlo de nuevo con el nombre, la marca y el código ya
+// cargados (onRetry abre el formulario; solo saca otra foto).
 let reqChecking = false;
-export async function checkProductRequests(){
+export async function checkProductRequests(onRetry){
   if (!ready() || reqChecking) return;
   reqChecking = true;
   try {
-    const r = await State.sb.from("product_requests").select("id,name,status,note").neq("status", "pendiente").eq("seen", false).order("done_at").limit(10);
+    const r = await State.sb.from("product_requests").select("id,name,brand,code,status,note").neq("status", "pendiente").eq("seen", false).order("done_at").limit(10);
     const rows = (r && !r.error && r.data) || [];
     if (!rows.length) return;
-    const ok = rows.filter(x => x.status === "cargado"), no = rows.filter(x => x.status === "rechazado");
-    const msg = [];
-    if (ok.length) msg.push("¡Listo! Ya agregamos a GIZE " + (ok.length === 1 ? "el producto que pediste: «" + ok[0].name + "»" : "los productos que pediste: " + ok.map(x => "«" + x.name + "»").join(", ")) + ". Buscalo o escanealo para anotarlo.");
-    no.forEach(x => msg.push("No pudimos agregar «" + x.name + "»" + (x.note ? ": " + x.note : "") + ". Si querés, mandalo de nuevo con otra foto."));
-    alert(msg.join("\n\n"));
+    // Se marcan vistos antes de preguntar: si cierra la app con el aviso abierto, no se repite.
     await Promise.all(rows.map(x => State.sb.rpc("product_request_seen", { rid: x.id }).then(() => {}, () => {})));
+    const ok = rows.filter(x => x.status === "cargado"), no = rows.filter(x => x.status === "rechazado");
+    if (ok.length) alert("¡Listo! Ya agregamos a GIZE " + (ok.length === 1 ? "el producto que pediste: «" + ok[0].name + "»" : "los productos que pediste: " + ok.map(x => "«" + x.name + "»").join(", ")) + ". Buscalo o escanealo para anotarlo.");
+    for (const x of no){
+      const again = confirm("No pudimos agregar «" + x.name + "»" + (x.note ? ": " + x.note : "") + ".\n\n¿Lo mandás de nuevo con otra foto? El nombre y la marca ya quedan cargados.");
+      if (again && onRetry){ onRetry({ name: x.name || "", brand: x.brand || "", code: x.code || "" }); break; }
+    }
   } catch (e) {
   } finally { reqChecking = false; }
 }
