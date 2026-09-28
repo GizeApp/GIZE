@@ -1,0 +1,36 @@
+# Pruebas automáticas de la app y del panel (tests/, ver tests/README.md): en cada pull
+# request, en cada cambio a main y a mano desde Actions → "Pruebas" → Run workflow.
+# Supabase está simulado dentro del navegador: no usa secretos ni datos reales, y los
+# registros solo muestran datos de prueba.
+name: Pruebas
+
+on:
+  push:
+    branches: [main]
+    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/workflows/pruebas.yml"]
+  pull_request:
+    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/workflows/pruebas.yml"]
+  workflow_dispatch:
+
+# El token de GitHub de la ejecución solo puede leer el repo.
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      # Playwright va aparte (no en package.json) para no tocar las dependencias de las apps.
+      - name: Instalar Playwright y Chromium
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pw" --no-audit --no-fund playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Correr las pruebas
+        run: node tests/run.mjs
+        env:
+          PW: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
