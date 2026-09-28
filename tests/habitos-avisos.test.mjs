@@ -52,6 +52,13 @@ export default async function ({ base, t }){
   const ownId = await p.evaluate(() => document.querySelector('[data-action="habit-toggle"]')?.dataset.id);
   await p.click(`[data-action="habit-alarm"][data-kind="own"][data-key="${ownId}"]`); await wait(300);
   t.has(await text(p, '.hba-sheet'), 'El aviso suena en la app de Android y iPhone', 'en la web avisa que suena en las apps');
+  // Cambiar días u hora no vuelve a abrir la hoja (se actualiza en el lugar: es la misma hoja).
+  await p.evaluate(() => { document.querySelector('.hba-sheet').dataset.marca = '1'; });
+  await p.click('[data-action="hba-day"][data-d="1"]'); await wait(150);
+  await p.click('[data-action="hba-all"]'); await wait(150);
+  await pickTime(p, '07:30');
+  t.eq(await p.evaluate(() => { const h = document.querySelector('.hba-sheet'); return h && h.dataset.marca; }), '1', 'la hoja no se vuelve a abrir al tocar días u hora');
+  t.has(await text(p, '.hba-sheet'), '07:30', 'la hora elegida se ve en la hoja');
   await p.click('[data-action="hba-pick"]'); await wait(300);
   t.eq(await p.evaluate(() => [...document.querySelectorAll('#timePick .tw-unit')].map(e => e.textContent)), ['hora', 'min'], 'la rueda de la hora tiene horas y minutos');
   t.eq(await p.evaluate(() => [document.querySelectorAll('#twMin .tw-item').length, document.querySelectorAll('#twSec .tw-item').length]), [24, 60], 'de 00 a 23 horas y de 00 a 59 minutos');

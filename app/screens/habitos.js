@@ -150,12 +150,16 @@ export function openHabitAlarm(kind, key){
 }
 export function renderHabitAlarmSheet(native){
   const e = HabitosState.edit; if (!e) return "";
+  return `
+    <div class="sheet-bg" data-action="hba-cancel"></div>
+    <div class="sheet hba-sheet" role="dialog" aria-label="Días y aviso"><div class="hba-body">${habitAlarmBody(native)}</div></div>`;
+}
+function habitAlarmBody(native){
+  const e = HabitosState.edit; if (!e) return "";
   const all = !e.days;
   const week = WEEK.map(d => `<button class="hba-day${!all && e.days.includes(d) ? ' on' : ''}" data-action="hba-day" data-d="${d}" aria-label="${DAY_NAME[d]}" aria-pressed="${!all && e.days.includes(d)}">${DAY_SHORT[d]}</button>`).join("");
   const fromCoach = e.kind === "coach" ? `<div class="hba-note">Tu coach lo puso para: <b>${esc(daysText(e.coachDays))}</b>. Podés cambiarlo.</div>` : "";
   return `
-    <div class="sheet-bg" data-action="hba-cancel"></div>
-    <div class="sheet hba-sheet" role="dialog" aria-label="Días y aviso">
       <div class="sheet-title">${esc(e.name)}</div>
       <div class="hba-lbl">Qué días</div>
       <button class="hba-all${all ? ' on' : ''}" data-action="hba-all" aria-pressed="${all}">Todos los días</button>
@@ -167,8 +171,15 @@ export function renderHabitAlarmSheet(native){
       <div class="sheet-btns">
         <button class="ctrl ghost" data-action="hba-cancel">Cancelar</button>
         <button class="ctrl primary" data-action="hba-save">Guardar</button>
-      </div>
-    </div>`;
+      </div>`;
+}
+// Al cambiar días u hora se actualiza solo el contenido de la hoja: volver a dibujarla entera
+// repetía la animación de apertura (parecía que se abría de nuevo), como pasaba en Comida.
+export function paintHabitAlarmSheet(native){
+  const b = document.querySelector("#sheetHost .hba-sheet .hba-body");
+  if (!b) return false;
+  b.innerHTML = habitAlarmBody(native);
+  return true;
 }
 export function habitAlarmDay(d){
   const e = HabitosState.edit; if (!e) return;
