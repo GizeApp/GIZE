@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <!-- CSP: solo corren scripts de este sitio (nada inline; ver app/lite.js y app/splash.js) y el botón de Google.
      Por <meta> porque GitHub Pages no deja poner headers. Si sumás un servicio externo, agregalo acá. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://wegptuzhsrwppbknqstf.supabase.co; connect-src 'self' https://gize.ar https://wegptuzhsrwppbknqstf.supabase.co wss://wegptuzhsrwppbknqstf.supabase.co https://world.openfoodfacts.org https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://wegptuzhsrwppbknqstf.supabase.co; connect-src 'self' https://gize.ar https://wegptuzhsrwppbknqstf.supabase.co wss://wegptuzhsrwppbknqstf.supabase.co https://world.openfoodfacts.org https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; media-src 'self' blob: https://wegptuzhsrwppbknqstf.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- La app vive en /app/ pero sus archivos (app/, css/, brand/, sw.js…) están en la raíz del sitio. -->
 <base href="../">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
@@ -58,6 +58,7 @@
 <link rel="stylesheet" href="css/ui/lite.css">
 <link rel="stylesheet" href="css/ui/actualizar.css">
 <link rel="stylesheet" href="css/ui/racha.css">
+<link rel="stylesheet" href="css/ui/chat.css">
 
 </head>
 <body class="is-booting">
@@ -85,6 +86,7 @@
         <div class="client-name" id="brandName"></div>
         <div class="client-sub">Tu coach</div>
       </div>
+      <button class="chat-btn" id="chatBtn" data-action="chat-open" aria-label="Chat con tu coach" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/></svg><span class="chat-badge" hidden></span></button>
       <button class="streak" id="streakBtn" data-action="streak-open" aria-label="Racha" hidden></button>
     </div>
   </div>

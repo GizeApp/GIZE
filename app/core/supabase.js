@@ -571,6 +571,7 @@ export async function afterLogin(sessionUser){
   if (State.cloudProfile && State.cloudProfile.role==="coach"){ await Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]); renderCoach(); checkPaymentReturn(); syncPush(); }
   else { renderApp(); syncPush(); } // sin await: no demora la entrada
   maybeShowOnboarding(); // cuenta nueva: bienvenida (una sola vez), encima de la app
+  window.dispatchEvent(new Event("gize:login")); // chat: botón, globitos y aviso tocado (main.js)
 }
 
 export async function loadCloud(){

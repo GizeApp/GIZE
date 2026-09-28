@@ -70,6 +70,7 @@ import { initUpdateCheck } from './ui/actualizar.js';
 import { openRoutinePicker } from './screens/onboarding.js';
 import { initTabScroll, restoreTabScroll } from './ui/tabscroll.js';
 import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
+import { ChatUnread, chatOpenFor, openChat, refreshUnread } from './ui/chat.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
 const autoKg = new Set();
@@ -96,7 +97,7 @@ export function renderApp(){
   // Semana de descarga: si empezó o terminó (app abierta de un día a otro, o sin señal), cambia
   // de rutina con lo guardado del bloque; la nube lo confirma cuando carga.
   if((!State.cloudProfile || routineLocked()) && coachRoutineDue() && applyCoachRoutine()) save();
-  markVisit(); paintStreak(); // racha: hoy entró
+  markVisit(); paintStreak(); paintChatBtn(); // racha: hoy entró · chat con el coach
   document.getElementById("nav-entreno").classList.toggle("active", State.view==="entreno");
   document.getElementById("nav-habitos").classList.toggle("active", State.view==="habitos");
   document.getElementById("nav-cardio").classList.toggle("active", State.view==="cardio");
@@ -338,6 +339,7 @@ document.body.addEventListener("click", async e => {
 
   // Racha
   if (a === "streak-open") { openStreak(); return; }
+  if (a === "chat-open") { openMyChat(); return; }
   if (a === "streak-close") { closeStreak(); return; }
 
   // Hábitos
@@ -1036,6 +1038,7 @@ document.body.addEventListener("click", async e => {
   if(a==="client-tab"){ CoachState.coachClientTab=b.dataset.t; CoachState.coachSec=null; CoachState.coachPlanSec=null; renderCoach(); return; }
   if(a==="plsec-open"){ CoachState.coachPlanSec=b.dataset.v; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="plsec-close"){ CoachState.coachPlanSec=null; renderCoach(); window.scrollTo(0,0); return; }
+  if(a==="sec-open" && b.dataset.v==="chat"){ openCoachChat(CoachState.coachSel); return; }
   if(a==="sec-open"){ CoachState.coachSec=b.dataset.v; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="sec-close"){ CoachState.coachSec=null; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="edit-day"){ CoachState.coachEditDay=+b.dataset.i||0; renderCoach(); return; }
@@ -1567,3 +1570,42 @@ function refreshCoachClients(){
   loadCoachClients().then(()=>{ if(!CoachState.coachSel) renderCoach(); }).catch(()=>{});
 }
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") refreshCoachClients(); });
+
+// ---- Chat coach ↔ alumno (app/ui/chat.js) ----
+// Alumno: botón de la barra de arriba (#chatBtn) con el globito de mensajes sin leer.
+// Coach: el globito va en la lista de clientes y en la tarjeta "Chat" de la ficha.
+function isCoach(){ return !!(State.cloudProfile && State.cloudProfile.role==="coach"); }
+function openMyChat(){
+  const p=State.cloudProfile; if(!p || !p.coach_id || !State.cloudUser) return;
+  openChat({ clientId: State.cloudUser.id, coachId: p.coach_id, name: State.brandName || "Tu coach", role: "client" });
+}
+function openCoachChat(id){
+  if(!id || !State.cloudUser) return;
+  const c=CoachState.coachClients.find(x=>x.id===id);
+  openChat({ clientId: id, coachId: State.cloudUser.id, name: (c && c.full_name) || "Alumno", role: "coach" });
+}
+function paintChatBtn(){
+  const b=document.getElementById("chatBtn"); if(!b) return;
+  const p=State.cloudProfile;
+  const show=!!(State.cloudUser && p && p.role!=="coach" && p.coach_id);
+  b.hidden=!show;
+  const n=show && State.cloudUser ? (ChatUnread.map[State.cloudUser.id]||0) : 0;
+  const bd=b.querySelector(".chat-badge"); if(bd){ bd.hidden=!n; bd.textContent=n>9?"9+":String(n); }
+  b.setAttribute("aria-label", n ? "Chat con tu coach: "+n+" sin leer" : "Chat con tu coach");
+}
+ChatUnread.onChange=()=>{ paintChatBtn(); if(isCoach()) renderCoach(); };
+// Tocar el aviso de un mensaje: el service worker avisa (app abierta) o abre ?chat=<alumno>.
+function chatFromPush(id){
+  if(!id || !State.cloudUser || !State.cloudProfile || chatOpenFor()===id) return;
+  if(isCoach()){ if(CoachState.coachClients.some(c=>c.id===id)) openCoachChat(id); }
+  else if(id===State.cloudUser.id) openMyChat();
+}
+if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e=>{ if(e.data && e.data.type==="open-chat") chatFromPush(String(e.data.client||"")); });
+window.addEventListener("gize:login", ()=>{
+  paintChatBtn();
+  refreshUnread();
+  let id=null; try{ const u=new URL(location.href); id=u.searchParams.get("chat"); if(id){ u.searchParams.delete("chat"); history.replaceState(history.state, "", u.pathname+u.search+u.hash); } }catch(e){}
+  if(id) chatFromPush(id);
+});
+// Globitos al día al volver a la app.
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible" && State.cloudUser) refreshUnread(); });
