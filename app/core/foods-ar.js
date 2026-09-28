@@ -69,7 +69,7 @@ export const AR_SECTIONS = [
 ]],
 ["Panificados", [
   ["Pizzetas de copetín con salsa (1 u. ≈ 29 g)", 262, 6.9, 44.8, 6.9, 29],
-  ["Palmerita (1 u. ≈ 30 g)", 497, 5.5, 58, 27, 30],
+  ["Palmerita / orejita (1 u. ≈ 30 g)", 497, 5.5, 58, 27, 30],
   ["Libritos de grasa (1 u. ≈ 25 g)", 392, 7, 51.8, 17.4, 25, {src:"S"}],
   ["Cremona de grasa (1 gajo ≈ 50 g)", 417, 8, 50, 20.5, 50],
   ["Figacitas de manteca (1 u. ≈ 40 g)", 278, 6.8, 46.6, 7.1, 40, {src:"S"}],
