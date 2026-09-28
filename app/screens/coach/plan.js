@@ -54,10 +54,13 @@ export function billing(){
   const comp = r.plan === "cortesia";
   const paid = paidUntil > now;
   const trial = !paid && !comp && trialEnd > now;
-  const active = comp || paid || trial;
   const max = r.max_clients || TRIAL_MAX;
+  // Más clientes que los del plan (por ejemplo, después de pasarse a uno más chico): la base
+  // lo trata como sin plan (coach_active en supabase/cupo-plan.sql) hasta que lo resuelva.
+  const overCap = !comp && (paid || trial) && count > max;
+  const active = comp || ((paid || trial) && !overCap);
   return {
-    known: true, active, trial, paid, comp, count, max,
+    known: true, active, trial, paid, comp, count, max, overCap,
     atCap: count >= max,
     daysLeft: trial ? Math.max(1, Math.ceil((trialEnd - now) / 864e5)) : 0,
     plan: PLANS.find(p => p.id === r.plan) || null,
@@ -131,6 +134,7 @@ export function renderPlanSheet(){
 // Pantalla completa cuando no hay prueba ni plan vigente.
 export function renderPaywall(){
   const b = billing();
+  if(b.overCap) return renderOverCap(b);
   return '<div class="co-wrap pl-wall">' +
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
     '<div class="pl-wall-hero"><div class="pl-wall-t">' + (B.row && B.row.paid_until ? 'Tu plan venció' : 'Terminó tu prueba gratis') + '</div>' +
@@ -139,6 +143,33 @@ export function renderPaywall(){
     (B.confirming ? '<div class="pl-status">Confirmando tu pago con Mercado Pago…</div>' : '') + '</div>' +
     planCards(b) +
   '</div>';
+}
+
+// Tiene más clientes que los de su plan: se pasa a uno más grande o desvincula clientes.
+function renderOverCap(b){
+  const extra = b.count - b.max;
+  const list = CoachState.coachClients.map(c => '<div class="pl-oc-row"><span>' + esc(c.full_name || "Cliente") + '</span>' +
+    '<button class="pl-link" data-plan="unlink" data-id="' + esc(c.id) + '"' + (B.busy ? ' disabled' : '') + '>Desvincular</button></div>').join("");
+  return '<div class="co-wrap pl-wall">' +
+    '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
+    '<div class="pl-wall-hero"><div class="pl-wall-t">Tenés más clientes que tu plan</div>' +
+    '<div class="pl-wall-s">Tenés ' + b.count + ' clientes y tu plan es de ' + b.max + '. ' +
+    (IS_NATIVE ? 'Desvinculá ' : 'Pasate a un plan más grande o desvinculá ') + extra + ' cliente' + (extra === 1 ? '' : 's') + ' para volver a ver sus fichas. Sus rutinas y registros quedan guardados.</div></div>' +
+    planCards(b) +
+    '<div class="pl-oc"><div class="pl-sub">Tus clientes</div>' + list + '</div>' +
+  '</div>';
+}
+
+async function unlinkClient(id){
+  const c = CoachState.coachClients.find(x => x.id === id); if(!c) return;
+  if(!confirm("¿Desvincular a " + (c.full_name || "este cliente") + "? Deja de verte como coach; sus datos quedan en su cuenta.")) return;
+  B.busy = true; rerender();
+  try{
+    const r = await State.sb.rpc("coach_remove_client", { client: id });
+    if(r.error) throw r.error;
+    CoachState.coachClients = CoachState.coachClients.filter(x => x.id !== id);
+  }catch(e){ alert("No se pudo desvincular: " + ((e && e.message) || e)); }
+  B.busy = false; rerender();
 }
 
 async function choose(plan, btn){
@@ -200,6 +231,7 @@ document.body.addEventListener("click", e => {
   if(a === "close"){ B.open = false; renderPlanSheet(); return; }
   if(a === "choose"){ choose(b.dataset.id, b); return; }
   if(a === "cancel"){ cancelRenewal(); return; }
+  if(a === "unlink"){ unlinkClient(b.dataset.id); return; }
   if(a === "mail-edit"){ B.mailOpen = true; rerender(); const i = document.querySelector('[data-plan="mail"]'); if(i){ i.focus(); i.select(); } return; }
 });
 
