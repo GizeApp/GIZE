@@ -9,6 +9,7 @@ import { renderApplyPicker, renderCoachBlock, renderCoachPlan, renderCoachRoutin
 import { picker, renderCoachCheckins, renderCoachDaily, renderCoachWeekly } from './seguimiento.js';
 
 import { CoachState } from './state.js';
+import { State } from '../../core/state.js';
 import { blockWeek, isDeload, weekRange } from '../../core/bloque.js';
 
 import { renderVolumen, renderWChart } from '../progreso.js';
@@ -49,9 +50,26 @@ function snapEdits(){
 }
 window.addEventListener("beforeunload", ev => { if(tplDirty() || routineDirty()){ ev.preventDefault(); ev.returnValue=""; } });
 
+// Borrador de la rutina del cliente en este dispositivo: se guarda con cada cambio y al salir
+// de la app. En el celular, ir a otra app (a copiar la rutina de WhatsApp, por ejemplo) puede
+// hacer que el navegador recargue la página al volver, y se perdía todo lo no guardado.
+// Al abrir de nuevo al cliente se recupera (ver openClient).
+const draftKey = id => "gize_rt_draft_" + ((State.cloudUser && State.cloudUser.id) || "") + "_" + id;
+export function readRoutineDraft(id){ try{ return JSON.parse(localStorage.getItem(draftKey(id)) || "null"); }catch(e){ return null; } }
+export function dropRoutineDraft(id){ try{ localStorage.removeItem(draftKey(id)); }catch(e){} }
+export function persistRoutineDraft(){
+  const d=CoachState.coachData; if(!d || !d.id || d.routineOrig===undefined) return;
+  try{
+    if(routineDirty()) localStorage.setItem(draftKey(d.id), JSON.stringify({ days:d.routine, base:d.routineOrig, ts:Date.now() }));
+    else localStorage.removeItem(draftKey(d.id));
+  }catch(e){}
+}
+document.addEventListener("visibilitychange", () => { if(document.visibilityState==="hidden") persistRoutineDraft(); });
+window.addEventListener("pagehide", persistRoutineDraft);
+
 export function renderCoach(){
   const host=document.getElementById("coachHost"); if(!host) return;
-  snapEdits();
+  snapEdits(); persistRoutineDraft();
   if(!CoachState.coachSel && CoachState.coachApplyPicker){ CoachState.coachApplyPicker=null; renderApplyPicker(); }
   if(!CoachState.coachSel && CoachState.coachCopyPicker){ CoachState.coachCopyPicker=null; renderCopyPicker(); }
   host.style.display="block";
