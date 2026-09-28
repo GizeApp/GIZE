@@ -51,3 +51,7 @@
 .mp-ic { width:24px; height:24px; padding:4px; border-radius:50%; background:#009EE3; color:#fff; flex:none; }
 
 .pl-name { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--gize-success); }
+.pl-oc { margin-top:22px; }
+.pl-oc .pl-sub { font-size:13px; font-weight:600; color:var(--txt-2); margin-bottom:8px; }
+.pl-oc-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--card-2); margin-bottom:6px; font-size:14px; color:var(--txt); }
+.pl-oc-row span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
