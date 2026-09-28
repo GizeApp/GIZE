@@ -136,3 +136,8 @@
   background:none; color:var(--gize-blue); font:700 var(--text-meta) var(--gize-font); cursor:pointer; }
 .ls-use:active { background:color-mix(in srgb, var(--gize-blue) 15%, transparent); }
 .ls-use[hidden] { display:none; }
+/* Volumen: el nombre del grupo siempre en una línea; la columna toma el ancho del más largo
+   y todas las barras arrancan en el mismo lugar. */
+.vol-card { display: grid; grid-template-columns: max-content minmax(0, 1fr) auto; column-gap: 10px; row-gap: 11px; align-items: center; }
+.vol-card .vol-row { display: contents; }
+.vol-card .vol-lbl { width: auto; white-space: nowrap; }
