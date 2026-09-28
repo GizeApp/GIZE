@@ -21,7 +21,7 @@ import { showLogin } from './screens/auth.js';
 import { ssGroupOf, ssNext } from './core/superserie.js';
 import { CardioState, openTimePicker, renderCardio, setRing, swFrac } from './screens/cardio.js';
 
-import { CheckinState, renderFeedback, saludRowHtml, saveSession } from './screens/checkin.js';
+import { CheckinState, renderFeedback, saveSession } from './screens/checkin.js';
 
 import { loadCoachClients, openClient } from './screens/coach/clientes.js';
 
@@ -73,7 +73,6 @@ import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
 import { ChatUnread, chatOpenFor, openChat, refreshUnread } from './ui/chat.js';
 import { signedAudioUrl, togglePlay } from './ui/grabar.js';
 import { dropExMedia } from './core/videos.js';
-import { SaludState, syncSalud } from './core/salud.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
 const autoKg = new Set();
@@ -348,7 +347,6 @@ document.body.addEventListener("click", async e => {
   // Racha
   if (a === "streak-open") { openStreak(); return; }
   if (a === "chat-open") { openMyChat(); return; }
-  if (a === "salud-sync") { syncSalud(true); return; }
   if (a === "ex-audio") { const pth=el.dataset.path; togglePlay("ex:"+pth, ()=>signedAudioUrl(pth)); return; }
   if (a === "streak-close") { closeStreak(); return; }
 
@@ -1621,17 +1619,3 @@ window.addEventListener("gize:login", ()=>{
 // Globitos al día al volver a la app.
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible" && State.cloudUser) refreshUnread(); });
 
-// Pasos y peso automáticos (core/salud.js): al terminar una lectura se redibuja lo que los muestra.
-// Si se está escribiendo en la pantalla (por ejemplo el registro de hoy), no se redibuja todo
-// (se perdería el foco y el teclado): solo el recuadro de Health Connect / Salud y los pasos.
-SaludState.onChange=()=>{
-  if(isCoach() || ["progreso","config"].indexOf(State.view)<0) return;
-  const f=document.activeElement, v=document.getElementById("view");
-  if(f && v && v.contains(f) && /^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName)){
-    const row=document.querySelector("#view .salud-row"); if(row) row.outerHTML=saludRowHtml();
-    const ds=document.getElementById("dSteps");
-    if(ds && ds!==f && !(CheckinState.dailyForm && CheckinState.dailyForm.steps!=null)) ds.value=state.steps||"";
-    return;
-  }
-  renderApp();
-};

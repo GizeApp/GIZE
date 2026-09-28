@@ -1,4 +1,3 @@
-import { SaludState, lastSyncTime, saludName, saludOn, saludSupported, syncSalud } from '../core/salud.js';
 import { clientQuestions } from '../core/questions.js';
 
 import { copySvg, pillSvg, trophySvg } from '../core/icons.js';
@@ -119,27 +118,6 @@ export function renderInfo(){
     '<div class="fi-card">'+(chips?'<div class="fi-chips">'+chips+'</div>':'')+lines+'</div>';
 }
 
-// Peso de hoy ya cargado (por ejemplo, traído de Health Connect / Salud).
-function todayWeight(){ const w=(state.weights||[]).find(x=>x.date===today()); return w ? String(w.kg).replace(".",",") : ""; }
-
-// Pasos y peso automáticos (core/salud.js): de dónde salen, o cómo prenderlo en la app nativa.
-function saludHint(){
-  // Lectura al abrir el registro (syncSalud espera un minuto entre lecturas). Fuera del
-  // dibujo: al terminar redibuja.
-  if(saludOn()) setTimeout(()=>syncSalud(false), 0);
-  return saludRowHtml();
-}
-// El recuadro solo (main.js lo actualiza sin redibujar el formulario si se está escribiendo).
-export function saludRowHtml(){
-  if(saludOn()){
-    const last=lastSyncTime();
-    return '<div class="salud-row"><span>Pasos y peso desde '+esc(saludName())+(last?' \u00b7 '+last.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}):'')+(SaludState.lastError && SaludState.lastError!=="parcial"?' \u00b7 no se pudo leer':'')+'</span>'+
-      '<button class="cal-edit" data-action="salud-sync"'+(SaludState.busy?' disabled':'')+'>'+(SaludState.busy?'Leyendo\u2026':'Actualizar')+'</button></div>';
-  }
-  if(saludSupported()) return '<div class="salud-tip">Para que pasos y peso se carguen solos, prendé <b>Ajustes \u2192 Pasos y peso automáticos</b>.</div>';
-  return '';
-}
-
 export function renderDaily(){
   const d = CheckinState.dailyForm || (state.daily[today()] || {});
   // Preguntas del coach (o las predeterminadas): las de opciones van como botones, las de
@@ -155,10 +133,9 @@ export function renderDaily(){
     <div class="hb-head"><div class="hb-title">Registro de hoy</div><div class="title-accent"></div></div>
     <div class="daily-card">
       <div class="daily-top">
-        <div class="dfield"><label>Peso</label><input id="dKg" class="form-input" type="text" inputmode="decimal" placeholder="kg" value="${esc(d.kg||(saludOn()?todayWeight():""))}" data-action="daily-kg"></div>
+        <div class="dfield"><label>Peso</label><input id="dKg" class="form-input" type="text" inputmode="decimal" placeholder="kg" value="${esc(d.kg||"")}" data-action="daily-kg"></div>
         <div class="dfield"><label>Pasos</label><input id="dSteps" class="form-input" type="text" inputmode="numeric" placeholder="0" value="${esc(CheckinState.dailyForm && CheckinState.dailyForm.steps!=null ? CheckinState.dailyForm.steps : (state.steps||""))}" data-action="daily-steps"></div>
       </div>
-      ${saludHint()}
       ${rows}
       <button class="form-save" style="margin-top:12px" data-action="daily-save">Guardar registro de hoy</button>
     </div>`;
