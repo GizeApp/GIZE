@@ -91,7 +91,7 @@ body:not(#_) {
     &:hover { filter: brightness(.94); transform: none; }
     &:active { transform: scale(.985); filter: none; }
   }
-  .ctrl.primary, :is(.save-session, .co-save-rt) {
+  .ctrl.primary, :is(.save-session, .co-save-rt, .rq-send) {
     background: linear-gradient(#fff, #fff) padding-box,
       conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box;
     animation: gize-spin 5s linear infinite;
