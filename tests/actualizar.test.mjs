@@ -17,4 +17,15 @@ export default async function ({ base, t }){
   t.eq(nav, TIENDA, 'Actualizar abre la página de la tienda');
   t.eq(errs, [], 'errores de la página');
   await close();
+
+  // Versión obligatoria con "reducir animaciones" del celular: la pantalla se ve entera.
+  const f = await newPage({ reducedMotion: 'reduce',
+    init: () => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: { App: { getInfo: async () => ({ build: '26' }), addListener: () => {} } } }; },
+    handlers: { '/app_config': (r, J) => J([{ value: { android: { ultima: 27, minima: 27, version: '1.1.3', tienda: TIENDA } } }]) } });
+  await f.p.goto(base + '/app/'); await wait(4500);
+  const lay = await f.p.evaluate(() => { const c = document.querySelector('.upd-forzada .upd-card'), g = c && c.querySelector('.upd-go'); if (!c) return null;
+    const cb = c.getBoundingClientRect(), gb = g.getBoundingClientRect(); return { display: getComputedStyle(c).display, fits: gb.right <= cb.right + 1 && gb.left >= cb.left - 1 }; });
+  t.ok(lay && lay.display === 'flex' && lay.fits, 'pantalla de versión obligatoria con animaciones reducidas: ' + JSON.stringify(lay));
+  t.eq(f.errs, [], 'errores de la página (versión obligatoria)');
+  await f.close();
 }

@@ -91,7 +91,9 @@ export function billing(){
 }
 
 // Último día cubierto: el pago manual vence a las 00:00 del día siguiente (supabase/cobro-manual.sql).
-function ymd(iso){ const d = new Date(new Date(iso).getTime() - 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+// En hora de Argentina (la del cobro), aunque el celular esté en otro huso horario.
+const AR_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" });
+function ymd(iso){ return AR_DAY.format(new Date(new Date(iso).getTime() - 1)); }
 
 // Tira debajo del código de invitación.
 export function renderPlanBanner(){

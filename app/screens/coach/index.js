@@ -43,7 +43,6 @@ function inviteBox(){
 const tplSnap = e => JSON.stringify([e.name || "", e.starts_on || "", e.days || []]);
 export function tplDirty(){ const e=CoachState.coachTplEdit; return !!(e && !e.deload && e.orig0!==undefined && tplSnap(e)!==e.orig0); }
 export function routineDirty(){ const d=CoachState.coachData; return !!(d && d.id && d.routineOrig!==undefined && JSON.stringify(d.routine||[])!==d.routineOrig); }
-export function markRoutineSaved(){ const d=CoachState.coachData; if(d && d.id) d.routineOrig=JSON.stringify(d.routine||[]); }
 function snapEdits(){
   const e=CoachState.coachTplEdit; if(e && !e.deload && e.orig0===undefined) e.orig0=tplSnap(e);
   const d=CoachState.coachData; if(d && d.id && Array.isArray(d.routine) && d.routineOrig===undefined) d.routineOrig=JSON.stringify(d.routine);

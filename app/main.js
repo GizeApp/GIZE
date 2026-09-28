@@ -25,7 +25,7 @@ import { CheckinState, renderFeedback, saveSession } from './screens/checkin.js'
 
 import { loadCoachClients, openClient } from './screens/coach/clientes.js';
 
-import { dropRoutineDraft, markRoutineSaved, renderCoach, routineDirty, tplDirty } from './screens/coach/index.js';
+import { dropRoutineDraft, renderCoach, routineDirty, tplDirty } from './screens/coach/index.js';
 
 import { renderCoachSettings } from './screens/coach/settings.js';
 
@@ -1251,7 +1251,9 @@ document.body.addEventListener("click", async e => {
   if(a==="pl-habitadd"){ const p=coachPlanObj(CoachState.coachData); (p.habits=p.habits||[]).push(""); renderCoach(); return; }
   if(a==="pl-habitdel"){ const p=coachPlanObj(CoachState.coachData); p.habits.splice(+b.dataset.i,1); renderCoach(); return; }
   if(a==="pl-swapdel"){ const p=coachPlanObj(CoachState.coachData); p.swaps.splice(+b.dataset.i,1); renderCoach(); return; }
-  if(a==="save-routine"){ const cd=CoachState.coachData; if(!cd||!cd.id||cd.id!==CoachState.coachSel) return; b.textContent="Guardando..."; (async()=>{ try{ const r=await State.sb.from("routines").upsert({client_id:cd.id, days:cd.routine, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}); if(r.error) throw r.error; if(CoachState.coachData===cd){ markRoutineSaved(); cd.draftRestored=false; } alert("Rutina guardada. El cliente la va a ver al abrir la app."); }catch(err){ alert("No se pudo guardar: "+((err&&err.message)||err)); } renderCoach(); })(); return; }
+  // Se guarda la rutina tal como estaba al tocar: lo que el coach cambie mientras se guarda
+  // sigue marcado como "sin guardar" (antes se daba por guardado y se perdía).
+  if(a==="save-routine"){ const cd=CoachState.coachData; if(!cd||!cd.id||cd.id!==CoachState.coachSel||cd.savingRoutine) return; const sent=JSON.stringify(cd.routine||[]); cd.savingRoutine=true; b.disabled=true; b.textContent="Guardando..."; (async()=>{ try{ const r=await State.sb.from("routines").upsert({client_id:cd.id, days:JSON.parse(sent), updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}); if(r.error) throw r.error; if(CoachState.coachData===cd){ cd.routineOrig=sent; cd.draftRestored=false; } alert("Rutina guardada. El cliente la va a ver al abrir la app."); }catch(err){ alert("No se pudo guardar: "+((err&&err.message)||err)); } cd.savingRoutine=false; renderCoach(); })(); return; }
 });
 
 document.body.addEventListener("change", async e => {
