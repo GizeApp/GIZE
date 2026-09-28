@@ -345,3 +345,7 @@ button.search-open { flex: 1; background: var(--card-2); border: 1px solid var(-
 .scan-btn:active { transform: scale(.96); }
 @media (prefers-reduced-motion: reduce) { .scan-btn { animation: none; } }
 html.lite .scan-btn { animation: none; }
+/* Cartelito "BETA" arriba del botón del escáner (todavía está en prueba). */
+.scan-btn { position: relative; overflow: visible; }
+.scan-beta { position: absolute; top: -7px; right: -6px; padding: 1px 4px; border-radius: 5px; font-size: 8px; font-weight: 800; letter-spacing: .06em; line-height: 1.3;
+  color: #fff; background: linear-gradient(90deg, var(--gize-r2), var(--gize-r3)); box-shadow: 0 0 8px color-mix(in srgb, var(--gize-r2) 60%, transparent); pointer-events: none; }
