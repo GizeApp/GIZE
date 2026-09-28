@@ -508,6 +508,9 @@ export async function afterLogin(sessionUser){
   // red (lee la sesión guardada en el dispositivo), así que arrancamos con ESE y solo
   // lo reemplazamos por la versión fresca del servidor si getUser() llega a responder.
   State.cloudUser = sessionUser || State.cloudUser || null;
+  // Pide que el navegador no borre lo guardado (sesión y datos) cuando le falta espacio o la
+  // página no se abre por un tiempo. Si no lo concede, sigue igual que antes.
+  try{ if(State.cloudUser && navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p=>{ if(!p) navigator.storage.persist().catch(()=>{}); }).catch(()=>{}); }catch(e){}
   if(State.cloudUser && State.sb) setTimeout(touchMe, 4000);
   // Los datos del celular son de quien los cargó (state.ownerUid). Si entra OTRA cuenta en
   // este dispositivo se empieza de cero, para que no herede la rutina ni el diario ajenos.
