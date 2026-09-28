@@ -24,7 +24,6 @@ export const State = {
 
   // Fechas de peso que este dispositivo vio en la nube. cloudSyncCore() solo borra de la
   // nube las que estén acá y el cliente haya sacado; nunca las que no llegó a leer.
-  cloudWeightDates: new Set(),
 
   // Modo edición del nombre en Configuración (ver screens/config.js) — solo el toggle
   // vive acá; el valor tipeado se lee directo del <input> al guardar (mismo criterio que
