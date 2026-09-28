@@ -11,6 +11,8 @@ create extension if not exists pg_trgm with schema extensions;
 create index if not exists products_search_trgm_idx on public.products using gin (search extensions.gin_trgm_ops);
 
 -- Igual que en productos.sql, y ahora lo que llega de la app tampoco puede traer "scans".
+-- OJO: la versión vigente es la de productos-admin.sql (que además pide la foto de la tabla);
+-- si se vuelve a correr este archivo, correr después productos-admin.sql.
 create or replace function public.products_before()
 returns trigger language plpgsql set search_path = public as $$
 begin
