@@ -1,6 +1,8 @@
 /* Cartel de versión nueva (app/ui/actualizar.js): tarjeta flotante encima de la barra de
    navegación, con el filete RGB de marca arriba, la G y el botón blanco de acción. */
-.upd { position: fixed; left: 0; right: 0; bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 60;
+/* z-index por encima del panel del coach (#coachHost 150, #coachSheetHost 300): con 60 quedaba
+   debajo, se veían los botones del panel encima y el toque en "Actualizar" no llegaba. */
+.upd { position: fixed; left: 0; right: 0; bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 350;
   display: flex; justify-content: center; padding: 0 12px; pointer-events: none; }
 .upd-card { pointer-events: auto; position: relative; overflow: hidden; width: 100%; max-width: 516px;
   display: flex; align-items: center; gap: var(--space-10);
