@@ -13,7 +13,9 @@ begin
   if new.endpoint is null or char_length(new.endpoint) > 2048
      or not (
        new.endpoint ~ '^https://([a-z0-9-]+\.)*(fcm\.googleapis\.com|android\.googleapis\.com|push\.services\.mozilla\.com|push\.apple\.com|notify\.windows\.com)(:[0-9]+)?/'
-       or new.endpoint ~ '^fcm:[A-Za-z0-9_:.-]{20,4096}$'
+       -- Sin {20,4096}: Postgres no acepta repeticiones de más de 255 ("invalid repetition
+       -- count") y todos los Android fallaban al guardar. El largo lo controla char_length.
+       or (new.endpoint ~ '^fcm:[A-Za-z0-9_:.-]+$' and char_length(new.endpoint) >= 24)
        or new.endpoint ~ '^apns:[0-9a-fA-F]{32,200}$'
      ) then
     raise exception 'Este navegador usa un servicio de notificaciones que GIZE no reconoce. Probá con Chrome, Safari, Firefox o Edge.'
