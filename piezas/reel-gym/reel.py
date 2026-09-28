@@ -73,11 +73,9 @@ BEATS = [(6, 78, 'Así se entrena', 'hoy.', 170),
          (150, 222, 'El descanso,', 'cronometrado.', 128),
          (222, 300, 'Tu progreso,', 'a mano.', 170)]
 BEAT_L = [(headline(a), neon_word(b, s)) for _, _, a, b, s in BEATS]
-TAG = label('Grabado en el gimnasio · uso real')
 
 def gym(f):
     c = clip_frame(f)
-    put(c, TAG, 0, 262, ease_out((f - 4) / 12) * (1 - ease_io((f - 288) / 12)), 0)
     for (t0, t1, *_), (hl, (nw, P)) in zip(BEATS, BEAT_L):
         if not (t0 - 1 <= f < t1 + 8): continue
         k = f - t0
@@ -93,14 +91,16 @@ LOGO_S = R.svg('gize-firma-horizontal.svg', 170)
 
 # ---------- cierre de marca ----------
 FIRMA = R.svg('gize-firma-horizontal.svg', 380)
+# sin fechas de lanzamiento: todavía no están definidas
+BADGES = [HI.store_badge(HI.APPLE, 'App Store', 'Próximamente'), HI.store_badge(HI.ANDROID, 'Google Play', 'Próximamente')]
 def end(f):
     c = HI.bg()
     a = ease_out(f / 14)
     c.alpha_composite(fade(FIRMA, a), ((W - FIRMA.width) // 2, int(600 + (1 - a) * 16)))
     if f >= 6: HI.put_neon(c, 'gratis', 990, 250, flick(f - 6), stroke=10)
     a = ease_out((f - 24) / 12)
-    if a > 0: HI.R6.centered(c, 'Descargá GIZE y entrená con todo anotado.', R.F_H(50), 1050 + (1 - a) * 16, TEXT, a)
-    for i, b in enumerate(HI.BADGES):
+    if a > 0: HI.R6.centered(c, 'Entrená con todo anotado.', R.F_H(50), 1050 + (1 - a) * 16, TEXT, a)
+    for i, b in enumerate(BADGES):
         a = ease_out((f - 34 - i * 6) / 12)
         if a > 0: c.alpha_composite(fade(b, a), ([W // 2 - b.width - 14, W // 2 + 14][i], int(1160 + (1 - a) * 24)))
     a = ease_out((f - 54) / 12)
