@@ -12,7 +12,7 @@ import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
 import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
 
-import { fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
+import { fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, intNum, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
 import { runningSetId, startTimer, stopTimer } from './ui/settimer.js';
 
@@ -127,6 +127,9 @@ export function renderApp(){
 }
 
 // Gramos anotados: enteros, salvo lo que pesa menos de 10 g (un disparo de aceite, 0,3 g).
+// Formulario de "Registro de hoy": arranca con lo ya guardado hoy, menos los pasos (esos
+// salen del contador, que puede haber sumado desde entonces).
+function dailyFormInit(){ if(!CheckinState.dailyForm){ const f=Object.assign({}, state.daily[today()]||{}); delete f.steps; CheckinState.dailyForm=f; } return CheckinState.dailyForm; }
 const roundG = g => g < 10 ? Math.round(g*10)/10 : Math.round(g);
 
 // Comida: el día que se mira. Hoy usa state.diary (se sube con el resto del día); uno
@@ -295,7 +298,7 @@ document.body.addEventListener("keydown", async e => {
 document.body.addEventListener("change", async e => {
   const t=e.target, a=t.dataset.action; if(!a) return;
   if (a === "wdate-field") { ProgresoState.weightForm.date = t.value; return; }
-  if (a === "daily-kg" || a === "daily-steps" || a === "daily-text") { CheckinState.dailyForm = CheckinState.dailyForm || Object.assign({}, state.daily[today()]||{}); CheckinState.dailyForm[a==="daily-kg"?"kg":(a==="daily-steps"?"steps":t.dataset.k)] = t.value; return; }
+  if (a === "daily-kg" || a === "daily-steps" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":(a==="daily-steps"?"steps":t.dataset.k)] = t.value; return; }
   if (a === "ci-set") { CheckinState.checkinForm = CheckinState.checkinForm || JSON.parse(JSON.stringify(state.checkins[mondayOf(today())]||{})); CheckinState.checkinForm[t.dataset.k] = t.value; return; }
   if (a === "load-ex") { EntrenoState.loadEx = t.value; renderApp(); return; }
   if (a === "sess-pick") { ProgresoState.sessSel = t.value; renderApp(); return; }
@@ -492,8 +495,8 @@ document.body.addEventListener("click", async e => {
 
   // Pasos
   if (a === "steps-add") { state.steps = Math.max(0,(state.steps||0)+parseInt(el.dataset.n)); save(); renderApp(); return; }
-  if (a === "steps-set") { const n=parseInt((document.getElementById("stepInput")||{}).value); if(n>=0){ state.steps=n; save(); renderApp(); } else alert("Pon\u00e9 un n\u00famero v\u00e1lido."); return; }
-  if (a === "steps-goal") { const g=prompt("Meta diaria de pasos:", state.stepsGoal||10000); if(g!==null){ const n=parseInt(g); if(n>0){ state.stepsGoal=n; save(); renderApp(); } } return; }
+  if (a === "steps-set") { const n=intNum((document.getElementById("stepInput")||{}).value); if(n>=0){ state.steps=n; save(); renderApp(); } else alert("Pon\u00e9 un n\u00famero v\u00e1lido."); return; }
+  if (a === "steps-goal") { const g=prompt("Meta diaria de pasos:", state.stepsGoal||10000); if(g!==null){ const n=intNum(g); if(n>0){ state.stepsGoal=n; save(); renderApp(); } } return; }
   if (a === "steps-live") { if(liveCounting) stopLive(); else startLive(); return; }
 
   // Ejercicios (picker)
@@ -521,7 +524,10 @@ document.body.addEventListener("click", async e => {
     rec._q = questionSnapshot(clientQuestions("daily"), rec);
     state.daily[today()] = rec;
     // Un solo número de pasos por día: lo que se anota acá es el mismo contador de Hábitos.
-    const st = parseInt(rec.steps); if(st>=0) state.steps = st;
+    // Solo si los tocó en el formulario: si no, se guardaba el número de un registro anterior
+    // del mismo día y pisaba lo que el contador sumó después.
+    if(d.steps!==undefined){ const st = intNum(d.steps); if(st>=0) state.steps = st; }
+    rec.steps = state.steps>0 ? String(state.steps) : "";
     if(kg>0){ const exw=state.weights.find(w=>w.date===today()); if(exw) exw.kg=kg; else state.weights.push({id:uid(), date:today(), kg:kg}); }
     CheckinState.dailyForm=null; save();
     const synced = await cloudSaveDaily(today(), rec);
@@ -551,14 +557,14 @@ document.body.addEventListener("click", async e => {
     if(!synced && !isOnline()){ alert("Tu check-in se guardó en este dispositivo pero todavía no llegó a tu coach (sin conexión). Queda pendiente y se envía solo cuando vuelva internet."); renderApp(); return; }
     alert("\u00a1Check-in enviado a tu coach! 💪"); renderApp(); return;
   }
-  if (a === "daily-set") { CheckinState.dailyForm = CheckinState.dailyForm || Object.assign({}, state.daily[today()]||{}); CheckinState.dailyForm[el.dataset.k] = el.dataset.v; renderApp(); return; }
+  if (a === "daily-set") { dailyFormInit(); CheckinState.dailyForm[el.dataset.k] = el.dataset.v; renderApp(); return; }
   if (a === "weight-save") { const dEl=document.getElementById("wDate"), kEl=document.getElementById("wKg"); const date=dEl?dEl.value:""; const kg=parseFloat((kEl?kEl.value:"").replace(",",".")); if(!date){ alert("Elegí una fecha."); return; } if(!(kg>0)){ alert("Poné un peso válido."); return; } const exw=state.weights.find(w=>w.date===date); if(exw) exw.kg=kg; else state.weights.push({id:uid(),date,kg}); ProgresoState.weightForm={date:today(),kg:""}; save(); renderApp(); return; }
   if (a === "weight-edit") { const w=state.weights.find(x=>x.id===el.dataset.id); if(w){ ProgresoState.weightForm={date:w.date,kg:String(w.kg)}; } renderApp(); return; }
   if (a === "weight-remove") { state.weights=state.weights.filter(x=>x.id!==el.dataset.id); save(); renderApp(); return; }
 
   // Agua
   if (a === "water-add") { const n=parseInt(el.dataset.n)||0; state.water=Math.max(0,(state.water||0)+n); save(); renderApp(); return; }
-  if (a === "water-goal") { const v=prompt("Meta de agua en ml (ej: 3000):", String(Math.round(state.waterGoal||3000))); if(v!==null){ const n=parseInt(v); if(n>0){ state.waterGoal=n; save(); renderApp(); } } return; }
+  if (a === "water-goal") { const v=prompt("Meta de agua en ml (ej: 3000):", String(Math.round(state.waterGoal||3000))); if(v!==null){ const n=intNum(v); if(n>0){ state.waterGoal=n; save(); renderApp(); } } return; }
   if (a === "rest-set") { startRest(parseInt(el.dataset.sec)||120); return; }
   if (a === "rest-pick") { state.restDefault = parseInt(el.dataset.sec)||120; save(); renderRestBar(); return; }
   if (a === "rest-play") { startRest(state.restDefault||120); return; }

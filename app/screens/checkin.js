@@ -51,7 +51,9 @@ function renderSummary(){
 export function saveSession(){
   const d=day(); const exs=[];
   (d.exercises||[]).forEach(ex=>{
-    const sets=(ex.sets||[]).map(s=>{ const o={kg:parseFloat(String(s.kg).replace(",","."))||0, reps:parseInt(s.reps)||0}; const sc=parseSecs(s.secs); if(sc>0) o.secs=Math.min(36000,sc); return o; }).filter(s=>s.kg>0||s.reps>0||s.secs>0);
+    const sets=(ex.sets||[]).map(s=>{ const o={kg:parseFloat(String(s.kg).replace(",","."))||0, reps:parseInt(s.reps)||0}; const sc=parseSecs(s.secs); if(sc>0) o.secs=Math.min(36000,sc); return o; }).filter((o,i)=>o.reps>0||o.secs>0||(o.kg>0&&ex.sets[i].done));
+    // Una serie con solo el peso (lo completa la app al cargar el primero, o "Usar estos
+    // pesos") y sin reps ni tildar no se hizo: no se guarda como serie de 0 reps.
     if(sets.length) exs.push({name:ex.name, sets:sets});
   });
   if(!exs.length){ alert("Cargá kg, reps o segundos en al menos una serie antes de guardar el entreno."); return; }
@@ -132,7 +134,7 @@ export function renderDaily(){
     <div class="daily-card">
       <div class="daily-top">
         <div class="dfield"><label>Peso</label><input id="dKg" class="form-input" type="text" inputmode="decimal" placeholder="kg" value="${esc(d.kg||"")}" data-action="daily-kg"></div>
-        <div class="dfield"><label>Pasos</label><input id="dSteps" class="form-input" type="text" inputmode="numeric" placeholder="0" value="${esc(d.steps||state.steps||"")}" data-action="daily-steps"></div>
+        <div class="dfield"><label>Pasos</label><input id="dSteps" class="form-input" type="text" inputmode="numeric" placeholder="0" value="${esc(CheckinState.dailyForm && CheckinState.dailyForm.steps!=null ? CheckinState.dailyForm.steps : (state.steps||""))}" data-action="daily-steps"></div>
       </div>
       ${rows}
       <button class="form-save" style="margin-top:12px" data-action="daily-save">Guardar registro de hoy</button>
