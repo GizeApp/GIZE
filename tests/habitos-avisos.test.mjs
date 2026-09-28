@@ -32,6 +32,13 @@ async function open(base, { native = false } = {}){
   await pg.p.click('#nav-habitos'); await wait(400);
   return Object.assign(pg, { prefs });
 }
+// La hora se elige con la rueda (la misma del temporizador, en modo hora del día).
+const pickTime = async (p, hhmm) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  await p.click('[data-action="hba-pick"]'); await wait(300);
+  await p.evaluate(([h, m]) => { document.getElementById('twMin').scrollTop = h * 44; document.getElementById('twSec').scrollTop = m * 44; }, [h, m]); await wait(150);
+  await p.click('#timePick [data-tp="ok"]'); await wait(250);
+};
 const addHabit = async (p, name) => { await p.fill('#habitInput', name); await p.click('[data-action="habit-add"]'); await wait(300); };
 
 export default async function ({ base, t }){
@@ -45,7 +52,11 @@ export default async function ({ base, t }){
   const ownId = await p.evaluate(() => document.querySelector('[data-action="habit-toggle"]')?.dataset.id);
   await p.click(`[data-action="habit-alarm"][data-kind="own"][data-key="${ownId}"]`); await wait(300);
   t.has(await text(p, '.hba-sheet'), 'El aviso suena en la app de Android y iPhone', 'en la web avisa que suena en las apps');
-  await p.fill('#hbaTime', '09:00'); await p.click('[data-action="hba-save"]'); await wait(400);
+  await p.click('[data-action="hba-pick"]'); await wait(300);
+  t.eq(await p.evaluate(() => [...document.querySelectorAll('#timePick .tw-unit')].map(e => e.textContent)), ['hora', 'min'], 'la rueda de la hora tiene horas y minutos');
+  t.eq(await p.evaluate(() => [document.querySelectorAll('#twMin .tw-item').length, document.querySelectorAll('#twSec .tw-item').length]), [24, 60], 'de 00 a 23 horas y de 00 a 59 minutos');
+  await p.click('#timePick [data-tp="close"]'); await wait(200);
+  await pickTime(p, '09:00'); await p.click('[data-action="hba-save"]'); await wait(400);
   t.has(await text(p, '.hb-list'), '⏰ 09:00 · Todos los días', 'se ve la hora del aviso');
 
   // Cardio solo otro día: pasa a "Otros días" y no cuenta hoy.
@@ -53,7 +64,7 @@ export default async function ({ base, t }){
   const cardioId = await p.evaluate(() => [...document.querySelectorAll('[data-action="habit-toggle"]')].find(e => /Cardio/.test(e.innerText))?.dataset.id);
   await p.click(`[data-action="habit-alarm"][data-key="${cardioId}"]`); await wait(300);
   await p.click(`[data-action="hba-day"][data-d="${OTHER}"]`); await wait(200);
-  await p.fill('#hbaTime', '18:30'); await p.click('[data-action="hba-save"]'); await wait(400);
+  await pickTime(p, '18:30'); await p.click('[data-action="hba-save"]'); await wait(400);
   const listToday = await p.evaluate(() => document.querySelector('.hb-list').innerText);
   t.ok(!/Cardio/.test(listToday), 'el cardio de otro día no está en la lista de hoy');
   t.has(await text(p, 'body'), 'Cardio 30 min', 'el cardio aparece en "Otros días"');
@@ -62,7 +73,7 @@ export default async function ({ base, t }){
   // El alumno cambia los días del hábito del coach y le pone hora.
   await p.click('[data-action="habit-alarm"][data-kind="coach"][data-key="Caminar 30 min"]'); await wait(300);
   t.has(await text(p, '.hba-sheet'), 'Tu coach lo puso para', 'muestra los días que eligió el coach');
-  await p.click('[data-action="hba-all"]'); await p.fill('#hbaTime', '07:15'); await p.click('[data-action="hba-save"]'); await wait(1800);
+  await p.click('[data-action="hba-all"]'); await pickTime(p, '07:15'); await p.click('[data-action="hba-save"]'); await wait(1800);
   t.has(await text(p, '.hb-list'), 'Caminar 30 min', 'con "todos los días" el del coach pasa a hoy');
   const last = prefs[prefs.length - 1];
   t.ok(last && last.habit_alarms && last.habit_alarms.own && last.habit_alarms.own[ownId] && last.habit_alarms.own[ownId].time === '09:00', 'los avisos viajan a la nube (client_prefs.habit_alarms): ' + JSON.stringify(last && last.habit_alarms));
@@ -80,11 +91,11 @@ export default async function ({ base, t }){
   const id2 = await p.evaluate(() => document.querySelector('[data-action="habit-toggle"]')?.dataset.id);
   await p.click(`[data-action="habit-alarm"][data-key="${id2}"]`); await wait(300);
   t.has(await text(p, '.hba-sheet'), 'aunque la app esté cerrada', 'en la app nativa explica que suena con la app cerrada');
-  await p.fill('#hbaTime', '09:05'); await p.click('[data-action="hba-save"]'); await wait(1200);
+  await pickTime(p, '09:05'); await p.click('[data-action="hba-save"]'); await wait(1200);
   let sched = await p.evaluate(() => window.__sched.map(n => ({ title: n.title, on: n.schedule.on })));
   t.eq(sched, [{ title: 'Creatina propia', on: { hour: 9, minute: 5 } }], 'aviso diario programado');
   await p.click('[data-action="habit-alarm"][data-kind="coach"][data-key="Caminar 30 min"]'); await wait(300);
-  await p.fill('#hbaTime', '18:00'); await p.click('[data-action="hba-save"]'); await wait(1200);
+  await pickTime(p, '18:00'); await p.click('[data-action="hba-save"]'); await wait(1200);
   sched = await p.evaluate(() => window.__sched.map(n => ({ title: n.title, on: n.schedule.on })));
   t.eq(sched.find(n => n.title === 'Caminar 30 min'), { title: 'Caminar 30 min', on: { weekday: OTHER + 1, hour: 18, minute: 0 } }, 'aviso del hábito del coach solo el día que eligió el coach');
   // Borrar el hábito saca su aviso.

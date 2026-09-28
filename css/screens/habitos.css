@@ -59,7 +59,8 @@
 .hba-day { height: 42px; border-radius: 10px; border: 1px solid var(--border); background: var(--card-2); color: var(--txt-2); font: inherit; font-weight: 700; cursor: pointer; padding: 0; }
 .hba-all.on, .hba-day.on { border-color: var(--gize-blue); background: color-mix(in srgb, var(--gize-blue) 18%, transparent); color: var(--txt); }
 .hba-time { display: flex; gap: 10px; align-items: center; }
-.hba-time input { flex: 1; min-width: 0; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--card-2); color: var(--txt); font: 600 18px var(--gize-font-data, inherit); color-scheme: dark; }
+.hba-pick { flex: 1; min-width: 0; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--card-2); color: var(--txt-2); font: 600 18px var(--gize-font-data, inherit); cursor: pointer; text-align: left; }
+.hba-pick.on { color: var(--txt); border-color: color-mix(in srgb, var(--gize-blue) 45%, transparent); }
 .hba-clear { flex: none; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: none; color: var(--txt-2); font: inherit; cursor: pointer; }
 .hba-note { margin-top: 8px; font-size: 12.5px; color: var(--txt-2); line-height: 1.45; }
 .hba-sheet .sheet-btns { margin-top: 18px; }

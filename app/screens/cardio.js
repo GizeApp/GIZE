@@ -105,18 +105,23 @@ function wheel(id, max, val, unit){
 const wheelVal = (el, max) => Math.max(0, Math.min(max, Math.round(el.scrollTop / ITEM)));
 
 // opts.note: texto chico debajo del título; opts.extra: {label, fn} botón de texto abajo.
+// opts.clock: hora del día (horas 00–23 y minutos) en vez de minutos y segundos; ms = desde
+// las 00:00 (lo usa el aviso de los hábitos).
 export function openTimePicker(ms, title, onPick, opts){
   opts = opts || {};
   closeTimePicker();
-  const m = Math.min(60, Math.floor(ms / 60000)), sec = Math.floor((ms % 60000) / 1000);
+  const clock = !!opts.clock;
+  const MAXA = clock ? 23 : 60, MAXB = 59, unitA = clock ? "hora" : "min", unitB = clock ? "min" : "seg";
+  const m = clock ? Math.floor(ms / 3600000) % 24 : Math.min(60, Math.floor(ms / 60000));
+  const sec = clock ? Math.floor((ms % 3600000) / 60000) : Math.floor((ms % 60000) / 1000);
   const box = document.createElement("div");
   box.id = "timePick"; box.className = "tpick";
   box.innerHTML = `<div class="tpick-bg" data-tp="close"></div>
-    <div class="tpick-card" role="dialog" aria-label="Elegir el tiempo">
+    <div class="tpick-card" role="dialog" aria-label="${clock ? "Elegir la hora" : "Elegir el tiempo"}">
       <div class="tpick-title">${title}</div>${opts.note ? `<div class="tpick-note">${opts.note}</div>` : ""}
       <div class="tpick-wheels">
         <div class="tw-band" aria-hidden="true"></div>
-        ${wheel("twMin", 60, m, "min")}${wheel("twSec", 59, sec, "seg")}
+        ${wheel("twMin", MAXA, m, unitA)}${wheel("twSec", MAXB, sec, unitB)}
       </div>
       <div class="tpick-btns"><button type="button" class="ctrl ghost" data-tp="close">Cancelar</button><button type="button" class="ctrl primary" data-tp="ok">Listo</button></div>
       ${opts.extra ? `<button type="button" class="tpick-extra" data-tp="extra">${opts.extra.label}</button>` : ""}
@@ -124,7 +129,7 @@ export function openTimePicker(ms, title, onPick, opts){
   document.body.appendChild(box);
   const wm = box.querySelector("#twMin"), ws = box.querySelector("#twSec");
   wm.scrollTop = m * ITEM; ws.scrollTop = sec * ITEM;
-  [[wm, 60], [ws, 59]].forEach(([w, max]) => {
+  [[wm, MAXA], [ws, MAXB]].forEach(([w, max]) => {
     const mark = () => { const v = wheelVal(w, max); w.querySelectorAll(".tw-item").forEach((it, i) => it.classList.toggle("on", i === v)); };
     w.addEventListener("scroll", mark, { passive: true });
     // Tocar un número lo lleva al centro.
@@ -135,7 +140,8 @@ export function openTimePicker(ms, title, onPick, opts){
     const b = e.target.closest("[data-tp]"); if (!b) return;
     if (b.dataset.tp === "extra"){ closeTimePicker(); opts.extra.fn(); return; }
     if (b.dataset.tp === "ok"){
-      let mm = wheelVal(wm, 60), ss = wheelVal(ws, 59);
+      let mm = wheelVal(wm, MAXA), ss = wheelVal(ws, MAXB);
+      if (clock){ closeTimePicker(); onPick((mm * 60 + ss) * 60000); return; }
       if (mm === 60) ss = 0;
       closeTimePicker(); onPick((mm * 60 + ss) * 1000); return;
     }

@@ -235,7 +235,6 @@ document.body.addEventListener("input", async e => {
   if (a === "ex-search") { EntrenoState.exQuery = t.value; const l=document.getElementById("exList"); if(l) l.innerHTML = renderExList(); return; }
   if (a === "portion-grams") { const base = ComidaState.selectedFood ? selectedFoodValues() : (ComidaState.editEntry ? entryBase(ComidaState.editEntry) : null); if(base){ const pv=document.getElementById("portionPreview"); if(pv) pv.textContent = previewStr(base, t.value); const pu=document.getElementById("portionUnits"); const uf=sheetUnitFood(); if(pu && uf) pu.textContent = unitsLabel(t.value, cookPortion(uf.food, uf.cook), base.unit, uf.food); } ComidaState.sheetGrams = t.value; return; }
   if (a === "cf-field") { ComidaState.foodForm[t.dataset.field] = t.value; return; }
-  if (a === "hba-time") { if(HabitosState.edit) HabitosState.edit.time=t.value; return; }
   if (a === "rq-field") { if(ComidaState.reqForm) ComidaState.reqForm[t.dataset.field] = t.value; return; }
   if (a === "macro-field") { const g=k=>parseFloat(String((document.getElementById("macro_"+k)||{}).value||"").replace(",", "."))||0; const el2=document.getElementById("macroSum"); if(el2) el2.innerHTML=macroSumText({p:g("p"),c:g("c"),f:g("f")}); return; }
   if (a === "cal-field") { ComidaState.calForm[t.dataset.field] = t.value; return; }
@@ -359,6 +358,13 @@ document.body.addEventListener("click", async e => {
   if (a === "habit-alarm") { openHabitAlarm(el.dataset.kind, el.dataset.key); renderApp(); return; }
   if (a === "hba-all") { if(HabitosState.edit) HabitosState.edit.days=null; renderApp(); return; }
   if (a === "hba-day") { habitAlarmDay(parseInt(el.dataset.d,10)); renderApp(); return; }
+  // Hora del aviso: la misma rueda del temporizador, en modo hora del día.
+  if (a === "hba-pick") {
+    const e=HabitosState.edit; if(!e) return;
+    const [h,m]=(e.time||"09:00").split(":").map(n=>parseInt(n,10)||0);
+    openTimePicker((h*60+m)*60000, "Hora del aviso", ms=>{ const t=Math.round(ms/60000)%1440; if(HabitosState.edit===e){ e.time=String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0"); renderApp(); } }, {clock:true});
+    return;
+  }
   if (a === "hba-notime") { if(HabitosState.edit) HabitosState.edit.time=""; renderApp(); return; }
   if (a === "hba-cancel") { HabitosState.edit=null; renderApp(); return; }
   if (a === "hba-save") {

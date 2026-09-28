@@ -162,7 +162,7 @@ export function renderHabitAlarmSheet(native){
       <div class="hba-week">${week}</div>
       ${fromCoach}
       <div class="hba-lbl">Aviso</div>
-      <div class="hba-time"><input id="hbaTime" type="time" value="${esc(e.time)}" data-action="hba-time" aria-label="Hora del aviso">${e.time ? '<button class="hba-clear" data-action="hba-notime">Sin aviso</button>' : ''}</div>
+      <div class="hba-time"><button id="hbaTime" class="hba-pick${e.time ? ' on' : ''}" data-action="hba-pick" aria-label="Hora del aviso">${e.time ? '⏰ ' + esc(e.time) : 'Elegir la hora'}</button>${e.time ? '<button class="hba-clear" data-action="hba-notime">Sin aviso</button>' : ''}</div>
       <div class="hba-note">${native ? 'Suena a esa hora los días elegidos, aunque la app esté cerrada.' : 'El aviso suena en la app de Android y iPhone. Acá en la web ves la lista.'}</div>
       <div class="sheet-btns">
         <button class="ctrl ghost" data-action="hba-cancel">Cancelar</button>
