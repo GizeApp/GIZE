@@ -226,17 +226,18 @@ function closeDrawer(){ document.querySelectorAll(".drawer, .drawer-bg").forEach
 // ---------- Coaches y pagos ----------
 function coachState(c){
   if (c.plan === "cortesia") return '<span class="pill blue">Cortesía</span>';
-  if (c.paid_until && new Date(c.paid_until) > new Date() && c.plan !== "trial") return '<span class="pill ok">Al día</span>';
+  if (c.paid_until && new Date(c.paid_until) > new Date() && c.plan !== "trial") return `<span class="pill ok">Pagado hasta ${fmtD(c.paid_until)}</span>`;
   if (c.trial_ends_at && new Date(c.trial_ends_at) > new Date()) return `<span class="pill warn">Prueba hasta ${fmtD(c.trial_ends_at)}</span>`;
   return '<span class="pill bad">Sin pagar</span>';
 }
 const mpTxt = s => ({ authorized: "activa", paused: "pausada", cancelled: "cancelada", pending: "pendiente" }[s] || s || "—");
 const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: "Hasta 50", p100: "Gimnasio (100)", cortesia: "Cortesía" }[p] || p || "—");
 async function loadCoaches(){
-  page("Coaches y pagos", "Plan, alumnos y estado del pago de cada coach. Tocá uno para ver sus cobros y darle cortesía o más días de prueba.", '<div class="card"><div id="cList" class="empty">Cargando…</div></div>');
+  page("Coaches y pagos", "Plan, alumnos y estado del pago de cada coach. El pago se arregla por fuera de la app (WhatsApp, transferencia): tocá un coach para cargarle hasta cuándo pagó, darle cortesía o más días de prueba.", '<div id="cSoon"></div><div class="card"><div id="cList" class="empty">Cargando…</div></div>');
   const box = document.getElementById("cList");
   try { S.coaches = await rpc("admin_coaches"); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.coaches.length){ box.textContent = "Todavía no hay coaches."; return; }
+  paintSoon();
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Coach</th><th>Plan</th><th>Alumnos</th><th>Estado</th><th>Mercado Pago</th><th>Paga</th></tr></thead><tbody>${S.coaches.map(c => `
     <tr class="row" data-coach="${esc(c.id)}"><td><b>${esc(c.full_name || "Sin nombre")}</b><div class="muted small">${esc(c.email)}</div></td>
@@ -245,6 +246,34 @@ async function loadCoaches(){
       <td class="muted small">${c.has_mp ? esc(mpTxt(c.mp_status)) : "—"}</td>
       <td>${c.price ? money(c.price) : "—"}</td></tr>`).join("")}</tbody></table>`;
 }
+// Vencimientos: a quién escribirle. Pago o prueba que vence en los próximos 7 días, y los
+// que ya vencieron hace menos de 30 días (los de hace más, ya se sabe).
+function venceDe(c){
+  if (c.plan === "cortesia") return null;
+  const now = Date.now(), paid = c.paid_until ? new Date(c.paid_until).getTime() : 0, trial = c.trial_ends_at ? new Date(c.trial_ends_at).getTime() : 0;
+  const t = Math.max(paid, trial); if (!t) return null;
+  return { t, que: paid >= trial ? "pago" : "prueba", dias: Math.ceil((t - now) / 864e5) };
+}
+function paintSoon(){
+  const box = document.getElementById("cSoon"); if (!box) return;
+  const list = (S.coaches || []).map(c => ({ c, v: venceDe(c) })).filter(x => x.v && x.v.dias <= 7 && x.v.dias > -30).sort((a, b) => a.v.t - b.v.t);
+  if (!list.length){ box.innerHTML = ""; return; }
+  box.innerHTML = `<div class="card"><div class="sec-t" style="margin-top:0">Vencen pronto</div><div class="list-mini">${list.map(({ c, v }) => `
+    <div class="row" data-coach="${esc(c.id)}" style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;cursor:pointer">
+      <span><b>${esc(c.full_name || "Sin nombre")}</b> <span class="muted small">${esc(c.email)}</span></span>
+      <span class="pill ${v.dias < 0 ? "bad" : "warn"}">${v.que === "pago" ? "Pago" : "Prueba"} ${v.dias < 0 ? "vencido hace " + (-v.dias) + " día" + (v.dias === -1 ? "" : "s") : v.dias === 0 ? "vence hoy" : "vence en " + v.dias + " día" + (v.dias === 1 ? "" : "s")}</span>
+    </div>`).join("")}</div></div>`;
+}
+
+const PLAN_MAX = { p10: 10, p25: 25, p50: 50, p100: 100 };
+const PLAN_PRICE = { p10: 9300, p25: 15000, p50: 20000, p100: 33000 }; // los de plan_price (supabase/admin.sql)
+const isoDay = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+// Fecha para "pagado hasta": desde el vencimiento actual si todavía no pasó, si no desde hoy.
+function hastaMeses(c, meses){
+  const base = c.paid_until && new Date(c.paid_until) > new Date() ? new Date(c.paid_until) : new Date();
+  const d = new Date(base); d.setMonth(d.getMonth() + meses); return isoDay(d);
+}
+
 async function openCoach(id){
   const c = (S.coaches || []).find(x => x.id === id); if (!c) return;
   drawer(`<div class="h1" style="font-size:22px">${esc(c.full_name || "Sin nombre")}</div><div class="muted">${esc(c.email)}</div>
@@ -253,12 +282,22 @@ async function openCoach(id){
       <div class="fact"><span>Alumnos</span><b>${n0(c.clients)} de ${n0(c.max_clients)}</b></div><div class="fact"><span>Pago al día hasta</span><b>${fmtD(c.paid_until)}</b></div>
       <div class="fact"><span>Prueba hasta</span><b>${fmtD(c.trial_ends_at)}</b></div><div class="fact"><span>Mercado Pago</span><b>${c.has_mp ? esc(mpTxt(c.mp_status)) : "Sin suscripción"}</b></div>
     </div>
-    <div class="sec-t">Cobros de Mercado Pago</div><div id="pays" class="list-mini">${c.has_mp ? "Cargando…" : "No tiene una suscripción en Mercado Pago."}</div>
+    <div class="sec-t">Pago manual</div>
+    <div class="sec-s">Cuando te paga (transferencia, efectivo, link), cargá el plan y hasta cuándo queda habilitado. Si ya estaba al día, los meses se suman desde su vencimiento.</div>
+    <label class="lbl">Plan</label>
+    <select class="in" id="pmPlan">${["p10", "p25", "p50", "p100"].map(p => `<option value="${p}"${(c.plan === p || (!PLAN_MAX[c.plan] && p === "p25")) ? " selected" : ""}>${esc(planTxt(p))} · ${money(PLAN_PRICE[p])}/mes</option>`).join("")}</select>
+    <label class="lbl">Alumnos máximos</label><input class="in" id="pmMax" type="number" min="1" max="1000" value="${PLAN_MAX[c.plan] ? n0(c.max_clients) : 25}">
+    <label class="lbl">Pagado hasta</label>
+    <div class="search"><input class="in" id="pmUntil" type="date" value="${hastaMeses(c, 1)}">
+      <button class="btn" data-a="pmMeses" data-id="${esc(c.id)}" data-m="1">+1 mes</button><button class="btn" data-a="pmMeses" data-id="${esc(c.id)}" data-m="3">+3</button><button class="btn" data-a="pmMeses" data-id="${esc(c.id)}" data-m="12">+12</button></div>
+    <div class="search" style="margin-top:8px"><button class="btn blue" data-a="pmSave" data-id="${esc(c.id)}">Guardar pago</button>${c.paid_until && new Date(c.paid_until) > new Date() && c.plan !== "cortesia" ? `<button class="btn" data-a="pmClear" data-id="${esc(c.id)}">Cortar ahora</button>` : ""}</div>
+    ${c.has_mp ? `<div class="sec-t" style="margin-top:18px">Cobros de Mercado Pago</div><div id="pays" class="list-mini">Cargando…</div>` : ""}
     <div class="sec-t" style="margin-top:18px">Cortesía o prueba</div>
-    <div class="sec-s">No cambia una suscripción paga en curso: eso lo maneja el coach desde su cuenta.</div>
+    <div class="sec-s">Gratis. En la prueba elegís hasta qué día y cuántos alumnos puede tener.</div>
     ${c.plan === "cortesia" ? `<button class="btn" data-a="plan" data-id="${esc(c.id)}" data-mode="sin_cortesia">Quitar la cortesía</button>` :
       `<label class="lbl">Cortesía: gratis, con tope de alumnos</label><div class="search"><input class="in" id="ctMax" type="number" min="1" value="${Math.max(10, c.max_clients || 10)}"><button class="btn blue" data-a="plan" data-id="${esc(c.id)}" data-mode="cortesia">Dar cortesía</button></div>`}
-    <label class="lbl">Sumar días de prueba</label><div class="search"><input class="in" id="trDays" type="number" min="1" value="14"><button class="btn" data-a="plan" data-id="${esc(c.id)}" data-mode="trial">Extender prueba</button></div>`);
+    ${c.plan === "cortesia" ? "" : `<label class="lbl">Prueba gratis hasta</label><input class="in" id="trUntil" type="date" min="${isoDay(new Date())}" value="${c.trial_ends_at && new Date(c.trial_ends_at) > new Date() ? isoDay(new Date(new Date(c.trial_ends_at).getTime() - 1)) : isoDay(new Date(Date.now() + 14 * 864e5))}">
+    <label class="lbl">Alumnos máximos en la prueba</label><div class="search"><input class="in" id="trMax" type="number" min="1" max="1000" value="${n0(c.max_clients || 10)}"><button class="btn blue" data-a="trSave" data-id="${esc(c.id)}">Guardar prueba</button></div>`}`);
   if (!c.has_mp) return;
   const box = document.getElementById("pays");
   try {
@@ -735,7 +774,7 @@ async function loadSeguridad(){
   try { S.audit = await rpc("admin_audit_list", { lim: 100 }); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.audit.length){ box.textContent = "Todavía no hay acciones registradas."; return; }
   const what = a => ({ rol: "Cambió el rol a " + ((a.detail || {}).role === "coach" ? "coach" : "alumno"), desvincular: "Desvinculó de su coach", admin_si: "Hizo administrador", admin_no: "Quitó administrador",
-    plan: ({ cortesia: "Dio cortesía", trial: "Extendió la prueba", sin_cortesia: "Quitó la cortesía" }[(a.detail || {}).mode] || "Cambió el plan"), config: "Cambió el cartel de actualización",
+    plan: ({ cortesia: "Dio cortesía", trial: "Extendió la prueba", sin_cortesia: "Quitó la cortesía", pago_manual: "Cargó un pago", prueba_hasta: "Cambió la prueba", cortar_pago: "Cortó el pago" }[(a.detail || {}).mode] || "Cambió el plan"), config: "Cambió el cartel de actualización",
     aviso: "Mandó una notificación a " + (a.target || ""), eliminar: "Eliminó la cuenta",
     contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto", producto_nuevo: "Agregó un producto", producto_borrar: "Borró un producto",
     fin_gasto_nuevo: "Agregó un gasto", fin_gasto: "Cambió un gasto", fin_gasto_borrar: "Borró un gasto", fin_ajustes: "Cambió los ajustes de finanzas",
@@ -761,7 +800,7 @@ document.addEventListener("keydown", e => {
 document.addEventListener("click", async e => {
   const g = e.target.closest("[data-go]"); if (g){ closeDrawer(); go(g.dataset.go); return; }
   const tr = e.target.closest("tr[data-user]"); if (tr){ openUser(tr.dataset.user); return; }
-  const tc = e.target.closest("tr[data-coach]"); if (tc){ openCoach(tc.dataset.coach); return; }
+  const tc = e.target.closest("[data-coach]"); if (tc){ openCoach(tc.dataset.coach); return; }
   const tf = e.target.closest("tr[data-cost]"); if (tf){ openCost(Number(tf.dataset.cost)); return; }
   const b = e.target.closest("[data-a]"); if (!b) return;
   const a = b.dataset.a;
@@ -779,11 +818,27 @@ document.addEventListener("click", async e => {
       if (t !== "ELIMINAR") return;
       b.disabled = true; await fn({ action: "eliminar", user_id: b.dataset.id }); toast("Cuenta eliminada"); closeDrawer(); searchUsers(); return;
     }
+    if (a === "pmMeses"){ const c = (S.coaches || []).find(x => x.id === b.dataset.id); const u = document.getElementById("pmUntil"); if (c && u) u.value = hastaMeses(c, parseInt(b.dataset.m, 10) || 1); return; }
+    if (a === "pmSave"){
+      const plan = document.getElementById("pmPlan").value, max = parseInt(document.getElementById("pmMax").value, 10) || PLAN_MAX[plan], until = document.getElementById("pmUntil").value;
+      if (!until){ toast("Elegí hasta qué fecha pagó."); return; }
+      if (!confirm("¿Habilitar el " + planTxt(plan) + " (" + max + " alumnos) hasta el " + fmtD(until + "T12:00:00") + "?")) return;
+      await rpc("admin_set_paid", { cid: b.dataset.id, p_plan: plan, p_max: max, p_until: until });
+      toast("Pago cargado"); closeDrawer(); loadCoaches(); return;
+    }
+    if (a === "pmClear"){ if (!confirm("¿Cortar el pago ahora? Queda sin plan (sus alumnos siguen usando la app, pero él no ve sus fichas).")) return; await rpc("admin_clear_paid", { cid: b.dataset.id }); toast("Pago cortado"); closeDrawer(); loadCoaches(); return; }
+    if (a === "trSave"){
+      const until = document.getElementById("trUntil").value, max = parseInt(document.getElementById("trMax").value, 10) || 10;
+      if (!until){ toast("Elegí hasta qué fecha es la prueba."); return; }
+      if (!confirm("¿Prueba gratis hasta el " + fmtD(until + "T12:00:00") + ", con " + max + " alumnos como máximo?")) return;
+      await rpc("admin_set_trial", { cid: b.dataset.id, p_until: until, p_max: max });
+      toast("Prueba guardada"); closeDrawer(); loadCoaches(); return;
+    }
     if (a === "plan"){
-      const mode = b.dataset.mode, max = document.getElementById("ctMax"), days = document.getElementById("trDays");
-      const msg = { cortesia: "¿Darle cortesía (gratis) con tope de " + (max && max.value) + " alumnos?", trial: "¿Sumarle " + (days && days.value) + " días de prueba?", sin_cortesia: "¿Quitarle la cortesía? Vuelve a prueba (si ya venció, tiene que pagar)." }[mode];
+      const mode = b.dataset.mode, max = document.getElementById("ctMax");
+      const msg = { cortesia: "¿Darle cortesía (gratis) con tope de " + (max && max.value) + " alumnos?", sin_cortesia: "¿Quitarle la cortesía? Vuelve a prueba (si ya venció, tiene que pagar)." }[mode];
       if (!confirm(msg)) return;
-      await rpc("admin_set_plan", { cid: b.dataset.id, mode, p_max: max ? parseInt(max.value, 10) || 10 : null, p_days: days ? parseInt(days.value, 10) || 14 : null });
+      await rpc("admin_set_plan", { cid: b.dataset.id, mode, p_max: max ? parseInt(max.value, 10) || 10 : null, p_days: null });
       toast("Listo"); closeDrawer(); loadCoaches(); return;
     }
     if (a === "mtab"){ if (Object.values(S.drafts).some(v => v.trim()) && !confirm("Tenés una respuesta sin mandar. ¿Cambiar de lista igual? (queda guardada si el mensaje aparece en la otra lista)")) return; S.msgTab = b.dataset.v; loadContacto(); return; }
