@@ -179,7 +179,7 @@ function showWizard(){
   let inner;
   if(OB.step===1) inner='<h1 class="onb-title onb-left">¿Cuántos días por semana pensás entrenar?</h1>'+
     '<p class="onb-text onb-left">Armamos tu semana con esa cantidad de días. Lo podés cambiar cuando quieras.</p>'+
-    '<div class="onb-nums">'+[2,3,4,5].map(n=>'<button type="button" class="onb-num'+(n===OB.days?' on':'')+'" data-onb="days" data-v="'+n+'">'+(n===5?'5+':n)+'</button>').join("")+'</div>';
+    '<div class="onb-nums">'+[1,2,3,4,5].map(n=>'<button type="button" class="onb-num'+(n===OB.days?' on':'')+'" data-onb="days" data-v="'+n+'">'+(n===5?'5+':n)+'</button>').join("")+'</div>';
   else if(OB.step===2) inner='<h1 class="onb-title onb-left">¿Cuál es tu objetivo principal?</h1>'+
     '<div class="onb-opts">'+GOALS.map(g=>option(g[0], OB.goal, g[1], "", "goal")).join("")+'</div>';
   else inner='<h1 class="onb-title onb-left">¿Cómo se llama tu primer día?</h1>'+
