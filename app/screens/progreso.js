@@ -10,6 +10,8 @@ import { EntrenoState } from './entreno.js';
 
 import { renderSessionItem } from '../ui/sessiondetail.js';
 
+import { SUB_LABELS, volumeGroups } from '../core/subgrupos.js';
+
 export const ProgresoState = {
 
   weightForm: {date: today(), kg: ""},
@@ -58,8 +60,8 @@ export function renderWChart(ws, evenX, sz){
 export function renderVolumen(daysArg){
   const labels={pecho:"Pecho",espalda:"Espalda",hombros:"Hombros",biceps:"Bíceps",triceps:"Tríceps",cuadriceps:"Cuádriceps",isquios:"Isquios",gluteos:"Glúteos",aductores:"Aductores",gemelos:"Gemelos",abs:"Abdominales",antebrazo:"Antebrazo",cuello:"Cuello",otros:"Otros"};
   const tally={};
-  ((daysArg||state.days)||[]).forEach(d=>{ (d.exercises||[]).forEach(ex=>{ const m=exMuscle(ex); const sets=(ex.sets||[]).length; tally[m]=(tally[m]||0)+sets; }); });
-  const rows=Object.keys(tally).filter(k=>tally[k]>0).map(k=>({label:labels[k]||k,sets:tally[k]})).sort((a,b)=>b.sets-a.sets);
+  ((daysArg||state.days)||[]).forEach(d=>{ (d.exercises||[]).forEach(ex=>{ const sets=(ex.sets||[]).length; volumeGroups(ex).forEach(m=>{ tally[m]=(tally[m]||0)+sets; }); }); });
+  const rows=Object.keys(tally).filter(k=>tally[k]>0).map(k=>({label:SUB_LABELS[k]||labels[k]||k,sets:tally[k]})).sort((a,b)=>b.sets-a.sets);
   if(!rows.length) return "";
   const total=rows.reduce((x,r)=>x+r.sets,0), max=rows[0].sets;
   const bars=rows.map(r=>`<div class="vol-row"><div class="vol-lbl">${r.label}</div><div class="vol-bar"><div class="vol-fill" style="width:${Math.round(r.sets/max*100)}%"></div></div><div class="vol-n">${r.sets}</div></div>`).join("");
@@ -67,7 +69,7 @@ export function renderVolumen(daysArg){
     <div class="hb-head" style="margin-top:28px"><div class="hb-title">Volumen semanal</div><div class="title-accent"></div></div>
     <div class="vol-sub">${total} series por semana · ${rows.length} grupos musculares</div>
     <div class="vol-card">${bars}</div>
-    <p class="foot">Series totales por grupo sumando todos tus días de rutina. Una guía general de hipertrofia es ~10–20 series por grupo a la semana.</p>`;
+    <p class="foot">Series totales por grupo sumando todos tus días de rutina. Pecho, espalda y hombros se separan por zona, y un ejercicio que trabaja dos grupos (como las hiperextensiones) suma en los dos. Una guía general de hipertrofia es ~10–20 series por grupo a la semana.</p>`;
 }
 
 export function exercisesInHistory(){
