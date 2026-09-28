@@ -499,6 +499,7 @@ export function renderCoachRoutine(d){
         '<button class="co-day-mv" data-coach="day-right" aria-label="Mover este d\u00eda despu\u00e9s"'+(CoachState.coachEditDay===rt.length-1?' disabled':'')+'><span>Despu\u00e9s</span>'+chevronRightSvg+'</button>'+
         '<button class="co-day-del" data-coach="day-del">Borrar d\u00eda</button>'+
       '</div>' : '')+
+      '<button class="co-day-mv co-day-dup" data-coach="day-dup">'+copySvg+'<span>Duplicar este d\u00eda</span></button>'+
       '<div class="co-daystats"><span class="co-stat"><b>'+totalEx+'</b> ejercicio'+(totalEx===1?'':'s')+'</span><span class="co-stat"><b>'+totalSets+'</b> serie'+(totalSets===1?'':'s')+' en total</span></div>'+
       '<div class="co-note-wrap"><span class="co-note-lbl">Nota general de este d\u00eda (la ve el cliente al entrar)</span><input class="co-note" data-coach="day-note" value="'+esc(day.note||"")+'" placeholder=""></div>'+
     '</div>'+

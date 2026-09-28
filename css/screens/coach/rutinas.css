@@ -446,3 +446,5 @@ button.opt-count:hover { color: var(--gize-blue); }
 .bw-row-go { flex:none; display:grid; place-items:center; width:18px; height:18px; color:var(--gize-text-2); }
 .bw-row-go svg { width:16px; height:16px; }
 .bw-list .week-editor { margin:0; }
+.co-day-dup { width:100%; margin-top:8px; }
+.co-day-dup svg { width:15px; height:15px; }
