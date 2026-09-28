@@ -1,0 +1,22 @@
+/* Acomodar la foto de perfil (app/ui/recorte.js): la foto se mueve y se agranda debajo de un
+   círculo, que es como se ve después en la app. Por encima de todo (hojas del coach, chat,
+   panel de administrador), menos el splash y el login. */
+.crp { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center;
+  padding: 16px; background: rgba(0,0,0,.78); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.crp-card { width: min(100%, 400px); max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 18px 16px 16px; border-radius: 18px; background: var(--gize-surface, #0b0d11); border: 1px solid var(--gize-border, #222); }
+.crp-title { font-size: 18px; font-weight: 700; color: var(--gize-text, #fff); }
+.crp-sub { font-size: 13px; color: var(--gize-text-2, #aaa); text-align: center; line-height: 1.4; margin-top: -6px; }
+.crp-stage { position: relative; width: min(100%, 320px); aspect-ratio: 1 / 1; overflow: hidden; border-radius: 14px; background: #000;
+  touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.crp-stage:active { cursor: grabbing; }
+.crp-img { position: absolute; top: 0; left: 0; max-width: none; max-height: none; transform-origin: 0 0; pointer-events: none;
+  -webkit-user-drag: none; }
+/* El círculo: afuera se oscurece (la sombra enorme), adentro queda como se va a ver. */
+.crp-ring { position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  box-shadow: 0 0 0 999px rgba(0,0,0,.55); border: 2px solid rgba(255,255,255,.9); }
+.crp-zoom { display: flex; align-items: center; gap: 10px; width: min(100%, 320px); color: var(--gize-text-2, #aaa); font-size: 18px; font-weight: 700; }
+.crp-zoom input { flex: 1; min-width: 0; height: 32px; accent-color: var(--gize-blue, #2FA0FF); }
+.crp-btns { display: flex; gap: 10px; width: 100%; }
+.crp-btns .ctrl { flex: 1; max-width: none; }
+body.crp-open { overflow: hidden; }

@@ -58,6 +58,7 @@ import { clientQuestions, questionSnapshot } from './core/questions.js';
 import { renderConfig } from './screens/config.js';
 
 import { removeMyAvatar, uploadMyAvatar } from './core/avatar.js';
+import { cropAvatar } from './ui/recorte.js';
 
 import { productByCode, searchOFF } from './core/off.js';
 import { checkProductRequests, productByCodeShared, reportShared, saveShared, searchShared, sendProductRequest, useShared } from './core/productos.js';
@@ -301,8 +302,13 @@ document.body.addEventListener("change", async e => {
   // Foto de perfil (Ajustes del cliente y Configuración del coach).
   if (a === "avatar-pick") {
     const file=t.files&&t.files[0]; t.value=""; if(!file) return;
+    if(!/^image\//.test(file.type || "image/")){ alert("Elegí una imagen."); return; }
+    // Primero se acomoda (mover y agrandar dentro del círculo); cancelar no cambia nada.
+    let cropped;
+    try{ cropped=await cropAvatar(file); }catch(e){ alert("No se pudo leer esa imagen. Probá con otra."); return; }
+    if(!cropped) return;
     document.body.classList.add("avatar-busy");
-    const err=await uploadMyAvatar(file);
+    const err=await uploadMyAvatar(file, cropped);
     document.body.classList.remove("avatar-busy");
     if(err){ alert(err); return; }
     if(CoachState.coachSettingsOpen) renderCoachSettings(); else renderApp();

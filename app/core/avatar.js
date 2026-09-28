@@ -1,7 +1,7 @@
 // Foto de perfil (cliente y coach).
 //
-// La imagen se recorta en cuadrado y se achica en el celular antes de subirla (JPEG de
-// 320 × 320, unos 30–60 KB). Se guarda en el bucket privado "avatars" de Supabase, en la
+// La imagen se recorta en cuadrado (el encuadre lo elige la persona en ui/recorte.js) y se
+// achica en el celular antes de subirla (JPEG de 320 × 320, unos 30–60 KB). Se guarda en el bucket privado "avatars" de Supabase, en la
 // carpeta del propio usuario ({uid}/…jpg), y la ruta queda en profiles.avatar_path.
 // Para mostrarla se piden links firmados (valen 1 día), igual que las fotos de progreso.
 // Quién puede verla lo deciden las políticas de supabase/foto-perfil.sql: el propio
@@ -75,12 +75,13 @@ export async function squareJpeg(file){
 }
 
 // Sube la foto nueva, la guarda en el perfil y borra la anterior. Devuelve un mensaje de
-// error para mostrar, o "" si salió bien.
-export async function uploadMyAvatar(file){
+// error para mostrar, o "" si salió bien. cropped: el cuadrado ya elegido en la pantalla de
+// acomodar la foto (ui/recorte.js); si no viene, se recorta al centro como antes.
+export async function uploadMyAvatar(file, cropped){
   if (!State.sb || !State.cloudUser) return "Tenés que iniciar sesión para cambiar la foto.";
-  if (!file || !/^image\//.test(file.type || "image/")) return "Elegí una imagen.";
-  let blob;
-  try { blob = await squareJpeg(file); } catch (e) { return "No se pudo leer esa imagen. Probá con otra."; }
+  if (!cropped && (!file || !/^image\//.test(file.type || "image/"))) return "Elegí una imagen.";
+  let blob = cropped || null;
+  if (!blob) try { blob = await squareJpeg(file); } catch (e) { return "No se pudo leer esa imagen. Probá con otra."; }
   const uid = State.cloudUser.id, old = State.cloudProfile && State.cloudProfile.avatar_path;
   const path = uid + "/" + Date.now() + ".jpg"; // nombre nuevo: evita que se vea la foto vieja cacheada
   const up = await State.sb.storage.from(BUCKET).upload(path, blob, { contentType: "image/jpeg", upsert: false });
