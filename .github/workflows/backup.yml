@@ -3,12 +3,17 @@
 #
 # Qué hace:
 #   1. pg_dump de toda la base (datos de usuarios, rutinas, entrenos, planes…). Las fotos
-#      (Storage) no entran: son archivos, no filas de la base.
-#   2. La cifra con BACKUP_PASSWORD (AES-256). El repo es público y cualquiera con cuenta de
-#      GitHub puede bajar los Artifacts: sin la contraseña el archivo no sirve para nada.
+#      (Storage) no entran: son archivos, no filas de la base. Tampoco las sesiones abiertas
+#      ni los tokens de inicio de sesión (con una copia robada y descifrada se podría entrar
+#      a las cuentas sin contraseña): después de restaurar, cada uno vuelve a iniciar sesión.
+#   2. La cifra con BACKUP_PASSWORD (AES-256, con la derivación de clave más lenta de gpg para
+#      que probar contraseñas de a millones no sirva). Mientras el repo sea público
+#      cualquiera con cuenta de GitHub puede bajar los Artifacts: sin la contraseña el
+#      archivo no sirve para nada.
 #   3. La restaura en una base vacía y compara cuántas filas tiene cada tabla con la original.
 #      Si falta algo, la ejecución sale en rojo.
-#   El archivo queda 90 días en la ejecución (Artifacts → backup-base).
+#   El archivo queda 21 días en la ejecución (Artifacts → backup-base): alcanza para tener
+#   las últimas 3 copias semanales sin dejar meses de copias a disposición.
 #
 # Corre solo desde main.
 #
@@ -67,7 +72,11 @@ jobs:
 
       - name: Copiar la base
         run: |
-          $PG pg_dump "$DB_URL" -Fc --no-owner --no-privileges -f /out/backup.dump
+          $PG pg_dump "$DB_URL" -Fc --no-owner --no-privileges \
+            --exclude-table-data='auth.sessions' --exclude-table-data='auth.refresh_tokens' \
+            --exclude-table-data='auth.one_time_tokens' --exclude-table-data='auth.flow_state' \
+            --exclude-table-data='auth.mfa_challenges' --exclude-table-data='auth.mfa_amr_claims' \
+            -f /out/backup.dump
           # Filas por tabla en la base original (queda en el runner, no en el log).
           for t in $TABLAS; do
             n=$($PG psql "$DB_URL" -Atc "select count(*) from $t" 2>/dev/null || echo "?")
@@ -101,7 +110,8 @@ jobs:
         run: |
           f="backup-$(date -u +%F).dump.gpg"
           printf '%s' "$PASS" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
-            --symmetric --cipher-algo AES256 -o "out/$f" out/backup.dump
+            --symmetric --cipher-algo AES256 --s2k-mode 3 --s2k-digest-algo SHA512 --s2k-count 65011712 \
+            -o "out/$f" out/backup.dump
           rm -f out/backup.dump out/filas.txt
           ls out
 
@@ -109,7 +119,7 @@ jobs:
         with:
           name: backup-base
           path: out/*.gpg
-          retention-days: 90
+          retention-days: 21
 
       - name: Apagar la base de prueba
         if: always()
