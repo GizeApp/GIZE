@@ -269,9 +269,12 @@ const PLAN_MAX = { p10: 10, p25: 25, p50: 50, p100: 100 };
 const PLAN_PRICE = { p10: 9300, p25: 15000, p50: 20000, p100: 33000 }; // los de plan_price (supabase/admin.sql)
 const isoDay = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 // Fecha para "pagado hasta": desde el vencimiento actual si todavía no pasó, si no desde hoy.
+// El plan pago arranca cuando termina lo que ya tiene (la prueba gratis o el mes ya pagado):
+// así no pierde días de prueba si paga antes. Se cuenta desde el último día cubierto.
 function hastaMeses(c, meses){
-  const base = c.paid_until && new Date(c.paid_until) > new Date() ? new Date(c.paid_until) : new Date();
-  const d = new Date(base); d.setMonth(d.getMonth() + meses); return isoDay(d);
+  const now = Date.now(), fin = x => x && new Date(x).getTime() > now ? new Date(x).getTime() - 1 : 0;
+  const d = new Date(Math.max(now, fin(c.paid_until), c.plan === "cortesia" ? 0 : fin(c.trial_ends_at)));
+  d.setMonth(d.getMonth() + meses); return isoDay(d);
 }
 
 async function openCoach(id){
@@ -283,7 +286,7 @@ async function openCoach(id){
       <div class="fact"><span>Prueba hasta</span><b>${fmtD(c.trial_ends_at)}</b></div><div class="fact"><span>Mercado Pago</span><b>${c.has_mp ? esc(mpTxt(c.mp_status)) : "Sin suscripción"}</b></div>
     </div>
     <div class="sec-t">Pago manual</div>
-    <div class="sec-s">Cuando te paga (transferencia, efectivo, link), cargá el plan y hasta cuándo queda habilitado. Si ya estaba al día, los meses se suman desde su vencimiento.</div>
+    <div class="sec-s">Cuando te paga (transferencia, efectivo, link), cargá el plan y hasta cuándo queda habilitado. Los meses se cuentan desde que termina lo que ya tiene: si está en la prueba gratis, el plan arranca cuando la prueba termina (no pierde días); si ya estaba al día, desde su vencimiento.</div>
     <label class="lbl">Plan</label>
     <select class="in" id="pmPlan">${["p10", "p25", "p50", "p100"].map(p => `<option value="${p}"${(c.plan === p || (!PLAN_MAX[c.plan] && p === "p25")) ? " selected" : ""}>${esc(planTxt(p))} · ${money(PLAN_PRICE[p])}/mes</option>`).join("")}</select>
     <label class="lbl">Alumnos máximos</label><input class="in" id="pmMax" type="number" min="1" max="1000" value="${PLAN_MAX[c.plan] ? n0(c.max_clients) : 25}">
