@@ -41,7 +41,7 @@ import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, ma
 
 import { EntrenoState, REST_DEFAULT, day, expandedOverride, liveCounting, renderEntreno, renderExList, renderExSheet, effectiveRest, restKey, wkElapsedText, wkFresh, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
-import { HabitosState, addHabit, checkDaily, forgetHabitAlarm, habitAlarmDay, openHabitAlarm, renderHabitAlarmSheet, renderHabitos, saveHabitAlarm } from './screens/habitos.js';
+import { HabitosState, addHabit, checkDaily, forgetHabitAlarm, habitAlarmDay, openHabitAlarm, paintHabitAlarmSheet, renderHabitAlarmSheet, renderHabitos, saveHabitAlarm } from './screens/habitos.js';
 import { alarmsSupported, askAlarmPermission, initHabitAlarms, syncHabitAlarms } from './ui/habitnotif.js';
 
 import { ProgresoState, allSetsDone, exOccurrence, lastKgsUseful, lastPlan, lastSessionFor, renderProgreso } from './screens/progreso.js';
@@ -354,21 +354,22 @@ document.body.addEventListener("click", async e => {
   if (a === "chabit-toggle") { const k=hkey(el.dataset.name); state.habitsDone[k]=!state.habitsDone[k]; save(); renderApp(); return; }
   if (a === "habit-toggle") { const h=state.habits.find(x=>x.id===el.dataset.id); if(h) h.done=!h.done; save(); renderApp(); return; }
   if (a === "habit-remove") { forgetHabitAlarm(el.dataset.id); state.habits = state.habits.filter(x=>x.id!==el.dataset.id); save(); renderApp(); return; }
-  // Días y aviso de un hábito (⏰).
-  if (a === "habit-alarm") { openHabitAlarm(el.dataset.kind, el.dataset.key); renderApp(); return; }
-  if (a === "hba-all") { if(HabitosState.edit) HabitosState.edit.days=null; renderApp(); return; }
-  if (a === "hba-day") { habitAlarmDay(parseInt(el.dataset.d,10)); renderApp(); return; }
+  // Días y aviso de un hábito (⏰). Abrir anima la hoja; los cambios adentro la actualizan
+  // en el lugar (paintHabitAlarmSheet) para que no se vuelva a abrir con cada toque.
+  if (a === "habit-alarm") { SheetState.sheetGen++; openHabitAlarm(el.dataset.kind, el.dataset.key); renderApp(); return; }
+  if (a === "hba-all") { if(HabitosState.edit) HabitosState.edit.days=null; paintHabitAlarm(); return; }
+  if (a === "hba-day") { habitAlarmDay(parseInt(el.dataset.d,10)); paintHabitAlarm(); return; }
   // Hora del aviso: la misma rueda del temporizador, en modo hora del día.
   if (a === "hba-pick") {
     const e=HabitosState.edit; if(!e) return;
     const [h,m]=(e.time||"09:00").split(":").map(n=>parseInt(n,10)||0);
-    openTimePicker((h*60+m)*60000, "Hora del aviso", ms=>{ const t=Math.round(ms/60000)%1440; if(HabitosState.edit===e){ e.time=String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0"); renderApp(); } }, {clock:true});
+    openTimePicker((h*60+m)*60000, "Hora del aviso", ms=>{ const t=Math.round(ms/60000)%1440; if(HabitosState.edit===e){ e.time=String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0"); paintHabitAlarm(); } }, {clock:true});
     return;
   }
-  if (a === "hba-notime") { if(HabitosState.edit) HabitosState.edit.time=""; renderApp(); return; }
-  if (a === "hba-cancel") { HabitosState.edit=null; renderApp(); return; }
+  if (a === "hba-notime") { if(HabitosState.edit) HabitosState.edit.time=""; paintHabitAlarm(); return; }
+  if (a === "hba-cancel") { closeSheet(()=>{ HabitosState.edit=null; renderApp(); }); return; }
   if (a === "hba-save") {
-    const withTime=saveHabitAlarm(); renderApp();
+    const withTime=saveHabitAlarm(); closeSheet(()=>renderApp());
     if(withTime && alarmsSupported()) askAlarmPermission().then(ok=>{ if(ok) syncHabitAlarms(); else alert("Para que suene el aviso, permití las notificaciones de GIZE en los ajustes del celular."); });
     return;
   }
@@ -1503,6 +1504,9 @@ document.addEventListener("visibilitychange", ()=>{
   if(document.visibilityState!=="visible" || (State.cloudProfile && State.cloudProfile.role==="coach")) return;
   if((state.visits||[]).indexOf(today())<0) renderApp();
 });
+
+// Hoja de días y aviso de un hábito: se actualiza en el lugar (si no está dibujada, se dibuja).
+function paintHabitAlarm(){ if(!paintHabitAlarmSheet(alarmsSupported())) renderApp(); }
 
 // ---- Pedir un producto que no está (core/productos.js → sendProductRequest) ----
 function openRequest(init){
