@@ -1,10 +1,25 @@
 /* Chat coach ↔ alumno (app/ui/chat.js): pantalla completa encima de la app y del panel. */
+/* Botón de la barra de arriba: neón azul, compañero de la llama violeta de la racha. Con
+   mensajes sin leer brilla más y late despacio. */
 .chat-btn { position: relative; flex: none; width: 36px; height: 36px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
-  background: var(--gize-surface); border: 1px solid var(--gize-border); color: var(--gize-text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  background: color-mix(in srgb, var(--gize-blue) 14%, var(--gize-surface)); border: 1.5px solid color-mix(in srgb, var(--gize-blue) 85%, #fff);
+  color: #E6F4FF; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gize-blue) 80%, transparent), 0 0 18px color-mix(in srgb, var(--gize-blue) 55%, transparent),
+    0 0 34px color-mix(in srgb, var(--gize-blue) 22%, transparent), inset 0 0 10px color-mix(in srgb, var(--gize-blue) 30%, transparent);
+  transition: box-shadow .4s, border-color .4s, background .4s; }
 .chat-btn[hidden] { display: none; }
-.chat-btn svg { width: 18px; height: 18px; }
+.chat-btn svg { width: 18px; height: 18px;
+  filter: drop-shadow(0 0 2px #BFE3FF) drop-shadow(0 0 5px #7CC6FF) drop-shadow(0 0 10px color-mix(in srgb, var(--gize-blue) 90%, transparent)); }
 .chat-btn:active { transform: scale(.96); }
-.chat-btn .chat-badge { position: absolute; top: -4px; right: -4px; }
+.chat-btn.unread { border-color: var(--gize-blue); background: color-mix(in srgb, var(--gize-blue) 18%, var(--gize-surface));
+  animation: chatGlow 1.8s ease-in-out infinite; }
+@keyframes chatGlow {
+  0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--gize-blue) 80%, transparent), 0 0 18px color-mix(in srgb, var(--gize-blue) 55%, transparent),
+    0 0 34px color-mix(in srgb, var(--gize-blue) 22%, transparent), inset 0 0 10px color-mix(in srgb, var(--gize-blue) 30%, transparent); }
+  50% { box-shadow: 0 0 10px var(--gize-blue), 0 0 28px color-mix(in srgb, var(--gize-blue) 80%, transparent),
+    0 0 52px color-mix(in srgb, var(--gize-blue) 40%, transparent), inset 0 0 14px color-mix(in srgb, var(--gize-blue) 40%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .chat-btn.unread { animation: none; box-shadow: 0 0 10px var(--gize-blue), 0 0 28px color-mix(in srgb, var(--gize-blue) 70%, transparent); } }
+.chat-btn .chat-badge { position: absolute; top: -4px; right: -4px; box-shadow: 0 0 8px color-mix(in srgb, var(--gize-danger) 70%, transparent); }
 .chat-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
   background: var(--gize-danger); color: #fff; font: 700 11px var(--gize-font); line-height: 1; vertical-align: 2px; margin-left: 6px; }
 .chat-btn .chat-badge { margin: 0; }
