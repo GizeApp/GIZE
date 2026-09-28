@@ -1,5 +1,6 @@
 ext {
-    minSdkVersion = 23
+    // 26 (Android 8): lo pide Health Connect (pasos y peso, @capgo/capacitor-health).
+    minSdkVersion = 26
     compileSdkVersion = 36
     targetSdkVersion = 36
     androidxActivityVersion = '1.9.2'

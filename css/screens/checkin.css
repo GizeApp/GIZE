@@ -155,3 +155,10 @@
 .sum-cell.big { grid-column: 1 / -1; padding: 14px 10px; border: 1.5px solid transparent;
   background: linear-gradient(var(--gize-surface-2), var(--gize-surface-2)) padding-box, var(--gize-rgb-ring) border-box; }
 .sum-cell.big b { font-size: 30px; }
+
+/* Pasos y peso que se cargan solos desde Health Connect / Salud (checkin.js → saludHint). */
+.salud-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 2px; padding: 9px 12px;
+  border-radius: 12px; border: 1px solid color-mix(in srgb, var(--gize-blue) 45%, transparent);
+  background: color-mix(in srgb, var(--gize-blue) 8%, var(--card-2)); font-size: var(--text-meta); color: var(--txt-2); }
+.salud-row .cal-edit { margin: 0; flex: none; }
+.salud-tip { margin: 10px 0 2px; font-size: var(--text-meta); color: var(--txt-3); }

@@ -1059,6 +1059,10 @@ async function sendItem(it){
     let del=sb.from("food_entries").delete().eq("client_id",uid).eq("log_date",p.dt);
     if(p.foods.length) del=del.not("id","in","("+p.foods.map(f=>f.id).join(",")+")");
     sbOk(await del);
+  } else if(it.k==="steps"){
+    // Pasos de un día anterior traídos de Health Connect / Salud (app/core/salud.js): solo
+    // esa columna, el resto del registro del día no se toca.
+    sbOk(await sb.from("daily_logs").upsert({client_id:uid, log_date:p.dt, steps:p.steps},{onConflict:"client_id,log_date"}));
   } else if(it.k==="weight"){
     // Solo esa fecha: otro dispositivo pudo cargar otras y no se tocan.
     if(p.del) sbOk(await sb.from("body_weights").delete().eq("client_id",uid).eq("measured_on",p.date));
@@ -1146,6 +1150,8 @@ function applyPending(){
       state.diary=p.foods.map(f=>({id:f.id, meal:f.meal||undefined, name:f.name, grams:f.grams, kcal:f.kcal, p:f.p, c:f.c, f:f.f, unit:f.unit, base:f.base||undefined}));
       applyHabitsDone(p.habits);
       _lastDay=JSON.stringify(p);
+    } else if(it.k==="steps"){
+      if(state.daily[p.dt]) state.daily[p.dt].steps=String(p.steps);
     } else if(it.k==="weight"){
       state.weights=(state.weights||[]).filter(w=>w.date!==p.date);
       if(!p.del){ state.weights.push({id:newId(), date:p.date, kg:p.kg}); state.weights.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0); }
@@ -1158,6 +1164,13 @@ function applyPending(){
 
 window.addEventListener("online", ()=>{ flushOutbox(); });
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") flushOutbox(); });
+
+// Pasos de un día anterior (app/core/salud.js). Va por la cola como todo lo demás.
+export function queueSteps(dt, steps){
+  if(!State.cloudUser) return;
+  enqueue("steps", {dt:dt, steps:steps}, dt);
+  clearTimeout(_extrasTimer); _extrasTimer=setTimeout(()=>{ flushOutbox(); }, 1500);
+}
 
 // Las funciones cloud* devuelven true si quedó en la nube y false si quedó pendiente.
 export function cloudInsertSession(se){

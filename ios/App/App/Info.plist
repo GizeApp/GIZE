@@ -49,6 +49,12 @@
 	<string>GIZE usa la cámara para que saques tu foto de perfil o tus fotos de progreso.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>GIZE accede a tus fotos para que elijas tu foto de perfil o tus fotos de progreso.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>GIZE usa el micrófono solo cuando grabás un mensaje de voz para tu coach o tu alumno.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>GIZE lee tus pasos y tu peso de Salud para cargarlos en tu registro diario y que tu coach vea tu progreso.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>GIZE no escribe datos en Salud; solo lee tus pasos y tu peso.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CFBundleURLTypes</key>

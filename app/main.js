@@ -72,6 +72,7 @@ import { initTabScroll, restoreTabScroll } from './ui/tabscroll.js';
 import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
 import { ChatUnread, chatOpenFor, openChat, refreshUnread } from './ui/chat.js';
 import { signedAudioUrl, togglePlay } from './ui/grabar.js';
+import { SaludState, syncSalud } from './core/salud.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
 const autoKg = new Set();
@@ -341,6 +342,7 @@ document.body.addEventListener("click", async e => {
   // Racha
   if (a === "streak-open") { openStreak(); return; }
   if (a === "chat-open") { openMyChat(); return; }
+  if (a === "salud-sync") { syncSalud(true); return; }
   if (a === "ex-audio") { const pth=el.dataset.path; togglePlay("ex:"+pth, ()=>signedAudioUrl(pth)); return; }
   if (a === "streak-close") { closeStreak(); return; }
 
@@ -1612,3 +1614,6 @@ window.addEventListener("gize:login", ()=>{
 });
 // Globitos al día al volver a la app.
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible" && State.cloudUser) refreshUnread(); });
+
+// Pasos y peso automáticos (core/salud.js): al terminar una lectura se redibuja lo que los muestra.
+SaludState.onChange=()=>{ if(!isCoach() && ["habitos","progreso","config"].indexOf(State.view)>=0) renderApp(); };
