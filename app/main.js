@@ -1296,7 +1296,6 @@ document.body.addEventListener("change", async e => {
   else if(a==="daily-pick"){ CoachState.coachDailySel=el.value; renderCoach(); }
   else if(a==="ck-pick"){ CoachState.coachCkSel=el.value; renderCoach(); }
   else if(a==="sess-pick"){ CoachState.coachSessSel=el.value; renderCoach(); }
-  else if(a==="photo-pick-date"){ CoachState.coachPhotoSel=el.value; renderCoach(); }
 });
 
 document.body.addEventListener("input", async e => {
