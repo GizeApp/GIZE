@@ -2,9 +2,9 @@
 
 Tres versiones con las mismas grabaciones y el mismo diseño:
 
-- `salida/gize-guia-usuarios.mp4` (~5:30): solo el plan gratuito, con intro y cierre para usuarios.
-- `salida/gize-guia-coach.mp4` (~5:05): solo el panel del coach, con intro y cierre para coaches.
-- `salida/gize-guia-completa.mp4` (~10:20): las dos partes juntas.
+- `salida/gize-guia-usuarios.mp4` (~3:20): solo el plan gratuito, con intro y cierre para usuarios.
+- `salida/gize-guia-coach.mp4` (~3:20): solo el panel del coach, con intro y cierre para coaches.
+- `salida/gize-guia-completa.mp4` (~6:25): las dos partes juntas.
 
 Cada una tiene su `descripcion-*.txt` con los capítulos listos para YouTube.
 
@@ -14,7 +14,7 @@ Cada una tiene su `descripcion-*.txt` con los capítulos listos para YouTube.
 después el **panel del coach** (23). Mismo diseño que la historia y el reel: glows de la gama, tubos de
 neón, Outfit y palabra clave en neón.
 
-Cada función muestra el teléfono a la derecha con la grabación **a velocidad real** y, a la izquierda, el
+Cada función muestra el teléfono a la derecha con la grabación **al doble de velocidad** (se congela si hace falta tiempo para leer la explicación) y, a la izquierda, el
 título y la explicación, que aparece línea por línea sincronizada con lo que pasa en pantalla. Las
 explicaciones se escriben en los guiones de grabación como «marcas» (`mark('…')`) y quedan guardadas con
 su tiempo en cada `times.json`.

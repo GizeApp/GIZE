@@ -26,7 +26,9 @@ W, H = 1920, 1080
 GR = os.path.join(HERE, 'grabacion', 'frames')
 SUB, DIM = (196, 202, 212), (150, 158, 174)
 NEON3 = [(47, 160, 255), (166, 92, 255), (255, 61, 174)]
-LEAD, TAIL, XF = int(1.0 * FPS), int(1.2 * FPS), 8        # antes y después de cada grabación; fundido del teléfono
+LEAD, TAIL, XF = int(0.8 * FPS), int(1.0 * FPS), 8        # antes y después de cada grabación; fundido del teléfono
+SPEED = 2.0                                                 # la grabación va al doble de velocidad…
+READ0, READ_LINE = 1.4, 0.45                                # …pero cada explicación queda al menos esto en pantalla (s)
 
 SOLO = [('rutina', 'Tu rutina'), ('entrenar', 'Entrenar'), ('descanso', 'Descanso'), ('ejercicios', 'Cambiar y agregar ejercicios'),
         ('finalizar', 'Finalizar el entreno'), ('progreso', 'Progreso'), ('peso', 'Peso corporal'), ('registro', 'Registro de hoy'),
@@ -40,6 +42,18 @@ COACH = [('panel', 'Tu panel'), ('codigo', 'Código de invitación'), ('suscripc
          ('progresion', 'Progresión y superseries'), ('programada', 'Rutinas programadas'), ('plan-dias', 'Plan alimenticio'),
          ('plan-indicaciones', 'Hidratación e indicaciones'), ('plan-menu', 'Personalización del menú'), ('plan-cardio', 'Cardio y hábitos'),
          ('preguntas', 'Tus preguntas'), ('ajustes', 'Configuración')]
+
+# capítulos de YouTube: cada función pertenece a un tema
+CHAP = {'solo': {'rutina': 'Entrenar', 'entrenar': 'Entrenar', 'descanso': 'Entrenar', 'ejercicios': 'Entrenar', 'finalizar': 'Entrenar',
+                 'progreso': 'Progreso', 'peso': 'Progreso', 'registro': 'Progreso', 'checkin': 'Progreso', 'historial': 'Progreso', 'volumen': 'Progreso',
+                 'meta': 'Comida y calorías', 'comida': 'Comida y calorías', 'escaner': 'Comida y calorías', 'dias': 'Comida y calorías', 'agua': 'Comida y calorías',
+                 'habitos': 'Hábitos, cardio y racha', 'cardio': 'Hábitos, cardio y racha', 'racha': 'Hábitos, cardio y racha', 'ajustes': 'Ajustes'},
+        'coach': {'panel': 'Tu panel, alumnos y plantillas', 'codigo': 'Tu panel, alumnos y plantillas', 'suscripcion': 'Tu panel, alumnos y plantillas', 'plantillas': 'Tu panel, alumnos y plantillas',
+                  'alumno': 'La ficha del alumno', 'notif': 'La ficha del alumno', 'datos': 'La ficha del alumno', 'bloque': 'La ficha del alumno',
+                  'diario': 'Seguimiento del alumno', 'checkin': 'Seguimiento del alumno', 'historial': 'Seguimiento del alumno', 'volumen': 'Seguimiento del alumno', 'peso': 'Seguimiento del alumno',
+                  'rutina': 'Armar la rutina', 'ejercicio': 'Armar la rutina', 'progresion': 'Armar la rutina', 'programada': 'Armar la rutina',
+                  'plan-dias': 'Plan alimenticio', 'plan-indicaciones': 'Plan alimenticio', 'plan-menu': 'Plan alimenticio', 'plan-cardio': 'Plan alimenticio',
+                  'preguntas': 'Preguntas y configuración', 'ajustes': 'Preguntas y configuración'}}
 
 # ---------- fondo apaisado: glows de la gama, tubos de neón y fundido arriba/abajo ----------
 AW, AH = W // 8, H // 8
@@ -132,13 +146,14 @@ def caption_layers(text):
 
 # ---------- grabaciones ----------
 class Clip:
-    def __init__(self, d):
+    """tmap: para cada cuadro de salida, el segundo de la grabación que se muestra."""
+    def __init__(self, d, tmap):
         m = json.load(open(os.path.join(d, 'times.json')))
         self.files = sorted(glob.glob(os.path.join(d, '*.jpg')))
-        self.ts = np.array(m['times']) - m['start']; self.span = m['end'] - m['start']; self.marks = m['marks']; self.cache = {}
-        self.n = int(round(self.span * FPS))
+        self.ts = np.array(m['times']) - m['start']; self.tmap = tmap; self.cache = {}
+        self.n = len(tmap)
     def __getitem__(self, k):
-        t = np.clip(k, 0, self.n - 1) / FPS
+        t = self.tmap[int(np.clip(k, 0, self.n - 1))]
         i = max(0, int(np.searchsorted(self.ts, t, side='right')) - 1)
         if i not in self.cache:
             if len(self.cache) > 6: self.cache.clear()
@@ -150,11 +165,20 @@ def add_card(fn, n, title): SEGS.append({'kind': 'card', 'fn': fn, 'n': n, 'titl
 def add_part(sub, items, label):
     for i, (name, title) in enumerate(items):
         d = os.path.join(GR, sub, name); m = json.load(open(os.path.join(d, 'times.json')))
-        n = LEAD + int(round((m['end'] - m['start']) * FPS)) + TAIL
-        caps = []
-        for mk in m['marks']:
-            (cur, old), h = caption_layers(mk['text']); caps.append((LEAD + int(mk['t'] * FPS) + 6, cur, old, h))
-        SEGS.append({'kind': 'feat', 'dir': d, 'n': n, 'title': title, 'part': label,
+        span = m['end'] - m['start']
+        # la grabación avanza a SPEED×; si la próxima marca llega antes de que se pueda leer la actual, se congela
+        pts = [0.0] + [min(mk['t'], span) for mk in m['marks']] + [span]
+        tmap, caps = [], []
+        for j in range(len(pts) - 1):
+            a, b = pts[j], pts[j + 1]
+            dur = (b - a) / SPEED
+            if j >= 1:
+                (cur, old), h = caption_layers(m['marks'][j - 1]['text'])
+                caps.append((LEAD + len(tmap) + 4, cur, old, h))
+                dur = max(dur, READ0 + READ_LINE * ((h - 10) // 52))
+            for k in range(int(round(dur * FPS))): tmap.append(min(b, a + k / FPS * SPEED))
+        n = LEAD + len(tmap) + TAIL
+        SEGS.append({'kind': 'feat', 'dir': d, 'tmap': tmap, 'n': n, 'title': title, 'part': label, 'chap': CHAP[sub][name],
                      'kick': kicker_layer(f'{label} · {i + 1:02d} / {len(items):02d}'), 'tl': title_layer(title), 'caps': caps})
 
 _clips = {}
@@ -162,7 +186,7 @@ def clip(k):
     if k not in _clips:
         for j in list(_clips):
             if j < k - 1: del _clips[j]
-        _clips[k] = Clip(SEGS[k]['dir'])
+        _clips[k] = Clip(SEGS[k]['dir'], SEGS[k]['tmap'])
     return _clips[k]
 
 def put(c, lay, x, y, a, rise=16):
@@ -348,23 +372,20 @@ def encode(path, a, b):
 
 def ts(sec): return f'{int(sec // 60)}:{int(sec % 60):02d}'
 def capitulos():
-    """Capítulos para la descripción de YouTube: empiezan en 0:00 y cada uno dura 10 s o más
-    (los cortos se suman al anterior)."""
+    """Capítulos para la descripción de YouTube, agrupados por tema. Empiezan en 0:00 y cada uno dura
+    10 s o más (si alguno queda corto se suma al anterior)."""
     ch = []
     for k, (sg, st) in enumerate(zip(SEGS, STARTS)):
         if sg['kind'] == 'card':
             if k == 0: ch.append([0, 'Introducción'])
-            elif sg['title'].startswith('Parte 2'): ch.append([st, 'Panel del coach'])
             continue
-        t = sg['title'] + (' (coach)' if sg['part'] == 'Panel del coach' and SEGS[k - 1]['kind'] == 'feat' and
-                           any(x['title'] == sg['title'] for x in SEGS[:k] if x.get('part') == 'Plan gratuito') else '')
-        if SEGS[k - 1]['kind'] == 'card' and SEGS[k - 1]['title'].startswith('Parte 2'):
-            ch[-1][1] = 'Panel del coach · ' + sg['title']; continue
-        ch.append([st, t])
+        name = sg['chap']
+        if VIDEO == 'completa': name = ('Coach · ' if sg['part'] == 'Panel del coach' else 'Gratis · ') + name
+        if not ch or ch[-1][1] != name: ch.append([st, name])
     ends = [c[0] for c in ch[1:]] + [N]
     out = []
     for (st, t), en in zip(ch, ends):
-        if out and (en - st) < 10 * FPS: out[-1][1] += ' y ' + t[0].lower() + t[1:]
+        if out and (en - st) < 10 * FPS: out[-1][1] += ' · ' + t
         else: out.append([st, t])
     return '\n'.join(f'{ts(st / FPS)} {t}' for st, t in out)
 

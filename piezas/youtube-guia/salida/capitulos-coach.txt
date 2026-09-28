@@ -1,21 +1,7 @@
 0:00 Introducción
-0:12 Tu panel y código de invitación
-0:35 Tu plan
-0:45 Plantillas de rutinas y la ficha del alumno
-1:10 Mensajes al celular
-1:24 Datos y objetivos
-1:37 Bloque / mesociclo
-1:50 Seguimiento diario
-2:01 Check-in semanal
-2:13 Historial de entrenos y volumen semanal
-2:34 Peso corporal
-2:44 Armar la rutina
-3:00 Series y detalles
-3:17 Progresión y superseries
-3:32 Rutinas programadas
-3:45 Plan alimenticio
-3:57 Hidratación e indicaciones
-4:10 Personalización del menú
-4:23 Cardio y hábitos
-4:36 Tus preguntas
-4:50 Configuración
+0:12 Tu panel, alumnos y plantillas
+0:44 La ficha del alumno
+1:16 Seguimiento del alumno
+1:48 Armar la rutina
+2:25 Plan alimenticio
+2:56 Preguntas y configuración

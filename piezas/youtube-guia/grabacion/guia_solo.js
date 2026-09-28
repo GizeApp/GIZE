@@ -18,10 +18,9 @@ const mock = require('./mock_solo');
   });
   await scene('entrenar', async () => {
     mark('«Iniciar entrenamiento» pone en marcha el reloj de la sesión.'); await wait(900); await tap('[data-action="wk-start"]', 0, { after: 1600 });
-    mark('Ves lo que hiciste la vez pasada, serie por serie.'); await scrollToSel('.ex-prog', 150, 1300); await wait(2200);
-    mark('Y GIZE te sugiere cómo progresar hoy.'); await wait(2200);
-    mark('Anotás el peso y las repeticiones de cada serie.'); await type('[data-action="kg"]', '16,5'); await type('[data-action="reps"]', '13'); await wait(900);
-    mark('Con «Usar», completás las series con la sugerencia.'); await tap('[data-action="sug-use"]', 0, { after: 2200 });
+    mark('Ves lo que hiciste la vez pasada, serie por serie.'); await scrollToSel('.ex-prog', 150, 1300); await wait(2400);
+    mark('Con «Usar estos pesos», cargás los de la vez pasada.'); await tap('[data-action="last-use"]', 0, { after: 2000 });
+    mark('Y anotás las repeticiones de cada serie.'); await type('[data-action="reps"]', '13'); await type('[data-action="reps"]', '11', 1); await wait(1600);
   });
   await scene('descanso', async () => {
     await scrollToSel('[data-action="rest-from-ex"]', 460, 1300);
