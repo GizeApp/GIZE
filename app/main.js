@@ -72,6 +72,7 @@ import { initTabScroll, restoreTabScroll } from './ui/tabscroll.js';
 import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
 import { ChatUnread, chatOpenFor, openChat, refreshUnread } from './ui/chat.js';
 import { signedAudioUrl, togglePlay } from './ui/grabar.js';
+import { dropExMedia } from './core/videos.js';
 import { SaludState, syncSalud } from './core/salud.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
@@ -528,8 +529,8 @@ document.body.addEventListener("click", async e => {
     return;
   }
   if (a === "ex-cancel") { closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
-  if (a === "ex-choose") { const name=el.dataset.name; const d=day(); const mm=pickMuscle(name, el.dataset.cat||EntrenoState.exCat); if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ ex.name=name; ex.mus=mm; } } else if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,mkEx(name,2,mm)); } else { d.exercises.push(mkEx(name,2,mm)); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
-  if (a === "ex-custom") { const nm=prompt(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:",""); if(nm && nm.trim()){ const d=day(); const mm=EntrenoState.exCat; if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ ex.name=nm.trim(); ex.mus=mm; } } else if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,mkEx(nm.trim(),2,mm)); } else { d.exercises.push(mkEx(nm.trim(),2,mm)); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); } return; }
+  if (a === "ex-choose") { const name=el.dataset.name; const d=day(); const mm=pickMuscle(name, el.dataset.cat||EntrenoState.exCat); if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==name) dropExMedia(ex); ex.name=name; ex.mus=mm; } } else if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,mkEx(name,2,mm)); } else { d.exercises.push(mkEx(name,2,mm)); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
+  if (a === "ex-custom") { const nm=prompt(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:",""); if(nm && nm.trim()){ const d=day(); const mm=EntrenoState.exCat; if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==nm.trim()) dropExMedia(ex); ex.name=nm.trim(); ex.mus=mm; } } else if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,mkEx(nm.trim(),2,mm)); } else { d.exercises.push(mkEx(nm.trim(),2,mm)); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); } return; }
 
   // Peso corporal
   if (a === "daily-save") {
@@ -1293,7 +1294,7 @@ document.body.addEventListener("input", async e => {
   else if(a==="rt-targetkg"){ const ex=day.exercises[+el.dataset.i]; const st=ex&&ex.sets[+el.dataset.j]; if(st) st.targetKg=el.value; }
   else if(a==="rt-note"){ const ex=day.exercises[+el.dataset.i]; if(ex){ const v=el.value.trim(); if(v) ex.note=v; else delete ex.note; } }
   else if(a==="day-note"){ const v=el.value.trim(); if(v) day.note=v; else delete day.note; }
-  else if(a==="rt-rir"||a==="rt-rest"||a==="rt-goal"||a==="rt-video"){ const ex=day.exercises[+el.dataset.i]; if(ex){ const k=(a==="rt-video")?"video":a.slice(3); let v=el.value.trim(); if(k==="video"&&v&&!/^https:\/\//i.test(v)) v="https://"+v.replace(/^[a-z][a-z0-9+.-]*:(\/\/)?/i,""); if(v) ex[k]=v; else delete ex[k]; } }
+  else if(a==="rt-rir"||a==="rt-rest"||a==="rt-goal"||a==="rt-video"){ const ex=day.exercises[+el.dataset.i]; if(ex){ const k=(a==="rt-video")?"video":a.slice(3); let v=el.value.trim(); if(k==="video"&&v&&!/^https:\/\//i.test(v)) v="https://"+v.replace(/^[a-z][a-z0-9+.-]*:(\/\/)?/i,""); if(v) ex[k]=v; else delete ex[k]; if(k==="video"){ if(v) ex.videoFor=ex.name; else delete ex.videoFor; } } }
   else if(a.indexOf("info-")===0){ CoachState.coachInfoForm = CoachState.coachInfoForm || Object.assign({}, CoachState.coachData.info||{}); CoachState.coachInfoForm[a.slice(5)] = el.value; return; }
   else if(a.indexOf("blk-")===0){
     blockForm()[a.slice(4)] = el.value;
