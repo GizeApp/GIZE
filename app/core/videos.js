@@ -167,7 +167,7 @@ const V = {
   "Plancha": "https://www.youtube.com/shorts/KC-DK0qydqw",
   "Rueda abdominal": "https://www.youtube.com/shorts/knjliGWvGa4",
   "Encogimiento en polea": "https://www.youtube.com/shorts/1DpnrOWv1A4",
-  "Giro ruso": "https://www.youtube.com/shorts/uIGn2y3yBGI",
+  "Giro ruso": "https://www.youtube.com/shorts/Xvm7zSiFyak",
   "Escaladores": "https://www.youtube.com/shorts/Fb79R7IUwYE",
   "Oblicuos": "https://www.youtube.com/shorts/_cdt_-Bhi48",
   "Plancha lateral": "https://www.youtube.com/shorts/fzLeV8X0Gb8",
