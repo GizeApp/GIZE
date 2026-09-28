@@ -130,10 +130,21 @@ export function cardioItemsEditor(p){
   return '<div class="co-note-lbl" style="margin-top:10px">Sesiones puntuales (opcional)</div>'+rows+'<button class="pl-add" data-coach="pl-cardioitemadd">+ Agregar sesión</button>';
 }
 
+// Cada hábito con sus días (p.habitDays, alineado con p.habits; vacío = todos los días). El
+// alumno puede cambiarlos y ponerles hora en Hábitos (el coach no elige horas).
+const HD_WEEK=[[1,"L"],[2,"M"],[3,"M"],[4,"J"],[5,"V"],[6,"S"],[0,"D"]];
+const HD_NAME=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
 export function habitsEditor(p){
   const arr=Array.isArray(p.habits)?p.habits:[];
-  const rows=arr.map((t,i)=>'<div class="le-row"><input class="ml-in wide" data-coach="pl-habit" data-i="'+i+'" value="'+esc(t)+'" placeholder=""><button class="ml-del" data-coach="pl-habitdel" data-i="'+i+'">\u2715</button></div>').join("");
-  return rows+'<button class="pl-add" data-coach="pl-habitadd">+ Agregar hábito</button>';
+  const hd=Array.isArray(p.habitDays)?p.habitDays:[];
+  const rows=arr.map((t,i)=>{
+    const d=Array.isArray(hd[i])?hd[i]:[], all=!d.length||d.length===7;
+    const days=HD_WEEK.map(([n,l])=>'<button class="hd-day'+(!all&&d.includes(n)?' on':'')+'" data-coach="pl-habitday" data-i="'+i+'" data-d="'+n+'" aria-label="'+HD_NAME[n]+'" aria-pressed="'+(!all&&d.includes(n))+'">'+l+'</button>').join("");
+    return '<div class="le-row"><input class="ml-in wide" data-coach="pl-habit" data-i="'+i+'" value="'+esc(t)+'" placeholder=""><button class="ml-del" data-coach="pl-habitdel" data-i="'+i+'">\u2715</button></div>'+
+      '<div class="hd-row"><button class="hd-all'+(all?' on':'')+'" data-coach="pl-habitall" data-i="'+i+'" aria-pressed="'+all+'">Todos los días</button>'+days+'</div>';
+  }).join("");
+  return rows+'<button class="pl-add" data-coach="pl-habitadd">+ Agregar hábito</button>'+
+    (arr.length?'<div class="pl-note">Los días dicen cuándo le aparece cada hábito al alumno. La hora del aviso la elige él en Hábitos.</div>':'');
 }
 
 // Plan nutricional en secciones, como la ficha del alumno: un menú de tarjetas y cada una

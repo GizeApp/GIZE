@@ -41,7 +41,8 @@ import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, ma
 
 import { EntrenoState, REST_DEFAULT, day, expandedOverride, liveCounting, renderEntreno, renderExList, renderExSheet, effectiveRest, restKey, wkElapsedText, wkFresh, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
-import { HabitosState, addHabit, checkDaily, renderHabitos } from './screens/habitos.js';
+import { HabitosState, addHabit, checkDaily, forgetHabitAlarm, habitAlarmDay, openHabitAlarm, renderHabitAlarmSheet, renderHabitos, saveHabitAlarm } from './screens/habitos.js';
+import { alarmsSupported, askAlarmPermission, initHabitAlarms, syncHabitAlarms } from './ui/habitnotif.js';
 
 import { ProgresoState, allSetsDone, exOccurrence, lastKgsUseful, lastPlan, lastSessionFor, renderProgreso } from './screens/progreso.js';
 
@@ -124,7 +125,8 @@ export function renderApp(){
   initScrollReveal();
   setupExerciseFocus();
   renderRestBar();
-  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : "");
+  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : (State.view==="habitos" && HabitosState.edit) ? renderHabitAlarmSheet(alarmsSupported()) : "");
+  syncHabitAlarms(); // avisos de los hábitos (solo reprograma si cambiaron)
   if (State.view==="habitos" && HabitosState.pendingFocusHabit) { const i=document.getElementById("habitInput"); if(i) i.focus(); HabitosState.pendingFocusHabit=false; }
   if (State.view==="entreno") v.querySelectorAll("textarea.day-name").forEach(fitDayName);
   if (State.view==="entreno" && HabitosState.pendingFocusDay) { const i=v.querySelector(".day-name"); if(i){ i.focus(); i.select(); } HabitosState.pendingFocusDay=false; }
@@ -233,6 +235,7 @@ document.body.addEventListener("input", async e => {
   if (a === "ex-search") { EntrenoState.exQuery = t.value; const l=document.getElementById("exList"); if(l) l.innerHTML = renderExList(); return; }
   if (a === "portion-grams") { const base = ComidaState.selectedFood ? selectedFoodValues() : (ComidaState.editEntry ? entryBase(ComidaState.editEntry) : null); if(base){ const pv=document.getElementById("portionPreview"); if(pv) pv.textContent = previewStr(base, t.value); const pu=document.getElementById("portionUnits"); const uf=sheetUnitFood(); if(pu && uf) pu.textContent = unitsLabel(t.value, cookPortion(uf.food, uf.cook), base.unit, uf.food); } ComidaState.sheetGrams = t.value; return; }
   if (a === "cf-field") { ComidaState.foodForm[t.dataset.field] = t.value; return; }
+  if (a === "hba-time") { if(HabitosState.edit) HabitosState.edit.time=t.value; return; }
   if (a === "rq-field") { if(ComidaState.reqForm) ComidaState.reqForm[t.dataset.field] = t.value; return; }
   if (a === "macro-field") { const g=k=>parseFloat(String((document.getElementById("macro_"+k)||{}).value||"").replace(",", "."))||0; const el2=document.getElementById("macroSum"); if(el2) el2.innerHTML=macroSumText({p:g("p"),c:g("c"),f:g("f")}); return; }
   if (a === "cal-field") { ComidaState.calForm[t.dataset.field] = t.value; return; }
@@ -333,7 +336,7 @@ document.body.addEventListener("click", async e => {
   const tabBtn = e.target.closest(".tab");
   if (tabBtn) tabRipple(tabBtn, e.clientX, e.clientY);
   const navBtn = e.target.closest("[data-view]");
-  if (navBtn) { State.view = navBtn.dataset.view; ComidaState.selectedFood=null; ComidaState.editEntry=null; ComidaState.calEditing=false; ComidaState.planOpen=false; ProgresoState.section=null; ComidaState.creatingFood=false; closeRequest(); EntrenoState.exPicker=null; renderApp(); return; }
+  if (navBtn) { State.view = navBtn.dataset.view; ComidaState.selectedFood=null; ComidaState.editEntry=null; ComidaState.calEditing=false; ComidaState.planOpen=false; ProgresoState.section=null; ComidaState.creatingFood=false; closeRequest(); HabitosState.edit=null; EntrenoState.exPicker=null; renderApp(); return; }
   const el = e.target.closest("[data-action]"); if(!el) return;
   // Si pasó la medianoche con la app abierta, primero se pasa al día nuevo: si no, lo que se
   // anota ahora (comida, agua, pasos) caía en el día anterior y el redibujo lo borraba.
@@ -351,7 +354,18 @@ document.body.addEventListener("click", async e => {
   if (a === "habit-add") { addHabit(); return; }
   if (a === "chabit-toggle") { const k=hkey(el.dataset.name); state.habitsDone[k]=!state.habitsDone[k]; save(); renderApp(); return; }
   if (a === "habit-toggle") { const h=state.habits.find(x=>x.id===el.dataset.id); if(h) h.done=!h.done; save(); renderApp(); return; }
-  if (a === "habit-remove") { state.habits = state.habits.filter(x=>x.id!==el.dataset.id); save(); renderApp(); return; }
+  if (a === "habit-remove") { forgetHabitAlarm(el.dataset.id); state.habits = state.habits.filter(x=>x.id!==el.dataset.id); save(); renderApp(); return; }
+  // Días y aviso de un hábito (⏰).
+  if (a === "habit-alarm") { openHabitAlarm(el.dataset.kind, el.dataset.key); renderApp(); return; }
+  if (a === "hba-all") { if(HabitosState.edit) HabitosState.edit.days=null; renderApp(); return; }
+  if (a === "hba-day") { habitAlarmDay(parseInt(el.dataset.d,10)); renderApp(); return; }
+  if (a === "hba-notime") { if(HabitosState.edit) HabitosState.edit.time=""; renderApp(); return; }
+  if (a === "hba-cancel") { HabitosState.edit=null; renderApp(); return; }
+  if (a === "hba-save") {
+    const withTime=saveHabitAlarm(); renderApp();
+    if(withTime && alarmsSupported()) askAlarmPermission().then(ok=>{ if(ok) syncHabitAlarms(); else alert("Para que suene el aviso, permití las notificaciones de GIZE en los ajustes del celular."); });
+    return;
+  }
 
   // Cardio
   if (a === "cardio-mode") { CardioState.cardioMode = el.dataset.mode; renderApp(); return; }
@@ -1239,7 +1253,7 @@ document.body.addEventListener("click", async e => {
     const p=CoachState.coachPlanForm||planDefault();
     // totales de días de entrenamiento como macros "globales" (compatibilidad con el banner del cliente)
     let tk=0,tp=0,tc=0,tf=0; (p.trainDays||[]).forEach(r=>{ tk+=num(r.kcal); tp+=num(r.prot); tc+=num(r.cho); tf+=num(r.fat); }); tk=Math.round(tk); tp=Math.round(tp); tc=Math.round(tc); tf=Math.round(tf);
-    const clean={trainDays:p.trainDays||[], restDays:p.restDays||[], water:p.water||"", salt:p.salt||"", guidelines:p.guidelines||[], supps:p.supps||[], options:p.options||[], extras:p.extras||[], swaps:p.swaps||[], cardio:p.cardio||{text:"",items:[]}, habits:p.habits||[]};
+    const clean={trainDays:p.trainDays||[], restDays:p.restDays||[], water:p.water||"", salt:p.salt||"", guidelines:p.guidelines||[], supps:p.supps||[], options:p.options||[], extras:p.extras||[], swaps:p.swaps||[], cardio:p.cardio||{text:"",items:[]}, habits:p.habits||[], habitDays:(p.habits||[]).map((_,i)=>{ const d=Array.isArray(p.habitDays)&&p.habitDays[i]; return Array.isArray(d)&&d.length&&d.length<7?d:null; })};
     const row={client_id:CoachState.coachData.id, kcal:tk||parseInt(p._kcal)||null, protein:tp||parseInt(p._protein)||null, carbs:tc||parseInt(p._carbs)||null, fat:tf||parseInt(p._fat)||null, notes:p._notes||null, plan:clean, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id};
     try{ sbOk(await State.sb.from("nutrition").upsert(row,{onConflict:"client_id"})); CoachState.coachData.plan=row; CoachState.coachPlanForm=null; alert("Plan guardado \u2713"); }catch(e){ alert("No se pudo: "+((e&&e.message)||e)); }
     renderCoach(); return;
@@ -1257,8 +1271,17 @@ document.body.addEventListener("click", async e => {
   if(a==="pl-swapadd"){ const p=coachPlanObj(CoachState.coachData); (p.swaps=p.swaps||[]).push({from:"",to:""}); renderCoach(); return; }
   if(a==="pl-cardioitemadd"){ const p=coachPlanObj(CoachState.coachData); p.cardio=p.cardio||{text:"",items:[]}; (p.cardio.items=p.cardio.items||[]).push(""); renderCoach(); return; }
   if(a==="pl-cardioitemdel"){ const p=coachPlanObj(CoachState.coachData); p.cardio.items.splice(+b.dataset.i,1); renderCoach(); return; }
-  if(a==="pl-habitadd"){ const p=coachPlanObj(CoachState.coachData); (p.habits=p.habits||[]).push(""); renderCoach(); return; }
-  if(a==="pl-habitdel"){ const p=coachPlanObj(CoachState.coachData); p.habits.splice(+b.dataset.i,1); renderCoach(); return; }
+  if(a==="pl-habitadd"){ const p=coachPlanObj(CoachState.coachData); (p.habits=p.habits||[]).push(""); if(Array.isArray(p.habitDays)) p.habitDays[p.habits.length-1]=null; renderCoach(); return; }
+  if(a==="pl-habitdel"){ const p=coachPlanObj(CoachState.coachData); p.habits.splice(+b.dataset.i,1); if(Array.isArray(p.habitDays)) p.habitDays.splice(+b.dataset.i,1); renderCoach(); return; }
+  // Días de cada hábito (p.habitDays[i]: lista de días, 0 = domingo; vacío = todos).
+  if(a==="pl-habitall"||a==="pl-habitday"){
+    const p=coachPlanObj(CoachState.coachData), i=+b.dataset.i;
+    const hd=p.habitDays=Array.isArray(p.habitDays)?p.habitDays:[];
+    while(hd.length<(p.habits||[]).length) hd.push(null);
+    if(a==="pl-habitall") hd[i]=null;
+    else { const d=+b.dataset.d; let cur=Array.isArray(hd[i])?hd[i].slice():[]; cur=cur.includes(d)?cur.filter(x=>x!==d):cur.concat(d); hd[i]=cur.length&&cur.length<7?cur.sort((x,y)=>x-y):null; }
+    renderCoach(); return;
+  }
   if(a==="pl-swapdel"){ const p=coachPlanObj(CoachState.coachData); p.swaps.splice(+b.dataset.i,1); renderCoach(); return; }
   // Se guarda la rutina tal como estaba al tocar: lo que el coach cambie mientras se guarda
   // sigue marcado como "sin guardar" (antes se daba por guardado y se perdía).
@@ -1435,6 +1458,7 @@ cloudBoot();
 
 initTabScroll(); // días de Entreno: ruedita y arrastre con el mouse
 initUpdateCheck(); // cartel de versión nueva en las apps de las tiendas
+initHabitAlarms(()=>{ State.view="habitos"; renderApp(); }); // tocar el aviso de un hábito abre Hábitos
 resumeRest(); // descanso que quedó corriendo al cerrar la app
 // En la app nativa (Capacitor) los archivos ya viajan dentro de la app: no hace falta el service worker.
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
