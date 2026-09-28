@@ -374,3 +374,5 @@ html.lite .scan-btn { animation: none; }
 .pl8-redo .form-input { flex: 1; min-width: 0; }
 .pl8-redo .ctrl { flex: none; width: auto; }
 .plate-sheet .ss-head { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+.pl8-src { font-size: 11px; color: var(--txt-2); margin-top: 1px; }
+.pl8-src.db { color: var(--gize-success); }

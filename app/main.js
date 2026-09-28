@@ -1518,7 +1518,9 @@ function startPlate(file, texto){
   iaAnalyze("plato", file, P.texto).then(res=>{
     if(ComidaState.plate!==P) return;
     const pl=res.plato||{};
-    P.items=(pl.items||[]).filter(it=>it.gramos>0).map(it=>{ const d=100/it.gramos; return { name:it.nombre, g:Math.round(it.gramos), on:true, b:{ kcal:it.kcal*d, p:it.p*d, c:it.c*d, f:it.f*d } }; });
+    // Valores cada 100 g: los de la base de alimentos si la IA lo encontró ahí; si no, su estimación.
+    P.items=(pl.items||[]).filter(it=>it.gramos>0).map(it=>{ const d=100/it.gramos, bs=it.base;
+      return { name:it.nombre, g:Math.round(it.gramos), on:true, db:!!bs, b: bs ? { kcal:bs.kcal, p:bs.p, c:bs.c, f:bs.f } : { kcal:it.kcal*d, p:it.p*d, c:it.c*d, f:it.f*d } }; });
     P.nota=pl.nota||""; P.status="ok"; renderApp();
   }).catch(err=>{ if(ComidaState.plate!==P) return; P.status="error"; P.msg=err&&err.message; renderApp(); });
 }
