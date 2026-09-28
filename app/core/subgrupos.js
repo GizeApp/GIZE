@@ -1,11 +1,11 @@
 // Volumen semanal por subgrupo: pecho, espalda y hombros se separan según el ejercicio
-// (pecho superior / medio y bajo; espalda alta / dorsales / espalda baja; hombro frontal /
+// (pecho superior / medio / bajo; espalda alta / dorsales / espalda baja; hombro frontal /
 // lateral / posterior). Algunos ejercicios suman a dos grupos (las hiperextensiones, a espalda
 // baja y a isquios). El resto de los grupos queda como está.
 import { exMuscle } from './utils.js';
 
 export const SUB_LABELS = {
-  pecho_sup: "Pecho superior", pecho_med: "Pecho medio y bajo",
+  pecho_sup: "Pecho superior", pecho_med: "Pecho medio", pecho_inf: "Pecho bajo",
   espalda_alta: "Espalda alta", dorsales: "Dorsales", espalda_baja: "Espalda baja",
   hombro_front: "Hombro frontal", hombro_lat: "Hombro lateral", hombro_post: "Hombro posterior",
 };
@@ -16,7 +16,11 @@ const low = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]
 export function volumeGroups(ex){
   const m = exMuscle(ex), n = low(ex && ex.name);
   if (/hiperextension|lumbar/.test(n)) return m === "isquios" ? ["isquios", "espalda_baja"] : ["espalda_baja", "isquios"];
-  if (m === "pecho") return /inclinad|polea baja/.test(n) ? ["pecho_sup"] : ["pecho_med"];
+  if (m === "pecho"){
+    if (/inclinad|polea baja/.test(n)) return ["pecho_sup"];
+    if (/declinad|fondos|descendente/.test(n)) return ["pecho_inf"];
+    return ["pecho_med"];
+  }
   if (m === "espalda"){
     if (/rack pull|buenos dias/.test(n)) return ["espalda_baja"];
     if (/dominad|jalon|pullover|pull ?down/.test(n)) return ["dorsales"];
