@@ -82,6 +82,10 @@ function show(tienda, obligatoria, ultima, version){
         <button type="button" class="upd-later" aria-label="Después">${X}</button>
         <a class="upd-go" href="${esc(tienda)}" target="_blank" rel="noopener">${FLECHA}Actualizar</a>
       </div>`;
+  // Abre la tienda (Play Store / App Store) navegando a la página de la app: Capacitor la
+  // manda afuera, a la app de la tienda. Un link con target=_blank depende de cada WebView.
+  const go = el.querySelector(".upd-go");
+  if (go) go.addEventListener("click", e => { e.preventDefault(); window.location.href = tienda; });
   const later = el.querySelector(".upd-later");
   if (later) later.addEventListener("click", () => {
     try { localStorage.setItem(SKIP_KEY, JSON.stringify({ v: ultima, t: Date.now() })); } catch (e) {}
