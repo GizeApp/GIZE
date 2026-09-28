@@ -67,6 +67,7 @@ import { addDays, dayItems, loadDay, retryDay, setDayItems } from './screens/com
 import { EditState, cleanSessionEdit, openSessionEdit, removeSessionEditSet, renderSessionEdit, setSessionEditVal } from './ui/sessionedit.js';
 import { closeScanner, openScanner, scannerManualCode } from './ui/scanner.js';
 import { initUpdateCheck } from './ui/actualizar.js';
+import { initTabScroll, restoreTabScroll } from './ui/tabscroll.js';
 import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
@@ -114,6 +115,7 @@ export function renderApp(){
   document.body.classList.remove("silk-coach");
   const v = document.getElementById("view");
   v.innerHTML = State.view==="entreno" ? renderEntreno() : State.view==="habitos" ? renderHabitos() : State.view==="cardio" ? renderCardio() : State.view==="comida" ? renderComida() : renderProgreso();
+  if(State.view==="entreno") restoreTabScroll();
   if (State.view==="comida") animateCalRing();
   initScrollReveal();
   setupExerciseFocus();
@@ -1387,6 +1389,7 @@ if (coachRoutineDue() && applyCoachRoutine()) save();
 
 cloudBoot();
 
+initTabScroll(); // días de Entreno: ruedita y arrastre con el mouse
 initUpdateCheck(); // cartel de versión nueva en las apps de las tiendas
 resumeRest(); // descanso que quedó corriendo al cerrar la app
 // En la app nativa (Capacitor) los archivos ya viajan dentro de la app: no hace falta el service worker.
