@@ -249,8 +249,25 @@ export function libVideo(name){
   return v && /^https:\/\//i.test(v) ? { url: v, channel: "" } : null;
 }
 
+// Id del video de YouTube (para comparar links escritos distinto: shorts, watch, youtu.be).
+const ytId = u => { const m = /(?:shorts\/|v=|youtu\.be\/|embed\/)([\w-]{11})/.exec(String(u || "")); return m ? m[1] : String(u || ""); };
+const LIB_IDS = new Set(Object.values(V).map(ytId));
+
 // El video que ve el cliente: el link del coach si hay; si no, el de la biblioteca.
+// Antes, al cambiar un ejercicio por otro, quedaba el link del anterior (vuelos en polea con
+// el video de vuelos sentado). Ahora el link se borra al cambiarlo, y para las rutinas que ya
+// quedaron así: no se usa un link que era de otro ejercicio (videoFor) ni un video de la
+// biblioteca que no es el de este ejercicio.
 export function exVideo(ex){
-  if(ex && ex.video && /^https:\/\//i.test(ex.video)) return { url: ex.video, channel: "" };
-  return libVideo(ex && ex.name);
+  const lib = libVideo(ex && ex.name);
+  if(ex && ex.video && /^https:\/\//i.test(ex.video)){
+    if(ex.videoFor && norm(ex.videoFor) !== norm(ex.name)) return lib;
+    const id = ytId(ex.video);
+    if(LIB_IDS.has(id) && !(lib && ytId(lib.url) === id)) return lib;
+    return { url: ex.video, channel: "" };
+  }
+  return lib;
 }
+
+// Al cambiar un ejercicio por otro: el video y el audio que eran del anterior no van.
+export function dropExMedia(ex){ if(ex){ delete ex.video; delete ex.videoFor; delete ex.audio; delete ex.audioSecs; } }

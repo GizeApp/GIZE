@@ -1,6 +1,6 @@
 import { renderExAudio } from './audio-ej.js';
 import { ssGroupOf, ssGroups, ssName } from '../../core/superserie.js';
-import { libVideo } from '../../core/videos.js';
+import { dropExMedia, libVideo } from '../../core/videos.js';
 
 import { EX_CATS, EX_DB } from '../../core/data.js';
 
@@ -547,7 +547,7 @@ export function cpApply(name, cat){
   const day=(rtDays()||[])[CoachState.coachEditDay]; if(!day) return;
   const mm=pickMuscle(name, cat||CoachState.coachPCat);
   let ex;
-  if(CoachState.coachPicker.mode==="swap"){ ex=day.exercises[CoachState.coachPicker.i]; if(ex){ ex.name=name; ex.mus=mm; } }
+  if(CoachState.coachPicker.mode==="swap"){ ex=day.exercises[CoachState.coachPicker.i]; if(ex){ if(ex.name!==name) dropExMedia(ex); ex.name=name; ex.mus=mm; } }
   else if(CoachState.coachPicker.mode==="insert"){ ex=mkEx(name,3,mm); day.exercises.splice(CoachState.coachPicker.idx,0,ex); }
   else { ex=mkEx(name,3,mm); day.exercises.push(ex); }
   // el ejercicio recién agregado/cambiado arranca expandido para que el coach lo complete
