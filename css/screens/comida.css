@@ -349,3 +349,10 @@ html.lite .scan-btn { animation: none; }
 .scan-btn { position: relative; overflow: visible; }
 .scan-beta { position: absolute; top: -7px; right: -6px; padding: 1px 4px; border-radius: 5px; font-size: 8px; font-weight: 800; letter-spacing: .06em; line-height: 1.3;
   color: #fff; background: linear-gradient(90deg, var(--gize-r2), var(--gize-r3)); box-shadow: 0 0 8px color-mix(in srgb, var(--gize-r2) 60%, transparent); pointer-events: none; }
+
+/* Foto de la tabla: sacarla en el momento o elegir una que ya estaba en la galería. */
+.cf-photo-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.cf-photo-btn { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 10px; border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--gize-blue) 55%, transparent); background: var(--card-2); color: var(--txt); font-weight: 600;
+  font-size: var(--text-meta); text-align: center; cursor: pointer; }
+.cf-photo-btn:active { border-style: solid; }
