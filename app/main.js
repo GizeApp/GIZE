@@ -354,7 +354,7 @@ document.body.addEventListener("click", async e => {
   if (a === "chabit-toggle") { const k=hkey(el.dataset.name); state.habitsDone[k]=!state.habitsDone[k]; save(); renderApp(); return; }
   if (a === "habit-toggle") { const h=state.habits.find(x=>x.id===el.dataset.id); if(h) h.done=!h.done; save(); renderApp(); return; }
   if (a === "habit-remove") { forgetHabitAlarm(el.dataset.id); state.habits = state.habits.filter(x=>x.id!==el.dataset.id); save(); renderApp(); return; }
-  // Días y aviso de un hábito (⏰). Abrir anima la hoja; los cambios adentro la actualizan
+  // Días y aviso de un hábito (campanita). Abrir anima la hoja; los cambios adentro la actualizan
   // en el lugar (paintHabitAlarmSheet) para que no se vuelva a abrir con cada toque.
   if (a === "habit-alarm") { SheetState.sheetGen++; openHabitAlarm(el.dataset.kind, el.dataset.key); renderApp(); return; }
   if (a === "hba-all") { if(HabitosState.edit) HabitosState.edit.days=null; paintHabitAlarm(); return; }

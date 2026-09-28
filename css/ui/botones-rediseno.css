@@ -133,7 +133,7 @@ body:not(#_) {
   .co-day-del:hover { background: var(--gize-danger-bg); border-color: var(--danger); }
 
   /* ---------- Check de serie / hábito ---------- */
-  .done, .hb-check { border-radius: var(--btn-r); border: 1px solid var(--btn-line-hi); background: transparent; }
+  .done:not(.hb-name), .hb-check { border-radius: var(--btn-r); border: 1px solid var(--btn-line-hi); background: transparent; }
   /* Completado = --gize-success (brand/BRAND.md), con el ícono en negro para que se lea sobre el verde agua. */
   .done.on, .hb-check.on { background: var(--gize-success); border-color: var(--gize-success); color: var(--gize-bg); box-shadow: none; }
 

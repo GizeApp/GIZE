@@ -32,7 +32,7 @@ export function checkDaily(){ const t=today(); let ch=false;
   if (ch) save();
 }
 
-// ---- Días y aviso de cada hábito (⏰) ----
+// ---- Días y aviso de cada hábito (la campanita) ----
 // state.habitAlarms = { own: { [id del hábito]: { days, time } }, coach: { [nombre]: { days, time } } }
 //   · days: días de la semana en que va (0 = domingo … 6 = sábado); sin days = todos los días.
 //   · time: "HH:MM" del aviso (solo suena en las apps de Android y iPhone, ver ui/habitnotif.js).
@@ -82,7 +82,7 @@ export function habitAlarmList(){
 
 function metaLine(s){
   if (!s.time && !s.days) return "";
-  return `<span class="hb-meta">${s.time ? '⏰ ' + esc(s.time) + ' · ' : ''}${esc(daysText(s.days))}</span>`;
+  return `<span class="hb-meta">${s.time ? esc(s.time) + ' · ' : ''}${esc(daysText(s.days))}</span>`;
 }
 function alarmBtn(kind, key, s){
   return `<button class="hb-alarm${s.time ? ' on' : ''}" data-action="habit-alarm" data-kind="${kind}" data-key="${esc(key)}" aria-label="Días y aviso">${bellSvg}</button>`;
@@ -137,7 +137,7 @@ export function renderHabitos(){
       <button class="hb-add-btn" data-action="habit-add">+</button>
     </div>
     ${later.length ? `<div class="hb-later-t">Otros días</div><div class="hb-list">${laterRows}</div>` : ''}
-    <p class="foot">Se reinician solas cada día. Con ⏰ elegís qué días va cada una y a qué hora te avisa.</p>`;
+    <p class="foot">Se reinician solas cada día. Con la campanita elegís qué días va cada una y a qué hora te avisa.</p>`;
 }
 
 // Hoja para elegir los días y la hora del aviso de un hábito.
@@ -166,8 +166,7 @@ function habitAlarmBody(native){
       <div class="hba-week">${week}</div>
       ${fromCoach}
       <div class="hba-lbl">Aviso</div>
-      <div class="hba-time"><button id="hbaTime" class="hba-pick${e.time ? ' on' : ''}" data-action="hba-pick" aria-label="Hora del aviso">${e.time ? '⏰ ' + esc(e.time) : 'Elegir la hora'}</button>${e.time ? '<button class="hba-clear" data-action="hba-notime">Sin aviso</button>' : ''}</div>
-      <div class="hba-note">${native ? 'Suena a esa hora los días elegidos, aunque la app esté cerrada.' : 'El aviso suena en la app de Android y iPhone. Acá en la web ves la lista.'}</div>
+      <div class="hba-time"><button id="hbaTime" class="hba-pick${e.time ? ' on' : ''}" data-action="hba-pick" aria-label="Hora del aviso">${e.time ? esc(e.time) : 'Elegir la hora'}</button>${e.time ? '<button class="hba-clear" data-action="hba-notime">Sin aviso</button>' : ''}</div>
       <div class="sheet-btns">
         <button class="ctrl ghost" data-action="hba-cancel">Cancelar</button>
         <button class="ctrl primary" data-action="hba-save">Guardar</button>
