@@ -164,3 +164,5 @@
 /* "Cambiar código" (debajo del código de invitación) y "Desvincular alumno" (al final de la ficha). */
 .co-invite-rotate { background:none; border:0; padding:0; font:inherit; color:var(--gize-blue); text-decoration:underline; cursor:pointer; }
 .co-remove-client { margin-top:28px; }
+.co-invite-full { border-color:rgba(255,77,77,.5); color:var(--txt); }
+.co-invite-full .co-invite-sub { margin:6px 0 10px; }
