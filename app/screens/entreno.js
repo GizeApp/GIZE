@@ -12,7 +12,7 @@ import { save } from '../core/storage.js';
 
 import { syncFootText } from '../core/supabase.js';
 
-import { esc, fmt, fmtSecs, isTimedEx, norm, parseSecs, searchExercises, setText, today } from '../core/utils.js';
+import { esc, fmt, fmtSecs, isTimedEx, norm, num, parseSecs, searchExercises, setText, today } from '../core/utils.js';
 
 import { renderApp } from '../main.js';
 
@@ -225,7 +225,7 @@ export function renderEntreno(){
       let bestReps=0; (ex.sets||[]).forEach(s=>{ const r=+s.reps||0; if(r>bestReps) bestReps=r; });
       let bestSecs=0; (ex.sets||[]).forEach(s=>{ const r=parseSecs(s.secs); if(r>bestSecs) bestSecs=r; });
       const bestStr = isTimedEx(ex) ? (bestSecs>0 ? 'máx '+fmtSecs(bestSecs) : 'Completado')
-        : best ? ((+best.kg||0)+' kg × '+(parseInt(best.reps)||0)) : (bestReps>0 ? bestReps+' reps' : 'Completado'); // números: kg y reps pueden venir de la rutina que escribe el coach
+        : best ? (String(num(best.kg)).replace('.',',')+' kg × '+(parseInt(best.reps)||0)) : (bestReps>0 ? bestReps+' reps' : 'Completado'); // números: kg y reps pueden venir de la rutina que escribe el coach
       return `${insertBtn}<div class="ex-collapsed" data-action="ex-expand" data-ex="${esc(ex.id)}">
         <span class="ex-collapsed-badge">${isPR?trophySvg:checkSvg}</span>
         <span class="ex-collapsed-name">${tag?`<span class="ss-tag">${tag}</span>`:''}${esc(ex.name)}</span>
@@ -351,5 +351,5 @@ export function exerciseIsLivePR(ex){
   const best=bestSetOf(ex.sets);
   if(!best) return false;
   const prev=bestKgBefore(ex.name, state.sessions);
-  return prev!==null && best.kg>prev;
+  return prev!==null && num(best.kg)>prev;
 }

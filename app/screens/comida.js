@@ -8,7 +8,7 @@ import { flameSvg, searchSvg, xSvg } from '../core/icons.js';
 
 import { state } from '../core/state.js';
 
-import { esc, norm, today, ymd } from '../core/utils.js';
+import { esc, norm, num, today, ymd } from '../core/utils.js';
 
 import { addDays, dayLabel, dayShort, pastDay } from './comida-historial.js';
 
@@ -126,7 +126,7 @@ export function animateCalRing(){
 }
 
 export function calcTarget(p){
-  let bmr = 10*(+p.weight) + 6.25*(+p.height) - 5*(+p.age) + (p.sex==="m"?5:-161);
+  let bmr = 10*num(p.weight) + 6.25*num(p.height) - 5*num(p.age) + (p.sex==="m"?5:-161);
   const act = {sed:1.2,lig:1.375,mod:1.55,act:1.725,muy:1.9}[p.activity] || 1.55;
   const g = {bajar:0.8,mantener:1.0,ganar:1.1}[p.goal] || 1.0;
   return Math.round(bmr*act*g);
@@ -226,7 +226,7 @@ function brandResults(){
 export function entryBase(e){ return e.base ? e.base : { kcal: e.grams? e.kcal/e.grams*100:0, p: e.grams? e.p/e.grams*100:0, c: e.grams? e.c/e.grams*100:0, f: e.grams? e.f/e.grams*100:0, unit: e.unit||"g" }; }
 
 export function previewStr(food, grams){
-  const fc=(parseFloat(grams)||0)/100;
+  const fc=num(grams)/100;
   return `${Math.round(food.kcal*fc)} kcal · P ${(food.p*fc).toFixed(1)} · C ${(food.c*fc).toFixed(1)} · G ${(food.f*fc).toFixed(1)}`;
 }
 

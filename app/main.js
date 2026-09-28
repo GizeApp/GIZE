@@ -12,7 +12,7 @@ import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
 import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
 
-import { fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, norm, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
+import { fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
 import { runningSetId, startTimer, stopTimer } from './ui/settimer.js';
 
@@ -361,6 +361,7 @@ document.body.addEventListener("click", async e => {
   if (a === "cal-activity") { ComidaState.calForm.activity = el.dataset.val; renderApp(); return; }
   if (a === "cal-goal") { ComidaState.calForm.goal = el.dataset.val; renderApp(); return; }
   if (a === "cal-calc") {
+    ["age","height","weight"].forEach(k=>{ if(ComidaState.calForm[k]!=null) ComidaState.calForm[k]=String(ComidaState.calForm[k]).replace(",","."); });
     if(!(+ComidaState.calForm.age>0) || !(+ComidaState.calForm.height>0) || !(+ComidaState.calForm.weight>0)){ alert("Completá edad, altura y peso."); return; }
     // Recalcular deja los macros en automático otra vez.
     state.calProfile = Object.assign({}, ComidaState.calForm); delete state.calProfile.macros; state.calTarget = calcTarget(ComidaState.calForm); ComidaState.calEditing=false; save(); renderApp(); return;
@@ -466,7 +467,7 @@ document.body.addEventListener("click", async e => {
   if (a === "search-close") { closeSheet(()=>{ ComidaState.searchOpen=false; ComidaState.meal=null; renderApp(); }); return; }
   if (a === "water-toggle") { ComidaState.waterOpen=!ComidaState.waterOpen; renderApp(); return; }
   if (a === "portion-add") {
-    const g = parseFloat((document.getElementById("portionGrams")||{}).value); if(!(g>0)){ return; }
+    const g = num((document.getElementById("portionGrams")||{}).value); if(!(g>0)){ return; }
     const f0 = ComidaState.selectedFood; if(!f0){ return; } const fc = g/100;
     // Con crudo/cocido se guardan los valores del estado elegido y queda en el nombre.
     const f = selectedFoodValues(); if(f0.cook) rememberCookState(f0, ComidaState.cookState);
@@ -478,7 +479,7 @@ document.body.addEventListener("click", async e => {
     commitDiary(); closeSheet(()=>{ ComidaState.selectedFood=null; ComidaState.sheetGrams=null; ComidaState.sheetMeal=null; renderApp(); }); return;
   }
   if (a === "portion-save") {
-    const g = parseFloat((document.getElementById("portionGrams")||{}).value); if(!(g>0)){ return; }
+    const g = num((document.getElementById("portionGrams")||{}).value); if(!(g>0)){ return; }
     const e = ComidaState.editEntry; if(!e){ return; } const base=entryBase(e); const fc=g/100;
     if(ComidaState.sheetMeal) e.meal=ComidaState.sheetMeal;
     e.grams=roundG(g); e.kcal=Math.round(base.kcal*fc); e.p=+(base.p*fc).toFixed(1); e.c=+(base.c*fc).toFixed(1); e.f=+(base.f*fc).toFixed(1); e.unit=base.unit||"g"; e.base=base;
@@ -1193,7 +1194,7 @@ document.body.addEventListener("click", async e => {
   if(a==="plan-save"){
     const p=CoachState.coachPlanForm||planDefault();
     // totales de días de entrenamiento como macros "globales" (compatibilidad con el banner del cliente)
-    let tk=0,tp=0,tc=0,tf=0; (p.trainDays||[]).forEach(r=>{ tk+=+r.kcal||0; tp+=+r.prot||0; tc+=+r.cho||0; tf+=+r.fat||0; });
+    let tk=0,tp=0,tc=0,tf=0; (p.trainDays||[]).forEach(r=>{ tk+=num(r.kcal); tp+=num(r.prot); tc+=num(r.cho); tf+=num(r.fat); }); tk=Math.round(tk); tp=Math.round(tp); tc=Math.round(tc); tf=Math.round(tf);
     const clean={trainDays:p.trainDays||[], restDays:p.restDays||[], water:p.water||"", salt:p.salt||"", guidelines:p.guidelines||[], supps:p.supps||[], options:p.options||[], extras:p.extras||[], swaps:p.swaps||[], cardio:p.cardio||{text:"",items:[]}, habits:p.habits||[]};
     const row={client_id:CoachState.coachData.id, kcal:tk||parseInt(p._kcal)||null, protein:tp||parseInt(p._protein)||null, carbs:tc||parseInt(p._carbs)||null, fat:tf||parseInt(p._fat)||null, notes:p._notes||null, plan:clean, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id};
     try{ sbOk(await State.sb.from("nutrition").upsert(row,{onConflict:"client_id"})); CoachState.coachData.plan=row; CoachState.coachPlanForm=null; alert("Plan guardado \u2713"); }catch(e){ alert("No se pudo: "+((e&&e.message)||e)); }
