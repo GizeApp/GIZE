@@ -159,12 +159,13 @@ export function renderResults(q){
   // aclaración de la unidad ("bana" no trae "Pan lactal (1 rebanada…)").
   const all = (state.foods||[]).concat(state.offRecent||[], FOODS);
   const own = new Set(state.foods||[]);
-  lastResults = all.filter(f=>norm(shortName(f.name)).includes(nq)).slice(0,60);
+  // "pan integral bimbo" también encuentra "Pan integral · Bimbo" (la marca va después del ·).
+  lastResults = all.filter(f=>{ const n=norm(shortName(f.name)); return n.includes(nq) || n.replace(/\s*·\s*/g," ").includes(nq); }).slice(0,60);
   offResults = brandResults(); // los de marca (base compartida y Open Food Facts), cuando llegan
   // Primero los genéricos (Pan integral) y después los de marca (Pan integral · Fargo); cada
   // grupo, de lo más parecido a lo buscado a lo menos.
   const words = nq.split(/\s+/).filter(Boolean);
-  const items = lastResults.map((f,i)=>({f, i, act:"food-pick"})).concat(offResults.map((f,i)=>({f, i, act:"off-pick"})));
+  const items = sinRepetidos(lastResults.map((f,i)=>({f, i, act:"food-pick"})).concat(offResults.map((f,i)=>({f, i, act:"off-pick"}))), own);
   items.forEach(it=>{ it.r = relevance(it.f, nq, words); it.own = own.has(it.f) ? 0 : 1; it.len = norm(shortName(it.f.name)).length; it.brand = isBranded(it.f) ? 1 : 0; });
   items.sort((a,b)=>a.brand-b.brand || a.r[0]-b.r[0] || a.r[1]-b.r[1] || a.own-b.own || a.len-b.len);
   const rows = items.slice(0,60).map(it=>foodRow(it.f, it.act, it.i)).join("");
@@ -172,6 +173,37 @@ export function renderResults(q){
   const loading = o.q && o.q.length >= 3 && o.status === "loading" ? '<div class="cal-hint">Buscando productos de marca…</div>' : '';
   if (!rows) return loading || (nq.length < 3 || (o.status && o.status !== "loading") ? '<div class="cal-hint">Sin resultados. Probá crear el alimento 👇</div>' : '');
   return rows + loading;
+}
+
+// El mismo producto puede venir varias veces: la base compartida lo tiene una vez por cada
+// tamaño o supermercado (cada uno con su código de barras y a veces valores apenas
+// distintos), Open Food Facts lo vuelve a traer y también está en "los que ya usé". Se
+// muestra uno solo. Es el mismo si tiene las mismas palabras (sin el tamaño del envase y en
+// cualquier orden: "Bimbo pan integral 550 g" = "Pan integral · Bimbo") y calorías parecidas;
+// "Pan integral con semillas" es otro. Queda el propio, después el que ya usó, el verificado,
+// el de la base de GIZE y por último el de Open Food Facts. Los de la base de la app no se
+// tocan (no tienen repetidos).
+const PACK = /\b(\d+\s*x\s*)?(x\s*)?\d+([.,]\d+)?\s*(grs?|gr\.|g|kg|kgs|ml|cc|l|lt|lts|litros?|un|u|unid|unidades|uni|sobres?)\b\.?/g;
+const DUP_STOP = new Set(["de", "del", "la", "el", "los", "las", "y", "con", "en", "x", "a", "al"]);
+export function dupKey(f){
+  return norm(shortName(f && f.name)).replace(PACK, " ").replace(/[^a-z0-9ñ]+/g, " ").split(" ")
+    .filter(w => w && !DUP_STOP.has(w)).sort().join(" ");
+}
+const kcalNear = (a, b) => Math.abs((+a||0) - (+b||0)) <= Math.max(15, 0.15 * Math.max(+a||0, +b||0));
+let _baseSet = null;
+function sinRepetidos(items, own){
+  if (!_baseSet) _baseSet = new Set(FOODS);
+  const recent = new Set(state.offRecent || []);
+  const rank = f => own.has(f) ? 0 : recent.has(f) ? 1 : (f.src === "GIZE" && f.verified) ? 2 : f.src === "GIZE" ? 3 : 4;
+  const keep = new Set(), byKey = new Map();
+  items.map((it, n) => ({ it, n, r: rank(it.f) })).sort((a, b) => a.r - b.r || a.n - b.n).forEach(({ it }) => {
+    if (_baseSet.has(it.f)) { keep.add(it); return; }
+    const k = dupKey(it.f);
+    const same = byKey.get(k) || [];
+    if (k && same.some(f => kcalNear(f.kcal, it.f.kcal))) return;
+    same.push(it.f); byKey.set(k, same); keep.add(it);
+  });
+  return items.filter(it => keep.has(it));
 }
 
 // De marca: productos de supermercado (Open Food Facts o la base compartida) o con la marca
