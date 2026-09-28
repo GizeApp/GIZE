@@ -161,17 +161,22 @@ export function renderResults(q){
   const own = new Set(state.foods||[]);
   lastResults = all.filter(f=>norm(shortName(f.name)).includes(nq)).slice(0,60);
   offResults = brandResults(); // los de marca (base compartida y Open Food Facts), cuando llegan
-  // Una sola lista, de lo más parecido a lo buscado a lo menos, sea de marca o no.
+  // Primero los genéricos (Pan integral) y después los de marca (Pan integral · Fargo); cada
+  // grupo, de lo más parecido a lo buscado a lo menos.
   const words = nq.split(/\s+/).filter(Boolean);
   const items = lastResults.map((f,i)=>({f, i, act:"food-pick"})).concat(offResults.map((f,i)=>({f, i, act:"off-pick"})));
-  items.forEach(it=>{ it.r = relevance(it.f, nq, words); it.own = own.has(it.f) ? 0 : 1; it.len = norm(shortName(it.f.name)).length; });
-  items.sort((a,b)=>a.r[0]-b.r[0] || a.r[1]-b.r[1] || a.own-b.own || a.len-b.len);
+  items.forEach(it=>{ it.r = relevance(it.f, nq, words); it.own = own.has(it.f) ? 0 : 1; it.len = norm(shortName(it.f.name)).length; it.brand = isBranded(it.f) ? 1 : 0; });
+  items.sort((a,b)=>a.brand-b.brand || a.r[0]-b.r[0] || a.r[1]-b.r[1] || a.own-b.own || a.len-b.len);
   const rows = items.slice(0,60).map(it=>foodRow(it.f, it.act, it.i)).join("");
   const o = ComidaState.off || {};
   const loading = o.q && o.q.length >= 3 && o.status === "loading" ? '<div class="cal-hint">Buscando productos de marca…</div>' : '';
   if (!rows) return loading || (nq.length < 3 || (o.status && o.status !== "loading") ? '<div class="cal-hint">Sin resultados. Probá crear el alimento 👇</div>' : '');
   return rows + loading;
 }
+
+// De marca: productos de supermercado (Open Food Facts o la base compartida) o con la marca
+// en el nombre. Los de la base de GIZE y los propios cuentan como genéricos.
+function isBranded(f){ return f.src === "OFF" || f.src === "GIZE" || !!f.brand || / · /.test(f.name || ""); }
 
 // Qué tan parecido es un alimento a lo buscado: [nivel, palabras de más] (menos = más parecido).
 // Nivel: 0 el nombre exacto, 1 empieza con lo buscado como palabra entera ("pan" → Pan
