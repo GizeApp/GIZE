@@ -364,12 +364,11 @@ export function renderRequestForm(){
     <div class="form-head"><button class="form-back" data-action="rq-cancel">‹</button><div class="form-title">Pedir un producto</div></div>
     <div class="form-sub">Mandanos la foto de la tabla nutricional con la marca y el nombre. Revisamos los valores y lo agregamos a GIZE para todos. Te avisamos cuando esté.</div>
     ${r.code ? `<div class="cf-code">Código de barras <b>${esc(r.code)}</b></div>` : ''}
-    <div class="form-group"><label class="form-label">Nombre del producto</label><input class="form-input" type="text" maxlength="120" value="${esc(r.name||"")}" data-action="rq-field" data-field="name" placeholder="Ej: Yogur firme frutilla"></div>
-    <div class="form-group"><label class="form-label">Marca</label><input class="form-input" type="text" maxlength="60" value="${esc(r.brand||"")}" data-action="rq-field" data-field="brand" placeholder="Ej: La Serenísima"></div>
+    <div class="form-group"><label class="form-label">Nombre del producto</label><input class="form-input rq-neon" type="text" maxlength="120" value="${esc(r.name||"")}" data-action="rq-field" data-field="name" placeholder="Ej: Yogur firme frutilla"></div>
+    <div class="form-group"><label class="form-label">Marca</label><input class="form-input rq-neon" type="text" maxlength="60" value="${esc(r.brand||"")}" data-action="rq-field" data-field="brand" placeholder="Ej: La Serenísima"></div>
     ${slot("label", "Foto de la tabla nutricional", "Suele estar atrás del paquete. Sacala de cerca, derecha y con buena luz, que se lean los números.", true)}
     ${slot("front", "Foto del frente del paquete", "Nos ayuda a reconocer el producto.", false)}
-    <button class="form-save" data-action="rq-send"${r.sending ? ' disabled' : ''}>${r.sending ? 'Enviando…' : 'Enviar pedido'}</button>
-    <button class="cal-create" data-action="rq-manual">Mientras tanto, cargar los valores solo para mí</button>`;
+    <button class="form-save rq-send" data-action="rq-send"${r.sending ? ' disabled' : ''}>${r.sending ? 'Enviando…' : 'Enviar pedido'}</button>`;
 }
 
 // Barra de arriba: abre la ventana de búsqueda (no se escribe acá). El escáner, al lado.

@@ -409,11 +409,6 @@ document.body.addEventListener("click", async e => {
   }
   if (a === "rq-open") { ComidaState.searchOpen=false; openRequest({ name: ComidaState.foodQuery || "" }); return; }
   if (a === "rq-cancel") { closeRequest(); renderApp(); return; }
-  if (a === "rq-manual") {
-    const r=ComidaState.reqForm||{}, nm=[(r.name||"").trim(), (r.brand||"").trim()].filter(Boolean).join(" · ");
-    closeRequest();
-    ComidaState.foodForm={name:nm,kcal:"",p:"",c:"",f:"",portion:"",unit:"g",code:r.code||""}; ComidaState.creatingFood=true; renderApp(); return;
-  }
   if (a === "rq-send") {
     const r=ComidaState.reqForm; if(!r || r.sending) return;
     const name=(r.name||"").trim(), brand=(r.brand||"").trim();
