@@ -4,7 +4,7 @@
 // Una vez por ejercicio en el día; la serie queda con un trofeo chiquito mientras dure la
 // sesión (no se guarda en la rutina).
 import { state } from '../core/state.js';
-import { today } from '../core/utils.js';
+import { num, today } from '../core/utils.js';
 import { trophySvg } from '../core/icons.js';
 
 // Series que fueron récord en esta sesión (para el trofeo junto al número de serie).
@@ -18,7 +18,7 @@ const fmtKg = n => (Math.round(n * 10) / 10).toLocaleString("es-AR", { maximumFr
 // Hace falta una marca anterior (si nunca lo hizo, no hay nada que superar) y reps > 0.
 export function checkSetPR(ex, s) {
   if (!ex || !s || !s.done) return null;
-  const kg = +s.kg || 0, reps = parseInt(s.reps) || 0;
+  const kg = num(s.kg), reps = parseInt(s.reps) || 0;
   if (kg <= 0 || reps <= 0) return null;
   const key = today() + "|" + ex.name;
   if (celebrated.has(key)) return null;
@@ -40,7 +40,7 @@ function prevBest(ex) {
     if (se.date === t) return;
     (se.exercises || []).forEach(e => {
       if (e.name !== ex.name) return;
-      (e.sets || []).forEach(x => { const kg = +x.kg || 0; if (kg > 0) kgs.push(kg); });
+      (e.sets || []).forEach(x => { const kg = num(x.kg); if (kg > 0) kgs.push(kg); });
     });
   });
   if (!kgs.length) return null;
@@ -54,7 +54,7 @@ function prevBest(ex) {
 // ¿El peso es tanto más que su mejor marca que parece mal escrito (625 en vez de 62,5)?
 // Devuelve la mejor marca para mostrarla en la pregunta, o null si el peso es creíble.
 export function suspiciousKg(ex, s) {
-  const kg = +s.kg || 0;
+  const kg = num(s.kg);
   if (kg <= 0) return null;
   const prev = prevBest(ex);
   if (prev === null) return kg > 400 ? 0 : null;

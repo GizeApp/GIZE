@@ -25,6 +25,10 @@ export function storageErrorText(err, maxMb){
 // devuelve el día anterior o el siguiente.
 export function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 
+// Número escrito por el usuario: acepta coma decimal ("82,5", el teclado de iPhone en
+// español pone coma). Vacío o inválido → 0.
+export const num = v => parseFloat(String(v == null ? "" : v).replace(",", ".")) || 0;
+
 export function today(){ return ymd(new Date()); }
 
 export function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }

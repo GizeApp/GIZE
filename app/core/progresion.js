@@ -2,7 +2,8 @@
 // pasó el tope del rango de reps del coach por al menos una ("8-12" y hizo 13 o más), conviene
 // subir 2,5 kg. Si no, no se recomienda nada. Es solo un aviso: no cambia ningún dato.
 
-const num = v => parseFloat(String(v == null ? "" : v).replace(",", ".")) || 0;
+import { num } from './utils.js';
+
 export const kgText = k => (Math.round(k * 100) / 100).toString().replace(".", ",");
 
 // "8-12" → [8, 12]; "10" → [10, 10]; lo demás (AMRAP, "al fallo", vacío) → null.

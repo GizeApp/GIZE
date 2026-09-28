@@ -2,7 +2,7 @@ import { pencilSvg, xSvg } from '../core/icons.js';
 
 import { State, state } from '../core/state.js';
 
-import { esc, exMuscle, fmtDate, fmtSecs, mondayOf, setText, today } from '../core/utils.js';
+import { esc, exMuscle, fmtDate, fmtSecs, mondayOf, num, setText, today } from '../core/utils.js';
 
 import { renderCheckin, renderDaily, renderInfo } from './checkin.js';
 
@@ -174,7 +174,7 @@ export function bestKgBefore(exName, priorSessions){
     (se.exercises||[]).forEach(ex=>{
       if(ex.name!==exName) return;
       (ex.sets||[]).forEach(s=>{
-        const kg=+s.kg||0;
+        const kg=num(s.kg);
         if(kg>0 && (best===null || kg>best)) best=kg;
       });
     });
@@ -185,8 +185,8 @@ export function bestKgBefore(exName, priorSessions){
 export function bestSetOf(sets){
   let best=null;
   (sets||[]).forEach(s=>{
-    const kg=+s.kg||0;
-    if(kg>0 && (!best || kg>best.kg)) best=s;
+    const kg=num(s.kg);
+    if(kg>0 && (!best || kg>num(best.kg))) best=s;
   });
   return best;
 }
