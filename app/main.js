@@ -327,7 +327,7 @@ document.body.addEventListener("click", async e => {
   const tabBtn = e.target.closest(".tab");
   if (tabBtn) tabRipple(tabBtn, e.clientX, e.clientY);
   const navBtn = e.target.closest("[data-view]");
-  if (navBtn) { State.view = navBtn.dataset.view; ComidaState.selectedFood=null; ComidaState.editEntry=null; ComidaState.calEditing=false; ComidaState.planOpen=false; ProgresoState.section=null; ComidaState.creatingFood=false; EntrenoState.exPicker=null; renderApp(); return; }
+  if (navBtn) { State.view = navBtn.dataset.view; ComidaState.selectedFood=null; ComidaState.editEntry=null; ComidaState.calEditing=false; ComidaState.planOpen=false; ProgresoState.section=null; ComidaState.creatingFood=false; closeRequest(); EntrenoState.exPicker=null; renderApp(); return; }
   const el = e.target.closest("[data-action]"); if(!el) return;
   // Si pasó la medianoche con la app abierta, primero se pasa al día nuevo: si no, lo que se
   // anota ahora (comida, agua, pasos) caía en el día anterior y el redibujo lo borraba.
@@ -1468,7 +1468,9 @@ document.addEventListener("visibilitychange", ()=>{
 function openRequest(init){
   closeRequest();
   ComidaState.reqForm = Object.assign({ name:"", brand:"", code:"" }, init);
-  ComidaState.creatingFood=false; ComidaState.requestingProduct=true; renderApp();
+  // Encima de cualquier otra pantalla de Comida (meta, Mi plan, editar algo anotado).
+  ComidaState.creatingFood=false; ComidaState.calEditing=false; ComidaState.planOpen=false; ComidaState.editEntry=null; ComidaState.selectedFood=null;
+  ComidaState.requestingProduct=true; renderApp();
 }
 function closeRequest(){
   const r=ComidaState.reqForm;

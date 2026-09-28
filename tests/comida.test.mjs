@@ -16,6 +16,11 @@ export default async function ({ base, t }){
   const firstBrand = names.findIndex(n => /Paty/.test(n)), firstGeneric = names.findIndex(n => !/Paty/.test(n));
   t.ok(firstGeneric >= 0 && (firstBrand < 0 || firstGeneric < firstBrand), 'los genéricos tienen que ir antes que las marcas: ' + names.slice(0, 4).join(' | '));
 
+  // Se ordena todo antes de cortar en 60: "te" tiene que traer el Té aunque haya muchos "te…".
+  await p.fill('#foodSearch', 'te'); await wait(900);
+  const te = await p.evaluate(() => [...document.querySelectorAll('#foodResults .food-row .food-name')].map(e => e.innerText.replace(/\s+/g, ' ')));
+  t.ok(te.slice(0, 5).some(n => /^Té( |$)/.test(n)), 'buscar "te" trae el Té arriba: ' + te.slice(0, 5).join(' | '));
+
   await p.fill('#foodSearch', 'aceite de oliva'); await wait(800);
   await p.click('[data-action="food-pick"]'); await wait(400);
   await p.fill('#portionGrams', '2,5'); await wait(100);
