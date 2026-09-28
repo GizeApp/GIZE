@@ -870,7 +870,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.id === "uQ"){ S.q = e.target.value.trim(); searchUsers(); }
   if (e.key === "Enter" && e.target.id === "pQ"){ S.prodQ = e.target.value.trim(); loadProductos(); }
   if (e.key === "Enter" && e.target.id === "fTodoIn"){ const b = document.querySelector('[data-a="fTodoAdd"]'); if (b) b.click(); }
-  if (e.key === "Escape") closeDrawer();
+  if (e.key === "Escape"){ const z = document.querySelector(".zoom"); if (z){ z.remove(); return; } closeDrawer(); }
 });
 document.addEventListener("click", async e => {
   const g = e.target.closest("[data-go]"); if (g){ closeDrawer(); go(g.dataset.go); return; }
@@ -932,7 +932,7 @@ document.addEventListener("click", async e => {
     if (a === "padd"){ S.prodAdding = !S.prodAdding; paintAdd(); return; }
     if (a === "paddCancel"){ S.prodAdding = false; paintAdd(); return; }
     if (a === "paddSave"){ addProd(b); return; }
-    if (a === "zoom"){ const z = document.createElement("div"); z.className = "zoom"; z.innerHTML = `<img src="${esc(b.dataset.url)}" alt="">`; z.onclick = () => z.remove(); document.body.appendChild(z); return; }
+    if (a === "zoom"){ const z = document.createElement("div"); z.className = "zoom"; z.setAttribute("role", "dialog"); z.setAttribute("aria-label", "Foto (tocá o Esc para cerrar)"); z.innerHTML = `<img src="${esc(b.dataset.url)}" alt="${esc((b.querySelector("img") || {}).alt || "")}">`; z.onclick = () => z.remove(); document.body.appendChild(z); return; }
     if (a === "avT"){ document.querySelectorAll("#avT button").forEach(x => x.classList.toggle("on", x === b)); return; }
     if (a === "avSend"){ sendAviso(b); return; }
     if (a === "cfgSave"){ saveConfig(b); return; }
