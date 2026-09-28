@@ -626,3 +626,4 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
   .sc-now, .sc-prev { font-size: 13px; }
   .sc-d b { font-size: 10.5px; padding: 2px 4px; }
 }
+.auth-ios-tip { align-self:stretch; margin:-2px 2px 4px; font-size:12px; line-height:1.45; color:var(--gize-text-2); opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
