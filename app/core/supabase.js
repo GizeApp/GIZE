@@ -2,6 +2,7 @@ import { mergeVisits } from '../ui/racha.js';
 import { DAILY_COLUMNS } from './questions.js';
 
 import { syncPush } from './push.js';
+import { clearHabitAlarms } from '../ui/habitnotif.js';
 import { resolveAvatars } from './avatar.js';
 
 import { loadCoachQuestions } from '../screens/coach/preguntas.js';
@@ -132,8 +133,10 @@ function takePendingCode(){
   return (v && v.c && Date.now()-(v.t||0) < 2*3600000) ? v.c : null;
 }
 // Al cerrar sesión o borrar la cuenta: lo que quedó de esa cuenta en el dispositivo además de
-// los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso).
+// los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso,
+// avisos de los hábitos).
 export function clearAccountLeftovers(uid){
+  clearHabitAlarms();
   try{
     [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, "gize_auth_link_used", "gize_rest_timer"].forEach(k=>localStorage.removeItem(k));
     if(uid){ [OUTBOX_KEY, OUTBOX_FAILED_KEY].forEach(k=>{ const q=readQueue(k).filter(i=>i.uid!==uid); if(q.length) writeQueue(k,q); else localStorage.removeItem(k); }); }
@@ -677,7 +680,7 @@ export async function loadCloud(){
     if(!ck.error && Array.isArray(ck.data)){ state.checkins={}; ck.data.forEach(r=>{ const o=Object.assign({}, r.answers||{}); if(r.adherence) o.adherence=r.adherence; state.checkins[r.week_start]=o; }); }
     if(!ci.error) state.info = ci.data || null;
     if(!bl.error) state.block = (bl.data && bl.data[0]) ? bl.data[0] : null;
-    if(!np.error) state.coachPlan = np.data ? {kcal:np.data.kcal, protein:np.data.protein, carbs:np.data.carbs, fat:np.data.fat, notes:np.data.notes, plan:np.data.plan||null, cardio:(np.data.plan&&np.data.plan.cardio)||null, habits:(np.data.plan&&np.data.plan.habits)||null} : null;
+    if(!np.error) state.coachPlan = np.data ? {kcal:np.data.kcal, protein:np.data.protein, carbs:np.data.carbs, fat:np.data.fat, notes:np.data.notes, plan:np.data.plan||null, cardio:(np.data.plan&&np.data.plan.cardio)||null, habits:(np.data.plan&&np.data.plan.habits)||null, habitDays:(np.data.plan&&np.data.plan.habitDays)||null} : null;
     // Comidas, agua, pasos y hábitos de hoy. La nube manda solo si ya tiene el día
     // (water_ml lo escribe siempre la app); si no, se conserva lo local y se sube.
     _lastDay=null;
@@ -756,7 +759,8 @@ function daySnapshot(){
 
 function prefsSnapshot(){
   return { cal_profile:state.calProfile||null, cal_target:state.calTarget||null, steps_goal:state.stepsGoal||null, water_goal:state.waterGoal||null,
-    rest_default:state.restDefault||null, habits:(state.habits||[]).map(h=>({id:h.id, name:h.name})), foods:state.foods||[] };
+    rest_default:state.restDefault||null, habits:(state.habits||[]).map(h=>({id:h.id, name:h.name})), foods:state.foods||[],
+    habit_alarms:state.habitAlarms||{} };
 }
 
 function applyHabitsDone(hd){
@@ -775,6 +779,7 @@ function applyPrefs(p){
   if(p.water_goal) state.waterGoal=p.water_goal;
   if(p.rest_default) state.restDefault=p.rest_default;
   if(Array.isArray(p.foods)) state.foods=p.foods;
+  if(p.habit_alarms && typeof p.habit_alarms==="object") state.habitAlarms=p.habit_alarms;
   if(Array.isArray(p.habits)){
     const done=new Set((state.habits||[]).filter(h=>h.done).map(h=>h.name)); // las tildes de hoy no viajan en prefs
     state.habits=p.habits.map(h=>({id:h.id, name:h.name, done:done.has(h.name)}));

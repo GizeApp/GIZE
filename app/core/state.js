@@ -114,5 +114,7 @@ if (!state.daily || typeof state.daily !== "object") state.daily = {};
 if (!state.checkins || typeof state.checkins !== "object") state.checkins = {};
 
 if (!state.habitsDone || typeof state.habitsDone !== "object") state.habitsDone = {};
+// Días y aviso de cada hábito (screens/habitos.js): { own: {id: {days, time}}, coach: {nombre: {days, time}} }.
+if (!state.habitAlarms || typeof state.habitAlarms !== "object") state.habitAlarms = {};
 
 if (!state.days.find(d => d.id === State.activeId)) State.activeId = state.days[0].id;
