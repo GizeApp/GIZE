@@ -683,8 +683,7 @@ export async function loadCloud(){
     _lastDay=null;
     const todayRow=(!dl.error && Array.isArray(dl.data)) ? dl.data.find(r=>r.log_date===today()) : null;
     // Racha: los días que la app abrió con esta cuenta (también desde otros celulares). Una
-    // fila con solo los pasos la crea la lectura de Health Connect / Salud (core/salud.js)
-    // para un día en que no se abrió la app: esa no cuenta.
+    // fila con solo los pasos (de un día en que no se abrió la app) no cuenta.
     const opened=r=>r.water_ml!=null || r.habits_done!=null || !!(r.comment||r.soreness||r.performance||r.motivation||r.hunger||r.fatigue||r.sleep||r.answers);
     if(!dl.error && Array.isArray(dl.data)) mergeVisits(dl.data.filter(opened).map(r=>r.log_date));
     if(!fe.error && todayRow && todayRow.water_ml!=null){
@@ -707,7 +706,6 @@ export async function loadCloud(){
   // nunca se subía y los cambios quedaban solo en el celular.
   if(!State.cloudReady) scheduleCloudRetry(); else _retryN=0;
   syncExtras();
-  window.dispatchEvent(new Event("gize:cloud")); // terminó de leer la nube (core/salud.js lee pasos y peso)
 }
 
 // ¿La rutina del celular le gana a la de la nube? Solo si cambió acá después de la última
@@ -1073,8 +1071,8 @@ async function sendItem(it){
     if(p.foods.length) del=del.not("id","in","("+p.foods.map(f=>f.id).join(",")+")");
     sbOk(await del);
   } else if(it.k==="steps"){
-    // Pasos de un día anterior traídos de Health Connect / Salud (app/core/salud.js): solo
-    // esa columna, el resto del registro del día no se toca.
+    // Pasos de un día (solo esa columna; lo usó una versión de prueba de la app que leía
+    // Health Connect). Queda por si alguno quedó en la cola de un celular.
     sbOk(await sb.from("daily_logs").upsert({client_id:uid, log_date:p.dt, steps:p.steps},{onConflict:"client_id,log_date"}));
   } else if(it.k==="weight"){
     // Solo esa fecha: otro dispositivo pudo cargar otras y no se tocan.
@@ -1178,27 +1176,6 @@ function applyPending(){
 
 window.addEventListener("online", ()=>{ flushOutbox(); });
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") flushOutbox(); });
-
-// Pasos y peso traídos de Health Connect / Salud (app/core/salud.js). Van directo a la cola
-// (y no por la foto del día ni la comparación de pesos de syncExtras): así una lectura
-// automática no manda la foto del día que tenía este celular (podría pisar lo que se cargó
-// en otro) y lo importado no se pierde si loadCloud reemplaza el estado mientras tanto.
-export function queueSteps(dt, steps){
-  if(!State.cloudUser) return;
-  enqueue("steps", {dt:dt, steps:steps}, dt);
-  clearTimeout(_extrasTimer); _extrasTimer=setTimeout(()=>{ flushOutbox(); }, 1500);
-}
-export function queueWeight(date, kg){
-  if(!State.cloudUser) return;
-  enqueue("weight", {date:date, kg:kg}, date);
-  clearTimeout(_extrasTimer); _extrasTimer=setTimeout(()=>{ flushOutbox(); }, 1500);
-}
-// Los pasos de hoy ya van por queueSteps: que la foto del día no cuente ese cambio como
-// algo nuevo para mandar.
-export function noteStepsSynced(n){
-  if(!_lastDay) return;
-  try{ const d=JSON.parse(_lastDay); if(d && d.dt===today()){ d.steps=n; _lastDay=JSON.stringify(d); } }catch(e){}
-}
 
 // Las funciones cloud* devuelven true si quedó en la nube y false si quedó pendiente.
 export function cloudInsertSession(se){

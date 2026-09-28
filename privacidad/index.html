@@ -47,7 +47,6 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
     <li><b>Seguimiento:</b> peso corporal, registros diarios, comidas, check-ins y las fotos de progreso que decidas subir.</li>
     <li><b>Respuestas a tu coach:</b> lo que contestes en las preguntas que te haga (por ejemplo objetivos, lesiones o disponibilidad).</li>
     <li><b>Mensajes con tu coach:</b> los mensajes de texto y de voz del chat, y las explicaciones de voz que tu coach grabe en los ejercicios.</li>
-    <li><b>Pasos y peso de Health Connect o Salud de Apple:</b> solo si lo activás en la app de Android o iPhone (ver más abajo).</li>
     <li><b>Notificaciones:</b> si las activás, un identificador técnico de tu dispositivo para poder mandarte los mensajes de tu coach.</li>
     <li><b>Mensajes a GIZE:</b> si nos escribís a contacto@gize.ar, tu mail, tu nombre y lo que nos mandaste, para poder responderte.</li>
   </ul>
@@ -65,16 +64,6 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
 
   <h2>Micrófono</h2>
   <p>La app usa el micrófono solo mientras grabás un mensaje de voz para tu coach (o, si sos coach, para tu alumno o para explicar un ejercicio). Los audios son privados: los escuchan únicamente vos y la otra persona de la conversación.</p>
-
-  <h2 id="salud">Pasos y peso (Health Connect y Salud de Apple)</h2>
-  <p>En la app de Android (con Health Connect) y en la de iPhone (con Salud de Apple) podés activar <b>Ajustes → Pasos y peso automáticos</b>. Si lo activás y das el permiso:</p>
-  <ul>
-    <li>GIZE <b>solo lee</b> tus pasos (de los últimos 7 días) y tu peso corporal (de los últimos 30 días). No lee ningún otro dato de salud y <b>no escribe ni cambia nada</b> en Health Connect ni en Salud.</li>
-    <li>Esos datos se usan únicamente para completar tu registro diario y tu gráfico de peso en GIZE, y para que <b>tu coach</b> (si tenés uno vinculado) vea tu progreso, igual que si los cargaras a mano.</li>
-    <li>No se usan para publicidad, no se venden ni se comparten con terceros, y no se usan para ningún otro fin.</li>
-    <li>Podés apagarlo cuando quieras desde Ajustes, y quitarle el permiso a GIZE desde Health Connect o desde Salud → Perfil → Apps. Lo que ya se cargó queda en tu registro hasta que lo borres o elimines tu cuenta.</li>
-  </ul>
-  <p>El uso de los datos recibidos de Health Connect cumple la <a href="https://support.google.com/googleplay/android-developer/answer/12991134">política de permisos de Health Connect</a>, incluidos sus requisitos de uso limitado.</p>
 
   <h2>Dónde se guardan</h2>
   <p>Los datos se guardan en <b>Supabase</b> (base de datos y archivos), con conexión cifrada y reglas que impiden que un usuario lea los datos de otro. Las notificaciones pasan por los servicios de push del navegador y, en Android, por <b>Firebase Cloud Messaging</b> de Google, que solo recibe el texto del mensaje y el identificador del dispositivo.</p>
