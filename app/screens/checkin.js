@@ -118,8 +118,16 @@ export function renderInfo(){
     '<div class="fi-card">'+(chips?'<div class="fi-chips">'+chips+'</div>':'')+lines+'</div>';
 }
 
+// Peso de hoy guardado (Peso corporal / registro): el registro diario de la nube no trae kg,
+// así que el campo salía vacío al volver a abrir la app aunque ya estuviera cargado.
+export function todayWeightText(){
+  const w = (state.weights || []).find(x => x && x.date === today());
+  return w && Number(w.kg) > 0 ? String(w.kg).replace(".", ",") : "";
+}
+
 export function renderDaily(){
   const d = CheckinState.dailyForm || (state.daily[today()] || {});
+  const kgVal = CheckinState.dailyForm && CheckinState.dailyForm.kg != null ? CheckinState.dailyForm.kg : (todayWeightText() || d.kg || "");
   // Preguntas del coach (o las predeterminadas): las de opciones van como botones, las de
   // texto como campo. Peso y pasos quedan fijos arriba: alimentan el gráfico y Hábitos.
   const rows = clientQuestions("daily").map(q=>{
@@ -127,13 +135,15 @@ export function renderDaily(){
       const opts = q.options.map(o=>'<button class="sc-opt'+(String(d[q.id])===o?' on':'')+'" data-action="daily-set" data-k="'+esc(q.id)+'" data-v="'+esc(o)+'">'+esc(o)+'</button>').join("");
       return '<div class="dq-row"><span class="sc-lbl">'+esc(q.label)+'</span><div class="sc-opts">'+opts+'</div></div>';
     }
-    return '<div class="dfield" style="margin-top:10px"><label>'+esc(q.label)+'</label><input class="form-input" value="'+esc(d[q.id]||"")+'" data-action="daily-text" data-k="'+esc(q.id)+'"></div>';
+    // Texto: se ve entero (baja de línea) y la pregunta con la misma letra que las de opciones.
+    const fid = "dq_" + String(q.id).replace(/[^A-Za-z0-9_-]/g, "");
+    return '<div class="dq-row"><label class="sc-lbl" for="'+fid+'">'+esc(q.label)+'</label><textarea id="'+fid+'" class="form-input dq-text" rows="2" data-action="daily-text" data-k="'+esc(q.id)+'">'+esc(d[q.id]||"")+'</textarea></div>';
   }).join("");
   return `
     <div class="hb-head"><div class="hb-title">Registro de hoy</div><div class="title-accent"></div></div>
     <div class="daily-card">
       <div class="daily-top">
-        <div class="dfield"><label>Peso</label><input id="dKg" class="form-input" type="text" inputmode="decimal" placeholder="kg" value="${esc(d.kg||"")}" data-action="daily-kg"></div>
+        <div class="dfield"><label>Peso</label><input id="dKg" class="form-input" type="text" inputmode="decimal" placeholder="kg" value="${esc(kgVal)}" data-action="daily-kg"></div>
         <div class="dfield"><label>Pasos</label><input id="dSteps" class="form-input" type="text" inputmode="numeric" placeholder="0" value="${esc(CheckinState.dailyForm && CheckinState.dailyForm.steps!=null ? CheckinState.dailyForm.steps : (state.steps||""))}" data-action="daily-steps"></div>
       </div>
       ${rows}

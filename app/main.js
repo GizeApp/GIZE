@@ -21,7 +21,7 @@ import { showLogin } from './screens/auth.js';
 import { ssGroupOf, ssNext } from './core/superserie.js';
 import { CardioState, openTimePicker, renderCardio, setRing, swFrac } from './screens/cardio.js';
 
-import { CheckinState, renderFeedback, saveSession } from './screens/checkin.js';
+import { CheckinState, renderFeedback, saveSession , todayWeightText } from './screens/checkin.js';
 
 import { loadCoachClients, openClient } from './screens/coach/clientes.js';
 
@@ -135,7 +135,7 @@ export function renderApp(){
 // Gramos anotados: enteros, salvo lo que pesa menos de 10 g (un disparo de aceite, 0,3 g).
 // Formulario de "Registro de hoy": arranca con lo ya guardado hoy, menos los pasos (esos
 // salen del contador, que puede haber sumado desde entonces).
-function dailyFormInit(){ if(!CheckinState.dailyForm){ const f=Object.assign({}, state.daily[today()]||{}); delete f.steps; CheckinState.dailyForm=f; } return CheckinState.dailyForm; }
+function dailyFormInit(){ if(!CheckinState.dailyForm){ const f=Object.assign({}, state.daily[today()]||{}); delete f.steps; const w=todayWeightText(); if(w) f.kg=w; CheckinState.dailyForm=f; } return CheckinState.dailyForm; }
 const roundG = g => g < 10 ? Math.round(g*10)/10 : Math.round(g);
 
 // Comida: el día que se mira. Hoy usa state.diary (se sube con el resto del día); uno
