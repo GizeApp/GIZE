@@ -1,7 +1,8 @@
 0:00 Introducción
 0:12 Tu panel, alumnos y plantillas
-0:44 La ficha del alumno
-1:16 Seguimiento del alumno
-1:48 Armar la rutina
-2:25 Plan alimenticio
-2:56 Preguntas y configuración
+0:52 Chat con tus alumnos
+1:13 La ficha del alumno
+1:30 Seguimiento del alumno
+2:02 Armar la rutina
+2:49 Plan alimenticio
+3:20 Preguntas y configuración

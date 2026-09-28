@@ -76,6 +76,6 @@ def make(name, word, word_size, head, sub, phones):
 make('usuarios', 'gratis', 300, ['Guía de', 'la app'], 'Sin coach · sin pagar',
      [(shot('solo', 'entrenar', .92), 820, 8, 1430, 530), (shot('solo', 'comida'), 880, -6, 1650, 555)])
 make('coach', 'tu panel', 230, ['Guía para', 'coaches'], '14 días gratis',
-     [(shot('coach', 'peso', .35), 820, 8, 1430, 530), (shot('coach', 'alumno', .45), 880, -6, 1660, 555)])
+     [(shot('coach', 'alumno', .45), 820, 8, 1430, 530), (shot('coach', 'chat'), 880, -6, 1660, 555)])
 make('completa', 'todo', 300, ['Guía', 'completa'], 'Usuarios + coaches',
-     [(shot('solo', 'comida'), 820, 8, 1430, 530), (shot('coach', 'alumno', .45), 880, -6, 1660, 555)])
+     [(shot('solo', 'comida'), 820, 8, 1430, 530), (shot('coach', 'chat'), 880, -6, 1660, 555)])

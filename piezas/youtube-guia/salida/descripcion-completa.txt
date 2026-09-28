@@ -9,14 +9,16 @@ Todo lo que hace GIZE, función por función. Primero el plan gratuito, para ent
 
 Capítulos
 0:00 Introducción
-0:12 Gratis · Entrenar
-1:01 Gratis · Progreso
-1:46 Gratis · Comida y calorías
-2:34 Gratis · Hábitos, cardio y racha
-3:05 Gratis · Ajustes
-3:19 Coach · Tu panel, alumnos y plantillas
-3:51 Coach · La ficha del alumno
-4:23 Coach · Seguimiento del alumno
-4:55 Coach · Armar la rutina
-5:32 Coach · Plan alimenticio
-6:03 Coach · Preguntas y configuración
+0:12 Gratis · Primeros pasos
+0:40 Gratis · Entrenar
+1:30 Gratis · Progreso
+2:16 Gratis · Comida y calorías
+3:04 Gratis · Hábitos, cardio y racha
+3:35 Gratis · Ajustes
+3:49 Coach · Tu panel, alumnos y plantillas
+4:30 Coach · Chat con tus alumnos
+4:50 Coach · La ficha del alumno
+5:07 Coach · Seguimiento del alumno
+5:39 Coach · Armar la rutina
+6:26 Coach · Plan alimenticio
+6:57 Coach · Preguntas y configuración

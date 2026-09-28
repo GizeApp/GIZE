@@ -8,8 +8,9 @@ const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 async function start({ mock, out, extraCss = '' }) {
   const BASE = process.env.BASE || 'http://localhost:8766';
   const ONLY = process.argv.slice(2);
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
   const { page, ctx } = await setupPage(browser, { serviceWorkers: 'block' });
+  await ctx.grantPermissions(['microphone'], { origin: BASE }).catch(() => {});
   page.on('pageerror', e => console.log('ERR', e.message));
   page.on('dialog', d => d.accept().catch(() => {}));
   await page.goto(BASE + '/privacidad/');

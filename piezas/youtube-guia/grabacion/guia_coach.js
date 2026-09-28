@@ -13,8 +13,9 @@ const mock = require('./mock');
   const closePl = () => quiet(async () => { await scrollTo(0, 10); await click('[data-coach="plsec-close"]'); await wait(500); });
 
   await scene('panel', async () => {
-    mark('Tu panel: todos tus alumnos en una lista.'); await wait(2000);
-    mark('Cada uno con su última actividad: activo, ayer, hace días.'); await scrollTo(430, 1800); await wait(1600); await scrollTo(0, 1400);
+    mark('Tu panel: todos tus alumnos en una lista, con su mail.'); await wait(2000);
+    mark('Un globito te avisa quién te escribió.'); await point('.co-trow', 0, 1600);
+    mark('Y ves su última actividad: activo, ayer, hace días.'); await scrollTo(430, 1800); await wait(1600); await scrollTo(0, 1400);
     mark('Y buscás a cualquiera por su nombre.'); await type('[data-coach="coach-search"]', 'Sof'); await wait(1600);
     await quiet(async () => { const h = await A.page.$('[data-coach="coach-search"]'); await h.fill(''); await h.dispatchEvent('input'); await wait(400); });
   });
@@ -39,12 +40,12 @@ const mock = require('./mock');
     mark('Tocás un alumno y se abre su ficha, en secciones.'); await tap('.co-trow[data-coach="open"]', 0, { after: 2200 });
     mark('Arriba: Ficha, Rutina y Plan alimenticio.'); await point('[data-coach="client-tab"][data-t="rutina"]', 0, 900); await point('[data-coach="client-tab"][data-t="plan"]', 0, 1200);
   });
-  await scene('notif', async () => {
-    mark('Notificación: le escribís y le llega al celular al instante.'); await openSec('notif');
-    await type('[data-coach="nt-text"]', 'Mañana subimos 2,5 kg en sentadilla 💪'); await tap('[data-coach="nt-send"]', 0, { after: 1400 });
-    mark('Y ves si le llegó, con el historial de mensajes.'); await point('.nt-msg-meta', 0, 2000);
+  await scene('chat', async () => {
+    mark('Chat con cada alumno: mensajes y audios, en los dos sentidos.'); await tap('[data-coach="sec-open"][data-v="chat"]', 0, { after: 2200 });
+    mark('Le respondés al toque…'); await type('#chatText', 'Sí, dale: press con mancuernas, mismas series y reps.'); await tap('#chatHost [data-chat="send"]', 0, { after: 1400 });
+    mark('…o le grabás un audio, y ves cuándo lo escuchó.'); await tap('#chatHost [data-chat="rec"]', 0, { after: 2600 }); await tap('#chatHost [data-chat="rec-send"]', 0, { after: 1800 });
   });
-  await closeSec();
+  await quiet(async () => { await click('#chatHost [data-chat="close"]'); await wait(600); });
   await scene('datos', async () => {
     mark('Ficha del cliente: datos personales, lesiones y pasos.'); await openSec('ficha'); await wait(1000);
     mark('Contexto de entrenamiento: disponibilidad, etapa y compromiso.'); await scrollTo(380, 1800); await wait(1400);
@@ -86,6 +87,7 @@ const mock = require('./mock');
     mark('En Rutina armás el entrenamiento de cada alumno.'); await tap('[data-coach="client-tab"][data-t="rutina"]', 0, { after: 1600 });
     mark('Organizado por días: les ponés nombre, notas y los reordenás.'); await scrollToSel('[data-coach="edit-day"]', 200, 1400); await tap('[data-coach="edit-day"]', 1, { after: 1200 }); await tap('[data-coach="edit-day"]', 0, { after: 1000 });
     await point('[data-coach="day-right"]', 0, 1200);
+    mark('Y duplicás un día para no armarlo de cero.'); await point('[data-coach="day-dup"]', 0, 1800);
     mark('Cada día con su lista de ejercicios.'); await scrollToSel('.co-exc', 300, 1600); await wait(1600);
   });
   await scene('ejercicio', async () => {
@@ -94,6 +96,8 @@ const mock = require('./mock');
     mark('Rango de repeticiones, peso objetivo, RIR y descanso.'); await wait(2400);
     mark('Nota para el alumno y el link al video de técnica.'); await scrollToSel('.co-exc-open details.co-exc-fold', 300, 1200);
     await tap('.co-exc-open details.co-exc-fold summary', 0, { after: 700 }); await type('.co-exc-open [data-coach="rt-video"]', 'https://youtu.be/k7Qx2LmVb9s'); await wait(1400);
+    mark('Y le grabás una explicación de voz: la escucha en el ejercicio.'); await scrollToSel('.co-exc-open [data-coach="ea-rec"]', 380, 1000);
+    await tap('.co-exc-open [data-coach="ea-rec"]', 0, { after: 2400 }); await tap('.co-exc-open [data-coach="ea-stop"]', 0, { after: 1600 });
   });
   await scene('progresion', async () => {
     mark('La sugerencia automática le propone el peso de la próxima serie.'); await scrollToSel('[data-coach="rt-nosug-all"]', 400, 1400); await point('[data-coach="rt-nosug-all"]', 0, 1800);

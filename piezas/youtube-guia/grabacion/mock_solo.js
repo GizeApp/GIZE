@@ -10,7 +10,7 @@ const daysAgo = n => { const d = new Date(TODAY); d.setDate(d.getDate() - n); re
 function b64url(o) { return Buffer.from(JSON.stringify(o)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'); }
 const EXP = Math.floor(Date.now() / 1000) + 3600 * 24 * 30;
 const JWT = b64url({ alg: 'HS256', typ: 'JWT' }) + '.' + b64url({ sub: CL[0], role: 'authenticated', exp: EXP, aud: 'authenticated', email: 'lucas@ejemplo.com' }) + '.firma';
-const USER = { id: CL[0], aud: 'authenticated', role: 'authenticated', email: 'lucas@ejemplo.com', created_at: '2026-08-01T10:00:00Z', app_metadata: { provider: 'email' }, user_metadata: { full_name: 'Lucas Fernández', role: 'client' }, identities: [] };
+const USER = { id: CL[0], aud: 'authenticated', role: 'authenticated', email: 'lucas@ejemplo.com', created_at: process.env.NUEVO ? new Date(Date.now() - 86400000).toISOString() : '2026-08-01T10:00:00Z', app_metadata: { provider: 'email' }, user_metadata: { full_name: 'Lucas Fernández', role: 'client' }, identities: [] };
 const SESSION = { access_token: JWT, token_type: 'bearer', expires_in: 3600 * 24 * 30, expires_at: EXP, refresh_token: 'demo', user: USER };
 
 function buildDB(defaultDays, pplDays) {
@@ -97,6 +97,7 @@ function buildDB(defaultDays, pplDays) {
   db.food_entries = [];
   DAYS.forEach((items, d) => items.forEach((it, i) => db.food_entries.push(Object.assign({ id: `f${d}-${i}`, client_id: CL[0], log_date: iso(daysAgo(d)), pos: i }, it))));
   db.profiles.forEach(p => { if (p.id === CL[0]) p.coach_id = null; });
+  if (process.env.NUEVO) ['routines', 'sessions', 'body_weights', 'daily_logs', 'food_entries'].forEach(t => { db[t] = (db[t] || []).filter(r => r.client_id !== CL[0]); });
   ['coach_messages', 'checkins', 'nutrition', 'blocks', 'client_info'].forEach(t => { db[t] = (db[t] || []).filter(r => r.client_id !== CL[0]); });
   return db;
 }

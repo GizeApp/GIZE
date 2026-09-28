@@ -1,17 +1,17 @@
-// Supabase simulado para grabar el panel de coach sin tocar la base real.
+// Supabase simulado: un alumno CON coach (para mostrar el chat y la explicación de voz). Datos ficticios.
 // Datos 100 % ficticios: un coach de ejemplo y seis atletas.
 const SB = 'https://wegptuzhsrwppbknqstf.supabase.co';
 const COACH = '11111111-1111-4111-8111-111111111111';
 const CL = ['a1','a2','a3','a4','a5','a6'].map((s, i) => `2222222${i}-2222-4222-8222-22222222222${i}`);
 const NAMES = ['Lucas Fernández', 'Sofía Martínez', 'Tomás Acosta', 'Valentina Gómez', 'Nicolás Paz', 'Camila Ruiz'];
-const TODAY = new Date('2026-09-25T12:00:00');
-const iso = d => d.toISOString().slice(0, 10);
+const TODAY = new Date(); TODAY.setHours(12, 0, 0, 0);
+const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 const daysAgo = n => { const d = new Date(TODAY); d.setDate(d.getDate() - n); return d; };
 
 function b64url(o) { return Buffer.from(JSON.stringify(o)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'); }
 const EXP = Math.floor(Date.now() / 1000) + 3600 * 24 * 30;
-const JWT = b64url({ alg: 'HS256', typ: 'JWT' }) + '.' + b64url({ sub: COACH, role: 'authenticated', exp: EXP, aud: 'authenticated', email: 'coach@ejemplo.com' }) + '.firma';
-const USER = { id: COACH, aud: 'authenticated', role: 'authenticated', email: 'coach@ejemplo.com', created_at: '2026-08-01T10:00:00Z', app_metadata: { provider: 'email' }, user_metadata: { full_name: 'Martina Ríos', role: 'coach' }, identities: [] };
+const JWT = b64url({ alg: 'HS256', typ: 'JWT' }) + '.' + b64url({ sub: CL[0], role: 'authenticated', exp: EXP, aud: 'authenticated', email: 'lucas@ejemplo.com' }) + '.firma';
+const USER = { id: CL[0], aud: 'authenticated', role: 'authenticated', email: 'lucas@ejemplo.com', created_at: '2026-08-01T10:00:00Z', app_metadata: { provider: 'email' }, user_metadata: { full_name: 'Lucas Fernández', role: 'client' }, identities: [] };
 const SESSION = { access_token: JWT, token_type: 'bearer', expires_in: 3600 * 24 * 30, expires_at: EXP, refresh_token: 'demo', user: USER };
 
 
@@ -31,7 +31,7 @@ function chatFor(id, ci, name) {
 function buildDB(defaultDays, pplDays) {
   const days = JSON.parse(JSON.stringify(defaultDays));
   // links de video en varios ejercicios (como los carga el coach)
-  days.forEach(d => (d.exercises || []).forEach((e, i) => { if (i % 2 === 0) e.video = 'https://youtu.be/k7Qx2LmVb9s'; if (i === 1) { e.audio = `${COACH}/ex/voz${d.id || 'd'}explica`.replace(/[^A-Za-z0-9_/-]/g, '') + '.webm'; e.audioSecs = 42; } }));
+  days.forEach(d => (d.exercises || []).forEach((e, i) => { if (i % 2 === 0) e.video = 'https://youtu.be/k7Qx2LmVb9s'; if (i === 0) { e.audio = `${COACH}/ex/voz${d.id || 'd'}explica`.replace(/[^A-Za-z0-9_/-]/g, '') + '.webm'; e.audioSecs = 42; } }));
   const db = {
     profiles: [{ id: COACH, full_name: 'Martina Ríos', email: 'coach@ejemplo.com', role: 'coach', coach_id: null, avatar_path: null }]
       .concat(CL.map((id, i) => ({ id, full_name: NAMES[i], email: NAMES[i].split(' ')[0].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '') + '@ejemplo.com', role: 'client', coach_id: COACH, avatar_path: null }))),
@@ -43,7 +43,7 @@ function buildDB(defaultDays, pplDays) {
     ],
     coach_questions: [{ coach_id: COACH, daily: null, checkin: null }],
     routines: [], sessions: [], body_weights: [], daily_logs: [], checkins: [], client_info: [], blocks: [], nutrition: [],
-    checkin_photos: [], coach_messages: [], client_prefs: [], food_entries: [], routine_schedule: [],
+    checkin_photos: [], coach_messages: [], client_prefs: [], food_entries: [],
   };
   const lastByClient = [0, 1, 0, 3, 9, 2];
   const nByClient = [22, 18, 31, 9, 4, 14];
@@ -74,14 +74,14 @@ function buildDB(defaultDays, pplDays) {
       const kg = (78 + ci * 2.4) - (45 - k) * 0.045 * (ci % 2 ? -0.6 : 1) + Math.sin(k * 1.7) * 0.35;
       db.body_weights.push({ id: `w${ci}-${k}`, client_id: id, measured_on: iso(daysAgo(44 - k)), kg: Math.round(kg * 10) / 10 });
     }
-    for (let k = 0; k < 12; k++) db.daily_logs.push({ client_id: id, log_date: iso(daysAgo(k)), soreness: 'Poco', performance: k % 3 ? 'Bueno' : 'Muy bueno', motivation: 'Alta', hunger: 'Moderada', fatigue: 'Poco', sleep: 'Buena', steps: 9000 + (k * 731) % 3000, comment: k === 0 ? 'Hoy me sentí muy fuerte en pierna.' : '', answers: {} });
+    for (let k = 0; k < 12; k++) db.daily_logs.push({ client_id: id, log_date: iso(daysAgo(k)), soreness: 'Poco', performance: k % 3 ? 'Bueno' : 'Muy bueno', motivation: 'Alta', hunger: 'Moderada', fatigue: 'Poco', sleep: 'Buena', steps: 9000 + (k * 731) % 3000, water_ml: 1500 + (k % 3) * 500, habits_done: [], comment: k === 0 ? 'Hoy me sentí muy fuerte en pierna.' : '', answers: {} });
     for (let k = 0; k < 4; k++) {
       const ws = daysAgo(7 * k + ((TODAY.getDay() + 6) % 7));
       db.checkins.push({ client_id: id, week_start: iso(ws), adherence: 9 - (k % 2), answers: {
         q1: 'Subí 2,5 kg en el press inclinado y no fallé ningún entreno.', q2: 'Progresé en casi todo. Sin molestias.', q3: 'Sí, llego descansado a cada sesión.',
         q4: 'Promedio 10.500 pasos y 3 cardios.', q5: 'Cumplí el plan, una comida libre el sábado.', q7: 'Duermo 7 h, estrés bajo.', q10: 'Sí, me veo más definido.' } });
     }
-    db.nutrition.push({ client_id: id, kcal: 2300, protein: 180, carbs: 240, fat: 70, notes: '', plan: {
+    db.nutrition.push({ client_id: id, kcal: 1820, protein: 130, carbs: 230, fat: 50, notes: '', plan: {
       trainDays: [
         { meal: 'Desayuno', time: '08:00', kcal: 520, cho: 60, fat: 15, prot: 35, note: 'Avena + claras' },
         { meal: 'Almuerzo', time: '13:00', kcal: 650, cho: 70, fat: 18, prot: 50, note: '' },
@@ -93,9 +93,24 @@ function buildDB(defaultDays, pplDays) {
                 { title: 'Almuerzo', opts: [{ label: 'Opción A', body: '200 g de pollo\n150 g de arroz\nEnsalada libre' }] }],
       extras: [], swaps: [{ from: '100 g de arroz', to: '120 g de papa' }, { from: '200 g de pollo', to: '220 g de merluza' }],
       cardio: { text: '3 × 30 min zona 2', items: [] }, habits: ['10.000 pasos', 'Dormir 7 h'] } });
-    db.routine_schedule.push({ id: 's' + ci, client_id: id, starts_on: iso(daysAgo(-10)), name: 'Meso 3 · Fuerza', days: pplDays, applied_at: null });
     db.coach_messages.push(...chatFor(id, ci, NAMES[ci]));
   });
+  const F = (meal, name, grams, kcal, p, c, f) => ({ meal, name, grams, kcal, protein: p, carbs: c, fat: f, unit: 'g' });
+  const DAYS = [
+    [F('desayuno', 'Pan lactal blanco', 50, 132, 4.5, 24.5, 1.5), F('desayuno', 'Huevo entero', 100, 156, 12, 0.4, 11.8),
+     F('almuerzo', 'Pechuga de pollo a la plancha', 200, 330, 62, 0, 7.2), F('almuerzo', 'Arroz blanco cocido', 150, 195, 4, 42, 0.5),
+     F('merienda', 'Yogur griego natural', 170, 165, 17, 6, 8), F('merienda', 'Banana', 120, 107, 1.3, 27, 0.4),
+     F('merienda', 'Almendras', 25, 145, 5.3, 5.4, 12.5)],
+    [F('desayuno', 'Avena', 60, 227, 8, 40, 4), F('desayuno', 'Leche descremada', 250, 90, 8.5, 12.5, 0.5),
+     F('almuerzo', 'Carne magra (nalga)', 180, 270, 50, 0, 7), F('almuerzo', 'Papa hervida', 250, 215, 5, 50, 0.3),
+     F('merienda', 'Tostadas de arroz', 30, 115, 2.4, 24, 0.9), F('merienda', 'Queso untable light', 40, 64, 5, 2, 4),
+     F('cena', 'Merluza al horno', 200, 180, 36, 0, 3), F('cena', 'Ensalada de tomate y lechuga', 200, 40, 2, 8, 0.4), F('cena', 'Aceite de oliva', 10, 88, 0, 0, 10)],
+    [F('desayuno', 'Tostadas integrales', 60, 150, 7, 27, 2), F('desayuno', 'Palta', 50, 80, 1, 4, 7.5),
+     F('almuerzo', 'Fideos cocidos', 200, 262, 9.6, 52, 1.8), F('almuerzo', 'Carne picada magra', 120, 186, 26, 0, 9),
+     F('merienda', 'Manzana', 180, 94, 0.5, 25, 0.3), F('cena', 'Pollo al horno', 180, 297, 49, 0, 11), F('cena', 'Calabaza al horno', 200, 90, 2, 21, 0.2)],
+  ];
+  db.food_entries = [];
+  DAYS.forEach((items, d) => items.forEach((it, i) => db.food_entries.push(Object.assign({ id: `f${d}-${i}`, client_id: CL[0], log_date: iso(daysAgo(d)), pos: i }, it))));
   return db;
 }
 
@@ -145,12 +160,12 @@ async function install(ctx, page) {
     if (p.startsWith('/functions/v1/')) return json({ ok: true, delivered: 1, saved: true, id: 'srv-' + Date.now(), created_at: new Date().toISOString() });
     if (p.startsWith('/rest/v1/rpc/')) {
       const fn = p.split('/').pop();
-      if (fn === 'chat_unread') return json([{ client_id: CL[5], n: 2 }, { client_id: CL[1], n: 1 }]);
+      if (fn === 'chat_unread') return json([{ client_id: CL[0], n: 2 }]);
       if (fn === 'chat_mark_read') return json(null);
       if (fn === 'my_invite_code') return json('C8E2BD');
       if (fn === 'coach_client_stats') return json(STATS());
       if (fn === 'client_push_devices') return json(1);
-      if (fn === 'my_coach_name') return json(null);
+      if (fn === 'my_coach_name') return json('Martina Ríos');
       return json(null);
     }
     if (p.startsWith('/rest/v1/')) {

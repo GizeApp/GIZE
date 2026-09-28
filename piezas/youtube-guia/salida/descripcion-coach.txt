@@ -1,6 +1,6 @@
 GIZE · Guía del panel del coach
 
-Todo lo que tenés para guiar a tus alumnos: tu lista de alumnos, plantillas de rutinas, la ficha de cada uno, mensajes al celular, mesociclos, seguimiento diario, check-in semanal, rutinas programadas, plan alimenticio y tus propias preguntas.
+Todo lo que tenés para guiar a tus alumnos: tu lista de alumnos, plantillas de rutinas, la ficha de cada uno, chat con mensajes y audios, explicaciones de voz en cada ejercicio, mesociclos, seguimiento diario, check-in semanal, rutinas programadas, plan alimenticio y tus propias preguntas.
 
 • Probá el panel 14 días gratis, sin tarjeta. Después elegís el plan según cuántos alumnos tengas.
 • Tus alumnos usan la app gratis, en iPhone (App Store, desde el 29/09) y en Android (Google Play, desde el 10/10).
@@ -10,8 +10,9 @@ Todo lo que tenés para guiar a tus alumnos: tu lista de alumnos, plantillas de 
 Capítulos
 0:00 Introducción
 0:12 Tu panel, alumnos y plantillas
-0:44 La ficha del alumno
-1:16 Seguimiento del alumno
-1:48 Armar la rutina
-2:25 Plan alimenticio
-2:56 Preguntas y configuración
+0:52 Chat con tus alumnos
+1:13 La ficha del alumno
+1:30 Seguimiento del alumno
+2:02 Armar la rutina
+2:49 Plan alimenticio
+3:20 Preguntas y configuración

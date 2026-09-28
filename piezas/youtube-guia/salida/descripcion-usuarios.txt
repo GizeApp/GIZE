@@ -1,6 +1,6 @@
 GIZE · Guía del plan gratuito
 
-Todo lo que podés hacer en GIZE sin coach y sin pagar nada: tu rutina, registrar cada serie, descansos cronometrados, tu progreso, calorías y comidas, hábitos, cardio y tu racha.
+Todo lo que podés hacer en GIZE sin coach y sin pagar nada: armar tu semana en 3 pasos o elegir una rutina armada, tu rutina, registrar cada serie, descansos cronometrados, tu progreso, calorías y comidas, hábitos, cardio y tu racha.
 
 • Gratis en iPhone (App Store, desde el 29/09) y en Android (Google Play, desde el 10/10).
 • ¿Entrenás con un coach? Pedile su código y vinculate desde Ajustes.
@@ -9,8 +9,9 @@ Todo lo que podés hacer en GIZE sin coach y sin pagar nada: tu rutina, registra
 
 Capítulos
 0:00 Introducción
-0:12 Entrenar
-1:01 Progreso
-1:46 Comida y calorías
-2:34 Hábitos, cardio y racha
-3:05 Ajustes
+0:12 Primeros pasos
+0:40 Entrenar
+1:30 Progreso
+2:16 Comida y calorías
+3:04 Hábitos, cardio y racha
+3:35 Ajustes

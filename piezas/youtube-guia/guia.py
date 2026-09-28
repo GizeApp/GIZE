@@ -30,28 +30,28 @@ LEAD, TAIL, XF = int(0.8 * FPS), int(1.0 * FPS), 8        # antes y después de 
 SPEED = 2.0                                                 # la grabación va al doble de velocidad…
 READ0, READ_LINE = 1.4, 0.45                                # …pero cada explicación queda al menos esto en pantalla (s)
 
-SOLO = [('rutina', 'Tu rutina'), ('entrenar', 'Entrenar'), ('descanso', 'Descanso'), ('ejercicios', 'Cambiar y agregar ejercicios'),
+SOLO = [('bienvenida', 'Bienvenida'), ('semana', 'Armá tu semana'), ('rutinas-armadas', 'Rutinas armadas'), ('rutina', 'Tu rutina'), ('entrenar', 'Entrenar'), ('descanso', 'Descanso'), ('ejercicios', 'Cambiar y agregar ejercicios'),
         ('finalizar', 'Finalizar el entreno'), ('progreso', 'Progreso'), ('peso', 'Peso corporal'), ('registro', 'Registro de hoy'),
         ('checkin', 'Check-in semanal'), ('historial', 'Historial de entrenos'), ('volumen', 'Volumen semanal'),
         ('meta', 'Tu meta de calorías'), ('comida', 'Registrar comidas'), ('escaner', 'Escáner y alimentos propios'),
         ('dias', 'Otros días'), ('agua', 'Agua'), ('habitos', 'Hábitos'), ('cardio', 'Cardio'), ('racha', 'Racha'), ('ajustes', 'Ajustes')]
 COACH = [('panel', 'Tu panel'), ('codigo', 'Código de invitación'), ('suscripcion', 'Tu plan'), ('plantillas', 'Plantillas de rutinas'),
-         ('alumno', 'La ficha del alumno'), ('notif', 'Mensajes al celular'), ('datos', 'Datos y objetivos'), ('bloque', 'Bloque / mesociclo'),
+         ('alumno', 'La ficha del alumno'), ('chat', 'Chat con tu alumno'), ('chat-alumno', 'El chat del alumno'), ('datos', 'Datos y objetivos'), ('bloque', 'Bloque / mesociclo'),
          ('diario', 'Seguimiento diario'), ('checkin', 'Check-in semanal'), ('historial', 'Historial de entrenos'),
-         ('volumen', 'Volumen semanal'), ('peso', 'Peso corporal'), ('rutina', 'Armar la rutina'), ('ejercicio', 'Series y detalles'),
+         ('volumen', 'Volumen semanal'), ('peso', 'Peso corporal'), ('rutina', 'Armar la rutina'), ('ejercicio', 'Series, video y voz'), ('voz-alumno', 'Tu voz en su entreno'),
          ('progresion', 'Progresión y superseries'), ('programada', 'Rutinas programadas'), ('plan-dias', 'Plan alimenticio'),
          ('plan-indicaciones', 'Hidratación e indicaciones'), ('plan-menu', 'Personalización del menú'), ('plan-cardio', 'Cardio y hábitos'),
          ('preguntas', 'Tus preguntas'), ('ajustes', 'Configuración')]
 
 # capítulos de YouTube: cada función pertenece a un tema
-CHAP = {'solo': {'rutina': 'Entrenar', 'entrenar': 'Entrenar', 'descanso': 'Entrenar', 'ejercicios': 'Entrenar', 'finalizar': 'Entrenar',
+CHAP = {'solo': {'bienvenida': 'Primeros pasos', 'semana': 'Primeros pasos', 'rutinas-armadas': 'Primeros pasos', 'rutina': 'Entrenar', 'entrenar': 'Entrenar', 'descanso': 'Entrenar', 'ejercicios': 'Entrenar', 'finalizar': 'Entrenar',
                  'progreso': 'Progreso', 'peso': 'Progreso', 'registro': 'Progreso', 'checkin': 'Progreso', 'historial': 'Progreso', 'volumen': 'Progreso',
                  'meta': 'Comida y calorías', 'comida': 'Comida y calorías', 'escaner': 'Comida y calorías', 'dias': 'Comida y calorías', 'agua': 'Comida y calorías',
                  'habitos': 'Hábitos, cardio y racha', 'cardio': 'Hábitos, cardio y racha', 'racha': 'Hábitos, cardio y racha', 'ajustes': 'Ajustes'},
         'coach': {'panel': 'Tu panel, alumnos y plantillas', 'codigo': 'Tu panel, alumnos y plantillas', 'suscripcion': 'Tu panel, alumnos y plantillas', 'plantillas': 'Tu panel, alumnos y plantillas',
-                  'alumno': 'La ficha del alumno', 'notif': 'La ficha del alumno', 'datos': 'La ficha del alumno', 'bloque': 'La ficha del alumno',
+                  'alumno': 'Tu panel, alumnos y plantillas', 'chat': 'Chat con tus alumnos', 'chat-alumno': 'Chat con tus alumnos', 'datos': 'La ficha del alumno', 'bloque': 'La ficha del alumno',
                   'diario': 'Seguimiento del alumno', 'checkin': 'Seguimiento del alumno', 'historial': 'Seguimiento del alumno', 'volumen': 'Seguimiento del alumno', 'peso': 'Seguimiento del alumno',
-                  'rutina': 'Armar la rutina', 'ejercicio': 'Armar la rutina', 'progresion': 'Armar la rutina', 'programada': 'Armar la rutina',
+                  'rutina': 'Armar la rutina', 'ejercicio': 'Armar la rutina', 'voz-alumno': 'Armar la rutina', 'progresion': 'Armar la rutina', 'programada': 'Armar la rutina',
                   'plan-dias': 'Plan alimenticio', 'plan-indicaciones': 'Plan alimenticio', 'plan-menu': 'Plan alimenticio', 'plan-cardio': 'Plan alimenticio',
                   'preguntas': 'Preguntas y configuración', 'ajustes': 'Preguntas y configuración'}}
 
