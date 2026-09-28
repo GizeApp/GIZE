@@ -25,7 +25,7 @@ import { CheckinState, renderFeedback, saveSession } from './screens/checkin.js'
 
 import { loadCoachClients, openClient } from './screens/coach/clientes.js';
 
-import { renderCoach } from './screens/coach/index.js';
+import { markRoutineSaved, renderCoach, routineDirty, tplDirty } from './screens/coach/index.js';
 
 import { renderCoachSettings } from './screens/coach/settings.js';
 
@@ -910,6 +910,7 @@ document.body.addEventListener("click", async e => {
     renderCoach(); return;
   }
   if(a==="open"){ CoachState.coachClientTab="ficha"; CoachState.coachSec=null; CoachState.coachPlanSec=null; openClient(b.dataset.id); return; }
+  if((a==="back"||a==="refresh") && routineDirty() && !confirm("Tenés cambios en la rutina sin guardar. ¿Salir igual y perderlos?")) return;
   if(a==="back"){ CoachState.coachSel=null; CoachState.coachData=null; renderCoach(); refreshCoachClients(); return; }
   if(a==="refresh"){ if(CoachState.coachSel) openClient(CoachState.coachSel); return; }
   if(a==="open-settings"){ CoachState.coachNameForm=null; CoachState.coachSettingsOpen=true; renderCoachSettings(); return; }
@@ -983,6 +984,7 @@ document.body.addEventListener("click", async e => {
     CoachState.coachTplEdit={sched:true, id:s.id, name:s.name||"", starts_on:s.starts_on, days:JSON.parse(JSON.stringify(s.days||[]))};
     CoachState.coachEditDay=0; renderCoach(); window.scrollTo(0,0); return;
   }
+  if(a==="tpl-back" && tplDirty() && !confirm("Tenés cambios sin guardar. ¿Salir igual y perderlos?")) return;
   if(a==="tpl-back" && CoachState.coachTplEdit && CoachState.coachTplEdit.sched){ CoachState.coachTplEdit=null; CoachState.coachEditDay=0; renderCoach(); return; }
   if(a==="tpl-save" && CoachState.coachTplEdit && CoachState.coachTplEdit.sched){
     const e=CoachState.coachTplEdit, cid=CoachState.coachSel;
@@ -1227,7 +1229,7 @@ document.body.addEventListener("click", async e => {
   if(a==="pl-habitadd"){ const p=coachPlanObj(CoachState.coachData); (p.habits=p.habits||[]).push(""); renderCoach(); return; }
   if(a==="pl-habitdel"){ const p=coachPlanObj(CoachState.coachData); p.habits.splice(+b.dataset.i,1); renderCoach(); return; }
   if(a==="pl-swapdel"){ const p=coachPlanObj(CoachState.coachData); p.swaps.splice(+b.dataset.i,1); renderCoach(); return; }
-  if(a==="save-routine"){ const cd=CoachState.coachData; if(!cd||!cd.id||cd.id!==CoachState.coachSel) return; b.textContent="Guardando..."; (async()=>{ try{ const r=await State.sb.from("routines").upsert({client_id:cd.id, days:cd.routine, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}); if(r.error) throw r.error; alert("Rutina guardada. El cliente la va a ver al abrir la app."); }catch(err){ alert("No se pudo guardar: "+((err&&err.message)||err)); } renderCoach(); })(); return; }
+  if(a==="save-routine"){ const cd=CoachState.coachData; if(!cd||!cd.id||cd.id!==CoachState.coachSel) return; b.textContent="Guardando..."; (async()=>{ try{ const r=await State.sb.from("routines").upsert({client_id:cd.id, days:cd.routine, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}); if(r.error) throw r.error; if(CoachState.coachData===cd) markRoutineSaved(); alert("Rutina guardada. El cliente la va a ver al abrir la app."); }catch(err){ alert("No se pudo guardar: "+((err&&err.message)||err)); } renderCoach(); })(); return; }
 });
 
 document.body.addEventListener("change", async e => {

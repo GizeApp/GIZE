@@ -37,8 +37,21 @@ function inviteBox(){
   return '<div class="co-invite">Tu código de invitación<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Compartíselo a tus clientes para que se vinculen a vos.'+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div></div>';
 }
 
+// Cambios sin guardar: la primera vez que se dibuja una rutina (del cliente o en el editor) se
+// guarda cómo estaba, para avisar antes de salir y perderlos.
+const tplSnap = e => JSON.stringify([e.name || "", e.starts_on || "", e.days || []]);
+export function tplDirty(){ const e=CoachState.coachTplEdit; return !!(e && !e.deload && e.orig0!==undefined && tplSnap(e)!==e.orig0); }
+export function routineDirty(){ const d=CoachState.coachData; return !!(d && d.id && d.routineOrig!==undefined && JSON.stringify(d.routine||[])!==d.routineOrig); }
+export function markRoutineSaved(){ const d=CoachState.coachData; if(d && d.id) d.routineOrig=JSON.stringify(d.routine||[]); }
+function snapEdits(){
+  const e=CoachState.coachTplEdit; if(e && !e.deload && e.orig0===undefined) e.orig0=tplSnap(e);
+  const d=CoachState.coachData; if(d && d.id && Array.isArray(d.routine) && d.routineOrig===undefined) d.routineOrig=JSON.stringify(d.routine);
+}
+window.addEventListener("beforeunload", ev => { if(tplDirty() || routineDirty()){ ev.preventDefault(); ev.returnValue=""; } });
+
 export function renderCoach(){
   const host=document.getElementById("coachHost"); if(!host) return;
+  snapEdits();
   if(!CoachState.coachSel && CoachState.coachApplyPicker){ CoachState.coachApplyPicker=null; renderApplyPicker(); }
   if(!CoachState.coachSel && CoachState.coachCopyPicker){ CoachState.coachCopyPicker=null; renderCopyPicker(); }
   host.style.display="block";
