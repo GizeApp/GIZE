@@ -319,7 +319,7 @@ export function renderEntreno(){
     ${routineLocked()?'':'<button class="add-ex" data-action="ex-add-open">+ Agregar ejercicio</button>'}
     ${renderDayNotes(d)}
     ${d.exercises.length ? '<button class="save-session" data-action="save-session">'+checkSvg+' Guardar entreno de hoy</button>' : ''}
-    ${routineLocked() ? '' : '<button class="load-def" data-action="load-default-routine">'+resetSvg+' Cargar Meso 2 · Microciclo 8</button>'}
+    ${routineLocked() ? '' : '<button class="load-def" data-action="open-routines">'+resetSvg+' Ver rutinas armadas</button>'}
     <p class="foot" id="syncFoot">${syncFootText()}</p>`;
 }
 

@@ -67,6 +67,7 @@ import { addDays, dayItems, loadDay, retryDay, setDayItems } from './screens/com
 import { EditState, cleanSessionEdit, openSessionEdit, removeSessionEditSet, renderSessionEdit, setSessionEditVal } from './ui/sessionedit.js';
 import { closeScanner, openScanner, scannerManualCode } from './ui/scanner.js';
 import { initUpdateCheck } from './ui/actualizar.js';
+import { openRoutinePicker } from './screens/onboarding.js';
 import { initTabScroll, restoreTabScroll } from './ui/tabscroll.js';
 import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
 
@@ -333,7 +334,7 @@ document.body.addEventListener("click", async e => {
   // anota ahora (comida, agua, pasos) caía en el día anterior y el redibujo lo borraba.
   checkDaily();
   const a = el.dataset.action;
-  if (routineLocked() && ["addday","delday","removeex","addset","removeset","ex-add-open","ex-swap","ex-insert","ex-choose","ex-custom","load-default-routine"].indexOf(a)>=0) return;
+  if (routineLocked() && ["addday","delday","removeex","addset","removeset","ex-add-open","ex-swap","ex-insert","ex-choose","ex-custom","load-default-routine","open-routines"].indexOf(a)>=0) return;
 
   // Racha
   if (a === "streak-open") { openStreak(); return; }
@@ -363,7 +364,7 @@ document.body.addEventListener("click", async e => {
   if (a === "plan-close") { ComidaState.planOpen=false; renderApp(); return; }
   if (a === "plan-tab") { ComidaState.planTab=el.dataset.v; renderApp(); return; }
   if (a === "plan-day") { ComidaState.planDay=el.dataset.v; renderApp(); return; }
-  if (a === "cal-open") { ComidaState.calForm = state.calProfile ? Object.assign({sex:"m",age:"",height:"",weight:"",activity:"mod",goal:"mantener"}, state.calProfile) : {sex:"m",age:"",height:"",weight:"",activity:"mod",goal:"mantener"}; ComidaState.calEditing=true; renderApp(); return; }
+  if (a === "cal-open") { ComidaState.calForm = state.calProfile ? Object.assign({sex:state.sex==="f"?"f":"m",age:"",height:"",weight:"",activity:"mod",goal:"mantener"}, state.calProfile) : {sex:state.sex==="f"?"f":"m",age:"",height:"",weight:"",activity:"mod",goal:"mantener"}; ComidaState.calEditing=true; renderApp(); return; }
   if (a === "cal-cancel") { ComidaState.calEditing=false; renderApp(); return; }
   if (a === "cal-sex") { ComidaState.calForm.sex = el.dataset.val; renderApp(); return; }
   if (a === "cal-activity") { ComidaState.calForm.activity = el.dataset.val; renderApp(); return; }
@@ -586,6 +587,7 @@ document.body.addEventListener("click", async e => {
   if (a === "session-remove") { if(confirm("¿Borrar este entreno del historial?")){ const _s=state.sessions.find(x=>x.id===el.dataset.id); if(_s&&_s.cloudId){ try{ cloudDeleteSession(_s.cloudId); }catch(e){} } state.sessions=state.sessions.filter(x=>x.id!==el.dataset.id); save(); renderApp(); } return; }
 
   // Días
+  if (a === "open-routines") { openRoutinePicker(); return; }
   if (a === "load-default-routine") { if(confirm("Esto reemplaza tus días de rutina por el Meso 2 \u00b7 Microciclo 8 (Torso / Piernas / Pecho-Espalda-Hombro / Pierna-Brazo). No toca tus pesos, sesiones ni h\u00e1bitos. \u00bfSeguro?")){ state.days = JSON.parse(JSON.stringify(DEFAULT.days)); State.activeId = state.days[0].id; save(); renderApp(); } return; }
   if (a === "addday") { const nd={id:uid(),name:"Nuevo",subtitle:"",exercises:[]}; state.days.push(nd); State.activeId=nd.id; HabitosState.pendingFocusDay=true; save(); renderApp(); return; }
   if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(confirm("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); State.activeId=state.days[0].id; save(); renderApp(); } return; }

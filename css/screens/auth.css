@@ -158,3 +158,28 @@
 @media (prefers-reduced-motion: reduce) {
     .onb-title, .onb-text, .onb-trial, .onb-code, .onb-field, .onb-alt { animation:none; }
   }
+
+/* Bienvenida: cómo arrancar, pasos para armar la semana y rutinas armadas. */
+.onb-left { text-align: left; align-self: stretch; }
+.onb-opts { display: flex; flex-direction: column; gap: 10px; align-self: stretch; animation: authFadeUp var(--duration-rare) var(--ease-drawer) .15s both; }
+.onb-opt { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 14px 14px; border-radius: 12px; text-align: left; cursor: pointer;
+  background: var(--card-2); border: 1px solid var(--border); color: var(--txt); font: 400 14px/1.4 var(--gize-font); transition: var(--transition-tap); }
+.onb-opt b { display: block; font-weight: 700; font-size: 15px; }
+.onb-opt small { display: block; margin-top: 2px; color: var(--txt-2); font-size: 13px; }
+.onb-opt.on { border-color: var(--gize-blue); box-shadow: 0 0 0 1px var(--gize-blue), 0 0 18px -6px var(--gize-blue); }
+.onb-opt-dot { flex: none; width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--border); }
+.onb-opt.on .onb-opt-dot { background: var(--gize-blue); box-shadow: 0 0 8px var(--gize-blue); }
+.onb-steps { display: flex; gap: 6px; align-self: stretch; }
+.onb-steps span { flex: 1; height: 3px; border-radius: 2px; background: var(--border); }
+.onb-steps span.on { background: var(--gize-blue); }
+.onb-step-lbl { align-self: flex-start; margin-top: -8px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--txt-3); }
+.onb-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; align-self: stretch; }
+.onb-num { height: 48px; border-radius: 10px; background: var(--card-2); border: 1px solid var(--border); color: var(--txt); font: 700 16px var(--gize-font); cursor: pointer; }
+.onb-num.on { border-color: var(--gize-blue); box-shadow: 0 0 0 1px var(--gize-blue); }
+.onb-field-free { align-self: stretch; margin-top: 0; }
+.onb-field-free .auth-in { text-transform: none; }
+.onb-routines { display: flex; flex-direction: column; gap: 10px; align-self: stretch; max-height: 46vh; overflow-y: auto; }
+.onb-routine { text-align: left; padding: 14px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--border); color: var(--txt); cursor: pointer; font: 400 14px/1.4 var(--gize-font); }
+.onb-routine b { display: block; font-size: 15px; }
+.onb-routine small { display: block; margin-top: 2px; color: var(--txt-2); font-size: 13px; }
+.onb-routine:hover, .onb-opt:hover { border-color: var(--txt-3); }
