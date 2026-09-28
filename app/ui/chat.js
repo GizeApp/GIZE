@@ -9,10 +9,11 @@ import { State } from '../core/state.js';
 
 import { esc, fmtDate } from '../core/utils.js';
 
+import { Player, audioState, extFor, mmss, newAudioName, signedAudioUrl, startRecorder, stopAudio, togglePlay, uploadAudio } from './grabar.js';
+
 const FN_NAMES = ["rapid-worker", "notificar-cliente"];
 const MAX_TXT = 1000;
 const MAX_SECS = 120;
-const BUCKET = "chat-audio";
 
 // Conversación abierta: { clientId, coachId, name, role, msgs, ... }
 let C = null;
@@ -27,7 +28,6 @@ const pauseSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v1
 
 export const chatIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/></svg>';
 
-const mmss = s => { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
 
 // ---- Sin leer ----
 
@@ -60,7 +60,7 @@ export function chatOpenFor(){ return C ? C.clientId : null; }
 export async function openChat(o){
   if(C) closeChat(true);
   C = { clientId: o.clientId, coachId: o.coachId, name: o.name || "", role: o.role,
-        msgs: null, error: "", draft: "", sending: 0, rec: null, urls: {}, chan: null, poll: null };
+        msgs: null, error: "", draft: "", sending: 0, rec: null, chan: null, poll: null };
   document.body.classList.add("chat-open");
   history.pushState({ gizeChat: 1 }, "");
   paint();
@@ -193,71 +193,35 @@ function sendText(){
 
 // ---- Grabar audio ----
 
-function pickMime(){
-  if(!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
-  // Primero mp4 (AAC): se escucha en iPhone y en Android. Si no, webm/opus.
-  for(const t of ["audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"]){
-    if(MediaRecorder.isTypeSupported(t)) return t;
-  }
-  return "";
-}
-
 async function startRec(){
-  const c = C; if(!c || c.rec) return;
-  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
-    alert("Este navegador no permite grabar audio. Probá con Chrome o Safari actualizados."); return;
-  }
-  let stream;
-  try{ stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch(e){ alert("Para mandar audios, permití el micrófono cuando te lo pida el celular (o en los ajustes del navegador)."); return; }
-  if(C !== c){ stream.getTracks().forEach(t => t.stop()); return; }
-  const mime = pickMime();
-  let mr;
-  try{ mr = new MediaRecorder(stream, Object.assign({ audioBitsPerSecond: 48000 }, mime ? { mimeType: mime } : {})); }
-  catch(e){ try{ mr = new MediaRecorder(stream); }catch(e2){ stream.getTracks().forEach(t => t.stop()); alert("No se pudo grabar audio en este celular."); return; } }
-  const rec = { mr, stream, chunks: [], t0: Date.now(), cancel: false, timer: null };
+  const c = C; if(!c || c.rec || c.recStarting) return;
+  c.recStarting = true;
+  const rec = await startRecorder({
+    maxSecs: MAX_SECS,
+    stillWanted: () => C === c,
+    onTick: s => { const el = document.getElementById("chatRecT"); if(el) el.textContent = mmss(s); },
+    onEnd: () => { if(C === c && c.rec === rec){ c.rec = null; paintBar(); } },
+    onDone: (blob, type, secs) => uploadAndSend(c, blob, type, secs),
+  });
+  c.recStarting = false;
+  if(!rec || C !== c){ if(rec) rec.stop(true); return; }
   c.rec = rec;
-  mr.ondataavailable = e => { if(e.data && e.data.size) rec.chunks.push(e.data); };
-  mr.onstop = () => {
-    stream.getTracks().forEach(t => t.stop());
-    clearInterval(rec.timer);
-    if(C === c && c.rec === rec) c.rec = null;
-    if(C === c) paintBar();
-    if(rec.cancel) return;
-    const secs = Math.max(1, Math.min(MAX_SECS, Math.round((Date.now() - rec.t0) / 1000)));
-    const type = (mr.mimeType || mime || rec.chunks[0] && rec.chunks[0].type || "audio/webm").split(";")[0];
-    const blob = new Blob(rec.chunks, { type: type });
-    if(blob.size < 800) return; // se tocó sin querer
-    uploadAndSend(c, blob, type, secs);
-  };
-  mr.start(1000);
-  rec.timer = setInterval(() => {
-    const s = (Date.now() - rec.t0) / 1000;
-    const el = document.getElementById("chatRecT"); if(el) el.textContent = mmss(s);
-    if(s >= MAX_SECS) stopRec(false);
-  }, 250);
   paintBar();
 }
 
-function stopRec(cancel){
-  const c = C; if(!c || !c.rec) return;
-  c.rec.cancel = !!cancel;
-  try{ if(c.rec.mr.state !== "inactive") c.rec.mr.stop(); else c.rec.stream.getTracks().forEach(t => t.stop()); }catch(e){}
-}
-
-function extFor(type){ return /mp4|m4a|aac/.test(type) ? (type.includes("aac") ? "aac" : "mp4") : type.includes("ogg") ? "ogg" : "webm"; }
+function stopRec(cancel){ const c = C; if(c && c.rec) c.rec.stop(cancel); }
 
 async function uploadAndSend(c, blob, type, secs){
-  const name = (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, "") : Date.now().toString(36) + Math.random().toString(36).slice(2, 10)).slice(0, 32);
+  const name = newAudioName();
   const path = c.coachId + "/" + c.clientId + "/" + name + "." + extFor(type);
   const local = { sender: c.role === "coach" ? "coach" : "client", body: "", audio_path: path, audio_secs: secs, created_at: new Date().toISOString(), localUrl: URL.createObjectURL(blob) };
   local.pending = true; local.id = "tmp-" + name;
   (c.msgs || (c.msgs = [])).push(local);
   c.sending++; if(C === c) paint(true);
-  const up = await State.sb.storage.from(BUCKET).upload(path, blob, { contentType: type, upsert: false }).catch(e => ({ error: e }));
+  const ok = await uploadAudio(path, blob, type);
   c.sending--;
   c.msgs = c.msgs.filter(m => m !== local);
-  if(up.error){
+  if(!ok){
     local.pending = false; local.failed = "No se pudo subir el audio. Revisá la conexión.";
     c.msgs.push(local); if(C === c) paint(); return;
   }
@@ -266,50 +230,22 @@ async function uploadAndSend(c, blob, type, secs){
 
 // ---- Escuchar ----
 
-let player = null, playingId = null;
-
-function stopAudio(){ if(player){ try{ player.pause(); }catch(e){} } playingId = null; }
-
-async function audioUrl(m){
-  if(m.localUrl) return m.localUrl;
-  if(C.urls[m.audio_path]) return C.urls[m.audio_path];
-  const r = await State.sb.storage.from(BUCKET).createSignedUrl(m.audio_path, 3600);
-  if(r.error || !r.data) throw new Error("no url");
-  return (C.urls[m.audio_path] = r.data.signedUrl);
-}
-
-async function togglePlay(id){
+function playMsg(id){
   const c = C; if(!c) return;
   const m = (c.msgs || []).find(x => String(x.id) === id); if(!m) return;
-  if(playingId === id && player && !player.paused){ player.pause(); return; }
-  stopAudio();
-  let url;
-  try{ url = await audioUrl(m); }catch(e){ alert("No se pudo cargar el audio. Revisá la conexión."); return; }
-  if(!player){
-    player = new Audio();
-    player.addEventListener("timeupdate", playUi);
-    player.addEventListener("pause", playUi);
-    player.addEventListener("play", playUi);
-    player.addEventListener("ended", () => { playingId = null; playUi(); });
-    player.addEventListener("error", () => { if(playingId){ playingId = null; playUi(); alert("Este audio no se puede escuchar en este celular."); } });
-  }
-  playingId = id;
-  player.src = url;
-  player.play().catch(() => {});
-  playUi();
+  togglePlay("chat:" + m.audio_path, () => m.localUrl ? Promise.resolve(m.localUrl) : signedAudioUrl(m.audio_path));
 }
 
 function playUi(){
   document.querySelectorAll("#chatHost .ch-audio").forEach(el => {
-    const on = el.dataset.id === playingId;
-    const playing = on && player && !player.paused;
-    const b = el.querySelector(".ch-play"); if(b){ b.innerHTML = playing ? pauseSvg : playSvg; b.setAttribute("aria-label", playing ? "Pausar" : "Escuchar"); }
-    const bar = el.querySelector(".ch-prog i");
-    const d = on && player && isFinite(player.duration) && player.duration > 0 ? player.duration : +el.dataset.secs || 1;
-    if(bar) bar.style.width = on && player ? Math.min(100, (player.currentTime / d) * 100) + "%" : "0%";
-    const t = el.querySelector(".ch-dur"); if(t) t.textContent = on && player && player.currentTime > 0 ? mmss(player.currentTime) : mmss(+el.dataset.secs);
+    const st = audioState("chat:" + el.dataset.path);
+    const b = el.querySelector(".ch-play"); if(b){ b.innerHTML = st.playing ? pauseSvg : playSvg; b.setAttribute("aria-label", st.playing ? "Pausar" : "Escuchar"); }
+    const d = st.dur || +el.dataset.secs || 1;
+    const bar = el.querySelector(".ch-prog i"); if(bar) bar.style.width = st.on ? Math.min(100, (st.time / d) * 100) + "%" : "0%";
+    const t = el.querySelector(".ch-dur"); if(t) t.textContent = st.on && st.time > 0 ? mmss(st.time) : mmss(+el.dataset.secs);
   });
 }
+Player.subs.add(() => { if(C) playUi(); });
 
 // ---- Dibujo ----
 
@@ -319,7 +255,7 @@ function ymd(iso){ const d = new Date(iso); return isNaN(d) ? "" : d.getFullYear
 function bubble(m){
   const me = mine(m);
   const inner = m.audio_path
-    ? '<div class="ch-audio" data-id="' + esc(String(m.id)) + '" data-secs="' + (m.audio_secs || 0) + '">' +
+    ? '<div class="ch-audio" data-id="' + esc(String(m.id)) + '" data-path="' + esc(m.audio_path) + '" data-secs="' + (m.audio_secs || 0) + '">' +
         '<button class="ch-play" data-chat="play" data-id="' + esc(String(m.id)) + '" aria-label="Escuchar"' + (m.pending ? ' disabled' : '') + '>' + playSvg + '</button>' +
         '<span class="ch-prog"><i></i></span><span class="ch-dur">' + mmss(m.audio_secs) + '</span></div>' +
       (m.body ? '<div class="ch-txt">' + esc(m.body) + '</div>' : '')
@@ -408,7 +344,7 @@ document.addEventListener("click", e => {
   else if(a === "rec") startRec();
   else if(a === "rec-send") stopRec(false);
   else if(a === "rec-cancel") stopRec(true);
-  else if(a === "play") togglePlay(b.dataset.id);
+  else if(a === "play") playMsg(b.dataset.id);
 });
 
 document.addEventListener("input", e => {

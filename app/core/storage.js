@@ -48,6 +48,8 @@ export function migrateNames(days){
       if(badId(ex)){ ex.id=uid(); changed=true; }
       (ex.sets||[]).forEach(st=>{ if(badId(st)){ st.id=uid(); changed=true; } });
       if(ex.video && !/^https:\/\//i.test(String(ex.video))){ delete ex.video; changed=true; }
+      // Explicación de voz del coach (app/screens/coach/audio-ej.js): solo rutas con esa forma.
+      if(ex.audio && !/^[0-9a-f-]{36}\/ex\/[A-Za-z0-9_-]{8,64}\.(webm|mp4|m4a|ogg|aac)$/.test(String(ex.audio))){ delete ex.audio; delete ex.audioSecs; changed=true; }
       if(ES_MAP[ex.name]){ ex.name=ES_MAP[ex.name]; changed=true; }
       if(!ex.mus || !EX_DB[ex.mus]){ const m=muscleOf(ex.name); if(m!=="otros"){ ex.mus=m; changed=true; } }
       { const m=exMuscle(ex); if(m==="aductores" && ex.mus!==m){ ex.mus=m; changed=true; } }

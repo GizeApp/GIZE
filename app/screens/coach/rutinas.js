@@ -1,3 +1,4 @@
+import { renderExAudio } from './audio-ej.js';
 import { ssGroupOf, ssGroups, ssName } from '../../core/superserie.js';
 import { libVideo } from '../../core/videos.js';
 
@@ -445,6 +446,7 @@ function exerciseCard(d, day, ex, i, rt){
         '<button class="co-set-add" data-coach="rt-setadd" data-i="'+i+'">+ Serie</button>'+
         '<div class="co-note-wrap"><span class="co-note-lbl">Nota para el cliente</span><textarea class="co-note co-note-area" rows="2" data-coach="rt-note" data-i="'+i+'" placeholder="Técnica, tempo, qué cuidar…">'+esc(ex.note||"")+'</textarea></div>'+
         '<div class="co-note-wrap"><span class="co-note-lbl">Link de video</span><input class="co-note" type="url" inputmode="url" data-coach="rt-video" data-i="'+i+'" value="'+esc(ex.video||"")+'" placeholder="Pegá el link de YouTube o Instagram">'+libVideoHint(ex)+'</div>'+
+        renderExAudio(ex, i)+
         '<details class="co-exc-fold"><summary>Ver progreso'+(prog?' <span class="co-exc-fold-hint">('+esc(prog)+')</span>':'')+'</summary><div class="co-exc-prog">'+exChart(d, day.name, ex.name)+'</div><div class="co-exc-tbl">'+exTable(d, day.name, ex.name)+'</div></details>'+
       '</div>'+
     '</div>';

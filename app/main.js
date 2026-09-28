@@ -71,6 +71,7 @@ import { openRoutinePicker } from './screens/onboarding.js';
 import { initTabScroll, restoreTabScroll } from './ui/tabscroll.js';
 import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
 import { ChatUnread, chatOpenFor, openChat, refreshUnread } from './ui/chat.js';
+import { signedAudioUrl, togglePlay } from './ui/grabar.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
 const autoKg = new Set();
@@ -340,6 +341,7 @@ document.body.addEventListener("click", async e => {
   // Racha
   if (a === "streak-open") { openStreak(); return; }
   if (a === "chat-open") { openMyChat(); return; }
+  if (a === "ex-audio") { const pth=el.dataset.path; togglePlay("ex:"+pth, ()=>signedAudioUrl(pth)); return; }
   if (a === "streak-close") { closeStreak(); return; }
 
   // Hábitos

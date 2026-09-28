@@ -449,3 +449,16 @@ button.opt-count:hover { color: var(--gize-blue); }
 .co-day-dup { width:100%; margin-top:8px; }
 .co-day-dup svg { width:15px; height:15px; }
 .co-unsaved { margin:14px 0 -4px; padding:10px 12px; border-radius:8px; border:1px solid color-mix(in srgb, var(--gize-warning, #FFB547) 55%, transparent); background:color-mix(in srgb, var(--gize-warning, #FFB547) 10%, transparent); color:var(--txt); font-size:var(--text-meta); line-height:1.45; }
+
+/* Explicación de voz por ejercicio (app/screens/coach/audio-ej.js). */
+.ea-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.ea-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; border:1px solid var(--gize-blue); background:var(--card-2);
+  color:var(--txt); font:600 var(--text-meta) var(--gize-font); cursor:pointer; }
+.ea-btn svg { width:14px; height:14px; }
+.ea-btn.on { background:var(--gize-blue); color:#fff; }
+.ea-btn.ghost { border-color:var(--gize-border); }
+.ea-btn.danger { color:var(--gize-danger); }
+.ea-note { font-size:var(--text-meta); color:var(--txt-3); }
+.ea-rec-dot { width:10px; height:10px; border-radius:999px; background:var(--gize-danger); animation:eaBlink 1s infinite; }
+@keyframes eaBlink { 50% { opacity:.25; } }
+.ea-t { font-weight:700; font-variant-numeric:tabular-nums; }
