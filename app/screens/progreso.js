@@ -68,8 +68,7 @@ export function renderVolumen(daysArg){
   return `
     <div class="hb-head" style="margin-top:28px"><div class="hb-title">Volumen semanal</div><div class="title-accent"></div></div>
     <div class="vol-sub">${total} series por semana · ${rows.length} grupos musculares</div>
-    <div class="vol-card">${bars}</div>
-    <p class="foot">Series totales por grupo sumando todos tus días de rutina. Pecho, espalda y hombros se separan por zona, y un ejercicio que trabaja dos grupos (como las hiperextensiones) suma en los dos. Una guía general de hipertrofia es ~10–20 series por grupo a la semana.</p>`;
+    <div class="vol-card">${bars}</div>`;
 }
 
 export function exercisesInHistory(){
