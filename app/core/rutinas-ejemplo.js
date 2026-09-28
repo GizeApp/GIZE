@@ -42,9 +42,12 @@ export function rutinasPara(sexo, lista){
 // Días que entrenan (sin contar los de descanso, que no tienen ejercicios).
 export function diasDeEntreno(r){ return (r.days || []).filter(d => (d.exercises || []).length).length; }
 
-// Copia de los días para el usuario: ids nuevos y series vacías.
+// Copia de los días para el usuario: ids nuevos y series vacías. Las rutinas del catálogo
+// pueden venir de la rutina de un alumno: sin los kilos que el coach le propuso a esa
+// persona ("Tu coach propone …") ni sus audios (son de la carpeta de ese coach y quien
+// entrena solo no los puede escuchar).
 export function copiarDias(days){
   const out = JSON.parse(JSON.stringify(days || []));
-  out.forEach(d => { d.id = uid(); (d.exercises || []).forEach(ex => { ex.id = uid(); (ex.sets || []).forEach(st => { st.id = uid(); st.kg = ""; st.reps = ""; st.done = false; }); }); });
+  out.forEach(d => { d.id = uid(); (d.exercises || []).forEach(ex => { ex.id = uid(); delete ex.audio; delete ex.audioSecs; (ex.sets || []).forEach(st => { st.id = uid(); st.kg = ""; st.reps = ""; st.done = false; delete st.targetKg; }); }); });
   return out;
 }
