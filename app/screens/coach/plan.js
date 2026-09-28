@@ -24,6 +24,20 @@ export const PLANS = [
 ];
 const TRIAL_MAX = 10;
 
+// Plan que eligió en la página de inicio (gize.ar → Precios → app/?plan=p25#registro-coach):
+// se recuerda en este dispositivo para marcarlo en "Mi plan" y ponerlo en el mensaje de
+// WhatsApp. Se saca de la dirección antes de que la lea el resto de la app.
+const CHOSEN_KEY = "gize_plan_elegido";
+try {
+  const u = new URL(location.href), q = u.searchParams.get("plan");
+  if (q !== null){
+    if (["p10", "p25", "p50", "p100"].indexOf(q) >= 0) localStorage.setItem(CHOSEN_KEY, q);
+    u.searchParams.delete("plan");
+    history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+  }
+} catch (e) {}
+function chosenPlan(){ try { const v = localStorage.getItem(CHOSEN_KEY); return PLANS.some(p => p.id === v) ? v : null; } catch (e) { return null; } }
+
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const money = n => "$" + Number(n).toLocaleString("es-AR");
 // WhatsApp de GIZE (el mismo de Configuración → Contacto).
@@ -94,11 +108,14 @@ export function renderPlanBanner(){
 function planCards(b){
   // En las apps de las tiendas no se habla de pagos ni de dónde se paga (reglas de Apple y Google).
   if(IS_NATIVE) return '';
+  const chosen = b.paid ? null : chosenPlan();
   const cards = PLANS.map(p => {
     const current = b.paid && b.plan && b.plan.id === p.id;
     const tooSmall = b.count > p.max;
-    return '<div class="pl-card' + (p.best ? " best" : "") + (current ? " current" : "") + '">' +
-      (p.best ? '<div class="pl-tag">Más elegido</div>' : '') +
+    // El que eligió en la página de inicio va destacado (en lugar del "Más elegido").
+    const mine = chosen === p.id, hi = chosen ? mine : p.best;
+    return '<div class="pl-card' + (hi ? " best" : "") + (mine ? " chosen" : "") + (current ? " current" : "") + '">' +
+      (mine ? '<div class="pl-tag">El que elegiste</div>' : hi ? '<div class="pl-tag">Más elegido</div>' : '') +
       (p.gym ? '<div class="pl-name">Gimnasio</div>' : '') +
       '<div class="pl-max">Hasta <b>' + p.max + '</b> ' + (p.gym ? 'alumnos' : 'clientes') + '</div>' +
       '<div class="pl-price">' + money(p.price) + '<span>/mes</span></div>' +
@@ -118,7 +135,9 @@ function statusLine(b){
   if(b.comp) return '<div class="pl-status ok">Tenés un plan de cortesía, sin vencimiento.</div>';
   if(b.trialFirst) return '<div class="pl-status ok">Tu plan de ' + b.max + ' clientes ya está pago. Primero termina tu prueba gratis (te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ') y después arranca el plan, al día hasta el ' + fmtDate(ymd(b.until)) + '.</div>';
   if(b.paid) return '<div class="pl-status ok">Plan de ' + b.max + ' clientes · ' + (b.renews ? 'se renueva solo cada mes' : 'al día hasta el ' + fmtDate(ymd(b.until))) + '.</div>';
-  if(b.trial) return '<div class="pl-status">Estás en la prueba gratis: te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ' (hasta ' + b.max + ' clientes).' + (IS_NATIVE ? '' : ' Elegí un plan y contratalo por WhatsApp para seguir después.') + '</div>';
+  const ch = !IS_NATIVE && PLANS.find(p => p.id === chosenPlan());
+  if(b.trial) return '<div class="pl-status">Estás en la prueba gratis: te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ' (hasta ' + b.max + ' clientes).' +
+    (IS_NATIVE ? '' : ch ? ' Elegiste el plan ' + (ch.gym ? 'Gimnasio' : 'de hasta ' + ch.max + ' clientes') + ': contratalo por WhatsApp cuando quieras para seguir después de la prueba.' : ' Elegí un plan y contratalo por WhatsApp para seguir después.') + '</div>';
   return '<div class="pl-status warn">Tu ' + (B.row && B.row.paid_until ? 'plan venció' : 'prueba gratis terminó') + '.</div>';
 }
 
