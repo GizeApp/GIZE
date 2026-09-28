@@ -52,7 +52,7 @@ function renderSummary(){
 export function saveSession(){
   const d=day(); const exs=[];
   (d.exercises||[]).forEach(ex=>{
-    const sets=(ex.sets||[]).map(s=>{ const o={kg:parseFloat(String(s.kg).replace(",","."))||0, reps:parseInt(s.reps)||0}; const sc=parseSecs(s.secs); if(sc>0) o.secs=Math.min(36000,sc); return o; }).filter((o,i)=>o.reps>0||o.secs>0||(o.kg>0&&ex.sets[i].done));
+    const sets=(ex.sets||[]).map(s=>{ const o={kg:parseFloat(String(s.kg).replace(",","."))||0, reps:parseInt(s.reps)||0}; const sc=parseSecs(s.secs); if(sc>0) o.secs=Math.min(36000,sc); return o; }).filter((o,i)=>o.reps>0||o.secs>0||(o.kg!==0&&ex.sets[i].done));
     // Una serie con solo el peso (lo completa la app al cargar el primero, o "Usar estos
     // pesos") y sin reps ni tildar no se hizo: no se guarda como serie de 0 reps.
     if(sets.length) exs.push({name:ex.name, sets:sets});

@@ -271,3 +271,6 @@ body:not(#_) .ss-group :is(.card, .ex-collapsed) { border: 0; border-radius: 0; 
 .ex-audio svg { width:var(--icon-sm); height:var(--icon-sm); flex-shrink:0; color:var(--gize-r2); }
 .ex-audio.on { background:color-mix(in srgb, var(--gize-r2) 18%, var(--card-2)); }
 .ex-audio-t { font-weight:500; color:var(--txt-3); font-variant-numeric:tabular-nums; }
+
+/* Ejercicios asistidos: el kg es la ayuda de la máquina y se anota en negativo (entreno.js → kgInput). */
+.field.kg-asis .kg-neg { flex: none; font-weight: 800; font-size: var(--text-set-value); color: var(--gize-r2); margin-right: -2px; }

@@ -19,7 +19,7 @@ const fmtKg = n => (Math.round(n * 10) / 10).toLocaleString("es-AR", { maximumFr
 export function checkSetPR(ex, s) {
   if (!ex || !s || !s.done) return null;
   const kg = num(s.kg), reps = parseInt(s.reps) || 0;
-  if (kg <= 0 || reps <= 0) return null;
+  if (kg === 0 || reps <= 0) return null; // negativo: asistido (-25 le gana a -30)
   const key = today() + "|" + ex.name;
   if (celebrated.has(key)) return null;
   const prev = prevBest(ex);
@@ -40,14 +40,14 @@ function prevBest(ex) {
     if (se.date === t) return;
     (se.exercises || []).forEach(e => {
       if (e.name !== ex.name) return;
-      (e.sets || []).forEach(x => { const kg = num(x.kg); if (kg > 0) kgs.push(kg); });
+      (e.sets || []).forEach(x => { const kg = num(x.kg); if (kg !== 0) kgs.push(kg); });
     });
   });
   if (!kgs.length) return null;
   kgs.sort((a, b) => b - a);
   const [top, next] = kgs;
   // Solo saltos de error de tipeo (coma o cero de más: ~10 veces más), no progresiones reales.
-  if (next !== undefined && top >= next * 2.5 && top - next >= 20) return next;
+  if (next !== undefined && next > 0 && top >= next * 2.5 && top - next >= 20) return next;
   return top;
 }
 

@@ -13,7 +13,7 @@ import { save } from '../core/storage.js';
 
 import { syncFootText } from '../core/supabase.js';
 
-import { esc, fmt, fmtSecs, isTimedEx, norm, num, parseSecs, searchExercises, setText, today } from '../core/utils.js';
+import { esc, isAssisted, fmt, fmtSecs, isTimedEx, norm, num, parseSecs, searchExercises, setText, today } from '../core/utils.js';
 
 import { renderApp } from '../main.js';
 
@@ -238,7 +238,7 @@ export function renderEntreno(){
     const timed = isTimedEx(ex);
     const setRow = (s,i) => {
       const tg = parseSecs(s.target);
-      const kgField = (s.targetKg || String(s.kg||"") !== "") ? `<div class="field"><input class="kg" type="text" inputmode="decimal" placeholder="0" value="${esc(s.kg)}" data-action="kg" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}"><span class="unit">kg</span></div>` : '';
+      const kgField = (s.targetKg || String(s.kg||"") !== "") ? `${kgInput(ex, s)}` : '';
       return `
       <div class="set timed">
         <span class="idx${prSets.has(s.id)?' has-pr':''}">${prSets.has(s.id)?`<span class="pr-mark">${trophySvg}</span>`:''}${i+1}</span>
@@ -257,7 +257,7 @@ export function renderEntreno(){
     const sets = timed ? ex.sets.map(setRow).join("") : ex.sets.map((s,i) => `
       <div class="set">
         <span class="idx${prSets.has(s.id)?' has-pr':''}">${prSets.has(s.id)?`<span class="pr-mark">${trophySvg}</span>`:''}${i+1}</span>
-        <div class="field"><input class="kg" type="text" inputmode="decimal" placeholder="0" value="${esc(s.kg)}" data-action="kg" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}"><span class="unit">kg</span></div>
+        ${kgInput(ex, s)}
         <div class="field"><input class="reps" type="text" inputmode="numeric" placeholder="0" value="${esc(s.reps)}" data-action="reps" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}"><span class="unit">reps</span></div>
         ${s.target?`<span class="goal" title="Objetivo del coach: ${esc(s.target)}">${esc(s.target)}</span>`:(anyGoal?'<span class="goal goal-empty" aria-hidden="true"></span>':'')}
         <button class="done${s.done?' on':''}" data-action="toggle" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}">${s.done?checkSvg:''}</button>
@@ -373,3 +373,12 @@ Player.subs.add(() => {
     b.classList.toggle('on', audioState("ex:" + b.dataset.path).playing);
   });
 });
+
+// Campo de kg de una serie. En los asistidos (dominadas o fondos con contrapeso) se escribe la
+// ayuda sin signo y queda guardada en negativo (ver isAssisted en utils): el "−" va fijo
+// adelante, porque el teclado numérico del celular no siempre tiene el signo menos.
+function kgInput(ex, s){
+  const asis = isAssisted(ex.name);
+  const v = asis ? String(s.kg == null ? "" : s.kg).replace(/^-/, "") : s.kg;
+  return `<div class="field${asis ? ' kg-asis' : ''}">${asis ? '<span class="kg-neg" aria-hidden="true">−</span>' : ''}<input class="kg" type="text" inputmode="decimal" placeholder="0" value="${esc(v)}" data-action="kg" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}"${asis ? ' aria-label="Kilos de ayuda (se anotan en negativo)"' : ''}><span class="unit">kg</span></div>`;
+}
