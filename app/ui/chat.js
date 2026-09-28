@@ -57,11 +57,39 @@ function host(){
 export function chatOpenFor(){ return C ? C.clientId : null; }
 
 // role: "coach" (escribe a su alumno clientId) o "client" (escribe a su coach coachId).
+// Con el chat abierto la pantalla de atrás no se mueve. En el celular, overflow:hidden no
+// alcanza: el rebote del scroll y el teclado corrían la página de atrás y se veía la rutina
+// por abajo. Se fija el body donde estaba y el chat toma el alto visible (sin el teclado).
+let _lock = null;
+function fitViewport(){
+  const ov = document.querySelector("#chatHost .ch-ov"), vv = window.visualViewport; if(!ov || !vv) return;
+  ov.style.height = vv.height + "px";
+  ov.style.transform = "translateY(" + vv.offsetTop + "px)";
+}
+function lockPage(){
+  if(_lock) return;
+  const y = window.scrollY || 0, b = document.body.style;
+  _lock = { y, position: b.position, top: b.top, width: b.width };
+  b.position = "fixed"; b.top = (-y) + "px"; b.width = "100%";
+  document.documentElement.classList.add("chat-open");
+  if(window.visualViewport){ visualViewport.addEventListener("resize", fitViewport); visualViewport.addEventListener("scroll", fitViewport); }
+}
+function unlockPage(){
+  if(!_lock) return;
+  const b = document.body.style;
+  b.position = _lock.position; b.top = _lock.top; b.width = _lock.width;
+  document.documentElement.classList.remove("chat-open");
+  window.scrollTo({ top: _lock.y, behavior: "instant" });
+  _lock = null;
+  if(window.visualViewport){ visualViewport.removeEventListener("resize", fitViewport); visualViewport.removeEventListener("scroll", fitViewport); }
+}
+
 export async function openChat(o){
   if(C) closeChat(true);
   C = { clientId: o.clientId, coachId: o.coachId, name: o.name || "", role: o.role,
         msgs: null, error: "", draft: "", sending: 0, rec: null, chan: null, poll: null };
   document.body.classList.add("chat-open");
+  lockPage();
   history.pushState({ gizeChat: 1 }, "");
   paint();
   await load();
@@ -76,6 +104,7 @@ export function closeChat(fromNav){
   if(C.poll) clearInterval(C.poll);
   C = null;
   document.body.classList.remove("chat-open");
+  unlockPage();
   host().innerHTML = "";
   if(!fromNav && history.state && history.state.gizeChat) history.back();
   refreshUnread();
@@ -306,6 +335,7 @@ function paint(toBottom){
       '<div class="ch-list" id="chatList"></div>' +
       '<div class="ch-bar" id="chatBar"></div></div>';
     list = document.getElementById("chatList");
+    fitViewport();
     paintBar();
     toBottom = true;
   }
