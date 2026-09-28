@@ -345,7 +345,11 @@ export function renderFoodForm(){
     ${f.code ? `<div class="cf-code">Código de barras <b>${esc(f.code)}</b><span>Cuando lo guardes va a quedar disponible para todos los usuarios de GIZE. Revisá que los valores sean los de la tabla del paquete, cada 100 ${u}.</span></div>` : ''}
     <div class="form-group"><label class="form-label">Nombre</label><input class="form-input" type="text" value="${esc(f.name)}" data-action="cf-field" data-field="name" placeholder="${f.code?'Ej: Yogur firme frutilla':''}"></div>
     <div class="form-group"><label class="form-label">Foto de la tabla nutricional${f.code ? '' : ' <span class="form-opt">(opcional)</span>'}</label>
-      <label class="cf-photo${f.photoUrl?' has':''}">${f.photoUrl ? `<img src="${esc(f.photoUrl)}" alt="Foto de la tabla nutricional">` : ''}<span>${f.photoUrl ? 'Cambiar foto' : '📷 Sacar foto de la tabla'}</span><input type="file" accept="image/*" capture="environment" data-action="cf-photo" hidden></label>
+      ${f.photoUrl ? `<div class="cf-photo has"><img src="${esc(f.photoUrl)}" alt="Foto de la tabla nutricional"></div>` : ''}
+      <div class="cf-photo-btns">
+        <label class="cf-photo-btn">📷 ${f.photoUrl ? 'Sacar otra' : 'Sacar foto'}<input type="file" accept="image/*" capture="environment" data-action="cf-photo" hidden></label>
+        <label class="cf-photo-btn">🖼️ Elegir de la galería<input type="file" accept="image/*" data-action="cf-photo" hidden></label>
+      </div>
       <div class="cf-ocr${oCls}" id="cfOcr" role="status" aria-live="polite">${ocrStatus(o)}</div>
       ${f.code && !o ? '<div class="cf-photo-h">Es obligatoria: la leemos para completar los valores y sirve para revisar que estén bien.</div>' : ''}</div>
     ${f.code ? `<div class="form-group"><label class="form-label">Marca</label><input class="form-input" type="text" value="${esc(f.brand||"")}" data-action="cf-field" data-field="brand" placeholder="Ej: La Serenísima"></div>` : ''}
