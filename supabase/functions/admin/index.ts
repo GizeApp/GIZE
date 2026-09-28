@@ -155,6 +155,38 @@ async function removeUserFiles(db: ReturnType<typeof createClient>, uid: string)
   return total;
 }
 
+// Mensajes de voz del chat y audios de los ejercicios (bucket chat-audio): como coach, toda
+// su carpeta ({uid}/…); como alumno, su conversación con cada coach que tuvo
+// ({coach}/{uid}/…). Misma lógica que supabase/functions/borrar-audios (la que usa la app
+// cuando la persona elimina su cuenta). Lanza si algo falla.
+// deno-lint-ignore no-explicit-any
+async function removeChatAudios(db: any, uid: string): Promise<number> {
+  const st = db.storage.from("chat-audio");
+  async function list(prefix: string, folders: boolean): Promise<string[]> {
+    const out: string[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await st.list(prefix, { limit: 1000, offset });
+      if (error) throw new Error("chat-audio: " + error.message);
+      (data || []).forEach((it: { id: string | null; name: string }) => { if (it && it.name && (folders ? !it.id : !!it.id)) out.push(prefix + "/" + it.name); });
+      if (!data || data.length < 1000) break;
+    }
+    return out;
+  }
+  const paths: string[] = [];
+  for (const dir of await list(uid, true)) paths.push(...await list(dir, false));
+  const coaches = new Set<string>();
+  const { data: prof } = await db.from("profiles").select("coach_id").eq("id", uid).maybeSingle();
+  if (prof && prof.coach_id) coaches.add(prof.coach_id);
+  const { data: msgs } = await db.from("coach_messages").select("coach_id").eq("client_id", uid).not("audio_path", "is", null);
+  (msgs || []).forEach((m: { coach_id: string }) => { if (m.coach_id) coaches.add(m.coach_id); });
+  for (const c of coaches) if (UUID.test(c) && c !== uid) paths.push(...await list(c + "/" + uid, false));
+  for (let i = 0; i < paths.length; i += 100) {
+    const { error } = await st.remove(paths.slice(i, i + 100));
+    if (error) throw new Error("chat-audio: " + error.message);
+  }
+  return paths.length;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
@@ -233,8 +265,8 @@ Deno.serve(async (req) => {
     // Las fotos se borran ANTES que la cuenta: si algo falla, la cuenta sigue y se puede
     // reintentar; al revés, las fotos quedarían para siempre sin dueño.
     let archivos = 0;
-    try { archivos = await removeUserFiles(db, uid); }
-    catch (e) { return json({ error: "No se pudieron borrar sus fotos: " + (e as Error).message }, 500); }
+    try { archivos = await removeUserFiles(db, uid); archivos += await removeChatAudios(db, uid); }
+    catch (e) { return json({ error: "No se pudieron borrar sus fotos o audios: " + (e as Error).message }, 500); }
     // Los productos que cargó quedan (son de todos, created_by pasa a null), pero sin la
     // foto de la tabla que acabamos de borrar.
     await db.from("products").update({ photo_path: null }).like("photo_path", uid + "/%");

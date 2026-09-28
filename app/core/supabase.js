@@ -927,6 +927,15 @@ export async function deleteMyStorageFiles(){
     }
     for(let i=0;i<paths.length;i+=100) sbOk(await st.remove(paths.slice(i,i+100)));
   }
+  // Mensajes de voz del chat y audios de ejercicios: los borra la función borrar-audios
+  // (el usuario no tiene permiso de borrar audios en Storage). Si falla, no se elimina la
+  // cuenta: se puede reintentar.
+  const r=await State.sb.functions.invoke("borrar-audios", { body: {} });
+  if(r.error){
+    let detail="";
+    try{ const ctx=r.error.context; if(ctx && ctx.json){ const j=await ctx.json(); detail=j && j.error; } }catch(e){}
+    throw new Error(detail || "no se pudieron borrar tus mensajes de voz. Probá de nuevo en un rato.");
+  }
 }
 
 // ===== Cola de envío pendiente ("outbox") =====
