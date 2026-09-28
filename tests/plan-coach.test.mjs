@@ -2,8 +2,8 @@
 // prueba gratis antes del plan pago y, en las apps de las tiendas, sin precios ni links.
 import { newPage, wait } from './lib.mjs';
 
-async function sheet(base, row, { native = false, url = '/app/' } = {}){
-  const pg = await newPage({ init: native ? () => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {} }; } : undefined });
+async function sheet(base, row, { native = false, url = '/app/', timezoneId } = {}){
+  const pg = await newPage({ timezoneId, init: native ? () => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {} }; } : undefined });
   await pg.p.goto(base + url); await wait(1500);
   const out = await pg.p.evaluate(async row => {
     const { State } = await import('/app/core/state.js'); const { CoachState } = await import('/app/screens/coach/state.js'); const m = await import('/app/screens/coach/plan.js');
@@ -34,6 +34,10 @@ export default async function ({ base, t }){
   t.has(r.sheet, 'Primero termina tu prueba gratis', 'Mi plan: prueba antes del plan pago');
   t.has(r.sheet, 'Renovar', 'el plan actual se renueva por WhatsApp');
   t.ok(!/Mercado Pago/.test(r.sheet), 'no tiene que aparecer Mercado Pago'); await r.close();
+
+  // Pagado hasta el 30/9 (en la base: 1/10 00:00 de Argentina) visto desde un celular en Europa.
+  r = await sheet(base, { plan: 'p25', max_clients: 25, trial_ends_at: D(-40), paid_until: '2099-10-01T03:00:00Z' }, { timezoneId: 'Europe/Madrid' });
+  t.has(r.banner, 'vence el 30', 'la fecha de vencimiento va en hora de Argentina'); await r.close();
 
   // App de Android con la prueba vencida: sin precios ni links.
   r = await sheet(base, { plan: 'trial', max_clients: 10, trial_ends_at: D(-2) }, { native: true });

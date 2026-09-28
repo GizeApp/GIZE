@@ -151,7 +151,7 @@ export function renderCheckin(){
         <button class="form-save" style="margin-top:10px" data-action="ci-open">${saved ? "Ver / editar mis respuestas" : "Responder el check-in"}</button>
       </div>
       ${CheckinState.myPhotos.length ? `<div class="ci-card">
-        <div class="ci-status">Tus fotos de progreso anteriores (las ve tu coach)</div>
+        <div class="ci-status">Tus fotos de progreso anteriores</div>
         <div class="ph-grid">${CheckinState.myPhotos.map(p=>'<div class="ph-thumb"><img src="'+esc(p.url)+'"><button class="ph-del" data-action="photo-del" data-id="'+esc(p.id)+'" data-path="'+esc(p.path)+'">\u2715</button></div>').join("")}</div>
       </div>` : ''}`;
   }

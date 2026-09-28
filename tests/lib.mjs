@@ -36,9 +36,9 @@ const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
 // Página nueva con Supabase simulado. handlers: { '/final/de/la/ruta': (route, J, info) => J(...) o undefined }
 // (funciones comunes, no async: undefined quiere decir "este no lo manejo").
 // info = { m, path, one, url, body }. Lo que no maneja un handler responde vacío.
-export async function newPage({ user, state, handlers = {}, viewport = { width: 390, height: 844 }, init } = {}){
+export async function newPage({ user, state, handlers = {}, viewport = { width: 390, height: 844 }, init, timezoneId = 'America/Argentina/Buenos_Aires', reducedMotion = 'no-preference' } = {}){
   const b = await getBrowser();
-  const ctx = await b.newContext({ viewport, serviceWorkers: 'block', timezoneId: 'America/Argentina/Buenos_Aires', locale: 'es-AR' });
+  const ctx = await b.newContext({ viewport, serviceWorkers: 'block', timezoneId, reducedMotion, locale: 'es-AR' });
   const p = await ctx.newPage();
   const errs = [], dialogs = [], calls = [];
   p.on('pageerror', e => errs.push(e.message));

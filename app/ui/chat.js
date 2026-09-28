@@ -188,11 +188,13 @@ async function invoke(payload){
   return res.data || {};
 }
 
-async function sendMsg(payload, local){
-  const c = C; if(!c) return;
+// c: la conversación en la que se mandó (un audio se sube primero y, mientras, se puede
+// cerrar el chat o abrir el de otro alumno: tiene que ir igual a la suya).
+async function sendMsg(payload, local, c = C){
+  if(!c) return;
   local.pending = true; local.id = "tmp-" + Date.now() + Math.random().toString(36).slice(2, 6);
   (c.msgs || (c.msgs = [])).push(local);
-  c.sending++; paint(true);
+  c.sending++; if(C === c) paint(true);
   try{
     const r = await invoke(Object.assign({ client_id: c.clientId }, payload));
     local.pending = false;
@@ -254,7 +256,7 @@ async function uploadAndSend(c, blob, type, secs){
     local.pending = false; local.failed = "No se pudo subir el audio. Revisá la conexión.";
     c.msgs.push(local); if(C === c) paint(); return;
   }
-  sendMsg({ audio_path: path, audio_secs: secs }, local);
+  sendMsg({ audio_path: path, audio_secs: secs }, local, c);
 }
 
 // ---- Escuchar ----

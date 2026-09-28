@@ -51,8 +51,4 @@
 @keyframes upd-in { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes upd-out { to { opacity: 0; transform: translateY(12px); } }
 @keyframes upd-fade { from { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .upd-card, .upd-forzada, /* Común: logo, texto y cruz arriba; el botón a lo ancho abajo (entra en pantallas de 320 px). */
-.upd-row { display: grid; grid-template-columns: auto 1fr auto; row-gap: var(--space-12); padding: var(--space-14); }
-.upd-row .upd-go { grid-column: 1 / -1; padding: 12px 16px; }
-.upd-row .upd-later { align-self: start; margin: -4px -4px 0 0; }
-.upd-out .upd-card { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .upd-card, .upd-forzada, .upd-out .upd-card { animation: none; } }
