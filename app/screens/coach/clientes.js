@@ -43,6 +43,11 @@ export async function loadCoachClients(){
       console.error("coachClients ("+c+")",r.error);
     }
     CoachState.coachClients=r.data||[];
+    // El mail sale de las cuentas (supabase/mail-clientes.sql): profiles no lo tiene.
+    try{
+      const em=await State.sb.rpc("my_clients_emails");
+      if(!em.error && Array.isArray(em.data)){ const m={}; em.data.forEach(x=>{ if(x.email) m[x.id]=x.email; }); CoachState.coachClients.forEach(c=>{ if(!c.email && m[c.id]) c.email=m[c.id]; }); }
+    }catch(e){}
     // Fotos de los clientes y la propia: se piden los links y se redibuja cuando llegan.
     const paths=CoachState.coachClients.map(c=>c.avatar_path).concat([State.cloudProfile&&State.cloudProfile.avatar_path]);
     resolveAvatars(paths).then(ok=>{ if(ok) renderCoach(); }).catch(()=>{});
