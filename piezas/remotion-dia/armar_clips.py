@@ -4,10 +4,13 @@ import os, json, glob, subprocess
 import numpy as np
 from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
-FR = os.path.join(HERE, '..', 'youtube-guia', 'grabacion', 'frames', 'solo')
+GUIA = os.path.join(HERE, '..', 'youtube-guia', 'grabacion', 'frames', 'solo')
+PROPIAS = os.path.join(HERE, 'grabacion', 'frames')          # grabacion/grabar.js: diario que se completa y peso que baja
 OUT = os.path.join(HERE, 'public', 'clips')
 os.makedirs(OUT, exist_ok=True)
-for name in ['racha', 'registro', 'comida', 'agua', 'entrenar', 'descanso', 'finalizar', 'habitos', 'progreso']:
+CLIPS = [(GUIA, n) for n in ['racha', 'entrenar', 'descanso', 'finalizar', 'habitos']] + \
+        [(PROPIAS, n) for n in ['desayuno', 'almuerzo', 'merienda', 'cena', 'peso']]
+for FR, name in CLIPS:
     d = os.path.join(FR, name); m = json.load(open(os.path.join(d, 'times.json')))
     files = sorted(glob.glob(os.path.join(d, '*.jpg'))); ts = np.array(m['times']) - m['start']
     n = int((m['end'] - m['start']) * 30)

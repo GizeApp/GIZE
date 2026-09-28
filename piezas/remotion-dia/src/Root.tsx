@@ -1,14 +1,14 @@
 import "./index.css";
 import { Composition, Folder } from "remotion";
 import { DURACION, UnDia } from "./UnDia";
-import { Almuerzo, Cierre, Desayuno, Despertar, FinEntreno, Gancho, Gym, Habitos, Progreso } from "./escenas/Escenas";
+import { Almuerzo, Cena, Cierre, Desayuno, Despertar, FinEntreno, Gancho, Gym, Habitos, Merienda, Progreso } from "./escenas/Escenas";
 import { Fondo } from "./ui/Fondo";
 import { AbsoluteFill } from "remotion";
 
 const conFondo = (C: React.FC) => () => (<AbsoluteFill><Fondo /><C /></AbsoluteFill>);
 const escenas: [string, React.FC, number][] = [
-  ["Gancho", Gancho, 80], ["Despertar", Despertar, 210], ["Desayuno", Desayuno, 190], ["Almuerzo", Almuerzo, 150],
-  ["Gym", Gym, 330], ["FinEntreno", FinEntreno, 140], ["Habitos", Habitos, 160], ["Progreso", Progreso, 170], ["Cierre", Cierre, 170],
+  ["Gancho", Gancho, 75], ["Despertar", Despertar, 100], ["Desayuno", Desayuno, 180], ["Almuerzo", Almuerzo, 160], ["Merienda", Merienda, 100],
+  ["Gym", Gym, 300], ["FinEntreno", FinEntreno, 120], ["Cena", Cena, 160], ["Habitos", Habitos, 130], ["Progreso", Progreso, 135], ["Cierre", Cierre, 75],
 ];
 
 export const RemotionRoot: React.FC = () => (

@@ -39,9 +39,9 @@ export const Racha: React.FC<{ desde: number }> = ({ desde }) => {
   );
 };
 
-export const Anillo: React.FC<{ desde: number }> = ({ desde }) => {
+export const Anillo: React.FC<{ desde: number; de?: number; hasta?: number; meta?: number }> = ({ desde, de = 1230, hasta = 1597, meta = 2204 }) => {
   const f = useCurrentFrame();
-  const meta = 2179, kcal = cuenta(f, desde + 10, desde + 50, 1230, 1597);
+  const kcal = cuenta(f, desde + 10, desde + 44, de, hasta);
   const r = 120, C = 2 * Math.PI * r;
   return (
     <Tarjeta desde={desde} ancho={440} estilo={{ textAlign: "center" }}>
@@ -156,6 +156,32 @@ export const Curva: React.FC<{ desde: number }> = ({ desde }) => {
           <circle key={i} cx={p[0]} cy={p[1]} r="9" fill="#fff" opacity={k * pts.length > i + 0.5 ? 1 : 0} style={{ filter: `drop-shadow(0 0 8px ${VIOLETA})` }} />
         ))}
       </svg>
+    </Tarjeta>
+  );
+};
+
+export const Peso: React.FC<{ desde: number }> = ({ desde }) => {
+  const f = useCurrentFrame();
+  const pts = [[20, 60], [120, 88], [220, 100], [320, 138], [420, 160], [520, 205], [620, 238]];
+  const d = pts.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join(" ");
+  const L = 760, k = interpolate(f - desde, [8, 44], [0, 1], { ...clamp, easing: salida });
+  const kg = interpolate(f - desde, [8, 44], [82.4, 77.8], { ...clamp, easing: salida });
+  return (
+    <Tarjeta desde={desde} ancho={720} estilo={{ padding: "30px 30px 26px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+        <span style={{ fontSize: 40, fontWeight: 700 }}>Peso corporal</span>
+        <span style={{ fontSize: 56, fontWeight: 700 }}>{kg.toFixed(1).replace(".", ",")} kg</span>
+      </div>
+      <svg width="660" height="290" viewBox="0 0 660 290">
+        <defs><linearGradient id="pe" x1="0" x2="1"><stop offset="0" stopColor={MAGENTA} /><stop offset="0.5" stopColor={VIOLETA} /><stop offset="1" stopColor={TURQUESA} /></linearGradient></defs>
+        {[70, 140, 210].map((y) => <line key={y} x1="0" x2="660" y1={y} y2={y} stroke="#ffffff12" strokeWidth="2" />)}
+        <path d={d} fill="none" stroke="url(#pe)" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round"
+          strokeDasharray={L} strokeDashoffset={L * (1 - k)} style={{ filter: `drop-shadow(0 0 10px ${VIOLETA}) drop-shadow(0 0 22px ${TURQUESA}88)` }} />
+        {pts.map((p, i) => (
+          <circle key={i} cx={p[0]} cy={p[1]} r="9" fill="#fff" opacity={k * pts.length > i + 0.5 ? 1 : 0} style={{ filter: `drop-shadow(0 0 8px ${VIOLETA})` }} />
+        ))}
+      </svg>
+      <div style={{ fontSize: 46, fontWeight: 700, color: TURQUESA, textAlign: "right", opacity: interpolate(f - desde, [40, 50], [0, 1], clamp) }}>−4,6 kg ↓</div>
     </Tarjeta>
   );
 };

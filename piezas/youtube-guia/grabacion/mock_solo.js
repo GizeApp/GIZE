@@ -97,6 +97,10 @@ function buildDB(defaultDays, pplDays) {
   db.food_entries = [];
   DAYS.forEach((items, d) => items.forEach((it, i) => db.food_entries.push(Object.assign({ id: `f${d}-${i}`, client_id: CL[0], log_date: iso(daysAgo(d)), pos: i }, it))));
   db.profiles.forEach(p => { if (p.id === CL[0]) p.coach_id = null; });
+  // Para el video «Un día»: el diario de hoy arranca vacío y el peso baja semana a semana.
+  if (process.env.HOY_VACIO) db.food_entries = db.food_entries.filter(r => !(r.client_id === CL[0] && r.log_date === iso(TODAY)));
+  if (process.env.BAJA) db.body_weights.forEach(w => { if (w.client_id !== CL[0]) return; const k = +w.id.split('-')[1];
+    w.kg = Math.round((82.4 - k * 0.1 + Math.sin(k * 1.7) * 0.3) * 10) / 10; });
   if (process.env.NUEVO) ['routines', 'sessions', 'body_weights', 'daily_logs', 'food_entries'].forEach(t => { db[t] = (db[t] || []).filter(r => r.client_id !== CL[0]); });
   ['coach_messages', 'checkins', 'nutrition', 'blocks', 'client_info'].forEach(t => { db[t] = (db[t] || []).filter(r => r.client_id !== CL[0]); });
   return db;
