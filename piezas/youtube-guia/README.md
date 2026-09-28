@@ -23,7 +23,8 @@ su tiempo en cada `times.json`.
 - `grabacion/guia_solo.js` y `grabacion/guia_coach.js`: las escenas con sus explicaciones.
 - `grabacion/mock_solo.js` y `grabacion/mock.js`: Supabase simulado con datos ficticios.
 - `guia.py`: arma el video (en 4 partes en paralelo) y los capítulos.
-- `salida/descripcion-youtube.txt`: texto para la descripción, con los capítulos.
+- `salida/descripcion-*.txt`: texto para la descripción de cada video, con los capítulos.
+- `miniaturas.py` → `salida/miniatura-{usuarios,coach,completa}.png` (1280×720).
 
 ```bash
 python3 -m http.server 8766 &                    # desde una copia de main
