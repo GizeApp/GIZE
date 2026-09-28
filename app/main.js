@@ -37,7 +37,7 @@ import { coachPlanObj, cpApply, loadTpls, planDefault, refreshBlockWeeks, render
 import { CoachState } from './screens/coach/state.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
-import { ComidaState, mealNow, ocrStatus, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
+import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
 
 import { EntrenoState, REST_DEFAULT, day, expandedOverride, liveCounting, renderEntreno, renderExList, renderExSheet, effectiveRest, restKey, wkElapsedText, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
@@ -60,8 +60,7 @@ import { renderConfig } from './screens/config.js';
 import { removeMyAvatar, uploadMyAvatar } from './core/avatar.js';
 
 import { productByCode, searchOFF } from './core/off.js';
-import { readLabel } from './core/etiqueta.js';
-import { kcalMismatch, productByCodeShared, reportShared, saveShared, searchShared, uploadLabelPhoto, useShared } from './core/productos.js';
+import { checkProductRequests, productByCodeShared, reportShared, saveShared, searchShared, sendProductRequest, useShared } from './core/productos.js';
 
 import { addDays, dayItems, loadDay, retryDay, setDayItems } from './screens/comida-historial.js';
 import { EditState, cleanSessionEdit, openSessionEdit, removeSessionEditSet, renderSessionEdit, setSessionEditVal } from './ui/sessionedit.js';
@@ -232,20 +231,8 @@ document.body.addEventListener("input", async e => {
   if (a === "food-search") { ComidaState.foodQuery = t.value; scheduleOffSearch(t.value); const r=document.getElementById("foodResults"); if(r) r.innerHTML = renderResults(ComidaState.foodQuery); return; }
   if (a === "ex-search") { EntrenoState.exQuery = t.value; const l=document.getElementById("exList"); if(l) l.innerHTML = renderExList(); return; }
   if (a === "portion-grams") { const base = ComidaState.selectedFood ? selectedFoodValues() : (ComidaState.editEntry ? entryBase(ComidaState.editEntry) : null); if(base){ const pv=document.getElementById("portionPreview"); if(pv) pv.textContent = previewStr(base, t.value); const pu=document.getElementById("portionUnits"); const uf=sheetUnitFood(); if(pu && uf) pu.textContent = unitsLabel(t.value, cookPortion(uf.food, uf.cook), base.unit, uf.food); } ComidaState.sheetGrams = t.value; return; }
-  if (a === "cf-field") {
-    const ff=ComidaState.foodForm, k=t.dataset.field; ff[k] = t.value;
-    // Lo que el cliente corrige deja de estar marcado como leído de la foto.
-    if(ff.ocrFilled && ff.ocrFilled.indexOf(k)>=0){ ff.ocrFilled=ff.ocrFilled.filter(x=>x!==k); t.classList.remove("ocr"); }
-    // Tabla por porción sin la porción legible: al escribirla se calcula cada 100.
-    if(k==="portion" && ff.ocrPer){
-      const S=parseFloat(String(t.value).replace(",", "."));
-      if(S>0 && S<=2000){
-        fillOcrPerPortion(ff, S);
-        if(ff.ocr && ff.ocr.status==="portion"){ ff.ocr={ status:"partial" }; t.classList.remove("need"); const el=document.getElementById("cfOcr"); if(el){ el.className="cf-ocr warn"; el.innerHTML=ocrStatus(ff.ocr); } }
-      }
-    }
-    return;
-  }
+  if (a === "cf-field") { ComidaState.foodForm[t.dataset.field] = t.value; return; }
+  if (a === "rq-field") { if(ComidaState.reqForm) ComidaState.reqForm[t.dataset.field] = t.value; return; }
   if (a === "macro-field") { const g=k=>parseFloat(String((document.getElementById("macro_"+k)||{}).value||"").replace(",", "."))||0; const el2=document.getElementById("macroSum"); if(el2) el2.innerHTML=macroSumText({p:g("p"),c:g("c"),f:g("f")}); return; }
   if (a === "cal-field") { ComidaState.calForm[t.dataset.field] = t.value; return; }
   if (a === "wkg-field") { ProgresoState.weightForm.kg = t.value; return; }
@@ -322,7 +309,11 @@ document.body.addEventListener("change", async e => {
     if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach();
     return;
   }
-  if (a === "cf-photo") { const file=t.files&&t.files[0]; if(file){ const ff=ComidaState.foodForm; if(ff.photoUrl) URL.revokeObjectURL(ff.photoUrl); ff.photo=file; ff.photoUrl=URL.createObjectURL(file); readLabelInto(ff, file); renderApp(); } return; }
+  if (a === "rq-photo") {
+    const file=t.files&&t.files[0], r=ComidaState.reqForm, k=t.dataset.k;
+    if(file && r && (k==="label" || k==="front")){ if(r[k+"Url"]) URL.revokeObjectURL(r[k+"Url"]); r[k]=file; r[k+"Url"]=URL.createObjectURL(file); renderApp(); }
+    t.value=""; return;
+  }
 });
 
 document.body.addEventListener("mousemove", e => {
@@ -406,23 +397,40 @@ document.body.addEventListener("click", async e => {
     const ff=ComidaState.foodForm, num=v=>parseFloat(String(v==null?"":v).replace(",", "."))||0;
     if(!ff.name.trim() || ff.kcal==="" || !(num(ff.kcal)>=0)){ alert("Poné al menos nombre y calorías."); return; }
     const por=num(ff.portion);
-    const nf={ name:ff.name.trim()+(ff.brand&&ff.brand.trim()?" · "+ff.brand.trim():""), kcal:Math.round(num(ff.kcal)), p:num(ff.p), c:num(ff.c), f:num(ff.f), portion:por>=1&&por<=2000?Math.round(por):100, unit:ff.unit||"g" };
+    const nf={ name:ff.name.trim(), kcal:Math.round(num(ff.kcal)), p:num(ff.p), c:num(ff.c), f:num(ff.f), portion:por>=1&&por<=2000?Math.round(por):100, unit:ff.unit||"g" };
     if(nf.kcal>950 || nf.p>100 || nf.c>100 || nf.f>100 || nf.p+nf.c+nf.f>105){ alert("Revisá los valores: tienen que ser cada 100 "+(nf.unit==="ml"?"ml":"g")+" (como en la tabla del paquete)."); return; }
-    if(ff.code && kcalMismatch(nf.kcal, nf.p, nf.c, nf.f) && !confirm("Las calorías ("+nf.kcal+") no coinciden con los macros (darían unas "+Math.round(nf.p*4+nf.c*4+nf.f*9)+").\n\n¿Los copiaste bien de la etiqueta? Tocá Aceptar para guardar igual.")) return;
-    if(ff.code && !ff.photo){ alert("Falta la foto de la tabla nutricional del paquete."); return; }
-    if(ff.code){ nf.code=ff.code; nf.src="GIZE"; }
+    // Desde un pedido con código de barras: al volver a escanearlo aparece este (ver onScannedCode).
+    if(ff.code) nf.code=ff.code;
     state.foods.push(nf);
     ComidaState.creatingFood=false; save();
-    if(ff.code){
-      // La foto se sube primero; el producto queda para todos recién cuando la foto está arriba.
-      const shared=Object.assign({}, nf, { name: ff.name.trim(), brand: (ff.brand||"").trim() });
-      uploadLabelPhoto(ff.photo, ff.code).then(path=>saveShared(shared, ff.code, "user", path))
-        .then(ok=>alert(ok ? "¡Gracias! "+ff.name.trim()+" ya quedó disponible para todos los usuarios de GIZE." : "Lo guardamos en tu cuenta, pero no se pudo compartir con la comunidad. Probá de nuevo más tarde."))
-        .catch(()=>alert("Lo guardamos en tu cuenta, pero no se pudo subir la foto para compartirlo. Revisá tu conexión."))
-        .finally(()=>{ if(ff.photoUrl) URL.revokeObjectURL(ff.photoUrl); });
-      ComidaState.selectedFood=nf; ComidaState.cookState=null; ComidaState.sheetGrams=null; SheetState.sheetGen++;
-    } else ComidaState.foodQuery=nf.name;
+    if(ff.code){ ComidaState.selectedFood=nf; ComidaState.cookState=null; ComidaState.sheetGrams=null; SheetState.sheetGen++; }
+    else ComidaState.foodQuery=nf.name;
     renderApp(); return;
+  }
+  if (a === "rq-open") { ComidaState.searchOpen=false; openRequest({ name: ComidaState.foodQuery || "" }); return; }
+  if (a === "rq-cancel") { closeRequest(); renderApp(); return; }
+  if (a === "rq-manual") {
+    const r=ComidaState.reqForm||{}, nm=[(r.name||"").trim(), (r.brand||"").trim()].filter(Boolean).join(" · ");
+    closeRequest();
+    ComidaState.foodForm={name:nm,kcal:"",p:"",c:"",f:"",portion:"",unit:"g",code:r.code||""}; ComidaState.creatingFood=true; renderApp(); return;
+  }
+  if (a === "rq-send") {
+    const r=ComidaState.reqForm; if(!r || r.sending) return;
+    const name=(r.name||"").trim(), brand=(r.brand||"").trim();
+    if(name.length<2){ alert("Poné el nombre del producto."); return; }
+    if(!brand){ alert("Poné la marca del producto."); return; }
+    if(!r.label){ alert("Falta la foto de la tabla nutricional (suele estar atrás del paquete)."); return; }
+    if(!State.cloudUser){ alert("Tenés que iniciar sesión para mandar un pedido."); return; }
+    r.sending=true; renderApp();
+    sendProductRequest({ name, brand, code: r.code, label: r.label, front: r.front }).then(()=>{
+      if(ComidaState.reqForm===r){ closeRequest(); renderApp(); }
+      alert("¡Gracias! Tu producto fue enviado a administración. Pronto va a estar en GIZE para todos: te avisamos cuando lo agreguemos.");
+    }).catch(e=>{
+      r.sending=false; if(ComidaState.reqForm===r) renderApp();
+      const m=e && e.message ? String(e.message) : "";
+      alert(/límite/.test(m) ? m : "No se pudo enviar el pedido. Revisá tu conexión y probá de nuevo.");
+    });
+    return;
   }
   if (a === "prod-report") {
     const f=ComidaState.selectedFood; if(!f || !f.gid) return;
@@ -1461,69 +1469,16 @@ document.addEventListener("visibilitychange", ()=>{
   if((state.visits||[]).indexOf(today())<0) renderApp();
 });
 
-// ---- Crear alimento: lectura de la foto de la tabla (core/etiqueta.js) ----
-// Completa lo que está vacío o lo que había completado otra foto; lo que escribió el
-// cliente no se toca. Lo completado queda marcado hasta que lo corrija.
-const OCR_FIELDS = ["kcal", "p", "c", "f"];
-function setOcrField(ff, k, v, force){
-  if(v==null) return;
-  const cur = String(ff[k]==null ? "" : ff[k]).trim();
-  if(cur && !force && (!ff.ocrFilled || ff.ocrFilled.indexOf(k)<0)) return;
-  ff[k] = String(v).replace(".", ",");
-  ff.ocrFilled = (ff.ocrFilled||[]).filter(x=>x!==k).concat(k);
-  const el = document.getElementById("cf_"+k);
-  if(el){ el.value = ff[k]; el.classList.add("ocr"); }
+// ---- Pedir un producto que no está (core/productos.js → sendProductRequest) ----
+function openRequest(init){
+  closeRequest();
+  ComidaState.reqForm = Object.assign({ name:"", brand:"", code:"" }, init);
+  ComidaState.creatingFood=false; ComidaState.requestingProduct=true; renderApp();
 }
-function fillOcrPerPortion(ff, S){
-  const r1 = v => Math.round(v*10)/10, pp = ff.ocrPer;
-  if(pp.kcal!=null) setOcrField(ff, "kcal", Math.round(pp.kcal*100/S));
-  ["p","c","f"].forEach(k=>{ if(pp[k]!=null) setOcrField(ff, k, r1(pp[k]*100/S)); });
-}
-function readLabelInto(ff, file){
-  const gen = (ff.ocrGen||0) + 1; ff.ocrGen = gen; ff.ocrPer = null;
-  ff.ocr = { status: "loading", msg: "Preparando el lector…" };
-  const live = () => ComidaState.foodForm===ff && ff.ocrGen===gen && ComidaState.creatingFood;
-  const paint = () => {
-    const el=document.getElementById("cfOcr");
-    if(el){ el.className = "cf-ocr" + (ff.ocr.status==="ok" ? " ok" : ff.ocr.status==="loading" ? " busy" : " warn"); el.innerHTML = ocrStatus(ff.ocr); }
-    const pe=document.getElementById("cf_portion"); if(pe) pe.classList.toggle("need", ff.ocr.status==="portion");
-  };
-  readLabel(file, (st, pr) => {
-    if(!live()) return;
-    ff.ocr = { status: "loading", msg: /recogniz/.test(st||"") ? "Leyendo la etiqueta… " + Math.round((pr||0)*100) + "%" : "Preparando el lector…" };
-    paint();
-  }).then(res => {
-    if(!live()) return;
-    const unit0 = ff.unit;
-    // La porción calculada (no leída) se usa solo si todo cerró.
-    if(res.portion && (res.ok || res.notes.indexOf("porcion-calculada")<0)){
-      setOcrField(ff, "portion", res.portion);
-      if(res.unit==="ml") ff.unit = "ml";
-    } else if(res.unit==="ml") ff.unit = "ml";
-    if(res.perPortion){
-      // Tabla por porción sin la porción: con la porción que ya está escrita se calcula ya;
-      // si no, se pide.
-      ff.ocrPer = res.perPortion;
-      const S0 = parseFloat(String(ff.portion||"").replace(",", "."));
-      if(S0>0 && S0<=2000){ fillOcrPerPortion(ff, S0); ff.ocr = { status: "partial" }; }
-      else ff.ocr = { status: "portion" };
-    } else {
-      // Si la lectura cerró por completo, manda la foto (lo escrito antes se reemplaza y queda marcado).
-      OCR_FIELDS.forEach(k => setOcrField(ff, k, res[k], res.ok));
-      ff.ocr = { status: res.found===0 ? "none" : res.ok ? "ok" : "partial" };
-    }
-    // Los campos ya se escribieron en su lugar: se redibuja todo solo si cambió la unidad
-    // (así no se pierde el foco si el cliente estaba escribiendo el nombre o la marca).
-    if(ff.unit!==unit0){
-      const ae=document.activeElement, fld=ae && ae.dataset && ae.dataset.field, pos=fld && ae.selectionStart;
-      renderApp();
-      if(fld){ const el=document.querySelector('[data-action="cf-field"][data-field="'+fld+'"]'); if(el){ el.focus({preventScroll:true}); try{ el.setSelectionRange(pos, pos); }catch(e){} } }
-    } else paint();
-  }).catch(e => {
-    console.error("etiqueta", e);
-    if(!live()) return;
-    ff.ocr = { status: "error" }; paint();
-  });
+function closeRequest(){
+  const r=ComidaState.reqForm;
+  if(r){ if(r.labelUrl) URL.revokeObjectURL(r.labelUrl); if(r.frontUrl) URL.revokeObjectURL(r.frontUrl); }
+  ComidaState.reqForm=null; ComidaState.requestingProduct=false;
 }
 
 // Buscador de Comida: lo último que eligió buscando (5) y lo último que anotó (30), el más
@@ -1549,7 +1504,7 @@ function rememberOffProduct(f){
 
 // Código leído por el escáner (o escrito a mano).
 async function onScannedCode(code){
-  const known = (state.offRecent||[]).find(f => f.code === code);
+  const known = (state.offRecent||[]).find(f => f.code === code) || (state.foods||[]).find(f => f.code === code);
   if(known){ ComidaState.selectedFood = known; ComidaState.cookState = null; ComidaState.sheetGrams = null; SheetState.sheetGen++; renderApp(); return; }
   // Primero la base compartida de GIZE, después Open Food Facts.
   let food = null;
@@ -1560,8 +1515,8 @@ async function onScannedCode(code){
     if(food) saveShared(food, code, "off");
   }
   if(!food){
-    if(confirm("Todavía nadie cargó el código " + code + ".\n\n¿Lo cargás vos con los datos de la etiqueta? Va a quedar disponible para todos los usuarios de GIZE.")){
-      ComidaState.searchOpen=false; ComidaState.foodForm = {name:"",brand:"",kcal:"",p:"",c:"",f:"",portion:"",unit:"g",code:String(code).replace(/\D/g,"")}; ComidaState.creatingFood = true; renderApp();
+    if(confirm("Todavía no tenemos el código " + code + ".\n\n¿Nos mandás una foto de la tabla nutricional? Lo revisamos y lo agregamos a GIZE para todos.")){
+      ComidaState.searchOpen=false; openRequest({ code: String(code).replace(/\D/g,"") });
     }
     return;
   }
@@ -1618,4 +1573,10 @@ window.addEventListener("gize:login", ()=>{
 });
 // Globitos al día al volver a la app.
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible" && State.cloudUser) refreshUnread(); });
+// Productos que pidió y ya se cargaron (o se rechazaron): se avisa al entrar y al volver a la
+// app (como mucho cada 10 minutos), después de la bienvenida y el resto de lo que abre al entrar.
+let reqCheckAt = 0;
+function maybeCheckRequests(){ if(!State.cloudUser || Date.now()-reqCheckAt < 600000) return; reqCheckAt = Date.now(); setTimeout(checkProductRequests, 2500); }
+window.addEventListener("gize:login", maybeCheckRequests);
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") maybeCheckRequests(); });
 

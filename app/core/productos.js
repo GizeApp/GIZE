@@ -82,14 +82,6 @@ export async function reportShared(id, why){
   try { const r = await State.sb.rpc("product_report", { pid: id, why: String(why || "").slice(0, 200) }); return !r.error; } catch (e) { return false; }
 }
 
-// Calorías que no cierran con los macros (4 kcal por g de proteína y carbos, 9 por g de grasa).
-// Se avisa antes de guardar (el alcohol y la fibra explican diferencias chicas).
-export function kcalMismatch(kcal, p, c, f){
-  const calc = (+p || 0) * 4 + (+c || 0) * 4 + (+f || 0) * 9, k = +kcal || 0;
-  if (calc < 5 && k < 5) return false;
-  return Math.abs(k - calc) > Math.max(30, calc * 0.25);
-}
-
 // Foto de la tabla nutricional: se achica (lado mayor 1600 px, JPEG) y se sube a la carpeta
 // del usuario en el bucket privado «productos». Solo la ven los administradores.
 async function labelJpeg(file){
@@ -102,11 +94,43 @@ async function labelJpeg(file){
     return await new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error("No se pudo procesar la foto")), "image/jpeg", 0.8));
   } finally { URL.revokeObjectURL(url); }
 }
-export async function uploadLabelPhoto(file, code){
+export async function uploadLabelPhoto(file, code, prefix){
   if (!ready()) throw new Error("Tenés que iniciar sesión.");
   const blob = await labelJpeg(file);
-  const path = State.cloudUser.id + "/" + String(code || "x").replace(/\D/g, "").slice(0, 14) + "-" + Date.now() + ".jpg";
+  const path = State.cloudUser.id + "/" + (prefix || "") + String(code || "x").replace(/\D/g, "").slice(0, 14) + "-" + Date.now() + ".jpg";
   const r = await State.sb.storage.from("productos").upload(path, blob, { contentType: "image/jpeg", upsert: false });
   if (r.error) throw r.error;
   return path;
+}
+
+// Pedido de un producto que no está (supabase/pedidos-productos.sql): el usuario manda la foto
+// de la tabla nutricional (y si quiere la del frente), el nombre y la marca. Los valores los
+// carga un administrador desde gize.ar/admin, que lo publica para todos.
+export async function sendProductRequest({ name, brand, code, label, front }){
+  if (!ready()) throw new Error("Tenés que iniciar sesión.");
+  const c = String(code || "").replace(/\D/g, "");
+  const labelPath = await uploadLabelPhoto(label, c, "pedido-tabla-");
+  const frontPath = front ? await uploadLabelPhoto(front, c, "pedido-frente-") : null;
+  const r = await State.sb.from("product_requests").insert({ name: String(name).trim().slice(0, 120), brand: String(brand || "").trim().slice(0, 60) || null,
+    code: c.length >= 6 && c.length <= 14 ? c : null, label_path: labelPath, front_path: frontPath });
+  if (r.error) throw r.error;
+}
+
+// Pedidos ya resueltos que el usuario todavía no vio: se avisan una vez al entrar a la app.
+let reqChecking = false;
+export async function checkProductRequests(){
+  if (!ready() || reqChecking) return;
+  reqChecking = true;
+  try {
+    const r = await State.sb.from("product_requests").select("id,name,status,note").neq("status", "pendiente").eq("seen", false).order("done_at").limit(10);
+    const rows = (r && !r.error && r.data) || [];
+    if (!rows.length) return;
+    const ok = rows.filter(x => x.status === "cargado"), no = rows.filter(x => x.status === "rechazado");
+    const msg = [];
+    if (ok.length) msg.push("¡Listo! Ya agregamos a GIZE " + (ok.length === 1 ? "el producto que pediste: «" + ok[0].name + "»" : "los productos que pediste: " + ok.map(x => "«" + x.name + "»").join(", ")) + ". Buscalo o escanealo para anotarlo.");
+    no.forEach(x => msg.push("No pudimos agregar «" + x.name + "»" + (x.note ? ": " + x.note : "") + ". Si querés, mandalo de nuevo con otra foto."));
+    alert(msg.join("\n\n"));
+    await Promise.all(rows.map(x => State.sb.rpc("product_request_seen", { rid: x.id }).then(() => {}, () => {})));
+  } catch (e) {
+  } finally { reqChecking = false; }
 }
