@@ -805,12 +805,19 @@ export function syncExtras(){
 // Las series se ordenan por set_order (su número dentro del ejercicio): Supabase no
 // garantiza el orden de la relación, y sin esto el detalle del entreno podía mostrar la
 // serie 3 antes que la 1. El sort es estable, así que el orden de los ejercicios no cambia.
+// set_order = número de ejercicio × 1000 + número de serie: así el mismo ejercicio hecho dos
+// veces en un entreno vuelve como dos (y en su orden). Los entrenos viejos tienen solo el
+// número de serie (< 1000) y se agrupan por nombre, como antes.
+// Tope de 30 ejercicios: entra aunque la columna sea smallint.
+const setOrder=(ei,si)=>Math.min(ei,30)*1000+Math.min(si,999);
 export function sessionFromRow(se){
-  const byEx={};
+  const byEx=new Map();
   (se.session_entries||[]).slice().sort((a,b)=>(a.set_order||0)-(b.set_order||0)).forEach(en=>{
-    (byEx[en.exercise_name]=byEx[en.exercise_name]||[]).push(en.secs>0 ? {kg:Number(en.kg)||0, reps:Number(en.reps)||0, secs:Number(en.secs)} : {kg:Number(en.kg)||0, reps:Number(en.reps)||0});
+    const k=Math.floor((en.set_order||0)/1000)+"|"+en.exercise_name;
+    if(!byEx.has(k)) byEx.set(k, {name:en.exercise_name, sets:[]});
+    byEx.get(k).sets.push(en.secs>0 ? {kg:Number(en.kg)||0, reps:Number(en.reps)||0, secs:Number(en.secs)} : {kg:Number(en.kg)||0, reps:Number(en.reps)||0});
   });
-  const out={date:se.performed_on, day:se.day_name, ts:new Date(se.created_at).getTime(), exercises:Object.keys(byEx).map(n=>({name:n, sets:byEx[n]}))};
+  const out={date:se.performed_on, day:se.day_name, ts:new Date(se.created_at).getTime(), exercises:[...byEx.values()]};
   if(se.rpe) out.rpe=se.rpe;
   if(se.pump) out.pump=se.pump;
   if(typeof se.joint_pain==="boolean") out.joint=se.joint_pain;
@@ -1144,7 +1151,7 @@ function applyPending(){
   myPending().forEach(it=>{
     const p=it.p;
     if(it.k==="session"){
-      if(!state.sessions.some(s=>s.id===p.id)) state.sessions.push({id:p.id, cloudId:p.id, date:p.date, ts:p.ts, day:p.day, exercises:p.exercises});
+      if(!state.sessions.some(s=>s.id===p.id)) state.sessions.push(Object.assign({id:p.id, cloudId:p.id, date:p.date, ts:p.ts, day:p.day, exercises:p.exercises}, p.dur>0?{dur:p.dur}:{}));
     } else if(it.k==="sessionEdit"){
       const s=state.sessions.find(x=>x.id===p.id || x.cloudId===p.id);
       if(s) s.exercises=p.exercises;
@@ -1181,9 +1188,9 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 // Las funciones cloud* devuelven true si quedó en la nube y false si quedó pendiente.
 export function cloudInsertSession(se){
   const entries=[];
-  (se.exercises||[]).forEach(ex=>{ (ex.sets||[]).forEach((sset,i)=>{ entries.push({id:newId(), name:ex.name, order:i, kg:sset.kg, reps:sset.reps, secs:sset.secs||0}); }); });
+  (se.exercises||[]).forEach((ex,ei)=>{ (ex.sets||[]).forEach((sset,i)=>{ entries.push({id:newId(), name:ex.name, order:setOrder(ei,i), kg:sset.kg, reps:sset.reps, secs:sset.secs||0}); }); });
   se.cloudId=se.id; // el id del entreno ES el id de la fila en la nube
-  return enqueueAndSend("session", {id:se.id, date:se.date, day:se.day, ts:se.ts, exercises:se.exercises, entries:entries});
+  return enqueueAndSend("session", {id:se.id, date:se.date, day:se.day, ts:se.ts, dur:se.dur||0, exercises:se.exercises, entries:entries});
 }
 
 // Entreno corregido desde el historial. Si todavía no salió de la cola, se corrige ahí mismo;
@@ -1191,7 +1198,7 @@ export function cloudInsertSession(se){
 // una anterior que todavía no se mandó).
 export function cloudEditSession(se){
   const entries=[];
-  (se.exercises||[]).forEach(ex=>{ (ex.sets||[]).forEach((sset,i)=>{ entries.push({id:newId(), name:ex.name, order:i, kg:sset.kg, reps:sset.reps, secs:sset.secs||0}); }); });
+  (se.exercises||[]).forEach((ex,ei)=>{ (ex.sets||[]).forEach((sset,i)=>{ entries.push({id:newId(), name:ex.name, order:setOrder(ei,i), kg:sset.kg, reps:sset.reps, secs:sset.secs||0}); }); });
   if(!State.cloudUser) return Promise.resolve(false);
   const q=readQueue(OUTBOX_KEY);
   const pend=q.find(i=>i.uid===State.cloudUser.id && i.k==="session" && i.p && i.p.id===se.id);

@@ -103,6 +103,7 @@
 .se-f:focus-within { border-color: var(--gize-blue); }
 .se-f input { flex: 1; min-width: 0; width: 100%; background: transparent; border: 0; color: var(--gize-text); font: 600 16px var(--gize-font-data); padding: 9px 0; outline: none; text-align: right; }
 .se-f span { font-size: 12px; color: var(--gize-text-2); }
+.se-f .se-neg { font-size: 16px; font-weight: 800; color: var(--gize-r2); }
 .se-rm { width: 36px; height: 36px; flex: none; border-radius: 10px; border: 1px solid var(--gize-border); background: transparent; color: var(--gize-text-2); font-size: 13px; cursor: pointer; }
 .se-rm:hover { color: var(--gize-danger); border-color: color-mix(in srgb, var(--gize-danger) 45%, transparent); }
 .se-sheet .sheet-btns { margin-top: 18px; }

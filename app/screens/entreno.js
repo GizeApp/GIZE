@@ -164,12 +164,15 @@ function ssWrap(exs, groups, i, html){
 // afterSetDone en main.js) hasta Guardar entreno de hoy.
 // Si arrancó solo (al tildar) y después se destildó todo, no cuenta: así no queda un reloj
 // corriendo horas con 0 series. Con «Iniciar entrenamiento» (manual) corre igual.
+// Vigente: empezó hace menos de 6 horas (no "hoy": un entreno que pasa la medianoche no
+// pierde el reloj; igual que training() en core/supabase.js).
+export function wkFresh(w){ return !!(w && w.ts && Date.now() - w.ts < 6 * 3600 * 1000); }
 export function wkStarted(d){
   const w=state.wkStart;
-  if(!(w && w.date===today() && (!d || w.day===d.id))) return false;
+  if(!(wkFresh(w) && (!d || w.day===d.id))) return false;
   return !!(w.manual || !d || d.exercises.some(x=>x.sets.some(s=>s.done)));
 }
-export function wkElapsedMs(){ const w=state.wkStart; return w && w.date===today() ? Math.max(0, Date.now()-w.ts) : 0; }
+export function wkElapsedMs(){ const w=state.wkStart; return wkFresh(w) ? Math.max(0, Date.now()-w.ts) : 0; }
 export function wkElapsedText(){ return fmt(wkElapsedMs()); }
 
 // Sugerencia de progresión (app/core/progresion.js), debajo de «La vez pasada».
