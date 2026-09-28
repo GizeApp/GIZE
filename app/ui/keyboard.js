@@ -7,15 +7,28 @@
   const vv = window.visualViewport;
   if (!vv) return;
   const root = document.documentElement;
-  let last = -1;
+  // En la app de Android (WebView con adjustResize) el teclado no tapa: achica la ventana
+  // entera, así que innerHeight y visualViewport bajan juntos y la cuenta de arriba da 0. Ahí
+  // se reconoce porque la ventana se achicó mucho con un campo de texto enfocado (solo en
+  // pantallas táctiles, para no esconder la barra al achicar la ventana en la compu).
+  const coarse = window.matchMedia ? window.matchMedia("(pointer: coarse)") : null;
+  let last = -1, lastOpen = null, baseW = window.innerWidth, baseH = window.innerHeight;
+  function typing() {
+    const el = document.activeElement;
+    return !!el && (el.isContentEditable || (el.matches && el.matches("textarea, input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit],[type=reset],[type=file],[type=color])")));
+  }
   function update() {
+    if (window.innerWidth !== baseW) { baseW = window.innerWidth; baseH = window.innerHeight; } // giró el celular
+    else if (window.innerHeight > baseH) baseH = window.innerHeight;
     const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
     // Menos de 80 px no es el teclado (barras del navegador que aparecen y desaparecen).
     const v = kb > 80 ? kb : 0;
-    if (v === last) return;
-    last = v;
+    const open = v > 0 || (!!coarse && coarse.matches && baseH - window.innerHeight > 150 && typing());
+    if (v === last && open === lastOpen) return;
+    last = v; lastOpen = open;
+    // --kb es solo lo que TAPA el teclado (si achicó la ventana, las ventanas ya quedan arriba).
     root.style.setProperty("--kb", v + "px");
-    root.classList.toggle("kb-open", v > 0);
+    root.classList.toggle("kb-open", open);
     if (v > 0) searchToTop();
     // El lugar extra se saca recién con el teclado cerrado: sacarlo al tocar un resultado
     // (cuando el buscador pierde el foco) movía la página justo debajo del dedo.
@@ -40,6 +53,9 @@
   document.addEventListener("focusout", (e) => { if (e.target === lifted) lifted = null; });
   vv.addEventListener("resize", update);
   vv.addEventListener("scroll", update);
+  window.addEventListener("resize", update);
+  document.addEventListener("focusin", update);
+  document.addEventListener("focusout", () => setTimeout(update, 0));
   update();
 })();
 
