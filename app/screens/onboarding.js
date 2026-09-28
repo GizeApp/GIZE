@@ -1,10 +1,14 @@
 import { auIcoTicket, checkSvg } from '../core/icons.js';
 
-import { State } from '../core/state.js';
+import { State, state } from '../core/state.js';
 
 import { esc } from '../core/utils.js';
 
 import { applyBrand, loadCloud } from '../core/supabase.js';
+
+import { save } from '../core/storage.js';
+
+import { CATALOGO, cargarCatalogo, copiarDias, diasDeEntreno, rutinasPara } from '../core/rutinas-ejemplo.js';
 
 import { hideSilkBg, showSilkBg } from '../ui/background.js';
 
@@ -94,6 +98,7 @@ function showClientWelcome(){
     if(!e.target.closest('[data-onb="start"]')) return;
     host.onclick=null;
     // Ya vinculado (código de un intento anterior de registro): no se le pide de nuevo.
+    // Con coach, la rutina la arma el coach: no se le ofrece armar una.
     if(State.cloudProfile && State.cloudProfile.coach_id) close();
     else showClientCode();
   };
@@ -116,7 +121,7 @@ function showClientCode(msg, value){
   inp.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); host.querySelector('[data-onb="join"]').click(); } });
   host.onclick=async e=>{
     const b=e.target.closest("[data-onb]"); if(!b || b.disabled) return;
-    if(b.dataset.onb==="solo"){ host.onclick=null; close(); return; }
+    if(b.dataset.onb==="solo"){ host.onclick=null; showStartChoice(); return; }
     const code=inp.value.trim();
     if(!code){ showClientCode("Poné el código que te pasó tu coach, o tocá \"Entreno por mi cuenta\".", code); return; }
     b.disabled=true; b.textContent="Vinculando...";
@@ -135,4 +140,144 @@ function showClientCode(msg, value){
       host.onclick=null; close(); renderApp();
     }catch(err){ showClientCode("No se pudo vincular: "+((err&&err.message)||err), code); }
   };
+}
+
+
+// ---- Cómo arrancar (entrena por su cuenta) ----
+// "Empezar vacío" arma sus días en 3 pasos cortos; "Elegir una rutina armada" pregunta el
+// sexo y muestra las rutinas que corresponden (ver core/rutinas-ejemplo.js).
+const OB = { start: "vacio", step: 1, days: 4, goal: "", first: "" };
+
+function option(val, sel, title, sub, attr){
+  return '<button type="button" class="onb-opt'+(val===sel?' on':'')+'" data-onb="'+attr+'" data-v="'+val+'" aria-pressed="'+(val===sel)+'">'+
+    '<span class="onb-opt-dot" aria-hidden="true"></span><span><b>'+title+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</span></button>';
+}
+
+function showStartChoice(){
+  const host=mount(
+    '<h1 class="onb-title">¿Cómo querés arrancar?</h1>'+
+    '<p class="onb-text">Vos elegís. Lo podés cambiar cuando quieras.</p>'+
+    '<div class="onb-opts">'+
+      option("vacio", OB.start, "Empezar vacío", "Armás tus días de a poco. Recomendado.", "start")+
+      option("rutina", OB.start, "Elegir una rutina armada", "Te mostramos rutinas listas para usar. La podés cambiar después.", "start")+
+    '</div>'+
+    '<button type="button" class="gize-btn auth-btn onb-main" data-onb="next">Continuar</button>',
+    "Cómo arrancar");
+  if(!host) return;
+  host.onclick=e=>{
+    const b=e.target.closest("[data-onb]"); if(!b) return;
+    if(b.dataset.onb==="start"){ OB.start=b.dataset.v; showStartChoice(); return; }
+    if(b.dataset.onb==="next"){ host.onclick=null; if(OB.start==="rutina") showSex(); else { OB.step=1; showWizard(); } }
+  };
+}
+
+function steps(n){ return '<div class="onb-steps" aria-hidden="true">'+[1,2,3].map(i=>'<span'+(i<=n?' class="on"':'')+'></span>').join("")+'</div><div class="onb-step-lbl">Paso '+n+' de 3</div>'; }
+
+const GOALS = [["musculo","Ganar músculo"],["grasa","Bajar grasa"],["fuerza","Ganar fuerza"],["salud","Salud y bienestar"]];
+
+function showWizard(){
+  let inner;
+  if(OB.step===1) inner='<h1 class="onb-title onb-left">¿Cuántos días por semana pensás entrenar?</h1>'+
+    '<p class="onb-text onb-left">Armamos tu semana con esa cantidad de días. Lo podés cambiar cuando quieras.</p>'+
+    '<div class="onb-nums">'+[2,3,4,5].map(n=>'<button type="button" class="onb-num'+(n===OB.days?' on':'')+'" data-onb="days" data-v="'+n+'">'+(n===5?'5+':n)+'</button>').join("")+'</div>';
+  else if(OB.step===2) inner='<h1 class="onb-title onb-left">¿Cuál es tu objetivo principal?</h1>'+
+    '<div class="onb-opts">'+GOALS.map(g=>option(g[0], OB.goal, g[1], "", "goal")).join("")+'</div>';
+  else inner='<h1 class="onb-title onb-left">¿Cómo se llama tu primer día?</h1>'+
+    '<p class="onb-text onb-left">Por ejemplo: Tren superior, Piernas, Día A.</p>'+
+    '<div class="auth-field onb-field onb-field-free"><input id="onbFirst" class="auth-in" type="text" maxlength="40" placeholder="Día 1" aria-label="Nombre del primer día" value="'+esc(OB.first)+'"></div>';
+  const host=mount(steps(OB.step)+inner+
+    '<button type="button" class="gize-btn auth-btn onb-main" data-onb="wnext">'+(OB.step===3?'Empezar':'Siguiente')+'</button>'+
+    '<button type="button" class="onb-alt" data-onb="empty">Prefiero arrancar vacío</button>', "Armar tu semana");
+  if(!host) return;
+  const inp=host.querySelector("#onbFirst");
+  if(inp){ inp.addEventListener("input", ()=>{ OB.first=inp.value; }); inp.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); host.querySelector('[data-onb="wnext"]').click(); } }); }
+  host.onclick=e=>{
+    const b=e.target.closest("[data-onb]"); if(!b) return;
+    const a=b.dataset.onb;
+    if(a==="days"){ OB.days=+b.dataset.v; showWizard(); return; }
+    if(a==="goal"){ OB.goal=b.dataset.v; showWizard(); return; }
+    if(a==="empty"){ host.onclick=null; startDays(1, ""); return; }
+    if(a==="wnext"){
+      if(OB.step<3){ OB.step++; showWizard(); return; }
+      host.onclick=null; if(OB.goal) state.goal=OB.goal; startDays(OB.days, OB.first.trim());
+    }
+  };
+}
+
+// Semana vacía: n días sin ejercicios, el primero con el nombre que eligió.
+function startDays(n, first){
+  const uid=()=>Math.random().toString(36).slice(2,9);
+  state.days=Array.from({length:Math.max(1,n)}, (_,i)=>({ id:uid(), name: i===0 ? (first||"Día 1") : "Día "+(i+1), subtitle:"", exercises:[] }));
+  State.activeId=state.days[0].id; State.view="entreno";
+  save(); close(); renderApp();
+}
+
+function showSex(){
+  const host=mount(
+    '<h1 class="onb-title">¿Para quién buscamos rutinas?</h1>'+
+    '<p class="onb-text">Así te mostramos las rutinas pensadas para vos.</p>'+
+    '<div class="onb-opts">'+
+      option("f", state.sex, "Mujer", "", "sex")+option("m", state.sex, "Hombre", "", "sex")+option("x", state.sex, "Prefiero no decir", "Te mostramos todas", "sex")+
+    '</div>'+
+    '<button type="button" class="onb-alt" data-onb="back">Volver</button>', "Rutinas");
+  if(!host) return;
+  host.onclick=e=>{
+    const b=e.target.closest("[data-onb]"); if(!b) return;
+    if(b.dataset.onb==="back"){ host.onclick=null; showStartChoice(); return; }
+    if(b.dataset.onb==="sex"){ state.sex=b.dataset.v; save(); host.onclick=null; showRoutines(false); }
+  };
+}
+
+// Lista de rutinas. fromApp: abierta desde Entreno (se puede cerrar y pide confirmar si ya
+// tiene ejercicios cargados); si no, es el último paso de la bienvenida.
+async function showRoutines(fromApp){
+  // Si en la base todavía no hay ninguna para esta opción, las de ejemplo de la app.
+  let list=rutinasPara(state.sex, await cargarCatalogo());
+  if(!list.length) list=rutinasPara(state.sex, CATALOGO);
+  const host=mount(
+    '<h1 class="onb-title">Elegí tu rutina</h1>'+
+    (list.length?'':'<p class="onb-text">Todavía no hay rutinas para esta opción.</p>')+
+    '<div class="onb-routines">'+list.map(r=>'<button type="button" class="onb-routine" data-onb="pick" data-v="'+esc(r.id)+'"><b>'+esc(r.nombre)+'</b><small>'+diasDeEntreno(r)+' días'+(r.desc?' · '+esc(r.desc):'')+'</small></button>').join("")+'</div>'+
+    '<button type="button" class="onb-alt" data-onb="sexagain">Cambiar: '+(state.sex==="f"?"Mujer":state.sex==="m"?"Hombre":"Todas")+'</button>'+
+    (fromApp?'<button type="button" class="onb-alt" data-onb="cancel">Cancelar</button>':'<button type="button" class="onb-alt" data-onb="empty">Prefiero arrancar vacío</button>'), "Elegí tu rutina");
+  if(!host) return;
+  host.onclick=e=>{
+    const b=e.target.closest("[data-onb]"); if(!b) return;
+    const a=b.dataset.onb;
+    if(a==="cancel"){ host.onclick=null; closeOverlay(); return; }
+    if(a==="empty"){ host.onclick=null; startDays(1, ""); return; }
+    if(a==="sexagain"){ host.onclick=null; if(fromApp) showSexFromApp(); else showSex(); return; }
+    if(a==="pick"){
+      const r=list.find(x=>x.id===b.dataset.v); if(!r) return;
+      const hasWork=(state.days||[]).some(d=>(d.exercises||[]).length);
+      if(fromApp && hasWork && !confirm("Esto reemplaza tus días de rutina por «"+r.nombre+"». No toca tus pesos, entrenos ni hábitos. ¿Seguro?")) return;
+      host.onclick=null;
+      state.days=copiarDias(r.days); State.activeId=state.days[0].id; State.view="entreno";
+      save(); if(fromApp) closeOverlay(); else close(); renderApp();
+    }
+  };
+}
+
+function showSexFromApp(){
+  const host=mount(
+    '<h1 class="onb-title">¿Para quién buscamos rutinas?</h1>'+
+    '<div class="onb-opts">'+option("f", state.sex, "Mujer", "", "sex")+option("m", state.sex, "Hombre", "", "sex")+option("x", state.sex, "Prefiero no decir", "Te mostramos todas", "sex")+'</div>'+
+    '<button type="button" class="onb-alt" data-onb="cancel">Cancelar</button>', "Rutinas");
+  if(!host) return;
+  host.onclick=e=>{
+    const b=e.target.closest("[data-onb]"); if(!b) return;
+    if(b.dataset.onb==="cancel"){ host.onclick=null; closeOverlay(); return; }
+    if(b.dataset.onb==="sex"){ state.sex=b.dataset.v; save(); host.onclick=null; showRoutines(true); }
+  };
+}
+
+// Cierra la ventana sin marcar la bienvenida (se abrió desde la app).
+function closeOverlay(){
+  const h=document.getElementById("authHost"); if(h){ h.style.display="none"; h.innerHTML=""; }
+  showSilkBg();
+}
+
+// Desde Entreno: "Ver rutinas armadas".
+export function openRoutinePicker(){
+  if(!state.sex) showSexFromApp(); else showRoutines(true);
 }
