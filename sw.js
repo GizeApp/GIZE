@@ -53,7 +53,7 @@ self.addEventListener("fetch", e => {
   );
 });
 
-// ---- Notificaciones push (mensajes del coach) ----
+// ---- Notificaciones push (mensajes del chat coach ↔ alumno) ----
 // Las manda supabase/functions/notificar-cliente con { title, body, tag, url }.
 // Se muestran aunque la app esté cerrada, con el ícono de GIZE.
 self.addEventListener("push", e => {
@@ -80,7 +80,14 @@ self.addEventListener("notificationclick", e => {
   // Solo páginas de GIZE: una notificación nunca abre un sitio de afuera.
   if (new URL(target).origin !== self.location.origin) target = new URL("./app/", self.registration.scope).href;
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
-    for (const c of list) { if (c.url.startsWith(target) && "focus" in c) return c.focus(); }
+    // Con la app ya abierta se trae al frente; si el aviso es del chat, se le pide que lo abra.
+    const t = new URL(target), base = t.origin + t.pathname, chat = t.searchParams.get("chat");
+    for (const c of list) {
+      if (c.url.split(/[?#]/)[0].startsWith(base) && "focus" in c) {
+        if (chat) c.postMessage({ type: "open-chat", client: chat });
+        return c.focus();
+      }
+    }
     return self.clients.openWindow ? self.clients.openWindow(target) : null;
   }));
 });
