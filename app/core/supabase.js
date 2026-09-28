@@ -907,7 +907,8 @@ export async function cloudDeletePhoto(id, path){
   }catch(e){ console.error("deletePhoto",e); return false; }
 }
 
-// Borra todos los archivos del usuario en Storage (fotos de check-in y de perfil). Se usa
+// Borra todos los archivos del usuario en Storage (fotos de check-in, de perfil y de los
+// productos que cargó o pidió, ver supabase/pedidos-productos.sql). Se usa
 // antes de eliminar la cuenta: delete_own_account borra auth.users y con eso las filas en
 // cascada, pero los archivos NO (Supabase no deja borrar storage.objects por SQL: trigger
 // protect_objects_delete), así que las fotos quedaban para siempre sin dueño.
@@ -915,7 +916,7 @@ export async function cloudDeletePhoto(id, path){
 export async function deleteMyStorageFiles(){
   if(!State.sb||!State.cloudUser) return;
   const uid=State.cloudUser.id;
-  for(const bucket of ["checkins","avatars"]){
+  for(const bucket of ["checkins","avatars","productos"]){
     const st=State.sb.storage.from(bucket);
     // Primero se listan todas (list() devuelve de a 1000 como máximo) y después se borran:
     // borrar mientras se pagina corre el offset y se saltearía archivos.

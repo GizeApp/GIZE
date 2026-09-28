@@ -9,7 +9,7 @@ const REPO = "GizeApp/gize";
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "implicit", detectSessionInUrl: true } });
 
 const $root = document.getElementById("root");
-const S = { user: null, view: "resumen", overview: null, users: null, q: "", coaches: null, fin: null, dolar: null, prodTab: "pendientes", prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false };
+const S = { user: null, view: "resumen", overview: null, users: null, q: "", coaches: null, fin: null, dolar: null, prodTab: "pedidos", reqKind: "pendientes", reqs: null, prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false };
 const SECTIONS = [["resumen", "Resumen"], ["contacto", "Mensajes"], ["usuarios", "Usuarios"], ["coaches", "Coaches y pagos"], ["finanzas", "Finanzas"], ["productos", "Productos"], ["avisos", "Avisos"], ["seguridad", "Seguridad y sistema"]];
 
 // ---------- utilidades ----------
@@ -78,6 +78,8 @@ function go(view){
 const main = () => document.getElementById("main");
 function page(title, lead, body){ main().innerHTML = `<div class="h1">${title}</div><div class="lead">${lead}</div>${body}`; }
 function setPend(n){ const i = document.getElementById("navPend"); if (i){ i.hidden = !n; i.textContent = n; } }
+// Globito de Productos: lo que falta revisar de la base más los pedidos de la gente.
+async function pendTotal(o){ let r = 0; try { r = num(await rpc("admin_requests_pending")); } catch (e) {} setPend(num(o && o.pending) + r); }
 // Mensajes de contacto sin leer: número en el menú y en la pestaña del navegador.
 function setUnread(n){
   S.unread = n || 0;
@@ -126,7 +128,7 @@ document.addEventListener("pointermove", e => {
 async function loadResumen(){
   page("Resumen", "Cómo viene GIZE: usuarios, uso y suscripciones.", '<div class="empty">Cargando…</div>');
   try { S.overview = await rpc("admin_overview"); } catch (e) { return page("Resumen", "", `<div class="empty">${esc(errMsg(e))}</div>`); }
-  const o = S.overview; setPend(o.pending);
+  const o = S.overview; pendTotal(o);
   const k = (v, l, sub, hi) => `<div class="kpi${hi ? " hi" : ""}"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
   const versions = (o.versions || []).map(v => `<tr><td>${esc(v.platform === "android" ? "Android" : v.platform === "ios" ? "iPhone" : v.platform === "web" ? "Web" : v.platform)}</td><td>${esc(v.version)}</td><td>${n0(v.n)}</td></tr>`).join("");
   page("Resumen", "Cómo viene GIZE: usuarios, uso y suscripciones.", `
@@ -619,14 +621,16 @@ async function sendReply(btn){
 // Pendientes / reportados / ocultos: lo que falta revisar. «Toda la base»: buscar cualquier
 // producto (nombre, marca o código), editarlo, ocultarlo o borrarlo. «+ Agregar producto»:
 // cargar uno nuevo, que queda de GIZE y verificado (supabase/productos-admin.sql).
-const PTABS = [["pendientes", "Pendientes"], ["reportados", "Reportados"], ["ocultos", "Ocultos"], ["todos", "Toda la base"]];
+const PTABS = [["pedidos", "Pedidos"], ["pendientes", "Pendientes"], ["reportados", "Reportados"], ["ocultos", "Ocultos"], ["todos", "Toda la base"]];
+const prodTop = () => `<div class="prod-top"><div class="seg">${PTABS.map(([k, l]) => `<button class="${S.prodTab === k ? "on" : ""}" data-a="ptab" data-v="${k}">${l}</button>`).join("")}</div>
+      <button class="btn pri" data-a="padd">+ Agregar producto</button></div>
+    <div id="pAdd"></div>`;
 async function loadProductos(){
+  if (S.prodTab === "pedidos") return loadPedidos();
   const all = S.prodTab === "todos";
   page("Productos", all ? "Toda la base compartida: buscá un producto para corregirlo, ocultarlo o borrarlo, o agregá uno nuevo. Valores cada 100 g o ml."
       : "Base compartida: lo que cargan los usuarios al escanear. Compará con la foto de la tabla, corregí y verificá.", `
-    <div class="prod-top"><div class="seg">${PTABS.map(([k, l]) => `<button class="${S.prodTab === k ? "on" : ""}" data-a="ptab" data-v="${k}">${l}</button>`).join("")}</div>
-      <button class="btn pri" data-a="padd">+ Agregar producto</button></div>
-    <div id="pAdd"></div>
+    ${prodTop()}
     ${all ? `<div class="prod-q"><input class="in" id="pQ" type="search" placeholder="Buscar por nombre, marca o código de barras" value="${esc(S.prodQ || "")}" autocomplete="off"><button class="btn" data-a="pfind">Buscar</button></div>` : ""}
     <div id="pList" class="empty">Cargando…</div>`);
   if (S.prodAdding) paintAdd();
@@ -636,7 +640,7 @@ async function loadProductos(){
   paintProds();
   const paths = S.prods.map(p => p.photo_path).filter(x => x && !S.urls[x]);
   if (paths.length){ try { const r = await sb.storage.from("productos").createSignedUrls(paths, 3600); (r.data || []).forEach(x => { if (x.signedUrl) S.urls[x.path] = x.signedUrl; }); } catch (e) {} paintProds(); }
-  try { const o = await rpc("admin_overview"); setPend(o.pending); } catch (e) {}
+  try { pendTotal(await rpc("admin_overview")); } catch (e) {}
 }
 const SRC = { off: "Open Food Facts", gize: "GIZE", user: "cargado por un usuario" };
 function paintProds(){
@@ -693,6 +697,74 @@ async function deleteProd(btn){
   try { await rpc("admin_product_delete", { pid: p.id }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   S.prods = S.prods.filter(x => x.id !== p.id); paintProds(); toast("Producto borrado");
 }
+// Pedidos (supabase/pedidos-productos.sql): productos que la gente no encontró. Mandan la foto
+// de la tabla (y la del frente), el nombre y la marca; acá se cargan los valores y se publica
+// (queda de GIZE y verificado). A quien lo pidió la app le avisa al entrar.
+async function loadPedidos(){
+  const pend = S.reqKind !== "resueltos";
+  page("Productos", "Pedidos de la gente: productos que no encontraron. Mirá la foto de la tabla, cargá los valores cada 100 g (o 100 ml) y publicalo. Queda verificado para todos y a quien lo pidió le avisamos.", `
+    ${prodTop()}
+    <div class="seg" style="margin-bottom:12px">${[["pendientes", "Por cargar"], ["resueltos", "Resueltos"]].map(([k, l]) => `<button class="${(pend ? "pendientes" : "resueltos") === k ? "on" : ""}" data-a="rqKind" data-v="${k}">${l}</button>`).join("")}</div>
+    <div id="pList" class="empty">Cargando…</div>`);
+  if (S.prodAdding) paintAdd();
+  const box = document.getElementById("pList");
+  try { S.reqs = await rpc("admin_requests", { kind: pend ? "pendientes" : "resueltos" }); } catch (e) { box.textContent = errMsg(e); return; }
+  paintReqs();
+  const paths = [].concat(...S.reqs.map(r => [r.label_path, r.front_path])).filter(x => x && !S.urls[x]);
+  if (paths.length){ try { const r = await sb.storage.from("productos").createSignedUrls(paths, 3600); (r.data || []).forEach(x => { if (x.signedUrl) S.urls[x.path] = x.signedUrl; }); } catch (e) {} paintReqs(); }
+  try { pendTotal(await rpc("admin_overview")); } catch (e) {}
+}
+function paintReqs(){
+  const box = document.getElementById("pList"); if (!box || S.prodTab !== "pedidos") return;
+  const pend = S.reqKind !== "resueltos";
+  if (!S.reqs.length){ box.className = "empty"; box.textContent = pend ? "No hay pedidos para cargar." : "Todavía no hay pedidos resueltos."; return; }
+  box.className = "grid";
+  const ph = (path, alt) => !path ? "" : S.urls[path] ? `<button class="prod-ph" data-a="zoom" data-url="${esc(S.urls[path])}"><img src="${esc(S.urls[path])}" alt="${alt}"></button>` : `<div class="prod-ph none">Cargando foto…</div>`;
+  const inp = (k, v, l, w, im) => `<label class="${w || ""}">${l}<input data-k="${k}" value="${esc(v == null ? "" : v)}"${im ? ` inputmode="${im}"` : ""}></label>`;
+  box.innerHTML = S.reqs.map(r => {
+    const who = `<span class="muted small">· pidió ${esc(r.user_name || r.user_email || "una cuenta borrada")} · ${fmtD(r.created_at)}</span>`;
+    const phs = `<div class="rq-phs">${ph(r.label_path, "Tabla nutricional")}${ph(r.front_path, "Frente del paquete")}</div>`;
+    if (!pend) return `<div class="card"><div class="prod">${phs}<div>
+      <b>${esc(r.name)}</b>${r.brand ? " · " + esc(r.brand) : ""} ${who}
+      <div style="margin-top:6px">${r.status === "cargado" ? '<span class="ptag ok">✓ Publicado</span>' : '<span class="ptag off">Rechazado</span>'} <span class="muted small">${fmtD(r.done_at)}</span></div>
+      ${r.note ? `<div class="muted small" style="margin-top:4px">Motivo: ${esc(r.note)}</div>` : ""}</div></div></div>`;
+    return `<div class="card" data-req="${esc(r.id)}"><div class="prod">${phs}<div>
+      <b>${esc(r.name)}</b>${r.brand ? " · " + esc(r.brand) : ""} ${who}
+      ${r.existing_id ? `<div class="small" style="color:var(--warn);margin-top:4px">Ya hay un producto con este código: «${esc(r.existing_name)}». Al publicar se corrige ese y queda verificado.</div>` : ""}
+      <div class="muted small" style="margin-top:4px">Valores cada 100 g (o 100 ml si es líquido), como en la tabla. Si la tabla es por porción, dividí por la porción y multiplicá por 100.</div>
+      <div class="pgrid">${inp("name", r.name, "Nombre", "wide")}${inp("brand", r.brand, "Marca", "wide")}${inp("kcal", "", "Kcal", "", "decimal")}${inp("protein", "", "Proteína", "", "decimal")}${inp("carbs", "", "Carbos", "", "decimal")}${inp("fat", "", "Grasas", "", "decimal")}
+        ${inp("code", r.code, "Código de barras (opcional)", "wide", "numeric")}${inp("portion", "", "Porción (opcional)", "", "decimal")}
+        <label>Unidad<select data-k="unit"><option value="g">g (sólido)</option><option value="ml">ml (líquido)</option></select></label></div>
+      <div class="row-btns"><button class="btn bad" data-a="rqReject">Rechazar</button><button class="btn pri" data-a="rqPublish">Publicar producto</button></div>
+    </div></div></div>`;
+  }).join("");
+}
+async function publishReq(btn){
+  const c = btn.closest("[data-req]"), r = S.reqs.find(x => String(x.id) === c.dataset.req); if (!r) return;
+  const row = prodValues(c); if (!row) return;
+  const kcal = c.querySelector('[data-k="kcal"]').value.trim();
+  if (!kcal) return toast("Cargá al menos las calorías.");
+  const code = c.querySelector('[data-k="code"]').value.replace(/\s/g, ""), portion = num(c.querySelector('[data-k="portion"]').value);
+  if (code && !/^[0-9]{6,14}$/.test(code)) return toast("El código de barras tiene que ser de 6 a 14 números (o dejalo vacío).");
+  if (portion && (portion < 1 || portion > 2000)) return toast("La porción tiene que ser entre 1 y 2000.");
+  const calc = row.p_protein * 4 + row.p_carbs * 4 + row.p_fat * 9;
+  if (Math.abs(row.p_kcal - calc) > Math.max(30, calc * 0.25) && !confirm("Las calorías (" + row.p_kcal + ") no coinciden con los macros (darían unas " + Math.round(calc) + "). ¿Publicar igual?")) return;
+  btn.disabled = true;
+  try { await rpc("admin_request_publish", Object.assign({ rid: r.id, p_code: code || null, p_unit: c.querySelector('[data-k="unit"]').value, p_portion: portion || null }, row)); }
+  catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  S.reqs = S.reqs.filter(x => x.id !== r.id); paintReqs(); toast("Publicado ✓ Le avisamos a quien lo pidió.");
+  try { pendTotal(await rpc("admin_overview")); } catch (e) {}
+}
+async function rejectReq(btn){
+  const c = btn.closest("[data-req]"), r = S.reqs.find(x => String(x.id) === c.dataset.req); if (!r) return;
+  const why = prompt("¿Por qué lo rechazás? Se lo mostramos a quien lo pidió (ej: la foto de la tabla no se lee, falta la tabla).", "La foto de la tabla no se lee bien");
+  if (why === null) return;
+  btn.disabled = true;
+  try { await rpc("admin_request_reject", { rid: r.id, p_note: why.trim() }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  S.reqs = S.reqs.filter(x => x.id !== r.id); paintReqs(); toast("Pedido rechazado");
+  try { pendTotal(await rpc("admin_overview")); } catch (e) {}
+}
+
 // «+ Agregar producto»: formulario arriba de la lista.
 function paintAdd(){
   const box = document.getElementById("pAdd"); if (!box) return;
@@ -779,7 +851,7 @@ async function loadSeguridad(){
   const what = a => ({ rol: "Cambió el rol a " + ((a.detail || {}).role === "coach" ? "coach" : "alumno"), desvincular: "Desvinculó de su coach", admin_si: "Hizo administrador", admin_no: "Quitó administrador",
     plan: ({ cortesia: "Dio cortesía", trial: "Extendió la prueba", sin_cortesia: "Quitó la cortesía", pago_manual: "Cargó un pago", prueba_hasta: "Cambió la prueba", cortar_pago: "Cortó el pago" }[(a.detail || {}).mode] || "Cambió el plan"), config: "Cambió el cartel de actualización",
     aviso: "Mandó una notificación a " + (a.target || ""), eliminar: "Eliminó la cuenta",
-    contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto", producto_nuevo: "Agregó un producto", producto_borrar: "Borró un producto",
+    contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", pedido_publicado: "Publicó un producto pedido", pedido_rechazado: "Rechazó un pedido de producto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto", producto_nuevo: "Agregó un producto", producto_borrar: "Borró un producto",
     fin_gasto_nuevo: "Agregó un gasto", fin_gasto: "Cambió un gasto", fin_gasto_borrar: "Borró un gasto", fin_ajustes: "Cambió los ajustes de finanzas",
     fin_pendiente_nuevo: "Agregó un pendiente", fin_pendiente_hecho: "Marcó un pendiente como hecho", fin_pendiente_deshacer: "Volvió a abrir un pendiente", fin_pendiente_borrar: "Borró un pendiente" }[a.action] || a.action);
   const extra = a => a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : (a.target_name || "");
@@ -851,6 +923,9 @@ document.addEventListener("click", async e => {
     if (a === "msend"){ sendReply(b); return; }
     if (a === "usort"){ const k = b.dataset.k, so = S.uSort; S.uSort = { k, dir: so && so.k === k && so.dir === "asc" ? "desc" : "asc" }; paintUsers(); return; }
     if (a === "ptab"){ S.prodTab = b.dataset.v; loadProductos(); return; }
+    if (a === "rqKind"){ S.reqKind = b.dataset.v; loadPedidos(); return; }
+    if (a === "rqPublish"){ publishReq(b); return; }
+    if (a === "rqReject"){ rejectReq(b); return; }
     if (a === "psave"){ saveProd(b); return; }
     if (a === "pdel"){ deleteProd(b); return; }
     if (a === "pfind"){ const q = document.getElementById("pQ"); S.prodQ = q ? q.value.trim() : ""; loadProductos(); return; }
