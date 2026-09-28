@@ -1593,6 +1593,7 @@ function paintChatBtn(){
   b.hidden=!show;
   const n=show && State.cloudUser ? (ChatUnread.map[State.cloudUser.id]||0) : 0;
   const bd=b.querySelector(".chat-badge"); if(bd){ bd.hidden=!n; bd.textContent=n>9?"9+":String(n); }
+  b.classList.toggle("unread", n>0);
   b.setAttribute("aria-label", n ? "Chat con tu coach: "+n+" sin leer" : "Chat con tu coach");
 }
 ChatUnread.onChange=()=>{ paintChatBtn(); if(isCoach()) renderCoach(); };
