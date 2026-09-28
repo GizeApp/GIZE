@@ -41,8 +41,21 @@ export function renderSheet(){
         <button class="ctrl ghost" data-action="portion-cancel">Cancelar</button>
         <button class="ctrl primary" data-action="${isEdit?'portion-save':'portion-add'}">${isEdit?'Guardar':'Agregar'}</button>
       </div>
-      ${sf && sf.src==="GIZE" && sf.gid ? `<div class="sheet-src">${sf.verified?'<b>✓ Verificado por GIZE</b>':'Cargado por la comunidad de GIZE'} · <button class="sheet-report" data-action="prod-report">¿Algún dato está mal?</button></div>` : ""}
+      ${sheetSource(sf)}
     </div>`;
+}
+
+// De dónde salen los datos del producto. Los que vienen de Open Food Facts (directo o
+// guardados en la base de GIZE) llevan el crédito con link: lo pide su licencia (ODbL).
+function sheetSource(sf){
+  if(!sf) return "";
+  const fromOff = sf.src==="OFF" || sf.off;
+  const off = fromOff ? 'Datos de <a href="https://world.openfoodfacts.org' + (sf.code ? '/product/' + encodeURIComponent(sf.code) : '') + '" target="_blank" rel="noopener">Open Food Facts</a> (ODbL)' : "";
+  if(sf.src==="GIZE" && sf.gid){
+    const who = sf.verified ? '<b>✓ Verificado por GIZE</b>' : (fromOff ? off : 'Cargado por la comunidad de GIZE');
+    return `<div class="sheet-src">${who}${sf.verified && fromOff ? ' · ' + off : ''} · <button class="sheet-report" data-action="prod-report">¿Algún dato está mal?</button></div>`;
+  }
+  return fromOff ? `<div class="sheet-src">${off}</div>` : "";
 }
 
 // "2 unidades de 120 g" según los gramos escritos (si no es un número exacto de unidades,

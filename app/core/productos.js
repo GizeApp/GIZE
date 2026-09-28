@@ -14,7 +14,7 @@ export function rowToFood(r){
   const name = brand && String(r.name).toLowerCase().indexOf(brand.toLowerCase()) < 0 ? r.name + " · " + brand : r.name;
   return { name, kcal: Math.round(Number(r.kcal) || 0), p: n1(r.protein), c: n1(r.carbs), f: n1(r.fat),
     portion: Number(r.portion) > 0 ? Math.round(Number(r.portion)) : 100, unit: r.unit === "ml" ? "ml" : "g",
-    src: "GIZE", gid: r.id, code: r.code || "", verified: !!r.verified };
+    src: "GIZE", gid: r.id, code: r.code || "", verified: !!r.verified, off: r.source === "off" };
 }
 
 // Formas equivalentes de una misma palabra en los nombres de los productos.

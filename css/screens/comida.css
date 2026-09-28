@@ -309,6 +309,7 @@ button.search-open { flex: 1; background: var(--card-2); border: 1px solid var(-
 .cf-code span { display: block; margin-top: 4px; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.4; }
 .sheet-src { margin-top: 12px; text-align: center; font-size: 11.5px; color: var(--txt-2); }
 .sheet-src b { color: var(--gize-success); font-weight: 700; }
+.sheet-src a { color: var(--gize-blue); text-decoration: underline; }
 .sheet-report { background: none; border: 0; padding: 0; color: var(--gize-blue); font: 600 11.5px var(--gize-font); text-decoration: underline; cursor: pointer; }
 
 /* Foto de la tabla al cargar un producto */
