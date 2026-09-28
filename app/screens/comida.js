@@ -165,7 +165,9 @@ export function renderResults(q){
   const all = (state.foods||[]).concat(state.offRecent||[], FOODS);
   const own = new Set(state.foods||[]);
   // "pan integral bimbo" también encuentra "Pan integral · Bimbo" (la marca va después del ·).
-  lastResults = all.filter(f=>{ const n=norm(shortName(f.name)); return n.includes(nq) || n.replace(/\s*·\s*/g," ").includes(nq); }).slice(0,60);
+  // Sin cortar acá: se ordena todo (genéricos primero) y después se muestran los primeros 60.
+  // Cortar antes dejaba afuera "Té" al buscar "te", o todos los genéricos a quien usó muchas marcas.
+  lastResults = all.filter(f=>{ const n=norm(shortName(f.name)); return n.includes(nq) || n.replace(/\s*·\s*/g," ").includes(nq); });
   offResults = brandResults(); // los de marca (base compartida y Open Food Facts), cuando llegan
   // Primero los genéricos (Pan integral) y después los de marca (Pan integral · Fargo); cada
   // grupo, de lo más parecido a lo buscado a lo menos.
@@ -533,9 +535,13 @@ export function cookPortion(food, st){
 }
 
 // Alimento de la base que corresponde a lo anotado (para editar con sus unidades).
-let _byName = null;
+// Se rearma cuando cambian los alimentos propios o los de marca usados (si no, los nuevos de
+// la sesión no se encontraban y al editarlos no salían los botones de unidades).
+let _byName = null, _byNameKey = "";
 export function foodByName(name){
-  if(!_byName){ _byName = new Map(); (state.foods||[]).concat(state.offRecent||[], FOODS).forEach(f=>{ if(f && f.name && !_byName.has(f.name)) _byName.set(f.name, f); }); }
+  const fo = state.foods||[], of = state.offRecent||[];
+  const key = fo.length + "/" + of.length + "/" + (fo.length ? fo[fo.length-1].name : "") + "/" + (of.length ? of[0].name : "");
+  if(!_byName || key !== _byNameKey){ _byNameKey = key; _byName = new Map(); (state.foods||[]).concat(state.offRecent||[], FOODS).forEach(f=>{ if(f && f.name && !_byName.has(f.name)) _byName.set(f.name, f); }); }
   return _byName.get(String(name||"").replace(/ \((crudo|cocido)\)$/, "")) || null;
 }
 export function entryCookState(name){ const m = String(name||"").match(/ \((crudo|cocido)\)$/); return m ? m[1] : null; }
