@@ -269,7 +269,7 @@ document.body.addEventListener("click", async function (e) {
     if (saludBtn.disabled) return;
     saludBtn.disabled = true;
     if (saludBtn.classList.contains("on")) {
-      disableSalud();
+      alert(disableSalud());
     } else {
       const err = await enableSalud();
       if (err && err !== "__silent") alert(err);

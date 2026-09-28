@@ -10,8 +10,11 @@ export const mmss = s => { s = Math.max(0, Math.round(s || 0)); return Math.floo
 
 function pickMime(){
   if(!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
-  // Primero mp4 (AAC): se escucha en iPhone y en Android. Si no, webm/opus.
-  for(const t of ["audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"]){
+  // Primero mp4 con AAC: se escucha en iPhone y en Android. Si el equipo no graba AAC, webm
+  // con opus (en iPhone viejos no se escucha, pero es lo único que graba ese equipo). El
+  // "audio/mp4" a secas va después: en Chrome/Android es mp4 con opus adentro, que el
+  // iPhone no reproduce; en iPhone (sin webm hasta iOS 18.4) es AAC.
+  for(const t of ["audio/mp4;codecs=mp4a.40.2", "audio/webm;codecs=opus", "audio/mp4", "audio/webm", "audio/ogg;codecs=opus"]){
     if(MediaRecorder.isTypeSupported(t)) return t;
   }
   return "";
@@ -56,6 +59,9 @@ export async function startRecorder(o){
     try{ if(mr.state !== "inactive") mr.stop(); else stream.getTracks().forEach(t => t.stop()); }catch(e){}
   };
   mr.start(1000);
+  _active.add(rec);
+  const _end = rec.stop;
+  rec.stop = cancel => { _active.delete(rec); _end(cancel); };
   rec.timer = setInterval(() => {
     const s = (Date.now() - rec.t0) / 1000;
     if(o.onTick) o.onTick(s);
@@ -63,6 +69,20 @@ export async function startRecorder(o){
   }, 250);
   return rec;
 }
+
+// Si la app pasa a segundo plano mientras graba, Android corta el micrófono (y el audio
+// quedaría mudo desde ahí): se descarta la grabación y se avisa al volver.
+const _active = new Set();
+let _cutWhileHidden = false;
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "hidden" && _active.size){
+    _active.forEach(r => r.stop(true));
+    _cutWhileHidden = true;
+  } else if(document.visibilityState === "visible" && _cutWhileHidden){
+    _cutWhileHidden = false;
+    setTimeout(() => alert("La grabación se cortó porque saliste de la app. Grabala de nuevo."), 300);
+  }
+});
 
 export async function uploadAudio(path, blob, type){
   const up = await State.sb.storage.from(AUDIO_BUCKET).upload(path, blob, { contentType: type, upsert: false }).catch(e => ({ error: e }));

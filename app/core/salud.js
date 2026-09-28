@@ -17,7 +17,8 @@ import { save } from './storage.js';
 import { today, uid, ymd } from './utils.js';
 import { queueSteps } from './supabase.js';
 
-const HC_PLAY = "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata";
+// Al instalarla desde acá, Play abre después la bienvenida de Health Connect.
+const HC_PLAY = "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata&url=healthconnect%3A%2F%2Fonboarding";
 const STEP_DAYS = 7, WEIGHT_DAYS = 30, MIN_GAP = 60 * 1000;
 
 export const SaludState = { busy: false, lastSync: 0, lastTry: 0, lastError: "", onChange: null };
@@ -53,13 +54,20 @@ function changed(){ if(SaludState.onChange) try{ SaludState.onChange(); }catch(e
 // Medianoche (hora del celular) de hace n días.
 function dayStart(n){ const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - n); return d; }
 
+// Fuente de un registro. Los pasos que cuenta el propio celular en Health Connect venían
+// como "android" y desde 2026 como "com.android.healthconnect.phone.<algo>": son la misma.
+function srcKey(s){
+  const id = String((s && (s.sourceId || s.sourceName)) || "?");
+  return (id === "android" || id.indexOf("com.android.healthconnect.phone") === 0) ? "celular" : id;
+}
+
 // Pasos por día: por cada fuente se suma lo del día y se queda la que más contó.
 export function stepsPerDay(samples){
   const bySrc = {};
   (samples || []).forEach(s => {
     const v = Number(s && s.value); if(!(v > 0)) return;
     const t = new Date(s.startDate); if(isNaN(t)) return;
-    const d = ymd(t), src = String(s.sourceId || s.sourceName || "?");
+    const d = ymd(t), src = srcKey(s);
     const k = d + "|" + src;
     bySrc[k] = (bySrc[k] || 0) + v;
   });
@@ -159,15 +167,24 @@ export async function enableSalud(){
   let av;
   try{ av = await H.isAvailable(); }catch(e){ av = { available: false, reason: (e && e.message) || "" }; }
   if(!av || !av.available){
-    if(platform() === "android"){
-      const upd = /update/i.test((av && av.reason) || "");
-      if(confirm((upd ? "Hay que actualizar Health Connect" : "Para traer tus pasos y tu peso necesitás Health Connect, la app de salud de Google") + ". ¿Abrir Play Store?")){
+    // Android 9 a 13 sin Health Connect (o con una versión vieja) da "needs an update": se
+    // ofrece instalarla. "Unavailable" es un celular que no la admite (Android 8, perfil de
+    // trabajo…): Play no sirve de nada.
+    if(platform() === "android" && /update/i.test((av && av.reason) || "")){
+      if(confirm("Para traer tus pasos y tu peso necesitás Health Connect, la app de salud de Google (o actualizarla si ya la tenés). ¿Abrir Play Store?")){
         try{ window.open(HC_PLAY, "_blank"); }catch(e){}
       }
       return "__silent";
     }
-    return "Este dispositivo no tiene " + name + ".";
+    return platform() === "android"
+      ? "Este celular no es compatible con Health Connect (necesita Android 9 o más nuevo)."
+      : "Este dispositivo no tiene " + name + ".";
   }
+  // Antes de pedir el permiso, qué se va a hacer con los datos (y quién los ve).
+  const coach = !!(State.cloudProfile && State.cloudProfile.coach_id);
+  if(!confirm("GIZE va a leer tus pasos y tu peso de " + name + " para cargarlos en tu registro" +
+      (coach ? ", y tu coach los va a ver como si los cargaras a mano" : "") +
+      ". Solo se leen: no se cambia nada en " + name + ". ¿Activar?")) return "__silent";
   try{
     const r = await H.requestAuthorization({ read: ["steps", "weight"], write: [] });
     // En Android se sabe qué permitió. En iPhone Apple nunca dice si dio permiso de lectura:
@@ -184,7 +201,13 @@ export async function enableSalud(){
   return "";
 }
 
-export function disableSalud(){ setOn(false); SaludState.lastSync = 0; changed(); }
+// Apagar deja de leer. El permiso se quita desde el sistema (la app no puede sacárselo sola).
+export function disableSalud(){
+  setOn(false); SaludState.lastSync = 0; changed();
+  return platform() === "ios"
+    ? "Listo, ya no se leen tus pasos ni tu peso. Si también querés quitarle el permiso a GIZE: app Salud → tu foto → Apps → GIZE."
+    : "Listo, ya no se leen tus pasos ni tu peso. Si también querés quitarle el permiso a GIZE: Health Connect → Permisos de apps → GIZE.";
+}
 
 // ¿Qué permisos quedaron? (para el texto de Ajustes; en iPhone no se puede saber).
 export async function saludPermisos(){
