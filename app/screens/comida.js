@@ -573,7 +573,7 @@ export function renderPlateSheet(){
   else {
     const rows = (P.items || []).map((it, i) => `<div class="pl8-row${it.on ? "" : " off"}">
         <button class="pl8-chk${it.on ? " on" : ""}" data-action="plate-toggle" data-i="${i}" aria-label="${it.on ? "Quitar" : "Incluir"} ${esc(it.name)}">${it.on ? "✓" : ""}</button>
-        <div class="pl8-main"><div class="pl8-name">${esc(it.name)}</div><div class="pl8-vals" id="pl8v${i}">${plateRowText(it)}</div></div>
+        <div class="pl8-main"><div class="pl8-name">${esc(it.name)}</div><div class="pl8-src${it.db ? " db" : ""}">${it.db ? "✓ Valores de la base GIZE" : "Valores estimados por la IA"}</div><div class="pl8-vals" id="pl8v${i}">${plateRowText(it)}</div></div>
         <label class="pl8-g"><input type="text" inputmode="decimal" value="${esc(String(it.g))}" data-action="plate-grams" data-i="${i}"><span>g</span></label>
       </div>`).join("");
     body = (P.items || []).length
@@ -581,7 +581,7 @@ export function renderPlateSheet(){
         <div class="pl8-list">${rows}</div>
         <div class="pl8-tot" id="pl8Tot">${plateTotalsText(P)}</div>
         ${P.nota ? `<div class="pl8-nota">${esc(P.nota)}</div>` : ""}
-        <div class="pl8-fine">Es una estimación: corregí los gramos si hace falta.</div>`
+        <div class="pl8-fine">Los gramos son una estimación de la foto: corregilos si hace falta.</div>`
       : `<div class="pl8-err">No encontramos comida en la foto.</div>`;
     body += `<div class="pl8-redo"><input class="form-input" type="text" placeholder="¿Qué es? (opcional, ej: milanesa con puré)" value="${esc(P.texto || "")}" data-action="plate-text"><button class="ctrl ghost" data-action="plate-redo">Recalcular</button></div>`
       + ((P.items || []).length ? `<button class="form-save" data-action="plate-add">Agregar al diario</button>` : "");
