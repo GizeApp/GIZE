@@ -37,6 +37,9 @@ export function mealChips(sel, action){
 
 export const ComidaState = {
 
+  // Foto de un plato analizada con IA (ver renderPlateSheet): {status, photoUrl, items, nota, msg, meal, texto}.
+  plate: null,
+
   // Comida a la que se agregan los alimentos (null = la de la hora, ver mealNow).
   meal: null,
 
@@ -289,7 +292,7 @@ function renderCoachGoal(){
 export function ocrStatus(o){
   if (!o) return "";
   if (o.status === "loading") return '<span class="cf-spin" aria-hidden="true"></span>' + esc(o.msg || "Leyendo la etiqueta…");
-  if (o.status === "error") return "No pudimos leer la foto. Probá de nuevo o cargá los valores a mano.";
+  if (o.status === "error") return esc(o.msg || "No pudimos leer la foto. Probá de nuevo o cargá los valores a mano.");
   if (o.status === "none") return "No encontramos la tabla en la foto. Sacala más de cerca, derecha y con buena luz, o cargá los valores a mano.";
   if (o.status === "portion") return "Leímos los valores por porción, pero no el tamaño de la porción: escribilo abajo y calculamos el resto.";
   if (o.status === "ok") return "✓ Completamos los valores con la foto. Revisá que coincidan con la etiqueta.";
@@ -345,6 +348,7 @@ export function renderSearchSheet(){
         <div class="cal-search search-wrap"><span class="search-ic">${searchSvg}</span><input id="foodSearch" type="text" placeholder="Buscar alimento o marca…" value="${esc(ComidaState.foodQuery)}" data-action="food-search" autocomplete="off" enterkeyhint="search"></div>
         <button class="scan-btn" data-action="scan-open" title="Escanear código de barras" aria-label="Escanear código de barras (beta)">${barcodeSvg}<span class="scan-beta" aria-hidden="true">BETA</span></button>
       </div>
+      <label class="ia-plate-btn">📷 Calcular un plato con una foto <span class="ia-tag">IA</span><input type="file" accept="image/*" data-action="plate-file" hidden></label>
       <div id="foodResults" class="ss-results">${renderResults(ComidaState.foodQuery)}</div>
       <button class="cal-create" data-action="food-create-open">+ Crear alimento propio</button>
     </div>`;
@@ -542,4 +546,51 @@ export function renderPlanScreen(){
     </div>
     ${tabs.length > 1 ? `<div class="plan-tabs" role="tablist">${tabs.map(t => `<button role="tab" aria-selected="${t[0]===tab}" class="plan-tab${t[0]===tab?' on':''}" data-action="plan-tab" data-v="${t[0]}">${t[1]}</button>`).join("")}</div>` : ''}
     <div class="mc-wrap plan-body">${body || '<div class="cal-hint">Tu coach todavía no cargó el detalle del plan.</div>'}</div>`;
+}
+
+
+// ---- Plato por foto (IA) ----
+// Cada alimento guarda sus valores cada 100 g: al cambiar los gramos se recalcula todo.
+export function plateItemVals(it){
+  const g = Math.max(0, Number(String(it.g).replace(",", ".")) || 0), k = g / 100;
+  return { g, kcal: Math.round(it.b.kcal * k), p: Math.round(it.b.p * k * 10) / 10, c: Math.round(it.b.c * k * 10) / 10, f: Math.round(it.b.f * k * 10) / 10 };
+}
+export function plateTotals(P){
+  const t = { kcal: 0, p: 0, c: 0, f: 0 };
+  (P.items || []).forEach(it => { if (!it.on) return; const v = plateItemVals(it); t.kcal += v.kcal; t.p += v.p; t.c += v.c; t.f += v.f; });
+  return t;
+}
+const r1 = v => (Math.round(v * 10) / 10).toString().replace(".", ",");
+export function plateTotalsText(P){ const t = plateTotals(P); return `<b>${Math.round(t.kcal)} kcal</b> · P ${r1(t.p)} · C ${r1(t.c)} · G ${r1(t.f)}`; }
+export function plateRowText(it){ const v = plateItemVals(it); return `${v.kcal} kcal · P ${r1(v.p)} · C ${r1(v.c)} · G ${r1(v.f)}`; }
+
+export function renderPlateSheet(){
+  const P = ComidaState.plate; if (!P) return "";
+  let body;
+  if (P.status === "loading") body = `<div class="pl8-wait"><span class="cf-spin" aria-hidden="true"></span>Analizando el plato con IA…</div>`;
+  else if (P.status === "error") body = `<div class="pl8-err">${esc(P.msg || "No se pudo analizar la foto.")}</div>
+      <label class="ia-plate-btn">📷 Probar con otra foto<input type="file" accept="image/*" data-action="plate-file" hidden></label>`;
+  else {
+    const rows = (P.items || []).map((it, i) => `<div class="pl8-row${it.on ? "" : " off"}">
+        <button class="pl8-chk${it.on ? " on" : ""}" data-action="plate-toggle" data-i="${i}" aria-label="${it.on ? "Quitar" : "Incluir"} ${esc(it.name)}">${it.on ? "✓" : ""}</button>
+        <div class="pl8-main"><div class="pl8-name">${esc(it.name)}</div><div class="pl8-vals" id="pl8v${i}">${plateRowText(it)}</div></div>
+        <label class="pl8-g"><input type="text" inputmode="decimal" value="${esc(String(it.g))}" data-action="plate-grams" data-i="${i}"><span>g</span></label>
+      </div>`).join("");
+    body = (P.items || []).length
+      ? `${mealChips(P.meal || mealNow(), "plate-meal")}
+        <div class="pl8-list">${rows}</div>
+        <div class="pl8-tot" id="pl8Tot">${plateTotalsText(P)}</div>
+        ${P.nota ? `<div class="pl8-nota">${esc(P.nota)}</div>` : ""}
+        <div class="pl8-fine">Es una estimación: corregí los gramos si hace falta.</div>`
+      : `<div class="pl8-err">No encontramos comida en la foto.</div>`;
+    body += `<div class="pl8-redo"><input class="form-input" type="text" placeholder="¿Qué es? (opcional, ej: milanesa con puré)" value="${esc(P.texto || "")}" data-action="plate-text"><button class="ctrl ghost" data-action="plate-redo">Recalcular</button></div>`
+      + ((P.items || []).length ? `<button class="form-save" data-action="plate-add">Agregar al diario</button>` : "");
+  }
+  return `
+    <div class="sheet-bg" data-action="plate-close"></div>
+    <div class="sheet plate-sheet" role="dialog" aria-label="Plato con IA">
+      <div class="ss-head"><span class="sheet-title">Tu plato <span class="ia-tag">IA</span></span><button class="ss-x" data-action="plate-close" aria-label="Cerrar">${xSvg}</button></div>
+      ${P.photoUrl ? `<img class="pl8-photo" src="${esc(P.photoUrl)}" alt="Foto del plato">` : ""}
+      ${body}
+    </div>`;
 }
