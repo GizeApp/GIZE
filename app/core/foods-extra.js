@@ -61,6 +61,7 @@ export const EXTRA_SECTIONS = [
   ["Matambre relleno (frío)", 210, 17, 3, 14, 100],
   ["Vitel toné", 230, 20, 2, 16, 150],
   ["Albóndigas con salsa", 170, 11, 8, 10, 200],
+  ["Albóndigas de carne (sin salsa)", 266, 18, 8, 18, 120],
   ["Estofado de carne", 120, 12, 6, 5, 300],
   ["Carne picada salteada con cebolla", 210, 17, 3, 14, 150],
 ]],
@@ -75,7 +76,7 @@ export const EXTRA_SECTIONS = [
   ["Cerdo a la riojana / al disco", 190, 16, 6, 11, 250],
 ]],
 ["Pollo y aves", [
-  ["Alitas de pollo", 190, 17.5, 0, 12.8, 150, {crudo:C_POLLO}],
+  ["Alitas / ala de pollo (con piel)", 190, 17.5, 0, 12.8, 150, {crudo:C_POLLO}],
   ["Pollo deshuesado / sin piel (mezcla)", 106, 20.3, 0, 2.7, 150, {crudo:C_POLLO, src:"S"}],
   ["Carne picada de pollo", 143, 17.4, 0, 8.1, 150, {crudo:C_POLLO}],
   ["Milanesa de pollo al horno", 210, 22, 13, 7.5, 150],
