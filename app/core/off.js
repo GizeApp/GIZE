@@ -88,7 +88,12 @@ export async function searchOFF(q, signal){
 export async function productByCode(code, signal){
   const c = String(code || "").replace(/\D/g, "");
   if (c.length < 6) return null;
-  const j = await getJSON(API + "/api/v2/product/" + c + ".json?fields=" + FIELDS, signal);
+  // Un código que no está en Open Food Facts responde 404 (con status 0): es "no lo tienen",
+  // no un error de conexión. Antes se avisaba "¿sin conexión?" en vez de ofrecer cargarlo.
+  const r = await fetch(API + "/api/v2/product/" + c + ".json?fields=" + FIELDS, { signal, headers: { "Accept": "application/json" } });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error("Open Food Facts respondió " + r.status);
+  const j = await r.json();
   if (!j || j.status !== 1 || !j.product) return null;
   return offToFood(Object.assign({ code: c }, j.product));
 }
