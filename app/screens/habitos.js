@@ -25,7 +25,15 @@ export const HabitosState = {
 export function checkDaily(){ const t=today(); let ch=false;
   if (state.habitsDate !== t) { state.habits.forEach(h=>h.done=false); state.habitsDate=t; ch=true; }
   if (state.diaryDate !== t) { logDayKcal(state.diaryDate, state.diary); state.diary=[]; state.diaryDate=t; ch=true; }
-  if (state.stepsDate !== t) { state.steps=0; state.stepsDate=t; ch=true; }
+  if (state.stepsDate !== t) {
+    // Pasos con que terminó cada día en este celular: la lectura de Health Connect / Salud
+    // (core/salud.js) no pisa un día que terminó con más pasos cargados a mano.
+    if (state.stepsDate && state.steps > 0) {
+      const lg = state.stepsLog = state.stepsLog || {}; lg[state.stepsDate] = state.steps;
+      Object.keys(lg).sort().slice(0, -60).forEach(k => delete lg[k]);
+    }
+    state.steps=0; state.stepsDate=t; ch=true;
+  }
   if (state.waterDate !== t) { state.water=0; state.waterDate=t; ch=true; }
   if (ch) save();
 }

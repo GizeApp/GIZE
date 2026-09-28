@@ -682,8 +682,11 @@ export async function loadCloud(){
     // (water_ml lo escribe siempre la app); si no, se conserva lo local y se sube.
     _lastDay=null;
     const todayRow=(!dl.error && Array.isArray(dl.data)) ? dl.data.find(r=>r.log_date===today()) : null;
-    // Racha: los días que la app abrió con esta cuenta (también desde otros celulares).
-    if(!dl.error && Array.isArray(dl.data)) mergeVisits(dl.data.map(r=>r.log_date));
+    // Racha: los días que la app abrió con esta cuenta (también desde otros celulares). Una
+    // fila con solo los pasos la crea la lectura de Health Connect / Salud (core/salud.js)
+    // para un día en que no se abrió la app: esa no cuenta.
+    const opened=r=>r.water_ml!=null || r.habits_done!=null || !!(r.comment||r.soreness||r.performance||r.motivation||r.hunger||r.fatigue||r.sleep||r.answers);
+    if(!dl.error && Array.isArray(dl.data)) mergeVisits(dl.data.filter(opened).map(r=>r.log_date));
     if(!fe.error && todayRow && todayRow.water_ml!=null){
       state.diaryDate=state.waterDate=state.stepsDate=state.habitsDate=today();
       state.water=todayRow.water_ml||0;
@@ -704,6 +707,7 @@ export async function loadCloud(){
   // nunca se subía y los cambios quedaban solo en el celular.
   if(!State.cloudReady) scheduleCloudRetry(); else _retryN=0;
   syncExtras();
+  window.dispatchEvent(new Event("gize:cloud")); // terminó de leer la nube (core/salud.js lee pasos y peso)
 }
 
 // ¿La rutina del celular le gana a la de la nube? Solo si cambió acá después de la última
@@ -1068,6 +1072,10 @@ async function sendItem(it){
     let del=sb.from("food_entries").delete().eq("client_id",uid).eq("log_date",p.dt);
     if(p.foods.length) del=del.not("id","in","("+p.foods.map(f=>f.id).join(",")+")");
     sbOk(await del);
+  } else if(it.k==="steps"){
+    // Pasos de un día anterior traídos de Health Connect / Salud (app/core/salud.js): solo
+    // esa columna, el resto del registro del día no se toca.
+    sbOk(await sb.from("daily_logs").upsert({client_id:uid, log_date:p.dt, steps:p.steps},{onConflict:"client_id,log_date"}));
   } else if(it.k==="weight"){
     // Solo esa fecha: otro dispositivo pudo cargar otras y no se tocan.
     if(p.del) sbOk(await sb.from("body_weights").delete().eq("client_id",uid).eq("measured_on",p.date));
@@ -1155,6 +1163,9 @@ function applyPending(){
       state.diary=p.foods.map(f=>({id:f.id, meal:f.meal||undefined, name:f.name, grams:f.grams, kcal:f.kcal, p:f.p, c:f.c, f:f.f, unit:f.unit, base:f.base||undefined}));
       applyHabitsDone(p.habits);
       _lastDay=JSON.stringify(p);
+    } else if(it.k==="steps"){
+      if(state.daily[p.dt]) state.daily[p.dt].steps=String(p.steps);
+      if(p.dt===today() && state.stepsDate===p.dt) state.steps=Math.max(state.steps||0, p.steps);
     } else if(it.k==="weight"){
       state.weights=(state.weights||[]).filter(w=>w.date!==p.date);
       if(!p.del){ state.weights.push({id:newId(), date:p.date, kg:p.kg}); state.weights.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0); }
@@ -1167,6 +1178,27 @@ function applyPending(){
 
 window.addEventListener("online", ()=>{ flushOutbox(); });
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") flushOutbox(); });
+
+// Pasos y peso traídos de Health Connect / Salud (app/core/salud.js). Van directo a la cola
+// (y no por la foto del día ni la comparación de pesos de syncExtras): así una lectura
+// automática no manda la foto del día que tenía este celular (podría pisar lo que se cargó
+// en otro) y lo importado no se pierde si loadCloud reemplaza el estado mientras tanto.
+export function queueSteps(dt, steps){
+  if(!State.cloudUser) return;
+  enqueue("steps", {dt:dt, steps:steps}, dt);
+  clearTimeout(_extrasTimer); _extrasTimer=setTimeout(()=>{ flushOutbox(); }, 1500);
+}
+export function queueWeight(date, kg){
+  if(!State.cloudUser) return;
+  enqueue("weight", {date:date, kg:kg}, date);
+  clearTimeout(_extrasTimer); _extrasTimer=setTimeout(()=>{ flushOutbox(); }, 1500);
+}
+// Los pasos de hoy ya van por queueSteps: que la foto del día no cuente ese cambio como
+// algo nuevo para mandar.
+export function noteStepsSynced(n){
+  if(!_lastDay) return;
+  try{ const d=JSON.parse(_lastDay); if(d && d.dt===today()){ d.steps=n; _lastDay=JSON.stringify(d); } }catch(e){}
+}
 
 // Las funciones cloud* devuelven true si quedó en la nube y false si quedó pendiente.
 export function cloudInsertSession(se){

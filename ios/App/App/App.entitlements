@@ -5,5 +5,10 @@
 	<!-- Notificaciones push. Al exportar para App Store / TestFlight, Xcode lo pasa a "production". -->
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- Salud de Apple: leer pasos y peso (app/core/salud.js). -->
+	<key>com.apple.developer.healthkit</key>
+	<true/>
+	<key>com.apple.developer.healthkit.access</key>
+	<array/>
 </dict>
 </plist>

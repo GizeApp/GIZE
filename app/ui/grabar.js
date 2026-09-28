@@ -6,12 +6,19 @@ import { State } from '../core/state.js';
 
 export const AUDIO_BUCKET = "chat-audio";
 
+function nativePlatform(){
+  try{ const C = window.Capacitor; return (C && C.isNativePlatform && C.isNativePlatform()) ? C.getPlatform() : ""; }catch(e){ return ""; }
+}
+
 export const mmss = s => { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
 
 function pickMime(){
   if(!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
-  // Primero mp4 (AAC): se escucha en iPhone y en Android. Si no, webm/opus.
-  for(const t of ["audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"]){
+  // Primero mp4 con AAC: se escucha en iPhone y en Android. Si el equipo no graba AAC, webm
+  // con opus (en iPhone viejos no se escucha, pero es lo único que graba ese equipo). El
+  // "audio/mp4" a secas va después: en Chrome/Android es mp4 con opus adentro, que el
+  // iPhone no reproduce; en iPhone (sin webm hasta iOS 18.4) es AAC.
+  for(const t of ["audio/mp4;codecs=mp4a.40.2", "audio/webm;codecs=opus", "audio/mp4", "audio/webm", "audio/ogg;codecs=opus"]){
     if(MediaRecorder.isTypeSupported(t)) return t;
   }
   return "";
@@ -27,12 +34,24 @@ export function newAudioName(){
 // onDone(blob, type, secs) solo se llama si no se canceló y el audio no está vacío.
 export async function startRecorder(o){
   const maxSecs = o.maxSecs || 120;
+  const nat = nativePlatform();
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
-    alert("Este navegador no permite grabar audio. Probá con Chrome o Safari actualizados."); return null;
+    alert(nat === "ios" ? "Para grabar audios, actualizá tu iPhone (iOS 14.3 o más nuevo)."
+      : nat === "android" ? "Este celular no permite grabar audio en la app."
+      : "Este navegador no permite grabar audio. Probá con Chrome o Safari actualizados.");
+    return null;
   }
   let stream;
   try{ stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch(e){ alert("Para grabar audios, permití el micrófono cuando te lo pida el celular (o en los ajustes del navegador)."); return null; }
+  catch(e){
+    // Si ya se negó el permiso, el celular no lo vuelve a pedir: hay que prenderlo a mano.
+    const denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
+    alert(!denied ? "No se pudo usar el micrófono. Probá de nuevo."
+      : nat === "android" ? "GIZE no tiene permiso para usar el micrófono. Prendelo en Ajustes del celular → Apps → GIZE → Permisos → Micrófono."
+      : nat === "ios" ? "GIZE no tiene permiso para usar el micrófono. Prendelo en Ajustes del iPhone → GIZE → Micrófono."
+      : "Para grabar audios, permití el micrófono (en los ajustes del navegador, junto a la dirección de la página).");
+    return null;
+  }
   if(o.stillWanted && !o.stillWanted()){ stream.getTracks().forEach(t => t.stop()); return null; }
   const mime = pickMime();
   let mr;
@@ -56,6 +75,9 @@ export async function startRecorder(o){
     try{ if(mr.state !== "inactive") mr.stop(); else stream.getTracks().forEach(t => t.stop()); }catch(e){}
   };
   mr.start(1000);
+  _active.add(rec);
+  const _end = rec.stop;
+  rec.stop = cancel => { _active.delete(rec); _end(cancel); };
   rec.timer = setInterval(() => {
     const s = (Date.now() - rec.t0) / 1000;
     if(o.onTick) o.onTick(s);
@@ -63,6 +85,21 @@ export async function startRecorder(o){
   }, 250);
   return rec;
 }
+
+// En la app del celular, si pasa a segundo plano mientras graba, el sistema corta el
+// micrófono (el audio quedaría mudo desde ahí): se descarta la grabación y se avisa al
+// volver. En la compu el navegador sigue grabando aunque se cambie de pestaña: no se toca.
+const _active = new Set();
+let _cutWhileHidden = false;
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "hidden" && _active.size && nativePlatform()){
+    _active.forEach(r => r.stop(true));
+    _cutWhileHidden = true;
+  } else if(document.visibilityState === "visible" && _cutWhileHidden){
+    _cutWhileHidden = false;
+    setTimeout(() => alert("La grabación se cortó porque saliste de la app. Grabala de nuevo."), 300);
+  }
+});
 
 export async function uploadAudio(path, blob, type){
   const up = await State.sb.storage.from(AUDIO_BUCKET).upload(path, blob, { contentType: type, upsert: false }).catch(e => ({ error: e }));

@@ -13,9 +13,11 @@ import { pushOnHere, enablePush, disablePush, isIOS, isStandalone } from '../cor
 import { renderApp } from '../main.js';
 import { adminEntry, checkAdmin } from './admin-productos.js';
 import { isLite, setLite } from '../ui/background.js';
+import { saludSupported, saludOn, saludName, enableSalud, disableSalud, lastSyncTime } from '../core/salud.js';
 import { bellSvg, fileTextSvg, instagramSvg, globeSvg, auIcoMail, whatsappSvg, chevronRightSvg, pencilSvg, checkSvg } from '../core/icons.js';
 
 const cameraSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+const heartSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/><path d="M3.5 12h4l2-3 3 6 2-3h6"/></svg>';
 const zapSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
 
 function cfgRoleLabel(p) { return (p && p.role === "coach") ? "Coach" : "Cliente"; }
@@ -135,6 +137,24 @@ export function renderConfig() {
       '</div>' +
     '</div>';
 
+  // Pasos y peso automáticos: solo en la app de Android / iPhone (core/salud.js).
+  let saludSection = '';
+  if (saludSupported() && !(profile && profile.role === "coach")) {
+    const on = saludOn(), last = on ? lastSyncTime() : null;
+    saludSection = '<div class="card cfg-card">' +
+      '<div class="cfg-notif-row">' +
+        '<span class="cfg-notif-ic">' + heartSvg + '</span>' +
+        '<div class="cfg-notif-txt">' +
+          '<div class="cfg-notif-label">Pasos y peso automáticos</div>' +
+          '<div class="cfg-notif-desc">' + (on
+            ? 'Se traen de ' + esc(saludName()) + (last ? ' · última vez ' + last.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : '')
+            : 'Traé tus pasos y tu peso de ' + esc(saludName()) + '. Solo se leen, no se cambia nada.') + '</div>' +
+        '</div>' +
+        '<button class="cfg-switch' + (on ? ' on' : '') + '" data-action="cfg-salud-toggle" role="switch" aria-checked="' + on + '"><span class="cfg-switch-knob"></span></button>' +
+      '</div>' +
+    '</div>';
+  }
+
   const legalSection = '<div class="card cfg-card">' +
       cfgLinkRow(fileTextSvg, "Términos y condiciones", LINKS.terms) +
     '</div>';
@@ -158,7 +178,7 @@ export function renderConfig() {
 
   checkAdmin(renderApp); // solo las cuentas administradoras ven «Revisar productos»
   return '<div class="hb-head"><div class="hb-title">Configuración</div><div class="title-accent"></div></div>' +
-    account + adminEntry() + coachSection + notifSection + liteSection + legalSection + contactSection + dangerSection + about;
+    account + adminEntry() + coachSection + notifSection + saludSection + liteSection + legalSection + contactSection + dangerSection + about;
 }
 
 document.body.addEventListener("keydown", function (e) {
@@ -240,6 +260,21 @@ document.body.addEventListener("click", async function (e) {
       if (err) alert(err);
     }
     notifBtn.disabled = false;
+    renderApp();
+    return;
+  }
+
+  const saludBtn = e.target.closest('[data-action="cfg-salud-toggle"]');
+  if (saludBtn) {
+    if (saludBtn.disabled) return;
+    saludBtn.disabled = true;
+    if (saludBtn.classList.contains("on")) {
+      alert(disableSalud());
+    } else {
+      const err = await enableSalud();
+      if (err && err !== "__silent") alert(err);
+    }
+    saludBtn.disabled = false;
     renderApp();
     return;
   }
