@@ -23,6 +23,7 @@
 
 import { EXTRA_SECTIONS } from './foods-extra.js';
 import { AR_SECTIONS } from './foods-ar.js';
+import { GEN_SECTIONS } from './foods-gen.js';
 
 const C_VAC = 0.72, C_POLLO = 0.73, C_PESC = 0.8, C_PAPA = 0.87;
 
@@ -95,7 +96,7 @@ export const FOOD_SECTIONS = [
   ["Tapa de cuadril (picaña)", 211, 20, 0, 15, 180, {crudo:C_VAC}],
   ["Paleta", 125, 19, 0, 5.5, 150, {crudo:C_VAC}],
   ["Bife de chorizo / bife angosto", 190, 21, 0, 12, 200, {crudo:C_VAC}],
-  ["Bife ancho (ojo de bife)", 230, 19, 0, 17, 200, {crudo:C_VAC}],
+  ["Bife ancho / entrecot (ojo de bife)", 230, 19, 0, 17, 200, {crudo:C_VAC}],
   ["Asado de tira", 250, 17.5, 0, 20, 200, {crudo:C_VAC}],
   ["Vacío", 171, 23.8, 0, 8.4, 200, {crudo:C_VAC}],
   ["Matambre", 220, 19, 0, 16, 150, {crudo:C_VAC}],
@@ -457,9 +458,9 @@ export const FOOD_SECTIONS = [
   ["Mate (cebado)", 5, 0.5, 1, 0, 200, {ml:true}],
   ["Licuado de banana con leche", 95, 3, 17, 2, 250, {ml:true}],
   ["Licuado de frutas con agua", 45, 0.5, 11, 0.2, 250, {ml:true}],
-  ["Leche de almendras", 17, 0.6, 0.6, 1.5, 200, {ml:true}],
+  ["Leche de almendras (bebida de almendras)", 17, 0.6, 0.6, 1.5, 200, {ml:true}],
   ["Leche de coco (bebida)", 31, 0.2, 3, 2, 200, {ml:true}],
-  ["Leche de avena", 45, 1, 7, 1.5, 200, {ml:true}],
+  ["Leche de avena (bebida de avena)", 45, 1, 7, 1.5, 200, {ml:true}],
   ["Bebida isotónica casera", 10, 0, 2.5, 0, 500, {ml:true}],
 ]],
 ["Bebidas con alcohol", [
@@ -534,7 +535,7 @@ export const FOOD_SECTIONS = [
 
 // Las ampliaciones (./foods-extra.js y las comidas típicas y de cadenas de ./foods-ar.js) se
 // suman a la categoría del mismo nombre o, si es nueva, se agregan al final.
-[...EXTRA_SECTIONS, ...AR_SECTIONS].forEach(([cat, rows]) => {
+[...EXTRA_SECTIONS, ...AR_SECTIONS, ...GEN_SECTIONS].forEach(([cat, rows]) => {
   const sec = FOOD_SECTIONS.find(s => s[0] === cat);
   if (sec) sec[1].push(...rows); else FOOD_SECTIONS.push([cat, rows]);
 });
