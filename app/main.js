@@ -1571,7 +1571,9 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 // Productos que pidió y ya se cargaron (o se rechazaron): se avisa al entrar y al volver a la
 // app (como mucho cada 10 minutos), después de la bienvenida y el resto de lo que abre al entrar.
 let reqCheckAt = 0;
-function maybeCheckRequests(){ if(!State.cloudUser || Date.now()-reqCheckAt < 600000) return; reqCheckAt = Date.now(); setTimeout(checkProductRequests, 2500); }
+function maybeCheckRequests(){ if(!State.cloudUser || Date.now()-reqCheckAt < 600000) return; reqCheckAt = Date.now(); setTimeout(()=>checkProductRequests(retryRequest), 2500); }
+// Pedido rechazado que quiere volver a mandar: va a Comida con el formulario ya cargado.
+function retryRequest(init){ State.view="comida"; ComidaState.searchOpen=false; ComidaState.selectedFood=null; openRequest(init); }
 window.addEventListener("gize:login", maybeCheckRequests);
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") maybeCheckRequests(); });
 
