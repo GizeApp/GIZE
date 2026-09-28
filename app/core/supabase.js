@@ -656,7 +656,7 @@ export async function loadCloud(){
     State.cloudReady=true;
     if(!ws.error && Array.isArray(ws.data)){
       state.weights=ws.data.map(w=>({id:w.id, date:w.measured_on, kg:Number(w.kg)}));
-      State.cloudWeightDates=new Set(ws.data.map(w=>w.measured_on));
+      state.weightsSent=null; // se vuelve a tomar después de applyPending (ver más abajo)
     }
     if(!ss.error && Array.isArray(ss.data)){
       state.sessions=ss.data.map(se=>Object.assign(sessionFromRow(se), {id:se.id, cloudId:se.id}));
@@ -692,6 +692,7 @@ export async function loadCloud(){
     if(!cp.error && cp.data){ applyPrefs(cp.data); _lastPrefs=JSON.stringify(prefsSnapshot()); }
     if(!cp.error) state.cloudSeen=true; // desde acá lo local de este usuario ya se puede subir
     applyPending(); // lo que la nube todavía no tiene (cola de envío) se vuelve a poner encima
+    if(!ws.error && Array.isArray(ws.data)) state.weightsSent=weightsSnapshot();
     save();
   }catch(e){ console.error("loadCloud",e); }
   State.cloudLoading=false;
@@ -774,6 +775,8 @@ function applyPrefs(p){
   }
 }
 
+function weightsSnapshot(){ const m={}; (state.weights||[]).forEach(w=>{ if(w && w.date && Number(w.kg)>0) m[w.date]=Number(w.kg); }); return m; }
+
 export function syncExtras(){
   if(!State.cloudUser || State.cloudLoading || !state.cloudSeen) return;
   let queued=false;
@@ -781,6 +784,14 @@ export function syncExtras(){
   if(d){ const j=JSON.stringify(d); if(j!==_lastDay){ _lastDay=j; enqueue("day", d, d.dt); queued=true; } }
   const p=prefsSnapshot(), pj=JSON.stringify(p);
   if(pj!==_lastPrefs){ _lastPrefs=pj; enqueue("prefs", p, "prefs"); queued=true; }
+  // Peso corporal: cada fecha cargada, cambiada o borrada va por la cola, así un peso
+  // anotado sin señal se sube cuando vuelve (antes se perdía al recargar desde la nube).
+  if(state.weightsSent){
+    const cur=weightsSnapshot(), sent=state.weightsSent;
+    Object.keys(cur).forEach(dt=>{ if(sent[dt]!==cur[dt]){ enqueue("weight", {date:dt, kg:cur[dt]}, dt); queued=true; } });
+    Object.keys(sent).forEach(dt=>{ if(!(dt in cur)){ enqueue("weight", {date:dt, del:true}, dt); queued=true; } });
+    state.weightsSent=cur;
+  }
   if(queued){ clearTimeout(_extrasTimer); _extrasTimer=setTimeout(()=>{ flushOutbox(); }, 1500); }
 }
 
@@ -816,15 +827,7 @@ export function cloudSyncCore(){
         sbOk(await State.sb.from("routines").upsert({client_id:State.cloudUser.id, days:days, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}));
         if(routineHash(state.days)===h) markRoutineSynced(state.days); // si cambió mientras subía, queda pendiente para la próxima
       }
-      const rows=(state.weights||[]).map(w=>({client_id:State.cloudUser.id, measured_on:w.date, kg:w.kg}));
-      if(rows.length) sbOk(await State.sb.from("body_weights").upsert(rows,{onConflict:"client_id,measured_on"}));
-      // Se borra de la nube solo lo que este dispositivo ya había visto ahí y el cliente
-      // sacó. Antes se borraba todo lo que no estuviera en local: si la lectura de pesos
-      // había fallado, o si otro dispositivo cargó un peso nuevo, se perdían.
-      const local=new Set((state.weights||[]).map(w=>w.date));
-      const del=[...State.cloudWeightDates].filter(d=>!local.has(d));
-      for(const dd of del){ sbOk(await State.sb.from("body_weights").delete().eq("client_id",State.cloudUser.id).eq("measured_on",dd)); State.cloudWeightDates.delete(dd); }
-      local.forEach(d=>State.cloudWeightDates.add(d));
+      // El peso corporal va por la cola (syncExtras).
     }catch(e){ console.error("sync",e); }
   },1200);
 }
@@ -1050,6 +1053,10 @@ async function sendItem(it){
     let del=sb.from("food_entries").delete().eq("client_id",uid).eq("log_date",p.dt);
     if(p.foods.length) del=del.not("id","in","("+p.foods.map(f=>f.id).join(",")+")");
     sbOk(await del);
+  } else if(it.k==="weight"){
+    // Solo esa fecha: otro dispositivo pudo cargar otras y no se tocan.
+    if(p.del) sbOk(await sb.from("body_weights").delete().eq("client_id",uid).eq("measured_on",p.date));
+    else sbOk(await sb.from("body_weights").upsert({client_id:uid, measured_on:p.date, kg:p.kg},{onConflict:"client_id,measured_on"}));
   } else if(it.k==="prefs"){
     sbOk(await sb.from("client_prefs").upsert(Object.assign({client_id:uid, updated_at:new Date().toISOString()}, p),{onConflict:"client_id"}));
   } else if(it.k==="checkin"){
@@ -1131,6 +1138,9 @@ function applyPending(){
       state.diary=p.foods.map(f=>({id:f.id, meal:f.meal||undefined, name:f.name, grams:f.grams, kcal:f.kcal, p:f.p, c:f.c, f:f.f, unit:f.unit, base:f.base||undefined}));
       applyHabitsDone(p.habits);
       _lastDay=JSON.stringify(p);
+    } else if(it.k==="weight"){
+      state.weights=(state.weights||[]).filter(w=>w.date!==p.date);
+      if(!p.del){ state.weights.push({id:newId(), date:p.date, kg:p.kg}); state.weights.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0); }
     } else if(it.k==="prefs"){
       applyPrefs(p); _lastPrefs=JSON.stringify(p);
     }
