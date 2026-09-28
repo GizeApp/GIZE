@@ -4,7 +4,7 @@
 // Se corrige en el celular y en la nube (cloudEditSession, con la cola de envío si no hay
 // señal), así el coach también ve el dato bien.
 import { state } from '../core/state.js';
-import { esc, fmtDate, parseSecs } from '../core/utils.js';
+import { assistedKg, esc, fmtDate, isAssisted, parseSecs } from '../core/utils.js';
 
 export const EditState = { se: null }; // { id, date, day, exercises } copia de trabajo
 
@@ -23,11 +23,13 @@ export function renderSessionEdit() {
   const se = EditState.se;
   if (!se) return "";
   const blocks = se.exercises.map((ex, ei) => {
-    const timed = isTimed(ex);
+    const timed = isTimed(ex), asis = isAssisted(ex.name);
+    // Asistidos (kg de ayuda, guardados en negativo): el "−" va fijo, como en Entreno; el
+    // teclado numérico del iPhone no tiene signo menos.
     const rows = (ex.sets || []).map((s, si) => `
       <div class="se-row">
         <span class="se-n">${si + 1}</span>
-        <label class="se-f"><input inputmode="decimal" value="${esc(num(s.kg || ""))}" placeholder="0" data-action="se-val" data-k="kg" data-e="${ei}" data-s="${si}" aria-label="Kg, serie ${si + 1}"><span>kg</span></label>
+        <label class="se-f">${asis ? '<span class="se-neg" aria-hidden="true">−</span>' : ''}<input inputmode="decimal" value="${esc(asis ? String(num(s.kg || "")).replace(/^-/, "") : num(s.kg || ""))}" placeholder="0" data-action="se-val" data-k="kg" data-e="${ei}" data-s="${si}" aria-label="${asis ? "Kg de ayuda" : "Kg"}, serie ${si + 1}"><span>kg</span></label>
         ${timed
           ? `<label class="se-f"><input inputmode="numeric" value="${esc(secsStr(s.secs))}" placeholder="0" data-action="se-val" data-k="secs" data-e="${ei}" data-s="${si}" aria-label="Segundos, serie ${si + 1}"><span>seg</span></label>`
           : `<label class="se-f"><input inputmode="numeric" value="${esc(s.reps || "")}" placeholder="0" data-action="se-val" data-k="reps" data-e="${ei}" data-s="${si}" aria-label="Reps, serie ${si + 1}"><span>reps</span></label>`}
@@ -66,8 +68,9 @@ export function cleanSessionEdit() {
   const se = EditState.se;
   const exs = [];
   se.exercises.forEach(ex => {
+    const asis = isAssisted(ex.name);
     const sets = (ex.sets || []).map(s => {
-      const o = { kg: parseFloat(String(s.kg).replace(",", ".")) || 0, reps: parseInt(s.reps) || 0 };
+      const o = { kg: parseFloat(String(asis ? assistedKg(s.kg) : s.kg).replace(",", ".")) || 0, reps: parseInt(s.reps) || 0 };
       const sc = parseSecs(s.secs); if (sc > 0) o.secs = Math.min(36000, sc);
       return o;
     }).filter(s => s.kg !== 0 || s.reps > 0 || s.secs > 0);

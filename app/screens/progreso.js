@@ -79,8 +79,9 @@ export function exercisesInHistory(){
 export function loadSeriesFor(name){
   const out=[];
   (state.sessions||[]).slice().sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(se=>{
-    let mx=0; (se.exercises||[]).forEach(ex=>{ if(ex.name===name) (ex.sets||[]).forEach(s=>{ const k=+s.kg||0; if(k>mx) mx=k; }); });
-    if(mx>0) out.push({date:se.date, kg:mx});
+    // Con kg negativos (asistidos: -25 = 25 kg de ayuda) el mejor es el de menos ayuda.
+    let mx=null; (se.exercises||[]).forEach(ex=>{ if(ex.name===name) (ex.sets||[]).forEach(s=>{ const k=+s.kg||0; if(k!==0 && (mx===null || k>mx)) mx=k; }); });
+    if(mx!==null) out.push({date:se.date, kg:mx});
   });
   return out;
 }
@@ -101,9 +102,9 @@ export function renderCargas(){
     const setsHtml=sets.map((s,i)=>(+s.secs>0)
       ? '<div class="hx-set"><span class="hx-n">S'+(i+1)+'</span><span class="hx-reps">'+esc(setText(s))+'</span></div>'
       : '<div class="hx-set"><span class="hx-n">S'+(i+1)+'</span><span class="hx-kg">'+(s.kg||0)+' kg</span><span class="hx-x">×</span><span class="hx-reps">'+(s.reps||0)+'</span></div>').join("");
-    const best=sets.reduce((m,s)=>Math.max(m,+s.kg||0),0);
+    const best=sets.reduce((m,s)=>{ const k=+s.kg||0; return k!==0 && (m===null || k>m) ? k : m; },null);
     const bestSecs=sets.reduce((m,s)=>Math.max(m,+s.secs||0),0);
-    const bestStr=best>0 ? 'máx '+best+' kg' : (bestSecs>0 ? 'máx '+fmtSecs(bestSecs) : 'máx 0 kg');
+    const bestStr=best!==null ? 'máx '+best+' kg' : (bestSecs>0 ? 'máx '+fmtSecs(bestSecs) : 'máx 0 kg');
     return '<div class="hx-row"><div class="hx-meta"><span class="hx-date">'+fmtDate(se.date)+'</span><span class="hx-best">'+bestStr+'</span></div><div class="hx-sets">'+setsHtml+'</div></div>';
   }).join("");
   const histBlock=allSess.length ? '<div class="hx-wrap">'+histRows+'</div>' : '<div class="cal-hint">Sin historial para este ejercicio.</div>';

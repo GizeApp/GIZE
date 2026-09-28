@@ -39,7 +39,7 @@ import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
 
-import { EntrenoState, REST_DEFAULT, day, expandedOverride, liveCounting, renderEntreno, renderExList, renderExSheet, effectiveRest, restKey, wkElapsedText, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
+import { EntrenoState, REST_DEFAULT, day, expandedOverride, liveCounting, renderEntreno, renderExList, renderExSheet, effectiveRest, restKey, wkElapsedText, wkFresh, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
 import { HabitosState, addHabit, checkDaily, renderHabitos } from './screens/habitos.js';
 
@@ -192,7 +192,7 @@ function afterSetDone(d, ex, s){
   // La primera serie tildada del día marca el comienzo del entreno (para el tiempo total).
   // Si no se tocó «Iniciar entrenamiento», arranca acá (y vuelve a arrancar si se había destildado todo).
   const w=state.wkStart, others=d.exercises.some(x=>x.sets.some(t=>t.done && t!==s));
-  if(!w || w.date!==today() || w.day!==d.id || (!w.manual && !others)){ state.wkStart={date:today(), day:d.id, ts:Date.now()}; save(); }
+  if(!wkFresh(w) || w.day!==d.id || (!w.manual && !others)){ state.wkStart={date:today(), day:d.id, ts:Date.now()}; save(); }
   // El descanso ya no arranca solo al tildar: se inicia con «Iniciar descanso». En una
   // superserie la pantalla igual pasa a la serie que sigue.
   const idx=d.exercises.indexOf(ex);
@@ -656,6 +656,9 @@ document.body.addEventListener("click", async e => {
       const r=stopTimer(); if(r && r.secs>0) s.secs=String(r.secs);
       save(); renderApp(); return;
     }
+    // Si corría el de otra serie, se frena y se le anota lo que duró (antes se perdía).
+    const prevId=runningSetId();
+    if(prevId){ const r=stopTimer(), ps=d.exercises.reduce((f,x)=>f||x.sets.find(y=>y.id===prevId),null); if(ps && r && r.secs>0) ps.secs=String(r.secs); }
     const target=parseSecs(s.target)||parseSecs(s.secs)||0;
     startTimer(s.id, target, secs=>{
       s.secs=String(secs);

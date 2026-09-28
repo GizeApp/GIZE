@@ -131,12 +131,17 @@ export function audioState(key){
 }
 
 // key: identifica el botón (id del mensaje, ruta del audio…). getUrl: función que da el link.
+// Solo vale el último toque: si mientras se pedía el link se tocó otro audio, este no suena
+// (si no, podía sonar el de otro ejercicio con el botón equivocado en "Pausar").
+let playReq = 0;
 export async function togglePlay(key, getUrl){
   if(Player.key === key && player && !player.paused){ player.pause(); return; }
   if(Player.key === key && player && player.paused && player.src){ player.play().catch(() => {}); return; }
   if(player){ try{ player.pause(); }catch(e){} }
+  const req = ++playReq;
   let url;
-  try{ url = await getUrl(); }catch(e){ alert("No se pudo cargar el audio. Revisá la conexión."); return; }
+  try{ url = await getUrl(); }catch(e){ if(req === playReq) alert("No se pudo cargar el audio. Revisá la conexión."); return; }
+  if(req !== playReq) return;
   if(!player){
     player = new Audio();
     ["timeupdate", "pause", "play"].forEach(ev => player.addEventListener(ev, ui));
