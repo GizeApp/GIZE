@@ -37,7 +37,7 @@ import { coachPlanObj, cpApply, loadTpls, planDefault, refreshBlockWeeks, render
 import { CoachState } from './screens/coach/state.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
-import { ComidaState, mealNow, ocrStatus, plateRowText, plateTotalsText, plateItemVals, renderPlateSheet, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
+import { ComidaState, mealNow, ocrStatus, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
 
 import { EntrenoState, REST_DEFAULT, day, expandedOverride, liveCounting, renderEntreno, renderExList, renderExSheet, effectiveRest, restKey, wkElapsedText, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
@@ -61,7 +61,6 @@ import { removeMyAvatar, uploadMyAvatar } from './core/avatar.js';
 
 import { productByCode, searchOFF } from './core/off.js';
 import { readLabel } from './core/etiqueta.js';
-import { iaAnalyze, iaAvailable } from './core/ia.js';
 import { kcalMismatch, productByCodeShared, reportShared, saveShared, searchShared, uploadLabelPhoto, useShared } from './core/productos.js';
 
 import { addDays, dayItems, loadDay, retryDay, setDayItems } from './screens/comida-historial.js';
@@ -121,7 +120,7 @@ export function renderApp(){
   initScrollReveal();
   setupExerciseFocus();
   renderRestBar();
-  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : (State.view==="comida" && ComidaState.plate) ? renderPlateSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : "");
+  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : "");
   if (State.view==="habitos" && HabitosState.pendingFocusHabit) { const i=document.getElementById("habitInput"); if(i) i.focus(); HabitosState.pendingFocusHabit=false; }
   if (State.view==="entreno") v.querySelectorAll("textarea.day-name").forEach(fitDayName);
   if (State.view==="entreno" && HabitosState.pendingFocusDay) { const i=v.querySelector(".day-name"); if(i){ i.focus(); i.select(); } HabitosState.pendingFocusDay=false; }
@@ -223,8 +222,6 @@ setInterval(tick, 100);
 document.body.addEventListener("input", async e => {
   const t = e.target, a = t.dataset.action; if(!a) return;
   if (a === "se-val") { setSessionEditVal(t); return; }
-  if (a === "plate-grams") { const P=ComidaState.plate, it=P&&P.items[+t.dataset.i]; if(it){ it.g=t.value; const v=document.getElementById("pl8v"+t.dataset.i); if(v) v.textContent=plateRowText(it); const tt=document.getElementById("pl8Tot"); if(tt) tt.innerHTML=plateTotalsText(P); } return; }
-  if (a === "plate-text") { if(ComidaState.plate) ComidaState.plate.texto=t.value; return; }
   if (a === "food-search") { ComidaState.foodQuery = t.value; scheduleOffSearch(t.value); const r=document.getElementById("foodResults"); if(r) r.innerHTML = renderResults(ComidaState.foodQuery); return; }
   if (a === "ex-search") { EntrenoState.exQuery = t.value; const l=document.getElementById("exList"); if(l) l.innerHTML = renderExList(); return; }
   if (a === "portion-grams") { const base = ComidaState.selectedFood ? selectedFoodValues() : (ComidaState.editEntry ? entryBase(ComidaState.editEntry) : null); if(base){ const pv=document.getElementById("portionPreview"); if(pv) pv.textContent = previewStr(base, t.value); const pu=document.getElementById("portionUnits"); const uf=sheetUnitFood(); if(pu && uf) pu.textContent = unitsLabel(t.value, cookPortion(uf.food, uf.cook), base.unit, uf.food); } ComidaState.sheetGrams = t.value; return; }
@@ -300,7 +297,6 @@ document.body.addEventListener("keydown", async e => {
 
 document.body.addEventListener("change", async e => {
   const t=e.target, a=t.dataset.action; if(!a) return;
-  if (a === "plate-file") { const file=t.files&&t.files[0]; t.value=""; if(file) startPlate(file); return; }
   if (a === "wdate-field") { ProgresoState.weightForm.date = t.value; return; }
   if (a === "daily-kg" || a === "daily-steps" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":(a==="daily-steps"?"steps":t.dataset.k)] = t.value; return; }
   if (a === "ci-set") { CheckinState.checkinForm = CheckinState.checkinForm || JSON.parse(JSON.stringify(state.checkins[mondayOf(today())]||{})); CheckinState.checkinForm[t.dataset.k] = t.value; return; }
@@ -464,19 +460,6 @@ document.body.addEventListener("click", async e => {
   if (a === "portion-cancel") { closeSheet(()=>{ ComidaState.selectedFood=null; ComidaState.editEntry=null; ComidaState.sheetGrams=null; ComidaState.sheetMeal=null; renderApp(); }); return; }
   // Comida elegida en la búsqueda o en la hoja: se marca el botón en el lugar, sin redibujar
   // (no se pierde lo escrito en el buscador ni se vuelve a animar la hoja).
-  // Plato por foto (IA)
-  if (a === "plate-close") { const P=ComidaState.plate; if(P&&P.photoUrl) URL.revokeObjectURL(P.photoUrl); ComidaState.plate=null; renderApp(); return; }
-  if (a === "plate-toggle") { const it=ComidaState.plate&&ComidaState.plate.items[+el.dataset.i]; if(it){ it.on=!it.on; renderApp(); } return; }
-  if (a === "plate-meal") { if(ComidaState.plate){ ComidaState.plate.meal=el.dataset.meal; renderApp(); } return; }
-  if (a === "plate-redo") { const P=ComidaState.plate; if(P&&P.file) startPlate(P.file, P.texto); return; }
-  if (a === "plate-add") {
-    const P=ComidaState.plate; if(!P) return;
-    const r1=v=>Math.round(v*10)/10; let n=0;
-    P.items.forEach(it=>{ if(!it.on) return; const v=plateItemVals(it); if(!(v.g>0)) return; n++;
-      curDiary().push({ id:newId(), meal:P.meal||mealNow(), name:it.name, grams:roundG(v.g), kcal:v.kcal, p:v.p, c:v.c, f:v.f, unit:"g", base:{kcal:Math.round(it.b.kcal), p:r1(it.b.p), c:r1(it.b.c), f:r1(it.b.f), unit:"g"} }); });
-    if(!n){ alert("Elegí al menos un alimento con gramos."); return; }
-    commitDiary(); if(P.photoUrl) URL.revokeObjectURL(P.photoUrl); ComidaState.plate=null; renderApp(); return;
-  }
   if (a === "search-meal" || a === "sheet-meal") {
     if (a === "search-meal") ComidaState.meal = el.dataset.meal; else ComidaState.sheetMeal = el.dataset.meal;
     el.parentElement.querySelectorAll(".meal-chip").forEach(b=>{ const on=b===el; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
@@ -1477,54 +1460,8 @@ function fillOcrPerPortion(ff, S){
   if(pp.kcal!=null) setOcrField(ff, "kcal", Math.round(pp.kcal*100/S));
   ["p","c","f"].forEach(k=>{ if(pp[k]!=null) setOcrField(ff, k, r1(pp[k]*100/S)); });
 }
-// Primero con IA (lee mejor tablas torcidas, con brillo o solo por porción); si no está
-// disponible o falla, el lector del celular de siempre.
 function readLabelInto(ff, file){
   const gen = (ff.ocrGen||0) + 1; ff.ocrGen = gen; ff.ocrPer = null;
-  if(!iaAvailable()) return readLabelOcr(ff, file, gen);
-  ff.ocr = { status: "loading", msg: "Leyendo la etiqueta con IA…" };
-  const live = () => ComidaState.foodForm===ff && ff.ocrGen===gen && ComidaState.creatingFood;
-  const el0=document.getElementById("cfOcr"); if(el0){ el0.className="cf-ocr busy"; el0.innerHTML=ocrStatus(ff.ocr); }
-  iaAnalyze("etiqueta", file).then(res => {
-    if(!live()) return;
-    const et = res.etiqueta;
-    if(!et) throw Object.assign(new Error(""), { soft:true });
-    const unit0 = ff.unit;
-    if(!et.encontrada){ ff.ocr = { status: "none" }; }
-    else {
-      if(et.unidad==="ml") ff.unit = "ml";
-      if(et.porcion) setOcrField(ff, "portion", et.porcion, true);
-      if(et.cada100){ OCR_FIELDS.forEach(k => setOcrField(ff, k, et[k], true)); ff.ocr = { status: OCR_FIELDS.every(k=>et[k]!=null) ? "ok" : "partial" }; }
-      else {
-        ff.ocrPer = { kcal:et.kcal, p:et.p, c:et.c, f:et.f };
-        const S0 = parseFloat(String(ff.portion||"").replace(",", "."));
-        if(S0>0 && S0<=2000){ fillOcrPerPortion(ff, S0); ff.ocr = { status: "partial" }; } else ff.ocr = { status: "portion" };
-      }
-    }
-    if(ff.unit!==unit0) renderApp(); else { const el=document.getElementById("cfOcr"); if(el){ el.className="cf-ocr"+(ff.ocr.status==="ok"?" ok":" warn"); el.innerHTML=ocrStatus(ff.ocr); } const pe=document.getElementById("cf_portion"); if(pe) pe.classList.toggle("need", ff.ocr.status==="portion"); }
-  }).catch(err => {
-    if(!live()) return;
-    if(err && err.soft) return readLabelOcr(ff, file, gen);
-    ff.ocr = { status: "error", msg: err && err.message }; const el=document.getElementById("cfOcr"); if(el){ el.className="cf-ocr warn"; el.innerHTML=ocrStatus(ff.ocr); }
-  });
-}
-// Plato por foto: se muestra la foto mientras la IA la analiza y después la lista para revisar.
-function startPlate(file, texto){
-  const P0=ComidaState.plate, same=P0 && P0.file===file;
-  if(P0 && P0.photoUrl && !same) URL.revokeObjectURL(P0.photoUrl);
-  const P={ status:"loading", file, photoUrl: same ? P0.photoUrl : URL.createObjectURL(file), items:[], nota:"", meal:(P0&&P0.meal)||ComidaState.meal||mealNow(), texto:texto||"" };
-  ComidaState.plate=P; ComidaState.searchOpen=false; renderApp();
-  if(!iaAvailable()){ P.status="error"; P.msg="Para calcular con IA necesitás conexión y tu cuenta iniciada."; renderApp(); return; }
-  iaAnalyze("plato", file, P.texto).then(res=>{
-    if(ComidaState.plate!==P) return;
-    const pl=res.plato||{};
-    // Valores cada 100 g: los de la base de alimentos si la IA lo encontró ahí; si no, su estimación.
-    P.items=(pl.items||[]).filter(it=>it.gramos>0).map(it=>{ const d=100/it.gramos, bs=it.base;
-      return { name:it.nombre, g:Math.round(it.gramos), on:true, db:!!bs, b: bs ? { kcal:bs.kcal, p:bs.p, c:bs.c, f:bs.f } : { kcal:it.kcal*d, p:it.p*d, c:it.c*d, f:it.f*d } }; });
-    P.nota=pl.nota||""; P.status="ok"; renderApp();
-  }).catch(err=>{ if(ComidaState.plate!==P) return; P.status="error"; P.msg=err&&err.message; renderApp(); });
-}
-function readLabelOcr(ff, file, gen){
   ff.ocr = { status: "loading", msg: "Preparando el lector…" };
   const live = () => ComidaState.foodForm===ff && ff.ocrGen===gen && ComidaState.creatingFood;
   const paint = () => {

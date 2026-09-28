@@ -19,8 +19,6 @@
 #                          función "contacto" la usa para leer los mails que llegan a contacto@gize.ar.
 #   RESEND_WEBHOOK_SECRET  para "secrets". El "Signing secret" (whsec_…) del webhook de Resend que
 #                          avisa los mails recibidos (función "contacto").
-#   ANTHROPIC_API_KEY      para "secrets". Clave de console.anthropic.com → API Keys: la función
-#                          "ia-comida" la usa para leer tablas nutricionales y fotos de platos.
 #   DEMO_PASSWORD          para "cuentas-demo". Contraseña de las cuentas demo de Google Play.
 #                          Va como secret y no como dato del formulario: el repo es público y
 #                          los datos del formulario quedan escritos en el log de la ejecución.
@@ -79,9 +77,7 @@ jobs:
         if: inputs.tarea == 'funciones'
         run: |
           cp -r supabase/functions/notificar-cliente supabase/functions/rapid-worker
-          # ia-comida usa la base de alimentos de la app (misma lista que ve el usuario).
-          cp app/core/foods.js app/core/foods-extra.js app/core/foods-ar.js supabase/functions/ia-comida/
-          for fn in rapid-worker suscripcion descanso avisos-coach admin contacto ia-comida; do
+          for fn in rapid-worker suscripcion descanso avisos-coach admin contacto; do
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt --use-api
           done
 
@@ -96,7 +92,6 @@ jobs:
           RESEND_FULL_KEY: ${{ secrets.RESEND_FULL_KEY }}
           RESEND_WEBHOOK_SECRET: ${{ secrets.RESEND_WEBHOOK_SECRET }}
           AVISOS_PAGOS: ${{ secrets.AVISOS_PAGOS }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           # Se cargan los que estén en GitHub: Mercado Pago y, para la app de iPhone, la clave de Apple.
           set -- 
@@ -106,7 +101,6 @@ jobs:
           [ -n "$RESEND_FULL_KEY" ] && set -- "$@" RESEND_FULL_KEY="$RESEND_FULL_KEY"
           [ -n "$RESEND_WEBHOOK_SECRET" ] && set -- "$@" RESEND_WEBHOOK_SECRET="$RESEND_WEBHOOK_SECRET"
           [ -n "$AVISOS_PAGOS" ] && set -- "$@" AVISOS_PAGOS="$AVISOS_PAGOS"
-          [ -n "$ANTHROPIC_API_KEY" ] && set -- "$@" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
           if [ $# -eq 0 ]; then echo "::error::No hay secrets para cargar en GitHub (Settings → Secrets and variables → Actions)"; exit 1; fi
           supabase secrets set --project-ref "$PROJECT_REF" "$@"
           # Solo los nombres: la lista trae también un resumen (hash) de cada valor y el log es público.

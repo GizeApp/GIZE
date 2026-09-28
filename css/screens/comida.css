@@ -349,30 +349,3 @@ html.lite .scan-btn { animation: none; }
 .scan-btn { position: relative; overflow: visible; }
 .scan-beta { position: absolute; top: -7px; right: -6px; padding: 1px 4px; border-radius: 5px; font-size: 8px; font-weight: 800; letter-spacing: .06em; line-height: 1.3;
   color: #fff; background: linear-gradient(90deg, var(--gize-r2), var(--gize-r3)); box-shadow: 0 0 8px color-mix(in srgb, var(--gize-r2) 60%, transparent); pointer-events: none; }
-
-/* ---- Plato por foto (IA) ---- */
-.ia-tag { display: inline-block; margin-left: 4px; padding: 1px 5px; border-radius: 5px; font-size: 9px; font-weight: 800; letter-spacing: .06em; vertical-align: middle; color: #fff; background: linear-gradient(90deg, var(--gize-r2), var(--gize-r3)); }
-.ia-plate-btn { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 10px 0 4px; padding: 11px 12px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--gize-r2) 55%, var(--border)); color: var(--txt); font-size: var(--text-body); font-weight: 600; cursor: pointer; background: color-mix(in srgb, var(--gize-r2) 8%, transparent); }
-.plate-sheet { display: flex; flex-direction: column; gap: 10px; }
-.pl8-photo { width: 100%; max-height: 190px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); }
-.pl8-wait { display: flex; align-items: center; gap: 8px; padding: 14px 2px; color: var(--txt-2); }
-.pl8-err { padding: 10px 2px; color: var(--gize-warning, #FFB547); line-height: 1.4; }
-.pl8-list { display: flex; flex-direction: column; gap: 6px; }
-.pl8-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--card-2); }
-.pl8-row.off { opacity: .45; }
-.pl8-chk { flex: none; width: 24px; height: 24px; border-radius: 6px; border: 1.5px solid rgba(255,255,255,.35); background: none; color: #fff; font-weight: 800; display: grid; place-items: center; padding: 0; }
-.pl8-chk.on { background: var(--blue); border-color: var(--blue); }
-.pl8-main { flex: 1; min-width: 0; }
-.pl8-name { font-weight: 600; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pl8-vals { font-size: var(--text-meta); color: var(--txt-2); margin-top: 2px; }
-.pl8-g { flex: none; display: flex; align-items: center; gap: 4px; color: var(--txt-2); font-size: var(--text-meta); }
-.pl8-g input { width: 58px; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--txt); font-weight: 600; text-align: right; }
-.pl8-tot { padding: 4px 2px; color: var(--txt-2); }
-.pl8-tot b { color: var(--txt); }
-.pl8-nota, .pl8-fine { font-size: var(--text-meta); color: var(--txt-2); line-height: 1.4; }
-.pl8-redo { display: flex; gap: 8px; }
-.pl8-redo .form-input { flex: 1; min-width: 0; }
-.pl8-redo .ctrl { flex: none; width: auto; }
-.plate-sheet .ss-head { display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
-.pl8-src { font-size: 11px; color: var(--txt-2); margin-top: 1px; }
-.pl8-src.db { color: var(--gize-success); }
