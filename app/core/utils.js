@@ -29,6 +29,9 @@ export function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padSta
 // español pone coma). Vacío o inválido → 0.
 export const num = v => parseFloat(String(v == null ? "" : v).replace(",", ".")) || 0;
 
+// Número entero escrito por el usuario, con o sin separador de miles ("8.500", "10 000").
+export const intNum = v => parseInt(String(v == null ? "" : v).replace(/[.\s]/g, ""), 10);
+
 export function today(){ return ymd(new Date()); }
 
 export function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
