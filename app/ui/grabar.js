@@ -6,6 +6,10 @@ import { State } from '../core/state.js';
 
 export const AUDIO_BUCKET = "chat-audio";
 
+function nativePlatform(){
+  try{ const C = window.Capacitor; return (C && C.isNativePlatform && C.isNativePlatform()) ? C.getPlatform() : ""; }catch(e){ return ""; }
+}
+
 export const mmss = s => { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
 
 function pickMime(){
@@ -30,12 +34,24 @@ export function newAudioName(){
 // onDone(blob, type, secs) solo se llama si no se canceló y el audio no está vacío.
 export async function startRecorder(o){
   const maxSecs = o.maxSecs || 120;
+  const nat = nativePlatform();
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
-    alert("Este navegador no permite grabar audio. Probá con Chrome o Safari actualizados."); return null;
+    alert(nat === "ios" ? "Para grabar audios, actualizá tu iPhone (iOS 14.3 o más nuevo)."
+      : nat === "android" ? "Este celular no permite grabar audio en la app."
+      : "Este navegador no permite grabar audio. Probá con Chrome o Safari actualizados.");
+    return null;
   }
   let stream;
   try{ stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch(e){ alert("Para grabar audios, permití el micrófono cuando te lo pida el celular (o en los ajustes del navegador)."); return null; }
+  catch(e){
+    // Si ya se negó el permiso, el celular no lo vuelve a pedir: hay que prenderlo a mano.
+    const denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
+    alert(!denied ? "No se pudo usar el micrófono. Probá de nuevo."
+      : nat === "android" ? "GIZE no tiene permiso para usar el micrófono. Prendelo en Ajustes del celular → Apps → GIZE → Permisos → Micrófono."
+      : nat === "ios" ? "GIZE no tiene permiso para usar el micrófono. Prendelo en Ajustes del iPhone → GIZE → Micrófono."
+      : "Para grabar audios, permití el micrófono (en los ajustes del navegador, junto a la dirección de la página).");
+    return null;
+  }
   if(o.stillWanted && !o.stillWanted()){ stream.getTracks().forEach(t => t.stop()); return null; }
   const mime = pickMime();
   let mr;

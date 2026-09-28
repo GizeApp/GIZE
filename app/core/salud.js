@@ -17,9 +17,11 @@ import { save } from './storage.js';
 import { today, uid, ymd } from './utils.js';
 import { queueSteps } from './supabase.js';
 
-// Al instalarla desde acá, Play abre después la bienvenida de Health Connect.
-const HC_PLAY = "https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata&url=healthconnect%3A%2F%2Fonboarding";
-const STEP_DAYS = 7, WEIGHT_DAYS = 30, MIN_GAP = 60 * 1000;
+// Link oficial para instalarla: al terminar, Play abre la bienvenida de Health Connect.
+const HC_PLAY = "market://details?id=com.google.android.apps.healthdata&url=healthconnect%3A%2F%2Fonboarding";
+// Peso: 29 días + hoy. Health Connect no deja leer más de 30 días antes del primer permiso
+// (pedir desde la medianoche de hace 30 días falla el primer día).
+const STEP_DAYS = 7, WEIGHT_DAYS = 29, MIN_GAP = 60 * 1000;
 
 export const SaludState = { busy: false, lastSync: 0, lastTry: 0, lastError: "", onChange: null };
 
