@@ -15,7 +15,7 @@
 import { State, state } from './state.js';
 import { save } from './storage.js';
 import { today, uid, ymd } from './utils.js';
-import { queueSteps } from './supabase.js';
+import { noteStepsSynced, queueSteps, queueWeight } from './supabase.js';
 
 // Link oficial para instalarla: al terminar, Play abre la bienvenida de Health Connect.
 const HC_PLAY = "market://details?id=com.google.android.apps.healthdata&url=healthconnect%3A%2F%2Fonboarding";
@@ -98,7 +98,9 @@ async function read(H, dataType, from){
 // Trae pasos y peso. force: sin esperar el minuto entre lecturas.
 export async function syncSalud(force){
   const H = plugin();
-  if(!H || !saludOn() || SaludState.busy) return false;
+  // Sin sesión no hay dónde guardar; mientras se lee la nube, se espera a que termine (al
+  // terminar avisa "gize:cloud" y se lee de nuevo).
+  if(!H || !saludOn() || SaludState.busy || !State.cloudUser || State.cloudLoading) return false;
   // Entre lecturas automáticas pasa al menos un minuto (también si la anterior falló).
   if(!force && Date.now() - SaludState.lastTry < MIN_GAP) return false;
   SaludState.lastTry = Date.now();
@@ -122,7 +124,11 @@ export async function syncSalud(force){
           // función, se actualiza aunque baje (Health Connect a veces corrige).
           if(state.stepsDate !== t) return;
           const cur = state.steps || 0, mine = sent.s[t];
-          if(n > cur || (mine != null && cur === mine && n !== cur)){ state.steps = n; sent.s[t] = n; touched = true; }
+          if(n > cur || (mine != null && cur === mine && n !== cur)){
+            // Solo los pasos: por la cola, sin mandar la foto del día (ver queueSteps).
+            state.steps = n; sent.s[t] = n; touched = true;
+            queueSteps(t, n); noteStepsSynced(n);
+          }
           else if(n === cur) sent.s[t] = n;
         } else if(d < t){
           // Lo que ya había de ese día: en la nube (registro diario) o lo que quedó en el
@@ -141,6 +147,7 @@ export async function syncSalud(force){
         if(d > t || sent.w[d] != null) return;
         if(state.weights.some(w => w.date === d)){ sent.w[d] = per[d]; return; }
         state.weights.push({ id: uid(), date: d, kg: per[d] });
+        queueWeight(d, per[d]);
         sent.w[d] = per[d]; touched = true;
       });
       if(touched) state.weights.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
@@ -217,6 +224,6 @@ export async function saludPermisos(){
   try{ const r = await H.checkAuthorization({ read: ["steps", "weight"], write: [] }); return (r && r.readAuthorized) || []; }catch(e){ return null; }
 }
 
-// Lecturas automáticas: al entrar y al volver a la app.
-window.addEventListener("gize:login", () => { if(saludOn()) syncSalud(true); });
+// Lecturas automáticas: cada vez que termina de leer la nube (al entrar) y al volver a la app.
+window.addEventListener("gize:cloud", () => { if(saludOn()) syncSalud(true); });
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && saludOn() && State.cloudUser) syncSalud(false); });

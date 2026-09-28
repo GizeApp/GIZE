@@ -124,10 +124,14 @@ function todayWeight(){ const w=(state.weights||[]).find(x=>x.date===today()); r
 
 // Pasos y peso automáticos (core/salud.js): de dónde salen, o cómo prenderlo en la app nativa.
 function saludHint(){
+  // Lectura al abrir el registro (syncSalud espera un minuto entre lecturas). Fuera del
+  // dibujo: al terminar redibuja.
+  if(saludOn()) setTimeout(()=>syncSalud(false), 0);
+  return saludRowHtml();
+}
+// El recuadro solo (main.js lo actualiza sin redibujar el formulario si se está escribiendo).
+export function saludRowHtml(){
   if(saludOn()){
-    // Lectura al abrir el registro (syncSalud espera un minuto entre lecturas). Fuera del
-    // dibujo: al terminar redibuja.
-    setTimeout(()=>syncSalud(false), 0);
     const last=lastSyncTime();
     return '<div class="salud-row"><span>Pasos y peso desde '+esc(saludName())+(last?' \u00b7 '+last.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}):'')+(SaludState.lastError && SaludState.lastError!=="parcial"?' \u00b7 no se pudo leer':'')+'</span>'+
       '<button class="cal-edit" data-action="salud-sync"'+(SaludState.busy?' disabled':'')+'>'+(SaludState.busy?'Leyendo\u2026':'Actualizar')+'</button></div>';

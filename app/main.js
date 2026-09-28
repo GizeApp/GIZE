@@ -21,7 +21,7 @@ import { showLogin } from './screens/auth.js';
 import { ssGroupOf, ssNext } from './core/superserie.js';
 import { CardioState, openTimePicker, renderCardio, setRing, swFrac } from './screens/cardio.js';
 
-import { CheckinState, renderFeedback, saveSession } from './screens/checkin.js';
+import { CheckinState, renderFeedback, saludRowHtml, saveSession } from './screens/checkin.js';
 
 import { loadCoachClients, openClient } from './screens/coach/clientes.js';
 
@@ -226,6 +226,9 @@ setInterval(tick, 100);
 document.body.addEventListener("input", async e => {
   const t = e.target, a = t.dataset.action; if(!a) return;
   if (a === "se-val") { setSessionEditVal(t); return; }
+  // Registro de hoy: se guarda mientras se escribe (no solo al salir del campo), así un
+  // redibujo no borra lo que se está escribiendo.
+  if (a === "daily-kg" || a === "daily-steps" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":(a==="daily-steps"?"steps":t.dataset.k)] = t.value; return; }
   if (a === "food-search") { ComidaState.foodQuery = t.value; scheduleOffSearch(t.value); const r=document.getElementById("foodResults"); if(r) r.innerHTML = renderResults(ComidaState.foodQuery); return; }
   if (a === "ex-search") { EntrenoState.exQuery = t.value; const l=document.getElementById("exList"); if(l) l.innerHTML = renderExList(); return; }
   if (a === "portion-grams") { const base = ComidaState.selectedFood ? selectedFoodValues() : (ComidaState.editEntry ? entryBase(ComidaState.editEntry) : null); if(base){ const pv=document.getElementById("portionPreview"); if(pv) pv.textContent = previewStr(base, t.value); const pu=document.getElementById("portionUnits"); const uf=sheetUnitFood(); if(pu && uf) pu.textContent = unitsLabel(t.value, cookPortion(uf.food, uf.cook), base.unit, uf.food); } ComidaState.sheetGrams = t.value; return; }
@@ -1616,4 +1619,16 @@ window.addEventListener("gize:login", ()=>{
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible" && State.cloudUser) refreshUnread(); });
 
 // Pasos y peso automáticos (core/salud.js): al terminar una lectura se redibuja lo que los muestra.
-SaludState.onChange=()=>{ if(!isCoach() && ["habitos","progreso","config"].indexOf(State.view)>=0) renderApp(); };
+// Si se está escribiendo en la pantalla (por ejemplo el registro de hoy), no se redibuja todo
+// (se perdería el foco y el teclado): solo el recuadro de Health Connect / Salud y los pasos.
+SaludState.onChange=()=>{
+  if(isCoach() || ["progreso","config"].indexOf(State.view)<0) return;
+  const f=document.activeElement, v=document.getElementById("view");
+  if(f && v && v.contains(f) && /^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName)){
+    const row=document.querySelector("#view .salud-row"); if(row) row.outerHTML=saludRowHtml();
+    const ds=document.getElementById("dSteps");
+    if(ds && ds!==f && !(CheckinState.dailyForm && CheckinState.dailyForm.steps!=null)) ds.value=state.steps||"";
+    return;
+  }
+  renderApp();
+};

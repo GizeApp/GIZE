@@ -86,12 +86,13 @@ export async function startRecorder(o){
   return rec;
 }
 
-// Si la app pasa a segundo plano mientras graba, Android corta el micrófono (y el audio
-// quedaría mudo desde ahí): se descarta la grabación y se avisa al volver.
+// En la app del celular, si pasa a segundo plano mientras graba, el sistema corta el
+// micrófono (el audio quedaría mudo desde ahí): se descarta la grabación y se avisa al
+// volver. En la compu el navegador sigue grabando aunque se cambie de pestaña: no se toca.
 const _active = new Set();
 let _cutWhileHidden = false;
 document.addEventListener("visibilitychange", () => {
-  if(document.visibilityState === "hidden" && _active.size){
+  if(document.visibilityState === "hidden" && _active.size && nativePlatform()){
     _active.forEach(r => r.stop(true));
     _cutWhileHidden = true;
   } else if(document.visibilityState === "visible" && _cutWhileHidden){
