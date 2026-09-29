@@ -449,7 +449,7 @@ export function ensureSb(){
   if (State.sb) return Promise.resolve(State.sb);
   if (_sbReady) return _sbReady;
   const tryInit = () => {
-    if (!State.sb && window.supabase) { try { State.sb = window.supabase.createClient(SB_URL, SB_KEY, {auth:{storage:authStorage, flowType: IS_NATIVE_APP ? "pkce" : "implicit"}}); watchAuth(State.sb); } catch(e){} }
+    if (!State.sb && window.supabase) { try { State.sb = window.supabase.createClient(SB_URL, SB_KEY, {auth:{storage:authStorage, flowType: IS_NATIVE_APP ? "pkce" : "implicit"}, global:{fetch:noAnonFetch}}); watchAuth(State.sb); } catch(e){} }
     return !!State.sb;
   };
   if (_sbFailed && !window.supabase) reloadSbScript();
@@ -476,12 +476,29 @@ export function ensureSb(){
 //   todo lo que se cargaba se mandaba como anónimo y se perdía. Ahora se pide ingresar de
 //   nuevo, sin borrar la cola ni los datos del celular: si entra la misma cuenta,
 //   afterLogin() sube lo pendiente.
+// - Si la app abrió sin sesión viva (_staleBoot, ver cloudBoot), al renovarse el token además
+//   se lee la cuenta: lo pendiente sale primero porque loadCloud() pisa lo local con la nube.
 function watchAuth(sb){
   sb.auth.onAuthStateChange(ev=>{
-    if(ev==="TOKEN_REFRESHED" || ev==="SIGNED_IN") setTimeout(()=>{ flushOutbox(); }, 0);
+    if(ev==="TOKEN_REFRESHED" || ev==="SIGNED_IN") setTimeout(()=>{ flushOutbox().then(()=>{ if(_staleBoot) retryCloud(); }); }, 0);
     else if(ev==="SIGNED_OUT") setTimeout(sessionLost, 0);
   });
 }
+// Con una cuenta adentro, un pedido a la base con la clave anónima quiere decir que la librería
+// no tiene sesión viva (token vencido que no se pudo renovar sin señal): la base lo rechaza o
+// devuelve vacío, y un alumno con coach quedaba con las listas vacías como si fueran de la
+// nube. Se corta acá, como un corte de red (sin "code": la cola lo reintenta, loadCloud
+// conserva lo local). /auth/ va siempre con la clave: es el que renueva la sesión.
+function noAnonFetch(url, opts){
+  const h=new Headers(opts && opts.headers);
+  if(State.cloudUser && h.get("Authorization")==="Bearer "+SB_KEY && !/\/auth\/v1\//.test(String((url && url.url) || url)))
+    return Promise.reject(new TypeError("Sin sesión con tu cuenta: no se manda como anónimo"));
+  return fetch(url, opts);
+}
+// La app abrió con la sesión guardada en el celular sin que la librería la pudiera renovar
+// (ver cloudBoot, afterLogin(user, true)). afterLogin() se saltea lo que necesita red y retryCloud() lo completa
+// cuando vuelve la sesión.
+let _staleBoot=false;
 function sessionLost(){
   if(!State.cloudUser || State.signingOut) return;
   // cloudUser NO se borra: sin él la cola deja de juntar lo que se carga y el pie diría «Se
@@ -491,8 +508,9 @@ function sessionLost(){
   refreshSyncFoot();
   const h=document.getElementById("authHost");
   if(h && h.style.display==="flex" && h.innerHTML) return; // ya está pidiendo ingresar: no se borra lo que escribió
-  showLogin("Tu sesión se cerró (por ejemplo, si saliste desde otro dispositivo). Ingresá de nuevo con tu cuenta: lo que cargaste en este celular sigue guardado y se sube al entrar.", "in", {email:State.cloudUser.email||""});
+  showLogin(LOST_MSG, "in", {email:State.cloudUser.email||""});
 }
+const LOST_MSG="Tu sesión se cerró (por ejemplo, si saliste desde otro dispositivo). Ingresá de nuevo con tu cuenta: lo que cargaste en este celular sigue guardado y se sube al entrar.";
 
 function reloadSbScript(){
   const old=document.querySelector('script[src*="supabase"]'); if(!old) return;
@@ -530,16 +548,19 @@ async function touchMe(){
   }catch(e){}
 }
 
-export async function afterLogin(sessionUser){
+export async function afterLogin(sessionUser, stale){
   // getUser() revalida el token pegándole a la red. Si no hay conexión esa llamada
   // falla y ANTES dejábamos State.cloudUser en null: como flushOutbox()/pendingCount()
   // filtran la cola por el id de usuario, un cloudUser null "escondía" lo pendiente
   // (mostraba "Se guarda solo en este dispositivo" con la cola intacta pero invisible)
-  // y loadCloud() cortaba de raíz. getSession() ya trae el usuario sin pegarle a la
-  // red (lee la sesión guardada en el dispositivo), así que arrancamos con ESE y solo
-  // lo reemplazamos por la versión fresca del servidor si getUser() llega a responder.
+  // y loadCloud() cortaba de raíz. Arrancamos con el usuario de la sesión (el que devolvió
+  // getSession(), o el guardado en el celular si no se pudo renovar sin señal: ver cloudBoot)
+  // y solo lo reemplazamos por la versión fresca del servidor si getUser() llega a responder.
+  // Ojo: getSession() lee la sesión guardada sin red solo mientras el token está vigente; si
+  // venció, intenta renovarlo y sin señal reintenta ~30 s antes de devolver session:null.
   State.cloudUser = sessionUser || State.cloudUser || null;
   State.sessionLost = false;
+  _staleBoot = !!stale;
   // Pide que el navegador no borre lo guardado (sesión y datos) cuando le falta espacio o la
   // página no se abre por un tiempo. Si no lo concede, sigue igual que antes.
   try{ if(State.cloudUser && navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p=>{ if(!p) navigator.storage.persist().catch(()=>{}); }).catch(()=>{}); }catch(e){}
@@ -557,17 +578,20 @@ export async function afterLogin(sessionUser){
   }
   if(State.cloudUser && state.ownerUid!==State.cloudUser.id){ state.ownerUid=State.cloudUser.id; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
   try{ localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
+  // Sin sesión viva (_staleBoot) getUser() y el envío de la cola esperarían los ~30 s de
+  // reintentos de la librería con la pantalla vacía: se saltean y salen cuando se renueva
+  // el token (watchAuth → flushOutbox + retryCloud).
   let gu=null;
-  try { gu=await State.sb.auth.getUser(); if(gu.data.user) State.cloudUser=gu.data.user; } catch(e){}
+  if(!_staleBoot){ try { gu=await State.sb.auth.getUser(); if(gu.data.user) State.cloudUser=gu.data.user; } catch(e){} }
   // Sesión cerrada desde otro dispositivo con el token todavía vigente: el servidor dice que
   // no existe y la librería la borra. Seguir cargaría la cuenta sin sesión: se pide ingresar.
   if(gu && gu.error && gu.error.name==="AuthSessionMissingError"){ sessionLost(); return; }
   rescueFailed();
   // Primero se envía lo que quedó pendiente de otra sesión (sin conexión, app cerrada):
   // loadCloud() reemplaza entrenos/registros locales por los de la nube.
-  try { await flushOutbox(); } catch(e){ console.error("flushOutbox",e); }
+  if(!_staleBoot){ try { await flushOutbox(); } catch(e){ console.error("flushOutbox",e); } }
   // El nombre del coach no depende de loadCloud(): se pide en paralelo en vez de después.
-  let coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null}));
+  let coachNameP=_staleBoot ? Promise.resolve({data:null}) : Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null}));
   await loadCloud();
   if(!State.cloudProfile) State.cloudProfile=cachedProfile(); // sin conexión: el último perfil conocido
   // Registro con Google eligiendo "Soy coach": la cuenta nace como cliente (ver login-google.sql).
@@ -605,7 +629,7 @@ export async function afterLogin(sessionUser){
     else { const cn=await coachNameP; State.brandName=cn.data||""; }
   }catch(e){ State.brandName=""; }
   applyBrand();
-  if (State.cloudProfile && State.cloudProfile.role==="coach"){ await Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]); renderCoach(); checkPaymentReturn(); syncPush(); }
+  if (State.cloudProfile && State.cloudProfile.role==="coach"){ if(!_staleBoot) await Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]); renderCoach(); checkPaymentReturn(); syncPush(); }
   else { renderApp(); syncPush(); } // sin await: no demora la entrada
   maybeShowOnboarding(); // cuenta nueva: bienvenida (una sola vez), encima de la app
   window.dispatchEvent(new Event("gize:login")); // chat: botón, globitos y aviso tocado (main.js)
@@ -613,6 +637,9 @@ export async function afterLogin(sessionUser){
 
 export async function loadCloud(){
   if(!State.sb||!State.cloudUser) return;
+  // Sin sesión viva no se lee: las consultas saldrían como anónimo (ver noAnonFetch) y fallarían
+  // igual. Se reintenta más tarde; lo local queda como está y el pie avisa que no hay conexión.
+  if(!await liveSession(State.cloudUser.id, _staleBoot ? 300 : 3000)){ scheduleCloudRetry(); return; }
   State.cloudLoading=true;
   try{
     // Supabase no lanza cuando una lectura falla: devuelve {data:null, error}. Un data null
@@ -768,7 +795,17 @@ async function retryCloud(){
   if(State.cloudReady || State.cloudLoading || !State.sb || !State.cloudUser) return;
   await loadCloud();
   if(State.cloudReady){
-    if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach(); else renderApp();
+    const coach=State.cloudProfile && State.cloudProfile.role==="coach";
+    // Abrió sin sesión viva: lo que afterLogin() se salteó (nombre del coach, alumnos) se pide ahora.
+    if(_staleBoot){
+      _staleBoot=false;
+      try{
+        if(coach){ State.brandName=State.cloudProfile.full_name||""; await Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]); }
+        else { const cn=await State.sb.rpc("my_coach_name"); State.brandName=cn.data||""; }
+      }catch(e){}
+      applyBrand();
+    }
+    if(coach) renderCoach(); else renderApp();
   }
 }
 window.addEventListener("online", ()=>{ if(State.cloudUser && !State.cloudReady) retryCloud(); });
@@ -1146,6 +1183,8 @@ function isPermanent(e){ return !!(e && typeof e.code==="string" && /^(22|23|42)
 async function sessionFor(uid){
   try{ const s=(await State.sb.auth.getSession()).data.session; return !!(s && s.user && s.user.id===uid); }catch(e){ return false; }
 }
+// Lo mismo con tope de espera: con el token vencido y sin señal getSession() tarda ~30 s.
+function liveSession(uid, ms){ return Promise.race([sessionFor(uid), new Promise(ok=>setTimeout(()=>ok(false), ms))]); }
 // Sin sesión lo pendiente se queda en la cola y sale solo cuando la librería renueva el token
 // (TOKEN_REFRESHED, ver watchAuth) o, si nadie la despierta, pasado su enfriamiento de 60 s.
 let _flushRetry=null;
@@ -1362,7 +1401,20 @@ export async function cloudBoot(){
   if(Br){ try{ Br.addListener("browserFinished", ()=>{ setTimeout(()=>{ const g=document.querySelector('[data-auth="google"]'); if((!State.cloudUser || State.sessionLost) && g && g.disabled) showLogin("","in"); }, 800); }); }catch(e){} }
   if(!State.sb){ showLogin(offlineMsg,"in"); if(window.coreEnter) window.coreEnter(); return; }
   try{
-    const sess=await State.sb.auth.getSession();
+    // Con el token vencido (alcanza con no haber abierto la app en la última hora) getSession()
+    // lo renueva, y sin señal reintenta ~30 s y devuelve session:null aunque la sesión sigue
+    // guardada: antes quedaba la pantalla vacía y después «Ingresar» sin decir nada de la
+    // conexión (y quien entra con Google no tiene contraseña). Ahora, si hay una sesión guardada
+    // y no se confirma en 3 s (o falla por red), se entra con ella: la app abre con lo local y
+    // el pie de «Sin conexión», y cuando vuelve la señal la librería renueva el token y
+    // watchAuth sincroniza. Si el servidor la rechaza de verdad la librería la borra y avisa
+    // SIGNED_OUT (→ sessionLost).
+    let stored=null; try{ stored=JSON.parse(authStorage.getItem(State.sb.auth.storageKey)||"null"); }catch(e){}
+    if(!(stored && stored.user && stored.user.id && stored.refresh_token)) stored=null;
+    const gs=State.sb.auth.getSession();
+    let sess=stored ? await Promise.race([gs, new Promise(ok=>setTimeout(()=>ok(null), 3000))]) : await gs;
+    const stale=!!stored && (!sess || (!sess.data.session && !!sess.error && sess.error.name==="AuthRetryableFetchError"));
+    if(stale) sess={data:{session:stored}};
     // Sesión sin "mantener iniciada" que ya se cerró: antes se borraban acá los datos del
     // celular, y con eso lo que todavía no se había subido (un tester perdió su rutina así).
     // Ahora quedan detrás del login: si vuelve a entrar la misma cuenta se suben, y si entra
@@ -1377,8 +1429,8 @@ export async function cloudBoot(){
       showLogin("", "newpass");
     }
     else if(sess.data.session){
-      if(CONFIRM_LANDING) await showMailConfirmed(afterLogin(sess.data.session.user));
-      else await afterLogin(sess.data.session.user);
+      if(CONFIRM_LANDING) await showMailConfirmed(afterLogin(sess.data.session.user, stale));
+      else await afterLogin(sess.data.session.user, stale);
     }
     else if(CONFIRM_ERROR){
       try{ history.replaceState(null,"",location.pathname); }catch(e){}
@@ -1387,14 +1439,17 @@ export async function cloudBoot(){
     }
     // La app estaba cerrada y la abrió el link del mail.
     else if(app && await openAuthLink(((await app.getLaunchUrl().catch(()=>null))||{}).url)){}
+    // Había una sesión guardada y el servidor no la aceptó (se cerró desde otro dispositivo o
+    // venció del todo): antes se veía «Ingresar» sin explicación.
+    else if(stored) showLogin(LOST_MSG, "in", {email:stored.user.email||""});
     else {
       // Links de la landing: #registro abre "Crear cuenta" y #registro-coach lo abre con
       // "Soy coach" ya elegido. Se limpia el # para que recargar no lo repita.
       const h=location.hash;
       if(h==="#registro"||h==="#registro-coach"){
         try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){}
-        showLogin("","up",h==="#registro-coach"?{role:"coach"}:{});
-      } else showLogin("","in");
+        showLogin(isOnline()?"":offlineMsg,"up",h==="#registro-coach"?{role:"coach"}:{});
+      } else showLogin(isOnline()?"":offlineMsg,"in"); // sin señal, que se sepa por qué no va a poder entrar
     }
   }catch(e){ console.error("cloudBoot",e); showLogin(offlineMsg,"in"); }
   finally{ if(window.coreEnter) window.coreEnter(); }

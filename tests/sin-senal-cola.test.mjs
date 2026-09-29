@@ -118,6 +118,7 @@ export default async function ({ base, t }){
         return revoked ? J({ code: 'refresh_token_not_found', error_code: 'refresh_token_not_found', msg: 'Invalid Refresh Token: Refresh Token Not Found' }, 400) : J(fresh('x.eyJzdWIiOiJ1MSJ9.c'));
       } }, handlers) });
     await p.goto(base + '/app/'); t.ok(await settle(p), '(b) arranca con la cola al día');
+    await wait(4500); // touchMe (4 s después de entrar) pediría la sesión y adelantaría el login antes de guardar
     revoked = true; await expire(p); // cerró sesión en la compu y el token del celular venció
     await p.click('[data-action="save-session"]'); await wait(4000);
     await skipFb(p); // "¡Entreno terminado!" queda arriba del login
@@ -190,6 +191,7 @@ export default async function ({ base, t }){
         return revoked ? J({ code: 'refresh_token_not_found', error_code: 'refresh_token_not_found', msg: 'Invalid Refresh Token: Refresh Token Not Found' }, 400) : J(fresh('x.eyJzdWIiOiJ1MSJ9.f'));
       } }, handlers) });
     await p.goto(base + '/app/'); t.ok(await settle(p), '(b3) arranca con la cola al día');
+    await wait(4500); // lo mismo que en (b): que touchMe ya haya pasado
     revoked = true; await expire(p);
     await p.click('[data-action="save-session"]'); await wait(4000);
     await skipFb(p);
