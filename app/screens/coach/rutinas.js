@@ -288,7 +288,7 @@ export function applyPickerMarkup(){
     let opts;
     if(st.loading){ opts='<div class="cal-hint">Cargando tus rutinas…</div>'; }
     else if(CoachState.tplsError){ opts='<div class="cal-hint" style="color:var(--red)">No se pudieron cargar las rutinas.<br><br><b>'+esc(CoachState.tplsError)+'</b><br><br>Si dice que la tabla no existe, falta correr el SQL de rutinas en Supabase.</div>'; }
-    else if(!CoachState.coachTpls.length){ opts='<div class="cal-hint">Todavía no tenés rutinas guardadas.<br>Volvé al panel principal → pestaña “Mis rutinas” → creá una o importá el Microciclo 8.</div>'; }
+    else if(!CoachState.coachTpls.length){ opts='<div class="cal-hint">Todavía no tenés rutinas guardadas.<br>Volvé al panel principal → pestaña “Mis rutinas” → creá una o importá la PPL · 5 días.</div>'; }
     else { opts=CoachState.coachTpls.map(t=>{
       const nd=(t.days||[]).length;
       return '<div class="cp-copt" data-coach="ap-tpl" data-id="'+esc(t.id)+'">'+esc(t.name)+'<span class="ap-meta">'+nd+' día'+(nd===1?'':'s')+'</span></div>';

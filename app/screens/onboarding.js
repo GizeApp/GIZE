@@ -144,9 +144,9 @@ function showClientCode(msg, value){
 
 
 // ---- Cómo arrancar (entrena por su cuenta) ----
-// "Empezar vacío" arma sus días en 3 pasos cortos; "Elegir una rutina armada" pregunta el
+// "Empezar vacío" arma sus días en 2 pasos cortos (cuántos días y el objetivo); "Elegir una rutina armada" pregunta el
 // sexo y muestra las rutinas que corresponden (ver core/rutinas-ejemplo.js).
-const OB = { start: "vacio", step: 1, days: 4, goal: "", first: "" };
+const OB = { start: "vacio", step: 1, days: 4, goal: "" };
 
 function option(val, sel, title, sub, attr){
   return '<button type="button" class="onb-opt'+(val===sel?' on':'')+'" data-onb="'+attr+'" data-v="'+val+'" aria-pressed="'+(val===sel)+'">'+
@@ -171,7 +171,7 @@ function showStartChoice(){
   };
 }
 
-function steps(n){ return '<div class="onb-steps" aria-hidden="true">'+[1,2,3].map(i=>'<span'+(i<=n?' class="on"':'')+'></span>').join("")+'</div><div class="onb-step-lbl">Paso '+n+' de 3</div>'; }
+function steps(n){ return '<div class="onb-steps" aria-hidden="true">'+[1,2].map(i=>'<span'+(i<=n?' class="on"':'')+'></span>').join("")+'</div><div class="onb-step-lbl">Paso '+n+' de 2</div>'; }
 
 const GOALS = [["musculo","Ganar músculo"],["grasa","Bajar grasa"],["fuerza","Ganar fuerza"],["salud","Salud y bienestar"]];
 
@@ -180,34 +180,29 @@ function showWizard(){
   if(OB.step===1) inner='<h1 class="onb-title onb-left">¿Cuántos días por semana pensás entrenar?</h1>'+
     '<p class="onb-text onb-left">Armamos tu semana con esa cantidad de días. Lo podés cambiar cuando quieras.</p>'+
     '<div class="onb-nums">'+[1,2,3,4,5].map(n=>'<button type="button" class="onb-num'+(n===OB.days?' on':'')+'" data-onb="days" data-v="'+n+'">'+(n===5?'5+':n)+'</button>').join("")+'</div>';
-  else if(OB.step===2) inner='<h1 class="onb-title onb-left">¿Cuál es tu objetivo principal?</h1>'+
+  else inner='<h1 class="onb-title onb-left">¿Cuál es tu objetivo principal?</h1>'+
     '<div class="onb-opts">'+GOALS.map(g=>option(g[0], OB.goal, g[1], "", "goal")).join("")+'</div>';
-  else inner='<h1 class="onb-title onb-left">¿Cómo se llama tu primer día?</h1>'+
-    '<p class="onb-text onb-left">Por ejemplo: Tren superior, Piernas, Día A.</p>'+
-    '<div class="auth-field onb-field onb-field-free"><input id="onbFirst" class="auth-in" type="text" maxlength="40" placeholder="Día 1" aria-label="Nombre del primer día" value="'+esc(OB.first)+'"></div>';
   const host=mount(steps(OB.step)+inner+
-    '<button type="button" class="gize-btn auth-btn onb-main" data-onb="wnext">'+(OB.step===3?'Empezar':'Siguiente')+'</button>'+
+    '<button type="button" class="gize-btn auth-btn onb-main" data-onb="wnext">'+(OB.step===2?'Empezar':'Siguiente')+'</button>'+
     '<button type="button" class="onb-alt" data-onb="empty">Prefiero arrancar vacío</button>', "Armar tu semana");
   if(!host) return;
-  const inp=host.querySelector("#onbFirst");
-  if(inp){ inp.addEventListener("input", ()=>{ OB.first=inp.value; }); inp.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); host.querySelector('[data-onb="wnext"]').click(); } }); }
   host.onclick=e=>{
     const b=e.target.closest("[data-onb]"); if(!b) return;
     const a=b.dataset.onb;
     if(a==="days"){ OB.days=+b.dataset.v; showWizard(); return; }
     if(a==="goal"){ OB.goal=b.dataset.v; showWizard(); return; }
-    if(a==="empty"){ host.onclick=null; startDays(1, ""); return; }
+    if(a==="empty"){ host.onclick=null; startDays(1); return; }
     if(a==="wnext"){
-      if(OB.step<3){ OB.step++; showWizard(); return; }
-      host.onclick=null; if(OB.goal) state.goal=OB.goal; startDays(OB.days, OB.first.trim());
+      if(OB.step<2){ OB.step++; showWizard(); return; }
+      host.onclick=null; if(OB.goal) state.goal=OB.goal; startDays(OB.days);
     }
   };
 }
 
-// Semana vacía: n días sin ejercicios, el primero con el nombre que eligió.
-function startDays(n, first){
+// Semana vacía: n días sin ejercicios (Día 1, Día 2…; los renombra desde Entreno).
+function startDays(n){
   const uid=()=>Math.random().toString(36).slice(2,9);
-  state.days=Array.from({length:Math.max(1,n)}, (_,i)=>({ id:uid(), name: i===0 ? (first||"Día 1") : "Día "+(i+1), subtitle:"", exercises:[] }));
+  state.days=Array.from({length:Math.max(1,n)}, (_,i)=>({ id:uid(), name: "Día "+(i+1), subtitle:"", exercises:[] }));
   State.activeId=state.days[0].id; State.view="entreno";
   save(); close(); renderApp();
 }
@@ -245,7 +240,7 @@ async function showRoutines(fromApp){
     const b=e.target.closest("[data-onb]"); if(!b) return;
     const a=b.dataset.onb;
     if(a==="cancel"){ host.onclick=null; closeOverlay(); return; }
-    if(a==="empty"){ host.onclick=null; startDays(1, ""); return; }
+    if(a==="empty"){ host.onclick=null; startDays(1); return; }
     if(a==="sexagain"){ host.onclick=null; if(fromApp) showSexFromApp(); else showSex(); return; }
     if(a==="pick"){
       const r=list.find(x=>x.id===b.dataset.v); if(!r) return;

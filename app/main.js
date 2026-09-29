@@ -1,6 +1,6 @@
 import './ui/keyboard.js';
 
-import { DEFAULT, PPL_DAYS } from './core/data.js';
+import { PPL_DAYS } from './core/data.js';
 
 import { disablePush, enablePush, pushLogout } from './core/push.js';
 import { checkSetPR, forgetPR, playPR, suspiciousKg, PR_HOLD_MS } from './ui/festejo.js';
@@ -352,7 +352,7 @@ document.body.addEventListener("click", async e => {
   // anota ahora (comida, agua, pasos) caía en el día anterior y el redibujo lo borraba.
   checkDaily();
   const a = el.dataset.action;
-  if (routineLocked() && ["addday","delday","removeex","addset","removeset","ex-add-open","ex-swap","ex-insert","ex-choose","ex-custom","load-default-routine","open-routines"].indexOf(a)>=0) return;
+  if (routineLocked() && ["addday","delday","removeex","addset","removeset","ex-add-open","ex-swap","ex-insert","ex-choose","ex-custom","open-routines"].indexOf(a)>=0) return;
 
   // Racha
   if (a === "streak-open") { openStreak(); return; }
@@ -658,7 +658,6 @@ document.body.addEventListener("click", async e => {
 
   // Días
   if (a === "open-routines") { openRoutinePicker(); return; }
-  if (a === "load-default-routine") { if(confirm("Esto reemplaza tus días de rutina por el Meso 2 \u00b7 Microciclo 8 (Torso / Piernas / Pecho-Espalda-Hombro / Pierna-Brazo). No toca tus pesos, sesiones ni h\u00e1bitos. \u00bfSeguro?")){ state.days = JSON.parse(JSON.stringify(DEFAULT.days)); State.activeId = state.days[0].id; save(); renderApp(); } return; }
   if (a === "addday") { const nd={id:uid(),name:"Nuevo",subtitle:"",exercises:[]}; state.days.push(nd); State.activeId=nd.id; HabitosState.pendingFocusDay=true; save(); renderApp(); return; }
   if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(confirm("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); State.activeId=state.days[0].id; save(); renderApp(); } return; }
 
@@ -1022,11 +1021,6 @@ document.body.addEventListener("click", async e => {
   }
   if(a==="view-clients"){ CoachState.coachView="clients"; renderCoach(); return; }
   if(a==="view-tpls"){ CoachState.coachView="tpls"; await loadTpls(); renderCoach(); return; }
-  if(a==="tpl-seed"){
-    const days=JSON.parse(JSON.stringify(DEFAULT.days||[]));
-    days.forEach(d=>{ d.id=uid(); (d.exercises||[]).forEach(ex=>{ ex.id=uid(); (ex.sets||[]).forEach(st=>{ st.id=uid(); st.kg=""; st.reps=""; st.done=false; }); }); });
-    CoachState.coachTplEdit={id:null, name:"Meso 2 \u00b7 Microciclo 8", days:days}; CoachState.coachEditDay=0; renderCoach(); return;
-  }
   if(a==="tpl-seed-ppl"){
     const days=JSON.parse(JSON.stringify(PPL_DAYS||[]));
     days.forEach(d=>{ d.id=uid(); (d.exercises||[]).forEach(ex=>{ ex.id=uid(); (ex.sets||[]).forEach(st=>{ st.id=uid(); st.kg=""; st.reps=""; st.done=false; }); }); });

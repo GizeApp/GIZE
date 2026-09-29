@@ -1,4 +1,4 @@
-import { mkEx, mkExT } from './utils.js';
+import { mkEx } from './utils.js';
 
 // La base de alimentos vive en ./foods.js (curada, sin repetidos, con crudo/cocido).
 export { FOODS } from './foods.js';
@@ -22,52 +22,9 @@ export const EX_DB = {
   cuello:["Flexión de cuello con disco","Extensión de cuello con disco","Flexión lateral de cuello","Flexión de cuello con arnés","Puente de cuello","Rotaciones de cuello"]
 };
 
+// Con lo que arranca una cuenta nueva antes de elegir en la bienvenida: un día vacío.
 export const DEFAULT = {
-  days: [
-    { id:"d1", name:"Torso", subtitle:"Lunes · Hombros · Espalda · Pecho · Brazos",
-      note:"ENTRADA EN CALOR — A1 Pullover unilateral con banda: 2×10 c/lado · A2 Remo sentado con bandas: 2×15",
-      exercises:[
-      mkExT("Vuelos laterales sentado","hombros",["8-14","8-14","14-18"],"Mano apenas por delante del cuerpo. Excéntrica controlada. Codos extendidos.",{o:"B1",rir:"2-0",rest:"2'-3'",goal:"Progreso en reps"}),
-      mkExT("Jalón unilateral en estocada","espalda",["12-16","12-16","12-16"],"En estocada o banco regulable. Apenas inclinado hacia el lado que trabaja. Pensar en clavar la mano al suelo y llevar el codo a la cadera.",{o:"C1",rir:"2-0",rest:"2'-3'",goal:"Progreso en reps"}),
-      mkExT("Remo neutro abierto en polea baja","espalda",["8-12","8-12"],"Tronco a 90°. Solo se mueven escápulas y brazos. Llevar la barra a la boca del estómago. Codos bastante separados.",{o:"D1",rir:"2-0",rest:"2'-4'",goal:"Progreso en reps"}),
-      mkExT("Press inclinado con mancuernas","pecho",["7-10","7-10","9-12"],"Banco a 30°, buena retracción, recorrido completo. Excéntrica 3\".",{o:"E1",rir:"2-0",rest:"1:30-2:30",goal:"Progreso en reps, pasarse del rango"}),
-      mkExT("Peck deck","pecho",["9-12","9-12"],"Pausa 1/2\" en contracción. Volver lentamente todo lo que puedas. Máximo recorrido. Codos apenas flexionados.",{o:"F1",rir:"2-0",rest:"2'-3'",goal:"Progreso en reps"}),
-      mkExT("Curl bíceps en polea baja frontal","biceps",["7-11","7-11","11-15"],"Ubicarse alejado de la polea, brazos hacia adelante. Full ROM, excéntrica controlada.",{o:"G1",rir:"1-0",rest:"1:30-2:30",goal:"Progreso en reps"}),
-      mkExT("Extensión de tríceps parado en polea","triceps",["8-12","8-12"],"Máximo rango de recorrido, excéntrica 2\" y mini pausa abajo.",{o:"H1",rir:"1-0",rest:"1:30-2:30",goal:"Progreso en reps"}) ]},
-
-    { id:"d2", name:"Piernas", subtitle:"Martes · Isquios · Cuádriceps · Gemelos · Abdominales",
-      note:"ENTRADA EN CALOR — A1 Movilidad de cadera en estocada lateral: 2×8 c/lado · A2 Sentadilla de copa isométrica: 2×20 seg",
-      exercises:[
-      mkExT("Camilla de isquios","isquios",["8-12","8-12","8-12"],"Pausa en contracción + excéntrica muy controlada y rango completo.",{o:"B1",rir:"2-0",rest:"2'-3'",goal:"Progreso en reps"}),
-      mkExT("Aductores en máquina","aductores",["10-16","10-16"],"Excéntrica controlada y pausa 1/2\" en contracción.",{o:"C1",rir:"2-0",rest:"2'-3'",goal:"Progreso en reps"}),
-      mkExT("Sentadilla en Smith","cuadriceps",["6-9","6-9"],"Excéntrica controlada 3\". Pies en la parte baja de la máquina. Ancho de hombros, puntas rotadas hacia afuera. Abrir las rodillas al bajar.",{o:"D1",rir:"2-0",rest:"3'-5'",goal:"Progreso en reps"}),
-      mkExT("Prensa 45°","cuadriceps",["7-10","7-10"],"Excéntrica 2\". Set up de pies igual a la hack.",{o:"E1",rir:"2-0",rest:"3'-5'",goal:"Progreso en reps"}),
-      mkExT("Cuadricera","cuadriceps",["11-15","11-15"],"Pausa arriba, máximo control en la excéntrica, terminar con parciales.",{o:"F1",rir:"2-0",rest:"2'-3'",goal:"Aumentar cargas"}),
-      mkExT("Gemelos en máquina","gemelos",["10-15","10-15"],"Terminar con parciales hasta no mover el pie. Pausa 1/2\" arriba y abajo.",{o:"G1",rir:"1-0",rest:"2'-3'",goal:"Progreso en reps"}),
-      mkExT("Crunch en banco","abs",["10-15","10-15"],"Pausa en contracción + excéntrica muy controlada y rango completo.",{o:"H1",rir:"1-0",rest:"2'-3'",goal:"Progreso en reps"}) ]},
-
-    { id:"d3", name:"Pecho/Espalda/Hombro", subtitle:"Jueves · Hombros · Pecho · Espalda",
-      note:"ENTRADA EN CALOR — A1 Pullover unilateral con banda: 2×10 c/lado · A2 Band pull apart: 2×12",
-      exercises:[
-      mkExT("Elevaciones laterales","hombros",["9-13","13-16","13-16"],"Mano apenas por delante del cuerpo. Excéntrica controlada. Codos extendidos.",{o:"B1",rir:"2-0",rest:"2'-3'",goal:"1ra con 12 kg, 2da y 3ra con 10 kg"}),
-      mkExT("Press plano en Smith","pecho",["5-8","5-8","8-12"],"Mantener buen leg drive y activación escapular. Excéntrica controlada, sin rebotar.",{o:"C1",rir:"2-0",rest:"3'-5'",goal:"Progreso en reps, pasarse del rango"}),
-      mkExT("Jalón prono","espalda",["6-9","6-9","9-14"],"Tronco apenas inclinado, sin balanceos. Agarre una mano por fuera del ancho de hombros. Excéntrica 2\".",{o:"D1",rir:"2-0",rest:"2'-3'",goal:"Progreso en reps"}),
-      mkExT("Vuelo lateral en polea (énfasis estiramiento)","hombros",["9-14","15-20"],"Usar tobillera. Polea a la altura de la rodilla. Frenar antes del hombro, volver al máximo rango muy controlado.",{o:"E1",rir:"2-0",rest:"1:30-2:30",goal:"1ra con 10 kg, 2da con 5 kg a 20 reps"}),
-      mkExT("Remo T","espalda",["6-8","6-8","10-12"],"Protraer y retraer las escápulas. Mantener 1/2\" la contracción. Toma prona.",{o:"F1",rir:"2-0",rest:"2'-4'",goal:"1ra subir carga, el resto progreso en reps"}),
-      mkExT("Cruce de poleas descendente","pecho",["9-12","9-12"],"Codos extendidos, pequeña pausa en contracción, excéntrica controlada.",{o:"G1",rir:"2-1",rest:"3'-4'",goal:"Progreso en reps"}),
-      mkExT("Remo en polea baja unilateral","espalda",["8-12","8-12"],"Inclinate hacia el lado que trabajás, llevá el codo hacia la cadera, excéntrica de 2 segundos.",{o:"H1",rir:"2-0",rest:"2'-4'",goal:"Progreso en reps"}) ]},
-
-    { id:"d4", name:"Pierna/Brazo", subtitle:"Viernes · Isquios · Cuádriceps · Bíceps · Tríceps",
-      note:"ENTRADA EN CALOR — A1 Movilidad de cadera en estocada lateral: 2×8 c/lado · A2 Sentadilla de copa isométrica: 2×20 seg",
-      exercises:[
-      mkExT("Peso muerto rumano","isquios",["6-9","6-9"],"Excéntrica 2\". Rodilla casi extendida. Cadera bien hacia atrás. Barra pegada a la tibia.",{o:"B1",rir:"2-0",rest:"3'-5'",goal:"Mejorar los 80 kg"}),
-      mkExT("Prensa 45°","cuadriceps",["7-10","7-10","10-13"],"Excéntrica 2\". Set up de pies igual a la hack.",{o:"C1",rir:"2-0",rest:"3'-5'",goal:"Progreso en reps"}),
-      mkExT("Cuadricera","cuadriceps",["11-15","11-15"],"Pausa arriba, máximo control en la excéntrica, terminar con parciales.",{o:"D1",rir:"2-0",rest:"2'-3'",goal:"Aumentar cargas"}),
-      mkExT("Press francés con mancuernas","triceps",["7-11","7-11"],"Máximo rango posible, pausa 1/2\" con la barra en la frente.",{o:"F1",rir:"2-0",rest:"2'-3'",goal:"Progreso en reps"}),
-      mkExT("Curl predicador","biceps",["7-10","7-10","11-15"],"Banco casi a 90° (un poco menos), estirar por completo y excéntrica de 2\".",{o:"G1",rir:"2-0",rest:"3'",goal:"Progreso en reps"}),
-      mkExT("Extensión de tríceps parado en polea","triceps",["8-10","8-10","9-12"],"Tronco apenas inclinado, sin balanceos. Excéntrica 2\".",{o:"H1",rir:"2-1",rest:"2'-4'",goal:"Progreso en reps"}),
-      mkExT("Curl Bayesian","biceps",["9-14","9-14"],"Máximo rango de recorrido, excéntrica 2\" y mini pausa abajo.",{o:"I1",rir:"1-0",rest:"1:30-2:30",goal:"Aumentar cargas"}) ]}
-  ],
+  days: [{ id:"d1", name:"Día 1", subtitle:"", exercises:[] }],
   habits: []
 };
 
