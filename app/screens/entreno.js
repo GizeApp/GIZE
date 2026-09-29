@@ -17,7 +17,7 @@ import { esc, isAssisted, fmt, fmtSecs, isTimedEx, norm, num, parseSecs, searchE
 
 import { renderApp } from '../main.js';
 
-import { allSetsDone, bestKgBefore, bestSetOf, lastSessionFor, renderLastSession } from './progreso.js';
+import { allSetsDone, bestKgBefore, bestSetOf, exOccurrence, lastSessionFor, renderLastSession } from './progreso.js';
 import { kgText, suggest } from '../core/progresion.js';
 import { prSets } from '../ui/festejo.js';
 
@@ -253,7 +253,7 @@ export function renderEntreno(){
       </div>`;
     };
     // Si el día tiene el mismo ejercicio dos veces, cada uno va con el suyo de la vez pasada.
-    const occ = d.exercises.slice(0, exIdx).filter(x => x.name === ex.name).length;
+    const occ = exOccurrence(d.exercises, ex);
     // Si alguna serie tiene objetivo del coach, las que no lo tienen dejan el lugar vacío:
     // así kg y reps quedan del mismo ancho en todas las filas.
     const anyGoal = ex.sets.some(s => s.target);

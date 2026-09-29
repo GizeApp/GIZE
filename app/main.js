@@ -10,7 +10,7 @@ import { State, state } from './core/state.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
-import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
+import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, refreshOwnRoutine, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
 
 import { assistedKg, isAssisted, fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, intNum, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
@@ -67,6 +67,7 @@ import { checkProductRequests, productByCodeShared, reportShared, saveShared, se
 import { addDays, dayItems, loadDay, retryDay, setDayItems } from './screens/comida-historial.js';
 import { EditState, cleanSessionEdit, openSessionEdit, removeSessionEditSet, renderSessionEdit, setSessionEditVal } from './ui/sessionedit.js';
 import { closeScanner, openScanner, scannerManualCode } from './ui/scanner.js';
+import { initBackButton } from './ui/atras.js';
 import { initUpdateCheck } from './ui/actualizar.js';
 import { openRoutinePicker } from './screens/onboarding.js';
 import { initTabScroll, restoreTabScroll } from './ui/tabscroll.js';
@@ -844,6 +845,7 @@ document.body.addEventListener("click", async e=>{
       const que = n>0 ? n+" registro"+(n>1?"s":"")+(state.routineHash!==routineHash(state.days)?" y cambios de tu rutina":"") : "cambios de tu rutina";
       if(!confirm("Tenés "+que+" que todavía no se guardaron en tu cuenta (sin conexión). Si cerrás sesión ahora se pierden.\n\nConectate a internet, abrí la app y esperá unos segundos antes de salir.\n\n¿Cerrar sesión igual?")) return;
     }
+    State.signingOut=true; // el SIGNED_OUT que viene es este: no es una sesión perdida (core/supabase.js → watchAuth)
     try{ await pushLogout(); }catch(e){} // antes del signOut: borrar el dispositivo necesita la sesión
     const logoutUid=State.cloudUser&&State.cloudUser.id;
     try{ await State.sb.auth.signOut(); }catch(e){}
@@ -1456,7 +1458,10 @@ async function saveBlock(bf){
 }
 
 document.addEventListener("visibilitychange", async ()=>{
-  if(document.visibilityState!=="visible" || !routineLocked()) return;
+  if(document.visibilityState!=="visible") return;
+  // Sin coach: la rutina se pudo haber cambiado en otro dispositivo mientras esta quedaba
+  // abierta. Se relee de la nube y, si cambió, se redibuja (ver refreshOwnRoutine).
+  if(!routineLocked()){ if(await refreshOwnRoutine()) renderApp(); return; }
   // Primero con lo guardado (sin señal también): si cambió la semana, cambia la rutina ya.
   if(coachRoutineDue() && applyCoachRoutine()){ save(); renderApp(); }
   if(!State.sb || !State.cloudUser) return;
@@ -1486,6 +1491,7 @@ cloudBoot();
 initTabScroll(); // días de Entreno: ruedita y arrastre con el mouse
 initUpdateCheck(); // cartel de versión nueva en las apps de las tiendas
 initHabitAlarms(()=>{ State.view="habitos"; renderApp(); }); // tocar el aviso de un hábito abre Hábitos
+initBackButton(); // «Atrás» de Android: cierra la ventana abierta, vuelve o sale
 resumeRest(); // descanso que quedó corriendo al cerrar la app
 // En la app nativa (Capacitor) los archivos ya viajan dentro de la app: no hace falta el service worker.
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
