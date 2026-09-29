@@ -733,9 +733,17 @@ export async function loadCloud(){
       } else {
         state.days = rt.data.days;
       }
-      migrateNames(state.days);
+      // Si migrateNames corrigió algo (nombres viejos, sin 'mus', ids raros), la corregida se
+      // sube ya, recién leída la nube. Antes la subía el primer save(); ahora save() solo sube
+      // si la rutina cambió acá, y al volver a primer plano refreshOwnRoutine veía distinta la
+      // nube y la volvía a tomar (y a migrar, con ids nuevos) en cada vuelta. Si no se pudo
+      // subir, queda marcada la de la nube: la corregida queda pendiente para el próximo save().
+      const raw=JSON.parse(JSON.stringify(state.days));
+      const fixed=migrateNames(state.days);
       if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
-      markRoutineSynced(state.days);
+      let up=false;
+      if(fixed){ try{ up=await upRoutine(); }catch(e){ console.error("rutina",e); } }
+      markRoutineSynced(fixed && !up ? raw : state.days);
     } else if(!routineLocked()) {
       if(await upRoutine()) markRoutineSynced(state.days);
     }
@@ -802,6 +810,52 @@ function localRoutineWins(cloud){
   if(routineHash(state.days)===state.routineHash) return false;
   const cloudTs=Date.parse(cloud.updated_at)||0;
   return (state.routineEditedAt||0) > cloudTs;
+}
+
+// Sin coach, la rutina también se cambia desde otro dispositivo (la compu, otro celular). Al
+// volver a primer plano se relee la de la nube: si allá cambió y acá no, se toma esa; si
+// cambiaron las dos, gana la más nueva (la misma regla que al abrir, localRoutineWins). Antes
+// el celular que había quedado abierto seguía con la vieja, la subía en el próximo save() y
+// después el otro dispositivo la adoptaba: el cambio se perdía en todos lados.
+// Devuelve true si cambió la rutina de este dispositivo (hay que redibujar).
+let _routineCheck=null;
+const ownRoutine=()=>!(State.cloudProfile && State.cloudProfile.role==="coach") && !routineLocked() && onRegular();
+export function refreshOwnRoutine(){
+  if(_routineCheck) return _routineCheck;
+  if(!State.sb || !State.cloudUser || !State.cloudReady || State.cloudLoading || !ownRoutine()) return Promise.resolve(false);
+  const synced=state.routineHash;
+  const p=_routineCheck=(async()=>{
+    try{
+      const rt=await State.sb.from("routines").select("days, updated_at").eq("client_id",State.cloudUser.id).maybeSingle();
+      if(rt.error || !rt.data || !Array.isArray(rt.data.days) || !rt.data.days.length) return false;
+      // Si mientras leía se subió o se bajó la rutina (o se vinculó a un coach), esta lectura ya es vieja.
+      if(state.routineHash!==synced || State.cloudLoading || !ownRoutine()) return false;
+      // Cambió acá y es más nueva: se sube por el camino de siempre (la demora espera a esta lectura).
+      if(localRoutineWins(rt.data)){ cloudSyncCore(); return false; }
+      if(sameDays(rt.data.days, state.days)){ if(routineHash(state.days)!==state.routineHash) markRoutineSynced(state.days); return false; }
+      // La nube sigue igual que cuando se bajó (la migración de acá todavía no se subió): no hay
+      // nada que tomar; se sube la corregida. Volver a tomarla la migraba otra vez y cambiaba los
+      // ids raros en cada vuelta (el alumno saltaba al primer día).
+      if(routineHash(rt.data.days)===synced){ cloudSyncCore(); return false; }
+      state.days=rt.data.days;
+      const raw=JSON.parse(JSON.stringify(state.days)); // la de la nube, sin migrar (ver loadCloud)
+      const fixed=migrateNames(state.days);
+      if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
+      markRoutineSynced(raw); // también la guarda en el dispositivo
+      if(fixed) cloudSyncCore(); // la corregida se sube una vez (sin marcarla como editada acá)
+      return true;
+    }catch(e){ console.error("rutina",e); return false; }
+  })();
+  p.then(()=>{ if(_routineCheck===p) _routineCheck=null; });
+  return p;
+}
+// ¿Es la misma rutina? La nube la guarda como jsonb, que devuelve las claves en otro orden:
+// se comparan ordenadas (routineHash no sirve para esto, depende del orden).
+function sameDays(a, b){
+  const canon=v=>Array.isArray(v) ? "["+v.map(canon).join(",")+"]"
+    : (v && typeof v==="object") ? "{"+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+":"+canon(v[k])).join(",")+"}"
+    : JSON.stringify(v===undefined ? null : v);
+  return canon(a)===canon(b);
 }
 
 let _retryT=null, _retryN=0;
@@ -916,9 +970,15 @@ export function cloudSyncCore(){
   clearTimeout(State.routineTimer);
   State.routineTimer=setTimeout(async ()=>{
     try{
+      // Si justo se está releyendo la rutina de la nube (volvió a primer plano), primero se
+      // decide cuál queda (ver refreshOwnRoutine) y recién después se sube, si hace falta.
+      await _routineCheck;
       // Con coach asignado la rutina es SOLO del coach: subir la copia del cliente en cada
-      // save() pisaba lo que el coach acababa de cambiar.
-      if(!routineLocked() && onRegular()){
+      // save() pisaba lo que el coach acababa de cambiar. Sin coach, se sube solo si cambió
+      // en este dispositivo desde la última vez que quedó igual a la nube: antes cualquier
+      // save() (agua, comida, el cambio de día) subía la rutina entera, y un celular que había
+      // quedado abierto con la vieja pisaba la nueva que el alumno armó en otro.
+      if(!routineLocked() && onRegular() && routineHash(state.days)!==state.routineHash){
         const days=state.days, h=routineHash(days);
         sbOk(await State.sb.from("routines").upsert({client_id:State.cloudUser.id, days:days, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}));
         if(routineHash(state.days)===h) markRoutineSynced(state.days); // si cambió mientras subía, queda pendiente para la próxima
@@ -1066,6 +1126,8 @@ export function localUnsynced(){
 // Sube la rutina ya (sin esperar la demora de cloudSyncCore). Devuelve true si quedó en la nube.
 export async function syncRoutineNow(){
   if(!State.sb || !State.cloudUser || !State.cloudReady || routineLocked() || !onRegular()) return false;
+  // Sin cambios acá desde la última sincronización no se sube nada (ver cloudSyncCore).
+  if(routineHash(state.days)===state.routineHash) return true;
   try{
     const days=state.days, h=routineHash(days);
     sbOk(await State.sb.from("routines").upsert({client_id:State.cloudUser.id, days:days, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}));
