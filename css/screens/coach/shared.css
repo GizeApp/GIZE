@@ -137,6 +137,9 @@ a.cs-q-btn { text-decoration:none; } /* link a la política de privacidad, con l
 .cq-btn { flex-shrink:0; width:34px; height:34px; border-radius:8px; border:1px solid var(--gize-border); background:transparent;
     color:var(--txt-2); cursor:pointer; font-size:14px; }
 .cq-btn:disabled { opacity:.35; cursor:default; }
+/* En el celular el tipo de respuesta va solo en su fila: al lado de ↑ ↓ ✕ se cortaba
+   («Elegir una opci»). Los botones pasan abajo, a la derecha. */
+@media (max-width:400px){ .cq-row { flex-wrap:wrap; justify-content:flex-end; } .cq-type { flex:1 1 100%; } }
 .cq-btn.del:hover { color:var(--gize-danger); border-color:color-mix(in srgb, var(--gize-danger) 45%, transparent); }
 .cq-opts { display:block; width:calc(100% - 30px); margin:8px 0 0 30px; }
 .cq-add { width:100%; margin-top:4px; }

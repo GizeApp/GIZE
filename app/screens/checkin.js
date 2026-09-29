@@ -8,7 +8,7 @@ import { save } from '../core/storage.js';
 
 import { checkinPending, cloudInsertSession, failedCheckin, isOnline, newId } from '../core/supabase.js';
 
-import { esc, fmtDate, mondayOf, num, parseSecs, today } from '../core/utils.js';
+import { esc, fmtDate, mondayOf, num, parseSecs, today, withUnit } from '../core/utils.js';
 
 import { kgText } from '../core/progresion.js';
 
@@ -232,7 +232,7 @@ export function planSections(p){
       '<tr class="mc-tot mc-goal"><td>Objetivo</td><td>'+tk+'</td><td>'+tc+'</td><td>'+tf+'</td><td>'+tp+'</td></tr></tbody></table></div>';
   };
   const list=(arr,title,icon,cls)=>{ if(!arr||!arr.filter(x=>x&&x.trim()).length) return ""; return '<div class="mc-block'+(cls?' '+cls:'')+'"><div class="mc-title'+(cls?' '+cls+'-t':'')+'">'+icon+' '+title+'</div><ul class="mc-list">'+arr.filter(x=>x&&x.trim()).map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul></div>'; };
-  const ws=(p.water||p.salt)?'<div class="mc-block"><div class="mc-ws">'+(p.water?'<span>💧 '+esc(p.water)+'</span>':'')+(p.salt?'<span>🧂 '+esc(p.salt)+'</span>':'')+'</div></div>':'';
+  const ws=(p.water||p.salt)?'<div class="mc-block"><div class="mc-ws">'+(p.water?'<span>💧 '+esc(withUnit(p.water,'L de agua por día'))+'</span>':'')+(p.salt?'<span>🧂 '+esc(withUnit(p.salt,'g de sal por día'))+'</span>':'')+'</div></div>':'';
   const secHasContent = sec => (sec.title&&sec.title.trim()) || (sec.opts&&sec.opts.some(o=>(o.label&&o.label.trim())||(o.body&&o.body.trim()))) || (sec.items&&sec.items.some(i=>i&&i.trim()));
   const validSecs = (p.options||[]).filter(secHasContent);
   const bodyToList = body => { const parts=String(body).split(/\r?\n/).map(x=>x.trim()).filter(Boolean); if(parts.length<=1) return '<div class="mc-optbody">'+esc(body)+'</div>'; return '<ul class="mc-optitems">'+parts.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul>'; };
