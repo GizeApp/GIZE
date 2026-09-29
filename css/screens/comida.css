@@ -178,9 +178,12 @@ button.wk-avg { font: inherit; color: inherit; text-align: left; cursor: pointer
 
 .add-to { margin: 4px 0 10px; }
 .add-to-t { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--gize-text-2); text-transform: uppercase; letter-spacing: .06em; }
-.meal-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.meal-chip { border: 1px solid var(--gize-border); background: transparent; color: var(--gize-text-2); border-radius: 999px;
-  padding: 7px 4px; font: 600 13px var(--gize-font); cursor: pointer; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Cada botón toma el ancho de su palabra y reparte lo que sobra: en 320-360 cuatro columnas
+   iguales cortaban «Desay…», «Almuer…», «Merien…». */
+.meal-chips { display: flex; gap: 4px; }
+.meal-chip { flex: 1 0 auto; border: 1px solid var(--gize-border); background: transparent; color: var(--gize-text-2); border-radius: 999px;
+  padding: 7px 5px; font: 600 13px var(--gize-font); cursor: pointer; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 340px) { .meal-chip { font-size: 12px; padding: 7px 4px; } }
 .meal-chip.on { border-color: var(--gize-blue); color: var(--gize-text); background: color-mix(in srgb, var(--gize-blue) 14%, transparent); }
 .sheet .meal-chips { margin: -8px 0 14px; }
 
@@ -241,6 +244,9 @@ button.search-open { flex: 1; background: var(--card-2); border: 1px solid var(-
 .search-sheet { height: min(88dvh, calc(100dvh - var(--kb, 0px) - env(safe-area-inset-top, 0px) - 16px)); max-height: none; display: flex; flex-direction: column; }
 .ss-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .ss-head .sheet-title { margin: 0; }
+/* .ss-head también es la cabecera de las superseries (entreno.css), que va en columna y con
+   relleno: acá «Agregar» y la ✕ van en la misma fila. */
+.search-sheet .ss-head { flex-direction: row; padding: 0; }
 .ss-x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--gize-border); background: transparent; color: var(--gize-text-2); display: grid; place-items: center; cursor: pointer; }
 .ss-x svg { width: 16px; height: 16px; }
 .search-sheet .meal-chips { margin-bottom: 12px; }

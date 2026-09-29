@@ -10,7 +10,7 @@ import { State } from '../../core/state.js';
 
 import { migrateNames } from '../../core/storage.js';
 
-import { esc, exMuscle, isTimedEx, mkEx, muscleOf, num, pickMuscle, searchExercises, today } from '../../core/utils.js';
+import { esc, exMuscle, isTimedEx, mkEx, muscleOf, num, pickMuscle, searchExercises, today, withUnit } from '../../core/utils.js';
 
 import { coachDatalist, coachLogFor, exChart, exSummary, exTable } from './clientes.js';
 import { kgText, suggest } from '../../core/progresion.js';
@@ -65,7 +65,7 @@ export function mealRows(p, key){
       '<button class="ml-del" data-coach="pl-mealdel" data-key="'+key+'" data-i="'+i+'" title="Quitar">\u2715</button>'+
     '</div>').join("");
   // fila total
-  let tk=0,tc=0,tf=0,tp=0; rows.forEach(r=>{ tk+=num(r.kcal); tc+=num(r.cho); tf+=num(r.fat); tp+=num(r.prot); }); const r1=x=>Math.round(x*10)/10; tk=Math.round(tk); tc=r1(tc); tf=r1(tf); tp=r1(tp);
+  let tk=0,tc=0,tf=0,tp=0; rows.forEach(r=>{ tk+=num(r.kcal); tc+=num(r.cho); tf+=num(r.fat); tp+=num(r.prot); }); const r1=x=>String(Math.round(x*10)/10).replace(".",","); tk=Math.round(tk); tc=r1(tc); tf=r1(tf); tp=r1(tp);
   const tot='<div class="ml-tot"><span>Objetivo diario</span><span></span><span>'+tk+'</span><span>'+tc+'</span><span>'+tf+'</span><span>'+tp+'</span><span></span><span></span></div>';
   const tbl=rows.length?'<div class="ml-tablewrap">'+head+body+tot+'</div>':'';
   return tbl+'<button class="pl-add" data-coach="pl-mealadd" data-key="'+key+'">+ Agregar comida</button>';
@@ -156,20 +156,22 @@ export function renderCoachPlan(d){
   const tot=k=>{ let t=0; (p[k]||[]).forEach(r=>{ t+=num(r.kcal); }); return Math.round(t); };
   const meals=k=>{ const n=(p[k]||[]).length, t=tot(k); return n ? n+" comida"+(n===1?"":"s")+(t?" · "+t+" kcal":"") : "Sin cargar"; };
   const cnt=(n,one,many)=>n+" "+(n===1?one:many);
+  // Títulos cortos: en 320 px «entrenamiento» o «Personalización» no entraban en media tarjeta
+  // y empujaban la grilla afuera del borde.
   const SECS=[
-    ["train","Días de entrenamiento", ()=>card("Reparto de comidas", mealRows(p,"trainDays")), ()=>meals("trainDays")],
+    ["train","Días de entreno", ()=>card("Reparto de comidas", mealRows(p,"trainDays")), ()=>meals("trainDays")],
     ["rest","Días de descanso", ()=>card("Reparto de comidas", mealRows(p,"restDays")), ()=>meals("restDays")],
     ["agua","Hidratación", ()=>card("Hidratación",
       '<div class="ci-grid-2">'+
         '<div class="ci-f"><label>Agua por día (litros)</label><input class="co-note" data-coach="pl-water" value="'+esc(p.water||"")+'" placeholder=""></div>'+
         '<div class="ci-f"><label>Sal por día (g)</label><input class="co-note" data-coach="pl-salt" value="'+esc(p.salt||"")+'" placeholder=""></div>'+
-      '</div>'), ()=>[p.water?p.water+" L de agua":"", p.salt?p.salt+" g de sal":""].filter(Boolean).join(" · ")||"Sin cargar"],
+      '</div>'), ()=>[p.water?withUnit(p.water,"L de agua"):"", p.salt?withUnit(p.salt,"g de sal"):""].filter(Boolean).join(" · ")||"Sin cargar"],
     ["ind","Indicaciones", ()=>card("Indicaciones",
       '<div class="ci-grid-2">'+
         '<div>'+listEditor(p,"guidelines","Pautas nutricionales","")+'</div>'+
         '<div>'+listEditor(p,"supps","Suplementos recomendados","")+'</div>'+
       '</div>'), ()=>{ const g=(p.guidelines||[]).length, sp=(p.supps||[]).length; return g||sp ? [g?cnt(g,"pauta","pautas"):"", sp?cnt(sp,"suplemento","suplementos"):""].filter(Boolean).join(" · ") : "Sin cargar"; }],
-    ["menu","Personalización del menú", ()=>card("Personalización del menú",
+    ["menu","Opciones de menú", ()=>card("Opciones de menú",
       optionsEditor(p)+
       '<div class="pl-divider"></div>'+
       '<div class="ci-grid-2">'+

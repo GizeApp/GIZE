@@ -46,9 +46,11 @@ export function normalizeQuestions(list){
 }
 
 // Preguntas que ve el cliente: las de su coach si las configuró, si no las de siempre.
+// Una lista vacía es a propósito (el coach borró todas y guardó): no se cambia por las de
+// siempre. Sin configurar (null) sí.
 export function clientQuestions(kind){
   const cq = state.coachQ && normalizeQuestions(state.coachQ[kind]);
-  return (cq && cq.length) ? cq : defaultQuestions(kind);
+  return cq ? cq : defaultQuestions(kind);
 }
 
 // "Foto" de los textos de las preguntas respondidas, guardada junto con las respuestas
@@ -83,7 +85,8 @@ export function answeredQuestions(kind, answers, coachList){
 }
 
 // El coach logueado guarda sus propias preguntas en State (no en el state del cliente).
+// Puede ser [] si las borró todas (answeredQuestions usa entonces el orden de siempre).
 export function coachOwnQuestions(kind){
   const cq = State.coachQ && normalizeQuestions(State.coachQ[kind]);
-  return (cq && cq.length) ? cq : null;
+  return cq || null;
 }

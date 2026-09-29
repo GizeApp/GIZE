@@ -84,14 +84,15 @@ export async function reportShared(id, why){
 
 // Foto de la tabla nutricional: se achica (lado mayor 1600 px, JPEG) y se sube a la carpeta
 // del usuario en el bucket privado «productos». Solo la ven los administradores.
+export const PHOTO_UNREADABLE = "No pudimos abrir esa foto (puede ser un formato no compatible, como HEIC). Sacala con el botón de la cámara o elegí otra.";
 async function labelJpeg(file){
   const url = URL.createObjectURL(file);
   try {
-    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("No se pudo leer la foto")); i.src = url; });
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error(PHOTO_UNREADABLE)); i.src = url; });
     const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
     const cv = document.createElement("canvas"); cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
     cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
-    return await new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error("No se pudo procesar la foto")), "image/jpeg", 0.8));
+    return await new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error(PHOTO_UNREADABLE)), "image/jpeg", 0.8));
   } finally { URL.revokeObjectURL(url); }
 }
 export async function uploadLabelPhoto(file, code, prefix){
@@ -127,11 +128,15 @@ export async function checkProductRequests(onRetry){
     const r = await State.sb.from("product_requests").select("id,name,brand,code,status,note").neq("status", "pendiente").eq("seen", false).order("done_at").limit(10);
     const rows = (r && !r.error && r.data) || [];
     if (!rows.length) return;
-    // Se marcan vistos antes de preguntar: si cierra la app con el aviso abierto, no se repite.
-    await Promise.all(rows.map(x => State.sb.rpc("product_request_seen", { rid: x.id }).then(() => {}, () => {})));
+    // Se marcan vistos antes de avisar: si cierra la app con el aviso abierto, no se repite.
+    // Los rechazados, de a uno justo antes de su aviso: si elige reenviar uno, los que faltan
+    // siguen sin ver y se avisan en el próximo chequeo.
+    const seen = x => State.sb.rpc("product_request_seen", { rid: x.id }).then(() => {}, () => {});
     const ok = rows.filter(x => x.status === "cargado"), no = rows.filter(x => x.status === "rechazado");
+    await Promise.all(ok.map(seen));
     if (ok.length) alert("¡Listo! Ya agregamos a GIZE " + (ok.length === 1 ? "el producto que pediste: «" + ok[0].name + "»" : "los productos que pediste: " + ok.map(x => "«" + x.name + "»").join(", ")) + ". Buscalo o escanealo para anotarlo.");
     for (const x of no){
+      await seen(x);
       const again = confirm("No pudimos agregar «" + x.name + "»" + (x.note ? ": " + x.note : "") + ".\n\n¿Lo mandás de nuevo con otra foto? El nombre y la marca ya quedan cargados.");
       if (again && onRetry){ onRetry({ name: x.name || "", brand: x.brand || "", code: x.code || "" }); break; }
     }

@@ -28,6 +28,11 @@ permissions:
 jobs:
   ios:
     runs-on: macos-latest
+    # Con «shell: bash» GitHub corre cada paso con pipefail: si xcodebuild falla, el
+    # «| tail -40» ya no esconde el error y el paso queda en rojo.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Apple solo acepta apps compiladas con el SDK más nuevo: se usa el Xcode de mayor

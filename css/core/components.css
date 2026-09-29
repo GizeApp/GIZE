@@ -569,6 +569,11 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 .sess-det[open] .sess-chev { transform: rotate(225deg); margin-bottom: 0; }
 .sess-det[open] .sess-exs { white-space: normal; }
 .sess-det-wrap .diary-rm { margin-top: 2px; }
+/* Con Editar/Borrar (el alumno): los botones van arriba a la derecha, encima del resumen, y no
+   como una columna al costado de todo el entreno desplegado, que le comía el ancho a los números. */
+.sess-item.sess-det-wrap.has-acts { position: relative; }
+.sess-det-wrap.has-acts .sess-acts { position: absolute; top: 12px; right: 14px; }
+.sess-det-wrap.has-acts .sess-sum { padding-right: 64px; }
 .sess-body { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 
 .sd-tot { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; margin-bottom: 12px; }
@@ -616,6 +621,11 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
   .set .goal { padding: 3px 4px; }
   .set .rm { padding: 2px; }
 }
+/* Por debajo de 360 la palabra «reps» no entra y quedaba tapada por la meta del coach (8-14),
+   que ya dice que son repeticiones: se saca y ese lugar va a los números. */
+@media (max-width: 359px) {
+  .set.has-goal .f-reps .unit { display: none; }
+}
 
 /* Historial del coach: este entreno al lado de la vez pasada, con la diferencia en color.
    Columnas de ancho fijo y todo alineado a la izquierda: las filas de todos los ejercicios
@@ -638,6 +648,8 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
   .sc-row { grid-template-columns: 22px minmax(0,1fr) minmax(0,1fr) 84px; column-gap: 6px; min-height: 44px; }
   .sc-d { flex-direction: column; align-items: flex-start; gap: 3px; }
   .sc-now, .sc-prev { font-size: 13px; }
+  /* En 320-360 un «22,5 kg × 8» puede no entrar en una línea: que baje a la segunda en vez de cortarse. */
+  .sc-now, .sc-prev { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
   .sc-d b { font-size: 10.5px; padding: 2px 4px; }
 }
 .auth-ios-tip { align-self:stretch; margin:-2px 2px 4px; font-size:12px; line-height:1.45; color:var(--gize-text-2); opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
