@@ -685,7 +685,8 @@ async function saveProd(btn){
   btn.disabled = true;
   try { await rpc("admin_product_save", Object.assign({ pid: p.id, p_unit: p.unit, p_verified: verified, p_hidden: hidden }, row)); }
   catch (e) { btn.disabled = false; return toast(errMsg(e)); }
-  if (mode){ Object.assign(p, { name: row.p_name, brand: row.p_brand, kcal: row.p_kcal, protein: row.p_protein, carbs: row.p_carbs, fat: row.p_fat, hidden }); if (!hidden) p.reports = mode === "show" ? 0 : p.reports; }
+  // Guardar uno visible y verificado (o volver a mostrarlo) borra sus reportes en la base (admin_product_save, supabase/admin.sql).
+  if (mode){ Object.assign(p, { name: row.p_name, brand: row.p_brand, kcal: row.p_kcal, protein: row.p_protein, carbs: row.p_carbs, fat: row.p_fat, hidden }); if (!hidden && (mode === "show" || verified)){ p.reports = 0; p.reasons = null; } }
   else S.prods = S.prods.filter(x => x.id !== p.id);
   paintProds();
   toast(mode === "keep" ? "Cambios guardados ✓" : hidden ? "Producto oculto" : (mode === "show" || !verified) ? "Producto visible otra vez" : "Producto verificado ✓");

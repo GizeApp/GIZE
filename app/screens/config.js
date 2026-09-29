@@ -5,7 +5,7 @@
 // cuando State.view === "config".
 import { State } from '../core/state.js';
 import { KEY } from '../core/storage.js';
-import { clearAccountLeftovers, loadCloud, deleteMyStorageFiles, PROFILE_KEY } from '../core/supabase.js';
+import { clearAccountLeftovers, loadCloud, deleteMyStorageFiles, deleteMyAccount, PROFILE_KEY } from '../core/supabase.js';
 import { esc } from '../core/utils.js';
 import { avatarHtml, avatarUrl } from '../core/avatar.js';
 import { showLogin } from './auth.js';
@@ -281,15 +281,13 @@ document.body.addEventListener("click", async function (e) {
           if (rc.error || (rc.data && rc.data.error)) throw new Error("no se pudo cancelar tu suscripción en Mercado Pago. Probá de nuevo o escribinos a contacto@gize.ar");
         }
       }
-      // Primero las fotos (check-in y perfil): la función de abajo no puede borrar archivos
-      // de Storage. Si esto falla se corta acá, con la cuenta intacta, para poder reintentar
-      // en vez de dejar fotos sin dueño.
+      // Primero las fotos (check-in y perfil). Si esto falla se corta acá, con la cuenta
+      // intacta, para poder reintentar en vez de dejar fotos sin dueño.
       await deleteMyStorageFiles();
-      // "delete_own_account" (SECURITY DEFINER, ver supabase/base.sql) borra el registro de
-      // auth.users y en cascada todo lo que depende de él — la anon key del cliente no
-      // tiene permiso para borrar de auth.users directo.
-      const r = await State.sb.rpc("delete_own_account");
-      if (r.error) throw r.error;
+      // Después la función borrar-audios: borra los mensajes de voz y la cuenta (llama a
+      // delete_own_account, ver supabase/pagos-seguros.sql, que borra auth.users y en cascada
+      // todo lo que depende de él).
+      await deleteMyAccount();
       State.signingOut = true; // la sesión se cierra a propósito: no pedir ingresar de nuevo (core/supabase.js → watchAuth)
       // Como al cerrar sesión: se da de baja este dispositivo para que la próxima cuenta que
       // entre acá no quede con las notificaciones prendidas sin haberlas activado. Va después

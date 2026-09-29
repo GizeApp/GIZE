@@ -2,8 +2,10 @@
 -- Lo que un usuario carga al escanear un código que no está en ningún lado queda para todos,
 -- y lo que se agrega desde Open Food Facts también se guarda acá (búsqueda más rápida y
 -- sin depender de OFF). Valores cada 100 g o 100 ml.
--- Correr con el workflow "Supabase" → tarea sql → supabase/productos.sql. Se puede correr
--- varias veces.
+-- Correr con el workflow "Supabase" → tarea sql → supabase/productos.sql.
+-- OJO: NO volver a correr suelto. Redefine products_before, y la versión vigente (foto de la
+-- tabla obligatoria, scans) está en productos-admin.sql. Si lo corrés, corré después
+-- productos-admin.sql.
 --
 -- Seguridad:
 --   · Cualquier usuario con sesión lee y agrega; nadie edita ni borra desde la app.
