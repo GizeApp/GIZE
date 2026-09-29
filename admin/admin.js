@@ -18,6 +18,9 @@ const num = v => parseFloat(String(v == null ? "" : v).replace(",", ".")) || 0;
 const n0 = v => Math.round(Number(v) || 0).toLocaleString("es-AR");
 const money = v => "$" + n0(v);
 const fmtD = d => d ? new Date(d).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "2-digit" }) : "—";
+// Último día cubierto de un pago o una prueba: la base guarda las 00:00 del día siguiente
+// (admin_set_paid / admin_set_trial), así que se le resta 1 ms (igual que la app del coach).
+const lastDay = d => d ? fmtD(new Date(new Date(d).getTime() - 1)) : "—";
 const fmtDT = d => d ? new Date(d).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 function ago(d){
   if (!d) return "nunca";
@@ -67,7 +70,7 @@ function shell(){
   $root.innerHTML = `<div class="shell"><nav class="side">
       <img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE"><div class="side-sub">Administración</div>
       ${SECTIONS.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : ""}</button>`).join("")}
-      <div class="side-foot">${esc(S.user.email)}<br><button data-a="logout">Salir</button> · <a href="../app/">Ir a la app</a></div>
+      <div class="side-foot"><span class="side-mail">${esc(S.user.email)}<br></span><button data-a="logout">Salir</button> · <a href="../app/">Ir a la app</a></div>
     </nav><main class="main" id="main"></main></div>`;
 }
 function go(view){
@@ -192,7 +195,9 @@ function paintUsers(){
     <tr class="row" data-user="${esc(u.id)}"><td><b>${esc(u.full_name || "Sin nombre")}</b>${u.is_admin ? ' <span class="pill blue">admin</span>' : ""}<div class="muted small">${esc(u.email)}</div></td>
       <td>${u.role === "coach" ? '<span class="pill ok">Coach</span>' : '<span class="pill">Alumno</span>'}</td>
       <td class="muted">${esc(u.coach_name || "—")}</td><td class="muted">${fmtD(u.created_at)}</td>
-      <td class="muted">${ago(u.last_seen_at || u.last_sign_in_at)}</td><td class="muted small">${esc(platformTxt(u.app_platform, u.app_version))}</td></tr>`).join("")}</tbody></table>`;
+      <td class="muted">${ago(u.last_seen_at || u.last_sign_in_at)}</td><td class="muted small">${esc(platformTxt(u.app_platform, u.app_version))}</td></tr>`).join("")}</tbody></table>` +
+    // admin_users trae 60 como mucho (las cuentas más nuevas).
+    (S.users.length >= 60 ? `<div class="muted small" style="padding:10px">Se muestran las 60 cuentas más nuevas${S.q ? " que coinciden" : ""}: buscá por nombre o mail para ver otras.</div>` : "");
 }
 const platformTxt = (p, v) => !p ? "—" : (p === "android" ? "Android " : p === "ios" ? "iPhone " : "Web ") + (p === "web" ? "" : (v || ""));
 
@@ -228,8 +233,8 @@ function closeDrawer(){ document.querySelectorAll(".drawer, .drawer-bg").forEach
 // ---------- Coaches y pagos ----------
 function coachState(c){
   if (c.plan === "cortesia") return '<span class="pill blue">Cortesía</span>';
-  if (c.paid_until && new Date(c.paid_until) > new Date() && c.plan !== "trial") return `<span class="pill ok">Pagado hasta ${fmtD(c.paid_until)}</span>`;
-  if (c.trial_ends_at && new Date(c.trial_ends_at) > new Date()) return `<span class="pill warn">Prueba hasta ${fmtD(c.trial_ends_at)}</span>`;
+  if (c.paid_until && new Date(c.paid_until) > new Date() && c.plan !== "trial") return `<span class="pill ok">Pagado hasta ${lastDay(c.paid_until)}</span>`;
+  if (c.trial_ends_at && new Date(c.trial_ends_at) > new Date()) return `<span class="pill warn">Prueba hasta ${lastDay(c.trial_ends_at)}</span>`;
   return '<span class="pill bad">Sin pagar</span>';
 }
 const mpTxt = s => ({ authorized: "activa", paused: "pausada", cancelled: "cancelada", pending: "pendiente" }[s] || s || "—");
@@ -250,11 +255,20 @@ async function loadCoaches(){
 }
 // Vencimientos: a quién escribirle. Pago o prueba que vence en los próximos 7 días, y los
 // que ya vencieron hace menos de 30 días (los de hace más, ya se sabe).
+// Los días se cuentan en el calendario de Argentina, desde hoy hasta el último día cubierto
+// (el vencimiento menos 1 ms): 0 es "vence hoy" y -1 es "venció ayer".
+const AR_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" });
+const diaAR = ms => Date.parse(AR_DAY.format(new Date(ms)));
 function venceDe(c){
   if (c.plan === "cortesia") return null;
   const now = Date.now(), paid = c.paid_until ? new Date(c.paid_until).getTime() : 0, trial = c.trial_ends_at ? new Date(c.trial_ends_at).getTime() : 0;
   const t = Math.max(paid, trial); if (!t) return null;
-  return { t, que: paid >= trial ? "pago" : "prueba", dias: Math.ceil((t - now) / 864e5) };
+  return { t, que: paid >= trial ? "pago" : "prueba", dias: Math.round((diaAR(t - 1) - diaAR(now)) / 864e5), vencido: t <= now };
+}
+function venceTxt(v){
+  if (!v.vencido) return v.dias === 0 ? "vence hoy" : "vence en " + v.dias + " día" + (v.dias === 1 ? "" : "s");
+  if (v.dias === 0) return "venció hoy"; // por ejemplo, con «Cortar ahora»
+  return (v.que === "pago" ? "vencido" : "vencida") + " hace " + (-v.dias) + " día" + (v.dias === -1 ? "" : "s");
 }
 function paintSoon(){
   const box = document.getElementById("cSoon"); if (!box) return;
@@ -263,7 +277,7 @@ function paintSoon(){
   box.innerHTML = `<div class="card"><div class="sec-t" style="margin-top:0">Vencen pronto</div><div class="list-mini">${list.map(({ c, v }) => `
     <div class="row" data-coach="${esc(c.id)}" style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;cursor:pointer">
       <span><b>${esc(c.full_name || "Sin nombre")}</b> <span class="muted small">${esc(c.email)}</span></span>
-      <span class="pill ${v.dias < 0 ? "bad" : "warn"}">${v.que === "pago" ? "Pago" : "Prueba"} ${v.dias < 0 ? "vencido hace " + (-v.dias) + " día" + (v.dias === -1 ? "" : "s") : v.dias === 0 ? "vence hoy" : "vence en " + v.dias + " día" + (v.dias === 1 ? "" : "s")}</span>
+      <span class="pill ${v.vencido ? "bad" : "warn"}">${v.que === "pago" ? "Pago" : "Prueba"} ${venceTxt(v)}</span>
     </div>`).join("")}</div></div>`;
 }
 
@@ -276,7 +290,9 @@ const isoDay = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2,
 function hastaMeses(c, meses){
   const now = Date.now(), fin = x => x && new Date(x).getTime() > now ? new Date(x).getTime() - 1 : 0;
   const d = new Date(Math.max(now, fin(c.paid_until), c.plan === "cortesia" ? 0 : fin(c.trial_ends_at)));
-  d.setMonth(d.getMonth() + meses); return isoDay(d);
+  // Mismo día del mes, o el último si ese mes es más corto (del 31/10, +1 da 30/11 y no 1/12).
+  const dia = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + meses);
+  d.setDate(Math.min(dia, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return isoDay(d);
 }
 
 async function openCoach(id){
@@ -284,14 +300,14 @@ async function openCoach(id){
   drawer(`<div class="h1" style="font-size:22px">${esc(c.full_name || "Sin nombre")}</div><div class="muted">${esc(c.email)}</div>
     <div class="facts">
       <div class="fact"><span>Plan</span><b>${esc(planTxt(c.plan))}</b></div><div class="fact"><span>Estado</span><b>${coachState(c)}</b></div>
-      <div class="fact"><span>Alumnos</span><b>${n0(c.clients)} de ${n0(c.max_clients)}</b></div><div class="fact"><span>Pago al día hasta</span><b>${fmtD(c.paid_until)}</b></div>
-      <div class="fact"><span>Prueba hasta</span><b>${fmtD(c.trial_ends_at)}</b></div><div class="fact"><span>Mercado Pago</span><b>${c.has_mp ? esc(mpTxt(c.mp_status)) : "Sin suscripción"}</b></div>
+      <div class="fact"><span>Alumnos</span><b>${n0(c.clients)} de ${n0(c.max_clients)}</b></div><div class="fact"><span>Pago al día hasta</span><b>${lastDay(c.paid_until)}</b></div>
+      <div class="fact"><span>Prueba hasta</span><b>${lastDay(c.trial_ends_at)}</b></div><div class="fact"><span>Mercado Pago</span><b>${c.has_mp ? esc(mpTxt(c.mp_status)) : "Sin suscripción"}</b></div>
     </div>
     <div class="sec-t">Pago manual</div>
     <div class="sec-s">Cuando te paga (transferencia, efectivo, link), cargá el plan y hasta cuándo queda habilitado. Los meses se cuentan desde que termina lo que ya tiene: si está en la prueba gratis, el plan arranca cuando la prueba termina (no pierde días); si ya estaba al día, desde su vencimiento.</div>
     <label class="lbl">Plan</label>
     <select class="in" id="pmPlan">${["p10", "p25", "p50", "p100"].map(p => `<option value="${p}"${(c.plan === p || (!PLAN_MAX[c.plan] && p === "p25")) ? " selected" : ""}>${esc(planTxt(p))} · ${money(PLAN_PRICE[p])}/mes</option>`).join("")}</select>
-    <label class="lbl">Alumnos máximos</label><input class="in" id="pmMax" type="number" min="1" max="1000" value="${PLAN_MAX[c.plan] ? n0(c.max_clients) : 25}">
+    <label class="lbl">Alumnos máximos</label><input class="in" id="pmMax" type="number" min="1" max="1000" value="${PLAN_MAX[c.plan] ? Number(c.max_clients) || PLAN_MAX[c.plan] : 25}">
     <label class="lbl">Pagado hasta</label>
     <div class="search"><input class="in" id="pmUntil" type="date" value="${hastaMeses(c, 1)}">
       <button class="btn" data-a="pmMeses" data-id="${esc(c.id)}" data-m="1">+1 mes</button><button class="btn" data-a="pmMeses" data-id="${esc(c.id)}" data-m="3">+3</button><button class="btn" data-a="pmMeses" data-id="${esc(c.id)}" data-m="12">+12</button></div>
@@ -302,7 +318,7 @@ async function openCoach(id){
     ${c.plan === "cortesia" ? `<button class="btn" data-a="plan" data-id="${esc(c.id)}" data-mode="sin_cortesia">Quitar la cortesía</button>` :
       `<label class="lbl">Cortesía: gratis, con tope de alumnos</label><div class="search"><input class="in" id="ctMax" type="number" min="1" value="${Math.max(10, c.max_clients || 10)}"><button class="btn blue" data-a="plan" data-id="${esc(c.id)}" data-mode="cortesia">Dar cortesía</button></div>`}
     ${c.plan === "cortesia" ? "" : `<label class="lbl">Prueba gratis hasta</label><input class="in" id="trUntil" type="date" min="${isoDay(new Date())}" value="${c.trial_ends_at && new Date(c.trial_ends_at) > new Date() ? isoDay(new Date(new Date(c.trial_ends_at).getTime() - 1)) : isoDay(new Date(Date.now() + 14 * 864e5))}">
-    <label class="lbl">Alumnos máximos en la prueba</label><div class="search"><input class="in" id="trMax" type="number" min="1" max="1000" value="${n0(c.max_clients || 10)}"><button class="btn blue" data-a="trSave" data-id="${esc(c.id)}">Guardar prueba</button></div>`}`);
+    <label class="lbl">Alumnos máximos en la prueba</label><div class="search"><input class="in" id="trMax" type="number" min="1" max="1000" value="${Number(c.max_clients) || 10}"><button class="btn blue" data-a="trSave" data-id="${esc(c.id)}">Guardar prueba</button></div>`}`);
   if (!c.has_mp) return;
   const box = document.getElementById("pays");
   try {
@@ -824,8 +840,10 @@ async function sendAviso(btn){
   btn.disabled = false;
 }
 async function saveConfig(btn){
-  const v = JSON.parse(JSON.stringify(S.config || {}));
-  document.querySelectorAll("[data-v]").forEach(i => { const [pl, k] = i.dataset.v.split("."); v[pl] = v[pl] || {}; v[pl][k] = ["ultima", "minima"].includes(k) ? Math.max(0, parseInt(i.value, 10) || 0) : i.value.trim(); });
+  // Solo Android y iPhone: así no se cuelan los botones «A quién» (también tienen data-v) y se
+  // limpia lo que se haya guardado de más antes.
+  const base = S.config || {}, v = { android: Object.assign({}, base.android), ios: Object.assign({}, base.ios) };
+  document.querySelectorAll("input[data-v]").forEach(i => { const [pl, k] = i.dataset.v.split("."); if (!v[pl]) return; v[pl][k] = ["ultima", "minima"].includes(k) ? Math.max(0, parseInt(i.value, 10) || 0) : i.value.trim(); });
   for (const pl of ["android", "ios"]) if (v[pl] && v[pl].tienda && !/^https:\/\//i.test(v[pl].tienda)) return toast("El link de la tienda tiene que empezar con https://");
   if (!confirm("¿Guardar el cartel? A los usuarios con una versión más vieja que «Última» les va a aparecer.")) return;
   btn.disabled = true;
@@ -845,7 +863,10 @@ async function loadSeguridad(){
     const runs = j.workflow_runs || [], box = document.getElementById("bk"); if (!box) return;
     box.innerHTML = runs.length ? `<table class="table"><tbody>${runs.map(r => `<tr><td>${fmtDT(r.created_at)}</td><td>${r.status !== "completed" ? '<span class="pill warn">En curso</span>' : r.conclusion === "success" ? '<span class="pill ok">OK</span>' : '<span class="pill bad">Falló</span>'}</td><td><a href="${esc(r.html_url)}" target="_blank" rel="noopener">ver</a></td></tr>`).join("")}</tbody></table>` : "Todavía no hay copias.";
   }).catch(() => { const box = document.getElementById("bk"); if (box) box.innerHTML = bkLink + '<div class="muted small">Hace falta entrar con la cuenta de GitHub de GIZE.</div>'; });
-  rpc("admin_users", { q: "" }).then(us => { const box = document.getElementById("admins"); if (box) box.innerHTML = us.filter(u => u.is_admin).map(u => esc((u.full_name || "Sin nombre") + " · " + u.email)).join("<br>") || "—"; }).catch(() => {});
+  // admin_list_admins trae a todos los administradores (admin.sql). Si la base todavía no la
+  // tiene, se sigue con lo de antes: los administradores entre las 60 cuentas más nuevas.
+  rpc("admin_list_admins").catch(() => rpc("admin_users", { q: "" }).then(us => us.filter(u => u.is_admin)))
+    .then(us => { const box = document.getElementById("admins"); if (box) box.innerHTML = (us || []).map(u => esc((u.full_name || "Sin nombre") + " · " + u.email)).join("<br>") || "—"; }).catch(() => {});
   const box = document.getElementById("aud");
   try { S.audit = await rpc("admin_audit_list", { lim: 100 }); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.audit.length){ box.textContent = "Todavía no hay acciones registradas."; return; }
@@ -865,6 +886,8 @@ document.addEventListener("input", e => {
   const mr = e.target.closest && e.target.closest(".msg-reply"); if (mr) S.drafts[mr.closest("[data-msg]").dataset.msg] = e.target.value;
   if (e.target.id === "avTitle") document.getElementById("pvT").textContent = e.target.value || "Título";
   if (e.target.id === "avBody") document.getElementById("pvB").textContent = e.target.value || "Mensaje";
+  // Pago manual: al elegir otro plan, «Alumnos máximos» pasa al tope de ese plan.
+  if (e.target.id === "pmPlan"){ const m = document.getElementById("pmMax"); if (m && PLAN_MAX[e.target.value]) m.value = PLAN_MAX[e.target.value]; }
   if (e.target.dataset && e.target.dataset.fs && S.fin) finField(e.target);
 });
 document.addEventListener("keydown", e => {
@@ -898,11 +921,18 @@ document.addEventListener("click", async e => {
     if (a === "pmSave"){
       const plan = document.getElementById("pmPlan").value, max = parseInt(document.getElementById("pmMax").value, 10) || PLAN_MAX[plan], until = document.getElementById("pmUntil").value;
       if (!until){ toast("Elegí hasta qué fecha pagó."); return; }
-      if (!confirm("¿Habilitar el " + planTxt(plan) + " (" + max + " alumnos) hasta el " + fmtD(until + "T12:00:00") + "?")) return;
+      const menos = max < PLAN_MAX[plan] ? "\n\nOjo: el " + planTxt(plan) + " es para " + PLAN_MAX[plan] + " alumnos y le vas a dejar " + max + " como máximo." : "";
+      if (!confirm("¿Habilitar el " + planTxt(plan) + " (" + max + " alumnos) hasta el " + fmtD(until + "T12:00:00") + "?" + menos)) return;
       await rpc("admin_set_paid", { cid: b.dataset.id, p_plan: plan, p_max: max, p_until: until });
       toast("Pago cargado"); closeDrawer(); loadCoaches(); return;
     }
-    if (a === "pmClear"){ if (!confirm("¿Cortar el pago ahora? Queda sin plan (sus alumnos siguen usando la app, pero él no ve sus fichas).")) return; await rpc("admin_clear_paid", { cid: b.dataset.id }); toast("Pago cortado"); closeDrawer(); loadCoaches(); return; }
+    if (a === "pmClear"){
+      // Si la prueba gratis sigue vigente, admin_clear_paid lo devuelve a la prueba (cobro-manual.sql).
+      const c = (S.coaches || []).find(x => x.id === b.dataset.id), prueba = c && c.trial_ends_at && new Date(c.trial_ends_at) > new Date();
+      if (!confirm(prueba ? "¿Cortar el pago ahora? Vuelve a la prueba gratis (hasta 10 alumnos) hasta el " + lastDay(c.trial_ends_at) + "; después queda sin plan."
+        : "¿Cortar el pago ahora? Queda sin plan (sus alumnos siguen usando la app, pero él no ve sus fichas).")) return;
+      await rpc("admin_clear_paid", { cid: b.dataset.id }); toast("Pago cortado"); closeDrawer(); loadCoaches(); return;
+    }
     if (a === "trSave"){
       const until = document.getElementById("trUntil").value, max = parseInt(document.getElementById("trMax").value, 10) || 10;
       if (!until){ toast("Elegí hasta qué fecha es la prueba."); return; }

@@ -118,6 +118,21 @@ end $$;
 revoke execute on function public.admin_users(text) from public, anon;
 grant execute on function public.admin_users(text) to authenticated;
 
+-- Todos los administradores (Seguridad → Administradores). admin_users trae solo las 60
+-- cuentas más nuevas y los administradores suelen ser de las más viejas.
+create or replace function public.admin_list_admins()
+returns table (id uuid, email text, full_name text)
+language plpgsql stable security definer set search_path = public, auth as $$
+begin
+  perform public.admin_assert();
+  return query
+    select u.id, u.email::text, p.full_name
+      from public.app_admins a join auth.users u on u.id = a.user_id left join public.profiles p on p.id = u.id
+     order by p.full_name nulls last, u.email;
+end $$;
+revoke execute on function public.admin_list_admins() from public, anon;
+grant execute on function public.admin_list_admins() to authenticated;
+
 create or replace function public.admin_user_detail(uid uuid)
 returns jsonb language plpgsql stable security definer set search_path = public, auth as $$
 declare r jsonb;
