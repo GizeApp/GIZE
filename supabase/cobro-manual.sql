@@ -9,10 +9,12 @@
 
 create or replace function public.admin_set_paid(cid uuid, p_plan text, p_max int, p_until date)
 returns void language plpgsql security definer set search_path = public as $$
+-- «Hoy» en Argentina: current_date va en UTC y de 21 a 24 ya es mañana.
+declare hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
 begin
   perform public.admin_assert();
   if p_plan not in ('p10', 'p25', 'p50', 'p100') then raise exception 'Plan inválido.' using errcode = 'P0001'; end if;
-  if p_until is null or p_until < current_date then raise exception 'Poné una fecha de hoy en adelante.' using errcode = 'P0001'; end if;
+  if p_until is null or p_until < hoy then raise exception 'Poné una fecha de hoy en adelante.' using errcode = 'P0001'; end if;
   insert into public.coach_billing (coach_id) values (cid) on conflict (coach_id) do nothing;
   -- Con una suscripción de Mercado Pago activa, el próximo aviso de pago pisaría esto.
   if exists (select 1 from public.coach_billing where coach_id = cid and mp_status = 'authorized') then
@@ -31,12 +33,19 @@ end $$;
 revoke execute on function public.admin_set_paid(uuid, text, int, date) from public, anon;
 grant execute on function public.admin_set_paid(uuid, text, int, date) to authenticated;
 
--- Cortar el pago manual ahora (por ejemplo, si se cargó por error o dejó de pagar).
+-- Cortar el pago manual ahora (por ejemplo, si se cargó por error o dejó de pagar). Si la
+-- prueba gratis todavía no terminó, vuelve a la prueba con su tope de 10 alumnos (como al quitar
+-- la cortesía); si no, queda sin plan.
 create or replace function public.admin_clear_paid(cid uuid)
 returns void language plpgsql security definer set search_path = public as $$
 begin
   perform public.admin_assert();
-  update public.coach_billing set paid_until = now(), updated_at = now() where coach_id = cid and plan <> 'cortesia';
+  update public.coach_billing
+     set paid_until = now(),
+         plan = case when trial_ends_at > now() then 'trial' else plan end,
+         max_clients = case when trial_ends_at > now() then 10 else max_clients end,
+         updated_at = now()
+   where coach_id = cid and plan <> 'cortesia';
   perform public.admin_log('plan', cid::text, jsonb_build_object('mode', 'cortar_pago'));
 end $$;
 revoke execute on function public.admin_clear_paid(uuid) from public, anon;
@@ -46,10 +55,11 @@ grant execute on function public.admin_clear_paid(uuid) to authenticated;
 -- se puede alargar o acortar. Con cortesía no hace falta (primero se quita la cortesía).
 create or replace function public.admin_set_trial(cid uuid, p_until date, p_max int)
 returns void language plpgsql security definer set search_path = public as $$
+declare hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date; -- como en admin_set_paid
 begin
   perform public.admin_assert();
-  if p_until is null or p_until < current_date then raise exception 'Poné una fecha de hoy en adelante.' using errcode = 'P0001'; end if;
-  if p_until > current_date + 730 then raise exception 'Poné una fecha de acá a dos años como mucho.' using errcode = 'P0001'; end if;
+  if p_until is null or p_until < hoy then raise exception 'Poné una fecha de hoy en adelante.' using errcode = 'P0001'; end if;
+  if p_until > hoy + 730 then raise exception 'Poné una fecha de acá a dos años como mucho.' using errcode = 'P0001'; end if;
   insert into public.coach_billing (coach_id) values (cid) on conflict (coach_id) do nothing;
   if exists (select 1 from public.coach_billing where coach_id = cid and plan = 'cortesia') then
     raise exception 'Este coach tiene cortesía. Quitale la cortesía y después poné la prueba.' using errcode = 'P0001';

@@ -83,7 +83,8 @@ function feedbackChips(se){
 }
 
 // Duración guardada al terminar (segundos desde la primera serie tildada): "47 min", "1 h 05".
-const durShort = s => { s = Math.round(+s || 0); const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return h ? h + " h " + String(m).padStart(2, "0") : Math.max(1, m) + " min"; };
+// Se redondea primero el total en minutos: 1:59:30 es "2 h 00", no "1 h 60".
+const durShort = s => { const tm = Math.round((+s || 0) / 60), h = Math.floor(tm / 60), m = tm % 60; return h ? h + " h " + String(m).padStart(2, "0") : Math.max(1, m) + " min"; };
 
 // opts.removeBtn: HTML del botón de borrar (solo el cliente borra sus entrenos).
 // opts.open: arranca desplegado (el coach lo muestra así al elegirlo en el selector).

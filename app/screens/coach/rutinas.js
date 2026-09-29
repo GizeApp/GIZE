@@ -65,7 +65,7 @@ export function mealRows(p, key){
       '<button class="ml-del" data-coach="pl-mealdel" data-key="'+key+'" data-i="'+i+'" title="Quitar">\u2715</button>'+
     '</div>').join("");
   // fila total
-  let tk=0,tc=0,tf=0,tp=0; rows.forEach(r=>{ tk+=num(r.kcal); tc+=num(r.cho); tf+=num(r.fat); tp+=num(r.prot); }); const r1=x=>Math.round(x*10)/10; tk=Math.round(tk); tc=r1(tc); tf=r1(tf); tp=r1(tp);
+  let tk=0,tc=0,tf=0,tp=0; rows.forEach(r=>{ tk+=num(r.kcal); tc+=num(r.cho); tf+=num(r.fat); tp+=num(r.prot); }); const r1=x=>String(Math.round(x*10)/10).replace(".",","); tk=Math.round(tk); tc=r1(tc); tf=r1(tf); tp=r1(tp);
   const tot='<div class="ml-tot"><span>Objetivo diario</span><span></span><span>'+tk+'</span><span>'+tc+'</span><span>'+tf+'</span><span>'+tp+'</span><span></span><span></span></div>';
   const tbl=rows.length?'<div class="ml-tablewrap">'+head+body+tot+'</div>':'';
   return tbl+'<button class="pl-add" data-coach="pl-mealadd" data-key="'+key+'">+ Agregar comida</button>';
