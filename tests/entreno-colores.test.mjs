@@ -1,4 +1,4 @@
-// Entreno del alumno con menos colores (pedido: con verde, azul y violeta a la vez se veía
+// Entreno del alumno con menos colores. Video y audio del coach: borde de neón y letras blancas (pedido: con verde, azul y violeta a la vez se veía
 // infantil). Video, audio del coach, recomendación, propuesta del coach, serie hecha,
 // objetivo y pestaña del día van en blanco y grises; el neón de la marca queda en
 // «Iniciar entrenamiento» y en el botón del chat, que pasa de azul a toda la gama.
@@ -19,9 +19,10 @@ export default async function ({ base, t }){
     const out = {};
     const put = (name, el, props) => { if (!el) { out[name] = 'no está'; return; } const cs = getComputedStyle(el); out[name] = props.map(k => cs[k]); };
     put('pestaña del día', document.querySelector('.tabs .tab.active'), ['backgroundColor', 'borderTopColor', 'color']);
-    put('ver video', document.querySelector('.ex-video'), ['backgroundColor', 'borderTopColor', 'color']);
+    put('ver video', document.querySelector('.ex-video'), ['color']);
     put('ícono del video', document.querySelector('.ex-video svg'), ['color']);
-    put('audio del coach', document.querySelector('.ex-audio'), ['backgroundColor', 'borderTopColor', 'color']);
+    put('audio del coach', document.querySelector('.ex-audio'), ['color']);
+    out.neon = ['.ex-video', '.ex-audio'].map(q => { const e = document.querySelector(q); return e ? getComputedStyle(e).backgroundImage : ''; });
     put('ícono del audio', document.querySelector('.ex-audio svg'), ['color']);
     put('propuesta del coach', document.querySelector('.prog-sug'), ['backgroundColor', 'borderTopColor']);
     put('ícono de la propuesta', document.querySelector('.prog-sug .ps-ic'), ['backgroundColor', 'color']);
@@ -34,10 +35,11 @@ export default async function ({ base, t }){
     return out;
   });
   for (const [k, v] of Object.entries(m)){
-    if (k.startsWith('chat')) continue;
+    if (k.startsWith('chat') || k === 'neon') continue;
     t.ok(Array.isArray(v), k + ': está en la pantalla');
     if (Array.isArray(v)) t.eq(v.filter(tinted), [], k + ': sin color (blanco o gris)');
   }
+  t.ok(m.neon.every(b => b.includes('conic-gradient')), 'ver video y escuchar a tu coach: borde de neón con la gama');
   t.ok(m.chatRing.includes('conic-gradient'), 'chat: el borde es la gama de neón');
   const cols = new Set((m.chatShadow.match(/rgba?\([^)]*\)/g) || []).map(c => c.replace(/\s/g, '')));
   t.ok(cols.size >= 3, 'chat: el resplandor tiene varios colores de la gama: ' + m.chatShadow);
