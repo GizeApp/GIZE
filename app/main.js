@@ -823,6 +823,7 @@ document.body.addEventListener("click", async e=>{
       const que = n>0 ? n+" registro"+(n>1?"s":"")+(state.routineHash!==routineHash(state.days)?" y cambios de tu rutina":"") : "cambios de tu rutina";
       if(!confirm("Tenés "+que+" que todavía no se guardaron en tu cuenta (sin conexión). Si cerrás sesión ahora se pierden.\n\nConectate a internet, abrí la app y esperá unos segundos antes de salir.\n\n¿Cerrar sesión igual?")) return;
     }
+    State.signingOut=true; // el SIGNED_OUT que viene es este: no es una sesión perdida (core/supabase.js → watchAuth)
     try{ await pushLogout(); }catch(e){} // antes del signOut: borrar el dispositivo necesita la sesión
     const logoutUid=State.cloudUser&&State.cloudUser.id;
     try{ await State.sb.auth.signOut(); }catch(e){}

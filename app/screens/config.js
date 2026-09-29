@@ -281,6 +281,7 @@ document.body.addEventListener("click", async function (e) {
       // tiene permiso para borrar de auth.users directo.
       const r = await State.sb.rpc("delete_own_account");
       if (r.error) throw r.error;
+      State.signingOut = true; // la sesión se cierra a propósito: no pedir ingresar de nuevo (core/supabase.js → watchAuth)
       try { localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); } catch (err) {}
       clearAccountLeftovers(State.cloudUser && State.cloudUser.id);
       try { await State.sb.auth.signOut(); } catch (err) {}

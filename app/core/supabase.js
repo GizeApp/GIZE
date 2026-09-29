@@ -448,7 +448,7 @@ export function ensureSb(){
   if (State.sb) return Promise.resolve(State.sb);
   if (_sbReady) return _sbReady;
   const tryInit = () => {
-    if (!State.sb && window.supabase) { try { State.sb = window.supabase.createClient(SB_URL, SB_KEY, {auth:{storage:authStorage, flowType: IS_NATIVE_APP ? "pkce" : "implicit"}}); } catch(e){} }
+    if (!State.sb && window.supabase) { try { State.sb = window.supabase.createClient(SB_URL, SB_KEY, {auth:{storage:authStorage, flowType: IS_NATIVE_APP ? "pkce" : "implicit"}}); watchAuth(State.sb); } catch(e){} }
     return !!State.sb;
   };
   if (_sbFailed && !window.supabase) reloadSbScript();
@@ -464,6 +464,29 @@ export function ensureSb(){
     },50);
   });
   return _sbReady;
+}
+
+// Avisos de supabase-js sobre la sesión. Se atienden con setTimeout: durante el aviso la
+// librería todavía tiene tomada la sesión y pedírsela (getSession, en flushOutbox) se trabaría.
+// - TOKEN_REFRESHED / SIGNED_IN: vuelve a haber sesión, sale lo pendiente (la cola espera
+//   la sesión, ver flushOutbox).
+// - SIGNED_OUT sin haber tocado "Salir" en este dispositivo (se cerró desde otro, o el
+//   servidor ya no acepta renovarla): antes nadie se enteraba, la app seguía "adentro" y
+//   todo lo que se cargaba se mandaba como anónimo y se perdía. Ahora se pide ingresar de
+//   nuevo, sin borrar la cola ni los datos del celular: si entra la misma cuenta,
+//   afterLogin() sube lo pendiente.
+function watchAuth(sb){
+  sb.auth.onAuthStateChange(ev=>{
+    if(ev==="TOKEN_REFRESHED" || ev==="SIGNED_IN") setTimeout(()=>{ flushOutbox(); }, 0);
+    else if(ev==="SIGNED_OUT") setTimeout(sessionLost, 0);
+  });
+}
+function sessionLost(){
+  if(!State.cloudUser || State.signingOut) return;
+  refreshSyncFoot();
+  const h=document.getElementById("authHost");
+  if(h && h.style.display==="flex" && h.innerHTML) return; // ya está pidiendo ingresar: no se borra lo que escribió
+  showLogin("Tu sesión se cerró (por ejemplo, si saliste desde otro dispositivo). Ingresá de nuevo con tu cuenta: lo que cargaste en este celular sigue guardado y se sube al entrar.", "in", {email:State.cloudUser.email||""});
 }
 
 function reloadSbScript(){
@@ -528,7 +551,12 @@ export async function afterLogin(sessionUser){
   }
   if(State.cloudUser && state.ownerUid!==State.cloudUser.id){ state.ownerUid=State.cloudUser.id; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
   try{ localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
-  try { const r=await State.sb.auth.getUser(); if(r.data.user) State.cloudUser=r.data.user; } catch(e){}
+  let gu=null;
+  try { gu=await State.sb.auth.getUser(); if(gu.data.user) State.cloudUser=gu.data.user; } catch(e){}
+  // Sesión cerrada desde otro dispositivo con el token todavía vigente: el servidor dice que
+  // no existe y la librería la borra. Seguir cargaría la cuenta sin sesión: se pide ingresar.
+  if(gu && gu.error && gu.error.name==="AuthSessionMissingError"){ sessionLost(); return; }
+  rescueFailed();
   // Primero se envía lo que quedó pendiente de otra sesión (sin conexión, app cerrada):
   // loadCloud() reemplaza entrenos/registros locales por los de la nube.
   try { await flushOutbox(); } catch(e){ console.error("flushOutbox",e); }
@@ -1104,6 +1132,36 @@ async function sendItem(it){
 // se aparta en OUTBOX_FAILED_KEY. Un corte de red no trae "code" y se sigue reintentando.
 function isPermanent(e){ return !!(e && typeof e.code==="string" && /^(22|23|42)/.test(e.code)); }
 
+// ¿supabase-js tiene ahora una sesión viva de ESTE usuario? Sin sesión la librería no avisa:
+// manda el pedido con la clave anónima, la base lo rechaza por RLS con 42501 (que parece
+// un error permanente y apartaba el pendiente) y un DELETE borra 0 filas sin error (se daba
+// por hecho). Pasa con el token vencido si la renovación falló sin señal (la librería guarda
+// ese fallo 60 s y mientras tanto no hay sesión) o si la sesión se cerró desde otro lado.
+async function sessionFor(uid){
+  try{ const s=(await State.sb.auth.getSession()).data.session; return !!(s && s.user && s.user.id===uid); }catch(e){ return false; }
+}
+// Sin sesión lo pendiente se queda en la cola y sale solo cuando la librería renueva el token
+// (TOKEN_REFRESHED, ver watchAuth) o, si nadie la despierta, pasado su enfriamiento de 60 s.
+let _flushRetry=null;
+function flushLater(){ clearTimeout(_flushRetry); _flushRetry=setTimeout(()=>{ flushOutbox(); }, 65000); }
+
+// La versión anterior apartaba así (error de "row-level security") los entrenos mandados sin
+// sesión, y ahí quedaban. Al entrar vuelven a la cola, adelante: se suben ignorando los que ya
+// están, así que reenviarlos no puede pisar nada. Lo demás (comidas, registro, pesos,
+// check-in) reemplaza el día o la semana entera y pudo tener después una versión más nueva ya
+// subida: reenviar la vieja la pisaría, así que queda donde está.
+function rescueFailed(){
+  const uid=State.cloudUser&&State.cloudUser.id; if(!uid) return;
+  const failed=readQueue(OUTBOX_FAILED_KEY);
+  const back=failed.filter(i=>i.uid===uid && i.k==="session" && /row-level security/i.test(i.error||""));
+  if(!back.length) return;
+  const q=readQueue(OUTBOX_KEY);
+  const fresh=back.filter(i=>!q.some(x=>x.id===i.id)).map(i=>{ const c=Object.assign({}, i); delete c.error; return c; });
+  writeQueue(OUTBOX_KEY, fresh.concat(q));
+  const left=failed.filter(i=>back.indexOf(i)<0);
+  if(left.length) writeQueue(OUTBOX_FAILED_KEY, left); else try{ localStorage.removeItem(OUTBOX_FAILED_KEY); }catch(e){}
+}
+
 let _flushing=null;
 export function flushOutbox(){
   if(_flushing) return _flushing;
@@ -1117,12 +1175,19 @@ export function flushOutbox(){
       for(;;){
         const it=myPending()[0];
         if(!it) return true;
+        if(!(await sessionFor(it.uid))){ flushLater(); return false; }
+        let bad=null;
         try{ await sendItem(it); }
         catch(e){
           console.error("outbox",it.k,e);
           if(!isPermanent(e)) return false;
-          writeQueue(OUTBOX_FAILED_KEY, readQueue(OUTBOX_FAILED_KEY).concat([Object.assign({error:String(e&&e.message||e)}, it)]));
+          bad=e;
         }
+        // Si la sesión se cayó mientras se mandaba, parte pudo salir como anónimo: el rechazo
+        // es por eso y no por el dato, y un DELETE así "sale bien" sin borrar nada. Se queda
+        // en la cola y se repite con sesión (reenviar no duplica nada, ver sendItem).
+        if(!(await sessionFor(it.uid))){ flushLater(); return false; }
+        if(bad) writeQueue(OUTBOX_FAILED_KEY, readQueue(OUTBOX_FAILED_KEY).concat([Object.assign({error:String(bad&&bad.message||bad)}, it)]));
         writeQueue(OUTBOX_KEY, readQueue(OUTBOX_KEY).filter(i=>i.id!==it.id));
       }
     } finally { _flushing=null; refreshSyncFoot(); }
