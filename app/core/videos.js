@@ -261,7 +261,8 @@ const LIB_IDS = new Set(Object.values(V).map(ytId));
 export function exVideo(ex){
   const lib = libVideo(ex && ex.name);
   if(ex && ex.video && /^https:\/\//i.test(ex.video)){
-    if(ex.videoFor && norm(ex.videoFor) !== norm(ex.name)) return lib;
+    // Si el coach lo pegó para este ejercicio (videoFor), va el suyo aunque sea uno de la biblioteca.
+    if(ex.videoFor) return norm(ex.videoFor) === norm(ex.name) ? { url: ex.video, channel: "" } : lib;
     const id = ytId(ex.video);
     if(LIB_IDS.has(id) && !(lib && ytId(lib.url) === id)) return lib;
     return { url: ex.video, channel: "" };

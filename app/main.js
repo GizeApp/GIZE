@@ -62,7 +62,7 @@ import { removeMyAvatar, uploadMyAvatar } from './core/avatar.js';
 import { cropAvatar } from './ui/recorte.js';
 
 import { productByCode, searchOFF } from './core/off.js';
-import { checkProductRequests, productByCodeShared, reportShared, saveShared, searchShared, sendProductRequest, useShared } from './core/productos.js';
+import { PHOTO_UNREADABLE, checkProductRequests, productByCodeShared, reportShared, saveShared, searchShared, sendProductRequest, useShared } from './core/productos.js';
 
 import { addDays, dayItems, loadDay, retryDay, setDayItems } from './screens/comida-historial.js';
 import { EditState, cleanSessionEdit, openSessionEdit, removeSessionEditSet, renderSessionEdit, setSessionEditVal } from './ui/sessionedit.js';
@@ -322,8 +322,16 @@ document.body.addEventListener("change", async e => {
   }
   if (a === "rq-photo") {
     const file=t.files&&t.files[0], r=ComidaState.reqForm, k=t.dataset.k;
-    if(file && r && (k==="label" || k==="front")){ if(r[k+"Url"]) URL.revokeObjectURL(r[k+"Url"]); r[k]=file; r[k+"Url"]=URL.createObjectURL(file); renderApp(); }
-    t.value=""; return;
+    t.value="";
+    if(!file || !r || (k!=="label" && k!=="front")) return;
+    // Antes de guardarla se prueba abrirla: una foto HEIC en Chrome/Android (o un archivo roto)
+    // no se puede leer, y así se avisa ahora en vez de dejar la vista previa rota.
+    const url=URL.createObjectURL(file);
+    const okImg=await new Promise(res=>{ const i=new Image(); i.onload=()=>res(i.naturalWidth>0); i.onerror=()=>res(false); i.src=url; });
+    if(!okImg){ URL.revokeObjectURL(url); alert(PHOTO_UNREADABLE); return; }
+    if(ComidaState.reqForm!==r){ URL.revokeObjectURL(url); return; }
+    if(r[k+"Url"]) URL.revokeObjectURL(r[k+"Url"]); r[k]=file; r[k+"Url"]=url; renderApp();
+    return;
   }
 });
 
@@ -454,7 +462,7 @@ document.body.addEventListener("click", async e => {
     }).catch(e=>{
       r.sending=false; if(ComidaState.reqForm===r) renderApp();
       const m=e && e.message ? String(e.message) : "";
-      alert(/límite/.test(m) ? m : "No se pudo enviar el pedido. Revisá tu conexión y probá de nuevo.");
+      alert(/límite/.test(m) || m===PHOTO_UNREADABLE ? m : "No se pudo enviar el pedido. Revisá tu conexión y probá de nuevo.");
     });
     return;
   }
