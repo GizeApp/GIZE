@@ -272,7 +272,7 @@ document.body.addEventListener("click", async function (e) {
           if (rc.error || (rc.data && rc.data.error)) throw new Error("no se pudo cancelar tu suscripción en Mercado Pago. Probá de nuevo o escribinos a contacto@gize.ar");
         }
       }
-      // Primero las fotos (check-in y perfil): la función de abajo no puede borrar archivos
+      // Primero las fotos (perfil y productos): la función de abajo no puede borrar archivos
       // de Storage. Si esto falla se corta acá, con la cuenta intacta, para poder reintentar
       // en vez de dejar fotos sin dueño.
       await deleteMyStorageFiles();

@@ -24,8 +24,6 @@ export const CheckinState = {
 
   checkinForm: null,
 
-  myPhotos: [],
-
   fbSession: null,
 
   fbForm: null,
@@ -159,11 +157,7 @@ export function renderCheckin(){
       <div class="ci-card">
         <div class="ci-status">${saved ? "\u2713 Ya respondiste el check-in de esta semana. Pod\u00e9s editarlo." : "Todav\u00eda no respondiste el check-in de esta semana."}</div>
         <button class="form-save" style="margin-top:10px" data-action="ci-open">${saved ? "Ver / editar mis respuestas" : "Responder el check-in"}</button>
-      </div>
-      ${CheckinState.myPhotos.length ? `<div class="ci-card">
-        <div class="ci-status">Tus fotos de progreso anteriores</div>
-        <div class="ph-grid">${CheckinState.myPhotos.map(p=>'<div class="ph-thumb"><img src="'+esc(p.url)+'"><button class="ph-del" data-action="photo-del" data-id="'+esc(p.id)+'" data-path="'+esc(p.path)+'">\u2715</button></div>').join("")}</div>
-      </div>` : ''}`;
+      </div>`;
   }
   const f = CheckinState.checkinForm || (saved ? JSON.parse(JSON.stringify(saved)) : {});
   const qs = clientQuestions("checkin").map(q=>{

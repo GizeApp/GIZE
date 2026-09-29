@@ -14,15 +14,13 @@ import { DEFAULT } from './data.js';
 
 import { KEY, markRoutineSynced, migrateNames, routineHash, save } from './storage.js';
 
-import { storageErrorText, today, ymd } from './utils.js';
+import { today, ymd } from './utils.js';
 
 import { renderApp } from '../main.js';
 
 import { hideLogin, showLogin } from '../screens/auth.js';
 
 import { maybeShowOnboarding } from '../screens/onboarding.js';
-
-import { CheckinState } from '../screens/checkin.js';
 
 import { routineLocked } from '../screens/entreno.js';
 
@@ -610,8 +608,7 @@ export async function loadCloud(){
       // las predeterminadas.
       sb.from("coach_questions").select("daily, checkin").maybeSingle(),
       // Calorías de los 7 días anteriores, para el promedio semanal de Comida.
-      sb.from("food_entries").select("log_date, kcal").eq("client_id",uid).gte("log_date",daysAgo(7)).lt("log_date",today()),
-      loadMyPhotos()
+      sb.from("food_entries").select("log_date, kcal").eq("client_id",uid).gte("log_date",daysAgo(7)).lt("log_date",today())
     ]);
     const pr=sbOk(pr0);
     State.cloudProfile=pr.data||null;
@@ -850,85 +847,18 @@ export function cloudSyncCore(){
   },1200);
 }
 
-export async function loadMyPhotos(){
-  if(!State.sb||!State.cloudUser) return;
-  try{
-    const r=sbOk(await State.sb.from("checkin_photos").select("*").eq("client_id",State.cloudUser.id).order("created_at",{ascending:false}));
-    const rows=r.data||[];
-    const urls=await signedUrls(rows.map(p=>p.path));
-    CheckinState.myPhotos=rows.map(p=>({id:p.id, path:p.path, url:urls[p.path]||""}));
-  }catch(e){ console.error("photos",e); }
-}
-
-// Links firmados de las fotos de check-in, todos en un solo pedido (antes era uno por
-// foto, en serie). Devuelve {path: url}; una foto sin link queda afuera del objeto.
-export async function signedUrls(paths){
-  const out={};
-  if(!paths.length) return out;
-  const r=await State.sb.storage.from("checkins").createSignedUrls(paths, 3600);
-  (r.data||[]).forEach(u=>{ if(u && u.path && u.signedUrl) out[u.path]=u.signedUrl; });
-  return out;
-}
-
-// Lo que acepta el bucket "checkins" (supabase/endurecer-base.sql): mismos tipos y tamaño.
-const PHOTO_MAX_MB=15;
-const PHOTO_TYPES={jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", webp:"image/webp", heic:"image/heic", heif:"image/heif"};
-
-// Lanza un Error con el texto para el usuario (en castellano) si la foto no se puede subir.
-export async function cloudUploadPhoto(file){
-  if(!State.sb||!State.cloudUser) return;
-  const ext0=(file.name.split(".").pop()||"").toLowerCase();
-  // El tipo lo informa el navegador; algunas compus lo mandan vacío (fotos HEIC del
-  // iPhone pasadas a Windows, por ejemplo) y el bucket rechaza un archivo sin tipo, así
-  // que ahí se deduce por la extensión. "image/jpg" no es estándar: es image/jpeg.
-  let type=(file.type||PHOTO_TYPES[ext0]||"").toLowerCase();
-  if(type==="image/jpg") type="image/jpeg";
-  const types=Object.values(PHOTO_TYPES);
-  // Se avisa antes de subir (sin gastar datos) con el mismo texto que daría el bucket.
-  if(types.indexOf(type)<0) throw new Error(storageErrorText({statusCode:"415"}));
-  if(file.size>PHOTO_MAX_MB*1024*1024) throw new Error(storageErrorText({statusCode:"413"}, PHOTO_MAX_MB));
-  const ext=PHOTO_TYPES[ext0]===type ? ext0 : Object.keys(PHOTO_TYPES).find(k=>PHOTO_TYPES[k]===type);
-  const path=State.cloudUser.id+"/"+Date.now()+"."+ext;
-  // Con un Blob, supabase-js manda el tipo del propio archivo (no el contentType): si el
-  // navegador no lo puso, se re-envuelve con el tipo correcto (no copia la foto).
-  const body=(file.type===type) ? file : new Blob([file], {type:type});
-  const up=await State.sb.storage.from("checkins").upload(path, body, {upsert:false, contentType:type});
-  if(up.error) throw new Error(storageErrorText(up.error, PHOTO_MAX_MB));
-  const ins=await State.sb.from("checkin_photos").insert({client_id:State.cloudUser.id, path:path, taken_on:today()});
-  if(ins.error){
-    // Sin la fila, la foto no aparece en ningún lado: se borra el archivo recién subido.
-    State.sb.storage.from("checkins").remove([path]).catch(()=>{});
-    throw ins.error;
-  }
-  await loadMyPhotos(); renderApp();
-}
-
-// Las funciones cloudSave*/cloudInsert* devuelven true si quedó en la nube (o si no hay
-// sesión y no hay nada que sincronizar) y false si falló, para que quien las llama pueda
-// avisarle al usuario en vez de decirle "guardado" a ciegas.
-export async function cloudDeletePhoto(id, path){
-  if(!State.sb||!State.cloudUser) return true;
-  try{
-    // Primero la fila y después el archivo: al revés, si fallaba borrar la fila quedaba en
-    // la lista una foto que ya no existe. Así, lo peor es un archivo sin fila, que nadie ve.
-    sbOk(await State.sb.from("checkin_photos").delete().eq("id",id));
-    const rm=await State.sb.storage.from("checkins").remove([path]);
-    if(rm.error) console.error("deletePhoto: la foto se sacó de la lista pero el archivo quedó en Storage", path, rm.error);
-    await loadMyPhotos(); renderApp();
-    return true;
-  }catch(e){ console.error("deletePhoto",e); return false; }
-}
-
-// Borra todos los archivos del usuario en Storage (fotos de check-in, de perfil y de los
+// Borra todos los archivos del usuario en Storage (foto de perfil y fotos de los
 // productos que cargó o pidió, ver supabase/pedidos-productos.sql). Se usa
 // antes de eliminar la cuenta: delete_own_account borra auth.users y con eso las filas en
 // cascada, pero los archivos NO (Supabase no deja borrar storage.objects por SQL: trigger
 // protect_objects_delete), así que las fotos quedaban para siempre sin dueño.
+// El bucket "checkins" (las fotos de progreso de antes) ya no va: se vació entero y quedó
+// sin permisos (ver supabase/borrar-fotos-progreso.sql).
 // Lanza si algo falla, para no eliminar la cuenta con fotos todavía guardadas.
 export async function deleteMyStorageFiles(){
   if(!State.sb||!State.cloudUser) return;
   const uid=State.cloudUser.id;
-  for(const bucket of ["checkins","avatars","productos"]){
+  for(const bucket of ["avatars","productos"]){
     const st=State.sb.storage.from(bucket);
     // Primero se listan todas (list() devuelve de a 1000 como máximo) y después se borran:
     // borrar mientras se pagina corre el offset y se saltearía archivos.

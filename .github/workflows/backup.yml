@@ -50,7 +50,7 @@ jobs:
       # Tablas que se comparan después de restaurar.
       TABLAS: >-
         auth.users public.profiles public.routines public.sessions public.session_entries
-        public.body_weights public.daily_logs public.checkins public.checkin_photos
+        public.body_weights public.daily_logs public.checkins
         public.food_entries public.coach_billing public.routine_templates
     steps:
       - name: Revisar los secrets
