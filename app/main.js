@@ -67,6 +67,7 @@ import { checkProductRequests, productByCodeShared, reportShared, saveShared, se
 import { addDays, dayItems, loadDay, retryDay, setDayItems } from './screens/comida-historial.js';
 import { EditState, cleanSessionEdit, openSessionEdit, removeSessionEditSet, renderSessionEdit, setSessionEditVal } from './ui/sessionedit.js';
 import { closeScanner, openScanner, scannerManualCode } from './ui/scanner.js';
+import { initBackButton } from './ui/atras.js';
 import { initUpdateCheck } from './ui/actualizar.js';
 import { openRoutinePicker } from './screens/onboarding.js';
 import { initTabScroll, restoreTabScroll } from './ui/tabscroll.js';
@@ -1465,6 +1466,7 @@ cloudBoot();
 initTabScroll(); // días de Entreno: ruedita y arrastre con el mouse
 initUpdateCheck(); // cartel de versión nueva en las apps de las tiendas
 initHabitAlarms(()=>{ State.view="habitos"; renderApp(); }); // tocar el aviso de un hábito abre Hábitos
+initBackButton(); // «Atrás» de Android: cierra la ventana abierta, vuelve o sale
 resumeRest(); // descanso que quedó corriendo al cerrar la app
 // En la app nativa (Capacitor) los archivos ya viajan dentro de la app: no hace falta el service worker.
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
