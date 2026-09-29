@@ -36,12 +36,17 @@ body:not(#_) .set .done.on { background: var(--gize-text); border-color: var(--g
 body:not(#_) .card .add-set { color: var(--gize-text-2); }
 body:not(#_) .card .add-set:hover { border-color: rgba(255,255,255,.45); color: var(--gize-text); background: rgba(255,255,255,.05); }
 
-/* Entrenando: punto, Finalizar y Cancelar sin verde ni rojo. */
+/* Entrenando: «Entrenando hace…», Finalizar y Cancelar con borde de neón de la gama (quieto)
+   y letras blancas (pedido). El punto que late, blanco. */
 .wk-dot { background: var(--gize-text); box-shadow: 0 0 8px rgba(255,255,255,.7); }
-.wk-finish { border-color: rgba(255,255,255,.45); background: rgba(255,255,255,.06); }
+.wk-live, .wk-finish, .wk-cancel { border: 1.5px solid transparent; border-radius: var(--gize-radius-pill); color: var(--gize-text);
+  background: linear-gradient(var(--gize-surface-2), var(--gize-surface-2)) padding-box, var(--gize-rgb-ring) border-box;
+  box-shadow: 0 0 14px -6px color-mix(in srgb, var(--gize-r2) 70%, transparent); }
+.wk-live { display: inline-flex; padding: 6px 14px; margin: 2px 0 10px; }
+.wk-finish, .wk-cancel { padding: 7px 14px; }
 .wk-finish svg { color: var(--gize-text); }
-.wk-cancel { border-color: rgba(255,255,255,.18); background: transparent; color: var(--gize-text-2); }
-.wk-cancel:active { background: rgba(255,255,255,.08); }
+.wk-finish:active, .wk-cancel:active { color: var(--gize-text);
+  background: linear-gradient(color-mix(in srgb, var(--gize-r2) 14%, var(--gize-surface-2)), color-mix(in srgb, var(--gize-r2) 14%, var(--gize-surface-2))) padding-box, var(--gize-rgb-ring) border-box; }
 
 /* Carteles de la rutina del coach. */
 .blk-wkgoal { color: var(--gize-text); }
