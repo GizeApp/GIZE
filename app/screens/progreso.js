@@ -4,7 +4,7 @@ import { State, state } from '../core/state.js';
 
 import { esc, exKey, exMuscle, fmtDate, fmtSecs, mondayOf, num, setText, today } from '../core/utils.js';
 
-import { renderCheckin, renderDaily, renderInfo } from './checkin.js';
+import { checkinSummary, renderCheckin, renderDaily, renderInfo } from './checkin.js';
 
 import { EntrenoState } from './entreno.js';
 
@@ -259,11 +259,20 @@ function sectionBody(id){
   return "";
 }
 
+// ¿Cargó hoy el registro? La app sube sola una fila del día (agua, pasos, hábitos) y al
+// volver a abrirla aparecía como registro con todo vacío: cuenta solo si tiene alguna
+// respuesta (los pasos no, los suma solo el contador) o el peso de hoy.
+function dailyDone(){
+  const r=(state.daily||{})[today()];
+  if(r && Object.keys(r).some(k=>k!=="steps" && k!=="_q" && r[k]!=null && String(r[k]).trim()!=="")) return true;
+  return (state.weights||[]).some(w=>w && w.date===today() && Number(w.kg)>0);
+}
+
 // Resumen de cada tarjeta del menú: [texto, pendiente?]
 function sectionSummary(id){
   if(id==="peso"){ const ws=sortedWeights(); if(!ws.length) return ["Sin registros", true]; const l=ws[ws.length-1], p=ws.length>1?ws[ws.length-2]:null; const d=p?l.kg-p.kg:0; return [l.kg.toFixed(1).replace(".",",")+" kg"+(p&&Math.abs(d)>=0.05?(d>0?" · ▲ ":" · ▼ ")+Math.abs(d).toFixed(1).replace(".",","):""), false]; }
-  if(id==="registro") return (state.daily||{})[today()] ? ["Cargado hoy ✓", false] : ["Pendiente de hoy", true];
-  if(id==="checkin") return (state.checkins||{})[mondayOf(today())] ? ["Enviado esta semana ✓", false] : ["Pendiente esta semana", true];
+  if(id==="registro") return dailyDone() ? ["Cargado hoy ✓", false] : ["Pendiente de hoy", true];
+  if(id==="checkin") return checkinSummary();
   if(id==="historial"){ const n=(state.sessions||[]).length; if(!n) return ["Sin entrenos todavía", false]; const last=(state.sessions||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0))[0]; return [n+" entreno"+(n===1?"":"s")+" · último "+fmtDate(last.date), false]; }
   if(id==="cargas"){ const n=exercisesInHistory().length; return [n?n+" ejercicio"+(n===1?"":"s"):"Sin datos todavía", false]; }
   if(id==="volumen"){ let t=0; (state.days||[]).forEach(d=>(d.exercises||[]).forEach(ex=>{ t+=(ex.sets||[]).length; })); return [t?t+" series por semana":"Sin rutina", false]; }

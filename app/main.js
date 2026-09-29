@@ -21,7 +21,7 @@ import { showLogin } from './screens/auth.js';
 import { ssGroupOf, ssNext } from './core/superserie.js';
 import { CardioState, openTimePicker, renderCardio, setRing, swFrac } from './screens/cardio.js';
 
-import { CheckinState, renderFeedback, saveSession , todayWeightText } from './screens/checkin.js';
+import { CheckinState, checkinDraft, checkinHasAnswer, checkinWeek, renderFeedback, saveSession , todayWeightText } from './screens/checkin.js';
 
 import { loadCoachClients, openClient } from './screens/coach/clientes.js';
 
@@ -137,6 +137,8 @@ export function renderApp(){
 // Formulario de "Registro de hoy": arranca con lo ya guardado hoy, menos los pasos (esos
 // salen del contador, que puede haber sumado desde entonces).
 function dailyFormInit(){ if(!CheckinState.dailyForm){ const f=Object.assign({}, state.daily[today()]||{}); delete f.steps; const w=todayWeightText(); if(w) f.kg=w; CheckinState.dailyForm=f; } return CheckinState.dailyForm; }
+// Formulario del check-in: arranca con lo guardado de la semana que está abierta.
+function checkinFormInit(){ if(!CheckinState.checkinForm) CheckinState.checkinForm=checkinDraft(checkinWeek()); return CheckinState.checkinForm; }
 const roundG = g => g < 10 ? Math.round(g*10)/10 : Math.round(g);
 
 // Comida: el día que se mira. Hoy usa state.diary (se sube con el resto del día); uno
@@ -299,7 +301,7 @@ document.body.addEventListener("change", async e => {
   const t=e.target, a=t.dataset.action; if(!a) return;
   if (a === "wdate-field") { ProgresoState.weightForm.date = t.value; return; }
   if (a === "daily-kg" || a === "daily-steps" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":(a==="daily-steps"?"steps":t.dataset.k)] = t.value; return; }
-  if (a === "ci-set") { CheckinState.checkinForm = CheckinState.checkinForm || JSON.parse(JSON.stringify(state.checkins[mondayOf(today())]||{})); CheckinState.checkinForm[t.dataset.k] = t.value; return; }
+  if (a === "ci-set") { checkinFormInit()[t.dataset.k] = t.value; return; }
   if (a === "load-ex") { EntrenoState.loadEx = t.value; renderApp(); return; }
   if (a === "sess-pick") { ProgresoState.sessSel = t.value; renderApp(); return; }
   // Foto de perfil (Ajustes del cliente y Configuración del coach).
@@ -576,7 +578,9 @@ document.body.addEventListener("click", async e => {
     if(kg>0){ const exw=state.weights.find(w=>w.date===today()); if(exw) exw.kg=kg; else state.weights.push({id:uid(), date:today(), kg:kg}); }
     CheckinState.dailyForm=null; save();
     const synced = await cloudSaveDaily(today(), rec);
-    alert(synced ? "Registro guardado \u2713" : "Se guard\u00f3 en este dispositivo pero todav\u00eda no lleg\u00f3 a tu coach (sin conexi\u00f3n). Queda pendiente y se env\u00eda solo cuando vuelva internet.");
+    // "failed": la base lo rechazó y no se reintenta solo (antes decía «guardado»).
+    alert(synced==="failed" ? "No se pudo enviar tu registro a tu coach: el servidor no lo aceptó. Revisá tus respuestas y volvé a tocar «Guardar registro de hoy»."
+      : synced ? "Registro guardado \u2713" : "Se guard\u00f3 en este dispositivo pero todav\u00eda no lleg\u00f3 a tu coach (sin conexi\u00f3n). Queda pendiente y se env\u00eda solo cuando vuelva internet.");
     renderApp(); return;
   }
   if (a === "fb-set") { CheckinState.fbForm=CheckinState.fbForm||{}; CheckinState.fbForm[el.dataset.k]=el.dataset.v; renderFeedback(); return; }
@@ -586,21 +590,38 @@ document.body.addEventListener("click", async e => {
     if(se){ if(f.rpe) se.rpe=+f.rpe; if(f.pump) se.pump=+f.pump; if(f.joint) se.joint=(f.joint==="S\u00ed"); save(); try{ cloudSessionFeedback(se); }catch(e){} }
     CheckinState.fbSession=null; CheckinState.fbForm=null; CheckinState.newPRs=[]; renderApp(); return;
   }
-  if (a === "ci-open") { CheckinState.checkinOpen=true; CheckinState.checkinForm=null; renderApp(); return; }
-  if (a === "photo-del") { const path=el.dataset.path, id=el.dataset.id; const ok=await cloudDeletePhoto(id, path); if(!ok) alert("No se pudo borrar la foto. Revisá tu conexión e intentá de nuevo."); return; }
-  if (a === "ci-close") { CheckinState.checkinOpen=false; CheckinState.checkinForm=null; renderApp(); return; }
+  if (a === "ci-open") { CheckinState.checkinOpen=true; CheckinState.checkinForm=null; CheckinState.checkinWeek=mondayOf(today()); renderApp(); return; }
+  // Borrar una foto de progreso no tiene vuelta (y ya no se pueden subir otras): se pregunta antes.
+  if (a === "photo-del") { if(!confirm("¿Borrar esta foto de progreso? Tu coach tampoco la va a ver más y no se puede recuperar.")) return; const path=el.dataset.path, id=el.dataset.id; const ok=await cloudDeletePhoto(id, path); if(!ok) alert("No se pudo borrar la foto. Revisá tu conexión e intentá de nuevo."); return; }
+  if (a === "ci-close") { CheckinState.checkinOpen=false; CheckinState.checkinForm=null; CheckinState.checkinWeek=null; renderApp(); return; }
   // Pregunta de opciones del check-in. La adherencia se sigue guardando como número (va a
-  // su propia columna); el resto, como el texto de la opción elegida.
-  if (a === "ci-opt") { CheckinState.checkinForm = CheckinState.checkinForm || JSON.parse(JSON.stringify(state.checkins[mondayOf(today())]||{})); const k=el.dataset.k; CheckinState.checkinForm[k] = (k==="adherence") ? parseInt(el.dataset.v) : el.dataset.v; renderApp(); return; }
+  // su propia columna) si la opción es un número; si el coach le puso opciones con palabras,
+  // como el texto de la opción elegida, igual que el resto (antes quedaba NaN y se perdía).
+  if (a === "ci-opt") { const f=checkinFormInit(); const k=el.dataset.k; f[k] = (k==="adherence" && /^\d+$/.test(el.dataset.v)) ? parseInt(el.dataset.v,10) : el.dataset.v; renderApp(); return; }
   if (a === "ci-save") {
-    const wk = mondayOf(today());
-    const f = CheckinState.checkinForm || {};
-    state.checkins[wk] = Object.assign({}, state.checkins[wk]||{}, f);
-    state.checkins[wk]._q = questionSnapshot(clientQuestions("checkin"), state.checkins[wk]);
-    CheckinState.checkinOpen=false; CheckinState.checkinForm=null; save();
-    const synced = await cloudSaveCheckin(wk, state.checkins[wk]);
-    if(!synced && !isOnline()){ alert("Tu check-in se guardó en este dispositivo pero todavía no llegó a tu coach (sin conexión). Queda pendiente y se envía solo cuando vuelva internet."); renderApp(); return; }
-    alert("\u00a1Check-in enviado a tu coach! 💪"); renderApp(); return;
+    // La semana en que se abrió el formulario (no la de ahora, si ya pasó la medianoche).
+    const wk = checkinWeek();
+    const prev = state.checkins[wk];
+    const rec = Object.assign({}, prev||{}, checkinFormInit());
+    // Vacío no se manda: quedaba como respondido y al coach le llegaba el aviso de un check-in sin nada.
+    if(!checkinHasAnswer(rec)){ alert("Respondé al menos una pregunta antes de enviar el check-in."); return; }
+    rec._q = questionSnapshot(clientQuestions("checkin"), rec);
+    state.checkins[wk] = rec;
+    CheckinState.checkinOpen=false; CheckinState.checkinForm=null; CheckinState.checkinWeek=null; save();
+    const synced = await cloudSaveCheckin(wk, rec);
+    if(synced==="failed"){
+      // La base lo rechazó y no se reintenta solo: no queda como enviado y las respuestas
+      // vuelven al formulario para mandarlo de nuevo.
+      if(prev) state.checkins[wk]=prev; else delete state.checkins[wk];
+      save();
+      CheckinState.checkinOpen=true; CheckinState.checkinWeek=wk; CheckinState.checkinForm=JSON.parse(JSON.stringify(rec));
+      renderApp();
+      alert("No se pudo enviar tu check-in: el servidor no lo aceptó. Tus respuestas siguen en el formulario: revisalas y tocá «Enviar check-in a mi coach» de nuevo. Si vuelve a pasar, avisale a tu coach.");
+      return;
+    }
+    // Sin llegar a la nube (señal floja, servidor caído, sesión vencida) no se dice «enviado».
+    alert(synced ? "\u00a1Check-in enviado a tu coach! 💪" : "Tu check-in se guardó en este dispositivo pero todavía no llegó a tu coach. Queda pendiente y se envía solo cuando se pueda.");
+    renderApp(); return;
   }
   if (a === "daily-set") { dailyFormInit(); CheckinState.dailyForm[el.dataset.k] = el.dataset.v; renderApp(); return; }
   if (a === "weight-save") { const dEl=document.getElementById("wDate"), kEl=document.getElementById("wKg"); const date=dEl?dEl.value:""; const kg=parseFloat((kEl?kEl.value:"").replace(",",".")); if(!date){ alert("Elegí una fecha."); return; } if(!(kg>0)){ alert("Poné un peso válido."); return; } const exw=state.weights.find(w=>w.date===date); if(exw) exw.kg=kg; else state.weights.push({id:uid(),date,kg}); ProgresoState.weightForm={date:today(),kg:""}; save(); renderApp(); return; }
