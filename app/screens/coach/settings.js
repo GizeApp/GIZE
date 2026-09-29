@@ -53,6 +53,11 @@ export function renderCoachSettings(){
       '<label>Preguntas para tus clientes</label>'+
       '<button class="cp-copt cs-q-btn" data-coach="q-open">Editar preguntas del registro diario y del check-in</button>'+
     '</div>'+
+    // Mismo link que en Configuración del alumno (ver LINKS.privacy en screens/config.js).
+    '<div class="cs-field">'+
+      '<label>Privacidad</label>'+
+      '<a class="cp-copt cs-q-btn" href="https://gize.ar/privacidad/?app=1" target="_blank" rel="noopener">Política de privacidad</a>'+
+    '</div>'+
     '<button class="logout-btn" data-auth="logout">Cerrar sesión</button>'+
     // Mismo botón que en Ajustes del alumno (ver cfg-delete-account en screens/config.js).
     '<button class="logout-btn cfg-danger" data-action="cfg-delete-account">Eliminar cuenta</button>'+
