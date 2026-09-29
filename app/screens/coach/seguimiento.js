@@ -69,10 +69,13 @@ export function renderCoachCheckins(d){
   const pick=picker("ck-pick", cks.map(x=>({v:x.week_start, t:"Semana del "+fmtDate(x.week_start)})), sel, "Semana");
   if(!sel) return pick;
   const c=cks.find(x=>x.week_start===sel);
-  const a=c.answers||{};
-  // La adherencia tiene su propia columna y se muestra en el encabezado.
-  const qs=answeredQuestions("checkin", a, coachOwnQuestions("checkin")).filter(q=>q.id!=="adherence");
-  const adh=c.adherence?'<span class="ck-adh">Adherencia: <b>'+(parseInt(c.adherence)||0)+'/10</b></span>':'';
+  const a=Object.assign({}, c.answers||{});
+  // La adherencia del 1 al 10 tiene su propia columna y se muestra en el encabezado. Si el
+  // coach le cambió las opciones (palabras) o el tipo (respuesta libre), va como una más.
+  const adhN=/^\s*\d+\s*$/.test(String(c.adherence)) ? parseInt(c.adherence,10) : 0;
+  if(!adhN && c.adherence!=null && String(c.adherence).trim()!=="" && (a.adherence==null || a.adherence==="")) a.adherence=c.adherence;
+  const qs=answeredQuestions("checkin", a, coachOwnQuestions("checkin")).filter(q=>q.id!=="adherence" || !adhN);
+  const adh=adhN?'<span class="ck-adh">Adherencia: <b>'+adhN+'/10</b></span>':'';
   return pick+
     '<div class="ck-card"><div class="ck-head">Semana del '+fmtDate(c.week_start)+' '+adh+'</div>'+(qs.length?qaList(qs):'<div class="cal-hint">Sin respuestas.</div>')+'</div>';
 }

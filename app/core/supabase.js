@@ -1094,8 +1094,13 @@ async function sendItem(it){
   } else if(it.k==="prefs"){
     sbOk(await sb.from("client_prefs").upsert(Object.assign({client_id:uid, updated_at:new Date().toISOString()}, p),{onConflict:"client_id"}));
   } else if(it.k==="checkin"){
+    // La columna adherence es un número del 1 al 10. Si el coach cambió esa pregunta (opciones
+    // con palabras o respuesta libre), la respuesta va en answers como cualquier otra: antes se
+    // perdía (quedaba null) o la base rechazaba todo el check-in por mandar texto a esa columna.
     const ans=Object.assign({},p.f); const adh=ans.adherence; delete ans.adherence;
-    sbOk(await sb.from("checkins").upsert({client_id:uid, week_start:p.wk, answers:ans, adherence:adh||null},{onConflict:"client_id,week_start"}));
+    const n=Number(adh), isNum=adh!=null && String(adh).trim()!=="" && Number.isInteger(n) && n>=1 && n<=10;
+    if(!isNum && adh!=null && String(adh).trim()!=="" && !(typeof adh==="number" && isNaN(adh))) ans.adherence=adh;
+    sbOk(await sb.from("checkins").upsert({client_id:uid, week_start:p.wk, answers:ans, adherence:isNum?n:null},{onConflict:"client_id,week_start"}));
   }
 }
 
@@ -1130,7 +1135,9 @@ export function flushOutbox(){
   return _flushing;
 }
 
-// Anota y manda ya. true = quedó en la nube; false = quedó pendiente en el dispositivo.
+// Anota y manda ya. true = quedó en la nube; false = quedó pendiente en el dispositivo (se
+// reintenta solo); "failed" = la base lo rechazó (dato inválido, sin permiso), quedó apartado
+// en OUTBOX_FAILED_KEY y no se reintenta. Ojo: "failed" cuenta como verdadero en un if.
 async function enqueueAndSend(k, p, key){
   if(!State.cloudUser) return true; // sin cuenta no hay nada que sincronizar
   const id=enqueue(k, p, key);
@@ -1145,7 +1152,8 @@ async function enqueueAndSend(k, p, key){
     try{ await State.sb.auth.getSession(); }catch(e){}
     await flushOutbox();
   }
-  return !readQueue(OUTBOX_KEY).some(i=>i.id===id);
+  if(readQueue(OUTBOX_KEY).some(i=>i.id===id)) return false;
+  return readQueue(OUTBOX_FAILED_KEY).some(i=>i.id===id) ? "failed" : true;
 }
 
 export function isOnline(){ return navigator.onLine!==false; }
@@ -1190,7 +1198,8 @@ function applyPending(){
 window.addEventListener("online", ()=>{ flushOutbox(); });
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") flushOutbox(); });
 
-// Las funciones cloud* devuelven true si quedó en la nube y false si quedó pendiente.
+// Las funciones cloud* devuelven true si quedó en la nube, false si quedó pendiente y
+// "failed" si la base lo rechazó (ver enqueueAndSend).
 export function cloudInsertSession(se){
   const entries=[];
   (se.exercises||[]).forEach((ex,ei)=>{ (ex.sets||[]).forEach((sset,i)=>{ entries.push({id:newId(), name:ex.name, order:setOrder(ei,i), kg:sset.kg, reps:sset.reps, secs:sset.secs||0}); }); });
@@ -1238,6 +1247,17 @@ export function pendingFoods(dt){
 export function cloudSaveDaily(dt, rec){ return enqueueAndSend("daily", {dt:dt, rec:rec}, dt); }
 
 export function cloudSaveCheckin(wk, f){ return enqueueAndSend("checkin", {wk:wk, f:f}, wk); }
+
+// Check-in de esa semana que todavía no llegó a la nube (queda en la cola y se manda solo).
+export function checkinPending(wk){ return myPending().some(i=>i.k==="checkin" && i.p && i.p.wk===wk); }
+
+// Último check-in de esa semana que la base rechazó: sus respuestas vuelven al formulario
+// para mandarlo de nuevo, en vez de perderse cuando la app trae lo de la nube.
+export function failedCheckin(wk){
+  const u=State.cloudUser&&State.cloudUser.id; if(!u) return null;
+  const it=readQueue(OUTBOX_FAILED_KEY).filter(i=>i.uid===u && i.k==="checkin" && i.p && i.p.wk===wk).pop();
+  return it && it.p.f ? JSON.parse(JSON.stringify(it.p.f)) : null;
+}
 
 export async function cloudDeleteSession(cid){
   if(!State.sb||!State.cloudUser||!cid) return true;
