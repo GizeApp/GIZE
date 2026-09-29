@@ -37,7 +37,7 @@ on:
           - sql
           - cuentas-demo
       archivo:
-        description: "Para 'sql': archivo a correr (ej: supabase/suscripciones.sql)"
+        description: "Para 'sql': archivo a correr (ej: supabase/estado.sql)"
         required: false
         default: ""
 

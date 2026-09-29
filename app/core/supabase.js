@@ -921,8 +921,8 @@ export async function cloudDeletePhoto(id, path){
 
 // Borra todos los archivos del usuario en Storage (fotos de check-in, de perfil y de los
 // productos que cargó o pidió, ver supabase/pedidos-productos.sql). Se usa
-// antes de eliminar la cuenta: delete_own_account borra auth.users y con eso las filas en
-// cascada, pero los archivos NO (Supabase no deja borrar storage.objects por SQL: trigger
+// antes de eliminar la cuenta: borrar auth.users borra las filas en cascada, pero los
+// archivos NO (Supabase no deja borrar storage.objects por SQL: trigger
 // protect_objects_delete), así que las fotos quedaban para siempre sin dueño.
 // Lanza si algo falla, para no eliminar la cuenta con fotos todavía guardadas.
 export async function deleteMyStorageFiles(){
@@ -942,14 +942,24 @@ export async function deleteMyStorageFiles(){
     }
     for(let i=0;i<paths.length;i+=100) sbOk(await st.remove(paths.slice(i,i+100)));
   }
-  // Mensajes de voz del chat y audios de ejercicios: los borra la función borrar-audios
-  // (el usuario no tiene permiso de borrar audios en Storage). Si falla, no se elimina la
-  // cuenta: se puede reintentar.
+}
+
+// Elimina la cuenta: la función borrar-audios borra los mensajes de voz del chat y los audios
+// de ejercicios (el usuario no tiene permiso de borrar audios en Storage) y después la cuenta
+// (auth.users y en cascada todo lo que depende de ella). Va todo junto en la función para que
+// nadie pueda borrar los audios del otro sin eliminar su cuenta. Si falla, lanza con el motivo
+// y la cuenta sigue: se puede reintentar.
+export async function deleteMyAccount(){
   const r=await State.sb.functions.invoke("borrar-audios", { body: {} });
   if(r.error){
     let detail="";
     try{ const ctx=r.error.context; if(ctx && ctx.json){ const j=await ctx.json(); detail=j && j.error; } }catch(e){}
-    throw new Error(detail || "no se pudieron borrar tus mensajes de voz. Probá de nuevo en un rato.");
+    throw new Error(detail || "no se pudo eliminar la cuenta. Probá de nuevo en un rato.");
+  }
+  // Función vieja todavía publicada (solo borraba los audios): la cuenta se borra acá.
+  if(!(r.data && r.data.deleted)){
+    const d=await State.sb.rpc("delete_own_account");
+    if(d.error) throw d.error;
   }
 }
 
