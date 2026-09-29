@@ -8,7 +8,7 @@ GUIA = os.path.join(HERE, '..', 'youtube-guia', 'grabacion', 'frames', 'solo')
 PROPIAS = os.path.join(HERE, 'grabacion', 'frames')          # grabacion/grabar.js: diario que se completa y peso que baja
 OUT = os.path.join(HERE, 'public', 'clips')
 os.makedirs(OUT, exist_ok=True)
-CLIPS = [(GUIA, n) for n in ['racha', 'entrenar', 'descanso', 'finalizar', 'habitos']] + \
+CLIPS = [(GUIA, n) for n in ['racha', 'entrenar', 'descanso', 'finalizar', 'habitos', 'bienvenida', 'semana', 'rutinas-armadas']] + \
         [(PROPIAS, n) for n in ['desayuno', 'almuerzo', 'merienda', 'cena', 'peso']]
 for FR, name in CLIPS:
     d = os.path.join(FR, name); m = json.load(open(os.path.join(d, 'times.json')))

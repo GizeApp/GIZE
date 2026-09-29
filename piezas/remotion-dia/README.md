@@ -29,3 +29,17 @@ npx remotion render UnDiaConGize salida/un-dia-con-gize.mp4 --codec=h264 --crf=1
 Código: `src/UnDia.tsx` (orden y transiciones), `src/escenas/` (cada momento), `src/ui/` (fondo, neón,
 tipografía cinética, celular, reloj y detalles), `src/marca.ts` (colores y fuente).
 Remotion es gratis para equipos de hasta 3 personas (https://www.remotion.pro/license).
+
+## «Armá tu semana en 3 pasos» · reel de Instagram
+
+Composición `ArmaTuSemana` (`src/Semana.tsx`, escenas en `src/escenas/Semana.tsx`), 24 s, sin audio. Mismo lenguaje
+que «Un día»: en lugar del reloj, el paso en neón hace de hilo.
+
+- **Gancho**: «?» que titila — «¿No sabés qué entrenar?» · el **3** se prende con un flash — «Armá tu semana en 3 pasos.»
+- **INICIO** Tocás Empezar vacío · **PASO 1** ¿Cuántos días entrenás? · **PASO 2** Elegís tu objetivo · **PASO 3** Nombrás tu primer día. Listo.
+- **ATAJO** ¿Sin ideas? Usá una rutina armada · **HOY** Y a entrenar · **Cierre**: logo al corte con flash.
+
+```bash
+npx remotion render ArmaTuSemana salida/arma-tu-semana.mp4 --codec=h264 --crf=16
+```
+Texto para el posteo: `salida/texto-arma-tu-semana.txt`.

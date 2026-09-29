@@ -8,10 +8,10 @@ import { Telefono } from "../ui/Telefono";
 export type Frase = { texto: string; desde: number; hasta?: number };
 export type Toma = { clip: string; desde?: number; velocidad?: number; en: number; velo?: number };
 
-export const Momento: React.FC<{ hora: string; frases: Frase[]; tomas: Toma[]; detalle?: React.ReactNode; detalleEn?: number; giro?: number }> =
-  ({ hora, frases, tomas, detalle, detalleEn = 60, giro = 1 }) => (
+export const Momento: React.FC<{ hora: string; frases: Frase[]; tomas: Toma[]; detalle?: React.ReactNode; detalleEn?: number; giro?: number; tamanoHora?: number }> =
+  ({ hora, frases, tomas, detalle, detalleEn = 60, giro = 1, tamanoHora }) => (
   <AbsoluteFill>
-    <div style={{ position: "absolute", top: 150, left: 40 }}><Reloj hora={hora} /></div>
+    <div style={{ position: "absolute", top: 150, left: 40 }}><Reloj hora={hora} tamano={tamanoHora} /></div>
     <div style={{ position: "absolute", top: 450, left: 80, width: 920, height: 240 }}>
       {frases.map((fr, i) => (
         <Sequence key={i} from={fr.desde} durationInFrames={(fr.hasta ?? 9999) - fr.desde + 10} layout="none">
