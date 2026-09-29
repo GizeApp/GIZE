@@ -258,7 +258,6 @@ body:not(#_) .ss-group :is(.card, .ex-collapsed) { border: 0; border-radius: 0; 
 .wk-start { position: relative; isolation: isolate; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; margin: 6px 0 14px; padding: 14px;
   border: 0; border-radius: var(--gize-radius-pill); background: color-mix(in srgb, var(--gize-r2) 10%, var(--gize-surface)); color: #fff;
   font: 700 var(--text-body) var(--gize-font); letter-spacing: .02em; cursor: pointer; -webkit-tap-highlight-color: transparent;
-  text-shadow: 0 0 10px color-mix(in srgb, var(--gize-r2) 80%, transparent);
   box-shadow: -8px 0 26px -10px var(--gize-r1), 8px 0 26px -10px var(--gize-r3), 0 0 34px -12px var(--gize-r2),
     inset 0 0 18px -8px color-mix(in srgb, var(--gize-r2) 70%, transparent);
   transition: transform .12s ease, box-shadow .25s ease; }
@@ -267,7 +266,8 @@ body:not(#_) .ss-group :is(.card, .ex-collapsed) { border: 0; border-radius: 0; 
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   animation: gize-spin 4s linear infinite; }
-.wk-start svg { width: var(--icon-md); height: var(--icon-md); color: #fff; filter: drop-shadow(0 0 6px var(--gize-r2)) drop-shadow(0 0 2px var(--gize-r1)); }
+/* Las letras y el ícono, blancos y sin brillo (pedido): el neón es solo el borde y el halo. */
+.wk-start svg { width: var(--icon-md); height: var(--icon-md); color: #fff; }
 .wk-start:active { transform: scale(.985); box-shadow: -8px 0 32px -8px var(--gize-r1), 8px 0 32px -8px var(--gize-r3), 0 0 40px -8px var(--gize-r2),
     inset 0 0 22px -6px color-mix(in srgb, var(--gize-r2) 80%, transparent); }
 html.lite .wk-start::before { animation: none; }
