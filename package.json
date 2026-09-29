@@ -5,7 +5,8 @@
   "description": "GIZE: app web (PWA) y apps nativas con Capacitor",
   "scripts": {
     "web": "node scripts/build-web.mjs",
-    "android": "node scripts/build-web.mjs && npx cap sync android"
+    "android": "node scripts/build-web.mjs && npx cap sync android",
+    "ios": "node scripts/build-web.mjs && node scripts/ios-sin-facebook.mjs && npx cap sync ios"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.0"

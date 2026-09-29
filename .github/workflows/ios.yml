@@ -42,6 +42,11 @@ jobs:
           cache: npm
       - name: Instalar dependencias
         run: npm ci
+      # El plugin de login (lo usa «Continuar con Apple») declara siempre el SDK de Facebook para
+      # Swift Package Manager, aunque capacitor.config.json lo apague. GIZE no lo usa: se saca
+      # antes de compilar para que no entre a la app (ver el script).
+      - name: Sacar Facebook del plugin de login
+        run: node scripts/ios-sin-facebook.mjs
       - name: Juntar la app web y pasarla al proyecto iOS
         run: node scripts/build-web.mjs && npx cap sync ios
 

@@ -5,5 +5,11 @@
 	<!-- Notificaciones push. Al exportar para App Store / TestFlight, Xcode lo pasa a "production". -->
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- «Continuar con Apple» (Sign in with Apple). Tiene que estar activado también en el App ID
+	     ar.com.gize.app en developer.apple.com; si no, Apple responde con el error 1000. -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
 </dict>
 </plist>
