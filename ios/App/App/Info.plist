@@ -46,9 +46,9 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>GIZE usa la cámara para que saques tu foto de perfil o tus fotos de progreso.</string>
+	<string>GIZE usa la cámara para escanear el código de barras de un producto, sacarle una foto para pedirnos que lo agreguemos o sacar tu foto de perfil.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>GIZE accede a tus fotos para que elijas tu foto de perfil o tus fotos de progreso.</string>
+	<string>GIZE accede a tus fotos para que elijas tu foto de perfil o la foto de un producto que nos pedís agregar.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>GIZE usa el micrófono solo cuando grabás un mensaje de voz para tu coach o tu alumno.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>

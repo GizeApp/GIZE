@@ -9,7 +9,7 @@ import { clearAccountLeftovers, loadCloud, deleteMyStorageFiles, PROFILE_KEY } f
 import { esc } from '../core/utils.js';
 import { avatarHtml, avatarUrl } from '../core/avatar.js';
 import { showLogin } from './auth.js';
-import { pushOnHere, enablePush, disablePush, isIOS, isStandalone } from '../core/push.js';
+import { pushOnHere, enablePush, disablePush, pushLogout, isIOS, isStandalone } from '../core/push.js';
 import { renderApp } from '../main.js';
 import { adminEntry, checkAdmin } from './admin-productos.js';
 import { isLite, setLite } from '../ui/background.js';
@@ -20,12 +20,17 @@ const zapSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 
 function cfgRoleLabel(p) { return (p && p.role === "coach") ? "Coach" : "Cliente"; }
 
+// En las apps de Android y iPhone ningún link puede llevar a precios ni a links de pago
+// (reglas de Apple y Google): la página de inicio tiene los planes y el botón para contratar.
+const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
 // Links externos de la pantalla de Configuración. Placeholders a propósito: reemplazar
 // cada uno por el real (instagram/website: URL completa; email: solo la casilla;
 // whatsapp: solo número con código de país, sin "+" ni espacios ni guiones) y listo,
 // los botones ya redirigen solos — no hace falta tocar nada más de este archivo.
 const LINKS = {
-  terms: "https://gize.ar/privacidad/",
+  // ?app=1: la página no muestra la barra de arriba, que lleva a la página de inicio.
+  privacy: "https://gize.ar/privacidad/?app=1",
   instagram: "https://instagram.com/gize.app",
   website: "https://gize.ar/",
   email: "contacto@gize.ar",
@@ -136,13 +141,13 @@ export function renderConfig() {
     '</div>';
 
   const legalSection = '<div class="card cfg-card">' +
-      cfgLinkRow(fileTextSvg, "Términos y condiciones", LINKS.terms) +
+      cfgLinkRow(fileTextSvg, "Política de privacidad", LINKS.privacy) +
     '</div>';
 
   const contactSection = '<div class="card cfg-card">' +
       '<div class="cfg-sub">Contacto</div>' +
       cfgLinkRow(instagramSvg, "Instagram", LINKS.instagram) +
-      cfgLinkRow(globeSvg, "Sitio web", LINKS.website) +
+      (IS_NATIVE ? '' : cfgLinkRow(globeSvg, "Sitio web", LINKS.website)) +
       cfgLinkRow(auIcoMail, "Email", "mailto:" + LINKS.email) +
       cfgLinkRow(whatsappSvg, "WhatsApp", "https://wa.me/" + LINKS.whatsapp) +
     '</div>';
@@ -222,7 +227,11 @@ document.body.addEventListener("click", async function (e) {
 
   const clearBtn = e.target.closest('[data-action="cfg-clear-local"]');
   if (clearBtn) {
-    if (confirm("¿Seguro? Se va a borrar todo lo guardado en este dispositivo (rutinas, pesos, hábitos). Esta acción no se puede deshacer.")) {
+    // Con la cuenta iniciada solo se borra la copia del celular: la sesión sigue y los datos
+    // se vuelven a bajar de la cuenta. Para dejar el celular limpio está «Cerrar sesión».
+    if (confirm(State.cloudUser
+      ? "¿Seguro? Se borra la copia guardada en este dispositivo (rutinas, pesos, hábitos) y se vuelve a bajar de tu cuenta. Lo que todavía no se subió a tu cuenta puede perderse.\n\nTu sesión sigue iniciada: para dejar el dispositivo limpio usá «Cerrar sesión»."
+      : "¿Seguro? Se va a borrar todo lo guardado en este dispositivo (rutinas, pesos, hábitos). Esta acción no se puede deshacer.")) {
       try { localStorage.removeItem(KEY); } catch (err) {}
       location.reload();
     }
@@ -256,7 +265,7 @@ document.body.addEventListener("click", async function (e) {
     if (!State.sb || !State.cloudUser) { alert("Iniciá sesión para poder eliminar tu cuenta."); return; }
     const isCoach = !!(State.cloudProfile && State.cloudProfile.role === "coach");
     if (!confirm(isCoach
-      ? "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se cancela tu suscripción de GIZE. Tus alumnos no pierden nada: quedan sin coach y conservan su rutina y sus registros. Esta acción no se puede deshacer."
+      ? "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se cancela tu suscripción de GIZE. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
       : "¿Seguro que querés eliminar tu cuenta? Se va a borrar tu rutina, tus registros y tu vínculo con tu coach de forma permanente. Esta acción no se puede deshacer.")) return;
     const typed = prompt('Para confirmar, escribí ELIMINAR (en mayúsculas):');
     if (typed !== "ELIMINAR") { if (typed !== null) alert("No coincide, no se eliminó nada."); return; }
@@ -281,6 +290,11 @@ document.body.addEventListener("click", async function (e) {
       // tiene permiso para borrar de auth.users directo.
       const r = await State.sb.rpc("delete_own_account");
       if (r.error) throw r.error;
+      State.signingOut = true; // la sesión se cierra a propósito: no pedir ingresar de nuevo (core/supabase.js → watchAuth)
+      // Como al cerrar sesión: se da de baja este dispositivo para que la próxima cuenta que
+      // entre acá no quede con las notificaciones prendidas sin haberlas activado. Va después
+      // de borrar la cuenta: si eso falla, el celular no pierde sus notificaciones.
+      try { await pushLogout(); } catch (err) {}
       try { localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); } catch (err) {}
       clearAccountLeftovers(State.cloudUser && State.cloudUser.id);
       try { await State.sb.auth.signOut(); } catch (err) {}
