@@ -615,6 +615,7 @@ export async function afterLogin(sessionUser){
     const prov = via("google") ? "Google" : (via("apple") ? "Apple" : "");
     if(gi && gi.mode!=="up" && Date.now()-gi.t < 15*60*1000 && fresh && prov){
       // Con Apple se puede ocultar el mail: llega una dirección de reenvío que no dice nada.
+      // (Los mails a esa dirección llegan solo si gize.ar está registrado en Apple: ver App.entitlements.)
       const mail=(u.email && !/@privaterelay\.appleid\.com$/i.test(u.email)) ? u.email : "tu cuenta de "+prov;
       setTimeout(()=>alert("Creamos una cuenta nueva de GIZE con "+mail+".\n\nSi es tu primera vez, ¡bienvenido! Si ya tenías una cuenta con OTRO mail, andá a Ajustes → Salir y entrá con ese mail y tu contraseña: ahí están tus datos."), 900);
     }
