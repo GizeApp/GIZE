@@ -6,6 +6,8 @@
 // (b) Sesión cerrada desde otro dispositivo (el servidor rechaza la renovación): se pide
 //     ingresar de nuevo sin borrar nada, y al volver a entrar se sube lo pendiente.
 //     (b2) Lo mismo al abrir la app con el token todavía vigente, con un borrado pendiente.
+//     (b3) Volver a entrar con el botón de Google (web): antes lo frenaba «ya hay una cuenta
+//     adentro» (cloudUser sigue puesto para que la cola no deje de juntar lo que se carga).
 // (c) Rescate: los entrenos que la versión anterior apartó por RLS vuelven a la cola al entrar.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
@@ -49,6 +51,24 @@ const peek = p => p.evaluate(() => {
     pie: (document.getElementById('syncFoot') || {}).textContent || '', entrenos: JSON.parse(localStorage.getItem('rutina_jero_v1')).sessions.map(s => s.id),
     login: !!document.querySelector('#authHost .auth-card'), aviso: ((document.querySelector('#authHost .auth-msg') || {}).textContent || '') };
 });
+// Espera a que se vaya lo que la app manda al arrancar (día, preferencias: salen 1,5 s después)
+// para que no se mezcle con lo que prueba cada caso. Con tiempo real: con la máquina cargada
+// un wait fijo no alcanzaba.
+async function settle(p, ms = 20000){
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    const r = await peek(p).catch(() => null);
+    if (r && !r.cola.length && r.pie === 'Sincronizado con tu cuenta') return true;
+    await wait(250);
+  }
+  return false;
+}
+// Cierra "¡Entreno terminado!". Con click() de Playwright a veces se cortaba: según qué se
+// muestre último, el login le queda encima y el botón no se puede tocar.
+async function skipFb(p){
+  await p.waitForSelector('[data-action="fb-skip"]', { state: 'attached', timeout: 10000 }).catch(() => {});
+  await p.evaluate(() => { const b = document.querySelector('[data-action="fb-skip"]'); if (b) b.click(); }); await wait(800);
+}
 const expire = p => p.evaluate(() => { const k = 'sb-wegptuzhsrwppbknqstf-auth-token'; const s = JSON.parse(localStorage.getItem(k)); s.expires_at = Math.floor(Date.now() / 1000) - 60; localStorage.setItem(k, JSON.stringify(s)); });
 
 export default async function ({ base, t }){
@@ -62,7 +82,7 @@ export default async function ({ base, t }){
     const signal = async on => { offline = !on; await p.context().setOffline(!on); };
     await p.route(/supabase\.co/, r => offline ? r.abort('internetdisconnected') : r.fallback());
     await p.clock.install(); // para saltar los 30 s de reintentos y los 60 s de enfriamiento de supabase-js
-    await p.goto(base + '/app/'); await wait(3000);
+    await p.goto(base + '/app/'); t.ok(await settle(p), '(a) arranca con la cola al día');
     await signal(false); await expire(p); // más de una hora sin señal: el token venció
     await p.click('[data-action="save-session"]'); await wait(1000);
     // La renovación sin señal reintenta ~30 s y se rinde: la librería guarda el fallo 60 s
@@ -97,10 +117,10 @@ export default async function ({ base, t }){
         if (i.url.searchParams.get('grant_type') === 'password') return J(fresh('x.eyJzdWIiOiJ1MSJ9.b'));
         return revoked ? J({ code: 'refresh_token_not_found', error_code: 'refresh_token_not_found', msg: 'Invalid Refresh Token: Refresh Token Not Found' }, 400) : J(fresh('x.eyJzdWIiOiJ1MSJ9.c'));
       } }, handlers) });
-    await p.goto(base + '/app/'); await wait(3000);
+    await p.goto(base + '/app/'); t.ok(await settle(p), '(b) arranca con la cola al día');
     revoked = true; await expire(p); // cerró sesión en la compu y el token del celular venció
     await p.click('[data-action="save-session"]'); await wait(4000);
-    await p.click('[data-action="fb-skip"]'); await wait(800); // "¡Entreno terminado!" queda arriba del login
+    await skipFb(p); // "¡Entreno terminado!" queda arriba del login
     const r = await peek(p);
     t.eq(db.anon, [], '(b) con la sesión revocada no se manda nada como anónimo');
     t.eq([r.cola, r.apartados], [['session'], []], '(b) el entreno queda en la cola, no se aparta');
@@ -139,9 +159,13 @@ export default async function ({ base, t }){
     await p.goto(base + '/app/'); await wait(3500);
     const r = await peek(p);
     t.ok(r.login && /sesión se cerró/.test(r.aviso), '(b2) al abrir se pide ingresar de nuevo con un aviso claro: ' + JSON.stringify(r.aviso));
-    // Un envío que ya había salido con la sesión todavía puesta puede terminar como anónimo
-    // (la librería la borra en el medio): se rechaza y el pendiente se queda para repetirlo.
-    t.eq([r.cola, r.apartados], [['session', 'sessionDelete'], []], '(b2) el entreno y el borrado siguen pendientes, nada apartado');
+    // Al arrancar, el aviso SIGNED_IN de la librería vacía la cola y puede ganarle a getUser:
+    // con el JWT todavía válido lo que sale va como el usuario y se guarda (está bien). Lo que
+    // salga como anónimo (la librería borró la sesión en el medio) se rechaza y se queda en la
+    // cola. Cada pendiente, entonces: o sigue en la cola o quedó hecho en la cuenta.
+    const subido = db.sessions.some(s => s.id === SID), borrado = !db.sessions.some(s => s.id === OLD);
+    t.eq([r.cola.includes('session') || subido, r.cola.includes('sessionDelete') || borrado, r.apartados],
+      [true, true, []], '(b2) el entreno y el borrado siguen pendientes o ya están hechos en la cuenta, nada apartado: ' + JSON.stringify([r.cola, subido, borrado]));
     t.ok(!db.anon.includes('DELETE sessions'), '(b2) el borrado no se da por hecho mandándolo como anónimo: ' + JSON.stringify(db.anon));
     if (r.login) {
       revoked = false;
@@ -150,6 +174,35 @@ export default async function ({ base, t }){
       t.eq([db.sessions.map(s => s.id), db.entries.length, d.cola, d.login], [[SID], 1, [], false], '(b2) al volver a entrar se sube el entreno y se borra el otro');
     }
     t.eq(errs, [], '(b2) sin errores de JavaScript');
+    await close();
+  }
+
+  // (b3) Sesión revocada y se vuelve a entrar con el botón de Google de la web (simulado: el
+  // callback que la app le da a google.accounts.id.initialize).
+  {
+    const { db, handlers } = fakeDb();
+    let revoked = false; const grants = [];
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: { days: DAYS, sessions: [], weights: [], daily: {} },
+      init: 'window.google={accounts:{id:{initialize(o){window.__gisCb=o.callback;},renderButton(){},prompt(){}}}};',
+      handlers: Object.assign({ '/profiles': profile('client'), '/auth/v1/token': (r, J, i) => {
+        const g = i.url.searchParams.get('grant_type'); grants.push(g);
+        if (g === 'id_token') return J(fresh('x.eyJzdWIiOiJ1MSJ9.e'));
+        return revoked ? J({ code: 'refresh_token_not_found', error_code: 'refresh_token_not_found', msg: 'Invalid Refresh Token: Refresh Token Not Found' }, 400) : J(fresh('x.eyJzdWIiOiJ1MSJ9.f'));
+      } }, handlers) });
+    await p.goto(base + '/app/'); t.ok(await settle(p), '(b3) arranca con la cola al día');
+    revoked = true; await expire(p);
+    await p.click('[data-action="save-session"]'); await wait(4000);
+    await skipFb(p);
+    const r = await peek(p);
+    t.ok(r.login && /sesión se cerró/.test(r.aviso), '(b3) se pide ingresar de nuevo: ' + JSON.stringify(r.aviso));
+    t.eq(await p.evaluate(() => typeof window.__gisCb), 'function', '(b3) el botón de Google está listo');
+    revoked = false;
+    await p.evaluate(() => window.__gisCb({ credential: 'google-id-token' })); await wait(4000);
+    const d = await peek(p);
+    t.ok(grants.includes('id_token'), '(b3) tocar Google intenta entrar: ' + JSON.stringify(grants));
+    t.eq([d.login, db.sessions.map(s => s.id), d.cola, d.apartados, d.pie], [false, r.entrenos, [], [], 'Sincronizado con tu cuenta'], '(b3) entra con Google y se sube el entreno pendiente');
+    t.eq(db.anon, [], '(b3) nada como anónimo');
+    t.eq(errs, [], '(b3) sin errores de JavaScript');
     await close();
   }
 

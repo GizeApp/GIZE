@@ -279,7 +279,8 @@ let _gisBusy = false;
 async function onGoogleCredential(resp, rawNonce){
   // Un login a la vez: si afterLogin tarda más que el splash, el login vuelve a verse y un
   // segundo toque arrancaba otro en paralelo (dos canjes, dos cargas, coach aplicado dos veces).
-  if (_gisBusy || State.cloudUser) return;
+  // Con la sesión perdida (sessionLost) cloudUser sigue puesto a propósito: hay que dejar entrar igual.
+  if (_gisBusy || (State.cloudUser && !State.sessionLost)) return;
   _gisBusy = true;
   try { await googleCredentialLogin(resp, rawNonce); } finally { _gisBusy = false; }
 }
@@ -483,6 +484,10 @@ function watchAuth(sb){
 }
 function sessionLost(){
   if(!State.cloudUser || State.signingOut) return;
+  // cloudUser NO se borra: sin él la cola deja de juntar lo que se carga y el pie diría «Se
+  // guarda solo en este dispositivo». Esta marca deja pasar los ingresos que se frenan con
+  // «ya hay una cuenta adentro» (Google web, links gize://); afterLogin la saca.
+  State.sessionLost=true;
   refreshSyncFoot();
   const h=document.getElementById("authHost");
   if(h && h.style.display==="flex" && h.innerHTML) return; // ya está pidiendo ingresar: no se borra lo que escribió
@@ -534,6 +539,7 @@ export async function afterLogin(sessionUser){
   // red (lee la sesión guardada en el dispositivo), así que arrancamos con ESE y solo
   // lo reemplazamos por la versión fresca del servidor si getUser() llega a responder.
   State.cloudUser = sessionUser || State.cloudUser || null;
+  State.sessionLost = false;
   // Pide que el navegador no borre lo guardado (sesión y datos) cuando le falta espacio o la
   // página no se abre por un tiempo. Si no lo concede, sigue igual que antes.
   try{ if(State.cloudUser && navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p=>{ if(!p) navigator.storage.persist().catch(()=>{}); }).catch(()=>{}); }catch(e){}
@@ -1347,13 +1353,13 @@ export async function cloudBoot(){
   // la app y después el usuario toca Google, la vuelta tiene que llegar igual.
   if(app){ try{ app.addListener("appUrlOpen", e=>{
     const B=window.Capacitor.Plugins.Browser; if(B && e && e.url && e.url.indexOf("gize://login")===0) B.close().catch(()=>{});
-    if(State.cloudUser) return;
+    if(State.cloudUser && !State.sessionLost) return;
     ensureSb().then(sb=>{ if(!sb){ showLogin(offlineMsg,"in"); return; } return openAuthLink(e && e.url); })
       .catch(err=>console.error("authLink",err));
   }); }catch(e){} }
   // Si se cierra el navegador de Google sin terminar, el botón quedaba en "Abriendo Google...".
   const Br=app && window.Capacitor.Plugins.Browser;
-  if(Br){ try{ Br.addListener("browserFinished", ()=>{ setTimeout(()=>{ const g=document.querySelector('[data-auth="google"]'); if(!State.cloudUser && g && g.disabled) showLogin("","in"); }, 800); }); }catch(e){} }
+  if(Br){ try{ Br.addListener("browserFinished", ()=>{ setTimeout(()=>{ const g=document.querySelector('[data-auth="google"]'); if((!State.cloudUser || State.sessionLost) && g && g.disabled) showLogin("","in"); }, 800); }); }catch(e){} }
   if(!State.sb){ showLogin(offlineMsg,"in"); if(window.coreEnter) window.coreEnter(); return; }
   try{
     const sess=await State.sb.auth.getSession();
