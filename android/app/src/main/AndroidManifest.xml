@@ -39,6 +39,14 @@
         </provider>
         <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_gize" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/gize_notif" />
+        <!-- Servicio del GPS de Cardio (plugin @capacitor-community/background-geolocation): el plugin
+             lo declara exportado, o sea que otras apps del celular podrían arrancarlo. Lo usa solo
+             GIZE, así que queda cerrado (exported=false). -->
+        <service
+            android:name="com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            tools:replace="android:exported" />
     </application>
 
     <!-- Permissions -->
