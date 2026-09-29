@@ -251,12 +251,27 @@ body:not(#_) .ss-group :is(.card, .ex-collapsed) { border: 0; border-radius: 0; 
 .rest-edit-t { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .rest-edit-h { font-size: 9.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--txt-2); }
 
-/* Iniciar entrenamiento: arranca el reloj a mano (si no, arranca con la primera serie tildada). */
-.wk-start { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin: 4px 0 12px; padding: 12px; border-radius: 4px;
-  border: 1px solid var(--gize-success); background: color-mix(in srgb, var(--gize-success) 12%, transparent); color: var(--gize-text);
-  font-size: var(--text-body); font-weight: 700; cursor: pointer; }
-.wk-start svg { width: var(--icon-md); height: var(--icon-md); color: var(--gize-success); }
-.wk-start:active { background: color-mix(in srgb, var(--gize-success) 22%, transparent); }
+/* Iniciar entrenamiento: arranca el reloj a mano (si no, arranca con la primera serie tildada).
+   Pedido: que no sea verde sino de neón. Fondo oscuro, borde con la gama RGB girando (el mismo
+   --gize-angle del botón principal y del anillo de Cardio) y un resplandor de colores alrededor.
+   El borde se pinta con ::before enmascarado para que el giro no deforme las puntas. */
+.wk-start { position: relative; isolation: isolate; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; margin: 6px 0 14px; padding: 14px;
+  border: 0; border-radius: var(--gize-radius-pill); background: color-mix(in srgb, var(--gize-r2) 10%, var(--gize-surface)); color: #fff;
+  font: 700 var(--text-body) var(--gize-font); letter-spacing: .02em; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--gize-r2) 80%, transparent);
+  box-shadow: -8px 0 26px -10px var(--gize-r1), 8px 0 26px -10px var(--gize-r3), 0 0 34px -12px var(--gize-r2),
+    inset 0 0 18px -8px color-mix(in srgb, var(--gize-r2) 70%, transparent);
+  transition: transform .12s ease, box-shadow .25s ease; }
+.wk-start::before { content: ""; position: absolute; inset: 0; padding: 2px; border-radius: inherit; pointer-events: none;
+  background: conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: gize-spin 4s linear infinite; }
+.wk-start svg { width: var(--icon-md); height: var(--icon-md); color: #fff; filter: drop-shadow(0 0 6px var(--gize-r2)) drop-shadow(0 0 2px var(--gize-r1)); }
+.wk-start:active { transform: scale(.985); box-shadow: -8px 0 32px -8px var(--gize-r1), 8px 0 32px -8px var(--gize-r3), 0 0 40px -8px var(--gize-r2),
+    inset 0 0 22px -6px color-mix(in srgb, var(--gize-r2) 80%, transparent); }
+html.lite .wk-start::before { animation: none; }
+@media (prefers-reduced-motion: reduce) { .wk-start::before { animation: none; } }
 .wk-actions { display: flex; gap: 8px; margin: 0 0 12px; }
 .wk-finish { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 4px; border: 1px solid var(--gize-success);
   background: color-mix(in srgb, var(--gize-success) 12%, transparent); color: var(--gize-text); font-size: var(--text-meta); font-weight: 700; cursor: pointer; }
