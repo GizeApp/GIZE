@@ -14,6 +14,8 @@ export const State = {
 
   cloudUser: null,
 
+  sessionLost: false, // la sesión se cerró sola (ver sessionLost en core/supabase.js): se pide ingresar con cloudUser puesto
+
   cloudProfile: null,
 
   cloudLoading: false,
