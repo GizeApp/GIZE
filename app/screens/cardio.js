@@ -111,8 +111,10 @@ export function openTimePicker(ms, title, onPick, opts){
   opts = opts || {};
   closeTimePicker();
   const clock = !!opts.clock;
-  const MAXA = clock ? 23 : 60, MAXB = 59, unitA = clock ? "hora" : "min", unitB = clock ? "min" : "seg";
-  const m = clock ? Math.floor(ms / 3600000) % 24 : Math.min(60, Math.floor(ms / 60000));
+  // Minutos: hasta 60, o más si el tiempo ya pasa de una hora (el cronómetro pausado en
+  // 1:15:15 no se corta a 1:00:00 al tocar «Listo»).
+  const MAXA = clock ? 23 : Math.max(60, Math.floor(ms / 60000) || 0), MAXB = 59, unitA = clock ? "hora" : "min", unitB = clock ? "min" : "seg";
+  const m = clock ? Math.floor(ms / 3600000) % 24 : Math.min(MAXA, Math.floor(ms / 60000));
   const sec = clock ? Math.floor((ms % 3600000) / 60000) : Math.floor((ms % 60000) / 1000);
   const box = document.createElement("div");
   box.id = "timePick"; box.className = "tpick";
@@ -142,7 +144,8 @@ export function openTimePicker(ms, title, onPick, opts){
     if (b.dataset.tp === "ok"){
       let mm = wheelVal(wm, MAXA), ss = wheelVal(ws, MAXB);
       if (clock){ closeTimePicker(); onPick((mm * 60 + ss) * 60000); return; }
-      if (mm === 60) ss = 0;
+      // El tope de 60:00 es del temporizador: si el tiempo ya pasaba de una hora, se respetan los segundos.
+      if (mm === 60 && ms < 3600000) ss = 0;
       closeTimePicker(); onPick((mm * 60 + ss) * 1000); return;
     }
     closeTimePicker();

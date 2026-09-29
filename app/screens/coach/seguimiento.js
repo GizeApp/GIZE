@@ -1,6 +1,6 @@
 import { answeredQuestions, coachOwnQuestions, DAILY_COLUMNS } from '../../core/questions.js';
 
-import { esc, fmtDate } from '../../core/utils.js';
+import { dec, esc, fmtDate } from '../../core/utils.js';
 
 import { weeklyAvg } from './clientes.js';
 
@@ -15,9 +15,9 @@ export function renderCoachWeekly(d){
   const rows=avg.slice().reverse().map((a,i,arr)=>{
     const prev=arr[i+1];
     const df=prev?(a.kg-prev.kg):null;
-    const dh=df===null?'\u2014':((df>0?'+':'')+df.toFixed(2)+' kg');
+    const dh=df===null?'\u2014':((df>0?'+':'')+dec(df,2)+' kg');
     const cls=df===null?'em':(Math.abs(df)<0.05?'em':'mx');
-    return '<tr><td class="dt">Sem. '+fmtDate(a.date)+'</td><td><b>'+a.kg.toFixed(2)+' kg</b></td><td class="'+cls+'">'+dh+'</td><td class="em">'+a.n+' reg.</td></tr>';
+    return '<tr><td class="dt">Sem. '+fmtDate(a.date)+'</td><td><b>'+dec(a.kg,2)+' kg</b></td><td class="'+cls+'">'+dh+'</td><td class="em">'+a.n+' reg.</td></tr>';
   }).join("");
   // Gráfico a la izquierda y la tabla de semanas a la derecha (en celular, una abajo de la otra).
   return '<div class="co-split"><div class="co-split-main">'+chart+'</div><div class="co-split-side"><table class="co-tbl"><thead><tr><th>Semana</th><th>Promedio</th><th>Variaci\u00f3n</th><th>Datos</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
@@ -57,7 +57,7 @@ export function renderCoachDaily(d){
   const w=wmap[r.log_date];
   const qs=answeredQuestions("daily", dailyAnswers(r), coachOwnQuestions("daily"));
   const top='<div class="ck-head">'+dayLabel(r.log_date)+
-    '<span class="ck-adh">Peso: <b>'+(w?w.toFixed(1)+' kg':'\u2014')+'</b> · Pasos: <b>'+(r.steps?Number(r.steps).toLocaleString("es-AR"):'\u2014')+'</b></span></div>';
+    '<span class="ck-adh">Peso: <b>'+(w?dec(w)+' kg':'\u2014')+'</b> · Pasos: <b>'+(r.steps?Number(r.steps).toLocaleString("es-AR"):'\u2014')+'</b></span></div>';
   return pick+
     '<div class="ck-card">'+top+(qs.length?qaList(qs):'<div class="cal-hint">Ese día no respondió las preguntas del registro.</div>')+'</div>';
 }

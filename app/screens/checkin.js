@@ -8,7 +8,9 @@ import { save } from '../core/storage.js';
 
 import { checkinPending, cloudInsertSession, failedCheckin, isOnline, newId } from '../core/supabase.js';
 
-import { esc, fmtDate, mondayOf, parseSecs, today } from '../core/utils.js';
+import { esc, fmtDate, mondayOf, num, parseSecs, today } from '../core/utils.js';
+
+import { kgText } from '../core/progresion.js';
 
 import { renderApp } from '../main.js';
 
@@ -96,7 +98,7 @@ export function renderFeedback(){
     return '<div class="fb-row"><div class="fb-lbl">'+lbl+'<span class="fb-hint">'+hint+'</span></div><div class="fb-opts">'+opts+'</div></div>';
   };
   const jp=["No","S\u00ed"].map(v=>'<button class="fb-n wide'+(f.joint===v?' on':'')+'" data-action="fb-set" data-k="joint" data-v="'+v+'">'+v+'</button>').join("");
-  const prBanner = (CheckinState.newPRs&&CheckinState.newPRs.length) ? '<div class="pr-box"><div class="pr-title">'+trophySvg+' ¡Nuevo récord!</div>'+CheckinState.newPRs.map(p=>'<div class="pr-line"><span class="pr-ex">'+esc(p.name)+'</span><span class="pr-val">'+p.kg+' kg × '+p.reps+'</span><span class="pr-prev">antes '+p.prev+' kg</span></div>').join("")+'</div>' : '';
+  const prBanner = (CheckinState.newPRs&&CheckinState.newPRs.length) ? '<div class="pr-box"><div class="pr-title">'+trophySvg+' ¡Nuevo récord!</div>'+CheckinState.newPRs.map(p=>'<div class="pr-line"><span class="pr-ex">'+esc(p.name)+'</span><span class="pr-val">'+kgText(num(p.kg))+' kg × '+p.reps+'</span><span class="pr-prev">antes '+kgText(num(p.prev))+' kg</span></div>').join("")+'</div>' : '';
   host.innerHTML='<div class="fb-bg"></div><div class="fb-card">'+
     '<div class="fb-title">\u00a1Entreno terminado!</div>'+
     renderSummary()+

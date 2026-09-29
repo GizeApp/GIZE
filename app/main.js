@@ -383,7 +383,8 @@ document.body.addEventListener("click", async e => {
   if (a === "sw-lap") { CardioState.swLaps.push(CardioState.swAccum+(Date.now()-CardioState.swStartTs)); renderApp(); return; }
   if (a === "sw-reset") { CardioState.swRunning=false; CardioState.swAccum=0; CardioState.swStartTs=0; CardioState.swLaps=[]; renderApp(); return; }
   if (a === "tm-pick") { openTimePicker(CardioState.tmRemainingMs, "Elegí el tiempo", t => { if(t>0){ CardioState.tmTarget=t; CardioState.tmRemainingMs=t; CardioState.tmFinished=false; } renderApp(); }); return; }
-  if (a === "sw-pick") { openTimePicker(CardioState.swAccum, "Arrancar desde", t => { CardioState.swAccum=t; CardioState.swLaps=[]; renderApp(); }); return; }
+  // «Listo» sin cambiar el tiempo deja todo como estaba (con las vueltas).
+  if (a === "sw-pick") { openTimePicker(CardioState.swAccum, "Arrancar desde", t => { if(t===Math.floor(CardioState.swAccum/1000)*1000){ renderApp(); return; } CardioState.swAccum=t; CardioState.swLaps=[]; renderApp(); }); return; }
   if (a === "tm-toggle") { if(CardioState.tmRunning){ CardioState.tmRemainingMs=Math.max(0,CardioState.tmEndTs-Date.now()); CardioState.tmRunning=false; } else { initAudio(); CardioState.tmEndTs=Date.now()+CardioState.tmRemainingMs; CardioState.tmRunning=true; CardioState.tmFinished=false; } renderApp(); return; }
   if (a === "tm-reset") { CardioState.tmRunning=false; CardioState.tmFinished=false; CardioState.tmRemainingMs=CardioState.tmTarget; renderApp(); return; }
 
@@ -624,8 +625,8 @@ document.body.addEventListener("click", async e => {
     renderApp(); return;
   }
   if (a === "daily-set") { dailyFormInit(); CheckinState.dailyForm[el.dataset.k] = el.dataset.v; renderApp(); return; }
-  if (a === "weight-save") { const dEl=document.getElementById("wDate"), kEl=document.getElementById("wKg"); const date=dEl?dEl.value:""; const kg=parseFloat((kEl?kEl.value:"").replace(",",".")); if(!date){ alert("Elegí una fecha."); return; } if(!(kg>0)){ alert("Poné un peso válido."); return; } const exw=state.weights.find(w=>w.date===date); if(exw) exw.kg=kg; else state.weights.push({id:uid(),date,kg}); ProgresoState.weightForm={date:today(),kg:""}; save(); renderApp(); return; }
-  if (a === "weight-edit") { const w=state.weights.find(x=>x.id===el.dataset.id); if(w){ ProgresoState.weightForm={date:w.date,kg:String(w.kg)}; } renderApp(); return; }
+  if (a === "weight-save") { const dEl=document.getElementById("wDate"), kEl=document.getElementById("wKg"); const date=dEl?dEl.value:""; const kg=parseFloat((kEl?kEl.value:"").replace(",",".")); if(!date){ alert("Elegí una fecha."); return; } if(!(kg>0)){ alert("Poné un peso válido."); return; } const exw=state.weights.find(w=>w.date===date); if(exw) exw.kg=kg; else state.weights.push({id:uid(),date,kg}); ProgresoState.weightForm={date:today(),kg:"",at:today()}; save(); renderApp(); return; }
+  if (a === "weight-edit") { const w=state.weights.find(x=>x.id===el.dataset.id); if(w){ ProgresoState.weightForm={date:w.date,kg:String(w.kg).replace(".",","),at:today()}; } renderApp(); return; }
   if (a === "weight-remove") { state.weights=state.weights.filter(x=>x.id!==el.dataset.id); save(); renderApp(); return; }
 
   // Agua
