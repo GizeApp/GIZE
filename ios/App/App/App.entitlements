@@ -5,5 +5,16 @@
 	<!-- Notificaciones push. Al exportar para App Store / TestFlight, Xcode lo pasa a "production". -->
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- «Continuar con Apple» (Sign in with Apple). Tiene que estar activado también en el App ID
+	     ar.com.gize.app en developer.apple.com; si no, Apple responde con el error 1000.
+	     Quien oculta su mail queda con una dirección @privaterelay.appleid.com: Apple solo le
+	     reenvía los mails de remitentes registrados en developer.apple.com → Services →
+	     «Sign in with Apple for Email Communication» (dominio gize.ar, soporte@gize.ar,
+	     contacto@gize.ar y el remitente de los mails de Supabase Auth). Sin eso no le llegan
+	     los avisos de cobro ni el de «olvidé mi contraseña». -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
 </dict>
 </plist>

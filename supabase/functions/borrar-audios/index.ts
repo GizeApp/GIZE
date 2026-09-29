@@ -1,16 +1,19 @@
-// Supabase Edge Function "borrar-audios": al eliminar la cuenta, borra los mensajes de voz
-// del chat y las explicaciones de voz de los ejercicios (bucket privado chat-audio, ver
-// supabase/chat.sql y supabase/ejercicio-audio.sql). La app la llama antes de
-// delete_own_account, igual que borra antes las fotos: las filas de coach_messages se
-// borran solas con la cuenta, pero los archivos de Storage no.
+// Supabase Edge Function "borrar-audios": elimina la cuenta del usuario logueado junto con
+// sus mensajes de voz del chat y las explicaciones de voz de los ejercicios (bucket privado
+// chat-audio, ver supabase/chat.sql y supabase/ejercicio-audio.sql). Las filas de
+// coach_messages se borran solas con la cuenta, pero los archivos de Storage no.
 //
 // Borra:
 //   · alumno: las conversaciones con cada coach que tuvo ({coach}/{alumno}/…).
 //   · coach: todo lo de su carpeta ({coach}/…): conversaciones con alumnos actuales y
 //     anteriores, y los audios de los ejercicios ({coach}/ex/…).
 // Con la service role: el usuario no tiene permiso para borrar audios en Storage (así nadie
-// puede borrar los audios del otro en una conversación).
-// Recibe {} con el token del usuario logueado. Devuelve { removed }.
+// puede borrar los audios del otro en una conversación). Por eso solo sirve para eliminar la
+// cuenta: después de borrar los audios borra la cuenta (delete_own_account, con el token del
+// usuario). Antes solo borraba los audios, y cualquiera podía llamarla a mano y borrar los
+// del otro sin irse.
+// Recibe {} con el token del usuario logueado. Devuelve { removed, deleted: true }.
+// Las apps viejas llaman después a delete_own_account: con la cuenta ya borrada no hace nada.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -65,6 +68,14 @@ Deno.serve(async (req) => {
     return out;
   }
 
+  // Con la renovación del plan activa no se elimina la cuenta (igual que delete_own_account en
+  // supabase/pagos-seguros.sql): se corta antes de borrar nada.
+  const { data: bill } = await admin.from("coach_billing").select("mp_preapproval_id, mp_status").eq("coach_id", me).maybeSingle();
+  if (bill && bill.mp_preapproval_id && bill.mp_status === "authorized") {
+    return json({ error: "Primero cancelá la renovación de tu plan en gize.ar/app (Mi plan → Cancelar la renovación), así Mercado Pago no te sigue cobrando." }, 409);
+  }
+
+  let removed = 0;
   try {
     const paths: string[] = [];
     // Como coach: su carpeta entera.
@@ -82,9 +93,17 @@ Deno.serve(async (req) => {
       const { error } = await st.remove(paths.slice(i, i + 100));
       if (error) throw error;
     }
-    return json({ removed: paths.length });
+    removed = paths.length;
   } catch (e) {
     console.error("borrar-audios", (e as Error).message);
     return json({ error: "No se pudieron borrar tus mensajes de voz. Probá de nuevo." }, 500);
   }
+
+  // La cuenta: auth.users y en cascada todo lo que depende de ella.
+  const { error: de } = await asUser.rpc("delete_own_account");
+  if (de) {
+    console.error("borrar-audios: delete_own_account", de.message);
+    return json({ error: de.code === "P0001" ? de.message : "No se pudo eliminar la cuenta. Probá de nuevo." }, de.code === "P0001" ? 409 : 500);
+  }
+  return json({ removed, deleted: true });
 });

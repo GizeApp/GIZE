@@ -2,9 +2,11 @@ import { pencilSvg, xSvg } from '../core/icons.js';
 
 import { State, state } from '../core/state.js';
 
-import { esc, exMuscle, fmtDate, fmtSecs, mondayOf, num, setText, today } from '../core/utils.js';
+import { dec, esc, exKey, exMuscle, fmtDate, fmtSecs, mondayOf, num, setText, today } from '../core/utils.js';
 
-import { renderCheckin, renderDaily, renderInfo } from './checkin.js';
+import { kgText } from '../core/progresion.js';
+
+import { checkinSummary, renderCheckin, renderDaily, renderInfo } from './checkin.js';
 
 import { EntrenoState } from './entreno.js';
 
@@ -14,7 +16,9 @@ import { SUB_LABELS, volumeGroups } from '../core/subgrupos.js';
 
 export const ProgresoState = {
 
-  weightForm: {date: today(), kg: ""},
+  // at: el día en que se armó el formulario. Si la app queda abierta de un día para otro, al
+  // volver a dibujarlo se arranca de nuevo con la fecha de hoy (ver renderPeso).
+  weightForm: {date: today(), kg: "", at: today()},
 
   section: null,   // sección abierta (null: el menú de secciones)
 
@@ -51,7 +55,7 @@ export function renderWChart(ws, evenX, sz){
   const baseY=(pt+plotH).toFixed(1);
   const area=pts.length>1 ? "M"+pts[0].x.toFixed(1)+" "+baseY+" "+pts.map(p=>"L"+p.x.toFixed(1)+" "+p.y.toFixed(1)).join(" ")+" L"+pts[pts.length-1].x.toFixed(1)+" "+baseY+" Z" : "";
   const yVals=[]; for(let i=0;i<=nTicks;i++) yVals.push(loK+i*stepK);
-  const grid=yVals.map(v=>{const y=Y(v).toFixed(1);return '<line x1="'+pl+'" y1="'+y+'" x2="'+(W-pr)+'" y2="'+y+'" style="stroke:var(--gize-border)" stroke-width="1"/><text x="'+(pl-8)+'" y="'+(parseFloat(y)+FS/3).toFixed(1)+'" style="fill:var(--gize-text-2)" font-size="'+FS+'" text-anchor="end">'+v.toFixed(decK)+'</text>';}).join("");
+  const grid=yVals.map(v=>{const y=Y(v).toFixed(1);return '<line x1="'+pl+'" y1="'+y+'" x2="'+(W-pr)+'" y2="'+y+'" style="stroke:var(--gize-border)" stroke-width="1"/><text x="'+(pl-8)+'" y="'+(parseFloat(y)+FS/3).toFixed(1)+'" style="fill:var(--gize-text-2)" font-size="'+FS+'" text-anchor="end">'+dec(v,decK)+'</text>';}).join("");
   const dots=pts.map((p,i)=>'<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+(i===pts.length-1?DR:DR2)+'" style="fill:'+(i===pts.length-1?'var(--gize-blue)':'var(--gize-text-2)')+'"/>').join("");
   const xl='<text x="'+pl+'" y="'+(H-6)+'" style="fill:var(--gize-text-2)" font-size="'+FS+'" text-anchor="start">'+fmtDate(ws[0].date)+'</text>'+(ws.length>1?'<text x="'+(W-pr)+'" y="'+(H-6)+'" style="fill:var(--gize-text-2)" font-size="'+FS+'" text-anchor="end">'+fmtDate(ws[ws.length-1].date)+'</text>':'');
   return '<div class="w-chart"><svg viewBox="0 0 '+W+' '+H+'" width="100%"><defs><linearGradient id="wg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--gize-blue)"/><stop offset="1" style="stop-color:var(--gize-blue);stop-opacity:0"/></linearGradient></defs>'+grid+(area?'<path d="'+area+'" fill="url(#wg)" opacity="0.3"/>':'')+(pts.length>1?'<path d="'+line+'" fill="none" style="stroke:var(--gize-blue)" stroke-width="'+SW+'" stroke-linecap="round" stroke-linejoin="round"/>':'')+dots+xl+'</svg></div>';
@@ -63,7 +67,10 @@ export function renderVolumen(daysArg){
   ((daysArg||state.days)||[]).forEach(d=>{ (d.exercises||[]).forEach(ex=>{ const sets=(ex.sets||[]).length; volumeGroups(ex).forEach(m=>{ tally[m]=(tally[m]||0)+sets; }); }); });
   const rows=Object.keys(tally).filter(k=>tally[k]>0).map(k=>({label:SUB_LABELS[k]||labels[k]||k,sets:tally[k]})).sort((a,b)=>b.sets-a.sets);
   if(!rows.length) return "";
-  const total=rows.reduce((x,r)=>x+r.sets,0), max=rows[0].sets;
+  // El total cuenta cada serie una vez (como la tarjeta de Progreso y la del coach): las
+  // barras pueden sumar la misma serie a dos grupos (hiperextensiones: espalda baja e isquios).
+  let total=0; ((daysArg||state.days)||[]).forEach(d=>(d.exercises||[]).forEach(ex=>{ total+=(ex.sets||[]).length; }));
+  const max=rows[0].sets;
   const bars=rows.map(r=>`<div class="vol-row"><div class="vol-lbl">${r.label}</div><div class="vol-bar"><div class="vol-fill" style="width:${Math.round(r.sets/max*100)}%"></div></div><div class="vol-n">${r.sets}</div></div>`).join("");
   return `
     <div class="hb-head" style="margin-top:28px"><div class="hb-title">Volumen semanal</div><div class="title-accent"></div></div>
@@ -101,10 +108,10 @@ export function renderCargas(){
     const sets=(ex.sets||[]).filter(s=>+s.kg||+s.reps||+s.secs);
     const setsHtml=sets.map((s,i)=>(+s.secs>0)
       ? '<div class="hx-set"><span class="hx-n">S'+(i+1)+'</span><span class="hx-reps">'+esc(setText(s))+'</span></div>'
-      : '<div class="hx-set"><span class="hx-n">S'+(i+1)+'</span><span class="hx-kg">'+(s.kg||0)+' kg</span><span class="hx-x">×</span><span class="hx-reps">'+(s.reps||0)+'</span></div>').join("");
+      : '<div class="hx-set"><span class="hx-n">S'+(i+1)+'</span><span class="hx-kg">'+kgText(num(s.kg))+' kg</span><span class="hx-x">×</span><span class="hx-reps">'+(s.reps||0)+'</span></div>').join("");
     const best=sets.reduce((m,s)=>{ const k=+s.kg||0; return k!==0 && (m===null || k>m) ? k : m; },null);
     const bestSecs=sets.reduce((m,s)=>Math.max(m,+s.secs||0),0);
-    const bestStr=best!==null ? 'máx '+best+' kg' : (bestSecs>0 ? 'máx '+fmtSecs(bestSecs) : 'máx 0 kg');
+    const bestStr=best!==null ? 'máx '+kgText(best)+' kg' : (bestSecs>0 ? 'máx '+fmtSecs(bestSecs) : 'máx 0 kg');
     return '<div class="hx-row"><div class="hx-meta"><span class="hx-date">'+fmtDate(se.date)+'</span><span class="hx-best">'+bestStr+'</span></div><div class="hx-sets">'+setsHtml+'</div></div>';
   }).join("");
   const histBlock=allSess.length ? '<div class="hx-wrap">'+histRows+'</div>' : '<div class="cal-hint">Sin historial para este ejercicio.</div>';
@@ -133,23 +140,29 @@ export function renderHistorial(){
 
 // occ: si el día tiene el mismo ejercicio más de una vez, cuál es (0 = el primero): el segundo
 // va con el segundo de la vez pasada (si esa vez hubo menos, con el último).
+// El nombre se compara con exKey (utils): un entreno guardado con el nombre viejo de un
+// ejercicio renombrado, o con otra mayúscula o un espacio de más, sigue contando como la vez pasada.
 export function lastSessionFor(exName, occ){
-  const list=(state.sessions||[]).filter(se=>(se.exercises||[]).some(e=>e.name===exName && (e.sets||[]).length));
+  const key=exKey(exName), isIt=e=>e && exKey(e.name)===key && (e.sets||[]).length;
+  const list=(state.sessions||[]).filter(se=>(se.exercises||[]).some(isIt));
   if(!list.length) return null;
   list.sort((a,b)=>(b.ts||0)-(a.ts||0));
   const se=list[0];
-  const same=se.exercises.filter(e=>e.name===exName && (e.sets||[]).length);
+  const same=se.exercises.filter(isIt);
   const ex=same[Math.min(Math.max(0, occ||0), same.length-1)];
   return { date:se.date, sets:ex.sets };
 }
-// Cuál de los ejercicios del día con ese nombre es ex (para lastSessionFor).
-export function exOccurrence(exs, ex){ return Math.max(0, (exs||[]).filter(x=>x && x.name===ex.name).indexOf(ex)); }
+// Cuál de los ejercicios del día con ese nombre es ex (para lastSessionFor). Se cuenta con la
+// misma clave (exKey) que usa la búsqueda: si no, «Jalón» y «Jalon» en el mismo día quedan los dos
+// como el primero y el segundo agarra los pesos del primero.
+export function exOccurrence(exs, ex){ const k=exKey(ex.name); return Math.max(0, (exs||[]).filter(x=>x && exKey(x.name)===k).indexOf(ex)); }
 
 // Lo de la vez pasada para cada serie de hoy, por orden ({kg, reps} en números). Si hoy hay
-// más series que la vez pasada, las de más toman la última.
+// más series que la vez pasada, las de más toman la última. Con num(), como el resto del
+// historial: un peso guardado como texto con coma ("62,5") con +p.kg daba 0 y no había botón.
 export function lastPlan(ex, prevSets){
   const ps=(prevSets||[]).filter(Boolean); if(!ps.length || !ex) return [];
-  return (ex.sets||[]).map((s,i)=>{ const p=ps[Math.min(i, ps.length-1)]; return { kg:+p.kg||0, reps:parseInt(p.reps)||0 }; });
+  return (ex.sets||[]).map((s,i)=>{ const p=ps[Math.min(i, ps.length-1)]; return { kg:num(p.kg), reps:parseInt(p.reps)||0 }; });
 }
 const kgNum = v => parseFloat(String(v==null?"":v).replace(",", "."))||0;
 // ¿El botón "Usar estos pesos" cambiaría algo? (solo series sin tildar con peso distinto)
@@ -163,7 +176,7 @@ export function lastKgsUseful(ex, plan){
 export function renderLastSession(exName, ex, occ){
   const prev=lastSessionFor(exName, occ);
   if(!prev) return "";
-  const sets=prev.sets.map((s,i)=>(+s.secs>0) ? '<span class="ls-set"><b>'+esc(setText(s))+'</b></span>' : '<span class="ls-set"><b>'+(s.kg||0)+'</b>kg × <b>'+(s.reps||0)+'</b></span>').join('<span class="ls-sep">·</span>');
+  const sets=prev.sets.map((s,i)=>(+s.secs>0) ? '<span class="ls-set"><b>'+esc(setText(s))+'</b></span>' : '<span class="ls-set"><b>'+kgText(num(s.kg))+'</b>kg × <b>'+(s.reps||0)+'</b></span>').join('<span class="ls-sep">·</span>');
   const plan = ex ? lastPlan(ex, prev.sets) : [];
   const use = ex && (ex.sets||[]).some((s,i)=>!s.done && plan[i] && plan[i].kg!==0)
     ? '<button class="ls-use" data-action="last-use" data-ex="'+esc(ex.id)+'"'+(lastKgsUseful(ex, plan)?'':' hidden')+'>Usar estos pesos</button>' : '';
@@ -216,26 +229,27 @@ const SECTIONS = [
 const sortedWeights = () => (state.weights||[]).slice().sort((a,b)=>a.date<b.date?-1:(a.date>b.date?1:0));
 
 function renderPeso(){
+  if(ProgresoState.weightForm.at!==today()) ProgresoState.weightForm={date:today(), kg:"", at:today()};
   const ws=sortedWeights();
   const latest=ws.length?ws[ws.length-1]:null, prev=ws.length>1?ws[ws.length-2]:null;
   let header;
   if(latest){
     let dh="";
-    if(prev){ const d=latest.kg-prev.kg; const z=Math.abs(d)<0.05; dh=z?'<span class="w-delta">sin cambios</span>':'<span class="w-delta">'+(d>0?'▲ +':'▼ ')+d.toFixed(1)+' kg</span>'; }
-    header=`<div class="w-current"><div class="w-now">${latest.kg.toFixed(1)} <small>kg</small></div><div class="w-meta">Último registro · ${fmtDate(latest.date)} ${dh}</div></div>`;
+    if(prev){ const d=latest.kg-prev.kg; const z=Math.abs(d)<0.05; dh=z?'<span class="w-delta">sin cambios</span>':'<span class="w-delta">'+(d>0?'▲ +':'▼ ')+dec(Math.abs(d))+' kg</span>'; }
+    header=`<div class="w-current"><div class="w-now">${dec(latest.kg)} <small>kg</small></div><div class="w-meta">Último registro · ${fmtDate(latest.date)} ${dh}</div></div>`;
   } else {
     header=`<div class="cal-hint" style="padding:20px 8px">Todavía no cargaste tu peso. Empezá registrando el de hoy acá abajo.</div>`;
   }
   const chart=ws.length?renderWChart(ws):"";
   // El historial muestra los últimos 5; el resto, con «Ver todo».
   const rev=ws.slice().reverse(), shown=ProgresoState.wAll?rev:rev.slice(0,5);
-  const list=shown.map(e=>`<div class="w-item" data-action="weight-edit" data-id="${esc(e.id)}"><div class="w-date">${fmtDate(e.date)}</div><div class="w-kg">${e.kg.toFixed(1)} kg</div><button class="diary-rm" data-action="weight-remove" data-id="${esc(e.id)}" title="Borrar">${xSvg}</button></div>`).join("");
+  const list=shown.map(e=>`<div class="w-item" data-action="weight-edit" data-id="${esc(e.id)}"><div class="w-date">${fmtDate(e.date)}</div><div class="w-kg">${dec(e.kg)} kg</div><button class="diary-rm" data-action="weight-remove" data-id="${esc(e.id)}" title="Borrar">${xSvg}</button></div>`).join("");
   const more=rev.length>5 ? `<button class="w-more" data-action="w-all">${ProgresoState.wAll?'Ver menos':'Ver todo el historial ('+rev.length+')'}</button>` : '';
   return `${header}
     ${chart}
     <div class="w-form">
-      <input id="wDate" class="form-input" type="date" value="${ProgresoState.weightForm.date}" data-action="wdate-field" style="flex:1">
-      <input id="wKg" class="form-input" type="text" inputmode="decimal" placeholder="kg" value="${esc(ProgresoState.weightForm.kg)}" style="width:88px" data-action="wkg-field">
+      <input id="wDate" class="form-input" type="date" value="${ProgresoState.weightForm.date}" data-action="wdate-field">
+      <input id="wKg" class="form-input" type="text" inputmode="decimal" placeholder="kg" value="${esc(ProgresoState.weightForm.kg)}" data-action="wkg-field">
       <button class="form-save" style="width:auto;padding:0 18px;margin-top:0" data-action="weight-save">Guardar</button>
     </div>
     ${list?`<div class="w-list-head">Historial de peso</div>${list}${more}`:""}`;
@@ -253,11 +267,20 @@ function sectionBody(id){
   return "";
 }
 
+// ¿Cargó hoy el registro? La app sube sola una fila del día (agua, pasos, hábitos) y al
+// volver a abrirla aparecía como registro con todo vacío: cuenta solo si tiene alguna
+// respuesta (los pasos no, los suma solo el contador) o el peso de hoy.
+function dailyDone(){
+  const r=(state.daily||{})[today()];
+  if(r && Object.keys(r).some(k=>k!=="steps" && k!=="_q" && r[k]!=null && String(r[k]).trim()!=="")) return true;
+  return (state.weights||[]).some(w=>w && w.date===today() && Number(w.kg)>0);
+}
+
 // Resumen de cada tarjeta del menú: [texto, pendiente?]
 function sectionSummary(id){
   if(id==="peso"){ const ws=sortedWeights(); if(!ws.length) return ["Sin registros", true]; const l=ws[ws.length-1], p=ws.length>1?ws[ws.length-2]:null; const d=p?l.kg-p.kg:0; return [l.kg.toFixed(1).replace(".",",")+" kg"+(p&&Math.abs(d)>=0.05?(d>0?" · ▲ ":" · ▼ ")+Math.abs(d).toFixed(1).replace(".",","):""), false]; }
-  if(id==="registro") return (state.daily||{})[today()] ? ["Cargado hoy ✓", false] : ["Pendiente de hoy", true];
-  if(id==="checkin") return (state.checkins||{})[mondayOf(today())] ? ["Enviado esta semana ✓", false] : ["Pendiente esta semana", true];
+  if(id==="registro") return dailyDone() ? ["Cargado hoy ✓", false] : ["Pendiente de hoy", true];
+  if(id==="checkin") return checkinSummary();
   if(id==="historial"){ const n=(state.sessions||[]).length; if(!n) return ["Sin entrenos todavía", false]; const last=(state.sessions||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0))[0]; return [n+" entreno"+(n===1?"":"s")+" · último "+fmtDate(last.date), false]; }
   if(id==="cargas"){ const n=exercisesInHistory().length; return [n?n+" ejercicio"+(n===1?"":"s"):"Sin datos todavía", false]; }
   if(id==="volumen"){ let t=0; (state.days||[]).forEach(d=>(d.exercises||[]).forEach(ex=>{ t+=(ex.sets||[]).length; })); return [t?t+" series por semana":"Sin rutina", false]; }

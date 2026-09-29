@@ -28,6 +28,11 @@ permissions:
 jobs:
   ios:
     runs-on: macos-latest
+    # Con «shell: bash» GitHub corre cada paso con pipefail: si xcodebuild falla, el
+    # «| tail -40» ya no esconde el error y el paso queda en rojo.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Apple solo acepta apps compiladas con el SDK más nuevo: se usa el Xcode de mayor
@@ -42,6 +47,11 @@ jobs:
           cache: npm
       - name: Instalar dependencias
         run: npm ci
+      # El plugin de login (lo usa «Continuar con Apple») declara siempre el SDK de Facebook para
+      # Swift Package Manager, aunque capacitor.config.json lo apague. GIZE no lo usa: se saca
+      # antes de compilar para que no entre a la app (ver el script).
+      - name: Sacar Facebook del plugin de login
+        run: node scripts/ios-sin-facebook.mjs
       - name: Juntar la app web y pasarla al proyecto iOS
         run: node scripts/build-web.mjs && npx cap sync ios
 

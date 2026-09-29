@@ -83,7 +83,8 @@ function feedbackChips(se){
 }
 
 // Duración guardada al terminar (segundos desde la primera serie tildada): "47 min", "1 h 05".
-const durShort = s => { s = Math.round(+s || 0); const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return h ? h + " h " + String(m).padStart(2, "0") : Math.max(1, m) + " min"; };
+// Se redondea primero el total en minutos: 1:59:30 es "2 h 00", no "1 h 60".
+const durShort = s => { const tm = Math.round((+s || 0) / 60), h = Math.floor(tm / 60), m = tm % 60; return h ? h + " h " + String(m).padStart(2, "0") : Math.max(1, m) + " min"; };
 
 // opts.removeBtn: HTML del botón de borrar (solo el cliente borra sus entrenos).
 // opts.open: arranca desplegado (el coach lo muestra así al elegirlo en el selector).
@@ -98,7 +99,8 @@ export function renderSessionItem(se, opts){
     '<div><b>' + nSets + '</b><span>serie' + (nSets === 1 ? "" : "s") + '</span></div>' +
     (se.dur > 0 ? '<div><b>' + durShort(se.dur) + '</b><span>de entreno</span></div>' : '') + '</div>';
   const rm = opts.removeBtn || "";
-  return '<div class="sess-item sess-det-wrap">' +
+  // has-acts: Editar/Borrar van arriba a la derecha y el detalle abierto usa todo el ancho.
+  return '<div class="sess-item sess-det-wrap' + (rm ? ' has-acts' : '') + '">' +
     '<details class="sess-det"' + (opts.open ? ' open' : '') + '><summary class="sess-sum"><div class="sess-main">' +
       '<div class="sess-date">' + fmtDate(se.date) + ' · ' + esc(se.day || "") + ' <span class="sess-n">(' + nSets + (nSets === 1 ? ' serie' : ' series') + ')</span></div>' +
       '<div class="sess-exs">' + esc(names) + '</div></div>' +

@@ -1,5 +1,8 @@
 -- Endurecimiento de la base (auditoría de septiembre 2026).
--- Correr UNA vez en Supabase → SQL Editor. Se puede volver a correr sin problema.
+-- Correr UNA vez en Supabase → SQL Editor.
+-- OJO: NO volver a correr suelto. Redefine join_coach, y la versión vigente (que además mira
+-- el plan y el cupo del coach) está en suscripciones.sql. Si lo corrés, corré después
+-- suscripciones.sql y cupo-plan.sql.
 -- Todo el script corre como una sola transacción: si algo falla, no se aplica nada.
 --
 -- Qué hace:

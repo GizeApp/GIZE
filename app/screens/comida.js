@@ -8,7 +8,7 @@ import { flameSvg, searchSvg, xSvg } from '../core/icons.js';
 
 import { state } from '../core/state.js';
 
-import { esc, norm, num, today, ymd } from '../core/utils.js';
+import { dec, esc, norm, num, today, ymd } from '../core/utils.js';
 
 import { addDays, dayLabel, dayShort, pastDay } from './comida-historial.js';
 
@@ -271,7 +271,7 @@ export function entryBase(e){ return e.base ? e.base : { kcal: e.grams? e.kcal/e
 
 export function previewStr(food, grams){
   const fc=num(grams)/100;
-  return `${Math.round(food.kcal*fc)} kcal · P ${(food.p*fc).toFixed(1)} · C ${(food.c*fc).toFixed(1)} · G ${(food.f*fc).toFixed(1)}`;
+  return `${Math.round(food.kcal*fc)} kcal · P ${dec(food.p*fc)} · C ${dec(food.c*fc)} · G ${dec(food.f*fc)}`;
 }
 
 export function renderCalForm(){

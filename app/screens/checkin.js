@@ -6,9 +6,11 @@ import { state } from '../core/state.js';
 
 import { save } from '../core/storage.js';
 
-import { cloudInsertSession, isOnline, newId } from '../core/supabase.js';
+import { checkinPending, cloudInsertSession, failedCheckin, isOnline, newId } from '../core/supabase.js';
 
-import { esc, fmtDate, mondayOf, parseSecs, today } from '../core/utils.js';
+import { esc, fmtDate, mondayOf, num, parseSecs, today, withUnit } from '../core/utils.js';
+
+import { kgText } from '../core/progresion.js';
 
 import { renderApp } from '../main.js';
 
@@ -23,6 +25,8 @@ export const CheckinState = {
   checkinOpen: false,
 
   checkinForm: null,
+
+  checkinWeek: null,   // semana del check-in abierto (se fija al abrirlo)
 
   fbSession: null,
 
@@ -92,7 +96,7 @@ export function renderFeedback(){
     return '<div class="fb-row"><div class="fb-lbl">'+lbl+'<span class="fb-hint">'+hint+'</span></div><div class="fb-opts">'+opts+'</div></div>';
   };
   const jp=["No","S\u00ed"].map(v=>'<button class="fb-n wide'+(f.joint===v?' on':'')+'" data-action="fb-set" data-k="joint" data-v="'+v+'">'+v+'</button>').join("");
-  const prBanner = (CheckinState.newPRs&&CheckinState.newPRs.length) ? '<div class="pr-box"><div class="pr-title">'+trophySvg+' ¡Nuevo récord!</div>'+CheckinState.newPRs.map(p=>'<div class="pr-line"><span class="pr-ex">'+esc(p.name)+'</span><span class="pr-val">'+p.kg+' kg × '+p.reps+'</span><span class="pr-prev">antes '+p.prev+' kg</span></div>').join("")+'</div>' : '';
+  const prBanner = (CheckinState.newPRs&&CheckinState.newPRs.length) ? '<div class="pr-box"><div class="pr-title">'+trophySvg+' ¡Nuevo récord!</div>'+CheckinState.newPRs.map(p=>'<div class="pr-line"><span class="pr-ex">'+esc(p.name)+'</span><span class="pr-val">'+kgText(num(p.kg))+' kg × '+p.reps+'</span><span class="pr-prev">antes '+kgText(num(p.prev))+' kg</span></div>').join("")+'</div>' : '';
   host.innerHTML='<div class="fb-bg"></div><div class="fb-card">'+
     '<div class="fb-title">\u00a1Entreno terminado!</div>'+
     renderSummary()+
@@ -149,17 +153,47 @@ export function renderDaily(){
     </div>`;
 }
 
-export function renderCheckin(){
+// Semana del check-in: la del formulario abierto (fijada al abrirlo, así lo que se manda
+// pasada la medianoche del domingo va a la semana que decía la pantalla) o la de hoy.
+export function checkinWeek(){ return (CheckinState.checkinOpen && CheckinState.checkinWeek) || mondayOf(today()); }
+
+// Respuestas con que arranca el formulario: las ya guardadas o, si la base rechazó el envío,
+// las de ese intento (para no perderlas).
+export function checkinDraft(wk){
+  const s = state.checkins[wk];
+  return s ? JSON.parse(JSON.stringify(s)) : (failedCheckin(wk) || {});
+}
+
+// ¿Tiene alguna respuesta de verdad? (_q es la foto de los textos de las preguntas).
+export function checkinHasAnswer(f){
+  return Object.keys(f || {}).some(k => k !== "_q" && f[k] != null && String(f[k]).trim() !== "" && !(typeof f[k] === "number" && isNaN(f[k])));
+}
+
+// Resumen para la tarjeta de Progreso: [texto, pendiente?]. «Enviado» solo si llegó a la nube.
+export function checkinSummary(){
   const wk = mondayOf(today());
+  if((state.checkins || {})[wk]) return checkinPending(wk) ? ["Guardado, todavía sin enviar", true] : ["Enviado esta semana \u2713", false];
+  if(failedCheckin(wk)) return ["No se pudo enviar", true];
+  return clientQuestions("checkin").length ? ["Pendiente esta semana", true] : ["Sin preguntas esta semana", false];
+}
+
+export function renderCheckin(){
+  const wk = checkinWeek();
   const saved = state.checkins[wk];
   if(!CheckinState.checkinOpen){
+    const pend = saved && checkinPending(wk), failed = !saved && failedCheckin(wk), noQs = !saved && !failed && !clientQuestions("checkin").length;
+    const status = pend ? "Tu check-in se guard\u00f3 en este dispositivo pero todav\u00eda no lleg\u00f3 a tu coach. Se env\u00eda solo apenas se pueda. Pod\u00e9s editarlo."
+      : saved ? "\u2713 Ya respondiste el check-in de esta semana. Pod\u00e9s editarlo."
+      : failed ? "Tu check-in no se pudo enviar. Abrilo para revisar tus respuestas y mandarlo de nuevo."
+      : noQs ? "Tu coach no arm\u00f3 preguntas para el check-in por ahora."
+      : "Todav\u00eda no respondiste el check-in de esta semana.";
     return `<div class="hb-head" style="margin-top:26px"><div class="hb-title">Check-in semanal</div><div class="title-accent"></div></div>
       <div class="ci-card">
-        <div class="ci-status">${saved ? "\u2713 Ya respondiste el check-in de esta semana. Pod\u00e9s editarlo." : "Todav\u00eda no respondiste el check-in de esta semana."}</div>
-        <button class="form-save" style="margin-top:10px" data-action="ci-open">${saved ? "Ver / editar mis respuestas" : "Responder el check-in"}</button>
-      </div>`;
+        <div class="ci-status">${status}</div>
+        ${noQs ? '' : `<button class="form-save" style="margin-top:10px" data-action="ci-open">${saved ? "Ver / editar mis respuestas" : failed ? "Revisar y enviar de nuevo" : "Responder el check-in"}</button>`}
+      </div>
   }
-  const f = CheckinState.checkinForm || (saved ? JSON.parse(JSON.stringify(saved)) : {});
+  const f = CheckinState.checkinForm || checkinDraft(wk);
   const qs = clientQuestions("checkin").map(q=>{
     if(q.type==="options"){
       const opts = q.options.map(o=>'<button class="sc-opt'+(String(f[q.id])===o?' on':'')+'" data-action="ci-opt" data-k="'+esc(q.id)+'" data-v="'+esc(o)+'">'+esc(o)+'</button>').join("");
@@ -192,7 +226,7 @@ export function planSections(p){
       '<tr class="mc-tot mc-goal"><td>Objetivo</td><td>'+tk+'</td><td>'+tc+'</td><td>'+tf+'</td><td>'+tp+'</td></tr></tbody></table></div>';
   };
   const list=(arr,title,icon,cls)=>{ if(!arr||!arr.filter(x=>x&&x.trim()).length) return ""; return '<div class="mc-block'+(cls?' '+cls:'')+'"><div class="mc-title'+(cls?' '+cls+'-t':'')+'">'+icon+' '+title+'</div><ul class="mc-list">'+arr.filter(x=>x&&x.trim()).map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul></div>'; };
-  const ws=(p.water||p.salt)?'<div class="mc-block"><div class="mc-ws">'+(p.water?'<span>💧 '+esc(p.water)+'</span>':'')+(p.salt?'<span>🧂 '+esc(p.salt)+'</span>':'')+'</div></div>':'';
+  const ws=(p.water||p.salt)?'<div class="mc-block"><div class="mc-ws">'+(p.water?'<span>💧 '+esc(withUnit(p.water,'L de agua por día'))+'</span>':'')+(p.salt?'<span>🧂 '+esc(withUnit(p.salt,'g de sal por día'))+'</span>':'')+'</div></div>':'';
   const secHasContent = sec => (sec.title&&sec.title.trim()) || (sec.opts&&sec.opts.some(o=>(o.label&&o.label.trim())||(o.body&&o.body.trim()))) || (sec.items&&sec.items.some(i=>i&&i.trim()));
   const validSecs = (p.options||[]).filter(secHasContent);
   const bodyToList = body => { const parts=String(body).split(/\r?\n/).map(x=>x.trim()).filter(Boolean); if(parts.length<=1) return '<div class="mc-optbody">'+esc(body)+'</div>'; return '<ul class="mc-optitems">'+parts.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul>'; };

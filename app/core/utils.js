@@ -1,4 +1,4 @@
-import { EX_DB } from './data.js';
+import { ES_MAP, EX_DB } from './data.js';
 
 export const uid = () => Math.random().toString(36).slice(2, 9);
 
@@ -29,14 +29,34 @@ export function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padSta
 // español pone coma). Vacío o inválido → 0.
 export const num = v => parseFloat(String(v == null ? "" : v).replace(",", ".")) || 0;
 
+// Número con d decimales y coma, como se escribe en Argentina: dec(70.8) → "70,8".
+export const dec = (n, d = 1) => (Number(n) || 0).toFixed(d).replace(".", ",");
+
 // Número entero escrito por el usuario, con o sin separador de miles ("8.500", "10 000").
 export const intNum = v => parseInt(String(v == null ? "" : v).replace(/[.\s]/g, ""), 10);
+
+// Agua y sal del plan del coach: si escribió solo el número («3», «2,5») se le suma la unidad
+// («3 L de agua»); si escribió texto («3 litros por día») queda como está.
+export const withUnit = (v, u) => { const s = String(v == null ? "" : v).trim(); return /^\d+([.,]\d+)?$/.test(s) ? s + " " + u : s; };
 
 export function today(){ return ymd(new Date()); }
 
 export function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 
 export const norm = s => (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+
+// Nombre de ejercicio para buscarlo en el historial (La vez pasada, «Usar estos pesos»): sin
+// mayúsculas, tildes ni espacios de más, y con el nombre nuevo si es uno de los que renombra
+// migrateNames (ES_MAP). La rutina se renombra al abrir la app pero los entrenos guardados no
+// ("Curl Bayesian", que está en la lista de ejercicios, pasa a "Curl en polea detrás del
+// cuerpo"), y con el nombre exacto ese ejercicio se quedaba sin la vez pasada.
+const _exKeys = new Map(); let _esKeys = null;
+export function exKey(name){
+  const k = s => norm(String(s == null ? "" : s).trim().replace(/\s+/g, " "));
+  if(!_esKeys){ _esKeys = {}; for(const o in ES_MAP) _esKeys[k(o)] = k(ES_MAP[o]); }
+  if(!_exKeys.has(name)){ const n = k(name); _exKeys.set(name, _esKeys[n] || n); }
+  return _exKeys.get(name);
+}
 
 export function fmt(ms, ceil){ let s = ceil?Math.ceil(ms/1000):Math.floor(ms/1000); if(s<0)s=0;
   const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;

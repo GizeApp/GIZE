@@ -43,7 +43,7 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Escáner de códigos de barras, foto de perfil y fotos de productos -->
+    <!-- Escáner de códigos de barras, foto de un producto y foto de perfil -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Aviso de fin de descanso a horario exacto (si el usuario lo permite; si no, Android lo manda apenas puede). -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />

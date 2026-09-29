@@ -34,26 +34,54 @@ revoke all on public.routine_schedule from anon;
 
 -- Aplica la programada que ya empezó (la más reciente con fecha hasta hoy, hora de Argentina).
 -- La puede llamar el propio alumno o su coach. Devuelve true si cambió la rutina.
+-- Solo cuenta la que programó el coach actual del alumno: la de un coach anterior no pisa la
+-- rutina que el alumno (o su coach nuevo) armó después.
 create or replace function public.apply_due_routines(p_client uuid default null)
 returns boolean language plpgsql security definer set search_path = public as $$
 declare
   cid uuid := coalesce(p_client, auth.uid());
   hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
+  coach uuid;
   s record;
 begin
   if cid is null or not (cid = auth.uid() or public.is_my_client(cid)) then return false; end if;
+  select coach_id into coach from public.profiles where id = cid;
+  if coach is null then return false; end if;
   select * into s from public.routine_schedule
-   where client_id = cid and applied_at is null and starts_on <= hoy
+   where client_id = cid and applied_at is null and starts_on <= hoy and created_by = coach
    order by starts_on desc, created_at desc limit 1;
   if not found then return false; end if;
   insert into public.routines (client_id, days, updated_at, updated_by)
   values (cid, s.days, now(), s.created_by)
   on conflict (client_id) do update set days = excluded.days, updated_at = excluded.updated_at, updated_by = excluded.updated_by;
   update public.routine_schedule set applied_at = now()
-   where client_id = cid and applied_at is null and starts_on <= hoy;
+   where client_id = cid and applied_at is null and starts_on <= hoy and created_by = coach;
   return true;
 end $$;
 revoke execute on function public.apply_due_routines(uuid) from public, anon;
 grant execute on function public.apply_due_routines(uuid) to authenticated;
+
+-- Al cambiar el coach del alumno (se desvincula en Ajustes, el coach lo saca, el admin lo
+-- desvincula o le cambia el rol, el coach borra su cuenta, o se pasa a otro coach) se borran
+-- las programadas pendientes: eran del coach anterior. Las ya aplicadas quedan.
+create or replace function public.routine_schedule_on_coach_change()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.coach_id is distinct from old.coach_id then
+    delete from public.routine_schedule where client_id = new.id and applied_at is null;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.routine_schedule_on_coach_change() from public, anon, authenticated;
+drop trigger if exists profiles_routine_schedule_cleanup on public.profiles;
+create trigger profiles_routine_schedule_cleanup after update of coach_id on public.profiles
+  for each row execute function public.routine_schedule_on_coach_change();
+
+-- Limpieza de las que ya quedaron colgadas de un coach anterior (o de uno que borró su
+-- cuenta). Las del coach actual no se tocan: solo él las puede cargar (is_my_client).
+delete from public.routine_schedule s
+ where s.applied_at is null
+   and (s.created_by is null
+        or s.created_by is distinct from (select p.coach_id from public.profiles p where p.id = s.client_id));
 
 select 'routine_schedule' as tabla, count(*) as filas from public.routine_schedule;

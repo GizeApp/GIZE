@@ -1,6 +1,9 @@
 -- Endurecimiento de la base (auditoría de seguridad, septiembre 2026).
 -- Correr con el workflow "Supabase" → tarea sql → supabase/seguridad-base.sql.
--- Se puede correr varias veces. Al final devuelve lo que haya que revisar (vacío = todo bien).
+-- Al final devuelve lo que haya que revisar (vacío = todo bien).
+-- OJO: NO volver a correr suelto. Redefine routine_days_ok, y la versión vigente (que además
+-- valida la ruta del audio de cada ejercicio) está en ejercicio-audio.sql. Si lo corrés,
+-- corré después ejercicio-audio.sql.
 --
 --   1) Rutinas y plantillas: los id de días, ejercicios y series solo pueden tener letras,
 --      números, - y _ (van dentro del HTML de la app), y el link de video tiene que ser https.
