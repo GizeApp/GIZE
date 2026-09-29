@@ -1,6 +1,8 @@
 -- Suscripción de los coaches: 14 días de prueba y después un plan mensual por
 -- Mercado Pago, que define cuántos clientes puede tener.
--- Correr UNA vez en Supabase → SQL Editor. Se puede volver a correr sin problema.
+-- Correr UNA vez en Supabase → SQL Editor.
+-- OJO: NO volver a correr suelto. Redefine coach_active, y la versión vigente (que además
+-- mira el cupo del plan) está en cupo-plan.sql. Si lo corrés, corré después cupo-plan.sql.
 --
 --   Prueba     14 días, hasta 10 clientes, gratis
 --   Plan 10    hasta 10 clientes, $9.300 por mes

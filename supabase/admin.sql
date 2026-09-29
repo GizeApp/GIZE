@@ -82,7 +82,7 @@ begin
     'courtesy',  (select count(*) from public.coach_billing where plan = 'cortesia'),
     'overdue',   (select count(*) from public.coach_billing where plan not in ('cortesia') and trial_ends_at <= now() and coalesce(paid_until, '-infinity') <= now()),
     'products',  (select count(*) from public.products where not hidden),
-    'pending',   (select count(*) from public.products where not verified and not hidden and (source = 'user' or reports > 0)),
+    'pending',   (select count(*) from public.products where not hidden and ((source = 'user' and not verified) or reports > 0)),
     'signups',   (select coalesce(jsonb_agg(jsonb_build_object('w', w, 'n', n) order by w), '[]') from (
                     select to_char(g.w, 'YYYY-MM-DD') as w, (select count(*) from auth.users u where u.created_at >= g.w and u.created_at < g.w + interval '7 days') as n
                       from generate_series(date_trunc('week', now()) - interval '11 weeks', date_trunc('week', now()), interval '1 week') g(w)) s),
@@ -284,7 +284,8 @@ end $$;
 revoke execute on function public.admin_audit_list(int) from public, anon;
 grant execute on function public.admin_audit_list(int) to authenticated;
 
--- Productos: guardar lo revisado ahora también queda en el registro.
+-- Productos: guardar lo revisado ahora también queda en el registro. Verificar (o volver a
+-- mostrar) borra los reportes: ya se revisaron y el producto sale de Reportados.
 create or replace function public.admin_product_save(pid uuid, p_name text, p_brand text, p_kcal numeric, p_protein numeric,
   p_carbs numeric, p_fat numeric, p_unit text, p_verified boolean, p_hidden boolean)
 returns void language plpgsql security definer set search_path = public as $$
@@ -295,7 +296,7 @@ begin
   update public.products set name = p_name, brand = p_brand, kcal = p_kcal, protein = p_protein, carbs = p_carbs, fat = p_fat,
     unit = case when p_unit in ('g','ml') then p_unit else unit end, verified = p_verified, hidden = p_hidden
    where id = pid;
-  if was_hidden and not p_hidden then
+  if (was_hidden and not p_hidden) or (p_verified and not p_hidden) then
     delete from public.product_reports where product_id = pid;
     update public.products set reports = 0 where id = pid;
   end if;

@@ -3,8 +3,14 @@
 -- Qué es este archivo: una copia versionada de lo que está en Supabase, sacada del SQL
 -- Editor (pg_policies, pg_get_functiondef, pg_trigger) en septiembre 2026, con los
 -- cambios de endurecer-base.sql ya incluidos. Sirve para revisar la seguridad desde el
--- repo y para rearmar la base si hiciera falta. Se puede correr entero sin problema
--- (drop/create), pero NO hace falta: la base ya está así.
+-- repo y para rearmar la base si hiciera falta. NO hace falta correrlo: la base ya está así.
+--
+-- OJO: NO volver a correr suelto. Redefine is_my_client, join_coach, my_invite_code,
+-- delete_own_account y la política «cliente sube sus fotos» con sus versiones viejas, y
+-- archivos posteriores las endurecieron (plan y cupo del coach, cuenta con suscripción de
+-- Mercado Pago, carpeta de las fotos). Vale la última que se corre. Si lo corrés, corré
+-- después, en este orden: endurecer-base.sql, suscripciones.sql, cupo-plan.sql,
+-- pagos-seguros.sql, seguridad-base.sql y ejercicio-audio.sql.
 --
 -- Qué NO tiene:
 --   · Los CREATE TABLE (columnas, tipos, claves foráneas): no se exportaron. Para tenerlos,

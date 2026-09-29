@@ -37,17 +37,21 @@ begin
   return new;
 end $$;
 
--- Buscar en toda la base (nombre, marca o código). Sin texto: los más usados.
+-- Buscar en toda la base (nombre, marca o código). Sin texto: los más usados. Trae también el
+-- motivo de los reportes (reasons), igual que admin_products.
+drop function if exists public.admin_products_search(text, int);
 create or replace function public.admin_products_search(q text, lim int default 60)
 returns table (id uuid, code text, name text, brand text, kcal numeric, protein numeric, carbs numeric, fat numeric,
-  unit text, portion numeric, source text, verified boolean, hidden boolean, uses int, reports int, photo_path text, created_at timestamptz)
+  unit text, portion numeric, source text, verified boolean, hidden boolean, uses int, reports int, photo_path text, created_at timestamptz,
+  reasons text)
 language plpgsql stable security definer set search_path = public as $$
 declare t text := lower(translate(btrim(coalesce(q, '')), 'ÁÉÍÓÚÜÑáéíóúüñ', 'AEIOUUNaeiouun'));
 begin
   perform public.admin_assert();
   return query
     select p.id, p.code, p.name, p.brand, p.kcal, p.protein, p.carbs, p.fat, p.unit, p.portion, p.source, p.verified, p.hidden,
-           p.uses, p.reports, p.photo_path, p.created_at
+           p.uses, p.reports, p.photo_path, p.created_at,
+           (select string_agg(coalesce(nullif(r.reason, ''), 'sin detalle'), ' · ' order by r.created_at) from public.product_reports r where r.product_id = p.id)
       from public.products p
      where t = '' or p.code = t
         or not exists (select 1 from regexp_split_to_table(t, '\s+') w where w <> '' and position(w in p.search) = 0)
