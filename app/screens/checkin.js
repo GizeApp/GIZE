@@ -191,7 +191,7 @@ export function renderCheckin(){
       <div class="ci-card">
         <div class="ci-status">${status}</div>
         ${noQs ? '' : `<button class="form-save" style="margin-top:10px" data-action="ci-open">${saved ? "Ver / editar mis respuestas" : failed ? "Revisar y enviar de nuevo" : "Responder el check-in"}</button>`}
-      </div>
+      </div>`;
   }
   const f = CheckinState.checkinForm || checkinDraft(wk);
   const qs = clientQuestions("checkin").map(q=>{
