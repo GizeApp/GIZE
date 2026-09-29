@@ -29,6 +29,9 @@ export function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padSta
 // español pone coma). Vacío o inválido → 0.
 export const num = v => parseFloat(String(v == null ? "" : v).replace(",", ".")) || 0;
 
+// Número con d decimales y coma, como se escribe en Argentina: dec(70.8) → "70,8".
+export const dec = (n, d = 1) => (Number(n) || 0).toFixed(d).replace(".", ",");
+
 // Número entero escrito por el usuario, con o sin separador de miles ("8.500", "10 000").
 export const intNum = v => parseInt(String(v == null ? "" : v).replace(/[.\s]/g, ""), 10);
 
