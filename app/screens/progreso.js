@@ -145,8 +145,10 @@ export function lastSessionFor(exName, occ){
   const ex=same[Math.min(Math.max(0, occ||0), same.length-1)];
   return { date:se.date, sets:ex.sets };
 }
-// Cuál de los ejercicios del día con ese nombre es ex (para lastSessionFor).
-export function exOccurrence(exs, ex){ return Math.max(0, (exs||[]).filter(x=>x && x.name===ex.name).indexOf(ex)); }
+// Cuál de los ejercicios del día con ese nombre es ex (para lastSessionFor). Se cuenta con la
+// misma clave (exKey) que usa la búsqueda: si no, «Jalón» y «Jalon» en el mismo día quedan los dos
+// como el primero y el segundo agarra los pesos del primero.
+export function exOccurrence(exs, ex){ const k=exKey(ex.name); return Math.max(0, (exs||[]).filter(x=>x && exKey(x.name)===k).indexOf(ex)); }
 
 // Lo de la vez pasada para cada serie de hoy, por orden ({kg, reps} en números). Si hoy hay
 // más series que la vez pasada, las de más toman la última. Con num(), como el resto del

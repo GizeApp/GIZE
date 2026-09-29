@@ -69,4 +69,26 @@ export default async function ({ base, t }){
 
   t.eq(errs, [], 'errores de la página');
   await close();
+
+  // El mismo ejercicio dos veces en el día, escrito distinto («Jalón» y «Jalon»): cada uno va con
+  // el suyo de la vez pasada, no los dos con el primero (el occ se cuenta con la misma clave).
+  {
+    const days2 = [{ id: 'd1', name: 'Espalda', exercises: [ E('j1', 'Jalón al pecho', ['', '']), E('j2', 'Remo con barra', ['']), E('j3', 'Jalon al pecho', ['', '']) ] }];
+    const sessions2 = [{ id: 'c', date: '2026-09-20', ts: ts('2026-09-20'), day: 'Espalda', exercises: [
+      { name: 'Jalón al pecho', sets: [{ kg: 50, reps: 10 }, { kg: 50, reps: 9 }] },
+      { name: 'Remo con barra', sets: [{ kg: 60, reps: 8 }] },
+      { name: 'Jalon al pecho', sets: [{ kg: 30, reps: 15 }, { kg: 30, reps: 14 }] }] }];
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: { days: days2, sessions: sessions2, weights: [], daily: {} },
+      handlers: { '/profiles': profile('client'), '/sessions': (r, J, i) => i.m === 'GET' ? J({ message: 'sin red' }, 500) : undefined } });
+    await p.goto(base + '/app/'); await wait(2500);
+    const ls = id => p.evaluate(id => { const c = document.querySelector('[data-ex-id="' + id + '"] .ls-sets'); return c ? c.innerText.replace(/\s+/g, ' ').trim() : ''; }, id);
+    t.has(await ls('j1'), '50', 'repetido escrito distinto: el primero muestra lo suyo (50)');
+    const l3 = await ls('j3');
+    t.ok(l3.includes('30') && !l3.includes('50'), 'repetido escrito distinto: el segundo muestra lo suyo (30) y no lo del primero — llegó ' + JSON.stringify(l3));
+    const b = await p.$('[data-ex-id="j3"] [data-action="last-use"]');
+    if (b && !(await b.evaluate(x => x.hidden))) { await b.click(); await wait(300); }
+    t.eq((await saved(p)).days[0].exercises[2].sets.map(s => Number(s.kg)), [30, 30], 'repetido escrito distinto: «Usar estos pesos» en el segundo carga 30');
+    t.eq(errs, [], 'errores de la página (repetido)');
+    await close();
+  }
 }
