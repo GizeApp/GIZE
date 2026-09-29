@@ -654,9 +654,17 @@ export async function loadCloud(){
       } else {
         state.days = rt.data.days;
       }
-      migrateNames(state.days);
+      // Si migrateNames corrigió algo (nombres viejos, sin 'mus', ids raros), la corregida se
+      // sube ya, recién leída la nube. Antes la subía el primer save(); ahora save() solo sube
+      // si la rutina cambió acá, y al volver a primer plano refreshOwnRoutine veía distinta la
+      // nube y la volvía a tomar (y a migrar, con ids nuevos) en cada vuelta. Si no se pudo
+      // subir, queda marcada la de la nube: la corregida queda pendiente para el próximo save().
+      const raw=JSON.parse(JSON.stringify(state.days));
+      const fixed=migrateNames(state.days);
       if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
-      markRoutineSynced(state.days);
+      let up=false;
+      if(fixed){ try{ up=await upRoutine(); }catch(e){ console.error("rutina",e); } }
+      markRoutineSynced(fixed && !up ? raw : state.days);
     } else if(!routineLocked()) {
       if(await upRoutine()) markRoutineSynced(state.days);
     }
@@ -745,10 +753,16 @@ export function refreshOwnRoutine(){
       // Cambió acá y es más nueva: se sube por el camino de siempre (la demora espera a esta lectura).
       if(localRoutineWins(rt.data)){ cloudSyncCore(); return false; }
       if(sameDays(rt.data.days, state.days)){ if(routineHash(state.days)!==state.routineHash) markRoutineSynced(state.days); return false; }
+      // La nube sigue igual que cuando se bajó (la migración de acá todavía no se subió): no hay
+      // nada que tomar; se sube la corregida. Volver a tomarla la migraba otra vez y cambiaba los
+      // ids raros en cada vuelta (el alumno saltaba al primer día).
+      if(routineHash(rt.data.days)===synced){ cloudSyncCore(); return false; }
       state.days=rt.data.days;
-      migrateNames(state.days);
+      const raw=JSON.parse(JSON.stringify(state.days)); // la de la nube, sin migrar (ver loadCloud)
+      const fixed=migrateNames(state.days);
       if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
-      markRoutineSynced(state.days); // también la guarda en el dispositivo
+      markRoutineSynced(raw); // también la guarda en el dispositivo
+      if(fixed) cloudSyncCore(); // la corregida se sube una vez (sin marcarla como editada acá)
       return true;
     }catch(e){ console.error("rutina",e); return false; }
   })();

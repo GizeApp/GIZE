@@ -4,7 +4,7 @@
 // y lo que se edita en B sí se sube. Si cambiaron los dos lados, gana el cambio más nuevo.
 import { newPage, wait, saved, ALUMNO, profile } from './lib.mjs';
 
-const R0 = [{ id: 'd1', name: 'Pierna', exercises: [{ id: 'e1', name: 'Sentadilla libre', sets: [{ id: 's1', kg: '100', reps: '5', done: false }] }] }];
+const R0 = [{ id: 'd1', name: 'Pierna', exercises: [{ id: 'e1', name: 'Sentadilla libre', mus: 'cuadriceps', sets: [{ id: 's1', kg: '100', reps: '5', done: false }] }] }];
 // "Ejercicio:series" de cada ejercicio del primer día.
 const shape = days => days[0].exercises.map(e => e.name + ':' + e.sets.length);
 // La nube guarda la rutina como jsonb, que devuelve las claves en otro orden (más cortas primero).
@@ -110,4 +110,40 @@ export default async function ({ base, t }){
 
   t.eq(A.errs.concat(B.errs), [], 'errores de las páginas');
   await A.close(); await B.close();
+
+  // 8) Rutina vieja en la nube que migrateNames corrige (un ejercicio sin 'mus', un día con id
+  //    raro): se sube corregida una sola vez y volver a primer plano no la vuelve a tomar (antes
+  //    la tomaba en cada vuelta, le cambiaba el id al día y el alumno saltaba al primer día).
+  const VIEJA = [{ id: 'dia 1', name: 'Pierna', exercises: [{ id: 'e1', name: 'Sentadilla libre', sets: [{ id: 's1', kg: '100', reps: '5', done: false }] }] },
+    { id: 'd2', name: 'Torso', exercises: [{ id: 'e2', name: 'Press de banca plano (barra)', mus: 'pecho', sets: [{ id: 's2', kg: '60', reps: '8', done: false }] }] }];
+  cloud.routine = { days: jsonb(VIEJA), updated_at: new Date(Date.now() - 3600e3).toISOString() };
+  posts.C = [];
+  const C = await newPage({ user: ALUMNO, state: { days: VIEJA, sessions: [], weights: [], daily: {}, calTarget: 2000 },
+    handlers: { '/profiles': profile('client'), '/routines': routines('C') } });
+  await C.p.goto(base + '/app/'); await wait(2500);
+  t.eq(posts.C.length, 1, 'la rutina corregida se sube una vez al abrir');
+  const vueltas = [];
+  for (let k = 0; k < 3; k++) {
+    vueltas.push(await C.p.evaluate(async () => {
+      const { State, state } = await import('/app/core/state.js'), m = await import('/app/core/supabase.js');
+      State.activeId = state.days[1].id; const id0 = state.days[0].id;
+      const r = await m.refreshOwnRoutine();
+      return [r, State.activeId === state.days[1].id, state.days[0].id === id0];
+    }));
+    await wait(1600);
+  }
+  t.eq(vueltas, [[false, true, true], [false, true, true], [false, true, true]], 'volver a primer plano no la vuelve a tomar: sigue en el día elegido y con los mismos ids');
+  t.eq(posts.C.length, 1, 'ni la vuelve a subir');
+  // Si la vuelve a escribir así otro dispositivo (una versión vieja de la app), se toma una vez,
+  // se sube corregida y las vueltas siguientes ya no cambian nada.
+  cloud.routine = { days: jsonb(VIEJA), updated_at: new Date().toISOString() };
+  const refresh = () => C.p.evaluate(async () => (await import('/app/core/supabase.js')).refreshOwnRoutine());
+  t.eq(await refresh(), true, 'toma la rutina que cambió en la nube');
+  await wait(2000);
+  t.eq(posts.C.length, 2, 'y sube la corregida una vez');
+  t.eq([await refresh(), await refresh()], [false, false], 'las vueltas siguientes no la vuelven a tomar');
+  await wait(1600);
+  t.eq(posts.C.length, 2, 'ni la vuelven a subir');
+  t.eq(C.errs, [], 'errores de la página C');
+  await C.close();
 }
