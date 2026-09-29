@@ -1,5 +1,5 @@
-# Tareas de Supabase sin entrar al panel: publicar funciones, cargar secrets, correr SQL
-# y crear las cuentas demo para la revisión de Google Play.
+# Tareas de Supabase sin entrar al panel: publicar funciones, cargar secrets, correr SQL,
+# crear las cuentas demo para la revisión de Google Play y borrar las fotos de progreso viejas.
 # Se corre a mano: Actions → "Supabase" → Run workflow → elegir la tarea.
 #
 # Corre solo desde main: lanzado desde otra rama no arranca, así no se puede correr SQL
@@ -22,6 +22,10 @@
 #   DEMO_PASSWORD          para "cuentas-demo". Contraseña de las cuentas demo de Google Play.
 #                          Va como secret y no como dato del formulario: el repo es público y
 #                          los datos del formulario quedan escritos en el log de la ejecución.
+#   SUPABASE_SERVICE_ROLE_KEY  para "borrar-fotos-progreso", solo si el token de arriba no puede
+#                          leer las API keys del proyecto (la tarea lo avisa). Supabase → Project
+#                          Settings → API Keys → la clave "service_role" (o una "secret"). Da
+#                          acceso total a la base: borrarlo de GitHub apenas termine la tarea.
 name: Supabase
 
 on:
@@ -36,6 +40,7 @@ on:
           - secrets
           - sql
           - cuentas-demo
+          - borrar-fotos-progreso
       archivo:
         description: "Para 'sql': archivo a correr (ej: supabase/estado.sql)"
         required: false
@@ -61,6 +66,11 @@ jobs:
       - name: Revisar el token
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::error::Falta el secret SUPABASE_ACCESS_TOKEN"; exit 1; fi
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: inputs.tarea == 'borrar-fotos-progreso'
+        with:
+          node-version: 22
 
       - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         if: inputs.tarea == 'funciones' || inputs.tarea == 'secrets'
@@ -105,6 +115,39 @@ jobs:
           supabase secrets set --project-ref "$PROJECT_REF" "$@"
           # Solo los nombres: la lista trae también un resumen (hash) de cada valor y el log es público.
           supabase secrets list --project-ref "$PROJECT_REF" | awk -F'|' '{print $1}'
+
+      # Fotos de progreso viejas: borra TODOS los archivos del bucket "checkins" con la API de
+      # Storage (ver scripts/borrar-fotos-progreso.mjs). Después va la tarea "sql" con
+      # supabase/borrar-fotos-progreso.sql. Se puede correr de nuevo sin problema.
+      # El log es PÚBLICO: solo cantidades. La clave de servicio no se imprime nunca (y por las
+      # dudas se enmascara apenas se tiene).
+      - name: Borrar fotos de progreso
+        if: inputs.tarea == 'borrar-fotos-progreso'
+        env:
+          SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          KEY="$SERVICE_ROLE_KEY"
+          code="(sin pedir)"
+          if [ -z "$KEY" ]; then
+            # Sin el secret, se le pide la clave a Supabase con el token de siempre (necesita el
+            # permiso de leer las API keys). La respuesta queda en un archivo y no va al log.
+            code=$(curl -sS -o "$RUNNER_TEMP/keys.json" -w '%{http_code}' \
+              "https://api.supabase.com/v1/projects/$PROJECT_REF/api-keys?reveal=true" \
+              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN") || code="(sin respuesta)"
+            if [ "$code" = "200" ]; then
+              KEY=$(jq -r '[.[] | select((.api_key | type) == "string")
+                           | select((.type == "secret" and (.api_key | test("^sb_secret_[A-Za-z0-9_-]{20,}$")))
+                                 or (.name == "service_role" and (.api_key | test("^eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"))))]
+                         | sort_by(if .type == "secret" then 0 else 1 end) | .[0].api_key // empty' "$RUNNER_TEMP/keys.json" 2>/dev/null || true)
+            fi
+            rm -f "$RUNNER_TEMP/keys.json"
+          fi
+          if [ -z "$KEY" ]; then
+            echo "::error::No se pudo conseguir la clave de servicio (Supabase respondió $code). Cargá el secret SUPABASE_SERVICE_ROLE_KEY (ver arriba de este archivo) y corré la tarea de nuevo."
+            exit 1
+          fi
+          echo "::add-mask::$KEY"
+          SUPABASE_URL="https://$PROJECT_REF.supabase.co" SUPABASE_SERVICE_KEY="$KEY" node scripts/borrar-fotos-progreso.mjs
 
       - name: Correr SQL
         if: inputs.tarea == 'sql' || inputs.tarea == 'cuentas-demo'

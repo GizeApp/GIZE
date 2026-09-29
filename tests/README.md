@@ -3,7 +3,8 @@
 Abren la app (`/app/`) y el panel (`/admin/`) en Chromium, con Supabase simulado dentro
 del navegador (no usan internet, secretos ni datos reales), y revisan los flujos
 principales: Entreno, Comida, pedir un producto, "Mi plan" del coach, el panel de
-administración y el cartel de versión nueva.
+administración y el cartel de versión nueva. Algunas prueban un script de `scripts/` contra
+un Supabase simulado en Node (por ejemplo, el que borra las fotos de progreso viejas).
 
 Corren solas en GitHub (Actions → **Pruebas**) en cada pull request y en cada cambio a main.
 

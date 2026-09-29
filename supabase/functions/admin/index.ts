@@ -125,10 +125,12 @@ async function mp(path: string, init: RequestInit = {}) {
   return body;
 }
 
-// Buckets donde cada usuario guarda sus archivos en su carpeta ({uid}/): fotos de check-in,
-// de perfil y de tablas nutricionales. Borrar auth.users no los toca (Supabase no deja
-// borrar storage.objects por SQL), así que al eliminar una cuenta hay que borrarlos a mano.
-const USER_BUCKETS = ["checkins", "avatars", "productos"];
+// Buckets donde cada usuario guarda sus archivos en su carpeta ({uid}/): foto de perfil y
+// fotos de tablas nutricionales. Borrar auth.users no los toca (Supabase no deja borrar
+// storage.objects por SQL), así que al eliminar una cuenta hay que borrarlos a mano.
+// "checkins" (las fotos de progreso de antes) ya no va: se vació entero (ver
+// supabase/borrar-fotos-progreso.sql).
+const USER_BUCKETS = ["avatars", "productos"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Borra todos los archivos de la carpeta del usuario en cada bucket y devuelve cuántos.

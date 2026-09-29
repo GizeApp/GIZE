@@ -21,8 +21,8 @@
 --     (estadisticas-coach.sql), validación de dispositivos push y de la ruta de la foto
 --     de perfil (validaciones.sql), plan de los coaches y límite de clientes (suscripciones.sql,
 --     que además redefine is_my_client y join_coach).
---   · Validación de la forma de las rutinas, ruta de las fotos de check-in y funciones solo
---     para usuarios logueados (seguridad-base.sql).
+--   · Validación de la forma de las rutinas y funciones solo para usuarios logueados
+--     (seguridad-base.sql).
 --
 -- Si cambiás algo en Supabase, actualizalo también acá.
 --
@@ -270,17 +270,8 @@ drop policy if exists "series: cliente y su coach" on public.session_entries;
 create policy "series: cliente y su coach" on public.session_entries
   for select using ((client_id = auth.uid()) or is_my_client(client_id));
 
--- Fotos de check-in (la fila; el archivo va en el bucket "checkins", más abajo).
-alter table public.checkin_photos enable row level security;
-drop policy if exists "cliente sube sus fotos" on public.checkin_photos;
-create policy "cliente sube sus fotos" on public.checkin_photos
-  for insert with check (client_id = auth.uid());
-drop policy if exists "cliente borra sus fotos" on public.checkin_photos;
-create policy "cliente borra sus fotos" on public.checkin_photos
-  for delete using (client_id = auth.uid());
-drop policy if exists "fotos: cliente y su coach" on public.checkin_photos;
-create policy "fotos: cliente y su coach" on public.checkin_photos
-  for select using ((client_id = auth.uid()) or is_my_client(client_id));
+-- Fotos de progreso: la tabla checkin_photos ya no existe (se borraron todas, ver
+-- borrar-fotos-progreso.sql).
 
 
 -- ===== Lo que carga el coach (el cliente solo lo lee) =====
@@ -344,23 +335,11 @@ create policy "plantillas: el coach gestiona las suyas" on public.routine_templa
   for all using (coach_id = auth.uid()) with check (coach_id = auth.uid());
 
 
--- ===== Storage: bucket "checkins" (fotos de progreso) =====
--- Privado; cada cliente en su carpeta ({uid}/...), su coach la puede ver.
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('checkins', 'checkins', false, 15728640,
-        array['image/jpeg','image/png','image/webp','image/heic','image/heif'])
-on conflict (id) do nothing;
-
+-- ===== Storage: bucket "checkins" (las fotos de progreso de antes) =====
+-- Vacío, privado y sin políticas: nadie sube, ve ni borra (ver borrar-fotos-progreso.sql).
+-- El bucket no se elimina: las versiones viejas de la app lo listan al eliminar la cuenta.
 drop policy if exists "storage: cliente sube en su carpeta" on storage.objects;
-create policy "storage: cliente sube en su carpeta" on storage.objects
-  for insert with check (bucket_id = 'checkins' and (storage.foldername(name))[1] = auth.uid()::text);
 drop policy if exists "storage: cliente borra en su carpeta" on storage.objects;
-create policy "storage: cliente borra en su carpeta" on storage.objects
-  for delete using (bucket_id = 'checkins' and (storage.foldername(name))[1] = auth.uid()::text);
 drop policy if exists "storage: cliente ve su carpeta" on storage.objects;
-create policy "storage: cliente ve su carpeta" on storage.objects
-  for select using (bucket_id = 'checkins' and (
-    (storage.foldername(name))[1] = auth.uid()::text
-    or is_my_client(((storage.foldername(name))[1])::uuid)));
 
 notify pgrst, 'reload schema';

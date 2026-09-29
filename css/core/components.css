@@ -532,14 +532,6 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 
 .blk-dl { margin-top:8px; font-size: var(--text-meta); color:var(--gize-blue-deep); font-weight:700; line-height:1.45; }
 
-.ph-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(90px,1fr)); gap:8px; margin:8px 0; }
-
-.ph-grid.big { grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); }
-
-.ph-thumb { position:relative; display:block; aspect-ratio:3/4; border-radius:4px; overflow:hidden; border:1px solid var(--border); background:var(--card-2); }
-
-.ph-thumb img { width:100%; height:100%; object-fit:cover; }
-
 .co-tbl td.cm { white-space:normal; min-width:220px; color:var(--txt-2); font-size: var(--text-meta); }
 
 .fb-n.wide { font-size: var(--text-body); }
