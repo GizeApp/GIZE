@@ -10,7 +10,7 @@ import { State, state } from './core/state.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
-import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
+import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, refreshOwnRoutine, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
 
 import { assistedKg, isAssisted, fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, intNum, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
@@ -1435,7 +1435,10 @@ async function saveBlock(bf){
 }
 
 document.addEventListener("visibilitychange", async ()=>{
-  if(document.visibilityState!=="visible" || !routineLocked()) return;
+  if(document.visibilityState!=="visible") return;
+  // Sin coach: la rutina se pudo haber cambiado en otro dispositivo mientras esta quedaba
+  // abierta. Se relee de la nube y, si cambió, se redibuja (ver refreshOwnRoutine).
+  if(!routineLocked()){ if(await refreshOwnRoutine()) renderApp(); return; }
   // Primero con lo guardado (sin señal también): si cambió la semana, cambia la rutina ya.
   if(coachRoutineDue() && applyCoachRoutine()){ save(); renderApp(); }
   if(!State.sb || !State.cloudUser) return;
