@@ -72,7 +72,16 @@ function restRow(ex){
 // Semanas del bloque: ver core/bloque.js (se re-exportan para los que las importaban de acá).
 export { blockWeek, isDeload } from '../core/bloque.js';
 
+// Ejercicios abiertos (desplegados). Pedido: que ocupen menos lugar, así que todos arrancan
+// cerrados (una fila con el nombre y una flechita) y se abren y cierran con la flecha. No se
+// guarda: al volver a abrir la app aparecen cerrados otra vez. Una superserie se abre y se
+// cierra entera (ver exGroupIds), así la pantalla puede pasar de un ejercicio al otro.
 export let expandedOverride = new Set();
+export function exGroupIds(exs, id){
+  const i = exs.findIndex(x => x.id === id); if (i < 0) return [id];
+  const g = ssGroups(exs).find(x => i >= x.start && i <= x.end);
+  return g ? exs.slice(g.start, g.end + 1).map(x => x.id) : [id];
+}
 
 export let liveCounting = false;
 
@@ -210,7 +219,7 @@ export function renderEntreno(){
   // si uno falla, muestra una card de error puntual y el resto del día se ve normal.
   const groups = ssGroups(d.exercises);
   // Ejercicio en foco (ver ui/scrollfocus.js): se dibuja ya marcado para que no parpadee.
-  const fid = focusFor(d.exercises.map(ex => ex.id), d.exercises.filter(ex => !allSetsDone(ex) || expandedOverride.has(ex.id)).map(ex => ex.id));
+  const fid = focusFor(d.exercises.map(ex => ex.id), d.exercises.filter(ex => expandedOverride.has(ex.id)).map(ex => ex.id));
   const cards = d.exercises.map((ex, exIdx) => ssWrap(d.exercises, groups, exIdx, (() => { try {
     // Entre ejercicios (rutina propia): insertar uno acá y unir/separar con el de arriba.
     const g = groups.find(x => exIdx >= x.start && exIdx <= x.end) || null;
@@ -218,22 +227,32 @@ export function renderEntreno(){
     const linkBtn = exIdx > 0 ? `<button class="ss-link${d.exercises[exIdx-1].ss?' on':''}" data-action="ss-toggle" data-i="${exIdx-1}" aria-pressed="${!!d.exercises[exIdx-1].ss}">${linkSvg}<span>${d.exercises[exIdx-1].ss?'Separar':'Superserie'}</span></button>` : '';
     const insertBtn = routineLocked()?'':`<div class="ex-gap"><button class="ins-ex" data-action="ex-insert" data-i="${exIdx}" title="Insertar ejercicio acá">+</button>${linkBtn}</div>`;
     const done = allSetsDone(ex);
-    // Ejercicio completo y no reabierto a mano -> fila compacta, no la card entera.
-    if(done && !expandedOverride.has(ex.id)){
-      const best=bestSetOf(ex.sets);
-      const isPR=exerciseIsLivePR(ex);
-      // bestSetOf() da null si ningún set tiene kg cargado (ej.: ejercicio de peso
-      // corporal donde el cliente solo anota reps) — antes esto reventaba renderEntreno()
-      // entero (best.kg sobre null) y dejaba la pestaña Entreno en blanco. Con reps
-      // mostramos el mejor número de reps en su lugar; sin ninguno de los dos, "Completado".
-      let bestReps=0; (ex.sets||[]).forEach(s=>{ const r=+s.reps||0; if(r>bestReps) bestReps=r; });
-      let bestSecs=0; (ex.sets||[]).forEach(s=>{ const r=parseSecs(s.secs); if(r>bestSecs) bestSecs=r; });
-      const bestStr = isTimedEx(ex) ? (bestSecs>0 ? 'máx '+fmtSecs(bestSecs) : 'Completado')
-        : best ? (String(num(best.kg)).replace('.',',')+' kg × '+(parseInt(best.reps)||0)) : (bestReps>0 ? bestReps+' reps' : 'Completado'); // números: kg y reps pueden venir de la rutina que escribe el coach
-      return `${insertBtn}<div class="ex-collapsed" data-action="ex-expand" data-ex="${esc(ex.id)}">
-        <span class="ex-collapsed-badge">${isPR?trophySvg:checkSvg}</span>
-        <span class="ex-collapsed-name">${tag?`<span class="ss-tag">${tag}</span>`:''}${esc(ex.name)}</span>
-        <span class="ex-collapsed-best${bestStr!=='Completado'?'':' is-done'}">${bestStr}</span>
+    // Cerrado (así arranca siempre) -> fila compacta con la flechita, no la card entera.
+    if(!expandedOverride.has(ex.id)){
+      const n=ex.sets.length, nd=ex.sets.filter(s=>s.done).length;
+      let meta, badge, cls='';
+      if(done){
+        const best=bestSetOf(ex.sets);
+        const isPR=exerciseIsLivePR(ex);
+        // bestSetOf() da null si ningún set tiene kg cargado (ej.: ejercicio de peso
+        // corporal donde el cliente solo anota reps) — antes esto reventaba renderEntreno()
+        // entero (best.kg sobre null) y dejaba la pestaña Entreno en blanco. Con reps
+        // mostramos el mejor número de reps en su lugar; sin ninguno de los dos, "Completado".
+        let bestReps=0; (ex.sets||[]).forEach(s=>{ const r=+s.reps||0; if(r>bestReps) bestReps=r; });
+        let bestSecs=0; (ex.sets||[]).forEach(s=>{ const r=parseSecs(s.secs); if(r>bestSecs) bestSecs=r; });
+        meta = isTimedEx(ex) ? (bestSecs>0 ? 'máx '+fmtSecs(bestSecs) : 'Completado')
+          : best ? (String(num(best.kg)).replace('.',',')+' kg × '+(parseInt(best.reps)||0)) : (bestReps>0 ? bestReps+' reps' : 'Completado'); // números: kg y reps pueden venir de la rutina que escribe el coach
+        badge = `<span class="ex-collapsed-badge">${isPR?trophySvg:checkSvg}</span>`;
+        cls = meta==='Completado' ? ' is-done' : '';
+      } else {
+        meta = nd ? nd+'/'+n+' series' : n+(n===1?' serie':' series');
+        badge = `<span class="ex-num${tag?' ss':''}" aria-hidden="true">${tag||exIdx+1}</span>`;
+      }
+      return `${insertBtn}<div class="ex-collapsed${done?' ex-is-done':''}" data-action="ex-expand" data-ex="${esc(ex.id)}" role="button" tabindex="0" aria-expanded="false" aria-label="Abrir ${esc(ex.name)}">
+        ${badge}
+        <span class="ex-collapsed-name">${tag&&done?`<span class="ss-tag">${tag}</span>`:''}${esc(ex.name)}</span>
+        <span class="ex-collapsed-best${cls}">${meta}</span>
+        <span class="ex-chev" aria-hidden="true">${chevronDownSvg}</span>
       </div>`;
     }
     // Por tiempo (plancha, isométricos): segundos en vez de reps, con un cronómetro por serie.
@@ -270,9 +289,9 @@ export function renderEntreno(){
       <div class="card-head">
         <span class="ex-num${tag?' ss':''}" aria-label="Ejercicio ${tag||exIdx+1}">${tag||exIdx+1}</span>
         <input class="ex-name" type="text" value="${esc(ex.name)}" data-action="exname" data-ex="${esc(ex.id)}" ${routineLocked()?'readonly':''}>
-        ${done?`<button class="icon-mini" data-action="ex-collapse" data-ex="${esc(ex.id)}" title="Colapsar">${chevronDownSvg}</button>`:''}
         ${routineLocked()?'':`<button class="icon-mini" data-action="ex-swap" data-ex="${esc(ex.id)}" title="Cambiar ejercicio">${swapSvg}</button>
         <button class="trash" data-action="removeex" data-ex="${esc(ex.id)}" title="Eliminar ejercicio">${trashSvg}</button>`}
+        <button class="icon-mini ex-chev up" data-action="ex-collapse" data-ex="${esc(ex.id)}" aria-expanded="true" aria-label="Cerrar ${esc(ex.name)}" title="Cerrar">${chevronDownSvg}</button>
       </div>
       ${(()=>{ const v=exVideo(ex); return v?`<a class="ex-video" href="${esc(v.url)}" target="_blank" rel="noopener">${playSvg} Ver video del ejercicio${v.channel?`<span class="ex-video-by">· ${esc(v.channel)}</span>`:''}</a>`:''; })()}
       ${exAudioBtn(ex)}

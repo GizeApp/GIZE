@@ -289,3 +289,15 @@ html.lite .wk-start::before { animation: none; }
 
 /* Ejercicios asistidos: el kg es la ayuda de la máquina y se anota en negativo (entreno.js → kgInput). */
 .field.kg-asis .kg-neg { flex: none; font-weight: 800; font-size: var(--text-set-value); color: var(--gize-r2); margin-right: -2px; }
+
+/* Ejercicios desplegables: todos arrancan cerrados (fila con el nombre y la flechita) y se abren
+   y cierran con la flecha (app/screens/entreno.js → expandedOverride). */
+.ex-collapsed .ex-num { margin: 0; }
+.ex-chev { flex: none; display: inline-flex; color: var(--gize-text-2); transition: transform .2s ease; }
+.ex-chev svg { width: var(--icon-md); height: var(--icon-md); }
+.ex-chev.up svg { transform: rotate(180deg); }
+.ex-collapsed:focus-visible { outline: 2px solid var(--gize-text); outline-offset: 2px; }
+.ex-collapsed:active { background: var(--card-2); }
+/* Cerrado y sin terminar: mismo borde de neón que el ejercicio abierto (sigue siendo «su» caja). */
+body:not(#_) :not(.ss-group) > .ex-collapsed:not(.ex-is-done) { border: 1.5px solid transparent;
+  background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box, var(--gize-rgb-ring) border-box; }

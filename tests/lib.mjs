@@ -86,3 +86,11 @@ export function checker(){
 export const ALUMNO = { id: '11111111-1111-1111-1111-111111111111', email: 'alumno@prueba.test', aud: 'authenticated', role: 'authenticated' };
 export const ADMIN = { id: '22222222-2222-2222-2222-222222222222', email: 'admin@prueba.test', aud: 'authenticated', role: 'authenticated' };
 export const profile = (role, extra) => (r, J, i) => i.m === 'GET' ? J(i.one ? Object.assign({ id: ALUMNO.id, role, full_name: 'Prueba', coach_id: null }, extra) : []) : undefined;
+// Entreno: los ejercicios arrancan cerrados. Abre todos (uno por uno, como con la flechita).
+export async function openAllEx(p){
+  for (let i = 0; i < 40; i++){
+    const done = await p.evaluate(() => { const r = document.querySelector('#view .ex-collapsed[data-action="ex-expand"]'); if (!r) return true; r.click(); return false; });
+    if (done) return;
+    await wait(120);
+  }
+}

@@ -1,7 +1,7 @@
 // Decimales con coma, como en el resto de la app («27,5 kg», no «27.5 kg»): la vez pasada y el
 // récord en Entreno, Evolución de cargas, la porción en Comida y, en el panel del coach, el
 // peso del alumno, el seguimiento diario y las cargas de cada ejercicio.
-import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, text, ALUMNO, profile, openAllEx } from './lib.mjs';
 
 const noDot = s => !/\d\.\d/.test(s);
 
@@ -13,7 +13,7 @@ export default async function ({ base, t }){
       { name: 'Remo con barra', sets: [{ kg: 27.5, reps: 8 }, { kg: 25, reps: 10 }] }] }];
     const { p, errs, close } = await newPage({ user: ALUMNO, state: { days, sessions, weights: [], daily: {} },
       handlers: { '/profiles': profile('client'), '/sessions': (r, J, i) => i.m === 'GET' ? J({ message: 'sin red' }, 500) : undefined } });
-    await p.goto(base + '/app/'); await wait(2500);
+    await p.goto(base + '/app/'); await wait(2500); await openAllEx(p);
 
     const last = await text(p, '.last-sess .ls-sets');
     t.has(last, '27,5kg × 8', 'Entreno, «La vez pasada» con coma');
@@ -29,7 +29,7 @@ export default async function ({ base, t }){
     await p.click('[data-action="psec-close"]'); await wait(200);
 
     // Récord: 30,5 kg le gana a 27,5 kg de la vez pasada.
-    await p.click('#nav-entreno'); await wait(300);
+    await p.click('#nav-entreno'); await wait(300); await openAllEx(p);
     await p.fill('input.kg[data-set="s1"]', '30,5'); await p.fill('input.reps[data-set="s1"]', '8');
     await p.click('[data-action="toggle"][data-set="s1"]'); await wait(300);
     await p.click('[data-action="save-session"]'); await wait(1500);

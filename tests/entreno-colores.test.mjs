@@ -2,7 +2,7 @@
 // infantil). Video, audio del coach, recomendación, propuesta del coach, serie hecha,
 // objetivo y pestaña del día van en blanco y grises; el neón de la marca queda en
 // «Iniciar entrenamiento» y en el botón del chat, que pasa de azul a toda la gama.
-import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, ALUMNO, profile, openAllEx } from './lib.mjs';
 
 // Colores con "tinte": un canal le saca más de 40 a otro (el blanco y los grises no).
 const tinted = c => { const [r, g, b] = (c.match(/[\d.]+/g) || []).map(Number); return Math.max(r, g, b) - Math.min(r, g, b) > 40; };
@@ -13,7 +13,7 @@ export default async function ({ base, t }){
       { id: 's1', kg: '80', reps: '8', done: true, target: '6-8' }, { id: 's2', kg: '', reps: '', target: '6-8' }] },
     { id: 'e2', name: 'Remo con barra', sets: [{ id: 's3', kg: '', reps: '', targetKg: '70', target: '8' }] }] }];
   const { p, errs, close } = await newPage({ user: ALUMNO, state: { days, sessions: [], weights: [], daily: {} }, handlers: { '/profiles': profile('client') } });
-  await p.goto(base + '/app/'); await wait(2500);
+  await p.goto(base + '/app/'); await wait(2500); await openAllEx(p);
   await p.evaluate(() => { document.getElementById('chatBtn').hidden = false; });
   const m = await p.evaluate(() => {
     const out = {};

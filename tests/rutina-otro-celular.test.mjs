@@ -2,7 +2,7 @@
 // abierto con la rutina vieja mientras en A se agregó un ejercicio: anotar agua en B o volver
 // a primer plano al día siguiente no sube la vieja encima de la nueva, B toma la de la nube,
 // y lo que se edita en B sí se sube. Si cambiaron los dos lados, gana el cambio más nuevo.
-import { newPage, wait, saved, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, saved, ALUMNO, profile, openAllEx } from './lib.mjs';
 
 const R0 = [{ id: 'd1', name: 'Pierna', exercises: [{ id: 'e1', name: 'Sentadilla libre', mus: 'cuadriceps', sets: [{ id: 's1', kg: '100', reps: '5', done: false }] }] }];
 // "Ejercicio:series" de cada ejercicio del primer día.
@@ -60,11 +60,11 @@ export default async function ({ base, t }){
   t.eq(posts.B, [], 'volver a primer plano en un día nuevo no sube la rutina vieja');
   t.eq(cloudShape(), sA, 'la nube sigue con el ejercicio nuevo');
   t.eq(shape((await saved(B.p)).days), sA, 'B toma la rutina nueva de la nube (y la guarda)');
-  await B.p.click('#nav-entreno'); await wait(600);
+  await B.p.click('#nav-entreno'); await wait(600); await openAllEx(B.p);
   t.eq(await B.p.$$eval('#view .ex-name', els => els.map(e => e.value)), ['Sentadilla libre', nuevo], 'B muestra el ejercicio nuevo');
 
   // 4) Editar la rutina en B sí se sube (sobre la nueva).
-  await B.p.click('[data-action="addset"]'); await wait(2500);
+  await openAllEx(B.p); await B.p.click('[data-action="addset"]'); await wait(2500);
   const sB = shape((await saved(B.p)).days);
   t.eq(posts.B.length, 1, 'agregar una serie en B sube la rutina');
   t.eq(cloudShape(), sB, 'la nube tiene la serie de B y el ejercicio de A');
@@ -84,10 +84,10 @@ export default async function ({ base, t }){
   //    otra. B vuelve al día siguiente con la conexión lenta (el save() de la racha sale mientras
   //    lee la nube): se queda con la de A y no la pisa.
   cloud.down = true;
-  await B.p.click('[data-action="addset"]'); await wait(2000);
+  await openAllEx(B.p); await B.p.click('[data-action="addset"]'); await wait(2000);
   cloud.down = false;
-  await A.p.click('#nav-entreno'); await wait(300);
-  await A.p.locator('[data-action="addset"]').nth(1).click(); await wait(2500);
+  await A.p.click('#nav-entreno'); await wait(300); await openAllEx(A.p);
+  await openAllEx(A.p); await A.p.locator('[data-action="addset"]').nth(1).click(); await wait(2500);
   const sA2 = cloudShape();
   t.eq(posts.A.length, 2, 'A sube su serie');
   cloud.delay = 2500;
@@ -99,9 +99,9 @@ export default async function ({ base, t }){
 
   // 7) Cambiaron los dos y el de acá es más nuevo: A agrega una serie, después B otra sin señal.
   //    Al volver B con señal, se sube la de B.
-  await A.p.locator('[data-action="addset"]').nth(1).click(); await wait(2500);
+  await openAllEx(A.p); await A.p.locator('[data-action="addset"]').nth(1).click(); await wait(2500);
   cloud.down = true;
-  await B.p.click('[data-action="addset"]'); await wait(2000);
+  await openAllEx(B.p); await B.p.click('[data-action="addset"]'); await wait(2000);
   cloud.down = false;
   const sB2 = shape((await saved(B.p)).days);
   await volver(B.p, false); await wait(2500);
