@@ -94,7 +94,6 @@ export function renderCoach(){
       }).join("") : (CoachState.tplsError ? '<div class="cal-hint" style="color:var(--red)">No se pudieron cargar: <b>'+esc(CoachState.tplsError)+'</b><br><br>Si dice que la tabla no existe, falta correr el SQL de rutinas en Supabase.</div>' : '<div class="cal-hint">Todavía no creaste ninguna rutina. Creá una y después aplicásela a los clientes que quieras.</div>');
       body='<div class="co-items">'+tl+'</div>'+
         '<button class="co-add-day" data-coach="tpl-new">+ Crear rutina nueva</button>'+
-        '<button class="co-copy-btn" style="margin-top:8px" data-coach="tpl-seed">'+downloadSvg+' Importar Meso 2 · Microciclo 8</button>'+
         '<button class="co-copy-btn" style="margin-top:8px" data-coach="tpl-seed-ppl">'+downloadSvg+' Importar PPL · 5 días</button>';
     } else {
       const q=(CoachState.coachSearch||"").toLowerCase();

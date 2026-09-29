@@ -872,7 +872,10 @@ export async function loadCloud(){
 // todavía tiene la rutina de ejemplo con la que arranca toda cuenta y el celular no.
 function localRoutineWins(cloud){
   const exNames=days=>(days||[]).map(d=>(d.exercises||[]).map(e=>e.name).join(",")).join("|");
-  const isDefault=days=>exNames(days)===exNames(DEFAULT.days);
+  // la de ejemplo con la que arrancaban las cuentas antes (ya no está en la app): su huella
+  const OLD_DEFAULT="1nq1a0k.619";
+  const sig=s=>{ let h=5381; for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))|0; return (h>>>0).toString(36)+"."+s.length; };
+  const isDefault=days=>{ const n=exNames(days); return n===exNames(DEFAULT.days) || !n.replace(/\|/g,"") || sig(n)===OLD_DEFAULT; };
   if(!state.routineHash) return isDefault(cloud.days) && !isDefault(state.days);
   if(routineHash(state.days)===state.routineHash) return false;
   const cloudTs=Date.parse(cloud.updated_at)||0;
