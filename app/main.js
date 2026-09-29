@@ -62,7 +62,7 @@ import { removeMyAvatar, uploadMyAvatar } from './core/avatar.js';
 import { cropAvatar } from './ui/recorte.js';
 
 import { productByCode, searchOFF } from './core/off.js';
-import { checkProductRequests, productByCodeShared, reportShared, saveShared, searchShared, sendProductRequest, useShared } from './core/productos.js';
+import { checkProductRequests, productByCodeShared, reportShared, saveOffShared, searchShared, sendProductRequest, useShared } from './core/productos.js';
 
 import { addDays, dayItems, loadDay, retryDay, setDayItems } from './screens/comida-historial.js';
 import { EditState, cleanSessionEdit, openSessionEdit, removeSessionEditSet, renderSessionEdit, setSessionEditVal } from './ui/sessionedit.js';
@@ -521,8 +521,9 @@ document.body.addEventListener("click", async e => {
     // Con crudo/cocido se guardan los valores del estado elegido y queda en el nombre.
     const f = selectedFoodValues(); if(f0.cook) rememberCookState(f0, ComidaState.cookState);
     rememberOffProduct(f0); rememberRecent(f0, roundG(g), f0.cook ? ComidaState.cookState : null);
-    // Base compartida: sube en la búsqueda si ya estaba; si vino de Open Food Facts, queda guardado.
-    if(f0.src==="GIZE" && f0.gid) useShared(f0.gid); else if(f0.src==="OFF" && f0.code) saveShared(f0, f0.code, "off");
+    // Base compartida: sube en la búsqueda si ya estaba; si vino de Open Food Facts, GIZE lo
+    // guarda desde el servidor con los datos de OFF (la app manda solo el código).
+    if(f0.src==="GIZE" && f0.gid) useShared(f0.gid); else if(f0.src==="OFF" && f0.code) saveOffShared(f0.code);
     curDiary().push({ id:newId(), meal:ComidaState.sheetMeal||ComidaState.meal||mealNow(), name:f0.name+(f0.cook?" ("+ComidaState.cookState+")":""), grams:roundG(g), kcal:Math.round(f.kcal*fc), p:+(f.p*fc).toFixed(1), c:+(f.c*fc).toFixed(1), f:+(f.f*fc).toFixed(1), unit:f.unit||"g", base:{kcal:f.kcal,p:f.p,c:f.c,f:f.f,unit:f.unit||"g"} });
     ComidaState.meal=null; ComidaState.searchOpen=false; ComidaState.foodQuery=""; ComidaState.off=null;
     commitDiary(); closeSheet(()=>{ ComidaState.selectedFood=null; ComidaState.sheetGrams=null; ComidaState.sheetMeal=null; renderApp(); }); return;
@@ -1547,13 +1548,19 @@ function rememberOffProduct(f){
 async function onScannedCode(code){
   const known = (state.offRecent||[]).find(f => f.code === code) || (state.foods||[]).find(f => f.code === code);
   if(known){ ComidaState.selectedFood = known; ComidaState.cookState = null; ComidaState.sheetGrams = null; SheetState.sheetGen++; renderApp(); return; }
-  // Primero la base compartida de GIZE, después Open Food Facts.
+  // Primero la base compartida de GIZE. Si no está, GIZE lo busca en Open Food Facts y lo
+  // guarda para todos (función "productos-off"). Si la función no responde (todavía no está
+  // publicada, sin señal, límite del día, datos incompletos), se busca en Open Food Facts desde
+  // el celular como antes: se puede anotar igual, pero no queda en la base compartida.
   let food = null;
   try{ food = await productByCodeShared(code); }catch(e){}
   if(!food){
-    try{ food = await productByCode(code); }
-    catch(e){ alert("No se pudo buscar el producto (¿sin conexión?). Probá de nuevo o cargalo a mano."); return; }
-    if(food) saveShared(food, code, "off");
+    const saved = await saveOffShared(code);
+    if(saved && saved.food) food = saved.food;
+    else if(!(saved && saved.missing)){
+      try{ food = await productByCode(code); }
+      catch(e){ alert("No se pudo buscar el producto (¿sin conexión?). Probá de nuevo o cargalo a mano."); return; }
+    }
   }
   if(!food){
     if(confirm("Todavía no tenemos el código " + code + ".\n\n¿Nos mandás una foto de la tabla nutricional? Lo revisamos y lo agregamos a GIZE para todos.")){

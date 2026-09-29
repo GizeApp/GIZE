@@ -1,7 +1,8 @@
 // Base compartida de productos de GIZE (tabla products en Supabase, ver supabase/productos.sql).
-// Lo que alguien carga al escanear un código que no estaba en ningún lado queda para todos,
-// y lo que se agrega desde Open Food Facts también se guarda acá. Sin sesión o sin señal,
-// todo sigue funcionando con la base propia y Open Food Facts.
+// Lo que alguien pide al escanear un código que no estaba en ningún lado queda para todos
+// cuando un administrador lo publica, y lo que se agrega desde Open Food Facts también se
+// guarda acá (lo guarda el servidor, ver saveOffShared). Sin sesión o sin señal, todo sigue
+// funcionando con la base propia y Open Food Facts.
 import { State } from './state.js';
 import { norm } from './utils.js';
 
@@ -59,21 +60,30 @@ export async function productByCodeShared(code){
   return r.data ? rowToFood(r.data) : null;
 }
 
-// Guarda un producto con código de barras para todos (si el código ya estaba, no pisa nada).
-// Lo que carga un usuario a mano va con la foto de la tabla (photoPath, ver uploadLabelPhoto).
-export async function saveShared(food, code, source, photoPath){
-  if (!ready()) return false;
+// Producto de Open Food Facts guardado para todos. Lo guarda GIZE desde el servidor (función
+// "productos-off", ver supabase/functions/productos-off): la app manda solo el código de
+// barras y la función baja los datos de OFF, los revisa y lo guarda (si el código ya estaba,
+// no pisa nada). La base ya no acepta productos "de OFF" cargados directo desde la app.
+// Devuelve { food } si quedó en la base (o ya estaba), { missing: true } si OFF no lo tiene,
+// o null si no se pudo (sin sesión, la función todavía no está publicada, sin señal, límite
+// del día o datos incompletos en OFF): con null el alimento se anota igual con lo que trae
+// OFF, pero no queda en la base compartida.
+const offAsked = new Map(); // código → respuesta de la función (se pregunta una vez por código)
+export async function saveOffShared(code){
+  if (!ready()) return null;
   const c = String(code || "").replace(/\D/g, "");
-  if (c.length < 6 || c.length > 14) return false;
-  const parts = String(food.name || "").split(" · ");
-  const row = { code: c, name: parts[0].slice(0, 120), brand: (food.brand || parts[1] || "").slice(0, 60) || null,
-    kcal: Math.min(950, Math.max(0, Math.round(+food.kcal || 0))), protein: Math.min(100, Math.max(0, +food.p || 0)),
-    carbs: Math.min(100, Math.max(0, +food.c || 0)), fat: Math.min(100, Math.max(0, +food.f || 0)),
-    unit: food.unit === "ml" ? "ml" : "g", portion: +food.portion > 0 && +food.portion <= 2000 ? Math.round(+food.portion) : null,
-    source: source === "off" ? "off" : "user", photo_path: source === "off" ? null : (photoPath || null) };
-  if (row.protein + row.carbs + row.fat > 105) return false;
-  try { const r = await State.sb.from("products").upsert(row, { onConflict: "code", ignoreDuplicates: true }); return !r.error; }
-  catch (e) { return false; }
+  if (c.length < 8 || c.length > 14) return null;
+  if (offAsked.has(c)) return offAsked.get(c);
+  let out = null;
+  try {
+    const r = await State.sb.functions.invoke("productos-off", { body: { code: c }, timeout: 12000 });
+    const d = r && !r.error && r.data && typeof r.data === "object" ? r.data : null;
+    if (d && d.product && d.product.id) out = { food: rowToFood(d.product) };
+    else if (d && d.missing) out = { missing: true };
+    // Con respuesta de la función no se vuelve a preguntar; si falló, se prueba la próxima vez.
+    if (d) offAsked.set(c, out);
+  } catch (e) {}
+  return out;
 }
 
 export function useShared(id){ if (ready() && id) State.sb.rpc("product_use", { pid: id }).then(() => {}, () => {}); }
