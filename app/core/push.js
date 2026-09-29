@@ -166,8 +166,10 @@ async function dropSub(){
   const PN = nativePush(); if (PN) return dropNative(PN);
   if (!pushSupported()) return;
   try {
-    const reg = await registration();
-    const sub = await reg.pushManager.getSubscription();
+    // Sin esperar a ready (puede tardar hasta 8 s si el service worker no llegó a instalarse):
+    // si no hay registro, tampoco hay suscripción que dar de baja.
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg && await reg.pushManager.getSubscription();
     if (!sub) return;
     if (State.sb && State.cloudUser) await State.sb.rpc("delete_push_subscription", { p_endpoint: sub.endpoint });
     await sub.unsubscribe();

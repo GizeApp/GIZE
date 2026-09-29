@@ -130,7 +130,8 @@
 
 .co-cname { font-size:var(--text-emphasis); color:var(--txt); font-weight:600; }
 
-.co-td-email { font-size:var(--text-meta); color:var(--txt-2); margin:0 0 4px 42px; }
+/* overflow-wrap: un mail largo no tiene dónde partirse (no corta en «.» ni «@») y se salía de la tarjeta en 320-360. */
+.co-td-email { font-size:var(--text-meta); color:var(--txt-2); margin:0 0 4px 42px; overflow-wrap:anywhere; }
 
 .co-td-email.co-empty { color:var(--txt-3); }
 
