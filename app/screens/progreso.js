@@ -2,11 +2,11 @@ import { pencilSvg, xSvg } from '../core/icons.js';
 
 import { State, state } from '../core/state.js';
 
-import { dec, esc, exMuscle, fmtDate, fmtSecs, mondayOf, num, setText, today } from '../core/utils.js';
+import { dec, esc, exKey, exMuscle, fmtDate, fmtSecs, mondayOf, num, setText, today } from '../core/utils.js';
 
 import { kgText } from '../core/progresion.js';
 
-import { renderCheckin, renderDaily, renderInfo } from './checkin.js';
+import { checkinSummary, renderCheckin, renderDaily, renderInfo } from './checkin.js';
 
 import { EntrenoState } from './entreno.js';
 
@@ -140,23 +140,29 @@ export function renderHistorial(){
 
 // occ: si el día tiene el mismo ejercicio más de una vez, cuál es (0 = el primero): el segundo
 // va con el segundo de la vez pasada (si esa vez hubo menos, con el último).
+// El nombre se compara con exKey (utils): un entreno guardado con el nombre viejo de un
+// ejercicio renombrado, o con otra mayúscula o un espacio de más, sigue contando como la vez pasada.
 export function lastSessionFor(exName, occ){
-  const list=(state.sessions||[]).filter(se=>(se.exercises||[]).some(e=>e.name===exName && (e.sets||[]).length));
+  const key=exKey(exName), isIt=e=>e && exKey(e.name)===key && (e.sets||[]).length;
+  const list=(state.sessions||[]).filter(se=>(se.exercises||[]).some(isIt));
   if(!list.length) return null;
   list.sort((a,b)=>(b.ts||0)-(a.ts||0));
   const se=list[0];
-  const same=se.exercises.filter(e=>e.name===exName && (e.sets||[]).length);
+  const same=se.exercises.filter(isIt);
   const ex=same[Math.min(Math.max(0, occ||0), same.length-1)];
   return { date:se.date, sets:ex.sets };
 }
-// Cuál de los ejercicios del día con ese nombre es ex (para lastSessionFor).
-export function exOccurrence(exs, ex){ return Math.max(0, (exs||[]).filter(x=>x && x.name===ex.name).indexOf(ex)); }
+// Cuál de los ejercicios del día con ese nombre es ex (para lastSessionFor). Se cuenta con la
+// misma clave (exKey) que usa la búsqueda: si no, «Jalón» y «Jalon» en el mismo día quedan los dos
+// como el primero y el segundo agarra los pesos del primero.
+export function exOccurrence(exs, ex){ const k=exKey(ex.name); return Math.max(0, (exs||[]).filter(x=>x && exKey(x.name)===k).indexOf(ex)); }
 
 // Lo de la vez pasada para cada serie de hoy, por orden ({kg, reps} en números). Si hoy hay
-// más series que la vez pasada, las de más toman la última.
+// más series que la vez pasada, las de más toman la última. Con num(), como el resto del
+// historial: un peso guardado como texto con coma ("62,5") con +p.kg daba 0 y no había botón.
 export function lastPlan(ex, prevSets){
   const ps=(prevSets||[]).filter(Boolean); if(!ps.length || !ex) return [];
-  return (ex.sets||[]).map((s,i)=>{ const p=ps[Math.min(i, ps.length-1)]; return { kg:+p.kg||0, reps:parseInt(p.reps)||0 }; });
+  return (ex.sets||[]).map((s,i)=>{ const p=ps[Math.min(i, ps.length-1)]; return { kg:num(p.kg), reps:parseInt(p.reps)||0 }; });
 }
 const kgNum = v => parseFloat(String(v==null?"":v).replace(",", "."))||0;
 // ¿El botón "Usar estos pesos" cambiaría algo? (solo series sin tildar con peso distinto)
@@ -261,11 +267,20 @@ function sectionBody(id){
   return "";
 }
 
+// ¿Cargó hoy el registro? La app sube sola una fila del día (agua, pasos, hábitos) y al
+// volver a abrirla aparecía como registro con todo vacío: cuenta solo si tiene alguna
+// respuesta (los pasos no, los suma solo el contador) o el peso de hoy.
+function dailyDone(){
+  const r=(state.daily||{})[today()];
+  if(r && Object.keys(r).some(k=>k!=="steps" && k!=="_q" && r[k]!=null && String(r[k]).trim()!=="")) return true;
+  return (state.weights||[]).some(w=>w && w.date===today() && Number(w.kg)>0);
+}
+
 // Resumen de cada tarjeta del menú: [texto, pendiente?]
 function sectionSummary(id){
   if(id==="peso"){ const ws=sortedWeights(); if(!ws.length) return ["Sin registros", true]; const l=ws[ws.length-1], p=ws.length>1?ws[ws.length-2]:null; const d=p?l.kg-p.kg:0; return [l.kg.toFixed(1).replace(".",",")+" kg"+(p&&Math.abs(d)>=0.05?(d>0?" · ▲ ":" · ▼ ")+Math.abs(d).toFixed(1).replace(".",","):""), false]; }
-  if(id==="registro") return (state.daily||{})[today()] ? ["Cargado hoy ✓", false] : ["Pendiente de hoy", true];
-  if(id==="checkin") return (state.checkins||{})[mondayOf(today())] ? ["Enviado esta semana ✓", false] : ["Pendiente esta semana", true];
+  if(id==="registro") return dailyDone() ? ["Cargado hoy ✓", false] : ["Pendiente de hoy", true];
+  if(id==="checkin") return checkinSummary();
   if(id==="historial"){ const n=(state.sessions||[]).length; if(!n) return ["Sin entrenos todavía", false]; const last=(state.sessions||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0))[0]; return [n+" entreno"+(n===1?"":"s")+" · último "+fmtDate(last.date), false]; }
   if(id==="cargas"){ const n=exercisesInHistory().length; return [n?n+" ejercicio"+(n===1?"":"s"):"Sin datos todavía", false]; }
   if(id==="volumen"){ let t=0; (state.days||[]).forEach(d=>(d.exercises||[]).forEach(ex=>{ t+=(ex.sets||[]).length; })); return [t?t+" series por semana":"Sin rutina", false]; }

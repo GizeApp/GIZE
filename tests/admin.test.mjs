@@ -1,7 +1,11 @@
 // Panel de administración: cobro manual (pago, prueba con calendario, "vencen pronto") y
 // pedidos de productos (publicar y rechazar).
 import { newPage, wait, text, ADMIN } from './lib.mjs';
-const D = n => new Date(Date.now() + n * 864e5).toISOString();
+// Reloj fijo, para que dé lo mismo a cualquier hora: 15/9 a las 22:30 de Argentina, que en UTC ya
+// es el 16 (antes la prueba fallaba de 21 a 24 porque calculaba las fechas con la hora de la compu).
+// Tiene que quedar en el pasado: la sesión simulada vence una hora después de la hora real.
+const NOW = Date.parse('2026-09-16T01:30:00Z');
+const D = n => new Date(NOW + n * 864e5).toISOString();
 
 export default async function ({ base, t }){
   const rpcs = [];
@@ -25,6 +29,7 @@ export default async function ({ base, t }){
     '/admin_request_reject': (r, J, i) => { rpcs.push('reject ' + i.body); reqs[1].status = 'rechazado'; return J(null); },
   } });
   p.dialogAnswer = 'La tabla no se lee';
+  await p.clock.setFixedTime(NOW);
 
   // Coaches y pagos
   await p.goto(base + '/admin/#coaches'); await wait(2000);
@@ -32,10 +37,8 @@ export default async function ({ base, t }){
   await p.click('#cSoon [data-coach="c1"]'); await wait(400);
   t.ok(!(await p.$('#trDays')), 'ya no está "sumar días"');
   t.ok(!!(await p.$('#trUntil')) && !!(await p.$('#trMax')), 'prueba con calendario y alumnos escritos');
-  const pm = await p.inputValue('#pmUntil'), trEnd = new Date(Date.parse(coaches[0].trial_ends_at) - 1);
-  const exp = new Date(trEnd); exp.setMonth(exp.getMonth() + 1);
-  const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  t.eq(pm, iso(exp), 'en prueba, "Pagado hasta" se cuenta desde el fin de la prueba');
+  // La prueba termina el 18/9 a las 22:30 (hora de Argentina): un mes desde ahí es el 18/10.
+  t.eq(await p.inputValue('#pmUntil'), '2026-10-18', 'en prueba, "Pagado hasta" se cuenta desde el fin de la prueba');
   await p.fill('#trUntil', '2026-11-10'); await p.fill('#trMax', '15');
   await p.click('[data-a="trSave"]'); await wait(500);
   await p.click('tr[data-coach="c2"]'); await wait(400);
