@@ -120,8 +120,12 @@ html.lite .cneon i { animation: none; }
 /* Mapa del recorrido (app/ui/mapa.js): en vivo arriba de los números, en el resumen y en la
    ventana de una salida guardada. Sin MapTiler (sin clave o sin internet) queda el recorrido
    solo, en SVG, sobre el fondo oscuro. */
-.gps-map { height: 190px; margin: calc(-1 * var(--space-14)) calc(-1 * var(--space-14)) 12px; border-bottom: 1px solid var(--border); border-radius: 4px 4px 0 0; overflow: hidden; }
-.gps-map.big { height: min(46dvh, 340px); margin: 0 0 12px; border: 1px solid var(--border); border-radius: 4px; }
+/* Marco de neón con la gama de GIZE (quieto) y un resplandor suave, como las cajas de la app. */
+.gps-map { height: 190px; margin: 0 0 14px; border: 1.5px solid transparent; border-radius: 10px; overflow: hidden;
+  background: linear-gradient(#07070c, #07070c) padding-box, var(--gize-rgb-ring) border-box;
+  box-shadow: -6px 0 22px -10px var(--gize-r1), 6px 0 22px -10px var(--gize-r3), 0 0 26px -12px var(--gize-r2); }
+.gps-map.big { height: min(46dvh, 340px); }
+.gps-map .gmap { border-radius: 9px; overflow: hidden; }
 .gmap { position: relative; width: 100%; height: 100%;
   background: radial-gradient(120% 90% at 30% 20%, rgba(166, 92, 255, .12), transparent 60%), radial-gradient(90% 80% at 80% 90%, rgba(47, 160, 255, .10), transparent 60%), #07070c; }
 .gmap-svg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
@@ -131,10 +135,13 @@ html.lite .cneon i { animation: none; }
 .gmap .gmap-gl { position: absolute; inset: 0; visibility: hidden; }
 .gmap.gl .gmap-gl { visibility: visible; }
 .gmap.gl .gmap-svg { display: none; }
-.gmap-logo { position: absolute; left: 8px; bottom: 6px; z-index: 2; line-height: 0; }
-.gmap-logo img { width: 67px; height: 20px; display: block; }
-.gmap .maplibregl-ctrl-attrib { background: rgba(7, 7, 12, .72); color: rgba(255, 255, 255, .82); font-size: 10px; }
-.gmap .maplibregl-ctrl-attrib a { color: rgba(255, 255, 255, .82); }
+/* Créditos y logo de MapTiler: los piden MapTiler (plan gratis) y OpenStreetMap, así que no se
+   pueden sacar; van chicos, en una línea y sin la franja gris. */
+.gmap-logo { position: absolute; left: 6px; bottom: 4px; z-index: 2; line-height: 0; opacity: .85; }
+.gmap-logo img { width: 54px; height: 16px; display: block; }
+.gmap .maplibregl-ctrl-bottom-right .maplibregl-ctrl { margin: 0 4px 3px 0; }
+.gmap .maplibregl-ctrl-attrib { background: transparent; color: rgba(255, 255, 255, .6); font-size: 8.5px; line-height: 1.3; padding: 0; max-width: calc(100% - 70px); text-align: right; }
+.gmap .maplibregl-ctrl-attrib a { color: rgba(255, 255, 255, .6); }
 .gps-noroute { margin: 0 0 12px; padding: 12px; border: 1px dashed var(--border); border-radius: 4px; font-size: var(--text-meta); color: var(--txt-3); text-align: center; }
 .gps-detail .gps-note { margin-top: 10px; }
 .gps-detail .sheet-btns { margin-top: 16px; }

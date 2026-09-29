@@ -238,7 +238,10 @@ function createGL(v){
     if (v.map !== map || v.dead) return;
     clearTimeout(v.gto);
     try {
-      map.addControl(new ml.AttributionControl({ compact: false, customAttribution: ATTRIB }), "bottom-right");
+      // Créditos: los que trae el estilo de MapTiler (MapTiler + OpenStreetMap), una sola vez. Antes
+      // se sumaba ATTRIB encima y salían repetidos. Si el estilo no trae ninguno, va ATTRIB.
+      const own = (() => { try { return Object.values(map.getStyle().sources || {}).some(x => x && x.attribution); } catch (e) { return false; } })();
+      map.addControl(new ml.AttributionControl(own ? { compact: false } : { compact: false, customAttribution: ATTRIB }), "bottom-right");
       map.addSource("ruta", { type: "geojson", data: lines(v.segs), lineMetrics: true });
       const lay = { "line-cap": "round", "line-join": "round" };
       map.addLayer({ id: "ruta-brillo", type: "line", source: "ruta", layout: lay, paint: { "line-color": C2, "line-width": 12, "line-opacity": 0.35, "line-blur": 6 } });

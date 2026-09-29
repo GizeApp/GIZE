@@ -76,9 +76,9 @@ export function renderSalida(){
   } else if (!r.ended){
     const v = liveVals(r), bici = r.kind === "bici";
     const restored = GpsState.restored ? '<div class="gps-resume"><b>Tenés una salida en curso</b> (' + esc(kindLabel(r.kind).toLowerCase()) + '). ¿La seguís o la terminás?'
-      + '<div class="ctrl-row"><button class="ctrl ghost" data-action="gps-finish">Terminar</button><button class="ctrl primary" data-action="gps-continue">Seguir</button></div></div>' : "";
-    const ctrls = GpsState.restored ? "" : '<div class="ctrl-row">' + (r.paused ? '<button class="ctrl primary" data-action="gps-resume">Seguir</button>' : '<button class="ctrl ghost" data-action="gps-pause">Pausar</button>')
-      + '<button class="ctrl ghost" data-action="gps-finish">Terminar</button></div>';
+      + '<div class="ctrl-row"><button class="ctrl primary" data-action="gps-finish">Terminar</button><button class="ctrl primary" data-action="gps-continue">Seguir</button></div></div>' : "";
+    const ctrls = GpsState.restored ? "" : '<div class="ctrl-row">' + (r.paused ? '<button class="ctrl primary" data-action="gps-resume">Seguir</button>' : '<button class="ctrl primary" data-action="gps-pause">Pausar</button>')
+      + '<button class="ctrl primary" data-action="gps-finish">Terminar</button></div>';
     body = restored
       + '<div class="gps-live' + (r.paused ? ' paused' : '') + '"><div class="gps-map" data-map-slot="live"></div><div class="gps-kind">' + esc(kindLabel(r.kind)) + (r.paused ? ' · en pausa' : '') + '</div>'
       + '<div class="gps-dur" id="gpsDur">' + v.dur + '</div>'

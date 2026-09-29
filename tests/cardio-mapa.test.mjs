@@ -57,7 +57,9 @@ export class Map {
   addLayer(l){ L.layers.push(l); }
   jumpTo(o){ L.center = o.center; } easeTo(o){ L.center = o.center; } fitBounds(b){ L.fit = b; } resize(){} remove(){ L.removed++; }
 }`;
-const MAPTILER_STYLE = { version: 8, name: 'prueba', sources: {}, layers: [{ id: 'fondo', type: 'background', paint: { 'background-color': '#05050a' } }] };
+// Como el de MapTiler: los créditos vienen en la fuente del estilo.
+const MAPTILER_STYLE = { version: 8, name: 'prueba', sources: { mt: { type: 'geojson', data: { type: 'FeatureCollection', features: [] },
+  attribution: '<a href="https://www.maptiler.com/copyright/">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright">&copy; OpenStreetMap contributors</a>' } }, layers: [{ id: 'fondo', type: 'background', paint: { 'background-color': '#05050a' } }, { id: 'mt', type: 'fill', source: 'mt', paint: { 'fill-color': '#111' } }] };
 
 async function pure(p, t){
   const r = await p.evaluate(async ([LAT0, LON0]) => {
@@ -170,6 +172,9 @@ export default async function ({ base, t }){
   t.ok(d2 !== d1 && d2.split('L').length === 16, 'en vivo: la línea crece con los puntos nuevos');
   t.ok(await p.evaluate(() => { const g = document.querySelector('.gmap'); window.__g = g; return !!g; }), 'hay un mapa');
   // Pausa: lo que se mueva no se dibuja; al seguir, otro tramo (sin unir los puntos).
+  t.eq(await p.$$eval('.gps-live ~ .ctrl-row .ctrl, .gps-live .ctrl-row .ctrl, .ctrl-row [data-action="gps-pause"], .ctrl-row [data-action="gps-finish"]', l => [...new Set(l)].map(b => b.dataset.action + ':' + b.classList.contains('primary'))),
+    ['gps-pause:true', 'gps-finish:true'], 'Pausar y Terminar: botones blancos con neón');
+  t.ok(await p.$eval('.gps-live .gps-map', e => getComputedStyle(e).backgroundImage.includes('conic-gradient')), 'en vivo: el mapa con marco de neón');
   await p.click('[data-action="gps-pause"]'); await wait(300);
   t.ok(await p.evaluate(() => window.__g === document.querySelector('.gmap')), 'el mapa sobrevive a los redibujos (el mismo nodo)');
   await p.click('[data-action="gps-resume"]'); await wait(300);
@@ -292,10 +297,13 @@ export default async function ({ base, t }){
   await p.waitForSelector('#sheetHost .gmap.gl .maplibregl-canvas', { timeout: 15000 }).catch(() => {});
   t.ok(!!(await p.$('#sheetHost .gmap.gl .maplibregl-canvas')), 'MapLibre dibuja el mapa (WebGL)');
   const box = await p.$eval('#sheetHost .gmap.gl .maplibregl-canvas', e => { const r = e.getBoundingClientRect(), s = e.closest('.gps-map').getBoundingClientRect(); return [Math.round(r.height), Math.round(s.height)]; }).catch(() => [0, 1]);
-  t.ok(box[0] > 100 && box[1] - box[0] <= 2, 'el mapa ocupa todo su lugar (alto ' + box.join(' de ') + ')');
+  t.ok(box[0] > 100 && box[1] - box[0] <= 4, 'el mapa ocupa todo su lugar (alto ' + box.join(' de ') + ')');
   t.ok(mlReqs(reqs3).some(u => /maplibre-gl-worker\.js$/.test(u)) && mlReqs(reqs3).some(u => /maplibre-gl\.css$/.test(u)), 'carga la librería, su worker y su CSS de vendor/');
   const att = await text(p, '#sheetHost .maplibregl-ctrl-attrib');
   t.has(att, 'MapTiler', 'créditos a la vista'); t.has(att, 'OpenStreetMap', 'créditos a la vista');
+  t.eq(att.split('OpenStreetMap').length - 1, 1, 'los créditos no salen repetidos: ' + att);
+  const look = await p.$eval('#sheetHost .gps-map', e => { const cs = getComputedStyle(e); return { ring: cs.backgroundImage.includes('conic-gradient'), r: parseFloat(cs.borderTopLeftRadius) }; });
+  t.ok(look.ring && look.r >= 8, 'el mapa tiene el marco de neón: ' + JSON.stringify(look));
   t.ok(tiler3.length > 0 && tiler3.every(u => u.startsWith('https://api.maptiler.com/')), 'solo pidió a MapTiler (simulado)');
   t.eq(pg.errs, [], 'errores de la página (MapLibre de verdad)');
   await pg.close();
