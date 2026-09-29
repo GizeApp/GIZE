@@ -146,12 +146,12 @@ export function renderBlockBanner(){
     '</div>';
 }
 
+// Nota general del día (la que el coach escribe para el día entero). Las notas de cada
+// ejercicio ya salen adentro del ejercicio («Nota de tu coach»): acá no se repiten.
 export function renderDayNotes(d){
-  const exN=(d.exercises||[]).filter(x=>x.note);
-  if(!d.note && !exN.length) return "";
-  const items=exN.map(x=>'<div class="dn-item"><span class="dn-ex">'+esc(x.name)+'</span><span class="dn-tx">'+esc(x.note)+'</span></div>').join("");
-  return '<div class="daynotes" data-reveal="notes-'+esc(d.id)+'"><div class="dn-head">Notas de tu coach \u00b7 '+esc(d.name)+'</div>'+
-    (d.note?'<div class="dn-general">'+esc(d.note)+'</div>':'')+items+'</div>';
+  if(!d.note) return "";
+  return '<div class="daynotes" data-reveal="notes-'+esc(d.id)+'"><div class="dn-head">Nota de tu coach \u00b7 '+esc(d.name)+'</div>'+
+    '<div class="dn-general">'+esc(d.note)+'</div></div>';
 }
 
 // Superserie: los ejercicios unidos van dentro de un recuadro con su letra y la indicación.
