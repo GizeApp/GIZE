@@ -130,5 +130,7 @@ jobs:
             --data @"$RUNNER_TEMP/body.json")
           # El log es PÚBLICO (repo público): no se imprime el resultado, solo si anduvo y cuántas
           # filas devolvió. Para ver datos, correr la consulta en el SQL Editor de Supabase.
-          jq -r 'if type=="array" then "Filas devueltas: \(length)" else "Mensaje: \(.message // "sin detalle")" end' "$RUNNER_TEMP/out.json" 2>/dev/null || echo "(respuesta sin formato JSON)"
+          # Si falla, tampoco va el mensaje de Postgres (su DETAIL puede traer valores de filas,
+          # ej. «Key (email)=(...) already exists»): solo el código de error (SQLSTATE) si viene.
+          jq -r 'if type=="array" then "Filas devueltas: \(length)" else "La consulta falló" + ((.message // "" | tostring | capture("(SQLSTATE|ERROR:)[ :]*(?<c>[0-9A-Z]{5})\\b")? | " (código \(.c))") // "") + ". Para ver el detalle, correr el SQL en el SQL Editor de Supabase." end' "$RUNNER_TEMP/out.json" 2>/dev/null || echo "(respuesta sin formato JSON)"
           [ "$code" -ge 200 ] && [ "$code" -lt 300 ] || { echo "::error::Supabase respondió $code"; exit 1; }

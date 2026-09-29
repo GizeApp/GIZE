@@ -117,6 +117,7 @@ select.co-select { cursor:pointer; }
 
 /* ===== Editor de preguntas para los clientes (app/screens/coach/preguntas.js) ===== */
 .cs-q-btn { width:100%; text-align:left; }
+a.cs-q-btn { text-decoration:none; } /* link a la política de privacidad, con la misma pinta que los botones */
 .cp-ccard.cq-card { width:min(620px, 94vw); }
 .cq-back { background:none; border:0; color:var(--txt-2); font-size:22px; line-height:1; cursor:pointer; padding:0 8px 0 0; }
 .cq-tabs { display:flex; gap:6px; margin:4px 0 10px; }
