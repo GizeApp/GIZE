@@ -19,9 +19,11 @@ export default async function ({ base, t }){
       // Verde = el canal G le gana por mucho al rojo y al azul.
       const green = c => { const [r, g, bl] = (c.match(/[\d.]+/g) || []).map(Number); return g > r + 40 && g > bl + 40; };
       const icon = getComputedStyle(b.querySelector('svg')).color;
-      return { anyGreen: [cs.backgroundColor, cs.borderTopColor, cs.color, icon].filter(green), shadow: cs.boxShadow, anim: be.animationName, ring: be.backgroundImage };
+      const glow = [cs.textShadow, getComputedStyle(b.querySelector('svg')).filter];
+      return { glow, anyGreen: [cs.backgroundColor, cs.borderTopColor, cs.color, icon].filter(green), shadow: cs.boxShadow, anim: be.animationName, ring: be.backgroundImage };
     });
     t.eq(m.anyGreen, [], reducedMotion + ': nada verde (fondo, borde, texto, ícono)');
+    t.eq(m.glow, ['none', 'none'], reducedMotion + ': las letras y el ícono sin brillo de neón');
     t.ok(m.ring.includes('conic-gradient'), reducedMotion + ': el borde es la gama de neón');
     t.ok(m.shadow.split('rgb').length > 3, reducedMotion + ': tiene resplandor de colores');
     t.eq(m.anim, reducedMotion === 'reduce' ? 'none' : 'gize-spin', reducedMotion + ': el borde gira (o queda quieto con movimiento reducido)');
