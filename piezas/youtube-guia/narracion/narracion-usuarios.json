@@ -1,0 +1,506 @@
+[
+ {
+  "sec": "Introducción",
+  "a": 0.0,
+  "b": 6.0,
+  "txt": "Esta es la guía de GIZE, el plan gratuito, función por función.",
+  "pantalla": "",
+  "wps": 2.0
+ },
+ {
+  "sec": "Plan gratuito",
+  "a": 6.0,
+  "b": 12.0,
+  "txt": "Para entrenar por tu cuenta, sin coach y sin pagar nada. En iPhone y en Android.",
+  "pantalla": "",
+  "wps": 2.6666666666666665
+ },
+ {
+  "sec": "Bienvenida",
+  "a": 12.0,
+  "b": 15.233333333333333,
+  "txt": "La primera vez que entrás, GIZE te recibe.",
+  "pantalla": "La primera vez que entrás, GIZE te da la bienvenida.",
+  "wps": 2.474226804123712
+ },
+ {
+  "sec": "Bienvenida",
+  "a": 15.233333333333333,
+  "b": 17.533333333333335,
+  "txt": "¿Tenés coach? Ponés su código.",
+  "pantalla": "Si tenés un coach, ponés su código. Si no, entrenás por tu cuenta.",
+  "wps": 2.1739130434782585
+ },
+ {
+  "sec": "Bienvenida",
+  "a": 17.533333333333335,
+  "b": 20.7,
+  "txt": "Si no, arrancás vacío o con rutina armada.",
+  "pantalla": "Elegís cómo arrancar: vacío o con una rutina armada.",
+  "wps": 2.5263157894736863
+ },
+ {
+  "sec": "Armá tu semana",
+  "a": 20.7,
+  "b": 23.933333333333334,
+  "txt": "«Empezar vacío»: tu semana en tres pasos.",
+  "pantalla": "Con «Empezar vacío» armás tu semana en 3 pasos.",
+  "wps": 2.164948453608247
+ },
+ {
+  "sec": "Armá tu semana",
+  "a": 23.933333333333334,
+  "b": 26.1,
+  "txt": "Cuántos días entrenás,",
+  "pantalla": "Cuántos días vas a entrenar…",
+  "wps": 1.384615384615384
+ },
+ {
+  "sec": "Armá tu semana",
+  "a": 26.1,
+  "b": 28.266666666666666,
+  "txt": "tu objetivo,",
+  "pantalla": "…tu objetivo…",
+  "wps": 0.9230769230769241
+ },
+ {
+  "sec": "Armá tu semana",
+  "a": 28.266666666666666,
+  "b": 31.966666666666665,
+  "txt": "y el nombre del primer día. Listo.",
+  "pantalla": "…y el nombre de tu primer día. Listo, ya tenés tu semana.",
+  "wps": 1.8918918918918923
+ },
+ {
+  "sec": "Rutinas armadas",
+  "a": 31.966666666666665,
+  "b": 35.2,
+  "txt": "¿No sabés qué hacer? Hay rutinas armadas.",
+  "pantalla": "¿No sabés qué hacer? Tenés rutinas armadas.",
+  "wps": 2.1649484536082446
+ },
+ {
+  "sec": "Rutinas armadas",
+  "a": 35.2,
+  "b": 37.5,
+  "txt": "Elegís para quién son,",
+  "pantalla": "Elegís para quién son y te muestra las que van con vos.",
+  "wps": 1.7391304347826109
+ },
+ {
+  "sec": "Rutinas armadas",
+  "a": 37.5,
+  "b": 40.666666666666664,
+  "txt": "tocás una, y queda lista para entrenar.",
+  "pantalla": "Tocás una y queda cargada, lista para entrenar.",
+  "wps": 2.2105263157894752
+ },
+ {
+  "sec": "Tu rutina",
+  "a": 40.666666666666664,
+  "b": 43.43333333333333,
+  "txt": "Tu rutina viene organizada por días.",
+  "pantalla": "Tu rutina viene armada por días.",
+  "wps": 2.1686746987951815
+ },
+ {
+  "sec": "Tu rutina",
+  "a": 43.43333333333333,
+  "b": 47.03333333333333,
+  "txt": "Cambiás de día con las pestañas de arriba.",
+  "pantalla": "Cambiás de día con las pestañas de arriba.",
+  "wps": 2.2222222222222214
+ },
+ {
+  "sec": "Tu rutina",
+  "a": 47.03333333333333,
+  "b": 50.96666666666667,
+  "txt": "Cada ejercicio trae series, repeticiones objetivo y RIR.",
+  "pantalla": "Cada ejercicio trae sus series, repeticiones objetivo y RIR.",
+  "wps": 2.033898305084744
+ },
+ {
+  "sec": "Entrenar",
+  "a": 50.96666666666667,
+  "b": 54.2,
+  "txt": "«Iniciar entrenamiento» arranca el reloj de la sesión.",
+  "pantalla": "«Iniciar entrenamiento» pone en marcha el reloj de la sesión.",
+  "wps": 2.4742268041237105
+ },
+ {
+  "sec": "Entrenar",
+  "a": 54.2,
+  "b": 56.5,
+  "txt": "Ves tu sesión anterior,",
+  "pantalla": "Ves lo que hiciste la vez pasada, serie por serie.",
+  "wps": 1.7391304347826109
+ },
+ {
+  "sec": "Entrenar",
+  "a": 56.5,
+  "b": 58.8,
+  "txt": "cargás esos pesos con un toque,",
+  "pantalla": "Con «Usar estos pesos», cargás los de la vez pasada.",
+  "wps": 2.608695652173916
+ },
+ {
+  "sec": "Entrenar",
+  "a": 58.8,
+  "b": 62.56666666666667,
+  "txt": "y anotás las repeticiones de cada serie.",
+  "pantalla": "Y anotás las repeticiones de cada serie.",
+  "wps": 1.8584070796460146
+ },
+ {
+  "sec": "Descanso",
+  "a": 62.56666666666667,
+  "b": 66.46666666666667,
+  "txt": "Terminás la serie e iniciás el descanso.",
+  "pantalla": "Al terminar una serie, iniciás el descanso con un toque.",
+  "wps": 1.7948717948717956
+ },
+ {
+  "sec": "Descanso",
+  "a": 66.46666666666667,
+  "b": 68.76666666666667,
+  "txt": "La cuenta regresiva queda abajo,",
+  "pantalla": "Abajo queda la cuenta regresiva mientras seguís en la app.",
+  "wps": 2.1739130434782634
+ },
+ {
+  "sec": "Descanso",
+  "a": 68.76666666666667,
+  "b": 71.93333333333334,
+  "txt": "y cada ejercicio tiene su propio tiempo.",
+  "pantalla": "Cada ejercicio tiene su propio tiempo de descanso, y lo podés cambiar.",
+  "wps": 2.2105263157894703
+ },
+ {
+  "sec": "Cambiar y agregar ejercicios",
+  "a": 71.93333333333334,
+  "b": 75.63333333333334,
+  "txt": "¿Máquina ocupada? Cambiás el ejercicio por uno parecido.",
+  "pantalla": "¿La máquina está ocupada? Cambiás el ejercicio por otro parecido.",
+  "wps": 2.1621621621621605
+ },
+ {
+  "sec": "Cambiar y agregar ejercicios",
+  "a": 75.63333333333334,
+  "b": 79.76666666666667,
+  "txt": "También agregás ejercicios, buscando por músculo,",
+  "pantalla": "También podés agregar ejercicios, buscando por músculo.",
+  "wps": 1.4516129032258092
+ },
+ {
+  "sec": "Cambiar y agregar ejercicios",
+  "a": 79.76666666666667,
+  "b": 82.93333333333334,
+  "txt": "o unís dos en una superserie.",
+  "pantalla": "Y unir dos ejercicios en una superserie.",
+  "wps": 1.8947368421052604
+ },
+ {
+  "sec": "Finalizar el entreno",
+  "a": 82.93333333333334,
+  "b": 86.86666666666666,
+  "txt": "Al terminar, «Finalizar» guarda el entreno",
+  "pantalla": "Cuando terminás, «Finalizar» guarda el entreno.",
+  "wps": 1.5254237288135635
+ },
+ {
+  "sec": "Finalizar el entreno",
+  "a": 86.86666666666666,
+  "b": 90.5,
+  "txt": "y te muestra el resumen: tiempo, ejercicios y series.",
+  "pantalla": "Y te muestra el resumen: tiempo, ejercicios y series.",
+  "wps": 2.4770642201834816
+ },
+ {
+  "sec": "Progreso",
+  "a": 90.5,
+  "b": 94.76666666666667,
+  "txt": "En Progreso tenés todo tu historial, por secciones.",
+  "pantalla": "En Progreso tenés todo tu historial, ordenado en secciones.",
+  "wps": 1.8750000000000004
+ },
+ {
+  "sec": "Progreso",
+  "a": 94.76666666666667,
+  "b": 99.06666666666666,
+  "txt": "Evolución de cargas: elegís un ejercicio",
+  "pantalla": "Evolución de cargas: el peso máximo de cada sesión.",
+  "wps": 1.3953488372093032
+ },
+ {
+  "sec": "Progreso",
+  "a": 99.06666666666666,
+  "b": 102.23333333333333,
+  "txt": "y ves cómo sube, sesión por sesión.",
+  "pantalla": "Con el detalle de cada sesión, serie por serie.",
+  "wps": 2.2105263157894703
+ },
+ {
+  "sec": "Peso corporal",
+  "a": 102.23333333333333,
+  "b": 106.76666666666667,
+  "txt": "Peso corporal: anotás tu peso del día",
+  "pantalla": "Peso corporal: registrás tu peso del día.",
+  "wps": 1.5441176470588243
+ },
+ {
+  "sec": "Peso corporal",
+  "a": 106.76666666666667,
+  "b": 109.93333333333334,
+  "txt": "y ves el gráfico con el promedio semanal.",
+  "pantalla": "Y ves el gráfico y el promedio de cada semana.",
+  "wps": 2.5263157894736805
+ },
+ {
+  "sec": "Registro de hoy",
+  "a": 109.93333333333334,
+  "b": 114.2,
+  "txt": "Registro de hoy: cómo dormiste, entrenaste y te sentís.",
+  "pantalla": "Registro de hoy: cómo dormiste, cómo entrenaste y cómo te sentís.",
+  "wps": 2.1093750000000004
+ },
+ {
+  "sec": "Registro de hoy",
+  "a": 114.2,
+  "b": 116.93333333333334,
+  "txt": "Menos de un minuto por día.",
+  "pantalla": "Te lleva menos de un minuto por día.",
+  "wps": 2.1951219512195115
+ },
+ {
+  "sec": "Check-in semanal",
+  "a": 116.93333333333334,
+  "b": 120.53333333333333,
+  "txt": "El check-in semanal es un repaso corto:",
+  "pantalla": "Check-in semanal: un repaso corto de tu semana.",
+  "wps": 1.9444444444444475
+ },
+ {
+  "sec": "Check-in semanal",
+  "a": 120.53333333333333,
+  "b": 123.7,
+  "txt": "entreno, descanso y comida.",
+  "pantalla": "Respondés unas preguntas sobre entreno, descanso y comida.",
+  "wps": 1.2631578947368403
+ },
+ {
+  "sec": "Historial de entrenos",
+  "a": 123.7,
+  "b": 127.03333333333333,
+  "txt": "En el historial está cada sesión guardada,",
+  "pantalla": "Historial de entrenos: cada sesión que guardaste.",
+  "wps": 2.100000000000003
+ },
+ {
+  "sec": "Historial de entrenos",
+  "a": 127.03333333333333,
+  "b": 130.2,
+  "txt": "y si erraste una serie, la corregís.",
+  "pantalla": "Si te equivocaste en una serie, la corregís.",
+  "wps": 2.21052631578948
+ },
+ {
+  "sec": "Volumen semanal",
+  "a": 130.2,
+  "b": 133.43333333333334,
+  "txt": "Volumen semanal: tus series por músculo,",
+  "pantalla": "Volumen semanal: cuántas series hacés por músculo.",
+  "wps": 1.855670103092775
+ },
+ {
+  "sec": "Volumen semanal",
+  "a": 133.43333333333334,
+  "b": 136.13333333333333,
+  "txt": "para que ninguno quede atrás.",
+  "pantalla": "Te ayuda a que ningún grupo quede atrás.",
+  "wps": 1.8518518518518596
+ },
+ {
+  "sec": "Tu meta de calorías",
+  "a": 136.13333333333333,
+  "b": 139.93333333333334,
+  "txt": "Pasamos a Comida. Primero, tu meta.",
+  "pantalla": "En Comida, primero configurás tu meta.",
+  "wps": 1.578947368421048
+ },
+ {
+  "sec": "Tu meta de calorías",
+  "a": 139.93333333333334,
+  "b": 145.26666666666668,
+  "txt": "Cargás tus datos, tu actividad y tu objetivo,",
+  "pantalla": "Cargás tus datos, tu actividad y tu objetivo…",
+  "wps": 1.4999999999999973
+ },
+ {
+  "sec": "Tu meta de calorías",
+  "a": 145.26666666666668,
+  "b": 148.3,
+  "txt": "y GIZE calcula calorías y macros.",
+  "pantalla": "…y GIZE calcula tus calorías y macros.",
+  "wps": 1.9780219780219792
+ },
+ {
+  "sec": "Registrar comidas",
+  "a": 148.3,
+  "b": 151.53333333333333,
+  "txt": "Cada día ves calorías, proteína, carbos y grasas.",
+  "pantalla": "Cada día muestra tus calorías, proteína, carbos y grasas.",
+  "wps": 2.4742268041237216
+ },
+ {
+  "sec": "Registrar comidas",
+  "a": 151.53333333333333,
+  "b": 155.4,
+  "txt": "Buscás entre alimentos y productos argentinos,",
+  "pantalla": "Para sumar algo, buscás entre alimentos y productos argentinos.",
+  "wps": 1.5517241379310314
+ },
+ {
+  "sec": "Registrar comidas",
+  "a": 155.4,
+  "b": 157.7,
+  "txt": "crudo o cocido, y la porción,",
+  "pantalla": "Elegís si lo pesaste crudo o cocido, y la porción.",
+  "wps": 2.608695652173932
+ },
+ {
+  "sec": "Registrar comidas",
+  "a": 157.7,
+  "b": 161.56666666666666,
+  "txt": "y se suma solo al contador.",
+  "pantalla": "Y se suma solo al contador.",
+  "wps": 1.5517241379310314
+ },
+ {
+  "sec": "Escáner y alimentos propios",
+  "a": 161.56666666666666,
+  "b": 164.8,
+  "txt": "También escaneás el código de barras",
+  "pantalla": "También podés escanear el código de barras del paquete…",
+  "wps": 1.855670103092775
+ },
+ {
+  "sec": "Escáner y alimentos propios",
+  "a": 164.8,
+  "b": 169.53333333333333,
+  "txt": "o creás tu propio alimento con su tabla nutricional.",
+  "pantalla": "…o crear tu propio alimento con su tabla nutricional.",
+  "wps": 1.9014084507042306
+ },
+ {
+  "sec": "Otros días",
+  "a": 169.53333333333333,
+  "b": 173.3,
+  "txt": "Con las flechas mirás otros días",
+  "pantalla": "Con las flechas revisás lo que comiste otros días.",
+  "wps": 1.5929203539822954
+ },
+ {
+  "sec": "Otros días",
+  "a": 173.3,
+  "b": 176.73333333333332,
+  "txt": "y volvés a hoy.",
+  "pantalla": "Y volvés a hoy.",
+  "wps": 1.1650485436893288
+ },
+ {
+  "sec": "Agua",
+  "a": 176.73333333333332,
+  "b": 184.3,
+  "txt": "El agua también se cuenta: sumás lo que tomás en el día.",
+  "pantalla": "Llevás la cuenta del agua que tomás en el día.",
+  "wps": 1.5859030837004353
+ },
+ {
+  "sec": "Hábitos",
+  "a": 184.3,
+  "b": 193.86666666666667,
+  "txt": "Hábitos es tu checklist de todos los días: las pequeñas cosas que suman.",
+  "pantalla": "Hábitos: tu checklist de todos los días.",
+  "wps": 1.3588850174216034
+ },
+ {
+  "sec": "Hábitos",
+  "a": 193.86666666666667,
+  "b": 196.26666666666668,
+  "txt": "Tildás lo que cumplís,",
+  "pantalla": "Tildás lo que vas cumpliendo y ves el avance del día.",
+  "wps": 1.6666666666666627
+ },
+ {
+  "sec": "Hábitos",
+  "a": 196.26666666666668,
+  "b": 198.96666666666667,
+  "txt": "y al otro día arranca de nuevo.",
+  "pantalla": "Se reinician solos cada día.",
+  "wps": 2.5925925925926037
+ },
+ {
+  "sec": "Cardio",
+  "a": 198.96666666666667,
+  "b": 202.83333333333334,
+  "txt": "Cardio: un cronómetro para tus sesiones.",
+  "pantalla": "Cardio: cronómetro para tus sesiones.",
+  "wps": 1.5517241379310314
+ },
+ {
+  "sec": "Cardio",
+  "a": 202.83333333333334,
+  "b": 205.66666666666666,
+  "txt": "Marcás vueltas o intervalos,",
+  "pantalla": "Marcás vueltas o intervalos.",
+  "wps": 1.4117647058823624
+ },
+ {
+  "sec": "Cardio",
+  "a": 205.66666666666666,
+  "b": 209.86666666666667,
+  "txt": "o usás el temporizador con cuenta regresiva.",
+  "pantalla": "O usás el temporizador para una cuenta regresiva.",
+  "wps": 1.6666666666666599
+ },
+ {
+  "sec": "Racha",
+  "a": 209.86666666666667,
+  "b": 213.1,
+  "txt": "Tu racha cuenta los días seguidos que entrás.",
+  "pantalla": "Tu racha: los días seguidos que entraste a GIZE.",
+  "wps": 2.4742268041237216
+ },
+ {
+  "sec": "Racha",
+  "a": 213.1,
+  "b": 215.8,
+  "txt": "Si cortás, vuelve a cero.",
+  "pantalla": "Si un día no entrás, vuelve a empezar.",
+  "wps": 1.85185185185184
+ },
+ {
+  "sec": "Ajustes",
+  "a": 215.8,
+  "b": 220.06666666666666,
+  "txt": "En Ajustes: perfil, notificaciones y modo liviano.",
+  "pantalla": "En Ajustes: tu perfil, las notificaciones y el modo liviano.",
+  "wps": 1.6406250000000058
+ },
+ {
+  "sec": "Ajustes",
+  "a": 220.06666666666666,
+  "b": 223.43333333333334,
+  "txt": "Y si sumás un coach, ponés su código.",
+  "pantalla": "Y si después sumás un coach, te vinculás con su código.",
+  "wps": 2.376237623762371
+ },
+ {
+  "sec": "Cierre",
+  "a": 223.43333333333334,
+  "b": 232.43333333333334,
+  "txt": "GIZE es gratis, en iPhone y en Android. ¿Entrenás con un coach? Pedile su código y vinculate.",
+  "pantalla": "",
+  "wps": 1.8888888888888888
+ }
+]

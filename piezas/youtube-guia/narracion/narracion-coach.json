@@ -1,0 +1,498 @@
+[
+ {
+  "sec": "Introducción",
+  "a": 0.0,
+  "b": 6.0,
+  "txt": "Esta es la guía del panel del coach de GIZE, función por función.",
+  "pantalla": "",
+  "wps": 2.1666666666666665
+ },
+ {
+  "sec": "Panel del coach",
+  "a": 6.0,
+  "b": 12.0,
+  "txt": "Todo para guiar a tus alumnos. Y lo probás catorce días gratis, sin tarjeta.",
+  "pantalla": "",
+  "wps": 2.3333333333333335
+ },
+ {
+  "sec": "Tu panel",
+  "a": 12.0,
+  "b": 15.233333333333333,
+  "txt": "Tu panel: todos tus alumnos, con su mail.",
+  "pantalla": "Tu panel: todos tus alumnos en una lista, con su mail.",
+  "wps": 2.474226804123712
+ },
+ {
+  "sec": "Tu panel",
+  "a": 15.233333333333333,
+  "b": 19.466666666666665,
+  "txt": "Un globito te avisa quién escribió, y ves su última actividad.",
+  "pantalla": "Un globito te avisa quién te escribió.",
+  "wps": 2.5984251968503944
+ },
+ {
+  "sec": "Tu panel",
+  "a": 19.466666666666665,
+  "b": 22.666666666666668,
+  "txt": "Y buscás a cualquiera por nombre.",
+  "pantalla": "Y buscás a cualquiera por su nombre.",
+  "wps": 1.8749999999999984
+ },
+ {
+  "sec": "Código de invitación",
+  "a": 22.666666666666668,
+  "b": 25.9,
+  "txt": "Tus alumnos se suman con tu código.",
+  "pantalla": "Tus alumnos se suman con tu código de invitación.",
+  "wps": 2.164948453608249
+ },
+ {
+  "sec": "Código de invitación",
+  "a": 25.9,
+  "b": 28.2,
+  "txt": "Lo copiás y lo mandás,",
+  "pantalla": "Lo copiás y se lo mandás por donde quieras.",
+  "wps": 2.1739130434782603
+ },
+ {
+  "sec": "Código de invitación",
+  "a": 28.2,
+  "b": 30.9,
+  "txt": "o lo cambiás por uno nuevo.",
+  "pantalla": "Si querés, lo cambiás por uno nuevo.",
+  "wps": 2.2222222222222228
+ },
+ {
+  "sec": "Tu plan",
+  "a": 30.9,
+  "b": 34.13333333333333,
+  "txt": "«Mi plan»: tu suscripción y tus alumnos.",
+  "pantalla": "«Mi plan»: tu suscripción y cuántos alumnos tenés.",
+  "wps": 2.164948453608247
+ },
+ {
+  "sec": "Tu plan",
+  "a": 34.13333333333333,
+  "b": 37.4,
+  "txt": "El plan va según cuántos alumnos tengas.",
+  "pantalla": "Los planes van según la cantidad de alumnos.",
+  "wps": 2.1428571428571437
+ },
+ {
+  "sec": "Plantillas de rutinas",
+  "a": 37.4,
+  "b": 40.63333333333333,
+  "txt": "Tus rutinas quedan guardadas como plantillas.",
+  "pantalla": "Tus rutinas quedan guardadas como plantillas.",
+  "wps": 1.855670103092783
+ },
+ {
+  "sec": "Plantillas de rutinas",
+  "a": 40.63333333333333,
+  "b": 43.833333333333336,
+  "txt": "Las abrís y editás día por día,",
+  "pantalla": "Las abrís y las editás día por día.",
+  "wps": 2.1874999999999982
+ },
+ {
+  "sec": "Plantillas de rutinas",
+  "a": 43.833333333333336,
+  "b": 47.0,
+  "txt": "o creás nuevas e importás modelos armados.",
+  "pantalla": "Creás nuevas o importás modelos ya armados.",
+  "wps": 2.2105263157894752
+ },
+ {
+  "sec": "La ficha del alumno",
+  "a": 47.0,
+  "b": 50.233333333333334,
+  "txt": "Tocás un alumno y se abre su ficha,",
+  "pantalla": "Tocás un alumno y se abre su ficha, en secciones.",
+  "wps": 2.4742268041237105
+ },
+ {
+  "sec": "La ficha del alumno",
+  "a": 50.233333333333334,
+  "b": 52.93333333333333,
+  "txt": "con Ficha, Rutina y Plan alimenticio.",
+  "pantalla": "Arriba: Ficha, Rutina y Plan alimenticio.",
+  "wps": 2.222222222222226
+ },
+ {
+  "sec": "Chat con tu alumno",
+  "a": 52.93333333333333,
+  "b": 56.166666666666664,
+  "txt": "Cada alumno tiene su chat: mensajes y audios.",
+  "pantalla": "Chat con cada alumno: mensajes y audios, en los dos sentidos.",
+  "wps": 2.4742268041237105
+ },
+ {
+  "sec": "Chat con tu alumno",
+  "a": 56.166666666666664,
+  "b": 60.4,
+  "txt": "Le respondés al toque,",
+  "pantalla": "Le respondés al toque…",
+  "wps": 0.9448818897637793
+ },
+ {
+  "sec": "Chat con tu alumno",
+  "a": 60.4,
+  "b": 64.86666666666666,
+  "txt": "o le grabás un audio, y ves cuándo lo escuchó.",
+  "pantalla": "…o le grabás un audio, y ves cuándo lo escuchó.",
+  "wps": 2.238805970149256
+ },
+ {
+  "sec": "El chat del alumno",
+  "a": 64.86666666666666,
+  "b": 68.4,
+  "txt": "Tu alumno lo tiene arriba; late si hay nuevos.",
+  "pantalla": "Tu alumno tiene el chat arriba, con neón azul que late si hay mensajes nuevos.",
+  "wps": 2.547169811320746
+ },
+ {
+  "sec": "El chat del alumno",
+  "a": 68.4,
+  "b": 73.23333333333333,
+  "txt": "Y te escribe o te manda audios cuando quiera.",
+  "pantalla": "Te escribe o te manda audios cuando quiera.",
+  "wps": 1.862068965517243
+ },
+ {
+  "sec": "Datos y objetivos",
+  "a": 73.23333333333333,
+  "b": 76.46666666666667,
+  "txt": "En la ficha: datos, lesiones y pasos.",
+  "pantalla": "Ficha del cliente: datos personales, lesiones y pasos.",
+  "wps": 2.164948453608247
+ },
+ {
+  "sec": "Datos y objetivos",
+  "a": 76.46666666666667,
+  "b": 78.76666666666667,
+  "txt": "Su contexto de entrenamiento,",
+  "pantalla": "Contexto de entrenamiento: disponibilidad, etapa y compromiso.",
+  "wps": 1.7391304347826109
+ },
+ {
+  "sec": "Datos y objetivos",
+  "a": 78.76666666666667,
+  "b": 81.53333333333333,
+  "txt": "y sus objetivos, generales y del bloque.",
+  "pantalla": "Y sus objetivos, generales y del bloque.",
+  "wps": 2.5301204819277117
+ },
+ {
+  "sec": "Bloque / mesociclo",
+  "a": 81.53333333333333,
+  "b": 84.76666666666667,
+  "txt": "El bloque: nombre, inicio, semanas y fase.",
+  "pantalla": "Bloque o mesociclo: nombre, inicio, semanas y fase.",
+  "wps": 2.164948453608247
+ },
+ {
+  "sec": "Bloque / mesociclo",
+  "a": 84.76666666666667,
+  "b": 87.06666666666666,
+  "txt": "Estrategia calórica y una nota,",
+  "pantalla": "La estrategia calórica y una nota para el alumno.",
+  "wps": 2.1739130434782634
+ },
+ {
+  "sec": "Bloque / mesociclo",
+  "a": 87.06666666666666,
+  "b": 90.33333333333333,
+  "txt": "marcás descargas, y el alumno ve su semana.",
+  "pantalla": "Marcás las semanas de descarga, y el alumno ve en qué semana está.",
+  "wps": 2.448979591836735
+ },
+ {
+  "sec": "Seguimiento diario",
+  "a": 90.33333333333333,
+  "b": 93.86666666666666,
+  "txt": "El seguimiento diario muestra cómo se sintió:",
+  "pantalla": "Seguimiento diario: cómo se sintió cada día.",
+  "wps": 1.9811320754716992
+ },
+ {
+  "sec": "Seguimiento diario",
+  "a": 93.86666666666666,
+  "b": 97.03333333333333,
+  "txt": "dolor, rendimiento, hambre, sueño y pasos.",
+  "pantalla": "Dolor, rendimiento, motivación, hambre, sueño y pasos.",
+  "wps": 1.8947368421052604
+ },
+ {
+  "sec": "Check-in semanal",
+  "a": 97.03333333333333,
+  "b": 103.5,
+  "txt": "En el check-in semanal ves sus respuestas y su adherencia.",
+  "pantalla": "Check-in semanal: sus respuestas y la adherencia.",
+  "wps": 1.5463917525773192
+ },
+ {
+  "sec": "Historial de entrenos",
+  "a": 103.5,
+  "b": 107.06666666666666,
+  "txt": "El historial muestra cada sesión que registró,",
+  "pantalla": "Historial de entrenos: cada sesión que registró.",
+  "wps": 1.9626168224299085
+ },
+ {
+  "sec": "Historial de entrenos",
+  "a": 107.06666666666666,
+  "b": 110.23333333333333,
+  "txt": "serie por serie, contra la vez pasada.",
+  "pantalla": "Serie por serie, comparada con la vez pasada.",
+  "wps": 2.2105263157894703
+ },
+ {
+  "sec": "Volumen semanal",
+  "a": 110.23333333333333,
+  "b": 113.46666666666667,
+  "txt": "Volumen semanal: series por grupo muscular,",
+  "pantalla": "Volumen semanal: las series por grupo muscular.",
+  "wps": 1.855670103092783
+ },
+ {
+  "sec": "Volumen semanal",
+  "a": 113.46666666666667,
+  "b": 116.16666666666667,
+  "txt": "para equilibrar la rutina de un vistazo.",
+  "pantalla": "Para equilibrar la rutina de un vistazo.",
+  "wps": 2.59259259259259
+ },
+ {
+  "sec": "Peso corporal",
+  "a": 116.16666666666667,
+  "b": 119.4,
+  "txt": "Peso corporal: promedio semanal y variación,",
+  "pantalla": "Peso corporal: promedio de cada semana y su variación.",
+  "wps": 1.855670103092783
+ },
+ {
+  "sec": "Peso corporal",
+  "a": 119.4,
+  "b": 122.3,
+  "txt": "y el registro día a día.",
+  "pantalla": "Y el registro día a día.",
+  "wps": 2.068965517241385
+ },
+ {
+  "sec": "Armar la rutina",
+  "a": 122.3,
+  "b": 125.53333333333333,
+  "txt": "En Rutina armás el entrenamiento de cada alumno.",
+  "pantalla": "En Rutina armás el entrenamiento de cada alumno.",
+  "wps": 2.4742268041237105
+ },
+ {
+  "sec": "Armar la rutina",
+  "a": 125.53333333333333,
+  "b": 129.43333333333334,
+  "txt": "Por días: con nombre, notas y el orden que quieras.",
+  "pantalla": "Organizado por días: les ponés nombre, notas y los reordenás.",
+  "wps": 2.5641025641025603
+ },
+ {
+  "sec": "Armar la rutina",
+  "a": 129.43333333333334,
+  "b": 131.26666666666668,
+  "txt": "Duplicás un día,",
+  "pantalla": "Y duplicás un día para no armarlo de cero.",
+  "wps": 1.6363636363636278
+ },
+ {
+  "sec": "Armar la rutina",
+  "a": 131.26666666666668,
+  "b": 134.03333333333333,
+  "txt": "cada uno con sus ejercicios.",
+  "pantalla": "Cada día con su lista de ejercicios.",
+  "wps": 1.8072289156626604
+ },
+ {
+  "sec": "Series, video y voz",
+  "a": 134.03333333333333,
+  "b": 136.86666666666667,
+  "txt": "Abrís un ejercicio y definís cada serie:",
+  "pantalla": "Abrís un ejercicio y definís cada serie.",
+  "wps": 2.4705882352941093
+ },
+ {
+  "sec": "Series, video y voz",
+  "a": 136.86666666666667,
+  "b": 139.16666666666666,
+  "txt": "repeticiones, peso, RIR y descanso.",
+  "pantalla": "Rango de repeticiones, peso objetivo, RIR y descanso.",
+  "wps": 2.173913043478277
+ },
+ {
+  "sec": "Series, video y voz",
+  "a": 139.16666666666666,
+  "b": 143.36666666666667,
+  "txt": "Le dejás una nota y el video de técnica.",
+  "pantalla": "Nota para el alumno y el link al video de técnica.",
+  "wps": 2.1428571428571344
+ },
+ {
+  "sec": "Series, video y voz",
+  "a": 143.36666666666667,
+  "b": 148.23333333333332,
+  "txt": "Y le grabás una explicación con tu voz.",
+  "pantalla": "Y le grabás una explicación de voz: la escucha en el ejercicio.",
+  "wps": 1.6438356164383632
+ },
+ {
+  "sec": "Tu voz en su entreno",
+  "a": 148.23333333333332,
+  "b": 152.33333333333334,
+  "txt": "Y la escucha ahí, en pleno entreno.",
+  "pantalla": "Y en cada ejercicio escucha tu explicación de voz.",
+  "wps": 1.7073170731707223
+ },
+ {
+  "sec": "Progresión y superseries",
+  "a": 152.33333333333334,
+  "b": 155.56666666666666,
+  "txt": "GIZE le sugiere el peso siguiente.",
+  "pantalla": "La sugerencia automática le propone el peso de la próxima serie.",
+  "wps": 1.8556701030927911
+ },
+ {
+  "sec": "Progresión y superseries",
+  "a": 155.56666666666666,
+  "b": 158.0,
+  "txt": "Armás superseries o cambiás ejercicios,",
+  "pantalla": "Unís ejercicios en superseries, los cambiás o insertás otros.",
+  "wps": 2.054794520547942
+ },
+ {
+  "sec": "Progresión y superseries",
+  "a": 158.0,
+  "b": 161.06666666666666,
+  "txt": "guardás, y el alumno la ve al instante.",
+  "pantalla": "Guardás y el alumno la ve al instante.",
+  "wps": 2.608695652173916
+ },
+ {
+  "sec": "Rutinas programadas",
+  "a": 161.06666666666666,
+  "b": 164.8,
+  "txt": "Podés dejar programada la próxima rutina, con fecha.",
+  "pantalla": "Rutinas programadas: dejás lista la próxima, con fecha.",
+  "wps": 2.1428571428571344
+ },
+ {
+  "sec": "Rutinas programadas",
+  "a": 164.8,
+  "b": 169.53333333333333,
+  "txt": "Ese día le cambia sola; hasta entonces, sigue con la actual.",
+  "pantalla": "Hasta ese día sigue con la actual; ese día le cambia sola.",
+  "wps": 2.3239436619718377
+ },
+ {
+  "sec": "Plan alimenticio",
+  "a": 169.53333333333333,
+  "b": 172.76666666666668,
+  "txt": "El plan alimenticio también va por secciones.",
+  "pantalla": "Plan alimenticio: también ordenado en secciones.",
+  "wps": 2.164948453608237
+ },
+ {
+  "sec": "Plan alimenticio",
+  "a": 172.76666666666668,
+  "b": 177.76666666666668,
+  "txt": "Comidas con horario y macros, para días de entreno y de descanso.",
+  "pantalla": "Días de entrenamiento: cada comida con horario, calorías y macros.",
+  "wps": 2.4
+ },
+ {
+  "sec": "Hidratación e indicaciones",
+  "a": 177.76666666666668,
+  "b": 181.1,
+  "txt": "Hidratación: agua y sal por día.",
+  "pantalla": "Hidratación: agua y sal por día.",
+  "wps": 1.8000000000000103
+ },
+ {
+  "sec": "Hidratación e indicaciones",
+  "a": 181.1,
+  "b": 185.06666666666666,
+  "txt": "Indicaciones: pautas generales y suplementos.",
+  "pantalla": "Indicaciones: pautas generales y suplementos.",
+  "wps": 1.2605042016806716
+ },
+ {
+  "sec": "Personalización del menú",
+  "a": 185.06666666666666,
+  "b": 189.33333333333334,
+  "txt": "En el menú dejás opciones para cada comida,",
+  "pantalla": "Personalización del menú: opciones para cada comida.",
+  "wps": 1.8749999999999942
+ },
+ {
+  "sec": "Personalización del menú",
+  "a": 189.33333333333334,
+  "b": 192.5,
+  "txt": "adicionales permitidos e intercambios.",
+  "pantalla": "Adicionales permitidos e intercambios de alimentos.",
+  "wps": 1.2631578947368458
+ },
+ {
+  "sec": "Cardio y hábitos",
+  "a": 192.5,
+  "b": 197.76666666666668,
+  "txt": "Le indicás el cardio y los hábitos de su checklist.",
+  "pantalla": "Cardio prescripto y hábitos diarios para su checklist.",
+  "wps": 1.8987341772151851
+ },
+ {
+  "sec": "Cardio y hábitos",
+  "a": 197.76666666666668,
+  "b": 200.46666666666667,
+  "txt": "Guardás, y le aparece en su app.",
+  "pantalla": "Guardás el plan y le aparece en su app.",
+  "wps": 2.5925925925926037
+ },
+ {
+  "sec": "Tus preguntas",
+  "a": 200.46666666666667,
+  "b": 203.7,
+  "txt": "En Preguntas armás las tuyas,",
+  "pantalla": "Preguntas: armás las tuyas para tus alumnos.",
+  "wps": 1.5463917525773259
+ },
+ {
+  "sec": "Tus preguntas",
+  "a": 203.7,
+  "b": 206.06666666666666,
+  "txt": "para el día y el check-in,",
+  "pantalla": "Para el registro de cada día y para el check-in semanal.",
+  "wps": 2.5352112676056255
+ },
+ {
+  "sec": "Tus preguntas",
+  "a": 206.06666666666666,
+  "b": 209.23333333333332,
+  "txt": "con el tipo de respuesta y las opciones.",
+  "pantalla": "Elegís el tipo de respuesta, las opciones y el orden.",
+  "wps": 2.5263157894736916
+ },
+ {
+  "sec": "Configuración",
+  "a": 209.23333333333332,
+  "b": 213.63333333333333,
+  "txt": "Y en Configuración, tu nombre y las notificaciones.",
+  "pantalla": "En Configuración cambiás tu nombre y las notificaciones.",
+  "wps": 1.818181818181816
+ },
+ {
+  "sec": "Cierre",
+  "a": 213.63333333333333,
+  "b": 222.63333333333333,
+  "txt": "Probá el panel catorce días gratis, sin tarjeta. Tus alumnos usan la app gratis. Te esperamos en GIZE.",
+  "pantalla": "",
+  "wps": 2.0
+ }
+]

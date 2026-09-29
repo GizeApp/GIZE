@@ -1,0 +1,251 @@
+1
+00:00:00,000 --> 00:00:05,950
+Esta es la guía de GIZE, el plan gratuito, función por función.
+
+2
+00:00:06,000 --> 00:00:11,950
+Para entrenar por tu cuenta, sin coach y sin pagar nada. En iPhone y en Android.
+
+3
+00:00:12,000 --> 00:00:15,183
+La primera vez que entrás, GIZE te recibe.
+
+4
+00:00:15,233 --> 00:00:17,483
+¿Tenés coach? Ponés su código.
+
+5
+00:00:17,533 --> 00:00:20,650
+Si no, arrancás vacío o con rutina armada.
+
+6
+00:00:20,700 --> 00:00:23,883
+«Empezar vacío»: tu semana en tres pasos.
+
+7
+00:00:23,933 --> 00:00:26,050
+Cuántos días entrenás,
+
+8
+00:00:26,100 --> 00:00:28,217
+tu objetivo,
+
+9
+00:00:28,267 --> 00:00:31,917
+y el nombre del primer día. Listo.
+
+10
+00:00:31,967 --> 00:00:35,150
+¿No sabés qué hacer? Hay rutinas armadas.
+
+11
+00:00:35,200 --> 00:00:37,450
+Elegís para quién son,
+
+12
+00:00:37,500 --> 00:00:40,617
+tocás una, y queda lista para entrenar.
+
+13
+00:00:40,667 --> 00:00:43,383
+Tu rutina viene organizada por días.
+
+14
+00:00:43,433 --> 00:00:46,983
+Cambiás de día con las pestañas de arriba.
+
+15
+00:00:47,033 --> 00:00:50,917
+Cada ejercicio trae series, repeticiones objetivo y RIR.
+
+16
+00:00:50,967 --> 00:00:54,150
+«Iniciar entrenamiento» arranca el reloj de la sesión.
+
+17
+00:00:54,200 --> 00:00:56,450
+Ves tu sesión anterior,
+
+18
+00:00:56,500 --> 00:00:58,750
+cargás esos pesos con un toque,
+
+19
+00:00:58,800 --> 00:01:02,517
+y anotás las repeticiones de cada serie.
+
+20
+00:01:02,567 --> 00:01:06,417
+Terminás la serie e iniciás el descanso.
+
+21
+00:01:06,467 --> 00:01:08,717
+La cuenta regresiva queda abajo,
+
+22
+00:01:08,767 --> 00:01:11,883
+y cada ejercicio tiene su propio tiempo.
+
+23
+00:01:11,933 --> 00:01:15,583
+¿Máquina ocupada? Cambiás el ejercicio por uno parecido.
+
+24
+00:01:15,633 --> 00:01:19,717
+También agregás ejercicios, buscando por músculo,
+
+25
+00:01:19,767 --> 00:01:22,883
+o unís dos en una superserie.
+
+26
+00:01:22,933 --> 00:01:26,817
+Al terminar, «Finalizar» guarda el entreno
+
+27
+00:01:26,867 --> 00:01:30,450
+y te muestra el resumen: tiempo, ejercicios y series.
+
+28
+00:01:30,500 --> 00:01:34,717
+En Progreso tenés todo tu historial, por secciones.
+
+29
+00:01:34,767 --> 00:01:39,017
+Evolución de cargas: elegís un ejercicio
+
+30
+00:01:39,067 --> 00:01:42,183
+y ves cómo sube, sesión por sesión.
+
+31
+00:01:42,233 --> 00:01:46,717
+Peso corporal: anotás tu peso del día
+
+32
+00:01:46,767 --> 00:01:49,883
+y ves el gráfico con el promedio semanal.
+
+33
+00:01:49,933 --> 00:01:54,150
+Registro de hoy: cómo dormiste, entrenaste y te sentís.
+
+34
+00:01:54,200 --> 00:01:56,883
+Menos de un minuto por día.
+
+35
+00:01:56,933 --> 00:02:00,483
+El check-in semanal es un repaso corto:
+
+36
+00:02:00,533 --> 00:02:03,650
+entreno, descanso y comida.
+
+37
+00:02:03,700 --> 00:02:06,983
+En el historial está cada sesión guardada,
+
+38
+00:02:07,033 --> 00:02:10,150
+y si erraste una serie, la corregís.
+
+39
+00:02:10,200 --> 00:02:13,383
+Volumen semanal: tus series por músculo,
+
+40
+00:02:13,433 --> 00:02:16,083
+para que ninguno quede atrás.
+
+41
+00:02:16,133 --> 00:02:19,883
+Pasamos a Comida. Primero, tu meta.
+
+42
+00:02:19,933 --> 00:02:25,217
+Cargás tus datos, tu actividad y tu objetivo,
+
+43
+00:02:25,267 --> 00:02:28,250
+y GIZE calcula calorías y macros.
+
+44
+00:02:28,300 --> 00:02:31,483
+Cada día ves calorías, proteína, carbos y grasas.
+
+45
+00:02:31,533 --> 00:02:35,350
+Buscás entre alimentos y productos argentinos,
+
+46
+00:02:35,400 --> 00:02:37,650
+crudo o cocido, y la porción,
+
+47
+00:02:37,700 --> 00:02:41,517
+y se suma solo al contador.
+
+48
+00:02:41,567 --> 00:02:44,750
+También escaneás el código de barras
+
+49
+00:02:44,800 --> 00:02:49,483
+o creás tu propio alimento con su tabla nutricional.
+
+50
+00:02:49,533 --> 00:02:53,250
+Con las flechas mirás otros días
+
+51
+00:02:53,300 --> 00:02:56,683
+y volvés a hoy.
+
+52
+00:02:56,733 --> 00:03:04,250
+El agua también se cuenta: sumás lo que tomás en el día.
+
+53
+00:03:04,300 --> 00:03:13,817
+Hábitos es tu checklist de todos los días: las pequeñas cosas que suman.
+
+54
+00:03:13,867 --> 00:03:16,217
+Tildás lo que cumplís,
+
+55
+00:03:16,267 --> 00:03:18,917
+y al otro día arranca de nuevo.
+
+56
+00:03:18,967 --> 00:03:22,783
+Cardio: un cronómetro para tus sesiones.
+
+57
+00:03:22,833 --> 00:03:25,617
+Marcás vueltas o intervalos,
+
+58
+00:03:25,667 --> 00:03:29,817
+o usás el temporizador con cuenta regresiva.
+
+59
+00:03:29,867 --> 00:03:33,050
+Tu racha cuenta los días seguidos que entrás.
+
+60
+00:03:33,100 --> 00:03:35,750
+Si cortás, vuelve a cero.
+
+61
+00:03:35,800 --> 00:03:40,017
+En Ajustes: perfil, notificaciones y modo liviano.
+
+62
+00:03:40,067 --> 00:03:43,383
+Y si sumás un coach, ponés su código.
+
+63
+00:03:43,433 --> 00:03:52,383
+GIZE es gratis, en iPhone y en Android. ¿Entrenás con un coach? Pedile su código y vinculate.
