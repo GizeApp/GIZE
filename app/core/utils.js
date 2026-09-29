@@ -32,6 +32,10 @@ export const num = v => parseFloat(String(v == null ? "" : v).replace(",", "."))
 // Número entero escrito por el usuario, con o sin separador de miles ("8.500", "10 000").
 export const intNum = v => parseInt(String(v == null ? "" : v).replace(/[.\s]/g, ""), 10);
 
+// Agua y sal del plan del coach: si escribió solo el número («3», «2,5») se le suma la unidad
+// («3 L de agua»); si escribió texto («3 litros por día») queda como está.
+export const withUnit = (v, u) => { const s = String(v == null ? "" : v).trim(); return /^\d+([.,]\d+)?$/.test(s) ? s + " " + u : s; };
+
 export function today(){ return ymd(new Date()); }
 
 export function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }

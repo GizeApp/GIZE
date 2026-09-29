@@ -258,10 +258,10 @@ export function renderEntreno(){
     // así kg y reps quedan del mismo ancho en todas las filas.
     const anyGoal = ex.sets.some(s => s.target);
     const sets = timed ? ex.sets.map(setRow).join("") : ex.sets.map((s,i) => `
-      <div class="set">
+      <div class="set${anyGoal?' has-goal':''}">
         <span class="idx${prSets.has(s.id)?' has-pr':''}">${prSets.has(s.id)?`<span class="pr-mark">${trophySvg}</span>`:''}${i+1}</span>
         ${kgInput(ex, s)}
-        <div class="field"><input class="reps" type="text" inputmode="numeric" placeholder="0" value="${esc(s.reps)}" data-action="reps" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}"><span class="unit">reps</span></div>
+        <div class="field f-reps"><input class="reps" type="text" inputmode="numeric" placeholder="0" value="${esc(s.reps)}" data-action="reps" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}" aria-label="Repeticiones, serie ${i+1}"><span class="unit">reps</span></div>
         ${s.target?`<span class="goal" title="Objetivo del coach: ${esc(s.target)}">${esc(s.target)}</span>`:(anyGoal?'<span class="goal goal-empty" aria-hidden="true"></span>':'')}
         <button class="done${s.done?' on':''}" data-action="toggle" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}">${s.done?checkSvg:''}</button>
         ${routineLocked()?'':`<button class="rm" data-action="removeset" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}" title="Quitar serie">${xSvg}</button>`}

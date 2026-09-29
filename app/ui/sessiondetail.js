@@ -98,7 +98,8 @@ export function renderSessionItem(se, opts){
     '<div><b>' + nSets + '</b><span>serie' + (nSets === 1 ? "" : "s") + '</span></div>' +
     (se.dur > 0 ? '<div><b>' + durShort(se.dur) + '</b><span>de entreno</span></div>' : '') + '</div>';
   const rm = opts.removeBtn || "";
-  return '<div class="sess-item sess-det-wrap">' +
+  // has-acts: Editar/Borrar van arriba a la derecha y el detalle abierto usa todo el ancho.
+  return '<div class="sess-item sess-det-wrap' + (rm ? ' has-acts' : '') + '">' +
     '<details class="sess-det"' + (opts.open ? ' open' : '') + '><summary class="sess-sum"><div class="sess-main">' +
       '<div class="sess-date">' + fmtDate(se.date) + ' · ' + esc(se.day || "") + ' <span class="sess-n">(' + nSets + (nSets === 1 ? ' serie' : ' series') + ')</span></div>' +
       '<div class="sess-exs">' + esc(names) + '</div></div>' +
