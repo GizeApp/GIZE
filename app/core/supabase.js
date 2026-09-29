@@ -213,6 +213,73 @@ async function nativeGoogleLogin(opts){
   return true;
 }
 
+// ---- «Continuar con Apple» en la app de iPhone (mismo plugin, solo iOS) ----
+// App Store pide ofrecer Apple si la app deja entrar con Google (guía 4.8). Aparece la hoja
+// del sistema con el Apple ID del iPhone y Apple devuelve un ID token que se canjea con
+// signInWithIdToken, igual que Google: a Apple va el SHA-256 del nonce y a Supabase el
+// original. No se le pasan "scopes": sin ellos el plugin pide nombre y mail en iPhone. Con los
+// del README (["email","name"]) el nombre podía no llegar: Apple lo llama "full_name".
+// Requiere "Sign in with Apple" activado en el App ID ar.com.gize.app y, en Supabase, el
+// proveedor Apple con ar.com.gize.app en "Client IDs".
+// El rol y el código del coach elegidos se guardan igual que con Google (GOOGLE_INTENT):
+// afterLogin() los aplica.
+const APPLE_ERROR_MSG = "No se pudo entrar con Apple. Probá de nuevo o ingresá con tu email y contraseña.";
+export function appleLoginAvailable(){
+  try{
+    const C = window.Capacitor;
+    return !!(C && C.isNativePlatform && C.isNativePlatform() && C.getPlatform() === "ios" && C.Plugins && C.Plugins.SocialLogin);
+  }catch(e){ return false; }
+}
+let _nativeAppleReady = null;
+export async function signInWithApple(opts){
+  opts = opts || {};
+  const vals = opts.vals || {}, mode = opts.mode === "up" ? "up" : "in";
+  if(!appleLoginAvailable() || !(window.crypto && crypto.subtle)){ showLogin(APPLE_ERROR_MSG, mode, vals); return; }
+  const SL = window.Capacitor.Plugins.SocialLogin;
+  try{ localStorage.setItem(GOOGLE_INTENT, JSON.stringify({role:opts.role==="coach"?"coach":"client", mode:mode, t:Date.now()})); }catch(e){}
+  if(opts.code) setPendingCode(opts.code);
+  const rawNonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
+  let res;
+  try{
+    if(!_nativeAppleReady) _nativeAppleReady = SL.initialize({ apple: {} }).catch(e => { _nativeAppleReady = null; throw e; });
+    await _nativeAppleReady;
+    res = await SL.login({ provider: "apple", options: { nonce: await sha256Hex(rawNonce) } });
+  }catch(e){
+    const m = String((e && (e.message || e.code)) || e);
+    clearGoogleIntent();
+    // Cerró la hoja de Apple: vuelve el login como estaba, sin error. iOS no dice "cancel" sino
+    // "...AuthorizationError error 1001" (ASAuthorizationError.canceled), en el idioma del iPhone.
+    if(/cancel|error 1001\b/i.test(m)){ showLogin("", mode, vals); return; }
+    console.error("apple", m);
+    showLogin(APPLE_ERROR_MSG + authErrDetail(m), mode, vals); return;
+  }
+  const result = (res && res.result) || {};
+  if(!result.idToken){ console.error("apple: sin idToken"); clearGoogleIntent(); showLogin(APPLE_ERROR_MSG, mode, vals); return; }
+  if(window.coreReplay) window.coreReplay();
+  let r;
+  try { r = await State.sb.auth.signInWithIdToken({ provider: "apple", token: result.idToken, nonce: rawNonce }); }
+  catch (e) { r = { error: e }; }
+  if(r.error || !r.data || !r.data.session){
+    clearGoogleIntent(); if(window.coreCancel) window.coreCancel();
+    showLogin(APPLE_ERROR_MSG + authErrDetail(r.error && r.error.message), mode, vals); return;
+  }
+  await saveAppleName(r.data.session.user, result.profile);
+  try { await afterLogin(r.data.session.user); } finally { if(window.coreEnter) window.coreEnter(); }
+}
+// Apple manda el nombre solo la primera vez que alguien entra a GIZE con su Apple ID (y no
+// viaja en el token, así que la cuenta nace sin nombre). Si llegó y el perfil no tiene
+// nombre, se guarda; un nombre que ya estaba (cuenta vieja con el mismo mail) no se toca.
+async function saveAppleName(user, profile){
+  const name = [profile && profile.givenName, profile && profile.familyName].map(s => String(s || "").trim()).filter(Boolean).join(" ").slice(0, 80);
+  if(!name || !user || !user.id) return;
+  try{
+    const pr = await State.sb.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+    if(pr.error || !pr.data || String(pr.data.full_name || "").trim()) return;
+    const up = await State.sb.from("profiles").update({ full_name: name }).eq("id", user.id);
+    if(up.error) console.error("apple nombre", up.error);
+  }catch(e){ console.error("apple nombre", e); }
+}
+
 // ---- Botón oficial de Google en la web (Google Identity Services) ----
 // En vez de ir a la página de Google y volver por Supabase (que muestra "Ir a
 // wegptuzhsrwppbknqstf.supabase.co"), en el navegador se usa el botón de Google: la ventana
@@ -609,17 +676,20 @@ export async function afterLogin(sessionUser, stale){
   _inLogin=true; // lo salteado lo completa afterLogin mismo (ver abajo), no staleCatchUp()
   await loadCloud();
   if(!State.cloudProfile) State.cloudProfile=cachedProfile(); // sin conexión: el último perfil conocido
-  // Registro con Google eligiendo "Soy coach": la cuenta nace como cliente (ver login-google.sql).
+  // Registro con Google (o Apple) eligiendo "Soy coach": la cuenta nace como cliente (ver login-google.sql).
   const gi=takeGoogleIntent();
-  // Entró con Google desde "Ingresar" (no desde "Crear cuenta") y la cuenta se creó recién:
+  // Entró con Google o Apple desde "Ingresar" (no desde "Crear cuenta") y la cuenta se creó recién:
   // puede que ya tuviera otra cuenta con otro mail (a un tester le pasó y creyó que había
   // perdido todo). Se le avisa con qué mail quedó y qué hacer si no era la que quería.
   try{
     const u=State.cloudUser||{};
     const fresh = u.created_at && Date.now()-Date.parse(u.created_at) < 10*60*1000;
-    const viaGoogle = (u.app_metadata && u.app_metadata.provider==="google") || (u.identities||[]).some(i=>i.provider==="google");
-    if(gi && gi.mode!=="up" && Date.now()-gi.t < 15*60*1000 && fresh && viaGoogle){
-      const mail=u.email||"tu cuenta de Google";
+    const via = p => (u.app_metadata && u.app_metadata.provider===p) || (u.identities||[]).some(i=>i.provider===p);
+    const prov = via("google") ? "Google" : (via("apple") ? "Apple" : "");
+    if(gi && gi.mode!=="up" && Date.now()-gi.t < 15*60*1000 && fresh && prov){
+      // Con Apple se puede ocultar el mail: llega una dirección de reenvío que no dice nada.
+      // (Los mails a esa dirección llegan solo si gize.ar está registrado en Apple: ver App.entitlements.)
+      const mail=(u.email && !/@privaterelay\.appleid\.com$/i.test(u.email)) ? u.email : "tu cuenta de "+prov;
       setTimeout(()=>alert("Creamos una cuenta nueva de GIZE con "+mail+".\n\nSi es tu primera vez, ¡bienvenido! Si ya tenías una cuenta con OTRO mail, andá a Ajustes → Salir y entrá con ese mail y tu contraseña: ahí están tus datos."), 900);
     }
   }catch(e){}

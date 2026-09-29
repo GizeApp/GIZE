@@ -10,7 +10,7 @@ import { State, state } from './core/state.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
-import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, refreshOwnRoutine, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
+import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, refreshOwnRoutine, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithApple, signInWithGoogle } from './core/supabase.js';
 
 import { assistedKg, isAssisted, fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, intNum, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
@@ -876,6 +876,20 @@ document.body.addEventListener("click", async e=>{
     if(!State.sb){ showLogin("No se pudo conectar con el servidor. Revisá tu conexión a internet y volvé a intentar.", mode, V); return; }
     try{ await signInWithGoogle({role:mode==="up"?role:"client", code:mode==="up"&&role==="client"?code:"", mode:mode, vals:V}); } // web: la página se va a Google
     catch(err){ showLogin("No se pudo entrar con Google: "+((err&&err.message)||err), mode, V); }
+    return;
+  }
+  // «Continuar con Apple» (solo en la app de iPhone). El texto del botón no cambia: Apple pide
+  // usar solo sus textos aprobados. Mientras está la hoja de Apple queda deshabilitado.
+  if(a==="apple"){
+    const mode = document.getElementById("auRole") ? "up" : "in";
+    const role=((document.getElementById("auRole")||{}).value||"client").trim();
+    const code=((document.getElementById("auCode")||{}).value||"").trim();
+    const V={name:((document.getElementById("auName")||{}).value||"").trim(), email:((document.getElementById("auEmail")||{}).value||"").trim(), code:code, role:role};
+    b.disabled=true;
+    if(!State.sb) await ensureSb();
+    if(!State.sb){ showLogin("No se pudo conectar con el servidor. Revisá tu conexión a internet y volvé a intentar.", mode, V); return; }
+    try{ await signInWithApple({role:mode==="up"?role:"client", code:mode==="up"&&role==="client"?code:"", mode:mode, vals:V}); }
+    catch(err){ if(window.coreCancel) window.coreCancel(); showLogin("No se pudo entrar con Apple: "+((err&&err.message)||err), mode, V); }
     return;
   }
   if(a==="do-login"||a==="do-signup"){

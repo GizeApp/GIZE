@@ -457,6 +457,15 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 /* El botón propio queda en la página como respaldo cuando está el de Google: [hidden] solo no alcanza porque .auth-google tiene display:flex. */
 .auth-google[hidden] { display:none; }
 .auth-google-ic { width:20px; height:20px; flex:none; }
+/* "Continuar con Apple" (solo en la app de iPhone): estilo blanco de las pautas de Apple para
+   fondos oscuros (fondo blanco, logo y texto negros, letra del sistema). Mismo alto y ancho
+   que el de Google, que va debajo. */
+.auth-apple { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:48px; padding:0 16px; background:#fff; border:1px solid #fff; border-radius:999px; color:#000; font:500 19px -apple-system, BlinkMacSystemFont, system-ui, sans-serif; letter-spacing:-.01em; white-space:nowrap; cursor:pointer; opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
+.auth-apple:focus-visible { outline:2px solid var(--gize-blue); outline-offset:4px; }
+.auth-apple:disabled { opacity:.7; cursor:progress; }
+.auth-apple-ic { width:17px; height:21px; flex:none; margin-top:-3px; }
+/* iPhone de 320 px (SE): el texto entra en una línea. */
+@media (max-width:359px) { .auth-apple { font-size:16px; padding:0 12px; } .auth-apple-ic { width:15px; height:18px; } }
 /* Botón oficial de Google (web): lo dibuja Google en un iframe; acá solo se centra y entra con la misma animación. */
 .auth-google-gis { display:flex; justify-content:center; min-height:44px; opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
 
@@ -475,7 +484,7 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 .auth-install:hover { color:var(--gize-text); border-color:rgba(255,255,255,.34); }
 
 @media (prefers-reduced-motion: reduce) {
-    .auth-card, .auth-brand-ic, .auth-logo, .auth-sub, .auth-field, .auth-btn, .auth-remember, .auth-or, .auth-google, .auth-google-gis, .auth-switch, .auth-forgot, .auth-msg { animation:none !important; opacity:1 !important; transform:none !important; }
+    .auth-card, .auth-brand-ic, .auth-logo, .auth-sub, .auth-field, .auth-btn, .auth-remember, .auth-or, .auth-apple, .auth-google, .auth-google-gis, .auth-switch, .auth-forgot, .auth-msg { animation:none !important; opacity:1 !important; transform:none !important; }
   }
 
 .logout-btn { display:block; width:100%; margin:24px auto 0; background:none; border:1px solid var(--border); color:var(--txt-2); font-size: var(--text-meta); padding:11px; border-radius:4px; cursor:pointer; }
