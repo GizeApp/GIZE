@@ -1,0 +1,52 @@
+/* css/ui/entreno-sobrio.css
+   Entreno del alumno con menos colores (pedido: con verde, azul y violeta a la vez se veía
+   infantil). Todo queda en blanco y grises; el único color es el neón de la marca (la gama
+   RGB) en lo que identifica a GIZE: «Iniciar entrenamiento», el borde de los ejercicios y las
+   superseries. El dorado de los récords se queda: aparece poco y es un festejo.
+   Se carga al final para ganarle a las capas de antes (botones-rediseno, theme, gize-surfaces). */
+
+/* Pestañas de los días: la elegida en blanco en vez de azul. */
+body:not(#_) .tabs .tab.active { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.55); color: var(--gize-text); }
+body:not(#_) .tabs .tab-add { color: var(--gize-text-2); }
+
+/* Número del ejercicio. */
+.ex-num:not(.ss) { background: rgba(255,255,255,.1); color: var(--gize-text); }
+
+/* Video y audio del coach: borde de neón con la gama (quieto, como las cajas; lo único que
+   gira es «Iniciar entrenamiento») y letras e ícono blancos (pedido). */
+.ex-video, .ex-audio { border: 1.5px solid transparent; color: var(--gize-text);
+  background: linear-gradient(var(--gize-surface-2), var(--gize-surface-2)) padding-box, var(--gize-rgb-ring) border-box;
+  box-shadow: 0 0 14px -6px color-mix(in srgb, var(--gize-r2) 70%, transparent); }
+.ex-video svg, .ex-audio svg { color: var(--gize-text); }
+.ex-video-by { color: var(--gize-text-2); }
+.ex-video:active, .ex-audio.on { color: var(--gize-text);
+  background: linear-gradient(color-mix(in srgb, var(--gize-r2) 14%, var(--gize-surface-2)), color-mix(in srgb, var(--gize-r2) 14%, var(--gize-surface-2))) padding-box, var(--gize-rgb-ring) border-box; }
+
+/* Recomendación y propuesta del coach: una caja gris (antes verde y azul). */
+.prog-sug, .prog-sug.coach { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.14); }
+.prog-sug .ps-ic, .prog-sug.coach .ps-ic { color: var(--gize-text); background: rgba(255,255,255,.08); }
+.ps-use, .prog-sug.coach .ps-use { color: var(--gize-text); border-color: rgba(255,255,255,.4); }
+.ps-use:active { background: rgba(255,255,255,.1); }
+
+/* Serie hecha: blanca con el tilde negro (antes verde). */
+body:not(#_) .set .done.on { background: var(--gize-text); border-color: var(--gize-text); color: var(--gize-bg); }
+/* Ejercicio terminado (fila chica). */
+.ex-collapsed-badge, .ex-collapsed-best.is-done { color: var(--gize-text-2); }
+/* Agregar serie. */
+body:not(#_) .card .add-set { color: var(--gize-text-2); }
+body:not(#_) .card .add-set:hover { border-color: rgba(255,255,255,.45); color: var(--gize-text); background: rgba(255,255,255,.05); }
+
+/* Entrenando: punto, Finalizar y Cancelar sin verde ni rojo. */
+.wk-dot { background: var(--gize-text); box-shadow: 0 0 8px rgba(255,255,255,.7); }
+.wk-finish { border-color: rgba(255,255,255,.45); background: rgba(255,255,255,.06); }
+.wk-finish svg { color: var(--gize-text); }
+.wk-cancel { border-color: rgba(255,255,255,.18); background: transparent; color: var(--gize-text-2); }
+.wk-cancel:active { background: rgba(255,255,255,.08); }
+
+/* Carteles de la rutina del coach. */
+.blk-wkgoal { color: var(--gize-text); }
+.ep-ord { background: rgba(255,255,255,.1); }
+.dn-head { color: var(--gize-text-2); }
+
+/* Objetivo del coach en cada serie (6-8, 10…): gris claro en vez de azul. */
+.set .goal { color: var(--gize-text-2); }

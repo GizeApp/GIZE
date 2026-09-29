@@ -1,24 +1,30 @@
 /* Chat coach ↔ alumno (app/ui/chat.js): pantalla completa encima de la app y del panel. */
-/* Botón de la barra de arriba: neón azul, compañero de la llama violeta de la racha. Con
-   mensajes sin leer brilla más y late despacio. */
-.chat-btn { position: relative; flex: none; width: 36px; height: 36px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
-  background: color-mix(in srgb, var(--gize-blue) 14%, var(--gize-surface)); border: 1.5px solid color-mix(in srgb, var(--gize-blue) 85%, #fff);
-  color: #E6F4FF; cursor: pointer; -webkit-tap-highlight-color: transparent;
-  box-shadow: 0 0 6px color-mix(in srgb, var(--gize-blue) 80%, transparent), 0 0 18px color-mix(in srgb, var(--gize-blue) 55%, transparent),
-    0 0 34px color-mix(in srgb, var(--gize-blue) 22%, transparent), inset 0 0 10px color-mix(in srgb, var(--gize-blue) 30%, transparent);
-  transition: box-shadow .4s, border-color .4s, background .4s; }
+/* Botón de la barra de arriba: borde con la gama neón de GIZE (azul, violeta, rosa y turquesa)
+   girando, como «Iniciar entrenamiento», y un resplandor de esos colores. Compañero de la llama
+   de la racha. Con mensajes sin leer brilla más y late despacio. */
+.chat-btn { position: relative; isolation: isolate; flex: none; width: 36px; height: 36px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--gize-r2) 12%, var(--gize-surface)); border: 0;
+  color: #fff; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  box-shadow: -4px 0 14px -4px var(--gize-r1), 4px 0 14px -4px var(--gize-r3), 0 0 22px -6px var(--gize-r2),
+    inset 0 0 10px color-mix(in srgb, var(--gize-r2) 30%, transparent);
+  transition: box-shadow .4s, background .4s; }
+.chat-btn::before { content: ""; position: absolute; inset: 0; padding: 1.5px; border-radius: inherit; pointer-events: none;
+  background: conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: gize-spin 6s linear infinite; }
 .chat-btn[hidden] { display: none; }
 .chat-btn svg { width: 18px; height: 18px;
-  filter: drop-shadow(0 0 2px #BFE3FF) drop-shadow(0 0 5px #7CC6FF) drop-shadow(0 0 10px color-mix(in srgb, var(--gize-blue) 90%, transparent)); }
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--gize-r2) 90%, transparent)) drop-shadow(0 0 6px color-mix(in srgb, var(--gize-r1) 60%, transparent)); }
 .chat-btn:active { transform: scale(.96); }
-.chat-btn.unread { border-color: var(--gize-blue); background: color-mix(in srgb, var(--gize-blue) 18%, var(--gize-surface));
-  animation: chatGlow 1.8s ease-in-out infinite; }
+.chat-btn.unread { background: color-mix(in srgb, var(--gize-r2) 20%, var(--gize-surface)); animation: chatGlow 1.8s ease-in-out infinite; }
 @keyframes chatGlow {
-  0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--gize-blue) 80%, transparent), 0 0 18px color-mix(in srgb, var(--gize-blue) 55%, transparent),
-    0 0 34px color-mix(in srgb, var(--gize-blue) 22%, transparent), inset 0 0 10px color-mix(in srgb, var(--gize-blue) 30%, transparent); }
-  50% { box-shadow: 0 0 10px var(--gize-blue), 0 0 28px color-mix(in srgb, var(--gize-blue) 80%, transparent),
-    0 0 52px color-mix(in srgb, var(--gize-blue) 40%, transparent), inset 0 0 14px color-mix(in srgb, var(--gize-blue) 40%, transparent); } }
-@media (prefers-reduced-motion: reduce) { .chat-btn.unread { animation: none; box-shadow: 0 0 10px var(--gize-blue), 0 0 28px color-mix(in srgb, var(--gize-blue) 70%, transparent); } }
+  0%, 100% { box-shadow: -4px 0 14px -4px var(--gize-r1), 4px 0 14px -4px var(--gize-r3), 0 0 22px -6px var(--gize-r2),
+    inset 0 0 10px color-mix(in srgb, var(--gize-r2) 30%, transparent); }
+  50% { box-shadow: -6px 0 22px -2px var(--gize-r1), 6px 0 22px -2px var(--gize-r3), 0 0 34px -4px var(--gize-r2),
+    inset 0 0 14px color-mix(in srgb, var(--gize-r2) 45%, transparent); } }
+html.lite .chat-btn::before { animation: none; }
+@media (prefers-reduced-motion: reduce) { .chat-btn::before, .chat-btn.unread { animation: none; } }
 .chat-btn .chat-badge { position: absolute; top: -4px; right: -4px; box-shadow: 0 0 8px color-mix(in srgb, var(--gize-danger) 70%, transparent); }
 .chat-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
   background: var(--gize-danger); color: #fff; font: 700 11px var(--gize-font); line-height: 1; vertical-align: 2px; margin-left: 6px; }
@@ -47,32 +53,34 @@ body.chat-open, html.chat-open { overflow: hidden; overscroll-behavior: none; }
 
 .ch-msg { max-width: 80%; padding: 8px 11px 5px; border-radius: 16px; font-size: var(--text-body); line-height: 1.4; word-wrap: break-word; overflow-wrap: anywhere; }
 .ch-msg.them { align-self: flex-start; background: var(--gize-surface); border: 1px solid var(--gize-border); color: var(--gize-text); border-bottom-left-radius: 5px; }
-.ch-msg.me { align-self: flex-end; background: color-mix(in srgb, var(--gize-blue) 22%, var(--gize-surface)); border: 1px solid color-mix(in srgb, var(--gize-blue) 45%, transparent);
+.ch-msg.me { align-self: flex-end; border: 1px solid transparent;
+  background: linear-gradient(color-mix(in srgb, var(--gize-r2) 16%, var(--gize-surface)), color-mix(in srgb, var(--gize-r2) 16%, var(--gize-surface))) padding-box,
+    linear-gradient(120deg, var(--gize-r1), var(--gize-r2) 45%, var(--gize-r3)) border-box;
   color: var(--gize-text); border-bottom-right-radius: 5px; }
 .ch-msg.failed { border-color: var(--gize-danger); }
 .ch-txt { white-space: pre-wrap; }
 .ch-meta { margin-top: 2px; font-size: 10.5px; color: var(--gize-text-2); text-align: right; font-variant-numeric: tabular-nums; }
-.ch-seen { color: var(--gize-blue); font-weight: 600; }
+.ch-seen { color: color-mix(in srgb, var(--gize-r2) 55%, #fff); font-weight: 600; }
 .ch-fail { color: var(--gize-danger); }
 
 .ch-audio { display: flex; align-items: center; gap: 8px; min-width: 190px; padding: 2px 0; }
-.ch-play { flex: none; width: 34px; height: 34px; border-radius: 999px; border: 0; background: var(--gize-blue); color: #fff; display: inline-flex;
+.ch-play { flex: none; width: 34px; height: 34px; border-radius: 999px; border: 0; background: linear-gradient(120deg, var(--gize-r1), var(--gize-r2) 45%, var(--gize-r3)); color: #fff; display: inline-flex;
   align-items: center; justify-content: center; cursor: pointer; }
 .ch-play svg { width: 15px; height: 15px; }
 .ch-play:disabled { opacity: .5; }
 .ch-prog { flex: 1; height: 4px; border-radius: 999px; background: color-mix(in srgb, var(--gize-text) 18%, transparent); overflow: hidden; }
-.ch-prog i { display: block; height: 100%; width: 0; background: var(--gize-blue); border-radius: inherit; }
+.ch-prog i { display: block; height: 100%; width: 0; background: linear-gradient(120deg, var(--gize-r1), var(--gize-r2) 45%, var(--gize-r3)); border-radius: inherit; }
 .ch-dur { flex: none; font-size: 12px; color: var(--gize-text-2); font-variant-numeric: tabular-nums; min-width: 32px; text-align: right; }
 
 .ch-bar { flex: none; display: flex; align-items: flex-end; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--gize-border); background: var(--gize-surface);
   max-width: 760px; width: 100%; margin: 0 auto; box-sizing: border-box; }
 .ch-input { flex: 1; min-height: 42px; max-height: 120px; resize: none; padding: 10px 14px; border-radius: 21px; border: 1px solid var(--gize-border);
   background: var(--gize-surface-2); color: var(--gize-text); font: 16px/1.35 var(--gize-font); box-sizing: border-box; }
-.ch-input:focus { outline: none; border-color: var(--gize-blue); box-shadow: var(--focus-ring); }
+.ch-input:focus { outline: none; border-color: var(--gize-r2); box-shadow: var(--focus-ring); }
 .ch-ic { flex: none; width: 42px; height: 42px; border-radius: 999px; border: 1px solid var(--gize-border); background: var(--gize-surface-2); color: var(--gize-text);
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .ch-ic svg { width: 20px; height: 20px; }
-.ch-ic.on { background: var(--gize-blue); border-color: var(--gize-blue); color: #fff; }
+.ch-ic.on { background: linear-gradient(120deg, var(--gize-r1), var(--gize-r2) 45%, var(--gize-r3)); border-color: transparent; color: #fff; }
 .ch-ic:active { transform: scale(.95); }
 
 .ch-rec { flex: 1; display: flex; align-items: center; gap: 10px; min-height: 42px; }

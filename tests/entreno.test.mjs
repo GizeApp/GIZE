@@ -1,5 +1,5 @@
 // Entreno: guardar la sesión (sin series vacías) y récords con coma o punto ("82,5" = "82.5").
-import { newPage, saved, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, saved, wait, ALUMNO, profile, openAllEx } from './lib.mjs';
 
 export default async function ({ base, t }){
   const days = [{ id: 'd1', name: 'Torso', exercises: [
@@ -10,7 +10,7 @@ export default async function ({ base, t }){
     { name: 'Remo con barra', sets: [{ kg: 80, reps: 8 }] }] }];
   const { p, errs, close } = await newPage({ user: ALUMNO, state: { days, sessions, weights: [], daily: {} },
     handlers: { '/profiles': profile('client'), '/sessions': (r, J, i) => i.m === 'GET' ? J({ message: 'sin red' }, 500) : undefined } });
-  await p.goto(base + '/app/'); await wait(2500);
+  await p.goto(base + '/app/'); await wait(2500); await openAllEx(p);
 
   // Récord con coma: 82,5 kg × 5 le gana a 80 × 8 de la vez pasada.
   await p.fill('input.kg[data-set="s5"]', '82,5'); await p.fill('input.reps[data-set="s5"]', '8');

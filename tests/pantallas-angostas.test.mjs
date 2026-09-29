@@ -5,7 +5,7 @@
 //   · Coach: un mail largo no se sale de la fila, la grilla del plan no pasa el borde y el
 //     tipo de respuesta de las preguntas se lee entero.
 //   · Mi plan → Pautas: el agua y la sal llevan la unidad («3 L de agua por día»).
-import { newPage, wait, ALUMNO } from './lib.mjs';
+import { newPage, wait, ALUMNO, openAllEx } from './lib.mjs';
 
 const SIZES = [{ width: 320, height: 640 }, { width: 360, height: 800 }];
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
@@ -49,7 +49,7 @@ export default async function ({ base, t }){
     {
       const { p, errs, close } = await newPage({ user: ALUMNO, viewport: vp, touch: true, handlers: alumnoHandlers,
         state: { days, sessions: [], weights: [], daily: {}, calTarget: 2000 } });
-      await p.goto(base + '/app/'); await wait(2500);
+      await p.goto(base + '/app/'); await wait(2500); await openAllEx(p);
       await p.evaluate(() => document.fonts.ready);
 
       // Entreno: «reps» (si se ve) termina antes de la meta; el número tampoco se mete debajo.

@@ -2,7 +2,7 @@
 // entreno guardado tiene el nombre viejo de un ejercicio que la app renombró ("Curl Bayesian",
 // de la lista de ejercicios, pasa a "Curl en polea detrás del cuerpo" al abrir), otra mayúscula
 // o un espacio de más, y cuando el peso quedó guardado como texto con coma ("62,5").
-import { newPage, saved, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, saved, wait, ALUMNO, profile, openAllEx } from './lib.mjs';
 
 export default async function ({ base, t }){
   const E = (id, name, kgs) => ({ id, name, sets: kgs.map((k, i) => ({ id: id + 's' + i, kg: k, reps: '' })) });
@@ -24,7 +24,7 @@ export default async function ({ base, t }){
       { name: 'Dominadas', sets: [{ kg: 0, reps: 9 }] }] }];
   const { p, errs, close } = await newPage({ user: ALUMNO, state: { days, sessions, weights: [], daily: {} },
     handlers: { '/profiles': profile('client'), '/sessions': (r, J, i) => i.m === 'GET' ? J({ message: 'sin red' }, 500) : undefined } });
-  await p.goto(base + '/app/'); await wait(2500);
+  await p.goto(base + '/app/'); await wait(2500); await openAllEx(p);
 
   const card = id => p.evaluate(id => {
     const c = document.querySelector('[data-ex-id="' + id + '"]'); if (!c) return null;
@@ -80,7 +80,7 @@ export default async function ({ base, t }){
       { name: 'Jalon al pecho', sets: [{ kg: 30, reps: 15 }, { kg: 30, reps: 14 }] }] }];
     const { p, errs, close } = await newPage({ user: ALUMNO, state: { days: days2, sessions: sessions2, weights: [], daily: {} },
       handlers: { '/profiles': profile('client'), '/sessions': (r, J, i) => i.m === 'GET' ? J({ message: 'sin red' }, 500) : undefined } });
-    await p.goto(base + '/app/'); await wait(2500);
+    await p.goto(base + '/app/'); await wait(2500); await openAllEx(p);
     const ls = id => p.evaluate(id => { const c = document.querySelector('[data-ex-id="' + id + '"] .ls-sets'); return c ? c.innerText.replace(/\s+/g, ' ').trim() : ''; }, id);
     t.has(await ls('j1'), '50', 'repetido escrito distinto: el primero muestra lo suyo (50)');
     const l3 = await ls('j3');

@@ -40,7 +40,7 @@ import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
 
-import { EntrenoState, REST_DEFAULT, day, expandedOverride, liveCounting, renderEntreno, renderExList, renderExSheet, effectiveRest, restKey, wkElapsedText, wkFresh, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
+import { EntrenoState, REST_DEFAULT, day, expandedOverride, exGroupIds, liveCounting, renderEntreno, renderExList, renderExSheet, effectiveRest, restKey, wkElapsedText, wkFresh, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
 import { HabitosState, addHabit, checkDaily, forgetHabitAlarm, habitAlarmDay, openHabitAlarm, paintHabitAlarmSheet, renderHabitAlarmSheet, renderHabitos, saveHabitAlarm } from './screens/habitos.js';
 import { alarmsSupported, askAlarmPermission, initHabitAlarms, syncHabitAlarms } from './ui/habitnotif.js';
@@ -207,6 +207,8 @@ function afterSetDone(d, ex, s){
   const nx=ssNext(d.exercises, idx, ex.sets.indexOf(s));
   if(nx.target) setTimeout(()=>goToSet(nx.target), 420);
 }
+// Un ejercicio recién agregado aparece abierto, para cargarle las series.
+function openEx(e){ expandedOverride.add(e.id); return e; }
 // Lleva la pantalla a la serie que sigue y la marca un momento.
 function goToSet(t){
   const inp=document.querySelector('[data-ex="'+CSS.escape(t.ex)+'"][data-set="'+CSS.escape(t.set)+'"]');
@@ -289,6 +291,8 @@ document.body.addEventListener("toggle", e => {
 
 document.body.addEventListener("keydown", async e => {
   if (e.key === "Enter" && e.target.dataset && e.target.dataset.action === "habit-name-input") { e.preventDefault(); addHabit(); }
+  // Ejercicio cerrado (fila con role="button"): Enter o espacio lo abren, como un botón.
+  if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("ex-collapsed")) { e.preventDefault(); e.target.click(); }
   if (e.key === "Enter" && e.target.classList && e.target.classList.contains("auth-in")) {
     e.preventDefault();
     const btn = document.querySelector('#authHost .auth-btn[data-auth^="do-"]');
@@ -581,8 +585,8 @@ document.body.addEventListener("click", async e => {
     return;
   }
   if (a === "ex-cancel") { closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
-  if (a === "ex-choose") { const name=el.dataset.name; const d=day(); const mm=pickMuscle(name, el.dataset.cat||EntrenoState.exCat); if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==name) dropExMedia(ex); ex.name=name; ex.mus=mm; } } else if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,mkEx(name,2,mm)); } else { d.exercises.push(mkEx(name,2,mm)); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
-  if (a === "ex-custom") { const nm=prompt(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:",""); if(nm && nm.trim()){ const d=day(); const mm=EntrenoState.exCat; if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==nm.trim()) dropExMedia(ex); ex.name=nm.trim(); ex.mus=mm; } } else if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,mkEx(nm.trim(),2,mm)); } else { d.exercises.push(mkEx(nm.trim(),2,mm)); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); } return; }
+  if (a === "ex-choose") { const name=el.dataset.name; const d=day(); const mm=pickMuscle(name, el.dataset.cat||EntrenoState.exCat); if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==name) dropExMedia(ex); ex.name=name; ex.mus=mm; } } else if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(name,2,mm))); } else { d.exercises.push(openEx(mkEx(name,2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
+  if (a === "ex-custom") { const nm=prompt(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:",""); if(nm && nm.trim()){ const d=day(); const mm=EntrenoState.exCat; if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==nm.trim()) dropExMedia(ex); ex.name=nm.trim(); ex.mus=mm; } } else if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(nm.trim(),2,mm))); } else { d.exercises.push(openEx(mkEx(nm.trim(),2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); } return; }
 
   // Peso corporal
   if (a === "daily-save") {
@@ -700,18 +704,18 @@ document.body.addEventListener("click", async e => {
     // Se acaba de completar recién ahora (no estaba reabierto a mano) -> animar el
     // colapso. Si ya estaba todo tildado y esto es una corrección (reabierto), o si
     // se destildó, el render es inmediato como siempre.
-    if(!wasDone && nowDone && !expandedOverride.has(ex.id)){
+    if(!wasDone && nowDone){
       // Con récord, primero se festeja en la fila y después se colapsa el ejercicio.
       // Mientras dura el festejo queda abierto (si no, renderApp ya lo dibuja colapsado).
       if(prDiff!==null){
-        expandedOverride.add(ex.id); renderApp(); playPR(s.id, prDiff);
+        renderApp(); playPR(s.id, prDiff);
         setTimeout(()=>{
-          // Si mientras tanto lo reabrió o destildó algo, no se toca.
-          if(!allSetsDone(ex)){ expandedOverride.delete(ex.id); return; }
+          // Si mientras tanto destildó algo o ya lo cerró, no se toca.
+          if(!allSetsDone(ex) || !expandedOverride.has(ex.id)) return;
           collapseExerciseAnimated(ex.id, ()=>{ expandedOverride.delete(ex.id); renderApp(); }, true);
         }, PR_HOLD_MS);
       }
-      else collapseExerciseAnimated(ex.id, renderApp, true);
+      else collapseExerciseAnimated(ex.id, ()=>{ expandedOverride.delete(ex.id); renderApp(); }, true);
     }
     else { renderApp(); if(prDiff!==null) playPR(s.id, prDiff); }
     return;
@@ -751,8 +755,9 @@ document.body.addEventListener("click", async e => {
     ex.sets.forEach((s,i)=>{ const k=plan[i]&&plan[i].kg; if(!s.done && k){ s.kg=String(k); autoKg.delete(s.id); forgetPR(s.id); } });
     save(); renderApp(); return;
   }
-  if (a === "ex-expand") { expandedOverride.add(ex.id); renderApp(); return; }
-  if (a === "ex-collapse") { collapseExerciseAnimated(ex.id, ()=>{ expandedOverride.delete(ex.id); renderApp(); }); return; }
+  // Abrir y cerrar un ejercicio con la flechita (una superserie, entera).
+  if (a === "ex-expand") { if(!ex) return; exGroupIds(d.exercises, ex.id).forEach(id=>expandedOverride.add(id)); renderApp(); return; }
+  if (a === "ex-collapse") { if(!ex) return; const ids=exGroupIds(d.exercises, ex.id); collapseExerciseAnimated(ex.id, ()=>{ ids.forEach(id=>expandedOverride.delete(id)); renderApp(); }); return; }
   // Descanso por ejercicio. Sin coach se guarda en el ejercicio (viaja con la rutina);
   // con coach, como preferencia propia (state.restPrefs) sin tocar la rutina del coach.
   if (a === "rest-edit") {
