@@ -290,6 +290,7 @@ document.body.addEventListener("click", async function (e) {
       // tiene permiso para borrar de auth.users directo.
       const r = await State.sb.rpc("delete_own_account");
       if (r.error) throw r.error;
+      State.signingOut = true; // la sesión se cierra a propósito: no pedir ingresar de nuevo (core/supabase.js → watchAuth)
       // Como al cerrar sesión: se da de baja este dispositivo para que la próxima cuenta que
       // entre acá no quede con las notificaciones prendidas sin haberlas activado. Va después
       // de borrar la cuenta: si eso falla, el celular no pierde sus notificaciones.
