@@ -9,7 +9,7 @@ import { clearAccountLeftovers, loadCloud, deleteMyStorageFiles, PROFILE_KEY } f
 import { esc } from '../core/utils.js';
 import { avatarHtml, avatarUrl } from '../core/avatar.js';
 import { showLogin } from './auth.js';
-import { pushOnHere, enablePush, disablePush, isIOS, isStandalone } from '../core/push.js';
+import { pushOnHere, enablePush, disablePush, pushLogout, isIOS, isStandalone } from '../core/push.js';
 import { renderApp } from '../main.js';
 import { adminEntry, checkAdmin } from './admin-productos.js';
 import { isLite, setLite } from '../ui/background.js';
@@ -290,6 +290,10 @@ document.body.addEventListener("click", async function (e) {
       // tiene permiso para borrar de auth.users directo.
       const r = await State.sb.rpc("delete_own_account");
       if (r.error) throw r.error;
+      // Como al cerrar sesión: se da de baja este dispositivo para que la próxima cuenta que
+      // entre acá no quede con las notificaciones prendidas sin haberlas activado. Va después
+      // de borrar la cuenta: si eso falla, el celular no pierde sus notificaciones.
+      try { await pushLogout(); } catch (err) {}
       try { localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); } catch (err) {}
       clearAccountLeftovers(State.cloudUser && State.cloudUser.id);
       try { await State.sb.auth.signOut(); } catch (err) {}
