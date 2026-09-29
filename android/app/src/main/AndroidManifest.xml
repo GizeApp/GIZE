@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -52,5 +53,17 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- Salir a correr / caminar / bici (Cardio): la ubicación solo mientras se registra una salida,
+         para medir distancia y ritmo. Con la pantalla bloqueada sigue con un servicio en primer
+         plano con notificación (tipo "location", lo declara el plugin
+         @capacitor-community/background-geolocation en su manifiesto). NO se pide la ubicación
+         "todo el tiempo" (ACCESS_BACKGROUND_LOCATION). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- El plugin pide GPS como obligatorio: así Google Play no esconde la app en tablets y
+         equipos sin GPS (sin GPS, la salida mide solo el tiempo). -->
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" tools:replace="android:required" />
 
 </manifest>

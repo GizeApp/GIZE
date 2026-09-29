@@ -87,3 +87,31 @@ html.lite .cneon i { animation: none; }
 @media (prefers-reduced-motion: reduce) { .tpick-card, .tpick-bg { transition: none; } }
 .tpick-note { text-align: center; font-size: var(--text-meta); color: var(--txt-2); margin: -4px 0 8px; }
 .tpick-extra { display: block; margin: 12px auto 0; background: none; border: none; color: var(--gize-blue); font: 600 var(--text-body) var(--gize-font); cursor: pointer; }
+
+/* Salir a correr / caminar / bici (app/screens/cardio.js → renderSalida) */
+.gps-sec { margin-bottom: 8px; }
+.gps-kinds { margin-bottom: 14px; }
+.gps-note { margin: 12px 0 0; font-size: var(--text-meta); color: var(--txt-3); line-height: 1.45; text-align: center; }
+.gps-live, .gps-sum { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: var(--space-14); margin-bottom: 12px; }
+.gps-live.paused { opacity: .8; }
+.gps-kind { font-size: var(--text-meta); color: var(--txt-2); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; text-align: center; }
+.gps-dur { font-size: clamp(40px, 13vw, 56px); font-weight: 700; letter-spacing: -.02em; line-height: 1.1; text-align: center; margin: 6px 0 12px; font-variant-numeric: tabular-nums; }
+.gps-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.gps-cell { text-align: center; min-width: 0; }
+.gps-val { font-size: clamp(22px, 7vw, 30px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; overflow-wrap: anywhere; }
+.gps-lbl { font-size: var(--text-meta); color: var(--txt-3); margin-top: 2px; }
+.gps-msg { font-size: var(--text-meta); color: var(--txt-2); text-align: center; margin-top: 10px; min-height: 1em; line-height: 1.4; }
+.gps-resume { background: var(--card); border: 1px solid var(--blue); border-left: 3px solid var(--blue); border-radius: 4px; padding: var(--space-14); margin-bottom: 12px; font-size: var(--text-body); line-height: 1.45; }
+.gps-resume .ctrl-row { margin-top: 12px; }
+.gps-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: var(--text-body); font-variant-numeric: tabular-nums; }
+.gps-row span { color: var(--txt-2); }
+.gps-sum .gps-kind { margin-bottom: 6px; }
+.gps-sum .ctrl-row { margin-top: 14px; }
+.gps-warn { margin: 6px 0 8px; padding: 10px 12px; border-radius: 4px; border: 1px solid var(--gize-warning); background: var(--gize-warning-bg); color: var(--txt); font-size: var(--text-meta); line-height: 1.45; }
+.gps-list { margin-top: 22px; display: flex; flex-direction: column; gap: 6px; }
+.gps-list-h { font-size: 11px; color: var(--txt-3); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-bottom: 4px; }
+.gps-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 4px; }
+.gps-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-body); }
+.gps-item-main span { color: var(--txt-2); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
+.gps-del { flex: none; width: 36px; height: 36px; border-radius: 50%; background: none; border: 1px solid var(--border); color: var(--txt-3); cursor: pointer; font-size: 14px; }
+.gps-empty { font-size: var(--text-meta); color: var(--txt-3); }

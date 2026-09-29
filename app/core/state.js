@@ -111,6 +111,9 @@ if (!state.restPrefs || typeof state.restPrefs !== "object") state.restPrefs = {
 
 if (!Array.isArray(state.sessions)) state.sessions = [];
 
+// Salidas de correr / caminar / bici (Cardio, ver ui/gps.js): solo el resumen, sin el recorrido.
+if (!Array.isArray(state.cardio)) state.cardio = [];
+
 if (!state.daily || typeof state.daily !== "object") state.daily = {};
 
 if (!state.checkins || typeof state.checkins !== "object") state.checkins = {};

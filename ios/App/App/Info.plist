@@ -51,6 +51,14 @@
 	<string>GIZE accede a tus fotos para que elijas tu foto de perfil o la foto de un producto que nos pedís agregar.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>GIZE usa el micrófono solo cuando grabás un mensaje de voz para tu coach o tu alumno.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>GIZE usa tu ubicación mientras registrás una salida de running, caminata o bici para medir la distancia y el ritmo. No guarda tu recorrido.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>GIZE usa tu ubicación mientras registrás una salida de running, caminata o bici para medir la distancia y el ritmo. No guarda tu recorrido.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CFBundleURLTypes</key>

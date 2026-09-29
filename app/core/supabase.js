@@ -136,7 +136,7 @@ function takePendingCode(){
 export function clearAccountLeftovers(uid){
   clearHabitAlarms();
   try{
-    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, "gize_auth_link_used", "gize_rest_timer"].forEach(k=>localStorage.removeItem(k));
+    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, "gize_auth_link_used", "gize_rest_timer", "gize_cardio_run"].forEach(k=>localStorage.removeItem(k));
     if(uid){ [OUTBOX_KEY, OUTBOX_FAILED_KEY].forEach(k=>{ const q=readQueue(k).filter(i=>i.uid!==uid); if(q.length) writeQueue(k,q); else localStorage.removeItem(k); }); }
   }catch(e){}
 }
@@ -735,7 +735,7 @@ export async function loadCloud(){
     // Todas las lecturas salen juntas (antes iban de a una y el arranque sumaba ~12 idas
     // y vueltas a Supabase); después se aplican en el mismo orden de siempre.
     const uid=State.cloudUser.id, sb=State.sb;
-    const [pr0, rt0, ws, ss, dl, ck, ci, bl, np, fe, cp, cq, fw] = await Promise.all([
+    const [pr0, rt0, ws, ss, dl, ck, ci, bl, np, fe, cp, cq, fw, cs] = await Promise.all([
       sb.from("profiles").select("*").eq("id",uid).maybeSingle(),
       // Si el coach dejó programada una rutina que ya empezó, se aplica antes de leerla
       // (ver supabase/rutina-programada.sql). Si la función no existe todavía, sigue igual.
@@ -757,7 +757,10 @@ export async function loadCloud(){
       // las predeterminadas.
       sb.from("coach_questions").select("daily, checkin").maybeSingle(),
       // Calorías de los 7 días anteriores, para el promedio semanal de Comida.
-      sb.from("food_entries").select("log_date, kcal").eq("client_id",uid).gte("log_date",daysAgo(7)).lt("log_date",today())
+      sb.from("food_entries").select("log_date, kcal").eq("client_id",uid).gte("log_date",daysAgo(7)).lt("log_date",today()),
+      // Salidas de correr / caminar / bici (supabase/cardio-salidas.sql). Si la tabla todavía
+      // no existe da error y se sigue con las del dispositivo.
+      fetchAll(()=>sb.from("cardio_sessions").select("*").eq("client_id",uid).order("created_at").order("id"))
     ]);
     const pr=sbOk(pr0);
     State.cloudProfile=pr.data||null;
@@ -822,6 +825,7 @@ export async function loadCloud(){
     if(!ss.error && Array.isArray(ss.data)){
       state.sessions=ss.data.map(se=>Object.assign(sessionFromRow(se), {id:se.id, cloudId:se.id}));
     }
+    if(cs && !cs.error && Array.isArray(cs.data)) mergeCardio(cs.data);
     // Las respuestas a preguntas propias del coach vienen en "answers"; las de siempre, en
     // sus columnas (que mandan si aparecen en los dos lados).
     if(!dl.error && Array.isArray(dl.data)){ state.daily={}; dl.data.forEach(r=>{ state.daily[r.log_date]=Object.assign({}, r.answers||{}, {steps:r.steps||"", comment:r.comment||"", soreness:r.soreness||"", performance:r.performance||"", motivation:r.motivation||"", hunger:r.hunger||"", fatigue:r.fatigue||"", sleep:r.sleep||""}); }); }
@@ -1243,6 +1247,14 @@ async function sendItem(it){
     else sbOk(await sb.from("body_weights").upsert({client_id:uid, measured_on:p.date, kg:p.kg},{onConflict:"client_id,measured_on"}));
   } else if(it.k==="prefs"){
     sbOk(await sb.from("client_prefs").upsert(Object.assign({client_id:uid, updated_at:new Date().toISOString()}, p),{onConflict:"client_id"}));
+  } else if(it.k==="cardio"){
+    // Salida de correr / caminar / bici: solo el resumen (nunca el recorrido). Con el id del
+    // celular y ON CONFLICT DO NOTHING, reintentar no la duplica.
+    const row={id:p.id, client_id:uid, performed_on:p.date, started_at:p.startedAt||null, kind:p.kind,
+      duration_s:p.dur, distance_m:p.dist, kcal:p.kcal, avg_speed_kmh:p.avg, max_speed_kmh:p.max};
+    cardioTable(await sb.from("cardio_sessions").upsert(row,{onConflict:"id", ignoreDuplicates:true}));
+  } else if(it.k==="cardioDelete"){
+    cardioTable(await sb.from("cardio_sessions").delete().eq("id",p.id).eq("client_id",uid));
   } else if(it.k==="checkin"){
     // La columna adherence es un número del 1 al 10. Si el coach cambió esa pregunta (opciones
     // con palabras o respuesta libre), la respuesta va en answers como cualquier otra: antes se
@@ -1252,6 +1264,14 @@ async function sendItem(it){
     if(!isNum && adh!=null && String(adh).trim()!=="" && !(typeof adh==="number" && isNaN(adh))) ans.adherence=adh;
     sbOk(await sb.from("checkins").upsert({client_id:uid, week_start:p.wk, answers:ans, adherence:isNum?n:null},{onConflict:"client_id,week_start"}));
   }
+}
+
+// Tabla de salidas todavía sin crear (falta correr supabase/cardio-salidas.sql): la salida
+// queda en la cola sin trabar lo demás (entrenos, comidas…) y sale cuando exista la tabla.
+const noTable=e=>!!(e && (e.code==="PGRST205" || e.code==="42P01" || /cardio_sessions/.test(String(e.message||"")) && /does not exist|schema cache/i.test(String(e.message||""))));
+function cardioTable(r){
+  if(r && r.error && noTable(r.error)){ const e=new Error("Falta la tabla cardio_sessions"); e.later=true; throw e; }
+  return sbOk(r);
 }
 
 // Errores que reintentar no arregla (dato inválido, permiso denegado, clave inexistente:
@@ -1301,14 +1321,16 @@ export function flushOutbox(){
     await null;
     try{
       if(!State.sb||!State.cloudUser) return false;
+      const later=new Set(); // salidas que esperan la tabla (ver cardioTable): se saltean esta vez
       for(;;){
-        const it=myPending()[0];
-        if(!it) return true;
+        const it=myPending().find(i=>!later.has(i.id));
+        if(!it) return !later.size;
         if(!(await sessionFor(it.uid))){ flushLater(); return false; }
         let bad=null;
         try{ await sendItem(it); }
         catch(e){
           console.error("outbox",it.k,e);
+          if(e && e.later){ later.add(it.id); continue; }
           if(!isPermanent(e)) return false;
           bad=e;
         }
@@ -1446,6 +1468,31 @@ export function failedCheckin(wk){
   const u=State.cloudUser&&State.cloudUser.id; if(!u) return null;
   const it=readQueue(OUTBOX_FAILED_KEY).filter(i=>i.uid===u && i.k==="checkin" && i.p && i.p.wk===wk).pop();
   return it && it.p.f ? JSON.parse(JSON.stringify(it.p.f)) : null;
+}
+
+// ===== Salidas (correr / caminar / bici) =====
+// Se guardan en state.cardio y van a la nube por la misma cola que los entrenos.
+export function cloudSaveCardio(rec){
+  return enqueueAndSend("cardio", {id:rec.id, kind:rec.kind, date:rec.date, startedAt:rec.startedAt||null, dur:rec.dur, dist:rec.dist, kcal:rec.kcal, avg:rec.avg, max:rec.max}, rec.id);
+}
+export function cloudDeleteCardio(id){
+  if(!State.cloudUser || !id) return Promise.resolve(true);
+  // Si todavía no salió de la cola se saca de ahí; el borrado igual se manda (pudo haber salido).
+  writeQueue(OUTBOX_KEY, readQueue(OUTBOX_KEY).filter(i=>!(i.k==="cardio" && i.p && i.p.id===id)));
+  return enqueueAndSend("cardioDelete", {id:id}, id);
+}
+const cardioFromRow=r=>({id:r.id, kind:r.kind, date:r.performed_on, startedAt:r.started_at||null, dur:Number(r.duration_s)||0, dist:Number(r.distance_m)||0,
+  kcal:Number(r.kcal)||0, avg:Number(r.avg_speed_kmh)||0, max:Number(r.max_speed_kmh)||0, cloud:true});
+// Las de la nube + las del celular que la nube todavía no tiene (sin duplicar: el id es el
+// mismo). Una que ya estuvo en la nube y ahora no está se borró desde otro dispositivo.
+function mergeCardio(rows){
+  const pend=myPending();
+  const del=new Set(pend.filter(i=>i.k==="cardioDelete" && i.p).map(i=>i.p.id));
+  const seen=new Set(rows.map(r=>r.id));
+  const out=rows.filter(r=>!del.has(r.id)).map(cardioFromRow);
+  (Array.isArray(state.cardio)?state.cardio:[]).forEach(l=>{ if(l && !seen.has(l.id) && !del.has(l.id) && !l.cloud) out.push(l); });
+  out.sort((a,b)=>String(a.startedAt||a.date).localeCompare(String(b.startedAt||b.date)));
+  state.cardio=out;
 }
 
 export async function cloudDeleteSession(cid){

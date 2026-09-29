@@ -19,7 +19,8 @@ import { runningSetId, startTimer, stopTimer } from './ui/settimer.js';
 import { showLogin } from './screens/auth.js';
 
 import { ssGroupOf, ssNext } from './core/superserie.js';
-import { CardioState, openTimePicker, renderCardio, setRing, swFrac } from './screens/cardio.js';
+import { CardioState, openTimePicker, paintSalida, renderCardio, setRing, swFrac } from './screens/cardio.js';
+import { continueRestored, deleteSaved, discardRun, finish as gpsFinish, onGpsChange, pause as gpsPause, resume as gpsResume, saveRun, setKind as gpsKind, startRun } from './ui/gps.js';
 
 import { CheckinState, checkinDraft, checkinHasAnswer, checkinWeek, renderFeedback, saveSession , todayWeightText } from './screens/checkin.js';
 
@@ -224,6 +225,7 @@ export function tick(){
   }
   if (State.view==="entreno"){ const w=document.getElementById("wkTime"); if(w){ const t=wkElapsedText(); if(w.textContent!==t) w.textContent=t; } }
   if (CardioState.swRunning && State.view==="cardio" && CardioState.cardioMode==="stopwatch"){ const ms=CardioState.swAccum+(now-CardioState.swStartTs); setRing(swFrac(ms), fmt(ms)); }
+  if (State.view==="cardio") paintSalida(); // salida con GPS: duración, distancia, ritmo y calorías
 }
 
 setInterval(tick, 100);
@@ -385,7 +387,16 @@ document.body.addEventListener("click", async e => {
     return;
   }
 
-  // Cardio
+  // Cardio: salir a correr / caminar / bici (ui/gps.js)
+  if (a === "gps-kind") { gpsKind(el.dataset.kind); renderApp(); return; }
+  if (a === "gps-start") { startRun(); renderApp(); return; }
+  if (a === "gps-pause") { gpsPause(); renderApp(); return; }
+  if (a === "gps-resume") { gpsResume(); renderApp(); return; }
+  if (a === "gps-continue") { continueRestored(); renderApp(); return; }
+  if (a === "gps-finish") { if(!confirm("¿Terminar la salida?")) return; gpsFinish(); renderApp(); return; }
+  if (a === "gps-save") { saveRun(); renderApp(); return; }
+  if (a === "gps-discard") { if(!confirm("¿Descartar esta salida? No se va a guardar.")) return; discardRun(); renderApp(); return; }
+  if (a === "gps-del") { if(!confirm("¿Borrar esta salida?")) return; deleteSaved(el.dataset.id); renderApp(); return; }
   if (a === "cardio-mode") { CardioState.cardioMode = el.dataset.mode; renderApp(); return; }
   if (a === "sw-toggle") { if(CardioState.swRunning){ CardioState.swAccum+=Date.now()-CardioState.swStartTs; CardioState.swRunning=false; } else { CardioState.swStartTs=Date.now(); CardioState.swRunning=true; } renderApp(); return; }
   if (a === "sw-lap") { CardioState.swLaps.push(CardioState.swAccum+(Date.now()-CardioState.swStartTs)); renderApp(); return; }
@@ -1513,6 +1524,7 @@ cloudBoot();
 initTabScroll(); // días de Entreno: ruedita y arrastre con el mouse
 initUpdateCheck(); // cartel de versión nueva en las apps de las tiendas
 initHabitAlarms(()=>{ State.view="habitos"; renderApp(); }); // tocar el aviso de un hábito abre Hábitos
+onGpsChange(()=>{ if(State.view==="cardio" && !document.getElementById("timePick")) renderApp(); }); // GPS: permiso negado, sin señal
 initBackButton(); // «Atrás» de Android: cierra la ventana abierta, vuelve o sale
 resumeRest(); // descanso que quedó corriendo al cerrar la app
 // En la app nativa (Capacitor) los archivos ya viajan dentro de la app: no hace falta el service worker.

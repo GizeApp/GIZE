@@ -24,6 +24,18 @@ import { unreadFor } from '../../ui/chat.js';
 
 import { billing, renderPaywall, renderPlanBanner } from './plan.js';
 
+import { fmtHMS, fmtKm, kindLabel, paceOrSpeed } from '../../core/cardiogps.js';
+
+// Últimas 10 salidas de correr / caminar / bici del alumno (solo números, sin mapa).
+const cardioRec = r => ({ kind: r.kind, dist: Number(r.distance_m) || 0, dur: Number(r.duration_s) || 0, avg: Number(r.avg_speed_kmh) || 0 });
+function renderCoachCardio(d){
+  const list = (d.cardio || []).slice().sort((a, b) => String(b.started_at || b.performed_on).localeCompare(String(a.started_at || a.performed_on))).slice(0, 10);
+  if (!list.length) return '<div class="cal-hint">El alumno todavía no registró salidas de correr, caminar o bici.</div>';
+  return '<table class="co-tbl co-cardio"><thead><tr><th>Fecha</th><th>Tipo</th><th>Km</th><th>Duración</th><th>Ritmo / vel.</th><th>Kcal</th></tr></thead><tbody>'
+    + list.map(r => { const x = cardioRec(r); return '<tr><td class="dt">' + esc(fmtDate(r.performed_on)) + '</td><td>' + esc(kindLabel(r.kind)) + '</td><td><b>' + fmtKm(x.dist) + '</b></td><td>' + fmtHMS(x.dur * 1000) + '</td><td>' + paceOrSpeed(x) + '</td><td>' + (r.kcal != null ? Math.round(Number(r.kcal)) : '–') + '</td></tr>'; }).join("")
+    + '</tbody></table>';
+}
+
 // Título de sección con la ruedita que abre el editor de preguntas en esa pestaña.
 function secHead(title, kind){
   return '<div class="co-sec co-sec-row"><span>'+title+'</span><button class="co-sec-gear" data-coach="q-open" data-k="'+kind+'" title="Editar preguntas" aria-label="Editar preguntas de '+title.toLowerCase()+'">'+gearSvg+'</button></div>';
@@ -185,6 +197,7 @@ export function renderCoach(){
           ["daily","Seguimiento diario", ()=>secHead("Seguimiento diario","daily")+renderCoachDaily(d), ()=>{ const n=(d.daily||[]).length; return n?n+" registro"+(n===1?"":"s"):"Sin registros"; }],
           ["checkin","Check-in semanal", ()=>secHead("Check-in semanal","checkin")+renderCoachCheckins(d), ()=>{ const n=(d.checkins||[]).length; return n?n+" check-in"+(n===1?"":"s"):"Sin check-ins"; }],
           ["hist","Historial de entrenos", ()=>sess||'<div class="cal-hint">El cliente todavía no registró entrenos.</div>', ()=>{ const n=d.sessions.length; return n?n+" entreno"+(n===1?"":"s")+(sessSorted[0]?" · último "+fmtDate(sessSorted[0].date):""):"Sin entrenos"; }],
+          ["cardio","Cardio", ()=>renderCoachCardio(d), ()=>{ const c=d.cardio||[]; if(!c.length) return "Sin salidas"; const last=c.slice().sort((a,b)=>String(b.performed_on).localeCompare(String(a.performed_on)))[0]; return (c.length>=10?"Más de 10 salidas":c.length+(c.length===1?" salida":" salidas"))+" · última "+fmtDate(last.performed_on); }],
           ["volumen","Volumen semanal por músculo", ()=>vol, ()=>{ let t=0; (d.routine||[]).forEach(x=>(x.exercises||[]).forEach(ex=>{ t+=(ex.sets||[]).length; })); return t?t+" series por semana":"Sin rutina"; }],
           ["peso","Peso corporal", ()=>'<div class="co-sec">Promedio semanal</div>'+renderCoachWeekly(d)+'<div class="co-sec">Día a día</div>'+wblock, ()=>{ const w=d.weights; return w.length?Number(w[w.length-1].kg).toFixed(1).replace(".",",")+" kg":"Sin registros"; }],
         ];
