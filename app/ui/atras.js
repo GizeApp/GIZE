@@ -10,6 +10,8 @@
 
 // De la ventana de más arriba a la de más abajo: se toca la primera que se ve.
 const CERRAR = [
+  '.crp .crp-cancel',                            // acomodar la foto de perfil
+  '.adm-zoom',                                   // panel: foto de un producto agrandada (se cierra con un toque)
   '#timePick [data-tp="close"]',                 // rueda de la hora / temporizador
   '[data-action="scan-close"]',                  // escáner con la cámara
   '#chatHost [data-chat="close"]',               // chat con el coach
