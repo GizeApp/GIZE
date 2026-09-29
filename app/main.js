@@ -207,8 +207,8 @@ function afterSetDone(d, ex, s){
   const nx=ssNext(d.exercises, idx, ex.sets.indexOf(s));
   if(nx.target) setTimeout(()=>goToSet(nx.target), 420);
 }
-// Un ejercicio recién agregado aparece abierto, para cargarle las series.
-function openEx(e){ expandedOverride.add(e.id); return e; }
+// Un ejercicio recién agregado aparece abierto (y cierra el que estaba abierto), para cargarle las series.
+function openEx(e){ expandedOverride.clear(); expandedOverride.add(e.id); return e; }
 // Lleva la pantalla a la serie que sigue y la marca un momento.
 function goToSet(t){
   const inp=document.querySelector('[data-ex="'+CSS.escape(t.ex)+'"][data-set="'+CSS.escape(t.set)+'"]');
@@ -756,7 +756,8 @@ document.body.addEventListener("click", async e => {
     save(); renderApp(); return;
   }
   // Abrir y cerrar un ejercicio con la flechita (una superserie, entera).
-  if (a === "ex-expand") { if(!ex) return; exGroupIds(d.exercises, ex.id).forEach(id=>expandedOverride.add(id)); renderApp(); return; }
+  // Uno abierto a la vez: abrir otro cierra el anterior (salvo su superserie, que va entera).
+  if (a === "ex-expand") { if(!ex) return; expandedOverride.clear(); exGroupIds(d.exercises, ex.id).forEach(id=>expandedOverride.add(id)); renderApp(); return; }
   if (a === "ex-collapse") { if(!ex) return; const ids=exGroupIds(d.exercises, ex.id); collapseExerciseAnimated(ex.id, ()=>{ ids.forEach(id=>expandedOverride.delete(id)); renderApp(); }); return; }
   // Descanso por ejercicio. Sin coach se guarda en el ejercicio (viaja con la rutina);
   // con coach, como preferencia propia (state.restPrefs) sin tocar la rutina del coach.

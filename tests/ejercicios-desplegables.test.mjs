@@ -30,13 +30,19 @@ export default async function ({ base, t }){
   t.ok(await p.$('.card[data-ex-id="e1"] [data-action="ex-collapse"]'), 'abierto tiene la flecha para cerrarlo');
 
   // Superserie (Remo + Jalón): se abre entera, así la pantalla pasa de uno al otro.
+  // Uno abierto a la vez: abrir otro cierra el anterior. Una superserie (Remo + Jalón) se abre
+  // entera, así la pantalla pasa de uno al otro.
   await p.click('.ex-collapsed[data-ex="e3"]'); await wait(300);
   v = await view();
-  t.eq(v.open, ['e1', 'e2', 'e3'], 'una superserie se abre entera');
+  t.eq(v.open, ['e2', 'e3'], 'abrir otro cierra el anterior; la superserie se abre entera');
 
   await p.click('.card[data-ex-id="e2"] [data-action="ex-collapse"]'); await wait(500);
   v = await view();
-  t.eq(v.open, ['e1'], 'y se cierra entera con la flecha');
+  t.eq(v.open, [], 'y se cierra entera con la flecha');
+
+  await p.click('.ex-collapsed[data-ex="e4"]'); await wait(300);
+  await p.click('.ex-collapsed[data-ex="e1"]'); await wait(300);
+  t.eq((await view()).open, ['e1'], 'abrir el 1 cierra el que estaba abierto');
 
   // Tildar la última serie cierra solo el ejercicio terminado.
   await p.click('[data-action="toggle"][data-set="s1"]'); await wait(300);

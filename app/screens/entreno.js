@@ -73,7 +73,8 @@ function restRow(ex){
 export { blockWeek, isDeload } from '../core/bloque.js';
 
 // Ejercicios abiertos (desplegados). Pedido: que ocupen menos lugar, así que todos arrancan
-// cerrados (una fila con el nombre y una flechita) y se abren y cierran con la flecha. No se
+// cerrados (una fila con el nombre y una flechita) y se abren y cierran con la flecha. Uno
+// abierto a la vez: abrir otro cierra el anterior (salvo su superserie). No se
 // guarda: al volver a abrir la app aparecen cerrados otra vez. Una superserie se abre y se
 // cierra entera (ver exGroupIds), así la pantalla puede pasar de un ejercicio al otro.
 export let expandedOverride = new Set();
