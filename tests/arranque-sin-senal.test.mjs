@@ -7,6 +7,9 @@
 //     la nube y se sube el entreno cargado sin señal, sin reabrir la app.
 // (b) Sin sesión guardada y sin señal: «Ingresar» dice que no hay conexión.
 // (c) Sesión guardada que el servidor ya no acepta: «Ingresar» dice que la sesión se cerró.
+// (d) Con señal lenta la renovación tarda ~3 s: la app abre sin sesión viva pero la lectura de
+//     la cuenta la logra el mismo arranque; igual tienen que aparecer los alumnos del coach y
+//     el nombre del coach del alumno (antes quedaban «Clientes (0)» y sin nombre para siempre).
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const DAYS = [{ id: 'd1', name: 'Pierna', exercises: [{ id: 'e1', name: 'Sentadilla libre', sets: [{ id: 's1', kg: '100', reps: '5', done: true }] }] }];
@@ -99,6 +102,39 @@ export default async function ({ base, t }){
     t.has(r && r.aviso, 'Tu sesión se cerró', '(c) con el mensaje de sesión cerrada');
     t.eq((await p.evaluate(() => JSON.parse(localStorage.getItem('rutina_jero_v1')).days.map(d => d.name))), ['Pierna'], '(c) los datos del celular siguen');
     t.eq(errs, [], '(c) sin errores de JavaScript');
+    await close();
+  }
+
+  // (d) Renovación del token lenta (3,1 s), con red.
+  const lento = (u, ms) => (r, J) => new Promise(ok => setTimeout(ok, ms)).then(() => J({ access_token: 'x.eyJzdWIiOiJ1MSJ9.nuevo', token_type: 'bearer', expires_in: 3600, expires_at: now() + 3600, refresh_token: 'r2', user: u }));
+  {
+    const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
+    const { p, errs, close } = await newPage({ user: COACH, init: expired,
+      handlers: {
+        '/profiles': (r, J, i) => { if (i.m !== 'GET') return undefined; const me = { id: COACH.id, role: 'coach', full_name: 'Coach Prueba' };
+          if (/coach_id=eq/.test(i.url.search)) return J([{ id: 'c1', full_name: 'Alumna Zeta' }]); return J(i.one ? me : [me]); },
+        '/coach_billing': (r, J, i) => { const b = { coach_id: COACH.id, plan: 'cortesia', max_clients: 10, trial_ends_at: '2099-01-01T00:00:00Z' }; return J(i.one ? b : [b]); },
+        '/auth/v1/token': lento(COACH, 3100)
+      } });
+    await p.goto(base + '/app/');
+    let txt = '';
+    for (let i = 0; i < 60 && !/Alumna Zeta/.test(txt); i++) { txt = await p.evaluate(() => (document.getElementById('coachHost') || {}).innerText || ''); if (!/Alumna Zeta/.test(txt)) await wait(250); }
+    t.has(txt, 'Alumna Zeta', '(d) coach con renovación lenta: aparecen sus alumnos');
+    t.eq(errs, [], '(d) coach sin errores de JavaScript');
+    await close();
+  }
+  {
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: { days: DAYS, sessions: [], weights: [], daily: {} }, init: expired,
+      handlers: {
+        '/profiles': profile('client', { coach_id: '99999999-9999-9999-9999-999999999999' }),
+        '/rpc/my_coach_name': (r, J) => J('Coach Lento'),
+        '/auth/v1/token': lento(ALUMNO, 3100)
+      } });
+    await p.goto(base + '/app/');
+    let got = '';
+    for (let i = 0; i < 60 && !got; i++) { got = await p.evaluate(() => { const n = document.getElementById('brandName'), g = document.getElementById('brandTag'); return (n && g && g.style.display !== 'none') ? n.textContent : ''; }); if (!got) await wait(250); }
+    t.eq(got, 'Coach Lento', '(d) alumno con renovación lenta: se ve el nombre de su coach');
+    t.eq(errs, [], '(d) alumno sin errores de JavaScript');
     await close();
   }
 }

@@ -496,9 +496,23 @@ function noAnonFetch(url, opts){
   return fetch(url, opts);
 }
 // La app abrió con la sesión guardada en el celular sin que la librería la pudiera renovar
-// (ver cloudBoot, afterLogin(user, true)). afterLogin() se saltea lo que necesita red y retryCloud() lo completa
-// cuando vuelve la sesión.
-let _staleBoot=false;
+// (ver cloudBoot, afterLogin(user, true)). afterLogin() se saltea lo que necesita red y se
+// completa cuando vuelve la sesión (staleCatchUp).
+let _staleBoot=false, _inLogin=false;
+// Lo que afterLogin() se salteó por abrir sin sesión viva (nombre del coach, alumnos) se pide
+// apenas un loadCloud() cualquiera logra leer la cuenta, no solo el de retryCloud(): con una
+// renovación lenta (~3 s, 3G) la lectura la lograba el loadCloud() de afterLogin u otro
+// (Configuración), retryCloud() ya no hacía nada y el coach quedaba con «Clientes (0)».
+async function staleCatchUp(){
+  _staleBoot=false;
+  const coach=State.cloudProfile && State.cloudProfile.role==="coach";
+  try{
+    if(coach){ State.brandName=State.cloudProfile.full_name||""; await Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]); }
+    else { const cn=await State.sb.rpc("my_coach_name"); State.brandName=cn.data||""; }
+  }catch(e){}
+  applyBrand();
+  if(coach) renderCoach();
+}
 function sessionLost(){
   if(!State.cloudUser || State.signingOut) return;
   // cloudUser NO se borra: sin él la cola deja de juntar lo que se carga y el pie diría «Se
@@ -592,6 +606,7 @@ export async function afterLogin(sessionUser, stale){
   if(!_staleBoot){ try { await flushOutbox(); } catch(e){ console.error("flushOutbox",e); } }
   // El nombre del coach no depende de loadCloud(): se pide en paralelo en vez de después.
   let coachNameP=_staleBoot ? Promise.resolve({data:null}) : Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null}));
+  _inLogin=true; // lo salteado lo completa afterLogin mismo (ver abajo), no staleCatchUp()
   await loadCloud();
   if(!State.cloudProfile) State.cloudProfile=cachedProfile(); // sin conexión: el último perfil conocido
   // Registro con Google eligiendo "Soy coach": la cuenta nace como cliente (ver login-google.sql).
@@ -623,6 +638,9 @@ export async function afterLogin(sessionUser, stale){
       if(r2.data===true){ coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null})); const pr=await State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle(); if(pr.data) State.cloudProfile=pr.data; await loadCloud(); }
     }
   }catch(e){ console.error("pending code",e); }
+  _inLogin=false;
+  // La sesión se renovó mientras tanto y loadCloud() pudo leer: lo salteado va normal acá abajo.
+  if(_staleBoot && State.cloudReady){ _staleBoot=false; coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null})); }
   hideLogin();
   try{
     if(State.cloudProfile && State.cloudProfile.role==="coach"){ State.brandName=State.cloudProfile.full_name||""; }
@@ -769,6 +787,7 @@ export async function loadCloud(){
   // Sin esto, si la app abría sin señal no volvía a intentar en toda la sesión: la rutina
   // nunca se subía y los cambios quedaban solo en el celular.
   if(!State.cloudReady) scheduleCloudRetry(); else _retryN=0;
+  if(_staleBoot && State.cloudReady && !_inLogin) await staleCatchUp();
   syncExtras();
 }
 
@@ -794,19 +813,7 @@ function scheduleCloudRetry(){
 async function retryCloud(){
   if(State.cloudReady || State.cloudLoading || !State.sb || !State.cloudUser) return;
   await loadCloud();
-  if(State.cloudReady){
-    const coach=State.cloudProfile && State.cloudProfile.role==="coach";
-    // Abrió sin sesión viva: lo que afterLogin() se salteó (nombre del coach, alumnos) se pide ahora.
-    if(_staleBoot){
-      _staleBoot=false;
-      try{
-        if(coach){ State.brandName=State.cloudProfile.full_name||""; await Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]); }
-        else { const cn=await State.sb.rpc("my_coach_name"); State.brandName=cn.data||""; }
-      }catch(e){}
-      applyBrand();
-    }
-    if(coach) renderCoach(); else renderApp();
-  }
+  if(State.cloudReady){ if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach(); else renderApp(); }
 }
 window.addEventListener("online", ()=>{ if(State.cloudUser && !State.cloudReady) retryCloud(); });
 
