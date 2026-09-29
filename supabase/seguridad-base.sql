@@ -1,13 +1,16 @@
 -- Endurecimiento de la base (auditoría de seguridad, septiembre 2026).
 -- Correr con el workflow "Supabase" → tarea sql → supabase/seguridad-base.sql.
--- Se puede correr varias veces. Al final devuelve lo que haya que revisar (vacío = todo bien).
+-- Al final devuelve lo que haya que revisar (vacío = todo bien).
+-- OJO: NO volver a correr suelto. Redefine routine_days_ok, y la versión vigente (que además
+-- valida la ruta del audio de cada ejercicio) está en ejercicio-audio.sql. Si lo corrés,
+-- corré después ejercicio-audio.sql.
 --
 --   1) Rutinas y plantillas: los id de días, ejercicios y series solo pueden tener letras,
 --      números, - y _ (van dentro del HTML de la app), y el link de video tiene que ser https.
 --      Sin esto, una rutina armada a mano podía meter código en la app del coach o del
 --      cliente (la app ya lo filtra, pero así también quedan cubiertas las versiones viejas).
---   2) Fotos de check-in: la fila tiene que apuntar a un archivo de la carpeta propia (antes
---      un cliente podía anotar la foto de otro cliente del mismo coach como suya).
+--   2) (Fotos de check-in: ya no va. La tabla checkin_photos se eliminó con todas las fotos,
+--      ver borrar-fotos-progreso.sql.)
 --   3) Las funciones de la app solo las puede llamar un usuario logueado.
 
 -- 1) Forma de la rutina.
@@ -57,12 +60,6 @@ drop trigger if exists routine_templates_validate on public.routine_templates;
 create trigger routine_templates_validate before insert or update of days on public.routine_templates
   for each row execute function public.routines_validate();
 
--- 2) Fotos de check-in en la carpeta propia.
-drop policy if exists "cliente sube sus fotos" on public.checkin_photos;
-create policy "cliente sube sus fotos" on public.checkin_photos
-  for insert with check (client_id = auth.uid()
-    and split_part(path, '/', 1) = auth.uid()::text and path !~ '\.\.');
-
 -- 3) Nada para usuarios sin sesión (sin sesión no hacían nada, pero no tienen por qué estar a mano).
 revoke execute on function public.client_push_devices(uuid)              from public, anon;
 revoke execute on function public.save_push_subscription(text,text,text) from public, anon;
@@ -75,8 +72,7 @@ grant  execute on function public.set_my_avatar(text)                    to auth
 
 notify pgrst, 'reload schema';
 
--- Chequeo final: rutinas o fotos guardadas antes que hoy ya no se aceptarían (solo la
--- cantidad: el log del workflow es público).
+-- Chequeo final: rutinas guardadas antes que hoy ya no se aceptarían (solo la cantidad: el
+-- log del workflow es público).
 select (select count(*) from public.routines where not public.routine_days_ok(days)) as rutinas_invalidas,
-       (select count(*) from public.routine_templates where not public.routine_days_ok(days)) as plantillas_invalidas,
-       (select count(*) from public.checkin_photos where split_part(path, '/', 1) <> client_id::text) as fotos_fuera_de_carpeta;
+       (select count(*) from public.routine_templates where not public.routine_days_ok(days)) as plantillas_invalidas;

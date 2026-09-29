@@ -1,4 +1,4 @@
--- Chequeo previo a seguridad-base.sql (solo lectura): cuántas rutinas, plantillas y fotos guardadas no pasarían las validaciones nuevas.
+-- Chequeo previo a seguridad-base.sql (solo lectura): cuántas rutinas y plantillas guardadas no pasarían las validaciones nuevas.
 -- 1) Forma de la rutina.
 create or replace function pg_temp.routine_days_ok(days jsonb)
 returns boolean
@@ -27,8 +27,7 @@ as $$
            or coalesce(s->>'id', 'x') !~ '^[A-Za-z0-9_-]{1,64}$');
 $$;
 
--- Chequeo final: rutinas o fotos guardadas antes que hoy ya no se aceptarían (solo la
--- cantidad: el log del workflow es público).
+-- Chequeo final: rutinas guardadas antes que hoy ya no se aceptarían (solo la cantidad: el
+-- log del workflow es público).
 select (select count(*) from public.routines where not pg_temp.routine_days_ok(days)) as rutinas_invalidas,
-       (select count(*) from public.routine_templates where not pg_temp.routine_days_ok(days)) as plantillas_invalidas,
-       (select count(*) from public.checkin_photos where split_part(path, '/', 1) <> client_id::text) as fotos_fuera_de_carpeta;
+       (select count(*) from public.routine_templates where not pg_temp.routine_days_ok(days)) as plantillas_invalidas;

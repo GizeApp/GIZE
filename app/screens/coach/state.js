@@ -71,7 +71,6 @@ export const CoachState = {
   coachCkSel: null,
 
   coachSessSel: null,
-  // Fecha elegida en el selector de fotos de progreso ("" = Ninguno).
   // Mensaje que el coach está escribiendo en "Notificación al cliente" y si se está enviando.
   notifDraft: "",
   notifSending: false,

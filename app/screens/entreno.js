@@ -17,7 +17,7 @@ import { esc, isAssisted, fmt, fmtSecs, isTimedEx, norm, num, parseSecs, searchE
 
 import { renderApp } from '../main.js';
 
-import { allSetsDone, bestKgBefore, bestSetOf, lastSessionFor, renderLastSession } from './progreso.js';
+import { allSetsDone, bestKgBefore, bestSetOf, exOccurrence, lastSessionFor, renderLastSession } from './progreso.js';
 import { kgText, suggest } from '../core/progresion.js';
 import { prSets } from '../ui/festejo.js';
 
@@ -253,15 +253,15 @@ export function renderEntreno(){
       </div>`;
     };
     // Si el día tiene el mismo ejercicio dos veces, cada uno va con el suyo de la vez pasada.
-    const occ = d.exercises.slice(0, exIdx).filter(x => x.name === ex.name).length;
+    const occ = exOccurrence(d.exercises, ex);
     // Si alguna serie tiene objetivo del coach, las que no lo tienen dejan el lugar vacío:
     // así kg y reps quedan del mismo ancho en todas las filas.
     const anyGoal = ex.sets.some(s => s.target);
     const sets = timed ? ex.sets.map(setRow).join("") : ex.sets.map((s,i) => `
-      <div class="set">
+      <div class="set${anyGoal?' has-goal':''}">
         <span class="idx${prSets.has(s.id)?' has-pr':''}">${prSets.has(s.id)?`<span class="pr-mark">${trophySvg}</span>`:''}${i+1}</span>
         ${kgInput(ex, s)}
-        <div class="field"><input class="reps" type="text" inputmode="numeric" placeholder="0" value="${esc(s.reps)}" data-action="reps" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}"><span class="unit">reps</span></div>
+        <div class="field f-reps"><input class="reps" type="text" inputmode="numeric" placeholder="0" value="${esc(s.reps)}" data-action="reps" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}" aria-label="Repeticiones, serie ${i+1}"><span class="unit">reps</span></div>
         ${s.target?`<span class="goal" title="Objetivo del coach: ${esc(s.target)}">${esc(s.target)}</span>`:(anyGoal?'<span class="goal goal-empty" aria-hidden="true"></span>':'')}
         <button class="done${s.done?' on':''}" data-action="toggle" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}">${s.done?checkSvg:''}</button>
         ${routineLocked()?'':`<button class="rm" data-action="removeset" data-ex="${esc(ex.id)}" data-set="${esc(s.id)}" title="Quitar serie">${xSvg}</button>`}

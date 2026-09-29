@@ -14,15 +14,13 @@ import { DEFAULT } from './data.js';
 
 import { KEY, markRoutineSynced, migrateNames, routineHash, save } from './storage.js';
 
-import { storageErrorText, today, ymd } from './utils.js';
+import { today, ymd } from './utils.js';
 
 import { renderApp } from '../main.js';
 
 import { hideLogin, showLogin } from '../screens/auth.js';
 
 import { maybeShowOnboarding } from '../screens/onboarding.js';
-
-import { CheckinState } from '../screens/checkin.js';
 
 import { routineLocked } from '../screens/entreno.js';
 
@@ -213,6 +211,73 @@ async function nativeGoogleLogin(opts){
   return true;
 }
 
+// ---- «Continuar con Apple» en la app de iPhone (mismo plugin, solo iOS) ----
+// App Store pide ofrecer Apple si la app deja entrar con Google (guía 4.8). Aparece la hoja
+// del sistema con el Apple ID del iPhone y Apple devuelve un ID token que se canjea con
+// signInWithIdToken, igual que Google: a Apple va el SHA-256 del nonce y a Supabase el
+// original. No se le pasan "scopes": sin ellos el plugin pide nombre y mail en iPhone. Con los
+// del README (["email","name"]) el nombre podía no llegar: Apple lo llama "full_name".
+// Requiere "Sign in with Apple" activado en el App ID ar.com.gize.app y, en Supabase, el
+// proveedor Apple con ar.com.gize.app en "Client IDs".
+// El rol y el código del coach elegidos se guardan igual que con Google (GOOGLE_INTENT):
+// afterLogin() los aplica.
+const APPLE_ERROR_MSG = "No se pudo entrar con Apple. Probá de nuevo o ingresá con tu email y contraseña.";
+export function appleLoginAvailable(){
+  try{
+    const C = window.Capacitor;
+    return !!(C && C.isNativePlatform && C.isNativePlatform() && C.getPlatform() === "ios" && C.Plugins && C.Plugins.SocialLogin);
+  }catch(e){ return false; }
+}
+let _nativeAppleReady = null;
+export async function signInWithApple(opts){
+  opts = opts || {};
+  const vals = opts.vals || {}, mode = opts.mode === "up" ? "up" : "in";
+  if(!appleLoginAvailable() || !(window.crypto && crypto.subtle)){ showLogin(APPLE_ERROR_MSG, mode, vals); return; }
+  const SL = window.Capacitor.Plugins.SocialLogin;
+  try{ localStorage.setItem(GOOGLE_INTENT, JSON.stringify({role:opts.role==="coach"?"coach":"client", mode:mode, t:Date.now()})); }catch(e){}
+  if(opts.code) setPendingCode(opts.code);
+  const rawNonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
+  let res;
+  try{
+    if(!_nativeAppleReady) _nativeAppleReady = SL.initialize({ apple: {} }).catch(e => { _nativeAppleReady = null; throw e; });
+    await _nativeAppleReady;
+    res = await SL.login({ provider: "apple", options: { nonce: await sha256Hex(rawNonce) } });
+  }catch(e){
+    const m = String((e && (e.message || e.code)) || e);
+    clearGoogleIntent();
+    // Cerró la hoja de Apple: vuelve el login como estaba, sin error. iOS no dice "cancel" sino
+    // "...AuthorizationError error 1001" (ASAuthorizationError.canceled), en el idioma del iPhone.
+    if(/cancel|error 1001\b/i.test(m)){ showLogin("", mode, vals); return; }
+    console.error("apple", m);
+    showLogin(APPLE_ERROR_MSG + authErrDetail(m), mode, vals); return;
+  }
+  const result = (res && res.result) || {};
+  if(!result.idToken){ console.error("apple: sin idToken"); clearGoogleIntent(); showLogin(APPLE_ERROR_MSG, mode, vals); return; }
+  if(window.coreReplay) window.coreReplay();
+  let r;
+  try { r = await State.sb.auth.signInWithIdToken({ provider: "apple", token: result.idToken, nonce: rawNonce }); }
+  catch (e) { r = { error: e }; }
+  if(r.error || !r.data || !r.data.session){
+    clearGoogleIntent(); if(window.coreCancel) window.coreCancel();
+    showLogin(APPLE_ERROR_MSG + authErrDetail(r.error && r.error.message), mode, vals); return;
+  }
+  await saveAppleName(r.data.session.user, result.profile);
+  try { await afterLogin(r.data.session.user); } finally { if(window.coreEnter) window.coreEnter(); }
+}
+// Apple manda el nombre solo la primera vez que alguien entra a GIZE con su Apple ID (y no
+// viaja en el token, así que la cuenta nace sin nombre). Si llegó y el perfil no tiene
+// nombre, se guarda; un nombre que ya estaba (cuenta vieja con el mismo mail) no se toca.
+async function saveAppleName(user, profile){
+  const name = [profile && profile.givenName, profile && profile.familyName].map(s => String(s || "").trim()).filter(Boolean).join(" ").slice(0, 80);
+  if(!name || !user || !user.id) return;
+  try{
+    const pr = await State.sb.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+    if(pr.error || !pr.data || String(pr.data.full_name || "").trim()) return;
+    const up = await State.sb.from("profiles").update({ full_name: name }).eq("id", user.id);
+    if(up.error) console.error("apple nombre", up.error);
+  }catch(e){ console.error("apple nombre", e); }
+}
+
 // ---- Botón oficial de Google en la web (Google Identity Services) ----
 // En vez de ir a la página de Google y volver por Supabase (que muestra "Ir a
 // wegptuzhsrwppbknqstf.supabase.co"), en el navegador se usa el botón de Google: la ventana
@@ -279,7 +344,8 @@ let _gisBusy = false;
 async function onGoogleCredential(resp, rawNonce){
   // Un login a la vez: si afterLogin tarda más que el splash, el login vuelve a verse y un
   // segundo toque arrancaba otro en paralelo (dos canjes, dos cargas, coach aplicado dos veces).
-  if (_gisBusy || State.cloudUser) return;
+  // Con la sesión perdida (sessionLost) cloudUser sigue puesto a propósito: hay que dejar entrar igual.
+  if (_gisBusy || (State.cloudUser && !State.sessionLost)) return;
   _gisBusy = true;
   try { await googleCredentialLogin(resp, rawNonce); } finally { _gisBusy = false; }
 }
@@ -448,7 +514,7 @@ export function ensureSb(){
   if (State.sb) return Promise.resolve(State.sb);
   if (_sbReady) return _sbReady;
   const tryInit = () => {
-    if (!State.sb && window.supabase) { try { State.sb = window.supabase.createClient(SB_URL, SB_KEY, {auth:{storage:authStorage, flowType: IS_NATIVE_APP ? "pkce" : "implicit"}}); } catch(e){} }
+    if (!State.sb && window.supabase) { try { State.sb = window.supabase.createClient(SB_URL, SB_KEY, {auth:{storage:authStorage, flowType: IS_NATIVE_APP ? "pkce" : "implicit"}, global:{fetch:noAnonFetch}}); watchAuth(State.sb); } catch(e){} }
     return !!State.sb;
   };
   if (_sbFailed && !window.supabase) reloadSbScript();
@@ -465,6 +531,65 @@ export function ensureSb(){
   });
   return _sbReady;
 }
+
+// Avisos de supabase-js sobre la sesión. Se atienden con setTimeout: durante el aviso la
+// librería todavía tiene tomada la sesión y pedírsela (getSession, en flushOutbox) se trabaría.
+// - TOKEN_REFRESHED / SIGNED_IN: vuelve a haber sesión, sale lo pendiente (la cola espera
+//   la sesión, ver flushOutbox).
+// - SIGNED_OUT sin haber tocado "Salir" en este dispositivo (se cerró desde otro, o el
+//   servidor ya no acepta renovarla): antes nadie se enteraba, la app seguía "adentro" y
+//   todo lo que se cargaba se mandaba como anónimo y se perdía. Ahora se pide ingresar de
+//   nuevo, sin borrar la cola ni los datos del celular: si entra la misma cuenta,
+//   afterLogin() sube lo pendiente.
+// - Si la app abrió sin sesión viva (_staleBoot, ver cloudBoot), al renovarse el token además
+//   se lee la cuenta: lo pendiente sale primero porque loadCloud() pisa lo local con la nube.
+function watchAuth(sb){
+  sb.auth.onAuthStateChange(ev=>{
+    if(ev==="TOKEN_REFRESHED" || ev==="SIGNED_IN") setTimeout(()=>{ flushOutbox().then(()=>{ if(_staleBoot) retryCloud(); }); }, 0);
+    else if(ev==="SIGNED_OUT") setTimeout(sessionLost, 0);
+  });
+}
+// Con una cuenta adentro, un pedido a la base con la clave anónima quiere decir que la librería
+// no tiene sesión viva (token vencido que no se pudo renovar sin señal): la base lo rechaza o
+// devuelve vacío, y un alumno con coach quedaba con las listas vacías como si fueran de la
+// nube. Se corta acá, como un corte de red (sin "code": la cola lo reintenta, loadCloud
+// conserva lo local). /auth/ va siempre con la clave: es el que renueva la sesión.
+function noAnonFetch(url, opts){
+  const h=new Headers(opts && opts.headers);
+  if(State.cloudUser && h.get("Authorization")==="Bearer "+SB_KEY && !/\/auth\/v1\//.test(String((url && url.url) || url)))
+    return Promise.reject(new TypeError("Sin sesión con tu cuenta: no se manda como anónimo"));
+  return fetch(url, opts);
+}
+// La app abrió con la sesión guardada en el celular sin que la librería la pudiera renovar
+// (ver cloudBoot, afterLogin(user, true)). afterLogin() se saltea lo que necesita red y se
+// completa cuando vuelve la sesión (staleCatchUp).
+let _staleBoot=false, _inLogin=false;
+// Lo que afterLogin() se salteó por abrir sin sesión viva (nombre del coach, alumnos) se pide
+// apenas un loadCloud() cualquiera logra leer la cuenta, no solo el de retryCloud(): con una
+// renovación lenta (~3 s, 3G) la lectura la lograba el loadCloud() de afterLogin u otro
+// (Configuración), retryCloud() ya no hacía nada y el coach quedaba con «Clientes (0)».
+async function staleCatchUp(){
+  _staleBoot=false;
+  const coach=State.cloudProfile && State.cloudProfile.role==="coach";
+  try{
+    if(coach){ State.brandName=State.cloudProfile.full_name||""; await Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]); }
+    else { const cn=await State.sb.rpc("my_coach_name"); State.brandName=cn.data||""; }
+  }catch(e){}
+  applyBrand();
+  if(coach) renderCoach();
+}
+function sessionLost(){
+  if(!State.cloudUser || State.signingOut) return;
+  // cloudUser NO se borra: sin él la cola deja de juntar lo que se carga y el pie diría «Se
+  // guarda solo en este dispositivo». Esta marca deja pasar los ingresos que se frenan con
+  // «ya hay una cuenta adentro» (Google web, links gize://); afterLogin la saca.
+  State.sessionLost=true;
+  refreshSyncFoot();
+  const h=document.getElementById("authHost");
+  if(h && h.style.display==="flex" && h.innerHTML) return; // ya está pidiendo ingresar: no se borra lo que escribió
+  showLogin(LOST_MSG, "in", {email:State.cloudUser.email||""});
+}
+const LOST_MSG="Tu sesión se cerró (por ejemplo, si saliste desde otro dispositivo). Ingresá de nuevo con tu cuenta: lo que cargaste en este celular sigue guardado y se sube al entrar.";
 
 function reloadSbScript(){
   const old=document.querySelector('script[src*="supabase"]'); if(!old) return;
@@ -502,15 +627,19 @@ async function touchMe(){
   }catch(e){}
 }
 
-export async function afterLogin(sessionUser){
+export async function afterLogin(sessionUser, stale){
   // getUser() revalida el token pegándole a la red. Si no hay conexión esa llamada
   // falla y ANTES dejábamos State.cloudUser en null: como flushOutbox()/pendingCount()
   // filtran la cola por el id de usuario, un cloudUser null "escondía" lo pendiente
   // (mostraba "Se guarda solo en este dispositivo" con la cola intacta pero invisible)
-  // y loadCloud() cortaba de raíz. getSession() ya trae el usuario sin pegarle a la
-  // red (lee la sesión guardada en el dispositivo), así que arrancamos con ESE y solo
-  // lo reemplazamos por la versión fresca del servidor si getUser() llega a responder.
+  // y loadCloud() cortaba de raíz. Arrancamos con el usuario de la sesión (el que devolvió
+  // getSession(), o el guardado en el celular si no se pudo renovar sin señal: ver cloudBoot)
+  // y solo lo reemplazamos por la versión fresca del servidor si getUser() llega a responder.
+  // Ojo: getSession() lee la sesión guardada sin red solo mientras el token está vigente; si
+  // venció, intenta renovarlo y sin señal reintenta ~30 s antes de devolver session:null.
   State.cloudUser = sessionUser || State.cloudUser || null;
+  State.sessionLost = false;
+  _staleBoot = !!stale;
   // Pide que el navegador no borre lo guardado (sesión y datos) cuando le falta espacio o la
   // página no se abre por un tiempo. Si no lo concede, sigue igual que antes.
   try{ if(State.cloudUser && navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p=>{ if(!p) navigator.storage.persist().catch(()=>{}); }).catch(()=>{}); }catch(e){}
@@ -528,25 +657,37 @@ export async function afterLogin(sessionUser){
   }
   if(State.cloudUser && state.ownerUid!==State.cloudUser.id){ state.ownerUid=State.cloudUser.id; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
   try{ localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
-  try { const r=await State.sb.auth.getUser(); if(r.data.user) State.cloudUser=r.data.user; } catch(e){}
+  // Sin sesión viva (_staleBoot) getUser() y el envío de la cola esperarían los ~30 s de
+  // reintentos de la librería con la pantalla vacía: se saltean y salen cuando se renueva
+  // el token (watchAuth → flushOutbox + retryCloud).
+  let gu=null;
+  if(!_staleBoot){ try { gu=await State.sb.auth.getUser(); if(gu.data.user) State.cloudUser=gu.data.user; } catch(e){} }
+  // Sesión cerrada desde otro dispositivo con el token todavía vigente: el servidor dice que
+  // no existe y la librería la borra. Seguir cargaría la cuenta sin sesión: se pide ingresar.
+  if(gu && gu.error && gu.error.name==="AuthSessionMissingError"){ sessionLost(); return; }
+  rescueFailed();
   // Primero se envía lo que quedó pendiente de otra sesión (sin conexión, app cerrada):
   // loadCloud() reemplaza entrenos/registros locales por los de la nube.
-  try { await flushOutbox(); } catch(e){ console.error("flushOutbox",e); }
+  if(!_staleBoot){ try { await flushOutbox(); } catch(e){ console.error("flushOutbox",e); } }
   // El nombre del coach no depende de loadCloud(): se pide en paralelo en vez de después.
-  let coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null}));
+  let coachNameP=_staleBoot ? Promise.resolve({data:null}) : Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null}));
+  _inLogin=true; // lo salteado lo completa afterLogin mismo (ver abajo), no staleCatchUp()
   await loadCloud();
   if(!State.cloudProfile) State.cloudProfile=cachedProfile(); // sin conexión: el último perfil conocido
-  // Registro con Google eligiendo "Soy coach": la cuenta nace como cliente (ver login-google.sql).
+  // Registro con Google (o Apple) eligiendo "Soy coach": la cuenta nace como cliente (ver login-google.sql).
   const gi=takeGoogleIntent();
-  // Entró con Google desde "Ingresar" (no desde "Crear cuenta") y la cuenta se creó recién:
+  // Entró con Google o Apple desde "Ingresar" (no desde "Crear cuenta") y la cuenta se creó recién:
   // puede que ya tuviera otra cuenta con otro mail (a un tester le pasó y creyó que había
   // perdido todo). Se le avisa con qué mail quedó y qué hacer si no era la que quería.
   try{
     const u=State.cloudUser||{};
     const fresh = u.created_at && Date.now()-Date.parse(u.created_at) < 10*60*1000;
-    const viaGoogle = (u.app_metadata && u.app_metadata.provider==="google") || (u.identities||[]).some(i=>i.provider==="google");
-    if(gi && gi.mode!=="up" && Date.now()-gi.t < 15*60*1000 && fresh && viaGoogle){
-      const mail=u.email||"tu cuenta de Google";
+    const via = p => (u.app_metadata && u.app_metadata.provider===p) || (u.identities||[]).some(i=>i.provider===p);
+    const prov = via("google") ? "Google" : (via("apple") ? "Apple" : "");
+    if(gi && gi.mode!=="up" && Date.now()-gi.t < 15*60*1000 && fresh && prov){
+      // Con Apple se puede ocultar el mail: llega una dirección de reenvío que no dice nada.
+      // (Los mails a esa dirección llegan solo si gize.ar está registrado en Apple: ver App.entitlements.)
+      const mail=(u.email && !/@privaterelay\.appleid\.com$/i.test(u.email)) ? u.email : "tu cuenta de "+prov;
       setTimeout(()=>alert("Creamos una cuenta nueva de GIZE con "+mail+".\n\nSi es tu primera vez, ¡bienvenido! Si ya tenías una cuenta con OTRO mail, andá a Ajustes → Salir y entrá con ese mail y tu contraseña: ahí están tus datos."), 900);
     }
   }catch(e){}
@@ -565,13 +706,16 @@ export async function afterLogin(sessionUser){
       if(r2.data===true){ coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null})); const pr=await State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle(); if(pr.data) State.cloudProfile=pr.data; await loadCloud(); }
     }
   }catch(e){ console.error("pending code",e); }
+  _inLogin=false;
+  // La sesión se renovó mientras tanto y loadCloud() pudo leer: lo salteado va normal acá abajo.
+  if(_staleBoot && State.cloudReady){ _staleBoot=false; coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null})); }
   hideLogin();
   try{
     if(State.cloudProfile && State.cloudProfile.role==="coach"){ State.brandName=State.cloudProfile.full_name||""; }
     else { const cn=await coachNameP; State.brandName=cn.data||""; }
   }catch(e){ State.brandName=""; }
   applyBrand();
-  if (State.cloudProfile && State.cloudProfile.role==="coach"){ await Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]); renderCoach(); checkPaymentReturn(); syncPush(); }
+  if (State.cloudProfile && State.cloudProfile.role==="coach"){ if(!_staleBoot) await Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]); renderCoach(); checkPaymentReturn(); syncPush(); }
   else { renderApp(); syncPush(); } // sin await: no demora la entrada
   maybeShowOnboarding(); // cuenta nueva: bienvenida (una sola vez), encima de la app
   window.dispatchEvent(new Event("gize:login")); // chat: botón, globitos y aviso tocado (main.js)
@@ -579,6 +723,9 @@ export async function afterLogin(sessionUser){
 
 export async function loadCloud(){
   if(!State.sb||!State.cloudUser) return;
+  // Sin sesión viva no se lee: las consultas saldrían como anónimo (ver noAnonFetch) y fallarían
+  // igual. Se reintenta más tarde; lo local queda como está y el pie avisa que no hay conexión.
+  if(!await liveSession(State.cloudUser.id, _staleBoot ? 300 : 3000)){ scheduleCloudRetry(); return; }
   State.cloudLoading=true;
   try{
     // Supabase no lanza cuando una lectura falla: devuelve {data:null, error}. Un data null
@@ -610,8 +757,7 @@ export async function loadCloud(){
       // las predeterminadas.
       sb.from("coach_questions").select("daily, checkin").maybeSingle(),
       // Calorías de los 7 días anteriores, para el promedio semanal de Comida.
-      sb.from("food_entries").select("log_date, kcal").eq("client_id",uid).gte("log_date",daysAgo(7)).lt("log_date",today()),
-      loadMyPhotos()
+      sb.from("food_entries").select("log_date, kcal").eq("client_id",uid).gte("log_date",daysAgo(7)).lt("log_date",today())
     ]);
     const pr=sbOk(pr0);
     State.cloudProfile=pr.data||null;
@@ -654,9 +800,17 @@ export async function loadCloud(){
       } else {
         state.days = rt.data.days;
       }
-      migrateNames(state.days);
+      // Si migrateNames corrigió algo (nombres viejos, sin 'mus', ids raros), la corregida se
+      // sube ya, recién leída la nube. Antes la subía el primer save(); ahora save() solo sube
+      // si la rutina cambió acá, y al volver a primer plano refreshOwnRoutine veía distinta la
+      // nube y la volvía a tomar (y a migrar, con ids nuevos) en cada vuelta. Si no se pudo
+      // subir, queda marcada la de la nube: la corregida queda pendiente para el próximo save().
+      const raw=JSON.parse(JSON.stringify(state.days));
+      const fixed=migrateNames(state.days);
       if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
-      markRoutineSynced(state.days);
+      let up=false;
+      if(fixed){ try{ up=await upRoutine(); }catch(e){ console.error("rutina",e); } }
+      markRoutineSynced(fixed && !up ? raw : state.days);
     } else if(!routineLocked()) {
       if(await upRoutine()) markRoutineSynced(state.days);
     }
@@ -708,6 +862,7 @@ export async function loadCloud(){
   // Sin esto, si la app abría sin señal no volvía a intentar en toda la sesión: la rutina
   // nunca se subía y los cambios quedaban solo en el celular.
   if(!State.cloudReady) scheduleCloudRetry(); else _retryN=0;
+  if(_staleBoot && State.cloudReady && !_inLogin) await staleCatchUp();
   syncExtras();
 }
 
@@ -724,6 +879,52 @@ function localRoutineWins(cloud){
   return (state.routineEditedAt||0) > cloudTs;
 }
 
+// Sin coach, la rutina también se cambia desde otro dispositivo (la compu, otro celular). Al
+// volver a primer plano se relee la de la nube: si allá cambió y acá no, se toma esa; si
+// cambiaron las dos, gana la más nueva (la misma regla que al abrir, localRoutineWins). Antes
+// el celular que había quedado abierto seguía con la vieja, la subía en el próximo save() y
+// después el otro dispositivo la adoptaba: el cambio se perdía en todos lados.
+// Devuelve true si cambió la rutina de este dispositivo (hay que redibujar).
+let _routineCheck=null;
+const ownRoutine=()=>!(State.cloudProfile && State.cloudProfile.role==="coach") && !routineLocked() && onRegular();
+export function refreshOwnRoutine(){
+  if(_routineCheck) return _routineCheck;
+  if(!State.sb || !State.cloudUser || !State.cloudReady || State.cloudLoading || !ownRoutine()) return Promise.resolve(false);
+  const synced=state.routineHash;
+  const p=_routineCheck=(async()=>{
+    try{
+      const rt=await State.sb.from("routines").select("days, updated_at").eq("client_id",State.cloudUser.id).maybeSingle();
+      if(rt.error || !rt.data || !Array.isArray(rt.data.days) || !rt.data.days.length) return false;
+      // Si mientras leía se subió o se bajó la rutina (o se vinculó a un coach), esta lectura ya es vieja.
+      if(state.routineHash!==synced || State.cloudLoading || !ownRoutine()) return false;
+      // Cambió acá y es más nueva: se sube por el camino de siempre (la demora espera a esta lectura).
+      if(localRoutineWins(rt.data)){ cloudSyncCore(); return false; }
+      if(sameDays(rt.data.days, state.days)){ if(routineHash(state.days)!==state.routineHash) markRoutineSynced(state.days); return false; }
+      // La nube sigue igual que cuando se bajó (la migración de acá todavía no se subió): no hay
+      // nada que tomar; se sube la corregida. Volver a tomarla la migraba otra vez y cambiaba los
+      // ids raros en cada vuelta (el alumno saltaba al primer día).
+      if(routineHash(rt.data.days)===synced){ cloudSyncCore(); return false; }
+      state.days=rt.data.days;
+      const raw=JSON.parse(JSON.stringify(state.days)); // la de la nube, sin migrar (ver loadCloud)
+      const fixed=migrateNames(state.days);
+      if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
+      markRoutineSynced(raw); // también la guarda en el dispositivo
+      if(fixed) cloudSyncCore(); // la corregida se sube una vez (sin marcarla como editada acá)
+      return true;
+    }catch(e){ console.error("rutina",e); return false; }
+  })();
+  p.then(()=>{ if(_routineCheck===p) _routineCheck=null; });
+  return p;
+}
+// ¿Es la misma rutina? La nube la guarda como jsonb, que devuelve las claves en otro orden:
+// se comparan ordenadas (routineHash no sirve para esto, depende del orden).
+function sameDays(a, b){
+  const canon=v=>Array.isArray(v) ? "["+v.map(canon).join(",")+"]"
+    : (v && typeof v==="object") ? "{"+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+":"+canon(v[k])).join(",")+"}"
+    : JSON.stringify(v===undefined ? null : v);
+  return canon(a)===canon(b);
+}
+
 let _retryT=null, _retryN=0;
 function scheduleCloudRetry(){
   clearTimeout(_retryT);
@@ -733,9 +934,7 @@ function scheduleCloudRetry(){
 async function retryCloud(){
   if(State.cloudReady || State.cloudLoading || !State.sb || !State.cloudUser) return;
   await loadCloud();
-  if(State.cloudReady){
-    if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach(); else renderApp();
-  }
+  if(State.cloudReady){ if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach(); else renderApp(); }
 }
 window.addEventListener("online", ()=>{ if(State.cloudUser && !State.cloudReady) retryCloud(); });
 
@@ -838,9 +1037,15 @@ export function cloudSyncCore(){
   clearTimeout(State.routineTimer);
   State.routineTimer=setTimeout(async ()=>{
     try{
+      // Si justo se está releyendo la rutina de la nube (volvió a primer plano), primero se
+      // decide cuál queda (ver refreshOwnRoutine) y recién después se sube, si hace falta.
+      await _routineCheck;
       // Con coach asignado la rutina es SOLO del coach: subir la copia del cliente en cada
-      // save() pisaba lo que el coach acababa de cambiar.
-      if(!routineLocked() && onRegular()){
+      // save() pisaba lo que el coach acababa de cambiar. Sin coach, se sube solo si cambió
+      // en este dispositivo desde la última vez que quedó igual a la nube: antes cualquier
+      // save() (agua, comida, el cambio de día) subía la rutina entera, y un celular que había
+      // quedado abierto con la vieja pisaba la nueva que el alumno armó en otro.
+      if(!routineLocked() && onRegular() && routineHash(state.days)!==state.routineHash){
         const days=state.days, h=routineHash(days);
         sbOk(await State.sb.from("routines").upsert({client_id:State.cloudUser.id, days:days, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}));
         if(routineHash(state.days)===h) markRoutineSynced(state.days); // si cambió mientras subía, queda pendiente para la próxima
@@ -850,85 +1055,18 @@ export function cloudSyncCore(){
   },1200);
 }
 
-export async function loadMyPhotos(){
-  if(!State.sb||!State.cloudUser) return;
-  try{
-    const r=sbOk(await State.sb.from("checkin_photos").select("*").eq("client_id",State.cloudUser.id).order("created_at",{ascending:false}));
-    const rows=r.data||[];
-    const urls=await signedUrls(rows.map(p=>p.path));
-    CheckinState.myPhotos=rows.map(p=>({id:p.id, path:p.path, url:urls[p.path]||""}));
-  }catch(e){ console.error("photos",e); }
-}
-
-// Links firmados de las fotos de check-in, todos en un solo pedido (antes era uno por
-// foto, en serie). Devuelve {path: url}; una foto sin link queda afuera del objeto.
-export async function signedUrls(paths){
-  const out={};
-  if(!paths.length) return out;
-  const r=await State.sb.storage.from("checkins").createSignedUrls(paths, 3600);
-  (r.data||[]).forEach(u=>{ if(u && u.path && u.signedUrl) out[u.path]=u.signedUrl; });
-  return out;
-}
-
-// Lo que acepta el bucket "checkins" (supabase/endurecer-base.sql): mismos tipos y tamaño.
-const PHOTO_MAX_MB=15;
-const PHOTO_TYPES={jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", webp:"image/webp", heic:"image/heic", heif:"image/heif"};
-
-// Lanza un Error con el texto para el usuario (en castellano) si la foto no se puede subir.
-export async function cloudUploadPhoto(file){
-  if(!State.sb||!State.cloudUser) return;
-  const ext0=(file.name.split(".").pop()||"").toLowerCase();
-  // El tipo lo informa el navegador; algunas compus lo mandan vacío (fotos HEIC del
-  // iPhone pasadas a Windows, por ejemplo) y el bucket rechaza un archivo sin tipo, así
-  // que ahí se deduce por la extensión. "image/jpg" no es estándar: es image/jpeg.
-  let type=(file.type||PHOTO_TYPES[ext0]||"").toLowerCase();
-  if(type==="image/jpg") type="image/jpeg";
-  const types=Object.values(PHOTO_TYPES);
-  // Se avisa antes de subir (sin gastar datos) con el mismo texto que daría el bucket.
-  if(types.indexOf(type)<0) throw new Error(storageErrorText({statusCode:"415"}));
-  if(file.size>PHOTO_MAX_MB*1024*1024) throw new Error(storageErrorText({statusCode:"413"}, PHOTO_MAX_MB));
-  const ext=PHOTO_TYPES[ext0]===type ? ext0 : Object.keys(PHOTO_TYPES).find(k=>PHOTO_TYPES[k]===type);
-  const path=State.cloudUser.id+"/"+Date.now()+"."+ext;
-  // Con un Blob, supabase-js manda el tipo del propio archivo (no el contentType): si el
-  // navegador no lo puso, se re-envuelve con el tipo correcto (no copia la foto).
-  const body=(file.type===type) ? file : new Blob([file], {type:type});
-  const up=await State.sb.storage.from("checkins").upload(path, body, {upsert:false, contentType:type});
-  if(up.error) throw new Error(storageErrorText(up.error, PHOTO_MAX_MB));
-  const ins=await State.sb.from("checkin_photos").insert({client_id:State.cloudUser.id, path:path, taken_on:today()});
-  if(ins.error){
-    // Sin la fila, la foto no aparece en ningún lado: se borra el archivo recién subido.
-    State.sb.storage.from("checkins").remove([path]).catch(()=>{});
-    throw ins.error;
-  }
-  await loadMyPhotos(); renderApp();
-}
-
-// Las funciones cloudSave*/cloudInsert* devuelven true si quedó en la nube (o si no hay
-// sesión y no hay nada que sincronizar) y false si falló, para que quien las llama pueda
-// avisarle al usuario en vez de decirle "guardado" a ciegas.
-export async function cloudDeletePhoto(id, path){
-  if(!State.sb||!State.cloudUser) return true;
-  try{
-    // Primero la fila y después el archivo: al revés, si fallaba borrar la fila quedaba en
-    // la lista una foto que ya no existe. Así, lo peor es un archivo sin fila, que nadie ve.
-    sbOk(await State.sb.from("checkin_photos").delete().eq("id",id));
-    const rm=await State.sb.storage.from("checkins").remove([path]);
-    if(rm.error) console.error("deletePhoto: la foto se sacó de la lista pero el archivo quedó en Storage", path, rm.error);
-    await loadMyPhotos(); renderApp();
-    return true;
-  }catch(e){ console.error("deletePhoto",e); return false; }
-}
-
-// Borra todos los archivos del usuario en Storage (fotos de check-in, de perfil y de los
+// Borra todos los archivos del usuario en Storage (foto de perfil y fotos de los
 // productos que cargó o pidió, ver supabase/pedidos-productos.sql). Se usa
-// antes de eliminar la cuenta: delete_own_account borra auth.users y con eso las filas en
-// cascada, pero los archivos NO (Supabase no deja borrar storage.objects por SQL: trigger
+// antes de eliminar la cuenta: borrar auth.users borra las filas en cascada, pero los
+// archivos NO (Supabase no deja borrar storage.objects por SQL: trigger
 // protect_objects_delete), así que las fotos quedaban para siempre sin dueño.
+// El bucket "checkins" (las fotos de progreso de antes) ya no va: se vació entero y quedó
+// sin permisos (ver supabase/borrar-fotos-progreso.sql).
 // Lanza si algo falla, para no eliminar la cuenta con fotos todavía guardadas.
 export async function deleteMyStorageFiles(){
   if(!State.sb||!State.cloudUser) return;
   const uid=State.cloudUser.id;
-  for(const bucket of ["checkins","avatars","productos"]){
+  for(const bucket of ["avatars","productos"]){
     const st=State.sb.storage.from(bucket);
     // Primero se listan todas (list() devuelve de a 1000 como máximo) y después se borran:
     // borrar mientras se pagina corre el offset y se saltearía archivos.
@@ -942,14 +1080,24 @@ export async function deleteMyStorageFiles(){
     }
     for(let i=0;i<paths.length;i+=100) sbOk(await st.remove(paths.slice(i,i+100)));
   }
-  // Mensajes de voz del chat y audios de ejercicios: los borra la función borrar-audios
-  // (el usuario no tiene permiso de borrar audios en Storage). Si falla, no se elimina la
-  // cuenta: se puede reintentar.
+}
+
+// Elimina la cuenta: la función borrar-audios borra los mensajes de voz del chat y los audios
+// de ejercicios (el usuario no tiene permiso de borrar audios en Storage) y después la cuenta
+// (auth.users y en cascada todo lo que depende de ella). Va todo junto en la función para que
+// nadie pueda borrar los audios del otro sin eliminar su cuenta. Si falla, lanza con el motivo
+// y la cuenta sigue: se puede reintentar.
+export async function deleteMyAccount(){
   const r=await State.sb.functions.invoke("borrar-audios", { body: {} });
   if(r.error){
     let detail="";
     try{ const ctx=r.error.context; if(ctx && ctx.json){ const j=await ctx.json(); detail=j && j.error; } }catch(e){}
-    throw new Error(detail || "no se pudieron borrar tus mensajes de voz. Probá de nuevo en un rato.");
+    throw new Error(detail || "no se pudo eliminar la cuenta. Probá de nuevo en un rato.");
+  }
+  // Función vieja todavía publicada (solo borraba los audios): la cuenta se borra acá.
+  if(!(r.data && r.data.deleted)){
+    const d=await State.sb.rpc("delete_own_account");
+    if(d.error) throw d.error;
   }
 }
 
@@ -988,6 +1136,8 @@ export function localUnsynced(){
 // Sube la rutina ya (sin esperar la demora de cloudSyncCore). Devuelve true si quedó en la nube.
 export async function syncRoutineNow(){
   if(!State.sb || !State.cloudUser || !State.cloudReady || routineLocked() || !onRegular()) return false;
+  // Sin cambios acá desde la última sincronización no se sube nada (ver cloudSyncCore).
+  if(routineHash(state.days)===state.routineHash) return true;
   try{
     const days=state.days, h=routineHash(days);
     sbOk(await State.sb.from("routines").upsert({client_id:State.cloudUser.id, days:days, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}));
@@ -1094,8 +1244,13 @@ async function sendItem(it){
   } else if(it.k==="prefs"){
     sbOk(await sb.from("client_prefs").upsert(Object.assign({client_id:uid, updated_at:new Date().toISOString()}, p),{onConflict:"client_id"}));
   } else if(it.k==="checkin"){
+    // La columna adherence es un número del 1 al 10. Si el coach cambió esa pregunta (opciones
+    // con palabras o respuesta libre), la respuesta va en answers como cualquier otra: antes se
+    // perdía (quedaba null) o la base rechazaba todo el check-in por mandar texto a esa columna.
     const ans=Object.assign({},p.f); const adh=ans.adherence; delete ans.adherence;
-    sbOk(await sb.from("checkins").upsert({client_id:uid, week_start:p.wk, answers:ans, adherence:adh||null},{onConflict:"client_id,week_start"}));
+    const n=Number(adh), isNum=adh!=null && String(adh).trim()!=="" && Number.isInteger(n) && n>=1 && n<=10;
+    if(!isNum && adh!=null && String(adh).trim()!=="" && !(typeof adh==="number" && isNaN(adh))) ans.adherence=adh;
+    sbOk(await sb.from("checkins").upsert({client_id:uid, week_start:p.wk, answers:ans, adherence:isNum?n:null},{onConflict:"client_id,week_start"}));
   }
 }
 
@@ -1103,6 +1258,38 @@ async function sendItem(it){
 // clases SQLSTATE 22/23/42). Un pendiente así trabaría toda la cola para siempre, así que
 // se aparta en OUTBOX_FAILED_KEY. Un corte de red no trae "code" y se sigue reintentando.
 function isPermanent(e){ return !!(e && typeof e.code==="string" && /^(22|23|42)/.test(e.code)); }
+
+// ¿supabase-js tiene ahora una sesión viva de ESTE usuario? Sin sesión la librería no avisa:
+// manda el pedido con la clave anónima, la base lo rechaza por RLS con 42501 (que parece
+// un error permanente y apartaba el pendiente) y un DELETE borra 0 filas sin error (se daba
+// por hecho). Pasa con el token vencido si la renovación falló sin señal (la librería guarda
+// ese fallo 60 s y mientras tanto no hay sesión) o si la sesión se cerró desde otro lado.
+async function sessionFor(uid){
+  try{ const s=(await State.sb.auth.getSession()).data.session; return !!(s && s.user && s.user.id===uid); }catch(e){ return false; }
+}
+// Lo mismo con tope de espera: con el token vencido y sin señal getSession() tarda ~30 s.
+function liveSession(uid, ms){ return Promise.race([sessionFor(uid), new Promise(ok=>setTimeout(()=>ok(false), ms))]); }
+// Sin sesión lo pendiente se queda en la cola y sale solo cuando la librería renueva el token
+// (TOKEN_REFRESHED, ver watchAuth) o, si nadie la despierta, pasado su enfriamiento de 60 s.
+let _flushRetry=null;
+function flushLater(){ clearTimeout(_flushRetry); _flushRetry=setTimeout(()=>{ flushOutbox(); }, 65000); }
+
+// La versión anterior apartaba así (error de "row-level security") los entrenos mandados sin
+// sesión, y ahí quedaban. Al entrar vuelven a la cola, adelante: se suben ignorando los que ya
+// están, así que reenviarlos no puede pisar nada. Lo demás (comidas, registro, pesos,
+// check-in) reemplaza el día o la semana entera y pudo tener después una versión más nueva ya
+// subida: reenviar la vieja la pisaría, así que queda donde está.
+function rescueFailed(){
+  const uid=State.cloudUser&&State.cloudUser.id; if(!uid) return;
+  const failed=readQueue(OUTBOX_FAILED_KEY);
+  const back=failed.filter(i=>i.uid===uid && i.k==="session" && /row-level security/i.test(i.error||""));
+  if(!back.length) return;
+  const q=readQueue(OUTBOX_KEY);
+  const fresh=back.filter(i=>!q.some(x=>x.id===i.id)).map(i=>{ const c=Object.assign({}, i); delete c.error; return c; });
+  writeQueue(OUTBOX_KEY, fresh.concat(q));
+  const left=failed.filter(i=>back.indexOf(i)<0);
+  if(left.length) writeQueue(OUTBOX_FAILED_KEY, left); else try{ localStorage.removeItem(OUTBOX_FAILED_KEY); }catch(e){}
+}
 
 let _flushing=null;
 export function flushOutbox(){
@@ -1117,12 +1304,19 @@ export function flushOutbox(){
       for(;;){
         const it=myPending()[0];
         if(!it) return true;
+        if(!(await sessionFor(it.uid))){ flushLater(); return false; }
+        let bad=null;
         try{ await sendItem(it); }
         catch(e){
           console.error("outbox",it.k,e);
           if(!isPermanent(e)) return false;
-          writeQueue(OUTBOX_FAILED_KEY, readQueue(OUTBOX_FAILED_KEY).concat([Object.assign({error:String(e&&e.message||e)}, it)]));
+          bad=e;
         }
+        // Si la sesión se cayó mientras se mandaba, parte pudo salir como anónimo: el rechazo
+        // es por eso y no por el dato, y un DELETE así "sale bien" sin borrar nada. Se queda
+        // en la cola y se repite con sesión (reenviar no duplica nada, ver sendItem).
+        if(!(await sessionFor(it.uid))){ flushLater(); return false; }
+        if(bad) writeQueue(OUTBOX_FAILED_KEY, readQueue(OUTBOX_FAILED_KEY).concat([Object.assign({error:String(bad&&bad.message||bad)}, it)]));
         writeQueue(OUTBOX_KEY, readQueue(OUTBOX_KEY).filter(i=>i.id!==it.id));
       }
     } finally { _flushing=null; refreshSyncFoot(); }
@@ -1130,7 +1324,9 @@ export function flushOutbox(){
   return _flushing;
 }
 
-// Anota y manda ya. true = quedó en la nube; false = quedó pendiente en el dispositivo.
+// Anota y manda ya. true = quedó en la nube; false = quedó pendiente en el dispositivo (se
+// reintenta solo); "failed" = la base lo rechazó (dato inválido, sin permiso), quedó apartado
+// en OUTBOX_FAILED_KEY y no se reintenta. Ojo: "failed" cuenta como verdadero en un if.
 async function enqueueAndSend(k, p, key){
   if(!State.cloudUser) return true; // sin cuenta no hay nada que sincronizar
   const id=enqueue(k, p, key);
@@ -1145,7 +1341,8 @@ async function enqueueAndSend(k, p, key){
     try{ await State.sb.auth.getSession(); }catch(e){}
     await flushOutbox();
   }
-  return !readQueue(OUTBOX_KEY).some(i=>i.id===id);
+  if(readQueue(OUTBOX_KEY).some(i=>i.id===id)) return false;
+  return readQueue(OUTBOX_FAILED_KEY).some(i=>i.id===id) ? "failed" : true;
 }
 
 export function isOnline(){ return navigator.onLine!==false; }
@@ -1190,7 +1387,8 @@ function applyPending(){
 window.addEventListener("online", ()=>{ flushOutbox(); });
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") flushOutbox(); });
 
-// Las funciones cloud* devuelven true si quedó en la nube y false si quedó pendiente.
+// Las funciones cloud* devuelven true si quedó en la nube, false si quedó pendiente y
+// "failed" si la base lo rechazó (ver enqueueAndSend).
 export function cloudInsertSession(se){
   const entries=[];
   (se.exercises||[]).forEach((ex,ei)=>{ (ex.sets||[]).forEach((sset,i)=>{ entries.push({id:newId(), name:ex.name, order:setOrder(ei,i), kg:sset.kg, reps:sset.reps, secs:sset.secs||0}); }); });
@@ -1239,6 +1437,17 @@ export function cloudSaveDaily(dt, rec){ return enqueueAndSend("daily", {dt:dt, 
 
 export function cloudSaveCheckin(wk, f){ return enqueueAndSend("checkin", {wk:wk, f:f}, wk); }
 
+// Check-in de esa semana que todavía no llegó a la nube (queda en la cola y se manda solo).
+export function checkinPending(wk){ return myPending().some(i=>i.k==="checkin" && i.p && i.p.wk===wk); }
+
+// Último check-in de esa semana que la base rechazó: sus respuestas vuelven al formulario
+// para mandarlo de nuevo, en vez de perderse cuando la app trae lo de la nube.
+export function failedCheckin(wk){
+  const u=State.cloudUser&&State.cloudUser.id; if(!u) return null;
+  const it=readQueue(OUTBOX_FAILED_KEY).filter(i=>i.uid===u && i.k==="checkin" && i.p && i.p.wk===wk).pop();
+  return it && it.p.f ? JSON.parse(JSON.stringify(it.p.f)) : null;
+}
+
 export async function cloudDeleteSession(cid){
   if(!State.sb||!State.cloudUser||!cid) return true;
   // Si todavía no salió de la cola (o tiene feedback pendiente), se descarta: si no,
@@ -1282,16 +1491,29 @@ export async function cloudBoot(){
   // la app y después el usuario toca Google, la vuelta tiene que llegar igual.
   if(app){ try{ app.addListener("appUrlOpen", e=>{
     const B=window.Capacitor.Plugins.Browser; if(B && e && e.url && e.url.indexOf("gize://login")===0) B.close().catch(()=>{});
-    if(State.cloudUser) return;
+    if(State.cloudUser && !State.sessionLost) return;
     ensureSb().then(sb=>{ if(!sb){ showLogin(offlineMsg,"in"); return; } return openAuthLink(e && e.url); })
       .catch(err=>console.error("authLink",err));
   }); }catch(e){} }
   // Si se cierra el navegador de Google sin terminar, el botón quedaba en "Abriendo Google...".
   const Br=app && window.Capacitor.Plugins.Browser;
-  if(Br){ try{ Br.addListener("browserFinished", ()=>{ setTimeout(()=>{ const g=document.querySelector('[data-auth="google"]'); if(!State.cloudUser && g && g.disabled) showLogin("","in"); }, 800); }); }catch(e){} }
+  if(Br){ try{ Br.addListener("browserFinished", ()=>{ setTimeout(()=>{ const g=document.querySelector('[data-auth="google"]'); if((!State.cloudUser || State.sessionLost) && g && g.disabled) showLogin("","in"); }, 800); }); }catch(e){} }
   if(!State.sb){ showLogin(offlineMsg,"in"); if(window.coreEnter) window.coreEnter(); return; }
   try{
-    const sess=await State.sb.auth.getSession();
+    // Con el token vencido (alcanza con no haber abierto la app en la última hora) getSession()
+    // lo renueva, y sin señal reintenta ~30 s y devuelve session:null aunque la sesión sigue
+    // guardada: antes quedaba la pantalla vacía y después «Ingresar» sin decir nada de la
+    // conexión (y quien entra con Google no tiene contraseña). Ahora, si hay una sesión guardada
+    // y no se confirma en 3 s (o falla por red), se entra con ella: la app abre con lo local y
+    // el pie de «Sin conexión», y cuando vuelve la señal la librería renueva el token y
+    // watchAuth sincroniza. Si el servidor la rechaza de verdad la librería la borra y avisa
+    // SIGNED_OUT (→ sessionLost).
+    let stored=null; try{ stored=JSON.parse(authStorage.getItem(State.sb.auth.storageKey)||"null"); }catch(e){}
+    if(!(stored && stored.user && stored.user.id && stored.refresh_token)) stored=null;
+    const gs=State.sb.auth.getSession();
+    let sess=stored ? await Promise.race([gs, new Promise(ok=>setTimeout(()=>ok(null), 3000))]) : await gs;
+    const stale=!!stored && (!sess || (!sess.data.session && !!sess.error && sess.error.name==="AuthRetryableFetchError"));
+    if(stale) sess={data:{session:stored}};
     // Sesión sin "mantener iniciada" que ya se cerró: antes se borraban acá los datos del
     // celular, y con eso lo que todavía no se había subido (un tester perdió su rutina así).
     // Ahora quedan detrás del login: si vuelve a entrar la misma cuenta se suben, y si entra
@@ -1306,8 +1528,8 @@ export async function cloudBoot(){
       showLogin("", "newpass");
     }
     else if(sess.data.session){
-      if(CONFIRM_LANDING) await showMailConfirmed(afterLogin(sess.data.session.user));
-      else await afterLogin(sess.data.session.user);
+      if(CONFIRM_LANDING) await showMailConfirmed(afterLogin(sess.data.session.user, stale));
+      else await afterLogin(sess.data.session.user, stale);
     }
     else if(CONFIRM_ERROR){
       try{ history.replaceState(null,"",location.pathname); }catch(e){}
@@ -1316,14 +1538,17 @@ export async function cloudBoot(){
     }
     // La app estaba cerrada y la abrió el link del mail.
     else if(app && await openAuthLink(((await app.getLaunchUrl().catch(()=>null))||{}).url)){}
+    // Había una sesión guardada y el servidor no la aceptó (se cerró desde otro dispositivo o
+    // venció del todo): antes se veía «Ingresar» sin explicación.
+    else if(stored) showLogin(LOST_MSG, "in", {email:stored.user.email||""});
     else {
       // Links de la landing: #registro abre "Crear cuenta" y #registro-coach lo abre con
       // "Soy coach" ya elegido. Se limpia el # para que recargar no lo repita.
       const h=location.hash;
       if(h==="#registro"||h==="#registro-coach"){
         try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){}
-        showLogin("","up",h==="#registro-coach"?{role:"coach"}:{});
-      } else showLogin("","in");
+        showLogin(isOnline()?"":offlineMsg,"up",h==="#registro-coach"?{role:"coach"}:{});
+      } else showLogin(isOnline()?"":offlineMsg,"in"); // sin señal, que se sepa por qué no va a poder entrar
     }
   }catch(e){ console.error("cloudBoot",e); showLogin(offlineMsg,"in"); }
   finally{ if(window.coreEnter) window.coreEnter(); }

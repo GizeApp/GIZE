@@ -1,7 +1,10 @@
 -- Revisión de la base compartida de productos: foto de la tabla nutricional obligatoria al
 -- cargar un producto y una pantalla de administrador para verificar, corregir u ocultar.
 -- Correr con el workflow "Supabase" → tarea sql → supabase/productos-revision.sql (después de
--- supabase/productos.sql). Se puede correr varias veces.
+-- supabase/productos.sql).
+-- OJO: NO volver a correr suelto. Redefine products_before y admin_product_save, y las
+-- versiones vigentes están en productos-admin.sql y admin.sql (que además anota en el
+-- registro). Si lo corrés, corré después admin.sql y productos-admin.sql.
 --
 -- Administradores: se agregan a mano desde el editor SQL de Supabase (no va en este archivo
 -- porque el repositorio es público):
@@ -75,7 +78,7 @@ begin
       from public.products p
      where case kind
              when 'pendientes' then p.source = 'user' and not p.verified and not p.hidden
-             when 'reportados' then p.reports > 0 and not p.verified and not p.hidden
+             when 'reportados' then p.reports > 0 and not p.hidden
              when 'ocultos'    then p.hidden
              else false end
      order by p.reports desc, p.created_at desc
@@ -88,13 +91,15 @@ create or replace function public.admin_pending()
 returns int language plpgsql stable security definer set search_path = public as $$
 begin
   if not public.is_app_admin() then return 0; end if;
-  return (select count(*) from public.products where not verified and not hidden and (source = 'user' or reports > 0));
+  return (select count(*) from public.products where not hidden and ((source = 'user' and not verified) or reports > 0));
 end $$;
 revoke execute on function public.admin_pending() from public, anon;
 grant execute on function public.admin_pending() to authenticated;
 
 -- Guardar lo revisado: datos corregidos, verificado u oculto. Al volver a mostrar uno oculto
--- se borran sus reportes (si no, con el próximo se volvería a ocultar).
+-- se borran sus reportes (si no, con el próximo se volvería a ocultar). Al verificarlo también:
+-- los reportes ya se revisaron (si no, quedaría en Reportados para siempre).
+-- La versión vigente de esta función está en admin.sql (además la anota en el registro).
 create or replace function public.admin_product_save(pid uuid, p_name text, p_brand text, p_kcal numeric, p_protein numeric,
   p_carbs numeric, p_fat numeric, p_unit text, p_verified boolean, p_hidden boolean)
 returns void language plpgsql security definer set search_path = public as $$
@@ -105,7 +110,7 @@ begin
   update public.products set name = p_name, brand = p_brand, kcal = p_kcal, protein = p_protein, carbs = p_carbs, fat = p_fat,
     unit = case when p_unit in ('g','ml') then p_unit else unit end, verified = p_verified, hidden = p_hidden
    where id = pid;
-  if was_hidden and not p_hidden then
+  if (was_hidden and not p_hidden) or (p_verified and not p_hidden) then
     delete from public.product_reports where product_id = pid;
     update public.products set reports = 0 where id = pid;
   end if;

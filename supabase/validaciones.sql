@@ -1,5 +1,8 @@
 -- Validaciones de dispositivos de notificaciones y de la ruta de la foto de perfil.
--- Correr UNA vez en Supabase → SQL Editor. Se puede volver a correr sin problema.
+-- Correr UNA vez en Supabase → SQL Editor.
+-- OJO: NO volver a correr suelto. Redefine push_subscriptions_validate, y la versión vigente
+-- (que además acepta las apps de Android e iPhone) está en push-nativo.sql. Si lo corrés,
+-- corré después push-nativo.sql.
 -- No toca los datos que ya están: solo valida lo que se guarda de acá en adelante.
 -- Al final devuelve lo que haya que revisar (si no devuelve filas, está todo bien).
 

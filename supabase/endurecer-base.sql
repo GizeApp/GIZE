@@ -1,5 +1,8 @@
 -- Endurecimiento de la base (auditoría de septiembre 2026).
--- Correr UNA vez en Supabase → SQL Editor. Se puede volver a correr sin problema.
+-- Correr UNA vez en Supabase → SQL Editor.
+-- OJO: NO volver a correr suelto. Redefine join_coach, y la versión vigente (que además mira
+-- el plan y el cupo del coach) está en suscripciones.sql. Si lo corrés, corré después
+-- suscripciones.sql y cupo-plan.sql.
 -- Todo el script corre como una sola transacción: si algo falla, no se aplica nada.
 --
 -- Qué hace:
@@ -165,16 +168,12 @@ end $$;
 
 
 -- 8) Buckets. El avatar siempre se sube como JPEG de 320×320 (~50 KB, ver app/core/avatar.js).
---    Las fotos de check-in se suben tal cual salen del celular: margen amplio.
+--    (El de las fotos de check-in, "checkins", quedó vacío y sin permisos: ver
+--    borrar-fotos-progreso.sql.)
 update storage.buckets
    set file_size_limit = 2097152,                                   -- 2 MB
        allowed_mime_types = array['image/jpeg']
  where id = 'avatars';
-
-update storage.buckets
-   set file_size_limit = 15728640,                                  -- 15 MB
-       allowed_mime_types = array['image/jpeg','image/png','image/webp','image/heic','image/heif']
- where id = 'checkins';
 
 
 notify pgrst, 'reload schema';

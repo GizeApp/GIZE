@@ -3,7 +3,7 @@
 // La imagen se recorta en cuadrado (el encuadre lo elige la persona en ui/recorte.js) y se
 // achica en el celular antes de subirla (JPEG de 320 × 320, unos 30–60 KB). Se guarda en el bucket privado "avatars" de Supabase, en la
 // carpeta del propio usuario ({uid}/…jpg), y la ruta queda en profiles.avatar_path.
-// Para mostrarla se piden links firmados (valen 1 día), igual que las fotos de progreso.
+// Para mostrarla se piden links firmados (valen 1 día).
 // Quién puede verla lo deciden las políticas de supabase/foto-perfil.sql: el propio
 // usuario, su coach y los clientes de ese coach.
 //

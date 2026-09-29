@@ -10,7 +10,7 @@ import { State, state } from './core/state.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
-import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeletePhoto, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, cloudUploadPhoto, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithGoogle } from './core/supabase.js';
+import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, expectAuthLink, localUnsynced, PROFILE_KEY, RECOVERY_REQ, refreshOwnRoutine, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithApple, signInWithGoogle } from './core/supabase.js';
 
 import { assistedKg, isAssisted, fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, intNum, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
@@ -21,7 +21,7 @@ import { showLogin } from './screens/auth.js';
 import { ssGroupOf, ssNext } from './core/superserie.js';
 import { CardioState, openTimePicker, renderCardio, setRing, swFrac } from './screens/cardio.js';
 
-import { CheckinState, renderFeedback, saveSession , todayWeightText } from './screens/checkin.js';
+import { CheckinState, checkinDraft, checkinHasAnswer, checkinWeek, renderFeedback, saveSession , todayWeightText } from './screens/checkin.js';
 
 import { loadCoachClients, openClient } from './screens/coach/clientes.js';
 
@@ -62,11 +62,12 @@ import { removeMyAvatar, uploadMyAvatar } from './core/avatar.js';
 import { cropAvatar } from './ui/recorte.js';
 
 import { productByCode, searchOFF } from './core/off.js';
-import { checkProductRequests, productByCodeShared, reportShared, saveOffShared, searchShared, sendProductRequest, useShared } from './core/productos.js';
+import { PHOTO_UNREADABLE, checkProductRequests, productByCodeShared, reportShared, saveOffShared, searchShared, sendProductRequest, useShared } from './core/productos.js';
 
 import { addDays, dayItems, loadDay, retryDay, setDayItems } from './screens/comida-historial.js';
 import { EditState, cleanSessionEdit, openSessionEdit, removeSessionEditSet, renderSessionEdit, setSessionEditVal } from './ui/sessionedit.js';
 import { closeScanner, openScanner, scannerManualCode } from './ui/scanner.js';
+import { initBackButton } from './ui/atras.js';
 import { initUpdateCheck } from './ui/actualizar.js';
 import { openRoutinePicker } from './screens/onboarding.js';
 import { initTabScroll, restoreTabScroll } from './ui/tabscroll.js';
@@ -136,6 +137,8 @@ export function renderApp(){
 // Formulario de "Registro de hoy": arranca con lo ya guardado hoy, menos los pasos (esos
 // salen del contador, que puede haber sumado desde entonces).
 function dailyFormInit(){ if(!CheckinState.dailyForm){ const f=Object.assign({}, state.daily[today()]||{}); delete f.steps; const w=todayWeightText(); if(w) f.kg=w; CheckinState.dailyForm=f; } return CheckinState.dailyForm; }
+// Formulario del check-in: arranca con lo guardado de la semana que está abierta.
+function checkinFormInit(){ if(!CheckinState.checkinForm) CheckinState.checkinForm=checkinDraft(checkinWeek()); return CheckinState.checkinForm; }
 const roundG = g => g < 10 ? Math.round(g*10)/10 : Math.round(g);
 
 // Comida: el día que se mira. Hoy usa state.diary (se sube con el resto del día); uno
@@ -298,7 +301,7 @@ document.body.addEventListener("change", async e => {
   const t=e.target, a=t.dataset.action; if(!a) return;
   if (a === "wdate-field") { ProgresoState.weightForm.date = t.value; return; }
   if (a === "daily-kg" || a === "daily-steps" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":(a==="daily-steps"?"steps":t.dataset.k)] = t.value; return; }
-  if (a === "ci-set") { CheckinState.checkinForm = CheckinState.checkinForm || JSON.parse(JSON.stringify(state.checkins[mondayOf(today())]||{})); CheckinState.checkinForm[t.dataset.k] = t.value; return; }
+  if (a === "ci-set") { checkinFormInit()[t.dataset.k] = t.value; return; }
   if (a === "load-ex") { EntrenoState.loadEx = t.value; renderApp(); return; }
   if (a === "sess-pick") { ProgresoState.sessSel = t.value; renderApp(); return; }
   // Foto de perfil (Ajustes del cliente y Configuración del coach).
@@ -319,8 +322,16 @@ document.body.addEventListener("change", async e => {
   }
   if (a === "rq-photo") {
     const file=t.files&&t.files[0], r=ComidaState.reqForm, k=t.dataset.k;
-    if(file && r && (k==="label" || k==="front")){ if(r[k+"Url"]) URL.revokeObjectURL(r[k+"Url"]); r[k]=file; r[k+"Url"]=URL.createObjectURL(file); renderApp(); }
-    t.value=""; return;
+    t.value="";
+    if(!file || !r || (k!=="label" && k!=="front")) return;
+    // Antes de guardarla se prueba abrirla: una foto HEIC en Chrome/Android (o un archivo roto)
+    // no se puede leer, y así se avisa ahora en vez de dejar la vista previa rota.
+    const url=URL.createObjectURL(file);
+    const okImg=await new Promise(res=>{ const i=new Image(); i.onload=()=>res(i.naturalWidth>0); i.onerror=()=>res(false); i.src=url; });
+    if(!okImg){ URL.revokeObjectURL(url); alert(PHOTO_UNREADABLE); return; }
+    if(ComidaState.reqForm!==r){ URL.revokeObjectURL(url); return; }
+    if(r[k+"Url"]) URL.revokeObjectURL(r[k+"Url"]); r[k]=file; r[k+"Url"]=url; renderApp();
+    return;
   }
 });
 
@@ -380,7 +391,8 @@ document.body.addEventListener("click", async e => {
   if (a === "sw-lap") { CardioState.swLaps.push(CardioState.swAccum+(Date.now()-CardioState.swStartTs)); renderApp(); return; }
   if (a === "sw-reset") { CardioState.swRunning=false; CardioState.swAccum=0; CardioState.swStartTs=0; CardioState.swLaps=[]; renderApp(); return; }
   if (a === "tm-pick") { openTimePicker(CardioState.tmRemainingMs, "Elegí el tiempo", t => { if(t>0){ CardioState.tmTarget=t; CardioState.tmRemainingMs=t; CardioState.tmFinished=false; } renderApp(); }); return; }
-  if (a === "sw-pick") { openTimePicker(CardioState.swAccum, "Arrancar desde", t => { CardioState.swAccum=t; CardioState.swLaps=[]; renderApp(); }); return; }
+  // «Listo» sin cambiar el tiempo deja todo como estaba (con las vueltas).
+  if (a === "sw-pick") { openTimePicker(CardioState.swAccum, "Arrancar desde", t => { if(t===Math.floor(CardioState.swAccum/1000)*1000){ renderApp(); return; } CardioState.swAccum=t; CardioState.swLaps=[]; renderApp(); }); return; }
   if (a === "tm-toggle") { if(CardioState.tmRunning){ CardioState.tmRemainingMs=Math.max(0,CardioState.tmEndTs-Date.now()); CardioState.tmRunning=false; } else { initAudio(); CardioState.tmEndTs=Date.now()+CardioState.tmRemainingMs; CardioState.tmRunning=true; CardioState.tmFinished=false; } renderApp(); return; }
   if (a === "tm-reset") { CardioState.tmRunning=false; CardioState.tmFinished=false; CardioState.tmRemainingMs=CardioState.tmTarget; renderApp(); return; }
 
@@ -450,7 +462,7 @@ document.body.addEventListener("click", async e => {
     }).catch(e=>{
       r.sending=false; if(ComidaState.reqForm===r) renderApp();
       const m=e && e.message ? String(e.message) : "";
-      alert(/límite/.test(m) ? m : "No se pudo enviar el pedido. Revisá tu conexión y probá de nuevo.");
+      alert(/límite/.test(m) || m===PHOTO_UNREADABLE ? m : "No se pudo enviar el pedido. Revisá tu conexión y probá de nuevo.");
     });
     return;
   }
@@ -576,7 +588,9 @@ document.body.addEventListener("click", async e => {
     if(kg>0){ const exw=state.weights.find(w=>w.date===today()); if(exw) exw.kg=kg; else state.weights.push({id:uid(), date:today(), kg:kg}); }
     CheckinState.dailyForm=null; save();
     const synced = await cloudSaveDaily(today(), rec);
-    alert(synced ? "Registro guardado \u2713" : "Se guard\u00f3 en este dispositivo pero todav\u00eda no lleg\u00f3 a tu coach (sin conexi\u00f3n). Queda pendiente y se env\u00eda solo cuando vuelva internet.");
+    // "failed": la base lo rechazó y no se reintenta solo (antes decía «guardado»).
+    alert(synced==="failed" ? "No se pudo enviar tu registro a tu coach: el servidor no lo aceptó. Revisá tus respuestas y volvé a tocar «Guardar registro de hoy»."
+      : synced ? "Registro guardado \u2713" : "Se guard\u00f3 en este dispositivo pero todav\u00eda no lleg\u00f3 a tu coach (sin conexi\u00f3n). Queda pendiente y se env\u00eda solo cuando vuelva internet.");
     renderApp(); return;
   }
   if (a === "fb-set") { CheckinState.fbForm=CheckinState.fbForm||{}; CheckinState.fbForm[el.dataset.k]=el.dataset.v; renderFeedback(); return; }
@@ -586,25 +600,40 @@ document.body.addEventListener("click", async e => {
     if(se){ if(f.rpe) se.rpe=+f.rpe; if(f.pump) se.pump=+f.pump; if(f.joint) se.joint=(f.joint==="S\u00ed"); save(); try{ cloudSessionFeedback(se); }catch(e){} }
     CheckinState.fbSession=null; CheckinState.fbForm=null; CheckinState.newPRs=[]; renderApp(); return;
   }
-  if (a === "ci-open") { CheckinState.checkinOpen=true; CheckinState.checkinForm=null; renderApp(); return; }
-  if (a === "photo-del") { const path=el.dataset.path, id=el.dataset.id; const ok=await cloudDeletePhoto(id, path); if(!ok) alert("No se pudo borrar la foto. Revisá tu conexión e intentá de nuevo."); return; }
-  if (a === "ci-close") { CheckinState.checkinOpen=false; CheckinState.checkinForm=null; renderApp(); return; }
+  if (a === "ci-open") { CheckinState.checkinOpen=true; CheckinState.checkinForm=null; CheckinState.checkinWeek=mondayOf(today()); renderApp(); return; }
+  if (a === "ci-close") { CheckinState.checkinOpen=false; CheckinState.checkinForm=null; CheckinState.checkinWeek=null; renderApp(); return; }
   // Pregunta de opciones del check-in. La adherencia se sigue guardando como número (va a
-  // su propia columna); el resto, como el texto de la opción elegida.
-  if (a === "ci-opt") { CheckinState.checkinForm = CheckinState.checkinForm || JSON.parse(JSON.stringify(state.checkins[mondayOf(today())]||{})); const k=el.dataset.k; CheckinState.checkinForm[k] = (k==="adherence") ? parseInt(el.dataset.v) : el.dataset.v; renderApp(); return; }
+  // su propia columna) si la opción es un número; si el coach le puso opciones con palabras,
+  // como el texto de la opción elegida, igual que el resto (antes quedaba NaN y se perdía).
+  if (a === "ci-opt") { const f=checkinFormInit(); const k=el.dataset.k; f[k] = (k==="adherence" && /^\d+$/.test(el.dataset.v)) ? parseInt(el.dataset.v,10) : el.dataset.v; renderApp(); return; }
   if (a === "ci-save") {
-    const wk = mondayOf(today());
-    const f = CheckinState.checkinForm || {};
-    state.checkins[wk] = Object.assign({}, state.checkins[wk]||{}, f);
-    state.checkins[wk]._q = questionSnapshot(clientQuestions("checkin"), state.checkins[wk]);
-    CheckinState.checkinOpen=false; CheckinState.checkinForm=null; save();
-    const synced = await cloudSaveCheckin(wk, state.checkins[wk]);
-    if(!synced && !isOnline()){ alert("Tu check-in se guardó en este dispositivo pero todavía no llegó a tu coach (sin conexión). Queda pendiente y se envía solo cuando vuelva internet."); renderApp(); return; }
-    alert("\u00a1Check-in enviado a tu coach! 💪"); renderApp(); return;
+    // La semana en que se abrió el formulario (no la de ahora, si ya pasó la medianoche).
+    const wk = checkinWeek();
+    const prev = state.checkins[wk];
+    const rec = Object.assign({}, prev||{}, checkinFormInit());
+    // Vacío no se manda: quedaba como respondido y al coach le llegaba el aviso de un check-in sin nada.
+    if(!checkinHasAnswer(rec)){ alert("Respondé al menos una pregunta antes de enviar el check-in."); return; }
+    rec._q = questionSnapshot(clientQuestions("checkin"), rec);
+    state.checkins[wk] = rec;
+    CheckinState.checkinOpen=false; CheckinState.checkinForm=null; CheckinState.checkinWeek=null; save();
+    const synced = await cloudSaveCheckin(wk, rec);
+    if(synced==="failed"){
+      // La base lo rechazó y no se reintenta solo: no queda como enviado y las respuestas
+      // vuelven al formulario para mandarlo de nuevo.
+      if(prev) state.checkins[wk]=prev; else delete state.checkins[wk];
+      save();
+      CheckinState.checkinOpen=true; CheckinState.checkinWeek=wk; CheckinState.checkinForm=JSON.parse(JSON.stringify(rec));
+      renderApp();
+      alert("No se pudo enviar tu check-in: el servidor no lo aceptó. Tus respuestas siguen en el formulario: revisalas y tocá «Enviar check-in a mi coach» de nuevo. Si vuelve a pasar, avisale a tu coach.");
+      return;
+    }
+    // Sin llegar a la nube (señal floja, servidor caído, sesión vencida) no se dice «enviado».
+    alert(synced ? "\u00a1Check-in enviado a tu coach! 💪" : "Tu check-in se guardó en este dispositivo pero todavía no llegó a tu coach. Queda pendiente y se envía solo cuando se pueda.");
+    renderApp(); return;
   }
   if (a === "daily-set") { dailyFormInit(); CheckinState.dailyForm[el.dataset.k] = el.dataset.v; renderApp(); return; }
-  if (a === "weight-save") { const dEl=document.getElementById("wDate"), kEl=document.getElementById("wKg"); const date=dEl?dEl.value:""; const kg=parseFloat((kEl?kEl.value:"").replace(",",".")); if(!date){ alert("Elegí una fecha."); return; } if(!(kg>0)){ alert("Poné un peso válido."); return; } const exw=state.weights.find(w=>w.date===date); if(exw) exw.kg=kg; else state.weights.push({id:uid(),date,kg}); ProgresoState.weightForm={date:today(),kg:""}; save(); renderApp(); return; }
-  if (a === "weight-edit") { const w=state.weights.find(x=>x.id===el.dataset.id); if(w){ ProgresoState.weightForm={date:w.date,kg:String(w.kg)}; } renderApp(); return; }
+  if (a === "weight-save") { const dEl=document.getElementById("wDate"), kEl=document.getElementById("wKg"); const date=dEl?dEl.value:""; const kg=parseFloat((kEl?kEl.value:"").replace(",",".")); if(!date){ alert("Elegí una fecha."); return; } if(!(kg>0)){ alert("Poné un peso válido."); return; } const exw=state.weights.find(w=>w.date===date); if(exw) exw.kg=kg; else state.weights.push({id:uid(),date,kg}); ProgresoState.weightForm={date:today(),kg:"",at:today()}; save(); renderApp(); return; }
+  if (a === "weight-edit") { const w=state.weights.find(x=>x.id===el.dataset.id); if(w){ ProgresoState.weightForm={date:w.date,kg:String(w.kg).replace(".",","),at:today()}; } renderApp(); return; }
   if (a === "weight-remove") { state.weights=state.weights.filter(x=>x.id!==el.dataset.id); save(); renderApp(); return; }
 
   // Agua
@@ -824,6 +853,7 @@ document.body.addEventListener("click", async e=>{
       const que = n>0 ? n+" registro"+(n>1?"s":"")+(state.routineHash!==routineHash(state.days)?" y cambios de tu rutina":"") : "cambios de tu rutina";
       if(!confirm("Tenés "+que+" que todavía no se guardaron en tu cuenta (sin conexión). Si cerrás sesión ahora se pierden.\n\nConectate a internet, abrí la app y esperá unos segundos antes de salir.\n\n¿Cerrar sesión igual?")) return;
     }
+    State.signingOut=true; // el SIGNED_OUT que viene es este: no es una sesión perdida (core/supabase.js → watchAuth)
     try{ await pushLogout(); }catch(e){} // antes del signOut: borrar el dispositivo necesita la sesión
     const logoutUid=State.cloudUser&&State.cloudUser.id;
     try{ await State.sb.auth.signOut(); }catch(e){}
@@ -845,6 +875,20 @@ document.body.addEventListener("click", async e=>{
     if(!State.sb){ showLogin("No se pudo conectar con el servidor. Revisá tu conexión a internet y volvé a intentar.", mode, V); return; }
     try{ await signInWithGoogle({role:mode==="up"?role:"client", code:mode==="up"&&role==="client"?code:"", mode:mode, vals:V}); } // web: la página se va a Google
     catch(err){ showLogin("No se pudo entrar con Google: "+((err&&err.message)||err), mode, V); }
+    return;
+  }
+  // «Continuar con Apple» (solo en la app de iPhone). El texto del botón no cambia: Apple pide
+  // usar solo sus textos aprobados. Mientras está la hoja de Apple queda deshabilitado.
+  if(a==="apple"){
+    const mode = document.getElementById("auRole") ? "up" : "in";
+    const role=((document.getElementById("auRole")||{}).value||"client").trim();
+    const code=((document.getElementById("auCode")||{}).value||"").trim();
+    const V={name:((document.getElementById("auName")||{}).value||"").trim(), email:((document.getElementById("auEmail")||{}).value||"").trim(), code:code, role:role};
+    b.disabled=true;
+    if(!State.sb) await ensureSb();
+    if(!State.sb){ showLogin("No se pudo conectar con el servidor. Revisá tu conexión a internet y volvé a intentar.", mode, V); return; }
+    try{ await signInWithApple({role:mode==="up"?role:"client", code:mode==="up"&&role==="client"?code:"", mode:mode, vals:V}); }
+    catch(err){ if(window.coreCancel) window.coreCancel(); showLogin("No se pudo entrar con Apple: "+((err&&err.message)||err), mode, V); }
     return;
   }
   if(a==="do-login"||a==="do-signup"){
@@ -1436,7 +1480,10 @@ async function saveBlock(bf){
 }
 
 document.addEventListener("visibilitychange", async ()=>{
-  if(document.visibilityState!=="visible" || !routineLocked()) return;
+  if(document.visibilityState!=="visible") return;
+  // Sin coach: la rutina se pudo haber cambiado en otro dispositivo mientras esta quedaba
+  // abierta. Se relee de la nube y, si cambió, se redibuja (ver refreshOwnRoutine).
+  if(!routineLocked()){ if(await refreshOwnRoutine()) renderApp(); return; }
   // Primero con lo guardado (sin señal también): si cambió la semana, cambia la rutina ya.
   if(coachRoutineDue() && applyCoachRoutine()){ save(); renderApp(); }
   if(!State.sb || !State.cloudUser) return;
@@ -1466,6 +1513,7 @@ cloudBoot();
 initTabScroll(); // días de Entreno: ruedita y arrastre con el mouse
 initUpdateCheck(); // cartel de versión nueva en las apps de las tiendas
 initHabitAlarms(()=>{ State.view="habitos"; renderApp(); }); // tocar el aviso de un hábito abre Hábitos
+initBackButton(); // «Atrás» de Android: cierra la ventana abierta, vuelve o sale
 resumeRest(); // descanso que quedó corriendo al cerrar la app
 // En la app nativa (Capacitor) los archivos ya viajan dentro de la app: no hace falta el service worker.
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());

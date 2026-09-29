@@ -14,6 +14,8 @@ import { loadClientNotify } from './notificar.js';
 
 import { esc, fmtDate, fmtSecs, mondayOf, today } from '../../core/utils.js';
 
+import { kgText } from '../../core/progresion.js';
+
 import { dropRoutineDraft, readRoutineDraft, renderCoach } from './index.js';
 
 import { loadTpls } from './rutinas.js';
@@ -205,7 +207,7 @@ export function renderCoachCargas(d){
   const series=coachSeries(fsess,d.loadEx);
   const cch=series.length?renderWChart(series,true,true):'<div class="cal-hint">Sin kg registrados en este ejercicio'+(CoachState.coachDayFilter?' para este día':'')+'.</div>';
   const flog=coachExerciseLog(fsess,d.loadEx);
-  const fkg=k=>(Math.round((+k||0)*10)/10);
+  const fkg=k=>kgText(Math.round((+k||0)*10)/10);
   const detail=flog.slice().reverse().map(e=>{ const chips=e.sets.map((st,ix)=>{ const kg=+st.kg||0, rp=+st.reps||0, sc=+st.secs||0; const val=sc>0?((kg!==0?fkg(kg)+' kg \u00b7 ':'')+fmtSecs(sc)):kg!==0?(fkg(kg)+' kg'+(rp>0?' \u00d7 '+rp+' reps':'')):(rp>0?rp+' reps':'\u2014'); return '<div class="co-setline"><span class="co-setno">Serie '+(ix+1)+'</span><span class="co-setval">'+val+'</span></div>'; }).join(""); return '<div class="co-slog"><div class="co-slog-date">'+fmtDate(e.date)+'</div><div class="co-sets">'+chips+'</div></div>'; }).join("");
   out+='<select class="form-input" data-coach="ex">'+exOpts+'</select><div class="load-cap">Gráfico: máximo de kg por sesión</div>'+cch+(detail?'<div class="co-sub">Registro por sesión (peso \u00d7 reps de cada serie)</div>'+detail:'');
   return out;
@@ -230,10 +232,10 @@ export function exTable(d, dayName, exName){
     for(let i=0;i<maxS;i++){
       const st=e.sets[i];
       if(!st) tds.push('<td class="em">\u2014</td>');
-      else { const kg=+st.kg||0, rp=+st.reps||0, sc=+st.secs||0; if(sc>0) tds.push('<td>'+(kg!==0?(Math.round(kg*10)/10)+' kg \u00b7 ':'')+fmtSecs(sc)+'</td>'); else tds.push('<td>'+(kg!==0?(Math.round(kg*10)/10)+' kg':'\u2014')+(rp>0?' <span class="rp">\u00d7 '+rp+'</span>':'')+'</td>'); }
+      else { const kg=+st.kg||0, rp=+st.reps||0, sc=+st.secs||0; if(sc>0) tds.push('<td>'+(kg!==0?kgText(Math.round(kg*10)/10)+' kg \u00b7 ':'')+fmtSecs(sc)+'</td>'); else tds.push('<td>'+(kg!==0?kgText(Math.round(kg*10)/10)+' kg':'\u2014')+(rp>0?' <span class="rp">\u00d7 '+rp+'</span>':'')+'</td>'); }
     }
     const mx=Math.max.apply(null,e.sets.map(x=>x.kg||0)), mxs=Math.max.apply(null,e.sets.map(x=>x.secs||0));
-    tds.push('<td class="mx">'+(mx>0?(Math.round(mx*10)/10)+' kg':mxs>0?fmtSecs(mxs):'\u2014')+'</td>');
+    tds.push('<td class="mx">'+(mx>0?kgText(Math.round(mx*10)/10)+' kg':mxs>0?fmtSecs(mxs):'\u2014')+'</td>');
     return '<tr>'+tds.join("")+'</tr>';
   }).join("");
   return '<table class="co-tbl"><thead><tr>'+th.join("")+'</tr></thead><tbody>'+rows+'</tbody></table>';
@@ -251,7 +253,7 @@ export function exSummary(d, dayName, exName){
   const mxs=Math.max.apply(null,last.sets.map(x=>x.secs||0));
   if(mxs>0 && !(best.kg)) return fmtDate(last.date)+": máx "+fmtSecs(mxs);
   const kg=Math.round((best.kg||0)*10)/10;
-  const parts=[]; if(kg!==0) parts.push(kg+" kg"); if((best.reps||0)>0) parts.push(best.reps+" reps");
+  const parts=[]; if(kg!==0) parts.push(kgText(kg)+" kg"); if((best.reps||0)>0) parts.push(best.reps+" reps");
   if(!parts.length) return "";
   return fmtDate(last.date)+": "+parts.join(" × ");
 }

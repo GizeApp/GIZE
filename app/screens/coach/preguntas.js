@@ -32,9 +32,11 @@ export async function loadCoachQuestions(){
   State.coachQ = r.data ? { daily: r.data.daily || null, checkin: r.data.checkin || null } : null;
 }
 
+// Una lista vacía guardada queda vacía (antes, al volver a abrir, mostraba las de siempre
+// como si no se hubiera guardado).
 function currentList(kind){
   const cq = State.coachQ && normalizeQuestions(State.coachQ[kind]);
-  return (cq && cq.length) ? cq : defaultQuestions(kind);
+  return cq ? cq : defaultQuestions(kind);
 }
 
 function openEditor(tab){
