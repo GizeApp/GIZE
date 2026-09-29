@@ -52,9 +52,9 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>GIZE usa el micrófono solo cuando grabás un mensaje de voz para tu coach o tu alumno.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>GIZE usa tu ubicación mientras registrás una salida de running, caminata o bici para medir la distancia y el ritmo. No guarda tu recorrido.</string>
+	<string>GIZE usa tu ubicación mientras registrás una salida de running, caminata o bici para medir la distancia y el ritmo y dibujar el mapa de tu recorrido, que ves solo vos.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>GIZE usa tu ubicación mientras registrás una salida de running, caminata o bici para medir la distancia y el ritmo. No guarda tu recorrido.</string>
+	<string>GIZE usa tu ubicación mientras registrás una salida de running, caminata o bici para medir la distancia y el ritmo y dibujar el mapa de tu recorrido, que ves solo vos.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

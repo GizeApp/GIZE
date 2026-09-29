@@ -111,7 +111,30 @@ html.lite .cneon i { animation: none; }
 .gps-list { margin-top: 22px; display: flex; flex-direction: column; gap: 6px; }
 .gps-list-h { font-size: 11px; color: var(--txt-3); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin-bottom: 4px; }
 .gps-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 4px; }
-.gps-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-body); }
+.gps-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-body);
+  background: none; border: none; padding: 0; margin: 0; color: inherit; font-family: inherit; text-align: left; cursor: pointer; }
 .gps-item-main span { color: var(--txt-2); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
 .gps-del { flex: none; width: 36px; height: 36px; border-radius: 50%; background: none; border: 1px solid var(--border); color: var(--txt-3); cursor: pointer; font-size: 14px; }
 .gps-empty { font-size: var(--text-meta); color: var(--txt-3); }
+
+/* Mapa del recorrido (app/ui/mapa.js): en vivo arriba de los números, en el resumen y en la
+   ventana de una salida guardada. Sin MapTiler (sin clave o sin internet) queda el recorrido
+   solo, en SVG, sobre el fondo oscuro. */
+.gps-map { height: 190px; margin: calc(-1 * var(--space-14)) calc(-1 * var(--space-14)) 12px; border-bottom: 1px solid var(--border); border-radius: 4px 4px 0 0; overflow: hidden; }
+.gps-map.big { height: min(46dvh, 340px); margin: 0 0 12px; border: 1px solid var(--border); border-radius: 4px; }
+.gmap { position: relative; width: 100%; height: 100%;
+  background: radial-gradient(120% 90% at 30% 20%, rgba(166, 92, 255, .12), transparent 60%), radial-gradient(90% 80% at 80% 90%, rgba(47, 160, 255, .10), transparent 60%), #07070c; }
+.gmap-svg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.gmap-route { width: 100%; height: 100%; display: block; }
+.gmap-empty { padding: 0 24px; text-align: center; font-size: var(--text-meta); color: var(--txt-3); line-height: 1.45; }
+/* .gmap delante: la hoja de MapLibre (se carga después) le pone position: relative a su contenedor. */
+.gmap .gmap-gl { position: absolute; inset: 0; visibility: hidden; }
+.gmap.gl .gmap-gl { visibility: visible; }
+.gmap.gl .gmap-svg { display: none; }
+.gmap-logo { position: absolute; left: 8px; bottom: 6px; z-index: 2; line-height: 0; }
+.gmap-logo img { width: 67px; height: 20px; display: block; }
+.gmap .maplibregl-ctrl-attrib { background: rgba(7, 7, 12, .72); color: rgba(255, 255, 255, .82); font-size: 10px; }
+.gmap .maplibregl-ctrl-attrib a { color: rgba(255, 255, 255, .82); }
+.gps-noroute { margin: 0 0 12px; padding: 12px; border: 1px dashed var(--border); border-radius: 4px; font-size: var(--text-meta); color: var(--txt-3); text-align: center; }
+.gps-detail .gps-note { margin-top: 10px; }
+.gps-detail .sheet-btns { margin-top: 16px; }

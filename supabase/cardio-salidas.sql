@@ -1,6 +1,7 @@
 -- Salidas de correr, caminar o bici registradas con el GPS (Cardio → «Salir a correr…»).
 -- Solo el resumen: tipo, fecha, duración, distancia, calorías y velocidades. El recorrido
--- (las coordenadas) NUNCA se guarda: ni acá ni en ningún otro lado.
+-- (las coordenadas) no va acá: va en public.cardio_routes (supabase/cardio-recorridos.sql),
+-- que ve solo el alumno. El coach lee esta tabla, nunca la de los recorridos.
 --
 -- Correr con el workflow "Supabase" → tarea sql → supabase/cardio-salidas.sql (o pegarlo en
 -- Supabase → SQL Editor). Se puede volver a correr sin problema.

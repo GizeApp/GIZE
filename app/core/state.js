@@ -111,7 +111,8 @@ if (!state.restPrefs || typeof state.restPrefs !== "object") state.restPrefs = {
 
 if (!Array.isArray(state.sessions)) state.sessions = [];
 
-// Salidas de correr / caminar / bici (Cardio, ver ui/gps.js): solo el resumen, sin el recorrido.
+// Salidas de correr / caminar / bici (Cardio, ver ui/gps.js): el resumen y, si hay, su recorrido
+// (route: polyline codificado, ver core/cardiogps.js).
 if (!Array.isArray(state.cardio)) state.cardio = [];
 
 if (!state.daily || typeof state.daily !== "object") state.daily = {};

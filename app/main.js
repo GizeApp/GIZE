@@ -19,7 +19,7 @@ import { runningSetId, startTimer, stopTimer } from './ui/settimer.js';
 import { showLogin } from './screens/auth.js';
 
 import { ssGroupOf, ssNext } from './core/superserie.js';
-import { CardioState, openTimePicker, paintSalida, renderCardio, setRing, swFrac } from './screens/cardio.js';
+import { CardioState, openTimePicker, paintSalida, renderCardio, renderSalidaSheet, setRing, swFrac, syncCardioMaps } from './screens/cardio.js';
 import { continueRestored, deleteSaved, discardRun, finish as gpsFinish, onGpsChange, pause as gpsPause, resume as gpsResume, saveRun, setKind as gpsKind, startRun } from './ui/gps.js';
 
 import { CheckinState, checkinDraft, checkinHasAnswer, checkinWeek, renderFeedback, saveSession , todayWeightText } from './screens/checkin.js';
@@ -116,6 +116,7 @@ export function renderApp(){
     const v0 = document.getElementById("view");
     v0.innerHTML = renderConfig();
     const sh0 = document.getElementById("sheetHost"); if (sh0) sh0.innerHTML = "";
+    CardioState.detail = null; syncCardioMaps();
     return;
   }
   showSilkBg();
@@ -127,7 +128,11 @@ export function renderApp(){
   initScrollReveal();
   setupExerciseFocus();
   renderRestBar();
-  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : (State.view==="habitos" && HabitosState.edit) ? renderHabitAlarmSheet(alarmsSupported()) : "");
+  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : (State.view==="habitos" && HabitosState.edit) ? renderHabitAlarmSheet(alarmsSupported()) : (State.view==="cardio" && CardioState.detail) ? renderSalidaSheet() : "");
+  // Mapas de Cardio (ui/mapa.js): vuelven a su lugar después del redibujo. Fuera de Cardio no
+  // queda abierta ninguna salida.
+  if (State.view!=="cardio") CardioState.detail = null;
+  syncCardioMaps();
   syncHabitAlarms(); // avisos de los hábitos (solo reprograma si cambiaron)
   if (State.view==="habitos" && HabitosState.pendingFocusHabit) { const i=document.getElementById("habitInput"); if(i) i.focus(); HabitosState.pendingFocusHabit=false; }
   if (State.view==="entreno") v.querySelectorAll("textarea.day-name").forEach(fitDayName);
@@ -400,7 +405,9 @@ document.body.addEventListener("click", async e => {
   if (a === "gps-finish") { if(!confirm("¿Terminar la salida?")) return; gpsFinish(); renderApp(); return; }
   if (a === "gps-save") { saveRun(); renderApp(); return; }
   if (a === "gps-discard") { if(!confirm("¿Descartar esta salida? No se va a guardar.")) return; discardRun(); renderApp(); return; }
-  if (a === "gps-del") { if(!confirm("¿Borrar esta salida?")) return; deleteSaved(el.dataset.id); renderApp(); return; }
+  if (a === "gps-del") { if(!confirm("¿Borrar esta salida?")) return; if (CardioState.detail===el.dataset.id) CardioState.detail=null; deleteSaved(el.dataset.id); renderApp(); return; }
+  if (a === "gps-open") { CardioState.detail = el.dataset.id; renderApp(); return; }
+  if (a === "gps-detail-cancel") { closeSheet(()=>{ CardioState.detail=null; renderApp(); }); return; }
   if (a === "cardio-mode") { CardioState.cardioMode = el.dataset.mode; renderApp(); return; }
   if (a === "sw-toggle") { if(CardioState.swRunning){ CardioState.swAccum+=Date.now()-CardioState.swStartTs; CardioState.swRunning=false; } else { CardioState.swStartTs=Date.now(); CardioState.swRunning=true; } renderApp(); return; }
   if (a === "sw-lap") { CardioState.swLaps.push(CardioState.swAccum+(Date.now()-CardioState.swStartTs)); renderApp(); return; }

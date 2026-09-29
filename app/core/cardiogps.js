@@ -1,9 +1,10 @@
 // Salir a correr / caminar / bici: cuentas puras (sin pantalla ni GPS), para poder probarlas.
 // La pantalla está en screens/cardio.js y el GPS en ui/gps.js.
 //
-// Privacidad: acá solo se guarda el ÚLTIMO punto (para medir el tramo siguiente) y, para la
-// velocidad máxima, tiempos y distancia acumulada (sin coordenadas). El recorrido no se arma
-// en ningún lado.
+// Recorrido: los puntos que suman (los que pasan los filtros de abajo) se guardan en tramos
+// (run.segs) para dibujar el mapa. Al guardar la salida se simplifican y se codifican
+// (routeOf / encodeRoute) y van a una tabla aparte (cardio_routes) que ve solo el alumno:
+// el coach ve los números, nunca el recorrido. El resumen (summary) sigue sin coordenadas.
 
 // Sin imports: así se prueba sola en Node (tests/cardio-gps.test.mjs).
 // Número con d decimales y coma, como dec() de utils.js: 7,18.
@@ -21,6 +22,9 @@ export const MIN_MOVE_M = 3;      // menos que esto es ruido del GPS (parado, o 
 export const MAX_WINDOW_S = 10;   // la velocidad máxima se mide en tramos de al menos 10 s
 export const DEFAULT_KG = 70;     // sin peso cargado, las calorías se calculan con 70 kg
 export const MIN_DIST_M = 50;     // menos que esto al terminar: el GPS no registró distancia
+export const MAX_ROUTE_PTS = 20000; // más puntos que esto en una salida: se deja uno de cada dos
+export const ROUTE_TOL_M = 4;     // al guardar, se simplifica el recorrido con este margen
+export const MAX_ROUTE_LEN = 200000; // largo máximo del recorrido codificado (lo mismo que acepta la base)
 
 // Distancia en metros entre dos puntos {lat, lon} (fórmula de haversine).
 export function haversine(a, b){
@@ -58,8 +62,11 @@ export function lastWeight(weights){
 //   (sin pausa). La duración es por reloj, no por cantidad de puntos.
 //   last: último punto aceptado {lat, lon, t}; win: [{t, d}] tiempos y distancia acumulada
 //   de los últimos puntos (para la velocidad máxima).
+//   segs: el recorrido, en tramos [[lat, lon], …]. Cada vez que se arranca de nuevo sin sumar
+//   distancia (primer punto, después de una pausa, de un corte de más de 2 min o de un salto
+//   que se tomó como referencia nueva) empieza otro tramo: el mapa no une esos puntos.
 export function newRun(kind, now){
-  return { kind: kindOk(kind) ? kind : "correr", start: now, accMs: 0, since: now, paused: false, dist: 0, last: null, maxKmh: 0, win: [], jumps: 0, ended: null };
+  return { kind: kindOk(kind) ? kind : "correr", start: now, accMs: 0, since: now, paused: false, dist: 0, last: null, maxKmh: 0, win: [], jumps: 0, ended: null, segs: [] };
 }
 
 export function elapsedMs(run, now){
@@ -96,7 +103,7 @@ export function addPoint(run, pt){
   if (!pt || !isFinite(pt.lat) || !isFinite(pt.lon) || !isFinite(pt.t)) return "bad";
   if (!(Number(pt.acc) <= MAX_ACCURACY_M)) return "acc";
   const p = { lat: +pt.lat, lon: +pt.lon, t: +pt.t };
-  if (!run.last){ run.last = p; run.win = [{ t: p.t, d: run.dist }]; run.jumps = 0; return "first"; }
+  if (!run.last){ run.last = p; run.win = [{ t: p.t, d: run.dist }]; run.jumps = 0; routePoint(run, p, true); return "first"; }
   const d = haversine(run.last, p), dt = (p.t - run.last.t) / 1000;
   if (dt <= 0) return "noise";
   // Menos de 3 m: ruido. El punto anterior queda como referencia, así un paso lento igual
@@ -106,11 +113,12 @@ export function addPoint(run, pt){
   if (d / dt * 3.6 > lim){
     // Un salto suelto se descarta. Si se repite (el punto de referencia era el malo), se
     // toma el nuevo como referencia sin sumar ese tramo.
-    if (++run.jumps >= 3){ run.last = p; run.win = [{ t: p.t, d: run.dist }]; run.jumps = 0; }
+    if (++run.jumps >= 3){ run.last = p; run.win = [{ t: p.t, d: run.dist }]; run.jumps = 0; routePoint(run, p, true); }
     return "jump";
   }
   run.jumps = 0;
   run.dist += d; run.last = p;
+  routePoint(run, p, false);
   // Velocidad máxima: la media de los últimos ≥ 10 s (un punto adelantado del GPS no la infla).
   run.win.push({ t: p.t, d: run.dist });
   let k = -1;
@@ -122,6 +130,93 @@ export function addPoint(run, pt){
   }
   if (run.win.length > 400) run.win = run.win.slice(-400);
   return "ok";
+}
+
+// ---- Recorrido ----
+// Coordenadas con 6 decimales (≈ 10 cm): alcanza de sobra y ocupa menos en el dispositivo.
+const r6 = x => Math.round(x * 1e6) / 1e6;
+function routePoint(run, p, fresh){
+  if (!Array.isArray(run.segs)) run.segs = [];
+  const segs = run.segs, cur = segs[segs.length - 1];
+  const q = [r6(p.lat), r6(p.lon)];
+  // Un tramo nuevo reemplaza al anterior si ese quedó con un solo punto (no dibuja nada).
+  if (fresh || !cur){ if (cur && cur.length < 2) segs[segs.length - 1] = [q]; else segs.push([q]); }
+  else cur.push(q);
+  if (routePoints(segs) > MAX_ROUTE_PTS) thinRoute(segs);
+}
+export const routePoints = segs => (segs || []).reduce((n, s) => n + s.length, 0);
+// Tope de memoria: uno de cada dos puntos (sin tocar la punta de cada tramo).
+function thinRoute(segs){
+  for (let i = 0; i < segs.length; i++){
+    const s = segs[i]; if (s.length < 3) continue;
+    const out = s.filter((_, k) => k % 2 === 0);
+    if (out[out.length - 1] !== s[s.length - 1]) out.push(s[s.length - 1]);
+    segs[i] = out;
+  }
+}
+
+// Douglas–Peucker en metros (proyección plana alrededor del tramo: sobra para una salida).
+// pts: [[lat, lon], …]; tol: margen en metros. Devuelve los puntos que quedan.
+export function simplify(pts, tol){
+  if (!Array.isArray(pts) || pts.length < 3) return (pts || []).slice();
+  const lat0 = pts[0][0] * Math.PI / 180, kx = 111319.49 * Math.cos(lat0), ky = 111319.49;
+  const xy = pts.map(p => [p[1] * kx, p[0] * ky]);
+  const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
+  const stack = [[0, pts.length - 1]], t2 = tol * tol;
+  while (stack.length){
+    const [a, b] = stack.pop();
+    const [ax, ay] = xy[a], [bx, by] = xy[b], dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+    let far = -1, fd = t2;
+    for (let i = a + 1; i < b; i++){
+      const [px, py] = xy[i];
+      let u = L > 0 ? ((px - ax) * dx + (py - ay) * dy) / L : 0; u = Math.max(0, Math.min(1, u));
+      const ex = ax + u * dx - px, ey = ay + u * dy - py, d = ex * ex + ey * ey;
+      if (d > fd){ fd = d; far = i; }
+    }
+    if (far > 0){ keep[far] = 1; stack.push([a, far], [far, b]); }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+
+// Polyline de Google con 5 decimales (el formato de siempre para recorridos).
+export function encodePolyline(pts){
+  let out = "", pl = 0, pn = 0;
+  const num = v => { v = v < 0 ? ~(v << 1) : v << 1; let s = ""; while (v >= 0x20){ s += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>>= 5; } return s + String.fromCharCode(v + 63); };
+  for (const p of pts || []){
+    const la = Math.round(p[0] * 1e5), lo = Math.round(p[1] * 1e5);
+    out += num(la - pl) + num(lo - pn); pl = la; pn = lo;
+  }
+  return out;
+}
+export function decodePolyline(str){
+  const pts = []; let i = 0, la = 0, lo = 0;
+  const s = String(str || "");
+  const num = () => { let r = 0, sh = 0, b; do { if (i >= s.length) return NaN; b = s.charCodeAt(i++) - 63; r |= (b & 0x1f) << sh; sh += 5; } while (b >= 0x20); return r & 1 ? ~(r >> 1) : r >> 1; };
+  while (i < s.length){
+    const a = num(), b = num();
+    if (!isFinite(a) || !isFinite(b)) break; // cortado a la mitad: se queda con lo que había
+    la += a; lo += b; pts.push([la / 1e5, lo / 1e5]);
+  }
+  return pts;
+}
+// Recorrido guardado: un polyline por tramo, separados por un espacio (el polyline usa solo
+// los caracteres del 63 «?» al 126 «~», así que el espacio nunca aparece adentro).
+export const encodeRoute = segs => (segs || []).filter(s => s && s.length >= 2).map(encodePolyline).join(" ");
+// (Un punto fuera del mundo, de un texto roto, se descarta.)
+const okPt = p => Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180;
+export const decodeRoute = str => String(str || "").split(" ").filter(Boolean).map(s => decodePolyline(s).filter(okPt)).filter(s => s.length >= 2);
+
+// Recorrido de la salida para guardar: simplificado y codificado. Si pasa del tope se
+// simplifica más. null si no hay nada que dibujar.
+export function routeOf(run){
+  const segs = ((run && run.segs) || []).filter(s => Array.isArray(s) && s.length >= 2);
+  if (!segs.length) return null;
+  for (let tol = ROUTE_TOL_M; tol < 1e6; tol *= 2){
+    const simp = segs.map(s => simplify(s, tol));
+    const route = encodeRoute(simp);
+    if (route.length <= MAX_ROUTE_LEN) return route ? { route, points: routePoints(simp) } : null;
+  }
+  return null;
 }
 
 // Números de la salida (en vivo o al terminar). kg: peso del alumno (null → 70 kg).
@@ -152,7 +247,7 @@ export function paceOrSpeed(rec){
 }
 export const kindLabel = k => (KINDS[k] || KINDS.correr).label;
 
-// Salida terminada → registro para guardar (sin coordenadas).
+// Salida terminada → registro para guardar (sin coordenadas: el recorrido va aparte, routeOf).
 export function summary(run, kg, id, dateStr){
   const st = stats(run, run.ended || run.start, kg);
   const dur = Math.max(1, Math.min(86400, Math.round(st.ms / 1000)));

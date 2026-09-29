@@ -223,7 +223,8 @@ export default async function ({ base, t }){
   }
   let st = await saved(p);
   t.eq((st.cardio || []).length, 1, 'se guardó en el dispositivo (state.cardio)');
-  t.ok(!/lat|lon/i.test(JSON.stringify(st.cardio)), 'lo guardado no tiene coordenadas');
+  // El recorrido va aparte, codificado en «route» (ver tests/cardio-mapa.test.mjs): el resumen sigue sin coordenadas.
+  t.ok(!/"(lat|lon|segs|last)"/i.test(JSON.stringify(st.cardio)), 'lo guardado no tiene coordenadas sueltas (el recorrido va codificado en route)');
   t.eq(await p.evaluate(() => localStorage.getItem('gize_cardio_run')), null, 'no queda la salida en curso (ni el último punto)');
   t.eq(await p.evaluate(() => JSON.parse(localStorage.getItem('core_outbox_v1') || '[]').length), 0, 'la cola quedó vacía');
 
@@ -274,7 +275,7 @@ export default async function ({ base, t }){
   await p.evaluate(async () => { const m = await import('/app/core/supabase.js'); await m.cloudSaveDaily('2026-09-29', { comment: 'hola' }); });
   await wait(500);
   const q = await p.evaluate(() => ({ cola: JSON.parse(localStorage.getItem('core_outbox_v1') || '[]').map(i => i.k), apartados: JSON.parse(localStorage.getItem('core_outbox_failed_v1') || '[]').length }));
-  t.eq(q, { cola: ['cardio'], apartados: 0 }, 'sin la tabla la salida queda pendiente (no se descarta)');
+  t.eq(q, { cola: ['cardio', 'cardioRoute'], apartados: 0 }, 'sin la tabla la salida queda pendiente (no se descarta), y su recorrido la espera');
   t.ok(other.includes('POST'), 'y no traba lo demás de la cola (el registro del día salió)');
   t.eq((await saved(p)).cardio.length, 2, 'las dos salidas quedan en el dispositivo');
   t.eq(pg.errs, [], 'errores de la página (sin tabla)');

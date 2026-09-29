@@ -7,12 +7,13 @@
 // · Web: navigator.geolocation.watchPosition + la pantalla prendida (wakeLock) mientras corre.
 //
 // La salida en curso se guarda en el dispositivo (RUN_KEY) para retomarla si la app se
-// recarga o se cierra. Nunca se guarda el recorrido: solo el último punto, para medir el
-// tramo siguiente.
+// recarga o se cierra, con el recorrido (run.segs, ver core/cardiogps.js) para que el mapa
+// siga entero. Al guardarla, el recorrido simplificado queda en la salida (route) y va a la
+// nube aparte del resumen (cardio_routes: lo ve solo el alumno, no su coach).
 import { state } from '../core/state.js';
 import { save } from '../core/storage.js';
 import { cloudDeleteCardio, cloudSaveCardio, newId } from '../core/supabase.js';
-import { addPoint, endRun, kindOk, lastWeight, newRun, pauseRun, resumeRun, summary } from '../core/cardiogps.js';
+import { addPoint, endRun, kindOk, lastWeight, newRun, pauseRun, resumeRun, routeOf, summary } from '../core/cardiogps.js';
 import { ymd } from '../core/utils.js';
 
 export const RUN_KEY = "gize_cardio_run";
@@ -135,6 +136,8 @@ export function continueRestored(){
 export function saveRun(){
   const r = GpsState.run; if (!r || !r.ended) return null;
   const rec = summary(r, lastWeight(state.weights), newId(), ymd(new Date(r.start)));
+  // El recorrido no puede trabar el guardado: si algo falla, la salida se guarda sin mapa.
+  try { const rt = routeOf(r); if (rt) rec.route = rt.route; } catch (e) { console.error("recorrido", e); }
   if (!Array.isArray(state.cardio)) state.cardio = [];
   state.cardio.push(rec);
   save();
@@ -157,6 +160,7 @@ export function deleteSaved(id){
   try { r = JSON.parse(localStorage.getItem(RUN_KEY) || "null"); } catch (e) {}
   if (!r || !kindOk(r.kind) || !(r.start > 0)) return;
   if (!Array.isArray(r.win)) r.win = [];
+  if (!Array.isArray(r.segs)) r.segs = []; // salida empezada con una versión sin mapa
   if (!r.last || !(Date.now() - r.last.t < KEEP_LAST_MS)){ r.last = null; r.win = []; }
   GpsState.run = r; GpsState.kind = r.kind;
   if (r.ended) return; // quedó el resumen sin guardar

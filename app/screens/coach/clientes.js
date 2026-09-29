@@ -151,7 +151,7 @@ export async function openClient(id){
       // Rutinas programadas que todavía no empezaron (ver supabase/rutina-programada.sql).
       sb.from("routine_schedule").select("id, starts_on, name, days").eq("client_id",id).is("applied_at",null).order("starts_on"),
       // Últimas salidas de correr / caminar / bici (supabase/cardio-salidas.sql; solo el
-      // resumen, sin recorrido). Si la tabla todavía no existe, la sección queda vacía.
+      // resumen: el recorrido está en cardio_routes, que el coach no puede leer). Si la tabla todavía no existe, la sección queda vacía.
       Promise.resolve(sb.from("cardio_sessions").select("*").eq("client_id",id).order("created_at",{ascending:false}).limit(10)).catch(e=>({data:null, error:e}))
     ]);
     const weights=(ws.data||[]).map(w=>({date:w.measured_on, kg:Number(w.kg)}));

@@ -15,6 +15,7 @@ import { DEFAULT } from './data.js';
 import { KEY, markRoutineSynced, migrateNames, routineHash, save } from './storage.js';
 
 import { today, ymd } from './utils.js';
+import { decodeRoute, routePoints } from './cardiogps.js';
 
 import { renderApp } from '../main.js';
 
@@ -735,8 +736,10 @@ export async function loadCloud(){
     // Todas las lecturas salen juntas (antes iban de a una y el arranque sumaba ~12 idas
     // y vueltas a Supabase); después se aplican en el mismo orden de siempre.
     const uid=State.cloudUser.id, sb=State.sb;
-    const [pr0, rt0, ws, ss, dl, ck, ci, bl, np, fe, cp, cq, fw, cs] = await Promise.all([
-      sb.from("profiles").select("*").eq("id",uid).maybeSingle(),
+    // Una sola vez (una consulta de supabase-js sale de nuevo cada vez que se la espera).
+    const prof=Promise.resolve(sb.from("profiles").select("*").eq("id",uid).maybeSingle());
+    const [pr0, rt0, ws, ss, dl, ck, ci, bl, np, fe, cp, cq, fw, cs, cr] = await Promise.all([
+      prof,
       // Si el coach dejó programada una rutina que ya empezó, se aplica antes de leerla
       // (ver supabase/rutina-programada.sql). Si la función no existe todavía, sigue igual.
       sb.rpc("apply_due_routines").then(()=>0, ()=>0).then(()=>sb.from("routines").select("days, updated_at").eq("client_id",uid).maybeSingle()),
@@ -760,7 +763,11 @@ export async function loadCloud(){
       sb.from("food_entries").select("log_date, kcal").eq("client_id",uid).gte("log_date",daysAgo(7)).lt("log_date",today()),
       // Salidas de correr / caminar / bici (supabase/cardio-salidas.sql). Si la tabla todavía
       // no existe da error y se sigue con las del dispositivo.
-      fetchAll(()=>sb.from("cardio_sessions").select("*").eq("client_id",uid).order("created_at").order("id"))
+      fetchAll(()=>sb.from("cardio_sessions").select("*").eq("client_id",uid).order("created_at").order("id")),
+      // Sus recorridos (supabase/cardio-recorridos.sql; los ve solo el alumno). Sin la tabla,
+      // da error y las salidas quedan con el recorrido que tengan en el dispositivo. Una cuenta
+      // de coach no los pide: su panel muestra solo números.
+      prof.then(r=>(r && r.data && r.data.role==="coach") ? null : fetchAll(()=>sb.from("cardio_routes").select("session_id, route").eq("client_id",uid).order("session_id")), ()=>null)
     ]);
     const pr=sbOk(pr0);
     State.cloudProfile=pr.data||null;
@@ -825,7 +832,7 @@ export async function loadCloud(){
     if(!ss.error && Array.isArray(ss.data)){
       state.sessions=ss.data.map(se=>Object.assign(sessionFromRow(se), {id:se.id, cloudId:se.id}));
     }
-    if(cs && !cs.error && Array.isArray(cs.data)) mergeCardio(cs.data);
+    if(cs && !cs.error && Array.isArray(cs.data)) mergeCardio(cs.data, (cr && !cr.error && Array.isArray(cr.data)) ? cr.data : null);
     // Las respuestas a preguntas propias del coach vienen en "answers"; las de siempre, en
     // sus columnas (que mandan si aparecen en los dos lados).
     if(!dl.error && Array.isArray(dl.data)){ state.daily={}; dl.data.forEach(r=>{ state.daily[r.log_date]=Object.assign({}, r.answers||{}, {steps:r.steps||"", comment:r.comment||"", soreness:r.soreness||"", performance:r.performance||"", motivation:r.motivation||"", hunger:r.hunger||"", fatigue:r.fatigue||"", sleep:r.sleep||""}); }); }
@@ -1252,9 +1259,15 @@ async function sendItem(it){
     // celular y ON CONFLICT DO NOTHING, reintentar no la duplica.
     const row={id:p.id, client_id:uid, performed_on:p.date, started_at:p.startedAt||null, kind:p.kind,
       duration_s:p.dur, distance_m:p.dist, kcal:p.kcal, avg_speed_kmh:p.avg, max_speed_kmh:p.max};
-    cardioTable(await sb.from("cardio_sessions").upsert(row,{onConflict:"id", ignoreDuplicates:true}));
+    cardioTable(await sb.from("cardio_sessions").upsert(row,{onConflict:"id", ignoreDuplicates:true}), "cardio_sessions");
+  } else if(it.k==="cardioRoute"){
+    // Su recorrido, en una tabla aparte que ve solo el alumno (el coach ve el resumen de arriba,
+    // nunca el recorrido). Sale después de la salida (la referencia a cardio_sessions lo pide:
+    // ver flushOutbox) y con ON CONFLICT DO NOTHING, así reintentar no falla ni lo duplica.
+    cardioTable(await sb.from("cardio_routes").upsert({session_id:p.id, client_id:uid, route:p.route, points:p.points||null},{onConflict:"session_id", ignoreDuplicates:true}), "cardio_routes");
   } else if(it.k==="cardioDelete"){
-    cardioTable(await sb.from("cardio_sessions").delete().eq("id",p.id).eq("client_id",uid));
+    // Su recorrido se borra solo en la base (on delete cascade).
+    cardioTable(await sb.from("cardio_sessions").delete().eq("id",p.id).eq("client_id",uid), "cardio_sessions");
   } else if(it.k==="checkin"){
     // La columna adherence es un número del 1 al 10. Si el coach cambió esa pregunta (opciones
     // con palabras o respuesta libre), la respuesta va en answers como cualquier otra: antes se
@@ -1266,11 +1279,12 @@ async function sendItem(it){
   }
 }
 
-// Tabla de salidas todavía sin crear (falta correr supabase/cardio-salidas.sql): la salida
-// queda en la cola sin trabar lo demás (entrenos, comidas…) y sale cuando exista la tabla.
-const noTable=e=>!!(e && (e.code==="PGRST205" || e.code==="42P01" || /cardio_sessions/.test(String(e.message||"")) && /does not exist|schema cache/i.test(String(e.message||""))));
-function cardioTable(r){
-  if(r && r.error && noTable(r.error)){ const e=new Error("Falta la tabla cardio_sessions"); e.later=true; throw e; }
+// Tabla de salidas o de recorridos todavía sin crear (falta correr supabase/cardio-salidas.sql
+// o supabase/cardio-recorridos.sql): lo pendiente queda en la cola sin trabar lo demás
+// (entrenos, comidas…) y sale cuando exista la tabla.
+const noTable=(e, table)=>!!(e && (e.code==="PGRST205" || e.code==="42P01" || String(e.message||"").includes(table) && /does not exist|schema cache/i.test(String(e.message||""))));
+function cardioTable(r, table){
+  if(r && r.error && noTable(r.error, table)){ const e=new Error("Falta la tabla "+table); e.later=true; throw e; }
   return sbOk(r);
 }
 
@@ -1325,6 +1339,10 @@ export function flushOutbox(){
       for(;;){
         const it=myPending().find(i=>!later.has(i.id));
         if(!it) return !later.size;
+        // Un recorrido espera a que su salida esté en la nube (si no, la base lo rechaza por
+        // la referencia a cardio_sessions). La salida va antes en la cola: si todavía está, es
+        // que esta vez no salió.
+        if(it.k==="cardioRoute" && myPending().some(i=>i.k==="cardio" && i.p && it.p && i.p.id===it.p.id)){ later.add(it.id); continue; }
         if(!(await sessionFor(it.uid))){ flushLater(); return false; }
         let bad=null;
         try{ await sendItem(it); }
@@ -1349,9 +1367,11 @@ export function flushOutbox(){
 // Anota y manda ya. true = quedó en la nube; false = quedó pendiente en el dispositivo (se
 // reintenta solo); "failed" = la base lo rechazó (dato inválido, sin permiso), quedó apartado
 // en OUTBOX_FAILED_KEY y no se reintenta. Ojo: "failed" cuenta como verdadero en un if.
-async function enqueueAndSend(k, p, key){
+// then: [[k, p, key], …] otros pendientes que van justo detrás (ej. el recorrido de una salida).
+async function enqueueAndSend(k, p, key, then){
   if(!State.cloudUser) return true; // sin cuenta no hay nada que sincronizar
   const id=enqueue(k, p, key);
+  (then||[]).forEach(x=>enqueue(x[0], x[1], x[2]));
   refreshSyncFoot();
   await flushOutbox();
   if(readQueue(OUTBOX_KEY).some(i=>i.id===id)) await flushOutbox(); // un envío en curso pudo no llegar a verlo
@@ -1472,24 +1492,32 @@ export function failedCheckin(wk){
 
 // ===== Salidas (correr / caminar / bici) =====
 // Se guardan en state.cardio y van a la nube por la misma cola que los entrenos.
+// El recorrido (rec.route) va en otro pendiente, "cardioRoute", anotado justo detrás del de la
+// salida: el resumen nunca lleva coordenadas.
 export function cloudSaveCardio(rec){
-  return enqueueAndSend("cardio", {id:rec.id, kind:rec.kind, date:rec.date, startedAt:rec.startedAt||null, dur:rec.dur, dist:rec.dist, kcal:rec.kcal, avg:rec.avg, max:rec.max}, rec.id);
+  const then = rec.route ? [["cardioRoute", {id:rec.id, route:rec.route, points:routePoints(decodeRoute(rec.route))}, rec.id]] : null;
+  return enqueueAndSend("cardio", {id:rec.id, kind:rec.kind, date:rec.date, startedAt:rec.startedAt||null, dur:rec.dur, dist:rec.dist, kcal:rec.kcal, avg:rec.avg, max:rec.max}, rec.id, then);
 }
 export function cloudDeleteCardio(id){
   if(!State.cloudUser || !id) return Promise.resolve(true);
-  // Si todavía no salió de la cola se saca de ahí; el borrado igual se manda (pudo haber salido).
-  writeQueue(OUTBOX_KEY, readQueue(OUTBOX_KEY).filter(i=>!(i.k==="cardio" && i.p && i.p.id===id)));
+  // Si todavía no salió de la cola se saca de ahí (con su recorrido); el borrado igual se manda
+  // (pudo haber salido).
+  writeQueue(OUTBOX_KEY, readQueue(OUTBOX_KEY).filter(i=>!((i.k==="cardio" || i.k==="cardioRoute") && i.p && i.p.id===id)));
   return enqueueAndSend("cardioDelete", {id:id}, id);
 }
 const cardioFromRow=r=>({id:r.id, kind:r.kind, date:r.performed_on, startedAt:r.started_at||null, dur:Number(r.duration_s)||0, dist:Number(r.distance_m)||0,
   kcal:Number(r.kcal)||0, avg:Number(r.avg_speed_kmh)||0, max:Number(r.max_speed_kmh)||0, cloud:true});
 // Las de la nube + las del celular que la nube todavía no tiene (sin duplicar: el id es el
 // mismo). Una que ya estuvo en la nube y ahora no está se borró desde otro dispositivo.
-function mergeCardio(rows){
+// routes: [{session_id, route}] de cardio_routes (null si no se pudieron leer). El recorrido
+// que ya estaba en el dispositivo se conserva (puede no haber subido todavía).
+function mergeCardio(rows, routes){
   const pend=myPending();
   const del=new Set(pend.filter(i=>i.k==="cardioDelete" && i.p).map(i=>i.p.id));
   const seen=new Set(rows.map(r=>r.id));
-  const out=rows.filter(r=>!del.has(r.id)).map(cardioFromRow);
+  const mine={}; (Array.isArray(state.cardio)?state.cardio:[]).forEach(l=>{ if(l && l.route) mine[l.id]=l.route; });
+  (routes||[]).forEach(r=>{ if(r && r.session_id && typeof r.route==="string" && r.route) mine[r.session_id]=r.route; });
+  const out=rows.filter(r=>!del.has(r.id)).map(r=>{ const c=cardioFromRow(r); if(mine[r.id]) c.route=mine[r.id]; return c; });
   (Array.isArray(state.cardio)?state.cardio:[]).forEach(l=>{ if(l && !seen.has(l.id) && !del.has(l.id) && !l.cloud) out.push(l); });
   out.sort((a,b)=>String(a.startedAt||a.date).localeCompare(String(b.startedAt||b.date)));
   state.cardio=out;
