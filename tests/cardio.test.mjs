@@ -22,6 +22,15 @@ export default async function ({ base, t }){
   t.eq(await text(p, '#cringTime'), before, '«Listo» sin cambiar nada no corta el tiempo a 1:00:00');
   t.eq(await p.$$eval('.lap', l => l.length), 1, '«Listo» sin cambiar nada no borra las vueltas');
 
+  // En el primer minuto después de la hora (1:00:30): tampoco se corta a 1:00:00.
+  await p.click('[data-action="sw-reset"]'); await wait(200);
+  await p.evaluate(async () => { const c = await import('/app/screens/cardio.js'); c.CardioState.swAccum = 60 * 60000 + 30500; c.CardioState.swLaps = [10 * 60000]; (await import('/app/main.js')).renderApp(); });
+  await wait(200);
+  await p.click('#cringTime'); await wait(500);
+  await p.click('#timePick [data-tp="ok"]'); await wait(300);
+  t.eq(await text(p, '#cringTime'), '1:00:30', 'con 1:00:30, «Listo» deja 1:00:30');
+  t.eq(await p.$$eval('.lap', l => l.length), 1, 'con 1:00:30, «Listo» no borra las vueltas');
+
   // Por debajo de 60 min: tampoco se borran las vueltas.
   await p.click('[data-action="sw-reset"]'); await wait(200);
   await p.evaluate(async () => { const c = await import('/app/screens/cardio.js'); c.CardioState.swAccum = 30 * 60000 + 20500; c.CardioState.swLaps = [10 * 60000]; (await import('/app/main.js')).renderApp(); });

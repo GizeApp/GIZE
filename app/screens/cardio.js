@@ -144,7 +144,8 @@ export function openTimePicker(ms, title, onPick, opts){
     if (b.dataset.tp === "ok"){
       let mm = wheelVal(wm, MAXA), ss = wheelVal(ws, MAXB);
       if (clock){ closeTimePicker(); onPick((mm * 60 + ss) * 60000); return; }
-      if (mm === 60 && MAXA === 60) ss = 0;
+      // El tope de 60:00 es del temporizador: si el tiempo ya pasaba de una hora, se respetan los segundos.
+      if (mm === 60 && ms < 3600000) ss = 0;
       closeTimePicker(); onPick((mm * 60 + ss) * 1000); return;
     }
     closeTimePicker();
