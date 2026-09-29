@@ -1,12 +1,6 @@
 import { state } from '../core/state.js';
 
-import { esc, fmt, fmtDate } from '../core/utils.js';
-
-import { DEFAULT_KG, KINDS, MIN_DIST_M, decodeRoute, fmtHMS, fmtKm, fmtKmh, fmtPace, kindLabel, lastWeight, paceOrSpeed, stats } from '../core/cardiogps.js';
-
-import { GpsState, isNative } from '../ui/gps.js';
-
-import { dropMap, dropMaps, mountMap, updateMap } from '../ui/mapa.js';
+import { esc, fmt } from '../core/utils.js';
 
 export const CardioState = {
 
@@ -30,8 +24,6 @@ export const CardioState = {
 
   tmFinished: false,
 
-  detail: null, // id de la salida abierta (Tus salidas → ventana con el mapa y los números)
-
 };
 
 export function renderCardioPrescription(){
@@ -49,112 +41,7 @@ export function renderCardio(){
   </div>`;
   const rx = renderCardioPrescription();
   const tools = renderCardioTools(modes);
-  return rx + renderSalida() + '<div class="cardio-toolsec"><div class="cardio-tools-h">Cronómetro y temporizador</div>' + tools + '</div>';
-}
-
-// ---- Salir a correr / caminar / bici (GPS, ver ui/gps.js) ----
-const WEB_NOTE = "En la web mantené la pantalla prendida: si se bloquea, el celular deja de medir. En la app de Android sigue midiendo con la pantalla bloqueada.";
-
-function liveMsg(r){
-  if (GpsState.error) return GpsState.error;
-  if (GpsState.restored) return "";
-  if (r.paused) return "En pausa: no se suma distancia.";
-  return GpsState.fix ? "" : "Buscando señal de GPS…";
-}
-function liveVals(r){
-  const st = stats(r, Date.now(), lastWeight(state.weights));
-  return { dur: fmtHMS(st.ms), dist: fmtKm(r.dist), kcal: String(Math.round(st.kcal)), pace: r.kind === "bici" ? fmtKmh(st.avgKmh) : fmtPace(st.paceS) };
-}
-
-export function renderSalida(){
-  const r = GpsState.run;
-  const note = isNative() ? "" : '<div class="gps-note">' + WEB_NOTE + '</div>';
-  let body;
-  if (!r){
-    body = '<div class="cardio-modes gps-kinds">' + Object.keys(KINDS).map(k => '<button class="cmode' + (GpsState.kind === k ? ' active' : '') + '" data-action="gps-kind" data-kind="' + k + '">' + KINDS[k].label + '</button>').join("") + '</div>'
-      + '<div class="ctrl-row"><button class="ctrl primary wide" data-action="gps-start">Iniciar</button></div>' + note;
-  } else if (!r.ended){
-    const v = liveVals(r), bici = r.kind === "bici";
-    const restored = GpsState.restored ? '<div class="gps-resume"><b>Tenés una salida en curso</b> (' + esc(kindLabel(r.kind).toLowerCase()) + '). ¿La seguís o la terminás?'
-      + '<div class="ctrl-row"><button class="ctrl primary" data-action="gps-finish">Terminar</button><button class="ctrl primary" data-action="gps-continue">Seguir</button></div></div>' : "";
-    const ctrls = GpsState.restored ? "" : '<div class="ctrl-row">' + (r.paused ? '<button class="ctrl primary" data-action="gps-resume">Seguir</button>' : '<button class="ctrl primary" data-action="gps-pause">Pausar</button>')
-      + '<button class="ctrl primary" data-action="gps-finish">Terminar</button></div>';
-    body = restored
-      + '<div class="gps-live' + (r.paused ? ' paused' : '') + '"><div class="gps-map" data-map-slot="live"></div><div class="gps-kind">' + esc(kindLabel(r.kind)) + (r.paused ? ' · en pausa' : '') + '</div>'
-      + '<div class="gps-dur" id="gpsDur">' + v.dur + '</div>'
-      + '<div class="gps-grid">'
-      + '<div class="gps-cell"><div class="gps-val" id="gpsDist">' + v.dist + '</div><div class="gps-lbl">km</div></div>'
-      + '<div class="gps-cell"><div class="gps-val" id="gpsPace">' + v.pace + '</div><div class="gps-lbl">' + (bici ? 'km/h media' : 'min/km medio') + '</div></div>'
-      + '<div class="gps-cell"><div class="gps-val" id="gpsKcal">' + v.kcal + '</div><div class="gps-lbl">kcal</div></div>'
-      + '</div><div class="gps-msg" id="gpsMsg">' + esc(liveMsg(r)) + '</div></div>'
-      + ctrls + note;
-  } else {
-    const kg = lastWeight(state.weights), st = stats(r, r.ended, kg);
-    const row = (l, v) => '<div class="gps-row"><span>' + l + '</span><b>' + v + '</b></div>';
-    const noDist = r.dist < MIN_DIST_M ? '<div class="gps-warn">No se registró distancia: el GPS no llegó a medir el recorrido. Podés guardar igual (con el tiempo) o descartarla.</div>' : "";
-    body = '<div class="gps-sum" id="gpsSum"><div class="gps-map" data-map-slot="live"></div><div class="gps-kind">Resumen · ' + esc(kindLabel(r.kind)) + '</div>' + noDist
-      + row("Distancia", fmtKm(r.dist) + " km") + row("Duración", fmtHMS(st.ms))
-      + (r.kind === "bici" ? "" : row("Ritmo medio", fmtPace(st.paceS) + " min/km"))
-      + row("Velocidad media", fmtKmh(st.avgKmh) + " km/h") + row("Velocidad máxima", fmtKmh(Math.max(st.maxKmh, st.avgKmh)) + " km/h")
-      + row("Calorías", Math.round(st.kcal) + " kcal")
-      + (kg ? "" : '<div class="gps-note">Calculado con ' + DEFAULT_KG + ' kg: cargá tu peso en Progreso para que sea exacto.</div>')
-      + '<div class="ctrl-row"><button class="ctrl ghost" data-action="gps-discard">Descartar</button><button class="ctrl primary" data-action="gps-save">Guardar</button></div></div>';
-  }
-  return '<div class="gps-sec"><div class="cardio-tools-h">Salir a correr, caminar o andar en bici</div>' + body + renderSalidas() + '</div>';
-}
-
-// Últimas 10 salidas guardadas.
-function renderSalidas(){
-  const list = (Array.isArray(state.cardio) ? state.cardio : []).slice()
-    .sort((a, b) => String(b.startedAt || b.date).localeCompare(String(a.startedAt || a.date))).slice(0, 10);
-  // Tocar una la abre (el mapa del recorrido y los números).
-  const items = list.length ? list.map(x => '<div class="gps-item"><button type="button" class="gps-item-main" data-action="gps-open" data-id="' + esc(x.id) + '"><b>' + esc(fmtDate(x.date)) + ' · ' + esc(kindLabel(x.kind)) + '</b>'
-      + '<span>' + fmtKm(x.dist) + ' km · ' + fmtHMS((x.dur || 0) * 1000) + ' · ' + paceOrSpeed(x) + '</span></button>'
-      + '<button class="gps-del" data-action="gps-del" data-id="' + esc(x.id) + '" aria-label="Borrar la salida">✕</button></div>').join("")
-    : '<div class="gps-empty">Todavía no guardaste salidas.</div>';
-  return '<div class="gps-list" id="gpsList"><div class="gps-list-h">Tus salidas</div>' + items + '</div>';
-}
-
-// tick() (main.js): solo los números (y la línea del mapa), sin redibujar la pantalla.
-export function paintSalida(){
-  const r = GpsState.run; if (!r || r.ended) return;
-  const el = document.getElementById("gpsDur"); if (!el) return;
-  const v = liveVals(r), set = (id, t) => { const e = document.getElementById(id); if (e && e.textContent !== t) e.textContent = t; };
-  set("gpsDur", v.dur); set("gpsDist", v.dist); set("gpsKcal", v.kcal); set("gpsPace", v.pace); set("gpsMsg", liveMsg(r));
-  updateMap("live", r.segs);
-}
-
-// ---- Una salida guardada (Tus salidas → tocarla) ----
-const savedRec = id => (Array.isArray(state.cardio) ? state.cardio : []).find(x => x && x.id === id) || null;
-export function renderSalidaSheet(){
-  const x = CardioState.detail && savedRec(CardioState.detail);
-  if (!x) return "";
-  const row = (l, v) => '<div class="gps-row"><span>' + l + '</span><b>' + v + '</b></div>';
-  const km = (Number(x.dist) || 0) / 1000;
-  return '<div class="sheet-bg" data-action="gps-detail-cancel"></div>'
-    + '<div class="sheet gps-detail" role="dialog" aria-label="Salida">'
-    + '<div class="sheet-title">' + esc(kindLabel(x.kind)) + ' · ' + esc(fmtDate(x.date)) + '</div>'
-    + (x.route ? '<div class="gps-map big" data-map-slot="detail-' + esc(x.id) + '"></div>' : '<div class="gps-noroute">Esta salida no tiene el recorrido guardado.</div>')
-    + row("Distancia", fmtKm(x.dist) + " km") + row("Duración", fmtHMS((x.dur || 0) * 1000))
-    + (x.kind === "bici" ? "" : row("Ritmo medio", fmtPace(km > 0.01 ? (x.dur || 0) / km : 0) + " min/km"))
-    + row("Velocidad media", fmtKmh(x.avg) + " km/h") + row("Velocidad máxima", fmtKmh(Math.max(Number(x.max) || 0, Number(x.avg) || 0)) + " km/h")
-    + row("Calorías", Math.round(Number(x.kcal) || 0) + " kcal")
-    + (x.route ? '<div class="gps-note">El recorrido lo ves solo vos: tu coach ve los números, no el mapa.</div>' : "")
-    + '<div class="sheet-btns"><button class="ctrl primary wide" data-action="gps-detail-cancel">Cerrar</button></div>'
-    + '</div>';
-}
-
-// Después de cada redibujo (renderApp): los mapas vuelven a su lugar. MapLibre se carga recién
-// acá, y solo si hay una salida en curso o una abierta con recorrido.
-export function syncCardioMaps(){
-  const r = GpsState.run;
-  if (r) mountMap("live", r.segs || [], { live: !r.ended });
-  else dropMap("live");
-  // Cada salida abierta tiene su mapa («detail-<id>»); los de otras se sacan.
-  const x = CardioState.detail && savedRec(CardioState.detail);
-  const dn = x && x.route ? "detail-" + x.id : "";
-  dropMaps("detail-", dn);
-  if (dn) mountMap(dn, decodeRoute(x.route));
+  return rx + '<div class="cardio-toolsec"><div class="cardio-tools-h">Cronómetro y temporizador</div>' + tools + '</div>';
 }
 
 // Anillo de neón alrededor del tiempo (la gama RGB girando, como el borde del botón

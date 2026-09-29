@@ -137,7 +137,7 @@ export async function openClient(id){
   try{
     // Todas las lecturas del cliente salen juntas (antes iban de a una).
     const sb=State.sb;
-    const [ws, ss, rt, dl, ck, ci, bl, np, sc, cs] = await Promise.all([
+    const [ws, ss, rt, dl, ck, ci, bl, np, sc] = await Promise.all([
       // Las que crecen con el uso, paginadas (ver fetchAll en core/supabase.js).
       fetchAll(()=>sb.from("body_weights").select("*").eq("client_id",id).order("measured_on")),
       // "*" y no una lista de columnas: trae rpe/pump/joint_pain si existen sin romper la consulta si no.
@@ -149,10 +149,7 @@ export async function openClient(id){
       sb.from("blocks").select("*").eq("client_id",id).eq("active",true).order("start_date",{ascending:false}).limit(1),
       sb.from("nutrition").select("*").eq("client_id",id).maybeSingle(),
       // Rutinas programadas que todavía no empezaron (ver supabase/rutina-programada.sql).
-      sb.from("routine_schedule").select("id, starts_on, name, days").eq("client_id",id).is("applied_at",null).order("starts_on"),
-      // Últimas salidas de correr / caminar / bici (supabase/cardio-salidas.sql; solo el
-      // resumen: el recorrido está en cardio_routes, que el coach no puede leer). Si la tabla todavía no existe, la sección queda vacía.
-      Promise.resolve(sb.from("cardio_sessions").select("*").eq("client_id",id).order("created_at",{ascending:false}).limit(10)).catch(e=>({data:null, error:e}))
+      sb.from("routine_schedule").select("id, starts_on, name, days").eq("client_id",id).is("applied_at",null).order("starts_on")
     ]);
     const weights=(ws.data||[]).map(w=>({date:w.measured_on, kg:Number(w.kg)}));
     const sessions=(ss.data||[]).map(sessionFromRow);
@@ -172,7 +169,7 @@ export async function openClient(id){
     // este quedarían mostrados (y guardados) como si fueran del otro.
     if(CoachState.coachSel!==id) return;
     const c=CoachState.coachClients.find(x=>x.id===id);
-    CoachState.coachData={id:id, info:(ci.data||{}), block:((bl.data&&bl.data[0])||null), name:(c&&c.full_name)||"Cliente", avatar:(c&&c.avatar_path)||null, weights:weights, sessions:sessions, routine:routine, routineOrig:routineOrig, draftRestored:restored, loadEx:null, daily:(dl.data||[]), checkins:(ck.data||[]), plan:(np.data||null), schedule:(sc&&!sc.error&&sc.data)||[], cardio:(cs&&!cs.error&&Array.isArray(cs.data))?cs.data:[]};
+    CoachState.coachData={id:id, info:(ci.data||{}), block:((bl.data&&bl.data[0])||null), name:(c&&c.full_name)||"Cliente", avatar:(c&&c.avatar_path)||null, weights:weights, sessions:sessions, routine:routine, routineOrig:routineOrig, draftRestored:restored, loadEx:null, daily:(dl.data||[]), checkins:(ck.data||[]), plan:(np.data||null), schedule:(sc&&!sc.error&&sc.data)||[]};
     if(restored) CoachState.coachClientTab="rutina";
     CoachState.coachPlanForm=null; CoachState.coachInfoForm=null; CoachState.coachBlockForm=null; CoachState.coachWeekSel=null;
     // Notificaciones: si el cliente las tiene activadas y los últimos mensajes. Aparte,

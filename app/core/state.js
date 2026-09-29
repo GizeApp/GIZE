@@ -111,9 +111,10 @@ if (!state.restPrefs || typeof state.restPrefs !== "object") state.restPrefs = {
 
 if (!Array.isArray(state.sessions)) state.sessions = [];
 
-// Salidas de correr / caminar / bici (Cardio, ver ui/gps.js): el resumen y, si hay, su recorrido
-// (route: polyline codificado, ver core/cardiogps.js).
-if (!Array.isArray(state.cardio)) state.cardio = [];
+// Las salidas con GPS de Cardio se sacaron de la app: si quedaron guardadas (state.cardio) o
+// quedó una salida en curso ("gize_cardio_run"), se descartan.
+if ("cardio" in state) delete state.cardio;
+try { localStorage.removeItem("gize_cardio_run"); } catch(e) {}
 
 if (!state.daily || typeof state.daily !== "object") state.daily = {};
 
