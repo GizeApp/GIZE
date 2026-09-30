@@ -919,6 +919,29 @@
         "#fitnessargentina",
         "#running"
       ]
+    },
+    {
+      "id": "gize-liquido",
+      "kind": "motion",
+      "phase": "hype",
+      "dur": 17.9,
+      "title": "Líquido",
+      "files": [
+        "13-liquido/gize-liquido_9x16.mp4"
+      ],
+      "covers": [
+        "13-liquido/gize-liquido_9x16.jpg"
+      ],
+      "idea": "Liquid chrome on deep navy (a WebGL shader: domain-warped flow lit like a studio). SERIES, CARDIO, COMIDA, HÁBITOS and COACH rise out of the metal with glass chips from the app and melt back; TODO FLUYE; the liquid rises into a chrome phone running the app; the G rises where the end card's G sits.",
+      "caption": "Cuando todo está en un solo lugar, todo fluye. 🌊\nSeries, cardio, comida, hábitos y tu coach, en una app.\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#fitnessargentina"
+      ]
     }
   ],
   "launch_endings": {

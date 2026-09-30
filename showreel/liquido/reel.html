@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Líquido</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* GIZE — LÍQUIDO · 17.9 s, 128 BPM, 9:16, ?cta=hype|launch. Liquid chrome (WebGL, ./chrome.js) on deep navy.
+   00 ESPEJO   0–1.4    a dark mirror ripples and turns to liquid chrome · «Cuando todo está en un solo lugar,»
+   01 PALABRAS 1.4–8.4  SERIES, CARDIO, COMIDA, HÁBITOS, COACH rise out of the metal one phrase each, with a
+                        glass chip from the app under them, then melt and drip back in
+   02 FLUYE    8.4–9.8  TODO / FLUYE in chrome
+   03 TELÉFONO 9.8–13.1 the liquid rises into a phone; its screen runs Entreno, Cardio, Comida, Hábitos · «Todo en una app.»
+   04 LA G     13.1–14.5 the phone melts; the G rises in chrome where the end card's G will be
+   05 FIRMA    14.5–    the metal dims, the flat G takes over, «Muy pronto»; fades to black to loop
+   The metal is rendered once per frame (it moves slowly); the 2D layers on top get the usual motion blur. */
+import {C,RGB,E,clamp,lerp,prog,glow,rr,txt,tw,F,createReel,mk,mixc,rgba,LOGO,drawFirma,riseWords} from '../lib/engine.js';
+import {PW,PH,entreno} from '../lib/ui.js';
+import {comidaScreen,habitosScreen,mapIn} from '../lib/screens.js';
+import {endcard,endcardCues,endcardGeom} from '../lib/endcard.js';
+import {createChrome,floatMask} from './chrome.js';
+
+const BPM=128,BT=60/BPM,bt=n=>n*BT,TAU=Math.PI*2;
+const S={w0:bt(3),fluye:bt(18),phone:bt(21),g:bt(28),end:bt(31)},WD=bt(3);
+const DUR=+(S.end+3.35).toFixed(2);
+const WORDS=[
+  {w:'SERIES',chip:{main:'Press inclinado',sub:'32,5 kg × 9 · serie 3',pill:['PR +2,5 kg',C.gold]}},
+  {w:'CARDIO',chip:{main:'Salida a correr',sub:'5,20 km · 6:15 /km',pill:['EN VIVO',C.teal],live:1}},
+  {w:'COMIDA',chip:{main:'Hoy',sub:'1886 de 2100 kcal',ring:0.9}},
+  {w:'HÁBITOS',chip:{main:'Tomar 2 L de agua',sub:'Todos los días',check:1,pill:['🔥 12',C.soft]}},
+  {w:'COACH',chip:{main:'Martina · tu coach',sub:'🎤 Mensaje de voz · 0:42',play:1}},
+];
+const wordT=i=>S.w0+i*WD;
+
+/* ---------------- masks: R tight blur (bevel), G wide (belly), B the calm pool behind ---------------- */
+let CH=null,LAST=-1;const MK={};
+function cover(L,k,fn){const m=mk(L.W/k,L.H/k),c=m.getContext('2d');c.scale(1/k,1/k);c.fillStyle='#fff';c.strokeStyle='#fff';fn(c,'#fff');const d=c.getImageData(0,0,m.width,m.height).data,a=new Float32Array(m.width*m.height);for(let i=0;i<a.length;i++)a[i]=d[i*4]/255;return a;}
+function makeMask(L,shape,calm){const k=2,s=cover(L,k,shape),b=cover(L,k,calm);return floatMask(L.W/k,L.H/k,[[s,2.5/k],[s,20/k],[b,110/k]]);}
+const WY=L=>L.H*0.44;
+function fitPx(s,max,px){return Math.min(px,max/tw(s,800,1));}
+function wordMask(L,s){const px=fitPx(s,860,250),y=WY(L),w=tw(s,800,px);return makeMask(L,c=>{c.font=F(800,px);c.textAlign='center';c.textBaseline='middle';c.fillText(s,L.CX,y);},
+  c=>{rr(c,L.CX-w/2-90,y-px*0.75,w+180,px*1.5,px*0.6);c.fill();});}
+function fluyeMask(L){const px=250,y=WY(L);return makeMask(L,c=>{c.font=F(800,px);c.textAlign='center';c.textBaseline='middle';c.fillText('TODO',L.CX,y-px*0.5);c.fillText('FLUYE',L.CX,y+px*0.52);},
+  c=>{rr(c,L.CX-470,y-px*1.3,940,px*2.6,px*0.7);c.fill();});}
+function gMask(L){const g=endcardGeom(L),A=LOGO.arc,K=g.k,gx=g.x+A.cx*K,gy=g.y+A.cy*K;return makeMask(L,(c,col)=>drawFirma(c,g.x,g.y,K,{wordmark:false,color:col,mono:true}),
+  c=>{c.beginPath();c.arc(gx,gy,(A.r+A.w)*K*1.5,0,TAU);c.fill();});}
+function gCentre(L){const g=endcardGeom(L),A=LOGO.arc;return[g.x+A.cx*g.k,g.y+A.cy*g.k];}
+
+/* ---------------- the state of the metal at time t ---------------- */
+const PHONE=L=>({x:L.CX,y:L.H*0.52,w:560,h:1150,r:82,b:22});
+const surge=t=>[S.w0,...WORDS.map((_,i)=>wordT(i)),S.fluye,S.phone,S.g].reduce((a,s)=>a+E.inOutCubic(prog(t,s,s+0.7)),0);
+function metal(t,L){const st={t,flow:0.085*t+0.045*surge(t),k:0.95,bright:1,maskA:0,melt:0,mask:null,calm:0,phone:null,rip:null,sweep:-9};
+  st.calm=1-E.inOutCubic(prog(t,0.05,1.35));st.bright=E.outCubic(prog(t,0,0.9));
+  if(t<1.5)st.sweep=lerp(-1.3,1.3,E.inOutSine(prog(t,0.2,1.45)));
+  st.rip={x:0.5,y:0.44,t0:0.08,a:0.05};
+  // words
+  for(let i=0;i<WORDS.length;i++){const t0=wordT(i);if(t>=t0-0.02&&t<t0+WD){const mt=prog(t,t0+WD-0.45,t0+WD-0.03);st.mask=MK.w[i];st.maskA=E.outBack(prog(t,t0,t0+0.42))*(1-E.inCubic(mt));st.melt=mt;
+    st.rip={x:0.5,y:0.44,t0,a:0.035};const sw=prog(t,t0+0.15,t0+0.75);if(sw>0&&sw<1)st.sweep=lerp(-1.2,1.2,E.inOutSine(sw));}}
+  if(t>=S.fluye-0.02&&t<S.phone){const mt=prog(t,S.phone-0.5,S.phone-0.03);st.mask=MK.f;st.maskA=E.outBack(prog(t,S.fluye,S.fluye+0.5))*(1-E.inCubic(mt));st.melt=mt;st.rip={x:0.5,y:0.44,t0:S.fluye,a:0.05};
+    const sw=prog(t,S.fluye+0.3,S.fluye+1.0);if(sw>0&&sw<1)st.sweep=lerp(-1.2,1.2,E.inOutSine(sw));}
+  if(t>=S.phone-0.05&&t<S.g+0.1){const P=PHONE(L),a=E.outBack(prog(t,S.phone,S.phone+0.55))*(1-E.inCubic(prog(t,S.g-0.4,S.g+0.05)));st.phone={...P,a:0.75*a};st.rip={x:0.5,y:P.y/L.H,t0:S.phone,a:0.04};}
+  if(t>=S.g-0.02){const[gx,gy]=gCentre(L);st.mask=MK.g;st.maskA=E.outBack(prog(t,S.g,S.g+0.5))*(1-E.inOutCubic(prog(t,S.end,S.end+0.5)));st.rip={x:gx/L.W,y:gy/L.H,t0:S.g,a:0.05};
+    const sw=prog(t,S.g+0.45,S.g+1.2);if(sw>0&&sw<1)st.sweep=lerp(-1.2,1.2,E.inOutSine(sw));st.bright=lerp(1,0.42,E.inOutCubic(prog(t,S.end,S.end+0.7)));}
+  return st;}
+
+/* ---------------- the phone's screen ---------------- */
+const EX=[['Vuelos laterales sentado','✓ 12,5 kg × 12'],['Press inclinado con mancuernas',''],['Jalón unilateral en estocada','0/3 series'],['Peck deck','0/3 series'],['Curl bíceps en polea baja frontal','0/3 series']];
+const CARD={name:'Press inclinado con mancuernas',last:[['30',1],['kg × ',0],['10',1],[' · ',0],['30',1],['kg × ',0],['9',1]],propose:'30 kg × 7-10',target:'7-10',note:'Bajá lento, 3 segundos. Codos a 45°.',goal:'Progreso en carga'};
+const SER={rev:()=>1,scroll:()=>150,sets:[{kg:[[0,'32,5']],reps:[[0,'9']],ck:0},{kg:[],reps:[],ck:1e9},{kg:[],reps:[],ck:1e9}],pr:null,rest:null,collapse:1e9,ex:EX,card:CARD,doneBase:3,clock0:754,taps:[]};
+const COM1={kcal:1886,p:108.6,c:226.4,f:50.7};
+const SCREENS=[[0,(c,t)=>entreno(c,t,SER)],[0.95,(c,t)=>comidaScreen(c,t,{T:COM1})],
+  [1.7,(c,t)=>mapIn(c,t,{x:0,y:0,w:PW,h:PH,r:0},0.95,{cyOff:-20,f:1400,tilt:1.0,spin:1.2,dist:1500},{frame:0})],[2.45,(c,t)=>habitosScreen(c,t,{checks:[1,1,1,0,0].map((v,i)=>v||E.outBack(prog(t,S.phone+2.7+i*0.12,S.phone+2.9+i*0.12))),time:'18:45'})]];
+const SC=1.4,SCR=mk(Math.round(PW*SC),Math.round(PH*SC)),scr=SCR.getContext('2d');
+function phoneScreen(c,t,L){const on=E.outCubic(prog(t,S.phone+0.45,S.phone+0.75))*(1-E.inCubic(prog(t,S.g-0.5,S.g-0.25)));if(on<=0)return;const P=PHONE(L),inset=26,x=P.x-P.w/2+inset,y=P.y-P.h/2+inset,w=P.w-2*inset,h=P.h-2*inset,u=t-S.phone;
+  let k=0;for(let i=0;i<SCREENS.length;i++)if(u>=SCREENS[i][0])k=i;
+  scr.setTransform(SC,0,0,SC,0,0);scr.clearRect(0,0,PW,PH);SCREENS[k][1](scr,t);scr.setTransform(1,0,0,1,0,0);
+  const sw=k>0?1-E.outCubic(clamp((u-SCREENS[k][0])/0.22)):0;
+  c.save();c.globalAlpha=on;rr(c,x,y,w,h,P.r-inset+8);c.clip();c.fillStyle='#000';c.fillRect(x,y,w,h);c.drawImage(SCR,x+sw*w*0.25,y,w,w*PH/PW);
+  if(sw>0){c.fillStyle=`rgba(255,255,255,${0.35*sw})`;c.fillRect(x,y,w,h);}
+  const g=c.createLinearGradient(x,y,x+w,y+h);g.addColorStop(0,'rgba(255,255,255,0.10)');g.addColorStop(0.35,'rgba(255,255,255,0)');g.addColorStop(0.7,'rgba(255,255,255,0)');g.addColorStop(0.85,'rgba(255,255,255,0.05)');c.fillStyle=g;c.fillRect(x,y,w,h);
+  c.restore();}
+
+/* ---------------- glass chips from the app ---------------- */
+function chip(c,t,i,L){const t0=wordT(i),a=E.outBack(prog(t,t0+0.22,t0+0.62)),out=E.inCubic(prog(t,t0+WD-0.42,t0+WD-0.12));if(a<=0||out>=1)return;const d=WORDS[i].chip,W=780,H=136,x=L.CX-W/2,y=WY(L)+170+(1-a)*40+out*30;
+  c.save();c.globalAlpha=clamp(a)*(1-out);c.translate(L.CX,y+H/2);c.scale(lerp(0.92,1,clamp(a)),lerp(0.92,1,clamp(a)));c.translate(-L.CX,-(y+H/2));
+  rr(c,x,y,W,H,H/2);c.fillStyle='rgba(6,12,28,0.74)';c.fill();const g=c.createLinearGradient(x,y,x+W,y+H);g.addColorStop(0,'rgba(255,255,255,0.45)');g.addColorStop(0.5,'rgba(255,255,255,0.08)');g.addColorStop(1,'rgba(255,255,255,0.28)');c.strokeStyle=g;c.lineWidth=2;c.stroke();
+  const ix=x+H/2,iy=y+H/2;c.fillStyle='rgba(255,255,255,0.08)';c.beginPath();c.arc(ix,iy,44,0,TAU);c.fill();
+  if(d.ring!=null){c.strokeStyle='rgba(255,255,255,0.15)';c.lineWidth=8;c.beginPath();c.arc(ix,iy,30,0,TAU);c.stroke();c.strokeStyle=C.pink;c.lineCap='round';c.beginPath();c.arc(ix,iy,30,-Math.PI/2,-Math.PI/2+TAU*d.ring*E.outCubic(prog(t,t0+0.4,t0+1.0)));c.stroke();}
+  else if(d.check){const ck=E.outBack(prog(t,t0+0.5,t0+0.7));rr(c,ix-24,iy-24,48,48,13);c.fillStyle=ck>0?rgba(RGB.teal,Math.min(1,ck)):'rgba(255,255,255,0.1)';c.fill();if(ck>0){c.strokeStyle='#000';c.lineWidth=5;c.lineCap='round';c.lineJoin='round';c.beginPath();c.moveTo(ix-11,iy+1);c.lineTo(ix-3,iy+10);c.lineTo(ix+13,iy-9);c.stroke();}}
+  else if(d.play){c.fillStyle=C.purple;c.beginPath();c.arc(ix,iy,30,0,TAU);c.fill();c.fillStyle='#fff';c.beginPath();c.moveTo(ix-8,iy-13);c.lineTo(ix+14,iy);c.lineTo(ix-8,iy+13);c.fill();}
+  else if(d.live){glow(c,ix,iy,50,RGB.teal,0.4+0.3*Math.sin(t*9));c.fillStyle=C.teal;c.beginPath();c.arc(ix,iy,13,0,TAU);c.fill();}
+  else{c.fillStyle=C.blue;rr(c,ix-26,iy-6,52,12,6);c.fill();rr(c,ix-30,iy-16,10,32,4);c.fill();rr(c,ix+20,iy-16,10,32,4);c.fill();}
+  txt(c,d.main,x+H+6,y+58,700,33,'#fff');txt(c,d.sub,x+H+6,y+100,500,27,C.soft);
+  if(d.pill){const[s,col]=d.pill,pw=tw(s,700,24)+40,px=x+W-pw-30,py=iy-24;rr(c,px,py,pw,48,24);c.fillStyle='rgba(255,255,255,0.07)';c.fill();c.strokeStyle=col;c.lineWidth=2;c.stroke();txt(c,s,px+pw/2,py+33,700,24,col,'center');}
+  c.restore();}
+
+/* ---------------- captions ---------------- */
+function scrim(c,L,a){if(a<=0)return;const g=c.createLinearGradient(0,0,0,560);g.addColorStop(0,`rgba(2,6,18,${0.82*a})`);g.addColorStop(0.6,`rgba(2,6,18,${0.5*a})`);g.addColorStop(1,'rgba(2,6,18,0)');c.fillStyle=g;c.fillRect(0,0,L.W,560);}
+function captions(c,t,L){const a1=prog(t,0.05,0.3)*(1-prog(t,S.w0-0.1,S.w0+0.15)),a2=prog(t,S.phone+0.4,S.phone+0.7)*(1-prog(t,S.g-0.2,S.g+0.1));scrim(c,L,Math.max(a1,a2));
+  if(t<S.w0+0.3)riseWords(c,{lines:['Cuando todo está','en un solo lugar,'],x:L.CX,y:340,lh:84,t0:0.15,t1:S.w0-0.25,px:70,weight:800,key:[1,'lugar,']});
+  if(t>S.phone&&t<S.g+0.3)riseWords(c,{lines:['Todo en una app.'],x:L.CX,y:300,lh:0,t0:S.phone+0.5,t1:S.g-0.3,px:70,weight:800,key:[0,'app.']});}
+
+/* ---------------- sound ---------------- */
+function cueSheet(L){const q=[{t:0,s:'drone',d:1.4},{t:0.08,s:'bloop',k:0,v:0.9},{t:0.1,s:'whoosh',d:1.3,f0:250,f1:2600,g:0.8},{t:S.w0-0.36,s:'revcrash',d:0.36},{t:S.w0,s:'sub',d:1.0,gain:0.5},
+  {t:S.w0,s:'groove',t1:S.g,bpm:BPM,chords:[[S.w0,'Am'],[bt(7),'F'],[bt(11),'C'],[bt(15),'G'],[bt(19),'Am'],[bt(23),'F'],[bt(27),'G']],parts:['kick','hat','bass','pad','arp']}];
+  WORDS.forEach((_,i)=>{const t0=wordT(i);q.push({t:t0,s:'hit',g:0.5},{t:t0+0.02,s:'shimmer'},{t:t0+0.25,s:'pop',g:0.7},{t:t0+WD-0.4,s:'bloop',k:1,v:0.7},{t:t0+WD-0.2,s:'bloop',k:2,v:0.5});});
+  q.push({t:S.fluye-0.36,s:'revcrash',d:0.36},{t:S.fluye,s:'hit'},{t:S.fluye,s:'sub',d:1.2,gain:0.6},{t:S.fluye+0.3,s:'shimmer'},{t:S.phone-0.4,s:'bloop',k:1,v:0.8},
+    {t:S.phone,s:'whoosh',d:0.6,f0:300,f1:3000,g:0.9},{t:S.phone+0.05,s:'sub',d:0.8,gain:0.5},{t:S.phone+0.5,s:'chime',g:0.7},...SCREENS.slice(1).map(([u])=>({t:S.phone+u,s:'tick'})),
+    {t:S.g-0.36,s:'revcrash',d:0.36},{t:S.g,s:'hit'},{t:S.g,s:'sub',d:1.4,gain:0.6},{t:S.g+0.5,s:'shimmer'},{t:S.g,s:'rise',d:S.end-S.g},{t:S.end,s:'hit',g:0.7},{t:S.end+0.02,s:'chord',ch:'C',d:3.2});
+  return[...q,...endcardCues(L,S.end,{dot:'static',arc:'static'})];}
+
+/* ---------------- the reel ---------------- */
+createReel({dur:DUR,
+  hits:[[S.w0,5,0.015],...WORDS.map((_,i)=>[wordT(i),4,0.012]),[S.fluye,8,0.02],[S.phone,6,0.015],[S.g,8,0.02],[S.end,5,0.012]],
+  bloom:t=>0.22,vignette:t=>0.5,
+  init(L){CH=createChrome(L.W,L.H);MK.w=WORDS.map(d=>wordMask(L,d.w));MK.f=fluyeMask(L);MK.g=gMask(L);},
+  draw(c,t,L,P){c.fillStyle='#000';c.fillRect(-100,-100,L.W+200,L.H+200);
+    const fr=Math.round(t*60);if(fr!==LAST){LAST=fr;const st=metal(fr/60,L);CH.setMask(st.mask);CH.render(st);}
+    c.drawImage(CH.canvas,-L.W*0.015,-L.H*0.015,L.W*1.03,L.H*1.03);
+    phoneScreen(c,t,L);
+    if(t>=S.end-0.05){const a=E.outCubic(prog(t,S.end-0.05,S.end+0.35));c.fillStyle=`rgba(2,5,14,${0.55*a})`;c.fillRect(-100,-100,L.W+200,L.H+200);c.save();c.globalAlpha=a;endcard(c,t,S.end,L,{cta:P.cta,arc:'static',dot:'static'});c.restore();}
+    const lo=prog(t,DUR-0.45,DUR-1/60);if(lo>0){c.fillStyle=`rgba(0,0,0,${E.inCubic(lo)})`;c.fillRect(-100,-100,L.W+200,L.H+200);}},
+  overlay(c,t,L){WORDS.forEach((_,i)=>chip(c,t,i,L));captions(c,t,L);},
+  cues(L){return cueSheet(L);},
+});
+</script></body></html>
