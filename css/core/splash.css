@@ -56,16 +56,15 @@ body.is-booting { overflow: hidden; }
   #splash { animation: splash-out .3s linear 1.2s forwards; }
 }
 
-/* ---------- Apariencia «Claro» (html.tema-claro, ver css/ui/tema-claro.css) ----------
-   Otro template (#splashTplClaro en app/index.html, lo elige app/splash.js): el ícono de
-   vidrio armándose en ~1,5 s, más corto que el splash de siempre:
+/* ---------- Splash: el ícono de vidrio armándose (las dos apariencias) ----------
+   Template #splashTplClaro en app/index.html (lo usa app/splash.js). En ~1,5 s:
      1. los cuatro círculos (azul, violeta, cian, índigo) entran flotando a su lugar;
      2. el cuadrado de vidrio esmerilado aparece encima;
      3. el arco de la G blanca se traza y el punto aparece último con un rebote chico;
      4. un brillo suave y la pantalla se funde con la app.
    Solo se animan transform, opacity y stroke-dashoffset (baratos en cualquier celular).
    Modo liviano: ícono quieto y salida enseguida. Movimiento reducido: ícono quieto. */
-html.tema-claro #splash { gap: 26px; animation: splash-out .35s ease 1.55s forwards; }
+#splash.sp-anim { gap: 26px; animation: splash-out .35s ease 1.55s forwards; }
 
 /* El ícono: mismas proporciones que el ícono de vidrio (todo en % del cuadro). */
 .sp-icon { position: relative; width: clamp(170px, 54vw, 250px); aspect-ratio: 1; }
@@ -100,7 +99,7 @@ html.tema-claro #splash { gap: 26px; animation: splash-out .35s ease 1.55s forwa
 .sp-g .sl-dot { animation: sl-pop .34s cubic-bezier(.3,1.6,.5,1) 1.04s forwards; }
 /* 4) Brillo. */
 .sp-icon::after { animation: sp-glow .45s ease-out 1.16s; }
-html.tema-claro .splash-txt { margin: 0; animation-delay: .2s; }
+#splash.sp-anim .splash-txt { margin: 0; animation-delay: .2s; }
 
 @keyframes sp-float { from { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.72); } to { opacity: 1; transform: none; } }
 @keyframes sp-glass { from { opacity: 0; transform: translateY(6%) scale(.94); } to { opacity: 1; transform: none; } }
@@ -108,16 +107,25 @@ html.tema-claro .splash-txt { margin: 0; animation-delay: .2s; }
 
 /* Modo liviano: el ícono ya armado, sin animar, y se va enseguida. */
 html.lite .sp-c, html.lite .sp-glass, html.lite .sp-g .sl-arc, html.lite .sp-g .sl-dot, html.lite .sp-icon::after,
-  html.lite.tema-claro .splash-txt { animation: none; }
+  html.lite #splash.sp-anim .splash-txt { animation: none; }
 html.lite .sp-c, html.lite .sp-glass { opacity: 1; }
 html.lite .sp-g .sl-arc { stroke-dashoffset: 0; }
 html.lite .sp-g .sl-dot { transform: none; }
-html.lite.tema-claro #splash { animation: splash-out .25s linear .6s forwards; }
+html.lite #splash.sp-anim { animation: splash-out .25s linear .6s forwards; }
 
 @media (prefers-reduced-motion: reduce) {
   .sp-c, .sp-glass, .sp-g .sl-arc, .sp-g .sl-dot, .sp-icon::after { animation: none; }
   .sp-c, .sp-glass { opacity: 1; }
   .sp-g .sl-arc { stroke-dashoffset: 0; }
   .sp-g .sl-dot { transform: none; }
-  html.tema-claro #splash { animation: splash-out .3s linear 1.2s forwards; }
+  #splash.sp-anim { animation: splash-out .3s linear 1.2s forwards; }
 }
+
+/* Apariencia «Oscuro» (la de siempre): el mismo ícono con los colores de la marca de siempre
+   (brand/tokens.css): círculos azul, violeta, turquesa y rosa sobre negro, y la G blanca con el
+   punto azul, como el logo. «Claro» usa los de arriba (azul, violeta, cian e índigo, punto blanco). */
+html:not(.tema-claro) .sp-1 { background: linear-gradient(135deg, #6BBCFF, #2FA0FF); }
+html:not(.tema-claro) .sp-2 { background: linear-gradient(135deg, #C08BFF, #A65CFF); }
+html:not(.tema-claro) .sp-3 { background: linear-gradient(135deg, #5CF0D9, #25E8C8); }
+html:not(.tema-claro) .sp-4 { background: linear-gradient(135deg, #FF78C6, #FF3DAE); }
+html:not(.tema-claro) .sp-g .sl-dot { fill: #2FA0FF; }

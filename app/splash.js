@@ -2,11 +2,11 @@
   var TOTAL_MS = 2600; // duración completa: barra de 2,1 s + salida
   var MAX_MS = 8000;   // techo de seguridad si la app nunca avisa que está lista
   var tpl = document.getElementById('splashTpl');
-  // Apariencia «Claro» (html.tema-claro, la pone app/lite.js): otro splash, el ícono de vidrio
-  // armándose (css/core/splash.css). Es más corto: ~1,5 s + 0,35 s de salida; en el modo
-  // liviano ya viene armado y se va a los 0,85 s. Se decide en cada mount, por si cambió.
+  // El splash de las dos apariencias es el ícono de vidrio armándose (css/core/splash.css), con
+  // los colores de cada una. Dura ~1,5 s + 0,35 s de salida; en el modo liviano ya viene armado y
+  // se va a los 0,85 s. El de antes (#splashTpl, 2,6 s) queda solo por si faltara el template.
   var tplClaro = document.getElementById('splashTplClaro');
-  function claro() { return !!tplClaro && document.documentElement.classList.contains('tema-claro'); }
+  function claro() { return !!tplClaro; }
   function totalMs() {
     if (!claro()) return TOTAL_MS;
     return document.documentElement.classList.contains('lite') ? 850 : 1900;

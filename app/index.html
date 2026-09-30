@@ -60,7 +60,6 @@
 <link rel="stylesheet" href="css/ui/recorte.css">
 <link rel="stylesheet" href="css/ui/entreno-sobrio.css">
 <link rel="stylesheet" href="css/ui/tema-claro.css">
-<link rel="stylesheet" href="css/ui/oscuro-cristal.css">
 
 </head>
 <body class="is-booting">
@@ -72,10 +71,12 @@
       <p class="splash-txt">Preparando tu entrenamiento</p>
     </div>
   </template>
-  <!-- Splash de la apariencia «Claro» (html.tema-claro): el ícono de vidrio armado en piezas
-       para animarlas por separado (css/core/splash.css): círculos, vidrio, arco de la G y punto. -->
+  <!-- Splash de las dos apariencias: el ícono de vidrio armado en piezas para animarlas por
+       separado (css/core/splash.css): círculos, vidrio, arco de la G y punto. En «Oscuro» va con
+       los colores de siempre (negro, azul, violeta, rosa y turquesa, punto azul); en «Claro», con
+       los suyos. El de arriba (#splashTpl) queda solo por si faltara este. -->
   <template id="splashTplClaro">
-    <div id="splash" role="status">
+    <div id="splash" class="sp-anim" role="status">
       <div class="sp-icon" role="img" aria-label="GIZE">
         <span class="sp-c sp-1"></span><span class="sp-c sp-2"></span><span class="sp-c sp-3"></span><span class="sp-c sp-4"></span>
         <span class="sp-glass"></span>

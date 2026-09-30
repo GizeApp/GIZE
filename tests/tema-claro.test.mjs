@@ -41,7 +41,7 @@ const spy = () => {
     window.__splash = { claro: !!s.querySelector('.sp-icon'), viejo: !!s.querySelector('.splash-logo'),
       circles: s.querySelectorAll('.sp-icon .sp-c').length, glass: !!s.querySelector('.sp-glass'), label: (s.querySelector('[aria-label]') || {}).getAttribute?.('aria-label'),
       dotFill: dot && dot.fill, circleAnim: cs('.sp-c') && cs('.sp-c').animationName, arcAnim: arc && arc.animationName, dotAnim: dot && dot.animationName,
-      dash: arc && arc.strokeDashoffset, glassBlur: cs('.sp-glass') && cs('.sp-glass').backdropFilter };
+      dash: arc && arc.strokeDashoffset, c1: cs('.sp-1') && cs('.sp-1').backgroundImage, glassBlur: cs('.sp-glass') && cs('.sp-glass').backdropFilter };
   }).observe(document, { childList: true, subtree: true });
 };
 
@@ -51,13 +51,15 @@ async function splashGone(p, ms){
 }
 
 export default async function ({ base, t }){
-  // 1) Por defecto: el look de siempre, con el splash de siempre, y «Oscuro» elegido.
+  // 1) Por defecto: el look de siempre, el splash del ícono de vidrio en los colores de siempre, y «Oscuro» elegido.
   let pg = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') }, init: () => localStorage.setItem('gize_lite', '0') });
   await pg.p.addInitScript(spy);
   await pg.p.goto(base + '/app/');
   await pg.p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   let sp = await pg.p.evaluate(() => window.__splash || {});
-  t.eq([sp.viejo, sp.claro, sp.dotFill], [true, false, 'rgb(47, 160, 255)'], 'por defecto: el splash de siempre (firma con el punto azul)');
+  t.eq([sp.claro, sp.viejo, sp.circles, sp.glass, sp.dotFill], [true, false, 4, true, 'rgb(47, 160, 255)'], 'por defecto (Oscuro): el splash del ícono de vidrio, con la G y el punto azul de siempre');
+  t.eq(sp.c1, 'linear-gradient(135deg, rgb(107, 188, 255), rgb(47, 160, 255))', 'por defecto (Oscuro): los círculos con los colores de siempre');
+  t.eq([sp.circleAnim, sp.arcAnim, sp.dotAnim], ['sp-float', 'sl-draw', 'sl-pop'], 'por defecto (Oscuro): el splash se arma animado');
   t.eq(await pg.p.evaluate(() => window.__dcl), false, 'por defecto: sin html.tema-claro');
   t.ok(await splashGone(pg.p, 5000), 'por defecto: el splash se va');
   await wait(400);
@@ -89,6 +91,7 @@ export default async function ({ base, t }){
   t.eq(await pg.p.evaluate(() => window.__dcl), true, 'Claro: la clase ya está al terminar de leer el HTML (sin parpadeo)');
   t.eq([sp.claro, sp.viejo, sp.circles, sp.glass, sp.label], [true, false, 4, true, 'GIZE'], 'Claro: splash nuevo (4 círculos, vidrio y la G)');
   t.eq(sp.dotFill, 'rgb(255, 255, 255)', 'Claro: el punto de la G del splash es blanco');
+  t.ok(sp.c1 && !/47, 160, 255/.test(sp.c1), 'Claro: los círculos con los colores del Claro: ' + sp.c1);
   t.eq([sp.circleAnim, sp.arcAnim, sp.dotAnim], ['sp-float', 'sl-draw', 'sl-pop'], 'Claro: el splash se arma animado');
   t.ok(await splashGone(pg.p, 4000), 'Claro: el splash se va solo (' + (Date.now() - t0) + ' ms)');
   await wait(600);
