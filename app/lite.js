@@ -10,3 +10,20 @@
     if (o === "1" || (o !== "0" && weak)) document.documentElement.classList.add("lite");
   } catch (e) {}
 })();
+
+// Apariencia: «Oscuro» (la de siempre, por defecto) o «Claro» (vidrio sobre círculos de color,
+// css/ui/tema-claro.css). Se elige en Ajustes (cliente) o en Configuración (coach) y se guarda
+// en este dispositivo ("gize_tema" = "claro"; ver app/ui/tema.js). Va acá, igual que el modo
+// liviano, para que la primera pintada (y el splash) ya salgan con la apariencia elegida.
+(function () {
+  try {
+    if (localStorage.getItem("gize_tema") !== "claro") return;
+    document.documentElement.classList.add("tema-claro");
+    // La barra del sistema (Android) con el marino del fondo: los <meta> vienen después de este script.
+    document.addEventListener("DOMContentLoaded", function () {
+      if (!document.documentElement.classList.contains("tema-claro")) return;
+      var m = document.querySelectorAll('meta[name="theme-color"]');
+      for (var i = 0; i < m.length; i++) m[i].setAttribute("content", "#030814");
+    });
+  } catch (e) {}
+})();

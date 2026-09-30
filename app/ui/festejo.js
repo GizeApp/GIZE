@@ -88,7 +88,10 @@ export function playPR(setId, diff) {
     edge.className = "pr-edge";
     row.appendChild(edge);
     extras.push(edge);
-    const colors = ["#2FA0FF", "#A65CFF", "#FF3DAE", "#25E8C8", "#FFC940", "#FFC940"];
+    // La gama de la apariencia elegida (en «Claro» es azul, violeta, cian e índigo) y dorado.
+    const colors = document.documentElement.classList.contains("tema-claro")
+      ? ["#3FA3F2", "#A474F7", "#2EC6EE", "#5B6CF2", "#FFC940", "#FFC940"]
+      : ["#2FA0FF", "#A65CFF", "#FF3DAE", "#25E8C8", "#FFC940", "#FFC940"];
     for (let i = 0; i < 8; i++) {
       const sp = document.createElement("span");
       sp.className = "pr-spark";

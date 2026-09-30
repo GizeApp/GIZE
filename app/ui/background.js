@@ -128,6 +128,9 @@ const SILK_ALPHA = 0.3, SILK_SPEED = 0.18, SILK_DIM = 0.35, SILK_IDLE_MS = 700;
 let silkDim = 1, silkBusyUntil = 0;
 function silkBusy(){ silkBusyUntil = Date.now() + SILK_IDLE_MS; }
 
+// Al cambiar la apariencia (app/ui/tema.js) las partículas toman la gama nueva sin recargar.
+export function refreshGamut(){ silkGamut = gizeGamut(); }
+
 export function silkMakeParticles(w, h){
   const count = w<560 ? 40 : (w<1000 ? 80 : 120);
   silkGamut = gizeGamut();
