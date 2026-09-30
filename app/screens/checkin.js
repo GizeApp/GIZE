@@ -6,7 +6,7 @@ import { state } from '../core/state.js';
 
 import { save } from '../core/storage.js';
 
-import { checkinPending, cloudInsertSession, failedCheckin, isOnline, newId } from '../core/supabase.js';
+import { checkinPending, cloudDeleteSession, cloudInsertSession, failedCheckin, isOnline, newId } from '../core/supabase.js';
 
 import { esc, fmtDate, mondayOf, num, parseSecs, today, withUnit } from '../core/utils.js';
 
@@ -69,6 +69,9 @@ export function saveSession(){
     const mins=Math.max(1, Math.round((Date.now()-(dup.ts||Date.now()))/60000));
     if(!confirm("Este entreno ya lo guardaste hoy"+(dup.ts?" (hace "+mins+" min)":"")+", con los mismos pesos y repeticiones.\n\n¿Guardarlo otra vez?")) return;
   }
+  // Se pide confirmación: tocarlo sin querer terminaba el entreno y cortaba el tiempo, sin
+  // forma de volver. (Igual, desde la ventana de «¡Entreno terminado!» se puede seguir.)
+  else if(!confirm("¿Terminar y guardar el entreno de hoy?\n\nSe guarda en tu historial y se detiene el tiempo de entreno.")) return;
   CheckinState.newPRs=detectPRs(exs, state.sessions); // contra el historial ANTES de sumar esta sesión
   // Resumen: tiempo desde la primera serie tildada, series, volumen y la vez anterior de ese día.
   const dur = wkStarted(d) ? Math.min(43200, Math.round(wkElapsedMs()/1000)) : 0;
@@ -76,6 +79,8 @@ export function saveSession(){
   CheckinState.summary = { dur, sets: exs.reduce((a,e)=>a+e.sets.length,0), exs: exs.length };
   const _ns={id:newId(), date:today(), ts:Date.now(), day:d.name, exercises:exs};
   if(dur>0) _ns.dur=dur;
+  // Para «Seguir entrenando» (deshacer): el reloj del entreno tal como estaba.
+  CheckinState.undo={id:_ns.id, wkStart: state.wkStart ? JSON.parse(JSON.stringify(state.wkStart)) : null};
   delete state.wkStart;
   state.sessions.push(_ns);
   save();
@@ -85,6 +90,19 @@ export function saveSession(){
   });
   CheckinState.fbSession=_ns.id; CheckinState.fbForm={};
   renderApp();
+}
+
+// «Seguir entrenando» desde la ventana de «¡Entreno terminado!»: saca el entreno recién
+// guardado (también de la nube o de la cola) y vuelve el reloj del entreno como estaba.
+// Las series cargadas del día no se tocan (guardar no las borra).
+export function undoSaveSession(){
+  const u=CheckinState.undo; if(!u) return;
+  const se=(state.sessions||[]).find(x=>x.id===u.id);
+  if(se && se.cloudId){ try{ cloudDeleteSession(se.cloudId); }catch(e){} }
+  state.sessions=(state.sessions||[]).filter(x=>x.id!==u.id);
+  if(u.wkStart) state.wkStart=u.wkStart;
+  CheckinState.undo=null; CheckinState.fbSession=null; CheckinState.fbForm=null; CheckinState.newPRs=[];
+  save();
 }
 
 export function renderFeedback(){
@@ -106,7 +124,8 @@ export function renderFeedback(){
     scale("pump","Pump de la sesi\u00f3n","1 = nada \u00b7 5 = mucho")+
     '<div class="fb-row"><div class="fb-lbl">Dolor articular<span class="fb-hint">\u00bfMolestia en alguna articulaci\u00f3n?</span></div><div class="fb-opts">'+jp+'</div></div>'+
     '<button class="form-save" style="margin-top:16px" data-action="fb-save">Enviar a mi coach</button>'+
-    '<button class="logout-btn" style="margin-top:8px" data-action="fb-skip">Ahora no</button></div>';
+    '<button class="logout-btn" style="margin-top:8px" data-action="fb-skip">Ahora no</button>'+
+    (CheckinState.undo && CheckinState.undo.id===CheckinState.fbSession ? '<button class="fb-undo" data-action="fb-undo">Lo toqué sin querer: seguir entrenando</button>' : '')+'</div>';
 }
 
 export function renderInfo(){

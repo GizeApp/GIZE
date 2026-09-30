@@ -21,7 +21,7 @@ import { showLogin } from './screens/auth.js';
 import { ssGroupOf, ssNext } from './core/superserie.js';
 import { CardioState, openTimePicker, renderCardio, setRing, swFrac } from './screens/cardio.js';
 
-import { CheckinState, checkinDraft, checkinHasAnswer, checkinWeek, renderFeedback, saveSession , todayWeightText } from './screens/checkin.js';
+import { CheckinState, checkinDraft, checkinHasAnswer, checkinWeek, renderFeedback, saveSession, todayWeightText, undoSaveSession } from './screens/checkin.js';
 
 import { loadCoachClients, openClient } from './screens/coach/clientes.js';
 
@@ -598,6 +598,7 @@ document.body.addEventListener("click", async e => {
     renderApp(); return;
   }
   if (a === "fb-set") { CheckinState.fbForm=CheckinState.fbForm||{}; CheckinState.fbForm[el.dataset.k]=el.dataset.v; renderFeedback(); return; }
+  if (a === "fb-undo") { undoSaveSession(); renderApp(); return; }
   if (a === "fb-skip") { CheckinState.fbSession=null; CheckinState.fbForm=null; CheckinState.newPRs=[]; renderApp(); return; }
   if (a === "fb-save") {
     const se=state.sessions.find(x=>x.id===CheckinState.fbSession); const f=CheckinState.fbForm||{};
