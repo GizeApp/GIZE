@@ -75,6 +75,9 @@ Everything for @gize.app is rendered into `stock/`, with captions, hashtags and 
 | `06-lanzamiento-finales/` | every episode, Ep. 01 and the brand reel with the launch ending | as above |
 | `07-overlays/` | overlays for real footage + the end card on its own (`cierre_*`) | 9:16 (cierre: all) |
 | `08-clips-reales/` | real clips composited with `composite.mjs` | 9:16 |
+| `09-reel-20/` | the 20 s motion reel (ignition, type, 3D phone, map, grid, tunnel, marquee, signature) | 9:16, 16:9 |
+| `10-formatos-ig/` | trending formats: «El logo en todo» (hard cuts on the beat) and «UI en movimiento» | 9:16 (+16:9 for UI) |
+| `11-linea/` | «Seguí la línea»: one continuous line draws the app, then the phone, then the G (loops) | 9:16 |
 
 ## How a piece is made
 
@@ -94,7 +97,12 @@ node build.mjs jobs/launch.json           # 05-lanzamiento
 node build.mjs jobs/launch-endings.json   # 06-lanzamiento-finales
 node overlays/build.mjs [--prores]        # 07-overlays (--prores adds ProRes 4444 .mov with alpha, ~40 MB each)
 node build.mjs jobs/cierres.json          # 07-overlays/cierre_*
+node build.mjs jobs/reel20.json           # 09-reel-20
+node build.mjs jobs/refs.json             # 10-formatos-ig
+node build.mjs jobs/linea.json            # 11-linea
 ```
+
+`build.mjs` also takes `--formats=9x16` and `--ctas=hype` to render one format or one ending at a time.
 
 To check a moment without rendering everything: `node render.mjs "--page=showreel/episodes/04-descanso.html?fmt=4x5&hook=b" --times=0.5,9.8 --sub=1 --out=/tmp/check`.
 
@@ -102,7 +110,7 @@ To check a moment without rendering everything: `node render.mjs "--page=showree
 
 Film vertical, 1080×1920 or larger, at least 60 fps if possible. Then either:
 
-- **Edit it yourselves** (CapCut, InShot, Premiere). Drop the overlays from `stock/07-overlays/` on top: `_verde.mp4` with the chroma key tool, or `.webm` which already has transparency, and finish with `cierre_hype_9x16.mp4`. The stamps are `chau-<word>`. The UI overlays are `serie`, `serie-record`, `descanso`, `cardio-en-vivo`, `habito` and `firma`.
+- **Edit it yourselves** (CapCut, InShot, Premiere). Drop the overlays from `stock/07-overlays/` on top: `_verde.mp4` with the chroma key tool (the green stamps come without the dark scrim, so they key cleanly; add a dark filter under them if the clip is bright), or `.webm` which already has transparency and the scrim, and finish with `cierre_hype_9x16.mp4`. The stamps are `chau-<word>`. The UI overlays are `serie`, `serie-record`, `descanso`, `cardio-en-vivo`, `habito` and `firma`.
 - **Or send the clip** and it gets composited:
 
 ```bash
@@ -111,4 +119,4 @@ node composite.mjs --clip=clips/sentadilla.mp4 --stamp="NOTAS DEL CELU" --at=ser
 
 ## The calendar
 
-`calendar/build.py` builds the shared posting calendar from `stock/catalog.json`. It covers 3 Reels a week plus daily Stories, the ad variants, the Story stickers and every file. The page is published as a claude.ai artifact, and posting status is shared by the team there.
+`calendar/build.py` builds the shared posting calendar from `stock/catalog.json`. It covers 3 Reels a week (plus a Sunday motion piece from week 2), daily Stories, the ad variants, the Story stickers and every file. The page is published as a claude.ai artifact, and posting status is shared by the team there.

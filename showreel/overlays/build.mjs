@@ -1,5 +1,5 @@
 // Overlay pack for real footage (9:16): each overlay rendered with alpha, then exported as
-//   <name>_verde.mp4   green screen (#00FF00) for CapCut / InShot "Chroma key"
+//   <name>_verde.mp4   green screen (#00FF00) for CapCut / InShot "Chroma key" (stamps without their dimming scrim)
 //   <name>.webm        VP9 with real transparency (browsers, DaVinci, Premiere with WebM support)
 //   <name>.png         the settled frame, for still edits
 //   node overlays/build.mjs [--only=name1,name2] [--prores]   (--prores also writes <name>.mov, ProRes 4444
@@ -33,10 +33,14 @@ for (const it of ITEMS) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gize-ov-')), qs = new URLSearchParams({ ...it.q, alpha: '1' }).toString();
   execFileSync('node', ['render.mjs', `--page=showreel/overlays/overlay.html?${qs}`, `--dur=${it.dur}`, `--out=${tmp}`, '--quiet'], { cwd: ROOT, stdio: 'inherit' });
   const seq = path.join(tmp, 'f_%04d.png'), base = path.join(OUT, it.name), ff = a => execFileSync(FF, ['-y', '-loglevel', 'error', ...a], { stdio: 'inherit' });
-  ff(['-f', 'lavfi', '-i', `color=c=0x00FF00:s=1080x1920:r=60:d=${it.dur}`, '-framerate', '60', '-i', seq, '-filter_complex', '[0][1]overlay=shortest=1,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-movflags', '+faststart', `${base}_verde.mp4`]);
+  // a chroma key can't take a half-transparent black: the green-screen stamp is rendered without its dimming scrim
+  let seqG = seq, tmpG = null;
+  if (it.q.item === 'stamp') { tmpG = fs.mkdtempSync(path.join(os.tmpdir(), 'gize-ov-')); seqG = path.join(tmpG, 'f_%04d.png');
+    execFileSync('node', ['render.mjs', `--page=showreel/overlays/overlay.html?${new URLSearchParams({ ...it.q, alpha: '1', scrim: '0' })}`, `--dur=${it.dur}`, `--out=${tmpG}`, '--quiet'], { cwd: ROOT, stdio: 'inherit' }); }
+  ff(['-f', 'lavfi', '-i', `color=c=0x00FF00:s=1080x1920:r=60:d=${it.dur}`, '-framerate', '60', '-i', seqG, '-filter_complex', '[0][1]overlay=shortest=1,format=yuv420p', '-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-movflags', '+faststart', `${base}_verde.mp4`]);
   ff(['-framerate', '60', '-i', seq, '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', '28', '-row-mt', '1', '-auto-alt-ref', '0', `${base}.webm`]);
   fs.copyFileSync(path.join(tmp, `f_${String(Math.round(it.still * 60)).padStart(4, '0')}.png`), `${base}.png`);
   if (args.prores) ff(['-framerate', '60', '-i', seq, '-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le', '-vendor', 'apl0', `${base}.mov`]);
-  fs.rmSync(tmp, { recursive: true, force: true });
+  fs.rmSync(tmp, { recursive: true, force: true });if (tmpG) fs.rmSync(tmpG, { recursive: true, force: true });
   console.log(`  ✓ ${it.name}`);
 }

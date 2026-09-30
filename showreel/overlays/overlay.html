@@ -32,7 +32,7 @@ function habitRow(c,t,L,{name,meta}){const a=E.outExpo(prog(t,0.05,0.45))*(1-E.i
   txt(c,name,70,25,600,15,on>0.5?C.text2:'#fff');if(on>0.5){c.fillStyle=C.text2;c.fillRect(70,20,tw(name,600,15)*clamp((on-0.5)*2),1.5);}txt(c,meta,70,43,400,11,C.text2);c.restore();}
 createReel({dur:DURS[item]||2,alpha:true,
   draw(c,t,L){
-    if(item==='stamp')stampTitle(c,t+T_STAMP-0.1,L,{word:G('word','PLANILLA'),ep:G('ep','01'),topic:G('topic','EL COACH')});
+    if(item==='stamp')stampTitle(c,t+T_STAMP-0.1,L,{word:G('word','PLANILLA'),ep:G('ep','01'),topic:G('topic','EL COACH'),scrim:+G('scrim',0.74)});
     else if(item==='pr'||item==='set')setCard(c,t,L,{ex:G('ex','Press inclinado con mancuernas'),kg:G('kg','32,5'),reps:G('reps','9'),n:G('n','1'),pr:item==='pr'?G('pr','🏆 PR +2,5 kg'):null});
     else if(item==='habit')habitRow(c,t,L,{name:G('name','Tomar 2 L de agua'),meta:G('meta','Todos los días')});
     else if(item==='rest'){const secs=+G('secs','120'),a=E.outBack(prog(t,0.05,0.4))*(1-E.inCubic(prog(t,DURS.rest-0.3,DURS.rest)));

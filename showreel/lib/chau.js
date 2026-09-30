@@ -19,8 +19,8 @@ export function questionBoxes(c,t,L,{lines,times,px}){px=px||(L.fmt==='9x16'?86:
 
 // the stamp: darken, red diagonal strike, CHAU / <WORD> struck, episode pill, small signature
 function fitW(s,w,maxW,start){let px=start;while(px>40&&tw(s,w,px)>maxW)px-=4;return px;}
-export function stampTitle(c,t,L,{word,ep,topic}){const u=t-T_STAMP;if(u<0)return;const ex=E.inExpo(prog(t,T_DROP,T_DROP+0.3));
-  c.fillStyle=`rgba(0,0,0,${0.74*E.outCubic(clamp(u/0.1))*(1-prog(t,T_DROP,T_DROP+0.3))})`;c.fillRect(-200,-200,L.W+400,L.H+400);
+export function stampTitle(c,t,L,{word,ep,topic,scrim=0.74}){const u=t-T_STAMP;if(u<0)return;const ex=E.inExpo(prog(t,T_DROP,T_DROP+0.3));
+  if(scrim>0)c.fillStyle=`rgba(0,0,0,${scrim*E.outCubic(clamp(u/0.1))*(1-prog(t,T_DROP,T_DROP+0.3))})`;if(scrim>0)c.fillRect(-200,-200,L.W+400,L.H+400);
   const se=E.outCubic(clamp(u/0.09));if(se>0&&ex<1){c.save();c.globalAlpha=1-ex;c.strokeStyle=C.danger;c.lineWidth=36;c.lineCap='round';c.beginPath();c.moveTo(-120,L.H*0.85);c.lineTo(lerp(-120,L.W+120,se),lerp(L.H*0.85,L.H*0.16,se));c.stroke();c.restore();}
   const hold=1+0.03*prog(t,T_STAMP+0.25,T_DROP),cS=fitW('CHAU',900,Math.min(820,L.W*0.76),L.fmt==='9x16'?320:270),wS=fitW(word,900,Math.min(940,L.W*0.87),200);
   const yC=L.CY-(L.fmt==='9x16'?100:60);
