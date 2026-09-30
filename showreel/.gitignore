@@ -1,1 +1,8 @@
 frames/
+# rendered media stays out of git: the sources are here, re-render with
+# build.mjs / stories.mjs / overlays/build.mjs (see README)
+*.mp4
+*.webm
+*.mov
+stock/**/*.jpg
+stock/**/*.png

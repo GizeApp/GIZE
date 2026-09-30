@@ -63,7 +63,7 @@ node render.mjs --page=showreel/chau-planilla-01/reel.html --out=chau-planilla-0
 
 # Campaign stock · pre-launch and launch
 
-Everything for @gize.app lives in `stock/`, with captions, hashtags and ad copy in `stock/catalog.json`.
+Everything for @gize.app is rendered into `stock/`, with captions, hashtags and ad copy in `stock/catalog.json`. The videos, covers and overlays are not kept in git (see `.gitignore`); only the sources and the catalog are. Anything here can be re-rendered with the commands below.
 
 | Folder | What | Formats |
 |---|---|---|
