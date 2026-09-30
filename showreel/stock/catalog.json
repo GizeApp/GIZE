@@ -821,6 +821,80 @@
           "cta": "Seguí @gize.app"
         }
       }
+    },
+    {
+      "id": "gize-motion-reel-20s",
+      "kind": "motion",
+      "phase": "hype",
+      "dur": 20,
+      "title": "Motion reel (20 s)",
+      "files": [
+        "09-reel-20/gize-motion-reel-20s_9x16.mp4",
+        "09-reel-20/gize-motion-reel-20s_16x9.mp4"
+      ],
+      "covers": [
+        "09-reel-20/gize-motion-reel-20s_9x16.jpg",
+        "09-reel-20/gize-motion-reel-20s_16x9.jpg"
+      ],
+      "idea": "Motion-design showreel at 120 BPM: gooey blobs into the G, rhythmic type, a 3D phone dive, the cardio map at speed, a grid of screens flipping, an infinite phone tunnel, a marquee with a speed ramp, the «Muy pronto» signature. The 16:9 is for presentations and YouTube.",
+      "caption": "Series, cardio con GPS, comida, hábitos y tu coach.\nTodo se mueve en GIZE. ⚡\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#fitnessargentina",
+        "#running"
+      ]
+    },
+    {
+      "id": "gize-logo-en-todo",
+      "kind": "motion",
+      "phase": "hype",
+      "dur": 9.6,
+      "title": "El logo en todo",
+      "files": [
+        "10-formatos-ig/gize-logo-en-todo_9x16.mp4"
+      ],
+      "covers": [
+        "10-formatos-ig/gize-logo-en-todo_9x16.jpg"
+      ],
+      "idea": "The trending «logo on everything» format at 150 BPM: a strobe of hard cuts (the brand card, a tag, screens, a phone, a cap, a laptop, a box, shakers, tees, a hoodie, a neon), then cuts on the beat and the card again with «Muy pronto @gize.app».",
+      "caption": "Pronto lo vas a ver en todos lados. 👀\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#fitnessargentina"
+      ]
+    },
+    {
+      "id": "gize-ui-en-movimiento",
+      "kind": "motion",
+      "phase": "hype",
+      "dur": 9.4,
+      "title": "UI en movimiento",
+      "files": [
+        "10-formatos-ig/gize-ui-en-movimiento_9x16.mp4",
+        "10-formatos-ig/gize-ui-en-movimiento_16x9.mp4"
+      ],
+      "covers": [
+        "10-formatos-ig/gize-ui-en-movimiento_9x16.jpg",
+        "10-formatos-ig/gize-ui-en-movimiento_16x9.jpg"
+      ],
+      "idea": "The trending UI-motion format at 96 BPM: the pill «Hecho para moverte.», the Series / Cardio / Comida circles, «Entrenamiento total» with its paragraph and «Empezá», the exercise list, the Todo / Entreno / Cardio chips, «Más que una app / Es tu entrenamiento.», the lockup.",
+      "caption": "Hecho para moverte.\nTus series, tu cardio y tu comida, en una sola app. 📲\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#fitnessargentina"
+      ]
     }
   ],
   "launch_endings": {

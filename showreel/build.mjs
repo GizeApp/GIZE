@@ -1,6 +1,6 @@
 // Batch builder for the GIZE stock: every piece x format x hook x ending
 // -> frames (render.mjs) -> cue sheet -> soundtrack (lib/sound.py) -> MP4 (encode.sh).
-//   node build.mjs jobs/teasers.json [--only=id1,id2] [--formats=9x16] [--tmp=/path] [--cover]
+//   node build.mjs jobs/teasers.json [--only=id1,id2] [--formats=9x16] [--ctas=hype] [--tmp=/path] [--cover]
 // A job: {id, page, dur, formats:[...], hooks:["a","b"], ctas:["hype"], out:"stock/teasers", cover:seconds}
 //   audio:"path.wav"  use a fixed soundtrack instead of the page's cue sheet (older standalone pages)
 //   crops:{"4x5":[w,h,x,y]}  derive other formats by cropping the rendered master
@@ -14,6 +14,7 @@ const args = Object.fromEntries(process.argv.slice(3).map(a => { const m = a.rep
 const jobs = JSON.parse(fs.readFileSync(path.resolve(process.argv[2]), 'utf8'));
 const only = args.only ? new Set(args.only.split(',')) : null;
 const fmtOnly = args.formats ? new Set(args.formats.split(',')) : null;
+const ctaOnly = args.ctas ? new Set(args.ctas.split(',')) : null;
 const TMP = path.resolve(args.tmp || path.join(process.env.TMPDIR || '/tmp', 'gize-build'));
 const FF = process.env.FFMPEG || execFileSync('python3', ['-c', 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())']).toString().trim();
 const run = (cmd, a, opts = {}) => execFileSync(cmd, a, { stdio: ['ignore', 'inherit', 'inherit'], cwd: HERE, ...opts });
@@ -24,6 +25,7 @@ for (const job of jobs) {
     if (fmtOnly && !fmtOnly.has(fmt)) continue;
     for (const hook of job.hooks || ['a']) {
       for (const cta of job.ctas || ['hype']) {
+        if (ctaOnly && !ctaOnly.has(cta)) continue;
         const name = [job.id, (job.hooks || []).length > 1 ? `hook-${hook}` : null, (job.ctas || []).length > 1 ? cta : null, fmt].filter(Boolean).join('_');
         const outDir = path.resolve(HERE, job.out);
         const mp4 = path.join(outDir, `${name}.mp4`);

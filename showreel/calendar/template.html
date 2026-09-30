@@ -2,7 +2,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-/* Layout: a posting board — weeks stacked, three Reel slots per week (Lun / Mié / Vie), a Stories strip under each; tabs for ads, stories and the file library. */
+/* Layout: a posting board — weeks stacked, three Reel slots per week (Lun / Mié / Vie) plus a Sunday motion piece from week 2, a Stories strip under each; tabs for ads, stories and the file library. */
 :root{
   --bg:#050609; --surface:#0D1016; --surface-2:#141821; --line:#1F2430; --text:#F4F6FA; --text-2:#8F98A6; --text-3:#5D6574;
   --blue:#2FA0FF; --purple:#A65CFF; --pink:#FF3DAE; --teal:#25E8C8; --gold:#FFC940; --red:#FF4D4D;
@@ -52,6 +52,7 @@ h1 .strike::after{content:"";position:absolute;left:-4px;right:-4px;top:54%;heig
 .week-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .week-h h2{font-size:22px;font-weight:800}
 .slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.slots.four{grid-template-columns:repeat(2,minmax(0,1fr))}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:grid;grid-template-columns:92px minmax(0,1fr);gap:12px;align-content:start}
 .card.st-publicado,.card.st-activo{border-color:color-mix(in srgb,var(--ok) 55%,var(--line))}
 .card.st-programado{border-color:color-mix(in srgb,var(--sched) 55%,var(--line))}
@@ -114,7 +115,7 @@ th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-
 .launch>div{background:var(--bg);border-radius:calc(var(--r) - 1px);padding:18px}
 .launch h2{font-size:22px;font-weight:800}
 .status-line{font-size:12px;color:var(--text-3);margin-top:8px}
-@media (max-width:900px){.slots{grid-template-columns:minmax(0,1fr)}.stories{grid-template-columns:repeat(4,minmax(0,1fr))}.grid2{grid-template-columns:minmax(0,1fr)}.meter{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:900px){.slots,.slots.four{grid-template-columns:minmax(0,1fr)}.stories{grid-template-columns:repeat(4,minmax(0,1fr))}.grid2{grid-template-columns:minmax(0,1fr)}.meter{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:640px){.top{grid-template-columns:minmax(0,1fr)}.start{min-width:0}.stories{grid-template-columns:repeat(2,minmax(0,1fr))}.card{grid-template-columns:76px minmax(0,1fr)}.thumb{width:76px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -124,7 +125,7 @@ th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-
     <div>
       <div class="brand"><canvas id="mark" width="68" height="68" aria-hidden="true"></canvas><span class="eyebrow">@gize.app · pre-lanzamiento</span></div>
       <h1>Calendario GIZE</h1>
-      <p class="sub">Fase <b>Muy pronto</b>: 3 Reels por semana (lunes, miércoles y viernes, 19:30 sugerido) y Stories todos los días. Cuando estén las dos tiendas, arranca la semana de lanzamiento con 2 posteos por día.</p>
+      <p class="sub">Fase <b>Muy pronto</b>: 3 Reels por semana (lunes, miércoles y viernes, 19:30 sugerido), una pieza de motion los domingos desde la semana 2 y Stories todos los días. Cuando estén las dos tiendas, arranca la semana de lanzamiento con 2 posteos por día.</p>
     </div>
     <div class="start">
       <label class="eyebrow" for="startDate">La semana 1 arranca el lunes</label>
@@ -182,7 +183,7 @@ function whoLine(key){const s=status[key];const n=el('div',{class:'who'});if(s&&
 function thumb(src,alt,ph){const t=el('div',{class:'thumb'});if(src)t.append(el('img',{src,alt,loading:'lazy'}));else t.append(el('div',{class:'ph',text:ph||'En producción'}));return t;}
 
 function reelCard(week,slot){const p=P[slot.piece],key='reel.'+slot.piece,st=(status[key]&&status[key].state)||'pendiente',wip=!p.ready;
-  const chips=el('div',{class:'chips'},el('span',{class:'chip',text:p.kind==='episodio'?`Ep. ${p.ep} · ${p.topic.toLowerCase()}`:p.kind==='teaser'?'Teaser':p.kind==='marca'?'Marca':p.kind==='trailer'?'Tráiler':p.kind==='real'?'Clip real':'Lanzamiento'}),wip?el('span',{class:'chip wipc',text:'En producción'}):el('span',{class:'chip',text:'Reel 9:16'}));
+  const chips=el('div',{class:'chips'},el('span',{class:'chip',text:p.kind==='episodio'?`Ep. ${p.ep} · ${p.topic.toLowerCase()}`:p.kind==='teaser'?'Teaser':p.kind==='marca'?'Marca':p.kind==='motion'?'Motion':p.kind==='trailer'?'Tráiler':p.kind==='real'?'Clip real':'Lanzamiento'}),wip?el('span',{class:'chip wipc',text:'En producción'}):el('span',{class:'chip',text:'Reel 9:16'}));
   const body=el('div',{class:'body'},el('div',{class:'when',text:whenText(week,slot.day,'19:30')}),titleNode(p),chips);
   if(p.note)body.append(el('div',{class:'status-line',text:p.note}));
   const foot=el('div',{class:'foot'},segCtl(key,REEL,wip),whoLine(key));
@@ -194,8 +195,8 @@ function reelCard(week,slot){const p=P[slot.piece],key='reel.'+slot.piece,st=(st
 function storyLabel(s){const p=P[s.piece];if(s.cut<0)return p.kind==='teaser'?['Repost del teaser','Encuesta: ¿qué será? 👀']:[p.title,'Repost del Reel'];const c=p.stories[s.cut];return[['Gancho','Demo','Cierre'][s.cut]+' · '+p.title,`${{poll:'Encuesta',slider:'Deslizador',quiz:'Quiz',question:'Pregunta'}[c.sticker.type]}: ${c.sticker.prompt}`];}
 function renderCal(){const root=$('#p-cal');root.replaceChildren();
   for(const w of DATA.plan){const sec=el('section',{class:'week'});const d0=dateFor(w.week,0),d6=dateFor(w.week,6);
-    sec.append(el('div',{class:'week-h'},el('h2',{text:`Semana ${w.week}`}),el('span',{class:'mono',text:d0?`${d0.getDate()} ${MONTHS[d0.getMonth()]} – ${d6.getDate()} ${MONTHS[d6.getMonth()]}`:'3 Reels + Stories diarias'})));
-    const slots=el('div',{class:'slots'});for(const r of w.reels)slots.append(reelCard(w.week,r));sec.append(slots);
+    sec.append(el('div',{class:'week-h'},el('h2',{text:`Semana ${w.week}`}),el('span',{class:'mono',text:d0?`${d0.getDate()} ${MONTHS[d0.getMonth()]} – ${d6.getDate()} ${MONTHS[d6.getMonth()]}`:`${w.reels.length} Reels + Stories diarias`})));
+    const slots=el('div',{class:w.reels.length>3?'slots four':'slots'});for(const r of w.reels)slots.append(reelCard(w.week,r));sec.append(slots);
     const strip=el('div',{class:'stories','aria-label':'Stories de la semana'});
     for(let d=0;d<7;d++){const list=w.stories.filter(s=>s.day===d);if(!list.length){strip.append(el('div',{class:'sday empty'},el('span',{class:'d',text:whenText(w.week,d)}),el('span',{class:'s'},el('em',{text:'Libre: behind the scenes o repost'}))));continue;}
       const box=el('div',{class:'sday'},el('span',{class:'d',text:whenText(w.week,d)}));for(const s of list){const[a,b]=storyLabel(s);box.append(el('span',{class:'s'},a,el('br'),el('em',{text:b})));}strip.append(box);}

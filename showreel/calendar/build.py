@@ -52,6 +52,9 @@ for pid, p in P.items():
     elif k == "marca":
         pieces[pid] = {"title": "El reel de marca (16:9)", "kind": "marca", "note": p.get("note", ""), "caption": p["caption"], "hashtags": p["hashtags"],
                        "cover": cover(p["covers"][0]), "files": p["files"], "ready": all(exists(f) for f in p["files"])}
+    elif k == "motion":
+        pieces[pid] = {"title": p["title"], "kind": "motion", "idea": p.get("idea", ""), "caption": p["caption"], "hashtags": p["hashtags"],
+                       "cover": cover(p["covers"][0]), "files": p["files"], "ready": all(exists(f) for f in p["files"])}
     elif k == "trailer":
         hype = p["files"]["hype"]
         pieces[pid] = {"title": "El tráiler «Muy pronto» (30 s)", "kind": "trailer", "note": "La versión que cierra el pre-lanzamiento. La de «Ya está disponible» abre la semana de lanzamiento.",
@@ -62,17 +65,17 @@ for pid, x in EXTRA.items():
     x.setdefault("files", [])
     pieces[pid] = x
 
-# 3 Reels a week (Mon / Wed / Fri, 19:30 suggested), Stories every day
+# 3 Reels a week (Mon / Wed / Fri, 19:30 suggested) + a motion piece on Sunday from week 2, Stories every day
 WEEKS = [
     ["teaser-01-el-punto", "teaser-02-la-g", "teaser-03-el-mapa"],
-    ["teaser-04-chau", "ep01-chau-planilla", "ep02-chau-notas-del-celu"],
-    ["ep03-chau-3-apps", "ep04-chau-descanso-eterno", "ep05-chau-papelito"],
-    ["ep06-chau-post-its", "ep07-chau-a-ojo", "ep08-chau-40-chats"],
+    ["teaser-04-chau", "ep01-chau-planilla", "ep02-chau-notas-del-celu", "gize-logo-en-todo"],
+    ["ep03-chau-3-apps", "ep04-chau-descanso-eterno", "ep05-chau-papelito", "gize-motion-reel-20s"],
+    ["ep06-chau-post-its", "ep07-chau-a-ojo", "ep08-chau-40-chats", "gize-ui-en-movimiento"],
     ["trailer-30s", "real-01", "real-02"],
 ]
 plan = []
 for w, ids in enumerate(WEEKS):
-    reels = [{"day": d, "piece": pid} for d, pid in zip((0, 2, 4), ids)]
+    reels = [{"day": d, "piece": pid} for d, pid in zip((0, 2, 4, 6), ids)]
     stories = []
     for r in reels:
         pc = pieces[r["piece"]]

@@ -44,7 +44,7 @@ function circles(c,t,L){const Y=lay(L),R=(L.wide?92:120),gap=R*2.9,cy0=L.CY+(L.w
 const PARA='Registrá cada serie, corré con GPS, contá tus macros y cumplí tus hábitos. Todo en un solo lugar, con la precisión que tu progreso necesita.';
 function immersion(c,t,L){const Y=lay(L),x=Y.x0,nl=wrap(c,PARA,Y.col,Y.pp,400).length,blockH=Y.hp*0.9+nl*Y.pp*1.4+36+Y.pp*2.2,top=L.CY-blockH/2+Y.hp*0.6,out=sm(4.2,4.45,t);c.save();c.globalAlpha=1-out;c.translate(0,-out*60);
   settle(c,'Entrenamiento total',x,top,Y.hp,500,T.imm,{stagger:0.03,dur:0.5,rise:0.9});
-  const lines=wrap(c,PARA,Y.col,Y.pp,400),n=Math.floor(clamp((t-(T.imm+0.45))/1.05)*PARA.length);let left=n;
+  const lines=wrap(c,PARA,Y.col,Y.pp,400),n=Math.floor(clamp((t-(T.imm+0.45))/0.7)*PARA.length);let left=n;
   lines.forEach((ln,i)=>{const k=Math.max(0,Math.min(ln.length,left));left-=ln.length+1;if(k<=0)return;txt(c,ln.slice(0,k),x+4,top+Y.hp*0.9+i*Y.pp*1.4,400,Y.pp,'rgba(236,239,245,0.9)');});
   const b=E.outBack(prog(t,3.95,4.25));if(b>0){const by=top+Y.hp*0.9+lines.length*Y.pp*1.4+36,bw=tw('Empezá',600,Y.pp)+110,bh=Y.pp*2.2;c.save();c.translate(x,by);c.scale(b,b);
     c.fillStyle='rgba(47,123,255,0.16)';rr(c,0,0,bw,bh,bh/2);c.fill();c.strokeStyle='rgba(120,170,255,0.5)';c.lineWidth=2;rr(c,0,0,bw,bh,bh/2);c.stroke();
@@ -96,7 +96,7 @@ createReel({dur:DUR,
   cues(){const q=[{t:0.1,s:'pop',g:0.8},{t:0.5,s:'whoosh',d:0.5,f0:300,f1:1800,g:0.5},{t:1.35,s:'whoosh',d:0.35,f0:1800,f1:300,g:0.4},
       {t:0,s:'groove',t1:DUR-0.4,bpm:96,chords:[[0,'Am'],[2.5,'F'],[5,'C'],[7.5,'G']],parts:['pad','arp','hat','bass']}];
     [0,1,2].forEach(i=>q.push({t:T.circ+0.35+i*0.08,s:'bloop',k:i,v:0.7}));q.push({t:2.15,s:'blip',f0:800,f1:1200,d:0.1,g:0.5},{t:2.6,s:'whoosh',d:0.35,f0:2000,f1:300,g:0.4},{t:T.imm,s:'whoosh',d:0.5,f0:300,f1:2500,g:0.45});
-    for(let k=0;k<14;k++)q.push({t:T.imm+0.5+k*0.075,s:'click',f:3200,d:0.006,g:0.18});q.push({t:3.98,s:'shimmer'},{t:4.25,s:'whoosh',d:0.3,f0:2500,f1:400,g:0.4});
+    for(let k=0;k<14;k++)q.push({t:T.imm+0.5+k*0.05,s:'click',f:3200,d:0.006,g:0.18});q.push({t:3.98,s:'shimmer'},{t:4.25,s:'whoosh',d:0.3,f0:2500,f1:400,g:0.4});
     ROWS.forEach((_,i)=>q.push({t:T.list+0.2+i*0.06,s:'blip',f0:600+i*80,f1:900+i*100,d:0.06,g:0.35}));q.push({t:5.3,s:'pop',g:0.7},{t:5.62,s:'bloop',k:1,v:0.8},{t:6.18,s:'click',f:1800,g:0.8},{t:6.2,s:'pop',g:0.6},
       {t:T.txt,s:'whoosh',d:0.4,f0:400,f1:2200,g:0.35},...Array.from({length:10},(_,k)=>({t:7.3+k*0.045,s:'type',g:0.35})),{t:T.lock,s:'shimmer'},{t:T.lock+0.1,s:'chord',ch:'C',d:1.5});return q;},
 });
