@@ -30,7 +30,7 @@
       "purpose": "any"
     },
     {
-      "src": "brand/logo/gize-icono-negro.svg",
+      "src": "brand/logo/gize-icono-vidrio.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
@@ -42,7 +42,7 @@
       "purpose": "maskable"
     },
     {
-      "src": "brand/logo/gize-icono-maskable.svg",
+      "src": "brand/logo/gize-icono-vidrio-maskable.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"
