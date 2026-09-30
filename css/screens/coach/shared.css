@@ -207,3 +207,7 @@ a.cs-q-btn { text-decoration:none; } /* link a la política de privacidad, con l
 .cs-tema { display:flex; gap:6px; }
 .cs-tema .cs-tema-opt { flex:1; justify-content:center; }
 body:not(#_) .cs-tema .cs-tema-opt.on { background:var(--acc-tint); border-color:var(--acc); color:var(--gize-text); }
+/* Neón (prendido / apagado): una fila con el texto y el mismo interruptor de Ajustes del
+   alumno (.cfg-switch, css/screens/config.css). */
+.cs-neon { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border-radius:10px;
+  border:1px solid var(--border); background:rgba(255,255,255,.035); font-size:13px; color:var(--gize-text); }

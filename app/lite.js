@@ -27,3 +27,11 @@
     });
   } catch (e) {}
 })();
+
+// Neón: prendido por defecto. Si se apagó en Ajustes (cliente) o en Configuración (coach)
+// queda "gize_neon" = "0" en este dispositivo (ver app/ui/neon.js) y la app sale en blanco y
+// grises (css/ui/sin-neon.css). Va acá, igual que la apariencia, para que la primera pintada
+// ya salga sin neón.
+(function () {
+  try { if (localStorage.getItem("gize_neon") === "0") document.documentElement.classList.add("sin-neon"); } catch (e) {}
+})();

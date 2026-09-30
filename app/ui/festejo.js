@@ -89,7 +89,11 @@ export function playPR(setId, diff) {
     row.appendChild(edge);
     extras.push(edge);
     // La gama de la apariencia elegida (en «Claro» es azul, violeta, cian e índigo) y dorado.
-    const colors = document.documentElement.classList.contains("tema-claro")
+    // Sin neón (app/ui/neon.js): blancos y grises, con el dorado del récord.
+    const root = document.documentElement;
+    const colors = root.classList.contains("sin-neon")
+      ? ["#FFFFFF", "#D6DAE0", "#FFFFFF", "#B4BAC4", "#FFC940", "#FFC940"]
+      : root.classList.contains("tema-claro")
       ? ["#3FA3F2", "#A474F7", "#2EC6EE", "#5B6CF2", "#FFC940", "#FFC940"]
       : ["#2FA0FF", "#A65CFF", "#FF3DAE", "#25E8C8", "#FFC940", "#FFC940"];
     for (let i = 0; i < 8; i++) {

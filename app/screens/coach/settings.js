@@ -17,6 +17,7 @@ import { pushOnHere } from '../../core/push.js';
 import { adminEntry, checkAdmin } from '../admin-productos.js';
 
 import { temaOptionsHtml } from '../../ui/tema.js';
+import { neonSwitchHtml } from '../../ui/neon.js';
 
 export function renderCoachSettings(){
   const host=document.getElementById("coachSheetHost"); if(!host) return;
@@ -55,6 +56,12 @@ export function renderCoachSettings(){
     '<div class="cs-field">'+
       '<label id="csTemaLbl">Apariencia en este dispositivo</label>'+
       '<div class="cs-tema" role="radiogroup" aria-labelledby="csTemaLbl">'+temaOptionsHtml("cp-copt cs-tema-opt")+'</div>'+
+    '</div>'+
+    // Neón: los bordes y brillos de colores, igual que en Ajustes del alumno. Se aplica al
+    // toque (app/ui/neon.js escucha el interruptor data-neon-toggle).
+    '<div class="cs-field">'+
+      '<label id="csNeonLbl">Neón en este dispositivo</label>'+
+      '<div class="cs-neon"><span>Bordes y brillos de colores</span>'+neonSwitchHtml("csNeonLbl")+'</div>'+
     '</div>'+
     (adminEntry() ? '<div class="cs-field"><label>Administración de GIZE</label>'+adminEntry()+'</div>' : '')+
     '<div class="cs-field">'+

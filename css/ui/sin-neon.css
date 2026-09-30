@@ -1,0 +1,183 @@
+/* css/ui/sin-neon.css
+   Neón apagado (html.sin-neon): la misma app, con las mismas formas, superficies, vidrio (en
+   «Claro») y botones blancos, pero sin la gama RGB. Cada tratamiento de neón pasa a su
+   equivalente neutro: filetes blancos finos en vez de bordes de colores, brillos blancos
+   suaves en vez de resplandores de colores y nada que gire. Es opcional (prendido por
+   defecto): se apaga en Ajustes (cliente) o en Configuración (coach), se guarda por
+   dispositivo y la clase la pone app/lite.js antes de la primera pintada (ver app/ui/neon.js).
+   Sin la clase no cambia nada: TODO lo de este archivo va bajo html.sin-neon.
+   Se carga último (después de css/ui/tema-claro.css), así sirve para las dos apariencias.
+   Cómo gana: cada regla repite el selector original con :where(html.sin-neon) adelante, que
+   no suma peso: empata con la regla de neón y le gana por venir después, pero no pisa las
+   excepciones más específicas que ya había (por ejemplo, los ejercicios adentro de una
+   superserie, que van sin caja propia). Las de «Claro» usan html.tema-claro:where(.sin-neon).
+   Se quedan con color, porque no son decoración: el azul de acción y foco, el rojo de borrar
+   y de alerta, el turquesa de «completado», el ámbar de aviso y el dorado de los récords. */
+
+/* ---------- Tokens: la gama pasa a blancos y grises ----------
+   Todo lo que pintaba con la gama (degradés, tintes, textos de acento, partículas del fondo,
+   el anillo de calorías) queda neutro solo; los resplandores que la usaban quedan como
+   brillos grises suaves. El borde de las cajas es un filete blanco fino. */
+html.sin-neon {
+  --gize-r1: #ECEEF2;
+  --gize-r2: #B4BAC4;
+  --gize-r3: #D6DAE0;
+  --gize-r4: #9AA1AC;
+  --gize-rgb-line: linear-gradient(90deg, rgba(255,255,255,.92), rgba(255,255,255,.5));
+  --gize-rgb-ring: linear-gradient(rgba(255,255,255,.18), rgba(255,255,255,.18));
+  /* Colores del grupo muscular en las rutinas del coach: identifican, no decoran. */
+  --purple: #A65CFF; --pink: #FF3DAE; --cyan: #25E8C8;
+}
+html.tema-claro.sin-neon {
+  --purple: #A474F7; --pink: #2EC6EE; --cyan: #5B6CF2;
+  /* Los círculos del fondo, más apagados y sin saturación (el vidrio necesita algo detrás). */
+  --gize-orbs:
+    radial-gradient(62vmax 62vmax at 0% 0%, rgba(150,168,196,.26), rgba(110,128,160,.12) 42%, transparent 70%),
+    radial-gradient(52vmax 52vmax at 104% 20%, rgba(170,178,196,.18), rgba(120,130,150,.08) 42%, transparent 70%),
+    radial-gradient(64vmax 64vmax at 100% 104%, rgba(140,160,186,.20), rgba(100,120,150,.08) 42%, transparent 70%),
+    radial-gradient(50vmax 50vmax at -4% 78%, rgba(30,44,86,.55), rgba(30,44,86,.2) 45%, transparent 70%);
+}
+
+/* ---------- Fondo: brillos de las esquinas, blancos y más suaves ---------- */
+/* (Acá no alcanza con :where(): la regla del fondo quieto lleva html:not(.lite) adelante.) */
+html.sin-neon .app-aurora {
+  inset: 0;
+  background: radial-gradient(75% 38% at 0% 0%, rgba(214,226,244,.13), transparent 70%),
+    radial-gradient(75% 38% at 100% 85%, rgba(226,230,238,.08), transparent 70%);
+}
+html.sin-neon .app-aurora span { display: none; }
+html.sin-neon body.silk-on .app-aurora { opacity: 1; }
+html.sin-neon body.silk-coach .app-aurora { opacity: .8; }
+html.tema-claro.sin-neon .app-aurora { background: var(--gize-orbs); }
+:where(html.sin-neon) .auth-aurora { opacity: .16; }
+html.tema-claro:where(.sin-neon) .auth-aurora { opacity: 1; }
+
+/* ---------- Cajas de sección: filete blanco y una sombra con un brillo blanco apenas ---------- */
+:where(html.sin-neon) body:not(#_) :is(
+    .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .join-box, .daynotes, .w-chart) {
+  box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04), 0 0 40px -18px rgba(255,255,255,.14);
+}
+html.tema-claro:where(.sin-neon) body:not(#_) :is(
+    .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .join-box, .daynotes, .w-chart) {
+  box-shadow: 0 10px 30px rgba(0,0,0,.28), var(--gize-glass-shine), 0 0 40px -18px rgba(255,255,255,.12);
+}
+/* En celular .co-table es solo un contenedor de filas sueltas (ver gize-surfaces.css). */
+@media (max-width: 899px) {
+  :where(html.sin-neon) body:not(#_) .co-table, html.tema-claro:where(.sin-neon) body:not(#_) .co-table { box-shadow: none; }
+}
+:where(html.sin-neon) body:not(#_) .ss-group { box-shadow: 0 10px 30px rgba(0,0,0,.35), 0 0 40px -18px rgba(255,255,255,.14); }
+:where(html.sin-neon) body:not(#_) .co-head :is(.co-back, .co-logout, .co-gear) { box-shadow: none; }
+:where(html.sin-neon) body:not(#_) .co-head :is(.co-back, .co-logout, .co-gear):hover { box-shadow: 0 0 18px -10px rgba(255,255,255,.35); }
+
+/* ---------- Botones principales: blancos, con un filete gris y un brillo blanco suave ----------
+   Sin el anillo RGB y sin girar. Mismas formas que con neón. */
+:where(html.sin-neon) body:not(#_) .ctrl.primary, :where(html.sin-neon) body:not(#_) :is(.save-session, .co-save-rt, .rq-send) {
+  background: #fff padding-box;
+  border-color: rgba(255,255,255,.3);
+  box-shadow: 0 0 22px -8px rgba(255,255,255,.4);
+  animation: none;
+}
+:where(html.sin-neon) .gize-btn { box-shadow: 0 0 24px -8px rgba(255,255,255,.4); }
+:where(html.sin-neon) .gize-btn::before { background: rgba(255,255,255,.3); animation: none; }
+
+/* «Iniciar entrenamiento»: botón blanco como los principales (mismo tamaño y forma). */
+:where(html.sin-neon) .wk-start {
+  background: #fff; color: var(--gize-bg);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.3), 0 0 26px -8px rgba(255,255,255,.4);
+}
+:where(html.sin-neon) .wk-start::before { background: none; animation: none; }
+:where(html.sin-neon) .wk-start svg { color: var(--gize-bg); }
+:where(html.sin-neon) .wk-start:active { box-shadow: 0 0 0 1px rgba(255,255,255,.3), 0 0 30px -6px rgba(255,255,255,.5); }
+
+/* Entrenando: «Entrenando hace…», Finalizar, Cancelar, video y audio del coach: filete blanco
+   (el borde ya sale del token) y un brillo blanco apenas. */
+:where(html.sin-neon) .ex-video, :where(html.sin-neon) .ex-audio,
+:where(html.sin-neon) .wk-live, :where(html.sin-neon) .wk-finish, :where(html.sin-neon) .wk-cancel { box-shadow: 0 0 14px -8px rgba(255,255,255,.3); }
+:where(html.sin-neon) .ex-video:active, :where(html.sin-neon) .ex-audio.on,
+:where(html.sin-neon) .wk-finish:active, :where(html.sin-neon) .wk-cancel:active {
+  background: linear-gradient(rgba(255,255,255,.08), rgba(255,255,255,.08)) padding-box, linear-gradient(var(--gize-surface-2), var(--gize-surface-2)) padding-box, var(--gize-rgb-ring) border-box; }
+/* Número de la superserie (un degradé de la gama con el número blanco): gris más claro. */
+:where(html.sin-neon) .ex-num.ss, :where(html.sin-neon) .co-exc-ord.ss { background: rgba(255,255,255,.24); color: var(--gize-text); }
+
+/* ---------- Botón del chat: filete blanco quieto y un brillo blanco suave ---------- */
+:where(html.sin-neon) .chat-btn {
+  background: var(--gize-surface-2);
+  box-shadow: 0 0 16px -6px rgba(255,255,255,.3), inset 0 0 8px rgba(255,255,255,.05);
+}
+:where(html.sin-neon) .chat-btn::before { background: rgba(255,255,255,.34); animation: none; }
+:where(html.sin-neon) .chat-btn svg { filter: drop-shadow(0 0 4px rgba(255,255,255,.35)); }
+:where(html.sin-neon) .chat-btn.unread { background: color-mix(in srgb, #fff 12%, var(--gize-surface)); animation: chatGlowSN 1.8s ease-in-out infinite; }
+@keyframes chatGlowSN {
+  0%, 100% { box-shadow: 0 0 16px -6px rgba(255,255,255,.3), inset 0 0 8px rgba(255,255,255,.05); }
+  50% { box-shadow: 0 0 24px -4px rgba(255,255,255,.5), inset 0 0 12px rgba(255,255,255,.1); } }
+@media (prefers-reduced-motion: reduce) { :where(html.sin-neon) .chat-btn.unread { animation: none; } }
+:where(html.sin-neon) .chat-btn .chat-badge { box-shadow: none; }
+/* Adentro del chat: el audio y el micrófono prendido, blancos con el ícono oscuro. */
+:where(html.sin-neon) :is(.ch-play, .ch-ic.on) { background: #fff; color: var(--gize-bg); }
+
+/* ---------- Racha: llama blanca y gris, con un brillo blanco suave ---------- */
+:where(html.sin-neon) .streak {
+  background: var(--gize-surface-2); border-color: rgba(255,255,255,.2);
+  box-shadow: 0 0 14px -4px rgba(255,255,255,.18), inset 0 0 10px rgba(255,255,255,.04);
+}
+:where(html.sin-neon) .streak b { text-shadow: 0 0 10px rgba(255,255,255,.3); }
+:where(html.sin-neon) .streak.out { border-color: var(--gize-border); background: var(--gize-surface); box-shadow: none; }
+:where(html.sin-neon) .streak.out b { text-shadow: none; }
+:where(html.sin-neon) :is(.streak.lit .flame, .stk-big .flame:not(.off), .stk-day.on .flame) {
+  filter: drop-shadow(0 0 3px rgba(255,255,255,.55)) drop-shadow(0 0 8px rgba(255,255,255,.2)); }
+:where(html.sin-neon) .streak.relight .flame { animation-name: flRelightSN; }
+:where(html.sin-neon) .streak.relight { animation-name: stkGlowSN; }
+@keyframes flRelightSN { 0% { filter: grayscale(1) brightness(.6); opacity: .5; transform: scale(.6); }
+  60% { filter: drop-shadow(0 0 8px rgba(255,255,255,.8)) drop-shadow(0 0 18px rgba(255,255,255,.35)); opacity: 1; transform: scale(1.25); }
+  100% { filter: drop-shadow(0 0 3px rgba(255,255,255,.55)) drop-shadow(0 0 8px rgba(255,255,255,.2)); transform: scale(1); } }
+@keyframes stkGlowSN { 0% { box-shadow: none; } 50% { box-shadow: 0 0 24px rgba(255,255,255,.4); } 100% { box-shadow: 0 0 14px -4px rgba(255,255,255,.18); } }
+/* Los colores de la llama (app/ui/racha.js): de blanco a gris. */
+:where(html.sin-neon) .flame linearGradient[id$="o"] stop:nth-child(1) { stop-color: #FFFFFF; }
+:where(html.sin-neon) .flame linearGradient[id$="o"] stop:nth-child(2) { stop-color: #C9CED6; }
+:where(html.sin-neon) .flame linearGradient[id$="o"] stop:nth-child(3) { stop-color: #7D8592; }
+:where(html.sin-neon) .flame linearGradient[id$="i"] stop:nth-child(2) { stop-color: #FFFFFF; }
+:where(html.sin-neon) .flame linearGradient[id$="i"] stop:nth-child(3) { stop-color: #E3E6EB; }
+/* La de «Claro» viene con html.tema-claro adelante: se iguala el peso. */
+html.tema-claro:where(.sin-neon) .flame linearGradient[id$="o"] stop:nth-child(1) { stop-color: #FFFFFF; }
+html.tema-claro:where(.sin-neon) .flame linearGradient[id$="o"] stop:nth-child(2) { stop-color: #C9CED6; }
+html.tema-claro:where(.sin-neon) .flame linearGradient[id$="o"] stop:nth-child(3) { stop-color: #7D8592; }
+html.tema-claro:where(.sin-neon) .flame linearGradient[id$="i"] stop:nth-child(2) { stop-color: #FFFFFF; }
+html.tema-claro:where(.sin-neon) .flame linearGradient[id$="i"] stop:nth-child(3) { stop-color: #E3E6EB; }
+/* La ventana de la racha. */
+:where(html.sin-neon) #streakHost .stk-card { border-color: rgba(255,255,255,.18); box-shadow: 0 0 40px -10px rgba(255,255,255,.12), 0 20px 50px rgba(0,0,0,.6); }
+:where(html.sin-neon) .stk-n { text-shadow: 0 0 18px rgba(255,255,255,.3); }
+:where(html.sin-neon) .stk-day.today { background: rgba(255,255,255,.08); }
+
+/* ---------- Cardio: el anillo del reloj, blanco y quieto ---------- */
+:where(html.sin-neon) .cneon i { background: rgba(255,255,255,.85); animation: none; }
+:where(html.sin-neon) .cneon.glow { opacity: .3; }
+:where(html.sin-neon) .cring.run .cneon.glow { opacity: .5; }
+:where(html.sin-neon) .cring.fin .cneon i { background: var(--gize-success); }
+
+/* ---------- Comida ---------- */
+:where(html.sin-neon) .scan-btn {
+  color: var(--gize-text);
+  background: linear-gradient(var(--gize-surface-2), var(--gize-surface-2)) padding-box, linear-gradient(rgba(255,255,255,.3), rgba(255,255,255,.3)) border-box;
+  box-shadow: 0 0 14px -4px rgba(255,255,255,.22), inset 0 0 10px rgba(255,255,255,.04);
+  animation: none;
+}
+:where(html.sin-neon) .scan-btn svg { filter: drop-shadow(0 0 4px rgba(255,255,255,.35)); }
+:where(html.sin-neon) .scan-btn:hover { box-shadow: 0 0 18px -4px rgba(255,255,255,.3), inset 0 0 10px rgba(255,255,255,.06); }
+:where(html.sin-neon) .scan-beta { background: #fff; color: var(--gize-bg); box-shadow: none; }
+:where(html.sin-neon) .ring-fill { filter: drop-shadow(0 0 6px rgba(255,255,255,.18)); }
+:where(html.sin-neon) .plan-tab.on { box-shadow: none; }
+
+/* ---------- Progreso y Ajustes ---------- */
+:where(html.sin-neon) .ptile-s i { background: var(--gize-text); box-shadow: 0 0 6px rgba(255,255,255,.5); }
+:where(html.sin-neon) .adm-entry i { background: var(--gize-text); color: var(--gize-bg); }
+
+/* ---------- Login ---------- */
+:where(html.sin-neon) .auth-card { box-shadow: 0 20px 50px rgba(0,0,0,.45), 0 0 60px -14px rgba(255,255,255,.1); }
+:where(html.sin-neon) .auth-card::before { background: rgba(255,255,255,.18); }
+html.tema-claro:where(.sin-neon) body:not(#_) .auth-card { box-shadow: 0 20px 50px rgba(0,0,0,.45), var(--gize-glass-shine); }
