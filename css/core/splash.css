@@ -78,8 +78,9 @@ body.is-booting { overflow: hidden; }
 .sp-glass { position: absolute; inset: 15.7%; border-radius: 17%;
   border: 1.5px solid rgba(255,255,255,.32);
   background: linear-gradient(145deg, rgba(255,255,255,.3), rgba(255,255,255,.08) 55%, rgba(255,255,255,.14));
-  -webkit-backdrop-filter: blur(22px) saturate(150%); backdrop-filter: blur(22px) saturate(150%);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 24px 50px -20px rgba(3,8,20,.7); }
+/* Sin backdrop-filter a propósito: en Safari (iPhone) un elemento con backdrop-filter no se
+   funde con la opacidad del splash y quedaba visible encima de la app al salir. */
 .sp-g { position: absolute; left: 24%; top: 25%; width: 50%; height: 50%; overflow: visible; }
 /* Brillo suave al final, detrás de la G. */
 .sp-icon::after { content: ""; position: absolute; inset: 22%; border-radius: 50%; pointer-events: none;
@@ -99,10 +100,15 @@ body.is-booting { overflow: hidden; }
 .sp-g .sl-dot { animation: sl-pop .34s cubic-bezier(.3,1.6,.5,1) 1.04s forwards; }
 /* 4) Brillo. */
 .sp-icon::after { animation: sp-glow .45s ease-out 1.16s; }
-#splash.sp-anim .splash-txt { margin: 0; animation-delay: .2s; }
+#splash.sp-anim .splash-txt { margin: 0; animation: splash-in .5s cubic-bezier(.2,.7,.2,1) .2s both, sp-exit .22s ease-in 1.33s forwards; }
+/* 5) Salida: primero se va el ícono (se agranda apenas y desaparece) y recién después se funde
+   el fondo. Antes se iba todo junto y, a mitad de camino, el ícono quedaba como un fantasma
+   encima de la app (se vio en un iPhone). */
+.sp-icon { animation: sp-exit .22s ease-in 1.33s forwards; }
 
 @keyframes sp-float { from { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.72); } to { opacity: 1; transform: none; } }
 @keyframes sp-glass { from { opacity: 0; transform: translateY(6%) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes sp-exit { to { opacity: 0; transform: scale(1.06); } }
 @keyframes sp-glow { 0% { opacity: 0; } 40% { opacity: .7; } 100% { opacity: 0; } }
 
 /* Modo liviano: el ícono ya armado, sin animar, y se va enseguida. */
@@ -112,6 +118,7 @@ html.lite .sp-c, html.lite .sp-glass { opacity: 1; }
 html.lite .sp-g .sl-arc { stroke-dashoffset: 0; }
 html.lite .sp-g .sl-dot { transform: none; }
 html.lite #splash.sp-anim { animation: splash-out .25s linear .6s forwards; }
+html.lite #splash.sp-anim .sp-icon, html.lite #splash.sp-anim .splash-txt { animation: sp-exit .18s ease-in .42s forwards; }
 
 @media (prefers-reduced-motion: reduce) {
   .sp-c, .sp-glass, .sp-g .sl-arc, .sp-g .sl-dot, .sp-icon::after { animation: none; }
@@ -119,6 +126,7 @@ html.lite #splash.sp-anim { animation: splash-out .25s linear .6s forwards; }
   .sp-g .sl-arc { stroke-dashoffset: 0; }
   .sp-g .sl-dot { transform: none; }
   #splash.sp-anim { animation: splash-out .3s linear 1.2s forwards; }
+  .sp-icon, #splash.sp-anim .splash-txt { animation: none; }
 }
 
 /* Apariencia «Oscuro» (la de siempre): el mismo ícono con los colores de la marca de siempre
