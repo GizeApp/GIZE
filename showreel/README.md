@@ -60,3 +60,55 @@ node render.mjs --page=showreel/chau-planilla-01/reel.html --out=chau-planilla-0
 ./encode.sh chau-planilla-01/frames chau-planilla-01/soundtrack.wav chau-planilla-01/chau-planilla-01.mp4
 ./encode.sh chau-planilla-01/frames chau-planilla-01/sfx.wav chau-planilla-01/chau-planilla-01-sin-musica.mp4
 ```
+
+# Campaign stock · pre-launch and launch
+
+Everything for @gize.app lives in `stock/`, with captions, hashtags and ad copy in `stock/catalog.json`.
+
+| Folder | What | Formats |
+|---|---|---|
+| `01-teasers/` | 4 hype teasers (el punto, la G, el mapa, chau) | 9:16, 4:5 |
+| `02-episodios/` | "CHAU ___" episodes 02–08, athlete voice, hook A (the question) and hook B (the result, then rewind) | 9:16, 4:5 |
+| `03-stories/` | 3 Story cuts per episode (gancho, demo, cierre) with room for a sticker | 9:16 |
+| `04-muy-pronto/` | Ep. 01 (coach) and the brand reel with the «Muy pronto» ending | 9:16 + 4:5 crop; 16:9 |
+| `05-lanzamiento/` | 30 s trailer, `launch` («Ya está disponible») and `hype` («Muy pronto») | 9:16, 4:5, 16:9 |
+| `06-lanzamiento-finales/` | every episode, Ep. 01 and the brand reel with the launch ending | as above |
+| `07-overlays/` | overlays for real footage + the end card on its own (`cierre_*`) | 9:16 (cierre: all) |
+| `08-clips-reales/` | real clips composited with `composite.mjs` | 9:16 |
+
+## How a piece is made
+
+- `lib/engine.js`: the deterministic canvas harness (motion blur, bloom, chromatic aberration, camera hits), layouts per format (`?fmt=9x16|4x5|16x9`) and `?alpha=1` for transparent overlays.
+- `lib/ui.js`, `lib/screens.js`, `lib/map.js`: the app's screens rebuilt from `app/screens` (Entreno, Cardio, Comida, Hábitos, Progreso, the chat) with the app's own copy.
+- `lib/chau.js`: the series skeleton at 128 BPM (question → stamp → drop → demo → payoff → end card → loop).
+- `lib/endcard.js`: the end card, `?cta=hype|launch|trial`.
+- `lib/sound.py`: every page exports a cue sheet (`window.getCues()`); this synthesizes the soundtrack from it (no samples).
+- `build.mjs jobs/<file>.json`: renders every piece × format × hook × ending, makes the soundtrack, encodes, writes a cover. Existing files are skipped (`--force` to redo, `--only=id` for one).
+
+```bash
+node build.mjs jobs/teasers.json          # 01-teasers
+node build.mjs jobs/episodes.json         # 02-episodios
+node stories.mjs jobs/episodes.json       # 03-stories
+node build.mjs jobs/batch3.json           # 04-muy-pronto
+node build.mjs jobs/launch.json           # 05-lanzamiento
+node build.mjs jobs/launch-endings.json   # 06-lanzamiento-finales
+node overlays/build.mjs [--prores]        # 07-overlays (--prores adds ProRes 4444 .mov with alpha, ~40 MB each)
+node build.mjs jobs/cierres.json          # 07-overlays/cierre_*
+```
+
+To check a moment without rendering everything: `node render.mjs "--page=showreel/episodes/04-descanso.html?fmt=4x5&hook=b" --times=0.5,9.8 --sub=1 --out=/tmp/check`.
+
+## Real footage
+
+Film vertical, 1080×1920 or larger, at least 60 fps if possible. Then either:
+
+- **Edit it yourselves** (CapCut, InShot, Premiere). Drop the overlays from `stock/07-overlays/` on top: `_verde.mp4` with the chroma key tool, or `.webm` which already has transparency, and finish with `cierre_hype_9x16.mp4`. The stamps are `chau-<word>`. The UI overlays are `serie`, `serie-record`, `descanso`, `cardio-en-vivo`, `habito` and `firma`.
+- **Or send the clip** and it gets composited:
+
+```bash
+node composite.mjs --clip=clips/sentadilla.mp4 --stamp="NOTAS DEL CELU" --at=serie-record:3.2 --at=descanso:6 --out=stock/08-clips-reales/sentadilla.mp4
+```
+
+## The calendar
+
+`calendar/build.py` builds the shared posting calendar from `stock/catalog.json`. It covers 3 Reels a week plus daily Stories, the ad variants, the Story stickers and every file. The page is published as a claude.ai artifact, and posting status is shared by the team there.

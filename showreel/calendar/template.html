@@ -1,0 +1,265 @@
+<title>Calendario GIZE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a posting board — weeks stacked, three Reel slots per week (Lun / Mié / Vie), a Stories strip under each; tabs for ads, stories and the file library. */
+:root{
+  --bg:#050609; --surface:#0D1016; --surface-2:#141821; --line:#1F2430; --text:#F4F6FA; --text-2:#8F98A6; --text-3:#5D6574;
+  --blue:#2FA0FF; --purple:#A65CFF; --pink:#FF3DAE; --teal:#25E8C8; --gold:#FFC940; --red:#FF4D4D;
+  --ok:var(--teal); --sched:var(--blue); --pause:var(--gold);
+  --gama:linear-gradient(90deg,var(--blue),var(--purple),var(--pink),var(--teal));
+  --f-display:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif; --f-body:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif; --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:14px; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--f-body);font-size:15px;line-height:1.45;margin:0}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:16px;padding-block:28px 64px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+button{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text-2)}
+
+/* header */
+.top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px 28px;align-items:end}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.brand canvas{width:34px;height:34px}
+h1{font-size:clamp(34px,6vw,58px);font-weight:900;letter-spacing:-.02em;line-height:1}
+h1 .strike{position:relative;color:var(--text-2);font-weight:800}
+h1 .strike::after{content:"";position:absolute;left:-4px;right:-4px;top:54%;height:.12em;background:var(--red);border-radius:9px;transform:rotate(-2deg)}
+.sub{color:var(--text-2);margin-top:10px;max-width:62ch}
+.start{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:8px;min-width:250px}
+.start input{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:9px 10px;font:inherit;font-family:var(--f-mono);font-size:14px}
+.start small{color:var(--text-3);font-size:12px}
+
+.meter{margin-top:26px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.meter div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.meter b{display:block;font-family:var(--f-display);font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+.meter span{font-size:12px;color:var(--text-2)}
+.bar{height:6px;border-radius:6px;background:var(--surface-2);margin-top:12px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--gama);border-radius:6px;transition:width .4s}
+
+/* tabs */
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(10px);display:flex;gap:6px;padding-block:14px;margin-top:22px;overflow-x:auto;border-bottom:1px solid var(--line)}
+.tab{background:transparent;border:1px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer;color:var(--text-2);font-weight:600;white-space:nowrap}
+.tab[aria-selected="true"]{background:var(--text);color:#000;border-color:var(--text)}
+.tab .n{font-family:var(--f-mono);font-size:11px;opacity:.7;margin-left:4px}
+.note{margin:18px 0 0;color:var(--text-2);font-size:13px}
+.note b{color:var(--text)}
+
+/* weeks */
+.week{margin-top:34px}
+.week-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.week-h h2{font-size:22px;font-weight:800}
+.slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:grid;grid-template-columns:92px minmax(0,1fr);gap:12px;align-content:start}
+.card.st-publicado,.card.st-activo{border-color:color-mix(in srgb,var(--ok) 55%,var(--line))}
+.card.st-programado{border-color:color-mix(in srgb,var(--sched) 55%,var(--line))}
+.card.st-pausado{border-color:color-mix(in srgb,var(--pause) 45%,var(--line))}
+.card.wip{background:transparent;border-style:dashed}
+.thumb{width:92px;aspect-ratio:9/16;border-radius:10px;overflow:hidden;background:var(--surface-2);position:relative;max-width:100%}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .ph{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:8px;font-size:11px;color:var(--text-3)}
+.body{min-width:0;display:grid;gap:8px;align-content:start}
+.foot{grid-column:1/-1;min-width:0;display:grid;gap:8px}
+.seg button{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.when{font-family:var(--f-mono);font-size:12px;color:var(--blue)}
+.title{font-family:var(--f-display);font-size:18px;font-weight:800;line-height:1.1}
+.title s{text-decoration:none;position:relative;color:var(--text-2)}
+.title s::after{content:"";position:absolute;left:-2px;right:-2px;top:52%;height:3px;background:var(--red);border-radius:3px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:11px;font-weight:700;letter-spacing:.04em;padding:3px 8px;border-radius:999px;background:var(--surface-2);color:var(--text-2);border:1px solid var(--line)}
+.chip.wipc{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 40%,var(--line))}
+.seg{display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:transparent;border-radius:7px;padding:6px 4px;font-size:12px;font-weight:600;color:var(--text-2);cursor:pointer;min-width:0}
+.seg button[aria-pressed="true"]{color:#000}
+.seg button[data-v="pendiente"][aria-pressed="true"]{background:var(--text)}
+.seg button[data-v="programado"][aria-pressed="true"]{background:var(--sched)}
+.seg button[data-v="publicado"][aria-pressed="true"],.seg button[data-v="activo"][aria-pressed="true"]{background:var(--ok)}
+.seg button[data-v="pausado"][aria-pressed="true"]{background:var(--pause)}
+.seg button:disabled{cursor:default;opacity:.55}
+.who{font-size:11px;color:var(--text-3);min-height:14px}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.btn{background:transparent;border:1px solid var(--line);border-radius:9px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;color:var(--text)}
+.btn:hover{border-color:var(--text-2)}
+.btn.done{border-color:var(--ok);color:var(--ok)}
+details{border-top:1px solid var(--line);padding-top:8px}
+details summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--text-2);list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"+ ";font-family:var(--f-mono)}
+details[open] summary::before{content:"– "}
+.cap{white-space:pre-wrap;font-size:13px;color:var(--text);margin-top:8px;overflow-wrap:anywhere}
+.tags{font-size:12px;color:var(--blue);margin-top:6px;overflow-wrap:anywhere}
+.files{margin-top:8px;display:grid;gap:2px;overflow-wrap:anywhere}
+
+.stories{margin-top:10px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.sday{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px;min-width:0;display:grid;gap:4px;align-content:start}
+.sday .d{font-family:var(--f-mono);font-size:11px;color:var(--text-2)}
+.sday .s{font-size:12px;line-height:1.25;overflow-wrap:anywhere}
+.sday .s em{font-style:normal;color:var(--text-2)}
+.sday.empty{background:transparent;border-style:dashed}
+
+/* ads, stories, library */
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:22px}
+.adtext{font-size:14px;background:var(--surface-2);border-radius:10px;padding:10px;overflow-wrap:anywhere}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;font-size:12px}
+.kv dt{color:var(--text-2)} .kv dd{margin:0;overflow-wrap:anywhere}
+.ep-h{margin-top:30px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ep-h h2{font-size:20px;font-weight:800}
+.lib{margin-top:22px;overflow-x:auto;border:1px solid var(--line);border-radius:var(--r)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-2);font-weight:700}
+.launch{margin-top:40px;border-radius:var(--r);padding:1px;background:var(--gama)}
+.launch>div{background:var(--bg);border-radius:calc(var(--r) - 1px);padding:18px}
+.launch h2{font-size:22px;font-weight:800}
+.status-line{font-size:12px;color:var(--text-3);margin-top:8px}
+@media (max-width:900px){.slots{grid-template-columns:minmax(0,1fr)}.stories{grid-template-columns:repeat(4,minmax(0,1fr))}.grid2{grid-template-columns:minmax(0,1fr)}.meter{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:640px){.top{grid-template-columns:minmax(0,1fr)}.start{min-width:0}.stories{grid-template-columns:repeat(2,minmax(0,1fr))}.card{grid-template-columns:76px minmax(0,1fr)}.thumb{width:76px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="brand"><canvas id="mark" width="68" height="68" aria-hidden="true"></canvas><span class="eyebrow">@gize.app · pre-lanzamiento</span></div>
+      <h1>Calendario GIZE</h1>
+      <p class="sub">Fase <b>Muy pronto</b>: 3 Reels por semana (lunes, miércoles y viernes, 19:30 sugerido) y Stories todos los días. Cuando estén las dos tiendas, arranca la semana de lanzamiento con 2 posteos por día.</p>
+    </div>
+    <div class="start">
+      <label class="eyebrow" for="startDate">La semana 1 arranca el lunes</label>
+      <input id="startDate" type="date">
+      <small id="startNote">Elegí la fecha y el calendario muestra los días reales para todo el equipo.</small>
+    </div>
+  </header>
+
+  <section class="meter" aria-label="Avance">
+    <div><b id="mPub">0</b><span>Reels publicados</span></div>
+    <div><b id="mSched">0</b><span>Reels programados</span></div>
+    <div><b id="mAds">0</b><span>Anuncios activos</span></div>
+    <div><b id="mReady">0</b><span>Piezas listas en stock</span></div>
+  </section>
+  <div class="bar" aria-hidden="true"><i id="mBar" style="width:0%"></i></div>
+
+  <nav class="tabs" role="tablist" aria-label="Secciones">
+    <button class="tab" role="tab" id="t-cal" aria-selected="true" data-tab="cal">Calendario</button>
+    <button class="tab" role="tab" id="t-ads" aria-selected="false" data-tab="ads">Anuncios<span class="n">10</span></button>
+    <button class="tab" role="tab" id="t-sto" aria-selected="false" data-tab="sto">Stories</button>
+    <button class="tab" role="tab" id="t-lib" aria-selected="false" data-tab="lib">Archivos</button>
+  </nav>
+  <p class="note" id="syncNote">Los estados se guardan para todo el equipo. Los archivos están en el repo, en <span class="mono">showreel/stock/</span>.</p>
+
+  <main>
+    <section id="p-cal" role="tabpanel" aria-labelledby="t-cal"></section>
+    <section id="p-ads" role="tabpanel" aria-labelledby="t-ads" hidden></section>
+    <section id="p-sto" role="tabpanel" aria-labelledby="t-sto" hidden></section>
+    <section id="p-lib" role="tabpanel" aria-labelledby="t-lib" hidden></section>
+  </main>
+</div>
+
+<script>
+const DATA=/*__DATA__*/null;
+const P=DATA.pieces, DAYS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'], MONTHS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const REEL=['pendiente','programado','publicado'], AD=['pendiente','activo','pausado'];
+const LABEL={pendiente:'Pendiente',programado:'Programado',publicado:'Publicado',activo:'Activo',pausado:'Pausado'};
+let status={}, start=null, db=null, user=null, canWrite=true, names={};
+const $=s=>document.querySelector(s);
+const el=(t,a={},...kids)=>{const e=document.createElement(t);for(const[k,v]of Object.entries(a)){if(k==='class')e.className=v;else if(k==='text')e.textContent=v;else if(k.startsWith('on'))e.addEventListener(k.slice(2),v);else if(v!==false&&v!=null)e.setAttribute(k,v===true?'':v);}for(const k of kids.flat())if(k!=null&&k!==false)e.append(k.nodeType?k:document.createTextNode(k));return e;};
+
+/* the G mark, drawn (arc + dot) */
+(function(){const c=$('#mark').getContext('2d'),s=68;c.lineWidth=11;c.lineCap='round';const g=c.createConicGradient(0,s/2,s/2);['#2FA0FF','#A65CFF','#FF3DAE','#25E8C8','#2FA0FF'].forEach((col,i)=>g.addColorStop(i/4,col));c.strokeStyle='#fff';c.beginPath();c.arc(s/2,s/2,s/2-9,Math.PI*0.28,Math.PI*1.9);c.stroke();c.fillStyle='#2FA0FF';c.beginPath();c.arc(s/2+4,s/2,7,0,7);c.fill();})();
+
+function dateFor(week,day){if(!start)return null;const d=new Date(start+'T12:00:00');d.setDate(d.getDate()+(week-1)*7+day);return d;}
+function whenText(week,day,time){const d=dateFor(week,day);return d?`${DAYS[day]} ${d.getDate()} ${MONTHS[d.getMonth()]}${time?' · '+time:''}`:`Semana ${week} · ${DAYS[day]}${time?' · '+time:''}`;}
+function titleNode(p){const t=el('div',{class:'title'});if(p.word){t.append('Chau ',el('s',{text:p.word.toLowerCase()}));}else t.textContent=p.title;return t;}
+async function copy(btn,text){try{await navigator.clipboard.writeText(text);btn.classList.add('done');btn.textContent='Copiado';setTimeout(()=>{btn.classList.remove('done');btn.textContent=btn.dataset.l;},1600);}catch(e){const ta=el('textarea',{style:'position:fixed;opacity:0'});ta.value=text;document.body.append(ta);ta.select();try{document.execCommand('copy');btn.textContent='Copiado';}catch(_){btn.textContent='Seleccioná y copiá';}ta.remove();setTimeout(()=>btn.textContent=btn.dataset.l,1600);}}
+const copyBtn=(label,text)=>{const b=el('button',{class:'btn',type:'button','data-l':label,text:label});b.addEventListener('click',()=>copy(b,text));return b;};
+const fullCaption=p=>(p.caption||'')+(p.hashtags&&p.hashtags.length?'\n\n'+p.hashtags.join(' '):'');
+
+function segCtl(key,states,disabled){const cur=(status[key]&&status[key].state)||states[0],w=el('div',{class:'seg',role:'group','aria-label':'Estado'});
+  for(const s of states){const b=el('button',{type:'button','data-v':s,'aria-pressed':String(cur===s),disabled:disabled||!canWrite,text:LABEL[s]});b.addEventListener('click',()=>setStatus(key,s));w.append(b);}return w;}
+function whoLine(key){const s=status[key];const n=el('div',{class:'who'});if(s&&s.by&&s.state!=='pendiente'){const nm=names[s.by]||'';n.textContent=`${LABEL[s.state]}${nm?' por '+nm:''}`;}return n;}
+function thumb(src,alt,ph){const t=el('div',{class:'thumb'});if(src)t.append(el('img',{src,alt,loading:'lazy'}));else t.append(el('div',{class:'ph',text:ph||'En producción'}));return t;}
+
+function reelCard(week,slot){const p=P[slot.piece],key='reel.'+slot.piece,st=(status[key]&&status[key].state)||'pendiente',wip=!p.ready;
+  const chips=el('div',{class:'chips'},el('span',{class:'chip',text:p.kind==='episodio'?`Ep. ${p.ep} · ${p.topic.toLowerCase()}`:p.kind==='teaser'?'Teaser':p.kind==='marca'?'Marca':p.kind==='trailer'?'Tráiler':p.kind==='real'?'Clip real':'Lanzamiento'}),wip?el('span',{class:'chip wipc',text:'En producción'}):el('span',{class:'chip',text:'Reel 9:16'}));
+  const body=el('div',{class:'body'},el('div',{class:'when',text:whenText(week,slot.day,'19:30')}),titleNode(p),chips);
+  if(p.note)body.append(el('div',{class:'status-line',text:p.note}));
+  const foot=el('div',{class:'foot'},segCtl(key,REEL,wip),whoLine(key));
+  if(p.caption){foot.append(el('div',{class:'acts'},copyBtn('Copiar texto',fullCaption(p)),p.hashtags.length?copyBtn('Copiar hashtags',p.hashtags.join(' ')):null));
+    const d=el('details',{},el('summary',{text:'Ver texto y archivos'}),el('div',{class:'cap',text:p.caption}),el('div',{class:'tags',text:(p.hashtags||[]).join(' ')}));
+    if(p.files&&p.files.length){const f=el('div',{class:'files'});for(const x of p.files.filter(x=>x.includes('9x16')&&!x.includes('hook-b')&&!x.includes('_launch_')))f.append(el('span',{class:'mono',text:'stock/'+x}));d.append(f);}foot.append(d);}
+  return el('article',{class:`card st-${st}${wip?' wip':''}`},thumb(p.cover,p.title),body,foot);}
+
+function storyLabel(s){const p=P[s.piece];if(s.cut<0)return p.kind==='teaser'?['Repost del teaser','Encuesta: ¿qué será? 👀']:[p.title,'Repost del Reel'];const c=p.stories[s.cut];return[['Gancho','Demo','Cierre'][s.cut]+' · '+p.title,`${{poll:'Encuesta',slider:'Deslizador',quiz:'Quiz',question:'Pregunta'}[c.sticker.type]}: ${c.sticker.prompt}`];}
+function renderCal(){const root=$('#p-cal');root.replaceChildren();
+  for(const w of DATA.plan){const sec=el('section',{class:'week'});const d0=dateFor(w.week,0),d6=dateFor(w.week,6);
+    sec.append(el('div',{class:'week-h'},el('h2',{text:`Semana ${w.week}`}),el('span',{class:'mono',text:d0?`${d0.getDate()} ${MONTHS[d0.getMonth()]} – ${d6.getDate()} ${MONTHS[d6.getMonth()]}`:'3 Reels + Stories diarias'})));
+    const slots=el('div',{class:'slots'});for(const r of w.reels)slots.append(reelCard(w.week,r));sec.append(slots);
+    const strip=el('div',{class:'stories','aria-label':'Stories de la semana'});
+    for(let d=0;d<7;d++){const list=w.stories.filter(s=>s.day===d);if(!list.length){strip.append(el('div',{class:'sday empty'},el('span',{class:'d',text:whenText(w.week,d)}),el('span',{class:'s'},el('em',{text:'Libre: behind the scenes o repost'}))));continue;}
+      const box=el('div',{class:'sday'},el('span',{class:'d',text:whenText(w.week,d)}));for(const s of list){const[a,b]=storyLabel(s);box.append(el('span',{class:'s'},a,el('br'),el('em',{text:b})));}strip.append(box);}
+    sec.append(el('div',{class:'eyebrow',style:'margin-top:14px',text:'Stories'}),strip);root.append(sec);}
+  const L=el('section',{class:'launch'},el('div',{},el('div',{class:'eyebrow',text:'Cuando estén App Store y Google Play'}),el('h2',{text:'Semana de lanzamiento'}),
+    el('p',{class:'sub',text:'Dos posteos por día durante 7 días: el tráiler de 30 s el primer día y después cada episodio con el cierre «Ya está disponible». Todo el kit se entrega antes, listo para programar.'}),
+    el('div',{class:'chips'},...[['Tráiler 9:16 · 4:5 · 16:9',DATA.launchTrailerReady],...DATA.launch.map(l=>[P[l.piece].title+' · Ya está disponible',l.ready])].map(([t,ok])=>el('span',{class:ok?'chip':'chip wipc',text:(ok?'✓ ':'')+t})))));
+  root.append(L);}
+
+const FLIGHT1=['ep02','ep03','ep04','ep05','ep06'];
+function renderAds(){const root=$('#p-ads');root.replaceChildren(el('p',{class:'note'},'Primer vuelo: ',el('b',{text:'5 episodios × 2 ganchos = 10 variantes'}),'. Después, el segundo vuelo con los episodios 07 y 08. Objetivo: reproducciones (ThruPlay) con una parte a seguidores. Público: deportistas, todo el país. Cada variante tiene su archivo 9:16 (Reels, Stories) y 4:5 (Feed).'));
+  for(const[label,first]of[['Primer vuelo',true],['Segundo vuelo',false]]){root.append(el('div',{class:'ep-h'},el('h2',{text:label})));const g=el('div',{class:'grid2'});
+  for(const[id,p]of Object.entries(P)){if(p.kind!=='episodio'||!p.ad||FLIGHT1.includes(id.slice(0,4))!==first)continue;for(const h of['a','b']){const key=`ad.${id}.${h}`,st=(status[key]&&status[key].state)||'pendiente',ad=p.ad[h];
+    const files=p.files.filter(f=>f.includes('hook-'+h));
+    const body=el('div',{class:'body'},el('div',{class:'when',text:h==='a'?'Gancho A · la pregunta':'Gancho B · el resultado'}),titleNode(p),el('div',{class:'adtext',text:ad.primary}));
+    const foot=el('div',{class:'foot'},segCtl(key,AD,!p.ready),whoLine(key),el('dl',{class:'kv'},el('dt',{text:'Título'}),el('dd',{text:ad.headline}),el('dt',{text:'Botón'}),el('dd',{text:p.ad.cta}),el('dt',{text:'Objetivo'}),el('dd',{text:'ThruPlay + seguidores'})),
+      el('div',{class:'acts'},copyBtn('Copiar texto',ad.primary),copyBtn('Copiar título',ad.headline)),
+      el('div',{class:'files'},...files.map(f=>el('span',{class:'mono',text:'stock/'+f}))));
+    g.append(el('article',{class:`card st-${st}${p.ready?'':' wip'}`},thumb(h==='a'?p.cover:p.coverB,p.title,p.ready?'':'Renderizando'),body,foot));}}
+  root.append(g);}
+  const tr=P['trailer-30s'];if(tr){const ad=tr.adTrailer.launch,key='ad.trailer-30s.launch',st=(status[key]&&status[key].state)||'pendiente';root.append(el('div',{class:'ep-h'},el('h2',{text:'Lanzamiento'}),el('span',{class:'mono',text:'cuando estén las dos tiendas'})));
+    root.append(el('div',{class:'grid2'},el('article',{class:`card st-${st}`},thumb(tr.cover,tr.title),el('div',{class:'body'},el('div',{class:'when',text:'Tráiler 30 s · «Ya está disponible»'}),el('div',{class:'title',text:'El tráiler'}),el('div',{class:'adtext',text:ad.primary})),
+      el('div',{class:'foot'},segCtl(key,AD,false),whoLine(key),el('dl',{class:'kv'},el('dt',{text:'Título'}),el('dd',{text:ad.headline}),el('dt',{text:'Botón'}),el('dd',{text:ad.cta}),el('dt',{text:'Objetivo'}),el('dd',{text:'Instalaciones'})),
+        el('div',{class:'acts'},copyBtn('Copiar texto',ad.primary),copyBtn('Copiar título',ad.headline)),el('div',{class:'files'},...tr.launchFiles.map(f=>el('span',{class:'mono',text:'stock/'+f})))))));}}
+
+function renderSto(){const root=$('#p-sto');root.replaceChildren(el('p',{class:'note'},'Tres cortes por episodio. El video va en una tarjeta arriba y ',el('b',{text:'la franja de abajo queda libre para el sticker'}),'. Los teasers se suben enteros.'));
+  for(const[id,p]of Object.entries(P)){if(!p.stories)continue;root.append(el('div',{class:'ep-h'},titleNode(p),el('span',{class:'mono',text:`Ep. ${p.ep}`})));const g=el('div',{class:'grid2'});
+    p.stories.forEach((s,i)=>{const key=`story.${id}.${i}`,st=(status[key]&&status[key].state)||'pendiente';
+      g.append(el('article',{class:`card st-${st}${s.ready?'':' wip'}`},thumb(null,'',s.ready?['Gancho','Demo','Cierre'][i]:'Renderizando'),
+        el('div',{class:'body'},el('div',{class:'when',text:['1 · Gancho (0–6 s)','2 · Demo (5,6–11,2 s)','3 · Cierre (10,9–15 s)'][i]}),
+          el('dl',{class:'kv'},el('dt',{text:'Sticker'}),el('dd',{text:{poll:'Encuesta',slider:'Deslizador',quiz:'Quiz',question:'Pregunta'}[s.sticker.type]}),el('dt',{text:'Texto'}),el('dd',{text:s.sticker.prompt}),s.sticker.options?el('dt',{text:'Opciones'}):null,s.sticker.options?el('dd',{text:s.sticker.options}):null),
+          el('span',{class:'mono',text:'stock/'+s.file})),el('div',{class:'foot'},segCtl(key,REEL,!s.ready),whoLine(key))));});root.append(g);}}
+
+function renderLib(){const root=$('#p-lib');const rows=[];for(const[id,p]of Object.entries(P))for(const f of p.files||[])rows.push([p,f]);
+  for(const l of DATA.launch)for(const f of l.files)rows.push([{...P[l.piece],title:P[l.piece].title+' · Ya está disponible',word:null},f]);
+  for(const o of DATA.overlays||[])rows.push([{title:'Overlay · '+o},`07-overlays/${o}_verde.mp4`]);
+  const tb=el('tbody');for(const[p,f]of rows)tb.append(el('tr',{},el('td',{},titleNode(p)),el('td',{class:'mono',text:f.includes('9x16')||f.includes('07-overlays')?'9:16':f.includes('16x9')?'16:9':'4:5'}),el('td',{class:'mono',text:f.includes('hook-b')?'B':f.includes('hook-a')?'A':'—'}),el('td',{class:'mono',text:'showreel/stock/'+f})));
+  root.replaceChildren(el('p',{class:'note'},'Todo lo renderizado hasta ahora. Cada pieza tiene portada (.jpg) al lado del video.'),el('div',{class:'lib'},el('table',{},el('thead',{},el('tr',{},el('th',{text:'Pieza'}),el('th',{text:'Formato'}),el('th',{text:'Gancho'}),el('th',{text:'Archivo'}))),tb)));}
+
+function renderMeter(){const reels=DATA.plan.flatMap(w=>w.reels.map(r=>'reel.'+r.piece)),c=s=>reels.filter(k=>status[k]&&status[k].state===s).length;
+  $('#mPub').textContent=c('publicado');$('#mSched').textContent=c('programado');$('#mAds').textContent=Object.entries(status).filter(([k,v])=>k.startsWith('ad.')&&v.state==='activo').length;
+  $('#mReady').textContent=Object.values(P).filter(p=>p.ready).length;$('#mBar').style.width=(100*c('publicado')/reels.length)+'%';}
+async function render(){const ids=[...new Set(Object.values(status).map(s=>s.by).filter(Boolean))];if(user&&ids.length){try{const ps=await user.profiles(ids);for(const i of ids)names[i]=ps[i]?.name||'';}catch(_){}}
+  renderCal();renderAds();renderSto();renderLib();renderMeter();}
+
+async function setStatus(key,state){const prev=status[key];status={...status,[key]:{state,by:prev&&prev.by,at:Date.now()}};render();
+  if(!db)return;try{const me=user?await user.id():null;await db.doc('status/'+key).set({state,by:me,at:Date.now()});}
+  catch(e){if(e&&e.code==='invalid_argument'){canWrite=false;$('#syncNote').textContent='Tenés acceso de solo lectura: los estados los cambia el equipo.';}status={...status,[key]:prev};render();}}
+
+/* tabs, remembered per viewer */
+function show(tab){for(const b of document.querySelectorAll('.tab'))b.setAttribute('aria-selected',String(b.dataset.tab===tab));for(const s of['cal','ads','sto','lib'])$('#p-'+s).hidden=s!==tab;try{localStorage.setItem('gize-cal-tab',tab);}catch(_){}}
+for(const b of document.querySelectorAll('.tab'))b.addEventListener('click',()=>show(b.dataset.tab));
+try{const t=location.hash.slice(1)||localStorage.getItem('gize-cal-tab');if(['cal','ads','sto','lib'].includes(t))show(t);}catch(_){}
+
+let startTimer=null;
+$('#startDate').addEventListener('change',e=>{const v=e.target.value;let d=v?new Date(v+'T12:00:00'):null;
+  if(d&&d.getDay()!==1){const back=(d.getDay()+6)%7;d.setDate(d.getDate()-back);}const iso=d?d.toISOString().slice(0,10):null;start=iso;e.target.value=iso||'';
+  $('#startNote').textContent=iso?'Ajustado al lunes de esa semana.':'Elegí la fecha y el calendario muestra los días reales para todo el equipo.';render();
+  clearTimeout(startTimer);startTimer=setTimeout(async()=>{if(!db)return;try{await db.doc('config/plan').set({start:iso});}catch(_){}},600);});
+
+render();
+(async()=>{if(!window.claude)return;[db,user]=await Promise.all([claude.use('db'),claude.use('user')]);
+  if(user){const cw=await user.can('data.write');if(cw===false){canWrite=false;$('#syncNote').textContent='Tenés acceso de solo lectura: los estados los cambia el equipo.';$('#startDate').disabled=true;}}
+  if(!db){$('#syncNote').textContent='Sin conexión con los estados compartidos en esta vista: los cambios no se guardan.';return;}
+  db.collection('status').onSnapshot(snap=>{const s={};for(const d of snap.docs){const v=d.data();if(v&&v.state)s[d.id]=v;}status=s;render();},()=>{});
+  db.doc('config/plan').onSnapshot(snap=>{const v=snap.exists?snap.data().start:null;if(v!==start){start=v||null;$('#startDate').value=start||'';render();}},()=>{});})();
+</script>

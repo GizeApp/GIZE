@@ -38,7 +38,9 @@ export function endcard(c,t,t0,L,{cta='hype',rule='full',dot='drop',arc='draw',d
   const bigPx=fitSize(T.big,800,Math.min(900,L.sw*0.92),L.fmt==='16x9'?92:96);
   c.save();c.beginPath();c.rect(-100,g.line+3,L.W+200,L.H);c.clip();c.textAlign='center';
   const ce=E.outExpo(prog(t,t0+1.0,t0+1.55));c.font=F(800,bigPx);c.fillStyle='#fff';c.fillText(T.big,L.CX,g.line+bigPx+18-(1-ce)*(bigPx+140));
-  const se=E.outExpo(prog(t,t0+1.1,t0+1.6));c.font=F(400,40);c.fillStyle=C.soft;c.fillText(T.small,L.CX,g.line+bigPx+78-(1-se)*(bigPx+200));c.restore();
+  c.restore();
+  // the small line rises from below in its own lane, so it never crosses the big one
+  const se=E.outExpo(prog(t,t0+1.15,t0+1.65));if(se>0){c.save();c.beginPath();c.rect(-100,g.line+bigPx+36,L.W+200,80);c.clip();c.textAlign='center';c.font=F(400,40);c.fillStyle=C.soft;c.fillText(T.small,L.CX,g.line+bigPx+78+(1-se)*70);c.restore();}
   const be=E.outBack(prog(t,t0+1.3,t0+1.7)),bp=E.inOutCubic(prog(t,t0+1.3,t0+1.9));
   if(be>0){const bw=tw(T.pill,700,34)+110,bh=84,by=g.line+bigPx+190;c.save();c.translate(L.CX,by);const s=lerp(0.85,1,be);c.scale(s,s);c.globalAlpha=clamp(be*1.5);
     const per=2*(bw-bh)+Math.PI*bh;c.fillStyle='#fff';rr(c,-bw/2,-bh/2,bw,bh,bh/2);c.fill();c.strokeStyle=rgbRing(c,0,0,t*Math.PI*2/5);c.lineWidth=4;c.setLineDash([per*bp,per]);rr(c,-bw/2-3,-bh/2-3,bw+6,bh+6,bh/2+3);c.stroke();c.setLineDash([]);

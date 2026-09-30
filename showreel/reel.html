@@ -23,6 +23,9 @@ canvas{display:block;position:absolute;inset:0;margin:auto;max-width:100vw;max-h
    Open with ?play for a real-time preview (no blur / post).
    ===================================================================== */
 const W=1920,H=1080,FPS=60,DUR=15,CX=W/2,CY=H/2;
+// closing copy: ?cta=hype (pre-launch: no web address, follow the account) | launch | default (the original)
+const CTAQ=new URLSearchParams(location.search).get('cta');
+const CLOSE={hype:{tag:'Muy pronto, para iPhone y Android.',btn:'Seguí @gize.app',url:''},launch:{tag:'Ya está disponible en App Store y Google Play.',btn:'Descargala gratis',url:''}}[CTAQ]||{tag:'Tu coach, tu rutina y tu progreso en un solo lugar.',btn:'Creá tu cuenta',url:'gize.ar'};
 const C={bg:'#000000',surface:'#0B0D11',surface2:'#12151B',border:'#1C2029',text:'#FFFFFF',text2:'#8F98A6',
   blue:'#2FA0FF',purple:'#A65CFF',pink:'#FF3DAE',teal:'#25E8C8',light:'#F5F7FA',ink:'#0A0C10',mute:'#5B6472'};
 const RGB={bg:[0,0,0],surface:[11,13,17],surface2:[18,21,27],border:[28,32,41],text:[255,255,255],text2:[143,152,166],
@@ -118,7 +121,7 @@ function initLayout(){
     lay.O={cx:lay.L[2].x+lay.R,cy:lay.base-cap/2};LAY.progresa=lay; }
   { const f=F(800,210),g=glyphs('energize',f,-2);MC.font=f;LAY.energize={...g,f,x0:CX-g.width/2,split:CX-g.width/2+MC.measureText('ener').width-6}; }
   { const k=2.9,Fm={k,x:CX-LOGO.w*k/2,y:LINE_Y-24-LOGO.h*k};const D=LOGO.dot;Fm.dotX=Fm.x+D.x*k;Fm.dotR=D.r*k;Fm.ball=makeBall(Fm.y+D.y*k,-160,13.6,14.0,0.3);LAY.firma=Fm; }
-  { MC.font=F(700,27);LAY.btn={w:MC.measureText('Creá tu cuenta').width+96,h:70,x:CX,y:LINE_Y+172}; }
+  { MC.font=F(700,27);LAY.btn={w:MC.measureText(CLOSE.btn).width+96,h:70,x:CX,y:LINE_Y+172}; }
 }
 
 /* ---------------- ball physics (the intro ball is the dot of the G) ---------------- */
@@ -592,7 +595,7 @@ function S8(c,t){
     c.beginPath();c.arc(Fm.dotX,bl.yRest,Fm.dotR+10+150*e*s,0,7);c.stroke();}
   c.globalAlpha=1;
   // tagline drops from under the rule
-  const words='Tu coach, tu rutina y tu progreso en un solo lugar.'.split(' ');c.save();c.beginPath();c.rect(-100,LINE_Y+3,W+200,H);c.clip();c.font=F(400,36);
+  const words=CLOSE.tag.split(' ');c.save();c.beginPath();c.rect(-100,LINE_Y+3,W+200,H);c.clip();c.font=F(400,36);
   const sw=c.measureText(' ').width,tw=words.reduce((a,w)=>a+c.measureText(w).width,0)+sw*(words.length-1);let x=CX-tw/2;
   words.forEach((w,i)=>{const s=13.16+i*0.035,e=E.outExpo(prog(t,s,s+0.6));c.fillStyle='#C8CDD5';c.globalAlpha=clamp(e*1.5);c.fillText(w,x,LINE_Y+66-(1-e)*80);x+=c.measureText(w).width+sw;});c.restore();c.globalAlpha=1;
   // the one RGB-ring action on screen
@@ -600,8 +603,8 @@ function S8(c,t){
   if(ba>0){c.save();c.translate(B.x,B.y);const sc=lerp(0.85,1,ba);c.scale(sc,sc);c.globalAlpha=clamp(ba*1.5);
     const r=B.h/2,per=2*(B.w-B.h)+Math.PI*B.h;c.fillStyle=C.text;c.beginPath();c.roundRect(-B.w/2,-B.h/2,B.w,B.h,r);c.fill();
     c.strokeStyle=rgbRing(c,0,0,t*Math.PI*2/5);c.lineWidth=3.5;c.setLineDash([per*bp,per]);c.beginPath();c.roundRect(-B.w/2-2,-B.h/2-2,B.w+4,B.h+4,r+2);c.stroke();c.setLineDash([]);
-    c.fillStyle=C.bg;c.font=F(700,27);c.textAlign='center';c.fillText('Creá tu cuenta',0,10);c.restore();}
-  const da=E.outCubic(prog(t,13.8,14.2));if(da>0){c.font=F(600,20);c.letterSpacing='6px';c.fillStyle=C.text2;c.globalAlpha=da;c.textAlign='center';c.fillText('gize.ar',CX+3,H-118);c.textAlign='left';c.letterSpacing='0px';c.globalAlpha=1;}
+    c.fillStyle=C.bg;c.font=F(700,27);c.textAlign='center';c.fillText(CLOSE.btn,0,10);c.restore();}
+  const da=CLOSE.url?E.outCubic(prog(t,13.8,14.2)):0;if(da>0){c.font=F(600,20);c.letterSpacing='6px';c.fillStyle=C.text2;c.globalAlpha=da;c.textAlign='center';c.fillText(CLOSE.url,CX+3,H-118);c.textAlign='left';c.letterSpacing='0px';c.globalAlpha=1;}
 }
 
 /* =====================================================================

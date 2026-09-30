@@ -1,4 +1,9 @@
 [
   {"id": "ep02-chau-notas-del-celu", "page": "showreel/episodes/02-notas-del-celu.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/02-episodios", "cover": 2.5},
-  {"id": "ep03-chau-3-apps", "page": "showreel/episodes/03-3-apps.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/02-episodios", "cover": 2.5}
+  {"id": "ep03-chau-3-apps", "page": "showreel/episodes/03-3-apps.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/02-episodios", "cover": 2.5},
+  {"id": "ep04-chau-descanso-eterno", "page": "showreel/episodes/04-descanso.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/02-episodios", "cover": 2.5},
+  {"id": "ep05-chau-papelito", "page": "showreel/episodes/05-papelito.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/02-episodios", "cover": 2.5},
+  {"id": "ep06-chau-post-its", "page": "showreel/episodes/06-post-its.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/02-episodios", "cover": 2.5},
+  {"id": "ep07-chau-a-ojo", "page": "showreel/episodes/07-a-ojo.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/02-episodios", "cover": 2.5},
+  {"id": "ep08-chau-40-chats", "page": "showreel/episodes/08-40-chats.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/02-episodios", "cover": 2.5}
 ]

@@ -1,0 +1,4 @@
+[
+  {"id": "ep01-chau-planilla", "page": "showreel/chau-planilla-01/reel.html", "dur": 15, "formats": ["9x16"], "audio": "chau-planilla-01/soundtrack.wav", "crops": {"4x5": [1080, 1350, 0, 190]}, "out": "stock/04-muy-pronto", "cover": 2.0},
+  {"id": "gize-reel", "page": "showreel/reel.html", "dur": 15, "formats": ["16x9"], "audio": "soundtrack.wav", "out": "stock/04-muy-pronto", "cover": 14.5}
+]

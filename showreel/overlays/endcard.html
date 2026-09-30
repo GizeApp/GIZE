@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Cierre</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* The GIZE end card on its own (4 s), to close any edit or real-footage clip.
+   ?fmt=9x16|4x5|16x9 &cta=hype ("Muy pronto") | launch ("Ya está disponible") */
+import {E,prog,createReel} from '../lib/engine.js';
+import {endcard,endcardBg,endcardCues,ENDCARD_LAND} from '../lib/endcard.js';
+const T0=0.15;
+createReel({dur:4,hits:[[T0+ENDCARD_LAND,4,0.01]],bloom:()=>0.35,vignette:()=>0.4,
+  draw(c,t,L,P){endcardBg(c,t,T0,L,E.outCubic(prog(t,0,0.2)));endcard(c,t,T0,L,{cta:P.cta});},
+  cues(L){return[{t:0,s:'whoosh',d:0.35,f0:300,f1:2500,g:0.7},{t:T0+ENDCARD_LAND,s:'chord',ch:'C',d:3.2},...endcardCues(L,T0)];},
+});
+</script></body></html>

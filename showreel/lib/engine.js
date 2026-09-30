@@ -64,7 +64,7 @@ export const FORMATS={
   '4x5': {W:1080,H:1350,safe:{top:70,bottom:1280,left:60,right:1020}},
   '16x9':{W:1920,H:1080,safe:{top:70,bottom:1010,left:90,right:1830}},
 };
-export function params(){const q=new URLSearchParams(location.search);return{fmt:q.get('fmt')||'9x16',hook:q.get('hook')||'a',cta:q.get('cta')||'hype',play:q.has('play')};}
+export function params(){const q=new URLSearchParams(location.search);return{fmt:q.get('fmt')||'9x16',hook:q.get('hook')||'a',cta:q.get('cta')||'hype',play:q.has('play'),alpha:q.get('alpha')==='1'};}
 export function layout(fmt){const f=FORMATS[fmt]||FORMATS['9x16'];const s=f.safe;return{fmt,W:f.W,H:f.H,CX:f.W/2,CY:f.H/2,safe:s,
   sc:(s.top+s.bottom)/2,sh:s.bottom-s.top,sw:s.right-s.left,tall:f.H/f.W>1.5,wide:f.W>f.H};}
 
@@ -105,11 +105,14 @@ export function createReel(o){
   const P=params(),L=layout(P.fmt),FPS=o.fps||60,DUR=o.dur;
   const cv=document.getElementById('out');cv.width=L.W;cv.height=L.H;cv.style.aspectRatio=`${L.W}/${L.H}`;
   const ctx=cv.getContext('2d',{willReadFrequently:true});const W=L.W,H=L.H;
-  const acc=new Float32Array(W*H*3);let OUT=null;const BW=Math.round(W/4),BH=Math.round(H/4),BS=mk(BW,BH),bs=BS.getContext('2d',{willReadFrequently:true}),BS2=mk(BW,BH),bs2=BS2.getContext('2d');let BIMG=null;
+  // alpha mode (?alpha=1 or o.alpha): transparent frames for overlays: premultiplied blur, no CA / bloom / vignette
+  const ALPHA=!!(o.alpha||P.alpha);const acc=new Float32Array(W*H*(ALPHA?4:3));let OUT=null;const BW=Math.round(W/4),BH=Math.round(H/4),BS=mk(BW,BH),bs=BS.getContext('2d',{willReadFrequently:true}),BS2=mk(BW,BH),bs2=BS2.getContext('2d');let BIMG=null;
   const hits=o.hits||[],fast=o.fast||[],XO=new Int16Array(W);
   const camFX=t=>{let x=0,y=0,s=1;for(const[ti,amp,p]of hits){const u=t-ti;if(u<0||u>0.7)continue;const at=1-Math.exp(-u*90),d=Math.exp(-u*9)*at;x+=amp*d*Math.sin(u*97+ti*13);y+=amp*d*Math.sin(u*83+ti*7+1.3);s+=p*Math.exp(-u*11)*at;}return{x,y,s};};
-  const draw=(t)=>{T_NOW=t;ctx.setTransform(1,0,0,1,0,0);reset(ctx);const fx=camFX(t);ctx.setTransform(fx.s,0,0,fx.s,L.CX*(1-fx.s)+fx.x,L.CY*(1-fx.s)+fx.y);o.draw(ctx,t,L,P);
+  const draw=(t)=>{T_NOW=t;ctx.setTransform(1,0,0,1,0,0);reset(ctx);if(ALPHA)ctx.clearRect(0,0,W,H);const fx=camFX(t);ctx.setTransform(fx.s,0,0,fx.s,L.CX*(1-fx.s)+fx.x,L.CY*(1-fx.s)+fx.y);o.draw(ctx,t,L,P);
     ctx.setTransform(1,0,0,1,0,0);reset(ctx);if(o.overlay)o.overlay(ctx,t,L,P);ctx.setTransform(1,0,0,1,0,0);reset(ctx);};
+  const postAlpha=sub=>{const d0=OUT.data;for(let i=0,j=0;i<d0.length;i+=4,j+=4){const a=acc[j+3];if(a<=0){d0[i]=d0[i+1]=d0[i+2]=d0[i+3]=0;continue;}d0[i]=acc[j]/a;d0[i+1]=acc[j+1]/a;d0[i+2]=acc[j+2]/a;d0[i+3]=a/sub;}
+    ctx.setTransform(1,0,0,1,0,0);reset(ctx);ctx.putImageData(OUT,0,0);};
   const post=(f,sub)=>{const t=f/FPS,inv=1/sub,d0=OUT.data;let ca=0.8;for(const[ti,amp]of hits){const u=t-ti;if(u>=0&&u<0.25)ca=Math.max(ca,amp*0.45*Math.exp(-u*14));}
     for(let x=0;x<W;x++)XO[x]=Math.round(ca*(x-L.CX)/L.CX);
     for(let y=0;y<H;y++){const rb=y*W;let oi=y*W*4;for(let x=0;x<W;x++,oi+=4){const d=XO[x];let xr=x-d,xb=x+d;xr=xr<0?0:xr>=W?W-1:xr;xb=xb<0?0:xb>=W?W-1:xb;
@@ -125,8 +128,9 @@ export function createReel(o){
   window.REEL={W,H,FPS,DUR,fmt:P.fmt,hook:P.hook,cta:P.cta};
   window.renderFrame=(f,opt={})=>{const t=f/FPS,sub=opt.sub||subsFor(t),sh=0.5;acc.fill(0);
     for(let s=0;s<sub;s++){const ts=Math.max(0,(f+(sub===1?0:((s+0.5)/sub-0.5)*sh))/FPS);draw(ts);
-      const d=ctx.getImageData(0,0,W,H).data;for(let i=0,j=0;i<d.length;i+=4,j+=3){acc[j]+=d[i];acc[j+1]+=d[i+1];acc[j+2]+=d[i+2];}}
-    post(f,sub);return cv.toDataURL('image/png');};
+      const d=ctx.getImageData(0,0,W,H).data;if(ALPHA){for(let i=0;i<d.length;i+=4){const a=d[i+3];acc[i]+=d[i]*a;acc[i+1]+=d[i+1]*a;acc[i+2]+=d[i+2]*a;acc[i+3]+=a;}}
+      else for(let i=0,j=0;i<d.length;i+=4,j+=3){acc[j]+=d[i];acc[j+1]+=d[i+1];acc[j+2]+=d[i+2];}}
+    if(ALPHA)postAlpha(sub);else post(f,sub);return cv.toDataURL('image/png');};
   window.getCues=()=>({dur:DUR,cues:(typeof o.cues==='function'?o.cues(L,P):o.cues)||[]});
   window.READY=false;
   (async()=>{await Promise.all([400,500,600,700,800,900].map(w=>document.fonts.load(F(w,100))));await loadLogo();if(o.init)await o.init(L,P);

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Chau 40 chats · Ep. 08</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* CHAU 40 CHATS · Ep. 08 · EL COACH (athlete voice).
+   Mess: the coach's voice note lost in a generic chat list full of groups.
+   GIZE: push "Martina · tu coach / 🎤 Mensaje de voz (0:42)" → the in-app chat (voice notes,
+   Enviado / Visto) → back in Entreno, "Escuchar a tu coach" on the exercise.
+   Copy from app/ui/chat.js, app/ui/grabar.js, supabase/functions/notificar-cliente. */
+import {C,RGB,E,clamp,lerp,prog,ekeys,glow,rr,txt,tw,bg,PF,hash,createReel,rgbRing,rgbLine,tap,playTri} from '../lib/engine.js';
+import {device,phonePoint,entreno,appHeader} from '../lib/ui.js';
+import {notifCard} from '../lib/screens.js';
+import {BT,T_STAMP,T_DROP,T_OUT,T_LOOP,B_RESULT,B_REWIND,questionBoxes,stampTitle,captionBand,rewindFX,loopWipe,flyChunks,landTime,phoneRise} from '../lib/chau.js';
+import {endcard,endcardBg,endcardCues,ENDCARD_LAND} from '../lib/endcard.js';
+
+const T_PUSH=3.45,T_OPEN=3.95,T_PLAY=4.6,T_TYPE=6.45,T_SEND=7.45,T_CLOSE=8.4,T_LISTEN=9.35;
+const REPLY='¡Genial! Mañana voy por más 🔥';
+let AUDIO_Y=0;
+
+/* ---------- the mess: a generic chat list ---------- */
+const LIST=[['Familia 🏠','Mamá: ¿vienen el domingo?','18:44',128],['Fútbol de los martes ⚽','Nico: falta uno!!','18:43',57],['Laburo','Reunión movida a las 10','18:40',23],['Grupo de la facu','Lucía: alguien tiene el resumen','18:39',212],
+  ['Cumple de Juli 🎂','Fotos del sábado','18:31',89],['Vecinos del edificio','Se corta el agua mañana','18:22',31],['Martina (coach)','🎤 Audio (0:42)','18:41',1],['Consorcio','Expensas de octubre','17:58',12],
+  ['Primos','jajaja','17:40',45],['Asado del sábado 🔥','¿Quién lleva el carbón?','17:22',76],['Tía Norma','Mirá este video','16:10',3],['Gimnasio avisos','Feriado: abrimos 9 a 13','15:02',9]];
+function geomL(L){return L.fmt==='9x16'?{top:230,rh:128,x:40}:{top:40,rh:112,x:60};}
+const listPos=t=>ekeys(t,[[0,0],[BT-0.14,-30],[BT+0.08,-520],[2*BT-0.14,-560],[2*BT+0.08,-980],[3*BT-0.14,-1010],[3*BT+0.1,-520]]);
+function rowY(L,i,t){const G=geomL(L);return G.top+230+i*G.rh+listPos(t);}
+function messWorld(c,t,L){c.fillStyle='#F2F3F5';c.fillRect(-200,-200,L.W+400,L.H+400);const G=geomL(L),k=L.fmt==='9x16'?1:0.9;
+  LIST.forEach(([n,m,h,u],i)=>{const y=rowY(L,i,t);if(y<G.top+140||y>L.H+60)return;c.fillStyle=['#C9CDD3','#BFC4CB','#D2D5DA','#C4C9D0'][i%4];c.beginPath();c.arc(G.x+50,y+G.rh/2,44*k,0,7);c.fill();
+    txt(c,n,G.x+120,y+G.rh/2-8,700,34*k,'#2E3137');txt(c,m,G.x+120,y+G.rh/2+32,400,28*k,'#8A8F98');txt(c,h,L.W-G.x,y+G.rh/2-10,400,24*k,'#8A8F98','right');
+    const s=String(u),w=Math.max(44,tw(s,700,24)+24);c.fillStyle='#9AA0A8';rr(c,L.W-G.x-w,y+G.rh/2+8,w,40,20);c.fill();txt(c,s,L.W-G.x-w/2,y+G.rh/2+36,700,24,'#fff','center');
+    c.fillStyle='#E1E3E7';c.fillRect(G.x+120,y+G.rh-1,L.W-G.x*2-120,2);});
+  c.fillStyle='#F2F3F5';c.fillRect(0,0,L.W,G.top+150);txt(c,'Chats',G.x,G.top+80,800,64,'#2E3137');c.fillStyle='#E1E3E7';rr(c,G.x,G.top+106,L.W-G.x*2,56,28);c.fill();txt(c,'Buscar',G.x+36,G.top+144,400,28,'#9AA0A8');}
+
+/* ---------- GIZE: the chat (app/ui/chat.js) ---------- */
+function bubble(c,x,y,w,h,me){const r=16;c.beginPath();if(me){c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,5);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);}
+  else{c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,5);c.arcTo(x,y,x+w,y,r);}c.closePath();
+  c.fillStyle=me?'rgba(166,92,255,0.16)':C.surface;c.fill();c.strokeStyle=me?rgbLine(c,x,y,x+w,y+h):C.border;c.lineWidth=1;c.stroke();}
+function textBubble(c,y,text,meta,me,a=1){if(a<=0)return 0;c.save();c.globalAlpha*=a;const w=Math.min(312,Math.max(tw(text,400,14),tw(meta,400,10.5))+24),h=52,x=me?374-w:16;c.translate(0,10*(1-a));
+  bubble(c,x,y,w,h,me);txt(c,text,x+11,y+22,400,14,'#fff');txt(c,meta,x+w-10,y+43,400,10.5,meta.includes('Visto')?'#E6DAFF':C.text2,'right');c.restore();return h;}
+function audioBubble(c,t,y,p,playing){const x=16,w=250,h=60;bubble(c,x,y,w,h,false);const g=c.createLinearGradient(x+10,y+10,x+44,y+44);g.addColorStop(0,C.blue);g.addColorStop(0.5,C.purple);g.addColorStop(1,C.pink);
+  c.fillStyle=g;c.beginPath();c.arc(x+28,y+26,17,0,7);c.fill();c.fillStyle='#fff';if(playing){c.fillRect(x+22,y+19,4,14);c.fillRect(x+30,y+19,4,14);}else playTri(c,x+30,y+26,7);
+  c.fillStyle=C.surface2;rr(c,x+56,y+24,150,4,2);c.fill();c.fillStyle=rgbLine(c,x+56,0,x+206,0);rr(c,x+56,y+24,150*p,4,2);c.fill();
+  const s=Math.round(42*(playing||p>0?p:1));txt(c,`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`,x+56,y+46,500,11,C.text2);txt(c,'18:41',x+w-10,y+52,400,10.5,C.text2,'right');return h;}
+function chat(c,t,opt={}){c.fillStyle='#000';c.fillRect(0,0,390,844);glow(c,-30,90,380,RGB.purple,0.18);
+  txt(c,'‹',22,78,400,26,'#fff','center');txt(c,'Martina',44,72,700,16,'#fff');txt(c,'Tu coach',44,90,400,12,C.text2);c.fillStyle=C.border;c.fillRect(0,104,390,1);
+  // messages sit on the input bar, newest last: the stack rises when the reply goes out
+  const sent=opt.result?0:E.outCubic(prog(t,T_SEND+0.05,T_SEND+0.3));let y=756-(34+52+12+52+12+60)-sent*64;
+  c.fillStyle=C.surface2;rr(c,166,y,58,22,11);c.fill();txt(c,'30 sep',195,y+15,600,11,C.text2,'center');y+=34;
+  y+=textBubble(c,y,'¿Cómo te fue con el press hoy?','18:02',false)+12;y+=textBubble(c,y,'Subí a 32,5 💪','18:40 · Visto',true)+12;
+  const p=opt.result?0.6:prog(t,T_PLAY+0.05,T_PLAY+1.7),playing=opt.result||(t>=T_PLAY&&t<T_PLAY+1.75);AUDIO_Y=y;y+=audioBubble(c,t,y,p,playing)+12;
+  if(sent>0){const meta=t<T_SEND+0.4?'Enviando…':t<T_SEND+0.7?'18:43 · Enviado':'18:43 · Visto';textBubble(c,y,REPLY,meta,true,sent);}
+  // the input bar: mic when empty, paper plane when there is text
+  const n=opt.result?0:Math.floor(clamp((t-T_TYPE)/0.8)*[...REPLY].length),typed=t<T_SEND?[...REPLY].slice(0,n).join(''):'';
+  c.fillStyle=C.surface2;rr(c,16,772,300,44,21);c.fill();c.strokeStyle=typed?C.blue:C.border;c.lineWidth=1;c.stroke();txt(c,typed||'Escribí un mensaje…',32,799,400,14,typed?'#fff':C.text2);
+  if(typed&&Math.floor(t*4)%2===0){c.fillStyle=C.blue;c.fillRect(34+tw(typed,400,14),785,1.6,22);}
+  if(typed){const g=c.createLinearGradient(326,773,368,815);g.addColorStop(0,C.blue);g.addColorStop(0.5,C.purple);g.addColorStop(1,C.pink);c.fillStyle=g;}else c.fillStyle=C.surface2;
+  c.beginPath();c.arc(347,794,21,0,7);c.fill();c.strokeStyle='#fff';c.fillStyle='#fff';c.lineWidth=1.8;c.lineJoin='round';
+  if(typed){c.beginPath();c.moveTo(338,786);c.lineTo(358,794);c.lineTo(338,802);c.lineTo(342,794);c.closePath();c.fill();}else{rr(c,343,783,8,14,4);c.stroke();c.beginPath();c.arc(347,795,8,0.2,Math.PI-0.2);c.moveTo(347,803);c.lineTo(347,807);c.stroke();}c.lineJoin='miter';}
+
+/* ---------- GIZE: Entreno with the coach's voice on the exercise ---------- */
+const EX=[['Vuelos laterales sentado','✓ 12,5 kg × 12'],['Press inclinado con mancuernas',''],['Jalón unilateral en estocada','0/3 series'],['Peck deck','0/3 series'],['Curl bíceps en polea baja frontal','0/3 series']];
+const CARD={name:'Press inclinado con mancuernas',last:[['30',1],['kg × ',0],['10',1],[' · ',0],['30',1],['kg × ',0],['9',1]],propose:'30 kg × 7-10',target:'7-10',note:'Bajá lento, 3 segundos. Codos a 45°.',goal:'Progreso en carga'};
+const REV={};
+const SA={rev:(k,t)=>{const r=REV[k]??(T_DROP+0.6);return E.outExpo(prog(t,r,r+0.3));},scroll:t=>ekeys(t,[[0,0],[T_CLOSE+0.3,0],[T_CLOSE+0.6,150]]),
+  sets:[{kg:[[0,'32,5']],reps:[[0,'9']],ck:0},{kg:[],reps:[],ck:1e9},{kg:[],reps:[],ck:1e9}],pr:null,rest:null,collapse:1e9,ex:EX,card:CARD,doneBase:3,clock0:754,taps:[]};
+function listenPill(c,t,result){const y=426+338-150,a=result?1:E.outCubic(prog(t,T_CLOSE+0.5,T_CLOSE+0.8));if(a<=0)return;const p=result?0.45:prog(t,T_LISTEN+0.05,T_LISTEN+1.6),on=result||t>=T_LISTEN;
+  c.save();c.globalAlpha=a;c.fillStyle=C.surface;rr(c,28,y,334,48,6);c.fill();const fl=Math.sin(Math.PI*prog(t,T_CLOSE+0.6,T_CLOSE+1.6));c.strokeStyle=rgbRing(c,195,y+24,t*2);c.lineWidth=1.5+fl;rr(c,28,y,334,48,24);c.stroke();
+  const g=c.createLinearGradient(36,y+6,72,y+42);g.addColorStop(0,C.blue);g.addColorStop(0.5,C.purple);g.addColorStop(1,C.pink);c.fillStyle=g;c.beginPath();c.arc(54,y+24,16,0,7);c.fill();c.fillStyle='#fff';
+  if(on&&p<1){c.fillRect(48,y+17,4,14);c.fillRect(56,y+17,4,14);}else playTri(c,56,y+24,7);txt(c,'Escuchar a tu coach',80,y+22,700,14,'#fff');
+  c.fillStyle=C.surface2;rr(c,80,y+31,200,4,2);c.fill();c.fillStyle=rgbLine(c,80,0,280,0);rr(c,80,y+31,200*p,4,2);c.fill();const s=Math.round(42*(on?p:1));txt(c,`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`,350,y+30,600,12,C.text2,'right');c.restore();}
+function badge(c,t){const a=E.outBack(prog(t,T_PUSH,T_PUSH+0.25))*(1-prog(t,T_OPEN,T_OPEN+0.1));if(a<=0)return;const pu=1+0.12*Math.sin(t*9);c.save();c.translate(333,62);c.scale(a*pu,a*pu);glow(c,0,0,26,RGB.danger,0.5);c.fillStyle=C.danger;c.beginPath();c.arc(0,0,9,0,7);c.fill();txt(c,'1',0,4,800,11,'#fff','center');c.restore();}
+function phoneScreen(c,t,opt={}){if(opt.result){chat(c,t,{result:true});return;}
+  const open=E.outCubic(prog(t,T_OPEN+0.05,T_OPEN+0.32))*(1-E.inCubic(prog(t,T_CLOSE+0.05,T_CLOSE+0.3)));
+  if(open<1){entreno(c,t,SA);listenPill(c,t,false);badge(c,t);if(t>=T_PUSH&&t<T_OPEN+0.2){const n=E.outBack(prog(t,T_PUSH,T_PUSH+0.3));notifCard(c,54-130*(1-n)-60*prog(t,T_OPEN,T_OPEN+0.2),1-prog(t,T_OPEN,T_OPEN+0.2),'Martina · tu coach','🎤 Mensaje de voz (0:42)');}}
+  if(open>0){c.save();c.translate(0,(1-open)*40);c.globalAlpha=open;chat(c,t);c.restore();}
+  for(const[x,y,t0]of[[200,100,T_OPEN],[44,756-60+26,T_PLAY],[347,794,T_SEND],[22,78,T_CLOSE],[195,426+338-150+24,T_LISTEN]])tap(c,x,y,t,t0);}
+function phoneP(t,L){const P=phoneRise(t,L,{push:[99,100],pull:[99,100]}),b=L.fmt==='9x16'?{py:1090,ps:2.3}:{py:L.CY+130,ps:1.75};
+  const pa=E.inOutCubic(prog(t,T_OPEN+0.2,T_OPEN+0.55))*(1-E.inOutCubic(prog(t,T_CLOSE-0.2,T_CLOSE+0.05))),pb=E.inOutCubic(prog(t,T_CLOSE+0.55,T_CLOSE+0.95)),p=Math.max(pa,pb);
+  P.y=lerp(P.y,b.py,p);P.s=lerp(P.s,b.ps,p);P.ay=lerp(422,pa>0?600:630,p);P.y+=1700*E.inBack(prog(t,11.0,11.3));return P;}
+/* ---------- hook b: the result first ---------- */
+function resultScene(c,t,L){bg(c,'#000',L);glow(c,L.CX*0.3,L.H*0.2,900,RGB.purple,0.2);glow(c,L.W,L.H,900,RGB.pink,0.15);
+  const b=L.fmt==='9x16'?{y:1090,s:2.3}:{y:L.CY+130,s:1.75},P={x:L.CX,y:b.y,s:b.s*(1+0.04*t),rot:0,sx:1,ax:195,ay:600,alpha:1};device(c,P,(cc,tt)=>phoneScreen(cc,tt,{result:true}),t);
+  captionBand(c,t,L,[{t0:0.05,t1:B_RESULT-0.05,lines:['El audio de tu coach.','Sin buscarlo.'],key:[1,'Sin buscarlo']}]);}
+/* ---------- piece ---------- */
+let CH=[];
+createReel({dur:15,
+  init(L){const G=geomL(L),TO=[['banner',[16,112,260,30]],['ex0',[16,364,358,52]],['card',[16,426,358,40]],['card',[28,510,334,40]],['card',[28,604,334,44]],['card',[28,656,334,44]]];
+    CH=[];LIST.forEach(([n,m],i)=>{const y=rowY(L,i,T_STAMP);if(y<G.top+140||y>L.H-G.rh||CH.length>=TO.length)return;CH.push({from:[G.x+110,y+10,L.W-G.x*2-110,G.rh-20],text:n,to:TO[CH.length][1],g:TO[CH.length][0]});});
+    CH.forEach((ch,i)=>{REV[ch.g]=Math.min(REV[ch.g]??99,landTime(i)-0.05);});REV.header=T_DROP+0.45;REV.tabs=T_DROP+0.5;REV.pill=T_DROP+0.6;REV.nav=T_DROP+0.5;REV.ex2=REV.ex3=REV.ex4=landTime(CH.length-1);REV.save=landTime(CH.length-1);},
+  hits:[[T_STAMP,18,0.04],[T_DROP,9,0.025],[T_PUSH,5,0.012],[T_SEND,4,0.01],[T_LISTEN,4,0.01],[T_OUT,7,0.018],[T_OUT+ENDCARD_LAND,4,0.01]],
+  fast:[[T_STAMP-0.03,T_STAMP+0.2],[T_DROP-0.02,T_DROP+0.7],[T_OPEN,T_OPEN+0.35],[T_CLOSE,T_CLOSE+0.35],[10.95,11.35],[B_RESULT,B_REWIND],[0.9*BT,3.3*BT]],
+  bloom:t=>t<T_DROP?0:0.3,vignette:t=>t<T_STAMP?0.25:0.36,
+  draw(c,t,L,P){const hookB=P.hook==='b';
+    if(t<T_DROP+0.35){if(hookB&&t<B_REWIND){resultScene(c,t,L);rewindFX(c,t,L);}
+      else{messWorld(c,Math.min(t,T_STAMP),L);if(!hookB&&t<T_STAMP)questionBoxes(c,t,L,{lines:[['¿Tu','coach','se','pierde'],['entre','40','chats?']],times:[0.1,0.18,0.26,0.34,0.55,0.63,0.72]});}}
+    if(t>=T_DROP&&t<T_OUT+0.1){c.globalAlpha=E.inOutCubic(prog(t,T_DROP,T_DROP+0.3));bg(c,'#000',L);glow(c,L.W*0.1,L.H*0.15,900,RGB.blue,0.22);glow(c,L.W*0.9,L.H*0.85,900,RGB.pink,0.18);c.globalAlpha=1;}
+    if(t>=T_STAMP&&t<T_DROP+0.35)stampTitle(c,t,L,{word:'40 CHATS',ep:'08',topic:'EL COACH'});
+    if(t>=T_OUT-0.3)endcardBg(c,t,T_OUT,L,E.outCubic(prog(t,T_OUT-0.3,T_OUT)));
+    if(t>=T_DROP&&t<11.4){const Pp=phoneP(t,L);device(c,Pp,(cc,tt)=>phoneScreen(cc,tt),t);flyChunks(c,t,CH,Pp);}
+    if(t>=T_DROP)captionBand(c,t,L,[{t0:3.3,t1:4.55,lines:['Tu coach,','a un toque.'],key:[1,'a un toque']},{t0:5.0,t1:8.25,lines:['Mensajes y audios,','sin salir de GIZE.'],key:[1,'sin salir de GIZE']},{t0:9.6,t1:11.0,lines:['Y su voz,','en cada ejercicio.'],key:[1,'en cada ejercicio']}]);
+    if(t>=T_OUT-0.05)endcard(c,t,T_OUT,L,{cta:P.cta});
+    loopWipe(c,t,L,(cc,LL)=>{if(hookB)resultScene(cc,0,LL);else messWorld(cc,0,LL);});},
+  cues(L,P){const hookB=P.hook==='b',cues=[];
+    if(hookB){cues.push({t:0.05,s:'whoosh',d:0.3,f0:600,f1:3000},{t:0.1,s:'chime'},...Array.from({length:6},(_,q)=>({t:0.2+q*0.14,s:'blip',f0:300+q*40,f1:340+q*40,d:0.06,g:0.4})),{t:B_RESULT,s:'whoosh',d:0.42,f0:4000,f1:300,g:1.4},{t:B_RESULT+0.05,s:'sweep',f0:1800,f1:200,d:0.35});}
+    else{[0.1,0.18,0.26,0.34,0.55,0.63,0.72].forEach(t=>cues.push({t,s:'click',f:1800,g:0.9}));for(let k=0;k<8;k++)cues.push({t:k*BT/2,s:'tick',hi:k%2===0,g:0.8+k*0.05});
+      for(let k=0;k<10;k++)cues.push({t:0.08+k*0.17,s:'blip',f0:1300+hash(k)*500,f1:1300+hash(k)*500,d:0.05,g:0.35,p:hash(k+3)-0.5});[1,2,3].forEach(k=>cues.push({t:k*BT-0.14,s:'whoosh',d:0.22,f0:3000,f1:700,g:0.8}));cues.push({t:0,s:'drone',d:T_STAMP});}
+    cues.push({t:T_STAMP-0.6,s:'rise',d:0.6},{t:T_STAMP,s:'stamp'},{t:T_STAMP+0.005,s:'strike'},{t:T_STAMP+0.2,s:'marker'},{t:T_STAMP+0.3,s:'pop'},{t:T_DROP-0.36,s:'revcrash',d:0.36},
+      {t:T_DROP,s:'hit'},{t:T_DROP,s:'groove',t1:13.6,bpm:128,chords:[[0,'Dm'],[3.75,'Am'],[5.625,'F'],[7.5,'C'],[9.375,'Dm'],[T_OUT,'C']]},{t:T_DROP,s:'whoosh',d:0.6,f0:200,f1:3000,g:1.4});
+    CH.forEach((ch,i)=>cues.push({t:landTime(i),s:'blip',f0:900+i*120,f1:1400+i*150,d:0.1,g:0.9,p:-0.5+i*0.15}));
+    cues.push({t:T_PUSH,s:'buzz',d:0.3},{t:T_PUSH+0.02,s:'chime'},{t:T_OPEN,s:'tap'},{t:T_OPEN+0.05,s:'whoosh',d:0.3,f0:400,f1:3000,g:0.7},{t:T_PLAY,s:'tap'},
+      ...Array.from({length:11},(_,q)=>({t:T_PLAY+0.1+q*0.15,s:'blip',f0:260+hash(q)*120,f1:300+hash(q+4)*140,d:0.08,g:0.45})),
+      ...Array.from({length:10},(_,q)=>({t:T_TYPE+0.05+q*0.08,s:'type'})),{t:T_SEND,s:'tap'},{t:T_SEND+0.05,s:'whoosh',d:0.25,f0:800,f1:4000,g:0.7},{t:T_SEND+0.72,s:'pop',g:0.8},
+      {t:T_CLOSE,s:'tap'},{t:T_CLOSE+0.05,s:'whoosh',d:0.3,f0:3000,f1:500,g:0.6},{t:T_LISTEN,s:'tap'},...Array.from({length:8},(_,q)=>({t:T_LISTEN+0.1+q*0.17,s:'blip',f0:280+hash(q+9)*120,f1:320+hash(q+2)*140,d:0.08,g:0.4})),
+      {t:9.6,s:'bell',m:84,d:0.8},{t:11.0,s:'whoosh',d:0.35,f0:2500,f1:300});
+    return[...cues,{t:T_OUT,s:'hit',g:0.8},{t:T_OUT+ENDCARD_LAND,s:'chord',ch:'C',d:3.2},...endcardCues(L,T_OUT),...Array.from({length:12},(_,q)=>({t:T_LOOP+q*0.045,s:'click',f:1800+q*60,g:0.5}))];},
+});
+</script></body></html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Overlays</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#333;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* Overlays for real footage (9:16, rendered with ?alpha=1 → transparent PNGs → .mov with alpha
+   and a green-screen .mp4). ?item=stamp|pr|set|rest|cardio|habit|logo plus per-item params:
+     stamp: word, ep, topic      pr/set: ex, kg, reps, n (set number), pr (chip label)
+     habit: name, meta           rest: secs (the countdown shown), end (HH:MM) */
+import {C,RGB,E,clamp,lerp,prog,glow,rr,txt,tw,createReel,drawFirma,LOGO,tick,rgbRing} from '../lib/engine.js';
+import {prChip} from '../lib/ui.js';
+import {stampTitle,T_STAMP} from '../lib/chau.js';
+import {restRing,notifCard,cardioHud,TEAL} from '../lib/screens.js';
+
+const q=new URLSearchParams(location.search),item=q.get('item')||'stamp',G=(k,d)=>q.get(k)??d;
+const DURS={stamp:1.7,pr:2.6,set:2.0,rest:3.6,cardio:4.0,habit:2.2,logo:3.0};
+const K=2.4;   // app UI drawn at 2.4x (a 390-wide row becomes ~860 px)
+// lower third: an Entreno set row, slides up, the check lands, optional PR chip
+function setCard(c,t,L,{ex,kg,reps,n,pr}){const a=E.outExpo(prog(t,0.05,0.45))*(1-E.inCubic(prog(t,DURS[item]-0.35,DURS[item]))),y=L.safe.bottom-260;if(a<=0)return;
+  c.save();c.translate(L.CX,y+120*(1-a));c.scale(K,K);c.globalAlpha=clamp(a*1.4);c.translate(-195,0);
+  c.fillStyle='rgba(11,13,17,0.94)';rr(c,16,0,358,104,10);c.fill();c.strokeStyle=rgbRing(c,195,52,t*1.5);c.lineWidth=1.5;rr(c,16,0,358,104,10);c.stroke();
+  txt(c,ex,30,26,700,13,'#fff');txt(c,`Serie ${n}`,360,26,600,11,C.text2,'right');
+  c.fillStyle=C.surface2;rr(c,30,40,24,24,6);c.fill();txt(c,String(n),42,57,700,12,C.text2,'center');
+  for(const[xx,w,v,unit]of[[64,96,kg,'kg'],[186,62,reps,'reps']]){c.fillStyle=C.surface2;rr(c,xx,34,w,40,4);c.fill();c.strokeStyle='rgba(255,255,255,0.14)';c.lineWidth=1;c.stroke();txt(c,v,xx+w-8,61,700,18,'#fff','right');txt(c,unit,xx+w+4,61,500,11,C.text2);}
+  const ce=E.outBack(prog(t,0.55,0.75));c.fillStyle=C.surface2;rr(c,316,32,44,44,10);c.fill();if(ce>0){c.save();c.translate(338,54);c.scale(ce,ce);c.fillStyle='#fff';rr(c,-22,-22,44,44,10);c.fill();tick(c,0,0,22,'#000',3.2);c.restore();}
+  if(pr)prChip(c,300,-4,t,0.62,pr);c.restore();}
+function habitRow(c,t,L,{name,meta}){const a=E.outExpo(prog(t,0.05,0.45))*(1-E.inCubic(prog(t,DURS.habit-0.35,DURS.habit))),y=L.safe.bottom-220;if(a<=0)return;
+  c.save();c.translate(L.CX,y+120*(1-a));c.scale(K,K);c.globalAlpha=clamp(a*1.4);c.translate(-195,0);const on=E.outBack(prog(t,0.6,0.82)),fl=Math.sin(Math.PI*prog(t,0.6,1.2));
+  c.fillStyle='rgba(11,13,17,0.94)';rr(c,16,0,358,56,6);c.fill();c.strokeStyle=fl>0?`rgba(37,232,200,${0.3+0.6*fl})`:C.border;c.lineWidth=1.2;c.stroke();
+  c.fillStyle=C.surface2;rr(c,28,14,28,28,8);c.fill();if(on>0){c.save();c.translate(42,28);c.scale(on,on);c.fillStyle=TEAL;rr(c,-14,-14,28,28,8);c.fill();tick(c,0,0,15,'#000',2.6);c.restore();}
+  txt(c,name,70,25,600,15,on>0.5?C.text2:'#fff');if(on>0.5){c.fillStyle=C.text2;c.fillRect(70,20,tw(name,600,15)*clamp((on-0.5)*2),1.5);}txt(c,meta,70,43,400,11,C.text2);c.restore();}
+createReel({dur:DURS[item]||2,alpha:true,
+  draw(c,t,L){
+    if(item==='stamp')stampTitle(c,t+T_STAMP-0.1,L,{word:G('word','PLANILLA'),ep:G('ep','01'),topic:G('topic','EL COACH')});
+    else if(item==='pr'||item==='set')setCard(c,t,L,{ex:G('ex','Press inclinado con mancuernas'),kg:G('kg','32,5'),reps:G('reps','9'),n:G('n','1'),pr:item==='pr'?G('pr','🏆 PR +2,5 kg'):null});
+    else if(item==='habit')habitRow(c,t,L,{name:G('name','Tomar 2 L de agua'),meta:G('meta','Todos los días')});
+    else if(item==='rest'){const secs=+G('secs','120'),a=E.outBack(prog(t,0.05,0.4))*(1-E.inCubic(prog(t,DURS.rest-0.3,DURS.rest)));
+      restRing(c,L.CX,L.safe.bottom-330,170,{rem:secs*(1-prog(t,0.3,2.3)),done:E.outCubic(prog(t,2.3,2.6)),a,endClock:G('end','18:44')});
+      if(t>=2.3){c.save();c.translate(L.CX,L.safe.top+40);c.scale(K,K);c.translate(-195,0);const n=E.outBack(prog(t,2.3,2.6))*(1-E.inCubic(prog(t,DURS.rest-0.3,DURS.rest)));notifCard(c,-130*(1-n),clamp(n*1.5));c.restore();}}
+    else if(item==='cardio'){const a=E.outBack(prog(t,0.05,0.4))*(1-E.inCubic(prog(t,DURS.cardio-0.3,DURS.cardio)));cardioHud(c,t,L.CX,L.safe.bottom-190,1,lerp(0.3,0.62,prog(t,0,DURS.cardio)),a);}
+    else if(item==='logo'){const k=0.9,x=L.safe.left+10,y=L.safe.top+10;drawFirma(c,x,y,k,{arcP:E.outCubic(prog(t,0.05,0.5)),dot:t>0.4?{x:LOGO.dot.x,y:LOGO.dot.y,sx:E.outBack(prog(t,0.4,0.65)),sy:E.outBack(prog(t,0.4,0.65))}:false});}},
+  cues(){return[];},
+});
+</script></body></html>

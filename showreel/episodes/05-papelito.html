@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Chau papelito · Ep. 05</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* CHAU PAPELITO · Ep. 05 · LA COMIDA (athlete voice).
+   Mess: calories added up by hand on a scrap of paper ("¿crudo o cocido??").
+   GIZE: Comida → scan a packaged food (barcode, RGB frame + red laser) → Agregar →
+   search "arroz" → "¿Cómo lo pesaste?" Crudo/Cocido converts the same 200 g → the ring fills.
+   Values from app/core/foods.js: Arroz blanco 339 kcal/100 g crudo, factor 2.6. */
+import {C,RGB,E,clamp,lerp,prog,ekeys,glow,rr,txt,tw,bg,PF,hash,createReel,rgbRing,rgbLine,tap} from '../lib/engine.js';
+import {device,appBg,appHeader,bottomNav} from '../lib/ui.js';
+import {BT,T_STAMP,T_DROP,T_OUT,T_LOOP,B_RESULT,B_REWIND,questionBoxes,stampTitle,captionBand,rewindFX,loopWipe,flyChunks,landTime,phoneRise} from '../lib/chau.js';
+import {endcard,endcardBg,endcardCues,ENDCARD_LAND} from '../lib/endcard.js';
+
+const T_SCAN=3.7,SC_OPEN=3.75,SC_HIT=4.55,SC_CLOSE=4.65,Y_ADD=5.15,T_SRCH=5.6,T_PICK=6.3,T_COC=7.45,A_ADD=8.0;
+const S_TYPE=[[5.8,'a'],[5.88,'ar'],[5.96,'arr'],[6.04,'arro'],[6.12,'arroz']],G_TYPE=[[6.72,'2'],[6.78,'20'],[6.84,'200']];
+
+/* ---------- the mess: the papelito ---------- */
+const NOTE=[['desayuno: avena c/ leche ~420?',0],['almuerzo: mila + ensalada 780??',0],['arroz 200g ¿crudo o cocido??',2],['yogur… ¿cuánto era?',2],['total = 1460 + ???',0],['¿me pasé o no?',2]];
+const HAND='italic 400 {px}px "Liberation Serif", serif';
+function paperG(L){return L.fmt==='9x16'?{cx:L.CX+10,cy:L.CY+40,w:860,h:1180,x0:-360,y0:-420,lh:128,px:50}:{cx:L.CX+10,cy:L.CY+20,w:820,h:1040,x0:-350,y0:-360,lh:112,px:46};}
+const TYPE_END=1.75;
+function messWorld(c,t,L){c.fillStyle='#D9D4CB';c.fillRect(-200,-200,L.W+400,L.H+400);
+  for(let i=0;i<14;i++){c.fillStyle=`rgba(120,100,80,${0.05+0.04*hash(i)})`;c.fillRect(0,(i*173+40)%L.H,L.W,4+hash(i+2)*6);}
+  const G=paperG(L),z=1+0.05*prog(t,0,T_STAMP);c.save();c.translate(G.cx,G.cy);c.scale(z,z);c.rotate(-0.07+0.02*prog(t,0,T_STAMP));
+  c.fillStyle='rgba(0,0,0,0.12)';c.beginPath();c.moveTo(-G.w/2+20,-G.h/2+30);c.lineTo(G.w/2+26,-G.h/2+10);c.lineTo(G.w/2+10,G.h/2+30);c.lineTo(-G.w/2+30,G.h/2+24);c.closePath();c.fill();
+  c.fillStyle='#F7F3E8';c.beginPath();c.moveTo(-G.w/2,-G.h/2+10);c.lineTo(G.w/2-20,-G.h/2-8);c.lineTo(G.w/2,G.h/2-4);c.lineTo(-G.w/2+14,G.h/2+8);c.closePath();c.fill();
+  c.strokeStyle='rgba(0,0,0,0.06)';c.lineWidth=3;c.beginPath();c.moveTo(-G.w/2+40,-60);c.lineTo(G.w/2-30,-90);c.moveTo(60,-G.h/2);c.lineTo(20,G.h/2);c.stroke();
+  c.strokeStyle='rgba(60,90,160,0.12)';c.lineWidth=2;for(let k=0;k<9;k++){c.beginPath();c.moveTo(-G.w/2+30,G.y0*0+(-G.h/2+120)+k*G.lh);c.lineTo(G.w/2-30,(-G.h/2+110)+k*G.lh);c.stroke();}
+  const tot=NOTE.reduce((a,[s])=>a+s.length,0);let left=Math.floor(clamp(t/TYPE_END)*tot);let pen=null;
+  NOTE.forEach(([s,st],i)=>{const n=Math.max(0,Math.min(s.length,left));left-=s.length;if(n<=0)return;const v=s.slice(0,n),y=G.y0+i*G.lh;c.font=HAND.replace('{px}',G.px);c.fillStyle=st===2?'#B8413A':'#3E4450';c.fillText(v,G.x0,y);
+    if(n<s.length||i===NOTE.length-1)pen=[G.x0+c.measureText(v).width,y];});
+  // the "1460" gets scribbled over
+  const sc=prog(t,1.2,1.6);if(sc>0){const y=G.y0+4*G.lh-14;c.font=HAND.replace('{px}',G.px);const x=G.x0+c.measureText('total = ').width,w=c.measureText('1460').width;c.strokeStyle='#3E4450';c.lineWidth=4;c.beginPath();
+    for(let k=0;k<Math.floor(sc*9);k++){c.lineTo(x+(k%2?w:0),y-18+k*4);}c.stroke();}
+  if(pen){const[px,py]=pen,wob=Math.sin(t*38)*4;c.save();c.translate(px+18,py-8+wob);c.rotate(-0.9);c.fillStyle='#E8B64A';c.fillRect(0,-9,230,18);c.fillStyle='#F2D7A6';c.beginPath();c.moveTo(0,-9);c.lineTo(-34,0);c.lineTo(0,9);c.fill();c.fillStyle='#3E4450';c.beginPath();c.moveTo(-24,-3);c.lineTo(-34,0);c.lineTo(-24,3);c.fill();c.fillStyle='#E07A8A';c.fillRect(230,-9,26,18);c.restore();}
+  c.restore();}
+
+/* ---------- GIZE: Comida (logical 390x844) ---------- */
+const TGT={kcal:2100,p:150,c:230,f:65},BASE={kcal:1460,p:88,c:160,f:42},YOG={kcal:165,p:15.3,c:6.8,f:8.5},ARR={kcal:261,p:5.3,c:59.6,f:0.2};
+const addY=t=>E.outCubic(prog(t,Y_ADD+0.15,Y_ADD+0.6)),addA=t=>E.outCubic(prog(t,A_ADD+0.15,A_ADD+0.7));
+const totals=t=>{const a=addY(t),b=addA(t);return{kcal:Math.round(BASE.kcal+YOG.kcal*a+ARR.kcal*b),p:BASE.p+YOG.p*a+ARR.p*b,c:BASE.c+YOG.c*a+ARR.c*b,f:BASE.f+YOG.f*a+ARR.f*b};};
+const dec=n=>(Math.round(n*10)/10).toLocaleString('es-AR');
+const REV={};
+function chipRow(c,x,y,on){let xx=x;for(const[l,k]of[['Desayuno',0],['Almuerzo',1],['Merienda',2],['Cena',3]]){const w=tw(l,600,12)+22,o=k===on;c.fillStyle=o?'rgba(47,160,255,0.14)':C.surface2;rr(c,xx,y,w,30,4);c.fill();c.strokeStyle=o?C.blue:C.border;c.lineWidth=1;c.stroke();txt(c,l,xx+w/2,y+20,600,12,o?'#fff':C.text2,'center');xx+=w+6;}}
+function btn(c,x,y,w,h,label,primary,t,tp){const pr=tp!=null&&t>=tp&&t<tp+0.16?0.96:1;c.save();c.translate(x+w/2,y+h/2);c.scale(pr,pr);
+  if(primary){c.fillStyle='#fff';rr(c,-w/2,-h/2,w,h,h/2);c.fill();c.strokeStyle=rgbRing(c,0,0,t*1.25);c.lineWidth=2;rr(c,-w/2+1,-h/2+1,w-2,h-2,h/2);c.stroke();txt(c,label,0,6,700,15,'#000','center');}
+  else{c.strokeStyle=C.border;c.lineWidth=1.2;rr(c,-w/2,-h/2,w,h,h/2);c.stroke();txt(c,label,0,6,700,15,C.text2,'center');}c.restore();}
+function barcodeIcon(c,x,y,col){c.fillStyle=col;[0,3,5,9,11,14,17,19].forEach((d,i)=>c.fillRect(x-10+d,y-8,i%3?1.4:2.4,16));}
+function comida(c,t,opt={}){appBg(c);const rv=k=>opt.rev?opt.rev(k,t):1,T=opt.totals||totals(t);
+  c.save();c.beginPath();c.rect(0,104,390,668);c.clip();
+  let a=rv('day');if(a>0){c.globalAlpha=a;txt(c,'‹',30,138,400,22,C.text2,'center');txt(c,'Hoy',195,130,700,16,'#fff','center');txt(c,'30 sep',195,146,500,11,C.text2,'center');txt(c,'›',360,138,400,22,'rgba(143,152,166,0.35)','center');c.globalAlpha=1;}
+  a=rv('ring');if(a>0){c.save();c.globalAlpha=a;const cx=195,cy=250,r=74,f=Math.min(1,T.kcal/TGT.kcal);c.translate(cx,cy);c.scale(lerp(0.8,1,a),lerp(0.8,1,a));
+    c.strokeStyle='#1C2029';c.lineWidth=11;c.beginPath();c.arc(0,0,r,0,7);c.stroke();c.strokeStyle=rgbRing(c,0,0,-Math.PI/2);c.lineCap='round';c.beginPath();c.arc(0,0,r,-Math.PI/2,-Math.PI/2+Math.PI*2*f*a);c.stroke();c.lineCap='butt';
+    const bump=Math.max(Math.sin(Math.PI*prog(t,Y_ADD+0.15,Y_ADD+0.6)),Math.sin(Math.PI*prog(t,A_ADD+0.15,A_ADD+0.7)));if(bump>0)glow(c,0,0,110,RGB.blue,0.25*bump);
+    txt(c,String(T.kcal),0,8,800,33,'#fff','center');txt(c,`de ${TGT.kcal} kcal`,0,30,500,12,C.text2,'center');c.restore();}
+  a=rv('macros');if(a>0){c.globalAlpha=a;[['Proteína',T.p,TGT.p],['Carbos',T.c,TGT.c],['Grasas',T.f,TGT.f]].forEach(([l,v,g],i)=>{const y=352+i*38;txt(c,l,16,y,600,14,'#fff');txt(c,`${Math.round(v)} / ${g} g`,374,y,500,13,C.text2,'right');
+      c.fillStyle=C.surface2;rr(c,16,y+8,358,6,3);c.fill();c.fillStyle=rgbLine(c,16,0,374,0);rr(c,16,y+8,358*Math.min(1,v/g)*a,6,3);c.fill();});c.globalAlpha=1;}
+  a=rv('edit');if(a>0){c.globalAlpha=a;txt(c,'Editar meta',195,470,600,12,C.text2,'center');c.globalAlpha=1;}
+  a=rv('search');if(a>0){c.globalAlpha=a;c.fillStyle=C.surface2;rr(c,16,484,302,44,22);c.fill();c.strokeStyle=C.border;c.lineWidth=1;c.stroke();c.strokeStyle=C.text2;c.lineWidth=1.6;c.beginPath();c.arc(40,504,6,0,7);c.moveTo(44.5,508.5);c.lineTo(49,513);c.stroke();
+    txt(c,'Buscar alimento o marca…',58,511,400,14,C.text2);c.fillStyle=C.surface2;rr(c,326,484,48,44,12);c.fill();c.strokeStyle=C.border;c.stroke();barcodeIcon(c,350,502,'#fff');txt(c,'BETA',350,522,800,7,C.blue,'center',0.5);c.globalAlpha=1;}
+  a=rv('meals');if(a>0){c.globalAlpha=a;const cena=[];if(addY(t)>0)cena.push(['🥣','Yogur griego natural','170 g · P 15,3 · C 6,8 · G 8,5','165 kcal',Y_ADD+0.25]);if(addA(t)>0)cena.push(['🍚','Arroz blanco (cocido)','200 g · P 5,3 · C 59,6 · G 0,2','261 kcal',A_ADD+0.25]);
+    const cenaK=Math.round(YOG.kcal*addY(t)+ARR.kcal*addA(t));
+    [['☀️','Desayuno','420 kcal'],['🍽️','Almuerzo','780 kcal'],['🧉','Merienda','260 kcal'],['🌙','Cena',cenaK?`${cenaK} kcal`:'']].forEach(([ic,l,k],i)=>{const y=546+i*40;txt(c,ic,16,y+22,400,15,'#fff');txt(c,l,42,y+22,700,15,'#fff');txt(c,k,318,y+22,500,13,C.text2,'right');
+      c.strokeStyle=C.border;c.lineWidth=1;c.beginPath();c.arc(352,y+17,13,0,7);c.stroke();txt(c,'+',352,y+23,500,17,C.text2,'center');c.fillStyle=C.border;c.fillRect(16,y+38,358,1);});
+    if(!cena.length)txt(c,'Todavía nada',42,720,400,12,C.text2);
+    cena.forEach(([ic,n,s,k,t0],j)=>{const e=E.outCubic(prog(t,t0,t0+0.3)),y=710+j*52;if(e<=0)return;c.save();c.globalAlpha=a*e;c.translate(0,16*(1-e));const fl=Math.sin(Math.PI*prog(t,t0,t0+0.8));
+      c.fillStyle=`rgba(47,160,255,${0.08+0.25*fl})`;rr(c,16,y-4,358,46,6);c.fill();txt(c,ic,28,y+22,400,18,'#fff');txt(c,n,58,y+14,600,14,'#fff');txt(c,s,58,y+32,400,10.5,C.text2);txt(c,k,366,y+22,700,13,'#fff','right');c.restore();});c.globalAlpha=1;}
+  c.restore();
+  a=rv('header');if(a>0){c.globalAlpha=a;appHeader(c,{coach:'Martina',streak:5});c.globalAlpha=1;}
+  a=rv('nav');if(a>0){c.globalAlpha=a;bottomNav(c,3);c.globalAlpha=1;}}
+// the scanner (ui/scanner.js): camera view, RGB frame, red laser
+function scanner(c,t){const o=E.outCubic(prog(t,SC_OPEN,SC_OPEN+0.22))*(1-E.inCubic(prog(t,SC_CLOSE,SC_CLOSE+0.2)));if(o<=0)return;c.save();c.translate(0,(1-o)*844);
+  c.fillStyle='#07080B';c.fillRect(0,0,390,844);txt(c,'Escaneá el código de barras',24,82,600,15,'#fff');txt(c,'✕',362,82,400,16,C.text2,'center');
+  c.save();c.beginPath();c.rect(0,100,390,420);c.clip();const g=c.createLinearGradient(0,100,390,520);g.addColorStop(0,'#3A2F26');g.addColorStop(1,'#1D2027');c.fillStyle=g;c.fillRect(0,100,390,420);
+  c.fillStyle='rgba(255,220,180,0.08)';c.beginPath();c.arc(80,160,120,0,7);c.fill();
+  const jx=Math.sin(t*5.3)*5+Math.sin(t*11)*2,jy=Math.cos(t*4.1)*4,hit=t>=SC_HIT;c.save();c.translate(195+jx,318+jy);c.rotate(-0.05+0.02*Math.sin(t*3));
+  c.fillStyle='#ECEEF1';c.beginPath();c.moveTo(-120,-140);c.lineTo(120,-140);c.lineTo(100,150);c.lineTo(-100,150);c.closePath();c.fill();c.fillStyle='#C9D4DE';c.fillRect(-120,-150,240,22);
+  c.fillStyle='#fff';rr(c,-86,-52,172,96,6);c.fill();for(let k=0;k<30;k++){const w=hash(k)>0.6?3.4:1.6;c.fillStyle='#111';c.fillRect(-74+k*5,-40,w,62);}txt(c,'7 790000 123456',0,38,500,11,'#333','center');
+  c.fillStyle='#9AA7B4';rr(c,-70,70,140,14,7);c.fill();rr(c,-50,94,100,10,5);c.fill();c.restore();
+  const fx=31,fy=234,fw=328,fh=152,fl=hit?Math.sin(Math.PI*prog(t,SC_HIT,SC_HIT+0.3)):0;c.strokeStyle=rgbLine(c,fx,fy,fx+fw,fy+fh);c.lineWidth=2.5;rr(c,fx,fy,fw,fh,14);c.stroke();if(fl>0){c.fillStyle=`rgba(37,232,200,${0.3*fl})`;rr(c,fx,fy,fw,fh,14);c.fill();}
+  if(!hit){const ly=310+40*Math.sin((t-SC_OPEN)*Math.PI/1.6*2);glow(c,195,ly,120,RGB.danger,0.25);c.fillStyle=C.danger;c.fillRect(47,ly-1,296,2);}
+  c.restore();
+  txt(c,t<SC_OPEN+0.3?'Abriendo la cámara…':'',195,556,500,13,C.text2,'center');
+  c.fillStyle=C.surface2;rr(c,24,580,230,44,10);c.fill();c.strokeStyle=C.border;c.lineWidth=1;c.stroke();txt(c,'Número del código',38,607,400,13,C.text2);btn(c,264,580,102,44,'Buscar',false,t,null);c.restore();}
+function sheetBg(c,y){c.fillStyle='rgba(0,0,0,0.5)';c.fillRect(0,0,390,844);c.fillStyle='#0E1116';rr(c,0,y,390,900,22);c.fill();c.strokeStyle=C.border;c.lineWidth=1;c.stroke();c.fillStyle='#2B303B';rr(c,175,y+8,40,4,2);c.fill();}
+function portionYogur(c,t){const o=E.outCubic(prog(t,SC_CLOSE,SC_CLOSE+0.25))*(1-E.inCubic(prog(t,Y_ADD+0.05,Y_ADD+0.3)));if(o<=0)return;c.save();c.globalAlpha=o;const sy=484+(1-o)*380;sheetBg(c,sy);
+  txt(c,'Yogur griego natural',24,sy+44,700,17,'#fff');chipRow(c,24,sy+60,3);c.fillStyle=C.surface2;rr(c,24,sy+110,226,56,10);c.fill();c.strokeStyle='rgba(255,255,255,0.14)';c.stroke();txt(c,'170',236,sy+147,700,26,'#fff','right');txt(c,'gramos',262,sy+144,500,14,C.text2);
+  txt(c,'−',60,sy+206,400,22,C.text2,'center');txt(c,'1 unidad de 170 g',195,sy+204,500,13,'#fff','center');txt(c,'+',330,sy+206,400,22,C.text2,'center');
+  txt(c,'165 kcal · P 15,3 · C 6,8 · G 8,5',195,sy+244,600,14,C.soft,'center');btn(c,24,sy+266,163,48,'Cancelar',false,t,null);btn(c,203,sy+266,163,48,'Agregar',true,t,Y_ADD);c.restore();}
+const RESULTS=[['🍚','Arroz blanco','339 kcal','por 100 g crudo'],['🍚','Arroz integral','350 kcal','por 100 g crudo'],['🍚','Arroz basmati','339 kcal','por 100 g crudo'],['🍚','Arroz parboil','360 kcal','por 100 g crudo']];
+function searchSheet(c,t){const o=E.outCubic(prog(t,T_SRCH+0.05,T_SRCH+0.3))*(1-E.inCubic(prog(t,T_PICK+0.1,T_PICK+0.3)));if(o<=0)return;c.save();c.globalAlpha=o;const sy=60+(1-o)*784;sheetBg(c,sy);
+  txt(c,'Agregar',24,sy+44,700,17,'#fff');txt(c,'✕',362,sy+44,400,16,C.text2,'center');c.fillStyle=C.surface2;rr(c,16,sy+62,302,44,22);c.fill();c.strokeStyle=C.blue;c.lineWidth=1.4;c.stroke();
+  let q='';for(const[t0,s]of S_TYPE)if(t>=t0)q=s;txt(c,q,42,sy+90,500,15,'#fff');if(Math.floor(t*4)%2===0){c.fillStyle=C.blue;c.fillRect(44+tw(q,500,15),sy+73,1.6,22);}
+  c.fillStyle=C.surface2;rr(c,326,sy+62,48,44,12);c.fill();barcodeIcon(c,350,sy+82,'#fff');
+  if(q.length>=3)RESULTS.forEach(([ic,n,k,u],i)=>{const e=E.outCubic(prog(t,6.0+i*0.05,6.25+i*0.05));if(e<=0)return;const y=sy+122+i*66;c.save();c.globalAlpha=o*e;c.translate(0,10*(1-e));
+    c.fillStyle=C.surface;rr(c,16,y,358,58,6);c.fill();c.strokeStyle=i===0&&t>=T_PICK?C.blue:C.border;c.lineWidth=1;c.stroke();txt(c,ic,30,y+36,400,20,'#fff');txt(c,n,62,y+26,600,15,'#fff');
+    c.fillStyle='rgba(47,160,255,0.14)';rr(c,62,y+34,86,16,8);c.fill();txt(c,'crudo / cocido',105,y+46,600,9.5,C.blue,'center');txt(c,k,362,y+28,700,14,'#fff','right');txt(c,u,362,y+46,400,10,C.text2,'right');c.restore();});
+  c.restore();}
+function portionArroz(c,t){const o=E.outCubic(prog(t,T_PICK+0.05,T_PICK+0.3))*(1-E.inCubic(prog(t,A_ADD+0.05,A_ADD+0.3)));if(o<=0)return;c.save();c.globalAlpha=o;const sy=440+(1-o)*420;sheetBg(c,sy);
+  const coc=t>=T_COC,sw=E.outCubic(prog(t,T_COC,T_COC+0.18));txt(c,'Arroz blanco',24,sy+44,700,17,'#fff');chipRow(c,24,sy+60,3);
+  txt(c,'¿Cómo lo pesaste?',24,sy+130,500,13,C.text2);c.fillStyle=C.surface2;rr(c,200,sy+108,166,36,4);c.fill();c.fillStyle='rgba(47,160,255,0.16)';rr(c,lerp(202,284,sw),sy+110,80,32,4);c.fill();c.strokeStyle=C.blue;c.lineWidth=1;rr(c,lerp(202,284,sw),sy+110,80,32,4);c.stroke();
+  txt(c,'Crudo',242,sy+131,600,13,coc?C.text2:'#fff','center');txt(c,'Cocido',324,sy+131,600,13,coc?'#fff':C.text2,'center');
+  let g='80';const sel=t>=6.64&&t<6.72;for(const[t0,s]of G_TYPE)if(t>=t0)g=s;c.fillStyle=C.surface2;rr(c,24,sy+160,226,56,10);c.fill();c.strokeStyle=t>=6.62&&t<7.4?C.blue:'rgba(255,255,255,0.14)';c.lineWidth=1.4;c.stroke();
+  if(sel){c.fillStyle='rgba(47,160,255,0.4)';c.fillRect(236-tw('80',700,26),sy+174,tw('80',700,26),30);}txt(c,g,236,sy+197,700,26,'#fff','right');txt(c,'gramos',262,sy+194,500,14,C.text2);
+  const pv=g==='200'?(coc?'261 kcal · P 5,3 · C 59,6 · G 0,2':'678 kcal · P 13,8 · C 155 · G 0,4'):g==='80'?'271 kcal · P 5,5 · C 62 · G 0,2':(g==='2'?'7 kcal · P 0,1 · C 1,6 · G 0':'68 kcal · P 1,4 · C 15,5 · G 0');
+  const fl=Math.sin(Math.PI*prog(t,T_COC,T_COC+0.5));if(fl>0){c.fillStyle=`rgba(37,232,200,${0.18*fl})`;rr(c,24,sy+230,342,34,8);c.fill();}
+  const big=g==='200';txt(c,pv,195,sy+253,big?700:600,big?15:14,big&&!coc?'#fff':C.soft,'center');btn(c,24,sy+280,163,48,'Cancelar',false,t,null);btn(c,203,sy+280,163,48,'Agregar',true,t,A_ADD);c.restore();}
+const TAPS=[[350,506,T_SCAN],[284,774,Y_ADD],[160,506,T_SRCH],[190,60+122+29,T_PICK],[130,440+160+28,6.62],[324,440+126,T_COC],[284,744,A_ADD]];
+function phoneScreen(c,t,opt={}){comida(c,t,opt);if(opt.result)return;searchSheet(c,t);portionArroz(c,t);portionYogur(c,t);scanner(c,t);for(const[x,y,t0]of TAPS)tap(c,x,y,t,t0);}
+function phoneP(t,L){const P=phoneRise(t,L,{push:[99,100],pull:[99,100]}),b=L.fmt==='9x16'?{py:1090,ps:2.3,py2:1020}:{py:L.CY+130,ps:1.75,py2:L.CY+60};
+  const pa=E.inOutCubic(prog(t,3.85,4.2))*(1-E.inOutCubic(prog(t,5.2,5.5))),pb=E.inOutCubic(prog(t,6.3,6.65))*(1-E.inOutCubic(prog(t,7.95,8.3))),pc=E.inOutCubic(prog(t,9.0,9.45)),p=Math.max(pa,pb,pc);
+  const ay=pa>0?330:pb>0?610:300;P.y=lerp(P.y,pb>0?b.py:b.py2,p);P.s=lerp(P.s,b.ps,p);P.ay=lerp(422,ay,p);P.y+=1700*E.inBack(prog(t,11.0,11.3));return P;}
+/* ---------- hook b: the result first ---------- */
+function resultScene(c,t,L){bg(c,'#000',L);glow(c,L.CX*0.3,L.H*0.2,900,RGB.blue,0.2);glow(c,L.W,L.H,900,RGB.pink,0.15);
+  const b=L.fmt==='9x16'?{y:1020,s:2.3}:{y:L.CY+60,s:1.75},P={x:L.CX,y:b.y,s:b.s*(1+0.04*t),rot:0,sx:1,ax:195,ay:300,alpha:1};const k=E.outExpo(prog(t,0.05,0.9)),F=totals(99);
+  device(c,P,(cc,tt)=>phoneScreen(cc,tt,{result:true,totals:{kcal:Math.round(F.kcal*k),p:F.p*k,c:F.c*k,f:F.f*k}}),t);
+  captionBand(c,t,L,[{t0:0.05,t1:B_RESULT-0.05,lines:[`${F.kcal} kcal.`,'Cero cuentas.'],key:[1,'Cero cuentas']}]);}
+/* ---------- piece ---------- */
+let CH=[];
+createReel({dur:15,
+  init(L,P){const G=paperG(L),TO=[['meals',[16,546,358,40]],['meals',[16,586,358,40]],['search',[16,484,302,44]],['search',[326,484,48,44]],['ring',[121,176,148,148]],['macros',[16,340,358,100]]];
+    const m=document.createElement('canvas').getContext('2d');m.font=HAND.replace('{px}',G.px);
+    CH=NOTE.map(([s,st],i)=>({from:[G.cx+G.x0,G.cy+G.y0+i*G.lh-G.px*0.8,Math.max(160,m.measureText(s).width),G.px*1.15],text:s,red:st===2,to:TO[i][1]}));
+    CH.forEach((ch,i)=>{const g=TO[i][0];REV[g]=Math.min(REV[g]??99,landTime(i)-0.05);});REV.header=T_DROP+0.45;REV.day=T_DROP+0.5;REV.nav=T_DROP+0.5;REV.edit=landTime(5);},
+  hits:[[T_STAMP,18,0.04],[T_DROP,9,0.025],[SC_HIT,6,0.015],[T_COC,5,0.012],[A_ADD+0.2,4,0.01],[T_OUT,7,0.018],[T_OUT+ENDCARD_LAND,4,0.01]],
+  fast:[[T_STAMP-0.03,T_STAMP+0.2],[T_DROP-0.02,T_DROP+0.7],[SC_OPEN,SC_OPEN+0.25],[SC_CLOSE,SC_CLOSE+0.3],[10.95,11.35],[B_RESULT,B_REWIND]],
+  bloom:t=>t<T_DROP?0:0.3,vignette:t=>t<T_STAMP?0.3:0.36,
+  draw(c,t,L,P){const hookB=P.hook==='b';
+    if(t<T_DROP+0.35){if(hookB&&t<B_REWIND){resultScene(c,t,L);rewindFX(c,t,L);}
+      else{messWorld(c,hookB?TYPE_END+0.2+(t-B_REWIND)*0.2:Math.min(t,T_STAMP),L);if(!hookB&&t<T_STAMP)questionBoxes(c,t,L,{lines:[['¿Todavía','anotás'],['lo','que','comés'],['en','un','papelito?']],times:[0.1,0.2,0.34,0.42,0.5,0.66,0.74,0.82]});}}
+    if(t>=T_DROP&&t<T_OUT+0.1){c.globalAlpha=E.inOutCubic(prog(t,T_DROP,T_DROP+0.3));bg(c,'#000',L);glow(c,L.W*0.1,L.H*0.15,900,RGB.blue,0.22);glow(c,L.W*0.9,L.H*0.85,900,RGB.pink,0.18);c.globalAlpha=1;}
+    if(t>=T_STAMP&&t<T_DROP+0.35)stampTitle(c,t,L,{word:'PAPELITO',ep:'05',topic:'LA COMIDA'});
+    if(t>=T_OUT-0.3)endcardBg(c,t,T_OUT,L,E.outCubic(prog(t,T_OUT-0.3,T_OUT)));
+    if(t>=T_DROP&&t<11.4){const Pp=phoneP(t,L);device(c,Pp,(cc,tt)=>phoneScreen(cc,tt,{rev:(k,tt)=>{const r=REV[k]??(T_DROP+0.6);return E.outExpo(prog(tt,r,r+0.3));}}),t);flyChunks(c,t,CH,Pp,{font:(w,px)=>HAND.replace('{px}',px)});}
+    if(t>=T_DROP)captionBand(c,t,L,[{t0:3.3,t1:4.95,lines:['Escaneás el paquete','y listo.'],key:[1,'y listo']},{t0:5.85,t1:7.85,lines:['¿Crudo o cocido?','GIZE hace la cuenta.'],key:[1,'hace la cuenta']},{t0:9.3,t1:11.0,lines:['Calorías y macros,','sin papelito.'],key:[1,'sin papelito']}]);
+    if(t>=T_OUT-0.05)endcard(c,t,T_OUT,L,{cta:P.cta});
+    loopWipe(c,t,L,(cc,LL)=>{if(hookB)resultScene(cc,0,LL);else messWorld(cc,0,LL);});},
+  cues(L,P){const hookB=P.hook==='b',cues=[];
+    if(hookB){cues.push({t:0.05,s:'whoosh',d:0.3,f0:600,f1:3000},{t:0.05,s:'rise',d:0.8},{t:0.9,s:'pop'},{t:0.9,s:'bell',m:88,d:0.7},{t:B_RESULT,s:'whoosh',d:0.42,f0:4000,f1:300,g:1.4},{t:B_RESULT+0.05,s:'sweep',f0:1800,f1:200,d:0.35});}
+    else{for(let k=0;k<Math.floor(TYPE_END/0.11);k++)cues.push({t:0.05+k*0.11,s:'marker',g:0.28});cues.push({t:1.2,s:'marker',g:0.9},{t:1.4,s:'marker',g:0.9});
+      [0.1,0.2,0.34,0.42,0.5,0.66,0.74,0.82].forEach(t=>cues.push({t,s:'click',f:1800,g:0.9}));for(let k=0;k<8;k++)cues.push({t:k*BT/2,s:'tick',hi:k%2===0,g:0.8+k*0.05});cues.push({t:0,s:'drone',d:T_STAMP});}
+    cues.push({t:T_STAMP-0.6,s:'rise',d:0.6},{t:T_STAMP,s:'stamp'},{t:T_STAMP+0.005,s:'strike'},{t:T_STAMP+0.2,s:'marker'},{t:T_STAMP+0.3,s:'pop'},{t:T_DROP-0.36,s:'revcrash',d:0.36},
+      {t:T_DROP,s:'hit'},{t:T_DROP,s:'groove',t1:13.6,bpm:128,chords:[[0,'C'],[3.75,'G'],[5.625,'Am'],[7.5,'F'],[9.375,'C'],[T_OUT,'C']]},{t:T_DROP,s:'whoosh',d:0.6,f0:200,f1:3000,g:1.4});
+    CH.forEach((ch,i)=>cues.push({t:landTime(i),s:'blip',f0:900+i*120,f1:1400+i*150,d:0.1,g:0.9,p:-0.5+i*0.15}));
+    cues.push({t:T_SCAN,s:'tap'},{t:SC_OPEN,s:'whoosh',d:0.3,f0:400,f1:3000,g:0.8},...Array.from({length:6},(_,k)=>({t:3.95+k*0.1,s:'click',f:900,d:0.01,g:0.25})),{t:SC_HIT,s:'blip',f0:1760,f1:1760,d:0.1,g:1.2},{t:SC_HIT+0.02,s:'pop'},
+      {t:SC_CLOSE,s:'whoosh',d:0.3,f0:3000,f1:600,g:0.7},{t:Y_ADD,s:'tap'},{t:Y_ADD+0.15,s:'chime'},{t:T_SRCH,s:'tap'},...S_TYPE.map(([t])=>({t,s:'type'})),{t:T_PICK,s:'tap'},{t:6.62,s:'tap'},...G_TYPE.map(([t])=>({t,s:'type'})),
+      {t:T_COC,s:'tap'},{t:T_COC+0.02,s:'blip',f0:600,f1:1400,d:0.14,g:1.1},{t:A_ADD,s:'tap'},{t:A_ADD+0.15,s:'chime'},{t:A_ADD+0.2,s:'rise',d:0.5},{t:9.0,s:'whoosh',d:0.4,f0:300,f1:2500,g:0.6},{t:9.3,s:'bell',m:84,d:0.8},{t:11.0,s:'whoosh',d:0.35,f0:2500,f1:300});
+    return[...cues,{t:T_OUT,s:'hit',g:0.8},{t:T_OUT+ENDCARD_LAND,s:'chord',ch:'C',d:3.2},...endcardCues(L,T_OUT),...Array.from({length:12},(_,q)=>({t:T_LOOP+q*0.045,s:'click',f:1800+q*60,g:0.5}))];},
+});
+</script></body></html>

@@ -1,9 +1,33 @@
 {
   "_about": "GIZE stock: every finished piece, with a caption, hashtags and ad text. Phase 'hype' = pre-launch (Muy pronto, no signups, no store badges). Files are relative to showreel/stock/.",
   "hashtags": {
-    "base": ["#gize", "#muypronto", "#entrenamiento", "#gimnasio", "#fitness", "#fitnessargentina"],
-    "running": ["#running", "#runningargentina", "#cardio"],
-    "series": ["#gym", "#sobrecargaprogresiva", "#rutina"]
+    "base": [
+      "#gize",
+      "#muypronto",
+      "#entrenamiento",
+      "#gimnasio",
+      "#fitness",
+      "#fitnessargentina"
+    ],
+    "running": [
+      "#running",
+      "#runningargentina",
+      "#cardio"
+    ],
+    "series": [
+      "#gym",
+      "#sobrecargaprogresiva",
+      "#rutina"
+    ],
+    "comida": [
+      "#nutricion",
+      "#macros",
+      "#calorias"
+    ],
+    "habitos": [
+      "#habitos",
+      "#disciplina"
+    ]
   },
   "pieces": [
     {
@@ -11,48 +35,800 @@
       "kind": "teaser",
       "phase": "hype",
       "dur": 6,
-      "files": ["01-teasers/teaser-01-el-punto_9x16.mp4", "01-teasers/teaser-01-el-punto_4x5.mp4"],
-      "covers": ["01-teasers/teaser-01-el-punto_9x16.jpg", "01-teasers/teaser-01-el-punto_4x5.jpg"],
+      "files": [
+        "01-teasers/teaser-01-el-punto_9x16.mp4",
+        "01-teasers/teaser-01-el-punto_4x5.mp4"
+      ],
+      "covers": [
+        "01-teasers/teaser-01-el-punto_9x16.jpg",
+        "01-teasers/teaser-01-el-punto_4x5.jpg"
+      ],
       "idea": "A blue dot bounces, charges up and jumps into the G. The dot of the logo is the first thing you ever see from GIZE.",
       "caption": "Todo empieza con un punto. 🔵\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
-      "hashtags": ["#gize", "#muypronto", "#entrenamiento", "#gimnasio", "#fitness", "#fitnessargentina"],
-      "ad": {"primary": "Todo empieza con un punto. 🔵 Muy pronto, para iPhone y Android.", "headline": "Seguí @gize.app", "objective": "ThruPlay / follows"}
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#fitnessargentina"
+      ],
+      "ad": {
+        "primary": "Todo empieza con un punto. 🔵 Muy pronto, para iPhone y Android.",
+        "headline": "Seguí @gize.app",
+        "objective": "ThruPlay / follows"
+      }
     },
     {
       "id": "teaser-02-la-g",
       "kind": "teaser",
       "phase": "hype",
       "dur": 6,
-      "files": ["01-teasers/teaser-02-la-g_9x16.mp4", "01-teasers/teaser-02-la-g_4x5.mp4"],
-      "covers": ["01-teasers/teaser-02-la-g_9x16.jpg", "01-teasers/teaser-02-la-g_4x5.jpg"],
+      "files": [
+        "01-teasers/teaser-02-la-g_9x16.mp4",
+        "01-teasers/teaser-02-la-g_4x5.mp4"
+      ],
+      "covers": [
+        "01-teasers/teaser-02-la-g_9x16.jpg",
+        "01-teasers/teaser-02-la-g_4x5.jpg"
+      ],
       "idea": "We start inside the stroke of the G while it is being drawn and pull all the way back until it is the logo.",
       "caption": "Algo se viene. 👀\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
-      "hashtags": ["#gize", "#muypronto", "#entrenamiento", "#gimnasio", "#fitness", "#fitnessargentina"],
-      "ad": {"primary": "Algo se viene. 👀 Muy pronto, para iPhone y Android.", "headline": "Seguí @gize.app", "objective": "ThruPlay / follows"}
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#fitnessargentina"
+      ],
+      "ad": {
+        "primary": "Algo se viene. 👀 Muy pronto, para iPhone y Android.",
+        "headline": "Seguí @gize.app",
+        "objective": "ThruPlay / follows"
+      }
     },
     {
       "id": "teaser-03-el-mapa",
       "kind": "teaser",
       "phase": "hype",
       "dur": 7,
-      "files": ["01-teasers/teaser-03-el-mapa_9x16.mp4", "01-teasers/teaser-03-el-mapa_4x5.mp4"],
-      "covers": ["01-teasers/teaser-03-el-mapa_9x16.jpg", "01-teasers/teaser-03-el-mapa_4x5.jpg"],
+      "files": [
+        "01-teasers/teaser-03-el-mapa_9x16.mp4",
+        "01-teasers/teaser-03-el-mapa_4x5.mp4"
+      ],
+      "covers": [
+        "01-teasers/teaser-03-el-mapa_9x16.jpg",
+        "01-teasers/teaser-03-el-mapa_4x5.jpg"
+      ],
       "idea": "A neon route draws itself on the map; the runner's dot jumps out and becomes the dot of the G. First hint of Cardio GPS.",
       "caption": "Tu próximo recorrido se ve así. 🏃\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
-      "hashtags": ["#gize", "#muypronto", "#running", "#runningargentina", "#cardio", "#fitnessargentina"],
-      "ad": {"primary": "Tu próximo recorrido se ve así. 🏃 Muy pronto, para iPhone y Android.", "headline": "Seguí @gize.app", "objective": "ThruPlay / follows"}
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#running",
+        "#runningargentina",
+        "#cardio",
+        "#fitnessargentina"
+      ],
+      "ad": {
+        "primary": "Tu próximo recorrido se ve así. 🏃 Muy pronto, para iPhone y Android.",
+        "headline": "Seguí @gize.app",
+        "objective": "ThruPlay / follows"
+      }
     },
     {
       "id": "teaser-04-chau",
       "kind": "teaser",
       "phase": "hype",
       "dur": 6.5,
-      "files": ["01-teasers/teaser-04-chau_9x16.mp4", "01-teasers/teaser-04-chau_4x5.mp4"],
-      "covers": ["01-teasers/teaser-04-chau_9x16.jpg", "01-teasers/teaser-04-chau_4x5.jpg"],
+      "files": [
+        "01-teasers/teaser-04-chau_9x16.mp4",
+        "01-teasers/teaser-04-chau_4x5.mp4"
+      ],
+      "covers": [
+        "01-teasers/teaser-04-chau_9x16.jpg",
+        "01-teasers/teaser-04-chau_4x5.jpg"
+      ],
       "idea": "Four messes struck out on four beats: planilla, notas del celu, papelito, 3 apps. Opens the CHAU ___ series.",
       "caption": "Chau planilla.\nChau notas del celu.\nChau papelito.\nChau 3 apps.\n\nMuy pronto, para iPhone y Android. 🔔",
-      "hashtags": ["#gize", "#muypronto", "#entrenamiento", "#gimnasio", "#fitness", "#fitnessargentina"],
-      "ad": {"primary": "Chau planilla. Chau notas del celu. Chau papelito. Chau 3 apps. Muy pronto.", "headline": "Seguí @gize.app", "objective": "ThruPlay / follows"}
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#fitnessargentina"
+      ],
+      "ad": {
+        "primary": "Chau planilla. Chau notas del celu. Chau papelito. Chau 3 apps. Muy pronto.",
+        "headline": "Seguí @gize.app",
+        "objective": "ThruPlay / follows"
+      }
+    },
+    {
+      "id": "ep02-chau-notas-del-celu",
+      "kind": "episodio",
+      "series": "CHAU ___",
+      "ep": "02",
+      "topic": "LAS SERIES",
+      "phase": "hype",
+      "dur": 15,
+      "files": {
+        "a": [
+          "02-episodios/ep02-chau-notas-del-celu_hook-a_9x16.mp4",
+          "02-episodios/ep02-chau-notas-del-celu_hook-a_4x5.mp4"
+        ],
+        "b": [
+          "02-episodios/ep02-chau-notas-del-celu_hook-b_9x16.mp4",
+          "02-episodios/ep02-chau-notas-del-celu_hook-b_4x5.mp4"
+        ]
+      },
+      "covers": {
+        "a": [
+          "02-episodios/ep02-chau-notas-del-celu_hook-a_9x16.jpg",
+          "02-episodios/ep02-chau-notas-del-celu_hook-a_4x5.jpg"
+        ],
+        "b": [
+          "02-episodios/ep02-chau-notas-del-celu_hook-b_9x16.jpg",
+          "02-episodios/ep02-chau-notas-del-celu_hook-b_4x5.jpg"
+        ]
+      },
+      "hooks": {
+        "a": "problem-first (la pregunta)",
+        "b": "result-first (el resultado, rewind)"
+      },
+      "caption": "¿Todavía anotás tus series en las notas del celu? 📱\n\nCon GIZE ves lo que levantaste la vez pasada, vas por más, y la próxima arrancás desde ahí. 💪\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#fitnessargentina",
+        "#gym",
+        "#sobrecargaprogresiva"
+      ],
+      "ad": {
+        "a": {
+          "primary": "¿Todavía anotás tus series en las notas del celu? Con GIZE ves lo que levantaste la vez pasada y vas por más. Muy pronto, para iPhone y Android.",
+          "headline": "Chau notas del celu"
+        },
+        "b": {
+          "primary": "+2,5 kg en press. Récord personal. Así se entrena con GIZE. Muy pronto, para iPhone y Android.",
+          "headline": "Chau notas del celu"
+        },
+        "objective": "ThruPlay / follows",
+        "cta": "Seguí @gize.app"
+      },
+      "stories": [
+        {
+          "file": "03-stories/ep02-chau-notas-del-celu_s1-gancho.mp4",
+          "sticker": {
+            "type": "poll",
+            "prompt": "¿Dónde anotás tus series?",
+            "options": "Notas del celu 📱 / Planilla 📊"
+          }
+        },
+        {
+          "file": "03-stories/ep02-chau-notas-del-celu_s2-demo.mp4",
+          "sticker": {
+            "type": "slider",
+            "prompt": "¿Cuánto querés esto?",
+            "options": "💪"
+          }
+        },
+        {
+          "file": "03-stories/ep02-chau-notas-del-celu_s3-cierre.mp4",
+          "sticker": {
+            "type": "question",
+            "prompt": "¿Qué le pedirías a GIZE?",
+            "options": ""
+          }
+        }
+      ]
+    },
+    {
+      "id": "ep03-chau-3-apps",
+      "kind": "episodio",
+      "series": "CHAU ___",
+      "ep": "03",
+      "topic": "EL CARDIO",
+      "phase": "hype",
+      "dur": 15,
+      "files": {
+        "a": [
+          "02-episodios/ep03-chau-3-apps_hook-a_9x16.mp4",
+          "02-episodios/ep03-chau-3-apps_hook-a_4x5.mp4"
+        ],
+        "b": [
+          "02-episodios/ep03-chau-3-apps_hook-b_9x16.mp4",
+          "02-episodios/ep03-chau-3-apps_hook-b_4x5.mp4"
+        ]
+      },
+      "covers": {
+        "a": [
+          "02-episodios/ep03-chau-3-apps_hook-a_9x16.jpg",
+          "02-episodios/ep03-chau-3-apps_hook-a_4x5.jpg"
+        ],
+        "b": [
+          "02-episodios/ep03-chau-3-apps_hook-b_9x16.jpg",
+          "02-episodios/ep03-chau-3-apps_hook-b_4x5.jpg"
+        ]
+      },
+      "hooks": {
+        "a": "problem-first (la pregunta)",
+        "b": "result-first (el resultado, rewind)"
+      },
+      "caption": "¿Una app para el gym y otra para correr? 🏃\n\nEn GIZE tenés tu rutina y tu cardio en la misma app: tu recorrido en vivo, kilómetro a kilómetro. Tu coach ve los números; el mapa, solo vos. 🗺️\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#running",
+        "#runningargentina",
+        "#cardio",
+        "#fitnessargentina"
+      ],
+      "ad": {
+        "a": {
+          "primary": "¿Una app para el gym y otra para correr? Rutina y cardio, en la misma app. GIZE, muy pronto para iPhone y Android.",
+          "headline": "Chau 3 apps"
+        },
+        "b": {
+          "primary": "5,2 km. Sin cambiar de app. Rutina y cardio en GIZE. Muy pronto, para iPhone y Android.",
+          "headline": "Chau 3 apps"
+        },
+        "objective": "ThruPlay / follows",
+        "cta": "Seguí @gize.app"
+      },
+      "stories": [
+        {
+          "file": "03-stories/ep03-chau-3-apps_s1-gancho.mp4",
+          "sticker": {
+            "type": "poll",
+            "prompt": "¿Cuántas apps usás para entrenar?",
+            "options": "1 / 3 o más 😵"
+          }
+        },
+        {
+          "file": "03-stories/ep03-chau-3-apps_s2-demo.mp4",
+          "sticker": {
+            "type": "slider",
+            "prompt": "¿Salís a correr esta semana?",
+            "options": "🏃"
+          }
+        },
+        {
+          "file": "03-stories/ep03-chau-3-apps_s3-cierre.mp4",
+          "sticker": {
+            "type": "question",
+            "prompt": "¿Qué le pedirías a GIZE?",
+            "options": ""
+          }
+        }
+      ]
+    },
+    {
+      "id": "ep04-chau-descanso-eterno",
+      "kind": "episodio",
+      "series": "CHAU ___",
+      "ep": "04",
+      "topic": "EL DESCANSO",
+      "phase": "hype",
+      "dur": 15,
+      "files": {
+        "a": [
+          "02-episodios/ep04-chau-descanso-eterno_hook-a_9x16.mp4",
+          "02-episodios/ep04-chau-descanso-eterno_hook-a_4x5.mp4"
+        ],
+        "b": [
+          "02-episodios/ep04-chau-descanso-eterno_hook-b_9x16.mp4",
+          "02-episodios/ep04-chau-descanso-eterno_hook-b_4x5.mp4"
+        ]
+      },
+      "covers": {
+        "a": [
+          "02-episodios/ep04-chau-descanso-eterno_hook-a_9x16.jpg",
+          "02-episodios/ep04-chau-descanso-eterno_hook-a_4x5.jpg"
+        ],
+        "b": [
+          "02-episodios/ep04-chau-descanso-eterno_hook-b_9x16.jpg",
+          "02-episodios/ep04-chau-descanso-eterno_hook-b_4x5.jpg"
+        ]
+      },
+      "hooks": {
+        "a": "problem-first (la pregunta)",
+        "b": "result-first (el resultado, rewind)"
+      },
+      "caption": "¿Descansás 2 minutos y scrolleás 10? 😅\n\nCon GIZE iniciás el descanso y sigue corriendo aunque salgas de la app. Cuando termina, te avisa: «¡Descanso terminado! 💪 Volvé a la próxima serie.»\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#fitnessargentina",
+        "#gym",
+        "#rutina"
+      ],
+      "ad": {
+        "a": {
+          "primary": "¿Descansás 2 minutos y scrolleás 10? GIZE te avisa justo cuando termina el descanso. Muy pronto, para iPhone y Android.",
+          "headline": "Chau descanso eterno"
+        },
+        "b": {
+          "primary": "Tu descanso, al segundo. Ni un minuto de más. GIZE, muy pronto para iPhone y Android.",
+          "headline": "Chau descanso eterno"
+        },
+        "objective": "ThruPlay / follows",
+        "cta": "Seguí @gize.app"
+      },
+      "stories": [
+        {
+          "file": "03-stories/ep04-chau-descanso-eterno_s1-gancho.mp4",
+          "sticker": {
+            "type": "poll",
+            "prompt": "¿Te pasa?",
+            "options": "Siempre 😅 / Nunca 😇"
+          }
+        },
+        {
+          "file": "03-stories/ep04-chau-descanso-eterno_s2-demo.mp4",
+          "sticker": {
+            "type": "quiz",
+            "prompt": "¿Cuánto descansás entre series?",
+            "options": "1 min / 2 min / 3 o más"
+          }
+        },
+        {
+          "file": "03-stories/ep04-chau-descanso-eterno_s3-cierre.mp4",
+          "sticker": {
+            "type": "question",
+            "prompt": "¿Qué le pedirías a GIZE?",
+            "options": ""
+          }
+        }
+      ]
+    },
+    {
+      "id": "ep05-chau-papelito",
+      "kind": "episodio",
+      "series": "CHAU ___",
+      "ep": "05",
+      "topic": "LA COMIDA",
+      "phase": "hype",
+      "dur": 15,
+      "files": {
+        "a": [
+          "02-episodios/ep05-chau-papelito_hook-a_9x16.mp4",
+          "02-episodios/ep05-chau-papelito_hook-a_4x5.mp4"
+        ],
+        "b": [
+          "02-episodios/ep05-chau-papelito_hook-b_9x16.mp4",
+          "02-episodios/ep05-chau-papelito_hook-b_4x5.mp4"
+        ]
+      },
+      "covers": {
+        "a": [
+          "02-episodios/ep05-chau-papelito_hook-a_9x16.jpg",
+          "02-episodios/ep05-chau-papelito_hook-a_4x5.jpg"
+        ],
+        "b": [
+          "02-episodios/ep05-chau-papelito_hook-b_9x16.jpg",
+          "02-episodios/ep05-chau-papelito_hook-b_4x5.jpg"
+        ]
+      },
+      "hooks": {
+        "a": "problem-first (la pregunta)",
+        "b": "result-first (el resultado, rewind)"
+      },
+      "caption": "¿Todavía anotás lo que comés en un papelito? 📝\n\nEn GIZE escaneás el paquete y listo. ¿Arroz crudo o cocido? Elegís cómo lo pesaste y GIZE hace la cuenta. Calorías y macros, sin papelito. 🍚\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#nutricion",
+        "#macros",
+        "#calorias",
+        "#fitnessargentina"
+      ],
+      "ad": {
+        "a": {
+          "primary": "¿Todavía anotás lo que comés en un papelito? Escaneás, elegís crudo o cocido, y GIZE hace la cuenta. Muy pronto, para iPhone y Android.",
+          "headline": "Chau papelito"
+        },
+        "b": {
+          "primary": "1886 kcal. Cero cuentas. Calorías y macros con GIZE. Muy pronto, para iPhone y Android.",
+          "headline": "Chau papelito"
+        },
+        "objective": "ThruPlay / follows",
+        "cta": "Seguí @gize.app"
+      },
+      "stories": [
+        {
+          "file": "03-stories/ep05-chau-papelito_s1-gancho.mp4",
+          "sticker": {
+            "type": "poll",
+            "prompt": "¿Contás calorías?",
+            "options": "Sí 🔢 / Ni loco 🙈"
+          }
+        },
+        {
+          "file": "03-stories/ep05-chau-papelito_s2-demo.mp4",
+          "sticker": {
+            "type": "quiz",
+            "prompt": "200 g de arroz cocido son…",
+            "options": "261 kcal ✅ / 678 kcal"
+          }
+        },
+        {
+          "file": "03-stories/ep05-chau-papelito_s3-cierre.mp4",
+          "sticker": {
+            "type": "question",
+            "prompt": "¿Qué le pedirías a GIZE?",
+            "options": ""
+          }
+        }
+      ]
+    },
+    {
+      "id": "ep06-chau-post-its",
+      "kind": "episodio",
+      "series": "CHAU ___",
+      "ep": "06",
+      "topic": "LOS HÁBITOS",
+      "phase": "hype",
+      "dur": 15,
+      "files": {
+        "a": [
+          "02-episodios/ep06-chau-post-its_hook-a_9x16.mp4",
+          "02-episodios/ep06-chau-post-its_hook-a_4x5.mp4"
+        ],
+        "b": [
+          "02-episodios/ep06-chau-post-its_hook-b_9x16.mp4",
+          "02-episodios/ep06-chau-post-its_hook-b_4x5.mp4"
+        ]
+      },
+      "covers": {
+        "a": [
+          "02-episodios/ep06-chau-post-its_hook-a_9x16.jpg",
+          "02-episodios/ep06-chau-post-its_hook-a_4x5.jpg"
+        ],
+        "b": [
+          "02-episodios/ep06-chau-post-its_hook-b_9x16.jpg",
+          "02-episodios/ep06-chau-post-its_hook-b_4x5.jpg"
+        ]
+      },
+      "hooks": {
+        "a": "problem-first (la pregunta)",
+        "b": "result-first (el resultado, rewind)"
+      },
+      "caption": "¿Tus hábitos viven en post-its? 🟨\n\nEn GIZE los tenés en la lista del día, te avisa a la hora que elegiste y se reinicia sola cada día. ✅\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#habitos",
+        "#disciplina",
+        "#fitnessargentina"
+      ],
+      "ad": {
+        "a": {
+          "primary": "¿Tus hábitos viven en post-its? Una lista que te avisa y se reinicia sola cada día. GIZE, muy pronto para iPhone y Android.",
+          "headline": "Chau post-its"
+        },
+        "b": {
+          "primary": "5 de 5. Hoy, todo tachado. Tus hábitos con GIZE. Muy pronto, para iPhone y Android.",
+          "headline": "Chau post-its"
+        },
+        "objective": "ThruPlay / follows",
+        "cta": "Seguí @gize.app"
+      },
+      "stories": [
+        {
+          "file": "03-stories/ep06-chau-post-its_s1-gancho.mp4",
+          "sticker": {
+            "type": "poll",
+            "prompt": "¿Post-its o memoria?",
+            "options": "Post-its 🟨 / Memoria 🧠"
+          }
+        },
+        {
+          "file": "03-stories/ep06-chau-post-its_s2-demo.mp4",
+          "sticker": {
+            "type": "slider",
+            "prompt": "¿Cuántos hábitos cumpliste hoy?",
+            "options": "✅"
+          }
+        },
+        {
+          "file": "03-stories/ep06-chau-post-its_s3-cierre.mp4",
+          "sticker": {
+            "type": "question",
+            "prompt": "¿Qué le pedirías a GIZE?",
+            "options": ""
+          }
+        }
+      ]
+    },
+    {
+      "id": "ep07-chau-a-ojo",
+      "kind": "episodio",
+      "series": "CHAU ___",
+      "ep": "07",
+      "topic": "EL PROGRESO",
+      "phase": "hype",
+      "dur": 15,
+      "files": {
+        "a": [
+          "02-episodios/ep07-chau-a-ojo_hook-a_9x16.mp4",
+          "02-episodios/ep07-chau-a-ojo_hook-a_4x5.mp4"
+        ],
+        "b": [
+          "02-episodios/ep07-chau-a-ojo_hook-b_9x16.mp4",
+          "02-episodios/ep07-chau-a-ojo_hook-b_4x5.mp4"
+        ]
+      },
+      "covers": {
+        "a": [
+          "02-episodios/ep07-chau-a-ojo_hook-a_9x16.jpg",
+          "02-episodios/ep07-chau-a-ojo_hook-a_4x5.jpg"
+        ],
+        "b": [
+          "02-episodios/ep07-chau-a-ojo_hook-b_9x16.jpg",
+          "02-episodios/ep07-chau-a-ojo_hook-b_4x5.jpg"
+        ]
+      },
+      "hooks": {
+        "a": "problem-first (la pregunta)",
+        "b": "result-first (el resultado, rewind)"
+      },
+      "caption": "¿Tu progreso lo medís a ojo? 👀\n\nEn GIZE ves cuánto entrenás cada músculo por semana y cuánto subís en cada ejercicio, en tu gráfico. Ya no es a ojo. 📈\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#progreso",
+        "#sobrecargaprogresiva",
+        "#fitnessargentina"
+      ],
+      "ad": {
+        "a": {
+          "primary": "¿Tu progreso lo medís a ojo? Con GIZE ves cuánto subís en cada ejercicio. Muy pronto, para iPhone y Android.",
+          "headline": "Chau a ojo"
+        },
+        "b": {
+          "primary": "+7,5 kg en press. En 8 semanas. Tu progreso con datos en GIZE. Muy pronto, para iPhone y Android.",
+          "headline": "Chau a ojo"
+        },
+        "objective": "ThruPlay / follows",
+        "cta": "Seguí @gize.app"
+      },
+      "stories": [
+        {
+          "file": "03-stories/ep07-chau-a-ojo_s1-gancho.mp4",
+          "sticker": {
+            "type": "poll",
+            "prompt": "¿Cómo medís tu progreso?",
+            "options": "A ojo 👀 / Con datos 📈"
+          }
+        },
+        {
+          "file": "03-stories/ep07-chau-a-ojo_s2-demo.mp4",
+          "sticker": {
+            "type": "slider",
+            "prompt": "¿Cuánto subiste este mes?",
+            "options": "📈"
+          }
+        },
+        {
+          "file": "03-stories/ep07-chau-a-ojo_s3-cierre.mp4",
+          "sticker": {
+            "type": "question",
+            "prompt": "¿Qué le pedirías a GIZE?",
+            "options": ""
+          }
+        }
+      ]
+    },
+    {
+      "id": "ep08-chau-40-chats",
+      "kind": "episodio",
+      "series": "CHAU ___",
+      "ep": "08",
+      "topic": "EL COACH",
+      "phase": "hype",
+      "dur": 15,
+      "files": {
+        "a": [
+          "02-episodios/ep08-chau-40-chats_hook-a_9x16.mp4",
+          "02-episodios/ep08-chau-40-chats_hook-a_4x5.mp4"
+        ],
+        "b": [
+          "02-episodios/ep08-chau-40-chats_hook-b_9x16.mp4",
+          "02-episodios/ep08-chau-40-chats_hook-b_4x5.mp4"
+        ]
+      },
+      "covers": {
+        "a": [
+          "02-episodios/ep08-chau-40-chats_hook-a_9x16.jpg",
+          "02-episodios/ep08-chau-40-chats_hook-a_4x5.jpg"
+        ],
+        "b": [
+          "02-episodios/ep08-chau-40-chats_hook-b_9x16.jpg",
+          "02-episodios/ep08-chau-40-chats_hook-b_4x5.jpg"
+        ]
+      },
+      "hooks": {
+        "a": "problem-first (la pregunta)",
+        "b": "result-first (el resultado, rewind)"
+      },
+      "caption": "¿Tu coach se pierde entre 40 chats? 💬\n\nEn GIZE hablás con tu coach dentro de la app: mensajes, audios y su voz en cada ejercicio. 🎧\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#coach",
+        "#entrenadorpersonal",
+        "#fitnessargentina"
+      ],
+      "ad": {
+        "a": {
+          "primary": "¿Tu coach se pierde entre 40 chats? En GIZE, los mensajes y audios de tu coach, sin salir de la app. Muy pronto, para iPhone y Android.",
+          "headline": "Chau 40 chats"
+        },
+        "b": {
+          "primary": "El audio de tu coach. Sin buscarlo. Todo en GIZE. Muy pronto, para iPhone y Android.",
+          "headline": "Chau 40 chats"
+        },
+        "objective": "ThruPlay / follows",
+        "cta": "Seguí @gize.app"
+      },
+      "stories": [
+        {
+          "file": "03-stories/ep08-chau-40-chats_s1-gancho.mp4",
+          "sticker": {
+            "type": "poll",
+            "prompt": "¿Cuántos chats tenés sin leer?",
+            "options": "Menos de 10 / Más de 40 😵"
+          }
+        },
+        {
+          "file": "03-stories/ep08-chau-40-chats_s2-demo.mp4",
+          "sticker": {
+            "type": "slider",
+            "prompt": "¿Cuánto hablás con tu coach?",
+            "options": "💬"
+          }
+        },
+        {
+          "file": "03-stories/ep08-chau-40-chats_s3-cierre.mp4",
+          "sticker": {
+            "type": "question",
+            "prompt": "¿Qué le pedirías a GIZE?",
+            "options": ""
+          }
+        }
+      ]
+    },
+    {
+      "id": "ep01-chau-planilla",
+      "kind": "episodio",
+      "series": "CHAU ___",
+      "ep": "01",
+      "topic": "EL COACH",
+      "phase": "hype",
+      "dur": 15,
+      "audience": "coaches",
+      "files": {
+        "a": [
+          "04-muy-pronto/ep01-chau-planilla_9x16.mp4",
+          "04-muy-pronto/ep01-chau-planilla_4x5.mp4"
+        ]
+      },
+      "covers": {
+        "a": [
+          "04-muy-pronto/ep01-chau-planilla_9x16.jpg",
+          "04-muy-pronto/ep01-chau-planilla_4x5.jpg"
+        ]
+      },
+      "note": "The coach episode with the «Muy pronto» ending (the original with the free-trial ending stays in chau-planilla-01/). The 4:5 is a crop of the 9:16.",
+      "caption": "Si tus alumnos te mandan la rutina por WhatsApp, esto es para vos.\n\nArmás el plan en GIZE, ellos registran cada serie y vos ves el progreso con datos.\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔\n\nChau planilla · Ep. 01",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenadorpersonal",
+        "#coachonline",
+        "#coachfitness",
+        "#fitnessargentina"
+      ]
+    },
+    {
+      "id": "gize-reel",
+      "kind": "marca",
+      "phase": "hype",
+      "dur": 15,
+      "files": [
+        "04-muy-pronto/gize-reel_16x9.mp4"
+      ],
+      "covers": [
+        "04-muy-pronto/gize-reel_16x9.jpg"
+      ],
+      "note": "The 16:9 brand reel with the «Muy pronto / Seguí @gize.app» close, for YouTube and Google Ads. The vertical brand piece is the trailer.",
+      "caption": "Entrenar, correr, comer y cumplir tus hábitos, en una sola app. ⚡\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#fitnessargentina"
+      ]
+    },
+    {
+      "id": "trailer-30s",
+      "kind": "trailer",
+      "phase": "launch",
+      "dur": 30,
+      "files": {
+        "launch": [
+          "05-lanzamiento/trailer-30s_launch_9x16.mp4",
+          "05-lanzamiento/trailer-30s_launch_4x5.mp4",
+          "05-lanzamiento/trailer-30s_launch_16x9.mp4"
+        ],
+        "hype": [
+          "05-lanzamiento/trailer-30s_hype_9x16.mp4",
+          "05-lanzamiento/trailer-30s_hype_4x5.mp4",
+          "05-lanzamiento/trailer-30s_hype_16x9.mp4"
+        ]
+      },
+      "covers": {
+        "launch": [
+          "05-lanzamiento/trailer-30s_launch_9x16.jpg",
+          "05-lanzamiento/trailer-30s_launch_4x5.jpg",
+          "05-lanzamiento/trailer-30s_launch_16x9.jpg"
+        ],
+        "hype": [
+          "05-lanzamiento/trailer-30s_hype_9x16.jpg",
+          "05-lanzamiento/trailer-30s_hype_4x5.jpg",
+          "05-lanzamiento/trailer-30s_hype_16x9.jpg"
+        ]
+      },
+      "idea": "The six messes struck out on the beat, the drop into the G, six features («Cada serie, cada récord.»…), a fan of phones «Todo en una app.», then the ending. The «hype» version ends «Muy pronto» and can close the pre-launch.",
+      "caption": "Chau planilla. Chau notas del celu. Chau papelito. Chau 3 apps. Chau descanso eterno. Chau post-its.\n\nGIZE ya está disponible en App Store y Google Play. Descargala gratis. 📲",
+      "caption_hype": "Chau a todo eso. 👋\n\nGIZE: tu entrenamiento, completo.\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#running",
+        "#fitnessargentina"
+      ],
+      "ad": {
+        "launch": {
+          "primary": "Series, cardio con GPS, descansos, comida, hábitos y tu coach. Todo en una app. GIZE ya está disponible: descargala gratis.",
+          "headline": "GIZE ya está disponible",
+          "cta": "Descargar"
+        },
+        "hype": {
+          "primary": "Chau a todo eso. Tu entrenamiento, completo, en una app. Muy pronto, para iPhone y Android.",
+          "headline": "Muy pronto",
+          "cta": "Seguí @gize.app"
+        }
+      }
     }
-  ]
+  ],
+  "launch_endings": {
+    "_about": "Every episode, Ep. 01 and the brand reel re-rendered with the «Ya está disponible / en App Store y Google Play / Descargala gratis» ending, for launch week. Same names with _ya-disponible.",
+    "dir": "06-lanzamiento-finales"
+  },
+  "overlays": {
+    "_about": "Overlays for real footage (9:16): _verde.mp4 green screen for CapCut/InShot chroma key, .webm with transparency, .png still. ProRes 4444 with alpha on demand: node overlays/build.mjs --prores",
+    "dir": "07-overlays"
+  }
 }

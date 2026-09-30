@@ -28,7 +28,7 @@ export function navIcon(c,k,x,y,col){c.strokeStyle=col;c.fillStyle=col;c.lineWid
 export const TABS=['Entreno','Hábitos','Cardio','Comida','Progreso','Ajustes'];
 export function bottomNav(c,active=0){c.fillStyle='rgba(6,9,17,0.92)';c.fillRect(0,772,PW,72);c.fillStyle=C.border;c.fillRect(0,772,PW,1);
   TABS.forEach((l,i)=>{const x=32.5+i*65,on=i===active,col=on?'#fff':C.text2;navIcon(c,i,x,796,col);txt(c,l,x,826,600,11,col,'center');if(on){c.fillStyle=C.blue;c.fillRect(x-13,776,26,2);}});}
-export function appHeader(c,{coach='Martina',streak=5}={}){statusBar(c);drawFirma(c,18,54,0.34,{wordmark:false});
+export function appHeader(c,{coach='Martina',streak=5,time='18:42'}={}){statusBar(c,time);drawFirma(c,18,54,0.34,{wordmark:false});
   if(coach){txt(c,coach,292,74,700,14,'#fff','right');txt(c,'TU COACH',292,88,700,9.5,C.text2,'right',1.2);
     c.fillStyle=C.surface2;c.beginPath();c.arc(318,76,18,0,7);c.fill();c.strokeStyle=rgbRing(c,318,76,0);c.lineWidth=2;c.stroke();c.strokeStyle='#fff';c.lineWidth=1.6;rr(c,310,69,16,12,4);c.stroke();}
   c.fillStyle=C.surface2;rr(c,342,62,40,28,14);c.fill();txt(c,`🔥${streak}`,362,81,700,13,'#fff','center');}
