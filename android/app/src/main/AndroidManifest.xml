@@ -45,6 +45,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Escáner de códigos de barras, foto de un producto y foto de perfil -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Notificaciones (avisos del coach y fin de descanso): desde Android 13 hay que declararlo para poder pedirle el permiso al usuario. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Aviso de fin de descanso a horario exacto (si el usuario lo permite; si no, Android lo manda apenas puede). -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
