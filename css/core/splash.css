@@ -131,7 +131,8 @@ html.lite #splash.sp-anim .sp-icon, html.lite #splash.sp-anim .splash-txt { anim
 
 /* Apariencia «Oscuro» (la de siempre): el mismo ícono con los colores de la marca de siempre
    (brand/tokens.css): círculos azul, violeta, turquesa y rosa sobre negro, y la G blanca con el
-   punto azul, como el logo. «Claro» usa los de arriba (azul, violeta, cian e índigo, punto blanco). */
+   punto azul, como el logo. «Claro» usa los de arriba (azul, violeta, cian e índigo, punto blanco).
+   «Rosa» pisa los círculos con los suyos en css/ui/tema-rosa.css (punto blanco, como «Claro»). */
 html:not(.tema-claro) .sp-1 { background: linear-gradient(135deg, #6BBCFF, #2FA0FF); }
 html:not(.tema-claro) .sp-2 { background: linear-gradient(135deg, #C08BFF, #A65CFF); }
 html:not(.tema-claro) .sp-3 { background: linear-gradient(135deg, #5CF0D9, #25E8C8); }

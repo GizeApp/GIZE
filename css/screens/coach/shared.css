@@ -201,7 +201,7 @@ a.cs-q-btn { text-decoration:none; } /* link a la política de privacidad, con l
 .nt-msg-meta .warn { color:var(--gize-warning); }
 @media (prefers-reduced-motion: reduce) { .nt-dot { animation:none; } }
 .cs-notif.on { border-color:color-mix(in srgb, var(--green) 45%, transparent); color:var(--green); }
-/* Apariencia (Oscuro / Claro): dos .cp-copt lado a lado; la elegida, como las opciones
+/* Apariencia (Oscuro / Claro / Rosa): tres .cp-copt lado a lado; la elegida, como las opciones
    elegidas de la capa de botones (.ap-radio.on en css/ui/botones-rediseno.css). body:not(#_)
    para ganarle a esa capa, que carga después. */
 .cs-tema { display:flex; gap:6px; }

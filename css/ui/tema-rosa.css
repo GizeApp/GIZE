@@ -1,0 +1,103 @@
+/* css/ui/tema-rosa.css
+   Apariencia «Rosa» (html.tema-rosa): el mismo vidrio esmerilado de «Claro», con la paleta
+   rosa. Fondo ciruela casi negro con círculos grandes rosa fuerte, rubor, orquídea y un vino
+   profundo (el equivalente al índigo de «Claro»), la gama de neón de rosa a orquídea y rubor
+   (nada de azul ni cian) y la G toda blanca.
+   Cómo funciona: con «Rosa» app/lite.js pone html.tema-claro Y html.tema-rosa (ver
+   app/ui/tema.js), así todas las reglas del vidrio de css/ui/tema-claro.css se aplican igual;
+   este archivo se carga justo después y solo cambia colores: los tokens y las pocas reglas de
+   «Claro» que tienen el marino o el azul escritos a mano. Mismo peso que la regla de «Claro»
+   que pisa, gana por venir después. Sin html.tema-rosa no cambia nada: TODO va bajo
+   html.tema-rosa.
+   Quedan igual que en «Claro» los colores que no son decoración: el rojo de borrar y de
+   alerta, el ámbar de aviso y el dorado de los récords. «Completado» usa, como en «Claro»,
+   un color de la gama (la orquídea clara, que no se confunde con el rojo).
+   Neón apagado (html.sin-neon, css/ui/sin-neon.css, que se carga después): lo suyo va al
+   final con un html.tema-claro.tema-rosa.sin-neon, que le gana por peso. */
+
+/* ---------- Tokens ---------- */
+html.tema-rosa {
+  /* base: ciruela casi negra, con superficies de vidrio esmerilado encima */
+  --gize-bg: #14060F;
+  --gize-surface: #2A1023;     /* vidrio "sólido": donde el borde de neón necesita un fondo opaco */
+  --gize-surface-2: #33162B;   /* campos, pestañas */
+  --gize-text-2: #E8D0DC;      /* gris rosado claro (se lee sobre el vidrio aunque pase un círculo detrás) */
+
+  /* vidrio: el mismo blanco translúcido de «Claro», sobre un velo ciruela (tinte rosa leve) */
+  --gize-glass: linear-gradient(160deg, rgba(255,255,255,.19), rgba(255,255,255,.11) 38%, rgba(255,255,255,.12)) rgba(36,8,28,.32);
+  --gize-glass-hi: linear-gradient(160deg, rgba(255,255,255,.24), rgba(255,255,255,.15) 38%, rgba(255,255,255,.16)) rgba(36,8,28,.32);
+  --gize-glass-sheet: linear-gradient(160deg, rgba(255,255,255,.17), rgba(255,255,255,.10) 38%, rgba(255,255,255,.11)) rgba(36,9,28,.55);
+
+  /* marca: rosa (foco, acción, enlaces; más claro que el neón para leerse sobre el vidrio) */
+  --gize-blue: #FF7DB8;
+  --gize-blue-deep: #E0357F;
+
+  /* gama de neón: rosa fuerte, orquídea, rubor y magenta */
+  --gize-r1: #FF5FA8;
+  --gize-r2: #D65CF5;
+  --gize-r3: #FFA3C8;
+  --gize-r4: #E84DBE;
+  /* círculos grandes del fondo: rosa fuerte, orquídea, rubor y vino profundo */
+  --gize-orbs:
+    radial-gradient(62vmax 62vmax at 0% 0%, rgba(255,95,168,.40), rgba(240,54,138,.22) 42%, transparent 70%),
+    radial-gradient(52vmax 52vmax at 104% 20%, rgba(214,92,245,.42), rgba(168,59,224,.23) 42%, transparent 70%),
+    radial-gradient(64vmax 64vmax at 100% 104%, rgba(255,163,200,.27), rgba(255,125,176,.14) 42%, transparent 70%),
+    radial-gradient(50vmax 50vmax at -4% 78%, rgba(122,23,71,.72), rgba(90,15,53,.28) 45%, transparent 70%);
+
+  /* semánticos: «completado» con la orquídea clara de la gama */
+  --gize-success: #E596FF;
+  --gize-success-bg: rgba(229,150,255,.12);
+}
+
+/* ---------- Brillos y velos que «Claro» tiene escritos en azul o marino ---------- */
+html.tema-rosa .gize-input:focus { box-shadow: 0 0 0 3px rgba(255,95,168,.22); }
+html.tema-rosa .sheet-bg { background: rgba(20,6,15,.55); }
+html.tema-rosa .cp-bg { background: rgba(20,6,15,.65); }
+html.tema-rosa .tpick-bg { background: rgba(20,6,15,.6); }
+html.tema-rosa .fb-bg { background: rgba(20,6,15,.78); }
+html.tema-rosa #streakHost .stk-bg { background: rgba(20,6,15,.6); }
+html.tema-rosa .crp { background: rgba(20,6,15,.78); }
+html.tema-rosa .upd-forzada { background: rgba(20,6,15,.72); }
+html.tema-rosa .upd-card { background: rgba(40,12,31,.9); }
+html.tema-rosa body.silk-coach :is(.co-note, .co-search, .co-dayname, .ml-in, .opt-body):focus { background: rgba(40,12,31,.9); }
+html.tema-rosa body:not(#_) .navbar { background: linear-gradient(rgba(255,255,255,.10), rgba(255,255,255,.06)) rgba(36,8,28,.5); }
+html.tema-rosa .plan-tabs { background: rgba(40,12,31,.86); }
+
+/* Llama de la racha (app/ui/racha.js): orquídea por fuera y rosa por dentro. */
+html.tema-rosa .flame linearGradient[id$="o"] stop:nth-child(1) { stop-color: #F4D0FF; }
+html.tema-rosa .flame linearGradient[id$="o"] stop:nth-child(2) { stop-color: #D65CF5; }
+html.tema-rosa .flame linearGradient[id$="o"] stop:nth-child(3) { stop-color: #A83BE0; }
+html.tema-rosa .flame linearGradient[id$="i"] stop:nth-child(2) { stop-color: #FFD3E6; }
+html.tema-rosa .flame linearGradient[id$="i"] stop:nth-child(3) { stop-color: #FF5FA8; }
+
+/* ---------- Splash: el ícono de vidrio con los círculos rosa (css/core/splash.css) ----------
+   Mismas piezas y tiempos; la G y el punto blancos, como en «Claro». */
+html.tema-rosa .sp-1 { background: linear-gradient(135deg, #FF6FB2, #F0368A); }
+html.tema-rosa .sp-2 { background: linear-gradient(135deg, #D65CF5, #A83BE0); }
+html.tema-rosa .sp-3 { background: linear-gradient(135deg, #FFA3C8, #FF7DB0); }
+html.tema-rosa .sp-4 { background: linear-gradient(135deg, #7A1747, #5A0F35); }
+html.tema-rosa .sp-glass { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 24px 50px -20px rgba(20,6,15,.7); }
+
+/* ---------- Modo liviano con «Rosa» (html.lite.tema-rosa) ----------
+   Igual que el liviano de «Claro» (sin backdrop-filter, vidrio casi sólido), en ciruela. */
+html.lite.tema-rosa {
+  --gize-glass: linear-gradient(160deg, rgba(255,255,255,.13), rgba(255,255,255,.07) 38%, rgba(255,255,255,.08)) rgb(40,15,33);
+  --gize-glass-hi: linear-gradient(160deg, rgba(255,255,255,.17), rgba(255,255,255,.10) 38%, rgba(255,255,255,.11)) rgb(40,15,33);
+  --gize-glass-sheet: linear-gradient(160deg, rgba(255,255,255,.12), rgba(255,255,255,.06)) rgb(36,12,29);
+}
+html.lite.tema-rosa body:not(#_) .navbar { background: rgb(29,9,23); }
+html.lite.tema-rosa body:not(#_) :is(.sheet, .auth-card), html.lite.tema-rosa body.silk-coach :is(.cp-modal, .cp-ccard) {
+  background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.03)) rgb(32,10,26); }
+
+/* ---------- Neón apagado con «Rosa» (html.sin-neon) ----------
+   Como «Claro» sin neón (blancos y grises, ver css/ui/sin-neon.css), con los círculos del
+   fondo apagados en un rosado sin saturación y los colores de grupo muscular del coach en la
+   paleta rosa (identifican, no decoran). */
+html.tema-claro.tema-rosa.sin-neon {
+  --purple: #D65CF5; --pink: #FF5FA8; --cyan: #FFA3C8;
+  --gize-orbs:
+    radial-gradient(62vmax 62vmax at 0% 0%, rgba(196,158,178,.24), rgba(160,118,140,.11) 42%, transparent 70%),
+    radial-gradient(52vmax 52vmax at 104% 20%, rgba(190,170,190,.17), rgba(140,120,140,.08) 42%, transparent 70%),
+    radial-gradient(64vmax 64vmax at 100% 104%, rgba(200,168,184,.19), rgba(150,118,136,.08) 42%, transparent 70%),
+    radial-gradient(50vmax 50vmax at -4% 78%, rgba(78,28,56,.55), rgba(78,28,56,.2) 45%, transparent 70%);
+}

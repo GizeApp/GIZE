@@ -11,19 +11,24 @@
   } catch (e) {}
 })();
 
-// Apariencia: «Oscuro» (la de siempre, por defecto) o «Claro» (vidrio sobre círculos de color,
-// css/ui/tema-claro.css). Se elige en Ajustes (cliente) o en Configuración (coach) y se guarda
-// en este dispositivo ("gize_tema" = "claro"; ver app/ui/tema.js). Va acá, igual que el modo
-// liviano, para que la primera pintada (y el splash) ya salgan con la apariencia elegida.
+// Apariencia: «Oscuro» (la de siempre, por defecto), «Claro» (vidrio sobre círculos de color,
+// css/ui/tema-claro.css) o «Rosa» (el mismo vidrio con la paleta rosa: html.tema-claro +
+// html.tema-rosa, css/ui/tema-rosa.css). Se elige en Ajustes (cliente) o en Configuración
+// (coach) y se guarda en este dispositivo ("gize_tema" = "claro" o "rosa"; ver app/ui/tema.js).
+// Va acá, igual que el modo liviano, para que la primera pintada (y el splash) ya salgan con la
+// apariencia elegida.
 (function () {
   try {
-    if (localStorage.getItem("gize_tema") !== "claro") return;
-    document.documentElement.classList.add("tema-claro");
-    // La barra del sistema (Android) con el marino del fondo: los <meta> vienen después de este script.
+    var t = localStorage.getItem("gize_tema");
+    if (t !== "claro" && t !== "rosa") return;
+    var c = document.documentElement.classList;
+    c.add("tema-claro");
+    if (t === "rosa") c.add("tema-rosa");
+    // La barra del sistema (Android) con el color del fondo: los <meta> vienen después de este script.
     document.addEventListener("DOMContentLoaded", function () {
-      if (!document.documentElement.classList.contains("tema-claro")) return;
+      if (!c.contains("tema-claro")) return;
       var m = document.querySelectorAll('meta[name="theme-color"]');
-      for (var i = 0; i < m.length; i++) m[i].setAttribute("content", "#030814");
+      for (var i = 0; i < m.length; i++) m[i].setAttribute("content", c.contains("tema-rosa") ? "#14060F" : "#030814");
     });
   } catch (e) {}
 })();

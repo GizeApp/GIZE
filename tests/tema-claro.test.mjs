@@ -67,7 +67,7 @@ export default async function ({ base, t }){
   let l = await look(pg.p);
   t.eq({ body: l.body, card: l.card, cardFill: l.cardFill, blur: l.blur, logo: l.logo, ring: l.ring, nav: l.nav }, OSCURO, 'por defecto: fondo, caja de sección, anillo de neón, logo y barra iguales a los de siempre');
   t.eq(l.on, ['oscuro'], 'Ajustes: «Oscuro» elegido por defecto');
-  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('.cfg-seg [data-tema]')].map(b => b.textContent)), ['Oscuro', 'Claro'], 'Ajustes: el selector Apariencia con Oscuro y Claro');
+  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('.cfg-seg [data-tema]')].map(b => b.textContent)), ['Oscuro', 'Claro', 'Rosa'], 'Ajustes: el selector Apariencia con Oscuro, Claro y Rosa');
 
   // 2) «Claro»: se aplica al toque, sin recargar.
   await pg.p.evaluate(() => { window.__sinRecargar = 1; });
@@ -142,7 +142,7 @@ export default async function ({ base, t }){
   pg = await newPage({ user: COACH, handlers: COACH_H, init: () => localStorage.setItem('gize_lite', '0') });
   await pg.p.goto(base + '/app/'); await wait(3000);
   await pg.p.click('[data-coach="open-settings"]'); await wait(500);
-  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('#coachSheetHost .cs-tema [data-tema]')].map(b => b.textContent + (b.classList.contains('on') ? '*' : ''))), ['Oscuro*', 'Claro'], 'coach: Apariencia con Oscuro (elegido) y Claro');
+  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('#coachSheetHost .cs-tema [data-tema]')].map(b => b.textContent + (b.classList.contains('on') ? '*' : ''))), ['Oscuro*', 'Claro', 'Rosa'], 'coach: Apariencia con Oscuro (elegido), Claro y Rosa');
   const bodyCoach = () => pg.p.evaluate(() => [document.documentElement.classList.contains('tema-claro'), getComputedStyle(document.body).backgroundColor, localStorage.getItem('gize_tema')]);
   t.eq(await bodyCoach(), [false, 'rgb(0, 0, 0)', null], 'coach: por defecto el look de siempre');
   await pg.p.click('#coachSheetHost [data-tema="claro"]'); await wait(150);

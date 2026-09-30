@@ -122,7 +122,7 @@
 
 .cfg-switch.on .cfg-switch-knob { background:var(--gize-bg); transform:translateX(18px); }
 
-/* Selector de dos opciones (Apariencia: Oscuro / Claro): la misma pastilla que el switch,
+/* Selector de opciones (Apariencia: Oscuro / Claro / Rosa): la misma pastilla que el switch,
      con la opción elegida pintada como el switch prendido. */
 .cfg-seg { flex-shrink:0; display:flex; gap:2px; padding:2px; border-radius:20px;
     background:var(--card-2); border:1px solid var(--border); }
@@ -132,6 +132,14 @@
     transition:background .18s ease, color .18s ease; }
 
 .cfg-seg-opt.on { background:var(--green); color:var(--gize-bg); }
+
+/* Apariencia: el selector baja a su propio renglón, alineado con el texto (debajo del ícono
+     no), y las tres opciones se reparten el ancho. Así entra igual en 320 px. */
+.cfg-tema-row { flex-wrap:wrap; row-gap:12px; }
+
+.cfg-tema-row .cfg-seg { flex:none; width:calc(100% - 48px); margin-left:48px; }
+
+.cfg-tema-row .cfg-seg-opt { flex:1; padding:6px 8px; }
 
 @media (prefers-reduced-motion: reduce) {
     .cfg-switch, .cfg-switch-knob, .cfg-seg-opt { transition:none; }
