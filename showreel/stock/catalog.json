@@ -895,6 +895,30 @@
         "#fitness",
         "#fitnessargentina"
       ]
+    },
+    {
+      "id": "gize-segui-la-linea",
+      "kind": "motion",
+      "phase": "hype",
+      "dur": 18.3,
+      "title": "Seguí la línea",
+      "files": [
+        "11-linea/gize-segui-la-linea_9x16.mp4"
+      ],
+      "covers": [
+        "11-linea/gize-segui-la-linea_9x16.jpg"
+      ],
+      "idea": "One continuous line, followed by the camera, draws the app one piece at a time: a dumbbell, the load chart with its record, the rest ring, a GPS route, a fork and plate, three habit checks, the coach's bubble. The camera pulls back while the same line draws the phone around all of it (the first dot was its camera), a pulse runs the whole line, and it winds into the G. Loops seamlessly.",
+      "caption": "Seguí la línea. 👀\nTus series, tus récords, tus descansos, tus kilómetros, tu comida, tus hábitos y tu coach.\n\nTodo conectado, en una sola app.\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#fitnessargentina",
+        "#running"
+      ]
     }
   ],
   "launch_endings": {

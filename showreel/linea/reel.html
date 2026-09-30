@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Seguí la línea</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* GIZE — SEGUÍ LA LÍNEA · 17.9 s, 128 BPM, 9:16 (and 4:5 via ?fmt=), ?cta=hype|launch.
+   One continuous line, with the camera riding along behind the pen, draws the whole app one piece at a time:
+   a dumbbell (series), the load chart and its record, the rest ring counting down, a GPS route through the
+   streets, a fork and a plate, three habit checks, the coach's bubble. Then the camera pulls back while the
+   same line races round everything and draws the phone — the dot it started from was the phone's camera.
+   A pulse of light runs the whole line from end to end, and the line unwinds into the G.
+   Everything lives in one world (a polyline sampled every 2.4 units); the pen's position is a keyframed
+   arc length, the camera a smoothed follow of it, so any frame renders on its own. */
+import {C,RGB,E,clamp,lerp,prog,glow,rr,txt,tw,F,hash,createReel,rgba,mixc,riseWords,LOGO,gamaAt,keys} from '../lib/engine.js';
+import {endcard,endcardBg,endcardCues,endcardGeom} from '../lib/endcard.js';
+
+const BPM=128,BT=60/BPM,bt=n=>n*BT;
+const TL={go:bt(2),db:bt(3),dbE:bt(5.5),ch:bt(6),pk:bt(8),ri:bt(9),riE:bt(11),ro:bt(11.5),roE:bt(14),fk:bt(14.5),plE:bt(17.5),hb:bt(18),bu:bt(21),buE:bt(22.5),rev:bt(23),ph:bt(23.5),close:bt(27),end:bt(31)};
+TL.morph=TL.end-0.9;TL.pulseE=TL.close+0.85;
+const DUR=+(TL.end+3.75).toFixed(2);
+const TAU=Math.PI*2;
+
+/* ---------------- the world: one line ---------------- */
+const DOT=[540,245],PHONE={x0:150,y0:170,x1:930,y1:1750,r:120},PC=[540,960];
+const DB=[345,500],RING={x:740,y:875,r:92},PLATE={x:345,y:1220,r0:88,r1:62},BUB={x0:380,y0:1440,x1:720,y1:1580,r:38};
+const CHART={x0:610,x1:870,yb:590,h:200,v:[0.05,0.18,0.14,0.32,0.27,0.48,0.44,0.66,0.6,0.97]};
+const BOXES=[0,1,2].map(i=>({x:647,y:1147+70*i})),HAB=['Tomar 2 L de agua','Creatina','Estirar 10 min'];
+const MAP={x0:190,y0:742,x1:600,y1:998};
+
+const X=[],Y=[],MI={};let px=0,py=0;const ST=2.4;
+const push=(x,y)=>{X.push(x);Y.push(y);px=x;py=y;};
+const mark=n=>{MI[n]=X.length-1;};
+function to(x,y){const x0=px,y0=py,n=Math.max(1,Math.ceil(Math.hypot(x-x0,y-y0)/ST));for(let i=1;i<=n;i++)push(x0+(x-x0)*i/n,y0+(y-y0)*i/n);}
+function bez(x1,y1,x2,y2,x,y){const x0=px,y0=py,n=Math.max(2,Math.ceil((Math.hypot(x1-x0,y1-y0)+Math.hypot(x2-x1,y2-y1)+Math.hypot(x-x2,y-y2))/ST));
+  for(let i=1;i<=n;i++){const u=i/n,v=1-u;push(v*v*v*x0+3*v*v*u*x1+3*v*u*u*x2+u*u*u*x,v*v*v*y0+3*v*v*u*y1+3*v*u*u*y2+u*u*u*y);}}
+function quad(x1,y1,x,y){const x0=px,y0=py,n=Math.max(2,Math.ceil((Math.hypot(x1-x0,y1-y0)+Math.hypot(x-x1,y-y1))/ST));for(let i=1;i<=n;i++){const u=i/n,v=1-u;push(v*v*x0+2*v*u*x1+u*u*x,v*v*y0+2*v*u*y1+u*u*y);}}
+function arc(cx,cy,r,a0,a1){const n=Math.max(2,Math.ceil(Math.abs(a1-a0)*r/ST));for(let i=1;i<=n;i++){const a=a0+(a1-a0)*i/n;push(cx+r*Math.cos(a),cy+r*Math.sin(a));}}
+function spiral(cx,cy,r0,r1,a0,a1){const n=Math.max(2,Math.ceil(Math.abs(a1-a0)*Math.max(r0,r1)/ST));for(let i=1;i<=n;i++){const u=i/n,a=a0+(a1-a0)*u,r=r0+(r1-r0)*u;push(cx+r*Math.cos(a),cy+r*Math.sin(a));}}
+// a polyline from the pen (P[0]) through P[1..], every inner corner rounded with radius r
+function poly(P,r){for(let i=1;i<P.length;i++){const V=P[i];if(i===P.length-1){to(V[0],V[1]);break;}const A=P[i-1],N=P[i+1],dA=Math.hypot(V[0]-A[0],V[1]-A[1]),dN=Math.hypot(N[0]-V[0],N[1]-V[1]),q=Math.min(r,dA/2,dN/2);
+  to(V[0]+(A[0]-V[0])*q/dA,V[1]+(A[1]-V[1])*q/dA);quad(V[0],V[1],V[0]+(N[0]-V[0])*q/dN,V[1]+(N[1]-V[1])*q/dN);}}
+
+push(DOT[0],DOT[1]);mark('s0');
+// dumbbell: in from above onto the right end cap, then the silhouette clockwise
+bez(545,330,465,420,465,500);mark('db0');
+const DBR=[[120,0],[120,13],[106,13],[106,46],[86,46],[86,62],[58,62],[58,9],[-58,9],[-58,62],[-86,62],[-86,46],[-106,46],[-106,13],[-120,13],[-120,-13],[-106,-13],[-106,-46],[-86,-46],[-86,-62],[-58,-62],[-58,-9],[58,-9],[58,-62],[86,-62],[86,-46],[106,-46],[106,-13],[120,-13],[120,0]];
+poly(DBR.map(([x,y])=>[DB[0]+x,DB[1]+y]),6);mark('db1');
+// the load chart, climbing to the record
+const CP=CHART.v.map((v,k)=>[CHART.x0+k*(CHART.x1-CHART.x0)/(CHART.v.length-1),CHART.yb-v*CHART.h]);
+bez(465,560,560,600,CP[0][0],CP[0][1]);mark('ch0');MI.cp0=MI.ch0;
+for(let k=0;k<CP.length-1;k++){const p0=CP[Math.max(0,k-1)],p1=CP[k],p2=CP[k+1],p3=CP[Math.min(CP.length-1,k+2)];
+  bez(p1[0]+(p2[0]-p0[0])/6,p1[1]+(p2[1]-p0[1])/6,p2[0]-(p3[0]-p1[0])/6,p2[1]-(p3[1]-p1[1])/6,p2[0],p2[1]);mark('cp'+(k+1));}
+MI.pk=MI.cp9;
+// out over the top and down into the rest ring: one and a quarter turns
+bez(915,330,860,RING.y-RING.r,RING.x,RING.y-RING.r);mark('ri0');
+arc(RING.x,RING.y,RING.r,-Math.PI/2,-Math.PI/2-2.5*Math.PI);mark('ri1');
+// the run: through the streets, then a curve through the park
+bez(RING.x-RING.r,900,630,915,600,915);mark('ro0');
+poly([[600,915],[470,915],[470,790],[360,790],[360,915]],22);bez(360,965,300,935,262,975);mark('ro1');
+// fork and plate
+bez(235,1005,200,1050,200,1140);mark('fk0');
+poly([[200,1140],[200,1188],[228,1188],[228,1140]],14);to(214,1140);to(214,1300);
+bez(214,1325,300,PLATE.y+PLATE.r0,PLATE.x,PLATE.y+PLATE.r0);mark('pl0');
+arc(PLATE.x,PLATE.y,PLATE.r0,Math.PI/2,Math.PI/2-TAU);spiral(PLATE.x,PLATE.y,PLATE.r0,PLATE.r1,-1.5*Math.PI,-TAU);arc(PLATE.x,PLATE.y,PLATE.r1,-TAU,-2*TAU);mark('pl1');
+// three habit checks, joined by loops that pass between the boxes
+bez(407,1160,590,1120,635,1148);mark('hb0');
+for(let i=0;i<3;i++){const o=70*i;to(645,1158+o);to(672,1126+o);mark('hb'+(2*i+1));
+  if(i<2){bez(686,1110+o,700,1150+o,675,1180+o);bez(650,1190+o,612,1190+o,635,1218+o);mark('hb'+(2*i+2));}}
+// the coach's bubble (clockwise from the right edge), tail bottom-left
+bez(684,1250,688,1330,705,1400);bez(715,1430,720,1450,BUB.x1,1480);mark('bu0');
+{const b=BUB;to(b.x1,b.y1-b.r);arc(b.x1-b.r,b.y1-b.r,b.r,0,Math.PI/2);to(470,b.y1);to(428,b.y1+36);to(446,b.y1);to(b.x0+b.r,b.y1);arc(b.x0+b.r,b.y1-b.r,b.r,Math.PI/2,Math.PI);
+  to(b.x0,b.y0+b.r);arc(b.x0+b.r,b.y0+b.r,b.r,Math.PI,1.5*Math.PI);to(b.x1-b.r,b.y0);arc(b.x1-b.r,b.y0+b.r,b.r,1.5*Math.PI,TAU);to(b.x1,1480);}mark('bu1');
+// and the phone, all the way round
+bez(724,1540,780,PHONE.y1,840,PHONE.y1);mark('ph0');
+{const{x0,y0,x1,y1,r}=PHONE;to(x1-r,y1);arc(x1-r,y1-r,r,Math.PI/2,0);to(x1,y0+r);arc(x1-r,y0+r,r,0,-Math.PI/2);to(x0+r,y0);arc(x0+r,y0+r,r,-Math.PI/2,-Math.PI);to(x0,y1-r);arc(x0+r,y1-r,r,-Math.PI,-1.5*Math.PI);to(840,y1);}mark('ph1');
+
+const NP=X.length,S=new Float32Array(NP);for(let i=1;i<NP;i++)S[i]=S[i-1]+Math.hypot(X[i]-X[i-1],Y[i]-Y[i-1]);
+const STOT=S[NP-1],SM=Object.fromEntries(Object.entries(MI).map(([k,i])=>[k,S[i]]));
+function idxAt(s){let lo=0,hi=NP-1;while(hi-lo>1){const m=(lo+hi)>>1;S[m]<=s?lo=m:hi=m;}return lo;}
+function ptAt(s){s=clamp(s,0,STOT);const i=idxAt(s),j=Math.min(NP-1,i+1),f=S[j]>S[i]?(s-S[i])/(S[j]-S[i]):0;return{x:X[i]+(X[j]-X[i])*f,y:Y[i]+(Y[j]-Y[i])*f,i,f};}
+const tri=x=>{x=((x%2)+2)%2;return x<1?x:2-x;};
+const colAt=s=>gamaAt(tri(s/1700));
+
+/* ---------------- the pen: keyframed arc length, box-smoothed ---------------- */
+const KF=[[0,0],[TL.go,0],[TL.db,SM.db0],[TL.dbE,SM.db1],[TL.ch,SM.ch0],[TL.pk,SM.pk],[TL.ri,SM.ri0],[TL.riE,SM.ri1],[TL.ro,SM.ro0],[TL.roE,SM.ro1],[TL.fk,SM.fk0],[TL.plE,SM.pl1],
+  [TL.hb,SM.hb0],[bt(18.5),SM.hb1],[bt(19),SM.hb2],[bt(19.5),SM.hb3],[bt(20),SM.hb4],[bt(20.5),SM.hb5],[TL.bu,SM.bu0],[TL.buE,SM.bu1],[TL.ph,SM.ph0],[TL.close,SM.ph1]];
+const sRaw=t=>keys(t,KF);
+function sAt(t){let a=0;for(let k=-4;k<=4;k++)a+=sRaw(t+k*0.018);return a/9;}
+function tAt(sv){let lo=0,hi=TL.close+0.3;for(let q=0;q<40;q++){const m=(lo+hi)/2;sAt(m)<sv?lo=m:hi=m;}return hi;}
+const TM=Object.fromEntries(Object.entries(SM).map(([k,s])=>[k,tAt(s)]));
+TM.ringDone=tAt(SM.ri0+TAU*RING.r);
+const KM=[1,2,3,4].map(k=>{const s=SM.ro0+(SM.ro1-SM.ro0)*k/5.2;return{s,t:tAt(s),p:ptAt(s)};});
+const pen=t=>ptAt(sAt(t));
+
+/* ---------------- the camera ---------------- */
+const CAMK=[[0,DOT],[TL.go+0.1,DOT],[TL.db-0.05,DB],[TL.dbE-0.12,DB],[TL.ch+0.1,[740,490]],[TL.pk-0.05,[745,490]],[TL.ri+0.08,[740,875]],[TL.riE-0.12,[740,875]],[TL.ro+0.15,[395,870]],[TL.roE-0.12,[395,875]],
+  [TL.fk+0.3,[320,1220]],[TL.plE-0.12,[345,1220]],[TL.hb+0.1,[745,1205]],[bt(20.4),[745,1215]],[TL.bu+0.1,[550,1510]],[TL.rev+1,[550,1510]]];
+function camK(t){if(t<=CAMK[0][0])return CAMK[0][1];for(let i=1;i<CAMK.length;i++)if(t<CAMK[i][0]){const a=CAMK[i-1],b=CAMK[i],e=E.inOutSine((t-a[0])/(b[0]-a[0]));return[lerp(a[1][0],b[1][0],e),lerp(a[1][1],b[1][1],e)];}return CAMK[CAMK.length-1][1];}
+const ZK=[[0,3.5],[TL.go,3.1],[TL.db,2.35],[TL.riE,2.35],[TL.ro+0.1,1.95],[TL.roE,1.95],[TL.fk+0.25,2.25],[bt(20.6),2.25],[TL.bu+0.1,2.0],[TL.rev+1,2.0]];
+const zK=t=>Math.exp(keys(t,ZK.map(([a,z])=>[a,Math.log(z)])));
+function camRaw(t){const k=camK(t),p=pen(t);return[k[0]+0.28*(p.x-k[0]),k[1]+0.28*(p.y-k[1])];}
+function camFollow(t){let x=0,y=0;for(let k=0;k<8;k++){const c=camRaw(t-k*0.025);x+=c[0];y+=c[1];}return[x/8,y/8];}
+function fit(L){if(L.fmt==='4x5'){const top=190,bot=1325;return{z:(bot-top)/(PHONE.y1-PHONE.y0),cy:(top+bot)/2};}const top=385,bot=1605;return{z:(bot-top)/(PHONE.y1-PHONE.y0),cy:(top+bot)/2};}
+const revAt=t=>E.inOutCubic(prog(t,TL.rev,TL.rev+bt(2.6)));
+function camera(t,L){const rv=revAt(t),fl=camFollow(t),FT=fit(L),fy0=L.fmt==='4x5'?L.H*0.56:L.H*0.54;
+  const z=Math.exp(lerp(Math.log(zK(t)),Math.log(FT.z),rv)),cx=lerp(fl[0],PC[0],rv),cy=lerp(fl[1],PC[1],rv);
+  const a=camFollow(t-0.03),b=camFollow(t+0.03),vx=(b[0]-a[0])/0.06,roll=clamp(-vx*0.00005,-0.055,0.055)*(1-rv);
+  return{cx,cy,z,roll,fx:L.CX,fy:lerp(fy0,FT.cy,rv),rv};}
+const toScreen=(cam,x,y)=>{const dx=(x-cam.cx)*cam.z,dy=(y-cam.cy)*cam.z,cs=Math.cos(cam.roll),sn=Math.sin(cam.roll);return[cam.fx+dx*cs-dy*sn,cam.fy+dx*sn+dy*cs];};
+
+/* ---------------- the line ---------------- */
+const CHK=[];{let i0=0;for(let i=1;i<NP;i++){if(S[i]-S[i0]>=26||i===NP-1){let mx=0,my=0;for(let j=i0;j<=i;j++){mx+=X[j];my+=Y[j];}mx/=i-i0+1;my/=i-i0+1;let rad=0;for(let j=i0;j<=i;j++)rad=Math.max(rad,Math.hypot(X[j]-mx,Y[j]-my));
+  CHK.push({i0,i1:i,s0:S[i0],s1:S[i],mx,my,rad,col:colAt((S[i0]+S[i])/2)});i0=i;}}}
+const lit=t=>E.inOutSine(prog(t,TL.close,TL.pulseE));
+const pulseAt=t=>t<TL.close||t>TL.pulseE+0.2?-1e9:STOT*E.inOutSine(prog(t,TL.close,TL.pulseE));
+function drawLine(c,t,cam,sEnd){
+  const rv=cam.rv,core=lerp(3.0,5.2,rv),li=lit(t),sp=pulseAt(t),vr=Math.hypot(1080,1920)/2/cam.z+40,vcx=cam.cx,vcy=cam.cy;
+  c.lineCap='round';c.lineJoin='round';
+  for(const[wk,ak,wm]of[[4.4,0.12,0],[2.1,0.3,0.25],[1,1,0.5]]){c.lineCap=ak<1?'butt':'round';   // translucent passes: no overlapping caps (they bead at every chunk join)
+    for(const ch of CHK){if(ch.s0>=sEnd)break;if(Math.hypot(ch.mx-vcx,ch.my-vcy)>vr+ch.rad)continue;
+      const age=0.5+0.5*Math.exp(-Math.max(0,sEnd-ch.s1)/800),b=Math.exp(-((((ch.s0+ch.s1)/2-sp)/300)**2));
+      const a=Math.min(1,lerp(age,1,li)+b)*ak,col=mixc(ch.col,[255,255,255],Math.min(1,wm+b*0.8));
+      c.strokeStyle=ak<1?rgba(col,a):rgba(col.map(v=>v*a),1);c.lineWidth=core*wk*(1+b*0.9);c.beginPath();c.moveTo(X[ch.i0],Y[ch.i0]);
+      let j=ch.i0+1;for(;j<=ch.i1&&S[j]<=sEnd;j++)c.lineTo(X[j],Y[j]);
+      if(j<=ch.i1&&S[j]>sEnd){const p=ptAt(sEnd);c.lineTo(p.x,p.y);}c.stroke();}}}
+// the pen tip: a hot point, a halo, sparks thrown off to the sides
+function drawPen(c,t,cam){if(t<TL.go-0.1||t>TL.close+0.08)return;const s=sAt(t),p=ptAt(s),col=colAt(s),core=lerp(3.0,5.2,cam.rv),k=1/cam.z*2.3;
+  glow(c,p.x,p.y,300,col,0.09);glow(c,p.x,p.y,40*k,col,0.6);glow(c,p.x,p.y,16*k,[255,255,255],0.8);
+  for(let i=Math.floor((t-0.5)*60);i<=Math.floor(t*60);i++){const te=i/60,age=t-te;if(te<TL.go||te>TL.close||age<0||age>0.5)continue;
+    const s1=sAt(te),s0=sAt(te-0.02);if(s1-s0<1.5)continue;const q=ptAt(s1),q0=ptAt(Math.max(0,s1-5));let dx=q.x-q0.x,dy=q.y-q0.y;const dl=Math.hypot(dx,dy)||1;dx/=dl;dy/=dl;
+    const h1=hash(i*1.73),h2=hash(i*3.11+7),side=(h1-0.5)*2,v=(50+h2*110)*k;const x=q.x+(-dy*side*v-dx*40*k)*age,y=q.y+(dx*side*v-dy*40*k)*age,a=(1-age/0.5)**2;
+    c.fillStyle=rgba(mixc(colAt(s1),[255,255,255],0.5),0.95*a);c.beginPath();c.arc(x,y,(1.2+h2*1.8)*k*(1-age*1.2),0,TAU);c.fill();}
+  c.fillStyle='#fff';c.beginPath();c.arc(p.x,p.y,core*0.95,0,TAU);c.fill();}
+// the dot the line starts from (and the phone's camera)
+function drawDot(c,t){let s=1;for(const tb of[0.02,BT])s+=0.28*Math.exp(-Math.max(0,t-tb)*7)*(t>=tb?1:0);
+  const fl=Math.exp(-Math.max(0,t-TL.close)*5)*(t>=TL.close?1:0);
+  for(const tb of[0.02,BT]){const u=t-tb;if(u<0||u>0.8)continue;const q=E.outCubic(u/0.8);c.strokeStyle=rgba(RGB.blue,0.8*(1-q));c.lineWidth=2.4;c.beginPath();c.arc(DOT[0],DOT[1],14+70*q,0,TAU);c.stroke();}
+  glow(c,DOT[0],DOT[1],60,RGB.blue,0.45+0.5*fl);c.fillStyle='#fff';c.beginPath();c.arc(DOT[0],DOT[1],13*s,0,TAU);c.fill();}
+
+/* ---------------- what the line draws, dressed ---------------- */
+const pop=(t,t0,d=0.35)=>{const p=prog(t,t0,t0+d);return p<=0?0:E.outBack(p);},fade=(t,t0,d=0.3)=>E.outCubic(prog(t,t0,t0+d));
+const DBPATH=(()=>{const p=new Path2D();DBR.forEach(([x,y],i)=>i?p.lineTo(DB[0]+x,DB[1]+y):p.moveTo(DB[0]+x,DB[1]+y));p.closePath();return p;})();
+function label(c,s,x,y,px,w,col,a,al='center',dy=0){if(a<=0.01)return;c.save();c.globalAlpha*=clamp(a);txt(c,s,x,y+dy,w,px,col,al);c.restore();}
+function flash(t,sMark){const sp=pulseAt(t);return Math.exp(-(((sp-sMark)/380)**2));}
+// sections the pen has left step back (until the pull-back brings everything up again)
+const NEXT=[TL.ch,TL.ri,TL.ro,TL.fk,TL.hb,TL.bu,1e9];
+const dimF=(t,i)=>lerp(1-0.72*E.inOutSine(prog(t,NEXT[i]+0.1,NEXT[i]+0.6)),1,revAt(t));
+function sec(c,t,i,fn){c.save();c.globalAlpha*=dimF(t,i);fn();c.restore();}
+function decoUnder(c,t,cam){
+  // the map under the run
+  sec(c,t,3,()=>{const ma=fade(t,TL.ro-0.55,0.45);if(ma<=0)return;const{x0,y0,x1,y1}=MAP;c.save();c.globalAlpha*=ma;rr(c,x0,y0,x1-x0,y1-y0,26);c.fillStyle='#07090d';c.fill();c.clip();
+    c.strokeStyle='#131821';c.lineWidth=13;c.beginPath();for(const y of[790,915])c.moveTo(x0,y),c.lineTo(x1,y);for(const x of[250,360,470,580])c.moveTo(x,y0),c.lineTo(x,y1);c.stroke();
+    c.fillStyle='rgba(37,232,200,0.07)';c.beginPath();c.ellipse(292,962,62,30,-0.2,0,TAU);c.fill();c.restore();
+    c.save();c.globalAlpha*=ma;c.strokeStyle='#1a1f29';c.lineWidth=1.5;rr(c,x0,y0,x1-x0,y1-y0,26);c.stroke();c.restore();});
+  // the rest ring's track
+  sec(c,t,2,()=>{const ra=fade(t,TL.ri-0.3,0.3);if(ra>0){c.strokeStyle=`rgba(255,255,255,${0.07*ra})`;c.lineWidth=14;c.beginPath();c.arc(RING.x,RING.y,RING.r,0,TAU);c.stroke();}});
+  // the chart's grid
+  sec(c,t,1,()=>{const ga=fade(t,TL.ch-0.35,0.35);if(ga>0)for(let k=0;k<4;k++){const y=CHART.yb-k*CHART.h/3,w=(CHART.x1-CHART.x0+30)*E.outCubic(prog(t,TL.ch-0.35+k*0.05,TL.ch+0.1+k*0.05));c.fillStyle=`rgba(255,255,255,${0.07*ga})`;c.fillRect(CHART.x0-15,y-1,w,2);}});
+  // the habit boxes
+  sec(c,t,5,()=>BOXES.forEach((b,i)=>{const t0=TM['hb'+2*i]-0.3,a=pop(t,t0,0.3);if(a<=0)return;const td=TM['hb'+(2*i+1)],done=fade(t,td,0.2);c.save();c.translate(b.x,b.y);c.scale(a,a);
+    rr(c,-22,-22,44,44,11);c.fillStyle=rgba(RGB.teal,0.2*done);c.fill();c.strokeStyle=done>0?rgba(mixc([255,255,255],RGB.teal,done),0.3+0.5*done):'rgba(255,255,255,0.3)';c.lineWidth=2;c.stroke();c.restore();
+    if(t>=td)glow(c,b.x,b.y,70,RGB.teal,0.35*Math.exp(-(t-td)*4));}));
+  // the phone's screen, once it is closed
+  const pa=fade(t,TL.close-0.05,0.5);if(pa>0){rr(c,PHONE.x0,PHONE.y0,PHONE.x1-PHONE.x0,PHONE.y1-PHONE.y0,PHONE.r);c.fillStyle=`rgba(14,17,23,${0.55*pa})`;c.fill();}
+}
+function decoOver(c,t,cam){
+  // dumbbell: name above, the set below, a flash when it closes
+  sec(c,t,0,()=>{const f1=flash(t,(SM.db0+SM.db1)/2);
+    label(c,'Press inclinado',DB[0],DB[1]-92,22,600,C.soft,fade(t,TL.db-0.1),'center',(1-fade(t,TL.db-0.1))*14);
+    const dc=t-TL.dbE;if(dc>=0){c.fillStyle=rgba(RGB.blue,0.1+0.35*Math.exp(-dc*5)+0.3*f1);c.fill(DBPATH);}
+    label(c,'3 series · 32,5 kg',DB[0],DB[1]+104,24,700,'#fff',fade(t,TL.dbE,0.3),'center',(1-fade(t,TL.dbE,0.3))*14);});
+  // chart: the points pop as the pen passes them; the record
+  sec(c,t,1,()=>{CP.forEach((p,k)=>{const a=pop(t,TM['cp'+k]-0.02,0.3);if(a<=0)return;const pk=k===CP.length-1;c.fillStyle='#000';c.beginPath();c.arc(p[0],p[1],(pk?8:5.5)*a,0,TAU);c.fill();c.strokeStyle=pk?C.gold:'#fff';c.lineWidth=2.6;c.stroke();});
+    label(c,'Evolución de cargas',CHART.x0-15,CHART.yb+44,20,500,C.text2,fade(t,TL.ch),'left');
+    const pr=t-TL.pk;if(pr>=0){const q=E.outCubic(clamp(pr/0.7));c.strokeStyle=rgba(RGB.gold,0.9*(1-q));c.lineWidth=3;c.beginPath();c.arc(CP[9][0],CP[9][1],10+90*q,0,TAU);c.stroke();
+      glow(c,CP[9][0],CP[9][1],120,RGB.gold,0.5*Math.exp(-pr*3)+0.4*flash(t,SM.pk));
+      const a=pop(t,TL.pk+0.04,0.4);if(a>0){const s='Récord · +7,5 kg',w=tw(s,700,22)+44;c.save();c.translate(745,346);c.scale(a,a);rr(c,-w/2,-22,w,44,22);c.fillStyle='rgba(255,201,64,0.14)';c.fill();c.strokeStyle=rgba(RGB.gold,0.9);c.lineWidth=2;c.stroke();
+        txt(c,s,0,8,700,22,C.gold,'center');c.restore();}}});
+  // rest ring: the countdown runs with the pen, flashes teal at 0:00
+  sec(c,t,2,()=>{const ra=pop(t,TL.ri-0.12,0.35);if(ra<=0)return;const f=clamp((sAt(t)-SM.ri0)/(TAU*RING.r)),sec_=Math.ceil(90*(1-f)),dn=t>=TM.ringDone,dk=dn?Math.exp(-(t-TM.ringDone)*3):0;
+    c.save();c.translate(RING.x,RING.y);c.scale(ra,ra);txt(c,`${Math.floor(sec_/60)}:${String(sec_%60).padStart(2,'0')}`,0,12,700,44,dn?C.teal:'#fff','center');txt(c,'Descanso',0,44,500,18,C.text2,'center');c.restore();
+    if(dn){glow(c,RING.x,RING.y,170,RGB.teal,0.5*dk+0.35*flash(t,SM.ri0+300));c.strokeStyle=rgba(RGB.teal,0.9*dk);c.lineWidth=4;c.beginPath();c.arc(RING.x,RING.y,RING.r+12+40*(1-dk),0,TAU);c.stroke();}});
+  // the run: start, kilometres, the finish
+  sec(c,t,3,()=>{const ro=fade(t,TL.ro-0.1,0.25);if(ro>0){c.fillStyle=rgba(RGB.teal,ro);c.beginPath();c.arc(600,915,7,0,TAU);c.fill();}
+    KM.forEach((k,i)=>{const a=pop(t,k.t,0.35);if(a<=0)return;c.save();c.translate(k.p.x,k.p.y);c.scale(a,a);c.fillStyle='#0b0d11';c.beginPath();c.arc(0,0,14,0,TAU);c.fill();c.strokeStyle='#fff';c.lineWidth=2.4;c.stroke();txt(c,String(i+1),0,5.5,700,15,'#fff','center');c.restore();
+      const r=t-k.t;if(r>=0&&r<0.6){c.strokeStyle=rgba(RGB.teal,0.8*(1-r/0.6));c.lineWidth=2;c.beginPath();c.arc(k.p.x,k.p.y,14+40*r/0.6,0,TAU);c.stroke();}});
+    const fe=fade(t,TL.roE-0.05,0.3);if(fe>0){c.fillStyle=rgba([255,255,255],fe);c.beginPath();c.arc(262,975,6,0,TAU);c.fill();}
+    label(c,'5,20 km · 6:15 /km',MAP.x0,MAP.y0-22,24,700,'#fff',fe,'left',(1-fe)*12);});
+  // fork and plate: the day's calories appear inside
+  sec(c,t,4,()=>{const pa=pop(t,TL.plE-0.05,0.4);if(pa>0){c.save();c.translate(PLATE.x,PLATE.y);c.scale(pa,pa);txt(c,'1886',0,8,800,36,'#fff','center');txt(c,'kcal',0,34,500,17,C.text2,'center');c.restore();
+      glow(c,PLATE.x,PLATE.y,150,RGB.pink,0.3*Math.exp(-Math.max(0,t-TL.plE)*3)+0.35*flash(t,(SM.pl0+SM.pl1)/2));}
+    label(c,'Almuerzo',PLATE.x,PLATE.y-PLATE.r0-26,22,600,C.soft,fade(t,TL.fk+0.1),'center',(1-fade(t,TL.fk+0.1))*14);});
+  // habits: names beside the boxes, struck through once checked
+  sec(c,t,5,()=>{BOXES.forEach((b,i)=>{const a=fade(t,TM['hb'+2*i]-0.3,0.3);if(a<=0)return;const dn=clamp((t-TM['hb'+(2*i+1)])/0.3);c.save();c.globalAlpha*=a;const x=716,y=b.y+8;txt(c,HAB[i],x+(1-a)*20,y,600,22,dn>0?C.text2:'#fff');
+      if(dn>0){c.fillStyle=C.text2;c.fillRect(x,y-8,tw(HAB[i],600,22)*E.outCubic(dn),2);}c.restore();});
+    label(c,'🔥 Racha de 12 días',716,BOXES[2].y+62,20,600,C.soft,fade(t,bt(20.6),0.35),'left',(1-fade(t,bt(20.6),0.35))*12);});
+  // the coach
+  sec(c,t,6,()=>{const ca=fade(t,TL.bu-0.1,0.35);if(ca>0){c.save();c.globalAlpha*=ca;c.fillStyle=C.purple;c.beginPath();c.arc(BUB.x0+10,BUB.y0-30,9,0,TAU);c.fill();txt(c,'Martina · tu coach',BUB.x0+28,BUB.y0-23,600,21,C.soft);c.restore();}
+    for(let k=0;k<3;k++){const a=pop(t,TL.buE+0.08+k*0.08,0.3);if(a<=0)continue;const u=Math.max(0,t-TL.buE-0.5),by=-9*Math.max(0,Math.sin(u*TAU*1.6-k*0.9));c.fillStyle='#fff';c.beginPath();c.arc(500+50*k,1512+by,10*a,0,TAU);c.fill();}});
+}
+
+/* ---------------- the line unwinds into the G ---------------- */
+let MS=null;
+function morphInit(){const M=760;MS={x:new Float32Array(M),y:new Float32Array(M),col:[]};for(let i=0;i<M;i++){const s=STOT*i/(M-1),p=ptAt(s);MS.x[i]=p.x;MS.y[i]=p.y;MS.col.push(colAt(s));}}
+// the finished drawing shrinks into the G's place, then the little line winds itself into the arc
+function shrinkT(t,L,cam){const g=endcardGeom(L),A=LOGO.arc,k1=E.inOutCubic(prog(t,TL.morph,TL.morph+0.5)),[pcx,pcy]=toScreen(cam,PC[0],PC[1]),gx=g.x+A.cx*g.k,gy=g.y+A.cy*g.k;
+  return{k1,S1:lerp(1,0.17,k1),pcx,pcy,ox:lerp(pcx,gx,k1),oy:lerp(pcy,gy,k1),rot:-0.5*k1};}
+function drawMorph(c,t,L,cam){if(!MS)morphInit();const g=endcardGeom(L),A=LOGO.arc,K=g.k,gx=g.x+A.cx*K,gy=g.y+A.cy*K,R=A.r*K,sw=((A.a1-A.a0)%TAU+TAU)%TAU,M=MS.x.length,P=new Array(M);
+  const{k1,S1,pcx,pcy,ox,oy,rot}=shrinkT(t,L,cam);
+  const shrink=(x,y)=>{const[sx,sy]=toScreen(cam,x,y),dx=(sx-pcx)*S1,dy=(sy-pcy)*S1,cs=Math.cos(rot),sn=Math.sin(rot);return[ox+dx*cs-dy*sn,oy+dx*sn+dy*cs];};
+  for(let i=0;i<M;i++){const u=i/(M-1),e=E.inOutCubic(prog(t,TL.morph+0.3+0.15*u,TL.morph+0.75+0.15*u)),[sx,sy]=shrink(MS.x[i],MS.y[i]);
+    const rs=Math.hypot(sx-gx,sy-gy),as=Math.atan2(sy-gy,sx-gx),at=A.a1-u*sw;let d=at-as;d=((d+Math.PI)%TAU+TAU)%TAU-Math.PI;const a=as+d*e+0.6*Math.sin(Math.PI*e),r=lerp(rs,R,e);P[i]=[gx+r*Math.cos(a),gy+r*Math.sin(a),e];}
+  const core=5.2*cam.z*lerp(1,0.7,k1);c.lineCap='round';c.lineJoin='round';
+  for(const[wk,ak]of[[3.4,0.16],[1,1]])for(let i=1;i<M;i++){c.lineCap=wk>1?'butt':'round';const e=(P[i][2]+P[i-1][2])/2;c.strokeStyle=rgba(mixc(MS.col[i],[255,255,255],Math.min(1,0.45+0.55*e*e)),ak*(wk>1?1-e:1));
+    c.lineWidth=lerp(core,A.w*K,e**3)*(wk>1?wk:1);c.beginPath();c.moveTo(P[i-1][0],P[i-1][1]);c.lineTo(P[i][0],P[i][1]);c.stroke();}
+  const e0=E.inOutCubic(prog(t,TL.morph+0.35,TL.morph+0.9)),[dx,dy]=shrink(DOT[0],DOT[1]),x=lerp(dx,g.dotX,e0),y=lerp(dy,g.dotY,e0)-Math.sin(Math.PI*e0)*60;
+  glow(c,x,y,80,RGB.blue,0.5*(1-e0));c.fillStyle=rgba(mixc([255,255,255],RGB.blue,e0),1);c.beginPath();c.arc(x,y,lerp(13*cam.z*S1+2*k1,g.dotR,e0),0,TAU);c.fill();}
+
+// the loop seam: the card goes dark and the G's dot flies back to where the first frame has its dot
+const T_LO=DUR-0.5;
+function loopOut(c,t,L){const g=endcardGeom(L),k=E.inOutCubic(prog(t,T_LO,DUR-1/60)),d=E.inOutCubic(prog(t,T_LO,T_LO+0.3)),Z0=ZK[0][1],fy0=L.fmt==='4x5'?L.H*0.56:L.H*0.54;
+  c.fillStyle=`rgba(0,0,0,${d})`;c.fillRect(-800,-800,L.W+1600,L.H+1600);
+  const x=lerp(g.dotX,L.CX,k),y=lerp(g.dotY,fy0,k)-Math.sin(Math.PI*k)*90,r=lerp(g.dotR,13*Z0,k);
+  glow(c,x,y,60*Z0*k+g.dotR*3*(1-k),RGB.blue,lerp(0.3,0.45,k));c.fillStyle=rgba(mixc(RGB.blue,[255,255,255],k),1);c.beginPath();c.arc(x,y,r,0,TAU);c.fill();}
+
+/* ---------------- background ---------------- */
+function dotGrid(c,cam,L,a){if(a<=0.01)return;const r=Math.hypot(L.W,L.H)/2/cam.z+60,sp=46,sz=2.4/cam.z;c.fillStyle=`rgba(255,255,255,${a})`;
+  for(let x=Math.floor((cam.cx-r)/sp)*sp;x<=cam.cx+r;x+=sp)for(let y=Math.floor((cam.cy-r)/sp)*sp;y<=cam.cy+r;y+=sp)c.fillRect(x-sz/2,y-sz/2,sz,sz);}
+
+/* ---------------- captions (screen space) ---------------- */
+const CAPS=[[0.1,'Seguí la línea.','línea.'],[TL.db,'Tus series.'],[TL.ch,'Tus récords.'],[TL.ri,'Tus descansos.'],[TL.ro,'Tus kilómetros.'],[TL.fk,'Tu comida.'],[TL.hb,'Tus hábitos.'],[TL.bu,'Tu coach.'],
+  [TL.ph,'Todo conectado.','conectado.'],[TL.close,'En una sola app.','app.']];
+function captions(c,t,L){const k4=L.fmt==='4x5',px=k4?66:84,y=k4?150:362,sg=lerp(k4?260:520,k4?175:372,revAt(t));
+  const sa=1-prog(t,TL.morph+0.3,TL.morph+0.7),g=c.createLinearGradient(0,0,0,sg);g.addColorStop(0,`rgba(0,0,0,${0.88*sa})`);g.addColorStop(0.55,`rgba(0,0,0,${0.72*sa})`);g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(0,0,L.W,sg);
+  CAPS.forEach(([t0,s,key],i)=>{const t1=i<CAPS.length-1?CAPS[i+1][0]-0.24:TL.morph+0.3;if(t<t0-0.02||t>t1+0.3)return;riseWords(c,{lines:[s],x:L.CX,y,lh:0,t0,t1,px,key:key?[0,key]:null});
+    if(i>=1&&i<=7){const a=fade(t,t0+0.1,0.3)*(1-prog(t,t1,t1+0.2));c.save();c.globalAlpha=a;c.font=F(600,20);c.letterSpacing='5px';c.fillStyle=C.text2;c.textAlign='center';c.fillText(`0${i} / 07`,L.CX,y+(k4?46:58));c.restore();c.letterSpacing='0px';}});}
+
+/* ---------------- sound ---------------- */
+function cueSheet(L){const q=[];
+  const env=[];for(let t=0;t<=TL.close+0.25;t+=0.02){const v=(sAt(t+0.01)-sAt(t-0.01))/0.02;env.push([+t.toFixed(2),+Math.min(1,(Math.max(0,v)/850)**0.7*(t>TL.ph?0.75:1)).toFixed(3)]);}
+  q.push({t:0,s:'scribble',env,gain:0.22});
+  q.push({t:0.02,s:'bloop',k:0,v:1},{t:0.02,s:'sub',d:0.8,gain:0.45},{t:0.06,s:'shimmer'},{t:BT,s:'bloop',k:1,v:0.6},{t:TL.go-0.03,s:'whoosh',d:0.45,f0:500,f1:3200,g:0.6});
+  q.push({t:TL.go,s:'groove',t1:TL.rev,bpm:BPM,chords:[[TL.go,'Am'],[bt(6),'F'],[bt(10),'C'],[bt(14),'G'],[bt(18),'Am'],[bt(22),'F']],parts:['kick','clap','hat','bass','pad','arp']});
+  q.push({t:TL.db,s:'tick'},{t:TL.dbE,s:'pop'},{t:TL.dbE,s:'tap'});
+  for(let k=1;k<=9;k++)q.push({t:TM['cp'+k],s:'blip',f0:560+k*90,f1:860+k*150,d:0.06,g:0.4,p:-0.5+k*0.1});
+  q.push({t:TL.pk,s:'pr'},{t:TL.pk,s:'hit',g:0.55},{t:TL.pk+0.02,s:'shimmer'});
+  for(let x=TL.ri+0.06;x<TM.ringDone-0.03;x+=0.085)q.push({t:x,s:'click',f:3200,d:0.006,g:0.28});
+  q.push({t:TM.ringDone,s:'chime',g:0.8});
+  KM.forEach((k,i)=>q.push({t:k.t,s:'bell',m:79+2*i,d:0.5,g:0.55,p:-0.3+0.2*i}));q.push({t:TL.roE,s:'pop',g:0.8});
+  q.push({t:TL.fk,s:'tick'},{t:TL.plE,s:'bloop',k:1,v:0.8},{t:TL.plE,s:'pop',g:0.7});
+  [bt(18.5),bt(19.5),bt(20.5)].forEach((x,i)=>q.push({t:x,s:'tap',g:0.9},{t:x+0.01,s:'bloop',k:i,v:0.9-0.12*i}));
+  q.push({t:TL.buE,s:'pop'},...[0,1,2].map(k=>({t:TL.buE+0.08+k*0.08,s:'type',g:0.6})));
+  q.push({t:TL.rev,s:'whoosh',d:0.9,f0:300,f1:2600,g:0.9},{t:TL.rev,s:'rise',d:TL.close-TL.rev},{t:TL.rev,s:'chord',ch:'G',d:TL.close-TL.rev+0.2},{t:TL.close-0.36,s:'revcrash',d:0.36});
+  q.push({t:TL.close,s:'hit'},{t:TL.close,s:'sub',d:1.0,gain:0.6},{t:TL.close+0.02,s:'shimmer'},{t:TL.close+0.05,s:'sweep',f0:700,f1:5200,d:0.8},
+    {t:TL.close,s:'groove',t1:TL.end,bpm:BPM,chords:[[TL.close,'C'],[bt(29),'G']],parts:['kick','clap','hat','bass','pad','arp']});
+  q.push({t:TL.morph,s:'whoosh',d:0.85,f0:4200,f1:260,g:1},{t:TL.end-0.36,s:'revcrash',d:0.36},{t:TL.end,s:'hit',g:0.8},{t:TL.end+0.02,s:'chord',ch:'C',d:3.3});
+  q.push({t:T_LO,s:'whoosh',d:0.5,f0:3000,f1:400,g:0.5});
+  return[...q,...endcardCues(L,TL.end,{dot:'static',arc:'static'})];}
+
+/* ---------------- the reel ---------------- */
+createReel({dur:DUR,
+  hits:[[0.02,5,0.02],[BT,2,0.008],[TL.db,3,0.01],[TL.dbE,4,0.012],[TL.pk,10,0.03],[TL.ri,3,0.01],[TM.ringDone,6,0.015],[TL.ro,3,0.01],[TL.fk,3,0.01],[bt(18.5),3,0.01],[bt(19.5),3,0.01],[bt(20.5),4,0.012],[TL.buE,4,0.012],[TL.close,14,0.035],[TL.end,8,0.02]],
+  fast:[[TL.go-0.1,TL.db+0.05],[TL.dbE-0.1,TL.ch+0.1],[TL.pk-0.1,TL.ri+0.1],[TL.riE-0.1,TL.ro+0.1],[TL.roE-0.1,TL.fk+0.1],[TL.plE-0.1,TL.hb+0.1],[bt(20.4),TL.bu+0.1],[TL.buE,TL.close+0.1],[TL.morph,TL.end+0.05]],
+  bloom:t=>t>=TL.end?0.38:0.45,vignette:t=>0.45,
+  draw(c,t,L,P){c.fillStyle='#000';c.fillRect(-800,-800,L.W+1600,L.H+1600);
+    if(t<TL.end+0.05){const cam=camera(Math.min(t,TL.morph),L),mo=E.inOutSine(prog(t,TL.morph,TL.morph+0.45));
+      const camT=()=>{c.translate(cam.fx,cam.fy);c.rotate(cam.roll);c.scale(cam.z,cam.z);c.translate(-cam.cx,-cam.cy);};
+      c.save();camT();dotGrid(c,cam,L,0.085*(1-0.75*cam.rv)*(1-mo));c.restore();
+      c.save();if(t>=TL.morph){const k=shrinkT(t,L,cam);c.translate(k.ox,k.oy);c.rotate(k.rot);c.scale(k.S1,k.S1);c.translate(-k.pcx,-k.pcy);}camT();
+      c.globalAlpha=1-mo;decoUnder(c,t,cam);c.globalAlpha=1;
+      if(t<TL.morph)drawLine(c,t,cam,sAt(t));
+      c.globalAlpha=1-mo;decoOver(c,t,cam);c.globalAlpha=1;
+      if(t<TL.morph){drawPen(c,t,cam);drawDot(c,t);}
+      c.restore();
+      if(t>=TL.morph){const ba=E.outCubic(prog(t,TL.morph+0.25,TL.end+0.1));if(ba>0)endcardBg(c,t,TL.morph+0.25,L,ba);if(t<TL.end)drawMorph(c,t,L,cam);}}
+    if(t>=TL.end-0.02){endcardBg(c,t,TL.morph+0.25,L,1);endcard(c,t,TL.end,L,{cta:P.cta,arc:'static',dot:'static'});}
+    if(t>=T_LO)loopOut(c,t,L);},
+  overlay(c,t,L){if(t<TL.end)captions(c,t,L);},
+  cues(L){return cueSheet(L);},
+});
+</script></body></html>

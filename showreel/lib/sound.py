@@ -276,6 +276,18 @@ def S_pen(c):
     return [(whoosh(0.55, 400, 6000, 1.6), 0, "fx", 0.35, 0.2)]
 
 
+def S_scribble(c):
+    """A felt-tip on paper that follows the pen: env = [[t, 0..1], ...] (seconds from the cue)."""
+    env = np.asarray(c["env"], float)
+    d = float(env[-1, 0]) + 0.05
+    t = tt(d)
+    a = np.interp(t, env[:, 0], env[:, 1])
+    g = filt(noise(d), "lp", 30)
+    grain = np.clip(0.75 + 0.25 * g / (np.std(g) + 1e-9), 0.3, 1.25)
+    s = filt(noise(d), "bandpass", [1800, 7000]) + filt(noise(d), "bandpass", [300, 900]) * 0.35
+    return [(s * a * grain, 0, "fx", c.get("gain", 0.2), 0.05)]
+
+
 def S_shimmer(c):
     n = int(0.6 * SR)
     s = sum(np.sin(2 * np.pi * np.cumsum(np.geomspace(mtof(m), mtof(m) * 1.5, n)) / SR) for m in (84, 88, 91))

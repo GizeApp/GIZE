@@ -65,13 +65,13 @@ for pid, x in EXTRA.items():
     x.setdefault("files", [])
     pieces[pid] = x
 
-# 3 Reels a week (Mon / Wed / Fri, 19:30 suggested) + a motion piece on Sunday from week 2, Stories every day
+# 3 Reels a week (Mon / Wed / Fri, 19:30 suggested) + a motion piece on Sunday from week 2 on, Stories every day
 WEEKS = [
     ["teaser-01-el-punto", "teaser-02-la-g", "teaser-03-el-mapa"],
     ["teaser-04-chau", "ep01-chau-planilla", "ep02-chau-notas-del-celu", "gize-logo-en-todo"],
     ["ep03-chau-3-apps", "ep04-chau-descanso-eterno", "ep05-chau-papelito", "gize-motion-reel-20s"],
     ["ep06-chau-post-its", "ep07-chau-a-ojo", "ep08-chau-40-chats", "gize-ui-en-movimiento"],
-    ["trailer-30s", "real-01", "real-02"],
+    ["trailer-30s", "real-01", "real-02", "gize-segui-la-linea"],
 ]
 plan = []
 for w, ids in enumerate(WEEKS):
