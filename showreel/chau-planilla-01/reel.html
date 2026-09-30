@@ -382,7 +382,7 @@ function flying(c,t){const k=hookCam(T_STAMP),P=athP(t);
 /* =====================================================================
    CAPTIONS
    ===================================================================== */
-const CAPS=[{t0:3.35,t1:5.05,lines:['Armás el plan.'],key:[0,'plan']},{t0:5.12,t1:8.3,lines:['Tu alumno registra','cada serie.'],key:[1,'cada serie']},{t0:9.12,t1:11.0,lines:['Y vos ves','cómo progresa.'],key:[1,'progresa']}];
+const CAPS=[{t0:3.35,t1:4.82,lines:['Armás el plan.'],key:[0,'plan']},{t0:5.12,t1:8.3,lines:['Tu alumno registra','cada serie.'],key:[1,'cada serie']},{t0:9.12,t1:11.0,lines:['Y vos ves','cómo progresa.'],key:[1,'progresa']}];
 function captions(c,t){for(const cp of CAPS){if(t<cp.t0-0.05||t>cp.t1+0.3)continue;const inn=prog(t,cp.t0,cp.t0+0.3),out=E.inCubic(prog(t,cp.t1,cp.t1+0.25));
     const bgA=E.outCubic(inn)*(1-out);const g=c.createLinearGradient(0,0,0,560);g.addColorStop(0,`rgba(0,0,0,${0.94*bgA})`);g.addColorStop(0.72,`rgba(0,0,0,${0.9*bgA})`);g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(0,0,W,560);
     c.font=F(800,72);let wi=0;cp.lines.forEach((line,li)=>{const y=318+li*88,words=line.split(' '),sp=c.measureText(' ').width,lw=c.measureText(line).width;let x=CX-lw/2;
