@@ -15,6 +15,10 @@ import {LOGO,loadLogo,drawFirma,F,rgba,mixc,gamaAt,rng,clamp,lerp} from '../lib/
 const W=1080,CX=540,CY=540,Z=2,S=W*Z,TAU=Math.PI*2;
 const mk=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
 function layer(fn){const cv=mk(S,S),c=cv.getContext('2d');c.setTransform(Z,0,0,Z,0,0);fn(c);return cv;}
+// blurred layers get overscan, so the blur's fall-off happens outside the frame (edges stay opaque)
+const PAD=180;
+function layerP(fn){const cv=mk(S+2*PAD*Z,S+2*PAD*Z),c=cv.getContext('2d');c.setTransform(Z,0,0,Z,PAD*Z,PAD*Z);fn(c);return cv;}
+function putP(c,cv,{filter='none',alpha=1,op='source-over'}={}){c.save();c.setTransform(1,0,0,1,0,0);c.filter=filter;c.globalAlpha=alpha;c.globalCompositeOperation=op;c.drawImage(cv,-PAD*Z,-PAD*Z);c.restore();}
 function put(c,cv,{filter='none',alpha=1,op='source-over'}={}){c.save();c.setTransform(1,0,0,1,0,0);c.filter=filter;c.globalAlpha=alpha;c.globalCompositeOperation=op;c.drawImage(cv,0,0);c.restore();}
 const blur=r=>`blur(${r*Z}px)`;
 let NOISE=null;
@@ -46,10 +50,27 @@ def('03-degrade-azul','Degradé en cuatro azules',c=>{
   const g=c.createLinearGradient(0,0,W,W);g.addColorStop(0,'#00163A');g.addColorStop(0.36,'#003F8A');g.addColorStop(0.7,'#1479DB');g.addColorStop(1,'#7CC8FF');c.fillStyle=g;c.fillRect(0,0,W,W);
   grain(c,0.05);G(c,CX,CY,520,{mono:true});});
 
-def('04-mesh-azul','Mesh azul',c=>{
-  const L=layer(x=>{x.fillStyle='#0A2C7A';x.fillRect(0,0,W,W);
-    [[200,210,600,'#3AAEFF',1],[930,150,560,'#040A3A',1],[900,920,600,'#7FDCFF',1],[140,920,640,'#1A18A0',1],[600,610,340,'#0090FF',0.55],[1000,560,300,'#0B3FB0',0.85],[380,1080,300,'#2FA0FF',0.5]].forEach(([px,py,r,col,a])=>radial(x,px,py,r,hex(col),a));});
-  put(c,L,{filter:blur(70)});grain(c,0.1);G(c,CX,CY,520,{mono:true});});
+// the blue mesh (the one on the board); k = 0 plain, up to 1: neon light creeps in from the corners (the brand's
+// pink, violet and aqua), so the centre keeps its blues and the dark corners stay dark enough for the neon to glow
+function mesh(x,k){x.fillStyle='#0A2C7A';x.fillRect(-PAD,-PAD,W+2*PAD,W+2*PAD);
+  [[200,210,600,'#3AAEFF',1],[930,150,560,'#040A3A',1],[900,920,600,'#7FDCFF',1-0.45*k],[140,920,640,'#1A18A0',1],[600,610,340,'#0090FF',0.55],[1000,560,300,'#0B3FB0',0.85],[380,1080,300,'#2FA0FF',0.5]].forEach(([px,py,r,col,a])=>radial(x,px,py,r,hex(col),a));}
+function glowsP(k){return layerP(x=>{x.globalCompositeOperation='screen';radial(x,1090,40,380,hex('#FF3DAE'),0.9*k);radial(x,1100,300,200,hex('#FF3DAE'),0.5*k);radial(x,-10,1060,420,hex('#A65CFF'),0.9*k);radial(x,1060,1060,380,hex('#25E8C8'),0.85*k);radial(x,40,60,300,hex('#2FA0FF'),0.5*k);});}
+function meshBg(c,k){putP(c,layerP(x=>mesh(x,k)),{filter:`${blur(70)} saturate(${1+0.15*k})`});if(k){const Gl=glowsP(k);putP(c,Gl,{filter:blur(60),op:'screen'});putP(c,Gl,{filter:blur(160),op:'screen',alpha:0.5});}}
+// a neon tube: coloured halo, tighter glow, the tube, and a hot white core
+function neon(c,build,grad,w=6){const L=layerP(x=>{x.lineCap='round';x.strokeStyle=grad(x);x.lineWidth=w;build(x);x.stroke();}),Cr=layerP(x=>{x.lineCap='round';x.strokeStyle='rgba(255,255,255,0.9)';x.lineWidth=w*0.34;build(x);x.stroke();});
+  putP(c,L,{filter:blur(46),op:'screen'});putP(c,L,{filter:blur(14),op:'screen'});putP(c,L,{op:'screen'});putP(c,Cr,{filter:blur(1.2),op:'screen'});}
+const lg=(x0,y0,x1,y1,cols)=>x=>{const g=x.createLinearGradient(x0,y0,x1,y1);cols.forEach((s,i)=>g.addColorStop(i/(cols.length-1),s));return g;};
+
+def('04-mesh-azul','Mesh azul',c=>{meshBg(c,0);grain(c,0.1);G(c,CX,CY,520,{mono:true});});
+def('04b-mesh-neon-suave','Mesh neón, suave',c=>{meshBg(c,0.6);grain(c,0.1);G(c,CX,CY,520,{mono:true});});
+def('04c-mesh-neon','Mesh neón',c=>{meshBg(c,1);grain(c,0.1);G(c,CX,CY,520,{mono:true});});
+def('04d-mesh-neon-anillo','Mesh neón con anillo',c=>{meshBg(c,0.8);
+  neon(c,x=>{x.beginPath();x.arc(CX,CY,408,0,TAU);},x=>{const g=x.createConicGradient(-Math.PI/2,CX,CY);['#2FA0FF','#A65CFF','#FF3DAE','#25E8C8','#2FA0FF'].forEach((s,i)=>g.addColorStop(i/4,s));return g;},7);
+  grain(c,0.1);G(c,CX,CY,500,{mono:true});});
+def('04e-mesh-neon-tubos','Mesh neón con tubos',c=>{meshBg(c,0.8);
+  neon(c,x=>{x.beginPath();x.moveTo(-40,470);x.bezierCurveTo(80,300,250,120,470,-40);},lg(0,470,470,0,['#A65CFF','#FF3DAE']),8);
+  neon(c,x=>{x.beginPath();x.moveTo(600,1120);x.bezierCurveTo(820,960,990,780,1120,610);},lg(600,1080,1080,610,['#25E8C8','#2FA0FF']),8);
+  grain(c,0.1);G(c,CX,CY,520,{mono:true});});
 
 def('05-ondas-azules','Ondas en ocho tonos',c=>{
   const T=['#2FA0FF','#1C88EA','#0F70D0','#0A5AB2','#064592','#043273','#022256','#01153D'];
