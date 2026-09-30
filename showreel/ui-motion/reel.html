@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · UI en movimiento</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* "UI en movimiento" · 9.4 s, 96 BPM, 9:16 or 16:9. Smooth product motion on a dark gradient:
+   the G opens into a pill, three features glide in, a headline and a paragraph write themselves,
+   a list scrolls, the filter chips switch, "Más que una app → Es tu entrenamiento", the lockup. */
+import {C,RGB,E,clamp,lerp,prog,glow,rr,txt,tw,bg,F,hash,createReel,drawFirma,LOGO,rgbLine,tick} from '../lib/engine.js';
+import {navIcon} from '../lib/ui.js';
+
+const DUR=9.4,T={pill:0,circ:1.6,imm:2.75,list:4.35,chips:5.5,txt:6.55,lock:7.85};
+const sm=(a,b,t)=>E.inOutCubic(prog(t,a,b));
+function ambient(c,t,L){bg(c,'#000',L);const M=Math.max(L.W,L.H);
+  [[0.2,0.25,0.9,[20,70,200],0.55,0.21],[0.85,0.6,0.8,[18,60,170],0.45,0.17],[0.4,0.95,0.7,[80,40,160],0.25,0.13]].forEach(([x,y,r,col,a,sp],i)=>{
+    const px=L.W*(x+0.08*Math.sin(t*sp*2+i*2)),py=L.H*(y+0.06*Math.cos(t*sp*1.6+i));glow(c,px,py,M*r*0.6,col,a*0.55);});
+  const v=c.createRadialGradient(L.CX,L.CY,M*0.2,L.CX,L.CY,M*0.75);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,0.6)');c.fillStyle=v;c.fillRect(0,0,L.W,L.H);}
+// text that settles letter by letter: each letter rises, unblurs and finds its baseline
+function settle(c,s,x,y,px,w,t0,{col='#fff',stagger=0.028,dur=0.45,align='left',rise=0.5,out=null}={}){c.font=F(w,px);const W=c.measureText(s).width;let xx=align==='center'?x-W/2:x;
+  [...s].forEach((ch,i)=>{const u=prog(T_,t0+i*stagger,t0+i*stagger+dur),e=E.outCubic(u),o=out!=null?E.inCubic(prog(T_,out+i*stagger*0.5,out+i*stagger*0.5+0.25)):0,a=clamp(e*1.6)*(1-o);
+    if(a>0.01){const off=(1-e)*px*rise*(i%3===0?1:i%3===1?-0.6:0.4)-o*px*0.4,b=(1-e)*px*0.12+o*px*0.1;c.save();c.globalAlpha=a;if(b>0.3)c.filter=`blur(${b.toFixed(1)}px)`;c.fillStyle=col;c.fillText(ch,xx,y+off);c.restore();}
+    xx+=c.measureText(ch).width;});return W;}
+let T_=0;
+function wrap(c,s,maxW,px,w){c.font=F(w,px);const words=s.split(' '),lines=[];let cur='';for(const wd of words){const tst=cur?cur+' '+wd:wd;if(c.measureText(tst).width>maxW&&cur){lines.push(cur);cur=wd;}else cur=tst;}if(cur)lines.push(cur);return lines;}
+function lay(L){return L.wide?{x0:L.W*0.16,col:L.W*0.5,hp:84,pp:30}:{x0:84,col:L.W-168,hp:104,pp:42};}
+
+/* 1 · the G opens into a pill */
+function pill(c,t,L){const Y=lay(L),k=(L.wide?0.95:1.15),r=64*k,g=E.outBack(prog(t,0.1,0.45)),open=sm(0.5,0.95,t),close=sm(1.35,1.62,t),txtW=tw('Hecho para moverte.',500,46*k),w=lerp(r*2,r*2+txtW+60*k,open*(1-close)),x=L.CX-w/2,y=L.CY-r;
+  if(g<=0)return;c.save();c.globalAlpha=1-prog(t,1.5,1.62);c.fillStyle='rgba(47,123,255,0.10)';rr(c,x,y,w,r*2,r);c.fill();c.strokeStyle=`rgba(120,170,255,${0.45*open})`;c.lineWidth=2;rr(c,x,y,w,r*2,r);c.stroke();
+  const gk=r*1.25/LOGO.h,gx=x+r-LOGO.arc.cx*gk,gy=L.CY-LOGO.arc.cy*gk;c.save();c.translate(x+r,L.CY);c.scale(g,g);c.translate(-(x+r),-L.CY);drawFirma(c,gx,gy,gk,{wordmark:false});c.restore();
+  c.save();c.beginPath();c.rect(x+r*1.7,y,w-r*1.7,r*2);c.clip();settle(c,'Hecho para moverte.',x+r*2+10*k,L.CY+16*k,46*k,500,0.62,{stagger:0.022,out:1.28});c.restore();c.restore();}
+
+/* 2 · three features glide in */
+const FEAT=[[0,'Series','32,5 kg',[RGB.blue,RGB.purple]],[2,'Cardio','5,20 km',[RGB.purple,RGB.pink]],[3,'Comida','1886 kcal',[RGB.pink,RGB.teal]]];
+function circles(c,t,L){const Y=lay(L),R=(L.wide?92:120),gap=R*2.9,cy0=L.CY+(L.wide?40:30),out=sm(2.55,2.85,t);
+  settle(c,'Tu entrenamiento',L.wide?Y.x0:L.CX,L.wide?L.CY-190:L.CY-330,Y.hp*0.8,500,T.circ+0.05,{align:L.wide?'left':'center',out:2.5});
+  FEAT.forEach(([ic,l,s,[a,b]],i)=>{const e=E.outExpo(prog(t,T.circ+0.1+i*0.08,T.circ+0.75+i*0.08)),x=lerp(L.W+R*2,L.CX+(i-1)*gap,e)-out*L.W*0.6,foc=i===1?1+0.08*sm(2.1,2.35,t):1;if(e<=0)return;
+    c.save();c.globalAlpha=clamp(e*1.5)*(1-out);c.translate(x,cy0);c.scale(foc,foc);const g=c.createLinearGradient(-R,-R,R,R);g.addColorStop(0,`rgb(${a})`);g.addColorStop(1,`rgb(${b})`);c.fillStyle=g;c.beginPath();c.arc(0,0,R,0,7);c.fill();
+    c.fillStyle='rgba(255,255,255,0.18)';c.beginPath();c.arc(-R*0.25,-R*0.3,R*0.55,0,7);c.fill();c.save();c.scale(R/40,R/40);navIcon(c,ic,0,0,'#fff');c.restore();
+    txt(c,l,0,R+54,600,34,'#fff','center');txt(c,s,0,R+92,400,24,'rgba(230,235,245,0.6)','center');c.restore();});}
+
+/* 3 · a headline and a paragraph write themselves */
+const PARA='Registrá cada serie, corré con GPS, contá tus macros y cumplí tus hábitos. Todo en un solo lugar, con la precisión que tu progreso necesita.';
+function immersion(c,t,L){const Y=lay(L),x=Y.x0,nl=wrap(c,PARA,Y.col,Y.pp,400).length,blockH=Y.hp*0.9+nl*Y.pp*1.4+36+Y.pp*2.2,top=L.CY-blockH/2+Y.hp*0.6,out=sm(4.2,4.45,t);c.save();c.globalAlpha=1-out;c.translate(0,-out*60);
+  settle(c,'Entrenamiento total',x,top,Y.hp,500,T.imm,{stagger:0.03,dur:0.5,rise:0.9});
+  const lines=wrap(c,PARA,Y.col,Y.pp,400),n=Math.floor(clamp((t-(T.imm+0.45))/1.05)*PARA.length);let left=n;
+  lines.forEach((ln,i)=>{const k=Math.max(0,Math.min(ln.length,left));left-=ln.length+1;if(k<=0)return;txt(c,ln.slice(0,k),x+4,top+Y.hp*0.9+i*Y.pp*1.4,400,Y.pp,'rgba(236,239,245,0.9)');});
+  const b=E.outBack(prog(t,3.95,4.25));if(b>0){const by=top+Y.hp*0.9+lines.length*Y.pp*1.4+36,bw=tw('Empezá',600,Y.pp)+110,bh=Y.pp*2.2;c.save();c.translate(x,by);c.scale(b,b);
+    c.fillStyle='rgba(47,123,255,0.16)';rr(c,0,0,bw,bh,bh/2);c.fill();c.strokeStyle='rgba(120,170,255,0.5)';c.lineWidth=2;rr(c,0,0,bw,bh,bh/2);c.stroke();
+    c.fillStyle=C.blue;c.beginPath();const bx=36,byy=bh/2;c.moveTo(bx+4,byy-14);c.lineTo(bx-8,byy+2);c.lineTo(bx+1,byy+2);c.lineTo(bx-3,byy+14);c.lineTo(bx+10,byy-3);c.lineTo(bx+1,byy-3);c.closePath();c.fill();
+    txt(c,'Empezá',bx+30,byy+Y.pp*0.35,600,Y.pp,'#fff');c.restore();}c.restore();}
+
+/* 4 · a list scrolls */
+const ROWS=[['Press inclinado con mancuernas','3 series · 32,5 kg',0],['Sentadilla','4 series · 80 kg',0],['Vuelos laterales sentado','3 series · 12,5 kg',0],['Salida a correr','5,20 km · 6:15 /km',2],['Yogur griego natural','170 g · 165 kcal',3],['Estirar 10 min','18:45 · Lunes a viernes',1]];
+function list(c,t,L){const w=L.wide?900:L.W-140,x=L.CX-w/2,h=L.wide?96:120,gap=16,scroll=lerp(0,-(h+gap)*3.2,E.inOutCubic(prog(t,4.75,5.5))),y0=L.CY-(h+gap)*1.5;
+  ROWS.forEach(([ti,su,ic],i)=>{const e=E.outExpo(prog(t,T.list+i*0.06,T.list+0.55+i*0.06)),y=y0+i*(h+gap)+scroll+(1-e)*160;if(e<=0||y<-h||y>L.H)return;
+    const edge=clamp(Math.min(y-L.H*0.12,L.H*0.88-y)/(h*1.2));c.save();c.globalAlpha=clamp(e*1.5)*edge;c.fillStyle='rgba(22,26,34,0.92)';rr(c,x,y,w,h,18);c.fill();
+    const g=c.createLinearGradient(x+14,y+14,x+h-14,y+h-14);g.addColorStop(0,['#2F7BFF','#A65CFF','#FF3DAE','#25E8C8'][ic]);g.addColorStop(1,['#1446C8','#6B3ACF','#B8287D','#159E88'][ic]);c.fillStyle=g;rr(c,x+14,y+14,h-28,h-28,12);c.fill();
+    c.save();const s=(h-28)/60;c.translate(x+h/2,y+h/2);c.scale(s,s);navIcon(c,ic,0,0,'#fff');c.restore();
+    txt(c,ti,x+h+10,y+h*0.44,500,L.wide?30:34,'#fff');txt(c,su,x+h+10,y+h*0.76,400,L.wide?22:26,'rgba(200,206,216,0.7)');
+    c.fillStyle='rgba(255,255,255,0.6)';for(let d=0;d<3;d++){c.beginPath();c.arc(x+w-50+d*12,y+h/2,3,0,7);c.fill();}c.restore();});
+  const dot=E.outBack(prog(t,5.3,5.5));if(dot>0){c.fillStyle=C.blue;glow(c,L.CX,L.CY+(L.wide?220:320),60,RGB.blue,0.5*dot);c.beginPath();c.arc(L.CX,L.CY+(L.wide?220:320),16*dot,0,7);c.fill();}}
+
+/* 5 · the chips switch */
+const CHIPS=['Todo','Entreno','Cardio'];
+function chips(c,t,L){const px=L.wide?34:48,h=px*2,pad=px*1.1,ws=CHIPS.map(s=>tw(s,500,px)+pad*2),gap=18,W=ws.reduce((a,b)=>a+b,0)+gap*2,x0=L.CX-W/2,y=L.CY-h/2,out=sm(6.4,6.62,t);
+  const xs=[];let xx=x0;ws.forEach(w=>{xs.push(xx);xx+=w+gap;});const sel=lerp(0,2,sm(5.95,6.2,t)),i0=Math.floor(sel),f=sel-i0,sx=lerp(xs[i0],xs[Math.min(2,i0+1)],f),sw=lerp(ws[i0],ws[Math.min(2,i0+1)],f),stretch=1+0.25*Math.sin(Math.PI*prog(t,5.95,6.2));
+  c.save();c.globalAlpha=1-out;CHIPS.forEach((s,i)=>{const e=E.outBack(prog(t,T.chips+0.1+i*0.07,T.chips+0.4+i*0.07));if(e<=0)return;c.save();c.translate(xs[i]+ws[i]/2,y+h/2);c.scale(e,e);c.fillStyle='rgba(60,66,78,0.9)';rr(c,-ws[i]/2,-h/2,ws[i],h,h/2);c.fill();c.restore();});
+  const se=E.outBack(prog(t,5.62,5.85));if(se>0){const cxs=sx+sw/2,wv=sw*stretch;c.fillStyle=C.blue;glow(c,cxs,y+h/2,sw*0.7,RGB.blue,0.35);rr(c,cxs-wv/2*se,y,wv*se,h,h/2);c.fill();}
+  CHIPS.forEach((s,i)=>{const e=prog(t,T.chips+0.15+i*0.07,T.chips+0.4+i*0.07);if(e<=0)return;const on=Math.abs(sel-i)<0.5&&se>0.5;txt(c,s,xs[i]+ws[i]/2,y+h/2+px*0.36,on?600:500,px,on?'#fff':'rgba(235,238,244,0.85)','center');});c.restore();
+  if(t<5.62){const u=E.inOutCubic(prog(t,5.45,5.62)),dy=L.CY+(L.wide?220:320);c.fillStyle=C.blue;c.beginPath();c.arc(lerp(L.CX,xs[0]+ws[0]/2,u),lerp(dy,y+h/2,u),16,0,7);c.fill();}}
+
+/* 6 · «Más que una app» → «Es tu entrenamiento» */
+function words(c,t,L){const px=L.wide?76:84;settle(c,'Más que una app',L.CX,L.CY+px*0.35,px,500,T.txt,{align:'center',stagger:0.035,out:7.1});
+  const s='Es tu entrenamiento.',n=Math.floor(clamp((t-7.3)/0.45)*s.length);if(n>0){c.font=F(500,px);const W=c.measureText(s).width;txt(c,s.slice(0,n),L.CX-W/2,L.CY+px*0.35,500,px,'#fff');
+    if(t<7.75||Math.floor(t*3)%2===0){c.fillStyle=C.blue;c.fillRect(L.CX-W/2+c.measureText(s.slice(0,n)).width+6,L.CY-px*0.45,4,px*0.95);}}
+}
+
+/* 7 · the lockup */
+function lockup(c,t,L){const k=(L.wide?0.42:0.5)*L.W/LOGO.w*(L.wide?0.8:1),x=L.CX-LOGO.w*k/2,y=L.CY-LOGO.h*k/2-(L.wide?10:40),g=E.outBack(prog(t,T.lock,T.lock+0.4)),rev=E.inOutCubic(prog(t,T.lock+0.3,T.lock+0.85));
+  glow(c,L.CX,L.CY,L.W*0.35,RGB.blue,0.25*g);c.save();c.globalAlpha=clamp(g*1.5);c.save();const sx=x+LOGO.arc.cx*k,sy=y+LOGO.arc.cy*k;c.translate(sx+(1-rev)*(LOGO.w*k/2-LOGO.arc.cx*k),sy);c.scale(lerp(0.6,1,g),lerp(0.6,1,g));c.translate(-sx,-sy);
+    drawFirma(c,x,y,k,{wordmark:false});c.restore();c.beginPath();c.rect(x+LOGO.arc.cx*k+LOGO.arc.r*k*1.6,y-20,LOGO.w*k*rev,LOGO.h*k+40);c.clip();c.translate(-(1-rev)*120,0);drawFirma(c,x,y,k,{symbol:false});c.restore();
+  const m=E.outCubic(prog(t,8.45,8.9));if(m>0){c.save();c.globalAlpha=m;txt(c,'Muy pronto · iPhone y Android',L.CX,y+LOGO.h*k+(L.wide?80:110)+14*(1-m),400,L.wide?28:34,'rgba(225,232,245,0.8)','center',2);c.restore();}}
+
+createReel({dur:DUR,
+  hits:[],fast:[[0.45,1.0],[1.45,1.9],[2.5,2.95],[4.15,4.6],[5.4,5.7],[5.9,6.25],[7.7,8.1]],bloom:()=>0.3,vignette:()=>0.25,
+  draw(c,t,L){T_=t;ambient(c,t,L);
+    if(t<T.circ+0.05)pill(c,t,L);
+    if(t>=T.circ&&t<T.imm+0.1)circles(c,t,L);
+    if(t>=T.imm&&t<T.list+0.15)immersion(c,t,L);
+    if(t>=T.list&&t<T.chips+0.15)list(c,t,L);
+    if(t>=T.chips-0.08&&t<T.txt+0.1)chips(c,t,L);
+    if(t>=T.txt&&t<T.lock)words(c,t,L);
+    if(t>=T.lock)lockup(c,t,L);},
+  cues(){const q=[{t:0.1,s:'pop',g:0.8},{t:0.5,s:'whoosh',d:0.5,f0:300,f1:1800,g:0.5},{t:1.35,s:'whoosh',d:0.35,f0:1800,f1:300,g:0.4},
+      {t:0,s:'groove',t1:DUR-0.4,bpm:96,chords:[[0,'Am'],[2.5,'F'],[5,'C'],[7.5,'G']],parts:['pad','arp','hat','bass']}];
+    [0,1,2].forEach(i=>q.push({t:T.circ+0.35+i*0.08,s:'bloop',k:i,v:0.7}));q.push({t:2.15,s:'blip',f0:800,f1:1200,d:0.1,g:0.5},{t:2.6,s:'whoosh',d:0.35,f0:2000,f1:300,g:0.4},{t:T.imm,s:'whoosh',d:0.5,f0:300,f1:2500,g:0.45});
+    for(let k=0;k<14;k++)q.push({t:T.imm+0.5+k*0.075,s:'click',f:3200,d:0.006,g:0.18});q.push({t:3.98,s:'shimmer'},{t:4.25,s:'whoosh',d:0.3,f0:2500,f1:400,g:0.4});
+    ROWS.forEach((_,i)=>q.push({t:T.list+0.2+i*0.06,s:'blip',f0:600+i*80,f1:900+i*100,d:0.06,g:0.35}));q.push({t:5.3,s:'pop',g:0.7},{t:5.62,s:'bloop',k:1,v:0.8},{t:6.18,s:'click',f:1800,g:0.8},{t:6.2,s:'pop',g:0.6},
+      {t:T.txt,s:'whoosh',d:0.4,f0:400,f1:2200,g:0.35},...Array.from({length:10},(_,k)=>({t:7.3+k*0.045,s:'type',g:0.35})),{t:T.lock,s:'shimmer'},{t:T.lock+0.1,s:'chord',ch:'C',d:1.5});return q;},
+});
+</script></body></html>
