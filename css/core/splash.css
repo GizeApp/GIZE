@@ -55,3 +55,69 @@ body.is-booting { overflow: hidden; }
   .sl-word { opacity: 1; }
   #splash { animation: splash-out .3s linear 1.2s forwards; }
 }
+
+/* ---------- Apariencia «Claro» (html.tema-claro, ver css/ui/tema-claro.css) ----------
+   Otro template (#splashTplClaro en app/index.html, lo elige app/splash.js): el ícono de
+   vidrio armándose en ~1,5 s, más corto que el splash de siempre:
+     1. los cuatro círculos (azul, violeta, cian, índigo) entran flotando a su lugar;
+     2. el cuadrado de vidrio esmerilado aparece encima;
+     3. el arco de la G blanca se traza y el punto aparece último con un rebote chico;
+     4. un brillo suave y la pantalla se funde con la app.
+   Solo se animan transform, opacity y stroke-dashoffset (baratos en cualquier celular).
+   Modo liviano: ícono quieto y salida enseguida. Movimiento reducido: ícono quieto. */
+html.tema-claro #splash { gap: 26px; animation: splash-out .35s ease 1.55s forwards; }
+
+/* El ícono: mismas proporciones que el ícono de vidrio (todo en % del cuadro). */
+.sp-icon { position: relative; width: clamp(170px, 54vw, 250px); aspect-ratio: 1; }
+.sp-c { position: absolute; border-radius: 50%; }
+.sp-1 { left: -.4%; top: 3.3%; width: 62%; height: 62%; background: linear-gradient(135deg, #5BB8F7, #2F86E8); }
+.sp-2 { left: 52.3%; top: 6.5%; width: 42.6%; height: 42.6%; background: linear-gradient(135deg, #A474F7, #6A3FE0); }
+.sp-3 { left: 39.8%; top: 46.2%; width: 55.6%; height: 55.6%; background: linear-gradient(135deg, #2EC6EE, #0B8FD6); }
+.sp-4 { left: .9%; top: 66.7%; width: 29.6%; height: 29.6%; background: linear-gradient(135deg, #1A2E9C, #13237A); }
+/* Vidrio: blanco translúcido con brillo arriba, desenfoque de lo de atrás y filete claro.
+   Sin backdrop-filter (o en el modo liviano) igual se ve bien por el degradé blanco. */
+.sp-glass { position: absolute; inset: 15.7%; border-radius: 17%;
+  border: 1.5px solid rgba(255,255,255,.32);
+  background: linear-gradient(145deg, rgba(255,255,255,.3), rgba(255,255,255,.08) 55%, rgba(255,255,255,.14));
+  -webkit-backdrop-filter: blur(22px) saturate(150%); backdrop-filter: blur(22px) saturate(150%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 24px 50px -20px rgba(3,8,20,.7); }
+.sp-g { position: absolute; left: 24%; top: 25%; width: 50%; height: 50%; overflow: visible; }
+/* Brillo suave al final, detrás de la G. */
+.sp-icon::after { content: ""; position: absolute; inset: 22%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255,255,255,.55), transparent); opacity: 0; }
+
+/* 1) Círculos: entran corridos y más chicos, cada uno desde su lado. */
+.sp-c { opacity: 0; animation: sp-float .62s cubic-bezier(.2,.8,.2,1) forwards; }
+.sp-1 { --dx: -14%; --dy: -10%; }
+.sp-2 { --dx: 14%; --dy: -12%; animation-delay: .06s; }
+.sp-3 { --dx: 12%; --dy: 12%; animation-delay: .12s; }
+.sp-4 { --dx: -14%; --dy: 12%; animation-delay: .18s; }
+/* 2) Vidrio. */
+.sp-glass { opacity: 0; animation: sp-glass .42s cubic-bezier(.2,.8,.2,1) .36s forwards; }
+/* 3) La G: el arco se traza y el punto rebota (mismas clases que el splash de siempre, con
+   otros tiempos). */
+.sp-g .sl-arc { animation: sl-draw .5s cubic-bezier(.6,.05,.25,1) .62s forwards; }
+.sp-g .sl-dot { animation: sl-pop .34s cubic-bezier(.3,1.6,.5,1) 1.04s forwards; }
+/* 4) Brillo. */
+.sp-icon::after { animation: sp-glow .45s ease-out 1.16s; }
+html.tema-claro .splash-txt { margin: 0; animation-delay: .2s; }
+
+@keyframes sp-float { from { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.72); } to { opacity: 1; transform: none; } }
+@keyframes sp-glass { from { opacity: 0; transform: translateY(6%) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes sp-glow { 0% { opacity: 0; } 40% { opacity: .7; } 100% { opacity: 0; } }
+
+/* Modo liviano: el ícono ya armado, sin animar, y se va enseguida. */
+html.lite .sp-c, html.lite .sp-glass, html.lite .sp-g .sl-arc, html.lite .sp-g .sl-dot, html.lite .sp-icon::after,
+  html.lite.tema-claro .splash-txt { animation: none; }
+html.lite .sp-c, html.lite .sp-glass { opacity: 1; }
+html.lite .sp-g .sl-arc { stroke-dashoffset: 0; }
+html.lite .sp-g .sl-dot { transform: none; }
+html.lite.tema-claro #splash { animation: splash-out .25s linear .6s forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-c, .sp-glass, .sp-g .sl-arc, .sp-g .sl-dot, .sp-icon::after { animation: none; }
+  .sp-c, .sp-glass { opacity: 1; }
+  .sp-g .sl-arc { stroke-dashoffset: 0; }
+  .sp-g .sl-dot { transform: none; }
+  html.tema-claro #splash { animation: splash-out .3s linear 1.2s forwards; }
+}

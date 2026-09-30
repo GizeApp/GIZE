@@ -2,6 +2,15 @@
   var TOTAL_MS = 2600; // duración completa: barra de 2,1 s + salida
   var MAX_MS = 8000;   // techo de seguridad si la app nunca avisa que está lista
   var tpl = document.getElementById('splashTpl');
+  // Apariencia «Claro» (html.tema-claro, la pone app/lite.js): otro splash, el ícono de vidrio
+  // armándose (css/core/splash.css). Es más corto: ~1,5 s + 0,35 s de salida; en el modo
+  // liviano ya viene armado y se va a los 0,85 s. Se decide en cada mount, por si cambió.
+  var tplClaro = document.getElementById('splashTplClaro');
+  function claro() { return !!tplClaro && document.documentElement.classList.contains('tema-claro'); }
+  function totalMs() {
+    if (!claro()) return TOTAL_MS;
+    return document.documentElement.classList.contains('lite') ? 850 : 1900;
+  }
   var host = document.getElementById('splashHost');
   var current = null; // splash en pantalla ahora mismo, si hay uno
 
@@ -12,10 +21,10 @@
   // sola vez) se pueden repetir en cada login sin tener que reconstruirlas a mano.
   function mount() {
     host.innerHTML = '';
-    var el = tpl.content.firstElementChild.cloneNode(true);
+    var el = (claro() ? tplClaro : tpl).content.firstElementChild.cloneNode(true);
     host.appendChild(el);
     document.body.classList.add('is-booting');
-    var state = { el: el, startTs: Date.now(), done: false, safety: null };
+    var state = { el: el, startTs: Date.now(), total: totalMs(), done: false, safety: null };
     state.safety = setTimeout(function () { finish(state); }, reduced() ? 1600 : MAX_MS);
     current = state;
     return state;
@@ -36,7 +45,7 @@
   window.coreEnter = function () {
     var state = current; if (!state) return;
     if (reduced()) { finish(state); return; }
-    var wait = Math.max(0, TOTAL_MS - (Date.now() - state.startTs));
+    var wait = Math.max(0, state.total - (Date.now() - state.startTs));
     setTimeout(function () { finish(state); }, wait);
   };
 
