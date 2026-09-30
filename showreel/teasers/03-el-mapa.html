@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Teaser 03 · El mapa</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* Teaser 03 · "El mapa": a glimpse of the Cardio neon map; the route lights up,
+   then the runner's dot lifts off the map and drops into the G. */
+import {C,RGB,E,clamp,lerp,prog,glow,rr,txt,bg,createReel,riseWords,invIOC} from '../lib/engine.js';
+import {endcard,endcardBg,endcardCues,endcardGeom,ENDCARD_LAND} from '../lib/endcard.js';
+import {drawMap,neonFrame,ROUTE,xf,routeAt} from '../lib/map.js';
+const T0=4.25,RUN0=0.8,RUN1=3.8,BT=60/128;
+const cam=(t,L)=>({cx:L.CX,cy:L.sc+(L.fmt==='9x16'?90:40),f:1400,tilt:0.98,spin:0.2+0.4*E.inOutCubic(prog(t,0,4.3)),dist:lerp(1650,1250,E.inOutCubic(prog(t,0,4.3)))});
+const runAt=t=>E.inOutCubic(prog(t,RUN0,RUN1));
+function frameRect(L){const s=L.safe;return L.fmt==='9x16'?{x:s.left,y:s.top+10,w:s.right-s.left,h:s.bottom-s.top-10}:{x:s.left,y:s.top,w:s.right-s.left,h:s.bottom-s.top};}
+function endPos(L){const[k,f]=routeAt(0.9999),P=ROUTE.P,cm=cam(RUN1,L),a=xf(P[k*3],P[k*3+1],P[k*3+2],cm),b=xf(P[k*3+3],P[k*3+4],P[k*3+5],cm);return{x:lerp(a[0],b[0],f),y:lerp(a[1],b[1],f)};}
+createReel({dur:7,
+  hits:[[T0+ENDCARD_LAND,4,0.01]],fast:[[RUN1,T0+0.2]],
+  bloom:t=>0.55,vignette:()=>0.45,
+  draw(c,t,L,P){bg(c,'#000',L);const ma=E.outCubic(prog(t,0,0.45))*(1-E.inCubic(prog(t,RUN1+0.05,T0+0.1)));const F=frameRect(L);
+    if(ma>0){c.save();c.globalAlpha=ma;c.beginPath();c.roundRect(F.x,F.y,F.w,F.h,28);c.clip();c.fillStyle='#05070A';c.fillRect(F.x,F.y,F.w,F.h);glow(c,L.CX,L.sc,900,RGB.blue,0.1);
+      const run=runAt(t),m=drawMap(c,t,{cam:cam(t,L),reveal:E.outCubic(prog(t,0.2,1.0)),run,gridA:E.outCubic(prog(t,0,0.5)),noRunnerDot:t>=RUN1});
+      const gy=F.y;const g=c.createLinearGradient(0,gy,0,gy+330);g.addColorStop(0,'rgba(0,0,0,0.85)');g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(F.x,gy,F.w,330);
+      riseWords(c,{lines:['Tu próximo recorrido','se ve así.'],x:L.CX,y:gy+(L.fmt==='9x16'?120:110),lh:78,t0:0.55,t1:3.45,px:66,key:[1,'así']});
+      const km=(5.2*run).toFixed(1).replace('.',','),secs=Math.round(1624*run),pa=E.outBack(prog(t,0.9,1.2));if(pa>0){const s=`${km} km · ${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`;
+        c.save();c.translate(L.CX,F.y+F.h-80);c.scale(pa,pa);c.fillStyle='rgba(11,13,17,0.92)';rr(c,-190,-38,380,76,38);c.fill();c.strokeStyle=C.border;c.lineWidth=1.5;c.stroke();
+        c.fillStyle=C.blue;c.beginPath();c.arc(-150,0,7,0,7);c.fill();txt(c,s,-126,12,800,34,'#fff');c.restore();}
+      c.restore();neonFrame(c,F.x,F.y,F.w,F.h,28,E.inOutCubic(prog(t,0.15,0.9)),ma);}
+    // the runner's dot lifts off and becomes the G's dot
+    const g=endcardGeom(L),apex=g.dotY-440,tUp=T0+ENDCARD_LAND-0.39,END=endPos(L);
+    if(t>=RUN1&&t<tUp){const e=E.outCubic(prog(t,RUN1,tUp)),x=lerp(END.x,g.dotX,e),y=lerp(END.y,apex,e)-Math.sin(Math.PI*e)*120;glow(c,x,y,90,RGB.blue,0.6);c.fillStyle=C.blue;c.beginPath();c.arc(x,y,lerp(12,g.dotR,e),0,7);c.fill();}
+    if(t>=T0-0.05){endcardBg(c,t,T0,L,E.outCubic(prog(t,T0-0.05,T0+0.3)));if(t>=RUN1&&t<tUp){const e=E.outCubic(prog(t,RUN1,tUp)),x=lerp(END.x,g.dotX,e),y=lerp(END.y,apex,e)-Math.sin(Math.PI*e)*120;glow(c,x,y,90,RGB.blue,0.6);c.fillStyle=C.blue;c.beginPath();c.arc(x,y,lerp(12,g.dotR,e),0,7);c.fill();}
+      endcard(c,t,T0,L,{cta:P.cta,rule:'center',dropY0:apex});}},
+  cues(L){const g=endcardGeom(L),cues=[{t:BT,s:'groove',t1:RUN1,bpm:128,chords:[[0,'Am'],[1.875+BT,'F']],parts:['kick','hat','bass','arp','pad']},
+      {t:0.15,s:'whoosh',d:0.6,f0:300,f1:3000,g:1.2},{t:0.55,s:'pop'},{t:3.3,s:'rise',d:0.5},{t:RUN1,s:'whoosh',d:0.6,f0:600,f1:5000,g:1.4},{t:RUN1,s:'sub',d:1.2,gain:0.5}];
+    for(let km=1;km<=5;km++)cues.push({t:RUN0+(RUN1-RUN0)*invIOC(km/5.2),s:'bell',m:79+km*2,d:0.6,g:0.7});
+    cues.push({t:T0+ENDCARD_LAND,s:'chord',ch:'C',d:2.6});return[...cues,...endcardCues(L,T0,{dropY0:g.dotY-440})];},
+});
+</script></body></html>

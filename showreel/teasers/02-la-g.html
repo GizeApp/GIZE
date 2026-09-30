@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Teaser 02 · La G</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* Teaser 02 · "La G": we start inside the stroke of the G while it is being drawn,
+   pull all the way back until it is the logo, and the dot falls into place. */
+import {C,RGB,E,clamp,lerp,prog,glow,rgbRing,bg,createReel,drawFirma,LOGO,riseWords,T_NOW} from '../lib/engine.js';
+import {endcard,endcardBg,endcardCues,endcardGeom,ENDCARD_LAND} from '../lib/endcard.js';
+const T0=2.9;
+createReel({dur:6,
+  hits:[[T0,6,0.015],[T0+ENDCARD_LAND,4,0.01]],fast:[[0.3,1.2]],
+  bloom:()=>0.45,vignette:()=>0.5,
+  draw(c,t,L,P){bg(c,'#000',L);
+    endcardBg(c,t,0,L,1);
+    if(t<T0){const g=endcardGeom(L),A=LOGO.arc,e=E.inOutCubic(prog(t,0.35,T0)),k=Math.exp(lerp(Math.log(26),Math.log(g.k),e));
+      const Fx=lerp(A.cx,0,e),Fy=lerp(A.cy+A.r,0,e),Sx=lerp(L.CX,g.x,e),Sy=lerp(L.sc+60,g.y,e),rot=0.45*(1-e);
+      const arcP=lerp(0.6,1,E.outCubic(prog(t,0.05,1.7)));
+      c.save();c.translate(Sx,Sy);c.rotate(rot);c.translate(-Fx*k,-Fy*k);c.scale(k,k);
+      const rim=1-prog(t,1.6,T0-0.2);if(rim>0){c.save();c.globalAlpha=rim*0.9;c.strokeStyle=rgbRing(c,A.cx,A.cy,t*1.5);c.lineWidth=A.w+6/k*4;c.lineCap='round';c.setLineDash([A.len*arcP,A.len*2]);c.beginPath();c.arc(A.cx,A.cy,A.r,A.a1,A.a0,true);c.stroke();c.restore();}
+      c.restore();
+      c.save();c.translate(Sx,Sy);c.rotate(rot);drawFirma(c,-Fx*k,-Fy*k,k,{wordmark:false,dot:false,arcP});c.restore();
+      const ty=L.fmt==='9x16'?L.safe.top+220:L.safe.top+150;c.save();c.globalCompositeOperation='difference';riseWords(c,{lines:['Algo se viene.'],x:L.CX,y:ty,lh:0,t0:0.5,t1:2.25,px:L.fmt==='9x16'?84:76});c.restore();}
+    else endcard(c,t,T0,L,{cta:P.cta,arc:'static',rule:'center'});},
+  cues(L){return[{t:0,s:'drone',d:2.9},{t:0.25,s:'whoosh',d:0.7,f0:300,f1:2500,g:1.3},{t:0.5,s:'pop'},{t:0.62,s:'pop',g:0.8},{t:1.9,s:'rise',d:1.0},{t:T0,s:'hit',g:0.8},
+    {t:T0+ENDCARD_LAND,s:'chord',ch:'C',d:3.0},...endcardCues(L,T0,{arc:'static'})];},
+});
+</script></body></html>

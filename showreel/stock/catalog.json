@@ -1,0 +1,58 @@
+{
+  "_about": "GIZE stock: every finished piece, with a caption, hashtags and ad text. Phase 'hype' = pre-launch (Muy pronto, no signups, no store badges). Files are relative to showreel/stock/.",
+  "hashtags": {
+    "base": ["#gize", "#muypronto", "#entrenamiento", "#gimnasio", "#fitness", "#fitnessargentina"],
+    "running": ["#running", "#runningargentina", "#cardio"],
+    "series": ["#gym", "#sobrecargaprogresiva", "#rutina"]
+  },
+  "pieces": [
+    {
+      "id": "teaser-01-el-punto",
+      "kind": "teaser",
+      "phase": "hype",
+      "dur": 6,
+      "files": ["01-teasers/teaser-01-el-punto_9x16.mp4", "01-teasers/teaser-01-el-punto_4x5.mp4"],
+      "covers": ["01-teasers/teaser-01-el-punto_9x16.jpg", "01-teasers/teaser-01-el-punto_4x5.jpg"],
+      "idea": "A blue dot bounces, charges up and jumps into the G. The dot of the logo is the first thing you ever see from GIZE.",
+      "caption": "Todo empieza con un punto. 🔵\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": ["#gize", "#muypronto", "#entrenamiento", "#gimnasio", "#fitness", "#fitnessargentina"],
+      "ad": {"primary": "Todo empieza con un punto. 🔵 Muy pronto, para iPhone y Android.", "headline": "Seguí @gize.app", "objective": "ThruPlay / follows"}
+    },
+    {
+      "id": "teaser-02-la-g",
+      "kind": "teaser",
+      "phase": "hype",
+      "dur": 6,
+      "files": ["01-teasers/teaser-02-la-g_9x16.mp4", "01-teasers/teaser-02-la-g_4x5.mp4"],
+      "covers": ["01-teasers/teaser-02-la-g_9x16.jpg", "01-teasers/teaser-02-la-g_4x5.jpg"],
+      "idea": "We start inside the stroke of the G while it is being drawn and pull all the way back until it is the logo.",
+      "caption": "Algo se viene. 👀\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": ["#gize", "#muypronto", "#entrenamiento", "#gimnasio", "#fitness", "#fitnessargentina"],
+      "ad": {"primary": "Algo se viene. 👀 Muy pronto, para iPhone y Android.", "headline": "Seguí @gize.app", "objective": "ThruPlay / follows"}
+    },
+    {
+      "id": "teaser-03-el-mapa",
+      "kind": "teaser",
+      "phase": "hype",
+      "dur": 7,
+      "files": ["01-teasers/teaser-03-el-mapa_9x16.mp4", "01-teasers/teaser-03-el-mapa_4x5.mp4"],
+      "covers": ["01-teasers/teaser-03-el-mapa_9x16.jpg", "01-teasers/teaser-03-el-mapa_4x5.jpg"],
+      "idea": "A neon route draws itself on the map; the runner's dot jumps out and becomes the dot of the G. First hint of Cardio GPS.",
+      "caption": "Tu próximo recorrido se ve así. 🏃\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": ["#gize", "#muypronto", "#running", "#runningargentina", "#cardio", "#fitnessargentina"],
+      "ad": {"primary": "Tu próximo recorrido se ve así. 🏃 Muy pronto, para iPhone y Android.", "headline": "Seguí @gize.app", "objective": "ThruPlay / follows"}
+    },
+    {
+      "id": "teaser-04-chau",
+      "kind": "teaser",
+      "phase": "hype",
+      "dur": 6.5,
+      "files": ["01-teasers/teaser-04-chau_9x16.mp4", "01-teasers/teaser-04-chau_4x5.mp4"],
+      "covers": ["01-teasers/teaser-04-chau_9x16.jpg", "01-teasers/teaser-04-chau_4x5.jpg"],
+      "idea": "Four messes struck out on four beats: planilla, notas del celu, papelito, 3 apps. Opens the CHAU ___ series.",
+      "caption": "Chau planilla.\nChau notas del celu.\nChau papelito.\nChau 3 apps.\n\nMuy pronto, para iPhone y Android. 🔔",
+      "hashtags": ["#gize", "#muypronto", "#entrenamiento", "#gimnasio", "#fitness", "#fitnessargentina"],
+      "ad": {"primary": "Chau planilla. Chau notas del celu. Chau papelito. Chau 3 apps. Muy pronto.", "headline": "Seguí @gize.app", "objective": "ThruPlay / follows"}
+    }
+  ]
+}

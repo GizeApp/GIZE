@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Chau notas del celu · Ep. 02</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* CHAU NOTAS DEL CELU · Ep. 02 · Las series (athletes)
+   hook a: "¿Todavía anotás tus series en las notas del celu?"   hook b: the PR first, then rewind.
+   GIZE side: last time's numbers are already there, log the set, PR, rest; payoff: next week starts from here. */
+import {C,RGB,E,clamp,lerp,prog,ekeys,glow,rr,txt,tw,bg,PF,F,hash,createReel,riseWords} from '../lib/engine.js';
+import {device,entreno,phonePoint} from '../lib/ui.js';
+import {BT,T_STAMP,T_DROP,T_PAY,T_OUT,T_LOOP,B_RESULT,B_REWIND,questionBoxes,stampTitle,captionBand,rewindFX,loopWipe,flyChunks,landTime,phoneRise} from '../lib/chau.js';
+import {endcard,endcardBg,endcardCues,ENDCARD_LAND} from '../lib/endcard.js';
+
+/* ---------- the mess: a generic phone notes app, typed mid-workout ---------- */
+const NOTE=[['Lunes · pecho',1],['press inclinado 3x10 30kg?',0],['o era 27,5??',2],['sentafilla 4x8 60',0],['vuelos 12,5 x12',0],['¿cuánto hice la semana pasada?',2],['',0]];
+const TYPE_END=1.7;
+function notesY(L,i){return L.fmt==='9x16'?560+i*96:390+i*82;}
+function notesWorld(c,t,L){c.fillStyle='#F4F4F2';c.fillRect(-200,-200,L.W+400,L.H+400);const top=L.fmt==='9x16'?230:40;
+  c.fillStyle='#E5E5E2';c.fillRect(0,top,L.W,96);txt(c,'‹ Notas',48,top+62,600,34,'#8A8F98');txt(c,'Listo',L.W-48,top+62,700,34,'#8A8F98','right');
+  c.font=PF(700,64);c.fillStyle='#2E3137';c.fillText('Gym 💪',48,top+200);c.font=PF(400,26);c.fillStyle='#9A9FA8';c.fillText('30 de septiembre de 2026, 18:43',48,top+250);
+  const chars=Math.floor(clamp(t/TYPE_END)*NOTE.reduce((a,[s])=>a+s.length,0)*1.0);let left=chars;
+  NOTE.forEach(([s,st],i)=>{const y=notesY(L,i),n=Math.max(0,Math.min(s.length,left));left-=s.length;if(n<=0&&i>0&&left<0)return;const v=s.slice(0,n);
+    c.font=PF(st===1?700:400,38);c.fillStyle=st===2?'#C93C3C':'#3A3E45';c.fillText(v,48,y);
+    if(n<s.length&&n>0&&Math.floor(t*6)%2===0){const w=c.measureText(v).width;c.fillStyle='#E0A020';c.fillRect(52+w,y-34,3,44);}});
+  if(L.fmt==='9x16'){const ky=1330;c.fillStyle='#D1D3D8';c.fillRect(0,ky,L.W,590);const rows=['qwertyuiop','asdfghjklñ','zxcvbnm'];
+    rows.forEach((r,j)=>{const w=96,x0=(L.W-r.length*(w+10))/2;[...r].forEach((k,i)=>{const on=hash(Math.floor(t*14)+i*3+j*17)>0.93&&t<TYPE_END;c.fillStyle=on?'#AEB2BA':'#FFFFFF';rr(c,x0+i*(w+10),ky+26+j*118,w,100,12);c.fill();c.font=PF(400,40);c.fillStyle='#2E3137';c.textAlign='center';c.fillText(k,x0+i*(w+10)+w/2,ky+90+j*118);c.textAlign='left';});});}
+  // the search that finds nothing
+  const sa=E.outBack(prog(t,1.05,1.3));if(sa>0){const y=(L.fmt==='9x16'?230:40)+48;c.save();c.translate(L.CX,y);c.scale(sa,sa);c.fillStyle='#FFFFFF';rr(c,-420,-44,840,88,20);c.fill();c.strokeStyle='#D6D9DE';c.lineWidth=3;c.stroke();
+    c.font=PF(400,34);c.fillStyle='#8A8F98';c.fillText('🔍  press inclinado',-380,12);c.fillStyle='#C93C3C';c.font=PF(700,30);c.textAlign='right';c.fillText('Sin resultados',400,12);c.textAlign='left';c.restore();}}
+/* ---------- GIZE side ---------- */
+const EX=[['Vuelos laterales sentado','✓ 12,5 kg × 12'],['Press inclinado con mancuernas',''],['Jalón unilateral en estocada','0/3 series'],['Peck deck','0/3 series'],['Curl bíceps en polea baja frontal','0/3 series']];
+const CARD1={name:'Press inclinado con mancuernas',last:[['30',1],['kg × ',0],['10',1],[' · ',0],['30',1],['kg × ',0],['9',1]],propose:'30 kg × 7-10',target:'7-10',note:'Bajá lento, 3 segundos. Codos a 45°.',goal:'Progreso en carga'};
+const CARD2={...CARD1,last:[['32,5',1],['kg × ',0],['9',1],[' · ',0],['32,5',1],['kg × ',0],['8',1]],propose:'32,5 kg × 7-10',lastDate:'30 SEP'};
+const COLLAPSE=7.95,WEEK=9.25,SAVE_T=8.9;
+const CHUNKS_TO=[['banner',[16,112,260,30]],['ex0',[16,364,358,52]],['card',[28,510,334,40]],['card',[62,606,86,40]],['card',[62,658,86,40]],['card',[16,426,358,52]],['card',[28,764,334,48]]];
+const REV={};
+function script(week){const w1=week===1;return{
+  rev:(k,t)=>{if(!w1)return 1;const r=REV[k]??(T_DROP+0.6);return E.outExpo(prog(t,r,r+0.3));},
+  scroll:t=>w1?ekeys(t,[[0,0],[6.12,0],[6.45,150],[COLLAPSE+0.1,150],[COLLAPSE+0.45,60]]):0,
+  sets:w1?[{kg:[[5.0,'3'],[5.08,'32'],[5.16,'32,'],[5.24,'32,5']],reps:[[5.42,'9']],ck:5.625,focusKg:[4.95,5.34],focusReps:[5.34,5.6]},{kg:[[7.56,'32,5']],reps:[[7.6,'8']],ck:7.66},{kg:[[7.72,'32,5']],reps:[[7.76,'8']],ck:7.83}]
+    :[{kg:[],reps:[],ck:1e9},{kg:[],reps:[],ck:1e9},{kg:[],reps:[],ck:1e9}],
+  pr:w1?{t:5.69,label:'🏆 PR +2,5 kg'}:null,rest:w1?{s:6.6,end:7.45,hide:7.92}:null,collapse:w1?COLLAPSE:1e9,ex:w1?EX:EX.map((e,i)=>i===0?['Vuelos laterales sentado','0/3 series']:e),
+  card:w1?CARD1:CARD2,doneBase:w1?3:0,clock0:w1?754:-WEEK+12,hiLast:w1?[3.55,4.75]:[9.7,10.9],
+  taps:w1?[[340,604+22,5.625],[142,845,6.5625],[340,656+22,7.66],[340,708+22,7.83],[195,426+52+10+180+12+25,SAVE_T]]:[]};}
+const S1=script(1),S2=script(2);
+function phoneP(t,L){const P=phoneRise(t,L,{push:[4.55,5.0],pull:[COLLAPSE+0.05,COLLAPSE+0.42]});
+  // payoff: a week later, push in on "la vez pasada"
+  const pw=E.inOutCubic(prog(t,WEEK+0.25,WEEK+0.75))*(1-E.inBack(prog(t,11.0,11.3)));const b=L.fmt==='9x16'?{py:980,ps:2.3}:{py:L.CY+60,ps:1.75};
+  P.y=lerp(P.y,b.py,pw);P.s=lerp(P.s,b.ps,pw);P.ay=lerp(P.ay,540,pw);P.y+=1700*E.inBack(prog(t,11.0,11.3));return P;}
+function giznow(c,t){entreno(c,t,t<WEEK?S1:S2);}
+/* ---------- hook b: the result first ---------- */
+function resultScene(c,t,L){bg(c,'#000',L);glow(c,L.CX*0.3,L.H*0.2,900,RGB.blue,0.2);glow(c,L.W,L.H,900,RGB.pink,0.15);
+  const b=L.fmt==='9x16'?{y:1090,s:2.3}:{y:L.CY+130,s:1.75},P={x:L.CX,y:b.y,s:b.s*(1+0.04*t),rot:0,sx:1,ax:195,ay:600,alpha:1};
+  const S={...S1,rev:()=>1,sets:[{kg:[[0,'32,5']],reps:[[0,'9']],ck:0.08},{kg:[],reps:[],ck:1e9},{kg:[],reps:[],ck:1e9}],pr:{t:0.12,label:'🏆 PR +2,5 kg'},rest:null,taps:[[340,626,0.08]],clock0:760,scroll:()=>0,hiLast:null};
+  device(c,P,(cc,tt)=>entreno(cc,tt,S),t);captionBand(c,t,L,[{t0:0.05,t1:B_RESULT-0.05,lines:['+2,5 kg en press.','Récord personal.'],key:[0,'+2,5 kg']}]);}
+/* ---------- piece ---------- */
+let CH=[];
+createReel({dur:15,
+  init(L,P){const q=L.fmt==='9x16'?1:0.9;CH=NOTE.slice(0,6).map(([s,st],i)=>({from:[40,notesY(L,i)-40,Math.max(160,tw(s,400,38)*q+30),56],text:s,red:st===2,to:CHUNKS_TO[i]?.[1]||null}));
+    CH.push({from:[L.CX-420,(L.fmt==='9x16'?230:40)+48-44,840,88],text:'🔍  press inclinado',to:CHUNKS_TO[6][1]});
+    CH.forEach((ch,i)=>{const g=CHUNKS_TO[i]?.[0];if(g)REV[g]=Math.min(REV[g]??99,landTime(i)-0.05);});REV.header=T_DROP+0.45;REV.tabs=T_DROP+0.5;REV.pill=T_DROP+0.62;REV.nav=T_DROP+0.5;REV.ex2=REV.ex3=REV.ex4=landTime(6);REV.save=landTime(6);},
+  hits:[[T_STAMP,18,0.04],[T_DROP,9,0.025],[5.69,5,0.012],[WEEK,6,0.015],[T_OUT,7,0.018],[T_OUT+ENDCARD_LAND,4,0.01]],
+  fast:[[T_STAMP-0.03,T_STAMP+0.2],[T_DROP-0.02,T_DROP+0.7],[WEEK-0.1,WEEK+0.35],[10.95,11.35],[B_RESULT,B_REWIND]],
+  bloom:t=>t<T_DROP?0:0.3,vignette:t=>t<T_STAMP?0.28:0.36,
+  draw(c,t,L,P){const hookB=P.hook==='b';
+    if(t<T_DROP+0.35){if(hookB&&t<B_REWIND){resultScene(c,t,L);rewindFX(c,t,L);}
+      else{notesWorld(c,hookB?Math.min(t,T_STAMP)*0+TYPE_END:Math.min(t,T_STAMP),L);if(!hookB&&t<T_STAMP)questionBoxes(c,t,L,{lines:[['¿Todavía','anotás'],['tus','series','en'],['las','notas','del','celu?']],times:[0.1,0.2,0.32,0.4,0.48,0.62,0.7,0.78,0.86]});}}
+    if(t>=T_DROP&&t<T_OUT+0.1){c.globalAlpha=E.inOutCubic(prog(t,T_DROP,T_DROP+0.3));bg(c,'#000',L);glow(c,L.W*0.1,L.H*0.15,900,RGB.blue,0.22);glow(c,L.W*0.9,L.H*0.85,900,RGB.pink,0.18);c.globalAlpha=1;}
+    if(t>=T_STAMP&&t<T_DROP+0.35)stampTitle(c,t,L,{word:'NOTAS DEL CELU',ep:'02',topic:'LAS SERIES'});
+    if(t>=T_OUT-0.3)endcardBg(c,t,T_OUT,L,E.outCubic(prog(t,T_OUT-0.3,T_OUT)));
+    if(t>=T_DROP&&t<11.4){const Pp=phoneP(t,L);device(c,Pp,giznow,t);flyChunks(c,t,CH,Pp);
+      // the week flips
+      const wf=prog(t,WEEK-0.25,WEEK+0.3);if(wf>0&&wf<1){const k=Math.sin(Math.PI*wf),d=['23 SEP','30 SEP','7 OCT'][Math.min(2,Math.floor(wf*3))];c.fillStyle=`rgba(0,0,0,${0.55*k})`;c.fillRect(0,0,L.W,L.H);
+        c.save();c.globalAlpha=k;c.translate(L.CX,L.CY);c.fillStyle='#fff';rr(c,-260,-120,520,240,40);c.fill();txt(c,'UNA SEMANA DESPUÉS',0,-40,700,28,'#000','center',3);txt(c,d,0,60,900,96,'#000','center');c.restore();}}
+    if(t>=T_DROP)captionBand(c,t,L,[{t0:3.35,t1:4.82,lines:['Ves lo que levantaste','la vez pasada.'],key:[1,'la vez pasada']},{t0:5.12,t1:8.3,lines:['Y vas por más.'],key:[0,'más']},{t0:9.7,t1:11.0,lines:['La próxima, arrancás','desde acá.'],key:[1,'desde acá']}]);
+    if(t>=T_OUT-0.05)endcard(c,t,T_OUT,L,{cta:P.cta});
+    loopWipe(c,t,L,(cc,LL)=>{if(hookB)resultScene(cc,0,LL);else notesWorld(cc,0,LL);});},
+  cues(L,P){const hookB=P.hook==='b',cues=[];
+    if(hookB){cues.push({t:0.08,s:'tap'},{t:0.12,s:'pr',g:1.2},{t:0.05,s:'whoosh',d:0.3,f0:600,f1:3000},{t:B_RESULT,s:'whoosh',d:0.42,f0:4000,f1:300,g:1.4},{t:B_RESULT+0.05,s:'sweep',f0:1800,f1:200,d:0.35});}
+    else{for(let k=0;k<Math.floor(TYPE_END/0.09);k++)cues.push({t:0.05+k*0.09,s:'type',g:0.7,p:(hash(k)-0.5)});cues.push({t:1.05,s:'blip',f0:900,f1:500,d:0.15,g:1.2},{t:1.1,s:'buzz',d:0.25});
+      [0.1,0.2,0.32,0.4,0.48,0.62,0.7,0.78,0.86].forEach(t=>cues.push({t,s:'click',f:1800,g:0.9}));for(let k=0;k<8;k++)cues.push({t:k*BT/2,s:'tick',hi:k%2===0,g:0.8+k*0.05});cues.push({t:0,s:'drone',d:T_STAMP});}
+    cues.push({t:T_STAMP-0.6,s:'rise',d:0.6},{t:T_STAMP,s:'stamp'},{t:T_STAMP+0.005,s:'strike'},{t:T_STAMP+0.2,s:'marker'},{t:T_STAMP+0.3,s:'pop'},{t:T_DROP-0.36,s:'revcrash',d:0.36},
+      {t:T_DROP,s:'hit'},{t:T_DROP,s:'groove',t1:13.6,bpm:128,chords:[[0,'F'],[3.75,'C'],[5.625,'G'],[7.5,'Am'],[9.375,'F'],[T_OUT,'C']]},{t:T_DROP,s:'whoosh',d:0.6,f0:200,f1:3000,g:1.4});
+    CH.forEach((ch,i)=>cues.push({t:landTime(i),s:'blip',f0:900+i*120,f1:1400+i*150,d:0.1,g:0.9,p:-0.5+i*0.15}));
+    cues.push({t:3.35,s:'whoosh',d:0.3,f0:600,f1:4000,g:0.6},{t:4.55,s:'whoosh',d:0.45,f0:300,f1:2500},...[5.0,5.08,5.16,5.24,5.42].map(t=>({t,s:'type'})),{t:5.625,s:'tap'},{t:5.69,s:'pr'},
+      {t:6.13,s:'whoosh',d:0.3,f0:500,f1:2000,g:0.5},{t:6.5625,s:'click',f:1500},...Array.from({length:14},(_,k)=>({t:6.62+k*0.06,s:'click',f:3000,d:0.008,g:0.3})),{t:7.45,s:'blip',f0:1760,f1:1760,d:0.08,g:0.9},{t:7.57,s:'blip',f0:1760,f1:1760,d:0.08,g:0.9},{t:7.45,s:'buzz'},
+      {t:7.66,s:'tap'},{t:7.83,s:'tap'},{t:COLLAPSE,s:'blip',f0:900,f1:1800,d:0.15},{t:COLLAPSE+0.12,s:'whoosh',d:0.3,f0:3000,f1:600},{t:SAVE_T,s:'tap'},{t:SAVE_T+0.05,s:'chime'},
+      {t:WEEK-0.25,s:'whoosh',d:0.5,f0:300,f1:4000,g:1.2},...[0,1,2].map(k=>({t:WEEK-0.2+k*0.17,s:'click',f:2000+k*400,g:1.2})),{t:9.7,s:'bell',m:84,d:0.8},{t:11.0,s:'whoosh',d:0.35,f0:2500,f1:300});
+    return[...cues,{t:T_OUT,s:'hit',g:0.8},{t:T_OUT+ENDCARD_LAND,s:'chord',ch:'C',d:3.2},...endcardCues(L,T_OUT),...Array.from({length:12},(_,q)=>({t:T_LOOP+q*0.045,s:'click',f:1800+q*60,g:0.5}))];},
+});
+</script></body></html>

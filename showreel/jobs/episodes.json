@@ -1,0 +1,4 @@
+[
+  {"id": "ep02-chau-notas-del-celu", "page": "showreel/episodes/02-notas-del-celu.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/02-episodios", "cover": 2.5},
+  {"id": "ep03-chau-3-apps", "page": "showreel/episodes/03-3-apps.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/02-episodios", "cover": 2.5}
+]

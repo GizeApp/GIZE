@@ -4,7 +4,7 @@
 //   node render.mjs --times=1.2,4.5      -> stills at those times (seconds)
 //   node render.mjs --frames=120-180     -> a frame range
 //   --sub=N  (sub-frames for motion blur; default is per-shot in reel.html)
-//   --workers=N  --out=dir
+//   --workers=N  --out=dir  --cues=cues.json (writes the page's cue sheet for lib/sound.py)
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,8 +19,8 @@ catch { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..'); // serve the repo root so the reel can load brand/ fonts and logos
 const args = Object.fromEntries(process.argv.slice(2).map(a => {
-  const [k, v] = a.replace(/^--/, '').split('=');
-  return [k, v ?? '1'];
+  const m = a.replace(/^--/, '').match(/^([^=]+)(?:=(.*))?$/);
+  return [m[1], m[2] ?? '1'];
 }));
 const FPS = Number(args.fps || 60), TOTAL = Math.round(FPS * Number(args.dur || 15));
 const PAGE = args.page || 'showreel/reel.html';
@@ -46,7 +46,7 @@ await new Promise(r => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}/${PAGE}`;
 
 const browser = await chromium.launch({ args: ['--disable-gpu', '--force-color-profile=srgb'] });
-let next = 0, done = 0;
+let next = 0, done = 0, cuesWritten = false;
 const t0 = Date.now();
 async function worker() {
   const context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
@@ -55,12 +55,13 @@ async function worker() {
   page.on('console', m => { if (m.type() === 'error') console.error('[console]', m.text()); });
   await page.goto(url);
   await page.waitForFunction('window.READY === true', null, { timeout: 180000 });
+  if (args.cues && !cuesWritten) { cuesWritten = true; fs.writeFileSync(args.cues, JSON.stringify(await page.evaluate('window.getCues ? window.getCues() : {cues: []}'), null, 1)); }
   while (next < frames.length) {
     const f = frames[next++];
     const b64 = await page.evaluate(([f, sub]) => window.renderFrame(f, { sub }), [f, sub]);
     fs.writeFileSync(path.join(OUT, `f_${String(f).padStart(4, '0')}.png`), Buffer.from(b64.slice(b64.indexOf(',') + 1), 'base64'));
     done++;
-    if (done % 25 === 0 || done === frames.length) {
+    if (!args.quiet && (done % 25 === 0 || done === frames.length)) {
       const el = (Date.now() - t0) / 1000;
       console.log(`${done}/${frames.length}  ${el.toFixed(0)}s elapsed  eta ${(el / done * (frames.length - done)).toFixed(0)}s`);
     }

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Teaser 04 · Chau</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* Teaser 04 · "Chau": four messes get struck out on four beats (the "CHAU ___"
+   series), "Chau a todo eso.", then the G. */
+import {C,RGB,E,clamp,lerp,prog,glow,rr,txt,bg,createReel,riseWords,PF,hash,tick} from '../lib/engine.js';
+import {endcard,endcardBg,endcardCues,ENDCARD_LAND} from '../lib/endcard.js';
+const BT=60/128,T_WORDS=4*BT,T0=3.3;
+const ITEMS=['PLANILLA','NOTAS DEL CELU','PAPELITO','3 APPS'];
+const GREY={bg:'#E9EBEE',cell:'#FFFFFF',grid:'#D0D4D9',txt:'#4A4F57',faint:'#9AA0A8'};
+function fitPF(s,maxW,start){const m=document.createElement('canvas').getContext('2d');let px=start;for(;;){m.font=PF(700,px);if(m.measureText(s).width<=maxW||px<40)return px;px-=4;}}
+function mess(c,i,L,t){const cx=L.CX,cy=L.sc;c.fillStyle=GREY.bg;c.fillRect(-100,-100,L.W+200,L.H+200);
+  if(i===0){c.fillStyle=GREY.cell;c.fillRect(0,0,L.W,L.H);c.strokeStyle=GREY.grid;c.lineWidth=2;c.beginPath();for(let x=0;x<=L.W;x+=180){c.moveTo(x,0);c.lineTo(x,L.H);}for(let y=0;y<=L.H;y+=60){c.moveTo(0,y);c.lineTo(L.W,y);}c.stroke();
+    c.font=PF(400,28);c.fillStyle=GREY.faint;const v=['3x10','40??','#¡REF!','ver video','8-10','35','preguntar','=C4*1,1','12,5','???'];for(let k=0;k<26;k++){c.fillText(v[k%v.length],12+(k*7%6)*180,44+Math.floor(k*1.7)%28*60);}}
+  else if(i===1){c.save();c.translate(cx,cy);c.rotate(-0.03);c.fillStyle='#fff';rr(c,-380,-520,760,1040,40);c.fill();c.strokeStyle='#D6D9DE';c.lineWidth=3;c.stroke();
+    c.font=PF(700,44);c.fillStyle=GREY.txt;c.fillText('Notas',-330,-430);c.font=PF(400,34);c.fillStyle=GREY.faint;
+    ['Lunes: pecho 3x10 ¿40kg?','Miér: pierna?? ver','Viernes: lo de siempre','sentadilla 60? 62,5?','comprar creatina','acordarme: descanso 2min','¿la rutina nueva?'].forEach((s,k)=>c.fillText(s,-330,-340+k*86));c.restore();}
+  else if(i===2){c.save();c.translate(cx+20,cy);c.rotate(-0.08);c.fillStyle='#F7F3E8';c.beginPath();c.moveTo(-360,-420);c.lineTo(350,-440);c.lineTo(380,410);c.lineTo(-340,440);c.closePath();c.fill();
+    c.strokeStyle='rgba(0,0,0,0.08)';c.lineWidth=2;for(let k=0;k<9;k++){c.beginPath();c.moveTo(-340,-330+k*90);c.lineTo(360,-340+k*90);c.stroke();}
+    c.font='italic 400 44px "Liberation Serif", serif';c.fillStyle='#6C6F75';['sentadilla 3x10 60','press 3x8 40?','remo ???','estocadas 3x12','abs ?'].forEach((s,k)=>c.fillText(s,-300,-300+k*120));c.restore();}
+  else{const ic=[[0,'heart'],[1,'fork'],[2,'shoe']];ic.forEach(([k,n])=>{const x=cx+(k-1)*270,y=cy;c.save();c.translate(x,y);c.rotate((k-1)*0.06);c.fillStyle=['#C9CDD3','#BFC4CB','#D2D5DA'][k];rr(c,-110,-110,220,220,52);c.fill();
+    c.strokeStyle='#7A808A';c.lineWidth=10;c.lineCap='round';c.lineJoin='round';c.beginPath();
+    if(n==='heart'){c.moveTo(0,40);c.bezierCurveTo(-70,-10,-50,-70,0,-30);c.bezierCurveTo(50,-70,70,-10,0,40);}else if(n==='fork'){c.moveTo(-25,-55);c.lineTo(-25,55);c.moveTo(-45,-55);c.lineTo(-45,-15);c.lineTo(-5,-15);c.lineTo(-5,-55);c.moveTo(30,-55);c.lineTo(30,55);c.moveTo(30,-55);c.quadraticCurveTo(55,-20,30,5);}
+    else{c.moveTo(-60,30);c.lineTo(-40,-30);c.lineTo(-5,-20);c.quadraticCurveTo(20,15,60,15);c.lineTo(60,35);c.closePath();}c.stroke();c.lineCap='butt';c.lineJoin='miter';c.restore();});}
+  const w=ITEMS[i],px=fitPF(w,L.W*0.86,200),y=i===3?cy-230:cy+px*0.36;c.font=PF(700,px);c.textAlign='center';c.fillStyle='rgba(233,235,238,0.85)';c.fillText(w,cx+4,y+4);c.fillStyle=GREY.txt;c.fillText(w,cx,y);c.textAlign='left';
+  const ts=i*BT+0.26,se=E.outCubic(prog(t,ts,ts+0.07));if(se>0){const m=document.createElement('canvas').getContext('2d');m.font=PF(700,px);const ww=m.measureText(w).width;
+    c.strokeStyle=C.danger;c.lineWidth=Math.max(18,px*0.13);c.lineCap='round';c.beginPath();c.moveTo(cx-ww/2-30,y-px*0.34);c.lineTo(cx-ww/2-30+(ww+60)*se,y-px*0.34);c.stroke();c.lineCap='butt';}}
+createReel({dur:6.5,
+  hits:[0,1,2,3].map(i=>[i*BT+0.26,12,0.03]).concat([[T_WORDS,8,0.02],[T0+ENDCARD_LAND,4,0.01]]),fast:[[T_WORDS-0.05,T_WORDS+0.15]],
+  bloom:t=>t<T_WORDS?0:0.4,vignette:t=>t<T_WORDS?0.3:0.45,
+  draw(c,t,L,P){bg(c,'#000',L);
+    if(t<T_WORDS){const i=Math.min(3,Math.floor(t/BT));mess(c,i,L,t);}
+    else if(t<T0+0.1){endcardBg(c,t,T_WORDS,L,1);riseWords(c,{lines:['Chau a','todo eso.'],x:L.CX,y:L.sc-20,lh:122,t0:T_WORDS+0.05,t1:T0-0.2,px:L.fmt==='9x16'?118:104,key:[1,'todo eso']});}
+    if(t>=T0-0.02){endcardBg(c,t,T0,L,E.outCubic(prog(t,T0-0.02,T0+0.25)));endcard(c,t,T0,L,{cta:P.cta,rule:'center'});}},
+  cues(L){const cues=[];for(let i=0;i<4;i++){cues.push({t:i*BT,s:'tick',hi:i%2===0,g:1.5},{t:i*BT+0.26,s:'strike',g:1.2},{t:i*BT+0.26,s:'stamp',g:0.55});}
+    cues.push({t:T_WORDS,s:'hit',g:0.9},{t:T_WORDS,s:'groove',t1:T0+0.02,bpm:128,chords:[[0,'F'],[T_WORDS+1.4,'G']],parts:['kick','hat','bass','pad','arp']},{t:T_WORDS+0.05,s:'whoosh',d:0.4,f0:500,f1:3000},
+      {t:T0+ENDCARD_LAND,s:'chord',ch:'C',d:2.8});return[...cues,...endcardCues(L,T0)];},
+});
+</script></body></html>

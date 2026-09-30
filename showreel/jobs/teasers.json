@@ -1,0 +1,6 @@
+[
+  {"id": "teaser-01-el-punto", "page": "showreel/teasers/01-el-punto.html", "dur": 6, "formats": ["9x16", "4x5"], "out": "stock/01-teasers", "cover": 5.5},
+  {"id": "teaser-02-la-g", "page": "showreel/teasers/02-la-g.html", "dur": 6, "formats": ["9x16", "4x5"], "out": "stock/01-teasers", "cover": 1.4},
+  {"id": "teaser-03-el-mapa", "page": "showreel/teasers/03-el-mapa.html", "dur": 7, "formats": ["9x16", "4x5"], "out": "stock/01-teasers", "cover": 3.0},
+  {"id": "teaser-04-chau", "page": "showreel/teasers/04-chau.html", "dur": 6.5, "formats": ["9x16", "4x5"], "out": "stock/01-teasers", "cover": 0.4}
+]

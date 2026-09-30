@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Chau 3 apps · Ep. 03</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* CHAU 3 APPS · Ep. 03 · EL CARDIO (athlete voice).
+   Mess: an app switcher with three generic apps (routine, running, calories).
+   Morph: the three cards fly into ONE nav bar. GIZE: Cardio → Iniciar → the map in the
+   phone opens up to a full-screen neon run → back in the phone: Terminar → Resumen.
+   Copy and numbers follow app/screens/cardio.js (live card, Resumen rows, "Tus salidas"). */
+import {C,RGB,E,clamp,lerp,prog,ekeys,keys,glow,rr,txt,tw,bg,PF,hash,createReel,rgbRing,tap} from '../lib/engine.js';
+import {device,phonePoint,appBg,appHeader,bottomNav} from '../lib/ui.js';
+import {BT,T_STAMP,T_DROP,T_OUT,T_LOOP,B_RESULT,B_REWIND,questionBoxes,stampTitle,captionBand,rewindFX,loopWipe,flyChunks,landTime,phoneRise} from '../lib/chau.js';
+import {endcard,endcardBg,endcardCues,ENDCARD_LAND} from '../lib/endcard.js';
+import {drawMap,routeAt,ROUTE} from '../lib/map.js';
+
+const T_START=4.0,T_ZOOM0=4.7,T_ZOOM1=5.2,T_BACK0=8.1,T_BACK1=8.55,T_END=8.9,T_SAVE=10.45;
+const TOTAL_S=1951,TOTAL_KM=5.2,TOTAL_KCAL=398;   // 5,20 km in 00:32:31 = 6:15 min/km
+
+/* ---------- the mess: three generic apps in a switcher ---------- */
+const APPS=[{name:'Rutina',icon:'dumbbell',tint:'#C9CDD3'},{name:'Correr',icon:'shoe',tint:'#BFC4CB'},{name:'Calorías',icon:'fork',tint:'#D2D5DA'}];
+const G={bg:'#E4E6EA',card:'#FFFFFF',line:'#D6D9DE',txt:'#2E3137',mid:'#6C717A',faint:'#9AA0A8'};
+function sw(L){return L.fmt==='9x16'?{cw:640,ch:1120,cy:L.CY+120,gap:700,iy:-620}:{cw:500,ch:860,cy:L.CY+70,gap:560,iy:-490};}
+// switcher position (0..2) over time: frantic back-and-forth on the beats
+const swPos=t=>ekeys(t,[[0,0],[BT-0.12,0],[BT+0.1,1],[2*BT-0.12,1],[2*BT+0.1,2],[3*BT-0.12,2],[3*BT+0.14,1]]);
+function appIcon(c,n,x,y,s,tint){c.save();c.translate(x,y);c.scale(s,s);c.fillStyle=tint;rr(c,-40,-40,80,80,20);c.fill();c.strokeStyle='#6C717A';c.lineWidth=6;c.lineCap='round';c.lineJoin='round';c.beginPath();
+  if(n==='dumbbell'){c.moveTo(-16,0);c.lineTo(16,0);c.moveTo(-20,-14);c.lineTo(-20,14);c.moveTo(20,-14);c.lineTo(20,14);c.moveTo(-27,-7);c.lineTo(-27,7);c.moveTo(27,-7);c.lineTo(27,7);}
+  else if(n==='shoe'){c.moveTo(-24,12);c.lineTo(-16,-12);c.lineTo(-2,-8);c.quadraticCurveTo(8,6,24,6);c.lineTo(24,14);c.closePath();}
+  else{c.moveTo(-10,-20);c.lineTo(-10,20);c.moveTo(-18,-20);c.lineTo(-18,-6);c.lineTo(-2,-6);c.lineTo(-2,-20);c.moveTo(12,-20);c.lineTo(12,20);c.moveTo(12,-20);c.quadraticCurveTo(22,-8,12,2);}
+  c.stroke();c.restore();}
+function appCard(c,i,w,h){c.fillStyle=G.card;rr(c,-w/2,-h/2,w,h,44);c.fill();c.strokeStyle=G.line;c.lineWidth=3;c.stroke();
+  const x0=-w/2+44,y0=-h/2,k=w/640;c.save();c.beginPath();c.roundRect(-w/2,-h/2,w,h,44);c.clip();
+  c.font=PF(700,52*k);c.fillStyle=G.txt;c.fillText(APPS[i].name,x0,y0+120*k);
+  if(i===0){['Press banca 4x8','Sentadilla 4x6','Remo 3x10','Plancha 3x45"','Estocadas 3x12'].forEach((s,j)=>{const y=y0+(220+j*120)*k;c.strokeStyle=G.line;c.lineWidth=3;rr(c,x0,y-34*k,44*k,44*k,10*k);c.stroke();
+      c.font=PF(400,36*k);c.fillStyle=G.mid;c.fillText(s,x0+70*k,y);c.fillStyle=G.line;c.fillRect(x0,y+40*k,w-88,2);});
+    c.font=PF(400,30*k);c.fillStyle=G.faint;c.fillText('¿Y el cardio?',x0,y0+(860)*k);}
+  else if(i===1){const my=y0+170*k,mh=440*k;c.fillStyle='#EEF0F2';c.fillRect(-w/2,my,w,mh);c.strokeStyle='#DDE0E4';c.lineWidth=2;
+      for(let x=-w/2;x<w/2;x+=70*k){c.beginPath();c.moveTo(x,my);c.lineTo(x+40*k,my+mh);c.stroke();}for(let y=my;y<my+mh;y+=80*k){c.beginPath();c.moveTo(-w/2,y);c.lineTo(w/2,y+20*k);c.stroke();}
+      c.strokeStyle='#8A9099';c.lineWidth=6*k;c.lineJoin='round';c.beginPath();[[-220,300],[-120,200],[-20,260],[80,150],[200,220]].forEach(([x,y],j)=>{j?c.lineTo(x*k,my+y*k*0.9):c.moveTo(x*k,my+y*k*0.9);});c.stroke();
+      c.font=PF(700,120*k);c.fillStyle=G.txt;c.fillText('0,00',x0,y0+(760)*k);c.font=PF(400,34*k);c.fillStyle=G.faint;c.fillText('km',x0+250*k,y0+760*k);
+      c.font=PF(400,40*k);c.fillStyle=G.mid;c.fillText('00:00:00',x0,y0+840*k);c.fillStyle='#C9CDD3';rr(c,x0,y0+900*k,w-88,100*k,50*k);c.fill();c.font=PF(700,36*k);c.fillStyle='#fff';c.textAlign='center';c.fillText('INICIAR',0,y0+962*k);c.textAlign='left';}
+  else{c.font=PF(700,96*k);c.fillStyle=G.txt;c.fillText('1.240',x0,y0+290*k);c.font=PF(400,36*k);c.fillStyle=G.faint;c.fillText('/ 2.100 kcal',x0+290*k,y0+290*k);
+    ['Desayuno','Almuerzo','Merienda','Cena'].forEach((s,j)=>{const y=y0+(420+j*120)*k;c.font=PF(400,36*k);c.fillStyle=G.mid;c.fillText(s,x0,y);c.fillStyle=G.line;rr(c,x0,y+22*k,w-88,14*k,7*k);c.fill();c.fillStyle='#B8BDC4';rr(c,x0,y+22*k,(w-88)*[0.6,0.9,0.2,0][j],14*k,7*k);c.fill();});}
+  c.restore();}
+const cardGo=i=>T_DROP+0.1+i*0.05,CARD_FLY=0.55;
+function messWorld(c,t,L,tr=0){c.fillStyle=G.bg;c.fillRect(-200,-200,L.W+400,L.H+400);const S=sw(L),p=swPos(t);
+  for(let i=0;i<3;i++){const x=L.CX+(i-p)*S.gap,d=Math.abs(i-p),s=1-0.06*Math.min(1,d);if(x<-S.cw||x>L.W+S.cw||tr>=cardGo(i))continue;
+    c.save();c.translate(x,S.cy);c.scale(s,s);c.fillStyle='rgba(0,0,0,0.08)';rr(c,-S.cw/2+10,-S.ch/2+18,S.cw,S.ch,44);c.fill();appCard(c,i,S.cw,S.ch);
+    appIcon(c,APPS[i].icon,-S.cw/2+36,-S.ch/2-58,0.8,APPS[i].tint);c.font=PF(700,34);c.fillStyle=G.txt;c.fillText(APPS[i].name,-S.cw/2+86,-S.ch/2-46);c.restore();}}
+
+// the three app cards fly into ONE nav bar (Entreno, Cardio, Comida)
+function flyCards(c,t,L,P){const S=sw(L),navX=[0,2,3].map(i=>32.5+i*65);
+  for(let i=0;i<3;i++){const s0=cardGo(i),u=prog(t,s0,s0+CARD_FLY);if(t<s0||u>=1)continue;const e=E.inOutCubic(u),[x1,y1]=phonePoint(P,navX[i],796);
+    const x=lerp(L.CX+(i-1)*S.gap,x1,e)+Math.sin(Math.PI*u)*(i-1)*140,y=lerp(S.cy,y1,e)-Math.sin(Math.PI*u)*180,k0=i===1?1:0.94,k1=34*P.s/S.cw,k=Math.exp(lerp(Math.log(k0),Math.log(k1),e));
+    c.save();c.translate(x,y);c.rotate(Math.sin(Math.PI*u)*(i-1)*0.45+(1-e)*0);c.scale(k,k);c.globalAlpha=1-E.inCubic(prog(u,0.75,1));appCard(c,i,S.cw,S.ch);
+    c.fillStyle=`rgba(47,160,255,${0.85*E.inCubic(u)})`;rr(c,-S.cw/2,-S.ch/2,S.cw,S.ch,44);c.fill();c.restore();
+    if(u>0.8){glow(c,x1,y1,90*P.s/1.6,RGB.blue,0.5*(1-u)/0.2);}}}
+/* ---------- GIZE: Cardio screen (logical 390x844) ---------- */
+const SALIDAS=[['23 sep · Correr','4,80 km · 00:31:12 · 6:30 /km'],['20 sep · Caminar','3,10 km · 00:38:40 · 12:28 /km'],['16 sep · Correr','5,00 km · 00:32:05 · 6:25 /km']];
+const SUMROWS=[['Distancia','5,20 km'],['Duración','00:32:31'],['Ritmo medio','6:15 min/km'],['Velocidad media','9,6 km/h'],['Velocidad máxima','12,4 km/h'],['Calorías','398 kcal']];
+const MAPR={x:30,y:246,w:330,h:190};
+const REV={};
+const runAt=t=>t<T_ZOOM1?0.06*E.outCubic(prog(t,T_START+0.2,T_ZOOM1)):0.06+0.94*E.inOutSine(prog(t,T_ZOOM1,T_BACK0-0.1));
+const hms=s=>{s=Math.max(0,Math.floor(s));const p=v=>String(v).padStart(2,'0');return`${p(Math.floor(s/3600))}:${p(Math.floor(s%3600/60))}:${p(s%60)}`;};
+const live=u=>({dur:hms(TOTAL_S*u),km:(TOTAL_KM*u).toFixed(2).replace('.',','),pace:u>0.01?'6:15':'–:–',kcal:String(Math.round(TOTAL_KCAL*u))});
+const cam=(t,VH)=>({cx:550,cy:VH/2-50,f:1400,tilt:0.98,spin:0.15+0.55*E.inOutCubic(prog(t,T_START,T_BACK1)),dist:ekeys(t,[[T_ZOOM0,1700],[7.8,1450],[T_BACK1,1700]])});
+// the neon map inside any rect (screen or phone space): a 1100-wide virtual canvas scaled to fit
+function mapIn(c,t,R,run,{frame=1}={}){const k=R.w/1100,VH=R.h/k,[ki]=routeAt(Math.min(run,0.9999));
+  c.save();c.beginPath();c.roundRect(R.x,R.y,R.w,R.h,R.r??10);c.clip();c.fillStyle='#05070A';c.fillRect(R.x,R.y,R.w,R.h);c.translate(R.x,R.y);c.scale(k,k);glow(c,550,VH/2,900,RGB.blue,0.1);
+  drawMap(c,t,{cam:cam(t,VH),reveal:run>=0.9999?1:(ki+1)/(ROUTE.n-1),run,gridA:1,elev:1});c.restore();
+  if(frame>0){c.save();c.globalAlpha=frame;c.strokeStyle=rgbRing(c,R.x+R.w/2,R.y+R.h/2,t*1.2);c.lineWidth=Math.max(1.5,R.w/220);c.beginPath();c.roundRect(R.x,R.y,R.w,R.h,R.r??10);c.stroke();c.restore();}}
+function ctrl(c,x,y,w,h,label,primary,t,tp){const pr=tp!=null&&t>=tp&&t<tp+0.18?0.96:1;c.save();c.translate(x+w/2,y+h/2);c.scale(pr,pr);
+  if(primary){c.fillStyle='#fff';rr(c,-w/2,-h/2,w,h,h/2);c.fill();c.strokeStyle=rgbRing(c,0,0,t*1.25);c.lineWidth=2;rr(c,-w/2+1,-h/2+1,w-2,h-2,h/2);c.stroke();txt(c,label,0,6,700,15,'#000','center');}
+  else{c.strokeStyle=C.border;c.lineWidth=1.2;rr(c,-w/2,-h/2,w,h,h/2);c.stroke();txt(c,label,0,6,700,15,C.text2,'center');}c.restore();}
+// S: {rev(k,t), start, end, save, run(t), mapHidden(t), taps}
+function cardio(c,t,S){appBg(c);const rv=k=>S.rev?S.rev(k,t):1;
+  c.save();c.beginPath();c.rect(0,104,390,668);c.clip();
+  let a=rv('rx');if(a>0){c.save();c.globalAlpha=a;c.translate(0,20*(1-a));c.fillStyle=C.surface;rr(c,16,112,358,74,4);c.fill();c.strokeStyle=C.blue;c.lineWidth=1;c.stroke();c.fillStyle=C.blue;c.fillRect(16,112,3,74);
+    txt(c,'TU CARDIO DE ESTA SEMANA',30,137,800,11,'#fff','left',0.7);txt(c,'2 salidas de 5 km, ritmo suave.',30,164,400,14,'#fff');c.restore();}
+  a=rv('sec');if(a>0){c.globalAlpha=a;txt(c,'SALIR A CORRER, CAMINAR O ANDAR EN BICI',195,218,700,10.5,C.text2,'center',0.9);c.globalAlpha=1;}
+  const lv=E.outExpo(prog(t,S.start,S.start+0.35)),sm=E.outCubic(prog(t,S.end,S.end+0.3));
+  // pre-start: kinds + Iniciar
+  if(lv<1){const k=1-lv;a=rv('kinds')*k;if(a>0){c.globalAlpha=a;['Correr','Caminar','Bici'].forEach((l,i)=>{const x=16+i*122;c.fillStyle=i===0?'rgba(47,160,255,0.14)':C.surface;rr(c,x,232,114,44,4);c.fill();c.strokeStyle=i===0?C.blue:C.border;c.lineWidth=1;c.stroke();txt(c,l,x+57,259,600,14,i===0?'#fff':C.text2,'center');});c.globalAlpha=1;}
+    a=rv('go')*k;if(a>0){c.globalAlpha=a;ctrl(c,55,292,280,48,'Iniciar',true,t,S.start);c.globalAlpha=1;}}
+  // the live card / the Resumen card
+  if(lv>0){const top=232,hh=lerp(48,sm>0?lerp(428,520,sm):428,lv),x0=lerp(55,16,lv),ww=lerp(280,358,lv);
+    c.fillStyle=C.surface;rr(c,x0,top,ww,hh,4);c.fill();c.strokeStyle=C.border;c.lineWidth=1;c.stroke();
+    if(lv>0.6){const ca=clamp((lv-0.6)/0.4);c.save();c.globalAlpha=ca;c.beginPath();c.rect(x0,top,ww,hh);c.clip();
+      if(!(S.mapHidden&&S.mapHidden(t)))mapIn(c,t,{...MAPR,r:10},S.run(t),{frame:1});
+      if(sm<1){c.globalAlpha=ca*(1-sm);const v=live(S.run(t));txt(c,'CORRER',195,462,700,11,C.text2,'center',1);txt(c,v.dur,195,516,700,50,'#fff','center');
+        [[v.km,'km'],[v.pace,'min/km medio'],[v.kcal,'kcal']].forEach(([val,l],i)=>{const x=76+i*119;txt(c,val,x,566,700,26,'#fff','center');txt(c,l,x,586,400,11,C.text2,'center');});
+        ctrl(c,40,604,150,44,'Pausar',true,t,null);ctrl(c,200,604,150,44,'Terminar',true,t,S.end);}
+      if(sm>0){c.globalAlpha=ca*sm;txt(c,'RESUMEN · CORRER',195,462,700,11,C.text2,'center',1);
+        SUMROWS.forEach(([l,v],i)=>{const ra=E.outCubic(prog(t,S.end+0.1+i*0.06,S.end+0.4+i*0.06));if(ra<=0)return;const y=478+i*34;c.save();c.globalAlpha=ca*ra;c.translate(14*(1-ra),0);
+          txt(c,l,30,y+22,400,14,C.text2);txt(c,v,360,y+22,700,14,'#fff','right');c.fillStyle=C.border;c.fillRect(30,y+33,330,1);c.restore();});
+        const ba=E.outCubic(prog(t,S.end+0.45,S.end+0.7));if(ba>0){c.globalAlpha=ca*ba;ctrl(c,40,696,150,44,'Descartar',false,t,null);ctrl(c,200,696,150,44,'Guardar',true,t,S.save);}}
+      c.restore();}}
+  // Tus salidas
+  a=rv('list');if(a>0){const dy=lerp(0,320,lv)+(sm>0?92*sm:0);c.save();c.globalAlpha=a;c.translate(0,dy+16*(1-a));txt(c,'TUS SALIDAS',16,380,700,11,C.text2,'left',0.9);
+    SALIDAS.forEach(([b,s],i)=>{const y=392+i*64;c.fillStyle=C.surface;rr(c,16,y,358,56,4);c.fill();c.strokeStyle=C.border;c.lineWidth=1;c.stroke();txt(c,b,28,y+24,700,14,'#fff');txt(c,s,28,y+44,400,12,C.text2);txt(c,'✕',356,y+34,400,13,C.text2,'right');});c.restore();}
+  c.restore();
+  a=rv('header');if(a>0){c.globalAlpha=a;appHeader(c,{coach:'Martina',streak:5});c.globalAlpha=1;}
+  a=rv('nav');if(a>0){c.globalAlpha=a;bottomNav(c,2);c.globalAlpha=1;}
+  for(const[x,y,t0]of S.taps||[])tap(c,x,y,t,t0);}
+
+const SA={rev:(k,t)=>{const r=REV[k]??(T_DROP+0.6);return E.outExpo(prog(t,r,r+0.3));},start:T_START,end:T_END,save:T_SAVE,run:runAt,
+  mapHidden:t=>t>T_ZOOM1&&t<T_BACK0,taps:[[195,316,T_START],[275,626,T_END],[275,718,T_SAVE]]};
+function phoneP(t,L){const P=phoneRise(t,L,{push:[9.35,9.85],pull:[20,21],anchorY:600});P.y+=1700*E.inBack(prog(t,11.0,11.3));return P;}
+const zoomAt=t=>E.inOutCubic(prog(t,T_ZOOM0,T_ZOOM1))*(1-E.inOutCubic(prog(t,T_BACK0,T_BACK1)));
+function mapRectOnScreen(t,L){const P=phoneP(t,L),a=phonePoint(P,MAPR.x,MAPR.y),b=phonePoint(P,MAPR.x+MAPR.w,MAPR.y+MAPR.h),z=zoomAt(t);
+  return{x:lerp(a[0],0,z),y:lerp(a[1],0,z),w:lerp(b[0]-a[0],L.W,z),h:lerp(b[1]-a[1],L.H,z),r:lerp(10*P.s,0,z)};}
+/* the live numbers over the full-screen map */
+function hud(c,t,L,u,a,label='CORRER · EN VIVO'){if(a<=0)return;const y=L.fmt==='9x16'?L.safe.bottom-190:L.safe.bottom-150,s=L.fmt==='9x16'?1:0.86,v=live(u);
+  c.save();c.globalAlpha=a;c.translate(L.CX,y+40*(1-a));c.scale(s,s);c.fillStyle='rgba(8,10,14,0.88)';rr(c,-440,-130,880,260,36);c.fill();c.strokeStyle=rgbRing(c,0,0,t);c.lineWidth=2.5;rr(c,-440,-130,880,260,36);c.stroke();
+  const blink=label.includes('VIVO')?(0.5+0.5*Math.cos(t*7)):1;c.fillStyle=label.includes('VIVO')?`rgba(255,77,77,${blink})`:C.blue;c.beginPath();c.arc(-tw(label,700,22,3)/2-22,-86,7,0,7);c.fill();txt(c,label,0,-78,700,22,C.text2,'center',3);
+  txt(c,v.dur,0,0,800,76,'#fff','center');
+  [[v.km,'km'],[v.pace,'min/km medio'],[v.kcal,'kcal']].forEach(([val,l],i)=>{const x=(i-1)*280;txt(c,val,x,72,800,44,'#fff','center');txt(c,l,x,104,500,20,C.text2,'center');});c.restore();}
+/* ---------- hook b: the result first ---------- */
+function resultScene(c,t,L){bg(c,'#000',L);const tt=7.95+t*0.05;mapIn(c,tt,{x:0,y:0,w:L.W,h:L.H,r:0},1,{frame:0});hud(c,t,L,1,E.outBack(prog(t,0.05,0.35)),'CORRER · RESUMEN');
+  captionBand(c,t,L,[{t0:0.05,t1:B_RESULT-0.05,lines:['5,2 km.','Sin cambiar de app.'],key:[1,'Sin cambiar de app']}]);}
+/* ---------- piece ---------- */
+let CH=[];
+createReel({dur:15,
+  init(L,P){const S=sw(L),p=1;CH=[];const navX=[0,2,3].map(i=>32.5+i*65);
+    for(let i=0;i<3;i++){const x=L.CX+(i-p)*S.gap,s=1-0.06*Math.min(1,Math.abs(i-p)),iy=S.cy+(-S.ch/2-58)*s;CH.push({from:[x-S.cw*s/2,iy-40,S.cw*s*0.55,80],text:APPS[i].name,to:[navX[i]-26,815,52,16]});}
+    REV.nav=cardGo(0)+CARD_FLY-0.08;REV.header=T_DROP+0.45;REV.rx=T_DROP+0.55;REV.sec=T_DROP+0.62;REV.kinds=T_DROP+0.68;REV.go=T_DROP+0.76;REV.list=T_DROP+0.84;},
+  hits:[[T_STAMP,18,0.04],[T_DROP,9,0.025],[T_START,4,0.01],[T_ZOOM1,7,0.02],[T_BACK1,5,0.012],[T_OUT,7,0.018],[T_OUT+ENDCARD_LAND,4,0.01]],
+  fast:[[T_STAMP-0.03,T_STAMP+0.2],[T_DROP-0.02,T_DROP+0.7],[T_ZOOM0,T_ZOOM1+0.1],[T_BACK0,T_BACK1],[10.95,11.35],[B_RESULT,B_REWIND],[0.9*BT,3.2*BT]],
+  bloom:t=>t<T_DROP?0:(t>T_ZOOM0&&t<T_BACK1?0.5:0.3),vignette:t=>t<T_STAMP?0.25:0.36,
+  draw(c,t,L,P){const hookB=P.hook==='b';
+    if(t<T_DROP+0.35){if(hookB&&t<B_REWIND){resultScene(c,t,L);rewindFX(c,t,L);}
+      else{messWorld(c,Math.min(t,T_STAMP),L,t);if(!hookB&&t<T_STAMP)questionBoxes(c,t,L,{lines:[['¿Una','app','para','el','gym'],['y','otra','para','correr?']],times:[0.1,0.18,0.26,0.34,0.42,0.6,0.68,0.76,0.84]});}}
+    if(t>=T_DROP&&t<T_OUT+0.1){c.globalAlpha=E.inOutCubic(prog(t,T_DROP,T_DROP+0.3));bg(c,'#000',L);glow(c,L.W*0.1,L.H*0.15,900,RGB.blue,0.22);glow(c,L.W*0.9,L.H*0.85,900,RGB.pink,0.18);c.globalAlpha=1;}
+    if(t>=T_STAMP&&t<T_DROP+0.35)stampTitle(c,t,L,{word:'3 APPS',ep:'03',topic:'EL CARDIO'});
+    if(t>=T_OUT-0.3)endcardBg(c,t,T_OUT,L,E.outCubic(prog(t,T_OUT-0.3,T_OUT)));
+    if(t>=T_DROP&&t<11.4){const z=zoomAt(t),Pp=phoneP(t,L);
+      if(z<1)device(c,Pp,(cc,tt)=>cardio(cc,tt,SA),t);
+      if(t<T_DROP+1.2){flyCards(c,t,L,Pp);flyChunks(c,t,CH,Pp,{t0:T_DROP+0.2});}
+      if(z>0){const R=mapRectOnScreen(t,L);mapIn(c,t,R,runAt(t),{frame:1-z});
+        hud(c,t,L,runAt(t),E.outBack(prog(t,T_ZOOM1-0.1,T_ZOOM1+0.25))*(1-E.inCubic(prog(t,T_BACK0-0.15,T_BACK0+0.1))));}}
+    if(t>=T_DROP)captionBand(c,t,L,[{t0:3.35,t1:4.62,lines:['Tu rutina y tu cardio,','en la misma app.'],key:[1,'misma app']},{t0:5.35,t1:7.85,lines:['Tu recorrido,','en vivo.'],key:[1,'en vivo']},{t0:9.7,t1:11.0,lines:['Tu coach ve los números.','El mapa, solo vos.'],key:[1,'solo vos']}]);
+    if(t>=T_OUT-0.05)endcard(c,t,T_OUT,L,{cta:P.cta});
+    loopWipe(c,t,L,(cc,LL)=>{if(hookB)resultScene(cc,0,LL);else messWorld(cc,0,LL);});},
+  cues(L,P){const hookB=P.hook==='b',cues=[];
+    if(hookB){cues.push({t:0.05,s:'whoosh',d:0.3,f0:600,f1:3000},{t:0.1,s:'bell',m:91,d:0.9},{t:0.12,s:'pop'},{t:B_RESULT,s:'whoosh',d:0.42,f0:4000,f1:300,g:1.4},{t:B_RESULT+0.05,s:'sweep',f0:1800,f1:200,d:0.35});}
+    else{[0.1,0.18,0.26,0.34,0.42,0.6,0.68,0.76,0.84].forEach(t=>cues.push({t,s:'click',f:1800,g:0.9}));for(let k=0;k<8;k++)cues.push({t:k*BT/2,s:'tick',hi:k%2===0,g:0.8+k*0.05});
+      [1,2,3].forEach(k=>cues.push({t:k*BT-0.12,s:'whoosh',d:0.22,f0:900,f1:3500,g:0.9},{t:k*BT+0.08,s:'click',f:1200,g:0.8}));cues.push({t:0,s:'drone',d:T_STAMP});}
+    cues.push({t:T_STAMP-0.6,s:'rise',d:0.6},{t:T_STAMP,s:'stamp'},{t:T_STAMP+0.005,s:'strike'},{t:T_STAMP+0.2,s:'marker'},{t:T_STAMP+0.3,s:'pop'},{t:T_DROP-0.36,s:'revcrash',d:0.36},
+      {t:T_DROP,s:'hit'},{t:T_DROP,s:'groove',t1:13.6,bpm:128,chords:[[0,'Am'],[3.75,'F'],[5.625,'C'],[7.5,'G'],[9.375,'Am'],[T_OUT,'C']]},{t:T_DROP,s:'whoosh',d:0.6,f0:200,f1:3000,g:1.4});
+    for(let i=0;i<3;i++)cues.push({t:cardGo(i),s:'whoosh',d:0.35,f0:400+i*200,f1:3000,g:0.7},{t:cardGo(i)+CARD_FLY,s:'blip',f0:700+i*200,f1:1300+i*250,d:0.12,g:1.1,p:-0.4+i*0.4});
+    CH.forEach((ch,i)=>cues.push({t:landTime(i,T_DROP+0.2),s:'click',f:2400+i*300,g:0.6}));
+    cues.push({t:3.35,s:'whoosh',d:0.3,f0:600,f1:4000,g:0.6},{t:T_START,s:'tap'},{t:T_START+0.03,s:'blip',f0:700,f1:1400,d:0.12},{t:T_ZOOM0,s:'whoosh',d:0.55,f0:250,f1:5000,g:1.3},{t:T_ZOOM1,s:'sub',d:1.0,gain:0.5});
+    // a bell on each kilometre marker (markers at u = km/5.2)
+    for(let km=1;km<=5;km++){const u=km/5.2;let lo=T_ZOOM1,hi=T_BACK0;for(let q=0;q<40;q++){const m=(lo+hi)/2;runAt(m)<u?lo=m:hi=m;}cues.push({t:hi,s:'bell',m:79+km*2,d:0.6,g:0.75},{t:hi,s:'pop',g:0.6});}
+    cues.push({t:T_BACK0,s:'whoosh',d:0.45,f0:4000,f1:400,g:1.1},{t:T_END,s:'tap'},...Array.from({length:6},(_,i)=>({t:T_END+0.2+i*0.06,s:'click',f:2200+i*150,g:0.6})),
+      {t:9.35,s:'whoosh',d:0.4,f0:300,f1:2500,g:0.6},{t:9.7,s:'bell',m:84,d:0.8},{t:T_SAVE,s:'tap'},{t:T_SAVE+0.05,s:'chime'},{t:11.0,s:'whoosh',d:0.35,f0:2500,f1:300});
+    return[...cues,{t:T_OUT,s:'hit',g:0.8},{t:T_OUT+ENDCARD_LAND,s:'chord',ch:'C',d:3.2},...endcardCues(L,T_OUT),...Array.from({length:12},(_,q)=>({t:T_LOOP+q*0.045,s:'click',f:1800+q*60,g:0.5}))];},
+});
+</script></body></html>
