@@ -128,7 +128,7 @@ function planCards(b){
     '</div>';
   }).join("");
   return '<div class="pl-cards">' + cards + '</div>' +
-    '<div class="pl-fine">Contratás por WhatsApp con el equipo de GIZE: pagás por transferencia o link de pago, y te habilitamos el plan apenas se acredita. Se paga por mes; si un mes no seguís, no se cobra nada más.</div>' +
+    '<div class="pl-fine">Contratás por WhatsApp con el equipo de GIZE: pagás por transferencia, y te habilitamos el plan apenas se acredita. Se paga por mes; si un mes no seguís, no se cobra nada más.</div>' +
     '<div class="pl-fine">¿Más de 100 alumnos? <a class="pl-link" href="mailto:contacto@gize.ar?subject=GIZE%20para%20mi%20gimnasio">Escribinos</a> y armamos un plan a medida.</div>';
 }
 

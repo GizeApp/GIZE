@@ -334,9 +334,9 @@ async function openCoach(id){
 // de los coaches y cuántos faltan para cubrir los gastos (supabase/finanzas.sql). El dólar se
 // trae de dolarapi.com y queda guardado en la base para cuando no responda.
 //
-// Comisión de Mercado Pago por cobro de suscripción según cuándo libera la plata, sin IVA (se
-// le suma el 21%). mercadopago.com.ar/herramientas-para-vender/suscripciones, septiembre 2026.
-const MP_PLAZOS = [["0", "Al instante", 6.99], ["10", "A 10 días", 4.49], ["18", "A 18 días", 3.39], ["35", "A 35 días", 1.49]];
+// Los coaches pagan por transferencia a la cuenta de GIZE (se arregla por WhatsApp): no hay
+// comisión que descontar. Antes se cobraba con suscripciones de Mercado Pago y acá se elegía el
+// plazo de liberación con su comisión; la columna fin_settings.mp_plazo quedó sin uso.
 // Monotributo, prestación de servicios, desde agosto 2026: [tope de ingresos por año, cuota por
 // mes]. ARCA los actualiza en febrero y agosto.
 const MONO = { A: [12009410, 49527], B: [17595182, 56379], C: [24670494, 66020], D: [30628651, 84614], E: [36028231, 119811],
@@ -364,14 +364,12 @@ async function loadFinanzas(){
     <div class="grid kpis wide" id="fKpis"></div>
     <div id="fDolar"></div>
     <div class="grid two">
-      <div class="card neon"><div class="sec-t">Punto de equilibrio</div><div class="sec-s">Coaches que hacen falta para cubrir los gastos, ya descontada la comisión de Mercado Pago.</div><div id="fEq"></div></div>
+      <div class="card neon"><div class="sec-t">Punto de equilibrio</div><div class="sec-s">Coaches que hacen falta para cubrir los gastos. Cobran por transferencia, sin comisión.</div><div id="fEq"></div></div>
       <div class="card"><div class="sec-t">Quién pone qué</div><div class="sec-s">Gastos activos de cada socio, pasados a pesos por mes.</div><div id="fWho"></div></div>
     </div>
     <div class="card mt"><div class="card-h"><div><div class="sec-t">Gastos</div><div class="sec-s">Tocá uno para cambiarlo. Los que estás pensando y los pausados no suman.</div></div><button class="btn blue" data-a="fCost">+ Agregar gasto</button></div><div id="fCosts"></div></div>
     <div class="grid two mt">
       <div class="card"><div class="sec-t">Cobros y facturación</div><div class="sec-s">Las cuentas cambian al momento; «Guardar» deja los cambios fijos.</div>
-        <label class="lbl">Mercado Pago libera la plata</label>
-        <select class="in" data-fs="mp_plazo">${MP_PLAZOS.map(([k, l, p]) => `<option value="${k}"${String(st.mp_plazo || "0") === k ? " selected" : ""}>${l} · ${dec(p)}% + IVA</option>`).join("")}</select>
         <label class="lbl">Los gastos en dólares se pagan</label>
         <select class="in" data-fs="usd_pago"><option value="tarjeta">Con la tarjeta, en pesos (dólar tarjeta)</option><option value="mep"${st.usd_pago === "mep" ? " selected" : ""}>Con dólares propios (dólar MEP)</option></select>
         <div class="vgrid2"><label><span class="lbl">Quién factura</span><input class="in" data-fs="titular" maxlength="80" value="${esc(st.titular || "")}" placeholder="Nombre"></label>
@@ -394,7 +392,7 @@ function paintFin(){ paintFinCalc(); paintCosts(); paintTodos(); }
 // Cuentas con los ajustes que están en pantalla (aunque todavía no se hayan guardado).
 function finCalc(){
   const f = S.fin, st = f.settings;
-  const fee = (MP_PLAZOS.find(p => p[0] === String(st.mp_plazo || "0")) || MP_PLAZOS[0])[2] * 1.21 / 100;
+  const fee = 0; // transferencia: entra el precio entero (ver arriba)
   const kind = st.usd_pago === "mep" ? "mep" : "tarjeta", other = kind === "mep" ? "tarjeta" : "mep";
   const perMonth = (c, k) => { const a = num(c.amount) * (c.currency === "USD" ? S.dolar[k || kind] || 0 : 1); return c.period === "mensual" ? a : c.period === "anual" ? a / 12 : 0; };
   const sum = (list, k) => list.reduce((s, c) => s + perMonth(c, k), 0);
@@ -412,7 +410,7 @@ function paintFinCalc(){
   const dAt = d.at ? (d.live ? "dolarapi.com · " + fmtD(d.at) : "guardada el " + fmtD(d.at)) : "sin cotización";
   document.getElementById("fKpis").innerHTML =
     k(money(c.cost), "Gastos por mes", bigMoney(c.cost * 12) + " por año" + cheaper + (c.maybe ? " · +" + money(c.maybe) + " si sumás lo que estás pensando" : ""), "hi") +
-    k(money(c.net), "Entra por mes", n0(c.paid) + " suscripcion" + (c.paid === 1 ? "" : "es") + " al día · " + pct(c.fee) + " de comisión", c.net > 0 ? "good" : "") +
+    k(money(c.net), "Entra por mes", n0(c.paid) + " suscripcion" + (c.paid === 1 ? "" : "es") + " al día · por transferencia", c.net > 0 ? "good" : "") +
     k(signed(c.result), "Resultado por mes", c.result < 0 ? "lo ponen los socios" : c.result > 0 ? "ganancia para repartir" : "ni se gana ni se pierde", c.result < 0 ? "bad" : c.result > 0 ? "good" : "") +
     k(d[c.kind] ? money(d[c.kind]) : "—", c.kind === "mep" ? "Dólar MEP" : "Dólar tarjeta", (d[c.kind === "mep" ? "tarjeta" : "mep"] ? (c.kind === "mep" ? "tarjeta " : "MEP ") + money(d[c.kind === "mep" ? "tarjeta" : "mep"]) + " · " : "") + dAt);
   // Si dolarapi.com no respondió: la cotización se puede poner a mano.
