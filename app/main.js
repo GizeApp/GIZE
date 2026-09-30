@@ -1,3 +1,5 @@
+import './ui/errores.js';
+
 import './ui/keyboard.js';
 
 import { DEFAULT, PPL_DAYS } from './core/data.js';
