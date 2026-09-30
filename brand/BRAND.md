@@ -58,6 +58,9 @@ gastan colores que hacen falta para los estados. Se diferencian por jerarquía (
 - `logo/gize-firma-horizontal.svg` — símbolo + palabra. Es la firma principal.
 - `logo/gize-icono-negro.svg` — ícono de app.
 - `logo/gize-icono-maskable.svg` — ícono maskable de Android (todo dentro del 80% central).
+- `instagram/gize-perfil.png` — foto de perfil de Instagram (1080 × 1080, «Vidrio noche», elegida en septiembre 2026):
+  un disco de vidrio esmerilado sobre la gama RGB que ocupa todo el círculo que recorta Instagram, con la G al 60 %.
+  Se regenera con `node showreel/logo-ig/build.mjs --only=perfil` (sale como `perfil-2-vidrio-noche.png`).
 
 **Construcción de la firma:** símbolo 100 u, aire 44 u, altura de mayúscula 74 u.
 No cambiar esa proporción ni re-espaciar las letras.
