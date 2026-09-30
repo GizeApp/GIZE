@@ -32,4 +32,5 @@ for (const v of await page.evaluate('window.VARIANTS')) {
   console.log(`  ✓ ${v.id}.png  ${v.name}`);
 }
 if (!only) { save('00-tablero.png', await page.evaluate('window.renderBoard()')); console.log('  ✓ 00-tablero.png'); }
+if (!only || only.includes('perfil')) { save('perfil-0-vista.png', await page.evaluate('window.renderProfiles()')); console.log('  ✓ perfil-0-vista.png'); }
 await browser.close(); server.close();

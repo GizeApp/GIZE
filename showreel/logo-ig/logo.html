@@ -217,12 +217,43 @@ def('20-recuadro-azul','Recuadro, azul',c=>{
   c.fillStyle='#2FA0FF';c.fillRect(0,0,W,W);c.strokeStyle='#000';c.lineWidth=11;c.strokeRect(160,160,760,760);
   G(c,CX,CY,440,{mono:true,color:'#000'});});
 
+/* ---------------- profile photo: the logo fills the whole circle (like a badge) ---------------- */
+// Instagram crops the profile photo to the inscribed circle, so these are discs edge to edge: nothing
+// else shows. The G is bigger (≈ 60 % of the width) so it still reads at 56 px.
+const PV=[];const defP=(id,name,draw)=>PV.push({id,name,draw});
+function disc(c,fn){c.save();c.beginPath();c.arc(CX,CY,540,0,TAU);c.clip();fn();c.restore();}
+function discRim(c,a=0.5){const g=c.createLinearGradient(0,0,W,W);g.addColorStop(0,`rgba(255,255,255,${a})`);g.addColorStop(0.5,`rgba(255,255,255,${a*0.18})`);g.addColorStop(1,`rgba(255,255,255,${a*0.55})`);
+  c.strokeStyle=g;c.lineWidth=3;c.beginPath();c.arc(CX,CY,528,0,TAU);c.stroke();}
+function glassDisc(c,cols,{deep=false}={}){c.fillStyle='#000';c.fillRect(0,0,W,W);
+  const BG=layerP(x=>{x.fillStyle=deep?'#02040C':'#050A18';x.fillRect(-PAD,-PAD,W+2*PAD,W+2*PAD);
+    const blob=(px,py,r,a,b)=>{const g=x.createLinearGradient(px-r,py-r,px+r,py+r);g.addColorStop(0,a);g.addColorStop(1,b);x.fillStyle=g;x.beginPath();x.arc(px,py,r,0,TAU);x.fill();};
+    cols.forEach(b=>blob(...b));});
+  disc(c,()=>{putP(c,BG,{filter:blur(34)});c.fillStyle=deep?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.09)';c.fillRect(0,0,W,W);
+    const g=c.createRadialGradient(300,240,0,300,240,720);g.addColorStop(0,'rgba(255,255,255,0.24)');g.addColorStop(0.55,'rgba(255,255,255,0.03)');g.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=g;c.fillRect(0,0,W,W);
+    const v=c.createRadialGradient(CX,CY,380,CX,CY,560);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,`rgba(0,0,0,${deep?0.35:0.18})`);c.fillStyle=v;c.fillRect(0,0,W,W);grain(c,0.05);});
+  discRim(c,deep?0.4:0.55);}
+defP('perfil-1-vidrio','Vidrio',c=>{glassDisc(c,[[250,260,390,'#7CC4FF','#2F8CFF'],[880,230,330,'#C08BFF','#9A5CFF'],[860,860,400,'#6FF3DC','#1FD8C0'],[170,900,250,'#FF7BC8','#FF3DAE']]);G(c,CX,CY,640);});
+defP('perfil-2-vidrio-noche','Vidrio noche',c=>{glassDisc(c,[[250,260,390,'#2F8CFF','#0B3FB0'],[880,230,330,'#8A4DFF','#3E1C9E'],[860,860,400,'#1FD8C0','#086B73'],[170,900,250,'#FF3DAE','#8A1760']],{deep:true});G(c,CX,CY,640);});
+defP('perfil-3-azul','Azul',c=>{c.fillStyle='#000';c.fillRect(0,0,W,W);
+  disc(c,()=>{const g=c.createRadialGradient(360,300,40,540,560,760);g.addColorStop(0,'#46B4FF');g.addColorStop(0.5,'#1287E6');g.addColorStop(1,'#0059A8');c.fillStyle=g;c.fillRect(0,0,W,W);grain(c,0.04);});
+  G(c,CX,CY,640,{mono:true});});
+defP('perfil-4-mesh-neon','Mesh neón',c=>{meshBg(c,0.8);grain(c,0.1);G(c,CX,CY,640,{mono:true});});
+defP('perfil-5-anillo','Anillo',c=>{c.fillStyle='#000';c.fillRect(0,0,W,W);radial(c,CX,CY,420,hex('#0B2A55'),0.55);G(c,CX,CY,1010);});
+
 /* ---------------- render ---------------- */
 const out=document.getElementById('out');
 function renderBig(v){const cv=mk(S,S),c=cv.getContext('2d');c.setTransform(Z,0,0,Z,0,0);v.draw(c);return cv;}
 function halve(cv){const o=mk(cv.width/2,cv.height/2),c=o.getContext('2d');c.imageSmoothingQuality='high';c.drawImage(cv,0,0,o.width,o.height);return o;}
-window.VARIANTS=V.map(v=>({id:v.id,name:v.name}));
-window.renderVariant=id=>halve(renderBig(V.find(v=>v.id===id))).toDataURL('image/png');
+window.VARIANTS=[...V,...PV].map(v=>({id:v.id,name:v.name}));
+window.renderVariant=id=>halve(renderBig([...V,...PV].find(v=>v.id===id))).toDataURL('image/png');
+// how the profile photos read at Instagram's sizes: big (profile), 110 and 56 px (feed, comments)
+window.renderProfiles=()=>{const n=PV.length,col=360,M=90,head=230,BW=M*2+n*col,BH=head+580,cv=mk(BW,BH),c=cv.getContext('2d');c.fillStyle='#0B0D11';c.fillRect(0,0,BW,BH);
+  txt(c,'Foto de perfil · el logo ocupa todo el círculo',M,110,800,52,'#fff');txt(c,'Instagram recorta un círculo: acá es lo único que se ve. Tamaños reales: perfil, 110 px y 56 px.',M,160,500,26,'#8F98A6');
+  const g=c.createLinearGradient(M,0,BW-M,0);['#2FA0FF','#A65CFF','#FF3DAE','#25E8C8'].forEach((s,i)=>g.addColorStop(i/3,s));c.fillStyle=g;c.fillRect(M,196,BW-2*M,3);
+  const circ=(img,x,y,r)=>{c.save();c.beginPath();c.arc(x,y,r,0,TAU);c.clip();c.imageSmoothingQuality='high';c.drawImage(img,x-r,y-r,2*r,2*r);c.restore();};
+  PV.forEach((v,i)=>{const img=renderBig(v),x=M+i*col+col/2-20;circ(img,x,head+150,140);circ(img,x-70,head+400,55);circ(img,x+60,head+400,28);
+    txt(c,v.name,x,head+510,700,28,'#fff','center');});
+  return cv.toDataURL('image/png');};
 // the presentation board: every piece, its name, and how it reads as the round profile photo
 window.renderBoard=()=>{const cols=5,T=420,gap=40,M=90,head=260,rowH=T+84,BW=M*2+cols*T+(cols-1)*gap,rows=Math.ceil(V.length/cols),BH=head+rows*rowH+M-20;
   const cv=mk(BW,BH),c=cv.getContext('2d');c.fillStyle='#0B0D11';c.fillRect(0,0,BW,BH);
