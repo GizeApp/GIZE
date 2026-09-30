@@ -7,7 +7,7 @@ import { resolveAvatars } from './avatar.js';
 
 import { loadCoachQuestions } from '../screens/coach/preguntas.js';
 
-import { State, state } from './state.js';
+import { State, state, ensureDays } from './state.js';
 import { activeDeload } from './bloque.js';
 
 import { DEFAULT } from './data.js';
@@ -431,7 +431,7 @@ export function applyCoachRoutine(){
     if(prev === "regular") return false;
     if(Array.isArray(state.preDeloadDays) && state.preDeloadDays.length) state.days = state.preDeloadDays;
     state.preDeloadDays = null; state.routineMode = "regular";
-    if(!state.days.find(d=>d.id===State.activeId)) State.activeId = state.days[0] ? state.days[0].id : null;
+    ensureDays();
     return true;
   }
   const clone = d => JSON.parse(JSON.stringify(d));
@@ -445,7 +445,7 @@ export function applyCoachRoutine(){
   if(mode === "regular") state.preDeloadDays = null;
   state.routineMode = mode;
   migrateNames(state.days);
-  if(!state.days.find(d=>d.id===State.activeId)) State.activeId = state.days[0] ? state.days[0].id : null;
+  ensureDays();
   return mode !== prev;
 }
 
@@ -466,7 +466,7 @@ function leaveCoachRoutine(){
     if(Array.isArray(state.regularDays) && state.regularDays.length)
       state.days = mergeLocalProgress(JSON.parse(JSON.stringify(state.regularDays)), state.preDeloadDays || state.days);
     else if(Array.isArray(state.preDeloadDays) && state.preDeloadDays.length) state.days = state.preDeloadDays;
-    if(!state.days.find(d=>d.id===State.activeId)) State.activeId = state.days[0] ? state.days[0].id : null;
+    ensureDays();
   }
   state.routineMode = "regular"; state.regularDays = null; state.preDeloadDays = null;
 }
@@ -789,7 +789,7 @@ export async function loadCloud(){
       if(!bl.error) state.block = (bl.data && bl.data[0]) ? bl.data[0] : null;
       if(rt.data && Array.isArray(rt.data.days) && rt.data.days.length) state.regularDays = rt.data.days;
       applyCoachRoutine();
-      if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
+      ensureDays();
       markRoutineSynced(state.days);
     }
     else if(rt.data && Array.isArray(rt.data.days) && rt.data.days.length){
@@ -807,7 +807,7 @@ export async function loadCloud(){
       // subir, queda marcada la de la nube: la corregida queda pendiente para el próximo save().
       const raw=JSON.parse(JSON.stringify(state.days));
       const fixed=migrateNames(state.days);
-      if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
+      ensureDays();
       let up=false;
       if(fixed){ try{ up=await upRoutine(); }catch(e){ console.error("rutina",e); } }
       markRoutineSynced(fixed && !up ? raw : state.days);
@@ -907,7 +907,7 @@ export function refreshOwnRoutine(){
       state.days=rt.data.days;
       const raw=JSON.parse(JSON.stringify(state.days)); // la de la nube, sin migrar (ver loadCloud)
       const fixed=migrateNames(state.days);
-      if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
+      ensureDays();
       markRoutineSynced(raw); // también la guarda en el dispositivo
       if(fixed) cloudSyncCore(); // la corregida se sube una vez (sin marcarla como editada acá)
       return true;

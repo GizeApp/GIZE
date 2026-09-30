@@ -2,7 +2,7 @@ import { DEFAULT } from './data.js';
 
 import { KEY } from './storage.js';
 
-import { today } from './utils.js';
+import { today, uid } from './utils.js';
 
 export const State = {
 
@@ -48,6 +48,7 @@ export let state;
 try { const raw = localStorage.getItem(KEY); state = raw ? JSON.parse(raw) : null; } catch(e) { state = null; }
 
 if (!state || !state.days) state = JSON.parse(JSON.stringify(DEFAULT));
+if (!Array.isArray(state.days)) state.days = []; // dato roto: ensureDays() arma un día más abajo
 
 if (!Array.isArray(state.habits)) state.habits = JSON.parse(JSON.stringify(DEFAULT.habits));
 
@@ -124,4 +125,10 @@ if (!state.habitsDone || typeof state.habitsDone !== "object") state.habitsDone 
 // Días y aviso de cada hábito (screens/habitos.js): { own: {id: {days, time}}, coach: {nombre: {days, time}} }.
 if (!state.habitAlarms || typeof state.habitAlarms !== "object") state.habitAlarms = {};
 
-if (!state.days.find(d => d.id === State.activeId)) State.activeId = state.days[0].id;
+// La rutina nunca queda sin días: con 0 días la app quedaba en blanco (ninguna pantalla podía
+// dibujar el día elegido). Si llega vacía (datos viejos, la nube), se arma un día vacío.
+export function ensureDays(){
+  if (!Array.isArray(state.days) || !state.days.length) state.days = [{ id: uid(), name: "Día 1", subtitle: "", exercises: [] }];
+  if (!state.days.find(d => d.id === State.activeId)) State.activeId = state.days[0].id;
+}
+ensureDays();
