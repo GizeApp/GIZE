@@ -1,4 +1,5 @@
-// Genera los íconos de la app (web, Android e iPhone) a partir de los SVG de brand/logo:
+// Genera los íconos de la app (web, Android e iPhone) a partir de brand/logo/gize-icono.png.
+// (Antes salían de estos SVG, que quedan en brand/logo:)
 //   gize-icono-vidrio.svg           → ícono completo (círculos de color, vidrio y la G blanca)
 //   gize-icono-vidrio-maskable.svg  → mismo ícono con el vidrio y la G más chicos, para que
 //                                     entren en la zona segura cuando el sistema recorta
@@ -13,13 +14,14 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { chromium } = await import(process.env.PW || 'playwright');
-const svg = n => 'data:image/svg+xml;base64,' + fs.readFileSync(path.join(ROOT, 'brand/logo', n)).toString('base64');
-const FULL = svg('gize-icono-vidrio.svg'), MASK = svg('gize-icono-vidrio-maskable.svg');
-// Para los splash el SVG va en línea y sin recorte, así los círculos que tocan el borde del
-// ícono no quedan cortados sobre el fondo negro (sin el cuadrado de fondo propio).
-const FREE = fs.readFileSync(path.join(ROOT, 'brand/logo/gize-icono-vidrio.svg'), 'utf8')
-  .replace('<svg ', '<svg style="overflow:visible;display:block;width:100%;height:100%" ')
-  .replace('<rect width="1080" height="1080" fill="#000000"/>', '');
+// El ícono viene de una imagen (brand/logo/gize-icono.png, 1080×1080: la G blanca con el punto
+// azul dentro de un anillo de neón, sobre negro). Para los íconos que el sistema recorta (círculo,
+// gota…: maskable y adaptable de Android) va gize-icono-maskable.png, el mismo achicado al 78 %
+// sobre negro, así el anillo entra entero en la zona segura.
+const png = n => 'data:image/png;base64,' + fs.readFileSync(path.join(ROOT, 'brand/logo', n)).toString('base64');
+const FULL = png('gize-icono.png'), MASK = png('gize-icono-maskable.png');
+// Para los splash nativos: el ícono en el centro del fondo negro (su fondo ya es negro).
+const FREE = `<img src="${FULL}" style="display:block;width:100%;height:100%">`;
 const BG = '#000000';
 
 // forma: 'full' (cuadrado entero), 'legacy' (cuadrado con margen, como el ícono viejo de
@@ -54,6 +56,7 @@ for (const [out, px, src, shape, k] of jobs){
     const [w, h] = pngSize(out), side = Math.round(Math.min(w, h) * k);
     await p.setViewportSize({ width: w, height: h });
     await p.setContent(`<html><body style="margin:0;width:${w}px;height:${h}px;background:${BG};display:grid;place-items:center"><div style="width:${side}px;height:${side}px">${FREE}</div></body></html>`);
+    await p.evaluate(() => Promise.all([...document.images].map(i => i.decode())));
     await p.screenshot({ path: path.join(ROOT, out), clip: { x: 0, y: 0, width: w, height: h } });
     console.log(out, w + 'x' + h);
     continue;
