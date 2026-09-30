@@ -238,8 +238,8 @@ function captions(c,t,L){const k4=L.fmt==='4x5',px=k4?66:84,y=k4?150:362,sg=lerp
 
 /* ---------------- sound ---------------- */
 function cueSheet(L){const q=[];
-  const env=[];for(let t=0;t<=TL.close+0.25;t+=0.02){const v=(sAt(t+0.01)-sAt(t-0.01))/0.02;env.push([+t.toFixed(2),+Math.min(1,(Math.max(0,v)/850)**0.7*(t>TL.ph?0.75:1)).toFixed(3)]);}
-  q.push({t:0,s:'scribble',env,gain:0.22});
+  const env=[];for(let t=0;t<=TL.close+0.25;t+=0.02){const v=(sAt(t+0.01)-sAt(t-0.01))/0.02;env.push([+t.toFixed(2),+Math.min(1,(Math.max(0,v)/850)**0.7*(t>TL.ph?0.42:1)).toFixed(3)]);}
+  q.push({t:0,s:'scribble',env,gain:0.4});
   q.push({t:0.02,s:'bloop',k:0,v:1},{t:0.02,s:'sub',d:0.8,gain:0.45},{t:0.06,s:'shimmer'},{t:BT,s:'bloop',k:1,v:0.6},{t:TL.go-0.03,s:'whoosh',d:0.45,f0:500,f1:3200,g:0.6});
   q.push({t:TL.go,s:'groove',t1:TL.rev,bpm:BPM,chords:[[TL.go,'Am'],[bt(6),'F'],[bt(10),'C'],[bt(14),'G'],[bt(18),'Am'],[bt(22),'F']],parts:['kick','clap','hat','bass','pad','arp']});
   q.push({t:TL.db,s:'tick'},{t:TL.dbE,s:'pop'},{t:TL.dbE,s:'tap'});

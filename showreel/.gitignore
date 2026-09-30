@@ -6,3 +6,4 @@ frames/
 *.mov
 stock/**/*.jpg
 stock/**/*.png
+__pycache__/
