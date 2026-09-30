@@ -11,24 +11,28 @@
   } catch (e) {}
 })();
 
-// Apariencia: «Oscuro» (la de siempre, por defecto), «Claro» (vidrio sobre círculos de color,
-// css/ui/tema-claro.css) o «Rosa» (el mismo vidrio con la paleta rosa: html.tema-claro +
-// html.tema-rosa, css/ui/tema-rosa.css). Se elige en Ajustes (cliente) o en Configuración
-// (coach) y se guarda en este dispositivo ("gize_tema" = "claro" o "rosa"; ver app/ui/tema.js).
-// Va acá, igual que el modo liviano, para que la primera pintada (y el splash) ya salgan con la
-// apariencia elegida.
+// Apariencia: «Oscuro» (la de siempre, por defecto), «Claro» (blanco con texto oscuro:
+// html.tema-luz, css/ui/tema-luz.css), «Azul» (vidrio sobre círculos de color: html.tema-claro,
+// css/ui/tema-claro.css; antes se llamaba «Claro») o «Rosa» (el mismo vidrio con la paleta rosa:
+// html.tema-claro + html.tema-rosa, css/ui/tema-rosa.css). Se elige en Ajustes (cliente) o en
+// Configuración (coach) y se guarda en este dispositivo ("gize_tema" = "luz", "azul" o "rosa";
+// ver app/ui/tema.js). Quien eligió «Azul» cuando se llamaba «Claro» tiene guardado "claro": se
+// toma como «Azul» y se pasa a "azul". Va acá, igual que el modo liviano, para que la primera
+// pintada (y el splash) ya salgan con la apariencia elegida.
 (function () {
   try {
     var t = localStorage.getItem("gize_tema");
-    if (t !== "claro" && t !== "rosa") return;
+    if (t === "claro") { t = "azul"; localStorage.setItem("gize_tema", t); }
+    if (t !== "luz" && t !== "azul" && t !== "rosa") return;
     var c = document.documentElement.classList;
-    c.add("tema-claro");
-    if (t === "rosa") c.add("tema-rosa");
+    if (t === "luz") c.add("tema-luz");
+    else { c.add("tema-claro"); if (t === "rosa") c.add("tema-rosa"); }
     // La barra del sistema (Android) con el color del fondo: los <meta> vienen después de este script.
+    var barra = t === "luz" ? "#F4F5F8" : t === "rosa" ? "#14060F" : "#030814";
     document.addEventListener("DOMContentLoaded", function () {
-      if (!c.contains("tema-claro")) return;
+      if (!c.contains("tema-claro") && !c.contains("tema-luz")) return;
       var m = document.querySelectorAll('meta[name="theme-color"]');
-      for (var i = 0; i < m.length; i++) m[i].setAttribute("content", c.contains("tema-rosa") ? "#14060F" : "#030814");
+      for (var i = 0; i < m.length; i++) m[i].setAttribute("content", barra);
     });
   } catch (e) {}
 })();

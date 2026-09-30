@@ -51,7 +51,7 @@ export function renderCoachSettings(){
       '<button class="cp-copt cs-q-btn cs-notif'+(pushOnHere()?' on':'')+'" data-coach="notif-toggle">'+(pushOnHere()?'Avisos activados \u2713 · tocá para apagarlos':'Activar avisos')+'</button>'+
       '<div class="cs-hint">Te avisamos cuando un alumno manda su check-in semanal o lleva 4 días sin entrenar.</div>'+
     '</div>'+
-    // Apariencia: «Oscuro» (la de siempre), «Claro» o «Rosa» (vidrio), igual que en Ajustes del
+    // Apariencia: «Oscuro» (la de siempre), «Claro» (blanco), «Azul» o «Rosa» (vidrio), igual que en Ajustes del
     // alumno. Se aplica al toque (app/ui/tema.js escucha los botones data-tema).
     '<div class="cs-field">'+
       '<label id="csTemaLbl">Apariencia en este dispositivo</label>'+

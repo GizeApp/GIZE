@@ -3,7 +3,7 @@
 // Configuración del coach: se aplica al toque (sin recargar), queda guardado en el dispositivo
 // ("gize_neon" = "0"), la clase ya está antes de la primera pintada, y no queda nada de la gama:
 // ni anillos que giran, ni bordes de colores, ni resplandores de colores (chat y racha). Anda
-// igual con «Claro».
+// igual con «Azul».
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'Torso', exercises: [{ id: 'e1', name: 'Press de banca', sets: [{ id: 's1', kg: '80', reps: '8' }] }] }], sessions: [], weights: [], daily: {} };
@@ -113,21 +113,21 @@ export default async function ({ base, t }){
   t.eq(await p.evaluate(() => [...document.querySelectorAll('body *')].flatMap(e => [null, '::before', '::after'].map(ps => getComputedStyle(e, ps)))
     .filter(c => c.animationName.split(',').includes('gize-spin') && c.display !== 'none').length), 0, 'apagado: nada gira');
 
-  // 4) Con «Claro»: vidrio de siempre, pero con filete neutro.
+  // 4) Con «Azul»: vidrio de siempre, pero con filete neutro.
   await p.click('#nav-config'); await wait(500);
-  await p.click('.cfg-seg [data-tema="claro"]'); await wait(200);
+  await p.click('.cfg-seg [data-tema="azul"]'); await wait(200);
   m = await mide(p);
-  t.ok(m.claro && m.sinNeon, 'Claro sin neón: las dos clases');
-  t.ok(/blur/.test(m.card.backdropFilter || ''), 'Claro sin neón: la caja sigue siendo vidrio');
-  t.ok(m.cardAfter && !/conic/.test(m.cardAfter.backgroundImage) && /rgba\(255, 255, 255, 0\.18\)/.test(m.cardAfter.backgroundImage), 'Claro sin neón: el borde de la caja es un filete blanco: ' + (m.cardAfter && m.cardAfter.backgroundImage));
-  t.ok(!conTinte(m.card.boxShadow) && !conTinte(m.chat.boxShadow) && !conTinte(m.streak.boxShadow) && !conTinte(m.flame.filter) && !m.flameStops.some(conTinte), 'Claro sin neón: sin resplandores de colores');
-  t.ok(!/rgba\(63, 163, 242/.test(await p.evaluate(() => getComputedStyle(document.querySelector('.app-aurora')).backgroundImage)), 'Claro sin neón: los círculos del fondo sin el azul de la gama');
+  t.ok(m.claro && m.sinNeon, 'Azul sin neón: las dos clases');
+  t.ok(/blur/.test(m.card.backdropFilter || ''), 'Azul sin neón: la caja sigue siendo vidrio');
+  t.ok(m.cardAfter && !/conic/.test(m.cardAfter.backgroundImage) && /rgba\(255, 255, 255, 0\.18\)/.test(m.cardAfter.backgroundImage), 'Azul sin neón: el borde de la caja es un filete blanco: ' + (m.cardAfter && m.cardAfter.backgroundImage));
+  t.ok(!conTinte(m.card.boxShadow) && !conTinte(m.chat.boxShadow) && !conTinte(m.streak.boxShadow) && !conTinte(m.flame.filter) && !m.flameStops.some(conTinte), 'Azul sin neón: sin resplandores de colores');
+  t.ok(!/rgba\(63, 163, 242/.test(await p.evaluate(() => getComputedStyle(document.querySelector('.app-aurora')).backgroundImage)), 'Azul sin neón: los círculos del fondo sin el azul de la gama');
 
   // 5) Volver a prenderlo: todo como siempre.
   await p.click('[data-neon-toggle]'); await wait(200);
   m = await mide(p);
   t.eq([m.sinNeon, m.saved, m.sw], [false, null, ['true']], 'prendido otra vez: sin clase ni nada guardado');
-  t.ok(/conic-gradient/.test(m.cardAfter.backgroundImage) && conTinte(m.chat.boxShadow), 'prendido otra vez (Claro): vuelven el borde y el brillo de colores');
+  t.ok(/conic-gradient/.test(m.cardAfter.backgroundImage) && conTinte(m.chat.boxShadow), 'prendido otra vez (Azul): vuelven el borde y el brillo de colores');
   await p.click('.cfg-seg [data-tema="oscuro"]'); await wait(200);
   m = await mide(p);
   t.eq(m.card && m.card.backgroundImage, RING_OSCURO, 'prendido otra vez (Oscuro): la caja como siempre');

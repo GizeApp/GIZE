@@ -4,9 +4,9 @@
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 export default async function ({ base, t }){
-  for (const tema of ['oscuro', 'claro']){
+  for (const tema of ['oscuro', 'azul', 'luz']){
     const { p, errs, close } = await newPage({ user: ALUMNO, state: { days: [], sessions: [], weights: [], daily: {} }, handlers: { '/profiles': profile('client') },
-      init: `localStorage.setItem('gize_lite','0');${tema === 'claro' ? "localStorage.setItem('gize_tema','claro');" : ''}` });
+      init: `localStorage.setItem('gize_lite','0');${tema === 'oscuro' ? '' : "localStorage.setItem('gize_tema','" + tema + "');"}` });
     await p.addInitScript(() => {
       new MutationObserver((ms, o) => { const s = document.getElementById('splash'); if (!s) return; o.disconnect();
         const g = e => e ? getComputedStyle(e) : null, sp = g(s), ic = g(s.querySelector('.sp-icon')), gl = g(s.querySelector('.sp-glass'));

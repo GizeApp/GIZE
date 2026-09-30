@@ -1,5 +1,6 @@
 /* css/ui/tema-claro.css
-   Apariencia «Claro» (html.tema-claro): vidrio esmerilado sobre un fondo azul marino con
+   Apariencia «Azul» (html.tema-claro; antes se llamaba «Claro», por eso la clase y el nombre del
+   archivo siguen siendo "claro"; la «Claro» de ahora es html.tema-luz, css/ui/tema-luz.css): vidrio esmerilado sobre un fondo azul marino con
    círculos grandes de color, como el ícono nuevo (azul, violeta, cian e índigo profundo) y la
    G toda blanca. Es opcional: se elige en Ajustes (cliente) o en Configuración (coach), se
    guarda por dispositivo y la clase la pone app/lite.js antes de la primera pintada (ver
@@ -190,7 +191,7 @@ html.tema-claro .flame linearGradient[id$="o"] stop:nth-child(3) { stop-color: #
 html.tema-claro .flame linearGradient[id$="i"] stop:nth-child(2) { stop-color: #B8ECFA; }
 html.tema-claro .flame linearGradient[id$="i"] stop:nth-child(3) { stop-color: #2EC6EE; }
 
-/* ---------- Modo liviano con «Claro» (html.lite.tema-claro) ----------
+/* ---------- Modo liviano con «Azul» (html.lite.tema-claro) ----------
    Mismo look, pero barato: ningún backdrop-filter (el !important le gana a las capas que lo
    ponen por pantalla) y el vidrio pasa a un relleno casi sólido, con el mismo brillo blanco
    arriba, para que el texto se siga leyendo. El fondo de círculos ya es quieto y barato. */

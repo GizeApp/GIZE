@@ -1,6 +1,6 @@
 // Neón: los bordes y brillos de colores de GIZE (la gama RGB: anillos que giran, bordes de
 // las cajas, resplandores, la llama y el chat). Prendido por defecto; apagado, la app queda
-// en blanco y grises, más tranquila, en las dos apariencias (css/ui/sin-neon.css). Se guarda
+// en blanco y grises, más tranquila, en todas las apariencias (css/ui/sin-neon.css; en «Claro», negros y grises). Se guarda
 // en este dispositivo ("gize_neon" = "0") y la clase html.sin-neon la pone app/lite.js antes
 // de la primera pintada. El interruptor está en Ajustes del cliente (screens/config.js) y en
 // Configuración del coach (screens/coach/settings.js). Igual que la apariencia

@@ -2,7 +2,7 @@
   var TOTAL_MS = 2600; // duración completa: barra de 2,1 s + salida
   var MAX_MS = 8000;   // techo de seguridad si la app nunca avisa que está lista
   var tpl = document.getElementById('splashTpl');
-  // El splash de las dos apariencias es el ícono de vidrio armándose (css/core/splash.css), con
+  // El splash de todas las apariencias es el ícono de vidrio armándose (css/core/splash.css), con
   // los colores de cada una. Dura ~1,5 s + 0,35 s de salida; en el modo liviano ya viene armado y
   // se va a los 0,85 s. El de antes (#splashTpl, 2,6 s) queda solo por si faltara el template.
   var tplClaro = document.getElementById('splashTplClaro');

@@ -1,16 +1,17 @@
 /* css/ui/sin-neon.css
    Neón apagado (html.sin-neon): la misma app, con las mismas formas, superficies, vidrio (en
-   «Claro») y botones blancos, pero sin la gama RGB. Cada tratamiento de neón pasa a su
+   «Azul») y botones blancos, pero sin la gama RGB. Cada tratamiento de neón pasa a su
    equivalente neutro: filetes blancos finos en vez de bordes de colores, brillos blancos
    suaves en vez de resplandores de colores y nada que gire. Es opcional (prendido por
    defecto): se apaga en Ajustes (cliente) o en Configuración (coach), se guarda por
    dispositivo y la clase la pone app/lite.js antes de la primera pintada (ver app/ui/neon.js).
    Sin la clase no cambia nada: TODO lo de este archivo va bajo html.sin-neon.
-   Se carga último (después de css/ui/tema-claro.css), así sirve para las dos apariencias.
+   Se carga después de css/ui/tema-claro.css, así sirve para «Oscuro», «Azul» y «Rosa»; «Claro»
+   (html.tema-luz) lo pasa a negros y grises al final de css/ui/tema-luz.css.
    Cómo gana: cada regla repite el selector original con :where(html.sin-neon) adelante, que
    no suma peso: empata con la regla de neón y le gana por venir después, pero no pisa las
    excepciones más específicas que ya había (por ejemplo, los ejercicios adentro de una
-   superserie, que van sin caja propia). Las de «Claro» usan html.tema-claro:where(.sin-neon).
+   superserie, que van sin caja propia). Las de «Azul» usan html.tema-claro:where(.sin-neon).
    Se quedan con color, porque no son decoración: el azul de acción y foco, el rojo de borrar
    y de alerta, el turquesa de «completado», el ámbar de aviso y el dorado de los récords. */
 
@@ -143,7 +144,7 @@ html.tema-claro:where(.sin-neon) body:not(#_) :is(
 :where(html.sin-neon) .flame linearGradient[id$="o"] stop:nth-child(3) { stop-color: #7D8592; }
 :where(html.sin-neon) .flame linearGradient[id$="i"] stop:nth-child(2) { stop-color: #FFFFFF; }
 :where(html.sin-neon) .flame linearGradient[id$="i"] stop:nth-child(3) { stop-color: #E3E6EB; }
-/* La de «Claro» viene con html.tema-claro adelante: se iguala el peso. */
+/* La de «Azul» viene con html.tema-claro adelante: se iguala el peso. */
 html.tema-claro:where(.sin-neon) .flame linearGradient[id$="o"] stop:nth-child(1) { stop-color: #FFFFFF; }
 html.tema-claro:where(.sin-neon) .flame linearGradient[id$="o"] stop:nth-child(2) { stop-color: #C9CED6; }
 html.tema-claro:where(.sin-neon) .flame linearGradient[id$="o"] stop:nth-child(3) { stop-color: #7D8592; }

@@ -144,9 +144,9 @@ export function renderConfig() {
       '</div>' +
     '</div>';
 
-  // Apariencia: «Oscuro» (la de siempre), «Claro» o «Rosa» (vidrio). Se guarda en este dispositivo y
-  // se aplica al toque (app/ui/tema.js escucha los botones data-tema).
-  // El selector va en su propio renglón, debajo del título (tres opciones no entran al lado
+  // Apariencia: «Oscuro» (la de siempre), «Claro» (blanco), «Azul» o «Rosa» (vidrio). Se guarda
+  // en este dispositivo y se aplica al toque (app/ui/tema.js escucha los botones data-tema).
+  // El selector va en su propio renglón, debajo del título (cuatro opciones no entran al lado
   // del texto en un celular angosto).
   const temaSection = '<div class="card cfg-card">' +
       '<div class="cfg-notif-row cfg-tema-row">' +

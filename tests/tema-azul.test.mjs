@@ -1,8 +1,10 @@
-// Apariencia «Claro» (html.tema-claro, css/ui/tema-claro.css): es opcional. Sin elegirla la
-// app se ve exactamente como siempre («Oscuro»); se elige en Ajustes del cliente y en la
-// Configuración del coach, se aplica al toque, queda guardada en el dispositivo y la clase ya
-// está puesta antes de la primera pintada (sin parpadeo). El splash nuevo (el ícono de vidrio
-// armándose) sale solo con «Claro», se va solo, y respeta movimiento reducido y modo liviano.
+// Apariencia «Azul» (html.tema-claro, css/ui/tema-claro.css; antes se llamaba «Claro»): es
+// opcional. Sin elegirla la app se ve exactamente como siempre («Oscuro»); se elige en Ajustes
+// del cliente y en la Configuración del coach, se aplica al toque, queda guardada en el
+// dispositivo ("gize_tema" = "azul") y la clase ya está puesta antes de la primera pintada (sin
+// parpadeo). Quien la eligió cuando se llamaba «Claro» (guardado "claro") la sigue viendo igual,
+// con «Azul» marcado. El splash del ícono de vidrio se va solo y respeta movimiento reducido y
+// modo liviano.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'Torso', exercises: [{ id: 'e1', name: 'Press de banca', sets: [{ id: 's1', kg: '80', reps: '8', done: true }] }] }], sessions: [], weights: [], daily: {} };
@@ -67,39 +69,39 @@ export default async function ({ base, t }){
   let l = await look(pg.p);
   t.eq({ body: l.body, card: l.card, cardFill: l.cardFill, blur: l.blur, logo: l.logo, ring: l.ring, nav: l.nav }, OSCURO, 'por defecto: fondo, caja de sección, anillo de neón, logo y barra iguales a los de siempre');
   t.eq(l.on, ['oscuro'], 'Ajustes: «Oscuro» elegido por defecto');
-  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('.cfg-seg [data-tema]')].map(b => b.textContent)), ['Oscuro', 'Claro', 'Rosa'], 'Ajustes: el selector Apariencia con Oscuro, Claro y Rosa');
+  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('.cfg-seg [data-tema]')].map(b => b.textContent)), ['Oscuro', 'Claro', 'Azul', 'Rosa'], 'Ajustes: el selector Apariencia con Oscuro, Claro, Azul y Rosa');
 
-  // 2) «Claro»: se aplica al toque, sin recargar.
+  // 2) «Azul»: se aplica al toque, sin recargar.
   await pg.p.evaluate(() => { window.__sinRecargar = 1; });
-  await pg.p.click('.cfg-seg [data-tema="claro"]'); await wait(150);
+  await pg.p.click('.cfg-seg [data-tema="azul"]'); await wait(150);
   l = await look(pg.p);
-  t.ok(l.claro && await pg.p.evaluate(() => window.__sinRecargar === 1), 'Claro: html.tema-claro al toque, sin recargar');
-  t.eq(l.saved, 'claro', 'Claro: queda guardado en el dispositivo');
-  t.eq(l.on, ['claro'], 'Claro: queda marcada la opción');
-  t.eq(l.body, 'rgb(3, 8, 20)', 'Claro: fondo azul marino');
-  t.ok(/blur\(22px\)/.test(l.blur || ''), 'Claro: la caja de sección es vidrio (backdrop-filter): ' + l.blur);
-  t.ok(/rgba\(255, 255, 255, 0\.19\)/.test(l.card || '') && l.card !== OSCURO.card, 'Claro: relleno de vidrio blanco translúcido: ' + l.card);
-  t.ok(/#3FA3F2/i.test(l.ring) && /#A474F7/i.test(l.ring) && /#2EC6EE/i.test(l.ring) && /#5B6CF2/i.test(l.ring) && !/#FF3DAE/i.test(l.ring), 'Claro: gama nueva (azul, violeta, cian, índigo): ' + l.ring);
-  t.eq(l.logo, 'brightness(0) invert(1)', 'Claro: la G toda blanca');
-  t.ok(await pg.p.evaluate(() => /62vmax/.test(getComputedStyle(document.querySelector('.app-aurora')).backgroundImage)), 'Claro: los círculos grandes de fondo');
+  t.ok(l.claro && await pg.p.evaluate(() => window.__sinRecargar === 1), 'Azul: html.tema-claro al toque, sin recargar');
+  t.eq(l.saved, 'azul', 'Azul: queda guardado en el dispositivo');
+  t.eq(l.on, ['azul'], 'Azul: queda marcada la opción');
+  t.eq(l.body, 'rgb(3, 8, 20)', 'Azul: fondo azul marino');
+  t.ok(/blur\(22px\)/.test(l.blur || ''), 'Azul: la caja de sección es vidrio (backdrop-filter): ' + l.blur);
+  t.ok(/rgba\(255, 255, 255, 0\.19\)/.test(l.card || '') && l.card !== OSCURO.card, 'Azul: relleno de vidrio blanco translúcido: ' + l.card);
+  t.ok(/#3FA3F2/i.test(l.ring) && /#A474F7/i.test(l.ring) && /#2EC6EE/i.test(l.ring) && /#5B6CF2/i.test(l.ring) && !/#FF3DAE/i.test(l.ring), 'Azul: gama nueva (azul, violeta, cian, índigo): ' + l.ring);
+  t.eq(l.logo, 'brightness(0) invert(1)', 'Azul: la G toda blanca');
+  t.ok(await pg.p.evaluate(() => /62vmax/.test(getComputedStyle(document.querySelector('.app-aurora')).backgroundImage)), 'Azul: los círculos grandes de fondo');
 
   // 3) Queda al recargar, puesta antes de la primera pintada, con el splash nuevo que se va solo.
   const t0 = Date.now();
   await pg.p.reload();
   await pg.p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   sp = await pg.p.evaluate(() => window.__splash || {});
-  t.eq(await pg.p.evaluate(() => window.__dcl), true, 'Claro: la clase ya está al terminar de leer el HTML (sin parpadeo)');
-  t.eq([sp.claro, sp.viejo, sp.circles, sp.glass, sp.label], [true, false, 4, true, 'GIZE'], 'Claro: splash nuevo (4 círculos, vidrio y la G)');
-  t.eq(sp.dotFill, 'rgb(255, 255, 255)', 'Claro: el punto de la G del splash es blanco');
-  t.ok(sp.c1 && !/47, 160, 255/.test(sp.c1), 'Claro: los círculos con los colores del Claro: ' + sp.c1);
-  t.eq([sp.circleAnim, sp.arcAnim, sp.dotAnim], ['sp-float', 'sl-draw', 'sl-pop'], 'Claro: el splash se arma animado');
-  t.ok(await splashGone(pg.p, 4000), 'Claro: el splash se va solo (' + (Date.now() - t0) + ' ms)');
+  t.eq(await pg.p.evaluate(() => window.__dcl), true, 'Azul: la clase ya está al terminar de leer el HTML (sin parpadeo)');
+  t.eq([sp.claro, sp.viejo, sp.circles, sp.glass, sp.label], [true, false, 4, true, 'GIZE'], 'Azul: splash nuevo (4 círculos, vidrio y la G)');
+  t.eq(sp.dotFill, 'rgb(255, 255, 255)', 'Azul: el punto de la G del splash es blanco');
+  t.ok(sp.c1 && !/47, 160, 255/.test(sp.c1), 'Azul: los círculos con los colores de Azul: ' + sp.c1);
+  t.eq([sp.circleAnim, sp.arcAnim, sp.dotAnim], ['sp-float', 'sl-draw', 'sl-pop'], 'Azul: el splash se arma animado');
+  t.ok(await splashGone(pg.p, 4000), 'Azul: el splash se va solo (' + (Date.now() - t0) + ' ms)');
   await wait(600);
-  t.ok(await pg.p.evaluate(() => !document.getElementById('splash') && !document.body.classList.contains('is-booting')), 'Claro: el splash sale del DOM');
+  t.ok(await pg.p.evaluate(() => !document.getElementById('splash') && !document.body.classList.contains('is-booting')), 'Azul: el splash sale del DOM');
   await pg.p.click('#nav-config'); await wait(500);
   l = await look(pg.p);
-  t.ok(l.claro && l.saved === 'claro', 'Claro: sigue después de recargar');
-  t.eq(l.on, ['claro'], 'Claro: después de recargar, la opción marcada es Claro');
+  t.ok(l.claro && l.saved === 'azul', 'Azul: sigue después de recargar');
+  t.eq(l.on, ['azul'], 'Azul: después de recargar, la opción marcada es Azul');
 
   // 4) Volver a «Oscuro» deja todo como siempre.
   await pg.p.click('.cfg-seg [data-tema="oscuro"]'); await wait(150);
@@ -109,25 +111,27 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores de la página (cliente)');
   await pg.close();
 
-  // 5) Modo liviano con «Claro»: sin backdrop-filter en ningún lado y splash quieto y corto.
+  // 5) Modo liviano con «Azul», guardado con el nombre viejo ("claro"): sin backdrop-filter en
+  // ningún lado y splash quieto y corto; lo guardado pasa a "azul" y la opción marcada es Azul.
   pg = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') }, init: () => { localStorage.setItem('gize_tema', 'claro'); localStorage.setItem('gize_lite', '1'); } });
   await pg.p.addInitScript(spy);
   const t1 = Date.now();
   await pg.p.goto(base + '/app/');
   await pg.p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   sp = await pg.p.evaluate(() => window.__splash || {});
-  t.eq([sp.claro, sp.circleAnim, sp.arcAnim, sp.dotAnim, sp.dash, sp.glassBlur], [true, 'none', 'none', 'none', '0px', 'none'], 'liviano: el ícono quieto, completo y sin desenfoque');
-  t.ok(await splashGone(pg.p, 3000), 'liviano: el splash se va enseguida (' + (Date.now() - t1) + ' ms)');
+  t.eq([sp.claro, sp.circleAnim, sp.arcAnim, sp.dotAnim, sp.dash, sp.glassBlur], [true, 'none', 'none', 'none', '0px', 'none'], 'liviano (Azul): el ícono quieto, completo y sin desenfoque');
+  t.ok(await splashGone(pg.p, 3000), 'liviano (Azul): el splash se va enseguida (' + (Date.now() - t1) + ' ms)');
   await wait(400);
   await pg.p.click('#nav-config'); await wait(500);
   l = await look(pg.p);
-  t.ok(l.claro && l.blur === 'none', 'liviano: la caja de sección sin backdrop-filter: ' + l.blur);
-  t.ok(/rgb\(14, 22, 43\)/.test(l.card + ' ' + l.cardFill), 'liviano: vidrio casi sólido: ' + l.card + ' / ' + l.cardFill);
-  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('body *')].filter(e => { const b = getComputedStyle(e).backdropFilter; return b && b !== 'none'; }).length), 0, 'liviano: ningún elemento con backdrop-filter');
+  t.ok(l.claro && l.blur === 'none', 'liviano (Azul): la caja de sección sin backdrop-filter: ' + l.blur);
+  t.eq([l.saved, l.on], ['azul', ['azul']], 'guardado viejo "claro": pasa a "azul" y queda marcada Azul');
+  t.ok(/rgb\(14, 22, 43\)/.test(l.card + ' ' + l.cardFill), 'liviano (Azul): vidrio casi sólido: ' + l.card + ' / ' + l.cardFill);
+  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('body *')].filter(e => { const b = getComputedStyle(e).backdropFilter; return b && b !== 'none'; }).length), 0, 'liviano (Azul): ningún elemento con backdrop-filter');
   t.eq(pg.errs, [], 'errores de la página (liviano)');
   await pg.close();
 
-  // 6) Movimiento reducido con «Claro»: el ícono quieto y el splash se va.
+  // 6) Movimiento reducido con «Azul» (guardado "claro"): el ícono quieto y el splash se va.
   pg = await newPage({ reducedMotion: 'reduce', user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') }, init: () => { localStorage.setItem('gize_tema', 'claro'); localStorage.setItem('gize_lite', '0'); } });
   await pg.p.addInitScript(spy);
   await pg.p.goto(base + '/app/');
@@ -142,13 +146,13 @@ export default async function ({ base, t }){
   pg = await newPage({ user: COACH, handlers: COACH_H, init: () => localStorage.setItem('gize_lite', '0') });
   await pg.p.goto(base + '/app/'); await wait(3000);
   await pg.p.click('[data-coach="open-settings"]'); await wait(500);
-  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('#coachSheetHost .cs-tema [data-tema]')].map(b => b.textContent + (b.classList.contains('on') ? '*' : ''))), ['Oscuro*', 'Claro', 'Rosa'], 'coach: Apariencia con Oscuro (elegido), Claro y Rosa');
+  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('#coachSheetHost .cs-tema [data-tema]')].map(b => b.textContent + (b.classList.contains('on') ? '*' : ''))), ['Oscuro*', 'Claro', 'Azul', 'Rosa'], 'coach: Apariencia con Oscuro (elegido), Claro, Azul y Rosa');
   const bodyCoach = () => pg.p.evaluate(() => [document.documentElement.classList.contains('tema-claro'), getComputedStyle(document.body).backgroundColor, localStorage.getItem('gize_tema')]);
   t.eq(await bodyCoach(), [false, 'rgb(0, 0, 0)', null], 'coach: por defecto el look de siempre');
-  await pg.p.click('#coachSheetHost [data-tema="claro"]'); await wait(150);
-  t.eq(await bodyCoach(), [true, 'rgb(3, 8, 20)', 'claro'], 'coach: Claro se aplica y se guarda');
+  await pg.p.click('#coachSheetHost [data-tema="azul"]'); await wait(150);
+  t.eq(await bodyCoach(), [true, 'rgb(3, 8, 20)', 'azul'], 'coach: Azul se aplica y se guarda');
   t.ok(/blur/.test(await pg.p.evaluate(() => getComputedStyle(document.querySelector('.cp-ccard')).backdropFilter)), 'coach: la ventana de Configuración es vidrio');
-  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('#coachSheetHost .cs-tema .on')].map(b => b.textContent)), ['Claro'], 'coach: queda marcada Claro');
+  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('#coachSheetHost .cs-tema .on')].map(b => b.textContent)), ['Azul'], 'coach: queda marcada Azul');
   await pg.p.click('#coachSheetHost [data-tema="oscuro"]'); await wait(150);
   t.eq(await bodyCoach(), [false, 'rgb(0, 0, 0)', null], 'coach: Oscuro vuelve al look de siempre');
   t.eq(pg.errs, [], 'errores de la página (coach)');

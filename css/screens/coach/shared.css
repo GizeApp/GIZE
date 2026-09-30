@@ -201,11 +201,13 @@ a.cs-q-btn { text-decoration:none; } /* link a la política de privacidad, con l
 .nt-msg-meta .warn { color:var(--gize-warning); }
 @media (prefers-reduced-motion: reduce) { .nt-dot { animation:none; } }
 .cs-notif.on { border-color:color-mix(in srgb, var(--green) 45%, transparent); color:var(--green); }
-/* Apariencia (Oscuro / Claro / Rosa): tres .cp-copt lado a lado; la elegida, como las opciones
-   elegidas de la capa de botones (.ap-radio.on en css/ui/botones-rediseno.css). body:not(#_)
-   para ganarle a esa capa, que carga después. */
-.cs-tema { display:flex; gap:6px; }
-.cs-tema .cs-tema-opt { flex:1; justify-content:center; }
+/* Apariencia (Oscuro / Claro / Azul / Rosa): cuatro .cp-copt lado a lado (en un celular angosto,
+   de a dos: cuatro no entran en un renglón); la elegida, como las opciones elegidas de la capa
+   de botones (.ap-radio.on en css/ui/botones-rediseno.css). body:not(#_) para ganarle a esa
+   capa, que carga después. */
+.cs-tema { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
+@media (max-width: 459px) { .cs-tema { grid-template-columns:repeat(2, 1fr); } }
+.cs-tema .cs-tema-opt { min-width:0; justify-content:center; }
 body:not(#_) .cs-tema .cs-tema-opt.on { background:var(--acc-tint); border-color:var(--acc); color:var(--gize-text); }
 /* Neón (prendido / apagado): una fila con el texto y el mismo interruptor de Ajustes del
    alumno (.cfg-switch, css/screens/config.css). */

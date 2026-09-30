@@ -1,16 +1,16 @@
 /* css/ui/tema-rosa.css
-   Apariencia «Rosa» (html.tema-rosa): el mismo vidrio esmerilado de «Claro», con la paleta
+   Apariencia «Rosa» (html.tema-rosa): el mismo vidrio esmerilado de «Azul», con la paleta
    rosa. Fondo ciruela casi negro con círculos grandes rosa fuerte, rubor, orquídea y un vino
-   profundo (el equivalente al índigo de «Claro»), la gama de neón de rosa a orquídea y rubor
+   profundo (el equivalente al índigo de «Azul»), la gama de neón de rosa a orquídea y rubor
    (nada de azul ni cian) y la G toda blanca.
    Cómo funciona: con «Rosa» app/lite.js pone html.tema-claro Y html.tema-rosa (ver
    app/ui/tema.js), así todas las reglas del vidrio de css/ui/tema-claro.css se aplican igual;
    este archivo se carga justo después y solo cambia colores: los tokens y las pocas reglas de
-   «Claro» que tienen el marino o el azul escritos a mano. Mismo peso que la regla de «Claro»
+   «Azul» que tienen el marino o el azul escritos a mano. Mismo peso que la regla de «Azul»
    que pisa, gana por venir después. Sin html.tema-rosa no cambia nada: TODO va bajo
    html.tema-rosa.
-   Quedan igual que en «Claro» los colores que no son decoración: el rojo de borrar y de
-   alerta, el ámbar de aviso y el dorado de los récords. «Completado» usa, como en «Claro»,
+   Quedan igual que en «Azul» los colores que no son decoración: el rojo de borrar y de
+   alerta, el ámbar de aviso y el dorado de los récords. «Completado» usa, como en «Azul»,
    un color de la gama (la orquídea clara, que no se confunde con el rojo).
    Neón apagado (html.sin-neon, css/ui/sin-neon.css, que se carga después): lo suyo va al
    final con un html.tema-claro.tema-rosa.sin-neon, que le gana por peso. */
@@ -23,7 +23,7 @@ html.tema-rosa {
   --gize-surface-2: #33162B;   /* campos, pestañas */
   --gize-text-2: #E8D0DC;      /* gris rosado claro (se lee sobre el vidrio aunque pase un círculo detrás) */
 
-  /* vidrio: el mismo blanco translúcido de «Claro», sobre un velo ciruela (tinte rosa leve) */
+  /* vidrio: el mismo blanco translúcido de «Azul», sobre un velo ciruela (tinte rosa leve) */
   --gize-glass: linear-gradient(160deg, rgba(255,255,255,.19), rgba(255,255,255,.11) 38%, rgba(255,255,255,.12)) rgba(36,8,28,.32);
   --gize-glass-hi: linear-gradient(160deg, rgba(255,255,255,.24), rgba(255,255,255,.15) 38%, rgba(255,255,255,.16)) rgba(36,8,28,.32);
   --gize-glass-sheet: linear-gradient(160deg, rgba(255,255,255,.17), rgba(255,255,255,.10) 38%, rgba(255,255,255,.11)) rgba(36,9,28,.55);
@@ -49,7 +49,7 @@ html.tema-rosa {
   --gize-success-bg: rgba(229,150,255,.12);
 }
 
-/* ---------- Brillos y velos que «Claro» tiene escritos en azul o marino ---------- */
+/* ---------- Brillos y velos que «Azul» tiene escritos en azul o marino ---------- */
 html.tema-rosa .gize-input:focus { box-shadow: 0 0 0 3px rgba(255,95,168,.22); }
 html.tema-rosa .sheet-bg { background: rgba(20,6,15,.55); }
 html.tema-rosa .cp-bg { background: rgba(20,6,15,.65); }
@@ -71,7 +71,7 @@ html.tema-rosa .flame linearGradient[id$="i"] stop:nth-child(2) { stop-color: #F
 html.tema-rosa .flame linearGradient[id$="i"] stop:nth-child(3) { stop-color: #FF5FA8; }
 
 /* ---------- Splash: el ícono de vidrio con los círculos rosa (css/core/splash.css) ----------
-   Mismas piezas y tiempos; la G y el punto blancos, como en «Claro». */
+   Mismas piezas y tiempos; la G y el punto blancos, como en «Azul». */
 html.tema-rosa .sp-1 { background: linear-gradient(135deg, #FF6FB2, #F0368A); }
 html.tema-rosa .sp-2 { background: linear-gradient(135deg, #D65CF5, #A83BE0); }
 html.tema-rosa .sp-3 { background: linear-gradient(135deg, #FFA3C8, #FF7DB0); }
@@ -79,7 +79,7 @@ html.tema-rosa .sp-4 { background: linear-gradient(135deg, #7A1747, #5A0F35); }
 html.tema-rosa .sp-glass { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 24px 50px -20px rgba(20,6,15,.7); }
 
 /* ---------- Modo liviano con «Rosa» (html.lite.tema-rosa) ----------
-   Igual que el liviano de «Claro» (sin backdrop-filter, vidrio casi sólido), en ciruela. */
+   Igual que el liviano de «Azul» (sin backdrop-filter, vidrio casi sólido), en ciruela. */
 html.lite.tema-rosa {
   --gize-glass: linear-gradient(160deg, rgba(255,255,255,.13), rgba(255,255,255,.07) 38%, rgba(255,255,255,.08)) rgb(40,15,33);
   --gize-glass-hi: linear-gradient(160deg, rgba(255,255,255,.17), rgba(255,255,255,.10) 38%, rgba(255,255,255,.11)) rgb(40,15,33);
@@ -90,7 +90,7 @@ html.lite.tema-rosa body:not(#_) :is(.sheet, .auth-card), html.lite.tema-rosa bo
   background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.03)) rgb(32,10,26); }
 
 /* ---------- Neón apagado con «Rosa» (html.sin-neon) ----------
-   Como «Claro» sin neón (blancos y grises, ver css/ui/sin-neon.css), con los círculos del
+   Como «Azul» sin neón (blancos y grises, ver css/ui/sin-neon.css), con los círculos del
    fondo apagados en un rosado sin saturación y los colores de grupo muscular del coach en la
    paleta rosa (identifican, no decoran). */
 html.tema-claro.tema-rosa.sin-neon {

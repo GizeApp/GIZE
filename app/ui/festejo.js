@@ -88,12 +88,15 @@ export function playPR(setId, diff) {
     edge.className = "pr-edge";
     row.appendChild(edge);
     extras.push(edge);
-    // La gama de la apariencia elegida (en «Claro» es azul, violeta, cian e índigo; en «Rosa»,
-    // rosa, orquídea, rubor y magenta) y dorado.
-    // Sin neón (app/ui/neon.js): blancos y grises, con el dorado del récord.
+    // La gama de la apariencia elegida (en «Azul» es azul, violeta, cian e índigo; en «Rosa»,
+    // rosa, orquídea, rubor y magenta; en «Claro», la de siempre un poco más profunda) y dorado.
+    // Sin neón (app/ui/neon.js): blancos y grises (en «Claro», negros y grises), con el dorado.
     const root = document.documentElement;
     const colors = root.classList.contains("sin-neon")
-      ? ["#FFFFFF", "#D6DAE0", "#FFFFFF", "#B4BAC4", "#FFC940", "#FFC940"]
+      ? (root.classList.contains("tema-luz") ? ["#0B0D11", "#6E7482", "#0B0D11", "#A3A8B2", "#E0A100", "#E0A100"]
+        : ["#FFFFFF", "#D6DAE0", "#FFFFFF", "#B4BAC4", "#FFC940", "#FFC940"])
+      : root.classList.contains("tema-luz")
+      ? ["#2B93F0", "#9B4DFA", "#F0369F", "#13C2A5", "#E0A100", "#E0A100"]
       : root.classList.contains("tema-rosa")
       ? ["#FF5FA8", "#D65CF5", "#FFA3C8", "#E84DBE", "#FFC940", "#FFC940"]
       : root.classList.contains("tema-claro")
