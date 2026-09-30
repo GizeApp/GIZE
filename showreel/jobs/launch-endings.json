@@ -4,6 +4,8 @@
   {"id": "ep04-chau-descanso-eterno_ya-disponible", "page": "showreel/episodes/04-descanso.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/06-lanzamiento-finales", "ctas": ["launch"]},
   {"id": "ep05-chau-papelito_ya-disponible", "page": "showreel/episodes/05-papelito.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/06-lanzamiento-finales", "ctas": ["launch"]},
   {"id": "ep06-chau-post-its_ya-disponible", "page": "showreel/episodes/06-post-its.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/06-lanzamiento-finales", "ctas": ["launch"]},
+  {"id": "ep07-chau-a-ojo_ya-disponible", "page": "showreel/episodes/07-a-ojo.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/06-lanzamiento-finales", "ctas": ["launch"]},
+  {"id": "ep08-chau-40-chats_ya-disponible", "page": "showreel/episodes/08-40-chats.html", "dur": 15, "formats": ["9x16", "4x5"], "hooks": ["a", "b"], "out": "stock/06-lanzamiento-finales", "ctas": ["launch"]},
   {"id": "ep01-chau-planilla_ya-disponible", "page": "showreel/chau-planilla-01/reel.html", "dur": 15, "formats": ["9x16"], "audio": "chau-planilla-01/soundtrack.wav", "crops": {"4x5": [1080, 1350, 0, 190]}, "out": "stock/06-lanzamiento-finales", "cover": 2.0, "ctas": ["launch"]},
   {"id": "gize-reel_ya-disponible", "page": "showreel/reel.html", "dur": 15, "formats": ["16x9"], "audio": "soundtrack.wav", "out": "stock/06-lanzamiento-finales", "cover": 14.5, "ctas": ["launch"]}
 ]
