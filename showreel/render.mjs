@@ -1,5 +1,6 @@
 // Renders reel.html frame-by-frame in headless Chromium.
-//   node render.mjs                      -> all 900 frames into ./frames
+//   node render.mjs                      -> all frames of showreel/reel.html into ./frames
+//   --page=showreel/chau-planilla-01/reel.html --dur=15 --fps=60  (another reel)
 //   node render.mjs --times=1.2,4.5      -> stills at those times (seconds)
 //   node render.mjs --frames=120-180     -> a frame range
 //   --sub=N  (sub-frames for motion blur; default is per-shot in reel.html)
@@ -21,7 +22,8 @@ const args = Object.fromEntries(process.argv.slice(2).map(a => {
   const [k, v] = a.replace(/^--/, '').split('=');
   return [k, v ?? '1'];
 }));
-const FPS = 60, TOTAL = FPS * 15;
+const FPS = Number(args.fps || 60), TOTAL = Math.round(FPS * Number(args.dur || 15));
+const PAGE = args.page || 'showreel/reel.html';
 const OUT = path.resolve(args.out || path.join(HERE, 'frames'));
 let frames = [];
 if (args.times) frames = args.times.split(',').map(s => Math.round(parseFloat(s) * FPS));
@@ -41,7 +43,7 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(p).pipe(res);
 });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
-const url = `http://127.0.0.1:${server.address().port}/showreel/reel.html`;
+const url = `http://127.0.0.1:${server.address().port}/${PAGE}`;
 
 const browser = await chromium.launch({ args: ['--disable-gpu', '--force-color-profile=srgb'] });
 let next = 0, done = 0;

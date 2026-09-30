@@ -31,3 +31,32 @@ node render.mjs --out=frames         # 900 PNGs with real motion blur (headless 
 - `node render.mjs --times=2.5,7.1 --sub=1` renders stills to check a moment.
 - Dependencies: Node + Playwright with Chromium, Python with `numpy` and `scipy`, and ffmpeg
   (if it isn't on the PATH, `pip install imageio-ffmpeg`).
+
+# Instagram series · "Chau planilla"
+
+Vertical Reels for coaches (1080×1920, 60 fps, ~15 s, 128 BPM, seamless loop). Each episode
+opens on a coaching pain living in a spreadsheet/chat chaos and morphs it into the GIZE feature
+that replaces it. Same end every time: the blue dot drops into the G, then
+"Probalo 14 días gratis · sin tarjeta", "Link en la bio", gize.ar. Only features the app really
+has; no store badges, prices or other companies' brands.
+
+## Ep. 01 · The routine (`chau-planilla-01/`)
+
+| Time | Beat |
+|---|---|
+| 0–1.9 s | Hook: a grim spreadsheet + chat bubbles pile up. "¿Todavía armás rutinas en una planilla?" |
+| 1.9–2.8 s | Red strike, "CHAU PLANILLA" stamp, "EP. 01 · LA RUTINA", silence |
+| 2.8–8.4 s | Drop: the cells fly into the phone and become the real "Entreno" screen. Tomás logs 32,5 kg × 9, "🏆 PR +2,5 kg", rest timer. "Armás el plan." / "Tu alumno registra cada serie." |
+| 8.4–11.2 s | "Guardar entreno de hoy": the dot carries it to Martina's "Historial de entrenos" with "▲ +2,5 kg". "Y vos ves cómo progresa." |
+| 11.2–15 s | Signature + CTA, then tiles flip back to the spreadsheet (loop) |
+
+Files: `chau-planilla-01.mp4` (with music), `chau-planilla-01-sin-musica.mp4` (sound design
+only, to layer a trending Instagram track on top), `portada.jpg` (cover, reads inside the 3:4
+grid crop) and `caption.txt` (caption + hashtags).
+
+```bash
+cd chau-planilla-01 && python3 audio.py && cd ..            # soundtrack.wav + sfx.wav
+node render.mjs --page=showreel/chau-planilla-01/reel.html --out=chau-planilla-01/frames
+./encode.sh chau-planilla-01/frames chau-planilla-01/soundtrack.wav chau-planilla-01/chau-planilla-01.mp4
+./encode.sh chau-planilla-01/frames chau-planilla-01/sfx.wav chau-planilla-01/chau-planilla-01-sin-musica.mp4
+```
