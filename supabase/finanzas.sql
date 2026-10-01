@@ -75,14 +75,14 @@ declare out jsonb;
 begin
   perform public.admin_assert();
   with paid as (
-    select plan from public.coach_billing where plan in ('p10','p25','p50','p100') and coalesce(paid_until, '-infinity') > now()
+    select plan from public.coach_billing where plan in ('p10','p25','p50','p100','p250','p500') and coalesce(paid_until, '-infinity') > now()
   )
   select jsonb_build_object(
     'settings', (select to_jsonb(s) - 'id' from public.fin_settings s where s.id),
     'costs',    (select coalesce(jsonb_agg(to_jsonb(c) order by array_position(array['activo','pensando','pausado'], c.status), c.id), '[]') from public.fin_costs c),
     'todos',    (select coalesce(jsonb_agg(to_jsonb(t) order by t.done, t.id), '[]') from public.fin_todos t),
     'plans',    (select jsonb_agg(jsonb_build_object('id', p, 'price', public.plan_price(p), 'paid', (select count(*) from paid where paid.plan = p)) order by public.plan_price(p))
-                   from unnest(array['p10','p25','p50','p100']) as p),
+                   from unnest(array['p10','p25','p50','p100','p250','p500']) as p),
     'trial',    (select count(*) from public.coach_billing where plan = 'trial' and trial_ends_at > now()),
     'courtesy', (select count(*) from public.coach_billing where plan = 'cortesia')
   ) into out;

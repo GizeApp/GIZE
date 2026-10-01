@@ -13,16 +13,16 @@ export default async function ({ base, t }){
     t.eq(errs, [], 'inicio: errores de la página');
     await close();
   }
-  // Panel de administración → Finanzas: 2 coaches al día en un plan de $15.000 = $30.000 enteros.
+  // Panel de administración → Finanzas: 2 coaches al día en un plan de $24.900 = $49.800 enteros.
   {
     const fin = { settings: { mp_plazo: '0', usd_pago: 'tarjeta' }, costs: [], todos: [], trial: 0,
-      plans: [{ id: 'p25', name: 'Hasta 25', price: 15000, paid: 2 }] };
+      plans: [{ id: 'p25', name: 'Hasta 25', price: 24900, paid: 2 }] };
     const { p, errs, close } = await newPage({ user: ADMIN, viewport: { width: 1200, height: 900 }, handlers: {
       '/is_app_admin': (r, J) => J(true), '/admin_contact_unread': (r, J) => J(0), '/admin_fin': (r, J) => J(fin) } });
     await p.route(/dolarapi\.com/, r => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
     await p.goto(base + '/admin/#finanzas'); await wait(1500);
     const txt = await p.evaluate(() => document.querySelector('#fKpis') ? document.querySelector('#fKpis').innerText : document.body.innerText);
-    t.ok(/30\.000/.test(txt), 'Finanzas: entra el precio entero, sin comisión: ' + txt.replace(/\s+/g, ' ').slice(0, 200));
+    t.ok(/49\.800/.test(txt), 'Finanzas: entra el precio entero, sin comisión: ' + txt.replace(/\s+/g, ' ').slice(0, 200));
     t.ok(!/comisi[oó]n de Mercado Pago|Mercado Pago libera/i.test(await p.evaluate(() => document.body.innerText)), 'Finanzas: no habla de la comisión de Mercado Pago');
     t.eq(errs, [], 'Finanzas: errores de la página');
     await close();

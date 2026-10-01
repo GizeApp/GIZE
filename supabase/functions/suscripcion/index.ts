@@ -18,7 +18,7 @@
 //
 // Qué recibe:
 //   · Desde la app (con la sesión del coach):
-//       { action: "checkout", plan: "p10"|"p25"|"p50"|"p100", mp_email? } → { url } para pagar
+//       { action: "checkout", plan: "p10"|"p25"|"p50"|"p100"|"p250"|"p500", mp_email? } → { url } para pagar
 //       { action: "cancel" } → cancela la renovación (sigue activo hasta paid_until)
 //   · Desde Mercado Pago (?webhook=1): el aviso de un cambio. No se confía en lo que dice
 //     el aviso: se vuelve a pedir la suscripción a la API de Mercado Pago con el token,
@@ -35,10 +35,12 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const PLANES: Record<string, { max: number; price: number; name: string }> = {
-  p10: { max: 10, price: 9300, name: "GIZE Coach · hasta 10 clientes" },
-  p25: { max: 25, price: 15000, name: "GIZE Coach · hasta 25 clientes" },
-  p50: { max: 50, price: 20000, name: "GIZE Coach · hasta 50 clientes" },
-  p100: { max: 100, price: 33000, name: "GIZE Gimnasio · hasta 100 alumnos" },
+  p10: { max: 10, price: 14900, name: "GIZE Coach · hasta 10 clientes" },
+  p25: { max: 25, price: 24900, name: "GIZE Coach · hasta 25 clientes" },
+  p50: { max: 50, price: 37900, name: "GIZE Coach · hasta 50 clientes" },
+  p100: { max: 100, price: 59900, name: "GIZE Gimnasio chico · hasta 100 alumnos" },
+  p250: { max: 250, price: 119900, name: "GIZE Gimnasio · hasta 250 alumnos" },
+  p500: { max: 500, price: 199900, name: "GIZE Gimnasio grande · hasta 500 alumnos" },
 };
 // Días de margen después de cada cobro, por si Mercado Pago reintenta un pago rechazado.
 const MARGEN_DIAS = 3;
