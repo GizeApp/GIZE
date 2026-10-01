@@ -238,7 +238,7 @@ function coachState(c){
   return '<span class="pill bad">Sin pagar</span>';
 }
 const mpTxt = s => ({ authorized: "activa", paused: "pausada", cancelled: "cancelada", pending: "pendiente" }[s] || s || "—");
-const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: "Hasta 50", p100: "Gimnasio (100)", cortesia: "Cortesía" }[p] || p || "—");
+const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: "Hasta 50", p100: "Gimnasio chico (100)", p250: "Gimnasio (250)", p500: "Gimnasio grande (500)", cortesia: "Cortesía" }[p] || p || "—");
 async function loadCoaches(){
   page("Coaches y pagos", "Plan, alumnos y estado del pago de cada coach. El pago se arregla por fuera de la app (WhatsApp, transferencia): tocá un coach para cargarle hasta cuándo pagó, darle cortesía o más días de prueba.", '<div id="cSoon"></div><div class="card"><div id="cList" class="empty">Cargando…</div></div>');
   const box = document.getElementById("cList");
@@ -281,8 +281,8 @@ function paintSoon(){
     </div>`).join("")}</div></div>`;
 }
 
-const PLAN_MAX = { p10: 10, p25: 25, p50: 50, p100: 100 };
-const PLAN_PRICE = { p10: 9300, p25: 15000, p50: 20000, p100: 33000 }; // los de plan_price (supabase/admin.sql)
+const PLAN_MAX = { p10: 10, p25: 25, p50: 50, p100: 100, p250: 250, p500: 500 };
+const PLAN_PRICE = { p10: 14900, p25: 24900, p50: 37900, p100: 59900, p250: 119900, p500: 199900 }; // los de plan_price (supabase/admin.sql)
 const isoDay = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 // Fecha para "pagado hasta": desde el vencimiento actual si todavía no pasó, si no desde hoy.
 // El plan pago arranca cuando termina lo que ya tiene (la prueba gratis o el mes ya pagado):
@@ -306,7 +306,7 @@ async function openCoach(id){
     <div class="sec-t">Pago manual</div>
     <div class="sec-s">Cuando te paga (transferencia, efectivo, link), cargá el plan y hasta cuándo queda habilitado. Los meses se cuentan desde que termina lo que ya tiene: si está en la prueba gratis, el plan arranca cuando la prueba termina (no pierde días); si ya estaba al día, desde su vencimiento.</div>
     <label class="lbl">Plan</label>
-    <select class="in" id="pmPlan">${["p10", "p25", "p50", "p100"].map(p => `<option value="${p}"${(c.plan === p || (!PLAN_MAX[c.plan] && p === "p25")) ? " selected" : ""}>${esc(planTxt(p))} · ${money(PLAN_PRICE[p])}/mes</option>`).join("")}</select>
+    <select class="in" id="pmPlan">${Object.keys(PLAN_MAX).map(p => `<option value="${p}"${(c.plan === p || (!PLAN_MAX[c.plan] && p === "p25")) ? " selected" : ""}>${esc(planTxt(p))} · ${money(PLAN_PRICE[p])}/mes</option>`).join("")}</select>
     <label class="lbl">Alumnos máximos</label><input class="in" id="pmMax" type="number" min="1" max="1000" value="${PLAN_MAX[c.plan] ? Number(c.max_clients) || PLAN_MAX[c.plan] : 25}">
     <label class="lbl">Pagado hasta</label>
     <div class="search"><input class="in" id="pmUntil" type="date" value="${hastaMeses(c, 1)}">
@@ -334,9 +334,9 @@ async function openCoach(id){
 // de los coaches y cuántos faltan para cubrir los gastos (supabase/finanzas.sql). El dólar se
 // trae de dolarapi.com y queda guardado en la base para cuando no responda.
 //
-// Comisión de Mercado Pago por cobro de suscripción según cuándo libera la plata, sin IVA (se
-// le suma el 21%). mercadopago.com.ar/herramientas-para-vender/suscripciones, septiembre 2026.
-const MP_PLAZOS = [["0", "Al instante", 6.99], ["10", "A 10 días", 4.49], ["18", "A 18 días", 3.39], ["35", "A 35 días", 1.49]];
+// Los coaches pagan por transferencia a la cuenta de GIZE (se arregla por WhatsApp): no hay
+// comisión que descontar. Antes se cobraba con suscripciones de Mercado Pago y acá se elegía el
+// plazo de liberación con su comisión; la columna fin_settings.mp_plazo quedó sin uso.
 // Monotributo, prestación de servicios, desde agosto 2026: [tope de ingresos por año, cuota por
 // mes]. ARCA los actualiza en febrero y agosto.
 const MONO = { A: [12009410, 49527], B: [17595182, 56379], C: [24670494, 66020], D: [30628651, 84614], E: [36028231, 119811],
@@ -364,14 +364,12 @@ async function loadFinanzas(){
     <div class="grid kpis wide" id="fKpis"></div>
     <div id="fDolar"></div>
     <div class="grid two">
-      <div class="card neon"><div class="sec-t">Punto de equilibrio</div><div class="sec-s">Coaches que hacen falta para cubrir los gastos, ya descontada la comisión de Mercado Pago.</div><div id="fEq"></div></div>
+      <div class="card neon"><div class="sec-t">Punto de equilibrio</div><div class="sec-s">Coaches que hacen falta para cubrir los gastos. Cobran por transferencia, sin comisión.</div><div id="fEq"></div></div>
       <div class="card"><div class="sec-t">Quién pone qué</div><div class="sec-s">Gastos activos de cada socio, pasados a pesos por mes.</div><div id="fWho"></div></div>
     </div>
     <div class="card mt"><div class="card-h"><div><div class="sec-t">Gastos</div><div class="sec-s">Tocá uno para cambiarlo. Los que estás pensando y los pausados no suman.</div></div><button class="btn blue" data-a="fCost">+ Agregar gasto</button></div><div id="fCosts"></div></div>
     <div class="grid two mt">
       <div class="card"><div class="sec-t">Cobros y facturación</div><div class="sec-s">Las cuentas cambian al momento; «Guardar» deja los cambios fijos.</div>
-        <label class="lbl">Mercado Pago libera la plata</label>
-        <select class="in" data-fs="mp_plazo">${MP_PLAZOS.map(([k, l, p]) => `<option value="${k}"${String(st.mp_plazo || "0") === k ? " selected" : ""}>${l} · ${dec(p)}% + IVA</option>`).join("")}</select>
         <label class="lbl">Los gastos en dólares se pagan</label>
         <select class="in" data-fs="usd_pago"><option value="tarjeta">Con la tarjeta, en pesos (dólar tarjeta)</option><option value="mep"${st.usd_pago === "mep" ? " selected" : ""}>Con dólares propios (dólar MEP)</option></select>
         <div class="vgrid2"><label><span class="lbl">Quién factura</span><input class="in" data-fs="titular" maxlength="80" value="${esc(st.titular || "")}" placeholder="Nombre"></label>
@@ -394,7 +392,7 @@ function paintFin(){ paintFinCalc(); paintCosts(); paintTodos(); }
 // Cuentas con los ajustes que están en pantalla (aunque todavía no se hayan guardado).
 function finCalc(){
   const f = S.fin, st = f.settings;
-  const fee = (MP_PLAZOS.find(p => p[0] === String(st.mp_plazo || "0")) || MP_PLAZOS[0])[2] * 1.21 / 100;
+  const fee = 0; // transferencia: entra el precio entero (ver arriba)
   const kind = st.usd_pago === "mep" ? "mep" : "tarjeta", other = kind === "mep" ? "tarjeta" : "mep";
   const perMonth = (c, k) => { const a = num(c.amount) * (c.currency === "USD" ? S.dolar[k || kind] || 0 : 1); return c.period === "mensual" ? a : c.period === "anual" ? a / 12 : 0; };
   const sum = (list, k) => list.reduce((s, c) => s + perMonth(c, k), 0);
@@ -412,7 +410,7 @@ function paintFinCalc(){
   const dAt = d.at ? (d.live ? "dolarapi.com · " + fmtD(d.at) : "guardada el " + fmtD(d.at)) : "sin cotización";
   document.getElementById("fKpis").innerHTML =
     k(money(c.cost), "Gastos por mes", bigMoney(c.cost * 12) + " por año" + cheaper + (c.maybe ? " · +" + money(c.maybe) + " si sumás lo que estás pensando" : ""), "hi") +
-    k(money(c.net), "Entra por mes", n0(c.paid) + " suscripcion" + (c.paid === 1 ? "" : "es") + " al día · " + pct(c.fee) + " de comisión", c.net > 0 ? "good" : "") +
+    k(money(c.net), "Entra por mes", n0(c.paid) + " suscripcion" + (c.paid === 1 ? "" : "es") + " al día · por transferencia", c.net > 0 ? "good" : "") +
     k(signed(c.result), "Resultado por mes", c.result < 0 ? "lo ponen los socios" : c.result > 0 ? "ganancia para repartir" : "ni se gana ni se pierde", c.result < 0 ? "bad" : c.result > 0 ? "good" : "") +
     k(d[c.kind] ? money(d[c.kind]) : "—", c.kind === "mep" ? "Dólar MEP" : "Dólar tarjeta", (d[c.kind === "mep" ? "tarjeta" : "mep"] ? (c.kind === "mep" ? "tarjeta " : "MEP ") + money(d[c.kind === "mep" ? "tarjeta" : "mep"]) + " · " : "") + dAt);
   // Si dolarapi.com no respondió: la cotización se puede poner a mano.
@@ -445,7 +443,7 @@ function paintFinCalc(){
   const mono = document.getElementById("fMono"), cat = st.categoria;
   if (!cat || !MONO[cat]) { mono.innerHTML = '<div class="muted small" style="margin-top:12px">Elegí la categoría para ver cuánto margen queda antes del tope.</div>'; return; }
   const [tope, cuota] = MONO[cat], anual = c.gross * 12, total = anual + num(st.otros_ingresos), letters = Object.keys(MONO);
-  const per25 = (p25 ? num(p25.price) : 15000) * 12;
+  const per25 = (p25 ? num(p25.price) : PLAN_PRICE.p25) * 12;
   let txt;
   if (total <= tope){
     const nx = letters[letters.indexOf(cat) + 1];

@@ -1,0 +1,210 @@
+/* css/ui/tema-claro.css
+   Apariencia «Azul» (html.tema-claro; antes se llamaba «Claro», por eso la clase y el nombre del
+   archivo siguen siendo "claro"; la «Claro» de ahora es html.tema-luz, css/ui/tema-luz.css): vidrio esmerilado sobre un fondo azul marino con
+   círculos grandes de color, como el ícono nuevo (azul, violeta, cian e índigo profundo) y la
+   G toda blanca. Es opcional: se elige en Ajustes (cliente) o en Configuración (coach), se
+   guarda por dispositivo y la clase la pone app/lite.js antes de la primera pintada (ver
+   app/ui/tema.js). Sin la clase, la app queda exactamente con el look «Oscuro» de siempre:
+   TODO lo de este archivo va bajo html.tema-claro.
+   Se carga último (después de css/ui/lite.css) y al final tiene su versión liviana
+   (html.lite.tema-claro): sin backdrop-filter y con superficies casi sólidas. La app de Android
+   (html.android-app) usa siempre ese vidrio sin desenfoque: la placa de video se trababa. */
+
+/* ---------- Tokens ---------- */
+html.tema-claro {
+  /* base: azul marino casi negro, con superficies de vidrio esmerilado encima */
+  --gize-bg: #030814;
+  --gize-surface: #101A31;     /* vidrio "sólido": donde el borde de neón necesita un fondo opaco */
+  --gize-surface-2: #172139;   /* campos, pestañas */
+  --gize-border: rgba(255,255,255,.16);
+  --gize-text-2: #CAD3E2;      /* gris azulado claro (se lee sobre el vidrio aunque pase un círculo detrás) */
+
+  /* vidrio esmerilado: blanco translúcido con un brillo arriba a la izquierda, sobre un velo
+     marino liviano (así el texto se sigue leyendo aunque detrás pase un círculo de color),
+     filete blanco de 1 px y desenfoque del fondo. */
+  --gize-glass: linear-gradient(160deg, rgba(255,255,255,.19), rgba(255,255,255,.11) 38%, rgba(255,255,255,.12)) rgba(8,14,34,.32);
+  --gize-glass-hi: linear-gradient(160deg, rgba(255,255,255,.24), rgba(255,255,255,.15) 38%, rgba(255,255,255,.16)) rgba(8,14,34,.32);
+  --gize-glass-sheet: linear-gradient(160deg, rgba(255,255,255,.17), rgba(255,255,255,.10) 38%, rgba(255,255,255,.11)) rgba(9,15,34,.55);
+  --gize-glass-line: rgba(255,255,255,.24);
+  --gize-glass-shine: inset 0 1px 0 rgba(255,255,255,.28);
+  --gize-glass-blur: blur(22px) saturate(140%);
+
+  /* marca */
+  --gize-blue: #62B6F6;        /* foco, acción, enlaces (más claro que el neón para leerse sobre el vidrio) */
+  --gize-blue-deep: #2F86E8;
+
+  /* gama de neón: azul, violeta, cian e índigo */
+  --gize-r1: #3FA3F2;
+  --gize-r2: #A474F7;
+  --gize-r3: #2EC6EE;
+  --gize-r4: #5B6CF2;
+  --gize-rgb-line: linear-gradient(90deg, var(--gize-r1), var(--gize-r2), var(--gize-r3));
+  --gize-rgb-ring: conic-gradient(from 0deg, var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1));
+  /* círculos grandes y suaves del fondo (como el ícono): degradés radiales quietos, sin
+     filter:blur, así el celular no re-desenfoca una capa enorme */
+  --gize-orbs:
+    radial-gradient(62vmax 62vmax at 0% 0%, rgba(63,163,242,.48), rgba(47,134,232,.26) 42%, transparent 70%),
+    radial-gradient(52vmax 52vmax at 104% 20%, rgba(164,116,247,.44), rgba(106,63,224,.24) 42%, transparent 70%),
+    radial-gradient(64vmax 64vmax at 100% 104%, rgba(46,198,238,.38), rgba(11,143,214,.2) 42%, transparent 70%),
+    radial-gradient(50vmax 50vmax at -4% 78%, rgba(26,46,156,.7), rgba(26,46,156,.26) 45%, transparent 70%);
+
+  /* semánticos */
+  --gize-success: #2EC6EE;     /* el cian de la gama */
+  --gize-success-bg: rgba(46,198,238,.12);
+
+  /* alias de css/core/tokens.css */
+  --blue-2: var(--gize-blue); --green-2: var(--gize-blue);
+}
+
+/* ---------- El logo «Azul» ----------
+   Los logos son <img> de brand/logo/: se cambian por la versión «Azul» (G blanca con el orbe en
+   celeste, violeta, cian e índigo; brand/BRAND.md). «Rosa» los pisa en css/ui/tema-rosa.css. */
+html.tema-claro :is(.brand-logo, .auth-brand-ic img, .upd-marca) { content: url("../../brand/logo/gize-marca-azul.svg"); }
+html.tema-claro .co-brand .brand-logo { content: url("../../brand/logo/gize-firma-horizontal-azul.svg"); }
+
+/* ---------- Componentes de brand/tokens.css ---------- */
+html.tema-claro .gize-btn-ghost { border-color: var(--gize-glass-line); background: rgba(255,255,255,.06); }
+html.tema-claro .gize-card { background: var(--gize-glass); border-color: var(--gize-glass-line); }
+html.tema-claro .gize-input { background: rgba(255,255,255,.06); border-color: var(--gize-glass-line); }
+html.tema-claro .gize-input:focus { box-shadow: 0 0 0 3px rgba(63,163,242,.22); }
+html.tema-claro .gize-bar { background: rgba(255,255,255,.1); }
+
+/* ---------- Velos de fondo (hojas, ventanas): marino en vez de negro ---------- */
+html.tema-claro .sheet-bg { background: rgba(3,8,20,.55); }
+html.tema-claro .cp-bg { background: rgba(3,8,20,.65); }
+html.tema-claro .tpick-bg { background: rgba(3,8,20,.6); }
+html.tema-claro .fb-bg { background: rgba(3,8,20,.78); }
+html.tema-claro #streakHost .stk-bg { background: rgba(3,8,20,.6); }
+html.tema-claro .crp { background: rgba(3,8,20,.78); }
+html.tema-claro .upd-forzada { background: rgba(3,8,20,.72); }
+html.tema-claro .upd-card { background: rgba(10,16,36,.9);
+  -webkit-backdrop-filter: blur(20px) saturate(140%); backdrop-filter: blur(20px) saturate(140%); }
+html.tema-claro .upd-forzada .upd-card { background: var(--gize-surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.tema-claro body.silk-coach :is(.co-note, .co-search, .co-dayname, .ml-in, .opt-body):focus { background: rgba(10,16,36,.9); }
+
+/* ---------- Fondo quieto: círculos grandes y suaves ----------
+   En vez de los dos brillos de las esquinas, los círculos del ícono (--gize-orbs): degradés
+   radiales quietos, fijos a la pantalla, sin filter:blur ni mezcla de capas. Es barato, así
+   que el modo liviano usa el mismo fondo. */
+html.tema-claro :is(.app-aurora, .auth-aurora) { inset: 0; filter: none; background: var(--gize-orbs); }
+html.tema-claro :is(.app-aurora, .auth-aurora) span { display: none; }
+html.tema-claro body.silk-on .app-aurora { opacity: 1; }
+html.tema-claro body.silk-coach .app-aurora { opacity: .8; }
+html.tema-claro .auth-aurora { opacity: 1; }
+html.tema-claro body::before { display: none; }
+
+/* ---------- Cajas de sección: vidrio esmerilado con borde de neón ----------
+   El relleno es vidrio y deja ver los círculos del fondo; por eso el borde de neón no puede
+   ser el truco de dos fondos del look oscuro (con un relleno translúcido la gama se vería a
+   través de toda la caja). Va en un ::after con máscara que pinta solo 1,5 px por dentro del
+   borde (estas cajas tienen overflow:hidden y ninguna usa ::after para otra cosa). */
+html.tema-claro body:not(#_) :is(
+    .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .join-box, .daynotes, .w-chart) {
+  --card-2: rgba(255,255,255,.06); --border: var(--gize-glass-line);
+  position: relative; isolation: isolate;
+  border: 1.5px solid transparent;
+  background: var(--gize-glass) padding-box;
+  -webkit-backdrop-filter: var(--gize-glass-blur); backdrop-filter: var(--gize-glass-blur);
+  box-shadow: 0 10px 30px rgba(0,0,0,.28), var(--gize-glass-shine),
+    0 0 44px -16px color-mix(in srgb, var(--gize-r2) 35%, transparent);
+}
+html.tema-claro body:not(#_) :is(
+    .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .join-box, .daynotes, .w-chart)::after,
+html.tema-claro body:not(#_) :is(.ptile, .plan-card, .plan-top, .plan-acc, .ss-group, .adm-entry, .co-ss-group)::after,
+html.tema-claro body:not(#_) :not(.ss-group) > .ex-collapsed:not(.ex-is-done)::after {
+  content: ""; position: absolute; inset: 0; z-index: 3; padding: 1.5px; border-radius: inherit; pointer-events: none;
+  background: var(--gize-rgb-ring);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* Las otras cajas con la gama (Progreso, Mi plan, superseries, ejercicio cerrado, Revisar
+   productos): mismo vidrio y el mismo borde de neón en ::after. */
+html.tema-claro body:not(#_) :is(.ptile, .plan-card, .plan-top, .plan-acc, .ss-group, .adm-entry, .co-ss-group),
+html.tema-claro body:not(#_) :not(.ss-group) > .ex-collapsed:not(.ex-is-done) {
+  position: relative; isolation: isolate;
+  background: var(--gize-glass) padding-box;
+  -webkit-backdrop-filter: var(--gize-glass-blur); backdrop-filter: var(--gize-glass-blur);
+}
+/* Adentro de una superserie los ejercicios van sin borde ni vidrio propio: son del panel. */
+html.tema-claro body:not(#_) .ss-group .card::after { display: none; }
+html.tema-claro body:not(#_) .ss-group .card { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+/* En celular .co-table es solo un contenedor de filas sueltas (ver gize-surfaces.css). */
+@media (max-width: 899px) {
+  html.tema-claro body:not(#_) .co-table { border: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  html.tema-claro body:not(#_) .co-table::after { display: none; }
+}
+
+/* ---------- Filas que se repiten en lista: vidrio con filete blanco ---------- */
+html.tema-claro body:not(#_) :is(.food-row, .diary-item, .w-item, .sess-item, .hx-row, .co-item, .co-exc,
+    .opt-item, .co-row, .co-slog, .co-rt-row) {
+  --card-2: rgba(255,255,255,.06); --border: var(--gize-glass-line);
+  background: var(--gize-glass);
+  border-color: var(--gize-glass-line);
+  -webkit-backdrop-filter: var(--gize-glass-blur); backdrop-filter: var(--gize-glass-blur);
+  box-shadow: 0 8px 24px rgba(0,0,0,.22), var(--gize-glass-shine);
+}
+/* Clientes del coach: en celular cada fila es su propia caja (en compu es una tabla). */
+@media (max-width: 899px) {
+  html.tema-claro body:not(#_) .co-trow:not(.co-thead) { background: var(--gize-glass); border-color: var(--gize-glass-line);
+    -webkit-backdrop-filter: var(--gize-glass-blur); backdrop-filter: var(--gize-glass-blur);
+    box-shadow: 0 8px 24px rgba(0,0,0,.22), var(--gize-glass-shine); }
+}
+/* Pestañas del coach (Clientes / Mis rutinas, días): vidrio; la elegida, más clara. */
+html.tema-claro body:not(#_) :is(.co-tab, .co-daytab, .ap-day) { background: rgba(255,255,255,.08); border-color: var(--gize-glass-line); }
+html.tema-claro body:not(#_) .co-tab.on { background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.45); color: var(--gize-text); }
+
+/* ---------- Hojas, ventanas y barras: vidrio con desenfoque ---------- */
+html.tema-claro body:not(#_) .sheet, html.tema-claro body.silk-coach :is(.cp-modal, .cp-ccard) {
+  background: var(--gize-glass-sheet);
+  border: 1px solid var(--gize-glass-line); border-bottom: none;
+  -webkit-backdrop-filter: var(--gize-glass-blur); backdrop-filter: var(--gize-glass-blur);
+  box-shadow: 0 -12px 40px rgba(0,0,0,.5), var(--gize-glass-shine);
+}
+html.tema-claro body.silk-coach :is(.cp-modal, .cp-ccard) { border-bottom: 1px solid var(--gize-glass-line); }
+html.tema-claro body:not(#_) .navbar {
+  background: linear-gradient(rgba(255,255,255,.10), rgba(255,255,255,.06)) rgba(8,14,34,.5); border-top: 1px solid var(--gize-glass-line);
+  -webkit-backdrop-filter: var(--gize-glass-blur); backdrop-filter: var(--gize-glass-blur);
+}
+/* Login y bienvenida: la tarjeta también es de vidrio, con los mismos círculos detrás. */
+html.tema-claro #authHost { --card: rgba(255,255,255,.08); --card-2: rgba(255,255,255,.06); --border: var(--gize-glass-line); }
+html.tema-claro body:not(#_) .auth-card {
+  background: var(--gize-glass); box-shadow: 0 20px 50px rgba(0,0,0,.45), var(--gize-glass-shine);
+  -webkit-backdrop-filter: var(--gize-glass-blur); backdrop-filter: var(--gize-glass-blur);
+}
+
+/* ---------- Detalles por pantalla ---------- */
+html.tema-claro .add-ex { background: var(--gize-glass); border-color: var(--gize-glass-line); }
+html.tema-claro :is(.ss-tag, .field.kg-asis .kg-neg, .se-f .se-neg) { color: color-mix(in srgb, var(--gize-r2) 70%, #fff); }
+html.tema-claro .plan-tabs { background: rgba(10,16,36,.86); border-color: var(--gize-glass-line);
+  -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%); }
+html.tema-claro .plan-tab.on { background: #fff; color: var(--gize-bg); box-shadow: 0 0 18px -6px rgba(255,255,255,.5); }
+html.tema-claro .adm-entry i { color: var(--gize-bg); }
+
+/* Llama de la racha (app/ui/racha.js): violeta y cian en vez de violeta y rosa. */
+html.tema-claro .flame linearGradient[id$="o"] stop:nth-child(1) { stop-color: #DCC8FF; }
+html.tema-claro .flame linearGradient[id$="o"] stop:nth-child(2) { stop-color: #A474F7; }
+html.tema-claro .flame linearGradient[id$="o"] stop:nth-child(3) { stop-color: #6A3FE0; }
+html.tema-claro .flame linearGradient[id$="i"] stop:nth-child(2) { stop-color: #B8ECFA; }
+html.tema-claro .flame linearGradient[id$="i"] stop:nth-child(3) { stop-color: #2EC6EE; }
+
+/* ---------- Modo liviano con «Azul» (html.lite.tema-claro) ----------
+   Mismo look, pero barato: ningún backdrop-filter (el !important le gana a las capas que lo
+   ponen por pantalla) y el vidrio pasa a un relleno casi sólido, con el mismo brillo blanco
+   arriba, para que el texto se siga leyendo. El fondo de círculos ya es quieto y barato.
+   La app de Android (html.android-app) va siempre así. */
+html.lite.tema-claro, html.android-app.tema-claro {
+  --gize-glass: linear-gradient(160deg, rgba(255,255,255,.13), rgba(255,255,255,.07) 38%, rgba(255,255,255,.08)) rgb(14,22,43);
+  --gize-glass-hi: linear-gradient(160deg, rgba(255,255,255,.17), rgba(255,255,255,.10) 38%, rgba(255,255,255,.11)) rgb(14,22,43);
+  --gize-glass-sheet: linear-gradient(160deg, rgba(255,255,255,.12), rgba(255,255,255,.06)) rgb(12,19,40);
+}
+html.lite.tema-claro *, html.lite.tema-claro *::before, html.lite.tema-claro *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html.lite.tema-claro body:not(#_) .navbar, html.android-app.tema-claro body:not(#_) .navbar { background: rgb(8,13,30); }
+html.lite.tema-claro body:not(#_) :is(.sheet, .auth-card), html.lite.tema-claro body.silk-coach :is(.cp-modal, .cp-ccard),
+html.android-app.tema-claro body:not(#_) :is(.sheet, .auth-card), html.android-app.tema-claro body.silk-coach :is(.cp-modal, .cp-ccard) {
+  background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.03)) rgb(10,16,34); }

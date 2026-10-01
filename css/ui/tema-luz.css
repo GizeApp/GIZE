@@ -1,0 +1,325 @@
+/* css/ui/tema-luz.css
+   Apariencia «Claro» (html.tema-luz): la contracara de «Oscuro». Fondo casi blanco, cajas
+   blancas con sombra neutra suave y filete gris de 1 px, texto casi negro, y la identidad de
+   GIZE intacta: mismas formas, misma letra y la gama de neón (azul, violeta, rosa y turquesa)
+   en los bordes y anillos, apenas más profunda para que se lea sobre blanco y con resplandores
+   mucho más suaves. Los botones principales pasan a negro con el anillo de neón (el revés de
+   los blancos de «Oscuro») y la G es casi negra con el punto azul.
+   Es opcional: se elige en Ajustes (cliente) o en Configuración (coach) como «Claro», se guarda
+   por dispositivo ("gize_tema" = "luz") y la clase la pone app/lite.js antes de la primera
+   pintada (ver app/ui/tema.js). Ojo: html.tema-claro NO es esta, es «Azul» (la que antes se
+   llamaba «Claro»). Sin html.tema-luz no cambia nada: TODO lo de este archivo va bajo
+   html.tema-luz.
+   Se carga último (después de css/ui/sin-neon.css): así las reglas de acá empatan con las de
+   las capas de antes y les ganan por orden, y las de neón apagado con «Claro»
+   (html.tema-luz.sin-neon) quedan al final. Casi todo sale de los tokens; lo demás son los
+   colores que otras hojas tienen escritos a mano para fondo oscuro (blancos translúcidos,
+   negros, marinos) pasados a su equivalente sobre blanco.
+   Paleta:
+     fondo #F4F5F8 · superficie #FFFFFF · superficie 2 #F0F1F4 · filete #E3E5EA
+     texto #0B0D11 · texto 2 #4A5060 · acción #0A6FD6 (azul de marca más profundo)
+     gama: azul #2B93F0, violeta #9B4DFA, rosa #F0369F, turquesa #13C2A5 */
+
+/* ---------- Tokens ---------- */
+html.tema-luz {
+  color-scheme: light;
+  --gize-bg: #F4F5F8;
+  --gize-surface: #FFFFFF;
+  --gize-surface-2: #F0F1F4;
+  --gize-border: #E3E5EA;
+  --gize-text: #0B0D11;
+  --gize-text-2: #4A5060;
+
+  /* marca: el azul de acción, más profundo que el neón para que se lea como texto (AA) */
+  --gize-blue: #0A6FD6;
+  --gize-blue-deep: #0059B3;
+
+  /* gama de neón: la de siempre, apenas más profunda (el turquesa sobre todo) */
+  --gize-r1: #2B93F0;
+  --gize-r2: #9B4DFA;
+  --gize-r3: #F0369F;
+  --gize-r4: #13C2A5;
+
+  /* semánticos: más oscuros que en «Oscuro» para leerse sobre blanco */
+  --gize-danger: #D92D34;
+  --gize-success: #0C9A82;
+  --gize-warning: #B26A00;
+  --gize-success-bg: rgba(12,154,130,.10);
+  --gize-danger-bg: rgba(217,45,52,.08);
+  --gize-warning-bg: rgba(178,106,0,.10);
+
+  /* sombras neutras de las cajas */
+  --luz-shadow: 0 1px 2px rgba(16,24,40,.05), 0 4px 14px rgba(16,24,40,.06);
+  --luz-shadow-hi: 0 2px 4px rgba(16,24,40,.06), 0 12px 32px rgba(16,24,40,.10);
+  --shadow-card: var(--luz-shadow);
+  --glow: color-mix(in srgb, var(--gize-blue) 18%, transparent);
+}
+
+/* ---------- La G casi negra con el punto azul ----------
+   Los logos son <img> de brand/logo/: se cambian por su versión oscura (la G casi negra con el
+   mismo orbe, brand/BRAND.md). */
+html.tema-luz :is(.brand-logo, .auth-brand-ic img, .upd-marca) { content: url("../../brand/logo/gize-marca-negra.svg"); }
+html.tema-luz .co-brand .brand-logo { content: url("../../brand/logo/gize-firma-horizontal-oscuro.svg"); }
+/* La palabra GIZE (login, bienvenida y Ajustes): en blanco no se veía sobre las tarjetas blancas. */
+html.tema-luz :is(.auth-logo img, .cfg-about img) { content: url("../../brand/logo/gize-logotipo-oscuro.svg"); }
+html.tema-luz .upd-logo { background: #fff; box-shadow: var(--luz-shadow); }
+
+/* ---------- Componentes de brand/tokens.css ---------- */
+html.tema-luz .gize-btn { background: var(--gize-text); color: #fff; }
+html.tema-luz .gize-btn-ghost { color: var(--gize-text); background: #fff; }
+html.tema-luz .gize-input { color: var(--gize-text); }
+html.tema-luz .gize-input:focus { box-shadow: 0 0 0 3px rgba(10,111,214,.16); }
+html.tema-luz .gize-bar { background: #E3E5EA; }
+
+/* ---------- Fondo: brillos pastel en las esquinas ----------
+   Como los de «Oscuro» (azul arriba a la izquierda, rosa abajo a la derecha), en pastel. Quieto
+   y barato: el modo liviano usa el mismo fondo (sin la aurora de manchas, que sobre blanco se
+   ve como pintura). */
+html.tema-luz :is(.app-aurora, .auth-aurora) {
+  inset: 0; filter: none;
+  background: radial-gradient(75% 40% at 0% 0%, rgba(47,160,255,.16), transparent 70%),
+    radial-gradient(60% 34% at 100% 12%, rgba(166,92,255,.08), transparent 70%),
+    radial-gradient(75% 40% at 100% 88%, rgba(255,61,174,.12), transparent 70%);
+}
+html.tema-luz :is(.app-aurora, .auth-aurora) span { display: none; }
+html.tema-luz body.silk-on .app-aurora { opacity: 1; }
+html.tema-luz body.silk-coach .app-aurora { opacity: .8; }
+html.tema-luz .auth-aurora { opacity: 1; }
+
+/* ---------- Velos de fondo (hojas, ventanas): gris azulado suave en vez de negro ---------- */
+html.tema-luz .sheet-bg { background: rgba(22,28,40,.28); }
+html.tema-luz .cp-bg { background: rgba(22,28,40,.32); }
+html.tema-luz .tpick-bg { background: rgba(22,28,40,.3); }
+html.tema-luz .fb-bg { background: rgba(22,28,40,.4); }
+html.tema-luz #streakHost .stk-bg { background: rgba(22,28,40,.3); }
+html.tema-luz .upd-forzada { background: rgba(22,28,40,.4); }
+
+/* ---------- Cajas: blancas, con sombra neutra suave ----------
+   Las de sección siguen con el borde de la gama (el blanco va en padding-box, igual que en
+   «Oscuro»): solo cambia la sombra oscura y el resplandor violeta, que acá es apenas. */
+html.tema-luz body:not(#_) :is(
+    .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .join-box, .daynotes, .w-chart) {
+  box-shadow: var(--luz-shadow), 0 0 36px -18px color-mix(in srgb, var(--gize-r2) 30%, transparent);
+}
+@media (max-width: 899px) {
+  html.tema-luz body:not(#_) .co-table { box-shadow: none; }
+}
+html.tema-luz body:not(#_) .ss-group { box-shadow: var(--luz-shadow), 0 0 36px -18px color-mix(in srgb, var(--gize-r2) 30%, transparent); }
+html.tema-luz body:not(#_) .ss-group :is(.card, .ex-collapsed) { box-shadow: none; }
+html.tema-luz body.silk-on :is(.card, .hb-item, .food-row, .diary-item, .w-chart, .w-item, .water-card,
+    .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner, .join-box, .daynotes,
+    .daily-card, .ci-card, .sess-item, .hx-row) { --shadow-card: var(--luz-shadow); }
+html.tema-luz body.silk-coach :is(.co-item, .co-exc, .co-invite, .opt-sec, .opt-item, .week-editor,
+    .hx-row, .cp-ccard, .co-tab, .co-daytab, .ap-day, .cp-modal, .co-row, .co-slog,
+    .ck-card, .sess-item) { box-shadow: var(--luz-shadow); }
+html.tema-luz body:not(#_) .co-head :is(.co-back, .co-logout, .co-gear) { box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 0 18px -10px color-mix(in srgb, var(--gize-r2) 45%, transparent); }
+
+/* ---------- Capa de botones (css/ui/botones-rediseno.css): filetes y rellenos oscuros ---------- */
+html.tema-luz body:not(#_) {
+  --btn-line: rgba(11,13,17,.16);
+  --btn-line-hi: rgba(11,13,17,.32);
+  --btn-fill: #fff;
+  --btn-fill-hi: #F0F1F4;
+  --acc-hi: var(--gize-blue-deep);
+  --acc-tint: color-mix(in srgb, var(--gize-blue) 10%, transparent);
+}
+/* Principales: negros con el anillo de neón (el revés de los blancos de «Oscuro»). */
+html.tema-luz body:not(#_) .ctrl.primary, html.tema-luz body:not(#_) :is(.form-save, .save-session, .co-save-rt, .hb-add-btn) {
+  background: var(--gize-text); color: #fff;
+}
+html.tema-luz body:not(#_) .ctrl.primary, html.tema-luz body:not(#_) :is(.save-session, .co-save-rt, .rq-send) {
+  background: linear-gradient(var(--gize-text), var(--gize-text)) padding-box,
+    conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box;
+  color: #fff;
+  box-shadow: 0 6px 18px -8px rgba(16,24,40,.45);
+}
+html.tema-luz body:not(#_) :is(.ctrl.primary, .form-save, .save-session, .co-save-rt, .hb-add-btn):hover { filter: brightness(1.25); }
+/* Pestañas segmentadas del coach: el indicador que se desliza. */
+html.tema-luz body:not(#_) .co-tabs::before { background: #fff; border-color: rgba(11,13,17,.14); box-shadow: 0 1px 3px rgba(16,24,40,.08); }
+html.tema-luz body:not(#_) .co-tabs { background: var(--gize-surface-2); }
+/* Completado: turquesa profundo con el ícono blanco. */
+html.tema-luz body:not(#_) :is(.done.on, .hb-check.on) { color: #fff; }
+html.tema-luz :is(.done.on, .hb-check.on) { color: #fff; }
+
+/* ---------- Barra de abajo ---------- */
+html.tema-luz .navbar { background: rgba(255,255,255,.94); border-top: 1px solid var(--gize-border); }
+html.lite.tema-luz .navbar, html.android-app.tema-luz .navbar { background: #fff; }
+
+/* ---------- Texto suelto y campos del coach (css/ui/theme.css) ---------- */
+html.tema-luz body.silk-coach :is(.co-logout, .co-back) { background: #fff; }
+html.tema-luz body.silk-coach :is(.co-note, .co-search, .co-dayname, .ml-in, .opt-body, .bw) { background: #fff; }
+html.tema-luz body.silk-coach :is(.co-note, .co-search, .co-dayname, .ml-in, .opt-body):focus { background: #fff; }
+html.tema-luz body.silk-coach :is(.co-exc-name, .co-exc-btn, .pl-help) { background: #fff; }
+html.tema-luz body.silk-coach input[type="date"] { color-scheme: light; }
+html.tema-luz body.silk-coach :is(.co-tab.on, .co-daytab.on) { color: #fff; }
+html.tema-luz body:not(#_) .co-tab.on, html.tema-luz body:not(#_) :is(.co-daytab.on, .ap-day.on) { color: var(--gize-text); }
+
+/* ---------- Detalles por pantalla ---------- */
+/* Campos de las series */
+html.tema-luz .field input { border-color: var(--gize-border); }
+/* Entreno: «Iniciar entrenamiento» con el texto oscuro (el borde y el halo, de neón suave). */
+html.tema-luz .wk-start { color: var(--gize-text); background: #fff;
+  box-shadow: -8px 0 24px -14px var(--gize-r1), 8px 0 24px -14px var(--gize-r3), 0 6px 20px -12px color-mix(in srgb, var(--gize-r2) 70%, transparent); }
+html.tema-luz .wk-start svg { color: var(--gize-text); }
+html.tema-luz body:not(#_) .tabs .tab.active { background: #fff; border-color: rgba(11,13,17,.5); box-shadow: var(--luz-shadow); }
+html.tema-luz .ex-num:not(.ss) { background: var(--gize-surface-2); }
+html.tema-luz .ex-num.ss { color: #fff; }
+html.tema-luz :is(.prog-sug, .prog-sug.coach) { background: var(--gize-surface-2); border-color: var(--gize-border); }
+html.tema-luz :is(.prog-sug .ps-ic, .prog-sug.coach .ps-ic) { background: #fff; }
+html.tema-luz :is(.ps-use, .prog-sug.coach .ps-use) { border-color: rgba(11,13,17,.4); }
+html.tema-luz .ps-use:active { background: rgba(11,13,17,.06); }
+html.tema-luz body:not(#_) .card .add-set:hover { border-color: rgba(11,13,17,.4); background: rgba(11,13,17,.03); }
+html.tema-luz .wk-dot { box-shadow: 0 0 6px rgba(11,13,17,.35); }
+html.tema-luz .ep-ord { background: var(--gize-surface-2); }
+html.tema-luz :is(.ss-tag, .field.kg-asis .kg-neg) { color: #7B2FE0; }
+/* Récords: dorado sobre crema en vez de sobre marrón oscuro. */
+html.tema-luz .set .idx.has-pr { color: #9A6700; border-color: rgba(178,122,0,.45); }
+html.tema-luz .pr-mark { background: #FFF6DC; border-color: rgba(178,122,0,.5); color: #9A6700; }
+html.tema-luz .pr-chip { background: linear-gradient(135deg, #FFF8E4, #FFEFC2); border-color: rgba(178,122,0,.45); color: #7A5200; box-shadow: 0 6px 16px rgba(16,24,40,.14); }
+
+/* Chat: el botón de arriba con el ícono oscuro; adentro, «Visto» legible. */
+html.tema-luz .chat-btn { color: var(--gize-text); background: #fff;
+  box-shadow: -3px 0 10px -5px var(--gize-r1), 3px 0 10px -5px var(--gize-r3), 0 2px 10px -4px color-mix(in srgb, var(--gize-r2) 60%, transparent); }
+html.tema-luz .chat-btn svg { filter: none; }
+html.tema-luz .chat-btn.unread { background: color-mix(in srgb, var(--gize-r2) 8%, #fff); animation: none; }
+html.tema-luz .ch-seen { color: #7B2FE0; }
+
+/* Barras y anillos de progreso: el riel un gris más marcado que el fondo (el de siempre es la
+   superficie 2, que sobre el fondo claro casi no se ve). */
+html.tema-luz .bar { background: #E3E5EA; }
+html.tema-luz .ring-track { stroke: #E6E8ED; }
+
+/* Comida: el escáner con el ícono violeta profundo y un halo apenas. */
+html.tema-luz .scan-btn { color: #7B2FE0; background: linear-gradient(#fff, #fff) padding-box,
+    conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box;
+  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--gize-r2) 50%, transparent); }
+html.tema-luz .scan-btn svg { filter: none; }
+html.tema-luz .plan-tabs { background: rgba(255,255,255,.92); }
+html.tema-luz .plan-tab.on { box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--gize-blue) 50%, transparent); }
+
+/* Cardio: el halo del anillo, más suave sobre blanco. */
+html.tema-luz .cneon.glow { opacity: .28; }
+html.tema-luz .cring.run .cneon.glow { opacity: .45; }
+html.tema-luz .cring-pick:active { background: rgba(11,13,17,.04); }
+
+/* Check-in */
+html.tema-luz .daily-card .form-input:not(:focus) { border-color: rgba(11,13,17,.22); }
+
+/* Ajustes: la opción elegida del selector y el interruptor prendido. */
+html.tema-luz .cfg-seg-opt.on { color: #fff; }
+html.tema-luz .cfg-switch.on .cfg-switch-knob { background: #fff; }
+
+/* Coach */
+html.tema-luz .co-select { border-color: rgba(11,13,17,.16); }
+html.tema-luz .co-select:hover { border-color: rgba(11,13,17,.3); }
+html.tema-luz .cs-neon { background: #fff; }
+html.tema-luz .co-seg-opt.on { color: #fff; }
+html.tema-luz .ph-date { color: #fff; }
+html.tema-luz :is(.pl-tag, .pl-choose:not(:disabled)) { color: #fff; }
+
+/* Racha */
+html.tema-luz #streakHost .stk-card { box-shadow: 0 0 40px -18px color-mix(in srgb, var(--gize-r2) 40%, transparent), var(--luz-shadow-hi); }
+
+/* Cartel de versión nueva */
+html.tema-luz .upd-card { background: rgba(255,255,255,.97); box-shadow: var(--luz-shadow-hi); }
+html.tema-luz .upd-go { background: var(--gize-text); color: #fff; }
+html.tema-luz .upd-later:active { background: rgba(11,13,17,.06); }
+
+/* Acomodar la foto de perfil: la tarjeta blanca sobre un velo suave (la foto sigue sobre negro). */
+html.tema-luz .crp { background: rgba(22,28,40,.45); }
+
+/* ---------- Login ---------- */
+html.tema-luz .auth-remember-box { border-color: rgba(11,13,17,.32); }
+html.tema-luz .auth-or::before, html.tema-luz .auth-or::after { background: var(--gize-border); }
+/* «Continuar con Google»: la variante clara de las pautas de Google. */
+html.tema-luz .auth-google { background: #fff; border-color: #747775; color: #1F1F1F; }
+html.tema-luz .auth-google:hover { background: #F7F8F8; border-color: #5f6368; }
+/* «Continuar con Apple»: negro (la variante para fondos claros). */
+html.tema-luz .auth-apple { background: #000; border-color: #000; color: #fff; }
+html.tema-luz .auth-install { border-color: rgba(11,13,17,.18); }
+html.tema-luz .auth-install:hover { border-color: rgba(11,13,17,.34); }
+html.tema-luz body:not(#_) .auth-card { box-shadow: var(--luz-shadow-hi), 0 0 60px -24px color-mix(in srgb, var(--gize-r2) 45%, transparent); }
+
+/* ---------- Splash ----------
+   El logo armándose sobre el fondo claro, con la G casi negra (css/core/splash.css). */
+
+/* ---------- Neón apagado con «Claro» (html.tema-luz.sin-neon) ----------
+   Lo de css/ui/sin-neon.css es blanco sobre oscuro: acá pasa a filetes negros finos, grises
+   neutros y sombras suaves, sin ningún color de la gama y sin nada que gire. Se quedan con
+   color, como en las otras apariencias, el azul de acción, el rojo, el turquesa de
+   «completado», el ámbar y el dorado. */
+html.tema-luz.sin-neon {
+  --gize-r1: #5A6170;
+  --gize-r2: #8A909C;
+  --gize-r3: #6E7482;
+  --gize-r4: #A3A8B2;
+  --gize-rgb-line: linear-gradient(90deg, #0B0D11, #6E7482);
+  --gize-rgb-ring: linear-gradient(rgba(11,13,17,.13), rgba(11,13,17,.13));
+}
+/* Fondo: los brillos de las esquinas, grises apenas azulados. */
+html.tema-luz.sin-neon :is(.app-aurora, .auth-aurora) {
+  background: radial-gradient(75% 40% at 0% 0%, rgba(120,134,160,.12), transparent 70%),
+    radial-gradient(75% 40% at 100% 88%, rgba(140,146,160,.10), transparent 70%);
+  opacity: 1;
+}
+/* Cajas: solo la sombra neutra, sin brillo. */
+html.tema-luz.sin-neon body:not(#_) :is(
+    .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .join-box, .daynotes, .w-chart, .ss-group) { box-shadow: var(--luz-shadow); }
+@media (max-width: 899px) {
+  html.tema-luz.sin-neon body:not(#_) .co-table { box-shadow: none; }
+}
+html.tema-luz.sin-neon body:not(#_) .co-head :is(.co-back, .co-logout, .co-gear) { box-shadow: 0 1px 2px rgba(16,24,40,.06); }
+/* Principales: negros con un filete negro, sin anillo ni giro. */
+html.tema-luz.sin-neon body:not(#_) .ctrl.primary, html.tema-luz.sin-neon body:not(#_) :is(.save-session, .co-save-rt, .rq-send) {
+  background: var(--gize-text) padding-box; border-color: var(--gize-text);
+  box-shadow: 0 6px 18px -8px rgba(16,24,40,.45); animation: none;
+}
+html.tema-luz.sin-neon .gize-btn { box-shadow: 0 6px 18px -8px rgba(16,24,40,.45); }
+html.tema-luz.sin-neon .gize-btn::before { background: var(--gize-text); }
+/* «Iniciar entrenamiento»: negro como los principales. */
+html.tema-luz.sin-neon .wk-start { background: var(--gize-text); color: #fff; box-shadow: 0 6px 18px -8px rgba(16,24,40,.45); }
+html.tema-luz.sin-neon .wk-start svg { color: #fff; }
+html.tema-luz.sin-neon .wk-start:active { box-shadow: 0 4px 12px -6px rgba(16,24,40,.5); }
+html.tema-luz.sin-neon :is(.ex-video, .ex-audio, .wk-live, .wk-finish, .wk-cancel) { box-shadow: none; }
+html.tema-luz.sin-neon :is(.ex-video:active, .ex-audio.on, .wk-finish:active, .wk-cancel:active) {
+  background: linear-gradient(rgba(11,13,17,.05), rgba(11,13,17,.05)) padding-box, linear-gradient(var(--gize-surface-2), var(--gize-surface-2)) padding-box, var(--gize-rgb-ring) border-box; }
+html.tema-luz.sin-neon :is(.ex-num.ss, .co-exc-ord.ss) { background: var(--gize-text); color: #fff; }
+/* Chat: filete gris quieto y sombra neutra. */
+html.tema-luz.sin-neon .chat-btn { background: #fff; box-shadow: 0 1px 3px rgba(16,24,40,.12); animation: none; }
+html.tema-luz.sin-neon .chat-btn::before { background: rgba(11,13,17,.2); }
+html.tema-luz.sin-neon .chat-btn svg { filter: none; }
+html.tema-luz.sin-neon .chat-btn.unread { background: #fff; box-shadow: 0 0 0 2px rgba(11,13,17,.12), 0 1px 3px rgba(16,24,40,.12); }
+html.tema-luz.sin-neon :is(.ch-play, .ch-ic.on) { background: var(--gize-text); color: #fff; }
+/* Racha: llama gris oscura. */
+html.tema-luz.sin-neon .streak { background: #fff; border-color: rgba(11,13,17,.14); box-shadow: 0 1px 3px rgba(16,24,40,.1); }
+html.tema-luz.sin-neon .streak b { text-shadow: none; }
+html.tema-luz.sin-neon .streak.out { background: var(--gize-surface-2); }
+html.tema-luz.sin-neon :is(.streak.lit .flame, .stk-big .flame:not(.off), .stk-day.on .flame) { filter: none; }
+html.tema-luz.sin-neon .flame linearGradient[id$="o"] stop:nth-child(1) { stop-color: #8A909C; }
+html.tema-luz.sin-neon .flame linearGradient[id$="o"] stop:nth-child(2) { stop-color: #4A5060; }
+html.tema-luz.sin-neon .flame linearGradient[id$="o"] stop:nth-child(3) { stop-color: #1C2029; }
+html.tema-luz.sin-neon .flame linearGradient[id$="i"] stop:nth-child(2) { stop-color: #E3E5EA; }
+html.tema-luz.sin-neon .flame linearGradient[id$="i"] stop:nth-child(3) { stop-color: #A3A8B2; }
+html.tema-luz.sin-neon #streakHost .stk-card { border-color: var(--gize-border); box-shadow: var(--luz-shadow-hi); }
+html.tema-luz.sin-neon .stk-n { text-shadow: none; }
+html.tema-luz.sin-neon .stk-day.today { background: var(--gize-surface-2); }
+/* Cardio: el anillo del reloj, negro y quieto. */
+html.tema-luz.sin-neon .cneon i { background: var(--gize-text); }
+html.tema-luz.sin-neon .cneon.glow { opacity: .12; }
+html.tema-luz.sin-neon .cring.run .cneon.glow { opacity: .2; }
+html.tema-luz.sin-neon .cring.fin .cneon i { background: var(--gize-success); }
+/* Comida, Progreso, Ajustes y login. */
+html.tema-luz.sin-neon .scan-btn { background: linear-gradient(#fff, #fff) padding-box, linear-gradient(rgba(11,13,17,.2), rgba(11,13,17,.2)) border-box; box-shadow: none; }
+html.tema-luz.sin-neon .scan-btn svg { filter: none; }
+html.tema-luz.sin-neon .scan-btn:hover { box-shadow: 0 1px 3px rgba(16,24,40,.12); }
+html.tema-luz.sin-neon .scan-beta { background: var(--gize-text); color: #fff; }
+html.tema-luz.sin-neon .ring-fill { filter: none; }
+html.tema-luz.sin-neon .ptile-s i { box-shadow: none; }
+html.tema-luz.sin-neon body:not(#_) .auth-card { box-shadow: var(--luz-shadow-hi); }
+html.tema-luz.sin-neon .auth-card::before { background: rgba(11,13,17,.13); }

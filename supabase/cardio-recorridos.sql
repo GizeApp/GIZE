@@ -1,3 +1,6 @@
+-- REEMPLAZADO por supabase/cardio-sin-gps.sql: las salidas con GPS se sacaron de la app y ese
+-- archivo borra esta tabla. No volver a correr este. Queda como registro de lo que se corrió.
+--
 -- Recorridos de las salidas de correr, caminar o bici (Cardio → «Salir a correr…» → el mapa).
 -- Una fila por salida: el recorrido simplificado y codificado como polyline de Google (5
 -- decimales). Si la salida tuvo pausas, van varios tramos separados por un espacio (el

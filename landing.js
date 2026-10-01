@@ -24,10 +24,21 @@
       GS=Math.ceil(S*1.3); gLayer=document.createElement('canvas'); gLayer.width=gLayer.height=GS; var gx=gLayer.getContext('2d');
       gx.translate((GS-S)/2,(GS-S)/2); gx.scale(S/100,S/100); gx.shadowColor='rgba(255,255,255,.35)'; gx.shadowBlur=S*.06;
       gx.lineWidth=20; gx.lineCap='round'; gx.strokeStyle='#F4F6FA'; gx.stroke(arc);
+      // El orbe de la marca (brand/logo/gize-marca-blanca.svg): resplandor de color, esfera de
+      // degradés, sombra del borde y el reflejo blanco arriba a la izquierda.
       DS=Math.ceil(S*1.1); dotSpr=document.createElement('canvas'); dotSpr.width=dotSpr.height=DS; var dx=dotSpr.getContext('2d');
-      dx.translate(DS/2,DS/2); dx.scale(S/100,S/100); dx.shadowColor='#2FA0FF'; dx.shadowBlur=S*.42; dx.fillStyle='#2FA0FF';
-      for(var k=0;k<3;k++){ dx.beginPath(); dx.arc(0,0,9.5,0,Math.PI*2); dx.fill(); }
-      dx.shadowBlur=0; dx.fillStyle='#8FD0FF'; dx.beginPath(); dx.arc(-1.7,-1.7,3.2,0,Math.PI*2); dx.fill();
+      dx.translate(DS/2,DS/2); dx.scale(S/100,S/100);
+      var R=9.6, rg=function(x,y,r,stops){ var g=dx.createRadialGradient(x*R,y*R,0,x*R,y*R,r*R); stops.forEach(function(s){ g.addColorStop(s[0],s[1]); }); return g; };
+      [[-.5,.15,'34,198,200',.6],[0,-.5,'84,104,232',.3],[.5,.1,'210,60,180',.5]].forEach(function(h){
+        dx.fillStyle=rg(h[0],h[1],3.2,[[.28,'rgba('+h[2]+','+h[3]+')'],[.55,'rgba('+h[2]+','+(h[3]*.35)+')'],[1,'rgba('+h[2]+',0)']]); dx.fillRect(-50,-50,100,100); });
+      dx.save(); dx.beginPath(); dx.arc(0,0,R,0,Math.PI*2); dx.clip();
+      dx.fillStyle=rg(-.1,-.15,1.1,[[0,'#CBCCF2'],[1,'#9AA2E0']]); dx.fillRect(-R,-R,2*R,2*R);
+      [[-.55,.55,1,'27,205,182'],[-.75,-.1,.85,'69,192,226'],[-.15,-.85,.9,'110,142,244'],[.6,-.55,.95,'154,85,238'],[.72,.3,.88,'224,58,174']].forEach(function(c){
+        dx.fillStyle=rg(c[0],c[1],c[2],[[0,'rgba('+c[3]+',1)'],[.45,'rgba('+c[3]+',.72)'],[1,'rgba('+c[3]+',0)']]); dx.fillRect(-R,-R,2*R,2*R); });
+      dx.fillStyle=rg(-.1,-.42,1.45,[[.6,'rgba(16,10,38,0)'],[.84,'rgba(16,10,38,.28)'],[1,'rgba(16,10,38,.7)']]); dx.fillRect(-R,-R,2*R,2*R);
+      dx.fillStyle=rg(-.4,-.45,.6,[[0,'rgba(255,255,255,.22)'],[1,'rgba(255,255,255,0)']]); dx.fillRect(-R,-R,2*R,2*R);
+      dx.restore(); dx.save(); dx.translate(-.39*R,-.47*R); dx.rotate(-24*Math.PI/180); dx.scale(1,.625);
+      dx.fillStyle=rg(0,0,.2,[[.55,'#fff'],[1,'rgba(255,255,255,0)']]); dx.beginPath(); dx.arc(0,0,.2*R,0,Math.PI*2); dx.fill(); dx.restore();
     }
     function drawScene(t){
       var W=sc.width,H=sc.height;
@@ -36,7 +47,7 @@
       for(var i=0;i<4;i++){ var x=W*(.5+.38*Math.sin(t*.00011*(i+2)+i*1.7)), y=H*(.5+.34*Math.cos(t*.00013*(i+1.5)+i*2.3)); sx.drawImage(blobs[i],x-R,y-R,R*2,R*2); }
       sx.globalAlpha=1; sx.globalCompositeOperation='source-over';
       var S=L.S; sx.save(); sx.translate(L.cx,L.cy+Math.sin(t*.0006)*H*.012); sx.rotate(Math.sin(t*.0003)*.05);
-      sx.drawImage(gLayer,-GS/2,-GS/2); var d=DS*(1+.07*Math.sin(t*.0024)); sx.drawImage(dotSpr,S*.105-d/2,-d/2,d,d); sx.restore();
+      sx.drawImage(gLayer,-GS/2,-GS/2); var d=DS*(1+.07*Math.sin(t*.0024)); sx.drawImage(dotSpr,S*.106-d/2,-d/2,d,d); sx.restore();
     }
     var TAPS=LOW?5:9;
     var VS='attribute vec2 p;varying vec2 v;void main(){v=p*.5+.5;gl_Position=vec4(p,0.,1.);}';

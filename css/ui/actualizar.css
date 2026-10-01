@@ -13,7 +13,7 @@
 .upd-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--gize-rgb-line); }
 .upd-logo { flex: none; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
   background: #000; border: 1px solid var(--gize-border); box-shadow: 0 0 16px color-mix(in srgb, var(--gize-blue) 22%, transparent); }
-.upd-logo svg { width: 24px; height: 24px; }
+.upd-logo img { width: 28px; height: 28px; display: block; }
 .upd-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .upd-title { font-size: var(--text-emphasis); font-weight: 700; color: var(--gize-text); display: flex; align-items: center; gap: var(--space-6); white-space: nowrap; }
 .upd-sub { font-size: var(--text-meta); color: var(--gize-text-2); line-height: 1.35; display: flex; align-items: center; gap: var(--space-6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -43,7 +43,7 @@
 .upd-forzada .upd-card { flex-direction: column; text-align: center; gap: var(--space-10); max-width: 360px;
   padding: 30px 22px 22px; border-radius: var(--gize-radius); background: var(--gize-surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
 .upd-forzada .upd-logo { width: 64px; height: 64px; border-radius: 18px; margin-bottom: var(--space-4); }
-.upd-forzada .upd-logo svg { width: 36px; height: 36px; }
+.upd-forzada .upd-logo img { width: 42px; height: 42px; }
 .upd-forzada .upd-title { font-size: 20px; justify-content: center; }
 .upd-forzada .upd-sub { font-size: var(--text-body); margin: 0 0 var(--space-8); }
 .upd-forzada .upd-go { width: 100%; padding: 15px 24px; font-size: 16px; }

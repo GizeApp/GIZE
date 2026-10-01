@@ -71,6 +71,30 @@ jobs:
           if [ -z "$ASC_KEY_P8" ] || [ -z "$ASC_KEY_ID" ]; then echo "::error::Faltan los secrets de App Store Connect"; exit 1; fi
           echo "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
 
+      # Certificados intermedios oficiales de Apple (WWDR), para que la firma lleve la cadena
+      # completa hasta la raíz de Apple.
+      - name: Certificados intermedios de Apple
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          for c in AppleWWDRCAG3 AppleWWDRCAG4 AppleWWDRCAG5 AppleWWDRCAG6; do
+            curl -fsSL -o "$RUNNER_TEMP/$c.cer" "https://www.apple.com/certificateauthority/$c.cer"
+            security import "$RUNNER_TEMP/$c.cer" -k "$HOME/Library/Keychains/login.keychain-db" || true
+          done
+
+      # La firma «en la nube» de Xcode salía sin sello de tiempo y Apple la rechazaba (error 90035).
+      # Se firma con un certificado de distribución propio, de usar y tirar (scripts/ios-firma.py):
+      # la clave privada se crea en esta Mac y al final el certificado se revoca.
+      - name: Certificado y perfil de App Store (temporales)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          BUNDLE_ID: ar.com.gize.app
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python3 -m pip install --quiet --break-system-packages "pyjwt[crypto]" || python3 -m pip install --quiet "pyjwt[crypto]"
+          ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" python3 scripts/ios-firma.py crear
+
       - name: Compilar firmada y subir a TestFlight
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -91,12 +115,35 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
             <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
+            <key>destination</key><string>export</string>
             <key>teamID</key><string>$TEAM</string>
-            <key>signingStyle</key><string>automatic</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key><dict><key>ar.com.gize.app</key><string>$IOS_PROFILE_NAME</string></dict>
             <key>manageAppVersionAndBuildNumber</key><false/>
           </dict></plist>
           EOF
+          # Se exporta el .ipa acá, se revisa la firma y recién después se sube: si Apple la
+          # rechaza, el registro dice qué parte está mal (sin nombres ni datos de la cuenta).
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
-            "${AUTH[@]}" | tail -40
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" | tail -40
+          IPA=$(ls "$RUNNER_TEMP"/export/*.ipa)
+          mkdir -p "$RUNNER_TEMP/revisar" && unzip -q "$IPA" -d "$RUNNER_TEMP/revisar"
+          for f in "$RUNNER_TEMP"/revisar/Payload/App.app "$RUNNER_TEMP"/revisar/Payload/App.app/Frameworks/*.framework; do
+            echo "== $(basename "$f")"
+            codesign -dvv "$f" 2>&1 | grep '^Authority=' | sed -E 's/^Authority=(Apple Distribution|Apple Development|iPhone Distribution|iPhone Developer):.*/Authority=\1: (cuenta)/'
+            codesign -dvv "$f" 2>&1 | grep -E '^(Timestamp|Signed Time)=' | sed -E 's/=.*/=(presente)/'
+            codesign --verify --strict "$f" && echo "verificación local: OK" || echo "verificación local: FALLA"
+          done
+          mkdir -p ~/.appstoreconnect/private_keys && cp "$RUNNER_TEMP/AuthKey.p8" ~/.appstoreconnect/private_keys/AuthKey_$KEY_ID.p8
+          xcrun altool --upload-app -f "$IPA" -t ios --apiKey "$KEY_ID" --apiIssuer "$ISSUER" 2>&1 | tail -30
+
+      # Siempre, aunque algo haya fallado: se revoca el certificado temporal y se borra el perfil.
+      - name: Revocar el certificado temporal
+        if: always() && github.event_name == 'workflow_dispatch'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          [ -f "$RUNNER_TEMP/AuthKey.p8" ] || exit 0
+          ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" python3 scripts/ios-firma.py borrar

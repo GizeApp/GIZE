@@ -71,7 +71,7 @@ export function renderVolumen(daysArg){
   // barras pueden sumar la misma serie a dos grupos (hiperextensiones: espalda baja e isquios).
   let total=0; ((daysArg||state.days)||[]).forEach(d=>(d.exercises||[]).forEach(ex=>{ total+=(ex.sets||[]).length; }));
   const max=rows[0].sets;
-  const bars=rows.map(r=>`<div class="vol-row"><div class="vol-lbl">${r.label}</div><div class="vol-bar"><div class="vol-fill" style="width:${Math.round(r.sets/max*100)}%"></div></div><div class="vol-n">${r.sets}</div></div>`).join("");
+  const bars=rows.map(r=>`<div class="vol-row"><div class="vol-lbl">${esc(r.label)}</div><div class="vol-bar"><div class="vol-fill" style="width:${Math.round(r.sets/max*100)}%"></div></div><div class="vol-n">${r.sets}</div></div>`).join("");
   return `
     <div class="hb-head" style="margin-top:28px"><div class="hb-title">Volumen semanal</div><div class="title-accent"></div></div>
     <div class="vol-sub">${total} series por semana · ${rows.length} grupos musculares</div>

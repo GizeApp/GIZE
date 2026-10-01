@@ -1,3 +1,6 @@
+-- REEMPLAZADO por supabase/cardio-sin-gps.sql: las salidas con GPS se sacaron de la app y ese
+-- archivo borra esta tabla. No volver a correr este. Queda como registro de lo que se corrió.
+--
 -- Salidas de correr, caminar o bici registradas con el GPS (Cardio → «Salir a correr…»).
 -- Solo el resumen: tipo, fecha, duración, distancia, calorías y velocidades. El recorrido
 -- (las coordenadas) no va acá: va en public.cardio_routes (supabase/cardio-recorridos.sql),

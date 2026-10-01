@@ -4,15 +4,19 @@
 -- OJO: NO volver a correr suelto. Redefine coach_active, y la versión vigente (que además
 -- mira el cupo del plan) está en cupo-plan.sql. Si lo corrés, corré después cupo-plan.sql.
 --
---   Prueba     14 días, hasta 10 clientes, gratis
---   Plan 10    hasta 10 clientes, $9.300 por mes
---   Plan 25    hasta 25 clientes, $15.000 por mes
---   Plan 50    hasta 50 clientes, $20.000 por mes
---   Gimnasio   hasta 100 clientes, $33.000 por mes (p100, ver plan-gimnasio.sql)
---   Cortesía   sin vencimiento, hasta 50 clientes (se pone a mano, ver abajo)
+--   Prueba           14 días, hasta 10 clientes, gratis
+--   Plan 10          hasta 10 clientes, $14.900 por mes
+--   Plan 25          hasta 25 clientes, $24.900 por mes
+--   Plan 50          hasta 50 clientes, $37.900 por mes
+--   Gimnasio chico   hasta 100 alumnos, $59.900 por mes (p100, ver plan-gimnasio.sql)
+--   Gimnasio         hasta 250 alumnos, $119.900 por mes (p250, ver precios-2026-10.sql)
+--   Gimnasio grande  hasta 500 alumnos, $199.900 por mes (p500, ver precios-2026-10.sql)
+--   Más de 500       a medida (se arregla por WhatsApp)
+--   Cortesía         sin vencimiento, hasta 50 clientes (se pone a mano, ver abajo)
 --
--- Los precios los cobra la función supabase/functions/suscripcion (PLANES): si se cambian,
--- cambiarlos ahí, en app/screens/coach/plan.js y en la landing.
+-- Los precios están en la función supabase/functions/suscripcion (PLANES), en plan_price
+-- (admin.sql): si se cambian, cambiarlos ahí, en app/screens/coach/plan.js, admin/admin.js y
+-- en la landing.
 --
 -- Qué se controla acá, en la base (no solo en la app):
 --   · Un coach sin prueba ni plan vigente no puede leer ni editar los datos de sus
@@ -27,7 +31,7 @@
 
 create table if not exists public.coach_billing (
   coach_id          uuid primary key references public.profiles(id) on delete cascade,
-  plan              text not null default 'trial' check (plan in ('trial','p10','p25','p50','p100','cortesia')),
+  plan              text not null default 'trial' check (plan in ('trial','p10','p25','p50','p100','p250','p500','cortesia')),
   max_clients       int  not null default 10,
   trial_ends_at     timestamptz not null default now() + interval '14 days',
   paid_until        timestamptz,             -- pagado hasta (con unos días de margen)

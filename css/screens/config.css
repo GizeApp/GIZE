@@ -122,8 +122,33 @@
 
 .cfg-switch.on .cfg-switch-knob { background:var(--gize-bg); transform:translateX(18px); }
 
+/* Selector de opciones (Apariencia: Oscuro / Claro / Azul / Rosa): la misma pastilla que el switch,
+     con la opción elegida pintada como el switch prendido. */
+.cfg-seg { flex-shrink:0; display:flex; gap:2px; padding:2px; border-radius:20px;
+    background:var(--card-2); border:1px solid var(--border); }
+
+.cfg-seg-opt { border:0; border-radius:18px; padding:5px 12px; background:none; cursor:pointer;
+    font:700 var(--text-meta) var(--gize-font); color:var(--txt-2);
+    transition:background .18s ease, color .18s ease; }
+
+.cfg-seg-opt.on { background:var(--green); color:var(--gize-bg); }
+
+/* Apariencia: el selector baja a su propio renglón, alineado con el texto (debajo del ícono
+     no), y las cuatro opciones se reparten el ancho. En un celular angosto (320 px) cuatro
+     no entran al lado del ícono: ahí el selector toma todo el ancho de la caja. */
+.cfg-tema-row { flex-wrap:wrap; row-gap:12px; }
+
+.cfg-tema-row .cfg-seg { flex:none; width:calc(100% - 48px); margin-left:48px; }
+
+.cfg-tema-row .cfg-seg-opt { flex:1; padding:6px 8px; }
+
+@media (max-width: 374px) {
+    .cfg-tema-row .cfg-seg { width:100%; margin-left:0; }
+    .cfg-tema-row .cfg-seg-opt { padding:6px 4px; }
+  }
+
 @media (prefers-reduced-motion: reduce) {
-    .cfg-switch, .cfg-switch-knob { transition:none; }
+    .cfg-switch, .cfg-switch-knob, .cfg-seg-opt { transition:none; }
   }
 
 /* Filas de link (Términos, Instagram, Sitio web, Email, WhatsApp): mismo look de fila

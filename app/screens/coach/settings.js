@@ -16,6 +16,9 @@ import { pushOnHere } from '../../core/push.js';
 
 import { adminEntry, checkAdmin } from '../admin-productos.js';
 
+import { temaOptionsHtml } from '../../ui/tema.js';
+import { neonSwitchHtml } from '../../ui/neon.js';
+
 export function renderCoachSettings(){
   const host=document.getElementById("coachSheetHost"); if(!host) return;
   if(!CoachState.coachSettingsOpen){ host.innerHTML=""; return; }
@@ -47,6 +50,18 @@ export function renderCoachSettings(){
       '<label>Avisos en este dispositivo</label>'+
       '<button class="cp-copt cs-q-btn cs-notif'+(pushOnHere()?' on':'')+'" data-coach="notif-toggle">'+(pushOnHere()?'Avisos activados \u2713 · tocá para apagarlos':'Activar avisos')+'</button>'+
       '<div class="cs-hint">Te avisamos cuando un alumno manda su check-in semanal o lleva 4 días sin entrenar.</div>'+
+    '</div>'+
+    // Apariencia: «Oscuro» (la de siempre), «Claro» (blanco), «Azul» o «Rosa» (vidrio), igual que en Ajustes del
+    // alumno. Se aplica al toque (app/ui/tema.js escucha los botones data-tema).
+    '<div class="cs-field">'+
+      '<label id="csTemaLbl">Apariencia en este dispositivo</label>'+
+      '<div class="cs-tema" role="radiogroup" aria-labelledby="csTemaLbl">'+temaOptionsHtml("cp-copt cs-tema-opt")+'</div>'+
+    '</div>'+
+    // Neón: los bordes y brillos de colores, igual que en Ajustes del alumno. Se aplica al
+    // toque (app/ui/neon.js escucha el interruptor data-neon-toggle).
+    '<div class="cs-field">'+
+      '<label id="csNeonLbl">Neón en este dispositivo</label>'+
+      '<div class="cs-neon"><span>Bordes y brillos de colores</span>'+neonSwitchHtml("csNeonLbl")+'</div>'+
     '</div>'+
     (adminEntry() ? '<div class="cs-field"><label>Administración de GIZE</label>'+adminEntry()+'</div>' : '')+
     '<div class="cs-field">'+

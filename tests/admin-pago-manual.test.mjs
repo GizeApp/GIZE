@@ -38,6 +38,18 @@ export default async function ({ base, t }){
   t.has(last(), 'admin_set_paid {"cid":"c1","p_plan":"p50","p_max":50,', 'guarda el plan de 50 con 50 alumnos');
   t.has(dialogs[dialogs.length - 1], '(50 alumnos)', 'el cartel de confirmación dice 50');
 
+  // Los planes de gimnasio grandes, con los precios nuevos en la lista.
+  await ficha('c1');
+  const opts = await p.$$eval('#pmPlan option', os => os.map(o => o.value + ' ' + o.textContent));
+  t.eq(opts, ['p10 Hasta 10 · $14.900/mes', 'p25 Hasta 25 · $24.900/mes', 'p50 Hasta 50 · $37.900/mes', 'p100 Gimnasio chico (100) · $59.900/mes',
+    'p250 Gimnasio (250) · $119.900/mes', 'p500 Gimnasio grande (500) · $199.900/mes'], 'planes y precios del pago manual');
+  await p.selectOption('#pmPlan', 'p250');
+  t.eq(await p.inputValue('#pmMax'), '250', 'al elegir el Gimnasio, «Alumnos máximos» pasa a 250');
+  await p.selectOption('#pmPlan', 'p500');
+  t.eq(await p.inputValue('#pmMax'), '500', 'al elegir el Gimnasio grande, «Alumnos máximos» pasa a 500');
+  await p.click('[data-a="pmSave"]'); await wait(400);
+  t.has(last(), 'admin_set_paid {"cid":"c1","p_plan":"p500","p_max":500,', 'guarda el Gimnasio grande con 500 alumnos');
+
   // Si igual se deja un tope menor que el del plan, el cartel lo avisa.
   await ficha('c1');
   await p.selectOption('#pmPlan', 'p50'); await p.fill('#pmMax', '25');

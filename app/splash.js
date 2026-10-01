@@ -1,7 +1,13 @@
 (function () {
-  var TOTAL_MS = 2600; // duración completa: barra de 2,1 s + salida
+  // El splash de todas las apariencias es el logo oficial, tranquilo (template #splashTpl en
+  // app/index.html, css/core/splash.css), con los colores de cada una: la marca aparece suave con
+  // la G que se traza, el orbe se enciende, sube la palabra GIZE y el logo armado descansa un
+  // momento (el orbe respira una vez más, suave). Dura 3 s contando la salida (primero se va la
+  // marca y después el fondo); en el modo liviano ya viene armado y se va a los 0,85 s.
+  // Al terminar no queda nada: se saca del DOM todo lo que puso.
   var MAX_MS = 8000;   // techo de seguridad si la app nunca avisa que está lista
   var tpl = document.getElementById('splashTpl');
+  function totalMs() { return document.documentElement.classList.contains('lite') ? 850 : 3000; }
   var host = document.getElementById('splashHost');
   var current = null; // splash en pantalla ahora mismo, si hay uno
 
@@ -15,7 +21,7 @@
     var el = tpl.content.firstElementChild.cloneNode(true);
     host.appendChild(el);
     document.body.classList.add('is-booting');
-    var state = { el: el, startTs: Date.now(), done: false, safety: null };
+    var state = { el: el, startTs: Date.now(), total: totalMs(), done: false, safety: null };
     state.safety = setTimeout(function () { finish(state); }, reduced() ? 1600 : MAX_MS);
     current = state;
     return state;
@@ -26,17 +32,23 @@
     state.done = true;
     clearTimeout(state.safety);
     state.el.remove();
-    if (current === state) { document.body.classList.remove('is-booting'); current = null; }
+    if (current === state) {
+      host.textContent = ''; // el host queda vacío: ni una capa del splash sigue viva (iPhone)
+      document.body.classList.remove('is-booting'); current = null;
+      // Recién ahora arrancan el fondo animado y los canvas (app/ui/background.js): mientras
+      // estaba el splash no tenía sentido dibujar lo que tapa, y en Android trababa la placa.
+      try { document.dispatchEvent(new Event('gize:splash-fin')); } catch (e) {}
+    }
   }
 
   // La app llama a esto cuando ya armó la pantalla real (login, app de cliente
   // o panel de coach) que corresponde al splash activo. No corta la animación
   // antes de que termine sola: el panel de coach hace varios viajes a Supabase
-  // antes de estar listo y puede tardar más que los 2.6s de la animación.
+  // antes de estar listo y puede tardar más que la animación.
   window.coreEnter = function () {
     var state = current; if (!state) return;
     if (reduced()) { finish(state); return; }
-    var wait = Math.max(0, TOTAL_MS - (Date.now() - state.startTs));
+    var wait = Math.max(0, state.total - (Date.now() - state.startTs));
     setTimeout(function () { finish(state); }, wait);
   };
 

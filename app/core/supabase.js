@@ -7,7 +7,7 @@ import { resolveAvatars } from './avatar.js';
 
 import { loadCoachQuestions } from '../screens/coach/preguntas.js';
 
-import { State, state } from './state.js';
+import { State, state, ensureDays } from './state.js';
 import { activeDeload } from './bloque.js';
 
 import { DEFAULT } from './data.js';
@@ -15,7 +15,6 @@ import { DEFAULT } from './data.js';
 import { KEY, markRoutineSynced, migrateNames, routineHash, save } from './storage.js';
 
 import { today, ymd } from './utils.js';
-import { decodeRoute, routePoints } from './cardiogps.js';
 
 import { renderApp } from '../main.js';
 
@@ -137,7 +136,7 @@ function takePendingCode(){
 export function clearAccountLeftovers(uid){
   clearHabitAlarms();
   try{
-    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, "gize_auth_link_used", "gize_rest_timer", "gize_cardio_run"].forEach(k=>localStorage.removeItem(k));
+    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, "gize_auth_link_used", "gize_rest_timer"].forEach(k=>localStorage.removeItem(k));
     if(uid){ [OUTBOX_KEY, OUTBOX_FAILED_KEY].forEach(k=>{ const q=readQueue(k).filter(i=>i.uid!==uid); if(q.length) writeQueue(k,q); else localStorage.removeItem(k); }); }
   }catch(e){}
 }
@@ -432,7 +431,7 @@ export function applyCoachRoutine(){
     if(prev === "regular") return false;
     if(Array.isArray(state.preDeloadDays) && state.preDeloadDays.length) state.days = state.preDeloadDays;
     state.preDeloadDays = null; state.routineMode = "regular";
-    if(!state.days.find(d=>d.id===State.activeId)) State.activeId = state.days[0] ? state.days[0].id : null;
+    ensureDays();
     return true;
   }
   const clone = d => JSON.parse(JSON.stringify(d));
@@ -446,7 +445,7 @@ export function applyCoachRoutine(){
   if(mode === "regular") state.preDeloadDays = null;
   state.routineMode = mode;
   migrateNames(state.days);
-  if(!state.days.find(d=>d.id===State.activeId)) State.activeId = state.days[0] ? state.days[0].id : null;
+  ensureDays();
   return mode !== prev;
 }
 
@@ -467,7 +466,7 @@ function leaveCoachRoutine(){
     if(Array.isArray(state.regularDays) && state.regularDays.length)
       state.days = mergeLocalProgress(JSON.parse(JSON.stringify(state.regularDays)), state.preDeloadDays || state.days);
     else if(Array.isArray(state.preDeloadDays) && state.preDeloadDays.length) state.days = state.preDeloadDays;
-    if(!state.days.find(d=>d.id===State.activeId)) State.activeId = state.days[0] ? state.days[0].id : null;
+    ensureDays();
   }
   state.routineMode = "regular"; state.regularDays = null; state.preDeloadDays = null;
 }
@@ -736,10 +735,8 @@ export async function loadCloud(){
     // Todas las lecturas salen juntas (antes iban de a una y el arranque sumaba ~12 idas
     // y vueltas a Supabase); después se aplican en el mismo orden de siempre.
     const uid=State.cloudUser.id, sb=State.sb;
-    // Una sola vez (una consulta de supabase-js sale de nuevo cada vez que se la espera).
-    const prof=Promise.resolve(sb.from("profiles").select("*").eq("id",uid).maybeSingle());
-    const [pr0, rt0, ws, ss, dl, ck, ci, bl, np, fe, cp, cq, fw, cs, cr] = await Promise.all([
-      prof,
+    const [pr0, rt0, ws, ss, dl, ck, ci, bl, np, fe, cp, cq, fw] = await Promise.all([
+      sb.from("profiles").select("*").eq("id",uid).maybeSingle(),
       // Si el coach dejó programada una rutina que ya empezó, se aplica antes de leerla
       // (ver supabase/rutina-programada.sql). Si la función no existe todavía, sigue igual.
       sb.rpc("apply_due_routines").then(()=>0, ()=>0).then(()=>sb.from("routines").select("days, updated_at").eq("client_id",uid).maybeSingle()),
@@ -760,14 +757,7 @@ export async function loadCloud(){
       // las predeterminadas.
       sb.from("coach_questions").select("daily, checkin").maybeSingle(),
       // Calorías de los 7 días anteriores, para el promedio semanal de Comida.
-      sb.from("food_entries").select("log_date, kcal").eq("client_id",uid).gte("log_date",daysAgo(7)).lt("log_date",today()),
-      // Salidas de correr / caminar / bici (supabase/cardio-salidas.sql). Si la tabla todavía
-      // no existe da error y se sigue con las del dispositivo.
-      fetchAll(()=>sb.from("cardio_sessions").select("*").eq("client_id",uid).order("created_at").order("id")),
-      // Sus recorridos (supabase/cardio-recorridos.sql; los ve solo el alumno). Sin la tabla,
-      // da error y las salidas quedan con el recorrido que tengan en el dispositivo. Una cuenta
-      // de coach no los pide: su panel muestra solo números.
-      prof.then(r=>(r && r.data && r.data.role==="coach") ? null : fetchAll(()=>sb.from("cardio_routes").select("session_id, route").eq("client_id",uid).order("session_id")), ()=>null)
+      sb.from("food_entries").select("log_date, kcal").eq("client_id",uid).gte("log_date",daysAgo(7)).lt("log_date",today())
     ]);
     const pr=sbOk(pr0);
     State.cloudProfile=pr.data||null;
@@ -799,7 +789,7 @@ export async function loadCloud(){
       if(!bl.error) state.block = (bl.data && bl.data[0]) ? bl.data[0] : null;
       if(rt.data && Array.isArray(rt.data.days) && rt.data.days.length) state.regularDays = rt.data.days;
       applyCoachRoutine();
-      if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
+      ensureDays();
       markRoutineSynced(state.days);
     }
     else if(rt.data && Array.isArray(rt.data.days) && rt.data.days.length){
@@ -817,7 +807,7 @@ export async function loadCloud(){
       // subir, queda marcada la de la nube: la corregida queda pendiente para el próximo save().
       const raw=JSON.parse(JSON.stringify(state.days));
       const fixed=migrateNames(state.days);
-      if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
+      ensureDays();
       let up=false;
       if(fixed){ try{ up=await upRoutine(); }catch(e){ console.error("rutina",e); } }
       markRoutineSynced(fixed && !up ? raw : state.days);
@@ -832,7 +822,6 @@ export async function loadCloud(){
     if(!ss.error && Array.isArray(ss.data)){
       state.sessions=ss.data.map(se=>Object.assign(sessionFromRow(se), {id:se.id, cloudId:se.id}));
     }
-    if(cs && !cs.error && Array.isArray(cs.data)) mergeCardio(cs.data, (cr && !cr.error && Array.isArray(cr.data)) ? cr.data : null);
     // Las respuestas a preguntas propias del coach vienen en "answers"; las de siempre, en
     // sus columnas (que mandan si aparecen en los dos lados).
     if(!dl.error && Array.isArray(dl.data)){ state.daily={}; dl.data.forEach(r=>{ state.daily[r.log_date]=Object.assign({}, r.answers||{}, {steps:r.steps||"", comment:r.comment||"", soreness:r.soreness||"", performance:r.performance||"", motivation:r.motivation||"", hunger:r.hunger||"", fatigue:r.fatigue||"", sleep:r.sleep||""}); }); }
@@ -918,7 +907,7 @@ export function refreshOwnRoutine(){
       state.days=rt.data.days;
       const raw=JSON.parse(JSON.stringify(state.days)); // la de la nube, sin migrar (ver loadCloud)
       const fixed=migrateNames(state.days);
-      if(!state.days.find(d=>d.id===State.activeId)) State.activeId=state.days[0].id;
+      ensureDays();
       markRoutineSynced(raw); // también la guarda en el dispositivo
       if(fixed) cloudSyncCore(); // la corregida se sube una vez (sin marcarla como editada acá)
       return true;
@@ -1132,7 +1121,21 @@ export function newId(){
 function readQueue(key){ try{ const a=JSON.parse(localStorage.getItem(key)||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
 function writeQueue(key, a){ try{ localStorage.setItem(key, JSON.stringify(a)); }catch(e){} }
 
-function myPending(){ const u=State.cloudUser&&State.cloudUser.id; return u ? readQueue(OUTBOX_KEY).filter(i=>i.uid===u) : []; }
+// Pendientes de tipos que la app ya no manda: las salidas con GPS de Cardio (cardio,
+// cardioDelete, cardioRoute) se sacaron de la app. Si quedó alguno en la cola de un celular
+// se descarta sin mandarlo (su tabla ya no se usa) y sin trabar lo demás.
+const RETIRED_KINDS = ["cardio", "cardioDelete", "cardioRoute"];
+function isRetired(i){ return !!(i && RETIRED_KINDS.indexOf(i.k)>=0); }
+function dropRetired(){
+  [OUTBOX_KEY, OUTBOX_FAILED_KEY].forEach(k=>{
+    const q=readQueue(k), keep=q.filter(i=>!isRetired(i));
+    if(keep.length===q.length) return;
+    if(keep.length) writeQueue(k, keep); else try{ localStorage.removeItem(k); }catch(e){}
+  });
+}
+dropRetired();
+
+function myPending(){ const u=State.cloudUser&&State.cloudUser.id; return u ? readQueue(OUTBOX_KEY).filter(i=>i.uid===u && !isRetired(i)) : []; }
 
 export function pendingCount(){ return myPending().length; }
 
@@ -1254,20 +1257,6 @@ async function sendItem(it){
     else sbOk(await sb.from("body_weights").upsert({client_id:uid, measured_on:p.date, kg:p.kg},{onConflict:"client_id,measured_on"}));
   } else if(it.k==="prefs"){
     sbOk(await sb.from("client_prefs").upsert(Object.assign({client_id:uid, updated_at:new Date().toISOString()}, p),{onConflict:"client_id"}));
-  } else if(it.k==="cardio"){
-    // Salida de correr / caminar / bici: solo el resumen (nunca el recorrido). Con el id del
-    // celular y ON CONFLICT DO NOTHING, reintentar no la duplica.
-    const row={id:p.id, client_id:uid, performed_on:p.date, started_at:p.startedAt||null, kind:p.kind,
-      duration_s:p.dur, distance_m:p.dist, kcal:p.kcal, avg_speed_kmh:p.avg, max_speed_kmh:p.max};
-    cardioTable(await sb.from("cardio_sessions").upsert(row,{onConflict:"id", ignoreDuplicates:true}), "cardio_sessions");
-  } else if(it.k==="cardioRoute"){
-    // Su recorrido, en una tabla aparte que ve solo el alumno (el coach ve el resumen de arriba,
-    // nunca el recorrido). Sale después de la salida (la referencia a cardio_sessions lo pide:
-    // ver flushOutbox) y con ON CONFLICT DO NOTHING, así reintentar no falla ni lo duplica.
-    cardioTable(await sb.from("cardio_routes").upsert({session_id:p.id, client_id:uid, route:p.route, points:p.points||null},{onConflict:"session_id", ignoreDuplicates:true}), "cardio_routes");
-  } else if(it.k==="cardioDelete"){
-    // Su recorrido se borra solo en la base (on delete cascade).
-    cardioTable(await sb.from("cardio_sessions").delete().eq("id",p.id).eq("client_id",uid), "cardio_sessions");
   } else if(it.k==="checkin"){
     // La columna adherence es un número del 1 al 10. Si el coach cambió esa pregunta (opciones
     // con palabras o respuesta libre), la respuesta va en answers como cualquier otra: antes se
@@ -1277,15 +1266,6 @@ async function sendItem(it){
     if(!isNum && adh!=null && String(adh).trim()!=="" && !(typeof adh==="number" && isNaN(adh))) ans.adherence=adh;
     sbOk(await sb.from("checkins").upsert({client_id:uid, week_start:p.wk, answers:ans, adherence:isNum?n:null},{onConflict:"client_id,week_start"}));
   }
-}
-
-// Tabla de salidas o de recorridos todavía sin crear (falta correr supabase/cardio-salidas.sql
-// o supabase/cardio-recorridos.sql): lo pendiente queda en la cola sin trabar lo demás
-// (entrenos, comidas…) y sale cuando exista la tabla.
-const noTable=(e, table)=>!!(e && (e.code==="PGRST205" || e.code==="42P01" || String(e.message||"").includes(table) && /does not exist|schema cache/i.test(String(e.message||""))));
-function cardioTable(r, table){
-  if(r && r.error && noTable(r.error, table)){ const e=new Error("Falta la tabla "+table); e.later=true; throw e; }
-  return sbOk(r);
 }
 
 // Errores que reintentar no arregla (dato inválido, permiso denegado, clave inexistente:
@@ -1335,20 +1315,14 @@ export function flushOutbox(){
     await null;
     try{
       if(!State.sb||!State.cloudUser) return false;
-      const later=new Set(); // salidas que esperan la tabla (ver cardioTable): se saltean esta vez
       for(;;){
-        const it=myPending().find(i=>!later.has(i.id));
-        if(!it) return !later.size;
-        // Un recorrido espera a que su salida esté en la nube (si no, la base lo rechaza por
-        // la referencia a cardio_sessions). La salida va antes en la cola: si todavía está, es
-        // que esta vez no salió.
-        if(it.k==="cardioRoute" && myPending().some(i=>i.k==="cardio" && i.p && it.p && i.p.id===it.p.id)){ later.add(it.id); continue; }
+        const it=myPending()[0];
+        if(!it) return true;
         if(!(await sessionFor(it.uid))){ flushLater(); return false; }
         let bad=null;
         try{ await sendItem(it); }
         catch(e){
           console.error("outbox",it.k,e);
-          if(e && e.later){ later.add(it.id); continue; }
           if(!isPermanent(e)) return false;
           bad=e;
         }
@@ -1367,11 +1341,9 @@ export function flushOutbox(){
 // Anota y manda ya. true = quedó en la nube; false = quedó pendiente en el dispositivo (se
 // reintenta solo); "failed" = la base lo rechazó (dato inválido, sin permiso), quedó apartado
 // en OUTBOX_FAILED_KEY y no se reintenta. Ojo: "failed" cuenta como verdadero en un if.
-// then: [[k, p, key], …] otros pendientes que van justo detrás (ej. el recorrido de una salida).
-async function enqueueAndSend(k, p, key, then){
+async function enqueueAndSend(k, p, key){
   if(!State.cloudUser) return true; // sin cuenta no hay nada que sincronizar
   const id=enqueue(k, p, key);
-  (then||[]).forEach(x=>enqueue(x[0], x[1], x[2]));
   refreshSyncFoot();
   await flushOutbox();
   if(readQueue(OUTBOX_KEY).some(i=>i.id===id)) await flushOutbox(); // un envío en curso pudo no llegar a verlo
@@ -1488,39 +1460,6 @@ export function failedCheckin(wk){
   const u=State.cloudUser&&State.cloudUser.id; if(!u) return null;
   const it=readQueue(OUTBOX_FAILED_KEY).filter(i=>i.uid===u && i.k==="checkin" && i.p && i.p.wk===wk).pop();
   return it && it.p.f ? JSON.parse(JSON.stringify(it.p.f)) : null;
-}
-
-// ===== Salidas (correr / caminar / bici) =====
-// Se guardan en state.cardio y van a la nube por la misma cola que los entrenos.
-// El recorrido (rec.route) va en otro pendiente, "cardioRoute", anotado justo detrás del de la
-// salida: el resumen nunca lleva coordenadas.
-export function cloudSaveCardio(rec){
-  const then = rec.route ? [["cardioRoute", {id:rec.id, route:rec.route, points:routePoints(decodeRoute(rec.route))}, rec.id]] : null;
-  return enqueueAndSend("cardio", {id:rec.id, kind:rec.kind, date:rec.date, startedAt:rec.startedAt||null, dur:rec.dur, dist:rec.dist, kcal:rec.kcal, avg:rec.avg, max:rec.max}, rec.id, then);
-}
-export function cloudDeleteCardio(id){
-  if(!State.cloudUser || !id) return Promise.resolve(true);
-  // Si todavía no salió de la cola se saca de ahí (con su recorrido); el borrado igual se manda
-  // (pudo haber salido).
-  writeQueue(OUTBOX_KEY, readQueue(OUTBOX_KEY).filter(i=>!((i.k==="cardio" || i.k==="cardioRoute") && i.p && i.p.id===id)));
-  return enqueueAndSend("cardioDelete", {id:id}, id);
-}
-const cardioFromRow=r=>({id:r.id, kind:r.kind, date:r.performed_on, startedAt:r.started_at||null, dur:Number(r.duration_s)||0, dist:Number(r.distance_m)||0,
-  kcal:Number(r.kcal)||0, avg:Number(r.avg_speed_kmh)||0, max:Number(r.max_speed_kmh)||0, cloud:true});
-// Las de la nube + las del celular que la nube todavía no tiene (sin duplicar: el id es el
-// mismo). Una que ya estuvo en la nube y ahora no está se borró desde otro dispositivo.
-// routes: [{session_id, route}] de cardio_routes (null si no se pudieron leer). El recorrido
-// que ya estaba en el dispositivo se conserva (puede no haber subido todavía).
-function mergeCardio(rows, routes){
-  const pend=myPending();
-  const del=new Set(pend.filter(i=>i.k==="cardioDelete" && i.p).map(i=>i.p.id));
-  const seen=new Set(rows.map(r=>r.id));
-  const mine={}; (Array.isArray(state.cardio)?state.cardio:[]).forEach(l=>{ if(l && l.route) mine[l.id]=l.route; });
-  (routes||[]).forEach(r=>{ if(r && r.session_id && typeof r.route==="string" && r.route) mine[r.session_id]=r.route; });
-  const out=rows.filter(r=>!del.has(r.id)).map(r=>{ const c=cardioFromRow(r); if(mine[r.id]) c.route=mine[r.id]; return c; });
-  (Array.isArray(state.cardio)?state.cardio:[]).forEach(l=>{ if(l && !seen.has(l.id) && !del.has(l.id) && !l.cloud) out.push(l); });
-  out.sort((a,b)=>String(a.startedAt||a.date).localeCompare(String(b.startedAt||b.date)));
-  state.cardio=out;
 }
 
 export async function cloudDeleteSession(cid){

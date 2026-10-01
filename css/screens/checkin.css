@@ -162,3 +162,5 @@
 /* Registro de hoy: el campo vacío y su placeholder se distinguían poco del fondo. */
 .daily-card .form-input::placeholder { opacity:1; }
 .daily-card .form-input:not(:focus) { border-color:rgba(255,255,255,.34); }
+/* «Seguir entrenando»: deshace el guardado si se tocó sin querer (screens/checkin.js). */
+.fb-undo { display:block; width:100%; margin:10px auto 0; background:none; border:0; color:var(--txt-2); font-size: var(--text-meta); text-decoration:underline; text-underline-offset:3px; padding:8px; cursor:pointer; }

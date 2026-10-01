@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -39,14 +38,6 @@
         </provider>
         <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_gize" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/gize_notif" />
-        <!-- Servicio del GPS de Cardio (plugin @capacitor-community/background-geolocation): el plugin
-             lo declara exportado, o sea que otras apps del celular podrían arrancarlo. Lo usa solo
-             GIZE, así que queda cerrado (exported=false). -->
-        <service
-            android:name="com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService"
-            android:exported="false"
-            android:foregroundServiceType="location"
-            tools:replace="android:exported" />
     </application>
 
     <!-- Permissions -->
@@ -54,6 +45,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Escáner de códigos de barras, foto de un producto y foto de perfil -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Notificaciones (avisos del coach y fin de descanso): desde Android 13 hay que declararlo para poder pedirle el permiso al usuario. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Aviso de fin de descanso a horario exacto (si el usuario lo permite; si no, Android lo manda apenas puede). -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -61,17 +54,5 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
-    <!-- Salir a correr / caminar / bici (Cardio): la ubicación solo mientras se registra una salida,
-         para medir distancia y ritmo. Con la pantalla bloqueada sigue con un servicio en primer
-         plano con notificación (tipo "location", lo declara el plugin
-         @capacitor-community/background-geolocation en su manifiesto). NO se pide la ubicación
-         "todo el tiempo" (ACCESS_BACKGROUND_LOCATION). -->
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <!-- El plugin pide GPS como obligatorio: así Google Play no esconde la app en tablets y
-         equipos sin GPS (sin GPS, la salida mide solo el tiempo). -->
-    <uses-feature android:name="android.hardware.location.gps" android:required="false" tools:replace="android:required" />
 
 </manifest>

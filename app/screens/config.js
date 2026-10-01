@@ -13,9 +13,13 @@ import { pushOnHere, enablePush, disablePush, pushLogout, isIOS, isStandalone } 
 import { renderApp } from '../main.js';
 import { adminEntry, checkAdmin } from './admin-productos.js';
 import { isLite, setLite } from '../ui/background.js';
+import { temaOptionsHtml } from '../ui/tema.js';
+import { neonSwitchHtml } from '../ui/neon.js';
 import { bellSvg, fileTextSvg, instagramSvg, globeSvg, auIcoMail, whatsappSvg, chevronRightSvg, pencilSvg, checkSvg } from '../core/icons.js';
 
 const cameraSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+const moonSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+const sparkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg>';
 const zapSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
 
 function cfgRoleLabel(p) { return (p && p.role === "coach") ? "Coach" : "Cliente"; }
@@ -140,6 +144,34 @@ export function renderConfig() {
       '</div>' +
     '</div>';
 
+  // Apariencia: «Oscuro» (la de siempre), «Claro» (blanco), «Azul» o «Rosa» (vidrio). Se guarda
+  // en este dispositivo y se aplica al toque (app/ui/tema.js escucha los botones data-tema).
+  // El selector va en su propio renglón, debajo del título (cuatro opciones no entran al lado
+  // del texto en un celular angosto).
+  const temaSection = '<div class="card cfg-card">' +
+      '<div class="cfg-notif-row cfg-tema-row">' +
+        '<span class="cfg-notif-ic">' + moonSvg + '</span>' +
+        '<div class="cfg-notif-txt">' +
+          '<div class="cfg-notif-label" id="cfgTemaLbl">Apariencia</div>' +
+          '<div class="cfg-notif-desc">Solo en este dispositivo</div>' +
+        '</div>' +
+        '<div class="cfg-seg" role="radiogroup" aria-labelledby="cfgTemaLbl">' + temaOptionsHtml("cfg-seg-opt") + '</div>' +
+      '</div>' +
+    '</div>';
+
+  // Neón: los bordes y brillos de colores. Prendido por defecto; se guarda en este dispositivo
+  // y se aplica al toque (app/ui/neon.js escucha el interruptor data-neon-toggle).
+  const neonSection = '<div class="card cfg-card">' +
+      '<div class="cfg-notif-row">' +
+        '<span class="cfg-notif-ic">' + sparkSvg + '</span>' +
+        '<div class="cfg-notif-txt">' +
+          '<div class="cfg-notif-label" id="cfgNeonLbl">Neón</div>' +
+          '<div class="cfg-notif-desc">Bordes y brillos de colores</div>' +
+        '</div>' +
+        neonSwitchHtml("cfgNeonLbl") +
+      '</div>' +
+    '</div>';
+
   const legalSection = '<div class="card cfg-card">' +
       cfgLinkRow(fileTextSvg, "Política de privacidad", LINKS.privacy) +
     '</div>';
@@ -163,7 +195,7 @@ export function renderConfig() {
 
   checkAdmin(renderApp); // solo las cuentas administradoras ven «Revisar productos»
   return '<div class="hb-head"><div class="hb-title">Configuración</div><div class="title-accent"></div></div>' +
-    account + adminEntry() + coachSection + notifSection + liteSection + legalSection + contactSection + dangerSection + about;
+    account + adminEntry() + coachSection + notifSection + temaSection + neonSection + liteSection + legalSection + contactSection + dangerSection + about;
 }
 
 document.body.addEventListener("keydown", function (e) {

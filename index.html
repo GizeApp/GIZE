@@ -10,7 +10,7 @@
 <title>GIZE · Entrená con tu coach</title>
 <meta name="description" content="GIZE conecta a tu coach con tu entrenamiento: rutina, series, hábitos, nutrición y progreso en un solo lugar.">
 <meta name="theme-color" content="#000000">
-<link rel="icon" href="brand/logo/gize-monograma.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" type="image/png">
 <link rel="stylesheet" href="brand/fonts/outfit.css">
 <style>
 /* Paleta de brand/tokens.css. Un solo look (oscuro), a propósito: es la marca. */
@@ -201,7 +201,6 @@ h2{font-size:clamp(26px,3.6vw,40px);font-weight:600;letter-spacing:-.02em;margin
 /* ---------- tarjetas de vidrio con brillo que sigue al mouse ---------- */
 .card,.panel,.feat,.feature-main,.final{background:rgba(11,13,17,.78)}
 .panel,.feat{position:relative;overflow:hidden}
-}
 .spot::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .3s;
   background:radial-gradient(280px circle at var(--mx,50%) var(--my,50%),rgba(47,160,255,.16),rgba(166,92,255,.08) 40%,transparent 70%)}
 .spot:hover::before{opacity:1}
@@ -243,8 +242,15 @@ footer a:hover{color:var(--text)}
 }
 
 /* ---------- precios (mismos valores que app/screens/coach/plan.js) ---------- */
-.prices{display:grid;gap:22px 18px;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;max-width:900px;margin-inline:auto}
-@media (max-width:640px){.prices{grid-template-columns:minmax(0,1fr)}}
+.prices{display:grid;gap:22px 18px;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;max-width:1080px;margin-inline:auto}
+@media (max-width:860px){.prices{grid-template-columns:minmax(0,1fr);max-width:520px}}
+.price-group{grid-column:1/-1;margin:18px 0 -6px;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-2)}
+.price-group:first-child{margin-top:0}
+.price.custom{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px;padding:22px 24px}
+.price.custom p{margin:4px 0 0;color:var(--text-2);font-size:15.5px;line-height:1.5}
+.price.custom .btn{margin-top:0}
+.price.custom .pname{display:block;margin-bottom:6px}
+@media (max-width:860px){.price.custom{flex-direction:column;align-items:stretch}}
 .price .pname{font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--r4)}
 .price{position:relative;display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:28px 24px}
 .price.best{border-color:transparent;background:linear-gradient(var(--surface),var(--surface)) padding-box,linear-gradient(90deg,var(--r1),var(--r2),var(--r3),var(--r4)) border-box}
@@ -265,9 +271,11 @@ footer a:hover{color:var(--text)}
 </head>
 <body>
 
-<!-- Logo oficial (brand/logo): monograma + palabra, definidos una vez y reusados. -->
+<!-- Logo oficial (brand/logo, ver brand/BRAND.md): la marca (la G y el orbe, mismos degradés que
+     brand/logo/gize-marca-blanca.svg, generados con scripts/logos.mjs) + la palabra, definidos una vez y reusados. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="g-mono" viewBox="0 0 100 100"><path d="M81.53,62.74 A34,34 0 1 1 67,20.55" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round"/><circle cx="60.5" cy="50" r="9.5" fill="#2FA0FF"/></symbol>
+  <defs><radialGradient id="gmb" gradientUnits="userSpaceOnUse" cx="59.64" cy="48.56" r="10.56"><stop offset="0" stop-color="#CBCCF2"/><stop offset="1" stop-color="#9AA2E0"/></radialGradient><radialGradient id="gmc1" gradientUnits="userSpaceOnUse" cx="55.32" cy="55.28" r="9.60"><stop offset="0" stop-color="#1BCDB6" stop-opacity="1"/><stop offset=".45" stop-color="#1BCDB6" stop-opacity="0.72"/><stop offset="1" stop-color="#1BCDB6" stop-opacity="0"/></radialGradient><radialGradient id="gmc2" gradientUnits="userSpaceOnUse" cx="53.40" cy="49.04" r="8.16"><stop offset="0" stop-color="#45C0E2" stop-opacity="1"/><stop offset=".45" stop-color="#45C0E2" stop-opacity="0.72"/><stop offset="1" stop-color="#45C0E2" stop-opacity="0"/></radialGradient><radialGradient id="gmc3" gradientUnits="userSpaceOnUse" cx="59.16" cy="41.84" r="8.64"><stop offset="0" stop-color="#6E8EF4" stop-opacity="1"/><stop offset=".45" stop-color="#6E8EF4" stop-opacity="0.72"/><stop offset="1" stop-color="#6E8EF4" stop-opacity="0"/></radialGradient><radialGradient id="gmc4" gradientUnits="userSpaceOnUse" cx="66.36" cy="44.72" r="9.12"><stop offset="0" stop-color="#9A55EE" stop-opacity="1"/><stop offset=".45" stop-color="#9A55EE" stop-opacity="0.72"/><stop offset="1" stop-color="#9A55EE" stop-opacity="0"/></radialGradient><radialGradient id="gmc5" gradientUnits="userSpaceOnUse" cx="67.51" cy="52.88" r="8.45"><stop offset="0" stop-color="#E03AAE" stop-opacity="1"/><stop offset=".45" stop-color="#E03AAE" stop-opacity="0.72"/><stop offset="1" stop-color="#E03AAE" stop-opacity="0"/></radialGradient><radialGradient id="gmn" gradientUnits="userSpaceOnUse" cx="60.12" cy="49.04" r="5.28"><stop offset="0" stop-color="#CBCCF2" stop-opacity=".6"/><stop offset="1" stop-color="#CBCCF2" stop-opacity="0"/></radialGradient><radialGradient id="gms" gradientUnits="userSpaceOnUse" cx="59.64" cy="45.97" r="13.92"><stop offset=".6" stop-color="#100A26" stop-opacity="0"/><stop offset=".84" stop-color="#100A26" stop-opacity=".28"/><stop offset="1" stop-color="#100A26" stop-opacity=".7"/></radialGradient><radialGradient id="gmk" gradientUnits="userSpaceOnUse" cx="60.60" cy="50.00" r="9.6"><stop offset=".78" stop-color="#100A26" stop-opacity="0"/><stop offset="1" stop-color="#100A26" stop-opacity=".22"/></radialGradient><radialGradient id="gmh" gradientUnits="userSpaceOnUse" cx="56.76" cy="45.68" r="5.76"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><radialGradient id="gme"><stop offset=".55" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity=".0"/></radialGradient><radialGradient id="gmg1" gradientUnits="userSpaceOnUse" cx="56.76" cy="51.44" r="21.12"><stop offset=".3" stop-color="#22C6C8" stop-opacity="0.300"/><stop offset=".52" stop-color="#22C6C8" stop-opacity="0.135"/><stop offset=".76" stop-color="#22C6C8" stop-opacity="0.036"/><stop offset="1" stop-color="#22C6C8" stop-opacity="0"/></radialGradient><radialGradient id="gmg2" gradientUnits="userSpaceOnUse" cx="60.60" cy="46.16" r="21.12"><stop offset=".3" stop-color="#5468E8" stop-opacity="0.120"/><stop offset=".52" stop-color="#5468E8" stop-opacity="0.054"/><stop offset=".76" stop-color="#5468E8" stop-opacity="0.014"/><stop offset="1" stop-color="#5468E8" stop-opacity="0"/></radialGradient><radialGradient id="gmg3" gradientUnits="userSpaceOnUse" cx="64.44" cy="50.96" r="21.12"><stop offset=".3" stop-color="#D23CB4" stop-opacity="0.260"/><stop offset=".52" stop-color="#D23CB4" stop-opacity="0.117"/><stop offset=".76" stop-color="#D23CB4" stop-opacity="0.031"/><stop offset="1" stop-color="#D23CB4" stop-opacity="0"/></radialGradient></defs>
+  <symbol id="g-mono" viewBox="0 0 100 100"><g class="o-halo" opacity="1"><circle cx="56.76" cy="51.44" r="21.12" fill="url(#gmg1)"/><circle cx="60.60" cy="46.16" r="21.12" fill="url(#gmg2)"/><circle cx="64.44" cy="50.96" r="21.12" fill="url(#gmg3)"/></g><path d="M81.53,62.74 A34,34 0 1 1 67,20.55" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round"/><g class="o-esfera"><circle cx="60.60" cy="50.00" r="9.6" fill="url(#gmb)"/><circle cx="60.60" cy="50.00" r="9.6" fill="url(#gmc1)"/><circle cx="60.60" cy="50.00" r="9.6" fill="url(#gmc2)"/><circle cx="60.60" cy="50.00" r="9.6" fill="url(#gmc3)"/><circle cx="60.60" cy="50.00" r="9.6" fill="url(#gmc4)"/><circle cx="60.60" cy="50.00" r="9.6" fill="url(#gmc5)"/><circle cx="60.60" cy="50.00" r="9.6" fill="url(#gmn)"/><circle cx="60.60" cy="50.00" r="9.6" fill="url(#gms)"/><circle cx="60.60" cy="50.00" r="9.6" fill="url(#gmk)"/><circle cx="60.60" cy="50.00" r="9.6" fill="url(#gmh)"/><ellipse cx="56.86" cy="45.49" rx="1.92" ry="1.20" transform="rotate(-24 56.86 45.49)" fill="url(#gme)"/></g></symbol>
   <symbol id="g-wm" viewBox="0 0 162.7 100"><g transform="translate(-1.34,100) scale(0.12739,-0.12739)" fill="currentColor"><path d="M357.5 648.2C357.5 732 289.5 800 205.7 800H162.3C78.5 800 10.5 732 10.5 648.2V130.9C10.5 107.6 15.1 85.3 23.5 65C42.5 18.8 87.6-1.6 130.5-1.6C167.6-1.6 202.9 14.3 218.7 41.6H230.7L221 13.1H357.5V469.6H196V330.8H218.7V171.7C218.7 153.3 204.4 138.3 186.3 137.1C166.2 135.8 149.3 152.4 149.3 172.6V625.9C149.3 644.9 164.2 660.8 183.1 661.3C193 661.5 202 657.6 208.5 651.1C214.8 644.9 218.7 636.2 218.7 626.6V551.1H357.5Z"/><path transform="translate(391.6,0)" d="M10.6 13.1H149.4V785.2H10.6Z"/><path transform="translate(575.1,0)" d="M160.3 164.9 344.5 646.4V785.2H23.5V646.4H194.8V633.4L10.5 150.6V13.1H357.5V151.9H160.3Z"/><path transform="translate(966.7,0)" d="M147.7 646.4H321.1V785.2H8.9V13.1H321.1V151.9H147.7V329.8H298.4V468.5H147.7Z"/></g></symbol>
 </svg>
 
@@ -453,14 +461,19 @@ footer a:hover{color:var(--text)}
 <section id="precios">
   <div class="wrap">
     <h2 class="reveal">Planes para coaches y gimnasios</h2>
-    <p class="lead reveal">Probá GIZE 14 días gratis, sin tarjeta. Después elegís el plan según cuántos clientes tengas. Para tus clientes la app es gratis.</p>
+    <p class="lead reveal">Probá GIZE 14 días gratis, sin tarjeta. Después elegís el plan según cuántos clientes o alumnos tengas. Para tus clientes la app es gratis.</p>
     <div class="prices">
-      <div class="price reveal"><h3>Hasta <b>10</b> clientes</h3><div class="amt">$9.300<small>/mes</small></div><ul><li>✓ Rutinas, seguimiento y check-in</li><li>✓ Mensajes al celular del cliente</li><li>✓ Plantillas de rutinas ilimitadas</li></ul><a class="btn btn-ghost" href="app/?plan=p10#registro-coach">Probar 14 días gratis</a></div>
-      <div class="price reveal best"><span class="badge">Más elegido</span><h3>Hasta <b>25</b> clientes</h3><div class="amt">$15.000<small>/mes</small></div><ul><li>✓ Rutinas, seguimiento y check-in</li><li>✓ Mensajes al celular del cliente</li><li>✓ Plantillas de rutinas ilimitadas</li></ul><a class="btn btn-rgb" href="app/?plan=p25#registro-coach">Probar 14 días gratis</a></div>
-      <div class="price reveal"><h3>Hasta <b>50</b> clientes</h3><div class="amt">$20.000<small>/mes</small></div><ul><li>✓ Rutinas, seguimiento y check-in</li><li>✓ Mensajes al celular del cliente</li><li>✓ Plantillas de rutinas ilimitadas</li></ul><a class="btn btn-ghost" href="app/?plan=p50#registro-coach">Probar 14 días gratis</a></div>
-      <div class="price reveal"><span class="pname">Gimnasio</span><h3>Hasta <b>100</b> alumnos</h3><div class="amt">$33.000<small>/mes</small></div><ul><li>✓ Todo lo de los otros planes</li><li>✓ Ideal para gimnasios y equipos</li><li>✓ $330 por alumno</li></ul><a class="btn btn-ghost" href="app/?plan=p100#registro-coach">Probar 14 días gratis</a></div>
+      <h3 class="price-group reveal">Para coaches</h3>
+      <div class="price reveal"><h3>Hasta <b>10</b> clientes</h3><div class="amt">$14.900<small>/mes</small></div><ul><li>✓ Rutinas, seguimiento y check-in</li><li>✓ Mensajes al celular del cliente</li><li>✓ Plantillas de rutinas ilimitadas</li></ul><a class="btn btn-ghost" href="app/?plan=p10#registro-coach">Probar 14 días gratis</a></div>
+      <div class="price reveal best"><span class="badge">Más elegido</span><h3>Hasta <b>25</b> clientes</h3><div class="amt">$24.900<small>/mes</small></div><ul><li>✓ Rutinas, seguimiento y check-in</li><li>✓ Mensajes al celular del cliente</li><li>✓ Plantillas de rutinas ilimitadas</li></ul><a class="btn btn-rgb" href="app/?plan=p25#registro-coach">Probar 14 días gratis</a></div>
+      <div class="price reveal"><h3>Hasta <b>50</b> clientes</h3><div class="amt">$37.900<small>/mes</small></div><ul><li>✓ Rutinas, seguimiento y check-in</li><li>✓ Mensajes al celular del cliente</li><li>✓ Plantillas de rutinas ilimitadas</li></ul><a class="btn btn-ghost" href="app/?plan=p50#registro-coach">Probar 14 días gratis</a></div>
+      <h3 class="price-group reveal">Para gimnasios</h3>
+      <div class="price reveal"><span class="pname">Gimnasio chico</span><h3>Hasta <b>100</b> alumnos</h3><div class="amt">$59.900<small>/mes</small></div><ul><li>✓ Todo lo de los planes para coaches</li><li>✓ Ideal para gimnasios y equipos</li><li>✓ $599 por alumno</li></ul><a class="btn btn-ghost" href="app/?plan=p100#registro-coach">Probar 14 días gratis</a></div>
+      <div class="price reveal"><span class="pname">Gimnasio</span><h3>Hasta <b>250</b> alumnos</h3><div class="amt">$119.900<small>/mes</small></div><ul><li>✓ Todo lo de los planes para coaches</li><li>✓ Ideal para gimnasios y equipos</li><li>✓ $480 por alumno</li></ul><a class="btn btn-ghost" href="app/?plan=p250#registro-coach">Probar 14 días gratis</a></div>
+      <div class="price reveal"><span class="pname">Gimnasio grande</span><h3>Hasta <b>500</b> alumnos</h3><div class="amt">$199.900<small>/mes</small></div><ul><li>✓ Todo lo de los planes para coaches</li><li>✓ Ideal para gimnasios y equipos</li><li>✓ $400 por alumno</li></ul><a class="btn btn-ghost" href="app/?plan=p500#registro-coach">Probar 14 días gratis</a></div>
+      <div class="price custom reveal"><div><span class="pname">Más de 500 alumnos</span><h3>Plan <b>a medida</b></h3><p>Para cadenas y gimnasios grandes: armamos el plan según cuántos alumnos tengas.</p></div><a class="btn btn-ghost" href="https://wa.me/5493413490705?text=Hola!%20Quiero%20un%20plan%20a%20medida%20de%20GIZE%20para%20un%20gimnasio%20de%20m%C3%A1s%20de%20500%20alumnos." target="_blank" rel="noopener">Hablemos</a></div>
     </div>
-    <p class="price-note reveal">Precios en pesos argentinos, por mes. Empezás con 14 días gratis y, para seguir, contratás tu plan por <a href="https://wa.me/5493413490705?text=Hola!%20Quiero%20contratar%20GIZE%20para%20coaches." target="_blank" rel="noopener">WhatsApp</a> con el equipo de GIZE: pagás por transferencia o link de pago, sin débito automático.<br>¿Más de 100 alumnos? <a href="mailto:contacto@gize.ar?subject=GIZE%20para%20mi%20gimnasio">Escribinos</a> y armamos un plan a medida.</p>
+    <p class="price-note reveal">Precios en pesos argentinos, por mes. Empezás con 14 días gratis y, para seguir, contratás tu plan por <a href="https://wa.me/5493413490705?text=Hola!%20Quiero%20contratar%20GIZE%20para%20coaches." target="_blank" rel="noopener">WhatsApp</a> con el equipo de GIZE: pagás por transferencia, sin débito automático.</p>
   </div>
 </section>
 

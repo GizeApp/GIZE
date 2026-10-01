@@ -48,9 +48,11 @@ $$;
 revoke execute on function public.touch_me(text, text) from public, anon;
 grant execute on function public.touch_me(text, text) to authenticated;
 
--- Precio mensual de cada plan (igual que en la función suscripcion).
+-- Precio mensual de cada plan (igual que en la función suscripcion, app/screens/coach/plan.js,
+-- admin/admin.js y la landing). Cambiados en supabase/precios-2026-10.sql.
 create or replace function public.plan_price(p text) returns numeric language sql immutable as $$
-  select case p when 'p10' then 9300 when 'p25' then 15000 when 'p50' then 20000 when 'p100' then 33000 else 0 end::numeric;
+  select case p when 'p10' then 14900 when 'p25' then 24900 when 'p50' then 37900 when 'p100' then 59900
+                when 'p250' then 119900 when 'p500' then 199900 else 0 end::numeric;
 $$;
 
 -- 2) Resumen
@@ -65,7 +67,7 @@ begin
     union select client_id from public.daily_logs where log_date >= current_date - 7
     union select id from public.profiles where last_seen_at > now() - interval '7 days'
   ), paid as (
-    select * from public.coach_billing where plan in ('p10','p25','p50','p100') and coalesce(paid_until, '-infinity') > now()
+    select * from public.coach_billing where plan in ('p10','p25','p50','p100','p250','p500') and coalesce(paid_until, '-infinity') > now()
   )
   select jsonb_build_object(
     'users',     (select count(*) from auth.users),
