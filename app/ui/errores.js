@@ -26,10 +26,12 @@
       if (!propio) return;
       const clave = msg + "|" + donde;
       if (vistos.has(clave) || enviados >= MAX) return;
-      vistos.add(clave);
+      // Se reserva el lugar ANTES de esperar nada: con varios errores seguidos, cada uno
+      // pasaba el control del tope mientras los anteriores esperaban el import y se mandaban
+      // más de 5.
+      vistos.add(clave); enviados++;
       const { State } = await import("../core/state.js");
-      if (!State.sb || !State.cloudUser) { vistos.delete(clave); return; }
-      enviados++;
+      if (!State.sb || !State.cloudUser) { vistos.delete(clave); enviados--; return; }
       let version = "web", platform = "web";
       const C = window.Capacitor;
       if (C && C.isNativePlatform && C.isNativePlatform()) {

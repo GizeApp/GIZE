@@ -39,7 +39,9 @@ export default async function ({ base, t }){
   await p.evaluate(() => { const e = new Error('promesa rota'); e.stack = 'Error: promesa rota\n    at f (' + location.origin + '/app/core/supabase.js:9:1)'; window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { promise: Promise.resolve(), reason: e })); }); await wait(400);
   t.eq(enviados.length, 3, 'una promesa rechazada sin capturar se reporta');
 
-  for (let i = 0; i < 8; i++) await tirar('error distinto ' + i);
+  // Todos de golpe, sin esperar entre uno y otro (así llegan en el celular cuando algo falla en
+  // un bucle): el tope tiene que aguantar igual.
+  await p.evaluate(() => { const o = location.origin; for (let i = 0; i < 8; i++) window.dispatchEvent(new ErrorEvent('error', { message: 'error distinto ' + i, filename: o + '/app/main.js', lineno: 7, error: Object.assign(new Error('error distinto ' + i), { stack: 'Error\n    at x (' + o + '/app/main.js:7:1)' }) })); });
   await wait(600);
   t.ok(enviados.length <= 5, 'como mucho 5 reportes por apertura de la app: ' + enviados.length);
   await close();
