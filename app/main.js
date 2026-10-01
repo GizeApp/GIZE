@@ -52,6 +52,8 @@ import { beep, initAudio } from './ui/audio.js';
 
 import { showSilkBg } from './ui/background.js';
 
+import { appAway, onAwayChange } from './ui/pausa.js';
+
 import { parseRest, renderRestBar, resumeRest, startRest, stopRest } from './ui/restbar.js';
 
 import { anchorFocus, initScrollReveal, setupExerciseFocus } from './ui/scrollfocus.js';
@@ -96,6 +98,7 @@ document.addEventListener("click", e => {
 });
 
 export function renderApp(){
+  queueMicrotask(scheduleTick); // después de dibujar: ¿hay un reloj a la vista que actualizar?
   // Una cuenta de coach ve solo su panel: si algo pedía la pantalla del cliente, quedaba
   // dibujada debajo del panel (que es transparente) y se veían las dos encimadas.
   if(State.cloudProfile && State.cloudProfile.role==="coach"){ const v=document.getElementById("view"); if(v) v.innerHTML=""; renderCoach(); return; }
@@ -237,22 +240,48 @@ function goToSet(t){
   row.classList.remove("ss-next"); void row.offsetWidth; row.classList.add("ss-next");
 }
 
+// Reloj interno: actualiza el reloj del entreno («Entrenando hace…») y el cronómetro y el
+// temporizador de Cardio. Todo se muestra en segundos y sale de la hora guardada, así que no
+// hace falta un intervalo fijo cada 100 ms: se programa un solo setTimeout justo para cuando
+// cambia el próximo segundo (o termina el temporizador, para que suene en hora). Si no hay nada
+// corriendo a la vista no se programa nada (ahorro de batería); scheduleTick() lo vuelve a
+// armar después de cada renderApp y al volver de segundo plano.
+let tickTimer = null;
+const TICK_SLACK = 15; // ms de margen para caer ya del otro lado del segundo
+export function tickActive(){ return tickTimer != null; }
+export function scheduleTick(){
+  if (tickTimer != null){ clearTimeout(tickTimer); tickTimer = null; }
+  const now = Date.now(), waits = [];
+  const toNextSec = ms => 1000 - (((ms % 1000) + 1000) % 1000); // lo que falta para el próximo segundo entero
+  // El temporizador de Cardio corre aunque la app esté afuera: tiene que terminar (y sonar) a tiempo.
+  if (CardioState.tmRunning){ const rem = CardioState.tmEndTs - now; waits.push(rem <= 0 ? 0 : (rem % 1000) || 1000); }
+  if (!appAway()){
+    if (CardioState.swRunning && State.view==="cardio" && CardioState.cardioMode==="stopwatch") waits.push(toNextSec(CardioState.swAccum + (now - CardioState.swStartTs)));
+    if (State.view==="entreno" && state.wkStart && state.wkStart.ts && document.getElementById("wkTime")) waits.push(toNextSec(now - state.wkStart.ts));
+  }
+  if (!waits.length) return;
+  tickTimer = setTimeout(tick, Math.max(0, Math.min(...waits)) + TICK_SLACK);
+}
+
 export function tick(){
+  tickTimer = null;
   // Con la app en segundo plano no hay nada que pintar: solo importa que el temporizador de
   // cardio termine (y suene) a tiempo. El reloj del entreno y el cronómetro salen de la hora
   // guardada, así que se ponen al día solos al volver.
-  if (document.hidden && !CardioState.tmRunning) return;
-  const now = Date.now();
-  if (CardioState.tmRunning){
-    const rem = CardioState.tmEndTs - now;
-    if (rem <= 0){ CardioState.tmRunning=false; CardioState.tmRemainingMs=0; CardioState.tmFinished=true; beep(); if(State.view==="cardio") renderApp(); }
-    else { CardioState.tmRemainingMs = rem; if(State.view==="cardio" && CardioState.cardioMode==="timer") setRing(rem / CardioState.tmTarget, fmt(rem,true)); }
+  if (!(document.hidden && !CardioState.tmRunning)){
+    const now = Date.now();
+    if (CardioState.tmRunning){
+      const rem = CardioState.tmEndTs - now;
+      if (rem <= 0){ CardioState.tmRunning=false; CardioState.tmRemainingMs=0; CardioState.tmFinished=true; beep(); if(State.view==="cardio") renderApp(); }
+      else { CardioState.tmRemainingMs = rem; if(State.view==="cardio" && CardioState.cardioMode==="timer") setRing(rem / CardioState.tmTarget, fmt(rem,true)); }
+    }
+    if (State.view==="entreno"){ const w=document.getElementById("wkTime"); if(w){ const t=wkElapsedText(); if(w.textContent!==t) w.textContent=t; } }
+    if (CardioState.swRunning && State.view==="cardio" && CardioState.cardioMode==="stopwatch"){ const ms=CardioState.swAccum+(now-CardioState.swStartTs); setRing(swFrac(ms), fmt(ms)); }
   }
-  if (State.view==="entreno"){ const w=document.getElementById("wkTime"); if(w){ const t=wkElapsedText(); if(w.textContent!==t) w.textContent=t; } }
-  if (CardioState.swRunning && State.view==="cardio" && CardioState.cardioMode==="stopwatch"){ const ms=CardioState.swAccum+(now-CardioState.swStartTs); setRing(swFrac(ms), fmt(ms)); }
+  scheduleTick();
 }
-
-setInterval(tick, 100);
+// Al volver de segundo plano se pone al día en el acto; al irse, deja de programarse.
+onAwayChange(away => { if (away) scheduleTick(); else tick(); });
 
 document.body.addEventListener("input", async e => {
   const t = e.target, a = t.dataset.action; if(!a) return;

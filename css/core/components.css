@@ -234,7 +234,7 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 
 .ring-fill { fill: none; stroke: url(#calRingGrad); stroke-width: 10; stroke-linecap: round; filter: drop-shadow(0 0 6px var(--glow)); transition: stroke-dashoffset .4s var(--ease-drawer), stroke .5s ease; }
 
-.ring-fill.over { stroke: var(--ring-over); animation: ringOverPulse 2.6s ease-in-out infinite; }
+.ring-fill.over { stroke: var(--ring-over); animation: ringOverPulse 2.6s ease-in-out 3; } /* late 3 veces y queda quieto: ahorra batería */
 
 .ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 

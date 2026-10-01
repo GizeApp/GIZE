@@ -34,6 +34,10 @@ body.is-booting :is(.gize-btn, .chat-btn, .wk-start)::before { animation-play-st
 /* App en segundo plano (Capacitor avisa con "pause"/"resume", app/ui/background.js): todo quieto. */
 html.app-pausada *, html.app-pausada *::before, html.app-pausada *::after { animation-play-state: paused !important; }
 
+/* Nadie toca la pantalla hace unos segundos (html.fondo-quieto, app/ui/background.js): la aurora
+   del fondo queda donde estaba, igual que el canvas de partículas. Sigue con el primer toque. */
+html.fondo-quieto .gize-aurora span { animation-play-state: paused !important; }
+
 /* App de Android (html.android-app, la pone app/lite.js): ningún backdrop-filter. Cada uno
    obliga a la placa a desenfocar lo que tiene detrás en cada cuadro, y en los Android de gama
    media/baja eso trababa la app al abrir. Las capas que lo usaban ya tienen un fondo casi opaco;

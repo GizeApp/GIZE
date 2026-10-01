@@ -7,6 +7,8 @@
 
 import { State } from '../core/state.js';
 
+import { appAway, onAwayChange } from './pausa.js';
+
 import { esc, fmtDate } from '../core/utils.js';
 
 import { Player, audioState, extFor, mmss, newAudioName, signedAudioUrl, startRecorder, stopAudio, togglePlay, uploadAudio } from './grabar.js';
@@ -144,7 +146,28 @@ function markRead(){
   State.sb.rpc("chat_mark_read", { p_client: c.clientId }).then(() => refreshUnread()).catch(() => {});
 }
 
-document.addEventListener("visibilitychange", () => { if(C && document.visibilityState === "visible"){ load(); } });
+// Revisión de respaldo (si Realtime no conecta): solo con el chat abierto y la app a la vista.
+// Con la app en segundo plano (pause de Capacitor en Android/iPhone, o pestaña oculta) no se
+// consulta nada; al volver se revisa en el acto y la revisión periódica sigue.
+// Con el chat cerrado no hay revisión periódica: los sin leer llegan por el aviso (push) y se
+// piden al volver a la app (main.js).
+export const POLL_MS = 15000;
+export function chatPolling(){ return !!(C && C.poll); }
+function startPoll(){
+  const c = C; if(!c || c.poll || appAway()) return;
+  c.poll = setInterval(() => {
+    if(C !== c) return;
+    const ok = c.chan && c.chan.state === "joined";
+    if(!ok && !appAway()) load();
+  }, POLL_MS);
+}
+function stopPoll(){ if(C && C.poll){ clearInterval(C.poll); C.poll = null; } }
+onAwayChange(away => {
+  if(!C) return;
+  if(away){ stopPoll(); return; }
+  load(); // al volver: lo que llegó mientras tanto
+  startPoll();
+});
 
 // Mensajes nuevos al instante (Realtime). Si no conecta, se revisa cada 15 segundos.
 function listen(){
@@ -164,11 +187,7 @@ function listen(){
       })
       .subscribe();
   }catch(e){}
-  c.poll = setInterval(() => {
-    if(C !== c) return;
-    const ok = c.chan && c.chan.state === "joined";
-    if(!ok && document.visibilityState === "visible") load();
-  }, 15000);
+  if(C === c) startPoll();
 }
 
 // ---- Mandar ----

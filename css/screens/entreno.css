@@ -265,7 +265,7 @@ body:not(#_) .ss-group :is(.card, .ex-collapsed) { border: 0; border-radius: 0; 
   background: conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  animation: gize-spin 4s linear infinite; }
+  animation: gize-spin 4s linear 2; } /* 2 vueltas (8 s) y queda quieto: un borde girando sin parar repinta en cada cuadro y gasta batería */
 /* Las letras y el ícono, blancos y sin brillo (pedido): el neón es solo el borde y el halo. */
 .wk-start svg { width: var(--icon-md); height: var(--icon-md); color: #fff; }
 .wk-start:active { transform: scale(.985); box-shadow: -8px 0 32px -8px var(--gize-r1), 8px 0 32px -8px var(--gize-r3), 0 0 40px -8px var(--gize-r2),

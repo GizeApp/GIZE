@@ -344,7 +344,7 @@ button.search-open { flex: 1; background: var(--card-2); border: 1px solid var(-
   background: linear-gradient(var(--gize-surface-2), var(--gize-surface-2)) padding-box,
     conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box;
   box-shadow: 0 0 14px color-mix(in srgb, var(--gize-r2) 45%, transparent), inset 0 0 10px color-mix(in srgb, var(--gize-r2) 18%, transparent);
-  animation: gize-spin 5s linear infinite; }
+  animation: gize-spin 5s linear 2; } /* 2 vueltas y queda quieto: ahorra batería */
 .scan-btn svg { filter: drop-shadow(0 0 4px #C58BFF) drop-shadow(0 0 8px color-mix(in srgb, var(--gize-r2) 70%, transparent)); }
 .scan-btn:hover { border-color: transparent; box-shadow: 0 0 20px color-mix(in srgb, var(--gize-r2) 60%, transparent), inset 0 0 12px color-mix(in srgb, var(--gize-r2) 22%, transparent); }
 .scan-btn:active { transform: scale(.96); }
