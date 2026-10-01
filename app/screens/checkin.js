@@ -12,6 +12,8 @@ import { esc, fmtDate, mondayOf, num, parseSecs, today, withUnit } from '../core
 
 import { kgText } from '../core/progresion.js';
 
+import { noteSubs, restoreVariants, takeVariants, todayExs } from '../core/variantes.js';
+
 import { renderApp } from '../main.js';
 
 import { day, wkElapsedMs, wkStarted } from './entreno.js';
@@ -52,11 +54,13 @@ function renderSummary(){
 }
 export function saveSession(){
   const d=day(); const exs=[];
-  (d.exercises||[]).forEach(ex=>{
+  // Con la variante elegida por hoy (core/variantes.js): se guarda lo que se hizo de verdad y,
+  // en originalName, el ejercicio de la rutina.
+  todayExs(d).forEach(ex=>{
     const sets=(ex.sets||[]).map(s=>{ const o={kg:parseFloat(String(s.kg).replace(",","."))||0, reps:parseInt(s.reps)||0}; const sc=parseSecs(s.secs); if(sc>0) o.secs=Math.min(36000,sc); return o; }).filter((o,i)=>o.reps>0||o.secs>0||(o.kg!==0&&ex.sets[i].done));
     // Una serie con solo el peso (lo completa la app al cargar el primero, o "Usar estos
     // pesos") y sin reps ni tildar no se hizo: no se guarda como serie de 0 reps.
-    if(sets.length) exs.push({name:ex.name, sets:sets});
+    if(sets.length) exs.push(ex.origName ? {name:ex.name, originalName:ex.origName, sets:sets} : {name:ex.name, sets:sets});
   });
   if(!exs.length){ alert("Cargá kg, reps o segundos en al menos una serie antes de guardar el entreno."); return; }
   // El mismo entreno guardado dos o tres veces seguidas (un tester lo guardó 3 veces en un
@@ -82,6 +86,10 @@ export function saveSession(){
   // Para «Seguir entrenando» (deshacer): el reloj del entreno tal como estaba.
   CheckinState.undo={id:_ns.id, wkStart: state.wkStart ? JSON.parse(JSON.stringify(state.wkStart)) : null};
   delete state.wkStart;
+  // Las variantes eran solo para este entreno: vuelve el ejercicio de la rutina. Lo que se cambió
+  // queda anotado para el coach (sube con el registro del día, ver core/variantes.js).
+  noteSubs(d.name, exs);
+  CheckinState.undo.variants=takeVariants(d);
   state.sessions.push(_ns);
   save();
   cloudInsertSession(_ns).then(ok=>{
@@ -101,6 +109,7 @@ export function undoSaveSession(){
   if(se && se.cloudId){ try{ cloudDeleteSession(se.cloudId); }catch(e){} }
   state.sessions=(state.sessions||[]).filter(x=>x.id!==u.id);
   if(u.wkStart) state.wkStart=u.wkStart;
+  restoreVariants(u.variants);
   CheckinState.undo=null; CheckinState.fbSession=null; CheckinState.fbForm=null; CheckinState.newPRs=[];
   save();
 }

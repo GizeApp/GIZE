@@ -645,3 +645,6 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
   .sc-d b { font-size: 10.5px; padding: 2px 4px; }
 }
 .auth-ios-tip { align-self:stretch; margin:-2px 2px 4px; font-size:12px; line-height:1.45; color:var(--gize-text-2); opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
+/* Variante del día en el historial (cliente y coach): «Hizo X en lugar de Y». */
+.sd-var { font-size: 11px; color: var(--txt-3); margin: -2px 0 6px; }
+.sd-var b { color: var(--txt-2); font-weight: 600; }

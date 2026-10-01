@@ -74,7 +74,7 @@ export function cleanSessionEdit() {
       const sc = parseSecs(s.secs); if (sc > 0) o.secs = Math.min(36000, sc);
       return o;
     }).filter(s => s.kg !== 0 || s.reps > 0 || s.secs > 0);
-    if (sets.length) exs.push({ name: ex.name, sets });
+    if (sets.length) exs.push(ex.originalName ? { name: ex.name, originalName: ex.originalName, sets } : { name: ex.name, sets });
   });
   if (!exs.length) return { error: "No quedó ninguna serie con datos. Si querés borrar el entreno entero, usá la ✕ del historial." };
   return { exercises: exs };
