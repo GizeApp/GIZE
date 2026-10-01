@@ -1,6 +1,7 @@
 // Batch builder for the GIZE stock: every piece x format x hook x ending
 // -> frames (render.mjs) -> cue sheet -> soundtrack (lib/sound.py) -> MP4 (encode.sh).
 //   node build.mjs jobs/teasers.json [--only=id1,id2] [--formats=9x16] [--ctas=hype] [--tmp=/path] [--cover]
+//   --force re-renders what exists; with --since=<ISO time> it skips outputs already re-rendered after that time (resume)
 // A job: {id, page, dur, formats:[...], hooks:["a","b"], ctas:["hype"], out:"stock/teasers", cover:seconds, fps:60}
 //   audio:"path.wav"  use a fixed soundtrack instead of the page's cue sheet (older standalone pages)
 //   crops:{"4x5":[w,h,x,y]}  derive other formats by cropping the rendered master
@@ -29,7 +30,7 @@ for (const job of jobs) {
         const name = [job.id, (job.hooks || []).length > 1 ? `hook-${hook}` : null, (job.ctas || []).length > 1 ? cta : null, fmt].filter(Boolean).join('_');
         const outDir = path.resolve(HERE, job.out);
         const mp4 = path.join(outDir, `${name}.mp4`);
-        if (fs.existsSync(mp4) && !args.force) { console.log(`skip ${name} (exists)`); continue; }
+        if (fs.existsSync(mp4) && (!args.force || (args.since && fs.statSync(mp4).mtimeMs > Date.parse(args.since)))) { console.log(`skip ${name} (exists${args.force ? ', already re-rendered since ' + args.since : ''})`); continue; }
         fs.mkdirSync(outDir, { recursive: true });
         const frames = path.join(TMP, name), cues = path.join(TMP, `${name}.cues.json`), wav = path.join(TMP, `${name}.wav`);
         fs.rmSync(frames, { recursive: true, force: true });
