@@ -30,7 +30,7 @@
 .flame.off .fl-in, .streak.out .fl-in { opacity: 0; }
 .streak.out { border-color: var(--gize-border); background: var(--gize-surface); box-shadow: none; color: var(--gize-text-2); }
 .streak.out b { text-shadow: none; }
-.streak.out .fl-smoke, .stk-big .flame.off .fl-smoke { opacity: 1; animation: flSmoke 1.6s ease-out infinite; }
+.streak.out .fl-smoke, .stk-big .flame.off .fl-smoke { opacity: 1; animation: flSmoke 1.6s ease-out 4 forwards; } /* 4 bocanadas y se va (forwards: termina sin humo) */
 @keyframes flSmoke { 0% { opacity: 0; transform: translateY(3px); } 40% { opacity: .9; } 100% { opacity: 0; transform: translateY(-4px); } }
 
 /* Se vuelve a prender. */

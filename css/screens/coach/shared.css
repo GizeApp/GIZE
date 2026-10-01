@@ -183,7 +183,7 @@ a.cs-q-btn { text-decoration:none; } /* link a la política de privacidad, con l
 .nt-status.ok { color:var(--gize-text); }
 .nt-status.warn { color:var(--gize-warning); }
 .nt-dot { flex-shrink:0; width:8px; height:8px; margin-top:5px; border-radius:50%; background:var(--gize-success);
-  box-shadow:0 0 0 0 color-mix(in srgb, var(--gize-success) 60%, transparent); animation:nt-live 1.8s ease-out infinite; }
+  box-shadow:0 0 0 0 color-mix(in srgb, var(--gize-success) 60%, transparent); animation:nt-live 1.8s ease-out 4; } /* late unas veces y queda quieto: ahorra batería */
 @keyframes nt-live { to { box-shadow:0 0 0 8px transparent; } }
 .nt-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px; }
 .nt-count { font:500 var(--text-meta) var(--gize-font-data); color:var(--gize-text-2); }
