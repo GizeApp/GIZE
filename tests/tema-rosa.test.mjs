@@ -33,7 +33,7 @@ const look = p => p.evaluate(() => {
   const c = cs('.cfg-card'), ring = cs('.cfg-card', '::after'), root = document.documentElement, logo = cs('img.brand-logo');
   return { claro: root.classList.contains('tema-claro'), rosa: root.classList.contains('tema-rosa'), body: cs('body').backgroundColor,
     ring: ring && ring.backgroundImage, card: c && c.backgroundImage + ' ' + c.backgroundColor, blur: c && c.backdropFilter, shadow: c && c.boxShadow,
-    aurora: cs('.app-aurora') && cs('.app-aurora').backgroundImage, logo: logo && logo.filter, nav: cs('.navbar') && cs('.navbar').backgroundColor,
+    aurora: cs('.app-aurora') && cs('.app-aurora').backgroundImage, logo: logo && logo.content, nav: cs('.navbar') && cs('.navbar').backgroundColor,
     accent: cs('.cfg-seg-opt.on') && cs('.cfg-seg-opt.on').backgroundColor,
     meta: [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content),
     saved: localStorage.getItem('gize_tema'), on: [...document.querySelectorAll('[data-tema].on')].map(b => b.getAttribute('data-tema')) };
@@ -53,8 +53,8 @@ const spy = () => {
   document.addEventListener('DOMContentLoaded', () => { const c = document.documentElement.classList; window.__dcl = [c.contains('tema-claro'), c.contains('tema-rosa')]; });
   new MutationObserver((ms, o) => { const s = document.getElementById('splash'); if (!s) return; o.disconnect();
     const cs = q => { const e = s.querySelector(q); return e ? getComputedStyle(e) : null; };
-    window.__splash = { icon: !!s.querySelector('.sp-icon'), bg: getComputedStyle(s).backgroundColor, dot: cs('.sl-dot') && cs('.sl-dot').fill,
-      arc: cs('.sl-arc') && cs('.sl-arc').stroke, c: ['.sp-1', '.sp-2', '.sp-3', '.sp-4'].map(q => cs(q) && cs(q).backgroundImage) };
+    window.__splash = { marca: !!s.querySelector('.sp-marca .sp-orbe'), bg: getComputedStyle(s).backgroundColor,
+      arc: cs('.sp-arco') && cs('.sp-arco').stroke, color: cs('.sp-color') && cs('.sp-color').backgroundImage, halo: cs('.sp-halo') && cs('.sp-halo').backgroundImage };
   }).observe(document, { childList: true, subtree: true });
 };
 
@@ -74,7 +74,7 @@ export default async function ({ base, t }){
   t.ok(tiene(l.ring, ROSA_RING) && ninguno(l.ring, CLARO_RING) && !azules(l.ring).length, 'Rosa: el borde de neón de la caja es rosa, orquídea y rubor: ' + l.ring);
   t.ok(/blur\(22px\)/.test(l.blur || '') && /rgba\(255, 255, 255, 0\.19\)/.test(l.card || ''), 'Rosa: la caja es el mismo vidrio de Azul: ' + l.blur);
   t.ok(/62vmax/.test(l.aurora || '') && /rgba\(255, 95, 168/.test(l.aurora) && /rgba\(122, 23, 71/.test(l.aurora) && !azules(l.aurora).length, 'Rosa: los círculos del fondo rosa, orquídea, rubor y vino, sin azul: ' + l.aurora);
-  t.eq(l.logo, 'brightness(0) invert(1)', 'Rosa: la G toda blanca');
+  t.ok(/gize-marca-rosa\.svg/.test(l.logo || ''), 'Rosa: el logo «Rosa» (G blanca, orbe rosa): ' + l.logo);
   t.ok(!azules(l.nav).length && !azules(l.accent).length && !azules(l.shadow).length, 'Rosa: barra, opción elegida y brillo de la caja sin azul: ' + [l.nav, l.accent, l.shadow].join(' / '));
   t.eq(l.meta.every(m => m.toUpperCase() === '#14060F'), true, 'Rosa: la barra del sistema en ciruela: ' + l.meta);
 
@@ -90,9 +90,9 @@ export default async function ({ base, t }){
   await pg.p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   const sp = await pg.p.evaluate(() => window.__splash || {});
   t.eq(await pg.p.evaluate(() => window.__dcl), [true, true], 'Rosa: las dos clases ya están al terminar de leer el HTML (sin parpadeo)');
-  t.eq([sp.icon, sp.bg, sp.dot, sp.arc], [true, PLUM, 'rgb(255, 255, 255)', 'rgb(255, 255, 255)'], 'Rosa: splash del ícono de vidrio sobre ciruela, con la G y el punto blancos');
-  t.eq(sp.c, ['linear-gradient(135deg, rgb(255, 111, 178), rgb(240, 54, 138))', 'linear-gradient(135deg, rgb(214, 92, 245), rgb(168, 59, 224))',
-    'linear-gradient(135deg, rgb(255, 163, 200), rgb(255, 125, 176))', 'linear-gradient(135deg, rgb(122, 23, 71), rgb(90, 15, 53))'], 'Rosa: los círculos del splash rosa, orquídea, rubor y vino');
+  t.eq([sp.marca, sp.bg, sp.arc], [true, PLUM, 'rgb(255, 255, 255)'], 'Rosa: splash del logo sobre ciruela, con la G blanca');
+  t.ok(/rgb\(255, 79, 158\)/.test(sp.color || '') && /rgb\(184, 76, 240\)/.test(sp.color || ''), 'Rosa: el orbe del splash rosa y orquídea: ' + sp.color);
+  t.eq(azules(sp.color + ' ' + sp.halo), [], 'Rosa: nada de azul ni cian en el orbe ni en su resplandor');
   await wait(2500);
   await pg.p.click('#nav-config'); await wait(500);
   l = await look(pg.p);

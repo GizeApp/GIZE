@@ -1,16 +1,11 @@
 (function () {
-  var TOTAL_MS = 2600; // duración completa: barra de 2,1 s + salida
+  // El splash de todas las apariencias es el logo oficial armándose (template #splashTpl en
+  // app/index.html, css/core/splash.css), con los colores de cada una. Dura 1,9 s contando la
+  // salida (primero se va la marca y después el fondo); en el modo liviano ya viene armado y se
+  // va a los 0,85 s.
   var MAX_MS = 8000;   // techo de seguridad si la app nunca avisa que está lista
   var tpl = document.getElementById('splashTpl');
-  // El splash de todas las apariencias es el ícono de vidrio armándose (css/core/splash.css), con
-  // los colores de cada una. Dura ~1,5 s + 0,35 s de salida; en el modo liviano ya viene armado y
-  // se va a los 0,85 s. El de antes (#splashTpl, 2,6 s) queda solo por si faltara el template.
-  var tplClaro = document.getElementById('splashTplClaro');
-  function claro() { return !!tplClaro; }
-  function totalMs() {
-    if (!claro()) return TOTAL_MS;
-    return document.documentElement.classList.contains('lite') ? 850 : 1900;
-  }
+  function totalMs() { return document.documentElement.classList.contains('lite') ? 850 : 1900; }
   var host = document.getElementById('splashHost');
   var current = null; // splash en pantalla ahora mismo, si hay uno
 
@@ -21,7 +16,7 @@
   // sola vez) se pueden repetir en cada login sin tener que reconstruirlas a mano.
   function mount() {
     host.innerHTML = '';
-    var el = (claro() ? tplClaro : tpl).content.firstElementChild.cloneNode(true);
+    var el = tpl.content.firstElementChild.cloneNode(true);
     host.appendChild(el);
     document.body.classList.add('is-booting');
     var state = { el: el, startTs: Date.now(), total: totalMs(), done: false, safety: null };
@@ -41,7 +36,7 @@
   // La app llama a esto cuando ya armó la pantalla real (login, app de cliente
   // o panel de coach) que corresponde al splash activo. No corta la animación
   // antes de que termine sola: el panel de coach hace varios viajes a Supabase
-  // antes de estar listo y puede tardar más que los 2.6s de la animación.
+  // antes de estar listo y puede tardar más que la animación.
   window.coreEnter = function () {
     var state = current; if (!state) return;
     if (reduced()) { finish(state); return; }

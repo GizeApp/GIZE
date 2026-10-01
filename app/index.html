@@ -65,24 +65,24 @@
 
 </head>
 <body class="is-booting">
+  <!-- Splash de arranque (css/core/splash.css, lo usa app/splash.js): el logo oficial armándose.
+       Se enciende un punto de luz, ocho destellos de color convergen y forman el orbe (con sus
+       colores girando y un brillo que lo cruza), la G se traza alrededor dejando una estela de
+       color, el resplandor late una vez y se va: primero la marca, después el fondo. Los colores
+       (fondo, G y orbe) salen de la apariencia elegida. -->
   <template id="splashTpl">
-    <div id="splash" role="status">
-      <!-- Mismas curvas que brand/logo/gize-firma-horizontal.svg, en línea para animar cada parte (css/core/splash.css). -->
-      <svg class="splash-logo" viewBox="0 0 269.4 100" role="img" aria-label="GIZE"><path class="sl-arc" pathLength="1" d="M81.53,62.74 A34,34 0 1 1 67,20.55" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/><circle class="sl-dot" cx="60.5" cy="50" r="9.5" fill="#2FA0FF"/><g class="sl-word"><g transform="translate(143.01,87.00) scale(0.09427,-0.09427)" fill="#FFFFFF"><path transform="translate(0.0,0)" d="M357.5 648.2001953125C357.5 732.0 289.5 800.0 205.7001953125 800.0H162.2998046875C78.5 800.0 10.5 732.0 10.5 648.2001953125V130.900390625C10.5 107.599609375 15.099609375 85.2998046875 23.5 65.0C42.5 18.7998046875 87.599609375 -1.599609375 130.5 -1.599609375C167.599609375 -1.599609375 202.900390625 14.2998046875 218.7001953125 41.599609375H230.7001953125L221.0 13.099609375H357.5V469.599609375H196.0V330.7998046875H218.7001953125V171.7001953125C218.7001953125 153.2998046875 204.400390625 138.2998046875 186.2998046875 137.099609375C166.2001953125 135.7998046875 149.2998046875 152.400390625 149.2998046875 172.599609375V625.900390625C149.2998046875 644.900390625 164.2001953125 660.7998046875 183.099609375 661.2998046875C193.0 661.5 202.0 657.599609375 208.5 651.099609375C214.7998046875 644.900390625 218.7001953125 636.2001953125 218.7001953125 626.599609375V551.099609375H357.5Z"/><path transform="translate(391.6,0)" d="M10.6025390625 13.1298828125H149.3974609375V785.17578125H10.6025390625Z"/><path transform="translate(575.1,0)" d="M160.2998046875 164.900390625 344.5 646.400390625V785.2001953125H23.5V646.400390625H194.7998046875V633.400390625L10.5 150.599609375V13.099609375H357.5V151.900390625H160.2998046875Z"/><path transform="translate(966.7,0)" d="M147.7001953125 646.400390625H321.099609375V785.2001953125H8.900390625V13.099609375H321.099609375V151.900390625H147.7001953125V329.7998046875H298.400390625V468.5H147.7001953125Z"/></g></g></svg>
-      <div class="gize-bar" aria-hidden="true"><i></i></div>
-      <p class="splash-txt">Preparando tu entrenamiento</p>
-    </div>
-  </template>
-  <!-- Splash de todas las apariencias: el ícono de vidrio armado en piezas para animarlas por
-       separado (css/core/splash.css): círculos, vidrio, arco de la G y punto. En «Oscuro» va con
-       los colores de siempre (negro, azul, violeta, rosa y turquesa, punto azul); en «Claro», con
-       esos mismos sobre fondo claro y la G casi negra; en «Azul» y «Rosa», con los suyos. El de arriba (#splashTpl) queda solo por si faltara este. -->
-  <template id="splashTplClaro">
-    <div id="splash" class="sp-anim" role="status">
-      <div class="sp-icon" role="img" aria-label="GIZE">
-        <span class="sp-c sp-1"></span><span class="sp-c sp-2"></span><span class="sp-c sp-3"></span><span class="sp-c sp-4"></span>
-        <span class="sp-glass"></span>
-        <svg class="sp-g" viewBox="0 0 100 100" aria-hidden="true"><path class="sl-arc" pathLength="1" d="M81.53,62.74 A34,34 0 1 1 67,20.55" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/><circle class="sl-dot" cx="60.5" cy="50" r="9.5" fill="#FFFFFF"/></svg>
+    <div id="splash" class="sp" role="status">
+      <div class="sp-marca" role="img" aria-label="GIZE">
+        <span class="sp-halo"></span>
+        <span class="sp-rayos" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <svg class="sp-g" viewBox="0 0 100 100" aria-hidden="true">
+          <defs><linearGradient id="spEstela" x1="0" y1="1" x2="1" y2="0"><stop offset="0"/><stop offset=".35"/><stop offset=".7"/><stop offset="1"/></linearGradient></defs>
+          <path class="sp-estela-luz" pathLength="1" d="M81.53,62.74 A34,34 0 1 1 67,20.55" fill="none" stroke="url(#spEstela)" stroke-width="27" stroke-linecap="round"/>
+          <path class="sp-estela" pathLength="1" d="M81.53,62.74 A34,34 0 1 1 67,20.55" fill="none" stroke="url(#spEstela)" stroke-width="20" stroke-linecap="round"/>
+          <path class="sp-arco" pathLength="1" d="M81.53,62.74 A34,34 0 1 1 67,20.55" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+        </svg>
+        <span class="sp-chispa"></span>
+        <span class="sp-orbe"><span class="sp-color"></span><span class="sp-luz"></span><span class="sp-barrido"></span><span class="sp-reflejo"></span></span>
       </div>
       <p class="splash-txt">Preparando tu entrenamiento</p>
     </div>
@@ -96,7 +96,7 @@
   <div id="fbHost"></div>
   <div class="topbar">
     <div class="brand">
-      <img class="brand-logo" src="brand/logo/gize-monograma.svg" alt="GIZE">
+      <img class="brand-logo" src="brand/logo/gize-marca-blanca.svg" alt="GIZE">
     </div>
     <div class="topbar-r">
       <div class="client-tag" id="brandTag" style="display:none">

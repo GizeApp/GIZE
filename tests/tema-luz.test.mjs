@@ -77,8 +77,8 @@ const spy = () => {
   document.addEventListener('DOMContentLoaded', () => { window.__dcl = document.documentElement.classList.contains('tema-luz'); });
   new MutationObserver((ms, o) => { const s = document.getElementById('splash'); if (!s) return; o.disconnect();
     const cs = q => { const e = s.querySelector(q); return e ? getComputedStyle(e) : null; };
-    window.__splash = { icon: !!s.querySelector('.sp-icon'), bg: getComputedStyle(s).backgroundColor, arc: cs('.sl-arc') && cs('.sl-arc').stroke,
-      dot: cs('.sl-dot') && cs('.sl-dot').fill, txt: cs('.splash-txt') && cs('.splash-txt').color, c1: cs('.sp-1') && cs('.sp-1').backgroundImage };
+    window.__splash = { marca: !!s.querySelector('.sp-marca .sp-orbe'), bg: getComputedStyle(s).backgroundColor, arc: cs('.sp-arco') && cs('.sp-arco').stroke,
+      txt: cs('.splash-txt') && cs('.splash-txt').color, color: cs('.sp-color') && cs('.sp-color').backgroundImage };
   }).observe(document, { childList: true, subtree: true });
 };
 
@@ -97,7 +97,7 @@ export default async function ({ base, t }){
   t.ok(l.luz && !l.claro && !l.rosa && await p.evaluate(() => window.__sinRecargar === 1), 'Claro: html.tema-luz al toque, sin recargar (y sin las clases de Azul)');
   t.eq([l.saved, l.on], ['luz', ['luz']], 'Claro: queda guardado ("luz") y marcado');
   t.eq([l.body, l.text], [LUZ_BG, 'rgb(11, 13, 17)'], 'Claro: fondo casi blanco y texto casi negro');
-  t.ok(/gize-monograma-oscuro\.svg/.test(l.logo || ''), 'Claro: la G oscura: ' + l.logo);
+  t.ok(/gize-marca-negra\.svg/.test(l.logo || ''), 'Claro: la G oscura con el orbe: ' + l.logo);
   t.ok(/rgb\(255, 255, 255\)/.test(l.card || '') && /conic-gradient/.test(l.card), 'Claro: la caja blanca con el borde de neón: ' + l.card);
   t.eq(l.meta.every(m => m === '#F4F5F8'), true, 'Claro: la barra del sistema clara: ' + l.meta);
   let k = await contraste(p);
@@ -108,8 +108,8 @@ export default async function ({ base, t }){
   await p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   const sp = await p.evaluate(() => window.__splash || {});
   t.eq(await p.evaluate(() => window.__dcl), true, 'Claro: la clase ya está al terminar de leer el HTML (sin parpadeo)');
-  t.eq([sp.icon, sp.bg, sp.arc, sp.dot], [true, LUZ_BG, 'rgb(11, 13, 17)', 'rgb(47, 160, 255)'], 'Claro: splash del ícono de vidrio sobre fondo claro, la G oscura con el punto azul');
-  t.eq(sp.c1, 'linear-gradient(135deg, rgb(107, 188, 255), rgb(47, 160, 255))', 'Claro: los círculos del splash con los colores de la marca');
+  t.eq([sp.marca, sp.bg, sp.arc], [true, LUZ_BG, 'rgb(11, 13, 17)'], 'Claro: splash del logo sobre fondo claro, con la G oscura');
+  t.ok(/rgb\(224, 58, 174\)/.test(sp.color || '') && /rgb\(27, 205, 182\)/.test(sp.color || ''), 'Claro: el orbe del splash con los colores originales: ' + sp.color);
   t.ok(sp.txt && ratio(sp.txt, sp.bg) >= 4.5, 'Claro: el texto del splash se lee: ' + sp.txt);
   await wait(2500);
 
@@ -147,7 +147,7 @@ export default async function ({ base, t }){
   l = await look(pg.p);
   t.eq([l.luz, l.claro, l.rosa, l.body], [false, true, false, NAVY], 'guardado viejo "claro": el look de Azul (vidrio sobre marino)');
   t.eq([l.saved, l.on], ['azul', ['azul']], 'guardado viejo "claro": pasa a "azul" y queda marcada Azul');
-  t.eq(l.logo, 'normal', 'guardado viejo "claro": la G de Azul (no la oscura)');
+  t.ok(/gize-marca-azul\.svg/.test(l.logo || ''), 'guardado viejo "claro": el logo de Azul (no el oscuro): ' + l.logo);
   t.eq(pg.errs, [], 'errores de la página (guardado viejo)');
   await pg.close();
 

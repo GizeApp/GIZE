@@ -3,8 +3,8 @@
 // del cliente y en la Configuración del coach, se aplica al toque, queda guardada en el
 // dispositivo ("gize_tema" = "azul") y la clase ya está puesta antes de la primera pintada (sin
 // parpadeo). Quien la eligió cuando se llamaba «Claro» (guardado "claro") la sigue viendo igual,
-// con «Azul» marcado. El splash del ícono de vidrio se va solo y respeta movimiento reducido y
-// modo liviano.
+// con «Azul» marcado. El splash (el logo armándose, con el orbe en los colores de «Azul») se va
+// solo y respeta movimiento reducido y modo liviano.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'Torso', exercises: [{ id: 'e1', name: 'Press de banca', sets: [{ id: 's1', kg: '80', reps: '8', done: true }] }] }], sessions: [], weights: [], daily: {} };
@@ -18,7 +18,7 @@ const COACH_H = {
 const OSCURO = {
   body: 'rgb(0, 0, 0)',
   card: 'linear-gradient(rgb(11, 13, 17), rgb(11, 13, 17)), conic-gradient(rgb(47, 160, 255), rgb(166, 92, 255), rgb(255, 61, 174), rgb(37, 232, 200), rgb(47, 160, 255))',
-  cardFill: 'rgba(0, 0, 0, 0)', blur: 'none', logo: 'none',
+  cardFill: 'rgba(0, 0, 0, 0)', blur: 'none', logo: 'normal',
   ring: 'conic-gradient(from 0deg,#2FA0FF,#A65CFF,#FF3DAE,#25E8C8,#2FA0FF)',
   nav: 'rgba(6, 9, 17, 0.82)',
 };
@@ -28,7 +28,7 @@ const look = p => p.evaluate(() => {
   const cs = s => { const e = document.querySelector(s); return e ? getComputedStyle(e) : null; };
   const c = cs('.cfg-card'), logo = cs('#app img.brand-logo') || cs('img.brand-logo');
   return { claro: document.documentElement.classList.contains('tema-claro'), body: cs('body').backgroundColor,
-    card: c && c.backgroundImage, cardFill: c && c.backgroundColor, blur: c && c.backdropFilter, logo: logo && logo.filter,
+    card: c && c.backgroundImage, cardFill: c && c.backgroundColor, blur: c && c.backdropFilter, logo: logo && logo.content,
     ring: getComputedStyle(document.documentElement).getPropertyValue('--gize-rgb-ring').trim(), nav: cs('.navbar') && cs('.navbar').backgroundColor,
     saved: localStorage.getItem('gize_tema'),
     on: [...document.querySelectorAll('[data-tema].on')].map(b => b.getAttribute('data-tema')) };
@@ -39,11 +39,12 @@ const spy = () => {
   document.addEventListener('DOMContentLoaded', () => { window.__dcl = document.documentElement.classList.contains('tema-claro'); });
   new MutationObserver((ms, o) => { const s = document.getElementById('splash'); if (!s) return; o.disconnect();
     const cs = q => { const e = s.querySelector(q); return e ? getComputedStyle(e) : null; };
-    const arc = cs('.sl-arc'), dot = cs('.sl-dot');
-    window.__splash = { claro: !!s.querySelector('.sp-icon'), viejo: !!s.querySelector('.splash-logo'),
-      circles: s.querySelectorAll('.sp-icon .sp-c').length, glass: !!s.querySelector('.sp-glass'), label: (s.querySelector('[aria-label]') || {}).getAttribute?.('aria-label'),
-      dotFill: dot && dot.fill, circleAnim: cs('.sp-c') && cs('.sp-c').animationName, arcAnim: arc && arc.animationName, dotAnim: dot && dot.animationName,
-      dash: arc && arc.strokeDashoffset, c1: cs('.sp-1') && cs('.sp-1').backgroundImage, glassBlur: cs('.sp-glass') && cs('.sp-glass').backdropFilter };
+    const arc = cs('.sp-arco'), orbe = cs('.sp-orbe');
+    window.__splash = { nuevo: !!s.querySelector('.sp-marca .sp-orbe .sp-color'), viejo: !!s.querySelector('.splash-logo, .sp-icon'),
+      rayos: s.querySelectorAll('.sp-rayos i').length, label: (s.querySelector('[aria-label]') || {}).getAttribute?.('aria-label'),
+      arcStroke: arc && arc.stroke, orbAnim: orbe && orbe.animationName, arcAnim: arc && arc.animationName, giro: cs('.sp-color') && cs('.sp-color').animationName,
+      dash: arc && arc.strokeDashoffset, color: cs('.sp-color') && cs('.sp-color').backgroundImage,
+      blur: [...s.querySelectorAll('*')].filter(e => { const b = getComputedStyle(e).backdropFilter; return b && b !== 'none'; }).length };
   }).observe(document, { childList: true, subtree: true });
 };
 
@@ -53,15 +54,15 @@ async function splashGone(p, ms){
 }
 
 export default async function ({ base, t }){
-  // 1) Por defecto: el look de siempre, el splash del ícono de vidrio en los colores de siempre, y «Oscuro» elegido.
+  // 1) Por defecto: el look de siempre, el splash del logo con el orbe original, y «Oscuro» elegido.
   let pg = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') }, init: () => localStorage.setItem('gize_lite', '0') });
   await pg.p.addInitScript(spy);
   await pg.p.goto(base + '/app/');
   await pg.p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   let sp = await pg.p.evaluate(() => window.__splash || {});
-  t.eq([sp.claro, sp.viejo, sp.circles, sp.glass, sp.dotFill], [true, false, 4, true, 'rgb(47, 160, 255)'], 'por defecto (Oscuro): el splash del ícono de vidrio, con la G y el punto azul de siempre');
-  t.eq(sp.c1, 'linear-gradient(135deg, rgb(107, 188, 255), rgb(47, 160, 255))', 'por defecto (Oscuro): los círculos con los colores de siempre');
-  t.eq([sp.circleAnim, sp.arcAnim, sp.dotAnim], ['sp-float', 'sl-draw', 'sl-pop'], 'por defecto (Oscuro): el splash se arma animado');
+  t.eq([sp.nuevo, sp.viejo, sp.rayos, sp.arcStroke], [true, false, 8, 'rgb(255, 255, 255)'], 'por defecto (Oscuro): el splash del logo (la G blanca, el orbe y los destellos)');
+  t.ok(/rgb\(224, 58, 174\)/.test(sp.color || '') && /rgb\(27, 205, 182\)/.test(sp.color || ''), 'por defecto (Oscuro): el orbe con los colores originales: ' + sp.color);
+  t.eq([sp.orbAnim, sp.arcAnim, sp.giro], ['sp-orbe', 'sp-trazo', 'sp-giro'], 'por defecto (Oscuro): el splash se arma animado');
   t.eq(await pg.p.evaluate(() => window.__dcl), false, 'por defecto: sin html.tema-claro');
   t.ok(await splashGone(pg.p, 5000), 'por defecto: el splash se va');
   await wait(400);
@@ -82,7 +83,7 @@ export default async function ({ base, t }){
   t.ok(/blur\(22px\)/.test(l.blur || ''), 'Azul: la caja de sección es vidrio (backdrop-filter): ' + l.blur);
   t.ok(/rgba\(255, 255, 255, 0\.19\)/.test(l.card || '') && l.card !== OSCURO.card, 'Azul: relleno de vidrio blanco translúcido: ' + l.card);
   t.ok(/#3FA3F2/i.test(l.ring) && /#A474F7/i.test(l.ring) && /#2EC6EE/i.test(l.ring) && /#5B6CF2/i.test(l.ring) && !/#FF3DAE/i.test(l.ring), 'Azul: gama nueva (azul, violeta, cian, índigo): ' + l.ring);
-  t.eq(l.logo, 'brightness(0) invert(1)', 'Azul: la G toda blanca');
+  t.ok(/gize-marca-azul\.svg/.test(l.logo || ''), 'Azul: el logo «Azul» (G blanca, orbe azul): ' + l.logo);
   t.ok(await pg.p.evaluate(() => /62vmax/.test(getComputedStyle(document.querySelector('.app-aurora')).backgroundImage)), 'Azul: los círculos grandes de fondo');
 
   // 3) Queda al recargar, puesta antes de la primera pintada, con el splash nuevo que se va solo.
@@ -91,10 +92,9 @@ export default async function ({ base, t }){
   await pg.p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   sp = await pg.p.evaluate(() => window.__splash || {});
   t.eq(await pg.p.evaluate(() => window.__dcl), true, 'Azul: la clase ya está al terminar de leer el HTML (sin parpadeo)');
-  t.eq([sp.claro, sp.viejo, sp.circles, sp.glass, sp.label], [true, false, 4, true, 'GIZE'], 'Azul: splash nuevo (4 círculos, vidrio y la G)');
-  t.eq(sp.dotFill, 'rgb(255, 255, 255)', 'Azul: el punto de la G del splash es blanco');
-  t.ok(sp.c1 && !/47, 160, 255/.test(sp.c1), 'Azul: los círculos con los colores de Azul: ' + sp.c1);
-  t.eq([sp.circleAnim, sp.arcAnim, sp.dotAnim], ['sp-float', 'sl-draw', 'sl-pop'], 'Azul: el splash se arma animado');
+  t.eq([sp.nuevo, sp.viejo, sp.label, sp.arcStroke], [true, false, 'GIZE', 'rgb(255, 255, 255)'], 'Azul: splash del logo, con la G blanca');
+  t.ok(/rgb\(43, 63, 192\)/.test(sp.color || '') && !/224, 58, 174/.test(sp.color || ''), 'Azul: el orbe con los colores de Azul: ' + sp.color);
+  t.eq([sp.orbAnim, sp.arcAnim, sp.giro, sp.blur], ['sp-orbe', 'sp-trazo', 'sp-giro', 0], 'Azul: el splash se arma animado, sin backdrop-filter');
   t.ok(await splashGone(pg.p, 4000), 'Azul: el splash se va solo (' + (Date.now() - t0) + ' ms)');
   await wait(600);
   t.ok(await pg.p.evaluate(() => !document.getElementById('splash') && !document.body.classList.contains('is-booting')), 'Azul: el splash sale del DOM');
@@ -119,7 +119,7 @@ export default async function ({ base, t }){
   await pg.p.goto(base + '/app/');
   await pg.p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   sp = await pg.p.evaluate(() => window.__splash || {});
-  t.eq([sp.claro, sp.circleAnim, sp.arcAnim, sp.dotAnim, sp.dash, sp.glassBlur], [true, 'none', 'none', 'none', '0px', 'none'], 'liviano (Azul): el ícono quieto, completo y sin desenfoque');
+  t.eq([sp.nuevo, sp.orbAnim, sp.arcAnim, sp.giro, sp.dash, sp.blur], [true, 'none', 'none', 'none', '0px', 0], 'liviano (Azul): la marca quieta, completa y sin desenfoque');
   t.ok(await splashGone(pg.p, 3000), 'liviano (Azul): el splash se va enseguida (' + (Date.now() - t1) + ' ms)');
   await wait(400);
   await pg.p.click('#nav-config'); await wait(500);
@@ -131,13 +131,13 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores de la página (liviano)');
   await pg.close();
 
-  // 6) Movimiento reducido con «Azul» (guardado "claro"): el ícono quieto y el splash se va.
+  // 6) Movimiento reducido con «Azul» (guardado "claro"): la marca quieta y el splash se va.
   pg = await newPage({ reducedMotion: 'reduce', user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') }, init: () => { localStorage.setItem('gize_tema', 'claro'); localStorage.setItem('gize_lite', '0'); } });
   await pg.p.addInitScript(spy);
   await pg.p.goto(base + '/app/');
   await pg.p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   sp = await pg.p.evaluate(() => window.__splash || {});
-  t.eq([sp.claro, sp.circleAnim, sp.arcAnim, sp.dotAnim, sp.dash], [true, 'none', 'none', 'none', '0px'], 'movimiento reducido: el ícono quieto y completo');
+  t.eq([sp.nuevo, sp.orbAnim, sp.arcAnim, sp.giro, sp.dash], [true, 'none', 'none', 'none', '0px'], 'movimiento reducido: la marca quieta y completa');
   t.ok(await splashGone(pg.p, 3000), 'movimiento reducido: el splash se va');
   t.eq(pg.errs, [], 'errores de la página (movimiento reducido)');
   await pg.close();
