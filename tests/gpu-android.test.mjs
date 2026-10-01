@@ -1,6 +1,6 @@
 // La placa de video (Play Console: ANR «La GPU no responde» al abrir la app en un Galaxy A13).
 // - Mientras está el splash no se dibuja el fondo de partículas ni corren las animaciones
-//   infinitas de atrás; arrancan cuando el splash se va.
+//   infinitas de atrás; arrancan cuando el splash se va, y del splash no queda nada en el DOM.
 // - Con la app en segundo plano (Capacitor manda "pause"/"resume") el fondo se frena.
 // - App de Android (html.android-app): ningún backdrop-filter, con cualquier apariencia.
 // - Android de gama baja (4 núcleos o menos, o placa de video lenta) → modo liviano, salvo que
@@ -42,8 +42,9 @@ export default async function ({ base, t }){
     const { p, errs, close } = await open(base, `localStorage.setItem('gize_lite','0');(${SPY})();`);
     await p.goto(base + '/app/'); await wait(3500);
     const v = await p.evaluate(() => ({ arc: window.__arc, aurora: window.__auroraBoot, cls: document.documentElement.className,
-      nav: getComputedStyle(document.querySelector('.navbar')).backdropFilter, splash: !!document.getElementById('splash') }));
-    t.ok(!v.splash, 'web: el splash se fue');
+      nav: getComputedStyle(document.querySelector('.navbar')).backdropFilter, splash: !!document.getElementById('splash'),
+      host: document.getElementById('splashHost').childNodes.length }));
+    t.ok(!v.splash && v.host === 0, 'web: el splash se fue y no dejó nada en el DOM');
     t.eq(v.arc.boot, 0, 'web: mientras está el splash no se dibuja el fondo de partículas');
     t.ok(v.arc.after > 0, 'web: cuando se va el splash el fondo arranca: ' + JSON.stringify(v.arc));
     t.eq(v.aurora, 'paused', 'web: la aurora espera quieta detrás del splash');
@@ -71,7 +72,9 @@ export default async function ({ base, t }){
     const v = await p.evaluate(() => ({ cls: document.documentElement.className,
       blur: [...document.querySelectorAll('*')].filter(e => ['', '::before', '::after'].some(ps => { const b = getComputedStyle(e, ps || null).backdropFilter; return b && b !== 'none'; }))
         .map(e => String(e.className || e.tagName)).slice(0, 5),
-      w: document.getElementById('silkCanvas').width, iw: innerWidth, nav: getComputedStyle(document.querySelector('.navbar')).backgroundColor }));
+      w: document.getElementById('silkCanvas').width, iw: innerWidth, nav: getComputedStyle(document.querySelector('.navbar')).backgroundColor,
+      sp: document.getElementById('splashHost').childNodes.length }));
+    t.eq(v.sp, 0, tema + ': el splash ya no está en el DOM');
     t.ok(/android-app/.test(v.cls) && !/\blite\b/.test(v.cls), tema + ': Android bueno → android-app, sin liviano: ' + v.cls);
     t.eq(v.blur, [], tema + ': en Android nada usa backdrop-filter');
     t.ok(!/rgba\(.*, 0\.\d+\)$/.test(v.nav), tema + ': la barra de abajo es sólida: ' + v.nav);

@@ -3,7 +3,7 @@
 // del cliente y en la Configuración del coach, se aplica al toque, queda guardada en el
 // dispositivo ("gize_tema" = "azul") y la clase ya está puesta antes de la primera pintada (sin
 // parpadeo). Quien la eligió cuando se llamaba «Claro» (guardado "claro") la sigue viendo igual,
-// con «Azul» marcado. El splash (el logo armándose, con el orbe en los colores de «Azul») se va
+// con «Azul» marcado. El splash (el logo tranquilo, con el orbe en los colores de «Azul») se va
 // solo y respeta movimiento reducido y modo liviano.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
@@ -41,8 +41,8 @@ const spy = () => {
     const cs = q => { const e = s.querySelector(q); return e ? getComputedStyle(e) : null; };
     const arc = cs('.sp-arco'), orbe = cs('.sp-orbe');
     window.__splash = { nuevo: !!s.querySelector('.sp-marca .sp-orbe .sp-color'), viejo: !!s.querySelector('.splash-logo, .sp-icon'),
-      rayos: s.querySelectorAll('.sp-rayos i').length, label: (s.querySelector('[aria-label]') || {}).getAttribute?.('aria-label'),
-      arcStroke: arc && arc.stroke, orbAnim: orbe && orbe.animationName, arcAnim: arc && arc.animationName, giro: cs('.sp-color') && cs('.sp-color').animationName,
+      luces: s.querySelectorAll('.sp-rayos, .sp-onda, .sp-luces, .sp-destello').length, label: (s.querySelector('[aria-label]') || {}).getAttribute?.('aria-label'),
+      arcStroke: arc && arc.stroke, orbAnim: orbe && orbe.animationName, arcAnim: arc && arc.animationName, halo: cs('.sp-halo') && cs('.sp-halo').animationName,
       dash: arc && arc.strokeDashoffset, color: cs('.sp-color') && cs('.sp-color').backgroundImage,
       blur: [...s.querySelectorAll('*')].filter(e => { const b = getComputedStyle(e).backdropFilter; return b && b !== 'none'; }).length };
   }).observe(document, { childList: true, subtree: true });
@@ -60,9 +60,9 @@ export default async function ({ base, t }){
   await pg.p.goto(base + '/app/');
   await pg.p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   let sp = await pg.p.evaluate(() => window.__splash || {});
-  t.eq([sp.nuevo, sp.viejo, sp.rayos, sp.arcStroke], [true, false, 8, 'rgb(255, 255, 255)'], 'por defecto (Oscuro): el splash del logo (la G blanca, el orbe y los destellos)');
+  t.eq([sp.nuevo, sp.viejo, sp.luces, sp.arcStroke], [true, false, 0, 'rgb(255, 255, 255)'], 'por defecto (Oscuro): el splash del logo tranquilo (la G blanca y el orbe, sin rayos)');
   t.ok(/rgb\(224, 58, 174\)/.test(sp.color || '') && /rgb\(27, 205, 182\)/.test(sp.color || ''), 'por defecto (Oscuro): el orbe con los colores originales: ' + sp.color);
-  t.eq([sp.orbAnim, sp.arcAnim, sp.giro], ['sp-orbe', 'sp-trazo', 'sp-giro'], 'por defecto (Oscuro): el splash se arma animado');
+  t.eq([sp.orbAnim, sp.arcAnim, sp.halo], ['sp-orbe', 'sp-trazo', 'sp-respira'], 'por defecto (Oscuro): el splash aparece animado');
   t.eq(await pg.p.evaluate(() => window.__dcl), false, 'por defecto: sin html.tema-claro');
   t.ok(await splashGone(pg.p, 5000), 'por defecto: el splash se va');
   await wait(400);
@@ -94,7 +94,7 @@ export default async function ({ base, t }){
   t.eq(await pg.p.evaluate(() => window.__dcl), true, 'Azul: la clase ya está al terminar de leer el HTML (sin parpadeo)');
   t.eq([sp.nuevo, sp.viejo, sp.label, sp.arcStroke], [true, false, 'GIZE', 'rgb(255, 255, 255)'], 'Azul: splash del logo, con la G blanca');
   t.ok(/rgb\(43, 63, 192\)/.test(sp.color || '') && !/224, 58, 174/.test(sp.color || ''), 'Azul: el orbe con los colores de Azul: ' + sp.color);
-  t.eq([sp.orbAnim, sp.arcAnim, sp.giro, sp.blur], ['sp-orbe', 'sp-trazo', 'sp-giro', 0], 'Azul: el splash se arma animado, sin backdrop-filter');
+  t.eq([sp.orbAnim, sp.arcAnim, sp.halo, sp.blur], ['sp-orbe', 'sp-trazo', 'sp-respira', 0], 'Azul: el splash aparece animado, sin backdrop-filter');
   t.ok(await splashGone(pg.p, 4000), 'Azul: el splash se va solo (' + (Date.now() - t0) + ' ms)');
   await wait(600);
   t.ok(await pg.p.evaluate(() => !document.getElementById('splash') && !document.body.classList.contains('is-booting')), 'Azul: el splash sale del DOM');
@@ -119,7 +119,7 @@ export default async function ({ base, t }){
   await pg.p.goto(base + '/app/');
   await pg.p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   sp = await pg.p.evaluate(() => window.__splash || {});
-  t.eq([sp.nuevo, sp.orbAnim, sp.arcAnim, sp.giro, sp.dash, sp.blur], [true, 'none', 'none', 'none', '0px', 0], 'liviano (Azul): la marca quieta, completa y sin desenfoque');
+  t.eq([sp.nuevo, sp.orbAnim, sp.arcAnim, sp.halo, sp.dash, sp.blur], [true, 'none', 'none', 'none', '0px', 0], 'liviano (Azul): la marca quieta, completa y sin desenfoque');
   t.ok(await splashGone(pg.p, 3000), 'liviano (Azul): el splash se va enseguida (' + (Date.now() - t1) + ' ms)');
   await wait(400);
   await pg.p.click('#nav-config'); await wait(500);
@@ -137,7 +137,7 @@ export default async function ({ base, t }){
   await pg.p.goto(base + '/app/');
   await pg.p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   sp = await pg.p.evaluate(() => window.__splash || {});
-  t.eq([sp.nuevo, sp.orbAnim, sp.arcAnim, sp.giro, sp.dash], [true, 'none', 'none', 'none', '0px'], 'movimiento reducido: la marca quieta y completa');
+  t.eq([sp.nuevo, sp.orbAnim, sp.arcAnim, sp.halo, sp.dash], [true, 'none', 'none', 'none', '0px'], 'movimiento reducido: la marca quieta y completa');
   t.ok(await splashGone(pg.p, 3000), 'movimiento reducido: el splash se va');
   t.eq(pg.errs, [], 'errores de la página (movimiento reducido)');
   await pg.close();

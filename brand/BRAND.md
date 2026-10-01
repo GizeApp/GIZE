@@ -114,10 +114,13 @@ las variables en el resto del CSS, en vez de repetir hex sueltos.
 
 ## Pantallas de referencia
 - Landing: hero con firma grande + aurora, tarjetas con filete RGB, cierre con anillo cónico.
-- Splash: el logo armándose en 2,2 s (carga: punto de luz, anillo de color que se cierra,
-  destellos y chispas que forman el orbe; la G que se traza con estela de color; impacto al
-  cerrarse la G: la marca late, destello, dos ondas con el degradé de la marca y rayos de luz;
-  la palabra GIZE sube letra por letra con un brillo de color) y el texto "Preparando tu
-  entrenamiento", con los colores de cada apariencia. Sale primero la marca (hacia adelante) y
-  después el fondo.
+- Splash: tranquilo, el logo oficial en 1,6 s con los colores de cada apariencia. Sobre el
+  fondo de la apariencia la marca aparece suave (de 0,92 a su tamaño) mientras la G se traza
+  como se escribe; el orbe se enciende y su resplandor respira una vez; la palabra GIZE sube
+  apenas debajo, con el texto "Preparando tu entrenamiento". Sale primero la marca (crece un
+  poquito, a 1,04, y se desvanece) y después se funde el fondo. Nada de rayos, ondas, destellos
+  ni chispas. Liviano para la placa de video: pocas piezas chicas, solo opacidad, escala y
+  trazo; sin blur, filtros, backdrop-filter, mix-blend ni will-change, y al terminar no queda
+  nada en el DOM. Modo liviano: la marca ya armada y quieta, se va a los 0,85 s; movimiento
+  reducido: quieta, se va en menos de 1 s.
 - Ingreso: tarjeta con filete RGB, pestañas Ingresar / Crear cuenta, campo de código del coach en el alta.

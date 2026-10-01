@@ -65,43 +65,26 @@
 
 </head>
 <body class="is-booting">
-  <!-- Splash de arranque (css/core/splash.css, lo usa app/splash.js): el logo oficial armándose.
-       Carga: un punto de luz se enciende, un anillo de color se cierra sobre él y destellos y
-       chispas giran hacia adentro; el orbe se forma con sus colores girando y la G se traza con
-       una estela de color. Impacto al cerrarse la G: la marca late, un destello blanco, dos ondas
-       con los colores de la marca y rayos de luz detrás. Después sube la palabra GIZE letra por
-       letra con un brillo de color, y se va: primero la marca (hacia adelante), después el fondo.
-       Los colores (fondo, G y orbe) salen de la apariencia elegida. -->
+  <!-- Splash de arranque (css/core/splash.css, lo usa app/splash.js): el logo oficial, tranquilo.
+       La marca aparece suave mientras la G se traza, el orbe se enciende y su resplandor respira
+       una vez, la palabra GIZE sube apenas debajo y se va: primero la marca (crece un poco y se
+       desvanece), después el fondo. Pocas piezas chicas: nada de pantalla completa animada salvo
+       el fundido final del fondo. Los colores (fondo, G y orbe) salen de la apariencia elegida. -->
   <template id="splashTpl">
     <div id="splash" class="sp" role="status">
       <div class="sp-marca" role="img" aria-label="GIZE">
-        <span class="sp-luces" aria-hidden="true"></span>
-        <span class="sp-onda" aria-hidden="true"></span><span class="sp-onda sp-onda2" aria-hidden="true"></span>
-        <span class="sp-pulso">
-          <span class="sp-halo"></span>
-          <span class="sp-carga" aria-hidden="true"></span>
-          <span class="sp-rayos" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-          <span class="sp-polvo" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
-          <svg class="sp-g" viewBox="0 0 100 100" aria-hidden="true">
-            <defs><linearGradient id="spEstela" x1="0" y1="1" x2="1" y2="0"><stop offset="0"/><stop offset=".35"/><stop offset=".7"/><stop offset="1"/></linearGradient></defs>
-            <path class="sp-estela-luz" pathLength="1" d="M81.53,62.74 A34,34 0 1 1 67,20.55" fill="none" stroke="url(#spEstela)" stroke-width="27" stroke-linecap="round"/>
-            <path class="sp-estela" pathLength="1" d="M81.53,62.74 A34,34 0 1 1 67,20.55" fill="none" stroke="url(#spEstela)" stroke-width="20" stroke-linecap="round"/>
-            <path class="sp-arco" pathLength="1" d="M81.53,62.74 A34,34 0 1 1 67,20.55" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
-          </svg>
-          <span class="sp-chispa"></span>
-          <span class="sp-orbe"><span class="sp-color"></span><span class="sp-luz"></span><span class="sp-barrido"></span><span class="sp-reflejo"></span></span>
-          <span class="sp-destello" aria-hidden="true"></span>
-        </span>
+        <span class="sp-halo" aria-hidden="true"></span>
+        <svg class="sp-g" viewBox="0 0 100 100" aria-hidden="true">
+          <path class="sp-arco" pathLength="1" d="M67,20.55 A34,34 0 1 0 81.53,62.74" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+        </svg>
+        <span class="sp-orbe" aria-hidden="true"><span class="sp-color"></span><span class="sp-luz"></span><span class="sp-reflejo"></span></span>
       </div>
-      <!-- La palabra GIZE (brand/logo/gize-logotipo.svg): las letras suben de a una y las cruza un brillo. -->
+      <!-- La palabra GIZE (brand/logo/gize-logotipo.svg). -->
       <svg class="sp-palabra" viewBox="0 -14 167.7 128" aria-hidden="true">
         <defs>
           <path id="spLG" transform="translate(-1.34,100) scale(.12739,-.12739) translate(0.0,0)" d="M357.5 648.2001953125C357.5 732.0 289.5 800.0 205.7001953125 800.0H162.2998046875C78.5 800.0 10.5 732.0 10.5 648.2001953125V130.900390625C10.5 107.599609375 15.099609375 85.2998046875 23.5 65.0C42.5 18.7998046875 87.599609375 -1.599609375 130.5 -1.599609375C167.599609375 -1.599609375 202.900390625 14.2998046875 218.7001953125 41.599609375H230.7001953125L221.0 13.099609375H357.5V469.599609375H196.0V330.7998046875H218.7001953125V171.7001953125C218.7001953125 153.2998046875 204.400390625 138.2998046875 186.2998046875 137.099609375C166.2001953125 135.7998046875 149.2998046875 152.400390625 149.2998046875 172.599609375V625.900390625C149.2998046875 644.900390625 164.2001953125 660.7998046875 183.099609375 661.2998046875C193.0 661.5 202.0 657.599609375 208.5 651.099609375C214.7998046875 644.900390625 218.7001953125 636.2001953125 218.7001953125 626.599609375V551.099609375H357.5Z"/><path id="spLI" transform="translate(-1.34,100) scale(.12739,-.12739) translate(391.6,0)" d="M10.6025390625 13.1298828125H149.3974609375V785.17578125H10.6025390625Z"/><path id="spLZ" transform="translate(-1.34,100) scale(.12739,-.12739) translate(575.1,0)" d="M160.2998046875 164.900390625 344.5 646.400390625V785.2001953125H23.5V646.400390625H194.7998046875V633.400390625L10.5 150.599609375V13.099609375H357.5V151.900390625H160.2998046875Z"/><path id="spLE" transform="translate(-1.34,100) scale(.12739,-.12739) translate(966.7,0)" d="M147.7001953125 646.400390625H321.099609375V785.2001953125H8.900390625V13.099609375H321.099609375V151.900390625H147.7001953125V329.7998046875H298.400390625V468.5H147.7001953125Z"/>
-          <clipPath id="spLetras"><use href="#spLG"/><use href="#spLI"/><use href="#spLZ"/><use href="#spLE"/></clipPath>
-          <linearGradient id="spBrillo"><stop offset="0"/><stop offset=".3"/><stop offset=".5"/><stop offset=".7"/><stop offset="1"/></linearGradient>
         </defs>
         <use class="sp-l" href="#spLG"/><use class="sp-l" href="#spLI"/><use class="sp-l" href="#spLZ"/><use class="sp-l" href="#spLE"/>
-        <g clip-path="url(#spLetras)"><rect class="sp-brillo" x="-90" y="-14" width="80" height="128" fill="url(#spBrillo)"/></g>
       </svg>
       <p class="splash-txt">Preparando tu entrenamiento</p>
     </div>

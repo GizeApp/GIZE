@@ -2,8 +2,8 @@
 // su marca en la barra de arriba y en el login («Oscuro»: G blanca y orbe original; «Claro»: G
 // casi negra; «Azul» y «Rosa»: G blanca con el orbe de su paleta); los favicon, el manifest y los
 // íconos apuntan a archivos que existen y son el logo nuevo (no la G con el punto azul); la
-// landing usa la marca con orbe y su hoja de «Instalar» muestra el ícono; y el splash es el logo armándose, con los colores de cada
-// apariencia, sale primero la marca y después el fondo, quieto con movimiento reducido, corto en
+// landing usa la marca con orbe y su hoja de «Instalar» muestra el ícono; y el splash es el logo que aparece tranquilo, con los colores de
+// cada apariencia, sale primero la marca y después el fondo, quieto con movimiento reducido, corto en
 // el modo liviano y siempre se va.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,13 +30,13 @@ const spy = () => {
   window.__t0 = performance.now();
   new MutationObserver((ms, o) => { const s = document.getElementById('splash'); if (!s) return; o.disconnect();
     const cs = q => { const e = s.querySelector(q); return e ? getComputedStyle(e) : null; };
-    const marca = cs('.sp-marca');
-    window.__sp = { marca: !!s.querySelector('.sp-marca[role="img"][aria-label="GIZE"] .sp-orbe .sp-color'), rayos: s.querySelectorAll('.sp-rayos i').length,
+    const marca = cs('.sp-marca'), ult = v => parseFloat(String(v).split(',').pop());
+    window.__sp = { marca: !!s.querySelector('.sp-marca[role="img"][aria-label="GIZE"] .sp-orbe .sp-color'), luces: s.querySelectorAll('.sp-rayos, .sp-onda, .sp-luces, .sp-destello').length,
       viejo: !!s.querySelector('.sp-icon, .splash-logo, .sp-glass, .sl-dot'), bg: getComputedStyle(s).backgroundColor,
       arc: cs('.sp-arco') && cs('.sp-arco').stroke, dash: cs('.sp-arco') && cs('.sp-arco').strokeDashoffset, color: cs('.sp-color') && cs('.sp-color').backgroundImage,
-      anims: ['.sp-chispa', '.sp-orbe', '.sp-color', '.sp-arco', '.sp-halo'].map(q => cs(q) && cs(q).animationName),
-      out: getComputedStyle(s).animationName, outDelay: parseFloat(getComputedStyle(s).animationDelay),
-      exit: marca && marca.animationName, exitEnd: marca && parseFloat(marca.animationDelay) + parseFloat(marca.animationDuration) };
+      anims: ['.sp-orbe', '.sp-arco', '.sp-halo'].map(q => cs(q) && cs(q).animationName),
+      out: getComputedStyle(s).animationName, outDelay: parseFloat(getComputedStyle(s).animationDelay), outDur: parseFloat(getComputedStyle(s).animationDuration),
+      exit: marca && marca.animationName.split(',').pop().trim(), exitEnd: marca && ult(marca.animationDelay) + ult(marca.animationDuration) };
     new MutationObserver((m2, o2) => { if (document.getElementById('splash')) return; o2.disconnect(); window.__gone = performance.now() - window.__t0; })
       .observe(document.body, { childList: true, subtree: true });
   }).observe(document, { childList: true, subtree: true });
@@ -123,14 +123,14 @@ export default async function ({ base, t }){
     await pg.p.goto(base + '/app/');
     await pg.p.waitForFunction(() => window.__sp, null, { timeout: 3000 }).catch(() => {});
     const sp = await pg.p.evaluate(() => window.__sp || {});
-    t.eq([sp.marca, sp.rayos, sp.viejo, sp.arc], [true, 8, false, g], tema + ': el splash es el logo armándose (orbe, destellos, la G)');
+    t.eq([sp.marca, sp.luces, sp.viejo, sp.arc], [true, 0, false, g], tema + ': el splash es el logo tranquilo (la G y el orbe, sin rayos ni ondas)');
     t.ok((sp.color || '').includes(si) && !(sp.color || '').includes(no), tema + ': el orbe del splash con su paleta: ' + sp.color);
-    t.eq(sp.anims, ['sp-chispa', 'sp-orbe', 'sp-giro', 'sp-trazo', 'sp-halo, sp-bloom'], tema + ': se arma animado');
-    t.ok(sp.out === 'splash-out' && sp.exit === 'sp-exit' && sp.exitEnd <= sp.outDelay + 0.001 && sp.outDelay + 0.28 <= 2.25 + 0.001,
-      tema + ': sale primero la marca y después el fondo, en 2,2 s: ' + JSON.stringify([sp.exitEnd, sp.outDelay]));
+    t.eq(sp.anims, ['sp-orbe', 'sp-trazo', 'sp-respira'], tema + ': aparece animado (el orbe, la G que se traza y el resplandor que respira)');
+    t.ok(sp.out === 'splash-out' && sp.exit === 'sp-exit' && sp.exitEnd <= sp.outDelay + 0.001 && sp.outDelay + sp.outDur <= 1.65 + 0.001,
+      tema + ': sale primero la marca y después el fondo, en 1,6 s: ' + JSON.stringify([sp.exitEnd, sp.outDelay]));
     await pg.p.waitForFunction(() => window.__gone, null, { timeout: 6000 }).catch(() => {});
     const gone = await pg.p.evaluate(() => window.__gone);
-    t.ok(gone > 1500 && gone < 3500 && await pg.p.evaluate(() => !document.body.classList.contains('is-booting')), tema + ': el splash se va (' + Math.round(gone) + ' ms)');
+    t.ok(gone > 1300 && gone < 3500 && await pg.p.evaluate(() => !document.body.classList.contains('is-booting')), tema + ': el splash se va (' + Math.round(gone) + ' ms)');
     await wait(300);
     t.ok(new RegExp(marca.replace('.', '\\.')).test(await marcaDe(pg.p, '.topbar img.brand-logo') || ''), tema + ': la marca de la barra de arriba es ' + marca);
     t.eq(pg.errs, [], tema + ': errores (app)');
@@ -144,7 +144,7 @@ export default async function ({ base, t }){
   await pg.p.waitForFunction(() => window.__gone, null, { timeout: 5000 }).catch(() => {});
   let sp = await pg.p.evaluate(() => window.__sp || {});
   let gone = await pg.p.evaluate(() => window.__gone);
-  t.eq([sp.marca, sp.dash, sp.anims], [true, '0px', ['none', 'none', 'none', 'none', 'none']], 'liviano: la marca completa y quieta');
+  t.eq([sp.marca, sp.dash, sp.anims], [true, '0px', ['none', 'none', 'none']], 'liviano: la marca completa y quieta');
   t.ok(sp.exitEnd <= sp.outDelay + 0.001 && sp.outDelay + 0.25 <= 0.9, 'liviano: sale primero la marca, todo en menos de 0,9 s: ' + JSON.stringify([sp.exitEnd, sp.outDelay]));
   t.ok(gone && gone < 1600, 'liviano: el splash se va enseguida (' + Math.round(gone) + ' ms)');
   await pg.close();
@@ -156,7 +156,7 @@ export default async function ({ base, t }){
   await pg.p.waitForFunction(() => window.__gone, null, { timeout: 5000 }).catch(() => {});
   sp = await pg.p.evaluate(() => window.__sp || {});
   gone = await pg.p.evaluate(() => window.__gone);
-  t.eq([sp.marca, sp.dash, sp.anims], [true, '0px', ['none', 'none', 'none', 'none', 'none']], 'movimiento reducido: la marca completa y quieta');
-  t.ok(gone && gone < 2000, 'movimiento reducido: el splash se va (' + Math.round(gone) + ' ms)');
+  t.eq([sp.marca, sp.dash, sp.anims], [true, '0px', ['none', 'none', 'none']], 'movimiento reducido: la marca completa y quieta');
+  t.ok(gone && gone < 1600, 'movimiento reducido: el splash se va (' + Math.round(gone) + ' ms)');
   await pg.close();
 }

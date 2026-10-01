@@ -1,58 +1,71 @@
-// Salida del splash (el logo armándose): primero se va la marca y después se funde el fondo.
-// Antes se iba todo junto y en un iPhone el ícono quedaba como un fantasma encima de la app;
-// además nada del splash lleva backdrop-filter (Safari no lo funde con la opacidad de arriba).
-// El impacto cuando se cierra la G (la marca late, destello, dos ondas, rayos de luz) y la palabra
-// GIZE que sube letra por letra: pasan después de que se traza la G y antes de la salida, y solo
-// animan transform/opacity (nada de filter). En la app de Android no van las capas más grandes;
-// en el modo liviano y con movimiento reducido no hay impacto y la palabra queda quieta.
+// El splash tranquilo (el logo oficial que aparece suave, la G que se traza, el orbe que respira
+// una vez y la palabra GIZE): primero se va la marca y después se funde el fondo. Antes se iba
+// todo junto y en un iPhone el ícono quedaba como un fantasma encima de la app; además nada del
+// splash lleva backdrop-filter (Safari no lo funde con la opacidad de arriba).
+// Liviano para la placa de video (en un iPhone la app quedaba en blanco al arrancar, por falta de
+// memoria para capas): pocas piezas chicas animadas, solo transform/opacity/stroke-dashoffset,
+// nada de filter, mix-blend ni will-change, y al terminar no queda nada del splash en el DOM.
+// En el modo liviano y con movimiento reducido la marca queda quieta y completa.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const SPY = () => {
   new MutationObserver((ms, o) => { const s = document.getElementById('splash'); if (!s) return; o.disconnect();
-    const g = e => e ? getComputedStyle(e) : null, sp = g(s), ic = g(s.querySelector('.sp-marca'));
-    const q = sel => g(s.querySelector(sel)) || {};
-    const fin = sel => { const c = q(sel); return parseFloat(c.animationDelay) + parseFloat(c.animationDuration); };
-    const ini = sel => parseFloat(q(sel).animationDelay);
-    window.__sal = { out: sp.animationName, outDelay: parseFloat(sp.animationDelay), icon: ic && ic.animationName, iconDelay: ic && parseFloat(ic.animationDelay),
-      iconDur: ic && parseFloat(ic.animationDuration), blur: [s, ...s.querySelectorAll('*')].filter(e => { const b = getComputedStyle(e).backdropFilter; return b && b !== 'none'; }).length,
-      filtro: [s, ...s.querySelectorAll('*')].filter(e => { const f = getComputedStyle(e).filter; return f && f !== 'none'; }).length,
-      piezas: [s.querySelectorAll('.sp-onda').length, s.querySelectorAll('.sp-destello').length, s.querySelectorAll('.sp-luces').length,
-        s.querySelectorAll('.sp-palabra .sp-l').length, s.querySelectorAll('.sp-polvo i').length, s.querySelectorAll('.sp-carga').length],
-      anims: ['.sp-carga', '.sp-pulso', '.sp-destello', '.sp-onda', '.sp-luces', '.sp-palabra .sp-l', '.sp-brillo'].map(x => q(x).animationName),
-      visibles: ['.sp-luces', '.sp-onda2', '.sp-onda', '.sp-destello', '.sp-palabra'].map(x => q(x).display !== 'none'),
-      arcoFin: fin('.sp-arco'), impacto: ini('.sp-onda'), palabraIni: ini('.sp-palabra .sp-l'),
-      ultLetra: fin('.sp-palabra .sp-l:nth-of-type(4)'), brilloFin: fin('.sp-brillo'),
-      nodos: s.getAnimations ? s.getAnimations({ subtree: true }).map(a => a.effect && a.effect.target).filter((e, i, a) => a.indexOf(e) === i).length : 0 };
+    const todos = [s, ...s.querySelectorAll('*')], cs = e => getComputedStyle(e);
+    const q = sel => { const e = s.querySelector(sel); return e ? cs(e) : {}; };
+    // Listas de animaciones ("a, b" / "0.02s, 1.1s") → la última (la salida).
+    const ult = v => String(v || '').split(',').pop().trim();
+    const fin = c => parseFloat(ult(c.animationDelay)) + parseFloat(ult(c.animationDuration));
+    const sp = cs(s), marca = q('.sp-marca');
+    const anims = s.getAnimations ? s.getAnimations({ subtree: true }) : [];
+    const props = new Set(); anims.forEach(a => a.effect && a.effect.getKeyframes().forEach(k => Object.keys(k).forEach(p => props.add(p))));
+    ['offset', 'computedOffset', 'easing', 'composite'].forEach(p => props.delete(p));
+    const vw = innerWidth * innerHeight;
+    window.__sal = { out: sp.animationName, outDelay: parseFloat(sp.animationDelay), outEnd: fin(sp),
+      exit: ult(marca.animationName), exitEnd: fin(marca), palabraEnd: fin(q('.sp-palabra')), txtEnd: fin(q('.splash-txt')),
+      filtros: todos.filter(e => { const c = cs(e); return [c.filter, c.backdropFilter, c.webkitBackdropFilter].some(v => v && v !== 'none') || (c.mixBlendMode && c.mixBlendMode !== 'normal'); }).length,
+      willChange: todos.filter(e => cs(e).willChange !== 'auto').length,
+      viejas: s.querySelectorAll('.sp-luces, .sp-onda, .sp-destello, .sp-rayos, .sp-polvo, .sp-carga, .sp-chispa, .sp-barrido, .sp-estela, .sp-estela-luz, .sp-brillo').length,
+      piezas: [!!s.querySelector('.sp-marca[role="img"][aria-label="GIZE"] .sp-orbe .sp-color'), !!s.querySelector('.sp-halo'), s.querySelectorAll('.sp-palabra .sp-l').length],
+      quietas: ['.sp-arco', '.sp-orbe', '.sp-halo'].map(x => q(x).animationName), dash: q('.sp-arco').strokeDashoffset,
+      nodos: anims.map(a => a.effect && a.effect.target).filter((e, i, a) => e && a.indexOf(e) === i),
+      props: [...props].sort() };
+    // Ninguna pieza animada (salvo el fondo, que solo se funde al final) es grande.
+    window.__sal.grandes = window.__sal.nodos.filter(e => e !== s && (() => { const r = e.getBoundingClientRect(); return r.width * r.height > vw / 4; })()).length;
+    window.__sal.nodos = window.__sal.nodos.length;
   }).observe(document, { childList: true, subtree: true });
 };
 
+// Después de que se fue: el host vacío y nada en todo el documento con will-change.
+const DESPUES = () => ({ splash: !!document.getElementById('splash'), host: document.getElementById('splashHost').childNodes.length,
+  booting: document.body.classList.contains('is-booting'),
+  willChange: [...document.querySelectorAll('*')].filter(e => getComputedStyle(e).willChange !== 'auto').map(e => String(e.className || e.tagName)).slice(0, 5) });
+
+const STATE = { days: [], sessions: [], weights: [], daily: {} };
+
 export default async function ({ base, t }){
   for (const tema of ['oscuro', 'azul', 'luz', 'rosa']){
-    const { p, errs, close } = await newPage({ user: ALUMNO, state: { days: [], sessions: [], weights: [], daily: {} }, handlers: { '/profiles': profile('client') },
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') },
       init: `localStorage.setItem('gize_lite','0');${tema === 'oscuro' ? '' : "localStorage.setItem('gize_tema','" + tema + "');"}` });
     await p.addInitScript(SPY);
-    await p.goto(base + '/app/'); await wait(3500);
+    await p.goto(base + '/app/'); await wait(3000);
     const v = await p.evaluate(() => window.__sal || {});
-    t.eq([v.icon, v.blur, v.filtro], ['sp-exit', 0, 0], tema + ': la marca tiene su propia salida y nada del splash usa backdrop-filter ni filter');
-    t.ok(v.out === 'splash-out' && v.iconDelay + v.iconDur <= v.outDelay + 0.001, tema + ': la marca ya se fue cuando empieza a fundirse el fondo: ' + JSON.stringify([v.iconDelay, v.iconDur, v.outDelay]));
-    t.ok(v.outDelay + 0.28 <= 2.25 + 0.001, tema + ': todo en menos de 2,25 s: ' + v.outDelay);
-    if (tema === 'oscuro'){
-      t.eq(v.piezas, [2, 1, 1, 4, 6, 1], 'el impacto (dos ondas, destello, rayos de luz), la palabra GIZE, las chispas y el anillo de carga');
-      t.eq(v.anims, ['sp-carga', 'sp-pulso', 'sp-destello', 'sp-onda', 'sp-luces', 'sp-letra', 'sp-brillo'], 'carga, impacto y palabra animados');
-      t.eq(v.visibles, [true, true, true, true, true], 'en la web van todas las luces');
-      t.ok(Math.abs(v.impacto - v.arcoFin) <= 0.06, 'el impacto llega cuando se cierra la G: ' + JSON.stringify([v.arcoFin, v.impacto]));
-      t.ok(v.palabraIni >= v.impacto && v.ultLetra <= v.iconDelay + 0.001 && v.brilloFin <= v.iconDelay + 0.001,
-        'la palabra sube después del impacto y termina antes de la salida: ' + JSON.stringify([v.palabraIni, v.ultLetra, v.brilloFin, v.iconDelay]));
-      t.ok(v.nodos > 0 && v.nodos <= 40, 'pocos elementos animados (' + v.nodos + ')');
-    }
-    t.ok(await p.evaluate(() => !document.getElementById('splash')), tema + ': el splash se va');
+    t.eq([v.exit, v.filtros, v.willChange], ['sp-exit', 0, 0], tema + ': la marca tiene su propia salida; nada del splash usa filter, backdrop-filter, mix-blend ni will-change');
+    t.ok(v.out === 'splash-out' && Math.max(v.exitEnd, v.palabraEnd, v.txtEnd) <= v.outDelay + 0.001,
+      tema + ': la marca, la palabra y el texto ya se fueron cuando empieza a fundirse el fondo: ' + JSON.stringify([v.exitEnd, v.palabraEnd, v.txtEnd, v.outDelay]));
+    t.ok(v.outEnd >= 1.35 && v.outEnd <= 1.65, tema + ': tranquilo, entre 1,35 y 1,65 s: ' + v.outEnd);
+    t.eq([v.viejas, v.piezas], [0, [true, true, 4]], tema + ': ni rayos, ni ondas, ni destellos, ni chispas: la marca con su orbe y su resplandor, y la palabra GIZE');
+    t.ok(v.nodos > 0 && v.nodos <= 12 && v.grandes === 0, tema + ': pocas piezas animadas y chicas (' + v.nodos + ', grandes: ' + v.grandes + ')');
+    t.eq(v.props.filter(x => !['opacity', 'transform', 'strokeDashoffset', 'visibility'].includes(x)), [], tema + ': solo se anima opacity, transform y stroke-dashoffset: ' + v.props);
+    const d = await p.evaluate(DESPUES);
+    t.eq([d.splash, d.host, d.booting], [false, 0, false], tema + ': el splash sale del DOM y el host queda vacío');
+    t.eq(d.willChange, [], tema + ': nada en la app queda con will-change');
     t.eq(errs, [], tema + ': errores de la página');
     await close();
   }
 
-  // App de Android: sin las capas más grandes (rayos de luz y segunda onda); el resto del impacto sí.
+  // App de Android: el mismo splash (ya es liviano), y se va.
   {
-    const { p, errs, close } = await newPage({ user: ALUMNO, state: { days: [], sessions: [], weights: [], daily: {} }, handlers: { '/profiles': profile('client') },
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') },
       init: `Object.defineProperty(Navigator.prototype, 'deviceMemory', { get: () => 8, configurable: true });
         Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', { get: () => 8, configurable: true });
         window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {} };
@@ -62,19 +75,23 @@ export default async function ({ base, t }){
     await p.goto(base + '/app/'); await wait(3000);
     const v = await p.evaluate(() => Object.assign(window.__sal || {}, { cls: document.documentElement.className }));
     t.ok(/android-app/.test(v.cls) && !/\blite\b/.test(v.cls), 'Android: android-app sin liviano: ' + v.cls);
-    t.eq(v.visibles, [false, false, true, true, true], 'Android: sin rayos de luz ni segunda onda; la onda, el destello y la palabra sí');
+    t.eq([v.viejas, v.filtros, v.quietas], [0, 0, ['sp-trazo', 'sp-orbe', 'sp-respira']], 'Android: el splash tranquilo, animado y sin filtros');
+    const d = await p.evaluate(DESPUES);
+    t.eq([d.splash, d.host, d.willChange], [false, 0, []], 'Android: el splash sale del DOM y nada queda con will-change');
     t.eq(errs, [], 'Android: errores de la página');
     await close();
   }
 
-  // Liviano y movimiento reducido: sin luces del impacto y la palabra quieta y a la vista.
-  for (const [nombre, opts, init] of [['liviano', {}, "localStorage.setItem('gize_lite','1');"], ['movimiento reducido', { reducedMotion: 'reduce' }, "localStorage.setItem('gize_lite','0');"]]){
-    const { p, errs, close } = await newPage(Object.assign({ user: ALUMNO, state: { days: [], sessions: [], weights: [], daily: {} }, handlers: { '/profiles': profile('client') }, init }, opts));
+  // Liviano y movimiento reducido: la marca quieta y completa, y se va enseguida.
+  for (const [nombre, opts, init, max] of [['liviano', {}, "localStorage.setItem('gize_lite','1');", 0.85], ['movimiento reducido', { reducedMotion: 'reduce' }, "localStorage.setItem('gize_lite','0');", 1]]){
+    const { p, errs, close } = await newPage(Object.assign({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') }, init }, opts));
     await p.addInitScript(SPY);
     await p.goto(base + '/app/'); await wait(2500);
     const v = await p.evaluate(() => window.__sal || {});
-    t.eq(v.visibles, [false, false, false, false, true], nombre + ': sin luces del impacto, con la palabra');
-    t.eq(v.anims.slice(0, 6), ['none', 'none', 'none', 'none', 'none', 'none'], nombre + ': nada del impacto se anima y la palabra queda quieta');
+    t.eq([v.quietas, v.dash, v.piezas[2]], [['none', 'none', 'none'], '0px', 4], nombre + ': la marca quieta y completa, con la palabra');
+    t.ok(v.exitEnd <= v.outDelay + 0.001 && v.outEnd <= max + 0.001, nombre + ': sale primero la marca, todo en ' + max + ' s: ' + JSON.stringify([v.exitEnd, v.outDelay, v.outEnd]));
+    const d = await p.evaluate(DESPUES);
+    t.eq([d.splash, d.host, d.willChange], [false, 0, []], nombre + ': el splash sale del DOM y nada queda con will-change');
     t.eq(errs, [], nombre + ': errores de la página');
     await close();
   }

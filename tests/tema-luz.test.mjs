@@ -78,7 +78,8 @@ const spy = () => {
   new MutationObserver((ms, o) => { const s = document.getElementById('splash'); if (!s) return; o.disconnect();
     const cs = q => { const e = s.querySelector(q); return e ? getComputedStyle(e) : null; };
     window.__splash = { marca: !!s.querySelector('.sp-marca .sp-orbe'), bg: getComputedStyle(s).backgroundColor, arc: cs('.sp-arco') && cs('.sp-arco').stroke,
-      txt: cs('.splash-txt') && cs('.splash-txt').color, color: cs('.sp-color') && cs('.sp-color').backgroundImage };
+      txt: cs('.splash-txt') && cs('.splash-txt').color, color: cs('.sp-color') && cs('.sp-color').backgroundImage,
+      palabra: cs('.sp-palabra .sp-l') && cs('.sp-palabra .sp-l').fill, halo: cs('.sp-halo') && cs('.sp-halo').animationName };
   }).observe(document, { childList: true, subtree: true });
 };
 
@@ -111,6 +112,7 @@ export default async function ({ base, t }){
   t.eq([sp.marca, sp.bg, sp.arc], [true, LUZ_BG, 'rgb(11, 13, 17)'], 'Claro: splash del logo sobre fondo claro, con la G oscura');
   t.ok(/rgb\(224, 58, 174\)/.test(sp.color || '') && /rgb\(27, 205, 182\)/.test(sp.color || ''), 'Claro: el orbe del splash con los colores originales: ' + sp.color);
   t.ok(sp.txt && ratio(sp.txt, sp.bg) >= 4.5, 'Claro: el texto del splash se lee: ' + sp.txt);
+  t.eq([sp.palabra, sp.halo], ['rgb(11, 13, 17)', 'sp-respira'], 'Claro: la palabra GIZE oscura y el resplandor del orbe que respira');
   await wait(2500);
 
   // 3) Entreno (ejercicio abierto): texto legible y la G oscura.

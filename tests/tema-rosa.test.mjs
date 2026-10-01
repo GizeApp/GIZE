@@ -2,7 +2,7 @@
 // de «Azul» (la que antes se llamaba «Claro») con la paleta rosa. Es la cuarta opción del selector
 // Apariencia (Ajustes del cliente y Configuración del coach, que entra en 320 px), se aplica al toque, queda guardada
 // ("gize_tema" = "rosa") y las dos clases ya están antes de la primera pintada (sin parpadeo).
-// Fondo ciruela, gama rosa / orquídea / rubor (nada de azul ni cian), splash con los círculos
+// Fondo ciruela, gama rosa / orquídea / rubor (nada de azul ni cian), splash con el orbe
 // rosa. Pasar a «Azul» saca solo tema-rosa; pasar a «Oscuro», las dos. Anda con el neón
 // apagado (blancos y grises) y con el modo liviano (sin desenfoques).
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
@@ -54,7 +54,8 @@ const spy = () => {
   new MutationObserver((ms, o) => { const s = document.getElementById('splash'); if (!s) return; o.disconnect();
     const cs = q => { const e = s.querySelector(q); return e ? getComputedStyle(e) : null; };
     window.__splash = { marca: !!s.querySelector('.sp-marca .sp-orbe'), bg: getComputedStyle(s).backgroundColor,
-      arc: cs('.sp-arco') && cs('.sp-arco').stroke, color: cs('.sp-color') && cs('.sp-color').backgroundImage, halo: cs('.sp-halo') && cs('.sp-halo').backgroundImage };
+      arc: cs('.sp-arco') && cs('.sp-arco').stroke, color: cs('.sp-color') && cs('.sp-color').backgroundImage, halo: cs('.sp-halo') && cs('.sp-halo').backgroundImage,
+      palabra: cs('.sp-palabra .sp-l') && cs('.sp-palabra .sp-l').fill, respira: cs('.sp-halo') && cs('.sp-halo').animationName };
   }).observe(document, { childList: true, subtree: true });
 };
 
@@ -93,6 +94,7 @@ export default async function ({ base, t }){
   t.eq([sp.marca, sp.bg, sp.arc], [true, PLUM, 'rgb(255, 255, 255)'], 'Rosa: splash del logo sobre ciruela, con la G blanca');
   t.ok(/rgb\(255, 79, 158\)/.test(sp.color || '') && /rgb\(184, 76, 240\)/.test(sp.color || ''), 'Rosa: el orbe del splash rosa y orquídea: ' + sp.color);
   t.eq(azules(sp.color + ' ' + sp.halo), [], 'Rosa: nada de azul ni cian en el orbe ni en su resplandor');
+  t.eq([sp.palabra, sp.respira], ['rgb(255, 255, 255)', 'sp-respira'], 'Rosa: la palabra GIZE blanca y el resplandor del orbe que respira');
   await wait(2500);
   await pg.p.click('#nav-config'); await wait(500);
   l = await look(pg.p);

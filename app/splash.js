@@ -1,11 +1,12 @@
 (function () {
-  // El splash de todas las apariencias es el logo oficial armándose (template #splashTpl en
-  // app/index.html, css/core/splash.css), con los colores de cada una: carga, la G que se traza,
-  // un impacto de luz y la palabra GIZE. Dura 2,22 s contando la salida (primero se va la marca y
-  // después el fondo); en el modo liviano ya viene armado y se va a los 0,85 s.
+  // El splash de todas las apariencias es el logo oficial, tranquilo (template #splashTpl en
+  // app/index.html, css/core/splash.css), con los colores de cada una: la marca aparece suave con
+  // la G que se traza, el orbe respira una vez y sube la palabra GIZE. Dura 1,6 s contando la
+  // salida (primero se va la marca y después el fondo); en el modo liviano ya viene armado y se
+  // va a los 0,85 s. Al terminar no queda nada: se saca del DOM todo lo que puso.
   var MAX_MS = 8000;   // techo de seguridad si la app nunca avisa que está lista
   var tpl = document.getElementById('splashTpl');
-  function totalMs() { return document.documentElement.classList.contains('lite') ? 850 : 2220; }
+  function totalMs() { return document.documentElement.classList.contains('lite') ? 850 : 1600; }
   var host = document.getElementById('splashHost');
   var current = null; // splash en pantalla ahora mismo, si hay uno
 
@@ -31,6 +32,7 @@
     clearTimeout(state.safety);
     state.el.remove();
     if (current === state) {
+      host.textContent = ''; // el host queda vacío: ni una capa del splash sigue viva (iPhone)
       document.body.classList.remove('is-booting'); current = null;
       // Recién ahora arrancan el fondo animado y los canvas (app/ui/background.js): mientras
       // estaba el splash no tenía sentido dibujar lo que tapa, y en Android trababa la placa.
