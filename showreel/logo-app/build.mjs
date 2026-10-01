@@ -12,7 +12,7 @@ try { ({ chromium } = require('playwright')); } catch { ({ chromium } = require(
 const HERE = path.dirname(fileURLToPath(import.meta.url)), ROOT = path.resolve(HERE, '../..'), OUT = path.join(ROOT, 'showreel/stock/14-iconos-app');
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = a.replace(/^--/, '').match(/^([^=]+)(?:=(.*))?$/); return [m[1], m[2] ?? '1']; }));
 const only = args.only ? args.only.split(',') : null;
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png', '.jpg': 'image/jpeg' };
 const server = http.createServer((req, res) => {
   const p = path.join(ROOT, decodeURIComponent(new URL(req.url, 'http://x').pathname));
   if (!p.startsWith(ROOT) || !fs.existsSync(p) || fs.statSync(p).isDirectory()) { res.writeHead(404); return res.end(); }
@@ -34,4 +34,6 @@ for (const v of await page.evaluate('window.VARIANTS')) {
   console.log(`  ✓ ${v.id}.png${v.light ? ' + claro' : ''}  ${v.name}`);
 }
 if (!only) { save('00-tablero.png', await page.evaluate('window.renderBoard()')); console.log('  ✓ 00-tablero.png'); }
+if (!only || only.some(o => o.startsWith('c'))) { const b = ['_antes-1.jpg', '_antes-2.png'].filter(f => fs.existsSync(path.join(OUT, f))).map(f => `/showreel/stock/14-iconos-app/${f}`);
+  save('00-vidrio-adaptado.png', await page.evaluate(u => window.renderGlassSheet(u), b)); console.log('  ✓ 00-vidrio-adaptado.png'); }
 await browser.close(); server.close();

@@ -84,11 +84,31 @@ def('b04-g-de-vidrio','G de vidrio','B',c=>{const BG=layerP(x=>{x.fillStyle='#03
   put(c,layer(x=>{G(x,{mono:true,color:'rgba(0,0,0,0.5)'});}),{filter:blur(16)});put(c,glass);
   c.fillStyle='#2FA0FF';c.beginPath();c.arc(g.dot.x,g.dot.y,g.dot.r*0.98,0,TAU);c.fill();});
 
+/* ---------------- C · the glass, redrawn for the shape it lives in ---------------- */
+// The square glass card over circles gets cut by Instagram's circle and the phone's rounded mask. Here the glass takes
+// the mask's own shape, a step inside it (a squircle plate on the icon, a lens on the profile photo), and the circles
+// show crisp in the band around it: nothing that matters sits near the cut, and the G stays big.
+const PAL={azul:{bg:'#050A18',mono:true,c:(f)=>[[f.a[0],f.a[1],f.a[2],'#62C4FF','#0B5BD6'],[f.b[0],f.b[1],f.b[2],'#B07BFF','#4A2BD1'],[f.c[0],f.c[1],f.c[2],'#2FE0FF','#0077C8'],[f.d[0],f.d[1],f.d[2],'#1A3DBA','#07155A']]},
+  rgb:{bg:'#000000',mono:false,c:(f)=>[[f.a[0],f.a[1],f.a[2],'#7CC4FF','#2F8CFF'],[f.b[0],f.b[1],f.b[2],'#C08BFF','#9A5CFF'],[f.c[0],f.c[1],f.c[2],'#6FF3DC','#1FD8C0'],[f.d[0],f.d[1],f.d[2],'#FF7BC8','#FF3DAE']]}};
+// big enough to overlap: the band round the glass is all colour, so the edge stays a clean squircle / circle (no dark bites)
+const SPOTS={icon:{a:[170,190,470],b:[880,170,425],c:[860,860,470],d:[160,880,425]},ig:{a:[243,243,400],b:[781,243,380],c:[781,781,400],d:[243,781,385]}};
+function glassPlate(c,BG,path,{blurR=26,tint=0.12}={}){c.save();path(c);c.clip();putP(c,BG,{filter:blur(blurR)});c.fillStyle=`rgba(255,255,255,${tint})`;c.fillRect(0,0,W,W);
+  const h=c.createLinearGradient(0,0,W,W);h.addColorStop(0,'rgba(255,255,255,0.26)');h.addColorStop(0.45,'rgba(255,255,255,0.03)');h.addColorStop(1,'rgba(255,255,255,0.08)');c.fillStyle=h;c.fillRect(0,0,W,W);c.restore();
+  const r=c.createLinearGradient(0,0,W,W);r.addColorStop(0,'rgba(255,255,255,0.7)');r.addColorStop(0.5,'rgba(255,255,255,0.12)');r.addColorStop(1,'rgba(255,255,255,0.38)');c.strokeStyle=r;c.lineWidth=3;path(c);c.stroke();}
+function glassAdapted(c,pal,shape){const P=PAL[pal],BG=layerP(x=>{x.fillStyle=P.bg;x.fillRect(-PAD,-PAD,W+2*PAD,W+2*PAD);blobs(x,P.c(SPOTS[shape]));});putP(c,BG);
+  const path=shape==='icon'?(x=>squircle(x,140,140,W-280)):(x=>{x.beginPath();x.arc(CX,CY,365,0,TAU);});
+  put(c,layer(x=>{path(x);x.fillStyle='rgba(0,0,0,0.55)';x.fill();}),{filter:blur(22)});glassPlate(c,BG,path);grain(c,0.04);G(c,{mono:P.mono,d:440});}
+const VC=[];const defC=(id,name,pal,shape)=>VC.push({id,name,group:'C',pal,shape,draw:c=>glassAdapted(c,pal,shape)});
+defC('c01-vidrio-azul-icono','Vidrio azul · ícono','azul','icon');defC('c02-vidrio-rgb-icono','Vidrio RGB · ícono','rgb','icon');
+defC('c03-vidrio-azul-perfil','Vidrio azul · perfil IG','azul','ig');defC('c04-vidrio-rgb-perfil','Vidrio RGB · perfil IG','rgb','ig');
+V.push(...VC.filter(v=>v.shape==='icon'));
+
 /* ---------------- render + board ---------------- */
 function renderBig(v,mode){const cv=mk(S,S),c=cv.getContext('2d');c.setTransform(Z,0,0,Z,0,0);((mode==='light'&&v.light)||v.draw)(c);return cv;}
 function halve(cv){const o=mk(cv.width/2,cv.height/2),c=o.getContext('2d');c.imageSmoothingQuality='high';c.drawImage(cv,0,0,o.width,o.height);return o;}
-window.VARIANTS=V.map(v=>({id:v.id,name:v.name,light:!!v.light}));
-window.renderVariant=(id,mode)=>halve(renderBig(V.find(v=>v.id===id),mode)).toDataURL('image/png');
+const ALL=()=>[...V,...VC.filter(v=>v.shape==='ig')];
+window.VARIANTS=ALL().map(v=>({id:v.id,name:v.name,light:!!v.light}));
+window.renderVariant=(id,mode)=>halve(renderBig(ALL().find(v=>v.id===id),mode)).toDataURL('image/png');
 // the iOS mask: a superellipse (close to Apple's continuous corners)
 function squircle(c,x,y,s){const n=5,a=s/2,cx=x+a,cy=y+a;c.beginPath();for(let i=0;i<=160;i++){const t=i/160*TAU,ct=Math.cos(t),st=Math.sin(t);const px=cx+a*Math.sign(ct)*Math.abs(ct)**(2/n),py=cy+a*Math.sign(st)*Math.abs(st)**(2/n);i?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();}
 function icon(c,img,x,y,s){c.save();squircle(c,x,y,s);c.clip();c.imageSmoothingQuality='high';c.drawImage(img,x,y,s,s);c.restore();}
@@ -107,6 +127,19 @@ window.renderBoard=()=>{const cols=4,CW=520,CH_=700,gap=40,M=90,head=280,rows=Ma
     icon(c,dk,x+CW/2-130,y+34,260);
     txt(c,v.id.slice(0,3).toUpperCase(),x+30,y+342,700,22,v.group==='A'?'#2FA0FF':'#FF3DAE');txt(c,v.name,x+90,y+342,700,26,'#fff');if(v.light)txt(c,'+ versión clara',x+CW-30,y+342,500,19,'#8F98A6','right');
     homeTile(c,x+24,y+366,CW-48,150,dk,true);homeTile(c,x+24,y+528,CW-48,150,lt,false);});
+  return cv.toDataURL('image/png');};
+// before -> after: the square composition, then the icon on home screens and the profile photo at its sizes
+window.renderGlassSheet=async(before)=>{const imgs=await Promise.all(before.map(u=>new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src=u;})));
+  const M=90,head=260,rowH=560,BW=2400,BH=head+2*rowH+M,cv=mk(BW,BH),c=cv.getContext('2d');c.fillStyle='#0B0D11';c.fillRect(0,0,BW,BH);
+  txt(c,'El vidrio, rediseñado para el círculo de Instagram y el ícono del celular',M,110,800,50,'#fff');
+  txt(c,'El vidrio toma la forma del recorte (una lente en el perfil, una placa redondeada en el ícono) y los círculos asoman nítidos alrededor.',M,158,500,25,'#8F98A6');
+  const rg=c.createLinearGradient(M,0,BW-M,0);['#2FA0FF','#A65CFF','#FF3DAE','#25E8C8'].forEach((s,i)=>rg.addColorStop(i/3,s));c.fillStyle=rg;c.fillRect(M,196,BW-2*M,3);
+  const circ=(img,x,y,r)=>{c.save();c.beginPath();c.arc(x,y,r,0,TAU);c.clip();c.imageSmoothingQuality='high';c.drawImage(img,x-r,y-r,2*r,2*r);c.restore();};
+  [['azul',0],['rgb',1]].forEach(([pal,k])=>{const y=head+k*rowH,ic=renderBig(VC.find(v=>v.pal===pal&&v.shape==='icon')),pf=renderBig(VC.find(v=>v.pal===pal&&v.shape==='ig'));
+    if(imgs[k]){c.save();c.beginPath();c.roundRect(M,y+40,360,360,20);c.clip();c.drawImage(imgs[k],M,y+40,360,360);c.restore();c.globalAlpha=0.55;circ(imgs[k],M+300,y+340,52);c.globalAlpha=1;}
+    txt(c,'Antes',M,y+450,700,26,'#8F98A6');txt(c,'→',M+420,y+240,500,60,'#2FA0FF');
+    icon(c,ic,M+520,y+40,360);txt(c,'Ícono',M+520,y+450,700,26,'#fff');homeTile(c,M+930,y+40,520,150,ic,true);homeTile(c,M+930,y+210,520,150,ic,false);
+    circ(pf,M+1700,y+220,180);circ(pf,M+1960,y+150,55);circ(pf,M+2080,y+150,28);txt(c,'Perfil de Instagram',M+1520,y+450,700,26,'#fff');});
   return cv.toDataURL('image/png');};
 window.READY=false;
 (async()=>{await Promise.all([500,600,700,800].map(w=>document.fonts.load(F(w,40))));await loadLogo();window.READY=true;})();
