@@ -41,7 +41,7 @@ import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
 
-import { EntrenoState, REST_DEFAULT, day, expandedOverride, exGroupIds, liveCounting, renderEntreno, renderExList, renderExSheet, effectiveRest, restKey, wkElapsedText, wkFresh, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
+import { EntrenoState, REST_DEFAULT, day, expandedOverride, exGroupIds, liveCounting, renderEntreno, renderExList, renderExSheet, renderVarSheet, effectiveRest, restKey, wkElapsedText, wkFresh, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
 import { HabitosState, addHabit, checkDaily, forgetHabitAlarm, habitAlarmDay, openHabitAlarm, paintHabitAlarmSheet, renderHabitAlarmSheet, renderHabitos, saveHabitAlarm } from './screens/habitos.js';
 import { alarmsSupported, askAlarmPermission, initHabitAlarms, syncHabitAlarms } from './ui/habitnotif.js';
@@ -77,6 +77,7 @@ import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
 import { ChatUnread, chatOpenFor, openChat, refreshUnread } from './ui/chat.js';
 import { signedAudioUrl, togglePlay } from './ui/grabar.js';
 import { dropExMedia } from './core/videos.js';
+import { clearVariant, setVariant, todayEx, todayExs, variantOf } from './core/variantes.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
 const autoKg = new Set();
@@ -128,7 +129,7 @@ export function renderApp(){
   initScrollReveal();
   setupExerciseFocus();
   renderRestBar();
-  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : (State.view==="habitos" && HabitosState.edit) ? renderHabitAlarmSheet(alarmsSupported()) : "");
+  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : (State.view==="entreno" && EntrenoState.varSheet) ? renderVarSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : (State.view==="habitos" && HabitosState.edit) ? renderHabitAlarmSheet(alarmsSupported()) : "");
   syncHabitAlarms(); // avisos de los hábitos (solo reprograma si cambiaron)
   if (State.view==="habitos" && HabitosState.pendingFocusHabit) { const i=document.getElementById("habitInput"); if(i) i.focus(); HabitosState.pendingFocusHabit=false; }
   if (State.view==="entreno") v.querySelectorAll("textarea.day-name").forEach(fitDayName);
@@ -203,10 +204,27 @@ function afterSetDone(d, ex, s){
   if(!wkFresh(w) || w.day!==d.id || (!w.manual && !others)){ state.wkStart={date:today(), day:d.id, ts:Date.now()}; save(); }
   // El descanso ya no arranca solo al tildar: se inicia con «Iniciar descanso». En una
   // superserie la pantalla igual pasa a la serie que sigue.
-  const idx=d.exercises.indexOf(ex);
+  const idx=d.exercises.findIndex(x=>x.id===ex.id); // ex puede ser el de hoy (variante), no el mismo objeto
   if(!ssGroupOf(d.exercises, idx)) return;
   const nx=ssNext(d.exercises, idx, ex.sets.indexOf(s));
   if(nx.target) setTimeout(()=>goToSet(nx.target), 420);
+}
+// Variante solo por hoy (core/variantes.js). Las series del coach quedan (objetivo, RIR, notas,
+// audio); el peso de las series sin tildar se cambia por el de la vez pasada de la variante (o
+// queda vacío) y al volver al original vuelve el que había.
+function applyVariant(raw, name){
+  const prev=variantOf(raw);
+  const kg0=prev && prev.kg0 ? prev.kg0 : {};
+  if(!prev) raw.sets.forEach(s=>{ if(!s.done) kg0[s.id]=s.kg==null?"":String(s.kg); });
+  setVariant(raw, name, {kg0});
+  const list=todayExs(day()), v=list.find(x=>x.id===raw.id) || todayEx(raw);
+  const last=lastSessionFor(name, exOccurrence(list, v));
+  const plan=last ? lastPlan(v, last.sets) : [];
+  raw.sets.forEach((s,i)=>{ if(s.done) return; const k=plan[i] && plan[i].kg; s.kg=k ? String(k) : ""; autoKg.delete(s.id); forgetPR(s.id); });
+}
+function revertVariant(raw){
+  const o=clearVariant(raw.id); if(!o) return;
+  raw.sets.forEach(s=>{ if(s.done) return; if(o.kg0 && Object.prototype.hasOwnProperty.call(o.kg0, s.id)) s.kg=o.kg0[s.id]; autoKg.delete(s.id); forgetPR(s.id); });
 }
 // Un ejercicio recién agregado aparece abierto (y cierra el que estaba abierto), para cargarle las series.
 function openEx(e){ expandedOverride.clear(); expandedOverride.add(e.id); return e; }
@@ -259,7 +277,7 @@ document.body.addEventListener("input", async e => {
     if(s) s.secs=t.value;
   }
   else if (a === "kg" || a === "reps") {
-    const ex=d.exercises.find(x=>x.id===t.dataset.ex); const s=ex&&ex.sets.find(x=>x.id===t.dataset.set);
+    const exs=todayExs(d), ex=exs.find(x=>x.id===t.dataset.ex); const s=ex&&ex.sets.find(x=>x.id===t.dataset.set);
     if(s){
       // Asistidos: se escribe la ayuda (30) y se guarda en negativo (-30), ver utils.
       const val = (a === "kg" && isAssisted(ex.name)) ? assistedKg(t.value) : t.value;
@@ -277,7 +295,7 @@ document.body.addEventListener("input", async e => {
         });
         // «Usar estos pesos»: aparece si ahora cambiaría algo y se oculta si ya están esos pesos.
         const ub=t.closest("[data-ex-id]"), use=ub && ub.querySelector(".ls-use");
-        if(use){ const prev=lastSessionFor(ex.name, exOccurrence(d.exercises, ex)); use.hidden=!(prev && lastKgsUseful(ex, lastPlan(ex, prev.sets))); }
+        if(use){ const prev=lastSessionFor(ex.name, exOccurrence(exs, ex)); use.hidden=!(prev && lastKgsUseful(ex, lastPlan(ex, prev.sets))); }
       }
     }
   }
@@ -356,7 +374,7 @@ document.body.addEventListener("click", async e => {
   const tabBtn = e.target.closest(".tab");
   if (tabBtn) tabRipple(tabBtn, e.clientX, e.clientY);
   const navBtn = e.target.closest("[data-view]");
-  if (navBtn) { State.view = navBtn.dataset.view; ComidaState.selectedFood=null; ComidaState.editEntry=null; ComidaState.calEditing=false; ComidaState.planOpen=false; ProgresoState.section=null; ComidaState.creatingFood=false; closeRequest(); HabitosState.edit=null; EntrenoState.exPicker=null; renderApp(); return; }
+  if (navBtn) { State.view = navBtn.dataset.view; ComidaState.selectedFood=null; ComidaState.editEntry=null; ComidaState.calEditing=false; ComidaState.planOpen=false; ProgresoState.section=null; ComidaState.creatingFood=false; closeRequest(); HabitosState.edit=null; EntrenoState.exPicker=null; EntrenoState.varSheet=null; renderApp(); return; }
   const el = e.target.closest("[data-action]"); if(!el) return;
   // Si pasó la medianoche con la app abierta, primero se pasa al día nuevo: si no, lo que se
   // anota ahora (comida, agua, pasos) caía en el día anterior y el redibujo lo borraba.
@@ -580,8 +598,19 @@ document.body.addEventListener("click", async e => {
     return;
   }
   if (a === "ex-cancel") { closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
-  if (a === "ex-choose") { const name=el.dataset.name; const d=day(); const mm=pickMuscle(name, el.dataset.cat||EntrenoState.exCat); if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==name) dropExMedia(ex); ex.name=name; ex.mus=mm; } } else if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(name,2,mm))); } else { d.exercises.push(openEx(mkEx(name,2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
-  if (a === "ex-custom") { const nm=prompt(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:",""); if(nm && nm.trim()){ const d=day(); const mm=EntrenoState.exCat; if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==nm.trim()) dropExMedia(ex); ex.name=nm.trim(); ex.mus=mm; } } else if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(nm.trim(),2,mm))); } else { d.exercises.push(openEx(mkEx(nm.trim(),2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); } return; }
+  // «Ver variantes» (core/variantes.js): cambiar el ejercicio solo por hoy. No toca la rutina
+  // (vale también con la rutina del coach), por eso no está en la lista de bloqueadas de arriba.
+  if (a === "ex-variants") { SheetState.sheetGen++; EntrenoState.varSheet={exId:el.dataset.ex}; renderApp(); return; }
+  if (a === "var-cancel") { closeSheet(()=>{ EntrenoState.varSheet=null; renderApp(); }); return; }
+  if (a === "var-pick" || a === "var-back") {
+    const raw=day().exercises.find(x=>x.id===el.dataset.ex); if(!raw) return;
+    if(a === "var-back" || el.dataset.name === raw.name) revertVariant(raw); else applyVariant(raw, el.dataset.name);
+    save();
+    if(a === "var-pick") closeSheet(()=>{ EntrenoState.varSheet=null; renderApp(); }); else renderApp();
+    return;
+  }
+  if (a === "ex-choose") { const name=el.dataset.name; const d=day(); const mm=pickMuscle(name, el.dataset.cat||EntrenoState.exCat); if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==name) dropExMedia(ex); clearVariant(ex.id); ex.name=name; ex.mus=mm; } } else if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(name,2,mm))); } else { d.exercises.push(openEx(mkEx(name,2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
+  if (a === "ex-custom") { const nm=prompt(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:",""); if(nm && nm.trim()){ const d=day(); const mm=EntrenoState.exCat; if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==nm.trim()) dropExMedia(ex); clearVariant(ex.id); ex.name=nm.trim(); ex.mus=mm; } } else if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(nm.trim(),2,mm))); } else { d.exercises.push(openEx(mkEx(nm.trim(),2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); } return; }
 
   // Peso corporal
   if (a === "daily-save") {
@@ -676,7 +705,8 @@ document.body.addEventListener("click", async e => {
   // Entreno
   if (a === "tab") { State.activeId = el.dataset.day; setTimeout(renderApp, 130); return; } // deja ver el ripple antes del rerender
   const d = day();
-  const ex = el.dataset.ex && d.exercises.find(x=>x.id===el.dataset.ex);
+  const exsToday = todayExs(d);
+  const ex = el.dataset.ex && exsToday.find(x=>x.id===el.dataset.ex);
   if (a === "toggle") {
     const s=ex.sets.find(x=>x.id===el.dataset.set);
     const wasDone=allSetsDone(ex);
@@ -746,7 +776,7 @@ document.body.addEventListener("click", async e => {
   // de la vez pasada (las de más, el de la última). Quedan como cargados a mano.
   if (a === "last-use") {
     if(!ex) return;
-    const prev=lastSessionFor(ex.name, exOccurrence(d.exercises, ex)); if(!prev) return;
+    const prev=lastSessionFor(ex.name, exOccurrence(exsToday, ex)); if(!prev) return;
     const plan=lastPlan(ex, prev.sets);
     ex.sets.forEach((s,i)=>{ const k=plan[i]&&plan[i].kg; if(!s.done && k){ s.kg=String(k); autoKg.delete(s.id); forgetPR(s.id); } });
     save(); renderApp(); return;

@@ -1,6 +1,7 @@
 import { Player, audioState, mmss } from '../ui/grabar.js';
 import { ssGroups, ssName } from '../core/superserie.js';
 import { exVideo } from '../core/videos.js';
+import { EQ_LABELS, equipOf, todayExs, variantOf, variantsFor } from '../core/variantes.js';
 
 import { EX_CATS, EX_DB, RC } from '../core/data.js';
 
@@ -30,6 +31,9 @@ import { focusFor } from '../ui/scrollfocus.js';
 export const EntrenoState = {
 
   exPicker: null,
+
+  // Hoja de «Ver variantes» abierta: { exId } (ver core/variantes.js).
+  varSheet: null,
 
   exCat: "pecho",
 
@@ -221,7 +225,9 @@ export function renderEntreno(){
   const groups = ssGroups(d.exercises);
   // Ejercicio en foco (ver ui/scrollfocus.js): se dibuja ya marcado para que no parpadee.
   const fid = focusFor(d.exercises.map(ex => ex.id), d.exercises.filter(ex => expandedOverride.has(ex.id)).map(ex => ex.id));
-  const cards = d.exercises.map((ex, exIdx) => ssWrap(d.exercises, groups, exIdx, (() => { try {
+  // Cada ejercicio como se hace hoy: con la variante elegida (solo por hoy) si hay una.
+  const exs = todayExs(d);
+  const cards = exs.map((ex, exIdx) => ssWrap(d.exercises, groups, exIdx, (() => { try {
     // Entre ejercicios (rutina propia): insertar uno acá y unir/separar con el de arriba.
     const g = groups.find(x => exIdx >= x.start && exIdx <= x.end) || null;
     const tag = g ? g.letter + (exIdx - g.start + 1) : "";
@@ -251,7 +257,7 @@ export function renderEntreno(){
       }
       return `${insertBtn}<div class="ex-collapsed${done?' ex-is-done':''}" data-action="ex-expand" data-ex="${esc(ex.id)}" role="button" tabindex="0" aria-expanded="false" aria-label="Abrir ${esc(ex.name)}">
         ${badge}
-        <span class="ex-collapsed-name">${tag&&done?`<span class="ss-tag">${tag}</span>`:''}${esc(ex.name)}</span>
+        <span class="ex-collapsed-name">${tag&&done?`<span class="ss-tag">${tag}</span>`:''}${esc(ex.name)}${ex.origName?'<span class="ex-var-tag">Variante</span>':''}</span>
         <span class="ex-collapsed-best${cls}">${meta}</span>
         <span class="ex-chev" aria-hidden="true">${chevronDownSvg}</span>
       </div>`;
@@ -273,7 +279,7 @@ export function renderEntreno(){
       </div>`;
     };
     // Si el día tiene el mismo ejercicio dos veces, cada uno va con el suyo de la vez pasada.
-    const occ = exOccurrence(d.exercises, ex);
+    const occ = exOccurrence(exs, ex);
     // Si alguna serie tiene objetivo del coach, las que no lo tienen dejan el lugar vacío:
     // así kg y reps quedan del mismo ancho en todas las filas.
     const anyGoal = ex.sets.some(s => s.target);
@@ -289,13 +295,15 @@ export function renderEntreno(){
     return `${insertBtn}<div class="card${ex.id===fid?' ex-focused':''}" data-ex-id="${esc(ex.id)}">
       <div class="card-head">
         <span class="ex-num${tag?' ss':''}" aria-label="Ejercicio ${tag||exIdx+1}">${tag||exIdx+1}</span>
-        <input class="ex-name" type="text" value="${esc(ex.name)}" data-action="exname" data-ex="${esc(ex.id)}" ${routineLocked()?'readonly':''}>
+        <input class="ex-name" type="text" value="${esc(ex.name)}" data-action="exname" data-ex="${esc(ex.id)}" ${routineLocked()||ex.origName?'readonly':''}>
         ${routineLocked()?'':`<button class="icon-mini" data-action="ex-swap" data-ex="${esc(ex.id)}" title="Cambiar ejercicio">${swapSvg}</button>
         <button class="trash" data-action="removeex" data-ex="${esc(ex.id)}" title="Eliminar ejercicio">${trashSvg}</button>`}
         <button class="icon-mini ex-chev up" data-action="ex-collapse" data-ex="${esc(ex.id)}" aria-expanded="true" aria-label="Cerrar ${esc(ex.name)}" title="Cerrar">${chevronDownSvg}</button>
       </div>
       ${(()=>{ const v=exVideo(ex); return v?`<a class="ex-video" href="${esc(v.url)}" target="_blank" rel="noopener">${playSvg} Ver video del ejercicio${v.channel?`<span class="ex-video-by">· ${esc(v.channel)}</span>`:''}</a>`:''; })()}
       ${exAudioBtn(ex)}
+      ${varButton(ex)}
+      ${ex.origName?`<div class="ex-var-chip" role="status"><span class="evc-t">Variante de hoy · en lugar de <b>${esc(ex.origName)}</b></span><button class="evc-back" data-action="var-back" data-ex="${esc(ex.id)}">Volver al original</button></div>`:''}
       ${(ex.rir||ex.goal)?`<div class="ex-prog">
         ${ex.rir?`<span class="ep-chip">RIR ${esc(ex.rir)}</span>`:''}
         ${ex.goal?`<span class="ep-goal">${esc(ex.goal)}</span>`:''}
@@ -369,6 +377,34 @@ export function renderExSheet(){
       <div class="ex-list" id="exList">${renderExList()}</div>
       <button class="ex-custom" data-action="ex-custom">${pencilSvg} ${EntrenoState.exPicker.mode==="swap"?"Escribir nombre propio":"Agregar con nombre propio"}</button>
       <button class="ctrl ghost" style="max-width:none;width:100%;margin-top:10px" data-action="ex-cancel">Cancelar</button>
+    </div>`;
+}
+
+// «Ver variantes»: el mismo músculo con otro equipo, por si la máquina está ocupada o no está.
+// No sale si no hay ninguna (ejercicio con nombre propio que no está en la lista).
+const baseEx = ex => ex.origName ? { name: ex.origName, mus: ex.mus, timed: ex.timed } : ex;
+function varButton(ex){
+  if (!variantsFor(baseEx(ex)).list.length) return '';
+  return `<button class="ex-var-btn" data-action="ex-variants" data-ex="${esc(ex.id)}">${swapSvg}<span>Ver variantes</span></button>`;
+}
+
+export function renderVarSheet(){
+  const vs = EntrenoState.varSheet; if (!vs) return "";
+  const raw = day().exercises.find(x => x.id === vs.exId); if (!raw) return "";
+  const cur = variantOf(raw), r = variantsFor(raw);
+  const item = (name, eq, tag, on) => `<button class="ex-pick var-pick${on?' on':''}" data-action="var-pick" data-ex="${esc(raw.id)}" data-name="${esc(name)}" aria-pressed="${on}">
+      <span class="vp-n">${esc(name)}</span>
+      <span class="vp-tags">${EQ_LABELS[eq] && eq !== "otro" ? `<span class="vp-eq">${esc(EQ_LABELS[eq])}</span>` : ''}${tag ? `<span class="vp-own">${tag}</span>` : ''}</span>
+    </button>`;
+  const list = item(raw.name, equipOf(raw.name), "En tu rutina", !cur) +
+    r.list.map(v => item(v.name, v.eq, cur && cur.name === v.name ? "Hoy" : "", !!(cur && cur.name === v.name))).join("");
+  return `
+    <div class="sheet-bg" data-action="var-cancel"></div>
+    <div class="sheet ex-sheet var-sheet" role="dialog" aria-label="Variantes de ${esc(raw.name)}">
+      <div class="sheet-title">Variantes · ${esc(r.label)}</div>
+      <p class="var-hint">Si la máquina está ocupada o no la tenés, usá una de estas. Tu rutina no cambia: es solo por hoy.</p>
+      <div class="ex-list var-list">${list}</div>
+      <button class="ctrl ghost" style="max-width:none;width:100%;margin-top:10px" data-action="var-cancel">Cerrar</button>
     </div>`;
 }
 

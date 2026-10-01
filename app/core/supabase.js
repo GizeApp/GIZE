@@ -9,6 +9,7 @@ import { loadCoachQuestions } from '../screens/coach/preguntas.js';
 
 import { State, state, ensureDays } from './state.js';
 import { activeDeload } from './bloque.js';
+import { markSubs, mergeTodaySubs, todaySubs } from './variantes.js';
 
 import { DEFAULT } from './data.js';
 
@@ -821,6 +822,8 @@ export async function loadCloud(){
     }
     if(!ss.error && Array.isArray(ss.data)){
       state.sessions=ss.data.map(se=>Object.assign(sessionFromRow(se), {id:se.id, cloudId:se.id}));
+      // Variantes del día («en lugar de…»): del registro de cada día en la nube y de lo de hoy en el celular.
+      markSubs(state.sessions, (!dl.error && Array.isArray(dl.data) ? dl.data : []).concat(todaySubs() ? [{log_date:today(), habits_done:{subs:todaySubs()}}] : []));
     }
     // Las respuestas a preguntas propias del coach vienen en "answers"; las de siempre, en
     // sus columnas (que mandan si aparecen en los dos lados).
@@ -951,7 +954,9 @@ function daySnapshot(){
   const coachHabits=(state.coachPlan && Array.isArray(state.coachPlan.habits)) ? state.coachPlan.habits.filter(x=>x&&x.trim()) : [];
   return {
     dt:t, water:state.water||0, steps:state.steps||0,
-    habits:{ coach:coachHabits.filter(n=>state.habitsDone && state.habitsDone[t+"|"+n]), own:(state.habits||[]).filter(h=>h.done).map(h=>h.name) },
+    // subs: ejercicios cambiados por una variante en los entrenos de hoy (core/variantes.js). Van
+    // acá porque session_entries guarda solo el nombre; así el coach ve «en lugar de…».
+    habits:Object.assign({ coach:coachHabits.filter(n=>state.habitsDone && state.habitsDone[t+"|"+n]), own:(state.habits||[]).filter(h=>h.done).map(h=>h.name) }, todaySubs() ? { subs:todaySubs() } : {}),
     foods:(state.diary||[]).map(e=>{ if(!UUID_RE.test(String(e.id))) e.id=newId(); return {id:e.id, meal:e.meal||null, name:e.name, grams:e.grams, unit:e.unit||"g", kcal:e.kcal||0, p:e.p||0, c:e.c||0, f:e.f||0, base:e.base||null}; })
   };
 }
@@ -964,6 +969,7 @@ function prefsSnapshot(){
 
 function applyHabitsDone(hd){
   if(!hd) return;
+  mergeTodaySubs(hd.subs);
   const t=today(), own=new Set(hd.own||[]);
   (state.habits||[]).forEach(h=>{ h.done=own.has(h.name); });
   if(!state.habitsDone || typeof state.habitsDone!=="object") state.habitsDone={};

@@ -301,3 +301,28 @@ html.lite .wk-start::before { animation: none; }
 /* Cerrado y sin terminar: mismo borde de neón que el ejercicio abierto (sigue siendo «su» caja). */
 body:not(#_) :not(.ss-group) > .ex-collapsed:not(.ex-is-done) { border: 1.5px solid transparent;
   background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box, var(--gize-rgb-ring) border-box; }
+
+/* «Ver variantes» (app/core/variantes.js): el mismo músculo con otro equipo, solo por hoy.
+   Discreto (sin neón ni color propio): filete gris del tema, como «cambiar» del descanso. Con
+   los tokens del tema queda bien en Oscuro, Claro, Azul y Rosa, con y sin neón y en liviano. */
+.ex-var-btn { display:inline-flex; align-items:center; gap:6px; background:transparent; border:1px solid var(--gize-border); color:var(--gize-text-2);
+  font:600 var(--text-meta) var(--gize-font); padding:7px 11px; border-radius:4px; margin:0 0 10px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.ex-video + .ex-var-btn, .ex-audio + .ex-var-btn { margin-left:6px; }
+.ex-var-btn svg { width:var(--icon-xs); height:var(--icon-xs); flex-shrink:0; }
+.ex-var-btn:active { background:var(--gize-surface-2); color:var(--gize-text); }
+/* Ejercicio cambiado por hoy: aviso con «Volver al original». */
+.ex-var-chip { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin:0 0 10px; padding:8px 10px; border:1px dashed var(--gize-border); border-radius:6px;
+  background:var(--gize-surface-2); font-size:var(--text-meta); color:var(--gize-text-2); line-height:1.35; }
+.ex-var-chip .evc-t { flex:1; min-width:150px; }
+.ex-var-chip b { color:var(--gize-text); font-weight:700; }
+.evc-back { flex-shrink:0; background:none; border:0; padding:4px 0; color:var(--gize-text); font:700 var(--text-meta) var(--gize-font); text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+.ex-var-tag { display:inline-block; margin-left:6px; padding:1px 6px; border:1px solid var(--gize-border); border-radius:999px; font-size:10px; font-weight:600; color:var(--gize-text-2); vertical-align:1px; }
+/* Hoja de variantes. */
+.var-hint { margin:-4px 0 12px; font-size:var(--text-meta); color:var(--gize-text-2); line-height:1.45; }
+.var-pick { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.var-pick .vp-n { flex:1; min-width:0; }
+.vp-tags { display:inline-flex; flex-wrap:wrap; justify-content:flex-end; gap:4px; flex-shrink:0; }
+.vp-eq, .vp-own { font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:999px; white-space:nowrap; }
+.vp-eq { border:1px solid var(--gize-border); color:var(--gize-text-2); }
+.vp-own { background:var(--gize-text); color:var(--gize-bg); }
+body:not(#_) .var-pick.on { border-color:var(--gize-text); }

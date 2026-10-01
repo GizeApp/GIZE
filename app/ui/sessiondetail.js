@@ -12,6 +12,12 @@ import { esc, fmtDate, fmtSecs } from '../core/utils.js';
 
 const fmtKg = n => { const v = Number(n) || 0; return (Math.round(v * 100) / 100).toString().replace(".", ","); };
 
+// Variante del día (core/variantes.js): «Hizo X en lugar de Y».
+function varNote(ex){
+  if (!ex.originalName || ex.originalName === ex.name) return '';
+  return '<div class="sd-var">Hizo <b>' + esc(ex.name) + '</b> en lugar de <b>' + esc(ex.originalName) + '</b></div>';
+}
+
 function exerciseBlock(ex){
   const sets = ex.sets || [];
   const best = sets.reduce((b, s) => (Number(s.kg) || 0) !== 0 && (!b || Number(s.kg) > Number(b.kg)) ? s : b, null);
@@ -31,7 +37,7 @@ function exerciseBlock(ex){
   const maxSecs = sets.reduce((m, s) => Math.max(m, Number(s.secs) || 0), 0);
   if (maxSecs > 0) meta.push("máx " + fmtSecs(maxSecs));
   return '<div class="sd-ex"><div class="sd-ex-h"><span class="sd-ex-name">' + esc(ex.name || "") + '</span>' +
-    '<span class="sd-ex-meta">' + meta.join(" · ") + '</span></div>' + rows + '</div>';
+    '<span class="sd-ex-meta">' + meta.join(" · ") + '</span></div>' + varNote(ex) + rows + '</div>';
 }
 
 // Coach: cada ejercicio de este entreno al lado de la vez pasada que lo hizo (el entreno
@@ -58,7 +64,7 @@ function exerciseCompare(ex, prev){
       (prev ? '<span class="sc-prev">' + (ps[i] ? setTxt(ps[i]) : '—') + '</span>' + setDiff(sets[i], ps[i]) : '') + '</div>';
   }
   return '<div class="sd-ex sc-ex"><div class="sd-ex-h"><span class="sd-ex-name">' + esc(ex.name || "") + '</span>' +
-    '<span class="sd-ex-meta">' + (prev ? 'la vez pasada: ' + fmtDate(prev.date) : 'primera vez que lo hace') + '</span></div>' +
+    '<span class="sd-ex-meta">' + (prev ? 'la vez pasada: ' + fmtDate(prev.date) : 'primera vez que lo hace') + '</span></div>' + varNote(ex) +
     (prev ? '<div class="sc-row sc-head"><span></span><span>Este entreno</span><span>La vez pasada</span><span>Diferencia</span></div>' : '') +
     rows + '</div>';
 }
@@ -93,7 +99,7 @@ export function renderSessionItem(se, opts){
   opts = opts || {};
   const exs = se.exercises || [];
   const nSets = exs.reduce((t, e) => t + (e.sets || []).length, 0);
-  const names = exs.map(e => e.name).join(", ");
+  const names = exs.map(e => e.name + (e.originalName && e.originalName !== e.name ? " (en lugar de " + e.originalName + ")" : "")).join(", ");
   const totals = '<div class="sd-tot">' +
     '<div><b>' + exs.length + '</b><span>ejercicio' + (exs.length === 1 ? "" : "s") + '</span></div>' +
     '<div><b>' + nSets + '</b><span>serie' + (nSets === 1 ? "" : "s") + '</span></div>' +

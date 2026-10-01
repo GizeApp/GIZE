@@ -7,6 +7,7 @@ import { State } from '../../core/state.js';
 import { migrateNames } from '../../core/storage.js';
 
 import { fetchAll, sessionFromRow } from '../../core/supabase.js';
+import { markSubs } from '../../core/variantes.js';
 
 import { resolveAvatars } from '../../core/avatar.js';
 
@@ -152,7 +153,8 @@ export async function openClient(id){
       sb.from("routine_schedule").select("id, starts_on, name, days").eq("client_id",id).is("applied_at",null).order("starts_on")
     ]);
     const weights=(ws.data||[]).map(w=>({date:w.measured_on, kg:Number(w.kg)}));
-    const sessions=(ss.data||[]).map(sessionFromRow);
+    // Variantes del día (core/variantes.js): el registro del día dice qué ejercicio cambió por cuál.
+    const sessions=markSubs((ss.data||[]).map(sessionFromRow), dl.data||[]);
     let routine=(rt.data&&Array.isArray(rt.data.days))?JSON.parse(JSON.stringify(rt.data.days)):[];
     migrateNames(routine);
     // Cambios sin guardar de una vez anterior en este dispositivo (ver persistRoutineDraft):
