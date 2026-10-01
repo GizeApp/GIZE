@@ -71,6 +71,18 @@ jobs:
           if [ -z "$ASC_KEY_P8" ] || [ -z "$ASC_KEY_ID" ]; then echo "::error::Faltan los secrets de App Store Connect"; exit 1; fi
           echo "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
 
+      # Certificados intermedios oficiales de Apple (WWDR). La firma para la App Store se hace en
+      # la nube de Apple, pero codesign arma la cadena del certificado con lo que hay en el llavero
+      # de la Mac: si falta el intermedio que emitió el certificado de distribución, la firma
+      # queda incompleta y App Store Connect la rechaza (error 90035 «Invalid Signature»).
+      - name: Certificados intermedios de Apple
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          for c in AppleWWDRCAG3 AppleWWDRCAG4 AppleWWDRCAG5 AppleWWDRCAG6; do
+            curl -fsSL -o "$RUNNER_TEMP/$c.cer" "https://www.apple.com/certificateauthority/$c.cer"
+            security import "$RUNNER_TEMP/$c.cer" -k "$HOME/Library/Keychains/login.keychain-db" || true
+          done
+
       - name: Compilar firmada y subir a TestFlight
         if: github.event_name == 'workflow_dispatch'
         env:
