@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Apariencias</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* "Apariencias" · 16.6 s, 128 BPM, 9:16 or 4:5. The app's four appearances (app/ui/tema.js): a phone with
+   Entreno and, floating over it, the real Ajustes card with the Apariencia selector. Each tap on the selector
+   opens the next appearance as a circle from the finger, over the phone AND the whole frame:
+   Oscuro (hook) → Claro → Azul → Rosa → back to Oscuro; then the four side by side, then the end card.
+   Colours, glass and neon ranges are the app's own (css/ui/tema-luz.css, tema-claro.css, tema-rosa.css,
+   brand/tokens.css); the G in each one is its logo (brand/BRAND.md: Oscuro/Claro original orb, Azul, Rosa). */
+import {C,RGB,E,clamp,lerp,prog,glow,rr,txt,tw,F,hash,createReel,drawFirma,LOGO,riseWords,tick} from '../lib/engine.js';
+import {endcard,endcardBg,endcardCues,endcardGeom} from '../lib/endcard.js';
+import {PW,PH,withPhone,statusBar,navIcon,TABS} from '../lib/ui.js';
+
+const BT=60/128,DUR=16.6,T_END=26*BT;   // end card on beat 26
+// the taps on the selector: on beats 5, 9, 13 and 17; each appearance holds a bar
+const TAPS=[[5*BT,'luz'],[9*BT,'azul'],[13*BT,'rosa'],[17*BT,'oscuro']],T_FIN=21*BT;
+const ORDER=['oscuro','luz','azul','rosa'];   // as in the selector: Oscuro, Claro, Azul, Rosa
+const hx=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+
+/* ---------------- the four appearances ---------------- */
+const TH={
+  oscuro:{name:'Oscuro',sub:'La de siempre.',kind:'dark',bg:'#000000',surface:'#0B0D11',chip:'#12151B',border:'#1C2029',text:'#FFFFFF',text2:'#8F98A6',
+    accent:'#2FA0FF',onAccent:'#000000',gama:['#2FA0FF','#A65CFF','#FF3DAE','#25E8C8'],orb:'original',nav:'rgba(6,9,17,0.92)'},
+  luz:{name:'Claro',sub:'Blanca y limpia.',kind:'light',bg:'#F4F5F8',surface:'#FFFFFF',chip:'#F0F1F4',border:'#E3E5EA',text:'#0B0D11',text2:'#4A5060',
+    accent:'#0A6FD6',onAccent:'#FFFFFF',gama:['#2B93F0','#9B4DFA','#F0369F','#13C2A5'],orb:'original',nav:'rgba(255,255,255,0.94)'},
+  azul:{name:'Azul',sub:'Vidrio sobre azul.',kind:'glass',bg:'#030814',surface:'#101A31',chip:'#172139',border:'rgba(255,255,255,.16)',text:'#FFFFFF',text2:'#CAD3E2',
+    accent:'#62B6F6',onAccent:'#030814',gama:['#3FA3F2','#A474F7','#2EC6EE','#5B6CF2'],orb:'azul',veil:'rgba(8,14,34,.32)',nav:'rgba(8,14,34,0.72)',
+    orbs:[[0,0,.62,'rgba(63,163,242,.48)','rgba(47,134,232,.26)'],[1.04,.2,.52,'rgba(164,116,247,.44)','rgba(106,63,224,.24)'],[1,1.04,.64,'rgba(46,198,238,.38)','rgba(11,143,214,.2)'],[-.04,.78,.5,'rgba(26,46,156,.7)','rgba(26,46,156,.26)']]},
+  rosa:{name:'Rosa',sub:'Vidrio sobre rosa.',kind:'glass',bg:'#14060F',surface:'#2A1023',chip:'#33162B',border:'rgba(255,255,255,.16)',text:'#FFFFFF',text2:'#E8D0DC',
+    accent:'#FF7DB8',onAccent:'#14060F',gama:['#FF5FA8','#D65CF5','#FFA3C8','#E84DBE'],orb:'rosa',veil:'rgba(36,8,28,.32)',nav:'rgba(36,8,28,0.72)',
+    orbs:[[0,0,.62,'rgba(255,95,168,.40)','rgba(240,54,138,.22)'],[1.04,.2,.52,'rgba(214,92,245,.42)','rgba(168,59,224,.23)'],[1,1.04,.64,'rgba(255,163,200,.27)','rgba(255,125,176,.14)'],[-.04,.78,.5,'rgba(122,23,71,.72)','rgba(90,15,53,.28)']]},
+};
+// the background of an appearance in a w × h box (the phone's screen or the whole frame)
+function ambient(c,th,w,h){c.fillStyle=th.bg;c.fillRect(0,0,w,h);const M=Math.max(w,h);
+  if(th.kind==='dark'){glow(c,-w*0.08,h*0.1,M*0.51,RGB.blue,0.40);glow(c,w*1.08,h*0.97,M*0.52,RGB.pink,0.34);}
+  else if(th.kind==='light'){for(const[x,y,rx,ry,col]of[[0,0,.75,.4,'rgba(47,160,255,.16)'],[1,.12,.6,.34,'rgba(166,92,255,.08)'],[1,.88,.75,.4,'rgba(255,61,174,.12)']]){
+    c.save();c.translate(x*w,y*h);c.scale(rx*w,ry*h);const g=c.createRadialGradient(0,0,0,0,0,1);g.addColorStop(0,col);g.addColorStop(0.7,'rgba(255,255,255,0)');c.fillStyle=g;c.fillRect(-1,-1,2,2);c.restore();}}
+  else for(const[x,y,r,c1,c2]of th.orbs){const R=r*M,g=c.createRadialGradient(x*w,y*h,0,x*w,y*h,R);g.addColorStop(0,c1);g.addColorStop(0.42,c2);g.addColorStop(0.7,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(x*w-R,y*h-R,2*R,2*R);}}
+function ringOf(c,th,x,y,a0=0){const g=c.createConicGradient(a0,x,y);[...th.gama,th.gama[0]].forEach((s,i)=>g.addColorStop(i/4,s));return g;}
+function lineOf(c,th,x0,x1){const g=c.createLinearGradient(x0,0,x1,0);th.gama.forEach((s,i)=>g.addColorStop(i/3,s));return g;}
+// a box as each appearance draws it: dark surface · white with a soft shadow · frosted glass; all with the neon edge
+function box(c,th,x,y,w,h,r,{ring=true,a0=0,lw=1.5}={}){
+  if(th.kind==='glass'){c.save();c.shadowColor='rgba(0,0,0,0.28)';c.shadowBlur=26;c.shadowOffsetY=8;c.fillStyle=th.veil;rr(c,x,y,w,h,r);c.fill();c.restore();
+    const g=c.createLinearGradient(x,y,x+h*0.36,y+h);g.addColorStop(0,'rgba(255,255,255,.19)');g.addColorStop(0.38,'rgba(255,255,255,.11)');g.addColorStop(1,'rgba(255,255,255,.12)');c.fillStyle=g;rr(c,x,y,w,h,r);c.fill();
+    c.strokeStyle='rgba(255,255,255,.28)';c.lineWidth=1;c.beginPath();c.moveTo(x+r,y+0.8);c.lineTo(x+w-r,y+0.8);c.stroke();}
+  else if(th.kind==='light'){c.save();c.shadowColor='rgba(16,24,40,.08)';c.shadowBlur=14;c.shadowOffsetY=4;c.fillStyle='#FFFFFF';rr(c,x,y,w,h,r);c.fill();c.restore();}
+  else{c.fillStyle=th.surface;rr(c,x,y,w,h,r);c.fill();}
+  if(ring){c.strokeStyle=ringOf(c,th,x+w/2,y+h/2,a0);c.lineWidth=lw;rr(c,x,y,w,h,r);c.stroke();}}
+const chipFill=th=>th.kind==='glass'?'rgba(255,255,255,.10)':th.chip;
+
+/* ---------------- the phone: Entreno (app/screens/entreno.js) in the appearance th ---------------- */
+const EX=[['Press inclinado con mancuernas','3 × 8-10'],['Remo con barra','4 × 6-8'],['Press militar','3 × 10'],['Jalón al pecho','3 × 10-12'],['Vuelos laterales','3 × 12-15'],['Curl de bíceps','3 × 12']];
+const DONE=[-1,TAPS[0][0]+0.75,TAPS[1][0]+0.75,TAPS[2][0]+0.75,TAPS[3][0]+0.75];   // a set of rows ticks off in each appearance
+function screen(c,th,t){ambient(c,th,PW,PH);const ink=th.text,ink2=th.text2,R=th.kind==='dark'?4:14;
+  statusBar(c,'18:42',ink);drawFirma(c,18,54,0.34,{wordmark:false,color:ink,orb:{pal:th.orb}});
+  txt(c,'Martina',292,74,700,14,ink,'right');txt(c,'TU COACH',292,88,700,9.5,ink2,'right',1.2);
+  c.fillStyle=chipFill(th);c.beginPath();c.arc(318,76,18,0,7);c.fill();c.strokeStyle=ringOf(c,th,318,76,t);c.lineWidth=2;c.stroke();c.strokeStyle=ink;c.lineWidth=1.6;rr(c,310,69,16,12,4);c.stroke();
+  c.fillStyle=chipFill(th);rr(c,342,62,40,28,14);c.fill();txt(c,'🔥5',362,81,700,13,ink,'center');
+  c.fillStyle=th.accent;c.fillRect(16,114,3,26);txt(c,'Rutina asignada por tu coach',28,132,600,12,ink2);
+  let x=16;for(const[l,on]of[['Torso',1],['Piernas',0],['Full body',0]]){const w=tw(l,700,14)+28;c.fillStyle=chipFill(th);rr(c,x,150,w,36,10);c.fill();
+    c.strokeStyle=on?(th.kind==='light'?'rgba(11,13,17,.55)':'rgba(255,255,255,.55)'):th.border;c.lineWidth=1.2;c.stroke();txt(c,l,x+14,173,700,14,on?ink:ink2);x+=w+8;}
+  txt(c,'Torso',16,226,700,26,ink);
+  const secs=754+Math.floor(t);box(c,th,16,240,358,40,20,{a0:1+t*0.6});const pd=0.55+0.45*Math.sin(t*Math.PI*2/1.6);
+  c.fillStyle=th.kind==='light'?`rgba(11,13,17,${pd})`:`rgba(255,255,255,${pd})`;c.beginPath();c.arc(118,260,4,0,7);c.fill();
+  txt(c,'Entrenando hace',130,265,500,14,ink);txt(c,`${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`,248,265,800,14,ink);
+  for(const[l,bx,w]of[['✓ Finalizar',16,175],['Cancelar',199,175]]){box(c,th,bx,288,w,32,16,{a0:2,lw:1.2});txt(c,l,bx+w/2,309,700,12,ink,'center');}
+  const nDone=3*DONE.filter(d=>t>=d).length;
+  c.fillStyle=chipFill(th);rr(c,16,338,220,8,4);c.fill();c.fillStyle=lineOf(c,th,16,236);rr(c,16,338,Math.max(8,220*Math.min(1,nDone/21)),8,4);c.fill();
+  txt(c,`${nDone}/21 series`,248,347,600,12,ink2);txt(c,'Limpiar',374,347,600,12,ink2,'right');
+  EX.forEach(([name,right],i)=>{const y=364+i*62,done=i<DONE.length&&t>=DONE[i],pop=i<DONE.length?prog(t,DONE[i],DONE[i]+0.4):0;
+    box(c,th,16,y,358,52,R,{a0:i*0.9+t*0.4});
+    if(done){const s=1+0.25*Math.sin(Math.PI*pop);c.save();c.translate(39,y+26);c.scale(s,s);c.fillStyle=lineOf(c,th,-11,11);rr(c,-11,-11,22,22,6);c.fill();tick(c,0,0,11,'#fff',2);c.restore();
+      if(pop>0&&pop<1){c.strokeStyle=th.gama[1];c.globalAlpha=1-pop;c.lineWidth=2;rr(c,16-8*pop,y-8*pop,358+16*pop,52+16*pop,R+8*pop);c.stroke();c.globalAlpha=1;}}
+    else{c.fillStyle=chipFill(th);rr(c,28,y+15,22,22,6);c.fill();txt(c,String(i+1),39,y+31,700,12,ink,'center');}
+    c.font=F(700,14);let nm=name;while(c.measureText(nm).width>196)nm=nm.slice(0,-2)+'…';txt(c,nm,60,y+31,700,14,done?ink2:ink);
+    txt(c,right,350,y+31,600,12,ink2,'right');c.strokeStyle=ink2;c.lineWidth=1.6;c.beginPath();c.moveTo(356,y+23);c.lineTo(360,y+28);c.lineTo(364,y+23);c.stroke();});
+  c.fillStyle=th.nav;c.fillRect(0,772,PW,72);c.fillStyle=th.border;c.fillRect(0,772,PW,1);
+  TABS.forEach((l,i)=>{const nx=32.5+i*65,on=i===0,col=on?ink:ink2;navIcon(c,i,nx,796,col);txt(c,l,nx,826,600,11,col,'center');if(on){c.fillStyle=th.accent;c.fillRect(nx-13,776,26,2);}});}
+// the phone body, with a light that matches the appearance (a soft shadow on Claro)
+function phone(c,P,th,t){if((P.alpha??1)<=0)return;c.save();c.globalAlpha=P.alpha??1;
+  if(th.kind==='light'){c.save();c.shadowColor='rgba(16,24,40,.22)';c.shadowBlur=60*P.s;c.shadowOffsetY=24*P.s;withPhone(c,P,()=>{c.fillStyle='#0D1015';rr(c,-15,-15,PW+30,PH+30,64);c.fill();});c.restore();}
+  else glow(c,P.x,P.y,560*P.s,hx(th.gama[1]),0.2);
+  withPhone(c,P,()=>{c.fillStyle='#0D1015';rr(c,-15,-15,PW+30,PH+30,64);c.fill();c.strokeStyle='#2B303B';c.lineWidth=2;c.stroke();
+    c.fillStyle='#1B1F27';c.fillRect(PW+15,150,4,70);c.fillRect(-19,130,4,44);c.fillRect(-19,190,4,70);
+    c.save();rr(c,0,0,PW,PH,50);c.clip();screen(c,th,t);c.fillStyle='#000';c.beginPath();c.arc(195,20,7,0,7);c.fill();c.restore();});
+  c.restore();}
+
+/* ---------------- layout ---------------- */
+function lay(L){return L.fmt==='4x5'
+  ?{ky:118,ny:232,npx:112,sy:288,spx:32,P:{x:L.CX,y:712,s:0.84},card:{x:L.CX-450,y:1052,w:900,h:176},hook:{y:150,px:74,lh:84},
+    fin:{y:720,s:0.48,gap:26,ty:150,tpx:66,tlh:76,lab:978,note:1080}}
+  :{ky:292,ny:428,npx:146,sy:494,spx:40,P:{x:L.CX,y:1032,s:1.04},card:{x:L.CX-470,y:1270,w:940,h:196},hook:{y:350,px:92,lh:104},
+    fin:{y:930,s:0.55,gap:28,ty:400,tpx:84,tlh:96,lab:1218,note:1330}};}
+// the Ajustes card with the Apariencia selector (app/screens/config.js: cfg-card, cfg-seg)
+function segGeom(Y){const K=Y.card,sh=K.h*0.46,sx=K.x+28,sw=K.w-56,sy=K.y+K.h-sh-26,ow=sw/4;return{sx,sy,sw,sh,ow,cx:i=>sx+ow*(i+0.5),cy:sy+sh/2};}
+function selIndex(t){let i=0,from=0,u=1;for(const[tp,id]of TAPS){if(t>=tp){from=i;i=ORDER.indexOf(id);u=E.inOutCubic(prog(t,tp,tp+0.2));}}return lerp(from,i,u);}
+function settingsCard(c,th,t,L,Y,a){if(a<=0)return;const K=Y.card,S=segGeom(Y),s=K.h/196;c.save();c.globalAlpha=a;c.translate(L.CX,K.y+K.h/2);c.scale(lerp(0.9,1,a),lerp(0.9,1,a));c.translate(-L.CX,-(K.y+K.h/2));
+  c.save();c.shadowColor=th.kind==='light'?'rgba(16,24,40,.18)':'rgba(0,0,0,.55)';c.shadowBlur=50;c.shadowOffsetY=18;c.fillStyle=th.kind==='light'?'#fff':th.kind==='glass'?th.surface:th.surface;rr(c,K.x,K.y,K.w,K.h,26);c.fill();c.restore();
+  box(c,th,K.x,K.y,K.w,K.h,26,{a0:t*0.5,lw:2.5});
+  // the palette icon and the label, as in Ajustes
+  const ix=K.x+50,iy=K.y+52*s;c.strokeStyle=th.text;c.lineWidth=3*s;c.beginPath();c.arc(ix,iy,19*s,0,7);c.stroke();c.fillStyle=th.text;c.beginPath();c.arc(ix,iy,19*s,-Math.PI/2,Math.PI/2);c.fill();
+  txt(c,'Apariencia',ix+40*s,iy+12*s,700,36*s,th.text);txt(c,'Ajustes',K.x+K.w-34,iy+10*s,600,26*s,th.text2,'right');
+  c.fillStyle=th.chip;rr(c,S.sx,S.sy,S.sw,S.sh,S.sh/2);c.fill();c.strokeStyle=th.border;c.lineWidth=2;c.stroke();
+  const si=selIndex(t),hw=S.ow-8;c.fillStyle=th.accent;rr(c,S.sx+4+si*S.ow,S.sy+4,hw,S.sh-8,(S.sh-8)/2);c.fill();
+  ORDER.forEach((id,i)=>{const on=Math.abs(si-i)<0.5;txt(c,TH[id].name,S.cx(i),S.cy+12*s,700,34*s,on?th.onAccent:th.text2,'center');});
+  c.restore();}
+// the finger: travels to the next option, presses, lets go
+function finger(c,th,t,Y){const S=segGeom(Y);let pos=null;
+  for(let k=0;k<TAPS.length;k++){const[tp,id]=TAPS[k],i=ORDER.indexOf(id),prev=k?ORDER.indexOf(TAPS[k-1][1]):0,u=prog(t,tp-0.42,tp-0.04);
+    if(t>=tp-0.6&&t<tp+0.5){const e=E.inOutCubic(u),x=lerp(S.cx(prev)+40,S.cx(i),e),y=lerp(S.cy+90,S.cy,e)-Math.sin(Math.PI*e)*40;
+      const press=1-0.18*Math.sin(Math.PI*clamp((t-tp+0.06)/0.2)),a=clamp((t-tp+0.6)/0.18)*(1-clamp((t-tp-0.3)/0.2));pos={x,y,press,a,tp};}}
+  if(!pos)return;const ink=th.kind==='light'?'11,13,17':'255,255,255';c.save();c.globalAlpha=pos.a;
+  c.fillStyle=`rgba(${ink},0.22)`;c.beginPath();c.arc(pos.x,pos.y,38*pos.press,0,7);c.fill();c.strokeStyle=`rgba(${ink},0.9)`;c.lineWidth=3;c.stroke();c.restore();
+  const u=t-pos.tp;if(u>0&&u<0.45){const e=E.outCubic(u/0.45);c.strokeStyle=th.accent;c.globalAlpha=1-e;c.lineWidth=4;c.beginPath();c.arc(pos.x,pos.y,40+90*e,0,7);c.stroke();c.globalAlpha=1;}}
+// the words above the phone: the hook in Oscuro at the start, then each appearance's name
+function words(c,id,t,L,Y){const th=TH[id],k=TAPS.findIndex(([,x])=>x===id),t0=k>=0?TAPS[k][0]+0.12:0,t1=k>=0&&k+1<TAPS.length?TAPS[k+1][0]:k===TAPS.length-1?T_FIN:0;
+  if(id==='oscuro'&&t<TAPS[3][0]){const H=Y.hook;riseWords(c,{lines:['¿De qué color','entrenás hoy?'],x:L.CX,y:H.y,lh:H.lh,t0:0.15,t1:TAPS[0][0]-0.02,px:H.px,col:th.text,key:[0,'color']});return;}
+  c.font=F(700,Y.spx*0.68);c.letterSpacing='8px';const ka=E.outCubic(prog(t,t0,t0+0.3))*(1-E.inCubic(prog(t,t1,t1+0.2)));c.globalAlpha=ka;c.fillStyle=th.text2;c.textAlign='center';c.fillText('APARIENCIA',L.CX+4,Y.ky);c.letterSpacing='0px';c.textAlign='left';c.globalAlpha=1;
+  riseWords(c,{lines:[th.name],x:L.CX,y:Y.ny,lh:Y.npx,t0:t0+0.05,t1,px:Y.npx,col:th.text});
+  riseWords(c,{lines:[th.sub],x:L.CX,y:Y.sy,lh:Y.spx,t0:t0+0.2,t1,px:Y.spx,weight:500,col:th.text2,stagger:0.03});}
+// everything that one appearance paints: the frame's background, the words, the phone, the Ajustes card, the finger
+function world(c,id,t,L,Y){const th=TH[id];ambient(c,th,L.W,L.H);
+  const out=E.inOutCubic(prog(t,T_FIN,T_FIN+0.55)),rise=E.outCubic(prog(t,0.05,0.75));
+  if(t<T_FIN+0.6){words(c,id,t,L,Y);const P={...Y.P,y:Y.P.y+(1-rise)*700,alpha:1-out};phone(c,P,th,t);
+    settingsCard(c,th,t,L,Y,E.outBack(prog(t,1.2,1.55))*(1-E.inCubic(prog(t,T_FIN-0.1,T_FIN+0.2))));finger(c,th,t,Y);}}
+
+/* ---------------- the finale: the four side by side ---------------- */
+function finale(c,t,L,Y){const F0=Y.fin,u=E.outExpo(prog(t,T_FIN,T_FIN+0.7)),gone=E.inCubic(prog(t,T_END-0.45,T_END-0.05)),w=PW*F0.s,step=w+F0.gap;
+  ORDER.forEach((id,i)=>{const th=TH[id],k=i-1.5,e=E.outBack(prog(t,T_FIN+0.04*i,T_FIN+0.6+0.04*i)),x=lerp(Y.P.x,L.CX+k*step,u),y=lerp(Y.P.y,F0.y+Math.abs(k)*22,u)-gone*120,
+      s=lerp(Y.P.s,F0.s,u)*(1-0.7*gone),rot=k*0.045*u;
+    phone(c,{x,y,s,rot,alpha:clamp(e*2)*(1-gone)},th,t);
+    const la=E.outCubic(prog(t,T_FIN+0.5+i*0.06,T_FIN+0.8+i*0.06))*(1-gone);if(la>0){c.globalAlpha=la;txt(c,th.name,x,F0.lab+Math.abs(k)*22,700,F0.tpx*0.42,'#fff','center');
+      c.fillStyle=ringOf(c,th,x,F0.lab+Math.abs(k)*22+24,0);rr(c,x-28,F0.lab+Math.abs(k)*22+20,56,5,2.5);c.fill();c.globalAlpha=1;}});
+  riseWords(c,{lines:['Cuatro apariencias.','Una sola GIZE.'],x:L.CX,y:F0.ty,lh:F0.tlh,t0:T_FIN+0.35,t1:T_END-0.5,px:F0.tpx,key:[1,'GIZE.']});
+  const na=E.outCubic(prog(t,T_FIN+1.0,T_FIN+1.3))*(1-gone);if(na>0){c.globalAlpha=na;txt(c,'Ajustes  →  Apariencia',L.CX,F0.note,600,F0.tpx*0.4,C.text2,'center');c.globalAlpha=1;}}
+
+/* ---------------- the reveal: the next appearance opens as a circle from the finger ---------------- */
+function reveal(c,t,L,Y){let cur='oscuro',nxt=null,r=0,o=null;const S=segGeom(Y),far=Math.hypot(L.W,L.H);
+  for(const[tp,id]of TAPS){if(t>=tp+0.62)cur=id;else if(t>=tp+0.04){nxt=id;const e=E.inOutCubic(prog(t,tp+0.04,tp+0.62));r=e*far;o={x:S.cx(ORDER.indexOf(id)),y:S.cy,e};}}
+  return{cur,nxt,r,o};}
+
+createReel({dur:DUR,
+  hits:[...TAPS.map(([tp])=>[tp,3,0.008]),[T_FIN,5,0.012],[T_END+0.9375,4,0.01]],
+  fast:[...TAPS.map(([tp])=>[tp-0.05,tp+0.65]),[T_FIN-0.05,T_FIN+0.75],[T_END-0.5,T_END+0.1]],
+  // Claro is white: almost no bloom or vignette while it is on screen
+  bloom:t=>{const l=clamp(prog(t,TAPS[0][0]+0.1,TAPS[0][0]+0.5)-prog(t,TAPS[1][0]+0.2,TAPS[1][0]+0.6));return lerp(0.32,0.03,l);},
+  vignette:t=>{const l=clamp(prog(t,TAPS[0][0]+0.1,TAPS[0][0]+0.5)-prog(t,TAPS[1][0]+0.2,TAPS[1][0]+0.6));return lerp(0.3,0.06,l);},
+  draw(c,t,L,P){const Y=lay(L),R=reveal(c,t,L,Y);
+    if(t<T_END){world(c,R.cur,t,L,Y);
+      if(R.nxt){c.save();c.beginPath();c.arc(R.o.x,R.o.y,R.r,0,7);c.clip();world(c,R.nxt,t,L,Y);c.restore();
+        const th=TH[R.nxt];c.save();c.strokeStyle=ringOf(c,th,R.o.x,R.o.y,t*3);c.lineWidth=10*(1-R.o.e)+2;c.globalAlpha=0.9*(1-R.o.e*R.o.e);c.beginPath();c.arc(R.o.x,R.o.y,R.r,0,7);c.stroke();c.restore();}
+      if(t>=T_FIN)finale(c,t,L,Y);}
+    if(t>=T_END-0.3){endcardBg(c,t,T_END,L,E.outCubic(prog(t,T_END-0.3,T_END+0.1)));endcard(c,t,T_END,L,{cta:P.cta});}},
+  cues(L){const q=[{t:0,s:'groove',t1:T_END-0.1,bpm:128,chords:[[0,'Am'],[4*BT,'F'],[8*BT,'C'],[12*BT,'G'],[16*BT,'Am'],[20*BT,'F'],[24*BT,'C']],parts:['kick','hat','bass','arp','pad']},
+      {t:0.1,s:'whoosh',d:0.6,f0:300,f1:2200,g:0.5},{t:1.2,s:'pop',g:0.7},{t:1.25,s:'glass',g:0.25}];
+    TAPS.forEach(([tp])=>q.push({t:tp-0.45,s:'whoosh',d:0.35,f0:900,f1:2400,g:0.22},{t:tp,s:'tap',g:1.1},{t:tp+0.05,s:'whoosh',d:0.55,f0:400,f1:3200,g:0.5},{t:tp+0.3,s:'shimmer',g:0.8},{t:tp+0.2,s:'bloop',k:1,v:0.6}));
+    DONE.slice(1).forEach(d=>q.push({t:d,s:'tick',g:0.9}));
+    q.push({t:T_FIN-0.25,s:'rise',d:0.3,g:0.5},{t:T_FIN,s:'whoosh',d:0.6,f0:300,f1:2600,g:0.55});ORDER.forEach((_,i)=>q.push({t:T_FIN+0.12+i*0.06,s:'pop',g:0.8}));
+    q.push({t:T_FIN+0.4,s:'chord',ch:'F',d:1.6},{t:T_END-0.5,s:'rise',d:0.45,g:0.5});
+    return[...q,...endcardCues(L,T_END)];},
+});
+</script></body></html>

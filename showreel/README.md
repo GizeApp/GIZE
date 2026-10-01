@@ -83,6 +83,7 @@ Everything for @gize.app is rendered into `stock/`, with captions, hashtags and 
 | `14-iconos-app/` | app icon candidates (A: inside the brand book, B: explorations), with light versions where they differ, + a board with the iOS mask on dark and light home screens | 1024 × 1024 PNG |
 | `15-logo-letras/` | letters-only logos: the logotype's word (plain, framed, stacked, italic, outline, RGB, chrome, neon, glass), its G alone, and a lowercase «gize» with the blue dot on the i | 1080 × 1080 PNG |
 | `16-pelota-neon/` | the white G on black with its dot as a ball in the neon colours (orb, flat, lighting the G, with the flush ring); each as the Instagram profile photo and, but the ring, as the app icon with a light version, + a sheet at real sizes. Off the brand book, which keeps the dot blue | 1080 / 1024 PNG |
+| `17-apariencias/` | «Apariencias»: the app's four appearances (Oscuro, Claro, Azul, Rosa), switched from the real Apariencia selector, then the four side by side and the end card | 9:16 · 4:5 MP4 |
 
 ## How a piece is made
 
@@ -110,6 +111,7 @@ node build.mjs jobs/liquido.json          # 13-liquido
 node logo-app/build.mjs                  # 14-iconos-app (stills)
 node logo-letras/build.mjs               # 15-logo-letras (stills)
 node logo-pelota/build.mjs               # 16-pelota-neon (stills)
+node build.mjs jobs/apariencias.json      # 17-apariencias
 ```
 
 `build.mjs` also takes `--formats=9x16` and `--ctas=hype` to render one format or one ending at a time.

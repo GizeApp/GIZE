@@ -942,6 +942,31 @@
         "#fitness",
         "#fitnessargentina"
       ]
+    },
+    {
+      "id": "gize-apariencias",
+      "kind": "motion",
+      "phase": "hype",
+      "dur": 16.6,
+      "title": "Apariencias",
+      "files": [
+        "17-apariencias/gize-apariencias_9x16.mp4",
+        "17-apariencias/gize-apariencias_4x5.mp4"
+      ],
+      "covers": [
+        "17-apariencias/gize-apariencias_9x16.jpg",
+        "17-apariencias/gize-apariencias_4x5.jpg"
+      ],
+      "idea": "The app's four appearances. A phone on Entreno with the Ajustes card floating over it; each tap on the Apariencia selector opens the next one as a circle from the finger, over the phone and the whole frame: Oscuro (hook), Claro, Azul, Rosa and back to Oscuro. Then the four side by side («Cuatro apariencias. Una sola GIZE.») and the end card with the G and its orb.",
+      "caption": "¿De qué color entrenás hoy? 🎨\nOscuro, Claro, Azul o Rosa: elegí cómo se ve tu GIZE en Ajustes → Apariencia.\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#muypronto",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitness",
+        "#fitnessargentina"
+      ]
     }
   ],
   "launch_endings": {
