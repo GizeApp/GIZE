@@ -51,7 +51,12 @@ def api(method, path, body=None):
 
 
 def sh(*args, **kw):
-    return subprocess.run(args, check=True, **kw)
+    # Si algo falla se muestra solo qué herramienta fue, sin los argumentos (llevan contraseñas
+    # de un solo uso y rutas de la clave).
+    try:
+        return subprocess.run(args, check=True, **kw)
+    except subprocess.CalledProcessError as e:
+        sys.exit(f"Falló «{' '.join(args[:2])}» (código {e.returncode})")
 
 
 def crear():
@@ -75,7 +80,10 @@ def crear():
     pem, p12 = os.path.join(TMP, "dist.pem"), os.path.join(TMP, "dist.p12")
     sh("openssl", "x509", "-inform", "DER", "-in", der, "-out", pem)
     pw = base64.b16encode(os.urandom(12)).decode()
+    # Cifrado y MAC «clásicos» (3DES/SHA-1): el llavero de macOS no lee los .p12 que OpenSSL 3
+    # arma por defecto (AES/SHA-256) y responde «MAC verification failed».
     sh("openssl", "pkcs12", "-export", "-inkey", key, "-in", pem, "-out", p12, "-passout", "pass:" + pw,
+       "-keypbe", "PBE-SHA1-3DES", "-certpbe", "PBE-SHA1-3DES", "-macalg", "sha1",
        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     kpw = base64.b16encode(os.urandom(12)).decode()
     sh("security", "create-keychain", "-p", kpw, KEYCHAIN)
