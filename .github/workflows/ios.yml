@@ -103,12 +103,25 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
             <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
+            <key>destination</key><string>export</string>
             <key>teamID</key><string>$TEAM</string>
             <key>signingStyle</key><string>automatic</string>
             <key>manageAppVersionAndBuildNumber</key><false/>
           </dict></plist>
           EOF
+          # Primero se exporta el .ipa acá, se revisa la firma y recién después se sube: si Apple
+          # la rechaza, el registro dice qué parte de la firma está mal (sin nombres ni datos de
+          # la cuenta: solo el tipo de certificado y si la cadena llega a la raíz de Apple).
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
             "${AUTH[@]}" | tail -40
+          IPA=$(ls "$RUNNER_TEMP"/export/*.ipa)
+          mkdir -p "$RUNNER_TEMP/revisar" && unzip -q "$IPA" -d "$RUNNER_TEMP/revisar"
+          for f in "$RUNNER_TEMP"/revisar/Payload/App.app "$RUNNER_TEMP"/revisar/Payload/App.app/Frameworks/*.framework; do
+            echo "== $(basename "$f")"
+            codesign -dvv "$f" 2>&1 | grep '^Authority=' | sed -E 's/^Authority=(Apple Distribution|Apple Development|iPhone Distribution|iPhone Developer):.*/Authority=\1: (cuenta)/'
+            codesign -dvv "$f" 2>&1 | grep -E '^(Timestamp|TeamIdentifier)=' | sed -E 's/^TeamIdentifier=.*/TeamIdentifier=(presente)/;s/^Timestamp=.*/Timestamp=(presente)/'
+            codesign --verify --strict "$f" && echo "verificación local: OK" || echo "verificación local: FALLA"
+          done
+          mkdir -p ~/.appstoreconnect/private_keys && cp "$RUNNER_TEMP/AuthKey.p8" ~/.appstoreconnect/private_keys/AuthKey_$KEY_ID.p8
+          xcrun altool --upload-app -f "$IPA" -t ios --apiKey "$KEY_ID" --apiIssuer "$ISSUER" 2>&1 | tail -30
