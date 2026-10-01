@@ -80,6 +80,7 @@ Everything for @gize.app is rendered into `stock/`, with captions, hashtags and 
 | `11-linea/` | «Seguí la línea»: one continuous line draws the app, then the phone, then the G (loops) | 9:16 |
 | `12-logo-ig/` | the logo on 20 backgrounds (blues, RGB, textures, patterns, posters) + a board with profile-photo previews | 1080 × 1080 PNG |
 | `13-liquido/` | «Líquido»: liquid chrome (WebGL) with the features rising out of the metal, a chrome phone, the G | 9:16 |
+| `14-iconos-app/` | app icon candidates (A: inside the brand book, B: explorations), with light versions where they differ, + a board with the iOS mask on dark and light home screens | 1024 × 1024 PNG |
 
 ## How a piece is made
 
@@ -104,6 +105,7 @@ node build.mjs jobs/refs.json             # 10-formatos-ig
 node build.mjs jobs/linea.json            # 11-linea
 node logo-ig/build.mjs                   # 12-logo-ig (stills, 15 s)
 node build.mjs jobs/liquido.json          # 13-liquido
+node logo-app/build.mjs                  # 14-iconos-app (stills)
 ```
 
 `build.mjs` also takes `--formats=9x16` and `--ctas=hype` to render one format or one ending at a time.
