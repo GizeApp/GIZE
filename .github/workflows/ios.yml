@@ -80,13 +80,10 @@ jobs:
           VERSION: ${{ inputs.version }}
           BUILD: ${{ github.run_number }}
         run: |
-          # El archivo se firma directo para distribución («Apple Distribution»): con la firma de
-          # desarrollo (la que Xcode usa por defecto) Apple pide tener al menos un iPhone
-          # registrado en la cuenta para armar el perfil, y en una Mac de GitHub no hay ninguno.
           AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER")
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
             MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
             "${AUTH[@]}" archive | tail -40
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
