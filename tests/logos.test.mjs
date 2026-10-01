@@ -126,8 +126,8 @@ export default async function ({ base, t }){
     t.eq([sp.marca, sp.rayos, sp.viejo, sp.arc], [true, 8, false, g], tema + ': el splash es el logo armándose (orbe, destellos, la G)');
     t.ok((sp.color || '').includes(si) && !(sp.color || '').includes(no), tema + ': el orbe del splash con su paleta: ' + sp.color);
     t.eq(sp.anims, ['sp-chispa', 'sp-orbe', 'sp-giro', 'sp-trazo', 'sp-halo, sp-bloom'], tema + ': se arma animado');
-    t.ok(sp.out === 'splash-out' && sp.exit === 'sp-exit' && sp.exitEnd <= sp.outDelay + 0.001 && sp.outDelay + 0.28 <= 1.9 + 0.001,
-      tema + ': sale primero la marca y después el fondo, en 1,9 s: ' + JSON.stringify([sp.exitEnd, sp.outDelay]));
+    t.ok(sp.out === 'splash-out' && sp.exit === 'sp-exit' && sp.exitEnd <= sp.outDelay + 0.001 && sp.outDelay + 0.28 <= 2.25 + 0.001,
+      tema + ': sale primero la marca y después el fondo, en 2,2 s: ' + JSON.stringify([sp.exitEnd, sp.outDelay]));
     await pg.p.waitForFunction(() => window.__gone, null, { timeout: 6000 }).catch(() => {});
     const gone = await pg.p.evaluate(() => window.__gone);
     t.ok(gone > 1500 && gone < 3500 && await pg.p.evaluate(() => !document.body.classList.contains('is-booting')), tema + ': el splash se va (' + Math.round(gone) + ' ms)');

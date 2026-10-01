@@ -114,7 +114,10 @@ las variables en el resto del CSS, en vez de repetir hex sueltos.
 
 ## Pantallas de referencia
 - Landing: hero con firma grande + aurora, tarjetas con filete RGB, cierre con anillo cónico.
-- Splash: el logo armándose en 1,9 s (punto de luz, destellos que forman el orbe, la G que se
-  traza con estela de color, un pulso del resplandor) y el texto "Preparando tu entrenamiento",
-  con los colores de cada apariencia. Sale primero la marca y después el fondo.
+- Splash: el logo armándose en 2,2 s (carga: punto de luz, anillo de color que se cierra,
+  destellos y chispas que forman el orbe; la G que se traza con estela de color; impacto al
+  cerrarse la G: la marca late, destello, dos ondas con el degradé de la marca y rayos de luz;
+  la palabra GIZE sube letra por letra con un brillo de color) y el texto "Preparando tu
+  entrenamiento", con los colores de cada apariencia. Sale primero la marca (hacia adelante) y
+  después el fondo.
 - Ingreso: tarjeta con filete RGB, pestañas Ingresar / Crear cuenta, campo de código del coach en el alta.
