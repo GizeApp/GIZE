@@ -159,4 +159,10 @@ body.silk-coach .topbar { display: none; }
      propio, la nav de abajo se seguía viendo/tocando por debajo del panel del coach. */
 body.silk-coach .navbar { display: none; }
 
+/* Y lo mismo con el contenido del cliente (#view): en el primer ingreso de un coach (por ejemplo
+     con «Continuar con Apple») la app de alumno ya estaba armada debajo del login con lo que
+     había en el celular, y se veía a través del panel del coach transparente — las dos pantallas
+     mezcladas. renderCoach() además lo vacía (app/screens/coach/index.js). */
+body.silk-coach #view { display: none; }
+
 
