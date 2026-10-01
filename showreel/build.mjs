@@ -1,7 +1,7 @@
 // Batch builder for the GIZE stock: every piece x format x hook x ending
 // -> frames (render.mjs) -> cue sheet -> soundtrack (lib/sound.py) -> MP4 (encode.sh).
 //   node build.mjs jobs/teasers.json [--only=id1,id2] [--formats=9x16] [--ctas=hype] [--tmp=/path] [--cover]
-// A job: {id, page, dur, formats:[...], hooks:["a","b"], ctas:["hype"], out:"stock/teasers", cover:seconds}
+// A job: {id, page, dur, formats:[...], hooks:["a","b"], ctas:["hype"], out:"stock/teasers", cover:seconds, fps:60}
 //   audio:"path.wav"  use a fixed soundtrack instead of the page's cue sheet (older standalone pages)
 //   crops:{"4x5":[w,h,x,y]}  derive other formats by cropping the rendered master
 import fs from 'node:fs';
@@ -36,11 +36,11 @@ for (const job of jobs) {
         const page = `${job.page}?fmt=${fmt}&hook=${hook}&cta=${cta}`;
         const t0 = Date.now();
         console.log(`\n■ ${name}`);
-        run('node', ['render.mjs', `--page=${page}`, `--dur=${job.dur}`, `--out=${frames}`, ...(job.audio ? [] : [`--cues=${cues}`]), '--quiet']);
+        run('node', ['render.mjs', `--page=${page}`, `--dur=${job.dur}`, `--fps=${job.fps || 60}`, `--out=${frames}`, ...(job.audio ? [] : [`--cues=${cues}`]), '--quiet']);
         if (!job.audio) run('python3', ['lib/sound.py', cues, wav]);
-        run('bash', ['encode.sh', frames, job.audio ? path.resolve(HERE, job.audio) : wav, mp4]);
+        run('bash', ['encode.sh', frames, job.audio ? path.resolve(HERE, job.audio) : wav, mp4], { env: { ...process.env, FPS: String(job.fps || 60) } });
         if (job.cover != null && (args.cover || !fs.existsSync(path.join(outDir, `${name}.jpg`)))) {
-          const f = Math.round(job.cover * 60);
+          const f = Math.round(job.cover * (job.fps || 60));
           run(FF, ['-y', '-loglevel', 'error', '-i', path.join(frames, `f_${String(f).padStart(4, '0')}.png`), '-q:v', '2', path.join(outDir, `${name}.jpg`)]);
         }
         for (const [cf, [cw, chh, cx, cy]] of Object.entries(job.crops || {})) {
