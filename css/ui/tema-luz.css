@@ -146,7 +146,7 @@ html.tema-luz :is(.done.on, .hb-check.on) { color: #fff; }
 
 /* ---------- Barra de abajo ---------- */
 html.tema-luz .navbar { background: rgba(255,255,255,.94); border-top: 1px solid var(--gize-border); }
-html.lite.tema-luz .navbar { background: #fff; }
+html.lite.tema-luz .navbar, html.android-app.tema-luz .navbar { background: #fff; }
 
 /* ---------- Texto suelto y campos del coach (css/ui/theme.css) ---------- */
 html.tema-luz body.silk-coach :is(.co-logout, .co-back) { background: #fff; }

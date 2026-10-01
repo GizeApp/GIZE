@@ -7,7 +7,8 @@
    app/ui/tema.js). Sin la clase, la app queda exactamente con el look «Oscuro» de siempre:
    TODO lo de este archivo va bajo html.tema-claro.
    Se carga último (después de css/ui/lite.css) y al final tiene su versión liviana
-   (html.lite.tema-claro): sin backdrop-filter y con superficies casi sólidas. */
+   (html.lite.tema-claro): sin backdrop-filter y con superficies casi sólidas. La app de Android
+   (html.android-app) usa siempre ese vidrio sin desenfoque: la placa de video se trababa. */
 
 /* ---------- Tokens ---------- */
 html.tema-claro {
@@ -195,13 +196,15 @@ html.tema-claro .flame linearGradient[id$="i"] stop:nth-child(3) { stop-color: #
 /* ---------- Modo liviano con «Azul» (html.lite.tema-claro) ----------
    Mismo look, pero barato: ningún backdrop-filter (el !important le gana a las capas que lo
    ponen por pantalla) y el vidrio pasa a un relleno casi sólido, con el mismo brillo blanco
-   arriba, para que el texto se siga leyendo. El fondo de círculos ya es quieto y barato. */
-html.lite.tema-claro {
+   arriba, para que el texto se siga leyendo. El fondo de círculos ya es quieto y barato.
+   La app de Android (html.android-app) va siempre así. */
+html.lite.tema-claro, html.android-app.tema-claro {
   --gize-glass: linear-gradient(160deg, rgba(255,255,255,.13), rgba(255,255,255,.07) 38%, rgba(255,255,255,.08)) rgb(14,22,43);
   --gize-glass-hi: linear-gradient(160deg, rgba(255,255,255,.17), rgba(255,255,255,.10) 38%, rgba(255,255,255,.11)) rgb(14,22,43);
   --gize-glass-sheet: linear-gradient(160deg, rgba(255,255,255,.12), rgba(255,255,255,.06)) rgb(12,19,40);
 }
 html.lite.tema-claro *, html.lite.tema-claro *::before, html.lite.tema-claro *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-html.lite.tema-claro body:not(#_) .navbar { background: rgb(8,13,30); }
-html.lite.tema-claro body:not(#_) :is(.sheet, .auth-card), html.lite.tema-claro body.silk-coach :is(.cp-modal, .cp-ccard) {
+html.lite.tema-claro body:not(#_) .navbar, html.android-app.tema-claro body:not(#_) .navbar { background: rgb(8,13,30); }
+html.lite.tema-claro body:not(#_) :is(.sheet, .auth-card), html.lite.tema-claro body.silk-coach :is(.cp-modal, .cp-ccard),
+html.android-app.tema-claro body:not(#_) :is(.sheet, .auth-card), html.android-app.tema-claro body.silk-coach :is(.cp-modal, .cp-ccard) {
   background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.03)) rgb(10,16,34); }

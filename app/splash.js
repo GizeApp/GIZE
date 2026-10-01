@@ -30,7 +30,12 @@
     state.done = true;
     clearTimeout(state.safety);
     state.el.remove();
-    if (current === state) { document.body.classList.remove('is-booting'); current = null; }
+    if (current === state) {
+      document.body.classList.remove('is-booting'); current = null;
+      // Recién ahora arrancan el fondo animado y los canvas (app/ui/background.js): mientras
+      // estaba el splash no tenía sentido dibujar lo que tapa, y en Android trababa la placa.
+      try { document.dispatchEvent(new Event('gize:splash-fin')); } catch (e) {}
+    }
   }
 
   // La app llama a esto cuando ya armó la pantalla real (login, app de cliente

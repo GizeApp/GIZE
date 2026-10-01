@@ -18,3 +18,25 @@ html.lite .navbar { background: rgb(6,9,17); backdrop-filter: none; -webkit-back
 
 html.lite :is(.ctrl.primary, .save-session, .co-save-rt),
 html.lite .gize-btn::before { animation: none !important; }
+/* Los otros bordes que giran y el brillo del anillo pasado de calorías (anima un drop-shadow:
+   repinta el filtro en cada cuadro). */
+html.lite :is(.cneon i, .scan-btn, .ring-fill.over),
+html.lite .wk-start::before { animation: none !important; }
+
+/* ---------- La placa de video (ANR «La GPU no responde» en Android) ----------
+   Mientras está el splash (body.is-booting, app/splash.js) lo de atrás no se ve: las animaciones
+   que no terminan nunca esperan a que se vaya, así la placa solo arma el splash. El fondo de
+   partículas también espera (app/ui/background.js). */
+body.is-booting :is(.gize-aurora span, .ctrl.primary, .save-session, .co-save-rt, .rq-send, .chat-btn, .cneon i, .scan-btn,
+    .fl-out, .fl-in, .fl-smoke, .wk-dot, .ring-fill),
+body.is-booting :is(.gize-btn, .chat-btn, .wk-start)::before { animation-play-state: paused !important; }
+
+/* App en segundo plano (Capacitor avisa con "pause"/"resume", app/ui/background.js): todo quieto. */
+html.app-pausada *, html.app-pausada *::before, html.app-pausada *::after { animation-play-state: paused !important; }
+
+/* App de Android (html.android-app, la pone app/lite.js): ningún backdrop-filter. Cada uno
+   obliga a la placa a desenfocar lo que tiene detrás en cada cuadro, y en los Android de gama
+   media/baja eso trababa la app al abrir. Las capas que lo usaban ya tienen un fondo casi opaco;
+   la barra de abajo pasa a sólida (los temas «Azul», «Rosa» y «Claro» hacen lo mismo con lo suyo). */
+html.android-app *, html.android-app *::before, html.android-app *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html.android-app .navbar { background: rgb(6,9,17); }

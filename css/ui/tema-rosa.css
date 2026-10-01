@@ -77,14 +77,16 @@ html.tema-rosa .co-brand .brand-logo { content: url("../../brand/logo/gize-firma
 /* Splash: el orbe con la paleta rosa sale de css/core/splash.css. */
 
 /* ---------- Modo liviano con «Rosa» (html.lite.tema-rosa) ----------
-   Igual que el liviano de «Azul» (sin backdrop-filter, vidrio casi sólido), en ciruela. */
-html.lite.tema-rosa {
+   Igual que el liviano de «Azul» (sin backdrop-filter, vidrio casi sólido), en ciruela. La app
+   de Android (html.android-app) va siempre así. */
+html.lite.tema-rosa, html.android-app.tema-rosa {
   --gize-glass: linear-gradient(160deg, rgba(255,255,255,.13), rgba(255,255,255,.07) 38%, rgba(255,255,255,.08)) rgb(40,15,33);
   --gize-glass-hi: linear-gradient(160deg, rgba(255,255,255,.17), rgba(255,255,255,.10) 38%, rgba(255,255,255,.11)) rgb(40,15,33);
   --gize-glass-sheet: linear-gradient(160deg, rgba(255,255,255,.12), rgba(255,255,255,.06)) rgb(36,12,29);
 }
-html.lite.tema-rosa body:not(#_) .navbar { background: rgb(29,9,23); }
-html.lite.tema-rosa body:not(#_) :is(.sheet, .auth-card), html.lite.tema-rosa body.silk-coach :is(.cp-modal, .cp-ccard) {
+html.lite.tema-rosa body:not(#_) .navbar, html.android-app.tema-rosa body:not(#_) .navbar { background: rgb(29,9,23); }
+html.lite.tema-rosa body:not(#_) :is(.sheet, .auth-card), html.lite.tema-rosa body.silk-coach :is(.cp-modal, .cp-ccard),
+html.android-app.tema-rosa body:not(#_) :is(.sheet, .auth-card), html.android-app.tema-rosa body.silk-coach :is(.cp-modal, .cp-ccard) {
   background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.03)) rgb(32,10,26); }
 
 /* ---------- Neón apagado con «Rosa» (html.sin-neon) ----------

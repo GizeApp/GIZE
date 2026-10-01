@@ -220,6 +220,10 @@ function goToSet(t){
 }
 
 export function tick(){
+  // Con la app en segundo plano no hay nada que pintar: solo importa que el temporizador de
+  // cardio termine (y suene) a tiempo. El reloj del entreno y el cronómetro salen de la hora
+  // guardada, así que se ponen al día solos al volver.
+  if (document.hidden && !CardioState.tmRunning) return;
   const now = Date.now();
   if (CardioState.tmRunning){
     const rem = CardioState.tmEndTs - now;

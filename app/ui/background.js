@@ -21,6 +21,33 @@ export let authParticlesHandle = null;
 // Con html.lite no corre ningún canvas de partículas: queda solo el degradé de fondo.
 export function isLite(){ return document.documentElement.classList.contains("lite"); }
 
+// ---- Cuidar la placa de video (ANR «La GPU no responde» en Android) ----
+// Mientras está el splash (body.is-booting) no se dibuja nada detrás: lo tapa entero y el
+// celular ya tiene bastante con armar la app. Los canvas arrancan cuando app/splash.js avisa
+// que se fue ("gize:splash-fin"). Con la app en segundo plano (Capacitor manda "pause" y
+// "resume" al document; visibilitychange no siempre llega en el WebView) tampoco se dibuja,
+// y html.app-pausada frena las animaciones CSS (css/ui/lite.css).
+// En la app de Android (html.android-app) el canvas va a 1 píxel por punto y 30 cuadros por
+// segundo: las partículas son finitas y suaves, no se nota, y la placa hace un cuarto del trabajo.
+function booting(){ return !!(document.body && document.body.classList.contains("is-booting")); }
+let appPaused = false;
+const androidApp = () => document.documentElement.classList.contains("android-app");
+const maxDpr = () => Math.min(window.devicePixelRatio || 1, androidApp() ? 1 : 2);
+const FRAME_MS = 1000/30 - 2; // 30 fps (con margen para que no saltee de a dos cuadros)
+const afterSplash = [];
+document.addEventListener("gize:splash-fin", () => { afterSplash.splice(0).forEach(fn => { try { fn(); } catch(e){} }); });
+function whenSplashGone(fn){ if(booting()) { if(!afterSplash.includes(fn)) afterSplash.push(fn); } else fn(); }
+const whenActiveList = [];
+function whenActive(fn){ if(!whenActiveList.includes(fn)) whenActiveList.push(fn); }
+function activeAgain(){ if(!appPaused && document.visibilityState==="visible") whenActiveList.splice(0).forEach(fn => { try { fn(); } catch(e){} }); }
+document.addEventListener("visibilitychange", activeAgain);
+document.addEventListener("pause", () => { appPaused = true; document.documentElement.classList.add("app-pausada"); });
+document.addEventListener("resume", () => {
+  appPaused = false; document.documentElement.classList.remove("app-pausada");
+  activeAgain();
+  if(silkVisible && silkRafId==null) silkLoop();
+});
+
 // Elección manual desde Ajustes: se guarda y le gana a la detección automática.
 export function setLite(on){
   try { localStorage.setItem("gize_lite", on ? "1" : "0"); } catch(e){}
@@ -62,7 +89,7 @@ export function startAuthParticles(canvas){
   if(!canvas) return;
   const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const ctx = canvas.getContext("2d",{alpha:true}); if(!ctx) return;
-  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  const dpr = maxDpr();
   function resize(){
     const w=canvas.parentElement.clientWidth, h=canvas.parentElement.clientHeight;
     canvas.width=Math.max(1,Math.round(w*dpr)); canvas.height=Math.max(1,Math.round(h*dpr));
@@ -78,9 +105,16 @@ export function startAuthParticles(canvas){
     x:Math.random()*canvas.clientWidth, y:Math.random()*canvas.clientHeight,
     size:Math.random()*1.6+0.6, life:Math.random()*100, maxLife:140+Math.random()*90
   }));
-  let raf=null, stopped=false;
-  function frame(){
+  let raf=null, stopped=false, last=0;
+  function frame(t){
     if(stopped) return;
+    raf=null;
+    if(booting()){ whenSplashGone(frame); return; }
+    if(appPaused || document.visibilityState!=="visible"){ whenActive(frame); return; } // se retoma al volver
+    raf=requestAnimationFrame(frame);
+    if(typeof t!=="number") t=performance.now();
+    else if(androidApp() && t-last<FRAME_MS) return;
+    last=t;
     const w=canvas.clientWidth, h=canvas.clientHeight;
     ctx.clearRect(0,0,w,h);
     const z=Date.now()*0.00008;
@@ -96,7 +130,6 @@ export function startAuthParticles(canvas){
       ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
     }
     ctx.globalAlpha=1;
-    raf=requestAnimationFrame(frame);
   }
   if(!reduceMotion && !isLite()) frame(); // respeta prefers-reduced-motion: sin loop, queda solo el fondo estático
   function onResize(){ resize(); }
@@ -157,7 +190,7 @@ export function initSilk(){
 
 export function silkResize(){
   if(!silkCanvasEl || !silkCtx) return;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const dpr = maxDpr();
   const w = window.innerWidth, h = window.innerHeight;
   silkCanvasEl.width = Math.max(1, Math.round(w*dpr));
   silkCanvasEl.height = Math.max(1, Math.round(h*dpr));
@@ -171,11 +204,16 @@ function silkClear(){
   if(silkCtx && silkCanvasEl) silkCtx.clearRect(0, 0, silkCanvasEl.width, silkCanvasEl.height);
 }
 
-export function silkLoop(){
-  if(document.visibilityState!=="visible" || !silkVisible || isLite()){ silkRafId=null; perfLast=0; return; } // pausa real: no seguimos pidiendo frames
+let silkLast = 0;
+export function silkLoop(t){
+  if(document.visibilityState!=="visible" || appPaused || !silkVisible || isLite()){ silkRafId=null; perfLast=0; return; } // pausa real: no seguimos pidiendo frames
+  if(booting()){ silkRafId=null; perfLast=0; whenSplashGone(silkResume); return; } // arranca cuando se va el splash
   silkRafId = requestAnimationFrame(silkLoop);
   if(!silkCtx || !silkCanvasEl || !silkNoise) return;
   if(!perfDone) perfSample();
+  if(typeof t!=="number") t = performance.now();
+  else if(androidApp() && t-silkLast<FRAME_MS) return; // 30 fps en Android
+  silkLast = t;
   const w = silkCanvasEl.clientWidth || window.innerWidth;
   const h = silkCanvasEl.clientHeight || window.innerHeight;
   const reduced = silkReducedMotion(); // reduced motion: se dibuja un solo cuadro y queda quieto
@@ -196,6 +234,8 @@ export function silkLoop(){
   silkCtx.globalAlpha = 1;
   if(reduced){ cancelAnimationFrame(silkRafId); silkRafId = null; }
 }
+
+function silkResume(){ if(silkVisible && silkRafId==null) silkLoop(); }
 
 export function silkOnVisibilityChange(){
   if(document.visibilityState==="visible" && silkVisible && silkRafId==null) silkLoop();
