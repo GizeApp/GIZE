@@ -70,13 +70,11 @@ html.tema-rosa .flame linearGradient[id$="o"] stop:nth-child(3) { stop-color: #A
 html.tema-rosa .flame linearGradient[id$="i"] stop:nth-child(2) { stop-color: #FFD3E6; }
 html.tema-rosa .flame linearGradient[id$="i"] stop:nth-child(3) { stop-color: #FF5FA8; }
 
-/* ---------- Splash: el ícono de vidrio con los círculos rosa (css/core/splash.css) ----------
-   Mismas piezas y tiempos; la G y el punto blancos, como en «Azul». */
-html.tema-rosa .sp-1 { background: linear-gradient(135deg, #FF6FB2, #F0368A); }
-html.tema-rosa .sp-2 { background: linear-gradient(135deg, #D65CF5, #A83BE0); }
-html.tema-rosa .sp-3 { background: linear-gradient(135deg, #FFA3C8, #FF7DB0); }
-html.tema-rosa .sp-4 { background: linear-gradient(135deg, #7A1747, #5A0F35); }
-html.tema-rosa .sp-glass { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 24px 50px -20px rgba(20,6,15,.7); }
+/* ---------- El logo «Rosa»: G blanca con el orbe rosa, orquídea, rubor y magenta ---------- */
+html.tema-rosa :is(.brand-logo, .auth-brand-ic img, .upd-marca) { content: url("../../brand/logo/gize-marca-rosa.svg"); }
+html.tema-rosa .co-brand .brand-logo { content: url("../../brand/logo/gize-firma-horizontal-rosa.svg"); }
+
+/* Splash: el orbe con la paleta rosa sale de css/core/splash.css. */
 
 /* ---------- Modo liviano con «Rosa» (html.lite.tema-rosa) ----------
    Igual que el liviano de «Azul» (sin backdrop-filter, vidrio casi sólido), en ciruela. */

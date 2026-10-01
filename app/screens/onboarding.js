@@ -44,7 +44,7 @@ function mount(inner, label){
   host.innerHTML=
     '<div class="gize-aurora auth-aurora" aria-hidden="true"><span></span><span></span><span></span><span></span></div>'+
     '<div class="auth-card onb-card" role="dialog" aria-modal="true" aria-label="'+label+'" tabindex="-1">'+
-      '<div class="auth-brand-ic" aria-hidden="true"><img src="brand/logo/gize-monograma.svg" alt=""></div>'+
+      '<div class="auth-brand-ic" aria-hidden="true"><img src="brand/logo/gize-marca-blanca.svg" alt=""></div>'+
       inner+
     '</div>';
   // El foco va a la tarjeta (lector de pantalla) y no al campo: en el celular abriría el teclado.

@@ -54,7 +54,8 @@ export async function checkUpdate(force){
 
 function hide(){ const el = document.getElementById("updBox"); if (el) el.remove(); }
 
-const G = '<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M81.53,62.74 A34,34 0 1 1 67,20.55" fill="none" stroke="#fff" stroke-width="20" stroke-linecap="round"/><circle cx="60.5" cy="50" r="9.5" fill="#2FA0FF"/></svg>';
+// La marca (G + orbe) de brand/logo/; cada apariencia la cambia por la suya (css/ui/tema-*.css).
+const G = '<img class="upd-marca" src="brand/logo/gize-marca-blanca.svg" alt="">';
 const X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 const FLECHA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 

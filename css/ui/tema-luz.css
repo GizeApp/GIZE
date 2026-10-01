@@ -56,10 +56,12 @@ html.tema-luz {
 }
 
 /* ---------- La G casi negra con el punto azul ----------
-   Los logos son <img> de brand/logo/: se cambian por su versión oscura. */
-html.tema-luz :is(.brand-logo, .auth-brand-ic img) { content: url("../../brand/logo/gize-monograma-oscuro.svg"); }
+   Los logos son <img> de brand/logo/: se cambian por su versión oscura (la G casi negra con el
+   mismo orbe, brand/BRAND.md). */
+html.tema-luz :is(.brand-logo, .auth-brand-ic img, .upd-marca) { content: url("../../brand/logo/gize-marca-negra.svg"); }
 html.tema-luz .co-brand .brand-logo { content: url("../../brand/logo/gize-firma-horizontal-oscuro.svg"); }
-html.tema-luz .upd-logo path { stroke: var(--gize-text); }
+/* La palabra GIZE (login, bienvenida y Ajustes): en blanco no se veía sobre las tarjetas blancas. */
+html.tema-luz :is(.auth-logo img, .cfg-about img) { content: url("../../brand/logo/gize-logotipo-oscuro.svg"); }
 html.tema-luz .upd-logo { background: #fff; box-shadow: var(--luz-shadow); }
 
 /* ---------- Componentes de brand/tokens.css ---------- */
@@ -241,15 +243,8 @@ html.tema-luz .auth-install { border-color: rgba(11,13,17,.18); }
 html.tema-luz .auth-install:hover { border-color: rgba(11,13,17,.34); }
 html.tema-luz body:not(#_) .auth-card { box-shadow: var(--luz-shadow-hi), 0 0 60px -24px color-mix(in srgb, var(--gize-r2) 45%, transparent); }
 
-/* ---------- Splash: el ícono de vidrio sobre fondo claro ----------
-   Mismos círculos y tiempos que en «Oscuro» (azul, violeta, turquesa y rosa, punto azul); la G
-   casi negra y el vidrio blanco, más opaco para que la G se lea sobre los círculos. */
-html.tema-luz .sp-g .sl-arc { stroke: var(--gize-text); }
-html.tema-luz .sp-glass { background: linear-gradient(145deg, rgba(255,255,255,.72), rgba(255,255,255,.5) 55%, rgba(255,255,255,.6));
-  border-color: rgba(255,255,255,.9);
-  box-shadow: inset 0 1px 0 #fff, 0 24px 50px -20px rgba(16,24,40,.35); }
-/* El brillo del final queda detrás de la G (encima la lavaba a gris sobre el vidrio blanco). */
-html.tema-luz .sp-g { z-index: 1; }
+/* ---------- Splash ----------
+   El logo armándose sobre el fondo claro, con la G casi negra (css/core/splash.css). */
 
 /* ---------- Neón apagado con «Claro» (html.tema-luz.sin-neon) ----------
    Lo de css/ui/sin-neon.css es blanco sobre oscuro: acá pasa a filetes negros finos, grises

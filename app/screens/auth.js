@@ -50,7 +50,7 @@ export function showLogin(msg, mode, vals){
     '<div class="gize-aurora auth-aurora" aria-hidden="true"><span></span><span></span><span></span><span></span></div>'+
     '<canvas class="auth-particles" aria-hidden="true"></canvas>'+
     '<div class="auth-card" role="region" aria-label="'+(isUp?"Crear cuenta":"Iniciar sesión")+'">'+
-      '<div class="auth-brand-ic" aria-hidden="true"><img src="brand/logo/gize-monograma.svg" alt=""></div>'+
+      '<div class="auth-brand-ic" aria-hidden="true"><img src="brand/logo/gize-marca-blanca.svg" alt=""></div>'+
       '<div class="auth-logo"><img src="brand/logo/gize-logotipo.svg" alt="GIZE"></div>'+
       '<div class="auth-sub">Tu planilla de entrenamiento</div>'+
       roleField+
@@ -99,7 +99,7 @@ function showPasswordReset(msg, mode, vals){
     '<div class="gize-aurora auth-aurora" aria-hidden="true"><span></span><span></span><span></span><span></span></div>'+
     '<canvas class="auth-particles" aria-hidden="true"></canvas>'+
     '<div class="auth-card" role="region" aria-label="'+(isNew?"Contraseña nueva":"Recuperar contraseña")+'">'+
-      '<div class="auth-brand-ic" aria-hidden="true"><img src="brand/logo/gize-monograma.svg" alt=""></div>'+
+      '<div class="auth-brand-ic" aria-hidden="true"><img src="brand/logo/gize-marca-blanca.svg" alt=""></div>'+
       '<div class="auth-logo"><img src="brand/logo/gize-logotipo.svg" alt="GIZE"></div>'+
       '<div class="auth-sub">'+(isNew?"Elegí tu contraseña nueva":"Te mandamos un link a tu mail para elegir una contraseña nueva")+'</div>'+
       (isNew ? field("auPass", auIcoLock, "pass", "Contraseña nueva (mín. 6)", "password", "new-password", "")

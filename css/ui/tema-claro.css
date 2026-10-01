@@ -55,10 +55,11 @@ html.tema-claro {
   --blue-2: var(--gize-blue); --green-2: var(--gize-blue);
 }
 
-/* ---------- La G toda blanca ----------
-   Los logos son <img> de brand/logo/: se pasan a blanco con un filtro (arco y punto). */
-html.tema-claro :is(.brand-logo, .auth-brand-ic img) { filter: brightness(0) invert(1); }
-html.tema-claro .upd-logo circle { fill: #fff; }
+/* ---------- El logo «Azul» ----------
+   Los logos son <img> de brand/logo/: se cambian por la versión «Azul» (G blanca con el orbe en
+   celeste, violeta, cian e índigo; brand/BRAND.md). «Rosa» los pisa en css/ui/tema-rosa.css. */
+html.tema-claro :is(.brand-logo, .auth-brand-ic img, .upd-marca) { content: url("../../brand/logo/gize-marca-azul.svg"); }
+html.tema-claro .co-brand .brand-logo { content: url("../../brand/logo/gize-firma-horizontal-azul.svg"); }
 
 /* ---------- Componentes de brand/tokens.css ---------- */
 html.tema-claro .gize-btn-ghost { border-color: var(--gize-glass-line); background: rgba(255,255,255,.06); }

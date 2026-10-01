@@ -14,6 +14,9 @@
 (function () {
   var me = document.currentScript;
   var APP = (me && me.dataset.app) || "./";            // dónde está la app, relativo a esta página
+  // El ícono (el logo «Oscuro») está al lado de este archivo, en la raíz del sitio: desde la landing
+  // APP es "app/" y "app/icon-192.png" no existe (se veía la imagen rota en la hoja de instalar).
+  var ICON = "icon-192.png"; try { if (me && me.src) ICON = new URL("icon-192.png", me.src).href; } catch (e) {}
   var REMIND = !!(me && me.hasAttribute("data-reminder"));
   var KEY = "gize_install_later";
   var deferred = null;
@@ -75,7 +78,7 @@
     back = document.createElement("div"); back.className = "gi-back";
     back.innerHTML =
       '<div class="gi-sheet" role="dialog" aria-modal="true" aria-labelledby="giT">' +
-        '<div class="gi-head"><img src="' + APP + 'icon-192.png" alt=""><div><b id="giT">Instalá GIZE</b><small>Gratis, sin tiendas, en un minuto</small></div>' +
+        '<div class="gi-head"><img src="' + ICON + '" alt=""><div><b id="giT">Instalá GIZE</b><small>Gratis, sin tiendas, en un minuto</small></div>' +
         '<button class="gi-x" type="button" aria-label="Cerrar">✕</button></div>' + bodyHtml + '</div>';
     back.addEventListener("click", function (e) { if (e.target === back || e.target.closest(".gi-x") || e.target.closest("[data-gi-close]")) close(); });
     document.body.appendChild(back); document.addEventListener("keydown", onKey);
