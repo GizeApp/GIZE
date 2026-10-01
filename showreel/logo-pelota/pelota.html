@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · G blanca, pelota neón</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;background:#111}canvas{display:block;max-width:100vw;max-height:100vh}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* GIZE — the white G on black, its dot turned into a ball in the neon colours (the ring's blue, violet, pink and aqua).
+   An exploration outside brand/BRAND.md, which keeps the dot blue. Each design comes as the Instagram profile photo
+   (1080, the G centred in the circle Instagram crops) and as the app icon (1024, full bleed, + a light version).
+   Drawn once in a 1080 space and scaled to the output; rendered at 2× and halved for clean edges.
+     window.renderVariant(id, 'perfil'|'icono'|'claro') / window.renderSheet() -> PNG data URLs. */
+import {LOGO,loadLogo,drawFirma,F,rgba,rng} from '../lib/engine.js';
+
+const U=1080,CX=540,CY=540,Z=2,TAU=Math.PI*2;
+let SC=Z,DEV=U*Z;   // device scale and size of the render in progress
+const mk=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
+function layer(fn){const cv=mk(DEV,DEV),c=cv.getContext('2d');c.setTransform(SC,0,0,SC,0,0);fn(c);return cv;}
+function put(c,cv,{filter='none',alpha=1,op='source-over'}={}){c.save();c.setTransform(1,0,0,1,0,0);c.filter=filter;c.globalAlpha=alpha;c.globalCompositeOperation=op;c.drawImage(cv,0,0);c.restore();}
+const blur=r=>`blur(${r*SC}px)`;
+const NOISE={};
+function grain(c,a,op='soft-light'){let N=NOISE[DEV];if(!N){N=NOISE[DEV]=mk(DEV,DEV);const x=N.getContext('2d'),d=x.createImageData(DEV,DEV),r=rng(7);for(let i=0;i<d.data.length;i+=4){const v=(r()+r()+r())/3*255;d.data[i]=d.data[i+1]=d.data[i+2]=v;d.data[i+3]=255;}x.putImageData(d,0,0);}put(c,N,{alpha:a,op});}
+const hex=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+function radial(c,x,y,r,col,a,a1=0){const g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,rgba(col,a));g.addColorStop(1,rgba(col,a1));c.fillStyle=g;c.fillRect(x-r,y-r,2*r,2*r);}
+const fill=(c,style)=>{c.fillStyle=style;c.fillRect(0,0,U,U);};
+function txt(c,s,x,y,w,px,col,al='left'){c.font=F(w,px);c.fillStyle=col;c.textAlign=al;c.fillText(s,x,y);c.textAlign='left';}
+const NEON=['#2FA0FF','#A65CFF','#FF3DAE','#25E8C8'];
+
+// the G centred on its ring (d = the ring's outer diameter) and its dot, now the ball
+function geom(d){const A=LOGO.arc,k=d/(2*(A.r+A.w/2)),D=LOGO.dot;return{k,x:CX-A.cx*k,y:CY-A.cy*k,b:{x:CX+(D.x-A.cx)*k,y:CY+(D.y-A.cy)*k,r:D.r*k}};}
+const arcG=(c,g,color)=>drawFirma(c,g.x,g.y,g.k,{wordmark:false,dot:false,color});
+const ballPath=(c,b,s=1)=>{c.beginPath();c.arc(b.x,b.y,b.r*s,0,TAU);};
+
+// the ball's colour: the ring's sweep (blue, violet, pink, aqua clockwise from the top left), softened, or for the flat
+// ball a crisp diagonal in the same order (aqua, blue, violet, pink) that stays vivid at 56 px
+function ballPaint(b,soft){const r=b.r,L=layer(x=>{const g=x.createConicGradient(-Math.PI*0.75,b.x,b.y);[...NEON,NEON[0]].forEach((s,i)=>g.addColorStop(i/4,s));x.fillStyle=g;ballPath(x,b,1.6);x.fill();});
+  return layer(x=>{ballPath(x,b);x.clip();put(x,L,{filter:blur(r*soft)});
+    const h=x.createRadialGradient(b.x,b.y,0,b.x,b.y,r*0.62);h.addColorStop(0,'rgba(255,255,255,0.4)');h.addColorStop(1,'rgba(255,255,255,0)');x.globalCompositeOperation='screen';x.fillStyle=h;x.fillRect(b.x-r,b.y-r,2*r,2*r);});}   // a hot core, lit from within
+function ballFlat(b){const r=b.r;return layer(x=>{ballPath(x,b);x.clip();const g=x.createLinearGradient(b.x-r*0.8,b.y-r*0.8,b.x+r*0.8,b.y+r*0.8);[NEON[3],...NEON.slice(0,3)].forEach((s,i)=>g.addColorStop(i/3,s));x.fillStyle=g;x.fillRect(b.x-r,b.y-r,2*r,2*r);});}
+// a lit sphere: shade towards the lower right, a soft hot spot and a hard glint top left
+function shade(c,b){const r=b.r;c.save();ballPath(c,b);c.clip();
+  let g=c.createRadialGradient(b.x-r*0.3,b.y-r*0.35,r*0.1,b.x,b.y,r*1.02);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(0.7,'rgba(0,0,0,0.06)');g.addColorStop(1,'rgba(0,0,0,0.42)');c.fillStyle=g;c.fillRect(b.x-r,b.y-r,2*r,2*r);
+  g=c.createRadialGradient(b.x-r*0.32,b.y-r*0.36,0,b.x-r*0.32,b.y-r*0.36,r*0.75);g.addColorStop(0,'rgba(255,255,255,0.5)');g.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=g;c.fillRect(b.x-r,b.y-r,2*r,2*r);
+  c.fillStyle='rgba(255,255,255,0.9)';c.beginPath();c.ellipse(b.x-r*0.38,b.y-r*0.46,r*0.2,r*0.12,-0.6,0,TAU);c.fill();c.restore();}
+// the light the ball throws: wide and faint (only on black: on white it turns to haze), then tight and strong
+function glow(c,ball,b,k,{op='screen'}={}){const r=b.r;if(op==='screen')put(c,ball,{filter:blur(r*3),alpha:Math.min(1,0.9*k),op});put(c,ball,{filter:blur(r*1.2),alpha:Math.min(1,0.9*k),op});put(c,ball,{filter:blur(r*0.4),alpha:Math.min(1,k),op});}
+// the neon ring flush with Instagram's frame (as in logo-ig): the gradient fills everything outside it, the glow falls inward
+function ringGrad(c){const g=c.createConicGradient(-Math.PI/2,CX,CY);[...NEON,NEON[0]].forEach((s,i)=>g.addColorStop(i/4,s));return g;}
+function edgeRing(c,band){const R=540-band,ringL=w=>layer(x=>{x.strokeStyle=ringGrad(x);x.lineWidth=w;x.beginPath();x.arc(CX,CY,R,0,TAU);x.stroke();});
+  c.save();c.beginPath();c.arc(CX,CY,R,0,TAU);c.clip();put(c,ringL(90),{filter:blur(60),alpha:0.4,op:'screen'});put(c,ringL(40),{filter:blur(18),alpha:0.55,op:'screen'});c.restore();
+  c.fillStyle=ringGrad(c);c.beginPath();c.rect(-50,-50,U+100,U+100);c.arc(CX,CY,R-band*0.5,0,TAU,true);c.fill('evenodd');
+  c.strokeStyle='rgba(255,255,255,0.55)';c.lineWidth=1.6;c.beginPath();c.arc(CX,CY,R-band*0.5,0,TAU);c.stroke();}
+
+/* ---------------- the designs ---------------- */
+// mode: 'perfil' (Instagram, 1080) · 'icono' (app, 1024) · 'claro' (app, light mode)
+const SIZE={perfil:620,icono:600,claro:600};
+const V=[];const def=(id,name,note,draw,{icon=true}={})=>V.push({id,name,note,draw,icon});
+def('1-orbe','Orbe neón','La pelota como una esfera de luz que ilumina el negro.',(c,m)=>{const g=geom(SIZE[m]),dark=m!=='claro',ball=ballPaint(g.b,0.22);
+  fill(c,dark?'#000':'#FFFFFF');glow(c,ball,g.b,dark?0.6:0.45,{op:dark?'screen':'source-over'});arcG(c,g,dark?'#FFFFFF':'#0B0D11');put(c,ball);shade(c,g.b);grain(c,0.05);});
+def('2-plana','Pelota plana','Sin brillo ni volumen: los cuatro colores, nítidos. La que mejor se lee chiquita.',(c,m)=>{const g=geom(SIZE[m]);
+  fill(c,m==='claro'?'#FFFFFF':'#000');arcG(c,g,m==='claro'?'#0B0D11':'#FFFFFF');put(c,ballFlat(g.b));});
+def('3-ilumina','La pelota ilumina la G','Más luz: el color de la pelota se refleja en el borde de la G.',(c,m)=>{const g=geom(SIZE[m]),dark=m!=='claro',ball=ballPaint(g.b,0.22);
+  fill(c,dark?'#000':'#FFFFFF');glow(c,ball,g.b,dark?1:0.6,{op:dark?'screen':'source-over'});
+  const lit=layer(x=>{arcG(x,g,dark?'#FFFFFF':'#0B0D11');put(x,ball,{filter:blur(g.b.r*1.1),alpha:dark?0.9:0.8,op:'source-atop'});put(x,ball,{filter:blur(g.b.r*2.4),alpha:dark?0.45:0.5,op:'source-atop'});});
+  put(c,lit);put(c,ball);shade(c,g.b);grain(c,0.05);});
+def('4-anillo','Pelota + anillo al borde','El anillo neón pegado al marco de Instagram, con la pelota en los mismos colores.',(c,m)=>{const g=geom(580),ball=ballPaint(g.b,0.22);
+  fill(c,'#000');edgeRing(c,14);glow(c,ball,g.b,0.8);arcG(c,g,'#FFFFFF');put(c,ball);shade(c,g.b);grain(c,0.04);},{icon:false});
+
+/* ---------------- render ---------------- */
+function renderBig(v,m){const size=m==='perfil'?1080:1024;SC=Z*size/U;DEV=size*Z;const cv=mk(DEV,DEV),c=cv.getContext('2d');c.setTransform(SC,0,0,SC,0,0);v.draw(c,m);return cv;}
+function halve(cv){const o=mk(cv.width/2,cv.height/2),c=o.getContext('2d');c.imageSmoothingQuality='high';c.drawImage(cv,0,0,o.width,o.height);return o;}
+window.VARIANTS=V.map(v=>({id:v.id,name:v.name,icon:v.icon}));
+window.renderVariant=(id,m)=>halve(renderBig(V.find(v=>v.id===id),m)).toDataURL('image/png');
+
+// the sheet: each design as the profile photo (Instagram dark and light, real sizes) and as the icon on home screens
+function squircle(c,x,y,s){const n=5,a=s/2,cx=x+a,cy=y+a;c.beginPath();for(let i=0;i<=160;i++){const t=i/160*TAU,ct=Math.cos(t),st=Math.sin(t);const px=cx+a*Math.sign(ct)*Math.abs(ct)**(2/n),py=cy+a*Math.sign(st)*Math.abs(st)**(2/n);i?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();}
+function icon(c,img,x,y,s){c.save();squircle(c,x,y,s);c.clip();c.imageSmoothingQuality='high';c.drawImage(img,x,y,s,s);c.restore();}
+function circ(c,img,x,y,r){c.save();c.beginPath();c.arc(x,y,r,0,TAU);c.clip();c.imageSmoothingQuality='high';c.drawImage(img,x-r,y-r,2*r,2*r);c.restore();}
+const OTHER=[['#FF9F0A','#FF6B00'],['#34C759','#1E9E45'],['#5E5CE6','#3A38C9'],['#FF375F','#D70F3F'],['#64D2FF','#2AA7E0'],['#FFD60A','#F2B705']];
+function homeTile(c,x,y,w,h,img,dark){c.save();c.beginPath();c.roundRect(x,y,w,h,26);c.clip();
+  const g=c.createLinearGradient(x,y,x+w,y+h);if(dark){g.addColorStop(0,'#141A2B');g.addColorStop(1,'#05070C');}else{g.addColorStop(0,'#F4F7FC');g.addColorStop(1,'#D7E2F0');}c.fillStyle=g;c.fillRect(x,y,w,h);
+  const s=96,gap=(w-3*s)/4;for(let i=0;i<3;i++){const ix=x+gap+i*(s+gap),iy=y+16;if(i===1)icon(c,img,ix,iy,s);else{const[a,b]=OTHER[(i*3+(dark?1:0))%OTHER.length];squircle(c,ix,iy,s);const lg=c.createLinearGradient(ix,iy,ix+s,iy+s);lg.addColorStop(0,a);lg.addColorStop(1,b);c.fillStyle=lg;c.fill();}
+    txt(c,i===1?'GIZE':['Fotos','Mapas','Música','Notas'][(i+(dark?1:0))%4],ix+s/2,iy+s+26,500,19,dark?'#FFFFFF':'#1C1F26','center');}
+  c.restore();}
+// a profile row as Instagram shows it (avatar, then the comment-size avatar beside a line of text), dark or light
+function igStrip(c,x,y,w,img,dark){c.save();c.beginPath();c.roundRect(x,y,w,170,22);c.clip();c.fillStyle=dark?'#000':'#FFFFFF';c.fillRect(x,y,w,170);
+  circ(c,img,x+80,y+85,55);c.fillStyle=dark?'#F5F5F5':'#0B0D11';c.font=F(700,24);c.fillText('gize',x+158,y+62);
+  c.fillStyle=dark?'#2A2D33':'#E3E6EB';c.beginPath();c.roundRect(x+158,y+80,w-200,12,6);c.fill();c.beginPath();c.roundRect(x+158,y+102,(w-200)*0.6,12,6);c.fill();
+  circ(c,img,x+172,y+140,14);c.fillStyle=dark?'#2A2D33':'#E3E6EB';c.beginPath();c.roundRect(x+196,y+134,w-250,12,6);c.fill();c.restore();}
+window.renderSheet=()=>{const n=V.length,CW=540,gap=40,M=90,head=270,BW=M*2+n*CW+(n-1)*gap,BH=head+1330+M,cv=mk(BW,BH),c=cv.getContext('2d');
+  c.fillStyle='#0B0D11';c.fillRect(0,0,BW,BH);txt(c,'G blanca · pelota neón',M,112,800,56,'#fff');
+  txt(c,'La pelota de la G con los colores del anillo neón. Exploración fuera del manual (que mantiene el punto azul).',M,162,500,26,'#8F98A6');
+  const rg=c.createLinearGradient(M,0,BW-M,0);NEON.forEach((s,i)=>rg.addColorStop(i/3,s));c.fillStyle=rg;c.fillRect(M,206,BW-2*M,3);
+  V.forEach((v,i)=>{const x=M+i*(CW+gap),y=head,pf=renderBig(v,'perfil');c.fillStyle='#12151B';c.beginPath();c.roundRect(x,y,CW,1330,28);c.fill();
+    txt(c,v.name,x+30,y+56,700,30,'#fff');c.font=F(500,20);c.fillStyle='#8F98A6';
+    const words=v.note.split(' ');let line='',ly=y+90;words.forEach(w=>{if(c.measureText(line+w).width>CW-60){c.fillText(line,x+30,ly);line='';ly+=27;}line+=w+' ';});c.fillText(line,x+30,ly);
+    circ(c,pf,x+CW/2-70,y+300,150);circ(c,pf,x+CW/2+140,y+230,55);circ(c,pf,x+CW/2+140,y+330,28);
+    txt(c,'Perfil de Instagram',x+30,y+500,700,22,'#2FA0FF');igStrip(c,x+24,y+520,CW-48,pf,true);igStrip(c,x+24,y+706,CW-48,pf,false);
+    txt(c,'Ícono de la app',x+30,y+924,700,22,'#2FA0FF');
+    if(v.icon){const dk=renderBig(v,'icono'),lt=renderBig(v,'claro');icon(c,dk,x+30,y+946,96);icon(c,lt,x+146,y+946,96);txt(c,'oscuro · claro',x+262,y+1002,500,20,'#8F98A6');
+      homeTile(c,x+24,y+1062,CW-48,124,dk,true);homeTile(c,x+24,y+1196,CW-48,124,lt,false);}
+    else{c.font=F(500,21);c.fillStyle='#8F98A6';c.fillText('Solo para Instagram: en el ícono el anillo',x+30,y+966);c.fillText('lo cortaría la máscara del celular.',x+30,y+994);}});
+  return cv.toDataURL('image/png');};
+window.READY=false;
+(async()=>{await Promise.all([500,700,800].map(w=>document.fonts.load(F(w,40))));await loadLogo();window.READY=true;
+  const q=new URLSearchParams(location.search),v=V.find(x=>x.id.startsWith(q.get('v')||''))||V[0];const cv=renderBig(v,q.get('m')||'perfil'),out=document.getElementById('out');out.width=cv.width;out.height=cv.height;out.getContext('2d').drawImage(cv,0,0);})();
+</script></body></html>
