@@ -103,6 +103,7 @@ html.tema-claro:where(.sin-neon) body:not(#_) :is(
 :where(html.sin-neon) .ex-video:active, :where(html.sin-neon) .ex-audio.on,
 :where(html.sin-neon) .wk-finish:active, :where(html.sin-neon) .wk-cancel:active {
   background: linear-gradient(rgba(255,255,255,.08), rgba(255,255,255,.08)) padding-box, linear-gradient(var(--gize-surface-2), var(--gize-surface-2)) padding-box, var(--gize-rgb-ring) border-box; }
+:where(html.sin-neon) .ex-var-btn { box-shadow: 0 0 10px -8px rgba(255,255,255,.3); }
 /* Número de la superserie (un degradé de la gama con el número blanco): gris más claro. */
 :where(html.sin-neon) .ex-num.ss, :where(html.sin-neon) .co-exc-ord.ss { background: rgba(255,255,255,.24); color: var(--gize-text); }
 

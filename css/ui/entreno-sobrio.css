@@ -22,6 +22,15 @@ body:not(#_) .tabs .tab-add { color: var(--gize-text-2); }
 .ex-video:active, .ex-audio.on { color: var(--gize-text);
   background: linear-gradient(color-mix(in srgb, var(--gize-r2) 14%, var(--gize-surface-2)), color-mix(in srgb, var(--gize-r2) 14%, var(--gize-surface-2))) padding-box, var(--gize-rgb-ring) border-box; }
 
+/* «Ver variantes»: un toque de neón (pedido), más suave que video y audio: filete fino de la
+   gama y un brillo apenas. Sin neón, el token del filete pasa a blanco solo. */
+.ex-var-btn { border: 1px solid transparent; color: var(--gize-text);
+  background: linear-gradient(var(--gize-surface-2), var(--gize-surface-2)) padding-box, var(--gize-rgb-ring) border-box;
+  box-shadow: 0 0 10px -7px color-mix(in srgb, var(--gize-r2) 60%, transparent); }
+.ex-var-btn svg { color: var(--gize-text); }
+.ex-var-btn:active {
+  background: linear-gradient(color-mix(in srgb, var(--gize-r2) 12%, var(--gize-surface-2)), color-mix(in srgb, var(--gize-r2) 12%, var(--gize-surface-2))) padding-box, var(--gize-rgb-ring) border-box; }
+
 /* Recomendación y propuesta del coach: una caja gris (antes verde y azul). */
 .prog-sug, .prog-sug.coach { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.14); }
 .prog-sug .ps-ic, .prog-sug.coach .ps-ic { color: var(--gize-text); background: rgba(255,255,255,.08); }
