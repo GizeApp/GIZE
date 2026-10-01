@@ -5,6 +5,7 @@
    ?play preview, and a cue sheet (window.getCues) that lib/sound.py
    turns into the soundtrack. Formats: ?fmt=9x16 | 4x5 | 16x9.
    ===================================================================== */
+import './orb.js';   // globalThis.GizeOrb: the logo's orb
 export const C={bg:'#000000',surface:'#0B0D11',surface2:'#12151B',border:'#1C2029',text:'#FFFFFF',text2:'#8F98A6',
   blue:'#2FA0FF',blueDeep:'#0072BB',purple:'#A65CFF',pink:'#FF3DAE',teal:'#25E8C8',danger:'#FF4D4D',gold:'#FFC940',soft:'#C8CDD5'};
 export const RGB={text:[255,255,255],text2:[143,152,166],blue:[47,160,255],purple:[166,92,255],pink:[255,61,174],teal:[37,232,200],gold:[255,201,64],surface:[11,13,17],danger:[255,77,77]};
@@ -68,7 +69,7 @@ export function params(){const q=new URLSearchParams(location.search);return{fmt
 export function layout(fmt){const f=FORMATS[fmt]||FORMATS['9x16'];const s=f.safe;return{fmt,W:f.W,H:f.H,CX:f.W/2,CY:f.H/2,safe:s,
   sc:(s.top+s.bottom)/2,sh:s.bottom-s.top,sw:s.right-s.left,tall:f.H/f.W>1.5,wide:f.W>f.H};}
 
-/* ---------------- brand logo (parsed from brand/logo/gize-firma-horizontal.svg) ---------------- */
+/* ---------------- brand logo: the G and the orb (brand/logo/gize-firma-horizontal.svg, lib/orb.js) ---------------- */
 export const LOGO={};
 export async function loadLogo(){
   const url=new URL('../../brand/logo/gize-firma-horizontal.svg',import.meta.url);
@@ -78,16 +79,28 @@ export async function loadLogo(){
   const[x0,y0,r,,,fA,fS,x1,y1]=n,hx=(x0-x1)/2,hy=(y0-y1)/2,sg=fA!==fS?1:-1,co=sg*Math.sqrt(Math.max(0,(r*r*r*r-r*r*hy*hy-r*r*hx*hx)/(r*r*hy*hy+r*r*hx*hx)));
   const cx=co*hy+(x0+x1)/2,cy=-co*hx+(y0+y1)/2,a0=Math.atan2(y0-cy,x0-cx),a1=Math.atan2(y1-cy,x1-cx),sweep=((a1-a0)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
   LOGO.arc={cx,cy,r,a0,a1,len:r*sweep,w:+arc.getAttribute('stroke-width'),path:new Path2D(arc.getAttribute('d'))};
-  const ci=svg.querySelector('circle');LOGO.dot={x:+ci.getAttribute('cx'),y:+ci.getAttribute('cy'),r:+ci.getAttribute('r'),fill:ci.getAttribute('fill')};
-  const g=svg.querySelector('g'),m=g.getAttribute('transform').match(/translate\(([-\d.]+),([-\d.]+)\)\s*scale\(([-\d.]+),([-\d.]+)\)/);
+  const ci=svg.querySelector('.o-esfera circle')||svg.querySelector('circle');LOGO.dot={x:+ci.getAttribute('cx'),y:+ci.getAttribute('cy'),r:+ci.getAttribute('r'),fill:C.blue};   // the orb's place
+  const g=svg.querySelector('g[transform]'),m=g.getAttribute('transform').match(/translate\(([-\d.]+),([-\d.]+)\)\s*scale\(([-\d.]+),([-\d.]+)\)/);
   LOGO.wm={tx:+m[1],ty:+m[2],sx:+m[3],sy:+m[4],letters:[...g.querySelectorAll('path')].map(p=>({p:new Path2D(p.getAttribute('d')),tx:+p.getAttribute('transform').match(/translate\(([-\d.]+)/)[1]}))};
 }
-// o: {color, mono, arcP 0..1, dot:false|{x,y,sx,sy}, wordmark:false, symbol:false, dy:[per-letter, logo units]}
+// the orb at (x,y) radius r in canvas units: halo, then (if given) the G's tint via strokeG, then the sphere.
+// o: {pal, k (halo strength), light, sx, sy, halo:false, tint:false}
+export const ORB_K=1.5;   // the reels' halo: a little more than the vector logo, like the original PNG
+export function drawOrb(c,x,y,r,o={},strokeG=null){const q={k:ORB_K,...o};if(o.halo!==false)GizeOrb.halo(c,x,y,r,q);if(strokeG&&o.tint!==false)GizeOrb.tint(c,x,y,r,q,strokeG);GizeOrb.body(c,x,y,r,q);}
+export const orbRing=(c,x,y,o)=>GizeOrb.ring(c,x,y,o);
+// a dark G (a light ground) gets the paler halo
+const darkInk=s=>{const m=/^#([0-9a-f]{6})$/i.exec(s);if(!m)return false;const v=parseInt(m[1],16);return 0.2126*(v>>16)+0.7152*((v>>8)&255)+0.0722*(v&255)<128;};
+// o: {color, mono, arcP 0..1, dot:false|{x,y,sx,sy}, wordmark:false, symbol:false, dy:[per-letter, logo units],
+//     orb:{pal,k,light,halo,tint} (how the orb is drawn; mono draws a flat dot in the logo's colour instead)}
 export function drawFirma(c,x,y,k,o={}){
-  const col=o.color||C.text,A=LOGO.arc;c.save();c.translate(x,y);c.scale(k,k);
-  if(o.symbol!==false){const p=o.arcP??1;c.strokeStyle=col;c.lineWidth=A.w;c.lineCap='round';
-    if(p>=1)c.stroke(A.path);else if(p>0){c.setLineDash([A.len*p,A.len*2]);c.beginPath();c.arc(A.cx,A.cy,A.r,A.a1,A.a0,true);c.stroke();c.setLineDash([]);}
-    if(o.dot!==false){const D=LOGO.dot,d=typeof o.dot==='object'?o.dot:{x:D.x,y:D.y,sx:1,sy:1};c.fillStyle=o.mono?col:D.fill;c.beginPath();c.ellipse(d.x,d.y,D.r*d.sx,D.r*d.sy,0,0,7);c.fill();}}
+  const col=o.color||C.text,A=LOGO.arc,D=LOGO.dot;c.save();c.translate(x,y);c.scale(k,k);
+  if(o.symbol!==false){const p=o.arcP??1,d=o.dot===false?null:typeof o.dot==='object'?o.dot:{x:D.x,y:D.y,sx:1,sy:1},orb=o.mono?null:{light:darkInk(col),...o.orb,sx:d?.sx??1,sy:d?.sy??1};
+    const strokeG=()=>{if(p>=1)c.stroke(A.path);else if(p>0){c.setLineDash([A.len*p,A.len*2]);c.beginPath();c.arc(A.cx,A.cy,A.r,A.a1,A.a0,true);c.stroke();c.setLineDash([]);}};
+    c.lineWidth=A.w;c.lineCap='round';
+    if(d&&orb&&orb.halo!==false)GizeOrb.halo(c,d.x,d.y,D.r,{k:ORB_K,...orb});
+    c.strokeStyle=col;strokeG();
+    if(d&&orb){if(p>0&&orb.tint!==false)GizeOrb.tint(c,d.x,d.y,D.r,{k:ORB_K,...orb},strokeG);GizeOrb.body(c,d.x,d.y,D.r,orb);}
+    else if(d){c.fillStyle=col;c.beginPath();c.ellipse(d.x,d.y,D.r*d.sx,D.r*d.sy,0,0,7);c.fill();}}
   if(o.wordmark!==false){const M=LOGO.wm;c.fillStyle=col;M.letters.forEach((Lt,i)=>{c.save();c.translate(0,o.dy?o.dy[i]:0);c.translate(M.tx,M.ty);c.scale(M.sx,M.sy);c.translate(Lt.tx,0);c.fill(Lt.p);c.restore();});}
   c.restore();
 }

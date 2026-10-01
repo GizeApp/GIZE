@@ -28,8 +28,8 @@ createReel({dur:7,
       c.restore();neonFrame(c,F.x,F.y,F.w,F.h,28,E.inOutCubic(prog(t,0.15,0.9)),ma);}
     // the runner's dot lifts off and becomes the G's dot
     const g=endcardGeom(L),apex=g.dotY-440,tUp=T0+ENDCARD_LAND-0.39,END=endPos(L);
-    if(t>=RUN1&&t<tUp){const e=E.outCubic(prog(t,RUN1,tUp)),x=lerp(END.x,g.dotX,e),y=lerp(END.y,apex,e)-Math.sin(Math.PI*e)*120;glow(c,x,y,90,RGB.blue,0.6);c.fillStyle=C.blue;c.beginPath();c.arc(x,y,lerp(12,g.dotR,e),0,7);c.fill();}
-    if(t>=T0-0.05){endcardBg(c,t,T0,L,E.outCubic(prog(t,T0-0.05,T0+0.3)));if(t>=RUN1&&t<tUp){const e=E.outCubic(prog(t,RUN1,tUp)),x=lerp(END.x,g.dotX,e),y=lerp(END.y,apex,e)-Math.sin(Math.PI*e)*120;glow(c,x,y,90,RGB.blue,0.6);c.fillStyle=C.blue;c.beginPath();c.arc(x,y,lerp(12,g.dotR,e),0,7);c.fill();}
+    if(t>=RUN1&&t<tUp){const e=E.outCubic(prog(t,RUN1,tUp)),x=lerp(END.x,g.dotX,e),y=lerp(END.y,apex,e)-Math.sin(Math.PI*e)*120;GizeOrb.ball(c,x,y,lerp(12,g.dotR,e));}
+    if(t>=T0-0.05){endcardBg(c,t,T0,L,E.outCubic(prog(t,T0-0.05,T0+0.3)));if(t>=RUN1&&t<tUp){const e=E.outCubic(prog(t,RUN1,tUp)),x=lerp(END.x,g.dotX,e),y=lerp(END.y,apex,e)-Math.sin(Math.PI*e)*120;GizeOrb.ball(c,x,y,lerp(12,g.dotR,e));}
       endcard(c,t,T0,L,{cta:P.cta,rule:'center',dropY0:apex});}},
   cues(L){const g=endcardGeom(L),cues=[{t:BT,s:'groove',t1:RUN1,bpm:128,chords:[[0,'Am'],[1.875+BT,'F']],parts:['kick','hat','bass','arp','pad']},
       {t:0.15,s:'whoosh',d:0.6,f0:300,f1:3000,g:1.2},{t:0.55,s:'pop'},{t:3.3,s:'rise',d:0.5},{t:RUN1,s:'whoosh',d:0.6,f0:600,f1:5000,g:1.4},{t:RUN1,s:'sub',d:1.2,gain:0.5}];

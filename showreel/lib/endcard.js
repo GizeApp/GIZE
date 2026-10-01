@@ -4,7 +4,7 @@
      cta=hype   "Muy pronto" · "para iPhone y Android" · [Seguí @gize.app]
      cta=launch "Ya está disponible" · "en App Store y Google Play" · [Descargala gratis]
      cta=trial  "Probalo 14 días gratis" · "sin tarjeta" · [Link en la bio]          */
-import {C,RGB,E,clamp,lerp,prog,glow,rgbLine,rgbRing,rr,txt,tw,fitSize,drawFirma,makeBall,wobble,LOGO,F} from './engine.js';
+import {C,RGB,E,clamp,lerp,prog,glow,rgbLine,rgbRing,rr,txt,tw,fitSize,drawFirma,makeBall,wobble,LOGO,F,orbRing} from './engine.js';
 
 export const CTA={
   hype:{big:'Muy pronto',small:'para iPhone y Android',pill:'Seguí @gize.app'},
@@ -34,7 +34,7 @@ export function endcard(c,t,t0,L,{cta='hype',rule='full',dot='drop',arc='draw',d
   else if(dot==='drop'&&t>=t0+LAND-0.39){const ph=bl.phys(t),sq=bl.squash(t),st=Math.min(0.5,0.5*Math.abs(ph.vy)/bl.vim[0])*Math.max(0,1-sq*4),sy=(1-sq)*(1+st),sx=1/Math.sqrt(sy),r=g.dotR;
     let y=ph.y+r*(1-sy);y=Math.min(y,bl.yRest+r-r*sy);dd={x:LOGO.dot.x,y:(y-g.y)/K,sx,sy};}
   drawFirma(c,g.x,g.y,K,{wordmark:false,arcP:ap,dot:dd});
-  if(dot==='drop')for(let q=0;q<bl.imp.length;q++){const v=t-bl.imp[q];if(v<0||v>0.7)continue;const e=E.outCubic(v/0.7),s=bl.vim[q]/bl.vim[0];c.strokeStyle=C.blue;c.lineWidth=3;c.globalAlpha=(1-e)*0.9*s;c.beginPath();c.arc(g.dotX,bl.yRest,g.dotR+10+170*e*s,0,7);c.stroke();}c.globalAlpha=1;
+  if(dot==='drop')for(let q=0;q<bl.imp.length;q++){const v=t-bl.imp[q];if(v<0||v>0.7)continue;const e=E.outCubic(v/0.7),s=bl.vim[q]/bl.vim[0];c.strokeStyle=orbRing(c,g.dotX,bl.yRest);c.lineWidth=3;c.globalAlpha=(1-e)*0.9*s;c.beginPath();c.arc(g.dotX,bl.yRest,g.dotR+10+170*e*s,0,7);c.stroke();}c.globalAlpha=1;
   const bigPx=fitSize(T.big,800,Math.min(900,L.sw*0.92),L.fmt==='16x9'?92:96);
   c.save();c.beginPath();c.rect(-100,g.line+3,L.W+200,L.H);c.clip();c.textAlign='center';
   const ce=E.outExpo(prog(t,t0+1.0,t0+1.55));c.font=F(800,bigPx);c.fillStyle='#fff';c.fillText(T.big,L.CX,g.line+bigPx+18-(1-ce)*(bigPx+140));

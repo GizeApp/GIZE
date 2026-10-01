@@ -12,6 +12,7 @@ canvas{display:block;position:absolute;inset:0;margin:auto;max-width:100vw;max-h
 </head>
 <body>
 <canvas id="out" width="1080" height="1920"></canvas>
+<script src="../lib/orb.js"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -82,15 +83,20 @@ async function loadLogo(){
   const[x0,y0,r,,,fA,fS,x1,y1]=n,hx=(x0-x1)/2,hy=(y0-y1)/2,sg=fA!==fS?1:-1,co=sg*Math.sqrt(Math.max(0,(r*r*r*r-r*r*hy*hy-r*r*hx*hx)/(r*r*hy*hy+r*r*hx*hx)));
   const cx=co*hy+(x0+x1)/2,cy=-co*hx+(y0+y1)/2,a0=Math.atan2(y0-cy,x0-cx),a1=Math.atan2(y1-cy,x1-cx),sweep=((a1-a0)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
   LOGO.arc={cx,cy,r,a0,a1,len:r*sweep,w:+arc.getAttribute('stroke-width'),path:new Path2D(arc.getAttribute('d'))};
-  const ci=svg.querySelector('circle');LOGO.dot={x:+ci.getAttribute('cx'),y:+ci.getAttribute('cy'),r:+ci.getAttribute('r'),fill:ci.getAttribute('fill')};
-  const g=svg.querySelector('g'),m=g.getAttribute('transform').match(/translate\(([-\d.]+),([-\d.]+)\)\s*scale\(([-\d.]+),([-\d.]+)\)/);
+  const ci=svg.querySelector('.o-esfera circle')||svg.querySelector('circle');LOGO.dot={x:+ci.getAttribute('cx'),y:+ci.getAttribute('cy'),r:+ci.getAttribute('r'),fill:ci.getAttribute('fill')};
+  const g=svg.querySelector('g[transform]'),m=g.getAttribute('transform').match(/translate\(([-\d.]+),([-\d.]+)\)\s*scale\(([-\d.]+),([-\d.]+)\)/);
   LOGO.wm={tx:+m[1],ty:+m[2],sx:+m[3],sy:+m[4],letters:[...g.querySelectorAll('path')].map(p=>({p:new Path2D(p.getAttribute('d')),tx:+p.getAttribute('transform').match(/translate\(([-\d.]+)/)[1]}))};
 }
-function drawFirma(c,x,y,k,o={}){
-  const col=o.color||C.text,A=LOGO.arc;c.save();c.translate(x,y);c.scale(k,k);
-  if(o.symbol!==false){const p=o.arcP??1;c.strokeStyle=col;c.lineWidth=A.w;c.lineCap='round';
-    if(p>=1)c.stroke(A.path);else if(p>0){c.setLineDash([A.len*p,A.len*2]);c.beginPath();c.arc(A.cx,A.cy,A.r,A.a1,A.a0,true);c.stroke();c.setLineDash([]);}
-    if(o.dot!==false){const D=LOGO.dot,d=typeof o.dot==='object'?o.dot:{x:D.x,y:D.y,sx:1,sy:1};c.fillStyle=o.mono?col:D.fill;c.beginPath();c.ellipse(d.x,d.y,D.r*d.sx,D.r*d.sy,0,0,7);c.fill();}}
+const ORB_K=1.5,darkInk=s=>{const m=/^#([0-9a-f]{6})$/i.exec(s);if(!m)return false;const v=parseInt(m[1],16);return 0.2126*(v>>16)+0.7152*((v>>8)&255)+0.0722*(v&255)<128;};
+function drawFirma(c,x,y,k,o={}){   // the G with the orb (lib/orb.js), as in lib/engine.js
+  const col=o.color||C.text,A=LOGO.arc,D=LOGO.dot;c.save();c.translate(x,y);c.scale(k,k);
+  if(o.symbol!==false){const p=o.arcP??1,d=o.dot===false?null:typeof o.dot==='object'?o.dot:{x:D.x,y:D.y,sx:1,sy:1},orb=o.mono?null:{light:darkInk(col),...o.orb,sx:d?.sx??1,sy:d?.sy??1};
+    const strokeG=()=>{if(p>=1)c.stroke(A.path);else if(p>0){c.setLineDash([A.len*p,A.len*2]);c.beginPath();c.arc(A.cx,A.cy,A.r,A.a1,A.a0,true);c.stroke();c.setLineDash([]);}};
+    c.lineWidth=A.w;c.lineCap='round';
+    if(d&&orb&&orb.halo!==false)GizeOrb.halo(c,d.x,d.y,D.r,{k:ORB_K,...orb});
+    c.strokeStyle=col;strokeG();
+    if(d&&orb){if(p>0&&orb.tint!==false)GizeOrb.tint(c,d.x,d.y,D.r,{k:ORB_K,...orb},strokeG);GizeOrb.body(c,d.x,d.y,D.r,orb);}
+    else if(d){c.fillStyle=col;c.beginPath();c.ellipse(d.x,d.y,D.r*d.sx,D.r*d.sy,0,0,7);c.fill();}}
   if(o.wordmark!==false){const M=LOGO.wm;c.fillStyle=col;M.letters.forEach((L,i)=>{c.save();c.translate(0,o.dy?o.dy[i]:0);c.translate(M.tx,M.ty);c.scale(M.sx,M.sy);c.translate(L.tx,0);c.fill(L.p);c.restore();});}
   c.restore();
 }
@@ -409,7 +415,7 @@ function outro(c,t){const u=t-T_OUT;if(u<-0.3)return;
   const ap=E.inOutCubic(prog(t,T_OUT+0.1,T_OUT+0.6));let dot=false;
   if(t>=11.8){const ph=bl.phys(t),sq=bl.squash(t),st=Math.min(0.5,0.5*Math.abs(ph.vy)/bl.vim[0])*Math.max(0,1-sq*4),sy=(1-sq)*(1+st),sx=1/Math.sqrt(sy);const r=OUT.dotR;let y=ph.y+r*(1-sy);y=Math.min(y,bl.yRest+r-r*sy);dot={x:LOGO.dot.x,y:(y-OUT.y)/K,sx,sy};}
   drawFirma(c,OUT.x,OUT.y,K,{wordmark:false,arcP:ap,dot});
-  for(let q=0;q<bl.imp.length;q++){const v=t-bl.imp[q];if(v<0||v>0.7)continue;const e=E.outCubic(v/0.7),s=bl.vim[q]/bl.vim[0];c.strokeStyle=C.blue;c.lineWidth=3;c.globalAlpha=(1-e)*0.9*s;c.beginPath();c.arc(OUT.dotX,bl.yRest,OUT.dotR+10+170*e*s,0,7);c.stroke();}c.globalAlpha=1;
+  for(let q=0;q<bl.imp.length;q++){const v=t-bl.imp[q];if(v<0||v>0.7)continue;const e=E.outCubic(v/0.7),s=bl.vim[q]/bl.vim[0];c.strokeStyle=GizeOrb.ring(c,OUT.dotX,bl.yRest);c.lineWidth=3;c.globalAlpha=(1-e)*0.9*s;c.beginPath();c.arc(OUT.dotX,bl.yRest,OUT.dotR+10+170*e*s,0,7);c.stroke();}c.globalAlpha=1;
   c.save();c.beginPath();c.rect(-100,OUT.line+3,W+200,H);c.clip();
   const ce=E.outExpo(prog(t,12.3,12.9));c.font=F(800,OUT.cta);c.textAlign='center';c.fillStyle='#fff';c.fillText(TX.big,CX,OUT.line+112-(1-ce)*200);
   const se=E.outExpo(prog(t,12.42,12.95));c.font=F(400,40);c.fillStyle='#C8CDD5';c.fillText(TX.small,CX,OUT.line+172-(1-se)*240);c.restore();
@@ -438,8 +444,8 @@ function drawAll(c,t){
     // the dot carries the saved workout from Tomás to Martina
     device(c,coP(t),coachUI,t);
     const u=prog(t,8.95,ARRIVE);if(u>0&&u<1){const A=athP(t),Bq=coP(t),p0=phonePoint(A,195,REVGY()),p1=phonePoint(Bq,195,251),e=E.inOutCubic(u);
-      const x=lerp(p0[0],p1[0],e),y=lerp(p0[1],p1[1],e)-Math.sin(Math.PI*e)*360;glow(c,x,y,130,RGB.blue,0.65);
-      for(let q=6;q>=0;q--){const ee=E.inOutCubic(clamp(u-q*0.03)),xx=lerp(p0[0],p1[0],ee),yy=lerp(p0[1],p1[1],ee)-Math.sin(Math.PI*ee)*360;c.fillStyle=q?`rgba(47,160,255,${(1-q/7)*0.7})`:C.blue;c.beginPath();c.arc(xx,yy,22-q*2.4,0,7);c.fill();}}}
+      const x=lerp(p0[0],p1[0],e),y=lerp(p0[1],p1[1],e)-Math.sin(Math.PI*e)*360;glow(c,x,y,130,[84,104,232],0.65);
+      for(let q=6;q>=0;q--){const ee=E.inOutCubic(clamp(u-q*0.03)),xx=lerp(p0[0],p1[0],ee),yy=lerp(p0[1],p1[1],ee)-Math.sin(Math.PI*ee)*360;if(q){c.fillStyle=GizeOrb.rgba(GizeOrb.PAL.original.halo[q%3],(1-q/7)*0.7);c.beginPath();c.arc(xx,yy,22-q*2.4,0,7);c.fill();}else GizeOrb.ball(c,xx,yy,22);}}}
   if(t>=T_DROP)captions(c,t);
   if(t>=T_OUT-0.3){outro(c,t);}
   loopWipe(c,t);

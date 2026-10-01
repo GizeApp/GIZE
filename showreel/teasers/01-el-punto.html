@@ -21,16 +21,16 @@ createReel({dur:6,
     if(t<T0+0.1){const chg=prog(t,B.rest+0.02,JUMP),fl=E.outExpo(prog(t,0.05,0.6)),fw=420*fl;
       if(t<JUMP){glow(c,L.CX,B.floor-40,620,RGB.blue,0.22*E.inQuad(chg));glow(c,L.CX,B.floor-40,300,RGB.purple,0.12*E.inQuad(chg));}
       c.fillStyle=C.text2;c.globalAlpha=0.4*(1-prog(t,JUMP,JUMP+0.25));c.fillRect(L.CX-fw,B.floor,fw*2,2);c.globalAlpha=1;
-      for(let k=0;k<B.imp.length;k++){const u=t-B.imp[k];if(u<0||u>0.7)continue;const s=B.vim[k]/B.vim[0],e=E.outCubic(u/0.7),rx=30+320*e*(0.3+0.7*s);c.strokeStyle=C.blue;c.lineWidth=2;c.globalAlpha=(1-e)*(0.15+0.7*s);c.beginPath();c.ellipse(L.CX,B.floor+1,rx,rx*0.12,0,0,7);c.stroke();}
+      for(let k=0;k<B.imp.length;k++){const u=t-B.imp[k];if(u<0||u>0.7)continue;const s=B.vim[k]/B.vim[0],e=E.outCubic(u/0.7),rx=30+320*e*(0.3+0.7*s);c.strokeStyle=GizeOrb.ring(c,L.CX,B.floor);c.lineWidth=2;c.globalAlpha=(1-e)*(0.15+0.7*s);c.beginPath();c.ellipse(L.CX,B.floor+1,rx,rx*0.12,0,0,7);c.stroke();}
       c.globalAlpha=1;
       if(t<JUMP+0.12){const b=shape(t);
-        if(t<JUMP){const hg=clamp((B.floor-(b.y+b.r*b.sy))/700);c.fillStyle=C.blue;c.globalAlpha=0.22*(1-hg);c.beginPath();c.ellipse(L.CX,B.floor+5,Math.max(1,b.r*1.35*(1-0.6*hg)*b.sx),Math.max(1,7*(1-0.5*hg)),0,0,7);c.fill();c.globalAlpha=1;
+        if(t<JUMP){const hg=clamp((B.floor-(b.y+b.r*b.sy))/700);c.fillStyle='#5468E8';c.globalAlpha=0.22*(1-hg);c.beginPath();c.ellipse(L.CX,B.floor+5,Math.max(1,b.r*1.35*(1-0.6*hg)*b.sx),Math.max(1,7*(1-0.5*hg)),0,0,7);c.fill();c.globalAlpha=1;
           if(t<B.rest+0.12)for(let k=5;k>=1;k--){const tb=t-k*0.04;if(tb<0)continue;const o=shape(tb);c.strokeStyle=C.text2;c.lineWidth=1.5;c.globalAlpha=0.3*(1-k/6)*(1-prog(t,B.rest,B.rest+0.12));c.beginPath();c.ellipse(o.x,o.y,o.r*o.sx,o.r*o.sy,0,0,7);c.stroke();}
           c.globalAlpha=1;
           if(chg>0){const by=B.floor-34*(1-0.44*E.inCubic(chg)),e=E.inOutCubic(chg);c.lineCap='round';c.strokeStyle=C.border;c.lineWidth=6;c.beginPath();c.arc(L.CX,by,80,0,7);c.stroke();
             c.strokeStyle=rgbRing(c,L.CX,by,t*6);c.beginPath();c.arc(L.CX,by,80,-Math.PI/2,-Math.PI/2+Math.PI*2*e);c.stroke();c.lineCap='butt';
             for(let i=0;i<22;i++){const pr=prog(t,B.rest+hash(i+9)*0.1,JUMP);if(pr<=0)continue;const rr=46+300*(1-E.inCubic(pr)),a=hash(i)*6.283+pr*2.4;c.globalAlpha=Math.sin(pr*Math.PI);c.fillStyle=rgba(i%5?[RGB.blue,RGB.purple,RGB.pink,RGB.teal][i%4]:RGB.text);c.fillRect(L.CX+Math.cos(a)*rr-2,by+Math.sin(a)*rr*0.85-2,4,4);}c.globalAlpha=1;}}
-        c.fillStyle=C.blue;c.beginPath();c.ellipse(b.x,b.y,b.r*b.sx,b.r*b.sy,0,0,7);c.fill();}
+        GizeOrb.ball(c,b.x,b.y,b.r,{sx:b.sx,sy:b.sy});}
       const u=t-JUMP;if(u>0&&u<0.5){const e=E.outCubic(u/0.5);c.strokeStyle='#fff';c.globalAlpha=1-e;c.lineWidth=10*(1-e)+1;c.beginPath();c.arc(L.CX,B.floor,40+700*e,0,7);c.stroke();c.globalAlpha=1;}}
     if(t>=T0-0.02){endcardBg(c,t,T0,L,E.outCubic(prog(t,T0-0.02,T0+0.3)));endcard(c,t,T0,L,{cta:P.cta,rule:'center'});}},
   cues(L){const cues=[];B.imp.forEach((ti,k)=>cues.push({t:ti,s:'bloop',k,v:B.vim[k]/B.vim[0],g:1.4}));
