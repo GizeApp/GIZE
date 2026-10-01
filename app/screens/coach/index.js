@@ -72,6 +72,9 @@ export function renderCoach(){
   if(!CoachState.coachSel && CoachState.coachApplyPicker){ CoachState.coachApplyPicker=null; renderApplyPicker(); }
   if(!CoachState.coachSel && CoachState.coachCopyPicker){ CoachState.coachCopyPicker=null; renderCopyPicker(); }
   host.style.display="block";
+  // La pantalla del alumno que pudo quedar armada debajo (primer ingreso de un coach) no se ve
+  // ni ocupa memoria mientras está el panel (css/ui/theme.css: body.silk-coach #view).
+  const v=document.getElementById("view"); if(v && v.firstChild) v.innerHTML="";
   showSilkBg();
   document.body.classList.add("silk-coach");
   // Sin prueba ni plan vigente: solo la pantalla de planes (la base igual no le deja
