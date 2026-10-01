@@ -1,12 +1,13 @@
 (function () {
   // El splash de todas las apariencias es el logo oficial, tranquilo (template #splashTpl en
   // app/index.html, css/core/splash.css), con los colores de cada una: la marca aparece suave con
-  // la G que se traza, el orbe respira una vez y sube la palabra GIZE. Dura 1,6 s contando la
-  // salida (primero se va la marca y después el fondo); en el modo liviano ya viene armado y se
-  // va a los 0,85 s. Al terminar no queda nada: se saca del DOM todo lo que puso.
+  // la G que se traza, el orbe se enciende, sube la palabra GIZE y el logo armado descansa un
+  // momento (el orbe respira una vez más, suave). Dura 3 s contando la salida (primero se va la
+  // marca y después el fondo); en el modo liviano ya viene armado y se va a los 0,85 s.
+  // Al terminar no queda nada: se saca del DOM todo lo que puso.
   var MAX_MS = 8000;   // techo de seguridad si la app nunca avisa que está lista
   var tpl = document.getElementById('splashTpl');
-  function totalMs() { return document.documentElement.classList.contains('lite') ? 850 : 1600; }
+  function totalMs() { return document.documentElement.classList.contains('lite') ? 850 : 3000; }
   var host = document.getElementById('splashHost');
   var current = null; // splash en pantalla ahora mismo, si hay uno
 

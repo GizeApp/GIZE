@@ -64,7 +64,7 @@ export default async function ({ base, t }){
   t.ok(/rgb\(224, 58, 174\)/.test(sp.color || '') && /rgb\(27, 205, 182\)/.test(sp.color || ''), 'por defecto (Oscuro): el orbe con los colores originales: ' + sp.color);
   t.eq([sp.orbAnim, sp.arcAnim, sp.halo], ['sp-orbe', 'sp-trazo', 'sp-respira'], 'por defecto (Oscuro): el splash aparece animado');
   t.eq(await pg.p.evaluate(() => window.__dcl), false, 'por defecto: sin html.tema-claro');
-  t.ok(await splashGone(pg.p, 5000), 'por defecto: el splash se va');
+  t.ok(await splashGone(pg.p, 6000), 'por defecto: el splash se va');
   await wait(400);
   await pg.p.click('#nav-config'); await wait(500);
   let l = await look(pg.p);
@@ -95,7 +95,7 @@ export default async function ({ base, t }){
   t.eq([sp.nuevo, sp.viejo, sp.label, sp.arcStroke], [true, false, 'GIZE', 'rgb(255, 255, 255)'], 'Azul: splash del logo, con la G blanca');
   t.ok(/rgb\(43, 63, 192\)/.test(sp.color || '') && !/224, 58, 174/.test(sp.color || ''), 'Azul: el orbe con los colores de Azul: ' + sp.color);
   t.eq([sp.orbAnim, sp.arcAnim, sp.halo, sp.blur], ['sp-orbe', 'sp-trazo', 'sp-respira', 0], 'Azul: el splash aparece animado, sin backdrop-filter');
-  t.ok(await splashGone(pg.p, 4000), 'Azul: el splash se va solo (' + (Date.now() - t0) + ' ms)');
+  t.ok(await splashGone(pg.p, 6000), 'Azul: el splash se va solo (' + (Date.now() - t0) + ' ms)');
   await wait(600);
   t.ok(await pg.p.evaluate(() => !document.getElementById('splash') && !document.body.classList.contains('is-booting')), 'Azul: el splash sale del DOM');
   await pg.p.click('#nav-config'); await wait(500);

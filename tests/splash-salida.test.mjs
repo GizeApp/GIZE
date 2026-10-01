@@ -1,4 +1,4 @@
-// El splash tranquilo (el logo oficial que aparece suave, la G que se traza, el orbe que respira
+// El splash tranquilo, de 3 s (el logo oficial que aparece suave, la G que se traza, el orbe que respira
 // una vez y la palabra GIZE): primero se va la marca y después se funde el fondo. Antes se iba
 // todo junto y en un iPhone el ícono quedaba como un fantasma encima de la app; además nada del
 // splash lleva backdrop-filter (Safari no lo funde con la opacidad de arriba).
@@ -47,12 +47,12 @@ export default async function ({ base, t }){
     const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') },
       init: `localStorage.setItem('gize_lite','0');${tema === 'oscuro' ? '' : "localStorage.setItem('gize_tema','" + tema + "');"}` });
     await p.addInitScript(SPY);
-    await p.goto(base + '/app/'); await wait(3000);
+    await p.goto(base + '/app/'); await wait(4200);
     const v = await p.evaluate(() => window.__sal || {});
     t.eq([v.exit, v.filtros, v.willChange], ['sp-exit', 0, 0], tema + ': la marca tiene su propia salida; nada del splash usa filter, backdrop-filter, mix-blend ni will-change');
     t.ok(v.out === 'splash-out' && Math.max(v.exitEnd, v.palabraEnd, v.txtEnd) <= v.outDelay + 0.001,
       tema + ': la marca, la palabra y el texto ya se fueron cuando empieza a fundirse el fondo: ' + JSON.stringify([v.exitEnd, v.palabraEnd, v.txtEnd, v.outDelay]));
-    t.ok(v.outEnd >= 1.35 && v.outEnd <= 1.65, tema + ': tranquilo, entre 1,35 y 1,65 s: ' + v.outEnd);
+    t.ok(v.outEnd >= 2.8 && v.outEnd <= 3.05, tema + ': tranquilo, entre 2,8 y 3,05 s: ' + v.outEnd);
     t.eq([v.viejas, v.piezas], [0, [true, true, 4]], tema + ': ni rayos, ni ondas, ni destellos, ni chispas: la marca con su orbe y su resplandor, y la palabra GIZE');
     t.ok(v.nodos > 0 && v.nodos <= 12 && v.grandes === 0, tema + ': pocas piezas animadas y chicas (' + v.nodos + ', grandes: ' + v.grandes + ')');
     t.eq(v.props.filter(x => !['opacity', 'transform', 'strokeDashoffset', 'visibility'].includes(x)), [], tema + ': solo se anima opacity, transform y stroke-dashoffset: ' + v.props);
@@ -72,7 +72,7 @@ export default async function ({ base, t }){
         localStorage.setItem('gize_gpu_lenta','0');` });
     await p.route(u => !u.href.startsWith(base) && !/supabase\.co/.test(u.href), x => x.abort());
     await p.addInitScript(SPY);
-    await p.goto(base + '/app/'); await wait(3000);
+    await p.goto(base + '/app/'); await wait(4200);
     const v = await p.evaluate(() => Object.assign(window.__sal || {}, { cls: document.documentElement.className }));
     t.ok(/android-app/.test(v.cls) && !/\blite\b/.test(v.cls), 'Android: android-app sin liviano: ' + v.cls);
     t.eq([v.viejas, v.filtros, v.quietas], [0, 0, ['sp-trazo', 'sp-orbe', 'sp-respira']], 'Android: el splash tranquilo, animado y sin filtros');

@@ -114,12 +114,13 @@ las variables en el resto del CSS, en vez de repetir hex sueltos.
 
 ## Pantallas de referencia
 - Landing: hero con firma grande + aurora, tarjetas con filete RGB, cierre con anillo cónico.
-- Splash: tranquilo, el logo oficial en 1,6 s con los colores de cada apariencia. Sobre el
+- Splash: tranquilo, el logo oficial en 3 s con los colores de cada apariencia. Sobre el
   fondo de la apariencia la marca aparece suave (de 0,92 a su tamaño) mientras la G se traza
-  como se escribe; el orbe se enciende y su resplandor respira una vez; la palabra GIZE sube
-  apenas debajo, con el texto "Preparando tu entrenamiento". Sale primero la marca (crece un
-  poquito, a 1,04, y se desvanece) y después se funde el fondo. Nada de rayos, ondas, destellos
-  ni chispas. Liviano para la placa de video: pocas piezas chicas, solo opacidad, escala y
+  como se escribe (1,1 s); el orbe se enciende y su resplandor llega a su punto y se asienta;
+  la palabra GIZE sube apenas debajo, con el texto "Preparando tu entrenamiento". El logo
+  armado descansa un momento: el orbe y su resplandor respiran una vez más, muy suave (solo
+  escala y opacidad). A los 2,4 s sale primero la marca (crece un poquito, a 1,04, y se
+  desvanece) y después se funde el fondo. Nada de rayos, ondas, destellos ni chispas. Liviano para la placa de video: pocas piezas chicas, solo opacidad, escala y
   trazo; sin blur, filtros, backdrop-filter, mix-blend ni will-change, y al terminar no queda
   nada en el DOM. Modo liviano: la marca ya armada y quieta, se va a los 0,85 s; movimiento
   reducido: quieta, se va en menos de 1 s.
