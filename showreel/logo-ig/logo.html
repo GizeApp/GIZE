@@ -239,6 +239,19 @@ defP('perfil-3-azul','Azul',c=>{c.fillStyle='#000';c.fillRect(0,0,W,W);
   G(c,CX,CY,640,{mono:true});});
 defP('perfil-4-mesh-neon','Mesh neón',c=>{meshBg(c,0.8);grain(c,0.1);G(c,CX,CY,640,{mono:true});});
 defP('perfil-5-anillo','Anillo',c=>{c.fillStyle='#000';c.fillRect(0,0,W,W);radial(c,CX,CY,420,hex('#0B2A55'),0.55);G(c,CX,CY,1010);});
+// the neon ring flush with Instagram's frame: everything outside the ring (the corners Instagram crops) is painted
+// with the same gradient, so whatever the exact crop, the colour reaches the edge; the glow only falls inward
+const fill=(c,style)=>{c.fillStyle=style;c.fillRect(0,0,W,W);};
+function ringGrad(c){const g=c.createConicGradient(-Math.PI/2,CX,CY);['#2FA0FF','#A65CFF','#FF3DAE','#25E8C8','#2FA0FF'].forEach((s,i)=>g.addColorStop(i/4,s));return g;}
+function edgeRing(c,{band=14,glow=1,inner=null}={}){const R=540-band;
+  if(inner)inner();else{const g=c.createRadialGradient(CX,CY,60,CX,CY,540);g.addColorStop(0,'#06080F');g.addColorStop(0.75,'#04060B');g.addColorStop(1,'#0A0F1E');fill(c,g);}
+  const ringL=w=>layer(x=>{x.fillStyle=ringGrad(x);x.beginPath();x.rect(-50,-50,W+100,W+100);x.arc(CX,CY,R+band-Math.min(band,w),0,TAU,true);x.fill('evenodd');x.strokeStyle=ringGrad(x);x.lineWidth=w;x.beginPath();x.arc(CX,CY,R,0,TAU);x.stroke();});
+  c.save();c.beginPath();c.arc(CX,CY,R+band*0.5,0,TAU);c.clip();put(c,ringL(90),{filter:blur(60),alpha:0.5*glow,op:'screen'});put(c,ringL(40),{filter:blur(18),alpha:0.7*glow,op:'screen'});c.restore();
+  c.fillStyle=ringGrad(c);c.beginPath();c.rect(-50,-50,W+100,W+100);c.arc(CX,CY,R-band*0.5,0,TAU,true);c.fill('evenodd');
+  c.strokeStyle='rgba(255,255,255,0.55)';c.lineWidth=1.6;c.beginPath();c.arc(CX,CY,R-band*0.5,0,TAU);c.stroke();}
+defP('perfil-6-anillo-al-borde','Anillo al borde',c=>{edgeRing(c,{band:14});grain(c,0.04);G(c,CX,CY,580);});
+defP('perfil-7-anillo-grueso','Anillo grueso',c=>{edgeRing(c,{band:30,glow:1.35});grain(c,0.04);G(c,CX,CY,560);});
+defP('perfil-8-anillo-vidrio','Anillo + vidrio noche',c=>{edgeRing(c,{band:16,glow:0.8,inner:()=>{glassDisc(c,[[250,260,390,'#2F8CFF','#0B3FB0'],[880,230,330,'#8A4DFF','#3E1C9E'],[860,860,400,'#1FD8C0','#086B73'],[170,900,250,'#FF3DAE','#8A1760']],{deep:true});}});G(c,CX,CY,600);});
 
 /* ---------------- render ---------------- */
 const out=document.getElementById('out');
@@ -247,11 +260,11 @@ function halve(cv){const o=mk(cv.width/2,cv.height/2),c=o.getContext('2d');c.ima
 window.VARIANTS=[...V,...PV].map(v=>({id:v.id,name:v.name}));
 window.renderVariant=id=>halve(renderBig([...V,...PV].find(v=>v.id===id))).toDataURL('image/png');
 // how the profile photos read at Instagram's sizes: big (profile), 110 and 56 px (feed, comments)
-window.renderProfiles=()=>{const n=PV.length,col=360,M=90,head=230,BW=M*2+n*col,BH=head+580,cv=mk(BW,BH),c=cv.getContext('2d');c.fillStyle='#0B0D11';c.fillRect(0,0,BW,BH);
+window.renderProfiles=()=>{const n=PV.length,col=300,M=90,head=230,BW=M*2+n*col,BH=head+580,cv=mk(BW,BH),c=cv.getContext('2d');c.fillStyle='#0B0D11';c.fillRect(0,0,BW,BH);
   txt(c,'Foto de perfil · el logo ocupa todo el círculo',M,110,800,52,'#fff');txt(c,'Instagram recorta un círculo: acá es lo único que se ve. Tamaños reales: perfil, 110 px y 56 px.',M,160,500,26,'#8F98A6');
   const g=c.createLinearGradient(M,0,BW-M,0);['#2FA0FF','#A65CFF','#FF3DAE','#25E8C8'].forEach((s,i)=>g.addColorStop(i/3,s));c.fillStyle=g;c.fillRect(M,196,BW-2*M,3);
   const circ=(img,x,y,r)=>{c.save();c.beginPath();c.arc(x,y,r,0,TAU);c.clip();c.imageSmoothingQuality='high';c.drawImage(img,x-r,y-r,2*r,2*r);c.restore();};
-  PV.forEach((v,i)=>{const img=renderBig(v),x=M+i*col+col/2-20;circ(img,x,head+150,140);circ(img,x-70,head+400,55);circ(img,x+60,head+400,28);
+  PV.forEach((v,i)=>{const img=renderBig(v),x=M+i*col+col/2-20;circ(img,x,head+150,125);circ(img,x-62,head+390,55);circ(img,x+60,head+390,28);
     txt(c,v.name,x,head+510,700,28,'#fff','center');});
   return cv.toDataURL('image/png');};
 // the presentation board: every piece, its name, and how it reads as the round profile photo
