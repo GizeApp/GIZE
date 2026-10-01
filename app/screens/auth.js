@@ -8,6 +8,7 @@ import { appleLoginAvailable, mountGoogleButton, rememberSession } from '../core
 
 import { isIOS, isStandalone } from '../core/push.js';
 
+const nativeApp = () => { try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) { return false; } };
 const iosSafari = () => { try { return isIOS() && !isStandalone() && !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) { return false; } };
 
 // "G" oficial de Google: las pautas de marca piden los cuatro colores, sin recolorear.
@@ -73,7 +74,8 @@ export function showLogin(msg, mode, vals){
       (appleLoginAvailable()?'<button type="button" class="auth-apple" data-auth="apple" style="animation-delay:'+nextDelay()+'">'+appleLogo+'<span>Continuar con Apple</span></button>':'')+
       '<button type="button" class="auth-google" data-auth="google" style="animation-delay:'+nextDelay()+'">'+googleLogo+'<span>Continuar con Google</span></button>'+
       '<div class="auth-switch" data-auth="'+(isUp?"to-login":"to-signup")+'" role="button" tabindex="0" style="animation-delay:'+nextDelay()+'">'+(isUp?"Ya tengo cuenta":"Crear una cuenta nueva")+'</div>'+
-      '<button type="button" class="auth-install" data-install style="animation-delay:'+nextDelay()+'">Instalar GIZE en el celular</button>'+
+      // En las apps de Android y iPhone ya está instalada: el botón no va (y App Review lo marcaría).
+      (nativeApp()?'':'<button type="button" class="auth-install" data-install style="animation-delay:'+nextDelay()+'">Instalar GIZE en el celular</button>')+
     '</div>';
   startAuthParticles(host.querySelector(".auth-particles"));
   mountGoogleButton().catch(()=>{});
