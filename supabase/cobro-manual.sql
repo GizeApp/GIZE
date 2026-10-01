@@ -13,7 +13,7 @@ returns void language plpgsql security definer set search_path = public as $$
 declare hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
 begin
   perform public.admin_assert();
-  if p_plan not in ('p10', 'p25', 'p50', 'p100') then raise exception 'Plan inválido.' using errcode = 'P0001'; end if;
+  if p_plan not in ('p10', 'p25', 'p50', 'p100', 'p250', 'p500') then raise exception 'Plan inválido.' using errcode = 'P0001'; end if;
   if p_until is null or p_until < hoy then raise exception 'Poné una fecha de hoy en adelante.' using errcode = 'P0001'; end if;
   insert into public.coach_billing (coach_id) values (cid) on conflict (coach_id) do nothing;
   -- Con una suscripción de Mercado Pago activa, el próximo aviso de pago pisaría esto.

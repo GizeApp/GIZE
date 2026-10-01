@@ -238,7 +238,7 @@ function coachState(c){
   return '<span class="pill bad">Sin pagar</span>';
 }
 const mpTxt = s => ({ authorized: "activa", paused: "pausada", cancelled: "cancelada", pending: "pendiente" }[s] || s || "—");
-const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: "Hasta 50", p100: "Gimnasio (100)", cortesia: "Cortesía" }[p] || p || "—");
+const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: "Hasta 50", p100: "Gimnasio chico (100)", p250: "Gimnasio (250)", p500: "Gimnasio grande (500)", cortesia: "Cortesía" }[p] || p || "—");
 async function loadCoaches(){
   page("Coaches y pagos", "Plan, alumnos y estado del pago de cada coach. El pago se arregla por fuera de la app (WhatsApp, transferencia): tocá un coach para cargarle hasta cuándo pagó, darle cortesía o más días de prueba.", '<div id="cSoon"></div><div class="card"><div id="cList" class="empty">Cargando…</div></div>');
   const box = document.getElementById("cList");
@@ -281,8 +281,8 @@ function paintSoon(){
     </div>`).join("")}</div></div>`;
 }
 
-const PLAN_MAX = { p10: 10, p25: 25, p50: 50, p100: 100 };
-const PLAN_PRICE = { p10: 9300, p25: 15000, p50: 20000, p100: 33000 }; // los de plan_price (supabase/admin.sql)
+const PLAN_MAX = { p10: 10, p25: 25, p50: 50, p100: 100, p250: 250, p500: 500 };
+const PLAN_PRICE = { p10: 14900, p25: 24900, p50: 37900, p100: 59900, p250: 119900, p500: 199900 }; // los de plan_price (supabase/admin.sql)
 const isoDay = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 // Fecha para "pagado hasta": desde el vencimiento actual si todavía no pasó, si no desde hoy.
 // El plan pago arranca cuando termina lo que ya tiene (la prueba gratis o el mes ya pagado):
@@ -306,7 +306,7 @@ async function openCoach(id){
     <div class="sec-t">Pago manual</div>
     <div class="sec-s">Cuando te paga (transferencia, efectivo, link), cargá el plan y hasta cuándo queda habilitado. Los meses se cuentan desde que termina lo que ya tiene: si está en la prueba gratis, el plan arranca cuando la prueba termina (no pierde días); si ya estaba al día, desde su vencimiento.</div>
     <label class="lbl">Plan</label>
-    <select class="in" id="pmPlan">${["p10", "p25", "p50", "p100"].map(p => `<option value="${p}"${(c.plan === p || (!PLAN_MAX[c.plan] && p === "p25")) ? " selected" : ""}>${esc(planTxt(p))} · ${money(PLAN_PRICE[p])}/mes</option>`).join("")}</select>
+    <select class="in" id="pmPlan">${Object.keys(PLAN_MAX).map(p => `<option value="${p}"${(c.plan === p || (!PLAN_MAX[c.plan] && p === "p25")) ? " selected" : ""}>${esc(planTxt(p))} · ${money(PLAN_PRICE[p])}/mes</option>`).join("")}</select>
     <label class="lbl">Alumnos máximos</label><input class="in" id="pmMax" type="number" min="1" max="1000" value="${PLAN_MAX[c.plan] ? Number(c.max_clients) || PLAN_MAX[c.plan] : 25}">
     <label class="lbl">Pagado hasta</label>
     <div class="search"><input class="in" id="pmUntil" type="date" value="${hastaMeses(c, 1)}">
@@ -443,7 +443,7 @@ function paintFinCalc(){
   const mono = document.getElementById("fMono"), cat = st.categoria;
   if (!cat || !MONO[cat]) { mono.innerHTML = '<div class="muted small" style="margin-top:12px">Elegí la categoría para ver cuánto margen queda antes del tope.</div>'; return; }
   const [tope, cuota] = MONO[cat], anual = c.gross * 12, total = anual + num(st.otros_ingresos), letters = Object.keys(MONO);
-  const per25 = (p25 ? num(p25.price) : 15000) * 12;
+  const per25 = (p25 ? num(p25.price) : PLAN_PRICE.p25) * 12;
   let txt;
   if (total <= tope){
     const nx = letters[letters.indexOf(cat) + 1];

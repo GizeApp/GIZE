@@ -15,12 +15,15 @@ import { CoachState } from './state.js';
 
 import { renderCoach } from './index.js';
 
-// Precios: los que cobra de verdad la función (PLANES en suscripcion/index.ts).
+// Precios: los mismos que plan_price (supabase/admin.sql), el panel de admin y la landing.
 export const PLANS = [
-  { id: "p10", max: 10, price: 9300 },
-  { id: "p25", max: 25, price: 15000, best: true },
-  { id: "p50", max: 50, price: 20000 },
-  { id: "p100", max: 100, price: 33000, gym: true },
+  { id: "p10", max: 10, price: 14900 },
+  { id: "p25", max: 25, price: 24900, best: true },
+  { id: "p50", max: 50, price: 37900 },
+  // Gimnasios: con nombre propio y cuentan alumnos en lugar de clientes.
+  { id: "p100", max: 100, price: 59900, gym: true, name: "Gimnasio chico" },
+  { id: "p250", max: 250, price: 119900, gym: true, name: "Gimnasio" },
+  { id: "p500", max: 500, price: 199900, gym: true, name: "Gimnasio grande" },
 ];
 const TRIAL_MAX = 10;
 
@@ -31,7 +34,7 @@ const CHOSEN_KEY = "gize_plan_elegido";
 try {
   const u = new URL(location.href), q = u.searchParams.get("plan");
   if (q !== null){
-    if (["p10", "p25", "p50", "p100"].indexOf(q) >= 0) localStorage.setItem(CHOSEN_KEY, q);
+    if (PLANS.some(p => p.id === q)) localStorage.setItem(CHOSEN_KEY, q);
     u.searchParams.delete("plan");
     history.replaceState(history.state, "", u.pathname + u.search + u.hash);
   }
@@ -44,9 +47,14 @@ const money = n => "$" + Number(n).toLocaleString("es-AR");
 const WA = "5493413490705";
 function waLink(p, renew){
   const mail = (State.cloudUser && State.cloudUser.email) || "";
-  const txt = "Hola! Quiero " + (renew ? "renovar" : "contratar") + " GIZE para coaches, el plan " + (p.gym ? "Gimnasio (hasta " + p.max + " alumnos)" : "de hasta " + p.max + " clientes") +
+  const txt = "Hola! Quiero " + (renew ? "renovar" : "contratar") + " GIZE para coaches, el plan " + (p.gym ? p.name + " (hasta " + p.max + " alumnos)" : "de hasta " + p.max + " clientes") +
     " (" + money(p.price) + "/mes)." + (mail ? " Mi cuenta es " + mail + "." : "");
   return "https://wa.me/" + WA + "?text=" + encodeURIComponent(txt);
+}
+// Más de 500 alumnos: plan a medida.
+function waCustom(){
+  const mail = (State.cloudUser && State.cloudUser.email) || "";
+  return "https://wa.me/" + WA + "?text=" + encodeURIComponent("Hola! Quiero un plan a medida de GIZE para un gimnasio de más de 500 alumnos." + (mail ? " Mi cuenta es " + mail + "." : ""));
 }
 
 // billing: la fila de coach_billing. null + missing = todavía no se corrió el SQL (no se
@@ -102,7 +110,7 @@ export function renderPlanBanner(){
   if(b.comp) txt = "Plan cortesía · " + b.count + "/" + b.max + " clientes";
   else if(b.trial){ txt = "Prueba gratis · te quedan <b>" + b.daysLeft + " día" + (b.daysLeft === 1 ? "" : "s") + "</b> · " + b.count + "/" + b.max + " clientes"; if(b.daysLeft <= 3) cls = " warn"; }
   else if(b.trialFirst) txt = "Prueba gratis · te quedan <b>" + b.daysLeft + " día" + (b.daysLeft === 1 ? "" : "s") + "</b> · después sigue tu plan · " + b.count + "/" + b.max + " clientes";
-  else if(b.paid) txt = (b.max >= 100 ? "Plan Gimnasio" : "Plan " + b.max + " clientes") + " · " + b.count + "/" + b.max + (b.renews ? "" : " · vence el " + fmtDate(ymd(b.until)));
+  else if(b.paid) txt = (b.plan && b.plan.gym ? "Plan " + b.plan.name : b.max >= 100 ? "Plan Gimnasio" : "Plan " + b.max + " clientes") + " · " + b.count + "/" + b.max + (b.renews ? "" : " · vence el " + fmtDate(ymd(b.until)));
   else { txt = "Sin plan vigente"; cls = " warn"; }
   return '<button class="pl-banner' + cls + (b.atCap ? " warn" : "") + '" data-plan="open"><span>' + txt + '</span><span class="pl-banner-go">' + (b.trial && !IS_NATIVE ? "Ver planes" : "Mi plan") + ' ›</span></button>';
 }
@@ -118,7 +126,7 @@ function planCards(b){
     const mine = chosen === p.id, hi = chosen ? mine : p.best;
     return '<div class="pl-card' + (hi ? " best" : "") + (mine ? " chosen" : "") + (current ? " current" : "") + '">' +
       (mine ? '<div class="pl-tag">El que elegiste</div>' : hi ? '<div class="pl-tag">Más elegido</div>' : '') +
-      (p.gym ? '<div class="pl-name">Gimnasio</div>' : '') +
+      (p.gym ? '<div class="pl-name">' + esc(p.name) + '</div>' : '') +
       '<div class="pl-max">Hasta <b>' + p.max + '</b> ' + (p.gym ? 'alumnos' : 'clientes') + '</div>' +
       '<div class="pl-price">' + money(p.price) + '<span>/mes</span></div>' +
       (current && b.renews ? '<button class="pl-choose" disabled>Tu plan actual</button>'
@@ -129,17 +137,17 @@ function planCards(b){
   }).join("");
   return '<div class="pl-cards">' + cards + '</div>' +
     '<div class="pl-fine">Contratás por WhatsApp con el equipo de GIZE: pagás por transferencia, y te habilitamos el plan apenas se acredita. Se paga por mes; si un mes no seguís, no se cobra nada más.</div>' +
-    '<div class="pl-fine">¿Más de 100 alumnos? <a class="pl-link" href="mailto:contacto@gize.ar?subject=GIZE%20para%20mi%20gimnasio">Escribinos</a> y armamos un plan a medida.</div>';
+    '<div class="pl-fine">¿Más de 500 alumnos? <a class="pl-link" href="' + esc(waCustom()) + '" target="_blank" rel="noopener">Hablemos</a> y armamos un plan a medida.</div>';
 }
 
 function statusLine(b){
   if(!b.known) return "";
   if(b.comp) return '<div class="pl-status ok">Tenés un plan de cortesía, sin vencimiento.</div>';
   if(b.trialFirst) return '<div class="pl-status ok">Tu plan de ' + b.max + ' clientes ya está pago. Primero termina tu prueba gratis (te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ') y después arranca el plan, al día hasta el ' + fmtDate(ymd(b.until)) + '.</div>';
-  if(b.paid) return '<div class="pl-status ok">Plan de ' + b.max + ' clientes · ' + (b.renews ? 'se renueva solo cada mes' : 'al día hasta el ' + fmtDate(ymd(b.until))) + '.</div>';
+  if(b.paid) return '<div class="pl-status ok">' + (b.plan && b.plan.gym ? 'Plan ' + b.plan.name + ' (' + b.max + ' alumnos)' : 'Plan de ' + b.max + ' clientes') + ' · ' + (b.renews ? 'se renueva solo cada mes' : 'al día hasta el ' + fmtDate(ymd(b.until))) + '.</div>';
   const ch = !IS_NATIVE && PLANS.find(p => p.id === chosenPlan());
   if(b.trial) return '<div class="pl-status">Estás en la prueba gratis: te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ' (hasta ' + b.max + ' clientes).' +
-    (IS_NATIVE ? '' : ch ? ' Elegiste el plan ' + (ch.gym ? 'Gimnasio' : 'de hasta ' + ch.max + ' clientes') + ': contratalo por WhatsApp cuando quieras para seguir después de la prueba.' : ' Elegí un plan y contratalo por WhatsApp para seguir después.') + '</div>';
+    (IS_NATIVE ? '' : ch ? ' Elegiste el plan ' + (ch.gym ? ch.name : 'de hasta ' + ch.max + ' clientes') + ': contratalo por WhatsApp cuando quieras para seguir después de la prueba.' : ' Elegí un plan y contratalo por WhatsApp para seguir después.') + '</div>';
   return '<div class="pl-status warn">Tu ' + (B.row && B.row.paid_until ? 'plan venció' : 'prueba gratis terminó') + '.</div>';
 }
 
