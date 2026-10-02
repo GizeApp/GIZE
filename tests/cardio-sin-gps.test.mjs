@@ -3,6 +3,8 @@
 // ubicación, mapas ni tablas de salidas: ni al abrir la app ni al entrar a Cardio. Lo que había
 // quedado de la versión con GPS (salidas guardadas, salida en curso, pendientes en la cola) se
 // descarta sin errores y sin trabar lo demás que esté en la cola.
+// (Las salidas «A pie» / «En bici» vuelven por pasos: la ubicación de las apps nativas ya está, ver
+// tests/cardio-seguimiento.test.mjs; la pantalla, la nube y la política llegan después.)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,15 +16,7 @@ const OUT = 'core_outbox_v1', FAILED = 'core_outbox_failed_v1';
 const SAL = '0f0f0f0f-0000-4000-8000-000000000001';
 
 export default async function ({ base, t }){
-  // ===== Sin ubicación en las apps, la web ni la política =====
-  const man = read('android/app/src/main/AndroidManifest.xml');
-  for (const x of ['LOCATION', 'FOREGROUND_SERVICE', 'location.gps', 'BackgroundGeolocation']) t.ok(!man.includes(x), 'Android: el manifiesto no tiene ' + x);
-  t.ok(!/geolocation/i.test(read('package.json')), 'package.json sin el plugin de ubicación');
-  t.ok(!/geolocation/i.test(read('android/capacitor.settings.gradle')), 'Android sin el plugin de ubicación');
-  t.ok(!/geolocation/i.test(read('ios/App/CapApp-SPM/Package.swift')), 'iPhone sin el plugin de ubicación');
-  const plist = read('ios/App/App/Info.plist');
-  t.ok(!/NSLocation|<string>location<\/string>/.test(plist), 'iPhone: Info.plist sin permisos ni modo de ubicación');
-  t.ok(!/PreciseLocation/.test(read('ios/App/App/PrivacyInfo.xcprivacy')), 'iPhone: PrivacyInfo sin ubicación precisa');
+  // ===== Sin mapas en la web ni ubicación en la política (todavía) =====
   t.ok(!/maptiler|worker-src/i.test(read('app/index.html')), 'CSP sin MapTiler ni worker-src');
   const pol = read('privacidad/index.html');
   t.has(pol, 'No usamos tu ubicación, tus contactos ni publicidad', 'la política dice que no se usa la ubicación');

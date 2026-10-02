@@ -9,6 +9,9 @@ import { checkSetPR, forgetPR, playPR, suspiciousKg, PR_HOLD_MS } from './ui/fes
 import { auIcoEye, auIcoEyeOff, checkSvg } from './core/icons.js';
 
 import { State, state } from './core/state.js';
+// Salida de Cardio a pie / en bici: se importa temprano para que, si quedó una en curso (la app se
+// recargó o el sistema la cerró), se retome al abrir y vuelva a mirar el GPS.
+import { GpsState, stopForLogout } from './ui/gps.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
@@ -919,6 +922,8 @@ document.body.addEventListener("click", async e=>{
     // Los cambios del día (agua, comidas, hábitos) salen con 1,5 s de demora: se manda la
     // cola antes de contar, así solo avisa si de verdad quedó algo sin subir.
     if(State.cloudUser){ b.disabled=true; try{ await flushOutbox(); await syncRoutineNow(); }catch(e){} b.disabled=false; }
+    // Una salida de Cardio en curso (o terminada sin guardar) se pierde al cerrar sesión.
+    if(GpsState.run && !confirm("Tenés una salida de Cardio "+(GpsState.run.status==="ended"?"sin guardar":"en curso")+". Si cerrás sesión se pierde.\n\n¿Cerrar sesión igual?")) return;
     if(State.cloudUser && localUnsynced()){
       const n=pendingCount();
       const que = n>0 ? n+" registro"+(n>1?"s":"")+(state.routineHash!==routineHash(state.days)?" y cambios de tu rutina":"") : "cambios de tu rutina";
@@ -929,6 +934,7 @@ document.body.addEventListener("click", async e=>{
     const logoutUid=State.cloudUser&&State.cloudUser.id;
     try{ await State.sb.auth.signOut(); }catch(e){}
     try{ localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); localStorage.removeItem("gize_session_ephemeral"); }catch(e){}
+    stopForLogout(); // deja de mirar el GPS y borra la salida en curso
     clearAccountLeftovers(logoutUid);
     location.reload();
     return;

@@ -51,6 +51,16 @@
 	<string>GIZE accede a tus fotos para que elijas tu foto de perfil o la foto de un producto que nos pedís agregar.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>GIZE usa el micrófono solo cuando grabás un mensaje de voz para tu coach o tu alumno.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>GIZE usa tu ubicación mientras registrás una salida a pie o en bici, para medir la distancia, el ritmo y las calorías y dibujar tu recorrido. Tu recorrido lo ven solo vos y tu coach.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Para seguir midiendo tu salida con la pantalla bloqueada o el celular en el bolsillo, GIZE usa tu ubicación también en segundo plano, solo mientras la salida está en curso. Nunca la usa en otro momento.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>GIZE guarda en tus fotos la imagen de tu salida cuando elegís «Guardar imagen».</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CFBundleURLTypes</key>

@@ -13,6 +13,7 @@ import { pushOnHere, enablePush, disablePush, pushLogout, isIOS, isStandalone } 
 import { renderApp } from '../main.js';
 import { adminEntry, checkAdmin } from './admin-productos.js';
 import { isLite, setLite } from '../ui/background.js';
+import { stopForLogout } from '../ui/gps.js';
 import { temaOptionsHtml } from '../ui/tema.js';
 import { neonSwitchHtml } from '../ui/neon.js';
 import { bellSvg, fileTextSvg, instagramSvg, globeSvg, auIcoMail, whatsappSvg, chevronRightSvg, pencilSvg, checkSvg } from '../core/icons.js';
@@ -327,6 +328,7 @@ document.body.addEventListener("click", async function (e) {
       // de borrar la cuenta: si eso falla, el celular no pierde sus notificaciones.
       try { await pushLogout(); } catch (err) {}
       try { localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); } catch (err) {}
+      stopForLogout(); // deja de mirar el GPS y borra la salida en curso
       clearAccountLeftovers(State.cloudUser && State.cloudUser.id);
       try { await State.sb.auth.signOut(); } catch (err) {}
       alert("Tu cuenta fue eliminada.");

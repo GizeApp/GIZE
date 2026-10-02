@@ -5,7 +5,8 @@
   "backgroundColor": "#000000",
   "android": {
     "backgroundColor": "#000000",
-    "adjustMarginsForEdgeToEdge": "auto"
+    "adjustMarginsForEdgeToEdge": "auto",
+    "useLegacyBridge": true
   },
   "plugins": {
     "PushNotifications": {
