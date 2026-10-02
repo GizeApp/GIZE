@@ -4,13 +4,12 @@
 // para: "mujer" | "hombre" | "todos". A quien elige "Mujer" se le muestran las de mujer y
 // las de todos; a "Hombre", las de hombre y las de todos; a "Prefiero no decir", todas.
 //
-import { DEFAULT, PPL_DAYS } from './data.js';
+import { PPL_DAYS } from './data.js';
 import { State } from './state.js';
 import { migrateNames } from './storage.js';
 import { uid } from './utils.js';
 
 export const CATALOGO = [
-  { id: "meso", nombre: "Meso 2 · Microciclo 8", para: "todos", desc: "Torso / Piernas / Pecho-Espalda-Hombro / Pierna-Brazo", days: DEFAULT.days },
   { id: "ppl", nombre: "PPL · 5 días", para: "todos", desc: "Tirón / Empuje / Piernas", days: PPL_DAYS },
 ];
 
