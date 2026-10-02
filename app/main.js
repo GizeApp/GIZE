@@ -34,7 +34,7 @@ import { renderCoachSettings } from './screens/coach/settings.js';
 // Registra los eventos del editor de preguntas del coach (efecto al importarlo).
 import './screens/coach/preguntas.js';
 
-import { coachPlanObj, cpApply, loadTpls, planDefault, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
+import { coachPlanObj, cpApply, loadTpls, planDefault, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
@@ -1107,9 +1107,28 @@ document.body.addEventListener("click", async e => {
   }
   // Rutina programada (ver supabase/rutina-programada.sql): usa el mismo editor que las rutinas
   // guardadas, con la fecha de inicio. Al volver o guardar se queda en la pestaña Rutina del alumno.
+  // Primero se elige desde qué arranca: una de «Mis rutinas» (puede ser distinta de la que tiene
+  // el alumno), la rutina actual o vacía. Las rutinas guardadas se copian como al aplicarlas:
+  // ids nuevos y sin pesos ni repeticiones cargados.
   if(a==="sched-new"){
     if(!CoachState.coachData) return;
-    CoachState.coachTplEdit={sched:true, id:null, name:"", starts_on:addDays(today(), 28), days:JSON.parse(JSON.stringify(CoachState.coachData.routine||[]))};
+    CoachState.coachSchedPicker={loading:true}; renderSchedPicker();
+    await loadTpls();
+    if(CoachState.coachSchedPicker){ CoachState.coachSchedPicker.loading=false; renderSchedPicker(); }
+    return;
+  }
+  if(a==="sp-cancel"){ closeSheet(()=>{ CoachState.coachSchedPicker=null; renderSchedPicker(); }, {host:"#applyMount", card:".cp-ccard", duration:150}); return; }
+  if(a==="sp-tpl" || a==="sp-copy" || a==="sp-empty"){
+    if(!CoachState.coachData || !CoachState.coachSchedPicker) return;
+    let name="", days=[];
+    if(a==="sp-tpl"){
+      const tpl=CoachState.coachTpls.find(t=>t.id===b.dataset.id); if(!tpl) return;
+      name=String(tpl.name||"").slice(0,80);
+      days=JSON.parse(JSON.stringify(tpl.days||[]));
+      days.forEach(d=>{ d.id=uid(); (d.exercises||[]).forEach(ex=>{ ex.id=uid(); (ex.sets||[]).forEach(s=>{ s.id=uid(); s.kg=""; s.reps=""; s.done=false; if("secs" in s) s.secs=""; }); }); });
+    } else if(a==="sp-copy"){ days=JSON.parse(JSON.stringify(CoachState.coachData.routine||[])); }
+    CoachState.coachSchedPicker=null; renderSchedPicker();
+    CoachState.coachTplEdit={sched:true, id:null, name:name, starts_on:addDays(today(), 28), days:days};
     CoachState.coachEditDay=0; renderCoach(); window.scrollTo(0,0); return;
   }
   if(a==="sched-open"){

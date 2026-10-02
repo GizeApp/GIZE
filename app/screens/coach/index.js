@@ -4,7 +4,7 @@ import { dec, esc, fmtDate, today } from '../../core/utils.js';
 
 import { coachActivity, coachInitials, renderCoachInfo } from './clientes.js';
 
-import { renderApplyPicker, renderCoachBlock, renderCoachPlan, renderCoachRoutine, renderCoachSchedule, renderCopyPicker } from './rutinas.js';
+import { renderApplyPicker, renderCoachBlock, renderCoachPlan, renderCoachRoutine, renderCoachSchedule, renderCopyPicker, renderSchedPicker } from './rutinas.js';
 
 import { picker, renderCoachCheckins, renderCoachDaily, renderCoachWeekly } from './seguimiento.js';
 
@@ -71,6 +71,7 @@ export function renderCoach(){
   snapEdits(); persistRoutineDraft();
   if(!CoachState.coachSel && CoachState.coachApplyPicker){ CoachState.coachApplyPicker=null; renderApplyPicker(); }
   if(!CoachState.coachSel && CoachState.coachCopyPicker){ CoachState.coachCopyPicker=null; renderCopyPicker(); }
+  if(!CoachState.coachSel && CoachState.coachSchedPicker){ CoachState.coachSchedPicker=null; renderSchedPicker(); }
   host.style.display="block";
   // La pantalla del alumno que pudo quedar armada debajo (primer ingreso de un coach) no se ve
   // ni ocupa memoria mientras está el panel (css/ui/theme.css: body.silk-coach #view).
