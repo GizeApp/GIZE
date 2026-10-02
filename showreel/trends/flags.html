@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Red flags vs green flags</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* "Red flags vs green flags de un coach" · 17.6 s, 120 BPM, 9:16 or 4:5. Four pairs: a red-flag card slams in,
+   flips out, its green flag slides in with the bit of the app that does it (proposed weight, the coach's audio,
+   the workout history, the weekly check-in). Then "Green flag definitiva: tu coach usa GIZE." and the end card. */
+import {C,RGB,E,clamp,lerp,prog,glow,rr,txt,tw,F,createReel,riseWords,rgbRing,playTri} from '../lib/engine.js';
+import {endcard,endcardBg,endcardCues} from '../lib/endcard.js';
+import {kOf,lines,pop} from './kit.js';
+
+const BT=0.5,T0=1.6,STEP=2.6,FLIP=1.25,T_FIN=T0+4*STEP,T_END=T_FIN+1.5,DUR=T_END+4.2;
+const RED='#FF3B4E',GREEN='#25E8C8';
+const PAIRS=[['Te manda la rutina en un PDF de 2019.','Te la carga en la app, con tu peso propuesto.','propone'],
+  ['Te explica la técnica con un 👍.','Te graba un audio en cada ejercicio.','audio'],
+  ['No sabe cuánto levantaste la semana pasada.','Ve cada serie que hiciste y cómo te sentiste.','hist'],
+  ['¿Cómo dormiste? Nunca te lo preguntó.','Te pide el check-in de la semana.','checkin']];
+
+// the bit of the app on each green card (card space: x0..x0+w, baseline y)
+function snip(c,kind,x0,y,w,k,t){const h=92*k,px=32*k;c.fillStyle='#12151B';rr(c,x0,y,w,h,h/2);c.fill();c.strokeStyle='rgba(255,255,255,0.12)';c.lineWidth=2;c.stroke();const my=y+h/2+px*0.36;
+  if(kind==='propone'){const a='Tu coach propone ',b='22,5 kg × 8-10';const W=tw(a,500,px)+tw(b,800,px);let x=x0+w/2-W/2;txt(c,a,x,my,500,px,C.text2);txt(c,b,x+tw(a,500,px),my,800,px,'#fff');}
+  else if(kind==='audio'){c.fillStyle=C.blue;c.beginPath();c.arc(x0+h/2+8,y+h/2,h*0.34,0,7);c.fill();playTri(c,x0+h/2+11,y+h/2,h*0.13);txt(c,'Escuchar a tu coach',x0+h+20,my,800,px,'#fff');
+    for(let i=0;i<10;i++){const hh=(8+22*Math.abs(Math.sin(i*1.9+t*6)))*k;c.fillStyle='rgba(255,255,255,0.7)';c.fillRect(x0+w-200*k+i*13*k,y+h/2-hh/2,6*k,hh);}txt(c,'0:42',x0+w-28*k,my,700,px*0.8,C.text2,'right');}
+  else if(kind==='hist'){let x=x0+22*k;for(const s of['Fatiga 3/5','Pump 4/5','Dolor No']){const ww=tw(s,700,px*0.86)+40*k;c.fillStyle='#1E2129';rr(c,x,y+14*k,ww,h-28*k,(h-28*k)/2);c.fill();c.strokeStyle=rgbRing(c,x+ww/2,y+h/2,x*0.01);c.lineWidth=2;c.stroke();txt(c,s,x+ww/2,my-2,700,px*0.86,'#fff','center');x+=ww+14*k;}}
+  else{txt(c,'Check-in semanal',x0+34*k,my,800,px,'#fff');const a='Adherencia: 8/10',ww=tw(a,800,px*0.86)+40*k;c.fillStyle='rgba(37,232,200,0.16)';rr(c,x0+w-ww-16*k,y+14*k,ww,h-28*k,(h-28*k)/2);c.fill();txt(c,a,x0+w-ww/2-16*k,my-2,800,px*0.86,GREEN,'center');}}
+function card(c,L,{red,text,kind,x,y,rot=0,s=1,a=1,t}){if(a<=0)return;const k=kOf(L),w=900*k,h=(kind?620:520)*k,col=red?RED:GREEN;c.save();c.globalAlpha=a;c.translate(x,y);c.rotate(rot);c.scale(s,s);
+  glow(c,0,0,w*0.8,red?[255,59,78]:RGB.teal,0.28);c.fillStyle=red?'#1C0709':'#03140F';rr(c,-w/2,-h/2,w,h,40*k);c.fill();c.strokeStyle=col;c.lineWidth=4;rr(c,-w/2,-h/2,w,h,40*k);c.stroke();
+  txt(c,red?'🚩':'✅',-w/2+56*k,-h/2+104*k,400,70*k,'#fff');c.font=F(800,30*k);c.letterSpacing='7px';c.fillStyle=col;c.fillText(red?'RED FLAG':'GREEN FLAG',-w/2+150*k,-h/2+92*k);c.letterSpacing='0px';
+  lines(c,text,0,-h/2+(kind?230:250)*k,w-120*k,800,64*k,'#fff',1.14);if(kind)snip(c,kind,-w/2+50*k,h/2-140*k,w-100*k,k,t);c.restore();}
+
+createReel({dur:DUR,
+  hits:[...PAIRS.map((_,i)=>[T0+i*STEP+0.28,9,0.02]),[T_END+0.9375,4,0.01]],fast:PAIRS.flatMap((_,i)=>[[T0+i*STEP-0.05,T0+i*STEP+0.35],[T0+i*STEP+FLIP-0.05,T0+i*STEP+FLIP+0.5]]),
+  bloom:()=>0.32,vignette:()=>0.35,
+  draw(c,t,L,P){const k=kOf(L),cy=L.sc+40*k;c.fillStyle='#050608';c.fillRect(0,0,L.W,L.H);
+    // the room's light follows the card on screen
+    let redA=0,greenA=0;PAIRS.forEach((_,i)=>{const t0=T0+i*STEP;redA=Math.max(redA,clamp((t-t0)/0.2)*(1-clamp((t-t0-FLIP)/0.3)));greenA=Math.max(greenA,clamp((t-t0-FLIP)/0.3)*(1-clamp((t-t0-STEP)/0.2)));});
+    if(t>=T_FIN)greenA=1-clamp((t-T_END)/0.3);glow(c,L.CX,cy,L.H*0.7,[255,40,60],0.22*redA);glow(c,L.CX,cy,L.H*0.7,RGB.teal,0.2*greenA);
+    if(t<T0+0.2){riseWords(c,{lines:['Red flags 🚩'],x:L.CX,y:cy-110*k,lh:120*k,t0:0.1,t1:T0-0.15,px:112*k,col:RED});
+      riseWords(c,{lines:['vs green flags ✅'],x:L.CX,y:cy+20*k,lh:110*k,t0:0.3,t1:T0-0.12,px:96*k,col:GREEN});
+      riseWords(c,{lines:['de un coach'],x:L.CX,y:cy+120*k,lh:60*k,t0:0.55,t1:T0-0.1,px:54*k,weight:600,col:C.text2});}
+    if(t>=T0-0.05&&t<T_FIN+0.4){c.font=F(700,30*k);c.fillStyle=C.text2;c.textAlign='center';const n=Math.min(4,Math.floor((t-T0)/STEP)+1);c.fillText(`🚩 vs ✅  ·  de un coach  ·  ${n}/4`,L.CX,L.safe.top+40*k);c.textAlign='left';}
+    PAIRS.forEach(([r,g,kind],i)=>{const t0=T0+i*STEP;if(t<t0-0.05||t>t0+STEP+0.5)return;
+      const ri=E.outBack(clamp((t-t0)/0.3)),ro=E.inCubic(clamp((t-t0-FLIP)/0.32)),shake=Math.exp(-(t-t0-0.28)*14)*Math.sin((t-t0)*90)*(t>t0+0.28?14*k:0);
+      if(ro<1)card(c,L,{red:true,text:r,x:L.CX+shake-ro*1300*k,y:cy-(1-ri)*900*k,rot:-0.04+ro*-0.35,s:lerp(1.25,1,clamp(ri)),a:clamp((t-t0)/0.1),t});
+      const gi=E.outBack(clamp((t-t0-FLIP)/0.45)),go=E.inCubic(clamp((t-t0-STEP)/0.3));
+      if(t>=t0+FLIP-0.02&&go<1)card(c,L,{red:false,text:g,kind,x:L.CX+(1-gi)*1300*k,y:cy-go*1400*k,rot:0.03*(1-gi)+0.02,s:1,a:1,t});});
+    if(t>=T_FIN-0.05&&t<T_END+0.2){riseWords(c,{lines:['Green flag definitiva:'],x:L.CX,y:cy-60*k,lh:70*k,t0:T_FIN,t1:T_END-0.1,px:60*k,col:GREEN});
+      riseWords(c,{lines:['tu coach usa GIZE.'],x:L.CX,y:cy+60*k,lh:110*k,t0:T_FIN+0.2,t1:T_END-0.08,px:100*k,key:[0,'GIZE.']});}
+    if(t>=T_END-0.25){endcardBg(c,t,T_END,L,E.outCubic(prog(t,T_END-0.25,T_END+0.15)));endcard(c,t,T_END,L,{cta:P.cta});}},
+  cues(L){const q=[{t:0,s:'groove',t1:T_END-0.1,bpm:120,chords:[[0,'Am'],[4*BT*2,'F'],[8*BT*2,'C'],[12*BT*2,'G'],[16*BT*2,'Am']],parts:['kick','clap','hat','bass','pad']},{t:0.1,s:'whoosh',d:0.5,f0:300,f1:2200,g:0.5}];
+    PAIRS.forEach((_,i)=>{const t0=T0+i*STEP;q.push({t:t0,s:'whoosh',d:0.3,f0:2400,f1:300,g:0.4},{t:t0+0.26,s:'stamp',g:0.55},{t:t0+0.3,s:'buzz',d:0.22,g:0.6},{t:t0+FLIP,s:'whoosh',d:0.4,f0:400,f1:2600,g:0.45},{t:t0+FLIP+0.35,s:'chime',g:0.9});});
+    q.push({t:T_FIN,s:'shimmer'},{t:T_FIN+0.2,s:'pop',g:0.8});return[...q,...endcardCues(L,T_END)];},
+});
+</script></body></html>

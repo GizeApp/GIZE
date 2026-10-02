@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Tu septiembre en números</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* "Tu septiembre en números" · 17.3 s, 124 BPM, 9:16 or 4:5. A recap in the year-in-review style: bold colour
+   fields that burst open from the centre, big numbers that count up, playful comparisons, then a summary card to
+   share and the end card. The numbers are an example athlete's month (days, sets, kg, streak, coach audios). */
+import {C,RGB,E,clamp,lerp,prog,glow,rr,txt,tw,F,hash,createReel,drawFirma,LOGO,rgbLine,rgbRing,fitSize} from '../lib/engine.js';
+import {endcard,endcardBg,endcardCues} from '../lib/endcard.js';
+import {kOf,lines,pop,confetti} from './kit.js';
+
+const BT=60/124,SL=1.6,T_SUM=11.4,T_END=13.3,DUR=T_END+4;
+const SL_=[{t:1.8,bg:'#2FA0FF',ink:'#06121F',top:'Entrenaste',num:18,unit:'días',sub:'de 30. Nada mal 👀',deco:'rings'},
+  {t:3.4,bg:'#A65CFF',ink:'#FFFFFF',top:'Hiciste',num:412,unit:'series',sub:'y 9 fueron récord 🏆',deco:'blobs'},
+  {t:5.0,bg:'#FF3DAE',ink:'#FFFFFF',top:'Levantaste',num:38640,unit:'kg',sub:'lo mismo que 6 elefantes 🐘',deco:'stripes'},
+  {t:6.6,bg:'#25E8C8',ink:'#04201B',top:'Tu ejercicio más fiel',word:'Press\ninclinado',sub:'+5 kg en el mes 📈',deco:'stars'},
+  {t:8.2,bg:'#120A06',ink:'#FFFFFF',top:'Tu racha más larga',num:12,unit:'días 🔥',sub:'sin saltearte ni uno',deco:'flame'},
+  {t:9.8,bg:'#5B6CF2',ink:'#FFFFFF',top:'Tu coach te mandó',num:14,unit:'audios 🎧',sub:'y los escuchaste todos',deco:'rings'}];
+const fmt=n=>Math.round(n).toLocaleString('es-AR');
+const hx=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+
+function deco(c,L,s,u){const W=L.W,H=L.H,M=Math.max(W,H),a=hx(s.ink),ink=(al)=>`rgba(${a[0]},${a[1]},${a[2]},${al})`;
+  if(s.deco==='rings'){c.lineWidth=26;for(let i=0;i<5;i++){c.strokeStyle=ink(0.08+0.03*i);c.beginPath();c.arc(W*0.85,H*0.18,120+i*120+u*80,0,7);c.stroke();}}
+  else if(s.deco==='blobs'){for(let i=0;i<3;i++){c.fillStyle=ink(0.1);c.beginPath();c.arc(W*(0.2+0.6*hash(i))+Math.sin(u*2+i)*40,H*(0.15+0.7*hash(i+4))+Math.cos(u*2+i)*40,200+120*i,0,7);c.fill();}}
+  else if(s.deco==='stripes'){c.save();c.translate(W/2,H/2);c.rotate(-0.5);c.fillStyle=ink(0.1);for(let i=-12;i<12;i++)c.fillRect(i*140+((u*200)%140),-M,60,2*M);c.restore();}
+  else if(s.deco==='stars'){for(let i=0;i<14;i++){const x=W*hash(i),y=H*hash(i+20),r=(18+30*hash(i+7))*(0.7+0.3*Math.sin(u*6+i));c.fillStyle=ink(0.22);c.beginPath();for(let j=0;j<8;j++){const rr_=j%2?r*0.35:r,an=j*Math.PI/4+u;c.lineTo(x+Math.cos(an)*rr_,y+Math.sin(an)*rr_);}c.fill();}}
+  else if(s.deco==='flame'){glow(c,W/2,H*0.95,M*0.7,[255,120,30],0.55);glow(c,W/2,H*0.9,M*0.4,[255,61,174],0.4);}}
+function slideBody(c,L,s,t){const k=kOf(L),u=t-s.t,cy=L.sc;c.fillStyle=s.bg;c.fillRect(0,0,L.W,L.H);deco(c,L,s,u);
+  const a1=pop(t,s.t+0.05,0.3),a2=pop(t,s.t+0.15,0.35),a3=E.outCubic(clamp((t-s.t-0.55)/0.3));
+  c.save();c.globalAlpha=clamp(a1);txt(c,s.top,L.CX,cy-230*k+(1-a1)*30,800,62*k,s.ink,'center');c.restore();
+  if(s.word){c.save();c.translate(L.CX,cy-20*k);c.scale(a2,a2);s.word.split('\n').forEach((w,i)=>txt(c,w,0,i*150*k,900,150*k,s.ink,'center'));c.restore();}
+  else{const n=s.num*E.outCubic(clamp((t-s.t-0.1)/0.55)),str=fmt(n),px=Math.min(300*k,fitSize(fmt(s.num),900,900*k,300*k));c.save();c.translate(L.CX,cy+40*k);c.scale(a2,a2);txt(c,str,0,0,900,px,s.ink,'center');c.restore();
+    c.save();c.globalAlpha=clamp(a2);txt(c,s.unit,L.CX,cy+150*k,800,84*k,s.ink,'center');c.restore();}
+  c.save();c.globalAlpha=a3;txt(c,s.sub,L.CX,cy+(s.word?330:270)*k,600,46*k,s.ink,'center');c.restore();}
+function intro(c,L,t){const k=kOf(L),cy=L.sc;c.fillStyle='#000';c.fillRect(0,0,L.W,L.H);glow(c,L.W*0.2,L.H*0.25,L.H*0.6,RGB.blue,0.35);glow(c,L.W*0.85,L.H*0.8,L.H*0.6,RGB.pink,0.3);
+  const g=pop(t,0.05,0.4),kk=2.0*k;c.save();c.globalAlpha=clamp(g);drawFirma(c,L.CX-LOGO.arc.cx*kk,cy-300*k-LOGO.arc.cy*kk,kk,{wordmark:false});c.restore();
+  txt(c,'Tu septiembre',L.CX,cy+20*k,900,112*k,'#fff','center');c.globalAlpha=clamp(pop(t,0.35,0.35));txt(c,'en GIZE',L.CX,cy+140*k,900,112*k,'#fff','center');
+  c.fillStyle=rgbLine(c,L.CX-220*k,0,L.CX+220*k,0);c.fillRect(L.CX-220*k,cy+175*k,440*k*E.outExpo(clamp((t-0.6)/0.5)),8*k);c.globalAlpha=1;
+  txt(c,'en números 📊',L.CX,cy+270*k,600,52*k,C.text2,'center');}
+function summary(c,L,t){const k=kOf(L),u=t-T_SUM,cy=L.sc;c.fillStyle='#000';c.fillRect(0,0,L.W,L.H);glow(c,L.W*0.15,L.H*0.2,L.H*0.6,RGB.purple,0.35);glow(c,L.W*0.9,L.H*0.85,L.H*0.6,RGB.teal,0.28);
+  const w=900*k,h=(L.fmt==='4x5'?1080:1120)*k,x=L.CX-w/2,y=cy-h/2-10*k,e=pop(t,T_SUM+0.05,0.45);c.save();c.translate(L.CX,cy);c.scale(e,e);c.rotate(-0.02*(1-clamp(e)));c.translate(-L.CX,-cy);
+  const g=c.createLinearGradient(x,y,x+w,y+h);g.addColorStop(0,'#14203A');g.addColorStop(1,'#2A1238');c.fillStyle=g;rr(c,x,y,w,h,44*k);c.fill();c.strokeStyle=rgbRing(c,L.CX,cy,u);c.lineWidth=5;rr(c,x,y,w,h,44*k);c.stroke();
+  drawFirma(c,x+48*k,y+44*k,0.5*k,{});txt(c,'Mi septiembre',x+48*k,y+190*k,900,80*k,'#fff');
+  const S=[['18','días'],['412','series'],['38.640','kg'],['9','récords 🏆'],['12 🔥','de racha'],['14','audios 🎧']];
+  S.forEach(([n,l],i)=>{const cx=x+48*k+(i%2)*(w/2-24*k),yy=y+260*k+Math.floor(i/2)*230*k,a=pop(t,T_SUM+0.25+i*0.08,0.3);c.save();c.globalAlpha=clamp(a);
+    c.fillStyle='rgba(255,255,255,0.07)';rr(c,cx,yy,w/2-72*k,200*k,26*k);c.fill();txt(c,n,cx+28*k,yy+110*k,900,84*k,'#fff');txt(c,l,cx+28*k,yy+164*k,600,38*k,'rgba(255,255,255,0.75)');c.restore();});
+  c.restore();const qa=E.outCubic(clamp((t-T_SUM-0.9)/0.3));c.globalAlpha=qa;txt(c,'¿Y el tuyo? 👇',L.CX,y+h+90*k,800,58*k,'#fff','center');c.globalAlpha=1;}
+
+createReel({dur:DUR,
+  hits:[...SL_.map(s=>[s.t,7,0.02]),[T_SUM,6,0.02],[T_END+0.9375,4,0.01]],fast:[...SL_.map(s=>[s.t-0.05,s.t+0.35]),[T_SUM-0.05,T_SUM+0.4]],
+  bloom:t=>{for(const s of SL_)if(t>=s.t&&t<s.t+SL&&s.bg!=='#120A06')return 0.06;return 0.3;},vignette:t=>{for(const s of SL_)if(t>=s.t&&t<s.t+SL)return 0.15;return 0.35;},
+  draw(c,t,L,P){const cur=[...SL_].reverse().find(s=>t>=s.t);
+    if(t<SL_[0].t)intro(c,L,t);else if(t<T_SUM)slideBody(c,L,cur,t);else summary(c,L,t);
+    // the next colour bursts open from the centre
+    for(const s of[...SL_,{t:T_SUM,bg:'#000',sum:1}]){const u=(t-(s.t-0.3))/0.3;if(u<=0||u>=1)continue;const R=E.inCubic(u)*Math.hypot(L.W,L.H)*0.6;c.save();c.beginPath();c.arc(L.CX,L.sc,R,0,7);c.clip();
+      if(s.sum)summary(c,L,t);else slideBody(c,L,s,t);c.restore();}
+    confetti(c,t,T_SUM+0.15,L.CX,L.sc-200,{n:70,spread:0.8});
+    if(t>=T_END-0.25){endcardBg(c,t,T_END,L,E.outCubic(prog(t,T_END-0.25,T_END+0.15)));endcard(c,t,T_END,L,{cta:P.cta});}},
+  cues(L){const q=[{t:0,s:'groove',t1:T_END-0.1,bpm:124,chords:[[0,'C'],[8*BT,'G'],[16*BT,'Am'],[24*BT,'F']],parts:['kick','clap','hat','bass','arp']},{t:0.05,s:'pop',g:0.8},{t:0.35,s:'shimmer'}];
+    for(const s of SL_){q.push({t:s.t-0.3,s:'whoosh',d:0.3,f0:300,f1:3000,g:0.4},{t:s.t,s:'hit',g:0.35});if(s.num)for(let i=0;i<8;i++)q.push({t:s.t+0.1+i*0.065,s:'blip',f0:900+i*120,f1:1300+i*120,d:0.04,g:0.25});else q.push({t:s.t+0.15,s:'chime'});}
+    q.push({t:T_SUM-0.3,s:'whoosh',d:0.3,f0:300,f1:3000,g:0.4},{t:T_SUM,s:'pr'},{t:T_SUM+0.15,s:'glass',g:0.4});return[...q,...endcardCues(L,T_END)];},
+});
+</script></body></html>

@@ -967,6 +967,106 @@
         "#fitness",
         "#fitnessargentina"
       ]
+    },
+    {
+      "id": "gize-red-flags-coach",
+      "kind": "trend",
+      "phase": "hype",
+      "dur": 17.6,
+      "title": "Red flags vs green flags de un coach",
+      "files": [
+        "19-trends/gize-red-flags-coach_9x16.mp4",
+        "19-trends/gize-red-flags-coach_4x5.mp4"
+      ],
+      "covers": [
+        "19-trends/gize-red-flags-coach_9x16.jpg",
+        "19-trends/gize-red-flags-coach_4x5.jpg"
+      ],
+      "idea": "Trend «red flags vs green flags»: four red-flag cards slam in and flip to their green flag, each with the bit of the app that does it (proposed weight, the coach's audio, the workout history, the weekly check-in). Ends on «Green flag definitiva: tu coach usa GIZE.»",
+      "caption": "Red flags 🚩 vs green flags ✅ de un coach.\n¿Cuál te pasó más? Contanos 👇\nEtiquetá a tu coach si es green flag 💚\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#redflags",
+        "#greenflags",
+        "#coach",
+        "#entrenamiento",
+        "#fitnessargentina"
+      ]
+    },
+    {
+      "id": "gize-tu-septiembre",
+      "kind": "trend",
+      "phase": "hype",
+      "dur": 17.3,
+      "title": "Tu septiembre en números",
+      "files": [
+        "19-trends/gize-tu-septiembre_9x16.mp4",
+        "19-trends/gize-tu-septiembre_4x5.mp4"
+      ],
+      "covers": [
+        "19-trends/gize-tu-septiembre_9x16.jpg",
+        "19-trends/gize-tu-septiembre_4x5.jpg"
+      ],
+      "idea": "Year-in-review style recap of an athlete's September: colour fields that burst open, numbers counting up (18 días, 412 series, 38.640 kg = 6 elefantes, Press inclinado +5 kg, racha de 12 días, 14 audios del coach) and a summary card to share.",
+      "caption": "Tu septiembre, en números 📊\n18 días, 412 series y 6 elefantes levantados 🐘\n¿Cómo fue el tuyo? 👇\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#septiembre",
+        "#gymrat",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitnessargentina"
+      ]
+    },
+    {
+      "id": "gize-tier-list-excusas",
+      "kind": "trend",
+      "phase": "hype",
+      "dur": 17.0,
+      "title": "Tier list: excusas para no entrenar",
+      "files": [
+        "19-trends/gize-tier-list-excusas_9x16.mp4",
+        "19-trends/gize-tier-list-excusas_4x5.mp4"
+      ],
+      "covers": [
+        "19-trends/gize-tier-list-excusas_9x16.jpg",
+        "19-trends/gize-tier-list-excusas_4x5.jpg"
+      ],
+      "idea": "Tier-list trend: six excuses dragged into S–D, then the orb crosses out the three GIZE takes away (your routine is already in the app, «La vez pasada» tells you, chat and audios) and bounces off «Mañana arranco» («Esta no la podemos arreglar 😅»).",
+      "caption": "Tier list de excusas para no entrenar 😅\n¿Cuál es tu S tier? 👇\n(Tres de estas, con GIZE, se terminan.)\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#tierlist",
+        "#gymhumor",
+        "#entrenamiento",
+        "#gimnasio",
+        "#fitnessargentina"
+      ]
+    },
+    {
+      "id": "gize-asmr-entreno",
+      "kind": "trend",
+      "phase": "hype",
+      "dur": 18.1,
+      "title": "ASMR de terminar el entreno",
+      "files": [
+        "19-trends/gize-asmr-entreno_9x16.mp4",
+        "19-trends/gize-asmr-entreno_4x5.mp4"
+      ],
+      "covers": [
+        "19-trends/gize-asmr-entreno_9x16.jpg",
+        "19-trends/gize-asmr-entreno_4x5.jpg"
+      ],
+      "idea": "Satisfying/ASMR trend: the app's best moments big and close with sounds in sync and a soft pad: three sets typed and ticked to 21/21, a gold PR, the rest ring running out, five habits ticked, the streak 5 → 6, «Guardar entreno de hoy» and confetti.",
+      "caption": "ASMR de terminar el entreno 🎧✓\nSubí el volumen y decime que no es satisfactorio.\nGuardalo para cuando te falte motivación 💪\n\nMuy pronto, para iPhone y Android.\nActivá las notificaciones para no perdértelo. 🔔",
+      "hashtags": [
+        "#gize",
+        "#asmr",
+        "#satisfying",
+        "#gymmotivation",
+        "#entrenamiento",
+        "#fitnessargentina"
+      ]
     }
   ],
   "launch_endings": {

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Tier list de excusas</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* "Tier list: excusas para no entrenar" · 17 s, 118 BPM, 9:16 or 4:5. Six excuses are dragged into S–D; then the
+   orb crosses out the three GIZE takes away (with what replaces them), bounces off «Mañana arranco»
+   ("esta no la podemos arreglar 😅") and the end card. */
+import {C,RGB,E,clamp,lerp,prog,glow,rr,txt,tw,F,hash,createReel,riseWords} from '../lib/engine.js';
+import {endcard,endcardBg,endcardCues} from '../lib/endcard.js';
+import {kOf,pop} from './kit.js';
+
+const BT=60/118,T_IN=1.4,GAP=0.85,T_FIX=7.0,T_ARR=10.9,T_END=12.9,DUR=T_END+4.1;
+const TIERS=[['S','#FF7F7F'],['A','#FFBF7F'],['B','#FFDF7F'],['C','#BFFF7F'],['D','#7FBFFF']];
+const EX=[{s:'Mañana arranco',r:0},{s:'Está lloviendo ☔',r:1},{s:'Me duele todo',r:1},{s:'No sé qué me toca hoy',r:2,fix:'tu rutina ya está en la app'},
+  {s:'No me acuerdo cuánto levanté',r:3,fix:'«La vez pasada» te lo dice'},{s:'Mi coach no me contesta',r:4,fix:'chat y audios en la app'}];
+const FIXES=EX.map((e,i)=>e.fix?i:-1).filter(i=>i>=0);
+function geo(L){const k=kOf(L),top=L.fmt==='4x5'?L.safe.top+180:L.safe.top+230,bottom=L.fmt==='4x5'?L.safe.bottom-190:L.safe.bottom-250,rowH=(bottom-top)/5;
+  return{k,top,rowH,x0:50,lw:rowH-8,rx:50+rowH+4,rw:L.W-100-rowH-4,pool:bottom+40*k,chipH:70*k,px:34*k};}
+// the pool under the board: the excuses waiting, as tags in centred rows
+function poolPos(L){const G=geo(L),gap=16*G.k,maxW=L.W-120,rows=[[]];let w=0;EX.forEach((e,i)=>{const cw=tw(e.s,700,G.px)+48*G.k;if(w+cw>maxW&&rows[rows.length-1].length){rows.push([]);w=0;}rows[rows.length-1].push([i,cw]);w+=cw+gap;});
+  const out=[];rows.forEach((r,j)=>{const tot=r.reduce((a,[,cw])=>a+cw,0)+gap*(r.length-1);let x=L.CX-tot/2;r.forEach(([i,cw])=>{out[i]=[x,G.pool+j*(G.chipH+18*G.k)];x+=cw+gap;});});return out;}
+// where each chip lands: left to right inside its row
+function slots(L){const G=geo(L),count=[0,0,0,0,0],out=[];EX.forEach((e)=>{const w=tw(e.s,700,G.px)+48*G.k;const prev=out.filter(o=>o.r===e.r);const x=G.rx+20*G.k+prev.reduce((a,o)=>a+o.w+16*G.k,0);
+  out.push({r:e.r,w,x,y:G.top+e.r*G.rowH+(e.fix?24*G.k:(G.rowH-G.chipH)/2)});});return out;}
+function chip(c,G,x,y,w,s,{a=1,lift=0,struck=0,dim=0}={}){c.save();c.globalAlpha=a*(1-dim*0.55);if(lift>0){c.shadowColor='rgba(0,0,0,0.6)';c.shadowBlur=30*lift;c.shadowOffsetY=12*lift;}
+  c.fillStyle='#262A33';rr(c,x,y,w,G.chipH,14*G.k);c.fill();c.shadowColor='transparent';c.strokeStyle='rgba(255,255,255,0.18)';c.lineWidth=2;rr(c,x,y,w,G.chipH,14*G.k);c.stroke();
+  txt(c,s,x+w/2,y+G.chipH/2+G.px*0.36,700,G.px,'#fff','center');if(struck>0){c.strokeStyle=C.danger;c.lineWidth=5*G.k;c.beginPath();c.moveTo(x+14*G.k,y+G.chipH/2);c.lineTo(x+14*G.k+(w-28*G.k)*struck,y+G.chipH/2);c.stroke();}c.restore();}
+function hand(c,x,y,press,a=1){c.save();c.globalAlpha=a;c.fillStyle='rgba(255,255,255,0.22)';c.beginPath();c.arc(x,y,34*press,0,7);c.fill();c.strokeStyle='#fff';c.lineWidth=3;c.stroke();c.restore();}
+
+createReel({dur:DUR,
+  hits:[...EX.map((_,i)=>[T_IN+i*GAP+0.6,4,0.008]),...FIXES.map((_,j)=>[T_FIX+0.6+j*1.25,6,0.012]),[T_ARR+0.55,8,0.015],[T_END+0.9375,4,0.01]],
+  fast:[...EX.map((_,i)=>[T_IN+i*GAP,T_IN+i*GAP+0.65]),...FIXES.map((_,j)=>[T_FIX+j*1.25,T_FIX+j*1.25+0.7]),[T_ARR,T_ARR+1.2]],bloom:()=>0.28,vignette:()=>0.32,
+  draw(c,t,L,P){const G=geo(L),k=G.k,S=slots(L);c.fillStyle='#07080B';c.fillRect(0,0,L.W,L.H);glow(c,L.W*0.15,L.H*0.1,L.H*0.6,RGB.purple,0.18);glow(c,L.W*0.9,L.H*0.9,L.H*0.6,RGB.blue,0.16);
+    const ta=E.outCubic(clamp(t/0.4));c.globalAlpha=ta;txt(c,'Tier list:',L.CX,G.top-150*k,900,76*k,'#fff','center');txt(c,'excusas para no entrenar',L.CX,G.top-70*k,800,56*k,C.text2,'center');c.globalAlpha=1;
+    // the board
+    TIERS.forEach(([l,col],i)=>{const y=G.top+i*G.rowH,e=E.outCubic(clamp((t-0.1-i*0.05)/0.35));c.save();c.globalAlpha=e;c.fillStyle=col;rr(c,G.x0,y+4,G.lw,G.rowH-8,12*k);c.fill();txt(c,l,G.x0+G.lw/2,y+G.rowH/2+30*k,900,84*k,'#141414','center');
+      c.fillStyle='#14161C';rr(c,G.rx,y+4,G.rw,G.rowH-8,12*k);c.fill();c.restore();});
+    // the pool: chips waiting below the board
+    const poolY=G.pool,PP=poolPos(L);EX.forEach((e,i)=>{const s=S[i],t0=T_IN+i*GAP,u=clamp((t-t0)/0.6),e2=E.inOutCubic(u);
+      const[px,py]=PP[i];
+      if(t<t0){chip(c,G,px,py,s.w,e.s,{a:E.outCubic(clamp((t-0.6-i*0.05)/0.3))});return;}
+      const x=lerp(px,s.x,e2),y=lerp(py,s.y,e2)-Math.sin(Math.PI*e2)*120*k;let struck=0,dim=0;
+      const fj=FIXES.indexOf(i),tf=fj>=0?T_FIX+0.6+fj*1.25:1e9;if(t>=tf){struck=E.outCubic(clamp((t-tf)/0.3));dim=struck;}
+      chip(c,G,x,y,s.w,e.s,{lift:u<1?1:0,struck,dim});if(u>0&&u<1)hand(c,x+s.w/2,y+G.chipH/2,0.85);
+      if(e.fix&&t>=tf+0.15){const a=pop(t,tf+0.15,0.3),w=tw('→ '+e.fix,700,26*k)+36*k,yy=s.y+G.chipH+12*k;c.save();c.globalAlpha=clamp(a);c.fillStyle='rgba(37,232,200,0.16)';rr(c,s.x,yy,w,44*k,22*k);c.fill();c.strokeStyle=C.teal;c.lineWidth=1.5;c.stroke();txt(c,'→ '+e.fix,s.x+w/2,yy+30*k,700,26*k,C.teal,'center');c.restore();}});
+    // the orb: crosses out the three it fixes, then bounces off «Mañana arranco»
+    if(t>=T_FIX-0.1){const a=E.outCubic(clamp((t-T_FIX+0.1)/0.3));riseWords(c,{lines:['Con GIZE, chau excusa 👋'],x:L.CX,y:poolY+20*k,lh:60*k,t0:T_FIX-0.05,t1:T_ARR-0.1,px:46*k,col:C.teal});
+      let ox=L.CX,oy=poolY-60*k;const pts=[[L.CX,poolY-40*k],...FIXES.map(i=>[S[i].x+S[i].w/2,S[i].y+G.chipH/2])];
+      for(let j=0;j<FIXES.length;j++){const t0=T_FIX+j*1.25,u=E.inOutCubic(clamp((t-t0)/0.6));if(t>=t0){ox=lerp(pts[j][0],pts[j+1][0],u);oy=lerp(pts[j][1],pts[j+1][1],u)-Math.sin(Math.PI*u)*140*k;}}
+      const s0=S[0],tgt=[s0.x+s0.w/2,s0.y+G.chipH/2];if(t>=T_ARR){const u=clamp((t-T_ARR)/0.55),e=E.inOutCubic(u),last=pts[pts.length-1];ox=lerp(last[0],tgt[0],e);oy=lerp(last[1],tgt[1],e)-Math.sin(Math.PI*e)*160*k;
+        if(t>T_ARR+0.55){const b=t-T_ARR-0.55;ox=tgt[0]+b*900*k;oy=tgt[1]-b*700*k+0.5*2600*b*b;}}
+      if(t<T_END)GizeOrb.ball(c,ox,oy,26*k);
+      if(t>=T_ARR+0.55){const w=0.5+0.5*Math.cos((t-T_ARR-0.55)*40)*Math.exp(-(t-T_ARR-0.55)*6);chip(c,G,s0.x+(1-w)*8,s0.y,s0.w,EX[0].s,{});}
+      if(t>=T_ARR+0.6)riseWords(c,{lines:['Esta no la podemos arreglar 😅'],x:L.CX,y:poolY+20*k,lh:60*k,t0:T_ARR+0.6,t1:T_END-0.1,px:46*k,col:'#fff'});}
+    if(t>=T_END-0.25){endcardBg(c,t,T_END,L,E.outCubic(prog(t,T_END-0.25,T_END+0.15)));endcard(c,t,T_END,L,{cta:P.cta});}},
+  cues(L){const q=[{t:0,s:'groove',t1:T_END-0.1,bpm:118,chords:[[0,'Am'],[8*BT,'F'],[16*BT,'C'],[24*BT,'G']],parts:['kick','hat','bass','arp','pad']},{t:0.1,s:'whoosh',d:0.5,f0:400,f1:2000,g:0.4}];
+    EX.forEach((_,i)=>{const t0=T_IN+i*GAP;q.push({t:t0,s:'click',f:2200,g:0.6},{t:t0+0.58,s:'pop',g:0.9},{t:t0+0.6,s:'tap',g:0.6});});
+    FIXES.forEach((_,j)=>{const t0=T_FIX+j*1.25;q.push({t:t0,s:'whoosh',d:0.5,f0:500,f1:2600,g:0.35},{t:t0+0.6,s:'bloop',k:1,v:0.8},{t:t0+0.65,s:'pen'},{t:t0+0.8,s:'chime',g:0.7});});
+    q.push({t:T_ARR,s:'whistle',d:0.5},{t:T_ARR+0.55,s:'bloop',k:0,v:1},{t:T_ARR+0.6,s:'buzz',d:0.2,g:0.5});return[...q,...endcardCues(L,T_END)];},
+});
+</script></body></html>
