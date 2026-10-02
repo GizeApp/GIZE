@@ -4,6 +4,13 @@
 // Va sin "Verify JWT" (la llama la base, sin sesión). Llamarla de más no hace nada: toma
 // solo los avisos sin mandar y cada uno sale una vez (se marca al tomarlo).
 // Usa los mismos secrets que notificar-cliente (VAPID, FCM_SERVICE_ACCOUNT y los de Apple).
+//
+// Guardia opcional contra llamadas de afuera (la función es pública): si está puesto el secret
+//   CRON_SECRET  (Supabase → Edge Functions → Secrets)
+// se exige el header "x-cron-secret" con ese valor; el cron ya lo manda (ver supabase/avisos-coach.sql,
+// que lo saca de Vault). Mientras CRON_SECRET no esté, no se bloquea nada: así deployar la
+// función no corta el cron ya agendado. Para activarlo: 1) crear el secret de Vault 'cron_secret'
+// y re-correr supabase/avisos-coach.sql, 2) recién después poner CRON_SECRET acá con el mismo valor.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
@@ -11,6 +18,20 @@ import { importPKCS8, SignJWT } from "npm:jose@5";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
+
+// Comparación en tiempo constante (no revela el largo ni en qué carácter difiere).
+function sameSecret(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+// true si se puede seguir: sin CRON_SECRET no se bloquea; con él, exige el header correcto.
+function cronOk(req: Request): boolean {
+  const want = Deno.env.get("CRON_SECRET");
+  if (!want) return true;
+  return sameSecret(req.headers.get("x-cron-secret") || "", want);
+}
 
 type Sub = { id: string; user_id: string; endpoint: string; p256dh: string; auth: string };
 type ServiceAccount = { project_id: string; client_email: string; private_key: string };
@@ -112,7 +133,8 @@ function names(list: string[]): string {
   return list.slice(0, 2).join(", ") + " y " + (list.length - 2) + " más";
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  if (!cronOk(req)) return json({ error: "No autorizado" }, 401);
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   // Tomar y marcar de una los pendientes: si dos llamadas se pisan, cada aviso sale una vez.
   const { data: alerts, error } = await db.from("coach_alerts").update({ sent_at: new Date().toISOString() })
