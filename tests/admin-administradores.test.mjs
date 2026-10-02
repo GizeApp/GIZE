@@ -30,6 +30,7 @@ export default async function ({ base, t }){
   t.eq(await text(a.p, '#admins'), 'Dueño · dueno@prueba.test', 'Administradores muestra al dueño aunque no esté entre las 60 cuentas más nuevas');
   t.ok(calls.length > 0, 'usa admin_list_admins');
   // Usuarios: 60 resultados → aviso de que hay más
+  await a.p.click('[data-g="nav-g1"] .nav-g'); // «Gestión» está plegado estando en Seguridad
   await a.p.click('[data-go="usuarios"]'); await wait(800);
   t.has(await text(a.p, '#uList'), 'Se muestran las 60 cuentas más nuevas', 'Usuarios avisa que se muestran solo 60');
   t.eq(a.errs, [], 'errores de la página');
@@ -41,6 +42,7 @@ export default async function ({ base, t }){
     '/admin_users': (r, J) => J(users.slice(0, 3).concat([{ id: 'd1', email: 'dueno@prueba.test', full_name: 'Dueño', is_admin: true }])),
   });
   t.eq(await text(b.p, '#admins'), 'Dueño · dueno@prueba.test', 'sin la función nueva, Administradores sale como antes');
+  await b.p.click('[data-g="nav-g1"] .nav-g');
   await b.p.click('[data-go="usuarios"]'); await wait(800);
   t.ok(!(await text(b.p, '#uList')).includes('Se muestran las 60'), 'con menos de 60 usuarios no hay aviso');
   t.eq(b.errs, [], 'errores de la página (sin la función nueva)');

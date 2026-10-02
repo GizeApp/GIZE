@@ -19,7 +19,15 @@ a { color: var(--blue); }
 .side { position: sticky; top: 0; height: 100vh; padding: 24px 14px; border-right: 1px solid var(--border); background: var(--bg); display: flex; flex-direction: column; gap: 2px; }
 .side img { width: 120px; margin: 0 0 2px 10px; }
 .side-sub { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--txt-2); margin: 0 0 22px 10px; }
-.nav-g { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--txt-2); opacity: .7; margin: 18px 0 6px 10px; }
+/* Grupos del menú: el título pliega o abre; plegado suma los globitos de adentro. */
+.nav-g { display: flex; align-items: center; gap: 8px; width: 100%; margin: 14px 0 2px; padding: 7px 10px; border: 0; border-radius: 8px; background: none; text-align: left;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--txt-2); transition: background .15s, color .15s; }
+.nav-g:hover { background: var(--card); color: var(--txt); }
+.nav-g::after { content: ""; margin-left: auto; width: 6px; height: 6px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg) translate(-1px, -1px); transition: transform .15s; opacity: .8; }
+.nav-grp.shut .nav-g::after { transform: rotate(-45deg); }
+.nav-gb { font-style: normal; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: grid; place-items: center; background: var(--blue); color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: 0; }
+.nav-items { display: flex; flex-direction: column; gap: 2px; }
+.nav-grp.shut .nav-items { display: none; }
 .nav { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 0; background: none; color: var(--txt-2); font-weight: 500; font-size: 14px; text-align: left; transition: background .15s, color .15s; }
 .nav:hover { background: var(--card); color: var(--txt); }
 .nav.on { background: var(--card); color: var(--txt); font-weight: 600; box-shadow: inset 2px 0 0 var(--blue); }
@@ -36,6 +44,8 @@ a { color: var(--blue); }
   .side { position: sticky; top: 0; z-index: 20; height: auto; flex-direction: row; align-items: center; overflow-x: auto; gap: 2px; padding: calc(8px + env(safe-area-inset-top)) 10px 8px; border-right: 0; border-bottom: 1px solid var(--border); scrollbar-width: none; }
   .side::-webkit-scrollbar { display: none; }
   .side img, .side-sub, .side-mail, .nav-g { display: none; }
+  /* En el celular el menú es una fila de pestañas: los grupos no se pliegan. */
+  .nav-grp, .nav-items, .nav-grp.shut .nav-items { display: contents; }
   /* «Salir» e «Ir a la app» quedan al final de la fila de pestañas (sin el mail) */
   .side-foot { display: flex; align-items: center; gap: 6px; margin: 0 0 0 8px; padding: 0 12px; white-space: nowrap; font-size: 13px; }
   .nav { width: auto; white-space: nowrap; padding: 8px 12px; font-size: 13.5px; }

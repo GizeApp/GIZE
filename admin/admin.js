@@ -100,13 +100,17 @@ sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !S.user) boot(); i
 function shell(){
   $root.innerHTML = `<div class="shell"><nav class="side">
       <img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE"><div class="side-sub">Administración</div>
-      ${GROUPS.map(([g, items]) => (g ? `<div class="nav-g">${g}</div>` : "") + items.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : ""}</button>`).join("")).join("")}
+      ${GROUPS.map(([g, items], gi) => { const btns = items.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : ""}</button>`).join("");
+        return g ? `<div class="nav-grp" data-g="nav-g${gi}"><button class="nav-g" data-a="navG" aria-expanded="true">${g}<i class="nav-gb" hidden></i></button><div class="nav-items">${btns}</div></div>` : btns; }).join("")}
       <div class="side-foot"><span class="side-mail">${esc(S.user.email)}<br></span><button data-a="logout">Salir</button> · <a href="../app/">Ir a la app</a></div>
     </nav><main class="main" id="main"></main></div>`;
 }
 function go(view){
   S.view = view; history.replaceState(null, "", "#" + view);
   document.querySelectorAll(".nav").forEach(b => b.classList.toggle("on", b.dataset.go === view));
+  // Si se llega a una sección de un grupo plegado (por ejemplo desde «Para atender»), se abre.
+  const on = document.querySelector(".nav.on"), grp = on && on.closest(".nav-grp");
+  if (grp && grp.classList.contains("shut")) navGroup(grp, true); else navPaint();
   ({ resumen: loadResumen, contacto: loadContacto, usuarios: loadUsuarios, coaches: loadCoaches, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
 }
 const main = () => document.getElementById("main");
@@ -116,13 +120,30 @@ function page(title, lead, body){
   main().innerHTML = `<div class="pg-h"><div class="h1">${title}</div><div class="pg-fold"><button data-a="foldAll" data-v="1">Abrir todo</button><button data-a="foldAll" data-v="0">Plegar todo</button></div></div><div class="lead">${lead}</div>${body}`;
 }
 function foldAll(open){ main().querySelectorAll(".pnl").forEach(d => { d.open = open; }); }
-function setPend(n){ const i = document.getElementById("navPend"); if (i){ i.hidden = !n; i.textContent = n; } }
+// Grupos del menú: se pliegan tocando el título y quedan como los dejaste (como los paneles).
+// Sin nada guardado, arranca abierto solo el grupo de la sección en la que estás.
+function navPaint(){
+  document.querySelectorAll(".nav-grp").forEach(grp => {
+    const id = grp.dataset.g, open = id in FOLD ? !!FOLD[id] : !!grp.querySelector(".nav.on");
+    grp.classList.toggle("shut", !open);
+    grp.querySelector(".nav-g").setAttribute("aria-expanded", open);
+    // Plegado, el título suma los globitos de adentro (mensajes sin leer, productos).
+    const n = [...grp.querySelectorAll(".nav-items i:not([hidden])")].reduce((s, i) => s + num(i.textContent), 0), b = grp.querySelector(".nav-gb");
+    b.hidden = open || !n; b.textContent = n;
+  });
+}
+function navGroup(grp, open){
+  FOLD[grp.dataset.g] = open;
+  try { localStorage.setItem(FOLD_KEY, JSON.stringify(FOLD)); } catch (e) {}
+  navPaint();
+}
+function setPend(n){ const i = document.getElementById("navPend"); if (i){ i.hidden = !n; i.textContent = n; } navPaint(); }
 // Globito de Productos: lo que falta revisar de la base más los pedidos de la gente.
 async function pendTotal(o){ let r = 0; try { r = num(await rpc("admin_requests_pending")); } catch (e) {} setPend(num(o && o.pending) + r); }
 // Mensajes de contacto sin leer: número en el menú y en la pestaña del navegador.
 function setUnread(n){
   S.unread = n || 0;
-  const i = document.getElementById("navMsg"); if (i){ i.hidden = !S.unread; i.textContent = S.unread; }
+  const i = document.getElementById("navMsg"); if (i){ i.hidden = !S.unread; i.textContent = S.unread; } navPaint();
   document.title = (S.unread ? "(" + S.unread + ") " : "") + "GIZE · Administración";
 }
 async function refreshUnread(){
@@ -1246,6 +1267,7 @@ document.addEventListener("click", async e => {
     if (a === "tDel"){ deleteTask(b); return; }
     if (a === "toTasks"){ const d = openPanel("hTasksB"); if (d) d.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     if (a === "foldAll"){ foldAll(b.dataset.v === "1"); return; }
+    if (a === "navG"){ const grp = b.closest(".nav-grp"); navGroup(grp, grp.classList.contains("shut")); return; }
     if (a === "gSave"){ saveGoal(b); return; }
     if (a === "gDel"){ deleteGoal(b); return; }
     if (a === "fTab"){ S.finTab = b.dataset.v; finTabs(); return; }

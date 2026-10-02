@@ -73,6 +73,13 @@ export default async function ({ base, t }){
   await p.reload(); await wait(1800);
   t.ok(!(await p.$eval('#hTasksB', d => d.open)), 'Tareas sigue plegado después de recargar');
   t.ok(await p.$eval('#hChartsB', d => d.open), 'Gráficos sigue abierto después de recargar');
+  // Menú: en Inicio los grupos arrancan plegados; se abren tocando el título y queda así
+  t.ok(!(await p.isVisible('[data-go="usuarios"]')), 'en Inicio, «Gestión» arranca plegado');
+  await p.click('[data-g="nav-g1"] .nav-g');
+  t.ok(await p.isVisible('[data-go="usuarios"]'), 'tocar «Gestión» lo abre');
+  await p.reload(); await wait(1800);
+  t.ok(await p.isVisible('[data-go="usuarios"]'), '«Gestión» sigue abierto después de recargar');
+  t.ok(!(await p.isVisible('[data-go="finanzas"]')), '«Negocio y sistema» sigue plegado');
   await p.click('[data-a="foldAll"][data-v="0"]');
   t.ok(await p.$$eval('#main .pnl', ds => ds.every(d => !d.open)), '«Plegar todo» pliega todos los bloques');
   t.eq(errs, [], 'errores de la página');
