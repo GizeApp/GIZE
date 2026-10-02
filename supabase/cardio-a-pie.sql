@@ -45,7 +45,10 @@ create table if not exists public.cardio_outings (
 );
 
 -- Límites razonables (la app ya los respeta, ver summarize en cardiogps.js): hasta 24 h, 1000 km,
--- 20000 kcal, 200 km/h, 200 tramos, 1000 parciales y 200.000 caracteres de recorrido.
+-- 20000 kcal, 200 km/h, 200 tramos, 1000 parciales y 200.000 caracteres de recorrido. Los tramos
+-- y los parciales también tienen tope de tamaño (64 KB cada uno; lo de la app ocupa como mucho
+-- 26 y 36 KB): sin eso, alguien que llame a la API directo podría guardar filas de varios MB que
+-- después el coach baja de a 30.
 alter table public.cardio_outings drop constraint if exists cardio_outings_mode_check;
 alter table public.cardio_outings add constraint cardio_outings_mode_check check (mode in ('pie', 'bici'));
 alter table public.cardio_outings drop constraint if exists cardio_outings_duration_s_check;
@@ -69,10 +72,10 @@ alter table public.cardio_outings add constraint cardio_outings_breakdown_check 
   jsonb_typeof(breakdown) = 'object' and pg_column_size(breakdown) <= 2000);
 alter table public.cardio_outings drop constraint if exists cardio_outings_segments_check;
 alter table public.cardio_outings add constraint cardio_outings_segments_check check (
-  jsonb_typeof(segments) = 'array' and jsonb_array_length(segments) <= 200);
+  jsonb_typeof(segments) = 'array' and jsonb_array_length(segments) <= 200 and pg_column_size(segments) <= 65536);
 alter table public.cardio_outings drop constraint if exists cardio_outings_splits_check;
 alter table public.cardio_outings add constraint cardio_outings_splits_check check (
-  jsonb_typeof(splits) = 'array' and jsonb_array_length(splits) <= 1000);
+  jsonb_typeof(splits) = 'array' and jsonb_array_length(splits) <= 1000 and pg_column_size(splits) <= 65536);
 alter table public.cardio_outings drop constraint if exists cardio_outings_track_check;
 alter table public.cardio_outings add constraint cardio_outings_track_check check (
   track is null or (length(track) between 3 and 200000 and left(track, 2) = '1;'));

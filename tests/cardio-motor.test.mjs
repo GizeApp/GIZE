@@ -57,6 +57,8 @@ const TRACKS = {
 // Primer punto malo: 300 m al este de donde está; los demás, bien.
 TRACKS.badFirst = track({ legs: [{ s: 600, kmh: 5 }], seed: 14 });
 TRACKS.badFirst[0] = Object.assign({}, TRACKS.badFirst[0], { lon: TRACKS.badFirst[0].lon + 300 / (M_LAT * Math.cos(LAT0 * Math.PI / 180)) });
+// 15 min caminando (para los puntos que llegan tarde, en tanda).
+TRACKS.late = track({ legs: [{ s: 900, kmh: 5 }], seed: 21 });
 
 const near = (a, b, tol) => Math.abs(a - b) <= tol;
 
@@ -90,7 +92,30 @@ export default async function ({ base, t }){
     o.pack = G.packPoint({ lat: -34.6037, lon: -58.3816, t: T0 + 1234, acc: 4.6, spd: 1.39, seg: 2 }, T0);
     o.unpack = G.unpackPoint(o.pack, T0);
     o.packNoSpd = G.packPoint({ lat: -34.6, lon: -58.4, t: T0, acc: 5, spd: -1 }, T0);
-    o.gpsTime = [G.gpsTime(T0 - 5000, T0), G.gpsTime(T0 - 60000, T0), G.gpsTime(undefined, T0)];
+    // Hora de los puntos (createClock): la del GPS, aunque llegue tarde; un reloj del celular corrido
+    // se corrige con la diferencia; sin hora, del futuro o de antes de empezar → la del celular.
+    {
+      const c = G.createClock(), st = T0 - 600000;
+      o.clk = [c(T0 - 5000, T0, st), c(T0 + 600, T0 + 1000, st), c(T0 - 300000, T0 + 2000, st), c(undefined, T0 + 3000, st), c(T0 + 120000, T0 + 4000, st),
+        c(T0 + 4600, T0 + 5000, st), c(T0 + 5600, T0 + 6000, st)];
+      const d = G.createClock(); // el reloj del celular 2 min adelantado
+      o.clkSkew = [d(T0, T0 + 120500, T0), d(T0 + 1000, T0 + 121200, T0), d(T0 + 2000, T0 + 122300, T0)];
+      o.clkBefore = G.createClock()(T0 - 1000, T0 + 500, T0);
+    }
+    // Puntos que llegan tarde, en tanda (iPhone con la app en segundo plano): los minutos 5 a 10
+    // de una caminata de 15 llegan todos juntos en el minuto 10. Tienen que sumar igual.
+    {
+      const raw = TR.late, go = (late) => {
+        const run = G.newRun('pie', T0, 'late'), clk = G.createClock();
+        const put = (pt, now) => G.addPoint(run, Object.assign({}, pt, { t: clk(pt.t, now, run.start) }));
+        raw.forEach((pt, i) => { if (!late || i < 300 || i >= 600) put(pt, pt.t + 300); if (late && i === 599) raw.slice(300, 600).forEach((q, k) => put(q, pt.t + 300 + k * 5)); });
+        const end = raw[raw.length - 1].t;
+        G.endRun(run, end);
+        return G.finishRun(run, 72, end, '2026-10-02').rec;
+      };
+      const a = go(false), b = go(true);
+      o.late = { a: [a.dist, a.moving, a.gap], b: [b.dist, b.moving, b.gap] };
+    }
 
     // Filtro, punto por punto
     {
@@ -226,12 +251,38 @@ export default async function ({ base, t }){
       o.big = { len: tr.track.length, max: G.MAX_TRACK_LEN, points: tr.points, dec: G.decodeTrack(tr.track).length };
       o.trackNull = [G.trackOf([], T0), G.trackOf([{ lat: 1, lon: 1, t: T0, cd: 0, brk: true }], T0)];
     }
-    // Imagen para compartir: sin los primeros y últimos 200 m.
+    // Imagen para compartir: sin nada a menos de 200 m (en línea recta) del inicio ni del final.
     {
       const line = n => [Array.from({ length: n + 1 }, (_, i) => ({ lat: -34.6 + i * 10 / 111195, lon: -58.4, t: i * 4 }))];
-      const t1 = G.trimTrack(line(100)), t2 = G.trimTrack(line(30));
-      o.trim = [G.trackLength(line(100)), G.trackLength(t1), G.trackLength(t2), t1[0][0].t, G.trimTrack(line(100), 0).length];
+      const P = (x, y, t) => ({ lat: -34.6 + y / 111195.08, lon: -58.4 + x / (111195.08 * Math.cos(34.6 * Math.PI / 180)), t });
+      const minD = (pcs, z) => Math.min(...pcs.flat().map(p => G.haversine(p, z)));
+      const t1 = G.trimTrack(line(100));
+      // Una vuelta a la manzana (50 × 50 m) y después 1 km derecho.
+      const loop = [[0, 0], [50, 0], [50, 50], [0, 50], [0, 0]].map(([x, y], i) => P(x, y, i * 10));
+      for (let y = 60; y <= 1000; y += 20) loop.push(P(0, y, loop.length * 10));
+      const tl = G.trimTrack([loop]);
+      // Sale para el este, vuelve por una paralela que pasa a 100 m de casa y termina 1 km al norte.
+      const mid = [P(0, 0, 0), P(1000, 0, 100), P(1000, 100, 110), P(-1000, 100, 310), P(-1000, 1100, 410)];
+      const tm = G.trimTrack([mid]);
+      o.trim = { len: G.trackLength(t1), start: G.haversine(t1[0][0], line(100)[0][0]), t: t1[0][0].t, short400: G.trimTrack(line(40)), short300: G.trimTrack(line(30)),
+        loopN: tl.length, loopHome: minD(tl, loop[0]), loopEnd: minD(tl, loop[loop.length - 1]), loopFirst: G.haversine(tl[0][0], loop[0]),
+        midN: tm.length, midHome: minD(tm, mid[0]), midEnd: minD(tm, mid[4]), zero: G.trimTrack(line(100), 0).length, empty: G.trimTrack([], 200) };
       o.simple = G.simplifyLine(line(100)[0], 2).length;
+    }
+    // Mini mapa en vivo (livePath): lo mismo que filtrar todo de nuevo, también después de
+    // recuperar la salida; en una salida larga, con tope y repartido parejo.
+    {
+      const run = G.newRun('pie', T0, 'lp');
+      for (const pt of TR.gap) G.addPoint(run, pt);
+      const lp = G.livePath(run), { pts } = G.filterPoints(run.pts.map(a => G.unpackPoint(a, run.start)), 'pie');
+      const again = []; let cur = null;
+      for (const p of pts){ if (!cur || p.brk){ cur = []; again.push(cur); } cur.push({ lat: p.lat, lon: p.lon, t: (p.t - run.start) / 1000 }); }
+      const big = G.newRun('pie', T0, 'lp2');
+      for (let i = 0; i < 12000; i++) G.addPoint(big, { lat: -34.6 + i * 3.4 / 111195, lon: -58.4, acc: 5, spd: null, t: T0 + (i + 1) * 1000 });
+      const flat = G.livePath(big).flat(), gaps = [];
+      for (let i = 2; i < flat.length - 1; i++) gaps.push(flat[i].t - flat[i - 1].t); // el primero: lo que tarda en confirmar que se mueve
+      o.lp = { same: JSON.stringify(lp) === JSON.stringify(again), pieces: lp.length, restored: JSON.stringify(G.livePath(JSON.parse(JSON.stringify(run)))) === JSON.stringify(lp),
+        n: flat.length, last: flat[flat.length - 1].t, now: (G.lastPoint(big).t - T0) / 1000, gapMin: Math.min(...gaps), gapMax: Math.max(...gaps), max: G.LIVE_PATH_MAX };
     }
     // Textos
     o.txt = [G.fmtHMS(2693000), G.fmtClock(2693000), G.fmtClock(3912000), G.fmtPace(375), G.fmtPace(0), G.fmtKm(7180), G.fmtKmh(18.44),
@@ -251,7 +302,11 @@ export default async function ({ base, t }){
   t.eq(r.pack, [1234, -34603700, -58381600, 5, 139, 2], 'punto empaquetado para guardar');
   t.eq(r.unpack, { t: T0 + 1234, lat: -34.6037, lon: -58.3816, acc: 5, spd: 1.39, seg: 2 }, 'punto desempaquetado');
   t.eq(r.packNoSpd[4], -1, 'sin velocidad del GPS (o negativa, la de iPhone sin dato) se guarda -1');
-  t.eq(r.gpsTime, [T0 - 5000, T0, T0], 'hora del punto: la del GPS salvo que difiera más de 30 s del reloj');
+  t.eq(r.clk, [T0 - 5000, T0 + 600, T0 - 300000, T0 + 3000, T0 + 4000, T0 + 4600, T0 + 5600], 'hora del punto: la del GPS (también la de uno que llega 5 min tarde); sin hora o del futuro, la del celular, y se recupera');
+  t.eq(r.clkSkew, [T0 + 120500, T0 + 121200, T0 + 122200], 'reloj del celular 2 min corrido: la hora del GPS más la diferencia (la menor)');
+  t.eq(r.clkBefore, T0 + 500, 'un punto de antes de empezar: la hora del celular');
+  t.ok(near(r.late.b[0], r.late.a[0], r.late.a[0] * 0.01) && near(r.late.b[1], r.late.a[1], 10) && r.late.b[2] === 0 && r.late.a[0] > 1150,
+    'puntos que llegan tarde en tanda (5 min juntos): suman igual, sin corte de GPS: ' + JSON.stringify(r.late));
 
   // ---- Filtro ----
   t.eq(r.f, ['bad', 'acc', 'acc', 'acc', 'first', 'dup', 'noise'], 'filtro: coordenadas rotas, precisión de 31 m, sin precisión, primer punto con 25 m (espera 20 s), después lo toma, hora repetida, temblor de 1 m');
@@ -397,7 +452,15 @@ export default async function ({ base, t }){
   t.ok(r.bounds, 'límites del recorrido');
 
   // ---- Imagen para compartir ----
-  t.ok(near(r.trim[0], 1000, 1) && near(r.trim[1], 600, 2) && near(r.trim[2], 150, 2) && r.trim[3] > 0 && r.trim[4] === 1, 'sin los primeros y últimos 200 m (en uno corto, un cuarto de cada lado): ' + r.trim);
+  const tr = r.trim;
+  t.ok(near(tr.len, 600, 2) && near(tr.start, 200, 0.5) && near(tr.t, 80, 0.5), 'una recta de 1 km: sin los 200 m de cada punta (el corte en el borde): ' + JSON.stringify([tr.len, tr.start, tr.t]));
+  t.eq([tr.short400, tr.short300], [[], []], 'una salida de 400 m o menos: no queda nada que mostrar (sin el tope de un cuarto de antes)');
+  t.ok(tr.loopN === 1 && tr.loopHome >= 199.5 && tr.loopEnd >= 199.5 && tr.loopFirst >= 199.5, 'una vuelta a la manzana antes de irse: el principio visible queda a 200 m de casa: ' + JSON.stringify([tr.loopN, tr.loopHome, tr.loopFirst]));
+  t.ok(tr.midN === 2 && tr.midHome >= 199.5 && tr.midEnd >= 199.5, 'si vuelve a pasar cerca de casa en el medio, ese pedazo también se oculta (la pieza se parte): ' + JSON.stringify([tr.midN, tr.midHome, tr.midEnd]));
+  t.eq([tr.zero, tr.empty], [1, []], 'con 0 m no se oculta nada; sin recorrido, nada');
+  const lp = r.lp;
+  t.ok(lp.same && lp.pieces === 2 && lp.restored, 'mini mapa en vivo: lo mismo que filtrar todo de nuevo (con el corte de señal), también al recuperar: ' + JSON.stringify(lp));
+  t.ok(lp.n <= lp.max + 1 && lp.n >= lp.max / 2 && lp.last === lp.now && lp.gapMax <= 2 * lp.gapMin, 'mini mapa en una salida larga: con tope, parejo y hasta dónde está ahora: ' + JSON.stringify(lp));
   t.eq(r.simple, 2, 'una recta se simplifica a sus 2 puntas');
 
   // ---- Textos ----

@@ -2,12 +2,13 @@
 // (supabase/cardio-a-pie.sql, leídas en openClient sin el recorrido) y, al abrir una, la misma
 // ficha que ve el alumno (ui/recorrido.js): el recorrido animado sobre el mapa, sus números, cuánto
 // caminó, trotó o corrió y los parciales, sin «Borrar» ni «Compartir». El recorrido se pide recién
-// ahí, una vez (core/salidas.js getTrack lo deja en la caché del celular); el mapa se destruye al
-// cerrar la salida (ui/mapa.js syncRouteViews, después de cada renderCoach).
+// ahí, una vez por ficha abierta, y queda solo en memoria (nunca en el celular del coach: si el
+// alumno borra la salida o su cuenta, o deja de estar vinculado, no le queda guardado); el mapa
+// se destruye al cerrar la salida (ui/mapa.js syncRouteViews, después de cada renderCoach).
 // Los colores salen de la gama (var(--gize-r1..r3)), que con el neón apagado ya es gris.
 import { esc, fmtDate } from '../../core/utils.js';
 import { breakdownText, fmtClock, fmtKm, modeLabel, paceOrSpeed } from '../../core/cardiogps.js';
-import { cachedTrack, getTrack } from '../../core/salidas.js';
+import { fetchSalidaTrack } from '../../core/supabase.js';
 import { legendHtml, mixHtml, notesHtml, prepOf, routeHtml, splitsHtml, statsHtml } from '../../ui/recorrido.js';
 import { CoachState } from './state.js';
 import { renderCoach } from './index.js';
@@ -50,16 +51,14 @@ export function renderCoachSalidas(d){
     (list.length >= SALIDAS_MAX ? '<div class="cal-hint">Se ven las últimas ' + SALIDAS_MAX + '.</div>' : '');
 }
 
-// El recorrido: de la caché, o se pide (una vez por apertura) y se redibuja al llegar.
+// El recorrido: de la memoria de esta ficha, o se pide a la nube (una vez) y se redibuja al llegar.
 // d.salidaTracks[id]: undefined (sin pedir) | null (pidiendo) | "" (no hay o no se pudo) | texto.
 function trackFor(d, s){
   const st = d.salidaTracks || (d.salidaTracks = {});
   if (st[s.id] === undefined){
     if (s.points === 0){ st[s.id] = ""; return ""; }
-    const c = cachedTrack(s.id);
-    if (c){ st[s.id] = c; return c; }
     st[s.id] = null;
-    getTrack(s.id).then(t => {
+    fetchSalidaTrack(s.id).catch(() => null).then(t => {
       st[s.id] = t || "";
       if (CoachState.coachData === d && CoachState.coachSec === "salidas" && CoachState.coachSalidaSel === s.id) renderCoach();
     });

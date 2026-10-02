@@ -3,8 +3,11 @@
 // un canvas. Siempre oscura (es una foto), con la gama del tema elegido (grises con el neón
 // apagado). Sin dirección de la web ni precios.
 //
-// Privacidad: por defecto la imagen NO muestra dónde empezás ni dónde terminás (se le sacan los
-// primeros y los últimos 200 m al recorrido, solo en la imagen). Se puede cambiar en la hoja.
+// Privacidad: por defecto la imagen NO muestra dónde empezás ni dónde terminás: se oculta todo lo
+// del recorrido que pasa a menos de 200 m (en línea recta) de esos dos lugares, aunque dé vueltas
+// cerca (core/cardiogps.js trimTrack), solo en la imagen. Se puede cambiar en la hoja. En la app
+// nativa la imagen se escribe siempre con el mismo nombre en la caché (cada una pisa a la
+// anterior) y se borra al cerrar sesión o borrar la cuenta (deleteShareFile).
 //
 // Se comparte en dos toques: «Compartir» abre la hoja y arma la imagen (puede tardar unos
 // segundos con el mapa); el segundo toque la manda, porque el navegador solo deja compartir
@@ -19,6 +22,11 @@ export const W = 1080, H = 1920;
 const PANEL = { x: 48, y: 210, w: 984, h: 1060, r: 48 };
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 export const TITLE = "Mi salida en GIZE";
+// Créditos del mapa (los del estilo de OpenFreeMap; los datos de OpenMapTiles y OpenStreetMap
+// piden que se nombren): van en la imagen siempre que lleva la foto del mapa.
+export const MAP_CREDIT = "OpenFreeMap © OpenMapTiles © OpenStreetMap";
+// Nombre fijo de la imagen en la caché de la app nativa: cada una pisa a la anterior.
+export const CACHE_FILE = "gize-salida.png";
 
 function dateText(rec){
   const p = String(rec.date || "").split("-");
@@ -45,7 +53,7 @@ export function drawPlainBg(ctx, x, y, w, h){
 }
 
 // La imagen (PNG 1080 × 1920). rec: la salida (resumen). track: texto del recorrido (o null).
-// hideEnds: sin los primeros y últimos 200 m. → Promise<Blob>
+// hideEnds: sin lo que pasa a menos de 200 m del inicio y del final. → Promise<Blob>
 export async function storyImage(rec, track, { hideEnds = true } = {}){
   const c = document.createElement("canvas"); c.width = W; c.height = H;
   const ctx = c.getContext("2d"), pal = palette();
@@ -97,7 +105,7 @@ export async function storyImage(rec, track, { hideEnds = true } = {}){
   }
   if (photo){
     ctx.font = F(500, 22); ctx.fillStyle = "rgba(255,255,255,.62)"; ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
-    ctx.fillText("© OpenStreetMap · OpenFreeMap", P.x + P.w - 30, P.y + P.h - 26); ctx.textAlign = "left";
+    ctx.fillText(MAP_CREDIT, P.x + P.w - 30, P.y + P.h - 26); ctx.textAlign = "left";
   }
   ctx.restore();
   rrect(ctx, P.x + 1, P.y + 1, P.w - 2, P.h - 2, P.r); ctx.lineWidth = 2; ctx.strokeStyle = "rgba(255,255,255,.10)"; ctx.stroke();
@@ -167,7 +175,7 @@ export async function shareImage(blob, rec, { download = false } = {}){
     if (Sh && Fs){
       try {
         const data = await toBase64(blob);
-        const { uri } = await Fs.writeFile({ path: name, data, directory: "CACHE" });
+        const { uri } = await Fs.writeFile({ path: CACHE_FILE, data, directory: "CACHE" });
         await Sh.share({ title: TITLE, files: [uri], dialogTitle: "Compartir tu salida" });
         return "shared";
       } catch (e) { if (canceled(e)) return "cancel"; console.warn("compartir", e); }
@@ -188,6 +196,14 @@ export async function shareImage(blob, rec, { download = false } = {}){
     setTimeout(() => URL.revokeObjectURL(url), 60000);
     return "saved";
   } catch (e) { return "fail"; }
+}
+
+// Borra la imagen que quedó en la caché de la app nativa (al cerrar sesión o borrar la cuenta).
+// Sin la app o sin el plugin, nada. No falla nunca.
+export function deleteShareFile(){
+  const Fs = nativePlugin("Filesystem");
+  if (!Fs || typeof Fs.deleteFile !== "function") return Promise.resolve();
+  return Promise.resolve().then(() => Fs.deleteFile({ path: CACHE_FILE, directory: "CACHE" })).catch(() => {});
 }
 
 // ---- La hoja «Compartir tu salida» ----

@@ -4,10 +4,12 @@
 // · saveEnded(): la salida terminada de ui/gps.js → resumen y recorrido (core/cardiogps.js
 //   finishRun) → state.salidas + caché + cola de envío (core/supabase.js cloudSaveSalida) → se
 //   borra la salida en curso.
-// · getTrack(id): el recorrido de una salida, del celular o de la nube (lo usan el alumno y el
-//   coach al abrir una salida; las listas nunca lo traen).
+// · getTrack(id): el recorrido de una salida propia, del celular o de la nube (lo usa el alumno
+//   al abrir una salida; las listas nunca lo traen). El coach no lo guarda en su celular: lo
+//   pide a la nube y lo tiene solo en memoria (screens/coach/salidas.js).
 // · El recorrido NO va en state: ese estado se escribe entero en cada save() y crecería con
-//   cada salida. La caché (TRACK_KEY) guarda los últimos que se abrieron (15, hasta ~1,5 MB) y se
+//   cada salida. La caché (TRACK_KEY) guarda los últimos que se abrieron (15, hasta ~1,5 MB), se
+//   achica a las salidas que siguen existiendo cada vez que se lee la nube (pruneTracks) y se
 //   borra al cerrar sesión (clearAccountLeftovers). Una salida que todavía no subió tiene su
 //   recorrido también en la cola de envío, así que no se pierde aunque salga de la caché.
 import { State, state } from './state.js';
@@ -50,6 +52,12 @@ function putTrack(id, track){
 }
 function dropTrack(id){
   const list = readCache(), keep = list.filter(x => x[0] !== id);
+  if (keep.length !== list.length) writeCache(keep);
+}
+// Deja en la caché solo los recorridos de estas salidas (ids): los de las borradas en otro
+// dispositivo se van (core/supabase.js mergeSalidas, al leer la nube).
+export function pruneTracks(keepIds){
+  const ok = new Set(keepIds || []), list = readCache(), keep = list.filter(x => ok.has(x[0]));
   if (keep.length !== list.length) writeCache(keep);
 }
 

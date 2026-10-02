@@ -13,7 +13,9 @@ import { pushOnHere, enablePush, disablePush, pushLogout, isIOS, isStandalone } 
 import { renderApp } from '../main.js';
 import { adminEntry, checkAdmin } from './admin-productos.js';
 import { isLite, setLite } from '../ui/background.js';
-import { stopForLogout } from '../ui/gps.js';
+import { releaseForReload, stopForLogout } from '../ui/gps.js';
+import { TRACK_KEY } from '../core/salidas.js';
+import { deleteShareFile } from '../ui/compartir.js';
 import { temaOptionsHtml } from '../ui/tema.js';
 import { neonSwitchHtml } from '../ui/neon.js';
 import { bellSvg, fileTextSvg, instagramSvg, globeSvg, auIcoMail, whatsappSvg, chevronRightSvg, pencilSvg, checkSvg } from '../core/icons.js';
@@ -266,6 +268,14 @@ document.body.addEventListener("click", async function (e) {
       ? "¿Seguro? Se borra la copia guardada en este dispositivo (rutinas, pesos, hábitos) y se vuelve a bajar de tu cuenta. Lo que todavía no se subió a tu cuenta puede perderse.\n\nTu sesión sigue iniciada: para dejar el dispositivo limpio usá «Cerrar sesión»."
       : "¿Seguro? Se va a borrar todo lo guardado en este dispositivo (rutinas, pesos, hábitos). Esta acción no se puede deshacer.")) {
       try { localStorage.removeItem(KEY); } catch (err) {}
+      // Cardio: con la cuenta, la salida en curso queda (se retoma al recargar) y solo se suelta
+      // el GPS antes de recargar. Sin cuenta se borra todo: la salida en curso, los recorridos
+      // guardados y la imagen compartida.
+      if (State.cloudUser) releaseForReload();
+      else {
+        stopForLogout(); deleteShareFile();
+        try { localStorage.removeItem(TRACK_KEY); } catch (err) {}
+      }
       location.reload();
     }
     return;

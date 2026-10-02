@@ -12,8 +12,8 @@ import { State, state } from '../core/state.js';
 
 import { esc, fmt, fmtDate, ymd } from '../core/utils.js';
 import { bikeSvg, shoeSvg } from '../core/icons.js';
-import { CLASSES, breakdownText, filterPoints, finishRun, fmtClock, fmtKm, fmtKmh, fmtPace, isShort, lastWeight, modeLabel, paceOrSpeed, unpackPoint } from '../core/cardiogps.js';
-import { GpsState, acceptDisclosure, ackRestored, discard, disclosure, hint, isNative, live, onPoint, openSettings, pause, restoredText, resume, setMode, start, stop, takeEnded } from '../ui/gps.js';
+import { CLASSES, breakdownText, finishRun, fmtClock, fmtKm, fmtKmh, fmtPace, isShort, lastWeight, livePath, livePathKey, modeLabel, paceOrSpeed } from '../core/cardiogps.js';
+import { GpsState, acceptDisclosure, ackRestored, discard, disclosure, hint, isNative, live, needsPrecise, onPoint, openSettings, pause, restoredText, resume, setMode, start, stop, takeEnded } from '../ui/gps.js';
 import { cachedTrack, deleteSalida, getTrack, salidasList, saveEnded } from '../core/salidas.js';
 import { salidaPendiente } from '../core/supabase.js';
 import { legendHtml, mixHtml, notesHtml, prepOf, routeHtml, splitsHtml, statsHtml } from '../ui/recorrido.js';
@@ -149,7 +149,7 @@ function renderLive(r){
     '</div>' +
     routeSlot("live", { key: "live:" + r.id, mode: r.mode, live: true }, "sal-minimap") +
     '<div class="sal-gps" id="salGps" hidden></div>' +
-    (GpsState.notice ? '<div class="sal-note">' + esc(GpsState.notice) + '</div>' : "") +
+    (GpsState.notice ? '<div class="sal-note">' + esc(GpsState.notice) + (needsPrecise() && isNative() ? '<button type="button" class="sal-link" data-action="sal-settings">Abrir ajustes</button>' : "") + '</div>' : "") +
     errorHtml() +
     (s.kgDefault ? '<div class="sal-tip">Calorías con 70 kg: cargá tu peso en Progreso para que sean exactas.</div>' : "") +
     '<div class="sal-tip">' + esc(hint()) + '</div>' +
@@ -183,17 +183,15 @@ export function paintSalida(now){
 }
 
 // ---- Mini mapa en vivo ----
-// Lo medido hasta ahora, filtrado (core/cardiogps.js), en piezas con t en segundos.
+// Lo medido hasta ahora (los puntos que el motor ya aceptó, con tope: core/cardiogps.js
+// livePath), en piezas con t en segundos. No se vuelve a filtrar todo en cada redibujo.
 let liveMemo = null;
 function livePieces(){
   const r = GpsState.run; if (!r || !r.pts.length) return [];
-  const k = r.id + ":" + r.pts.length + ":" + (r.pts.length ? r.pts[r.pts.length - 1][0] : 0);
+  const k = r.id + ":" + livePathKey(r);
   if (liveMemo && liveMemo.k === k) return liveMemo.v;
-  const { pts } = filterPoints(r.pts.map(a => unpackPoint(a, r.start)), r.mode);
-  const out = []; let cur = null;
-  for (const p of pts){ if (!cur || p.brk){ cur = []; out.push(cur); } cur.push({ lat: p.lat, lon: p.lon, t: (p.t - r.start) / 1000 }); }
-  liveMemo = { k, v: out };
-  return out;
+  liveMemo = { k, v: livePath(r) };
+  return liveMemo.v;
 }
 const LIVE_MAP_MS = 5000;
 let liveAt = 0, liveTimer = null;
@@ -285,11 +283,13 @@ export function paintSalidaOverlay(){
     : routeHtml(name, rec, track, { cls: "sov-map", pad: { top: 84, right: 36, bottom: 128, left: 36 },
         onProgress: (m, total) => { if (!o.shown) setTxt("sovKm", fmtKm(total > 0 ? rec.dist * Math.min(1, m / total) : rec.dist)); },
         onDone: () => { if (SalidaState.open !== o) return; o.shown = true; setTxt("sovKm", fmtKm(rec.dist)); const n = document.getElementById("sovNums"); if (n) n.classList.add("in"); } });
+  // «Compartir» espera a que llegue el recorrido (si no, la imagen saldría sin él).
+  const shareOff = track === null ? " disabled" : "";
   const btns = saved
-    ? '<button class="ctrl primary wide" data-action="sal-share">Compartir</button>' +
+    ? '<button class="ctrl primary wide" data-action="sal-share"' + shareOff + '>Compartir</button>' +
       '<div class="sov-row"><button class="ctrl ghost" data-action="sal-replay"' + (prep ? "" : " disabled") + '>Ver de nuevo</button><button class="ctrl ghost sov-del" data-action="sal-del">Borrar</button></div>'
     : '<button class="ctrl primary wide" data-action="sal-save">Guardar</button>' +
-      '<div class="sov-row"><button class="ctrl ghost" data-action="sal-share">Compartir</button><button class="ctrl ghost" data-action="sal-replay"' + (prep ? "" : " disabled") + '>Ver de nuevo</button></div>' +
+      '<div class="sov-row"><button class="ctrl ghost" data-action="sal-share"' + shareOff + '>Compartir</button><button class="ctrl ghost" data-action="sal-replay"' + (prep ? "" : " disabled") + '>Ver de nuevo</button></div>' +
       '<button class="sov-link sov-del" data-action="sal-discard">Descartar</button>';
   const short = !saved && isShort(rec) ? '<div class="sal-note">La salida es muy corta (menos de 100 m o de 1 min en movimiento). Podés guardarla igual o descartarla.</div>' : "";
   const pend = saved && salidaPendiente(rec.id) ? '<div class="sal-tip">Todavía no se subió a tu cuenta: se sube sola apenas haya conexión.</div>' : "";
@@ -369,7 +369,7 @@ export function salidaAction(a, el){
     return true;
   }
   if (a === "sal-share"){
-    const d = openData(); if (!d) return true;
+    const d = openData(); if (!d || d.track === null) return true; // el recorrido todavía no llegó
     openShareSheet(d.rec, d.track || "");
     return true;
   }

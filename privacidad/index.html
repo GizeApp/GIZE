@@ -74,7 +74,7 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
   <h2 id="ubicacion">Ubicación</h2>
   <p>La app usa tu ubicación precisa solo mientras registrás una salida a pie o en bici en Cardio, para medir la distancia, el ritmo y las calorías y dibujar tu recorrido. Antes de usarla por primera vez te lo explica y te pide permiso. Mientras dura la salida la sigue usando con la pantalla bloqueada o la app en segundo plano (en Android se ve una notificación de GIZE; en iPhone, el indicador de ubicación). Cuando la pausás o la terminás, deja de usarla. Nunca la usa en otro momento.</p>
   <p>Al guardar la salida, el recorrido queda en tu cuenta: lo ven solo vos y tu coach. Se borra cuando borrás la salida o tu cuenta, y tu coach deja de verlo si dejás de estar vinculado.</p>
-  <p>Si compartís la imagen de una salida, la mandás vos desde tu celular a la app que elijas: GIZE no la publica. Por defecto la imagen no muestra dónde empezás ni dónde terminás.</p>
+  <p>Si compartís la imagen de una salida, la mandás vos desde tu celular a la app que elijas: GIZE no la publica. Por defecto la imagen no muestra dónde empezás ni dónde terminás: oculta todo el recorrido que pasa a menos de 200 metros de esos dos lugares. En la app, la última imagen que compartiste queda en tu celular hasta que compartís otra, cerrás sesión o borrás tu cuenta.</p>
 
   <h2>Dónde se guardan</h2>
   <p>Los datos se guardan en <b>Supabase</b> (base de datos y archivos), con conexión cifrada y reglas que impiden que un usuario lea los datos de otro. Las notificaciones pasan por los servicios de push del navegador, en Android por <b>Firebase Cloud Messaging</b> de Google y en iPhone por <b>Apple Push Notification service</b>, que solo reciben el texto del mensaje y el identificador del dispositivo.</p>
@@ -82,7 +82,7 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
   <ul>
     <li><b>Resend:</b> manda los mails de GIZE (por ejemplo, los de confirmar tu cuenta o elegir una contraseña nueva) y recibe los que nos escribís a contacto@gize.ar.</li>
     <li><b>Open Food Facts:</b> cuando buscás un producto de marca o escaneás su código de barras, la app le pide los datos directo desde tu celular. Recibe lo que buscaste o el código, pero no tu cuenta.</li>
-    <li><b>OpenFreeMap:</b> da el fondo del mapa de tus salidas (calles y lugares, con datos de OpenStreetMap). Cuando ves un mapa, la app le pide directo desde tu celular las partes del mapa de esa zona, así que recibe esa zona y tu dirección IP, pero no tu cuenta ni tu recorrido.</li>
+    <li><b>OpenFreeMap:</b> da el fondo del mapa de tus salidas (calles y lugares, con datos de OpenStreetMap). Cuando ves un mapa, la app le pide directo desde tu celular las partes del mapa que se ven (durante una salida, las de la zona por donde vas, a medida que avanzás), así que recibe esas zonas y tu dirección IP, pero no tu cuenta ni los puntos de tu recorrido.</li>
     <li><b>Google:</b> si entrás con tu cuenta de Google, para iniciar sesión. También la letra de nuestros mails viene de Google Fonts.</li>
     <li><b>Mercado Pago:</b> solo si sos coach y tenías una suscripción de GIZE con Mercado Pago, para administrarla.</li>
   </ul>

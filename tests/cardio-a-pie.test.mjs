@@ -7,7 +7,9 @@
 //    a poco y termina), los números, «Ver de nuevo», «Guardar» y «Tus salidas» (volver a abrirla
 //    repite la animación sin pedir nada), «Borrar»; salida terminada sin guardar al recargar.
 // c) Compartir: imagen PNG de 1080 × 1920 por Web Share, descarga sin Web Share, y en la app
-//    nativa por Filesystem (caché) + Share.
+//    nativa por Filesystem (caché, siempre el mismo archivo, que se borra al cerrar sesión) +
+//    Share; desactivado mientras llega el recorrido. «Ver de nuevo» a mitad del dibujo. El estado
+//    del GPS que va y viene no redibuja la pantalla.
 // d) Movimiento reducido (dibujo completo de una), modo liviano (sin MapLibre), las apariencias
 //    (Claro, Azul, Rosa, sin neón) con sus colores, nada que se mueva sin fin, 320 px sin scroll
 //    de costado y el «Atrás» de Android.
@@ -125,6 +127,7 @@ function staticChecks(t){
   t.ok(!/maplibre/i.test(read('sw.js')), 'sw.js no precarga MapLibre (se guarda en la caché recién cuando se usa)');
   t.has(read('app/core/icons.js'), 'export const shoeSvg', 'ícono de zapatilla');
   t.has(read('app/core/icons.js'), 'export const bikeSvg', 'ícono de bici');
+  t.has(read('app/ui/compartir.js'), '"OpenFreeMap © OpenMapTiles © OpenStreetMap"', 'la imagen con mapa lleva los créditos completos (OpenFreeMap, OpenMapTiles y OpenStreetMap)');
 }
 
 // ---- b) El flujo completo en la web ----
@@ -236,6 +239,10 @@ async function flujo(base, t){
   // Ver de nuevo.
   await p.click('#salidaHost [data-action="sal-replay"]'); await wait(300);
   t.eq(await estado(p), 'animando', '«Ver de nuevo» dibuja otra vez');
+  // Otra vez en medio del dibujo: el que se cortó no da por terminado el nuevo.
+  await p.click('#salidaHost [data-action="sal-replay"]'); await wait(300);
+  t.eq(await estado(p), 'animando', '«Ver de nuevo» a mitad del dibujo: sigue dibujando (el anterior no lo termina)');
+  t.eq(await p.$eval('#sovNums', e => e.classList.contains('in')), true, 'los números siguen a la vista');
   t.ok(await waitEstado(p, 'listo'), 'y termina');
 
   // Guardar → «Tus salidas».
@@ -390,9 +397,62 @@ async function compartir(base, t, saved){
   t.eq(await p.$$eval('#salShare [data-sh="save"]', l => l.length), 0, 'en la app no aparece «Guardar imagen»');
   await p.click('#salShare [data-sh="share"]'); await wait(800);
   const nat = await p.evaluate(() => window.__nat);
-  const name = 'gize-salida-' + saved.rec.id.replace(/-/g, '').slice(0, 8) + '.png';
-  t.eq(nat, [['write', name, 'CACHE', 'iVBORw0K'], ['share', 'Mi salida en GIZE', ['file:///data/cache/' + name], 'Compartir tu salida']], 'app nativa: el PNG a la caché (Filesystem) y se comparte el archivo (Share)');
+  const name = 'gize-salida.png';
+  t.eq(nat, [['write', name, 'CACHE', 'iVBORw0K'], ['share', 'Mi salida en GIZE', ['file:///data/cache/' + name], 'Compartir tu salida']], 'app nativa: el PNG a la caché (Filesystem, siempre con el mismo nombre: cada una pisa a la anterior) y se comparte el archivo (Share)');
+  // Al cerrar sesión o borrar la cuenta, la imagen se borra de la caché.
+  await p.evaluate(() => { window.Capacitor.Plugins.Filesystem.deleteFile = async o => { window.__nat.push(['delete', o.path, o.directory]); }; });
+  await p.evaluate(async uid => (await import('/app/core/supabase.js')).clearAccountLeftovers(uid), ALUMNO.id); await wait(100);
+  t.eq((await p.evaluate(() => window.__nat)).slice(-1), [['delete', name, 'CACHE']], 'al cerrar sesión se borra la imagen de la caché');
   t.eq(pg.errs, [], 'errores de la página (nativo)');
+  await pg.close();
+}
+
+// «Compartir» de una salida cuyo recorrido todavía no llegó: desactivado hasta que llega (si no,
+// la imagen saldría «Sin recorrido»).
+async function compartirCargando(base, t, saved){
+  const H2 = Object.assign({}, H, { '/cardio_outings': (r, J, i) => /select=track/.test(decodeURIComponent(i.url.search))
+    ? new Promise(ok => setTimeout(() => ok(J(i.one ? { track: saved.track } : [{ track: saved.track }])), 1500)) : undefined });
+  const pg = await newPage({ user: ALUMNO, state: Object.assign({}, STATE, { salidas: [local(saved.rec)] }), handlers: H2, init: "localStorage.setItem('gize_mapa_off','1');" });
+  const p = pg.p;
+  await p.goto(base + '/app/'); await wait(2500);
+  await abrir(p, saved); await wait(200);
+  t.has(await text(p, '#salidaHost'), 'Cargando el recorrido', 'sin el recorrido en el celular: lo pide');
+  t.eq(await p.$eval('#salidaHost [data-action="sal-share"]', b => b.disabled), true, 'mientras llega, «Compartir» está desactivado');
+  await p.evaluate(() => document.querySelector('#salidaHost [data-action="sal-share"]').click()); await wait(100);
+  t.eq(await p.$$eval('#salShare', l => l.length), 0, 'y no abre la hoja');
+  await p.waitForSelector('#salidaHost .rv', { timeout: 5000 }).catch(() => {});
+  t.eq(await p.$eval('#salidaHost [data-action="sal-share"]', b => b.disabled), false, 'cuando llega el recorrido, «Compartir» se activa');
+  t.eq(pg.errs, [], 'errores de la página (compartir mientras carga)');
+  await pg.close();
+}
+
+// El estado del GPS que va y viene (precisión cerca de los 20 m: «débil» / bien en cada punto):
+// se pinta solo el cartelito, sin redibujar la pantalla de Cardio.
+async function gpsDebil(base, t){
+  const pg = await newPage({ user: ALUMNO, state: STATE, init: FAKE, handlers: H });
+  const p = pg.p;
+  await p.addInitScript("localStorage.setItem('gize_mapa_off','1'); localStorage.setItem('gize_salida_aviso','1');");
+  await p.goto(base + '/app/'); await wait(2500);
+  await p.click('#nav-cardio'); await wait(300);
+  await p.click('[data-action="sal-start"]'); await wait(400);
+  await p.evaluate(plan => window.__route(plan, 0, 30), PLAN); await wait(300);
+  await p.evaluate(() => { window.__renders = 0; new MutationObserver(l => { if (l.some(m => m.type === 'childList' && m.target.id === 'view')) window.__renders++; }).observe(document.getElementById('view'), { childList: true }); });
+  const seen = await p.evaluate(async () => {
+    const c = await import('/app/screens/cardio.js'), g = await import('/app/ui/gps.js'), m = await import('/app/core/cardiogps.js');
+    const lp = m.lastPoint(g.GpsState.run), tl = Math.max(lp.t, g.GpsState.run.live.rawT || 0), out = new Set();
+    // Sigue desde donde quedó, trotando para el norte (un punto por segundo).
+    for (let i = 0; i < 60; i++){
+      window.__push(lp.lat + (i + 1) * 2.5 / 111195, lp.lon, i % 2 ? 24 : 16, tl + (i + 1) * 1000);
+      await new Promise(r => setTimeout(r, 5));
+      c.paintSalida(); // lo que hace el reloj de main.js cada segundo
+      const g = document.getElementById('salGps'); out.add(g && !g.hidden ? g.textContent : '');
+    }
+    return [...out];
+  });
+  await wait(300);
+  t.ok(await p.evaluate(() => window.__renders) <= 1, 'GPS débil / bien alternando en 60 puntos: Cardio no se redibuja (' + await p.evaluate(() => window.__renders) + ' veces)');
+  t.ok(seen.includes('Señal del GPS débil'), 'el cartelito «Señal del GPS débil» se pinta igual: ' + JSON.stringify(seen));
+  t.eq(pg.errs, [], 'errores de la página (GPS débil)');
   await pg.close();
 }
 
@@ -486,5 +546,7 @@ export default async function ({ base, t }){
   await terminadaSinGuardar(base, t);
   if (!saved.rec || !saved.track){ t.ok(false, 'no quedó una salida guardada para seguir probando'); return; }
   await compartir(base, t, saved);
+  await compartirCargando(base, t, saved);
+  await gpsDebil(base, t);
   await looks(base, t, saved);
 }

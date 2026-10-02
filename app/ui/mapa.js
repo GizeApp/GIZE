@@ -139,7 +139,7 @@ export async function mapPhoto(bounds, w, h, padding, points){
 class RouteView {
   constructor(spec){
     this.spec = spec; this.mode = spec.mode === "bici" ? "bici" : "pie"; this.live = !!spec.live;
-    this.dead = false; this.started = false; this.map = null; this.done = false; this.anim = null;
+    this.dead = false; this.started = false; this.map = null; this.done = false; this.anim = null; this.playId = 0;
     const el = this.el = document.createElement("div");
     el.className = "rv" + (this.live ? " rv-live" : "");
     el.dataset.estado = "cargando";
@@ -204,9 +204,13 @@ class RouteView {
     this.map = map;
     this.handlers(false);
     this.el.classList.add("con-mapa");
-    // El mapa se mueve (después de la animación, o al acomodarse): el recorrido lo sigue.
+    // El mapa se mueve (después de la animación, o al acomodarse): el recorrido lo sigue. Durante
+    // la animación no (cada cuadro dibuja lo suyo); al terminar se vuelve a proyectar (finish) y
+    // al final de cada movimiento también (moveend), por si se movió mientras dibujaba.
     let q = 0;
-    map.on("move", () => { if (q) return; q = requestAnimationFrame(() => { q = 0; if (this.dead || this.layers.raf) return; this.reproject(); this.live ? this.drawLive() : this.layers.drawAll(); }); });
+    const follow = () => { if (this.dead || this.layers.raf) return; this.reproject(); this.live ? this.drawLive() : this.layers.drawAll(); };
+    map.on("move", () => { if (q) return; q = requestAnimationFrame(() => { q = 0; follow(); }); });
+    if (!this.live) map.on("moveend", follow); // en vivo la cámara la mueve setLive, que ya redibuja
   }
   handlers(on){
     const m = this.map; if (!m || this.live) return;
@@ -225,11 +229,16 @@ class RouteView {
       return;
     }
     this.el.dataset.estado = "animando";
-    this.anim = this.layers.animate(m => { if (onP) onP(m, total); }).then(() => { if (!this.dead) this.finish(); });
+    // Cada dibujo con su número: si «Ver de nuevo» corta uno a la mitad, ese ya no termina nada
+    // (si no, el viejo pondría «listo» e inclinaría el mapa en medio del dibujo nuevo).
+    const id = ++this.playId;
+    this.anim = this.layers.animate(m => { if (onP) onP(m, total); }).then(() => { if (!this.dead && id === this.playId) this.finish(); });
   }
   finish(){
     this.el.dataset.estado = "listo"; this.done = true;
     this.handlers(true);
+    // Por si el mapa se movió mientras dibujaba: el recorrido otra vez en su lugar.
+    if (this.map){ this.reproject(); this.layers.drawAll(); }
     // Al terminar, el mapa se inclina apenas (como una foto aérea), salvo movimiento reducido.
     if (this.map && !reduced() && !isLite() && !this.tilted){
       this.tilted = true;
@@ -240,6 +249,7 @@ class RouteView {
   // «Ver de nuevo»: la cámara a como empezó y se dibuja otra vez.
   replay(){
     if (this.dead || !this.prep) return;
+    this.playId++;
     this.layers.stop();
     if (this.map){
       this.handlers(false);

@@ -1,7 +1,7 @@
 // App de iPhone lista para «Continuar con Apple» y para App Store Connect (sin Mac: se revisan
 // los archivos). Permiso de Sign in with Apple en App.entitlements (el que usa el proyecto),
 // manifiesto de privacidad PrivacyInfo.xcprivacy dentro de la app (UserDefaults del plugin de
-// login, sin seguimiento), el SDK de Facebook afuera del plugin antes de compilar y la política
+// login, fechas de archivos del plugin de archivos, sin seguimiento), el SDK de Facebook afuera del plugin antes de compilar y la política
 // de privacidad nombrando a Apple.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -93,6 +93,10 @@ export default async function ({ t }){
     t.eq(man.NSPrivacyTrackingDomains, [], 'sin dominios de seguimiento');
     const ud = (man.NSPrivacyAccessedAPITypes || []).find(x => x.NSPrivacyAccessedAPIType === 'NSPrivacyAccessedAPICategoryUserDefaults');
     t.eq(ud && ud.NSPrivacyAccessedAPITypeReasons, ['CA92.1'], 'UserDefaults (plugin de login) con la razón CA92.1');
+    // @capacitor/filesystem (y su paquete ion-ios-filesystem) lee la fecha de los archivos y no
+    // trae manifiesto propio: sin esto, App Store Connect avisa ITMS-91053 al subir la app.
+    const ft = (man.NSPrivacyAccessedAPITypes || []).find(x => x.NSPrivacyAccessedAPIType === 'NSPrivacyAccessedAPICategoryFileTimestamp');
+    t.eq(ft && ft.NSPrivacyAccessedAPITypeReasons, ['C617.1'], 'FileTimestamp (plugin de archivos, caché de la app) con la razón C617.1');
     const tipos = man.NSPrivacyCollectedDataTypes || [];
     for (const k of ['NSPrivacyCollectedDataTypeEmailAddress', 'NSPrivacyCollectedDataTypeName', 'NSPrivacyCollectedDataTypeFitness', 'NSPrivacyCollectedDataTypePhotosorVideos', 'NSPrivacyCollectedDataTypeAudioData'])
       t.ok(tipos.some(x => x.NSPrivacyCollectedDataType === k), 'el manifiesto declara ' + k);

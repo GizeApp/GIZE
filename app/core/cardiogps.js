@@ -65,9 +65,31 @@ export function haversine(a, b){
 // ---- Puntos ----
 // Punto del GPS: { lat, lon, t (ms), acc (m, error al 68 %), spd (m/s del GPS o null),
 // seg (sube en cada pausa manual: 0, 1, 2…) }.
-// Hora del punto: la del GPS, salvo que difiera más de 30 s del reloj del celular (relojes mal
-// puestos); entonces la del celular.
-export const gpsTime = (t, now) => (Number.isFinite(+t) && Math.abs(+t - now) <= 30000) ? +t : now;
+// Hora de los puntos: la del GPS, así un punto que llega tarde (en iPhone, con la app en segundo
+// plano, pueden llegar varios minutos juntos) queda en su lugar y suma lo que caminó. Si el reloj
+// del celular está corrido respecto del GPS (más de 30 s), se le suma esa diferencia: así todo
+// queda en la hora del celular, la misma del inicio y de las pausas. La diferencia es la menor
+// (reloj − GPS) de la salida: la demora en llegar solo la agranda, nunca la achica.
+// createClock() → time(t del GPS, now, inicio) → hora del punto (ms). Si no tiene sentido (sin
+// hora, del futuro o de antes de empezar) usa now y vuelve a aprender la diferencia.
+export const CLOCK_MS = 30000;
+export function createClock(){
+  let off = null, odd = 0;
+  return (t, now, start) => {
+    t = +t;
+    if (!Number.isFinite(t) || !Number.isFinite(now)) return now;
+    const d = now - t;
+    // Mucho más «adelantado» que todos los anteriores: un punto con la hora mal. Si se repite 10
+    // veces seguidas es el reloj del celular, que se corrigió: se toma la diferencia nueva.
+    if (off !== null && d < off - CLOCK_MS && ++odd < 10) return now;
+    odd = 0;
+    const o = off === null ? d : Math.min(off, d);
+    const x = t + (Math.abs(o) > CLOCK_MS ? o : 0);
+    if (x > now + CLOCK_MS || (Number.isFinite(start) && x < start)){ off = null; return now; }
+    off = o;
+    return x;
+  };
+}
 
 // Empaquetado para guardar en el celular (compacto): [ms desde el inicio, lat·1e6, lon·1e6,
 // acc (m), velocidad (cm/s, -1 si no hay), seg].
@@ -492,11 +514,12 @@ export function endRun(run, now){
   run.status = "ended"; run.ended = now;
 }
 
-// Estado en vivo (filtro + ventana de 30 s para el tipo de tramo). Si no está (salida recién
-// recuperada del celular), se arma de nuevo con los puntos guardados.
+// Estado en vivo (filtro + ventana de 30 s para el tipo de tramo + los puntos aceptados para el
+// mini mapa). Si no está (salida recién recuperada del celular), se arma de nuevo con los
+// puntos guardados.
 function liveState(run){
   if (run._f) return run._f;
-  const s = { f: createFilter(run.mode), q: [], qm: 0, qd: 0 };
+  const s = { f: createFilter(run.mode), q: [], qm: 0, qd: 0, path: [], pathLast: null, pathN: 0, stride: 1 };
   Object.defineProperty(run, "_f", { value: s, enumerable: false, configurable: true, writable: true });
   run.live = emptyLive();
   for (const a of run.pts || []) feed(run, s, unpackPoint(a, run.start));
@@ -509,6 +532,14 @@ function feed(run, s, pt){
   if (r.keep){ L.rawT = pt.t; L.rawSeg = pt.seg; }
   if (r.p){
     L.lastT = r.p.t; L.dist = s.f.dist;
+    // Para el mini mapa: uno de cada «stride» (siempre el que empieza una pieza). Si se pasa del
+    // tope, se saca uno de cada dos y desde ahí se guarda la mitad: la densidad queda pareja.
+    const q = { lat: r.p.lat, lon: r.p.lon, t: r.p.t, brk: !!r.p.brk };
+    s.pathLast = q;
+    if (q.brk || ++s.pathN % s.stride === 0){
+      s.path.push(q);
+      if (s.path.length > LIVE_PATH_MAX){ s.path = thinPath(s.path); s.stride *= 2; }
+    }
     const m = movingS(before, r.p, cfg);
     if (m > 0){
       const d = r.p.cd - before.cd;
@@ -540,6 +571,28 @@ export function addPoint(run, pt){
   return r.why;
 }
 export const isAccepted = why => why === "first" || why === "gap" || why === "anchor" || why === "ok";
+// Lo medido hasta ahora para el mini mapa en vivo, sin volver a pasar todos los puntos por el
+// filtro (el estado en vivo los va juntando): [[{lat, lon, t (s desde el inicio)}]], por pieza,
+// terminando en el último punto aceptado (dónde está ahora). Con tope de LIVE_PATH_MAX puntos
+// repartidos parejo (ver feed): cada redibujo cuesta lo mismo a la hora que a las 8 h.
+export const LIVE_PATH_MAX = 4000;
+function thinPath(path){
+  return path.filter((p, i) => i % 2 === 0 || p.brk || (path[i + 1] && path[i + 1].brk));
+}
+export function livePath(run){
+  if (!run) return [];
+  const s = liveState(run), out = [];
+  let cur = null;
+  const add = p => {
+    if (!cur || p.brk){ cur = []; out.push(cur); }
+    cur.push({ lat: p.lat, lon: p.lon, t: (p.t - run.start) / 1000 });
+  };
+  for (const p of s.path) add(p);
+  if (s.pathLast && s.path[s.path.length - 1] !== s.pathLast) add(s.pathLast);
+  return out;
+}
+// Cuántos puntos aceptados lleva la salida en curso (para saber si cambió el mini mapa).
+export const livePathKey = run => { if (!run) return ""; const s = liveState(run), a = s.path; return s.f.n + ":" + (a.length ? a[a.length - 1].t : 0); };
 // Último punto aceptado de la salida en curso (para dibujar en vivo), o null.
 export function lastPoint(run){ return run ? liveState(run).f.last : null; }
 // Vuelve a armar el estado en vivo desde los puntos guardados (después de recuperar o achicar).
@@ -769,36 +822,53 @@ export function trackBounds(pieces){
   for (const pc of pieces || []) for (const p of pc){ s = Math.min(s, p.lat); n = Math.max(n, p.lat); w = Math.min(w, p.lon); e = Math.max(e, p.lon); }
   return s > n ? null : { s, w, n, e };
 }
-// Privacidad de la imagen para compartir: saca los primeros y los últimos m metros del recorrido
-// (así no se ve dónde empezás ni dónde terminás). En recorridos cortos, como mucho un cuarto
-// de cada lado.
+// Privacidad de la imagen para compartir: saca todo lo que pasa a menos de m metros (en línea
+// recta) de dónde empezaste y de dónde terminaste, así no se ve tu casa aunque el recorrido dé
+// vueltas cerca o vuelva a pasar por ahí. El corte cae justo en el borde del círculo y, si lo
+// oculto queda en el medio, la pieza se parte en dos. Si no queda nada afuera: [].
 export function trimTrack(pieces, m = 200){
-  const cut = Math.min(Math.max(0, Number(m) || 0), trackLength(pieces) / 4);
-  const copy = (pieces || []).map(pc => pc.slice());
-  if (!(cut > 0)) return copy;
-  const fromStart = (list) => {
-    let left = cut;
-    const out = [];
-    for (const pc of list){
-      if (left <= 0){ out.push(pc); continue; }
-      let i = 1;
-      for (; i < pc.length; i++){
-        const d = haversine(pc[i - 1], pc[i]);
-        if (d >= left){
-          const f = d > 0 ? left / d : 0, a = pc[i - 1], b = pc[i];
-          const mid = { lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f, t: a.t + (b.t - a.t) * f };
-          left = 0;
-          const rest = [mid].concat(pc.slice(i));
-          if (rest.length >= 2) out.push(rest);
-          break;
-        }
-        left -= d;
+  const R = Math.max(0, Number(m) || 0);
+  const list = (pieces || []).filter(pc => Array.isArray(pc) && pc.length);
+  if (!(R > 0) || !list.length) return list.map(pc => pc.slice()).filter(pc => pc.length >= 2);
+  const lp = list[list.length - 1], zones = [list[0][0], lp[lp.length - 1]];
+  const lerpP = (a, b, u) => ({ lat: a.lat + (b.lat - a.lat) * u, lon: a.lon + (b.lon - a.lon) * u, t: a.t + (b.t - a.t) * u });
+  const out = [];
+  for (const pc of list){
+    let cur = null;
+    // Una pieza de menos de 2 m (dos círculos que casi se tocan) no se dibuja.
+    const flush = () => { if (cur && cur.length >= 2 && trackLength([cur]) >= 2) out.push(cur); cur = null; };
+    if (pc.length === 1) continue;
+    for (let i = 1; i < pc.length; i++){
+      const a = pc[i - 1], b = pc[i];
+      // Partes del tramo a → b (u de 0 a 1) adentro de algún círculo; lo de afuera se dibuja.
+      const ins = zones.map(z => insideCircle(a, b, z, R)).filter(Boolean).sort((x, y) => x[0] - y[0]);
+      let u = 0;
+      const outside = [];
+      for (const [u0, u1] of ins){ if (u0 > u) outside.push([u, u0]); u = Math.max(u, u1); }
+      if (u < 1) outside.push([u, 1]);
+      for (const [s0, s1] of outside){
+        if (s1 - s0 < 1e-9) continue;
+        if (s0 > 0 || !cur){ flush(); cur = [lerpP(a, b, s0)]; }
+        cur.push(lerpP(a, b, s1));
+        if (s1 < 1) flush();
       }
     }
-    return out;
-  };
-  const rev = list => list.slice().reverse().map(pc => pc.slice().reverse());
-  return rev(fromStart(rev(fromStart(copy)))).filter(pc => pc.length >= 2);
+    flush();
+  }
+  return out;
+}
+// Parte del tramo a → b (en u, de 0 a 1) que queda a menos de R metros de z, o null. En metros
+// sobre un plano alrededor de z (de sobra para unos cientos de metros).
+function insideCircle(a, b, z, R){
+  const M = 6371008.8 * Math.PI / 180, k = Math.cos(z.lat * Math.PI / 180);
+  const ax = (a.lon - z.lon) * M * k, ay = (a.lat - z.lat) * M, dx = (b.lon - a.lon) * M * k, dy = (b.lat - a.lat) * M;
+  const A = dx * dx + dy * dy, B = 2 * (ax * dx + ay * dy), C = ax * ax + ay * ay - R * R;
+  if (!(A > 0)) return C < 0 ? [0, 1] : null;
+  const disc = B * B - 4 * A * C;
+  if (!(disc > 0)) return null;
+  const q = Math.sqrt(disc), u0 = (-B - q) / (2 * A), u1 = (-B + q) / (2 * A);
+  if (u1 <= 0 || u0 >= 1) return null;
+  return [Math.max(0, u0), Math.min(1, u1)];
 }
 
 // ---- Colores por velocidad (solo números; los colores los pone la pantalla) ----

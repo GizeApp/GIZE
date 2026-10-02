@@ -5,7 +5,11 @@
 // b) Alumno: guardar una salida terminada (core/salidas.js saveEnded) → la fila que sale por la
 //    cola (columnas, recorrido «1;…», sin coordenadas en ningún otro lado); tabla que falta → la
 //    salida queda pendiente sin trabar lo demás (un peso encolado detrás sale igual) y el pie lo
-//    explica; cuando la tabla existe, sale. Borrar una pendiente → no se manda y sale el DELETE.
+//    explica, y mientras falte la tabla las salidas no se reenvían en cada envío de la cola;
+//    cuando la tabla existe, sale. Borrar una pendiente → no se manda y sale el DELETE (y sale
+//    también de los apartados). Los recorridos de las borradas en otro dispositivo se van de la
+//    caché; el coach no los guarda en su celular. Otra cuenta en el mismo celular no hereda la
+//    salida en curso ni los recorridos.
 //    loadCloud mezcla la nube (sin el recorrido) con lo local y respeta los borrados pendientes.
 //    El recorrido se pide una vez al abrir la salida y después sale de la caché.
 //    clearAccountLeftovers borra la salida en curso y la caché de recorridos.
@@ -145,6 +149,33 @@ export default async function ({ base, t }){
   t.eq(st.salidas.map(s => s.id), [ID(1)], 'la salida queda en state.salidas');
   t.ok(st.salidas[0] && !('track' in st.salidas[0]) && !st.salidas[0].cloud, 'en el estado, sin recorrido y sin marcar como subida');
 
+  t.eq(S.reqs.filter(r => r.m === 'POST').length, 0, 'sin la tabla (lo vio loadCloud al abrir): la salida ni se intenta mandar');
+  const cache = await p.evaluate(() => JSON.parse(localStorage.getItem('gize_salidas_track_v1') || '[]'));
+  t.eq(cache.map(x => x[0]), [ID(1)], 'el recorrido queda en la caché del celular');
+
+  // Sin la tabla, cada envío de la cola (sale con cada vaso de agua, comida o peso) no vuelve a
+  // mandar las salidas pendientes con su recorrido: esperan (10 min, o hasta que loadCloud vea la
+  // tabla). Con varias pendientes, tampoco una por cada una.
+  await p.evaluate(([o, uid]) => { const q = JSON.parse(localStorage.getItem(o) || '[]');
+    for (const n of ['a', 'b', 'c']) q.push({ id: 'q-' + n, uid, k: 'salida', key: 'x-' + n, p: { id: '5a1d0000-0000-4000-8000-0000000000' + n + n, mode: 'pie', date: '2026-09-01', startedAt: '2026-09-01T12:00:00.000Z', dur: 600, track: '1;x' }, ts: Date.now() });
+    localStorage.setItem(o, JSON.stringify(q)); }, [OUT, ALUMNO.id]);
+  const posts0 = S.reqs.filter(r => r.m === 'POST').length;
+  for (let i = 0; i < 3; i++) await call(p, '/app/core/supabase.js', 'flushOutbox');
+  t.eq(S.reqs.filter(r => r.m === 'POST').length - posts0, 0, 'sin la tabla: 3 envíos de la cola con 4 salidas pendientes no mandan ninguna');
+  // Si no se sabía (la lectura salió bien pero guardar no): prueba con una, y las demás esperan.
+  S.get = 'ok';
+  await call(p, '/app/core/supabase.js', 'loadCloud');
+  for (let i = 0; i < 3; i++) await call(p, '/app/core/supabase.js', 'flushOutbox');
+  t.eq(S.reqs.filter(r => r.m === 'POST').length - posts0, 1, 'la primera que falla por la tabla frena a las demás: 1 pedido en 3 envíos con 4 salidas pendientes');
+  await p.evaluate(async o => {
+    localStorage.setItem(o, JSON.stringify(JSON.parse(localStorage.getItem(o) || '[]').filter(i => !/^q-[abc]$/.test(i.id))));
+    const { state } = await import('/app/core/state.js'); state.salidas = state.salidas.filter(x => !/0000000000(aa|bb|cc)$/.test(x.id)); // las puso loadCloud (pendientes)
+  }, OUT);
+
+  // La tabla ya existe: loadCloud la ve y la salida sale y queda marcada como subida.
+  S.write = 'ok'; S.get = 'ok';
+  await call(p, '/app/core/supabase.js', 'loadCloud');
+  t.eq(await call(p, '/app/core/supabase.js', 'flushOutbox'), true, 'con la tabla, la cola se vacía');
   // La fila que sale.
   const post = S.reqs.filter(r => r.m === 'POST').pop();
   let row = null; try { row = JSON.parse(post.body); if (Array.isArray(row)) row = row[0]; } catch (e) {}
@@ -156,13 +187,7 @@ export default async function ({ base, t }){
   const noTrack = row ? JSON.stringify(Object.assign({}, row, { track: null })) : '';
   t.ok(row && !/"lat|"lon|-34\.\d{3}|-58\.\d{3}/.test(noTrack), 'ninguna otra columna tiene coordenadas');
   t.ok(post && /on_conflict=id/.test(post.q) && /resolution=ignore-duplicates/.test(post.prefer), 'upsert por id sin pisar (reintentar no duplica): ' + JSON.stringify(post && [post.q, post.prefer]));
-  const cache = await p.evaluate(() => JSON.parse(localStorage.getItem('gize_salidas_track_v1') || '[]'));
-  t.eq(cache.map(x => x[0]), [ID(1)], 'el recorrido queda en la caché del celular');
   t.eq(cache[0] && cache[0][1], row && row.track, 'el mismo recorrido que sale a la nube');
-
-  // La tabla ya existe: sale y queda marcada como subida.
-  S.write = 'ok'; S.get = 'ok';
-  t.eq(await call(p, '/app/core/supabase.js', 'flushOutbox'), true, 'con la tabla, la cola se vacía');
   t.eq(await queue(p), [], 'cola vacía');
   st = await appState(p);
   t.eq(st.salidas[0] && st.salidas[0].cloud, true, 'la salida queda marcada como subida');
@@ -170,6 +195,9 @@ export default async function ({ base, t }){
   const disk = await p.evaluate(() => localStorage.getItem('rutina_jero_v1') || '');
   t.ok(disk.includes(ID(1)) && !/"track"|"lat"|"lon"/.test(disk), 'lo guardado en el dispositivo tiene la salida sin recorrido ni coordenadas');
 
+  const cloudRow = (id, mode, startedAt, extra) => Object.assign({ id, client_id: ALUMNO.id, mode, performed_on: startedAt.slice(0, 10), started_at: startedAt, ended_at: null,
+    duration_s: 1800, moving_s: 1700, distance_m: 4000, kcal: 250, avg_speed_kmh: 8.47, max_speed_kmh: 11.2, weight_kg: 72, weight_default: false, gap_s: 0,
+    breakdown: { caminar: 1700 }, segments: [], splits: [[1000, 420]], points: 40, created_at: startedAt }, extra || {});
   // Borrar una salida que todavía no salió: no se manda y sale el DELETE.
   S.write = 'missing';
   await endedRun(p, ID(2), 'bici', [[20, 600]], 15);
@@ -185,6 +213,8 @@ export default async function ({ base, t }){
   await wait(4500);
   S.write = 'ok';
   const from = S.reqs.length;
+  S.rows = [cloudRow(ID(1), 'pie', st.salidas[0].startedAt.replace('Z', '+00:00'))];
+  await call(p, '/app/core/supabase.js', 'loadCloud'); // ve la tabla: deja de esperar
   await call(p, '/app/core/supabase.js', 'flushOutbox');
   const del = S.reqs.filter(r => r.m === 'DELETE').pop();
   t.ok(del && del.q.includes('id=eq.' + ID(2)) && del.q.includes('client_id=eq.' + ALUMNO.id), 'DELETE con el id y el alumno: ' + (del && del.q));
@@ -194,9 +224,6 @@ export default async function ({ base, t }){
   // loadCloud: nube (sin recorrido) + las del celular que no subieron − las borradas pendientes.
   // ID(1): en la nube. ID(4): estuvo en la nube y ya no (se borró en otro dispositivo). ID(3):
   // local, pendiente. ID(5): nueva desde otro dispositivo. ID(6): en la nube con borrado pendiente.
-  const cloudRow = (id, mode, startedAt, extra) => Object.assign({ id, client_id: ALUMNO.id, mode, performed_on: startedAt.slice(0, 10), started_at: startedAt, ended_at: null,
-    duration_s: 1800, moving_s: 1700, distance_m: 4000, kcal: 250, avg_speed_kmh: 8.47, max_speed_kmh: 11.2, weight_kg: 72, weight_default: false, gap_s: 0,
-    breakdown: { caminar: 1700 }, segments: [], splits: [[1000, 420]], points: 40, created_at: startedAt }, extra || {});
   S.rows = [cloudRow(ID(1), 'pie', st.salidas[0].startedAt.replace('Z', '+00:00')), cloudRow(ID(5), 'bici', '2026-09-28T12:00:00+00:00'), cloudRow(ID(6), 'pie', '2026-09-29T12:00:00+00:00')];
   S.tracks[ID(5)] = '1;nubesinsentido';
   S.write = 'missing';
@@ -212,9 +239,12 @@ export default async function ({ base, t }){
     });
   }, [OUT, ALUMNO.id, ID(3), ID(4), ID(6)]);
   const order = [[ID(5), '2026-09-28T12:00:00Z'], [ID(3), '2026-09-30T12:00:00Z'], [ID(1), st.salidas[0].startedAt]].sort((a, b) => Date.parse(a[1]) - Date.parse(b[1])).map(x => x[0]);
+  // El recorrido de la que se borró en otro dispositivo (ID 4) estaba en la caché.
+  await p.evaluate(id => { const c = JSON.parse(localStorage.getItem('gize_salidas_track_v1') || '[]'); c.push([id, '1;borrada']); localStorage.setItem('gize_salidas_track_v1', JSON.stringify(c)); }, ID(4));
   await call(p, '/app/core/supabase.js', 'loadCloud');
   st = await appState(p);
   t.eq(st.salidas.map(s => s.id), order, 'loadCloud: nube + la local pendiente, sin la borrada en otro lado ni la de borrado pendiente (de la más vieja a la más nueva)');
+  t.eq(await p.evaluate(() => JSON.parse(localStorage.getItem('gize_salidas_track_v1') || '[]').map(x => x[0])), [ID(1)], 'el recorrido de la borrada en otro dispositivo se va de la caché');
   const s5 = st.salidas.find(s => s.id === ID(5));
   t.ok(s5 && s5.cloud === true && s5.mode === 'bici' && s5.dist === 4000 && s5.avg === 8.47 && !('track' in s5), 'una salida de la nube como la guarda la app: ' + JSON.stringify(s5));
   t.eq((await call(p, '/app/core/salidas.js', 'salidasList')).map(s => s.id), order.slice().reverse(), 'salidasList: de la más nueva a la más vieja');
@@ -229,6 +259,12 @@ export default async function ({ base, t }){
   t.eq(await call(p, '/app/core/salidas.js', 'getTrack', ID(3)), '1;local', 'una pendiente: de la cola, sin pedir nada');
   t.eq(await call(p, '/app/core/salidas.js', 'getTrack', ID(1)), row && row.track, 'la propia: de la caché');
   t.eq(trackGets(), 1, 'sin más pedidos');
+
+  // Una salida que la base rechazó (apartada) y después se borra: su recorrido no queda en el celular.
+  await p.evaluate(uid => localStorage.setItem('core_outbox_failed_v1', JSON.stringify([{ id: 'qf', uid, k: 'salida', key: 'f', p: { id: '5a1d0000-0000-4000-8000-0000000000ff', track: '1;rechazada' }, error: 'x' }, { id: 'qw', uid, k: 'weight', p: { date: '2026-09-01', kg: 70 }, error: 'x' }])), ALUMNO.id);
+  await p.evaluate(() => { import('/app/core/salidas.js').then(m => m.deleteSalida('5a1d0000-0000-4000-8000-0000000000ff')); });
+  await wait(300);
+  t.eq(await p.evaluate(() => JSON.parse(localStorage.getItem('core_outbox_failed_v1') || '[]').map(i => i.id)), ['qw'], 'borrar una salida apartada la saca de los apartados (con su recorrido); lo demás queda');
 
   // Cerrar sesión / borrar la cuenta: no queda la salida en curso ni los recorridos.
   await p.evaluate(() => { localStorage.setItem('gize_salida_v1', '{}'); localStorage.setItem('gize_salida_v1_c0', '[]'); localStorage.setItem('gize_salida_v1_c1', '[]'); });
@@ -304,7 +340,8 @@ export default async function ({ base, t }){
   t.ok(await cp.$(`[data-coach="salida-open"][data-id="${ID(8)}"]`), 'coach: «Atrás» vuelve a la lista de salidas');
   await cp.click(`[data-coach="salida-open"][data-id="${ID(7)}"]`); await wait(500);
   t.ok(await cp.$('.sal-ruta .rv'), 'coach: de nuevo el recorrido');
-  t.eq(C.reqs.filter(r => /select=track/.test(r.q)).length, 1, 'coach: la segunda vez, de la caché (sin pedirlo de nuevo)');
+  t.eq(C.reqs.filter(r => /select=track/.test(r.q)).length, 1, 'coach: la segunda vez, de la memoria (sin pedirlo de nuevo)');
+  t.eq(await cp.evaluate(() => Object.keys(localStorage).filter(k => /^gize_salida/.test(k))), [], 'coach: el recorrido del alumno no queda guardado en su celular');
   await cp.click('[data-coach="salida-close"]'); await wait(300);
   t.eq(await cp.$$eval('.rv', l => l.length), 0, 'coach: al cerrar la salida se saca el mapa');
   await cp.click(`[data-coach="salida-open"][data-id="${ID(8)}"]`); await wait(800);
@@ -349,4 +386,21 @@ export default async function ({ base, t }){
   t.has(await text(cm.p, '.co-sec-body'), 'falta crear su tabla', 'sin tabla: la sección explica por qué');
   t.eq(cm.errs, [], 'errores de la página (coach sin tabla)');
   await cm.close();
+
+  // Entra otra cuenta en un celular donde quedó la sesión de alguien (se le cerró desde otro
+  // lado): no le queda la salida en curso ni los recorridos de la otra persona.
+  const OTRO = '99999999-9999-4999-8999-999999999999';
+  const oc = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') }, init: `(() => {
+    if (sessionStorage.getItem('otro')) return; sessionStorage.setItem('otro', '1');
+    const st = JSON.parse(localStorage.getItem('rutina_jero_v1') || '{}'); st.ownerUid = ${JSON.stringify(OTRO)}; localStorage.setItem('rutina_jero_v1', JSON.stringify(st));
+    const t0 = Date.now() - 600000;
+    localStorage.setItem('gize_salida_v1', JSON.stringify({ v: 1, id: 'otra-salida', uid: ${JSON.stringify(OTRO)}, mode: 'pie', start: t0, status: 'ended', pauses: [], pausedAt: null, ended: t0 + 300000, seg: 0, n: 1, chunks: 1, lastT: t0 + 1000 }));
+    localStorage.setItem('gize_salida_v1_c0', JSON.stringify([[1000, -34600000, -58400000, 5, -1, 0]]));
+    localStorage.setItem('gize_salidas_track_v1', JSON.stringify([['otra', '1;deotro']]));
+  })();` });
+  await oc.p.goto(base + '/app/'); await wait(4000);
+  t.eq(await oc.p.evaluate(() => Object.keys(localStorage).filter(k => /^gize_salida/.test(k))), [], 'otra cuenta en el mismo celular: no quedan la salida en curso ni los recorridos de la anterior');
+  t.eq(await oc.p.evaluate(async () => (await import('/app/ui/gps.js')).GpsState.run), null, 'y no se retoma su salida');
+  t.eq(oc.errs, [], 'errores de la página (otra cuenta)');
+  await oc.close();
 }
