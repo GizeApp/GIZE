@@ -13,7 +13,7 @@ import { State, state } from '../core/state.js';
 import { esc, fmt, fmtDate, ymd } from '../core/utils.js';
 import { bikeSvg, shoeSvg } from '../core/icons.js';
 import { CLASSES, breakdownText, finishRun, fmtClock, fmtKm, fmtKmh, fmtPace, isShort, lastWeight, livePath, livePathKey, modeLabel, paceOrSpeed } from '../core/cardiogps.js';
-import { GpsState, acceptDisclosure, ackRestored, discard, disclosure, hint, isNative, live, needsPrecise, onPoint, openSettings, pause, restoredText, resume, setMode, start, stop, takeEnded } from '../ui/gps.js';
+import { GpsState, acceptDisclosure, ackRestored, discard, disclosure, hint, isNative, live, needsPrecise, onHere, onPoint, openSettings, pause, restoredText, resume, setMode, start, stop, takeEnded } from '../ui/gps.js';
 import { cachedTrack, deleteSalida, getTrack, salidasList, saveEnded } from '../core/salidas.js';
 import { salidaPendiente } from '../core/supabase.js';
 import { legendHtml, mixHtml, notesHtml, prepOf, routeHtml, splitsHtml, statsHtml } from '../ui/recorrido.js';
@@ -147,7 +147,7 @@ function renderLive(r){
       '<div class="sal-lv"><span>' + (pie ? "Ritmo" : "Velocidad") + '</span><b id="salPace">–</b><small id="salPaceAvg"></small></div>' +
       '<div class="sal-lv"><span>Calorías</span><b id="salKcal">' + Math.round(s.kcal) + '</b><small>kcal</small></div>' +
     '</div>' +
-    routeSlot("live", { key: "live:" + r.id, mode: r.mode, live: true }, "sal-minimap") +
+    routeSlot("live", { key: "live:" + r.id, mode: r.mode, live: true, here: liveHere, status: liveStatus }, "sal-minimap") +
     '<div class="sal-gps" id="salGps" hidden></div>' +
     (GpsState.notice ? '<div class="sal-note">' + esc(GpsState.notice) + (needsPrecise() && isNative() ? '<button type="button" class="sal-link" data-action="sal-settings">Abrir ajustes</button>' : "") + '</div>' : "") +
     errorHtml() +
@@ -183,6 +183,10 @@ export function paintSalida(now){
 }
 
 // ---- Mini mapa en vivo ----
+// Dónde está ahora (la última ubicación del GPS, aunque el motor todavía no la haya aceptado) y
+// qué impide ubicarla: el punto «estás acá» y el texto del mini mapa (ui/mapa.js).
+const liveHere = () => GpsState.here;
+const liveStatus = () => GpsState.errorWhy || "";
 // Lo medido hasta ahora (los puntos que el motor ya aceptó, con tope: core/cardiogps.js
 // livePath), en piezas con t en segundos. No se vuelve a filtrar todo en cada redibujo.
 let liveMemo = null;
@@ -213,6 +217,13 @@ onPoint(() => {
   if (State.view !== "cardio") return;
   if (!paintQueued){ paintQueued = true; setTimeout(() => { paintQueued = false; paintSalida(); }, 0); }
   liveMapTick(false);
+});
+
+// Con cada ubicación (como mucho una por segundo): solo se mueve el punto «estás acá» (y, sin
+// recorrido todavía, el mapa), sin redibujar el recorrido.
+onHere(() => {
+  if (State.view !== "cardio" || appAway()) return;
+  const v = routeView("live"); if (v) v.setHere();
 });
 
 // ---- «Tus salidas» ----

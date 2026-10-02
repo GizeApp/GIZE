@@ -29,6 +29,40 @@ const LOAD_MS = 6000;   // si el estilo no cargó en este tiempo: sin mapa
 const IDLE_MS = 2000;   // después de cargar, cuánto se espera a que lleguen las calles antes de animar
 const LIVE_SPAN = { pie: 500, bici: 1500 };   // en vivo sin mapa: metros a la vista
 const LIVE_ZOOM = { pie: 15.5, bici: 14 };    // en vivo con mapa
+const WAIT_CENTER = { lat: -34.6037, lon: -58.3816 }, WAIT_ZOOM = 4; // en vivo, hasta saber dónde está: de lejos (no parece una ubicación)
+const HERE_RING_M = 25;   // con la precisión peor que esto, el círculo de la precisión alrededor del punto
+const HERE_EDGE = 0.2;    // con recorrido, el mapa se vuelve a centrar si el punto se acerca a menos de esto (fracción) del borde
+const RECENTER_MS = 5000; // …y como mucho cada 5 s (centrar = redibujar el recorrido)
+// Las calles del estilo oscuro de OpenFreeMap casi no se ven en el mini mapa en vivo (calles
+// #181818 sobre fondo #0C0C0C, y al sol menos): ahí se aclaran. El resumen queda como está.
+const LIVE_PAINT = [
+  ["background", "background-color", "#111214"],
+  ["water", "fill-color", "#1A2230"],
+  ["waterway", "line-color", "#1A2230"],
+  ["landuse_park", "fill-color", "#1A211C"],
+  ["landcover_wood", "fill-color", "#1A211C"],
+  ["building", "fill-color", "#18191C"],
+  ["building", "fill-outline-color", "#26282D"],
+  ["highway_path", "line-color", "#33363D"],
+  ["highway_minor", "line-color", "#3A3D44"],
+  ["highway_major_casing", "line-color", "rgba(120,124,132,.75)"],
+  ["highway_major_inner", "line-color", "#3F434B"],
+  ["highway_major_subtle", "line-color", "#4A4E57"],
+  ["highway_motorway_casing", "line-color", "rgba(130,134,142,.8)"],
+  ["highway_motorway_subtle", "line-color", "#3A3D44"],
+  ["railway", "line-color", "#3A3A3A"],
+  ["railway_minor", "line-color", "#333333"],
+  ["railway_transit", "line-color", "#333333"],
+  ["highway_name_other", "text-color", "#8E939C"],
+  ["highway_name_motorway", "text-color", "#9AA0A9"],
+  ["place_suburb", "text-color", "#8A8F98"],
+  ["place_other", "text-color", "#8A8F98"],
+];
+function brighten(map){
+  for (const [id, prop, v] of LIVE_PAINT){ try { if (map.getLayer(id)) map.setPaintProperty(id, prop, v); } catch (e) {} }
+}
+// Metros por píxel CSS del mapa (MapLibre: teselas de 512 px) a ese zoom y esa latitud.
+const mPerPx = (lat, z) => 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * Math.pow(2, z));
 export const OFFLINE_TEXT = "Sin conexión: el recorrido sin el mapa de fondo.";
 
 // ---- MapLibre (se carga una sola vez, recién cuando hace falta) ----
@@ -143,7 +177,9 @@ class RouteView {
     const el = this.el = document.createElement("div");
     el.className = "rv" + (this.live ? " rv-live" : "");
     el.dataset.estado = "cargando";
-    el.innerHTML = '<div class="rv-bg"></div><div class="rv-map"></div><div class="rv-layers"></div><div class="rv-msg" hidden></div>';
+    el.innerHTML = '<div class="rv-bg"></div><div class="rv-map"></div><div class="rv-layers"></div>' +
+      (this.live ? '<div class="rv-here" hidden aria-hidden="true"><i class="rv-here-acc"></i><i class="rv-here-dot"></i></div>' : "") +
+      '<div class="rv-msg" hidden></div>';
     this.layers = trackLayers(new RouteLayers(el.querySelector(".rv-layers")));
     this.layers.live = this.live;
     this.prep = this.live ? null : prepareRoute(spec.pieces || decodeTrack(spec.track || ""), this.mode);
@@ -175,7 +211,7 @@ class RouteView {
   projection(){
     const { w, h } = this.size();
     if (this.map){ const map = this.map; return (lon, lat) => { const p = map.project([lon, lat]); return [p.x, p.y]; }; }
-    if (this.live){ const c = this.liveCenter; return c ? followProjection(c, LIVE_SPAN[this.mode], w, h) : null; }
+    if (this.live){ const c = this.liveCenter; return c ? followProjection(c, this.liveSpan(), w, h) : null; }
     return this.prep ? fitProjection(this.prep.bounds, w, h, this.pad()) : null;
   }
   reproject(){ const p = this.projection(); if (p && this.layers.prep) this.layers.setProjection(p); }
@@ -201,6 +237,7 @@ class RouteView {
     const box = this.el.querySelector(".rv-map");
     const { map } = await createMap(box, opts);
     if (this.dead){ try { map.remove(); } catch (e) {} return; }
+    if (this.live) brighten(map);
     this.map = map;
     this.handlers(false);
     this.el.classList.add("con-mapa");
@@ -261,29 +298,110 @@ class RouteView {
   }
 
   // ---- En vivo ----
-  // pieces: [[{lat, lon, t (s)}]] de lo medido hasta ahora (ver screens/cardio.js).
+  // pieces: [[{lat, lon, t (s)}]] de lo medido hasta ahora (ver screens/cardio.js). Como mucho
+  // cada 5 s: redibuja el recorrido entero y centra en la última ubicación.
   setLive(pieces){
     if (this.dead) return;
     const prep = prepareRoute(pieces, this.mode);
     this.prep = prep; this.layers.setRoute(prep);
-    if (prep){ const lp = prep.pieces[prep.pieces.length - 1], p = lp[lp.length - 1]; this.liveCenter = { lat: p.lat, lon: p.lon }; }
-    if (this.map && this.liveCenter){ try { this.map.jumpTo({ center: [this.liveCenter.lon, this.liveCenter.lat] }); } catch (e) {} }
+    this.liveCenter = this.centerNow();
+    if (this.map && this.liveCenter) this.camera();
     if (this.started) { this.reproject(); this.drawLive(); }
+    this.recenterAt = Date.now();
+  }
+  // La ubicación de ahora (spec.here(): { lat, lon, acc } o null), aunque el motor no la haya
+  // aceptado todavía.
+  here(){ try { const h = this.spec.here && this.spec.here(); return h && Number.isFinite(h.lat) && Number.isFinite(h.lon) ? h : null; } catch (e) { return null; } }
+  // Dónde centrar: la ubicación de ahora o, si no hay, el final del recorrido.
+  centerNow(){
+    const h = this.here(); if (h) return { lat: h.lat, lon: h.lon };
+    const prep = this.prep; if (!prep) return null;
+    const lp = prep.pieces[prep.pieces.length - 1], p = lp[lp.length - 1];
+    return { lat: p.lat, lon: p.lon };
+  }
+  // Zoom del mapa: el de siempre o, sin recorrido y con la precisión floja, más de lejos para que
+  // entre el círculo de la precisión.
+  liveZoom(){
+    const z = LIVE_ZOOM[this.mode], h = this.here();
+    if (this.prep || !h || !(h.acc > HERE_RING_M) || !this.liveCenter) return z;
+    const { w, h: hh } = this.size(), r = Math.max(40, Math.min(w || 300, hh || 170) * 0.42);
+    return Math.max(12, Math.min(z, Math.log2(40075016.686 * Math.cos(this.liveCenter.lat * Math.PI / 180) * r / (512 * h.acc))));
+  }
+  // Sin mapa de fondo: metros a la vista (igual, más si el círculo de la precisión no entra).
+  liveSpan(){
+    const s = LIVE_SPAN[this.mode], h = this.here();
+    return !this.prep && h && h.acc > HERE_RING_M ? Math.max(s, h.acc * 2.4) : s;
+  }
+  camera(){
+    const c = this.liveCenter; if (!this.map || !c) return;
+    try { this.map.jumpTo({ center: [c.lon, c.lat], zoom: this.liveZoom() }); } catch (e) {}
+  }
+  // Llegó una ubicación (como mucho una por segundo, ui/gps.js onHere). Barato: mueve el punto.
+  // Sin recorrido todavía, el mapa la sigue (no hay nada más que redibujar); con recorrido, el
+  // mapa se vuelve a centrar solo si el punto se va hacia el borde (y como mucho cada 5 s).
+  setHere(){
+    if (this.dead || !this.started) return;
+    const h = this.here(); if (!h) return;
+    if (!this.prep){
+      this.liveCenter = { lat: h.lat, lon: h.lon };
+      if (this.map) this.camera(); // el mapa se mueve: "move" redibuja (drawLive)
+      this.drawLive();
+      return;
+    }
+    const xy = this.placeHere();
+    const { w, h: hh } = this.size(), now = Date.now();
+    const out = !xy || xy[0] < w * HERE_EDGE || xy[0] > w * (1 - HERE_EDGE) || xy[1] < hh * HERE_EDGE || xy[1] > hh * (1 - HERE_EDGE);
+    if (out && !(now - (this.recenterAt || 0) < RECENTER_MS)){
+      this.recenterAt = now;
+      this.liveCenter = { lat: h.lat, lon: h.lon };
+      if (this.map) this.camera();
+      this.reproject(); this.drawLive();
+    }
+  }
+  // El punto «estás acá» (y el círculo de la precisión si es floja) en su lugar. → [x, y] o null.
+  placeHere(){
+    const el = this.el.querySelector(".rv-here"); if (!el) return null;
+    const h = this.here(), proj = h && this.projection();
+    if (!h || !proj){ el.hidden = true; return null; }
+    const p = proj(h.lon, h.lat), q = proj(h.lon, h.lat + h.acc / 111319.49);
+    if (!Number.isFinite(p[0]) || !Number.isFinite(p[1])){ el.hidden = true; return null; }
+    const r = Math.abs(p[1] - q[1]), ring = h.acc > HERE_RING_M && Number.isFinite(r) && r > 9;
+    el.style.transform = "translate(" + p[0].toFixed(1) + "px," + p[1].toFixed(1) + "px)";
+    const acc = el.firstChild;
+    acc.hidden = !ring;
+    if (ring){ const d = Math.min(2000, r * 2).toFixed(1) + "px"; acc.style.width = d; acc.style.height = d; }
+    if (el.hidden){ el.hidden = false; el.classList.add("rv-here-in"); }
+    el.dataset.acc = ring ? "floja" : "buena";
+    return p;
+  }
+  // Texto arriba del mini mapa (spec.status(): "permiso" | "sin-gps" | "" desde la pantalla).
+  liveMsg(){
+    let st = ""; try { st = (this.spec.status && this.spec.status()) || ""; } catch (e) {}
+    if (st === "permiso") return "Sin permiso de ubicación";
+    if (this.prep) return "";
+    const h = this.here();
+    if (!h) return st === "sin-gps" ? "Sin ubicación" : "Buscando tu ubicación…";
+    if (h.acc > HERE_RING_M) return "Estás por acá (±" + Math.round(h.acc) + " m). Afinando el GPS…";
+    return "Estás acá. El recorrido aparece cuando te muevas.";
   }
   drawLive(){
     const L = this.layers;
-    if (!L.prep){ L.clear(); L.marks(false); this.msg("Tu recorrido aparece acá cuando llega la señal del GPS."); this.el.dataset.estado = "listo"; return; }
-    this.msg("");
+    this.msg(this.liveMsg());
+    this.el.dataset.estado = "listo";
+    if (!this.liveCenter && this.here()) this.liveCenter = this.centerNow();
+    if (!L.prep){ L.clear(); L.marks(false); this.placeHere(); return; }
     if (!L.xy) this.reproject();
     L.drawAll(); L.marks(true);
-    this.el.dataset.estado = "listo";
+    this.placeHere();
   }
   async liveMap(){
-    const c = this.liveCenter || { lat: -34.6037, lon: -58.3816 };
-    try { await this.makeMap({ center: [c.lon, c.lat], zoom: LIVE_ZOOM[this.mode], interactive: false }); }
+    if (!this.liveCenter) this.liveCenter = this.centerNow();
+    const c = this.liveCenter || WAIT_CENTER;
+    try { await this.makeMap({ center: [c.lon, c.lat], zoom: this.liveCenter ? this.liveZoom() : WAIT_ZOOM, interactive: false }); }
     catch (e) { return; }
     if (this.dead || !this.map) return;
-    if (this.liveCenter) try { this.map.jumpTo({ center: [this.liveCenter.lon, this.liveCenter.lat] }); } catch (e) {}
+    if (!this.liveCenter) this.liveCenter = this.centerNow();
+    if (this.liveCenter) this.camera();
     this.reproject(); this.drawLive();
   }
 

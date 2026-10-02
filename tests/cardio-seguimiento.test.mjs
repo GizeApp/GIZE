@@ -297,9 +297,9 @@ async function web(base, t){
   t.eq([s.run, s.errorWhy, s.error], [null, 'permiso', T.permWeb], 'permiso negado sin puntos: no queda salida y avisa');
   t.eq([await lsKeys(p), await p.evaluate(() => Object.keys(window.__geo.watchers).length)], [[], 0], 'permiso negado: nada guardado y sin mirar');
   await p.evaluate(() => { window.__perm = 'denied'; });
-  const n0 = await p.evaluate(() => window.__geo.n);
   t.eq(await G(p, 'start', 'pie'), { ok: false, why: 'permiso' }, 'el navegador ya lo había negado: no arranca');
-  t.eq(await p.evaluate(() => window.__geo.n), n0, 'y no mira la ubicación');
+  // watchPosition va en el mismo toque (iPhone), antes de saber si ya estaba negado: se suelta enseguida.
+  t.eq([await p.evaluate(() => Object.keys(window.__geo.watchers).length), (await gs(p)).run, await lsKeys(p)], [0, null, []], 'y no queda mirando la ubicación ni guarda nada');
   await p.evaluate(() => { window.__perm = 'prompt'; });
 
   // Celular sin espacio: sigue en memoria y avisa; cuando hay lugar, guarda todo.

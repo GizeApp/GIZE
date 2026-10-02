@@ -205,6 +205,18 @@ html.lite .cneon i { animation: none; }
 .rv-msg { position: absolute; z-index: 4; left: 50%; top: var(--rv-msg-top, 10px); transform: translateX(-50%); max-width: calc(100% - 24px); padding: 3px 10px; border-radius: 999px;
   background: rgba(0,0,0,.55); color: #AEB5C1; font-size: 11px; line-height: 1.4; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rv-msg[hidden] { display: none; }
+/* En vivo: «estás acá» (la última ubicación del GPS, aunque todavía no cuente para el recorrido).
+   Azul GIZE con un halo suave; con la precisión floja, un círculo de ese radio. Al aparecer late
+   3 veces y queda quieto (nada se mueve sin fin). Lo ubica app/ui/mapa.js (placeHere). */
+.rv-here { position: absolute; z-index: 3; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.rv-here[hidden], .rv-here-acc[hidden] { display: none; }
+.rv-here-acc { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); border-radius: 50%; box-sizing: border-box;
+  background: color-mix(in srgb, var(--gize-blue) 14%, transparent); border: 1.5px solid color-mix(in srgb, var(--gize-blue) 60%, transparent); }
+.rv-here-dot { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box; background: var(--gize-blue); border: 2.5px solid #fff;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--gize-blue) 30%, transparent), 0 1px 5px rgba(0,0,0,.55); }
+.rv-here-dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--gize-blue); opacity: 0; }
+.rv-here-in .rv-here-dot::after { animation: rvHere 1.6s ease-out 3; }
+@keyframes rvHere { 0% { transform: scale(.8); opacity: .85; } 100% { transform: scale(2.6); opacity: 0; } }
 .rv .maplibregl-ctrl-bottom-right { z-index: 4; max-width: 100%; }
 .rv .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib { max-width: calc(100% - 8px); margin: 0; padding: 1px 6px; border-radius: 6px 0 0 0; background: rgba(0,0,0,.55); color: rgba(255,255,255,.72);
   font-size: 9.5px; line-height: 1.45; text-align: right; white-space: normal; }
@@ -269,6 +281,7 @@ body:not(#_) .sov-btns :is(.ctrl, .sov-link).sov-del { color: var(--gize-danger)
 
 @media (prefers-reduced-motion: reduce) {
   .sov-nums, .ssh-card, .ssh-bg, .rv-bg { transition: none; }
+  .rv-here-in .rv-here-dot::after { animation: none; }
 }
 /* Los créditos del mapa, adentro de las esquinas redondeadas (resumen) y más chicos en el mini mapa. */
 .sov-map .maplibregl-ctrl-bottom-right { right: 22px; bottom: 6px; }

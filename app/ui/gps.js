@@ -78,7 +78,10 @@ export function acceptDisclosure(){ try { localStorage.setItem(ASK_KEY, "1"); } 
 // error: lo que impide medir (errorWhy: "permiso" | "sin-gps" | "servicio"; con "permiso" la
 // pantalla ofrece «Abrir ajustes»). gps: "buscando" | "debil" | "ok" | "off". notice: aviso que
 // no corta nada (sin señal, sin espacio para guardar).
-export const GpsState = { mode: "pie", run: null, restored: false, restoredGapMs: 0, error: "", errorWhy: "", gps: "off", notice: "" };
+// here: la última ubicación que mandó el GPS en esta salida { lat, lon, acc (m), t (Date.now) },
+// aunque el motor todavía no la acepte (precisión floja al arrancar, quieto): para el punto «estás
+// acá» del mini mapa. No cuenta para la distancia ni se guarda. null hasta el primer dato.
+export const GpsState = { mode: "pie", run: null, restored: false, restoredGapMs: 0, error: "", errorWhy: "", gps: "off", notice: "", here: null };
 
 export const isNative = () => { try { const C = window.Capacitor; return !!(C && C.isNativePlatform && C.isNativePlatform()); } catch (e) { return false; } };
 const platform = () => { try { return isNative() ? window.Capacitor.getPlatform() : "web"; } catch (e) { return "web"; } };
@@ -108,11 +111,14 @@ function newId(){
 
 // ---- Avisos a la pantalla ----
 // onChange: cambió el estado, un error o el GPS (redibujar). onPoint: punto aceptado (para un
-// mini recorrido en vivo). Con la app en segundo plano no se avisa nada: al volver, un onChange.
-const changeSubs = [], pointSubs = [];
+// mini recorrido en vivo). onHere: llegó una ubicación nueva (GpsState.here), aceptada o no, como
+// mucho una vez por segundo (para mover el punto «estás acá»). Con la app en segundo plano no se
+// avisa nada: al volver, un onChange.
+const changeSubs = [], pointSubs = [], hereSubs = [];
 let pendingChange = false;
 export function onChange(fn){ if (typeof fn === "function" && !changeSubs.includes(fn)) changeSubs.push(fn); }
 export function onPoint(fn){ if (typeof fn === "function" && !pointSubs.includes(fn)) pointSubs.push(fn); }
+export function onHere(fn){ if (typeof fn === "function" && !hereSubs.includes(fn)) hereSubs.push(fn); }
 function emit(){
   if (appAway()){ pendingChange = true; return; }
   pendingChange = false;
@@ -122,6 +128,28 @@ function emitPoint(p){
   if (appAway() || !p) return;
   pointSubs.slice().forEach(fn => { try { fn(p); } catch (e) { console.error("gps", e); } });
 }
+const HERE_MS = 1000, HERE_MAX_ACC = 1000;   // onHere: como mucho uno por segundo; peor que 1 km no sirve ni para ubicarse
+let hereAt = 0, hereTimer = null;
+function emitHere(){
+  if (appAway() || !GpsState.here) return;
+  const now = Date.now();
+  if (now < hereAt) hereAt = 0; // el reloj volvió para atrás
+  if (now - hereAt < HERE_MS){
+    if (!hereTimer) hereTimer = setTimeout(() => { hereTimer = null; emitHere(); }, HERE_MS - (now - hereAt));
+    return;
+  }
+  hereAt = now;
+  hereSubs.slice().forEach(fn => { try { fn(GpsState.here); } catch (e) { console.error("gps", e); } });
+}
+// Anota dónde está ahora la persona (cualquier dato con coordenadas y precisión razonable).
+function noteHere(raw, now){
+  const lat = Number(raw && raw.lat), lon = Number(raw && raw.lon), acc = Number(raw && raw.acc);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180 || (lat === 0 && lon === 0)) return;
+  if (!Number.isFinite(acc) || acc < 0 || acc > HERE_MAX_ACC) return;
+  GpsState.here = { lat, lon, acc, t: now };
+  emitHere();
+}
+function clearHere(){ GpsState.here = null; clearTimeout(hereTimer); hereTimer = null; hereAt = 0; }
 function setError(why){
   const p = platform();
   GpsState.errorWhy = why;
@@ -200,7 +228,7 @@ export function runKeys(){
   return out;
 }
 function clearKeys(){ try { runKeys().forEach(k => localStorage.removeItem(k)); } catch (e) {} }
-function clearRun(){ GpsState.run = null; GpsState.gps = "off"; GpsState.restored = false; GpsState.restoredGapMs = 0; resetSaved(); clearKeys(); }
+function clearRun(){ clearHere(); GpsState.run = null; GpsState.gps = "off"; GpsState.restored = false; GpsState.restoredGapMs = 0; resetSaved(); clearKeys(); }
 
 // ---- Mirar la ubicación ----
 let nativeId = null, nativeGen = 0, reattachOnFirst = false;
@@ -416,6 +444,7 @@ function handlePoint(raw){
   const now = Date.now();
   if (overdue(r, now)) return;
   rawAt = now;
+  noteHere(raw, now);
   const before = r.pts.length;
   const why = addPoint(r, Object.assign({}, raw, { t: clock(raw.t, now, r.start) }));
   if (why === "paused") return;
@@ -499,7 +528,7 @@ function begin(mode){
   const r = newRun(mode, Date.now(), newId());
   r.uid = (State.cloudUser && State.cloudUser.id) || null;
   GpsState.run = r; GpsState.restored = false; GpsState.restoredGapMs = 0; GpsState.notice = ""; GpsState.gps = "buscando";
-  clock = createClock(); coarse = { n: 0, t0: 0 }; rawAt = 0; watchSince = r.start;
+  clock = createClock(); coarse = { n: 0, t0: 0 }; rawAt = 0; watchSince = r.start; clearHere();
   resetSaved(); write();
 }
 
@@ -538,10 +567,16 @@ export async function start(mode){
       return fail(res);
     }
     if (!navigator.geolocation || typeof navigator.geolocation.watchPosition !== "function") return fail("sin-gps");
-    if (await webDenied()) return fail("permiso");
+    // watchPosition va en el mismo toque de «Empezar» (sin esperar nada antes): en el iPhone
+    // (Safari y la app instalada desde Safari) el cartel del permiso puede no salir si se lo pide
+    // después de un await. Si el navegador ya había dicho que no, se corta enseguida.
     begin(m);
     attachWeb();
     emit();
+    if (await webDenied()){
+      if (GpsState.run && !GpsState.run.pts.length){ stopWatch(); clearRun(); }
+      return fail("permiso");
+    }
     return { ok: true };
   } finally { starting = false; }
 }
