@@ -40,6 +40,9 @@ export async function newPage({ user, state, handlers = {}, viewport = { width: 
   const b = await getBrowser();
   // touch: celular (pantalla táctil, pointer: coarse).
   const ctx = await b.newContext(Object.assign({ viewport, serviceWorkers: 'block', timezoneId, reducedMotion, locale: 'es-AR' }, touch ? { isMobile: true, hasTouch: true } : {}));
+  // El mapa de las salidas de Cardio (OpenFreeMap) nunca sale a internet en las pruebas: sin
+  // respuesta, la app dibuja el recorrido sobre su fondo propio.
+  await ctx.route(/tiles\.openfreemap\.org/, r => r.abort());
   const p = await ctx.newPage();
   const errs = [], dialogs = [], calls = [];
   p.on('pageerror', e => errs.push(e.message));

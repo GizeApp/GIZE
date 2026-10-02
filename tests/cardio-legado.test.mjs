@@ -1,12 +1,10 @@
-// Cardio sin GPS: se sacaron las salidas de correr / caminar / bici con GPS (mapa, recorridos y
-// «Tus salidas»). Cardio queda con el cronómetro, el temporizador y el plan del coach. Nada de
-// ubicación, mapas ni tablas de salidas: ni al abrir la app ni al entrar a Cardio. Lo que había
-// quedado de la versión con GPS (salidas guardadas, salida en curso, pendientes en la cola) se
-// descarta sin errores y sin trabar lo demás que esté en la cola.
-// (Las salidas «A pie» / «En bici» vuelven por pasos con nombres nuevos: la ubicación de las apps
-// nativas ya está, ver tests/cardio-seguimiento.test.mjs; la nube (cardio_outings), la ficha del
-// coach y la política, en tests/cardio-datos.test.mjs; la pantalla de Cardio llega después.
-// Acá queda que lo VIEJO no vuelve: ni cardio_sessions / cardio_routes ni MapTiler.)
+// Lo que quedó de la versión anterior de Cardio con GPS (la que se sacó: salidas «Correr /
+// Caminar / Bici» en cardio_sessions, recorridos en cardio_routes y el mapa de MapTiler con su
+// función mapa-clave) se sigue limpiando en los celulares viejos sin errores y sin trabar la cola:
+// la salida en curso vieja (gize_cardio_run), state.cardio y los pendientes cardio / cardioDelete /
+// cardioRoute (core/supabase.js RETIRED_KINDS) se descartan; nada de eso se vuelve a pedir.
+// Las salidas nuevas «A pie» / «En bici» (cardio_outings, gize_salida_v1…, OpenFreeMap) están en
+// tests/cardio-motor, cardio-seguimiento, cardio-datos y cardio-a-pie.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,9 +16,10 @@ const OUT = 'core_outbox_v1', FAILED = 'core_outbox_failed_v1';
 const SAL = '0f0f0f0f-0000-4000-8000-000000000001';
 
 export default async function ({ base, t }){
-  // ===== Sin mapas en la web (todavía) ni MapTiler en la política =====
-  t.ok(!/maptiler|worker-src/i.test(read('app/index.html')), 'CSP sin MapTiler ni worker-src');
+  // ===== Nada de MapTiler (el mapa nuevo es OpenFreeMap, sin clave) =====
+  t.ok(!/maptiler|mapa-clave/i.test(read('app/index.html')), 'CSP sin MapTiler');
   t.ok(!/MapTiler/i.test(read('privacidad/index.html')), 'la política no nombra a MapTiler');
+  t.ok(!fs.existsSync(path.join(ROOT, 'supabase/functions/mapa-clave')), 'sin la función mapa-clave');
 
   // ===== Alumno con datos de la versión con GPS =====
   const weightPosts = [];
@@ -56,8 +55,8 @@ export default async function ({ base, t }){
   const p = pg.p;
   await p.goto(base + '/app/'); await wait(3000);
 
-  const badReq = () => reqs.filter(u => /cardio_sessions|cardio_routes|maptiler|maplibre|mapa-clave/i.test(u));
-  t.eq(badReq(), [], 'al abrir la app no se piden salidas, recorridos, mapas ni la clave del mapa');
+  const badReq = () => reqs.filter(u => /cardio_sessions|cardio_routes|maptiler|mapa-clave/i.test(u));
+  t.eq(badReq(), [], 'al abrir la app no se piden las salidas ni los recorridos viejos, ni MapTiler ni su clave');
   t.eq(pg.calls.filter(c => /cardio_sessions|cardio_routes/.test(c)), [], 'Supabase: nada de cardio_sessions / cardio_routes');
 
   // La cola: los pendientes de salidas se descartan sin mandarse; el peso sale igual.
@@ -68,18 +67,13 @@ export default async function ({ base, t }){
   t.eq(await p.evaluate(() => localStorage.getItem('gize_cardio_run')), null, 'se borra la salida en curso que había quedado');
   t.eq(await p.evaluate(async () => 'cardio' in (await import('/app/core/state.js')).state), false, 'state.cardio viejo se descarta');
 
-  // Cardio: cronómetro, temporizador y el plan del coach. Nada de GPS ni mapas.
+  // Cardio se abre bien: el plan del coach y el cronómetro siguen; nada de lo viejo.
   await p.click('#nav-cardio'); await wait(600);
-  const v = await text(p, '#view');
-  t.has(v, 'Cronómetro', 'Cardio: cronómetro');
-  t.has(v, 'Temporizador', 'Cardio: temporizador');
   t.has(await p.$eval('.cardio-rx-h', e => e.textContent).catch(() => ''), 'Tu cardio de esta semana', 'Cardio: la tarjeta del plan del coach');
   t.has(await text(p, '.cardio-rx'), 'Martes: 20 min de bici', 'Cardio: lo que pidió el coach');
-  for (const s of ['Salir a correr', 'Tus salidas', 'GPS', 'salida', 'Caminar', 'Bici', 'km']) t.ok(!v.includes(s), 'Cardio no muestra «' + s + '»: ' + v.slice(0, 200));
-  t.eq(await p.$$eval('[data-action^="gps-"], [class*="gps"], [class*="mapa"], .maplibregl-map', l => l.length), 0, 'Cardio: ningún botón de GPS ni mapa');
-  await p.click('[data-action="cardio-mode"][data-mode="timer"]'); await wait(300);
-  t.eq(await p.$$eval('#cringTime', l => l.length), 1, 'el temporizador se ve');
-  t.eq(badReq(), [], 'al entrar a Cardio no se piden salidas, recorridos ni mapas');
+  t.has(await text(p, '#view'), 'Cronómetro', 'Cardio: el cronómetro');
+  t.eq(await p.$$eval('.sal-hist', l => l.length), 0, 'Cardio: las salidas viejas no aparecen en «Tus salidas»');
+  t.eq(badReq(), [], 'al entrar a Cardio no se piden las salidas ni los recorridos viejos');
   await p.click('#nav-entreno').catch(() => {}); await wait(300);
   const st = await saved(p);
   t.ok(st && !('cardio' in st), 'lo guardado en el dispositivo ya no tiene las salidas');

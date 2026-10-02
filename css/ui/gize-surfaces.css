@@ -35,7 +35,7 @@ body:not(#_) :is(
     .tpl-item, /* rutinas cargadas (Mis rutinas) */
     /* cliente: cada ejercicio (.card) lleva el mismo borde que la tarjeta del login */
     .card, .blk, .coach-banner, .cfg-card,
-    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
     .join-box, .daynotes, .w-chart) {
   border: 1.5px solid transparent;
   background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box,

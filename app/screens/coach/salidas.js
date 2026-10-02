@@ -1,12 +1,14 @@
 // Ficha del alumno → «Salidas a pie y en bici»: las últimas 30 salidas de Cardio del alumno
-// (supabase/cardio-a-pie.sql, leídas en openClient sin el recorrido) y, al abrir una, sus números,
-// cuánto caminó, trotó o corrió, los parciales y el recorrido (se pide recién ahí, una vez:
-// core/salidas.js getTrack lo deja en la caché del celular).
+// (supabase/cardio-a-pie.sql, leídas en openClient sin el recorrido) y, al abrir una, la misma
+// ficha que ve el alumno (ui/recorrido.js): el recorrido animado sobre el mapa, sus números, cuánto
+// caminó, trotó o corrió y los parciales, sin «Borrar» ni «Compartir». El recorrido se pide recién
+// ahí, una vez (core/salidas.js getTrack lo deja en la caché del celular); el mapa se destruye al
+// cerrar la salida (ui/mapa.js syncRouteViews, después de cada renderCoach).
 // Los colores salen de la gama (var(--gize-r1..r3)), que con el neón apagado ya es gris.
-import { dec, esc, fmtDate } from '../../core/utils.js';
-import { CLASSES, breakdownText, fmtClock, fmtKm, fmtKmh, fmtPace, modeLabel, paceOrSpeed } from '../../core/cardiogps.js';
+import { esc, fmtDate } from '../../core/utils.js';
+import { breakdownText, fmtClock, fmtKm, modeLabel, paceOrSpeed } from '../../core/cardiogps.js';
 import { cachedTrack, getTrack } from '../../core/salidas.js';
-import { routeView } from '../../ui/recorrido.js';
+import { legendHtml, mixHtml, notesHtml, prepOf, routeHtml, splitsHtml, statsHtml } from '../../ui/recorrido.js';
 import { CoachState } from './state.js';
 import { renderCoach } from './index.js';
 
@@ -68,51 +70,14 @@ function trackFor(d, s){
 function renderRoute(d, s){
   const tr = trackFor(d, s);
   if (tr === null) return '<div class="sal-ruta sal-ruta-msg">Cargando el recorrido…</div>';
-  const v = tr ? routeView(tr, s.mode) : null;
-  if (!v) return '<div class="sal-ruta sal-ruta-msg">' + (s.points === 0 || tr ? "Esta salida no tiene recorrido." : "No se pudo cargar el recorrido. Volvé a abrir la salida para reintentar.") + '</div>';
-  // Leyenda: lo más lento y lo más rápido del recorrido (ritmo a pie, velocidad en bici).
-  const end = kmh => s.mode === "bici" ? fmtKmh(kmh) + " km/h" : (kmh > 0.5 ? fmtPace(3600 / kmh) : "–:–") + " /km";
-  return '<div class="sal-ruta">' + v.svg + '</div>' +
-    '<div class="sal-leg"><span>Más lento <b>' + end(v.dom[0]) + '</b></span><i class="sal-leg-bar" aria-hidden="true"></i><span>Más rápido <b>' + end(v.dom[1]) + '</b></span></div>';
+  if (!tr || !prepOf(s, tr)) return '<div class="sal-ruta sal-ruta-msg">' + (s.points === 0 || tr ? "Esta salida no tiene recorrido." : "No se pudo cargar el recorrido. Volvé a abrir la salida para reintentar.") + '</div>';
+  return routeHtml("coach:" + s.id, s, tr, { cls: "sal-ruta", pad: { top: 30, right: 30, bottom: 36, left: 30 } }) + legendHtml(s, tr);
 }
 
 function renderDetail(d, s){
-  const pie = s.mode !== "bici";
-  const stat = (k, v) => '<div class="sal-stat"><span>' + k + '</span><b>' + v + '</b></div>';
-  const stats = '<div class="sal-stats">' +
-    stat("Distancia", fmtKm(s.dist) + " km") +
-    stat("Tiempo", fmtClock(s.dur * 1000)) +
-    stat("En movimiento", fmtClock(s.moving * 1000)) +
-    stat(pie ? "Ritmo medio" : "Velocidad media", esc(paceOrSpeed(s))) +
-    stat("Velocidad máxima", fmtKmh(s.max) + " km/h") +
-    stat("Calorías", kcalTxt(s) + " kcal") +
-  '</div>';
-  // Desglose: una barra apilada en el orden caminando · trotando · corriendo (o en bici).
-  const b = s.breakdown || {}, tot = Object.keys(CLASSES).reduce((a, c) => a + (Number(b[c]) || 0), 0);
-  const bar = tot > 0 ? '<div class="sal-bar" aria-hidden="true">' + Object.keys(CLASSES).filter(c => Number(b[c]) > 0)
-    .map(c => '<i class="sal-c-' + c + '" style="width:' + (Number(b[c]) / tot * 100).toFixed(2) + '%"></i>').join("") + '</div>' : "";
-  const mix = '<div class="co-sec">' + (pie ? "Caminando, trotando y corriendo" : "En movimiento") + '</div>' + bar + '<div class="sal-mix">' + esc(breakdownText(b)) + '</div>';
-  // Parciales: cada km a pie (ritmo), cada 5 km en bici (velocidad). El último, lo que sobró.
-  const sp = (Array.isArray(s.splits) ? s.splits : []).filter(x => Array.isArray(x) && x[0] > 0 && x[1] > 0);
-  let splits = "";
-  if (sp.length){
-    const kmh = sp.map(x => x[0] / x[1] * 3.6), top = Math.max(...kmh);
-    let cum = 0;
-    splits = '<div class="co-sec">Parciales</div><div class="sal-splits">' + sp.map((x, i) => {
-      cum += x[0];
-      const k = Math.round(cum) % 1000 === 0 ? String(Math.round(cum / 1000)) : dec(cum / 1000, 1);
-      const val = pie ? fmtPace(x[1] / (x[0] / 1000)) + " /km" : fmtKmh(kmh[i]) + " km/h";
-      return '<div class="sal-split"><span class="sal-split-k">Km ' + k + '</span><span class="sal-split-bar"><i style="width:' + Math.max(4, Math.round(kmh[i] / top * 100)) + '%"></i></span><span class="sal-split-v">' + val + '</span></div>';
-    }).join("") + '</div>';
-  }
-  const notes = [];
-  if (s.kgDefault) notes.push("Calorías calculadas con " + dec(s.kg || 70, 0) + " kg porque el alumno no tenía su peso cargado.");
-  const gapMin = Math.round((Number(s.gap) || 0) / 60);
-  if (gapMin >= 1) notes.push("El GPS se cortó " + gapMin + " min: ese rato no suma distancia.");
   return '<div class="sal-det">' +
     '<button class="co-back sal-back" data-coach="salida-close">‹ Todas las salidas</button>' +
     '<div class="sal-det-h">' + chip(s.mode) + '<span>' + esc(when(s)) + '</span></div>' +
-    renderRoute(d, s) + stats + mix + splits +
-    notes.map(t => '<div class="sal-note">' + esc(t) + '</div>').join("") +
+    renderRoute(d, s) + statsHtml(s) + mixHtml(s) + splitsHtml(s) + notesHtml(s, "coach") +
   '</div>';
 }

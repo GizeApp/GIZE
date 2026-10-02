@@ -68,3 +68,7 @@ export const gripSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx=
 export const chartSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-6 3 4 5-8"/></svg>';
 
 export const kebabSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>';
+
+// Cardio: «A pie» (zapatilla) y «En bici» (bici). Trazo con currentColor, como los demás.
+export const shoeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5V15a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2c0-1.3-.8-2.2-2-2.5L14.5 11 11.5 6.5 8.8 7c-.3 1.3-1.3 2-2.6 2C4.9 9 4 8.5 3 7.5Z"/><path d="M3 14h18"/><path d="m10.2 9.4 1.6-.6M11.8 11.6l1.6-.6"/></svg>';
+export const bikeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="16.5" r="3.5"/><circle cx="18.5" cy="16.5" r="3.5"/><path d="M5.5 16.5H11L9 9Z"/><path d="M9 9h7l2.5 7.5M11 16.5 16 9"/><path d="M8.7 7.6h2.6M16 9l-.8-2.5h2.3"/></svg>';

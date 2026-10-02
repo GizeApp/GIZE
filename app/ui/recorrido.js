@@ -1,54 +1,91 @@
-// Recorrido de una salida de Cardio dibujado quieto, en SVG y sin mapa de fondo (lo usa la ficha
-// del coach). Coloreado por velocidad con la gama de GIZE: lento = var(--gize-r1) (frío), rápido =
-// var(--gize-r3) (intenso), en 5 escalones (los del medio, mezclados: ver .rt-l1 / .rt-l3 en
-// css/screens/coach/seguimiento.css). Con el neón apagado los tokens ya son grises.
-// Solo números y texto: sin red, sin canvas, sin animaciones.
-import { colorDomain, decodeTrack, simplifyLine, speedT, trackPoints, trackSpeeds } from '../core/cardiogps.js';
+// La ficha de una salida de Cardio, igual para el alumno (resumen al terminar y «Tus salidas»,
+// screens/cardio.js) y para su coach (screens/coach/salidas.js): el recorrido animado sobre el
+// mapa (ui/mapa.js routeSlot) y los números: distancia, tiempo, en movimiento, ritmo o velocidad,
+// velocidad máxima y calorías; cuánto caminó, trotó o corrió (barra apilada con la gama:
+// caminando var(--gize-r1), trotando var(--gize-r2), corriendo var(--gize-r3)); la leyenda de
+// colores del recorrido (lo más lento y lo más rápido), los parciales y los avisos.
+// Solo arma HTML: los colores salen de los tokens, que con el neón apagado ya son grises.
+import { dec, esc } from '../core/utils.js';
+import { CLASSES, breakdownText, decodeTrack, fmtClock, fmtKm, fmtKmh, fmtPace, paceOrSpeed } from '../core/cardiogps.js';
+import { legendGradient, prepareRoute } from './ruta.js';
+import { routeSlot } from './mapa.js';
 
-const LEVELS = 5;          // escalones de color
-const MAX_DRAW = 1500;     // con más puntos se simplifica para dibujar (no cambia la forma a esta escala)
+const kcalTxt = s => s.kcal == null ? "–" : String(Math.round(s.kcal));
+export const salidaKey = (s, track) => s.id + ":" + (track ? track.length : 0);
 
-// track: texto guardado (encodeTrack). mode: "pie" | "bici". → { svg, dom: [lento, rápido] km/h }
-// o null si no hay nada que dibujar.
-export function routeView(track, mode){
-  let pieces = decodeTrack(track);
-  if (!pieces.length) return null;
-  let s = 90, n = -90, w = 180, e = -180;
-  for (const pc of pieces) for (const p of pc){ s = Math.min(s, p.lat); n = Math.max(n, p.lat); w = Math.min(w, p.lon); e = Math.max(e, p.lon); }
-  // Plano en metros alrededor del centro (sobra para una salida). La y va para abajo.
-  const kx = 111319.49 * Math.cos((s + n) / 2 * Math.PI / 180), ky = 111319.49;
-  const X = lon => (lon - w) * kx, Y = lat => (n - lat) * ky;
-  let W = X(e), H = Y(s);
-  if (trackPoints(pieces) > MAX_DRAW){
-    const tol = Math.max(W, H) / 1200;
-    pieces = pieces.map(pc => simplifyLine(pc, tol)).filter(pc => pc.length >= 2);
-    if (!pieces.length) return null;
-  }
-  const speeds = trackSpeeds(pieces), dom = colorDomain(speeds, mode);
-  // Una salida chiquita (o en el lugar) no se agranda de más: como mínimo 80 m de lado.
-  const min = 80, ox = Math.max(0, (min - W) / 2), oy = Math.max(0, (min - H) / 2);
-  W = Math.max(W, min); H = Math.max(H, min);
-  const pad = Math.max(W, H) * 0.08, r = Math.max(W, H) * 0.02;
-  const q = v => Math.round(v * 10) / 10;
-  const P = p => q(X(p.lon) + ox) + "," + q(Y(p.lat) + oy);
-  const halo = pieces.map(pc => "M" + pc.map(P).join("L")).join("");
-  // Tramos seguidos del mismo escalón de velocidad, en una sola línea cada uno (comparten el
-  // punto donde cambia, así no quedan huecos).
-  let lines = "";
-  const line = (pts, lv) => { lines += '<polyline class="rt-l' + lv + '" points="' + pts.map(P).join(" ") + '"/>'; };
-  pieces.forEach((pc, k) => {
-    let cur = -1, run = [];
-    for (let i = 1; i < pc.length; i++){
-      const v = (speeds[k][i - 1] + speeds[k][i]) / 2;
-      const lv = Math.min(LEVELS - 1, Math.floor(speedT(v, dom) * LEVELS));
-      if (lv !== cur){ if (run.length >= 2) line(run, cur); run = [pc[i - 1]]; cur = lv; }
-      run.push(pc[i]);
-    }
-    if (run.length >= 2) line(run, cur);
-  });
-  const a = pieces[0][0], last = pieces[pieces.length - 1], b = last[last.length - 1];
-  const dot = (p, cls) => { const xy = P(p).split(","); return '<circle class="' + cls + '" cx="' + xy[0] + '" cy="' + xy[1] + '" r="' + q(r) + '"/>'; };
-  const svg = '<svg class="rt-svg" viewBox="' + q(-pad) + ' ' + q(-pad) + ' ' + q(W + 2 * pad) + ' ' + q(H + 2 * pad) + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Recorrido de la salida">'
-    + '<path class="rt-halo" d="' + halo + '"/>' + lines + dot(a, "rt-ini") + dot(b, "rt-fin") + '</svg>';
-  return { svg, dom };
+// El recorrido listo para dibujar (se arma una vez por salida y recorrido).
+const preps = new Map();
+export function prepOf(s, track){
+  if (!track) return null;
+  const k = salidaKey(s, track);
+  if (!preps.has(k)){ if (preps.size > 8) preps.clear(); preps.set(k, prepareRoute(decodeTrack(track), s.mode)); }
+  return preps.get(k);
+}
+
+// El lugar del recorrido animado (ui/mapa.js). name: único en la pantalla. opts: pad, onProgress,
+// onDone, cls.
+export function routeHtml(name, s, track, opts){
+  opts = opts || {};
+  const prep = prepOf(s, track);
+  return routeSlot(name, { key: salidaKey(s, track), mode: s.mode, pieces: prep ? prep.pieces : [], pad: opts.pad, onProgress: opts.onProgress, onDone: opts.onDone }, opts.cls);
+}
+
+// Leyenda: lo más lento y lo más rápido del recorrido (ritmo a pie, velocidad en bici), con el
+// mismo degradé que el dibujo.
+export function legendHtml(s, track){
+  const prep = prepOf(s, track);
+  if (!prep) return "";
+  const end = kmh => s.mode === "bici" ? fmtKmh(kmh) + " km/h" : (kmh > 0.5 ? fmtPace(3600 / kmh) : "–:–") + " /km";
+  return '<div class="sal-leg"><span>Más lento <b>' + end(prep.dom[0]) + '</b></span><i class="sal-leg-bar" aria-hidden="true" style="background:' + legendGradient() + '"></i><span>Más rápido <b>' + end(prep.dom[1]) + '</b></span></div>';
+}
+
+export function statsHtml(s){
+  const pie = s.mode !== "bici";
+  const stat = (k, v) => '<div class="sal-stat"><span>' + k + '</span><b>' + v + '</b></div>';
+  return '<div class="sal-stats">' +
+    stat("Distancia", fmtKm(s.dist) + " km") +
+    stat("Tiempo", fmtClock(s.dur * 1000)) +
+    stat("En movimiento", fmtClock(s.moving * 1000)) +
+    stat(pie ? "Ritmo medio" : "Velocidad media", esc(paceOrSpeed(s))) +
+    stat("Velocidad máxima", fmtKmh(s.max) + " km/h") +
+    stat("Calorías", kcalTxt(s) + " kcal") +
+  '</div>';
+}
+
+// Desglose: una barra apilada en el orden caminando · trotando · corriendo (o en bici).
+export function barHtml(b){
+  b = b || {};
+  const tot = Object.keys(CLASSES).reduce((a, c) => a + (Number(b[c]) || 0), 0);
+  return tot > 0 ? '<div class="sal-bar" aria-hidden="true">' + Object.keys(CLASSES).filter(c => Number(b[c]) > 0)
+    .map(c => '<i class="sal-c-' + c + '" style="width:' + (Number(b[c]) / tot * 100).toFixed(2) + '%"></i>').join("") + '</div>' : "";
+}
+export function mixHtml(s, secCls){
+  const pie = s.mode !== "bici";
+  return '<div class="' + (secCls || "co-sec") + '">' + (pie ? "Caminando, trotando y corriendo" : "En movimiento") + '</div>' + barHtml(s.breakdown) + '<div class="sal-mix">' + esc(breakdownText(s.breakdown)) + '</div>';
+}
+
+// Parciales: cada km a pie (ritmo), cada 5 km en bici (velocidad). El último, lo que sobró.
+export function splitsHtml(s, secCls){
+  const pie = s.mode !== "bici";
+  const sp = (Array.isArray(s.splits) ? s.splits : []).filter(x => Array.isArray(x) && x[0] > 0 && x[1] > 0);
+  if (!sp.length) return "";
+  const kmh = sp.map(x => x[0] / x[1] * 3.6), top = Math.max(...kmh);
+  let cum = 0;
+  return '<div class="' + (secCls || "co-sec") + '">Parciales</div><div class="sal-splits">' + sp.map((x, i) => {
+    cum += x[0];
+    const k = Math.round(cum) % 1000 === 0 ? String(Math.round(cum / 1000)) : dec(cum / 1000, 1);
+    const val = pie ? fmtPace(x[1] / (x[0] / 1000)) + " /km" : fmtKmh(kmh[i]) + " km/h";
+    return '<div class="sal-split"><span class="sal-split-k">Km ' + k + '</span><span class="sal-split-bar"><i style="width:' + Math.max(4, Math.round(kmh[i] / top * 100)) + '%"></i></span><span class="sal-split-v">' + val + '</span></div>';
+  }).join("") + '</div>';
+}
+
+// Avisos: calorías con 70 kg (sin peso cargado) y cortes del GPS. who: "yo" (el alumno) o "coach".
+export function notesHtml(s, who){
+  const notes = [];
+  if (s.kgDefault) notes.push(who === "coach"
+    ? "Calorías calculadas con " + dec(s.kg || 70, 0) + " kg porque el alumno no tenía su peso cargado."
+    : "Calorías calculadas con " + dec(s.kg || 70, 0) + " kg porque no cargaste tu peso. Cargalo en Progreso para que sean exactas.");
+  const gapMin = Math.round((Number(s.gap) || 0) / 60);
+  if (gapMin >= 1) notes.push("El GPS se cortó " + gapMin + " min: ese rato no suma distancia.");
+  return notes.map(t => '<div class="sal-note">' + esc(t) + '</div>').join("");
 }

@@ -26,6 +26,7 @@ import { unreadFor } from '../../ui/chat.js';
 import { billing, renderPaywall, renderPlanBanner } from './plan.js';
 
 import { renderCoachSalidas, salidasTileText } from './salidas.js';
+import { syncRouteViews } from '../../ui/mapa.js';
 
 // Título de sección con la ruedita que abre el editor de preguntas en esa pestaña.
 function secHead(title, kind){
@@ -71,6 +72,7 @@ window.addEventListener("pagehide", persistRoutineDraft);
 
 export function renderCoach(){
   const host=document.getElementById("coachHost"); if(!host) return;
+  queueMicrotask(syncRouteViews); // después de dibujar: el recorrido de una salida abierta a su lugar (o afuera)
   snapEdits(); persistRoutineDraft();
   if(!CoachState.coachSel && CoachState.coachApplyPicker){ CoachState.coachApplyPicker=null; renderApplyPicker(); }
   if(!CoachState.coachSel && CoachState.coachCopyPicker){ CoachState.coachCopyPicker=null; renderCopyPicker(); }

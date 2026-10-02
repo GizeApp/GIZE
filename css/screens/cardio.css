@@ -87,3 +87,190 @@ html.lite .cneon i { animation: none; }
 @media (prefers-reduced-motion: reduce) { .tpick-card, .tpick-bg { transition: none; } }
 .tpick-note { text-align: center; font-size: var(--text-meta); color: var(--txt-2); margin: -4px 0 8px; }
 .tpick-extra { display: block; margin: 12px auto 0; background: none; border: none; color: var(--gize-blue); font: 600 var(--text-body) var(--gize-font); cursor: pointer; }
+
+/* ===================== Salidas «A pie» / «En bici» (app/screens/cardio.js) =====================
+   Todo con los tokens de la apariencia; la gama (var(--gize-r1..r3)) marca lento → rápido y
+   caminando · trotando · corriendo (con el neón apagado ya es gris). El mapa y el recorrido van
+   siempre oscuros, en cualquier apariencia: son contenido, como una foto. Nada se mueve sin fin:
+   el punto de «grabando» es quieto y el recorrido se dibuja una vez (4 a 6 s). */
+
+/* «Cronómetro y temporizador» queda abajo: su botón principal va blanco sin el anillo (el anillo
+   es uno por pantalla, el de la salida: brand/BRAND.md). */
+:root body:not(#_) .cardio-toolsec .ctrl.primary { background-clip: padding-box; animation: none; }
+
+/* ---- Tarjeta de arriba: elegir, en vivo, o terminada sin guardar ---- */
+.sal-card { position: relative; border-radius: 16px; padding: 16px 16px 18px; margin: 4px 0 18px; background: var(--card); border: 1px solid var(--border); }
+.sal-h { font-size: var(--text-meta); color: var(--gize-text); text-transform: uppercase; letter-spacing: .08em; font-weight: 800; margin-bottom: 12px; }
+.sal-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.sal-mode { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 14px 12px 13px; text-align: left; font-family: var(--gize-font); cursor: pointer; }
+.sal-mode-ico { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 12px; color: var(--gize-text-2); background: var(--card-2); transition: color .15s, background-color .15s; }
+.sal-mode-ico svg { width: 26px; height: 26px; }
+.sal-mode-t { font-size: 18px; font-weight: 700; color: var(--gize-text); line-height: 1.2; }
+.sal-mode-s { font-size: 12px; font-weight: 500; line-height: 1.35; color: var(--gize-text-2); overflow-wrap: anywhere; }
+.sal-mode.active .sal-mode-ico { color: var(--gize-blue); background: color-mix(in srgb, var(--gize-blue) 16%, transparent); }
+.sal-card .ctrl-row { margin-top: 2px; }
+.sal-err { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; background: var(--gize-danger-bg); color: var(--gize-danger); font-size: var(--text-meta); line-height: 1.45; }
+.sal-link { display: block; margin-top: 6px; background: none; border: none; padding: 0; color: var(--gize-blue); font: 700 var(--text-meta) var(--gize-font); text-decoration: underline; cursor: pointer; }
+
+/* En vivo */
+.sal-live-top { display: flex; align-items: center; gap: 8px; font-size: var(--text-meta); color: var(--txt-2); }
+.sal-rec { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--gize-danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gize-danger) 24%, transparent); }
+.sal-live.paused .sal-rec { background: var(--gize-warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gize-warning) 24%, transparent); }
+.sal-live-st { font-weight: 700; color: var(--gize-text); }
+.sal-live-time { margin-top: 12px; text-align: center; font-size: clamp(52px, 17vw, 72px); font-weight: 700; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--gize-text); }
+.sal-live-sub { margin-top: 6px; text-align: center; font-size: var(--text-meta); color: var(--txt-2); font-variant-numeric: tabular-nums; }
+.sal-live-chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; min-height: 28px; margin: 10px 0 12px; }
+.sal-act, .sal-auto { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 700; letter-spacing: .02em; border: 1px solid currentColor; }
+.sal-act[hidden], .sal-auto[hidden], .sal-gps[hidden] { display: none; }
+.sal-act.sal-c-caminar { color: var(--gize-r1); background: color-mix(in srgb, var(--gize-r1) 14%, transparent); }
+.sal-act.sal-c-trotar, .sal-act.sal-c-bici { color: var(--gize-r2); background: color-mix(in srgb, var(--gize-r2) 14%, transparent); }
+.sal-act.sal-c-correr { color: var(--gize-r3); background: color-mix(in srgb, var(--gize-r3) 14%, transparent); }
+.sal-auto { color: var(--gize-warning); background: color-mix(in srgb, var(--gize-warning) 12%, transparent); }
+.sal-live-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.sal-lv { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 10px 6px; border-radius: 12px; background: var(--card-2); }
+.sal-lv span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--txt-2); font-weight: 700; }
+.sal-lv b { font-size: clamp(22px, 7vw, 28px); font-weight: 700; color: var(--gize-text); font-variant-numeric: tabular-nums; line-height: 1.15; }
+.sal-lv small { max-width: 100%; font-size: 11px; color: var(--txt-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.sal-minimap { position: relative; height: 170px; margin-top: 12px; border-radius: 12px; overflow: hidden; background: #06070b; }
+.sal-gps { margin-top: 10px; text-align: center; font-size: var(--text-meta); color: var(--gize-warning); font-weight: 600; }
+.sal-tip { margin-top: 8px; font-size: 12px; color: var(--txt-2); line-height: 1.45; text-align: center; }
+.sal-live .ctrl-row { margin-top: 16px; }
+.sal-restored { display: flex; align-items: flex-start; gap: 8px; }
+.sal-x { flex: none; margin-left: auto; background: none; border: none; padding: 0 2px; color: var(--txt-2); font-size: 14px; cursor: pointer; }
+
+/* Terminada sin guardar */
+.sal-ended-l { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: var(--text-body); color: var(--gize-text); font-variant-numeric: tabular-nums; }
+.sal-ended-t { margin: 8px 0 14px; font-size: var(--text-meta); color: var(--txt-2); }
+
+/* La pestaña Cardio con una salida en curso (en las otras pantallas): un punto quieto. */
+.nav-item.en-curso:not(.active)::after { content: ""; position: absolute; top: 4px; left: calc(50% + 8px); width: 8px; height: 8px; border-radius: 50%; background: var(--gize-danger); box-shadow: 0 0 0 2px var(--gize-bg); }
+
+/* ---- «Tus salidas» (y la lista del coach) ---- */
+.sal-hist { margin: 22px 0 6px; }
+.sal-hist-h { margin: 0 2px 10px; font-size: 11px; color: var(--txt-3); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+.sal-more { display: block; margin: 10px auto 0; padding: 8px 12px; background: none; border: none; color: var(--gize-blue); font: 700 var(--text-meta) var(--gize-font); cursor: pointer; }
+.sal-list { display: flex; flex-direction: column; gap: 8px; }
+.sal-row { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; width: 100%; min-width: 0; padding: 12px 34px 12px 14px; text-align: left; cursor: pointer;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px; color: var(--txt); font-family: var(--gize-font); }
+.sal-row:active { transform: scale(.99); }
+.sal-row-top { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.sal-row-date { font-size: var(--text-meta); color: var(--txt-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sal-row-nums { font-size: var(--text-body); color: var(--txt); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.sal-row-mix { font-size: var(--text-meta); color: var(--txt-2); overflow-wrap: anywhere; }
+.sal-tag { flex: none; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--gize-warning); }
+.sal-chip { flex: none; display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .02em; color: var(--txt); background: var(--card-2); border: 1px solid var(--border); }
+.sal-chip-pie { color: var(--gize-r1); }
+.sal-chip-bici { color: var(--gize-r2); }
+
+/* ---- La ficha de una salida (alumno y coach: app/ui/recorrido.js) ---- */
+.sal-leg { display: flex; align-items: center; gap: 10px; margin: 10px 2px 0; font-size: 11px; color: var(--txt-2); }
+.sal-leg span { flex: none; display: flex; flex-direction: column; line-height: 1.3; }
+.sal-leg span:last-child { text-align: right; }
+.sal-leg b { color: var(--txt); font-variant-numeric: tabular-nums; }
+.sal-leg-bar { flex: 1; min-width: 24px; height: 5px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(127,127,127,.18); }
+.sal-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.sal-stat { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 10px 9px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+.sal-stat span { font-size: 11px; color: var(--txt-2); line-height: 1.25; }
+.sal-stat b { font-size: var(--text-emphasis); color: var(--txt); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.sal-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--card-2); }
+.sal-bar i { display: block; height: 100%; }
+.sal-c-caminar { background: var(--gize-r1); }
+.sal-c-trotar, .sal-c-bici { background: var(--gize-r2); }
+.sal-c-correr { background: var(--gize-r3); }
+.sal-mix { margin: 8px 2px 0; font-size: var(--text-body); color: var(--txt); }
+.sal-splits { display: flex; flex-direction: column; gap: 6px; }
+.sal-split { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: var(--text-meta); }
+.sal-split-k { color: var(--txt-2); white-space: nowrap; }
+.sal-split-bar { height: 6px; border-radius: 3px; background: var(--card-2); overflow: hidden; }
+.sal-split-bar i { display: block; height: 100%; border-radius: 3px; background: var(--gize-r2); }
+.sal-split-v { color: var(--txt); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sal-note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--card-2); font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
+@media (max-width: 360px) {
+  .sal-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---- El recorrido: mapa (o fondo propio) + capas de canvas (app/ui/mapa.js, app/ui/ruta.js) ---- */
+.rv-slot { position: relative; }
+.rv { position: absolute; inset: 0; overflow: hidden; background: #06070b; }
+.rv-bg { position: absolute; inset: 0; transition: opacity .5s ease;
+  background: radial-gradient(circle at 1px 1px, rgba(255,255,255,.07) 1px, transparent 1.6px) 0 0 / 22px 22px,
+    radial-gradient(120% 90% at 50% 30%, #0B0D14 0%, #000 75%); }
+.rv.con-mapa .rv-bg { opacity: 0; }
+.rv .rv-map { position: absolute; inset: 0; } /* maplibre-gl.css (se carga después) le pone position: relative a .maplibregl-map */
+.rv-map .maplibregl-canvas { outline: none; }
+.rv-layers { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.rv-cv { position: absolute; left: 0; top: 0; }
+.rv-halo { filter: blur(7px); opacity: .55; }
+.rv-hi { opacity: .35; }
+.rv-msg { position: absolute; z-index: 4; left: 50%; top: var(--rv-msg-top, 10px); transform: translateX(-50%); max-width: calc(100% - 24px); padding: 3px 10px; border-radius: 999px;
+  background: rgba(0,0,0,.55); color: #AEB5C1; font-size: 11px; line-height: 1.4; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-msg[hidden] { display: none; }
+.rv .maplibregl-ctrl-bottom-right { z-index: 4; max-width: 100%; }
+.rv .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib { max-width: calc(100% - 8px); margin: 0; padding: 1px 6px; border-radius: 6px 0 0 0; background: rgba(0,0,0,.55); color: rgba(255,255,255,.72);
+  font-size: 9.5px; line-height: 1.45; text-align: right; white-space: normal; }
+.rv .maplibregl-ctrl-attrib a { color: rgba(255,255,255,.85); }
+.rv .maplibregl-cooperative-gesture-screen { font-family: var(--gize-font); }
+
+/* ---- Resumen encima de todo (#salidaHost) ---- */
+html.sal-abierta, html.sal-abierta body { overflow: hidden; }
+#salidaHost { position: fixed; inset: 0; z-index: 300; }
+.sov { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--gize-bg); }
+.sov-hero { position: relative; height: min(62vh, 540px); min-height: 300px; overflow: hidden; isolation: isolate; border-radius: 0 0 28px 28px; background: #000; }
+.sov-map { position: absolute; inset: 0; --rv-msg-top: calc(62px + env(safe-area-inset-top)); }
+.sov-map-msg { display: flex; align-items: center; justify-content: center; padding: 0 28px; text-align: center; color: #9AA3B2; font-size: var(--text-meta); line-height: 1.45;
+  background: radial-gradient(120% 90% at 50% 30%, #0B0D14 0%, #000 75%); }
+.sov-hero::before, .sov-hero::after { content: ""; position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; }
+.sov-hero::before { top: 0; height: 110px; background: linear-gradient(rgba(0,0,0,.7), transparent); }
+.sov-hero::after { bottom: 0; height: 170px; background: linear-gradient(transparent, rgba(0,0,0,.82)); }
+.sov-top { position: absolute; z-index: 3; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 10px; padding: calc(12px + env(safe-area-inset-top)) 14px 0; pointer-events: none; }
+.sov-x { pointer-events: auto; flex: none; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; padding: 0 0 3px;
+  border: 1px solid rgba(255,255,255,.24); background: rgba(0,0,0,.5); color: #fff; font: 400 28px/1 var(--gize-font); cursor: pointer; }
+.sov-title { display: flex; align-items: center; gap: 8px; min-width: 0; color: #fff; font-size: var(--text-meta); font-weight: 600; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+.sov-title span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sov-title .sal-chip { background: rgba(0,0,0,.45); border-color: rgba(255,255,255,.22); text-shadow: none; }
+.sov-big { position: absolute; z-index: 3; left: 20px; bottom: 34px; display: flex; align-items: baseline; gap: 8px; color: #fff; pointer-events: none; text-shadow: 0 2px 18px rgba(0,0,0,.6); }
+.sov-big b { font-size: clamp(56px, 19vw, 88px); font-weight: 700; letter-spacing: -.035em; line-height: .9; font-variant-numeric: tabular-nums; }
+.sov-big span { font-size: 22px; font-weight: 600; color: rgba(255,255,255,.72); }
+.sov-body { max-width: 540px; margin: 0 auto; padding: 16px 16px calc(28px + env(safe-area-inset-bottom)); }
+.sov-new { margin: 2px 2px 4px; font-size: var(--text-emphasis); font-weight: 700; color: var(--gize-text); }
+.sov-nums { opacity: 0; transform: translateY(10px); transition: opacity .4s ease, transform .4s ease; }
+.sov-nums.in { opacity: 1; transform: none; }
+.sov-sec { margin: 20px 2px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--txt-2); }
+.sov-btns { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-top: 22px; }
+.sov-btns .ctrl { max-width: none; border-radius: var(--gize-radius-pill); }
+.sov-btns .ctrl:disabled { opacity: .45; cursor: default; }
+.sov-row { display: flex; gap: 10px; }
+.sov-row .ctrl { flex: 1; min-width: 0; }
+body:not(#_) .sov-btns :is(.ctrl, .sov-link).sov-del { color: var(--gize-danger); }
+.sov-link { align-self: center; padding: 10px 16px; background: none; border: none; font: 600 var(--text-body) var(--gize-font); cursor: pointer; }
+
+/* ---- Hojas de abajo: «Usar tu ubicación» y «Compartir tu salida» ---- */
+.ssh { position: fixed; inset: 0; z-index: 420; display: flex; align-items: flex-end; justify-content: center; }
+.ssh-bg { position: absolute; inset: 0; background: rgba(0,0,0,.6); opacity: 0; transition: opacity var(--duration-standard) ease; }
+.ssh-card { position: relative; width: 100%; max-width: 540px; max-height: 94vh; overflow-y: auto; background: var(--gize-surface); border: 1px solid var(--gize-border); border-bottom: none;
+  border-radius: 22px 22px 0 0; padding: 18px 16px calc(16px + env(safe-area-inset-bottom)); transform: translateY(100%); transition: transform var(--duration-standard) var(--ease-drawer); }
+.ssh-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--gize-rgb-line); }
+.ssh.open .ssh-bg { opacity: 1; }
+.ssh.open .ssh-card { transform: none; }
+.ssh-title { margin-bottom: 12px; text-align: center; font-size: var(--text-emphasis); font-weight: 700; color: var(--gize-text); }
+.ssh-text { margin: 0 4px 18px; font-size: var(--text-body); color: var(--txt-2); line-height: 1.5; }
+.ssh-prev { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 220px; }
+.ssh-img { display: block; height: min(46vh, 420px); width: auto; max-width: 100%; aspect-ratio: 9 / 16; object-fit: contain; border-radius: 14px; background: #000; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+.ssh-wait { color: var(--txt-2); font-size: var(--text-meta); }
+.ssh-hint { margin-top: 8px; font-size: 11px; color: var(--txt-2); text-align: center; }
+.ssh-tog { display: flex; align-items: center; gap: 10px; margin: 14px 4px 2px; font-size: var(--text-body); color: var(--gize-text); cursor: pointer; }
+.ssh-tog input { flex: none; width: 20px; height: 20px; accent-color: var(--gize-blue); }
+.ssh-msg { min-height: 18px; margin: 6px 0; text-align: center; font-size: var(--text-meta); color: var(--txt-2); }
+.ssh-btns { display: flex; gap: 10px; }
+.ssh-btns .ctrl { max-width: none; border-radius: var(--gize-radius-pill); }
+.ssh-btns .ctrl[hidden] { display: none; }
+.ssh-btns .ctrl:disabled { opacity: .45; cursor: default; }
+.ssh-close { display: block; margin: 10px auto 0; padding: 8px 16px; background: none; border: none; color: var(--txt-2); font: 600 var(--text-body) var(--gize-font); cursor: pointer; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sov-nums, .ssh-card, .ssh-bg, .rv-bg { transition: none; }
+}
+/* Los créditos del mapa, adentro de las esquinas redondeadas (resumen) y más chicos en el mini mapa. */
+.sov-map .maplibregl-ctrl-bottom-right { right: 22px; bottom: 6px; }
+.sov-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib { border-radius: 6px; }
+.sal-minimap .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib { font-size: 8px; }

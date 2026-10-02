@@ -101,7 +101,7 @@ html.tema-claro body::before { display: none; }
 html.tema-claro body:not(#_) :is(
     .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
     .card, .blk, .coach-banner, .cfg-card,
-    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
     .join-box, .daynotes, .w-chart) {
   --card-2: rgba(255,255,255,.06); --border: var(--gize-glass-line);
   position: relative; isolation: isolate;
@@ -114,7 +114,7 @@ html.tema-claro body:not(#_) :is(
 html.tema-claro body:not(#_) :is(
     .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
     .card, .blk, .coach-banner, .cfg-card,
-    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
     .join-box, .daynotes, .w-chart)::after,
 html.tema-claro body:not(#_) :is(.ptile, .plan-card, .plan-top, .plan-acc, .ss-group, .adm-entry, .co-ss-group)::after,
 html.tema-claro body:not(#_) :not(.ss-group) > .ex-collapsed:not(.ex-is-done)::after {

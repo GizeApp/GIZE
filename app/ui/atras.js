@@ -23,6 +23,9 @@ const CERRAR = [
   '#coachSheetHost [data-coach="settings-cancel"]',
   '#coachSheetHost [data-coach="q-close"]',
   '#streakHost [data-action="streak-close"]',    // racha
+  '#salShare .ssh-close',                        // Cardio: «Compartir tu salida»
+  '#salAviso .ctrl[data-action="sal-aviso-no"]', // Cardio: «Usar tu ubicación»
+  '#salidaHost [data-action="sal-close"]',       // Cardio: resumen de una salida
   '#sheetHost [data-action="search-close"]',     // hojas de abajo (alimento, ejercicio, hábito…)
   '#sheetHost [data-action$="-cancel"]',
   '#adminHost [data-adm="close"]',

@@ -3,8 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <!-- CSP: solo corren scripts de este sitio (nada inline; ver app/lite.js y app/splash.js) y el botón de Google.
-     Por <meta> porque GitHub Pages no deja poner headers. Si sumás un servicio externo, agregalo acá. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; font-src 'self'; img-src 'self' data: blob: https://wegptuzhsrwppbknqstf.supabase.co; connect-src 'self' https://gize.ar https://wegptuzhsrwppbknqstf.supabase.co wss://wegptuzhsrwppbknqstf.supabase.co https://world.openfoodfacts.org https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; media-src 'self' blob: https://wegptuzhsrwppbknqstf.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
+     Por <meta> porque GitHub Pages no deja poner headers. Si sumás un servicio externo, agregalo acá.
+     OpenFreeMap (tiles.openfreemap.org: estilo, calles, letras e íconos del mapa) y worker-src: el mapa de
+     las salidas de Cardio (app/ui/mapa.js); MapLibre dibuja las calles en un worker. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; font-src 'self'; img-src 'self' data: blob: https://wegptuzhsrwppbknqstf.supabase.co https://tiles.openfreemap.org; connect-src 'self' https://gize.ar https://wegptuzhsrwppbknqstf.supabase.co wss://wegptuzhsrwppbknqstf.supabase.co https://world.openfoodfacts.org https://accounts.google.com/gsi/ https://tiles.openfreemap.org; worker-src 'self' blob:; frame-src https://accounts.google.com/gsi/; media-src 'self' blob: https://wegptuzhsrwppbknqstf.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
 <!-- La app vive en /app/ pero sus archivos (app/, css/, brand/, sw.js…) están en la raíz del sitio. -->
 <base href="../">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">

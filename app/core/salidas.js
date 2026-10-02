@@ -67,10 +67,11 @@ function shortText(rec){
 }
 
 // Guarda la salida terminada (ui/gps.js takeEnded). Muy corta (menos de 100 m o de 1 min en
-// movimiento): pregunta antes; si no la quiere, se descarta. Se guarda sola al terminar (no hay
-// botón «Guardar»: se puede borrar después). → la salida guardada, o null.
+// movimiento): pregunta antes; si no la quiere, se descarta (con opts.keepIfShort queda como
+// estaba: la pantalla de Cardio, que tiene «Guardar» y «Descartar», la deja para decidir).
+// → la salida guardada, o null.
 // Las calorías van con el último peso cargado; sin peso, 70 kg (kgDefault: la pantalla avisa).
-export function saveEnded(){
+export function saveEnded(opts){
   const run = takeEnded();
   if (!run) return null;
   // Quedó de otra cuenta (se cerró la sesión sin borrarla): no va a la cuenta de ahora.
@@ -78,7 +79,7 @@ export function saveEnded(){
   if (run.uid && me && run.uid !== me){ discard(); return null; }
   const { rec, track } = finishRun(run, lastWeight(state.weights), Date.now(), ymd(new Date(run.start)));
   if (!rec.id) rec.id = newId();
-  if (isShort(rec) && !confirm("La salida es muy corta (" + shortText(rec) + "). ¿Guardarla igual?")){ discard(); return null; }
+  if (isShort(rec) && !confirm("La salida es muy corta (" + shortText(rec) + "). ¿Guardarla igual?")){ if (!(opts && opts.keepIfShort)) discard(); return null; }
   if (!Array.isArray(state.salidas)) state.salidas = [];
   // El mismo id reemplaza (si la app se cerró justo después de guardar, se guarda de nuevo igual).
   state.salidas = state.salidas.filter(x => x.id !== rec.id).concat([rec]);

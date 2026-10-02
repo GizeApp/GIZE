@@ -2,7 +2,7 @@
 /* Elevación compartida por toda la familia de cards (ver bloques body.silk-on/
      body.silk-coach más abajo, que redefinen --shadow-card para modo oscuro). */
 .card, .hb-item, .food-row, .diary-item, .w-chart, .w-item, .water-card, .vol-card,
-  .fi-card, .mc-block, .cardio-rx, .plan-banner, .join-box, .daynotes, .daily-card, .ci-card,
+  .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner, .join-box, .daynotes, .daily-card, .ci-card,
   .sess-item, .hx-row {
     box-shadow: var(--shadow-card);
   }

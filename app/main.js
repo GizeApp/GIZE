@@ -11,7 +11,9 @@ import { auIcoEye, auIcoEyeOff, checkSvg } from './core/icons.js';
 import { State, state } from './core/state.js';
 // Salida de Cardio a pie / en bici: se importa temprano para que, si quedó una en curso (la app se
 // recargó o el sistema la cerró), se retome al abrir y vuelva a mirar el GPS.
-import { GpsState, stopForLogout } from './ui/gps.js';
+import { GpsState, onChange as onGpsChange, stopForLogout } from './ui/gps.js';
+import { elapsedMs } from './core/cardiogps.js';
+import { syncRouteViews } from './ui/mapa.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
@@ -24,7 +26,7 @@ import { runningSetId, startTimer, stopTimer } from './ui/settimer.js';
 import { showLogin } from './screens/auth.js';
 
 import { ssGroupOf, ssNext } from './core/superserie.js';
-import { CardioState, openTimePicker, renderCardio, setRing, swFrac } from './screens/cardio.js';
+import { CardioState, closeSalida, liveMapTick, openTimePicker, paintSalida, renderCardio, salidaAction, setRing, swFrac } from './screens/cardio.js';
 
 import { CheckinState, checkinDraft, checkinHasAnswer, checkinWeek, renderFeedback, saveSession, todayWeightText, undoSaveSession } from './screens/checkin.js';
 
@@ -102,6 +104,7 @@ document.addEventListener("click", e => {
 
 export function renderApp(){
   queueMicrotask(scheduleTick); // después de dibujar: ¿hay un reloj a la vista que actualizar?
+  queueMicrotask(syncSalida);   // y los recorridos de Cardio (mapa) a su lugar, o afuera
   // Una cuenta de coach ve solo su panel: si algo pedía la pantalla del cliente, quedaba
   // dibujada debajo del panel (que es transparente) y se veían las dos encimadas.
   if(State.cloudProfile && State.cloudProfile.role==="coach"){ const v=document.getElementById("view"); if(v) v.innerHTML=""; renderCoach(); return; }
@@ -114,6 +117,7 @@ export function renderApp(){
   document.getElementById("nav-entreno").classList.toggle("active", State.view==="entreno");
   document.getElementById("nav-habitos").classList.toggle("active", State.view==="habitos");
   document.getElementById("nav-cardio").classList.toggle("active", State.view==="cardio");
+  paintNavSalida();
   document.getElementById("nav-comida").classList.toggle("active", State.view==="comida");
   document.getElementById("nav-progreso").classList.toggle("active", State.view==="progreso");
   const _cfgBtn = document.getElementById("nav-config");
@@ -260,6 +264,8 @@ export function scheduleTick(){
   if (CardioState.tmRunning){ const rem = CardioState.tmEndTs - now; waits.push(rem <= 0 ? 0 : (rem % 1000) || 1000); }
   if (!appAway()){
     if (CardioState.swRunning && State.view==="cardio" && CardioState.cardioMode==="stopwatch") waits.push(toNextSec(CardioState.swAccum + (now - CardioState.swStartTs)));
+    // Salida a pie / en bici en curso: el tiempo, la distancia y el ritmo (solo con Cardio a la vista).
+    if (GpsState.run && GpsState.run.status==="running" && State.view==="cardio") waits.push(toNextSec(elapsedMs(GpsState.run, now)));
     if (State.view==="entreno" && state.wkStart && state.wkStart.ts && document.getElementById("wkTime")) waits.push(toNextSec(now - state.wkStart.ts));
   }
   if (!waits.length) return;
@@ -280,11 +286,27 @@ export function tick(){
     }
     if (State.view==="entreno"){ const w=document.getElementById("wkTime"); if(w){ const t=wkElapsedText(); if(w.textContent!==t) w.textContent=t; } }
     if (CardioState.swRunning && State.view==="cardio" && CardioState.cardioMode==="stopwatch"){ const ms=CardioState.swAccum+(now-CardioState.swStartTs); setRing(swFrac(ms), fmt(ms)); }
+    if (GpsState.run && State.view==="cardio") paintSalida(now);
   }
   scheduleTick();
 }
 // Al volver de segundo plano se pone al día en el acto; al irse, deja de programarse.
 onAwayChange(away => { if (away) scheduleTick(); else tick(); });
+
+// ---- Salida de Cardio a pie / en bici (ui/gps.js, screens/cardio.js) ----
+// Con una salida en curso, la pestaña Cardio lleva un punto (quieto) en las otras pantallas.
+function paintNavSalida(){
+  const n = document.getElementById("nav-cardio"); if (!n) return;
+  n.classList.toggle("en-curso", !!(GpsState.run && GpsState.run.status !== "ended"));
+}
+function syncSalida(){ syncRouteViews(); liveMapTick(false); }
+// La salida cambió (empezó, pausa, terminó, GPS, errores): Cardio se redibuja (no con las ruedas
+// del tiempo abiertas) y el reloj se vuelve a programar.
+onGpsChange(() => {
+  paintNavSalida();
+  if (State.view === "cardio" && !document.getElementById("timePick") && !(State.cloudProfile && State.cloudProfile.role === "coach")) renderApp();
+  else scheduleTick();
+});
 
 document.body.addEventListener("input", async e => {
   const t = e.target, a = t.dataset.action; if(!a) return;
@@ -446,6 +468,7 @@ document.body.addEventListener("click", async e => {
   }
 
   // Cardio
+  if (a.startsWith("sal-") && salidaAction(a, el)) return;
   if (a === "cardio-mode") { CardioState.cardioMode = el.dataset.mode; renderApp(); return; }
   if (a === "sw-toggle") { if(CardioState.swRunning){ CardioState.swAccum+=Date.now()-CardioState.swStartTs; CardioState.swRunning=false; } else { CardioState.swStartTs=Date.now(); CardioState.swRunning=true; } renderApp(); return; }
   if (a === "sw-lap") { CardioState.swLaps.push(CardioState.swAccum+(Date.now()-CardioState.swStartTs)); renderApp(); return; }
@@ -934,7 +957,7 @@ document.body.addEventListener("click", async e=>{
     const logoutUid=State.cloudUser&&State.cloudUser.id;
     try{ await State.sb.auth.signOut(); }catch(e){}
     try{ localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); localStorage.removeItem("gize_session_ephemeral"); }catch(e){}
-    stopForLogout(); // deja de mirar el GPS y borra la salida en curso
+    stopForLogout(); closeSalida(); // deja de mirar el GPS y borra la salida en curso
     clearAccountLeftovers(logoutUid);
     location.reload();
     return;

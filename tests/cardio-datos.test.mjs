@@ -64,6 +64,23 @@ const call = (p, mod, fn, ...args) => p.evaluate(async ([mod, fn, args]) => {
 const queue = p => p.evaluate(o => JSON.parse(localStorage.getItem(o) || '[]').map(i => i.k + ':' + ((i.p && (i.p.id || i.p.date)) || '')), OUT);
 const appState = p => p.evaluate(async () => JSON.parse(JSON.stringify((await import('/app/core/state.js')).state)));
 
+// El recorrido de una salida abierta (ui/mapa.js): espera a que termine de dibujarse.
+const rutaLista = async p => { for (let i = 0; i < 100; i++){ if (await p.evaluate(() => { const v = document.querySelector('.sal-ruta .rv'); return !!v && v.dataset.estado === 'listo'; })) return true; await wait(100); } return false; };
+// Píxeles de la línea y de las marcas (el anillo del inicio va con el color frío; en este
+// recorrido las vueltas corriendo tapan las caminando): cuántos, con color, y cerca de a (lento)
+// y de b (rápido).
+const rutaPx = (p, a, b) => p.evaluate(([a, b]) => {
+  const cs = [...document.querySelectorAll('.sal-ruta .rv-line, .sal-ruta .rv-head')]; if (cs.length < 2) return null;
+  const r = cs[0].getBoundingClientRect();
+  let n = 0, sat = 0, na = 0, nb = 0;
+  for (const c of cs){
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const near = (i, x) => Math.abs(d[i] - x[0]) + Math.abs(d[i + 1] - x[1]) + Math.abs(d[i + 2] - x[2]) < 60;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200){ n++; if (Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]) > 60) sat++; if (near(i, a)) na++; if (near(i, b)) nb++; }
+  }
+  return { w: r.width, h: r.height, n, sat, a: na, b: nb };
+}, [a, b]);
+
 export default async function ({ base, t }){
   // ===== a) SQL y política =====
   const sql = read('supabase/cardio-a-pie.sql');
@@ -271,8 +288,11 @@ export default async function ({ base, t }){
   for (const s of ['Distancia', '5,50 km', 'Tiempo', 'En movimiento', 'Ritmo medio', 'Velocidad máxima', '11,0 km/h', 'Calorías', '366 kcal', 'Parciales', 'Km 1', '12:00 /km', 'Km 5,5',
     '20 min caminando · 15 trotando · 10 corriendo', 'Más lento', 'Más rápido', 'Calorías calculadas con 70 kg porque el alumno no tenía su peso cargado.', 'El GPS se cortó 4 min: ese rato no suma distancia.'])
     t.has(det, s, 'coach: el detalle muestra «' + s + '»');
-  const svg = await cp.evaluate(() => { const s = document.querySelector('.sal-ruta svg'); return s ? { lines: s.querySelectorAll('polyline').length, levels: [...new Set([...s.querySelectorAll('polyline')].map(l => l.getAttribute('class')))].sort(), w: s.getBoundingClientRect().width, h: s.getBoundingClientRect().height } : null; });
-  t.ok(svg && svg.lines >= 2 && svg.levels.includes('rt-l0') && svg.levels.includes('rt-l4') && svg.w > 200 && svg.h > 150, 'coach: el recorrido dibujado, de lento (frío) a rápido (intenso): ' + JSON.stringify(svg));
+  // El recorrido: el mismo componente que ve el alumno (mapa + canvas, animado; ver
+  // tests/cardio-a-pie.test.mjs). Acá, que termina dibujado de lento (frío) a rápido (intenso).
+  t.ok(await rutaLista(cp), 'coach: el recorrido se dibuja (animado) y termina');
+  const ruta = await rutaPx(cp, [47, 160, 255], [255, 61, 174]);
+  t.ok(ruta && ruta.w > 200 && ruta.h > 150 && ruta.a > 10 && ruta.b > 30, 'coach: el recorrido dibujado, de lento (frío) a rápido (intenso): ' + JSON.stringify(ruta));
   t.eq(await cp.$$eval('.sal-bar i', l => l.map(i => i.className)), ['sal-c-caminar', 'sal-c-trotar', 'sal-c-correr'], 'coach: barra de caminando · trotando · corriendo');
   // 320 px: sin scroll de costado.
   await cp.setViewportSize({ width: 320, height: 700 }); await wait(300);
@@ -283,9 +303,10 @@ export default async function ({ base, t }){
   await cp.evaluate(async () => (await import('/app/ui/atras.js')).handleBack()); await wait(300);
   t.ok(await cp.$(`[data-coach="salida-open"][data-id="${ID(8)}"]`), 'coach: «Atrás» vuelve a la lista de salidas');
   await cp.click(`[data-coach="salida-open"][data-id="${ID(7)}"]`); await wait(500);
-  t.ok(await cp.$('.sal-ruta svg'), 'coach: de nuevo el recorrido');
+  t.ok(await cp.$('.sal-ruta .rv'), 'coach: de nuevo el recorrido');
   t.eq(C.reqs.filter(r => /select=track/.test(r.q)).length, 1, 'coach: la segunda vez, de la caché (sin pedirlo de nuevo)');
   await cp.click('[data-coach="salida-close"]'); await wait(300);
+  t.eq(await cp.$$eval('.rv', l => l.length), 0, 'coach: al cerrar la salida se saca el mapa');
   await cp.click(`[data-coach="salida-open"][data-id="${ID(8)}"]`); await wait(800);
   const d2 = await text(cp, '.co-sec-body');
   t.has(d2, 'Velocidad media', 'coach: en bici, velocidad media');
@@ -301,6 +322,8 @@ export default async function ({ base, t }){
   await cn.p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1200);
   await cn.p.click('[data-coach="sec-open"][data-v="salidas"]'); await wait(400);
   await cn.p.click(`[data-coach="salida-open"][data-id="${ID(7)}"]`); await wait(800);
+  await rutaLista(cn.p);
+  const gris = await rutaPx(cn.p, [110, 116, 130], [255, 255, 255]);
   const neon = await cn.p.evaluate(() => {
     const sat = s => (s.match(/rgba?\([^)]*\)/g) || []).some(c => { const [r, g, b, a = 1] = c.match(/[\d.]+/g).map(Number); return a > 0.05 && Math.max(r, g, b) - Math.min(r, g, b) > 70; });
     const out = [];
@@ -308,9 +331,9 @@ export default async function ({ base, t }){
       const s = getComputedStyle(e);
       if (sat(s.boxShadow) || sat(s.backgroundImage) || sat(s.backgroundColor) || (sat(s.borderTopColor) && s.borderTopWidth !== '0px' && s.borderTopStyle !== 'none') || sat(s.stroke) || sat(s.fill)) out.push(String(e.getAttribute('class') || e.tagName));
     });
-    return { html: document.documentElement.classList.contains('sin-neon'), out, lines: document.querySelectorAll('.sal-ruta polyline').length };
+    return { html: document.documentElement.classList.contains('sin-neon'), out };
   });
-  t.ok(neon.html && neon.lines > 0, 'sin neón: se ve el recorrido');
+  t.ok(neon.html && gris && gris.n > 500 && gris.sat === 0 && gris.a > 10, 'sin neón: se ve el recorrido, en grises: ' + JSON.stringify(gris));
   t.eq(neon.out, [], 'sin neón: la sección de salidas sin colores de la gama');
   t.eq(cn.errs, [], 'errores de la página (coach sin neón)');
   await cn.close();

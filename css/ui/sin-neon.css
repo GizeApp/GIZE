@@ -57,14 +57,14 @@ html.tema-claro:where(.sin-neon) .auth-aurora { opacity: 1; }
 :where(html.sin-neon) body:not(#_) :is(
     .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
     .card, .blk, .coach-banner, .cfg-card,
-    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
     .join-box, .daynotes, .w-chart) {
   box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04), 0 0 40px -18px rgba(255,255,255,.14);
 }
 html.tema-claro:where(.sin-neon) body:not(#_) :is(
     .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
     .card, .blk, .coach-banner, .cfg-card,
-    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
     .join-box, .daynotes, .w-chart) {
   box-shadow: 0 10px 30px rgba(0,0,0,.28), var(--gize-glass-shine), 0 0 40px -18px rgba(255,255,255,.12);
 }

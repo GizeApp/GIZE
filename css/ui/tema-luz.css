@@ -100,7 +100,7 @@ html.tema-luz .upd-forzada { background: rgba(22,28,40,.4); }
 html.tema-luz body:not(#_) :is(
     .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
     .card, .blk, .coach-banner, .cfg-card,
-    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
     .join-box, .daynotes, .w-chart) {
   box-shadow: var(--luz-shadow), 0 0 36px -18px color-mix(in srgb, var(--gize-r2) 30%, transparent);
 }
@@ -110,7 +110,7 @@ html.tema-luz body:not(#_) :is(
 html.tema-luz body:not(#_) .ss-group { box-shadow: var(--luz-shadow), 0 0 36px -18px color-mix(in srgb, var(--gize-r2) 30%, transparent); }
 html.tema-luz body:not(#_) .ss-group :is(.card, .ex-collapsed) { box-shadow: none; }
 html.tema-luz body.silk-on :is(.card, .hb-item, .food-row, .diary-item, .w-chart, .w-item, .water-card,
-    .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner, .join-box, .daynotes,
+    .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner, .join-box, .daynotes,
     .daily-card, .ci-card, .sess-item, .hx-row) { --shadow-card: var(--luz-shadow); }
 html.tema-luz body.silk-coach :is(.co-item, .co-exc, .co-invite, .opt-sec, .opt-item, .week-editor,
     .hx-row, .cp-ccard, .co-tab, .co-daytab, .ap-day, .cp-modal, .co-row, .co-slog,
@@ -269,7 +269,7 @@ html.tema-luz.sin-neon :is(.app-aurora, .auth-aurora) {
 html.tema-luz.sin-neon body:not(#_) :is(
     .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
     .card, .blk, .coach-banner, .cfg-card,
-    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .plan-banner,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
     .join-box, .daynotes, .w-chart, .ss-group) { box-shadow: var(--luz-shadow); }
 @media (max-width: 899px) {
   html.tema-luz.sin-neon body:not(#_) .co-table { box-shadow: none; }
