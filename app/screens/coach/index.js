@@ -24,6 +24,8 @@ import { unreadFor } from '../../ui/chat.js';
 
 import { billing, renderPaywall, renderPlanBanner } from './plan.js';
 
+import { mealEditHead, renderMealPicker, renderMealTplList, snapMealEdit } from './planes.js';
+
 // Título de sección con la ruedita que abre el editor de preguntas en esa pestaña.
 function secHead(title, kind){
   return '<div class="co-sec co-sec-row"><span>'+title+'</span><button class="co-sec-gear" data-coach="q-open" data-k="'+kind+'" title="Editar preguntas" aria-label="Editar preguntas de '+title.toLowerCase()+'">'+gearSvg+'</button></div>';
@@ -68,8 +70,9 @@ window.addEventListener("pagehide", persistRoutineDraft);
 
 export function renderCoach(){
   const host=document.getElementById("coachHost"); if(!host) return;
-  snapEdits(); persistRoutineDraft();
+  snapEdits(); snapMealEdit(); persistRoutineDraft();
   if(!CoachState.coachSel && CoachState.coachApplyPicker){ CoachState.coachApplyPicker=null; renderApplyPicker(); }
+  if(!CoachState.coachSel && CoachState.coachMealPicker && CoachState.coachMealPicker.mode==="one"){ CoachState.coachMealPicker=null; renderMealPicker(); }
   if(!CoachState.coachSel && CoachState.coachCopyPicker){ CoachState.coachCopyPicker=null; renderCopyPicker(); }
   host.style.display="block";
   // La pantalla del alumno que pudo quedar armada debajo (primer ingreso de un coach) no se ve
@@ -80,13 +83,16 @@ export function renderCoach(){
   // Sin prueba ni plan vigente: solo la pantalla de planes (la base igual no le deja
   // leer los datos de los clientes, ver supabase/suscripciones.sql).
   if(!billing().active){ host.innerHTML=renderPaywall(); return; }
-  if(!CoachState.coachSel && !CoachState.coachTplEdit){
+  if(!CoachState.coachSel && !CoachState.coachTplEdit && !CoachState.coachMealEdit){
     const tabs='<div class="co-tabs">'+
       '<button class="co-tab'+(CoachState.coachView==="clients"?" on":"")+'" data-coach="view-clients">Clientes <span class="co-tab-count'+(CoachState.coachClients.length?" has":"")+'">('+CoachState.coachClients.length+')</span></button>'+
       '<button class="co-tab'+(CoachState.coachView==="tpls"?" on":"")+'" data-coach="view-tpls">Mis rutinas <span class="co-tab-count'+(CoachState.coachTpls.length?" has":"")+'">('+CoachState.coachTpls.length+')</span></button>'+
+      '<button class="co-tab'+(CoachState.coachView==="meals"?" on":"")+'" data-coach="view-meals">Mis planes <span class="co-tab-count'+(CoachState.coachMealTpls.length?" has":"")+'">('+CoachState.coachMealTpls.length+')</span></button>'+
     '</div>';
     let body="";
-    if(CoachState.coachView==="tpls"){
+    if(CoachState.coachView==="meals"){
+      body=renderMealTplList();
+    } else if(CoachState.coachView==="tpls"){
       const tl=CoachState.coachTpls.length ? CoachState.coachTpls.map(t=>{
         const nd=(t.days||[]).length;
         const nex=(t.days||[]).reduce((n,d)=>n+((d.exercises||[]).length),0);
@@ -151,6 +157,9 @@ export function renderCoach(){
       ed+
       '<button class="co-save-rt" data-coach="tpl-save">'+(dle?'Guardar rutina de descarga':sch?'Guardar rutina programada':'Guardar rutina')+'</button>'+
     '</div>';
+  } else if(CoachState.coachMealEdit && !CoachState.coachSel){
+    // Plan guardado de «Mis planes»: el mismo editor del plan del cliente (ver planes.js).
+    host.innerHTML='<div class="co-wrap">'+mealEditHead()+renderCoachPlan(null)+'</div>';
   } else {
     const d=CoachState.coachData; let body="";
     if(!d||d.loading){ body='<div class="cal-hint">Cargando…</div>'; }

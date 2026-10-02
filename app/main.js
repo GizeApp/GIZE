@@ -34,9 +34,10 @@ import { renderCoachSettings } from './screens/coach/settings.js';
 // Registra los eventos del editor de preguntas del coach (efecto al importarlo).
 import './screens/coach/preguntas.js';
 
-import { coachPlanObj, cpApply, loadTpls, planDefault, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
+import { coachPlanObj, cpApply, loadTpls, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
+import { mealAction, nutritionRow } from './screens/coach/planes.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
@@ -1064,6 +1065,8 @@ document.body.addEventListener("click", async e => {
     return;
   }
   if(a==="view-clients"){ CoachState.coachView="clients"; renderCoach(); return; }
+  // «Mis planes» y planes guardados (ver screens/coach/planes.js).
+  if((a==="view-meals" || /^mpk?-/.test(a)) && await mealAction(a, b)) return;
   if(a==="view-tpls"){ CoachState.coachView="tpls"; await loadTpls(); renderCoach(); return; }
   if(a==="tpl-seed"){
     const days=JSON.parse(JSON.stringify(DEFAULT.days||[]));
@@ -1163,7 +1166,7 @@ document.body.addEventListener("click", async e => {
     try{ sbOk(await State.sb.from("routine_templates").delete().eq("id",CoachState.coachTplEdit.id)); await loadTpls(); }catch(e){ alert("No se pudo: "+((e&&e.message)||e)); }
     CoachState.coachTplEdit=null; CoachState.coachView="tpls"; renderCoach(); return;
   }
-  if(!CoachState.coachData && !CoachState.coachTplEdit) return;
+  if(!CoachState.coachData && !CoachState.coachTplEdit && !CoachState.coachMealEdit) return;
   if(a==="client-tab"){ CoachState.coachClientTab=b.dataset.t; CoachState.coachSec=null; CoachState.coachPlanSec=null; renderCoach(); return; }
   if(a==="plsec-open"){ CoachState.coachPlanSec=b.dataset.v; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="plsec-close"){ CoachState.coachPlanSec=null; renderCoach(); window.scrollTo(0,0); return; }
@@ -1345,11 +1348,7 @@ document.body.addEventListener("click", async e => {
     renderCoach(); return;
   }
   if(a==="plan-save"){
-    const p=CoachState.coachPlanForm||planDefault();
-    // totales de días de entrenamiento como macros "globales" (compatibilidad con el banner del cliente)
-    let tk=0,tp=0,tc=0,tf=0; (p.trainDays||[]).forEach(r=>{ tk+=num(r.kcal); tp+=num(r.prot); tc+=num(r.cho); tf+=num(r.fat); }); tk=Math.round(tk); tp=Math.round(tp); tc=Math.round(tc); tf=Math.round(tf);
-    const clean={trainDays:p.trainDays||[], restDays:p.restDays||[], water:p.water||"", salt:p.salt||"", guidelines:p.guidelines||[], supps:p.supps||[], options:p.options||[], extras:p.extras||[], swaps:p.swaps||[], cardio:p.cardio||{text:"",items:[]}, habits:p.habits||[], habitDays:(p.habits||[]).map((_,i)=>{ const d=Array.isArray(p.habitDays)&&p.habitDays[i]; return Array.isArray(d)&&d.length&&d.length<7?d:null; })};
-    const row={client_id:CoachState.coachData.id, kcal:tk||parseInt(p._kcal)||null, protein:tp||parseInt(p._protein)||null, carbs:tc||parseInt(p._carbs)||null, fat:tf||parseInt(p._fat)||null, notes:p._notes||null, plan:clean, updated_at:new Date().toISOString(), updated_by:State.cloudUser.id};
+    const row=nutritionRow(CoachState.coachPlanForm, CoachState.coachData.id, true);
     try{ sbOk(await State.sb.from("nutrition").upsert(row,{onConflict:"client_id"})); CoachState.coachData.plan=row; CoachState.coachPlanForm=null; alert("Plan guardado \u2713"); }catch(e){ alert("No se pudo: "+((e&&e.message)||e)); }
     renderCoach(); return;
   }
@@ -1397,6 +1396,7 @@ document.body.addEventListener("input", async e => {
   const el=e.target.closest("[data-coach]"); if(!el) return;
   const a0=el.dataset.coach;
   if(a0==="tpl-name"){ if(CoachState.coachTplEdit) CoachState.coachTplEdit.name=el.value; return; }
+  if(a0==="mp-name"){ if(CoachState.coachMealEdit) CoachState.coachMealEdit.name=el.value; return; }
   if(a0==="sched-date"){ if(CoachState.coachTplEdit) CoachState.coachTplEdit.starts_on=el.value; return; }
   // A propósito NO llama a renderCoachSettings() acá: el input de "tpl-name" de arriba
   // tampoco re-renderiza en cada tecla, por la misma razón que el buscador de clientes

@@ -50,6 +50,16 @@ export const CoachState = {
 
   tplsError: null,
 
+  // «Mis planes» (ver planes.js): planes alimenticios guardados, el error de la última
+  // lectura (tabla sin crear…), el plan guardado que se está editando y el selector abierto.
+  coachMealTpls: [],
+
+  mealTplsError: null,
+
+  coachMealEdit: null,
+
+  coachMealPicker: null,
+
   coachPicker: null,
 
   coachPCat: null,

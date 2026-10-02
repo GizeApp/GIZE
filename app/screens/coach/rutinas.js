@@ -24,6 +24,7 @@ import { blockWeek, deloadRoutineOf, deloadWeeks, weekPlanOf, weekRange } from '
 import { parseRest } from '../../ui/restbar.js';
 
 import { closeSheet } from '../../ui/sheet.js';
+import { clientPlanActions, mealEditFoot } from './planes.js';
 
 export function rtDays(){ return CoachState.coachTplEdit ? CoachState.coachTplEdit.days : (CoachState.coachData?CoachState.coachData.routine:null); }
 
@@ -42,6 +43,8 @@ export function planDefault(){
 }
 
 export function coachPlanObj(d){
+  // Editando un plan guardado de «Mis planes»: el mismo editor trabaja sobre ese plan.
+  if(CoachState.coachMealEdit && !CoachState.coachSel) return CoachState.coachMealEdit.plan;
   if(!CoachState.coachPlanForm){ CoachState.coachPlanForm = Object.assign(planDefault(), (d.plan && d.plan.plan) ? JSON.parse(JSON.stringify(d.plan.plan)) : {});
     // arrastrar macros globales viejos si existían
     if(d.plan){ CoachState.coachPlanForm._kcal=d.plan.kcal||""; CoachState.coachPlanForm._protein=d.plan.protein||""; CoachState.coachPlanForm._carbs=d.plan.carbs||""; CoachState.coachPlanForm._fat=d.plan.fat||""; CoachState.coachPlanForm._notes=d.plan.notes||""; }
@@ -183,14 +186,16 @@ export function renderCoachPlan(d){
       cardioItemsEditor(p)), ()=>(p.cardio&&p.cardio.text)||((p.cardio&&p.cardio.items||[]).length?cnt(p.cardio.items.length,"sesión","sesiones"):"Sin cargar")],
     ["habitos","Hábitos diarios", ()=>card("Checklist del cliente", habitsEditor(p)), ()=>{ const n=Array.isArray(p.habits)?p.habits.length:0; return n?cnt(n,"hábito","hábitos"):"Sin cargar"; }],
   ];
-  const save='<button class="co-save-rt" data-coach="plan-save">Guardar plan nutricional</button>';
+  // En «Mis planes» se guarda el plan guardado (planes.js); en el cliente, su plan.
+  const tpl=!!(CoachState.coachMealEdit && !CoachState.coachSel);
+  const save=tpl ? mealEditFoot() : '<button class="co-save-rt" data-coach="plan-save">Guardar plan nutricional</button>';
   const cur=SECS.find(x=>x[0]===CoachState.coachPlanSec);
   if(cur){
     return '<div class="form-head co-sec-head"><button class="form-back" data-coach="plsec-close" aria-label="Volver al plan">‹</button><div class="form-title">'+cur[1]+'</div></div>'+cur[2]()+save;
   }
   return '<div class="co-page-title">Plan nutricional</div>'+
     '<div class="ptiles co-ptiles">'+SECS.map(x=>'<button class="ptile" data-coach="plsec-open" data-v="'+x[0]+'"><span class="ptile-t">'+x[1]+'</span><span class="ptile-s">'+esc(String(x[3]()))+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+
-    save;
+    save+(tpl ? '' : clientPlanActions());
 }
 
 export function renderCoachBlock(d){
