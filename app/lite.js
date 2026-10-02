@@ -38,6 +38,40 @@
   }
 })();
 
+// Ahorro de batería: con la batería baja (20 % o menos y sin cargar) o con el ahorro de datos
+// del navegador prendido, pasa solo a modo liviano mientras dure, sin anotarlo: no es una
+// elección. Si se eligió a mano en Ajustes ("gize_lite" = "1" o "0"), manda eso y acá no se
+// toca nada. Para no ir y venir, sale recién al enchufarlo o al volver a 30 % o más.
+// iPhone (Safari y la app, WKWebView) no tiene navigator.getBattery: ahí no hace nada (el
+// propio iOS baja el ritmo con «Modo de bajo consumo»). Avisa con "gize:lite" para que
+// app/ui/background.js apague o vuelva a prender el fondo de partículas.
+(function () {
+  try {
+    var n = navigator, html = document.documentElement, mine = false, low = false, bat = null;
+    var LOW = 0.2, BACK = 0.3;
+    var explicit = function () { try { return localStorage.getItem("gize_lite") !== null; } catch (e) { return true; } };
+    var saveData = function () { return !!(n.connection && n.connection.saveData === true); };
+    function apply() {
+      if (explicit()) { mine = false; return; } // la elección de Ajustes le gana
+      if (bat) {
+        if (!bat.charging && bat.level <= LOW) low = true;
+        else if (bat.charging || bat.level >= BACK) low = false; // entre 20 y 30 % sigue como estaba
+      }
+      var want = low || saveData();
+      if (want && !html.classList.contains("lite")) { mine = true; html.classList.add("lite"); fire(); }
+      else if (!want && mine) { mine = false; html.classList.remove("lite"); fire(); }
+    }
+    function fire() { try { document.dispatchEvent(new CustomEvent("gize:lite")); } catch (e) {} }
+    if (n.connection && n.connection.addEventListener) n.connection.addEventListener("change", apply);
+    if (typeof n.getBattery !== "function") return; // iPhone / Firefox: sin API de batería
+    n.getBattery().then(function (b) {
+      bat = b; apply();
+      b.addEventListener("levelchange", apply);
+      b.addEventListener("chargingchange", apply);
+    }).catch(function () {});
+  } catch (e) {}
+})();
+
 // Apariencia: «Oscuro» (la de siempre, por defecto), «Claro» (blanco con texto oscuro:
 // html.tema-luz, css/ui/tema-luz.css), «Azul» (vidrio sobre círculos de color: html.tema-claro,
 // css/ui/tema-claro.css; antes se llamaba «Claro») o «Rosa» (el mismo vidrio con la paleta rosa:

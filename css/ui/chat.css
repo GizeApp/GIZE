@@ -12,7 +12,7 @@
   background: conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  animation: gize-spin 6s linear infinite; }
+  animation: gize-spin 6s linear 2; } /* 2 vueltas y queda quieto: ahorra batería */
 .chat-btn[hidden] { display: none; }
 .chat-btn svg { width: 18px; height: 18px;
   filter: drop-shadow(0 0 3px color-mix(in srgb, var(--gize-r2) 90%, transparent)) drop-shadow(0 0 6px color-mix(in srgb, var(--gize-r1) 60%, transparent)); }

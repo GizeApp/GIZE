@@ -9,6 +9,7 @@ import { renderApplyPicker, renderCoachBlock, renderCoachPlan, renderCoachRoutin
 import { picker, renderCoachCheckins, renderCoachDaily, renderCoachWeekly } from './seguimiento.js';
 
 import { CoachState } from './state.js';
+import { CATALOGO, diasDeEntreno, rutinasDeDias } from '../../core/rutinas-ejemplo.js';
 import { State } from '../../core/state.js';
 import { blockWeek, isDeload, weekRange } from '../../core/bloque.js';
 
@@ -98,8 +99,14 @@ export function renderCoach(){
       }).join("") : (CoachState.tplsError ? '<div class="cal-hint" style="color:var(--red)">No se pudieron cargar: <b>'+esc(CoachState.tplsError)+'</b><br><br>Si dice que la tabla no existe, falta correr el SQL de rutinas en Supabase.</div>' : '<div class="cal-hint">Todavía no creaste ninguna rutina. Creá una y después aplicásela a los clientes que quieras.</div>');
       body='<div class="co-items">'+tl+'</div>'+
         '<button class="co-add-day" data-coach="tpl-new">+ Crear rutina nueva</button>'+
-        '<button class="co-copy-btn" style="margin-top:8px" data-coach="tpl-seed">'+downloadSvg+' Importar Meso 2 · Microciclo 8</button>'+
-        '<button class="co-copy-btn" style="margin-top:8px" data-coach="tpl-seed-ppl">'+downloadSvg+' Importar PPL · 5 días</button>';
+        '<button class="co-copy-btn" style="margin-top:8px" data-coach="tpl-seed-open" aria-expanded="'+!!CoachState.coachSeedOpen+'">'+downloadSvg+' Importar rutina armada</button>'+
+        (CoachState.coachSeedOpen ? '<div class="co-items tpl-seed-list">'+rutinasDeDias(CoachState.coachCat||CATALOGO, 0).map(r=>{
+          const nd=diasDeEntreno(r), nex=(r.days||[]).reduce((n,d)=>n+((d.exercises||[]).length),0);
+          return '<div class="co-item tpl-item" data-coach="tpl-seed-cat" data-id="'+esc(r.id)+'">'+
+            '<div class="co-name">'+esc(r.nombre)+'</div>'+
+            '<div class="co-item-meta">'+nd+' día'+(nd===1?'':'s')+' de entreno · '+nex+' ejercicios'+(r.para==="mujer"?' · para mujer':r.para==="hombre"?' · para hombre':'')+'</div>'+
+            '<div class="co-arrow">›</div></div>';
+        }).join("")+'</div>' : '');
     } else {
       const q=(CoachState.coachSearch||"").toLowerCase();
       const filtered=CoachState.coachClients.filter(c=>(c.full_name||"").toLowerCase().includes(q));
@@ -166,7 +173,7 @@ export function renderCoach(){
       const sessKey=se=>String(se.ts||se.date);
       const sessSel=sessSorted.some(se=>sessKey(se)===CoachState.coachSessSel) ? CoachState.coachSessSel : "";
       const sessOne=sessSorted.find(se=>sessKey(se)===sessSel);
-      const sess=sessSorted.length ? picker("sess-pick", sessSorted.map(se=>{ const n=(se.exercises||[]).reduce((t,e)=>t+(e.sets||[]).length,0); return {v:sessKey(se), t:fmtDate(se.date)+" · "+(se.day||"Entreno")+" ("+n+(n===1?" serie)":" series)")}; }), sessSel, "Entreno")+(sessOne?renderSessionItem(sessOne,{open:true, history:d.sessions}):"") : "";
+      const sess=sessSorted.length ? picker("sess-pick", sessSorted.map(se=>({v:sessKey(se), t:fmtDate(se.date)+" · "+(se.day||"Entreno")})), sessSel, "Entreno")+(sessOne?renderSessionItem(sessOne,{open:true, history:d.sessions}):"") : "";
       const vol=(d.routine&&d.routine.length)?renderVolumen(d.routine):'<div class="cal-hint">Sin rutina cargada.</div>';
       const tab=CoachState.coachClientTab||"ficha";
       const tabs='<div class="co-tabs">'+
