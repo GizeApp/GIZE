@@ -273,6 +273,11 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 
 @starting-style { .sheet-bg { opacity: 0; } }
 
+/* Con una ventana abierta, la pantalla de atrás queda quieta. En iPhone, arrastrar el fondo
+   oscuro (o una ventana corta, que no tiene scroll propio) movía la página de atrás. */
+html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closing)) body { overflow: hidden; }
+.sheet-bg { touch-action: none; }
+
 /* --kb = lo que tapa el teclado (app/ui/keyboard.js): la ventana sube justo arriba de él. */
 .sheet { position: fixed; left: 0; right: 0; bottom: var(--kb, 0px); z-index: 60; max-width: 540px; margin: 0 auto;
     max-height: calc(100dvh - var(--kb, 0px) - 12px); overflow-y: auto; overscroll-behavior: contain;
