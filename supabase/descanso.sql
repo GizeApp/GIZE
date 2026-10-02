@@ -48,12 +48,29 @@ revoke execute on function public.cancel_rest_alarm() from public, anon;
 grant execute on function public.schedule_rest_alarm(int) to authenticated;
 grant execute on function public.cancel_rest_alarm() to authenticated;
 
+-- Secreto compartido con la Edge Function (guardia contra llamadas de afuera). Sale de Vault
+-- (Supabase → Project Settings → Vault → New secret, nombre 'cron_secret'). Si Vault no está o
+-- el secreto no existe, devuelve '' y el cron sigue andando igual (la función solo bloquea
+-- cuando ELLA tiene puesto CRON_SECRET). Para activar la guardia: crear el secreto de Vault,
+-- re-correr este archivo, y recién después poner CRON_SECRET en los Secrets de la función.
+create or replace function public.cron_secret()
+returns text language plpgsql security definer set search_path = '' as $$
+declare s text;
+begin
+  begin
+    select decrypted_secret into s from vault.decrypted_secrets where name = 'cron_secret';
+  exception when others then s := null;  -- Vault no instalado / sin permiso: no rompe el cron
+  end;
+  return coalesce(s, '');
+end $$;
+revoke execute on function public.cron_secret() from public, anon, authenticated;
+
 -- Cada 5 segundos: solo llama a la función si hay algo para mandar (no gasta invocaciones).
 select cron.unschedule('gize-descansos') where exists (select 1 from cron.job where jobname = 'gize-descansos');
 select cron.schedule('gize-descansos', '5 seconds', $job$
   select net.http_post(
     url := 'https://wegptuzhsrwppbknqstf.supabase.co/functions/v1/descanso',
-    headers := '{"Content-Type": "application/json"}'::jsonb,
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', public.cron_secret()),
     body := '{}'::jsonb
   )
   where exists (select 1 from public.rest_alarms where send_at <= now());

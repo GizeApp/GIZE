@@ -12,6 +12,10 @@
 //                         (mercadopago.com.ar/developers → Tus integraciones → la app →
 //                         Credenciales de producción). Es secreto: solo va acá.
 //        APP_URL          (opcional) la dirección de la app. Si no está, https://gize.ar/app/
+//        MP_WEBHOOK_SECRET (opcional) la "Clave secreta" del webhook de Mercado Pago
+//                         (Tus integraciones → la app → Webhooks → Configurar notificaciones).
+//                         Si está, se valida la firma x-signature de cada aviso y se descarta
+//                         lo que no verifique. Si no está, no se valida (como hasta ahora).
 //   3. Mercado Pago → Tus integraciones → la app → Webhooks → Modo productivo:
 //        URL: https://wegptuzhsrwppbknqstf.supabase.co/functions/v1/suscripcion?webhook=1
 //        Eventos: "Planes y suscripciones" (suscripciones y pagos recurrentes).
@@ -175,7 +179,43 @@ async function cancelarMP(id: string) {
   catch (e) { console.error("no se pudo cancelar", id, (e as Error).message); }
 }
 
+// Validación de la firma del webhook de Mercado Pago (opcional, defensa en profundidad).
+// MP firma "id:<data.id>;request-id:<x-request-id>;ts:<ts>;" con HMAC-SHA256 y la clave secreta
+// del webhook, y manda el resultado en el header "x-signature: ts=<ts>,v1=<hash-hex>".
+// Igual no se confía en el contenido del aviso (siempre se reconsulta a la API de MP), así que
+// esto solo evita que un tercero dispare consultas con ids inventados. Si no está puesto el
+// secret MP_WEBHOOK_SECRET, no se valida nada (compatibilidad): se activa al configurarlo.
+async function mpSignatureOk(req: Request, url: URL, secret: string): Promise<boolean> {
+  const sig = req.headers.get("x-signature") || "";
+  const reqId = req.headers.get("x-request-id") || "";
+  let ts = "", v1 = "";
+  for (const part of sig.split(",")) {
+    const i = part.indexOf("=");
+    if (i < 0) continue;
+    const k = part.slice(0, i).trim(), v = part.slice(i + 1).trim();
+    if (k === "ts") ts = v; else if (k === "v1") v1 = v;
+  }
+  if (!ts || !v1) return false;
+  // data.id del query (MP lo toma en minúsculas cuando es alfanumérico; para numérico no cambia).
+  const dataId = (url.searchParams.get("data.id") || url.searchParams.get("id") || "").toLowerCase();
+  const manifest = "id:" + dataId + ";request-id:" + reqId + ";ts:" + ts + ";";
+  let key: CryptoKey;
+  try {
+    key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  } catch { return false; }
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(manifest)));
+  let hex = "";
+  mac.forEach((b) => { hex += b.toString(16).padStart(2, "0"); });
+  // Comparación en tiempo constante.
+  if (hex.length !== v1.length) return false;
+  let d = 0;
+  for (let i = 0; i < hex.length; i++) d |= hex.charCodeAt(i) ^ v1.charCodeAt(i);
+  return d === 0;
+}
+
 async function webhook(req: Request, url: URL) {
+  const wsecret = Deno.env.get("MP_WEBHOOK_SECRET");
+  if (wsecret && !(await mpSignatureOk(req, url, wsecret))) return json({ error: "Firma inválida" }, 401);
   let body: Record<string, any> = {};
   try { body = await req.json(); } catch { /* algunos avisos vienen solo por query */ }
   const type = String(body.type || body.topic || url.searchParams.get("type") || url.searchParams.get("topic") || "");
