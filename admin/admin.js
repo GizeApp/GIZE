@@ -9,8 +9,13 @@ const REPO = "GizeApp/gize";
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "implicit", detectSessionInUrl: true } });
 
 const $root = document.getElementById("root");
-const S = { user: null, view: "resumen", overview: null, users: null, q: "", coaches: null, fin: null, dolar: null, prodTab: "pedidos", reqKind: "pendientes", reqs: null, prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false };
-const SECTIONS = [["resumen", "Resumen"], ["contacto", "Mensajes"], ["usuarios", "Usuarios"], ["coaches", "Coaches y pagos"], ["finanzas", "Finanzas"], ["productos", "Productos"], ["avisos", "Avisos"], ["seguridad", "Seguridad y sistema"]];
+const S = { user: null, view: "resumen", overview: null, goals: null, tasks: null, users: null, q: "", coaches: null, fin: null, finTab: "numeros", dolar: null, prodTab: "pedidos", reqKind: "pendientes", reqs: null, prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false };
+// Menú en tres bloques: Inicio (lo que hay que atender y los objetivos), la gestión del día a día
+// y lo del negocio y el sistema.
+const GROUPS = [["", [["resumen", "Inicio"]]],
+  ["Gestión", [["usuarios", "Usuarios"], ["coaches", "Coaches y pagos"], ["contacto", "Mensajes"], ["productos", "Productos"], ["avisos", "Avisos"]]],
+  ["Negocio y sistema", [["finanzas", "Finanzas"], ["seguridad", "Seguridad"]]]];
+const SECTIONS = GROUPS.flatMap(g => g[1]);
 
 // ---------- utilidades ----------
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -69,7 +74,7 @@ sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !S.user) boot(); i
 function shell(){
   $root.innerHTML = `<div class="shell"><nav class="side">
       <img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE"><div class="side-sub">Administración</div>
-      ${SECTIONS.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : ""}</button>`).join("")}
+      ${GROUPS.map(([g, items]) => (g ? `<div class="nav-g">${g}</div>` : "") + items.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : ""}</button>`).join("")).join("")}
       <div class="side-foot"><span class="side-mail">${esc(S.user.email)}<br></span><button data-a="logout">Salir</button> · <a href="../app/">Ir a la app</a></div>
     </nav><main class="main" id="main"></main></div>`;
 }
@@ -127,36 +132,235 @@ document.addEventListener("pointermove", e => {
   if (h.nextElementSibling && h.nextElementSibling.classList.contains("bar")) h.nextElementSibling.classList.add("hov");
 });
 
-// ---------- Resumen ----------
+// ---------- Inicio ----------
+// Arriba lo que hay que atender, después los objetivos (supabase/objetivos.sql) y al final los
+// números y gráficos del resumen.
 async function loadResumen(){
-  page("Resumen", "Cómo viene GIZE: usuarios, uso y suscripciones.", '<div class="empty">Cargando…</div>');
-  try { S.overview = await rpc("admin_overview"); } catch (e) { return page("Resumen", "", `<div class="empty">${esc(errMsg(e))}</div>`); }
-  const o = S.overview; pendTotal(o);
-  const k = (v, l, sub, hi) => `<div class="kpi${hi ? " hi" : ""}"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
+  page("Inicio", "Lo que hay que atender y cómo vienen los objetivos.", '<div class="empty">Cargando…</div>');
+  try { S.overview = await rpc("admin_overview"); } catch (e) { return page("Inicio", "", `<div class="empty">${esc(errMsg(e))}</div>`); }
+  const o = S.overview || {};
+  // Lo que falta: con que falle uno, el resto se muestra igual.
+  const [reqs, coaches, unread, goals, tasks] = await Promise.all([
+    rpc("admin_requests_pending").catch(() => 0), rpc("admin_coaches").catch(() => null),
+    rpc("admin_contact_unread").catch(() => S.unread), rpc("admin_goals").catch(e => ({ error: e })), rpc("admin_tasks").catch(e => ({ error: e }))]);
+  if (S.view !== "resumen") return;
+  if (coaches) S.coaches = coaches;
+  setPend(num(o.pending) + num(reqs)); setUnread(num(unread));
+  S.goals = goals; S.tasks = tasks; S.reqsPend = num(reqs);
+  const k = (v, l, sub) => `<div class="kpi"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
   const versions = (o.versions || []).map(v => `<tr><td>${esc(v.platform === "android" ? "Android" : v.platform === "ios" ? "iPhone" : v.platform === "web" ? "Web" : v.platform)}</td><td>${esc(v.version)}</td><td>${n0(v.n)}</td></tr>`).join("");
-  page("Resumen", "Cómo viene GIZE: usuarios, uso y suscripciones.", `
-    <div class="grid kpis">
-      ${k(n0(o.users), "Usuarios", "+" + n0(o.new7) + " esta semana · +" + n0(o.new30) + " en 30 días", true)}
-      ${k(n0(o.active7), "Activos en 7 días", "entrenaron, cargaron comida o abrieron la app")}
-      ${k(n0(o.sessions7), "Entrenos en 7 días")}
-      ${k(n0(o.coaches), "Coaches", n0(o.clients) + " alumnos · " + n0(o.linked) + " con coach")}
-      ${k(money(o.mrr), "Ingreso mensual", n0(o.paid) + " suscripción" + (o.paid === 1 ? "" : "es") + " al día", true)}
-      ${k(n0(o.trial), "Coaches en prueba", n0(o.courtesy) + " de cortesía")}
-      ${k(n0(o.overdue), "Coaches sin pagar", "prueba vencida y sin pago al día")}
-      ${k(n0(o.products), "Productos en la base", n0(o.pending) + " para revisar")}
-    </div>
-    <div class="grid two">
-      <div class="card"><div class="sec-t">Usuarios nuevos por semana</div><div class="sec-s">Últimas 12 semanas</div>${columns(o.signups || [], "usuarios nuevos")}</div>
-      <div class="card"><div class="sec-t">Entrenos guardados por semana</div><div class="sec-s">Últimas 12 semanas</div>${columns(o.training || [], "entrenos")}</div>
-    </div>
-    <div class="card" style="margin-top:12px"><div class="sec-t">Versiones en uso</div><div class="sec-s">Usuarios que abrieron la app en los últimos 30 días</div>
-      ${versions ? `<div class="tscroll"><table class="table"><thead><tr><th>Plataforma</th><th>Versión</th><th>Usuarios</th></tr></thead><tbody>${versions}</tbody></table></div>` : '<div class="empty">Todavía no hay datos: se completan a medida que la gente abre la app.</div>'}
-    </div>`);
+  page("Inicio", "Lo que hay que atender y cómo vienen los objetivos.", `
+    <section class="blk"><div class="blk-h"><div class="sec-t">Para atender</div></div><div id="hTodo"></div></section>
+    <section class="blk"><div class="blk-h"><div class="sec-t">Objetivos</div><button class="btn sm" data-a="gNew">+ Nuevo objetivo</button></div><div id="hGoals"></div></section>
+    <section class="blk" id="hTasksB"><div class="blk-h"><div class="sec-t">Tareas</div></div><div id="hTasks"></div></section>
+    <section class="blk"><div class="blk-h"><div class="sec-t">Números</div></div>
+      <div class="grid kpis">
+        ${k(n0(o.users), "Usuarios", "+" + n0(o.new7) + " esta semana · +" + n0(o.new30) + " en 30 días")}
+        ${k(n0(o.active7), "Activos en 7 días", n0(o.sessions7) + " entrenos en la semana")}
+        ${k(n0(o.paid), "Coaches pagando", n0(o.coaches) + " coaches · " + n0(o.trial) + " en prueba · " + n0(o.courtesy) + " de cortesía")}
+        ${k(money(o.mrr), "Ingreso mensual", n0(o.linked) + " de " + n0(o.clients) + " alumnos con coach")}
+      </div>
+      <div class="grid two">
+        <div class="card"><div class="sec-t">Usuarios nuevos por semana</div><div class="sec-s">Últimas 12 semanas</div>${columns(o.signups || [], "usuarios nuevos")}</div>
+        <div class="card"><div class="sec-t">Entrenos guardados por semana</div><div class="sec-s">Últimas 12 semanas</div>${columns(o.training || [], "entrenos")}</div>
+      </div>
+      <details class="card fold mt"><summary><span class="sec-t">Versiones en uso</span><span class="muted small">Usuarios que abrieron la app en los últimos 30 días</span></summary>
+        ${versions ? `<div class="tscroll"><table class="table"><thead><tr><th>Plataforma</th><th>Versión</th><th>Usuarios</th></tr></thead><tbody>${versions}</tbody></table></div>` : '<div class="empty">Todavía no hay datos: se completan a medida que la gente abre la app.</div>'}
+      </details></section>`);
+  paintTodo(); paintGoals(); paintTasks();
+}
+// Lista de lo pendiente: cada fila lleva a su sección (las tareas, al bloque de abajo). Solo
+// aparece lo que tiene algo.
+function paintTodo(){
+  const box = document.getElementById("hTodo"); if (!box) return;
+  const o = S.overview || {}, prods = num(o.pending) + (S.reqsPend || 0);
+  const soon = (S.coaches || []).map(venceDe).filter(v => v && !v.vencido && v.dias <= 7).length;
+  const open = taskList().filter(t => !t.done && t.due_date), late = open.filter(t => dueDays(t.due_date) < 0).length, today = open.filter(t => dueDays(t.due_date) === 0).length;
+  const rows = [
+    [late + today, "tareas", (late + today === 1 ? "tarea " : "tareas ") + (late && today ? "vencidas o para hoy" : late ? (late === 1 ? "vencida" : "vencidas") : "para hoy"), "están más abajo, en Tareas"],
+    [S.unread, "contacto", "mensaje" + (S.unread === 1 ? "" : "s") + " sin leer", "contacto@gize.ar"],
+    [prods, "productos", "producto" + (prods === 1 ? "" : "s") + " para revisar", "pedidos de la gente, cargados sin verificar y reportados"],
+    [soon, "coaches", soon === 1 ? "coach vence en los próximos 7 días" : "coaches vencen en los próximos 7 días", "pago o prueba: conviene escribirles"],
+    [num(o.overdue), "coaches", num(o.overdue) === 1 ? "coach sin pagar" : "coaches sin pagar", "prueba vencida y sin pago al día"]].filter(r => r[0] > 0);
+  box.innerHTML = rows.length ? `<div class="card list">${rows.map(([n, go, l, sub]) => `<button class="li" ${go === "tareas" ? 'data-a="toTasks"' : `data-go="${go}"`}><b>${n0(n)}</b><span>${l}<small>${sub}</small></span><i aria-hidden="true">›</i></button>`).join("")}</div>`
+    : '<div class="card calm">Todo al día: no hay nada pendiente.</div>';
+}
+
+// ---------- Objetivos ----------
+// Métricas que se pueden poner como meta: claves de admin_overview (y las del check de
+// public.admin_goals en supabase/objetivos.sql).
+const METRICS = { paid: ["Coaches pagando", n0], mrr: ["Ingreso mensual", money], users: ["Usuarios", n0], active7: ["Activos en 7 días", n0],
+  sessions7: ["Entrenos por semana", n0], coaches: ["Coaches", n0], linked: ["Alumnos con coach", n0], products: ["Productos en la base", n0] };
+const metricVal = m => num((S.overview || {})[m]);
+// Avance de un objetivo: cuánto falta, el ritmo desde que arrancó y si con ese ritmo llega a la fecha.
+function goalState(g){
+  const cur = metricVal(g.metric), target = num(g.target), fmt = (METRICS[g.metric] || [, n0])[1];
+  const now = Date.now(), end = diaAR(Date.parse(g.deadline + "T12:00:00")), today = diaAR(now);
+  const left = Math.round((end - today) / 864e5), weeks = Math.max(1, left) / 7;
+  const elapsed = (now - Date.parse(g.started_at || g.created_at)) / 864e5;
+  const rate = elapsed >= 3 ? (cur - num(g.baseline)) / elapsed * 7 : null; // por semana
+  const pctv = Math.max(0, Math.min(1, cur / target)), falta = target - cur;
+  const sg = v => (v < 0 ? "−" : "+") + fmt(Math.abs(v));
+  let st, cls, note;
+  if (cur >= target){ st = "Cumplido"; cls = "ok"; note = "Se llegó a la meta."; }
+  else if (left < 0){ st = "Venció"; cls = "bad"; note = "Faltaron " + fmt(falta) + "."; }
+  else {
+    const need = falta / weeks;
+    note = "Faltan " + fmt(falta) + (left === 0 ? " y vence hoy" : " en " + n0(left) + " día" + (left === 1 ? "" : "s")) +
+      " · hace falta " + sg(need) + " por semana" + (rate == null ? "" : " · el ritmo es " + sg(rate));
+    if (rate == null){ st = "Recién empieza"; cls = ""; }
+    else if (cur + rate * Math.max(0, left) / 7 >= target){ st = "En camino"; cls = "ok"; }
+    else { st = "Atrasado"; cls = "warn"; }
+  }
+  return { cur, target, fmt, pct: pctv, st, cls, note };
+}
+// «· 2 de 5 tareas hechas» de un objetivo, si tiene tareas atadas.
+function goalTasks(id){
+  const ts = taskList().filter(t => String(t.goal_id) === String(id));
+  return ts.length ? " · " + ts.filter(t => t.done).length + " de " + ts.length + " tarea" + (ts.length === 1 ? "" : "s") + " hecha" + (ts.length === 1 ? "" : "s") : "";
+}
+function paintGoals(){
+  const box = document.getElementById("hGoals"); if (!box) return;
+  const g = S.goals;
+  if (g && g.error){
+    const falta = /admin_goals|schema cache/i.test(errMsg(g.error));
+    box.innerHTML = `<div class="card calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/objetivos.sql</b>." : esc(errMsg(g.error))}</div>`;
+    return;
+  }
+  if (!g || !g.length){ box.innerHTML = '<div class="card calm">Todavía no hay objetivos. Poné una meta con fecha (por ejemplo, 40 coaches pagando a fin de año) y acá se ve cuánto falta y si con el ritmo actual se llega.</div>'; return; }
+  box.innerHTML = `<div class="goals">${g.map(x => { const s = goalState(x);
+    return `<button class="card goal" data-goal="${esc(x.id)}">
+      <div class="goal-h"><span>${esc(x.label || (METRICS[x.metric] || [x.metric])[0])}</span><span class="pill ${s.cls}">${s.st}</span></div>
+      <div class="goal-v"><b>${s.fmt(s.cur)}</b><span class="muted">de ${s.fmt(s.target)}${x.label ? " · " + esc((METRICS[x.metric] || [x.metric])[0]).toLowerCase() : ""}</span></div>
+      <div class="meter${s.cls === "ok" && s.cur >= s.target ? " done" : ""}"><i style="width:${Math.round(s.pct * 100)}%"></i></div>
+      <div class="muted small">${s.note}</div>
+      <div class="muted small goal-d">Para el ${fmtD(dateOnly(x.deadline))}${goalTasks(x.id)}</div></button>`; }).join("")}</div>`;
+}
+function openGoal(id){
+  const g = id ? (S.goals || []).find(x => String(x.id) === String(id)) : { metric: "paid" };
+  if (!g) return;
+  const end = new Date(); end.setMonth(11, 31);
+  drawer(`<div class="h1 sm">${id ? "Cambiar objetivo" : "Nuevo objetivo"}</div>
+    <label class="lbl">Qué se mide</label>
+    <select class="in" id="gMetric">${Object.keys(METRICS).map(m => `<option value="${m}"${g.metric === m ? " selected" : ""}>${METRICS[m][0]} · hoy ${METRICS[m][1](metricVal(m))}</option>`).join("")}</select>
+    <div class="vgrid2"><label><span class="lbl">Meta</span><input class="in" id="gTarget" type="number" min="1" step="1" value="${g.target != null ? esc(num(g.target)) : ""}" placeholder="Ej: 40"></label>
+      <label><span class="lbl">Para cuándo</span><input class="in" id="gDeadline" type="date"${id ? "" : ` min="${isoDay(new Date())}"`} value="${esc(g.deadline || isoDay(end))}"></label></div>
+    <label class="lbl">Nombre (opcional)</label><input class="in" id="gLabel" maxlength="80" value="${esc(g.label || "")}" placeholder="Ej: Cubrir los gastos">
+    <div class="sec-s mt">El avance se calcula solo con los datos reales. El ritmo se mide desde ${id ? "que se creó el objetivo (o desde que se cambió lo que se mide)" : "hoy"}.</div>
+    <div class="row-btns"><button class="btn pri" data-a="gSave" data-id="${id ? esc(id) : ""}">Guardar</button>${id ? `<button class="btn bad" data-a="gDel" data-id="${esc(id)}">Borrar</button>` : ""}</div>`);
+  if (!id) document.getElementById("gTarget").focus();
+}
+async function saveGoal(btn){
+  const metric = document.getElementById("gMetric").value, target = num(document.getElementById("gTarget").value), deadline = document.getElementById("gDeadline").value;
+  if (!(target > 0)) return toast("Poné la meta.");
+  if (!deadline) return toast("Elegí para cuándo.");
+  btn.disabled = true;
+  try { await rpc("admin_goal_save", { p_id: btn.dataset.id ? Number(btn.dataset.id) : null, p_metric: metric, p_target: target, p_deadline: deadline, p_label: document.getElementById("gLabel").value.trim() || null }); }
+  catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  closeDrawer(); toast("Objetivo guardado ✓"); reloadGoals();
+}
+async function deleteGoal(btn){
+  if (!confirm("¿Borrar este objetivo?")) return;
+  btn.disabled = true;
+  try { await rpc("admin_goal_delete", { p_id: Number(btn.dataset.id) }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  closeDrawer(); toast("Objetivo borrado"); reloadGoals();
+}
+async function reloadGoals(){
+  try { S.goals = await rpc("admin_goals"); } catch (e) { S.goals = { error: e }; }
+  paintGoals(); paintTasks();
+}
+
+// ---------- Tareas ----------
+// Lo que hay que hacer, con fecha opcional y, si se quiere, atado a un objetivo
+// (supabase/objetivos.sql). Las pendientes van por fecha en grupos (vencidas, hoy, esta semana,
+// más adelante, sin fecha); las hechas quedan plegadas abajo.
+const taskList = () => Array.isArray(S.tasks) ? S.tasks : [];
+const goalList = () => Array.isArray(S.goals) ? S.goals : [];
+// Días desde hoy (calendario de Argentina) hasta una fecha "2026-10-09": 0 es hoy, -1 ayer.
+const dueDays = d => Math.round((Date.parse(d) - diaAR(Date.now())) / 864e5);
+const goalName = id => { const g = goalList().find(x => String(x.id) === String(id)); return g ? g.label || (METRICS[g.metric] || [g.metric])[0] : ""; };
+function dueTxt(d){
+  const n = dueDays(d), wd = new Date(d + "T12:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" });
+  if (n < 0) return `<span class="pill bad">${n === -1 ? "ayer" : "hace " + -n + " días"}</span>`;
+  if (n === 0) return '<span class="pill warn">hoy</span>';
+  if (n === 1) return '<span class="pill blue">mañana</span>';
+  return `<span class="muted">${wd}</span>`;
+}
+function paintTasks(){
+  const box = document.getElementById("hTasks"); if (!box) return;
+  if (S.tasks && S.tasks.error){
+    const falta = /admin_tasks|schema cache/i.test(errMsg(S.tasks.error));
+    box.innerHTML = `<div class="card calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/objetivos.sql</b>." : esc(errMsg(S.tasks.error))}</div>`;
+    return;
+  }
+  const all = taskList(), open = all.filter(t => !t.done), done = all.filter(t => t.done);
+  const byDate = (a, b) => (a.due_date || "9999") < (b.due_date || "9999") ? -1 : (a.due_date || "9999") > (b.due_date || "9999") ? 1 : a.id - b.id;
+  const groups = [["Vencidas", t => t.due_date && dueDays(t.due_date) < 0], ["Hoy", t => t.due_date && dueDays(t.due_date) === 0],
+    ["Próximos 7 días", t => t.due_date && dueDays(t.due_date) > 0 && dueDays(t.due_date) <= 7], ["Más adelante", t => t.due_date && dueDays(t.due_date) > 7], ["Sin fecha", t => !t.due_date]];
+  const row = t => `<div class="todo${t.done ? " done" : ""}">
+      <button class="chk" data-a="tDone" data-id="${esc(t.id)}" data-v="${t.done ? "0" : "1"}" aria-label="${t.done ? "Marcar como pendiente" : "Marcar como hecha"}"></button>
+      <button class="task" data-task="${esc(t.id)}"><span>${esc(t.title)}</span>
+        <small>${t.done ? "hecha " + ago(t.done_at) : t.due_date ? dueTxt(t.due_date) : ""}${t.goal_id && goalName(t.goal_id) ? `<span class="muted">${t.done || t.due_date ? " · " : ""}${esc(goalName(t.goal_id))}</span>` : ""}</small></button></div>`;
+  const opts = goalList().map(g => `<option value="${esc(g.id)}">${esc(goalName(g.id))}</option>`).join("");
+  box.innerHTML = `<div class="card">
+    <div class="task-add"><input class="in" id="tNew" maxlength="200" placeholder="Agregar una tarea…" autocomplete="off">
+      <input class="in" id="tNewDue" type="date" aria-label="Fecha (opcional)">
+      ${opts ? `<select class="in" id="tNewGoal" aria-label="Objetivo (opcional)"><option value="">Sin objetivo</option>${opts}</select>` : ""}
+      <button class="btn" data-a="tAdd">Agregar</button></div>
+    ${open.length ? groups.map(([l, f]) => { const list = open.filter(f).sort(byDate); return list.length ? `<div class="task-g">${l} <span>${list.length}</span></div>${list.map(row).join("")}` : ""; }).join("")
+      : `<div class="calm task-none">${done.length ? "No quedan tareas pendientes. 🎉" : "Todavía no hay tareas. Escribí una arriba: con fecha se ordena sola, y si la atás a un objetivo se ve en su tarjeta."}</div>`}
+    ${done.length ? `<details class="fold task-done"><summary><span class="muted small">Hechas (${done.length})</span></summary>${done.map(row).join("")}</details>` : ""}
+  </div>`;
+}
+async function addTask(btn){
+  const i = document.getElementById("tNew"), title = i.value.trim();
+  if (!title) return toast("Escribí la tarea.");
+  const due = document.getElementById("tNewDue").value || null, g = document.getElementById("tNewGoal");
+  btn.disabled = true;
+  try { await rpc("admin_task_save", { p_id: null, p_title: title, p_due: due, p_goal: g && g.value ? Number(g.value) : null }); }
+  catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  await reloadTasks();
+  const n = document.getElementById("tNew"); if (n) n.focus();
+}
+async function doneTask(btn){
+  const t = taskList().find(x => String(x.id) === btn.dataset.id); if (!t) return;
+  const v = btn.dataset.v === "1";
+  // Se marca al momento y se vuelve atrás si la base no lo guarda.
+  t.done = v; t.done_at = v ? new Date().toISOString() : null; paintTasks(); paintTodo(); paintGoals();
+  try { await rpc("admin_task_done", { p_id: t.id, p_done: v }); }
+  catch (e) { t.done = !v; t.done_at = null; paintTasks(); paintTodo(); paintGoals(); toast(errMsg(e)); }
+}
+function openTask(id){
+  const t = taskList().find(x => String(x.id) === String(id)); if (!t) return;
+  drawer(`<div class="h1 sm">Tarea</div>
+    <label class="lbl">Qué hay que hacer</label><input class="in" id="tTitle" maxlength="200" value="${esc(t.title)}">
+    <div class="vgrid2"><label><span class="lbl">Fecha</span><input class="in" id="tDue" type="date" value="${esc(t.due_date || "")}"></label>
+      <label><span class="lbl">Objetivo</span><select class="in" id="tGoal"><option value="">Sin objetivo</option>${goalList().map(g => `<option value="${esc(g.id)}"${String(g.id) === String(t.goal_id) ? " selected" : ""}>${esc(goalName(g.id))}</option>`).join("")}</select></label></div>
+    <div class="sec-s mt">${t.done ? "Hecha " + ago(t.done_at) + "." : "Creada " + ago(t.created_at) + "."}</div>
+    <div class="row-btns"><button class="btn pri" data-a="tSave" data-id="${esc(t.id)}">Guardar</button><button class="btn bad" data-a="tDel" data-id="${esc(t.id)}">Borrar</button></div>`);
+}
+async function saveTask(btn){
+  const title = document.getElementById("tTitle").value.trim(), g = document.getElementById("tGoal").value;
+  if (!title) return toast("Escribí la tarea.");
+  btn.disabled = true;
+  try { await rpc("admin_task_save", { p_id: Number(btn.dataset.id), p_title: title, p_due: document.getElementById("tDue").value || null, p_goal: g ? Number(g) : null }); }
+  catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  closeDrawer(); toast("Tarea guardada ✓"); reloadTasks();
+}
+async function deleteTask(btn){
+  if (!confirm("¿Borrar esta tarea?")) return;
+  btn.disabled = true;
+  try { await rpc("admin_task_delete", { p_id: Number(btn.dataset.id) }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  closeDrawer(); toast("Tarea borrada"); reloadTasks();
+}
+async function reloadTasks(){
+  try { S.tasks = await rpc("admin_tasks"); } catch (e) { S.tasks = { error: e }; }
+  paintTasks(); paintTodo(); paintGoals();
 }
 
 // ---------- Usuarios ----------
 async function loadUsuarios(){
-  page("Usuarios", "Buscá por nombre o mail. Tocá una fila para ver la ficha y las acciones.", `
+  page("Usuarios", "Tocá una fila para ver la ficha y las acciones.", `
     <div class="search"><input class="in" id="uQ" placeholder="Nombre o mail…" value="${esc(S.q)}"><button class="btn blue" data-a="uSearch">Buscar</button></div>
     <div class="card"><div id="uList" class="empty">Cargando…</div></div>`);
   searchUsers();
@@ -207,7 +411,7 @@ async function openUser(id){
   if (!d) return drawer('<div class="empty">No se encontró el usuario.</div>');
   const f = (l, v) => `<div class="fact"><span>${l}</span><b>${v}</b></div>`;
   const clients = (d.clients || []);
-  drawer(`<div class="h1" style="font-size:22px">${esc(d.full_name || "Sin nombre")}</div><div class="muted">${esc(d.email)}</div>
+  drawer(`<div class="h1 sm">${esc(d.full_name || "Sin nombre")}</div><div class="muted">${esc(d.email)}</div>
     <div class="facts">
       ${f("Rol", d.role === "coach" ? "Coach" : "Alumno")}${f("Entra con", esc(d.provider === "google" ? "Google" : d.provider === "apple" ? "Apple" : "Mail"))}
       ${f("Alta", fmtD(d.created_at))}${f("Última vez", ago(d.last_seen_at || d.last_sign_in_at))}
@@ -240,7 +444,7 @@ function coachState(c){
 const mpTxt = s => ({ authorized: "activa", paused: "pausada", cancelled: "cancelada", pending: "pendiente" }[s] || s || "—");
 const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: "Hasta 50", p100: "Gimnasio chico (100)", p250: "Gimnasio (250)", p500: "Gimnasio grande (500)", cortesia: "Cortesía" }[p] || p || "—");
 async function loadCoaches(){
-  page("Coaches y pagos", "Plan, alumnos y estado del pago de cada coach. El pago se arregla por fuera de la app (WhatsApp, transferencia): tocá un coach para cargarle hasta cuándo pagó, darle cortesía o más días de prueba.", '<div id="cSoon"></div><div class="card"><div id="cList" class="empty">Cargando…</div></div>');
+  page("Coaches y pagos", "Plan, alumnos y estado del pago. Tocá un coach para cargar un pago, darle cortesía o más días de prueba.", '<div id="cSoon"></div><div class="card"><div id="cList" class="empty">Cargando…</div></div>');
   const box = document.getElementById("cList");
   try { S.coaches = await rpc("admin_coaches"); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.coaches.length){ box.textContent = "Todavía no hay coaches."; return; }
@@ -297,7 +501,7 @@ function hastaMeses(c, meses){
 
 async function openCoach(id){
   const c = (S.coaches || []).find(x => x.id === id); if (!c) return;
-  drawer(`<div class="h1" style="font-size:22px">${esc(c.full_name || "Sin nombre")}</div><div class="muted">${esc(c.email)}</div>
+  drawer(`<div class="h1 sm">${esc(c.full_name || "Sin nombre")}</div><div class="muted">${esc(c.email)}</div>
     <div class="facts">
       <div class="fact"><span>Plan</span><b>${esc(planTxt(c.plan))}</b></div><div class="fact"><span>Estado</span><b>${coachState(c)}</b></div>
       <div class="fact"><span>Alumnos</span><b>${n0(c.clients)} de ${n0(c.max_clients)}</b></div><div class="fact"><span>Pago al día hasta</span><b>${lastDay(c.paid_until)}</b></div>
@@ -351,7 +555,7 @@ const pct = v => (v * 100).toLocaleString("es-AR", { maximumFractionDigits: 2 })
 const dateOnly = d => d ? d + "T12:00:00" : null; // "2027-03-01" sin correrse de día por el huso horario
 
 async function loadFinanzas(){
-  const lead = "Gastos, lo que entra por los coaches y cuánto falta para cubrir todo. Los montos en dólares se pasan a pesos con la cotización del día.";
+  const lead = "Gastos, ingresos y cuánto falta para cubrir todo. Los dólares se pasan a pesos con la cotización del día.";
   page("Finanzas", lead, '<div class="empty">Cargando…</div>');
   try { S.fin = await rpc("admin_fin"); }
   catch (e) {
@@ -360,15 +564,19 @@ async function loadFinanzas(){
   }
   const st = S.fin.settings = S.fin.settings || {};
   if (!S.dolar || !S.dolar.live) S.dolar = { tarjeta: num(st.dolar_tarjeta), mep: num(st.dolar_mep), at: st.dolar_at, live: false };
+  // Pestañas: todo queda en la página (las cuentas usan lo que hay en pantalla) y se muestra una parte.
   page("Finanzas", lead, `
+    <div class="seg" id="fTabs">${FTABS.map(([k, l]) => `<button data-a="fTab" data-v="${k}">${l}</button>`).join("")}</div>
+    <div data-fp="numeros">
     <div class="grid kpis wide" id="fKpis"></div>
     <div id="fDolar"></div>
     <div class="grid two">
-      <div class="card neon"><div class="sec-t">Punto de equilibrio</div><div class="sec-s">Coaches que hacen falta para cubrir los gastos. Cobran por transferencia, sin comisión.</div><div id="fEq"></div></div>
+      <div class="card"><div class="sec-t">Punto de equilibrio</div><div class="sec-s">Coaches que hacen falta para cubrir los gastos. Cobran por transferencia, sin comisión.</div><div id="fEq"></div></div>
       <div class="card"><div class="sec-t">Quién pone qué</div><div class="sec-s">Gastos activos de cada socio, pasados a pesos por mes.</div><div id="fWho"></div></div>
-    </div>
-    <div class="card mt"><div class="card-h"><div><div class="sec-t">Gastos</div><div class="sec-s">Tocá uno para cambiarlo. Los que estás pensando y los pausados no suman.</div></div><button class="btn blue" data-a="fCost">+ Agregar gasto</button></div><div id="fCosts"></div></div>
-    <div class="grid two mt">
+    </div></div>
+    <div data-fp="gastos">
+    <div class="card"><div class="card-h"><div><div class="sec-t">Gastos</div><div class="sec-s">Tocá uno para cambiarlo. Los que estás pensando y los pausados no suman.</div></div><button class="btn blue" data-a="fCost">+ Agregar gasto</button></div><div id="fCosts"></div></div></div>
+    <div class="narrow" data-fp="facturacion">
       <div class="card"><div class="sec-t">Cobros y facturación</div><div class="sec-s">Las cuentas cambian al momento; «Guardar» deja los cambios fijos.</div>
         <label class="lbl">Los gastos en dólares se pagan</label>
         <select class="in" data-fs="usd_pago"><option value="tarjeta">Con la tarjeta, en pesos (dólar tarjeta)</option><option value="mep"${st.usd_pago === "mep" ? " selected" : ""}>Con dólares propios (dólar MEP)</option></select>
@@ -377,17 +585,23 @@ async function loadFinanzas(){
         <label class="lbl">Otros ingresos por año de quien factura (aparte de GIZE)</label>
         <input class="in" data-fs="otros_ingresos" type="number" min="0" step="1000" value="${num(st.otros_ingresos) || ""}" placeholder="0">
         <div id="fMono"></div>
-        <div class="row-btns"><button class="btn pri" data-a="fSave">Guardar</button></div></div>
+        <div class="row-btns"><button class="btn pri" data-a="fSave">Guardar</button></div></div></div>
+    <div class="grid two" data-fp="notas">
       <div class="card"><div class="sec-t">Pendientes</div><div class="sec-s">Lo que falta ordenar. Tocá el círculo cuando esté hecho.</div><div id="fTodos"></div>
         <div class="search" style="margin:12px 0 0"><input class="in" id="fTodoIn" maxlength="200" placeholder="Agregar un pendiente…"><button class="btn" data-a="fTodoAdd">Agregar</button></div></div>
-    </div>
-    <div class="card mt"><div class="sec-t">Notas</div><div class="sec-s">Acuerdos entre socios, decisiones y lo que haya que recordar. Solo lo ven los administradores.</div>
-      <textarea class="in" data-fs="notas" maxlength="5000" placeholder="Ej: la ganancia se reparte mitad y mitad; la cuenta de Apple está a nombre de…">${esc(st.notas || "")}</textarea>
-      <div class="row-btns"><button class="btn" data-a="fSave">Guardar notas</button></div></div>`);
-  paintFin();
+      <div class="card"><div class="sec-t">Notas</div><div class="sec-s">Acuerdos entre socios, decisiones y lo que haya que recordar. Solo lo ven los administradores.</div>
+        <textarea class="in" data-fs="notas" maxlength="5000" placeholder="Ej: la ganancia se reparte mitad y mitad; la cuenta de Apple está a nombre de…">${esc(st.notas || "")}</textarea>
+        <div class="row-btns"><button class="btn" data-a="fSave">Guardar notas</button></div></div>
+    </div>`);
+  finTabs(); paintFin();
   if (!S.dolar.live || Date.now() - S.dolar.fetched > 600000) fetchDolar();
 }
 function paintFin(){ paintFinCalc(); paintCosts(); paintTodos(); }
+const FTABS = [["numeros", "Números"], ["gastos", "Gastos"], ["facturacion", "Facturación"], ["notas", "Pendientes y notas"]];
+function finTabs(){
+  document.querySelectorAll("#fTabs button").forEach(b => b.classList.toggle("on", b.dataset.v === S.finTab));
+  document.querySelectorAll("[data-fp]").forEach(x => { x.hidden = x.dataset.fp !== S.finTab; });
+}
 
 // Cuentas con los ajustes que están en pantalla (aunque todavía no se hayan guardado).
 function finCalc(){
@@ -423,7 +637,7 @@ function paintFinCalc(){
   if (!c.act.length) eq.innerHTML = '<div class="empty">Cargá los gastos para ver cuántos coaches hacen falta.</div>';
   else if (c.noRate) eq.innerHTML = '<div class="empty">Falta la cotización del dólar para pasar los gastos a pesos.</div>';
   else {
-    eq.innerHTML = (c.gap > 0 ? `<div class="big-line">Faltan <b class="neon-t">${money(c.gap)}</b> por mes</div>` : `<div class="big-line">Gastos cubiertos: sobran <b class="neon-ok">${money(c.result)}</b> por mes</div>`) +
+    eq.innerHTML = (c.gap > 0 ? `<div class="big-line">Faltan <b>${money(c.gap)}</b> por mes</div>` : `<div class="big-line">Gastos cubiertos: sobran <b class="ok-t">${money(c.result)}</b> por mes</div>`) +
       `<div class="tscroll"><table class="table"><thead><tr><th>Plan</th><th>Precio</th><th>Te queda</th><th>${c.gap > 0 ? "Coaches que faltan" : "Al día"}</th></tr></thead><tbody>${S.fin.plans.map(p => {
         const netP = num(p.price) * (1 - c.fee), need = c.gap > 0 ? Math.ceil(c.gap / netP - 1e-9) : 0;
         return `<tr><td>${esc(planTxt(p.id))}</td><td>${money(p.price)}</td><td>${money(netP)}</td><td><b>${c.gap > 0 ? n0(need) : n0(p.paid)}</b>${c.gap > 0 && p.paid ? ` <span class="muted small">(hoy ${n0(p.paid)})</span>` : ""}</td></tr>`;
@@ -535,7 +749,7 @@ function openCost(id){
   if (!c) return;
   const who = [...new Set(S.fin.costs.map(x => x.paid_by).concat(S.fin.settings.titular).filter(Boolean))];
   const opt = (list, v) => list.map(([k, l]) => `<option value="${k}"${v === k ? " selected" : ""}>${l}</option>`).join("");
-  drawer(`<div class="h1" style="font-size:22px">${id ? "Cambiar gasto" : "Nuevo gasto"}</div>
+  drawer(`<div class="h1 sm">${id ? "Cambiar gasto" : "Nuevo gasto"}</div>
     <label class="lbl">Qué es</label><input class="in" id="fcName" maxlength="80" value="${esc(c.name || "")}" placeholder="Ej: Apple Developer">
     <div class="vgrid2"><label><span class="lbl">Monto</span><input class="in" id="fcAmount" type="number" min="0" step="0.01" value="${c.amount != null ? esc(c.amount) : ""}"></label>
       <label><span class="lbl">Moneda</span><select class="in" id="fcCur">${opt([["USD", "Dólares"], ["ARS", "Pesos"]], c.currency)}</select></label></div>
@@ -575,7 +789,7 @@ async function finTodo(mode, id, label, btn){
 // Los mails que llegan a contacto@gize.ar (supabase/functions/contacto). Se responden desde
 // acá: la respuesta sale de contacto@gize.ar, así nadie ve el mail personal de quien contesta.
 async function loadContacto(){
-  page("Mensajes", "Lo que la gente manda a <b>contacto@gize.ar</b>. Cuando llega uno nuevo, les avisa a los administradores que tienen las notificaciones prendidas.", `
+  page("Mensajes", "Lo que llega a <b>contacto@gize.ar</b>. Las respuestas salen desde esa dirección.", `
     <div class="seg">${[["nuevos", "Sin leer"], ["leidos", "Leídos"], ["todos", "Todos"]].map(([k, l]) => `<button class="${S.msgTab === k ? "on" : ""}" data-a="mtab" data-v="${k}">${l}</button>`).join("")}</div>
     <div id="mList" class="empty">Cargando…</div>`);
   const box = document.getElementById("mList");
@@ -642,8 +856,8 @@ const prodTop = () => `<div class="prod-top"><div class="seg">${PTABS.map(([k, l
 async function loadProductos(){
   if (S.prodTab === "pedidos") return loadPedidos();
   const all = S.prodTab === "todos";
-  page("Productos", all ? "Toda la base compartida: buscá un producto para corregirlo, ocultarlo o borrarlo, o agregá uno nuevo. Valores cada 100 g o ml."
-      : "Base compartida: lo que cargan los usuarios al escanear. Compará con la foto de la tabla, corregí y verificá.", `
+  page("Productos", all ? "Buscá un producto para corregirlo, ocultarlo o borrarlo. Valores cada 100 g o ml."
+      : "Lo que cargan los usuarios al escanear. Compará con la foto, corregí y verificá.", `
     ${prodTop()}
     ${all ? `<div class="prod-q"><input class="in" id="pQ" type="search" placeholder="Buscar por nombre, marca o código de barras" value="${esc(S.prodQ || "")}" autocomplete="off"><button class="btn" data-a="pfind">Buscar</button></div>` : ""}
     <div id="pList" class="empty">Cargando…</div>`);
@@ -717,7 +931,7 @@ async function deleteProd(btn){
 // (queda de GIZE y verificado). A quien lo pidió la app le avisa al entrar.
 async function loadPedidos(){
   const pend = S.reqKind !== "resueltos";
-  page("Productos", "Pedidos de la gente: productos que no encontraron. Mirá la foto de la tabla, cargá los valores cada 100 g (o 100 ml) y publicalo. Queda verificado para todos y a quien lo pidió le avisamos.", `
+  page("Productos", "Productos que la gente no encontró. Cargá los valores de la foto y publicalo: queda verificado y le avisamos a quien lo pidió.", `
     ${prodTop()}
     <div class="seg" style="margin-bottom:12px">${[["pendientes", "Por cargar"], ["resueltos", "Resueltos"]].map(([k, l]) => `<button class="${(pend ? "pendientes" : "resueltos") === k ? "on" : ""}" data-a="rqKind" data-v="${k}">${l}</button>`).join("")}</div>
     <div id="pList" class="empty">Cargando…</div>`);
@@ -807,16 +1021,16 @@ async function addProd(btn){
 
 // ---------- Avisos ----------
 async function loadAvisos(){
-  page("Avisos", "Mandá una notificación a los usuarios y manejá el cartel de actualización de la app.", '<div class="empty">Cargando…</div>');
+  page("Avisos", "Notificaciones a los usuarios y cartel de actualización de la app.", '<div class="empty">Cargando…</div>');
   try { const r = await sb.from("app_config").select("value").eq("key", "version").maybeSingle(); S.config = (r.data && r.data.value) || {}; } catch (e) { S.config = {}; }
   const vf = (pl, name) => { const c = S.config[pl] || {}; return `<div class="card"><div class="sec-t">${name}</div>
     <div class="vgrid"><label><span class="lbl">Última (número)</span><input class="in" data-v="${pl}.ultima" type="number" value="${esc(c.ultima || 0)}"></label>
     <label><span class="lbl">Nombre (ej: 1.0.7)</span><input class="in" data-v="${pl}.version" value="${esc(c.version || "")}"></label>
     <label><span class="lbl">Mínima obligatoria</span><input class="in" data-v="${pl}.minima" type="number" value="${esc(c.minima || 0)}"></label></div>
     <label><span class="lbl">Link de la tienda</span><input class="in" data-v="${pl}.tienda" value="${esc(c.tienda || "")}"></label></div>`; };
-  page("Avisos", "Mandá una notificación a los usuarios y manejá el cartel de actualización de la app.", `
+  page("Avisos", "Notificaciones a los usuarios y cartel de actualización de la app.", `
     <div class="grid two">
-      <div class="card neon"><div class="sec-t">Notificación a los usuarios</div><div class="sec-s">Les llega a quienes activaron los avisos en su celular o computadora.</div>
+      <div class="card"><div class="sec-t">Notificación a los usuarios</div><div class="sec-s">Les llega a quienes activaron los avisos en su celular o computadora.</div>
         <label class="lbl">A quién</label><div class="seg" id="avT">${[["todos", "Todos"], ["coaches", "Coaches"], ["alumnos", "Alumnos"]].map(([k, l], i) => `<button class="${i ? "" : "on"}" data-a="avT" data-v="${k}">${l}</button>`).join("")}</div>
         <label class="lbl">Título (hasta 60 letras)</label><input class="in" id="avTitle" maxlength="60" placeholder="Ej: Salió la versión 1.0.7">
         <label class="lbl">Mensaje (hasta 180 letras)</label><textarea class="in" id="avBody" maxlength="180" placeholder="Ej: Superseries, resumen del entreno y mucho más. Actualizá desde Play Store."></textarea>
@@ -851,10 +1065,10 @@ async function saveConfig(btn){
 
 // ---------- Seguridad y sistema ----------
 async function loadSeguridad(){
-  page("Seguridad y sistema", "Copias de seguridad de la base y registro de todo lo que se hace desde este panel.", `
+  page("Seguridad", "Copias de seguridad, administradores y registro de lo que se hace desde el panel.", `
     <div class="grid two"><div class="card"><div class="sec-t">Copias de seguridad</div><div class="sec-s">Se hacen solas todos los lunes y se prueban restaurándolas.</div><div id="bk" class="list-mini">Cargando…</div></div>
     <div class="card"><div class="sec-t">Administradores</div><div class="sec-s">Se agregan o quitan desde Usuarios → ficha → Hacer administrador.</div><div id="admins" class="list-mini">Cargando…</div></div></div>
-    <div class="card" style="margin-top:12px"><div class="sec-t">Registro de acciones</div><div class="sec-s">Las últimas 100 acciones hechas desde el panel.</div><div id="aud" class="empty">Cargando…</div></div>`);
+    <div class="card mt"><div class="sec-t">Registro de acciones</div><div class="sec-s">Las últimas 100 acciones hechas desde el panel.</div><div id="aud" class="empty">Cargando…</div></div>`);
   // Con el repositorio privado GitHub no responde sin sesión: se deja el enlace a las copias.
   const bkLink = `<a href="https://github.com/${REPO}/actions/workflows/backup.yml" target="_blank" rel="noopener">Ver las copias en GitHub</a>`;
   fetch("https://api.github.com/repos/" + REPO + "/actions/workflows/backup.yml/runs?per_page=6").then(r => { if (!r.ok) throw 0; return r.json(); }).then(j => {
@@ -873,8 +1087,11 @@ async function loadSeguridad(){
     aviso: "Mandó una notificación a " + (a.target || ""), eliminar: "Eliminó la cuenta",
     contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", pedido_publicado: "Publicó un producto pedido", pedido_rechazado: "Rechazó un pedido de producto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto", producto_nuevo: "Agregó un producto", producto_borrar: "Borró un producto",
     fin_gasto_nuevo: "Agregó un gasto", fin_gasto: "Cambió un gasto", fin_gasto_borrar: "Borró un gasto", fin_ajustes: "Cambió los ajustes de finanzas",
-    fin_pendiente_nuevo: "Agregó un pendiente", fin_pendiente_hecho: "Marcó un pendiente como hecho", fin_pendiente_deshacer: "Volvió a abrir un pendiente", fin_pendiente_borrar: "Borró un pendiente" }[a.action] || a.action);
-  const extra = a => a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : (a.target_name || "");
+    fin_pendiente_nuevo: "Agregó un pendiente", fin_pendiente_hecho: "Marcó un pendiente como hecho", fin_pendiente_deshacer: "Volvió a abrir un pendiente", fin_pendiente_borrar: "Borró un pendiente",
+    objetivo_nuevo: "Agregó un objetivo", objetivo: "Cambió un objetivo", objetivo_borrar: "Borró un objetivo",
+    tarea_nueva: "Agregó una tarea", tarea: "Cambió una tarea", tarea_hecha: "Marcó una tarea como hecha", tarea_deshacer: "Volvió a abrir una tarea", tarea_borrar: "Borró una tarea" }[a.action] || a.action);
+  const goalTxt = d => d ? (d.label || (METRICS[d.metric] || [d.metric])[0]) + (d.target != null ? " · meta " + (METRICS[d.metric] || [, n0])[1](d.target) : "") : "";
+  const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : (a.target_name || "");
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Sobre</th></tr></thead><tbody>${S.audit.map(a => `<tr><td class="muted">${fmtDT(a.created_at)}</td><td>${esc(a.admin_name || "—")}</td><td>${esc(what(a))}</td><td class="muted">${esc(extra(a) || "")}</td></tr>`).join("")}</tbody></table>`;
 }
@@ -891,6 +1108,7 @@ document.addEventListener("input", e => {
 document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.id === "uQ"){ S.q = e.target.value.trim(); searchUsers(); }
   if (e.key === "Enter" && e.target.id === "pQ"){ S.prodQ = e.target.value.trim(); loadProductos(); }
+  if (e.key === "Enter" && (e.target.id === "tNew" || e.target.id === "tNewDue")){ const b = document.querySelector('[data-a="tAdd"]'); if (b) b.click(); }
   if (e.key === "Enter" && e.target.id === "fTodoIn"){ const b = document.querySelector('[data-a="fTodoAdd"]'); if (b) b.click(); }
   if (e.key === "Escape"){ const z = document.querySelector(".zoom"); if (z){ z.remove(); return; } closeDrawer(); }
 });
@@ -899,6 +1117,8 @@ document.addEventListener("click", async e => {
   const tr = e.target.closest("tr[data-user]"); if (tr){ openUser(tr.dataset.user); return; }
   const tc = e.target.closest("[data-coach]"); if (tc){ openCoach(tc.dataset.coach); return; }
   const tf = e.target.closest("tr[data-cost]"); if (tf){ openCost(Number(tf.dataset.cost)); return; }
+  const tg = e.target.closest("[data-goal]"); if (tg){ openGoal(tg.dataset.goal); return; }
+  const tt = e.target.closest("[data-task]"); if (tt){ openTask(tt.dataset.task); return; }
   const b = e.target.closest("[data-a]"); if (!b) return;
   const a = b.dataset.a;
   try {
@@ -965,6 +1185,15 @@ document.addEventListener("click", async e => {
     if (a === "avT"){ document.querySelectorAll("#avT button").forEach(x => x.classList.toggle("on", x === b)); return; }
     if (a === "avSend"){ sendAviso(b); return; }
     if (a === "cfgSave"){ saveConfig(b); return; }
+    if (a === "gNew"){ openGoal(null); return; }
+    if (a === "tAdd"){ addTask(b); return; }
+    if (a === "tDone"){ doneTask(b); return; }
+    if (a === "tSave"){ saveTask(b); return; }
+    if (a === "tDel"){ deleteTask(b); return; }
+    if (a === "toTasks"){ document.getElementById("hTasksB").scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (a === "gSave"){ saveGoal(b); return; }
+    if (a === "gDel"){ deleteGoal(b); return; }
+    if (a === "fTab"){ S.finTab = b.dataset.v; finTabs(); return; }
     if (a === "fCost"){ openCost(null); return; }
     if (a === "fCostSave"){ saveCost(b); return; }
     if (a === "fCostDel"){ deleteCost(b); return; }
