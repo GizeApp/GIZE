@@ -62,11 +62,26 @@ export function renderCoachDaily(d){
     '<div class="ck-card">'+top+(qs.length?qaList(qs):'<div class="cal-hint">Ese día no respondió las preguntas del registro.</div>')+'</div>';
 }
 
+// Día en que el alumno cargó el check-in («1 de octubre de 2026», hora de Argentina), en vez de
+// la semana a la que corresponde. Los check-ins de antes de que la tabla guardara la fecha
+// (created_at vacío, ver supabase/checkin-fecha.sql) siguen diciendo «Semana del …».
+const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+function ckLabel(c){
+  const t=c && (c.created_at || c.inserted_at);
+  const dt=t ? new Date(t) : null;
+  if(!dt || isNaN(dt)) return "Semana del "+fmtDate(c.week_start);
+  try{
+    const p=new Intl.DateTimeFormat("es-AR",{timeZone:"America/Argentina/Buenos_Aires",day:"numeric",month:"numeric",year:"numeric"}).formatToParts(dt);
+    const g=k=>parseInt((p.find(x=>x.type===k)||{}).value,10);
+    return g("day")+" de "+MESES[g("month")-1]+" de "+g("year");
+  }catch(e){ return "Semana del "+fmtDate(c.week_start); }
+}
+
 export function renderCoachCheckins(d){
   const cks=(d.checkins||[]).slice().sort((a,b)=>String(b.week_start).localeCompare(String(a.week_start)));
   if(!cks.length) return '<div class="cal-hint">El cliente todav\u00eda no respondi\u00f3 ning\u00fan check-in.</div>';
   const sel=cks.some(c=>c.week_start===CoachState.coachCkSel) ? CoachState.coachCkSel : "";
-  const pick=picker("ck-pick", cks.map(x=>({v:x.week_start, t:"Semana del "+fmtDate(x.week_start)})), sel, "Semana");
+  const pick=picker("ck-pick", cks.map(x=>({v:x.week_start, t:ckLabel(x)})), sel, "Check-in");
   if(!sel) return pick;
   const c=cks.find(x=>x.week_start===sel);
   const a=Object.assign({}, c.answers||{});
@@ -77,5 +92,5 @@ export function renderCoachCheckins(d){
   const qs=answeredQuestions("checkin", a, coachOwnQuestions("checkin")).filter(q=>q.id!=="adherence" || !adhN);
   const adh=adhN?'<span class="ck-adh">Adherencia: <b>'+adhN+'/10</b></span>':'';
   return pick+
-    '<div class="ck-card"><div class="ck-head">Semana del '+fmtDate(c.week_start)+' '+adh+'</div>'+(qs.length?qaList(qs):'<div class="cal-hint">Sin respuestas.</div>')+'</div>';
+    '<div class="ck-card"><div class="ck-head">'+esc(ckLabel(c))+' '+adh+'</div>'+(qs.length?qaList(qs):'<div class="cal-hint">Sin respuestas.</div>')+'</div>';
 }
