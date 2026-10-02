@@ -106,11 +106,13 @@ body:not(#_) :is(.ctrl.primary, .form-save, .save-session, .co-save-rt, .hb-add-
 body:not(#_) .ctrl.primary, body:not(#_) :is(.save-session, .co-save-rt, .rq-send) {
   background: linear-gradient(#fff, #fff) padding-box,
     conic-gradient(from var(--gize-angle), var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box;
-  animation: gize-spin 5s linear infinite;
+  animation: gize-spin 5s linear 2; /* 2 vueltas y queda quieto: ahorra batería */
 }
 @media (prefers-reduced-motion: reduce) {
   body:not(#_) :is(.ctrl.primary, .save-session, .co-save-rt, .rq-send) { animation: none; }
 }
+/* El borde de los botones del login (.gize-btn de brand/tokens.css) también da 2 vueltas y para. */
+.gize-btn::before { animation-iteration-count: 2; }
 body:not(#_) .hb-add-btn { border-radius: var(--btn-r); }
 
 /* ---------- Estados: azul funcional ---------- */

@@ -266,8 +266,10 @@ export function weeklyAvg(weights){
   return Object.keys(wk).sort().map(k=>({date:k, kg: wk[k].reduce((a,b)=>a+b,0)/wk[k].length, n:wk[k].length}));
 }
 
-const CI_AVAILABILITY=["2 d\u00edas / semana","3 d\u00edas / semana","4 d\u00edas / semana","5 d\u00edas / semana","6 d\u00edas / semana"];
-const CI_STAGE=["Volumen","D\u00e9ficit","Mantenimiento","Recomposici\u00f3n","Definici\u00f3n"];
+const CI_AVAILABILITY=["1 d\u00eda / semana","2 d\u00edas / semana","3 d\u00edas / semana","4 d\u00edas / semana","5 d\u00edas / semana","6 d\u00edas / semana","7 d\u00edas / semana"];
+// «Déficit» y «Definición» eran la misma etapa: queda «Definición». A quien ya tenía «Déficit»
+// guardado se le sigue mostrando (S() agrega el valor guardado si no está en la lista).
+const CI_STAGE=["Volumen","Mantenimiento","Recomposici\u00f3n","Definici\u00f3n"];
 const CI_COMMITMENT=["Bajo","Medio","Alto"];
 // Compromiso = estado, así que va con los semánticos de la marca.
 const CI_COMMIT_COLOR={Bajo:"var(--gize-warning)", Medio:"var(--gize-blue)", Alto:"var(--gize-success)"};

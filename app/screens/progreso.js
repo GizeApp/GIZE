@@ -128,8 +128,8 @@ export function renderHistorial(){
   if(!sess.length) return "";
   const key=se=>String(se.id||se.ts||se.date);
   const one=sess.find(se=>key(se)===ProgresoState.sessSel) || sess[0];
-  const opts=sess.map(se=>{ const n=(se.exercises||[]).reduce((t,e)=>t+(e.sets||[]).length,0);
-    return '<option value="'+esc(key(se))+'"'+(se===one?' selected':'')+'>'+esc(fmtDate(se.date)+' · '+(se.day||'Entreno')+' ('+n+(n===1?' serie)':' series)'))+'</option>'; }).join("");
+  const opts=sess.map(se=>{
+    return '<option value="'+esc(key(se))+'"'+(se===one?' selected':'')+'>'+esc(fmtDate(se.date)+' · '+(se.day||'Entreno'))+'</option>'; }).join("");
   const pick='<label class="co-pick sess-pick"><span>Entreno</span><select class="co-select" data-action="sess-pick" aria-label="Elegir entreno">'+opts+'</select></label>';
   const item=renderSessionItem(one, { open:true, history:state.sessions,
     removeBtn:'<div class="sess-acts"><button class="diary-rm sess-edit" data-action="session-edit" data-id="'+esc(one.id)+'" title="Editar entreno" aria-label="Editar entreno">'+pencilSvg+'</button>'+

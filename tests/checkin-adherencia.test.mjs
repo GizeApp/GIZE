@@ -64,11 +64,16 @@ export default async function ({ base, t }){
     return {
       palabras: txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', adherence: null, answers: { q1: 'Bien', adherence: 'Bastante', _q: { adherence: '¿Cuánto cumpliste el plan?' } } }] })),
       numero: txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', adherence: 8, answers: { q1: 'Bien' } }] })),
+      // Con la fecha en que lo cargó (02:30 UTC del 2 de octubre = 1 de octubre a la noche en Argentina).
+      fecha: txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', created_at: '2026-10-02T02:30:00Z', adherence: 8, answers: { q1: 'Bien' } }] })),
     };
   });
   t.has(vista.palabras, 'Bastante', 'coach: ve la adherencia en palabras');
   t.ok(!vista.palabras.includes('/10'), 'coach: no muestra «0/10» con una respuesta en palabras: ' + vista.palabras);
   t.has(vista.numero, 'Adherencia: 8/10', 'coach: con número la ve en el encabezado');
+  t.has(vista.fecha, '1 de octubre de 2026', 'coach: ve el día en que el alumno cargó el check-in: ' + vista.fecha);
+  t.ok(!vista.fecha.includes('Semana del'), 'coach: con fecha ya no dice «Semana del»');
+  t.has(vista.numero, 'Semana del 21 sep', 'coach: un check-in viejo sin fecha sigue mostrando la semana');
   t.eq(errs, [], 'coach: errores de la página');
   await close();
 }

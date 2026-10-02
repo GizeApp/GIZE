@@ -24,6 +24,15 @@ function persist(){
 
 function leftSec(){ return Math.max(0, Math.ceil((rest.endAt - Date.now())/1000)); }
 
+// El número muestra segundos: en vez de mirar cada 250 ms se programa un solo setTimeout justo
+// para cuando cambia el próximo segundo (el último cae en endAt, así el aviso suena en hora).
+// Menos despertares del procesador = menos batería.
+function nextTick(){
+  if(rest.id) clearTimeout(rest.id);
+  const ms = rest.endAt - Date.now();
+  rest.id = setTimeout(restTick, (ms <= 0 ? 0 : (ms % 1000) || 1000) + 10);
+}
+
 export function parseRest(txt){
   if(!txt) return 0;
   const t=String(txt).trim();
@@ -41,7 +50,7 @@ export function restFmt(s){ const m=Math.floor(s/60), x=s%60; return m+":"+Strin
 export function startRest(sec){
   sec = sec || state.restDefault || 120; state.restDefault = sec; initAudio();
   rest.active=true; rest.total=sec; rest.endAt=Date.now()+sec*1000; rest.remaining=sec;
-  if(rest.id) clearInterval(rest.id); rest.id=setInterval(restTick,250);
+  nextTick();
   persist(); renderRestBar(); save();
   scheduleRestAlert(rest.endAt); // aviso con la pantalla apagada (ver restnotif.js)
 }
@@ -50,11 +59,11 @@ export function restTick(){
   if(!rest.active) return;
   const r=leftSec();
   if(r!==rest.remaining){ rest.remaining=r; updateRestBar(); }
-  if(r<=0) restFinish();
+  if(r<=0) restFinish(); else nextTick();
 }
 
 export function restFinish(){
-  rest.active=false; if(rest.id){ clearInterval(rest.id); rest.id=null; } persist();
+  rest.active=false; if(rest.id){ clearTimeout(rest.id); rest.id=null; } persist();
   // Con la app a la vista ya suena acá: se cancela el aviso programado para no repetirlo.
   if(!document.hidden) cancelRestAlert();
   try{ beep(); }catch(e){}
@@ -67,7 +76,7 @@ export function restFinish(){
 // El aviso de terminado queda 6 s (aunque la app se re-dibuje en el medio).
 function showDone(){ rest.doneUntil=Date.now()+6000; renderRestBar(true); setTimeout(()=>{ if(!rest.active) renderRestBar(); }, 6100); }
 
-export function stopRest(){ const was=rest.active; rest.doneUntil=0; rest.active=false; if(rest.id){ clearInterval(rest.id); rest.id=null; } persist(); renderRestBar(); if(was) cancelRestAlert(); }
+export function stopRest(){ const was=rest.active; rest.doneUntil=0; rest.active=false; if(rest.id){ clearTimeout(rest.id); rest.id=null; } persist(); renderRestBar(); if(was) cancelRestAlert(); }
 
 // Al abrir la app: si había un descanso en curso, sigue desde donde va; si terminó hace
 // poco (menos de 1 minuto), muestra el aviso de terminado.
@@ -77,7 +86,7 @@ export function resumeRest(){
   const now=Date.now();
   if(saved.endAt>now){
     rest.active=true; rest.total=saved.total||Math.ceil((saved.endAt-now)/1000); rest.endAt=saved.endAt; rest.remaining=leftSec();
-    if(rest.id) clearInterval(rest.id); rest.id=setInterval(restTick,250);
+    nextTick();
     renderRestBar();
   } else {
     try{ localStorage.removeItem(REST_KEY); }catch(e){}
