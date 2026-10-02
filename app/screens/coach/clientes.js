@@ -23,6 +23,7 @@ import { kgText } from '../../core/progresion.js';
 import { dropRoutineDraft, readRoutineDraft, renderCoach } from './index.js';
 
 import { loadTpls } from './rutinas.js';
+import { loadMealTpls } from './planes.js';
 
 import { CoachState } from './state.js';
 
@@ -60,7 +61,7 @@ export async function loadCoachClients(){
     const ic=await icP; CoachState.coachInvite=ic.data||null;
     await billP;
   }catch(e){ console.error("coachClients",e); }
-  loadCoachStats(); loadTpls();
+  loadCoachStats(); loadTpls(); loadMealTpls();
 }
 
 export async function loadCoachStats(){
