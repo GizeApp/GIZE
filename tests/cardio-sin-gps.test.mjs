@@ -3,8 +3,10 @@
 // ubicación, mapas ni tablas de salidas: ni al abrir la app ni al entrar a Cardio. Lo que había
 // quedado de la versión con GPS (salidas guardadas, salida en curso, pendientes en la cola) se
 // descarta sin errores y sin trabar lo demás que esté en la cola.
-// (Las salidas «A pie» / «En bici» vuelven por pasos: la ubicación de las apps nativas ya está, ver
-// tests/cardio-seguimiento.test.mjs; la pantalla, la nube y la política llegan después.)
+// (Las salidas «A pie» / «En bici» vuelven por pasos con nombres nuevos: la ubicación de las apps
+// nativas ya está, ver tests/cardio-seguimiento.test.mjs; la nube (cardio_outings), la ficha del
+// coach y la política, en tests/cardio-datos.test.mjs; la pantalla de Cardio llega después.
+// Acá queda que lo VIEJO no vuelve: ni cardio_sessions / cardio_routes ni MapTiler.)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,11 +18,9 @@ const OUT = 'core_outbox_v1', FAILED = 'core_outbox_failed_v1';
 const SAL = '0f0f0f0f-0000-4000-8000-000000000001';
 
 export default async function ({ base, t }){
-  // ===== Sin mapas en la web ni ubicación en la política (todavía) =====
+  // ===== Sin mapas en la web (todavía) ni MapTiler en la política =====
   t.ok(!/maptiler|worker-src/i.test(read('app/index.html')), 'CSP sin MapTiler ni worker-src');
-  const pol = read('privacidad/index.html');
-  t.has(pol, 'No usamos tu ubicación, tus contactos ni publicidad', 'la política dice que no se usa la ubicación');
-  t.ok(!/MapTiler|<h2>Ubicación|recorrido/.test(pol), 'la política no habla de mapas, ubicación ni recorridos');
+  t.ok(!/MapTiler/i.test(read('privacidad/index.html')), 'la política no nombra a MapTiler');
 
   // ===== Alumno con datos de la versión con GPS =====
   const weightPosts = [];
@@ -58,7 +58,7 @@ export default async function ({ base, t }){
 
   const badReq = () => reqs.filter(u => /cardio_sessions|cardio_routes|maptiler|maplibre|mapa-clave/i.test(u));
   t.eq(badReq(), [], 'al abrir la app no se piden salidas, recorridos, mapas ni la clave del mapa');
-  t.eq(pg.calls.filter(c => /cardio_/.test(c)), [], 'Supabase: nada de cardio_sessions / cardio_routes');
+  t.eq(pg.calls.filter(c => /cardio_sessions|cardio_routes/.test(c)), [], 'Supabase: nada de cardio_sessions / cardio_routes');
 
   // La cola: los pendientes de salidas se descartan sin mandarse; el peso sale igual.
   t.ok(weightPosts.some(b => /80\.5/.test(b || '')), 'el peso que estaba en la cola se manda: ' + JSON.stringify(weightPosts));
@@ -86,7 +86,7 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores de la página (alumno)');
   await pg.close();
 
-  // ===== Coach: la ficha del alumno sin la tarjeta de salidas =====
+  // ===== Coach: la ficha del alumno sin la tarjeta vieja de salidas (cardio_sessions) =====
   const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
   const A1 = '44444444-4444-4444-4444-444444444444';
   const row = { id: SAL, client_id: A1, performed_on: '2026-09-27', started_at: '2026-09-27T10:00:00Z', kind: 'correr', duration_s: 2693, distance_m: 7180, kcal: 517, avg_speed_kmh: 9.6, max_speed_kmh: 12.3, created_at: '2026-09-27T10:50:00Z' };
@@ -100,9 +100,8 @@ export default async function ({ base, t }){
   await cg.p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1500);
   const co = await text(cg.p, '#coachHost');
   t.has(co, 'Ana Alumna', 'coach: se abre la ficha');
-  t.ok(!/salida/i.test(co), 'coach: la ficha no muestra salidas: ' + co.slice(0, 200));
-  t.eq(await cg.p.$$eval('[data-coach="sec-open"][data-v="cardio"]', l => l.length), 0, 'coach: no hay tarjeta Cardio de salidas');
-  t.eq(cg.calls.filter(c => /cardio_/.test(c)), [], 'coach: no se piden las salidas del alumno');
+  t.eq(await cg.p.$$eval('[data-coach="sec-open"][data-v="cardio"]', l => l.length), 0, 'coach: no hay tarjeta Cardio vieja');
+  t.eq(cg.calls.filter(c => /cardio_sessions|cardio_routes/.test(c)), [], 'coach: no se piden las tablas viejas de salidas');
   t.eq(cg.errs, [], 'errores de la página (coach)');
   await cg.close();
 }

@@ -79,6 +79,8 @@ export const CoachState = {
   coachCkSel: null,
 
   coachSessSel: null,
+  // Salida de Cardio abierta en «Salidas a pie y en bici» (id, o null = la lista).
+  coachSalidaSel: null,
   // Mensaje que el coach está escribiendo en "Notificación al cliente" y si se está enviando.
   notifDraft: "",
   notifSending: false,

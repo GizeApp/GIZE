@@ -31,6 +31,10 @@ import { checkPaymentReturn } from '../screens/coach/plan.js';
 
 import { renderCoach } from '../screens/coach/index.js';
 
+import { runKeys } from '../ui/gps.js';
+
+import { TRACK_KEY } from './salidas.js';
+
 export const SB_URL = "https://wegptuzhsrwppbknqstf.supabase.co";
 
 export const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlZ3B0dXpoc3J3cHBia25xc3RmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDkxODgsImV4cCI6MjA5ODU4NTE4OH0.pWBes8juiNcCrFG377w_Ga9IQ4EE37p5AJwUpYs2k8Q";
@@ -133,11 +137,11 @@ function takePendingCode(){
 }
 // Al cerrar sesión o borrar la cuenta: lo que quedó de esa cuenta en el dispositivo además de
 // los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso,
-// avisos de los hábitos).
+// avisos de los hábitos, la salida de Cardio en curso y los recorridos guardados).
 export function clearAccountLeftovers(uid){
   clearHabitAlarms();
   try{
-    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, "gize_auth_link_used", "gize_rest_timer"].forEach(k=>localStorage.removeItem(k));
+    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, "gize_auth_link_used", "gize_rest_timer", TRACK_KEY].concat(runKeys()).forEach(k=>localStorage.removeItem(k));
     if(uid){ [OUTBOX_KEY, OUTBOX_FAILED_KEY].forEach(k=>{ const q=readQueue(k).filter(i=>i.uid!==uid); if(q.length) writeQueue(k,q); else localStorage.removeItem(k); }); }
   }catch(e){}
 }
@@ -736,8 +740,10 @@ export async function loadCloud(){
     // Todas las lecturas salen juntas (antes iban de a una y el arranque sumaba ~12 idas
     // y vueltas a Supabase); después se aplican en el mismo orden de siempre.
     const uid=State.cloudUser.id, sb=State.sb;
-    const [pr0, rt0, ws, ss, dl, ck, ci, bl, np, fe, cp, cq, fw] = await Promise.all([
-      sb.from("profiles").select("*").eq("id",uid).maybeSingle(),
+    // Una sola vez (una consulta de supabase-js sale de nuevo cada vez que se la espera).
+    const prof=Promise.resolve(sb.from("profiles").select("*").eq("id",uid).maybeSingle());
+    const [pr0, rt0, ws, ss, dl, ck, ci, bl, np, fe, cp, cq, fw, so] = await Promise.all([
+      prof,
       // Si el coach dejó programada una rutina que ya empezó, se aplica antes de leerla
       // (ver supabase/rutina-programada.sql). Si la función no existe todavía, sigue igual.
       sb.rpc("apply_due_routines").then(()=>0, ()=>0).then(()=>sb.from("routines").select("days, updated_at").eq("client_id",uid).maybeSingle()),
@@ -758,7 +764,11 @@ export async function loadCloud(){
       // las predeterminadas.
       sb.from("coach_questions").select("daily, checkin").maybeSingle(),
       // Calorías de los 7 días anteriores, para el promedio semanal de Comida.
-      sb.from("food_entries").select("log_date, kcal").eq("client_id",uid).gte("log_date",daysAgo(7)).lt("log_date",today())
+      sb.from("food_entries").select("log_date, kcal").eq("client_id",uid).gte("log_date",daysAgo(7)).lt("log_date",today()),
+      // Salidas de Cardio a pie / en bici (supabase/cardio-a-pie.sql), sin el recorrido: ese se
+      // pide al abrir una (fetchSalidaTrack). Si la tabla todavía no existe da error y quedan las
+      // del celular. Una cuenta de coach no las pide (no registra salidas).
+      prof.then(r=>(r && r.data && r.data.role==="coach") ? null : fetchAll(()=>sb.from("cardio_outings").select(SALIDA_COLS).eq("client_id",uid).order("started_at").order("id")), ()=>null)
     ]);
     const pr=sbOk(pr0);
     State.cloudProfile=pr.data||null;
@@ -825,6 +835,8 @@ export async function loadCloud(){
       // Variantes del día («en lugar de…»): del registro de cada día en la nube y de lo de hoy en el celular.
       markSubs(state.sessions, (!dl.error && Array.isArray(dl.data) ? dl.data : []).concat(todaySubs() ? [{log_date:today(), habits_done:{subs:todaySubs()}}] : []));
     }
+    if(so && !so.error && Array.isArray(so.data)){ _salidasNoTable=false; mergeSalidas(so.data); }
+    else if(so && so.error && noTable(so.error, "cardio_outings")) _salidasNoTable=true;
     // Las respuestas a preguntas propias del coach vienen en "answers"; las de siempre, en
     // sus columnas (que mandan si aparecen en los dos lados).
     if(!dl.error && Array.isArray(dl.data)){ state.daily={}; dl.data.forEach(r=>{ state.daily[r.log_date]=Object.assign({}, r.answers||{}, {steps:r.steps||"", comment:r.comment||"", soreness:r.soreness||"", performance:r.performance||"", motivation:r.motivation||"", hunger:r.hunger||"", fatigue:r.fatigue||"", sleep:r.sleep||""}); }); }
@@ -1172,6 +1184,8 @@ export function syncFootText(){
   if(!State.cloudUser) return "Se guarda solo en este dispositivo";
   if(!State.cloudReady && !State.cloudLoading) return "Sin conexión con tu cuenta: lo que cargues queda en este celular y se sube solo cuando vuelva la conexión";
   const n=pendingCount();
+  // Solo quedan salidas que esperan su tabla en la base: no es un problema de conexión.
+  if(n>0 && _salidasNoTable && myPending().every(i=>i.k==="salida" || i.k==="salidaDelete")) return SALIDAS_ESPERA;
   return n>0 ? (n+" pendiente"+(n>1?"s":"")+" de sincronizar · se envía solo cuando haya conexión") : "Sincronizado con tu cuenta";
 }
 
@@ -1273,7 +1287,29 @@ async function sendItem(it){
     const n=Number(adh), isNum=adh!=null && String(adh).trim()!=="" && Number.isInteger(n) && n>=1 && n<=10;
     if(!isNum && adh!=null && String(adh).trim()!=="" && !(typeof adh==="number" && isNaN(adh))) ans.adherence=adh;
     sbOk(await sb.from("checkins").upsert({client_id:uid, week_start:p.wk, answers:ans, adherence:isNum?n:null},{onConflict:"client_id,week_start"}));
+  } else if(it.k==="salida"){
+    // Salida de Cardio a pie / en bici: el resumen y el recorrido en una fila. Con el id del
+    // celular y ON CONFLICT DO NOTHING, reintentar no la duplica (una salida no se edita).
+    salidaTable(await sb.from("cardio_outings").upsert(salidaRow(p, uid),{onConflict:"id", ignoreDuplicates:true}));
+  } else if(it.k==="salidaDelete"){
+    salidaTable(await sb.from("cardio_outings").delete().eq("id",p.id).eq("client_id",uid));
   }
+}
+
+// Tabla de las salidas todavía sin crear (falta correr supabase/cardio-a-pie.sql): la salida
+// queda en la cola sin trabar lo demás (entrenos, comidas…) y sale cuando la tabla exista.
+// Mientras tanto el pie lo dice (syncFootText) y la pantalla puede avisarlo (salidasEnEspera).
+const noTable=(e, table)=>!!(e && (e.code==="PGRST205" || e.code==="42P01" || (String(e.message||"").includes(table) && /does not exist|schema cache/i.test(String(e.message||"")))));
+export const salidaNoTable = e => noTable(e, "cardio_outings");
+let _salidasNoTable=false;
+function salidaTable(r){
+  if(r && r.error && noTable(r.error, "cardio_outings")){
+    if(!_salidasNoTable) console.warn("Falta la tabla cardio_outings (supabase/cardio-a-pie.sql): las salidas quedan en la cola.");
+    _salidasNoTable=true;
+    const e=new Error("Falta la tabla cardio_outings"); e.later=true; throw e;
+  }
+  sbOk(r); _salidasNoTable=false;
+  return r;
 }
 
 // Errores que reintentar no arregla (dato inválido, permiso denegado, clave inexistente:
@@ -1323,13 +1359,15 @@ export function flushOutbox(){
     await null;
     try{
       if(!State.sb||!State.cloudUser) return false;
+      const later=new Set(); // salidas que esperan su tabla (ver salidaTable): se saltean esta vez
       for(;;){
-        const it=myPending()[0];
-        if(!it) return true;
+        const it=myPending().find(i=>!later.has(i.id));
+        if(!it) return !later.size;
         if(!(await sessionFor(it.uid))){ flushLater(); return false; }
         let bad=null;
         try{ await sendItem(it); }
         catch(e){
+          if(e && e.later){ later.add(it.id); continue; }
           console.error("outbox",it.k,e);
           if(!isPermanent(e)) return false;
           bad=e;
@@ -1340,6 +1378,7 @@ export function flushOutbox(){
         if(!(await sessionFor(it.uid))){ flushLater(); return false; }
         if(bad) writeQueue(OUTBOX_FAILED_KEY, readQueue(OUTBOX_FAILED_KEY).concat([Object.assign({error:String(bad&&bad.message||bad)}, it)]));
         writeQueue(OUTBOX_KEY, readQueue(OUTBOX_KEY).filter(i=>i.id!==it.id));
+        if(!bad && it.k==="salida" && it.p) salidaSubida(it.p.id);
       }
     } finally { _flushing=null; refreshSyncFoot(); }
   })();
@@ -1401,9 +1440,15 @@ function applyPending(){
       if(!p.del){ state.weights.push({id:newId(), date:p.date, kg:p.kg}); state.weights.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0); }
     } else if(it.k==="prefs"){
       applyPrefs(p); _lastPrefs=JSON.stringify(p);
+    } else if(it.k==="salida"){
+      if(!Array.isArray(state.salidas)) state.salidas=[];
+      if(p && p.id && !state.salidas.some(x=>x.id===p.id)) state.salidas.push(salidaLocal(p));
+    } else if(it.k==="salidaDelete"){
+      if(Array.isArray(state.salidas)) state.salidas=state.salidas.filter(x=>x.id!==(p&&p.id));
     }
   });
   state.sessions.sort((a,b)=>(a.ts||0)-(b.ts||0));
+  if(Array.isArray(state.salidas)) sortSalidas(state.salidas);
 }
 
 window.addEventListener("online", ()=>{ flushOutbox(); });
@@ -1478,6 +1523,97 @@ export async function cloudDeleteSession(cid){
   // El borrado también va por la cola: sin señal, antes solo se intentaba una vez y el
   // entreno volvía a aparecer al recargar desde la nube.
   return enqueueAndSend("sessionDelete", {id:cid}, cid);
+}
+
+// ===== Salidas de Cardio «A pie» / «En bici» (supabase/cardio-a-pie.sql) =====
+// Se guardan en state.salidas (el resumen, sin coordenadas: ver core/salidas.js) y van a la
+// nube por la misma cola que los entrenos, con el recorrido en el mismo pendiente ("salida").
+// La tabla es cardio_outings: los nombres de la versión anterior (cardio_sessions,
+// cardio_routes y los pendientes cardio / cardioDelete / cardioRoute) no se reusan.
+
+// Columnas para las listas (alumno y coach): todo menos el recorrido, que se pide de a una
+// salida al abrirla (fetchSalidaTrack).
+export const SALIDA_COLS = "id, mode, performed_on, started_at, ended_at, duration_s, moving_s, distance_m, kcal, avg_speed_kmh, max_speed_kmh, weight_kg, weight_default, gap_s, breakdown, segments, splits, points, created_at";
+
+// Texto del pie cuando lo único pendiente son salidas que esperan su tabla.
+export const SALIDAS_ESPERA = "Tus salidas quedan guardadas en este celular y se suben solas a tu cuenta apenas se pueda";
+// ¿La última vez la base dijo que todavía no tiene la tabla de las salidas?
+export const salidasEnEspera = () => _salidasNoTable;
+
+const intIn=(v,lo,hi)=>Math.min(hi, Math.max(lo, Math.round(Number(v)||0)));
+const numIn=(v,lo,hi)=>{ const n=Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n*100)/100)) : null; };
+const objOr=v=>(v && typeof v==="object" && !Array.isArray(v)) ? v : {};
+// Resumen guardado (core/cardiogps.js summarize) + recorrido → fila de cardio_outings, dentro de
+// los límites de la tabla (un dato fuera de rango la haría rechazar para siempre).
+function salidaRow(p, uid){
+  const kg=Number(p.kg), tr=p.track;
+  return {
+    id:p.id, client_id:uid, mode:p.mode==="bici"?"bici":"pie",
+    performed_on:p.date || ymd(new Date(p.startedAt)), started_at:p.startedAt, ended_at:p.endedAt||null,
+    duration_s:intIn(p.dur,1,86400), moving_s:intIn(p.moving,0,86400), distance_m:intIn(p.dist,0,1000000),
+    kcal:p.kcal==null ? null : intIn(p.kcal,0,20000), avg_speed_kmh:numIn(p.avg,0,200), max_speed_kmh:numIn(p.max,0,200),
+    weight_kg:(kg>=20 && kg<=400) ? Math.round(kg*10)/10 : null, weight_default:!!p.kgDefault, gap_s:intIn(p.gap,0,86400),
+    breakdown:objOr(p.breakdown), segments:Array.isArray(p.segments)?p.segments.slice(0,200):[], splits:Array.isArray(p.splits)?p.splits.slice(0,1000):[],
+    track:(typeof tr==="string" && tr.length>=3 && tr.length<=200000 && tr.slice(0,2)==="1;") ? tr : null,
+    points:p.points==null ? null : intIn(p.points,0,200000),
+  };
+}
+// Fila de cardio_outings (sin el recorrido) → salida como la guarda la app (cloud: ya está en la nube).
+export function salidaFromRow(r){
+  const n=v=>Number(v)||0;
+  return { id:r.id, mode:r.mode==="bici"?"bici":"pie", date:r.performed_on, startedAt:r.started_at, endedAt:r.ended_at||null,
+    dur:n(r.duration_s), moving:n(r.moving_s), dist:n(r.distance_m), kcal:r.kcal==null?null:n(r.kcal), avg:n(r.avg_speed_kmh), max:n(r.max_speed_kmh),
+    kg:r.weight_kg==null?null:n(r.weight_kg), kgDefault:!!r.weight_default, gap:n(r.gap_s), points:r.points==null?null:n(r.points),
+    breakdown:objOr(r.breakdown), segments:Array.isArray(r.segments)?r.segments:[], splits:Array.isArray(r.splits)?r.splits:[], cloud:true };
+}
+const salidaLocal=p=>{ const c=Object.assign({}, p); delete c.track; return c; };
+const salidaTs=s=>Date.parse(s && s.startedAt)||0;
+function sortSalidas(list){ return list.sort((a,b)=>salidaTs(a)-salidaTs(b)); }
+// Las de la nube + las del celular que la nube todavía no tiene (mismo id, sin duplicar) − las
+// que tienen el borrado pendiente. Una que ya estuvo en la nube (cloud) y ahora no está se
+// borró desde otro dispositivo.
+function mergeSalidas(rows){
+  const del=new Set(myPending().filter(i=>i.k==="salidaDelete" && i.p).map(i=>i.p.id));
+  const seen=new Set(rows.map(r=>r && r.id));
+  const out=rows.filter(r=>r && r.id && !del.has(r.id)).map(salidaFromRow);
+  (Array.isArray(state.salidas)?state.salidas:[]).forEach(l=>{ if(l && l.id && !seen.has(l.id) && !del.has(l.id) && !l.cloud) out.push(l); });
+  state.salidas=sortSalidas(out);
+}
+// Ya está en la nube: si después no aparece al leerla, es que se borró desde otro dispositivo.
+function salidaSubida(id){
+  const s=(Array.isArray(state.salidas)?state.salidas:[]).find(x=>x.id===id);
+  if(s && !s.cloud){ s.cloud=true; save(); }
+}
+
+// Una salida terminada (rec: summarize de core/cardiogps.js; track: encodeTrack, o null). La
+// última versión de la misma salida reemplaza a una anterior que todavía no salió.
+export function cloudSaveSalida(rec, track){
+  if(!rec || !rec.id) return Promise.resolve(true);
+  return enqueueAndSend("salida", Object.assign(salidaLocal(rec), {track:track||null}), rec.id);
+}
+// Borrar una salida. Si todavía no salió de la cola, se saca de ahí; el borrado igual se manda
+// (pudo estar saliendo justo ahora) y no hace nada si la fila no existe.
+export function cloudDeleteSalida(id){
+  if(!State.cloudUser || !id) return Promise.resolve(true);
+  writeQueue(OUTBOX_KEY, readQueue(OUTBOX_KEY).filter(i=>!(i.uid===State.cloudUser.id && i.k==="salida" && i.p && i.p.id===id)));
+  return enqueueAndSend("salidaDelete", {id:id}, id);
+}
+// ¿Esa salida todavía está en la cola (no llegó a la nube)?
+export function salidaPendiente(id){ return myPending().some(i=>i.k==="salida" && i.p && i.p.id===id); }
+// El recorrido de una salida que todavía no salió de la cola (o null).
+export function pendingSalidaTrack(id){
+  const it=myPending().filter(i=>i.k==="salida" && i.p && i.p.id===id).pop();
+  return it && typeof it.p.track==="string" ? it.p.track : null;
+}
+// El recorrido de una salida guardada en la nube (lo puede pedir el alumno o su coach: ver las
+// políticas de cardio_outings). Sin sesión, sin conexión, sin la tabla o sin recorrido: null.
+export async function fetchSalidaTrack(id){
+  if(!State.sb || !State.cloudUser || !id) return null;
+  try{
+    const r=await State.sb.from("cardio_outings").select("track").eq("id",id).maybeSingle();
+    if(r.error){ if(noTable(r.error, "cardio_outings")) _salidasNoTable=true; else console.error("recorrido", r.error); return null; }
+    return (r.data && typeof r.data.track==="string" && r.data.track) ? r.data.track : null;
+  }catch(e){ console.error("recorrido", e); return null; }
 }
 
 // Cartel "mail confirmado" al volver del link del mail. La app se arma por detrás

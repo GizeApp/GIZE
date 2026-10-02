@@ -112,10 +112,16 @@ if (!state.restPrefs || typeof state.restPrefs !== "object") state.restPrefs = {
 
 if (!Array.isArray(state.sessions)) state.sessions = [];
 
-// Las salidas con GPS de Cardio se sacaron de la app: si quedaron guardadas (state.cardio) o
-// quedó una salida en curso ("gize_cardio_run"), se descartan.
+// La versión anterior de las salidas con GPS se sacó de la app: si quedaron guardadas
+// (state.cardio) o quedó una salida en curso ("gize_cardio_run"), se descartan. Las de ahora
+// usan otros nombres (state.salidas, "gize_salida_v1…").
 if ("cardio" in state) delete state.cardio;
 try { localStorage.removeItem("gize_cardio_run"); } catch(e) {}
+
+// Salidas de Cardio «A pie» / «En bici» guardadas (core/salidas.js): solo el resumen, sin
+// coordenadas. El recorrido va aparte (caché de core/salidas.js y la nube), no acá: este estado
+// se escribe entero en cada save().
+if (!Array.isArray(state.salidas)) state.salidas = [];
 
 if (!state.daily || typeof state.daily !== "object") state.daily = {};
 

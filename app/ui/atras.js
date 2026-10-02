@@ -27,6 +27,7 @@ const CERRAR = [
   '#sheetHost [data-action$="-cancel"]',
   '#adminHost [data-adm="close"]',
   '[data-coach="wk-close"]',                     // coach: semana abierta del plan
+  '[data-coach="salida-close"]',                 // coach: una salida abierta → la lista de salidas
   '.form-back',                                  // «‹» de las secciones (Mi plan, meta, Progreso…)
   '[data-action="ci-close"]',                    // check-in semanal
   '[data-action="cfg-name-cancel"]',             // editar el nombre

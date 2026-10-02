@@ -1219,8 +1219,12 @@ document.body.addEventListener("click", async e => {
   if(a==="plsec-open"){ CoachState.coachPlanSec=b.dataset.v; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="plsec-close"){ CoachState.coachPlanSec=null; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="sec-open" && b.dataset.v==="chat"){ openCoachChat(CoachState.coachSel); return; }
-  if(a==="sec-open"){ CoachState.coachSec=b.dataset.v; renderCoach(); window.scrollTo(0,0); return; }
+  if(a==="sec-open"){ CoachState.coachSec=b.dataset.v; CoachState.coachSalidaSel=null; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="sec-close"){ CoachState.coachSec=null; renderCoach(); window.scrollTo(0,0); return; }
+  // Salidas a pie / en bici del alumno: abrir una (pide su recorrido; si la vez anterior no se
+  // pudo, prueba de nuevo) y volver a la lista.
+  if(a==="salida-open"){ const st=CoachState.coachData.salidaTracks; if(st && st[b.dataset.id]==="") delete st[b.dataset.id]; CoachState.coachSalidaSel=b.dataset.id; renderCoach(); window.scrollTo(0,0); return; }
+  if(a==="salida-close"){ CoachState.coachSalidaSel=null; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="edit-day"){ CoachState.coachEditDay=+b.dataset.i||0; renderCoach(); return; }
   if(a==="rt-tosave"){
     const nm=prompt("Nombre para guardar esta rutina en tu biblioteca:","");
