@@ -1,5 +1,5 @@
 // La rutina «Meso 2 · Microciclo 8» ya no se ofrece: ni para importar en «Mis rutinas» del
-// coach ni entre las rutinas armadas de ejemplo. «Importar PPL · 5 días» sigue.
+// coach ni entre las rutinas armadas de ejemplo. «PPL · 5 días» sigue (en «Importar rutina armada»).
 import { newPage, wait, text } from './lib.mjs';
 
 export default async function ({ base, t }){
@@ -11,10 +11,11 @@ export default async function ({ base, t }){
   } });
   await p.goto(base + '/app/'); await wait(3500);
   await p.click('[data-coach="view-tpls"]'); await wait(800);
+  await p.click('[data-coach="tpl-seed-open"]'); await wait(300);
   const txt = await text(p, '#coachHost');
   t.ok(!/Meso 2/.test(txt), 'no está «Importar Meso 2 · Microciclo 8»');
   t.ok(!(await p.$('[data-coach="tpl-seed"]')), 'no hay botón para importarla');
-  t.ok(/Importar PPL/.test(txt), 'sigue «Importar PPL · 5 días»');
+  t.ok(/PPL · 5 días/.test(txt), 'sigue «PPL · 5 días» para importar');
   const cat = await p.evaluate(async () => (await import('/app/core/rutinas-ejemplo.js')).CATALOGO.map(r => r.nombre));
   t.ok(!cat.some(n => /Meso 2/.test(n)), 'tampoco está entre las rutinas armadas de ejemplo: ' + cat.join(', '));
   t.eq(errs, [], 'errores de la página');

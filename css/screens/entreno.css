@@ -326,3 +326,6 @@ body:not(#_) :not(.ss-group) > .ex-collapsed:not(.ex-is-done) { border: 1.5px so
 .vp-eq { border:1px solid var(--gize-border); color:var(--gize-text-2); }
 .vp-own { background:var(--gize-text); color:var(--gize-bg); }
 body:not(#_) .var-pick.on { border-color:var(--gize-text); }
+/* Sin rutina todavía (cuenta nueva, sin coach): invitación a elegir una rutina armada. */
+.empty-pick { padding-bottom: 8px; }
+.empty-pick-btn { margin: 14px 0 0; font-size: var(--text-body); font-weight: 700; }

@@ -183,3 +183,6 @@
 .onb-routine b { display: block; font-size: 15px; }
 .onb-routine small { display: block; margin-top: 2px; color: var(--txt-2); font-size: 13px; }
 .onb-routine:hover, .onb-opt:hover { border-color: var(--txt-3); }
+/* Rutinas armadas: filtro por días por semana (Todas · 1 · 2 · 3 · 4 · 5). */
+.onb-nums-dias { grid-template-columns: 1.6fr repeat(5, 1fr); gap: 6px; }
+.onb-nums-dias .onb-num { height: 40px; font-size: 14px; }

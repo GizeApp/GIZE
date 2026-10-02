@@ -348,7 +348,9 @@ export function renderEntreno(){
         <button class="clear" data-action="clear">Limpiar</button>
       </div>
     </div>
-    ${cards || '<div class="empty">Día vacío.<br>' + (routineLocked()?'Tu coach todavía no te cargó ejercicios.':'Agregá ejercicios acá abajo 👇') + '</div>'}
+    ${cards || (!routineLocked() && !(state.days||[]).some(x=>(x.exercises||[]).length)
+      ? '<div class="empty empty-pick">Todavía no tenés rutina.<br>Elegí una rutina armada de 1 a 5 días por semana o agregá tus ejercicios acá abajo.<button class="wk-start empty-pick-btn" data-action="open-routines">Elegir una rutina armada</button></div>'
+      : '<div class="empty">Día vacío.<br>' + (routineLocked()?'Tu coach todavía no te cargó ejercicios.':'Agregá ejercicios acá abajo 👇') + '</div>')}
     ${routineLocked()?'':'<button class="add-ex" data-action="ex-add-open">+ Agregar ejercicio</button>'}
     ${renderDayNotes(d)}
     ${d.exercises.length ? '<button class="save-session" data-action="save-session">'+checkSvg+' Guardar entreno de hoy</button>' : ''}

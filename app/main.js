@@ -2,7 +2,7 @@ import './ui/errores.js';
 
 import './ui/keyboard.js';
 
-import { PPL_DAYS } from './core/data.js';
+import { CATALOGO, cargarCatalogo, copiarDias } from './core/rutinas-ejemplo.js';
 
 import { disablePush, enablePush, pushLogout } from './core/push.js';
 import { checkSetPR, forgetPR, playPR, suspiciousKg, PR_HOLD_MS } from './ui/festejo.js';
@@ -1063,11 +1063,14 @@ document.body.addEventListener("click", async e => {
     return;
   }
   if(a==="view-clients"){ CoachState.coachView="clients"; renderCoach(); return; }
-  if(a==="view-tpls"){ CoachState.coachView="tpls"; await loadTpls(); renderCoach(); return; }
-  if(a==="tpl-seed-ppl"){
-    const days=JSON.parse(JSON.stringify(PPL_DAYS||[]));
-    days.forEach(d=>{ d.id=uid(); (d.exercises||[]).forEach(ex=>{ ex.id=uid(); (ex.sets||[]).forEach(st=>{ st.id=uid(); st.kg=""; st.reps=""; st.done=false; }); }); });
-    CoachState.coachTplEdit={id:null, name:"PPL \u00b7 5 d\u00edas", days:days}; CoachState.coachEditDay=0; renderCoach(); return;
+  if(a==="view-tpls"){ CoachState.coachView="tpls"; await Promise.all([loadTpls(), cargarCatalogo().then(l=>{ CoachState.coachCat=l; }, ()=>{})]); renderCoach(); return; }
+  // Importar una rutina armada (las mismas que se ofrecen a quien entrena solo, ver
+  // core/rutinas-ejemplo.js) como rutina nueva del coach, para editarla y guardarla.
+  if(a==="tpl-seed-open"){ CoachState.coachSeedOpen=!CoachState.coachSeedOpen; renderCoach(); return; }
+  if(a==="tpl-seed-cat"){
+    const r=(CoachState.coachCat||CATALOGO).find(x=>x.id===b.dataset.id); if(!r) return;
+    CoachState.coachSeedOpen=false;
+    CoachState.coachTplEdit={id:null, name:r.nombre, days:copiarDias(r.days)}; CoachState.coachEditDay=0; renderCoach(); return;
   }
   if(a==="tpl-new"){ CoachState.coachTplEdit={id:null, name:"", days:[]}; CoachState.coachEditDay=0; renderCoach(); return; }
   if(a==="tpl-open"){ const t=CoachState.coachTpls.find(x=>x.id===b.dataset.id); if(t){ CoachState.coachTplEdit=JSON.parse(JSON.stringify(t)); CoachState.coachEditDay=0; renderCoach(); } return; }
