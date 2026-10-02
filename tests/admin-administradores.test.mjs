@@ -16,6 +16,7 @@ async function seguridad(base, handlers){
   }, handlers) });
   await r.p.route(/api\.github\.com/, x => x.abort()); // las copias de seguridad no importan acá
   await r.p.goto(base + '/admin/#seguridad'); await wait(1500);
+  await r.p.click('#sAdmB > summary'); // arranca plegado
   return r;
 }
 
