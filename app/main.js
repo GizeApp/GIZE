@@ -2,7 +2,7 @@ import './ui/errores.js';
 
 import './ui/keyboard.js';
 
-import { DEFAULT, PPL_DAYS } from './core/data.js';
+import { CATALOGO, cargarCatalogo, copiarDias } from './core/rutinas-ejemplo.js';
 
 import { disablePush, enablePush, pushLogout } from './core/push.js';
 import { checkSetPR, forgetPR, playPR, suspiciousKg, PR_HOLD_MS } from './ui/festejo.js';
@@ -34,7 +34,7 @@ import { renderCoachSettings } from './screens/coach/settings.js';
 // Registra los eventos del editor de preguntas del coach (efecto al importarlo).
 import './screens/coach/preguntas.js';
 
-import { coachPlanObj, cpApply, loadTpls, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
+import { coachPlanObj, cpApply, loadTpls, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
 import { mealAction, nutritionRow } from './screens/coach/planes.js';
@@ -52,6 +52,8 @@ import { ProgresoState, allSetsDone, exOccurrence, lastKgsUseful, lastPlan, last
 import { beep, initAudio } from './ui/audio.js';
 
 import { showSilkBg } from './ui/background.js';
+
+import { appAway, onAwayChange } from './ui/pausa.js';
 
 import { parseRest, renderRestBar, resumeRest, startRest, stopRest } from './ui/restbar.js';
 
@@ -97,6 +99,7 @@ document.addEventListener("click", e => {
 });
 
 export function renderApp(){
+  queueMicrotask(scheduleTick); // después de dibujar: ¿hay un reloj a la vista que actualizar?
   // Una cuenta de coach ve solo su panel: si algo pedía la pantalla del cliente, quedaba
   // dibujada debajo del panel (que es transparente) y se veían las dos encimadas.
   if(State.cloudProfile && State.cloudProfile.role==="coach"){ const v=document.getElementById("view"); if(v) v.innerHTML=""; renderCoach(); return; }
@@ -238,22 +241,48 @@ function goToSet(t){
   row.classList.remove("ss-next"); void row.offsetWidth; row.classList.add("ss-next");
 }
 
+// Reloj interno: actualiza el reloj del entreno («Entrenando hace…») y el cronómetro y el
+// temporizador de Cardio. Todo se muestra en segundos y sale de la hora guardada, así que no
+// hace falta un intervalo fijo cada 100 ms: se programa un solo setTimeout justo para cuando
+// cambia el próximo segundo (o termina el temporizador, para que suene en hora). Si no hay nada
+// corriendo a la vista no se programa nada (ahorro de batería); scheduleTick() lo vuelve a
+// armar después de cada renderApp y al volver de segundo plano.
+let tickTimer = null;
+const TICK_SLACK = 15; // ms de margen para caer ya del otro lado del segundo
+export function tickActive(){ return tickTimer != null; }
+export function scheduleTick(){
+  if (tickTimer != null){ clearTimeout(tickTimer); tickTimer = null; }
+  const now = Date.now(), waits = [];
+  const toNextSec = ms => 1000 - (((ms % 1000) + 1000) % 1000); // lo que falta para el próximo segundo entero
+  // El temporizador de Cardio corre aunque la app esté afuera: tiene que terminar (y sonar) a tiempo.
+  if (CardioState.tmRunning){ const rem = CardioState.tmEndTs - now; waits.push(rem <= 0 ? 0 : (rem % 1000) || 1000); }
+  if (!appAway()){
+    if (CardioState.swRunning && State.view==="cardio" && CardioState.cardioMode==="stopwatch") waits.push(toNextSec(CardioState.swAccum + (now - CardioState.swStartTs)));
+    if (State.view==="entreno" && state.wkStart && state.wkStart.ts && document.getElementById("wkTime")) waits.push(toNextSec(now - state.wkStart.ts));
+  }
+  if (!waits.length) return;
+  tickTimer = setTimeout(tick, Math.max(0, Math.min(...waits)) + TICK_SLACK);
+}
+
 export function tick(){
+  tickTimer = null;
   // Con la app en segundo plano no hay nada que pintar: solo importa que el temporizador de
   // cardio termine (y suene) a tiempo. El reloj del entreno y el cronómetro salen de la hora
   // guardada, así que se ponen al día solos al volver.
-  if (document.hidden && !CardioState.tmRunning) return;
-  const now = Date.now();
-  if (CardioState.tmRunning){
-    const rem = CardioState.tmEndTs - now;
-    if (rem <= 0){ CardioState.tmRunning=false; CardioState.tmRemainingMs=0; CardioState.tmFinished=true; beep(); if(State.view==="cardio") renderApp(); }
-    else { CardioState.tmRemainingMs = rem; if(State.view==="cardio" && CardioState.cardioMode==="timer") setRing(rem / CardioState.tmTarget, fmt(rem,true)); }
+  if (!(document.hidden && !CardioState.tmRunning)){
+    const now = Date.now();
+    if (CardioState.tmRunning){
+      const rem = CardioState.tmEndTs - now;
+      if (rem <= 0){ CardioState.tmRunning=false; CardioState.tmRemainingMs=0; CardioState.tmFinished=true; beep(); if(State.view==="cardio") renderApp(); }
+      else { CardioState.tmRemainingMs = rem; if(State.view==="cardio" && CardioState.cardioMode==="timer") setRing(rem / CardioState.tmTarget, fmt(rem,true)); }
+    }
+    if (State.view==="entreno"){ const w=document.getElementById("wkTime"); if(w){ const t=wkElapsedText(); if(w.textContent!==t) w.textContent=t; } }
+    if (CardioState.swRunning && State.view==="cardio" && CardioState.cardioMode==="stopwatch"){ const ms=CardioState.swAccum+(now-CardioState.swStartTs); setRing(swFrac(ms), fmt(ms)); }
   }
-  if (State.view==="entreno"){ const w=document.getElementById("wkTime"); if(w){ const t=wkElapsedText(); if(w.textContent!==t) w.textContent=t; } }
-  if (CardioState.swRunning && State.view==="cardio" && CardioState.cardioMode==="stopwatch"){ const ms=CardioState.swAccum+(now-CardioState.swStartTs); setRing(swFrac(ms), fmt(ms)); }
+  scheduleTick();
 }
-
-setInterval(tick, 100);
+// Al volver de segundo plano se pone al día en el acto; al irse, deja de programarse.
+onAwayChange(away => { if (away) scheduleTick(); else tick(); });
 
 document.body.addEventListener("input", async e => {
   const t = e.target, a = t.dataset.action; if(!a) return;
@@ -699,7 +728,6 @@ document.body.addEventListener("click", async e => {
 
   // Días
   if (a === "open-routines") { openRoutinePicker(); return; }
-  if (a === "load-default-routine") { if(confirm("Esto reemplaza tus días de rutina por el Meso 2 \u00b7 Microciclo 8 (Torso / Piernas / Pecho-Espalda-Hombro / Pierna-Brazo). No toca tus pesos, sesiones ni h\u00e1bitos. \u00bfSeguro?")){ state.days = JSON.parse(JSON.stringify(DEFAULT.days)); State.activeId = state.days[0].id; save(); renderApp(); } return; }
   if (a === "addday") { const nd={id:uid(),name:"Nuevo",subtitle:"",exercises:[]}; state.days.push(nd); State.activeId=nd.id; HabitosState.pendingFocusDay=true; save(); renderApp(); return; }
   if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(confirm("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); State.activeId=state.days[0].id; save(); renderApp(); } return; }
 
@@ -1067,16 +1095,14 @@ document.body.addEventListener("click", async e => {
   if(a==="view-clients"){ CoachState.coachView="clients"; renderCoach(); return; }
   // «Mis planes» y planes guardados (ver screens/coach/planes.js).
   if((a==="view-meals" || /^mpk?-/.test(a)) && await mealAction(a, b)) return;
-  if(a==="view-tpls"){ CoachState.coachView="tpls"; await loadTpls(); renderCoach(); return; }
-  if(a==="tpl-seed"){
-    const days=JSON.parse(JSON.stringify(DEFAULT.days||[]));
-    days.forEach(d=>{ d.id=uid(); (d.exercises||[]).forEach(ex=>{ ex.id=uid(); (ex.sets||[]).forEach(st=>{ st.id=uid(); st.kg=""; st.reps=""; st.done=false; }); }); });
-    CoachState.coachTplEdit={id:null, name:"Meso 2 \u00b7 Microciclo 8", days:days}; CoachState.coachEditDay=0; renderCoach(); return;
-  }
-  if(a==="tpl-seed-ppl"){
-    const days=JSON.parse(JSON.stringify(PPL_DAYS||[]));
-    days.forEach(d=>{ d.id=uid(); (d.exercises||[]).forEach(ex=>{ ex.id=uid(); (ex.sets||[]).forEach(st=>{ st.id=uid(); st.kg=""; st.reps=""; st.done=false; }); }); });
-    CoachState.coachTplEdit={id:null, name:"PPL \u00b7 5 d\u00edas", days:days}; CoachState.coachEditDay=0; renderCoach(); return;
+  if(a==="view-tpls"){ CoachState.coachView="tpls"; await Promise.all([loadTpls(), cargarCatalogo().then(l=>{ CoachState.coachCat=l; }, ()=>{})]); renderCoach(); return; }
+  // Importar una rutina armada (las mismas que se ofrecen a quien entrena solo, ver
+  // core/rutinas-ejemplo.js) como rutina nueva del coach, para editarla y guardarla.
+  if(a==="tpl-seed-open"){ CoachState.coachSeedOpen=!CoachState.coachSeedOpen; renderCoach(); return; }
+  if(a==="tpl-seed-cat"){
+    const r=(CoachState.coachCat||CATALOGO).find(x=>x.id===b.dataset.id); if(!r) return;
+    CoachState.coachSeedOpen=false;
+    CoachState.coachTplEdit={id:null, name:r.nombre, days:copiarDias(r.days)}; CoachState.coachEditDay=0; renderCoach(); return;
   }
   if(a==="tpl-new"){ CoachState.coachTplEdit={id:null, name:"", days:[]}; CoachState.coachEditDay=0; renderCoach(); return; }
   if(a==="tpl-open"){ const t=CoachState.coachTpls.find(x=>x.id===b.dataset.id); if(t){ CoachState.coachTplEdit=JSON.parse(JSON.stringify(t)); CoachState.coachEditDay=0; renderCoach(); } return; }
@@ -1110,9 +1136,28 @@ document.body.addEventListener("click", async e => {
   }
   // Rutina programada (ver supabase/rutina-programada.sql): usa el mismo editor que las rutinas
   // guardadas, con la fecha de inicio. Al volver o guardar se queda en la pestaña Rutina del alumno.
+  // Primero se elige desde qué arranca: una de «Mis rutinas» (puede ser distinta de la que tiene
+  // el alumno), la rutina actual o vacía. Las rutinas guardadas se copian como al aplicarlas:
+  // ids nuevos y sin pesos ni repeticiones cargados.
   if(a==="sched-new"){
     if(!CoachState.coachData) return;
-    CoachState.coachTplEdit={sched:true, id:null, name:"", starts_on:addDays(today(), 28), days:JSON.parse(JSON.stringify(CoachState.coachData.routine||[]))};
+    CoachState.coachSchedPicker={loading:true}; renderSchedPicker();
+    await loadTpls();
+    if(CoachState.coachSchedPicker){ CoachState.coachSchedPicker.loading=false; renderSchedPicker(); }
+    return;
+  }
+  if(a==="sp-cancel"){ closeSheet(()=>{ CoachState.coachSchedPicker=null; renderSchedPicker(); }, {host:"#applyMount", card:".cp-ccard", duration:150}); return; }
+  if(a==="sp-tpl" || a==="sp-copy" || a==="sp-empty"){
+    if(!CoachState.coachData || !CoachState.coachSchedPicker) return;
+    let name="", days=[];
+    if(a==="sp-tpl"){
+      const tpl=CoachState.coachTpls.find(t=>t.id===b.dataset.id); if(!tpl) return;
+      name=String(tpl.name||"").slice(0,80);
+      days=JSON.parse(JSON.stringify(tpl.days||[]));
+      days.forEach(d=>{ d.id=uid(); (d.exercises||[]).forEach(ex=>{ ex.id=uid(); (ex.sets||[]).forEach(s=>{ s.id=uid(); s.kg=""; s.reps=""; s.done=false; if("secs" in s) s.secs=""; }); }); });
+    } else if(a==="sp-copy"){ days=JSON.parse(JSON.stringify(CoachState.coachData.routine||[])); }
+    CoachState.coachSchedPicker=null; renderSchedPicker();
+    CoachState.coachTplEdit={sched:true, id:null, name:name, starts_on:addDays(today(), 28), days:days};
     CoachState.coachEditDay=0; renderCoach(); window.scrollTo(0,0); return;
   }
   if(a==="sched-open"){

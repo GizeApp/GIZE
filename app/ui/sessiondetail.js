@@ -108,7 +108,7 @@ export function renderSessionItem(se, opts){
   // has-acts: Editar/Borrar van arriba a la derecha y el detalle abierto usa todo el ancho.
   return '<div class="sess-item sess-det-wrap' + (rm ? ' has-acts' : '') + '">' +
     '<details class="sess-det"' + (opts.open ? ' open' : '') + '><summary class="sess-sum"><div class="sess-main">' +
-      '<div class="sess-date">' + fmtDate(se.date) + ' · ' + esc(se.day || "") + ' <span class="sess-n">(' + nSets + (nSets === 1 ? ' serie' : ' series') + ')</span></div>' +
+      '<div class="sess-date">' + fmtDate(se.date) + ' · ' + esc(se.day || "") + '</div>' +
       '<div class="sess-exs">' + esc(names) + '</div></div>' +
       '<span class="sess-chev" aria-hidden="true"></span></summary>' +
     '<div class="sess-body">' + totals + feedbackChips(se) + (opts.history ? exs.map(e => exerciseCompare(e, prevOf(e.name, se, opts.history))).join("") : exs.map(exerciseBlock).join("")) + '</div></details>' +

@@ -41,12 +41,20 @@ export const CoachState = {
 
   coachTpls: [],
 
+  // «Importar rutina armada» en Mis rutinas: lista abierta y las rutinas (core/rutinas-ejemplo.js).
+  coachSeedOpen: false,
+  coachCat: null,
+
   coachTplEdit: null,
 
   coachApplyPicker: null,
 
   // "Copiar a otro cliente": {loading?} mientras se copia; null = cerrado.
   coachCopyPicker: null,
+
+  // «+ Programar una rutina nueva»: elegir desde qué arranca (una de «Mis rutinas», la rutina
+  // actual o vacía). {loading?} mientras se cargan las rutinas; null = cerrado.
+  coachSchedPicker: null,
 
   tplsError: null,
 

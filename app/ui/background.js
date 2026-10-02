@@ -1,3 +1,5 @@
+import { appPaused, onAwayChange } from './pausa.js';
+
 export function auCreateNoise(){
   const permutation=[151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
   const p=new Array(512);
@@ -30,7 +32,6 @@ export function isLite(){ return document.documentElement.classList.contains("li
 // En la app de Android (html.android-app) el canvas va a 1 píxel por punto y 30 cuadros por
 // segundo: las partículas son finitas y suaves, no se nota, y la placa hace un cuarto del trabajo.
 function booting(){ return !!(document.body && document.body.classList.contains("is-booting")); }
-let appPaused = false;
 const androidApp = () => document.documentElement.classList.contains("android-app");
 const maxDpr = () => Math.min(window.devicePixelRatio || 1, androidApp() ? 1 : 2);
 const FRAME_MS = 1000/30 - 2; // 30 fps (con margen para que no saltee de a dos cuadros)
@@ -39,14 +40,47 @@ document.addEventListener("gize:splash-fin", () => { afterSplash.splice(0).forEa
 function whenSplashGone(fn){ if(booting()) { if(!afterSplash.includes(fn)) afterSplash.push(fn); } else fn(); }
 const whenActiveList = [];
 function whenActive(fn){ if(!whenActiveList.includes(fn)) whenActiveList.push(fn); }
-function activeAgain(){ if(!appPaused && document.visibilityState==="visible") whenActiveList.splice(0).forEach(fn => { try { fn(); } catch(e){} }); }
-document.addEventListener("visibilitychange", activeAgain);
-document.addEventListener("pause", () => { appPaused = true; document.documentElement.classList.add("app-pausada"); });
-document.addEventListener("resume", () => {
-  appPaused = false; document.documentElement.classList.remove("app-pausada");
+function activeAgain(){ if(!appPaused() && document.visibilityState==="visible") whenActiveList.splice(0).forEach(fn => { try { fn(); } catch(e){} }); }
+// "pause"/"resume" y visibilitychange los junta app/ui/pausa.js (Android y iPhone por igual;
+// también pone/saca html.app-pausada). Al volver, el fondo arranca de nuevo y cuenta como un toque.
+onAwayChange(away => {
+  if(away) return;
+  wakeBg();
   activeAgain();
   if(silkVisible && silkRafId==null) silkLoop();
 });
+
+// ---- Fondo quieto cuando nadie toca nada (ahorro de batería) ----
+// Si pasan IDLE_MS sin tocar, deslizar ni escribir, el fondo deja de redibujarse: el canvas
+// queda con el último cuadro (se ve igual, solo que quieto) y html.fondo-quieto frena la aurora
+// del login (css/ui/lite.css). Con el primer toque, scroll, tecla o cambio de pantalla sigue
+// desde donde estaba. Mientras se mueve se ve exactamente igual que antes.
+const IDLE_MS = 6000;
+let lastInput = Date.now(), still = false, idleTimer = null; // still: lo leen los loops de los canvas
+const whenWakeList = [];
+function whenWake(fn){ if(!whenWakeList.includes(fn)) whenWakeList.push(fn); }
+function checkIdle(){
+  idleTimer = null;
+  const left = IDLE_MS - (Date.now() - lastInput);
+  if(left > 0){ idleTimer = setTimeout(checkIdle, left + 20); return; } // se tocó en el medio: se espera lo que falta
+  still = true;
+  document.documentElement.classList.add("fondo-quieto");
+}
+// Cualquier toque/scroll/tecla: anota la hora (barato, va en cada evento) y, si estaba quieto, arranca.
+export function wakeBg(){
+  lastInput = Date.now();
+  if(still){
+    still = false;
+    document.documentElement.classList.remove("fondo-quieto");
+    whenWakeList.splice(0).forEach(fn => { try { fn(); } catch(e){} });
+  }
+  if(!idleTimer) idleTimer = setTimeout(checkIdle, IDLE_MS + 20);
+}
+["pointerdown", "touchstart", "keydown", "wheel"].forEach(ev => window.addEventListener(ev, wakeBg, { passive: true, capture: true }));
+document.addEventListener("scroll", wakeBg, { passive: true, capture: true }); // también el scroll de listas internas
+window.addEventListener("hashchange", wakeBg);
+document.addEventListener("gize:splash-fin", wakeBg); // el reloj de quietud arranca cuando se ve la app
+wakeBg();
 
 // Elección manual desde Ajustes: se guarda y le gana a la detección automática.
 export function setLite(on){
@@ -54,6 +88,9 @@ export function setLite(on){
   document.documentElement.classList.toggle("lite", on);
   if(on) silkClear(); else if(silkVisible && silkRafId==null) silkLoop();
 }
+
+// El modo liviano automático por batería baja (app/lite.js) entra y sale con la app abierta.
+document.addEventListener("gize:lite", () => { if(isLite()) silkClear(); else if(silkVisible && silkRafId==null) silkLoop(); });
 
 // Si nadie eligió a mano y el fondo va a menos de ~25 cuadros por segundo, el equipo no da:
 // se pasa solo a modo liviano y queda anotado para los próximos arranques.
@@ -110,7 +147,8 @@ export function startAuthParticles(canvas){
     if(stopped) return;
     raf=null;
     if(booting()){ whenSplashGone(frame); return; }
-    if(appPaused || document.visibilityState!=="visible"){ whenActive(frame); return; } // se retoma al volver
+    if(appPaused() || document.visibilityState!=="visible"){ whenActive(frame); return; } // se retoma al volver
+    if(still){ whenWake(frame); return; } // nadie toca nada: queda el último cuadro
     raf=requestAnimationFrame(frame);
     if(typeof t!=="number") t=performance.now();
     else if(androidApp() && t-last<FRAME_MS) return;
@@ -132,7 +170,7 @@ export function startAuthParticles(canvas){
     ctx.globalAlpha=1;
   }
   if(!reduceMotion && !isLite()) frame(); // respeta prefers-reduced-motion: sin loop, queda solo el fondo estático
-  function onResize(){ resize(); }
+  function onResize(){ resize(); if(still) wakeBg(); } // redimensionar borra el canvas: si estaba quieto, se redibuja
   window.addEventListener("resize", onResize);
   authParticlesHandle = { stop(){ stopped=true; if(raf) cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); } };
 }
@@ -198,6 +236,7 @@ export function silkResize(){
   silkCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   silkParticles = silkMakeParticles(w, h);
   if(silkReducedMotion() && silkRafId==null) silkLoop(); // el canvas se borra al redimensionar: redibuja el cuadro quieto
+  if(still) wakeBg(); // ídem con el fondo quieto por falta de uso: se redibuja y vuelve a moverse un rato
 }
 
 function silkClear(){
@@ -206,7 +245,8 @@ function silkClear(){
 
 let silkLast = 0;
 export function silkLoop(t){
-  if(document.visibilityState!=="visible" || appPaused || !silkVisible || isLite()){ silkRafId=null; perfLast=0; return; } // pausa real: no seguimos pidiendo frames
+  if(document.visibilityState!=="visible" || appPaused() || !silkVisible || isLite()){ silkRafId=null; perfLast=0; return; } // pausa real: no seguimos pidiendo frames
+  if(still && !silkReducedMotion()){ silkRafId=null; perfLast=0; whenWake(silkResume); return; } // quieto: queda el último cuadro
   if(booting()){ silkRafId=null; perfLast=0; whenSplashGone(silkResume); return; } // arranca cuando se va el splash
   silkRafId = requestAnimationFrame(silkLoop);
   if(!silkCtx || !silkCanvasEl || !silkNoise) return;
@@ -247,6 +287,7 @@ export function showSilkBg(){
   const c=document.getElementById("silkCanvas");
   if(c) c.classList.add("on");
   document.body.classList.add("silk-on");
+  wakeBg(); // cambio de pantalla: el fondo se mueve un rato
   if(silkRafId==null) silkLoop();
 }
 

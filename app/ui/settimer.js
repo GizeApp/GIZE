@@ -36,7 +36,7 @@ async function keepAwake(){ try{ if(navigator.wakeLock && T) T.lock = await navi
 export function stopTimer(){
   if(!T) return null;
   const t = T; T = null;
-  clearInterval(t.iv);
+  clearTimeout(t.iv);
   try{ if(t.lock) t.lock.release(); }catch(e){}
   document.querySelectorAll('.tmr.run').forEach(b => b.classList.remove("run"));
   const e = Math.round((Date.now() - t.start) / 1000);
@@ -47,19 +47,29 @@ export function startTimer(setId, target, onDone){
   stopTimer();
   initAudio(); // el primer toque del usuario habilita el sonido en iPhone
   T = { setId, start: Date.now(), target: +target || 0, onDone };
-  T.iv = setInterval(() => {
-    if(!T) return;
-    paint();
-    if(T.target && elapsed() >= T.target){
-      const cb = T.onDone, tg = T.target;
-      stopTimer();
-      beep();
-      if(cb) cb(tg);
-    }
-  }, 250);
   keepAwake();
   paint();
+  step();
+}
+
+// El botón muestra segundos: en vez de mirar cada 250 ms se programa un solo setTimeout para
+// cuando cambia el próximo segundo, o para el final exacto del objetivo (ahí suena). Menos
+// despertares del procesador = menos batería.
+function step(){
+  if(!T) return;
+  clearTimeout(T.iv);
+  const ms = Date.now() - T.start;
+  if(T.target && ms >= T.target * 1000){
+    const cb = T.onDone, tg = T.target;
+    stopTimer();
+    beep();
+    if(cb) cb(tg);
+    return;
+  }
+  let wait = 1000 - (ms % 1000);
+  if(T.target) wait = Math.min(wait, T.target * 1000 - ms);
+  T.iv = setTimeout(() => { paint(); step(); }, wait + 10);
 }
 
 // Si la app vuelve de segundo plano con el objetivo ya cumplido, termina enseguida.
-document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && T) paint(); });
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && T){ paint(); step(); } });

@@ -230,7 +230,13 @@
 
 .ap-dname { flex:1; font-weight:600; }
 
-.ap-meta { font-size:11px; color:var(--txt-3); margin-left:auto; }
+.ap-meta { font-size:11px; color:var(--txt-3); margin-left:auto; white-space:nowrap; }
+
+/* «Programar una rutina nueva»: títulos de cada grupo de opciones y lista con scroll propio. */
+.sp-sec { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--txt-3); margin:4px 0 8px; }
+.sp-list { max-height:38vh; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
+.sp-name { min-width:0; overflow-wrap:anywhere; }
+.sp-empty { margin-bottom:14px; }
 
 .ap-radio { flex:1; text-align:center; padding:9px; background:var(--card-2); border:1px solid var(--border); border-radius:5px; font-size:11px; color:var(--txt-3); cursor:pointer; font-weight:600; line-height:1.3; }
 

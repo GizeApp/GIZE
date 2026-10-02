@@ -358,6 +358,41 @@ export function renderApplyPicker(){
   el.innerHTML='<div class="cp-bg" data-coach="ap-cancel"></div><div class="cp-ccard">'+markup+'</div>';
 }
 
+// «+ Programar una rutina nueva»: desde qué arranca la rutina programada. Arriba, las rutinas
+// guardadas del coach (como en «Mis rutinas»: días y ejercicios); abajo, copiar la rutina que
+// tiene ahora el alumno o empezar vacía.
+export function schedPickerMarkup(){
+  const st=CoachState.coachSchedPicker||{};
+  const cur=(CoachState.coachData&&CoachState.coachData.routine)||[];
+  let opts;
+  if(st.loading){ opts='<div class="cal-hint">Cargando tus rutinas…</div>'; }
+  else if(CoachState.tplsError){ opts='<div class="cal-hint" style="color:var(--red)">No se pudieron cargar tus rutinas: <b>'+esc(CoachState.tplsError)+'</b></div>'; }
+  else if(!CoachState.coachTpls.length){ opts='<div class="cal-hint sp-empty">Todavía no tenés rutinas guardadas. Las creás en «Mis rutinas» y después las elegís acá sin cargarlas de nuevo.</div>'; }
+  else { opts='<div class="cp-clist sp-list">'+CoachState.coachTpls.map(t=>{
+    const nd=(t.days||[]).length, nex=(t.days||[]).reduce((n,d)=>n+((d.exercises||[]).length),0);
+    return '<div class="cp-copt" data-coach="sp-tpl" data-id="'+esc(t.id)+'"><span class="sp-name">'+esc(t.name||"Sin nombre")+'</span><span class="ap-meta">'+nd+' día'+(nd===1?'':'s')+' · '+nex+' ej.</span></div>';
+  }).join("")+'</div>'; }
+  const nd=cur.length;
+  return '<div class="cp-title">Programar una rutina nueva</div>'+
+    '<div class="cp-sub">Elegí desde qué la armás. Después la podés cambiar y elegir la fecha antes de guardarla.</div>'+
+    '<div class="sp-sec">Empezar desde una de mis rutinas</div>'+opts+
+    '<div class="sp-sec">O también</div>'+
+    '<div class="cp-clist">'+
+      (nd ? '<div class="cp-copt" data-coach="sp-copy"><span class="sp-name">Copiar la rutina actual</span><span class="ap-meta">'+nd+' día'+(nd===1?'':'s')+'</span></div>' : '')+
+      '<div class="cp-copt" data-coach="sp-empty"><span class="sp-name">Empezar vacía</span></div>'+
+    '</div>'+
+    '<button class="logout-btn" data-coach="sp-cancel">Cancelar</button>';
+}
+
+export function renderSchedPicker(){
+  let el=document.getElementById("applyMount");
+  if(!el){ el=document.createElement("div"); el.id="applyMount"; document.body.appendChild(el); }
+  if(!CoachState.coachSchedPicker){ el.innerHTML=""; return; }
+  const existing = el.querySelector(".cp-ccard");
+  if(existing){ existing.innerHTML = schedPickerMarkup(); return; }
+  el.innerHTML='<div class="cp-bg" data-coach="sp-cancel"></div><div class="cp-ccard">'+schedPickerMarkup()+'</div>';
+}
+
 // Un color estable por grupo muscular (swatch de la card de ejercicio): hashea el nombre
 // del grupo a una paleta fija.
 const EX_SWATCH_COLORS=["var(--blue)","var(--purple)","var(--pink)","var(--cyan)","var(--green-2)"];

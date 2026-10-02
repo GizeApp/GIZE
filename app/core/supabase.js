@@ -11,7 +11,7 @@ import { State, state, ensureDays } from './state.js';
 import { activeDeload } from './bloque.js';
 import { markSubs, mergeTodaySubs, todaySubs } from './variantes.js';
 
-import { DEFAULT } from './data.js';
+import { OLD_DEFAULT_NAMES } from './data.js';
 
 import { KEY, markRoutineSynced, migrateNames, routineHash, save } from './storage.js';
 
@@ -872,10 +872,12 @@ export async function loadCloud(){
 // ¿La rutina del celular le gana a la de la nube? Solo si cambió acá después de la última
 // sincronización y ese cambio es más nuevo que la última vez que se guardó en la nube.
 // Celulares con la versión anterior (sin huella guardada): gana lo local solo si la nube
-// todavía tiene la rutina de ejemplo con la que arranca toda cuenta y el celular no.
+// todavía tiene la rutina con la que arranca una cuenta y el celular no. La de arranque es
+// un día vacío (sin ningún ejercicio) o, en cuentas de antes, la rutina de ejemplo (Meso 2):
+// un celular nuevo, todavía vacío, nunca pisa la rutina que la cuenta ya tiene en la nube.
 function localRoutineWins(cloud){
   const exNames=days=>(days||[]).map(d=>(d.exercises||[]).map(e=>e.name).join(",")).join("|");
-  const isDefault=days=>exNames(days)===exNames(DEFAULT.days);
+  const isDefault=days=>!(days||[]).some(d=>(d.exercises||[]).length) || exNames(days)===OLD_DEFAULT_NAMES;
   if(!state.routineHash) return isDefault(cloud.days) && !isDefault(state.days);
   if(routineHash(state.days)===state.routineHash) return false;
   const cloudTs=Date.parse(cloud.updated_at)||0;

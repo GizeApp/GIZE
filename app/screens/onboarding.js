@@ -8,7 +8,7 @@ import { applyBrand, loadCloud } from '../core/supabase.js';
 
 import { save } from '../core/storage.js';
 
-import { CATALOGO, cargarCatalogo, copiarDias, diasDeEntreno, rutinasPara } from '../core/rutinas-ejemplo.js';
+import { CATALOGO, cargarCatalogo, copiarDias, diasDeEntreno, rutinasDeDias, rutinasPara } from '../core/rutinas-ejemplo.js';
 
 import { hideSilkBg, showSilkBg } from '../ui/background.js';
 
@@ -47,6 +47,8 @@ function mount(inner, label){
       '<div class="auth-brand-ic" aria-hidden="true"><img src="brand/logo/gize-marca-blanca.svg" alt=""></div>'+
       inner+
     '</div>';
+  // Cada paso arranca arriba de todo (el anterior pudo haber quedado corrido).
+  host.scrollTop=0; host.scrollLeft=0;
   // El foco va a la tarjeta (lector de pantalla) y no al campo: en el celular abriría el teclado.
   host.querySelector(".onb-card").focus({preventScroll:true});
   return host;
@@ -144,9 +146,11 @@ function showClientCode(msg, value){
 
 
 // ---- Cómo arrancar (entrena por su cuenta) ----
-// "Empezar vacío" arma sus días en 3 pasos cortos; "Elegir una rutina armada" pregunta el
-// sexo y muestra las rutinas que corresponden (ver core/rutinas-ejemplo.js).
-const OB = { start: "vacio", step: 1, days: 4, goal: "", first: "" };
+// "Elegir una rutina armada" (la recomendada) pregunta el sexo y muestra las rutinas que
+// corresponden, con un filtro por días por semana (ver core/rutinas-ejemplo.js); "Empezar
+// vacío" arma sus días en 3 pasos cortos.
+// dias: filtro de la lista de rutinas armadas (0 = todas).
+const OB = { start: "rutina", step: 1, days: 4, goal: "", first: "", dias: 0 };
 
 function option(val, sel, title, sub, attr){
   return '<button type="button" class="onb-opt'+(val===sel?' on':'')+'" data-onb="'+attr+'" data-v="'+val+'" aria-pressed="'+(val===sel)+'">'+
@@ -158,8 +162,8 @@ function showStartChoice(){
     '<h1 class="onb-title">¿Cómo querés arrancar?</h1>'+
     '<p class="onb-text">Vos elegís. Lo podés cambiar cuando quieras.</p>'+
     '<div class="onb-opts">'+
-      option("vacio", OB.start, "Empezar vacío", "Armás tus días de a poco. Recomendado.", "start")+
-      option("rutina", OB.start, "Elegir una rutina armada", "Te mostramos rutinas listas para usar. La podés cambiar después.", "start")+
+      option("rutina", OB.start, "Elegir una rutina armada", "Recomendado. Rutinas listas de 1 a 5 días por semana. La podés cambiar después.", "start")+
+      option("vacio", OB.start, "Empezar vacío", "Armás tus días de a poco.", "start")+
     '</div>'+
     '<button type="button" class="gize-btn auth-btn onb-main" data-onb="next">Continuar</button>',
     "Cómo arrancar");
@@ -229,26 +233,41 @@ function showSex(){
 }
 
 // Lista de rutinas. fromApp: abierta desde Entreno (se puede cerrar y pide confirmar si ya
-// tiene ejercicios cargados); si no, es el último paso de la bienvenida.
+// tiene ejercicios cargados); si no, es el último paso de la bienvenida. Arriba, los días por
+// semana (Todas · 1 · 2 · 3 · 4 · 5): la lista muestra solo las de esa cantidad de días.
 async function showRoutines(fromApp){
   // Si en la base todavía no hay ninguna para esta opción, las de ejemplo de la app.
-  let list=rutinasPara(state.sex, await cargarCatalogo());
-  if(!list.length) list=rutinasPara(state.sex, CATALOGO);
+  let all=rutinasPara(state.sex, await cargarCatalogo());
+  if(!all.length) all=rutinasPara(state.sex, CATALOGO);
+  const chip=(n, lbl)=>'<button type="button" class="onb-num onb-dias'+(n===OB.dias?' on':'')+'" data-onb="dias" data-v="'+n+'" aria-pressed="'+(n===OB.dias)+'">'+lbl+'</button>';
+  // Lista de las rutinas de los días elegidos (se redibuja sola al tocar otro número).
+  const listHtml=()=>{
+    const list=rutinasDeDias(all, OB.dias);
+    if(!list.length) return '<p class="onb-text">'+(all.length && OB.dias ? 'Todavía no hay rutinas de '+OB.dias+' día'+(OB.dias===1?'':'s')+' para esta opción. Probá con otra cantidad de días.' : 'Todavía no hay rutinas para esta opción.')+'</p>';
+    return list.map(r=>{ const n=diasDeEntreno(r); return '<button type="button" class="onb-routine" data-onb="pick" data-v="'+esc(r.id)+'"><b>'+esc(r.nombre)+'</b><small>'+n+' día'+(n===1?'':'s')+' por semana'+(r.desc?' · '+esc(r.desc):'')+'</small></button>'; }).join("");
+  };
   const host=mount(
     '<h1 class="onb-title">Elegí tu rutina</h1>'+
-    (list.length?'':'<p class="onb-text">Todavía no hay rutinas para esta opción.</p>')+
-    '<div class="onb-routines">'+list.map(r=>'<button type="button" class="onb-routine" data-onb="pick" data-v="'+esc(r.id)+'"><b>'+esc(r.nombre)+'</b><small>'+diasDeEntreno(r)+' días'+(r.desc?' · '+esc(r.desc):'')+'</small></button>').join("")+'</div>'+
+    '<p class="onb-text">¿Cuántos días por semana entrenás?</p>'+
+    '<div class="onb-nums onb-nums-dias" role="group" aria-label="Días por semana">'+chip(0,"Todas")+[1,2,3,4,5].map(n=>chip(n, String(n))).join("")+'</div>'+
+    '<div class="onb-routines" aria-live="polite">'+listHtml()+'</div>'+
     '<button type="button" class="onb-alt" data-onb="sexagain">Cambiar: '+(state.sex==="f"?"Mujer":state.sex==="m"?"Hombre":"Todas")+'</button>'+
     (fromApp?'<button type="button" class="onb-alt" data-onb="cancel">Cancelar</button>':'<button type="button" class="onb-alt" data-onb="empty">Prefiero arrancar vacío</button>'), "Elegí tu rutina");
   if(!host) return;
   host.onclick=e=>{
     const b=e.target.closest("[data-onb]"); if(!b) return;
     const a=b.dataset.onb;
+    if(a==="dias"){
+      OB.dias=+b.dataset.v||0;
+      host.querySelectorAll('[data-onb="dias"]').forEach(x=>{ const on=+x.dataset.v===OB.dias; x.classList.toggle("on", on); x.setAttribute("aria-pressed", String(on)); });
+      const box=host.querySelector(".onb-routines"); box.innerHTML=listHtml(); box.scrollTop=0;
+      return;
+    }
     if(a==="cancel"){ host.onclick=null; closeOverlay(); return; }
     if(a==="empty"){ host.onclick=null; startDays(1, ""); return; }
     if(a==="sexagain"){ host.onclick=null; if(fromApp) showSexFromApp(); else showSex(); return; }
     if(a==="pick"){
-      const r=list.find(x=>x.id===b.dataset.v); if(!r) return;
+      const r=all.find(x=>x.id===b.dataset.v); if(!r) return;
       const hasWork=(state.days||[]).some(d=>(d.exercises||[]).length);
       if(fromApp && hasWork && !confirm("Esto reemplaza tus días de rutina por «"+r.nombre+"». No toca tus pesos, entrenos ni hábitos. ¿Seguro?")) return;
       host.onclick=null;
