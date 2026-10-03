@@ -7,3 +7,5 @@ frames/
 stock/**/*.jpg
 stock/**/*.png
 __pycache__/
+# third-party display fonts for the off-guideline pieces: fetched by fonts/fetch-trend.sh, not redistributed
+fonts/trend/

@@ -34,7 +34,7 @@ for (const job of jobs) {
         fs.mkdirSync(outDir, { recursive: true });
         const frames = path.join(TMP, name), cues = path.join(TMP, `${name}.cues.json`), wav = path.join(TMP, `${name}.wav`);
         fs.rmSync(frames, { recursive: true, force: true });
-        const page = `${job.page}?fmt=${fmt}&hook=${hook}&cta=${cta}`;
+        const page = `${job.page}${job.page.includes("?") ? "&" : "?"}fmt=${fmt}&hook=${hook}&cta=${cta}`;
         const t0 = Date.now();
         console.log(`\n■ ${name}`);
         run('node', ['render.mjs', `--page=${page}`, `--dur=${job.dur}`, `--fps=${job.fps || 60}`, `--out=${frames}`, ...(job.audio ? [] : [`--cues=${cues}`]), '--quiet']);
