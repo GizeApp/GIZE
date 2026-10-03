@@ -419,8 +419,8 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 #authHost canvas.auth-particles { position:absolute; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
 
 .auth-in {
-    width:100%; background:var(--card-2); border:1px solid var(--border); border-radius:4px;
-    padding:14px 14px 14px 42px; color:var(--txt); font-size: var(--text-emphasis); transition: var(--transition-tap), box-shadow .18s;
+    width:100%; background:var(--card-2); border:1px solid var(--border); border-radius:14px;
+    padding:15px 14px 15px 44px; color:var(--txt); font-size: var(--text-emphasis); transition: var(--transition-tap), box-shadow .18s;
   }
 
 .auth-in:hover { border-color: var(--txt-3); }
@@ -442,7 +442,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 
 /* "Mantener la sesión iniciada": el checkbox real queda invisible encima de la caja
    dibujada, así sigue andando con teclado y lector de pantalla. */
-.auth-remember { position:relative; display:flex; align-items:center; gap:10px; align-self:flex-start; padding:4px 2px; color:var(--gize-text-2); font-size:var(--text-meta); font-weight:600; cursor:pointer; user-select:none; opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
+.auth-remember { position:relative; display:flex; align-items:center; gap:10px; padding:4px 2px; color:var(--gize-text-2); font-size:12.5px; font-weight:600; cursor:pointer; user-select:none; }
 .auth-remember input { position:absolute; opacity:0; width:1px; height:1px; margin:0; }
 .auth-remember-box { width:18px; height:18px; flex:none; border:1.5px solid rgba(255,255,255,.32); border-radius:5px; display:grid; place-items:center; transition:background .15s, border-color .15s; }
 .auth-remember-box::after { content:""; width:5px; height:9px; border:solid #fff; border-width:0 2px 2px 0; transform:translateY(-1px) rotate(45deg) scale(0); transition:transform .15s; }
@@ -453,7 +453,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 
 /* "Continuar con Google": variante oscura de las pautas de Google (fondo #131314, borde
    #8E918F), así no compite con el botón blanco de "Ingresar". */
-.auth-or { display:flex; align-items:center; gap:12px; margin:2px 0; color:var(--gize-text-2); font-size:var(--text-meta); opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
+.auth-or { display:flex; align-items:center; gap:12px; margin:0; color:var(--gize-text-2); font-size:var(--text-meta); opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
 .auth-or::before, .auth-or::after { content:""; flex:1; height:1px; background:rgba(255,255,255,.14); }
 .auth-google { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; min-height:48px; padding:0 16px; background:#131314; border:1px solid #8E918F; border-radius:999px; color:#E3E3E3; font:600 15px var(--gize-font); cursor:pointer; transition:background .15s, border-color .15s; opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
 .auth-google:hover { background:#1f1f21; border-color:#b4b7b5; }
@@ -482,14 +482,15 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 .auth-switch:hover { color:var(--gize-blue); text-decoration:underline; text-underline-offset:3px; }
 
 .auth-switch:focus-visible { outline:2px solid var(--green-2); outline-offset:2px; }
-.auth-forgot { align-self:flex-end; margin:-4px 2px 0 auto; background:none; border:none; padding:4px 2px; color:var(--gize-text-2); font:600 13px var(--gize-font); cursor:pointer; opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
+.auth-forgot { margin:0; background:none; border:none; padding:4px 2px; color:var(--gize-text-2); font:600 12.5px var(--gize-font); cursor:pointer; }
 .auth-forgot:hover { color:var(--gize-blue); text-decoration:underline; text-underline-offset:3px; }
 .auth-forgot:focus-visible { outline:2px solid var(--gize-blue); outline-offset:2px; border-radius:4px; }
-.auth-install { display:block; margin:14px auto 0; background:none; border:1px solid rgba(255,255,255,.18); border-radius:999px; padding:9px 18px; color:var(--gize-text-2); font:600 13px var(--gize-font); cursor:pointer; opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
-.auth-install:hover { color:var(--gize-text); border-color:rgba(255,255,255,.34); }
+.auth-install { display:flex; align-items:center; justify-content:center; gap:7px; margin:6px auto 0; background:none; border:none; padding:8px 12px; color:var(--gize-text-2); font:600 12.5px var(--gize-font); cursor:pointer; opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
+.auth-install svg { width:15px; height:15px; flex:none; }
+.auth-install:hover { color:var(--gize-text); }
 
 @media (prefers-reduced-motion: reduce) {
-    .auth-card, .auth-brand-ic, .auth-logo, .auth-sub, .auth-field, .auth-btn, .auth-remember, .auth-or, .auth-apple, .auth-google, .auth-google-gis, .auth-switch, .auth-forgot, .auth-msg { animation:none !important; opacity:1 !important; transform:none !important; }
+    .auth-card, .auth-brand-ic, .auth-logo, .auth-sub, .auth-head, .auth-tabs, .auth-row, .auth-field, .auth-btn, .auth-remember, .auth-or, .auth-apple, .auth-google, .auth-google-gis, .auth-switch, .auth-forgot, .auth-msg { animation:none !important; opacity:1 !important; transform:none !important; }
   }
 
 .logout-btn { display:block; width:100%; margin:24px auto 0; background:none; border:1px solid var(--border); color:var(--txt-2); font-size: var(--text-meta); padding:11px; border-radius:4px; cursor:pointer; }
