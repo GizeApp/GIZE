@@ -409,8 +409,8 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
      compartidos con silk-on (ver comentario en #silkCanvas), tarjeta opaca con los mismos
      tokens --card/--border/--txt* que usa cualquier card en modo oscuro, radio 4px. ===== */
 #authHost {
-    display:none; position:fixed; inset:0; z-index:200; overflow:hidden;
-    align-items:center; justify-content:center; padding:24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+    display:none; position:fixed; inset:0; z-index:200; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:none;
+    align-items:flex-start; justify-content:center; padding:calc(24px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
     background: var(--gize-bg); /* el color lo pone la aurora (.auth-aurora), no un degradé azul */
     --card: var(--gize-surface); --card-2: var(--gize-surface-2); --border: var(--gize-border);
     --txt: var(--gize-text); --txt-2: var(--gize-text-2); --txt-3: var(--gize-text-2); --glow: color-mix(in srgb, var(--gize-blue) 22%, transparent);
