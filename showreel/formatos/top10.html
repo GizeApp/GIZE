@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Top 10 señales de que vas en serio</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* "Top 10 señales de que vas en serio con el gym" · 18 s, 110 BPM, 9:16 or 4:5. The ranking template: ten empty
+   slots fill from 10 up, one every two beats, each with a sweep, a slide and its emoji bouncing in, a giant ghost
+   number behind; at #1 the music drops to a drumroll, the camera pushes in on «???», and it lands: «Tu rutina está
+   en GIZE», gold, confetti, then the end card. */
+import {C,RGB,E,clamp,lerp,prog,glow,rr,txt,tw,F,hash,createReel,rgbLine,rgbRing,fitSize} from '../lib/engine.js';
+import {endcard,endcardBg,endcardCues} from '../lib/endcard.js';
+import {kOf,pop,confetti} from '../trends/kit.js';
+
+const BT=60/110,STEP=2*BT,T0=1.5,T1=T0+9*STEP,T_REV=T1+1.35,T_END=T_REV+1.75,DUR=T_END+4;
+const R=[['Tu rutina está en GIZE',''],['Tenés una racha de 12 días','🔥'],['Tu coach te corrige con audios','🎙️'],['Sabés cuánto levantaste la vez pasada','📈'],
+  ['Te dormís temprano para rendir','😴'],['Llevás la comida en tuppers','🍱'],['Te ofendés si te ocupan la máquina','😤'],['Sabés qué día es de piernas sin mirar','🦵'],
+  ['Tu playlist dura lo que dura el entreno','🎧'],['Tenés zapatillas solo para entrenar','👟']];
+const revT=r=>r>1?T0+(10-r)*STEP:T_REV;
+const MEDAL={1:'#FFC940',2:'#D5DCE6',3:'#E39A62'};
+
+function geo(L){const k=kOf(L),y0=L.safe.top+(L.fmt==='4x5'?220:250)*k,bottom=L.safe.bottom-30*k,rowH=(bottom-y0)/10;return{k,y0,rowH,x0:L.safe.left+4,x1:L.W-L.safe.left-4};}
+function row(c,L,G,r,t){const k=G.k,y=G.y0+(r-1)*G.rowH,bs=G.rowH*0.72,by=y+(G.rowH-bs)/2,tx=G.x0+bs+26*k,[s,em]=R[r-1],t0=revT(r),u=t-t0,med=MEDAL[r];
+  // the badge
+  const on=u>=0,bp=on?lerp(1.3,1,E.outBack(clamp(u/0.3))):1;c.save();c.translate(G.x0+bs/2,by+bs/2);c.scale(bp,bp);
+  if(med){c.fillStyle=med;c.globalAlpha=on?1:0.45;rr(c,-bs/2,-bs/2,bs,bs,16*k);c.fill();c.globalAlpha=1;txt(c,String(r),0,bs*0.19,900,bs*0.56,'#0B0D11','center');}
+  else{c.fillStyle='#14171D';rr(c,-bs/2,-bs/2,bs,bs,16*k);c.fill();c.strokeStyle=on?rgbRing(c,0,0,t+r):'rgba(255,255,255,0.14)';c.lineWidth=2.5;c.stroke();txt(c,String(r),0,bs*0.19,900,bs*0.5,on?'#fff':C.text2,'center');}
+  c.restore();
+  if(!on){if(r===1&&t>=T1-0.1){const q=0.6+0.4*Math.sin(t*22);c.globalAlpha=q;for(let j=0;j<3;j++)txt(c,'?',tx+j*44*k+Math.sin(t*30+j*2)*3*k,y+G.rowH/2+20*k,900,58*k,'#fff');c.globalAlpha=1;}
+    else{c.fillStyle='rgba(255,255,255,0.07)';c.fillRect(tx,y+G.rowH/2,G.x1-tx,3);}return;}
+  // sweep, slide, emoji bounce
+  const sw=E.outExpo(clamp(u/0.28)),sa=0.42*(1-clamp((u-0.2)/0.6));if(sa>0){c.save();c.globalAlpha=sa;c.fillStyle=r===1?'#FFC940':rgbLine(c,tx,0,G.x1,0);rr(c,tx-14*k,y+4*k,(G.x1-tx+14*k)*sw,G.rowH-8*k,14*k);c.fill();c.restore();}
+  const px=fitSize(s,700,G.x1-tx-(em?70*k:60*k),(r===1?46:42)*k,26),e=E.outExpo(clamp(u/0.35)),ty=y+G.rowH/2+px*0.36;
+  c.save();c.globalAlpha=clamp(u/0.12);txt(c,s,tx+(1-e)*220*k,ty,r===1?900:700,px,r===1?'#FFC940':'#fff');c.restore();
+  const ex=tx+tw(s,r===1?900:700,px)+16*k+(1-e)*220*k,es=lerp(2.6,1,E.outBack(clamp((u-0.1)/0.4)));
+  if(r===1){if(u>0.1){const ob=24*k*es;GizeOrb.ball(c,ex+ob,y+G.rowH/2,ob,{k:2});}}
+  else if(u>0.08){c.save();c.translate(ex+22*k,y+G.rowH/2);c.scale(es,es);c.rotate((1-clamp((u-0.1)/0.4))*0.6);txt(c,em,0,px*0.36,400,px,'#fff','center');c.restore();}}
+
+createReel({dur:DUR,
+  hits:[...[10,9,8,7,6,5,4,3,2].map(r=>[revT(r),4,0.008]),[T_REV,16,0.04],[T_END+0.9375,4,0.01]],fast:[[T1-0.05,T1+0.3],[T_REV-0.05,T_REV+0.45]],bloom:t=>t>=T_REV&&t<T_END?0.45:0.28,vignette:()=>0.34,
+  draw(c,t,L,P){const G=geo(L),k=G.k;c.fillStyle='#07080B';c.fillRect(0,0,L.W,L.H);glow(c,L.W*0.12,L.H*0.15,L.H*0.6,RGB.purple,0.2);glow(c,L.W*0.92,L.H*0.85,L.H*0.6,RGB.blue,0.18);
+    if(t>=T_REV)glow(c,L.CX,G.y0,L.H*0.8,RGB.gold,0.35*Math.exp(-(t-T_REV)*0.8));
+    // the camera: a nudge toward each new row, a push into #1 for the drumroll
+    let z=1,fy=L.sc;for(let r=10;r>=2;r--){const u=t-revT(r);if(u>0&&u<STEP){z+=0.035*Math.sin(Math.PI*u/STEP);fy=G.y0+(r-0.5)*G.rowH;}}
+    const p1=E.inOutCubic(clamp((t-T1)/1.3))*(1-E.inOutCubic(clamp((t-T_REV-0.5)/0.8)));const fx=lerp(L.CX,G.x0,p1);if(p1>0){z=lerp(z,1.22,p1);fy=lerp(fy,G.y0+0.5*G.rowH,p1);}
+    c.save();c.translate(fx,fy);c.scale(z,z);c.translate(-fx,-fy);
+    // the ghost number
+    let cur=null;for(let r=10;r>=1;r--)if(t>=revT(r)-(r===1?1.35:0))cur=r;if(cur){const u=t-(cur===1?T1:revT(cur)),s=lerp(1.25,1,E.outCubic(clamp(u/0.4)));c.save();c.translate(L.CX+120*k,L.sc+120*k);c.scale(s,s);c.font=F(900,880*k);c.textAlign='center';
+      c.globalAlpha=cur===1&&t>=T_REV?0.14:0.07;c.fillStyle=cur===1&&t>=T_REV?'#FFC940':rgbLine(c,-300*k,0,300*k,0);c.fillText(String(cur),0,300*k);c.restore();}
+    // the title
+    const ta=E.outCubic(clamp(t/0.4));c.save();c.globalAlpha=ta;const ty=L.safe.top+(L.fmt==='4x5'?60:80)*k;txt(c,'Top 10 señales de que',L.CX,ty,700,44*k,C.text2,'center');
+    txt(c,'vas en serio con el gym 🏋️',L.CX,ty+78*k,900,fitSize('vas en serio con el gym 🏋️',900,L.W-120,70*k),'#fff','center');c.fillStyle=rgbLine(c,L.CX-260*k,0,L.CX+260*k,0);c.fillRect(L.CX-260*k*E.outExpo(clamp((t-0.3)/0.6)),ty+108*k,520*k*E.outExpo(clamp((t-0.3)/0.6)),6*k);c.restore();
+    for(let r=1;r<=10;r++){c.save();c.globalAlpha=E.outCubic(clamp((t-0.25-(10-r)*0.04)/0.3));if(p1>0&&r>1)c.globalAlpha*=1-0.6*p1;row(c,L,G,r,t);c.restore();}
+    c.restore();
+    confetti(c,t,T_REV+0.05,L.CX,G.y0+G.rowH*0.5,{n:110,spread:0.95});
+    if(t>=T_END-0.25){endcardBg(c,t,T_END,L,E.outCubic(prog(t,T_END-0.25,T_END+0.15)));endcard(c,t,T_END,L,{cta:P.cta});}},
+  cues(L){const q=[{t:0,s:'groove',t1:T1,bpm:110,chords:[[0,'Am'],[4*BT,'F'],[8*BT,'C'],[12*BT,'G'],[16*BT,'Am'],[20*BT,'F']],parts:['kick','clap','hat','bass','arp']},{t:0.05,s:'whoosh',d:0.4,f0:400,f1:2600,g:0.4}];
+    [10,9,8,7,6,5,4,3,2].forEach((r,i)=>{const t0=revT(r);q.push({t:t0-0.12,s:'whoosh',d:0.15,f0:3000,f1:500,g:0.3},{t:t0,s:'pop'},{t:t0+0.1,s:'blip',f0:600+i*80,f1:1000+i*80,d:0.07,g:0.3});});
+    for(let i=0;i<22;i++){const u=i/22;q.push({t:T1+1.3*(1-Math.pow(1-u,1.6)),s:'tick',hi:i%2===0});}
+    q.push({t:T1,s:'sub',gain:0.5},{t:T1+0.3,s:'rise',d:1.05},{t:T_REV-0.35,s:'revcrash',d:0.35},{t:T_REV,s:'hit'},{t:T_REV,s:'pr'},{t:T_REV+0.05,s:'glass',g:0.5},
+      {t:T_REV,s:'groove',t1:T_END-0.05,bpm:110,chords:[[T_REV,'C'],[T_REV+4*BT,'G']],parts:['kick','clap','hat','bass','arp']});
+    return[...q,...endcardCues(L,T_END)];},
+});
+</script></body></html>

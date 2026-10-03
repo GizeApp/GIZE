@@ -1,0 +1,7 @@
+[
+  {"id": "gize-checklist-pre-entreno", "page": "showreel/formatos/checklist.html", "dur": 16.1, "formats": ["9x16", "4x5"], "out": "stock/21-formatos", "cover": 6.6},
+  {"id": "gize-top10-vas-en-serio", "page": "showreel/formatos/top10.html", "dur": 18.42, "formats": ["9x16", "4x5"], "out": "stock/21-formatos", "cover": 13.2},
+  {"id": "gize-malo-bueno-excelente", "page": "showreel/formatos/malo-bueno-excelente.html", "dur": 19.1, "formats": ["9x16", "4x5"], "out": "stock/21-formatos", "cover": 4.6},
+  {"id": "gize-entrevista-planilla", "page": "showreel/formatos/entrevista.html", "dur": 26.83, "formats": ["9x16", "4x5"], "out": "stock/21-formatos", "cover": 3.6},
+  {"id": "gize-nadie-te-ve", "page": "showreel/formatos/cine.html", "dur": 27.4, "formats": ["9x16", "4x5"], "out": "stock/21-formatos", "cover": 2.4}
+]

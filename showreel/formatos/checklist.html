@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Checklist pre-entreno</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* "Checklist pre-entreno ✅" · 16 s, 120 BPM, 9:16 or 4:5. Seven items tick one per beat-and-a-half with a rising
+   note each (the app ones carry an «en GIZE» chip); the eighth, «Ganas de ir 🫠», refuses the tap twice, the music
+   drops out ("Esta no te la podemos tildar 😅 / Esa la ponés vos."), then it ticks, LISTO stamps the card and the
+   end card. */
+import {C,RGB,E,clamp,lerp,prog,glow,rr,txt,tw,F,hash,createReel,riseWords,rgbLine,rgbRing,tick,tap,fitSize} from '../lib/engine.js';
+import {endcard,endcardBg,endcardCues} from '../lib/endcard.js';
+import {kOf,pop,confetti} from '../trends/kit.js';
+
+const BT=0.5,T0=1.35,STEP=0.82,N=7,T_TRY=T0+N*STEP+0.3,T_TRY2=T_TRY+0.55,T_MSG=T_TRY+0.25,T_MSG2=T_TRY+1.35,T_YES=T_TRY+2.6,T_STAMP=T_YES+0.5,T_END=T_YES+2.1,DUR=T_END+4;
+const IT=[['Dormí 7 horas 😴'],['Agua en el bolso 💧'],['Playlist lista 🎧'],['Rutina del día cargada',1],['Sé cuánto levanté la vez pasada',1],
+  ['Audio del coach escuchado',1],['Check-in de la semana hecho',1],['Ganas de ir 🫠']];
+const tickT=i=>i<N?T0+i*STEP:T_YES;
+
+function geo(L){const k=kOf(L),w=Math.min(L.W-80,960*k),headH=220*k,rowH=110*k,h=headH+IT.length*rowH+30*k;return{k,w,x:L.CX-w/2,y:L.sc-h/2,h,headH,rowH};}
+const boxAt=(G,i)=>{const s=64*G.k,y=G.y+G.headH+i*G.rowH;return{x:G.x+40*G.k,y:y+(G.rowH-s)/2,s};};
+function burst(c,x,y,t,t0,col,R){const u=t-t0;if(u<0||u>0.5)return;const e=E.outCubic(u/0.5);c.save();c.strokeStyle=col;c.globalAlpha=1-e;c.lineWidth=5*(1-e)+1;c.beginPath();c.arc(x,y,R*(0.4+e),0,7);c.stroke();
+  c.fillStyle=col;for(let i=0;i<10;i++){const a=i/10*Math.PI*2+0.3,r=R*(0.5+0.9*e);c.fillRect(x+Math.cos(a)*r-4,y+Math.sin(a)*r-4,8,8);}c.restore();}
+// the last box shakes "no" on each tap that doesn't take
+const shake=(t)=>{let d=0;for(const t0 of[T_TRY,T_TRY2]){const u=t-t0;if(u>0&&u<0.5)d+=Math.sin(u*55)*Math.exp(-u*9);}return d;};
+
+function row(c,G,i,t){const k=G.k,[s,app]=IT[i],ti=tickT(i),y=G.y+G.headH+i*G.rowH,a=E.outCubic(clamp((t-0.35-i*0.06)/0.35));if(a<=0)return;
+  const B=boxAt(G,i),dx=(1-a)*80*k+(i===N?shake(t)*16*k:0),done=t>=ti,u=clamp((t-ti)/0.16),st=E.outCubic(clamp((t-ti-0.08)/0.28));
+  c.save();c.globalAlpha=a;c.translate(dx,0);
+  if(i>0){c.fillStyle='rgba(255,255,255,0.06)';c.fillRect(G.x+40*k,y,G.w-80*k,2);}
+  // the box
+  c.save();c.translate(B.x+B.s/2,B.y+B.s/2);const sc=done?lerp(1.25,1,E.outBack(clamp((t-ti)/0.3))):1;c.scale(sc,sc);
+  if(done){c.fillStyle=rgbLine(c,-B.s/2,0,B.s/2,0);rr(c,-B.s/2,-B.s/2,B.s,B.s,16*k);c.fill();c.save();c.beginPath();c.rect(-B.s/2,-B.s/2,B.s*u,B.s);c.clip();tick(c,0,0,30*k,'#000',7*k);c.restore();}
+  else{c.strokeStyle=i===N&&t>T_TRY-0.1?'rgba(255,255,255,0.75)':'rgba(255,255,255,0.35)';c.lineWidth=3.5*k;rr(c,-B.s/2,-B.s/2,B.s,B.s,16*k);c.stroke();}
+  c.restore();
+  // label, struck through once ticked; the app ones carry a chip
+  const chipW=app?tw('en GIZE',700,26*k)+64*k:0,tx=B.x+B.s+30*k,maxW=G.x+G.w-40*k-(app?chipW+24*k:0)-tx,px=fitSize(s,600,maxW,40*k),ty=y+G.rowH/2+px*0.36;
+  txt(c,s,tx,ty,600,px,done&&i<N?`rgba(143,152,166,${lerp(1,0.85,st)})`:'#fff');
+  if(done&&i<N){c.fillStyle='rgba(255,255,255,0.7)';c.fillRect(tx,y+G.rowH/2-2*k,tw(s,600,px)*st,3.5*k);}
+  if(app){const cx=G.x+G.w-40*k-chipW,cy=y+G.rowH/2-24*k,ca=done?1:0.55;c.globalAlpha=a*ca;c.fillStyle='rgba(37,232,200,0.12)';rr(c,cx,cy,chipW,48*k,24*k);c.fill();c.strokeStyle=C.teal;c.lineWidth=1.5;c.stroke();
+    GizeOrb.ball(c,cx+24*k,cy+24*k,8*k,{k:1.2});txt(c,'en GIZE',cx+42*k,cy+33*k,700,26*k,C.teal);}
+  c.restore();
+  burst(c,B.x+B.s/2,B.y+B.s/2,t,ti,i===N?C.gold:[C.blue,C.purple,C.pink,C.teal][i%4],70*k);}
+
+function card(c,L,G,t){const k=G.k,n=IT.filter((_,i)=>t>=tickT(i)).length,a=E.outCubic(clamp(t/0.4)),s=lerp(0.94,1,a);
+  c.save();c.globalAlpha=a;c.translate(L.CX,L.sc);c.scale(s,s);c.translate(-L.CX,-L.sc);
+  c.fillStyle='#0B0D11';rr(c,G.x,G.y,G.w,G.h,40*k);c.fill();c.strokeStyle=rgbRing(c,L.CX,L.sc,t*0.5);c.lineWidth=3;rr(c,G.x,G.y,G.w,G.h,40*k);c.stroke();
+  txt(c,'Checklist pre-entreno ✅',G.x+40*k,G.y+92*k,900,fitSize('Checklist pre-entreno ✅',900,G.w-260*k,62*k),'#fff');txt(c,'Martes · día de piernas 🦵',G.x+40*k,G.y+142*k,500,32*k,C.text2);
+  const pn=pop(t,tickT(Math.max(0,n-1)),0.3);c.save();c.translate(G.x+G.w-40*k,G.y+92*k);const ps=n>0?lerp(1.3,1,clamp(pn)):1;c.scale(ps,ps);txt(c,`${n}/${IT.length}`,0,0,800,48*k,n===IT.length?C.teal:'#fff','right');c.restore();
+  const bw=G.w-80*k,by=G.y+172*k;let f=0;IT.forEach((_,i)=>{f+=E.outCubic(clamp((t-tickT(i))/0.3));});c.fillStyle='#1A1D24';rr(c,G.x+40*k,by,bw,14*k,7*k);c.fill();
+  if(f>0){c.fillStyle=rgbLine(c,G.x+40*k,0,G.x+40*k+bw,0);rr(c,G.x+40*k,by,bw*f/IT.length,14*k,7*k);c.fill();}
+  IT.forEach((_,i)=>row(c,G,i,t));
+  // the twist: everything but the last row dims while the captions play
+  const dim=clamp((t-T_MSG)/0.3)*(1-clamp((t-T_YES)/0.25));if(dim>0){c.fillStyle=`rgba(5,6,9,${0.9*dim})`;rr(c,G.x+3,G.y+3,G.w-6,G.headH+N*G.rowH-3,38*k);c.fill();}
+  c.restore();}
+
+createReel({dur:DUR,
+  hits:[...IT.slice(0,N).map((_,i)=>[tickT(i),3,0.006]),[T_TRY,7,0],[T_TRY2,7,0],[T_YES,8,0.015],[T_STAMP,14,0.03],[T_END+0.9375,4,0.01]],
+  fast:[[T_STAMP-0.1,T_STAMP+0.35]],bloom:()=>0.3,vignette:()=>0.32,
+  draw(c,t,L,P){const G=geo(L),k=G.k,n=IT.filter((_,i)=>t>=tickT(i)).length;c.fillStyle='#07080B';c.fillRect(0,0,L.W,L.H);
+    const lift=n/IT.length;glow(c,L.W*0.1,L.H*0.12,L.H*0.6,RGB.blue,0.14+0.14*lift);glow(c,L.W*0.95,L.H*0.88,L.H*0.6,RGB.pink,0.12+0.14*lift);if(t>T_YES)glow(c,L.CX,L.sc,L.H*0.7,RGB.teal,0.3*Math.exp(-(t-T_YES)*1.5));
+    card(c,L,G,t);
+    // taps
+    IT.forEach((_,i)=>{const B=boxAt(G,i);if(i<N)tap(c,B.x+B.s/2,B.y+B.s/2,t,tickT(i)-0.04);});const B=boxAt(G,N);for(const t0 of[T_TRY,T_TRY2,T_YES])tap(c,B.x+B.s/2+(t0<T_YES?shake(t)*16*k:0),B.y+B.s/2,t,t0-0.04);
+    // the captions over the dimmed rows
+    const my=G.y+G.headH+N*G.rowH*0.42;
+    if(t>=T_MSG-0.05&&t<T_YES+0.5){riseWords(c,{lines:['Esta no te la','podemos tildar 😅'],x:L.CX,y:my-70*k,lh:74*k,t0:T_MSG,t1:T_YES-0.15,px:62*k,col:'#fff'});
+      riseWords(c,{lines:['Esa la ponés vos.'],x:L.CX,y:my+140*k,lh:90*k,t0:T_MSG2,t1:T_YES-0.1,px:78*k,col:C.teal,key:[0,'vos.']});}
+    // LISTO
+    if(t>=T_STAMP){const e=E.outBack(clamp((t-T_STAMP)/0.22)),s=lerp(2.2,1,clamp(e));c.save();c.translate(L.CX,G.y+G.headH+G.rowH*3.4);c.rotate(-0.16);c.scale(s,s);c.globalAlpha=clamp((t-T_STAMP)/0.08);
+      const w=560*k,h=170*k;c.strokeStyle=C.teal;c.lineWidth=10*k;rr(c,-w/2,-h/2,w,h,26*k);c.stroke();c.fillStyle='rgba(37,232,200,0.1)';c.fill();c.font=F(900,120*k);c.letterSpacing=`${14*k}px`;c.fillStyle=C.teal;c.textAlign='center';c.fillText('LISTO',7*k,42*k);c.letterSpacing='0px';c.textAlign='left';c.restore();}
+    confetti(c,t,T_STAMP,L.CX,G.y+G.headH+G.rowH*3,{n:80,spread:0.8});
+    if(t>=T_END-0.25){endcardBg(c,t,T_END,L,E.outCubic(prog(t,T_END-0.25,T_END+0.15)));endcard(c,t,T_END,L,{cta:P.cta});}},
+  cues(L){const q=[{t:0,s:'groove',t1:T_TRY,bpm:120,chords:[[0,'C'],[4*BT,'G'],[8*BT,'Am'],[12*BT,'F']],parts:['kick','hat','bass','arp']},{t:0.05,s:'whoosh',d:0.4,f0:400,f1:2400,g:0.4}];
+    IT.slice(0,N).forEach((_,i)=>{const t0=tickT(i);q.push({t:t0,s:'tap'},{t:t0+0.02,s:'bloop',k:i,v:0.9},{t:t0+0.1,s:'marker'});});
+    q.push({t:T_TRY,s:'tap'},{t:T_TRY+0.02,s:'buzz',d:0.2},{t:T_TRY2,s:'tap'},{t:T_TRY2+0.02,s:'buzz',d:0.2},{t:T_TRY2+0.1,s:'sub',gain:0.5},
+      {t:T_MSG,s:'chord',ch:'Am',d:2.6},{t:T_MSG2,s:'pop'},{t:T_YES-0.9,s:'rise',d:0.9},{t:T_YES-0.04,s:'tap'},{t:T_YES,s:'pr'},{t:T_YES,s:'bloop',k:7,v:1},
+      {t:T_STAMP,s:'stamp'},{t:T_STAMP+0.05,s:'glass',g:0.5},{t:T_YES,s:'groove',t1:T_END-0.05,bpm:120,chords:[[T_YES,'F'],[T_YES+4*BT,'G']],parts:['kick','clap','hat','bass','arp']});
+    return[...q,...endcardCues(L,T_END)];},
+});
+</script></body></html>

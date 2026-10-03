@@ -87,6 +87,7 @@ Everything for @gize.app is rendered into `stock/`, with captions, hashtags and 
 | `18-tutorial-coach/` | «Tutorial para coaches» (2:11, 30 fps): every part of the coach panel in a browser, the client's phone beside it and the orb carrying each change across; for sending to coaches by WhatsApp (`_whatsapp.mp4` is the light copy, under 16 MB) | 16:9 MP4 |
 | `19-trends/` | trend formats: «Red flags vs green flags de un coach», «Tu septiembre en números» (year-in-review style), «Tier list: excusas para no entrenar», «ASMR de terminar el entreno» | 9:16 · 4:5 MP4 |
 | `20-sobrecarga/` | «Sobrecarga»: maximalist brand sizzle (140 BPM, no product): the orb charging, the letters one per beat, a wall of words, a grid of brand motifs, the four appearances, a tunnel of G arcs and a 16-cut drop of the logotype, under a HUD; `gize-sobrecarga-tipos` is the same cut with the words in Switzer, Instrument Serif italic and Archivo Expanded (`?tipo=trend`, off-guideline) | 9:16 · 4:5 MP4 |
+| `21-formatos/` | trend formats: «Checklist pre-entreno ✅», «Top 10 señales de que vas en serio con el gym», «Malo, bueno, excelente», «Entrevista exclusiva: la planilla» (fake interview, word-by-word captions), «Nadie te ve a esta hora» (cinematic storytelling) | 9:16 · 4:5 MP4 |
 
 ## How a piece is made
 
@@ -119,6 +120,7 @@ node build.mjs jobs/tutorial-coach.json   # 18-tutorial-coach (30 fps; a job's "
 node build.mjs jobs/trends.json           # 19-trends
 node build.mjs jobs/sobrecarga.json       # 20-sobrecarga
 fonts/fetch-trend.sh && node build.mjs jobs/sobrecarga-tipos.json   # 20-sobrecarga, trend type set (off-guideline)
+node build.mjs jobs/formatos.json         # 21-formatos
 ```
 
 `build.mjs` also takes `--formats=9x16` and `--ctas=hype` to render one format or one ending at a time.
