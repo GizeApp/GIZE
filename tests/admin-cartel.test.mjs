@@ -1,7 +1,7 @@
 // Panel de administración → Avisos → «Guardar cartel»: se guardan solo Android y iPhone. Antes
 // se colaban los botones «A quién» de la notificación (todos / coaches / alumnos) como claves
 // basura en la configuración pública, y se volvían a copiar en cada guardado.
-import { newPage, wait, ADMIN } from './lib.mjs';
+import { newPage, wait, text, ADMIN } from './lib.mjs';
 
 export default async function ({ base, t }){
   const saved = [];
@@ -15,6 +15,8 @@ export default async function ({ base, t }){
     '/admin_set_config': (r, J, i) => (saved.push(JSON.parse(i.body)), J(null)),
   } });
   await p.goto(base + '/admin/#avisos'); await wait(1500);
+  t.has(await text(p, '#avCfgB > summary'), 'Android 1.0.6', 'plegado, el cartel muestra la versión de Android');
+  await p.click('#avCfgB > summary'); // arranca plegado
   await p.fill('[data-v="android.ultima"]', '12'); await p.fill('[data-v="android.version"]', '1.0.7');
   await p.click('#avT [data-v="coaches"]'); // elegir a quién mandar una notificación no cambia el cartel
   await p.click('[data-a="cfgSave"]'); await wait(600);

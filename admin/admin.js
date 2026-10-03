@@ -45,6 +45,32 @@ async function fn(body){
 }
 const errMsg = e => (e && (e.message || e.error_description)) || "Algo salió mal.";
 
+// ---------- paneles plegables ----------
+// Cada bloque se abre o se pliega tocando su título y queda como lo dejaste (en este navegador).
+// Plegado muestra una línea de resumen (cuántos hay, cómo viene) para no tener que abrirlo.
+const FOLD_KEY = "gize-admin-fold";
+let FOLD = {}; try { FOLD = JSON.parse(localStorage.getItem(FOLD_KEY)) || {}; } catch (e) {}
+const isOpen = (id, def) => id in FOLD ? !!FOLD[id] : def !== false;
+// o: { open: false } plegado de entrada, sum: resumen, act: botón a la derecha, flush: sin márgenes adentro.
+function panel(id, title, body, o){
+  o = o || {};
+  return `<details class="pnl" id="${id}" data-fold="${id}" data-def="${o.open === false ? 0 : 1}"${isOpen(id, o.open) ? " open" : ""}>
+    <summary><span class="pnl-t">${title}</span><span class="pnl-s" id="${id}-s">${o.sum || ""}</span>${o.act || ""}</summary>
+    <div class="pnl-b${o.flush ? " flush" : ""}">${body}</div></details>`;
+}
+function setSum(id, html){ const s = document.getElementById(id + "-s"); if (s) s.innerHTML = html || ""; }
+function openPanel(id){ const d = document.getElementById(id); if (d && !d.open) d.open = true; return d; }
+// El evento toggle no burbujea: se escucha en la captura.
+document.addEventListener("toggle", e => {
+  const d = e.target; if (!d.dataset) return;
+  if (d.dataset.msg && S.msgOpen){ S.msgOpen[d.dataset.msg] = d.open; return; }
+  if (!d.dataset.fold) return;
+  // Al dibujarse abierto también dispara toggle: si no cambió nada, no se guarda.
+  if (isOpen(d.dataset.fold, d.dataset.def !== "0") === d.open) return;
+  FOLD[d.dataset.fold] = d.open;
+  try { localStorage.setItem(FOLD_KEY, JSON.stringify(FOLD)); } catch (e) {}
+}, true);
+
 // ---------- entrada ----------
 function gate(msg, withLogin){
   $root.innerHTML = `<div class="aurora-bg" aria-hidden="true"><div class="gize-aurora"><span></span><span></span><span></span><span></span></div></div><div class="gate"><img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE"><p>${msg}</p>
@@ -74,24 +100,50 @@ sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !S.user) boot(); i
 function shell(){
   $root.innerHTML = `<div class="shell"><nav class="side">
       <img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE"><div class="side-sub">Administración</div>
-      ${GROUPS.map(([g, items]) => (g ? `<div class="nav-g">${g}</div>` : "") + items.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : ""}</button>`).join("")).join("")}
+      ${GROUPS.map(([g, items], gi) => { const btns = items.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : ""}</button>`).join("");
+        return g ? `<div class="nav-grp" data-g="nav-g${gi}"><button class="nav-g" data-a="navG" aria-expanded="true">${g}<i class="nav-gb" hidden></i></button><div class="nav-items">${btns}</div></div>` : btns; }).join("")}
       <div class="side-foot"><span class="side-mail">${esc(S.user.email)}<br></span><button data-a="logout">Salir</button> · <a href="../app/">Ir a la app</a></div>
     </nav><main class="main" id="main"></main></div>`;
 }
 function go(view){
   S.view = view; history.replaceState(null, "", "#" + view);
   document.querySelectorAll(".nav").forEach(b => b.classList.toggle("on", b.dataset.go === view));
+  // Si se llega a una sección de un grupo plegado (por ejemplo desde «Para atender»), se abre.
+  const on = document.querySelector(".nav.on"), grp = on && on.closest(".nav-grp");
+  if (grp && grp.classList.contains("shut")) navGroup(grp, true); else navPaint();
   ({ resumen: loadResumen, contacto: loadContacto, usuarios: loadUsuarios, coaches: loadCoaches, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
 }
 const main = () => document.getElementById("main");
-function page(title, lead, body){ main().innerHTML = `<div class="h1">${title}</div><div class="lead">${lead}</div>${body}`; }
-function setPend(n){ const i = document.getElementById("navPend"); if (i){ i.hidden = !n; i.textContent = n; } }
+// Si la página tiene paneles, arriba a la derecha van «Abrir todo» y «Plegar todo».
+function page(title, lead, body){
+  // (sin paneles, el CSS los esconde: algunas páginas los dibujan después de cargar)
+  main().innerHTML = `<div class="pg-h"><div class="h1">${title}</div><div class="pg-fold"><button data-a="foldAll" data-v="1">Abrir todo</button><button data-a="foldAll" data-v="0">Plegar todo</button></div></div><div class="lead">${lead}</div>${body}`;
+}
+function foldAll(open){ main().querySelectorAll(".pnl").forEach(d => { d.open = open; }); }
+// Grupos del menú: se pliegan tocando el título y quedan como los dejaste (como los paneles).
+// Sin nada guardado, arranca abierto solo el grupo de la sección en la que estás.
+function navPaint(){
+  document.querySelectorAll(".nav-grp").forEach(grp => {
+    const id = grp.dataset.g, open = id in FOLD ? !!FOLD[id] : !!grp.querySelector(".nav.on");
+    grp.classList.toggle("shut", !open);
+    grp.querySelector(".nav-g").setAttribute("aria-expanded", open);
+    // Plegado, el título suma los globitos de adentro (mensajes sin leer, productos).
+    const n = [...grp.querySelectorAll(".nav-items i:not([hidden])")].reduce((s, i) => s + num(i.textContent), 0), b = grp.querySelector(".nav-gb");
+    b.hidden = open || !n; b.textContent = n;
+  });
+}
+function navGroup(grp, open){
+  FOLD[grp.dataset.g] = open;
+  try { localStorage.setItem(FOLD_KEY, JSON.stringify(FOLD)); } catch (e) {}
+  navPaint();
+}
+function setPend(n){ const i = document.getElementById("navPend"); if (i){ i.hidden = !n; i.textContent = n; } navPaint(); }
 // Globito de Productos: lo que falta revisar de la base más los pedidos de la gente.
 async function pendTotal(o){ let r = 0; try { r = num(await rpc("admin_requests_pending")); } catch (e) {} setPend(num(o && o.pending) + r); }
 // Mensajes de contacto sin leer: número en el menú y en la pestaña del navegador.
 function setUnread(n){
   S.unread = n || 0;
-  const i = document.getElementById("navMsg"); if (i){ i.hidden = !S.unread; i.textContent = S.unread; }
+  const i = document.getElementById("navMsg"); if (i){ i.hidden = !S.unread; i.textContent = S.unread; } navPaint();
   document.title = (S.unread ? "(" + S.unread + ") " : "") + "GIZE · Administración";
 }
 async function refreshUnread(){
@@ -149,24 +201,25 @@ async function loadResumen(){
   S.goals = goals; S.tasks = tasks; S.reqsPend = num(reqs);
   const k = (v, l, sub) => `<div class="kpi"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
   const versions = (o.versions || []).map(v => `<tr><td>${esc(v.platform === "android" ? "Android" : v.platform === "ios" ? "iPhone" : v.platform === "web" ? "Web" : v.platform)}</td><td>${esc(v.version)}</td><td>${n0(v.n)}</td></tr>`).join("");
-  page("Inicio", "Lo que hay que atender y cómo vienen los objetivos.", `
-    <section class="blk"><div class="blk-h"><div class="sec-t">Para atender</div></div><div id="hTodo"></div></section>
-    <section class="blk"><div class="blk-h"><div class="sec-t">Objetivos</div><button class="btn sm" data-a="gNew">+ Nuevo objetivo</button></div><div id="hGoals"></div></section>
-    <section class="blk" id="hTasksB"><div class="blk-h"><div class="sec-t">Tareas</div></div><div id="hTasks"></div></section>
-    <section class="blk"><div class="blk-h"><div class="sec-t">Números</div></div>
-      <div class="grid kpis">
+  // Cada bloque se pliega; de entrada quedan abiertos lo del día (atender, objetivos, tareas) y
+  // los números, y plegados los gráficos y las versiones.
+  page("Inicio", "Tocá el título de un bloque para abrirlo o plegarlo: queda como lo dejes.",
+    panel("hTodoB", "Para atender", '<div id="hTodo"></div>', { flush: true }) +
+    panel("hGoalsB", "Objetivos", '<div id="hGoals"></div>', { act: '<button class="btn sm" data-a="gNew">+ Nuevo</button>' }) +
+    panel("hTasksB", "Tareas", '<div id="hTasks"></div>') +
+    panel("hNumB", "Números", `<div class="grid kpis">
         ${k(n0(o.users), "Usuarios", "+" + n0(o.new7) + " esta semana · +" + n0(o.new30) + " en 30 días")}
         ${k(n0(o.active7), "Activos en 7 días", n0(o.sessions7) + " entrenos en la semana")}
         ${k(n0(o.paid), "Coaches pagando", n0(o.coaches) + " coaches · " + n0(o.trial) + " en prueba · " + n0(o.courtesy) + " de cortesía")}
         ${k(money(o.mrr), "Ingreso mensual", n0(o.linked) + " de " + n0(o.clients) + " alumnos con coach")}
-      </div>
-      <div class="grid two">
+      </div>`, { sum: n0(o.users) + " usuarios · " + n0(o.paid) + " coaches pagando · " + money(o.mrr) + " por mes" }) +
+    panel("hChartsB", "Gráficos", `<div class="grid two">
         <div class="card"><div class="sec-t">Usuarios nuevos por semana</div><div class="sec-s">Últimas 12 semanas</div>${columns(o.signups || [], "usuarios nuevos")}</div>
         <div class="card"><div class="sec-t">Entrenos guardados por semana</div><div class="sec-s">Últimas 12 semanas</div>${columns(o.training || [], "entrenos")}</div>
-      </div>
-      <details class="card fold mt"><summary><span class="sec-t">Versiones en uso</span><span class="muted small">Usuarios que abrieron la app en los últimos 30 días</span></summary>
-        ${versions ? `<div class="tscroll"><table class="table"><thead><tr><th>Plataforma</th><th>Versión</th><th>Usuarios</th></tr></thead><tbody>${versions}</tbody></table></div>` : '<div class="empty">Todavía no hay datos: se completan a medida que la gente abre la app.</div>'}
-      </details></section>`);
+      </div>`, { open: false, sum: "+" + n0(o.new7) + " usuarios y " + n0(o.sessions7) + " entrenos esta semana" }) +
+    panel("hVerB", "Versiones en uso", `<div class="sec-s">Usuarios que abrieron la app en los últimos 30 días.</div>
+        ${versions ? `<div class="tscroll"><table class="table"><thead><tr><th>Plataforma</th><th>Versión</th><th>Usuarios</th></tr></thead><tbody>${versions}</tbody></table></div>` : '<div class="empty">Todavía no hay datos: se completan a medida que la gente abre la app.</div>'}`,
+      { open: false, sum: (o.versions || []).length ? (o.versions || []).length + (o.versions.length === 1 ? " versión" : " versiones") : "sin datos" }));
   paintTodo(); paintGoals(); paintTasks();
 }
 // Lista de lo pendiente: cada fila lleva a su sección (las tareas, al bloque de abajo). Solo
@@ -182,8 +235,10 @@ function paintTodo(){
     [prods, "productos", "producto" + (prods === 1 ? "" : "s") + " para revisar", "pedidos de la gente, cargados sin verificar y reportados"],
     [soon, "coaches", soon === 1 ? "coach vence en los próximos 7 días" : "coaches vencen en los próximos 7 días", "pago o prueba: conviene escribirles"],
     [num(o.overdue), "coaches", num(o.overdue) === 1 ? "coach sin pagar" : "coaches sin pagar", "prueba vencida y sin pago al día"]].filter(r => r[0] > 0);
-  box.innerHTML = rows.length ? `<div class="card list">${rows.map(([n, go, l, sub]) => `<button class="li" ${go === "tareas" ? 'data-a="toTasks"' : `data-go="${go}"`}><b>${n0(n)}</b><span>${l}<small>${sub}</small></span><i aria-hidden="true">›</i></button>`).join("")}</div>`
-    : '<div class="card calm">Todo al día: no hay nada pendiente.</div>';
+  box.innerHTML = rows.length ? `<div class="list">${rows.map(([n, go, l, sub]) => `<button class="li" ${go === "tareas" ? 'data-a="toTasks"' : `data-go="${go}"`}><b>${n0(n)}</b><span>${l}<small>${sub}</small></span><i aria-hidden="true">›</i></button>`).join("")}</div>`
+    : '<div class="calm pad">Todo al día: no hay nada pendiente.</div>';
+  const n = rows.reduce((s, r) => s + r[0], 0);
+  setSum("hTodoB", rows.length ? `<span class="dot"></span>${n0(n)} cosa${n === 1 ? "" : "s"} para atender` : "todo al día");
 }
 
 // ---------- Objetivos ----------
@@ -224,10 +279,14 @@ function paintGoals(){
   const g = S.goals;
   if (g && g.error){
     const falta = /admin_goals|schema cache/i.test(errMsg(g.error));
-    box.innerHTML = `<div class="card calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/objetivos.sql</b>." : esc(errMsg(g.error))}</div>`;
-    return;
+    box.innerHTML = `<div class="calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/objetivos.sql</b>." : esc(errMsg(g.error))}</div>`;
+    setSum("hGoalsB", ""); return;
   }
-  if (!g || !g.length){ box.innerHTML = '<div class="card calm">Todavía no hay objetivos. Poné una meta con fecha (por ejemplo, 40 coaches pagando a fin de año) y acá se ve cuánto falta y si con el ritmo actual se llega.</div>'; return; }
+  if (!g || !g.length){ box.innerHTML = '<div class="calm">Todavía no hay objetivos. Poné una meta con fecha (por ejemplo, 40 coaches pagando a fin de año) y acá se ve cuánto falta y si con el ritmo actual se llega.</div>'; setSum("hGoalsB", "ninguno todavía"); return; }
+  // Resumen plegado: cuántos hay en cada estado («2 en camino · 1 atrasado»).
+  const cnt = {}; g.forEach(x => { const st = goalState(x).st; cnt[st] = (cnt[st] || 0) + 1; });
+  const GSUM = [["Atrasado", "atrasado", "atrasados", "t-warn"], ["Venció", "vencido", "vencidos", "t-bad"], ["En camino", "en camino", "en camino"], ["Recién empieza", "recién empieza", "recién empiezan"], ["Cumplido", "cumplido", "cumplidos"]];
+  setSum("hGoalsB", GSUM.filter(s => cnt[s[0]]).map(([st, one, many, cls]) => `<span class="${cls || ""}">${cnt[st]} ${cnt[st] === 1 ? one : many}</span>`).join(" · "));
   box.innerHTML = `<div class="goals">${g.map(x => { const s = goalState(x);
     return `<button class="card goal" data-goal="${esc(x.id)}">
       <div class="goal-h"><span>${esc(x.label || (METRICS[x.metric] || [x.metric])[0])}</span><span class="pill ${s.cls}">${s.st}</span></div>
@@ -290,10 +349,13 @@ function paintTasks(){
   const box = document.getElementById("hTasks"); if (!box) return;
   if (S.tasks && S.tasks.error){
     const falta = /admin_tasks|schema cache/i.test(errMsg(S.tasks.error));
-    box.innerHTML = `<div class="card calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/objetivos.sql</b>." : esc(errMsg(S.tasks.error))}</div>`;
-    return;
+    box.innerHTML = `<div class="calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/objetivos.sql</b>." : esc(errMsg(S.tasks.error))}</div>`;
+    setSum("hTasksB", ""); return;
   }
   const all = taskList(), open = all.filter(t => !t.done), done = all.filter(t => t.done);
+  const late = open.filter(t => t.due_date && dueDays(t.due_date) < 0).length, today = open.filter(t => t.due_date && dueDays(t.due_date) === 0).length;
+  setSum("hTasksB", !open.length ? (done.length ? "todo hecho" : "ninguna todavía")
+    : [late ? `<span class="t-bad">${late} vencida${late === 1 ? "" : "s"}</span>` : "", today ? `<span class="t-warn">${today} para hoy</span>` : "", open.length + " pendiente" + (open.length === 1 ? "" : "s")].filter(Boolean).join(" · "));
   const byDate = (a, b) => (a.due_date || "9999") < (b.due_date || "9999") ? -1 : (a.due_date || "9999") > (b.due_date || "9999") ? 1 : a.id - b.id;
   const groups = [["Vencidas", t => t.due_date && dueDays(t.due_date) < 0], ["Hoy", t => t.due_date && dueDays(t.due_date) === 0],
     ["Próximos 7 días", t => t.due_date && dueDays(t.due_date) > 0 && dueDays(t.due_date) <= 7], ["Más adelante", t => t.due_date && dueDays(t.due_date) > 7], ["Sin fecha", t => !t.due_date]];
@@ -302,7 +364,7 @@ function paintTasks(){
       <button class="task" data-task="${esc(t.id)}"><span>${esc(t.title)}</span>
         <small>${t.done ? "hecha " + ago(t.done_at) : t.due_date ? dueTxt(t.due_date) : ""}${t.goal_id && goalName(t.goal_id) ? `<span class="muted">${t.done || t.due_date ? " · " : ""}${esc(goalName(t.goal_id))}</span>` : ""}</small></button></div>`;
   const opts = goalList().map(g => `<option value="${esc(g.id)}">${esc(goalName(g.id))}</option>`).join("");
-  box.innerHTML = `<div class="card">
+  box.innerHTML = `<div>
     <div class="task-add"><input class="in" id="tNew" maxlength="200" placeholder="Agregar una tarea…" autocomplete="off">
       <input class="in" id="tNewDue" type="date" aria-label="Fecha (opcional)">
       ${opts ? `<select class="in" id="tNewGoal" aria-label="Objetivo (opcional)"><option value="">Sin objetivo</option>${opts}</select>` : ""}
@@ -444,11 +506,14 @@ function coachState(c){
 const mpTxt = s => ({ authorized: "activa", paused: "pausada", cancelled: "cancelada", pending: "pendiente" }[s] || s || "—");
 const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: "Hasta 50", p100: "Gimnasio chico (100)", p250: "Gimnasio (250)", p500: "Gimnasio grande (500)", cortesia: "Cortesía" }[p] || p || "—");
 async function loadCoaches(){
-  page("Coaches y pagos", "Plan, alumnos y estado del pago. Tocá un coach para cargar un pago, darle cortesía o más días de prueba.", '<div id="cSoon"></div><div class="card"><div id="cList" class="empty">Cargando…</div></div>');
+  page("Coaches y pagos", "Tocá un coach para cargar un pago, darle cortesía o más días de prueba.",
+    '<div id="cSoon"></div>' + panel("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>'));
   const box = document.getElementById("cList");
   try { S.coaches = await rpc("admin_coaches"); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.coaches.length){ box.textContent = "Todavía no hay coaches."; return; }
   paintSoon();
+  const cnt = st => S.coaches.filter(c => coachState(c).includes(st)).length;
+  setSum("cListB", S.coaches.length + (S.coaches.length === 1 ? " coach · " : " coaches · ") + cnt("Pagado") + " pagando · " + cnt("Prueba") + " en prueba" + (cnt("Sin pagar") ? ` · <span class="t-bad">${cnt("Sin pagar")} sin pagar</span>` : ""));
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Coach</th><th>Plan</th><th>Alumnos</th><th>Estado</th><th>Mercado Pago</th><th>Paga</th></tr></thead><tbody>${S.coaches.map(c => `
     <tr class="row" data-coach="${esc(c.id)}"><td><b>${esc(c.full_name || "Sin nombre")}</b><div class="muted small">${esc(c.email)}</div></td>
@@ -478,11 +543,12 @@ function paintSoon(){
   const box = document.getElementById("cSoon"); if (!box) return;
   const list = (S.coaches || []).map(c => ({ c, v: venceDe(c) })).filter(x => x.v && x.v.dias <= 7 && x.v.dias > -30).sort((a, b) => a.v.t - b.v.t);
   if (!list.length){ box.innerHTML = ""; return; }
-  box.innerHTML = `<div class="card"><div class="sec-t" style="margin-top:0">Vencen pronto</div><div class="list-mini">${list.map(({ c, v }) => `
+  const late = list.filter(x => x.v.vencido).length;
+  box.innerHTML = panel("cSoonB", "Vencen pronto", `<div class="list-mini">${list.map(({ c, v }) => `
     <div class="row" data-coach="${esc(c.id)}" style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;cursor:pointer">
       <span><b>${esc(c.full_name || "Sin nombre")}</b> <span class="muted small">${esc(c.email)}</span></span>
       <span class="pill ${v.vencido ? "bad" : "warn"}">${v.que === "pago" ? "Pago" : "Prueba"} ${venceTxt(v)}</span>
-    </div>`).join("")}</div></div>`;
+    </div>`).join("")}</div>`, { sum: (list.length - late ? list.length - late + " por vencer" : "") + (late ? (list.length - late ? " · " : "") + `<span class="t-bad">${late} vencido${late === 1 ? "" : "s"}</span>` : "") });
 }
 
 const PLAN_MAX = { p10: 10, p25: 25, p50: 50, p100: 100, p250: 250, p500: 500 };
@@ -507,22 +573,20 @@ async function openCoach(id){
       <div class="fact"><span>Alumnos</span><b>${n0(c.clients)} de ${n0(c.max_clients)}</b></div><div class="fact"><span>Pago al día hasta</span><b>${lastDay(c.paid_until)}</b></div>
       <div class="fact"><span>Prueba hasta</span><b>${lastDay(c.trial_ends_at)}</b></div><div class="fact"><span>Mercado Pago</span><b>${c.has_mp ? esc(mpTxt(c.mp_status)) : "Sin suscripción"}</b></div>
     </div>
-    <div class="sec-t">Pago manual</div>
-    <div class="sec-s">Cuando te paga (transferencia, efectivo, link), cargá el plan y hasta cuándo queda habilitado. Los meses se cuentan desde que termina lo que ya tiene: si está en la prueba gratis, el plan arranca cuando la prueba termina (no pierde días); si ya estaba al día, desde su vencimiento.</div>
+    ${panel("drPago", "Pago manual", `<div class="sec-s">Cuando te paga (transferencia, efectivo, link), cargá el plan y hasta cuándo queda habilitado. Los meses se cuentan desde que termina lo que ya tiene: si está en la prueba gratis, el plan arranca cuando la prueba termina (no pierde días); si ya estaba al día, desde su vencimiento.</div>
     <label class="lbl">Plan</label>
     <select class="in" id="pmPlan">${Object.keys(PLAN_MAX).map(p => `<option value="${p}"${(c.plan === p || (!PLAN_MAX[c.plan] && p === "p25")) ? " selected" : ""}>${esc(planTxt(p))} · ${money(PLAN_PRICE[p])}/mes</option>`).join("")}</select>
     <label class="lbl">Alumnos máximos</label><input class="in" id="pmMax" type="number" min="1" max="1000" value="${PLAN_MAX[c.plan] ? Number(c.max_clients) || PLAN_MAX[c.plan] : 25}">
     <label class="lbl">Pagado hasta</label>
     <div class="search"><input class="in" id="pmUntil" type="date" value="${hastaMeses(c, 1)}">
       <button class="btn" data-a="pmMeses" data-id="${esc(c.id)}" data-m="1">+1 mes</button><button class="btn" data-a="pmMeses" data-id="${esc(c.id)}" data-m="3">+3</button><button class="btn" data-a="pmMeses" data-id="${esc(c.id)}" data-m="12">+12</button></div>
-    <div class="search" style="margin-top:8px"><button class="btn blue" data-a="pmSave" data-id="${esc(c.id)}">Guardar pago</button>${c.paid_until && new Date(c.paid_until) > new Date() && c.plan !== "cortesia" ? `<button class="btn" data-a="pmClear" data-id="${esc(c.id)}">Cortar ahora</button>` : ""}</div>
-    ${c.has_mp ? `<div class="sec-t" style="margin-top:18px">Cobros de Mercado Pago</div><div id="pays" class="list-mini">Cargando…</div>` : ""}
-    <div class="sec-t" style="margin-top:18px">Cortesía o prueba</div>
-    <div class="sec-s">Gratis. En la prueba elegís hasta qué día y cuántos alumnos puede tener.</div>
+    <div class="search" style="margin:8px 0 0"><button class="btn blue" data-a="pmSave" data-id="${esc(c.id)}">Guardar pago</button>${c.paid_until && new Date(c.paid_until) > new Date() && c.plan !== "cortesia" ? `<button class="btn" data-a="pmClear" data-id="${esc(c.id)}">Cortar ahora</button>` : ""}</div>`)}
+    ${c.has_mp ? panel("drMp", "Cobros de Mercado Pago", '<div id="pays" class="list-mini">Cargando…</div>') : ""}
+    ${panel("drPrueba", "Cortesía o prueba", `<div class="sec-s">Gratis. En la prueba elegís hasta qué día y cuántos alumnos puede tener.</div>
     ${c.plan === "cortesia" ? `<button class="btn" data-a="plan" data-id="${esc(c.id)}" data-mode="sin_cortesia">Quitar la cortesía</button>` :
       `<label class="lbl">Cortesía: gratis, con tope de alumnos</label><div class="search"><input class="in" id="ctMax" type="number" min="1" value="${Math.max(10, c.max_clients || 10)}"><button class="btn blue" data-a="plan" data-id="${esc(c.id)}" data-mode="cortesia">Dar cortesía</button></div>`}
     ${c.plan === "cortesia" ? "" : `<label class="lbl">Prueba gratis hasta</label><input class="in" id="trUntil" type="date" min="${isoDay(new Date())}" value="${c.trial_ends_at && new Date(c.trial_ends_at) > new Date() ? isoDay(new Date(new Date(c.trial_ends_at).getTime() - 1)) : isoDay(new Date(Date.now() + 14 * 864e5))}">
-    <label class="lbl">Alumnos máximos en la prueba</label><div class="search"><input class="in" id="trMax" type="number" min="1" max="1000" value="${Number(c.max_clients) || 10}"><button class="btn blue" data-a="trSave" data-id="${esc(c.id)}">Guardar prueba</button></div>`}`);
+    <label class="lbl">Alumnos máximos en la prueba</label><div class="search" style="margin:0"><input class="in" id="trMax" type="number" min="1" max="1000" value="${Number(c.max_clients) || 10}"><button class="btn blue" data-a="trSave" data-id="${esc(c.id)}">Guardar prueba</button></div>`}`, { open: false, sum: c.plan === "cortesia" ? "tiene cortesía" : "" })}`);
   if (!c.has_mp) return;
   const box = document.getElementById("pays");
   try {
@@ -570,10 +634,9 @@ async function loadFinanzas(){
     <div data-fp="numeros">
     <div class="grid kpis wide" id="fKpis"></div>
     <div id="fDolar"></div>
-    <div class="grid two">
-      <div class="card"><div class="sec-t">Punto de equilibrio</div><div class="sec-s">Coaches que hacen falta para cubrir los gastos. Cobran por transferencia, sin comisión.</div><div id="fEq"></div></div>
-      <div class="card"><div class="sec-t">Quién pone qué</div><div class="sec-s">Gastos activos de cada socio, pasados a pesos por mes.</div><div id="fWho"></div></div>
-    </div></div>
+    ${panel("fEqB", "Punto de equilibrio", '<div class="sec-s">Coaches que hacen falta para cubrir los gastos. Cobran por transferencia, sin comisión.</div><div id="fEq"></div>')}
+    ${panel("fWhoB", "Quién pone qué", '<div class="sec-s">Gastos activos de cada socio, pasados a pesos por mes.</div><div id="fWho"></div>')}
+    </div>
     <div data-fp="gastos">
     <div class="card"><div class="card-h"><div><div class="sec-t">Gastos</div><div class="sec-s">Tocá uno para cambiarlo. Los que estás pensando y los pausados no suman.</div></div><button class="btn blue" data-a="fCost">+ Agregar gasto</button></div><div id="fCosts"></div></div></div>
     <div class="narrow" data-fp="facturacion">
@@ -634,6 +697,7 @@ function paintFinCalc(){
 
   // Punto de equilibrio
   const eq = document.getElementById("fEq");
+  setSum("fEqB", !c.act.length || c.noRate ? "" : c.gap > 0 ? `<span class="t-warn">faltan ${money(c.gap)} por mes</span>` : `<span class="t-ok">cubierto · sobran ${money(c.result)}</span>`);
   if (!c.act.length) eq.innerHTML = '<div class="empty">Cargá los gastos para ver cuántos coaches hacen falta.</div>';
   else if (c.noRate) eq.innerHTML = '<div class="empty">Falta la cotización del dólar para pasar los gastos a pesos.</div>';
   else {
@@ -649,6 +713,7 @@ function paintFinCalc(){
   const who = {}, names = {};
   c.act.forEach(x => { const n = (x.paid_by || "").trim() || "Sin asignar", key = n.toLowerCase(); names[key] = names[key] || n; who[key] = (who[key] || 0) + c.perMonth(x); });
   const rows = Object.keys(who).map(key => [names[key], who[key]]).filter(r => r[1] > 0).sort((a, b) => b[1] - a[1]);
+  setSum("fWhoB", rows.map(([n, v]) => esc(n) + " " + pct(c.cost ? v / c.cost : 0)).join(" · "));
   document.getElementById("fWho").innerHTML = !rows.length ? '<div class="empty">Cuando cargues los gastos y quién paga cada uno, acá se ve cuánto pone cada socio.</div>' :
     rows.map(([n, v]) => `<div class="share"><div class="share-h"><b>${esc(n)}</b><span>${money(v)} <span class="muted small">· ${pct(c.cost ? v / c.cost : 0)}</span></span></div><div class="meter"><i style="width:${c.cost ? Math.round(v / c.cost * 100) : 0}%"></i></div></div>`).join("") +
     (c.act.some(x => x.period === "anual") ? '<div class="muted small" style="margin-top:8px">Los gastos anuales van divididos por 12.</div>' : "");
@@ -800,10 +865,16 @@ async function loadContacto(){
 function paintMsgs(){
   const box = document.getElementById("mList"); if (!box) return;
   if (!S.msgs.length){ box.className = "empty"; box.textContent = S.msgTab === "nuevos" ? "No hay mensajes sin leer. 🎉" : "Todavía no hay mensajes."; return; }
-  box.className = "grid";
-  box.innerHTML = S.msgs.map(m => `<div class="card msg${m.read_at ? "" : " unread"}" data-msg="${esc(m.id)}">
-      <div class="msg-h"><div><b>${esc(m.from_name || m.from_email)}</b>${m.from_name ? ` <span class="muted small">&lt;${esc(m.from_email)}&gt;</span>` : ""}</div>
-        <span class="muted small">${fmtDT(m.created_at)}</span></div>
+  // Cada mensaje es una fila plegada (de quién, asunto, fecha y el principio del texto); se abre
+  // tocándola. Lo abierto se recuerda mientras no se recargue la página.
+  S.msgOpen = S.msgOpen || {};
+  box.className = "msgs";
+  box.innerHTML = S.msgs.map(m => `<details class="pnl msg${m.read_at ? "" : " unread"}" data-msg="${esc(m.id)}"${S.msgOpen[m.id] || S.drafts[m.id] != null ? " open" : ""}>
+      <summary><span class="msg-from">${m.read_at ? "" : '<i class="dot" aria-label="Sin leer"></i>'}${esc(m.from_name || m.from_email)}</span>
+        <span class="msg-sum"><b>${esc(m.subject || "(sin asunto)")}</b> <span class="muted">${esc((m.body || "").replace(/\s+/g, " ").slice(0, 140))}</span></span>
+        ${m.auth_dmarc === "pass" || m.body_missing ? "" : '<span class="pill warn" title="Remitente sin verificar">⚠</span>'}${m.replied_at ? '<span class="pill ok">Respondido</span>' : ""}<span class="muted small msg-d">${fmtDT(m.created_at)}</span></summary>
+      <div class="pnl-b">
+      ${m.from_name ? `<div class="muted small">${esc(m.from_email)}</div>` : ""}
       ${m.auth_dmarc === "pass" || m.body_missing ? "" : '<div class="msg-warn">⚠ Remitente sin verificar: puede ser otra persona haciéndose pasar por esta dirección. No borres cuentas ni des datos por un mail así; pedí que lo confirme desde la app.</div>'}
       <div class="msg-s">${esc(m.subject || "(sin asunto)")}${m.to_email && m.to_email !== "contacto@gize.ar" ? ` <span class="pill">${esc(m.to_email)}</span>` : ""}${m.reply_to ? ` <span class="pill blue">responder a ${esc(m.reply_to)}</span>` : ""}${m.attachments ? ` <span class="pill">${m.attachments} adjunto${m.attachments === 1 ? "" : "s"}</span>` : ""}${m.replied_at ? ' <span class="pill ok">Respondido</span>' : ""}</div>
       <div class="msg-b">${m.body_missing ? '<span class="muted">Todavía no se pudo leer el texto de este mail (se vuelve a intentar solo).</span>' : esc(m.body || "(vacío)")}</div>
@@ -812,7 +883,7 @@ function paintMsgs(){
         <div class="row-btns"><button class="btn" data-a="mcancel">Cancelar</button><button class="btn pri" data-a="msend">Enviar respuesta</button></div></div>
       <div class="row-btns msg-acts"><button class="btn blue" data-a="mreply">${m.replied_at ? "Responder otra vez" : "Responder"}</button>
         <button class="btn" data-a="mread" data-v="${m.read_at ? "0" : "1"}">${m.read_at ? "Marcar sin leer" : "Marcar como leído"}</button></div>
-    </div>`).join("");
+    </div></details>`).join("");
   // Las respuestas a medio escribir vuelven a su lugar (la lista se redibuja entera).
   Object.keys(S.drafts).forEach(id => {
     const c = box.querySelector(`[data-msg="${id}"]`); if (!c) return;
@@ -1028,18 +1099,17 @@ async function loadAvisos(){
     <label><span class="lbl">Nombre (ej: 1.0.7)</span><input class="in" data-v="${pl}.version" value="${esc(c.version || "")}"></label>
     <label><span class="lbl">Mínima obligatoria</span><input class="in" data-v="${pl}.minima" type="number" value="${esc(c.minima || 0)}"></label></div>
     <label><span class="lbl">Link de la tienda</span><input class="in" data-v="${pl}.tienda" value="${esc(c.tienda || "")}"></label></div>`; };
-  page("Avisos", "Notificaciones a los usuarios y cartel de actualización de la app.", `
-    <div class="grid two">
-      <div class="card"><div class="sec-t">Notificación a los usuarios</div><div class="sec-s">Les llega a quienes activaron los avisos en su celular o computadora.</div>
+  const vtxt = pl => (S.config[pl] || {}).version || "—";
+  page("Avisos", "Notificaciones a los usuarios y cartel de actualización de la app.",
+    panel("avNotB", "Notificación a los usuarios", `<div class="sec-s">Les llega a quienes activaron los avisos en su celular o computadora.</div>
         <label class="lbl">A quién</label><div class="seg" id="avT">${[["todos", "Todos"], ["coaches", "Coaches"], ["alumnos", "Alumnos"]].map(([k, l], i) => `<button class="${i ? "" : "on"}" data-a="avT" data-v="${k}">${l}</button>`).join("")}</div>
         <label class="lbl">Título (hasta 60 letras)</label><input class="in" id="avTitle" maxlength="60" placeholder="Ej: Salió la versión 1.0.7">
         <label class="lbl">Mensaje (hasta 180 letras)</label><textarea class="in" id="avBody" maxlength="180" placeholder="Ej: Superseries, resumen del entreno y mucho más. Actualizá desde Play Store."></textarea>
         <div class="preview"><img src="../icon-192.png" alt=""><div><b id="pvT">Título</b><span id="pvB">Mensaje</span></div></div>
-        <div class="row-btns"><button class="btn pri" data-a="avSend">Enviar notificación</button></div></div>
-      <div><div class="sec-t">Cartel de actualización</div><div class="sec-s">Subí «Última» recién cuando la versión ya esté publicada en la tienda. «Mínima» obliga a actualizar (pantalla que no se puede cerrar).</div>
-        <div class="grid">${vf("android", "Android")}${vf("ios", "iPhone")}</div>
-        <div class="row-btns"><button class="btn blue" data-a="cfgSave">Guardar cartel</button></div></div>
-    </div>`);
+        <div class="row-btns"><button class="btn pri" data-a="avSend">Enviar notificación</button></div>`) +
+    panel("avCfgB", "Cartel de actualización", `<div class="sec-s">Subí «Última» recién cuando la versión ya esté publicada en la tienda. «Mínima» obliga a actualizar (pantalla que no se puede cerrar).</div>
+        <div class="grid two">${vf("android", "Android")}${vf("ios", "iPhone")}</div>
+        <div class="row-btns"><button class="btn blue" data-a="cfgSave">Guardar cartel</button></div>`, { open: false, sum: "Android " + esc(vtxt("android")) + " · iPhone " + esc(vtxt("ios")) }));
 }
 async function sendAviso(btn){
   const target = (document.querySelector("#avT button.on") || {}).dataset.v, title = document.getElementById("avTitle").value.trim(), body = document.getElementById("avBody").value.trim();
@@ -1065,20 +1135,23 @@ async function saveConfig(btn){
 
 // ---------- Seguridad y sistema ----------
 async function loadSeguridad(){
-  page("Seguridad", "Copias de seguridad, administradores y registro de lo que se hace desde el panel.", `
-    <div class="grid two"><div class="card"><div class="sec-t">Copias de seguridad</div><div class="sec-s">Se hacen solas todos los lunes y se prueban restaurándolas.</div><div id="bk" class="list-mini">Cargando…</div></div>
-    <div class="card"><div class="sec-t">Administradores</div><div class="sec-s">Se agregan o quitan desde Usuarios → ficha → Hacer administrador.</div><div id="admins" class="list-mini">Cargando…</div></div></div>
-    <div class="card mt"><div class="sec-t">Registro de acciones</div><div class="sec-s">Las últimas 100 acciones hechas desde el panel.</div><div id="aud" class="empty">Cargando…</div></div>`);
+  page("Seguridad", "Copias de seguridad, administradores y registro de lo que se hace desde el panel.",
+    panel("sBkB", "Copias de seguridad", '<div class="sec-s">Se hacen solas todos los lunes y se prueban restaurándolas.</div><div id="bk" class="list-mini">Cargando…</div>', { open: false }) +
+    panel("sAdmB", "Administradores", '<div class="sec-s">Se agregan o quitan desde Usuarios → ficha → Hacer administrador.</div><div id="admins" class="list-mini">Cargando…</div>', { open: false }) +
+    panel("sAudB", "Registro de acciones", '<div class="sec-s">Las últimas 100 acciones hechas desde el panel.</div><div id="aud" class="empty">Cargando…</div>', { open: false }));
   // Con el repositorio privado GitHub no responde sin sesión: se deja el enlace a las copias.
   const bkLink = `<a href="https://github.com/${REPO}/actions/workflows/backup.yml" target="_blank" rel="noopener">Ver las copias en GitHub</a>`;
   fetch("https://api.github.com/repos/" + REPO + "/actions/workflows/backup.yml/runs?per_page=6").then(r => { if (!r.ok) throw 0; return r.json(); }).then(j => {
     const runs = j.workflow_runs || [], box = document.getElementById("bk"); if (!box) return;
+    const r0 = runs[0]; setSum("sBkB", !r0 ? "" : "última " + ago(r0.created_at) + (r0.status !== "completed" ? " · en curso" : r0.conclusion === "success" ? ' · <span class="t-ok">OK</span>' : ' · <span class="t-bad">falló</span>'));
     box.innerHTML = runs.length ? `<table class="table"><tbody>${runs.map(r => `<tr><td>${fmtDT(r.created_at)}</td><td>${r.status !== "completed" ? '<span class="pill warn">En curso</span>' : r.conclusion === "success" ? '<span class="pill ok">OK</span>' : '<span class="pill bad">Falló</span>'}</td><td><a href="${esc(r.html_url)}" target="_blank" rel="noopener">ver</a></td></tr>`).join("")}</tbody></table>` : "Todavía no hay copias.";
   }).catch(() => { const box = document.getElementById("bk"); if (box) box.innerHTML = bkLink + '<div class="muted small">Hace falta entrar con la cuenta de GitHub de GIZE.</div>'; });
   // admin_list_admins trae a todos los administradores (admin.sql). Si la base todavía no la
   // tiene, se sigue con lo de antes: los administradores entre las 60 cuentas más nuevas.
   rpc("admin_list_admins").catch(() => rpc("admin_users", { q: "" }).then(us => us.filter(u => u.is_admin)))
-    .then(us => { const box = document.getElementById("admins"); if (box) box.innerHTML = (us || []).map(u => esc((u.full_name || "Sin nombre") + " · " + u.email)).join("<br>") || "—"; }).catch(() => {});
+    .then(us => { const box = document.getElementById("admins"); if (!box) return; us = us || [];
+      box.innerHTML = us.map(u => esc((u.full_name || "Sin nombre") + " · " + u.email)).join("<br>") || "—";
+      setSum("sAdmB", us.length ? us.length + " cuenta" + (us.length === 1 ? "" : "s") : ""); }).catch(() => {});
   const box = document.getElementById("aud");
   try { S.audit = await rpc("admin_audit_list", { lim: 100 }); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.audit.length){ box.textContent = "Todavía no hay acciones registradas."; return; }
@@ -1092,6 +1165,7 @@ async function loadSeguridad(){
     tarea_nueva: "Agregó una tarea", tarea: "Cambió una tarea", tarea_hecha: "Marcó una tarea como hecha", tarea_deshacer: "Volvió a abrir una tarea", tarea_borrar: "Borró una tarea" }[a.action] || a.action);
   const goalTxt = d => d ? (d.label || (METRICS[d.metric] || [d.metric])[0]) + (d.target != null ? " · meta " + (METRICS[d.metric] || [, n0])[1](d.target) : "") : "";
   const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : (a.target_name || "");
+  setSum("sAudB", "última: " + esc(what(S.audit[0])).toLowerCase() + " · " + ago(S.audit[0].created_at));
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Sobre</th></tr></thead><tbody>${S.audit.map(a => `<tr><td class="muted">${fmtDT(a.created_at)}</td><td>${esc(a.admin_name || "—")}</td><td>${esc(what(a))}</td><td class="muted">${esc(extra(a) || "")}</td></tr>`).join("")}</tbody></table>`;
 }
@@ -1121,6 +1195,7 @@ document.addEventListener("click", async e => {
   const tt = e.target.closest("[data-task]"); if (tt){ openTask(tt.dataset.task); return; }
   const b = e.target.closest("[data-a]"); if (!b) return;
   const a = b.dataset.a;
+  if (b.closest("summary")) e.preventDefault(); // un botón en el título de un panel no lo pliega
   try {
     if (a === "google"){ await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } }); return; }
     if (a === "login"){ const r = await sb.auth.signInWithPassword({ email: document.getElementById("lgMail").value.trim(), password: document.getElementById("lgPass").value }); if (r.error) toast("Mail o contraseña incorrectos."); return; }
@@ -1190,7 +1265,9 @@ document.addEventListener("click", async e => {
     if (a === "tDone"){ doneTask(b); return; }
     if (a === "tSave"){ saveTask(b); return; }
     if (a === "tDel"){ deleteTask(b); return; }
-    if (a === "toTasks"){ document.getElementById("hTasksB").scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (a === "toTasks"){ const d = openPanel("hTasksB"); if (d) d.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (a === "foldAll"){ foldAll(b.dataset.v === "1"); return; }
+    if (a === "navG"){ const grp = b.closest(".nav-grp"); navGroup(grp, grp.classList.contains("shut")); return; }
     if (a === "gSave"){ saveGoal(b); return; }
     if (a === "gDel"){ deleteGoal(b); return; }
     if (a === "fTab"){ S.finTab = b.dataset.v; finTabs(); return; }

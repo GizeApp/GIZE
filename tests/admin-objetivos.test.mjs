@@ -60,6 +60,28 @@ export default async function ({ base, t }){
   // Ficha de una tarea
   await p.click('[data-task="3"]'); await wait(300);
   t.eq(await p.inputValue('#tTitle'), 'Armar el video', 'la ficha abre la tarea tocada');
+  await p.click('.drawer [data-a="closeDrawer"]');
+
+  // Paneles plegables: resumen en el título, «+ Nuevo» no pliega y queda como lo dejaste
+  t.has(await text(p, '#hGoalsB > summary'), '1 atrasado · 1 cumplido', 'resumen de objetivos en el título');
+  t.has(await text(p, '#hTasksB > summary'), '1 vencida', 'resumen de tareas en el título');
+  t.ok(!(await p.isVisible('#hChartsB .chart')), 'los gráficos arrancan plegados');
+  await p.click('#hGoalsB [data-a="gNew"]'); await wait(300);
+  t.ok(await p.$eval('#hGoalsB', d => d.open), '«+ Nuevo» abre el formulario sin plegar Objetivos');
+  await p.click('.drawer [data-a="closeDrawer"]');
+  await p.click('#hTasksB > summary'); await p.click('#hChartsB > summary'); await wait(200);
+  await p.reload(); await wait(1800);
+  t.ok(!(await p.$eval('#hTasksB', d => d.open)), 'Tareas sigue plegado después de recargar');
+  t.ok(await p.$eval('#hChartsB', d => d.open), 'Gráficos sigue abierto después de recargar');
+  // Menú: en Inicio los grupos arrancan plegados; se abren tocando el título y queda así
+  t.ok(!(await p.isVisible('[data-go="usuarios"]')), 'en Inicio, «Gestión» arranca plegado');
+  await p.click('[data-g="nav-g1"] .nav-g');
+  t.ok(await p.isVisible('[data-go="usuarios"]'), 'tocar «Gestión» lo abre');
+  await p.reload(); await wait(1800);
+  t.ok(await p.isVisible('[data-go="usuarios"]'), '«Gestión» sigue abierto después de recargar');
+  t.ok(!(await p.isVisible('[data-go="finanzas"]')), '«Negocio y sistema» sigue plegado');
+  await p.click('[data-a="foldAll"][data-v="0"]');
+  t.ok(await p.$$eval('#main .pnl', ds => ds.every(d => !d.open)), '«Plegar todo» pliega todos los bloques');
   t.eq(errs, [], 'errores de la página');
   await close();
 }
