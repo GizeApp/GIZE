@@ -101,9 +101,25 @@
 
 .auth-msg.ok { color:var(--gize-success); background:var(--gize-success-bg); border-color:color-mix(in srgb, var(--gize-success) 35%, transparent); animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
 
+/* margin:auto centra la tarjeta cuando sobra lugar y, si no entra, deja scrollear el login
+   en vez de cortarla (con align-items:center se perdía el borde de arriba). */
+.auth-card { margin:auto; flex:none; }
+
+/* Celular: menos aire por fuera y por dentro para que la tarjeta entre sin tapar la barra de estado. */
+@media (max-width:480px) {
+    #authHost { padding-left:calc(16px + env(safe-area-inset-left)); padding-right:calc(16px + env(safe-area-inset-right)); padding-top:calc(16px + env(safe-area-inset-top)); padding-bottom:calc(16px + env(safe-area-inset-bottom)); }
+    .auth-card { max-width:100%; padding:18px 16px 16px; gap:12px; }
+    .auth-title { font-size:23px; }
+    .auth-tab { min-height:40px; }
+    .auth-in { padding-top:13px; padding-bottom:13px; }
+    .auth-lbl { margin-bottom:6px; }
+  }
 @media (max-width:380px) {
-    .auth-card { padding:28px 20px 22px; max-width:100%; }
     .auth-logo img { height:22px; }
+  }
+@media (max-height:700px) {
+    .auth-card { gap:10px; }
+    .auth-in { padding-top:11px; padding-bottom:11px; }
   }
 
 /* Cartel "¡Mail confirmado con éxito!" al volver del link del mail (app/core/supabase.js →
