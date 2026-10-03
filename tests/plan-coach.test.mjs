@@ -11,8 +11,8 @@ async function sheet(base, row, { native = false, url = '/app/', timezoneId } = 
     State.sb = { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: row, error: null }) }) }) }) };
     CoachState.coachClients = [{ id: 'a' }, { id: 'b' }];
     await m.loadBilling(); const banner = m.renderPlanBanner().replace(/<[^>]+>/g, ''); m.openPlan();
-    const h = document.getElementById('planSheetHost'), ch = h.querySelector('.pl-card.chosen a.pl-choose');
-    return { banner, sheet: h.innerText.replace(/\s+/g, ' '), links: h.querySelectorAll('a.pl-choose').length, chosen: ch ? decodeURIComponent(ch.href) : null,
+    const h = document.getElementById('planSheetHost'), ch = h.querySelector('.pl-card.chosen a.pl-alt');
+    return { banner, sheet: h.innerText.replace(/\s+/g, ' '), links: h.querySelectorAll('a.pl-alt').length, cards: h.querySelectorAll('button.pl-choose[data-plan="choose"]').length, chosen: ch ? decodeURIComponent(ch.href) : null,
       tags: [...h.querySelectorAll('.pl-tag')].map(x => x.textContent), wall: m.renderPaywall().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ') };
   }, row);
   return Object.assign(out, { url: pg.p.url(), errs: pg.errs, close: pg.close });
@@ -30,7 +30,9 @@ export default async function ({ base, t }){
 
   // Los seis planes con los precios nuevos; eligió el Gimnasio grande (500 alumnos).
   r = await sheet(base, { plan: 'trial', max_clients: 10, trial_ends_at: D(5) }, { url: '/app/?plan=p500#registro-coach' });
-  t.eq(r.links, 6, 'seis planes para contratar');
+  t.eq(r.links, 6, 'seis planes para contratar por transferencia');
+  t.eq(r.cards, 6, 'y los seis con tarjeta (renovación automática)');
+  t.has(r.sheet, 'se renueva sola cada mes', 'explica la renovación automática');
   for (const x of ['$14.900', '$24.900', '$37.900', '$59.900', '$119.900', '$199.900']) t.has(r.sheet, x, 'precio ' + x);
   // (el nombre va en mayúsculas por CSS)
   for (const x of ['Gimnasio chico', 'Hasta 250 alumnos', 'Gimnasio grande']) t.has(r.sheet.toLowerCase(), x.toLowerCase(), 'plan ' + x);
@@ -52,8 +54,8 @@ export default async function ({ base, t }){
   r = await sheet(base, { plan: 'p25', max_clients: 25, trial_ends_at: D(5), paid_until: D(40) });
   t.has(r.banner, 'después sigue tu plan', 'tira: prueba y después el plan');
   t.has(r.sheet, 'Primero termina tu prueba gratis', 'Mi plan: prueba antes del plan pago');
-  t.has(r.sheet, 'Renovar', 'el plan actual se renueva por WhatsApp');
-  t.ok(!/Mercado Pago/.test(r.sheet), 'no tiene que aparecer Mercado Pago'); await r.close();
+  t.has(r.sheet, 'Renovar con tarjeta', 'el plan actual se renueva con tarjeta');
+  t.has(r.sheet, 'o por transferencia', 'o por transferencia (WhatsApp)'); await r.close();
 
   // Pagado hasta el 30/9 (en la base: 1/10 00:00 de Argentina) visto desde un celular en Europa.
   r = await sheet(base, { plan: 'p25', max_clients: 25, trial_ends_at: D(-40), paid_until: '2099-10-01T03:00:00Z' }, { timezoneId: 'Europe/Madrid' });

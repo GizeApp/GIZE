@@ -1,8 +1,10 @@
 // Plan del coach: 14 días de prueba y después un plan mensual que define cuántos clientes
-// puede tener. El cobro es manual: el coach lo arregla con el equipo de GIZE por WhatsApp
-// y un administrador lo habilita desde gize.ar/admin (supabase/cobro-manual.sql). Acá solo
-// se muestra el estado; los límites los hace cumplir la base, no la app.
-// Los que ya tenían una suscripción de Mercado Pago la siguen viendo y la pueden cancelar.
+// puede tener. Dos formas de pagar (solo en la web):
+//   · Con tarjeta por Mercado Pago: suscripción que se cobra y se renueva sola cada mes
+//     (función suscripcion), y se cancela desde acá cuando quiera.
+//   · Por transferencia: lo arregla con el equipo de GIZE por WhatsApp y un administrador lo
+//     habilita desde gize.ar/admin (supabase/cobro-manual.sql). Se renueva a mano cada mes.
+// Los límites los hace cumplir la base, no la app.
 //
 // En las apps de Android y iPhone no hay precios, links ni botones para contratar: Apple y
 // Google no permiten mandar a pagar por fuera de su sistema. Ahí solo se ve el estado.
@@ -59,7 +61,7 @@ function waCustom(){
 
 // billing: la fila de coach_billing. null + missing = todavía no se corrió el SQL (no se
 // bloquea nada en ese caso, así la app sigue andando mientras se configura).
-const B = { row: null, missing: false, loaded: false, busy: false, open: false, confirming: false };
+const B = { row: null, missing: false, loaded: false, busy: false, open: false, confirming: false, mpEmail: null, mailOpen: false };
 
 export async function loadBilling(){
   if(!State.sb || !State.cloudUser) return;
@@ -130,13 +132,21 @@ function planCards(b){
       '<div class="pl-max">Hasta <b>' + p.max + '</b> ' + (p.gym ? 'alumnos' : 'clientes') + '</div>' +
       '<div class="pl-price">' + money(p.price) + '<span>/mes</span></div>' +
       (current && b.renews ? '<button class="pl-choose" disabled>Tu plan actual</button>'
-        : current ? '<a class="pl-choose" href="' + esc(waLink(p, true)) + '" target="_blank" rel="noopener">Renovar</a>'
         : tooSmall ? '<button class="pl-choose" disabled>Tenés ' + b.count + ' clientes</button>'
-        : '<a class="pl-choose" href="' + esc(waLink(p)) + '" target="_blank" rel="noopener">Contratar</a>') +
+        : '<button class="pl-choose" data-plan="choose" data-id="' + p.id + '"' + (B.busy ? ' disabled' : '') + '>' +
+            (B.busy === p.id ? 'Abriendo Mercado Pago…' : current ? 'Renovar con tarjeta' : 'Pagar con tarjeta') + '</button>' +
+          '<a class="pl-alt" href="' + esc(waLink(p, current)) + '" target="_blank" rel="noopener">o por transferencia</a>') +
     '</div>';
   }).join("");
-  return '<div class="pl-cards">' + cards + '</div>' +
-    '<div class="pl-fine">Contratás por WhatsApp con el equipo de GIZE: pagás por transferencia, y te habilitamos el plan apenas se acredita. Se paga por mes; si un mes no seguís, no se cobra nada más.</div>' +
+  const mail = B.mpEmail != null ? B.mpEmail : ((State.cloudUser && State.cloudUser.email) || "");
+  const mailBox = B.mailOpen
+    ? '<div class="cs-field pl-mail"><label>Mail de tu cuenta de Mercado Pago</label>' +
+      '<input class="co-note" type="email" data-plan="mail" value="' + esc(mail) + '" placeholder="tu-mail@ejemplo.com" autocomplete="email">' +
+      '<div class="pl-fine">Tiene que ser el mail con el que entrás a Mercado Pago para pagar.</div></div>'
+    : '<div class="pl-fine pl-mail-line">Con tarjeta pagás con la cuenta de Mercado Pago de <b>' + esc(mail) + '</b> · <button class="pl-link" data-plan="mail-edit">¿Otro mail?</button></div>';
+  return '<div class="pl-cards">' + cards + '</div>' + mailBox +
+    '<div class="pl-fine"><b>Con tarjeta</b> (Mercado Pago): se cobra y se renueva sola cada mes, y la cancelás cuando quieras.</div>' +
+    '<div class="pl-fine"><b>Por transferencia:</b> lo arreglás por WhatsApp con el equipo de GIZE y te habilitamos el plan apenas se acredita. Se renueva a mano cada mes; si un mes no seguís, no se cobra nada más.</div>' +
     '<div class="pl-fine">¿Más de 500 alumnos? <a class="pl-link" href="' + esc(waCustom()) + '" target="_blank" rel="noopener">Hablemos</a> y armamos un plan a medida.</div>';
 }
 
@@ -147,7 +157,7 @@ function statusLine(b){
   if(b.paid) return '<div class="pl-status ok">' + (b.plan && b.plan.gym ? 'Plan ' + b.plan.name + ' (' + b.max + ' alumnos)' : 'Plan de ' + b.max + ' clientes') + ' · ' + (b.renews ? 'se renueva solo cada mes' : 'al día hasta el ' + fmtDate(ymd(b.until))) + '.</div>';
   const ch = !IS_NATIVE && PLANS.find(p => p.id === chosenPlan());
   if(b.trial) return '<div class="pl-status">Estás en la prueba gratis: te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ' (hasta ' + b.max + ' clientes).' +
-    (IS_NATIVE ? '' : ch ? ' Elegiste el plan ' + (ch.gym ? ch.name : 'de hasta ' + ch.max + ' clientes') + ': contratalo por WhatsApp cuando quieras para seguir después de la prueba.' : ' Elegí un plan y contratalo por WhatsApp para seguir después.') + '</div>';
+    (IS_NATIVE ? '' : ch ? ' Elegiste el plan ' + (ch.gym ? ch.name : 'de hasta ' + ch.max + ' clientes') + ': contratalo cuando quieras para seguir después de la prueba.' : ' Elegí un plan y contratalo para seguir después.') + '</div>';
   return '<div class="pl-status warn">Tu ' + (B.row && B.row.paid_until ? 'plan venció' : 'prueba gratis terminó') + '.</div>';
 }
 
@@ -172,7 +182,7 @@ export function renderPaywall(){
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
     '<div class="pl-wall-hero"><div class="pl-wall-t">' + (B.row && B.row.paid_until ? 'Tu plan venció' : 'Terminó tu prueba gratis') + '</div>' +
     '<div class="pl-wall-s">Tus ' + b.count + ' cliente' + (b.count === 1 ? '' : 's') + ', rutinas y registros están guardados. ' +
-    (IS_NATIVE ? 'Para volver a verlos, hablá con el equipo de GIZE.' : 'Elegí un plan y contratalo por WhatsApp para volver a verlos y seguir sumando clientes.') + '</div>' +
+    (IS_NATIVE ? 'Para volver a verlos, hablá con el equipo de GIZE.' : 'Elegí un plan para volver a verlos y seguir sumando clientes: con tarjeta se renueva solo cada mes.') + '</div>' +
     (B.confirming ? '<div class="pl-status">Confirmando tu pago con Mercado Pago…</div>' : '') + '</div>' +
     planCards(b) +
   '</div>';
@@ -187,7 +197,7 @@ function renderOverCap(b){
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
     '<div class="pl-wall-hero"><div class="pl-wall-t">Tenés más clientes que tu plan</div>' +
     '<div class="pl-wall-s">Tenés ' + b.count + ' clientes y tu plan es de ' + b.max + '. ' +
-    (IS_NATIVE ? 'Desvinculá ' : 'Contratá un plan más grande por WhatsApp o desvinculá ') + extra + ' cliente' + (extra === 1 ? '' : 's') + ' para volver a ver sus fichas. Sus rutinas y registros quedan guardados.</div></div>' +
+    (IS_NATIVE ? 'Desvinculá ' : 'Contratá un plan más grande o desvinculá ') + extra + ' cliente' + (extra === 1 ? '' : 's') + ' para volver a ver sus fichas. Sus rutinas y registros quedan guardados.</div></div>' +
     planCards(b) +
     '<div class="pl-oc"><div class="pl-sub">Tus clientes</div>' + list + '</div>' +
   '</div>';
@@ -203,6 +213,27 @@ async function unlinkClient(id){
     CoachState.coachClients = CoachState.coachClients.filter(x => x.id !== id);
   }catch(e){ alert("No se pudo desvincular: " + ((e && e.message) || e)); }
   B.busy = false; rerender();
+}
+
+// Pagar con tarjeta: la función suscripcion arma la suscripción de Mercado Pago y devuelve
+// el link de pago. Al volver (?pago=mp), checkPaymentReturn espera a que se confirme.
+async function choose(plan){
+  const input = document.querySelector('[data-plan="mail"]');
+  const mail = ((input ? input.value : (B.mpEmail != null ? B.mpEmail : ((State.cloudUser && State.cloudUser.email) || ""))) || "").trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)){ B.mailOpen = true; rerender(); alert("Poné el mail de tu cuenta de Mercado Pago."); return; }
+  B.mpEmail = mail; B.busy = plan; rerender();
+  let err = "";
+  try{
+    const r = await State.sb.functions.invoke("suscripcion", { body: { action: "checkout", plan, mp_email: mail } });
+    if(r.error){
+      try{ const j = await r.error.context.json(); err = j && j.error; }catch(e){}
+      err = err || (r.error.name === "FunctionsFetchError" ? "No se pudo conectar con el sistema de pagos." : r.error.message);
+    } else if(r.data && r.data.url){ window.location.href = r.data.url; return; }
+    else err = "Mercado Pago no devolvió el link de pago.";
+  }catch(e){ err = (e && e.message) || String(e); }
+  // Lo más común es que el mail no sea el de su cuenta de Mercado Pago: se muestra el campo.
+  B.busy = false; B.mailOpen = true; rerender();
+  alert("No se pudo abrir el pago: " + err + "\n\nTambién podés pagar por transferencia.");
 }
 
 async function cancelRenewal(){
@@ -244,5 +275,11 @@ document.body.addEventListener("click", e => {
   if(a === "open"){ openPlan(); return; }
   if(a === "close"){ B.open = false; renderPlanSheet(); return; }
   if(a === "cancel"){ cancelRenewal(); return; }
+  if(a === "choose"){ if(!IS_NATIVE) choose(b.dataset.id); return; }
+  if(a === "mail-edit"){ B.mailOpen = true; renderPlanSheet(); const i = document.querySelector('[data-plan="mail"]'); if(i) i.focus(); return; }
   if(a === "unlink"){ unlinkClient(b.dataset.id); return; }
+});
+
+document.body.addEventListener("input", e => {
+  const i = e.target.closest && e.target.closest('[data-plan="mail"]'); if(i) B.mpEmail = i.value;
 });
