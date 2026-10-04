@@ -1,3 +1,4 @@
+import { disciplinasLabel } from '../../core/disciplinas.js';
 import { copySvg, downloadSvg, gearSvg, resetSvg } from '../../core/icons.js';
 
 import { dec, esc, fmtDate, today } from '../../core/utils.js';
@@ -223,6 +224,6 @@ export function renderCoach(){
       }
       body=tabs+panel;
     }
-    host.innerHTML='<div class="co-wrap"><div class="co-head"><button class="co-back" data-coach="back">‹ Volver</button><div class="co-head-actions"><button class="co-back" data-coach="refresh" style="margin-right:8px">'+resetSvg+' Actualizar</button><button class="co-gear" data-coach="open-settings" title="Configuración">'+gearSvg+'</button><button class="co-logout" data-auth="logout">Salir</button></div></div><div class="co-client-head">'+avatarHtml(CoachState.coachData&&CoachState.coachData.avatar, coachInitials(CoachState.coachData&&CoachState.coachData.name), 'co-avatar co-avatar-client')+'<div class="co-client-name">'+esc((CoachState.coachData&&CoachState.coachData.name)||"Cliente")+'</div></div>'+body+'</div>';
+    host.innerHTML='<div class="co-wrap"><div class="co-head"><button class="co-back" data-coach="back">‹ Volver</button><div class="co-head-actions"><button class="co-back" data-coach="refresh" style="margin-right:8px">'+resetSvg+' Actualizar</button><button class="co-gear" data-coach="open-settings" title="Configuración">'+gearSvg+'</button><button class="co-logout" data-auth="logout">Salir</button></div></div><div class="co-client-head">'+avatarHtml(CoachState.coachData&&CoachState.coachData.avatar, coachInitials(CoachState.coachData&&CoachState.coachData.name), 'co-avatar co-avatar-client')+'<div><div class="co-client-name">'+esc((CoachState.coachData&&CoachState.coachData.name)||"Cliente")+'</div>'+(disciplinasLabel(CoachState.coachData&&CoachState.coachData.disciplines)?'<div class="co-client-disc">'+esc(disciplinasLabel(CoachState.coachData.disciplines))+'</div>':'')+'</div></div>'+body+'</div>';
   }
 }
