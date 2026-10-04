@@ -67,5 +67,12 @@ export default async function ({ base, t }){
   t.ok(!/\$/.test(r.sheet + r.wall), 'Android: sin precios');
   t.ok(!/Gimnasio|a medida|wa\.me/.test(r.sheet + r.wall), 'Android: sin los planes de gimnasio ni el plan a medida');
   t.has(r.wall, 'Terminó tu prueba gratis', 'Android: pantalla de prueba vencida');
-  t.has(r.banner, 'Sin plan vigente', 'Android: tira sin plan'); await r.close();
+  t.has(r.banner, 'Sin plan vigente', 'Android: tira sin plan');
+  // Venció hace 2 días: le quedan 2 de los 4 de gracia antes de que sus clientes pasen al sistema común.
+  t.has(r.wall, 'Tenés hasta el', 'días de gracia: hasta cuándo puede renovar');
+  t.has(r.wall, 'tus clientes pasan a usar GIZE por su cuenta', 'días de gracia: qué pasa después'); await r.close();
+
+  // Venció hace 6 días: ya pasaron los 4 de gracia (sus clientes ya no están): sin ese aviso.
+  r = await sheet(base, { plan: 'p25', max_clients: 25, trial_ends_at: D(-40), paid_until: D(-6) });
+  t.ok(!/Tenés hasta el/.test(r.wall), 'pasados los 4 días no se muestra el plazo'); await r.close();
 }

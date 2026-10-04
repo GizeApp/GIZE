@@ -479,6 +479,16 @@ function leaveCoachRoutine(){
   }
   state.routineMode = "regular"; state.regularDays = null; state.preDeloadDays = null;
 }
+// El plan de su coach venció hace más de 4 días y la base lo pasó al sistema común
+// (supabase/coach-vencido.sql): se le avisa una vez (por celular), solo si pasó hace poco.
+const COACH_LEFT_KEY="gize_coach_left_visto";
+function noticeCoachLeft(p){
+  if(!p || p.role==="coach" || p.coach_id || !p.coach_left_at) return;
+  const t=new Date(p.coach_left_at).getTime();
+  if(!(t>0) || Date.now()-t > 30*864e5) return;
+  try{ if(localStorage.getItem(COACH_LEFT_KEY)===p.coach_left_at) return; localStorage.setItem(COACH_LEFT_KEY, p.coach_left_at); }catch(e){ return; }
+  setTimeout(()=>alert("Tu coach ya no está en GIZE.\n\nTu rutina y todo tu progreso siguen acá, y ahora los podés modificar vos. Si vuelve, te podés vincular de nuevo con su código."), 900);
+}
 // Mientras se muestra una rutina de descarga no se sube la rutina como propia del alumno.
 const onRegular = () => (state.routineMode || "regular") === "regular";
 
@@ -783,6 +793,7 @@ export async function loadCloud(){
     // Sin coach: si quedó en una rutina de descarga, vuelve a la suya ya, antes de cualquier
     // otra lectura (si la de la rutina falla, igual no se sube la de descarga como propia).
     if(!(State.cloudProfile && State.cloudProfile.role==="coach") && !routineLocked()) leaveCoachRoutine();
+    noticeCoachLeft(State.cloudProfile);
     // Link de la foto de perfil propia (no frena el arranque; redibuja Ajustes al llegar).
     if(State.cloudProfile && State.cloudProfile.avatar_path){
       resolveAvatars([State.cloudProfile.avatar_path]).then(ok=>{ if(ok && State.view==="config") renderApp(); }).catch(()=>{});

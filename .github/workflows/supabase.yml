@@ -87,7 +87,7 @@ jobs:
         if: inputs.tarea == 'funciones'
         run: |
           cp -r supabase/functions/notificar-cliente supabase/functions/rapid-worker
-          for fn in rapid-worker suscripcion descanso avisos-coach admin contacto borrar-audios productos-off; do
+          for fn in rapid-worker suscripcion descanso avisos-coach admin contacto borrar-audios productos-off vence-plan; do
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt --use-api
           done
 
