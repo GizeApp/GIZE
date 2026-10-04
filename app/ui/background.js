@@ -80,6 +80,10 @@ export function wakeBg(){
 document.addEventListener("scroll", wakeBg, { passive: true, capture: true }); // también el scroll de listas internas
 window.addEventListener("hashchange", wakeBg);
 document.addEventListener("gize:splash-fin", wakeBg); // el reloj de quietud arranca cuando se ve la app
+// Bordes de colores que giran: dan sus 2 vueltas al abrir la app y después quedan quietos
+// (html.bordes-quietos, css/ui/lite.css). Antes volvían a girar en cada cambio de pantalla,
+// porque la pantalla se redibuja, y eso repintaba sin parar mientras se usaba la app.
+document.addEventListener("gize:splash-fin", () => setTimeout(() => document.documentElement.classList.add("bordes-quietos"), 12000), { once: true });
 wakeBg();
 
 // Elección manual desde Ajustes: se guarda y le gana a la detección automática.

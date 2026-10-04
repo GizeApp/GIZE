@@ -44,3 +44,8 @@ html.fondo-quieto .gize-aurora span { animation-play-state: paused !important; }
    la barra de abajo pasa a sólida (los temas «Azul», «Rosa» y «Claro» hacen lo mismo con lo suyo). */
 html.android-app *, html.android-app *::before, html.android-app *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 html.android-app .navbar { background: rgb(6,9,17); }
+
+/* Bordes que giran: solo las 2 vueltas del principio (html.bordes-quietos, app/ui/background.js).
+   Después quedan quietos aunque la pantalla se redibuje al cambiar de pestaña. */
+html.bordes-quietos :is(.ctrl.primary, .save-session, .co-save-rt, .rq-send, .scan-btn, .cneon i),
+html.bordes-quietos :is(.chat-btn, .wk-start, .gize-btn)::before { animation: none !important; }

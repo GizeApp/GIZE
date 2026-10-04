@@ -15,7 +15,7 @@
 
 /* La llama: neón violeta con núcleo rosado, titilando. */
 .flame { display: block; overflow: visible; }
-.flame .fl-out, .flame .fl-in { transform-box: fill-box; transform-origin: 50% 100%; }
+.flame .fl-out, .flame .fl-in { transform-box: view-box; transform-origin: 12px 22px; } /* view-box y no fill-box: medir la caja de cada trazo en cada cuadro obligaba a recalcular el diseño */
 .flame .fl-smoke { fill: none; stroke: #8F98A6; stroke-width: 1.2; stroke-linecap: round; opacity: 0; }
 .streak.lit .flame, .stk-big .flame:not(.off), .stk-day.on .flame {
   filter: drop-shadow(0 0 3px #C58BFF) drop-shadow(0 0 8px color-mix(in srgb, var(--gize-r2) 85%, transparent)) drop-shadow(0 0 16px color-mix(in srgb, var(--gize-r3) 35%, transparent)); }
