@@ -69,7 +69,7 @@
 
 .mc-arr { color:var(--blue-2); }
 
-.fi-card { background:var(--card); border:1px solid var(--border); border-radius:4px; padding:var(--space-14); margin-bottom:var(--space-8); }
+.fi-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); padding:var(--space-14); margin-bottom:var(--space-8); }
 
 .fi-chips { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px; margin-bottom:12px; }
 
@@ -89,7 +89,7 @@
 
 .fb-title { font-size:19px; font-weight:800; color:var(--gize-text); margin-bottom:4px; }
 
-.pr-box { background:var(--card-2); border:1px solid var(--green); border-radius:4px; padding:var(--space-12) var(--space-14); margin-bottom:var(--space-14); }
+.pr-box { background:var(--card-2); border:1px solid var(--green); border-radius:var(--r-box); padding:var(--space-12) var(--space-14); margin-bottom:var(--space-14); }
 
 .pr-title { display:flex; align-items:center; gap:var(--space-6); font-size:var(--text-emphasis); font-weight:800; color:var(--green); margin-bottom:var(--space-8); }
 
@@ -117,7 +117,7 @@
 
 .fb-n { flex:1; padding:12px 0; background:var(--card-2); border:1px solid var(--border); border-radius:3px; color:var(--txt-2); font-size: var(--text-body); font-weight:700; cursor:pointer; }
 
-.daily-card, .ci-card { background:var(--card); border:1px solid var(--border); border-radius:4px; padding:var(--space-14); margin-bottom:var(--space-8); }
+.daily-card, .ci-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); padding:var(--space-14); margin-bottom:var(--space-8); }
 
 .daily-top { display:flex; gap:10px; margin-bottom:12px; }
 
@@ -150,7 +150,7 @@
 /* Resumen al terminar el entreno (renderSummary en app/screens/checkin.js) */
 .sum-box { margin: 10px 0 14px; }
 .sum-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.sum-cell { background: var(--card-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.sum-cell { background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-card); padding: 10px 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
 .sum-cell b { font-size: 20px; font-weight: 700; color: var(--gize-text); font-variant-numeric: tabular-nums; line-height: 1.15; }
 .sum-cell span { font-size: 11px; color: var(--txt-2); }
 .sum-cell.big { grid-column: 1 / -1; padding: 14px 10px; border: 1.5px solid transparent;

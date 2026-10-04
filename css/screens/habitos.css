@@ -1,11 +1,11 @@
 /* css/screens/habitos.css */
 .hb-list { display: flex; flex-direction: column; gap: 10px; }
 
-.hb-item { display: flex; align-items: center; gap: var(--space-14); background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: var(--space-14) var(--space-16); cursor: pointer; transition: var(--transition-tap); }
+.hb-item { display: flex; align-items: center; gap: var(--space-14); background: var(--card); border: 1px solid var(--border); border-radius: var(--r-box); padding: var(--space-14) var(--space-16); cursor: pointer; transition: var(--transition-tap); }
 
 .hb-item:active { background: var(--card-2); }
 
-.hb-check { width: 26px; height: 26px; border-radius: 4px; border: 1.5px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--gize-text); transition: var(--transition-tap), transform .14s cubic-bezier(.23,1,.32,1); }
+.hb-check { width: 26px; height: 26px; border-radius: var(--r-box); border: 1.5px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--gize-text); transition: var(--transition-tap), transform .14s cubic-bezier(.23,1,.32,1); }
 
 .hb-item:active .hb-check { transform: scale(.97); }
 
@@ -21,11 +21,11 @@
 
 .hb-add { display: flex; gap: 8px; margin-top: 16px; }
 
-.hb-add input { flex: 1; background: var(--card-2); border: 1px solid var(--border); border-radius: 4px; padding: 13px 14px; color: var(--txt); font-size: var(--text-emphasis); }
+.hb-add input { flex: 1; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-box); padding: 13px 14px; color: var(--txt); font-size: var(--text-emphasis); }
 
 .hb-add input:focus { outline: none; border-color: var(--blue); box-shadow: var(--focus-ring); }
 
-.hb-add-btn { width: 48px; border: none; border-radius: 4px; background: var(--blue); color: var(--gize-text); font-size: 24px; cursor: pointer; box-shadow: var(--glow-lg); }
+.hb-add-btn { width: 48px; border: none; border-radius: var(--r-box); background: var(--blue); color: var(--gize-text); font-size: 24px; cursor: pointer; box-shadow: var(--glow-lg); }
 
 .hb-add-btn:active { filter: brightness(1.12); }
 
@@ -42,7 +42,7 @@
    cajas (theme.css / gize-surfaces.css), igual que ahí. */
 .hb-item { --hb-neon: linear-gradient(135deg, var(--gize-r3), var(--gize-r4)); --hb-glow: var(--gize-r3); }
 .hb-item.coach { --hb-neon: linear-gradient(135deg, var(--gize-r1), var(--gize-r2)); --hb-glow: var(--gize-r1); }
-body:not(#_) .hb-item { border: 1.5px solid transparent; border-radius: 10px;
+body:not(#_) .hb-item { border: 1.5px solid transparent; border-radius: var(--r-btn);
   background: linear-gradient(var(--card), var(--card)) padding-box, var(--hb-neon) border-box;
   box-shadow: 0 0 22px -12px color-mix(in srgb, var(--hb-glow) 75%, transparent); }
 body:not(#_) .hb-item:active { background: linear-gradient(var(--card-2), var(--card-2)) padding-box, var(--hb-neon) border-box; }
@@ -69,19 +69,19 @@ body:not(#_) .hb-item:active { background: linear-gradient(var(--card-2), var(--
 .hb-item.later:active { background: var(--card); }
 
 .hba-lbl { margin: 14px 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--txt-3); }
-.hba-all { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--card-2); color: var(--txt-2); font: inherit; font-weight: 600; cursor: pointer; }
+.hba-all { width: 100%; padding: 10px; border-radius: var(--r-btn); border: 1px solid var(--border); background: var(--card-2); color: var(--txt-2); font: inherit; font-weight: 600; cursor: pointer; }
 .hba-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
-.hba-day { height: 42px; border-radius: 10px; border: 1px solid var(--border); background: var(--card-2); color: var(--txt-2); font: inherit; font-weight: 700; cursor: pointer; padding: 0; }
+.hba-day { height: 42px; border-radius: var(--r-btn); border: 1px solid var(--border); background: var(--card-2); color: var(--txt-2); font: inherit; font-weight: 700; cursor: pointer; padding: 0; }
 .hba-all.on, .hba-day.on { border-color: var(--gize-blue); background: color-mix(in srgb, var(--gize-blue) 18%, transparent); color: var(--txt); }
 .hba-time { display: flex; gap: 10px; align-items: center; }
-.hba-pick { flex: 1; min-width: 0; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--card-2); color: var(--txt-2); font: 600 18px var(--gize-font-data, inherit); cursor: pointer; text-align: left; }
+.hba-pick { flex: 1; min-width: 0; padding: 12px; border-radius: var(--r-btn); border: 1px solid var(--border); background: var(--card-2); color: var(--txt-2); font: 600 18px var(--gize-font-data, inherit); cursor: pointer; text-align: left; }
 .hba-pick.on { color: var(--txt); border-color: color-mix(in srgb, var(--gize-blue) 45%, transparent); }
-.hba-clear { flex: none; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: none; color: var(--txt-2); font: inherit; cursor: pointer; }
+.hba-clear { flex: none; padding: 12px 14px; border-radius: var(--r-btn); border: 1px solid var(--border); background: none; color: var(--txt-2); font: inherit; cursor: pointer; }
 .hba-note { margin-top: 8px; font-size: 12.5px; color: var(--txt-2); line-height: 1.45; }
 .hba-sheet .sheet-btns { margin-top: 18px; }
 
 /* Panel del coach: días de cada hábito. */
 .hd-row { display: flex; flex-wrap: wrap; gap: 5px; margin: -2px 0 12px; }
-.hd-all, .hd-day { padding: 6px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--card-2); color: var(--txt-2); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.hd-all, .hd-day { padding: 6px 9px; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--card-2); color: var(--txt-2); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .hd-day { min-width: 32px; }
 .hd-all.on, .hd-day.on { border-color: var(--gize-blue); color: var(--txt); background: color-mix(in srgb, var(--gize-blue) 18%, transparent); }

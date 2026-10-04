@@ -9,7 +9,7 @@
 
 .w-delta { color: var(--blue-2); font-weight: 600; margin-left: 4px; }
 
-.w-chart { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: var(--space-12) var(--space-8); margin-bottom: var(--space-16); }
+.w-chart { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-box); padding: var(--space-12) var(--space-8); margin-bottom: var(--space-16); }
 
 .w-form { display: flex; gap: 8px; margin-bottom: 18px; }
 
@@ -31,7 +31,7 @@
 
 .w-list-head { font-size: var(--text-meta); color: var(--txt-2); margin-bottom: 10px; font-weight: 600; }
 
-.w-item { display: flex; align-items: center; gap: var(--space-12); background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: var(--space-12) var(--space-14); margin-bottom: var(--space-8); cursor: pointer; transition: var(--transition-tap); }
+.w-item { display: flex; align-items: center; gap: var(--space-12); background: var(--card); border: 1px solid var(--border); border-radius: var(--r-box); padding: var(--space-12) var(--space-14); margin-bottom: var(--space-8); cursor: pointer; transition: var(--transition-tap); }
 
 .w-item:active { background: var(--card-2); }
 
@@ -41,7 +41,7 @@
 
 .vol-sub { font-size: var(--text-meta); color: var(--txt-2); margin-bottom: 12px; }
 
-.vol-card { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: var(--space-14); }
+.vol-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-box); padding: var(--space-14); }
 
 .vol-row { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
 
@@ -49,13 +49,13 @@
 
 .vol-lbl { width: 92px; font-size: var(--text-body); color: var(--txt); flex-shrink: 0; }
 
-.vol-bar { flex: 1; height: 9px; background: var(--card-2); border-radius: 4px; overflow: hidden; }
+.vol-bar { flex: 1; height: 9px; background: var(--card-2); border-radius: var(--r-box); overflow: hidden; }
 
-.vol-fill { height: 100%; background: linear-gradient(90deg, var(--blue), var(--blue-2)); border-radius: 4px; }
+.vol-fill { height: 100%; background: linear-gradient(90deg, var(--blue), var(--blue-2)); border-radius: var(--r-box); }
 
 .vol-n { width: 26px; text-align: right; font-size: var(--text-body); font-weight: 600; color: var(--txt); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
-.date-field { position: relative; display: flex; align-items: center; background: var(--card-2); border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px; }
+.date-field { position: relative; display: flex; align-items: center; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-box); padding: 12px 14px; }
 
 .date-disp { font-size: var(--text-emphasis); color: var(--txt); font-variant-numeric: tabular-nums; }
 
@@ -75,7 +75,7 @@
 
 .hx-sets { display:flex; flex-wrap:wrap; gap:6px; }
 
-.hx-set { display:flex; align-items:center; gap:3px; background:var(--card-2); border-radius:4px; padding:5px 8px; font-size: var(--text-meta); font-variant-numeric:tabular-nums; }
+.hx-set { display:flex; align-items:center; gap:3px; background:var(--card-2); border-radius:var(--r-box); padding:5px 8px; font-size: var(--text-meta); font-variant-numeric:tabular-nums; }
 
 .hx-n { color:var(--txt-3); font-weight:700; font-size:10px; font-family:var(--font-mono); }
 
@@ -87,7 +87,7 @@
 
 .sess-n { color:var(--txt-3); font-weight:400; font-size: var(--text-meta); }
 
-.last-sess { background:var(--card-2); border-radius:4px; padding:8px 10px; margin-bottom:10px; }
+.last-sess { background:var(--card-2); border-radius:var(--r-box); padding:8px 10px; margin-bottom:10px; }
 
 .ls-lbl { display:block; font-size:9px; color:var(--txt-3); text-transform:uppercase; letter-spacing:.06em; font-weight:700; margin-bottom:4px; }
 
@@ -109,12 +109,12 @@
 .se-exn { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
 .se-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .se-n { width: 22px; text-align: center; color: var(--gize-text-2); font: 700 12px var(--gize-font-data); flex: none; }
-.se-f { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: var(--gize-surface-2); border: 1px solid var(--gize-border); border-radius: 10px; padding: 0 10px; }
+.se-f { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: var(--gize-surface-2); border: 1px solid var(--gize-border); border-radius: var(--r-btn); padding: 0 10px; }
 .se-f:focus-within { border-color: var(--gize-blue); }
 .se-f input { flex: 1; min-width: 0; width: 100%; background: transparent; border: 0; color: var(--gize-text); font: 600 16px var(--gize-font-data); padding: 9px 0; outline: none; text-align: right; }
 .se-f span { font-size: 12px; color: var(--gize-text-2); }
 .se-f .se-neg { font-size: 16px; font-weight: 800; color: var(--gize-r2); }
-.se-rm { width: 36px; height: 36px; flex: none; border-radius: 10px; border: 1px solid var(--gize-border); background: transparent; color: var(--gize-text-2); font-size: 13px; cursor: pointer; }
+.se-rm { width: 36px; height: 36px; flex: none; border-radius: var(--r-btn); border: 1px solid var(--gize-border); background: transparent; color: var(--gize-text-2); font-size: 13px; cursor: pointer; }
 .se-rm:hover { color: var(--gize-danger); border-color: color-mix(in srgb, var(--gize-danger) 45%, transparent); }
 .se-sheet .sheet-btns { margin-top: 18px; }
 
@@ -132,7 +132,7 @@
 .ptile-go { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 22px; color: var(--gize-blue); line-height: 1; }
 .ptile:active { transform: scale(.985); }
 .psec > .hb-head:first-child { display: none; }
-.w-more { display: block; width: 100%; margin-top: 8px; padding: 10px; border-radius: 10px; background: none; border: 1px dashed var(--border);
+.w-more { display: block; width: 100%; margin-top: 8px; padding: 10px; border-radius: var(--r-btn); background: none; border: 1px dashed var(--border);
   color: var(--gize-blue); font: 600 var(--text-body) var(--gize-font); cursor: pointer; }
 
 /* Ficha del alumno en el panel del coach: el mismo menú de tarjetas que Progreso. */

@@ -5,11 +5,11 @@
 
 .macro-top span { color: var(--txt-2); font-variant-numeric: tabular-nums; font-family: var(--gize-font); }
 
-.cal-search input { width: 100%; background: var(--card-2); border: 1px solid var(--border); border-radius: 4px; padding: 13px 14px 13px 38px; color: var(--txt); font-size: var(--text-emphasis); }
+.cal-search input { width: 100%; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-box); padding: 13px 14px 13px 38px; color: var(--txt); font-size: var(--text-emphasis); }
 
 .cal-search input:focus { outline: none; border-color: var(--blue); box-shadow: var(--focus-ring); }
 
-.food-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-10); background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: var(--space-10) var(--space-14); cursor: pointer; }
+.food-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-10); background: var(--card); border: 1px solid var(--border); border-radius: var(--r-box); padding: var(--space-10) var(--space-14); cursor: pointer; }
 
 .food-row:active { background: var(--card-2); }
 
@@ -20,13 +20,13 @@
 .food-kcal span { font-size: 10px; color: var(--txt-3); }
 
 .cal-create { margin: 10px 0 20px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: var(--text-body);
-    color: var(--blue-2); background: transparent; cursor: pointer; border: 1px dashed var(--border); border-radius: 4px; padding: 11px; }
+    color: var(--blue-2); background: transparent; cursor: pointer; border: 1px dashed var(--border); border-radius: var(--r-box); padding: 11px; }
 
 .cal-create:active { border-color: var(--blue); }
 
 .diary-head { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; }
 
-.diary-item { display: flex; align-items: center; gap: var(--space-10); background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: var(--space-12) var(--space-14); margin-bottom: var(--space-8); cursor: pointer; transition: var(--transition-tap); }
+.diary-item { display: flex; align-items: center; gap: var(--space-10); background: var(--card); border: 1px solid var(--border); border-radius: var(--r-box); padding: var(--space-12) var(--space-14); margin-bottom: var(--space-8); cursor: pointer; transition: var(--transition-tap); }
 
 .diary-item:active { background: var(--card-2); }
 
@@ -38,7 +38,7 @@
 
 .cal-empty { text-align: center; padding: 40px 20px; }
 
-.cal-empty-ic { width: 60px; height: 60px; border-radius: 4px; background: var(--card-2); display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; color: var(--blue-2); }
+.cal-empty-ic { width: 60px; height: 60px; border-radius: var(--r-box); background: var(--card-2); display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; color: var(--blue-2); }
 
 .cal-empty-ic svg { width: 30px; height: 30px; }
 
@@ -64,7 +64,7 @@
 
 .form-or { text-align: center; color: var(--txt-3); font-size: var(--text-meta); margin: 22px 0 12px; }
 
-.water-card { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: var(--space-14); margin-bottom: var(--space-14); }
+.water-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-box); padding: var(--space-14); margin-bottom: var(--space-14); }
 
 .water-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 
@@ -76,7 +76,7 @@
 
 .water-undo { color: var(--txt-2) !important; }
 
-.plan-banner { background:var(--card); border:1px solid var(--blue); border-radius:4px; padding:var(--space-12) var(--space-14); margin-bottom:var(--space-16); }
+.plan-banner { background:var(--card); border:1px solid var(--blue); border-radius:var(--r-box); padding:var(--space-12) var(--space-14); margin-bottom:var(--space-16); }
 
 .plan-t { font-size:10px; color:var(--blue-2); text-transform:uppercase; letter-spacing:.1em; font-weight:700; margin-bottom:8px; }
 
@@ -89,7 +89,7 @@
 /* ===== Búsqueda con escáner y productos de marca (Open Food Facts) ===== */
 .food-search-row { display:flex; gap:8px; align-items:stretch; }
 .food-search-row .cal-search { flex:1; min-width:0; }
-.scan-btn { flex-shrink:0; width:48px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:var(--gize-surface-2);
+.scan-btn { flex-shrink:0; width:48px; border-radius:var(--r-btn); border:1px solid rgba(255,255,255,.18); background:var(--gize-surface-2);
     color:var(--gize-text); display:flex; align-items:center; justify-content:center; cursor:pointer; }
 .scan-btn svg { width:22px; height:22px; }
 .scan-btn:hover { border-color:var(--gize-blue); }
@@ -152,15 +152,15 @@ button.wk-avg { font: inherit; color: inherit; text-align: left; cursor: pointer
 .fh-title { flex: 1; min-width: 0; text-align: center; display: flex; flex-direction: column; }
 .fh-title .sheet-title { margin: 0; }
 .fh-sub { font-size: 12px; color: var(--gize-text-2); }
-.fh-arrow { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--gize-border); background: var(--gize-surface-2);
+.fh-arrow { width: 40px; height: 40px; border-radius: var(--r-card); border: 1px solid var(--gize-border); background: var(--gize-surface-2);
   color: var(--gize-text); font-size: 22px; line-height: 1; cursor: pointer; display: grid; place-items: center; }
 .fh-arrow:disabled { opacity: .3; cursor: default; }
 .fh-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 14px; }
-.fh-day { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px 7px; border-radius: 12px;
+.fh-day { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px 7px; border-radius: var(--r-card);
   border: 1px solid var(--gize-border); background: transparent; color: var(--gize-text-2); font: inherit; cursor: pointer; min-width: 0; }
 .fh-day.on { border-color: var(--gize-blue); background: color-mix(in srgb, var(--gize-blue) 12%, transparent); color: var(--gize-text); }
-.fh-bar { width: 8px; height: 34px; border-radius: 4px; background: var(--gize-surface-2); display: flex; align-items: flex-end; overflow: hidden; }
-.fh-bar i { display: block; width: 100%; border-radius: 4px; background: var(--gize-blue); }
+.fh-bar { width: 8px; height: 34px; border-radius: var(--r-box); background: var(--gize-surface-2); display: flex; align-items: flex-end; overflow: hidden; }
+.fh-bar i { display: block; width: 100%; border-radius: var(--r-box); background: var(--gize-blue); }
 .fh-dn { font-size: 11px; font-weight: 600; }
 .fh-dk { font-size: 10px; font-family: var(--gize-font); font-variant-numeric: tabular-nums; }
 .fh-tot { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 10px 2px 12px;
@@ -188,7 +188,7 @@ button.wk-avg { font: inherit; color: inherit; text-align: left; cursor: pointer
 .sheet .meal-chips { margin: -8px 0 14px; }
 
 .meals { display: flex; flex-direction: column; gap: 12px; margin: 18px 0 16px; }
-.meal { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px 6px; }
+.meal { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-box); padding: 10px 12px 6px; }
 .meal-head { display: flex; align-items: center; gap: 8px; padding: 2px 0 8px; }
 .meal-ic { font-size: 16px; }
 .meal-t { font-size: 16px; font-weight: 700; }
@@ -200,15 +200,15 @@ button.wk-avg { font: inherit; color: inherit; text-align: left; cursor: pointer
 .meal .diary-item { background: transparent; border: 0; border-top: 1px solid var(--border); border-radius: 0; margin: 0; padding: 10px 0; }
 
 /* ---- Agua: una fila chica, las demás opciones se abren con la flecha ---- */
-.water-mini { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; margin-bottom: 16px; }
+.water-mini { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-box); padding: 10px 12px; margin-bottom: 16px; }
 .wm-row { display: flex; align-items: center; gap: 10px; }
 .wm-ic { font-size: 18px; }
 .wm-main { flex: 1; min-width: 0; }
 .wm-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .wm-t { font-size: 14px; font-weight: 600; }
 .wm-v { font: 600 12.5px var(--gize-font); color: var(--gize-text-2); }
-.wm-bar { height: 4px; border-radius: 4px; background: var(--gize-surface-2); margin-top: 6px; overflow: hidden; }
-.wm-bar i { display: block; height: 100%; background: var(--gize-blue); border-radius: 4px; }
+.wm-bar { height: 4px; border-radius: var(--r-box); background: var(--gize-surface-2); margin-top: 6px; overflow: hidden; }
+.wm-bar i { display: block; height: 100%; background: var(--gize-blue); border-radius: var(--r-box); }
 .wm-add { flex: none; border: 1px solid var(--gize-border); background: var(--gize-surface-2); color: var(--gize-text); border-radius: 999px;
   padding: 7px 12px; font: 600 13px var(--gize-font); cursor: pointer; }
 .wm-more { flex: none; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--gize-border); background: transparent; cursor: pointer; display: grid; place-items: center; }
@@ -225,7 +225,7 @@ button.wk-avg { font: inherit; color: inherit; text-align: left; cursor: pointer
 .day-lbl { flex: 1; min-width: 0; text-align: center; display: flex; flex-direction: column; }
 .day-lbl b { font-size: 18px; font-weight: 700; }
 .day-lbl span { font-size: 12px; color: var(--gize-text-2); }
-.day-arrow { width: 40px; height: 40px; flex: none; border-radius: 12px; border: 1px solid var(--gize-border); background: var(--gize-surface);
+.day-arrow { width: 40px; height: 40px; flex: none; border-radius: var(--r-card); border: 1px solid var(--gize-border); background: var(--gize-surface);
   color: var(--gize-text); font-size: 22px; line-height: 1; cursor: pointer; display: grid; place-items: center; }
 .day-arrow:disabled { opacity: .25; cursor: default; }
 .cal-top { justify-content: center; }
@@ -238,7 +238,7 @@ button.wk-avg { font: inherit; color: inherit; text-align: left; cursor: pointer
 @media (prefers-reduced-motion: reduce) { .day-in-left, .day-in-right { animation: none; } }
 
 /* ---- Barra "Buscar alimento" (abre la ventana) y ventana de búsqueda ---- */
-button.search-open { flex: 1; background: var(--card-2); border: 1px solid var(--border); border-radius: 4px; padding: 13px 14px 13px 38px; font: inherit; color: var(--gize-text-2); text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+button.search-open { flex: 1; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-box); padding: 13px 14px 13px 38px; font: inherit; color: var(--gize-text-2); text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; }
 .search-ph { font-size: 15px; }
 /* Alto: lo que queda arriba del teclado menos la barra de estado del iPhone (hora, batería). */
 .search-sheet { height: min(88dvh, calc(100dvh - var(--kb, 0px) - env(safe-area-inset-top, 0px) - 16px)); max-height: none; display: flex; flex-direction: column; }
@@ -263,7 +263,7 @@ button.search-open { flex: 1; background: var(--card-2); border: 1px solid var(-
 .macro-sum b { color: var(--gize-text); font-weight: 700; }
 .form-link { display: block; margin: 12px auto 0; background: none; border: none; color: var(--gize-blue); font: 600 var(--text-body) var(--gize-font); cursor: pointer; }
 .coach-goal { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.coach-goal div { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 2px; }
+.coach-goal div { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-card); padding: 14px; display: flex; flex-direction: column; gap: 2px; }
 .coach-goal b { font-size: 22px; font-weight: 700; color: var(--gize-text); font-variant-numeric: tabular-nums; }
 .coach-goal span { font-size: var(--text-meta); color: var(--txt-2); }
 
@@ -284,7 +284,7 @@ button.search-open { flex: 1; background: var(--card-2); border: 1px solid var(-
   background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box, var(--gize-rgb-ring) border-box; }
 .plan-top-t { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--txt-2); margin-bottom: 10px; }
 .plan-top-m { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.plan-top-m div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 10px; background: var(--card-2); }
+.plan-top-m div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: var(--r-btn); background: var(--card-2); }
 .plan-top-m b { font-size: 19px; font-weight: 700; color: var(--gize-text); font-variant-numeric: tabular-nums; }
 .plan-top-m span { font-size: 11px; color: var(--txt-2); }
 .plan-top-n { margin-top: 12px; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; white-space: pre-line; }
@@ -309,7 +309,7 @@ button.search-open { flex: 1; background: var(--card-2); border: 1px solid var(-
 
 /* Base compartida de productos */
 .food-cook.ok { color: var(--gize-success); border-color: color-mix(in srgb, var(--gize-success) 45%, transparent); }
-.cf-code { margin: -6px 0 16px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--gize-blue) 8%, transparent);
+.cf-code { margin: -6px 0 16px; padding: 12px 14px; border-radius: var(--r-card); background: color-mix(in srgb, var(--gize-blue) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--gize-blue) 35%, transparent); font-size: var(--text-body); color: var(--gize-text); }
 .cf-code b { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
 .cf-code span { display: block; margin-top: 4px; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.4; }
@@ -319,10 +319,10 @@ button.search-open { flex: 1; background: var(--card-2); border: 1px solid var(-
 .sheet-report { background: none; border: 0; padding: 0; color: var(--gize-blue); font: 600 11.5px var(--gize-font); text-decoration: underline; cursor: pointer; }
 
 /* Foto de la tabla al cargar un producto */
-.cf-photo { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 64px; padding: 12px; border-radius: 12px;
+.cf-photo { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 64px; padding: 12px; border-radius: var(--r-card);
   border: 1.5px dashed color-mix(in srgb, var(--gize-blue) 55%, transparent); color: var(--gize-blue); font-weight: 700; cursor: pointer; }
 .cf-photo.has { border-style: solid; color: var(--txt-2); font-weight: 600; font-size: var(--text-meta); }
-.cf-photo img { max-width: 100%; max-height: 220px; border-radius: 8px; object-fit: contain; }
+.cf-photo img { max-width: 100%; max-height: 220px; border-radius: var(--r-md); object-fit: contain; }
 .cf-photo-h { font-size: 11.5px; color: var(--txt-2); margin-top: 6px; }
 .form-opt { font-weight: 500; color: var(--txt-3); text-transform: none; letter-spacing: 0; }
 /* Pedir un producto: nombre y marca con el borde RGB de GIZE (el botón Enviar lleva el anillo
@@ -357,7 +357,7 @@ html.lite .scan-btn { animation: none; }
 
 /* Foto de la tabla: sacarla en el momento o elegir una que ya estaba en la galería. */
 .cf-photo-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-.cf-photo-btn { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 10px; border-radius: 12px;
+.cf-photo-btn { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 10px; border-radius: var(--r-card);
   border: 1px dashed color-mix(in srgb, var(--gize-blue) 55%, transparent); background: var(--card-2); color: var(--txt); font-weight: 600;
   font-size: var(--text-meta); text-align: center; cursor: pointer; }
 .cf-photo-btn:active { border-style: solid; }

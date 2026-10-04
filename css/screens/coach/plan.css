@@ -2,7 +2,7 @@
 
 /* Tira debajo del código de invitación */
 .pl-banner { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
-  margin:10px 0 4px; padding:12px 14px; border-radius:12px; cursor:pointer; text-align:left;
+  margin:10px 0 4px; padding:12px 14px; border-radius:var(--r-card); cursor:pointer; text-align:left;
   background:var(--card); border:1px solid var(--border); color:var(--txt-2); font:inherit; font-size:14px; }
 .pl-banner b { color:var(--txt); }
 .pl-banner.warn { border-color:rgba(255,176,32,.55); }
@@ -10,7 +10,7 @@
 .pl-cap { font-size:13px; color:#FFB020; margin:6px 2px 10px; }
 
 /* Estado y tarjetas de planes */
-.pl-status { font-size:14px; color:var(--txt-2); background:var(--card-2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:14px; line-height:1.45; }
+.pl-status { font-size:14px; color:var(--txt-2); background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-btn); padding:10px 12px; margin-bottom:14px; line-height:1.45; }
 .pl-status.ok { border-color:rgba(37,232,200,.45); color:var(--txt); }
 .pl-status.warn { border-color:rgba(255,77,77,.5); color:var(--txt); }
 .pl-note { font-size:14px; color:var(--txt-2); padding:6px 2px 4px; }
@@ -27,7 +27,7 @@
 .pl-max b { color:var(--txt); font-size:18px; }
 .pl-price { font-size:26px; font-weight:700; color:var(--txt); font-variant-numeric:tabular-nums; }
 .pl-price span { font-size:14px; font-weight:500; color:var(--txt-2); margin-left:2px; }
-.pl-choose { margin-top:auto; padding:11px 12px; border-radius:10px; border:0; cursor:pointer; font:inherit; font-weight:600;
+.pl-choose { margin-top:auto; padding:11px 12px; border-radius:var(--r-btn); border:0; cursor:pointer; font:inherit; font-weight:600;
   background:var(--blue); color:#000; }
 a.pl-choose { display:block; text-align:center; text-decoration:none; }
 .pl-alt { display:block; margin-top:8px; text-align:center; font-size:13px; color:var(--txt-2); text-decoration:underline; }
@@ -48,5 +48,5 @@ a.pl-choose { display:block; text-align:center; text-decoration:none; }
 .pl-name { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--gize-success); }
 .pl-oc { margin-top:22px; }
 .pl-oc .pl-sub { font-size:13px; font-weight:600; color:var(--txt-2); margin-bottom:8px; }
-.pl-oc-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--card-2); margin-bottom:6px; font-size:14px; color:var(--txt); }
+.pl-oc-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--r-btn); background:var(--card-2); margin-bottom:6px; font-size:14px; color:var(--txt); }
 .pl-oc-row span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

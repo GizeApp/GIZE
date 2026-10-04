@@ -20,7 +20,7 @@
 
 /* Botón cuadrado con borde (mismo lenguaje que .top-btn / botones secundarios):
      antes era un ícono gris de 14px suelto, difícil de ver y de tocar. */
-.cfg-edit-name-btn { flex-shrink:0; width:32px; height:32px; padding:0; border-radius:8px;
+.cfg-edit-name-btn { flex-shrink:0; width:32px; height:32px; padding:0; border-radius:var(--r-md);
     background:color-mix(in srgb, var(--gize-blue) 12%, transparent); border:1px solid color-mix(in srgb, var(--gize-blue) 45%, transparent); color:var(--gize-blue);
     cursor:pointer; display:flex; align-items:center; justify-content:center;
     transition:background-color .15s, border-color .15s, color .15s, transform .12s; }
@@ -207,7 +207,7 @@ body.avatar-busy .cfg-avatar-pick, body.avatar-busy .cs-photo-btn { opacity:.5; 
 .adm-entry span { flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .adm-entry b { font-size: var(--text-emphasis); }
 .adm-entry small { font-size: var(--text-meta); color: var(--txt-2); }
-.adm-entry i { font-style: normal; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; display: grid; place-items: center; background: var(--gize-r3); color: #fff; font-size: 12px; font-weight: 800; }
+.adm-entry i { font-style: normal; min-width: 24px; height: 24px; padding: 0 7px; border-radius: var(--r-card); display: grid; place-items: center; background: var(--gize-r3); color: #fff; font-size: 12px; font-weight: 800; }
 .adm-entry em { font-style: normal; font-size: 22px; color: var(--gize-blue); }
 body.adm-open { overflow: hidden; }
 #adminHost { position: fixed; inset: 0; z-index: 600; background: var(--gize-bg); overflow-y: auto; -webkit-overflow-scrolling: touch; }
@@ -219,7 +219,7 @@ body.adm-open { overflow: hidden; }
 .adm-empty { padding: 40px 10px; text-align: center; color: var(--txt-2); }
 .adm-card { padding: 14px; margin-bottom: 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--border); }
 .adm-top { display: flex; gap: 12px; }
-.adm-photo { flex: none; width: 110px; height: 140px; border-radius: 10px; overflow: hidden; background: #000; border: 1px solid var(--border); padding: 0; cursor: zoom-in; }
+.adm-photo { flex: none; width: 110px; height: 140px; border-radius: var(--r-btn); overflow: hidden; background: #000; border: 1px solid var(--border); padding: 0; cursor: zoom-in; }
 .adm-photo img { width: 100%; height: 100%; object-fit: cover; }
 .adm-nophoto { display: grid; place-items: center; text-align: center; font-size: 11.5px; color: var(--txt-2); cursor: default; }
 .adm-meta { display: flex; flex-direction: column; gap: 4px; font-size: var(--text-meta); color: var(--txt-2); min-width: 0; }
@@ -228,7 +228,7 @@ body.adm-open { overflow: hidden; }
 .adm-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
 .adm-f { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--txt-2); min-width: 0; }
 .adm-f.wide { grid-column: span 2; }
-.adm-f input { width: 100%; min-width: 0; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card-2); color: var(--gize-text); font: 600 var(--text-body) var(--gize-font); }
+.adm-f input { width: 100%; min-width: 0; padding: 9px 10px; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--card-2); color: var(--gize-text); font: 600 var(--text-body) var(--gize-font); }
 .adm-unit { margin-top: 6px; font-size: 11px; color: var(--txt-2); }
 .adm-btns { display: flex; gap: 8px; margin-top: 12px; }
 .adm-btns .ctrl { max-width: none; border-radius: 999px; padding: 12px; }

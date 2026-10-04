@@ -49,7 +49,7 @@
     animation:authFadeUp var(--duration-rare) var(--ease-drawer) .08s both;
   }
 .auth-tab {
-    min-height:42px; border-radius:12px; border:1px solid transparent; background:none;
+    min-height:42px; border-radius:var(--r-card); border:1px solid transparent; background:none;
     color:var(--txt-3); font:600 14.5px var(--gize-font); cursor:pointer; transition:var(--transition-tap), box-shadow .18s;
   }
 .auth-tab:hover { color:var(--txt-2); }
@@ -66,7 +66,7 @@
 
 .auth-role-opt {
     flex:1; display:flex; align-items:center; justify-content:center;
-    background:var(--card-2); border:1px solid var(--border); border-radius:12px;
+    background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-card);
     padding:12px 10px; color:var(--txt-3); font-size: var(--text-body); font-weight:600; cursor:pointer;
     transition: var(--transition-tap), box-shadow .18s;
   }
@@ -85,7 +85,7 @@
 
 .auth-toggle-pass {
     position:absolute; right:8px; top:50%; transform:translateY(-50%); width:32px; height:32px; display:flex; align-items:center; justify-content:center;
-    background:none; border:none; border-radius:10px; color: var(--txt-3); cursor:pointer; transition: var(--transition-tap);
+    background:none; border:none; border-radius:var(--r-btn); color: var(--txt-3); cursor:pointer; transition: var(--transition-tap);
   }
 
 .auth-toggle-pass svg { width:var(--icon-md); height:var(--icon-md); }
@@ -96,7 +96,7 @@
 
 .auth-msg {
     font-size: var(--text-body); line-height:1.45; text-align:center; color:var(--gize-danger); background:var(--gize-danger-bg);
-    border:1px solid color-mix(in srgb, var(--gize-danger) 32%, transparent); border-radius:12px; padding:10px 12px; opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards, authShake .4s ease .05s;
+    border:1px solid color-mix(in srgb, var(--gize-danger) 32%, transparent); border-radius:var(--r-card); padding:10px 12px; opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards, authShake .4s ease .05s;
   }
 
 .auth-msg.ok { color:var(--gize-success); background:var(--gize-success-bg); border-color:color-mix(in srgb, var(--gize-success) 35%, transparent); animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
@@ -164,12 +164,12 @@
 .onb-title-gap { margin-top:22px; }
 .onb-text { margin:0; font:400 15px/1.55 var(--gize-font); color:var(--txt-2); animation:authFadeUp var(--duration-rare) var(--ease-drawer) .15s both; }
 .onb-trial {
-    padding:9px 12px; border-radius:4px; font:500 13.5px/1.3 var(--gize-font); color:var(--gize-success);
+    padding:9px 12px; border-radius:var(--r-box); font:500 13.5px/1.3 var(--gize-font); color:var(--gize-success);
     background:var(--gize-success-bg); border:1px solid color-mix(in srgb, var(--gize-success) 35%, transparent);
     animation:authFadeUp var(--duration-rare) var(--ease-drawer) .12s both;
   }
 .onb-code {
-    text-align:left; background:var(--card-2); border:1px solid var(--border); border-radius:4px; padding:16px 16px 14px;
+    text-align:left; background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); padding:16px 16px 14px;
     animation:authFadeUp var(--duration-rare) var(--ease-drawer) .2s both;
   }
 .onb-code-lbl { font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--txt-3); }
@@ -201,7 +201,7 @@
 /* Bienvenida: cómo arrancar, pasos para armar la semana y rutinas armadas. */
 .onb-left { text-align: left; align-self: stretch; }
 .onb-opts { display: flex; flex-direction: column; gap: 10px; align-self: stretch; animation: authFadeUp var(--duration-rare) var(--ease-drawer) .15s both; }
-.onb-opt { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 14px 14px; border-radius: 12px; text-align: left; cursor: pointer;
+.onb-opt { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 14px 14px; border-radius: var(--r-card); text-align: left; cursor: pointer;
   background: var(--card-2); border: 1px solid var(--border); color: var(--txt); font: 400 14px/1.4 var(--gize-font); transition: var(--transition-tap); }
 .onb-opt b { display: block; font-weight: 700; font-size: 15px; }
 .onb-opt small { display: block; margin-top: 2px; color: var(--txt-2); font-size: 13px; }
@@ -213,12 +213,12 @@
 .onb-steps span.on { background: var(--gize-blue); }
 .onb-step-lbl { align-self: flex-start; margin-top: -8px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--txt-3); }
 .onb-nums { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; align-self: stretch; }
-.onb-num { height: 48px; border-radius: 10px; background: var(--card-2); border: 1px solid var(--border); color: var(--txt); font: 700 16px var(--gize-font); cursor: pointer; }
+.onb-num { height: 48px; border-radius: var(--r-btn); background: var(--card-2); border: 1px solid var(--border); color: var(--txt); font: 700 16px var(--gize-font); cursor: pointer; }
 .onb-num.on { border-color: var(--gize-blue); box-shadow: 0 0 0 1px var(--gize-blue); }
 .onb-field-free { align-self: stretch; margin-top: 0; }
 .onb-field-free .auth-in { text-transform: none; }
 .onb-routines { display: flex; flex-direction: column; gap: 10px; align-self: stretch; max-height: 46vh; overflow-y: auto; }
-.onb-routine { text-align: left; padding: 14px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--border); color: var(--txt); cursor: pointer; font: 400 14px/1.4 var(--gize-font); }
+.onb-routine { text-align: left; padding: 14px; border-radius: var(--r-card); background: var(--card-2); border: 1px solid var(--border); color: var(--txt); cursor: pointer; font: 400 14px/1.4 var(--gize-font); }
 .onb-routine b { display: block; font-size: 15px; }
 .onb-routine small { display: block; margin-top: 2px; color: var(--txt-2); font-size: 13px; }
 .onb-routine:hover, .onb-opt:hover { border-color: var(--txt-3); }

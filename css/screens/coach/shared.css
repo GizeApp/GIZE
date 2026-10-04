@@ -10,27 +10,27 @@
 
 .co-sec { font-size: var(--text-meta); color:var(--txt-2); font-weight:600; margin:22px 2px 10px; }
 
-.co-prog { margin-top:12px; padding:12px 14px; background:var(--card-2); border:1px solid var(--border); border-radius:4px; font-size: var(--text-body); font-weight:700; color:var(--blue-2); text-align:center; }
+.co-prog { margin-top:12px; padding:12px 14px; background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); font-size: var(--text-body); font-weight:700; color:var(--blue-2); text-align:center; }
 
-.co-set { font-size: var(--text-body); font-weight:600; color:var(--txt); background:var(--card-2); border:1px solid var(--border); border-radius:4px; padding:5px 9px; font-variant-numeric:tabular-nums; font-family:var(--font-mono); }
+.co-set { font-size: var(--text-body); font-weight:600; color:var(--txt); background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); padding:5px 9px; font-variant-numeric:tabular-nums; font-family:var(--font-mono); }
 
-.co-rt-row { display:flex; flex-direction:column; gap:8px; background:var(--card); border:1px solid var(--border); border-radius:4px; padding:10px; margin-bottom:8px; }
+.co-rt-row { display:flex; flex-direction:column; gap:8px; background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); padding:10px; margin-bottom:8px; }
 
-.co-rt-name { background:var(--card-2); border:1px solid var(--border); border-radius:4px; padding:11px 12px; color:var(--txt); font-size: var(--text-body); width:100%; }
+.co-rt-name { background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); padding:11px 12px; color:var(--txt); font-size: var(--text-body); width:100%; }
 
 .co-rt-ctl { display:flex; align-items:center; justify-content:space-between; }
 
 .co-rt-sets { display:flex; align-items:center; gap:10px; }
 
-.co-rt-sets button { width:30px; height:30px; border-radius:4px; background:var(--card-2); border:1px solid var(--border); color:var(--txt); font-size:16px; cursor:pointer; }
+.co-rt-sets button { width:30px; height:30px; border-radius:var(--r-box); background:var(--card-2); border:1px solid var(--border); color:var(--txt); font-size:16px; cursor:pointer; }
 
 .co-rt-sets span { font-size: var(--text-meta); color:var(--txt-2); min-width:64px; text-align:center; }
 
 .co-rt-del { background:none; border:none; color:var(--txt-3); font-size:16px; cursor:pointer; padding:4px 8px; }
 
-.co-save-rt { display:block; width:100%; margin-top:14px; background:var(--blue); color:var(--gize-text); border:none; font-size: var(--text-emphasis); font-weight:700; padding:14px; border-radius:4px; cursor:pointer; }
+.co-save-rt { display:block; width:100%; margin-top:14px; background:var(--blue); color:var(--gize-text); border:none; font-size: var(--text-emphasis); font-weight:700; padding:14px; border-radius:var(--r-box); cursor:pointer; }
 
-.co-add-day { display:block; margin-top:10px; background:none; border:1px dashed var(--border); color:var(--blue-2); padding:10px 14px; border-radius:4px; cursor:pointer; }
+.co-add-day { display:block; margin-top:10px; background:none; border:1px dashed var(--border); color:var(--blue-2); padding:10px 14px; border-radius:var(--r-box); cursor:pointer; }
 
 .co-panel { min-width:0; margin-bottom:20px; }
 
@@ -54,7 +54,7 @@
 
 /* Ficha del cliente: cards agrupadas por tema (Datos personales / Contexto de
      entrenamiento / Objetivos), cada una con ícono + título — ver renderCoachInfo(). */
-.ci-card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px; }
+.ci-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r-md); padding:16px; margin-bottom:16px; }
 
 .ci-card-head { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
 
@@ -79,9 +79,9 @@ select.co-select { cursor:pointer; }
 
 .co-copy-btn:hover { border-color:var(--green); color:var(--green); background:var(--card-2); }
 
-.co-pin2 { width:100%; background:var(--card-2); border:1px solid var(--border); border-radius:4px; padding:10px; color:var(--txt); font-size: var(--text-emphasis); text-align:center; font-weight:700; font-variant-numeric:tabular-nums; }
+.co-pin2 { width:100%; background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); padding:10px; color:var(--txt); font-size: var(--text-emphasis); text-align:center; font-weight:700; font-variant-numeric:tabular-nums; }
 
-.co-note { width:100%; margin-top:8px; background:var(--card-2); border:1px solid var(--border); border-radius:4px; padding:9px 10px; color:var(--txt); font-size: var(--text-meta); }
+.co-note { width:100%; margin-top:8px; background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); padding:9px 10px; color:var(--txt); font-size: var(--text-meta); }
 
 /* Panel de configuración del coach (ícono de tuerca): .cs-* es solo el contenido interno
      del modal — el modal en sí (.cp-bg/.cp-ccard/.cp-head/.cp-title/.cp-x) y la lista de
@@ -121,20 +121,20 @@ a.cs-q-btn { text-decoration:none; } /* link a la política de privacidad, con l
 .cp-ccard.cq-card { width:min(620px, 94vw); }
 .cq-back { background:none; border:0; color:var(--txt-2); font-size:22px; line-height:1; cursor:pointer; padding:0 8px 0 0; }
 .cq-tabs { display:flex; gap:6px; margin:4px 0 10px; }
-.cq-tab { flex:1; padding:9px 10px; border-radius:10px; border:1px solid var(--gize-border); background:transparent;
+.cq-tab { flex:1; padding:9px 10px; border-radius:var(--r-btn); border:1px solid var(--gize-border); background:transparent;
     color:var(--txt-2); font:600 var(--text-body) var(--gize-font); cursor:pointer; }
 .cq-tab.on { border-color:var(--gize-blue); color:var(--gize-text); background:color-mix(in srgb, var(--gize-blue) 14%, transparent); }
 .cq-hint { font-size:var(--text-meta); color:var(--txt-3); margin-bottom:12px; line-height:1.45; }
 .cq-warn { font-size:var(--text-meta); color:var(--gize-warning); background:var(--gize-warning-bg); border:1px solid color-mix(in srgb, var(--gize-warning) 35%, transparent);
-    border-radius:8px; padding:9px 11px; margin-bottom:12px; line-height:1.45; }
-.cq-item { background:var(--gize-surface-2); border:1px solid var(--gize-border); border-radius:10px; padding:10px; margin-bottom:8px; }
+    border-radius:var(--r-md); padding:9px 11px; margin-bottom:12px; line-height:1.45; }
+.cq-item { background:var(--gize-surface-2); border:1px solid var(--gize-border); border-radius:var(--r-btn); padding:10px; margin-bottom:8px; }
 .cq-top { display:flex; gap:8px; align-items:flex-start; }
 .cq-n { flex-shrink:0; width:22px; height:22px; margin-top:8px; border-radius:6px; border:1px solid var(--gize-border);
     font:600 11px var(--font-mono); color:var(--txt-2); display:flex; align-items:center; justify-content:center; }
 .cq-label { flex:1; min-width:0; resize:vertical; font-family:var(--gize-font); line-height:1.4; }
 .cq-row { display:flex; gap:6px; align-items:center; margin:8px 0 0 30px; }
 .cq-type { flex:1; min-width:0; }
-.cq-btn { flex-shrink:0; width:34px; height:34px; border-radius:8px; border:1px solid var(--gize-border); background:transparent;
+.cq-btn { flex-shrink:0; width:34px; height:34px; border-radius:var(--r-md); border:1px solid var(--gize-border); background:transparent;
     color:var(--txt-2); cursor:pointer; font-size:14px; }
 .cq-btn:disabled { opacity:.35; cursor:default; }
 /* En el celular el tipo de respuesta va solo en su fila: al lado de ↑ ↓ ✕ se cortaba
@@ -149,7 +149,7 @@ a.cs-q-btn { text-decoration:none; } /* link a la política de privacidad, con l
 
 /* Títulos de "Seguimiento diario" / "Check-in semanal" con la ruedita del editor. */
 .co-sec-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.co-sec-gear { width:32px; height:32px; border-radius:8px; border:1px solid var(--btn-line, var(--gize-border)); background:transparent;
+.co-sec-gear { width:32px; height:32px; border-radius:var(--r-md); border:1px solid var(--btn-line, var(--gize-border)); background:transparent;
     color:var(--txt-2); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
 .co-sec-gear svg { width:16px; height:16px; }
 .co-sec-gear:hover { color:var(--gize-text); border-color:var(--gize-blue); }
@@ -169,7 +169,7 @@ a.cs-q-btn { text-decoration:none; } /* link a la política de privacidad, con l
 /* Gráfico a la izquierda y registros a la derecha (promedio semanal y peso diario).
    La lista tiene su propio scroll para no estirar la sección; en celular van apiladas. */
 .co-split { display:grid; gap:16px; align-items:start; }
-.co-split-side { max-height:340px; overflow-y:auto; border:1px solid var(--gize-border); border-radius:10px; padding:0 10px 6px; background:var(--gize-surface); }
+.co-split-side { max-height:340px; overflow-y:auto; border:1px solid var(--gize-border); border-radius:var(--r-btn); padding:0 10px 6px; background:var(--gize-surface); }
 .co-split-side .co-tbl { margin-top:0; }
 .co-split-side .co-tbl th { position:sticky; top:0; background:var(--gize-surface); z-index:1; padding-top:10px; }
 @media (min-width: 900px){
@@ -211,5 +211,5 @@ a.cs-q-btn { text-decoration:none; } /* link a la política de privacidad, con l
 body:not(#_) .cs-tema .cs-tema-opt.on { background:var(--acc-tint); border-color:var(--acc); color:var(--gize-text); }
 /* Neón (prendido / apagado): una fila con el texto y el mismo interruptor de Ajustes del
    alumno (.cfg-switch, css/screens/config.css). */
-.cs-neon { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border-radius:10px;
+.cs-neon { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border-radius:var(--r-btn);
   border:1px solid var(--border); background:rgba(255,255,255,.035); font-size:13px; color:var(--gize-text); }

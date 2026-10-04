@@ -15,7 +15,7 @@
    archivo. Por eso cada regla lleva adelante su body:not(#_) (el peso extra que le
    gana a las capas de antes). */
 body:not(#_) {
-  --btn-r: 10px;
+  --btn-r: var(--r-btn);
   --btn-line: rgba(255,255,255,.18);
   --btn-line-hi: rgba(255,255,255,.34);
   --btn-fill: rgba(255,255,255,.035);
@@ -171,7 +171,7 @@ body:not(#_) .co-tabs {
   --n: 2; --i: 0;
   position: relative; display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 0;
   padding: 4px; margin: 6px 0 16px;
-  background: var(--gize-surface); border: 1px solid var(--btn-line); border-radius: 12px;
+  background: var(--gize-surface); border: 1px solid var(--btn-line); border-radius: var(--r-card);
 }
 body:not(#_) .co-tabs:has(> .co-tab:nth-child(3)) { --n: 3; }
 body:not(#_) .co-tabs:has(> .co-tab:nth-child(2).on) { --i: 1; }

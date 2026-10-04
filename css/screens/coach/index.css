@@ -26,7 +26,7 @@
 
 .co-brand-tag { font-size:var(--text-emphasis); font-weight:600; color:var(--txt-2); }
 
-.co-logout, .co-back { display:inline-flex; align-items:center; gap:6px; background:none; border:1px solid var(--border); color:var(--txt-2); font-size: var(--text-meta); padding:7px 12px; border-radius:4px; cursor:pointer; }
+.co-logout, .co-back { display:inline-flex; align-items:center; gap:6px; background:none; border:1px solid var(--border); color:var(--txt-2); font-size: var(--text-meta); padding:7px 12px; border-radius:var(--r-box); cursor:pointer; }
 
 .co-back svg { width:var(--icon-sm); height:var(--icon-sm); flex-shrink:0; }
 
@@ -34,19 +34,19 @@
 
 /* Botón de tuerca (abre el panel de configuración del coach): mismo tratamiento visual
      que .co-logout/.co-back (cuadrado, borde, sin relleno) pero solo-ícono. */
-.co-gear { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; flex-shrink:0; background:none; border:1px solid var(--border); color:var(--txt-2); border-radius:4px; cursor:pointer; }
+.co-gear { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; flex-shrink:0; background:none; border:1px solid var(--border); color:var(--txt-2); border-radius:var(--r-box); cursor:pointer; }
 
 .co-gear svg { width:var(--icon-md); height:var(--icon-md); }
 
 .co-gear:active { color:var(--txt); }
 
-.co-invite { background:var(--card); border:1px solid var(--border); border-radius:4px; padding:14px; text-align:center; font-size: var(--text-meta); color:var(--txt-2); margin-bottom:14px; }
+.co-invite { background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); padding:14px; text-align:center; font-size: var(--text-meta); color:var(--txt-2); margin-bottom:14px; }
 
 .co-code { display:inline-block; font-family:var(--font-mono); font-size:22px; font-weight:800; color:var(--blue); letter-spacing:3px; margin-top:6px; }
 
 .co-invite-sub { font-size:11px; color:var(--txt-3); margin-top:8px; }
 
-.co-item { display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--border); border-radius:4px; padding:15px 14px; margin-bottom:8px; cursor:pointer; }
+.co-item { display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); padding:15px 14px; margin-bottom:8px; cursor:pointer; }
 
 /* Estado vacío de "Clientes" cuando el coach todavía no vinculó a nadie: antes era una
      sola línea de .cal-hint y dejaba el resto de la pantalla en negro sin nada — parecía
@@ -78,7 +78,7 @@
 
 .co-list { margin-top:10px; }
 
-.co-row { display:flex; justify-content:space-between; align-items:center; padding:11px 14px; background:var(--card); border:1px solid var(--border); border-radius:4px; margin-bottom:6px; font-size: var(--text-body); color:var(--txt); }
+.co-row { display:flex; justify-content:space-between; align-items:center; padding:11px 14px; background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); margin-bottom:6px; font-size: var(--text-body); color:var(--txt); }
 
 .co-val { font-weight:700; font-variant-numeric:tabular-nums; font-family:var(--font-mono); }
 
@@ -112,7 +112,7 @@
      tabla de un dashboard. */
 .co-table { margin-top:2px; }
 
-.co-trow { position:relative; display:block; background:var(--card); border:1px solid var(--border); border-radius:4px; padding:13px 46px 13px 14px; margin-bottom:8px; cursor:pointer; transition:var(--transition-tap); }
+.co-trow { position:relative; display:block; background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); padding:13px 46px 13px 14px; margin-bottom:8px; cursor:pointer; transition:var(--transition-tap); }
 
 .co-trow.co-thead { display:none; cursor:default; }
 

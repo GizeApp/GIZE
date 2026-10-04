@@ -60,7 +60,7 @@
 .stk-n { font: 800 44px/1 var(--gize-font); color: var(--gize-text); font-variant-numeric: tabular-nums; text-shadow: 0 0 18px color-mix(in srgb, var(--gize-r2) 70%, transparent); }
 .stk-t { margin-top: 6px; color: var(--gize-text-2); font-size: var(--text-body, 15px); }
 .stk-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 20px 0 16px; }
-.stk-day { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border-radius: 12px; }
+.stk-day { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border-radius: var(--r-card); }
 .stk-day span { font-size: 11px; font-weight: 700; color: var(--gize-text-2); }
 .stk-day.today { background: color-mix(in srgb, var(--gize-r2) 12%, transparent); }
 .stk-day.today span { color: var(--gize-text); }

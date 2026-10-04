@@ -2,7 +2,7 @@
 /* Cardio */
 .cardio-modes { display: flex; gap: 8px; margin: 8px 0 8px; }
 
-.cmode { flex: 1; padding: 11px; border-radius: 4px; background: var(--card); border: 1px solid var(--border); color: var(--txt-2); font-size: var(--text-body); font-weight: 600; cursor: pointer; text-align: center; }
+.cmode { flex: 1; padding: 11px; border-radius: var(--r-box); background: var(--card); border: 1px solid var(--border); color: var(--txt-2); font-size: var(--text-body); font-weight: 600; cursor: pointer; text-align: center; }
 
 /* Anillo de neón (app/screens/cardio.js): la gama RGB girando como el borde del botón
    principal (@property --gize-angle de brand/tokens.css), con un halo desenfocado detrás. */
@@ -36,14 +36,14 @@ html.lite .cneon i { animation: none; }
 
 .laps { margin-top: 26px; display: flex; flex-direction: column; gap: 6px; }
 
-.lap { display: flex; justify-content: space-between; padding: 11px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 4px; font-variant-numeric: tabular-nums; font-size: var(--text-body); }
+.lap { display: flex; justify-content: space-between; padding: 11px 14px; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-box); font-variant-numeric: tabular-nums; font-size: var(--text-body); }
 
 .lap span:first-child { color: var(--txt-2); }
 
 .lap .lap-d { margin-left: auto; margin-right: 14px; color: var(--txt-3); font-size: var(--text-meta); }
 
 
-.cardio-rx { background:var(--card); border:1px solid var(--blue); border-left:3px solid var(--blue); border-radius:4px; padding:var(--space-14); margin-bottom:var(--space-16); }
+.cardio-rx { background:var(--card); border:1px solid var(--blue); border-left:3px solid var(--blue); border-radius:var(--r-box); padding:var(--space-14); margin-bottom:var(--space-16); }
 
 .cardio-rx-h { font-size: var(--text-meta); color:var(--gize-text); text-transform:uppercase; letter-spacing:.06em; font-weight:800; margin-bottom:8px; }
 
@@ -54,7 +54,7 @@ html.lite .cneon i { animation: none; }
 .cardio-tools-h { font-size:11px; color:var(--txt-3); text-transform:uppercase; letter-spacing:.08em; font-weight:700; margin-bottom:14px; text-align:center; }
 
 /* Número del temporizador tocable → ruedas de minutos y segundos */
-.cring-pick { background: none; border: none; padding: 4px 10px; color: inherit; font-family: inherit; cursor: pointer; border-radius: 12px; }
+.cring-pick { background: none; border: none; padding: 4px 10px; color: inherit; font-family: inherit; cursor: pointer; border-radius: var(--r-card); }
 .cring-pick:active { background: rgba(255,255,255,.05); }
 .tpick { position: fixed; inset: 0; z-index: 400; display: flex; align-items: flex-end; justify-content: center; }
 .tpick-bg { position: absolute; inset: 0; background: rgba(0,0,0,.6); opacity: 0; transition: opacity var(--duration-standard) ease; }
@@ -66,7 +66,7 @@ html.lite .cneon i { animation: none; }
 .tpick.open .tpick-card { transform: none; }
 .tpick-title { text-align: center; font-size: var(--text-emphasis); font-weight: 700; margin-bottom: 10px; }
 .tpick-wheels { position: relative; display: flex; justify-content: center; align-items: center; gap: 28px; height: 220px; }
-.tw-band { position: absolute; left: 12%; right: 12%; top: 50%; height: 44px; transform: translateY(-50%); border-radius: 12px;
+.tw-band { position: absolute; left: 12%; right: 12%; top: 50%; height: 44px; transform: translateY(-50%); border-radius: var(--r-card);
   background: color-mix(in srgb, var(--gize-blue) 12%, transparent); border: 1px solid color-mix(in srgb, var(--gize-blue) 35%, transparent); pointer-events: none; }
 .tw-col { position: relative; display: flex; align-items: center; gap: 6px; }
 .tw-wheel { flex: none; height: 220px; width: 84px; min-width: 84px; overflow-y: scroll; scroll-snap-type: y mandatory; overscroll-behavior: contain; scrollbar-width: none;
@@ -103,13 +103,13 @@ html.lite .cneon i { animation: none; }
 .sal-h { font-size: var(--text-meta); color: var(--gize-text); text-transform: uppercase; letter-spacing: .08em; font-weight: 800; margin-bottom: 12px; }
 .sal-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
 .sal-mode { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; padding: 14px 12px 13px; text-align: left; font-family: var(--gize-font); cursor: pointer; }
-.sal-mode-ico { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 12px; color: var(--gize-text-2); background: var(--card-2); transition: color .15s, background-color .15s; }
+.sal-mode-ico { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: var(--r-card); color: var(--gize-text-2); background: var(--card-2); transition: color .15s, background-color .15s; }
 .sal-mode-ico svg { width: 26px; height: 26px; }
 .sal-mode-t { font-size: 18px; font-weight: 700; color: var(--gize-text); line-height: 1.2; }
 .sal-mode-s { font-size: 12px; font-weight: 500; line-height: 1.35; color: var(--gize-text-2); overflow-wrap: anywhere; }
 .sal-mode.active .sal-mode-ico { color: var(--gize-blue); background: color-mix(in srgb, var(--gize-blue) 16%, transparent); }
 .sal-card .ctrl-row { margin-top: 2px; }
-.sal-err { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; background: var(--gize-danger-bg); color: var(--gize-danger); font-size: var(--text-meta); line-height: 1.45; }
+.sal-err { margin: 0 0 14px; padding: 10px 12px; border-radius: var(--r-btn); background: var(--gize-danger-bg); color: var(--gize-danger); font-size: var(--text-meta); line-height: 1.45; }
 .sal-link { display: block; margin-top: 6px; background: none; border: none; padding: 0; color: var(--gize-blue); font: 700 var(--text-meta) var(--gize-font); text-decoration: underline; cursor: pointer; }
 
 /* En vivo */
@@ -127,11 +127,11 @@ html.lite .cneon i { animation: none; }
 .sal-act.sal-c-correr { color: var(--gize-r3); background: color-mix(in srgb, var(--gize-r3) 14%, transparent); }
 .sal-auto { color: var(--gize-warning); background: color-mix(in srgb, var(--gize-warning) 12%, transparent); }
 .sal-live-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.sal-lv { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 10px 6px; border-radius: 12px; background: var(--card-2); }
+.sal-lv { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 10px 6px; border-radius: var(--r-card); background: var(--card-2); }
 .sal-lv span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--txt-2); font-weight: 700; }
 .sal-lv b { font-size: clamp(22px, 7vw, 28px); font-weight: 700; color: var(--gize-text); font-variant-numeric: tabular-nums; line-height: 1.15; }
 .sal-lv small { max-width: 100%; font-size: 11px; color: var(--txt-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-.sal-minimap { position: relative; height: 170px; margin-top: 12px; border-radius: 12px; overflow: hidden; background: #06070b; }
+.sal-minimap { position: relative; height: 170px; margin-top: 12px; border-radius: var(--r-card); overflow: hidden; background: #06070b; }
 .sal-gps { margin-top: 10px; text-align: center; font-size: var(--text-meta); color: var(--gize-warning); font-weight: 600; }
 .sal-tip { margin-top: 8px; font-size: 12px; color: var(--txt-2); line-height: 1.45; text-align: center; }
 .sal-live .ctrl-row { margin-top: 16px; }
@@ -151,7 +151,7 @@ html.lite .cneon i { animation: none; }
 .sal-more { display: block; margin: 10px auto 0; padding: 8px 12px; background: none; border: none; color: var(--gize-blue); font: 700 var(--text-meta) var(--gize-font); cursor: pointer; }
 .sal-list { display: flex; flex-direction: column; gap: 8px; }
 .sal-row { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; width: 100%; min-width: 0; padding: 12px 34px 12px 14px; text-align: left; cursor: pointer;
-  background: var(--card); border: 1px solid var(--border); border-radius: 12px; color: var(--txt); font-family: var(--gize-font); }
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-card); color: var(--txt); font-family: var(--gize-font); }
 .sal-row:active { transform: scale(.99); }
 .sal-row-top { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
 .sal-row-date { font-size: var(--text-meta); color: var(--txt-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -169,7 +169,7 @@ html.lite .cneon i { animation: none; }
 .sal-leg b { color: var(--txt); font-variant-numeric: tabular-nums; }
 .sal-leg-bar { flex: 1; min-width: 24px; height: 5px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(127,127,127,.18); }
 .sal-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
-.sal-stat { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 10px 9px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+.sal-stat { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 10px 9px; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-btn); }
 .sal-stat span { font-size: 11px; color: var(--txt-2); line-height: 1.25; }
 .sal-stat b { font-size: var(--text-emphasis); color: var(--txt); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .sal-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--card-2); }
@@ -184,7 +184,7 @@ html.lite .cneon i { animation: none; }
 .sal-split-bar { height: 6px; border-radius: 3px; background: var(--card-2); overflow: hidden; }
 .sal-split-bar i { display: block; height: 100%; border-radius: 3px; background: var(--gize-r2); }
 .sal-split-v { color: var(--txt); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sal-note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--card-2); font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
+.sal-note { margin-top: 12px; padding: 10px 12px; border-radius: var(--r-btn); background: var(--card-2); font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
 @media (max-width: 360px) {
   .sal-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

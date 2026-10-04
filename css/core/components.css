@@ -40,7 +40,7 @@
 
 .tabs::-webkit-scrollbar { display: none; }
 
-.tab { padding: 8px 16px; border-radius: 4px; font-size: var(--text-body); font-weight: 700; letter-spacing: -.01em; white-space: nowrap; flex-shrink: 0;
+.tab { padding: 8px 16px; border-radius: var(--r-box); font-size: var(--text-body); font-weight: 700; letter-spacing: -.01em; white-space: nowrap; flex-shrink: 0;
     background: var(--card); border: 1px solid var(--border); color: var(--txt-2); cursor: pointer; transition: color .3s ease, border-color .3s ease;
     position: relative; overflow: hidden; isolation: isolate; --gx: 50%; --gy: 50%; }
 
@@ -73,7 +73,7 @@
 @media (prefers-reduced-motion: reduce) { .tab::before { transition: opacity .15s linear; } .tab-ripple { animation: none; opacity: 0; } }
 
 .day-name { flex: 1; min-width: 0; background: transparent; border: none; color: var(--txt);
-    font-size: 26px; font-weight: 700; letter-spacing: -0.02em; padding: 2px 4px; border-radius: 4px; }
+    font-size: 26px; font-weight: 700; letter-spacing: -0.02em; padding: 2px 4px; border-radius: var(--r-box); }
 /* Nombres largos: bajan de línea en vez de cortarse (textarea que crece, o texto si es del coach). */
 .day-name { margin: 0; font-family: inherit; line-height: 1.2; white-space: normal; overflow-wrap: anywhere; }
 textarea.day-name { display: block; resize: none; overflow: hidden; height: auto; }
@@ -88,7 +88,7 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 
 .progress-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
 
-.bar { flex: 1; height: 8px; border-radius: 4px; background: var(--card-2); overflow: hidden; }
+.bar { flex: 1; height: 8px; border-radius: var(--r-box); background: var(--card-2); overflow: hidden; }
 
 .bar > div { height: 100%; background: var(--gize-rgb-line); box-shadow: none; transition: width .25s; }
 
@@ -99,7 +99,7 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
      sobre un fondo con textura). Ahora tiene chrome de botón chico (fondo/borde/padding),
      mismo lenguaje que ya usan los botones ghost chicos de la app (.load-def, .co-copy-btn). */
 .clear { font-size: var(--text-meta); font-weight: 600; color: var(--txt-3); background: transparent;
-    border: 1px solid var(--border); border-radius: 4px; padding: 6px 11px; cursor: pointer;
+    border: 1px solid var(--border); border-radius: var(--r-box); padding: 6px 11px; cursor: pointer;
     text-decoration: none; flex-shrink: 0; transition: var(--transition-tap); }
 
 .clear:hover { border-color: var(--blue-2); color: var(--blue-2); }
@@ -108,7 +108,7 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 
 /* Atenuado y apenas más chico (.97): con .90 las filas se corrían hasta 18px bajo el dedo
      al pasar el foco de un ejercicio a otro. */
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: var(--space-16); margin-bottom: var(--space-12);
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-box); padding: var(--space-16); margin-bottom: var(--space-12);
     opacity: .45; transform: scale(.97);
     transition: opacity var(--duration-frequent) var(--ease-drawer), transform var(--duration-frequent) var(--ease-drawer); }
 
@@ -119,7 +119,7 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
      mismo efecto solo apaga y prende filas al azar según dónde quedó el scroll, que es
      justo lo desprolijo que había que evitar. */
 .ex-collapsed { display: flex; align-items: center; gap: var(--space-10); background: var(--card); border: 1px solid var(--border);
-    border-radius: 4px; padding: var(--space-12) var(--space-14); margin-bottom: var(--space-12); cursor: pointer; }
+    border-radius: var(--r-box); padding: var(--space-12) var(--space-14); margin-bottom: var(--space-12); cursor: pointer; }
 
 /* Foco de scroll: la card que cruza la banda central del viewport se ve a pleno, el
      resto queda atenuado (deliberadamente sutil — tiene que seguir siendo legible
@@ -149,7 +149,7 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 
 .set { display: flex; align-items: center; gap: var(--space-8); margin-bottom: var(--space-8); }
 
-.idx { width: 24px; height: 24px; border-radius: 4px; background: var(--gize-surface-2); border: 1px solid var(--gize-border); color: var(--gize-text); font-size: var(--text-meta); font-family: var(--font-mono); font-weight: 700;
+.idx { width: 24px; height: 24px; border-radius: var(--r-box); background: var(--gize-surface-2); border: 1px solid var(--gize-border); color: var(--gize-text); font-size: var(--text-meta); font-family: var(--font-mono); font-weight: 700;
     display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
 .field { display: flex; align-items: center; gap: var(--space-4); }
@@ -157,7 +157,7 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 /* Relleno --gize-surface-2 y borde blanco al 14 % fijos (no atados al scope de --card-2):
      la caja del dato resalta sobre la tarjeta sin teñirla de azul. El azul queda para el
      foco, que es su uso funcional. */
-.field input { background: var(--gize-surface-2); border: 1px solid rgba(255,255,255,.14); border-radius: 4px; padding: var(--space-10) var(--space-8); text-align: right;
+.field input { background: var(--gize-surface-2); border: 1px solid rgba(255,255,255,.14); border-radius: var(--r-box); padding: var(--space-10) var(--space-8); text-align: right;
     font-variant-numeric: tabular-nums; color: var(--gize-text); font-weight: 700; font-size: var(--text-set-value); }
 
 .field input:focus { outline: none; border-color: var(--blue); box-shadow: var(--glow-sm), var(--focus-ring); }
@@ -173,7 +173,7 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 
 .set.timed .kg { width: 58px; }
 
-.tmr { flex: 1; min-width: 0; height: 44px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--blue) 45%, var(--border)); background: color-mix(in srgb, var(--blue) 10%, transparent);
+.tmr { flex: 1; min-width: 0; height: 44px; border-radius: var(--r-box); border: 1px solid color-mix(in srgb, var(--blue) 45%, var(--border)); background: color-mix(in srgb, var(--blue) 10%, transparent);
     color: var(--blue-2); font-weight: 700; font-size: var(--text-set-value); font-variant-numeric: tabular-nums;
     display: flex; align-items: center; justify-content: center; gap: var(--space-6, 6px); cursor: pointer; transition: var(--transition-tap); }
 
@@ -185,7 +185,7 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 
 .tmr:active { transform: scale(.97); }
 
-.done { width: 44px; height: 44px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: var(--txt-3);
+.done { width: 44px; height: 44px; border-radius: var(--r-box); border: 1px solid var(--border); background: transparent; color: var(--txt-3);
     display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: var(--transition-tap), transform .14s cubic-bezier(.23,1,.32,1); }
 
 .done:active { transform: scale(.97); }
@@ -215,7 +215,7 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
 
 .time-display.finished { color: var(--blue-2); animation: pulse 1s ease-in-out infinite; }
 
-.ctrl { flex: 1; max-width: 160px; padding: 15px; border-radius: 4px; border: none; font-size: var(--text-emphasis); font-weight: 600; cursor: pointer; }
+.ctrl { flex: 1; max-width: 160px; padding: 15px; border-radius: var(--r-box); border: none; font-size: var(--text-emphasis); font-weight: 600; cursor: pointer; }
 
 .ctrl.primary { background: var(--blue); color: var(--gize-text); box-shadow: var(--glow-lg); }
 
@@ -292,7 +292,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 @media (prefers-reduced-motion: reduce) { .sheet-bg, .sheet { transition: none; } }
 
 /* Con el teclado abierto, el borde de abajo ya no es el del celular: sin el espacio extra. */
-.kb-open .sheet { padding-bottom: 16px; border-radius: 4px; }
+.kb-open .sheet { padding-bottom: 16px; border-radius: var(--r-box); }
 
 .sheet-title { font-size: 19px; font-weight: 700; margin-bottom: 16px; }
 
@@ -300,35 +300,35 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 
 .seg { display: flex; flex-wrap: wrap; gap: 8px; }
 
-.seg button { padding: 11px 15px; border-radius: 4px; background: var(--card); border: 1px solid var(--border); color: var(--txt-2); font-size: var(--text-meta); font-weight: 600; cursor: pointer; }
+.seg button { padding: 11px 15px; border-radius: var(--r-box); background: var(--card); border: 1px solid var(--border); color: var(--txt-2); font-size: var(--text-meta); font-weight: 600; cursor: pointer; }
 
 .seg button.on { background: var(--blue); color: var(--gize-text); border-color: var(--blue); box-shadow: var(--glow-md); }
 
-.form-input { width: 100%; background: var(--card-2); border: 1px solid var(--border); border-radius: 4px; padding: 13px 14px; color: var(--txt); font-size: 16px; }
+.form-input { width: 100%; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-box); padding: 13px 14px; color: var(--txt); font-size: 16px; }
 
 .form-input:focus { outline: none; border-color: var(--blue); box-shadow: var(--focus-ring); }
 
-.form-save { margin-top: 6px; width: 100%; padding: 15px; border-radius: 4px; border: none; background: var(--blue); color: var(--gize-text); font-size: var(--text-emphasis); font-weight: 600; cursor: pointer; box-shadow: var(--glow-lg); }
+.form-save { margin-top: 6px; width: 100%; padding: 15px; border-radius: var(--r-box); border: none; background: var(--blue); color: var(--gize-text); font-size: var(--text-emphasis); font-weight: 600; cursor: pointer; box-shadow: var(--glow-lg); }
 
 .form-save:active { filter: brightness(1.1); }
 
-.qbtn { flex: 1; padding: 13px; border-radius: 4px; background: var(--card); border: 1px solid var(--border); color: var(--txt); font-size: var(--text-body); font-weight: 600; cursor: pointer; }
+.qbtn { flex: 1; padding: 13px; border-radius: var(--r-box); background: var(--card); border: 1px solid var(--border); color: var(--txt); font-size: var(--text-body); font-weight: 600; cursor: pointer; }
 
 .qbtn:active { border-color: var(--blue); }
 
 .step-set .form-input { flex: 1; }
 
-.ex-search { width: 100%; background: var(--card-2); border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px 12px 38px; color: var(--txt); font-size: var(--text-emphasis); flex-shrink: 0; }
+.ex-search { width: 100%; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-box); padding: 12px 14px 12px 38px; color: var(--txt); font-size: var(--text-emphasis); flex-shrink: 0; }
 
 .search-wrap:has(.ex-search) { margin-bottom: 12px; }
 
 .ex-search:focus { outline: none; border-color: var(--blue); box-shadow: var(--focus-ring); }
 
-.ex-chip { display: inline-flex; align-items: center; justify-content: center; padding: 8px 14px; border-radius: 4px; background: var(--card-2); border: 1px solid var(--border); color: var(--txt-2); font-size: var(--text-meta); line-height: 1.2; white-space: nowrap; flex-shrink: 0; cursor: pointer; }
+.ex-chip { display: inline-flex; align-items: center; justify-content: center; padding: 8px 14px; border-radius: var(--r-box); background: var(--card-2); border: 1px solid var(--border); color: var(--txt-2); font-size: var(--text-meta); line-height: 1.2; white-space: nowrap; flex-shrink: 0; cursor: pointer; }
 
 .ex-chip.on { background: var(--blue); color: var(--gize-text); border-color: var(--blue); }
 
-.ex-custom { display: inline-flex; align-items: center; gap: 6px; text-align: left; background: transparent; border: 1px dashed var(--border); border-radius: 4px; padding: 12px 14px; color: var(--blue-2); font-size: var(--text-body); cursor: pointer; margin-top: 8px; flex-shrink: 0; }
+.ex-custom { display: inline-flex; align-items: center; gap: 6px; text-align: left; background: transparent; border: 1px dashed var(--border); border-radius: var(--r-box); padding: 12px 14px; color: var(--blue-2); font-size: var(--text-body); cursor: pointer; margin-top: 8px; flex-shrink: 0; }
 
 .ex-custom svg { width:var(--icon-sm); height:var(--icon-sm); flex-shrink:0; }
 
@@ -340,7 +340,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 
 .rest-opt.on { background: var(--blue); color:var(--gize-text); border-color: var(--blue); }
 
-.save-session { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; margin-top:14px; padding:14px; border-radius:4px; border:none; background:var(--blue); color:var(--gize-text); font-size: var(--text-emphasis); font-weight:700; cursor:pointer; }
+.save-session { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; margin-top:14px; padding:14px; border-radius:var(--r-box); border:none; background:var(--blue); color:var(--gize-text); font-size: var(--text-emphasis); font-weight:700; cursor:pointer; }
 
 .save-session svg { width:var(--icon-md); height:var(--icon-md); flex-shrink:0; }
 
@@ -348,7 +348,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 
 .load-cap { font-size: var(--text-meta); color:var(--txt-2); margin:0 2px 12px; }
 
-.sess-item { display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--border); border-radius:4px; padding:12px 14px; margin-bottom:8px; }
+.sess-item { display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); padding:12px 14px; margin-bottom:8px; }
 
 .sess-main { flex:1; min-width:0; }
 
@@ -369,7 +369,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 
 #applyMount .cp-bg, #copyPickerMount .cp-bg { z-index:500; }
 
-.cp-ccard { position:fixed; left:50%; top:calc((100% - var(--kb, 0px)) / 2); transform:translate(-50%,-50%) scale(1); width:min(400px,92vw); max-height:86vh; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:22px; z-index:501; box-shadow:0 18px 50px rgba(0,0,0,.35);
+.cp-ccard { position:fixed; left:50%; top:calc((100% - var(--kb, 0px)) / 2); transform:translate(-50%,-50%) scale(1); width:min(400px,92vw); max-height:86vh; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; background:var(--card); border:1px solid var(--border); border-radius:var(--r-md); padding:22px; z-index:501; box-shadow:0 18px 50px rgba(0,0,0,.35);
     opacity: 1; transition: opacity var(--duration-frequent) var(--ease-drawer), transform var(--duration-frequent) var(--ease-drawer); }
 
 .cp-ccard.closing { opacity: 0; transform: translate(-50%,-50%) scale(.96); pointer-events: none; }
@@ -385,7 +385,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 
 @media (prefers-reduced-motion: reduce) { .cp-bg, .cp-ccard, .cp-modal { transition: none; } }
 
-.cp-search { width:100%; background:var(--card-2); border:1px solid var(--border); border-radius:4px; padding:12px 12px 12px 38px; color:var(--txt); font-size: var(--text-body); }
+.cp-search { width:100%; background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); padding:12px 12px 12px 38px; color:var(--txt); font-size: var(--text-body); }
 
 .search-wrap:has(.cp-search) { margin-bottom:16px; }
 
@@ -395,7 +395,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 
 .co-daytab.add { color:var(--blue-2); }
 
-.join-box { background:var(--card); border:1px solid var(--border); border-radius:4px; padding:var(--space-14); margin-top:var(--space-24); }
+.join-box { background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); padding:var(--space-14); margin-top:var(--space-24); }
 
 .join-t { font-size: var(--text-meta); color:var(--txt-2); margin-bottom:10px; font-weight:600; }
 
@@ -475,7 +475,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 .auth-google-gis { display:flex; justify-content:center; min-height:44px; opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
 
 .auth-switch {
-    text-align:center; font-size: var(--text-meta); font-weight:600; color: var(--green-2); cursor:pointer; margin-top:2px; padding:4px; border-radius:4px;
+    text-align:center; font-size: var(--text-meta); font-weight:600; color: var(--green-2); cursor:pointer; margin-top:2px; padding:4px; border-radius:var(--r-box);
     transition:color .15s; opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards;
   }
 
@@ -484,7 +484,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 .auth-switch:focus-visible { outline:2px solid var(--green-2); outline-offset:2px; }
 .auth-forgot { margin:0; background:none; border:none; padding:4px 2px; color:var(--gize-text-2); font:600 12.5px var(--gize-font); cursor:pointer; }
 .auth-forgot:hover { color:var(--gize-blue); text-decoration:underline; text-underline-offset:3px; }
-.auth-forgot:focus-visible { outline:2px solid var(--gize-blue); outline-offset:2px; border-radius:4px; }
+.auth-forgot:focus-visible { outline:2px solid var(--gize-blue); outline-offset:2px; border-radius:var(--r-box); }
 .auth-install { display:flex; align-items:center; justify-content:center; gap:7px; margin:6px auto 0; background:none; border:none; padding:8px 12px; color:var(--gize-text-2); font:600 12.5px var(--gize-font); cursor:pointer; opacity:0; animation:authFadeUp var(--duration-rare) var(--ease-drawer) forwards; }
 .auth-install svg { width:15px; height:15px; flex:none; }
 .auth-install:hover { color:var(--gize-text); }
@@ -493,7 +493,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
     .auth-card, .auth-brand-ic, .auth-logo, .auth-sub, .auth-head, .auth-tabs, .auth-row, .auth-field, .auth-btn, .auth-remember, .auth-or, .auth-apple, .auth-google, .auth-google-gis, .auth-switch, .auth-forgot, .auth-msg { animation:none !important; opacity:1 !important; transform:none !important; }
   }
 
-.logout-btn { display:block; width:100%; margin:24px auto 0; background:none; border:1px solid var(--border); color:var(--txt-2); font-size: var(--text-meta); padding:11px; border-radius:4px; cursor:pointer; }
+.logout-btn { display:block; width:100%; margin:24px auto 0; background:none; border:1px solid var(--border); color:var(--txt-2); font-size: var(--text-meta); padding:11px; border-radius:var(--r-box); cursor:pointer; }
 
 .goal { flex-shrink:0; font-size: var(--text-meta); font-weight:700; color:var(--blue-2); background:var(--card-2); border:1px solid var(--border); border-radius:3px; padding:var(--space-4); font-variant-numeric:tabular-nums; }
 /* Mismo ancho en todas las filas ("6-8", "8-12", "12-16"): si no, cada fila achicaba distinto kg y reps. */
@@ -561,7 +561,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 .sess-det { flex: 1; min-width: 0; }
 .sess-sum { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
 .sess-sum::-webkit-details-marker { display: none; }
-.sess-sum:focus-visible { outline: 2px solid var(--gize-blue); outline-offset: 4px; border-radius: 4px; }
+.sess-sum:focus-visible { outline: 2px solid var(--gize-blue); outline-offset: 4px; border-radius: var(--r-box); }
 .sess-chev { flex-shrink: 0; width: 8px; height: 8px; border-right: 2px solid var(--txt-3); border-bottom: 2px solid var(--txt-3);
     transform: rotate(45deg); margin: 0 4px 4px; transition: transform .2s ease; }
 .sess-det[open] .sess-chev { transform: rotate(225deg); margin-bottom: 0; }
@@ -575,7 +575,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 .sess-body { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 
 .sd-tot { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; margin-bottom: 12px; }
-.sd-tot > div { background: var(--card-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.sd-tot > div { background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px 10px; }
 .sd-tot b { display: block; font-family: var(--font-mono); font-size: var(--text-emphasis); color: var(--txt); }
 .sd-tot span { font-size: 11px; color: var(--txt-3); }
 
@@ -593,7 +593,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 .sd-ex-meta { font-size: 11px; color: var(--txt-3); font-family: var(--font-mono); }
 .sd-set { display: grid; grid-template-columns: 22px 1fr 14px 1fr; align-items: baseline; gap: 6px; padding: 3px 0; max-width: 300px;
     font-family: var(--font-mono); font-size: var(--text-body); color: var(--txt); }
-.sd-n { width: 20px; height: 20px; border-radius: 4px; background: var(--card-2); border: 1px solid var(--border);
+.sd-n { width: 20px; height: 20px; border-radius: var(--r-box); background: var(--card-2); border: 1px solid var(--border);
     font-size: 11px; color: var(--txt-2); display: flex; align-items: center; justify-content: center; align-self: center; }
 .sd-kg, .sd-reps { font-weight: 700; }
 .sd-kg { text-align: right; }
@@ -637,7 +637,7 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 .sc-now i { font-style: normal; font-weight: 500; color: var(--txt-3); }
 .sc-prev { color: var(--txt-3); font-weight: 500; }
 .sc-d { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.sc-d b { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.sc-d b { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: var(--r-box); white-space: nowrap; }
 .sc-d b.up { color: var(--gize-success); background: color-mix(in srgb, var(--gize-success) 14%, transparent); }
 .sc-d b.down { color: var(--gize-danger); background: color-mix(in srgb, var(--gize-danger) 14%, transparent); }
 .sc-d b.eq { color: var(--txt-3); background: var(--card-2); }

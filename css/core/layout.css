@@ -7,7 +7,7 @@
 
 .brand-logo { height: 34px; width: auto; display: block; }
 
-.brand-ic { width: 40px; height: 40px; border-radius: 4px; overflow: hidden;
+.brand-ic { width: 40px; height: 40px; border-radius: var(--r-box); overflow: hidden;
     display: flex; align-items: center; justify-content: center; box-shadow: var(--glow-lg); }
 
 .brand-ic img { width: 100%; height: 100%; object-fit: cover; }
@@ -35,7 +35,7 @@
 .nav-inner { display: flex; gap: 2px; width: 100%; max-width: 540px; }
 
 .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border: none; background: none;
-    color: var(--txt-3); font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 4px; transition: var(--transition-tap); }
+    color: var(--txt-3); font-size: 11px; font-weight: 600; cursor: pointer; border-radius: var(--r-box); transition: var(--transition-tap); }
 
 .nav-item svg { width: 22px; height: 22px; }
 
