@@ -31,7 +31,8 @@ async function open(base, init){
 export default async function ({ base, t }){
   // ---- Fondo quieto sin uso, borde que para, reloj interno ----
   {
-    const { p, errs, close } = await open(base, `localStorage.setItem('gize_lite','0');${SPY}`);
+    // Las partículas del fondo están en «Azul», «Rosa» y «Claro» («Oscuro» va con fondo liso, css/ui/calma.css).
+    const { p, errs, close } = await open(base, `localStorage.setItem('gize_lite','0');localStorage.setItem('gize_tema','azul');${SPY}`);
     await p.goto(base + '/app/'); await wait(3000);
     const a0 = await p.evaluate(() => window.__arc); await wait(400);
     const a1 = await p.evaluate(() => window.__arc);

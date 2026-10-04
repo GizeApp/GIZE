@@ -41,7 +41,8 @@ const scan = () => {
 export default async function ({ base, t }){
   // ---- Neón prendido: ahorro de batería en el panel ----
   {
-    const { p, errs, close } = await open();
+    // Las partículas del fondo están en «Azul», «Rosa» y «Claro» («Oscuro» va con fondo liso, css/ui/calma.css).
+    const { p, errs, close } = await open("localStorage.setItem('gize_tema','azul');");
     await p.goto(base + '/app/'); await wait(3500);
     t.ok(await p.$('#coachHost .co-wrap'), 'se ve el panel del coach');
     const s0 = await p.evaluate(scan);

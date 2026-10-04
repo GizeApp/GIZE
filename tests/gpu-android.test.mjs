@@ -39,7 +39,8 @@ async function open(base, init){
 export default async function ({ base, t }){
   // ---- Web, equipo bueno: el fondo espera al splash y se frena en segundo plano ----
   {
-    const { p, errs, close } = await open(base, `localStorage.setItem('gize_lite','0');(${SPY})();`);
+    // Las partículas del fondo están en «Azul», «Rosa» y «Claro» («Oscuro» va con fondo liso, css/ui/calma.css).
+    const { p, errs, close } = await open(base, `localStorage.setItem('gize_lite','0');localStorage.setItem('gize_tema','azul');(${SPY})();`);
     await p.goto(base + '/app/'); await wait(3500);
     const v = await p.evaluate(() => ({ arc: window.__arc, aurora: window.__auroraBoot, cls: document.documentElement.className,
       nav: getComputedStyle(document.querySelector('.navbar')).backdropFilter, splash: !!document.getElementById('splash'),

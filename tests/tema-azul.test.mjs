@@ -17,7 +17,8 @@ const COACH_H = {
 // Valores del look de siempre, leídos de origin/main (faec7b6) con la misma medición.
 const OSCURO = {
   body: 'rgb(0, 0, 0)',
-  card: 'linear-gradient(rgb(11, 13, 17), rgb(11, 13, 17)), conic-gradient(rgb(47, 160, 255), rgb(166, 92, 255), rgb(255, 61, 174), rgb(37, 232, 200), rgb(47, 160, 255))',
+  // «Oscuro» más tranquilo (css/ui/calma.css): las cajas con un filete fino en vez del borde RGB.
+  card: 'linear-gradient(rgb(11, 13, 17), rgb(11, 13, 17)), linear-gradient(155deg, color(srgb 0.689655 0.431616 1 / 0.506078) 0%, rgba(255, 255, 255, 0.1) 28%, rgba(255, 255, 255, 0.08) 72%, color(srgb 0.30084 0.680672 1 / 0.373333) 100%)',
   cardFill: 'rgba(0, 0, 0, 0)', blur: 'none', logo: 'normal',
   ring: 'conic-gradient(from 0deg,#2FA0FF,#A65CFF,#FF3DAE,#25E8C8,#2FA0FF)',
   nav: 'rgba(6, 9, 17, 0.82)',

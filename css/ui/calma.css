@@ -1,0 +1,42 @@
+/* css/ui/calma.css
+   Apariencia más tranquila en «Oscuro» (la de siempre): fondo liso con un degradé suave en vez
+   de las partículas y los brillos de colores, y cajas con un filete fino (apenas un toque de
+   color en una esquina) en vez del borde RGB completo con resplandor. El neón queda para lo
+   importante: el botón principal, la racha y lo activo. «Azul», «Rosa» y «Claro» tienen su
+   propio fondo y no cambian. Las partículas del canvas ya no se dibujan (app/ui/background.js). */
+html:not(.tema-claro):not(.tema-luz) {
+  --gize-calm-bg: linear-gradient(180deg, #0E1424 0%, #080B15 38%, #05070D 100%);
+}
+html:not(.tema-claro):not(.tema-luz):not(.sin-neon) {
+  --gize-calm-ring: linear-gradient(155deg,
+    color-mix(in srgb, var(--gize-r2) 45%, rgba(255,255,255,.10)) 0%,
+    rgba(255,255,255,.10) 28%, rgba(255,255,255,.08) 72%,
+    color-mix(in srgb, var(--gize-r1) 32%, rgba(255,255,255,.08)) 100%);
+}
+html:not(.tema-claro):not(.tema-luz) #silkCanvas { display: none !important; }
+html:not(.tema-claro):not(.tema-luz) .app-aurora {
+  inset: 0; opacity: 1 !important; filter: none; background: var(--gize-calm-bg);
+}
+html:not(.tema-claro):not(.tema-luz) .app-aurora span { display: none; }
+
+/* Cajas sin el resplandor de color: queda solo una sombra oscura que las despega del fondo. */
+html:not(.tema-claro):not(.tema-luz) body:not(#_) :is(
+    .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
+    .join-box, .daynotes, .w-chart, .ptile) {
+  box-shadow: 0 8px 22px rgba(0,0,0,.28);
+}
+/* El filete fino va solo en las cajas: los botones de un entrenamiento en curso, «Ver video» y
+   el resto de lo activo siguen con el borde de neón completo (--gize-rgb-ring). */
+html:not(.tema-claro):not(.tema-luz):not(.sin-neon) body:not(#_) :is(
+    .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
+    .join-box, .daynotes, .w-chart) {
+  background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box, var(--gize-calm-ring) border-box;
+}
+html:not(.tema-claro):not(.tema-luz) body:not(#_) .co-head :is(.co-back, .co-logout, .co-gear) { box-shadow: none; }
+
+/* GIZE básico (Android) apaga la aurora: el degradé liso es una sola capa quieta, se deja. */
+html.basico:not(.tema-claro):not(.tema-luz) .app-aurora { display: block !important; }

@@ -22,6 +22,9 @@ export let authParticlesHandle = null;
 // ---- Modo liviano (ver el script del <head> en index.html y css/ui/lite.css) ----
 // Con html.lite no corre ningún canvas de partículas: queda solo el degradé de fondo.
 export function isLite(){ return document.documentElement.classList.contains("lite"); }
+// Sin partículas: en modo liviano y en «Oscuro», que ahora va con fondo liso en degradé
+// (css/ui/calma.css). «Azul», «Rosa» y «Claro» siguen con su fondo de siempre.
+const noParticles = () => { const c = document.documentElement.classList; return isLite() || !(c.contains("tema-claro") || c.contains("tema-luz")); };
 
 // ---- Cuidar la placa de video (ANR «La GPU no responde» en Android) ----
 // Mientras está el splash (body.is-booting) no se dibuja nada detrás: lo tapa entero y el
@@ -96,7 +99,7 @@ export function setLite(on){
 }
 
 // El modo liviano automático por batería baja (app/lite.js) entra y sale con la app abierta.
-document.addEventListener("gize:lite", () => { if(isLite()) silkClear(); else if(silkVisible && silkRafId==null) silkLoop(); });
+document.addEventListener("gize:lite", () => { if(noParticles()) silkClear(); else if(silkVisible && silkRafId==null) silkLoop(); });
 
 // Si nadie eligió a mano y el fondo va a menos de ~25 cuadros por segundo, el equipo no da:
 // se pasa solo a modo liviano y queda anotado para los próximos arranques.
@@ -175,7 +178,7 @@ export function startAuthParticles(canvas){
     }
     ctx.globalAlpha=1;
   }
-  if(!reduceMotion && !isLite()) frame(); // respeta prefers-reduced-motion: sin loop, queda solo el fondo estático
+  if(!reduceMotion && !noParticles()) frame(); // respeta prefers-reduced-motion: sin loop, queda solo el fondo estático
   function onResize(){ resize(); if(still) wakeBg(); } // redimensionar borra el canvas: si estaba quieto, se redibuja
   window.addEventListener("resize", onResize);
   authParticlesHandle = { stop(){ stopped=true; if(raf) cancelAnimationFrame(raf); window.removeEventListener("resize", onResize); } };
@@ -251,7 +254,7 @@ function silkClear(){
 
 let silkLast = 0;
 export function silkLoop(t){
-  if(document.visibilityState!=="visible" || appPaused() || !silkVisible || isLite()){ silkRafId=null; perfLast=0; return; } // pausa real: no seguimos pidiendo frames
+  if(document.visibilityState!=="visible" || appPaused() || !silkVisible || noParticles()){ silkRafId=null; perfLast=0; return; } // pausa real: no seguimos pidiendo frames
   if(still && !silkReducedMotion()){ silkRafId=null; perfLast=0; whenWake(silkResume); return; } // quieto: queda el último cuadro
   if(booting()){ silkRafId=null; perfLast=0; whenSplashGone(silkResume); return; } // arranca cuando se va el splash
   silkRafId = requestAnimationFrame(silkLoop);

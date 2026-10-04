@@ -35,6 +35,8 @@ export function setTema(t){
   document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute("content", BARRA[t]));
   refreshGamut();
   syncTemaButtons();
+  // El fondo de partículas depende de la apariencia (en «Oscuro» no hay): que se acomode ya.
+  try { document.dispatchEvent(new CustomEvent("gize:lite")); } catch (e) {}
 }
 
 // Marca la opción elegida en todos los selectores que haya en pantalla.
