@@ -8,6 +8,8 @@ import { applyBrand, loadCloud } from '../core/supabase.js';
 
 import { save } from '../core/storage.js';
 
+import { DISCIPLINAS, myDisciplinas, toggleDisciplina } from '../core/disciplinas.js';
+
 import { CATALOGO, cargarCatalogo, copiarDias, diasDeEntreno, rutinasDeDias, rutinasPara } from '../core/rutinas-ejemplo.js';
 
 import { hideSilkBg, showSilkBg } from '../ui/background.js';
@@ -98,6 +100,26 @@ function showClientWelcome(){
   if(!host) return;
   host.onclick=e=>{
     if(!e.target.closest('[data-onb="start"]')) return;
+    host.onclick=null;
+    showDisciplina();
+  };
+}
+
+// ¿Qué entrenás? (una o más; se puede saltear y cambiar en Ajustes). Con eso el buscador de
+// ejercicios muestra primero lo suyo, y su coach la ve en la ficha (core/disciplinas.js).
+function showDisciplina(){
+  const mine=myDisciplinas().map(d=>d.id);
+  const host=mount(
+    '<h1 class="onb-title">¿Qué entrenás?</h1>'+
+    '<p class="onb-text">Podés elegir más de una. Te mostramos primero esos ejercicios.</p>'+
+    '<div class="onb-disc">'+DISCIPLINAS.map(d=>'<button type="button" class="onb-num onb-disc-opt'+(mine.includes(d.id)?' on':'')+'" data-onb="disc" data-v="'+d.id+'" aria-pressed="'+mine.includes(d.id)+'">'+esc(d.name)+'</button>').join("")+'</div>'+
+    '<button type="button" class="gize-btn auth-btn onb-main" data-onb="dnext">Continuar</button>'+
+    '<button type="button" class="onb-alt" data-onb="dskip">Saltear</button>',
+    "Tu disciplina");
+  if(!host) return;
+  host.onclick=e=>{
+    const b=e.target.closest("[data-onb]"); if(!b) return;
+    if(b.dataset.onb==="disc"){ toggleDisciplina(b.dataset.v); save(); showDisciplina(); return; }
     host.onclick=null;
     // Ya vinculado (código de un intento anterior de registro): no se le pide de nuevo.
     // Con coach, la rutina la arma el coach: no se le ofrece armar una.

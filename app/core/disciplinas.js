@@ -31,10 +31,14 @@ export const DISCIPLINAS = [
 // Grupo «Para vos» del buscador (no es un grupo muscular: el ejercicio elegido cuenta para el suyo).
 export const FOR_YOU = "_vos";
 
-export function myDisciplinas(){
-  const ids = Array.isArray(state.disciplinas) ? state.disciplinas : [];
-  return DISCIPLINAS.filter(d => ids.includes(d.id));
+// ids: las de otra persona (el coach, con las de su alumno); sin ids, las propias.
+export function myDisciplinas(ids){
+  const list = Array.isArray(ids) ? ids : Array.isArray(state.disciplinas) ? state.disciplinas : [];
+  return DISCIPLINAS.filter(d => list.includes(d.id));
 }
+
+// «CrossFit · Running» (para mostrar).
+export function disciplinasLabel(ids){ return myDisciplinas(ids).map(d => d.name).join(" · "); }
 
 export function toggleDisciplina(id){
   if (!DISCIPLINAS.some(d => d.id === id)) return;
@@ -43,19 +47,19 @@ export function toggleDisciplina(id){
 }
 
 // Ejercicios clave de las disciplinas elegidas, sin repetir y solo los que existen en la base.
-export function forYouList(){
+export function forYouList(ids){
   const all = new Set(Object.values(EX_DB).flat()), out = [];
-  myDisciplinas().forEach(d => d.top.forEach(n => { if (all.has(n) && !out.includes(n)) out.push(n); }));
+  myDisciplinas(ids).forEach(d => d.top.forEach(n => { if (all.has(n) && !out.includes(n)) out.push(n); }));
   return out;
 }
 
 // Grupos del buscador: «Para vos» (si hay), los de la disciplina y después el resto.
-export function orderedCats(cats){
+export function orderedCats(cats, ids, forYouName){
   const first = [];
-  myDisciplinas().forEach(d => d.cats.forEach(c => { if (!first.includes(c)) first.push(c); }));
+  myDisciplinas(ids).forEach(d => d.cats.forEach(c => { if (!first.includes(c)) first.push(c); }));
   const lead = first.map(k => cats.find(c => c[0] === k)).filter(Boolean);
   const rest = cats.filter(c => !first.includes(c[0]));
-  return (forYouList().length ? [[FOR_YOU, "Para vos"]] : []).concat(lead, rest);
+  return (forYouList(ids).length ? [[FOR_YOU, forYouName || "Para vos"]] : []).concat(lead, rest);
 }
 
 // Grupo con el que abre el buscador.

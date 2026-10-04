@@ -3,6 +3,7 @@ import { ssGroupOf, ssGroups, ssName } from '../../core/superserie.js';
 import { dropExMedia, libVideo } from '../../core/videos.js';
 
 import { EX_CATS, EX_DB } from '../../core/data.js';
+import { FOR_YOU, forYouList, orderedCats } from '../../core/disciplinas.js';
 
 import { checkSvg, chevronDownSvg, chevronLeftSvg, chevronRightSvg, copySvg, downloadSvg, gripSvg, saveSvg, searchSvg, swapSvg, trashSvg, xSvg } from '../../core/icons.js';
 
@@ -568,6 +569,9 @@ export function renderCoachRoutine(d){
     (CoachState.coachTplEdit ? "" : "<div class='rt-actions'><button class='co-copy-btn' data-coach='rt-apply'>"+downloadSvg+" Aplicar una de mis rutinas</button><button class='co-copy-btn' data-coach='rt-copy'>"+copySvg+" Copiar a otro cliente</button><button class='co-copy-btn' data-coach='rt-tosave'>"+saveSvg+" Guardar como rutina</button></div>");
 }
 
+// Disciplina del alumno abierto (si el coach edita una plantilla suya, ninguna: [] y no la propia).
+const cpDisc = () => (!CoachState.coachTplEdit && CoachState.coachData && Array.isArray(CoachState.coachData.disciplines)) ? CoachState.coachData.disciplines : [];
+
 export function coachPickerMarkup(){
   const q=CoachState.coachPQ.trim().toLowerCase();
   let inner;
@@ -575,7 +579,11 @@ export function coachPickerMarkup(){
     const res=searchExercises(n=>n.toLowerCase().indexOf(q)>=0, EX_CATS);
     inner='<div class="cp-exs">'+(res.length?res.map(r=>'<button class="cp-ex" data-cp="choose" data-name="'+esc(r.name)+'" data-cat="'+esc(r.cat)+'">'+esc(r.label)+'</button>').join(""):'<div class="cal-hint">Sin resultados</div>')+'</div>';
   } else if(!CoachState.coachPCat){
-    inner='<div class="cp-step">1. Eleg\u00ed el grupo muscular</div><div class="cp-cats">'+EX_CATS.map(c=>'<button class="cp-cat" data-cp="cat" data-c="'+c[0]+'">'+c[1]+'</button>').join("")+'</div>';
+    // Con la disciplina del alumno, primero «Para su disciplina» y sus grupos (core/disciplinas.js).
+    inner='<div class="cp-step">1. Eleg\u00ed el grupo muscular</div><div class="cp-cats">'+orderedCats(EX_CATS, cpDisc(), "Para su disciplina").map(c=>'<button class="cp-cat'+(c[0]===FOR_YOU?' cp-cat-vos':'')+'" data-cp="cat" data-c="'+c[0]+'">'+c[1]+'</button>').join("")+'</div>';
+  } else if(CoachState.coachPCat===FOR_YOU){
+    inner='<div class="cp-bar"><button class="cp-back" data-cp="cats">\u2039 Grupos</button><span class="cp-catname">Para su disciplina</span></div>'+
+      '<div class="cp-exs">'+forYouList(cpDisc()).map(n=>'<button class="cp-ex" data-cp="choose" data-name="'+esc(n)+'" data-cat="">'+esc(n)+'</button>').join("")+'</div>';
   } else {
     const lb=(EX_CATS.find(c=>c[0]===CoachState.coachPCat)||["",""])[1];
     inner='<div class="cp-bar"><button class="cp-back" data-cp="cats">\u2039 Grupos</button><span class="cp-catname">'+esc(lb)+'</span></div>'+

@@ -72,4 +72,31 @@ export default async function ({ base, t }){
     t.ok(bodies.some(x => !/disciplines/.test(x) && /rest_default|habits/.test(x)), 'sin la columna nueva, se reintenta sin la disciplina');
     await close();
   }
+
+  // Coach: ve la disciplina del alumno en la ficha y el buscador le ofrece primero «Para su disciplina».
+  {
+    const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
+    const al = { id: ALUMNO.id, full_name: 'Ana', role: 'client', coach_id: COACH.id };
+    const { p, errs, close } = await newPage({ user: COACH, viewport: { width: 1200, height: 900 }, handlers: {
+      '/profiles': (r, J, i) => i.m !== 'GET' ? undefined : (/coach_id=eq/.test(i.url.search) ? J([al]) : J(i.one ? { id: COACH.id, role: 'coach', full_name: 'Coach' } : [{ id: COACH.id, role: 'coach', full_name: 'Coach' }])),
+      '/coach_billing': (r, J, i) => J(i.one ? { plan: 'cortesia', max_clients: 50, trial_ends_at: '2099-01-01T00:00:00Z' } : [{ plan: 'cortesia', max_clients: 50, trial_ends_at: '2099-01-01T00:00:00Z' }]),
+      '/client_prefs': (r, J, i) => i.m === 'GET' ? J(i.one ? { disciplines: ['powerlifting'] } : [{ disciplines: ['powerlifting'] }]) : undefined,
+      '/routines': (r, J, i) => i.m === 'GET' ? J(i.one ? { days: [{ id: 'd1', name: 'Día 1', exercises: [] }] } : [{ days: [{ id: 'd1', name: 'Día 1', exercises: [] }] }]) : undefined,
+    } });
+    await p.goto(base + '/app/'); await wait(3000);
+    await p.evaluate(async id => { const m = await import('/app/screens/coach/clientes.js'); await m.openClient(id); }, ALUMNO.id); await wait(1200);
+    t.has(await p.evaluate(() => (document.querySelector('.co-client-disc') || {}).textContent || ''), 'Powerlifting', 'coach: la ficha muestra la disciplina del alumno');
+    const cats = await p.evaluate(async () => {
+      const { CoachState } = await import('/app/screens/coach/state.js'); const r = await import('/app/screens/coach/rutinas.js');
+      CoachState.coachPicker = { mode: 'add' }; CoachState.coachPCat = null; CoachState.coachPQ = '';
+      const d = document.createElement('div'); d.innerHTML = r.coachPickerMarkup();
+      const first = [...d.querySelectorAll('.cp-cat')].slice(0, 4).map(b => b.textContent);
+      CoachState.coachPCat = '_vos'; d.innerHTML = r.coachPickerMarkup();
+      return { first, list: [...d.querySelectorAll('.cp-ex')].map(b => b.textContent).slice(0, 3) };
+    });
+    t.eq(cats.first, ['Para su disciplina', 'Cuádriceps', 'Pecho', 'Isquios'], 'coach: primero «Para su disciplina» y sus grupos');
+    t.eq(cats.list, ['Sentadilla libre', 'Sentadilla con pausa', 'Sentadilla barra baja'], 'coach: los ejercicios clave de powerlifting');
+    t.eq(errs, [], 'coach: errores de la página');
+    await close();
+  }
 }
