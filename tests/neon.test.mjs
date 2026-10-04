@@ -14,7 +14,8 @@ const COACH_H = {
 };
 
 // Los valores de siempre (origin/main) con neón.
-const RING_OSCURO = 'linear-gradient(rgb(11, 13, 17), rgb(11, 13, 17)), conic-gradient(rgb(47, 160, 255), rgb(166, 92, 255), rgb(255, 61, 174), rgb(37, 232, 200), rgb(47, 160, 255))';
+// Cajas en «Oscuro»: filete fino con un toque de color (css/ui/calma.css), no el borde RGB completo.
+const RING_OSCURO = 'linear-gradient(rgb(11, 13, 17), rgb(11, 13, 17)), linear-gradient(155deg, color(srgb 0.689655 0.431616 1 / 0.506078) 0%, rgba(255, 255, 255, 0.1) 28%, rgba(255, 255, 255, 0.08) 72%, color(srgb 0.30084 0.680672 1 / 0.373333) 100%)';
 
 // ¿Hay algún color con tinte (no gris) en este valor de CSS? rgb()/rgba() y color(srgb …), que es
 // como sale un color-mix() calculado; canales de 0 a 255.
@@ -67,7 +68,7 @@ export default async function ({ base, t }){
   t.eq(await p.evaluate(() => window.__dcl), false, 'por defecto: sin html.sin-neon');
   let m = await mide(p);
   t.eq([m.sinNeon, m.saved, m.r2], [false, null, '#A65CFF'], 'por defecto: sin clase, nada guardado y la gama de siempre');
-  t.eq(m.exCard && m.exCard.backgroundImage, RING_OSCURO, 'por defecto: el ejercicio con el borde RGB de siempre');
+  t.eq(m.exCard && m.exCard.backgroundImage, RING_OSCURO, 'por defecto: el ejercicio con su filete de color');
   t.ok(/conic-gradient/.test(m.wkStartRing && m.wkStartRing.backgroundImage) && m.wkStartRing.animationName === 'gize-spin', 'por defecto: «Iniciar entrenamiento» con el anillo RGB que gira');
   t.ok(conTinte(m.chat && m.chat.boxShadow) && /conic-gradient/.test(m.chatRing && m.chatRing.backgroundImage) && m.chatRing.animationName === 'gize-spin', 'por defecto: el chat con neón de colores');
   t.ok(conTinte(m.streak && m.streak.boxShadow) && conTinte(m.flame && m.flame.filter), 'por defecto: la racha con resplandor de colores');
@@ -76,7 +77,7 @@ export default async function ({ base, t }){
   t.ok(/conic-gradient/.test(m.primary && m.primary.backgroundImage) && m.primary.animationName === 'gize-spin', 'por defecto: el botón principal (Cardio) con el anillo que gira');
   await p.click('#nav-config'); await wait(500);
   m = await mide(p);
-  t.eq(m.card && m.card.backgroundImage, RING_OSCURO, 'por defecto: la caja de Ajustes con el borde RGB de siempre');
+  t.eq(m.card && m.card.backgroundImage, RING_OSCURO, 'por defecto: la caja de Ajustes con su filete de color');
   const orden = await tarjetas(p);
   t.eq(orden.slice(orden.indexOf('Apariencia'), orden.indexOf('Apariencia') + 3), ['Apariencia', 'Neón', 'Modo liviano'], 'Ajustes: «Neón» va justo después de «Apariencia»: ' + orden.join(', '));
   t.eq(m.sw, ['true'], 'Ajustes: el interruptor de Neón, prendido');
