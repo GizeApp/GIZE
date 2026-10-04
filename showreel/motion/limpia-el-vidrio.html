@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Limpiá el vidrio</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* «Limpiá el vidrio» · 16 s, 120 BPM, 9:16 or 4:5.
+   The website hero, alive: the site's own frosted glass (landing.js FS_O, ported to a WebGL pass over a 2D scene
+   canvas) with the smoky G and the orb behind it. An invisible hand cleans the glass in three overlapping, syncopated
+   gestures until the site's whole headline is clear at once; then the fog takes it back, patchily. The finger traces
+   the G (the clean stroke IS the logo; the neon only lives at the fingertip), a tap opens a clean lens round the orb,
+   the condensation creeps back over the G while the orb's heartbeats push through it, and a squeegee wipes the world
+   sharp on the drop. The camera pulls back: the frame we were looking through is one pane of glass (the login card's
+   RGB border) floating in the login screen's space, with the G in its top third. The pane leaves the G, recedes into
+   a star whose flare becomes the end card's rule, and the G lands, pixel-exact, as the brand end card.
+   The wipe mask is analytic (a pure function of t) and drawn with 'lighten' on small canvases:
+     msk  (blur 3px): R = cleared glass, G = drip streaks (unblurred), B = freshness (where the finger just was)
+     msk2 (blur 10px): R = soft mask for the luminous rim, G = finger ridges (unblurred), B = soft freshness
+   The GL pass is cached per frame (3 sub-renders per frame on the fast gestures) and seeded per frame, then
+   composited into the engine canvas, so the 2D layers on top keep the engine's motion blur. From 10.45 s the world
+   is clean and everything is drawn in 2D. */
+import {C,RGB,E,clamp,lerp,prog,glow,rgbLine,tw,F,fitSize,hash,rng,wobble,createReel,drawFirma,LOGO,mk} from '../lib/engine.js';
+import {endcard,endcardGeom,endcardCues} from '../lib/endcard.js';
+
+const PI=Math.PI,TAU=PI*2,DUR=16,BPM=120,BT=60/BPM;
+const TD=10.0,TSQ=0.42,T2D=10.45,TP=11.0,TLV=11.6,TE=12.0;   // drop, squeegee, GL off, pull-back, the pane leaves the G, end card
+const MS=3,GSC=1;                                             // mask divider, GL resolution scale
+const GTXT='#F4F6FA';
+// gestures: W1 on the downbeat (the hook), W2 a pickup into bar 2, W3 on the and-of-2; all three lines clear together ~3.05-3.5
+const W1={tD:-0.22,tA:-0.16,tB:0.38},W2={tD:1.47,tA:1.5,tB:1.95},W3={tA:2.75,tB:3.03},W4={tD:6.25,tA:6.33,tB:7.55},TT=8.0;
+const GHOST=[5.05,5.45];   // the L1-L3 ghosts leave the scene once all three have fogged over (invisible under the frost)
+const CR0=8.3,CR1=9.75;    // the condensation creeps back over the G before the drop
+
+/* ---------------- layout ---------------- */
+let GEO=null;
+function geo(L){if(GEO&&GEO.fmt===L.fmt)return GEO;const v=L.fmt==='4x5';
+  const k0=v?8:9.0,gx=v?610:590,gy=v?470:650;
+  const px=fitSize('en un solo lugar.',700,860,v?80:96),ls=-0.03*px;
+  const base=v?[965,1048,1131,1214]:[1150,1250,1350,1450];
+  const lines=['Tu coach,','tu rutina','y tu progreso','en un solo lugar.'];
+  const eg=endcardGeom(L);
+  GEO={fmt:L.fmt,k0,gx,gy,px,ls,base,x:100,lines,w:lines.map(s=>tw(s,700,px,ls)),eg,gEnd:[eg.x+LOGO.arc.cx*eg.k,eg.y+LOGO.arc.cy*eg.k],
+    pv:[gx,v?760:1000],   // the camera's pivot: between the G and the copy, so the lean keeps the last line inside the safe area
+    dot:[gx+(LOGO.dot.x-LOGO.arc.cx)*k0,gy+(LOGO.dot.y-LOGO.arc.cy)*k0]};return GEO;}
+
+/* ---------------- time curves ---------------- */
+// camera: one dolly (no roll: the logo never rotates). Slow drift, a lean in the freed bar (4.6-6.4), a creep, the drop
+function camZ(t){if(t<TD)return 1+0.025*E.inOutSine(prog(t,0,4.8))+0.025*E.inOutCubic(prog(t,4.6,6.4))+0.012*E.inOutSine(prog(t,6.4,9.75))-0.015*E.inQuad(prog(t,9.75,TD));
+  return lerp(1.047,1,E.outCubic(prog(t,TD,TD+0.6)));}
+// the orb's light: beat breaths that grow (light through the fog before the trace), the tap, heartbeats, the drop
+const PULSES=(()=>{const p=[];for(let b=1;b<12;b++){const tb=b*BT;p.push([tb,lerp(0.22,0.6,prog(tb,0.5,5.5))*(b%4===0?1.35:1),0.26]);}
+  for(let b=12;b<16;b++)p.push([b*BT,0.14,0.22]);p.push([TT,1.1,0.5]);[8.5,9,9.5].forEach(x=>p.push([x,0.62,0.3]));p.push([TD,0.8,0.4]);
+  for(let b=21;b<24;b++)p.push([b*BT,0.22,0.25]);return p;})();
+function pulse(t){let s=0;for(const[tb,a,d]of PULSES){const u=t-tb;if(u<0||u>d*7)continue;s+=a*Math.exp(-u/d)*(1-Math.exp(-u/0.025));}return s*(1-prog(t,11.4,11.9));}
+const haloK=t=>1.5+pulse(t);
+const breath=t=>1+0.07*Math.sin(2.4*t)*(1-prog(t,10.4,11.4));
+const bob=(t,L)=>L.H*0.012*Math.sin(0.6*t)*(1-E.inOutSine(prog(t,4.8,6.2)));
+const clear=(u,hold)=>u<=0?0:(1-Math.exp(-u/0.03))*(u<hold?1:Math.exp(-(u-hold)/0.4));
+// glass uniforms: at rest the site's grade; from 8.3 the glass goes milkier for the squeegee to wipe
+const charge=t=>E.inOutSine(prog(t,CR0,CR1));
+const frostU=t=>lerp(1,1.7,charge(t));
+const gainU=t=>lerp(0.86,0.70,charge(t));
+const liftU=t=>lerp(0.03,0.085,charge(t));
+// the rim's global gain (soft, never above ~.2 on the line wipes; ≤.1 on the logo until the drop lights the blade's edge)
+function rimU(t){let r=0.06*(1-prog(t,5.6,6.2));for(const[t0,a]of[[W1.tA,0.06],[W2.tA,0.05],[W3.tA,0.05],[TD,0.26]]){const u=t-t0;if(u>=0)r+=a*Math.exp(-u/0.25);}return r;}
+// condensation beads on the wiped edges of the line wipes (never round the mark)
+const beadU=t=>1-prog(t,5.4,6.0);
+// the edge noise: full on the line wipes and the creep, low round the freshly traced logo (no gritty contour on the mark)
+// thinner fog next to the clean glass round the logo: the frost's scatter tightens there, so the G's frosted halo
+// never reads as a bright contour round the clean lens (off again when the condensation creeps back)
+const thinU=t=>prog(t,5.9,6.3)*(1-E.inOutSine(prog(t,8.45,9.2)));
+const noiseU=t=>lerp(1,0.3,E.inOutSine(prog(t,5.9,6.35)))+0.45*E.inQuad(prog(t,CR0,9.4));
+const RIMF=0.5;   // gain of the freshness term (the light that follows the fingertip)
+// the creep: the trace and the tap lens fog back from the edges inward (outer, mid, core layers of the brush)
+const CRK=[[CR0,9.2,0.2],[8.5,9.5,0.34],[8.8,CR1,0.5]];
+const creep=(t,li)=>{const[a,b,v]=CRK[li];return lerp(1,v,E.inOutSine(prog(t,a,b)));};
+
+/* ---------------- gestures: samples in time ---------------- */
+let STROKES=[],DRIPS=[],DROPS=[],STARS=[],WATER=[];
+const n1=x=>{const i=Math.floor(x),f=x-i,u=f*f*(3-2*f);return lerp(hash(i*1.31+0.7),hash((i+1)*1.31+0.7),u);};   // smooth 1D noise
+// pressure is never even: each sample's radius jitters, and each refogs at its own time (smooth noise along the stroke)
+function samples({tD,tA,tB,N,ease,pos,R,jit=0.12,seed=0,hj=0,ew=0}){const S=[],ed=k=>({et:1+ew*2*(n1(seed+71+k/5)-0.5),eb:1+ew*2*(n1(seed+137+k/5)-0.5)});
+  if(tD!=null){const n=6;for(let i=0;i<n;i++){const f=i/n,[x,y]=pos(0);S.push({tau:lerp(tD,tA,f),x,y,r:R(0)*lerp(0.6,1,E.outCubic(f)),hj:hj*(n1(seed)-0.5),...ed(0)});}}
+  for(let k=0;k<=N;k++){const f=k/N,s=ease(f),[x,y]=pos(s);S.push({tau:lerp(tA,tB,f),x,y,r:R(s)*(1+jit*(n1(seed*1.7+k/9)-0.5)+0.4*jit*(hash(k*3.1+seed)-0.5)),f:s,hj:hj*(n1(seed+k/12)-0.5),...ed(k)});}return S;}
+function build(L){const g=geo(L),px=g.px,x0=g.x,lin=x=>x;
+  const A=LOGO.arc,sweep=((A.a1-A.a0)%TAU+TAU)%TAU,k0=g.k0;
+  const arcPt=s=>{const a=A.a1-s*sweep;return[g.gx+A.r*Math.cos(a)*k0,g.gy+A.r*Math.sin(a)*k0];};
+  // W1, the reading swipe: lands, dwells, crosses with a pressure profile (kept inside the line's cap height and comma)
+  const b0=g.base[0],R0=0.48*px;
+  const s1={kind:'line',split:1,hold:3.45,sag:1,glint:1,fw:0.1,ridge:1,S:samples({...W1,N:90,ease:E.inOutSine,seed:11,hj:0.6,jit:0.16,ew:0.16,
+    pos:s=>[lerp(x0-15,x0+g.w[0]+45,s),b0-0.31*px+lerp(3,-3,s)-4*Math.sin(PI*s)],R:s=>R0*(0.9+0.12*Math.sin(PI*s))*lerp(1,0.5,E.inQuad(prog(s,0.86,1)))})};
+  // W2, the loop scrub: three cursive loops along the line (a pickup into bar 2)
+  const m2=g.base[1]-0.31*px;
+  const s2={kind:'line',split:1,hold:1.85,sag:1,glint:1,fw:0.1,ridge:1,S:samples({...W2,N:140,ease:lin,seed:23,hj:0.6,jit:0.16,ew:0.16,
+    pos:s=>[x0-20+(g.w[1]+40)*E.inOutSine(s)+0.40*px*Math.cos(6*PI*s+PI),m2+0.14*px*Math.sin(6*PI*s)],R:s=>0.35*px*(0.92+0.1*Math.sin(PI*s))})};
+  // W3, the palm: the side of a hand slides down over the line (a palm doesn't sag)
+  const m3=g.base[2]-0.3*px;
+  const s3={kind:'cap',hold:0.8,sag:0,glint:0,fw:0.1,ridge:1,x0:x0-35,x1:x0+g.w[2]+35,S:samples({...W3,N:36,ease:E.outCubic,seed:37,hj:0.5,jit:0.04,pos:s=>[0,lerp(m3-0.20*px,m3+0.15*px,s)],R:()=>0.3*px})};
+  // W4, the trace: the G's centre line, in drawFirma's pen direction (never refogs on its own; the creep takes it back)
+  const s4={kind:'line',hold:Infinity,sag:0,glint:1,fw:1,ft:0.18,creep:1,ridge:0,S:samples({...W4,N:160,ease:E.inOutSine,seed:51,jit:0.04,pos:arcPt,R:()=>12*k0})};
+  STROKES=[s1,s2,s3,s4];
+  // drips from the lower edge of each cleared band: water accelerates, the thread refogs behind it
+  DRIPS=[];const addDrip=(st,x,y,tau,len,i)=>DRIPS.push({st,x,y,tau,len,ph:hash(i*7.3)*TAU,hold:0.75});
+  [[s1,[0.22,0.51,0.80],[120,200],90],[s2,[0.35,0.72],[110,170],140]].forEach(([st,fr,[l0,l1],N],j)=>{const main=st.S.slice(st.S.length-1-N);
+    fr.forEach((f,i)=>{const smp=main[Math.round(f*(main.length-1))];addDrip(st,smp.x,smp.y+smp.r*0.82,smp.tau,lerp(l0,l1,hash(j*13+i+1)),j*10+i);});});
+  const last=s3.S[s3.S.length-1];[0.18,0.55,0.86].forEach((f,i)=>addDrip(s3,lerp(s3.x0+40,s3.x1-40,f),last.y+last.r*0.9,last.tau+hash(40+i)*0.08,120*lerp(0.85,1.1,hash(50+i)),30+i));
+  // the squeegee's droplets, riding ahead of the blade
+  DROPS=Array.from({length:26},(_,i)=>({y:lerp(-20,L.H+20,(i+hash(i+3))/26),r:lerp(3,8,hash(i+61)),d:lerp(4,40,hash(i+91)),w:hash(i+121)}));
+  // the water the squeegee left at the edge it never reached (the pane's frosted strip)
+  WATER=Array.from({length:14},(_,i)=>({y:lerp(0.04,0.96,(i+hash(i+201))/14),r:lerp(2.5,6,hash(i+231))}));
+  // the login screen's starfield (at infinity: it never scales)
+  const r=rng(42);STARS=Array.from({length:220},()=>({x:r()*L.W,y:r()*L.H,s:lerp(1.2,3,r()**3),a:lerp(0.3,1,r()),f:lerp(0.8,3,r()),p:r()*TAU}));}
+
+function headAt(st,t){const S=st.S;if(t<S[0].tau||t>S[S.length-1].tau)return null;let i=1;while(i<S.length&&S[i].tau<t)i++;i=Math.min(i,S.length-1);
+  const a=S[i-1],b=S[i],f=b.tau>a.tau?(t-a.tau)/(b.tau-a.tau):1;return{x:lerp(a.x,b.x,f),y:lerp(a.y,b.y,f),r:lerp(a.r,b.r,f)};}
+const sagOf=(st,u)=>st.sag?Math.min(6,6*Math.max(0,u-0.3)):0;
+function dripAt(d,t){const u=t-d.tau;if(u<0.3)return null;const base=d.y+sagOf(d.st,u),len=d.len*E.inQuad(prog(u,0.3,1.5));
+  const bead=u<=1.5?1:clear(u-1.5+0.2,0.75);return{u,base,len,bead,x:dist=>d.x+3*Math.sin(dist*0.045+d.ph)};}
+function blade(t,L){const tn=Math.tan(12*PI/180),ext=L.CY*tn+90;const xc=lerp(-ext,L.W+ext,E.inOutSine(prog(t,TD,TD+TSQ)));return{xc,tn,x:y=>xc+(L.CY-y)*tn};}
+
+/* ---------------- canvases ---------------- */
+let SC,scx,MK,mkx,MK2,mk2,MK3,mk3,GC,gcx,BG,bgx,AU,aux,AUI,auix,GLOW,BLOB=[],GRAIN,gl,PRG,U,TEX={},GLC,GW,GH,MW,MH,LASTK=null,LASTB=null;
+const LAY=[[1.0,0.6],[0.84,0.8],[0.66,1.0]];   // the brush profile: width factor, value (edges refog first)
+const rb=(r,b)=>`rgb(${Math.round(clamp(r)*255)},0,${Math.round(clamp(b)*255)})`;
+const gch=v=>`rgb(0,${Math.round(clamp(v)*255)},0)`;
+
+function maskStroke(m,st,t){const S=st.S;if(t<S[0].tau)return;const fr=u=>st.fw*Math.exp(-Math.max(0,u)/(st.ft||0.3));
+  if(st.kind==='cap'){for(const[wf,vf]of LAY){m.lineWidth=2*S[0].r*wf;for(let k=0;k<S.length;k++){const s=S[k];if(s.tau>t)break;const u=t-s.tau,v=clear(u,st.hold+s.hj)*vf;if(v<0.02)continue;
+      const y=s.y+sagOf(st,u),f=s.f,dy=lerp(-16,5,f),bow=10*(1-0.6*f),xa=st.x0+18*Math.sin(f*2.1+0.4)-10*f,xb=st.x1-30*(1-f)**2+12*Math.sin(f*3+1);
+      m.strokeStyle=rb(v,fr(u));m.beginPath();m.moveTo(xa,y-dy/2);m.lineTo((xa+xb)/2,y+bow);m.lineTo(xb,y+dy/2);m.stroke();}}return;}
+  for(let li=0;li<3;li++){const[wf,vf]=LAY[li],cf=st.creep?creep(t,li):1;for(let k=1;k<S.length;k++){const a=S[k-1],b=S[k];if(b.tau>t){// the head: a partial segment
+        if(a.tau<=t){const h=headAt(st,t),v=clear(0.031,st.hold)*vf*cf;m.strokeStyle=rb(v,fr(0));seg(m,st,b,a.x,a.y,h.x,h.y,h.r,wf);}break;}
+      const u=t-b.tau,v=clear(u,st.hold+b.hj)*vf*cf;if(v<0.02)continue;const sa=sagOf(st,t-a.tau),sb=sagOf(st,u);
+      m.strokeStyle=rb(v,fr(u));seg(m,st,b,a.x,a.y+sa,b.x,b.y+sb,b.r,wf);}}}
+// one brush segment. Split strokes draw the two sides of the finger as separate halves with their own wobble, so the
+// upper and lower edges of the wipe are never parallel (a finger's edge, not a capsule)
+function seg(m,st,b,ax,ay,bx,by,r,wf){if(!st.split){m.lineWidth=2*r*wf;m.beginPath();m.moveTo(ax,ay);m.lineTo(bx+0.01,by);m.stroke();return;}
+  const dx=bx-ax,dy=by-ay,d=Math.hypot(dx,dy),nx=d>0.5?-dy/d:0,ny=d>0.5?dx/d:1;
+  for(const[e,sg]of[[b.et,-1],[b.eb,1]]){const w=e*r*wf,o=sg*w/2;m.lineWidth=w;m.beginPath();m.moveTo(ax+nx*o,ay+ny*o);m.lineTo(bx+nx*o+0.01,by+ny*o);m.stroke();}}
+// finger ridges: thin streaks along the wipe that stay a little fogged (msk2.g; the shader takes them out of the clear zone)
+const RO=[-0.56,-0.2,0.27,0.6];
+function ridgeStroke(m,st,t){if(!st.ridge)return;const S=st.S;if(t<S[0].tau)return;m.lineWidth=3.2;
+  if(st.kind==='cap'){let k1=0;while(k1<S.length-1&&S[k1+1].tau<=t)k1++;const sm=S[k1>>1],v=clear(t-sm.tau,st.hold+sm.hj);if(v<0.02)return;const s0=S[0],s1=S[k1];
+    m.strokeStyle=gch(0.6*v);m.beginPath();for(let i=0;i<9;i++){const x=lerp(st.x0+30,st.x1-30,(i+0.5*hash(i*7.7+3))/9);m.moveTo(x,s0.y-s0.r*0.7);m.lineTo(x+3*Math.sin(i*2.3),s1.y+s1.r*0.6);}m.stroke();return;}
+  for(let k=1;k<S.length;k++){const a=S[k-1],b=S[k];if(b.tau>t)break;const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);if(d<0.5)continue;
+    const u=t-b.tau,v=clear(u,st.hold+b.hj);if(v<0.02)continue;const nx=-dy/d,ny=dx/d,sa=sagOf(st,t-a.tau),sb=sagOf(st,u);
+    m.strokeStyle=gch(0.6*v);m.beginPath();for(const o of RO){m.moveTo(a.x+nx*o*a.r,a.y+sa+ny*o*a.r);m.lineTo(b.x+nx*o*b.r,b.y+sb+ny*o*b.r);}m.stroke();}}
+// edge streaks: where the finger's edge drags, the clear zone breaks into thin broken streaks along the motion (msk.b)
+const SO=[-1.24,-1.1,-0.97,0.95,1.08,1.22];
+function streakStroke(m,st,t){if(!st.ridge)return;const S=st.S;if(t<S[0].tau)return;m.lineWidth=3.6;
+  if(st.kind==='cap'){let k1=0;while(k1<S.length-1&&S[k1+1].tau<=t)k1++;const sm=S[k1>>1],v=clear(t-sm.tau,st.hold+sm.hj);if(v<0.02)return;const s0=S[0],s1=S[k1],f=sm.f,r=s0.r;
+    const xa=st.x0+18*Math.sin(f*2.1+0.4)-10*f,xb=st.x1-30*(1-f)**2+12*Math.sin(f*3+1);
+    [[xa,-1],[xb,1]].forEach(([xe,sg],j)=>[0.98,1.12,1.26].forEach((o,i)=>{const q=hash(j*9.1+i*3.7);if(q<0.25)return;m.strokeStyle=`rgb(0,0,${Math.round(v*lerp(0.45,0.85,q)*255)})`;
+      const x=xe+sg*o*r*0.55;m.beginPath();m.moveTo(x,s0.y-r*lerp(0.2,0.7,q));m.lineTo(x+2*sg,s1.y+r*lerp(0.1,0.6,hash(q*7)));m.stroke();}));return;}
+  for(let k=1;k<S.length;k++){const a=S[k-1],b=S[k];if(b.tau>t)break;const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);if(d<0.5)continue;
+    const u=t-b.tau,v=clear(u,st.hold+b.hj);if(v<0.02)continue;const nx=-dy/d,ny=dx/d,sa=sagOf(st,t-a.tau),sb=sagOf(st,u);
+    for(let i=0;i<SO.length;i++){const run=Math.floor((k+i*5)/(4+i%3)),q=hash(i*7.31+run*1.13+(st.S.length%7));if(q<0.42)continue;
+      m.strokeStyle=`rgb(0,0,${Math.round(v*lerp(0.5,0.9,hash(run*2.7+i))*255)})`;const o=SO[i]*(1+0.06*Math.sin(run*1.7+i));
+      m.beginPath();m.moveTo(a.x+nx*o*a.r,a.y+sa+ny*o*a.r);m.lineTo(b.x+nx*o*b.r,b.y+sb+ny*o*b.r);m.stroke();}}}
+// drips: a thin tapering thread and a small bead, in msk.g only (a streak through the frost, never sharp text, no rim)
+function maskDrip(m,d,t){const D=dripAt(d,t);if(!D)return;const J=16;let px=D.x(0),py=D.base;
+  for(let j=1;j<=J;j++){const dist=D.len*j/J,age=D.u-(0.3+1.2*Math.sqrt(dist/d.len)),v=clear(age+0.03,d.hold);const x=D.x(dist),y=D.base+dist;
+    if(v>0.02&&D.len>1){m.strokeStyle=gch(v);m.lineWidth=lerp(2,4,j/J);m.beginPath();m.moveTo(px,py);m.lineTo(x,y);m.stroke();}px=x;py=y;}
+  if(D.bead>0.02){m.fillStyle=gch(D.bead);m.beginPath();m.arc(D.x(D.len),D.base+D.len,4.5,0,TAU);m.fill();}}
+function renderMask(t,L){const g=geo(L),m=mkx,z=camZ(t),T=[z/MS,0,0,z/MS,g.pv[0]*(1-z)/MS,g.pv[1]*(1-z)/MS];
+  m.setTransform(1,0,0,1,0,0);m.globalCompositeOperation='source-over';m.fillStyle='#000';m.fillRect(0,0,MW,MH);
+  m.globalCompositeOperation='lighten';m.lineCap='round';m.lineJoin='round';m.setTransform(...T);
+  for(const st of STROKES)maskStroke(m,st,t);
+  // W5, the tap: a clean lens opens on the orb and swallows the whole counter, overshoots and settles; the creep fogs its rim first
+  const u=t-TT;if(u>0){const r=Math.max(1,40*g.k0*(E.outExpo(u/0.22)+0.08*wobble(u,4,9))),vc=creep(t,2),ve=creep(t,0),f=0.2*Math.exp(-u/0.2);
+    const gr=m.createRadialGradient(g.dot[0],g.dot[1],0,g.dot[0],g.dot[1],r);gr.addColorStop(0,rb(vc,f));gr.addColorStop(0.55,rb(vc,f));gr.addColorStop(1,rb(ve,f));
+    m.fillStyle=gr;m.beginPath();m.arc(g.dot[0],g.dot[1],r,0,TAU);m.fill();}
+  // the squeegee: everything behind the blade is clean
+  if(t>=TD){const B=blade(t,L);m.setTransform(1/MS,0,0,1/MS,0,0);m.fillStyle='#f00';m.beginPath();m.moveTo(-200,-200);m.lineTo(B.x(-200),-200);m.lineTo(B.x(L.H+200),L.H+200);m.lineTo(-200,L.H+200);m.fill();}
+  for(const[x,bl]of[[mk2,3],[mk3,10]]){x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='copy';x.filter=`blur(${bl}px)`;x.drawImage(MK,0,0);x.filter='none';
+    x.globalCompositeOperation='lighten';x.lineCap='round';x.lineJoin='round';x.setTransform(...T);}
+  mk2.setTransform(1,0,0,1,0,0);mk2.globalCompositeOperation='darken';mk2.fillStyle='rgb(255,255,0)';mk2.fillRect(0,0,MW,MH);   // msk.b: freshness lives in msk2.b only
+  mk2.globalCompositeOperation='lighten';mk2.setTransform(...T);
+  for(const d of DRIPS)maskDrip(mk2,d,t);for(const st of STROKES){streakStroke(mk2,st,t);ridgeStroke(mk3,st,t);}
+  mk2.globalCompositeOperation='source-over';mk3.globalCompositeOperation='source-over';}
+
+/* ---------------- the world behind the glass ---------------- */
+function aurora(x,cv,t,a){const w=cv.width,h=cv.height;x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='source-over';x.globalAlpha=1;x.fillStyle='#050608';x.fillRect(0,0,w,h);
+  x.globalCompositeOperation='lighter';x.globalAlpha=a;const R=Math.max(w,h)*0.55;
+  for(let i=0;i<4;i++){const cx=w*(0.5+0.38*Math.sin(t*0.11*(i+2)+i*1.7)),cy=h*(0.5+0.34*Math.cos(t*0.13*(i+1.5)+i*2.3));x.drawImage(BLOB[i],cx-R,cy-R,2*R,2*R);}
+  x.globalCompositeOperation='source-over';x.globalAlpha=1;}
+const auroraA=t=>t<TD?lerp(0.30,0.38,charge(t)):0.38;
+// before the pull-back: the hero's world. After it: the login screen's space (dim auroras, stars); the world goes into the pane
+function backdrop(c,t,L,z){if(t<TP){aurora(aux,AU,t,auroraA(t));const zA=1+(z-1)*0.4;c.drawImage(AU,L.CX*(1-zA),L.CY*(1-zA),L.W*zA,L.H*zA);return;}
+  aurora(aux,AU,t+3.7,0.15);c.drawImage(AU,0,0,L.W,L.H);
+  const sa=E.inOutSine(prog(t,TP,TP+0.4));if(sa>0.01){for(const s of STARS){const a=sa*s.a*(0.6+0.4*Math.sin(t*s.f+s.p));c.fillStyle=`rgba(225,232,255,${a.toFixed(3)})`;c.fillRect(s.x-s.s/2,s.y-s.s/2,s.s,s.s);}}}
+function label(c,g,y,a){if(a<=0.003)return;c.globalAlpha=a;c.fillStyle=rgbLine(c,g.x,0,g.x+46,0);c.fillRect(g.x,y-9,46,3);
+  c.font=F(600,24);c.letterSpacing='6px';c.fillStyle=C.text2;c.fillText('ENTRENAMIENTO CON COACH',g.x+64,y);c.letterSpacing='0px';c.globalAlpha=1;}
+// the orb's light seen through frost: one round sphere of light in its own palette (teal core, violet falloff)
+function orbSpill(c,x,y,r,a){if(a<=0.002)return;const gr=c.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,`rgba(37,232,200,${a.toFixed(3)})`);
+  gr.addColorStop(0.5,`rgba(166,92,255,${(a*0.55).toFixed(3)})`);gr.addColorStop(1,'rgba(166,92,255,0)');c.fillStyle=gr;c.fillRect(x-r,y-r,2*r,2*r);}
+// the hero's copy, the G, the orb and its light. (cx,cy) = the G's arc centre, k = logo scale
+function content(c,t,L,{cx,cy,k,glowA=1,textA=null,textOnly=false}){const g=geo(L),px=g.px;
+  // the ghost headline (behind the glass) and the site's tracked label: over the first line (as on the site), and over the last one for the drop
+  const gh=1-prog(t,GHOST[0],GHOST[1]),la=textA??[gh,gh,gh,1];
+  c.font=F(700,px);c.letterSpacing=g.ls+'px';c.fillStyle=GTXT;
+  g.lines.forEach((s,i)=>{if(la[i]<=0.003)return;c.globalAlpha=la[i];c.fillText(s,g.x,g.base[i]);});c.letterSpacing='0px';c.globalAlpha=1;
+  label(c,g,g.base[0]-px-52,la[0]*0.85);label(c,g,g.base[3]-px-40,la[3]*0.9*prog(t,8.3,8.8));
+  c.globalAlpha=1;if(textOnly)return;
+  // the orb's light spilling into the room (it is what pushes through the fog on the beats)
+  const dx=cx+(LOGO.dot.x-LOGO.arc.cx)*k,dy=cy+(LOGO.dot.y-LOGO.arc.cy)*k,p=Math.min(1.2,pulse(t)),wB=prog(t,10.05,10.4);
+  if(wB<1)orbSpill(c,dx,dy,k*34,(0.16+0.24*p)*(1-wB));
+  if(wB>0){glow(c,dx,dy,k*62,RGB.purple,(0.10+0.16*p)*wB);glow(c,dx-k*8,dy+k*6,k*44,RGB.teal,(0.05+0.10*p)*wB);glow(c,dx+k*6,dy-k*8,k*40,RGB.blue,(0.06+0.12*p)*wB);}
+  // the G: the site's soft white glow, then the official mark (halo, stroke, the orb's tint, the sphere)
+  if(glowA>0.003){c.globalAlpha=0.35*glowA;c.drawImage(GLOW,cx-65*k,cy-65*k,130*k,130*k);c.globalAlpha=1;}
+  const br=breath(t);drawFirma(c,cx-LOGO.arc.cx*k,cy-LOGO.arc.cy*k,k,{wordmark:false,color:t<T2D?GTXT:'#FFFFFF',orb:{k:haloK(t)},dot:br===1?undefined:{x:LOGO.dot.x,y:LOGO.dot.y,sx:br,sy:br}});}
+function camOn(c,t,L,z){const g=geo(L);c.transform(z,0,0,z,g.pv[0]*(1-z),g.pv[1]*(1-z));}
+
+/* ---------------- the glass pass (WebGL) ---------------- */
+const VS='attribute vec2 p;varying vec2 v;void main(){v=p*.5+.5;gl_Position=vec4(p,0.,1.);}';
+// landing.js FS_O, ported: 9-tap golden-angle disc on noise-warped UVs (smooth smoke that dissolves into grain), the
+// .86/lift grade, the mask-gradient water lens, grain. The cleared edge is wiped condensation (soft, noisy, patchy),
+// with finger ridges and drip streaks; the rim is a soft glow from a wider mask, mostly where the finger just was.
+const FS=`precision highp float;varying vec2 v;uniform sampler2D scene,msk,msk2;uniform vec2 res,mres,vc;
+uniform float t,cell,frost,rim,rimF,gain,lift,lens,grain,seed,patch,vig,shA,shP,shW,bead,nz,thin;
+float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
+vec3 pal(float x){x=fract(x)*4.;vec3 c1=vec3(.184,.627,1.),c2=vec3(.651,.361,1.),c3=vec3(1.,.239,.682),c4=vec3(.145,.91,.784);return x<1.?mix(c1,c2,x):x<2.?mix(c2,c3,x-1.):x<3.?mix(c3,c4,x-2.):mix(c4,c1,x-3.);}
+void main(){vec2 tp=1./mres;vec4 M=texture2D(msk,v),M2=texture2D(msk2,v);float m=M.r;
+vec2 g=vec2(texture2D(msk,v+vec2(tp.x*2.,0.)).r-texture2D(msk,v-vec2(tp.x*2.,0.)).r,texture2D(msk,v+vec2(0.,tp.y*2.)).r-texture2D(msk,v-vec2(0.,tp.y*2.)).r);
+vec2 px=v*res;vec2 q=px/cell;vec2 ug=v+(vec2(vn(q)-.5,vn(q+17.3)-.5)*cell*.5+vec2(vn(px/4.+3.1)-.5,vn(px/4.+9.7)-.5)*8.)/res;
+vec3 acc=vec3(0.);float jit=h(px*.7317+seed*91.7)*6.2831,th=thin*smoothstep(0.,.45,M2.r),fr=frost*(1.-.7*th);
+for(int i=0;i<9;i++){float fi=float(i);float an=fi*2.39996+jit;float rr=sqrt((fi+.5)/9.)*.026*fr;acc+=texture2D(scene,ug+vec2(cos(an),sin(an))*rr*vec2(res.y/res.x,1.)).rgb;}
+vec3 glass=acc/9.*gain+lift*(1.-.5*th);
+vec3 sharp=texture2D(scene,v-g*lens*vec2(1.,res.x/res.y)).rgb;
+float pn=(vn(px/38.+5.3)-.5)*patch;
+vec2 pr=mat2(.8,-.6,.6,.8)*px;float s=smoothstep(.10,.70,m+((vn(pr/7.)-.5)*.32+(vn(px/23.+1.7)-.5)*.3+(vn(pr/61.+8.3)-.5)*.24+pn)*nz);
+s=max(s,.85*smoothstep(.15,.9,M.b));
+s*=1.-.4*M2.g;
+s=max(s,.35*smoothstep(.2,.8,M.g));
+vec3 col=mix(glass,sharp,s);
+// beads of water along the wiped edge: small lenses that flip what is behind them and catch a highlight
+float ez=smoothstep(.06,.25,M2.r)*(1.-smoothstep(.45,.75,M2.r))*smoothstep(.3,.65,vn(px/34.+4.2))*bead;
+vec2 cid=floor(px/16.),cf=px-cid*16.;float br=mix(2.2,6.,h(cid+5.1))*step(.5,h(cid+3.7));
+vec2 c0=br+vec2(h(cid+1.3),h(cid+7.9))*(16.-2.*br);vec2 dv=cf-c0;float dd=length(dv),rr=dd/max(br,.1);
+float bd=(1.-smoothstep(br-1.,br,dd))*ez*step(.5,br);
+vec3 bc=mix(glass,texture2D(scene,v-dv*2.4/res).rgb,.35)*.72;   // mostly the fog's own light: a bead never shows a sharp bit of another line
+bc+=.2*smoothstep(.5,1.,rr)*smoothstep(0.,.8,-dv.y/max(br,.1));
+bc-=.1*smoothstep(.7,1.,rr)*smoothstep(0.,.8,dv.y/max(br,.1));
+bc+=.75*(1.-smoothstep(0.,br*.3,length(dv-vec2(-.3,.34)*br)));
+col=mix(col,bc,bd);
+float sr=M2.r+pn*.4;col+=smoothstep(.03,.22,sr)*(1.-smoothstep(.22,.6,sr))*pal(v.x*.5+v.y*.35+t*.05)*(rim+rimF*M2.b);
+float d=dot(px,vec2(.866,.5));col+=shA*exp(-pow((d-shP)/shW,2.));
+col+=(h(floor(px/2.)+seed*57.31)-.5)*grain;
+col*=mix(1.-vig,1.,smoothstep(1.2,.35,length(v-vc)));
+gl_FragColor=vec4(col,1.);}`;
+function initGL(L){GW=Math.round(L.W*GSC);GH=Math.round(L.H*GSC);GLC=mk(GW,GH);
+  gl=GLC.getContext('webgl',{preserveDrawingBuffer:true,antialias:false,alpha:false,premultipliedAlpha:false,depth:false,stencil:false});if(!gl)throw new Error('no webgl');
+  const sh=(type,src)=>{const o=gl.createShader(type);gl.shaderSource(o,src);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(o));return o;};
+  PRG=gl.createProgram();gl.attachShader(PRG,sh(gl.VERTEX_SHADER,VS));gl.attachShader(PRG,sh(gl.FRAGMENT_SHADER,FS));gl.bindAttribLocation(PRG,0,'p');gl.linkProgram(PRG);
+  if(!gl.getProgramParameter(PRG,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(PRG));gl.useProgram(PRG);
+  U={};'scene msk msk2 res mres vc t cell frost rim rimF gain lift lens grain seed patch vig shA shP shW bead nz thin'.split(' ').forEach(n=>U[n]=gl.getUniformLocation(PRG,n));
+  const buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+  const tex=()=>{const o=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,o);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return o;};
+  TEX.scene=tex();TEX.mask=tex();TEX.mask2=tex();}
+function renderScene(t,L){const g=geo(L),c=scx,z=camZ(t);c.setTransform(GSC,0,0,GSC,0,0);c.globalAlpha=1;c.globalCompositeOperation='source-over';
+  backdrop(c,t,L,z);camOn(c,t,L,z);content(c,t,L,{cx:g.gx,cy:g.gy+bob(t,L),k:g.k0});}
+function renderGL(t,L,fk){renderScene(t,L);renderMask(t,L);
+  gl.viewport(0,0,GW,GH);
+  [[TEX.scene,SC,U.scene],[TEX.mask,MK2,U.msk],[TEX.mask2,MK3,U.msk2]].forEach(([tx,cv,u],i)=>{gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,tx);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cv);gl.uniform1i(u,i);});
+  gl.uniform2f(U.res,GW,GH);gl.uniform2f(U.mres,MW,MH);gl.uniform2f(U.vc,0.5,0.55);gl.uniform1f(U.t,t);gl.uniform1f(U.cell,60*GSC);
+  gl.uniform1f(U.frost,frostU(t));gl.uniform1f(U.rim,rimU(t));gl.uniform1f(U.rimF,RIMF);gl.uniform1f(U.gain,gainU(t));gl.uniform1f(U.lift,liftU(t));
+  gl.uniform1f(U.lens,0.024);gl.uniform1f(U.grain,0.06);gl.uniform1f(U.seed,hash(fk*1.37+0.5));
+  gl.uniform1f(U.patch,0.14);gl.uniform1f(U.bead,beadU(t));gl.uniform1f(U.nz,noiseU(t));gl.uniform1f(U.thin,thinU(t));gl.uniform1f(U.vig,0.12*(1-prog(t,TD,TD+TSQ)));
+  // the sheen: a slow white band drifting across the glass
+  const diag=(GW*0.866+GH*0.5);gl.uniform1f(U.shA,0.05*(1-prog(t,TD,TD+TSQ)));gl.uniform1f(U.shP,lerp(-0.3*diag,1.3*diag,t/T2D));gl.uniform1f(U.shW,0.16*GW);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);gcx.setTransform(1,0,0,1,0,0);gcx.drawImage(GLC,0,0,L.W,L.H);}
+
+/* ---------------- 2D layers on the glass (they get the engine's motion blur) ---------------- */
+function spec(c,x,y,r,a){if(a<=0.01)return;c.fillStyle=`rgba(255,255,255,${(0.75*a).toFixed(3)})`;c.beginPath();c.arc(x-r*0.32,y-r*0.36,Math.max(0.8,r*0.28),0,TAU);c.fill();
+  c.strokeStyle=`rgba(255,255,255,${(0.16*a).toFixed(3)})`;c.lineWidth=1;c.beginPath();c.arc(x,y,r,0.15*PI,0.85*PI);c.stroke();}
+function glassLayers(c,t,L){const g=geo(L),z=camZ(t);c.save();camOn(c,t,L,z);
+  // the finger's contact: a soft glint riding the head of each stroke
+  c.globalCompositeOperation='lighter';
+  for(const st of STROKES){if(!st.glint)continue;const h=headAt(st,t);if(!h)continue;const S=st.S,a=Math.min(prog(t,S[0].tau,S[0].tau+0.05),1-prog(t,S[S.length-1].tau-0.06,S[S.length-1].tau));
+    const gr=c.createRadialGradient(h.x,h.y,0,h.x,h.y,h.r*0.6);gr.addColorStop(0,`rgba(255,255,255,${(0.12*a).toFixed(3)})`);gr.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=gr;c.fillRect(h.x-h.r,h.y-h.r,2*h.r,2*h.r);}
+  // the palm's leading edge: a soft wet sheen sliding down
+  {const st=STROKES[2],h=headAt(st,t);if(h){const a=1-prog(t,W3.tB-0.08,W3.tB),y=h.y+h.r*0.8,gr=c.createLinearGradient(0,y-10,0,y+10);
+    gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(0.6,`rgba(255,255,255,${(0.12*a).toFixed(3)})`);gr.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=gr;c.fillRect(st.x0+h.r*0.6,y-10,st.x1-st.x0-1.2*h.r,20);}}
+  c.globalCompositeOperation='source-over';
+  // the drips' beads catch the light
+  for(const d of DRIPS){const D=dripAt(d,t);if(!D||D.bead<0.05)continue;spec(c,D.x(D.len),D.base+D.len,4.5,D.bead*Math.min(1,D.len/12));}
+  // the tap: a ring in the orb's colours that crosses the whole mark
+  const u=t-TT;if(u>0&&u<0.45){const e=E.outCubic(u/0.45),r0=40*g.k0;c.strokeStyle=GizeOrb.ring(c,g.dot[0],g.dot[1]);c.lineWidth=3.5;c.globalAlpha=(1-e)*0.8;c.beginPath();c.arc(g.dot[0],g.dot[1],r0*lerp(0.4,1.15,e),0,TAU);c.stroke();c.globalAlpha=1;}
+  c.restore();
+  // the squeegee (screen space): glow, the white blade, the rubber line behind it, droplets ahead
+  if(t>=TD-0.01&&t<=TD+TSQ+0.02){const B=blade(t,L);c.save();c.translate(B.xc,L.CY);c.rotate(12*PI/180);const H2=L.H*0.62;
+    c.globalCompositeOperation='screen';const gr=c.createLinearGradient(-34,0,34,0);gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(0.55,'rgba(255,255,255,0.35)');gr.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=gr;c.fillRect(-34,-H2,68,2*H2);
+    c.globalCompositeOperation='source-over';c.fillStyle='#fff';c.fillRect(-1.5,-H2,3,2*H2);c.fillStyle='rgba(0,0,0,0.5)';c.fillRect(-8,-H2,2,2*H2);c.restore();
+    // the water the blade pushes: a wet roll riding just ahead of it, beading
+    c.save();c.translate(B.xc,L.CY);c.rotate(12*PI/180);c.fillStyle='rgba(255,255,255,0.28)';c.fillRect(5,-H2,3,2*H2);
+    for(const q of DROPS){const yy=(q.y-L.CY)/Math.cos(12*PI/180);c.fillStyle='rgba(255,255,255,0.5)';c.beginPath();c.ellipse(7+q.d*0.12,yy,q.r*0.55,q.r*1.6,0,0,TAU);c.fill();}c.restore();}}
+
+/* ---------------- the pull-back and the hand-off ---------------- */
+// the G recedes at an even perceived rate (log scale) and lands on endcardGeom
+function pull(t,L){const g=geo(L),e=E.inOutCubic(prog(t,TP,TE)),k=g.k0*(g.eg.k/g.k0)**e;return{e,k,cx:lerp(g.gx,g.gEnd[0],e),cy:lerp(g.gy,g.gEnd[1],e)};}
+// the pane is the frame we were looking through, at the G's depth (the G in its top third: the login card); from 11.6 it
+// leaves the G and recedes into the star on the end card's rule
+function paneGeo(t,L){const g=geo(L),P=pull(t,L);let sp=P.k/g.k0,pcx=P.cx+(L.CX-g.gx)*sp,pcy=P.cy+(L.CY-g.gy)*sp;
+  const d=E.inQuad(prog(t,TLV,11.9));if(d>0){sp=Math.exp(lerp(Math.log(sp),Math.log(0.02),d));pcx=lerp(pcx,L.CX,d);pcy=lerp(pcy,g.eg.line,d);}
+  const pw=L.W*sp,ph=L.H*sp;return{sp,pcx,pcy,pw,ph,x:pcx-pw/2,y:pcy-ph/2,r:Math.max(2,26*sp),sw:L.W*0.05*sp};}
+const paneA=t=>1-prog(t,11.72,11.9);
+function paneBack(c,t,L,Q){const a=paneA(t);if(a<=0)return;const{x,y,pw,ph,r}=Q;
+  c.save();c.globalAlpha=a;c.beginPath();c.roundRect(x,y,pw,ph,r);c.clip();c.drawImage(AUI,x,y,pw,ph);
+  // the clean glass: a faint reflection falling from the top-left corner
+  const rf=c.createLinearGradient(x,y,x+pw*0.7,y+ph*0.7);rf.addColorStop(0,'rgba(255,255,255,0.06)');rf.addColorStop(0.45,'rgba(255,255,255,0.012)');rf.addColorStop(1,'rgba(255,255,255,0.03)');c.fillStyle=rf;c.fillRect(x,y,pw,ph);c.restore();}
+function paneFront(c,t,L,Q){const a=paneA(t);if(a<=0)return;const{sp,x,y,pw,ph,r,sw}=Q,fa=a*E.outCubic(prog(t,TP,TP+0.15));
+  // the edge strip the squeegee never reaches: still frosted
+  if(fa>0.01){c.save();c.globalAlpha=fa;c.beginPath();c.roundRect(x,y,pw,ph,r);c.roundRect(x+sw,y+sw,pw-2*sw,ph-2*sw,Math.max(2,r-sw*0.5));c.clip('evenodd');
+    c.drawImage(AUI,x,y,pw,ph);c.fillStyle='rgba(255,255,255,0.06)';c.fillRect(x,y,pw,ph);
+    const p=c.createPattern(GRAIN,'repeat');p.setTransform(new DOMMatrix([2,0,0,2,0,0]));c.fillStyle=p;c.globalAlpha=fa*0.5;c.fillRect(x,y,pw,ph);c.restore();
+    // the strip's inner edge: where the blade stopped, a thin line of light
+    c.save();c.globalAlpha=fa*0.35;c.strokeStyle='#fff';c.lineWidth=1;c.beginPath();c.roundRect(x+sw,y+sw,pw-2*sw,ph-2*sw,Math.max(2,r-sw*0.5));c.stroke();c.restore();}
+  // a diagonal light band sweeps across the glass
+  const ls=prog(t,11.2,11.58);if(ls>0&&ls<1){c.save();c.globalAlpha=a;c.beginPath();c.roundRect(x,y,pw,ph,r);c.clip();const d=lerp(-0.5,1.5,E.inOutSine(ls)),bx=x+pw*d,by=y+ph*d,gr=c.createLinearGradient(bx-pw*0.22,by-pw*0.22,bx+pw*0.22,by+pw*0.22);
+    gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(0.5,'rgba(255,255,255,0.18)');gr.addColorStop(1,'rgba(255,255,255,0)');c.globalCompositeOperation='lighter';c.fillStyle=gr;c.fillRect(x,y,pw,ph);c.restore();}
+  // the login card's border: the RGB line at full saturation
+  {const ba=a*E.outCubic(prog(t,TP,TP+0.12));c.save();c.strokeStyle=rgbLine(c,x,y+ph,x+pw,y);c.beginPath();c.roundRect(x+1.5,y+1.5,pw-3,ph-3,r);
+    c.globalCompositeOperation='lighter';c.globalAlpha=ba*0.35;c.lineWidth=12;c.stroke();c.globalAlpha=ba*0.5;c.lineWidth=6;c.stroke();c.globalCompositeOperation='source-over';c.globalAlpha=ba;c.lineWidth=3.5;c.stroke();c.restore();}
+  water(c,t,L,Q,a);}
+// the water line the squeegee left at the strip's inner edge (rides the pane)
+function water(c,t,L,Q,pa){const a=pa*E.outCubic(prog(t,TP,TP+0.2));if(a<=0.01)return;const{sp,x:px,y:y0,pw,ph,sw}=Q,x=px+pw-sw,s=Math.max(0.35,Math.sqrt(sp));
+  c.fillStyle=`rgba(255,255,255,${(0.4*a).toFixed(3)})`;c.fillRect(x-2.75*s,y0+ph*0.03,5.5*s,ph*0.94);
+  for(const w of WATER)spec(c,x,y0+ph*w.y,w.r*s,a);
+  // one drip runs down the line
+  const u=t-TP;if(u>0){const yy=y0+ph*(0.3+0.62*E.inQuad(clamp(u/1.0)));spec(c,x,yy,6*s,a);}}
+// the pane dies as a star; its flare stretches into the end card's rule
+function star(c,t,L){const g=geo(L),u=t-11.9;if(u<-0.08||t>TE+0.06)return;const x=L.CX,y=g.eg.line,a=u<0?E.inQuad(1-(-u/0.08)):Math.exp(-u/0.05);
+  c.save();c.globalCompositeOperation='lighter';glow(c,x,y,60,[200,215,255],0.55*a);c.fillStyle=`rgba(255,255,255,${(0.95*a).toFixed(3)})`;c.fillRect(x-40,y-0.5,80,1);c.fillRect(x-0.5,y-26,1,52);c.restore();
+  const f=E.outExpo(prog(t,11.9,TE));if(f>0&&t<TE){const hw=f*(L.CX+80),x1=x-hw,x2=x+hw;c.fillStyle=rgbLine(c,x1,0,x2,0);c.fillRect(x1,y-2,x2-x1,4);}}
+
+function world2D(c,t,L,P){const g=geo(L),fk=Math.round(t*60);
+  if(fk!==LASTB){LASTB=fk;const tf=fk/60;bgx.setTransform(1,0,0,1,0,0);backdrop(bgx,tf,L,camZ(tf));if(tf>=TP-0.02)aurora(auix,AUI,tf,0.38);}
+  c.fillStyle='#000';c.fillRect(-100,-100,L.W+200,L.H+200);c.drawImage(BG,0,0);
+  if(t<TE){if(t<TP){const z=camZ(t);c.save();camOn(c,t,L,z);content(c,t,L,{cx:g.gx,cy:g.gy,k:g.k0});c.restore();}
+    else{const Q=paneGeo(t,L),p=pull(t,L),s=p.k/g.k0,ta=1-E.inCubic(prog(t,TP,TP+0.3)),left=t>=TLV;
+      paneBack(c,t,L,Q);if(left)paneFront(c,t,L,Q);   // once it has left the G, the pane is behind it
+      if(ta>0){c.save();c.translate(p.cx,p.cy);c.scale(s,s);c.translate(-g.gx,-g.gy);content(c,t,L,{cx:0,cy:0,k:0,textA:[0,0,0,ta],textOnly:true});c.restore();}
+      content(c,t,L,{cx:p.cx,cy:p.cy,k:p.k,glowA:1-E.inOutSine(prog(t,TP,11.85)),textA:[0,0,0,0]});
+      if(!left)paneFront(c,t,L,Q);}
+    star(c,t,L);}
+  else{endcard(c,t,TE,L,{cta:P.cta,arc:'static',dot:'static'});}}
+
+/* ---------------- the reel ---------------- */
+// windows where the glass pass is rendered at 3 sub-times per frame (the wipe heads and the blade smear)
+const GLFAST=[[0,0.42],[1.47,1.98],[2.73,3.06],[6.3,7.58],[7.98,8.25],[TD-0.02,TD+TSQ+0.05]];
+createReel({dur:DUR,
+  hits:[[TT,4,0.010],[TD,12,0.03],[TE,3,0.006]],
+  fast:[[0,0.45],[1.45,2.0],[2.7,3.1],[6.2,7.62],[7.98,8.3],[9.95,10.6],[10.95,12.1]],
+  bloom:t=>lerp(0.15,0.3,prog(t,TD-0.1,TD))+(t>=TT?0.25*Math.exp(-(t-TT)/0.3):0)+(t>=TD?0.22*Math.exp(-(t-TD)/0.2):0)-0.02*prog(t,12,13),
+  vignette:()=>0.30,
+  init(L){build(L);MW=Math.round(L.W/MS);MH=Math.round(L.H/MS);
+    SC=mk(Math.round(L.W*GSC),Math.round(L.H*GSC));scx=SC.getContext('2d');MK=mk(MW,MH);mkx=MK.getContext('2d');MK2=mk(MW,MH);mk2=MK2.getContext('2d');MK3=mk(MW,MH);mk3=MK3.getContext('2d');
+    GC=mk(L.W,L.H);gcx=GC.getContext('2d');BG=mk(L.W,L.H);bgx=BG.getContext('2d');
+    AU=mk(Math.round(L.W/4),Math.round(L.H/4));aux=AU.getContext('2d');AUI=mk(AU.width,AU.height);auix=AUI.getContext('2d');
+    BLOB=[C.blue,C.purple,C.pink,C.teal].map(col=>{const b=mk(128,128),x=b.getContext('2d'),gr=x.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,col);gr.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=gr;x.fillRect(0,0,128,128);return b;});
+    // the site's soft glow round the G (shadowBlur S*.06 at .35), pre-blurred once
+    const GS=3,GN=130*GS,A=mk(GN,GN),a=A.getContext('2d');a.translate(GN/2,GN/2);a.scale(GS,GS);a.translate(-LOGO.arc.cx,-LOGO.arc.cy);a.lineWidth=LOGO.arc.w;a.lineCap='round';a.strokeStyle='#fff';a.stroke(LOGO.arc.path);
+    GLOW=mk(GN,GN);const gx=GLOW.getContext('2d');gx.filter=`blur(${3.2*GS}px)`;gx.drawImage(A,0,0);gx.filter='none';
+    // 2D grain for the clean world (2 px cells)
+    const n=256,im=new ImageData(n,n),r=rng(7);for(let i=0;i<n*n;i++){const v=r(),w=v>0.5?255:0;im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=w;im.data[i*4+3]=Math.round(Math.abs(v-0.5)*2*255*0.075);}
+    GRAIN=mk(n,n);GRAIN.getContext('2d').putImageData(im,0,0);
+    initGL(L);},
+  draw(c,t,L,P){
+    // the GL pass is cached per sub-render key; its grain and disc jitter are seeded per FRAME, so the texture never breathes
+    if(t<T2D){const key=GLFAST.some(([x,y])=>t>=x&&t<=y)?Math.round(t*240):Math.round(t*60)*4;if(key!==LASTK){LASTK=key;renderGL(key/240,L,Math.round(t*60));}
+      c.fillStyle='#000';c.fillRect(-100,-100,L.W+200,L.H+200);c.drawImage(GC,0,0);glassLayers(c,t,L);}
+    else world2D(c,t,L,P);
+    const lo=prog(t,15.65,DUR-1/60);if(lo>0){c.fillStyle=`rgba(0,0,0,${E.inCubic(lo).toFixed(3)})`;c.fillRect(-100,-100,L.W+200,L.H+200);}},
+  overlay(c,t,L){if(t<T2D-0.02)return;const fk=Math.round(t*60);c.save();c.globalAlpha=t<T2D?0.5:1;c.imageSmoothingEnabled=false;const p=c.createPattern(GRAIN,'repeat');
+    p.setTransform(new DOMMatrix([2,0,0,2,Math.floor(hash(fk)*512),Math.floor(hash(fk+0.37)*512)]));c.fillStyle=p;c.fillRect(0,0,L.W,L.H);c.restore();},
+  cues(L){const ch=[[0,'Am'],[2,'F'],[4,'C'],[6,'G'],[8,'Am']],q=[
+    {t:0,s:'drone',d:2.0,g:0.6},
+    // the bed: pad, +arp on bar 2, +hat on bar 3; arp and hat stop at 9.74 so the quarter-second before the drop is empty
+    {t:0,s:'groove',t1:9.75,bpm:BPM,chords:ch,parts:['pad']},{t:2,s:'groove',t1:9.74,bpm:BPM,chords:ch,parts:['arp']},{t:4,s:'groove',t1:9.74,bpm:BPM,chords:ch,parts:['hat']},
+    // W1: the finger is already moving on frame 0
+    {t:0,s:'scribble',env:[[0,0.55],[0.05,0.9],[0.22,1],[0.34,0.6],[0.4,0]],gain:0.22},{t:0.01,s:'sweep',f0:2600,f1:1900,d:0.28,g:0.5},{t:0.36,s:'glass',g:0.2},
+    // W2: a pickup into bar 2; three loops, three swells, two squeaks
+    {t:1.47,s:'scribble',env:[[0,0],[0.05,0.8],[0.11,0.45],[0.17,0.95],[0.24,0.5],[0.31,0.9],[0.38,0.4],[0.47,0]],gain:0.2},{t:1.63,s:'sweep',f0:2300,f1:1800,d:0.12,g:0.35},{t:1.78,s:'sweep',f0:2300,f1:1800,d:0.12,g:0.35},
+    // W3: the palm, on the and-of-2
+    {t:2.72,s:'whoosh',d:0.32,f0:300,f1:1600,q:0.8,g:0.5},{t:2.75,s:'scribble',env:[[0,0],[0.04,1],[0.16,0.8],[0.28,0]],gain:0.18},
+    // the whole headline, then the fog breathes back over it
+    {t:3.05,s:'glass',g:0.14},{t:3.5,s:'whoosh',d:1.4,f0:1500,f1:280,shape:'swell',g:0.16},
+    // W4: the trace (pen, a long felt-tip and a squeak through the bottom curve)
+    {t:6.25,s:'pen',g:0.8},{t:6.25,s:'scribble',env:[[0,0],[0.06,0.45],[0.12,0.3],[0.35,0.75],[0.69,1],[1.0,0.75],[1.22,0.3],[1.34,0]],gain:0.24},{t:6.78,s:'sweep',f0:2100,f1:1700,d:0.5,g:0.25},
+    // W5: the tap lights the orb
+    {t:TT,s:'tap',g:1.0},{t:TT,s:'bloop',k:0,v:1},{t:TT+0.02,s:'shimmer'},{t:TT,s:'sub',d:0.8,f0:62,f1:34,gain:0.45},
+    // charge: the fog creeps back, heartbeats, the riser, the hole
+    {t:TT,s:'drone',d:1.75},{t:8.25,s:'rise',d:1.5},...[8.5,9,9.5].map(x=>({t:x,s:'sub',d:0.35,f0:72,f1:40,gain:0.22})),{t:9.6,s:'revcrash',d:0.4},
+    // the drop: the squeegee
+    {t:TD,s:'hit'},{t:TD,s:'sub',d:1.4,gain:0.7},{t:TD,s:'sweep',f0:3000,f1:250,d:0.45},{t:TD+0.05,s:'glass',g:0.45},
+    {t:TD,s:'groove',t1:14,bpm:BPM,chords:[[10,'F'],[11,'G'],[12,'C']],parts:['kick','clap','hat','bass','pad','arp']},
+    // the pull-back, the star
+    {t:TP,s:'whoosh',d:1.0,f0:200,f1:2600,shape:'swell',g:0.5},{t:11.9,s:'ping',f:2400},
+    {t:TE,s:'chord',ch:'C',d:3.2}];
+    return[...q,...endcardCues(L,TE,{dot:'static',arc:'static'})];},
+});
+</script></body></html>

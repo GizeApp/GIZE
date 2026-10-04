@@ -1242,6 +1242,54 @@
         "#disciplina",
         "#fitnessargentina"
       ]
+    },
+    {
+      "id": "gize-limpia-el-vidrio",
+      "kind": "brand",
+      "phase": "hype",
+      "dur": 16,
+      "title": "Limpiá el vidrio",
+      "files": [
+        "22-motion/gize-limpia-el-vidrio_9x16.mp4",
+        "22-motion/gize-limpia-el-vidrio_4x5.mp4"
+      ],
+      "covers": [
+        "22-motion/gize-limpia-el-vidrio_9x16.jpg",
+        "22-motion/gize-limpia-el-vidrio_4x5.jpg"
+      ],
+      "idea": "The website hero alive in vertical: the smoky white G and the orb behind frosted glass (a WebGL port of the site's own glass shader). A finger cleans the glass line by line («Tu coach, / tu rutina / y tu progreso»), each line fogs back over, the finger traces the G as a clean stroke, a tap lights the orb, the fog creeps back, and on the drop a squeegee wipes the whole frame sharp to «en un solo lugar.»; the camera pulls back through a single pane into the login's starry space and lands on the end card.",
+      "caption": "Pasá el dedo por el vidrio.\nTu coach, tu rutina y tu progreso, en un solo lugar.\n\nGIZE. Muy pronto.",
+      "hashtags": [
+        "#gize",
+        "#motiondesign",
+        "#entrenamiento",
+        "#coach",
+        "#fitnessargentina"
+      ]
+    },
+    {
+      "id": "gize-una-sola-luz",
+      "kind": "brand",
+      "phase": "hype",
+      "dur": 16,
+      "title": "Una sola luz",
+      "files": [
+        "22-motion/gize-una-sola-luz_9x16.mp4",
+        "22-motion/gize-una-sola-luz_4x5.mp4"
+      ],
+      "covers": [
+        "22-motion/gize-una-sola-luz_9x16.jpg",
+        "22-motion/gize-una-sola-luz_4x5.jpg"
+      ],
+      "idea": "A pitch-black set where the orb is the only light: three giant Outfit words (ENTRENÁ, REGISTRÁ, PROGRESÁ) stand still while the orb bounces across them with one gravity, every contact on the beat, lighting them with falloff, iridescent rim light and point-light shadows that swing on the wall; it climbs, falls and becomes the dot of the G on the end card.",
+      "caption": "Entrená. Registrá. Progresá.\nUna sola luz para todo tu entrenamiento.\n\nGIZE. Muy pronto.",
+      "hashtags": [
+        "#gize",
+        "#motiondesign",
+        "#gymmotivation",
+        "#entrenamiento",
+        "#fitnessargentina"
+      ]
     }
   ],
   "launch_endings": {

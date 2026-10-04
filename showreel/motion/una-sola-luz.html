@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="es-AR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GIZE · Una sola luz</title><link rel="stylesheet" href="../../brand/fonts/outfit.css">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+</head><body><canvas id="out"></canvas>
+<script type="module">
+/* «Una sola luz» · 16 s, 120 BPM, 9:16 or 4:5. One take on a black set. ENTRENÁ / REGISTRÁ / PROGRESÁ stand as dark
+   slabs on a diagonal staircase in front of a back wall, and the orb is the only light: it pools on the wall (smoky,
+   like the site's frosted glass), rims the letter edges that face it in its own colours, lights their faces with
+   falloff and throws point-light shadows that swing across the wall. The type never moves; only the light does.
+   The orb is a ballistic body (one g = 5000 px/s² for the whole film) and every contact is solved to land on the
+   beat; the acute accents are springboards. It settles on PROGRESÁ, charges, fires straight up, is caught at its
+   apex, and its RGB trail whips round it into the G, landing on the brand end card's exact G and orb. */
+import {C,RGB,E,clamp,lerp,prog,keys,hash,rng,mk,F,glow,rgba,mixc,drawFirma,LOGO,rgbLine,rgbRing,createReel,ORB_K} from '../lib/engine.js';
+import {endcard,endcardBg,endcardCues,endcardGeom} from '../lib/endcard.js';
+
+/* ---------------- the world ---------------- */
+const DUR=16,GRAV=5000,R0=42,ZWALL=260,ZSH=50,FOC=1600,PIW=FOC/(FOC+ZWALL);   // wall parallax 0.86 (artistic constant); shadows cast as if the wall were at 50 (k 1.56 at rest: they hug the letters)
+const FPX=158,FWT=800,GS=2,ASC=200,DSC=40,PAD=34;                     // Outfit 800, glyphs cached at 2x
+const WORDS=[['ENTRENÁ',90,1300],['REGISTRÁ',1027,2500],['PROGRESÁ',1906,3700]];
+const T_LAUNCH=0.5,T_REST=7.08,T_FIRE=9.0,T_APEX=10.5,T_WRAP=10.56,T_CARD=12.0,V_FIRE=[-150,-7500],ZREST=-90;
+const RC=R0*(1-ZREST/FOC);                       // apparent radius on the set (contacts touch exactly)
+const SETTLE=[6.5,6.775,6.926,7.009,7.055,7.08];
+const TRAIL=[[47,160,255],[255,61,174],[37,232,200]],LAV=[203,204,242],TEAL=[37,232,200];
+const PAL=GizeOrb.PAL.original,ORBC=[PAL.ar,PAL.ad,PAL.de,PAL.bi,PAL.iz].map(h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]);
+let LL,WD,CT=[],SEG=[],REST,LAUNCH,TAPEX,PHOS=[],FIL=[],CF,CTL,ZS,ZF,POSTER,LOCK,FCAM,EG,FK,HOOK,HOOKZ,MOTES,NOISE,SMOKE,LA,la,WALL,wl,SC;
+
+/* ---------------- glyph cache: every letter once, white alpha at 2x; words are built from the letters ---------------- */
+const tint=(src,col)=>{const o=mk(src.width,src.height),x=o.getContext('2d');x.drawImage(src,0,0);x.globalCompositeOperation='source-in';x.fillStyle=col;x.fillRect(0,0,o.width,o.height);return o;};
+function inkBox(cv){const d=cv.getContext('2d',{willReadFrequently:true}).getImageData(0,0,cv.width,cv.height).data;let l=1e9,r=-1,tp=1e9,b=-1;
+  for(let y=0;y<cv.height;y++)for(let x=0;x<cv.width;x++)if(d[(y*cv.width+x)*4+3]>127){if(x<l)l=x;if(x>r)r=x;if(y<tp)tp=y;if(y>b)b=y;}return{l,r,t:tp,b};}
+function buildWords(){
+  const M=mk(8,8).getContext('2d');M.font=F(FWT,FPX*GS);const capH=M.measureText('H').actualBoundingBoxAscent/GS;
+  return WORDS.map(([s,x0,base],wi)=>{const chars=[...s],ox=x0-PAD,oy=base-ASC,H2=Math.ceil((ASC+DSC)*GS);
+    const Ls=chars.map((ch,i)=>{const pre=M.measureText(chars.slice(0,i+1).join('')).width/GS,adv=M.measureText(ch).width/GS,lx=Math.round((pre-adv)*GS)/GS;
+      const cv=mk(Math.ceil((adv+2*PAD)*GS),H2),x=cv.getContext('2d',{willReadFrequently:true});x.font=F(FWT,FPX*GS);x.fillStyle='#fff';x.fillText(ch,PAD*GS,ASC*GS);
+      const ib=inkBox(cv),wx=ox+lx;return{ch,cv,lx,wx,inkL:wx+ib.l/GS,inkR:wx+(ib.r+1)/GS,inkT:oy+ib.t/GS,cx:wx+(ib.l+ib.r)/2/GS,lav:tint(cv,'#CBCCF2')};});
+    const tot=M.measureText(s).width/GS,ww=Math.ceil((tot+2*PAD)*GS),cv=mk(ww,H2),x=cv.getContext('2d',{willReadFrequently:true});
+    Ls.forEach(l=>x.drawImage(l.cv,Math.round(l.lx*GS),0));
+    const d=x.getImageData(0,0,ww,H2).data,top=new Float32Array(ww).fill(Infinity);
+    for(let col=0;col<ww;col++)for(let row=0;row<H2;row++)if(d[(row*ww+col)*4+3]>127){top[col]=oy+row/GS;break;}
+    const gl=mk(ww,H2),g=gl.getContext('2d');g.filter=`blur(${7*GS}px)`;for(let k=0;k<3;k++)g.drawImage(cv,0,0);g.filter=`blur(${2.5*GS}px)`;g.drawImage(cv,0,0);g.drawImage(cv,0,0);g.filter='none';
+    const EP=60,soft=bl=>{const o=mk(ww+2*EP*GS,H2+2*EP*GS),q=o.getContext('2d');q.filter=`blur(${bl*GS}px)`;q.drawImage(cv,EP*GS,EP*GS);q.filter='none';q.globalCompositeOperation='source-in';q.fillStyle='#000';q.fillRect(0,0,o.width,o.height);return o;};
+    return{i:wi,s,x0,base,ox,oy,w:ww/GS,h:H2/GS,cv,top,L:Ls,capY:base-capH,right:Ls[Ls.length-1].inkR,dark:tint(cv,'#090A0E'),lav:tint(cv,'#CBCCF2'),sh1:soft(4),sh2:soft(8),EP,glow:gl};});
+}
+// the orb (radius R) resting on a word's top profile above x: centre y, contact point, normal
+function rest(W,x,R){let best=Infinity,bx=x,by=0;for(let dx=-R;dx<=R;dx+=0.5){const col=Math.round((x+dx-W.ox)*GS);if(col<0||col>=W.top.length)continue;const ty=W.top[col];if(!isFinite(ty))continue;
+    const yc=ty-Math.sqrt(R*R-dx*dx);if(yc<best){best=yc;bx=x+dx;by=ty;}}return{x,y:best,cx:bx,cy:by,nx:(x-bx)/R,ny:(best-by)/R};}
+// the acute accent: re-scanned on the real font. Pick the centre x whose contact lands 40% up the accent's slanted face
+function accentRest(W){const A=W.L[W.L.length-1];let aL=1e9,aR=-1e9;for(let col=0;col<W.top.length;col++){const y=W.top[col],x=W.ox+col/GS;if(x>=A.inkL-1&&x<=A.inkR+1&&y<W.capY-6){aL=Math.min(aL,x);aR=Math.max(aR,x);}}
+  const goal=aL+0.4*(aR-aL);let best=null,bd=1e9;for(let x=aL-RC;x<=aR;x+=0.5){const r=rest(W,x,RC);if(r.cy>=W.capY-6)continue;const d=Math.abs(r.cx-goal);if(d<bd){bd=d;best=r;}}return best;}
+const at=(W,i,f)=>W.L[i].inkL+f*(W.L[i].inkR-W.L[i].inkL);
+const letterAt=(W,x)=>{let bi=0,bd=1e9;W.L.forEach((l,i)=>{const d=x<l.inkL?l.inkL-x:x>l.inkR?x-l.inkR:0;if(d<bd){bd=d;bi=i;}});return bi;};
+
+/* ---------------- ballistics: contacts on the beat, segments solved with one g ---------------- */
+function buildBall(){
+  const[W0,W1,W2]=WD,N=W0.L[1];LAUNCH={x:N.cx,y:W0.capY+R0*0.45};   // the crest and halo peek over the N's top
+  const pts=[{t:T_LAUNCH,x:LAUNCH.x,y:LAUNCH.y+8,kind:'launch'}];
+  const add=(t,W,r,kind)=>pts.push({t,x:r.x,y:r.y,cx:r.cx,cy:r.cy,nx:r.nx,ny:r.ny,w:W.i,l:kind==='accent'?W.L.length-1:letterAt(W,r.cx),kind});
+  add(1.5,W0,rest(W0,at(W0,4,0.72),RC),'hard');      // C1 · the E
+  add(2.0,W0,accentRest(W0),'accent');                // C2 · springboard
+  add(3.5,W1,rest(W1,at(W1,2,0.5),RC),'hard');        // C3 · the G
+  add(4.0,W1,rest(W1,at(W1,4,0.6),RC),'soft');        // C4 · the S (one contact cut: the middle stays syncopated)
+  add(4.75,W1,accentRest(W1),'accent');               // C6 · springboard 2
+  add(6.0,W2,rest(W2,at(W2,2,0.5),RC),'hard');        // C7 · the O
+  // the real settle on R: times from e = 0.55, vx damped each contact
+  let x=at(W2,4,0.16),vx=(x-pts[pts.length-1].x)/0.5;add(SETTLE[0],W2,rest(W2,x,RC),'settle');
+  for(let k=1;k<SETTLE.length;k++){vx*=0.22;x+=vx*(SETTLE[k]-SETTLE[k-1]);add(SETTLE[k],W2,rest(W2,x,RC),'settle');}
+  for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],T=b.t-a.t,vx=(b.x-a.x)/T,vy=(b.y-a.y)/T-0.5*GRAV*T;SEG.push({t0:a.t,t1:b.t,x0:a.x,y0:a.y,vx,vy});
+    b.v=Math.hypot(vx,vy+GRAV*T);}
+  const v0=pts[1].v;pts.slice(1).forEach((p,i)=>{p.amp=0.3*Math.min(1,p.v/3000);p.flash=0.8*p.v/4500;CT.push(p);});
+  const last=pts[pts.length-1];REST={t:T_REST,x:last.x,y:last.y,cx:last.cx,cy:last.cy,nx:last.nx,ny:last.ny};
+  TAPEX={x:REST.x+V_FIRE[0]*1.5,y:REST.y+V_FIRE[1]*1.5+0.5*GRAV*2.25};
+  FLARE=WD.map((W,i)=>{const c2=0.5*GRAV,b2=V_FIRE[1],c0=REST.y-(W.capY+W.base)/2,u=Math.max(0,(-b2-Math.sqrt(Math.max(0,b2*b2-4*c2*c0)))/(2*c2));return{t:T_FIRE+u,a:[0.9,0.85,1.0][i]};});
+  // phosphor memory + REGISTRÁ's filetes
+  CT.forEach(p=>{PHOS.push({w:p.w,l:p.l,t:p.t,f:p.kind==='accent'?0.9:p.kind==='hard'?0.55:0.25*Math.min(1,p.v/1500)});if(p.w===1&&p.kind!=='settle')FIL.push({w:1,l:p.l,t:p.t,x:p.cx});});
+}
+// a word lights up whole on a hard landing, and flares as the launched orb climbs past it (9.00 / 9.16 / 9.35)
+let FLARE=[];
+function flare(w,t){const f=FLARE[w];if(!f||t<f.t-0.03)return 0;const u=t-f.t;return f.a*(u<0?1+u/0.03:0.45*Math.exp(-u/0.18)+0.55*Math.exp(-u/0.9));}
+function boost(w,t){let b=flare(w,t);for(const k of CT){if(k.w!==w||k.kind!=='hard')continue;const u=t-k.t;if(u>=0&&u<1.5)b+=0.55*Math.exp(-u/0.3);}return b;}
+function ball(t){
+  if(t<T_LAUNCH){const s=8*E.inQuad(prog(t,0.3,0.5));return{x:LAUNCH.x,y:LAUNCH.y+s,vx:0,vy:0};}
+  if(t<T_REST){let s=SEG[0];for(let i=SEG.length-1;i>=0;i--)if(t>=SEG[i].t0){s=SEG[i];break;}const u=t-s.t0;return{x:s.x0+s.vx*u,y:s.y0+s.vy*u+0.5*GRAV*u*u,vx:s.vx,vy:s.vy+GRAV*u};}
+  if(t<T_FIRE)return{x:REST.x,y:REST.y,vx:0,vy:0};
+  if(t<T_APEX){const u=t-T_FIRE;return{x:REST.x+V_FIRE[0]*u,y:REST.y+V_FIRE[1]*u+0.5*GRAV*u*u,vx:V_FIRE[0],vy:V_FIRE[1]+GRAV*u};}
+  const u=t-T_APEX,w=11,ex=Math.exp(-w*u);   // the catch: critically damped, kicked with (-150,+300)
+  return{x:TAPEX.x-150*u*ex,y:TAPEX.y+300*u*ex,vx:-150*(1-w*u)*ex,vy:300*(1-w*u)*ex};
+}
+function zAt(t){if(t<0.6)return 170;if(t<1.15)return lerp(170,ZREST,E.inOutSine(prog(t,0.6,1.15)));if(t<7.5)return ZREST;
+  if(t<9.6)return lerp(ZREST,-60,E.inOutSine(prog(t,7.5,9.0)));return lerp(-60,0,E.inOutCubic(prog(t,9.6,10.4)));}
+function lightI(t){let I=1+0.3*E.inQuad(prog(t,0.3,0.5))*(1-E.outCubic(prog(t,0.5,0.95)));
+  if(t<0.45)I*=1+0.06*Math.sin(2*Math.PI*1.5*t)*(1-prog(t,0.25,0.45));   // the hidden light breathes from frame 0
+  I+=0.35*bump(t,0.75,1.0,1.45);   // it swells as it clears the word: ENTRENÁ turns on
+  for(const k of CT){const u=t-k.t;if(u>=0&&u<1.2)I+=k.flash*Math.exp(-9*u);}
+  if(t>=7.5&&t<T_FIRE){I+=1.4*E.inCubic(prog(t,7.5,9.0));I*=1+0.06*(2*hash(Math.floor(t*30)+7)-1)*clamp((t-7.5)/0.3);}
+  else if(t>=T_FIRE){I+=1.4*(1-E.outCubic(prog(t,9.55,10.5)))+1.5*Math.exp(-6*(t-T_FIRE));}
+  return I;}
+// squash on contact along the surface normal, stretch along velocity, the charge press: one 2x2 matrix + a centre shift
+function deform(t,b){let sq=0,nx=0,ny=-1;for(const k of CT){const d=(t-k.t)/0.024;if(d>-3&&d<3){const a=k.amp*Math.exp(-d*d);if(a>sq){sq=a;nx=k.nx;ny=k.ny;}}}
+  if(t<T_LAUNCH){sq=0.15*E.inQuad(prog(t,0.3,0.5));nx=0;ny=-1;}
+  if(t>=T_REST&&t<T_FIRE){const p=0.1*E.inCubic(prog(t,7.5,9.0));if(p>sq){sq=p;nx=REST.nx;ny=REST.ny;}}
+  const sp=Math.hypot(b.vx,b.vy),st=Math.min(0.18,0.35*sp/2600)*Math.max(0,1-4*sq);   // motion blur carries the speed
+  const mat=(ux,uy,p)=>{const q=1/Math.sqrt(p);return[q+(p-q)*ux*ux,(p-q)*ux*uy,(p-q)*ux*uy,q+(p-q)*uy*uy];};
+  const A=mat(nx,ny,1-sq),B=sp>1?mat(b.vx/sp,b.vy/sp,1+st):[1,0,0,1];
+  return{m:[A[0]*B[0]+A[1]*B[2],A[0]*B[1]+A[1]*B[3],A[2]*B[0]+A[3]*B[2],A[2]*B[1]+A[3]*B[3]],dx:-nx*sq,dy:-ny*sq};}
+
+/* ---------------- camera: one take. A critically damped follow with per-axis look-ahead (1 kHz, precomputed), locked
+   framings that the camera settles into before each hard landing (still at the contact, the hit does the rest), a wide
+   static frame the orb crosses on the second springboard, then choreographed overrides ---------------- */
+let HOLD_UP=380,ZW=1,KW=null,KEYS=[];   // HOLD_UP: the poster's drift up into the tilt, so the camera is already moving when it chases the orb
+const bump=(t,a,m,b)=>t<=a||t>=b?0:t<m?E.inOutSine((t-a)/(m-a)):E.inOutSine((b-t)/(b-m));
+const ramp=(t,a,b,c,d)=>t<=a||t>=d?0:t<b?E.inOutSine((t-a)/(b-a)):t<=c?1:E.inOutSine((d-t)/(d-c));
+const wideW=t=>ramp(t,4.75,5.1,5.42,6.0);
+const elerp=(a,b,e)=>a*Math.pow(b/a,e);
+function zoomAt(t){if(t<T_FIRE){let z=t<0.5?HOOKZ*elerp(1.03,1,E.inOutSine(prog(t,0,0.5))):elerp(HOOKZ,1,E.inOutSine(prog(t,0.5,1.5)));
+    z*=1-0.25*bump(t,2.0,2.59,3.35);const ww=wideW(t);if(ww>0)z=elerp(z,ZW,ww);
+    if(t>7.5)z*=elerp(1,1.3,E.inCubic(prog(t,7.5,9.0)));return z*FK;}
+  if(t<9.35)return elerp(1.3*FK,ZS,E.outExpo(prog(t,9.0,9.35)));if(t<9.85)return ZS*(1-0.015*prog(t,9.35,9.85));
+  if(t<10.5)return elerp(ZS*0.985,ZF,E.inOutCubic(prog(t,9.85,10.5)));return ZF;}
+function buildCam(L){
+  FK=L.fmt==='4x5'?0.92:0.95;HOOKZ=L.fmt==='4x5'?1.0/0.92:1.08/0.95;HOLD_UP=L.fmt==='4x5'?230:380;
+  const s=L.safe,SCX=(s.left+s.right)/2,SCY=(s.top+s.bottom)/2,OY=L.fmt==='4x5'?30:-20,lead=(L.CY-SCY-OY)/FK;   // the orb lands at the safe centre (+OY)
+  HOOK={x:(WD[0].x0+WD[0].right)/2+14,y:L.fmt==='4x5'?1190:1180};
+  const wcx=W=>(W.L[0].inkL+W.right)/2+(L.CX-SCX)/FK;
+  // the wide frame for springboard 2: all of REGISTRÁ, the apex and all of PROGRESÁ, held still while the orb crosses it
+  const sg=SEG.find(g=>Math.abs(g.t0-4.75)<1e-6),ua=-sg.vy/GRAV,apY=sg.y0+sg.vy*ua+0.5*GRAV*ua*ua;
+  const wx0=WD[1].L[0].inkL-30,wx1=WD[2].right+40,wy0=apY-RC-80,wy1=WD[2].base+70;
+  ZW=Math.min((s.right-s.left)/(wx1-wx0),(s.bottom-s.top)/(wy1-wy0))/FK;
+  KW={x:(wx0+wx1)/2-(SCX-L.CX)/(ZW*FK),y:(wy0+wy1)/2-(SCY-L.CY)/(ZW*FK)};
+  // landing framings: the word centred in the safe area, the orb on the safe centre; ramp in (a..b) before the hit, out (c..d)
+  const key=(i,W,a,b,c,d)=>({x:wcx(W),y:CT[i].y+(L.CY-SCY-OY)/zoomAt(CT[i].t),a,b,c,d});
+  KEYS=[key(0,WD[0],1.2,1.46,2.0,2.42),key(2,WD[1],3.22,3.46,4.75,5.1),key(5,WD[2],5.1,5.42,1e9,1e9)];
+  // follow: x ω 4 looking 0.5 s ahead, y ω 9 looking 0.22 s ahead (each look-ahead cancels its own ramp lag); on a fall y looks
+  // up to 0.2 s further, so the camera is already near the landing frame and only has to brake into it
+  const dt=0.001,N=Math.ceil(9.2/dt)+2;CF=new Float32Array(N*2);let x=HOOK.x,y=HOOK.y,vx=0,vy=0;
+  const focus=t=>lerp(lerp(wcx(WD[0]),wcx(WD[1]),E.inOutSine(prog(t,2.2,3.2))),wcx(WD[2]),E.inOutSine(prog(t,4.85,5.7)));
+  for(let i=0;i<N;i++){const t=i*dt,bx=ball(Math.min(t+0.5,T_FIRE-0.001)),by=ball(Math.min(t+0.22+0.2*clamp(ball(t).vy/3500),T_FIRE-0.001)),w=E.inOutSine(prog(t,0.35,1.1)),
+      tx=lerp(HOOK.x,lerp(bx.x,focus(t),0.82+0.18*E.inOutSine(prog(t,2.85,3.2))),w),ty=lerp(HOOK.y,by.y+lead+0.35*Math.max(0,WD[t<3.3?0:1].capY-by.y),w);   // high arcs keep the word they leave in frame
+    CF[2*i]=x;CF[2*i+1]=y;vx+=(16*(tx-x)-8*vx)*dt;x+=vx*dt;vy+=(81*(ty-y)-18*vy)*dt;y+=vy*dt;}
+  LOCK={x:REST.x,y:REST.y+40};
+  // the poster: the whole staircase fitted inside the safe area
+  const bx0=WD[0].L[0].inkL-20,bx1=WD[2].right+20,by0=Math.min(...WD[0].L.map(l=>l.inkT))-30,by1=WD[2].base+50;
+  ZS=Math.min((s.right-s.left-30)/(bx1-bx0),(s.bottom-s.top-60)/(by1-by0));
+  POSTER={x:(bx0+bx1)/2-((s.left+s.right)/2-L.CX)/ZS,y:(by0+by1)/2-((s.top+s.bottom)/2+20-L.CY)/ZS};
+  // the end: T maps onto the end card's dot
+  EG=endcardGeom(L);SC=R0/LOGO.dot.r;ZF=EG.dotR/R0;FCAM={x:TAPEX.x-(EG.dotX-L.CX)/ZF,y:TAPEX.y-(EG.dotY-L.CY)/ZF,z:ZF};
+  // the tilt into the dark (from 9.85): y ω 10, x ω 7, after the orb
+  const t0=9.85,M=Math.ceil(1.25/dt)+2;CTL=new Float32Array(M*2);x=POSTER.x;y=POSTER.y-HOLD_UP;vx=0;vy=-2*HOLD_UP/0.25;
+  for(let i=0;i<M;i++){const t=t0+i*dt,b=ball(Math.min(T_APEX,t+0.12)),z=zoomAt(t),tx=b.x-(EG.dotX-L.CX)/z,ty=b.y-(EG.dotY-L.CY)/z;
+    CTL[2*i]=x;CTL[2*i+1]=y;vx+=(49*(tx-x)-14*vx)*dt;x+=vx*dt;vy+=(100*(ty-y)-20*vy)*dt;y+=vy*dt;}
+}
+const samp=(A,t0,t)=>{const f=(t-t0)*1000,i=Math.max(0,Math.min(A.length/2-2,Math.floor(f))),u=clamp(f-i);return{x:lerp(A[2*i],A[2*i+2],u),y:lerp(A[2*i+1],A[2*i+3],u)};};
+function camBase(t){let p=samp(CF,0,t);for(const K of KEYS){const w=ramp(t,K.a,K.b,K.c,K.d);if(w>0)p={x:lerp(p.x,K.x,w),y:lerp(p.y,K.y,w)};}
+  const ww=wideW(t);if(ww>0)p={x:lerp(p.x,KW.x,ww),y:lerp(p.y,KW.y,ww)};return p;}
+function camAt(t){
+  if(t<7.5)return{...camBase(t),z:zoomAt(t)};
+  if(t<T_FIRE){const f=camBase(t),w=E.inOutCubic(prog(t,7.5,8.3));return{x:lerp(f.x,LOCK.x,w),y:lerp(f.y,LOCK.y,w),z:zoomAt(t)};}
+  if(t<9.35){const e=E.outExpo(prog(t,9.0,9.35));return{x:lerp(LOCK.x,POSTER.x,e),y:lerp(LOCK.y,POSTER.y,e),z:zoomAt(t)};}
+  if(t<9.85)return{x:POSTER.x,y:POSTER.y-HOLD_UP*E.inQuad(prog(t,9.6,9.85)),z:zoomAt(t)};
+  if(t>=11.0)return FCAM;
+  const s=samp(CTL,9.85,t),w=E.inOutCubic(prog(t,10.3,11.0));return{x:lerp(s.x,FCAM.x,w),y:lerp(s.y,FCAM.y,w),z:zoomAt(t)};}
+
+/* ---------------- textures: the wall's smoke (tileable fbm) and film grain, both seeded ---------------- */
+function buildTex(){
+  const N=256,r=rng(4242),img=new Float32Array(N*N);
+  for(const[P,amp]of[[4,0.12],[8,0.2],[16,0.3],[32,0.16],[64,0.08]]){const g=new Float32Array(P*P).map(()=>r()),cell=N/P;
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++){const fx=x/cell,fy=y/cell,ix=Math.floor(fx),iy=Math.floor(fy),ux=fx-ix,uy=fy-iy,sx=ux*ux*(3-2*ux),sy=uy*uy*(3-2*uy);
+      const a=g[(iy%P)*P+ix%P],b=g[(iy%P)*P+(ix+1)%P],c2=g[((iy+1)%P)*P+ix%P],d=g[((iy+1)%P)*P+(ix+1)%P];img[y*N+x]+=amp*lerp(lerp(a,b,sx),lerp(c2,d,sx),sy);}}
+  let mn=1e9,mx=-1e9;for(const v of img){mn=Math.min(mn,v);mx=Math.max(mx,v);}
+  SMOKE=mk(N,N);const sx=SMOKE.getContext('2d'),sd=sx.createImageData(N,N);
+  for(let i=0;i<N*N;i++){const v=(img[i]-mn)/(mx-mn),k=Math.round(255*(0.6+0.4*Math.pow(v,1.25)));sd.data[4*i]=k;sd.data[4*i+1]=k;sd.data[4*i+2]=Math.min(255,k+6);sd.data[4*i+3]=255;}
+  sx.putImageData(sd,0,0);
+  NOISE=mk(270,480);const nx=NOISE.getContext('2d'),nd=nx.createImageData(270,480),q=rng(1234);for(let i=0;i<nd.data.length;i+=4){const v=q()*255;nd.data[i]=nd.data[i+1]=nd.data[i+2]=v;nd.data[i+3]=255;}nx.putImageData(nd,0,0);
+  const m=rng(77);MOTES=Array.from({length:1100},()=>({x:-200+3400*m(),y:-2600+6800*m(),z:-250+490*m(),p1:6.3*m(),p2:6.3*m(),s:m(),c:Math.floor(5*m())}));
+}
+
+/* ---------------- drawing helpers ---------------- */
+const RG=(c,x,y,r,stops)=>{const g=c.createRadialGradient(x,y,0,x,y,Math.max(1,r));stops.forEach(([o,col])=>g.addColorStop(o,col));return g;};
+// a pool, not fog: hot core, a cool blue skirt, pure black beyond 0.7 r. Colour comes from the rims and the orb, not the wall
+const poolStops=a=>[[0,rgba([255,255,255],a)],[0.12,rgba(LAV,a*0.85)],[0.3,rgba(RGB.blue,a*0.4)],[0.5,rgba(RGB.blue,a*0.15)],[0.66,rgba(RGB.blue,a*0.045)],[0.78,rgba(RGB.blue,0)],[1,rgba(RGB.blue,0)]];
+const backStops=[[0,'#fff'],[0.15,rgba(LAV,0.9)],[0.4,rgba(RGB.blue,0.5)],[0.7,rgba(RGB.blue,0.16)],[1,rgba(RGB.blue,0)]];   // the glow leaking round the glyphs reaches the whole word
+function ribbon(c,P,col){if(P.length<2)return;const n=P.length,N=[];
+  for(let i=0;i<n;i++){const a=P[Math.max(0,i-1)],b=P[Math.min(n-1,i+1)];let tx=b.x-a.x,ty=b.y-a.y,l=Math.hypot(tx,ty);if(l<1e-6){tx=0;ty=-1;l=1;}N.push([-ty/l,tx/l]);}
+  for(let i=0;i<n-1;i++){const a=(P[i].a+P[i+1].a)/2;if(a<0.004)continue;const p=P[i],q=P[i+1],h0=p.w/2,h1=q.w/2,[ax,ay]=N[i],[bx,by]=N[i+1];
+    c.fillStyle=rgba(col,Math.min(1,a));c.beginPath();c.moveTo(p.x+ax*h0,p.y+ay*h0);c.lineTo(q.x+bx*h1,q.y+by*h1);c.lineTo(q.x-bx*h1,q.y-by*h1);c.lineTo(p.x-ax*h0,p.y-ay*h0);c.closePath();c.fill();}
+  const cap=(i,back)=>{const p=P[i];if(p.a<0.004||p.w<0.5)return;const th=Math.atan2(N[i][1],N[i][0]);c.fillStyle=rgba(col,Math.min(1,p.a));c.beginPath();
+    if(back)c.arc(p.x,p.y,p.w/2,th,th+Math.PI,false);else c.arc(p.x,p.y,p.w/2,th,th-Math.PI,true);c.closePath();c.fill();};
+  cap(0,true);cap(n-1,false);}
+
+/* ---------------- the frame ---------------- */
+function scene(c,t,L){
+  const cam=camAt(t),Z=cam.z,b=ball(t),z=zAt(t),I=lightI(t),wf=1-prog(t,9.6,10.3),W=L.W,H=L.H;
+  const S=(x,y)=>[L.CX+(x-cam.x)*Z,L.CY+(y-cam.y)*Z];
+  const rO=R0*(1-z/FOC)*Z,dfm=deform(t,b),ocx=b.x+dfm.dx*R0,ocy=b.y+dfm.dy*R0,[ox,oy]=S(ocx,ocy);
+  const front=z<=0,fa=clamp((40-z)/80),ba=clamp((z+40)/80);   // each is 0.5 as the orb crosses the letter plane
+  c.fillStyle='#000';c.fillRect(-100,-100,W+200,H+200);
+  // light position for shadows/pool: trembles with the charge flicker
+  const tr=t>=7.5&&t<T_FIRE?E.inCubic(prog(t,7.5,9.0))*3:0,lx=ocx+tr*(hash(Math.floor(t*30)+1)-0.5),ly=ocy+tr*(hash(Math.floor(t*30)+2)-0.5);
+  const d=ZWALL-z,wx=L.CX+(lx-cam.x)*Z*PIW,wy=L.CY+(ly-cam.y)*Z*PIW;
+  /* 1 · the back wall (half res): smoky pool + point-light shadows */
+  if(wf>0){const pa=clamp(I*260/d)*wf,pr=(150+1.3*d)*1.15*Z*PIW*(1+1.4*clamp(z/170)),pv=0.78*pr;   // behind the letters (hook) the pool opens wider
+    wl.setTransform(0.5,0,0,0.5,20,20);wl.globalCompositeOperation='source-over';wl.globalAlpha=1;wl.fillStyle='#000';wl.fillRect(-40,-40,W+80,H+80);
+    if(pa>0.004){wl.fillStyle=RG(wl,wx,wy,pr,poolStops(pa));const x0=Math.max(-40,wx-pv),y0=Math.max(-40,wy-pv),x1=Math.min(W+40,wx+pv),y1=Math.min(H+40,wy+pv);
+      if(x1>x0&&y1>y0){wl.fillRect(x0,y0,x1-x0,y1-y0);
+        const pat=wl.createPattern(SMOKE,'repeat'),k=3.6*Z*PIW;pat.setTransform(new DOMMatrix([k,0,0,k,L.CX-(cam.x+t*14)*Z*PIW,L.CY-(cam.y-t*9)*Z*PIW]));
+        wl.globalCompositeOperation='multiply';wl.fillStyle=pat;wl.fillRect(x0,y0,x1-x0,y1-y0);wl.globalCompositeOperation='source-over';
+        // shadows: P -> O + k (P - O), k = (50 - z) / -z (about 1.56): dark shapes cut out of the lit wall right beside the letters
+        const sa=clamp(-z/40)*wf;if(sa>0.01){const k0=Math.min(2.4,(ZSH-z)/Math.max(1,-z));
+          for(const Wd of WD)for(const[kk,al,im]of[[1.035,0.4,'sh2'],[1,0.75,'sh1']]){const ks=k0*kk*Z*PIW,sx=wx+ks*(Wd.ox-Wd.EP-lx),sy=wy+ks*(Wd.oy-Wd.EP-ly),sw=(Wd.w+2*Wd.EP)*ks,sh=(Wd.h+2*Wd.EP)*ks;
+            if(sx>W+40||sy>H+40||sx+sw<-40||sy+sh<-40)continue;wl.globalAlpha=al*sa;wl.drawImage(Wd[im],sx,sy,sw,sh);}
+          wl.globalAlpha=1;}}}
+    c.drawImage(WALL,-40,-40,W+80,H+80);}
+  /* the visible words */
+  const vis=[];if(wf>0)for(const Wd of WD){const[x,y]=S(Wd.ox,Wd.oy),w=Wd.w*Z,h=Wd.h*Z;if(x>W+60||y>H+60||x+w<-60||y+h<-60)continue;
+    const bx=Math.max(0,Math.floor(x-12)),by=Math.max(0,Math.floor(y-12)),bw=Math.min(W,Math.ceil(x+w+12))-bx,bh=Math.min(H,Math.ceil(y+h+12))-by;if(bw>0&&bh>0)vis.push({Wd,x,y,w,h,bx,by,bw,bh});}
+  const comp=(v,a=1)=>{if(a<=0.003)return;c.save();c.globalCompositeOperation='lighter';c.globalAlpha=Math.min(1,a);c.drawImage(LA,v.bx,v.by,v.bw,v.bh,v.bx,v.by,v.bw,v.bh);c.restore();};
+  const dust=(fr)=>drawDust(c,t,L,cam,b,z,I,wf,fr);
+  dust(false);
+  /* behind the letters (z > 0): the orb, its trail, and the backlight leaking round every glyph */
+  if(!front){trail(c,t,L,cam,S,b);orb(c,t,ox,oy,rO,b,dfm,I);}
+  if(ba>0){for(const v of vis){la.globalCompositeOperation='source-over';la.clearRect(v.bx,v.by,v.bw,v.bh);la.drawImage(v.Wd.glow,v.x,v.y,v.w,v.h);
+      la.globalCompositeOperation='source-in';la.fillStyle=RG(la,wx,wy,(300+4*d)*Z*PIW*1.6,backStops);la.fillRect(v.bx,v.by,v.bw,v.bh);comp(v,ba*clamp(I*150/d)*1.25);}}
+  /* the slabs */
+  for(const v of vis)c.drawImage(v.Wd.dark,v.x,v.y,v.w,v.h);
+  /* front light: faces, then the rims facing the orb */
+  const hk=t<1.75?clamp(-z/40)*(1-prog(t,1.45,1.75)):0;   // the hook: ENTRENÁ is front-lit through the apex hang
+  if(fa>0)for(const v of vis){const Wd=v.Wd,wb=boost(Wd.i,t),aZ=Math.abs(z),rc=(lerp(120,260,hk)+2.2*aZ)*Math.sqrt(I)*Z,ac=Math.min(0.85,I*140/(aZ+40)),rb=1300*Math.sqrt(I)*Z*(1+0.8*wb),ab=lerp(0.24,0.8,hk)*Math.min(I,2.6)+0.5*wb;
+    const st=[0,0.02,0.05,0.09,0.14,0.2,0.3,0.45,0.65,1].map(s=>{const r=s*rb,cv=ac*Math.max(0,1-r/rc)**2,fv=ab*(1-s)**1.6,v2=Math.min(1,cv+fv),m=cv/(cv+fv+1e-6);return[s,rgba(mixc([150,160,236],[255,255,255],m),v2)];});
+    la.globalCompositeOperation='source-over';la.clearRect(v.bx,v.by,v.bw,v.bh);la.drawImage(Wd.cv,v.x,v.y,v.w,v.h);
+    la.globalCompositeOperation='source-in';la.fillStyle=RG(la,ox,oy,rb,st);la.fillRect(v.bx,v.by,v.bw,v.bh);comp(v,Math.min(0.9,fa*wf));
+    // rim: the glyph minus itself shifted away from the light leaves the edge that faces it; coloured by the orb's own ring
+    const dd=Math.max(1.6,6.5*Z);la.globalCompositeOperation='source-over';la.clearRect(v.bx,v.by,v.bw,v.bh);la.drawImage(Wd.cv,v.x,v.y,v.w,v.h);
+    la.globalCompositeOperation='destination-out';for(const l of Wd.L){const[lx2,ly2]=S(l.cx,Wd.capY+40);let ux=ox-lx2,uy=oy-ly2;const ul=Math.hypot(ux,uy)||1;ux/=ul;uy/=ul;
+      const[px,py]=S(l.wx,Wd.oy);la.drawImage(l.cv,px-ux*dd,py-uy*dd,l.cv.width/GS*Z,l.cv.height/GS*Z);}
+    const rr2=(1150+3*aZ)*Math.sqrt(I)*Z*(1+1.6*wb);la.globalCompositeOperation='source-in';la.fillStyle=GizeOrb.ring(la,ox,oy);la.fillRect(v.bx,v.by,v.bw,v.bh);
+    la.globalCompositeOperation='source-atop';la.fillStyle=RG(la,ox,oy,200*Math.sqrt(I)*Z,[[0,'rgba(255,255,255,0.95)'],[0.5,'rgba(235,236,255,0.4)'],[1,'rgba(255,255,255,0)']]);la.fillRect(v.bx,v.by,v.bw,v.bh);
+    la.globalCompositeOperation='destination-in';la.fillStyle=RG(la,ox,oy,rr2,[[0,'rgba(0,0,0,1)'],[0.2,'rgba(0,0,0,0.88)'],[0.45,'rgba(0,0,0,0.55)'],[0.72,'rgba(0,0,0,0.22)'],[1,'rgba(0,0,0,0)']]);la.fillRect(v.bx,v.by,v.bw,v.bh);
+    comp(v,fa*wf*(1.15+wb));}
+  /* phosphor memory: touched letters keep a glow */
+  if(wf>0){c.save();c.globalCompositeOperation='lighter';for(const p of PHOS){const u=t-p.t;if(u<0)continue;const a=(p.f*Math.exp(-u/0.12)+0.40*Math.exp(-u/1.0)+0.10*Math.exp(-u/6)+0.15+0.15*E.inOutSine(prog(t,8.95,9.15)))*wf*(p.f<0.5?p.f/0.55:1)*(1+1.4*flare(p.w,t));
+      if(a<0.01)continue;const Wd=WD[p.w],l=Wd.L[p.l],[px,py]=S(l.wx,Wd.oy);c.globalAlpha=Math.min(1,a);c.drawImage(l.lav,px,py,l.cv.width/GS*Z,l.cv.height/GS*Z);}
+    // the launch flash, passing each word, leaves the whole word glowing: the poster frame is drawn by light memory
+    for(const v of vis){const fl=flare(v.Wd.i,t);if(fl>0.01){c.globalAlpha=Math.min(1,0.42*fl*wf);c.drawImage(v.Wd.lav,v.x,v.y,v.w,v.h);}}c.restore();
+    // REGISTRÁ: every contact logs a 2 px RGB filete under its letter
+    for(const f of FIL){const u=t-f.t;if(u<0)continue;const Wd=WD[f.w],l=Wd.L[f.l],e=E.outExpo(clamp(u/0.25)),xa=lerp(f.x,l.inkL,e),xb=lerp(f.x,l.inkR,e),[sa,sy]=S(xa,Wd.base+22),[sb]=S(xb,0),[g0]=S(l.inkL,0),[g1]=S(l.inkR,0);
+      c.save();c.globalAlpha=wf;c.fillStyle=rgbLine(c,g0,0,g1,0);const lw=Math.max(2,2.4*Z);c.fillRect(sa,sy-lw/2,sb-sa,lw);c.globalCompositeOperation='lighter';c.globalAlpha=wf*0.35*(0.4+0.6*Math.exp(-u*3));c.fillRect(sa,sy-lw*2.5,sb-sa,lw*5);c.restore();}}
+  /* contacts: ripples on the top surface and hair sparks (hard landings only) */
+  c.save();c.globalCompositeOperation='lighter';for(let i=0;i<CT.length;i++){const k=CT[i],u=t-k.t;if(u<0||u>0.75||k.kind!=='hard')continue;const s=1;   // accents: only the Á flash and the tilted squash
+    const e=E.outCubic(clamp(u/0.7)),rx=(30+330*e*s)*Z,[cx,cy]=S(k.cx,k.cy);c.strokeStyle=GizeOrb.ring(c,cx,cy);c.lineWidth=3;c.globalAlpha=(1-e)*0.9*wf;c.beginPath();c.ellipse(cx,cy,rx,rx*0.14,0,0,7);c.stroke();
+    if(k.kind==='hard'&&u<0.45)for(let j=0;j<14;j++){const h1=hash(i*100+j),h2=hash(i*100+j+31),h3=hash(i*100+j+57),th=-Math.PI*(0.06+0.88*h1),sp=600+800*h2,vx=Math.cos(th)*sp,vy=Math.sin(th)*sp,
+      px=k.cx+vx*u,py=k.cy+vy*u+0.5*GRAV*u*u,wy2=vy+GRAV*u,vl=Math.hypot(vx,wy2)||1,len=14+26*h3,[ax,ay]=S(px,py),[bx2,by2]=S(px-vx/vl*len,py-wy2/vl*len);
+      c.strokeStyle=j%5===4?'#fff':rgba([RGB.blue,RGB.purple,RGB.pink,RGB.teal][j%4],1);c.globalAlpha=(1-u/0.45)**1.5*wf;c.lineWidth=2;c.lineCap='round';c.beginPath();c.moveTo(ax,ay);c.lineTo(bx2,by2);c.stroke();}}c.restore();
+  /* the charge: contact line white-hot, the first reel's ring, rings contracting */
+  if(t>=7.5&&t<9.6)charge(c,t,S,Z,I,b);
+  if(front&&t<T_WRAP){trail(c,t,L,cam,S,b);}
+  if(t>=T_FIRE)gWrap(c,t,L,cam,S);
+  if(front&&t<11.28)orb(c,t,ox,oy,rO,b,dfm,I);
+  dust(true);
+  return{ox,oy,I};
+}
+function orb(c,t,ox,oy,r,b,dfm,I,between){
+  const extra=t<11.9?(1-prog(t,11.0,11.9))*Math.min(2.2,I)*clamp(t/0.4+0.6):0;
+  GizeOrb.halo(c,ox,oy,r,{k:ORB_K});
+  if(extra>0.003){c.save();c.globalCompositeOperation='lighter';glow(c,ox,oy,r*6,LAV,0.07*extra);glow(c,ox,oy,r*2.4,[255,255,255],0.12*extra);c.restore();}
+  if(between)between();
+  const m=dfm.m;c.save();c.translate(ox,oy);c.transform(m[0],m[1],m[2],m[3],0,0);GizeOrb.body(c,0,0,r,{});c.restore();}
+// three additive ribbons (blue, pink, teal) sampled from the orb's own past: the orb's own smear, its fringes pulled
+// apart perpendicular to the velocity as the speed rises (the dispersion only opens at speed)
+function trail(c,t,L,cam,S,b){const sp=Math.hypot(b.vx,b.vy),sf=clamp((sp-600)/1900)*(0.3+0.7*prog(t,0.5,0.72));if(sf<=0.01)return;   // no history piles up on the launch point
+  c.save();c.globalCompositeOperation='lighter';const Z=cam.z;
+  TRAIL.forEach((col,ch)=>{const P=[];for(let k=0;k<=40;k++){const s=k/40,q=ball(t-ch*0.01-k/150),qs=Math.hypot(q.vx,q.vy),off=qs>1?(ch-1)*Math.min(9,qs/500)*Z/qs:0,[x,y]=S(q.x,q.y);
+    P.push({x:x-q.vy*off,y:y+q.vx*off,w:1.7*R0*Z*(1-s)**2,a:0.38*(1-s)**3*sf});}ribbon(c,P,col);});c.restore();}
+// the climb: from 9.00 the orb draws the site's neon line behind it (three 4 px filetes split by speed, white where they
+// merge). At the catch that same 1.2 s line is reeled in from off-frame, coils round the orb (each sample swings in polar
+// round the G's centre onto its place on the arc, head first) and only then fills to the G's stroke, head first
+function gWrap(c,t,L,cam,S){const A=LOGO.arc,D=LOGO.dot,Z=cam.z,acx=TAPEX.x+(A.cx-D.x)*SC,acy=TAPEX.y+(A.cy-D.y)*SC,AR=A.r*SC,AW=A.w*SC,sweep=A.len/A.r;
+  const fx=E.inOutSine(prog(t,11.28,11.5));if(fx>=1)return;
+  const T=Math.min(t,T_WRAP),ain=clamp((t-T_FIRE)/0.05);let front=-1e9;c.save();c.globalCompositeOperation='lighter';
+  TRAIL.forEach((col,ch)=>{const P=[];for(let k=0;k<=40;k++){const tk=T-k*0.03;if(tk<T_FIRE)break;const s2=k/40,q=ball(tk),qs=Math.hypot(q.vx,q.vy);
+      const th0=Math.atan2(q.y-acy,q.x-acx),r0=Math.hypot(q.x-acx,q.y-acy),th1=A.a0+s2*sweep,t0=T_WRAP+0.04+0.36*Math.pow(s2,0.85),e=E.inOutCubic(prog(t,t0,t0+0.3));
+      const th=lerp(th0,th1,e),rr=lerp(r0,AR,e),fill=E.outExpo(prog(t,11.08+0.12*s2,11.3+0.12*s2)),w=Math.max(1.5,lerp(4/Z,AW,fill)*Z);
+      const sp=qs>1?(ch-1)*Math.min(7,qs/700)*(1-e)/qs:0,[x,y]=S(acx+Math.cos(th)*rr,acy+Math.sin(th)*rr);if(e>0.02&&th>front)front=th;
+      P.push({x:x-q.vy*sp,y:y+q.vx*sp,w,a:ain*(1-fx)*lerp(0.85*(1-0.7*s2),0.92,Math.max(e,fill))});}
+    ribbon(c,P,col);});
+  // the site's neon line: a 3 px teal comet riding just ahead of the winding front, on the outer edge
+  const ca=Math.sin(Math.PI*clamp(prog(t,T_WRAP+0.06,11.32)));if(ca>0.01&&front>-1e8){const[cx,cy]=S(acx,acy),ro=(AR+AW/2+8)*Z,th=Math.min(A.a0+sweep+0.25,front+0.22);
+    for(let j=0;j<16;j++){const a1=th-j*0.05,a2=a1-0.05;if(a1<A.a0-0.3)break;c.strokeStyle=rgba(TEAL,ca*(1-j/16)**1.6);c.lineWidth=3;c.lineCap='round';c.beginPath();c.arc(cx,cy,ro,a2,a1);c.stroke();}
+    glow(c,cx+Math.cos(th)*ro,cy+Math.sin(th)*ro,22,TEAL,0.45*ca);}
+  c.restore();}
+function charge(c,t,S,Z,I,b){const p=prog(t,7.5,9.0),[cx,cy]=S(REST.x,REST.y),[hx,hy]=S(REST.cx,REST.cy);c.save();c.globalCompositeOperation='lighter';
+  if(t<T_FIRE){const hot=E.inCubic(p)*(0.9+0.1*hash(Math.floor(t*30))),hw=RC*1.05*Z*(1+0.16*E.inCubic(p));
+    c.strokeStyle=rgba([255,255,255],hot);c.lineWidth=Math.max(1.5,3*Z);c.lineCap='round';c.beginPath();c.moveTo(hx-hw,hy);c.lineTo(hx+hw,hy);c.stroke();glow(c,hx,hy,hw*1.6,LAV,0.5*hot);}
+  // the first reel's charge ring: track + RGB arc filling -90 -> 270
+  const snap=E.outExpo(prog(t,9.0,9.35)),ra=t<T_FIRE?1:1-prog(t,9.0,9.35),R=(88+520*snap)*Z,lw=Math.max(1,6*Z*(1-0.8*snap));
+  if(ra>0){c.globalCompositeOperation='source-over';c.globalAlpha=ra*E.outCubic(prog(t,7.5,7.8));c.strokeStyle=C.border;c.lineWidth=lw;c.beginPath();c.arc(cx,cy,R,0,7);c.stroke();
+    c.globalCompositeOperation='lighter';const f=E.inOutCubic(p);c.strokeStyle=rgbRing(c,cx,cy,t*2.4);c.lineCap='round';c.beginPath();c.arc(cx,cy,R,-Math.PI/2,-Math.PI/2+f*Math.PI*2*0.999);c.stroke();}
+  c.globalAlpha=1;for(const t0 of[7.5,8.0,8.5]){const u=prog(t,t0,t0+0.5);if(u<=0||u>=1)continue;const r=lerp(520,R0,E.inQuad(u))*Z;c.strokeStyle=GizeOrb.ring(c,cx,cy);c.lineWidth=2.5;c.globalAlpha=Math.sin(Math.PI*u)*0.85;c.beginPath();c.arc(cx,cy,r,0,7);c.stroke();}
+  c.restore();}
+function drawDust(c,t,L,cam,b,bz,I,wf,front){if(wf<=0)return;const Z=cam.z;c.save();c.globalCompositeOperation='lighter';
+  const pc=prog(t,7.5,9.0),pb=E.outExpo(prog(t,9.0,9.9));
+  for(const m of MOTES){if((m.z<0)!==front)continue;let x=m.x+18*Math.sin(t*0.31+m.p1),y=m.y+14*Math.sin(t*0.23+m.p2)-9*t;
+    if(t>=7.5){const dx=x-REST.x,dy=y-REST.y,r=Math.hypot(dx,dy);if(r<800){let th=Math.atan2(dy,dx)+3*pc,r2=r*(1-0.75*E.inCubic(pc));if(t>=T_FIRE)r2=r*(0.25+2.5*pb);x=REST.x+Math.cos(th)*r2;y=REST.y+Math.sin(th)*r2;}}
+    const d3=Math.hypot(x-b.x,y-b.y,(m.z-bz)*0.8);if(d3>650)continue;const br=Math.min(1,I*0.9*(1-d3/650)**2*wf);if(br<0.02)continue;
+    const pz=FOC/(FOC+m.z),sx=L.CX+(x-cam.x)*Z*pz,sy=L.CY+(y-cam.y)*Z*pz;if(sx<-10||sy<-10||sx>L.W+10||sy>L.H+10)continue;
+    const th=Math.atan2(y-b.y,x-b.x),col=mixc([255,246,236],ORBC[(Math.floor((th+Math.PI*1.75)/(Math.PI*0.4))%5+5)%5],0.45),sz=Math.max(1.2,(1.6+2.2*m.s)*Math.sqrt(Z)*pz);
+    c.fillStyle=rgba(col,br);c.fillRect(sx-sz/2,sy-sz/2,sz,sz);}c.restore();}
+
+/* ---------------- HUD (the first reel's), inside the safe area; every element catches the orb's light ---------------- */
+const SECT=[[1.5,'01'],[3.5,'02'],[6.0,'03']];
+const HUD_ON=new URLSearchParams(location.search).get('hud')!=='0';   // ?hud=0 drops it
+// each element (logo, label, counter, timecode + bar, with their crop marks) steps back to 10% while a word or the orb
+// passes over it: occlusion sampled at 100 Hz at init, dilated in time and eased (about 0.12 s), so draw stays pure
+let HUDA=[];
+function buildHud(L){const s=L.safe,l=s.left+12,r=s.right-12,tp=s.top+14,bo=s.bottom-14,by=bo-26;
+  const M=mk(8,8).getContext('2d');M.font=F(600,18);M.letterSpacing='4px';const lw=M.measureText('ENTRENAMIENTO CON COACH').width;
+  const R=[[l-6,tp-6,l+16+(LOGO.w-143)*0.4+10,tp+18+LOGO.h*0.4],[r-16-lw-58,tp-6,r+6,tp+46],[l-6,by-22,l+222,bo+6],[r-16-170-18-150,by-22,r+6,bo+6]];
+  const N=1201,occ=R.map(()=>new Uint8Array(N)),inkT=WD.map(W=>Math.min(...W.L.map(q=>q.inkT)));
+  for(let i=0;i<N;i++){const t=i/100,cam=camAt(t),Z=cam.z,b=ball(t),S=(x,y)=>[L.CX+(x-cam.x)*Z,L.CY+(y-cam.y)*Z],B=[];
+    if(t<10.4)WD.forEach((W,j)=>{const[x0,y0]=S(W.L[0].inkL,inkT[j]),[x1,y1]=S(W.right,W.base+28);B.push([x0-16,y0-16,x1+16,y1+16]);});
+    if(t<11.28){const[ox,oy]=S(b.x,b.y),rr=R0*(1-zAt(t)/FOC)*Z+30;B.push([ox-rr,oy-rr,ox+rr,oy+rr]);}
+    R.forEach((q,j)=>{for(const bb of B)if(bb[0]<q[2]&&bb[2]>q[0]&&bb[1]<q[3]&&bb[3]>q[1]){occ[j][i]=1;break;}});}
+  HUDA=occ.map(o=>{const a=new Float32Array(N);let v=1;for(let i=0;i<N;i++){let hit=0;for(let k=Math.max(0,i-6);k<=Math.min(N-1,i+9);k++)if(o[k]){hit=1;break;}
+    v+=((hit?0.1:1)-v)*(1-Math.exp(-0.01/0.04));a[i]=v;}return a;});}
+const hudA=(j,t)=>{const f=clamp(t*100,0,1199.999),i=Math.floor(f),A=HUDA[j];return lerp(A[i],A[i+1],f-i);};
+function hud(c,t,L,o){const a0=E.outCubic(prog(t,1.5,2.0))*(1-E.inCubic(prog(t,11.4,11.9)));if(a0<=0.003)return;
+  const s=L.safe,l=s.left+12,r=s.right-12,tp=s.top+14,bo=s.bottom-14,lit=(x,y)=>{const f=clamp(1-Math.hypot(x-o.ox,y-o.oy)/520);return Math.min(1,0.42*(1+1.5*f*f*Math.min(1.8,o.I)));};
+  c.save();c.lineWidth=2;c.strokeStyle=C.text2;const m=26;
+  const dm=[0,1,2,3].map(j=>hudA(j,t));
+  [[l,tp,1,1],[r,tp,-1,1],[l,bo,1,-1],[r,bo,-1,-1]].forEach(([x,y,sx,sy],j)=>{c.globalAlpha=a0*dm[j]*lit(x,y)*0.8;c.beginPath();c.moveTo(x,y+sy*m);c.lineTo(x,y);c.lineTo(x+sx*m,y);c.stroke();});
+  const k=0.4;c.globalAlpha=a0*dm[0]*lit(l+40,tp+30);drawFirma(c,l+16-143.01*k,tp+12-12*k,k,{symbol:false,color:C.text2});
+  c.font=F(600,18);c.letterSpacing='4px';c.textAlign='right';c.textBaseline='middle';const lab='ENTRENAMIENTO CON COACH',lw=c.measureText(lab).width;c.globalAlpha=a0*dm[1]*lit(r-lw/2,tp+30);c.fillStyle=C.text2;c.fillText(lab,r-16,tp+28);
+  c.fillStyle=rgbLine(c,r-16-lw-50,0,r-16-lw-14,0);c.fillRect(r-16-lw-50,tp+27,36,2.5);c.letterSpacing='0px';
+  let ci=0;for(let i=0;i<SECT.length;i++)if(t>=SECT[i][0])ci=i;const e=ci>0?E.outExpo(prog(t,SECT[ci][0],SECT[ci][0]+0.45)):1,by=bo-26;
+  c.globalAlpha=a0*dm[2]*lit(l+60,by);c.save();c.beginPath();c.rect(l,by-16,220,32);c.clip();c.textAlign='left';c.letterSpacing='3px';
+  const lb=(i,y)=>{c.font=F(800,18);c.fillStyle=C.text;c.fillText(SECT[i][1],l+16,y);c.font=F(600,18);c.fillStyle=C.text2;c.fillText('/  03',l+16+c.measureText(SECT[i][1]).width+12,y);};
+  lb(ci,by+30*(1-e));if(ci>0&&e<1)lb(ci-1,by-30*e);c.restore();c.letterSpacing='0px';
+  const bw=170,px=r-16-bw;c.globalAlpha=a0*dm[3]*lit(px+bw/2,by);c.fillStyle='#15181F';c.fillRect(px,by-1.5,bw,3);c.fillStyle=rgbLine(c,px,0,px+bw,0);c.fillRect(px,by-1.5,Math.max(3,bw*clamp(t/T_CARD)),3);
+  const f=Math.round(t*60),tc=`00:00:${String(Math.floor(f/60)).padStart(2,'0')}:${String(f%60).padStart(2,'0')}`;c.font=F(500,16);c.fillStyle=C.text2;c.textAlign='right';
+  const dw=c.measureText('0').width;let xx=px-18;for(let i=tc.length-1;i>=0;i--){const ch=tc[i],w=/\d/.test(ch)?dw:c.measureText(ch).width;c.textAlign='center';c.fillText(ch,xx-w/2,by);xx-=w;}
+  c.restore();}
+function grain(c,L,t){const k=Math.floor(t*24),ox=hash(k)*100,oy=hash(k+3)*100;c.save();c.globalCompositeOperation='overlay';c.globalAlpha=0.1;c.drawImage(NOISE,-ox,-oy,L.W+120,L.H+120);c.restore();}
+
+/* ---------------- sound: the orb is the drummer ---------------- */
+function cues(L){const q=[],v=i=>CT[i].v;
+  q.push({t:0,s:'sub',d:1.4,f0:45,f1:30,gain:0.35},{t:0,s:'drone',d:0.5},{t:0.1,s:'revcrash',d:0.4},{t:0.5,s:'tap',g:0.7},{t:0.5,s:'whoosh',d:0.6,f0:200,f1:2400,shape:'rise'},{t:0.85,s:'shimmer'});
+  const ch=[[1.5,'Am'],[3.5,'F'],[5.5,'C'],[7.5,'G']];
+  // the beds stop dead at 8.88 for a real 120 ms gap: from 7.5 (the G bar) they play dry, so no reverb tail fills the gap
+  // (sound.py rounds a groove to whole beats: the pad ends at t1+0.1, the arp rings 0.3 s past its last 16th)
+  const ch0=ch.slice(0,3),chG=[[7.5,'G']];
+  q.push({t:1.5,s:'stamp',g:0.8},{t:1.5,s:'groove',t1:7.5,bpm:120,chords:ch0,parts:['pad']},{t:7.5,s:'groove',t1:8.78,bpm:120,chords:chG,parts:['pad'],rev:0});
+  q.push({t:2.0,s:'ping',f:1250},{t:2.0,s:'bloop',k:0,v:0.7},{t:2.0,s:'whoosh',d:0.5,f0:500,f1:3000});
+  q.push({t:3.11,s:'whistle',d:0.39},{t:3.5,s:'stamp'},{t:3.5,s:'marker'},{t:3.5,s:'groove',t1:7.5,bpm:120,chords:ch,parts:['arp','hat']},{t:7.5,s:'groove',t1:8.5,bpm:120,chords:chG,parts:['arp','hat'],rev:0});
+  q.push({t:4.0,s:'tap'},{t:4.0,s:'bloop',k:1,v:0.7},{t:4.0,s:'marker'});
+  q.push({t:4.75,s:'ping',f:1480},{t:4.75,s:'whoosh',d:0.45,f0:500,f1:3200,shape:'swell'},{t:4.75,s:'marker'},{t:5.61,s:'whistle',d:0.39},{t:6.0,s:'stamp'});
+  const st=CT.filter(k=>k.kind==='settle'),v0=st[0].v;st.forEach((k,i)=>{if(i>=5)return;q.push({t:k.t,s:'bloop',k:i+1,v:[0.55,0.3,0.17,0.09,0.05][i]});if(i>=2)q.push({t:k.t,s:'tick',g:0.6*k.v/v0+0.2});});
+  q.push({t:7.5,s:'rise',d:1.38,rev:0},{t:7.5,s:'drone',d:1.38},{t:7.5,s:'blip',f0:500,f1:1000,d:0.12},{t:8.0,s:'blip',f0:700,f1:1400,d:0.12},{t:8.5,s:'blip',f0:900,f1:1800,d:0.12},{t:8.68,s:'revcrash',d:0.2});   // 8.88-9.00: a real gap
+  q.push({t:9.0,s:'hit'},{t:9.0,s:'sub',d:1.4,f0:70,f1:30,gain:0.6},{t:9.0,s:'whoosh',d:0.55,f0:2600,f1:300,shape:'swell'},{t:9.16,s:'strike'},{t:9.35,s:'strike',g:0.6});
+  q.push({t:10.45,s:'shimmer'},{t:10.56,s:'pen'},{t:10.6,s:'glass'},{t:10.62,s:'whoosh',d:0.62,f0:300,f1:2800,shape:'swell'},{t:11.26,s:'tick',g:0.5});
+  q.push({t:11.28,s:'chord',ch:'C',d:2.5},{t:11.28,s:'bell',m:84,d:1.5},{t:11.5,s:'tick',g:0.4});
+  q.push({t:12,s:'groove',t1:16,bpm:120,chords:[[12,'C'],[14,'G']],parts:['kick','clap','hat','bass','pad','arp']});
+  return[...q,...endcardCues(L,T_CARD,{dot:'static',arc:'static'})];}
+
+/* ---------------- the reel ---------------- */
+createReel({dur:DUR,
+  hits:[[1.5,6,0.012],[3.5,12,0.025],[6.0,9,0.018],[9.0,16,0.035]],
+  fast:[[0.5,0.75],[1.95,2.1],[3.0,3.6],[4.7,4.85],[5.75,6.05],[9.0,9.6],[9.85,10.45],[10.55,11.3]],
+  bloom:t=>keys(t,[[0,0.3],[7.5,0.35],[9.0,0.45],[9.6,0.45],[11.3,0.35]]),vignette:t=>t<T_CARD?0.45:0.35,
+  init(L){LL=L;WD=buildWords();buildBall();buildCam(L);buildHud(L);buildTex();LA=mk(L.W,L.H);la=LA.getContext('2d');WALL=mk(Math.ceil((L.W+80)/2),Math.ceil((L.H+80)/2));wl=WALL.getContext('2d');
+    window.__diag=(step=0.02)=>{const out=[];for(let t=0;t<12;t+=step){const cam=camAt(t),b=ball(t),c1=camAt(Math.max(0,t-0.004)),c2=camAt(t+0.004);
+        out.push([+t.toFixed(3),Math.round(L.CX+(b.x-cam.x)*cam.z),Math.round(L.CY+(b.y-cam.y)*cam.z),+cam.z.toFixed(3),Math.round((c2.x-c1.x)/0.008*cam.z),Math.round((c2.y-c1.y)/0.008*cam.z)]);}
+      const wb=t=>{const cam=camAt(t),S=(x,y)=>[Math.round(L.CX+(x-cam.x)*cam.z),Math.round(L.CY+(y-cam.y)*cam.z)];return WD.map(W=>[...S(W.L[0].inkL,Math.min(...W.L.map(q=>q.inkT))),...S(W.right,W.base)]);};
+      return{out,wb:[1.5,2.0,3.5,4.0,4.75,6.0,7.3].map(t=>({t,b:wb(t)})),KW,ZW,KEYS,CT:CT.map(k=>({t:k.t,x:Math.round(k.x),y:Math.round(k.y),v:Math.round(k.v),kind:k.kind,w:k.w,l:k.l,n:[+k.nx.toFixed(2),+k.ny.toFixed(2)]})),REST,TAPEX,ZS,ZF,POSTER,FCAM,EG,
+        words:WD.map(W=>({s:W.s,right:W.right,capY:W.capY,L:W.L.map(l=>[l.ch,Math.round(l.inkL),Math.round(l.inkR)])}))};};},
+  draw(c,t,L,P){
+    if(t>=T_CARD){endcardBg(c,t,T_CARD,L,1);endcard(c,t,T_CARD,L,{cta:P.cta,arc:'static',dot:'static'});grain(c,L,t);return;}
+    const o=scene(c,t,L);
+    // the G: ribbons have whipped into place; the official arc (white + the orb's tint) fades in, then it is drawFirma itself
+    if(t>=11.28){const f=E.inOutSine(prog(t,11.28,11.5));if(t>=11.9)drawFirma(c,EG.x,EG.y,EG.k,{wordmark:false});
+      else{const A=LOGO.arc,D=LOGO.dot,b=ball(t),cam=camAt(t),k=cam.z*SC,[px,py]=[L.CX+(TAPEX.x-cam.x)*cam.z,L.CY+(TAPEX.y-cam.y)*cam.z],dx=(b.x-TAPEX.x)/SC,dy=(b.y-TAPEX.y)/SC;
+        c.save();c.translate(px,py);c.scale(k,k);c.translate(-D.x,-D.y);GizeOrb.halo(c,D.x+dx,D.y+dy,D.r,{k:ORB_K,light:false});
+        c.globalAlpha=f;c.lineWidth=A.w;c.lineCap='round';c.strokeStyle=C.text;c.stroke(A.path);GizeOrb.tint(c,D.x+dx,D.y+dy,D.r,{k:ORB_K,light:false},()=>c.stroke(A.path));c.globalAlpha=1;
+        const ex=(1-prog(t,11.0,11.9))*Math.min(2.2,lightI(t));if(ex>0.003){c.globalCompositeOperation='lighter';glow(c,D.x+dx,D.y+dy,D.r*6,LAV,0.07*ex);glow(c,D.x+dx,D.y+dy,D.r*2.4,[255,255,255],0.12*ex);c.globalCompositeOperation='source-over';}
+        GizeOrb.body(c,D.x+dx,D.y+dy,D.r,{light:false});c.restore();}}
+    if(t>=11.5){const e=E.outExpo(prog(t,11.5,12.0)),A=LOGO.arc,x0=EG.x+(A.cx+A.r*Math.cos(A.a0))*EG.k,x1=lerp(x0,-80,e),x2=lerp(x0,L.W+80,e);
+      if(x2-x1>0.5){c.fillStyle=rgbLine(c,x1,0,x2,0);c.fillRect(x1,EG.line-2,x2-x1,4);}}
+    c.setTransform(1,0,0,1,0,0);if(HUD_ON)hud(c,t,L,o);grain(c,L,t);},
+  cues});
+</script></body></html>
