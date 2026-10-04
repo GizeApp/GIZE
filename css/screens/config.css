@@ -235,3 +235,7 @@ body.adm-open { overflow: hidden; }
 .adm-hide { color: var(--gize-danger) !important; }
 .adm-zoom { position: fixed; inset: 0; z-index: 700; background: rgba(0,0,0,.92); display: grid; place-items: center; padding: 16px; cursor: zoom-out; }
 .adm-zoom img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+/* Tu disciplina (Ajustes): las mismas pastillas que los grupos del buscador de ejercicios. */
+.cfg-disc-desc { font-size:var(--text-meta); color:var(--txt-2); margin:2px 0 10px; line-height:1.45; }
+.cfg-disc { display:flex; flex-wrap:wrap; gap:8px; }

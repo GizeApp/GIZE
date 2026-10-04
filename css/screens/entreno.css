@@ -329,3 +329,8 @@ body:not(#_) .var-pick.on { border-color:var(--gize-text); }
 /* Sin rutina todavía (cuenta nueva, sin coach): invitación a elegir una rutina armada. */
 .empty-pick { padding-bottom: 8px; }
 .empty-pick-btn { margin: 14px 0 0; font-size: var(--text-body); font-weight: 700; }
+
+/* Buscador de ejercicios sin disciplina elegida: invitación a elegirla (app/core/disciplinas.js). */
+.ex-disc-hint { display:block; width:100%; margin:4px 0 10px; padding:9px 12px; border-radius:10px; border:1px dashed var(--line, rgba(255,255,255,.18));
+  background:none; color:var(--txt-2); font:inherit; font-size:13px; line-height:1.4; text-align:left; cursor:pointer; }
+.ex-disc-hint b { color:var(--txt, #fff); font-weight:600; }

@@ -996,7 +996,7 @@ function daySnapshot(){
 function prefsSnapshot(){
   return { cal_profile:state.calProfile||null, cal_target:state.calTarget||null, steps_goal:state.stepsGoal||null, water_goal:state.waterGoal||null,
     rest_default:state.restDefault||null, habits:(state.habits||[]).map(h=>({id:h.id, name:h.name})), foods:state.foods||[],
-    habit_alarms:state.habitAlarms||{} };
+    habit_alarms:state.habitAlarms||{}, disciplines:Array.isArray(state.disciplinas)?state.disciplinas:[] };
 }
 
 function applyHabitsDone(hd){
@@ -1017,6 +1017,7 @@ function applyPrefs(p){
   if(p.rest_default) state.restDefault=p.rest_default;
   if(Array.isArray(p.foods)) state.foods=p.foods;
   if(p.habit_alarms && typeof p.habit_alarms==="object") state.habitAlarms=p.habit_alarms;
+  if(Array.isArray(p.disciplines)) state.disciplinas=p.disciplines.filter(x=>typeof x==="string");
   if(Array.isArray(p.habits)){
     const done=new Set((state.habits||[]).filter(h=>h.done).map(h=>h.name)); // las tildes de hoy no viajan en prefs
     state.habits=p.habits.map(h=>({id:h.id, name:h.name, done:done.has(h.name)}));
@@ -1296,7 +1297,11 @@ async function sendItem(it){
     if(p.del) sbOk(await sb.from("body_weights").delete().eq("client_id",uid).eq("measured_on",p.date));
     else sbOk(await sb.from("body_weights").upsert({client_id:uid, measured_on:p.date, kg:p.kg},{onConflict:"client_id,measured_on"}));
   } else if(it.k==="prefs"){
-    sbOk(await sb.from("client_prefs").upsert(Object.assign({client_id:uid, updated_at:new Date().toISOString()}, p),{onConflict:"client_id"}));
+    const row=Object.assign({client_id:uid, updated_at:new Date().toISOString()}, p);
+    let r=await sb.from("client_prefs").upsert(row,{onConflict:"client_id"});
+    // Sin supabase/disciplinas.sql la columna todavía no existe: el resto se sube igual.
+    if(r.error && /disciplines/.test(r.error.message||"")){ delete row.disciplines; r=await sb.from("client_prefs").upsert(row,{onConflict:"client_id"}); }
+    sbOk(r);
   } else if(it.k==="checkin"){
     // La columna adherence es un número del 1 al 10. Si el coach cambió esa pregunta (opciones
     // con palabras o respuesta libre), la respuesta va en answers como cualquier otra: antes se

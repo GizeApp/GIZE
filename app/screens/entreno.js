@@ -4,6 +4,7 @@ import { exVideo } from '../core/videos.js';
 import { EQ_LABELS, equipOf, todayExs, variantOf, variantsFor } from '../core/variantes.js';
 
 import { EX_CATS, EX_DB, RC } from '../core/data.js';
+import { FOR_YOU, forYouList, myDisciplinas, orderedCats } from '../core/disciplinas.js';
 
 import { checkSvg, chevronDownSvg, pencilSvg, playSvg, resetSvg, searchSvg, swapSvg, trashSvg, trophySvg, xSvg } from '../core/icons.js';
 
@@ -364,18 +365,23 @@ export function renderExList(){
     const res = searchExercises(n=>norm(n).includes(nq), EX_CATS).slice(0,60);
     return res.length ? res.map(r=>`<button class="ex-pick" data-action="ex-choose" data-name="${esc(r.name)}" data-cat="${esc(r.cat)}">${esc(r.label)}</button>`).join("") : '<div class="cal-hint">Sin resultados</div>';
   }
+  // «Para vos»: los ejercicios clave de su disciplina; cada uno cuenta para su grupo muscular.
+  if(EntrenoState.exCat===FOR_YOU) return forYouList().map(n=>`<button class="ex-pick" data-action="ex-choose" data-name="${esc(n)}" data-cat="">${esc(n)}</button>`).join("");
   return (EX_DB[EntrenoState.exCat]||[]).map(n=>`<button class="ex-pick" data-action="ex-choose" data-name="${esc(n)}" data-cat="${esc(EntrenoState.exCat)}">${esc(n)}</button>`).join("");
 }
 
 export function renderExSheet(){
   if(!EntrenoState.exPicker) return "";
-  const chips = EX_CATS.map(c=>`<button class="ex-chip${EntrenoState.exCat===c[0]?' on':''}" data-action="ex-cat" data-cat="${c[0]}">${c[1]}</button>`).join("");
+  const chips = orderedCats(EX_CATS).map(c=>`<button class="ex-chip${EntrenoState.exCat===c[0]?' on':''}${c[0]===FOR_YOU?' ex-chip-vos':''}" data-action="ex-cat" data-cat="${c[0]}">${c[1]}</button>`).join("");
+  // Sin disciplina elegida: una invitación a elegirla (en Ajustes) para ver primero lo suyo.
+  const discHint = myDisciplinas().length ? '' : '<button class="ex-disc-hint" data-action="ex-disc-elegir">¿CrossFit, running, powerlifting…? <b>Elegí tu disciplina</b> y te mostramos primero tus ejercicios</button>';
   return `
     <div class="sheet-bg" data-action="ex-cancel"></div>
     <div class="sheet ex-sheet">
       <div class="sheet-title">${EntrenoState.exPicker.mode==="swap"?"Cambiar ejercicio":"Elegir ejercicio"}</div>
       <div class="search-wrap"><span class="search-ic">${searchSvg}</span><input class="ex-search" id="exSearch" type="text" placeholder="Buscar ejercicio…" value="${esc(EntrenoState.exQuery)}" data-action="ex-search"></div>
       <div class="ex-chips">${chips}</div>
+      ${discHint}
       <div class="ex-list" id="exList">${renderExList()}</div>
       <button class="ex-custom" data-action="ex-custom">${pencilSvg} ${EntrenoState.exPicker.mode==="swap"?"Escribir nombre propio":"Agregar con nombre propio"}</button>
       <button class="ctrl ghost" style="max-width:none;width:100%;margin-top:10px" data-action="ex-cancel">Cancelar</button>

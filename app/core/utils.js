@@ -112,7 +112,7 @@ export function tabRipple(btn, clientX, clientY){
 // ---- Ejercicios por tiempo (plancha, isométricos, colgado de barra…) ----
 // En vez de reps se anotan segundos, y cada serie tiene un cronómetro. El coach lo elige por
 // ejercicio (ex.timed); si no eligió nada se deduce del nombre.
-const TIMED_RE = /plancha|plank|isom[eé]tric|hollow|wall ?sit|sentadilla (isom|en (la )?pared|contra (la )?pared)|dead ?hang|colgad|l-?sit|puente (isom|sostenid)|sostenid|\bhold\b|farmer|paseo del granjero|caminata del granjero/i;
+const TIMED_RE = /rodaje|fondo largo|fartlek|ritmo tempo|carrera en cinta|air bike|ski erg|ergómetro|plancha|plank|isom[eé]tric|hollow|wall ?sit|sentadilla (isom|en (la )?pared|contra (la )?pared)|dead ?hang|colgad|l-?sit|puente (isom|sostenid)|sostenid|\bhold\b|farmer|paseo del granjero|caminata del granjero/i;
 export function isTimedEx(ex){ if(!ex) return false; if(typeof ex.timed === "boolean") return ex.timed; return TIMED_RE.test(ex.name || ""); }
 // "45", "45 s", "45''", "0:45", "1:30", "1'30", "1 min" → segundos. Un rango ("30-45") toma el primero.
 export function parseSecs(v){

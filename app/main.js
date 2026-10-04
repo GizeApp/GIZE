@@ -9,6 +9,8 @@ import { checkSetPR, forgetPR, playPR, suspiciousKg, PR_HOLD_MS } from './ui/fes
 import { auIcoEye, auIcoEyeOff, checkSvg } from './core/icons.js';
 
 import { State, state } from './core/state.js';
+import { EX_CATS } from './core/data.js';
+import { defaultExCat } from './core/disciplinas.js';
 // Salida de Cardio a pie / en bici: se importa temprano para que, si quedó una en curso (la app se
 // recargó o el sistema la cerró), se retome al abrir y vuelva a mirar el GPS.
 import { GpsState, onChange as onGpsChange, stopForLogout } from './ui/gps.js';
@@ -641,11 +643,13 @@ document.body.addEventListener("click", async e => {
   if (a === "steps-live") { if(liveCounting) stopLive(); else startLive(); return; }
 
   // Ejercicios (picker)
-  if (a === "ex-add-open") { SheetState.sheetGen++; EntrenoState.exPicker={mode:"add"}; EntrenoState.exCat="pecho"; EntrenoState.exQuery=""; renderApp(); return; }
-  if (a === "ex-swap") { SheetState.sheetGen++; EntrenoState.exPicker={mode:"swap", exId:el.dataset.ex}; EntrenoState.exCat="pecho"; EntrenoState.exQuery=""; renderApp(); return; }
+  if (a === "ex-add-open") { SheetState.sheetGen++; EntrenoState.exPicker={mode:"add"}; EntrenoState.exCat=defaultExCat(EX_CATS); EntrenoState.exQuery=""; renderApp(); return; }
+  if (a === "ex-swap") { SheetState.sheetGen++; EntrenoState.exPicker={mode:"swap", exId:el.dataset.ex}; EntrenoState.exCat=defaultExCat(EX_CATS); EntrenoState.exQuery=""; renderApp(); return; }
   if (a === "ss-split") { if(routineLocked()) return; const exs=day().exercises, g=ssGroupOf(exs, +el.dataset.i); if(g){ for(let k=g.start;k<=g.end;k++) delete exs[k].ss; save(); renderApp(); } return; }
   if (a === "ss-toggle") { if(routineLocked()) return; const exs=day().exercises, i=+el.dataset.i; const e=exs[i]; if(e && i<exs.length-1){ if(e.ss) delete e.ss; else e.ss=true; save(); renderApp(); } return; }
-  if (a === "ex-insert") { SheetState.sheetGen++; EntrenoState.exPicker={mode:"insert", idx:(+el.dataset.i||0)}; EntrenoState.exCat="pecho"; EntrenoState.exQuery=""; renderApp(); return; }
+  if (a === "ex-insert") { SheetState.sheetGen++; EntrenoState.exPicker={mode:"insert", idx:(+el.dataset.i||0)}; EntrenoState.exCat=defaultExCat(EX_CATS); EntrenoState.exQuery=""; renderApp(); return; }
+  // Sin disciplina elegida: va a Ajustes, a la parte de «Tu disciplina».
+  if (a === "ex-disc-elegir") { closeSheet(()=>{ EntrenoState.exPicker=null; State.view="config"; renderApp(); requestAnimationFrame(()=>{ const c=document.getElementById("cfgDisc"); if(c) c.scrollIntoView({block:"center"}); }); }); return; }
   if (a === "ex-cat") {
     EntrenoState.exCat=el.dataset.cat; EntrenoState.exQuery="";
     document.querySelectorAll("#sheetHost .ex-chip").forEach(c=>c.classList.toggle("on", c.dataset.cat===EntrenoState.exCat));
