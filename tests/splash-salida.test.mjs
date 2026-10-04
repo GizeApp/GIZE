@@ -63,19 +63,20 @@ export default async function ({ base, t }){
     await close();
   }
 
-  // App de Android: el mismo splash (ya es liviano), y se va.
+  // App de Android (GIZE básico): el splash corto del modo liviano, y se va.
   {
     const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') },
       init: `Object.defineProperty(Navigator.prototype, 'deviceMemory', { get: () => 8, configurable: true });
         Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', { get: () => 8, configurable: true });
         window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {} };
-        localStorage.setItem('gize_gpu_lenta','0');` });
+` });
     await p.route(u => !u.href.startsWith(base) && !/supabase\.co/.test(u.href), x => x.abort());
     await p.addInitScript(SPY);
     await p.goto(base + '/app/'); await wait(4200);
     const v = await p.evaluate(() => Object.assign(window.__sal || {}, { cls: document.documentElement.className }));
-    t.ok(/android-app/.test(v.cls) && !/\blite\b/.test(v.cls), 'Android: android-app sin liviano: ' + v.cls);
-    t.eq([v.viejas, v.filtros, v.quietas], [0, 0, ['sp-trazo', 'sp-orbe', 'sp-respira']], 'Android: el splash tranquilo, animado y sin filtros');
+    t.ok(/android-app/.test(v.cls) && /\bbasico\b/.test(v.cls), 'Android: GIZE básico: ' + v.cls);
+    // GIZE básico: el splash del modo liviano (la marca quieta y se va enseguida), sin filtros.
+    t.eq([v.viejas, v.filtros, v.quietas], [0, 0, ['none', 'none', 'none']], 'Android: el splash quieto y sin filtros');
     const d = await p.evaluate(DESPUES);
     t.eq([d.splash, d.host, d.willChange], [false, 0, []], 'Android: el splash sale del DOM y nada queda con will-change');
     t.eq(errs, [], 'Android: errores de la página');

@@ -64,7 +64,7 @@ export default async function ({ base, t }){
     await close();
   }
 
-  // ---- Android, equipo bueno: sin backdrop-filter (en todas las apariencias), sin liviano ----
+  // ---- Android, equipo bueno: sin backdrop-filter (en todas las apariencias) y GIZE básico ----
   for (const tema of ['oscuro', 'azul', 'rosa', 'luz']){
     const { p, errs, close } = await open(base, device({ android: true, mem: 8, cores: 8 }) +
       `localStorage.setItem('gize_gpu_lenta','0');${tema === 'oscuro' ? '' : "localStorage.setItem('gize_tema','" + tema + "');"}`);
@@ -75,7 +75,7 @@ export default async function ({ base, t }){
       w: document.getElementById('silkCanvas').width, iw: innerWidth, nav: getComputedStyle(document.querySelector('.navbar')).backgroundColor,
       sp: document.getElementById('splashHost').childNodes.length }));
     t.eq(v.sp, 0, tema + ': el splash ya no está en el DOM');
-    t.ok(/android-app/.test(v.cls) && !/\blite\b/.test(v.cls), tema + ': Android bueno → android-app, sin liviano: ' + v.cls);
+    t.ok(/android-app/.test(v.cls) && /\blite\b/.test(v.cls) && /\bbasico\b/.test(v.cls), tema + ': Android (aunque sea bueno) → GIZE básico: ' + v.cls);
     t.eq(v.blur, [], tema + ': en Android nada usa backdrop-filter');
     t.ok(!/rgba\(.*, 0\.\d+\)$/.test(v.nav), tema + ': la barra de abajo es sólida: ' + v.nav);
     t.ok(v.w <= v.iw, tema + ': el fondo va a un píxel por punto: ' + v.w + ' / ' + v.iw);
@@ -89,12 +89,15 @@ export default async function ({ base, t }){
     ['Android con 4 GB (Galaxy A13)', device({ android: true, mem: 4, cores: 8 }) + "localStorage.setItem('gize_gpu_lenta','0');", true],
     ['Android con placa lenta', device({ android: true, mem: 8, cores: 8 }) + "localStorage.setItem('gize_gpu_lenta','1');", true],
     ['Android de gama baja pero eligió «no» en Ajustes', device({ android: true, mem: 4, cores: 4 }) + "localStorage.setItem('gize_lite','0');", false],
+    ['Android de gama alta', device({ android: true, mem: 8, cores: 8 }), true],
     ['web con 4 núcleos', device({ android: false, mem: 8, cores: 4 }), false],
   ];
   for (const [name, init, lite] of cases){
     const { p, close } = await open(base, init);
     await p.goto(base + '/app/'); await wait(400);
+    const c = await p.evaluate(() => document.documentElement.classList);
     t.eq(await p.evaluate(() => document.documentElement.classList.contains('lite')), lite, name + (lite ? ' → liviano' : ' → sin liviano'));
+    t.eq(await p.evaluate(() => document.documentElement.classList.contains('basico')), lite && /^Android/.test(name), name + ': GIZE básico solo en Android con liviano');
     await close();
   }
 }

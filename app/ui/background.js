@@ -86,6 +86,8 @@ wakeBg();
 export function setLite(on){
   try { localStorage.setItem("gize_lite", on ? "1" : "0"); } catch(e){}
   document.documentElement.classList.toggle("lite", on);
+  // En Android el modo liviano es GIZE básico (app/lite.js, css/ui/basico.css).
+  document.documentElement.classList.toggle("basico", on && androidApp());
   if(on) silkClear(); else if(silkVisible && silkRafId==null) silkLoop();
 }
 

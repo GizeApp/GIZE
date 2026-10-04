@@ -141,7 +141,7 @@ export function renderConfig() {
         '<span class="cfg-notif-ic">' + zapSvg + '</span>' +
         '<div class="cfg-notif-txt">' +
           '<div class="cfg-notif-label">Modo liviano</div>' +
-          '<div class="cfg-notif-desc">Menos animaciones y más fluidez</div>' +
+          '<div class="cfg-notif-desc">' + (document.documentElement.classList.contains("android-app") ? 'Sin sombras, brillos ni animaciones: mucho más fluida' : 'Menos animaciones y más fluidez') + '</div>' +
         '</div>' +
         '<button class="cfg-switch' + (liteOnNow ? ' on' : '') + '" data-action="cfg-lite-toggle" role="switch" aria-checked="' + liteOnNow + '"><span class="cfg-switch-knob"></span></button>' +
       '</div>' +
