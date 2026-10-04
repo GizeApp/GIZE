@@ -1,4 +1,5 @@
 [
   {"id": "gize-limpia-el-vidrio", "page": "showreel/motion/limpia-el-vidrio.html", "dur": 16, "formats": ["9x16", "4x5"], "out": "stock/22-motion", "cover": 3.3},
-  {"id": "gize-una-sola-luz", "page": "showreel/motion/una-sola-luz.html", "dur": 16, "formats": ["9x16", "4x5"], "out": "stock/22-motion", "cover": 7.3}
+  {"id": "gize-una-sola-luz", "page": "showreel/motion/una-sola-luz.html", "dur": 16, "formats": ["9x16", "4x5"], "out": "stock/22-motion", "cover": 7.3},
+  {"id": "gize-circuito", "page": "showreel/motion/circuito.html", "dur": 30, "formats": ["9x16", "4x5"], "out": "stock/22-motion", "cover": 12.3}
 ]

@@ -1290,6 +1290,30 @@
         "#entrenamiento",
         "#fitnessargentina"
       ]
+    },
+    {
+      "id": "gize-circuito",
+      "kind": "brand",
+      "phase": "hype",
+      "dur": 30,
+      "title": "Circuito",
+      "files": [
+        "22-motion/gize-circuito_9x16.mp4",
+        "22-motion/gize-circuito_4x5.mp4"
+      ],
+      "covers": [
+        "22-motion/gize-circuito_9x16.jpg",
+        "22-motion/gize-circuito_4x5.jpg"
+      ],
+      "idea": "One line of light that never cuts (the «Circuito» art-direction doc): a blue dot stretches into a line that writes the coach's plan on a frosted pane; «22,5 kg» rises as a pulse to the athlete's phone; the line leaves the phone and becomes the barbell; three reps send pulses back along a long loop to the coach (fatiga, pump); the coach's voice returns as a wave that flattens into the weekly progress line; the camera rolls 90° and pulls back: the progress was the arc of the G. Half a bar of silence, the last point drops in as the orb, the firma and «Seguí @gize.app», and the orb shrinks back into the dot of frame 0 (a perfect loop). No store mentions.",
+      "caption": "Tu coach arma el plan. Vos registrás cada serie. Tu coach te corrige.\nSemana a semana, el circuito se cierra.\n\nGIZE. Entrená con tu coach.\nSeguí @gize.app",
+      "hashtags": [
+        "#gize",
+        "#motiondesign",
+        "#coach",
+        "#entrenamiento",
+        "#fitnessargentina"
+      ]
     }
   ],
   "launch_endings": {
