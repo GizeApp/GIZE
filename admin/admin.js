@@ -1182,7 +1182,7 @@ document.addEventListener("input", e => {
 document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.id === "uQ"){ S.q = e.target.value.trim(); searchUsers(); }
   if (e.key === "Enter" && e.target.id === "pQ"){ S.prodQ = e.target.value.trim(); loadProductos(); }
-  if (e.key === "Enter" && (e.target.id === "tNew" || e.target.id === "tNewDue")){ const b = document.querySelector('[data-a="tAdd"]'); if (b) b.click(); }
+  if (e.key === "Enter" && (e.target.id === "tNew" || e.target.id === "tNewDueTxt")){ const b = document.querySelector('[data-a="tAdd"]'); if (b) b.click(); }
   if (e.key === "Enter" && e.target.id === "fTodoIn"){ const b = document.querySelector('[data-a="fTodoAdd"]'); if (b) b.click(); }
   if (e.key === "Escape"){ const z = document.querySelector(".zoom"); if (z){ z.remove(); return; } closeDrawer(); }
 });
@@ -1210,7 +1210,7 @@ document.addEventListener("click", async e => {
       if (t !== "ELIMINAR") return;
       b.disabled = true; await fn({ action: "eliminar", user_id: b.dataset.id }); toast("Cuenta eliminada"); closeDrawer(); searchUsers(); return;
     }
-    if (a === "pmMeses"){ const c = (S.coaches || []).find(x => x.id === b.dataset.id); const u = document.getElementById("pmUntil"); if (c && u) u.value = hastaMeses(c, parseInt(b.dataset.m, 10) || 1); return; }
+    if (a === "pmMeses"){ const c = (S.coaches || []).find(x => x.id === b.dataset.id); const u = document.getElementById("pmUntil"); if (c && u){ u.value = hastaMeses(c, parseInt(b.dataset.m, 10) || 1); u.dispatchEvent(new Event("change")); } return; }
     if (a === "pmSave"){
       const plan = document.getElementById("pmPlan").value, max = parseInt(document.getElementById("pmMax").value, 10) || PLAN_MAX[plan], until = document.getElementById("pmUntil").value;
       if (!until){ toast("Elegí hasta qué fecha pagó."); return; }
@@ -1281,5 +1281,38 @@ document.addEventListener("click", async e => {
     if (a === "fTodoAdd"){ const i = document.getElementById("fTodoIn"), t = i.value.trim(); if (!t) return toast("Escribí el pendiente."); finTodo("nuevo", null, t, b); return; }
   } catch (err) { b.disabled = false; toast(errMsg(err)); }
 });
+
+// Fechas en día/mes/año. El <input type="date"> sale en el orden del idioma del navegador (en
+// inglés, mes/día): a cada uno se le pone adelante un campo dd/mm/aaaa y un botón que abre el
+// calendario. El valor sigue en el input original (aaaa-mm-dd), así el resto del panel no cambia.
+const isoToDmy = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ""); return m ? m[3] + "/" + m[2] + "/" + m[1] : ""; };
+export function dmyToIso(s){
+  const m = /^\s*(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})\s*$/.exec(s || ""); if (!m) return "";
+  const d = +m[1], mo = +m[2], y = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  if (t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return "";
+  return y + "-" + String(mo).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+}
+const CAL_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>';
+function dayFirst(inp){
+  inp.dataset.df = "1";
+  const wrap = document.createElement("span"); wrap.className = "dfield";
+  inp.parentNode.insertBefore(wrap, inp);
+  const txt = document.createElement("input");
+  txt.type = "text"; txt.className = inp.className; txt.id = (inp.id || "fecha") + "Txt";
+  txt.inputMode = "numeric"; txt.autocomplete = "off"; txt.placeholder = "dd/mm/aaaa"; txt.value = isoToDmy(inp.value);
+  txt.setAttribute("aria-label", inp.getAttribute("aria-label") || "Fecha (día/mes/año)");
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "dfield-cal"; btn.title = "Elegir en el calendario"; btn.setAttribute("aria-label", "Elegir en el calendario"); btn.innerHTML = CAL_SVG;
+  wrap.append(txt, btn, inp);
+  inp.classList.add("dfield-native"); inp.tabIndex = -1; inp.setAttribute("aria-hidden", "true");
+  txt.addEventListener("input", () => { const v = dmyToIso(txt.value); inp.value = v; txt.classList.toggle("bad", !!txt.value.trim() && !v); });
+  txt.addEventListener("blur", () => { if (inp.value) txt.value = isoToDmy(inp.value); });
+  inp.addEventListener("change", () => { txt.value = isoToDmy(inp.value); txt.classList.remove("bad"); });
+  btn.addEventListener("click", () => { try { inp.showPicker(); } catch (e) { txt.focus(); } });
+}
+const dayFirstAll = () => document.querySelectorAll('input[type="date"]:not([data-df])').forEach(dayFirst);
+new MutationObserver(dayFirstAll).observe(document.body, { childList: true, subtree: true });
+dayFirstAll();
 
 boot();

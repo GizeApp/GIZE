@@ -328,3 +328,12 @@ textarea.in { resize: vertical; min-height: 90px; line-height: 1.45; }
   .prod-top .seg { width: 100%; }
   .main > .seg { width: 100%; }
 }
+
+/* Fecha día/mes/año (ver dayFirst en admin.js): texto + botón de calendario; el input nativo queda
+   invisible detrás, solo para abrir el calendario. */
+.dfield { position: relative; display: flex; align-items: center; width: 100%; }
+.dfield > .in { padding-right: 40px; }
+.dfield > .in.bad { border-color: var(--red); }
+.dfield-cal { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 6px; background: none; color: var(--txt-2); cursor: pointer; }
+.dfield-cal:hover { color: var(--txt); background: var(--card); }
+.dfield > .dfield-native { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
