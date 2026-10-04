@@ -84,6 +84,11 @@ export default async function ({ base, t }){
     t.ok(st0.length === 1 && !st0[0].exercises.length, 'arranca con un día vacío, sin la Meso 2: ' + names(st0));
     t.ok(/Bienvenido/.test(await text(p, '#authHost')), 've la bienvenida');
     await p.click('[data-onb="start"]'); await wait(300);
+    t.ok(/¿Qué entrenás\?/.test(await text(p, '#authHost')), 'pregunta la disciplina');
+    await p.click('[data-onb="disc"][data-v="crossfit"]'); await wait(200);
+    t.ok(await p.$eval('[data-onb="disc"][data-v="crossfit"]', e => e.classList.contains('on')), 'la disciplina queda marcada');
+    await p.click('[data-onb="dnext"]'); await wait(300);
+    t.eq(await p.evaluate(async () => (await import('/app/core/state.js')).state.disciplinas), ['crossfit'], 'y se guarda');
     await p.click('[data-onb="solo"]'); await wait(300);
     t.eq(await p.getAttribute('.onb-opt.on', 'data-v'), 'rutina', 'elegir una rutina armada viene marcado');
     t.ok(/Recomendado/.test(await text(p, '.onb-opt.on')), 'y es la recomendada');

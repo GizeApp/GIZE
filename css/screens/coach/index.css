@@ -168,3 +168,6 @@
 .co-invite-full { border-color:rgba(255,77,77,.5); color:var(--txt); }
 .co-invite-full .co-invite-sub { margin:6px 0 10px; }
 .tpl-seed-list { margin-top:8px; }
+
+/* Disciplina del alumno debajo de su nombre en la ficha (core/disciplinas.js). */
+.co-client-disc { font-size:13px; font-weight:600; color:var(--txt-2); margin:-2px 0 4px; }

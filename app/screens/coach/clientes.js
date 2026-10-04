@@ -186,6 +186,10 @@ export async function openClient(id){
     // para no demorar la ficha; se redibuja cuando llega.
     const dRef=CoachState.coachData;
     loadClientNotify(id).then(n=>{ if(CoachState.coachData===dRef){ dRef.notify=n; renderCoach(); } }).catch(()=>{});
+    // Su disciplina (Ajustes del alumno, client_prefs.disciplines): se ve en la ficha y ordena el
+    // buscador de ejercicios al armarle la rutina. Aparte: sin la columna, la ficha carga igual.
+    Promise.resolve(State.sb.from("client_prefs").select("disciplines").eq("client_id",id).maybeSingle())
+      .then(r=>{ if(CoachState.coachData===dRef && r && !r.error && r.data && Array.isArray(r.data.disciplines)){ dRef.disciplines=r.data.disciplines; renderCoach(); } }).catch(()=>{});
     // La foto casi siempre ya tiene link desde la lista; si venció o todavía no llegó, se pide y se redibuja.
     if(CoachState.coachData.avatar) resolveAvatars([CoachState.coachData.avatar]).then(ok=>{ if(ok&&CoachState.coachSel===id) renderCoach(); }).catch(()=>{});
     CoachState.coachExpandedEx=new Set(); CoachState.coachExMenu=null; CoachState.coachPlanRestOpen=null;

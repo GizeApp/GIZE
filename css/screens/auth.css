@@ -225,3 +225,7 @@
 /* Rutinas armadas: filtro por días por semana (Todas · 1 · 2 · 3 · 4 · 5). */
 .onb-nums-dias { grid-template-columns: 1.6fr repeat(5, 1fr); gap: 6px; }
 .onb-nums-dias .onb-num { height: 40px; font-size: 14px; }
+
+/* Bienvenida: ¿Qué entrenás? (core/disciplinas.js). Las mismas pastillas que los días. */
+.onb-disc { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:6px 0 18px; }
+.onb-disc .onb-disc-opt { width:auto; min-width:0; padding:0 14px; font-size:14px; }
