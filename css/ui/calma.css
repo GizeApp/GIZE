@@ -83,6 +83,13 @@ html:not(.sin-neon):not(#_) body:not(#_) :is(
   box-shadow: none;
 }
 html:not(.sin-neon):not(#_) body:not(#_) .onb-opt.on { box-shadow: 0 0 0 1px var(--gize-blue); }
+/* Selectores con el riel del login (css/ui/estetica-login.css): la opción elegida con borde
+   claro y sin el aro azul, también sin neón (la pestaña del día va en blanco y grises). */
+html:not(.tema-claro):not(.tema-luz):not(#_) body:not(#_) :is(.tab.active, .cmode.active, .seg button.on, .ex-chip.on,
+    .rest-opt.on, .fb-n.on, .sc-opt.on, .preset.on, .co-daytab.on, .ap-day.on, .ap-radio.on) {
+  border-color: rgba(255,255,255,.5); box-shadow: none;
+}
+html:not(.tema-claro):not(.tema-luz):not(#_) body:not(#_) .co-tabs::before { border-color: rgba(255,255,255,.4); box-shadow: none; }
 html:not(.sin-neon):not(#_) body:not(#_) :is(.streak b, .stk-n) { text-shadow: none; }
 html:not(.sin-neon):not(#_) body:not(#_) :is(
     .streak.lit .flame, .stk-big .flame:not(.off), .stk-day.on .flame,
