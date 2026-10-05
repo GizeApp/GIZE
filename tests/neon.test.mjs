@@ -14,8 +14,8 @@ const COACH_H = {
 };
 
 // Los valores de siempre (origin/main) con neón.
-// Cajas en «Oscuro»: filete fino con un toque de color (css/ui/calma.css), no el borde RGB completo.
-const RING_OSCURO = 'linear-gradient(rgb(11, 13, 17), rgb(11, 13, 17)), linear-gradient(155deg, color(srgb 0.689655 0.431616 1 / 0.506078) 0%, rgba(255, 255, 255, 0.1) 28%, rgba(255, 255, 255, 0.08) 72%, color(srgb 0.30084 0.680672 1 / 0.373333) 100%)';
+// Cajas en «Oscuro»: borde RGB del login (css/ui/estetica-login.css).
+const RING_OSCURO = 'linear-gradient(rgb(11, 13, 17), rgb(11, 13, 17)), conic-gradient(rgb(47, 160, 255), rgb(166, 92, 255), rgb(255, 61, 174), rgb(37, 232, 200), rgb(47, 160, 255))';
 
 // ¿Hay algún color con tinte (no gris) en este valor de CSS? rgb()/rgba() y color(srgb …), que es
 // como sale un color-mix() calculado; canales de 0 a 255.
