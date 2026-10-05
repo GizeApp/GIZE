@@ -60,10 +60,11 @@
   } catch (e) {}
 })();
 
-// Apariencia: «Oscuro» (la de siempre, por defecto), «Claro» (blanco con texto oscuro:
-// html.tema-luz, css/ui/tema-luz.css), «Azul» (vidrio sobre círculos de color: html.tema-claro,
-// css/ui/tema-claro.css; antes se llamaba «Claro») o «Rosa» (el mismo vidrio con la paleta rosa:
-// html.tema-claro + html.tema-rosa, css/ui/tema-rosa.css). Se elige en Ajustes (cliente) o en
+// Apariencia: «Oscuro» (la de siempre, por defecto), «Claro» (vidrio blanco sobre celeste con
+// texto oscuro: html.tema-luz, css/ui/tema-luz.css y css/ui/claro-frozen.css), «Azul» (vidrio
+// sobre círculos de color: html.tema-claro, css/ui/tema-claro.css; antes se llamaba «Claro») o
+// «Rosa» (el mismo vidrio con la paleta rosa: html.tema-claro + html.tema-rosa,
+// css/ui/tema-rosa.css). Se elige en Ajustes (cliente) o en
 // Configuración (coach) y se guarda en este dispositivo ("gize_tema" = "luz", "azul" o "rosa";
 // ver app/ui/tema.js). Quien eligió «Azul» cuando se llamaba «Claro» tiene guardado "claro": se
 // toma como «Azul» y se pasa a "azul". Va acá, igual que el modo liviano, para que la primera
@@ -77,7 +78,7 @@
     if (t === "luz") c.add("tema-luz");
     else { c.add("tema-claro"); if (t === "rosa") c.add("tema-rosa"); }
     // La barra del sistema (Android) con el color del fondo: los <meta> vienen después de este script.
-    var barra = t === "luz" ? "#F4F5F8" : t === "rosa" ? "#14060F" : "#030814";
+    var barra = t === "luz" ? "#C6D8EA" : t === "rosa" ? "#14060F" : "#030814";
     document.addEventListener("DOMContentLoaded", function () {
       if (!c.contains("tema-claro") && !c.contains("tema-luz")) return;
       var m = document.querySelectorAll('meta[name="theme-color"]');

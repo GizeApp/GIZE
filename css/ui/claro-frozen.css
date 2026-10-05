@@ -1,0 +1,337 @@
+/* css/ui/claro-frozen.css
+   Apariencia «Claro» (html.tema-luz), sobre la propuesta «Frozen»: celeste helado (#A0BDDB)
+   liso con un degradé suave y dos brillos claros, cajas de vidrio esmerilado blanco
+   translúcido (esquinas de 22 a 28 px), texto casi negro, títulos grandes en 800 y etiquetas
+   chicas en mayúsculas, principales negros con texto blanco (pastillas), chips y pestañas de
+   vidrio con la elegida en negro, acento azul marino (#173F78) y la llama de la racha helada.
+   El neón de «Claro» se queda como estaba (css/ui/calma.css): el filete fino gris con apenas
+   un toque de color en las esquinas (--gize-rgb-ring con --gize-r1..r4, que acá no se tocan)
+   es el borde de las cajas y de los principales, quieto y sin resplandor. Con el neón apagado
+   (html.tema-luz.sin-neon) el borde es el filete blanco del vidrio y no hay ningún color.
+   Se carga después de css/ui/calma.css (y antes de css/ui/basico.css). Arriba está lo que pisa
+   css/ui/tema-luz.css y css/ui/calma.css: todo va bajo html.tema-luz:not(#_):not(#__), así gana
+   sin depender del orden; sin html.tema-luz no cambia nada. Al final: el borde con neón, neón
+   apagado, el modo liviano y GIZE básico (sin desenfoques: el vidrio queda translúcido sobre
+   el degradé quieto). */
+
+/* ---------- Tokens ---------- */
+html.tema-luz:not(#_):not(#__) {
+  color-scheme: light;
+  --frz: #A0BDDB;
+  --gize-bg: #A0BDDB;
+  --gize-surface: rgba(255,255,255,.40);
+  --gize-surface-2: rgba(255,255,255,.42);
+  --gize-border: rgba(16,34,60,.14);
+  --gize-text: #0B0D11;
+  --gize-text-2: #243145;
+
+  --gize-blue: #173F78;       /* acento azul marino: foco, selección, enlaces */
+  --gize-blue-deep: #10305E;
+
+  --gize-danger: #A3201B;
+  --gize-success: #146C5E;
+  --gize-warning: #7A4A00;
+  --gize-success-bg: rgba(20,108,94,.12);
+  --gize-danger-bg: rgba(163,32,27,.10);
+  --gize-warning-bg: rgba(122,74,0,.10);
+
+  --frz-glass: linear-gradient(160deg, rgba(255,255,255,.52), rgba(255,255,255,.34) 55%, rgba(255,255,255,.40));
+  --frz-glass-solid: linear-gradient(160deg, rgba(255,255,255,.58), rgba(255,255,255,.42)) #A9C3DF;
+  --frz-line: rgba(255,255,255,.70);
+  --frz-line-soft: rgba(255,255,255,.55);
+  --frz-blur: blur(26px) saturate(150%);
+  --frz-field: rgba(255,255,255,.50);
+  --frz-pill: rgba(255,255,255,.30);
+
+  --gize-calm-bg:
+    radial-gradient(120% 60% at 15% 0%, rgba(214,228,242,.95), transparent 60%),
+    radial-gradient(90% 55% at 100% 45%, rgba(176,200,226,.7), transparent 70%),
+    linear-gradient(180deg, #B7CCE3 0%, #A0BDDB 42%, #8EAED2 78%, #7C9CC4 100%);
+  --calm-shadow: 0 12px 32px -12px rgba(30,40,52,.28), inset 0 1px 0 rgba(255,255,255,.55);
+  --calm-shadow-hi: 0 24px 60px -18px rgba(30,40,52,.38), inset 0 1px 0 rgba(255,255,255,.6);
+  --luz-shadow: var(--calm-shadow);
+  --luz-shadow-hi: var(--calm-shadow-hi);
+  --shadow-card: var(--calm-shadow);
+  --focus-ring: 0 0 0 3px rgba(23,63,120,.30);
+  --glow: transparent;
+
+  --r-box: 16px; --r-md: 14px; --r-btn: 999px; --r-card: 24px;
+  --txt-3: #3D4B60;
+}
+/* Barras de progreso: de negro a marino (con el neón apagado siguen en negro y gris). */
+html.tema-luz:not(.sin-neon):not(#_):not(#__) { --gize-rgb-line: linear-gradient(90deg, #0B0D11, #1C4C8C); }
+html.tema-luz:not(#_):not(#__) body:not(#_) {
+  --btn-r: 999px;
+  --btn-line: rgba(255,255,255,.75);
+  --btn-line-hi: rgba(255,255,255,.95);
+  --btn-fill: rgba(255,255,255,.28);
+  --btn-fill-hi: rgba(255,255,255,.45);
+  --btn-txt: var(--gize-text);
+  --btn-txt-dim: var(--gize-text-2);
+  --acc: var(--gize-blue);
+  --acc-hi: var(--gize-blue-deep);
+  --acc-tint: rgba(23,63,120,.12);
+}
+
+/* El fondo: el degradé quieto en la página y el celeste liso en el body, por si la aurora no
+   está (el color va aparte: en el atajo background no puede ir antes de varias capas). */
+html.tema-luz:not(#_):not(#__) { background: var(--gize-calm-bg) fixed; background-color: var(--frz); }
+html.tema-luz:not(#_):not(#__) body { background: var(--frz); }
+
+/* El splash de arranque sobre el mismo fondo (css/core/splash.css; la G ya es la oscura). */
+html.tema-luz:not(#_):not(#__) #splash { background: var(--gize-calm-bg); background-color: var(--frz); }
+
+/* ---------- Títulos: grandes, 800, apretados ---------- */
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.hb-title, .day-name, .auth-title, .cal-empty-title) {
+  font-weight: 800; letter-spacing: -0.02em; color: var(--gize-text);
+}
+html.tema-luz:not(#_):not(#__) body:not(#_) .hb-title { font-size: 34px; line-height: 1.05; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .day-name { font-size: 34px; line-height: 1.05; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-title { font-size: 30px; line-height: 1.05; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .cal-empty-title { font-size: 28px; line-height: 1.1; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .title-accent { opacity: .7; height: 2px; width: 28px; }
+/* (con neón, la raya del color del texto con el toque de color de css/ui/calma.css) */
+html.tema-luz.sin-neon:not(#_):not(#__) body:not(#_) .title-accent { background: var(--gize-text); }
+
+/* Etiquetas chicas en mayúsculas */
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.cfg-sub, .auth-lbl) {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: var(--gize-text);
+}
+
+/* ---------- Cajas: vidrio esmerilado ---------- */
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(
+    .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
+    .join-box, .daynotes, .w-chart, .ptile, .plan-card, .plan-top, .plan-acc, .ss-group, .ex-collapsed, .auth-card,
+    .food-row, .diary-item, .w-item, .sess-item, .hx-row, .hb-item) {
+  --card: rgba(255,255,255,.4); --card-2: var(--frz-field); --border: var(--gize-border);
+  background: var(--frz-glass) padding-box;
+  border: 1px solid var(--frz-line);
+  border-radius: var(--r-card);
+  -webkit-backdrop-filter: var(--frz-blur); backdrop-filter: var(--frz-blur);
+  box-shadow: var(--calm-shadow);
+}
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.card, .ptile, .ex-collapsed, .auth-card)::before { display: none; } /* con neón, el filete (abajo) */
+html.tema-luz:not(#_):not(#__) body:not(#_) .ss-group :is(.card, .ex-collapsed) { background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-card { border-radius: 28px; box-shadow: var(--calm-shadow-hi); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .ptile { border-radius: 22px; }
+
+/* ---------- Botones principales: negros, texto blanco ---------- */
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ctrl.primary, .form-save, .save-session, .co-save-rt, .rq-send, .hb-add-btn, .wk-start, .auth-btn, .upd-go) {
+  background: #0B0D11; color: #fff; border: 1px solid #0B0D11; border-radius: 999px;
+  box-shadow: 0 10px 24px -12px rgba(11,13,17,.55);
+}
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ctrl.primary, .save-session, .co-save-rt, .rq-send, .wk-start) { animation: none; }
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ctrl.primary, .form-save, .save-session, .wk-start, .auth-btn):hover { filter: none; background: #1E232B; }
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ctrl.primary, .form-save, .save-session, .wk-start, .auth-btn, .ex-chip, .tab, .cfg-seg-opt):focus-visible { outline: 2px solid var(--gize-blue); outline-offset: 3px; }
+html.tema-luz.sin-neon:not(#_):not(#__) body:not(#_) :is(.ctrl.primary, .wk-start, .save-session, .auth-btn)::before { display: none; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .wk-start svg { color: #fff; }
+
+/* ---------- Pastillas con filete fino ---------- */
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ex-chip, .ex-video, .clear, .logout-btn, .load-def, .ss-link, .rest-btn-full, .rest-edit, .add-set, .add-ex, .tab, .streak, .cfg-edit-name-btn) {
+  background: var(--frz-pill); border: 1px solid var(--frz-line); color: var(--gize-text); border-radius: 999px; box-shadow: none;
+}
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ex-chip.on, .tab.active) { background: #0B0D11; border-color: #0B0D11; color: #fff; }
+
+/* Campos */
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.field input, .auth-in, .form-input) { background: var(--frz-field); border: 1px solid var(--frz-line); color: var(--gize-text); }
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.field input:focus, .auth-in:focus, .form-input:focus) { border-color: var(--gize-blue); box-shadow: var(--focus-ring); outline: none; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-in { border-radius: 16px; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-in:focus { background: rgba(255,255,255,.7); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-in:hover:not(:focus) { border-color: #fff; }
+/* Check de la serie: el borde se tiene que ver (3:1) */
+html.tema-luz:not(#_):not(#__) body:not(#_) .done:not(.on) { background: rgba(255,255,255,.35); border: 1.5px solid rgba(11,13,17,.42); color: var(--gize-text-2); border-radius: 999px; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .done.on { background: var(--gize-success); border-color: var(--gize-success); color: #fff; border-radius: 999px; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .ex-num:not(.ss) { background: rgba(255,255,255,.45); border: 1px solid var(--frz-line); color: var(--gize-text); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .set .idx { background: rgba(255,255,255,.45); border: 1px solid var(--frz-line); color: var(--gize-text); }
+/* Unidades y etiquetas de datos: chicas, en mayúsculas */
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.field .unit, .rest-edit-h) { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--gize-text-2); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .ptile-s i { background: var(--gize-blue); box-shadow: none; }
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ptile-go, .cfg-link-chev) { color: var(--gize-text); }
+
+/* ---------- Barra de abajo ---------- */
+html.tema-luz:not(#_):not(#__) body:not(#_) .navbar {
+  background: linear-gradient(rgba(236,242,249,.90), rgba(222,232,244,.94));
+  border-top: 1px solid var(--frz-line);
+  -webkit-backdrop-filter: var(--frz-blur); backdrop-filter: var(--frz-blur);
+}
+
+/* Ajustes */
+html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-seg { background: rgba(255,255,255,.28); border: 1px solid var(--frz-line); border-radius: 999px; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-seg-opt { border-radius: 999px; color: var(--gize-text); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-seg-opt.on { background: #0B0D11; color: #fff; box-shadow: none; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-switch { background: rgba(255,255,255,.4); border: 1px solid rgba(11,13,17,.34); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-switch.on { background: var(--gize-blue); border-color: var(--gize-blue); }
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.cfg-notif-ic, .cfg-link-ic, .cal-empty-ic, .cfg-avatar) { background: rgba(255,255,255,.42); border: 1px solid var(--frz-line); color: var(--gize-text); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .nav-item { color: var(--gize-text-2); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .nav-item.active { color: var(--gize-text); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .nav-item.active::before { background: var(--gize-text); width: 22px; }
+
+/* Login */
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-tabs { background: rgba(255,255,255,.22); border: 1px solid var(--frz-line); border-radius: 999px; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-tab { border-radius: 999px; color: var(--gize-text-2); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-tab.active { background: rgba(255,255,255,.85); border-color: #fff; color: var(--gize-text); box-shadow: 0 4px 12px -6px rgba(30,40,52,.35); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-remember-box { border-color: rgba(11,13,17,.5); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-remember input:checked + .auth-remember-box { background: #0B0D11; border-color: #0B0D11; }
+/* (los seudoelementos no valen dentro de :is(): van por separado) */
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-or::before, html.tema-luz:not(#_):not(#__) body:not(#_) .auth-or::after { background: rgba(11,13,17,.16); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-google { background: rgba(255,255,255,.9); border-color: #fff; color: #1F1F1F; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .auth-head .auth-sub { color: var(--gize-text-2); }
+
+/* Racha: llama helada (marino y celeste) en vez de violeta; apagada y con el neón apagado, gris. */
+html.tema-luz:not(.sin-neon):not(#_):not(#__) .flame:not(.off, .streak.out .flame) linearGradient[id$="o"] stop:nth-child(1) { stop-color: #CFE0F2; }
+html.tema-luz:not(.sin-neon):not(#_):not(#__) .flame:not(.off, .streak.out .flame) linearGradient[id$="o"] stop:nth-child(2) { stop-color: #4A78B0; }
+html.tema-luz:not(.sin-neon):not(#_):not(#__) .flame:not(.off, .streak.out .flame) linearGradient[id$="o"] stop:nth-child(3) { stop-color: #173763; }
+html.tema-luz:not(.sin-neon):not(#_):not(#__) .flame:not(.off, .streak.out .flame) linearGradient[id$="i"] stop:nth-child(2) { stop-color: #FFFFFF; }
+html.tema-luz:not(.sin-neon):not(#_):not(#__) .flame:not(.off, .streak.out .flame) linearGradient[id$="i"] stop:nth-child(3) { stop-color: #A0BDDB; }
+
+/* Velos de hojas y ventanas: marino suave */
+html.tema-luz:not(#_):not(#__) :is(.sheet-bg, .tpick-bg, #streakHost .stk-bg) { background: rgba(14,30,56,.32); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .sheet { background: var(--frz-glass-solid); border: 1px solid var(--frz-line); border-bottom: 0; -webkit-backdrop-filter: var(--frz-blur); backdrop-filter: var(--frz-blur); }
+
+/* Comida sin meta: el cartel como una tarjeta de vidrio */
+html.tema-luz:not(#_):not(#__) body:not(#_) .cal-empty {
+  background: var(--frz-glass); border: 1px solid var(--frz-line); border-radius: 28px;
+  -webkit-backdrop-filter: var(--frz-blur); backdrop-filter: var(--frz-blur);
+  box-shadow: var(--calm-shadow); padding: 34px 22px 28px; margin-top: 24px;
+}
+html.tema-luz:not(#_):not(#__) body:not(#_) .cal-empty-ic { border-radius: 999px; }
+
+/* ---------- Revisión ---------- */
+/* Logo: el orbe RGB (magenta/cian) era lo único con color de neón; acá queda monocromo. */
+html.tema-luz:not(#_):not(#__) :is(.brand-logo, .auth-brand-ic img, .upd-marca) { filter: grayscale(1) sepia(.4) hue-rotate(178deg) saturate(1.7) contrast(1.05); }
+
+/* Cardio: «A pie / En bici» son .cmode y heredaban la pastilla de 999px: quedaban como círculos. */
+html.tema-luz:not(#_):not(#__) body:not(#_) .sal-mode {
+  border-radius: 22px; background: var(--frz-pill); border: 1px solid var(--frz-line); color: var(--gize-text);
+}
+html.tema-luz:not(#_):not(#__) body:not(#_) .sal-mode.active { background: rgba(255,255,255,.66); border: 1.5px solid #0B0D11; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .sal-mode .sal-mode-ico { border-radius: 999px; background: rgba(255,255,255,.55); border: 1px solid var(--frz-line); color: var(--gize-text-2); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .sal-mode.active .sal-mode-ico { background: #0B0D11; border-color: #0B0D11; color: #fff; }
+/* Cronómetro / Temporizador: el mismo seleccionado que el resto (negro, texto blanco), no el tinte marino turbio. */
+html.tema-luz:not(#_):not(#__) body:not(#_) .cmode:not(.sal-mode) { background: var(--frz-pill); border: 1px solid var(--frz-line); color: var(--gize-text-2); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .cmode.active:not(.sal-mode) { background: #0B0D11; border-color: #0B0D11; color: #fff; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .cmode:focus-visible { outline: 2px solid var(--gize-blue); outline-offset: 3px; }
+
+/* «+» de insertar entre ejercicios: estaba al 55 % con filete blanco (el «+» a 2:1). Discreto pero legible. */
+html.tema-luz:not(#_):not(#__) body:not(#_) .ins-ex { opacity: 1; background: rgba(255,255,255,.14); border: 1px dashed rgba(36,49,69,.40); color: var(--gize-text-2); border-radius: 999px; font-weight: 700; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .ins-ex:hover { background: rgba(255,255,255,.4); border-color: #0B0D11; color: var(--gize-text); }
+
+/* Hojas: esquinas de vidrio (venía con 4 px). */
+html.tema-luz:not(#_):not(#__) body:not(#_) .sheet { border-radius: 28px 28px 0 0; }
+html.tema-luz.kb-open:not(#_):not(#__) body:not(#_) .sheet { border-radius: 24px; }
+
+/* Campos que quedaban fuera (Hábitos, buscador) y textos de ayuda a 4.5:1. */
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.hb-add input, .ex-search) { background: var(--frz-field); border: 1px solid var(--frz-line); color: var(--gize-text); border-radius: 16px; }
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.hb-add input, .ex-search):focus { border-color: var(--gize-blue); box-shadow: var(--focus-ring); outline: none; }
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(input, textarea)::placeholder { color: #4E5B70; opacity: 1; }
+
+/* «Sin descanso» entre los ejercicios de la superserie: estaba a 2.9:1. */
+html.tema-luz:not(#_):not(#__) body:not(#_) .ss-div { color: var(--gize-text-2); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .ss-div::before, html.tema-luz:not(#_):not(#__) body:not(#_) .ss-div::after { border-top-color: rgba(36,49,69,.30); }
+
+/* ---------- Con neón: el filete de «Claro» como borde (css/ui/calma.css) ----------
+   El vidrio es translúcido: el filete (--gize-rgb-ring) como capa de fondo en border-box se
+   vería a través de la caja. Va en un ::before con máscara que pinta solo el borde de 1 px (la
+   técnica de .gize-btn y .auth-card); ninguna de estas cajas usa su ::before para otra cosa.
+   Debajo del filete va el blanco del vidrio: el gris solo casi no se ve sobre el celeste, así
+   el borde sigue siendo el del vidrio, con el toque de color en las esquinas. */
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) :is(
+    .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
+    .join-box, .daynotes, .w-chart, .ptile, .plan-card, .plan-top, .plan-acc, .ss-group, .ex-collapsed, .auth-card,
+    .food-row, .diary-item, .w-item, .sess-item, .hx-row, .hb-item, .streak:not(.out), .cal-empty, .scan-btn,
+    .ex-video, .ex-audio, .wk-live, .wk-finish, .wk-cancel) {
+  position: relative; border-color: transparent; background-clip: border-box;
+}
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) :is(
+    .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
+    .join-box, .daynotes, .w-chart, .ptile, .plan-card, .plan-top, .plan-acc, .ss-group, .ex-collapsed, .auth-card,
+    .food-row, .diary-item, .w-item, .sess-item, .hx-row, .hb-item, .streak:not(.out), .cal-empty, .scan-btn,
+    .ex-video, .ex-audio, .wk-live, .wk-finish, .wk-cancel)::before {
+  content: ""; display: block; position: absolute; inset: -1px; padding: 1px; border-radius: inherit; pointer-events: none;
+  background: var(--gize-rgb-ring), linear-gradient(var(--frz-line), var(--frz-line)); animation: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* Las que recortan lo de adentro (overflow: hidden) lo llevan por dentro del borde. */
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) :is(.card, .sal-card, .ss-group, .plan-acc, .co-table)::before { inset: 0; border-radius: calc(var(--r-card) - 1px); }
+/* Adentro de una superserie el ejercicio no es caja: sin filete. */
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) .ss-group :is(.card, .ex-collapsed)::before { display: none; }
+
+/* Pastillas que en «Claro» llevaban el filete (video y audio del ejercicio, el entreno en curso):
+   de vidrio, con el filete en el ::before de arriba. */
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ex-video, .ex-audio, .wk-live, .wk-finish, .wk-cancel) {
+  background: var(--frz-pill); border-color: var(--frz-line); color: var(--gize-text); box-shadow: none;
+}
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ex-video:active, .ex-audio.on, .wk-finish:active, .wk-cancel:active) { background: rgba(255,255,255,.6); }
+/* El anillo del reloj de Cardio: el mismo filete, sobre el blanco del vidrio. */
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) .cneon i { background: var(--gize-rgb-ring), linear-gradient(var(--frz-line), var(--frz-line)); }
+/* Escáner de Comida: pastilla de vidrio (el filete va en su ::before, arriba). */
+html.tema-luz:not(#_):not(#__) body:not(#_) .scan-btn { background: var(--frz-pill); color: var(--gize-text); }
+html.tema-luz.sin-neon:not(#_):not(#__) body:not(#_) .scan-btn { border-color: var(--frz-line); }
+/* Mensaje propio del chat y «Pedir un producto» con foco: el relleno translúcido dejaba ver el
+   filete (o el azul del foco) por dentro; van sobre un celeste claro opaco. */
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) .ch-msg.me {
+  background: linear-gradient(color-mix(in srgb, var(--gize-blue) 12%, #E6EEF7), color-mix(in srgb, var(--gize-blue) 12%, #E6EEF7)) padding-box, var(--gize-rgb-ring) border-box;
+}
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) .form-input.rq-neon:focus {
+  background: linear-gradient(#EEF3F9, #EEF3F9) padding-box, linear-gradient(var(--gize-blue), var(--gize-blue)) border-box;
+}
+
+/* Principales: negros, con el filete quieto de borde (como hoy en «Claro»). «Iniciar
+   entrenamiento», «Ingresar» y el botón del chat lo tienen en su ::before (css/ui/calma.css). */
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) :is(.ctrl.primary, .save-session, .co-save-rt, .rq-send) {
+  border-color: transparent;
+  background: linear-gradient(var(--gize-text), var(--gize-text)) padding-box, var(--gize-rgb-ring) border-box;
+}
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) :is(.ctrl.primary, .save-session):hover {
+  background: linear-gradient(#1E232B, #1E232B) padding-box, var(--gize-rgb-ring) border-box;
+}
+/* El botón del chat: pastilla de vidrio como la racha, con su filete. */
+html.tema-luz:not(#_):not(#__) body:not(#_) .chat-btn { background: var(--frz-pill); color: var(--gize-text); box-shadow: none; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .chat-btn.unread { background: rgba(255,255,255,.62); }
+html.tema-luz.sin-neon:not(#_):not(#__) body:not(#_) .chat-btn::before { background: var(--frz-line); }
+
+/* Textos e íconos con un color de la gama (superserie, «−» del kg asistido, el récord de
+   Progreso, la actividad de Cardio, el ícono de superserie del coach): la gama de «Claro» no llega a 4.5:1 sobre el celeste. El
+   token no se toca (es el del filete y del recorrido de Cardio): acá van en su versión profunda. */
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) :is(.ss-tag, .field.kg-asis .kg-neg, .se-f .se-neg, .sal-act.sal-c-trotar, .sal-act.sal-c-bici, .co-ss-head svg) { color: #5B24A8; }
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) .sal-act.sal-c-caminar { color: var(--gize-blue-deep); }
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) .sal-act.sal-c-correr { color: #8A1855; }
+html.tema-luz.sin-neon:not(#_):not(#__) body:not(#_) :is(.ss-tag, .field.kg-asis .kg-neg, .se-f .se-neg, .sal-act, .hb-coach-tag, .co-ss-head svg) { color: var(--gize-text-2); }
+
+/* Ventanas y hojas que flotan sobre la pantalla (racha, check-in, Cardio, coach, foto de perfil,
+   la barra del descanso): el vidrio translúcido dejaba leer lo de atrás. Van con el vidrio casi
+   opaco de las hojas de abajo. */
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.streak-note, #streakHost .stk-card, .fb-card, .tpick-card, .ssh-card, .cp-ccard, .cp-modal, .crp-card, .upd-card, #restBar .rest-inner) {
+  background: var(--frz-glass-solid); border-color: var(--frz-line);
+  -webkit-backdrop-filter: var(--frz-blur); backdrop-filter: var(--frz-blur);
+}
+/* Campos del coach que «Claro» pintaba de blanco: como los demás campos. */
+html.tema-luz:not(#_):not(#__) body.silk-coach:not(#_) :is(.co-note, .co-search, .co-dayname, .ml-in, .opt-body, .co-exc-name, .co-exc-btn, .pl-help, .bw, .cs-neon) {
+  background: var(--frz-field); border-color: var(--frz-line);
+}
+html.tema-luz:not(#_):not(#__) body.silk-coach:not(#_) :is(.co-note, .co-search, .co-dayname, .ml-in, .opt-body):focus { background: rgba(255,255,255,.7); border-color: var(--gize-blue); }
+html.tema-luz:not(#_):not(#__) body.silk-coach:not(#_) .co-search { border-radius: 16px; }
+
+/* Rieles de las barras y de los anillos de progreso: blanco del vidrio, no el gris de «Claro». */
+html.tema-luz:not(#_):not(#__) body:not(#_) .bar { background: rgba(255,255,255,.45); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .ring-track { stroke: rgba(255,255,255,.5); }
+
+/* ---------- Neón apagado: el filete blanco del vidrio, sin ningún color ---------- */
+html.tema-luz.sin-neon:not(#_):not(#__) { --gize-rgb-ring: linear-gradient(rgba(255,255,255,.72), rgba(255,255,255,.72)); }
+
+/* ---------- Modo liviano y app de Android: sin desenfoques ----------
+   El vidrio queda translúcido sobre el degradé quieto (se ve casi igual; las hojas y ventanas ya
+   tienen el relleno casi opaco) y la barra de abajo pasa a sólida. */
+html.lite.tema-luz *, html.lite.tema-luz *::before, html.lite.tema-luz *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html.lite.tema-luz:not(#_):not(#__) body:not(#_) .navbar, html.android-app.tema-luz:not(#_):not(#__) body:not(#_) .navbar { background: #E4ECF6; }
+
+/* ---------- GIZE básico (Android) ----------
+   El fondo es un solo degradé liso, sin los dos brillos (css/ui/basico.css lo deja plano). */
+html.tema-luz.basico:not(#_):not(#__) { --gize-calm-bg: linear-gradient(180deg, #B7CCE3 0%, #A0BDDB 42%, #8EAED2 78%, #7C9CC4 100%); }

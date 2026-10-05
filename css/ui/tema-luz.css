@@ -15,7 +15,10 @@
    (html.tema-luz.sin-neon) quedan al final. Casi todo sale de los tokens; lo demás son los
    colores que otras hojas tienen escritos a mano para fondo oscuro (blancos translúcidos,
    negros, marinos) pasados a su equivalente sobre blanco.
-   Paleta:
+   El look de hoy lo da css/ui/claro-frozen.css (la propuesta «Frozen»: celeste helado y cajas de
+   vidrio), que se carga después de css/ui/calma.css y pisa los colores de fondo y superficies de
+   acá; de este archivo siguen valiendo la G oscura, la gama de neón y lo que el vidrio no toca.
+   Paleta (la de antes de «Frozen»):
      fondo #F4F5F8 · superficie #FFFFFF · superficie 2 #F0F1F4 · filete #E3E5EA
      texto #0B0D11 · texto 2 #4A5060 · acción #0A6FD6 (azul de marca más profundo)
      gama: azul #2B93F0, violeta #9B4DFA, rosa #F0369F, turquesa #13C2A5 */

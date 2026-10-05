@@ -3,8 +3,11 @@
 // canvas está oculto y nunca se dibuja), cajas y botones con el filete fino de un toque de color
 // en el borde (linear-gradient a 155°, ya no la gama RGB en conic-gradient), nada gira y sin
 // brillos de colores (solo sombras neutras). Los botones principales quedan rellenos: blancos en
-// las oscuras y del color del texto en «Claro», con el filete quieto de borde. «Neón apagado»
-// (html.sin-neon) conserva su look en blanco y gris: solo le toca el fondo.
+// las oscuras y del color del texto en «Claro», con el filete quieto de borde. «Claro» es el
+// celeste helado de css/ui/claro-frozen.css: sobre su degradé lleva dos brillos claros
+// (radial-gradient de celestes casi blancos, no manchas de color) y en sus cajas de vidrio el
+// filete va en el ::before. «Neón apagado» (html.sin-neon) conserva su look en blanco y gris:
+// solo le toca el fondo.
 import { newPage, wait, ALUMNO } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'Día 1', exercises: [{ id: 'e1', name: 'Sentadilla', sets: [{ id: 's1', kg: '', reps: '' }] }] }], sessions: [], weights: [], daily: {} };
@@ -25,6 +28,11 @@ const colores = v => (String(v || '').match(/rgba?\([^)]*\)|color\(srgb[^)]*\)/g
 }).filter(([r, g, b, a]) => a === undefined || a > 0);
 const conTinte = v => colores(v).some(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) > 24);
 const FILETE = /linear-gradient\(155deg/;
+// El fondo por capas: la última es el degradé liso; antes solo puede haber (en «Claro») brillos
+// claros: radial-gradient con colores muy claros (ningún canal por debajo de 170).
+const capasFondo = v => String(v).split(/,\s*(?=(?:radial|linear|conic)-gradient\()/);
+const brilloClaro = l => /^radial-gradient\(/.test(l) && colores(l).every(([r, g, b]) => Math.min(r, g, b) >= 170);
+const fondoLiso = (v, brillos) => { const c = capasFondo(v); return /^linear-gradient\(/.test(c[c.length - 1]) && c.slice(0, -1).every(l => brillos && brilloClaro(l)); };
 
 export default async function ({ base, t }){
   for (const [nombre, tema] of APARIENCIAS) {
@@ -64,8 +72,9 @@ export default async function ({ base, t }){
     });
     const n = nombre + ': ';
     // Fondo: el degradé liso de la apariencia (también con el neón apagado), sin manchas ni partículas.
-    t.ok(/^linear-gradient\(/.test(v.calm) && v.bg === v.calm && v.op === '1', n + 'fondo liso con el degradé de la apariencia: ' + v.bg.slice(0, 70));
-    t.ok(!/radial-gradient/.test(v.bg) && v.spans.length > 0 && v.spans.every(d => d === 'none'), n + 'sin las manchas de color de la aurora: ' + JSON.stringify(v.spans));
+    const brillos = nombre === 'Claro';
+    t.ok(fondoLiso(v.calm, brillos) && v.bg === v.calm && v.op === '1', n + 'fondo liso con el degradé de la apariencia' + (brillos ? ' (y dos brillos claros)' : '') + ': ' + v.bg.slice(0, 70));
+    t.ok(fondoLiso(v.bg, brillos) && (!brillos || capasFondo(v.bg).length === 3) && v.spans.length > 0 && v.spans.every(d => d === 'none'), n + 'sin las manchas de color de la aurora: ' + JSON.stringify(v.spans));
     t.eq([v.canvas, v.arc], ['none', 0], n + 'sin partículas (el canvas oculto y nunca se dibuja)');
     // Nada con la gama RGB, nada gira y ningún brillo de color.
     t.eq(v.conic, [], n + 'nada con el borde de la gama RGB (conic-gradient)');

@@ -1,15 +1,18 @@
-// Apariencia «Claro» (html.tema-luz, css/ui/tema-luz.css): la contracara de «Oscuro», blanca con
-// texto oscuro. Es la segunda opción del selector Apariencia (Oscuro, Claro, Azul, Rosa), se
-// aplica al toque, queda guardada ("gize_tema" = "luz") y la clase ya está antes de la primera
-// pintada (sin parpadeo). Fondo claro, texto oscuro legible (contraste AA de todo el texto en
-// Entreno, Comida, Ajustes y la lista de clientes del coach), botón principal negro con letras
-// blancas, la G oscura y el splash sobre fondo claro. Con la apariencia tranquila (css/ui/calma.css)
-// las cajas y el botón principal llevan el filete fino gris con apenas un toque de color en la
-// esquina (linear-gradient 155deg, sin anillo de neón), nada gira, no hay resplandores de color
-// (solo la sombra neutra) y el fondo es un degradé liso de blanco a gris claro, sin manchas ni
-// partículas. Quien tenía guardada la «Claro» vieja ("claro") sigue viendo «Azul» (el vidrio sobre
-// marino), con «Azul» marcado. Anda con el neón apagado (negros y grises, sin el toque de color) y
-// con el modo liviano (sin desenfoques).
+// Apariencia «Claro» (html.tema-luz, css/ui/tema-luz.css y css/ui/claro-frozen.css, la propuesta
+// «Frozen»): celeste helado con cajas de vidrio esmerilado blanco y texto oscuro. Es la segunda
+// opción del selector Apariencia (Oscuro, Claro, Azul, Rosa), se aplica al toque, queda guardada
+// ("gize_tema" = "luz") y la clase ya está antes de la primera pintada (sin parpadeo). Fondo
+// celeste (#A0BDDB), texto oscuro legible (contraste AA de todo el texto en Entreno, Comida,
+// Ajustes y la lista de clientes del coach), botón principal negro con letras blancas, la G
+// oscura, la barra del sistema celeste y el splash sobre el mismo fondo. Con la apariencia
+// tranquila (css/ui/calma.css) el neón de «Claro» sigue igual: las cajas de vidrio (translúcidas)
+// y el botón principal llevan el filete fino gris con apenas un toque de color en la esquina
+// (linear-gradient 155deg, sin anillo de neón; en las cajas va en el ::before con máscara, así no
+// se ve a través del vidrio), nada gira, no hay resplandores de color (solo la sombra neutra) y
+// el fondo es el degradé celeste con dos brillos claros, sin manchas ni partículas. Quien tenía
+// guardada la «Claro» vieja ("claro") sigue viendo «Azul» (el vidrio sobre marino), con «Azul»
+// marcado. Anda con el neón apagado (el filete blanco del vidrio, sin ningún color y la llama
+// gris) y con el modo liviano (sin desenfoques y la barra de abajo sólida).
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'Torso', exercises: [{ id: 'e1', name: 'Press de banca', note: 'Bajá controlado', sets: [{ id: 's1', kg: '80', reps: '8', done: true }, { id: 's2', kg: '80', reps: '8' }] },
@@ -21,7 +24,7 @@ const COACH_H = {
     if (/coach_id=eq/.test(i.url.search)) return J([{ id: A1, full_name: 'Ana Alumna' }]); return J(i.one ? me : [me]); },
   '/coach_billing': (r, J, i) => { const b = { coach_id: COACH.id, plan: 'cortesia', max_clients: 10, trial_ends_at: '2099-01-01T00:00:00Z' }; return J(i.one ? b : [b]); },
 };
-const LUZ_BG = 'rgb(244, 245, 248)', NAVY = 'rgb(3, 8, 20)', PLUM = 'rgb(20, 6, 15)', BLACK = 'rgb(0, 0, 0)';
+const LUZ_BG = 'rgb(160, 189, 219)', NAVY = 'rgb(3, 8, 20)', PLUM = 'rgb(20, 6, 15)', BLACK = 'rgb(0, 0, 0)';
 
 // Contraste de todo el texto visible de la pantalla contra el fondo que tiene detrás (el primer
 // color de fondo, o el color liso de un degradé, subiendo por los padres). Devuelve el mínimo y
@@ -62,12 +65,13 @@ const contraste = p => p.evaluate(() => {
 
 const look = p => p.evaluate(() => {
   const cs = (s, pe) => { const e = document.querySelector(s); return e ? getComputedStyle(e, pe || null) : null; };
-  const c = document.documentElement.classList, card = cs('.cfg-card');
+  const c = document.documentElement.classList, card = cs('.cfg-card'), ring = cs('.cfg-card', '::before'), nav = cs('.navbar');
   return { luz: c.contains('tema-luz'), claro: c.contains('tema-claro'), rosa: c.contains('tema-rosa'), body: cs('body').backgroundColor, text: cs('body').color,
     saved: localStorage.getItem('gize_tema'), on: [...document.querySelectorAll('[data-tema].on')].map(b => b.getAttribute('data-tema')),
     logo: cs('img.brand-logo') && cs('img.brand-logo').content, card: card && card.backgroundImage, shadow: card && card.boxShadow,
+    cardLine: card && card.borderTopColor, ring: ring && ring.content !== 'none' && ring.display !== 'none' ? ring.backgroundImage + ' | ' + ring.maskImage : 'none',
     aurora: cs('.app-aurora') && cs('.app-aurora').backgroundImage, silk: cs('#silkCanvas') && cs('#silkCanvas').display,
-    nav: cs('.navbar') && cs('.navbar').backgroundColor, meta: [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content.toUpperCase()) };
+    nav: nav && nav.backgroundColor, navImg: nav && nav.backgroundImage, navBlur: nav && nav.backdropFilter, meta: [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content.toUpperCase()) };
 });
 
 // ¿Hay algún color con tinte (no gris) en este valor de CSS? Lee rgb()/rgba() (0–255) y también
@@ -77,8 +81,12 @@ const colores = v => [...String(v || '').matchAll(/rgba?\(([^)]*)\)|color\(srgb 
   return m[1] ? n : [n[0] * 255, n[1] * 255, n[2] * 255, n[3]];
 });
 const conTinte = v => colores(v).some(([r, g, b, a]) => (a === undefined || a > 0) && Math.max(r, g, b) - Math.min(r, g, b) > 24);
-// El fondo tranquilo de «Claro» (--gize-calm-bg): degradé liso de blanco a gris claro.
-const LUZ_FADE = 'linear-gradient(rgb(255, 255, 255) 0%, rgb(247, 248, 250) 40%, rgb(238, 240, 244) 100%)';
+// El fondo tranquilo de «Claro» (--gize-calm-bg): el degradé celeste con dos brillos claros.
+const LUZ_FADE = 'radial-gradient(120% 60% at 15% 0%, rgba(214, 228, 242, 0.95), rgba(0, 0, 0, 0) 60%), '
+  + 'radial-gradient(90% 55% at 100% 45%, rgba(176, 200, 226, 0.7), rgba(0, 0, 0, 0) 70%), '
+  + 'linear-gradient(rgb(183, 204, 227) 0%, rgb(160, 189, 219) 42%, rgb(142, 174, 210) 78%, rgb(124, 156, 196) 100%)';
+// El vidrio de las cajas: blanco translúcido en degradé (deja ver el fondo).
+const VIDRIO = /^linear-gradient\(160deg, rgba\(255, 255, 255, 0\.\d+\), rgba\(255, 255, 255, 0\.\d+\) 55%, rgba\(255, 255, 255, 0\.\d+\)\)$/;
 
 // Contraste de un color de letra sobre un color de fondo (rgb()).
 const ratio = (a, b) => { const l = s => s.match(/[\d.]+/g).slice(0, 3).map(Number).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0);
@@ -108,16 +116,19 @@ export default async function ({ base, t }){
   let l = await look(p);
   t.ok(l.luz && !l.claro && !l.rosa && await p.evaluate(() => window.__sinRecargar === 1), 'Claro: html.tema-luz al toque, sin recargar (y sin las clases de Azul)');
   t.eq([l.saved, l.on], ['luz', ['luz']], 'Claro: queda guardado ("luz") y marcado');
-  t.eq([l.body, l.text], [LUZ_BG, 'rgb(11, 13, 17)'], 'Claro: fondo casi blanco y texto casi negro');
+  t.eq([l.body, l.text], [LUZ_BG, 'rgb(11, 13, 17)'], 'Claro: fondo celeste y texto casi negro');
   t.ok(/gize-marca-negra\.svg/.test(l.logo || ''), 'Claro: la G oscura con el orbe: ' + l.logo);
-  // La caja: blanca, con el filete fino gris de «Claro» (rgba(11, 13, 17, …)) y apenas un toque de
-  // color en las esquinas; sin anillo de neón y sin resplandor de color (la sombra neutra de «Claro»).
-  t.ok(/^linear-gradient\(rgb\(255, 255, 255\), rgb\(255, 255, 255\)\), linear-gradient\(155deg, /.test(l.card || '') && !/conic-gradient/.test(l.card)
-    && /rgba\(11, 13, 17, 0\.12\) 28%, rgba\(11, 13, 17, 0\.1\) 72%/.test(l.card) && conTinte(l.card),
-    'Claro: la caja blanca con el filete fino (gris con un toque de color, sin anillo de neón): ' + l.card);
+  // La caja: de vidrio (blanco translúcido), con el filete fino gris de «Claro» (rgba(11, 13, 17, …))
+  // y apenas un toque de color en las esquinas como borde: va en el ::before con máscara (solo se
+  // pinta el borde, no se ve a través del vidrio), sin anillo de neón y sin resplandor de color (la
+  // sombra neutra).
+  t.ok(VIDRIO.test(l.card || '') && l.cardLine === 'rgba(0, 0, 0, 0)', 'Claro: la caja de vidrio translúcido, sin el filete blanco: ' + l.card + ' / ' + l.cardLine);
+  t.ok(/^linear-gradient\(155deg, /.test(l.ring) && !/conic-gradient/.test(l.ring + l.card)
+    && /rgba\(11, 13, 17, 0\.12\) 28%, rgba\(11, 13, 17, 0\.1\) 72%/.test(l.ring) && conTinte(l.ring.split(' | ')[0]) && /linear-gradient.*, linear-gradient/.test(l.ring.split(' | ')[1]),
+    'Claro: el borde de la caja es el filete fino (gris con un toque de color, sin anillo de neón), solo en el borde: ' + l.ring);
   t.ok(l.shadow && l.shadow !== 'none' && !conTinte(l.shadow), 'Claro: la caja con sombra neutra, sin resplandor de color: ' + l.shadow);
-  t.eq([l.aurora, l.silk], [LUZ_FADE, 'none'], 'Claro: el fondo es el degradé liso blanco→gris claro, sin partículas (canvas oculto)');
-  t.eq(l.meta.every(m => m === '#F4F5F8'), true, 'Claro: la barra del sistema clara: ' + l.meta);
+  t.eq([l.aurora, l.silk], [LUZ_FADE, 'none'], 'Claro: el fondo es el degradé celeste con dos brillos claros, sin partículas (canvas oculto)');
+  t.eq(l.meta.every(m => m === '#C6D8EA'), true, 'Claro: la barra del sistema celeste: ' + l.meta);
   let k = await contraste(p);
   t.ok(k.n > 10 && !k.malos.length, 'Ajustes: todo el texto con contraste AA (mín. ' + k.min + ', ' + k.n + ' textos): ' + k.malos.join(' | '));
 
@@ -126,19 +137,20 @@ export default async function ({ base, t }){
   await p.waitForFunction(() => window.__splash, null, { timeout: 3000 }).catch(() => {});
   const sp = await p.evaluate(() => window.__splash || {});
   t.eq(await p.evaluate(() => window.__dcl), true, 'Claro: la clase ya está al terminar de leer el HTML (sin parpadeo)');
-  t.eq([sp.marca, sp.bg, sp.arc], [true, LUZ_BG, 'rgb(11, 13, 17)'], 'Claro: splash del logo sobre fondo claro, con la G oscura');
+  t.eq([sp.marca, sp.bg, sp.arc], [true, LUZ_BG, 'rgb(11, 13, 17)'], 'Claro: splash del logo sobre el fondo celeste, con la G oscura');
   t.ok(/rgb\(224, 58, 174\)/.test(sp.color || '') && /rgb\(27, 205, 182\)/.test(sp.color || ''), 'Claro: el orbe del splash con los colores originales: ' + sp.color);
   t.ok(sp.txt && ratio(sp.txt, sp.bg) >= 4.5, 'Claro: el texto del splash se lee: ' + sp.txt);
   t.eq([sp.palabra, sp.halo], ['rgb(11, 13, 17)', 'sp-respira'], 'Claro: la palabra GIZE oscura y el resplandor del orbe que respira');
   await wait(2500);
 
-  // 3) Entreno (ejercicio abierto): texto legible y la G oscura.
+  // 3) Entreno (ejercicio abierto): texto legible y la G oscura; la barra de abajo de vidrio claro.
   await p.click('.ex-collapsed'); await wait(400);
   l = await look(p);
   t.eq([l.luz, l.saved, l.body], [true, 'luz', LUZ_BG], 'Claro: sigue después de recargar');
   k = await contraste(p);
   t.ok(k.n > 10 && !k.malos.length, 'Entreno: todo el texto con contraste AA (mín. ' + k.min + ', ' + k.n + ' textos): ' + k.malos.join(' | '));
-  t.ok(/rgb\(255, 255, 255\)/.test(l.nav || '') || /255, 255, 255/.test(l.nav), 'Claro: la barra de abajo blanca: ' + l.nav);
+  t.ok(/^linear-gradient\(/.test(l.navImg || '') && colores(l.navImg).every(([r, g, b]) => Math.min(r, g, b) >= 220) && /blur/.test(l.navBlur || ''),
+    'Claro: la barra de abajo de vidrio blanco esmerilado: ' + l.navImg + ' / ' + l.navBlur);
 
   // 4) Comida y Cardio: texto legible; el botón principal negro (relleno) con letras blancas y el
   //    filete fino quieto alrededor (sin anillo de neón, sin giro ni resplandor de color).
@@ -175,14 +187,14 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores de la página (guardado viejo)');
   await pg.close();
 
-  // 7) Neón apagado con «Claro»: fondo claro, filetes negros finos y nada de la gama.
+  // 7) Neón apagado con «Claro»: el mismo fondo, el filete blanco del vidrio y nada de la gama.
   pg = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') }, init: () => { localStorage.setItem('gize_tema', 'luz'); localStorage.setItem('gize_neon', '0'); localStorage.setItem('gize_lite', '0'); } });
   await pg.p.goto(base + '/app/'); await wait(2500);
   await pg.p.click('#nav-config'); await wait(500);
   l = await look(pg.p);
   t.ok(l.luz && await pg.p.evaluate(() => document.documentElement.classList.contains('sin-neon')), 'Claro sin neón: las dos clases');
-  t.eq([l.body, l.aurora], [LUZ_BG, LUZ_FADE], 'Claro sin neón: fondo claro (el mismo degradé liso)');
-  t.ok(!/conic/.test(l.card || '') && /rgba\(11, 13, 17, 0\.13\)/.test(l.card || ''), 'Claro sin neón: el borde de la caja es un filete negro fino: ' + l.card);
+  t.eq([l.body, l.aurora], [LUZ_BG, LUZ_FADE], 'Claro sin neón: el mismo fondo celeste');
+  t.ok(VIDRIO.test(l.card || '') && l.cardLine === 'rgba(255, 255, 255, 0.7)' && l.ring === 'none', 'Claro sin neón: la caja de vidrio con el filete blanco, sin el de color: ' + l.card + ' / ' + l.cardLine + ' / ' + l.ring);
   t.ok(!conTinte(l.card) && !conTinte(l.shadow), 'Claro sin neón: sin colores en la caja: ' + l.shadow);
   const flame = await pg.p.evaluate(() => [...document.querySelectorAll('#streakBtn .flame linearGradient[id$="o"] stop')].map(s => getComputedStyle(s).stopColor));
   t.ok(flame.length && !flame.some(conTinte) && !flame.includes('rgb(255, 255, 255)'), 'Claro sin neón: la llama gris (no blanca sobre blanco): ' + flame);
@@ -194,15 +206,15 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores de la página (sin neón)');
   await pg.close();
 
-  // 8) Modo liviano con «Claro»: ningún desenfoque, fondo claro y barra de abajo blanca sólida.
+  // 8) Modo liviano con «Claro»: ningún desenfoque, el mismo fondo y la barra de abajo sólida.
   pg = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') }, init: () => { localStorage.setItem('gize_tema', 'luz'); localStorage.setItem('gize_lite', '1'); } });
   await pg.p.goto(base + '/app/'); await wait(2000);
   await pg.p.click('#nav-config'); await wait(500);
   l = await look(pg.p);
-  t.eq([l.luz, l.body, l.nav], [true, LUZ_BG, 'rgb(255, 255, 255)'], 'liviano: fondo claro y barra de abajo blanca');
+  t.eq([l.luz, l.body, l.nav, l.navImg], [true, LUZ_BG, 'rgb(228, 236, 246)', 'none'], 'liviano: fondo celeste y barra de abajo sólida, celeste muy claro');
   t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('body *')].filter(e => { const b = getComputedStyle(e).backdropFilter; return b && b !== 'none'; }).length), 0, 'liviano: ningún elemento con backdrop-filter');
   t.eq(await pg.p.evaluate(() => getComputedStyle(document.querySelector('.app-aurora span')).display), 'none', 'liviano: sin las manchas de la aurora');
-  t.eq([l.aurora, l.silk], [LUZ_FADE, 'none'], 'liviano: el fondo es el mismo degradé liso, sin partículas');
+  t.eq([l.aurora, l.silk], [LUZ_FADE, 'none'], 'liviano: el fondo es el mismo degradé quieto, sin partículas');
   k = await contraste(pg.p);
   t.ok(!k.malos.length, 'liviano: Ajustes con contraste AA (mín. ' + k.min + '): ' + k.malos.join(' | '));
   t.eq(pg.errs, [], 'errores de la página (liviano)');

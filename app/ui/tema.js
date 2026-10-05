@@ -1,6 +1,7 @@
 // Apariencia de la app, cuatro opciones (en este orden en el selector):
 //   «Oscuro» — la de siempre, por defecto (negro). Sin clase ni nada guardado.
-//   «Claro»  — la clara de verdad: blanco y casi blanco con texto oscuro (css/ui/tema-luz.css).
+//   «Claro»  — la clara de verdad: vidrio esmerilado blanco sobre celeste helado, con texto oscuro
+//              (css/ui/tema-luz.css y css/ui/claro-frozen.css).
 //              Clase html.tema-luz, "gize_tema" = "luz".
 //   «Azul»   — vidrio esmerilado sobre círculos azules y violetas en marino (css/ui/tema-claro.css).
 //              Es la que antes se llamaba «Claro»: por eso su clase sigue siendo html.tema-claro.
@@ -15,8 +16,9 @@
 import { refreshGamut } from './background.js';
 
 const KEY = "gize_tema";
-// Color de la barra del sistema (Android) de cada apariencia: el del fondo.
-const BARRA = { oscuro: "#000000", luz: "#F4F5F8", azul: "#030814", rosa: "#14060F" };
+// Color de la barra del sistema (Android) de cada apariencia: el del fondo (en «Claro», el celeste
+// de arriba del degradé).
+const BARRA = { oscuro: "#000000", luz: "#C6D8EA", azul: "#030814", rosa: "#14060F" };
 const OPCIONES = [["oscuro", "Oscuro"], ["luz", "Claro"], ["azul", "Azul"], ["rosa", "Rosa"]];
 
 export function getTema(){
