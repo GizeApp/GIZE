@@ -213,3 +213,13 @@ body:not(#_) .cs-tema .cs-tema-opt.on { background:var(--acc-tint); border-color
    alumno (.cfg-switch, css/screens/config.css). */
 .cs-neon { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border-radius:var(--r-btn);
   border:1px solid var(--border); background:rgba(255,255,255,.035); font-size:13px; color:var(--gize-text); }
+
+/* Mis rutinas / Importar rutina armada / Mis planes: el nombre arriba, los datos debajo y la
+   flecha a la derecha (antes iban en fila sin separación y quedaban pegados). */
+body:not(#_) .tpl-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-content: center; }
+body:not(#_) .tpl-item .co-name { grid-column: 1; overflow-wrap: anywhere; }
+body:not(#_) .tpl-item .co-item-meta { grid-column: 1; }
+body:not(#_) .tpl-item .co-arrow { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+/* Plan alimenticio: los campos de reemplazos y listas llenan la fila sin salirse de la tarjeta. */
+body:not(#_) :is(.sw-row, .le-row) > .ml-in { flex: 1 1 0; width: 0; }
+body:not(#_) .plan-edit .ci-grid-2 > * { min-width: 0; }

@@ -3,9 +3,13 @@
 // aplica al toque, queda guardada ("gize_tema" = "luz") y la clase ya está antes de la primera
 // pintada (sin parpadeo). Fondo claro, texto oscuro legible (contraste AA de todo el texto en
 // Entreno, Comida, Ajustes y la lista de clientes del coach), botón principal negro con letras
-// blancas, la G oscura y el splash sobre fondo claro. Quien tenía guardada la «Claro» vieja
-// ("claro") sigue viendo «Azul» (el vidrio sobre marino), con «Azul» marcado. Anda con el neón
-// apagado (negros y grises, sin gama) y con el modo liviano (sin desenfoques).
+// blancas, la G oscura y el splash sobre fondo claro. Con la apariencia tranquila (css/ui/calma.css)
+// las cajas y el botón principal llevan el filete fino gris con apenas un toque de color en la
+// esquina (linear-gradient 155deg, sin anillo de neón), nada gira, no hay resplandores de color
+// (solo la sombra neutra) y el fondo es un degradé liso de blanco a gris claro, sin manchas ni
+// partículas. Quien tenía guardada la «Claro» vieja ("claro") sigue viendo «Azul» (el vidrio sobre
+// marino), con «Azul» marcado. Anda con el neón apagado (negros y grises, sin el toque de color) y
+// con el modo liviano (sin desenfoques).
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'Torso', exercises: [{ id: 'e1', name: 'Press de banca', note: 'Bajá controlado', sets: [{ id: 's1', kg: '80', reps: '8', done: true }, { id: 's2', kg: '80', reps: '8' }] },
@@ -62,12 +66,19 @@ const look = p => p.evaluate(() => {
   return { luz: c.contains('tema-luz'), claro: c.contains('tema-claro'), rosa: c.contains('tema-rosa'), body: cs('body').backgroundColor, text: cs('body').color,
     saved: localStorage.getItem('gize_tema'), on: [...document.querySelectorAll('[data-tema].on')].map(b => b.getAttribute('data-tema')),
     logo: cs('img.brand-logo') && cs('img.brand-logo').content, card: card && card.backgroundImage, shadow: card && card.boxShadow,
+    aurora: cs('.app-aurora') && cs('.app-aurora').backgroundImage, silk: cs('#silkCanvas') && cs('#silkCanvas').display,
     nav: cs('.navbar') && cs('.navbar').backgroundColor, meta: [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content.toUpperCase()) };
 });
 
-// ¿Hay algún color con tinte (no gris) en este valor de CSS?
-const conTinte = v => (String(v || '').match(/rgba?\([^)]*\)/g) || []).map(c => c.match(/[\d.]+/g).map(Number))
-  .some(([r, g, b, a]) => (a === undefined || a > 0) && Math.max(r, g, b) - Math.min(r, g, b) > 24);
+// ¿Hay algún color con tinte (no gris) en este valor de CSS? Lee rgb()/rgba() (0–255) y también
+// color(srgb r g b / a) (0–1), que es como sale un color-mix() calculado.
+const colores = v => [...String(v || '').matchAll(/rgba?\(([^)]*)\)|color\(srgb ([^)]*)\)/g)].map(m => {
+  const n = (m[1] || m[2]).split(/[ ,/]+/).filter(Boolean).map(Number);
+  return m[1] ? n : [n[0] * 255, n[1] * 255, n[2] * 255, n[3]];
+});
+const conTinte = v => colores(v).some(([r, g, b, a]) => (a === undefined || a > 0) && Math.max(r, g, b) - Math.min(r, g, b) > 24);
+// El fondo tranquilo de «Claro» (--gize-calm-bg): degradé liso de blanco a gris claro.
+const LUZ_FADE = 'linear-gradient(rgb(255, 255, 255) 0%, rgb(247, 248, 250) 40%, rgb(238, 240, 244) 100%)';
 
 // Contraste de un color de letra sobre un color de fondo (rgb()).
 const ratio = (a, b) => { const l = s => s.match(/[\d.]+/g).slice(0, 3).map(Number).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0);
@@ -99,7 +110,13 @@ export default async function ({ base, t }){
   t.eq([l.saved, l.on], ['luz', ['luz']], 'Claro: queda guardado ("luz") y marcado');
   t.eq([l.body, l.text], [LUZ_BG, 'rgb(11, 13, 17)'], 'Claro: fondo casi blanco y texto casi negro');
   t.ok(/gize-marca-negra\.svg/.test(l.logo || ''), 'Claro: la G oscura con el orbe: ' + l.logo);
-  t.ok(/rgb\(255, 255, 255\)/.test(l.card || '') && /conic-gradient/.test(l.card), 'Claro: la caja blanca con el borde de neón: ' + l.card);
+  // La caja: blanca, con el filete fino gris de «Claro» (rgba(11, 13, 17, …)) y apenas un toque de
+  // color en las esquinas; sin anillo de neón y sin resplandor de color (la sombra neutra de «Claro»).
+  t.ok(/^linear-gradient\(rgb\(255, 255, 255\), rgb\(255, 255, 255\)\), linear-gradient\(155deg, /.test(l.card || '') && !/conic-gradient/.test(l.card)
+    && /rgba\(11, 13, 17, 0\.12\) 28%, rgba\(11, 13, 17, 0\.1\) 72%/.test(l.card) && conTinte(l.card),
+    'Claro: la caja blanca con el filete fino (gris con un toque de color, sin anillo de neón): ' + l.card);
+  t.ok(l.shadow && l.shadow !== 'none' && !conTinte(l.shadow), 'Claro: la caja con sombra neutra, sin resplandor de color: ' + l.shadow);
+  t.eq([l.aurora, l.silk], [LUZ_FADE, 'none'], 'Claro: el fondo es el degradé liso blanco→gris claro, sin partículas (canvas oculto)');
   t.eq(l.meta.every(m => m === '#F4F5F8'), true, 'Claro: la barra del sistema clara: ' + l.meta);
   let k = await contraste(p);
   t.ok(k.n > 10 && !k.malos.length, 'Ajustes: todo el texto con contraste AA (mín. ' + k.min + ', ' + k.n + ' textos): ' + k.malos.join(' | '));
@@ -123,14 +140,19 @@ export default async function ({ base, t }){
   t.ok(k.n > 10 && !k.malos.length, 'Entreno: todo el texto con contraste AA (mín. ' + k.min + ', ' + k.n + ' textos): ' + k.malos.join(' | '));
   t.ok(/rgb\(255, 255, 255\)/.test(l.nav || '') || /255, 255, 255/.test(l.nav), 'Claro: la barra de abajo blanca: ' + l.nav);
 
-  // 4) Comida y Cardio: texto legible; el botón principal negro con letras blancas.
+  // 4) Comida y Cardio: texto legible; el botón principal negro (relleno) con letras blancas y el
+  //    filete fino quieto alrededor (sin anillo de neón, sin giro ni resplandor de color).
   await p.click('#nav-comida'); await wait(600);
   k = await contraste(p);
   t.ok(k.n > 5 && !k.malos.length, 'Comida: todo el texto con contraste AA (mín. ' + k.min + ', ' + k.n + ' textos): ' + k.malos.join(' | '));
   await p.click('#nav-cardio'); await wait(600);
-  const btn = await p.evaluate(() => { const b = getComputedStyle(document.querySelector('.ctrl.primary')); return { color: b.color, bg: (b.backgroundImage.match(/rgba?\([^)]*\)/) || [b.backgroundColor])[0], ring: b.backgroundImage }; });
-  t.ok(ratio(btn.color, btn.bg) >= 7 && btn.color === 'rgb(255, 255, 255)', 'Cardio: el botón principal negro con letras blancas: ' + btn.color + ' sobre ' + btn.bg);
-  t.ok(/conic-gradient/.test(btn.ring), 'Cardio: el botón principal con el anillo de neón');
+  const btn = await p.evaluate(() => { const e = document.querySelector('.ctrl.primary'), b = getComputedStyle(e), be = getComputedStyle(e, '::before');
+    return { color: b.color, bg: (b.backgroundImage.match(/rgba?\([^)]*\)/) || [b.backgroundColor])[0], ring: b.backgroundImage, clip: b.backgroundClip,
+      anim: [b.animationName, be.animationName], shadow: b.boxShadow }; });
+  t.ok(ratio(btn.color, btn.bg) >= 7 && btn.color === 'rgb(255, 255, 255)' && btn.bg === 'rgb(11, 13, 17)', 'Cardio: el botón principal negro con letras blancas: ' + btn.color + ' sobre ' + btn.bg);
+  t.ok(/^linear-gradient\(rgb\(11, 13, 17\), rgb\(11, 13, 17\)\), linear-gradient\(155deg, /.test(btn.ring) && !/conic-gradient/.test(btn.ring) && btn.clip === 'padding-box, border-box',
+    'Cardio: el botón principal relleno con el filete fino como borde (sin anillo de neón): ' + btn.ring + ' / ' + btn.clip);
+  t.ok(btn.anim.every(a => a === 'none') && !conTinte(btn.shadow), 'Cardio: el botón principal quieto y sin resplandor de color: ' + btn.anim + ' / ' + btn.shadow);
 
   // 5) Pasar por las cuatro: cada una pone sus clases y su fondo.
   await p.click('#nav-config'); await wait(500);
@@ -159,7 +181,7 @@ export default async function ({ base, t }){
   await pg.p.click('#nav-config'); await wait(500);
   l = await look(pg.p);
   t.ok(l.luz && await pg.p.evaluate(() => document.documentElement.classList.contains('sin-neon')), 'Claro sin neón: las dos clases');
-  t.eq(l.body, LUZ_BG, 'Claro sin neón: fondo claro');
+  t.eq([l.body, l.aurora], [LUZ_BG, LUZ_FADE], 'Claro sin neón: fondo claro (el mismo degradé liso)');
   t.ok(!/conic/.test(l.card || '') && /rgba\(11, 13, 17, 0\.13\)/.test(l.card || ''), 'Claro sin neón: el borde de la caja es un filete negro fino: ' + l.card);
   t.ok(!conTinte(l.card) && !conTinte(l.shadow), 'Claro sin neón: sin colores en la caja: ' + l.shadow);
   const flame = await pg.p.evaluate(() => [...document.querySelectorAll('#streakBtn .flame linearGradient[id$="o"] stop')].map(s => getComputedStyle(s).stopColor));
@@ -179,7 +201,8 @@ export default async function ({ base, t }){
   l = await look(pg.p);
   t.eq([l.luz, l.body, l.nav], [true, LUZ_BG, 'rgb(255, 255, 255)'], 'liviano: fondo claro y barra de abajo blanca');
   t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('body *')].filter(e => { const b = getComputedStyle(e).backdropFilter; return b && b !== 'none'; }).length), 0, 'liviano: ningún elemento con backdrop-filter');
-  t.eq(await pg.p.evaluate(() => getComputedStyle(document.querySelector('.app-aurora span')).display), 'none', 'liviano: sin las manchas de la aurora (solo los brillos quietos)');
+  t.eq(await pg.p.evaluate(() => getComputedStyle(document.querySelector('.app-aurora span')).display), 'none', 'liviano: sin las manchas de la aurora');
+  t.eq([l.aurora, l.silk], [LUZ_FADE, 'none'], 'liviano: el fondo es el mismo degradé liso, sin partículas');
   k = await contraste(pg.p);
   t.ok(!k.malos.length, 'liviano: Ajustes con contraste AA (mín. ' + k.min + '): ' + k.malos.join(' | '));
   t.eq(pg.errs, [], 'errores de la página (liviano)');

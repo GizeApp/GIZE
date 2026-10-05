@@ -1,7 +1,8 @@
 // Ahorro de batería:
-// - El fondo de partículas deja de dibujarse a los ~6 s sin tocar nada (queda el último cuadro)
-//   y sigue con el primer toque.
-// - El borde de neón de «Iniciar entrenamiento» da unas vueltas y queda quieto.
+// - El fondo es liso en degradé en todas las apariencias (css/ui/calma.css): el canvas de partículas
+//   está oculto y nunca se dibuja. Igual, a los ~6 s sin tocar nada se pone html.fondo-quieto y se
+//   saca con el primer toque.
+// - Nada gira: el borde de «Iniciar entrenamiento» y el del chat son el filete quieto (sin animación).
 // - El reloj interno (main.js) no se programa si no hay nada corriendo; sí con el entreno en curso,
 //   y se frena con la app en segundo plano ("pause" de Capacitor, Android o iPhone).
 // - El chat no consulta en segundo plano ni con el chat cerrado; al volver revisa en el acto.
@@ -29,38 +30,41 @@ async function open(base, init){
 }
 
 export default async function ({ base, t }){
-  // ---- Fondo quieto sin uso, borde que para, reloj interno ----
+  // ---- Fondo que no se dibuja, bordes quietos, reloj interno ----
   {
-    // Las partículas del fondo están en «Azul», «Rosa» y «Claro» («Oscuro» va con fondo liso, css/ui/calma.css).
+    // «Azul» antes tenía partículas; ahora, como todas las apariencias, va con fondo liso en degradé.
     const { p, errs, close } = await open(base, `localStorage.setItem('gize_lite','0');localStorage.setItem('gize_tema','azul');${SPY}`);
     await p.goto(base + '/app/'); await wait(3000);
     const a0 = await p.evaluate(() => window.__arc); await wait(400);
-    const a1 = await p.evaluate(() => window.__arc);
-    t.ok(a1 > a0, 'recién abierta el fondo se mueve');
+    const bg = await p.evaluate(() => ({ arc: window.__arc, canvas: getComputedStyle(document.getElementById('silkCanvas')).display,
+      aurora: getComputedStyle(document.querySelector('.app-aurora')).backgroundImage }));
+    t.eq([a0, bg.arc - a0, bg.canvas], [0, 0, 'none'], 'recién abierta el fondo no se dibuja (canvas oculto, sin partículas)');
+    t.ok(/^linear-gradient\(/.test(bg.aurora) && !/radial-gradient/.test(bg.aurora), 'el fondo es el degradé liso: ' + bg.aurora.slice(0, 60));
 
-    // El borde de «Iniciar entrenamiento»: gira (gize-spin) un número finito de vueltas.
-    const be = await p.evaluate(() => { const s = getComputedStyle(document.querySelector('.wk-start'), '::before'); return [s.animationName, s.animationIterationCount]; });
-    t.eq(be, ['gize-spin', '2'], 'el borde de «Iniciar entrenamiento» da 2 vueltas y queda quieto');
-    const others = await p.evaluate(() => { const b = document.getElementById('chatBtn'); return b ? getComputedStyle(b, '::before').animationIterationCount : '2'; });
-    t.eq(others, '2', 'el borde del botón del chat también para');
+    // El borde de «Iniciar entrenamiento»: el filete fino (linear-gradient 155deg), quieto.
+    const be = await p.evaluate(() => { const s = getComputedStyle(document.querySelector('.wk-start'), '::before'); return { anim: s.animationName, bg: s.backgroundImage }; });
+    t.eq(be.anim, 'none', 'el borde de «Iniciar entrenamiento» no gira');
+    t.ok(/linear-gradient\(155deg/.test(be.bg) && !/conic-gradient/.test(be.bg), 'el borde de «Iniciar entrenamiento» es el filete quieto: ' + be.bg.slice(0, 60));
+    const chat = await p.evaluate(() => { const b = document.getElementById('chatBtn'); return b ? [getComputedStyle(b).animationName, getComputedStyle(b, '::before').animationName] : null; });
+    t.eq(chat, ['none', 'none'], 'el botón del chat tampoco gira');
 
     // Reloj interno: sin entreno ni cardio no hay nada programado.
     const tk0 = await p.evaluate(async () => (await import('/app/main.js')).tickActive());
     t.eq(tk0, false, 'sin nada corriendo el reloj interno no se programa');
 
-    // ~6 s sin tocar: el fondo queda quieto.
+    // ~6 s sin tocar: html.fondo-quieto (el fondo sigue sin dibujarse).
     await wait(6500);
     const q = await p.evaluate(() => ({ cls: document.documentElement.classList.contains('fondo-quieto'), arc: window.__arc }));
     await wait(600);
     const q2 = await p.evaluate(() => window.__arc);
     t.ok(q.cls, 'sin tocar nada: html.fondo-quieto');
-    t.eq(q2 - q.arc, 0, 'sin tocar nada el fondo no se redibuja');
+    t.eq([q.arc, q2 - q.arc], [0, 0], 'sin tocar nada el fondo no se dibuja');
 
-    // Un toque (el de «Iniciar entrenamiento»): el fondo sigue y el reloj arranca.
+    // Un toque (el de «Iniciar entrenamiento»): sale de fondo-quieto (sin dibujar nada) y el reloj arranca.
     await p.click('[data-action="wk-start"]'); await wait(500);
     const r = await p.evaluate(async () => ({ cls: document.documentElement.classList.contains('fondo-quieto'), arc: window.__arc,
       tk: (await import('/app/main.js')).tickActive(), time: (document.getElementById('wkTime') || {}).textContent }));
-    t.ok(!r.cls && r.arc > q2, 'al tocar, el fondo vuelve a moverse');
+    t.eq([r.cls, r.arc - q2], [false, 0], 'al tocar sale de html.fondo-quieto y el fondo sigue sin dibujarse');
     t.eq(r.tk, true, 'con el entreno en curso el reloj interno está programado');
     await wait(1600);
     const time2 = await p.evaluate(() => (document.getElementById('wkTime') || {}).textContent);

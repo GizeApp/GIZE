@@ -40,6 +40,14 @@ const pickTime = async (p, hhmm) => {
   await p.click('#timePick [data-tp="ok"]'); await wait(250);
 };
 const addHabit = async (p, name) => { await p.fill('#habitInput', name); await p.click('[data-action="habit-add"]'); await wait(300); };
+// ¿Hay algún color con tinte (no gris) en este valor de CSS? rgb()/rgba() y color(srgb …), que es
+// como sale un color-mix() calculado; canales de 0 a 255. Los transparentes no cuentan.
+const colores = v => (String(v || '').match(/rgba?\([^)]*\)|color\(srgb[^)]*\)/g) || []).map(c => {
+  const n = c.replace('srgb', '').match(/[\d.]+/g).map(Number);
+  return c.startsWith('color') ? n.slice(0, 3).map(x => x * 255).concat(n.slice(3)) : n;
+}).filter(([r, g, b, a]) => a === undefined || a > 0);
+const conTinte = v => colores(v).some(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) > 24);
+const FILETE = /linear-gradient\(155deg/;
 
 export default async function ({ base, t }){
   // --- Web ---
@@ -91,11 +99,22 @@ export default async function ({ base, t }){
   const w = await p.evaluate(() => document.querySelector('.hb-name.done')?.getBoundingClientRect().width || 0);
   t.ok(w > 120, 'un hábito tachado se ve entero: ' + w);
   t.eq(await p.evaluate(() => getComputedStyle(document.querySelector('.hb-name.done')).borderTopStyle), 'none', 'el nombre tachado no tiene borde');
-  // Neón por fuera: las del coach azul/violeta, las propias rosa/verde agua.
-  const neon = await p.evaluate(() => { const bg = sel => { const e = document.querySelector(sel); return e ? getComputedStyle(e).backgroundImage : ''; };
-    return { coach: bg('.hb-list .hb-item.coach'), own: bg('.hb-list .hb-item:not(.coach)') }; });
-  t.ok(/rgb\(47, 160, 255\)/.test(neon.coach) && /rgb\(166, 92, 255\)/.test(neon.coach), 'nota del coach con neón azul y violeta: ' + neon.coach.slice(0, 120));
-  t.ok(/rgb\(255, 61, 174\)/.test(neon.own) && /rgb\(37, 232, 200\)/.test(neon.own), 'nota propia con neón rosa y verde agua: ' + neon.own.slice(0, 120));
+  // Apariencia tranquila (css/ui/calma.css): las notas (del coach, propias y de otros días) con el
+  // mismo filete fino con un toque de color en el borde (ya no el neón a dos colores), quietas y
+  // con una sombra neutra, sin resplandor de color.
+  const notas = await p.evaluate(() => Object.fromEntries([['coach', '.hb-list .hb-item.coach'], ['own', '.hb-list .hb-item:not(.coach):not(.later)'], ['later', '.hb-item.later']].map(([k, sel]) => {
+    const e = document.querySelector(sel); if (!e) return [k, null];
+    const cs = getComputedStyle(e); return [k, { ring: cs.backgroundImage, shadow: cs.boxShadow, anim: cs.animationName }];
+  })));
+  for (const [k, nombre] of [['coach', 'nota del coach'], ['own', 'nota propia'], ['later', 'nota de otro día']]) {
+    const x = notas[k];
+    t.ok(!!x, nombre + ': está en la pantalla');
+    if (!x) continue;
+    t.ok(FILETE.test(x.ring) && !x.ring.includes('conic-gradient') && conTinte(x.ring) && x.ring.includes('rgba(255, 255, 255'), nombre + ': borde con el filete fino y un toque de color, no el neón: ' + x.ring.slice(0, 120));
+    t.ok(x.shadow !== 'none' && !conTinte(x.shadow), nombre + ': sombra neutra, sin resplandor de color: ' + x.shadow);
+    t.eq(x.anim, 'none', nombre + ': quieta (no gira)');
+  }
+  t.eq(notas.own && notas.own.ring, notas.coach && notas.coach.ring, 'las del coach y las propias con el mismo filete (sin el neón a dos colores)');
   t.eq(errs, [], 'errores de la página (web)');
   await close();
 

@@ -337,3 +337,11 @@ textarea.in { resize: vertical; min-height: 90px; line-height: 1.45; }
 .dfield-cal { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 6px; background: none; color: var(--txt-2); cursor: pointer; }
 .dfield-cal:hover { color: var(--txt); background: var(--card); }
 .dfield > .dfield-native { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+
+/* Apariencia tranquila (como la app, css/ui/calma.css): fondo liso en degradé en vez de la aurora
+   de colores, y el botón de entrar con un filete quieto en vez del anillo que gira. */
+.aurora-bg { opacity: 1; background: linear-gradient(180deg, #0E1424 0%, #080B15 38%, #05070D 100%); }
+.aurora-bg .gize-aurora { display: none; }
+.gate .btn.pri::before { animation: none;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--gize-r2) 45%, rgba(255,255,255,.10)) 0%,
+    rgba(255,255,255,.10) 28%, rgba(255,255,255,.08) 72%, color-mix(in srgb, var(--gize-r1) 32%, rgba(255,255,255,.08)) 100%); }

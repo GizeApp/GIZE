@@ -1,42 +1,239 @@
 /* css/ui/calma.css
-   Apariencia más tranquila en «Oscuro» (la de siempre): fondo liso con un degradé suave en vez
-   de las partículas y los brillos de colores, y cajas con un filete fino (apenas un toque de
-   color en una esquina) en vez del borde RGB completo con resplandor. El neón queda para lo
-   importante: el botón principal, la racha y lo activo. «Azul», «Rosa» y «Claro» tienen su
-   propio fondo y no cambian. Las partículas del canvas ya no se dibujan (app/ui/background.js). */
-html:not(.tema-claro):not(.tema-luz) {
+   Apariencia tranquila en TODAS las apariencias («Oscuro», «Azul», «Rosa» y «Claro»):
+   - Fondo liso con un degradé suave del color de cada apariencia, sin partículas, sin manchas
+     de color y sin aurora (también en el login y la bienvenida). Las partículas ya no se dibujan
+     (app/ui/background.js).
+   - Lo que tenía neón (cajas, botones, el botón del chat, el del escáner, la racha, el anillo
+     de Cardio, «Iniciar entrenamiento»…) pasa a un filete fino con apenas un toque de color en
+     una esquina, quieto y sin resplandor. Los botones principales quedan rellenos (blancos en
+     las oscuras, negros en «Claro») para que se sigan distinguiendo.
+   - Sin brillos de colores alrededor (box-shadow, text-shadow, drop-shadow): queda una sombra
+     neutra que despega las cajas del fondo.
+   Se mantienen, porque no son decoración: el logo, los colores de grupo muscular, el azul de
+   acción y foco, el rojo de borrar, el «completado», las barras de progreso y la animación de
+   inicio. «Neón apagado» (html.sin-neon) conserva su look en blanco y gris: acá solo le toca el
+   fondo. Se carga después de todas las apariencias (y antes de css/ui/basico.css): las reglas
+   llevan :not(#_) para ganarles sin depender del orden. */
+
+/* ---------- Tokens por apariencia ---------- */
+html {
   --gize-calm-bg: linear-gradient(180deg, #0E1424 0%, #080B15 38%, #05070D 100%);
+  --calm-shadow: 0 8px 22px rgba(0,0,0,.28);
+  --calm-shadow-hi: 0 24px 60px rgba(0,0,0,.5);
 }
-html:not(.tema-claro):not(.tema-luz):not(.sin-neon) {
-  --gize-calm-ring: linear-gradient(155deg,
+html.sin-neon { --gize-calm-bg: linear-gradient(180deg, #14171E 0%, #0B0D12 40%, #05070D 100%); }
+html.tema-claro {
+  --gize-calm-bg: linear-gradient(180deg, #0D1B3A 0%, #081129 40%, #030814 100%);
+  --calm-shadow: 0 10px 30px rgba(0,0,0,.28), var(--gize-glass-shine);
+  --calm-shadow-hi: 0 24px 60px rgba(0,0,0,.45), var(--gize-glass-shine);
+}
+html.tema-claro.tema-rosa { --gize-calm-bg: linear-gradient(180deg, #2C0D22 0%, #1B0816 40%, #14060F 100%); }
+html.tema-luz {
+  --gize-calm-bg: linear-gradient(180deg, #FFFFFF 0%, #F7F8FA 40%, #EEF0F4 100%);
+  --calm-shadow: var(--luz-shadow);
+  --calm-shadow-hi: var(--luz-shadow-hi);
+}
+
+/* El borde «de neón» de todo (cajas, botones, hojas, el login): un filete fino con un toque de
+   color en una esquina. Sale del mismo token que usaban todos, así no queda ninguno afuera. */
+html:not(.sin-neon):not(#_) {
+  --gize-rgb-ring: linear-gradient(155deg,
     color-mix(in srgb, var(--gize-r2) 45%, rgba(255,255,255,.10)) 0%,
     rgba(255,255,255,.10) 28%, rgba(255,255,255,.08) 72%,
     color-mix(in srgb, var(--gize-r1) 32%, rgba(255,255,255,.08)) 100%);
+  /* Halos del azul de acción (pestañas, botones, reloj): sin halo. */
+  --glow-sm: 0 0 0 transparent; --glow-md: 0 0 0 transparent; --glow-lg: 0 0 0 transparent;
 }
-html:not(.tema-claro):not(.tema-luz) #silkCanvas { display: none !important; }
-html:not(.tema-claro):not(.tema-luz) .app-aurora {
-  inset: 0; opacity: 1 !important; filter: none; background: var(--gize-calm-bg);
+html.tema-luz:not(.sin-neon):not(#_) {
+  --gize-rgb-ring: linear-gradient(155deg,
+    color-mix(in srgb, var(--gize-r2) 40%, rgba(11,13,17,.12)) 0%,
+    rgba(11,13,17,.12) 28%, rgba(11,13,17,.10) 72%,
+    color-mix(in srgb, var(--gize-r1) 30%, rgba(11,13,17,.10)) 100%);
 }
-html:not(.tema-claro):not(.tema-luz) .app-aurora span { display: none; }
 
-/* Cajas sin el resplandor de color: queda solo una sombra oscura que las despega del fondo. */
-html:not(.tema-claro):not(.tema-luz) body:not(#_) :is(
+/* ---------- Fondo: liso con degradé, en la app, el panel del coach, el login y la bienvenida ---------- */
+html:not(#_) :is(.app-aurora, .auth-aurora) {
+  inset: 0 !important; filter: none !important; opacity: 1 !important; animation: none !important;
+  background: var(--gize-calm-bg) !important;
+}
+html:not(#_) :is(.app-aurora, .auth-aurora) span { display: none !important; }
+/* GIZE básico (Android) apaga las capas del fondo: el degradé es una sola capa quieta, se deja. */
+html.basico:not(#_) :is(.app-aurora, .auth-aurora) { display: block !important; }
+html:not(#_) :is(#silkCanvas, canvas.auth-particles) { display: none !important; }
+html:not(#_) body::before { display: none; } /* el brillo azul arriba de todo («Claro») */
+
+/* ---------- Cajas y todo lo que tenía resplandor: sombra neutra ---------- */
+html:not(.sin-neon):not(#_) body:not(#_) :is(
     .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
     .card, .blk, .coach-banner, .cfg-card,
     .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
-    .join-box, .daynotes, .w-chart, .ptile) {
-  box-shadow: 0 8px 22px rgba(0,0,0,.28);
+    .join-box, .daynotes, .w-chart, .ptile, .ss-group, .co-ss-group, .hb-item, .hb-item:active,
+    .plan-card, .plan-acc, .plan-acc[open], .form-input.rq-neon,
+    .ex-video, .ex-audio, .ex-var-btn, .wk-live, .wk-finish, .wk-cancel, .rest-inner,
+    .co-head :is(.co-back, .co-logout, .co-gear), .co-head :is(.co-back, .co-logout, .co-gear):hover,
+    .streak, .streak.relight, .chat-btn, .chat-btn.unread, .scan-btn, .scan-btn:hover, .upd-logo, .hba-sheet) {
+  box-shadow: var(--calm-shadow);
 }
-/* El filete fino va solo en las cajas: los botones de un entrenamiento en curso, «Ver video» y
-   el resto de lo activo siguen con el borde de neón completo (--gize-rgb-ring). */
-html:not(.tema-claro):not(.tema-luz):not(.sin-neon) body:not(#_) :is(
-    .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
-    .card, .blk, .coach-banner, .cfg-card,
-    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
-    .join-box, .daynotes, .w-chart) {
-  background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box, var(--gize-calm-ring) border-box;
+@media (max-width: 899px) { html:not(.sin-neon):not(#_) body:not(#_) .co-table:not(#_) { box-shadow: none; } }
+html:not(.sin-neon):not(#_) body:not(#_) :is(.auth-card, #streakHost .stk-card, .fb-card, .streak-note) { box-shadow: var(--calm-shadow-hi); }
+html:not(.sin-neon):not(#_) body:not(#_) :is(#streakHost .stk-card, .fb-card) { border-color: var(--gize-border); }
+html:not(.sin-neon):not(#_) body:not(#_) :is(
+    .chat-btn .chat-badge, .scan-beta, .plan-tab.on, .ptile-s i, .co-dot.on, .onb-opt.on .onb-opt-dot,
+    .tmr.run, .tab.active, .cmode.active, .seg button.on, .ctrl.primary, .form-save, .hb-add-btn, .brand-ic, .scan-line) {
+  box-shadow: none;
 }
-html:not(.tema-claro):not(.tema-luz) body:not(#_) .co-head :is(.co-back, .co-logout, .co-gear) { box-shadow: none; }
+html:not(.sin-neon):not(#_) body:not(#_) .onb-opt.on { box-shadow: 0 0 0 1px var(--gize-blue); }
+html:not(.sin-neon):not(#_) body:not(#_) :is(.streak b, .stk-n) { text-shadow: none; }
+html:not(.sin-neon):not(#_) body:not(#_) :is(
+    .streak.lit .flame, .stk-big .flame:not(.off), .stk-day.on .flame,
+    .chat-btn svg, .scan-btn svg, .nav-item.active svg, .ring-fill) { filter: none; }
 
-/* GIZE básico (Android) apaga la aurora: el degradé liso es una sola capa quieta, se deja. */
-html.basico:not(.tema-claro):not(.tema-luz) .app-aurora { display: block !important; }
+/* ---------- Nada gira: los bordes que daban vueltas quedan quietos con el filete ---------- */
+html:not(.sin-neon):not(#_) body:not(#_) :is(.gize-btn, .chat-btn, .wk-start, .auth-card)::before {
+  background: var(--gize-rgb-ring); animation: none;
+}
+html:not(.sin-neon):not(#_) body:not(#_) .gize-btn { box-shadow: none; }
+html:not(.sin-neon):not(#_) body:not(#_) :is(.chat-btn, .chat-btn.unread, .streak.relight) { animation: none; }
+html:not(.sin-neon):not(#_) body:not(#_) .chat-btn.unread { background: color-mix(in srgb, var(--gize-blue) 14%, var(--gize-surface-2)); }
+
+/* Botones principales: rellenos (blancos en las apariencias oscuras), con el filete quieto. */
+html:not(.sin-neon):not(#_) body:not(#_) .ctrl.primary,
+html:not(.sin-neon):not(#_) body:not(#_) :is(.save-session, .co-save-rt, .rq-send) {
+  background: linear-gradient(#fff, #fff) padding-box, var(--gize-rgb-ring) border-box;
+  animation: none;
+}
+/* «Iniciar entrenamiento»: como los principales, relleno y con el texto oscuro. */
+html:not(.sin-neon):not(#_) body:not(#_) .wk-start { background: #fff; color: #0B0D11; box-shadow: var(--calm-shadow); }
+html:not(.sin-neon):not(#_) body:not(#_) .wk-start svg { color: #0B0D11; }
+html:not(.sin-neon):not(#_) body:not(#_) .wk-start:active { box-shadow: var(--calm-shadow); }
+/* En «Claro» los principales son negros (el revés de las oscuras). */
+html.tema-luz:not(.sin-neon):not(#_) body:not(#_) .ctrl.primary,
+html.tema-luz:not(.sin-neon):not(#_) body:not(#_) :is(.save-session, .co-save-rt, .rq-send) {
+  background: linear-gradient(var(--gize-text), var(--gize-text)) padding-box, var(--gize-rgb-ring) border-box;
+}
+html.tema-luz:not(.sin-neon):not(#_) body:not(#_) .wk-start { background: var(--gize-text); color: #fff; }
+html.tema-luz:not(.sin-neon):not(#_) body:not(#_) .wk-start svg { color: #fff; }
+
+/* Botón del escáner (Comida): caja con el filete, quieta, con el ícono del color del texto. */
+html:not(.sin-neon):not(#_) body:not(#_) .scan-btn {
+  color: var(--gize-text);
+  background: linear-gradient(var(--gize-surface-2), var(--gize-surface-2)) padding-box, var(--gize-rgb-ring) border-box;
+  animation: none;
+}
+
+/* Anillo del reloj de Cardio: quieto, con el filete y sin el halo desenfocado. */
+html:not(.sin-neon):not(#_) body:not(#_) .cneon i { background: var(--gize-rgb-ring); animation: none; }
+html:not(.sin-neon):not(#_) body:not(#_) .cneon.glow { display: none; }
+/* Temporizador terminado: el anillo vuelve al color de «completado». */
+html:not(.sin-neon):not(#_) body:not(#_) .cring.fin .cneon i { background: var(--gize-success); }
+
+/* Ejercicio completado: el destello sin halo de color (solo el tinte de fondo). */
+html:not(.sin-neon):not(#_) body:not(#_) .card.ex-complete-flash { animation-name: exCompleteFlashCalm; }
+@keyframes exCompleteFlashCalm { 40% { background: color-mix(in srgb, var(--gize-blue) 10%, var(--gize-surface)); } }
+
+/* ---------- Lo que encontró la revisión pantalla por pantalla ---------- */
+/* Hojas de abajo (Cardio, Hábitos) y el aviso de versión nueva: el filete de arriba con apenas un
+   toque de color en las puntas, no la gama entera. */
+html:not(.sin-neon):not(#_) body:not(#_) :is(.tpick-card, .ssh-card, .hba-sheet, .upd-card)::before {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--gize-r2) 45%, transparent) 0%, transparent 35%,
+    transparent 65%, color-mix(in srgb, var(--gize-r1) 32%, transparent) 100%);
+}
+/* La raya debajo de los títulos («Progreso», «Configuración»…): fina, del color del texto con un
+   toque de color a la izquierda. Las barras de progreso siguen con la gama (--gize-rgb-line). */
+html:not(.sin-neon):not(#_) body:not(#_) .title-accent {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--gize-r2) 55%, color-mix(in srgb, var(--gize-text) 35%, transparent)),
+    color-mix(in srgb, var(--gize-text) 28%, transparent) 65%);
+}
+/* Nota del coach en el ejercicio: el filete vertical con un toque de color. */
+html:not(.sin-neon):not(#_) body:not(#_) .ex-note {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--gize-r2) 55%, transparent), color-mix(in srgb, var(--gize-r1) 45%, transparent)) left / 2px 100% no-repeat, var(--card-2);
+}
+/* Hábitos: las tareas (propias, del coach y de otros días) con el filete, sin el neón a dos colores. */
+html:not(.sin-neon):not(#_) body:not(#_) .hb-item { --hb-neon: var(--gize-rgb-ring); --hb-glow: transparent; }
+html.tema-luz:not(.sin-neon):not(#_) body:not(#_) .hb-coach-tag { color: var(--gize-blue-deep); }
+/* Filas de lista (Comida y Progreso): sin el halo azul al pasar el mouse. */
+html:not(.sin-neon):not(#_) body:not(#_) :is(.food-row, .diary-item, .w-item, .sess-item, .hx-row) { --glow: transparent; }
+/* La racha: el mismo filete y el mismo relleno que el botón del chat de al lado. */
+html:not(.sin-neon):not(#_) body:not(#_) .streak:not(.out) {
+  border-color: transparent;
+  background: linear-gradient(color-mix(in srgb, var(--gize-r2) 12%, var(--gize-surface)), color-mix(in srgb, var(--gize-r2) 12%, var(--gize-surface))) padding-box, var(--gize-rgb-ring) border-box;
+}
+html.tema-luz:not(.sin-neon):not(#_) body:not(#_) .streak:not(.out) { background: linear-gradient(#fff, #fff) padding-box, var(--gize-rgb-ring) border-box; }
+/* Al volver a prenderse, la llama crece desde gris sin halo de color. */
+html:not(.sin-neon):not(#_) body:not(#_) .streak.relight .flame { animation-name: flRelightCalm; }
+@keyframes flRelightCalm {
+  0% { filter: grayscale(1) brightness(.6); opacity: .5; transform: scale(.6); }
+  60% { filter: none; opacity: 1; transform: scale(1.15); }
+  100% { filter: none; opacity: 1; transform: scale(1); }
+}
+/* Superseries (A1, A2… en Entreno y en el editor del coach): un tinte, no el relleno de la gama. */
+html:not(.sin-neon):not(#_) body:not(#_) :is(.ex-num.ss, .co-exc-ord.ss) {
+  background: color-mix(in srgb, var(--gize-r2) 22%, var(--gize-surface-2));
+  border: 1px solid color-mix(in srgb, var(--gize-r2) 50%, transparent);
+  color: var(--gize-text);
+}
+/* Chat: sin bordes ni botones con la gama. */
+html:not(.sin-neon):not(#_) body:not(#_) .ch-msg.me {
+  background: linear-gradient(color-mix(in srgb, var(--gize-blue) 12%, var(--gize-surface)), color-mix(in srgb, var(--gize-blue) 12%, var(--gize-surface))) padding-box, var(--gize-rgb-ring) border-box;
+}
+html:not(.sin-neon):not(#_) body:not(#_) :is(.ch-ic.on, .ch-play) { background: #fff; color: #0B0D11; border-color: transparent; }
+html.tema-luz:not(.sin-neon):not(#_) body:not(#_) :is(.ch-ic.on, .ch-play) { background: var(--gize-text); color: #fff; }
+html:not(.sin-neon):not(#_) body:not(#_) .ch-input:focus { border-color: var(--gize-blue); }
+html:not(.sin-neon):not(#_) body:not(#_) .ch-seen { color: var(--gize-blue); }
+/* Escáner de Comida: el cartel BETA liso; el visor es siempre negro, así que en «Claro» el texto y
+   el marco van en claro. */
+html:not(.sin-neon):not(#_) body:not(#_) .scan-beta { background: var(--gize-text); color: var(--gize-bg); }
+html:not(.sin-neon):not(#_) body:not(#_) .scan-frame {
+  background: linear-gradient(155deg,
+    color-mix(in srgb, var(--gize-r2) 60%, rgba(255,255,255,.55)) 0%,
+    rgba(255,255,255,.5) 28%, rgba(255,255,255,.45) 72%,
+    color-mix(in srgb, var(--gize-r1) 50%, rgba(255,255,255,.45)) 100%);
+}
+html.tema-luz:not(#_) body:not(#_) .scan-top { color: #fff; }
+html.tema-luz:not(#_) body:not(#_) .scan-msg { color: rgba(255,255,255,.72); }
+/* «Pedir un producto»: el campo con foco se distingue (borde azul de acción). */
+html:not(.sin-neon):not(#_) body:not(#_) .form-input.rq-neon:focus {
+  outline: none;
+  background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box,
+    linear-gradient(var(--gize-blue), var(--gize-blue)) border-box;
+  box-shadow: var(--focus-ring), var(--calm-shadow);
+}
+/* «Más elegido» (Mi plan): borde fino del azul de acción, como su etiqueta. */
+html:not(.sin-neon):not(#_) body:not(#_) .pl-card.best { background: var(--card); border: 1px solid color-mix(in srgb, var(--blue) 55%, transparent); }
+html:not(.sin-neon):not(#_) body:not(#_) .pl-card.best.current { border-color: rgba(37,232,200,.6); }
+/* «Ver variantes»: la fila elegida se distingue. */
+html:not(#_) body:not(#_) .var-pick.on { border-color: var(--gize-text); background: color-mix(in srgb, var(--gize-text) 6%, transparent); }
+/* Días de la rutina y de «Aplicar» en «Azul»/«Rosa»: el elegido con el color de acción. */
+html.tema-claro:not(#_) body:not(#_) :is(.co-daytab.on, .ap-day.on) { background: var(--acc-tint); border-color: var(--acc); color: var(--gize-text); }
+
+/* ---------- Legibilidad (rellenos del color de acción y textos chicos) ---------- */
+html:not(.tema-luz):not(#_) body:not(#_) .tmr.run { color: #05070D; }
+html.tema-luz:not(#_) body:not(#_) .tmr.run { color: #fff; }
+html:not(.tema-luz):not(#_) body:not(#_) :is(.bw.dl, .wk-dl-tag, .ap-day.on .ap-chk) { color: #0B0D11; }
+html.tema-luz:not(#_) body:not(#_) :is(.bw.dl, .wk-dl-tag, .ap-day.on .ap-chk) { color: #fff; }
+html:not(.tema-claro):not(.tema-luz):not(#_) body:not(#_) .plan-tab.on { color: #04121F; }
+html:not(.tema-luz):not(#_) body:not(#_) #authHost .auth-switch { color: var(--gize-blue); }
+html.tema-claro:not(#_) body:not(#_) #authHost .auth-msg:not(.ok) { color: color-mix(in srgb, var(--gize-danger) 70%, #fff); }
+html.tema-luz:not(#_) body:not(#_) #authHost .auth-msg:not(.ok) { color: #B8232A; }
+html.tema-luz:not(#_) body:not(#_) :is(.onb-trial, .auth-msg.ok, .onb-copy.copied) { color: color-mix(in srgb, var(--gize-success) 70%, #000); }
+html.tema-luz:not(.sin-neon):not(#_) body:not(#_) :not(.sov-title) > .sal-chip-pie { color: var(--gize-blue-deep); }
+html.tema-luz:not(.sin-neon):not(#_) body:not(#_) :not(.sov-title) > .sal-chip-bici { color: color-mix(in srgb, var(--gize-r2) 75%, #000); }
+html.tema-luz:not(#_) body:not(#_) .field input:focus { border-color: var(--blue); }
+/* Bienvenida: el círculo de las opciones sin elegir se ve. */
+html:not(.sin-neon):not(#_) body:not(#_) .onb-opt:not(.on) .onb-opt-dot { background: transparent; border: 1.5px solid var(--txt-3); box-sizing: border-box; }
+/* Campos del coach con foco en «Oscuro»: sin el tinte verde viejo. */
+html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.co-note, .co-search, .co-dayname, .ml-in, .opt-body):focus {
+  background: color-mix(in srgb, var(--gize-blue) 6%, var(--gize-surface));
+}
+
+/* ---------- GIZE básico (Android) ---------- */
+/* Sin animaciones, los campos del login que aparecían con un fundido quedaban invisibles. */
+html.basico :where(.auth-field, .auth-row, .auth-msg, .auth-btn, .auth-or, .auth-google, .auth-apple, .auth-google-gis, .auth-switch, .auth-install, .auth-ios-tip) { opacity: 1; }
+/* Sin filtros, la llama apagada se pinta gris desde los colores del degradé. */
+html.basico:not(#_) :is(.flame.off, .streak.out .flame) stop { stop-color: #6B7280; }
+html.basico:not(#_) :is(.flame.off, .streak.out .flame) stop:nth-child(1) { stop-color: #9CA3AF; }
+html.basico:not(#_) :is(.flame.off, .streak.out .flame) stop:nth-child(3) { stop-color: #4B5563; }
+/* En las apariencias de color, el fondo de cada una (básico pinta el body casi negro). */
+html.basico:is(.tema-luz, .tema-claro):not(#_) body { background: var(--gize-bg) !important; }

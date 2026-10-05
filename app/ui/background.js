@@ -22,9 +22,9 @@ export let authParticlesHandle = null;
 // ---- Modo liviano (ver el script del <head> en index.html y css/ui/lite.css) ----
 // Con html.lite no corre ningún canvas de partículas: queda solo el degradé de fondo.
 export function isLite(){ return document.documentElement.classList.contains("lite"); }
-// Sin partículas: en modo liviano y en «Oscuro», que ahora va con fondo liso en degradé
-// (css/ui/calma.css). «Azul», «Rosa» y «Claro» siguen con su fondo de siempre.
-const noParticles = () => { const c = document.documentElement.classList; return isLite() || !(c.contains("tema-claro") || c.contains("tema-luz")); };
+// Sin partículas: todas las apariencias van con fondo liso en degradé (css/ui/calma.css).
+// El canvas y su bucle quedan por si se vuelven a usar, pero no se dibuja nada.
+const noParticles = () => true;
 
 // ---- Cuidar la placa de video (ANR «La GPU no responde» en Android) ----
 // Mientras está el splash (body.is-booting) no se dibuja nada detrás: lo tapa entero y el

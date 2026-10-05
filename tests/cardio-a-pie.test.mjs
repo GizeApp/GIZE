@@ -11,8 +11,10 @@
 //    Share; desactivado mientras llega el recorrido. «Ver de nuevo» a mitad del dibujo. El estado
 //    del GPS que va y viene no redibuja la pantalla.
 // d) Movimiento reducido (dibujo completo de una), modo liviano (sin MapLibre), las apariencias
-//    (Claro, Azul, Rosa, sin neón) con sus colores, nada que se mueva sin fin, 320 px sin scroll
-//    de costado y el «Atrás» de Android.
+//    (Claro, Azul, Rosa, sin neón) con sus colores y sin halo alrededor del recorrido (apariencia
+//    tranquila, css/ui/calma.css), nada que se mueva sin fin, 320 px sin scroll de costado y el
+//    «Atrás» de Android. Los botones principales de Cardio («Empezar» e «Iniciar») son rellenos,
+//    con el filete fino y quieto (sin anillo de neón que gire ni resplandor de colores).
 // El mapa (tiles.openfreemap.org) nunca sale a internet en las pruebas (tests/lib.mjs lo corta):
 // donde se quiere el dibujo sin mapa de una, gize_mapa_off = "1".
 import fs from 'node:fs';
@@ -21,6 +23,13 @@ import { fileURLToPath } from 'node:url';
 import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
 // Texto tal cual (innerText respeta las mayúsculas del CSS).
 const tc = (p, sel) => p.evaluate(s => { const e = document.querySelector(s); return e ? e.textContent.replace(/\s+/g, ' ').trim() : ''; }, sel);
+// ¿Hay algún color con tinte (no gris) en este valor de CSS? rgb()/rgba() y color(srgb …), que es
+// como sale un color-mix() calculado; canales de 0 a 255.
+const colores = v => (String(v || '').match(/rgba?\([^)]*\)|color\(srgb[^)]*\)/g) || []).map(c => {
+  const n = c.replace('srgb', '').match(/[\d.]+/g).map(Number);
+  return c.startsWith('color') ? n.slice(0, 3).map(x => x * 255).concat(n.slice(3)) : n;
+}).filter(([r, g, b, a]) => a === undefined || a > 0);
+const conTinte = v => colores(v).some(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) > 24);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -147,7 +156,16 @@ async function flujo(base, t){
   t.ok(!/a bici/i.test(v), 'nunca «a bici»');
   t.has(v, 'Cronómetro', 'el cronómetro sigue');
   t.ok(v.indexOf('Salir a moverte') < v.indexOf('Cronómetro y temporizador'), 'la salida va antes del cronómetro');
-  t.eq(await p.$$eval('#view .ctrl.primary', l => l.map(b => [b.textContent, getComputedStyle(b).animationName])), [['Empezar', 'gize-spin'], ['Iniciar', 'none']], 'un solo anillo que gira por pantalla: «Empezar» (el del cronómetro, quieto)');
+  // Apariencia tranquila: ningún anillo gira; los dos principales son rellenos (blancos en
+  // «Oscuro») con el filete fino de un toque de color, y sin resplandor de colores.
+  const prim = await p.$$eval('#view .ctrl.primary', l => l.map(b => { const s = getComputedStyle(b), be = getComputedStyle(b, '::before');
+    return { t: b.textContent, anim: [s.animationName, be.animationName], bg: s.backgroundImage, glow: [s.boxShadow, s.textShadow, s.filter] }; }));
+  t.eq(prim.map(b => [b.t, b.anim]), [['Empezar', ['none', 'none']], ['Iniciar', ['none', 'none']]], 'ningún anillo gira: «Empezar» y el «Iniciar» del cronómetro quietos');
+  for (const b of prim){
+    t.ok(/^linear-gradient\(rgb\(255, 255, 255\), rgb\(255, 255, 255\)\)/.test(b.bg), '«' + b.t + '»: relleno blanco, como los botones principales: ' + b.bg.slice(0, 60));
+    t.ok(/linear-gradient\(155deg/.test(b.bg) && !/conic-gradient/.test(b.bg) && conTinte(b.bg), '«' + b.t + '»: el borde es el filete fino con un toque de color, no la gama de neón: ' + b.bg.slice(0, 120));
+    t.ok(!b.glow.some(conTinte), '«' + b.t + '»: sin resplandor de colores: ' + JSON.stringify(b.glow));
+  }
   await p.click('[data-action="sal-mode"][data-mode="bici"]'); await wait(200);
   t.eq(await p.$$eval('[data-action="sal-mode"].active', l => l.map(b => b.dataset.mode)), ['bici'], 'elegir «En bici»');
   t.eq(await p.$eval('[data-action="sal-mode"][data-mode="bici"]', b => b.getAttribute('aria-checked')), 'true', '«En bici» marcada para el lector de pantalla');
@@ -497,7 +515,8 @@ async function looks(base, t, saved){
   t.eq(pg.errs, [], 'errores de la página (sin mapa)');
   await pg.close();
 
-  // Apariencias: la gama de cada una (lento = r1, rápido = r3); sin neón, grises.
+  // Apariencias: la línea con la gama de cada una (lento = r1, rápido = r3); sin neón, grises. En
+  // ninguna hay halo de color alrededor del recorrido (apariencia tranquila: sin resplandores).
   const LOOKS = [
     ['Oscuro', '', [47, 160, 255], true],
     ['Claro', "localStorage.setItem('gize_tema','luz');", [43, 147, 240], true],
@@ -515,7 +534,7 @@ async function looks(base, t, saved){
     t.ok(px && px.close > 30, name + ': el recorrido arranca con el color frío de su gama: ' + JSON.stringify(px));
     t.ok(color ? px.sat > px.n * 0.5 : px.sat === 0, name + (color ? ': con color' : ': solo grises') + ': ' + JSON.stringify(px));
     t.has(await p.$eval('.sal-leg-bar', e => e.style.background), 'rgb(' + slow.join(', ') + ')', name + ': la leyenda con los mismos colores');
-    t.eq(await p.$$eval('#salidaHost .rv-halo', l => l.length), color ? 1 : 0, name + (color ? ': con halo' : ': sin halo'));
+    t.eq(await p.$$eval('#salidaHost .rv-halo', l => l.length), 0, name + ': sin halo alrededor del recorrido');
     t.eq(await infinite(p), [], name + ': nada se mueve sin fin');
     await p.click('#salidaHost [data-action="sal-close"]'); await wait(200);
     t.eq(pg.errs, [], 'errores de la página (' + name + ')');

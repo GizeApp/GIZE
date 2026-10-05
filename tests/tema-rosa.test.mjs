@@ -2,9 +2,12 @@
 // de «Azul» (la que antes se llamaba «Claro») con la paleta rosa. Es la cuarta opción del selector
 // Apariencia (Ajustes del cliente y Configuración del coach, que entra en 320 px), se aplica al toque, queda guardada
 // ("gize_tema" = "rosa") y las dos clases ya están antes de la primera pintada (sin parpadeo).
-// Fondo ciruela, gama rosa / orquídea / rubor (nada de azul ni cian), splash con el orbe
-// rosa. Pasar a «Azul» saca solo tema-rosa; pasar a «Oscuro», las dos. Anda con el neón
-// apagado (blancos y grises) y con el modo liviano (sin desenfoques).
+// Con la apariencia tranquila (css/ui/calma.css): fondo ciruela en un degradé liso (sin los
+// círculos de color), el borde de las cajas es un filete fino y quieto con apenas un toque de
+// orquídea y rosa en las puntas (nada de azul ni cian) y la sombra es neutra, sin resplandor de
+// colores; el splash sigue con el orbe rosa. Pasar a «Azul» saca solo tema-rosa (vuelve el toque
+// violeta y azul); pasar a «Oscuro», las dos. Anda con el neón apagado (blancos y grises) y con el
+// modo liviano (sin desenfoques).
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'Torso', exercises: [{ id: 'e1', name: 'Press de banca', sets: [{ id: 's1', kg: '80', reps: '8', done: true }] }] }], sessions: [], weights: [], daily: {} };
@@ -15,25 +18,36 @@ const COACH_H = {
 };
 
 const PLUM = 'rgb(20, 6, 15)', NAVY = 'rgb(3, 8, 20)', BLACK = 'rgb(0, 0, 0)';
-// La gama de «Rosa» (rosa fuerte, orquídea, rubor, magenta) y la de «Azul» (azul, violeta, cian, índigo).
-const ROSA_RING = ['rgb(255, 95, 168)', 'rgb(214, 92, 245)', 'rgb(255, 163, 200)', 'rgb(232, 77, 190)'];
-const CLARO_RING = ['rgb(63, 163, 242)', 'rgb(164, 116, 247)', 'rgb(46, 198, 238)', 'rgb(91, 108, 242)'];
-const tiene = (v, cols) => cols.every(c => String(v || '').includes(c));
-const ninguno = (v, cols) => !cols.some(c => String(v || '').includes(c));
+// Los colores de un valor de CSS, en canales de 0 a 255 (más el alfa si lo tiene): rgb()/rgba() y
+// color(srgb …), que es como sale un color-mix() calculado (el toque de color del filete). Los
+// transparentes no cuentan.
+const colores = v => (String(v || '').match(/rgba?\([^)]*\)|color\(srgb[^)]*\)/g) || []).map(c => {
+  const n = c.replace('srgb', '').match(/[\d.]+/g).map(Number);
+  return c.startsWith('color') ? n.slice(0, 3).map(x => x * 255).concat(n.slice(3)) : n;
+}).filter(([r, g, b, a]) => a === undefined || a > 0);
+// Los colores con tinte (no grises).
+const tintes = v => colores(v).filter(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) > 24);
+const conTinte = v => tintes(v).length > 0;
 // ¿Azul o cian? (el azul le saca mucho al rojo, o es un cian: verde y azul altos, rojo bajo). La orquídea no cuenta.
-const azules = v => (String(v || '').match(/rgba?\([^)]*\)/g) || []).map(c => c.match(/[\d.]+/g).map(Number))
-  .filter(([r, g, b, a]) => (a === undefined || a > 0) && ((b > r + 60 && b >= g) || (g > r + 60 && b > r + 60)));
-// Color con tinte (no gris).
-const conTinte = v => (String(v || '').match(/rgba?\([^)]*\)/g) || []).map(c => c.match(/[\d.]+/g).map(Number))
-  .some(([r, g, b, a]) => (a === undefined || a > 0) && Math.max(r, g, b) - Math.min(r, g, b) > 24);
+const azules = v => colores(v).filter(([r, g, b]) => (b > r + 60 && b >= g) || (g > r + 60 && b > r + 60));
+// ¿Rosa u orquídea? (el rojo le saca mucho al verde).
+const rosados = v => colores(v).filter(([r, g]) => r > g + 60);
+// El filete tranquilo: un degradé lineal quieto (nada de conic-gradient), blanco fino en el medio y
+// apenas un toque de color (dos tintes, bien transparentes) en las puntas.
+const filete = v => /^linear-gradient\(155deg/.test(v || '') && !/conic-gradient/.test(v) && /rgba\(255, 255, 255, 0\.1\) 28%/.test(v)
+  && tintes(v).length === 2 && tintes(v).every(c => c[3] !== undefined && c[3] < 0.6);
+// El fondo tranquilo de «Rosa»: el degradé liso de ciruela (--gize-calm-bg), sin círculos ni manchas de color.
+const fondoCiruela = v => /^linear-gradient\(rgb\(44, 13, 34\) 0%, rgb\(27, 8, 22\) 40%, rgb\(20, 6, 15\) 100%\)$/.test(v || '')
+  && !/radial|vmax|rgba\(255, 95, 168/.test(v) && !azules(v).length;
 
 // Estilos clave de la pantalla de Ajustes.
 const look = p => p.evaluate(() => {
   const cs = (s, pe) => { const e = document.querySelector(s); return e ? getComputedStyle(e, pe || null) : null; };
   const c = cs('.cfg-card'), ring = cs('.cfg-card', '::after'), root = document.documentElement, logo = cs('img.brand-logo');
   return { claro: root.classList.contains('tema-claro'), rosa: root.classList.contains('tema-rosa'), body: cs('body').backgroundColor,
-    ring: ring && ring.backgroundImage, card: c && c.backgroundImage + ' ' + c.backgroundColor, blur: c && c.backdropFilter, shadow: c && c.boxShadow,
-    aurora: cs('.app-aurora') && cs('.app-aurora').backgroundImage, logo: logo && logo.content, nav: cs('.navbar') && cs('.navbar').backgroundColor,
+    ring: ring && ring.backgroundImage, ringGira: ring && ring.animationName, card: c && c.backgroundImage + ' ' + c.backgroundColor, blur: c && c.backdropFilter, shadow: c && c.boxShadow,
+    aurora: cs('.app-aurora') && cs('.app-aurora').backgroundImage,
+    manchas: [...document.querySelectorAll('.app-aurora span')].filter(s => getComputedStyle(s).display !== 'none').length, logo: logo && logo.content, nav: cs('.navbar') && cs('.navbar').backgroundColor,
     accent: cs('.cfg-seg-opt.on') && cs('.cfg-seg-opt.on').backgroundColor,
     meta: [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content),
     saved: localStorage.getItem('gize_tema'), on: [...document.querySelectorAll('[data-tema].on')].map(b => b.getAttribute('data-tema')) };
@@ -72,11 +86,11 @@ export default async function ({ base, t }){
   t.ok(l.claro && l.rosa && await pg.p.evaluate(() => window.__sinRecargar === 1), 'Rosa: html.tema-claro + html.tema-rosa al toque, sin recargar');
   t.eq([l.saved, l.on], ['rosa', ['rosa']], 'Rosa: queda guardado y marcado');
   t.eq(l.body, PLUM, 'Rosa: fondo ciruela');
-  t.ok(tiene(l.ring, ROSA_RING) && ninguno(l.ring, CLARO_RING) && !azules(l.ring).length, 'Rosa: el borde de neón de la caja es rosa, orquídea y rubor: ' + l.ring);
+  t.ok(filete(l.ring) && l.ringGira === 'none' && rosados(l.ring).length === 2 && !azules(l.ring).length, 'Rosa: el borde de la caja es el filete fino y quieto, con apenas un toque de orquídea y rosa (nada de azul): ' + l.ring);
   t.ok(/blur\(22px\)/.test(l.blur || '') && /rgba\(255, 255, 255, 0\.19\)/.test(l.card || ''), 'Rosa: la caja es el mismo vidrio de Azul: ' + l.blur);
-  t.ok(/62vmax/.test(l.aurora || '') && /rgba\(255, 95, 168/.test(l.aurora) && /rgba\(122, 23, 71/.test(l.aurora) && !azules(l.aurora).length, 'Rosa: los círculos del fondo rosa, orquídea, rubor y vino, sin azul: ' + l.aurora);
+  t.ok(fondoCiruela(l.aurora) && l.manchas === 0, 'Rosa: el fondo es un degradé liso de ciruela, sin círculos ni manchas de color: ' + l.aurora);
   t.ok(/gize-marca-rosa\.svg/.test(l.logo || ''), 'Rosa: el logo «Rosa» (G blanca, orbe rosa): ' + l.logo);
-  t.ok(!azules(l.nav).length && !azules(l.accent).length && !azules(l.shadow).length, 'Rosa: barra, opción elegida y brillo de la caja sin azul: ' + [l.nav, l.accent, l.shadow].join(' / '));
+  t.ok(!azules(l.nav).length && !azules(l.accent).length && l.shadow && l.shadow !== 'none' && !conTinte(l.shadow), 'Rosa: barra y opción elegida sin azul, y la caja con una sombra neutra, sin resplandor de colores: ' + [l.nav, l.accent, l.shadow].join(' / '));
   t.eq(l.meta.every(m => m.toUpperCase() === '#14060F'), true, 'Rosa: la barra del sistema en ciruela: ' + l.meta);
 
   // 2) Las cuatro opciones entran en 320 px.
@@ -100,11 +114,12 @@ export default async function ({ base, t }){
   l = await look(pg.p);
   t.eq([l.claro, l.rosa, l.saved, l.on, l.body], [true, true, 'rosa', ['rosa'], PLUM], 'Rosa: sigue después de recargar');
 
-  // 4) A «Azul»: se va solo tema-rosa y vuelven los colores de Azul; a «Oscuro», las dos.
+  // 4) A «Azul»: se va solo tema-rosa y vuelven el toque de color y el fondo de Azul; a «Oscuro», las dos.
   await pg.p.click('.cfg-seg [data-tema="azul"]'); await wait(150);
   l = await look(pg.p);
   t.eq([l.claro, l.rosa, l.saved, l.on, l.body], [true, false, 'azul', ['azul'], NAVY], 'Azul: se saca tema-rosa y vuelve el marino');
-  t.ok(tiene(l.ring, CLARO_RING) && ninguno(l.ring, ROSA_RING), 'Azul: vuelve la gama de Azul: ' + l.ring);
+  t.ok(filete(l.ring) && l.ringGira === 'none' && azules(l.ring).length === 2 && !rosados(l.ring).length, 'Azul: el filete vuelve con el toque violeta y azul de Azul (nada de rosa): ' + l.ring);
+  t.ok(/^linear-gradient\(rgb\(13, 27, 58\) 0%/.test(l.aurora || '') && !/radial|vmax/.test(l.aurora) && l.manchas === 0, 'Azul: el fondo vuelve al degradé liso de marino: ' + l.aurora);
   t.eq(l.meta.every(m => m.toUpperCase() === '#030814'), true, 'Azul: la barra del sistema en marino');
   await pg.p.click('.cfg-seg [data-tema="oscuro"]'); await wait(150);
   l = await look(pg.p);
@@ -112,7 +127,8 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores de la página (cliente)');
   await pg.close();
 
-  // 5) Neón apagado con «Rosa»: vidrio, pero filetes y brillos neutros (como Azul sin neón).
+  // 5) Neón apagado con «Rosa»: vidrio, pero filetes blancos y sombras neutras (como Azul sin neón);
+  //    el fondo es el mismo degradé liso de ciruela.
   pg = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') }, init: () => { localStorage.setItem('gize_tema', 'rosa'); localStorage.setItem('gize_neon', '0'); localStorage.setItem('gize_lite', '0'); } });
   await pg.p.goto(base + '/app/'); await wait(2500);
   await pg.p.click('#nav-config'); await wait(500);
@@ -123,7 +139,7 @@ export default async function ({ base, t }){
   t.ok(/blur/.test(l.blur || ''), 'Rosa sin neón: la caja sigue siendo vidrio');
   t.ok(!/conic/.test(l.ring || '') && /rgba\(255, 255, 255, 0\.18\)/.test(l.ring || ''), 'Rosa sin neón: el borde de la caja es un filete blanco: ' + l.ring);
   t.ok(!conTinte(l.shadow) && !flame.some(conTinte), 'Rosa sin neón: sin resplandores de colores');
-  t.ok(/62vmax/.test(l.aurora || '') && !/rgba\(255, 95, 168/.test(l.aurora) && !azules(l.aurora).length, 'Rosa sin neón: los círculos del fondo apagados: ' + l.aurora);
+  t.ok(fondoCiruela(l.aurora) && l.manchas === 0, 'Rosa sin neón: el mismo degradé liso de ciruela, sin círculos ni el rosa del neón: ' + l.aurora);
   t.eq(pg.errs, [], 'errores de la página (sin neón)');
   await pg.close();
 

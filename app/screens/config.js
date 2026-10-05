@@ -178,7 +178,7 @@ export function renderConfig() {
         '<span class="cfg-notif-ic">' + sparkSvg + '</span>' +
         '<div class="cfg-notif-txt">' +
           '<div class="cfg-notif-label" id="cfgNeonLbl">Neón</div>' +
-          '<div class="cfg-notif-desc">Bordes y brillos de colores</div>' +
+          '<div class="cfg-notif-desc">Toque de color en los bordes</div>' +
         '</div>' +
         neonSwitchHtml("cfgNeonLbl") +
       '</div>' +

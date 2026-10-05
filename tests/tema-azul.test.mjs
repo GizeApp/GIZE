@@ -5,6 +5,11 @@
 // parpadeo). Quien la eligió cuando se llamaba «Claro» (guardado "claro") la sigue viendo igual,
 // con «Azul» marcado. El splash (el logo tranquilo, con el orbe en los colores de «Azul») se va
 // solo y respeta movimiento reducido y modo liviano.
+// Con la apariencia tranquila (css/ui/calma.css): el fondo de «Azul» es un degradé liso de marino
+// (sin los círculos de color), el borde de las cajas es un filete fino y quieto con apenas un toque
+// violeta y azul en las puntas (nada de conic-gradient ni de giro) y la sombra es neutra, sin
+// resplandor de colores. La gama entera de «Azul» (azul, violeta, cian) sigue en las barras de
+// progreso (--gize-rgb-line).
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'Torso', exercises: [{ id: 'e1', name: 'Press de banca', sets: [{ id: 's1', kg: '80', reps: '8', done: true }] }] }], sessions: [], weights: [], daily: {} };
@@ -14,23 +19,55 @@ const COACH_H = {
   '/coach_billing': (r, J, i) => { const b = { coach_id: COACH.id, plan: 'cortesia', max_clients: 10, trial_ends_at: '2099-01-01T00:00:00Z' }; return J(i.one ? b : [b]); },
 };
 
-// Valores del look de siempre, leídos de origin/main (faec7b6) con la misma medición.
+// Valores del look de «Oscuro» (el tranquilo de css/ui/calma.css), con la misma medición.
 const OSCURO = {
   body: 'rgb(0, 0, 0)',
-  // «Oscuro» más tranquilo (css/ui/calma.css): las cajas con un filete fino en vez del borde RGB.
+  // Las cajas con un filete fino (relleno liso + el filete como border-box) en vez del borde RGB.
   card: 'linear-gradient(rgb(11, 13, 17), rgb(11, 13, 17)), linear-gradient(155deg, color(srgb 0.689655 0.431616 1 / 0.506078) 0%, rgba(255, 255, 255, 0.1) 28%, rgba(255, 255, 255, 0.08) 72%, color(srgb 0.30084 0.680672 1 / 0.373333) 100%)',
   cardFill: 'rgba(0, 0, 0, 0)', blur: 'none', logo: 'normal',
-  ring: 'conic-gradient(from 0deg,#2FA0FF,#A65CFF,#FF3DAE,#25E8C8,#2FA0FF)',
+  // El filete de «Oscuro»: degradé lineal quieto, blanco fino con un toque del violeta (#A65CFF) y
+  // del azul (#2FA0FF) de la gama en las puntas (nada de conic-gradient).
+  ring: 'linear-gradient(155deg, color-mix(in srgb, #A65CFF 45%, rgba(255,255,255,.10)) 0%, rgba(255,255,255,.10) 28%, rgba(255,255,255,.08) 72%, color-mix(in srgb, #2FA0FF 32%, rgba(255,255,255,.08)) 100%)',
+  // Sombra neutra (sin resplandor de colores) y el fondo en un degradé liso, sin círculos.
+  shadow: 'rgba(0, 0, 0, 0.28) 0px 8px 22px 0px',
+  aurora: 'linear-gradient(rgb(14, 20, 36) 0%, rgb(8, 11, 21) 38%, rgb(5, 7, 13) 100%)', manchas: 0,
   nav: 'rgba(6, 9, 17, 0.82)',
 };
+const deOscuro = l => ({ body: l.body, card: l.card, cardFill: l.cardFill, blur: l.blur, logo: l.logo, ring: l.ring, shadow: l.shadow, aurora: l.aurora, manchas: l.manchas, nav: l.nav });
+
+// Los colores de un valor de CSS, en canales de 0 a 255 (más el alfa si lo tiene): rgb()/rgba() y
+// color(srgb …), que es como sale un color-mix() calculado (el toque de color del filete). Los
+// transparentes no cuentan.
+const colores = v => (String(v || '').match(/rgba?\([^)]*\)|color\(srgb[^)]*\)/g) || []).map(c => {
+  const n = c.replace('srgb', '').match(/[\d.]+/g).map(Number);
+  return c.startsWith('color') ? n.slice(0, 3).map(x => x * 255).concat(n.slice(3)) : n;
+}).filter(([r, g, b, a]) => a === undefined || a > 0);
+// Los colores con tinte (no grises).
+const tintes = v => colores(v).filter(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) > 24);
+const conTinte = v => tintes(v).length > 0;
+// ¿Azul o violeta? (el azul le saca mucho al rojo). ¿Rosa? (el rojo le saca mucho al verde y al azul).
+const azules = v => colores(v).filter(([r, g, b]) => b > r + 60 && b >= g);
+const rosados = v => colores(v).filter(([r, g, b]) => r > g + 60 && r > b);
+// El filete tranquilo ya calculado (el ::after de la caja): un degradé lineal quieto (nada de
+// conic-gradient), blanco fino en el medio y apenas un toque de color (dos tintes, bien
+// transparentes) en las puntas.
+const filete = v => /^linear-gradient\(155deg/.test(v || '') && !/conic-gradient/.test(v) && /rgba\(255, 255, 255, 0\.1\) 28%/.test(v)
+  && tintes(v).length === 2 && tintes(v).every(c => c[3] !== undefined && c[3] < 0.6);
 
 // Estilos clave de la pantalla actual (la de Ajustes tiene tarjetas .cfg-card).
 const look = p => p.evaluate(() => {
-  const cs = s => { const e = document.querySelector(s); return e ? getComputedStyle(e) : null; };
-  const c = cs('.cfg-card'), logo = cs('#app img.brand-logo') || cs('img.brand-logo');
+  const cs = (s, pe) => { const e = document.querySelector(s); return e ? getComputedStyle(e, pe || null) : null; };
+  const c = cs('.cfg-card'), borde = cs('.cfg-card', '::after'), logo = cs('#app img.brand-logo') || cs('img.brand-logo');
+  const root = getComputedStyle(document.documentElement);
   return { claro: document.documentElement.classList.contains('tema-claro'), body: cs('body').backgroundColor,
-    card: c && c.backgroundImage, cardFill: c && c.backgroundColor, blur: c && c.backdropFilter, logo: logo && logo.content,
-    ring: getComputedStyle(document.documentElement).getPropertyValue('--gize-rgb-ring').trim(), nav: cs('.navbar') && cs('.navbar').backgroundColor,
+    card: c && c.backgroundImage, cardFill: c && c.backgroundColor, blur: c && c.backdropFilter, shadow: c && c.boxShadow, logo: logo && logo.content,
+    // El token del filete, con los espacios normalizados (sale tal cual está escrito en el CSS).
+    ring: root.getPropertyValue('--gize-rgb-ring').trim().replace(/\s+/g, ' '),
+    line: root.getPropertyValue('--gize-rgb-line').trim(),
+    borde: borde && borde.backgroundImage, bordeGira: borde && borde.animationName,
+    aurora: cs('.app-aurora') && cs('.app-aurora').backgroundImage,
+    manchas: [...document.querySelectorAll('.app-aurora span')].filter(s => getComputedStyle(s).display !== 'none').length,
+    nav: cs('.navbar') && cs('.navbar').backgroundColor,
     saved: localStorage.getItem('gize_tema'),
     on: [...document.querySelectorAll('[data-tema].on')].map(b => b.getAttribute('data-tema')) };
 });
@@ -69,7 +106,8 @@ export default async function ({ base, t }){
   await wait(400);
   await pg.p.click('#nav-config'); await wait(500);
   let l = await look(pg.p);
-  t.eq({ body: l.body, card: l.card, cardFill: l.cardFill, blur: l.blur, logo: l.logo, ring: l.ring, nav: l.nav }, OSCURO, 'por defecto: fondo, caja de sección, anillo de neón, logo y barra iguales a los de siempre');
+  t.eq(deOscuro(l), OSCURO, 'por defecto: fondo liso, caja de sección con el filete y sombra neutra, logo y barra de «Oscuro»');
+  t.ok(/^linear-gradient\(155deg/.test(l.ring) && !/conic-gradient/.test(l.ring), 'por defecto: el borde es el filete quieto, sin conic-gradient: ' + l.ring);
   t.eq(l.on, ['oscuro'], 'Ajustes: «Oscuro» elegido por defecto');
   t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('.cfg-seg [data-tema]')].map(b => b.textContent)), ['Oscuro', 'Claro', 'Azul', 'Rosa'], 'Ajustes: el selector Apariencia con Oscuro, Claro, Azul y Rosa');
 
@@ -83,9 +121,14 @@ export default async function ({ base, t }){
   t.eq(l.body, 'rgb(3, 8, 20)', 'Azul: fondo azul marino');
   t.ok(/blur\(22px\)/.test(l.blur || ''), 'Azul: la caja de sección es vidrio (backdrop-filter): ' + l.blur);
   t.ok(/rgba\(255, 255, 255, 0\.19\)/.test(l.card || '') && l.card !== OSCURO.card, 'Azul: relleno de vidrio blanco translúcido: ' + l.card);
-  t.ok(/#3FA3F2/i.test(l.ring) && /#A474F7/i.test(l.ring) && /#2EC6EE/i.test(l.ring) && /#5B6CF2/i.test(l.ring) && !/#FF3DAE/i.test(l.ring), 'Azul: gama nueva (azul, violeta, cian, índigo): ' + l.ring);
+  t.ok(/^linear-gradient\(155deg/.test(l.ring) && !/conic-gradient/.test(l.ring) && /#A474F7/i.test(l.ring) && /#3FA3F2/i.test(l.ring)
+    && !/#A65CFF|#2FA0FF|#FF3DAE/i.test(l.ring), 'Azul: el filete con el toque violeta y azul de Azul (no el de Oscuro), sin conic-gradient: ' + l.ring);
+  t.ok(filete(l.borde) && l.bordeGira === 'none' && azules(l.borde).length === 2 && !rosados(l.borde).length, 'Azul: el borde de la caja es el filete fino y quieto, con apenas un toque violeta y azul: ' + l.borde);
+  t.ok(l.shadow && l.shadow !== 'none' && !conTinte(l.shadow), 'Azul: la caja con una sombra neutra, sin resplandor de colores: ' + l.shadow);
+  t.ok(/#3FA3F2/i.test(l.line) && /#A474F7/i.test(l.line) && /#2EC6EE/i.test(l.line) && !/#FF3DAE/i.test(l.line), 'Azul: la gama de Azul (azul, violeta, cian) sigue en las barras de progreso: ' + l.line);
   t.ok(/gize-marca-azul\.svg/.test(l.logo || ''), 'Azul: el logo «Azul» (G blanca, orbe azul): ' + l.logo);
-  t.ok(await pg.p.evaluate(() => /62vmax/.test(getComputedStyle(document.querySelector('.app-aurora')).backgroundImage)), 'Azul: los círculos grandes de fondo');
+  t.ok(/^linear-gradient\(rgb\(13, 27, 58\) 0%, rgb\(8, 17, 41\) 40%, rgb\(3, 8, 20\) 100%\)$/.test(l.aurora || '') && !/radial|vmax/.test(l.aurora) && l.manchas === 0,
+    'Azul: el fondo es un degradé liso de marino, sin círculos ni manchas de color: ' + l.aurora);
 
   // 3) Queda al recargar, puesta antes de la primera pintada, con el splash nuevo que se va solo.
   const t0 = Date.now();
@@ -108,7 +151,10 @@ export default async function ({ base, t }){
   await pg.p.click('.cfg-seg [data-tema="oscuro"]'); await wait(150);
   l = await look(pg.p);
   t.eq([l.claro, l.saved], [false, null], 'Oscuro: se saca la clase y lo guardado');
-  t.eq({ body: l.body, card: l.card, cardFill: l.cardFill, blur: l.blur, logo: l.logo, ring: l.ring, nav: l.nav }, OSCURO, 'Oscuro: vuelve el look de siempre');
+  t.ok(l.shadow && !conTinte(l.shadow), 'Oscuro: al toque, la sombra de la caja ya es neutra: ' + l.shadow);
+  // La sombra de la caja pasa con una transición (--duration-standard): se mide cuando terminó.
+  await wait(600); l = await look(pg.p);
+  t.eq(deOscuro(l), OSCURO,'Oscuro: vuelve su look (fondo liso, filete, sombra neutra, logo y barra)');
   t.eq(pg.errs, [], 'errores de la página (cliente)');
   await pg.close();
 

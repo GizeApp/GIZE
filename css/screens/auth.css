@@ -216,7 +216,7 @@
 .onb-num { height: 48px; border-radius: var(--r-btn); background: var(--card-2); border: 1px solid var(--border); color: var(--txt); font: 700 16px var(--gize-font); cursor: pointer; }
 .onb-num.on { border-color: var(--gize-blue); box-shadow: 0 0 0 1px var(--gize-blue); }
 .onb-field-free { align-self: stretch; margin-top: 0; }
-.onb-field-free .auth-in { text-transform: none; }
+.onb-field-free .auth-in { text-transform: none; padding-left: 14px; } /* sin ícono a la izquierda */
 .onb-routines { display: flex; flex-direction: column; gap: 10px; align-self: stretch; max-height: 46vh; overflow-y: auto; }
 .onb-routine { text-align: left; padding: 14px; border-radius: var(--r-card); background: var(--card-2); border: 1px solid var(--border); color: var(--txt); cursor: pointer; font: 400 14px/1.4 var(--gize-font); }
 .onb-routine b { display: block; font-size: 15px; }

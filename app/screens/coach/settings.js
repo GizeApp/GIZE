@@ -61,7 +61,7 @@ export function renderCoachSettings(){
     // toque (app/ui/neon.js escucha el interruptor data-neon-toggle).
     '<div class="cs-field">'+
       '<label id="csNeonLbl">Neón en este dispositivo</label>'+
-      '<div class="cs-neon"><span>Bordes y brillos de colores</span>'+neonSwitchHtml("csNeonLbl")+'</div>'+
+      '<div class="cs-neon"><span>Toque de color en los bordes</span>'+neonSwitchHtml("csNeonLbl")+'</div>'+
     '</div>'+
     (adminEntry() ? '<div class="cs-field"><label>Administración de GIZE</label>'+adminEntry()+'</div>' : '')+
     '<div class="cs-field">'+

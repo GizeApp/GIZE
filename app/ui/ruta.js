@@ -40,7 +40,9 @@ export function palette(){
   const h = document.documentElement;
   if (h.classList.contains("sin-neon")) return { slow: [110, 116, 130], mid: [178, 184, 194], fast: [255, 255, 255], glow: false };
   const g = gizeGamut(), def = [[47, 160, 255], [166, 92, 255], [255, 61, 174]];
-  return { slow: parseColor(g[0]) || def[0], mid: parseColor(g[1]) || def[1], fast: parseColor(g[2]) || def[2], glow: true };
+  // Sin halo de color alrededor del recorrido (apariencia tranquila, css/ui/calma.css): la línea
+  // conserva los colores de velocidad.
+  return { slow: parseColor(g[0]) || def[0], mid: parseColor(g[1]) || def[1], fast: parseColor(g[2]) || def[2], glow: false };
 }
 // Color de t (0 lento … 1 rápido) como [r, g, b]: lento → medio → rápido.
 export function colorRGB(t, pal){

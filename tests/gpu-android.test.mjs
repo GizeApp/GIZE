@@ -1,7 +1,8 @@
 // La placa de video (Play Console: ANR «La GPU no responde» al abrir la app en un Galaxy A13).
-// - Mientras está el splash no se dibuja el fondo de partículas ni corren las animaciones
-//   infinitas de atrás; arrancan cuando el splash se va, y del splash no queda nada en el DOM.
-// - Con la app en segundo plano (Capacitor manda "pause"/"resume") el fondo se frena.
+// - El fondo es liso en degradé en todas las apariencias (css/ui/calma.css): el canvas de partículas
+//   está oculto y nunca se dibuja (ni con el splash, ni después, ni al volver de segundo plano).
+// - Mientras está el splash no corren las animaciones de atrás, y del splash no queda nada en el DOM.
+// - Con la app en segundo plano (Capacitor manda "pause"/"resume") las animaciones se frenan.
 // - App de Android (html.android-app): ningún backdrop-filter, con cualquier apariencia.
 // - Android de gama baja (4 núcleos o menos, o placa de video lenta) → modo liviano, salvo que
 //   se haya elegido a mano en Ajustes. En la web no cambia nada.
@@ -9,8 +10,8 @@ import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} };
 
-// Cuenta los círculos que se dibujan en un canvas, antes y después de que se vaya el splash,
-// y anota cómo está la aurora (animación) mientras el splash está.
+// Cuenta los círculos que se dibujan en un canvas, antes y después de que se vaya el splash
+// (con el fondo liso tienen que quedar en 0), y anota cómo está la aurora mientras el splash está.
 const SPY = () => {
   window.__arc = { boot: 0, after: 0 };
   const o = CanvasRenderingContext2D.prototype.arc;
@@ -37,30 +38,36 @@ async function open(base, init){
 }
 
 export default async function ({ base, t }){
-  // ---- Web, equipo bueno: el fondo espera al splash y se frena en segundo plano ----
+  // ---- Web, equipo bueno: el fondo no se dibuja nunca y las animaciones se frenan en segundo plano ----
   {
-    // Las partículas del fondo están en «Azul», «Rosa» y «Claro» («Oscuro» va con fondo liso, css/ui/calma.css).
+    // «Azul» antes tenía partículas; ahora, como todas las apariencias, va con fondo liso en degradé.
     const { p, errs, close } = await open(base, `localStorage.setItem('gize_lite','0');localStorage.setItem('gize_tema','azul');(${SPY})();`);
     await p.goto(base + '/app/'); await wait(3500);
     const v = await p.evaluate(() => ({ arc: window.__arc, aurora: window.__auroraBoot, cls: document.documentElement.className,
       nav: getComputedStyle(document.querySelector('.navbar')).backdropFilter, splash: !!document.getElementById('splash'),
-      host: document.getElementById('splashHost').childNodes.length }));
+      host: document.getElementById('splashHost').childNodes.length,
+      canvas: getComputedStyle(document.getElementById('silkCanvas')).display,
+      bg: getComputedStyle(document.querySelector('.app-aurora')).backgroundImage,
+      spans: [...document.querySelectorAll('.app-aurora span')].map(e => getComputedStyle(e).display) }));
     t.ok(!v.splash && v.host === 0, 'web: el splash se fue y no dejó nada en el DOM');
     t.eq(v.arc.boot, 0, 'web: mientras está el splash no se dibuja el fondo de partículas');
-    t.ok(v.arc.after > 0, 'web: cuando se va el splash el fondo arranca: ' + JSON.stringify(v.arc));
+    t.eq(v.arc.after, 0, 'web: cuando se va el splash el fondo tampoco se dibuja (sin partículas): ' + JSON.stringify(v.arc));
+    t.eq(v.canvas, 'none', 'web: el canvas de partículas está oculto');
+    t.ok(/^linear-gradient\(/.test(v.bg) && !/radial-gradient|conic-gradient/.test(v.bg), 'web: el fondo es el degradé liso: ' + v.bg.slice(0, 60));
+    t.ok(v.spans.length > 0 && v.spans.every(d => d === 'none'), 'web: sin manchas de color (las capas de la aurora ocultas): ' + v.spans);
     t.eq(v.aurora, 'paused', 'web: la aurora espera quieta detrás del splash');
     t.ok(!/android-app|lite/.test(v.cls), 'web: ni android-app ni liviano en un equipo bueno: ' + v.cls);
     t.ok(v.nav && v.nav !== 'none', 'web: la barra de abajo conserva el desenfoque: ' + v.nav);
 
-    // Segundo plano (Capacitor "pause"): no se dibuja más y las animaciones se frenan.
+    // Segundo plano (Capacitor "pause"): no se dibuja nada y las animaciones se frenan.
     await p.evaluate(() => document.dispatchEvent(new Event('pause'))); await wait(200);
     const a0 = await p.evaluate(() => window.__arc.after); await wait(500);
     const s = await p.evaluate(() => ({ arc: window.__arc.after, cls: document.documentElement.classList.contains('app-pausada'),
       ps: getComputedStyle(document.querySelector('.app-aurora span')).animationPlayState }));
-    t.eq([s.arc - a0, s.cls, s.ps], [0, true, 'paused'], 'web: en segundo plano el fondo y las animaciones se frenan');
+    t.eq([s.arc - a0, s.cls, s.ps], [0, true, 'paused'], 'web: en segundo plano el fondo sigue sin dibujarse y las animaciones se frenan');
     await p.evaluate(() => document.dispatchEvent(new Event('resume'))); await wait(500);
     const r = await p.evaluate(() => ({ arc: window.__arc.after, cls: document.documentElement.classList.contains('app-pausada') }));
-    t.ok(r.arc > s.arc && !r.cls, 'web: al volver el fondo sigue');
+    t.eq([r.arc, r.cls], [0, false], 'web: al volver se sacan las pausas y el fondo sigue sin dibujarse');
     t.eq(errs, [], 'web: errores de la página');
     await close();
   }
@@ -74,12 +81,17 @@ export default async function ({ base, t }){
       blur: [...document.querySelectorAll('*')].filter(e => ['', '::before', '::after'].some(ps => { const b = getComputedStyle(e, ps || null).backdropFilter; return b && b !== 'none'; }))
         .map(e => String(e.className || e.tagName)).slice(0, 5),
       w: document.getElementById('silkCanvas').width, iw: innerWidth, nav: getComputedStyle(document.querySelector('.navbar')).backgroundColor,
-      sp: document.getElementById('splashHost').childNodes.length }));
+      sp: document.getElementById('splashHost').childNodes.length,
+      canvas: getComputedStyle(document.getElementById('silkCanvas')).display,
+      au: (a => ({ d: getComputedStyle(a).display, bg: getComputedStyle(a).backgroundImage }))(document.querySelector('.app-aurora')) }));
     t.eq(v.sp, 0, tema + ': el splash ya no está en el DOM');
     t.ok(/android-app/.test(v.cls) && /\blite\b/.test(v.cls) && /\bbasico\b/.test(v.cls), tema + ': Android (aunque sea bueno) → GIZE básico: ' + v.cls);
     t.eq(v.blur, [], tema + ': en Android nada usa backdrop-filter');
     t.ok(!/rgba\(.*, 0\.\d+\)$/.test(v.nav), tema + ': la barra de abajo es sólida: ' + v.nav);
-    t.ok(v.w <= v.iw, tema + ': el fondo va a un píxel por punto: ' + v.w + ' / ' + v.iw);
+    t.ok(v.w <= v.iw, tema + ': el canvas del fondo va a un píxel por punto: ' + v.w + ' / ' + v.iw);
+    t.eq(v.canvas, 'none', tema + ': el canvas de partículas está oculto');
+    t.ok(v.au.d !== 'none' && /^linear-gradient\(/.test(v.au.bg) && !/radial-gradient|conic-gradient/.test(v.au.bg),
+      tema + ': GIZE básico conserva el fondo liso en degradé: ' + v.au.d + ' ' + v.au.bg.slice(0, 60));
     t.eq(errs, [], tema + ' (Android): errores de la página');
     await close();
   }

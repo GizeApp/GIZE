@@ -1,9 +1,13 @@
 // Neón prendido / apagado (html.sin-neon, css/ui/sin-neon.css, app/ui/neon.js). Prendido por
-// defecto: la app se ve exactamente como siempre. Apagado desde Ajustes del cliente o desde la
-// Configuración del coach: se aplica al toque (sin recargar), queda guardado en el dispositivo
-// ("gize_neon" = "0"), la clase ya está antes de la primera pintada, y no queda nada de la gama:
-// ni anillos que giran, ni bordes de colores, ni resplandores de colores (chat y racha). Anda
-// igual con «Azul».
+// defecto, con la apariencia tranquila (css/ui/calma.css): lo que tenía neón lleva un filete fino
+// (linear-gradient a 155°) con apenas un toque de color en una esquina, quieto (nada gira, ya no
+// hay anillos RGB en conic-gradient) y sin resplandores de colores (solo sombras neutras); los
+// botones principales quedan rellenos de blanco; el fondo es un degradé liso, sin manchas ni
+// partículas. El interruptor dice «Toque de color en los bordes». Apagado desde Ajustes del
+// cliente o desde la Configuración del coach: se aplica al toque (sin recargar), queda guardado en
+// el dispositivo ("gize_neon" = "0"), la clase ya está antes de la primera pintada, y queda el look
+// en blanco y gris: sin el toque de color en los bordes ni resplandores de colores (chat y
+// racha). Anda igual con «Azul».
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'Torso', exercises: [{ id: 'e1', name: 'Press de banca', sets: [{ id: 's1', kg: '80', reps: '8' }] }] }], sessions: [], weights: [], daily: {} };
@@ -13,8 +17,8 @@ const COACH_H = {
   '/coach_billing': (r, J, i) => { const b = { coach_id: COACH.id, plan: 'cortesia', max_clients: 10, trial_ends_at: '2099-01-01T00:00:00Z' }; return J(i.one ? b : [b]); },
 };
 
-// Los valores de siempre (origin/main) con neón.
-// Cajas en «Oscuro»: filete fino con un toque de color (css/ui/calma.css), no el borde RGB completo.
+// Con neón (apariencia tranquila, css/ui/calma.css).
+// Cajas en «Oscuro»: filete fino con un toque de color, no el borde RGB completo.
 const RING_OSCURO = 'linear-gradient(rgb(11, 13, 17), rgb(11, 13, 17)), linear-gradient(155deg, color(srgb 0.689655 0.431616 1 / 0.506078) 0%, rgba(255, 255, 255, 0.1) 28%, rgba(255, 255, 255, 0.08) 72%, color(srgb 0.30084 0.680672 1 / 0.373333) 100%)';
 
 // ¿Hay algún color con tinte (no gris) en este valor de CSS? rgb()/rgba() y color(srgb …), que es
@@ -24,6 +28,13 @@ const colores = v => (String(v || '').match(/rgba?\([^)]*\)|color\(srgb[^)]*\)/g
   return c.startsWith('color') ? n.slice(0, 3).map(x => x * 255).concat(n.slice(3)) : n;
 }).filter(([r, g, b, a]) => a === undefined || a > 0);
 const conTinte = v => colores(v).some(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) > 24);
+
+// El filete de la apariencia tranquila: un linear-gradient a 155° con un toque de color en la
+// punta, nunca la gama RGB en conic-gradient.
+const FILETE = /linear-gradient\(155deg/;
+const filete = v => { v = String(v || ''); return FILETE.test(v) && !/conic-gradient/.test(v) && conTinte(v.slice(v.search(FILETE))); };
+// Relleno blanco de los botones principales (por debajo del filete).
+const BLANCO = /^linear-gradient\(rgb\(255, 255, 255\), rgb\(255, 255, 255\)\)/;
 
 // Lo que se mide en cada pantalla (lo que no está, vuelve null).
 const mide = p => p.evaluate(() => {
@@ -45,7 +56,7 @@ const mide = p => p.evaluate(() => {
     chat: pick('#chatBtn', null, ['boxShadow', 'backgroundColor']),
     chatRing: pick('#chatBtn', '::before', ['backgroundImage', 'animationName']),
     chatIcon: pick('#chatBtn svg', null, ['filter']),
-    streak: pick('#streakBtn', null, ['boxShadow', 'borderTopColor', 'backgroundColor']),
+    streak: pick('#streakBtn', null, ['boxShadow', 'borderTopColor', 'backgroundColor', 'backgroundImage']),
     streakNum: pick('#streakBtn b', null, ['textShadow']),
     flame: pick('#streakBtn .flame', null, ['filter']),
     flameStops: [...document.querySelectorAll('#streakBtn .flame stop')].map(s => getComputedStyle(s).stopColor),
@@ -53,13 +64,28 @@ const mide = p => p.evaluate(() => {
   };
 });
 
+// El fondo: el degradé de la apariencia (calculado con un elemento de prueba), el de la aurora, sus
+// manchas y el canvas de partículas.
+const fondo = p => p.evaluate(() => {
+  const ref = document.createElement('div'); ref.style.background = 'var(--gize-calm-bg)'; document.body.appendChild(ref);
+  const calm = getComputedStyle(ref).backgroundImage; ref.remove();
+  const a = document.querySelector('.app-aurora'), c = document.getElementById('silkCanvas');
+  return { calm, bg: a ? getComputedStyle(a).backgroundImage : null, spans: a ? [...a.querySelectorAll('span')].map(s => getComputedStyle(s).display) : [],
+    canvas: c ? getComputedStyle(c).display : 'none' };
+});
+const fondoLiso = f => /^linear-gradient\(/.test(f.calm) && f.bg === f.calm && !/radial-gradient/.test(f.bg) && f.spans.every(d => d === 'none') && f.canvas === 'none';
+
+// Lo que gira con la gama o la lleva (conic-gradient) en lo que se ve.
+const giraOGama = p => p.evaluate(() => [...document.querySelectorAll('body *')].flatMap(e => [null, '::before', '::after'].map(ps => getComputedStyle(e, ps)))
+  .filter(c => c.display !== 'none' && (c.animationName.split(',').includes('gize-spin') || /conic-gradient/.test(c.backgroundImage))).length);
+
 // El orden de las tarjetas de Ajustes (por el título).
 const tarjetas = p => p.evaluate(() => [...document.querySelectorAll('.cfg-card .cfg-notif-label')].map(e => e.textContent));
 
 const spy = () => { document.addEventListener('DOMContentLoaded', () => { window.__dcl = document.documentElement.classList.contains('sin-neon'); }); };
 
 export default async function ({ base, t }){
-  // 1) Por defecto: neón prendido, sin clase ni nada guardado, y todo como siempre.
+  // 1) Por defecto: neón prendido, sin clase ni nada guardado, con la apariencia tranquila.
   let pg = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') }, init: () => localStorage.setItem('gize_lite', '0') });
   const p = pg.p;
   await p.addInitScript(spy);
@@ -69,19 +95,23 @@ export default async function ({ base, t }){
   let m = await mide(p);
   t.eq([m.sinNeon, m.saved, m.r2], [false, null, '#A65CFF'], 'por defecto: sin clase, nada guardado y la gama de siempre');
   t.eq(m.exCard && m.exCard.backgroundImage, RING_OSCURO, 'por defecto: el ejercicio con su filete de color');
-  t.ok(/conic-gradient/.test(m.wkStartRing && m.wkStartRing.backgroundImage) && m.wkStartRing.animationName === 'gize-spin', 'por defecto: «Iniciar entrenamiento» con el anillo RGB que gira');
-  t.ok(conTinte(m.chat && m.chat.boxShadow) && /conic-gradient/.test(m.chatRing && m.chatRing.backgroundImage) && m.chatRing.animationName === 'gize-spin', 'por defecto: el chat con neón de colores');
-  t.ok(conTinte(m.streak && m.streak.boxShadow) && conTinte(m.flame && m.flame.filter), 'por defecto: la racha con resplandor de colores');
+  t.ok(m.wkStartRing && filete(m.wkStartRing.backgroundImage) && m.wkStartRing.animationName === 'none', 'por defecto: «Iniciar entrenamiento» con el filete quieto (sin el anillo RGB que gira): ' + JSON.stringify(m.wkStartRing));
+  t.ok(m.wkStart && m.wkStart.backgroundColor === 'rgb(255, 255, 255)' && m.wkStart.boxShadow !== 'none' && !conTinte(m.wkStart.boxShadow), 'por defecto: «Iniciar entrenamiento» relleno de blanco, con sombra neutra: ' + JSON.stringify(m.wkStart));
+  t.ok(m.chat && !conTinte(m.chat.boxShadow) && filete(m.chatRing && m.chatRing.backgroundImage) && m.chatRing.animationName === 'none' && !conTinte(m.chatIcon && m.chatIcon.filter), 'por defecto: el chat con el filete quieto, sin neón de colores: ' + (m.chat && m.chat.boxShadow) + ' / ' + (m.chatRing && m.chatRing.backgroundImage));
+  t.ok(m.streak && !conTinte(m.streak.boxShadow) && !conTinte(m.streakNum && m.streakNum.textShadow) && !conTinte(m.flame && m.flame.filter) && filete(m.streak.backgroundImage), 'por defecto: la racha con el filete, sin resplandor de colores: ' + (m.streak && m.streak.boxShadow) + ' / ' + (m.flame && m.flame.filter));
+  const f0 = await fondo(p);
+  t.ok(fondoLiso(f0), 'por defecto: el fondo es el degradé liso, sin manchas de color ni partículas: ' + JSON.stringify(f0));
+  t.eq(await giraOGama(p), 0, 'por defecto: nada gira ni lleva la gama (conic-gradient)');
   await p.click('#nav-cardio'); await wait(500);
   m = await mide(p);
-  t.ok(/conic-gradient/.test(m.primary && m.primary.backgroundImage) && m.primary.animationName === 'gize-spin', 'por defecto: el botón principal (Cardio) con el anillo que gira');
+  t.ok(m.primary && filete(m.primary.backgroundImage) && BLANCO.test(m.primary.backgroundImage) && m.primary.animationName === 'none' && !conTinte(m.primary.boxShadow), 'por defecto: el botón principal (Cardio) relleno de blanco con el filete quieto (sin el anillo que gira): ' + JSON.stringify(m.primary));
   await p.click('#nav-config'); await wait(500);
   m = await mide(p);
   t.eq(m.card && m.card.backgroundImage, RING_OSCURO, 'por defecto: la caja de Ajustes con su filete de color');
   const orden = await tarjetas(p);
   t.eq(orden.slice(orden.indexOf('Apariencia'), orden.indexOf('Apariencia') + 3), ['Apariencia', 'Neón', 'Modo liviano'], 'Ajustes: «Neón» va justo después de «Apariencia»: ' + orden.join(', '));
   t.eq(m.sw, ['true'], 'Ajustes: el interruptor de Neón, prendido');
-  t.eq(await p.evaluate(() => { const b = document.querySelector('[data-neon-toggle]'); return [b.getAttribute('role'), b.closest('.cfg-card').querySelector('.cfg-notif-desc').textContent]; }), ['switch', 'Bordes y brillos de colores'], 'Ajustes: es un interruptor con su subtítulo');
+  t.eq(await p.evaluate(() => { const b = document.querySelector('[data-neon-toggle]'); return [b.getAttribute('role'), b.closest('.cfg-card').querySelector('.cfg-notif-desc').textContent]; }), ['switch', 'Toque de color en los bordes'], 'Ajustes: es un interruptor con su subtítulo');
 
   // 2) Apagarlo: al toque, sin recargar, y queda guardado.
   await p.evaluate(() => { window.__sinRecargar = 1; });
@@ -122,16 +152,18 @@ export default async function ({ base, t }){
   t.ok(/blur/.test(m.card.backdropFilter || ''), 'Azul sin neón: la caja sigue siendo vidrio');
   t.ok(m.cardAfter && !/conic/.test(m.cardAfter.backgroundImage) && /rgba\(255, 255, 255, 0\.18\)/.test(m.cardAfter.backgroundImage), 'Azul sin neón: el borde de la caja es un filete blanco: ' + (m.cardAfter && m.cardAfter.backgroundImage));
   t.ok(!conTinte(m.card.boxShadow) && !conTinte(m.chat.boxShadow) && !conTinte(m.streak.boxShadow) && !conTinte(m.flame.filter) && !m.flameStops.some(conTinte), 'Azul sin neón: sin resplandores de colores');
-  t.ok(!/rgba\(63, 163, 242/.test(await p.evaluate(() => getComputedStyle(document.querySelector('.app-aurora')).backgroundImage)), 'Azul sin neón: los círculos del fondo sin el azul de la gama');
+  const fAzul = await fondo(p);
+  t.ok(fondoLiso(fAzul) && !/rgba\(63, 163, 242/.test(fAzul.bg), 'Azul sin neón: el fondo es el degradé liso de «Azul» (sin los círculos ni el azul de la gama): ' + JSON.stringify(fAzul));
 
-  // 5) Volver a prenderlo: todo como siempre.
+  // 5) Volver a prenderlo: vuelve la apariencia tranquila.
   await p.click('[data-neon-toggle]'); await wait(200);
   m = await mide(p);
   t.eq([m.sinNeon, m.saved, m.sw], [false, null, ['true']], 'prendido otra vez: sin clase ni nada guardado');
-  t.ok(/conic-gradient/.test(m.cardAfter.backgroundImage) && conTinte(m.chat.boxShadow), 'prendido otra vez (Azul): vuelven el borde y el brillo de colores');
+  t.ok(filete(m.cardAfter && m.cardAfter.backgroundImage) && !conTinte(m.card.boxShadow) && !conTinte(m.chat.boxShadow) && filete(m.chatRing.backgroundImage) && m.chatRing.animationName === 'none',
+    'prendido otra vez (Azul): vuelve el filete con el toque de color, quieto y sin brillos de colores: ' + (m.cardAfter && m.cardAfter.backgroundImage) + ' / ' + m.chat.boxShadow);
   await p.click('.cfg-seg [data-tema="oscuro"]'); await wait(200);
   m = await mide(p);
-  t.eq(m.card && m.card.backgroundImage, RING_OSCURO, 'prendido otra vez (Oscuro): la caja como siempre');
+  t.eq(m.card && m.card.backgroundImage, RING_OSCURO, 'prendido otra vez (Oscuro): la caja con su filete de color');
   t.eq(m.r2, '#A65CFF', 'prendido otra vez: la gama de siempre');
   t.eq(pg.errs, [], 'errores de la página (cliente)');
   await pg.close();
@@ -155,19 +187,23 @@ export default async function ({ base, t }){
     const lbl = sw && document.getElementById(sw.getAttribute('aria-labelledby'));
     const cs = save && getComputedStyle(save);
     return { sw: sw && sw.getAttribute('aria-checked'), lbl: lbl && lbl.textContent, clase: document.documentElement.classList.contains('sin-neon'),
-      saved: localStorage.getItem('gize_neon'), save: cs && [/conic/.test(cs.backgroundImage), cs.animationName] };
+      saved: localStorage.getItem('gize_neon'), desc: sw && sw.closest('.cs-field') ? sw.closest('.cs-field').textContent : '',
+      save: cs && { bg: cs.backgroundImage, anim: cs.animationName, sombra: cs.boxShadow } };
   });
+  // «Guardar nombre»: [con el filete, con la gama (conic-gradient), animación, relleno blanco, brillo de color].
+  const guardar = s => s && [filete(s.bg), /conic/.test(s.bg), s.anim, BLANCO.test(s.bg), conTinte(s.sombra)];
   let c = await coach();
   t.eq([c.sw, c.lbl, c.clase, c.saved], ['true', 'Neón en este dispositivo', false, null], 'coach: el interruptor de Neón, prendido');
   t.ok(await pg.p.evaluate(() => { const a = document.querySelector('#coachSheetHost .cs-tema'), b = document.querySelector('#coachSheetHost [data-neon-toggle]'); return !!(a && b && a.closest('.cs-field').nextElementSibling === b.closest('.cs-field')); }), 'coach: va al lado de «Apariencia en este dispositivo»');
-  t.eq(c.save, [true, 'gize-spin'], 'coach: «Guardar nombre» con el anillo que gira');
+  t.has(c.desc, 'Toque de color en los bordes', 'coach: el interruptor dice qué hace');
+  t.eq(guardar(c.save), [true, false, 'none', true, false], 'coach: «Guardar nombre» relleno de blanco con el filete quieto (sin el anillo que gira): ' + JSON.stringify(c.save));
   await pg.p.click('#coachSheetHost [data-neon-toggle]'); await wait(200);
   c = await coach();
   t.eq([c.sw, c.clase, c.saved], ['false', true, '0'], 'coach: se apaga al toque y queda guardado');
-  t.eq(c.save, [false, 'none'], 'coach: «Guardar nombre» sin anillo ni giro');
+  t.eq(guardar(c.save).slice(0, 3), [false, false, 'none'], 'coach: «Guardar nombre» sin filete de color, sin anillo ni giro: ' + JSON.stringify(c.save));
   await pg.p.click('#coachSheetHost [data-neon-toggle]'); await wait(200);
   c = await coach();
-  t.eq([c.sw, c.clase, c.saved, c.save], ['true', false, null, [true, 'gize-spin']], 'coach: se vuelve a prender');
+  t.eq([c.sw, c.clase, c.saved, guardar(c.save)], ['true', false, null, [true, false, 'none', true, false]], 'coach: se vuelve a prender (vuelve el filete quieto)');
   t.eq(pg.errs, [], 'errores de la página (coach)');
   await pg.close();
 }
