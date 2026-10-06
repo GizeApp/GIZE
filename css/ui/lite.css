@@ -4,7 +4,7 @@
    pero sin nada que obligue a repintar la pantalla en cada cuadro:
    - la aurora queda quieta y sin mezcla de capas (mix-blend-mode repinta todo lo de abajo);
    - la del login pierde el filter:blur(80px) y usa degradés radiales, como la de la app;
-   - la barra de navegación usa un fondo sólido en vez de backdrop-filter;
+   - la barra de navegación (la nube) usa un fondo sólido en vez de backdrop-filter;
    - el borde RGB del botón principal deja de girar (anima una @property: no va por GPU).
    El canvas de partículas lo apaga app/ui/background.js. */
 html.lite .gize-aurora { filter: none; }
@@ -14,7 +14,10 @@ html.lite .gize-aurora span:nth-child(2) { background: radial-gradient(closest-s
 html.lite .gize-aurora span:nth-child(3) { background: radial-gradient(closest-side, var(--gize-r3), transparent); }
 html.lite .gize-aurora span:nth-child(4) { background: radial-gradient(closest-side, var(--gize-r4), transparent); }
 
-html.lite .navbar { background: rgb(6,9,17); backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* La nube de abajo (css/core/layout.css): misma forma y se achica igual, pero con un relleno
+   sólido en vez del vidrio y un borde común en vez del filete con máscara. */
+html.lite .navbar { background: rgb(19,23,33); backdrop-filter: none; -webkit-backdrop-filter: none; }
+html:is(.lite, .android-app) .navbar::before { padding: 0; border: 1px solid rgba(255,255,255,.13); background: none; -webkit-mask: none; mask: none; }
 
 html.lite :is(.ctrl.primary, .save-session, .co-save-rt),
 html.lite .gize-btn::before { animation: none !important; }
@@ -43,7 +46,7 @@ html.fondo-quieto .gize-aurora span { animation-play-state: paused !important; }
    media/baja eso trababa la app al abrir. Las capas que lo usaban ya tienen un fondo casi opaco;
    la barra de abajo pasa a sólida (los temas «Azul», «Rosa» y «Claro» hacen lo mismo con lo suyo). */
 html.android-app *, html.android-app *::before, html.android-app *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-html.android-app .navbar { background: rgb(6,9,17); }
+html.android-app .navbar { background: rgb(19,23,33); }
 
 /* Bordes que giran: solo las 2 vueltas del principio (html.bordes-quietos, app/ui/background.js).
    Después quedan quietos aunque la pantalla se redibuje al cambiar de pestaña. */

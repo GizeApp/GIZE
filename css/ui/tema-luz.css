@@ -148,8 +148,10 @@ html.tema-luz body:not(#_) :is(.done.on, .hb-check.on) { color: #fff; }
 html.tema-luz :is(.done.on, .hb-check.on) { color: #fff; }
 
 /* ---------- Barra de abajo ---------- */
-html.tema-luz .navbar { background: rgba(255,255,255,.94); border-top: 1px solid var(--gize-border); }
+html.tema-luz .navbar { background: rgba(255,255,255,.82); box-shadow: 0 12px 30px -8px rgba(16,24,40,.3); }
+html.tema-luz .navbar::before { background: var(--gize-rgb-ring), linear-gradient(rgba(11,13,17,.08), rgba(11,13,17,.08)); }
 html.lite.tema-luz .navbar, html.android-app.tema-luz .navbar { background: #fff; }
+html:is(.lite, .android-app).tema-luz .navbar::before { background: none; border-color: rgba(11,13,17,.14); }
 
 /* ---------- Texto suelto y campos del coach (css/ui/theme.css) ---------- */
 html.tema-luz body.silk-coach :is(.co-logout, .co-back) { background: #fff; }

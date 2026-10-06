@@ -1,6 +1,8 @@
 import './ui/errores.js';
 
 import './ui/keyboard.js';
+// La barra de abajo se achica al bajar y vuelve al subir (la «nube», app/ui/nube.js).
+import './ui/nube.js';
 
 import { CATALOGO, cargarCatalogo, copiarDias } from './core/rutinas-ejemplo.js';
 

@@ -31,7 +31,8 @@ const OSCURO = {
   // Sombra neutra (sin resplandor de colores) y el fondo en un degradé liso, sin círculos.
   shadow: 'rgba(0, 0, 0, 0.28) 0px 8px 22px 0px',
   aurora: 'linear-gradient(rgb(14, 20, 36) 0%, rgb(8, 11, 21) 38%, rgb(5, 7, 13) 100%)', manchas: 0,
-  nav: 'rgba(6, 9, 17, 0.82)',
+  // La barra de abajo es la «nube» de vidrio oscuro (css/core/layout.css).
+  nav: 'rgba(20, 24, 34, 0.64)',
 };
 const deOscuro = l => ({ body: l.body, card: l.card, cardFill: l.cardFill, blur: l.blur, logo: l.logo, ring: l.ring, shadow: l.shadow, aurora: l.aurora, manchas: l.manchas, nav: l.nav });
 

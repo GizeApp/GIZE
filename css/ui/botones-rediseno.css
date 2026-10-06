@@ -157,13 +157,10 @@ body:not(#_) .done.on, body:not(#_) .hb-check.on { background: var(--gize-succes
 body:not(#_) .rest-btn-full { border-radius: var(--btn-r); background: var(--btn-fill); border-color: var(--btn-line); color: var(--gize-text); }
 
 /* ---------- Navegación inferior ---------- */
-body:not(#_) .nav-item { position: relative; border-radius: var(--btn-r); color: var(--btn-txt-dim); font-weight: 600; }
-body:not(#_) .nav-item.active { color: var(--gize-text); background: transparent; }
+body:not(#_) .nav-item { position: relative; border-radius: 999px; color: var(--btn-txt-dim); font-weight: 600; }
+/* La pestaña elegida: una píldora más clara adentro de la nube (css/core/layout.css). */
+body:not(#_) .nav-item.active { color: var(--gize-text); background: rgba(255,255,255,.13); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
 body:not(#_) .nav-item.active svg { filter: none; }
-body:not(#_) .nav-item.active::before {
-  content: ""; position: absolute; top: -9px; left: 50%; width: 26px; height: 2px;
-  transform: translateX(-50%); border-radius: 2px; background: var(--acc);
-}
 body:not(#_) .nav-item:hover { color: var(--gize-text); }
 
 /* ---------- Tabs segmentados (Ficha / Rutina / Plan · Clientes / Mis rutinas) ---------- */

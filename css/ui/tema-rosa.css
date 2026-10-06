@@ -84,7 +84,7 @@ html.lite.tema-rosa, html.android-app.tema-rosa {
   --gize-glass-hi: linear-gradient(160deg, rgba(255,255,255,.17), rgba(255,255,255,.10) 38%, rgba(255,255,255,.11)) rgb(40,15,33);
   --gize-glass-sheet: linear-gradient(160deg, rgba(255,255,255,.12), rgba(255,255,255,.06)) rgb(36,12,29);
 }
-html.lite.tema-rosa body:not(#_) .navbar, html.android-app.tema-rosa body:not(#_) .navbar { background: rgb(29,9,23); }
+html.lite.tema-rosa body:not(#_) .navbar, html.android-app.tema-rosa body:not(#_) .navbar { background: rgb(42,15,34); }
 html.lite.tema-rosa body:not(#_) :is(.sheet, .auth-card), html.lite.tema-rosa body.silk-coach :is(.cp-modal, .cp-ccard),
 html.android-app.tema-rosa body:not(#_) :is(.sheet, .auth-card), html.android-app.tema-rosa body.silk-coach :is(.cp-modal, .cp-ccard) {
   background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.03)) rgb(32,10,26); }

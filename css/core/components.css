@@ -34,7 +34,10 @@
       .sess-item, .hx-row):hover { transform: none; }
 }
 
-.view { position: relative; z-index: 1; max-width: 540px; margin: 0 auto; padding: 10px 16px calc(112px + env(safe-area-inset-bottom)); }
+.view { position: relative; z-index: 1; max-width: 540px; margin: 0 auto; padding: 10px 16px calc(var(--nav-b) + var(--nav-h) + 32px); }
+/* Con la barra del descanso abierta, lo último de la pantalla también tiene que poder subir por
+   encima de ella (va justo arriba de la barra de abajo). */
+body:has(#restBar > .rest-inner) .view { padding-bottom: calc(var(--nav-b) + var(--nav-h) + 104px); }
 
 .tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; }
 
@@ -336,7 +339,10 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 
 .water-goal { background: none; border: none; color: var(--txt-3); font-size: var(--text-meta); margin-top: 10px; cursor: pointer; text-decoration: underline; padding: 4px 0 0; }
 
-#restBar { display:none; position: fixed; left:0; right:0; bottom: calc(74px + env(safe-area-inset-bottom)); z-index: 55; max-width: 540px; margin: 0 auto; padding: 0 12px; }
+/* Justo arriba de la barra de abajo (css/core/layout.css); cuando esa se achica, baja con ella. */
+#restBar { display:none; position: fixed; left:0; right:0; bottom: calc(var(--nav-b) + var(--nav-h) + 10px); z-index: 55; max-width: 540px; margin: 0 auto; padding: 0 12px;
+    transition: transform .34s cubic-bezier(.22,.8,.24,1); }
+.navbar.compacta ~ #restBar { transform: translateY(calc(var(--nav-h) * (1 - var(--nav-s)))); }
 
 .rest-opt.on { background: var(--blue); color:var(--gize-text); border-color: var(--blue); }
 
@@ -549,8 +555,6 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 .plan-notes { font-size: var(--text-meta); color:var(--txt-2); margin-top:10px; line-height:1.5; padding-top:10px; border-top:1px solid var(--border); white-space:pre-wrap; }
 
 .nav-item.active { color: var(--blue-2); }
-
-.nav-item.active svg { filter: drop-shadow(0 0 6px var(--glow)); }
 
 /* ===== Entreno del historial, abrible (app/ui/sessiondetail.js) =====
      Cerrado es la misma fila de siempre (.sess-item); tocándola se despliega el detalle

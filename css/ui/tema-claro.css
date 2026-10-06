@@ -187,9 +187,11 @@ html.tema-claro body:not(#_) .sheet, html.tema-claro body.silk-coach :is(.cp-mod
   box-shadow: 0 -12px 40px rgba(0,0,0,.5), var(--gize-glass-shine);
 }
 html.tema-claro body.silk-coach :is(.cp-modal, .cp-ccard) { border-bottom: 1px solid var(--gize-glass-line); }
+/* La nube de abajo, de vidrio como las cajas. */
 html.tema-claro body:not(#_) .navbar {
-  background: linear-gradient(rgba(255,255,255,.10), rgba(255,255,255,.06)) rgba(8,14,34,.5); border-top: 1px solid var(--gize-glass-line);
+  background: linear-gradient(rgba(255,255,255,.12), rgba(255,255,255,.05)) rgba(8,14,34,.5);
   -webkit-backdrop-filter: var(--gize-glass-blur); backdrop-filter: var(--gize-glass-blur);
+  box-shadow: 0 14px 36px -8px rgba(0,0,0,.6), var(--gize-glass-shine);
 }
 /* Login y bienvenida: la tarjeta también es de vidrio, con los mismos círculos detrás. */
 html.tema-claro #authHost { --card: rgba(255,255,255,.08); --card-2: rgba(255,255,255,.06); --border: var(--gize-glass-line); }
@@ -224,7 +226,7 @@ html.lite.tema-claro, html.android-app.tema-claro {
   --gize-glass-sheet: linear-gradient(160deg, rgba(255,255,255,.12), rgba(255,255,255,.06)) rgb(12,19,40);
 }
 html.lite.tema-claro *, html.lite.tema-claro *::before, html.lite.tema-claro *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-html.lite.tema-claro body:not(#_) .navbar, html.android-app.tema-claro body:not(#_) .navbar { background: rgb(8,13,30); }
+html.lite.tema-claro body:not(#_) .navbar, html.android-app.tema-claro body:not(#_) .navbar { background: rgb(17,26,50); }
 html.lite.tema-claro body:not(#_) :is(.sheet, .auth-card), html.lite.tema-claro body.silk-coach :is(.cp-modal, .cp-ccard),
 html.android-app.tema-claro body:not(#_) :is(.sheet, .auth-card), html.android-app.tema-claro body.silk-coach :is(.cp-modal, .cp-ccard) {
   background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.03)) rgb(10,16,34); }
