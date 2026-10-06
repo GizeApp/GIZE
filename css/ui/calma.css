@@ -252,3 +252,11 @@ html:not(.sin-neon):not(#_):not(#__) body:not(#_) .set .done.on {
   background: linear-gradient(#0B0D11, #0B0D11) padding-box,
     conic-gradient(from 210deg, var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box;
 }
+/* Ejercicio terminado: el mismo tilde (o la copa del récord) con el anillo de neón de la gama. */
+html:not(.sin-neon):not(#_):not(#__) body:not(#_) .ex-collapsed-badge {
+  width: 30px; height: 30px; border-radius: 10px; align-items: center; justify-content: center; box-sizing: border-box;
+  border: 2px solid transparent; color: #fff; box-shadow: none;
+  background: linear-gradient(#0B0D11, #0B0D11) padding-box,
+    conic-gradient(from 210deg, var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box;
+}
+html:not(.sin-neon):not(#_):not(#__) body:not(#_) .ex-collapsed-badge svg { width: 16px; height: 16px; }
