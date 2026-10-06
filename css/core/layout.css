@@ -28,16 +28,45 @@
 #coachHost { display:none; position:fixed; inset:0; z-index:150; background:transparent; overflow-y:auto;
     -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 
-.navbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; display: flex; justify-content: center;
-    padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); background: rgba(6,9,17,.82);
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1px solid var(--border); }
+/* ---------- La barra de abajo: una «nube» que flota (como la de Instagram) ----------
+   Una píldora de vidrio despegada de los bordes, con margen a los costados y abajo, que deja
+   ver el contenido pasando por detrás. La pestaña elegida va en una píldora interna más clara.
+   Al bajar con el dedo se achica (más angosta, más baja, íconos más chicos y sin los nombres) y
+   al subir, o al llegar arriba o al final, vuelve a su tamaño (app/ui/nube.js le pone .compacta).
+   Todo con transform y opacity: no mueve nada del resto de la página.
+   --nav-h: alto de la píldora abierta · --nav-b: lo que flota sobre el borde de abajo (en el
+   iPhone queda arriba de la rayita de inicio). Lo usan el lugar de abajo de las pantallas, la
+   barra del descanso y el aviso de actualizar. Los colores van en cada apariencia. */
+:root { --nav-h: 60px; --nav-b: max(12px, calc(env(safe-area-inset-bottom) - 4px)); --nav-s: .84; }
 
-.nav-inner { display: flex; gap: 2px; width: 100%; max-width: 540px; }
+.navbar { position: fixed; left: 0; right: 0; bottom: var(--nav-b); z-index: 50; width: min(calc(100% - 24px), 516px); margin: 0 auto;
+    padding: 5px; border-radius: 999px; background: rgba(20,24,34,.64);
+    backdrop-filter: blur(18px) saturate(160%); -webkit-backdrop-filter: blur(18px) saturate(160%);
+    box-shadow: 0 12px 32px -6px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.07);
+    transform-origin: 50% 100%; transition: transform .34s cubic-bezier(.22,.8,.24,1); }
+/* El borde: el filete fino de la apariencia (con la apariencia tranquila, apenas un toque de color
+   en una esquina), en un ::before con máscara para que no se vea a través del vidrio. */
+.navbar::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none;
+    background: var(--gize-rgb-ring), linear-gradient(rgba(255,255,255,.14), rgba(255,255,255,.14));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+.navbar.compacta { transform: scale(var(--nav-s)); }
 
-.nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border: none; background: none;
-    color: var(--txt-3); font-size: 11px; font-weight: 600; cursor: pointer; border-radius: var(--r-box); transition: var(--transition-tap); }
+.nav-inner { position: relative; display: flex; gap: 0; width: 100%; }
 
-.nav-item svg { width: 22px; height: 22px; }
+.nav-item { flex: 1; min-width: 0; height: calc(var(--nav-h) - 10px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    padding: 0 2px; border: none; background: none; color: var(--txt-3); font-size: 10px; font-weight: 600; line-height: 12px; letter-spacing: .01em;
+    cursor: pointer; border-radius: 999px; transition: var(--transition-tap); }
+
+.nav-item svg { width: 22px; height: 22px; flex: none; transition: transform .34s cubic-bezier(.22,.8,.24,1); }
+.nav-item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: opacity .2s ease; }
+/* Compacta: los nombres se van y el ícono baja al medio (la mitad del nombre y el espacio). */
+.navbar.compacta .nav-item span { opacity: 0; }
+.navbar.compacta .nav-item svg { transform: translateY(7.5px) scale(1.06); }
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar, .nav-item svg, .nav-item span, .navbar ~ #restBar { transition: none; }
+}
 
 /* Con el teclado abierto (app/ui/keyboard.js) la barra de abajo quedaba flotando encima del
    teclado en iPhone y tapaba lo que se estaba buscando (ej. resultados de Comida). */

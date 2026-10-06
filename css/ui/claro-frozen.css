@@ -150,11 +150,14 @@ html.tema-luz:not(#_):not(#__) body:not(#_) .ptile-s i { background: var(--gize-
 html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ptile-go, .cfg-link-chev) { color: var(--gize-text); }
 
 /* ---------- Barra de abajo ---------- */
+/* La nube: vidrio esmerilado blanco, con el filete blanco de las cajas y la pestaña elegida en
+   una píldora negra (como los botones principales). */
 html.tema-luz:not(#_):not(#__) body:not(#_) .navbar {
-  background: linear-gradient(rgba(236,242,249,.90), rgba(222,232,244,.94));
-  border-top: 1px solid var(--frz-line);
+  background: linear-gradient(rgba(255,255,255,.66), rgba(255,255,255,.50));
   -webkit-backdrop-filter: var(--frz-blur); backdrop-filter: var(--frz-blur);
+  box-shadow: 0 14px 32px -10px rgba(18,26,38,.34), inset 0 1px 0 rgba(255,255,255,.75);
 }
+html.tema-luz:not(#_):not(#__) body:not(#_) .navbar::before { background: var(--gize-rgb-ring), linear-gradient(var(--frz-line), var(--frz-line)); }
 
 /* Ajustes */
 html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-seg { background: rgba(255,255,255,.28); border: 1px solid var(--frz-line); border-radius: 999px; }
@@ -164,8 +167,7 @@ html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-switch { background: rgba(255,2
 html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-switch.on { background: var(--gize-blue); border-color: var(--gize-blue); }
 html.tema-luz:not(#_):not(#__) body:not(#_) :is(.cfg-notif-ic, .cfg-link-ic, .cal-empty-ic, .cfg-avatar) { background: rgba(255,255,255,.42); border: 1px solid var(--frz-line); color: var(--gize-text); }
 html.tema-luz:not(#_):not(#__) body:not(#_) .nav-item { color: var(--gize-text-2); }
-html.tema-luz:not(#_):not(#__) body:not(#_) .nav-item.active { color: var(--gize-text); }
-html.tema-luz:not(#_):not(#__) body:not(#_) .nav-item.active::before { background: var(--gize-text); width: 22px; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .nav-item.active { color: #fff; background: #0B0D11; box-shadow: 0 4px 12px -6px rgba(11,13,17,.5); }
 
 /* Login */
 html.tema-luz:not(#_):not(#__) body:not(#_) .auth-tabs { background: rgba(255,255,255,.22); border: 1px solid var(--frz-line); border-radius: 999px; }
@@ -350,6 +352,7 @@ html.tema-luz.sin-neon:not(#_):not(#__) { --gize-rgb-ring: linear-gradient(rgba(
    tienen el relleno casi opaco) y la barra de abajo pasa a sólida. */
 html.lite.tema-luz *, html.lite.tema-luz *::before, html.lite.tema-luz *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 html.lite.tema-luz:not(#_):not(#__) body:not(#_) .navbar, html.android-app.tema-luz:not(#_):not(#__) body:not(#_) .navbar { background: #E4ECF6; }
+html:is(.lite, .android-app).tema-luz:not(#_):not(#__) body:not(#_) .navbar::before { background: none; border-color: #fff; }
 
 /* ---------- GIZE básico (Android) ----------
    El fondo es un solo degradé liso, sin los dos brillos (css/ui/basico.css lo deja plano). */
