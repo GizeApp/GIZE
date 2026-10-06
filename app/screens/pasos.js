@@ -100,7 +100,7 @@ function hoyHtml(){
     nota = `Conectá ${esc(saludNombre())} y tus pasos se cargan solos, aunque no abras la app.`;
     extra = `<button class="pg-link" data-pg="salud-on">Conectar ${esc(saludNombre())}</button>`;
   } else if (esIphoneWeb()){
-    nota = "En el iPhone la web no cuenta pasos: copiá el total de la app Salud. En la app de GIZE se cargan solos.";
+    nota = "En el iPhone la web no cuenta pasos: copiá el total de la app Salud.";
   } else {
     nota = "Anotá el total de hoy: lo ves en la app de pasos de tu celular o de tu reloj.";
   }

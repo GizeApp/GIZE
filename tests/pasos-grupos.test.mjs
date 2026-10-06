@@ -267,7 +267,7 @@ export default async function ({ base, t }){
     await p.goto(base + '/app/'); await wait(2500);
     await abrirPasos(p);
     t.has(await text(p, '.pg-hoy .pg-note'), 'En el iPhone la web no cuenta pasos', 'iPhone web: avisa que hay que copiarlos de Salud');
-    t.has(await text(p, '.pg-hoy .pg-note'), 'En la app de GIZE se cargan solos', 'y que en la app se cargan solos');
+    t.ok(!(await text(p, '.pg-hoy .pg-note')).includes('se cargan solos'), 'no promete que en la app se cargan solos (falta el permiso de Salud en la app)');
     await close();
   }
 
