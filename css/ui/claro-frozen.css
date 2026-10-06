@@ -140,8 +140,8 @@ html.tema-luz:not(#_):not(#__) body:not(#_) .auth-in { border-radius: 16px; }
 html.tema-luz:not(#_):not(#__) body:not(#_) .auth-in:focus { background: rgba(255,255,255,.7); }
 html.tema-luz:not(#_):not(#__) body:not(#_) .auth-in:hover:not(:focus) { border-color: #fff; }
 /* Check de la serie: el borde se tiene que ver (3:1) */
-html.tema-luz:not(#_):not(#__) body:not(#_) .done:not(.on) { background: rgba(255,255,255,.35); border: 1.5px solid rgba(11,13,17,.42); color: var(--gize-text-2); border-radius: 999px; }
-html.tema-luz:not(#_):not(#__) body:not(#_) .done.on { background: var(--gize-success); border-color: var(--gize-success); color: #fff; border-radius: 999px; }
+html.tema-luz:not(#_):not(#__) body:not(#_) .done:not(.on) { background: rgba(255,255,255,.35); border: 1.5px solid rgba(11,13,17,.42); color: var(--gize-text-2); border-radius: var(--r-box); }
+html.tema-luz:not(#_):not(#__) body:not(#_) .done.on { background: var(--gize-success); border-color: var(--gize-success); color: #fff; border-radius: var(--r-box); }
 html.tema-luz:not(#_):not(#__) body:not(#_) .ex-num:not(.ss) { background: rgba(255,255,255,.45); border: 1px solid var(--frz-line); color: var(--gize-text); }
 html.tema-luz:not(#_):not(#__) body:not(#_) .set .idx { background: rgba(255,255,255,.45); border: 1px solid var(--frz-line); color: var(--gize-text); }
 /* Unidades y etiquetas de datos: chicas, en mayúsculas */
