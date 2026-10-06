@@ -1289,8 +1289,8 @@ async function sendItem(it){
     if(p.foods.length) del=del.not("id","in","("+p.foods.map(f=>f.id).join(",")+")");
     sbOk(await del);
   } else if(it.k==="steps"){
-    // Pasos de un día (solo esa columna; lo usó una versión de prueba de la app que leía
-    // Health Connect). Queda por si alguno quedó en la cola de un celular.
+    // Pasos de un día, solo esa columna (queueSteps: Salud / Health Connect y «Competencia de
+    // pasos»). El resto del registro del día no se toca.
     sbOk(await sb.from("daily_logs").upsert({client_id:uid, log_date:p.dt, steps:p.steps},{onConflict:"client_id,log_date"}));
   } else if(it.k==="weight"){
     // Solo esa fecha: otro dispositivo pudo cargar otras y no se tocan.
@@ -1487,6 +1487,24 @@ function applyPending(){
 
 window.addEventListener("online", ()=>{ flushOutbox(); });
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") flushOutbox(); });
+
+// Pasos de un día solos (la columna steps de daily_logs, nada más): los que se leen de Salud /
+// Health Connect (core/salud.js) y los que se anotan en «Competencia de pasos». Van directo a
+// la cola y no por la foto del día: así no se manda la foto de este celular (podría pisar
+// comidas o agua cargadas en otro) y no se pierden si loadCloud reemplaza el estado.
+// Devuelve la promesa del envío.
+export function queueSteps(dt, steps){
+  if(!State.cloudUser) return Promise.resolve(false);
+  enqueue("steps", {dt:dt, steps:Math.max(0, Math.round(steps)||0)}, dt);
+  refreshSyncFoot();
+  return flushOutbox();
+}
+// Los pasos de hoy ya van por queueSteps: que la foto del día no cuente ese cambio como algo
+// nuevo para mandar (sí cuenta si además cambió otra cosa).
+export function noteStepsSynced(n){
+  if(!_lastDay) return;
+  try{ const d=JSON.parse(_lastDay); if(d && d.dt===today()){ d.steps=n; _lastDay=JSON.stringify(d); } }catch(e){}
+}
 
 // Las funciones cloud* devuelven true si quedó en la nube, false si quedó pendiente y
 // "failed" si la base lo rechazó (ver enqueueAndSend).

@@ -1,0 +1,79 @@
+/* css/screens/pasos.css
+   Progreso → «Competencia de pasos» (app/screens/pasos.js). Sigue la apariencia tranquila
+   (css/ui/calma.css): cajas con el filete fino (--gize-rgb-ring), sin resplandores y nada que
+   gire. Las barras van con la gama de las barras de progreso (--gize-rgb-line). El dorado es el
+   de los récords (#FFC940): la copa va siempre sobre su insignia oscura, así se ve igual en todas
+   las apariencias; en «Claro» el texto dorado va más oscuro para que se lea. */
+
+.pg { --pg-gold: #FFC940; --pg-gold-text: #FFC940; --pg-gold-bg: linear-gradient(135deg, rgba(255,201,64,.13), rgba(255,201,64,.04)); --pg-gold-line: rgba(255,201,64,.45); }
+html.tema-luz .pg { --pg-gold-text: #7A5200; --pg-gold-bg: linear-gradient(135deg, #FFF8E4, #FFEFC2); --pg-gold-line: rgba(178,122,0,.45); }
+
+/* Tarjetas (pasos de hoy, crear, unirse, invitar): las de «Vinculate a tu coach». */
+.pg .join-box { margin-top: 12px; }
+.pg > .join-box:first-child, .pg > #pgData:first-child > :first-child { margin-top: 4px; }
+.pg-hoy-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.pg-hoy-top .join-t { margin-bottom: 0; }
+.pg-hoy-n { font: 800 24px var(--gize-font-data, var(--gize-font)); font-variant-numeric: tabular-nums; color: var(--gize-text); letter-spacing: -0.01em; }
+.pg-note { font-size: var(--text-meta); color: var(--txt-2); line-height: 1.4; margin-top: 8px; }
+.pg-link { display: inline-block; background: none; border: 0; padding: 10px 0 0; color: var(--gize-blue); font: 600 var(--text-meta) var(--gize-font); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.pg-link:disabled { opacity: .6; cursor: default; }
+.pg-link.danger { color: var(--gize-danger); }
+.pg-err { margin: 8px 0; padding: 10px 12px; border-radius: 12px; font-size: var(--text-meta); color: var(--gize-text); background: var(--gize-danger-bg, rgba(255,80,80,.12)); border: 1px solid color-mix(in srgb, var(--gize-danger) 45%, transparent); }
+.pg-vacio { text-align: left; padding: 6px 2px 2px; line-height: 1.45; }
+
+/* Títulos chicos: «Mis grupos · semana del…», «Esta semana · …». */
+.pg-sec-t { font-size: var(--text-meta); font-weight: 700; color: var(--gize-text); margin: 18px 2px 8px; }
+.pg-sec-t span { font-weight: 500; color: var(--txt-2); }
+
+/* Lista de mis grupos. */
+.pg-grupo { display: flex; align-items: center; gap: 10px; width: 100%; margin-bottom: 8px; padding: 14px 12px 14px 14px; border-radius: 14px; text-align: left; cursor: pointer;
+  color: var(--gize-text); font-family: var(--gize-font); border: 1.5px solid transparent;
+  background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box, var(--gize-rgb-ring) border-box; box-shadow: var(--calm-shadow, none); }
+.pg-grupo:active { transform: scale(.985); }
+.pg-grupo-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pg-grupo-n { font-size: var(--text-emphasis); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-grupo-s { font-size: var(--text-meta); color: var(--txt-2); }
+.pg-grupo-go { flex: none; color: var(--gize-text); opacity: .7; display: grid; place-items: center; }
+.pg-grupo-go svg { width: 18px; height: 18px; }
+
+/* Campeón de la semana pasada: arriba de todo, en dorado. */
+.pg-champ { display: flex; align-items: center; gap: 12px; margin-top: 4px; padding: 14px; border-radius: 16px; background: var(--pg-gold-bg), var(--gize-surface); border: 1px solid var(--pg-gold-line); box-shadow: var(--calm-shadow, none); }
+.pg-champ.off { background: var(--gize-surface); border-color: var(--gize-border); }
+.pg-trofeo { flex: none; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; color: var(--pg-gold);
+  border: 1.5px solid rgba(255,201,64,.55); background: #0B0D11; }
+.pg-trofeo svg { width: 26px; height: 26px; fill: rgba(255,201,64,.22); }
+.pg-champ.off .pg-trofeo { color: var(--txt-2); border-color: var(--gize-border); background: var(--gize-surface-2); }
+.pg-champ.off .pg-trofeo svg { fill: none; }
+.pg-champ-txt { min-width: 0; }
+.pg-champ-t { font-size: var(--text-meta); font-weight: 800; color: var(--pg-gold-text); }
+.pg-champ.off .pg-champ-t { color: var(--txt-2); }
+.pg-champ-n { margin-top: 3px; font-size: var(--text-body); color: var(--gize-text); line-height: 1.35; overflow-wrap: anywhere; }
+.pg-champ-n b { font-weight: 800; }
+.pg-champ.off .pg-champ-n { font-size: var(--text-meta); color: var(--txt-2); }
+
+/* Ranking de la semana. */
+.pg-rank { display: flex; flex-direction: column; gap: 6px; }
+.pg-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--gize-surface); border: 1px solid var(--gize-border); }
+.pg-row.me { border: 1.5px solid transparent;
+  background: linear-gradient(color-mix(in srgb, var(--gize-blue) 14%, var(--gize-surface)), color-mix(in srgb, var(--gize-blue) 14%, var(--gize-surface))) padding-box, var(--gize-rgb-ring) border-box; }
+.pg-pos { flex: none; width: 24px; text-align: center; font: 800 15px var(--gize-font-data, var(--gize-font)); font-variant-numeric: tabular-nums; color: var(--txt-2); }
+.pg-row.me .pg-pos { color: var(--gize-text); }
+.pg-mid { flex: 1; min-width: 0; }
+.pg-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--text-body); font-weight: 600; color: var(--gize-text); }
+.pg-name-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-vos { flex: none; font-size: 11px; font-weight: 700; line-height: 1; padding: 3px 7px; border-radius: 999px; color: var(--gize-text); border: 1px solid color-mix(in srgb, var(--gize-text) 35%, transparent); }
+.pg-copa { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #FFC940; background: #0B0D11; border: 1px solid rgba(255,201,64,.6); }
+.pg-copa svg { width: 13px; height: 13px; fill: rgba(255,201,64,.25); }
+.pg-bar { height: 6px; margin-top: 7px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--gize-text) 12%, transparent); }
+.pg-bar i { display: block; height: 100%; border-radius: inherit; background: var(--gize-rgb-line, var(--gize-blue)); }
+.pg-n { flex: none; min-width: 64px; text-align: right; font: 700 15px var(--gize-font-data, var(--gize-font)); font-variant-numeric: tabular-nums; color: var(--gize-text); }
+.pg-rm { flex: none; width: 30px; height: 30px; margin-right: -4px; border-radius: 50%; border: 1px solid var(--gize-border); background: transparent; color: var(--txt-2); display: grid; place-items: center; cursor: pointer; }
+.pg-rm svg { width: 14px; height: 14px; }
+
+/* Invitar: el código grande y el botón. */
+.pg-inv-row { display: flex; align-items: center; gap: 10px; }
+.pg-code { flex: 1; min-width: 0; font: 800 22px var(--gize-font-data, var(--gize-font)); letter-spacing: .14em; color: var(--gize-text); user-select: all; -webkit-user-select: all; }
+.pg-acts { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin: 14px 2px 8px; }
+/* «Claro»: el rojo de borrar un poco más oscuro sobre el celeste (AA). */
+html.tema-luz .pg-link.danger { color: #8A1A16; }
+.pg-inv-row .join-btn { padding: 12px 22px; }

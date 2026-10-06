@@ -1,0 +1,161 @@
+// Pasos automáticos desde Salud (iPhone) y Health Connect (Android), solo en la app de la tienda.
+// El iPhone y Android cuentan los pasos todo el día aunque GIZE esté cerrada: cada vez que la app
+// se abre o vuelve a primer plano, se leen los últimos 8 días y se suben (daily_logs.steps, ver
+// queueSteps en supabase.js). Solo LEE pasos; no escribe nada en el celular.
+//
+// Usa el plugin @capgo/capacitor-health (window.Capacitor.Plugins.Health). Si la app instalada no
+// lo trae, todo esto queda apagado y los pasos se anotan a mano (como en la web).
+//
+// - Hoy: va a state.steps salvo que lo anotado a mano sea más (una caminata sin el celular).
+// - Días anteriores: se suben si son más de lo que ya había.
+// - Varias apps pueden contar los mismos pasos (el celular, el reloj, Samsung Health…): por día
+//   se toma la fuente que más contó, en vez de sumarlas.
+//
+// Se prende desde «Competencia de pasos» (con el permiso del sistema) y queda prendido en este
+// celular para esta cuenta.
+
+import { State, state } from './state.js';
+import { save } from './storage.js';
+import { today, ymd } from './utils.js';
+import { noteStepsSynced, queueSteps } from './supabase.js';
+
+export const DIAS_SALUD = 8;
+const MIN_GAP = 60 * 1000;
+
+export const SaludState = { busy: false, lastSync: 0, lastTry: 0, lastError: "", onChange: null };
+
+function plugin(){
+  try {
+    const C = window.Capacitor;
+    return (C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.Health) || null;
+  } catch (e) { return null; }
+}
+export function plataforma(){ try { return window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() ? window.Capacitor.getPlatform() : "web"; } catch (e) { return "web"; } }
+
+// ¿Se puede ofrecer en este celular? (app nativa con el plugin)
+export function saludDisponible(){ return !!plugin(); }
+export function saludNombre(){ return plataforma() === "ios" ? "Salud de Apple" : "Health Connect"; }
+
+const keyOn = () => "gize_salud_" + ((State.cloudUser && State.cloudUser.id) || "local");
+const keySent = () => "gize_salud_sent_" + ((State.cloudUser && State.cloudUser.id) || "local");
+export function saludPrendida(){ try { return saludDisponible() && localStorage.getItem(keyOn()) === "1"; } catch (e) { return false; } }
+function setOn(v){ try { if (v) localStorage.setItem(keyOn(), "1"); else localStorage.removeItem(keyOn()); } catch (e) {} }
+// Pasos por día ya mandados (para no repetir envíos iguales).
+function readSent(){ try { return JSON.parse(localStorage.getItem(keySent()) || "{}") || {}; } catch (e) { return {}; } }
+function writeSent(o){
+  const cut = ymd(new Date(Date.now() - 30 * 864e5));
+  Object.keys(o).forEach(d => { if (d < cut) delete o[d]; });
+  try { localStorage.setItem(keySent(), JSON.stringify(o)); } catch (e) {}
+}
+function changed(){ if (SaludState.onChange) try { SaludState.onChange(); } catch (e) {} }
+
+// Medianoche (hora del celular) de hace n días.
+function dayStart(n){ const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - n); return d; }
+
+// Fuente de un registro. Los pasos que cuenta el propio celular en Health Connect vienen como
+// "android" o "com.android.healthconnect.phone.<algo>": son la misma.
+function srcKey(s){
+  const id = String((s && (s.sourceId || s.sourceName)) || "?");
+  return (id === "android" || id.indexOf("com.android.healthconnect.phone") === 0) ? "celular" : id;
+}
+
+// Pasos por día: por cada fuente se suma lo del día y se queda la que más contó.
+export function stepsPerDay(samples){
+  const bySrc = {};
+  (samples || []).forEach(s => {
+    const v = Number(s && s.value); if (!(v > 0)) return;
+    const t = new Date(s.startDate); if (isNaN(t)) return;
+    const k = ymd(t) + "|" + srcKey(s);
+    bySrc[k] = (bySrc[k] || 0) + v;
+  });
+  const out = {};
+  Object.keys(bySrc).forEach(k => { const d = k.split("|")[0]; out[d] = Math.max(out[d] || 0, Math.round(bySrc[k])); });
+  return out;
+}
+
+// Trae los pasos de los últimos días y sube lo nuevo. force: sin esperar el minuto entre lecturas.
+// Devuelve true si cambió algo.
+export async function syncSalud(force){
+  const H = plugin();
+  if (!H || !saludPrendida() || SaludState.busy || !State.cloudUser || State.cloudLoading) return false;
+  if (!force && Date.now() - SaludState.lastTry < MIN_GAP) return false;
+  SaludState.lastTry = Date.now();
+  SaludState.busy = true; changed();
+  let touched = false;
+  const envios = [];
+  try {
+    const r = await H.readSamples({ dataType: "steps", startDate: dayStart(DIAS_SALUD - 1).toISOString(), endDate: new Date().toISOString(), limit: 0, ascending: true });
+    const per = stepsPerDay((r && r.samples) || []);
+    const sent = readSent(), t = today();
+    Object.keys(per).forEach(d => {
+      const n = per[d];
+      if (d === t){
+        if (state.stepsDate !== t) return;
+        // Si lo cargado a mano es más, se respeta; si lo último lo puso esta lectura, se
+        // actualiza aunque baje (Health Connect a veces corrige).
+        const cur = state.steps || 0, mine = sent[t];
+        if (n > cur || (mine != null && cur === mine && n !== cur)){
+          state.steps = n; sent[t] = n; touched = true;
+          noteStepsSynced(n); envios.push(queueSteps(t, n));
+        }
+      } else if (d < t){
+        const known = parseInt(state.daily && state.daily[d] && state.daily[d].steps) || 0;
+        if (n > known && n !== sent[d]){
+          if (state.daily && state.daily[d]) state.daily[d].steps = String(n);
+          sent[d] = n; envios.push(queueSteps(d, n));
+        }
+      }
+    });
+    writeSent(sent);
+    SaludState.lastSync = Date.now(); SaludState.lastError = "";
+    if (touched) save();
+    await Promise.all(envios).catch(() => {});
+  } catch (e) {
+    SaludState.lastError = (e && e.message) || String(e);
+    console.warn("salud", e);
+  } finally {
+    SaludState.busy = false; changed();
+  }
+  return touched || envios.length > 0;
+}
+
+// Prender: disponibilidad → permiso → primera lectura. Devuelve "" si quedó prendido o el mensaje
+// para mostrar.
+export async function prenderSalud(){
+  const H = plugin(); if (!H) return "Esto funciona en la app de GIZE para Android o iPhone.";
+  const name = saludNombre();
+  let av;
+  try { av = await H.isAvailable(); } catch (e) { av = { available: false }; }
+  if (!av || !av.available){
+    return plataforma() === "android"
+      ? "Para traer tus pasos necesitás Health Connect, la app de salud de Google (Android 9 o más nuevo). Instalala o actualizala desde Play Store y probá de nuevo."
+      : "Este dispositivo no tiene " + name + ".";
+  }
+  if (!confirm("GIZE va a leer tus pasos de " + name + " para tu registro y tus grupos de pasos (tus amigos ven solo el total de la semana). Solo se leen: no se cambia nada en " + name + ". ¿Activar?")) return "__silent";
+  try {
+    const r = await H.requestAuthorization({ read: ["steps"], write: [] });
+    // En Android se sabe qué permitió. En iPhone Apple nunca dice si dio permiso de lectura.
+    if (plataforma() === "android"){
+      const ok = (r && r.readAuthorized) || [];
+      if (!ok.length) return "No diste permiso. Podés darlo cuando quieras desde Health Connect → Permisos de apps → GIZE.";
+    }
+  } catch (e) {
+    return "No se pudo pedir el permiso: " + ((e && e.message) || e);
+  }
+  setOn(true);
+  await syncSalud(true);
+  return "";
+}
+
+// Apagar deja de leer. El permiso se quita desde el sistema (la app no puede sacárselo sola).
+export function apagarSalud(){
+  setOn(false); SaludState.lastSync = 0; changed();
+  return plataforma() === "ios"
+    ? "Listo, ya no se leen tus pasos. Si también querés quitarle el permiso a GIZE: app Salud → tu foto → Apps → GIZE."
+    : "Listo, ya no se leen tus pasos. Si también querés quitarle el permiso a GIZE: Health Connect → Permisos de apps → GIZE.";
+}
+
+// Lecturas automáticas: al entrar (después de leer la nube) y cada vez que la app vuelve a primer
+// plano (el iPhone y Android siguieron contando con la app cerrada).
+window.addEventListener("gize:login", () => { if (saludPrendida()) syncSalud(true); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && saludPrendida() && State.cloudUser) syncSalud(false); });

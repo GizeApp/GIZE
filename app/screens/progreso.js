@@ -14,6 +14,8 @@ import { renderSessionItem } from '../ui/sessiondetail.js';
 
 import { SUB_LABELS, volumeGroups } from '../core/subgrupos.js';
 
+import { pasosResumen, renderPasosSeccion } from './pasos.js';
+
 export const ProgresoState = {
 
   // at: el día en que se armó el formulario. Si la app queda abierta de un día para otro, al
@@ -225,6 +227,7 @@ export function allSetsDone(ex){ return (ex.sets||[]).length>0 && ex.sets.every(
 const SECTIONS = [
   ["peso", "Peso corporal"], ["registro", "Registro de hoy"], ["checkin", "Check-in semanal"],
   ["historial", "Historial de entrenos"], ["cargas", "Evolución de cargas"], ["volumen", "Volumen semanal"], ["ficha", "Mi ficha"],
+  ["pasos", "Competencia de pasos"],
 ];
 const sortedWeights = () => (state.weights||[]).slice().sort((a,b)=>a.date<b.date?-1:(a.date>b.date?1:0));
 
@@ -285,11 +288,14 @@ function sectionSummary(id){
   if(id==="cargas"){ const n=exercisesInHistory().length; return [n?n+" ejercicio"+(n===1?"":"s"):"Sin datos todavía", false]; }
   if(id==="volumen"){ let t=0; (state.days||[]).forEach(d=>(d.exercises||[]).forEach(ex=>{ t+=(ex.sets||[]).length; })); return [t?t+" series por semana":"Sin rutina", false]; }
   if(id==="ficha") return [state.info?"Tus datos y objetivos":"Sin completar", false];
+  if(id==="pasos") return [pasosResumen(), false];
   return ["", false];
 }
 
 export function renderProgreso(){
   const sec = SECTIONS.find(x => x[0] === ProgresoState.section);
+  // Competencia de pasos: su propio encabezado (dentro de un grupo, «‹» vuelve a la lista).
+  if(sec && sec[0]==="pasos") return renderPasosSeccion();
   if(sec){
     return `<div class="form-head"><button class="form-back" data-action="psec-close" aria-label="Volver a Progreso">‹</button><div class="form-title">${sec[1]}</div></div>
       <div class="psec">${sectionBody(sec[0])}</div>`;
