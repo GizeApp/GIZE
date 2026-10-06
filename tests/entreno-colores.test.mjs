@@ -4,7 +4,7 @@
 // audio del coach llevan el filete fino con un toque de color en el borde (linear-gradient a 155°,
 // ya no la gama de neón en conic-gradient), letras blancas y una sombra neutra sin resplandor de
 // colores. El botón del chat, igual: el filete quieto (no gira) y sin brillos de la gama. La serie
-// hecha (pedido): relleno oscuro y tilde blanca, con el anillo de neón de la gama quieto en el borde.
+// hecha (pedido): relleno oscuro y tilde blanca, con el filete fino de neón de todos lados en el borde.
 import { newPage, wait, ALUMNO, profile, openAllEx } from './lib.mjs';
 
 // Colores con "tinte": un canal le saca más de 40 a otro (el blanco y los grises no).
@@ -54,7 +54,7 @@ export default async function ({ base, t }){
     t.ok(Array.isArray(v), k + ': está en la pantalla');
     if (Array.isArray(v)) t.eq(v.filter(tinted), [], k + ': sin color (blanco o gris)');
   }
-  t.ok(m.hechaRing && /conic-gradient/.test(m.hechaRing[0]), 'serie hecha: el borde con la gama de neón: ' + (m.hechaRing && m.hechaRing[0]));
+  t.ok(m.hechaRing && /linear-gradient\(155deg/.test(m.hechaRing[0]), 'serie hecha: el filete fino de neón: ' + (m.hechaRing && m.hechaRing[0]));
   t.ok(m.hechaRing && m.hechaRing[1] === 'none' && m.hechaRing[2] === 'none', 'serie hecha: sin resplandor y quieta: ' + (m.hechaRing && m.hechaRing.slice(1)));
   for (const [i, name] of ['ver video', 'escuchar a tu coach'].entries()){
     const b = m.botones[i];
