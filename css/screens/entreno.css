@@ -1,9 +1,40 @@
 /* css/screens/entreno.css */
 .tab-add { color: var(--blue-2); font-weight: 700; border-style: dashed; }
 
-.day-head { margin: 16px 0 20px; }
-
-.day-top { display: flex; align-items: center; gap: 8px; }
+/* Portada del día (pedido): una tarjeta que se destaca arriba de todo, con solo el nombre grande
+   y centrado, «Iniciar entrenamiento» (o, entrenando, el reloj con Finalizar y Cancelar),
+   «Limpiar» abajo y el tachito chico en la esquina de arriba a la derecha. Un toque muy suave de
+   los colores de la apariencia en dos esquinas (--gize-r2 arriba a la izquierda, --gize-r1 abajo a
+   la derecha) sobre el degradé de la superficie, filete fino y sombra neutra: nada de neón, de
+   brillo ni de giro (css/ui/calma.css). Con el neón apagado --gize-r1/--gize-r2 son grises, así
+   que queda sin color. «Azul»/«Rosa» (css/ui/tema-claro.css) y «Claro» (css/ui/claro-frozen.css)
+   la pasan a su vidrio; el modo liviano y GIZE básico le sacan el desenfoque y la sombra. */
+.day-head { position: relative; isolation: isolate; display: flex; flex-direction: column; align-items: center;
+  margin: 10px 0 18px; padding: 22px 18px 16px; border-radius: 24px; text-align: center;
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--gize-r2) 18%, transparent), transparent 60%),
+    radial-gradient(90% 80% at 100% 100%, color-mix(in srgb, var(--gize-r1) 13%, transparent), transparent 60%),
+    linear-gradient(160deg, color-mix(in srgb, #fff 5%, var(--gize-surface-2)), var(--gize-surface));
+  border: 1px solid rgba(255,255,255,.10);
+  box-shadow: 0 18px 40px -18px rgba(0,0,0,.8); }
+/* El nombre: grande y centrado, con lugar a los costados para que el tachito no lo pise. */
+.day-head .day-name { align-self: stretch; flex: none; width: auto; margin: 0 0 18px; padding: 0 30px;
+  font-size: 40px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; text-align: center; }
+/* Nombres largos (app/screens/entreno.js → dayNameCls): más chicos, para no ocupar media pantalla. */
+.day-head .day-name.dn-l { font-size: 30px; }
+.day-head .day-name.dn-xl { font-size: 24px; letter-spacing: -0.02em; }
+/* Eliminar día: chico, en la esquina de arriba a la derecha de la tarjeta. */
+.day-head .day-del { position: absolute; top: 8px; right: 8px; z-index: 1; display: grid; place-items: center;
+  width: 34px; height: 34px; padding: 0; border-radius: 50%; }
+.day-head .day-del svg { width: 18px; height: 18px; }
+/* «Iniciar entrenamiento», más grande (56 px, 17 px en 800). */
+.day-head .wk-start { min-height: 56px; margin: 0 0 12px; font-size: 17px; font-weight: 800; }
+/* Entrenando: el reloj y Finalizar/Cancelar, centrados. */
+.day-head .wk-live { margin: 0 0 12px; }
+.day-head .wk-actions { justify-content: center; flex-wrap: wrap; margin: 0 0 12px; }
+.day-head .clear { margin: 0; }
+/* Día sin ejercicios (no hay «Iniciar»): el nombre y «Limpiar» igual de aireados. */
+.day-head .day-name + .clear { margin-top: 2px; }
 
 .ex-collapsed-badge { flex-shrink: 0; color: var(--green); display: flex; }
 

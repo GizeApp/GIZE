@@ -49,7 +49,7 @@ import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
 
-import { EntrenoState, REST_DEFAULT, day, expandedOverride, exGroupIds, liveCounting, renderEntreno, renderExList, renderExSheet, renderVarSheet, effectiveRest, restKey, wkElapsedText, wkFresh, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
+import { EntrenoState, REST_DEFAULT, day, expandedOverride, exGroupIds, liveCounting, renderEntreno, dayNameCls, renderExList, renderExSheet, renderVarSheet, effectiveRest, restKey, wkElapsedText, wkFresh, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
 import { HabitosState, addHabit, checkDaily, forgetHabitAlarm, habitAlarmDay, openHabitAlarm, paintHabitAlarmSheet, renderHabitAlarmSheet, renderHabitos, saveHabitAlarm } from './screens/habitos.js';
 import { alarmsSupported, askAlarmPermission, initHabitAlarms, syncHabitAlarms } from './ui/habitnotif.js';
@@ -93,8 +93,12 @@ import { clearVariant, setVariant, todayEx, todayExs, variantOf } from './core/v
 const autoKg = new Set();
 
 // Nombre del día (rutina propia): el campo crece hacia abajo para que un nombre largo
-// ("Hombro, espalda, pecho, bíceps, tríceps") se vea entero. Enter no hace otra línea.
-function fitDayName(t){ t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }
+// ("Hombro, espalda, pecho, bíceps, tríceps") se vea entero, y si es largo la letra achica
+// (dayNameCls). Enter no hace otra línea.
+function fitDayName(t){
+  const c = dayNameCls(t.value); t.classList.toggle("dn-l", c === "dn-l"); t.classList.toggle("dn-xl", c === "dn-xl");
+  t.style.height = "auto"; t.style.height = t.scrollHeight + "px";
+}
 document.addEventListener("keydown", e => { if(e.key === "Enter" && e.target.matches && e.target.matches("textarea.day-name")){ e.preventDefault(); e.target.blur(); } });
 
 // Historial de entrenos: se abre y cierra desde acá (en el iPhone, Safari no despliega el

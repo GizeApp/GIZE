@@ -209,11 +209,12 @@ function renderSuggestion(ex, timed, occ){
   return `<div class="prog-sug"><span class="ps-ic">${upSvg}</span><div class="ps-txt"><span class="ps-lbl">Recomendación</span> <b>${esc(sg.text)}</b><span class="ps-why">${esc(sg.why)}</span></div></div>`;
 }
 
+// El nombre de la portada va grande; si es largo baja de tamaño para no ocupar media pantalla
+// (también mientras se escribe: app/main.js → fitDayName).
+export function dayNameCls(name){ const n = String(name || '').length; return n > 32 ? 'dn-xl' : n > 14 ? 'dn-l' : ''; }
+
 export function renderEntreno(){
   const d = day();
-  const total = d.exercises.reduce((a,e)=>a+e.sets.length,0);
-  const done = d.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0);
-  const pct = total ? Math.round(done/total*100) : 0;
   const tabs = state.days.map(x =>
     `<button class="tab${x.id===State.activeId?' active':''}" data-action="tab" data-day="${esc(x.id)}">${esc(x.name)}</button>`
   ).join("") + (routineLocked() ? "" : `<button class="tab tab-add" data-action="addday" title="Agregar día">+</button>`);
@@ -330,24 +331,21 @@ export function renderEntreno(){
   // creyendo que lo cargado ya está guardado.
   const syncWarn = (State.cloudUser && !State.cloudReady && !State.cloudLoading)
     ? '<div class="sync-warn" role="status">Todavía no se guardó en tu cuenta: lo que cargues queda en este celular y se sube solo cuando vuelva la conexión. No cierres sesión ni desinstales la app.</div>' : '';
+  // Arriba, la «portada» del día (.day-head, css/screens/entreno.css): solo el nombre grande y
+  // centrado, «Iniciar entrenamiento» (o el reloj con Finalizar y Cancelar), «Limpiar» abajo y el
+  // tachito chico en la esquina. La barra y la cuenta de series se sacaron (pedido).
   return `
     ${syncWarn}
     ${renderBlockBanner()}
     ${routineLocked()?'<div class="coach-banner">Rutina asignada por tu coach</div>':''}
     <div class="tabs">${tabs}</div>
     <div class="day-head" data-reveal="dayhead-${esc(d.id)}">
-      <div class="day-top">
-        ${routineLocked() ? `<h2 class="day-name">${esc(d.name)}</h2>` : `<textarea class="day-name" rows="1" data-action="dayname" enterkeyhint="done" aria-label="Nombre del día">${esc(d.name)}</textarea>`}
-        ${routineLocked()?'':`<button class="day-del" data-action="delday" title="Eliminar día">${trashSvg}</button>`}
-      </div>
+      ${routineLocked() ? `<h2 class="day-name ${dayNameCls(d.name)}">${esc(d.name)}</h2>` : `<textarea class="day-name ${dayNameCls(d.name)}" rows="1" data-action="dayname" enterkeyhint="done" aria-label="Nombre del día">${esc(d.name)}</textarea>`}
       ${wkStarted(d) ? `<div class="wk-live"><span class="wk-dot"></span>Entrenando hace <b id="wkTime">${wkElapsedText()}</b></div>
         <div class="wk-actions"><button class="wk-finish" data-action="save-session">${checkSvg} Finalizar</button><button class="wk-cancel" data-action="wk-cancel">Cancelar</button></div>`
         : d.exercises.length ? `<button class="wk-start" data-action="wk-start">${playSvg} Iniciar entrenamiento</button>` : ''}
-      <div class="progress-row">
-        <div class="bar"><div style="width:${pct}%"></div></div>
-        <span class="count">${done}/${total} series</span>
-        <button class="clear" data-action="clear">Limpiar</button>
-      </div>
+      <button class="clear" data-action="clear">Limpiar</button>
+      ${routineLocked()?'':`<button class="day-del" data-action="delday" title="Eliminar día" aria-label="Eliminar día">${trashSvg}</button>`}
     </div>
     ${cards || (!routineLocked() && !(state.days||[]).some(x=>(x.exercises||[]).length)
       ? '<div class="empty empty-pick">Todavía no tenés rutina.<br>Elegí una rutina armada de 1 a 5 días por semana o agregá tus ejercicios acá abajo.<button class="wk-start empty-pick-btn" data-action="open-routines">Elegir una rutina armada</button></div>'

@@ -86,7 +86,6 @@ html.tema-luz:not(#_):not(#__) body:not(#_) :is(.hb-title, .day-name, .auth-titl
   font-weight: 800; letter-spacing: -0.02em; color: var(--gize-text);
 }
 html.tema-luz:not(#_):not(#__) body:not(#_) .hb-title { font-size: 34px; line-height: 1.05; }
-html.tema-luz:not(#_):not(#__) body:not(#_) .day-name { font-size: 34px; line-height: 1.05; }
 html.tema-luz:not(#_):not(#__) body:not(#_) .auth-title { font-size: 30px; line-height: 1.05; }
 html.tema-luz:not(#_):not(#__) body:not(#_) .cal-empty-title { font-size: 28px; line-height: 1.1; }
 html.tema-luz:not(#_):not(#__) body:not(#_) .title-accent { opacity: .7; height: 2px; width: 28px; }
@@ -262,6 +261,26 @@ html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) :is(
 html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) :is(.card, .sal-card, .ss-group, .plan-acc, .co-table)::before { inset: 0; border-radius: calc(var(--r-card) - 1px); }
 /* Adentro de una superserie el ejercicio no es caja: sin filete. */
 html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) .ss-group :is(.card, .ex-collapsed)::before { display: none; }
+
+/* Portada del día en Entreno (.day-head, css/screens/entreno.css): vidrio esmerilado como las
+   otras cajas, con un toque muy suave de la gama en dos esquinas, la sombra tranquila y, con
+   neón, el mismo filete en el ::before enmascarado (sin neón, el filete blanco del vidrio). */
+html.tema-luz:not(#_):not(#__) body:not(#_) .day-head {
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--gize-r2) 12%, transparent), transparent 60%) padding-box,
+    radial-gradient(90% 80% at 100% 100%, color-mix(in srgb, var(--gize-r1) 9%, transparent), transparent 60%) padding-box,
+    var(--frz-glass) padding-box;
+  border: 1px solid var(--frz-line);
+  -webkit-backdrop-filter: var(--frz-blur); backdrop-filter: var(--frz-blur);
+  box-shadow: var(--calm-shadow);
+}
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) .day-head { border-color: transparent; }
+html.tema-luz:not(.sin-neon):not(#_):not(#__) body:not(#_) .day-head::before {
+  content: ""; position: absolute; inset: -1px; padding: 1px; border-radius: inherit; pointer-events: none;
+  background: var(--gize-rgb-ring), linear-gradient(var(--frz-line), var(--frz-line));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
 
 /* Pastillas que en «Claro» llevaban el filete (video y audio del ejercicio, el entreno en curso):
    de vidrio, con el filete en el ::before de arriba. */

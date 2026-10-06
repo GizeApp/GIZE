@@ -140,6 +140,26 @@ html.tema-claro body:not(#_) .ss-group .card { background: none; -webkit-backdro
   html.tema-claro body:not(#_) .co-table::after { display: none; }
 }
 
+/* Portada del día en Entreno (.day-head, css/screens/entreno.css): el mismo vidrio que las otras
+   cajas, con el toque suave de la gama en dos esquinas y el filete en el ::after enmascarado
+   (1 px). «Rosa» toma sus colores de los tokens; con el neón apagado el filete y las esquinas
+   quedan en blanco y gris. */
+html.tema-claro body:not(#_) .day-head {
+  border: 1px solid transparent;
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--gize-r2) 20%, transparent), transparent 60%) padding-box,
+    radial-gradient(90% 80% at 100% 100%, color-mix(in srgb, var(--gize-r1) 15%, transparent), transparent 60%) padding-box,
+    var(--gize-glass) padding-box;
+  -webkit-backdrop-filter: var(--gize-glass-blur); backdrop-filter: var(--gize-glass-blur);
+  box-shadow: 0 18px 40px -18px rgba(0,0,0,.6), var(--gize-glass-shine);
+}
+html.tema-claro body:not(#_) .day-head::after {
+  content: ""; position: absolute; inset: -1px; z-index: 3; padding: 1px; border-radius: inherit; pointer-events: none;
+  background: var(--gize-rgb-ring);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+
 /* ---------- Filas que se repiten en lista: vidrio con filete blanco ---------- */
 html.tema-claro body:not(#_) :is(.food-row, .diary-item, .w-item, .sess-item, .hx-row, .co-item, .co-exc,
     .opt-item, .co-row, .co-slog, .co-rt-row) {
