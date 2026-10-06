@@ -219,11 +219,13 @@ function afterSetDone(d, ex, s){
   // Si no se tocó «Iniciar entrenamiento», arranca acá (y vuelve a arrancar si se había destildado todo).
   const w=state.wkStart, others=d.exercises.some(x=>x.sets.some(t=>t.done && t!==s));
   if(!wkFresh(w) || w.day!==d.id || (!w.manual && !others)){ state.wkStart={date:today(), day:d.id, ts:Date.now()}; save(); }
-  // El descanso ya no arranca solo al tildar: se inicia con «Iniciar descanso». En una
-  // superserie la pantalla igual pasa a la serie que sigue.
+  // Al tildar una serie arranca solo el descanso de ese ejercicio (pedido; se saltea con la X).
+  // No arranca si con esta serie se terminó todo el día, ni en medio de una vuelta de
+  // superserie: ahí la pantalla pasa a la serie que sigue y se descansa al cerrar la vuelta.
   const idx=d.exercises.findIndex(x=>x.id===ex.id); // ex puede ser el de hoy (variante), no el mismo objeto
-  if(!ssGroupOf(d.exercises, idx)) return;
-  const nx=ssNext(d.exercises, idx, ex.sets.indexOf(s));
+  const dayDone=todayExs(d).every(x=>allSetsDone(x));
+  const nx=ssGroupOf(d.exercises, idx) ? ssNext(d.exercises, idx, ex.sets.indexOf(s)) : { rest: true, target: null };
+  if(nx.rest && !dayDone) startRest(effectiveRest(ex).sec);
   if(nx.target) setTimeout(()=>goToSet(nx.target), 420);
 }
 // Variante solo por hoy (core/variantes.js). Las series del coach quedan (objetivo, RIR, notas,
