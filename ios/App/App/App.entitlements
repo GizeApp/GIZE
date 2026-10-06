@@ -16,5 +16,11 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!-- Salud de Apple: solo leer los pasos («Competencia de pasos», app/core/salud.js). Tiene que
+	     estar activado también en el App ID ar.com.gize.app (capability HealthKit). -->
+	<key>com.apple.developer.healthkit</key>
+	<true/>
+	<key>com.apple.developer.healthkit.access</key>
+	<array/>
 </dict>
 </plist>

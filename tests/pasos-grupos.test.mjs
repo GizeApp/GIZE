@@ -288,6 +288,85 @@ export default async function ({ base, t }){
     await close();
   }
 
+  // 9) App de Android con el plugin de Health Connect (simulado): sin permiso aparece «Conectar
+  //    Health Connect»; al conectar pide SOLO leer pasos, lee 8 días, por día toma la fuente que
+  //    más contó (no las suma) y sube los pasos; «Desconectar» deja de leer.
+  {
+    const m = mock({ grupos: [GRUPO], ranking: { g1: RANKING }, campeon: { g1: CAMPEON } });
+    const NATIVE = () => {
+      window.__health = { pedidos: [], lecturas: [] };
+      const hoy = new Date(); hoy.setHours(10, 0, 0, 0);
+      const ayer = new Date(hoy); ayer.setDate(ayer.getDate() - 1);
+      window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {
+        App: { getInfo: async () => ({ build: '999', version: 'x' }), getLaunchUrl: async () => null, addListener: () => Promise.resolve({ remove(){} }) },
+        Health: {
+          isAvailable: async () => ({ available: true, platform: 'android' }),
+          requestAuthorization: async o => { window.__health.pedidos.push(o); return { readAuthorized: ['steps'], readDenied: [], writeAuthorized: [], writeDenied: [] }; },
+          readSamples: async o => { window.__health.lecturas.push(o); return { samples: [
+            { dataType: 'steps', value: 4000, unit: 'count', startDate: hoy.toISOString(), endDate: hoy.toISOString(), sourceId: 'android' },
+            { dataType: 'steps', value: 3000, unit: 'count', startDate: hoy.toISOString(), endDate: hoy.toISOString(), sourceId: 'com.android.healthconnect.phone.x' },
+            { dataType: 'steps', value: 6500, unit: 'count', startDate: hoy.toISOString(), endDate: hoy.toISOString(), sourceId: 'com.reloj' },
+            { dataType: 'steps', value: 9100, unit: 'count', startDate: ayer.toISOString(), endDate: ayer.toISOString(), sourceId: 'android' },
+          ] }; },
+        } } };
+    };
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers, init: NATIVE });
+    await p.route(u => !u.href.startsWith(base) && !/supabase\.co/.test(u.href), r => r.abort());
+    await p.goto(base + '/app/'); await wait(2500);
+    await abrirPasos(p);
+    t.has(await text(p, '.pg-hoy .pg-note'), 'Conectá Health Connect', 'Android sin permiso: ofrece conectar Health Connect');
+    t.ok(!!(await p.$('[data-pg="salud-on"]')), 'botón «Conectar Health Connect»');
+    t.eq(await p.evaluate(() => window.__health.lecturas.length), 0, 'sin permiso no lee nada');
+    await p.click('[data-pg="salud-on"]'); await wait(1500);
+    const h = await p.evaluate(() => window.__health);
+    t.eq(h.pedidos, [{ read: ['steps'], write: [] }], 'pide solo leer pasos (nada de escribir)');
+    t.ok(h.lecturas.length === 1 && h.lecturas[0].dataType === 'steps' && h.lecturas[0].limit === 0, 'lee los pasos: ' + JSON.stringify(h.lecturas));
+    const dias = h.lecturas[0] ? Math.round((Date.parse(h.lecturas[0].endDate) - Date.parse(h.lecturas[0].startDate)) / 864e5) : -1;
+    t.ok(dias >= 7 && dias <= 8, 'lee los últimos 8 días (' + dias + ')');
+    t.eq(await text(p, '#pgHoyN'), '7.000', 'hoy: la fuente que más contó (el celular, 4000 + 3000), sin sumar el reloj');
+    const b = m.posts.map(x => { try { return JSON.parse(x); } catch (e) { return null; } }).flat().filter(Boolean);
+    t.ok(b.some(x => x.steps === 7000) && b.some(x => x.steps === 9100), 'sube hoy y ayer a daily_logs: ' + JSON.stringify(b));
+    t.has(await text(p, '.pg-hoy .pg-note'), 'Se cargan solos desde Health Connect', 'conectado: avisa que se cargan solos');
+    t.ok(!!(await p.$('[data-pg="salud-off"]')), 'con «Desconectar»');
+    t.ok(dialogs.length === 1 && /solo el total de la semana/.test(dialogs[0]), 'antes del permiso explica qué se lee y quién lo ve: ' + JSON.stringify(dialogs));
+    await p.click('[data-pg="salud-off"]'); await wait(800);
+    t.has(dialogs[dialogs.length - 1] || '', 'Health Connect → Permisos de apps → GIZE', 'al desconectar explica cómo quitar el permiso');
+    t.ok(!!(await p.$('[data-pg="salud-on"]')), 'desconectado: vuelve a ofrecer «Conectar»');
+    t.eq(errs, [], 'errores de la página (Health Connect)');
+    await close();
+  }
+
+  // 10) En la web no hay nada de Salud: ni el botón, ni lecturas.
+  {
+    const m = mock({ grupos: [] });
+    const { p, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
+    await p.goto(base + '/app/'); await wait(2500);
+    await abrirPasos(p);
+    t.ok(!(await p.$('[data-pg="salud-on"]')) && !(await p.$('[data-pg="salud-off"]')), 'web: sin «Conectar» ni «Desconectar»');
+    t.ok(!(await p.evaluate(async () => (await import('/app/core/salud.js')).saludDisponible())), 'web: Salud no disponible');
+    await close();
+  }
+
+  // 11) Apps nativas: el plugin, solo lectura de pasos y lo que piden Health Connect y HealthKit.
+  {
+    const rd = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const pkg = JSON.parse(rd('package.json'));
+    t.ok(/^7\./.test(pkg.dependencies['@capgo/capacitor-health'] || ''), 'package.json: @capgo/capacitor-health 7.x (Capacitor 7)');
+    t.ok(/minSdkVersion = 26/.test(rd('android/variables.gradle')), 'Android: minSdk 26 (lo pide Health Connect)');
+    t.ok(/':capgo-capacitor-health'/.test(rd('android/capacitor.settings.gradle')) && /':capgo-capacitor-health'/.test(rd('android/app/capacitor.build.gradle')), 'Android: el plugin está en Gradle');
+    const man = rd('android/app/src/main/AndroidManifest.xml');
+    const health = [...man.matchAll(/<uses-permission android:name="android\.permission\.health\.(\w+)"( tools:node="remove")? \/>/g)];
+    t.eq(health.filter(x => !x[2]).map(x => x[1]), ['READ_STEPS'], 'Android: de Health Connect solo READ_STEPS');
+    t.ok(['WRITE_STEPS', 'READ_WEIGHT', 'WRITE_WEIGHT', 'READ_DISTANCE', 'READ_HEART_RATE', 'READ_ACTIVE_CALORIES_BURNED'].every(k => health.some(x => x[1] === k && x[2])), 'Android: los demás permisos del plugin se sacan');
+    t.ok(/androidx\.health\.ACTION_SHOW_PERMISSIONS_RATIONALE/.test(man) && /android\.intent\.action\.VIEW_PERMISSION_USAGE/.test(man) && /android\.intent\.category\.HEALTH_PERMISSIONS/.test(man), 'Android: pantalla de privacidad de Health Connect (Android 13 y 14+)');
+    t.ok(/gize\.ar\/privacidad\/#salud/.test(rd('android/app/src/main/java/ar/com/gize/app/PermisosSaludActivity.java')), 'Android: la pantalla abre la política en #salud');
+    t.ok(/id="salud"/.test(rd('privacidad/index.html')), 'la política tiene la sección #salud');
+    const ent = rd('ios/App/App/App.entitlements'), info = rd('ios/App/App/Info.plist');
+    t.ok(/<key>com\.apple\.developer\.healthkit<\/key>\s*<true\/>/.test(ent), 'iPhone: entitlement de HealthKit');
+    t.ok(/<key>NSHealthShareUsageDescription<\/key>\s*<string>[^<]*pasos[^<]*<\/string>/.test(info), 'iPhone: texto del permiso de Salud (pasos)');
+    t.ok(/CapgoCapacitorHealth/.test(rd('ios/App/CapApp-SPM/Package.swift')), 'iPhone: el plugin está en el paquete de Swift');
+  }
+
   // 8) La base: tablas sin acceso directo, funciones seguras, límites y semana de Argentina.
   {
     const sql = fs.readFileSync(path.join(ROOT, 'supabase/pasos-grupos.sql'), 'utf8');

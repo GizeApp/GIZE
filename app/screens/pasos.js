@@ -95,7 +95,7 @@ function hoyHtml(){
   let nota, extra = "";
   if (saludPrendida()){
     nota = `Se cargan solos desde ${esc(saludNombre())} cada vez que abrís la app.`;
-    extra = `<button class="pg-link" data-pg="salud-sync"${SaludState.busy ? " disabled" : ""}>${SaludState.busy ? "Actualizando…" : "Actualizar ahora"}</button>`;
+    extra = `<button class="pg-link" data-pg="salud-sync"${SaludState.busy ? " disabled" : ""}>${SaludState.busy ? "Actualizando…" : "Actualizar ahora"}</button><button class="pg-link" data-pg="salud-off">Desconectar</button>`;
   } else if (saludDisponible()){
     nota = `Conectá ${esc(saludNombre())} y tus pasos se cargan solos, aunque no abras la app.`;
     extra = `<button class="pg-link" data-pg="salud-on">Conectar ${esc(saludNombre())}</button>`;

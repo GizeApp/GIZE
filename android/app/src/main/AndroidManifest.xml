@@ -30,6 +30,28 @@
             </intent-filter>
         </activity>
 
+        <!-- Health Connect: al pedir permiso para leer los pasos muestra "Política de privacidad",
+             que abre esta pantalla (Android 13 o menos: la acción de abajo; Android 14 o más: el alias).
+             Sin esto Health Connect no muestra el pedido de permiso. -->
+        <activity
+            android:name=".PermisosSaludActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".PermisosSaludActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -77,5 +99,23 @@
     <!-- El plugin pide GPS como obligatorio: así Google Play no esconde la app en tablets y equipos
          sin GPS (ahí la salida no se puede medir, pero el resto de la app anda igual). -->
     <uses-feature android:name="android.hardware.location.gps" android:required="false" tools:replace="android:required" />
+
+    <!-- Pasos automáticos desde Health Connect («Competencia de pasos»): SOLO lectura de pasos.
+         El plugin declara más permisos (escribir, distancia, calorías, pulso, peso) que la app no
+         usa y Google Play pide justificar: se sacan acá. -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.WRITE_STEPS" tools:node="remove" />
+    <uses-permission android:name="android.permission.health.READ_WEIGHT" tools:node="remove" />
+    <uses-permission android:name="android.permission.health.WRITE_WEIGHT" tools:node="remove" />
+    <uses-permission android:name="android.permission.health.READ_DISTANCE" tools:node="remove" />
+    <uses-permission android:name="android.permission.health.WRITE_DISTANCE" tools:node="remove" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" tools:node="remove" />
+    <uses-permission android:name="android.permission.health.WRITE_ACTIVE_CALORIES_BURNED" tools:node="remove" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" tools:node="remove" />
+    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE" tools:node="remove" />
+    <!-- Para saber si Health Connect está instalado (Android 11 a 13). -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
 
 </manifest>

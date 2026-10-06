@@ -17,6 +17,7 @@ html.tema-luz .pg { --pg-gold-text: #7A5200; --pg-gold-bg: linear-gradient(135de
 .pg-note { font-size: var(--text-meta); color: var(--txt-2); line-height: 1.4; margin-top: 8px; }
 .pg-link { display: inline-block; background: none; border: 0; padding: 10px 0 0; color: var(--gize-blue); font: 600 var(--text-meta) var(--gize-font); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .pg-link:disabled { opacity: .6; cursor: default; }
+.pg-link + .pg-link { margin-left: 18px; }
 .pg-link.danger { color: var(--gize-danger); }
 .pg-err { margin: 8px 0; padding: 10px 12px; border-radius: 12px; font-size: var(--text-meta); color: var(--gize-text); background: var(--gize-danger-bg, rgba(255,80,80,.12)); border: 1px solid color-mix(in srgb, var(--gize-danger) 45%, transparent); }
 .pg-vacio { text-align: left; padding: 6px 2px 2px; line-height: 1.45; }

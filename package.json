@@ -22,6 +22,7 @@
     "@capacitor/local-notifications": "^7.0.7",
     "@capacitor/push-notifications": "^7.0.7",
     "@capacitor/share": "^7.0.4",
+    "@capgo/capacitor-health": "7.2.15",
     "@capgo/capacitor-social-login": "^7.20.0"
   }
 }

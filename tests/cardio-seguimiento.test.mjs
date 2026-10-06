@@ -138,7 +138,7 @@ function staticChecks(t){
     t.has(build, `implementation project(':${m}')`, 'Android: ' + m + ' en capacitor.build.gradle');
   }
   const order = s => [...s.matchAll(/project\(':([^']+)'\)\.projectDir/g)].map(m => m[1]);
-  t.eq(order(settings), ['capacitor-android', 'capacitor-community-background-geolocation', 'capacitor-app', 'capacitor-browser', 'capacitor-filesystem', 'capacitor-local-notifications', 'capacitor-push-notifications', 'capacitor-share', 'capgo-capacitor-social-login'], 'Android: plugins en el orden en que los escribe cap sync');
+  t.eq(order(settings), ['capacitor-android', 'capacitor-community-background-geolocation', 'capacitor-app', 'capacitor-browser', 'capacitor-filesystem', 'capacitor-local-notifications', 'capacitor-push-notifications', 'capacitor-share', 'capgo-capacitor-health', 'capgo-capacitor-social-login'], 'Android: plugins en el orden en que los escribe cap sync');
   const spm = read('ios/App/CapApp-SPM/Package.swift');
   for (const [n, dir] of [['CapacitorCommunityBackgroundGeolocation', '@capacitor-community/background-geolocation'], ['CapacitorFilesystem', '@capacitor/filesystem'], ['CapacitorShare', '@capacitor/share']]){
     t.has(spm, `.package(name: "${n}", path: "../../../node_modules/${dir}")`, 'iPhone: ' + n + ' en Package.swift');

@@ -55,6 +55,10 @@
 	<string>GIZE usa tu ubicación mientras registrás una salida a pie o en bici, para medir la distancia, el ritmo y las calorías y dibujar tu recorrido. Tu recorrido lo ven solo vos y tu coach.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Para seguir midiendo tu salida con la pantalla bloqueada o el celular en el bolsillo, GIZE usa tu ubicación también en segundo plano, solo mientras la salida está en curso. Nunca la usa en otro momento.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>GIZE lee solo tus pasos de Salud, para cargarlos en tu registro diario y en tus grupos de la Competencia de pasos (tus amigos ven solo tus totales). No lee ningún otro dato de salud.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>GIZE no escribe datos en Salud: solo lee tus pasos.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
