@@ -258,3 +258,5 @@ html:not(.sin-neon):not(#_):not(#__) body:not(#_) .ex-collapsed-badge {
   background: linear-gradient(#0B0D11, #0B0D11) padding-box, var(--gize-rgb-ring) border-box;
 }
 html:not(.sin-neon):not(#_):not(#__) body:not(#_) .ex-collapsed-badge svg { width: 16px; height: 16px; }
+/* Récord: la copa del ejercicio terminado en dorado, como la marca de récord de la serie. */
+html:not(#_):not(#__) body:not(#_) .ex-collapsed-badge.is-pr { color: #FFC940; }

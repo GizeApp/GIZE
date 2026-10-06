@@ -251,7 +251,7 @@ export function renderEntreno(){
         let bestSecs=0; (ex.sets||[]).forEach(s=>{ const r=parseSecs(s.secs); if(r>bestSecs) bestSecs=r; });
         meta = isTimedEx(ex) ? (bestSecs>0 ? 'máx '+fmtSecs(bestSecs) : 'Completado')
           : best ? (String(num(best.kg)).replace('.',',')+' kg × '+(parseInt(best.reps)||0)) : (bestReps>0 ? bestReps+' reps' : 'Completado'); // números: kg y reps pueden venir de la rutina que escribe el coach
-        badge = `<span class="ex-collapsed-badge">${isPR?trophySvg:checkSvg}</span>`;
+        badge = `<span class="ex-collapsed-badge${isPR?' is-pr':''}">${isPR?trophySvg:checkSvg}</span>`;
         cls = meta==='Completado' ? ' is-done' : '';
       } else {
         meta = nd ? nd+'/'+n+' series' : n+(n===1?' serie':' series');
