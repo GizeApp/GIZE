@@ -44,6 +44,7 @@ export const TEXTS = {
   webLimit: "En el navegador, GIZE mide la salida solo con la pantalla prendida y la app abierta.",
   nativeTip: "Podés bloquear el celular y guardarlo: GIZE sigue midiendo. No cierres GIZE desde las apps recientes.",
   noSignal: "No llega la señal del GPS. El tiempo sigue contando.",
+  hole: "Con la pantalla bloqueada o en otra app, el navegador no deja medir: ese tramo se sumó en línea recta (en el mapa, gris de puntos). Dejá GIZE abierta para medirlo entero.",
   quota: "El celular se quedó sin espacio para guardar la salida en curso: no cierres GIZE hasta terminarla.",
   permAndroid: "GIZE no tiene permiso para usar tu ubicación precisa, así que no puede medir la salida.",
   permIos: "GIZE no tiene permiso para usar tu ubicación, así que no puede medir la salida. Permitilo en Ajustes › GIZE › Ubicación.",
@@ -436,6 +437,8 @@ function lost(why){
 // Hora de los puntos (core/cardiogps.js createClock): la del GPS, corregida si el reloj del
 // celular está corrido. Una por salida.
 let clock = createClock();
+const HOLE_NOTICE_MS = 60000;
+let holeAt = 0;
 
 // Un punto del GPS (nativo o web) para la salida en curso.
 function handlePoint(raw){
@@ -444,12 +447,18 @@ function handlePoint(raw){
   const now = Date.now();
   if (overdue(r, now)) return;
   rawAt = now;
-  noteHere(raw, now);
   const before = r.pts.length;
   const why = addPoint(r, Object.assign({}, raw, { t: clock(raw.t, now, r.start) }));
+  // «Estás acá» después del motor: así el mini mapa ya sabe si este dato abrió un hueco (ver
+  // core/cardiogps.js createFilter) y no lo une con el recorrido.
+  noteHere(raw, now);
   if (why === "paused") return;
   let changed = false;
   if (GpsState.notice === TEXTS.noSignal){ GpsState.notice = ""; changed = true; }
+  // Volvió de un corte (en la web: pantalla bloqueada u otra app): se avisa un minuto.
+  const lp = isAccepted(why) && lastPoint(r);
+  if (lp && lp.hole && !isNative() && !GpsState.notice){ GpsState.notice = TEXTS.hole; holeAt = now; changed = true; }
+  else if (GpsState.notice === TEXTS.hole && !(now - holeAt < HOLE_NOTICE_MS)){ GpsState.notice = ""; changed = true; }
   if (coarseCheck(raw, why, now)) changed = true;
   if (r.pts.length !== before) persist(false);
   // El estado del GPS (bien, débil, buscando) solo se anota: lo pinta paintSalida (screens/
@@ -646,12 +655,21 @@ export function stopForLogout(){
 }
 
 // ---- App en segundo plano ----
+const WEB_RETRY_MS = 8000;
+let webRetry = null;
 // Al irse se guarda en el acto (el sistema puede matar la app); el GPS sigue. Al volver, la
 // pantalla se pone al día una vez y en la web se vuelve a pedir la pantalla prendida.
 onAwayChange(away => {
   if (away){ if (GpsState.run && GpsState.run.status !== "ended") write(); return; }
   if (GpsState.run && overdue(GpsState.run, Date.now())) return;
-  if (webId != null) lockScreen();
+  if (webId != null){
+    lockScreen();
+    // Web: si al volver el navegador no manda la ubicación en un rato (algunos Safari no
+    // retoman el watchPosition después de ocultar la página), se engancha de nuevo.
+    const back = Date.now();
+    clearTimeout(webRetry);
+    webRetry = setTimeout(() => { const r = GpsState.run; if (webId != null && r && r.status === "running" && !appAway() && rawAt < back) attachWeb(); }, WEB_RETRY_MS);
+  }
   if (pendingChange || GpsState.run){ refreshGps(); emit(); }
 });
 window.addEventListener("pagehide", () => { if (GpsState.run) write(); });

@@ -356,7 +356,20 @@ class RouteView {
       this.liveCenter = { lat: h.lat, lon: h.lon };
       if (this.map) this.camera();
       this.reproject(); this.drawLive();
-    }
+    } else if (this.layers.xy){ this.tip(); this.layers.marks(true); } // solo la punta (barato)
+  }
+  // La punta del recorrido en vivo: del último punto medido hasta «estás acá», para que la línea
+  // llegue siempre al punto azul aunque el motor todavía no haya aceptado lo último (espera a
+  // confirmar que se mueve) o el recorrido se redibuje cada 5 s. spec.tip(): "linea" (del color
+  // del final), "hueco" (gris de puntos: hubo un corte del GPS o el dato es flojo) o "" (nada:
+  // pausa, o el dato no tiene que ver con el recorrido). Solo para dibujar: no suma nada.
+  tip(){
+    const L = this.layers; L.tip = null;
+    let k = ""; try { k = (this.spec.tip && this.spec.tip()) || ""; } catch (e) {}
+    const h = k && this.here(), proj = h && L.xy && this.projection();
+    if (!proj) return;
+    const p = proj(h.lon, h.lat);
+    if (Number.isFinite(p[0]) && Number.isFinite(p[1])) L.tip = { x: p[0], y: p[1], dash: k !== "linea" };
   }
   // El punto «estás acá» (y el círculo de la precisión si es floja) en su lugar. → [x, y] o null.
   placeHere(){
@@ -391,6 +404,7 @@ class RouteView {
     if (!this.liveCenter && this.here()) this.liveCenter = this.centerNow();
     if (!L.prep){ L.clear(); L.marks(false); this.placeHere(); return; }
     if (!L.xy) this.reproject();
+    this.tip();
     L.drawAll(); L.marks(true);
     this.placeHere();
   }

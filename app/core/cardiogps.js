@@ -26,7 +26,8 @@ const dec = (n, d = 1) => (Number(n) || 0).toFixed(d).replace(".", ",");
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // ---- Modos y constantes ----
-// maxKmh: más rápido que esto entre puntos es un salto del GPS, no la persona.
+// maxKmh: más rápido que esto entre puntos es un salto del GPS, no la persona. holeKmh: lo más
+// rápido que se cree a través de un hueco sin señal (en línea recta; más, fue en otra cosa).
 // stopKmh: más lento que esto es estar parado (pausa automática).
 // winS: ventana para la velocidad del momento y la máxima. stillS: ventana para darse cuenta de
 // si se está moviendo o es el GPS que tiembla. smoothS: promedio de los puntos cuando el GPS
@@ -34,8 +35,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 // autoPauseS: sin puntos que sumen durante este tiempo, en vivo se muestra «Pausa automática».
 // spanKmh: diferencia mínima entre el color más frío y el más intenso del recorrido.
 export const MODES = {
-  pie:  { label: "A pie",   maxKmh: 25, stopKmh: 1.8, winS: 10, stillS: 20, smoothS: 5, splitM: 1000, distanceFilterM: 2, autoPauseS: 10, spanKmh: 3 },
-  bici: { label: "En bici", maxKmh: 70, stopKmh: 4,   winS: 6,  stillS: 10, smoothS: 3, splitM: 5000, distanceFilterM: 4, autoPauseS: 6,  spanKmh: 8 },
+  pie:  { label: "A pie",   maxKmh: 25, holeKmh: 12, stopKmh: 1.8, winS: 10, stillS: 20, smoothS: 5, splitM: 1000, distanceFilterM: 2, autoPauseS: 10, spanKmh: 3 },
+  bici: { label: "En bici", maxKmh: 70, holeKmh: 40, stopKmh: 4,   winS: 6,  stillS: 10, smoothS: 3, splitM: 5000, distanceFilterM: 4, autoPauseS: 6,  spanKmh: 8 },
 };
 export const modeOk = m => m === "pie" || m === "bici";
 const cfgOf = m => MODES[modeOk(m) ? m : "pie"];
@@ -52,6 +53,10 @@ export const MAX_ACC_M = 30, FIRST_ACC_M = 20, FIRST_WAIT_S = 20, MIN_MOVE_M = 3
 export const GAP_S = 120, CLASS_WIN_S = 30, MIN_SEG_S = 60;
 export const DEFAULT_KG = 70, MIN_SAVE_M = 100, MIN_SAVE_S = 60;
 export const MAX_POINTS = 30000, TRACK_TOL_M = 4, MAX_TRACK_LEN = 200000;
+// Hueco: más de HOLE_S sin ningún dato y al volver está a HOLE_M o más, a una velocidad creíble
+// y con no más de HOLE_MAX_S sin datos. Lo típico: en el navegador del iPhone, al bloquear la
+// pantalla o pasar a otra app el GPS se corta.
+export const HOLE_S = 10, HOLE_M = 15, HOLE_MAX_S = 1800;
 export const MAX_SEGMENTS = 200, MAX_SPLITS = 1000, JITTER_M = 1;
 
 // Distancia en metros entre dos puntos {lat, lon} (fórmula de haversine).
@@ -125,7 +130,7 @@ function normPoint(pt){
 //        "ok" (suma distancia).
 //   d: metros que sumó. brk: empieza una pieza nueva del dibujo (no se une con la anterior).
 //   p: el punto aceptado { lat, lon, t, acc, spd, seg, cd (distancia acumulada), brk, vr (km/h
-//   con la que se confirmó que se movía) } o null. keep: vale la pena guardarlo (todo menos
+//   con la que se confirmó que se movía), hole (el primero después de un hueco) } o null. keep: vale la pena guardarlo (todo menos
 //   bad, dup y precisión peor que 30 m): al volver a pasar los guardados por el filtro sale
 //   exactamente lo mismo.
 //
@@ -138,6 +143,15 @@ function normPoint(pt){
 // tarde). Al empezar cada pieza se espera media ventana antes de sumar, por lo mismo.
 // Velocidad imposible: se compara con dónde estaba hace un momento (promedio de la mitad nueva
 // de la ventana), no con un solo punto.
+// Hueco (HOLE_S sin datos y al volver más lejos, moviéndose; p. ej. la pantalla bloqueada en el
+// navegador): la distancia en línea recta se suma (lo caminado existió; la recta se queda un
+// poco corta si dobló) y ese rato cuenta en movimiento, pero se espera un dato preciso (≤ 20 m,
+// o 20 s) antes de volver a sumar: el primero al volver suele venir corrido. Ese punto sale con
+// hole: el dibujo no cruza el hueco con una línea de color (livePath y simplifyTrack lo cortan
+// ahí; ui/ruta.js lo une con una línea gris de puntos). f.hole: hay un hueco sin punto aceptado
+// todavía (el mini mapa no une «estás acá» con el recorrido). Un corte más largo que
+// HOLE_MAX_S o a una velocidad que no se cree (más de holeKmh): como antes, pieza nueva sin
+// sumar (gapS) si pasaron más de 2 min.
 export function createFilter(mode){
   const cfg = cfgOf(mode), W = cfg.stillS * 1000;
   // last: último punto aceptado (referencia de la distancia). prev: último punto válido que no
@@ -145,11 +159,11 @@ export function createFilter(mode){
   // t0: inicio de la pieza. wait: desde cuándo se espera un primer punto preciso. lastT: hora
   // del último punto guardado (para descartar repetidos).
   let last = null, prev = null, win = [], jumps = [], t0 = 0, wait = null, lastT = -Infinity;
-  const f = { dist: 0, gapS: 0, n: 0, last: null, push };
+  const f = { dist: 0, gapS: 0, n: 0, last: null, hole: null, push };
   const out = (why, keep) => ({ why, d: 0, brk: false, p: null, keep });
   function begin(p, why){
     p.cd = f.dist; p.brk = true; p.vr = 0;
-    last = prev = f.last = p; win = [p]; jumps = []; t0 = p.t; wait = null; f.n++;
+    last = prev = f.last = p; win = [p]; jumps = []; t0 = p.t; wait = null; f.hole = null; f.n++;
     lastT = p.t;
     return { why, d: 0, brk: true, p, keep: true };
   }
@@ -168,12 +182,18 @@ export function createFilter(mode){
     // Más de 2 min sin puntos válidos: si en ese rato se movió, la señal se cortó (app cerrada,
     // túnel…): pieza nueva, sin sumar el tramo que no se vio. Si está casi en el mismo lugar,
     // estuvo parado (el GPS nativo no manda puntos si no te movés): sigue igual.
+    // Hueco: lastT es el último dato guardado (así al recuperar la salida da lo mismo).
     const silence = p.t - prev.t;
-    if (silence > GAP_S * 1000){
-      const kmh = haversine(last, p) / ((p.t - last.t) / 1000) * 3.6;
-      if (kmh >= cfg.stopKmh){ f.gapS += silence / 1000; return begin(p, "gap"); }
-      win = [];
+    if (!f.hole && (p.t - lastT > HOLE_S * 1000 || silence > GAP_S * 1000)){
+      const m = haversine(last, p), dt = (p.t - last.t) / 1000, kmh = m / dt * 3.6;
+      if (m >= HOLE_M && kmh >= cfg.stopKmh && kmh <= cfg.holeKmh && dt <= HOLE_MAX_S){ f.hole = { t: p.t }; win = []; }
+      else if (silence > GAP_S * 1000){
+        if (kmh >= cfg.stopKmh){ f.gapS += silence / 1000; return begin(p, "gap"); }
+        win = [];
+      }
     }
+    // Mientras no llegue un dato preciso después del hueco, los flojos no suman (se guardan igual).
+    if (f.hole && p.acc > FIRST_ACC_M && p.t - f.hole.t < FIRST_WAIT_S * 1000){ lastT = p.t; return out("acc", true); }
     // Salto: la velocidad desde donde estaba hace un momento (promedio de la mitad nueva de la
     // ventana) es imposible. Si se repite 3 veces seguidas y esos puntos son coherentes entre
     // sí, la referencia era la mala: el último pasa a ser la nueva, sin sumar el salto.
@@ -201,6 +221,7 @@ export function createFilter(mode){
     const vr = robustKmh(win, W, before);
     if (vr < cfg.stopKmh) return out("noise", true);
     f.dist += d; q.cd = f.dist; q.brk = false; q.vr = Math.max(vr, vRef);
+    if (f.hole){ q.hole = true; f.hole = null; }
     last = f.last = q; f.n++;
     return { why: "ok", d, brk: false, p: q, keep: true };
   }
@@ -355,7 +376,8 @@ function windowKmh(list, half){
 }
 
 // Tramos: [{ c, i0, i1, t0, t1, movingS, distM, avgKmh }] (i0/i1: índices en pts; t0/t1: ms).
-// 1) Tipo de cada intervalo en movimiento (velocidad media de 30 s, con histéresis).
+// 1) Tipo de cada intervalo en movimiento (velocidad media de 30 s, con histéresis; un hueco
+//    sin señal, el del anterior).
 // 2) Se juntan los seguidos del mismo tipo (lo parado y los cortes no cortan el tramo).
 // 3) Duración mínima: mientras haya un tramo de menos de 1 min (y más de uno), el más corto se
 //    une al vecino de velocidad más parecida (si empata, al anterior) y toma su tipo. Un pique
@@ -363,12 +385,17 @@ function windowKmh(list, half){
 export function segmentize(pts, mode, mv){
   mv = mv || movingIntervals(pts, mode);
   const list = [];
-  for (let k = 1; k < pts.length; k++) if (mv[k] > 0) list.push({ k, m: mv[k], d: Math.max(0, pts[k].cd - pts[k - 1].cd) });
+  for (let k = 1; k < pts.length; k++) if (mv[k] > 0) list.push({ k, m: mv[k], d: Math.max(0, pts[k].cd - pts[k - 1].cd), hole: !!pts[k].hole });
   if (!list.length) return [];
-  const v = windowKmh(list, CLASS_WIN_S / 2);
+  // La velocidad de 30 s, sin los huecos sin señal (su velocidad es en línea recta: no dice si
+  // trotaba o caminaba, ni tiene que teñir lo de al lado).
+  const real = list.filter(it => !it.hole), vr = real.length ? windowKmh(real, CLASS_WIN_S / 2) : [];
+  const v = []; let q = 0;
+  for (const it of list) v.push(it.hole ? 0 : vr[q++]);
   let segs = [], prev = null;
   list.forEach((it, j) => {
-    const c = classifySpeed(v[j], mode, prev), t1 = pts[it.k].t, t0 = t1 - it.m * 1000;
+    // Un hueco sin señal sigue con el tipo que venía (si es lo primero, caminando o en bici).
+    const c = it.hole && prev ? prev : classifySpeed(v[j], mode, prev), t1 = pts[it.k].t, t0 = t1 - it.m * 1000;
     prev = c;
     const s = segs[segs.length - 1];
     if (s && s.c === c){ s.i1 = it.k; s.t1 = t1; s.movingS += it.m; s.distM += it.d; }
@@ -399,10 +426,11 @@ export function segmentize(pts, mode, mv){
 
 // Velocidad máxima: la mejor media de al menos winS segundos en movimiento, con la distancia en
 // línea recta entre las puntas de la ventana (sin pasar la del recorrido): un punto adelantado o
-// un zigzag del GPS no la inflan. Con el tope del modo.
+// un zigzag del GPS no la inflan. Sin los huecos sin señal. Con el tope del modo.
 function maxKmhOf(pts, mv, cfg){
   const n = pts.length, M = new Float64Array(n), D = new Float64Array(n);
-  for (let k = 1; k < n; k++){ M[k] = M[k - 1] + (mv[k] || 0); D[k] = D[k - 1] + (mv[k] > 0 ? Math.max(0, pts[k].cd - pts[k - 1].cd) : 0); }
+  // Los huecos sin señal no cuentan (su velocidad es un promedio en línea recta).
+  for (let k = 1; k < n; k++){ const h = pts[k].hole; M[k] = M[k - 1] + (h ? 0 : mv[k] || 0); D[k] = D[k - 1] + (!h && mv[k] > 0 ? Math.max(0, pts[k].cd - pts[k - 1].cd) : 0); }
   let best = 0, j = 0;
   for (let i = 1; i < n; i++){
     while (j + 1 < i && M[i] - M[j + 1] >= cfg.winS) j++;
@@ -534,14 +562,21 @@ function feed(run, s, pt){
     L.lastT = r.p.t; L.dist = s.f.dist;
     // Para el mini mapa: uno de cada «stride» (siempre el que empieza una pieza). Si se pasa del
     // tope, se saca uno de cada dos y desde ahí se guarda la mitad: la densidad queda pareja.
-    const q = { lat: r.p.lat, lon: r.p.lon, t: r.p.t, brk: !!r.p.brk };
+    // Después de un hueco, pieza nueva (hole): el mini mapa no lo cruza con una línea de color.
+    const q = { lat: r.p.lat, lon: r.p.lon, t: r.p.t, brk: !!r.p.brk || !!r.p.hole };
     s.pathLast = q;
     if (q.brk || ++s.pathN % s.stride === 0){
       s.path.push(q);
       if (s.path.length > LIVE_PATH_MAX){ s.path = thinPath(s.path); s.stride *= 2; }
     }
     const m = movingS(before, r.p, cfg);
-    if (m > 0){
+    if (m > 0 && r.p.hole){
+      // Hueco sin señal: suma tiempo y calorías al ritmo del hueco (en línea recta) con el tipo
+      // que venía; no cambia el ritmo del momento ni el tipo.
+      const kmh = (r.p.cd - before.cd) / m * 3.6, c = L.cls || classifySpeed(kmh, run.mode, null);
+      L.movingMs += m * 1000;
+      L.metS += metFor(c, kmh) * m;
+    } else if (m > 0){
       const d = r.p.cd - before.cd;
       s.q.push({ m, d }); s.qm += m; s.qd += d;
       while (s.q.length > 1 && s.qm - s.q[0].m >= CLASS_WIN_S){ const o = s.q.shift(); s.qm -= o.m; s.qd -= o.d; }
@@ -595,6 +630,8 @@ export function livePath(run){
 export const livePathKey = run => { if (!run) return ""; const s = liveState(run), a = s.path; return s.f.n + ":" + (a.length ? a[a.length - 1].t : 0); };
 // Último punto aceptado de la salida en curso (para dibujar en vivo), o null.
 export function lastPoint(run){ return run ? liveState(run).f.last : null; }
+// ¿Hay un hueco (ver createFilter) sin punto aceptado todavía?
+export function liveHole(run){ return run ? !!liveState(run).f.hole : false; }
 // Vuelve a armar el estado en vivo desde los puntos guardados (después de recuperar o achicar).
 export function replayRun(run){ if (run){ delete run._f; liveState(run); } return run; }
 
@@ -721,7 +758,9 @@ function dp(pts, tol, sync, keep){
 export const simplifyLine = (pts, tolM) => dp(pts || [], Math.max(0, Number(tolM) || 0), false, null);
 
 // Puntos aceptados → piezas simplificadas [[{lat, lon, t (ms)}]] para guardar: Douglas–Peucker
-// sincronizado con la hora por pieza, conservando las puntas y los cambios de tramo (segs).
+// sincronizado con la hora por pieza, conservando las puntas y los cambios de tramo (segs). Las
+// piezas se cortan en las pausas (brk) y en los huecos sin señal (hole): no se dibuja una recta
+// por donde no se midió.
 export function simplifyTrack(pts, tolM = TRACK_TOL_M, segs){
   const cuts = new Set();
   for (const s of segs || []){ cuts.add(s.i0); cuts.add(s.i1); }
@@ -729,7 +768,7 @@ export function simplifyTrack(pts, tolM = TRACK_TOL_M, segs){
   let a = 0;
   while (a < pts.length){
     let b = a + 1;
-    while (b < pts.length && !pts[b].brk) b++;
+    while (b < pts.length && !pts[b].brk && !pts[b].hole) b++; // un hueco también corta el dibujo
     const keep = new Set();
     for (const i of cuts) if (i > a && i < b - 1) keep.add(i - a);
     const pc = dp(pts.slice(a, b).map(p => ({ lat: p.lat, lon: p.lon, t: p.t })), tolM, true, keep);
@@ -833,11 +872,24 @@ export function trimTrack(pieces, m = 200){
   const lp = list[list.length - 1], zones = [list[0][0], lp[lp.length - 1]];
   const lerpP = (a, b, u) => ({ lat: a.lat + (b.lat - a.lat) * u, lon: a.lon + (b.lon - a.lon) * u, t: a.t + (b.t - a.t) * u });
   const out = [];
-  for (const pc of list){
+  // Cada pieza de salida sabe de qué pieza original salió (j) y si empieza y termina donde
+  // empezaba y terminaba esa (a0, a1). Si no sigue sin recorte a la anterior (empieza en el
+  // borde de un círculo, o lo de antes quedó oculto), sale con cut: el dibujo no la une con la
+  // anterior (ui/ruta.js prepareRoute), así ninguna línea cruza lo oculto.
+  let prev = null;
+  list.forEach((pc, j) => {
     let cur = null;
     // Una pieza de menos de 2 m (dos círculos que casi se tocan) no se dibuja.
-    const flush = () => { if (cur && cur.length >= 2 && trackLength([cur]) >= 2) out.push(cur); cur = null; };
-    if (pc.length === 1) continue;
+    const flush = () => {
+      if (cur && cur.length >= 2 && trackLength([cur]) >= 2){
+        if (!(cur.a0 && prev && prev.a1 && prev.j === j - 1)) cur.cut = true;
+        prev = { j, a1: cur.a1 };
+        delete cur.a0; delete cur.a1;
+        out.push(cur);
+      }
+      cur = null;
+    };
+    if (pc.length === 1) return;
     for (let i = 1; i < pc.length; i++){
       const a = pc[i - 1], b = pc[i];
       // Partes del tramo a → b (u de 0 a 1) adentro de algún círculo; lo de afuera se dibuja.
@@ -848,13 +900,14 @@ export function trimTrack(pieces, m = 200){
       if (u < 1) outside.push([u, 1]);
       for (const [s0, s1] of outside){
         if (s1 - s0 < 1e-9) continue;
-        if (s0 > 0 || !cur){ flush(); cur = [lerpP(a, b, s0)]; }
+        if (s0 > 0 || !cur){ flush(); cur = [lerpP(a, b, s0)]; cur.a0 = s0 === 0 && i === 1; }
         cur.push(lerpP(a, b, s1));
+        cur.a1 = s1 >= 1 && i === pc.length - 1;
         if (s1 < 1) flush();
       }
     }
     flush();
-  }
+  });
   return out;
 }
 // Parte del tramo a → b (en u, de 0 a 1) que queda a menos de R metros de z, o null. En metros

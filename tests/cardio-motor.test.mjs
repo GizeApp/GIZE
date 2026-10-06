@@ -45,6 +45,12 @@ const TRACKS = {
   light: track({ legs: [{ s: 300, kmh: 5 }, { s: 120, kmh: 0, jitter: 2 }, { s: 300, kmh: 5 }], seed: 6 }),
   lightSilent: track({ legs: [{ s: 300, kmh: 5 }, { s: 150, kmh: 0, silent: true }, { s: 300, kmh: 5 }], seed: 6 }),
   gap: track({ legs: [{ s: 300, kmh: 5 }, { s: 180, kmh: 5, silent: true }, { s: 300, kmh: 5 }], seed: 7 }),
+  // Pantalla bloqueada 20 s (navegador del iPhone) y el primer dato al volver, flojo y corrido.
+  hole: track({ legs: [{ s: 300, kmh: 5 }, { s: 20, kmh: 5, silent: true }, { s: 1, kmh: 5, acc: 28, shift: 25 }, { s: 300, kmh: 5 }], seed: 15 }),
+  // Corte de más de 30 min, uno en colectivo (20 km/h en línea recta) y uno a 11 km/h.
+  gapLong: track({ legs: [{ s: 300, kmh: 5 }, { s: 2000, kmh: 5, silent: true }, { s: 300, kmh: 5 }], seed: 16, turn: 0 }),
+  gapBus: track({ legs: [{ s: 300, kmh: 5 }, { s: 300, kmh: 20, silent: true }, { s: 300, kmh: 5 }], seed: 17, turn: 0 }),
+  gapFast: track({ legs: [{ s: 300, kmh: 5 }, { s: 120, kmh: 11, silent: true }, { s: 300, kmh: 5 }], seed: 18, turn: 0 }),
   spike: track({ legs: [{ s: 300, kmh: 5 }, { s: 1, kmh: 5, spikeAt: 0, spike: 200 }, { s: 300, kmh: 5 }], seed: 8 }),
   nospike: track({ legs: [{ s: 300, kmh: 5 }, { s: 1, kmh: 5 }, { s: 300, kmh: 5 }], seed: 8 }),
   shift: track({ legs: [{ s: 300, kmh: 5 }, { s: 300, kmh: 5, shift: 300 }], seed: 9 }),
@@ -85,6 +91,7 @@ export default async function ({ base, t }){
     for (const k in S){ const x = S[k]; o.S[k] = { rec: x.rec, whys: x.whys.slice(0, 6), live: x.live, liveEnd: x.liveEnd, n: x.n, trackLen: x.track ? x.track.length : 0, pieces: x.track ? G.decodeTrack(x.track).length : 0, txt: G.breakdownText(x.rec.breakdown), pace: G.paceOrSpeed(x.rec) }; }
     o.spikeWhy = S.spike.whys[300];
     o.shiftWhys = S.shift.whys.slice(299, 305);
+    o.holeWhy = S.hole.whys[300];
 
     // Básicos
     o.deg = G.haversine({ lat: 0, lon: 0 }, { lat: 1, lon: 0 });
@@ -276,7 +283,7 @@ export default async function ({ base, t }){
       for (const pt of TR.gap) G.addPoint(run, pt);
       const lp = G.livePath(run), { pts } = G.filterPoints(run.pts.map(a => G.unpackPoint(a, run.start)), 'pie');
       const again = []; let cur = null;
-      for (const p of pts){ if (!cur || p.brk){ cur = []; again.push(cur); } cur.push({ lat: p.lat, lon: p.lon, t: (p.t - run.start) / 1000 }); }
+      for (const p of pts){ if (!cur || p.brk || p.hole){ cur = []; again.push(cur); } cur.push({ lat: p.lat, lon: p.lon, t: (p.t - run.start) / 1000 }); }
       const big = G.newRun('pie', T0, 'lp2');
       for (let i = 0; i < 12000; i++) G.addPoint(big, { lat: -34.6 + i * 3.4 / 111195, lon: -58.4, acc: 5, spd: null, t: T0 + (i + 1) * 1000 });
       const flat = G.livePath(big).flat(), gaps = [];
@@ -356,10 +363,21 @@ export default async function ({ base, t }){
   t.ok(near(S.shift.rec.dist, 600 * 5 / 3.6, 25) && S.shift.pieces === 2, 'GPS corrido: no suma el salto y el dibujo queda en 2 piezas: ' + S.shift.rec.dist + ' m, ' + S.shift.pieces);
   t.ok(near(S.zigzag.rec.dist, W, W * 0.04), 'GPS que zigzaguea ±3 m: la distancia no se infla: ' + S.zigzag.rec.dist + ' (de ' + Math.round(W) + ')');
 
-  // ---- Corte de señal de 3 min (caminando) ----
-  t.ok(near(S.gap.rec.gap, 180, 3), 'corte de 3 min: gap ≈ 180 s: ' + S.gap.rec.gap);
-  t.eq(S.gap.pieces, 2, 'corte: el recorrido queda en 2 piezas');
-  t.ok(near(S.gap.rec.dist, 600 * 5 / 3.6, 25) && near(S.gap.rec.moving, 600, 10), 'corte: no suma lo que no se vio: ' + S.gap.rec.dist + ' m, ' + S.gap.rec.moving + ' s');
+  // ---- Corte de señal de 3 min (caminando): se suma en línea recta ----
+  t.eq(S.gap.rec.gap, 0, 'corte de 3 min caminando: se cuenta (no queda como corte sin sumar)');
+  t.eq(S.gap.pieces, 2, 'corte: el dibujo queda en 2 piezas (el hueco va gris de puntos, no de color)');
+  t.ok(near(S.gap.rec.dist, 780 * 5 / 3.6, 25) && near(S.gap.rec.moving, 780, 10), 'corte: suma la distancia en línea recta y el tiempo en movimiento: ' + S.gap.rec.dist + ' m, ' + S.gap.rec.moving + ' s');
+  t.ok(near(S.gap.liveEnd.dist, S.gap.rec.dist, 2) && near(S.gap.liveEnd.movingMs / 1000, S.gap.rec.moving, 2), 'corte: en vivo, lo mismo: ' + Math.round(S.gap.liveEnd.dist) + ' m, ' + Math.round(S.gap.liveEnd.movingMs / 1000) + ' s');
+  t.eq(Object.keys(S.gap.rec.breakdown), ['caminar'], 'corte: todo caminando');
+  // Pantalla bloqueada 20 s y el primer dato flojo: se espera uno bueno y se suma.
+  t.eq(r.holeWhy, 'acc', 'al volver de la pantalla bloqueada, el primer dato flojo (28 m) no suma');
+  t.ok(near(S.hole.rec.dist, 621 * 5 / 3.6, 20) && near(S.hole.rec.moving, 621, 6) && S.hole.rec.gap === 0 && S.hole.pieces === 2, 'pantalla bloqueada 20 s: suma lo caminado, en movimiento, y el dibujo en 2 piezas: ' + JSON.stringify([S.hole.rec.dist, S.hole.rec.moving, S.hole.rec.gap, S.hole.pieces]));
+  // Más de 30 min, o más rápido de lo que se cree a pie: como antes, no suma.
+  t.ok(near(S.gapLong.rec.gap, 2000, 3) && near(S.gapLong.rec.dist, 600 * 5 / 3.6, 25) && near(S.gapLong.rec.moving, 600, 10), 'corte de 33 min: no suma lo que no se vio: ' + JSON.stringify([S.gapLong.rec.gap, S.gapLong.rec.dist, S.gapLong.rec.moving]));
+  t.ok(near(S.gapBus.rec.gap, 300, 3) && near(S.gapBus.rec.dist, 600 * 5 / 3.6, 25) && near(S.gapBus.rec.moving, 600, 10), 'corte a 20 km/h a pie (colectivo): no suma: ' + JSON.stringify([S.gapBus.rec.gap, S.gapBus.rec.dist, S.gapBus.rec.moving]));
+  t.ok(S.gapFast.rec.gap === 0 && near(S.gapFast.rec.dist, 600 * 5 / 3.6 + 120 * 11 / 3.6, 25) && near(S.gapFast.rec.moving, 720, 10), 'corte a 11 km/h: se suma: ' + JSON.stringify([S.gapFast.rec.gap, S.gapFast.rec.dist, S.gapFast.rec.moving]));
+  t.eq(Object.keys(S.gapFast.rec.breakdown), ['caminar'], 'corte a 11 km/h: no inventa un tramo «corriendo» (sigue el tipo que venía): ' + JSON.stringify(S.gapFast.rec.breakdown));
+  t.ok(S.gapFast.rec.max < 7, 'corte a 11 km/h: la velocidad máxima no sale del hueco: ' + S.gapFast.rec.max);
 
   // ---- Semáforo: 2 min parado ----
   t.ok(near(S.light.rec.moving, 600, 20) && S.light.rec.dur === 720, 'semáforo de 2 min (con temblor): en movimiento sin esos 120 s: ' + S.light.rec.moving + ' de ' + S.light.rec.dur);

@@ -12,7 +12,7 @@ import { State, state } from '../core/state.js';
 
 import { esc, fmt, fmtDate, ymd } from '../core/utils.js';
 import { bikeSvg, shoeSvg } from '../core/icons.js';
-import { CLASSES, breakdownText, finishRun, fmtClock, fmtKm, fmtKmh, fmtPace, isShort, lastWeight, livePath, livePathKey, modeLabel, paceOrSpeed } from '../core/cardiogps.js';
+import { CLASSES, FIRST_ACC_M, breakdownText, finishRun, fmtClock, fmtKm, fmtKmh, fmtPace, haversine, isShort, lastPoint, lastWeight, liveHole, livePath, livePathKey, modeLabel, paceOrSpeed } from '../core/cardiogps.js';
 import { GpsState, acceptDisclosure, ackRestored, discard, disclosure, hint, isNative, live, needsPrecise, onHere, onPoint, openSettings, pause, restoredText, resume, setMode, start, stop, takeEnded } from '../ui/gps.js';
 import { cachedTrack, deleteSalida, getTrack, salidasList, saveEnded } from '../core/salidas.js';
 import { salidaPendiente } from '../core/supabase.js';
@@ -147,7 +147,7 @@ function renderLive(r){
       '<div class="sal-lv"><span>' + (pie ? "Ritmo" : "Velocidad") + '</span><b id="salPace">–</b><small id="salPaceAvg"></small></div>' +
       '<div class="sal-lv"><span>Calorías</span><b id="salKcal">' + Math.round(s.kcal) + '</b><small>kcal</small></div>' +
     '</div>' +
-    routeSlot("live", { key: "live:" + r.id, mode: r.mode, live: true, here: liveHere, status: liveStatus }, "sal-minimap") +
+    routeSlot("live", { key: "live:" + r.id, mode: r.mode, live: true, here: liveHere, status: liveStatus, tip: liveTip }, "sal-minimap") +
     '<div class="sal-gps" id="salGps" hidden></div>' +
     (GpsState.notice ? '<div class="sal-note">' + esc(GpsState.notice) + (needsPrecise() && isNative() ? '<button type="button" class="sal-link" data-action="sal-settings">Abrir ajustes</button>' : "") + '</div>' : "") +
     errorHtml() +
@@ -187,6 +187,17 @@ export function paintSalida(now){
 // qué impide ubicarla: el punto «estás acá» y el texto del mini mapa (ui/mapa.js).
 const liveHere = () => GpsState.here;
 const liveStatus = () => GpsState.errorWhy || "";
+// Cómo unir el final del recorrido con «estás acá» (ui/mapa.js tip): "linea" si sigue andando
+// con buena señal; "hueco" (gris de puntos) si hubo un corte del GPS todavía sin un dato bueno
+// (p. ej. volvió de tener la pantalla bloqueada) o el dato es flojo; "" en pausa, después de
+// «Seguir» (pieza nueva) o si está demasiado lejos para tener que ver.
+const TIP_MAX_M = 150;
+function liveTip(){
+  const r = GpsState.run, h = GpsState.here, p = lastPoint(r);
+  if (!r || r.status !== "running" || !h || !p || p.seg !== r.seg) return "";
+  if (liveHole(r) || !(h.acc <= FIRST_ACC_M)) return "hueco";
+  return haversine(p, h) <= TIP_MAX_M ? "linea" : "";
+}
 // Lo medido hasta ahora (los puntos que el motor ya aceptó, con tope: core/cardiogps.js
 // livePath), en piezas con t en segundos. No se vuelve a filtrar todo en cada redibujo.
 let liveMemo = null;
