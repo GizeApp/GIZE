@@ -365,7 +365,7 @@ export default async function ({ base, t }){
 
   // ---- Corte de señal de 3 min (caminando): se suma en línea recta ----
   t.eq(S.gap.rec.gap, 0, 'corte de 3 min caminando: se cuenta (no queda como corte sin sumar)');
-  t.eq(S.gap.pieces, 2, 'corte: el dibujo queda en 2 piezas (el hueco va gris de puntos, no de color)');
+  t.eq(S.gap.pieces, 2, 'corte: el dibujo queda en 2 piezas (el hueco se une en neón)');
   t.ok(near(S.gap.rec.dist, 780 * 5 / 3.6, 25) && near(S.gap.rec.moving, 780, 10), 'corte: suma la distancia en línea recta y el tiempo en movimiento: ' + S.gap.rec.dist + ' m, ' + S.gap.rec.moving + ' s');
   t.ok(near(S.gap.liveEnd.dist, S.gap.rec.dist, 2) && near(S.gap.liveEnd.movingMs / 1000, S.gap.rec.moving, 2), 'corte: en vivo, lo mismo: ' + Math.round(S.gap.liveEnd.dist) + ' m, ' + Math.round(S.gap.liveEnd.movingMs / 1000) + ' s');
   t.eq(Object.keys(S.gap.rec.breakdown), ['caminar'], 'corte: todo caminando');

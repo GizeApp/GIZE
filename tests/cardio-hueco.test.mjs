@@ -4,10 +4,10 @@
 // a) El recorrido en vivo llega siempre al punto «estás acá»: la punta (de color) termina justo
 //    donde está el punto azul.
 // b) Al volver: el dato flojo no suma ni se dibuja de color; la punta va gris de puntos hasta que
-//    llega un dato bueno. Después, el hueco queda gris de puntos entre las dos piezas (nunca una
-//    recta de color, nunca invisible), la distancia y el tiempo en movimiento lo cuentan (en
+//    llega un dato bueno. Después, el hueco queda unido en neón entre las dos piezas (pedido: una
+//    recta de color continua, nunca invisible ni hacia el dato flojo), la distancia y el tiempo en movimiento lo cuentan (en
 //    línea recta) y la pantalla avisa qué pasó.
-// c) El recorrido guardado: el hueco corta el dibujo y se une gris de puntos (prepareRoute.gaps),
+// c) El recorrido guardado: el hueco corta el dibujo y se une en neón (prepareRoute.gaps),
 //    salvo donde lo recortó la privacidad de la imagen (trimTrack).
 // El mapa de fondo no sale a internet en las pruebas (gize_mapa_off): proyección propia.
 import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
@@ -55,6 +55,12 @@ const alpha = (p, cls, x, y) => p.evaluate(([cls, x, y]) => {
   const c = document.querySelector('.sal-minimap .' + cls); if (!c) return -1;
   const k = c.width / parseFloat(c.style.width), d = c.getContext('2d').getImageData(Math.round(x * k) - 2, Math.round(y * k) - 2, 5, 5).data;
   let a = 0; for (let i = 3; i < d.length; i += 4) a = Math.max(a, d[i]); return a;
+}, [cls, x, y]);
+// Color del trazo en ese punto: [r, g, b] del píxel más opaco alrededor.
+const color = (p, cls, x, y) => p.evaluate(([cls, x, y]) => {
+  const c = document.querySelector('.sal-minimap .' + cls); if (!c) return null;
+  const k = c.width / parseFloat(c.style.width), d = c.getContext('2d').getImageData(Math.round(x * k) - 2, Math.round(y * k) - 2, 5, 5).data;
+  let best = -1, out = null; for (let i = 0; i < d.length; i += 4) if (d[i + 3] > best){ best = d[i + 3]; out = [d[i], d[i + 1], d[i + 2]]; } return out;
 }, [cls, x, y]);
 const gs = p => p.evaluate(async () => { const g = await import('/app/ui/gps.js'), c = await import('/app/core/cardiogps.js'); const r = g.GpsState.run; return { pts: r.pts.length, notice: g.GpsState.notice, hole: c.liveHole(r), dist: c.liveStats(r, Date.now()).dist, moving: c.liveStats(r, Date.now()).movingMs / 1000, holeText: g.TEXTS.hole }; });
 const tick = p => p.evaluate(async () => (await import('/app/screens/cardio.js')).liveMapTick(true));
@@ -108,7 +114,7 @@ export default async function ({ base, t }){
   s = await gs(p);
   v = await view(p);
   t.ok(!s.hole, 'con un dato bueno, el hueco se cierra');
-  t.eq([v.pieces, v.gaps], [2, [1]], 'el recorrido en 2 piezas, unidas gris de puntos');
+  t.eq([v.pieces, v.gaps], [2, [1]], 'el recorrido en 2 piezas, unidas en neón');
   if (v.pieces === 2){
     const a = v.xy[0], b = v.xy[1], ax = a[a.length - 2], ay = a[a.length - 1], bx = b[0], by = b[1];
     const mx = (ax + bx) / 2, my = (ay + by) / 2;
@@ -116,7 +122,9 @@ export default async function ({ base, t }){
     t.eq(await alpha(p, 'rv-line', mx, my), 0, 'el hueco: sin línea de color');
     let dots = 0;
     for (let i = 1; i < 10; i++) if (await alpha(p, 'rv-head', ax + (bx - ax) * i / 10, ay + (by - ay) * i / 10) > 60) dots++;
-    t.ok(dots >= 4 && dots <= 9, 'el hueco: gris de puntos (no invisible): ' + dots + ' de 9');
+    t.eq(dots, 9, 'el hueco: una línea continua (no invisible ni de puntos)');
+    const c = await color(p, 'rv-head', mx, my);
+    t.ok(c && Math.max(...c) - Math.min(...c) > 60, 'el hueco: en neón (con color, no gris): ' + JSON.stringify(c));
     t.ok(v.tip && !v.tip.dash, 'de nuevo, la punta de color hasta el punto azul');
   }
   // Del último dato antes del corte (segundo 63) al último (110): 47 × 1,4 m, en línea recta por
@@ -126,7 +134,7 @@ export default async function ({ base, t }){
   t.ok(s.moving > 95, 'y el tiempo en movimiento también: ' + Math.round(s.moving) + ' s');
   t.has(await text(p, '#salLive'), s.holeText, 'la pantalla avisa qué pasó con el corte');
 
-  // El recorrido guardado: el hueco corta el dibujo y se une gris de puntos; la privacidad de la
+  // El recorrido guardado: el hueco corta el dibujo y se une en neón; la privacidad de la
   // imagen no se cruza con la unión.
   const g = await p.evaluate(async () => {
     const C = await import('/app/core/cardiogps.js'), R = await import('/app/ui/ruta.js'), gps = await import('/app/ui/gps.js');
@@ -138,7 +146,7 @@ export default async function ({ base, t }){
     const cut = R.prepareRoute(C.trimTrack(loop, 200), 'pie'), cut2 = R.prepareRoute(C.trimTrack([loop[0].slice(0, 3), loop[0].slice(3)], 200), 'pie');
     return { pieces: pcs.length, gaps: prep.gaps, cut: [cut.pieces.length, cut.gaps], cut2: [cut2.pieces.length, cut2.gaps] };
   });
-  t.eq([g.pieces, g.gaps], [2, [1]], 'guardado: el hueco corta el dibujo y se une gris de puntos');
+  t.eq([g.pieces, g.gaps], [2, [1]], 'guardado: el hueco corta el dibujo y se une en neón');
   t.eq(g.cut, [2, []], 'imagen para compartir: lo que recortó la privacidad no se une');
   t.eq(g.cut2, [3, [1]], 'imagen para compartir: un corte del GPS lejos del inicio sí se une');
   t.eq(pg.errs, [], 'errores de la página');
