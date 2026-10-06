@@ -244,3 +244,19 @@ html.basico:not(#_) :is(.flame.off, .streak.out .flame) stop:nth-child(1) { stop
 html.basico:not(#_) :is(.flame.off, .streak.out .flame) stop:nth-child(3) { stop-color: #4B5563; }
 /* En las apariencias de color, el fondo de cada una (básico pinta el body casi negro). */
 html.basico:is(.tema-luz, .tema-claro):not(#_) body { background: var(--gize-bg) !important; }
+
+/* Serie hecha: el tilde con el anillo de neón de la gama (quieto, sin resplandor), relleno oscuro
+   y la tilde blanca. Sin neón queda como antes (blanco y grises). */
+html:not(.sin-neon):not(#_):not(#__) body:not(#_) .set .done.on {
+  border: 2px solid transparent; color: #fff; box-shadow: none;
+  background: linear-gradient(#0B0D11, #0B0D11) padding-box,
+    conic-gradient(from 210deg, var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box;
+}
+/* Ejercicio terminado: el mismo tilde (o la copa del récord) con el anillo de neón de la gama. */
+html:not(.sin-neon):not(#_):not(#__) body:not(#_) .ex-collapsed-badge {
+  width: 30px; height: 30px; border-radius: 10px; align-items: center; justify-content: center; box-sizing: border-box;
+  border: 2px solid transparent; color: #fff; box-shadow: none;
+  background: linear-gradient(#0B0D11, #0B0D11) padding-box,
+    conic-gradient(from 210deg, var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box;
+}
+html:not(.sin-neon):not(#_):not(#__) body:not(#_) .ex-collapsed-badge svg { width: 16px; height: 16px; }
