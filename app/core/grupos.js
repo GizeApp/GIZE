@@ -94,4 +94,5 @@ export const borrarGrupo = id => rpc("pasos_borrar_grupo", { p_grupo: id });
 export const sacarMiembro = (id, miembro) => rpc("pasos_sacar_miembro", { p_grupo: id, p_miembro: miembro });
 export const cambiarMiNombre = (id, apodo) => rpc("pasos_mi_nombre", { p_grupo: id, p_apodo: apodo });
 export const rankingGrupo = async (id, atras) => filas(await rpc("pasos_ranking", { p_grupo: id, p_atras: atras || 0 }));
-export const campeonGrupo = async id => filas(await rpc("pasos_campeon", { p_grupo: id }))[0] || null;
+// Campeones de la semana pasada: varios si empataron (ganan todos).
+export const campeonGrupo = async id => filas(await rpc("pasos_campeon", { p_grupo: id }));

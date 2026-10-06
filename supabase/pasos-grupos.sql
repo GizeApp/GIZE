@@ -312,7 +312,7 @@ as $$
 $$;
 
 -- Campeón de la semana pasada: quien más pasos sumó de lunes a domingo (si alguien caminó). Con
--- empate, quien está hace más tiempo en el grupo. Solo si soy del grupo.
+-- empate ganan todos los empatados (pedido). Solo si soy del grupo.
 create or replace function public.pasos_campeon(p_grupo uuid)
 returns table (miembro uuid, nombre text, pasos int, soy_yo boolean, desde date, hasta date)
 language sql
@@ -320,12 +320,14 @@ stable
 security definer
 set search_path = public
 as $$
-  with w as (select public.pasos_lunes(public.pasos_hoy()) - 7 as desde)
-  select t.miembro, t.nombre, t.pasos::int, t.user_id = auth.uid(), w.desde, w.desde + 6
-    from w cross join lateral public.pasos_totales(p_grupo, w.desde, w.desde + 6) t
-   where public.pasos_soy_miembro(p_grupo) and t.pasos > 0
-   order by t.pasos desc, t.unido, t.miembro
-   limit 1;
+  with w as (select public.pasos_lunes(public.pasos_hoy()) - 7 as desde),
+       t as (select t.*, w.desde, max(t.pasos) over () as top
+               from w cross join lateral public.pasos_totales(p_grupo, w.desde, w.desde + 6) t
+              where public.pasos_soy_miembro(p_grupo))
+  select t.miembro, t.nombre, t.pasos::int, t.user_id = auth.uid(), t.desde, t.desde + 6
+    from t
+   where t.pasos > 0 and t.pasos = t.top
+   order by t.unido, t.miembro;
 $$;
 
 -- Solo usuarios logueados.

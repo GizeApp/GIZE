@@ -138,11 +138,14 @@ function formsHtml(){
     <p class="foot">La semana va de lunes a domingo. Tus amigos ven solo tu nombre y el total de pasos de la semana.</p>`;
 }
 
-function campeonHtml(c){
-  if (!c) return `<div class="pg-champ off"><span class="pg-trofeo" aria-hidden="true">${trophySvg}</span><div class="pg-champ-txt"><div class="pg-champ-t">Campeón de la semana pasada</div><div class="pg-champ-n">Todavía no hay. El lunes se corona el de esta semana.</div></div></div>`;
+function campeonHtml(cs){
+  if (!cs || !cs.length) return `<div class="pg-champ off"><span class="pg-trofeo" aria-hidden="true">${trophySvg}</span><div class="pg-champ-txt"><div class="pg-champ-t">Campeón de la semana pasada</div><div class="pg-champ-n">Todavía no hay. El lunes se corona el de esta semana.</div></div></div>`;
+  // Con empate ganan todos: «Campeones de la semana pasada» y los nombres juntos.
+  const nombres = cs.map(c => `<b>${esc(c.nombre)}</b>${c.soy_yo ? " (vos)" : ""}`);
+  const lista = nombres.length > 1 ? nombres.slice(0, -1).join(", ") + " y " + nombres[nombres.length - 1] : nombres[0];
   return `<div class="pg-champ"><span class="pg-trofeo" aria-hidden="true">${trophySvg}</span><div class="pg-champ-txt">
-      <div class="pg-champ-t">Campeón de la semana pasada</div>
-      <div class="pg-champ-n"><b>${esc(c.nombre)}</b>${c.soy_yo ? " (vos)" : ""} · ${pasosTxt(c.pasos)} pasos</div></div></div>`;
+      <div class="pg-champ-t">${cs.length > 1 ? "Campeones de la semana pasada" : "Campeón de la semana pasada"}</div>
+      <div class="pg-champ-n">${lista} · ${pasosTxt(cs[0].pasos)} pasos${cs.length > 1 ? " cada uno" : ""}</div></div></div>`;
 }
 
 function grupoHtml(){
@@ -151,10 +154,10 @@ function grupoHtml(){
   if (!d) return err || `<div class="cal-hint">Cargando el ranking…</div>`;
   const r = d.ranking || [], top = Math.max(0, ...r.map(x => x.pasos || 0));
   const sem = r[0] && r[0].desde ? { desde: r[0].desde, hasta: r[0].hasta } : semanaAR();
-  const soyDueno = !!(g && g.soy_dueno), campeon = d.campeon && d.campeon.miembro;
+  const soyDueno = !!(g && g.soy_dueno), campeones = new Set((d.campeon || []).map(c => c.miembro));
   const rows = r.map(x => {
     const pct = top > 0 ? Math.max(x.pasos > 0 ? 3 : 0, Math.round((x.pasos || 0) / top * 100)) : 0;
-    const copa = campeon && x.miembro === campeon ? `<span class="pg-copa" title="Campeón de la semana pasada" aria-label="Campeón de la semana pasada">${trophySvg}</span>` : "";
+    const copa = campeones.has(x.miembro) ? `<span class="pg-copa" title="Campeón de la semana pasada" aria-label="Campeón de la semana pasada">${trophySvg}</span>` : "";
     const rm = soyDueno && PasosState.sacando && !x.soy_yo ? `<button class="pg-rm" data-pg="sacar" data-m="${esc(x.miembro)}" data-n="${esc(x.nombre)}" aria-label="Sacar a ${esc(x.nombre)} del grupo">${xSvg}</button>` : "";
     return `<div class="pg-row${x.soy_yo ? " me" : ""}"${x.soy_yo ? ' aria-current="true"' : ""}>
         <span class="pg-pos">${x.puesto || ""}</span>

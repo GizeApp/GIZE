@@ -35,7 +35,7 @@ function mock({ grupos = [], ranking = {}, campeon = {}, onCrear, onUnirse } = {
     '/rpc/pasos_unirse': (r, J, i) => { rpcs.push('unirse ' + i.body); const g = onUnirse(JSON.parse(i.body)); db.grupos.push(g); return J(g.id); },
     '/rpc/pasos_sacar_miembro': (r, J, i) => (rpcs.push('sacar ' + i.body), J(null)),
     '/rpc/pasos_ranking': (r, J, i) => (rpcs.push('ranking ' + i.body), J(ranking[JSON.parse(i.body).p_grupo] || [])),
-    '/rpc/pasos_campeon': (r, J, i) => (rpcs.push('campeon ' + i.body), J(campeon[JSON.parse(i.body).p_grupo] ? [campeon[JSON.parse(i.body).p_grupo]] : [])),
+    '/rpc/pasos_campeon': (r, J, i) => { rpcs.push('campeon ' + i.body); const c = campeon[JSON.parse(i.body).p_grupo]; return J(c ? [].concat(c) : []); },
     '/daily_logs': (r, J, i) => { if (i.m !== 'GET') posts.push(i.body || ''); return undefined; },
   };
   return { handlers, rpcs, posts, db };
@@ -216,6 +216,23 @@ export default async function ({ base, t }){
     t.ok(m.rpcs.some(x => x === 'sacar {"p_grupo":"g1","p_miembro":"m5"}'), 'sacar llama a pasos_sacar_miembro: ' + m.rpcs.join(' | '));
     t.ok(m.rpcs.some(x => x === 'ranking {"p_grupo":"g1","p_atras":0}'), 'pide el ranking de esta semana');
     t.eq(errs, [], 'errores de la página (grupo)');
+    await close();
+  }
+
+  // 4b) Empate en la semana pasada: ganan todos (pedido). «Campeones», los dos nombres y la copa
+  //     chica al lado de cada uno.
+  {
+    const TIE = [CAMPEON, { ...CAMPEON, miembro: 'm1', nombre: 'Bruno' }];
+    const m = mock({ grupos: [GRUPO], ranking: { g1: RANKING }, campeon: { g1: TIE } });
+    const { p, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers, init: "localStorage.setItem('gize_lite','0');" });
+    await p.goto(base + '/app/'); await wait(2500);
+    await abrirPasos(p);
+    await p.click('[data-pg="abrir"][data-id="g1"]'); await wait(700);
+    const champ = (await text(p, '#pgData > .pg-champ')).replace(/\s+/g, ' ');
+    t.has(champ, 'Campeones de la semana pasada', 'empate: «Campeones de la semana pasada»');
+    t.has(champ, 'Caro y Bruno · 84.210 pasos cada uno', 'empate: los dos nombres con sus pasos');
+    const copas = await p.evaluate(() => [...document.querySelectorAll('.pg-row')].filter(x => x.querySelector('.pg-copa')).map(x => x.querySelector('.pg-name-t').textContent));
+    t.eq(copas.sort(), ['Bruno', 'Caro'], 'empate: la copa chica al lado de los dos');
     await close();
   }
 
