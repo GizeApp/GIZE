@@ -3,7 +3,8 @@
 // pestaña del día van en blanco y grises. Con la apariencia tranquila (css/ui/calma.css), video y
 // audio del coach llevan el filete fino con un toque de color en el borde (linear-gradient a 155°,
 // ya no la gama de neón en conic-gradient), letras blancas y una sombra neutra sin resplandor de
-// colores. El botón del chat, igual: el filete quieto (no gira) y sin brillos de la gama.
+// colores. El botón del chat, igual: el filete quieto (no gira) y sin brillos de la gama. La serie
+// hecha (pedido): relleno oscuro y tilde blanca, con el anillo de neón de la gama quieto en el borde.
 import { newPage, wait, ALUMNO, profile, openAllEx } from './lib.mjs';
 
 // Colores con "tinte": un canal le saca más de 40 a otro (el blanco y los grises no).
@@ -38,6 +39,7 @@ export default async function ({ base, t }){
     put('propuesta del coach', document.querySelector('.prog-sug'), ['backgroundColor', 'borderTopColor']);
     put('ícono de la propuesta', document.querySelector('.prog-sug .ps-ic'), ['backgroundColor', 'color']);
     put('serie hecha', document.querySelector('.set .done.on'), ['backgroundColor', 'borderTopColor', 'color']);
+    { const d = document.querySelector('.set .done.on'); out.hechaRing = d ? [getComputedStyle(d).backgroundImage, getComputedStyle(d).boxShadow, getComputedStyle(d).animationName] : null; }
     put('objetivo de la serie', document.querySelector('.set .goal'), ['color']);
     put('número del ejercicio', document.querySelector('.ex-num'), ['backgroundColor', 'color']);
     const chat = document.getElementById('chatBtn'), cb = getComputedStyle(chat, '::before');
@@ -48,10 +50,12 @@ export default async function ({ base, t }){
     return out;
   });
   for (const [k, v] of Object.entries(m)){
-    if (k.startsWith('chat') || k === 'botones') continue;
+    if (k.startsWith('chat') || k === 'botones' || k === 'hechaRing') continue;
     t.ok(Array.isArray(v), k + ': está en la pantalla');
     if (Array.isArray(v)) t.eq(v.filter(tinted), [], k + ': sin color (blanco o gris)');
   }
+  t.ok(m.hechaRing && /conic-gradient/.test(m.hechaRing[0]), 'serie hecha: el borde con la gama de neón: ' + (m.hechaRing && m.hechaRing[0]));
+  t.ok(m.hechaRing && m.hechaRing[1] === 'none' && m.hechaRing[2] === 'none', 'serie hecha: sin resplandor y quieta: ' + (m.hechaRing && m.hechaRing.slice(1)));
   for (const [i, name] of ['ver video', 'escuchar a tu coach'].entries()){
     const b = m.botones[i];
     t.ok(!!b, name + ': está en la pantalla');
