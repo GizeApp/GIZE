@@ -59,7 +59,7 @@ export function legendGradient(pal){
 // ---- El recorrido listo para dibujar ----
 // pieces: [[{lat, lon, t (s)}]] (core/cardiogps.js decodeTrack o livePath). → { pieces,
 // tt (0..1 por punto), cd (metros acumulados por punto), total, dom ([lento, rápido] km/h),
-// bounds, gaps (índices de las piezas que se unen con la anterior con una línea gris de puntos:
+// bounds, gaps (índices de las piezas que se unen con la anterior con una línea recta en neón:
 // por ahí no se midió, por una pausa o un corte del GPS) } o null.
 // Una pieza con cut (core/cardiogps.js trimTrack: la recortó la privacidad) no se une: la línea
 // cruzaría la zona oculta.
@@ -215,18 +215,27 @@ function dashed(ctx, ax, ay, bx, by, s){
   ctx.restore();
 }
 
-// Las uniones entre piezas (pausas y cortes del GPS: prep.gaps) con una línea gris de puntos,
-// hasta m metros: nunca de color (no se sabe por dónde fue) y nunca invisibles.
-function drawGaps(ctx, prep, xy, m, s){
+// Las uniones entre piezas (pausas y cortes del GPS: prep.gaps), hasta m metros: en neón como el
+// resto (pedido), con el degradé del color del final de una pieza al del comienzo de la otra.
+function drawGaps(ctx, prep, xy, m, s, pal){
   for (const k of prep.gaps || []){
     const a = xy[k - 1], b = xy[k];
-    if (a && b && prep.cd[k][0] <= m) dashed(ctx, a[a.length - 2], a[a.length - 1], b[0], b[1], s);
+    if (!(a && b && prep.cd[k][0] <= m)) continue;
+    const ax = a[a.length - 2], ay = a[a.length - 1], bx = b[0], by = b[1];
+    const ta = prep.tt[k - 1], c0 = colorAt(ta[ta.length - 1], pal), c1 = colorAt(prep.tt[k][0], pal);
+    ctx.save();
+    ctx.lineCap = "round"; ctx.lineWidth = LINE_W * s;
+    if (Math.abs(bx - ax) + Math.abs(by - ay) > 0.5){
+      const g = ctx.createLinearGradient(ax, ay, bx, by); g.addColorStop(0, c0); g.addColorStop(1, c1); ctx.strokeStyle = g;
+    } else ctx.strokeStyle = c0;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.restore();
   }
 }
 
 // Marcas de inicio (anillo frío con centro blanco) y fin (punto intenso, endScale 0..1,2), la
 // estela y la cabeza (punto blanco con aura del color del momento) hasta m metros, y las uniones
-// grises de las pausas y los cortes.
+// de las pausas y los cortes (en neón).
 // En vivo (o.tip: { x, y, dash } o null): del final del recorrido hasta «estás acá» (el punto
 // azul, ui/mapa.js) la punta: del color del final o, si en el medio hubo un hueco sin señal o el
 // dato es flojo, gris de puntos. Así el recorrido llega siempre a donde está la persona, sin
@@ -235,7 +244,7 @@ export function drawMarks(ctx, prep, xy, m, o){
   const pal = o.pal, s = o.scale || 1;
   const first = { x: xy[0][0], y: xy[0][1] };
   const lk = xy.length - 1, la = xy[lk], last = { x: la[la.length - 2], y: la[la.length - 1] };
-  drawGaps(ctx, prep, xy, m, s);
+  drawGaps(ctx, prep, xy, m, s, pal);
   if (o.live){
     const tp = o.tip;
     if (tp && (Math.abs(tp.x - last.x) + Math.abs(tp.y - last.y)) > 0.5){

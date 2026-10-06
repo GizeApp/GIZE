@@ -44,7 +44,7 @@ export const TEXTS = {
   webLimit: "En el navegador, GIZE mide la salida solo con la pantalla prendida y la app abierta.",
   nativeTip: "Podés bloquear el celular y guardarlo: GIZE sigue midiendo. No cierres GIZE desde las apps recientes.",
   noSignal: "No llega la señal del GPS. El tiempo sigue contando.",
-  hole: "Con la pantalla bloqueada o en otra app, el navegador no deja medir: ese tramo se sumó en línea recta (en el mapa, gris de puntos). Dejá GIZE abierta para medirlo entero.",
+  hole: "Con la pantalla bloqueada o en otra app, el navegador no deja medir: ese tramo se sumó en línea recta. Dejá GIZE abierta para medirlo entero.",
   quota: "El celular se quedó sin espacio para guardar la salida en curso: no cierres GIZE hasta terminarla.",
   permAndroid: "GIZE no tiene permiso para usar tu ubicación precisa, así que no puede medir la salida.",
   permIos: "GIZE no tiene permiso para usar tu ubicación, así que no puede medir la salida. Permitilo en Ajustes › GIZE › Ubicación.",

@@ -148,7 +148,7 @@ function normPoint(pt){
 // poco corta si dobló) y ese rato cuenta en movimiento, pero se espera un dato preciso (≤ 20 m,
 // o 20 s) antes de volver a sumar: el primero al volver suele venir corrido. Ese punto sale con
 // hole: el dibujo no cruza el hueco con una línea de color (livePath y simplifyTrack lo cortan
-// ahí; ui/ruta.js lo une con una línea gris de puntos). f.hole: hay un hueco sin punto aceptado
+// ahí; ui/ruta.js lo une con una línea recta en neón). f.hole: hay un hueco sin punto aceptado
 // todavía (el mini mapa no une «estás acá» con el recorrido). Un corte más largo que
 // HOLE_MAX_S o a una velocidad que no se cree (más de holeKmh): como antes, pieza nueva sin
 // sumar (gapS) si pasaron más de 2 min.
