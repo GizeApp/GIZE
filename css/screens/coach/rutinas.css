@@ -137,6 +137,15 @@
 
 .co-day-head-row { display:flex; gap:8px; }
 
+/* Días de la semana del día (ver renderCoachRoutine): los mismos botones de los hábitos (.hd-day,
+   css/screens/habitos.css), uno por día de lunes a domingo; en la pestaña, chiquito abajo. */
+.co-dias-lbl { margin-top:12px; }
+.co-dias.hd-row { margin:0; display:grid; grid-template-columns:repeat(7, minmax(0, 40px)); gap:6px; }
+.co-dias .hd-day { min-width:0; height:36px; padding:0; }
+.co-dias-hint { margin:6px 0 2px; font-size:12px; color:var(--txt-3); line-height:1.4; }
+.co-daytab-dias { display:block; margin-top:2px; font-size:11px; font-weight:500; color:var(--txt-3); }
+.co-daytab.on .co-daytab-dias { color:inherit; opacity:.8; }
+
 .co-daynav-btn { flex-shrink:0; width:38px; height:38px; display:flex; align-items:center; justify-content:center; background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); color:var(--txt-2); cursor:pointer; }
 
 .co-daynav-btn svg { width:var(--icon-md); height:var(--icon-md); }

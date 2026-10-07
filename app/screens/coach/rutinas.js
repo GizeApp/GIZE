@@ -25,6 +25,7 @@ import { blockWeek, deloadRoutineOf, deloadWeeks, weekPlanOf, weekRange } from '
 import { parseRest } from '../../ui/restbar.js';
 
 import { closeSheet } from '../../ui/sheet.js';
+import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto } from '../../core/diasemana.js';
 import { clientPlanActions, mealEditFoot } from './planes.js';
 
 export function rtDays(){ return CoachState.coachTplEdit ? CoachState.coachTplEdit.days : (CoachState.coachData?CoachState.coachData.routine:null); }
@@ -314,7 +315,7 @@ export function applyPickerMarkup(){
     return '<div class="ap-day'+(on?' on':'')+'" data-coach="ap-day" data-i="'+i+'">'+
       '<span class="ap-chk">'+(on?'\u2713':'')+'</span>'+
       '<span class="ap-dname">'+esc(d.name||('Día '+(i+1)))+'</span>'+
-      '<span class="ap-meta">'+nex+' ej.</span></div>';
+      '<span class="ap-meta">'+(diasTexto(d)?esc(diasTexto(d))+' \u00b7 ':'')+nex+' ej.</span></div>';
   }).join("");
   const nSel=days.filter((d,i)=>sel[i]!==false).length;
   return '<div class="cp-title">'+esc(tpl.name)+'</div>'+
@@ -526,7 +527,8 @@ export function renderCoachRoutine(d){
   const rt=d.routine||[];
   if(!rt.length) return '<div class="co-sec">Rutina y progreso</div><div class="cal-hint">El cliente todav\u00eda no tiene rutina.</div><button class="co-add-day" data-coach="day-add">+ Agregar d\u00eda</button>';
   if(CoachState.coachEditDay>=rt.length) CoachState.coachEditDay=0;
-  const tabs=rt.map((x,i)=>'<button class="co-daytab'+(i===CoachState.coachEditDay?' on':'')+'" data-coach="edit-day" data-i="'+i+'">'+esc(x.name||('D\u00eda '+(i+1)))+'</button>').join("");
+  // Cada pestaña con sus días de la semana abajo, chiquito (core/diasemana.js).
+  const tabs=rt.map((x,i)=>{ const dt=diasTexto(x); return '<button class="co-daytab'+(i===CoachState.coachEditDay?' on':'')+'" data-coach="edit-day" data-i="'+i+'">'+esc(x.name||('D\u00eda '+(i+1)))+(dt?'<small class="co-daytab-dias">'+esc(dt)+'</small>':'')+'</button>'; }).join("");
   const day=rt[CoachState.coachEditDay];
   const totalSets=(day.exercises||[]).reduce((n,x)=>n+((x.sets||[]).length),0);
   const totalEx=(day.exercises||[]).length;
@@ -548,6 +550,11 @@ export function renderCoachRoutine(d){
       '<div class="co-day-head-row">'+
         '<input class="co-dayname" data-coach="day-name" value="'+esc(day.name||"")+'" placeholder="Nombre del d\u00eda">'+
       '</div>'+
+      // Días de la semana de este día (puede ser más de uno): el alumno abre la app y Entreno
+      // arranca en el día que toca hoy. Ninguno = como siempre.
+      (()=>{ const on=diasDe(day); return '<span class="co-note-lbl co-dias-lbl">D\u00edas de la semana</span><div class="hd-row co-dias" role="group" aria-label="D\u00edas de la semana de este d\u00eda">'+
+        SEMANA.map(n=>'<button class="hd-day'+(on.includes(n)?' on':'')+'" data-coach="day-dow" data-d="'+n+'" aria-label="'+DIA_LARGO[n]+'" aria-pressed="'+on.includes(n)+'">'+DIA_LETRA[n]+'</button>').join("")+
+        '</div><div class="co-dias-hint">'+(on.length?'El alumno abre la app esos d\u00edas y le aparece este d\u00eda directo.':'Sin d\u00edas: el alumno elige el d\u00eda a mano.')+'</div>'; })()+
       // Mover el día entero antes o después (ej. Espalda antes que Pecho) sin rearmarlo.
       // Para pasar de un día a otro están las pestañas de arriba.
       (rt.length>1 ? '<span class="co-note-lbl co-day-move-lbl">Mover este d\u00eda</span><div class="co-day-move">'+

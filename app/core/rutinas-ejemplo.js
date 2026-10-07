@@ -9,6 +9,7 @@
 import { State } from './state.js';
 import { migrateNames } from './storage.js';
 import { uid } from './utils.js';
+import { diasDeSubtitulo } from './diasemana.js';
 
 // Cómo se arman las de CATALOGO: músculos grandes (pecho, espalda, piernas y glúteos) 2 series
 // por ejercicio; chicos (hombros, brazos, gemelos, abdominales) 3. Todas las series de 8 a 12
@@ -158,9 +159,11 @@ export function diasDeEntreno(r){ return (r.days || []).filter(d => (d.exercises
 // pueden venir de la rutina de un alumno: sin los kilos que el coach le propuso a esa
 // persona ("Tu coach propone …") ni sus audios (son de la carpeta de ese coach y quien
 // entrena solo no los puede escuchar).
+// El día de la semana que dice el subtítulo («Jueves · …») queda asignado (day.dias,
+// core/diasemana.js): así la app abre en el día que toca; se cambia en Entreno.
 export function copiarDias(days){
   const out = JSON.parse(JSON.stringify(days || []));
-  out.forEach(d => { d.id = uid(); (d.exercises || []).forEach(ex => { ex.id = uid(); delete ex.audio; delete ex.audioSecs; (ex.sets || []).forEach(st => { st.id = uid(); st.kg = ""; st.reps = ""; st.done = false; delete st.targetKg; }); }); });
+  out.forEach(d => { d.id = uid(); if (!Array.isArray(d.dias)) { const w = diasDeSubtitulo(d.subtitle); if (w) d.dias = w; } (d.exercises || []).forEach(ex => { ex.id = uid(); delete ex.audio; delete ex.audioSecs; (ex.sets || []).forEach(st => { st.id = uid(); st.kg = ""; st.reps = ""; st.done = false; delete st.targetKg; }); }); });
   return out;
 }
 

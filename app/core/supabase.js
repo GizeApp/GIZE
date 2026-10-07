@@ -7,7 +7,7 @@ import { resolveAvatars } from './avatar.js';
 
 import { loadCoachQuestions } from '../screens/coach/preguntas.js';
 
-import { State, state, ensureDays } from './state.js';
+import { State, state, ensureDays, elegirDiaDeHoy } from './state.js';
 import { activeDeload } from './bloque.js';
 import { markSubs, mergeTodaySubs, todaySubs } from './variantes.js';
 
@@ -844,6 +844,9 @@ export async function loadCloud(){
       if(await upRoutine()) markRoutineSynced(state.days);
     }
     State.cloudReady=true;
+    // La rutina de la nube puede traer los días de la semana (los puso el coach o vienen de otro
+    // celular): Entreno pasa al de hoy con las mismas reglas que al abrir (core/state.js).
+    if(!isCoach) elegirDiaDeHoy();
     if(!ws.error && Array.isArray(ws.data)){
       state.weights=ws.data.map(w=>({id:w.id, date:w.measured_on, kg:Number(w.kg)}));
       state.weightsSent=null; // se vuelve a tomar después de applyPending (ver más abajo)
@@ -942,7 +945,7 @@ export function refreshOwnRoutine(){
       state.days=rt.data.days;
       const raw=JSON.parse(JSON.stringify(state.days)); // la de la nube, sin migrar (ver loadCloud)
       const fixed=migrateNames(state.days);
-      ensureDays();
+      ensureDays(); elegirDiaDeHoy();
       markRoutineSynced(raw); // también la guarda en el dispositivo
       if(fixed) cloudSyncCore(); // la corregida se sube una vez (sin marcarla como editada acá)
       return true;

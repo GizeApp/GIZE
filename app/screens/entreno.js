@@ -29,6 +29,8 @@ import { timerText } from '../ui/settimer.js';
 
 import { focusFor } from '../ui/scrollfocus.js';
 
+import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto, hoyDow } from '../core/diasemana.js';
+
 export const EntrenoState = {
 
   exPicker: null,
@@ -44,6 +46,9 @@ export const EntrenoState = {
 
   // Ejercicio con el editor de descanso abierto (solo sin coach).
   restEditEx: null,
+
+  // Día con los botones de los días de la semana abiertos (solo sin coach, ver diasRow).
+  diasOpen: null,
 
 };
 
@@ -209,6 +214,25 @@ function renderSuggestion(ex, timed, occ){
   return `<div class="prog-sug"><span class="ps-ic">${upSvg}</span><div class="ps-txt"><span class="ps-lbl">Recomendación</span> <b>${esc(sg.text)}</b><span class="ps-why">${esc(sg.why)}</span></div></div>`;
 }
 
+// Días de la semana del día (core/diasemana.js), chiquito debajo del nombre de la portada:
+// «Lun · Jue». Sin coach se toca para elegirlos (7 botones de lunes a domingo y «Listo»); sin
+// ninguno elegido queda la invitación «Elegir días de la semana». Con coach se ve, sin tocar.
+const calSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
+function diasRow(d){
+  const txt = diasTexto(d), esHoy = diasDe(d).includes(hoyDow());
+  const label = txt ? esc(txt) + (esHoy ? ' <span class="dd-hoy">· hoy</span>' : '') : '';
+  if (routineLocked()) return txt ? `<div class="day-dias ro" aria-label="Días de la semana: ${esc(txt)}">${calSvg}<span>${label}</span></div>` : '';
+  if (EntrenoState.diasOpen === d.id) {
+    const on = diasDe(d);
+    const chips = SEMANA.map(n => `<button class="dd-chip${on.includes(n) ? ' on' : ''}" data-action="dia-toggle" data-d="${n}" aria-pressed="${on.includes(n)}" aria-label="${DIA_LARGO[n]}">${DIA_LETRA[n]}</button>`).join("");
+    return `<div class="day-dias-edit"><div class="dd-week" role="group" aria-label="Días de la semana de ${esc(d.name)}">${chips}</div>` +
+      `<p class="dd-hint">Si hoy es uno de estos días, la app abre directo acá.</p>` +
+      `<button class="dd-done" data-action="dias-close">Listo</button></div>`;
+  }
+  return txt ? `<button class="day-dias" data-action="dias-open" aria-label="Días de la semana: ${esc(txt)}. Cambiar">${calSvg}<span>${label}</span></button>`
+    : `<button class="day-dias empty" data-action="dias-open">${calSvg}<span>Elegir días de la semana</span></button>`;
+}
+
 // El nombre de la portada va grande; si es largo baja de tamaño para no ocupar media pantalla
 // (también mientras se escribe: app/main.js → fitDayName).
 export function dayNameCls(name){ const n = String(name || '').length; return n > 32 ? 'dn-xl' : n > 14 ? 'dn-l' : ''; }
@@ -341,6 +365,7 @@ export function renderEntreno(){
     <div class="tabs">${tabs}</div>
     <div class="day-head" data-reveal="dayhead-${esc(d.id)}">
       ${routineLocked() ? `<h2 class="day-name ${dayNameCls(d.name)}">${esc(d.name)}</h2>` : `<textarea class="day-name ${dayNameCls(d.name)}" rows="1" data-action="dayname" enterkeyhint="done" aria-label="Nombre del día">${esc(d.name)}</textarea>`}
+      ${diasRow(d)}
       ${wkStarted(d) ? `<div class="wk-live"><span class="wk-dot"></span>Entrenando hace <b id="wkTime">${wkElapsedText()}</b></div>
         <div class="wk-actions"><button class="wk-finish" data-action="save-session">${checkSvg} Finalizar</button><button class="wk-cancel" data-action="wk-cancel">Cancelar</button></div>`
         : d.exercises.length ? `<button class="wk-start" data-action="wk-start">${playSvg} Iniciar entrenamiento</button>` : ''}

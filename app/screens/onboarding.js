@@ -1,6 +1,7 @@
 import { auIcoTicket, checkSvg } from '../core/icons.js';
 
 import { State, state } from '../core/state.js';
+import { diaDeHoy } from '../core/diasemana.js';
 
 import { esc } from '../core/utils.js';
 
@@ -293,7 +294,7 @@ async function showRoutines(fromApp){
       const hasWork=(state.days||[]).some(d=>(d.exercises||[]).length);
       if(fromApp && hasWork && !confirm("Esto reemplaza tus días de rutina por «"+r.nombre+"». No toca tus pesos, entrenos ni hábitos. ¿Seguro?")) return;
       host.onclick=null;
-      state.days=copiarDias(r.days); State.activeId=state.days[0].id; State.view="entreno";
+      state.days=copiarDias(r.days); State.activeId=(diaDeHoy(state.days)||state.days[0]).id; State.view="entreno"; // el de hoy, si dice el día (core/diasemana.js)
       save(); if(fromApp) closeOverlay(); else close(); renderApp();
     }
   };
