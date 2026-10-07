@@ -39,6 +39,9 @@ export function maybeShowOnboarding(){
   if(!u || !p || !u.created_at) return;
   if(Date.now()-Date.parse(u.created_at) > NEW_ACCOUNT_MS) return;
   try{ if(localStorage.getItem(seenKey())) return; }catch(e){ return; }
+  // Ya está abierta (afterLogin corrió dos veces, p. ej. al volver de Apple o Google): no se
+  // vuelve a empezar desde «¡Bienvenido!» con lo que ya eligió.
+  if(document.querySelector("#authHost .onb-card")) return;
   if(p.role==="coach") showCoachWelcome(); else showClientWelcome();
 }
 
@@ -123,7 +126,12 @@ function showDisciplina(){
   if(!host) return;
   host.onclick=e=>{
     const b=e.target.closest("[data-onb]"); if(!b) return;
-    if(b.dataset.onb==="disc"){ toggleDisciplina(b.dataset.v); save(); showDisciplina(); return; }
+    if(b.dataset.onb==="disc"){
+      toggleDisciplina(b.dataset.v); save();
+      const on=myDisciplinas().some(d=>d.id===b.dataset.v);
+      b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
+      return;
+    }
     host.onclick=null;
     // Ya vinculado (código de un intento anterior de registro): no se le pide de nuevo.
     // Con coach, la rutina la arma el coach: no se le ofrece armar una.
@@ -183,6 +191,12 @@ function option(val, sel, title, sub, attr){
     '<span class="onb-opt-dot" aria-hidden="true"></span><span><b>'+title+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</span></button>';
 }
 
+// Marcar una opción cambia solo los botones de ese grupo: volver a montar la tarjeta repetía
+// la animación de entrada y en el iPhone parecía que se abría otra ventana con lo marcado.
+function mark(host, attr, val){
+  host.querySelectorAll('[data-onb="'+attr+'"]').forEach(x=>{ const on=x.dataset.v===String(val); x.classList.toggle("on", on); x.setAttribute("aria-pressed", String(on)); });
+}
+
 function showStartChoice(){
   const host=mount(
     '<h1 class="onb-title">¿Cómo querés arrancar?</h1>'+
@@ -196,7 +210,7 @@ function showStartChoice(){
   if(!host) return;
   host.onclick=e=>{
     const b=e.target.closest("[data-onb]"); if(!b) return;
-    if(b.dataset.onb==="start"){ OB.start=b.dataset.v; showStartChoice(); return; }
+    if(b.dataset.onb==="start"){ OB.start=b.dataset.v; mark(host, "start", OB.start); return; }
     if(b.dataset.onb==="next"){ host.onclick=null; if(OB.start==="rutina") showSex(); else { OB.step=1; showWizard(); } }
   };
 }
@@ -224,8 +238,8 @@ function showWizard(){
   host.onclick=e=>{
     const b=e.target.closest("[data-onb]"); if(!b) return;
     const a=b.dataset.onb;
-    if(a==="days"){ OB.days=+b.dataset.v; showWizard(); return; }
-    if(a==="goal"){ OB.goal=b.dataset.v; showWizard(); return; }
+    if(a==="days"){ OB.days=+b.dataset.v; mark(host, "days", OB.days); return; }
+    if(a==="goal"){ OB.goal=b.dataset.v; mark(host, "goal", OB.goal); return; }
     if(a==="empty"){ host.onclick=null; startDays(1, ""); return; }
     if(a==="wnext"){
       if(OB.step<3){ OB.step++; showWizard(); return; }

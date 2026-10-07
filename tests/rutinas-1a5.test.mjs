@@ -85,11 +85,18 @@ export default async function ({ base, t }){
     t.ok(/Bienvenido/.test(await text(p, '#authHost')), 've la bienvenida');
     await p.click('[data-onb="start"]'); await wait(300);
     t.ok(/¿Qué entrenás\?/.test(await text(p, '#authHost')), 'pregunta la disciplina');
+    await p.$eval('#authHost .onb-card', e => { e.dataset.misma = '1'; });
     await p.click('[data-onb="disc"][data-v="crossfit"]'); await wait(200);
+    t.eq(await p.$eval('#authHost .onb-card', e => e.dataset.misma || ''), '1', 'marcar una opción no vuelve a abrir la tarjeta (no parece otra ventana)');
     t.ok(await p.$eval('[data-onb="disc"][data-v="crossfit"]', e => e.classList.contains('on')), 'la disciplina queda marcada');
     await p.click('[data-onb="dnext"]'); await wait(300);
     t.eq(await p.evaluate(async () => (await import('/app/core/state.js')).state.disciplinas), ['crossfit'], 'y se guarda');
     await p.click('[data-onb="solo"]'); await wait(300);
+    await p.$eval('#authHost .onb-card', e => { e.dataset.misma = '1'; });
+    await p.click('.onb-opt[data-v="vacio"]'); await wait(150);
+    t.eq(await p.getAttribute('.onb-opt.on', 'data-v'), 'vacio', 'se marca la otra opción');
+    t.eq(await p.$eval('#authHost .onb-card', e => e.dataset.misma || ''), '1', 'y la tarjeta es la misma');
+    await p.click('.onb-opt[data-v="rutina"]'); await wait(150);
     t.eq(await p.getAttribute('.onb-opt.on', 'data-v'), 'rutina', 'elegir una rutina armada viene marcado');
     t.ok(/Recomendado/.test(await text(p, '.onb-opt.on')), 'y es la recomendada');
     await p.click('[data-onb="next"]'); await wait(300);
