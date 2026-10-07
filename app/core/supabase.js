@@ -1752,6 +1752,9 @@ export async function cloudBoot(){
     else if(sess.data.session){
       if(CONFIRM_LANDING) await showMailConfirmed(afterLogin(sess.data.session.user, stale));
       else await afterLogin(sess.data.session.user, stale);
+      // El link para cambiar la contraseña se abrió en otro navegador que ya tenía una cuenta
+      // adentro: antes entraba a esa cuenta sin decir nada y parecía que el link no andaba.
+      if(LINK_REFUSED==="recovery") setTimeout(()=>alert("Ese link para cambiar la contraseña se abrió en un navegador distinto del que lo pidió, así que no sirve acá (es por seguridad). Seguís con la cuenta que ya tenías abierta.\n\nPara cambiar la contraseña: pedí el link de nuevo y abrilo en el mismo navegador (o en la misma ventana de incógnito) donde lo pediste."), 600);
     }
     else if(CONFIRM_ERROR){
       try{ history.replaceState(null,"",location.pathname); }catch(e){}
