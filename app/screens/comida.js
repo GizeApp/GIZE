@@ -89,6 +89,8 @@ export let calRingPrevOver = null;
 export let calRingPrevKcal = null;
 
 export let calRingNumRaf = null;
+// Calorías con punto de miles (1.840), como el resto de los números de la app.
+const kNum = n => (Math.round(Number(n) || 0)).toLocaleString("es-AR");
 
 export function animateCalRing(){
   const circle = document.getElementById("calRing");
@@ -123,9 +125,9 @@ export function animateCalRing(){
                                              // evaluar directo dentro de un loop de rAF sin un solver aparte.
   const step = now => {
     const p = Math.min(1, (now - t0) / dur);
-    numEl.textContent = Math.round(fromKcal + (targetKcal - fromKcal) * ease(p));
+    numEl.textContent = kNum(Math.round(fromKcal + (targetKcal - fromKcal) * ease(p)));
     if (p < 1) calRingNumRaf = requestAnimationFrame(step);
-    else { numEl.textContent = targetKcal; calRingNumRaf = null; }
+    else { numEl.textContent = kNum(targetKcal); calRingNumRaf = null; }
   };
   calRingNumRaf = requestAnimationFrame(step);
 }
@@ -141,6 +143,15 @@ export function calcTarget(p){
 export function customMacros(){
   const m = state.calProfile && state.calProfile.macros;
   return m && (+m.p > 0 || +m.c > 0 || +m.f > 0) ? { p: +m.p||0, c: +m.c||0, f: +m.f||0 } : null;
+}
+// Al lado del anillo, como en la referencia del dueño: «TE QUEDAN» chiquito, el número grande y
+// «kcal» abajo, sin caja. Si se pasó, «TE PASASTE» en ámbar; justo en la meta, «LLEGASTE». En un
+// día anterior, «TE QUEDARON». Sin meta no se muestra.
+export function kcalLeftHtml(t, kcal, past){
+  if (!(t > 0)) return "";
+  const d = Math.round(t - (Number(kcal) || 0)), n = Math.abs(d).toLocaleString("es-AR");
+  const [cls, tit] = d < 0 ? [" up", "Te pasaste"] : d === 0 ? [" eq", "Llegaste"] : ["", past ? "Te quedaron" : "Te quedan"];
+  return `<div class="kcal-left${cls}"><span class="kl-t">${tit}</span><span class="kl-n">${n}</span><span class="kl-u">kcal</span></div>`;
 }
 export const macroKcal = m => Math.round((+m.p||0)*4 + (+m.c||0)*4 + (+m.f||0)*9);
 
@@ -470,10 +481,11 @@ export function renderComida(){
         <circle id="calRing" class="ring-fill${over?' over':''}" cx="60" cy="60" r="52" style="stroke-dasharray:${RC};stroke-dashoffset:${RC*(1-pct)}"></circle>
       </svg>
       <div class="ring-center">
-        <div id="calRingNum" class="ring-num${over?' over':''}" data-val="${tot.kcal}">${tot.kcal}</div>
-        <div class="ring-lbl">de ${t} kcal</div>
+        <div id="calRingNum" class="ring-num${over?' over':''}" data-val="${tot.kcal}">${kNum(tot.kcal)}</div>
+        <div class="ring-lbl">de ${kNum(t)} kcal</div>
       </div>
     </div>
+    ${kcalLeftHtml(t, tot.kcal, past)}
     </div>
     <div class="macros">
       ${mbar("Proteína", tot.p, mt.p)}
