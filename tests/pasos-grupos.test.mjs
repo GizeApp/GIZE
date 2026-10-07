@@ -255,36 +255,19 @@ export default async function ({ base, t }){
     await close();
   }
 
-  // 6) Los pasos anotados a mano («8.500») suben a daily_logs (solo los pasos de hoy) y se ven.
+  // 6) Sin carga a mano (pedido): en la web no hay campo para anotar pasos; se avisa que se cargan
+  //    solos desde la app de GIZE conectada a Salud de Apple / Health Connect. El nombre del grupo
+  //    nuevo dice «Nombre del grupo» (sin ejemplos).
   {
     const m = mock({ grupos: [GRUPO], ranking: { g1: RANKING }, campeon: { g1: CAMPEON } });
-    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
     await p.goto(base + '/app/'); await wait(2500);
     await abrirPasos(p);
-    t.has(await text(p, '.pg-hoy .pg-note'), 'Anotá el total de hoy', 'en la web: anotalos a mano');
-    await p.fill('#pgSteps', '8.500');
-    await p.click('[data-pg="pasos"]'); await wait(1500);
-    const hoy = await p.evaluate(async () => (await import('/app/core/utils.js')).today());
-    const b = m.posts.map(x => { try { return JSON.parse(x); } catch (e) { return null; } }).flat().filter(Boolean);
-    t.ok(b.some(x => x.steps === 8500 && x.log_date === hoy && x.client_id === ALUMNO.id), 'sube 8500 pasos a daily_logs con la fecha de hoy: ' + JSON.stringify(b));
-    t.ok(!b.some(x => x.steps === 8500 && 'water_ml' in x), 'van los pasos solos (sin la foto del día)');
-    t.eq(await text(p, '#pgHoyN'), '8.500', 'el número de hoy se actualiza');
-    t.eq((await p.evaluate(() => JSON.parse(localStorage.getItem('rutina_jero_v1')).steps)), 8500, 'y es el mismo contador de pasos de siempre');
-    t.ok(m.rpcs.filter(x => x === 'mis_grupos').length >= 2, 'después de guardar se actualizan los grupos');
-    t.eq(dialogs, [], 'sin carteles');
-    t.eq(errs, [], 'errores de la página (pasos a mano)');
-    await close();
-  }
-
-  // 7) iPhone en la web: una línea que explica que ahí los pasos no se cuentan solos.
-  {
-    const m = mock({ grupos: [] });
-    const { p, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers,
-      init: "Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });" });
-    await p.goto(base + '/app/'); await wait(2500);
-    await abrirPasos(p);
-    t.has(await text(p, '.pg-hoy .pg-note'), 'En el iPhone la web no cuenta pasos', 'iPhone web: avisa que hay que copiarlos de Salud');
-    t.ok(!(await text(p, '.pg-hoy .pg-note')).includes('se cargan solos'), 'no promete que en la app se cargan solos (falta el permiso de Salud en la app)');
+    t.eq(await p.$$eval('#pgSteps, [data-pg="pasos"]', x => x.length), 0, 'web: no hay campo para anotar pasos a mano');
+    t.has(await text(p, '.pg-hoy .pg-note'), 'se cargan solos desde la app de GIZE', 'web: avisa que se cargan solos desde la app');
+    t.eq(await p.$$eval('[data-pg="salud-on"]', x => x.length), 0, 'web: sin botón de conectar Salud');
+    t.eq(await p.getAttribute('#pgNombre', 'placeholder'), 'Nombre del grupo', 'el grupo nuevo dice «Nombre del grupo»');
+    t.eq(errs, [], 'errores de la página (web)');
     await close();
   }
 
@@ -313,6 +296,9 @@ export default async function ({ base, t }){
     const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers, init: NATIVE });
     await p.route(u => !u.href.startsWith(base) && !/supabase\.co/.test(u.href), r => r.abort());
     await p.goto(base + '/app/'); await wait(2500);
+    // En Cardio también se ofrece conectar (pedido).
+    await p.click('#nav-cardio'); await wait(600);
+    t.has(await text(p, '#view .sal-salud'), 'Conectar Health Connect', 'Cardio: ofrece conectar Health Connect');
     await abrirPasos(p);
     t.has(await text(p, '.pg-hoy .pg-note'), 'Conectá Health Connect', 'Android sin permiso: ofrece conectar Health Connect');
     t.ok(!!(await p.$('[data-pg="salud-on"]')), 'botón «Conectar Health Connect»');
@@ -327,6 +313,10 @@ export default async function ({ base, t }){
     const b = m.posts.map(x => { try { return JSON.parse(x); } catch (e) { return null; } }).flat().filter(Boolean);
     t.ok(b.some(x => x.steps === 7000) && b.some(x => x.steps === 9100), 'sube hoy y ayer a daily_logs: ' + JSON.stringify(b));
     t.has(await text(p, '.pg-hoy .pg-note'), 'Se cargan solos desde Health Connect', 'conectado: avisa que se cargan solos');
+    await p.click('#nav-cardio'); await wait(600);
+    t.has(await text(p, '#view .sal-salud'), 'Se cargan solos desde Health Connect', 'Cardio conectado: muestra los pasos de hoy desde Health Connect');
+    t.eq(await p.$$eval('#view .sal-salud [data-pg="salud-on"]', x => x.length), 0, 'Cardio conectado: sin botón de conectar');
+    await abrirPasos(p);
     t.ok(!!(await p.$('[data-pg="salud-off"]')), 'con «Desconectar»');
     t.ok(dialogs.length === 1 && /solo el total de la semana/.test(dialogs[0]), 'antes del permiso explica qué se lee y quién lo ve: ' + JSON.stringify(dialogs));
     await p.click('[data-pg="salud-off"]'); await wait(800);

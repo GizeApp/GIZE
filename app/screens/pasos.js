@@ -8,14 +8,11 @@
 
 import { trophySvg, xSvg, chevronRightSvg } from '../core/icons.js';
 import { State, state } from '../core/state.js';
-import { save } from '../core/storage.js';
-import { esc, intNum, today } from '../core/utils.js';
-import { noteStepsSynced, queueSteps } from '../core/supabase.js';
+import { esc, today } from '../core/utils.js';
 import { borrarGrupo, cambiarMiNombre, campeonGrupo, codigoValido, crearGrupo, linkInvitacion, mensajeError, misGrupos, pasosTxt,
   rankingGrupo, sacarMiembro, salirGrupo, semanaAR, textoSemana, tomarInvitacion, unirseGrupo } from '../core/grupos.js';
-import { SaludState, apagarSalud, plataforma, prenderSalud, saludDisponible, saludNombre, saludPrendida, syncSalud } from '../core/salud.js';
+import { SaludState, apagarSalud, prenderSalud, saludDisponible, saludNombre, saludPrendida, syncSalud } from '../core/salud.js';
 import { ProgresoState } from './progreso.js';
-import { checkDaily } from './habitos.js';
 import { renderApp } from '../main.js';
 
 export const PasosState = {
@@ -29,10 +26,8 @@ export const PasosState = {
   leido: false,    // ya se intentó leer los grupos (para el resumen de la tarjeta)
 };
 
-const MAX_PASOS_DIA = 100000;
 const grupoAbierto = () => (PasosState.grupos || []).find(g => g.id === PasosState.grupo) || null;
 const aVista = () => State.view === "progreso" && ProgresoState.section === "pasos";
-const esIphoneWeb = () => plataforma() === "web" && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
 const puestoTxt = n => n ? n + "º" : "";
 
 // ---- Lectura ----
@@ -89,7 +84,8 @@ export function pasosResumen(){
   return PasosState.grupos && n ? n + (n === 1 ? " grupo" : " grupos") + " · " + pasosTxt(state.steps) + " hoy" : "Competí con tus amigos";
 }
 
-// Mis pasos de hoy: el número, de dónde salen y el campo para anotarlos.
+// Mis pasos de hoy: el número y de dónde salen. No se anotan a mano (pedido): en la app se cargan
+// solos desde Salud de Apple / Health Connect; en la web, se avisa que es desde la app.
 function hoyHtml(){
   const n = state.stepsDate === today() ? (state.steps || 0) : 0;
   let nota, extra = "";
@@ -98,15 +94,12 @@ function hoyHtml(){
     extra = `<button class="pg-link" data-pg="salud-sync"${SaludState.busy ? " disabled" : ""}>${SaludState.busy ? "Actualizando…" : "Actualizar ahora"}</button><button class="pg-link" data-pg="salud-off">Desconectar</button>`;
   } else if (saludDisponible()){
     nota = `Conectá ${esc(saludNombre())} y tus pasos se cargan solos, aunque no abras la app.`;
-    extra = `<button class="pg-link" data-pg="salud-on">Conectar ${esc(saludNombre())}</button>`;
-  } else if (esIphoneWeb()){
-    nota = "En el iPhone la web no cuenta pasos: copiá el total de la app Salud.";
+    extra = `<button class="form-save join-btn pg-conectar" data-pg="salud-on">Conectar ${esc(saludNombre())}</button>`;
   } else {
-    nota = "Anotá el total de hoy: lo ves en la app de pasos de tu celular o de tu reloj.";
+    nota = "Tus pasos se cargan solos desde la app de GIZE en tu celular, conectada a Salud de Apple o Health Connect.";
   }
   return `<div class="join-box pg-hoy">
       <div class="pg-hoy-top"><span class="join-t">Tus pasos de hoy</span><b class="pg-hoy-n" id="pgHoyN">${pasosTxt(n)}</b></div>
-      <div class="join-row"><input id="pgSteps" class="form-input" type="text" inputmode="numeric" placeholder="Ej: 8.500" aria-label="Pasos de hoy" autocomplete="off"><button class="form-save join-btn" data-pg="pasos"${PasosState.ocupado ? " disabled" : ""}>Guardar</button></div>
       <div class="pg-note">${nota}</div>${extra}
     </div>`;
 }
@@ -129,7 +122,7 @@ function formsHtml(){
   const dis = PasosState.ocupado ? " disabled" : "";
   return `<div class="join-box pg-form">
       <div class="join-t">Crear un grupo</div>
-      <div class="join-row"><input id="pgNombre" class="form-input" maxlength="40" placeholder="Ej: Los del laburo" aria-label="Nombre del grupo" autocomplete="off"><button class="form-save join-btn" data-pg="crear"${dis}>Crear</button></div>
+      <div class="join-row"><input id="pgNombre" class="form-input" maxlength="40" placeholder="Nombre del grupo" aria-label="Nombre del grupo" autocomplete="off"><button class="form-save join-btn" data-pg="crear"${dis}>Crear</button></div>
     </div>
     <div class="join-box pg-form">
       <div class="join-t">Sumarme con un código</div>
@@ -196,7 +189,7 @@ function grupoPieHtml(){
 async function ocupado(fn){
   if (PasosState.ocupado) return;
   PasosState.ocupado = true; PasosState.error = "";
-  document.querySelectorAll('#view .pg [data-pg="crear"], #view .pg [data-pg="unirme"], #view .pg [data-pg="pasos"]').forEach(b => { b.disabled = true; });
+  document.querySelectorAll('#view .pg [data-pg="crear"], #view .pg [data-pg="unirme"]').forEach(b => { b.disabled = true; });
   try { await fn(); }
   catch (e) { console.warn("pasos", e); alert(mensajeError(e)); }
   finally { PasosState.ocupado = false; if (aVista()) renderApp(); }
@@ -221,21 +214,6 @@ async function invitar(g){
   catch (e) { prompt("Copiá este link y mandáselo a tus amigos:", url); }
 }
 
-async function guardarPasos(){
-  const i = document.getElementById("pgSteps");
-  const raw = i ? i.value.trim() : "";
-  const n = intNum(raw);
-  if (!raw || !(n >= 0) || n > MAX_PASOS_DIA){ alert("Poné tus pasos de hoy como un número (por ejemplo 8500)."); return; }
-  await ocupado(async () => {
-    checkDaily();
-    state.steps = n;
-    noteStepsSynced(n); // va solo por queueSteps (no hace falta mandar la foto del día)
-    save();
-    const ok = await queueSteps(today(), n);
-    if (ok === false && navigator.onLine === false) alert("Se guardó en este celular. Se suma al grupo cuando vuelva internet.");
-    refrescar();
-  });
-}
 
 document.body.addEventListener("click", async e => {
   const el = e.target.closest && e.target.closest("[data-pg]"); if (!el) return;
@@ -243,7 +221,6 @@ document.body.addEventListener("click", async e => {
   if (a === "sacando"){ PasosState.sacando = !PasosState.sacando; pintar(); return; }
   if (a === "volver"){ PasosState.sacando = false; PasosState.grupo = null; PasosState.error = ""; renderApp(); window.scrollTo(0, 0); cargarGrupos(); return; }
   if (a === "abrir"){ abrirGrupo(el.dataset.id); return; }
-  if (a === "pasos"){ guardarPasos(); return; }
   if (a === "crear"){
     const i = document.getElementById("pgNombre"), nombre = i ? i.value.trim() : "";
     if (!nombre){ alert("Ponele un nombre al grupo."); if (i) i.focus(); return; }
@@ -291,17 +268,17 @@ document.body.addEventListener("click", async e => {
   if (a === "salud-on"){
     const msg = await prenderSalud();
     if (msg && msg !== "__silent") alert(msg);
-    if (aVista()) renderApp();
+    renderApp();
     refrescar();
     return;
   }
   if (a === "salud-sync"){ await syncSalud(true); refrescar(); return; }
-  if (a === "salud-off"){ alert(apagarSalud()); if (aVista()) renderApp(); return; }
+  if (a === "salud-off"){ alert(apagarSalud()); renderApp(); return; }
 });
 // Enter en un campo hace lo de su botón.
 document.body.addEventListener("keydown", e => {
   if (e.key !== "Enter" || !e.target || !e.target.id) return;
-  const m = { pgSteps: "pasos", pgNombre: "crear", pgCodigo: "unirme" }[e.target.id]; if (!m) return;
+  const m = { pgNombre: "crear", pgCodigo: "unirme" }[e.target.id]; if (!m) return;
   e.preventDefault();
   const b = document.querySelector(`#view .pg [data-pg="${m}"]`); if (b) b.click();
 });

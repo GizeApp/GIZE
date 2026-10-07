@@ -10,7 +10,9 @@
 //   una de «Tus salidas» (ahí: «Compartir», «Ver de nuevo», «Borrar»).
 import { State, state } from '../core/state.js';
 
-import { esc, fmt, fmtDate, ymd } from '../core/utils.js';
+import { esc, fmt, fmtDate, today, ymd } from '../core/utils.js';
+import { saludDisponible, saludNombre, saludPrendida } from '../core/salud.js';
+import { pasosTxt } from '../core/grupos.js';
 import { bikeSvg, shoeSvg } from '../core/icons.js';
 import { CLASSES, FIRST_ACC_M, breakdownText, finishRun, fmtClock, fmtKm, fmtKmh, fmtPace, haversine, isShort, lastPoint, lastWeight, liveHole, livePath, livePathKey, modeLabel, paceOrSpeed } from '../core/cardiogps.js';
 import { GpsState, acceptDisclosure, ackRestored, discard, disclosure, hint, isNative, live, needsPrecise, onHere, onPoint, openSettings, pause, restoredText, resume, setMode, start, stop, takeEnded } from '../ui/gps.js';
@@ -61,7 +63,20 @@ export function renderCardio(){
   </div>`;
   const rx = renderCardioPrescription();
   const tools = renderCardioTools(modes);
-  return renderSalidaCard() + rx + renderSalidasList() + '<div class="cardio-toolsec"><div class="cardio-tools-h">Cronómetro y temporizador</div>' + tools + '</div>';
+  return renderSalidaCard() + saludCard() + rx + renderSalidasList() + '<div class="cardio-toolsec"><div class="cardio-tools-h">Cronómetro y temporizador</div>' + tools + '</div>';
+}
+
+// Pasos del día desde Salud de Apple / Health Connect (core/salud.js), solo en la app instalada:
+// conectarlo acá (pedido) además de en Competencia de pasos. El botón usa el mismo data-pg que
+// la pantalla de pasos (screens/pasos.js), así lo atiende un solo lugar.
+function saludCard(){
+  if (!saludDisponible()) return "";
+  const n = state.stepsDate === today() ? (state.steps || 0) : 0, nom = esc(saludNombre());
+  if (saludPrendida()) return '<div class="join-box pg-hoy sal-salud"><div class="pg-hoy-top"><span class="join-t">Pasos de hoy</span><b class="pg-hoy-n">' + pasosTxt(n) + '</b></div>' +
+    '<div class="pg-note">Se cargan solos desde ' + nom + '.</div></div>';
+  return '<div class="join-box pg-hoy sal-salud"><span class="join-t">Pasos automáticos</span>' +
+    '<div class="pg-note">Conectá ' + nom + ' y tus pasos del día se cargan solos, aunque no abras la app.</div>' +
+    '<button class="form-save join-btn" data-pg="salud-on">Conectar ' + nom + '</button></div>';
 }
 
 // ===================== Salidas «A pie» / «En bici» =====================
