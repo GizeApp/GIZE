@@ -6,7 +6,8 @@ Connect la rechazaba (error 90035 «Invalid Signature»). Acá se firma como sie
 la App Store, con un certificado de distribución propio, pero de usar y tirar:
 
   python3 scripts/ios-firma.py crear   → certificado + perfil de App Store, instalados en la Mac
-  python3 scripts/ios-firma.py borrar  → revoca el certificado y borra el perfil (al final, siempre)
+  python3 scripts/ios-firma.py borrar  → revoca el certificado, borra el perfil y revoca los certificados
+                                         de desarrollo que Xcode creó en esta ejecución (al final, siempre)
 
 La clave privada se genera en la Mac en cada ejecución y nunca sale de ahí. Revocar el
 certificado después no afecta a las versiones ya subidas (Apple las vuelve a firmar al
@@ -59,8 +60,20 @@ def sh(*args, **kw):
         sys.exit(f"Falló «{' '.join(args[:2])}» (código {e.returncode})")
 
 
+DEV_TYPES = ("DEVELOPMENT", "IOS_DEVELOPMENT")
+
+
+def dev_certs():
+    # Certificados de desarrollo de la cuenta (solo los ids).
+    data = api("GET", "/certificates?limit=200&fields[certificates]=certificateType")["data"]
+    return [c["id"] for c in data if c["attributes"].get("certificateType") in DEV_TYPES]
+
+
 def crear():
     run = os.environ.get("RUN_ID", str(int(time.time())))
+    # El archivo se arma con firma automática y Xcode crea un certificado de desarrollo nuevo en
+    # cada Mac de GitHub que nunca se borraba: la cuenta llegaba al máximo de Apple y la firma
+    # fallaba. Se anotan los que ya había para que «borrar» revoque solo los creados acá.
     # 1) Clave privada y pedido de certificado, generados acá.
     key, csr = os.path.join(TMP, "dist.key"), os.path.join(TMP, "dist.csr")
     sh("openssl", "req", "-new", "-newkey", "rsa:2048", "-nodes", "-keyout", key, "-out", csr,
@@ -69,7 +82,7 @@ def crear():
         csr_txt = f.read()
     cert = api("POST", "/certificates", {"data": {"type": "certificates", "attributes": {
         "certificateType": "DISTRIBUTION", "csrContent": csr_txt}}})["data"]
-    state = {"cert": cert["id"]}
+    state = {"cert": cert["id"], "dev_before": dev_certs()}
     with open(STATE, "w") as f:
         json.dump(state, f)
     der = os.path.join(TMP, "dist.cer")
@@ -132,6 +145,13 @@ def borrar():
         api("DELETE", "/profiles/" + state["profile"])
     if state.get("cert"):
         api("DELETE", "/certificates/" + state["cert"])
+    # Certificados de desarrollo que creó Xcode durante esta ejecución (no los que ya estaban).
+    if "dev_before" in state:
+        nuevos = [c for c in dev_certs() if c not in set(state["dev_before"])]
+        for c in nuevos:
+            api("DELETE", "/certificates/" + c)
+        if nuevos:
+            print(f"Certificados de desarrollo de esta ejecución revocados: {len(nuevos)}.")
     subprocess.run(["security", "delete-keychain", KEYCHAIN], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     print("Certificado revocado y perfil borrado.")
 
