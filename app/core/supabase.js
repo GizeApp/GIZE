@@ -29,6 +29,8 @@ import { loadCoachClients } from '../screens/coach/clientes.js';
 
 import { checkPaymentReturn } from '../screens/coach/plan.js';
 
+import { appIOS, joinMsgTienda } from './tienda.js';
+
 import { renderCoach } from '../screens/coach/index.js';
 
 import { runKeys, stopForLogout } from '../ui/gps.js';
@@ -713,7 +715,7 @@ export async function afterLogin(sessionUser, stale){
       setTimeout(()=>alert("Creamos una cuenta nueva de GIZE con "+mail+".\n\nSi es tu primera vez, ¡bienvenido! Si ya tenías una cuenta con OTRO mail, andá a Ajustes → Salir y entrá con ese mail y tu contraseña: ahí están tus datos."), 900);
     }
   }catch(e){}
-  if(gi && gi.role==="coach" && Date.now()-gi.t < 15*60*1000 && State.cloudProfile && State.cloudProfile.role!=="coach"){
+  if(gi && gi.role==="coach" && !appIOS() && Date.now()-gi.t < 15*60*1000 && State.cloudProfile && State.cloudProfile.role!=="coach"){
     try{
       const rc=await State.sb.rpc("become_coach_new_account");
       if(rc.data===true){ try{ localStorage.removeItem("jfit_pending_code"); }catch(e){} await loadCloud(); }
@@ -724,7 +726,7 @@ export async function afterLogin(sessionUser, stale){
     const pc=takePendingCode();
     if(pc && State.cloudProfile && State.cloudProfile.role!=="coach" && !State.cloudProfile.coach_id){
       const r2=await State.sb.rpc("join_coach",{code:pc});
-      if(r2.error && r2.error.code==="P0001" && r2.error.message){ const m=r2.error.message; setTimeout(()=>alert(m+" Podés poner el código después en Configuración."), 600); }
+      if(r2.error && r2.error.code==="P0001" && r2.error.message){ const m=joinMsgTienda(r2.error.message); setTimeout(()=>alert(m+" Podés poner el código después en Configuración."), 600); }
       if(r2.data===true){ coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null})); const pr=await State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle(); if(pr.data) State.cloudProfile=pr.data; await loadCloud(); }
     }
   }catch(e){ console.error("pending code",e); }
@@ -1763,11 +1765,12 @@ export async function cloudBoot(){
     else if(stored) showLogin(LOST_MSG, "in", {email:stored.user.email||""});
     else {
       // Links de la landing: #registro abre "Crear cuenta" y #registro-coach lo abre con
-      // "Soy coach" ya elegido. Se limpia el # para que recargar no lo repita.
+      // "Soy coach" ya elegido. Se limpia el # para que recargar no lo repita. En la app de
+      // iPhone no hay cuentas nuevas de coach (core/tienda.js): los dos abren el de alumno.
       const h=location.hash;
       if(h==="#registro"||h==="#registro-coach"){
         try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){}
-        showLogin(isOnline()?"":offlineMsg,"up",h==="#registro-coach"?{role:"coach"}:{});
+        showLogin(isOnline()?"":offlineMsg,"up",h==="#registro-coach"&&!appIOS()?{role:"coach"}:{});
       } else showLogin(isOnline()?"":offlineMsg,"in"); // sin señal, que se sepa por qué no va a poder entrar
     }
   }catch(e){ console.error("cloudBoot",e); showLogin(offlineMsg,"in"); }

@@ -7,7 +7,11 @@
 // Los límites los hace cumplir la base, no la app.
 //
 // En las apps de Android y iPhone no hay precios, links ni botones para contratar: Apple y
-// Google no permiten mandar a pagar por fuera de su sistema. Ahí solo se ve el estado.
+// Google no permiten mandar a pagar por fuera de su sistema. En Android solo se ve el estado.
+// En la app de iPhone (core/tienda.js) ni eso: las cuentas de coach se manejan solo desde la
+// web, así que no hay tira, ni «Mi plan», ni prueba, ni planes. Si la cuenta no está activa,
+// una pantalla neutra con «Cerrar sesión»; el tope de alumnos se sigue respetando, sin
+// nombrar el plan.
 
 import { State } from '../../core/state.js';
 
@@ -16,6 +20,8 @@ import { esc, fmtDate } from '../../core/utils.js';
 import { CoachState } from './state.js';
 
 import { renderCoach } from './index.js';
+
+import { appIOS } from '../../core/tienda.js';
 
 // Precios: los mismos que plan_price (supabase/admin.sql), el panel de admin y la landing.
 export const PLANS = [
@@ -44,6 +50,7 @@ try {
 function chosenPlan(){ try { const v = localStorage.getItem(CHOSEN_KEY); return PLANS.some(p => p.id === v) ? v : null; } catch (e) { return null; } }
 
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const IS_IOS = appIOS();
 const money = n => "$" + Number(n).toLocaleString("es-AR");
 // WhatsApp de GIZE (el mismo de Configuración → Contacto).
 const WA = "5493413490705";
@@ -107,7 +114,7 @@ function ymd(iso){ return AR_DAY.format(new Date(new Date(iso).getTime() - 1)); 
 
 // Tira debajo del código de invitación.
 export function renderPlanBanner(){
-  const b = billing(); if(!b.known) return "";
+  const b = billing(); if(!b.known || IS_IOS) return "";
   let txt, cls = "";
   if(b.comp) txt = "Plan cortesía · " + b.count + "/" + b.max + " clientes";
   else if(b.trial){ txt = "Prueba gratis · te quedan <b>" + b.daysLeft + " día" + (b.daysLeft === 1 ? "" : "s") + "</b> · " + b.count + "/" + b.max + " clientes"; if(b.daysLeft <= 3) cls = " warn"; }
@@ -165,7 +172,7 @@ function statusLine(b){
 export function renderPlanSheet(){
   let host = document.getElementById("planSheetHost");
   if(!host){ host = document.createElement("div"); host.id = "planSheetHost"; document.body.appendChild(host); }
-  if(!B.open){ host.innerHTML = ""; return; }
+  if(!B.open || IS_IOS){ host.innerHTML = ""; return; }
   const b = billing();
   const cancel = (!IS_NATIVE && b.paid && b.renews) ? '<button class="pl-cancel" data-plan="cancel">Cancelar la renovación</button>' : "";
   host.innerHTML = '<div class="cp-bg" data-plan="close"></div><div class="cp-ccard pl-sheet">' +
@@ -188,6 +195,7 @@ function graceLine(b){
 export function renderPaywall(){
   const b = billing();
   if(b.overCap) return renderOverCap(b);
+  if(IS_IOS) return renderInactiveIOS();
   return '<div class="co-wrap pl-wall">' +
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
     '<div class="pl-wall-hero"><div class="pl-wall-t">' + (B.row && B.row.paid_until ? 'Tu plan venció' : 'Terminó tu prueba gratis') + '</div>' +
@@ -199,15 +207,26 @@ export function renderPaywall(){
   '</div>';
 }
 
+// App de iPhone: cuenta de coach sin prueba ni plan vigente. Sin nombrar la prueba, el plan,
+// precios ni adónde ir: solo que no está activa y «Cerrar sesión».
+function renderInactiveIOS(){
+  return '<div class="co-wrap pl-wall">' +
+    '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
+    '<div class="pl-wall-hero"><div class="pl-wall-t">Tu cuenta de coach no está activa en este momento.</div>' +
+    '<button class="pl-choose pl-wall-out" data-auth="logout">Cerrar sesión</button></div>' +
+  '</div>';
+}
+
 // Tiene más clientes que los de su plan: se pasa a uno más grande o desvincula clientes.
+// En iPhone, lo mismo sin nombrar el plan: «el máximo de alumnos de tu cuenta».
 function renderOverCap(b){
   const extra = b.count - b.max;
   const list = CoachState.coachClients.map(c => '<div class="pl-oc-row"><span>' + esc(c.full_name || "Cliente") + '</span>' +
     '<button class="pl-link" data-plan="unlink" data-id="' + esc(c.id) + '"' + (B.busy ? ' disabled' : '') + '>Desvincular</button></div>').join("");
   return '<div class="co-wrap pl-wall">' +
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
-    '<div class="pl-wall-hero"><div class="pl-wall-t">Tenés más clientes que tu plan</div>' +
-    '<div class="pl-wall-s">Tenés ' + b.count + ' clientes y tu plan es de ' + b.max + '. ' +
+    '<div class="pl-wall-hero"><div class="pl-wall-t">' + (IS_IOS ? 'Tenés más alumnos que el máximo de tu cuenta' : 'Tenés más clientes que tu plan') + '</div>' +
+    '<div class="pl-wall-s">' + (IS_IOS ? 'Tenés ' + b.count + ' alumnos y el máximo de tu cuenta es ' + b.max + '. ' : 'Tenés ' + b.count + ' clientes y tu plan es de ' + b.max + '. ') +
     (IS_NATIVE ? 'Desvinculá ' : 'Contratá un plan más grande o desvinculá ') + extra + ' cliente' + (extra === 1 ? '' : 's') + ' para volver a ver sus fichas. Sus rutinas y registros quedan guardados.</div></div>' +
     planCards(b) +
     '<div class="pl-oc"><div class="pl-sub">Tus clientes</div>' + list + '</div>' +
@@ -260,6 +279,7 @@ function rerender(){ renderPlanSheet(); renderCoach(); }
 // Vuelta de Mercado Pago (?pago=mp): el aviso del pago llega a la función en segundos,
 // así que se relee el plan unas veces hasta verlo activo.
 export async function checkPaymentReturn(){
+  if(IS_IOS) return;
   const u = new URL(location.href);
   if(!u.searchParams.has("pago")) return;
   u.searchParams.delete("pago"); u.searchParams.delete("preapproval_id");
@@ -278,7 +298,7 @@ export async function checkPaymentReturn(){
   else alert("Mercado Pago todavía no confirmó el cobro. Tu plan se activa solo apenas se acredite: podés seguir usando la app.");
 }
 
-export function openPlan(){ B.open = true; renderPlanSheet(); }
+export function openPlan(){ if(IS_IOS) return; B.open = true; renderPlanSheet(); }
 
 document.body.addEventListener("click", e => {
   const b = e.target.closest("[data-plan]"); if(!b || b.disabled) return;

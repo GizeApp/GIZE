@@ -19,6 +19,8 @@ import { CoachState } from './coach/state.js';
 
 import { renderApp } from '../main.js';
 
+import { appIOS, joinMsgTienda } from '../core/tienda.js';
+
 // Bienvenida del primer ingreso. Antes todo esto iba en el formulario de "Crear cuenta"
 // (aviso de la prueba, código del coach) y era demasiado de golpe: ahora el registro pide
 // lo justo y esto aparece una sola vez, ya adentro, encima de la app.
@@ -67,7 +69,8 @@ function showCoachWelcome(){
   const code=CoachState.coachInvite;
   const host=mount(
     '<h1 class="onb-title">¡Bienvenido, coach!</h1>'+
-    '<div class="onb-trial">14 días gratis para probar todo · sin tarjeta</div>'+
+    // En la app de iPhone no se habla de la prueba (core/tienda.js).
+    (appIOS() ? '' : '<div class="onb-trial">14 días gratis para probar todo · sin tarjeta</div>')+
     '<p class="onb-text">Pasale este código a tu primer alumno. Lo carga una vez y quedan conectados.</p>'+
     (code ?
       '<div class="onb-code">'+
@@ -154,7 +157,7 @@ function showClientCode(msg, value){
       const r=await State.sb.rpc("join_coach",{code:code});
       if(r.data!==true){
         // join_coach trae un mensaje propio para plan vencido o cupo lleno.
-        const m=(r.error && r.error.code==="P0001" && r.error.message) || "Código inválido. Revisalo con tu coach.";
+        const m=(r.error && r.error.code==="P0001" && joinMsgTienda(r.error.message)) || "Código inválido. Revisalo con tu coach.";
         showClientCode(m, code); return;
       }
       const pr=await State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle();

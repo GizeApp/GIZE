@@ -8,6 +8,8 @@ import { appleLoginAvailable, mountGoogleButton, rememberSession } from '../core
 
 import { isIOS, isStandalone } from '../core/push.js';
 
+import { appIOS } from '../core/tienda.js';
+
 const nativeApp = () => { try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) { return false; } };
 const iosSafari = () => { try { return isIOS() && !isStandalone() && !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) { return false; } };
 
@@ -32,7 +34,10 @@ export function showLogin(msg, mode, vals){
   const isOk = !!msg && /^listo/i.test(String(msg).trim());
   let stepIdx=-1;
   const nextDelay=()=>{ stepIdx++; return (0.14+stepIdx*0.055).toFixed(3)+"s"; };
-  const role = vals.role==="coach" ? "coach" : "client";
+  // App de iPhone: las cuentas de coach se crean solo desde la web (core/tienda.js), así que
+  // ahí no está «Soy coach» y toda cuenta nueva es de alumno.
+  const ios = appIOS();
+  const role = vals.role==="coach" && !ios ? "coach" : "client";
   const field=(id, icon, extraClass, ph, type, autocomplete, value, label)=>
     '<div class="auth-field'+(extraClass?(" "+extraClass):"")+'" style="animation-delay:'+nextDelay()+'">'+
       '<label class="auth-lbl" for="'+id+'">'+label+'</label>'+
@@ -42,7 +47,7 @@ export function showLogin(msg, mode, vals){
         (id==="auPass" ? '<button type="button" class="auth-toggle-pass" data-toggle-pass aria-label="Mostrar contraseña">'+auIcoEye+'</button>' : '')+
       '</div>'+
     '</div>';
-  const roleField = isUp ?
+  const roleField = isUp && ios ? '<input id="auRole" type="hidden" value="client">' : isUp ?
     '<div class="auth-field auth-role" style="animation-delay:'+nextDelay()+'">'+
       '<div class="auth-role-group" role="radiogroup" aria-label="Tipo de cuenta">'+
         '<button type="button" class="auth-role-opt'+(role==="client"?" active":"")+'" data-auth-role="client" role="radio" aria-checked="'+(role==="client")+'">Soy cliente</button>'+

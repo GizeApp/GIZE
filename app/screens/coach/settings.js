@@ -19,6 +19,8 @@ import { adminEntry, checkAdmin } from '../admin-productos.js';
 import { temaOptionsHtml } from '../../ui/tema.js';
 import { neonSwitchHtml } from '../../ui/neon.js';
 
+import { appIOS } from '../../core/tienda.js';
+
 export function renderCoachSettings(){
   const host=document.getElementById("coachSheetHost"); if(!host) return;
   if(!CoachState.coachSettingsOpen){ host.innerHTML=""; return; }
@@ -42,10 +44,11 @@ export function renderCoachSettings(){
       '<input class="co-note" data-coach="settings-name" value="'+esc(draft)+'">'+
       '<button class="co-save-rt" data-coach="settings-name-save">Guardar nombre</button>'+
     '</div>'+
-    '<div class="cs-field">'+
+    // En la app de iPhone no hay «Mi plan»: la cuenta de coach se maneja desde la web (core/tienda.js).
+    (appIOS() ? '' : '<div class="cs-field">'+
       '<label>Plan de GIZE</label>'+
       '<button class="cp-copt cs-q-btn" data-plan="open">Ver mi plan y cantidad de clientes</button>'+
-    '</div>'+
+    '</div>')+
     '<div class="cs-field">'+
       '<label>Avisos en este dispositivo</label>'+
       '<button class="cp-copt cs-q-btn cs-notif'+(pushOnHere()?' on':'')+'" data-coach="notif-toggle">'+(pushOnHere()?'Avisos activados \u2713 · tocá para apagarlos':'Activar avisos')+'</button>'+

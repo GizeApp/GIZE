@@ -26,6 +26,8 @@ import { unreadFor } from '../../ui/chat.js';
 
 import { billing, renderPaywall, renderPlanBanner } from './plan.js';
 
+import { appIOS } from '../../core/tienda.js';
+
 import { renderCoachSalidas, salidasTileText } from './salidas.js';
 import { syncRouteViews } from '../../ui/mapa.js';
 import { mealEditHead, renderMealPicker, renderMealTplList, snapMealEdit } from './planes.js';
@@ -37,9 +39,12 @@ function secHead(title, kind){
 
 // Código para que se vinculen clientes. Con el cupo del plan lleno no se muestra: nadie más se
 // puede vincular (la base lo rechaza igual) y en su lugar se ofrece un plan más grande.
+// En la app de iPhone (core/tienda.js) el aviso no nombra el plan: solo que llegó al máximo.
 const IS_NATIVE_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const IS_IOS_APP = appIOS();
 function inviteBox(){
   const b=billing();
+  if(b.known && b.atCap && IS_IOS_APP) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de alumnos de tu cuenta.</b><div class="co-invite-sub">Nadie más se puede vincular con tu código.</div></div>';
   if(b.known && b.atCap) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de tu plan</b> ('+b.count+'/'+b.max+' clientes)'+(IS_NATIVE_APP ? '<div class="co-invite-sub">Nadie más se puede vincular con tu código.</div>' : '<div class="co-invite-sub">Para sumar más clientes pasate a un plan más grande.</div><button class="co-copy-btn" data-plan="open">Ver planes</button>')+'</div>';
   return '<div class="co-invite">Tu código de invitación<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Compartíselo a tus clientes para que se vinculen a vos.'+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div></div>';
 }

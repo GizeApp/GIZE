@@ -19,6 +19,7 @@ import { TRACK_KEY } from '../core/salidas.js';
 import { deleteShareFile } from '../ui/compartir.js';
 import { temaOptionsHtml } from '../ui/tema.js';
 import { neonSwitchHtml } from '../ui/neon.js';
+import { appIOS } from '../core/tienda.js';
 import { bellSvg, fileTextSvg, instagramSvg, globeSvg, auIcoMail, whatsappSvg, chevronRightSvg, pencilSvg, checkSvg } from '../core/icons.js';
 
 const cameraSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
@@ -325,7 +326,7 @@ document.body.addEventListener("click", async function (e) {
     if (!State.sb || !State.cloudUser) { alert("Iniciá sesión para poder eliminar tu cuenta."); return; }
     const isCoach = !!(State.cloudProfile && State.cloudProfile.role === "coach");
     if (!confirm(isCoach
-      ? "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se cancela tu suscripción de GIZE. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
+      ? "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se da de baja tu cuenta de coach. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
       : "¿Seguro que querés eliminar tu cuenta? Se va a borrar tu rutina, tus registros, tus salidas de Cardio (con sus recorridos) y tu vínculo con tu coach de forma permanente. Esta acción no se puede deshacer.")) return;
     const typed = prompt('Para confirmar, escribí ELIMINAR (en mayúsculas):');
     if (typed !== "ELIMINAR") { if (typed !== null) alert("No coincide, no se eliminó nada."); return; }
@@ -338,7 +339,7 @@ document.body.addEventListener("click", async function (e) {
         const bl = await State.sb.from("coach_billing").select("mp_status, mp_preapproval_id").eq("coach_id", State.cloudUser.id).maybeSingle();
         if (bl.data && bl.data.mp_preapproval_id && bl.data.mp_status === "authorized") {
           const rc = await State.sb.functions.invoke("suscripcion", { body: { action: "cancel" } });
-          if (rc.error || (rc.data && rc.data.error)) throw new Error("no se pudo cancelar tu suscripción en Mercado Pago. Probá de nuevo o escribinos a contacto@gize.ar");
+          if (rc.error || (rc.data && rc.data.error)) throw new Error(appIOS() ? "no se pudo dar de baja tu cuenta de coach. Probá de nuevo o escribinos a contacto@gize.ar" : "no se pudo cancelar tu suscripción en Mercado Pago. Probá de nuevo o escribinos a contacto@gize.ar");
         }
       }
       // Primero las fotos (perfil y productos): la función de abajo no puede borrar archivos

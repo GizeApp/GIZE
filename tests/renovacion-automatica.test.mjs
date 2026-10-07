@@ -1,9 +1,10 @@
 // Mi plan (web): además de la transferencia, cada plan se puede pagar con tarjeta por Mercado
-// Pago, que se renueva solo cada mes. En las apps de las tiendas no aparece.
+// Pago, que se renueva solo cada mes. En la app de Android no aparece (en la de iPhone ni
+// siquiera hay «Mi plan»: ver coach-iphone.test.mjs).
 import { newPage, wait } from './lib.mjs';
 
 async function open(base, native){
-  const pg = await newPage({ init: native ? () => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: {} }; } : undefined });
+  const pg = await newPage({ init: native ? () => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {} }; } : undefined });
   await pg.p.goto(base + '/app/'); await wait(1500);
   await pg.p.evaluate(async () => {
     const { State } = await import('/app/core/state.js'); const { CoachState } = await import('/app/screens/coach/state.js'); const m = await import('/app/screens/coach/plan.js');
@@ -35,7 +36,7 @@ export default async function ({ base, t }){
 
   const app = await open(base, true);
   const n = await app.p.evaluate(() => ({ buy: document.querySelectorAll('#planSheetHost [data-plan="choose"]').length, txt: document.getElementById('planSheetHost').innerText }));
-  t.eq(n.buy, 0, 'iPhone/Android: sin botón de pago');
-  t.ok(!/Mercado Pago|tarjeta|\$/.test(n.txt), 'iPhone/Android: sin hablar de pagos ni precios');
+  t.eq(n.buy, 0, 'Android: sin botón de pago');
+  t.ok(!/Mercado Pago|tarjeta|\$/.test(n.txt), 'Android: sin hablar de pagos ni precios');
   await app.close();
 }
