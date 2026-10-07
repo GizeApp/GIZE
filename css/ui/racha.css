@@ -41,8 +41,10 @@
   100% { filter: drop-shadow(0 0 3px #C58BFF) drop-shadow(0 0 8px color-mix(in srgb, var(--gize-r2) 85%, transparent)); transform: scale(1); } }
 @keyframes stkGlow { 0% { box-shadow: none; } 50% { box-shadow: 0 0 26px var(--gize-r2); } 100% { box-shadow: 0 0 14px color-mix(in srgb, var(--gize-r2) 28%, transparent); } }
 
-/* Aviso de "se apagó tu racha". */
-.streak-note { position: fixed; z-index: 60; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translate(-50%, -12px); opacity: 0; pointer-events: none;
+/* Aviso de "se apagó tu racha". Va por encima de todo lo de la app (bienvenida, chat, hojas,
+   ventanas del coach): con z-index 60 quedaba detrás y se veía de fondo. Solo el splash y el
+   login quedan arriba. */
+.streak-note { position: fixed; z-index: 1000; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translate(-50%, -12px); opacity: 0; pointer-events: none;
   display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100% - 32px); padding: 12px 16px; border-radius: 14px;
   background: var(--gize-surface-2); border: 1px solid var(--gize-border); color: var(--gize-text); font: 600 var(--text-meta, 13px) var(--gize-font);
   box-shadow: 0 10px 30px rgba(0, 0, 0, .5); transition: opacity .3s, transform .3s; }
@@ -50,8 +52,8 @@
 .streak-note .flame { flex: none; }
 
 /* Detalle al tocar la llama. */
-#streakHost .stk-bg { position: fixed; inset: 0; z-index: 70; background: rgba(0, 0, 0, .6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); opacity: 0; transition: opacity .2s; }
-#streakHost .stk-card { position: fixed; z-index: 71; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); width: min(420px, calc(100% - 32px)); transform: translate(-50%, 24px); opacity: 0;
+#streakHost .stk-bg { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, .6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); opacity: 0; transition: opacity .2s; }
+#streakHost .stk-card { position: fixed; z-index: 1001; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); width: min(420px, calc(100% - 32px)); transform: translate(-50%, 24px); opacity: 0;
   padding: 26px 20px 18px; border-radius: 22px; text-align: center; background: var(--gize-surface); border: 1px solid color-mix(in srgb, var(--gize-r2) 35%, var(--gize-border));
   box-shadow: 0 0 40px color-mix(in srgb, var(--gize-r2) 18%, transparent), 0 20px 50px rgba(0, 0, 0, .6); transition: opacity .2s, transform .25s; }
 #streakHost.on .stk-bg { opacity: 1; }
