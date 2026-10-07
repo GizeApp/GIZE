@@ -4,11 +4,17 @@ import { KEY } from './storage.js';
 
 import { today, uid } from './utils.js';
 
+import { diaDeHoy } from './diasemana.js';
+
 export const State = {
 
   view: "entreno",
 
   activeId: ({1:"lun",2:"mar",3:"mie",4:"jue",5:"vie"})[new Date().getDay()] || "lun",
+
+  // Fecha (today()) en que el alumno eligió un día de Entreno a mano: ese día la app ya no lo
+  // mueve sola al día de la semana que toca (ver elegirDiaDeHoy). No se guarda: vale por sesión.
+  dayPickedOn: null,
 
   sb: null,
 
@@ -133,8 +139,26 @@ if (!state.habitAlarms || typeof state.habitAlarms !== "object") state.habitAlar
 
 // La rutina nunca queda sin días: con 0 días la app quedaba en blanco (ninguna pantalla podía
 // dibujar el día elegido). Si llega vacía (datos viejos, la nube), se arma un día vacío.
+// Si el día elegido no está (al abrir la app, o una rutina nueva del coach con ids nuevos): el
+// que toca hoy (core/diasemana.js, salvo en medio de un entreno) o, si no, el primero, como siempre.
+const training = () => { const w = state.wkStart; return !!(w && Date.now() - (w.ts || 0) < 6 * 3600 * 1000); };
 export function ensureDays(){
   if (!Array.isArray(state.days) || !state.days.length) state.days = [{ id: uid(), name: "Día 1", subtitle: "", exercises: [] }];
-  if (!state.days.find(d => d.id === State.activeId)) State.activeId = state.days[0].id;
+  if (!state.days.find(d => d.id === State.activeId)) State.activeId = ((!training() && diaDeHoy(state.days)) || state.days[0]).id;
+}
+
+// Abrir la app en el día de hoy: si un día de la rutina tiene asignado el día de la semana de
+// hoy (day.dias, core/diasemana.js), Entreno queda en ese (el primero, si son varios). Corre al
+// abrir la app, cuando llega la rutina de la nube y al volver de segundo plano (un día nuevo).
+// No mueve nada en medio de un entreno (empezado hace menos de 6 horas, como training() en
+// core/supabase.js) ni si hoy el alumno ya eligió otro día a mano. Sin coincidencia, queda el de
+// ahora. Devuelve true si cambió de día.
+export function elegirDiaDeHoy(){
+  if (State.dayPickedOn === today() || training()) return false;
+  const d = diaDeHoy(state.days);
+  if (!d || d.id === State.activeId) return false;
+  State.activeId = d.id;
+  return true;
 }
 ensureDays();
+elegirDiaDeHoy();

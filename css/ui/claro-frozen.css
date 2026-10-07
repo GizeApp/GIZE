@@ -128,10 +128,10 @@ html.tema-luz.sin-neon:not(#_):not(#__) body:not(#_) :is(.ctrl.primary, .wk-star
 html.tema-luz:not(#_):not(#__) body:not(#_) .wk-start svg { color: #fff; }
 
 /* ---------- Pastillas con filete fino ---------- */
-html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ex-chip, .ex-video, .clear, .logout-btn, .load-def, .ss-link, .rest-btn-full, .rest-edit, .add-set, .add-ex, .tab, .streak, .cfg-edit-name-btn) {
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ex-chip, .ex-video, .clear, .logout-btn, .load-def, .ss-link, .rest-btn-full, .rest-edit, .add-set, .add-ex, .tab, .streak, .cfg-edit-name-btn, .dd-chip) {
   background: var(--frz-pill); border: 1px solid var(--frz-line); color: var(--gize-text); border-radius: 999px; box-shadow: none;
 }
-html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ex-chip.on, .tab.active) { background: #0B0D11; border-color: #0B0D11; color: #fff; }
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.ex-chip.on, .tab.active, .dd-chip.on) { background: #0B0D11; border-color: #0B0D11; color: #fff; }
 
 /* Campos */
 html.tema-luz:not(#_):not(#__) body:not(#_) :is(.field input, .auth-in, .form-input) { background: var(--frz-field); border: 1px solid var(--frz-line); color: var(--gize-text); }

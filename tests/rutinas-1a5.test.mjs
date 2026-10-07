@@ -118,7 +118,12 @@ export default async function ({ base, t }){
     t.eq(st.days[0].exercises[0].sets.map(s => s.target), ['8-12', '8-12'], 'y las series de 8-12');
     t.ok(st.days.every(d => /^[a-z0-9]+$/.test(d.id)), 'ids nuevos');
     t.ok(!(await p.isVisible('#authHost .onb-card')), 'se cierra la bienvenida');
-    t.ok(/Sentadilla en Smith/.test(await text(p, '#view')), 'Entreno muestra la rutina');
+    // Cada día con el día de la semana que dice su subtítulo (core/diasemana.js): Entreno abre
+    // en el que toca hoy o, si hoy no toca ninguno, en el primero.
+    t.eq(st.days.map(d => d.dias || null), [[1], [3], [5]], 'los días de la semana salen del subtítulo (lunes, miércoles, viernes)');
+    const hoy = await p.evaluate(async () => (await import('/app/core/diasemana.js')).hoyDow());
+    const abre = st.days.find(d => (d.dias || []).includes(hoy)) || st.days[0];
+    t.ok(new RegExp(abre.exercises[0].name).test(await text(p, '#view')), 'Entreno muestra la rutina, en el día que toca hoy');
     t.ok(ups.some(d => names(d) === names(st.days)), 'la rutina elegida se sube a la cuenta');
     t.eq(errs, [], 'bienvenida: errores de la página');
     await close();

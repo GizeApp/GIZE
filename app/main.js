@@ -10,7 +10,8 @@ import { disablePush, enablePush, pushLogout } from './core/push.js';
 import { checkSetPR, forgetPR, playPR, suspiciousKg, PR_HOLD_MS } from './ui/festejo.js';
 import { auIcoEye, auIcoEyeOff, checkSvg } from './core/icons.js';
 
-import { State, state } from './core/state.js';
+import { State, elegirDiaDeHoy, state } from './core/state.js';
+import { toggleDia } from './core/diasemana.js';
 import { EX_CATS } from './core/data.js';
 import { defaultExCat } from './core/disciplinas.js';
 // Salida de Cardio a pie / en bici: se importa temprano para que, si quedó una en curso (la app se
@@ -767,11 +768,16 @@ document.body.addEventListener("click", async e => {
 
   // Días
   if (a === "open-routines") { openRoutinePicker(); return; }
-  if (a === "addday") { const nd={id:uid(),name:"Nuevo",subtitle:"",exercises:[]}; state.days.push(nd); State.activeId=nd.id; HabitosState.pendingFocusDay=true; save(); renderApp(); return; }
-  if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(confirm("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); State.activeId=state.days[0].id; save(); renderApp(); } return; }
+  if (a === "addday") { const nd={id:uid(),name:"Nuevo",subtitle:"",exercises:[]}; state.days.push(nd); State.activeId=nd.id; State.dayPickedOn=today(); HabitosState.pendingFocusDay=true; save(); renderApp(); return; }
+  if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(confirm("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); State.activeId=state.days[0].id; State.dayPickedOn=today(); save(); renderApp(); } return; }
+  // Días de la semana del día abierto (core/diasemana.js): se abren los 7 botones debajo del
+  // nombre, cada toque guarda (y sube con la rutina) y «Listo» los vuelve a cerrar.
+  if (a === "dias-open") { if(!routineLocked()){ EntrenoState.diasOpen = day().id; renderApp(); } return; }
+  if (a === "dias-close") { EntrenoState.diasOpen = null; renderApp(); return; }
+  if (a === "dia-toggle") { if(routineLocked()) return; toggleDia(day(), el.dataset.d); save(); renderApp(); return; }
 
   // Entreno
-  if (a === "tab") { State.activeId = el.dataset.day; setTimeout(renderApp, 130); return; } // deja ver el ripple antes del rerender
+  if (a === "tab") { State.activeId = el.dataset.day; State.dayPickedOn = today(); EntrenoState.diasOpen = null; setTimeout(renderApp, 130); return; } // deja ver el ripple antes del rerender
   const d = day();
   const exsToday = todayExs(d);
   const ex = el.dataset.ex && exsToday.find(x=>x.id===el.dataset.ex);
@@ -1355,6 +1361,8 @@ document.body.addEventListener("click", async e => {
     const c=JSON.parse(JSON.stringify(D[i])); c.id=uid(); c.name=((D[i].name||"Día")+" (copia)").slice(0,60);
     (c.exercises||[]).forEach(ex=>{ ex.id=uid(); (ex.sets||[]).forEach(st=>{ st.id=uid(); st.kg=""; st.reps=""; st.done=false; }); });
     D.splice(i+1, 0, c); CoachState.coachEditDay=i+1; renderCoach(); return; }
+  // Días de la semana del día abierto (core/diasemana.js): queda como cambio sin guardar.
+  if(a==="day-dow"){ const day=(rtDays()||[])[CoachState.coachEditDay]; if(day){ toggleDia(day, b.dataset.d); renderCoach(); } return; }
   if(a==="day-del"){ const D=rtDays(); if(D&&D.length>1){ D.splice(CoachState.coachEditDay,1); CoachState.coachEditDay=0; renderCoach(); } return; }
   if(a==="rt-setadd"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex) ex.sets.push(mkSet()); renderCoach(); return; }
   if(a==="rt-setdel"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex && ex.sets.length>1) ex.sets.splice(+b.dataset.j,1); renderCoach(); return; }
@@ -1612,6 +1620,13 @@ async function saveBlock(bf){
   finally{ _savingBlock=false; }
 }
 
+// Vuelve de segundo plano (por ejemplo, a la mañana siguiente): Entreno pasa al día que toca
+// hoy, salvo en medio de un entreno o si hoy ya se eligió otro día a mano (core/state.js).
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState!=="visible" || (State.cloudProfile && State.cloudProfile.role==="coach")) return;
+  if(elegirDiaDeHoy() && State.view==="entreno") renderApp();
+});
+
 document.addEventListener("visibilitychange", async ()=>{
   if(document.visibilityState!=="visible") return;
   // Sin coach: la rutina se pudo haber cambiado en otro dispositivo mientras esta quedaba
@@ -1632,11 +1647,13 @@ document.addEventListener("visibilitychange", async ()=>{
     if(!rt.error && rt.data && Array.isArray(rt.data.days) && rt.data.days.length) state.regularDays=rt.data.days;
     if(rt.error && bl.error) return;
     applyCoachRoutine(); // conserva lo que el cliente ya cargó
+    elegirDiaDeHoy(); // los días de la semana que haya puesto el coach (core/state.js)
     save(); renderApp();
   }catch(e){}
 });
 
 if (migrateNames(state.days)) save();
+elegirDiaDeHoy(); // con la rutina ya acomodada: Entreno abre en el día de hoy (core/state.js)
 // Sin señal al abrir: si empezó o terminó la semana de descarga, cambia igual de rutina con lo
 // que quedó guardado del bloque (la nube lo confirma cuando vuelve la conexión).
 if (coachRoutineDue() && applyCoachRoutine()) save();
