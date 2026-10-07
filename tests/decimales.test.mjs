@@ -71,7 +71,7 @@ export default async function ({ base, t }){
     await p.click('[data-coach="sec-close"]'); await wait(300);
 
     await p.click('[data-coach="sec-open"][data-v="daily"]'); await wait(400);
-    await p.selectOption('select[data-coach="daily-pick"]', '2026-09-21'); await wait(400);
+    await p.click('[data-coach="cal-day"][data-k="daily"][data-d="2026-09-21"]'); await wait(400); // el día en el calendario
     t.has(await text(p, '.ck-adh'), 'Peso: 80,5 kg', 'seguimiento diario, el peso con coma');
 
     const ex = await p.evaluate(async () => {

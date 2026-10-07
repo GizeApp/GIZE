@@ -60,13 +60,15 @@ export default async function ({ base, t }){
     const { CoachState } = await import('/app/screens/coach/state.js');
     const { renderCoachCheckins } = await import('/app/screens/coach/seguimiento.js');
     const txt = h => { const d = document.createElement('div'); d.innerHTML = h; return d.innerText.replace(/\s+/g, ' ').trim(); };
-    CoachState.coachCkSel = '2026-09-21';
-    return {
-      palabras: txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', adherence: null, answers: { q1: 'Bien', adherence: 'Bastante', _q: { adherence: '¿Cuánto cumpliste el plan?' } } }] })),
-      numero: txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', adherence: 8, answers: { q1: 'Bien' } }] })),
-      // Con la fecha en que lo cargó (02:30 UTC del 2 de octubre = 1 de octubre a la noche en Argentina).
-      fecha: txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', created_at: '2026-10-02T02:30:00Z', adherence: 8, answers: { q1: 'Bien' } }] })),
-    };
+    // En el calendario de check-ins (coach/calendario.js) el detalle se ve al tocar el día marcado.
+    const dia = d => { CoachState.coachCal = { ck: { m: null, d } }; };
+    dia('2026-09-21');
+    const palabras = txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', adherence: null, answers: { q1: 'Bien', adherence: 'Bastante', _q: { adherence: '¿Cuánto cumpliste el plan?' } } }] }));
+    const numero = txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', adherence: 8, answers: { q1: 'Bien' } }] }));
+    // Con la fecha en que lo cargó (02:30 UTC del 2 de octubre = 1 de octubre a la noche en Argentina).
+    dia('2026-10-01');
+    const fecha = txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', created_at: '2026-10-02T02:30:00Z', adherence: 8, answers: { q1: 'Bien' } }] }));
+    return { palabras, numero, fecha };
   });
   t.has(vista.palabras, 'Bastante', 'coach: ve la adherencia en palabras');
   t.ok(!vista.palabras.includes('/10'), 'coach: no muestra «0/10» con una respuesta en palabras: ' + vista.palabras);
