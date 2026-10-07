@@ -138,7 +138,8 @@ body.scan-open { overflow:hidden; }
 .wk-avg.eq { border-color:color-mix(in srgb, var(--gize-success) 45%, transparent); }
 .wk-avg.eq .wk-st { color:var(--gize-success); }
 @media (max-width: 360px){
-  .cal-top { flex-direction:column; }
+  /* Anillo un poco más chico: así «TE QUEDAN» entra al costado también en celulares angostos. */
+  .cal-top .ring-wrap, .cal-top .ring { width:156px; height:156px; }
   .wk-avg { flex-basis:auto; width:100%; max-width:260px; }
 }
 
@@ -361,3 +362,13 @@ html.lite .scan-btn { animation: none; }
   border: 1px dashed color-mix(in srgb, var(--gize-blue) 55%, transparent); background: var(--card-2); color: var(--txt); font-weight: 600;
   font-size: var(--text-meta); text-align: center; cursor: pointer; }
 .cf-photo-btn:active { border-style: solid; }
+
+/* Al lado del anillo: cuánto queda para la meta (comida.js kcalLeftHtml). Texto suelto, sin caja:
+   «TE QUEDAN» chiquito, el número grande y «kcal» abajo. Pasado de la meta en ámbar. */
+.kcal-left { display:flex; flex-direction:column; align-items:flex-start; min-width:0; flex:0 1 auto; }
+.kl-t { font:700 11px var(--gize-font); letter-spacing:.12em; text-transform:uppercase; color:var(--gize-text-2); }
+.kl-n { font:800 44px/1.05 var(--gize-font); letter-spacing:-.02em; color:var(--gize-text); font-variant-numeric:tabular-nums; margin-top:4px; }
+.kl-u { font:500 13px var(--gize-font); color:var(--gize-text-2); margin-top:2px; }
+.kcal-left.up .kl-t, .kcal-left.up .kl-n { color:var(--gize-warning); }
+.kcal-left.eq .kl-t { color:var(--gize-success); }
+@media (max-width: 360px){ .kl-n { font-size:36px; } }
