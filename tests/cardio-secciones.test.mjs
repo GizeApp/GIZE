@@ -15,7 +15,11 @@
 // e) App instalada (iPhone simulado): en «Pasos» el botón «Conectar Salud de Apple» (corazón,
 //    título y subtítulo), «Conectando…» mientras pide el permiso y, conectado, «Conectado a Salud de
 //    Apple · Actualizar ahora · Desconectar». El texto con contraste AA en Oscuro, Azul, Rosa,
-//    Claro y sin neón; 360 px sin scroll de costado.
+//    Claro y sin neón; 360 px sin scroll de costado y los textos de las casillas enteros.
+// f) Salud manda en los pasos de hoy (no hay pasos a mano que respetar): si dice menos que lo que
+//    había, queda lo de Salud. Y al conectar, «Conectando…» y los números no esperan a que salgan
+//    los envíos de cada día (van por la cola, uno detrás de otro): conectado y al día enseguida,
+//    y los envíos salen igual después.
 import { newPage, wait, text, ALUMNO, profile, abrirSalir, empezarSalida } from './lib.mjs';
 
 const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -177,6 +181,12 @@ async function web(base, t){
   t.ok(await noHScroll(pg3.p), '360 px: sin scroll de costado');
   const tiles = await pg3.p.$$eval('.cpas-st', l => l.map(e => e.scrollWidth <= e.clientWidth + 1));
   t.eq(tiles, [true, true, true], '360 px: los tres números entran en sus casillas');
+  // Cada texto entero (el de la casilla tiene overflow:hidden propio: antes «Prom. semana» se
+  // cortaba en «Prom. sema…» y la casilla no se enteraba) y los tres números a la misma altura.
+  const cortados = await pg3.p.$$eval('.cpas-st-l, .cpas-st-v, .cpas-st-s', l => l.filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent + ' ' + e.scrollWidth + '>' + e.clientWidth));
+  t.eq(cortados, [], '360 px: «Prom. semana» y los demás textos de las casillas, enteros');
+  const altos = await pg3.p.$$eval('.cpas-st-v', l => l.map(e => Math.round(e.getBoundingClientRect().top)));
+  t.ok(altos.length === 3 && altos.every(y => y === altos[0]), '360 px: los tres números alineados: ' + altos.join(', '));
   t.eq(pg3.errs, [], 'errores de la página (sin localStorage)');
   await pg3.close();
 }
@@ -225,7 +235,47 @@ async function nativo(base, t){
   await pg.close();
 }
 
+// f) Salud manda y no se esperan los envíos.
+async function saludManda(base, t){
+  let soltar; const compuerta = new Promise(ok => { soltar = ok; });
+  const posts = [];
+  const logs = (r, J, i) => {
+    if (i.m === 'POST'){ posts.push(i.body); return compuerta.then(() => J([], 201)); }
+    return LOGS(r, J, i);
+  };
+  const pg = await newPage({ user: ALUMNO, state: STATE(), handlers: Object.assign(H(false), { '/daily_logs': logs }) });
+  const p = pg.p;
+  // Salud: hoy 5.000 (menos que los 7.342 que había) y los 12 días anteriores (12 envíos más).
+  await p.addInitScript(() => {
+    const hoy = new Date(); hoy.setHours(10, 0, 0, 0);
+    const s = [{ value: 5000, startDate: hoy.toISOString(), sourceId: 'iphone' }];
+    for (let i = 1; i <= 12; i++){ const d = new Date(hoy); d.setDate(d.getDate() - i); s.push({ value: 12000 + i, startDate: d.toISOString(), sourceId: 'iphone' }); }
+    window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: {
+      App: { getInfo: async () => ({ build: '999', version: 'x' }), getLaunchUrl: async () => null, addListener: () => Promise.resolve({ remove(){} }) },
+      Health: { isAvailable: async () => ({ available: true }), requestAuthorization: async () => ({}), readSamples: async () => ({ samples: s }) } } };
+  });
+  await p.goto(base + '/app/'); await wait(2500);
+  await p.click('#nav-cardio'); await wait(500);
+  t.eq(await text(p, '#cpasN'), '7.342', 'antes de conectar: los de hoy que había');
+  await p.click('#view .csec-pasos [data-pg="salud-on"]'); await wait(900);
+  const ya = await p.evaluate(async () => ({ busy: (await import('/app/core/salud.js')).SaludState.busy, conectando: !!document.querySelector('#view .salud-btn[data-pg="salud-on"]'),
+    ok: (document.querySelector('#view .csec-pasos .salud-ok') || {}).textContent || '' }));
+  t.ok(!ya.busy && !ya.conectando && /Conectado a Salud de Apple/.test(ya.ok), 'con los envíos todavía en camino: ya conectado, sin «Conectando…»: ' + JSON.stringify(ya));
+  t.eq(await text(p, '#cpasN'), '5.000', 'hoy: manda Salud aunque diga menos que lo que había');
+  t.eq(await text(p, '.cpas-st-ayer .cpas-st-v'), '12.001', 'ayer: desde Salud, sin esperar los envíos');
+  t.ok(posts.length >= 1, 'los envíos ya arrancaron (esperando la respuesta): ' + posts.length);
+  soltar(); await wait(2500);
+  const filas = posts.map(x => { try { return JSON.parse(x); } catch (e) { return null; } }).flat().filter(x => x && 'steps' in x && !('water_ml' in x));
+  const hoy = await p.evaluate(async () => (await import('/app/core/utils.js')).today());
+  t.ok(filas.some(x => x.log_date === hoy && x.steps === 5000), 'después sale el de hoy (5.000): ' + JSON.stringify(filas.map(x => x.log_date + ':' + x.steps)));
+  t.ok(filas.filter(x => x.log_date !== hoy).length >= 12, 'y los 12 días anteriores: ' + filas.length);
+  t.eq(await text(p, '#cpasN'), '5.000', 'después de los envíos, hoy sigue en lo de Salud');
+  t.eq(pg.errs, [], 'errores de la página (Salud manda)');
+  await pg.close();
+}
+
 export default async function ({ base, t }){
   await web(base, t);
   await nativo(base, t);
+  await saludManda(base, t);
 }

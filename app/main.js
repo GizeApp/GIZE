@@ -324,7 +324,7 @@ document.body.addEventListener("input", async e => {
   if (a === "se-val") { setSessionEditVal(t); return; }
   // Registro de hoy: se guarda mientras se escribe (no solo al salir del campo), así un
   // redibujo no borra lo que se está escribiendo.
-  if (a === "daily-kg" || a === "daily-steps" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":(a==="daily-steps"?"steps":t.dataset.k)] = t.value; return; }
+  if (a === "daily-kg" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":t.dataset.k] = t.value; return; }
   if (a === "food-search") { ComidaState.foodQuery = t.value; scheduleOffSearch(t.value); const r=document.getElementById("foodResults"); if(r) r.innerHTML = renderResults(ComidaState.foodQuery); return; }
   if (a === "ex-search") { EntrenoState.exQuery = t.value; const l=document.getElementById("exList"); if(l) l.innerHTML = renderExList(); return; }
   if (a === "portion-grams") { const base = ComidaState.selectedFood ? selectedFoodValues() : (ComidaState.editEntry ? entryBase(ComidaState.editEntry) : null); if(base){ const pv=document.getElementById("portionPreview"); if(pv) pv.textContent = previewStr(base, t.value); const pu=document.getElementById("portionUnits"); const uf=sheetUnitFood(); if(pu && uf) pu.textContent = unitsLabel(t.value, cookPortion(uf.food, uf.cook), base.unit, uf.food); } ComidaState.sheetGrams = t.value; return; }
@@ -393,7 +393,7 @@ document.body.addEventListener("keydown", async e => {
 document.body.addEventListener("change", async e => {
   const t=e.target, a=t.dataset.action; if(!a) return;
   if (a === "wdate-field") { ProgresoState.weightForm.date = t.value; return; }
-  if (a === "daily-kg" || a === "daily-steps" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":(a==="daily-steps"?"steps":t.dataset.k)] = t.value; return; }
+  if (a === "daily-kg" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":t.dataset.k] = t.value; return; }
   if (a === "ci-set") { checkinFormInit()[t.dataset.k] = t.value; return; }
   if (a === "load-ex") { EntrenoState.loadEx = t.value; renderApp(); return; }
   if (a === "sess-pick") { ProgresoState.sessSel = t.value; renderApp(); return; }
@@ -689,10 +689,8 @@ document.body.addEventListener("click", async e => {
     const rec = Object.assign({}, state.daily[today()]||{}, d);
     rec._q = questionSnapshot(clientQuestions("daily"), rec);
     state.daily[today()] = rec;
-    // Un solo número de pasos por día: lo que se anota acá es el mismo contador de Hábitos.
-    // Solo si los tocó en el formulario: si no, se guardaba el número de un registro anterior
-    // del mismo día y pisaba lo que el contador sumó después.
-    if(d.steps!==undefined){ const st = intNum(d.steps); if(st>=0) state.steps = st; }
+    // Los pasos no se anotan acá (pedido: nada de pasos a mano): va el contador del día, el que
+    // llega de Salud / Health Connect (core/salud.js), y no el de un registro anterior.
     rec.steps = state.steps>0 ? String(state.steps) : "";
     if(kg>0){ const exw=state.weights.find(w=>w.date===today()); if(exw) exw.kg=kg; else state.weights.push({id:uid(), date:today(), kg:kg}); }
     CheckinState.dailyForm=null; save();

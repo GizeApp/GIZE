@@ -1,8 +1,8 @@
 // Progreso → «Competencia de pasos»: grupos de amigos que compiten por pasos en la semana (de lunes
 // a domingo, hora de Argentina). Arriba de cada grupo, el campeón de la semana pasada con la copa
 // dorada. Los datos salen de supabase/pasos-grupos.sql (core/grupos.js); los pasos son los del
-// día de siempre (daily_logs.steps): los que se anotan acá o, en la app de la tienda con el
-// plugin, los de Salud / Health Connect (core/salud.js).
+// día de siempre (daily_logs.steps), los que suben solos de Salud / Health Connect en la app de la
+// tienda (core/salud.js). No se anotan a mano en ningún lado (pedido).
 //
 // Las acciones van con data-pg (no data-action): se manejan acá, sin pasar por main.js.
 
@@ -288,12 +288,15 @@ document.body.addEventListener("keydown", e => {
 });
 
 // Al terminar una lectura de Salud / Health Connect: el número de hoy y el ranking al día.
-SaludState.onChange = () => {
-  // Cardio → «Pasos»: hoy y la semana al día (no con las ruedas del tiempo abiertas).
-  if (State.view === "cardio"){ if (!SaludState.busy && !document.getElementById("timePick")) renderApp(); return; }
+// fase (core/salud.js): "subiendo" = leído pero los envíos siguen en camino (el ranking se lee
+// cuando llega "subido"; si no, saldría sin lo nuevo); "subido" = ya salieron.
+SaludState.onChange = fase => {
+  // Cardio → «Pasos»: hoy y la semana al día (no con las ruedas del tiempo abiertas). Ahí no hay
+  // ranking: «subido» no cambia nada que se vea.
+  if (State.view === "cardio"){ if (fase !== "subido" && !SaludState.busy && !document.getElementById("timePick")) renderApp(); return; }
   if (!aVista()) return;
   const n = document.getElementById("pgHoyN"); if (n) n.textContent = pasosTxt(state.steps);
-  if (!SaludState.busy) refrescar();
+  if (!SaludState.busy && fase !== "subiendo") refrescar();
 };
 
 // Link de invitación (#grupo=CODIGO, ver core/grupos.js): al entrar con la cuenta, se suma y abre

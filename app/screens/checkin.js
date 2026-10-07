@@ -159,7 +159,8 @@ export function renderDaily(){
   const d = CheckinState.dailyForm || (state.daily[today()] || {});
   const kgVal = CheckinState.dailyForm && CheckinState.dailyForm.kg != null ? CheckinState.dailyForm.kg : (todayWeightText() || d.kg || "");
   // Preguntas del coach (o las predeterminadas): las de opciones van como botones, las de
-  // texto como campo. Peso y pasos quedan fijos arriba: alimentan el gráfico y Hábitos.
+  // texto como campo. El peso queda fijo arriba: alimenta el gráfico. Los pasos no se anotan a
+  // mano en ningún lado (pedido): llegan solos de Salud / Health Connect (core/salud.js).
   const rows = clientQuestions("daily").map(q=>{
     if(q.type==="options"){
       const opts = q.options.map(o=>'<button class="sc-opt'+(String(d[q.id])===o?' on':'')+'" data-action="daily-set" data-k="'+esc(q.id)+'" data-v="'+esc(o)+'">'+esc(o)+'</button>').join("");
@@ -174,7 +175,6 @@ export function renderDaily(){
     <div class="daily-card">
       <div class="daily-top">
         <div class="dfield"><label>Peso</label><input id="dKg" class="form-input" type="text" inputmode="decimal" placeholder="kg" value="${esc(kgVal)}" data-action="daily-kg"></div>
-        <div class="dfield"><label>Pasos</label><input id="dSteps" class="form-input" type="text" inputmode="numeric" placeholder="0" value="${esc(CheckinState.dailyForm && CheckinState.dailyForm.steps!=null ? CheckinState.dailyForm.steps : (state.steps||""))}" data-action="daily-steps"></div>
       </div>
       ${rows}
       <button class="form-save" style="margin-top:12px" data-action="daily-save">Guardar registro de hoy</button>

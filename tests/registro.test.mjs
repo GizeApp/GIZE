@@ -1,5 +1,7 @@
 // Registro de hoy en tamaños de Android: opciones largas del coach sin encimarse ni cortarse,
 // botones de 44 px, respuestas de texto que se ven enteras y el Peso de hoy ya cargado.
+// Sin campo de pasos (pedido: nada de pasos a mano): al guardar va el número del día que llegó
+// solo (Salud / Health Connect), sin cambiarlo.
 import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
 
 const UA = 'Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36';
@@ -34,6 +36,30 @@ export default async function ({ base, t }){
     t.ok(m.textarea, tag + 'la respuesta de texto es un campo de varias líneas');
     t.eq(m.kg, '82,5', tag + 'el Peso de hoy ya aparece cargado');
     t.eq(errs, [], tag + 'errores de la página');
+    await close();
+  }
+
+  // Sin pasos a mano: solo el campo del peso; al guardar, los pasos del día siguen siendo los que
+  // llegaron solos y son los que se mandan.
+  {
+    const posts = [];
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO,
+      state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {}, steps: 7342, stepsDate: TODAY },
+      handlers: { '/profiles': profile('client'), '/coach_questions': (r, J, i) => J(i.one ? cq : [cq]),
+        '/daily_logs': (r, J, i) => { if (i.m === 'POST' && i.body) posts.push(i.body); return undefined; } } });
+    await p.goto(base + '/app/'); await wait(2500);
+    await p.click('#nav-progreso'); await wait(300);
+    await p.click('[data-action="psec-open"][data-v="registro"]'); await wait(400);
+    t.eq(await p.$$eval('.daily-card .dfield label', l => l.map(e => e.textContent)), ['Peso'], 'Registro de hoy: solo el peso, sin «Pasos»');
+    t.eq(await p.$$eval('.daily-card input', l => l.map(e => e.id)), ['dKg'], 'Registro de hoy: ningún campo para anotar pasos');
+    await p.fill('#dKg', '80,1');
+    await p.click('[data-action="daily-save"]'); await wait(1200);
+    const st = await p.evaluate(async () => { const { state } = await import('/app/core/state.js'); return state.steps; });
+    t.eq(st, 7342, 'guardar el registro no cambia los pasos del día');
+    const rows = posts.map(x => { try { return JSON.parse(x); } catch (e) { return null; } }).flat().filter(x => x && 'comment' in x);
+    t.ok(rows.length && rows.every(x => x.steps === 7342), 'el registro manda los pasos del día que llegaron solos: ' + JSON.stringify(rows.map(x => x.steps)));
+    t.ok(dialogs.some(d => /Registro guardado/.test(d)), 'avisa que se guardó: ' + JSON.stringify(dialogs));
+    t.eq(errs, [], 'sin pasos a mano: errores de la página');
     await close();
   }
 }

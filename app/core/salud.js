@@ -7,17 +7,24 @@
 // app, solo los últimos 8 (más livianas: los días viejos ya no cambian).
 //
 // Usa el plugin @capgo/capacitor-health (window.Capacitor.Plugins.Health). Si la app instalada no
-// lo trae, todo esto queda apagado y los pasos se anotan a mano (como en la web).
+// lo trae, todo esto queda apagado. Los pasos no se anotan a mano en ningún lado (pedido): en la
+// web se ven los que subió la app del celular.
 //
-// - Hoy: va a state.steps salvo que lo anotado a mano sea más (una caminata sin el celular).
+// - Hoy: lo que dice Salud es el número del día (state.steps), suba o baje.
 // - Días anteriores: se guardan en el registro del día (state.daily[fecha].steps, aunque ese día
 //   no tenga registro: es lo mismo que queda en daily_logs) y se suben si son más de lo que ya
 //   había.
 // - Varias apps pueden contar los mismos pasos (el celular, el reloj, Samsung Health…): por día
 //   se toma la fuente que más contó, en vez de sumarlas.
 //
-// Se prende desde «Competencia de pasos» (con el permiso del sistema) y queda prendido en este
-// celular para esta cuenta.
+// Se prende desde Cardio → «Pasos» o «Competencia de pasos» (con el permiso del sistema) y queda
+// prendido en este celular para esta cuenta.
+//
+// Los envíos no se esperan: lo leído queda guardado acá al momento y la cola (queueSteps) los
+// manda y reintenta sola. Si no, la primera lectura (hasta 31 días, un envío por día, uno detrás
+// de otro) dejaba «Conectando…» / «Actualizando…» y los números viejos varios segundos.
+// onChange(fase): sin fase al empezar y al terminar la lectura; "subiendo" si al terminar quedan
+// envíos en camino y "subido" cuando salieron (para volver a leer el ranking con lo nuevo).
 
 import { State, state } from './state.js';
 import { save } from './storage.js';
@@ -58,7 +65,7 @@ function writeSent(o){
   Object.keys(o).forEach(d => { if (d < cut) delete o[d]; });
   try { localStorage.setItem(keySent(), JSON.stringify(o)); } catch (e) {}
 }
-function changed(){ if (SaludState.onChange) try { SaludState.onChange(); } catch (e) {} }
+function changed(fase){ if (SaludState.onChange) try { SaludState.onChange(fase); } catch (e) {} }
 
 // Medianoche (hora del celular) de hace n días.
 function dayStart(n){ const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - n); return d; }
@@ -103,10 +110,9 @@ export async function syncSalud(force){
       const n = per[d];
       if (d === t){
         if (state.stepsDate !== t) return;
-        // Si lo cargado a mano es más, se respeta; si lo último lo puso esta lectura, se
-        // actualiza aunque baje (Health Connect a veces corrige).
-        const cur = state.steps || 0, mine = sent[t];
-        if (n > cur || (mine != null && cur === mine && n !== cur)){
+        // Manda Salud, aunque baje (Health Connect a veces corrige): no hay pasos a mano que
+        // respetar.
+        if (n !== (state.steps || 0)){
           state.steps = n; sent[t] = n; touched = true;
           noteStepsSynced(n); envios.push(queueSteps(t, n));
         }
@@ -124,13 +130,13 @@ export async function syncSalud(force){
     if (dias === DIAS_SALUD_MES) marcarMes();
     SaludState.lastSync = Date.now(); SaludState.lastError = "";
     if (touched) save();
-    await Promise.all(envios).catch(() => {});
   } catch (e) {
     SaludState.lastError = (e && e.message) || String(e);
     console.warn("salud", e);
   } finally {
-    SaludState.busy = false; changed();
+    SaludState.busy = false; changed(envios.length ? "subiendo" : undefined);
   }
+  if (envios.length) Promise.all(envios).catch(() => {}).then(() => changed("subido"));
   return touched || envios.length > 0;
 }
 

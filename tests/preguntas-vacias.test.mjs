@@ -18,7 +18,8 @@ export default async function ({ base, t }){
     await p.click('[data-action="psec-close"]'); await wait(200);
     await p.click('[data-action="psec-open"][data-v="registro"]'); await wait(300);
     t.eq(await p.$$eval('.daily-card .dq-row', r => r.length), 0, 'el registro no muestra las preguntas predeterminadas');
-    t.eq(await p.$$eval('#dKg, #dSteps', r => r.length), 2, 'el registro sigue con peso y pasos');
+    t.ok(!!(await p.$('#dKg')), 'el registro sigue con el peso');
+    t.eq(await p.$$eval('.daily-card input, .daily-card textarea', l => l.map(e => e.id)), ['dKg'], 'y nada más: los pasos no se anotan a mano (llegan de Salud)');
     t.eq(errs, [], 'alumno: errores de la página');
     await close();
   }

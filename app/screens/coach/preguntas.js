@@ -19,7 +19,7 @@ import { renderCoachSettings } from './settings.js';
 
 const KIND_LABEL = { daily: "Registro de hoy", checkin: "Check-in semanal" };
 const KIND_HINT = {
-  daily: "El cliente las responde cada día. Peso y pasos se piden siempre.",
+  daily: "El cliente las responde cada día. El peso se pide siempre.",
   checkin: "El cliente las responde una vez por semana."
 };
 
@@ -81,7 +81,7 @@ export function renderQuestionsEditor(){
     '<div class="cq-tabs">' + tabs + '</div>' +
     '<div class="cq-hint">' + KIND_HINT[ed.tab] + ' Los cambios valen para todos tus clientes.</div>' +
     warn +
-    (list.length ? list.map((q, i) => questionRow(q, i, list.length)).join("") : '<div class="cal-hint">Sin preguntas. Tus clientes solo van a ver ' + (ed.tab === "daily" ? 'peso y pasos.' : 'un check-in vacío.') + '</div>') +
+    (list.length ? list.map((q, i) => questionRow(q, i, list.length)).join("") : '<div class="cal-hint">Sin preguntas. Tus clientes solo van a ver ' + (ed.tab === "daily" ? 'el peso.' : 'un check-in vacío.') + '</div>') +
     '<button class="pl-add cq-add" data-coach="q-add">+ Agregar pregunta</button>' +
     '<button class="co-save-rt" data-coach="q-save">Guardar preguntas</button>' +
     '<button class="logout-btn cq-reset" data-coach="q-reset">Volver a las predeterminadas</button>' +

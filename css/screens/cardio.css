@@ -314,8 +314,11 @@ body:not(#_) .sov-btns :is(.ctrl, .sov-link).sov-del { color: var(--gize-danger)
 .cpas-u { font-size: var(--text-body); font-weight: 600; color: var(--txt-2); }
 .cpas-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
 .cpas-st { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 10px 9px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--border); }
-.cpas-st-l { font-size: 11px; font-weight: 700; color: var(--txt-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cpas-st-v { font: 700 clamp(16px, 4.8vw, 19px)/1.15 var(--gize-font-data, var(--gize-font)); color: var(--gize-text); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* El título de la casilla baja de línea si no entra (a 360 px «Prom. semana» se cortaba en
+   «Prom. sema…») y el número va abajo (margin-top: auto): los tres quedan a la misma altura
+   aunque un título ocupe dos renglones. */
+.cpas-st-l { font-size: 11px; line-height: 1.2; font-weight: 700; color: var(--txt-2); overflow-wrap: break-word; }
+.cpas-st-v { margin-top: auto; font: 700 clamp(16px, 4.8vw, 19px)/1.15 var(--gize-font-data, var(--gize-font)); color: var(--gize-text); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cpas-st-s { font-size: 11px; color: var(--txt-2); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cpas-sem { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; height: 64px; margin-bottom: 6px; }
 .cpas-dia { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 5px; min-width: 0; }
