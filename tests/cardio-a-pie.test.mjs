@@ -1,9 +1,10 @@
 // Cardio «A pie» / «En bici», paso 4: la pantalla.
 // a) Archivos: MapLibre en vendor/ con su licencia, la CSP con OpenFreeMap (sin clave) y el worker.
-// b) Alumno con GPS falso (y un reloj que avanza con cada punto): elegir «A pie» / «En bici» con
-//    sus aclaraciones, el aviso «Usar tu ubicación», en vivo (el reloj de main.js solo con Cardio a
-//    la vista y la app adelante, caminando → trotando → corriendo, pausa y seguir, mini mapa, el
-//    punto en la pestaña), terminar → resumen encima de todo con el recorrido animado (se dibuja de
+// b) Alumno con GPS falso (y un reloj que avanza con cada punto): «Salir a moverte» (lo último de
+//    Cardio) abre la hoja de abajo para elegir «A pie» / «En bici» con sus aclaraciones y
+//    «Empezar»; el aviso «Usar tu ubicación», la hoja que se cierra al empezar, en vivo arriba de
+//    todo (el reloj de main.js solo con Cardio a la vista y la app adelante, caminando → trotando →
+//    corriendo, pausa y seguir, mini mapa, el punto en la pestaña), terminar → resumen encima de todo con el recorrido animado (se dibuja de
 //    a poco y termina), los números, «Ver de nuevo», «Guardar» y «Tus salidas» (volver a abrirla
 //    repite la animación sin pedir nada), «Borrar»; salida terminada sin guardar al recargar.
 // c) Compartir: imagen PNG de 1080 × 1920 por Web Share, descarga sin Web Share, y en la app
@@ -13,14 +14,15 @@
 // d) Movimiento reducido (dibujo completo de una), modo liviano (sin MapLibre), las apariencias
 //    (Claro, Azul, Rosa, sin neón) con sus colores y sin halo alrededor del recorrido (apariencia
 //    tranquila, css/ui/calma.css), nada que se mueva sin fin, 320 px sin scroll de costado y el
-//    «Atrás» de Android. Los botones principales de Cardio («Empezar» e «Iniciar») son rellenos,
-//    con el filete fino y quieto (sin anillo de neón que gire ni resplandor de colores).
+//    «Atrás» de Android. Los botones principales de Cardio («Salir a moverte», «Empezar» e
+//    «Iniciar») son rellenos, con el filete fino y quieto (sin anillo de neón que gire ni
+//    resplandor de colores).
 // El mapa (tiles.openfreemap.org) nunca sale a internet en las pruebas (tests/lib.mjs lo corta):
 // donde se quiere el dibujo sin mapa de una, gize_mapa_off = "1".
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, text, ALUMNO, profile, abrirSalir, empezarSalida } from './lib.mjs';
 // Texto tal cual (innerText respeta las mayúsculas del CSS).
 const tc = (p, sel) => p.evaluate(s => { const e = document.querySelector(s); return e ? e.textContent.replace(/\s+/g, ' ').trim() : ''; }, sel);
 // ¿Hay algún color con tinte (no gris) en este valor de CSS? rgb()/rgba() y color(srgb …), que es
@@ -150,36 +152,42 @@ async function flujo(base, t){
 
   await p.click('#nav-cardio'); await wait(500);
   const v = await tc(p, '#view');
-  t.has(v, 'Salir a moverte', 'Cardio: «Salir a moverte» arriba');
-  const modes = await p.$$eval('[data-action="sal-mode"]', l => l.map(b => [b.dataset.mode, b.querySelector('.sal-mode-t').textContent, b.querySelector('.sal-mode-s').textContent, !!b.querySelector('svg'), b.classList.contains('active')]));
-  t.eq(modes, [['pie', 'A pie', SUB_PIE, true, true], ['bici', 'En bici', SUB_BICI, true, false]], 'dos opciones con ícono y aclaración: «A pie» (elegida) y «En bici»');
-  t.ok(!/a bici/i.test(v), 'nunca «a bici»');
+  t.has(v, 'Salir a moverte', 'Cardio: «Salir a moverte»');
   t.has(v, 'Cronómetro', 'el cronómetro sigue');
-  t.ok(v.indexOf('Salir a moverte') < v.indexOf('Cronómetro y temporizador'), 'la salida va antes del cronómetro');
-  // Apariencia tranquila: ningún anillo gira; los dos principales son rellenos (blancos en
-  // «Oscuro») con el filete fino de un toque de color, y sin resplandor de colores.
-  const prim = await p.$$eval('#view .ctrl.primary', l => l.map(b => { const s = getComputedStyle(b), be = getComputedStyle(b, '::before');
+  t.ok(v.indexOf('Cronómetro y temporizador') < v.lastIndexOf('Salir a moverte'), '«Salir a moverte» va último, después del cronómetro');
+  t.eq(await p.$$eval('#view [data-action="sal-start"], #view [data-action="sal-mode"]', l => l.length), 0, 'en la pantalla no está «Empezar»: va en la hoja');
+  // «Salir a moverte» abre la hoja de abajo con las dos opciones y «Empezar».
+  await abrirSalir(p);
+  const modes = await p.$$eval('#salSheet [data-action="sal-mode"]', l => l.map(b => [b.dataset.mode, b.querySelector('.sal-mode-t').textContent, b.querySelector('.sal-mode-s').textContent, !!b.querySelector('svg'), b.classList.contains('active')]));
+  t.eq(modes, [['pie', 'A pie', SUB_PIE, true, true], ['bici', 'En bici', SUB_BICI, true, false]], 'la hoja: dos opciones con ícono y aclaración: «A pie» (elegida) y «En bici»');
+  t.ok(!/a bici/i.test(v + await tc(p, '#salSheet')), 'nunca «a bici»');
+  // Apariencia tranquila: ningún anillo gira; los principales son rellenos (blancos en «Oscuro»)
+  // con el filete fino de un toque de color, y sin resplandor de colores.
+  const prim = await p.$$eval('#view .ctrl.primary, #salSheet .ctrl.primary', l => l.map(b => { const s = getComputedStyle(b), be = getComputedStyle(b, '::before');
     return { t: b.textContent, anim: [s.animationName, be.animationName], bg: s.backgroundImage, glow: [s.boxShadow, s.textShadow, s.filter] }; }));
-  t.eq(prim.map(b => [b.t, b.anim]), [['Empezar', ['none', 'none']], ['Iniciar', ['none', 'none']]], 'ningún anillo gira: «Empezar» y el «Iniciar» del cronómetro quietos');
+  t.eq(prim.map(b => [b.t, b.anim]), [['Iniciar', ['none', 'none']], ['Salir a moverte', ['none', 'none']], ['Empezar', ['none', 'none']]], 'ningún anillo gira: el «Iniciar» del cronómetro, «Salir a moverte» y «Empezar» quietos');
   for (const b of prim){
     t.ok(/^linear-gradient\(rgb\(255, 255, 255\), rgb\(255, 255, 255\)\)/.test(b.bg), '«' + b.t + '»: relleno blanco, como los botones principales: ' + b.bg.slice(0, 60));
     t.ok(/linear-gradient\(155deg/.test(b.bg) && !/conic-gradient/.test(b.bg) && conTinte(b.bg), '«' + b.t + '»: el borde es el filete fino con un toque de color, no la gama de neón: ' + b.bg.slice(0, 120));
     t.ok(!b.glow.some(conTinte), '«' + b.t + '»: sin resplandor de colores: ' + JSON.stringify(b.glow));
   }
-  await p.click('[data-action="sal-mode"][data-mode="bici"]'); await wait(200);
+  await p.click('#salSheet [data-action="sal-mode"][data-mode="bici"]'); await wait(200);
   t.eq(await p.$$eval('[data-action="sal-mode"].active', l => l.map(b => b.dataset.mode)), ['bici'], 'elegir «En bici»');
   t.eq(await p.$eval('[data-action="sal-mode"][data-mode="bici"]', b => b.getAttribute('aria-checked')), 'true', '«En bici» marcada para el lector de pantalla');
-  await p.click('[data-action="sal-mode"][data-mode="pie"]'); await wait(200);
+  await p.click('#salSheet [data-action="sal-mode"][data-mode="pie"]'); await wait(200);
   t.eq(await tickOn(p), false, 'sin salida, el reloj de main.js no anda');
 
   // Empezar: primero el aviso.
-  await p.click('[data-action="sal-start"]'); await wait(400);
+  await empezarSalida(p); await wait(400);
   t.has(await text(p, '#salAviso'), 'Usar tu ubicación', 'la primera vez: el aviso «Usar tu ubicación»');
   t.eq(await p.evaluate(() => window.__geo.n), 0, 'antes de aceptarlo no se pide la ubicación');
   await p.click('#salAviso [data-action="sal-aviso-ok"]'); await wait(600);
   t.eq(await p.$$eval('#salAviso', l => l.length), 0, 'el aviso se cierra');
+  t.eq(await p.$$eval('#salSheet', l => l.length), 0, 'al empezar, la hoja se cierra');
   t.eq(await p.evaluate(() => Object.keys(window.__geo.watchers).length), 1, 'empezó a mirar la ubicación');
   t.ok(await p.$('#salLive'), 'en vivo');
+  t.eq(await p.evaluate(() => document.querySelector('#view > section').id), 'salLive', 'en vivo: arriba de todo en Cardio');
+  t.eq(await p.$$eval('#view [data-action="sal-sheet"]', l => l.length), 0, 'en vivo: sin «Salir a moverte» abajo');
   t.has(await text(p, '#salLive'), 'En el navegador, GIZE mide la salida solo con la pantalla prendida y la app abierta.', 'en vivo (web): el aviso de la pantalla prendida');
 
   // Caminando 3 min.
@@ -281,7 +289,7 @@ async function flujo(base, t){
   t.has(list, 'A pie', 'la fila: modo');
   t.has(list, BREAK, 'la fila: desglose');
   t.ok(/\d,\d\d km · 4\d:\d\d · \d+:\d\d \/km · \d+ kcal/.test(list), 'la fila: km · tiempo · ritmo · kcal: ' + list);
-  t.ok(await p.$('[data-action="sal-start"]'), 'de nuevo «Empezar»');
+  t.ok(await p.$('[data-action="sal-sheet"]'), 'de nuevo «Salir a moverte»');
   t.eq(await p.$eval('#nav-cardio', e => e.classList.contains('en-curso')), false, 'sin salida en curso, sin el punto');
 
   // Volver a abrirla: la misma ficha, con la animación otra vez, sin pedir el recorrido.
@@ -312,8 +320,9 @@ async function terminadaSinGuardar(base, t){
   await p.addInitScript("localStorage.setItem('gize_mapa_off','1'); localStorage.setItem('gize_salida_aviso','1');");
   await p.goto(base + '/app/'); await wait(2500);
   await p.click('#nav-cardio'); await wait(300);
-  await p.click('[data-action="sal-mode"][data-mode="bici"]'); await wait(200);
-  await p.click('[data-action="sal-start"]'); await wait(500);
+  await abrirSalir(p);
+  await p.click('#salSheet [data-action="sal-mode"][data-mode="bici"]'); await wait(200);
+  await empezarSalida(p); await wait(500);
   await p.evaluate(() => window.__route([[900, 20]], 0, 900)); await wait(300);
   t.has(await text(p, '#salLive'), 'En bici', 'en bici: el modo');
   t.has(await tc(p, '#salLive'), 'Velocidad', 'en bici: velocidad (no ritmo)');
@@ -330,7 +339,7 @@ async function terminadaSinGuardar(base, t){
   await p.click('#salidaHost [data-action="sal-discard"]'); await wait(400);
   t.ok(pg.dialogs.includes('¿Descartar esta salida? No se va a guardar.'), 'pregunta antes de descartar');
   t.eq(await p.evaluate(() => Object.keys(localStorage).filter(k => /^gize_salida_v1/.test(k))), [], 'descartada: no queda nada guardado');
-  t.ok(await p.$('[data-action="sal-start"]'), 'de nuevo «Empezar»');
+  t.ok(await p.$('[data-action="sal-sheet"]'), 'de nuevo «Salir a moverte»');
   t.eq(pg.errs, [], 'errores de la página (sin guardar)');
   await pg.close();
 }
@@ -452,7 +461,7 @@ async function gpsDebil(base, t){
   await p.addInitScript("localStorage.setItem('gize_mapa_off','1'); localStorage.setItem('gize_salida_aviso','1');");
   await p.goto(base + '/app/'); await wait(2500);
   await p.click('#nav-cardio'); await wait(300);
-  await p.click('[data-action="sal-start"]'); await wait(400);
+  await empezarSalida(p); await wait(400);
   await p.evaluate(plan => window.__route(plan, 0, 30), PLAN); await wait(300);
   await p.evaluate(() => { window.__renders = 0; new MutationObserver(l => { if (l.some(m => m.type === 'childList' && m.target.id === 'view')) window.__renders++; }).observe(document.getElementById('view'), { childList: true }); });
   const seen = await p.evaluate(async () => {
@@ -552,7 +561,7 @@ async function looks(base, t, saved){
   await p.click(`[data-action="sal-open"][data-id="${saved.rec.id}"]`); await wait(400);
   t.ok(await noHScroll(p), '320 px: el resumen sin scroll de costado');
   await p.click('#salidaHost [data-action="sal-close"]'); await wait(200);
-  await p.click('[data-action="sal-start"]'); await wait(400);
+  await empezarSalida(p); await wait(400);
   await p.evaluate(plan => window.__route(plan, 0, 300), PLAN); await wait(300);
   t.ok(await noHScroll(p), '320 px: en vivo sin scroll de costado');
   t.eq(pg.errs, [], 'errores de la página (320 px)');

@@ -1,6 +1,15 @@
-// Cardio: arriba, «Salir a moverte» (salidas «A pie» / «En bici» con el GPS: elegir, en vivo y el
-// resumen con el recorrido animado), el plan del coach, «Tus salidas» y abajo el cronómetro y el
-// temporizador.
+// Cardio, de arriba abajo (pedido: «todo dividido en secciones, todo desplegable»):
+//   · Arriba de todo, solo si hay: la salida en curso (o en pausa) o la terminada sin guardar
+//     («Ver y guardar»). No va en una hoja ni abajo: se ve apenas se entra.
+//   · «Tu cardio de esta semana» (el plan del coach; sin plan, no aparece).
+//   · «Pasos», lo más importante: los de hoy grandes, la semana en barras, de dónde salen
+//     (Salud de Apple / Health Connect) y el link a «Competencia de pasos».
+//   · «Tus salidas» y «Cronómetro y temporizador».
+//   · Último, «Salir a moverte»: un botón que abre una hoja de abajo con «A pie» / «En bici», el
+//     aviso de la ubicación y «Empezar». La hoja es solo para empezar.
+// Cada sección se abre y se cierra tocando su título (<details>, sin redibujar la pantalla) y
+// queda como la dejaron (localStorage gize_cardio_secs). Al empezar: abiertas «Tu cardio de esta
+// semana», «Pasos» y «Tus salidas»; cerrado «Cronómetro y temporizador».
 // · La salida en curso la lleva ui/gps.js (también con la pantalla apagada en el celular); las
 //   cuentas, core/cardiogps.js; guardar y borrar, core/salidas.js.
 // · En vivo, el reloj de main.js (tick → paintSalida) cambia solo los números, una vez por segundo
@@ -11,9 +20,11 @@
 import { State, state } from '../core/state.js';
 
 import { esc, fmt, fmtDate, today, ymd } from '../core/utils.js';
-import { saludDisponible, saludNombre, saludPrendida } from '../core/salud.js';
+import { saludDisponible } from '../core/salud.js';
+import { pasosDe, resumenPasos, sumarDias } from '../core/pasosdia.js';
+import { saludHtml } from '../ui/saludboton.js';
 import { pasosTxt } from '../core/grupos.js';
-import { bikeSvg, shoeSvg } from '../core/icons.js';
+import { bikeSvg, chevronDownSvg, shoeSvg } from '../core/icons.js';
 import { CLASSES, FIRST_ACC_M, breakdownText, finishRun, fmtClock, fmtKm, fmtKmh, fmtPace, haversine, isShort, lastPoint, lastWeight, liveHole, livePath, livePathKey, modeLabel, paceOrSpeed } from '../core/cardiogps.js';
 import { GpsState, acceptDisclosure, ackRestored, discard, disclosure, hint, isNative, live, needsPrecise, onHere, onPoint, openSettings, pause, restoredText, resume, setMode, start, stop, takeEnded } from '../ui/gps.js';
 import { cachedTrack, deleteSalida, getTrack, salidasList, saveEnded } from '../core/salidas.js';
@@ -48,12 +59,41 @@ export const CardioState = {
 
 };
 
-export function renderCardioPrescription(){
+// ---- Secciones desplegables ----
+// Abierta o cerrada, por sección, en este dispositivo. Sin localStorage (navegación privada):
+// las de siempre.
+const SECS_KEY = "gize_cardio_secs";
+const SECS_DEF = { rx: true, pasos: true, salidas: true, tools: false };
+function secsRead(){ try { return JSON.parse(localStorage.getItem(SECS_KEY) || "{}") || {}; } catch (e) { return {}; } }
+export function secOpen(id){ const v = secsRead()[id]; return typeof v === "boolean" ? v : !!SECS_DEF[id]; }
+function secSave(id, open){ try { const o = secsRead(); o[id] = !!open; localStorage.setItem(SECS_KEY, JSON.stringify(o)); } catch (e) {} }
+// Una sección: caja con el título (y un dato corto a la derecha, que se ve con la sección
+// cerrada) y la flecha. cls: clases extra de la caja.
+function section(id, title, body, opts){
+  opts = opts || {};
+  return '<section class="sal-card csec-card csec-' + id + (opts.cls ? " " + opts.cls : "") + '">' +
+    '<details class="csec" data-sec="' + id + '"' + (secOpen(id) ? " open" : "") + '>' +
+      '<summary class="csec-sum"><span class="csec-t">' + title + '</span>' +
+        (opts.meta ? '<span class="csec-m">' + opts.meta + '</span>' : "") +
+        '<span class="csec-chev" aria-hidden="true">' + chevronDownSvg + '</span></summary>' +
+      '<div class="csec-b">' + body + '</div>' +
+    '</details></section>';
+}
+// Tocar el título abre o cierra y lo recuerda. A mano (como el historial de entrenos en main.js):
+// en el iPhone, Safari no despliega un <details> tocando un resumen con display:flex.
+document.addEventListener("click", e => {
+  const s = e.target.closest && e.target.closest("summary.csec-sum"); if (!s) return;
+  const d = s.parentElement; if (!d || d.tagName !== "DETAILS") return;
+  e.preventDefault(); d.open = !d.open;
+  secSave(d.dataset.sec, d.open);
+});
+
+function renderCardioPrescription(){
   const cp = (state.coachPlan && state.coachPlan.cardio) ? state.coachPlan.cardio : null;
   if(!cp || (!cp.text && !(cp.items&&cp.items.length))) return "";
   const items = (cp.items&&cp.items.length) ? '<ul class="mc-list">'+cp.items.filter(x=>x&&x.trim()).map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul>' : "";
   const txt = cp.text ? '<div class="cardio-rx-txt">'+esc(cp.text)+'</div>' : "";
-  return '<div class="cardio-rx"><div class="cardio-rx-h">Tu cardio de esta semana</div>'+txt+items+'</div>';
+  return section("rx", '<span class="cardio-rx-h">Tu cardio de esta semana</span>', txt + items);
 }
 
 export function renderCardio(){
@@ -61,22 +101,43 @@ export function renderCardio(){
     <button class="cmode${CardioState.cardioMode==='stopwatch'?' active':''}" data-action="cardio-mode" data-mode="stopwatch">Cronómetro</button>
     <button class="cmode${CardioState.cardioMode==='timer'?' active':''}" data-action="cardio-mode" data-mode="timer">Temporizador</button>
   </div>`;
-  const rx = renderCardioPrescription();
-  const tools = renderCardioTools(modes);
-  return renderSalidaCard() + saludCard() + rx + renderSalidasList() + '<div class="cardio-toolsec"><div class="cardio-tools-h">Cronómetro y temporizador</div>' + tools + '</div>';
+  const running = CardioState.swRunning || CardioState.tmRunning;
+  const tools = section("tools", "Cronómetro y temporizador", renderCardioTools(modes), { cls: "cardio-toolsec", meta: running ? "En marcha" : "" });
+  queueMicrotask(syncSalSheet);
+  return renderSalidaTop() + renderCardioPrescription() + pasosSection() + renderSalidasList() + tools + salirSection();
 }
 
-// Pasos del día desde Salud de Apple / Health Connect (core/salud.js), solo en la app instalada:
-// conectarlo acá (pedido) además de en Competencia de pasos. El botón usa el mismo data-pg que
-// la pantalla de pasos (screens/pasos.js), así lo atiende un solo lugar.
-function saludCard(){
-  if (!saludDisponible()) return "";
-  const n = state.stepsDate === today() ? (state.steps || 0) : 0, nom = esc(saludNombre());
-  if (saludPrendida()) return '<div class="join-box pg-hoy sal-salud"><div class="pg-hoy-top"><span class="join-t">Pasos de hoy</span><b class="pg-hoy-n">' + pasosTxt(n) + '</b></div>' +
-    '<div class="pg-note">Se cargan solos desde ' + nom + '.</div></div>';
-  return '<div class="join-box pg-hoy sal-salud"><span class="join-t">Pasos automáticos</span>' +
-    '<div class="pg-note">Conectá ' + nom + ' y tus pasos del día se cargan solos, aunque no abras la app.</div>' +
-    '<button class="form-save join-btn" data-pg="salud-on">Conectar ' + nom + '</button></div>';
+// ---- «Pasos» ----
+// Los de hoy grandes; abajo, en tres casillas, ayer y los promedios de la semana y del mes
+// (core/pasosdia.js: solo los días con datos; sin datos, «—») y los últimos 7 días en barras
+// (hoy, la de la derecha). Los días anteriores salen del registro diario (state.daily[fecha]
+// .steps: daily_logs de la nube y, en la app instalada, Salud de Apple / Health Connect).
+// En la app instalada: el botón para conectar Salud o, ya conectado, «Actualizar ahora» y
+// «Desconectar» (ui/saludboton.js, el mismo de «Competencia de pasos»). En la web, que se cargan
+// solos desde la app del celular. Abajo, «Competí con tus amigos» abre la competencia (Progreso).
+const DIA_INI = ["D", "L", "M", "M", "J", "V", "S"];
+const WD_LARGO = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const pasosOGuion = n => n == null ? "—" : pasosTxt(n);
+function pasosSection(){
+  const hoy = today(), hoyN = state.stepsDate === hoy ? (state.steps || 0) : 0;
+  const r = resumenPasos(state.daily, hoy, hoyN);
+  const dias = []; for (let i = 6; i >= 0; i--){ const d = sumarDias(hoy, -i); dias.push({ d, n: pasosDe(state.daily, hoy, hoyN, d), hoy: i === 0 }); }
+  const max = Math.max(1, ...dias.map(x => x.n));
+  const bars = r.semana.conDatos ? '<div class="cpas-sem" role="img" aria-label="Pasos de los últimos 7 días">' + dias.map(x =>
+      '<span class="cpas-dia' + (x.hoy ? " hoy" : "") + '"><b class="cpas-bar"><i style="height:' + (x.n ? Math.max(6, Math.round(x.n / max * 100)) : 0) + '%"></i></b>' +
+      '<small>' + DIA_INI[new Date(x.d + "T12:00:00").getDay()] + '</small></span>').join("") + '</div>' : "";
+  // Cuántos días cubre: «5 de 7 días» (los días con datos de la ventana).
+  const prom = p => (p.prom == null ? "" : p.conDatos + " de ") + p.dias + " días";
+  const stat = (k, label, v, sub) => '<div class="cpas-st cpas-st-' + k + '"><span class="cpas-st-l">' + label + '</span><b class="cpas-st-v">' + v + '</b>' + (sub ? '<small class="cpas-st-s">' + sub + '</small>' : "") + '</div>';
+  const stats = '<div class="cpas-stats">' +
+    stat("ayer", "Ayer", pasosOGuion(r.ayer), WD_LARGO[new Date(sumarDias(hoy, -1) + "T12:00:00").getDay()]) +
+    stat("semana", "Prom. semana", pasosOGuion(r.semana.prom), prom(r.semana)) +
+    stat("mes", "Prom. mes", pasosOGuion(r.mes.prom), prom(r.mes)) + '</div>';
+  const fuente = saludDisponible() ? saludHtml() : '<div class="pg-note">Tus pasos se cargan solos desde la app de GIZE en tu celular.</div>';
+  const body = '<div class="cpas-hoy"><b class="cpas-n" id="cpasN">' + pasosTxt(r.hoy) + '</b><span class="cpas-u">pasos hoy</span></div>' +
+    stats + bars + '<div class="cpas-src">' + fuente + '</div>' +
+    '<button type="button" class="cpas-comp" data-action="cardio-pasos"><span>Competí con tus amigos</span><span class="cpas-comp-s">Competencia de pasos</span><span class="ptile-go" aria-hidden="true">›</span></button>';
+  return section("pasos", "Pasos", body, { cls: "cpas", meta: pasosTxt(r.hoy) + " hoy" });
 }
 
 // ===================== Salidas «A pie» / «En bici» =====================
@@ -117,7 +178,8 @@ function errorHtml(){
   return '<div class="sal-err" role="alert">' + esc(GpsState.error) + btn + '</div>';
 }
 
-function renderSalidaCard(){
+// Arriba de todo: la salida terminada sin guardar o la que está en curso (o en pausa).
+function renderSalidaTop(){
   const r = GpsState.run;
   if (r && r.status === "ended"){
     const e = endedSummary();
@@ -129,10 +191,29 @@ function renderSalidaCard(){
       '<div class="ctrl-row"><button class="ctrl ghost" data-action="sal-discard">Descartar</button><button class="ctrl primary" data-action="sal-review">Ver y guardar</button></div>' +
     '</section>';
   }
-  if (r) return renderLive(r);
+  return r ? renderLive(r) : "";
+}
+
+// Último: «Salir a moverte», un botón que abre la hoja para empezar. Con una salida en curso o
+// sin guardar no va (esa está arriba de todo).
+function salirSection(){
+  if (GpsState.run) return "";
+  return '<section class="sal-card sal-salir" aria-label="Salir a moverte">' +
+    '<div class="sal-salir-t">A pie o en bici, con el GPS: distancia, ritmo, calorías y tu recorrido en el mapa.</div>' +
+    '<div class="ctrl-row"><button class="ctrl primary wide" data-action="sal-sheet">Salir a moverte</button></div>' +
+  '</section>';
+}
+
+// ---- La hoja de abajo para empezar (#salSheet) ----
+// «A pie» / «En bici», el aviso del permiso si lo hubo y «Empezar». Se redibuja por dentro con
+// cada cambio (sin volver a animarse). Apenas arranca la salida se cierra (la salida en vivo
+// queda arriba de todo); si no llega a arrancar (sin permiso, GPS apagado), se vuelve a abrir
+// con el aviso.
+let reopenOnFail = false;
+const salSheetEl = () => document.getElementById("salSheet");
+function salSheetHtml(){
   const mode = GpsState.mode === "bici" ? "bici" : "pie";
-  return '<section class="sal-card sal-start">' +
-    '<div class="sal-h">Salir a moverte</div>' +
+  return '<div class="ssh-title" id="salSheetT">Salir a moverte</div>' +
     '<div class="sal-modes" role="radiogroup" aria-label="Tipo de salida">' + MODES_UI.map(x =>
       '<button type="button" class="cmode sal-mode' + (x.m === mode ? " active" : "") + '" role="radio" aria-checked="' + (x.m === mode) + '" data-action="sal-mode" data-mode="' + x.m + '">' +
         '<span class="sal-mode-ico" aria-hidden="true">' + x.icon + '</span>' +
@@ -141,7 +222,30 @@ function renderSalidaCard(){
       '</button>').join("") + '</div>' +
     errorHtml() +
     '<div class="ctrl-row"><button class="ctrl primary wide" data-action="sal-start">Empezar</button></div>' +
-  '</section>';
+    '<button type="button" class="ssh-close" data-action="sal-sheet-close">Cancelar</button>';
+}
+function paintSalSheet(){ const c = salSheetEl(); if (c){ const card = c.querySelector(".ssh-card"); if (card) card.innerHTML = salSheetHtml(); } }
+export function openSalSheet(){
+  if (GpsState.run) return;
+  if (salSheetEl()){ paintSalSheet(); return; }
+  const el = document.createElement("div");
+  el.id = "salSheet"; el.className = "ssh";
+  el.innerHTML = '<div class="ssh-bg" data-action="sal-sheet-close"></div><div class="ssh-card sal-start" role="dialog" aria-modal="true" aria-labelledby="salSheetT">' + salSheetHtml() + '</div>';
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("open"));
+}
+export function closeSalSheet(){ const e = salSheetEl(); if (e) e.remove(); }
+// Después de cada dibujo de Cardio (y cada cambio de la salida): la hoja al día.
+function syncSalSheet(){
+  const r = GpsState.run;
+  if (r){
+    if (salSheetEl()){ closeSalSheet(); reopenOnFail = true; window.scrollTo(0, 0); } // la salida en vivo, a la vista
+    if (r.pts.length || r.status !== "running") reopenOnFail = false;
+    return;
+  }
+  if (reopenOnFail && GpsState.error && State.view === "cardio"){ reopenOnFail = false; openSalSheet(); return; }
+  reopenOnFail = false;
+  paintSalSheet();
 }
 
 // En vivo. Los números los cambia paintSalida (sin redibujar); acá van con su valor de ahora.
@@ -257,15 +361,15 @@ function renderSalidasList(){
   const list = salidasList();
   if (!list.length) return "";
   const shown = SalidaState.all ? list : list.slice(0, LIST_N);
-  return '<section class="sal-hist"><div class="sal-hist-h">Tus salidas</div><div class="sal-list">' + shown.map(s =>
+  return section("salidas", "Tus salidas", '<div class="sal-list">' + shown.map(s =>
     '<button class="sal-row" data-action="sal-open" data-id="' + esc(s.id) + '">' +
       '<span class="sal-row-top">' + chip(s.mode) + '<span class="sal-row-date">' + esc(when(s)) + '</span>' + (salidaPendiente(s.id) ? '<span class="sal-tag">Por subir</span>' : "") + '</span>' +
       '<span class="sal-row-nums"><b>' + fmtKm(s.dist) + ' km</b> · ' + fmtClock(s.dur * 1000) + ' · ' + esc(paceOrSpeed(s)) + ' · ' + kcalTxt(s) + ' kcal</span>' +
       '<span class="sal-row-mix">' + esc(breakdownText(s.breakdown)) + '</span>' +
       '<span class="ptile-go" aria-hidden="true">›</span>' +
     '</button>').join("") + '</div>' +
-    (list.length > LIST_N ? '<button type="button" class="sal-more" data-action="sal-all">' + (SalidaState.all ? "Ver menos" : "Ver todas (" + list.length + ")") + '</button>' : "") +
-  '</section>';
+    (list.length > LIST_N ? '<button type="button" class="sal-more" data-action="sal-all">' + (SalidaState.all ? "Ver menos" : "Ver todas (" + list.length + ")") + '</button>' : ""),
+    { cls: "sal-hist", meta: String(list.length) });
 }
 
 // ---- Resumen encima de todo (#salidaHost) ----
@@ -364,11 +468,14 @@ async function startSalida(){
   const res = await start(GpsState.mode);
   if (!res.ok && res.why === "aviso"){ openAviso(); return; }
   if (State.view === "cardio") renderApp();
+  paintSalSheet();
 }
 
 // Lo que se toca de las salidas (main.js lo pasa acá). → true si era de las salidas.
 export function salidaAction(a, el){
-  if (a === "sal-mode"){ setMode(el.dataset.mode); renderApp(); return true; }
+  if (a === "sal-sheet"){ openSalSheet(); return true; }
+  if (a === "sal-sheet-close"){ closeSalSheet(); return true; }
+  if (a === "sal-mode"){ setMode(el.dataset.mode); renderApp(); paintSalSheet(); return true; }
   if (a === "sal-start"){ startSalida(); return true; }
   if (a === "sal-aviso-ok"){ acceptDisclosure(); closeAviso(); startSalida(); return true; }
   if (a === "sal-aviso-no"){ closeAviso(); return true; }

@@ -70,8 +70,8 @@ export default async function ({ base, t }){
   // Cardio se abre bien: el plan del coach y el cronómetro siguen; nada de lo viejo.
   await p.click('#nav-cardio'); await wait(600);
   t.has(await p.$eval('.cardio-rx-h', e => e.textContent).catch(() => ''), 'Tu cardio de esta semana', 'Cardio: la tarjeta del plan del coach');
-  t.has(await text(p, '.cardio-rx'), 'Martes: 20 min de bici', 'Cardio: lo que pidió el coach');
-  t.has(await text(p, '#view'), 'Cronómetro', 'Cardio: el cronómetro');
+  t.has(await text(p, '.csec-rx'), 'Martes: 20 min de bici', 'Cardio: lo que pidió el coach');
+  t.has(await p.$eval('#view', e => e.textContent), 'Cronómetro', 'Cardio: el cronómetro');
   t.eq(await p.$$eval('.sal-hist', l => l.length), 0, 'Cardio: las salidas viejas no aparecen en «Tus salidas»');
   t.eq(badReq(), [], 'al entrar a Cardio no se piden las salidas ni los recorridos viejos');
   await p.click('#nav-entreno').catch(() => {}); await wait(300);

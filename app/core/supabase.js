@@ -1467,7 +1467,8 @@ function applyPending(){
       applyHabitsDone(p.habits);
       _lastDay=JSON.stringify(p);
     } else if(it.k==="steps"){
-      if(state.daily[p.dt]) state.daily[p.dt].steps=String(p.steps);
+      // Aunque ese día no tenga registro: la fila de daily_logs se crea con los pasos solos.
+      state.daily[p.dt]=Object.assign({}, state.daily[p.dt]||{}, {steps:String(p.steps)});
       if(p.dt===today() && state.stepsDate===p.dt) state.steps=Math.max(state.steps||0, p.steps);
     } else if(it.k==="weight"){
       state.weights=(state.weights||[]).filter(w=>w.date!==p.date);

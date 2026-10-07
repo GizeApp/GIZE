@@ -1,13 +1,18 @@
 // Pasos automáticos desde Salud (iPhone) y Health Connect (Android), solo en la app de la tienda.
 // El iPhone y Android cuentan los pasos todo el día aunque GIZE esté cerrada: cada vez que la app
-// se abre o vuelve a primer plano, se leen los últimos 8 días y se suben (daily_logs.steps, ver
+// se abre o vuelve a primer plano, se leen los últimos días y se suben (daily_logs.steps, ver
 // queueSteps en supabase.js). Solo LEE pasos; no escribe nada en el celular.
+// Cuántos días: la primera lectura de cada día (y la primera al conectar) trae 31 días, para el
+// «Promedio del mes» de Cardio (core/pasosdia.js); las siguientes del mismo día, al volver a la
+// app, solo los últimos 8 (más livianas: los días viejos ya no cambian).
 //
 // Usa el plugin @capgo/capacitor-health (window.Capacitor.Plugins.Health). Si la app instalada no
 // lo trae, todo esto queda apagado y los pasos se anotan a mano (como en la web).
 //
 // - Hoy: va a state.steps salvo que lo anotado a mano sea más (una caminata sin el celular).
-// - Días anteriores: se suben si son más de lo que ya había.
+// - Días anteriores: se guardan en el registro del día (state.daily[fecha].steps, aunque ese día
+//   no tenga registro: es lo mismo que queda en daily_logs) y se suben si son más de lo que ya
+//   había.
 // - Varias apps pueden contar los mismos pasos (el celular, el reloj, Samsung Health…): por día
 //   se toma la fuente que más contó, en vez de sumarlas.
 //
@@ -20,9 +25,11 @@ import { today, ymd } from './utils.js';
 import { noteStepsSynced, queueSteps } from './supabase.js';
 
 export const DIAS_SALUD = 8;
+export const DIAS_SALUD_MES = 31;
 const MIN_GAP = 60 * 1000;
 
-export const SaludState = { busy: false, lastSync: 0, lastTry: 0, lastError: "", onChange: null };
+// connecting: «Conectar» tocado y todavía pidiendo el permiso (el botón dice «Conectando…»).
+export const SaludState = { busy: false, connecting: false, lastSync: 0, lastTry: 0, lastError: "", onChange: null };
 
 function plugin(){
   try {
@@ -38,12 +45,16 @@ export function saludNombre(){ return plataforma() === "ios" ? "Salud de Apple" 
 
 const keyOn = () => "gize_salud_" + ((State.cloudUser && State.cloudUser.id) || "local");
 const keySent = () => "gize_salud_sent_" + ((State.cloudUser && State.cloudUser.id) || "local");
+// Fecha de la última lectura de 31 días (una por día).
+const keyMes = () => "gize_salud_mes_" + ((State.cloudUser && State.cloudUser.id) || "local");
+function mesLeido(){ try { return localStorage.getItem(keyMes()) === today(); } catch (e) { return false; } }
+function marcarMes(){ try { localStorage.setItem(keyMes(), today()); } catch (e) {} }
 export function saludPrendida(){ try { return saludDisponible() && localStorage.getItem(keyOn()) === "1"; } catch (e) { return false; } }
 function setOn(v){ try { if (v) localStorage.setItem(keyOn(), "1"); else localStorage.removeItem(keyOn()); } catch (e) {} }
 // Pasos por día ya mandados (para no repetir envíos iguales).
 function readSent(){ try { return JSON.parse(localStorage.getItem(keySent()) || "{}") || {}; } catch (e) { return {}; } }
 function writeSent(o){
-  const cut = ymd(new Date(Date.now() - 30 * 864e5));
+  const cut = ymd(new Date(Date.now() - 40 * 864e5));
   Object.keys(o).forEach(d => { if (d < cut) delete o[d]; });
   try { localStorage.setItem(keySent(), JSON.stringify(o)); } catch (e) {}
 }
@@ -83,8 +94,9 @@ export async function syncSalud(force){
   SaludState.busy = true; changed();
   let touched = false;
   const envios = [];
+  const dias = mesLeido() ? DIAS_SALUD : DIAS_SALUD_MES;
   try {
-    const r = await H.readSamples({ dataType: "steps", startDate: dayStart(DIAS_SALUD - 1).toISOString(), endDate: new Date().toISOString(), limit: 0, ascending: true });
+    const r = await H.readSamples({ dataType: "steps", startDate: dayStart(dias - 1).toISOString(), endDate: new Date().toISOString(), limit: 0, ascending: true });
     const per = stepsPerDay((r && r.samples) || []);
     const sent = readSent(), t = today();
     Object.keys(per).forEach(d => {
@@ -100,13 +112,16 @@ export async function syncSalud(force){
         }
       } else if (d < t){
         const known = parseInt(state.daily && state.daily[d] && state.daily[d].steps) || 0;
-        if (n > known && n !== sent[d]){
-          if (state.daily && state.daily[d]) state.daily[d].steps = String(n);
-          sent[d] = n; envios.push(queueSteps(d, n));
+        if (n > known){
+          if (!state.daily || typeof state.daily !== "object") state.daily = {};
+          state.daily[d] = Object.assign({}, state.daily[d] || {}, { steps: String(n) });
+          touched = true;
+          if (n !== sent[d]){ sent[d] = n; envios.push(queueSteps(d, n)); }
         }
       }
     });
     writeSent(sent);
+    if (dias === DIAS_SALUD_MES) marcarMes();
     SaludState.lastSync = Date.now(); SaludState.lastError = "";
     if (touched) save();
     await Promise.all(envios).catch(() => {});

@@ -7,10 +7,10 @@
 // b) watchPosition va en el mismo toque de «Empezar» (iPhone: si no, el cartel del permiso puede
 //    no salir), aunque el navegador tarde en contestar si hay permiso.
 // c) Permiso negado: con algo medido, la salida se pausa y el mini mapa dice «Sin permiso de
-//    ubicación»; sin nada medido, el aviso de siempre en «Salir a moverte». Si el navegador ya lo
-//    había negado: no arranca y no queda mirando la ubicación.
+//    ubicación»; sin nada medido, la hoja «Salir a moverte» se vuelve a abrir con el aviso. Si el
+//    navegador ya lo había negado: no arranca y no queda mirando la ubicación.
 // El mapa de fondo no sale a internet en las pruebas (gize_mapa_off): proyección propia.
-import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, text, ALUMNO, profile, empezarSalida } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} };
 const H = { '/profiles': profile('client') };
@@ -81,7 +81,7 @@ async function page(base){
 
 async function enVivo(base, t){
   const pg = await page(base), p = pg.p;
-  await p.click('[data-action="sal-start"]'); await wait(500);
+  await empezarSalida(p); await wait(500);
   t.eq(await p.evaluate(() => window.__geo.inClick), [true], 'watchPosition se pide dentro del toque de «Empezar» (sin esperar al permiso)');
   let m = await mini(p);
   t.ok(m, 'en vivo: el mini mapa');
@@ -140,19 +140,19 @@ async function enVivo(base, t){
 async function sinPermiso(base, t){
   const pg = await page(base), p = pg.p;
   // Lo niega en el cartel, sin haber medido nada.
-  await p.click('[data-action="sal-start"]'); await wait(400);
+  await empezarSalida(p); await wait(400);
   t.eq((await mini(p) || {}).msg, 'Buscando tu ubicación…', 'esperando el permiso: «Buscando tu ubicación…»');
   await p.evaluate(() => window.__deny()); await wait(500);
   let s = await gs(p);
   t.eq([s.status, s.errorWhy, s.watchers], [null, 'permiso', 0], 'permiso negado sin nada medido: no queda salida ni mirando');
-  t.has(await text(p, '.sal-start .sal-err'), PERM_WEB, '«Salir a moverte» con el aviso del permiso');
+  t.has(await text(p, '#salSheet .sal-err'), PERM_WEB, 'la hoja «Salir a moverte» se vuelve a abrir con el aviso del permiso');
   t.ok(!(await p.$('.sal-minimap')), 'sin mini mapa esperando para siempre');
   // El navegador ya lo había negado: no arranca y no queda mirando.
   await p.evaluate(() => { window.__perm = 'denied'; });
-  await p.click('[data-action="sal-start"]'); await wait(500);
+  await empezarSalida(p); await wait(500);
   s = await gs(p);
   t.eq([s.status, s.errorWhy, s.watchers], [null, 'permiso', 0], 'ya negado: no arranca y no queda mirando la ubicación');
-  t.has(await text(p, '.sal-start .sal-err'), PERM_WEB, 'y avisa');
+  t.has(await text(p, '#salSheet .sal-err'), PERM_WEB, 'y avisa en la hoja');
   t.eq(pg.errs, [], 'errores de la página (sin permiso)');
   await pg.close();
 }

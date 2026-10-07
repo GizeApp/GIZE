@@ -43,15 +43,8 @@ html.lite .cneon i { animation: none; }
 .lap .lap-d { margin-left: auto; margin-right: 14px; color: var(--txt-3); font-size: var(--text-meta); }
 
 
-.cardio-rx { background:var(--card); border:1px solid var(--blue); border-left:3px solid var(--blue); border-radius:var(--r-box); padding:var(--space-14); margin-bottom:var(--space-16); }
-
-.cardio-rx-h { font-size: var(--text-meta); color:var(--gize-text); text-transform:uppercase; letter-spacing:.06em; font-weight:800; margin-bottom:8px; }
-
 .cardio-rx-txt { font-size: var(--text-body); color:var(--txt); line-height:1.5; margin-bottom:6px; }
-
-.cardio-toolsec { margin-top:26px; padding-top:20px; border-top:1px solid var(--border); }
-
-.cardio-tools-h { font-size:11px; color:var(--txt-3); text-transform:uppercase; letter-spacing:.08em; font-weight:700; margin-bottom:14px; text-align:center; }
+.csec-rx .mc-list { margin-bottom: 0; }
 
 /* Número del temporizador tocable → ruedas de minutos y segundos */
 .cring-pick { background: none; border: none; padding: 4px 10px; color: inherit; font-family: inherit; cursor: pointer; border-radius: var(--r-card); }
@@ -94,11 +87,11 @@ html.lite .cneon i { animation: none; }
    siempre oscuros, en cualquier apariencia: son contenido, como una foto. Nada se mueve sin fin:
    el punto de «grabando» es quieto y el recorrido se dibuja una vez (4 a 6 s). */
 
-/* «Cronómetro y temporizador» queda abajo: su botón principal va blanco sin el anillo (el anillo
-   es uno por pantalla, el de la salida: brand/BRAND.md). */
+/* «Cronómetro y temporizador»: su botón principal va blanco sin el anillo (el anillo es uno por
+   pantalla, el de la salida: brand/BRAND.md). */
 :root body:not(#_) .cardio-toolsec .ctrl.primary { background-clip: padding-box; animation: none; }
 
-/* ---- Tarjeta de arriba: elegir, en vivo, o terminada sin guardar ---- */
+/* ---- Arriba de todo: en vivo o terminada sin guardar; abajo, «Salir a moverte» ---- */
 .sal-card { position: relative; border-radius: 16px; padding: 16px 16px 18px; margin: 4px 0 18px; background: var(--card); border: 1px solid var(--border); }
 .sal-h { font-size: var(--text-meta); color: var(--gize-text); text-transform: uppercase; letter-spacing: .08em; font-weight: 800; margin-bottom: 12px; }
 .sal-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
@@ -108,7 +101,12 @@ html.lite .cneon i { animation: none; }
 .sal-mode-t { font-size: 18px; font-weight: 700; color: var(--gize-text); line-height: 1.2; }
 .sal-mode-s { font-size: 12px; font-weight: 500; line-height: 1.35; color: var(--gize-text-2); overflow-wrap: anywhere; }
 .sal-mode.active .sal-mode-ico { color: var(--gize-blue); background: color-mix(in srgb, var(--gize-blue) 16%, transparent); }
-.sal-card .ctrl-row { margin-top: 2px; }
+.sal-card .ctrl-row, .sal-start .ctrl-row { margin-top: 2px; }
+.sal-salir-t { margin: 0 4px 14px; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; text-align: center; }
+.sal-salir { margin-top: 6px; }
+/* La hoja para empezar (#salSheet): las dos opciones, el aviso y «Empezar». */
+.ssh-card.sal-start .sal-modes { margin-top: 4px; }
+.ssh-card.sal-start .ssh-close { margin-top: 8px; }
 .sal-err { margin: 0 0 14px; padding: 10px 12px; border-radius: var(--r-btn); background: var(--gize-danger-bg); color: var(--gize-danger); font-size: var(--text-meta); line-height: 1.45; }
 .sal-link { display: block; margin-top: 6px; background: none; border: none; padding: 0; color: var(--gize-blue); font: 700 var(--text-meta) var(--gize-font); text-decoration: underline; cursor: pointer; }
 
@@ -146,8 +144,7 @@ html.lite .cneon i { animation: none; }
 .nav-item.en-curso:not(.active)::after { content: ""; position: absolute; top: 4px; left: calc(50% + 8px); width: 8px; height: 8px; border-radius: 50%; background: var(--gize-danger); box-shadow: 0 0 0 2px var(--gize-bg); }
 
 /* ---- «Tus salidas» (y la lista del coach) ---- */
-.sal-hist { margin: 22px 0 6px; }
-.sal-hist-h { margin: 0 2px 10px; font-size: 11px; color: var(--txt-3); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+.csec-salidas .csec-m { font-variant-numeric: tabular-nums; }
 .sal-more { display: block; margin: 10px auto 0; padding: 8px 12px; background: none; border: none; color: var(--gize-blue); font: 700 var(--text-meta) var(--gize-font); cursor: pointer; }
 .sal-list { display: flex; flex-direction: column; gap: 8px; }
 .sal-row { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; width: 100%; min-width: 0; padding: 12px 34px 12px 14px; text-align: left; cursor: pointer;
@@ -287,3 +284,51 @@ body:not(#_) .sov-btns :is(.ctrl, .sov-link).sov-del { color: var(--gize-danger)
 .sov-map .maplibregl-ctrl-bottom-right { right: 22px; bottom: 6px; }
 .sov-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib { border-radius: 6px; }
 .sal-minimap .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib { font-size: 8px; }
+
+/* ===================== Secciones desplegables (app/screens/cardio.js section) =====================
+   Cada sección es una caja (.sal-card: la misma superficie y el mismo filete fino en todas las
+   apariencias) con un <details>: el título en mayúsculas chicas, un dato corto a la derecha que se
+   ve con la sección cerrada y la flecha (la de los ejercicios de Entreno) que da vuelta al abrir. */
+.sal-card.csec-card { padding: 0; margin: 0 0 12px; }
+.csec-sum { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 14px 14px 14px 16px; cursor: pointer; list-style: none;
+  -webkit-tap-highlight-color: transparent; border-radius: inherit; }
+.csec-sum::-webkit-details-marker { display: none; }
+.csec-sum:focus-visible { outline: 2px solid var(--gize-blue); outline-offset: -2px; }
+.csec-t { flex: 1; min-width: 0; font-size: var(--text-meta); color: var(--gize-text); text-transform: uppercase; letter-spacing: .08em; font-weight: 800; }
+.csec-m { flex: none; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-meta); font-weight: 600; color: var(--txt-2); font-variant-numeric: tabular-nums; }
+.csec[open] > .csec-sum .csec-m { display: none; }
+.csec-chev { flex: none; display: inline-flex; color: var(--gize-text-2); transition: transform .2s ease; }
+.csec-chev svg { width: var(--icon-md, 20px); height: var(--icon-md, 20px); }
+.csec[open] > .csec-sum .csec-chev { transform: rotate(180deg); }
+.csec-b { padding: 0 16px 16px; }
+.csec-tools .csec-b { padding-top: 2px; }
+.csec-tools .cardio-modes { margin-top: 0; }
+@media (prefers-reduced-motion: reduce) { .csec-chev { transition: none; } }
+
+/* «Pasos»: lo más importante de la sección. Los de hoy en grande (sin exagerar: que equilibre con
+   las tres casillas de abajo), ayer y los promedios de la semana y del mes, los últimos 7 días en
+   barras (hoy, en el azul de acción) y el link a la competencia. */
+.cpas .csec-t { font-size: var(--text-body); letter-spacing: .06em; }
+.cpas-hoy { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; margin: 0 0 12px; }
+.cpas-n { font: 800 38px/1.05 var(--gize-font-data, var(--gize-font)); letter-spacing: -.02em; color: var(--gize-text); font-variant-numeric: tabular-nums; }
+.cpas-u { font-size: var(--text-body); font-weight: 600; color: var(--txt-2); }
+.cpas-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.cpas-st { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 10px 9px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--border); }
+.cpas-st-l { font-size: 11px; font-weight: 700; color: var(--txt-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cpas-st-v { font: 700 clamp(16px, 4.8vw, 19px)/1.15 var(--gize-font-data, var(--gize-font)); color: var(--gize-text); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cpas-st-s { font-size: 11px; color: var(--txt-2); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cpas-sem { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; height: 64px; margin-bottom: 6px; }
+.cpas-dia { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 5px; min-width: 0; }
+.cpas-bar { flex: 1; display: flex; align-items: flex-end; justify-content: center; width: 100%; min-height: 0; }
+.cpas-dia i { display: block; width: 100%; max-width: 26px; min-height: 3px; border-radius: 5px 5px 2px 2px; background: color-mix(in srgb, var(--gize-text) 22%, transparent); }
+.cpas-dia.hoy i { background: var(--gize-blue); }
+.cpas-dia small { font-size: 11px; font-weight: 700; color: var(--txt-2); line-height: 1; }
+.cpas-dia.hoy small { color: var(--gize-text); }
+.cpas-src { margin-top: 12px; }
+.cpas-src .pg-note { margin-top: 0; }
+.cpas-comp { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; margin-top: 14px; padding: 12px 34px 12px 14px; text-align: left; cursor: pointer;
+  background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-card); color: var(--gize-text); font: 700 var(--text-body) var(--gize-font); }
+.cpas-comp-s { font-size: var(--text-meta); font-weight: 500; color: var(--txt-2); }
+.cpas-comp .ptile-go { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 22px; color: var(--txt-2); }
+.cpas-comp:active { transform: scale(.99); }
+html.sin-neon .cpas-dia.hoy i { background: var(--gize-text); }

@@ -78,3 +78,41 @@ html.tema-luz .pg { --pg-gold-text: #7A5200; --pg-gold-bg: linear-gradient(135de
 /* «Claro»: el rojo de borrar un poco más oscuro sobre el celeste (AA). */
 html.tema-luz .pg-link.danger { color: #8A1A16; }
 .pg-inv-row .join-btn { padding: 12px 22px; }
+
+/* ---- Conectar Salud de Apple / Health Connect (app/ui/saludboton.js) ----
+   El mismo botón en Cardio → «Pasos» y en «Competencia de pasos»: ancho, para tocar fácil, con el
+   radio de las cajas y el filete fino (--gize-rgb-ring) en un ::before enmascarado (así sirve
+   también sobre el vidrio translúcido de «Claro»), sin resplandor. El corazón es un dibujo propio
+   (no el ícono de la app Salud): rosado en iPhone, azul en Android. A la derecha la flecha (o
+   «Conectando…» mientras pide el permiso). Conectado: una fila con el tilde verde, «Actualizar
+   ahora» y «Desconectar». */
+.salud-btn { --salud-tint: #FF5C7C; position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; margin-top: 12px; padding: 12px 12px 12px 12px;
+  border: 0; border-radius: var(--r-card); background: var(--card-2); color: var(--gize-text); text-align: left; font-family: var(--gize-font); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.salud-btn::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none;
+  background: var(--gize-rgb-ring, linear-gradient(var(--gize-border), var(--gize-border)));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+.salud-btn.salud-android { --salud-tint: var(--gize-blue); }
+.salud-btn:active:not(:disabled) { transform: scale(.99); }
+.salud-btn:focus-visible { outline: 2px solid var(--gize-blue); outline-offset: 2px; }
+.salud-btn:disabled { cursor: default; }
+.salud-go { flex: none; display: inline-flex; color: var(--txt-2); }
+.salud-go svg { width: 20px; height: 20px; }
+.salud-busy { flex: none; font-size: var(--text-meta); font-weight: 600; color: var(--txt-2); }
+.salud-ico { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; color: var(--salud-tint);
+  background: color-mix(in srgb, var(--salud-tint) 16%, transparent); border: 1px solid color-mix(in srgb, var(--salud-tint) 28%, transparent); }
+.salud-ico svg { width: 24px; height: 24px; }
+.salud-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.salud-t { font-size: var(--text-body); font-weight: 700; color: var(--gize-text); line-height: 1.25; }
+.salud-s { font-size: 12px; font-weight: 500; color: var(--txt-2); line-height: 1.35; }
+.salud-ok { --salud-ok: #4ADE80; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 12px; font-size: var(--text-meta); }
+.salud-ok-ico { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: var(--salud-ok); background: color-mix(in srgb, var(--salud-ok) 18%, transparent); }
+.salud-ok-ico svg { width: 13px; height: 13px; }
+.salud-ok-t { font-weight: 700; color: var(--gize-text); }
+.salud-ok-acts { display: inline-flex; align-items: center; gap: 8px; }
+.salud-ok .pg-link { padding: 6px 0; }
+.salud-ok-sep { color: var(--txt-2); }
+/* «Claro»: el corazón y el verde más oscuros sobre el celeste (contraste AA). */
+html.tema-luz .salud-btn { --salud-tint: #C2184F; }
+html.tema-luz .salud-btn.salud-android { --salud-tint: var(--gize-blue-deep, var(--gize-blue)); }
+html.tema-luz .salud-ok { --salud-ok: #157A3C; }

@@ -101,3 +101,13 @@ export async function openAllEx(p){
   });
   await wait(150);
 }
+
+// Cardio: «Salir a moverte» (lo último de la pestaña) abre la hoja de abajo con «A pie» / «En
+// bici» y «Empezar». abrirSalir la abre; empezarSalida la abre si hace falta y toca «Empezar».
+export async function abrirSalir(p){
+  if (!await p.$('#salSheet')) { await p.click('[data-action="sal-sheet"]'); await wait(350); }
+}
+export async function empezarSalida(p){
+  await abrirSalir(p);
+  await p.click('#salSheet [data-action="sal-start"]');
+}

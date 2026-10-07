@@ -10,7 +10,7 @@
 // c) El recorrido guardado: el hueco corta el dibujo y se une en neón (prepareRoute.gaps),
 //    salvo donde lo recortó la privacidad de la imagen (trimTrack).
 // El mapa de fondo no sale a internet en las pruebas (gize_mapa_off): proyección propia.
-import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, text, ALUMNO, profile, empezarSalida } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} };
 const H = { '/profiles': profile('client') };
@@ -74,7 +74,7 @@ export default async function ({ base, t }){
   await p.addInitScript("localStorage.setItem('gize_mapa_off','1'); localStorage.setItem('gize_lite','0'); localStorage.setItem('gize_salida_aviso','1');");
   await p.goto(base + '/app/'); await wait(2500);
   await p.click('#nav-cardio'); await wait(400);
-  await p.click('[data-action="sal-start"]'); await wait(500);
+  await empezarSalida(p); await wait(500);
   const t0 = await p.evaluate(() => Date.now() + 1000);
 
   // 60 s caminando por la calle; el redibujo de cada 5 s y después 3 datos más (no aceptados

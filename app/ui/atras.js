@@ -25,6 +25,7 @@ const CERRAR = [
   '#streakHost [data-action="streak-close"]',    // racha
   '#salShare .ssh-close',                        // Cardio: «Compartir tu salida»
   '#salAviso .ctrl[data-action="sal-aviso-no"]', // Cardio: «Usar tu ubicación»
+  '#salSheet .ssh-close',                        // Cardio: «Salir a moverte» (la hoja para empezar)
   '#salidaHost [data-action="sal-close"]',       // Cardio: resumen de una salida
   '#sheetHost [data-action="search-close"]',     // hojas de abajo (alimento, ejercicio, hábito…)
   '#sheetHost [data-action$="-cancel"]',

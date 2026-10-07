@@ -481,6 +481,8 @@ document.body.addEventListener("click", async e => {
   // Cardio
   if (a.startsWith("sal-") && salidaAction(a, el)) return;
   if (a === "cardio-mode") { CardioState.cardioMode = el.dataset.mode; renderApp(); return; }
+  // «Pasos» → «Competí con tus amigos»: Progreso → «Competencia de pasos».
+  if (a === "cardio-pasos") { State.view = "progreso"; ProgresoState.section = "pasos"; ProgresoState.wAll = false; renderApp(); window.scrollTo(0, 0); return; }
   if (a === "sw-toggle") { if(CardioState.swRunning){ CardioState.swAccum+=Date.now()-CardioState.swStartTs; CardioState.swRunning=false; } else { CardioState.swStartTs=Date.now(); CardioState.swRunning=true; } renderApp(); return; }
   if (a === "sw-lap") { CardioState.swLaps.push(CardioState.swAccum+(Date.now()-CardioState.swStartTs)); renderApp(); return; }
   if (a === "sw-reset") { CardioState.swRunning=false; CardioState.swAccum=0; CardioState.swStartTs=0; CardioState.swLaps=[]; renderApp(); return; }

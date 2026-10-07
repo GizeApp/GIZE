@@ -11,8 +11,9 @@ import { State, state } from '../core/state.js';
 import { esc, today } from '../core/utils.js';
 import { borrarGrupo, cambiarMiNombre, campeonGrupo, codigoValido, crearGrupo, linkInvitacion, mensajeError, misGrupos, pasosTxt,
   rankingGrupo, sacarMiembro, salirGrupo, semanaAR, textoSemana, tomarInvitacion, unirseGrupo } from '../core/grupos.js';
-import { SaludState, apagarSalud, prenderSalud, saludDisponible, saludNombre, saludPrendida, syncSalud } from '../core/salud.js';
+import { SaludState, apagarSalud, prenderSalud, saludDisponible, syncSalud } from '../core/salud.js';
 import { ProgresoState } from './progreso.js';
+import { saludHtml } from '../ui/saludboton.js';
 import { renderApp } from '../main.js';
 
 export const PasosState = {
@@ -85,22 +86,16 @@ export function pasosResumen(){
 }
 
 // Mis pasos de hoy: el número y de dónde salen. No se anotan a mano (pedido): en la app se cargan
-// solos desde Salud de Apple / Health Connect; en la web, se avisa que es desde la app.
+// solos desde Salud de Apple / Health Connect (el botón para conectar, o ya conectado la fila con
+// «Actualizar ahora» y «Desconectar»: ui/saludboton.js, el mismo de Cardio); en la web, se avisa
+// que es desde la app.
 function hoyHtml(){
   const n = state.stepsDate === today() ? (state.steps || 0) : 0;
-  let nota, extra = "";
-  if (saludPrendida()){
-    nota = `Se cargan solos desde ${esc(saludNombre())} cada vez que abrís la app.`;
-    extra = `<button class="pg-link" data-pg="salud-sync"${SaludState.busy ? " disabled" : ""}>${SaludState.busy ? "Actualizando…" : "Actualizar ahora"}</button><button class="pg-link" data-pg="salud-off">Desconectar</button>`;
-  } else if (saludDisponible()){
-    nota = `Conectá ${esc(saludNombre())} y tus pasos se cargan solos, aunque no abras la app.`;
-    extra = `<button class="form-save join-btn pg-conectar" data-pg="salud-on">Conectar ${esc(saludNombre())}</button>`;
-  } else {
-    nota = "Tus pasos se cargan solos desde la app de GIZE en tu celular, conectada a Salud de Apple o Health Connect.";
-  }
+  const fuente = saludDisponible() ? saludHtml()
+    : '<div class="pg-note">Tus pasos se cargan solos desde la app de GIZE en tu celular, conectada a Salud de Apple o Health Connect.</div>';
   return `<div class="join-box pg-hoy">
       <div class="pg-hoy-top"><span class="join-t">Tus pasos de hoy</span><b class="pg-hoy-n" id="pgHoyN">${pasosTxt(n)}</b></div>
-      <div class="pg-note">${nota}</div>${extra}
+      ${fuente}
     </div>`;
 }
 
@@ -266,13 +261,22 @@ document.body.addEventListener("click", async e => {
     return;
   }
   if (a === "salud-on"){
-    const msg = await prenderSalud();
+    if (SaludState.connecting) return;
+    SaludState.connecting = true; renderApp(); // «Conectando…»
+    let msg = "";
+    try { msg = await prenderSalud(); } finally { SaludState.connecting = false; }
     if (msg && msg !== "__silent") alert(msg);
     renderApp();
     refrescar();
     return;
   }
-  if (a === "salud-sync"){ await syncSalud(true); refrescar(); return; }
+  if (a === "salud-sync"){
+    const p = syncSalud(true);
+    if (State.view === "cardio") renderApp(); // «Actualizando…» en la sección Pasos de Cardio
+    await p; refrescar();
+    if (State.view === "cardio") renderApp();
+    return;
+  }
   if (a === "salud-off"){ alert(apagarSalud()); renderApp(); return; }
 });
 // Enter en un campo hace lo de su botón.
@@ -285,6 +289,8 @@ document.body.addEventListener("keydown", e => {
 
 // Al terminar una lectura de Salud / Health Connect: el número de hoy y el ranking al día.
 SaludState.onChange = () => {
+  // Cardio → «Pasos»: hoy y la semana al día (no con las ruedas del tiempo abiertas).
+  if (State.view === "cardio"){ if (!SaludState.busy && !document.getElementById("timePick")) renderApp(); return; }
   if (!aVista()) return;
   const n = document.getElementById("pgHoyN"); if (n) n.textContent = pasosTxt(state.steps);
   if (!SaludState.busy) refrescar();

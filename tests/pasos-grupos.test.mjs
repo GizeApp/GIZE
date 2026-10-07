@@ -271,9 +271,12 @@ export default async function ({ base, t }){
     await close();
   }
 
-  // 9) App de Android con el plugin de Health Connect (simulado): sin permiso aparece «Conectar
-  //    Health Connect»; al conectar pide SOLO leer pasos, lee 8 días, por día toma la fuente que
-  //    más contó (no las suma) y sube los pasos; «Desconectar» deja de leer.
+  // 9) App de Android con el plugin de Health Connect (simulado): sin permiso aparece el botón
+  //    «Conectar Health Connect» (con el corazón y «Tus pasos se cargan solos…», el mismo en Cardio
+  //    y acá); al conectar pide SOLO leer pasos, la primera lectura del día trae 31 días (para el
+  //    promedio del mes de Cardio) y las siguientes 8, por día toma la fuente que más contó (no las
+  //    suma), guarda los días anteriores en el registro del día y sube los pasos; conectado, la fila
+  //    «Conectado a Health Connect» con «Actualizar ahora» y «Desconectar», que deja de leer.
   {
     const m = mock({ grupos: [GRUPO], ranking: { g1: RANKING }, campeon: { g1: CAMPEON } });
     const NATIVE = () => {
@@ -298,24 +301,32 @@ export default async function ({ base, t }){
     await p.goto(base + '/app/'); await wait(2500);
     // En Cardio también se ofrece conectar (pedido).
     await p.click('#nav-cardio'); await wait(600);
-    t.has(await text(p, '#view .sal-salud'), 'Conectar Health Connect', 'Cardio: ofrece conectar Health Connect');
+    t.has(await text(p, '#view .csec-pasos .salud-btn'), 'Conectar Health Connect', 'Cardio → Pasos: ofrece conectar Health Connect');
     await abrirPasos(p);
-    t.has(await text(p, '.pg-hoy .pg-note'), 'Conectá Health Connect', 'Android sin permiso: ofrece conectar Health Connect');
-    t.ok(!!(await p.$('[data-pg="salud-on"]')), 'botón «Conectar Health Connect»');
+    const btn = await p.evaluate(() => { const b = document.querySelector('.pg-hoy .salud-btn[data-pg="salud-on"]'); return b && [!!b.querySelector('.salud-ico svg'), b.querySelector('.salud-t').textContent, b.querySelector('.salud-s').textContent]; });
+    t.eq(btn, [true, 'Conectar Health Connect', 'Tus pasos se cargan solos, aunque no abras GIZE'], 'Android sin permiso: el botón «Conectar Health Connect» con el corazón y el subtítulo');
     t.eq(await p.evaluate(() => window.__health.lecturas.length), 0, 'sin permiso no lee nada');
     await p.click('[data-pg="salud-on"]'); await wait(1500);
     const h = await p.evaluate(() => window.__health);
     t.eq(h.pedidos, [{ read: ['steps'], write: [] }], 'pide solo leer pasos (nada de escribir)');
     t.ok(h.lecturas.length === 1 && h.lecturas[0].dataType === 'steps' && h.lecturas[0].limit === 0, 'lee los pasos: ' + JSON.stringify(h.lecturas));
     const dias = h.lecturas[0] ? Math.round((Date.parse(h.lecturas[0].endDate) - Date.parse(h.lecturas[0].startDate)) / 864e5) : -1;
-    t.ok(dias >= 7 && dias <= 8, 'lee los últimos 8 días (' + dias + ')');
+    t.ok(dias >= 30 && dias <= 31, 'la primera lectura del día trae los últimos 31 días (' + dias + ')');
     t.eq(await text(p, '#pgHoyN'), '7.000', 'hoy: la fuente que más contó (el celular, 4000 + 3000), sin sumar el reloj');
     const b = m.posts.map(x => { try { return JSON.parse(x); } catch (e) { return null; } }).flat().filter(Boolean);
     t.ok(b.some(x => x.steps === 7000) && b.some(x => x.steps === 9100), 'sube hoy y ayer a daily_logs: ' + JSON.stringify(b));
-    t.has(await text(p, '.pg-hoy .pg-note'), 'Se cargan solos desde Health Connect', 'conectado: avisa que se cargan solos');
+    t.has(await text(p, '.pg-hoy .salud-ok'), 'Conectado a Health Connect', 'conectado: la fila «Conectado a Health Connect»');
+    t.ok(await p.evaluate(async () => { const { state } = await import('/app/core/state.js'), u = await import('/app/core/utils.js'); const d = new Date(); d.setDate(d.getDate() - 1); return state.daily[u.ymd(d)] && state.daily[u.ymd(d)].steps === '9100'; }), 'ayer queda guardado en el registro del día (aunque no tuviera registro)');
     await p.click('#nav-cardio'); await wait(600);
-    t.has(await text(p, '#view .sal-salud'), 'Se cargan solos desde Health Connect', 'Cardio conectado: muestra los pasos de hoy desde Health Connect');
-    t.eq(await p.$$eval('#view .sal-salud [data-pg="salud-on"]', x => x.length), 0, 'Cardio conectado: sin botón de conectar');
+    t.has(await text(p, '#view .csec-pasos .salud-ok'), 'Conectado a Health Connect', 'Cardio conectado: «Conectado a Health Connect»');
+    t.has(await text(p, '#view .csec-pasos .salud-ok'), 'Actualizar ahora', 'Cardio conectado: con «Actualizar ahora»');
+    t.eq(await p.$$eval('#view .csec-pasos [data-pg="salud-on"]', x => x.length), 0, 'Cardio conectado: sin botón de conectar');
+    t.eq(await text(p, '#cpasN'), '7.000', 'Cardio: los pasos de hoy');
+    t.eq(await text(p, '.cpas-st-ayer .cpas-st-v'), '9.100', 'Cardio: ayer, desde Health Connect');
+    await p.click('#view .csec-pasos [data-pg="salud-sync"]'); await wait(800);
+    const h2 = await p.evaluate(() => window.__health.lecturas);
+    const dias2 = h2[1] ? Math.round((Date.parse(h2[1].endDate) - Date.parse(h2[1].startDate)) / 864e5) : -1;
+    t.ok(h2.length === 2 && dias2 >= 7 && dias2 <= 8, '«Actualizar ahora» el mismo día: lee solo los últimos 8 días (' + dias2 + ')');
     await abrirPasos(p);
     t.ok(!!(await p.$('[data-pg="salud-off"]')), 'con «Desconectar»');
     t.ok(dialogs.length === 1 && /solo el total de la semana/.test(dialogs[0]), 'antes del permiso explica qué se lee y quién lo ve: ' + JSON.stringify(dialogs));
