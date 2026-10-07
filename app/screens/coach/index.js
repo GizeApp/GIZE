@@ -7,7 +7,9 @@ import { coachActivity, coachInitials, renderCoachInfo } from './clientes.js';
 
 import { renderApplyPicker, renderCoachBlock, renderCoachPlan, renderCoachRoutine, renderCoachSchedule, renderCopyPicker, renderSchedPicker } from './rutinas.js';
 
-import { picker, renderCoachCheckins, renderCoachDaily, renderCoachWeekly } from './seguimiento.js';
+import { renderCoachCalendar, calSelDay } from './calendario.js';
+
+import { renderCoachCheckins, renderCoachDaily, renderCoachWeekly } from './seguimiento.js';
 
 import { CoachState } from './state.js';
 import { CATALOGO, diasDeEntreno, rutinasDeDias } from '../../core/rutinas-ejemplo.js';
@@ -181,12 +183,10 @@ export function renderCoach(){
       // Peso día a día: gráfico a la izquierda, registros a la derecha (antes iban uno debajo del otro).
       const wlist=d.weights.length ? '<table class="co-tbl"><thead><tr><th>Fecha</th><th>Peso</th></tr></thead><tbody>'+d.weights.slice().reverse().map(w=>'<tr><td class="dt">'+fmtDate(w.date)+'</td><td><b>'+dec(w.kg)+' kg</b></td></tr>').join("")+'</tbody></table>' : "";
       const wblock=d.weights.length ? '<div class="co-split"><div class="co-split-main">'+wchart+'</div><div class="co-split-side">'+wlist+'</div></div>' : wchart;
-      // Historial de entrenos: un entreno por vez con el mismo selector que el seguimiento.
+      // Historial de entrenos: calendario con los días entrenados y, al tocar uno, su sesión.
       const sessSorted=d.sessions.slice().sort((a,b)=>(b.ts||0)-(a.ts||0));
-      const sessKey=se=>String(se.ts||se.date);
-      const sessSel=sessSorted.some(se=>sessKey(se)===CoachState.coachSessSel) ? CoachState.coachSessSel : "";
-      const sessOne=sessSorted.find(se=>sessKey(se)===sessSel);
-      const sess=sessSorted.length ? picker("sess-pick", sessSorted.map(se=>({v:sessKey(se), t:fmtDate(se.date)+" · "+(se.day||"Entreno")})), sessSel, "Entreno")+(sessOne?renderSessionItem(sessOne,{open:true, history:d.sessions}):"") : "";
+      const calSess=sessSorted.length ? d.sessions.filter(se=>se.date===calSelDay("sess")).sort((x,y)=>(x.ts||0)-(y.ts||0)) : [];
+      const sess=sessSorted.length ? renderCoachCalendar("sess", d.sessions.map(se=>se.date), today(), ["entreno","entrenos"])+(calSelDay("sess")?(calSess.length?calSess.map(se=>renderSessionItem(se,{open:true, history:d.sessions})).join(""):'<div class="cal-hint">Ese día no hay entreno.</div>'):'<div class="cal-hint">Tocá un día marcado para ver el entreno.</div>') : "";
       const vol=(d.routine&&d.routine.length)?renderVolumen(d.routine):'<div class="cal-hint">Sin rutina cargada.</div>';
       const tab=CoachState.coachClientTab||"ficha";
       const tabs='<div class="co-tabs">'+

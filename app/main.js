@@ -46,6 +46,7 @@ import './screens/coach/preguntas.js';
 import { coachPlanObj, cpApply, loadTpls, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
+import { calState } from './screens/coach/calendario.js';
 import { mealAction, nutritionRow } from './screens/coach/planes.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
@@ -1258,6 +1259,8 @@ document.body.addEventListener("click", async e => {
   if(a==="plsec-close"){ CoachState.coachPlanSec=null; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="sec-open" && b.dataset.v==="chat"){ openCoachChat(CoachState.coachSel); return; }
   if(a==="sec-open"){ CoachState.coachSec=b.dataset.v; CoachState.coachSalidaSel=null; renderCoach(); window.scrollTo(0,0); return; }
+  if(a==="cal-nav"){ const c=calState(b.dataset.k); c.m=b.dataset.m; c.d=null; renderCoach(); return; }
+  if(a==="cal-day"){ const c=calState(b.dataset.k); c.d=c.d===b.dataset.d?null:b.dataset.d; renderCoach(); return; }
   if(a==="sec-close"){ CoachState.coachSec=null; renderCoach(); window.scrollTo(0,0); return; }
   // Salidas a pie / en bici del alumno: abrir una (pide su recorrido; si la vez anterior no se
   // pudo, prueba de nuevo) y volver a la lista.
@@ -1477,9 +1480,6 @@ document.body.addEventListener("change", async e => {
   const a=el.dataset.coach;
   if(a==="ex"){ CoachState.coachData.loadEx=el.value; renderCoach(); }
   else if(a==="dayfilter"){ CoachState.coachDayFilter=el.value||null; CoachState.coachData.loadEx=null; renderCoach(); }
-  else if(a==="daily-pick"){ CoachState.coachDailySel=el.value; renderCoach(); }
-  else if(a==="ck-pick"){ CoachState.coachCkSel=el.value; renderCoach(); }
-  else if(a==="sess-pick"){ CoachState.coachSessSel=el.value; renderCoach(); }
 });
 
 document.body.addEventListener("input", async e => {

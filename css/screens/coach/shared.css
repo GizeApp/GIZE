@@ -223,3 +223,29 @@ body:not(#_) .tpl-item .co-arrow { grid-column: 2; grid-row: 1 / span 2; align-s
 /* Plan alimenticio: los campos de reemplazos y listas llenan la fila sin salirse de la tarjeta. */
 body:not(#_) :is(.sw-row, .le-row) > .ml-in { flex: 1 1 0; width: 0; }
 body:not(#_) .plan-edit .ci-grid-2 > * { min-width: 0; }
+
+/* Calendario de «Historial de entrenos»: mapa de asistencia. Día entrenado = número con punto
+   verde (botón); día sin entreno = número apagado; día abierto = pastilla con el azul de marca. */
+.cal-x { --cal-ok:#3DDC84; background:var(--gize-surface); border:1px solid var(--gize-border); border-radius:var(--r-btn); padding:16px 14px 14px; margin:4px auto 16px; width:100%; max-width:400px; }
+.cal-x-grid { justify-items:center; }
+.cal-x-day, .cal-x-pad { width:100%; max-width:44px; }
+.cal-x-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
+.cal-x-title { font-weight:700; font-size:var(--text-body); color:var(--gize-text); text-align:center; line-height:1.2; }
+.cal-x-title span { display:block; font-size:var(--text-meta); font-weight:600; color:var(--txt-3); margin-top:2px; }
+.cal-x-nav { width:34px; height:34px; border-radius:var(--r-md); border:1px solid var(--btn-line, var(--gize-border)); background:transparent; color:var(--txt-2); font:600 18px/1 var(--gize-font); cursor:pointer; flex-shrink:0; }
+.cal-x-nav:hover { color:var(--gize-text); border-color:var(--gize-blue); }
+.cal-x-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; }
+.cal-x-dow { margin-bottom:4px; }
+.cal-x-dow span { text-align:center; font-size:var(--text-meta); font-weight:600; color:var(--txt-3); }
+.cal-x-day, .cal-x-pad { aspect-ratio:1; display:flex; align-items:center; justify-content:center; position:relative; border-radius:var(--gize-radius-pill); border:1px solid transparent; background:transparent;
+    font:600 var(--text-meta) var(--gize-font); color:var(--txt-3); opacity:.7; padding:0; }
+.cal-x-day.today { border-color:rgba(255,255,255,.22); opacity:1; }
+.cal-x-day.on { color:var(--gize-text); opacity:1; cursor:pointer; }
+.cal-x-day.on::after { content:""; position:absolute; bottom:15%; left:50%; width:6px; height:6px; margin-left:-3px; border-radius:50%; background:var(--cal-ok); }
+.cal-x-day.on:hover { border-color:rgba(255,255,255,.28); }
+.cal-x-day.on:focus-visible { outline:none; box-shadow:0 0 0 3px color-mix(in srgb, var(--gize-blue) 25%, transparent); }
+.cal-x-day.sel { background:color-mix(in srgb, var(--gize-blue) 22%, transparent); border-color:var(--gize-blue); }
+.cal-x-legend { display:flex; gap:16px; justify-content:center; margin-top:10px; font-size:var(--text-meta); color:var(--txt-3); }
+.cal-x-legend span { display:inline-flex; align-items:center; gap:6px; }
+.cal-x-legend i { width:8px; height:8px; border-radius:50%; background:transparent; border:1px solid var(--txt-3); }
+.cal-x-legend i.on { background:var(--cal-ok); border-color:var(--cal-ok); }
