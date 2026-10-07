@@ -142,6 +142,15 @@ export function customMacros(){
   const m = state.calProfile && state.calProfile.macros;
   return m && (+m.p > 0 || +m.c > 0 || +m.f > 0) ? { p: +m.p||0, c: +m.c||0, f: +m.f||0 } : null;
 }
+// Al lado del anillo: cuántas calorías faltan para la meta del día (o cuántas te pasaste).
+// Mismos colores que el resto: en la meta verde agua, pasado en ámbar. Sin meta no se muestra.
+export function kcalLeftHtml(t, kcal, past){
+  if (!(t > 0)) return "";
+  const d = Math.round(t - (Number(kcal) || 0)), n = Math.abs(d).toLocaleString("es-AR");
+  if (d === 0) return `<div class="wk-avg kcal-left eq"><span class="wk-t">Llegaste</span><span class="wk-n">0<small>kcal</small></span><span class="wk-d">justo en tu meta</span></div>`;
+  if (d < 0) return `<div class="wk-avg kcal-left up"><span class="wk-t">Te pasaste</span><span class="wk-n">${n}<small>kcal</small></span><span class="wk-d">de tu meta de ${t.toLocaleString("es-AR")}</span></div>`;
+  return `<div class="wk-avg kcal-left"><span class="wk-t">${past ? "Te faltaron" : "Te faltan"}</span><span class="wk-n">${n}<small>kcal</small></span><span class="wk-d">para tu meta de ${t.toLocaleString("es-AR")}</span></div>`;
+}
 export const macroKcal = m => Math.round((+m.p||0)*4 + (+m.c||0)*4 + (+m.f||0)*9);
 
 export function macroTargets(){
@@ -474,6 +483,7 @@ export function renderComida(){
         <div class="ring-lbl">de ${t} kcal</div>
       </div>
     </div>
+    ${kcalLeftHtml(t, tot.kcal, past)}
     </div>
     <div class="macros">
       ${mbar("Proteína", tot.p, mt.p)}
