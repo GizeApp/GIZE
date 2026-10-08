@@ -107,12 +107,13 @@ export function showLogin(msg, mode, vals){
 //   "newpass" aparece con la sesión de recuperación (por el código o por el link) para
 //             elegir la contraseña nueva.
 // El mail viaja de un paso al otro en vals.email (en "code" va en un campo oculto #auEmail,
-// así «Volver a ingresar» y «Mandarme otro mail» lo traen escrito).
+// así «Volver a ingresar» y «Pedir un mail nuevo» lo traen escrito). Si no se sabe (botón del
+// mail abierto en otro navegador, «Ya tengo un código» sin mail), vals.askEmail lo pide ahí.
 function showPasswordReset(msg, mode, vals){
   const host=document.getElementById("authHost"); if(!host) return;
   host.style.display="flex";
   hideSilkBg();
-  const isNew = mode==="newpass", isCode = mode==="code";
+  const isNew = mode==="newpass", isCode = mode==="code", askEmail = isCode && !!vals.askEmail;
   const isOk = !!msg && /^listo/i.test(String(msg).trim());
   const email = String(vals.email||"").trim();
   let stepIdx=-1;
@@ -124,9 +125,16 @@ function showPasswordReset(msg, mode, vals){
       (id==="auPass" ? '<button type="button" class="auth-toggle-pass" data-toggle-pass aria-label="Mostrar contraseña">'+auIcoEye+'</button>' : '')+
     '</div>';
   const link=(action, text)=>'<div class="auth-switch" data-auth="'+action+'" role="button" tabindex="0" style="animation-delay:'+nextDelay()+'">'+text+'</div>';
+  // Botón del mail abierto en el navegador del celular cuando el pedido se hizo en la app: el
+  // token se pasa a la app (gize://), que lo canjea si el pedido salió de ahí. Solo en celulares
+  // y fuera de la app (en la compu no hay app que abrir).
+  const mobile = (()=>{ try{ return isIOS() || /Android/i.test(navigator.userAgent||""); }catch(e){ return false; } })();
+  const appBtn = isCode && vals.appLink && mobile && !nativeApp()
+    ? '<a class="auth-switch auth-open-app" href="gize://confirmado#recuperar='+encodeURIComponent(String(vals.appLink))+'" style="animation-delay:'+nextDelay()+'">Lo pedí desde la app: abrir GIZE</a>' : "";
   const sub = isNew ? "Elegí tu contraseña nueva" : isCode ? "Código del mail" : "Recuperar contraseña";
   const note = isNew ? ""
-    : isCode ? 'Escribí el código de 6 números que te mandamos'+(email?' a <b>'+esc(email)+'</b>':'')+'. Funciona en este celular o en cualquier otro.'
+    : isCode ? (askEmail ? 'Escribí el mail de tu cuenta y el código de 6 números del mail que te mandamos. Funciona en este celular o en cualquier otro.'
+                         : 'Escribí el código de 6 números que te mandamos'+(email?' a <b>'+esc(email)+'</b>':'')+'. Funciona en este celular o en cualquier otro.')
     : "Te mandamos un mail con un link y un código para elegir una contraseña nueva.";
   const label = isNew ? "Contraseña nueva" : isCode ? "Código del mail" : "Recuperar contraseña";
   const btn = isNew ? ["do-newpass","Guardar contraseña"] : isCode ? ["do-code","Seguir"] : ["do-forgot","Mandarme el mail"];
@@ -139,13 +147,15 @@ function showPasswordReset(msg, mode, vals){
       '<div class="auth-sub">'+sub+'</div>'+
       (note?'<p class="auth-note">'+note+'</p>':'')+
       (isNew ? field("auPass", auIcoLock, "pass", "Contraseña nueva (mín. 6)", "password", "new-password", "")
-        : isCode ? '<input id="auEmail" type="hidden" value="'+esc(email)+'">'+
+        : isCode ? (askEmail ? field("auEmail", auIcoMail, "", "Email de tu cuenta", "email", "username", email, ' data-ask-email')
+                             : '<input id="auEmail" type="hidden" value="'+esc(email)+'">')+
                    field("auOtp", auIcoTicket, "", "Código de 6 números", "text", "one-time-code", vals.code, ' inputmode="numeric" maxlength="12" autocapitalize="off" spellcheck="false"')
         : field("auEmail", auIcoMail, "", "Email de tu cuenta", "email", "username", email))+
       (msg?'<div class="auth-msg'+(isOk?" ok":"")+'" role="alert" style="animation-delay:'+nextDelay()+'">'+esc(msg)+'</div>':'')+
       '<button class="gize-btn auth-btn" data-auth="'+btn[0]+'" style="animation-delay:'+nextDelay()+'">'+btn[1]+'</button>'+
-      (isNew ? "" : isCode ? link("to-forgot", "No me llegó: mandarme otro mail")+link("to-login", "Volver a ingresar")
-                           : link("to-code", "Ya tengo un código")+link("to-login", "Volver a ingresar"))+
+      (isNew ? link("cancel-newpass", "Cancelar")
+        : isCode ? appBtn+link("to-forgot", "Pedir un mail nuevo")+link("to-login", "Volver a ingresar")
+        : link("to-code", "Ya tengo un código")+link("to-login", "Volver a ingresar"))+
     '</div>';
   startAuthParticles(host.querySelector(".auth-particles"));
 }

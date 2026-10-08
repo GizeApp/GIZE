@@ -4,10 +4,16 @@
   Dónde va: Supabase → Authentication → Emails → "Reset password".
     · Subject: Elegí una contraseña nueva para GIZE
     · Body (pestaña Source): este archivo entero.
-  Supabase reemplaza {{ .ConfirmationURL }} por el link que abre GIZE para elegir la nueva y
-  {{ .Token }} por el código de 6 números. El link solo funciona en el celular o navegador donde
-  se pidió (por seguridad en la web, y por el PKCE en la app); el código, en cualquiera: se
-  escribe en GIZE con «Ya tengo un código» (screens/auth.js).
+  Supabase reemplaza {{ .TokenHash }} y {{ .Token }} (el código de 6 números) por el mismo
+  token de un solo uso.
+  · El botón va a https://gize.ar/app/#recuperar=<token_hash> y NO a {{ .ConfirmationURL }}: ese
+    link de Supabase gastaba el token apenas se abría (también el código), y quien lo tocaba en
+    Gmail o en otro navegador quedaba trabado. GIZE canjea el token solo si el pedido salió de
+    ese mismo navegador o celular; si no, pide el código (core/supabase.js, useRecoveryLink).
+    Si se pidió desde la app, la página ofrece «Abrir en la app de GIZE» (gize://…): el link no
+    puede ir directo a gize:// porque Supabase arma el mail con html/template, que cambia los
+    links que no son http(s) por «#ZgotmplZ».
+  · El código se escribe en GIZE con «Ya tengo un código» (screens/auth.js).
   Se publica con la tarea "mails" de .github/workflows/supabase.yml (o pegándolo a mano).
 
   Por qué es claro y no negro: Gmail en el celular con modo oscuro invierte los colores de
@@ -49,7 +55,7 @@
 </head>
 <body class="bg" style="margin:0;padding:0;background:#F2F4F7;">
 <!-- Texto de vista previa (lo que se ve en la bandeja al lado del asunto). -->
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Tocá el botón o usá el código para elegir una contraseña nueva.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Tocá el botón para elegir una contraseña nueva, o usá el código.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
 
 <table role="presentation" class="bg" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F2F4F7" style="background:#F2F4F7;">
   <tr>
@@ -96,7 +102,7 @@
           <td class="pad" align="center" style="padding:30px 40px 0;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
               <td align="center" bgcolor="#2FA0FF" style="background:#2FA0FF;border-radius:999px;">
-                <a href="{{ .ConfirmationURL }}" target="_blank"
+                <a href="https://gize.ar/app/#recuperar={{ .TokenHash }}" target="_blank"
                    style="display:inline-block;padding:16px 44px;font-family:'Outfit',Arial,Helvetica,sans-serif;font-size:17px;font-weight:700;color:#04121F;text-decoration:none;border-radius:999px;">
                   Elegir contraseña nueva
                 </a>
@@ -108,7 +114,7 @@
         <tr>
           <td class="pad" align="center" style="padding:28px 40px 0;font-family:'Outfit',Arial,Helvetica,sans-serif;">
             <p class="t2" style="margin:0;color:#4A5260;font-size:15px;line-height:1.55;">
-              ¿El botón no te abre GIZE, o lo estás leyendo en otro celular o en la compu?<br>Escribí este código en GIZE (en la app o en gize.ar), en «Ya tengo un código»:
+              Si lo abrís en otro celular o navegador, GIZE te va a pedir este código:
             </p>
             <table role="presentation" class="box" cellpadding="0" cellspacing="0" border="0" bgcolor="#F6F8FA"
                    style="margin:14px auto 0;background:#F6F8FA;border:1px solid #E4E7EC;border-radius:14px;">
@@ -124,7 +130,7 @@
             <table role="presentation" class="box" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F6F8FA"
                    style="background:#F6F8FA;border:1px solid #E4E7EC;border-radius:14px;">
               <tr><td class="t2" style="padding:16px 20px;font-size:14px;line-height:1.55;color:#4A5260;">
-                El link y el código sirven una sola vez y vencen en 1 hora. El link funciona en el celular o navegador donde pediste el cambio; el código, en cualquiera.
+                El botón y el código vencen en 1 hora y sirven una sola vez: si usás uno, el otro ya no sirve. Si pediste más de un mail, usá el último.
               </td></tr>
             </table>
           </td>
@@ -133,8 +139,7 @@
         <!-- Link de respaldo -->
         <tr>
           <td class="pad t3" style="padding:26px 40px 36px;font-family:'Outfit',Arial,Helvetica,sans-serif;color:#8F98A6;font-size:12px;line-height:1.6;">
-            ¿El botón no funciona? Copiá este link en el navegador:<br>
-            <a class="lnk" href="{{ .ConfirmationURL }}" style="color:#0072BB;word-break:break-all;">{{ .ConfirmationURL }}</a>
+            ¿El botón no funciona? Entrá a <a class="lnk" href="https://gize.ar/app/" style="color:#0072BB;">gize.ar/app</a> (o abrí la app), tocá «¿Olvidaste tu contraseña?» y después «Ya tengo un código».
           </td>
         </tr>
       </table>
