@@ -249,6 +249,12 @@ function revertVariant(raw){
   const o=clearVariant(raw.id); if(!o) return;
   raw.sets.forEach(s=>{ if(s.done) return; if(o.kg0 && Object.prototype.hasOwnProperty.call(o.kg0, s.id)) s.kg=o.kg0[s.id]; autoKg.delete(s.id); forgetPR(s.id); });
 }
+// Cambiar un ejercicio por otro: las series del anterior (kg, reps, tildes) no son de este. Si
+// quedaban, el nuevo aparecía hecho y al guardar daba récords falsos.
+function swapEx(ex, name, mm){
+  if(ex.name!==name){ dropExMedia(ex); ex.sets.forEach(s=>{ s.kg=""; s.reps=""; s.done=false; if("secs" in s) s.secs=""; autoKg.delete(s.id); forgetPR(s.id); }); }
+  clearVariant(ex.id); ex.name=name; ex.mus=mm;
+}
 // Un ejercicio recién agregado aparece abierto (y cierra el que estaba abierto), para cargarle las series.
 function openEx(e){ expandedOverride.clear(); expandedOverride.add(e.id); return e; }
 // Lleva la pantalla a la serie que sigue y la marca un momento.
@@ -681,8 +687,8 @@ document.body.addEventListener("click", async e => {
     if(a === "var-pick") closeSheet(()=>{ EntrenoState.varSheet=null; renderApp(); }); else renderApp();
     return;
   }
-  if (a === "ex-choose") { const name=el.dataset.name; const d=day(); const mm=pickMuscle(name, el.dataset.cat||EntrenoState.exCat); if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==name) dropExMedia(ex); clearVariant(ex.id); ex.name=name; ex.mus=mm; } } else if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(name,2,mm))); } else { d.exercises.push(openEx(mkEx(name,2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
-  if (a === "ex-custom") { const nm=prompt(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:",""); if(nm && nm.trim()){ const d=day(); const mm=EntrenoState.exCat; if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==nm.trim()) dropExMedia(ex); clearVariant(ex.id); ex.name=nm.trim(); ex.mus=mm; } } else if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(nm.trim(),2,mm))); } else { d.exercises.push(openEx(mkEx(nm.trim(),2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); } return; }
+  if (a === "ex-choose") { const name=el.dataset.name; const d=day(); const mm=pickMuscle(name, el.dataset.cat||EntrenoState.exCat); if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex) swapEx(ex, name, mm); } else if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(name,2,mm))); } else { d.exercises.push(openEx(mkEx(name,2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
+  if (a === "ex-custom") { const nm=prompt(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:",""); if(nm && nm.trim()){ const d=day(); const mm=EntrenoState.exCat; if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex) swapEx(ex, nm.trim(), mm); } else if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(nm.trim(),2,mm))); } else { d.exercises.push(openEx(mkEx(nm.trim(),2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); } return; }
 
   // Peso corporal
   if (a === "daily-save") {
