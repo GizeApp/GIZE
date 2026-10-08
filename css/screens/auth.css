@@ -41,6 +41,10 @@
 .auth-head { margin-top:2px; animation:authFadeUp var(--duration-rare) var(--ease-drawer) .12s both; }
 .auth-title { margin:0; font:700 25px/1.15 var(--gize-font); color:var(--txt); letter-spacing:-.015em; }
 .auth-head .auth-sub { margin:6px 0 0; text-align:left; text-transform:none; letter-spacing:0; font-size:13.5px; color:var(--txt-3); animation:none; }
+/* Explicación de los pasos de «Recuperar contraseña» (mail, código del mail): la bajada chica
+   en mayúsculas no alcanza para una frase. Sin animación, como la bajada del login. */
+.auth-note { margin:2px 0 4px; text-align:center; font:400 13.5px/1.5 var(--gize-font); color:var(--txt-2); overflow-wrap:anywhere; }
+.auth-note b { color:var(--txt); font-weight:600; }
 
 /* Pestañas Ingresar / Crear cuenta: riel hundido con la activa marcada por el borde azul. */
 .auth-tabs {

@@ -925,6 +925,13 @@ document.body.addEventListener("click", async e=>{
   if(a==="to-signup"){ showLogin("","up"); return; }
   if(a==="to-login"){ showLogin("","in",{email:((document.getElementById("auEmail")||{}).value||"").trim()}); return; }
   if(a==="to-forgot"){ showLogin("","forgot",{email:((document.getElementById("auEmail")||{}).value||"").trim()}); return; }
+  // «Ya tengo un código»: el mail de recuperación ya llegó (pedido acá, en otro celular o en la
+  // web) y se escribe el código que trae. Hace falta el mail para canjearlo.
+  if(a==="to-code"){
+    const email=((document.getElementById("auEmail")||{}).value||"").trim();
+    if(!/^[^@ ]+@[^@ ]+\.[^@ ]+$/.test(email)){ showLogin("Poné primero el mail de tu cuenta y después tocá «Ya tengo un código».","forgot",{email:email}); return; }
+    showLogin("","code",{email:email}); return;
+  }
   if(a==="do-forgot"){
     const email=((document.getElementById("auEmail")||{}).value||"").trim();
     if(!/^[^@ ]+@[^@ ]+\.[^@ ]+$/.test(email)){ showLogin("Poné el mail con el que te registraste (ej: nombre@gmail.com).","forgot",{email:email}); return; }
@@ -937,10 +944,41 @@ document.body.addEventListener("click", async e=>{
     const r=await State.sb.auth.resetPasswordForEmail(email, {redirectTo: IS_NATIVE ? "gize://confirmado" : location.origin + location.pathname});
     if(r.error){
       const rate = r.error.status===429 || /rate|seconds/i.test(r.error.message||"");
-      showLogin(rate ? "Ya te mandamos un link hace un momento. Esperá un minuto y probá de nuevo." : "No se pudo mandar el mail: "+r.error.message,"forgot",{email:email}); return;
+      showLogin(rate ? "Ya te mandamos un mail hace un momento. Esperá un minuto y probá de nuevo, o tocá «Ya tengo un código» si te llegó." : "No se pudo mandar el mail: "+r.error.message,"forgot",{email:email}); return;
     }
     // Supabase no dice si el mail tiene cuenta (para no revelar quién está registrado).
-    showLogin("Listo. Si ese mail tiene una cuenta en GIZE, te llega un link para elegir una contraseña nueva. Revisá también la carpeta de spam."+(IS_NATIVE?" Abrilo en este celular.":""),"forgot",{email:email});
+    // Se pasa directo a escribir el código: el link del mail solo anda donde se pidió, el
+    // código anda en cualquier lado (ver showPasswordReset en screens/auth.js).
+    showLogin("Listo. Si ese mail tiene una cuenta en GIZE, te llega un mail con el código. Revisá también la carpeta de spam.","code",{email:email});
+    return;
+  }
+  if(a==="do-code"){
+    const email=((document.getElementById("auEmail")||{}).value||"").trim();
+    const raw=((document.getElementById("auOtp")||{}).value||"");
+    // Se aceptan espacios o guiones al pegarlo («123 456»). Supabase lo manda de 6 números
+    // (se puede configurar hasta 10: ver la tarea "mails" de .github/workflows/supabase.yml).
+    const token=raw.replace(/[\s-]/g,"");
+    if(!email){ showLogin("Poné el mail de tu cuenta para pedir el código.","forgot"); return; }
+    if(!/^\d{6,10}$/.test(token)){ showLogin("Escribí los 6 números del código que te llegó por mail.","code",{email:email, code:raw}); return; }
+    b.disabled=true; b.textContent="Revisando...";
+    if(!State.sb) await ensureSb();
+    if(!State.sb){ showLogin("No se pudo conectar con el servidor. Revisá tu conexión a internet y volvé a intentar.","code",{email:email, code:raw}); return; }
+    let r;
+    try{ r=await State.sb.auth.verifyOtp({email:email, token:token, type:"recovery"}); }
+    catch(err){ r={error:err}; }
+    if(r.error || !r.data || !r.data.session){
+      const st=r.error && r.error.status;
+      const rate = st===429 || /rate|too many/i.test((r.error && r.error.message)||"");
+      const net = !st && !rate;
+      showLogin(rate ? "Probaste muchas veces seguidas. Esperá unos minutos y volvé a intentar."
+        : net ? "No se pudo revisar el código. Revisá tu conexión a internet y volvé a intentar."
+        : "El código no es correcto o ya venció (dura 1 hora y sirve una sola vez). Revisalo, o pedí un mail nuevo.",
+        "code",{email:email, code:raw});
+      return;
+    }
+    // Ya hay sesión de recuperación: lo que quedaba del pedido por link ya no hace falta.
+    try{ localStorage.removeItem(RECOVERY_REQ); }catch(e){}
+    showLogin("","newpass");
     return;
   }
   if(a==="do-newpass"){
@@ -950,7 +988,7 @@ document.body.addEventListener("click", async e=>{
     const r=await State.sb.auth.updateUser({password:pass});
     if(r.error){
       const same=/different from the old|same/i.test(r.error.message||"");
-      showLogin(same ? "Esa es tu contraseña actual: elegí una distinta." : "No se pudo guardar: "+r.error.message+". Si el link venció, pedí uno nuevo desde \"¿Olvidaste tu contraseña?\".","newpass"); return;
+      showLogin(same ? "Esa es tu contraseña actual: elegí una distinta." : "No se pudo guardar: "+r.error.message+". Si pasó mucho tiempo, pedí un mail nuevo desde \"¿Olvidaste tu contraseña?\".","newpass"); return;
     }
     if(window.coreReplay) window.coreReplay();
     try{ await afterLogin(r.data.user); } finally { if(window.coreEnter) window.coreEnter(); }

@@ -1,5 +1,6 @@
 # Tareas de Supabase sin entrar al panel: publicar funciones, cargar secrets, correr SQL,
-# crear las cuentas demo para la revisión de Google Play y borrar las fotos de progreso viejas.
+# crear las cuentas demo para la revisión de Google Play, borrar las fotos de progreso viejas y
+# publicar el mail de «olvidé mi contraseña» (supabase/mails/recuperar.html).
 # Se corre a mano: Actions → "Supabase" → Run workflow → elegir la tarea.
 #
 # Corre solo desde main: lanzado desde otra rama no arranca, así no se puede correr SQL
@@ -41,6 +42,7 @@ on:
           - sql
           - cuentas-demo
           - borrar-fotos-progreso
+          - mails
       archivo:
         description: "Para 'sql': archivo a correr (ej: supabase/estado.sql)"
         required: false
@@ -177,3 +179,36 @@ jobs:
           # ej. «Key (email)=(...) already exists»): solo el código de error (SQLSTATE) si viene.
           jq -r 'if type=="array" then "Filas devueltas: \(length)" else "La consulta falló" + ((.message // "" | tostring | capture("(SQLSTATE|ERROR:)[ :]*(?<c>[0-9A-Z]{5})\\b")? | " (código \(.c))") // "") + ". Para ver el detalle, correr el SQL en el SQL Editor de Supabase." end' "$RUNNER_TEMP/out.json" 2>/dev/null || echo "(respuesta sin formato JSON)"
           [ "$code" -ge 200 ] && [ "$code" -lt 300 ] || { echo "::error::Supabase respondió $code"; exit 1; }
+
+      # Mail de «olvidé mi contraseña»: asunto y cuerpo de supabase/mails/recuperar.html (sin los
+      # comentarios HTML, que son notas para nosotros), y el código de 6 números que trae ese
+      # mail (la app lo pide así: screens/auth.js). Usa el permiso «Auth Config (read-write)» del
+      # token. El log es PÚBLICO y la configuración de Auth trae claves de los proveedores de
+      # ingreso: no se imprime la respuesta, solo el código HTTP y los dos datos del código.
+      - name: Publicar el mail de recuperar contraseña
+        if: inputs.tarea == 'mails'
+        run: |
+          python3 -I - > "$RUNNER_TEMP/body.json" <<'PY'
+          import json, re
+          html = open("supabase/mails/recuperar.html", encoding="utf-8").read()
+          html = re.sub(r"<!--.*?-->\s*", "", html, flags=re.S)
+          assert "{{ .ConfirmationURL }}" in html and "{{ .Token }}" in html, "Falta el link o el código en la plantilla"
+          print(json.dumps({
+              "mailer_subjects_recovery": "Elegí una contraseña nueva para GIZE",
+              "mailer_templates_recovery_content": html,
+              "mailer_otp_length": 6,
+          }))
+          PY
+          code=$(curl -sS -o "$RUNNER_TEMP/out.json" -w '%{http_code}' -X PATCH \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            --data @"$RUNNER_TEMP/body.json") || code="(sin respuesta)"
+          if [ "$code" = "200" ]; then
+            jq -r '"Listo. Código de \(.mailer_otp_length // "?") números, vence en \((.mailer_otp_exp // 0) / 60 | floor) minutos."' "$RUNNER_TEMP/out.json" 2>/dev/null || echo "Listo."
+          else
+            # Solo el mensaje de error de la API (no trae datos de la configuración).
+            jq -r '"Supabase dijo: " + ((.message // .error // "sin detalle") | tostring | .[0:200])' "$RUNNER_TEMP/out.json" 2>/dev/null || true
+            echo "::error::Supabase respondió $code"
+          fi
+          rm -f "$RUNNER_TEMP/out.json" "$RUNNER_TEMP/body.json"
+          [ "$code" = "200" ]

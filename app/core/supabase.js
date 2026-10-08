@@ -71,6 +71,9 @@ const RECOVERY_LANDING = LINK_TYPE==="recovery";
 // En la app el link vuelve por gize://confirmado (el único que Android abre además del de
 // Google), así que se marca en el celular que se pidió recuperar la contraseña.
 export const RECOVERY_REQ = "gize_recovery_req";
+// El link de recuperación se abrió donde no sirve (otro navegador u otro celular): el mail
+// trae también un código de 6 números que funciona en cualquier lado (screens/auth.js, "code").
+const RECOVERY_LINK_ELSEWHERE = "Ese link se abrió en otro navegador o en otro celular, y por seguridad no sirve acá. Usá el código de 6 números que viene en el mismo mail: poné tu mail y tocá «Ya tengo un código».";
 function recoveryRequested(){ try{ const t=+localStorage.getItem(RECOVERY_REQ)||0; return t>0 && Date.now()-t < 86400000; }catch(e){ return false; } }
 const CONFIRM_ERROR = !!(BOOT_AUTH.get("error_code") || BOOT_AUTH.get("error_description"));
 const CONFIRM_ERROR_MSG = "El link de confirmación venció o ya se usó. Probá ingresar con tu email y contraseña; si no te deja, registrate de nuevo para recibir otro mail.";
@@ -99,7 +102,13 @@ async function openAuthLink(url){
   if(!State.sb) await ensureSb();
   if(!State.sb){ clearGoogleIntent(); showLogin(failMsg,"in"); return true; }
   const r=await State.sb.auth.exchangeCodeForSession(code);
-  if(r.error||!r.data.session){ clearGoogleIntent(); showLogin(failMsg+authErrDetail(r.error && r.error.message),"in"); return true; }
+  if(r.error||!r.data.session){
+    clearGoogleIntent();
+    // Link de recuperación que no se pudo canjear (pedido en otro celular, o ya usado): el
+    // código del mismo mail sí sirve acá.
+    if(!isGoogle && recoveryRequested()){ try{ localStorage.removeItem(RECOVERY_REQ); }catch(e){} if(window.coreCancel) window.coreCancel(); showLogin(RECOVERY_LINK_ELSEWHERE,"forgot"); return true; }
+    showLogin(failMsg+authErrDetail(r.error && r.error.message),"in"); return true;
+  }
   if(!isGoogle && recoveryRequested()){
     try{ localStorage.removeItem(RECOVERY_REQ); }catch(e){}
     if(window.coreCancel) window.coreCancel();
@@ -1741,7 +1750,7 @@ export async function cloudBoot(){
     // Ahora quedan detrás del login: si vuelve a entrar la misma cuenta se suben, y si entra
     // otra, afterLogin() arranca de cero (state.ownerUid).
     if(LINK_REFUSED && !sess.data.session){
-      if(LINK_REFUSED==="recovery") showLogin("Por seguridad, abrí el link del mail en el mismo navegador donde pediste cambiar la contraseña. Si no, pedí uno nuevo acá.","forgot");
+      if(LINK_REFUSED==="recovery") showLogin(RECOVERY_LINK_ELSEWHERE,"forgot");
       else if(LINK_REFUSED==="signup") showLogin("Listo, tu mail quedó confirmado. Ingresá con tu mail y tu contraseña.","in");
       else showLogin("No se pudo completar el ingreso desde ese link. Ingresá con tu mail y contraseña o con Google.","in");
     }
@@ -1754,7 +1763,7 @@ export async function cloudBoot(){
       else await afterLogin(sess.data.session.user, stale);
       // El link para cambiar la contraseña se abrió en otro navegador que ya tenía una cuenta
       // adentro: antes entraba a esa cuenta sin decir nada y parecía que el link no andaba.
-      if(LINK_REFUSED==="recovery") setTimeout(()=>alert("Ese link para cambiar la contraseña se abrió en un navegador distinto del que lo pidió, así que no sirve acá (es por seguridad). Seguís con la cuenta que ya tenías abierta.\n\nPara cambiar la contraseña: pedí el link de nuevo y abrilo en el mismo navegador (o en la misma ventana de incógnito) donde lo pediste."), 600);
+      if(LINK_REFUSED==="recovery") setTimeout(()=>alert("Ese link para cambiar la contraseña se abrió en un navegador distinto del que lo pidió, así que no sirve acá (es por seguridad). Seguís con la cuenta que ya tenías abierta.\n\nPara cambiar la contraseña usá el código de 6 números que trae el mail: en la pantalla de ingresar tocá «¿Olvidaste tu contraseña?», poné tu mail y tocá «Ya tengo un código»."), 600);
     }
     else if(CONFIRM_ERROR){
       try{ history.replaceState(null,"",location.pathname); }catch(e){}

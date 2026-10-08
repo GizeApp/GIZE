@@ -4,7 +4,11 @@
   Dónde va: Supabase → Authentication → Emails → "Reset password".
     · Subject: Elegí una contraseña nueva para GIZE
     · Body (pestaña Source): este archivo entero.
-  Supabase reemplaza {{ .ConfirmationURL }} por el link que abre GIZE para elegir la nueva.
+  Supabase reemplaza {{ .ConfirmationURL }} por el link que abre GIZE para elegir la nueva y
+  {{ .Token }} por el código de 6 números. El link solo funciona en el celular o navegador donde
+  se pidió (por seguridad en la web, y por el PKCE en la app); el código, en cualquiera: se
+  escribe en GIZE con «Ya tengo un código» (screens/auth.js).
+  Se publica con la tarea "mails" de .github/workflows/supabase.yml (o pegándolo a mano).
 
   Por qué es claro y no negro: Gmail en el celular con modo oscuro invierte los colores de
   los mails oscuros (el fondo negro queda claro, el texto blanco queda oscuro y el logo queda
@@ -45,7 +49,7 @@
 </head>
 <body class="bg" style="margin:0;padding:0;background:#F2F4F7;">
 <!-- Texto de vista previa (lo que se ve en la bandeja al lado del asunto). -->
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Tocá el botón para elegir una contraseña nueva.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Tocá el botón o usá el código para elegir una contraseña nueva.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
 
 <table role="presentation" class="bg" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F2F4F7" style="background:#F2F4F7;">
   <tr>
@@ -100,13 +104,27 @@
             </tr></table>
           </td>
         </tr>
+        <!-- Código: sirve en cualquier celular o navegador -->
+        <tr>
+          <td class="pad" align="center" style="padding:28px 40px 0;font-family:'Outfit',Arial,Helvetica,sans-serif;">
+            <p class="t2" style="margin:0;color:#4A5260;font-size:15px;line-height:1.55;">
+              ¿El botón no te abre GIZE, o lo estás leyendo en otro celular o en la compu?<br>Escribí este código en GIZE (en la app o en gize.ar), en «Ya tengo un código»:
+            </p>
+            <table role="presentation" class="box" cellpadding="0" cellspacing="0" border="0" bgcolor="#F6F8FA"
+                   style="margin:14px auto 0;background:#F6F8FA;border:1px solid #E4E7EC;border-radius:14px;">
+              <tr><td class="t1" align="center"
+                      style="padding:14px 28px;font-family:'Outfit',Arial,Helvetica,sans-serif;font-size:32px;line-height:1.1;font-weight:700;letter-spacing:6px;color:#0B0D11;">{{ .Token }}</td></tr>
+            </table>
+          </td>
+        </tr>
+
         <!-- Aviso -->
         <tr>
           <td class="pad" style="padding:26px 40px 0;font-family:'Outfit',Arial,Helvetica,sans-serif;">
             <table role="presentation" class="box" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F6F8FA"
                    style="background:#F6F8FA;border:1px solid #E4E7EC;border-radius:14px;">
               <tr><td class="t2" style="padding:16px 20px;font-size:14px;line-height:1.55;color:#4A5260;">
-                El link sirve una sola vez y vence en 1 hora. Si lo pediste desde la app, abrilo en el mismo celular.
+                El link y el código sirven una sola vez y vencen en 1 hora. El link funciona en el celular o navegador donde pediste el cambio; el código, en cualquiera.
               </td></tr>
             </table>
           </td>

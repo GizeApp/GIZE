@@ -1,4 +1,4 @@
-import { auIcoEye, auIcoLock, auIcoMail, auIcoUser } from '../core/icons.js';
+import { auIcoEye, auIcoLock, auIcoMail, auIcoTicket, auIcoUser } from '../core/icons.js';
 
 import { hideSilkBg, startAuthParticles, stopAuthParticles } from '../ui/background.js';
 
@@ -25,7 +25,7 @@ const appleLogo = '<svg class="auth-apple-ic" viewBox="0 0 814 1000" aria-hidden
 
 export function showLogin(msg, mode, vals){
   mode = mode || "in"; vals = vals || {};
-  if(mode==="forgot" || mode==="newpass") return showPasswordReset(msg, mode, vals);
+  if(mode==="forgot" || mode==="code" || mode==="newpass") return showPasswordReset(msg, mode, vals);
   const isUp = mode==="up";
   const eq = v => esc(v==null?"":v);
   const host=document.getElementById("authHost"); if(!host) return;
@@ -98,34 +98,54 @@ export function showLogin(msg, mode, vals){
   mountGoogleButton().catch(()=>{});
 }
 
-// Recuperar la contraseña: "forgot" pide el mail para mandar el link; "newpass" aparece al
-// volver del link (ya con una sesión de recuperación) para elegir la contraseña nueva.
+// Recuperar la contraseña, en tres pasos:
+//   "forgot"  pide el mail y manda el mail de recuperación.
+//   "code"    pide el código de 6 números que trae ese mail. Sirve en cualquier celular o
+//             navegador: el link del mail, en cambio, solo funciona donde se pidió (en la web
+//             por seguridad, ver LINK_REFUSED en core/supabase.js; en la app por el PKCE), y
+//             quien lo abría desde Gmail en otro navegador o en la compu quedaba trabado.
+//   "newpass" aparece con la sesión de recuperación (por el código o por el link) para
+//             elegir la contraseña nueva.
+// El mail viaja de un paso al otro en vals.email (en "code" va en un campo oculto #auEmail,
+// así «Volver a ingresar» y «Mandarme otro mail» lo traen escrito).
 function showPasswordReset(msg, mode, vals){
   const host=document.getElementById("authHost"); if(!host) return;
   host.style.display="flex";
   hideSilkBg();
-  const isNew = mode==="newpass";
+  const isNew = mode==="newpass", isCode = mode==="code";
   const isOk = !!msg && /^listo/i.test(String(msg).trim());
+  const email = String(vals.email||"").trim();
   let stepIdx=-1;
   const nextDelay=()=>{ stepIdx++; return (0.14+stepIdx*0.055).toFixed(3)+"s"; };
-  const field=(id, icon, extraClass, ph, type, autocomplete, value)=>
+  const field=(id, icon, extraClass, ph, type, autocomplete, value, extra)=>
     '<div class="auth-field'+(extraClass?(" "+extraClass):"")+'" style="animation-delay:'+nextDelay()+'">'+
       '<span class="auth-ic" aria-hidden="true">'+icon+'</span>'+
-      '<input id="'+id+'" class="auth-in" type="'+type+'" placeholder="'+ph+'" autocomplete="'+autocomplete+'" aria-label="'+ph+'" value="'+esc(value||"")+'">'+
+      '<input id="'+id+'" class="auth-in" type="'+type+'" placeholder="'+ph+'" autocomplete="'+autocomplete+'" aria-label="'+ph+'" value="'+esc(value||"")+'"'+(extra||"")+'>'+
       (id==="auPass" ? '<button type="button" class="auth-toggle-pass" data-toggle-pass aria-label="Mostrar contraseña">'+auIcoEye+'</button>' : '')+
     '</div>';
+  const link=(action, text)=>'<div class="auth-switch" data-auth="'+action+'" role="button" tabindex="0" style="animation-delay:'+nextDelay()+'">'+text+'</div>';
+  const sub = isNew ? "Elegí tu contraseña nueva" : isCode ? "Código del mail" : "Recuperar contraseña";
+  const note = isNew ? ""
+    : isCode ? 'Escribí el código de 6 números que te mandamos'+(email?' a <b>'+esc(email)+'</b>':'')+'. Funciona en este celular o en cualquier otro.'
+    : "Te mandamos un mail con un link y un código para elegir una contraseña nueva.";
+  const label = isNew ? "Contraseña nueva" : isCode ? "Código del mail" : "Recuperar contraseña";
+  const btn = isNew ? ["do-newpass","Guardar contraseña"] : isCode ? ["do-code","Seguir"] : ["do-forgot","Mandarme el mail"];
   host.innerHTML =
     '<div class="gize-aurora auth-aurora" aria-hidden="true"><span></span><span></span><span></span><span></span></div>'+
     '<canvas class="auth-particles" aria-hidden="true"></canvas>'+
-    '<div class="auth-card" role="region" aria-label="'+(isNew?"Contraseña nueva":"Recuperar contraseña")+'">'+
+    '<div class="auth-card" role="region" aria-label="'+label+'">'+
       '<div class="auth-brand-ic" aria-hidden="true"><img src="brand/logo/gize-marca-blanca.svg" alt=""></div>'+
       '<div class="auth-logo"><img src="brand/logo/gize-logotipo.svg" alt="GIZE"></div>'+
-      '<div class="auth-sub">'+(isNew?"Elegí tu contraseña nueva":"Te mandamos un link a tu mail para elegir una contraseña nueva")+'</div>'+
+      '<div class="auth-sub">'+sub+'</div>'+
+      (note?'<p class="auth-note">'+note+'</p>':'')+
       (isNew ? field("auPass", auIcoLock, "pass", "Contraseña nueva (mín. 6)", "password", "new-password", "")
-             : field("auEmail", auIcoMail, "", "Email de tu cuenta", "email", "username", vals.email))+
+        : isCode ? '<input id="auEmail" type="hidden" value="'+esc(email)+'">'+
+                   field("auOtp", auIcoTicket, "", "Código de 6 números", "text", "one-time-code", vals.code, ' inputmode="numeric" maxlength="12" autocapitalize="off" spellcheck="false"')
+        : field("auEmail", auIcoMail, "", "Email de tu cuenta", "email", "username", email))+
       (msg?'<div class="auth-msg'+(isOk?" ok":"")+'" role="alert" style="animation-delay:'+nextDelay()+'">'+esc(msg)+'</div>':'')+
-      '<button class="gize-btn auth-btn" data-auth="'+(isNew?"do-newpass":"do-forgot")+'" style="animation-delay:'+nextDelay()+'">'+(isNew?"Guardar contraseña":"Mandarme el link")+'</button>'+
-      (isNew?"":'<div class="auth-switch" data-auth="to-login" role="button" tabindex="0" style="animation-delay:'+nextDelay()+'">Volver a ingresar</div>')+
+      '<button class="gize-btn auth-btn" data-auth="'+btn[0]+'" style="animation-delay:'+nextDelay()+'">'+btn[1]+'</button>'+
+      (isNew ? "" : isCode ? link("to-forgot", "No me llegó: mandarme otro mail")+link("to-login", "Volver a ingresar")
+                           : link("to-code", "Ya tengo un código")+link("to-login", "Volver a ingresar"))+
     '</div>';
   startAuthParticles(host.querySelector(".auth-particles"));
 }
