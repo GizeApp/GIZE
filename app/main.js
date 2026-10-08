@@ -22,7 +22,7 @@ import { syncRouteViews } from './ui/mapa.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
-import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, clearAuthExpect, clearRecoveryPending, clearRecoveryRequest, expectAuthLink, localUnsynced, markRecoveryRequest, otpErrorKind, PROFILE_KEY, RECOVERY_MSG, refreshOwnRoutine, setRecoveryPending, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithApple, signInWithGoogle } from './core/supabase.js';
+import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, clearAuthExpect, clearRecoveryPending, clearRecoveryRequest, dropRecoverySession, expectAuthLink, localUnsynced, markRecoveryRequest, otpErrorKind, PROFILE_KEY, RECOVERY_MSG, refreshOwnRoutine, setRecoveryPending, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithApple, signInWithGoogle } from './core/supabase.js';
 
 import { assistedKg, isAssisted, fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, intNum, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
@@ -979,7 +979,7 @@ document.body.addEventListener("click", async e=>{
     }
     // Ya hay sesión de recuperación: no se abre la app hasta elegir la contraseña (o cancelar).
     clearRecoveryRequest(); clearAuthExpect();
-    setRecoveryPending(r.data.user && r.data.user.id);
+    setRecoveryPending(r.data.session);
     showLogin("","newpass");
     return;
   }
@@ -1005,8 +1005,8 @@ document.body.addEventListener("click", async e=>{
   }
   // «Cancelar» en la contraseña nueva: se sale de la sesión de recuperación sin entrar a la app.
   if(a==="cancel-newpass"){
-    clearRecoveryPending();
-    try{ if(!State.sb) await ensureSb(); if(State.sb) await State.sb.auth.signOut({scope:"local"}); }catch(e){}
+    b.disabled=true;
+    await dropRecoverySession();
     showLogin("","in");
     return;
   }

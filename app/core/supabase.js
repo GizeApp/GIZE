@@ -78,12 +78,14 @@ const CONFIRM_LANDING = LINK_TYPE==="signup";
 const RECOVERY_LANDING = LINK_TYPE==="recovery";
 // ---- Recuperar la contraseña ----
 // El mail trae un botón y un código de 6 números (supabase/mails/recuperar.html). El botón
-// lleva el token como #recuperar=<token_hash> a donde se pidió: la web (https://gize.ar/app/)
-// o la app (gize://confirmado). Abrirlo NO lo gasta: GIZE lo canjea solo si el pedido salió de
-// este mismo navegador o celular (RECOVERY_REQ, con el mail que se escribió) y la cuenta es
-// la de ese mail. Si no, pide el código, que sigue sirviendo y anda en cualquier lado.
+// lleva el token a la web como https://gize.ar/app/#recuperar=<token_hash>. Abrirlo NO lo
+// gasta: GIZE lo canjea solo si el pedido salió de este mismo navegador (RECOVERY_REQ, con el
+// mail que se escribió) y la cuenta es la de ese mail. Si no, pide el código, que sigue
+// sirviendo y anda en cualquier lado (también en la app, que lo pide apenas se manda el mail).
 //   Antes el botón iba directo a Supabase (/auth/v1/verify), que gastaba el token al abrirlo:
 // quien lo tocaba en Gmail o en otro navegador quedaba sin link (no servía ahí) y sin código.
+//   El token nunca viaja por gize://: cualquier app instalada puede anotarse para abrir ese
+// esquema y con el token sola (sin la clave PKCE de este celular) entraría a la cuenta.
 export const RECOVERY_REQ = "gize_recovery_req";
 const RECOVERY_TTL = 2*3600000; // el link y el código vencen en 1 hora (tarea "mails" de supabase.yml)
 export function markRecoveryRequest(email){
@@ -105,10 +107,34 @@ function recoveryRequested(){ return !!recoveryRequest(); }
 // Contraseña nueva pendiente: con la sesión de recuperación ya puesta, la app no se abre hasta
 // elegirla (o tocar «Cancelar»). Sin esto, cerrar la app en ese paso dejaba la cuenta adentro
 // para la próxima vez, aunque fuera un celular prestado.
+// Va atado a esa sesión (session_id del token): otro ingreso de la misma cuenta no la toca.
 const RECOVERY_PENDING = "gize_recovery_pending";
-export function setRecoveryPending(uid){ try{ if(uid) localStorage.setItem(RECOVERY_PENDING, String(uid)); }catch(e){} }
+function sessionIdOf(session){
+  try{ const b=String(session.access_token||"").split(".")[1].replace(/-/g,"+").replace(/_/g,"/"); return String(JSON.parse(atob(b)).session_id||""); }catch(e){ return ""; }
+}
+export function setRecoveryPending(session){
+  try{ if(session && session.user && session.user.id) localStorage.setItem(RECOVERY_PENDING, JSON.stringify({ uid: session.user.id, sid: sessionIdOf(session) })); }catch(e){}
+}
 export function clearRecoveryPending(){ try{ localStorage.removeItem(RECOVERY_PENDING); }catch(e){} }
-function recoveryPendingFor(uid){ try{ return !!uid && localStorage.getItem(RECOVERY_PENDING)===String(uid); }catch(e){ return false; } }
+function recoveryPendingFor(session){
+  try{
+    const m=JSON.parse(localStorage.getItem(RECOVERY_PENDING)||"null");
+    if(!m || !session || !session.user || m.uid!==session.user.id) return false;
+    const sid=sessionIdOf(session);
+    return !m.sid || !sid || m.sid===sid;
+  }catch(e){ return false; }
+}
+// Sale de la sesión de recuperación aunque no haya señal: primero se borra la sesión guardada
+// (así no queda adentro aunque se cierre la app) y después se avisa a Supabase, sin esperarlo.
+export async function dropRecoverySession(){
+  clearRecoveryPending();
+  if(!State.sb) await ensureSb();
+  if(!State.sb) return;
+  let tok=""; try{ const st=JSON.parse(authStorage.getItem(State.sb.auth.storageKey)||"null"); tok=(st && st.access_token)||""; }catch(e){}
+  try{ const k=State.sb.auth.storageKey; authStorage.removeItem(k); authStorage.removeItem(k+"-user"); }catch(e){}
+  try{ State.sb.auth.signOut({ scope:"local" }).catch(()=>{}); }catch(e){}
+  if(tok){ try{ fetch(SB_URL+"/auth/v1/logout?scope=local", { method:"POST", headers:{ apikey:SB_KEY, Authorization:"Bearer "+tok } }).catch(()=>{}); }catch(e){} }
+}
 // Qué salió mal al canjear un código o un link: "rate" (muchos intentos), "offline" (sin
 // conexión o el servidor no respondió: el código puede seguir sirviendo) o "used" (equivocado,
 // vencido o ya usado).
@@ -121,6 +147,8 @@ export function otpErrorKind(err){
 export const RECOVERY_MSG = {
   // Botón del mail abierto donde no se pidió: el código sigue sirviendo.
   elsewhere: "Abriste el botón del mail en un navegador o celular distinto del que lo pidió, y por seguridad no se usa acá. Escribí tu mail y el código de 6 números que trae el mail: todavía sirve.",
+  // Pedido desde la app (el token de un pedido con PKCE empieza con «pkce_»).
+  elsewhereApp: "Lo pediste desde la app de GIZE: escribí ahí el código de 6 números del mail. O terminá acá: poné tu mail y el código, elegí la contraseña nueva y después entrá a la app con esa contraseña.",
   // Link viejo (de antes del código en el mail) que no se pudo usar acá.
   oldLink: "Ese link ya se usó al abrirlo y no sirve en este navegador o celular. Pedí un mail nuevo y, si lo vas a abrir en otro lado, escribí el código que trae.",
   used: "Ese link ya se usó o venció (dura 1 hora y sirve una sola vez). Pedí un mail nuevo.",
@@ -132,7 +160,8 @@ export const RECOVERY_MSG = {
 // recuperación puesta, o {ok:false, why}: "elsewhere" | "used" | "offline" | "rate" | "otherAccount".
 export async function useRecoveryLink(tokenHash){
   const req=recoveryRequest();
-  if(!req) return { ok:false, why:"elsewhere" };
+  // Sin el mail del pedido (marcas de versiones anteriores) no se puede chequear la cuenta.
+  if(!req || !req.email) return { ok:false, why:"elsewhere" };
   if(!State.sb) await ensureSb();
   if(!State.sb) return { ok:false, why:"offline" };
   let r;
@@ -141,12 +170,12 @@ export async function useRecoveryLink(tokenHash){
   if(r.error || !r.data || !r.data.session) return { ok:false, why: otpErrorKind(r.error) };
   const got=String((r.data.user && r.data.user.email)||"").trim().toLowerCase();
   // Un link ajeno que llega justo mientras hay un pedido propio: no se entra a esa cuenta.
-  if(req.email && got && got!==req.email){
-    try{ await State.sb.auth.signOut({ scope:"local" }); }catch(e){}
+  if(!got || got!==req.email){
+    await dropRecoverySession();
     return { ok:false, why:"otherAccount" };
   }
   clearRecoveryRequest(); clearAuthExpect();
-  setRecoveryPending(r.data.user && r.data.user.id);
+  setRecoveryPending(r.data.session);
   return { ok:true };
 }
 const CONFIRM_ERROR = !!(BOOT_AUTH.get("error_code") || BOOT_AUTH.get("error_description"));
@@ -170,17 +199,9 @@ async function openAuthLink(url){
   const mark=(p.get("code")||p.get("access_token")||p.get("error_code")||"").slice(-24);
   try{ if(mark && localStorage.getItem(AUTH_LINK_USED)===mark) return false; localStorage.setItem(AUTH_LINK_USED, mark); }catch(e){}
   const failMsg = isGoogle ? GOOGLE_ERROR_MSG : CONFIRM_ERROR_MSG;
-  // Botón del mail de recuperar contraseña: gize://confirmado#recuperar=<token_hash>.
-  const rec=!isGoogle && (p.get("recuperar")||"").trim();
-  if(rec){
-    try{ if(localStorage.getItem(AUTH_LINK_USED)===rec.slice(-24)) return false; localStorage.setItem(AUTH_LINK_USED, rec.slice(-24)); }catch(e){}
-    if(window.coreCancel) window.coreCancel();
-    const res=await useRecoveryLink(rec);
-    if(res.ok) showLogin("", "newpass");
-    else if(res.why==="used") showLogin(RECOVERY_MSG.used, "forgot", { email:"" });
-    else showLogin(RECOVERY_MSG[res.why]||RECOVERY_MSG.elsewhere, "code", { askEmail:true });
-    return true;
-  }
+  // El token de recuperar contraseña no se acepta por gize:// (cualquier app podría abrir ese
+  // esquema y quedárselo): el botón del mail va a la web y en la app se escribe el código.
+  if(!isGoogle && p.get("recuperar")) return false;
   if(p.get("error")||p.get("error_code")||p.get("error_description")){ clearGoogleIntent(); showLogin(failMsg+authErrDetail(p.get("error_description")||p.get("error")),"in"); return true; }
   // Solo el código PKCE: un link con tokens sueltos (#access_token=...) se ignora.
   const code=p.get("code"); if(!code) return false;
@@ -204,7 +225,7 @@ async function openAuthLink(url){
   }
   if(!isGoogle && recoveryRequested()){
     clearRecoveryRequest(); clearAuthExpect();
-    setRecoveryPending(r.data.session.user && r.data.session.user.id);
+    setRecoveryPending(r.data.session);
     if(window.coreCancel) window.coreCancel();
     showLogin("", "newpass");
     return true;
@@ -753,6 +774,7 @@ async function touchMe(){
 
 export async function afterLogin(sessionUser, stale){
   clearAuthExpect(); // ya entró: un link ajeno que llegue después no se acepta sin preguntar
+  clearRecoveryPending(); // entró de verdad (con la contraseña nueva o con otro ingreso)
   // getUser() revalida el token pegándole a la red. Si no hay conexión esa llamada
   // falla y ANTES dejábamos State.cloudUser en null: como flushOutbox()/pendingCount()
   // filtran la cola por el id de usuario, un cloudUser null "escondía" lo pendiente
@@ -1849,12 +1871,13 @@ export async function cloudBoot(){
       const res=await useRecoveryLink(RECOVER_HASH);
       if(res.ok) showLogin("", "newpass");
       else if(res.why==="used") showLogin(RECOVERY_MSG.used, "forgot");
-      // Pedido desde la app en este mismo celular: el mail abre el navegador (Supabase no deja
-      // poner gize:// en el mail), así que se ofrece «Abrir en la app» con el mismo token.
-      else showLogin(RECOVERY_MSG[res.why]||RECOVERY_MSG.elsewhere, "code", { askEmail:true, appLink: res.why==="elsewhere" ? RECOVER_HASH : "" });
+      // Pedido desde la app: el botón del mail abre el navegador. Se puede terminar acá con el
+      // código, o escribirlo en la app (que ya lo está pidiendo).
+      else showLogin(res.why==="elsewhere" && /^pkce_/.test(RECOVER_HASH) ? RECOVERY_MSG.elsewhereApp : (RECOVERY_MSG[res.why]||RECOVERY_MSG.elsewhere), "code", { askEmail:true });
     }
     // Contraseña nueva a medio elegir (se cerró la app en ese paso): se vuelve a pedir.
-    else if(sess.data.session && !stale && recoveryPendingFor(sess.data.session.user && sess.data.session.user.id)){
+    // También sin señal (sesión guardada sin confirmar): la app no se abre en esa cuenta.
+    else if(sess.data.session && recoveryPendingFor(sess.data.session)){
       showLogin("", "newpass");
     }
     else if(LINK_REFUSED && !sess.data.session){
@@ -1865,7 +1888,7 @@ export async function cloudBoot(){
     }
     else if(sess.data.session && RECOVERY_LANDING){
       try{ history.replaceState(null,"",location.pathname); }catch(e){}
-      clearRecoveryRequest(); setRecoveryPending(sess.data.session.user && sess.data.session.user.id);
+      clearRecoveryRequest(); setRecoveryPending(sess.data.session);
       showLogin("", "newpass");
     }
     else if(sess.data.session){

@@ -125,12 +125,6 @@ function showPasswordReset(msg, mode, vals){
       (id==="auPass" ? '<button type="button" class="auth-toggle-pass" data-toggle-pass aria-label="Mostrar contraseña">'+auIcoEye+'</button>' : '')+
     '</div>';
   const link=(action, text)=>'<div class="auth-switch" data-auth="'+action+'" role="button" tabindex="0" style="animation-delay:'+nextDelay()+'">'+text+'</div>';
-  // Botón del mail abierto en el navegador del celular cuando el pedido se hizo en la app: el
-  // token se pasa a la app (gize://), que lo canjea si el pedido salió de ahí. Solo en celulares
-  // y fuera de la app (en la compu no hay app que abrir).
-  const mobile = (()=>{ try{ return isIOS() || /Android/i.test(navigator.userAgent||""); }catch(e){ return false; } })();
-  const appBtn = isCode && vals.appLink && mobile && !nativeApp()
-    ? '<a class="auth-switch auth-open-app" href="gize://confirmado#recuperar='+encodeURIComponent(String(vals.appLink))+'" style="animation-delay:'+nextDelay()+'">Lo pedí desde la app: abrir GIZE</a>' : "";
   const sub = isNew ? "Elegí tu contraseña nueva" : isCode ? "Código del mail" : "Recuperar contraseña";
   const note = isNew ? ""
     : isCode ? (askEmail ? 'Escribí el mail de tu cuenta y el código de 6 números del mail que te mandamos. Funciona en este celular o en cualquier otro.'
@@ -154,7 +148,7 @@ function showPasswordReset(msg, mode, vals){
       (msg?'<div class="auth-msg'+(isOk?" ok":"")+'" role="alert" style="animation-delay:'+nextDelay()+'">'+esc(msg)+'</div>':'')+
       '<button class="gize-btn auth-btn" data-auth="'+btn[0]+'" style="animation-delay:'+nextDelay()+'">'+btn[1]+'</button>'+
       (isNew ? link("cancel-newpass", "Cancelar")
-        : isCode ? appBtn+link("to-forgot", "Pedir un mail nuevo")+link("to-login", "Volver a ingresar")
+        : isCode ? link("to-forgot", "Pedir un mail nuevo")+link("to-login", "Volver a ingresar")
         : link("to-code", "Ya tengo un código")+link("to-login", "Volver a ingresar"))+
     '</div>';
   startAuthParticles(host.querySelector(".auth-particles"));

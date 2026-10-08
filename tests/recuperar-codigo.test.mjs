@@ -74,7 +74,7 @@ export default async function ({ base, t }){
     await p.fill('#auOtp', '482 913'); await p.click('[data-auth="do-code"]'); await wait(1000);
     t.eq(s.log.verify.slice(-1)[0] && s.log.verify.slice(-1)[0].token, '482913', 'el código pegado con espacio se manda sin el espacio');
     t.eq(await modo(p), 'Contraseña nueva', 'código bien: pasa a elegir la contraseña nueva');
-    const marcas = await p.evaluate(() => ({ expect: localStorage.getItem('gize_auth_expect'), req: localStorage.getItem('gize_recovery_req'), pend: localStorage.getItem('gize_recovery_pending') }));
+    const marcas = await p.evaluate(() => ({ expect: localStorage.getItem('gize_auth_expect'), req: localStorage.getItem('gize_recovery_req'), pend: (JSON.parse(localStorage.getItem('gize_recovery_pending') || 'null') || {}).uid }));
     t.eq(marcas.expect, null, 'con el código se apaga la marca de link esperado (no queda abierta 7 días)');
     t.eq(marcas.req, null, 'y la del pedido');
     t.eq(marcas.pend, USER.id, 'queda marcada la contraseña nueva pendiente');
@@ -139,7 +139,7 @@ export default async function ({ base, t }){
     t.ok(await p.isVisible('#auEmail'), 'con el mail para escribir');
     t.has(await msg(p), 'todavía sirve', 'y explica que el código del mail sigue sirviendo');
     t.eq(await p.evaluate(() => location.hash), '', 'el token se saca de la URL');
-    t.ok(!(await p.$('.auth-open-app')), 'en la compu no ofrece abrir la app');
+    t.eq(await p.$$eval('a[href^="gize:"]', l => l.length), 0, 'no hay links gize:// (el token no viaja a la app)');
     await p.fill('#auEmail', MAIL); await p.fill('#auOtp', '482913'); await p.press('#auOtp', 'Enter'); await wait(1000);
     t.eq(await modo(p), 'Contraseña nueva', 'con mail y código sigue desde ahí');
     // «Cancelar» sale sin entrar a la app.
@@ -147,6 +147,7 @@ export default async function ({ base, t }){
     t.ok(await p.isVisible('#authHost [data-auth="to-forgot"]'), '«Cancelar» vuelve a la pantalla de ingresar');
     t.eq(await p.evaluate(() => localStorage.getItem('gize_recovery_pending')), null, 'sin la marca de pendiente');
     t.eq(await p.evaluate(() => Object.keys(localStorage).filter(k => /auth-token/.test(k)).map(k => localStorage.getItem(k)).filter(Boolean).length), 0, 'y sin la sesión de recuperación guardada');
+    t.ok((s.log.logout || 0) >= 1, 'y se avisa a Supabase que cierre esa sesión');
     t.eq(errs, [], 'sin errores: ' + errs.join(' | '));
     await close();
   }
@@ -172,30 +173,54 @@ export default async function ({ base, t }){
     }
   }
 
-  // 6) En el navegador del celular, con el pedido hecho en la app: ofrece abrir GIZE con el token.
+  // 6) Botón de un pedido hecho desde la app (token «pkce_…») abierto en el navegador: no se
+  //    canjea, explica que el código va en la app (o que se puede terminar acá) y no ofrece
+  //    links gize://. Una marca vieja (solo la hora, sin el mail) tampoco alcanza para canjear.
   {
     const s = sb();
-    const { p, close } = await newPage({ handlers: s.handlers, init: `Object.defineProperty(navigator, 'userAgent', { get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });` });
-    await p.goto(base + '/app/#recuperar=hash-ok'); await wait(2500);
-    t.eq(await p.getAttribute('.auth-open-app', 'href'), 'gize://confirmado#recuperar=hash-ok', 'en el celular ofrece «abrir GIZE» con el mismo token');
+    const { p, close } = await newPage({ handlers: s.handlers });
+    await p.goto(base + '/app/#recuperar=pkce_abc123'); await wait(2500);
+    t.eq(await modo(p), 'Código del mail', 'pedido desde la app: pide el código');
+    t.has(await msg(p), 'desde la app', 'y explica que el código va en la app o se termina acá');
+    t.eq(s.log.verify.length, 0, 'sin canjear el token');
+    await p.evaluate(() => localStorage.setItem('gize_recovery_req', String(Date.now())));
+    await p.goto('about:blank'); await p.goto(base + '/app/#recuperar=hash-ok'); await wait(2500);
+    t.eq(s.log.verify.length, 0, 'marca vieja sin mail: no canjea el token');
+    t.eq(await modo(p), 'Código del mail', 'y pide el código');
     await close();
   }
 
-  // 7) App (Capacitor): el botón llega por gize://confirmado#recuperar=... Con el pedido hecho
-  //    en este celular se canjea; sin el pedido, pide el código.
+  // 7) App (Capacitor): un gize://confirmado#recuperar=... no se canjea nunca (otra app podría
+  //    haberse quedado con ese esquema), aunque haya un pedido hecho en este celular.
   {
-    for (const pedido of [true, false]) {
-      const s = sb();
-      const init = `(() => {
-        window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {
-          App: { getInfo: async () => ({ version: '1.0.0', build: '1' }), addListener: () => {}, getLaunchUrl: async () => ({ url: 'gize://confirmado#recuperar=hash-ok' }) } } };
-        if (${pedido} && !sessionStorage.getItem('x')) { sessionStorage.setItem('x', '1'); localStorage.setItem('gize_recovery_req', JSON.stringify({ t: Date.now(), email: '${MAIL}' })); }
-      })();`;
-      const { p, close } = await newPage({ handlers: s.handlers, init });
-      await p.goto(base + '/app/'); await wait(3000);
-      t.eq(await modo(p), pedido ? 'Contraseña nueva' : 'Código del mail', 'app ' + (pedido ? 'con' : 'sin') + ' el pedido hecho acá: ' + (pedido ? 'canjea el botón' : 'pide el código'));
-      t.eq(s.log.verify.length, pedido ? 1 : 0, 'app: ' + (pedido ? 'un canje' : 'no gasta el token'));
-      await close();
-    }
+    const s = sb();
+    const init = `(() => {
+      window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {
+        App: { getInfo: async () => ({ version: '1.0.0', build: '1' }), addListener: () => {}, getLaunchUrl: async () => ({ url: 'gize://confirmado#recuperar=hash-ok' }) } } };
+      if (!sessionStorage.getItem('x')) { sessionStorage.setItem('x', '1'); localStorage.setItem('gize_recovery_req', JSON.stringify({ t: Date.now(), email: '${MAIL}' })); }
+    })();`;
+    const { p, close } = await newPage({ handlers: s.handlers, init });
+    await p.goto(base + '/app/'); await wait(3000);
+    t.eq(s.log.verify.length, 0, 'app: el token por gize:// no se canjea');
+    t.ok(await modo(p) !== 'Contraseña nueva', 'app: no abre la contraseña nueva con un link gize://');
+    await close();
+  }
+
+  // 8) Contraseña nueva pendiente y sin señal (sesión guardada vencida, no se puede renovar):
+  //    no abre la app en esa cuenta, vuelve a pedir la contraseña nueva.
+  {
+    const s = sb();
+    s.handlers['/auth/v1/token'] = r => r.abort();
+    const init = `(() => {
+      if (sessionStorage.getItem('y')) return; sessionStorage.setItem('y', '1');
+      const k = 'sb-wegptuzhsrwppbknqstf-auth-token', st = JSON.parse(localStorage.getItem(k) || 'null');
+      if (st) { st.expires_at = Math.floor(Date.now() / 1000) - 600; localStorage.setItem(k, JSON.stringify(st)); }
+      localStorage.setItem('gize_recovery_pending', JSON.stringify({ uid: '${UID}', sid: '' }));
+    })();`;
+    const { p, close } = await newPage({ user: USER, handlers: s.handlers, init });
+    await p.goto(base + '/app/'); await wait(5000);
+    t.eq(await modo(p), 'Contraseña nueva', 'sin señal y con la contraseña nueva pendiente: la vuelve a pedir');
+    t.eq(await p.evaluate(() => document.getElementById('view').children.length), 0, 'y la app no se dibuja');
+    await close();
   }
 }

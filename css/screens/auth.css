@@ -45,8 +45,6 @@
    en mayúsculas no alcanza para una frase. Sin animación, como la bajada del login. */
 .auth-note { margin:2px 0 4px; text-align:center; font:400 13.5px/1.5 var(--gize-font); color:var(--txt-2); overflow-wrap:anywhere; }
 .auth-note b { color:var(--txt); font-weight:600; }
-/* «Lo pedí desde la app: abrir GIZE» (link gize://, en el navegador del celular). */
-.auth-open-app { display:block; text-decoration:none; }
 
 /* Pestañas Ingresar / Crear cuenta: riel hundido con la activa marcada por el borde azul. */
 .auth-tabs {

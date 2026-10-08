@@ -183,7 +183,8 @@ jobs:
       # Mail de «olvidé mi contraseña»: asunto y cuerpo de supabase/mails/recuperar.html (sin los
       # comentarios HTML, que son notas para nosotros), y el código que trae ese mail: 6 números
       # (la app lo pide así: screens/auth.js) que vencen en 1 hora (lo dicen la app y el mail).
-      # Usa el permiso «Auth Config (read-write)» del token. El log es PÚBLICO y la configuración de Auth trae claves de los proveedores de
+      # Usa el permiso «Auth Config (read-write)» del token. Las versiones de la app anteriores al
+      # paso del código no lo tienen: esos usuarios terminan en gize.ar/app (lo dice el mail). El log es PÚBLICO y la configuración de Auth trae claves de los proveedores de
       # ingreso: no se imprime la respuesta, solo el código HTTP y los dos datos del código.
       - name: Publicar el mail de recuperar contraseña
         if: inputs.tarea == 'mails'
