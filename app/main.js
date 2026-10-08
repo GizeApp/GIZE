@@ -1273,9 +1273,10 @@ document.body.addEventListener("click", async e => {
   if(a==="tpl-back" && CoachState.coachTplEdit && CoachState.coachTplEdit.sched){ CoachState.coachTplEdit=null; CoachState.coachEditDay=0; renderCoach(); return; }
   if(a==="tpl-save" && CoachState.coachTplEdit && CoachState.coachTplEdit.sched){
     const e=CoachState.coachTplEdit, cid=CoachState.coachSel;
+    if(e.saving) return;
     if(!e.starts_on || e.starts_on<today()){ alert("Elegí desde qué día empieza (hoy o más adelante)."); return; }
     if(!(e.days||[]).length){ alert("La rutina programada no tiene días."); return; }
-    b.textContent="Guardando...";
+    e.saving=true; b.disabled=true; b.textContent="Guardando...";
     try{
       const row={client_id:cid, starts_on:e.starts_on, name:(e.name||"").trim().slice(0,80)||null, days:e.days};
       const r = e.id ? await State.sb.from("routine_schedule").update(row).eq("id",e.id) : await State.sb.from("routine_schedule").insert(row);
@@ -1284,7 +1285,7 @@ document.body.addEventListener("click", async e => {
       // Si empieza hoy, se aplica ya; openClient vuelve a leer todo.
       alert(e.starts_on===today() ? "Rutina aplicada desde hoy \u2713" : "Rutina programada \u2713 Empieza sola ese día.");
       await openClient(cid); return;
-    }catch(err){ alert("No se pudo: "+((err&&err.message)||err)); b.textContent="Guardar rutina programada"; return; }
+    }catch(err){ alert("No se pudo: "+((err&&err.message)||err)); e.saving=false; b.disabled=false; b.textContent="Guardar rutina programada"; return; }
   }
   if(a==="tpl-del" && CoachState.coachTplEdit && CoachState.coachTplEdit.sched){
     const e=CoachState.coachTplEdit;
@@ -1296,18 +1297,20 @@ document.body.addEventListener("click", async e => {
   }
   if(a==="tpl-back"){ CoachState.coachTplEdit=null; CoachState.coachView="tpls"; renderCoach(); return; }
   if(a==="tpl-save"){
-    if(!CoachState.coachTplEdit) return;
-    const nm=(CoachState.coachTplEdit.name||"").trim();
+    // Un toque a la vez: una rutina nueva no tiene id hasta que vuelve el primero, y el segundo
+    // toque creaba otra igual en «Mis rutinas».
+    const e=CoachState.coachTplEdit; if(!e || e.saving) return;
+    const nm=(e.name||"").trim();
     if(!nm){ alert("Ponele un nombre a la rutina."); return; }
-    b.textContent="Guardando...";
+    e.saving=true; b.disabled=true; b.textContent="Guardando...";
     try{
-      const row={coach_id:State.cloudUser.id, name:nm, days:CoachState.coachTplEdit.days||[], updated_at:new Date().toISOString()};
-      if(CoachState.coachTplEdit.id) row.id=CoachState.coachTplEdit.id;
+      const row={coach_id:State.cloudUser.id, name:nm, days:e.days||[], updated_at:new Date().toISOString()};
+      if(e.id) row.id=e.id;
       const r=await State.sb.from("routine_templates").upsert(row).select();
       if(r.error) throw r.error;
       await loadTpls(); CoachState.coachTplEdit=null; CoachState.coachView="tpls"; alert("Rutina guardada \u2713");
     }catch(err){ alert("No se pudo: "+((err&&err.message)||err)); }
-    renderCoach(); return;
+    e.saving=false; renderCoach(); return;
   }
   if(a==="tpl-del"){
     if(!CoachState.coachTplEdit||!CoachState.coachTplEdit.id){ CoachState.coachTplEdit=null; CoachState.coachView="tpls"; renderCoach(); return; }
