@@ -12,10 +12,19 @@
 // cuenta: después de borrar los audios borra la cuenta (delete_own_account, con el token del
 // usuario). Antes solo borraba los audios, y cualquiera podía llamarla a mano y borrar los
 // del otro sin irse.
-// Recibe {} con el token del usuario logueado. Devuelve { removed, deleted: true }.
+// Recibe {} con el token del usuario logueado (o { apple_code }, ver más abajo). Devuelve
+// { removed, deleted: true }.
 // Las apps viejas llaman después a delete_own_account: con la cuenta ya borrada no hace nada.
+//
+// Cuentas con «Continuar con Apple»: Apple exige revocar el acceso de la app al borrar la
+// cuenta (si no, GIZE sigue en Ajustes → Apple ID → Iniciar sesión con Apple). La app de
+// iPhone pide un código nuevo a Apple al confirmar y lo manda en apple_code; acá se canjea y se
+// revoca con una clave de «Sign in with Apple» (secrets SIWA_KEY_P8 y SIWA_KEY_ID; si faltan,
+// se prueba con la clave de APNs, que sirve si se creó con los dos servicios). Si falla, se
+// anota y la cuenta se borra igual: nunca queda trabado el borrado.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { decodeJwt, importPKCS8, SignJWT } from "npm:jose@5";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +35,30 @@ const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 const BUCKET = "chat-audio";
+const APPLE_CLIENT = "ar.com.gize.app";
+
+async function revokeApple(code: string, appleSub: string): Promise<void> {
+  const p8 = Deno.env.get("SIWA_KEY_P8") || Deno.env.get("APNS_KEY_P8");
+  const kid = Deno.env.get("SIWA_KEY_P8") ? Deno.env.get("SIWA_KEY_ID") : Deno.env.get("APNS_KEY_ID");
+  const team = Deno.env.get("APPLE_TEAM_ID");
+  if (!p8 || !kid || !team) { console.error("borrar-audios: apple: sin clave para revocar"); return; }
+  const secret = await new SignJWT({}).setProtectedHeader({ alg: "ES256", kid }).setIssuer(team).setIssuedAt()
+    .setExpirationTime("5m").setAudience("https://appleid.apple.com").setSubject(APPLE_CLIENT).sign(await importPKCS8(p8, "ES256"));
+  const post = (path: string, body: Record<string, string>) => fetch("https://appleid.apple.com/auth/" + path, {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: APPLE_CLIENT, client_secret: secret, ...body }),
+  });
+  const r = await post("token", { grant_type: "authorization_code", code });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { console.error("borrar-audios: apple token", r.status, j && j.error); return; }
+  // El código tiene que ser de la misma cuenta de Apple que la de GIZE.
+  let sub = ""; try { sub = String(decodeJwt(j.id_token || "").sub || ""); } catch (_) { /* sin id_token */ }
+  if (appleSub && sub && sub !== appleSub) { console.error("borrar-audios: apple: el código es de otra cuenta"); return; }
+  const token = j.refresh_token || j.access_token;
+  if (!token) return;
+  const rv = await post("revoke", { token, token_type_hint: j.refresh_token ? "refresh_token" : "access_token" });
+  if (!rv.ok) console.error("borrar-audios: apple revoke", rv.status);
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (req) => {
@@ -97,6 +130,17 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error("borrar-audios", (e as Error).message);
     return json({ error: "No se pudieron borrar tus mensajes de voz. Probá de nuevo." }, 500);
+  }
+
+  // Sign in with Apple: se revoca antes de borrar (después ya no se sabe su cuenta de Apple).
+  const apple = (u.user.identities || []).find((i) => i.provider === "apple");
+  if (apple) {
+    let code = "";
+    try { const b = await req.json(); code = typeof b?.apple_code === "string" ? b.apple_code.slice(0, 2000) : ""; } catch (_) { /* sin cuerpo */ }
+    if (code) {
+      try { await revokeApple(code, String((apple.identity_data && apple.identity_data.sub) || apple.id || "")); }
+      catch (e) { console.error("borrar-audios: apple", (e as Error).message); }
+    } else console.error("borrar-audios: cuenta de Apple sin código para revocar");
   }
 
   // La cuenta: auth.users y en cascada todo lo que depende de ella.

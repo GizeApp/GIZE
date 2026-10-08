@@ -69,6 +69,18 @@ if(BOOT_HASH.get("access_token")){
   if(t && Date.now()-t < 7*86400000){ try{ localStorage.removeItem(AUTH_EXPECT); }catch(e){} }
   else { LINK_REFUSED = BOOT_HASH.get("type") || "login"; try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){} }
 }
+// supabase-js también toma los tokens de la query (?access_token=...), y ahí mandan sobre los
+// del #: el chequeo de arriba no los veía y un link así cambiaba de cuenta a quien ya estaba
+// adentro. Supabase nunca los pone en la query: se sacan siempre, antes de crear el cliente.
+{
+  const qs=new URLSearchParams(location.search||"");
+  if(qs.has("access_token") || qs.has("refresh_token")){
+    ["access_token","refresh_token","expires_in","expires_at","token_type","type","provider_token","provider_refresh_token"].forEach(k=>qs.delete(k));
+    const q=qs.toString();
+    try{ history.replaceState(null,"",location.pathname+(q?"?"+q:"")+location.hash); }catch(e){}
+    if(!LINK_REFUSED) LINK_REFUSED="login";
+  }
+}
 // El tipo sale solo del # (donde lo pone Supabase) y solo si el link se aceptó: con
 // ?type=recovery en la URL no se abre la pantalla de contraseña nueva.
 const LINK_TYPE = LINK_REFUSED ? "" : (BOOT_HASH.get("type")||"");
@@ -133,6 +145,16 @@ export async function dropRecoverySession(){
   let tok=""; try{ const st=JSON.parse(authStorage.getItem(State.sb.auth.storageKey)||"null"); tok=(st && st.access_token)||""; }catch(e){}
   try{ const k=State.sb.auth.storageKey; authStorage.removeItem(k); authStorage.removeItem(k+"-user"); }catch(e){}
   try{ State.sb.auth.signOut({ scope:"local" }).catch(()=>{}); }catch(e){}
+  if(tok){ try{ fetch(SB_URL+"/auth/v1/logout?scope=local", { method:"POST", headers:{ apikey:SB_KEY, Authorization:"Bearer "+tok } }).catch(()=>{}); }catch(e){} }
+}
+// Borra la sesión guardada en este dispositivo, pase lo que pase con signOut: sin señal y con
+// el token vencido, supabase-js devuelve el error sin borrarla y al recargar la app volvía a
+// entrar a la misma cuenta. Avisa a Supabase sin esperarlo (si hay señal, la cierra allá también).
+export function forgetStoredSession(){
+  if(!State.sb) return;
+  const k=State.sb.auth.storageKey;
+  let tok=""; try{ const st=JSON.parse(authStorage.getItem(k)||"null"); tok=(st && st.access_token)||""; }catch(e){}
+  try{ authStorage.removeItem(k); authStorage.removeItem(k+"-user"); authStorage.removeItem(k+"-code-verifier"); }catch(e){}
   if(tok){ try{ fetch(SB_URL+"/auth/v1/logout?scope=local", { method:"POST", headers:{ apikey:SB_KEY, Authorization:"Bearer "+tok } }).catch(()=>{}); }catch(e){} }
 }
 // Qué salió mal al canjear un código o un link: "rate" (muchos intentos), "offline" (sin
@@ -202,7 +224,8 @@ async function openAuthLink(url){
   // El token de recuperar contraseña no se acepta por gize:// (cualquier app podría abrir ese
   // esquema y quedárselo): el botón del mail va a la web y en la app se escribe el código.
   if(!isGoogle && p.get("recuperar")) return false;
-  if(p.get("error")||p.get("error_code")||p.get("error_description")){ clearGoogleIntent(); showLogin(failMsg+authErrDetail(p.get("error_description")||p.get("error")),"in"); return true; }
+  // Sin el detalle del link: cualquiera puede armar uno con un texto propio (error_description).
+  if(p.get("error")||p.get("error_code")||p.get("error_description")){ clearGoogleIntent(); showLogin(failMsg,"in"); return true; }
   // Solo el código PKCE: un link con tokens sueltos (#access_token=...) se ignora.
   const code=p.get("code"); if(!code) return false;
   if(!State.sb) await ensureSb();
@@ -1335,8 +1358,25 @@ export async function deleteMyStorageFiles(){
 // (auth.users y en cascada todo lo que depende de ella). Va todo junto en la función para que
 // nadie pueda borrar los audios del otro sin eliminar su cuenta. Si falla, lanza con el motivo
 // y la cuenta sigue: se puede reintentar.
-export async function deleteMyAccount(){
-  const r=await State.sb.functions.invoke("borrar-audios", { body: {} });
+// Cuenta creada con «Continuar con Apple», en la app de iPhone: Apple pide revocar el acceso de
+// la app al borrarla, y para eso el servidor necesita un código nuevo de Apple (vence en 5
+// minutos). Se pide con la misma hoja de Apple. Si la cierra o falla, la cuenta se borra igual.
+export async function appleCodeForDelete(){
+  const u=State.cloudUser;
+  const isApple=!!(u && ((u.identities||[]).some(i=>i && i.provider==="apple") || ((u.app_metadata && u.app_metadata.providers)||[]).includes("apple")));
+  if(!isApple || !appleLoginAvailable()) return "";
+  try{
+    const SL=window.Capacitor.Plugins.SocialLogin;
+    if(!_nativeAppleReady) _nativeAppleReady = SL.initialize({ apple: {} }).catch(e => { _nativeAppleReady = null; throw e; });
+    await _nativeAppleReady;
+    const res=await SL.login({ provider: "apple", options: {} });
+    const r=(res && res.result) || {};
+    return String(r.authorizationCode || (r.accessToken && r.accessToken.token) || "");
+  }catch(e){ console.error("apple borrar", String((e && (e.message||e.code))||e)); return ""; }
+}
+
+export async function deleteMyAccount(appleCode){
+  const r=await State.sb.functions.invoke("borrar-audios", { body: appleCode ? { apple_code: appleCode } : {} });
   if(r.error){
     let detail="";
     try{ const ctx=r.error.context; if(ctx && ctx.json){ const j=await ctx.json(); detail=j && j.error; } }catch(e){}
@@ -1992,7 +2032,9 @@ export async function cloudBoot(){
     else if(CONFIRM_ERROR){
       try{ history.replaceState(null,"",location.pathname); }catch(e){}
       // Volvió de Google con error (canceló, o el proveedor falló): no es el link del mail.
-      showLogin((takeGoogleIntent() ? GOOGLE_ERROR_MSG : CONFIRM_ERROR_MSG)+authErrDetail(BOOT_AUTH.get("error_description")),"in");
+      // Sin el detalle que trae el link (error_description): cualquiera puede armar un link con
+      // un texto propio y se mostraba en la pantalla de ingreso de GIZE.
+      showLogin(takeGoogleIntent() ? GOOGLE_ERROR_MSG : CONFIRM_ERROR_MSG,"in");
     }
     // La app estaba cerrada y la abrió el link del mail.
     else if(app && await openAuthLink(((await app.getLaunchUrl().catch(()=>null))||{}).url)){}

@@ -22,7 +22,7 @@ import { syncRouteViews } from './ui/mapa.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
-import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, clearAuthExpect, clearRecoveryPending, clearRecoveryRequest, dropRecoverySession, expectAuthLink, localUnsynced, markRecoveryRequest, otpErrorKind, PROFILE_KEY, RECOVERY_MSG, refreshOwnRoutine, setRecoveryPending, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithApple, signInWithGoogle } from './core/supabase.js';
+import { afterLogin, forgetStoredSession, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, clearAuthExpect, clearRecoveryPending, clearRecoveryRequest, dropRecoverySession, expectAuthLink, localUnsynced, markRecoveryRequest, otpErrorKind, PROFILE_KEY, RECOVERY_MSG, refreshOwnRoutine, setRecoveryPending, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithApple, signInWithGoogle } from './core/supabase.js';
 
 import { assistedKg, isAssisted, fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, intNum, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
@@ -1029,7 +1029,9 @@ document.body.addEventListener("click", async e=>{
     State.signingOut=true; // el SIGNED_OUT que viene es este: no es una sesión perdida (core/supabase.js → watchAuth)
     try{ await pushLogout(); }catch(e){} // antes del signOut: borrar el dispositivo necesita la sesión
     const logoutUid=State.cloudUser&&State.cloudUser.id;
-    try{ await State.sb.auth.signOut(); }catch(e){}
+    // Sin señal, signOut reintenta renovar el token un buen rato: no se lo espera más de 5 s.
+    try{ await Promise.race([State.sb.auth.signOut(), new Promise(r=>setTimeout(r, 5000))]); }catch(e){}
+    forgetStoredSession(); // por si signOut no la borró (sin señal y con el token vencido)
     try{ localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); localStorage.removeItem("gize_session_ephemeral"); }catch(e){}
     stopForLogout(); closeSalida(); // deja de mirar el GPS y borra la salida en curso
     clearAccountLeftovers(logoutUid);
@@ -1109,7 +1111,22 @@ document.body.addEventListener("click", async e=>{
       if(!sess.data.session){ if(window.coreCancel) window.coreCancel(); showLogin(IS_NATIVE ? "Listo. Te mandamos un mail para confirmar la cuenta: abrilo en este celular y tocá el link, que te trae de vuelta a la app." : "Listo. Te mandamos un mail para confirmar la cuenta: abrilo, hacé click en el link, y despues volvé y tocá Ingresar.","in",{email:email}); return; }
       await afterLogin(sess.data.session.user);
       if(window.coreEnter) window.coreEnter();
-    }catch(err){ if(window.coreCancel) window.coreCancel(); showLogin("No se pudo: "+((err&&err.message)||err), mode, {name:name, email:email, code:code, role:role}); }
+    }catch(err){
+      if(window.coreCancel) window.coreCancel();
+      const V={name:name, email:email, code:code, role:role}, c=err && err.code;
+      // Los errores de Supabase vienen en inglés: los comunes, en castellano.
+      if(c==="email_not_confirmed"){
+        // El mail de confirmación no llegó (o fue a Spam): se manda otro desde acá.
+        if(!IS_NATIVE) expectAuthLink();
+        let rr; try{ rr=await State.sb.auth.resend({type:"signup", email:email, options:{emailRedirectTo:(IS_NATIVE ? "gize://confirmado" : location.origin + location.pathname)}}); }catch(e2){ rr={error:e2}; }
+        showLogin(rr && !rr.error ? "Listo. Tu cuenta todavía no está confirmada: te reenviamos el mail de confirmación (revisá también Spam). Abrilo y tocá el link."
+          : "Tu cuenta todavía no está confirmada. Abrí el mail de confirmación que te mandamos (revisá también Spam) y tocá el link. Si no lo encontrás, esperá unos minutos y tocá Ingresar de nuevo para que te mandemos otro.", "in", V); return;
+      }
+      const m = c==="invalid_credentials" ? "Mail o contraseña incorrectos."
+        : (err && (err.name==="AuthRetryableFetchError" || /failed to fetch|network/i.test(err.message||""))) ? "No se pudo conectar con el servidor. Revisá tu conexión a internet y volvé a intentar."
+        : "No se pudo: "+((err&&err.message)||err);
+      showLogin(m, mode, V);
+    }
     return;
   }
 });
