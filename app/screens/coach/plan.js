@@ -74,7 +74,9 @@ export async function loadBilling(){
   if(!State.sb || !State.cloudUser) return;
   try{
     const r = await State.sb.from("coach_billing").select("*").eq("coach_id", State.cloudUser.id).maybeSingle();
-    if(r.error){ B.missing = true; B.row = null; }
+    // Una lectura fallida (sin señal) no borra el plan ya leído de esta cuenta: sin él se perdía
+    // el cupo y, con el plan lleno, volvía a ofrecer el código de invitación.
+    if(r.error){ B.missing = true; if(!(B.row && B.row.coach_id === State.cloudUser.id)) B.row = null; }
     else { B.missing = !r.data; B.row = r.data || null; }
   }catch(e){ B.missing = true; }
   B.loaded = true;

@@ -34,7 +34,7 @@ import { renderWChart } from '../progreso.js';
 export async function loadCoachClients(){
   try{
     // Lista de clientes y código de invitación salen juntos.
-    const icP=Promise.resolve(State.sb.rpc("my_invite_code")).catch(()=>({data:null}));
+    const icP=Promise.resolve(State.sb.rpc("my_invite_code")).catch(e=>({data:null, error:e}));
     const billP=loadBilling();
     // Supabase no tira excepción cuando una query falla (devuelve {data:null, error}).
     // Si "email" no existe en profiles (o RLS no deja leerla) o todavía no está la
@@ -49,7 +49,9 @@ export async function loadCoachClients(){
       if(!r.error) break;
       console.error("coachClients ("+c+")",r.error);
     }
-    CoachState.coachClients=r.data||[];
+    // Sin señal fallan todos los intentos: queda la lista que ya estaba (antes se vaciaba y el
+    // panel mostraba «Todavía no tenés clientes vinculados» y «Clientes (0)»). Igual el código.
+    if(!r.error) CoachState.coachClients=r.data||[];
     // El mail sale de las cuentas (supabase/mail-clientes.sql): profiles no lo tiene.
     try{
       const em=await State.sb.rpc("my_clients_emails");
@@ -58,7 +60,7 @@ export async function loadCoachClients(){
     // Fotos de los clientes y la propia: se piden los links y se redibuja cuando llegan.
     const paths=CoachState.coachClients.map(c=>c.avatar_path).concat([State.cloudProfile&&State.cloudProfile.avatar_path]);
     resolveAvatars(paths).then(ok=>{ if(ok) renderCoach(); }).catch(()=>{});
-    const ic=await icP; CoachState.coachInvite=ic.data||null;
+    const ic=await icP; if(!ic.error) CoachState.coachInvite=ic.data||null;
     await billP;
   }catch(e){ console.error("coachClients",e); }
   loadCoachStats(); loadTpls(); loadMealTpls();
