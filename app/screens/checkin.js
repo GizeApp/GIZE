@@ -54,10 +54,15 @@ function renderSummary(){
 }
 export function saveSession(){
   const d=day(); const exs=[];
+  // Los kg y reps de la rutina quedan cargados de una vez a la otra: si tildó alguna serie, se
+  // guardan solo las tildadas (las otras son de la vez pasada y hoy no se hicieron, p. ej. la
+  // máquina estaba ocupada). Quien nunca tilda guarda las que tienen reps o segundos.
+  const anyDone=todayExs(d).some(ex=>(ex.sets||[]).some(s=>s.done));
   // Con la variante elegida por hoy (core/variantes.js): se guarda lo que se hizo de verdad y,
   // en originalName, el ejercicio de la rutina.
   todayExs(d).forEach(ex=>{
-    const sets=(ex.sets||[]).map(s=>{ const o={kg:parseFloat(String(s.kg).replace(",","."))||0, reps:parseInt(s.reps)||0}; const sc=parseSecs(s.secs); if(sc>0) o.secs=Math.min(36000,sc); return o; }).filter((o,i)=>o.reps>0||o.secs>0||(o.kg!==0&&ex.sets[i].done));
+    const sets=(ex.sets||[]).map(s=>{ const o={kg:parseFloat(String(s.kg).replace(",","."))||0, reps:parseInt(s.reps)||0}; const sc=parseSecs(s.secs); if(sc>0) o.secs=Math.min(36000,sc); return o; })
+      .filter((o,i)=>anyDone ? !!ex.sets[i].done && (o.reps>0||o.secs>0||o.kg!==0) : (o.reps>0||o.secs>0));
     // Una serie con solo el peso (lo completa la app al cargar el primero, o "Usar estos
     // pesos") y sin reps ni tildar no se hizo: no se guarda como serie de 0 reps.
     if(sets.length) exs.push(ex.origName ? {name:ex.name, originalName:ex.origName, sets:sets} : {name:ex.name, sets:sets});
@@ -91,6 +96,10 @@ export function saveSession(){
   noteSubs(d.name, exs);
   CheckinState.undo.variants=takeVariants(d);
   state.sessions.push(_ns);
+  // Se destilda el día, como «Limpiar»: si no, la vez siguiente todas seguían tildadas y se
+  // volvían a guardar como hechas. Los kg y reps quedan de punto de partida.
+  CheckinState.undo.done={}; CheckinState.undo.dayId=d.id;
+  (d.exercises||[]).forEach(ex=>(ex.sets||[]).forEach(st=>{ CheckinState.undo.done[st.id]=!!st.done; st.done=false; }));
   save();
   cloudInsertSession(_ns).then(ok=>{
     // Con internet queda en la cola y se reintenta solo; el aviso es solo para sin conexión.
@@ -102,7 +111,7 @@ export function saveSession(){
 
 // «Seguir entrenando» desde la ventana de «¡Entreno terminado!»: saca el entreno recién
 // guardado (también de la nube o de la cola) y vuelve el reloj del entreno como estaba.
-// Las series cargadas del día no se tocan (guardar no las borra).
+// Las series cargadas del día no se tocan (guardar no las borra) y vuelven a quedar tildadas.
 export function undoSaveSession(){
   const u=CheckinState.undo; if(!u) return;
   const se=(state.sessions||[]).find(x=>x.id===u.id);
@@ -110,6 +119,7 @@ export function undoSaveSession(){
   state.sessions=(state.sessions||[]).filter(x=>x.id!==u.id);
   if(u.wkStart) state.wkStart=u.wkStart;
   restoreVariants(u.variants);
+  if(u.done){ const d=(state.days||[]).find(x=>x.id===u.dayId); ((d && d.exercises)||[]).forEach(ex=>(ex.sets||[]).forEach(st=>{ if(Object.prototype.hasOwnProperty.call(u.done, st.id)) st.done=u.done[st.id]; })); }
   CheckinState.undo=null; CheckinState.fbSession=null; CheckinState.fbForm=null; CheckinState.newPRs=[];
   save();
 }
