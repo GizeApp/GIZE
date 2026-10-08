@@ -33,6 +33,11 @@ const NEW_ACCOUNT_MS = 7*24*3600000;
 
 const seenKey = () => SEEN_PREFIX + State.cloudUser.id;
 function markSeen(){ try{ localStorage.setItem(seenKey(), "1"); }catch(e){} }
+// ¿Ya tiene una rutina con ejercicios? Pasa al entrar por primera vez en otro dispositivo
+// (la marca de vista es por dispositivo): la bienvenida no le ofrece armar otra encima.
+const hasWork = () => (state.days||[]).some(d=>(d.exercises||[]).length);
+const REPLACE_MSG = "Ya tenés una rutina cargada. Esto la reemplaza en todos tus dispositivos. No toca tus pesos, entrenos ni hábitos. ¿Seguro?";
+const okToReplace = () => !hasWork() || confirm(REPLACE_MSG);
 
 export function maybeShowOnboarding(){
   const u=State.cloudUser, p=State.cloudProfile;
@@ -134,8 +139,9 @@ function showDisciplina(){
     }
     host.onclick=null;
     // Ya vinculado (código de un intento anterior de registro): no se le pide de nuevo.
-    // Con coach, la rutina la arma el coach: no se le ofrece armar una.
-    if(State.cloudProfile && State.cloudProfile.coach_id) close();
+    // Con coach, la rutina la arma el coach: no se le ofrece armar una. Con rutina propia
+    // (entró primero en otro dispositivo) tampoco: se queda con la suya.
+    if((State.cloudProfile && State.cloudProfile.coach_id) || hasWork()) close();
     else showClientCode();
   };
 }
@@ -157,7 +163,7 @@ function showClientCode(msg, value){
   inp.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); host.querySelector('[data-onb="join"]').click(); } });
   host.onclick=async e=>{
     const b=e.target.closest("[data-onb]"); if(!b || b.disabled) return;
-    if(b.dataset.onb==="solo"){ host.onclick=null; showStartChoice(); return; }
+    if(b.dataset.onb==="solo"){ host.onclick=null; if(hasWork()) close(); else showStartChoice(); return; }
     const code=inp.value.trim();
     if(!code){ showClientCode("Poné el código que te pasó tu coach, o tocá \"Entreno por mi cuenta\".", code); return; }
     b.disabled=true; b.textContent="Vinculando...";
@@ -240,9 +246,10 @@ function showWizard(){
     const a=b.dataset.onb;
     if(a==="days"){ OB.days=+b.dataset.v; mark(host, "days", OB.days); return; }
     if(a==="goal"){ OB.goal=b.dataset.v; mark(host, "goal", OB.goal); return; }
-    if(a==="empty"){ host.onclick=null; startDays(1, ""); return; }
+    if(a==="empty"){ if(!okToReplace()) return; host.onclick=null; startDays(1, ""); return; }
     if(a==="wnext"){
       if(OB.step<3){ OB.step++; showWizard(); return; }
+      if(!okToReplace()) return;
       host.onclick=null; if(OB.goal) state.goal=OB.goal; startDays(OB.days, OB.first.trim());
     }
   };
@@ -304,12 +311,12 @@ async function showRoutines(fromApp){
       return;
     }
     if(a==="cancel"){ host.onclick=null; closeOverlay(); return; }
-    if(a==="empty"){ host.onclick=null; startDays(1, ""); return; }
+    if(a==="empty"){ if(!okToReplace()) return; host.onclick=null; startDays(1, ""); return; }
     if(a==="sexagain"){ host.onclick=null; if(fromApp) showSexFromApp(); else showSex(); return; }
     if(a==="pick"){
       const r=all.find(x=>x.id===b.dataset.v); if(!r) return;
       const hasWork=(state.days||[]).some(d=>(d.exercises||[]).length);
-      if(fromApp && hasWork && !confirm("Esto reemplaza tus días de rutina por «"+r.nombre+"». No toca tus pesos, entrenos ni hábitos. ¿Seguro?")) return;
+      if(hasWork && !confirm(fromApp ? "Esto reemplaza tus días de rutina por «"+r.nombre+"». No toca tus pesos, entrenos ni hábitos. ¿Seguro?" : REPLACE_MSG)) return;
       host.onclick=null;
       state.days=copiarDias(r.days); State.activeId=(diaDeHoy(state.days)||state.days[0]).id; State.view="entreno"; // el de hoy, si dice el día (core/diasemana.js)
       save(); if(fromApp) closeOverlay(); else close(); renderApp();
