@@ -5,7 +5,7 @@
 // calorías de cada día (state.kcalLog). Lo que se trae queda en memoria mientras la app
 // está abierta.
 import { State, state } from '../core/state.js';
-import { pendingFoods } from '../core/supabase.js';
+import { foodsLoaded, pendingFoods } from '../core/supabase.js';
 import { fmtDate, today, ymd } from '../core/utils.js';
 
 const cache = new Map(); // fecha → { status: "loading" | "done" | "error", items, msg }
@@ -44,6 +44,7 @@ export async function loadDay(date, rerender) {
     // Lo cargado o borrado sin señal todavía no está en la nube: manda lo del celular.
     const pend = pendingFoods(date);
     cache.set(date, { status: "done", items: pend || items });
+    foodsLoaded(date, (pend || items).map(x => x.id)); // lo que se borre de esta lista se borra en la nube
     // Si el total guardado en el celular no estaba (otro dispositivo), se completa.
     const tot = items.reduce((a, e) => a + e.kcal, 0);
     if (tot > 0 && !(state.kcalLog && state.kcalLog[date])) state.kcalLog = Object.assign({}, state.kcalLog || {}, { [date]: tot });

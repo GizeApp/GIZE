@@ -1111,6 +1111,29 @@ window.addEventListener("online", ()=>{ if(State.cloudUser && !State.cloudReady)
 let _lastDay=null, _lastPrefs=null, _extrasTimer=null;
 const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Comidas de cada fecha que estaban en este dispositivo la última vez que se mandaron (o se
+// trajeron de la nube): state.foodsSeen = { fecha: [ids] }. En la nube se borra solo lo que
+// estaba acá y ya no está (removed). Antes se borraba todo lo que no estuviera en la lista de
+// este dispositivo, y uno desactualizado (una pestaña abierta desde ayer) borraba las comidas
+// cargadas desde otro.
+function foodsRemoved(k, key, dt, ids){
+  const cur=new Set(ids), out=new Set();
+  const seen=(state.foodsSeen && state.foodsSeen[dt]) || [];
+  seen.forEach(x=>{ if(!cur.has(x)) out.add(x); });
+  // Lo que ya se iba a borrar con un envío anterior todavía pendiente (este lo reemplaza).
+  const pend=myPending().filter(i=>i.k===k && i.key===key).pop();
+  ((pend && pend.p && pend.p.removed) || []).forEach(x=>{ if(!cur.has(x)) out.add(x); });
+  return [...out];
+}
+function noteFoodsSeen(dt, ids){
+  const old=daysAgo(62), m={};
+  Object.keys(state.foodsSeen||{}).forEach(k=>{ if(k>=old && k!==dt) m[k]=state.foodsSeen[k]; });
+  m[dt]=ids.slice();
+  state.foodsSeen=m;
+}
+// La foto del día sin la lista de lo borrado (es lo que se compara con _lastDay).
+const daySnap = p => { const o=Object.assign({}, p); delete o.removed; return o; };
+
 function daySnapshot(){
   const t=today();
   if(state.diaryDate!==t || state.waterDate!==t || state.stepsDate!==t || state.habitsDate!==t) return null; // checkDaily() todavía no pasó al día nuevo
@@ -1161,7 +1184,11 @@ export function syncExtras(){
   if(!State.cloudUser || State.cloudLoading || !state.cloudSeen) return;
   let queued=false;
   const d=daySnapshot();
-  if(d){ const j=JSON.stringify(d); if(j!==_lastDay){ _lastDay=j; enqueue("day", d, d.dt); queued=true; } }
+  if(d){
+    const ids=d.foods.map(f=>f.id), j=JSON.stringify(d);
+    if(j!==_lastDay){ _lastDay=j; enqueue("day", Object.assign({}, d, {removed:foodsRemoved("day", d.dt, d.dt, ids)}), d.dt); queued=true; }
+    noteFoodsSeen(d.dt, ids);
+  }
   const p=prefsSnapshot(), pj=JSON.stringify(p);
   if(pj!==_lastPrefs){ _lastPrefs=pj; enqueue("prefs", p, "prefs"); queued=true; }
   // Peso corporal: cada fecha cargada, cambiada o borrada va por la cola, así un peso
@@ -1174,6 +1201,57 @@ export function syncExtras(){
   }
   if(queued){ clearTimeout(_extrasTimer); _extrasTimer=setTimeout(()=>{ flushOutbox(); }, 1500); }
 }
+
+// El día cambió con la app abierta (checkDaily): el día nuevo vacío de este dispositivo no se
+// manda. Si se mandaba, pisaba el agua, los hábitos (y antes las comidas) que ya se hubieran
+// cargado hoy desde otro dispositivo. Se trae lo de hoy de la nube (refreshToday).
+export function dayRolled(){
+  const d=daySnapshot(); if(!d) return;
+  _lastDay=JSON.stringify(d);
+  setTimeout(()=>{ refreshToday(true); }, 0);
+}
+
+// Comidas, agua, pasos y hábitos de hoy desde la nube, al volver a primer plano o al pasar de
+// día con la app abierta: otro dispositivo pudo haber cargado algo. Solo si este no tiene nada
+// propio sin mandar (lo suyo se manda primero y manda). rolled: si la nube todavía no tiene el
+// día, se manda el de este dispositivo (cuenta para la racha), sin pisar nada.
+let _refreshing=false;
+export async function refreshToday(rolled){
+  if(!State.sb || !State.cloudUser || !State.cloudReady || State.cloudLoading || !state.cloudSeen || _refreshing) return;
+  if(State.cloudProfile && State.cloudProfile.role==="coach") return;
+  const t=today(), d0=daySnapshot(); if(!d0) return;
+  const local=JSON.stringify(d0);
+  const busy=()=>local!==_lastDay || myPending().some(i=>i.k==="day" && i.key===t);
+  if(busy()) return;
+  _refreshing=true;
+  try{
+    const uid=State.cloudUser.id, sb=State.sb;
+    const [dl, fe]=await Promise.all([
+      sb.from("daily_logs").select("water_ml, steps, habits_done").eq("client_id",uid).eq("log_date",t).maybeSingle(),
+      sb.from("food_entries").select("*").eq("client_id",uid).eq("log_date",t).order("pos")
+    ]);
+    if(dl.error || fe.error || today()!==t || !State.cloudUser || State.cloudUser.id!==uid) return;
+    // Mientras se leía, se cargó algo acá: eso se manda y manda.
+    if(JSON.stringify(daySnapshot())!==local || busy()) return;
+    const row=dl.data;
+    if(!row || row.water_ml==null){
+      // La nube todavía no tiene el día: se manda el de este dispositivo (agua y hábitos de hoy,
+      // las comidas no se borran: removed va vacío).
+      if(rolled){ _lastDay=null; syncExtras(); }
+      return;
+    }
+    state.water=row.water_ml||0;
+    state.steps=Math.max(state.steps||0, row.steps||0);
+    state.diary=(fe.data||[]).map(r=>({id:r.id, meal:r.meal||undefined, name:r.name, grams:Number(r.grams)||0, kcal:r.kcal||0, p:Number(r.protein)||0, c:Number(r.carbs)||0, f:Number(r.fat)||0, unit:r.unit||"g", base:r.base||undefined}));
+    applyHabitsDone(row.habits_done);
+    const now=JSON.stringify(daySnapshot());
+    _lastDay=now;
+    save();
+    if(now!==local) renderApp();
+  }catch(e){ console.error("refreshToday",e); }
+  finally{ _refreshing=false; }
+}
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") refreshToday(false); });
 
 // Fila de "sessions" (con sus session_entries) → entreno como lo guarda la app.
 // Las series se ordenan por set_order (su número dentro del ejercicio): Supabase no
@@ -1351,6 +1429,13 @@ function enqueue(k, p, key){
   return item.id;
 }
 
+// Lo que el cliente sacó del diario de ese día en este dispositivo (p.removed). Un envío de
+// una versión anterior de la app (sin removed) no borra nada: borraba todo lo que no tuviera.
+async function deleteFoods(uid, p){
+  const ids=(Array.isArray(p.removed) ? p.removed : []).filter(x=>UUID_RE.test(String(x)));
+  if(ids.length) sbOk(await State.sb.from("food_entries").delete().eq("client_id",uid).eq("log_date",p.dt).in("id",ids));
+}
+
 async function sendItem(it){
   const sb=State.sb, uid=it.uid, p=it.p;
   if(it.k==="session"){
@@ -1402,23 +1487,20 @@ async function sendItem(it){
     } else sbOk(r);
   } else if(it.k==="day"){
     // Solo las columnas del día: el upsert no toca comentario, sueño, etc. del registro.
-    sbOk(await sb.from("daily_logs").upsert({client_id:uid, log_date:p.dt, water_ml:p.water, steps:p.steps, habits_done:p.habits},{onConflict:"client_id,log_date"}));
+    // Sin los pasos: van solos por queueSteps (Salud). Mandarlos acá pisaba con 0 los del
+    // celular desde la web o desde un dispositivo que no los cuenta.
+    sbOk(await sb.from("daily_logs").upsert({client_id:uid, log_date:p.dt, water_ml:p.water, habits_done:p.habits},{onConflict:"client_id,log_date"}));
     if(p.foods.length){
       sbOk(await sb.from("food_entries").upsert(p.foods.map((f,i)=>({id:f.id, client_id:uid, log_date:p.dt, pos:i, meal:f.meal||null, name:f.name, grams:f.grams, unit:f.unit, kcal:f.kcal, protein:f.p, carbs:f.c, fat:f.f, base:f.base})),{onConflict:"id"}));
     }
-    // Lo que el cliente sacó del diario de ese día.
-    let del=sb.from("food_entries").delete().eq("client_id",uid).eq("log_date",p.dt);
-    if(p.foods.length) del=del.not("id","in","("+p.foods.map(f=>f.id).join(",")+")");
-    sbOk(await del);
+    await deleteFoods(uid, p);
   } else if(it.k==="foods"){
     // Comidas de un día anterior, cargadas o borradas desde Comida (el agua, los pasos y los
     // hábitos de ese día no se tocan). Mismo reemplazo que el día de hoy.
     if(p.foods.length){
       sbOk(await sb.from("food_entries").upsert(p.foods.map((f,i)=>({id:f.id, client_id:uid, log_date:p.dt, pos:i, meal:f.meal||null, name:f.name, grams:f.grams, unit:f.unit, kcal:f.kcal, protein:f.p, carbs:f.c, fat:f.f, base:f.base})),{onConflict:"id"}));
     }
-    let del=sb.from("food_entries").delete().eq("client_id",uid).eq("log_date",p.dt);
-    if(p.foods.length) del=del.not("id","in","("+p.foods.map(f=>f.id).join(",")+")");
-    sbOk(await del);
+    await deleteFoods(uid, p);
   } else if(it.k==="steps"){
     // Pasos de un día, solo esa columna (queueSteps: Salud / Health Connect). El resto del
     // registro del día no se toca.
@@ -1596,7 +1678,7 @@ function applyPending(){
       state.water=p.water; state.steps=p.steps;
       state.diary=p.foods.map(f=>({id:f.id, meal:f.meal||undefined, name:f.name, grams:f.grams, kcal:f.kcal, p:f.p, c:f.c, f:f.f, unit:f.unit, base:f.base||undefined}));
       applyHabitsDone(p.habits);
-      _lastDay=JSON.stringify(p);
+      _lastDay=JSON.stringify(daySnap(p));
     } else if(it.k==="steps"){
       // Aunque ese día no tenga registro: la fila de daily_logs se crea con los pasos solos.
       state.daily[p.dt]=Object.assign({}, state.daily[p.dt]||{}, {steps:String(p.steps)});
@@ -1674,8 +1756,15 @@ export function cloudSessionFeedback(se){
 // reemplaza a una anterior que todavía no se mandó.
 export function cloudSaveFoods(dt, list){
   const foods=(list||[]).map(e=>{ if(!UUID_RE.test(String(e.id))) e.id=newId(); return {id:e.id, meal:e.meal||null, name:e.name, grams:e.grams, unit:e.unit||"g", kcal:e.kcal||0, p:e.p||0, c:e.c||0, f:e.f||0, base:e.base||null}; });
-  return enqueueAndSend("foods", {dt:dt, foods:foods}, "foods:"+dt);
+  if(!State.cloudUser) return Promise.resolve(true);
+  const ids=foods.map(f=>f.id), removed=foodsRemoved("foods", "foods:"+dt, dt, ids);
+  noteFoodsSeen(dt, ids);
+  return enqueueAndSend("foods", {dt:dt, foods:foods, removed:removed}, "foods:"+dt);
 }
+
+// Un día anterior recién traído de la nube (screens/comida-historial.js): lo que se borre de
+// esa lista se borra en la nube.
+export function foodsLoaded(dt, ids){ if(State.cloudUser) noteFoodsSeen(dt, ids); }
 
 // Lo que todavía no subió de un día anterior (para mostrarlo encima de lo que trae la nube).
 export function pendingFoods(dt){

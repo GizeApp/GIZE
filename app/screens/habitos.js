@@ -6,6 +6,8 @@ import { state } from '../core/state.js';
 
 import { save } from '../core/storage.js';
 
+import { dayRolled } from '../core/supabase.js';
+
 import { esc, hkey, today, uid } from '../core/utils.js';
 
 import { renderApp } from '../main.js';
@@ -29,7 +31,8 @@ export function checkDaily(){ const t=today(); let ch=false;
   if (state.diaryDate !== t) { logDayKcal(state.diaryDate, state.diary); state.diary=[]; state.diaryDate=t; ch=true; }
   if (state.stepsDate !== t) { state.steps=0; state.stepsDate=t; ch=true; }
   if (state.waterDate !== t) { state.water=0; state.waterDate=t; ch=true; }
-  if (ch) save();
+  // El día nuevo vacío no se sube: traería abajo lo cargado hoy en otro dispositivo (ver dayRolled).
+  if (ch) { dayRolled(); save(); }
 }
 
 // ---- Días y aviso de cada hábito (la campanita) ----
