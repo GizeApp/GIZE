@@ -327,6 +327,8 @@ document.body.addEventListener("input", async e => {
   // Registro de hoy: se guarda mientras se escribe (no solo al salir del campo), así un
   // redibujo no borra lo que se está escribiendo.
   if (a === "daily-kg" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":t.dataset.k] = t.value; return; }
+  // Lo mismo en el check-in semanal: al volver de otra app se redibuja y se perdía lo escrito.
+  if (a === "ci-set") { checkinFormInit()[t.dataset.k] = t.value; return; }
   if (a === "food-search") { ComidaState.foodQuery = t.value; scheduleOffSearch(t.value); const r=document.getElementById("foodResults"); if(r) r.innerHTML = renderResults(ComidaState.foodQuery); return; }
   if (a === "ex-search") { EntrenoState.exQuery = t.value; const l=document.getElementById("exList"); if(l) l.innerHTML = renderExList(); return; }
   if (a === "portion-grams") { const base = ComidaState.selectedFood ? selectedFoodValues() : (ComidaState.editEntry ? entryBase(ComidaState.editEntry) : null); if(base){ const pv=document.getElementById("portionPreview"); if(pv) pv.textContent = previewStr(base, t.value); const pu=document.getElementById("portionUnits"); const uf=sheetUnitFood(); if(pu && uf) pu.textContent = unitsLabel(t.value, cookPortion(uf.food, uf.cook), base.unit, uf.food); } ComidaState.sheetGrams = t.value; return; }
@@ -742,8 +744,8 @@ document.body.addEventListener("click", async e => {
     renderApp(); return;
   }
   if (a === "daily-set") { dailyFormInit(); CheckinState.dailyForm[el.dataset.k] = el.dataset.v; renderApp(); return; }
-  if (a === "weight-save") { const dEl=document.getElementById("wDate"), kEl=document.getElementById("wKg"); const date=dEl?dEl.value:""; const kg=parseFloat((kEl?kEl.value:"").replace(",",".")); if(!date){ alert("Elegí una fecha."); return; } if(!(kg>0)){ alert("Poné un peso válido."); return; } const exw=state.weights.find(w=>w.date===date); if(exw) exw.kg=kg; else state.weights.push({id:uid(),date,kg}); ProgresoState.weightForm={date:today(),kg:"",at:today()}; save(); renderApp(); return; }
-  if (a === "weight-edit") { const w=state.weights.find(x=>x.id===el.dataset.id); if(w){ ProgresoState.weightForm={date:w.date,kg:String(w.kg).replace(".",","),at:today()}; } renderApp(); return; }
+  if (a === "weight-save") { const dEl=document.getElementById("wDate"), kEl=document.getElementById("wKg"); const date=dEl?dEl.value:""; const kg=parseFloat((kEl?kEl.value:"").replace(",",".")); if(!date){ alert("Elegí una fecha."); return; } if(!(kg>0)){ alert("Poné un peso válido."); return; } const eid=ProgresoState.weightForm&&ProgresoState.weightForm.editId; if(eid){ const old=state.weights.find(w=>w.id===eid); if(old && old.date!==date) state.weights=state.weights.filter(w=>w.id!==eid); } /* corregir la fecha mueve el registro, no agrega otro */ const exw=state.weights.find(w=>w.date===date); if(exw) exw.kg=kg; else state.weights.push({id:uid(),date,kg}); ProgresoState.weightForm={date:today(),kg:"",at:today()}; save(); renderApp(); return; }
+  if (a === "weight-edit") { const w=state.weights.find(x=>x.id===el.dataset.id); if(w){ ProgresoState.weightForm={date:w.date,kg:String(w.kg).replace(".",","),at:today(),editId:w.id}; } renderApp(); return; }
   if (a === "weight-remove") { state.weights=state.weights.filter(x=>x.id!==el.dataset.id); save(); renderApp(); return; }
 
   // Agua
