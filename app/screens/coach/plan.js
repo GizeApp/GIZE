@@ -191,6 +191,11 @@ function graceLine(b){
   return '<div class="pl-wall-s pl-wall-grace">Tenés hasta el ' + fmtDate(ymd(new Date(limit).toISOString())) + ' para renovar. Después, tus clientes pasan a usar GIZE por su cuenta, con todo lo que les armaste.</div>';
 }
 
+// «Eliminar cuenta» también con la cuenta inactiva: la tuerca de Configuración (el único lugar
+// donde estaba) no se dibuja acá, y Apple y Google exigen poder borrarla desde la app. Lo
+// maneja screens/config.js (confirmación, baja en Mercado Pago y borrado).
+const WALL_DELETE = '<button class="logout-btn cfg-danger pl-wall-del" data-action="cfg-delete-account">Eliminar cuenta</button>';
+
 // Pantalla completa cuando no hay prueba ni plan vigente.
 export function renderPaywall(){
   const b = billing();
@@ -203,7 +208,7 @@ export function renderPaywall(){
     (IS_NATIVE ? 'Para volver a verlos, hablá con el equipo de GIZE.' : 'Elegí un plan para volver a verlos y seguir sumando clientes: con tarjeta se renueva solo cada mes.') + '</div>' +
     graceLine(b) +
     (B.confirming ? '<div class="pl-status">Confirmando tu pago con Mercado Pago…</div>' : '') + '</div>' +
-    planCards(b) +
+    planCards(b) + WALL_DELETE +
   '</div>';
 }
 
@@ -213,7 +218,7 @@ function renderInactiveIOS(){
   return '<div class="co-wrap pl-wall">' +
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
     '<div class="pl-wall-hero"><div class="pl-wall-t">Tu cuenta de coach no está activa en este momento.</div>' +
-    '<button class="pl-choose pl-wall-out" data-auth="logout">Cerrar sesión</button></div>' +
+    '<button class="pl-choose pl-wall-out" data-auth="logout">Cerrar sesión</button></div>' + WALL_DELETE +
   '</div>';
 }
 
@@ -229,7 +234,7 @@ function renderOverCap(b){
     '<div class="pl-wall-s">' + (IS_IOS ? 'Tenés ' + b.count + ' alumnos y el máximo de tu cuenta es ' + b.max + '. ' : 'Tenés ' + b.count + ' clientes y tu plan es de ' + b.max + '. ') +
     (IS_NATIVE ? 'Desvinculá ' : 'Contratá un plan más grande o desvinculá ') + extra + ' cliente' + (extra === 1 ? '' : 's') + ' para volver a ver sus fichas. Sus rutinas y registros quedan guardados.</div></div>' +
     planCards(b) +
-    '<div class="pl-oc"><div class="pl-sub">Tus clientes</div>' + list + '</div>' +
+    '<div class="pl-oc"><div class="pl-sub">Tus clientes</div>' + list + '</div>' + WALL_DELETE +
   '</div>';
 }
 
