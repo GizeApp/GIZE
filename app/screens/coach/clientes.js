@@ -159,6 +159,16 @@ export async function openClient(id){
       // recorrido: ese se pide al abrir una (ver salidas.js). Sin la tabla, la sección lo avisa.
       Promise.resolve(sb.from("cardio_outings").select(SALIDA_COLS).eq("client_id",id).order("started_at",{ascending:false}).order("id").limit(SALIDAS_MAX)).catch(e=>({data:null, error:e}))
     ]);
+    // Supabase no lanza cuando una lectura falla (sin señal, por ejemplo): devuelve {data:null,
+    // error}. Si falla cualquiera de estas, la ficha no se arma: vacía parecía real y al guardar
+    // (ficha, plan, rutina o bloque) se pisaba lo del alumno. Va antes del borrador de la rutina,
+    // para no descartarlo por una lectura fallida. Programadas y salidas siguen tolerantes.
+    const reads=[ws, ss, rt, dl, ck, ci, bl, np];
+    if(reads.some(r=>!r || r.error)){
+      if(CoachState.coachSel!==id) return;
+      console.error("openClient", reads.map(r=>r && r.error).filter(Boolean));
+      CoachState.coachData={error:true}; renderCoach(); return;
+    }
     const weights=(ws.data||[]).map(w=>({date:w.measured_on, kg:Number(w.kg)}));
     // Variantes del día (core/variantes.js): el registro del día dice qué ejercicio cambió por cuál.
     const sessions=markSubs((ss.data||[]).map(sessionFromRow), dl.data||[]);
