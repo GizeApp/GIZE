@@ -256,12 +256,14 @@ export function planSections(p){
   if(!p) return "";
   const meals=(rows,title)=>{
     if(!rows || !rows.length) return "";
-    let tk=0,tc=0,tf=0,tp=0;
-    const body=rows.map((r,i)=>{ tk+=+r.kcal||0;tc+=+r.cho||0;tf+=+r.fat||0;tp+=+r.prot||0;
+    // Como en el panel del coach (mealRows): num() acepta la coma («32,5») y los gramos van con un
+    // decimal y coma (10.1 + 20.2 daba 30.299999999999997).
+    let tk=0,tc=0,tf=0,tp=0; const r1=x=>String(Math.round(x*10)/10).replace(".",",");
+    const body=rows.map((r,i)=>{ tk+=num(r.kcal);tc+=num(r.cho);tf+=num(r.fat);tp+=num(r.prot);
       return '<tr class="mc-mrow mr-'+(i%4)+'"><td class="mc-meal">'+esc(r.meal||"")+(r.time?'<span class="mc-time">'+esc(r.time)+'</span>':'')+'</td><td>'+esc(r.kcal||"-")+'</td><td>'+esc(r.cho||"-")+'</td><td>'+esc(r.fat||"-")+'</td><td>'+esc(r.prot||"-")+'</td></tr>'+
         (r.note?'<tr class="mc-noter"><td colspan="5">'+esc(r.note)+'</td></tr>':''); }).join("");
     return '<div class="mc-block"><div class="mc-title">'+title+'</div><table class="mc-tbl"><thead><tr><th>Comida</th><th>Kcal</th><th>Hidr.</th><th>Gras.</th><th>Prot.</th></tr></thead><tbody>'+body+
-      '<tr class="mc-tot mc-goal"><td>Objetivo</td><td>'+tk+'</td><td>'+tc+'</td><td>'+tf+'</td><td>'+tp+'</td></tr></tbody></table></div>';
+      '<tr class="mc-tot mc-goal"><td>Objetivo</td><td>'+Math.round(tk)+'</td><td>'+r1(tc)+'</td><td>'+r1(tf)+'</td><td>'+r1(tp)+'</td></tr></tbody></table></div>';
   };
   const list=(arr,title,icon,cls)=>{ if(!arr||!arr.filter(x=>x&&x.trim()).length) return ""; return '<div class="mc-block'+(cls?' '+cls:'')+'"><div class="mc-title'+(cls?' '+cls+'-t':'')+'">'+icon+' '+title+'</div><ul class="mc-list">'+arr.filter(x=>x&&x.trim()).map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul></div>'; };
   const ws=(p.water||p.salt)?'<div class="mc-block"><div class="mc-ws">'+(p.water?'<span>💧 '+esc(withUnit(p.water,'L de agua por día'))+'</span>':'')+(p.salt?'<span>🧂 '+esc(withUnit(p.salt,'g de sal por día'))+'</span>':'')+'</div></div>':'';
