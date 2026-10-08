@@ -155,8 +155,12 @@ export function kcalLeftHtml(t, kcal, past){
 }
 export const macroKcal = m => Math.round((+m.p||0)*4 + (+m.c||0)*4 + (+m.f||0)*9);
 
+// La meta la fija el coach solo si su plan trae calorías. Un plan con solo hábitos, cardio, agua
+// u opciones de menú (kcal en null) deja al alumno con su propia meta: antes quedaba «de 0 kcal».
+export const coachGoal = () => !!(state.coachPlan && +state.coachPlan.kcal > 0);
+
 export function macroTargets(){
-  if(state.coachPlan){ const p=state.coachPlan; return {p:+p.protein||0, c:+p.carbs||0, f:+p.fat||0}; }
+  if(coachGoal()){ const p=state.coachPlan; return {p:+p.protein||0, c:+p.carbs||0, f:+p.fat||0}; }
   const cm = customMacros(); if(cm) return cm;
   const t = state.calTarget||0;
   const w = state.calProfile && state.calProfile.weight ? +state.calProfile.weight : 0;
@@ -286,7 +290,7 @@ export function previewStr(food, grams){
 }
 
 export function renderCalForm(){
-  if (state.coachPlan) return renderCoachGoal();
+  if (coachGoal()) return renderCoachGoal();
   const c = ComidaState.calForm;
   const sb = (v,l)=>`<button class="${c.sex===v?'on':''}" data-action="cal-sex" data-val="${v}">${l}</button>`;
   const ab = (v,l)=>`<button class="${c.activity===v?'on':''}" data-action="cal-activity" data-val="${v}">${l}</button>`;
@@ -417,15 +421,25 @@ export function renderComida(){
   if (ComidaState.planOpen && state.coachPlan) return renderPlanScreen();
   if (ComidaState.requestingProduct) return renderRequestForm();
   if (ComidaState.creatingFood) return renderFoodForm();
-  if (!state.calTarget && !state.coachPlan) {
+  // El plan del coach tiene su propia pantalla («Mi plan»): acá abajo queda solo una tarjeta
+  // compacta con las calorías y macros, así Comida es solo lo del día.
+  const cp = state.coachPlan;
+  const planCard = cp ? `<button class="plan-card" data-action="plan-open">
+      <span class="plan-card-t">Plan de tu coach</span>
+      <span class="plan-card-m">${(+cp.kcal||0) ? `<b>${(+cp.kcal).toLocaleString("es-AR")}</b> kcal` : ''}${[["P",cp.protein],["C",cp.carbs],["G",cp.fat]].filter(x=>+x[1]).map(x=>`<span class="pcm">${x[0]} <b>${+x[1]}</b></span>`).join("")}</span>
+      <span class="plan-card-go">Ver plan<span aria-hidden="true">›</span></span>
+    </button>` : '';
+  // Sin meta propia ni del coach. Si el coach mandó un plan sin calorías, su tarjeta queda igual
+  // a mano para ver «Mi plan».
+  if (!state.calTarget && !coachGoal()) {
     return `<div class="cal-empty">
       <div class="cal-empty-ic">${flameSvg}</div>
       <div class="cal-empty-title">Configurá tu meta</div>
       <div class="cal-empty-sub">Calculamos cuántas calorías necesitás según tu cuerpo y tu objetivo. Después registrás lo que comés y la app va sumando.</div>
       <button class="ctrl primary" style="max-width:240px;margin:0 auto" data-action="cal-open">Configurar meta</button>
-    </div>`;
+    </div>${planCard}`;
   }
-  const t = (state.coachPlan && state.coachPlan.kcal) ? state.coachPlan.kcal : state.calTarget, mt = macroTargets();
+  const t = coachGoal() ? +state.coachPlan.kcal : state.calTarget, mt = macroTargets();
   // Día que se mira: hoy (se carga y se edita) o uno anterior (solo para ver, de la nube).
   const td = today(), vd = (ComidaState.viewDate && ComidaState.viewDate < td) ? ComidaState.viewDate : td, past = vd !== td;
   const pd = past ? pastDay(vd) : null;
@@ -436,18 +450,10 @@ export function renderComida(){
       <div class="day-lbl"><b>${dayLabel(vd)}</b><span>${vd===td ? dayShort(vd) : (dayLabel(vd)===dayShort(vd) ? "Día anterior" : dayShort(vd))}</span></div>
       <button class="day-arrow" data-action="day-next" aria-label="Día siguiente"${past?'':' disabled'}>›</button>
     </div>`;
-  // El plan del coach tiene su propia pantalla («Mi plan»): acá abajo queda solo una tarjeta
-  // compacta con las calorías y macros, así Comida es solo lo del día.
-  const cp = state.coachPlan;
-  const planCard = cp ? `<button class="plan-card" data-action="plan-open">
-      <span class="plan-card-t">Plan de tu coach</span>
-      <span class="plan-card-m">${(+cp.kcal||0) ? `<b>${(+cp.kcal).toLocaleString("es-AR")}</b> kcal` : ''}${[["P",cp.protein],["C",cp.carbs],["G",cp.fat]].filter(x=>+x[1]).map(x=>`<span class="pcm">${x[0]} <b>${+x[1]}</b></span>`).join("")}</span>
-      <span class="plan-card-go">Ver plan<span aria-hidden="true">›</span></span>
-    </button>` : '';
   const wml = state.water||0, wgoal = state.waterGoal||3000, wpct = wgoal?Math.min(Math.round(wml/wgoal*100),100):0;
   const Lstr = v => (v/1000).toLocaleString("es-AR",{maximumFractionDigits:2});
   const pct = t ? Math.min(tot.kcal/t, 1) : 0;
-  const over = tot.kcal > t;
+  const over = t > 0 && tot.kcal > t;
   const mbar = (lbl, cons, tgt) => {
     const w = tgt ? Math.min(Math.round(cons/tgt*100),100) : 0;
     return `<div><div class="macro-top"><b>${lbl}</b><span>${Math.round(cons)} / ${tgt} g</span></div><div class="bar"><div style="width:${w}%"></div></div></div>`;
