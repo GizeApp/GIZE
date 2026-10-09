@@ -5,9 +5,14 @@
 # para traer lo nuevo (Open Food Facts actualiza su archivo completo todos los días).
 # Antes de la primera vez: tarea "sql" de Supabase con supabase/productos-off.sql.
 #
-# Usa el secret SUPABASE_ACCESS_TOKEN del Environment "production" (Settings → Environments, ver
-# supabase.yml). Corre solo desde main. Si "production" pide aprobación, la corrida de cada mes
-# queda esperando hasta que la apruebes (en la ejecución → «Review deployments»).
+# Corre solo desde main y en el Environment "catalogo" (también lo usa importar-super.yml), no en
+# "production": ese pide aprobación, y la corrida de cada mes quedaría esperando hasta que GitHub
+# la cancele a los 30 días. Crearlo (hace falta ser admin del repo):
+# Settings → Environments → New environment → "catalogo"; en «Deployment branches and tags»
+# elegir «Selected branches and tags» y agregar solo main, sin revisores. Ahí va su propio
+# SUPABASE_ACCESS_TOKEN («Environment secret»): un token de supabase.com/dashboard/account/tokens
+# con acceso SOLO a este proyecto y solo Database (read-write), lo único que usan los scripts
+# (/database/query).
 # El log es PÚBLICO: el script imprime solo cantidades.
 name: Importar Open Food Facts
 
@@ -31,7 +36,7 @@ concurrency:
 jobs:
   importar:
     if: github.ref == 'refs/heads/main'
-    environment: production
+    environment: catalogo
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
