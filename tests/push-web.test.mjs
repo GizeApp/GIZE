@@ -3,7 +3,7 @@
 //    la cuenta para recibir notificaciones si no las activó en este navegador.
 // 2) Activadas acá, se vuelven a guardar al entrar (el navegador a veces renueva la suscripción).
 // 3) Versiones anteriores (sin la cuenta anotada): se siguen guardando solo si la base dice que ese
-//    navegador ya era de esta cuenta.
+//    navegador ya era de esta cuenta; si no (es de otra cuenta), se dan de baja y se borran de la base.
 // 4) Las activó otra cuenta que se fue sin «Salir»: al entrar se dan de baja y se borran de la base.
 // 5) Sin «Mantener la sesión»: al cerrar la pestaña y volver a abrir GIZE se dan de baja en el
 //    navegador y se borran de la base sin sesión (forget_push_subscription).
@@ -73,6 +73,8 @@ export default async function ({ base, t }){
       t.eq(await p.evaluate(() => localStorage.getItem('gize_web_push')), ALUMNO.id, '3: y queda anotada');
     } else {
       t.ok(!m.has('save'), '3: la base no la tiene a nombre de esta cuenta: no se registra sola');
+      t.ok((await pushLog(p)).includes('unsubscribe'), '3: y se da de baja en el navegador (puede ser de otra cuenta)');
+      t.ok(m.rpcs.some(x => x.startsWith('forget ') && x.includes(EP) && x.includes('CLAVE')), '3: y se borra de la base con su clave: ' + m.rpcs.join(' | '));
     }
     t.eq(errs, [], '3: errores de la página');
     await close();
