@@ -16,6 +16,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 import { importPKCS8, SignJWT } from "npm:jose@5";
+import { htmlToText } from "./texto.ts";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -55,27 +56,7 @@ async function signatureOk(req: Request, raw: string, secret: string): Promise<b
   });
 }
 
-// ---- Texto del mail ----
-const NAMED: Record<string, string> = {
-  nbsp: " ", lt: "<", gt: ">", quot: '"', apos: "'", aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
-  Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú", ntilde: "ñ", Ntilde: "Ñ", uuml: "ü", Uuml: "Ü",
-  iquest: "¿", iexcl: "¡", ordm: "º", ordf: "ª", laquo: "«", raquo: "»", euro: "€", hellip: "…", mdash: "—", ndash: "–", deg: "°",
-};
-// Patrones lineales (sin reintentos que crezcan con el largo): un mail enorme no puede trabar la función.
-function htmlToText(html: string): string {
-  return html
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<(style|script|head)\b[\s\S]*?<\/\1>/gi, "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|tr|h[1-6]|blockquote)>/gi, "\n")
-    .replace(/<[^<>]*>/g, "")
-    .replace(/&#(x[0-9a-f]+|\d+);/gi, (_, n: string) => {
-      const c = n[0] === "x" || n[0] === "X" ? parseInt(n.slice(1), 16) : Number(n);
-      return c > 0 && c <= 0x10ffff && (c < 0xd800 || c > 0xdfff) ? String.fromCodePoint(c) : "";
-    })
-    .replace(/&([a-z]+);/gi, (m, n: string) => NAMED[n] ?? m)
-    .replace(/&amp;/g, "&");
-}
+// ---- Texto del mail (el HTML se limpia en texto.ts) ----
 function tidy(s: string): string {
   return s.replace(/\r\n?/g, "\n").split("\n").map((l) => l.trimEnd()).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
@@ -212,65 +193,70 @@ Deno.serve(async (req) => {
   if (prevErr) { console.error("select", prevErr.message); return json({ error: "No se pudo leer la base" }, 500); }
   if (prev && !prev.body_missing) return json({ ok: true, duplicado: true }); // Resend reintenta: ya estaba
 
+  // Lo que se sabe del mail: del aviso de Resend y, si se pudo bajar, del mail completo.
+  const campos = (full: Record<string, any> | null) => {
+    // La dirección sale del campo de Resend (ya viene limpia); el nombre, del encabezado From.
+    const headers = (full && full.headers) || {};
+    const addr = parseAddress((full && full.from) || d.from);
+    const from = { email: addr.email, name: parseAddress(headers.from || headers.From).name || addr.name };
+    const toList = ((full && full.to) || d.to || []) as unknown[];
+    const to = toList.map((x) => parseAddress(x).email).find((x) => x.endsWith("@gize.ar")) || (toList.length ? parseAddress(toList[0]).email : null);
+    const replyTo = ((full && full.reply_to) || []) as unknown[];
+    const rt = (Array.isArray(replyTo) ? replyTo : [replyTo]).map((x) => parseAddress(x).email).find((x) => EMAIL.test(x) && x !== from.email) || null;
+    const auth = (full && full.authentication) || {};
+    const verdict = (v: unknown) => v == null ? null : clip(v, 40) || null;
+    const atts = Array.isArray((full && full.attachments) || d.attachments) ? ((full && full.attachments) || d.attachments).length : 0;
+    return {
+      message_id: clip((full && full.message_id) || d.message_id || "", 500) || null,
+      from_email: clip(from.email, 320) || "desconocido", from_name: from.name ? clip(from.name, 200) : null, to_email: to ? clip(to, 320) : null,
+      reply_to: rt ? clip(rt, 320) : null, auth_dmarc: verdict(auth.dmarc), auth_spf: verdict(auth.spf), auth_dkim: verdict(auth.dkim),
+      subject: clip(String((full && full.subject) ?? d.subject ?? "").replace(/\s+/g, " ").trim(), 300) || null, attachments: atts,
+    };
+  };
+
+  // Primero se guarda la fila con el id de Resend (todavía sin el texto): si después algo se
+  // corta, el mail queda anotado y el reintento de Resend solo completa el texto.
+  let rowId = prev ? prev.id : null, nuevo = false;
+  if (!prev) {
+    const { data: ins, error } = await db.from("contact_messages")
+      .upsert({ resend_id: resendId, ...campos(null), body: "", body_missing: true }, { onConflict: "resend_id", ignoreDuplicates: true }).select("id");
+    if (error) { console.error("insert", error.message); return json({ error: "No se pudo guardar" }, 500); }
+    if (!ins || !ins.length) return json({ ok: true, duplicado: true }); // otro intento lo acaba de guardar
+    rowId = ins[0].id; nuevo = true;
+  }
+
   // El aviso de Resend no trae el texto: se baja aparte (hace falta la clave con acceso completo).
   const key = Deno.env.get("RESEND_FULL_KEY") || Deno.env.get("RESEND_API_KEY") || "";
   let full: Record<string, any> | null = null;
   if (key) {
     try {
-      const r = await fetch("https://api.resend.com/emails/receiving/" + encodeURIComponent(resendId), { headers: { Authorization: "Bearer " + key } });
+      const r = await fetch("https://api.resend.com/emails/receiving/" + encodeURIComponent(resendId), { headers: { Authorization: "Bearer " + key }, signal: AbortSignal.timeout(15000) });
       if (r.ok) full = await r.json(); else console.error("resend", r.status, (await r.text()).slice(0, 300));
     } catch (e) { console.error("resend", (e as Error).message); }
   }
 
-  // La dirección sale del campo de Resend (ya viene limpia); el nombre, del encabezado From.
-  const headers = (full && full.headers) || {};
-  const addr = parseAddress((full && full.from) || d.from);
-  const from = { email: addr.email, name: parseAddress(headers.from || headers.From).name || addr.name };
-  if (!EMAIL.test(from.email)) console.error("remitente raro", clip(from.email, 80));
-  const toList = ((full && full.to) || d.to || []) as unknown[];
-  const to = toList.map((x) => parseAddress(x).email).find((x) => x.endsWith("@gize.ar")) || (toList.length ? parseAddress(toList[0]).email : null);
-  const replyTo = ((full && full.reply_to) || []) as unknown[];
-  const rt = (Array.isArray(replyTo) ? replyTo : [replyTo]).map((x) => parseAddress(x).email).find((x) => EMAIL.test(x) && x !== from.email) || null;
-  const auth = (full && full.authentication) || {};
-  const subject = clip(String((full && full.subject) ?? d.subject ?? "").replace(/\s+/g, " ").trim(), 300) || null;
-  // Se recorta ANTES de procesar (un mail gigante no traba la función) y otra vez al guardar.
-  const text = full ? tidy(String(full.text || "").slice(0, 100000) || htmlToText(String(full.html || "").slice(0, 500000))) : "";
-  const body = clip(text, 20000);
+  const row = campos(full);
+  if (!EMAIL.test(row.from_email)) console.error("remitente raro", clip(row.from_email, 80));
   const missing = !full;
-  const atts = Array.isArray((full && full.attachments) || d.attachments) ? ((full && full.attachments) || d.attachments).length : 0;
-  const verdict = (v: unknown) => v == null ? null : clip(v, 40) || null;
-
-  if (prev){
-    // Ya estaba guardado sin el texto (falló la primera vez): se completa.
-    if (missing) return json({ error: "No se pudo leer el mail" }, 502);
-    const { error: upErr } = await db.from("contact_messages").update({
-      body, body_missing: false, subject, from_name: from.name ? clip(from.name, 200) : null, reply_to: rt ? clip(rt, 320) : null,
-      auth_dmarc: verdict(auth.dmarc), auth_spf: verdict(auth.spf), auth_dkim: verdict(auth.dkim),
-    }).eq("id", prev.id);
+  if (full) {
+    // Se recorta ANTES de procesar (un mail gigante no traba la función) y otra vez al guardar.
+    const text = tidy(String(full.text || "").slice(0, 50000) || htmlToText(String(full.html || "").slice(0, 200000)));
+    const { error: upErr } = await db.from("contact_messages").update({ ...row, body: clip(text, 20000), body_missing: false }).eq("id", rowId);
     if (upErr) { console.error("update", upErr.message); return json({ error: "No se pudo guardar" }, 500); }
-    return json({ ok: true, completado: true });
+    if (!nuevo) return json({ ok: true, completado: true });
   }
 
-  const row = {
-    resend_id: resendId, message_id: clip((full && full.message_id) || d.message_id || "", 500) || null,
-    from_email: clip(from.email, 320) || "desconocido", from_name: from.name ? clip(from.name, 200) : null, to_email: to ? clip(to, 320) : null,
-    reply_to: rt ? clip(rt, 320) : null, auth_dmarc: verdict(auth.dmarc), auth_spf: verdict(auth.spf), auth_dkim: verdict(auth.dkim),
-    subject, body, body_missing: missing, attachments: atts,
-  };
-  const { data: ins, error } = await db.from("contact_messages").upsert(row, { onConflict: "resend_id", ignoreDuplicates: true }).select("id");
-  if (error) { console.error("insert", error.message); return json({ error: "No se pudo guardar" }, 500); }
-
   // Aviso a los administradores (solo la primera vez que llega el mail).
-  if (ins && ins.length) {
+  if (nuevo) {
     const { data: admins } = await db.from("app_admins").select("user_id");
     const ids = (admins || []).map((a) => a.user_id);
     if (ids.length) {
       const { data: subs } = await db.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth").in("user_id", ids);
       if (subs && subs.length) {
         // Si el remitente no se pudo verificar, el aviso lo dice (puede ser alguien haciéndose pasar).
-        const who = from.name || from.email, unverified = row.auth_dmarc !== "pass";
+        const who = row.from_name || row.from_email, unverified = row.auth_dmarc !== "pass";
         const gone = await send(subs as Sub[], unverified ? "Mensaje de contacto (remitente sin verificar)" : "Nuevo mensaje de contacto",
-          clip(who + ": " + (subject || "(sin asunto)"), 180), "gize-contacto", "./admin/#contacto");
+          clip(who + ": " + (row.subject || "(sin asunto)"), 180), "gize-contacto", "./admin/#contacto");
         if (gone.length) await db.from("push_subscriptions").delete().in("id", gone);
       }
     }
