@@ -288,6 +288,18 @@ grant execute on function public.admin_audit_list(int) to authenticated;
 
 -- Productos: guardar lo revisado ahora también queda en el registro. Verificar (o volver a
 -- mostrar) borra los reportes: ya se revisaron y el producto sale de Reportados.
+-- Cualquier cambio desde el panel deja la marca de revisado (reviewed_at), que respetan las
+-- importaciones (scripts/off-import-lib.mjs, super-import-lib.mjs y productos-etiquetas.sql):
+-- antes una corrección guardada sin verificar («Guardar cambios», «Volver a mostrar») volvía a
+-- los valores de afuera con la importación del mes siguiente. Las importaciones fallan sin esta
+-- columna: correr este archivo antes de la próxima.
+alter table public.products add column if not exists reviewed_at timestamptz;
+-- Lo que ya se había revisado a mano antes de esta marca (está en el registro).
+update public.products p set reviewed_at = a.at
+  from (select target, max(created_at) as at from public.admin_audit
+         where action in ('producto_ocultar', 'producto_verificar', 'producto_mostrar') group by target) a
+ where p.id::text = a.target and p.reviewed_at is null;
+
 create or replace function public.admin_product_save(pid uuid, p_name text, p_brand text, p_kcal numeric, p_protein numeric,
   p_carbs numeric, p_fat numeric, p_unit text, p_verified boolean, p_hidden boolean)
 returns void language plpgsql security definer set search_path = public as $$
@@ -296,7 +308,7 @@ begin
   perform public.admin_assert();
   select hidden into was_hidden from public.products where id = pid;
   update public.products set name = p_name, brand = p_brand, kcal = p_kcal, protein = p_protein, carbs = p_carbs, fat = p_fat,
-    unit = case when p_unit in ('g','ml') then p_unit else unit end, verified = p_verified, hidden = p_hidden
+    unit = case when p_unit in ('g','ml') then p_unit else unit end, verified = p_verified, hidden = p_hidden, reviewed_at = now()
    where id = pid;
   if (was_hidden and not p_hidden) or (p_verified and not p_hidden) then
     delete from public.product_reports where product_id = pid;
