@@ -9,6 +9,8 @@
 //    con la pestaña cerrada): al entrar se dan de baja las que había y activarlas avisa que hace
 //    falta «Mantener la sesión». Si quedó una de antes, al cerrar la pestaña y volver a abrir GIZE
 //    se da de baja en el navegador y se borra de la base sin sesión (forget_push_subscription).
+//    En la app instalada (agregada a inicio en Android o iPhone) no: el sistema la cierra solo y
+//    no es una compu compartida.
 // 6) Cerrar sesión sin señal: se dan de baja igual en el navegador y, apenas hay señal, se borran
 //    de la base.
 // 7) La función de la base que borra sin sesión pide la dirección y su clave.
@@ -96,10 +98,10 @@ export default async function ({ base, t }){
   }
 
   // 5) Sin «Mantener la sesión», con las notificaciones activadas antes en este navegador.
+  const EFIMERA = `const k = '${SB_KEY}', v = localStorage.getItem(k); if (v) { sessionStorage.setItem(k, v); localStorage.removeItem(k); }
+    localStorage.setItem('gize_remember', '0'); sessionStorage.setItem('sub', '${EP}'); localStorage.setItem('gize_web_push', '${ALUMNO.id}');`;
   {
     const m = mock();
-    const EFIMERA = `const k = '${SB_KEY}', v = localStorage.getItem(k); if (v) { sessionStorage.setItem(k, v); localStorage.removeItem(k); }
-      localStorage.setItem('gize_remember', '0'); sessionStorage.setItem('sub', '${EP}'); localStorage.setItem('gize_web_push', '${ALUMNO.id}');`;
     const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, init: WEBPUSH(EFIMERA), handlers: m.handlers });
     await p.goto(base + '/app/'); await wait(3500);
     t.ok(!m.has('save'), '5: al entrar no se vuelven a guardar: ' + m.rpcs.join(' | '));
@@ -118,6 +120,21 @@ export default async function ({ base, t }){
     t.ok(m.rpcs.some(x => x.startsWith('forget ') && x.includes(EP) && x.includes('CLAVE')), '5: y se borran de la base sin sesión: ' + m.rpcs.join(' | '));
     t.eq(await p.evaluate(() => localStorage.getItem('gize_push_forget')), null, '5: no queda nada pendiente');
     t.eq(errs, [], '5: errores de la página');
+    await close();
+  }
+  // 5b) Lo mismo en la web instalada en Android (display-mode: standalone): siguen andando.
+  {
+    const m = mock();
+    const INSTALADA = `{ const mm = window.matchMedia.bind(window); window.matchMedia = q => /display-mode:\\s*standalone/.test(q)
+      ? { matches: true, media: q, onchange: null, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){}, dispatchEvent(){ return false; } } : mm(q); }`;
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, init: WEBPUSH(EFIMERA) + ';' + INSTALADA, handlers: m.handlers });
+    await p.goto(base + '/app/'); await wait(3500);
+    t.ok(m.has('save'), '5b: al entrar se vuelven a guardar: ' + m.rpcs.join(' | '));
+    t.ok(!(await pushLog(p)).includes('unsubscribe'), '5b: no se dan de baja');
+    m.rpcs.length = 0;
+    await p.evaluate(k => sessionStorage.removeItem(k), SB_KEY); await p.reload(); await wait(5000);
+    t.ok(!(await pushLog(p)).includes('unsubscribe') && !m.has('forget'), '5b: al volver a abrir sin sesión tampoco: ' + m.rpcs.join(' | '));
+    t.eq(errs, [], '5b: errores de la página');
     await close();
   }
 
