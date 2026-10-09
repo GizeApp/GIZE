@@ -6,7 +6,11 @@
 const SB_URL = "https://wegptuzhsrwppbknqstf.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlZ3B0dXpoc3J3cHBia25xc3RmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDkxODgsImV4cCI6MjA5ODU4NTE4OH0.pWBes8juiNcCrFG377w_Ga9IQ4EE37p5AJwUpYs2k8Q";
 const REPO = "GizeApp/gize";
-const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "implicit", detectSessionInUrl: true } });
+// PKCE y no "implicit": con "implicit" la librería toma cualquier #access_token=... de la
+// dirección, y un link armado por otra persona dejaba este navegador (también gize.ar/app, que
+// comparte la sesión) adentro de SU cuenta. Con PKCE solo vale la vuelta de un ingreso que
+// empezó acá (Google), y esos links se ignoran.
+const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "pkce", detectSessionInUrl: true } });
 
 const $root = document.getElementById("root");
 const S = { user: null, view: "resumen", overview: null, goals: null, tasks: null, users: null, q: "", coaches: null, fin: null, finTab: "numeros", dolar: null, prodTab: "pedidos", reqKind: "pendientes", reqs: null, prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false };
@@ -85,11 +89,18 @@ function gate(msg, withLogin){
 }
 async function boot(){
   const { data } = await sb.auth.getSession();
-  S.user = data && data.session ? data.session.user : null;
+  const user = S.user = data && data.session ? data.session.user : null;
   if (location.hash.includes("access_token")) history.replaceState(null, "", location.pathname);
-  if (!S.user) return gate("Panel de administración de GIZE. Entrá con tu cuenta.", true);
-  let ok = false; try { ok = await rpc("is_app_admin"); } catch (e) {}
-  if (!ok) return gate("La cuenta <b>" + esc(S.user.email) + "</b> no es administradora de GIZE.", false);
+  if (!user) return gate("Panel de administración de GIZE. Entrá con tu cuenta.", true);
+  let ok = false, known = false; try { ok = await rpc("is_app_admin"); known = true; } catch (e) {}
+  if (!known) return gate("No se pudo comprobar si la cuenta <b>" + esc(user.email) + "</b> es administradora. Revisá la conexión y recargá la página.", false);
+  // Una cuenta que no es administradora no se queda con la sesión abierta acá: se cierra en este
+  // navegador (la sesión es la misma que la de gize.ar/app) y se pide entrar con otra.
+  if (!ok){
+    S.user = null;
+    try { await sb.auth.signOut({ scope: "local" }); } catch (e) {}
+    return gate("La cuenta <b>" + esc(user.email) + "</b> no es administradora de GIZE, así que se cerró la sesión en este navegador. Entrá con una cuenta administradora.", true);
+  }
   const v = (location.hash || "").replace("#", ""); if (SECTIONS.some(s => s[0] === v)) S.view = v;
   shell(); go(S.view);
   refreshUnread(); setInterval(refreshUnread, 60000);
