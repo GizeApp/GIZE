@@ -3,6 +3,9 @@
 // avatars (foto de perfil). Antes se aceptaban archivos sin límite y en cualquier subcarpeta de
 // la carpeta propia: una cuenta nueva podía llenar el espacio que paga GIZE, y lo de las
 // subcarpetas quedaba para siempre porque el borrado de la cuenta no lo veía.
+// El tope por día limitaba la velocidad pero no el total: ahora avatars tiene además 3 fotos en
+// total (la app borra las viejas que hayan quedado antes de subir otra) y chat-audio, 150 MB
+// por día (300 audios de 5 MB eran 1,5 GB por día).
 //   · Las rutas que arma la app entran en las de la base (si no, dejaría de poder subir).
 //   · Al eliminar la cuenta, la app, borrar-audios y el panel recorren también las subcarpetas.
 import fs from 'node:fs';
@@ -25,6 +28,8 @@ export default async function ({ base, t }){
   t.ok(/o\.bucket_id = p_bucket and o\.owner_id = auth\.uid\(\)::text and o\.created_at > now\(\) - interval '1 day'/.test(cupo), 'el tope cuenta lo que subió cada uno en las últimas 24 horas');
   t.ok(/when 'chat-audio' then 300 when 'productos' then 40 when 'avatars' then 20 else 0 end/.test(cupo), 'topes por bucket (y 0 para los demás)');
   t.ok(/revoke all on function public\.storage_cupo_ok\(text\) from public, anon;/.test(sql), 'sin sesión no se usa');
+  t.ok(/and \(p_bucket <> 'avatars' or \(select count\(\*\) from storage\.objects o where o\.bucket_id = 'avatars' and o\.owner_id = auth\.uid\(\)::text\) < 3\)/.test(cupo), 'avatars: 3 fotos en total, sin mirar la fecha');
+  t.ok(/and \(p_bucket <> 'chat-audio' or coalesce\(sum\(case when o\.metadata->>'size' ~ '\^\[0-9\]\{1,12\}\$' then \(o\.metadata->>'size'\)::bigint end\), 0\) < 150 \* 1048576\) from storage\.objects o where o\.bucket_id = p_bucket and o\.owner_id = auth\.uid\(\)::text and o\.created_at > now\(\) - interval '1 day'\)/.test(cupo), 'chat-audio: 150 MB por día');
   // La lista final trae solo los buckets con archivos en subcarpetas («Filas devueltas: 0»: ninguno).
   const fin = sql.slice(sql.lastIndexOf('select bucket_id')).replace(/\s+/g, ' ');
   t.ok(/^select bucket_id, count\(\*\) as en_subcarpetas from storage\.objects where bucket_id in \('chat-audio', 'productos', 'avatars'\) and \(array_length\(storage\.foldername\(name\), 1\) > 2 or \(bucket_id <> 'chat-audio' and array_length\(storage\.foldername\(name\), 1\) > 1\)\) group by bucket_id/.test(fin),
@@ -66,6 +71,28 @@ export default async function ({ base, t }){
   t.ok(!ok(prod, ALUMNO.id + '/x/y.jpg'), 'productos: en una subcarpeta no');
   t.ok(ok(av, ALUMNO.id + '/1760000000000.jpg') && !ok(av, ALUMNO.id + '/x/1760000000000.jpg'), 'avatar: la ruta de la app entra y una subcarpeta no');
   t.eq(errs, [], 'errores de la página (nombres de audio)');
+
+  // Foto de perfil: antes de subir otra, la app borra las viejas que quedaron (si falló borrar la
+  // anterior), así no se llega al tope de 3 en total. La del perfil y las más nuevas (de otro
+  // dispositivo) no se tocan hasta tener la nueva guardada.
+  {
+    const ev = [], cur = ALUMNO.id + '/1700000000000.jpg', me = { id: ALUMNO.id, role: 'client', full_name: 'Prueba', coach_id: null, avatar_path: cur };
+    const files = ['1600000000000.jpg', '1650000000000.jpg', '1700000000000.jpg', '9999999999999.jpg'].map((name, i) => ({ name, id: 'a' + i }));
+    const pg = await newPage({ user: ALUMNO, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} },
+      handlers: { '/profiles': (r, J, i) => i.m === 'GET' ? J(i.one ? me : [me]) : undefined, '/object/list/avatars': (r, J) => (ev.push('listar'), J(files)) } });
+    await pg.p.route(/supabase\.co\/storage\/v1\/object\/avatars/, r => { const q = r.request();
+      ev.push(q.method() === 'DELETE' ? 'borrar ' + (JSON.parse(q.postData() || '{}').prefixes || []).map(x => x.replace(ALUMNO.id + '/', '')).sort().join(',') : 'subir');
+      return r.fulfill({ status: 200, contentType: 'application/json', body: q.method() === 'DELETE' ? '[]' : '{"Key":"x"}' }); });
+    await pg.p.goto(base + '/app/'); await wait(2500);
+    await pg.p.click('#nav-config'); await wait(500);
+    const png = Buffer.from(await pg.p.evaluate(() => { const c = document.createElement('canvas'); c.width = c.height = 400; return c.toDataURL('image/png').split(',')[1]; }), 'base64');
+    await pg.p.setInputFiles('[data-action="avatar-pick"]', { name: 'yo.png', mimeType: 'image/png', buffer: png }); await wait(600);
+    await pg.p.click('.crp-ok'); await wait(1500);
+    t.eq(ev, ['listar', 'borrar 1600000000000.jpg,1650000000000.jpg', 'subir', 'borrar 1700000000000.jpg'], 'borra las viejas antes de subir y la anterior después de guardar la nueva');
+    t.eq(pg.dialogs, [], 'sin carteles (foto de perfil)');
+    t.eq(pg.errs, [], 'errores de la página (foto de perfil)');
+    await pg.close();
+  }
 
   // Al eliminar la cuenta, la app borra también lo de las subcarpetas (avatars y productos).
   {

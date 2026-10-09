@@ -10,19 +10,29 @@
 -- versiones vigentes de sus políticas de subir. Si se vuelve a correr alguno de esos, correr
 -- este después. Se puede correr varias veces.
 --
--- Topes por día (últimas 24 horas, cuenta lo que subió cada uno, owner_id):
---   · chat-audio 300: un coach con muchos alumnos manda bastantes audios, pero no 300 por día.
+-- Topes por día (últimas 24 horas, cuenta lo que subió cada uno, owner_id, y sigue guardado):
+--   · chat-audio 300 y 150 MB: un coach con muchos alumnos manda bastantes audios, pero no 300
+--     por día (un audio de 2 minutos pesa menos de 1 MB). Solo con la cantidad, eran hasta
+--     1,5 GB por día (300 de 5 MB).
 --   · productos 40: cada pedido lleva 1 o 2 fotos y hay hasta 15 pedidos por día.
---   · avatars 20: la app sube una foto por cambio y borra la anterior.
+--   · avatars 20, y 3 en total: la app guarda una sola y borra las anteriores. Solo con el tope
+--     por día, una cuenta podía sumar 20 fotos por día para siempre.
+-- Los audios que no quedaron en ningún mensaje ni rutina todavía no se borran solos: el tope por
+-- día limita cuánto entra, no cuánto se junta con el tiempo.
 
 -- ¿Puedo subir otro archivo hoy a este bucket? Corre como dueño (lee storage.objects entero),
--- pero solo cuenta lo de quien llama.
+-- pero solo cuenta lo de quien llama. Los MB son los de lo ya subido: el del archivo que llega
+-- todavía no se sabe (el bucket lo limita a 5 MB).
 create or replace function public.storage_cupo_ok(p_bucket text)
 returns boolean language sql stable security definer set search_path = public as $$
-  select auth.uid() is not null and (
-    select count(*) from storage.objects o
-     where o.bucket_id = p_bucket and o.owner_id = auth.uid()::text and o.created_at > now() - interval '1 day'
-  ) < case p_bucket when 'chat-audio' then 300 when 'productos' then 40 when 'avatars' then 20 else 0 end;
+  select auth.uid() is not null
+    and (select count(*) < case p_bucket when 'chat-audio' then 300 when 'productos' then 40 when 'avatars' then 20 else 0 end
+                and (p_bucket <> 'chat-audio' or coalesce(sum(case when o.metadata->>'size' ~ '^[0-9]{1,12}$'
+                                                                then (o.metadata->>'size')::bigint end), 0) < 150 * 1048576)
+           from storage.objects o
+          where o.bucket_id = p_bucket and o.owner_id = auth.uid()::text and o.created_at > now() - interval '1 day')
+    and (p_bucket <> 'avatars'
+         or (select count(*) from storage.objects o where o.bucket_id = 'avatars' and o.owner_id = auth.uid()::text) < 3);
 $$;
 revoke all on function public.storage_cupo_ok(text) from public, anon;
 grant execute on function public.storage_cupo_ok(text) to authenticated;

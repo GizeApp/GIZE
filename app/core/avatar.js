@@ -83,6 +83,7 @@ export async function uploadMyAvatar(file, cropped){
   let blob = cropped || null;
   if (!blob) try { blob = await squareJpeg(file); } catch (e) { return "No se pudo leer esa imagen. Probá con otra."; }
   const uid = State.cloudUser.id, old = State.cloudProfile && State.cloudProfile.avatar_path;
+  if (State.cloudProfile) await cleanOldAvatars(uid, old);
   const path = uid + "/" + Date.now() + ".jpg"; // nombre nuevo: evita que se vea la foto vieja cacheada
   const up = await State.sb.storage.from(BUCKET).upload(path, blob, { contentType: "image/jpeg", upsert: false });
   if (up.error) return "No se pudo subir la foto: " + storageErrorText(up.error, 2) + setupHint(up.error);
@@ -108,6 +109,16 @@ export async function removeMyAvatar(){
   State.cloudProfile.avatar_path = null;
   State.sb.storage.from(BUCKET).remove([old]).catch(() => {});
   return "";
+}
+
+// Fotos que quedaron en la carpeta propia porque falló borrar la anterior: hay un tope de 3 en
+// total (supabase/topes-archivos.sql), así que antes de subir otra se borran las más viejas que
+// la del perfil (se llaman {Date.now()}.jpg). Las más nuevas no: pueden ser de otro dispositivo.
+async function cleanOldAvatars(uid, keep){
+  const n = s => parseInt(String(s || "").split("/").pop(), 10), lim = keep ? n(keep) : Infinity;
+  const r = await State.sb.storage.from(BUCKET).list(uid, { limit: 100 }).catch(() => null);
+  const old = ((r && !r.error && r.data) || []).filter(it => it && it.id && n(it.name) < lim).map(it => uid + "/" + it.name);
+  if (old.length) await State.sb.storage.from(BUCKET).remove(old).catch(() => {});
 }
 
 // Guarda la ruta en el perfil propio. Primero con la función set_my_avatar (solo toca
