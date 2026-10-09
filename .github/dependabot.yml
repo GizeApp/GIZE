@@ -6,3 +6,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+  # La imagen de Postgres de la copia de seguridad, fijada por digest (.github/postgres/Dockerfile).
+  - package-ecosystem: docker
+    directory: /.github/postgres
+    schedule:
+      interval: monthly
