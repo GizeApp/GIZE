@@ -30,7 +30,7 @@ import { appIOS } from '../../core/tienda.js';
 
 import { renderCoachSalidas, salidasTileText } from './salidas.js';
 import { syncRouteViews } from '../../ui/mapa.js';
-import { mealEditHead, renderMealPicker, renderMealTplList, snapMealEdit } from './planes.js';
+import { clientPlanDirty, mealEditHead, renderMealPicker, renderMealTplList, snapMealEdit } from './planes.js';
 
 // Título de sección con la ruedita que abre el editor de preguntas en esa pestaña.
 function secHead(title, kind){
@@ -58,7 +58,14 @@ function snapEdits(){
   const e=CoachState.coachTplEdit; if(e && !e.deload && e.orig0===undefined) e.orig0=tplSnap(e);
   const d=CoachState.coachData; if(d && d.id && Array.isArray(d.routine) && d.routineOrig===undefined) d.routineOrig=JSON.stringify(d.routine);
 }
-window.addEventListener("beforeunload", ev => { if(tplDirty() || routineDirty()){ ev.preventDefault(); ev.returnValue=""; } });
+// Qué tiene sin guardar el alumno abierto, para el aviso al salir: la rutina, el plan alimenticio,
+// la ficha y el bloque (los formularios de la ficha y el bloque existen solo después de editarlos).
+export function clientUnsaved(){
+  const d=CoachState.coachData; if(!d || !d.id) return "";
+  const q=[routineDirty()&&"la rutina", clientPlanDirty()&&"el plan alimenticio", CoachState.coachInfoForm&&"la ficha", CoachState.coachBlockForm&&"el bloque"].filter(Boolean);
+  return q.length>1 ? q.slice(0,-1).join(", ")+" y "+q[q.length-1] : (q[0]||"");
+}
+window.addEventListener("beforeunload", ev => { if(tplDirty() || clientUnsaved()){ ev.preventDefault(); ev.returnValue=""; } });
 
 // Borrador de la rutina del cliente en este dispositivo: se guarda con cada cambio y al salir
 // de la app. En el celular, ir a otra app (a copiar la rutina de WhatsApp, por ejemplo) puede

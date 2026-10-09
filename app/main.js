@@ -37,7 +37,7 @@ import { CheckinState, checkinDraft, checkinHasAnswer, checkinWeek, renderFeedba
 
 import { loadCoachClients, openClient } from './screens/coach/clientes.js';
 
-import { dropRoutineDraft, renderCoach, routineDirty, tplDirty } from './screens/coach/index.js';
+import { clientUnsaved, dropRoutineDraft, renderCoach, routineDirty, tplDirty } from './screens/coach/index.js';
 
 import { renderCoachSettings } from './screens/coach/settings.js';
 
@@ -1176,7 +1176,7 @@ document.body.addEventListener("click", async e => {
     renderCoach(); return;
   }
   if(a==="open"){ CoachState.coachClientTab="ficha"; CoachState.coachSec=null; CoachState.coachPlanSec=null; openClient(b.dataset.id); return; }
-  if((a==="back"||a==="refresh") && routineDirty()){ if(!confirm("Tenés cambios en la rutina sin guardar. ¿Salir igual y perderlos?")) return; dropRoutineDraft(CoachState.coachData.id); CoachState.coachData.routineOrig=JSON.stringify(CoachState.coachData.routine||[]); }
+  if((a==="back"||a==="refresh") && clientUnsaved()){ if(!confirm("Tenés cambios sin guardar en "+clientUnsaved()+". ¿Salir igual y perderlos?")) return; if(routineDirty()){ dropRoutineDraft(CoachState.coachData.id); CoachState.coachData.routineOrig=JSON.stringify(CoachState.coachData.routine||[]); } }
   if(a==="back"){ CoachState.coachSel=null; CoachState.coachData=null; renderCoach(); refreshCoachClients(); return; }
   if(a==="refresh"){ if(CoachState.coachSel) openClient(CoachState.coachSel); return; }
   if(a==="open-settings"){ CoachState.coachNameForm=null; CoachState.coachSettingsOpen=true; renderCoachSettings(); return; }
@@ -1284,7 +1284,7 @@ document.body.addEventListener("click", async e => {
       CoachState.coachTplEdit=null; CoachState.coachEditDay=0;
       // Si empieza hoy, se aplica ya; openClient vuelve a leer todo.
       alert(e.starts_on===today() ? "Rutina aplicada desde hoy \u2713" : "Rutina programada \u2713 Empieza sola ese día.");
-      await openClient(cid); return;
+      await openClient(cid, true); return;
     }catch(err){ alert("No se pudo: "+((err&&err.message)||err)); e.saving=false; b.disabled=false; b.textContent="Guardar rutina programada"; return; }
   }
   if(a==="tpl-del" && CoachState.coachTplEdit && CoachState.coachTplEdit.sched){
@@ -1293,7 +1293,7 @@ document.body.addEventListener("click", async e => {
       if(!confirm("¿Borrar esta rutina programada? El alumno sigue con la de ahora.")) return;
       try{ sbOk(await State.sb.from("routine_schedule").delete().eq("id",e.id)); }catch(err){ alert("No se pudo: "+((err&&err.message)||err)); return; }
     }
-    CoachState.coachTplEdit=null; CoachState.coachEditDay=0; await openClient(CoachState.coachSel); return;
+    CoachState.coachTplEdit=null; CoachState.coachEditDay=0; await openClient(CoachState.coachSel, true); return;
   }
   if(a==="tpl-back"){ CoachState.coachTplEdit=null; CoachState.coachView="tpls"; renderCoach(); return; }
   if(a==="tpl-save"){

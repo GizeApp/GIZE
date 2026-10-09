@@ -26,7 +26,7 @@ import { parseRest } from '../../ui/restbar.js';
 
 import { closeSheet } from '../../ui/sheet.js';
 import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto } from '../../core/diasemana.js';
-import { clientPlanActions, mealEditFoot } from './planes.js';
+import { clientPlanActions, clientPlanDirty, mealEditFoot } from './planes.js';
 
 export function rtDays(){ return CoachState.coachTplEdit ? CoachState.coachTplEdit.days : (CoachState.coachData?CoachState.coachData.routine:null); }
 
@@ -190,7 +190,7 @@ export function renderCoachPlan(d){
   ];
   // En «Mis planes» se guarda el plan guardado (planes.js); en el cliente, su plan.
   const tpl=!!(CoachState.coachMealEdit && !CoachState.coachSel);
-  const save=tpl ? mealEditFoot() : '<button class="co-save-rt" data-coach="plan-save">Guardar plan nutricional</button>';
+  const save=tpl ? mealEditFoot() : (clientPlanDirty()?'<div class="co-unsaved">Cambios sin guardar. Tocá <b>Guardar plan nutricional</b>.</div>':'')+'<button class="co-save-rt" data-coach="plan-save">Guardar plan nutricional</button>';
   const cur=SECS.find(x=>x[0]===CoachState.coachPlanSec);
   if(cur){
     return '<div class="form-head co-sec-head"><button class="form-back" data-coach="plsec-close" aria-label="Volver al plan">‹</button><div class="form-title">'+cur[1]+'</div></div>'+cur[2]()+save;

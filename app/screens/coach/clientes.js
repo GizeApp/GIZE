@@ -23,7 +23,7 @@ import { kgText } from '../../core/progresion.js';
 import { dropRoutineDraft, readRoutineDraft, renderCoach } from './index.js';
 
 import { loadTpls } from './rutinas.js';
-import { loadMealTpls } from './planes.js';
+import { clientPlanDirty, loadMealTpls } from './planes.js';
 
 import { CoachState } from './state.js';
 
@@ -139,7 +139,10 @@ export function coachLogFor(sessions, dayName, name){
 
 export function coachExerciseLog(sessions,name){ const out=[]; (sessions||[]).slice().sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(se=>{ const sets=[]; se.exercises.forEach(ex=>{ if(ex.name===name) ex.sets.forEach(st=>{ if((+st.kg||0)!==0||(+st.reps||0)>0||(+st.secs||0)>0) sets.push({kg:+st.kg||0, reps:+st.reps||0, secs:+st.secs||0}); }); }); if(sets.length) out.push({date:se.date, ts:se.ts, sets:sets}); }); return out; }
 
-export async function openClient(id){
+// keep: vuelve a leer al mismo alumno (después de guardar o borrar una rutina programada) sin
+// perder lo que el coach tenía sin guardar del plan, la ficha y el bloque.
+export async function openClient(id, keep){
+  const d0=CoachState.coachData, forms=(keep && d0 && d0.id===id) ? { p:clientPlanDirty()?CoachState.coachPlanForm:null, i:CoachState.coachInfoForm, b:CoachState.coachBlockForm } : {};
   CoachState.coachSel=id; CoachState.coachData={loading:true}; CoachState.coachDailySel=null; CoachState.coachCkSel=null; CoachState.coachSessSel=null; CoachState.coachSalidaSel=null; CoachState.notifDraft=""; CoachState.notifSending=false; CoachState.coachDayFilter=null; CoachState.coachEditDay=0; renderCoach();
   try{
     // Todas las lecturas del cliente salen juntas (antes iban de a una).
@@ -193,7 +196,7 @@ export async function openClient(id){
     CoachState.coachData={id:id, info:(ci.data||{}), block:((bl.data&&bl.data[0])||null), name:(c&&c.full_name)||"Cliente", avatar:(c&&c.avatar_path)||null, weights:weights, sessions:sessions, routine:routine, routineOrig:routineOrig, draftRestored:restored, loadEx:null, daily:(dl.data||[]), checkins:(ck.data||[]), plan:(np.data||null), schedule:(sc&&!sc.error&&sc.data)||[],
       salidas:(so && !so.error && Array.isArray(so.data)) ? so.data.map(salidaFromRow) : [], salidasError:(so && so.error) ? (salidaNoTable(so.error) ? "tabla" : "error") : ""};
     if(restored) CoachState.coachClientTab="rutina";
-    CoachState.coachPlanForm=null; CoachState.coachInfoForm=null; CoachState.coachBlockForm=null; CoachState.coachWeekSel=null;
+    CoachState.coachPlanForm=forms.p||null; CoachState.coachInfoForm=forms.i||null; CoachState.coachBlockForm=forms.b||null; CoachState.coachWeekSel=null;
     // Notificaciones: si el cliente las tiene activadas y los últimos mensajes. Aparte,
     // para no demorar la ficha; se redibuja cuando llega.
     const dRef=CoachState.coachData;
