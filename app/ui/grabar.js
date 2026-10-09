@@ -3,6 +3,7 @@
 // escuchan con links firmados (supabase/chat.sql y supabase/ejercicio-audio.sql).
 
 import { State } from '../core/state.js';
+import { storageCupoLleno } from '../core/utils.js';
 
 export const AUDIO_BUCKET = "chat-audio";
 
@@ -101,9 +102,12 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+// Sube el audio. Devuelve "" si salió bien o qué mostrar si no: AUDIO_CUPO si llegó al tope de
+// audios por día (antes decía «Revisá la conexión», que no era el problema) o que no se pudo.
+export const AUDIO_CUPO = "Llegaste al límite de audios por hoy. Probá mañana.";
 export async function uploadAudio(path, blob, type){
   const up = await State.sb.storage.from(AUDIO_BUCKET).upload(path, blob, { contentType: type, upsert: false }).catch(e => ({ error: e }));
-  return !up.error;
+  return !up.error ? "" : storageCupoLleno(up.error) ? AUDIO_CUPO : "No se pudo subir el audio. Revisá la conexión.";
 }
 
 // ---- Escuchar: un solo reproductor para toda la app ----

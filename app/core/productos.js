@@ -4,7 +4,7 @@
 // guarda acá (lo guarda el servidor, ver saveOffShared). Sin sesión o sin señal, todo sigue
 // funcionando con la base propia y Open Food Facts.
 import { State } from './state.js';
-import { norm } from './utils.js';
+import { norm, storageCupoLleno } from './utils.js';
 
 const COLS = "id,code,name,brand,kcal,protein,carbs,fat,unit,portion,source,verified";
 const n1 = v => Math.round((Number(v) || 0) * 10) / 10;
@@ -112,7 +112,8 @@ export async function uploadLabelPhoto(file, code, prefix){
   const blob = await labelJpeg(file);
   const path = State.cloudUser.id + "/" + (prefix || "") + String(code || "x").replace(/\D/g, "").slice(0, 14) + "-" + Date.now() + ".jpg";
   const r = await State.sb.storage.from("productos").upload(path, blob, { contentType: "image/jpeg", upsert: false });
-  if (r.error) throw r.error;
+  // Tope de fotos por día (supabase/topes-archivos.sql): que no diga «Revisá tu conexión».
+  if (r.error) throw storageCupoLleno(r.error) ? new Error("Llegaste al límite de fotos por hoy. Probá mañana.") : r.error;
   return path;
 }
 
