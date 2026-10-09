@@ -6,7 +6,10 @@ const KEEP = ["manifest.json", "sw.js", "install.js", "app", "css", "brand", "ve
   "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png"];
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT);
-for (const f of KEEP) if (existsSync(f)) cpSync(f, `${OUT}/${f}`, { recursive: true });
+// De brand/ la app usa solo los SVG, la letra y tokens.css: los logos en PNG (para redes y
+// tiendas, ~1,2 MB), las imágenes de los mails y BRAND.md no se empaquetan.
+const FUERA = /^brand\/(logo\/[^/]+\.png|mail(\/.*)?|BRAND\.md)$/;
+for (const f of KEEP) if (existsSync(f)) cpSync(f, `${OUT}/${f}`, { recursive: true, filter: src => !FUERA.test(src.replace(/\\/g, "/")) });
 // En la web la app está en app/index.html (la raíz es la landing). En el celular va como
 // www/index.html, sin el <base href="../"> que en la web apunta a la raíz del sitio.
 writeFileSync(`${OUT}/index.html`, readFileSync("app/index.html", "utf8").replace(/<base href="\.\.\/">\n?/, ""));
