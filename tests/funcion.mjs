@@ -57,8 +57,10 @@ export async function funcion(nombre, sim = {}){
 // esperarla, se le pasa a responder(q), que devuelve { data, error, count }:
 //   q = { tabla, accion ('select' | 'insert' | 'upsert' | 'update' | 'delete' | 'rpc'), valores,
 //         opciones, filtros: [[op, columna, valor]], columnas, count, single, limit }
+// Storage: q = { bucket, accion ('list' | 'remove'), prefijo, valores }.
 // user: el usuario de auth.getUser() (con el token del pedido).
 export function supabaseSimulado(responder, { user = null } = {}){
+  const resp = (q) => Promise.resolve().then(() => responder(q)).then(r => ({ data: r && r.data !== undefined ? r.data : null, error: (r && r.error) || null, count: r && r.count !== undefined ? r.count : null }));
   const consulta = (base) => {
     const q = Object.assign({ filtros: [] }, base);
     const b = {
@@ -71,9 +73,7 @@ export function supabaseSimulado(responder, { user = null } = {}){
       limit(n){ q.limit = n; return b; },
       maybeSingle(){ q.single = true; return b; },
       single(){ q.single = true; return b; },
-      then(ok, no){
-        return Promise.resolve().then(() => responder(q)).then(r => ({ data: r && r.data !== undefined ? r.data : null, error: (r && r.error) || null, count: r && r.count !== undefined ? r.count : null })).then(ok, no);
-      },
+      then(ok, no){ return resp(q).then(ok, no); },
     };
     for (const op of ['eq', 'neq', 'is', 'in', 'lt', 'lte', 'gt', 'gte']) b[op] = (c, v) => { q.filtros.push([op, c, v]); return b; };
     b.not = (c, op, v) => { q.filtros.push(['not.' + op, c, v]); return b; };
@@ -82,6 +82,7 @@ export function supabaseSimulado(responder, { user = null } = {}){
   return {
     from: (tabla) => consulta({ tabla }),
     rpc: (nombre, args) => consulta({ tabla: nombre, accion: 'rpc', valores: args }),
+    storage: { from: (bucket) => ({ list: (prefijo, o) => resp({ bucket, accion: 'list', prefijo, opciones: o }), remove: (valores) => resp({ bucket, accion: 'remove', valores }) }) },
     auth: { getUser: async () => ({ data: { user }, error: null }), admin: { getUserById: async (id) => ({ data: { user: { id, email: 'usuario@prueba.test' } } }) } },
   };
 }
