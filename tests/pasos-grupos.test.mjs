@@ -1,6 +1,7 @@
 // Competencia de pasos (Progreso → «Competencia de pasos», app/screens/pasos.js, core/grupos.js y
 // supabase/pasos-grupos.sql): crear un grupo y conseguir el código y el link para invitar,
-// sumarse con el link gize.ar/app/#grupo=CODIGO (después de entrar), el ranking de la semana en
+// sumarse con el link gize.ar/app/#grupo=CODIGO (después de entrar y preguntando antes; el link
+// pendiente no queda para otra cuenta), el ranking de la semana en
 // orden con la barra relativa al primero y mi fila marcada, el campeón de la semana pasada con la
 // copa y el texto en dorado (#FFC940, también la copa chica al lado de su nombre), la semana de
 // lunes a domingo en hora de Argentina (aunque el celular esté en otra zona), los pasos anotados a
@@ -27,13 +28,14 @@ const CAMPEON = { miembro: 'm3', nombre: 'Caro', pasos: 84210, soy_yo: false, de
 const GOLD = 'rgb(255, 201, 64)';
 
 // Supabase simulado con los grupos en memoria. rpcs: lo que se llamó, con su cuerpo.
-function mock({ grupos = [], ranking = {}, campeon = {}, onCrear, onUnirse } = {}){
+function mock({ grupos = [], ranking = {}, campeon = {}, onCrear, onUnirse, ver } = {}){
   const rpcs = [], posts = [];
   const db = { grupos: grupos.slice() };
   const handlers = {
     '/profiles': profile('client', { full_name: 'Prueba Alumno' }),
     '/rpc/pasos_mis_grupos': (r, J) => (rpcs.push('mis_grupos'), J(db.grupos)),
     '/rpc/pasos_crear_grupo': (r, J, i) => { rpcs.push('crear ' + i.body); const g = onCrear(JSON.parse(i.body)); db.grupos.push(g); return J([{ id: g.id, codigo: g.codigo }]); },
+    '/rpc/pasos_ver_invitacion': (r, J, i) => { rpcs.push('ver ' + i.body); return ver === 'falta' ? J({ code: 'PGRST202', message: 'Could not find the function public.pasos_ver_invitacion' }, 404) : J(ver ? [ver] : []); },
     '/rpc/pasos_unirse': (r, J, i) => { rpcs.push('unirse ' + i.body); const g = onUnirse(JSON.parse(i.body)); db.grupos.push(g); return J(g.id); },
     '/rpc/pasos_sacar_miembro': (r, J, i) => (rpcs.push('sacar ' + i.body), J(null)),
     '/rpc/pasos_ranking': (r, J, i) => (rpcs.push('ranking ' + i.body), J(ranking[JSON.parse(i.body).p_grupo] || [])),
@@ -42,6 +44,7 @@ function mock({ grupos = [], ranking = {}, campeon = {}, onCrear, onUnirse } = {
   };
   return { handlers, rpcs, posts, db };
 }
+const SUMA = b => Object.assign({}, GRUPO, { id: 'g2', codigo: b.p_codigo, soy_dueno: false });
 const SHARE = `Object.defineProperty(navigator, 'share', { configurable: true, value: async d => { window.__shared = d; } });`;
 const abrirPasos = async p => {
   await p.click('#nav-progreso'); await wait(300);
@@ -142,21 +145,79 @@ export default async function ({ base, t }){
     await close();
   }
 
-  // 3) Sumarse con el link: gize.ar/app/#grupo=CODIGO. Al entrar se suma solo y abre el grupo.
+  // 3) Sumarse con el link: gize.ar/app/#grupo=CODIGO. Al entrar se pregunta, con el nombre del
+  //    grupo y qué van a ver los demás; al decir que sí se suma y abre el grupo.
   {
     const m = mock({ onUnirse: b => Object.assign({}, GRUPO, { id: 'g2', nombre: 'Running club', codigo: b.p_codigo, soy_dueno: false }),
-      ranking: { g2: RANKING }, campeon: { g2: CAMPEON } });
+      ranking: { g2: RANKING }, campeon: { g2: CAMPEON }, ver: { id: null, nombre: 'Running club', miembros: 4, soy_miembro: false } });
     const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
     await p.goto(base + '/app/#grupo=wxyz-2345'); await wait(3200);
-    t.ok(m.rpcs.some(x => x === 'unirse {"p_codigo":"WXYZ2345","p_apodo":null}'), 'el link llama a pasos_unirse con el código limpio: ' + m.rpcs.join(' | '));
+    t.ok(m.rpcs.some(x => x === 'ver {"p_codigo":"WXYZ2345"}'), 'busca el grupo del código: ' + m.rpcs.join(' | '));
+    t.eq(dialogs, ['¿Querés sumarte al grupo «Running club»? Los miembros van a ver tu nombre y tus pasos de la semana.'], 'pregunta antes de sumarse');
+    t.ok(m.rpcs.some(x => x === 'unirse {"p_codigo":"WXYZ2345","p_apodo":null}'), 'al aceptar llama a pasos_unirse con el código limpio: ' + m.rpcs.join(' | '));
     t.eq(await p.evaluate(() => location.hash), '', 'el #grupo= se saca de la dirección');
     t.eq(await text(p, '.pg-head .form-title'), 'Running club', 'abre el grupo al que se sumó');
     t.eq(await p.$$eval('.pg-row', l => l.length), 5, 'con su ranking');
     t.eq(await p.$$('[data-pg="borrar"]').then(l => l.length), 0, 'quien no es dueño no puede borrar el grupo');
     t.eq(await p.$$('.pg-rm').then(l => l.length), 0, 'ni sacar gente');
-    t.eq(dialogs, [], 'sin carteles al sumarse');
     t.eq(errs, [], 'errores de la página (link)');
     await close();
+  }
+  // 3b) Dice que no: no se suma. Sin la función nueva en la base, pregunta con el código.
+  {
+    const m = mock({ onUnirse: SUMA, ver: 'falta' });
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
+    p.removeAllListeners('dialog'); p.on('dialog', d => { dialogs.push(d.message()); d.dismiss().catch(() => {}); });
+    await p.goto(base + '/app/#grupo=wxyz-2345'); await wait(3200);
+    t.eq(dialogs, ['¿Querés sumarte al grupo de pasos con el código WXYZ2345? Los miembros van a ver tu nombre y tus pasos de la semana.'], '3b: sin la función, pregunta con el código');
+    t.ok(!m.rpcs.some(x => x.startsWith('unirse')), '3b: si dice que no, no se suma: ' + m.rpcs.join(' | '));
+    t.eq(await p.evaluate(() => localStorage.getItem('gize_grupo_pend')), null, '3b: la invitación no queda');
+    t.eq(errs, [], '3b: errores de la página');
+    await close();
+  }
+  // 3c) Ya es del grupo: lo abre sin preguntar. Un código que no existe se avisa y no se suma.
+  {
+    const m = mock({ onUnirse: SUMA, grupos: [Object.assign({}, GRUPO, { id: 'g2', nombre: 'Running club', soy_dueno: false })], ranking: { g2: RANKING },
+      ver: { id: 'g2', nombre: 'Running club', miembros: 5, soy_miembro: true } });
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
+    await p.goto(base + '/app/#grupo=wxyz-2345'); await wait(3200);
+    t.eq(dialogs, [], '3c: si ya es del grupo, no pregunta');
+    t.ok(!m.rpcs.some(x => x.startsWith('unirse')), '3c: ni se vuelve a sumar');
+    t.eq(await text(p, '.pg-head .form-title'), 'Running club', '3c: abre el grupo');
+    t.eq(errs, [], '3c: errores de la página');
+    await close();
+    const m2 = mock({ onUnirse: SUMA });
+    const pg = await newPage({ user: ALUMNO, state: STATE, handlers: m2.handlers });
+    await pg.p.goto(base + '/app/#grupo=wxyz-2345'); await wait(3200);
+    t.eq(pg.dialogs, ['El grupo de ese link de invitación ya no existe.'], '3c: código que no existe: se avisa');
+    t.ok(!m2.rpcs.some(x => x.startsWith('unirse')), '3c: y no se suma');
+    t.eq(pg.errs, [], '3c: errores de la página (código que no existe)');
+    await pg.close();
+  }
+  // 3d) La invitación pendiente no queda para otra cuenta: se borra al cerrar sesión y cuando
+  //     entra otra cuenta en el mismo navegador.
+  {
+    const PEND = `localStorage.setItem('gize_grupo_pend', JSON.stringify({ c: 'WXYZ2345', t: Date.now() }));`;
+    const m = mock({ onUnirse: SUMA, ver: { id: null, nombre: 'Running club', miembros: 4, soy_miembro: false } });
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
+    await p.goto(base + '/app/'); await wait(3000);
+    await p.evaluate(PEND);
+    await p.click('#nav-config'); await wait(500);
+    await p.click('[data-auth="logout"]');
+    await p.waitForEvent('load', { timeout: 30000 }).catch(() => {});
+    await wait(2500);
+    t.eq(await p.evaluate(() => localStorage.getItem('gize_grupo_pend')), null, '3d: al cerrar sesión se borra la invitación pendiente');
+    t.eq(errs, [], '3d: errores de la página (cerrar sesión)');
+    await close();
+    // Los datos del navegador son de otra cuenta (quedó de alguien que no tocó «Salir»).
+    const m2 = mock({ onUnirse: SUMA, ver: { id: null, nombre: 'Running club', miembros: 4, soy_miembro: false } });
+    const pg = await newPage({ user: ALUMNO, state: Object.assign({}, STATE), handlers: m2.handlers,
+      init: `if (!sessionStorage.getItem('otra')) { sessionStorage.setItem('otra', '1'); const s = JSON.parse(localStorage.getItem('rutina_jero_v1')); s.ownerUid = '33333333-3333-3333-3333-333333333333'; localStorage.setItem('rutina_jero_v1', JSON.stringify(s)); ${PEND} }` });
+    await pg.p.goto(base + '/app/'); await wait(5000);
+    t.eq(await pg.p.evaluate(() => localStorage.getItem('gize_grupo_pend')), null, '3d: si entra otra cuenta, se borra');
+    t.ok(!m2.rpcs.some(x => x.startsWith('ver') || x.startsWith('unirse')) && !pg.dialogs.length, '3d: y no se usa con la cuenta nueva: ' + m2.rpcs.join(' | ') + ' ' + pg.dialogs.join(' | '));
+    t.eq(pg.errs, [], '3d: errores de la página (otra cuenta)');
+    await pg.close();
   }
 
   // 4) El grupo: campeón dorado arriba, ranking en orden con barras relativas al primero, mi
@@ -411,6 +472,10 @@ export default async function ({ base, t }){
     t.ok(/revoke all on function public\.pasos_traspasar_dueno\(\) from public, anon, authenticated/.test(sql), 'el trigger no se llama desde la app');
     // Campeón: solo los que ya estaban antes de que terminara esa semana.
     t.ok(/t\.unido < \(\(w\.desde \+ 7\)::timestamp at time zone 'America\/Argentina\/Buenos_Aires'\)/.test(cuerpo('pasos_campeon')), 'el campeón sale de los que ya estaban en el grupo esa semana');
+    // Antes de sumarse con un link se pregunta: el grupo de un código, solo con sesión y el id solo
+    // si ya soy miembro.
+    t.ok(/where auth\.uid\(\) is not null/.test(cuerpo('pasos_ver_invitacion')) && /case when public\.pasos_soy_miembro\(g\.id\) then g\.id end/.test(cuerpo('pasos_ver_invitacion')), 'pasos_ver_invitacion: con sesión y el id solo para miembros');
+    t.ok(/revoke all on function public\.pasos_ver_invitacion\(text\) from public, anon;/.test(sql) && /grant execute on function public\.pasos_ver_invitacion\(text\) to authenticated;/.test(sql), 'pasos_ver_invitacion: solo usuarios logueados');
     // Ranking: solo esta semana (antes dejaba pedir hasta 52 semanas atrás).
     t.ok(fn('pasos_ranking') && !/p_atras|52/.test(cuerpo('pasos_ranking')) && /pasos_lunes\(public\.pasos_hoy\(\)\) as desde/.test(cuerpo('pasos_ranking')), 'el ranking es solo de esta semana');
   }

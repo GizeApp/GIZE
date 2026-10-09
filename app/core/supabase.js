@@ -289,16 +289,18 @@ function takePendingCode(){
   return (v && v.c && Date.now()-(v.t||0) < 2*3600000) ? v.c : null;
 }
 // Lo de la cuenta que queda en el dispositivo fuera del estado y el perfil: los recorridos y la
-// salida de Cardio en curso, y los borradores de rutina de los alumnos de un coach (coach/index.js).
+// salida de Cardio en curso, los borradores de rutina de los alumnos de un coach (coach/index.js)
+// y la invitación a un grupo de pasos sin usar (core/grupos.js), que si no se usaba con la
+// próxima cuenta que entrara en el dispositivo.
 function accountKeys(){
   let drafts=[]; try{ drafts=Object.keys(localStorage).filter(k=>k.indexOf("gize_rt_draft_")===0); }catch(e){}
-  return [TRACK_KEY].concat(runKeys(), drafts);
+  return [TRACK_KEY, "gize_grupo_pend"].concat(runKeys(), drafts);
 }
 // Al cerrar sesión o borrar la cuenta: lo que quedó de esa cuenta en el dispositivo además de
 // los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso,
 // avisos de los hábitos, la salida de Cardio en curso, el cronómetro y el temporizador de
-// Cardio, los recorridos guardados, la imagen de la última salida compartida y los borradores
-// de rutina del coach).
+// Cardio, los recorridos guardados, la imagen de la última salida compartida, los borradores
+// de rutina del coach y la invitación a un grupo de pasos).
 export function clearAccountLeftovers(uid){
   clearHabitAlarms();
   deleteShareFile();

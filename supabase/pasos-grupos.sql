@@ -227,6 +227,24 @@ begin
   return gid;
 end $$;
 
+-- Qué grupo es un código: la app lo pregunta antes de sumarse con un link («¿Querés sumarte al
+-- grupo X?»). Antes el link sumaba solo, y uno armado por otra persona metía en su grupo a quien
+-- lo abría. Solo con sesión; el id del grupo, solo si ya soy miembro (para abrirlo directo).
+create or replace function public.pasos_ver_invitacion(p_codigo text)
+returns table (id uuid, nombre text, miembros int, soy_miembro boolean)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case when public.pasos_soy_miembro(g.id) then g.id end, g.nombre,
+         (select count(*) from public.pasos_miembros x where x.grupo_id = g.id)::int,
+         public.pasos_soy_miembro(g.id)
+    from public.pasos_grupos g
+   where auth.uid() is not null
+     and g.codigo = upper(regexp_replace(coalesce(p_codigo, ''), '[^A-Za-z0-9]', '', 'g'));
+$$;
+
 -- Salir de un grupo. Si sale el dueño, el grupo pasa a quien está hace más tiempo; si no queda
 -- nadie, el grupo se borra.
 create or replace function public.pasos_salir(p_grupo uuid)
@@ -392,6 +410,7 @@ revoke all on function public.pasos_lunes(date) from public, anon;
 revoke all on function public.pasos_limpiar_apodo(text) from public, anon;
 revoke all on function public.pasos_crear_grupo(text, text) from public, anon;
 revoke all on function public.pasos_unirse(text, text) from public, anon;
+revoke all on function public.pasos_ver_invitacion(text) from public, anon;
 revoke all on function public.pasos_salir(uuid) from public, anon;
 revoke all on function public.pasos_borrar_grupo(uuid) from public, anon;
 revoke all on function public.pasos_sacar_miembro(uuid, uuid) from public, anon;
@@ -404,6 +423,7 @@ grant execute on function public.pasos_lunes(date) to authenticated;
 grant execute on function public.pasos_limpiar_apodo(text) to authenticated;
 grant execute on function public.pasos_crear_grupo(text, text) to authenticated;
 grant execute on function public.pasos_unirse(text, text) to authenticated;
+grant execute on function public.pasos_ver_invitacion(text) to authenticated;
 grant execute on function public.pasos_salir(uuid) to authenticated;
 grant execute on function public.pasos_borrar_grupo(uuid) to authenticated;
 grant execute on function public.pasos_sacar_miembro(uuid, uuid) to authenticated;

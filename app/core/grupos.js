@@ -42,7 +42,9 @@ export const codigoValido = c => /^[A-HJKMNP-Z2-9]{8}$/.test(limpiarCodigo(c));
 export const linkInvitacion = codigo => "https://gize.ar/app/#grupo=" + limpiarCodigo(codigo);
 
 // El link de invitación abre la app con #grupo=CODIGO. Se guarda apenas carga (antes del login:
-// quien no tiene cuenta primero se registra) y se usa al entrar. Vale 7 días.
+// quien no tiene cuenta primero se registra) y se usa al entrar, preguntando antes de sumarse
+// (app/screens/pasos.js). Vale 7 días y se borra al cerrar sesión o si entra otra cuenta
+// (clearAccountLeftovers y afterLogin en core/supabase.js).
 const PEND = "gize_grupo_pend";
 export function guardarInvitacion(code){
   try { localStorage.setItem(PEND, JSON.stringify({ c: limpiarCodigo(code), t: Date.now() })); } catch (e) {}
@@ -89,6 +91,11 @@ const filas = d => Array.isArray(d) ? d : (d ? [d] : []);
 export const misGrupos = async () => filas(await rpc("pasos_mis_grupos"));
 export const crearGrupo = async (nombre, apodo) => filas(await rpc("pasos_crear_grupo", { p_nombre: nombre, p_apodo: apodo || null }))[0] || null;
 export const unirseGrupo = (codigo, apodo) => rpc("pasos_unirse", { p_codigo: limpiarCodigo(codigo), p_apodo: apodo || null });
+// El grupo de un código antes de sumarse ({ id (solo si ya soy), nombre, miembros, soy_miembro }),
+// o null si el código no existe.
+export const verInvitacion = async codigo => filas(await rpc("pasos_ver_invitacion", { p_codigo: limpiarCodigo(codigo) }))[0] || null;
+// La base todavía no tiene esa función (falta correr el SQL).
+export const faltaFuncion = e => { const code = String((e && e.code) || ""); return code === "PGRST202" || code === "42883" || /could not find the function/i.test(String((e && e.message) || "")); };
 export const salirGrupo = id => rpc("pasos_salir", { p_grupo: id });
 export const borrarGrupo = id => rpc("pasos_borrar_grupo", { p_grupo: id });
 export const sacarMiembro = (id, miembro) => rpc("pasos_sacar_miembro", { p_grupo: id, p_miembro: miembro });
