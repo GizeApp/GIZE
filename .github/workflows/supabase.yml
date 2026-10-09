@@ -100,7 +100,8 @@ jobs:
       # Si una no se puede publicar se sigue con las demás. Al final se mira en Supabase qué quedó:
       # cada una activa y actualizada en esta ejecución (si no, sigue andando la versión anterior,
       # con errores que ya se arreglaron), y ninguna otra publicada que no salga del repo (como una
-      # «notificar-cliente» creada desde el panel, que la app usa de respaldo y quedó vieja).
+      # «notificar-cliente» creada desde el panel, que la app usa de respaldo y quedó vieja). Las
+      # borradas pueden seguir en la lista como REMOVED: esas no cuentan.
       - name: Publicar funciones
         if: inputs.tarea == 'funciones'
         run: |
@@ -114,10 +115,11 @@ jobs:
           [ -z "$mal" ] || echo "::error::No se pudieron publicar:$mal"
           supabase functions list --project-ref "$PROJECT_REF" --output json > "$RUNNER_TEMP/funciones.json"
           jq -r --arg fns "$fns" --argjson desde "$desde" '
-            (. // []) as $l | ($fns | split(" ") | map(select(. != ""))) as $f | ($l | map({key: .slug, value: .}) | from_entries) as $p
+            (. // [] | map(select(.status != "REMOVED"))) as $l | ($fns | split(" ") | map(select(. != ""))) as $f | ($l | map({key: .slug, value: .}) | from_entries) as $p
             | ($f[] | . as $n | $p[$n] as $x
                 | if $x == null then "\($n): no está publicada"
-                  elif $x.status != "ACTIVE" then "\($n): está \($x.status)"
+                  elif $x.status == "THROTTLED" then "\($n): está frenada por Supabase (THROTTLED)"
+                  elif $x.status != "ACTIVE" then "\($n): no está activa (\($x.status))"
                   elif ((($x.updated_at | numbers) // 0) / 1000) < $desde then "\($n): sigue la versión anterior (v\($x.version))"
                   else empty end),
               ($l[] | select(.slug | IN($f[]) | not) | "\(.slug): está publicada y no sale del repo (si no se usa, borrala en Supabase → Edge Functions)")
