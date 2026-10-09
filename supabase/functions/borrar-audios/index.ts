@@ -9,9 +9,10 @@
 //     anteriores, y los audios de los ejercicios ({coach}/ex/…).
 // Con la service role: el usuario no tiene permiso para borrar audios en Storage (así nadie
 // puede borrar los audios del otro en una conversación). Por eso solo sirve para eliminar la
-// cuenta: después de borrar los audios borra la cuenta (delete_own_account, con el token del
-// usuario). Antes solo borraba los audios, y cualquiera podía llamarla a mano y borrar los
-// del otro sin irse.
+// cuenta: junta las rutas de los audios, borra la cuenta (delete_own_account, con el token del
+// usuario) y recién si eso salió bien borra los audios. Antes los borraba primero: si después
+// la cuenta no se borraba (token vencido, plan que se renueva, función cortada), los audios
+// del otro ya no estaban y la cuenta seguía.
 // Recibe {} con el token del usuario logueado (o { apple_code }, ver más abajo). Devuelve
 // { removed, deleted: true }.
 // Las apps viejas llaman después a delete_own_account: con la cuenta ya borrada no hace nada.
@@ -44,9 +45,10 @@ async function revokeApple(code: string, appleSub: string): Promise<void> {
   if (!p8 || !kid || !team) { console.error("borrar-audios: apple: sin clave para revocar"); return; }
   const secret = await new SignJWT({}).setProtectedHeader({ alg: "ES256", kid }).setIssuer(team).setIssuedAt()
     .setExpirationTime("5m").setAudience("https://appleid.apple.com").setSubject(APPLE_CLIENT).sign(await importPKCS8(p8, "ES256"));
+  // Con tiempo máximo: si Apple no contesta, la cuenta se borra igual.
   const post = (path: string, body: Record<string, string>) => fetch("https://appleid.apple.com/auth/" + path, {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: APPLE_CLIENT, client_secret: secret, ...body }),
+    body: new URLSearchParams({ client_id: APPLE_CLIENT, client_secret: secret, ...body }), signal: AbortSignal.timeout(8000),
   });
   const r = await post("token", { grant_type: "authorization_code", code });
   const j = await r.json().catch(() => ({}));
@@ -108,28 +110,25 @@ Deno.serve(async (req) => {
     return json({ error: "Primero cancelá la renovación de tu plan en gize.ar/app (Mi plan → Cancelar la renovación), así Mercado Pago no te sigue cobrando." }, 409);
   }
 
-  let removed = 0;
+  // Primero solo se juntan las rutas (después de borrar la cuenta ya no están su coach ni
+  // sus mensajes para saber cuáles son).
+  const paths: string[] = [];
   try {
-    const paths: string[] = [];
     // Como coach: su carpeta entera.
     for (const dir of await subfolders(me)) paths.push(...await files(dir));
     // Como alumno: la carpeta de su conversación con cada coach que tuvo (el actual y los
     // que aparecen en sus mensajes).
     const coaches = new Set<string>();
-    const { data: prof } = await admin.from("profiles").select("coach_id").eq("id", me).maybeSingle();
+    const { data: prof, error: pe } = await admin.from("profiles").select("coach_id").eq("id", me).maybeSingle();
+    if (pe) throw pe;
     if (prof && prof.coach_id) coaches.add(prof.coach_id);
-    const { data: msgs } = await admin.from("coach_messages").select("coach_id").eq("client_id", me).not("audio_path", "is", null);
+    const { data: msgs, error: ce } = await admin.from("coach_messages").select("coach_id").eq("client_id", me).not("audio_path", "is", null);
+    if (ce) throw ce;
     (msgs || []).forEach((m) => { if (m.coach_id) coaches.add(m.coach_id); });
     for (const c of coaches) if (UUID.test(c) && c !== me) paths.push(...await files(c + "/" + me));
-
-    for (let i = 0; i < paths.length; i += 100) {
-      const { error } = await st.remove(paths.slice(i, i + 100));
-      if (error) throw error;
-    }
-    removed = paths.length;
   } catch (e) {
     console.error("borrar-audios", (e as Error).message);
-    return json({ error: "No se pudieron borrar tus mensajes de voz. Probá de nuevo." }, 500);
+    return json({ error: "No se pudieron revisar tus mensajes de voz. Probá de nuevo." }, 500);
   }
 
   // Sign in with Apple: se revoca antes de borrar (después ya no se sabe su cuenta de Apple).
@@ -143,11 +142,21 @@ Deno.serve(async (req) => {
     } else console.error("borrar-audios: cuenta de Apple sin código para revocar");
   }
 
-  // La cuenta: auth.users y en cascada todo lo que depende de ella.
+  // La cuenta: auth.users y en cascada todo lo que depende de ella. Si falla, no se borró
+  // ningún audio.
   const { error: de } = await asUser.rpc("delete_own_account");
   if (de) {
     console.error("borrar-audios: delete_own_account", de.message);
     return json({ error: de.code === "P0001" ? de.message : "No se pudo eliminar la cuenta. Probá de nuevo." }, de.code === "P0001" ? 409 : 500);
+  }
+
+  // Recién ahora los audios. La cuenta ya no está: si algo falla se anota y se contesta que
+  // se borró (reintentar ya no puede, no tiene sesión).
+  let removed = 0;
+  for (let i = 0; i < paths.length; i += 100) {
+    const { error } = await st.remove(paths.slice(i, i + 100));
+    if (error) { console.error("borrar-audios: quedaron audios sin borrar", me, (error as Error).message); continue; }
+    removed += Math.min(100, paths.length - i);
   }
   return json({ removed, deleted: true });
 });
