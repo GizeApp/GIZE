@@ -16,7 +16,7 @@ function num(v){ const n = parseFloat(v); return isFinite(n) ? n : null; }
 const r1 = v => Math.round(v * 10) / 10;
 
 // Producto de OFF → alimento de la app (valores cada 100 g/ml). Devuelve null si no
-// tiene lo mínimo para calcular (nombre y calorías o macros).
+// tiene lo mínimo para calcular (nombre y calorías o macros) o si sus valores no pueden ser.
 export function offToFood(p){
   if (!p) return null;
   const n = p.nutriments || {};
@@ -27,6 +27,7 @@ export function offToFood(p){
   const pr = num(n["proteins_100g"]), c = num(n["carbohydrates_100g"]), f = num(n["fat_100g"]);
   if (kcal == null && pr == null && c == null && f == null) return null;
   if (kcal == null) kcal = (pr || 0) * 4 + (c || 0) * 4 + (f || 0) * 9;
+  if (!plausible(Math.round(kcal), pr, c, f, n)) return null;
   const brand = String(p.brands || "").split(",")[0].trim();
   const isMl = /\bml\b|\bl\b|litro|cc\b/i.test(String(p.quantity || "")) || /ml/i.test(String(p.nutrition_data_per || ""));
   const serving = num(p.serving_quantity);
@@ -37,6 +38,19 @@ export function offToFood(p){
     unit: isMl ? "ml" : "g",
     src: "OFF", code: String(p.code || "")
   };
+}
+
+// Los mismos límites que usa GIZE para guardarlo (offToRow en supabase/functions/productos-off/
+// producto.ts): calorías de 0 a 950, macros de 0 a 100 que no pasen de 105 entre los tres y, con
+// los tres macros, calorías que cierren (4/4/9, contando alcohol y fibra). Si no, en OFF se cargó
+// mal (por ejemplo los kJ en el lugar de las kcal) y se anotaría cualquier cosa.
+function plausible(kcal, pr, c, f, n){
+  const m = [pr, c, f].map(v => v == null ? null : r1(v));
+  if (kcal < 0 || kcal > 950 || m.some(v => v != null && (v < 0 || v > 100)) || (m[0] || 0) + (m[1] || 0) + (m[2] || 0) > 105) return false;
+  if (m.some(v => v == null)) return true;
+  const base = m[0] * 4 + m[1] * 4 + m[2] * 9, alc = Math.max(0, num(n.alcohol_100g) || 0), fib = Math.max(0, num(n.fiber_100g) || 0);
+  const ok = k => Math.abs(kcal - k) <= Math.max(40, k * 0.3);
+  return ok(base) || ok(base + alc * 7 + fib * 2);
 }
 
 async function getJSON(url, signal){

@@ -6,9 +6,10 @@
 //     alumnos ve un aviso neutro;
 //   · con la cuenta vencida ve una pantalla neutra con «Cerrar sesión»;
 //   · al vincularse, el alumno no ve el plan de su coach en el mensaje de error.
+//   · en el chat, el alumno de un coach vencido no ve «plan vencido» al mandar un mensaje.
 // En la web todo sigue como antes: «Soy coach», la prueba gratis, «Mi plan» y los precios.
 // Eliminar la cuenta de coach dice «se da de baja tu cuenta de coach» en todos lados.
-import { newPage, wait } from './lib.mjs';
+import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const IOS = `(() => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: {} }; })();`;
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated', created_at: new Date().toISOString() };
@@ -117,4 +118,24 @@ export default async function ({ base, t }){
   t.has(muroWeb, 'Terminó tu prueba gratis', 'web vencido: «Terminó tu prueba gratis»');
   t.has(muroWeb, '$14.900', 'web vencido: con los precios');
   await pg.close();
+
+  // 4) Chat del alumno con el coach vencido: la función de mensajes responde 402 con el plan.
+  for (const ios of [true, false]){
+    const al = await newPage({ user: ALUMNO, init: ios ? IOS : undefined,
+      state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} },
+      handlers: { '/profiles': profile('client', { coach_id: COACH.id }),
+        '/functions/v1/rapid-worker': (r, J) => J({ error: 'Tu coach tiene el plan de GIZE vencido: por ahora no le llegan mensajes.' }, 402) } });
+    await al.p.goto(base + '/app/'); await wait(2500);
+    await al.p.evaluate(async ([cl, co]) => (await import('/app/ui/chat.js')).openChat({ clientId: cl, coachId: co, name: 'Coach', role: 'client' }), [ALUMNO.id, COACH.id]);
+    await wait(400);
+    await al.p.fill('#chatText', 'Hola'); await al.p.click('[data-chat="send"]'); await wait(1200);
+    const fallo = await txt(al.p, '#chatHost .ch-fail');
+    const quien = ios ? 'iPhone' : 'web';
+    if (ios) {
+      t.has(fallo, 'Por ahora no se pueden mandar mensajes en esta conversación.', 'iPhone chat: aviso neutro');
+      t.ok(!PROHIBIDO.test(fallo) && !/renov/i.test(fallo), 'iPhone chat: sin el plan de su coach: ' + fallo);
+    } else t.has(fallo, 'Tu coach tiene el plan de GIZE vencido', 'web chat: el aviso de siempre');
+    t.eq(al.errs, [], 'errores (chat ' + quien + ')');
+    await al.close();
+  }
 }

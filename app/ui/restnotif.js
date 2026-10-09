@@ -11,6 +11,8 @@
 //     notificaciones en Configuración.
 //
 // Todo es "mejor esfuerzo": si algo falla, el descanso sigue funcionando igual en la app.
+//
+// Abajo, lo mismo para el temporizador de Cardio (solo en las apps de las tiendas).
 
 import { State } from '../core/state.js';
 
@@ -24,11 +26,27 @@ function cap(){ try { return window.Capacitor && window.Capacitor.isNativePlatfo
 function platform(){ try { return window.Capacitor.getPlatform(); } catch (e) { return "web"; } }
 function hhmm(ms){ const d = new Date(ms); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
 
+// Android 12+: sin «Alarmas y recordatorios» el plugin programa una alarma inexacta, que Android
+// puede atrasar más de un minuto con la pantalla apagada (desde Android 14 viene apagado en las
+// instalaciones nuevas). Se pide una sola vez, en el primer aviso; si no lo da, sigue igual.
+const EXACT_KEY = "gize_alarma_exacta_pedida";
+async function askExact(LN){
+  let asked = false; try { asked = localStorage.getItem(EXACT_KEY) === "1"; } catch (e) {}
+  if (asked || !LN.checkExactNotificationSetting) return;
+  try {
+    const s = await LN.checkExactNotificationSetting();
+    if (!s || s.exact_alarm === "granted") return;
+    try { localStorage.setItem(EXACT_KEY, "1"); } catch (e) {}
+    if (confirm("Para que los avisos de fin de descanso y del temporizador suenen justo a tiempo con la pantalla apagada, activá «Alarmas y recordatorios» para GIZE en la pantalla que se abre.")) await LN.changeExactNotificationSetting();
+  } catch (e) {}
+}
+
 async function nativeSchedule(C, endAt){
   const LN = C.Plugins.LocalNotifications; if (!LN) return;
   let p = await LN.checkPermissions();
   if (p.display === "prompt" || p.display === "prompt-with-rationale") p = await LN.requestPermissions();
   if (p.display !== "granted") return;
+  if (platform() === "android") await askExact(LN); // antes de programar, así este ya va exacto
   if (platform() === "android" && !channelDone) {
     try { await LN.createChannel({ id: CHANNEL, name: "Fin del descanso", description: "Suena cuando termina el descanso entre series.", importance: 5, visibility: 1, vibration: true }); } catch (e) {}
     channelDone = true;
@@ -80,4 +98,42 @@ export function cancelRestAlert(){
   if (C) { nativeCancel(C).catch(() => {}); return; }
   if (!State.sb || !State.cloudUser || !pushOnHere()) return;
   Promise.resolve(State.sb.rpc("cancel_rest_alarm")).catch(() => {});
+}
+
+// ---- Temporizador de Cardio ----
+// Con la pantalla bloqueada el WebView se duerme y el pitido de la app sonaba recién al volver:
+// el celular programa la notificación para la hora de fin. En la web no hay (el aviso del
+// servidor es uno solo por usuario, de hasta 30 min, y es el del descanso).
+const CARDIO_ID = 4102, CARDIO_CHANNEL = "cardio_tiempo";
+let cardioSeq = 0, cardioChannel = false;
+function cardioLN(){ const C = cap(); return C && C.Plugins && C.Plugins.LocalNotifications; }
+
+async function cardioSchedule(LN, endAt, seq){
+  let p = await LN.checkPermissions();
+  if (p.display === "prompt" || p.display === "prompt-with-rationale") p = await LN.requestPermissions();
+  if (p.display !== "granted" || seq !== cardioSeq) return;
+  if (platform() === "android"){
+    await askExact(LN);
+    if (!cardioChannel){ try { await LN.createChannel({ id: CARDIO_CHANNEL, name: "Temporizador de Cardio", description: "Suena cuando termina el temporizador de Cardio.", importance: 5, visibility: 1, vibration: true }); } catch (e) {} cardioChannel = true; }
+  }
+  if (seq !== cardioSeq) return; // se pausó o se reinició mientras tanto
+  await LN.schedule({ notifications: [{
+    id: CARDIO_ID, title: "¡Tiempo!", body: "Terminó el temporizador de Cardio.",
+    schedule: { at: new Date(endAt), allowWhileIdle: true },
+    channelId: CARDIO_CHANNEL, smallIcon: "ic_stat_gize", iconColor: "#2FA0FF",
+  }] });
+}
+
+// Llamar al iniciar o seguir el temporizador (endAt = hora de fin en ms).
+export function scheduleCardioAlert(endAt){
+  const LN = cardioLN(); if (!LN) return;
+  const seq = ++cardioSeq;
+  LN.cancel({ notifications: [{ id: CARDIO_ID }] }).catch(() => {}).then(() => cardioSchedule(LN, endAt, seq)).catch(e => console.error("cardio notif", e));
+}
+
+// Llamar al pausarlo, al reiniciarlo o al terminar con la app a la vista (ya suena en la app).
+export function cancelCardioAlert(){
+  const LN = cardioLN(); if (!LN) return;
+  cardioSeq++;
+  LN.cancel({ notifications: [{ id: CARDIO_ID }] }).catch(() => {});
 }

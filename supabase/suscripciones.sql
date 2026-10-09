@@ -2,7 +2,9 @@
 -- Mercado Pago, que define cuántos clientes puede tener.
 -- Correr UNA vez en Supabase → SQL Editor.
 -- OJO: NO volver a correr suelto. Redefine coach_active, y la versión vigente (que además
--- mira el cupo del plan) está en cupo-plan.sql. Si lo corrés, corré después cupo-plan.sql.
+-- mira el cupo del plan) está en cupo-plan.sql. También join_coach, cuya versión vigente (con
+-- tope de códigos equivocados) está en coach-alumnos.sql. Si lo corrés, corré después
+-- cupo-plan.sql y coach-alumnos.sql.
 --
 --   Prueba           14 días, hasta 10 clientes, gratis
 --   Plan 10          hasta 10 clientes, $14.900 por mes
@@ -102,6 +104,7 @@ on conflict (coach_id) do nothing;
 
 -- Vincularse a un coach con su código: ahora también chequea el plan y el cupo.
 -- Los errores salen con un mensaje que la app le muestra al cliente tal cual.
+-- (Versión vieja: la vigente, con tope de códigos equivocados, está en coach-alumnos.sql.)
 create or replace function public.join_coach(code text)
 returns boolean
 language plpgsql

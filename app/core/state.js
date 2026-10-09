@@ -139,12 +139,16 @@ if (!state.habitAlarms || typeof state.habitAlarms !== "object") state.habitAlar
 
 // La rutina nunca queda sin días: con 0 días la app quedaba en blanco (ninguna pantalla podía
 // dibujar el día elegido). Si llega vacía (datos viejos, la nube), se arma un día vacío.
-// Si el día elegido no está (al abrir la app, o una rutina nueva del coach con ids nuevos): el
-// que toca hoy (core/diasemana.js, salvo en medio de un entreno) o, si no, el primero, como siempre.
+// Si el día elegido no está (al abrir la app, o una rutina nueva del coach con ids nuevos): en
+// medio de un entreno, el que se está entrenando (State.activeId no se guarda, wkStart.day sí);
+// si no, el que toca hoy (core/diasemana.js) o el primero, como siempre.
 const training = () => { const w = state.wkStart; return !!(w && Date.now() - (w.ts || 0) < 6 * 3600 * 1000); };
 export function ensureDays(){
   if (!Array.isArray(state.days) || !state.days.length) state.days = [{ id: uid(), name: "Día 1", subtitle: "", exercises: [] }];
-  if (!state.days.find(d => d.id === State.activeId)) State.activeId = ((!training() && diaDeHoy(state.days)) || state.days[0]).id;
+  if (!state.days.find(d => d.id === State.activeId)) {
+    const enCurso = training() && state.days.find(d => d.id === state.wkStart.day);
+    State.activeId = (enCurso || (!training() && diaDeHoy(state.days)) || state.days[0]).id;
+  }
 }
 
 // Abrir la app en el día de hoy: si un día de la rutina tiene asignado el día de la semana de

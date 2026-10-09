@@ -288,13 +288,13 @@ function takePendingCode(){
 }
 // Al cerrar sesión o borrar la cuenta: lo que quedó de esa cuenta en el dispositivo además de
 // los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso,
-// avisos de los hábitos, la salida de Cardio en curso, los recorridos guardados y la imagen de
-// la última salida compartida).
+// avisos de los hábitos, la salida de Cardio en curso, el cronómetro y el temporizador de
+// Cardio, los recorridos guardados y la imagen de la última salida compartida).
 export function clearAccountLeftovers(uid){
   clearHabitAlarms();
   deleteShareFile();
   try{
-    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, RECOVERY_PENDING, "gize_auth_link_used", "gize_rest_timer", TRACK_KEY].concat(runKeys()).forEach(k=>localStorage.removeItem(k));
+    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, RECOVERY_PENDING, "gize_auth_link_used", "gize_rest_timer", "gize_cardio_clock", TRACK_KEY].concat(runKeys()).forEach(k=>localStorage.removeItem(k));
     if(uid){ [OUTBOX_KEY, OUTBOX_FAILED_KEY].forEach(k=>{ const q=readQueue(k).filter(i=>i.uid!==uid); if(q.length) writeQueue(k,q); else localStorage.removeItem(k); }); }
   }catch(e){}
 }
@@ -573,9 +573,16 @@ export function mergeLocalProgress(cloudDays, localDays){
 // rutina armada por el coach, esa; si no, la de siempre (state.regularDays, la de la tabla
 // routines). Lo cargado a mano (kg, reps, tildes) se conserva como siempre, y al pasar a la
 // de descarga se guarda lo de la de siempre para devolverlo cuando vuelve (el lunes siguiente).
-// Devuelve true si cambió de una a otra.
+// Devuelve true si cambió de una a otra (o si aplicó la que esperaba a que terminara el entreno).
 // ¿Hay un entreno en curso? (empezado hace menos de 6 horas: uno olvidado no frena nada)
 const training = () => !!(state.wkStart && Date.now() - (state.wkStart.ts || 0) < 6 * 3600 * 1000);
+// ¿La rutina que llega (days) deja afuera series cargadas del día que se está entrenando? Pasa
+// cuando el coach aplica una rutina nueva (series con otros ids).
+function dropsWorkout(days){
+  const d = (state.days || []).find(x => x.id === state.wkStart.day); if(!d) return false;
+  const ids = new Set(); (days || []).forEach(x => (x.exercises || []).forEach(ex => (ex.sets || []).forEach(s => ids.add(s.id))));
+  return (d.exercises || []).some(ex => (ex.sets || []).some(s => !ids.has(s.id) && (s.done || [s.kg, s.reps, s.secs].some(v => v != null && String(v) !== ""))));
+}
 export function applyCoachRoutine(){
   const regular = Array.isArray(state.regularDays) && state.regularDays.length ? state.regularDays : null;
   const dl = activeDeload(state.block, today());
@@ -583,6 +590,7 @@ export function applyCoachRoutine(){
   // En medio de un entreno que pasa la medianoche del domingo no se cambia de rutina (se
   // perdería lo cargado): cambia al guardarlo o cancelarlo, en el próximo dibujo de la app.
   if(mode !== prev && training()) return false;
+  const pend = !!state.routinePending; delete state.routinePending;
   if(!dl && !regular){
     // Sin rutina de siempre en la nube: al terminar la descarga vuelve lo que tenía antes (si
     // no hay nada guardado, queda la de descarga hasta que el coach cargue otra).
@@ -598,19 +606,24 @@ export function applyCoachRoutine(){
     state.days = mergeLocalProgress(clone(regular), state.preDeloadDays);
     state.preDeloadDays = null;
   } else {
-    state.days = mergeLocalProgress(clone(dl ? dl.days : regular), state.days);
+    const nd = mergeLocalProgress(clone(dl ? dl.days : regular), state.days);
+    // Una rutina nueva del coach en medio de un entreno borraría lo cargado hoy, que todavía no se
+    // guardó: queda esperando y se aplica al guardarlo o cancelarlo (ver coachRoutineDue).
+    if(training() && dropsWorkout(nd)){ state.routinePending = true; return false; }
+    state.days = nd;
   }
   if(mode === "regular") state.preDeloadDays = null;
   state.routineMode = mode;
   migrateNames(state.days);
   ensureDays();
-  return mode !== prev;
+  return mode !== prev || pend;
 }
 
 // ¿Toca cambiar de rutina? (empezó o terminó la semana de descarga desde la última vez). Es
 // barato: se mira en cada renderApp para que cambie aunque la app siga abierta o sin señal.
 export function coachRoutineDue(){
   if(training()) return false;
+  if(state.routinePending) return true; // la rutina nueva que esperó a que terminara el entreno
   const mode = state.routineMode || "regular";
   if(mode === "regular" && !(Array.isArray(state.regularDays) && state.regularDays.length)) return false;
   const dl = activeDeload(state.block, today());
@@ -626,7 +639,7 @@ function leaveCoachRoutine(){
     else if(Array.isArray(state.preDeloadDays) && state.preDeloadDays.length) state.days = state.preDeloadDays;
     ensureDays();
   }
-  state.routineMode = "regular"; state.regularDays = null; state.preDeloadDays = null;
+  state.routineMode = "regular"; state.regularDays = null; state.preDeloadDays = null; delete state.routinePending;
 }
 // El plan de su coach venció hace más de 4 días y la base lo pasó al sistema común
 // (supabase/coach-vencido.sql): se le avisa una vez (por celular), solo si pasó hace poco.
