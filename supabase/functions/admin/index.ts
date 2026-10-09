@@ -14,6 +14,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 import { importPKCS8, SignJWT } from "npm:jose@5";
+import { deA } from "./tanda.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -69,6 +70,8 @@ async function apnsJwt(): Promise<string | null> {
 // Manda una notificación a todos los dispositivos de la lista (web, Android y iPhone).
 // Devuelve los ids de los dispositivos que ya no existen, para borrarlos.
 // Los tres van en paralelo: antes Android e iPhone esperaban a que terminaran todos los web.
+// En cada uno, de a 100 a la vez (ver tanda.ts): el tiempo máximo corre desde que arranca cada
+// envío, no desde el principio para todos.
 async function send(subs: Sub[], title: string, body: string, tag: string): Promise<string[]> {
   const gone: string[] = [];
   const web = subs.filter((s) => s.endpoint.startsWith("https://"));
@@ -80,13 +83,13 @@ async function send(subs: Sub[], title: string, body: string, tag: string): Prom
     if (!web.length || !pub || !priv) return;
     webpush.setVapidDetails(Deno.env.get("VAPID_SUBJECT") || "mailto:soporte@gize.ar", pub, priv);
     const payload = JSON.stringify({ title, body, tag, url: "./app/" });
-    await Promise.all(web.map(async (s) => {
+    await deA(web, async (s) => {
       try { await conTope(webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 60 * 60 * 24, urgency: "normal", timeout: TOPE_MS })); }
       catch (e) {
         const code = (e as { statusCode?: number }).statusCode;
         if (code === 404 || code === 410) gone.push(s.id); else console.error("push", code, (e as Error).message);
       }
-    }));
+    });
   };
 
   const toFcm = async () => {
@@ -94,7 +97,7 @@ async function send(subs: Sub[], title: string, body: string, tag: string): Prom
     if (!sa) return;
     let access = "";
     try { access = await fcmAccessToken(sa); } catch (e) { console.error((e as Error).message); }
-    if (access) await Promise.all(fcm.map(async (s) => {
+    if (access) await deA(fcm, async (s) => {
       try {
         const r = await fetch("https://fcm.googleapis.com/v1/projects/" + sa.project_id + "/messages:send", {
           method: "POST",
@@ -109,14 +112,14 @@ async function send(subs: Sub[], title: string, body: string, tag: string): Prom
         const t = await r.text();
         if (r.status === 404 || t.includes("UNREGISTERED")) gone.push(s.id); else console.error("fcm", r.status, t);
       } catch (e) { console.error("fcm", (e as Error).message); }
-    }));
+    });
   };
 
   const toApns = async () => {
     if (!apns.length) return;
     let jwt: string | null = null;
     try { jwt = await apnsJwt(); } catch (e) { console.error("apns jwt", (e as Error).message); }
-    if (jwt) await Promise.all(apns.map(async (s) => {
+    if (jwt) await deA(apns, async (s) => {
       try {
         const r = await fetch("https://api.push.apple.com/3/device/" + s.endpoint.slice(5), {
           method: "POST",
@@ -132,7 +135,7 @@ async function send(subs: Sub[], title: string, body: string, tag: string): Prom
         const t = await r.text();
         if (r.status === 410 || /BadDeviceToken|Unregistered|DeviceTokenNotForTopic/.test(t)) gone.push(s.id); else console.error("apns", r.status, t);
       } catch (e) { console.error("apns", (e as Error).message); }
-    }));
+    });
   };
 
   await Promise.allSettled([toWeb(), toFcm(), toApns()]);
