@@ -24,11 +24,27 @@ function cap(){ try { return window.Capacitor && window.Capacitor.isNativePlatfo
 function platform(){ try { return window.Capacitor.getPlatform(); } catch (e) { return "web"; } }
 function hhmm(ms){ const d = new Date(ms); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
 
+// Android 12+: sin «Alarmas y recordatorios» el plugin programa una alarma inexacta, que Android
+// puede atrasar más de un minuto con la pantalla apagada (desde Android 14 viene apagado en las
+// instalaciones nuevas). Se pide una sola vez, en el primer descanso; si no lo da, sigue igual.
+const EXACT_KEY = "gize_alarma_exacta_pedida";
+async function askExact(LN){
+  let asked = false; try { asked = localStorage.getItem(EXACT_KEY) === "1"; } catch (e) {}
+  if (asked || !LN.checkExactNotificationSetting) return;
+  try {
+    const s = await LN.checkExactNotificationSetting();
+    if (!s || s.exact_alarm === "granted") return;
+    try { localStorage.setItem(EXACT_KEY, "1"); } catch (e) {}
+    if (confirm("Para que el aviso de fin de descanso suene justo a tiempo con la pantalla apagada, activá «Alarmas y recordatorios» para GIZE en la pantalla que se abre.")) await LN.changeExactNotificationSetting();
+  } catch (e) {}
+}
+
 async function nativeSchedule(C, endAt){
   const LN = C.Plugins.LocalNotifications; if (!LN) return;
   let p = await LN.checkPermissions();
   if (p.display === "prompt" || p.display === "prompt-with-rationale") p = await LN.requestPermissions();
   if (p.display !== "granted") return;
+  if (platform() === "android") await askExact(LN); // antes de programar, así este ya va exacto
   if (platform() === "android" && !channelDone) {
     try { await LN.createChannel({ id: CHANNEL, name: "Fin del descanso", description: "Suena cuando termina el descanso entre series.", importance: 5, visibility: 1, vibration: true }); } catch (e) {}
     channelDone = true;
