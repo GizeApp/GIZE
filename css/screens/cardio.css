@@ -240,6 +240,11 @@ html.sal-abierta, html.sal-abierta body { overflow: hidden; }
 .sov-big { position: absolute; z-index: 3; left: 20px; bottom: 34px; display: flex; align-items: baseline; gap: 8px; color: #fff; pointer-events: none; text-shadow: 0 2px 18px rgba(0,0,0,.6); }
 .sov-big b { font-size: clamp(56px, 19vw, 88px); font-weight: 700; letter-spacing: -.035em; line-height: .9; font-variant-numeric: tabular-nums; }
 .sov-big span { font-size: 22px; font-weight: 600; color: rgba(255,255,255,.72); }
+/* App de Android (app/screens/cardio.js, sin nada de ubicación): sin mapa ni dibujo del recorrido,
+   la cabecera es solo la fecha y los km, sin el alto del mapa. */
+.sov-solo .sov-hero { height: auto; min-height: 0; padding: calc(68px + env(safe-area-inset-top)) 20px 24px; background: radial-gradient(120% 90% at 50% 30%, #0B0D14 0%, #000 75%); }
+.sov-solo .sov-hero::before, .sov-solo .sov-hero::after { display: none; }
+.sov-solo .sov-big { position: static; }
 .sov-body { max-width: 540px; margin: 0 auto; padding: 16px 16px calc(28px + env(safe-area-inset-bottom)); }
 .sov-new { margin: 2px 2px 4px; font-size: var(--text-emphasis); font-weight: 700; color: var(--gize-text); }
 .sov-nums { opacity: 0; transform: translateY(10px); transition: opacity .4s ease, transform .4s ease; }

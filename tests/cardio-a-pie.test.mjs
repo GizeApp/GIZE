@@ -408,14 +408,14 @@ async function compartir(base, t, saved){
   t.eq(pg.errs, [], 'errores de la página (descarga)');
   await pg.close();
 
-  // App nativa: Filesystem (caché) + Share.
+  // App de iPhone: Filesystem (caché) + Share. (En la de Android no hay imagen del recorrido: tests/cardio-android.test.mjs.)
   pg = await withSaved(base, saved, { init: "localStorage.setItem('gize_mapa_off','1');" });
   p = pg.p;
   await p.goto(base + '/app/'); await wait(2500);
   await abrir(p, saved);
   await p.evaluate(() => {
     window.__nat = [];
-    window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', isPluginAvailable: n => n === 'Share' || n === 'Filesystem',
+    window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', isPluginAvailable: n => n === 'Share' || n === 'Filesystem',
       Plugins: {
         Filesystem: { writeFile: async o => { window.__nat.push(['write', o.path, o.directory, o.data.slice(0, 8)]); return { uri: 'file:///data/cache/' + o.path }; } },
         Share: { share: async o => { window.__nat.push(['share', o.title, o.files, o.dialogTitle]); return {}; } },

@@ -5,12 +5,15 @@
 // ahí, una vez por ficha abierta, y queda solo en memoria (nunca en el celular del coach: si el
 // alumno borra la salida o su cuenta, o deja de estar vinculado, no le queda guardado); el mapa
 // se destruye al cerrar la salida (ui/mapa.js syncRouteViews, después de cada renderCoach).
+// En la app de Android (core/plataforma.js appAndroid: ahí no hay nada de ubicación) la salida se
+// abre solo con sus números: sin mapa ni dibujo del recorrido, que ni se pide a la nube.
 // Los colores salen de la gama (var(--gize-r1..r3)), que con el neón apagado ya es gris.
 import { esc, fmtDate } from '../../core/utils.js';
 import { breakdownText, fmtClock, fmtKm, modeLabel, paceOrSpeed } from '../../core/cardiogps.js';
 import { fetchSalidaTrack } from '../../core/supabase.js';
 import { legendHtml, mixHtml, notesHtml, prepOf, routeHtml, splitsHtml, statsHtml } from '../../ui/recorrido.js';
 import { CoachState } from './state.js';
+import { appAndroid } from '../../core/plataforma.js';
 import { renderCoach } from './index.js';
 
 export const SALIDAS_MAX = 30; // las que se leen por alumno (openClient)
@@ -67,6 +70,7 @@ function trackFor(d, s){
 }
 
 function renderRoute(d, s){
+  if (appAndroid()) return "";
   const tr = trackFor(d, s);
   if (tr === null) return '<div class="sal-ruta sal-ruta-msg">Cargando el recorrido…</div>';
   if (!tr || !prepOf(s, tr)) return '<div class="sal-ruta sal-ruta-msg">' + (s.points === 0 || tr ? "Esta salida no tiene recorrido." : "No se pudo cargar el recorrido. Volvé a abrir la salida para reintentar.") + '</div>';

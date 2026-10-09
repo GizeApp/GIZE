@@ -12,7 +12,11 @@
 // HTML): la pantalla pone un lugar (routeSlot, un <div data-rv="nombre">) y después de dibujar,
 // syncRouteViews vuelve a poner cada vista en su lugar (o la crea, o destruye las que ya no
 // tienen lugar).
+//
+// En la app de Android (core/plataforma.js appAndroid) no hay mapa ni recorrido: routeSlot no
+// pone ningún lugar y canUseMap es false (no se carga MapLibre ni se pide nada a OpenFreeMap).
 import { esc } from '../core/utils.js';
+import { appAndroid } from '../core/plataforma.js';
 import { decodeTrack } from '../core/cardiogps.js';
 import { RouteLayers, fitProjection, followProjection, prepareRoute, trackLayers, untrackLayers } from './ruta.js';
 
@@ -99,6 +103,7 @@ const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return 
 // video lenta (app/lite.js, ANR «La GPU no responde» en Android). "gize_mapa_off" = "1" lo apaga
 // (para las pruebas y por si hiciera falta).
 export function canUseMap(){
+  if (appAndroid()) return false;
   if (lsGet("gize_mapa_off") === "1" || lsGet("gize_gpu_lenta") === "1") return false;
   if (document.documentElement.classList.contains("lite")) return false;
   if (navigator.onLine === false) return false;
@@ -433,8 +438,10 @@ class RouteView {
 
 // ---- Lugares en la pantalla ----
 const views = new Map(), specs = new Map();
-// HTML del lugar donde va la vista «name». spec: ver RouteView (key cambia → vista nueva).
+// HTML del lugar donde va la vista «name». spec: ver RouteView (key cambia → vista nueva). En la
+// app de Android, nada (ni mapa ni recorrido).
 export function routeSlot(name, spec, cls){
+  if (appAndroid()) return "";
   specs.set(name, spec);
   return '<div class="rv-slot' + (cls ? " " + cls : "") + '" data-rv="' + esc(name) + '"></div>';
 }
