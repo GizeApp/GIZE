@@ -114,7 +114,10 @@ jobs:
       # La firma «en la nube» de Xcode salía sin sello de tiempo y Apple la rechazaba (error 90035).
       # Se firma con un certificado de distribución propio, de usar y tirar (scripts/ios-firma.py):
       # la clave privada se crea en esta Mac y al final el certificado se revoca. El script no usa
-      # paquetes de PyPI (firma con openssl): nada bajado en el momento corre al lado de la clave.
+      # paquetes de PyPI (firma con openssl). Ojo: la compilación de abajo todavía baja en el
+      # momento los paquetes de Swift (SPM) de los plugins, sin un Package.resolved que fije cada
+      # versión. Pendiente: generarlo en una Mac (xcodebuild -resolvePackageDependencies), subirlo
+      # y compilar con -onlyUsePackageVersionsFromResolvedFile.
       - name: Certificado y perfil de App Store (temporales)
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
