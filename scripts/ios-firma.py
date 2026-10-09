@@ -18,7 +18,6 @@ Variables de entorno: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH (el .p8), BUNDLE_I
 RUNNER_TEMP, GITHUB_ENV.
 """
 import base64, json, os, subprocess, sys, time, urllib.request, urllib.error
-import jwt  # pyjwt[crypto]
 
 API = "https://api.appstoreconnect.apple.com/v1"
 TMP = os.environ["RUNNER_TEMP"]
@@ -26,12 +25,31 @@ STATE = os.path.join(TMP, "ios-firma.json")
 KEYCHAIN = os.path.join(TMP, "firma.keychain-db")
 
 
+def b64url(b):
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+
+def firma_cruda(der):
+    # openssl da la firma ECDSA en DER (SEQUENCE con los enteros r y s); JWT pide r||s, 32 bytes cada uno.
+    if der[0] != 0x30 or der[1] >= 0x80:
+        sys.exit("openssl devolvió una firma con un formato inesperado")
+    i, out = 2, b""
+    for _ in range(2):
+        n = der[i + 1]
+        out += der[i + 2:i + 2 + n].lstrip(b"\0").rjust(32, b"\0")
+        i += 2 + n
+    return out
+
+
 def token():
-    with open(os.environ["ASC_KEY_PATH"]) as f:
-        key = f.read()
+    # JWT ES256 firmado con openssl, sin paquetes de PyPI: así no corre código bajado en el
+    # momento al lado de la clave de App Store Connect.
     now = int(time.time())
-    return jwt.encode({"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 900, "aud": "appstoreconnect-v1"},
-                      key, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+    head = {"alg": "ES256", "kid": os.environ["ASC_KEY_ID"], "typ": "JWT"}
+    body = {"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 900, "aud": "appstoreconnect-v1"}
+    msg = ".".join(b64url(json.dumps(x, separators=(",", ":")).encode()) for x in (head, body))
+    der = sh("openssl", "dgst", "-sha256", "-sign", os.environ["ASC_KEY_PATH"], input=msg.encode(), capture_output=True).stdout
+    return msg + "." + b64url(firma_cruda(der))
 
 
 def api(method, path, body=None):

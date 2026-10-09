@@ -1,6 +1,8 @@
 // Workflows de GitHub que manejan claves (sin GitHub: se leen los .yml y los pasos se corren con
 // herramientas simuladas). La copia de seguridad usa la imagen de Postgres fijada por digest en
-// .github/postgres/Dockerfile, que sigue Dependabot.
+// .github/postgres/Dockerfile, que sigue Dependabot. El workflow de iPhone no instala nada de PyPI:
+// scripts/ios-firma.py firma el JWT de App Store Connect con openssl.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -63,4 +65,34 @@ export default async function ({ t }){
     t.ok(suelto.code !== 0 && !suelto.log.includes('pull'), 'con un tag sin digest el paso falla y no baja nada');
     t.ok(/@sha256/.test(suelto.out), 'y avisa que falta el digest: ' + suelto.out.trim());
   }
+
+  // 2) iPhone: el JWT de App Store Connect se firma con openssl (scripts/ios-firma.py), sin
+  //    instalar nada de PyPI al lado de la clave. Se prueba con una clave de prueba y sin PyJWT,
+  //    como en la Mac de GitHub, y la firma se verifica acá.
+  const ios = leer('.github/workflows/ios.yml');
+  t.ok(!/pip3? install|pip install/.test(sinComentarios(ios)), 'ios.yml no instala paquetes de Python');
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gize-asc-')), p8 = path.join(tmp, 'AuthKey.p8');
+  fs.writeFileSync(p8, privateKey.export({ type: 'pkcs8', format: 'pem' }));
+  const py = `import importlib.util, sys
+sys.modules["jwt"] = None
+spec = importlib.util.spec_from_file_location("firma", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+for _ in range(40): print(m.token())
+print(m.firma_cruda(bytes.fromhex(sys.argv[2])).hex())`;
+  // Firma DER con r de 31 bytes (le falta el cero de adelante) y s con el bit alto (trae un cero de más).
+  const der = '3044' + '021f' + '11'.repeat(31) + '0221' + '00' + 'ff'.repeat(32);
+  const r = spawnSync('python3', ['-I', '-B', '-c', py, path.join(ROOT, 'scripts/ios-firma.py'), der], { encoding: 'utf8', timeout: 60000,
+    env: Object.assign({}, process.env, { RUNNER_TEMP: tmp, ASC_KEY_PATH: p8, ASC_KEY_ID: 'KEYID12345', ASC_ISSUER_ID: 'emisor-de-prueba' }) });
+  const ls = (r.stdout || '').trim().split('\n'), jwts = ls.slice(0, 40);
+  t.eq(r.status, 0, 'ios-firma.py arma el token sin PyJWT: ' + (r.stderr || '').trim().split('\n').pop());
+  if (r.status === 0){
+    const b64 = s => Buffer.from(s, 'base64url');
+    const malas = jwts.filter(j => { const [h, p, s] = j.split('.'); return !s || !crypto.verify('sha256', Buffer.from(h + '.' + p), { key: publicKey, dsaEncoding: 'ieee-p1363' }, b64(s)); });
+    t.eq(malas.length, 0, 'las 40 firmas ES256 se verifican con la clave pública');
+    const [h, p] = jwts[0].split('.').map(x => { try { return JSON.parse(b64(x)); } catch (e) { return {}; } });
+    t.eq([h.alg, h.kid, h.typ], ['ES256', 'KEYID12345', 'JWT'], 'encabezado del token');
+    t.eq([p.iss, p.aud, p.exp - p.iat], ['emisor-de-prueba', 'appstoreconnect-v1', 900], 'datos del token (vence a los 15 minutos)');
+    t.eq(ls[40], '00' + '11'.repeat(31) + 'ff'.repeat(32), 'la firma DER pasa a r||s de 32 bytes cada uno');
+  }
+  fs.rmSync(tmp, { recursive: true, force: true });
 }

@@ -83,7 +83,8 @@ jobs:
 
       # La firma «en la nube» de Xcode salía sin sello de tiempo y Apple la rechazaba (error 90035).
       # Se firma con un certificado de distribución propio, de usar y tirar (scripts/ios-firma.py):
-      # la clave privada se crea en esta Mac y al final el certificado se revoca.
+      # la clave privada se crea en esta Mac y al final el certificado se revoca. El script no usa
+      # paquetes de PyPI (firma con openssl): nada bajado en el momento corre al lado de la clave.
       - name: Certificado y perfil de App Store (temporales)
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -91,9 +92,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           BUNDLE_ID: ar.com.gize.app
           RUN_ID: ${{ github.run_id }}
-        run: |
-          python3 -m pip install --quiet --break-system-packages "pyjwt[crypto]" || python3 -m pip install --quiet "pyjwt[crypto]"
-          ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" python3 scripts/ios-firma.py crear
+        run: ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" python3 scripts/ios-firma.py crear
 
       - name: Compilar firmada y subir a TestFlight
         if: github.event_name == 'workflow_dispatch'
