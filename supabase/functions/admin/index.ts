@@ -14,6 +14,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 import { importPKCS8, SignJWT } from "npm:jose@5";
+import { deA } from "./tanda.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -25,6 +26,16 @@ const json = (data: unknown, status = 200) =>
 
 type Sub = { id: string; user_id: string; endpoint: string; p256dh: string; auth: string };
 type ServiceAccount = { project_id: string; client_email: string; private_key: string };
+
+// Tiempo máximo de cada envío: un dispositivo que no contesta (por ejemplo, una dirección
+// guardada a propósito que deja la conexión colgada) no traba el aviso a los demás.
+const TOPE_MS = 10_000;
+// web-push corta la conexión con su opción timeout; por las dudas, también se deja de esperar.
+function conTope<T>(p: Promise<T>, ms = TOPE_MS): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([p, new Promise<T>((_, no) => { t = setTimeout(() => no(new Error("sin respuesta en " + ms / 1000 + " s")), ms); })])
+    .finally(() => clearTimeout(t));
+}
 
 function serviceAccount(): ServiceAccount | null {
   try {
@@ -43,6 +54,7 @@ async function fcmAccessToken(sa: ServiceAccount): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }),
+    signal: AbortSignal.timeout(TOPE_MS),
   });
   const j = await r.json();
   if (!r.ok || !j.access_token) throw new Error("OAuth FCM: " + JSON.stringify(j));
@@ -57,65 +69,78 @@ async function apnsJwt(): Promise<string | null> {
 
 // Manda una notificación a todos los dispositivos de la lista (web, Android y iPhone).
 // Devuelve los ids de los dispositivos que ya no existen, para borrarlos.
+// Los tres van en paralelo: antes Android e iPhone esperaban a que terminaran todos los web.
+// En cada uno, de a 100 a la vez (ver tanda.ts): el tiempo máximo corre desde que arranca cada
+// envío, no desde el principio para todos.
 async function send(subs: Sub[], title: string, body: string, tag: string): Promise<string[]> {
   const gone: string[] = [];
   const web = subs.filter((s) => s.endpoint.startsWith("https://"));
   const fcm = subs.filter((s) => s.endpoint.startsWith("fcm:"));
   const apns = subs.filter((s) => s.endpoint.startsWith("apns:"));
 
-  const pub = Deno.env.get("VAPID_PUBLIC_KEY"), priv = Deno.env.get("VAPID_PRIVATE_KEY");
-  if (web.length && pub && priv) {
+  const toWeb = async () => {
+    const pub = Deno.env.get("VAPID_PUBLIC_KEY"), priv = Deno.env.get("VAPID_PRIVATE_KEY");
+    if (!web.length || !pub || !priv) return;
     webpush.setVapidDetails(Deno.env.get("VAPID_SUBJECT") || "mailto:soporte@gize.ar", pub, priv);
     const payload = JSON.stringify({ title, body, tag, url: "./app/" });
-    await Promise.all(web.map(async (s) => {
-      try { await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 60 * 60 * 24, urgency: "normal" }); }
+    await deA(web, async (s) => {
+      try { await conTope(webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 60 * 60 * 24, urgency: "normal", timeout: TOPE_MS })); }
       catch (e) {
         const code = (e as { statusCode?: number }).statusCode;
         if (code === 404 || code === 410) gone.push(s.id); else console.error("push", code, (e as Error).message);
       }
-    }));
-  }
+    });
+  };
 
-  const sa = fcm.length ? serviceAccount() : null;
-  if (sa) {
+  const toFcm = async () => {
+    const sa = fcm.length ? serviceAccount() : null;
+    if (!sa) return;
     let access = "";
     try { access = await fcmAccessToken(sa); } catch (e) { console.error((e as Error).message); }
-    if (access) await Promise.all(fcm.map(async (s) => {
-      const r = await fetch("https://fcm.googleapis.com/v1/projects/" + sa.project_id + "/messages:send", {
-        method: "POST",
-        headers: { Authorization: "Bearer " + access, "Content-Type": "application/json" },
-        body: JSON.stringify({ message: {
-          token: s.endpoint.slice(4), notification: { title, body },
-          android: { priority: "HIGH", ttl: "86400s", notification: { sound: "default", color: "#2FA0FF", tag } },
-        } }),
-      });
-      if (r.ok) return;
-      const t = await r.text();
-      if (r.status === 404 || t.includes("UNREGISTERED")) gone.push(s.id); else console.error("fcm", r.status, t);
-    }));
-  }
+    if (access) await deA(fcm, async (s) => {
+      try {
+        const r = await fetch("https://fcm.googleapis.com/v1/projects/" + sa.project_id + "/messages:send", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + access, "Content-Type": "application/json" },
+          body: JSON.stringify({ message: {
+            token: s.endpoint.slice(4), notification: { title, body },
+            android: { priority: "HIGH", ttl: "86400s", notification: { sound: "default", color: "#2FA0FF", tag } },
+          } }),
+          signal: AbortSignal.timeout(TOPE_MS),
+        });
+        if (r.ok) return;
+        const t = await r.text();
+        if (r.status === 404 || t.includes("UNREGISTERED")) gone.push(s.id); else console.error("fcm", r.status, t);
+      } catch (e) { console.error("fcm", (e as Error).message); }
+    });
+  };
 
-  if (apns.length) {
+  const toApns = async () => {
+    if (!apns.length) return;
     let jwt: string | null = null;
     try { jwt = await apnsJwt(); } catch (e) { console.error("apns jwt", (e as Error).message); }
-    if (jwt) await Promise.all(apns.map(async (s) => {
-      const r = await fetch("https://api.push.apple.com/3/device/" + s.endpoint.slice(5), {
-        method: "POST",
-        headers: {
-          authorization: "bearer " + jwt, "apns-topic": "ar.com.gize.app", "apns-push-type": "alert",
-          "apns-priority": "10", "apns-expiration": String(Math.floor(Date.now() / 1000) + 86400),
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ aps: { alert: { title, body }, sound: "default", "thread-id": tag } }),
-      });
-      if (r.ok) return;
-      const t = await r.text();
-      if (r.status === 410 || /BadDeviceToken|Unregistered|DeviceTokenNotForTopic/.test(t)) gone.push(s.id); else console.error("apns", r.status, t);
-    }));
-  }
+    if (jwt) await deA(apns, async (s) => {
+      try {
+        const r = await fetch("https://api.push.apple.com/3/device/" + s.endpoint.slice(5), {
+          method: "POST",
+          headers: {
+            authorization: "bearer " + jwt, "apns-topic": "ar.com.gize.app", "apns-push-type": "alert",
+            "apns-priority": "10", "apns-expiration": String(Math.floor(Date.now() / 1000) + 86400),
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ aps: { alert: { title, body }, sound: "default", "thread-id": tag } }),
+          signal: AbortSignal.timeout(TOPE_MS),
+        });
+        if (r.ok) return;
+        const t = await r.text();
+        if (r.status === 410 || /BadDeviceToken|Unregistered|DeviceTokenNotForTopic/.test(t)) gone.push(s.id); else console.error("apns", r.status, t);
+      } catch (e) { console.error("apns", (e as Error).message); }
+    });
+  };
+
+  await Promise.allSettled([toWeb(), toFcm(), toApns()]);
   return gone;
 }
-
 
 const MP = "https://api.mercadopago.com";
 async function mp(path: string, init: RequestInit = {}) {

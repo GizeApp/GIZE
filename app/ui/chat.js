@@ -128,8 +128,15 @@ async function load(){
       .order("created_at", { ascending: false }).limit(150);
     if(C !== c) return;
     if(r.error){ c.error = "No se pudo cargar la conversación. Revisá la conexión."; c.msgs = c.msgs || []; paint(); return; }
+    const known = new Set((c.msgs || []).map(m => m.id));
     const pending = (c.msgs || []).filter(m => m.pending);
-    c.msgs = (r.data || []).reverse().map(norm).concat(pending);
+    // De los nuevos (del más nuevo al más viejo), el propio que todavía espera la respuesta
+    // reemplaza al local (ver ownLocal).
+    const rows = (r.data || []).map(norm).map(m => {
+      const j = known.has(m.id) ? -1 : ownLocal(pending, m);
+      return j < 0 ? m : keepUrl(m, pending.splice(j, 1)[0]);
+    });
+    c.msgs = rows.reverse().concat(pending);
     c.error = "";
     paint(true);
     markRead();
@@ -140,6 +147,16 @@ async function load(){
 function norm(m){ return Object.assign({}, m, { sender: m.sender || "coach", body: m.body || "" }); }
 
 function mine(m){ return m.sender === (C.role === "coach" ? "coach" : "client"); }
+
+// El mensaje propio que todavía espera la respuesta de la función. La función lo guarda antes
+// de mandar los avisos, así que Realtime (o una recarga) trae el guardado antes de que conteste:
+// ocupa el lugar del local, si no se veía dos veces («Enviando…» y «Enviado»).
+function ownLocal(list, m){
+  if(!mine(m)) return -1;
+  return list.findIndex(x => x.pending && x.body === m.body && (x.audio_path || null) === (m.audio_path || null));
+}
+// El audio recién grabado se sigue escuchando del archivo local.
+function keepUrl(m, local){ if(local.localUrl) m.localUrl = local.localUrl; return m; }
 
 function markRead(){
   const c = C; if(!c || document.visibilityState === "hidden") return;
@@ -183,6 +200,8 @@ function listen(){
         const list = c.msgs || (c.msgs = []);
         const i = list.findIndex(x => x.id === m.id);
         if(i >= 0){ list[i] = Object.assign(list[i], m); paint(); return; }
+        const j = ownLocal(list, m);
+        if(j >= 0){ list[j] = keepUrl(m, list[j]); paint(); return; }
         list.push(m);
         paint(true);
         markRead();

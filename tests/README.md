@@ -20,3 +20,8 @@ PW=/tmp/pw/node_modules/playwright/index.mjs node tests/run.mjs comida   # solo 
 Cada archivo `*.test.mjs` exporta una función `async ({ base, t })`: `base` es la dirección
 del servidor local y `t.ok` / `t.eq` / `t.has` anotan lo que falla. Las ayudas (servidor,
 navegador, Supabase simulado) están en `tests/lib.mjs`.
+
+Las funciones de Supabase (`supabase/functions/*/index.ts`, escritas para Deno) se corren en
+Node con `tests/funcion.mjs`: los paquetes `npm:` (supabase-js, web-push, jose), `Deno.serve`,
+`Deno.env` y `fetch` son simulados, así que tampoco salen a internet. Así se prueba lo que la
+función hace (qué guarda, qué manda y en qué orden) y no solo cómo está escrita.

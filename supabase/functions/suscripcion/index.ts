@@ -37,6 +37,7 @@
 //   cuáles ya se mandaron para no repetirlos.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { alCobrar, avisaSocios, esPedida, pedidaCancelada, pedidaVencida } from "./reglas.ts";
 
 const PLANES: Record<string, { max: number; price: number; name: string }> = {
   p10: { max: 10, price: 14900, name: "GIZE Coach · hasta 10 clientes" },
@@ -48,6 +49,12 @@ const PLANES: Record<string, { max: number; price: number; name: string }> = {
 };
 // Días de margen después de cada cobro, por si Mercado Pago reintenta un pago rechazado.
 const MARGEN_DIAS = 3;
+// Checkouts por hora por coach: cada uno crea una suscripción en Mercado Pago con la cuenta de
+// GIZE (la misma con la que cobran todos), así que no puede ser sin límite.
+const CHECKOUTS_POR_HORA = 10;
+// Reusar el link sin pagar no crea nada, pero igual lo consulta en Mercado Pago con esa cuenta:
+// tiene su propio tope, más alto, para no gastar los de crear.
+const REUSOS_POR_HORA = 30;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -128,13 +135,17 @@ async function syncPreapproval(id: string) {
     if (pa.status === "authorized" || pa.status === "paused") await cancelarMP(id);
     return null;
   }
+  // Borra el cambio de plan pedido (si mientras tanto no pidió otro).
+  const borrarPedida = (pid: string) => db.from("coach_billing").update({ pending_plan: null, mp_pending_id: null, updated_at: new Date().toISOString() })
+    .eq("coach_id", coachId).eq("mp_pending_id", pid);
 
-  // Aviso a los socios de los cambios de la suscripción (una vez por suscripción y estado).
+  // Aviso a los socios de los cambios de la suscripción (una vez por suscripción y estado),
+  // solo de la vigente o de la pedida (ver reglas.ts).
   const estados: Record<string, [string, string]> = {
     authorized: ["Suscripción nueva", "#25E8C8"], cancelled: ["Suscripción cancelada", "#FF4D4D"], paused: ["Suscripción pausada", "#FFB020"],
   };
   const est = estados[String(pa.status)];
-  if (est) {
+  if (est && avisaSocios(cur, id, String(pa.status))) {
     const c = await coachInfo(coachId);
     await avisar("pa:" + id + ":" + pa.status, est[0] + " · " + PLANES[plan].name.replace("GIZE ", ""), est[1], [
       ["Coach", c.name], ["Mail", c.email], ["Plan", PLANES[plan].name],
@@ -147,7 +158,7 @@ async function syncPreapproval(id: string) {
     // Solo cuentan la suscripción vigente y la última que pidió el coach. Otra autorizada
     // (un checkout viejo que igual pagó, dos toques seguidos en "pagar") se da de baja:
     // si no, Mercado Pago cobraba las dos todos los meses.
-    if (id !== cur.mp_preapproval_id && id !== cur.mp_pending_id) {
+    if (!esPedida(cur, id)) {
       console.error("suscripción que ya no es la pedida, se cancela", id);
       await cancelarMP(id);
       return { coachId, plan };
@@ -161,15 +172,29 @@ async function syncPreapproval(id: string) {
     const cand = new Date(addMonth(new Date(last)).getTime() + MARGEN_DIAS * 864e5);
     if (!paidUntil || cand > paidUntil) paidUntil = cand;
     // Si cambió de plan, se da de baja la anterior recién ahora que la nueva cobró: si la
-    // nueva no se llegaba a cobrar, el coach se quedaba sin ninguna.
-    if (cur.mp_preapproval_id && cur.mp_preapproval_id !== id) await cancelarMP(cur.mp_preapproval_id);
-    await db.from("coach_billing").update({
-      plan, max_clients: PLANES[plan].max, mp_preapproval_id: id, mp_status: "authorized",
-      pending_plan: null, mp_pending_id: null, paid_until: paidUntil.toISOString(), updated_at: new Date().toISOString(),
-    }).eq("coach_id", coachId);
+    // nueva no se llegaba a cobrar, el coach se quedaba sin ninguna. El plan pendiente se
+    // borra solo si lo que cobró es el pendiente (ver reglas.ts).
+    const { update, cancelar } = alCobrar(cur, id, plan, PLANES[plan].max, paidUntil);
+    if (cancelar) await cancelarMP(cancelar);
+    await db.from("coach_billing").update(update).eq("coach_id", coachId);
+    // Cobró la vigente y hay un cambio de plan pedido: si quedó sin pagar más de una semana (o
+    // ya está cancelado), se da de baja y se borra (ver reglas.ts).
+    const pid = cur.mp_pending_id;
+    if (id === cur.mp_preapproval_id && pid && pid !== id) {
+      try {
+        const pend = await mp("/preapproval/" + encodeURIComponent(pid));
+        if (pedidaVencida(String(pend.status), String(pend.date_created || ""))) {
+          if (pend.status === "pending") await cancelarMP(pid);
+          await borrarPedida(pid);
+        }
+      } catch (e) { console.error("pedida", pid, (e as Error).message); }
+    }
   } else if (id === cur.mp_preapproval_id) {
     // paused / cancelled de la suscripción vigente: queda activo hasta paid_until.
     await db.from("coach_billing").update({ mp_status: pa.status, updated_at: new Date().toISOString() }).eq("coach_id", coachId);
+  } else if (pedidaCancelada(cur, id, String(pa.status))) {
+    // El cambio de plan pedido se canceló sin pagarse: se borra.
+    await borrarPedida(id);
   }
   return { coachId, plan };
 }
@@ -293,6 +318,42 @@ Deno.serve(async (req) => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "Poné el mail de tu cuenta de Mercado Pago" }, 400);
     const appUrl = Deno.env.get("APP_URL") || "https://gize.ar/app/";
 
+    // Tope por hora (supabase/pagos-seguros.sql, tabla mp_checkouts). Se anota el intento y
+    // después se cuenta: si se mandan varios a la vez, igual pasan como mucho los del tope. El
+    // frenado se borra: antes contaba, y cada toque mientras estaba frenado alargaba la espera.
+    // Reusar el link (reuso) y crear una suscripción se cuentan por separado. Devuelve la
+    // respuesta si hay que cortar.
+    const hora = new Date(Date.now() - 3600_000).toISOString();
+    await db.from("mp_checkouts").delete().eq("coach_id", coachId).lt("created_at", hora); // los viejos ya no cuentan
+    const frenar = async (reuso: boolean, max: number) => {
+      const { data: mio, error: ie } = await db.from("mp_checkouts").insert({ coach_id: coachId, reuso }).select("id").maybeSingle();
+      const { count: intentos, error: ne } = ie ? { count: 0, error: ie } : await db.from("mp_checkouts").select("id", { count: "exact", head: true }).eq("coach_id", coachId).eq("reuso", reuso).gte("created_at", hora);
+      if (ne) {
+        // Sin la tabla o la columna (falta correr el SQL) se sigue como antes, para no cortar los cobros.
+        console.error("mp_checkouts", ne.code, ne.message);
+        return ["42P01", "PGRST205", "42703", "PGRST204"].includes(ne.code) ? null : json({ error: "No se pudo preparar el pago. Probá de nuevo en un rato." }, 503);
+      }
+      if ((intentos || 0) <= max) return null;
+      if (mio) await db.from("mp_checkouts").delete().eq("id", mio.id);
+      return json({ error: "Probaste muchas veces seguidas. Esperá un rato y volvé a intentar." }, 429);
+    };
+
+    // Si ya hay un link sin pagar del mismo plan y con el mismo mail, se usa ese: no hace falta
+    // crear (y después dar de baja) otra suscripción. Consultarlo también es un pedido a Mercado
+    // Pago con la cuenta de GIZE: antes no tenía tope.
+    if (bill.mp_pending_id && bill.pending_plan === plan && bill.mp_pending_id !== bill.mp_preapproval_id) {
+      const frenado = await frenar(true, REUSOS_POR_HORA);
+      if (frenado) return frenado;
+      try {
+        const prev = await mp("/preapproval/" + encodeURIComponent(bill.mp_pending_id));
+        if (prev.status === "pending" && prev.init_point && prev.external_reference === coachId + "|" + plan &&
+            String(prev.payer_email || "").trim().toLowerCase() === email) return json({ url: prev.init_point });
+      } catch (e) { console.error("checkout: pendiente", (e as Error).message); }
+    }
+
+    const frenado = await frenar(false, CHECKOUTS_POR_HORA);
+    if (frenado) return frenado;
+
     let pa;
     try {
       pa = await mp("/preapproval", {
@@ -315,10 +376,19 @@ Deno.serve(async (req) => {
         ? "Ese mail es el de la cuenta que cobra. Poné el mail de la cuenta de Mercado Pago que va a pagar."
         : "Mercado Pago rechazó el pedido. Revisá que el mail sea el de la cuenta de Mercado Pago que va a pagar. (Detalle: " + msg.slice(0, 200) + ")" }, 502);
     }
+    // Se guarda solo si el pendiente sigue siendo el que se leyó al principio: con dos checkouts
+    // a la vez, el que llega segundo da de baja la suya (si no, quedaba una sin dar de baja).
+    let q = db.from("coach_billing").update({ pending_plan: plan, mp_pending_id: pa.id, updated_at: new Date().toISOString() }).eq("coach_id", coachId);
+    q = bill.mp_pending_id ? q.eq("mp_pending_id", bill.mp_pending_id) : q.is("mp_pending_id", null);
+    const { data: saved, error: se } = await q.select("coach_id");
+    if (se || !saved || !saved.length) {
+      if (se) console.error("checkout: guardar", se.message);
+      await cancelarMP(pa.id);
+      return json({ error: "Ya se estaba preparando otro pago. Probá de nuevo." }, 409);
+    }
     // El checkout anterior que no se terminó de pagar se da de baja: si el coach lo pagaba
     // igual (otra pestaña, dos toques), quedaban dos suscripciones cobrando.
     if (bill.mp_pending_id && bill.mp_pending_id !== bill.mp_preapproval_id) await cancelarMP(bill.mp_pending_id);
-    await db.from("coach_billing").update({ pending_plan: plan, mp_pending_id: pa.id, updated_at: new Date().toISOString() }).eq("coach_id", coachId);
     return json({ url: pa.init_point });
   }
 
