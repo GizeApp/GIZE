@@ -6,8 +6,13 @@
 // El tope por día limitaba la velocidad pero no el total: ahora avatars tiene además 3 fotos en
 // total (la app borra las viejas que hayan quedado antes de subir otra) y chat-audio, 150 MB
 // por día (300 audios de 5 MB eran 1,5 GB por día).
+// La política sola no alcanzaba: con un link firmado de subida Storage la revisa una sola vez, y
+// dos subidas a la vez se contaban sin verse. Ahora un trigger de storage.objects revisa el mismo
+// tope en cada alta, de a una por cuenta.
 //   · Las rutas que arma la app entran en las de la base (si no, dejaría de poder subir).
 //   · Al eliminar la cuenta, la app, borrar-audios y el panel recorren también las subcarpetas.
+// Las pruebas no tienen Postgres: se revisa el SQL (se probó a mano contra un Postgres 16 armado
+// como Supabase: links firmados, dos subidas a la vez, service role y correrlo dos veces).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,13 +28,24 @@ const rx = p => { const m = p.match(/name ~ '([^']+)'/); return m ? new RegExp(m
 export default async function ({ base, t }){
   const sql = read('supabase/topes-archivos.sql');
   t.ok(sql.length > 0, 'existe supabase/topes-archivos.sql');
-  const cupo = (sql.match(/create or replace function public\.storage_cupo_ok\(p_bucket text\)[\s\S]*?\$\$;/) || [''])[0].replace(/\s+/g, ' ');
+  const fn = n => (sql.match(new RegExp('create or replace function public\\.' + n + '\\([\\s\\S]*?\\$\\$;')) || [''])[0].replace(/\s+/g, ' ');
+  const cupo = fn('storage_cupo_libre'), cupoOk = fn('storage_cupo_ok'), alta = fn('storage_cupo_alta');
   t.ok(/security definer set search_path = public/.test(cupo), 'el tope cuenta como dueño (ve storage.objects entero)');
-  t.ok(/o\.bucket_id = p_bucket and o\.owner_id = auth\.uid\(\)::text and o\.created_at > now\(\) - interval '1 day'/.test(cupo), 'el tope cuenta lo que subió cada uno en las últimas 24 horas');
+  t.ok(/o\.bucket_id = p_bucket and o\.owner_id = p_owner and o\.created_at > now\(\) - interval '1 day'/.test(cupo), 'el tope cuenta lo que subió cada uno en las últimas 24 horas');
   t.ok(/when 'chat-audio' then 300 when 'productos' then 40 when 'avatars' then 20 else 0 end/.test(cupo), 'topes por bucket (y 0 para los demás)');
+  t.ok(/and \(p_bucket <> 'avatars' or \(select count\(\*\) from storage\.objects o where o\.bucket_id = 'avatars' and o\.owner_id = p_owner\) < 3\)/.test(cupo), 'avatars: 3 fotos en total, sin mirar la fecha');
+  t.ok(/and \(p_bucket <> 'chat-audio' or coalesce\(sum\(case when o\.metadata->>'size' ~ '\^\[0-9\]\{1,12\}\$' then \(o\.metadata->>'size'\)::bigint end\), 0\) < 150 \* 1048576\) from storage\.objects o where o\.bucket_id = p_bucket and o\.owner_id = p_owner and o\.created_at > now\(\) - interval '1 day'\)/.test(cupo), 'chat-audio: 150 MB por día');
+  t.ok(/revoke all on function public\.storage_cupo_libre\(text, text\) from public, anon, authenticated;/.test(sql), 'el conteo de otra cuenta no se puede pedir desde la app');
+  t.ok(/select auth\.uid\(\) is not null and public\.storage_cupo_libre\(p_bucket, auth\.uid\(\)::text\);/.test(cupoOk), 'la política usa el mismo tope, para quien llama');
   t.ok(/revoke all on function public\.storage_cupo_ok\(text\) from public, anon;/.test(sql), 'sin sesión no se usa');
-  t.ok(/and \(p_bucket <> 'avatars' or \(select count\(\*\) from storage\.objects o where o\.bucket_id = 'avatars' and o\.owner_id = auth\.uid\(\)::text\) < 3\)/.test(cupo), 'avatars: 3 fotos en total, sin mirar la fecha');
-  t.ok(/and \(p_bucket <> 'chat-audio' or coalesce\(sum\(case when o\.metadata->>'size' ~ '\^\[0-9\]\{1,12\}\$' then \(o\.metadata->>'size'\)::bigint end\), 0\) < 150 \* 1048576\) from storage\.objects o where o\.bucket_id = p_bucket and o\.owner_id = auth\.uid\(\)::text and o\.created_at > now\(\) - interval '1 day'\)/.test(cupo), 'chat-audio: 150 MB por día');
+  // El trigger: en cada alta (también las de un link firmado, que Storage guarda como
+  // superusuario), de a una por cuenta y bucket, con el mismo tope.
+  t.ok(/create or replace trigger storage_cupo_alta before insert on storage\.objects for each row execute function public\.storage_cupo_alta\(\);/.test(sql.replace(/\s+/g, ' ')), 'trigger en cada alta de storage.objects (se puede correr de nuevo sin ser dueño de la tabla)');
+  t.ok(/returns trigger language plpgsql security definer set search_path = public/.test(alta), 'el trigger cuenta como dueño');
+  t.ok(alta.includes("new.bucket_id in ('chat-audio', 'productos', 'avatars') and new.owner_id is not null"), 'el trigger mira los tres buckets y las altas con dueño');
+  t.ok(/perform pg_advisory_xact_lock\(hashtextextended\('storage_cupo ' \|\| new\.bucket_id \|\| ' ' \|\| new\.owner_id, 0\)\); if not public\.storage_cupo_libre\(new\.bucket_id, new\.owner_id\) then/.test(alta), 'de a una por cuenta: primero el lock, después cuenta');
+  t.ok(/raise exception '[^']+' using errcode = '42501';/.test(alta), 'Storage lo devuelve como 403 (la app avisa que llegó al límite)');
+  t.ok(/revoke all on function public\.storage_cupo_alta\(\) from public, anon, authenticated;/.test(sql), 'el trigger no se llama desde la app');
   // La lista final trae solo los buckets con archivos en subcarpetas («Filas devueltas: 0»: ninguno).
   const fin = sql.slice(sql.lastIndexOf('select bucket_id')).replace(/\s+/g, ' ');
   t.ok(/^select bucket_id, count\(\*\) as en_subcarpetas from storage\.objects where bucket_id in \('chat-audio', 'productos', 'avatars'\) and \(array_length\(storage\.foldername\(name\), 1\) > 2 or \(bucket_id <> 'chat-audio' and array_length\(storage\.foldername\(name\), 1\) > 1\)\) group by bucket_id/.test(fin),
