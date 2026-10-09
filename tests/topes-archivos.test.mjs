@@ -116,8 +116,10 @@ export default async function ({ base, t }){
   // Al eliminar la cuenta, la app borra también lo de las subcarpetas (avatars y productos).
   {
     const listed = [], removed = [];
-    const tree = { [ALUMNO.id]: [{ name: '1.jpg', id: 'f1' }, { name: 'vieja', id: null }], [ALUMNO.id + '/vieja']: [{ name: 'a.jpg', id: 'f2' }, { name: 'mas', id: null }], [ALUMNO.id + '/vieja/mas']: [{ name: 'b.jpg', id: 'f3' }] };
-    const list = bucket => (r, J, i) => { const pre = JSON.parse(i.body || '{}').prefix || ''; listed.push(bucket + ':' + pre); return J(bucket === 'avatars' ? (tree[pre] || []) : []); };
+    const tree = {
+      avatars: { [ALUMNO.id]: [{ name: '1.jpg', id: 'f1' }, { name: 'vieja', id: null }], [ALUMNO.id + '/vieja']: [{ name: 'a.jpg', id: 'f2' }, { name: 'mas', id: null }], [ALUMNO.id + '/vieja/mas']: [{ name: 'b.jpg', id: 'f3' }] },
+      productos: { [ALUMNO.id]: [{ name: 'pedido-tabla-1.jpg', id: 'p1' }, { name: 'sub', id: null }], [ALUMNO.id + '/sub']: [{ name: 'c.jpg', id: 'p2' }] } };
+    const list = bucket => (r, J, i) => { const pre = JSON.parse(i.body || '{}').prefix || ''; listed.push(bucket + ':' + pre); return J(tree[bucket][pre] || []); };
     const rm = bucket => (r, J, i) => i.m === 'DELETE' ? (removed.push(...(JSON.parse(i.body || '{}').prefixes || []).map(x => bucket + ':' + x)), J([])) : undefined;
     const pg = await newPage({ user: ALUMNO, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} },
       handlers: { '/profiles': profile('client'), '/object/list/avatars': list('avatars'), '/object/list/productos': list('productos'),
@@ -126,8 +128,9 @@ export default async function ({ base, t }){
     await pg.p.goto(base + '/app/'); await wait(2500);
     await pg.p.click('#nav-config'); await wait(500);
     await pg.p.click('[data-action="cfg-delete-account"]'); await wait(1500);
-    t.ok(listed.includes('avatars:' + ALUMNO.id + '/vieja/mas'), 'la app recorre las subcarpetas: ' + listed.join(', '));
-    t.eq(removed.sort(), ['avatars:' + ALUMNO.id + '/1.jpg', 'avatars:' + ALUMNO.id + '/vieja/a.jpg', 'avatars:' + ALUMNO.id + '/vieja/mas/b.jpg'], 'borra los archivos de las subcarpetas');
+    t.ok(listed.includes('avatars:' + ALUMNO.id + '/vieja/mas') && listed.includes('productos:' + ALUMNO.id + '/sub'), 'la app recorre las subcarpetas: ' + listed.join(', '));
+    t.eq(removed.sort(), ['avatars:' + ALUMNO.id + '/1.jpg', 'avatars:' + ALUMNO.id + '/vieja/a.jpg', 'avatars:' + ALUMNO.id + '/vieja/mas/b.jpg',
+      'productos:' + ALUMNO.id + '/pedido-tabla-1.jpg', 'productos:' + ALUMNO.id + '/sub/c.jpg'], 'borra los archivos de las subcarpetas');
     t.ok(pg.dialogs.includes('Tu cuenta fue eliminada.'), 'la cuenta se elimina: ' + JSON.stringify(pg.dialogs));
     t.eq(pg.errs, [], 'errores de la página (eliminar la cuenta)');
     await pg.close();

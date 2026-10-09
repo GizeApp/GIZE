@@ -52,5 +52,6 @@ export default async function ({ t }){
   t.ok(iDel > 0 && iFetch > iDel, 'productos-off mira los códigos borrados antes de buscar en Open Food Facts');
   t.ok(/else if \(del\.data\) return json\(\{ skipped: "oculto" \}\);/.test(off), 'productos-off: un código borrado se contesta como oculto (la app ofrece pedirlo)');
 
-  t.has(read('admin/admin.js'), 'El código no se vuelve a cargar solo', 'el panel avisa que el código queda bloqueado');
+  t.has(read('admin/admin.js'), 'El código no se vuelve a cargar solo (ni al escanearlo ni con las importaciones): para volver a tenerlo, «Agregar producto» o publicar un pedido con ese código.',
+    'el panel avisa que el código queda bloqueado y cómo volver a tenerlo');
 }
