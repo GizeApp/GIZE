@@ -1,6 +1,7 @@
 // Avisos al iPhone (APNs) desde la función de mensajes (supabase/functions/notificar-cliente):
 // el token firmado se reusa entre mensajes por 40 minutos (Apple rechaza con 429 si se firma uno
-// nuevo más de una vez cada 20 minutos, y lo pide renovado antes de la hora).
+// nuevo más de una vez cada 20 minutos, y lo pide renovado antes de la hora). Varios mensajes
+// que llegan juntos comparten la misma firma.
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -28,6 +29,17 @@ export default async function ({ t }){
     t.eq(await sin(), null, 'sin las claves de Apple: null');
     claves = true;
     t.eq(await sin(), 'tok-3', 'al cargarlas, el próximo mensaje firma');
+    // Una ráfaga de mensajes que llegan juntos con el token vencido: una sola firma.
+    let n = 0;
+    const rafaga = m.tokenCache(async () => { n++; await new Promise(r => setTimeout(r, 20)); return 'r-' + n; }, m.APNS_TTL, () => 0);
+    t.eq(await Promise.all([rafaga(), rafaga(), rafaga()]), ['r-1', 'r-1', 'r-1'], 'tres mensajes a la vez usan el mismo token');
+    t.eq(n, 1, 'tres mensajes a la vez firman una sola vez');
+    // Si la firma falla, no queda guardado el error: el próximo mensaje vuelve a probar.
+    let falla = true;
+    const err = m.tokenCache(async () => { if (falla) throw new Error('x'); return 'ok'; }, m.APNS_TTL, () => 0);
+    let tiro = false; try { await err(); } catch (e) { tiro = true; }
+    falla = false;
+    t.ok(tiro && await err() === 'ok', 'después de un error de firma, el próximo mensaje firma de nuevo');
   }
   // La función usa el token guardado (no firma uno por mensaje).
   const src = fs.readFileSync(path.join(ROOT, DIR, 'index.ts'), 'utf8');
