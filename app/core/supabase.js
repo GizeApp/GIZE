@@ -681,13 +681,27 @@ export const REMEMBER_KEY = "gize_remember";
 const EPHEMERAL_KEY = "gize_session_ephemeral";
 export function rememberSession(){ try{ return localStorage.getItem(REMEMBER_KEY)!=="0"; }catch(e){ return true; } }
 export function setRememberSession(on){ try{ localStorage.setItem(REMEMBER_KEY, on ? "1" : "0"); }catch(e){} }
+// La casilla se mira solo al entrar: la renovación del token se guarda donde ya estaba esa
+// sesión. Antes cada renovación volvía a leer la casilla, que vale para todo el navegador: si
+// alguien la tildaba en otra pestaña, una sesión que no se quería mantener pasaba a
+// localStorage (y pisaba la que estaba guardada ahí) y quedaba para el próximo que usara la compu.
+function sameSession(a, b){
+  try{ a=JSON.parse(a); b=JSON.parse(b); }catch(e){ return false; }
+  if(!a || !b || !a.user || !b.user || a.user.id!==b.user.id) return false;
+  const x=sessionIdOf(a), y=sessionIdOf(b);
+  return !x || !y || x===y;
+}
 const authStorage = {
   getItem(k){ try{ const s=sessionStorage.getItem(k); if(s!=null) return s; }catch(e){} try{ return localStorage.getItem(k); }catch(e){ return null; } },
   setItem(k, v){
+    let ss=null, ls=null; try{ ss=sessionStorage.getItem(k); }catch(e){} try{ ls=localStorage.getItem(k); }catch(e){}
+    const inLs=ls!=null && sameSession(ls, v);
     // La clave PKCE tiene que sobrevivir a que el sistema cierre la app mientras está en Google.
-    const keep=rememberSession() || /code-verifier$/.test(k);
+    const keep=/code-verifier$/.test(k) || (ss!=null && sameSession(ss, v) ? false : inLs || rememberSession());
     try{ (keep ? localStorage : sessionStorage).setItem(k, v); }catch(e){}
-    try{ (keep ? sessionStorage : localStorage).removeItem(k); }catch(e){}
+    // La copia de esta pestaña sí se borra; la de localStorage, solo si es esta misma sesión (si
+    // es la de otra cuenta que eligió mantenerla, no se toca).
+    try{ if(keep) sessionStorage.removeItem(k); else if(inLs) localStorage.removeItem(k); }catch(e){}
   },
   removeItem(k){ try{ sessionStorage.removeItem(k); }catch(e){} try{ localStorage.removeItem(k); }catch(e){} }
 };
