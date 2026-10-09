@@ -13,7 +13,7 @@
 
 import { habitAlarmList } from '../screens/habitos.js';
 
-const FIRST_ID = 5000, LAST_ID = 5999;  // rango propio (el del descanso es 4101)
+const FIRST_ID = 5000, LAST_ID = 5999;  // rango propio (el del descanso es 4101 y el del temporizador, 4102)
 const CHANNEL = "habitos_aviso";
 const KEY = "gize_habit_alarms_v1";     // última lista programada en este celular
 
@@ -43,7 +43,8 @@ function plan(list){
     if (!a.days) out.push(Object.assign({ on: { hour: hh, minute: mm } }, base));
     else a.days.forEach(d => out.push(Object.assign({ on: { weekday: d + 1, hour: hh, minute: mm } }, base)));
   });
-  // iPhone guarda como mucho 64 notificaciones programadas (una es la del descanso).
+  // iPhone guarda como mucho 64 notificaciones programadas (otras son las del descanso y del
+  // temporizador de Cardio).
   return out.slice(0, 60).map((n, i) => Object.assign({ id: FIRST_ID + i }, n));
 }
 

@@ -66,6 +66,7 @@ import { showSilkBg } from './ui/background.js';
 import { appAway, onAwayChange } from './ui/pausa.js';
 
 import { parseRest, renderRestBar, resumeRest, startRest, stopRest } from './ui/restbar.js';
+import { cancelCardioAlert, scheduleCardioAlert } from './ui/restnotif.js';
 
 import { anchorFocus, initScrollReveal, setupExerciseFocus } from './ui/scrollfocus.js';
 
@@ -294,7 +295,8 @@ export function tick(){
     const now = Date.now();
     if (CardioState.tmRunning){
       const rem = CardioState.tmEndTs - now;
-      if (rem <= 0){ CardioState.tmRunning=false; CardioState.tmRemainingMs=0; CardioState.tmFinished=true; beep(); if(State.view==="cardio") renderApp(); }
+      // Con la app a la vista suena acá: se saca el aviso del celular para que no suene dos veces.
+      if (rem <= 0){ CardioState.tmRunning=false; CardioState.tmRemainingMs=0; CardioState.tmFinished=true; if(!appAway()) cancelCardioAlert(); beep(); if(State.view==="cardio") renderApp(); }
       else { CardioState.tmRemainingMs = rem; if(State.view==="cardio" && CardioState.cardioMode==="timer") setRing(rem / CardioState.tmTarget, fmt(rem,true)); }
     }
     if (State.view==="entreno"){ const w=document.getElementById("wkTime"); if(w){ const t=wkElapsedText(); if(w.textContent!==t) w.textContent=t; } }
@@ -491,8 +493,9 @@ document.body.addEventListener("click", async e => {
   if (a === "tm-pick") { openTimePicker(CardioState.tmRemainingMs, "Elegí el tiempo", t => { if(t>0){ CardioState.tmTarget=t; CardioState.tmRemainingMs=t; CardioState.tmFinished=false; } renderApp(); }); return; }
   // «Listo» sin cambiar el tiempo deja todo como estaba (con las vueltas).
   if (a === "sw-pick") { openTimePicker(CardioState.swAccum, "Arrancar desde", t => { if(t===Math.floor(CardioState.swAccum/1000)*1000){ renderApp(); return; } CardioState.swAccum=t; CardioState.swLaps=[]; renderApp(); }); return; }
-  if (a === "tm-toggle") { if(CardioState.tmRunning){ CardioState.tmRemainingMs=Math.max(0,CardioState.tmEndTs-Date.now()); CardioState.tmRunning=false; } else { initAudio(); CardioState.tmEndTs=Date.now()+CardioState.tmRemainingMs; CardioState.tmRunning=true; CardioState.tmFinished=false; } renderApp(); return; }
-  if (a === "tm-reset") { CardioState.tmRunning=false; CardioState.tmFinished=false; CardioState.tmRemainingMs=CardioState.tmTarget; renderApp(); return; }
+  // En las apps, el aviso del celular (ui/restnotif.js) suena a la hora de fin aunque la pantalla esté bloqueada.
+  if (a === "tm-toggle") { if(CardioState.tmRunning){ CardioState.tmRemainingMs=Math.max(0,CardioState.tmEndTs-Date.now()); CardioState.tmRunning=false; cancelCardioAlert(); } else { initAudio(); CardioState.tmEndTs=Date.now()+CardioState.tmRemainingMs; CardioState.tmRunning=true; CardioState.tmFinished=false; scheduleCardioAlert(CardioState.tmEndTs); } renderApp(); return; }
+  if (a === "tm-reset") { CardioState.tmRunning=false; CardioState.tmFinished=false; CardioState.tmRemainingMs=CardioState.tmTarget; cancelCardioAlert(); renderApp(); return; }
 
   // Comida
   if (a === "psec-open") { ProgresoState.section=el.dataset.v; ProgresoState.wAll=false; renderApp(); window.scrollTo(0,0); return; }
