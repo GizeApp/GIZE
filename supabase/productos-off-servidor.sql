@@ -16,7 +16,8 @@
 --   · la función productos-off (service role) y la importación mensual (workflow "Importar
 --     Open Food Facts", que corre como postgres);
 --   · un administrador de GIZE;
---   · nadie más: lo que llega directo de la app (roles anon y authenticated) se rechaza.
+--   · nadie más: desde la app (roles anon y authenticated) no se carga nada directo en la
+--     tabla (ver el punto 2).
 -- Las funciones de la base que tocan productos (product_use, product_report, las del panel)
 -- corren como dueño de la tabla, así que siguen andando con los productos de OFF.
 
@@ -42,12 +43,14 @@ drop trigger if exists products_off_guard on public.products;
 create trigger products_off_guard before insert or update on public.products
   for each row execute function public.products_off_guard();
 
--- 2) Lo mismo en la política de alta (por las dudas): un usuario común carga solo lo suyo y nunca
---    como 'off'. Update y delete desde la app siguen sin permiso (igual que en productos.sql).
+-- 2) Desde la app nadie carga productos directo en la tabla: lo que pide un usuario va por
+--    product_requests (pedidos-productos.sql) y lo de OFF por la función. Antes la política
+--    «usuarios agregan productos» seguía abierta y, con un pedido armado a mano, se podían
+--    cargar miles de productos falsos (con una fecha vieja el tope de 40 por día no contaba).
+--    Los administradores cargan con las funciones del panel, que corren como dueño de la tabla.
+--    Update y delete desde la app siguen sin permiso (igual que en productos.sql).
 drop policy if exists "usuarios agregan productos" on public.products;
-create policy "usuarios agregan productos" on public.products for insert to authenticated
-  with check (created_by = auth.uid() and (source <> 'off' or public.is_app_admin()));
-revoke update, delete on public.products from anon, authenticated;
+revoke insert, update, delete on public.products from anon, authenticated;
 
 -- 3) Tope de búsquedas en Open Food Facts por usuario (lo usa la función productos-off, 150 por
 --    día): así no se puede usar a GIZE para pedirle a OFF miles de códigos. Se guarda solo quién
