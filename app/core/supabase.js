@@ -702,9 +702,16 @@ function tabSession(){ try{ return !!(State.cloudUser && State.sb && sessionStor
 const clearsEnded = () => !NativeApp() && !isStandalone();
 // Mientras dura, la marca se vuelve a poner en cada save() y al pasar a segundo plano: otra
 // pestaña que no recibió respuesta (esta estaba dormida) pudo haberla sacado, y al cerrar esta
-// los datos quedaban en el navegador.
-function markTabSession(){ try{ if(tabSession() && clearsEnded()) localStorage.setItem(EPHEMERAL_KEY, State.cloudUser.id); }catch(e){} }
+// los datos quedaban en el navegador. Junto va la hora (EPHEMERAL_AT): en el celular una pestaña
+// en segundo plano queda congelada y no contesta, y abrir un link de GIZE en otra borraba su
+// entreno y su salida de Cardio en curso. Por eso no se borra si se usó hace menos de 30
+// minutos. Al cerrar la pestaña (pagehide) se saca la hora: ahí se borra enseguida, como antes.
+const EPHEMERAL_AT = "gize_session_ephemeral_t";
+let _markedAt = "";
+function markTabSession(){ try{ if(tabSession() && clearsEnded()){ localStorage.setItem(EPHEMERAL_KEY, State.cloudUser.id); localStorage.setItem(EPHEMERAL_AT, _markedAt=String(Date.now())); } }catch(e){} }
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden") markTabSession(); });
+window.addEventListener("pagehide", ()=>{ try{ if(_markedAt && localStorage.getItem(EPHEMERAL_AT)===_markedAt) localStorage.removeItem(EPHEMERAL_AT); }catch(e){} });
+const usedLately = () => { try{ const d=Date.now()-Number(localStorage.getItem(EPHEMERAL_AT)||0); return d>=0 && d<30*60000; }catch(e){ return false; } };
 // Otra pestaña (o la app instalada, que comparte lo guardado) que abre sin sesión pregunta antes
 // de borrar si alguna sigue adentro. Antes borraba los datos y daba de baja las notificaciones
 // de la sesión que seguía abierta.
@@ -900,7 +907,7 @@ export async function afterLogin(sessionUser, stale){
   if(State.cloudUser && state.ownerUid!==State.cloudUser.id){ state.ownerUid=State.cloudUser.id; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
   // Sesión sin «Mantener la sesión» (vive solo en esta pestaña): se anota de quién son los datos,
   // para borrarlos la próxima vez que GIZE abra sin sesión (ver clearEndedSession).
-  try{ if(tabSession() && clearsEnded()) localStorage.setItem(EPHEMERAL_KEY, State.cloudUser.id); else localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
+  if(tabSession() && clearsEnded()) markTabSession(); else try{ localStorage.removeItem(EPHEMERAL_KEY); localStorage.removeItem(EPHEMERAL_AT); }catch(e){}
   // Sin sesión viva (_staleBoot) getUser() y el envío de la cola esperarían los ~30 s de
   // reintentos de la librería con la pantalla vacía: se saltean y salen cuando se renueva
   // el token (watchAuth → flushOutbox + retryCloud).
@@ -2061,11 +2068,12 @@ async function showMailConfirmed(loading){
 // la cola de envío, que va por usuario, y la rutina propia cambiada sin subir. Si esa cuenta
 // vuelve a entrar, se sube. Las notificaciones se dan de baja en este dispositivo: si no, los
 // mensajes del coach le seguían llegando a la compu. Si la sesión sigue abierta en otra pestaña
-// no se toca nada. Devuelve true si borró algo (lo que hay en memoria es lo viejo).
+// (o se usó hace poco, ver markTabSession) no se toca nada. Devuelve true si borró algo (lo que
+// hay en memoria es lo viejo).
 async function clearEndedSession(){
   let uid=""; try{ uid=localStorage.getItem(EPHEMERAL_KEY)||""; }catch(e){}
-  if(!uid || !clearsEnded() || await otherTabInside()) return false;
-  try{ localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
+  if(!uid || !clearsEnded() || usedLately() || await otherTabInside()) return false;
+  try{ localStorage.removeItem(EPHEMERAL_KEY); localStorage.removeItem(EPHEMERAL_AT); }catch(e){}
   // El dueño de los datos, como en afterLogin (sin ownerUid, el del último perfil guardado). Las
   // versiones de antes de 761c79f anotaban "1" en vez de la cuenta: se descartaba la rutina sin subir.
   let owner=state.ownerUid;

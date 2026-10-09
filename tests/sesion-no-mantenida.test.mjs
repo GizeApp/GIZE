@@ -13,6 +13,9 @@
 // 8) En la app de las tiendas y en la agregada a inicio (iPhone, o instalada en Android) el sistema
 //    la cierra solo (y con eso la sesión de la pestaña): no se borra nada, el entreno en curso queda
 //    detrás del ingreso.
+// 9) En el celular, la pestaña con la sesión queda congelada en segundo plano (no contesta) y se
+//    abre GIZE en otra (un link de WhatsApp): no se borran su entreno ni su salida de Cardio. Si
+//    esa sesión no se usa hace más de 30 minutos, se borra como siempre.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
@@ -184,6 +187,39 @@ export default async function ({ base, t }){
     t.eq(c.track, '{"s1":"x"}', '8 ' + cual + ': los recorridos también');
     t.ok(await p.isVisible('#auEmail'), '8 ' + cual + ': pide ingresar');
     t.eq(errs, [], '8 ' + cual + ': errores de la página');
+    await close();
+  }
+
+  // 9) Pestaña con la sesión congelada (no contesta) y GIZE abierto en otra pestaña. En el celular,
+  //    una pestaña en segundo plano no corre nada: acá se simula con que deje de recibir los
+  //    mensajes de las otras pestañas (BroadcastChannel).
+  {
+    const CONGELABLE = `{ const BC = window.BroadcastChannel; window.BroadcastChannel = class extends BC {
+      addEventListener(t, f, o){ return super.addEventListener(t, e => { if (!window.congelada) f.call(this, e); }, o); } }; }`;
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, init: EFIMERA + ';' + CONGELABLE, handlers: { '/profiles': profile('client'), '/body_weights': WEIGHTS } });
+    await p.goto(base + '/app/'); await wait(3000);
+    await p.evaluate(async () => { const { state } = await import('/app/core/state.js'), { save } = await import('/app/core/storage.js');
+      state.wkStart = { date: '2026-10-09', day: 'd1', ts: Date.now() }; save(); localStorage.setItem('gize_salidas_track_v1', '{"s1":"x"}'); });
+    await p.evaluate(() => { window.congelada = true; });
+    // Abre GIZE en otra pestaña (sin sesión) y devuelve lo que quedó guardado.
+    const abrir = async antes => { const p2 = await p.context().newPage(), e2 = [];
+      p2.on('pageerror', e => e2.push(e.message));
+      await p2.route(/supabase\.co/, r => r.fulfill({ status: 200, contentType: 'application/json', body: new URL(r.request().url()).pathname.includes('/rpc/') ? 'null' : '[]' }));
+      if (antes) await p2.addInitScript(antes);
+      await p2.goto(base + '/app/'); await wait(4000);
+      const c = await claves(p2); await p2.close(); return [c, e2]; };
+    let [c, e2] = await abrir();
+    t.ok(c.st && c.st.wkStart && c.st.weights && c.st.weights.length, '9: el entreno en curso y los datos de la pestaña congelada siguen');
+    t.eq(c.track, '{"s1":"x"}', '9: la salida de Cardio también');
+    t.eq(c.marca, ALUMNO.id, '9: y la marca, para borrarlos cuando se cierre');
+    t.eq(e2, [], '9: errores de la pestaña nueva');
+    // La sesión no se usa hace más de 30 minutos: se borra.
+    [c, e2] = await abrir(`if (!sessionStorage.getItem('vieja')) { sessionStorage.setItem('vieja', '1'); localStorage.setItem('gize_session_ephemeral_t', String(Date.now() - 31 * 60000)); }`);
+    t.eq(c.st, null, '9: sin usarse hace más de 30 minutos, se borra el estado');
+    t.eq(c.track, null, '9: y los recorridos');
+    t.eq(c.marca, null, '9: y la marca');
+    t.eq(e2, [], '9: errores de la pestaña nueva (sesión vieja)');
+    t.eq(errs, [], '9: errores de la página');
     await close();
   }
 }
