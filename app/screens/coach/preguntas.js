@@ -39,14 +39,19 @@ function currentList(kind){
   return cq ? cq : defaultQuestions(kind);
 }
 
+// base: cómo estaba cada lista al cargarla en el editor, para saber al guardar si lo guardado
+// cambió mientras tanto (ver saveQuestions).
+function loadLists(ed){ ["daily", "checkin"].forEach(k => { ed[k] = currentList(k); ed.base[k] = JSON.stringify(ed[k]); }); }
+
 function openEditor(tab){
-  CoachState.coachQEdit = { tab: (tab === "checkin" ? "checkin" : "daily"), daily: currentList("daily"), checkin: currentList("checkin"), dirty: false };
+  const ed = CoachState.coachQEdit = { tab: (tab === "checkin" ? "checkin" : "daily"), dirty: false, dirtyTabs: {}, base: {} };
+  loadLists(ed);
   renderQuestionsEditor();
   // Si todavía no se leyeron (o cambiaron en otro dispositivo), se leen y se refresca,
   // salvo que el coach ya haya empezado a editar.
   loadCoachQuestions().then(() => {
     const ed = CoachState.coachQEdit; if(!ed || ed.dirty) return;
-    ed.daily = currentList("daily"); ed.checkin = currentList("checkin"); renderQuestionsEditor();
+    loadLists(ed); renderQuestionsEditor();
   }).catch(() => {});
 }
 
@@ -75,7 +80,7 @@ export function renderQuestionsEditor(){
   const list = ed[ed.tab];
   const tabs = Object.keys(KIND_LABEL).map(k =>
     '<button class="cq-tab' + (ed.tab === k ? ' on' : '') + '" data-coach="q-tab" data-k="' + k + '">' + KIND_LABEL[k] + '</button>').join("");
-  const warn = CoachState.coachQError ? '<div class="cq-warn">No se pudieron leer tus preguntas guardadas. Si es la primera vez, falta correr <b>supabase/preguntas-coach.sql</b> en Supabase. Mientras tanto, tus clientes ven las predeterminadas.</div>' : '';
+  const warn = CoachState.coachQError ? '<div class="cq-warn">No se pudieron leer tus preguntas guardadas (¿sin conexión?): lo que ves puede no estar al día. Antes de guardar se vuelven a leer. Si es la primera vez, falta correr <b>supabase/preguntas-coach.sql</b> en Supabase.</div>' : '';
   host.innerHTML = '<div class="cp-bg" data-coach="q-close"></div><div class="cp-ccard cq-card">' +
     '<div class="cp-head"><button class="cq-back" data-coach="q-close" aria-label="Volver">‹</button><div class="cp-title">Preguntas para tus clientes</div><button class="cp-x" data-coach="q-close" aria-label="Cerrar">✕</button></div>' +
     '<div class="cq-tabs">' + tabs + '</div>' +
@@ -95,22 +100,44 @@ function closeEditor(){
   renderCoachSettings();
 }
 
+// Marca la pestaña abierta como editada: al guardar solo va lo que se tocó.
+function touch(ed){ ed.dirty = true; ed.dirtyTabs[ed.tab] = true; }
+
 async function saveQuestions(btn){
   const ed = CoachState.coachQEdit; if(!ed) return;
-  const daily = normalizeQuestions(ed.daily) || [], checkin = normalizeQuestions(ed.checkin) || [];
-  const bad = ["daily", "checkin"].find(k => (ed[k] || []).some(q => q.type === "options" && !(q.options || []).filter(o => String(o).trim()).length && String(q.label || "").trim()));
+  // Solo las pestañas editadas: la otra queda como está en la base. Si la lectura había fallado,
+  // el editor la mostraba con las predeterminadas y al guardar pisaba las propias del coach.
+  const kinds = ["daily", "checkin"].filter(k => ed.dirtyTabs[k]);
+  if(!kinds.length){ CoachState.coachQEdit = null; renderCoachSettings(); return; }
+  const bad = kinds.find(k => (ed[k] || []).some(q => q.type === "options" && !(q.options || []).filter(o => String(o).trim()).length && String(q.label || "").trim()));
   if(bad && !confirm("Hay preguntas de \"Elegir una opción\" sin opciones en " + KIND_LABEL[bad] + ". Se van a guardar como respuesta libre. ¿Seguir?")) return;
   btn.textContent = "Guardando...";
-  const r = await State.sb.from("coach_questions").upsert(
-    { coach_id: State.cloudUser.id, daily: daily, checkin: checkin, updated_at: new Date().toISOString() },
-    { onConflict: "coach_id" });
+  // Sin haber podido leer las guardadas no se sabe qué se reemplaza: primero se vuelven a leer.
+  if(CoachState.coachQError){
+    await loadCoachQuestions().catch(() => {});
+    if(CoachState.coachQError){
+      btn.textContent = "Guardar preguntas";
+      alert("No se pudieron leer tus preguntas guardadas, así que todavía no se guardó nada (para no pisarlas). Revisá la conexión y probá de nuevo.\n\n" + (CoachState.coachQError.message || CoachState.coachQError));
+      return;
+    }
+  }
+  // Lo guardado no es lo que el editor tenía al abrir (no se había podido leer, o cambió en otro
+  // dispositivo): se pregunta antes de reemplazarlo. Si no, se muestra lo guardado para editarlo.
+  const changed = kinds.filter(k => JSON.stringify(currentList(k)) !== ed.base[k]);
+  if(changed.length && !confirm("Tus preguntas guardadas de " + changed.map(k => "«" + KIND_LABEL[k] + "»").join(" y ") + " no son las que tenías en pantalla (no se habían podido leer o cambiaron en otro dispositivo). ¿Reemplazarlas igual por las que armaste?\n\nSi cancelás, se muestran las guardadas para editarlas.")){
+    changed.forEach(k => { ed[k] = currentList(k); ed.base[k] = JSON.stringify(ed[k]); delete ed.dirtyTabs[k]; });
+    renderQuestionsEditor(); return;
+  }
+  const row = { coach_id: State.cloudUser.id, updated_at: new Date().toISOString() };
+  kinds.forEach(k => { row[k] = normalizeQuestions(ed[k]) || []; });
+  const r = await State.sb.from("coach_questions").upsert(row, { onConflict: "coach_id" });
   if(r.error){
     btn.textContent = "Guardar preguntas";
     alert("No se pudieron guardar las preguntas: " + (r.error.message || r.error) +
       "\n\nSi dice que la tabla no existe, falta correr supabase/preguntas-coach.sql en Supabase.");
     return;
   }
-  State.coachQ = { daily: daily, checkin: checkin }; CoachState.coachQError = null;
+  State.coachQ = Object.assign({}, State.coachQ); kinds.forEach(k => { State.coachQ[k] = row[k]; }); CoachState.coachQError = null;
   CoachState.coachQEdit = null;
   alert("Preguntas guardadas ✓ Tus clientes las ven la próxima vez que abran la app.");
   renderCoachSettings();
@@ -126,16 +153,16 @@ document.body.addEventListener("click", e => {
   if(a === "q-save"){ saveQuestions(b); return; }
   if(a === "q-tab"){ ed.tab = b.dataset.k; renderQuestionsEditor(); return; }
   if(a === "q-add"){
-    list.push({ id: newQuestionId(), label: "", type: "text" }); ed.dirty = true; renderQuestionsEditor();
+    list.push({ id: newQuestionId(), label: "", type: "text" }); touch(ed); renderQuestionsEditor();
     const ins = document.querySelectorAll(".cq-label"); const last = ins[ins.length - 1]; if(last) last.focus();
     return;
   }
-  if(a === "q-del"){ if(confirm("¿Borrar esta pregunta? Las respuestas que ya dieron tus clientes no se pierden.")){ list.splice(i, 1); ed.dirty = true; renderQuestionsEditor(); } return; }
-  if(a === "q-up" && i > 0){ list.splice(i - 1, 0, list.splice(i, 1)[0]); ed.dirty = true; renderQuestionsEditor(); return; }
-  if(a === "q-down" && i < list.length - 1){ list.splice(i + 1, 0, list.splice(i, 1)[0]); ed.dirty = true; renderQuestionsEditor(); return; }
+  if(a === "q-del"){ if(confirm("¿Borrar esta pregunta? Las respuestas que ya dieron tus clientes no se pierden.")){ list.splice(i, 1); touch(ed); renderQuestionsEditor(); } return; }
+  if(a === "q-up" && i > 0){ list.splice(i - 1, 0, list.splice(i, 1)[0]); touch(ed); renderQuestionsEditor(); return; }
+  if(a === "q-down" && i < list.length - 1){ list.splice(i + 1, 0, list.splice(i, 1)[0]); touch(ed); renderQuestionsEditor(); return; }
   if(a === "q-reset"){
     if(confirm("¿Volver a las preguntas predeterminadas de " + KIND_LABEL[ed.tab] + "? Se reemplazan las de esta pestaña (tocá Guardar para aplicarlo).")){
-      ed[ed.tab] = defaultQuestions(ed.tab); ed.dirty = true; renderQuestionsEditor();
+      ed[ed.tab] = defaultQuestions(ed.tab); touch(ed); renderQuestionsEditor();
     }
   }
 });
@@ -144,8 +171,8 @@ document.body.addEventListener("input", e => {
   const el = e.target.closest("[data-coach]"); if(!el) return;
   const a = el.dataset.coach; const ed = CoachState.coachQEdit; if(!ed || a.indexOf("q-") !== 0) return;
   const q = ed[ed.tab][+el.dataset.i]; if(!q) return;
-  if(a === "q-label"){ q.label = el.value; ed.dirty = true; }
-  else if(a === "q-opts"){ q.options = el.value.split(",").map(x => x.trim()).filter(Boolean); ed.dirty = true; }
+  if(a === "q-label"){ q.label = el.value; touch(ed); }
+  else if(a === "q-opts"){ q.options = el.value.split(",").map(x => x.trim()).filter(Boolean); touch(ed); }
 });
 
 document.body.addEventListener("change", e => {
@@ -154,6 +181,6 @@ document.body.addEventListener("change", e => {
   const q = ed[ed.tab][+el.dataset.i]; if(!q) return;
   q.type = el.value === "options" ? "options" : "text";
   if(q.type === "options" && !(q.options && q.options.length)) q.options = [];
-  ed.dirty = true; renderQuestionsEditor();
+  touch(ed); renderQuestionsEditor();
   const o = document.querySelector('.cq-opts[data-i="' + el.dataset.i + '"]'); if(o) o.focus();
 });
