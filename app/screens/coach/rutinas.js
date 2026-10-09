@@ -11,7 +11,7 @@ import { State } from '../../core/state.js';
 
 import { migrateNames } from '../../core/storage.js';
 
-import { esc, exMuscle, isTimedEx, mkEx, muscleOf, num, pickMuscle, searchExercises, today, withUnit } from '../../core/utils.js';
+import { esc, exMuscle, isTimedEx, mkEx, muscleOf, num, pickMuscle, searchExercises, today, uid, withUnit } from '../../core/utils.js';
 
 import { coachDatalist, coachLogFor, exChart, exSummary, exTable } from './clientes.js';
 import { kgText, suggest } from '../../core/progresion.js';
@@ -26,7 +26,7 @@ import { parseRest } from '../../ui/restbar.js';
 
 import { closeSheet } from '../../ui/sheet.js';
 import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto } from '../../core/diasemana.js';
-import { clientPlanActions, mealEditFoot } from './planes.js';
+import { clientPlanActions, clientPlanDirty, mealEditFoot } from './planes.js';
 
 export function rtDays(){ return CoachState.coachTplEdit ? CoachState.coachTplEdit.days : (CoachState.coachData?CoachState.coachData.routine:null); }
 
@@ -190,7 +190,7 @@ export function renderCoachPlan(d){
   ];
   // En «Mis planes» se guarda el plan guardado (planes.js); en el cliente, su plan.
   const tpl=!!(CoachState.coachMealEdit && !CoachState.coachSel);
-  const save=tpl ? mealEditFoot() : '<button class="co-save-rt" data-coach="plan-save">Guardar plan nutricional</button>';
+  const save=tpl ? mealEditFoot() : (clientPlanDirty()?'<div class="co-unsaved">Cambios sin guardar. Tocá <b>Guardar plan nutricional</b>.</div>':'')+'<button class="co-save-rt" data-coach="plan-save">Guardar plan nutricional</button>';
   const cur=SECS.find(x=>x[0]===CoachState.coachPlanSec);
   if(cur){
     return '<div class="form-head co-sec-head"><button class="form-back" data-coach="plsec-close" aria-label="Volver al plan">‹</button><div class="form-title">'+cur[1]+'</div></div>'+cur[2]()+save;
@@ -615,7 +615,8 @@ export function cpApply(name, cat){
   const day=(rtDays()||[])[CoachState.coachEditDay]; if(!day) return;
   const mm=pickMuscle(name, cat||CoachState.coachPCat);
   let ex;
-  if(CoachState.coachPicker.mode==="swap"){ ex=day.exercises[CoachState.coachPicker.i]; if(ex){ if(ex.name!==name) dropExMedia(ex); ex.name=name; ex.mus=mm; } }
+  // Al cambiarlo, series con ids nuevos: el alumno no hereda lo cargado en el viejo (mergeLocalProgress).
+  if(CoachState.coachPicker.mode==="swap"){ ex=day.exercises[CoachState.coachPicker.i]; if(ex){ if(ex.name!==name){ dropExMedia(ex); ex.sets.forEach(s=>{ s.id=uid(); }); } ex.name=name; ex.mus=mm; } }
   else if(CoachState.coachPicker.mode==="insert"){ ex=mkEx(name,3,mm); day.exercises.splice(CoachState.coachPicker.idx,0,ex); }
   else { ex=mkEx(name,3,mm); day.exercises.push(ex); }
   // el ejercicio recién agregado/cambiado arranca expandido para que el coach lo complete

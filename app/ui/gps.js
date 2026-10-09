@@ -229,6 +229,11 @@ export function runKeys(){
   return out;
 }
 function clearKeys(){ try { runKeys().forEach(k => localStorage.removeItem(k)); } catch (e) {} }
+// Celular lleno al guardar la salida terminada (core/salidas.js saveEnded): se borran sus partes
+// para hacerle lugar a la cola de envío (los puntos siguen en memoria). Si igual no entró,
+// restoreRunStorage la vuelve a escribir.
+export function freeRunStorage(){ clearKeys(); resetSaved(); }
+export function restoreRunStorage(){ if (GpsState.run) write(); }
 function clearRun(){ clearHere(); GpsState.run = null; GpsState.gps = "off"; GpsState.restored = false; GpsState.restoredGapMs = 0; resetSaved(); clearKeys(); }
 
 // ---- Mirar la ubicación ----

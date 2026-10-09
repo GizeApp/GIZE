@@ -17,3 +17,10 @@ export function joinMsgTienda(m){
   if (!m || !appIOS()) return m;
   return /plan|renuev|ampl/i.test(m) ? "Tu coach no puede sumar alumnos en este momento. Avisale y volvé a intentar." : m;
 }
+
+// Error de la función de mensajes (notificar-cliente) con el plan del coach vencido: en iPhone,
+// sin hablar del plan ni de renovarlo.
+export function chatMsgTienda(m){
+  if (!m || !appIOS()) return m;
+  return /plan|renov/i.test(m) ? "Por ahora no se pueden mandar mensajes en esta conversación." : m;
+}

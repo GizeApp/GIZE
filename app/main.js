@@ -22,7 +22,7 @@ import { syncRouteViews } from './ui/mapa.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
-import { afterLogin, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, clearAuthExpect, clearRecoveryPending, clearRecoveryRequest, dropRecoverySession, expectAuthLink, localUnsynced, markRecoveryRequest, otpErrorKind, PROFILE_KEY, RECOVERY_MSG, refreshOwnRoutine, setRecoveryPending, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithApple, signInWithGoogle } from './core/supabase.js';
+import { afterLogin, forgetStoredSession, sessionCloudId, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, clearAuthExpect, clearRecoveryPending, clearRecoveryRequest, dropRecoverySession, expectAuthLink, localUnsynced, markRecoveryRequest, otpErrorKind, PROFILE_KEY, RECOVERY_MSG, refreshOwnRoutine, setRecoveryPending, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithApple, signInWithGoogle } from './core/supabase.js';
 
 import { assistedKg, isAssisted, fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, intNum, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
@@ -31,13 +31,13 @@ import { runningSetId, startTimer, stopTimer } from './ui/settimer.js';
 import { showLogin } from './screens/auth.js';
 
 import { ssGroupOf, ssNext } from './core/superserie.js';
-import { CardioState, closeSalida, liveMapTick, openTimePicker, paintSalida, renderCardio, salidaAction, setRing, swFrac } from './screens/cardio.js';
+import { CardioState, closeSalida, liveMapTick, openTimePicker, paintSalida, renderCardio, salidaAction, saveClock, setRing, swFrac } from './screens/cardio.js';
 
 import { CheckinState, checkinDraft, checkinHasAnswer, checkinWeek, renderFeedback, saveSession, todayWeightText, undoSaveSession } from './screens/checkin.js';
 
 import { loadCoachClients, openClient } from './screens/coach/clientes.js';
 
-import { dropRoutineDraft, renderCoach, routineDirty, tplDirty } from './screens/coach/index.js';
+import { clientUnsaved, dropRoutineDraft, renderCoach, routineDirty, tplDirty } from './screens/coach/index.js';
 
 import { renderCoachSettings } from './screens/coach/settings.js';
 
@@ -53,7 +53,7 @@ import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
 
-import { EntrenoState, REST_DEFAULT, day, expandedOverride, exGroupIds, liveCounting, renderEntreno, dayNameCls, renderExList, renderExSheet, renderVarSheet, effectiveRest, restKey, wkElapsedText, wkFresh, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
+import { EntrenoState, REST_DEFAULT, day, expandedOverride, exGroupIds, liveCounting, renderEntreno, dayNameCls, renderExList, renderExSheet, renderVarSheet, effectiveRest, restKey, wkElapsedText, wkFresh, wkStarted, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
 import { HabitosState, addHabit, checkDaily, forgetHabitAlarm, habitAlarmDay, openHabitAlarm, paintHabitAlarmSheet, renderHabitAlarmSheet, renderHabitos, saveHabitAlarm } from './screens/habitos.js';
 import { alarmsSupported, askAlarmPermission, initHabitAlarms, syncHabitAlarms } from './ui/habitnotif.js';
@@ -67,6 +67,7 @@ import { showSilkBg } from './ui/background.js';
 import { appAway, onAwayChange } from './ui/pausa.js';
 
 import { parseRest, renderRestBar, resumeRest, startRest, stopRest } from './ui/restbar.js';
+import { cancelCardioAlert, scheduleCardioAlert } from './ui/restnotif.js';
 
 import { anchorFocus, initScrollReveal, setupExerciseFocus } from './ui/scrollfocus.js';
 
@@ -91,7 +92,7 @@ import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
 import { ChatUnread, chatOpenFor, openChat, refreshUnread } from './ui/chat.js';
 import { signedAudioUrl, togglePlay } from './ui/grabar.js';
 import { dropExMedia } from './core/videos.js';
-import { clearVariant, setVariant, todayEx, todayExs, variantOf } from './core/variantes.js';
+import { clearVariant, dropExpiredVariants, setVariant, todayEx, todayExs, variantOf } from './core/variantes.js';
 import { appIOS, joinMsgTienda } from './core/tienda.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
@@ -122,9 +123,12 @@ export function renderApp(){
   if(State.cloudProfile && State.cloudProfile.role==="coach"){ const v=document.getElementById("view"); if(v) v.innerHTML=""; renderCoach(); return; }
   setTimeout(renderFeedback,0);
   checkDaily();
+  if(dropExpiredVariants()) save(); // variante de otro día: vuelve el peso del original (core/variantes.js)
   // Semana de descarga: si empezó o terminó (app abierta de un día a otro, o sin señal), cambia
   // de rutina con lo guardado del bloque; la nube lo confirma cuando carga.
-  if((!State.cloudProfile || routineLocked()) && coachRoutineDue() && applyCoachRoutine()) save();
+  // Con la ventana de «¡Entreno terminado!» abierta todavía no: «Seguir entrenando» tiene que
+  // encontrar las series del entreno.
+  if((!State.cloudProfile || routineLocked()) && !CheckinState.fbSession && coachRoutineDue() && applyCoachRoutine()) save();
   markVisit(); paintStreak(); paintChatBtn(); // racha: hoy entró · chat con el coach
   document.getElementById("nav-entreno").classList.toggle("active", State.view==="entreno");
   document.getElementById("nav-habitos").classList.toggle("active", State.view==="habitos");
@@ -250,6 +254,12 @@ function revertVariant(raw){
   const o=clearVariant(raw.id); if(!o) return;
   raw.sets.forEach(s=>{ if(s.done) return; if(o.kg0 && Object.prototype.hasOwnProperty.call(o.kg0, s.id)) s.kg=o.kg0[s.id]; autoKg.delete(s.id); forgetPR(s.id); });
 }
+// Cambiar un ejercicio por otro: las series del anterior (kg, reps, tildes) no son de este. Si
+// quedaban, el nuevo aparecía hecho y al guardar daba récords falsos.
+function swapEx(ex, name, mm){
+  if(ex.name!==name){ dropExMedia(ex); ex.sets.forEach(s=>{ s.kg=""; s.reps=""; s.done=false; if("secs" in s) s.secs=""; autoKg.delete(s.id); forgetPR(s.id); }); }
+  clearVariant(ex.id); ex.name=name; ex.mus=mm;
+}
 // Un ejercicio recién agregado aparece abierto (y cierra el que estaba abierto), para cargarle las series.
 function openEx(e){ expandedOverride.clear(); expandedOverride.add(e.id); return e; }
 // Lleva la pantalla a la serie que sigue y la marca un momento.
@@ -295,7 +305,8 @@ export function tick(){
     const now = Date.now();
     if (CardioState.tmRunning){
       const rem = CardioState.tmEndTs - now;
-      if (rem <= 0){ CardioState.tmRunning=false; CardioState.tmRemainingMs=0; CardioState.tmFinished=true; beep(); if(State.view==="cardio") renderApp(); }
+      // Con la app a la vista suena acá: se saca el aviso del celular para que no suene dos veces.
+      if (rem <= 0){ CardioState.tmRunning=false; CardioState.tmRemainingMs=0; CardioState.tmFinished=true; saveClock(); if(!appAway()) cancelCardioAlert(); beep(); if(State.view==="cardio") renderApp(); }
       else { CardioState.tmRemainingMs = rem; if(State.view==="cardio" && CardioState.cardioMode==="timer") setRing(rem / CardioState.tmTarget, fmt(rem,true)); }
     }
     if (State.view==="entreno"){ const w=document.getElementById("wkTime"); if(w){ const t=wkElapsedText(); if(w.textContent!==t) w.textContent=t; } }
@@ -328,6 +339,8 @@ document.body.addEventListener("input", async e => {
   // Registro de hoy: se guarda mientras se escribe (no solo al salir del campo), así un
   // redibujo no borra lo que se está escribiendo.
   if (a === "daily-kg" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":t.dataset.k] = t.value; return; }
+  // Lo mismo en el check-in semanal: al volver de otra app se redibuja y se perdía lo escrito.
+  if (a === "ci-set") { checkinFormInit()[t.dataset.k] = t.value; return; }
   if (a === "food-search") { ComidaState.foodQuery = t.value; scheduleOffSearch(t.value); const r=document.getElementById("foodResults"); if(r) r.innerHTML = renderResults(ComidaState.foodQuery); return; }
   if (a === "ex-search") { EntrenoState.exQuery = t.value; const l=document.getElementById("exList"); if(l) l.innerHTML = renderExList(); return; }
   if (a === "portion-grams") { const base = ComidaState.selectedFood ? selectedFoodValues() : (ComidaState.editEntry ? entryBase(ComidaState.editEntry) : null); if(base){ const pv=document.getElementById("portionPreview"); if(pv) pv.textContent = previewStr(base, t.value); const pu=document.getElementById("portionUnits"); const uf=sheetUnitFood(); if(pu && uf) pu.textContent = unitsLabel(t.value, cookPortion(uf.food, uf.cook), base.unit, uf.food); } ComidaState.sheetGrams = t.value; return; }
@@ -478,22 +491,26 @@ document.body.addEventListener("click", async e => {
   if (a === "hba-save") {
     const withTime=saveHabitAlarm(); closeSheet(()=>renderApp());
     if(withTime && alarmsSupported()) askAlarmPermission().then(ok=>{ if(ok) syncHabitAlarms(); else alert("Para que suene el aviso, permití las notificaciones de GIZE en los ajustes del celular."); });
+    // La web no puede sonar con la página cerrada: la hora queda guardada (suena en la app del
+    // celular con la misma cuenta) y se avisa al guardar, sin carteles en la hoja.
+    else if(withTime) alert("Guardado. El aviso suena solo en la app de GIZE para Android o iPhone: acá en la web no puede sonar.");
     return;
   }
 
   // Cardio
   if (a.startsWith("sal-") && salidaAction(a, el)) return;
-  if (a === "cardio-mode") { CardioState.cardioMode = el.dataset.mode; renderApp(); return; }
+  if (a === "cardio-mode") { CardioState.cardioMode = el.dataset.mode; saveClock(); renderApp(); return; }
   // «Pasos» → «Competí con tus amigos»: Progreso → «Competencia de pasos».
   if (a === "cardio-pasos") { State.view = "progreso"; ProgresoState.section = "pasos"; ProgresoState.wAll = false; renderApp(); window.scrollTo(0, 0); return; }
-  if (a === "sw-toggle") { if(CardioState.swRunning){ CardioState.swAccum+=Date.now()-CardioState.swStartTs; CardioState.swRunning=false; } else { CardioState.swStartTs=Date.now(); CardioState.swRunning=true; } renderApp(); return; }
-  if (a === "sw-lap") { CardioState.swLaps.push(CardioState.swAccum+(Date.now()-CardioState.swStartTs)); renderApp(); return; }
-  if (a === "sw-reset") { CardioState.swRunning=false; CardioState.swAccum=0; CardioState.swStartTs=0; CardioState.swLaps=[]; renderApp(); return; }
-  if (a === "tm-pick") { openTimePicker(CardioState.tmRemainingMs, "Elegí el tiempo", t => { if(t>0){ CardioState.tmTarget=t; CardioState.tmRemainingMs=t; CardioState.tmFinished=false; } renderApp(); }); return; }
+  if (a === "sw-toggle") { if(CardioState.swRunning){ CardioState.swAccum+=Date.now()-CardioState.swStartTs; CardioState.swRunning=false; } else { CardioState.swStartTs=Date.now(); CardioState.swRunning=true; } saveClock(); renderApp(); return; }
+  if (a === "sw-lap") { CardioState.swLaps.push(CardioState.swAccum+(Date.now()-CardioState.swStartTs)); saveClock(); renderApp(); return; }
+  if (a === "sw-reset") { CardioState.swRunning=false; CardioState.swAccum=0; CardioState.swStartTs=0; CardioState.swLaps=[]; saveClock(); renderApp(); return; }
+  if (a === "tm-pick") { openTimePicker(CardioState.tmRemainingMs, "Elegí el tiempo", t => { if(t>0){ CardioState.tmTarget=t; CardioState.tmRemainingMs=t; CardioState.tmFinished=false; saveClock(); } renderApp(); }); return; }
   // «Listo» sin cambiar el tiempo deja todo como estaba (con las vueltas).
-  if (a === "sw-pick") { openTimePicker(CardioState.swAccum, "Arrancar desde", t => { if(t===Math.floor(CardioState.swAccum/1000)*1000){ renderApp(); return; } CardioState.swAccum=t; CardioState.swLaps=[]; renderApp(); }); return; }
-  if (a === "tm-toggle") { if(CardioState.tmRunning){ CardioState.tmRemainingMs=Math.max(0,CardioState.tmEndTs-Date.now()); CardioState.tmRunning=false; } else { initAudio(); CardioState.tmEndTs=Date.now()+CardioState.tmRemainingMs; CardioState.tmRunning=true; CardioState.tmFinished=false; } renderApp(); return; }
-  if (a === "tm-reset") { CardioState.tmRunning=false; CardioState.tmFinished=false; CardioState.tmRemainingMs=CardioState.tmTarget; renderApp(); return; }
+  if (a === "sw-pick") { openTimePicker(CardioState.swAccum, "Arrancar desde", t => { if(t===Math.floor(CardioState.swAccum/1000)*1000){ renderApp(); return; } CardioState.swAccum=t; CardioState.swLaps=[]; saveClock(); renderApp(); }); return; }
+  // En las apps, el aviso del celular (ui/restnotif.js) suena a la hora de fin aunque la pantalla esté bloqueada.
+  if (a === "tm-toggle") { if(CardioState.tmRunning){ CardioState.tmRemainingMs=Math.max(0,CardioState.tmEndTs-Date.now()); CardioState.tmRunning=false; cancelCardioAlert(); } else { initAudio(); CardioState.tmEndTs=Date.now()+CardioState.tmRemainingMs; CardioState.tmRunning=true; CardioState.tmFinished=false; scheduleCardioAlert(CardioState.tmEndTs); } saveClock(); renderApp(); return; }
+  if (a === "tm-reset") { CardioState.tmRunning=false; CardioState.tmFinished=false; CardioState.tmRemainingMs=CardioState.tmTarget; cancelCardioAlert(); saveClock(); renderApp(); return; }
 
   // Comida
   if (a === "psec-open") { ProgresoState.section=el.dataset.v; ProgresoState.wAll=false; renderApp(); window.scrollTo(0,0); return; }
@@ -527,7 +544,8 @@ document.body.addEventListener("click", async e => {
       if(+state.calProfile.age>0 && +state.calProfile.height>0 && +state.calProfile.weight>0) state.calTarget = calcTarget(state.calProfile); }
     ComidaState.calEditing=false; save(); renderApp(); return;
   }
-  if (a === "cal-manual") { const m=parseInt((document.getElementById("calManual")||{}).value); if(m>0){ state.calTarget=m; if(state.calProfile && state.calProfile.macros){ state.calProfile=Object.assign({}, state.calProfile); delete state.calProfile.macros; } ComidaState.calEditing=false; save(); renderApp(); } else alert("Ingresá un número de calorías válido."); return; }
+  // Con o sin punto de miles («2.500», como se ven en la app); «2,500» da 2 y no pasa el rango.
+  if (a === "cal-manual") { const m=intNum((document.getElementById("calManual")||{}).value); if(m>=500 && m<=10000){ state.calTarget=m; if(state.calProfile && state.calProfile.macros){ state.calProfile=Object.assign({}, state.calProfile); delete state.calProfile.macros; } ComidaState.calEditing=false; save(); renderApp(); } else alert("Ingresá un número de calorías válido (ej: 2200)."); return; }
   if (a === "food-create-open") { ComidaState.searchOpen=false; ComidaState.foodForm={name:"",kcal:"",p:"",c:"",f:"",portion:"",unit:"g"}; ComidaState.creatingFood=true; renderApp(); return; }
   if (a === "food-create-cancel") { ComidaState.creatingFood=false; renderApp(); return; }
   if (a === "cf-unit") { ComidaState.foodForm.unit = el.dataset.val; renderApp(); return; }
@@ -682,8 +700,8 @@ document.body.addEventListener("click", async e => {
     if(a === "var-pick") closeSheet(()=>{ EntrenoState.varSheet=null; renderApp(); }); else renderApp();
     return;
   }
-  if (a === "ex-choose") { const name=el.dataset.name; const d=day(); const mm=pickMuscle(name, el.dataset.cat||EntrenoState.exCat); if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==name) dropExMedia(ex); clearVariant(ex.id); ex.name=name; ex.mus=mm; } } else if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(name,2,mm))); } else { d.exercises.push(openEx(mkEx(name,2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
-  if (a === "ex-custom") { const nm=prompt(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:",""); if(nm && nm.trim()){ const d=day(); const mm=EntrenoState.exCat; if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex){ if(ex.name!==nm.trim()) dropExMedia(ex); clearVariant(ex.id); ex.name=nm.trim(); ex.mus=mm; } } else if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(nm.trim(),2,mm))); } else { d.exercises.push(openEx(mkEx(nm.trim(),2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); } return; }
+  if (a === "ex-choose") { const name=el.dataset.name; const d=day(); const mm=pickMuscle(name, el.dataset.cat||EntrenoState.exCat); if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex) swapEx(ex, name, mm); } else if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(name,2,mm))); } else { d.exercises.push(openEx(mkEx(name,2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
+  if (a === "ex-custom") { const nm=prompt(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:",""); if(nm && nm.trim()){ const d=day(); const mm=EntrenoState.exCat; if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex) swapEx(ex, nm.trim(), mm); } else if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(nm.trim(),2,mm))); } else { d.exercises.push(openEx(mkEx(nm.trim(),2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); } return; }
 
   // Peso corporal
   if (a === "daily-save") {
@@ -743,8 +761,8 @@ document.body.addEventListener("click", async e => {
     renderApp(); return;
   }
   if (a === "daily-set") { dailyFormInit(); CheckinState.dailyForm[el.dataset.k] = el.dataset.v; renderApp(); return; }
-  if (a === "weight-save") { const dEl=document.getElementById("wDate"), kEl=document.getElementById("wKg"); const date=dEl?dEl.value:""; const kg=parseFloat((kEl?kEl.value:"").replace(",",".")); if(!date){ alert("Elegí una fecha."); return; } if(!(kg>0)){ alert("Poné un peso válido."); return; } const exw=state.weights.find(w=>w.date===date); if(exw) exw.kg=kg; else state.weights.push({id:uid(),date,kg}); ProgresoState.weightForm={date:today(),kg:"",at:today()}; save(); renderApp(); return; }
-  if (a === "weight-edit") { const w=state.weights.find(x=>x.id===el.dataset.id); if(w){ ProgresoState.weightForm={date:w.date,kg:String(w.kg).replace(".",","),at:today()}; } renderApp(); return; }
+  if (a === "weight-save") { const dEl=document.getElementById("wDate"), kEl=document.getElementById("wKg"); const date=dEl?dEl.value:""; const kg=parseFloat((kEl?kEl.value:"").replace(",",".")); if(!date){ alert("Elegí una fecha."); return; } if(!(kg>0)){ alert("Poné un peso válido."); return; } const eid=ProgresoState.weightForm&&ProgresoState.weightForm.editId; if(eid){ const old=state.weights.find(w=>w.id===eid); if(old && old.date!==date) state.weights=state.weights.filter(w=>w.id!==eid); } /* corregir la fecha mueve el registro, no agrega otro */ const exw=state.weights.find(w=>w.date===date); if(exw) exw.kg=kg; else state.weights.push({id:uid(),date,kg}); ProgresoState.weightForm={date:today(),kg:"",at:today()}; save(); renderApp(); return; }
+  if (a === "weight-edit") { const w=state.weights.find(x=>x.id===el.dataset.id); if(w){ ProgresoState.weightForm={date:w.date,kg:String(w.kg).replace(".",","),at:today(),editId:w.id}; } renderApp(); return; }
   if (a === "weight-remove") { state.weights=state.weights.filter(x=>x.id!==el.dataset.id); save(); renderApp(); return; }
 
   // Agua
@@ -765,7 +783,7 @@ document.body.addEventListener("click", async e => {
     if(se){ se.exercises=r.exercises; save(); cloudEditSession(se).then(ok=>{ if(!ok && !isOnline()) alert("El cambio se guardó en este dispositivo y se envía a tu cuenta cuando vuelva internet."); }); }
     closeSheet(()=>{ EditState.se=null; renderApp(); }); return;
   }
-  if (a === "session-remove") { if(confirm("¿Borrar este entreno del historial?")){ const _s=state.sessions.find(x=>x.id===el.dataset.id); if(_s&&_s.cloudId){ try{ cloudDeleteSession(_s.cloudId); }catch(e){} } state.sessions=state.sessions.filter(x=>x.id!==el.dataset.id); save(); renderApp(); } return; }
+  if (a === "session-remove") { if(confirm("¿Borrar este entreno del historial?")){ const _s=state.sessions.find(x=>x.id===el.dataset.id), _cid=sessionCloudId(_s); if(_cid){ try{ cloudDeleteSession(_cid); }catch(e){} } state.sessions=state.sessions.filter(x=>x.id!==el.dataset.id); save(); renderApp(); } return; }
 
   // Días
   if (a === "open-routines") { openRoutinePicker(); return; }
@@ -833,9 +851,13 @@ document.body.addEventListener("click", async e => {
     const prevId=runningSetId();
     if(prevId){ const r=stopTimer(), ps=d.exercises.reduce((f,x)=>f||x.sets.find(y=>y.id===prevId),null); if(ps && r && r.secs>0) ps.secs=String(r.secs); }
     const target=parseSecs(s.target)||parseSecs(s.secs)||0;
+    // Al terminar se busca la serie de nuevo: con coach, al volver a la app la rutina se vuelve a
+    // armar (applyCoachRoutine) y la de antes ya no es la que se ve ni la que se guarda.
+    const dId=d.id, exId=ex.id, sId=s.id;
     startTimer(s.id, target, secs=>{
-      s.secs=String(secs);
-      if(!s.done){ s.done=true; afterSetDone(d, ex, s); }
+      const d2=(state.days||[]).find(x=>x.id===dId), ex2=d2 && todayExs(d2).find(x=>x.id===exId), s2=ex2 && ex2.sets.find(x=>x.id===sId); if(!s2) return;
+      s2.secs=String(secs);
+      if(!s2.done){ s2.done=true; afterSetDone(d2, ex2, s2); }
       save(); renderApp();
     });
     renderApp(); return;
@@ -884,7 +906,12 @@ document.body.addEventListener("click", async e => {
   else if (a === "removeex") { d.exercises = d.exercises.filter(x=>x.id!==el.dataset.ex); }
   else if (a === "wk-start") { state.wkStart={date:today(), day:d.id, ts:Date.now(), manual:true}; }
   else if (a === "wk-cancel") { if(!confirm("¿Cancelar el entrenamiento? El reloj vuelve a cero (las series tildadas quedan).")) return; delete state.wkStart; }
-  else if (a === "clear") { d.exercises.forEach(x=>x.sets.forEach(s=>s.done=false)); delete state.wkStart; }
+  else if (a === "clear") {
+    // Está debajo de «Finalizar» y «Cancelar»: si hay algo que perder (el reloj del entreno o las
+    // tildes), se pregunta antes, como en «Cancelar».
+    if((wkStarted(d) || d.exercises.some(x=>x.sets.some(s=>s.done))) && !confirm("¿Limpiar el día? Se destildan todas las series y el reloj del entreno vuelve a cero (los kg y reps quedan).")) return;
+    d.exercises.forEach(x=>x.sets.forEach(s=>s.done=false)); delete state.wkStart;
+  }
   else return;
   save(); renderApp();
 });
@@ -952,19 +979,19 @@ document.body.addEventListener("click", async e=>{
     }
     // Supabase no dice si el mail tiene cuenta (para no revelar quién está registrado).
     // Se pasa directo a escribir el código: anda en cualquier celular o navegador.
-    showLogin("Listo. Si ese mail tiene una cuenta en GIZE, te llega un mail con un botón y un código de 6 números. Revisá también la carpeta de spam.","code",{email:email});
+    showLogin("Listo. Si ese mail tiene una cuenta en GIZE, te llega un mail con un botón y un código. Revisá también la carpeta de spam.","code",{email:email});
     return;
   }
   if(a==="do-code"){
     const email=((document.getElementById("auEmail")||{}).value||"").trim();
     const raw=((document.getElementById("auOtp")||{}).value||"");
     const ask=!!document.querySelector('#authHost [data-ask-email]');
-    // Se aceptan espacios o guiones al pegarlo («123 456»). Supabase lo manda de 6 números
+    // Se aceptan espacios o guiones al pegarlo («123 456»). Supabase lo manda de 8 números
     // (la tarea "mails" de .github/workflows/supabase.yml lo deja fijo en 6).
     const token=raw.replace(/[\s-]/g,"");
     const again=(m)=>showLogin(m,"code",ask ? {email:email, code:raw, askEmail:true} : {email:email, code:raw});
     if(!/^[^@ ]+@[^@ ]+\.[^@ ]+$/.test(email)){ again("Poné el mail de tu cuenta (ej: nombre@gmail.com)."); return; }
-    if(!/^\d{6,10}$/.test(token)){ again("Escribí los 6 números del código que te llegó por mail."); return; }
+    if(!/^\d{6,10}$/.test(token)){ again("Escribí los números del código que te llegó por mail."); return; }
     b.disabled=true; b.textContent="Revisando...";
     if(!State.sb) await ensureSb();
     if(!State.sb){ again("No se pudo conectar con el servidor. Revisá tu conexión a internet y volvé a intentar."); return; }
@@ -975,7 +1002,7 @@ document.body.addEventListener("click", async e=>{
       const k=otpErrorKind(r.error);
       again(k==="rate" ? RECOVERY_MSG.rate
         : k==="offline" ? "No se pudo revisar el código. Revisá tu conexión a internet y volvé a intentar: el código sigue sirviendo."
-        : "El código no es correcto o ya venció (dura 1 hora, sirve una sola vez y deja de servir si pediste otro mail después). Revisalo, o pedí un mail nuevo.");
+        : "El código no es correcto o ya venció (dura 30 minutos, sirve una sola vez y deja de servir si pediste otro mail después). Revisalo, o pedí un mail nuevo.");
       return;
     }
     // Ya hay sesión de recuperación: no se abre la app hasta elegir la contraseña (o cancelar).
@@ -1030,7 +1057,9 @@ document.body.addEventListener("click", async e=>{
     State.signingOut=true; // el SIGNED_OUT que viene es este: no es una sesión perdida (core/supabase.js → watchAuth)
     try{ await pushLogout(); }catch(e){} // antes del signOut: borrar el dispositivo necesita la sesión
     const logoutUid=State.cloudUser&&State.cloudUser.id;
-    try{ await State.sb.auth.signOut(); }catch(e){}
+    // Sin señal, signOut reintenta renovar el token un buen rato: no se lo espera más de 5 s.
+    try{ await Promise.race([State.sb.auth.signOut(), new Promise(r=>setTimeout(r, 5000))]); }catch(e){}
+    forgetStoredSession(); // por si signOut no la borró (sin señal y con el token vencido)
     try{ localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); localStorage.removeItem("gize_session_ephemeral"); }catch(e){}
     stopForLogout(); closeSalida(); // deja de mirar el GPS y borra la salida en curso
     clearAccountLeftovers(logoutUid);
@@ -1110,7 +1139,22 @@ document.body.addEventListener("click", async e=>{
       if(!sess.data.session){ if(window.coreCancel) window.coreCancel(); showLogin(IS_NATIVE ? "Listo. Te mandamos un mail para confirmar la cuenta: abrilo en este celular y tocá el link, que te trae de vuelta a la app." : "Listo. Te mandamos un mail para confirmar la cuenta: abrilo, hacé click en el link, y despues volvé y tocá Ingresar.","in",{email:email}); return; }
       await afterLogin(sess.data.session.user);
       if(window.coreEnter) window.coreEnter();
-    }catch(err){ if(window.coreCancel) window.coreCancel(); showLogin("No se pudo: "+((err&&err.message)||err), mode, {name:name, email:email, code:code, role:role}); }
+    }catch(err){
+      if(window.coreCancel) window.coreCancel();
+      const V={name:name, email:email, code:code, role:role}, c=err && err.code;
+      // Los errores de Supabase vienen en inglés: los comunes, en castellano.
+      if(c==="email_not_confirmed"){
+        // El mail de confirmación no llegó (o fue a Spam): se manda otro desde acá.
+        if(!IS_NATIVE) expectAuthLink();
+        let rr; try{ rr=await State.sb.auth.resend({type:"signup", email:email, options:{emailRedirectTo:(IS_NATIVE ? "gize://confirmado" : location.origin + location.pathname)}}); }catch(e2){ rr={error:e2}; }
+        showLogin(rr && !rr.error ? "Listo. Tu cuenta todavía no está confirmada: te reenviamos el mail de confirmación (revisá también Spam). Abrilo y tocá el link."
+          : "Tu cuenta todavía no está confirmada. Abrí el mail de confirmación que te mandamos (revisá también Spam) y tocá el link. Si no lo encontrás, esperá unos minutos y tocá Ingresar de nuevo para que te mandemos otro.", "in", V); return;
+      }
+      const m = c==="invalid_credentials" ? "Mail o contraseña incorrectos."
+        : (err && (err.name==="AuthRetryableFetchError" || /failed to fetch|network/i.test(err.message||""))) ? "No se pudo conectar con el servidor. Revisá tu conexión a internet y volvé a intentar."
+        : "No se pudo: "+((err&&err.message)||err);
+      showLogin(m, mode, V);
+    }
     return;
   }
 });
@@ -1177,7 +1221,7 @@ document.body.addEventListener("click", async e => {
     renderCoach(); return;
   }
   if(a==="open"){ CoachState.coachClientTab="ficha"; CoachState.coachSec=null; CoachState.coachPlanSec=null; openClient(b.dataset.id); return; }
-  if((a==="back"||a==="refresh") && routineDirty()){ if(!confirm("Tenés cambios en la rutina sin guardar. ¿Salir igual y perderlos?")) return; dropRoutineDraft(CoachState.coachData.id); CoachState.coachData.routineOrig=JSON.stringify(CoachState.coachData.routine||[]); }
+  if((a==="back"||a==="refresh") && clientUnsaved()){ if(!confirm("Tenés cambios sin guardar en "+clientUnsaved()+". ¿Salir igual y perderlos?")) return; if(routineDirty()){ dropRoutineDraft(CoachState.coachData.id); CoachState.coachData.routineOrig=JSON.stringify(CoachState.coachData.routine||[]); } }
   if(a==="back"){ CoachState.coachSel=null; CoachState.coachData=null; renderCoach(); refreshCoachClients(); return; }
   if(a==="refresh"){ if(CoachState.coachSel) openClient(CoachState.coachSel); return; }
   if(a==="open-settings"){ CoachState.coachNameForm=null; CoachState.coachSettingsOpen=true; renderCoachSettings(); return; }
@@ -1274,9 +1318,10 @@ document.body.addEventListener("click", async e => {
   if(a==="tpl-back" && CoachState.coachTplEdit && CoachState.coachTplEdit.sched){ CoachState.coachTplEdit=null; CoachState.coachEditDay=0; renderCoach(); return; }
   if(a==="tpl-save" && CoachState.coachTplEdit && CoachState.coachTplEdit.sched){
     const e=CoachState.coachTplEdit, cid=CoachState.coachSel;
+    if(e.saving) return;
     if(!e.starts_on || e.starts_on<today()){ alert("Elegí desde qué día empieza (hoy o más adelante)."); return; }
     if(!(e.days||[]).length){ alert("La rutina programada no tiene días."); return; }
-    b.textContent="Guardando...";
+    e.saving=true; b.disabled=true; b.textContent="Guardando...";
     try{
       const row={client_id:cid, starts_on:e.starts_on, name:(e.name||"").trim().slice(0,80)||null, days:e.days};
       const r = e.id ? await State.sb.from("routine_schedule").update(row).eq("id",e.id) : await State.sb.from("routine_schedule").insert(row);
@@ -1284,8 +1329,8 @@ document.body.addEventListener("click", async e => {
       CoachState.coachTplEdit=null; CoachState.coachEditDay=0;
       // Si empieza hoy, se aplica ya; openClient vuelve a leer todo.
       alert(e.starts_on===today() ? "Rutina aplicada desde hoy \u2713" : "Rutina programada \u2713 Empieza sola ese día.");
-      await openClient(cid); return;
-    }catch(err){ alert("No se pudo: "+((err&&err.message)||err)); b.textContent="Guardar rutina programada"; return; }
+      await openClient(cid, true); return;
+    }catch(err){ alert("No se pudo: "+((err&&err.message)||err)); e.saving=false; b.disabled=false; b.textContent="Guardar rutina programada"; return; }
   }
   if(a==="tpl-del" && CoachState.coachTplEdit && CoachState.coachTplEdit.sched){
     const e=CoachState.coachTplEdit;
@@ -1293,22 +1338,24 @@ document.body.addEventListener("click", async e => {
       if(!confirm("¿Borrar esta rutina programada? El alumno sigue con la de ahora.")) return;
       try{ sbOk(await State.sb.from("routine_schedule").delete().eq("id",e.id)); }catch(err){ alert("No se pudo: "+((err&&err.message)||err)); return; }
     }
-    CoachState.coachTplEdit=null; CoachState.coachEditDay=0; await openClient(CoachState.coachSel); return;
+    CoachState.coachTplEdit=null; CoachState.coachEditDay=0; await openClient(CoachState.coachSel, true); return;
   }
   if(a==="tpl-back"){ CoachState.coachTplEdit=null; CoachState.coachView="tpls"; renderCoach(); return; }
   if(a==="tpl-save"){
-    if(!CoachState.coachTplEdit) return;
-    const nm=(CoachState.coachTplEdit.name||"").trim();
+    // Un toque a la vez: una rutina nueva no tiene id hasta que vuelve el primero, y el segundo
+    // toque creaba otra igual en «Mis rutinas».
+    const e=CoachState.coachTplEdit; if(!e || e.saving) return;
+    const nm=(e.name||"").trim();
     if(!nm){ alert("Ponele un nombre a la rutina."); return; }
-    b.textContent="Guardando...";
+    e.saving=true; b.disabled=true; b.textContent="Guardando...";
     try{
-      const row={coach_id:State.cloudUser.id, name:nm, days:CoachState.coachTplEdit.days||[], updated_at:new Date().toISOString()};
-      if(CoachState.coachTplEdit.id) row.id=CoachState.coachTplEdit.id;
+      const row={coach_id:State.cloudUser.id, name:nm, days:e.days||[], updated_at:new Date().toISOString()};
+      if(e.id) row.id=e.id;
       const r=await State.sb.from("routine_templates").upsert(row).select();
       if(r.error) throw r.error;
       await loadTpls(); CoachState.coachTplEdit=null; CoachState.coachView="tpls"; alert("Rutina guardada \u2713");
     }catch(err){ alert("No se pudo: "+((err&&err.message)||err)); }
-    renderCoach(); return;
+    e.saving=false; renderCoach(); return;
   }
   if(a==="tpl-del"){
     if(!CoachState.coachTplEdit||!CoachState.coachTplEdit.id){ CoachState.coachTplEdit=null; CoachState.coachView="tpls"; renderCoach(); return; }
@@ -1689,6 +1736,7 @@ document.addEventListener("visibilitychange", async ()=>{
   // Sin coach: la rutina se pudo haber cambiado en otro dispositivo mientras esta quedaba
   // abierta. Se relee de la nube y, si cambió, se redibuja (ver refreshOwnRoutine).
   if(!routineLocked()){ if(await refreshOwnRoutine()) renderApp(); return; }
+  if(CheckinState.fbSession) return; // ventana de «¡Entreno terminado!» abierta (ver renderApp)
   // Primero con lo guardado (sin señal también): si cambió la semana, cambia la rutina ya.
   if(coachRoutineDue() && applyCoachRoutine()){ save(); renderApp(); }
   if(!State.sb || !State.cloudUser) return;
@@ -1807,12 +1855,14 @@ async function onScannedCode(code){
   // guarda para todos (función "productos-off"). Si la función no responde (todavía no está
   // publicada, sin señal, límite del día, datos incompletos), se busca en Open Food Facts desde
   // el celular como antes: se puede anotar igual, pero no queda en la base compartida.
+  // Si OFF no lo tiene, sus valores no cierran o está oculto (reportado o sacado por un
+  // administrador), no: se ofrece pedirlo con la foto de la tabla.
   let food = null;
   try{ food = await productByCodeShared(code); }catch(e){}
   if(!food){
     const saved = await saveOffShared(code);
     if(saved && saved.food) food = saved.food;
-    else if(!(saved && saved.missing)){
+    else if(!(saved && (saved.missing || ["oculto","valores imposibles","calorías no cierran"].includes(saved.skipped)))){
       try{ food = await productByCode(code); }
       catch(e){ alert("No se pudo buscar el producto (¿sin conexión?). Probá de nuevo o cargalo a mano."); return; }
     }

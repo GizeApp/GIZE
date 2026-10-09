@@ -21,6 +21,8 @@
 #   RESEND_WEBHOOK_SECRET  para "secrets". El "Signing secret" (whsec_…) del webhook de Resend que
 #                          avisa los mails recibidos (función "contacto").
 #   DEMO_PASSWORD          para "cuentas-demo". Contraseña de las cuentas demo de Google Play.
+#   DEMO_EMAIL             para "cuentas-demo". Mail base de las cuentas demo: se usan
+#                          usuario+coach@dominio y usuario+cliente@dominio (no van en el repo).
 #                          Va como secret y no como dato del formulario: el repo es público y
 #                          los datos del formulario quedan escritos en el log de la ejecución.
 #   SUPABASE_SERVICE_ROLE_KEY  para "borrar-fotos-progreso", solo si el token de arriba no puede
@@ -100,6 +102,8 @@ jobs:
           APNS_KEY_P8: ${{ secrets.APNS_KEY_P8 }}
           APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SIWA_KEY_P8: ${{ secrets.SIWA_KEY_P8 }}
+          SIWA_KEY_ID: ${{ secrets.SIWA_KEY_ID }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FULL_KEY: ${{ secrets.RESEND_FULL_KEY }}
           RESEND_WEBHOOK_SECRET: ${{ secrets.RESEND_WEBHOOK_SECRET }}
@@ -109,6 +113,8 @@ jobs:
           set -- 
           [ -n "$MP_ACCESS_TOKEN" ] && set -- "$@" MP_ACCESS_TOKEN="$MP_ACCESS_TOKEN"
           [ -n "$APNS_KEY_P8" ] && set -- "$@" APNS_KEY_P8="$APNS_KEY_P8" APNS_KEY_ID="$APNS_KEY_ID" APPLE_TEAM_ID="$APPLE_TEAM_ID"
+          # Clave de «Sign in with Apple» (revocar el acceso al borrar una cuenta de Apple, ver borrar-audios).
+          [ -n "$SIWA_KEY_P8" ] && set -- "$@" SIWA_KEY_P8="$SIWA_KEY_P8" SIWA_KEY_ID="$SIWA_KEY_ID" APPLE_TEAM_ID="$APPLE_TEAM_ID"
           [ -n "$RESEND_API_KEY" ] && set -- "$@" RESEND_API_KEY="$RESEND_API_KEY"
           [ -n "$RESEND_FULL_KEY" ] && set -- "$@" RESEND_FULL_KEY="$RESEND_FULL_KEY"
           [ -n "$RESEND_WEBHOOK_SECRET" ] && set -- "$@" RESEND_WEBHOOK_SECRET="$RESEND_WEBHOOK_SECRET"
@@ -157,12 +163,15 @@ jobs:
           ARCHIVO: ${{ inputs.archivo }}
           TAREA: ${{ inputs.tarea }}
           DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+          DEMO_EMAIL: ${{ secrets.DEMO_EMAIL }}
         run: |
           if [ "$TAREA" = "cuentas-demo" ]; then
             if [ ${#DEMO_PASSWORD} -lt 8 ]; then echo "::error::Falta el secret DEMO_PASSWORD (al menos 8 caracteres)"; exit 1; fi
             echo "::add-mask::$DEMO_PASSWORD"
+            case "$DEMO_EMAIL" in *@*.*) ;; *) echo "::error::Falta el secret DEMO_EMAIL (el mail base de las cuentas demo)"; exit 1;; esac
+            echo "::add-mask::$DEMO_EMAIL"
             # Al pegar el secret suele colarse un Enter al final: se saca. Uno en el medio no se acepta.
-            python3 -c 'import os,sys; pw=os.environ["DEMO_PASSWORD"].strip(); "\n" in pw and sys.exit("DEMO_PASSWORD tiene un salto de línea en el medio"); sys.stdout.write(open("supabase/cuentas-demo.sql").read().replace("__DEMO_PASSWORD__", pw.replace("\x27","\x27\x27")))' > "$RUNNER_TEMP/q.sql"
+            python3 -c 'import os,sys,re; pw=os.environ["DEMO_PASSWORD"].strip(); "\n" in pw and sys.exit("DEMO_PASSWORD tiene un salto de línea en el medio"); m=re.fullmatch(r"([A-Za-z0-9._%-]+)@([A-Za-z0-9.-]+)", os.environ["DEMO_EMAIL"].strip()) or sys.exit("DEMO_EMAIL no es un mail válido"); q=open("supabase/cuentas-demo.sql").read().replace("__DEMO_COACH__", m[1]+"+coach@"+m[2]).replace("__DEMO_CLIENTE__", m[1]+"+cliente@"+m[2]); sys.stdout.write(q.replace("__DEMO_PASSWORD__", pw.replace("\x27","\x27\x27")))' > "$RUNNER_TEMP/q.sql"
           else
             case "$ARCHIVO" in *..*) echo "::error::Ruta inválida"; exit 1;; supabase/*.sql) ;; *) echo "::error::El archivo tiene que ser supabase/<algo>.sql"; exit 1;; esac
             [ -f "$ARCHIVO" ] || { echo "::error::No existe $ARCHIVO"; exit 1; }
@@ -181,8 +190,9 @@ jobs:
           [ "$code" -ge 200 ] && [ "$code" -lt 300 ] || { echo "::error::Supabase respondió $code"; exit 1; }
 
       # Mail de «olvidé mi contraseña»: asunto y cuerpo de supabase/mails/recuperar.html (sin los
-      # comentarios HTML, que son notas para nosotros), y el código que trae ese mail: 6 números
-      # (la app lo pide así: screens/auth.js) que vencen en 1 hora (lo dicen la app y el mail).
+      # comentarios HTML, que son notas para nosotros), y el código que trae ese mail: 8 números
+      # (la app lo pide así: screens/auth.js) que vencen en 30 minutos (lo dicen la app y el mail). Con 8 números y 30 minutos, adivinarlo
+      # probando códigos no es posible (con 6 y 1 hora, el único freno eran los límites de Supabase).
       # Usa el permiso «Auth Config (read-write)» del token. Las versiones de la app anteriores al
       # paso del código no lo tienen: esos usuarios terminan en gize.ar/app (lo dice el mail). El log es PÚBLICO y la configuración de Auth trae claves de los proveedores de
       # ingreso: no se imprime la respuesta, solo el código HTTP y los dos datos del código.
@@ -197,8 +207,8 @@ jobs:
           print(json.dumps({
               "mailer_subjects_recovery": "Elegí una contraseña nueva para GIZE",
               "mailer_templates_recovery_content": html,
-              "mailer_otp_length": 6,
-              "mailer_otp_exp": 3600,
+              "mailer_otp_length": 8,
+              "mailer_otp_exp": 1800,
           }))
           PY
           code=$(curl -sS -o "$RUNNER_TEMP/out.json" -w '%{http_code}' -X PATCH \

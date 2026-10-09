@@ -32,7 +32,7 @@ import { appIOS } from '../../core/tienda.js';
 
 import { renderCoachSalidas, salidasTileText } from './salidas.js';
 import { syncRouteViews } from '../../ui/mapa.js';
-import { mealEditHead, renderMealPicker, renderMealTplList, snapMealEdit } from './planes.js';
+import { clientPlanDirty, mealEditHead, renderMealPicker, renderMealTplList, snapMealEdit } from './planes.js';
 
 // Título de sección con la ruedita que abre el editor de preguntas en esa pestaña.
 function secHead(title, kind){
@@ -42,13 +42,15 @@ function secHead(title, kind){
 // Código para que se vinculen clientes. Con el cupo del plan lleno no se muestra: nadie más se
 // puede vincular (la base lo rechaza igual) y en su lugar se ofrece un plan más grande.
 // En la app de iPhone (core/tienda.js) el aviso no nombra el plan: solo que llegó al máximo.
+// Código viejo (6 caracteres, de antes de supabase/endurecer-base.sql): sigue sirviendo, pero es
+// más fácil de adivinar; se le sugiere cambiarlo (supabase/coach-alumnos.sql).
 const IS_NATIVE_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const IS_IOS_APP = appIOS();
 function inviteBox(){
-  const b=billing();
+  const b=billing(), viejo=!!CoachState.coachInvite && String(CoachState.coachInvite).length<8;
   if(b.known && b.atCap && IS_IOS_APP) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de alumnos de tu cuenta.</b><div class="co-invite-sub">Nadie más se puede vincular con tu código.</div></div>';
   if(b.known && b.atCap) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de tu plan</b> ('+b.count+'/'+b.max+' clientes)'+(IS_NATIVE_APP ? '<div class="co-invite-sub">Nadie más se puede vincular con tu código.</div>' : '<div class="co-invite-sub">Para sumar más clientes pasate a un plan más grande.</div><button class="co-copy-btn" data-plan="open">Ver planes</button>')+'</div>';
-  return '<div class="co-invite">Tu código de invitación<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Compartíselo a tus clientes para que se vinculen a vos.'+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div></div>';
+  return '<div class="co-invite">Tu código de invitación<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Compartíselo a tus clientes para que se vinculen a vos.'+(viejo?' Es un código del formato anterior, más corto y fácil de adivinar: te conviene cambiarlo. Sirve hasta que lo cambies.':'')+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div></div>';
 }
 
 // Cambios sin guardar: la primera vez que se dibuja una rutina (del cliente o en el editor) se
@@ -60,7 +62,14 @@ function snapEdits(){
   const e=CoachState.coachTplEdit; if(e && !e.deload && e.orig0===undefined) e.orig0=tplSnap(e);
   const d=CoachState.coachData; if(d && d.id && Array.isArray(d.routine) && d.routineOrig===undefined) d.routineOrig=JSON.stringify(d.routine);
 }
-window.addEventListener("beforeunload", ev => { if(tplDirty() || routineDirty()){ ev.preventDefault(); ev.returnValue=""; } });
+// Qué tiene sin guardar el alumno abierto, para el aviso al salir: la rutina, el plan alimenticio,
+// la ficha y el bloque (los formularios de la ficha y el bloque existen solo después de editarlos).
+export function clientUnsaved(){
+  const d=CoachState.coachData; if(!d || !d.id) return "";
+  const q=[routineDirty()&&"la rutina", clientPlanDirty()&&"el plan alimenticio", CoachState.coachInfoForm&&"la ficha", CoachState.coachBlockForm&&"el bloque"].filter(Boolean);
+  return q.length>1 ? q.slice(0,-1).join(", ")+" y "+q[q.length-1] : (q[0]||"");
+}
+window.addEventListener("beforeunload", ev => { if(tplDirty() || clientUnsaved()){ ev.preventDefault(); ev.returnValue=""; } });
 
 // Borrador de la rutina del cliente en este dispositivo: se guarda con cada cambio y al salir
 // de la app. En el celular, ir a otra app (a copiar la rutina de WhatsApp, por ejemplo) puede
