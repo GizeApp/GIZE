@@ -122,4 +122,31 @@ begin
   end if;
 end $$;
 
+-- 6) Guardar un mensaje con el freno de p_tope por minuto (por conversación y lado). Se cuenta y
+--    se guarda junto, de a uno por conversación y lado: el que se pasa no se guarda. Antes la
+--    función guardaba, volvía a contar y borraba el que se pasaba, pero ya le había llegado en
+--    vivo (punto 5) al chat abierto del otro. Devuelve el mensaje, o nada si se pasó del tope.
+--    Solo la usa la función de mensajes (rapid-worker), con la clave de servicio.
+create or replace function public.chat_guardar(p_coach uuid, p_client uuid, p_sender text, p_body text,
+  p_audio_path text default null, p_audio_secs int default null, p_tope int default 30)
+returns table (id uuid, created_at timestamptz)
+language plpgsql
+set search_path = public
+as $$
+#variable_conflict use_column
+begin
+  perform pg_advisory_xact_lock(hashtext('chat:' || p_coach::text || ':' || p_client::text), hashtext(p_sender));
+  if (select count(*) from public.coach_messages m
+       where m.coach_id = p_coach and m.client_id = p_client and m.sender = p_sender
+         and m.created_at >= now() - interval '1 minute') >= p_tope then
+    return;
+  end if;
+  return query
+    insert into public.coach_messages as m (coach_id, client_id, sender, body, delivered, audio_path, audio_secs)
+    values (p_coach, p_client, p_sender, p_body, 0, p_audio_path, p_audio_secs)
+    returning m.id, m.created_at;
+end $$;
+revoke all on function public.chat_guardar(uuid, uuid, text, text, text, int, int) from public, anon, authenticated;
+grant execute on function public.chat_guardar(uuid, uuid, text, text, text, int, int) to service_role;
+
 notify pgrst, 'reload schema';
