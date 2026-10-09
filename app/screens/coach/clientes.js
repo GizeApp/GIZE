@@ -138,7 +138,7 @@ export function coachLogFor(sessions, dayName, name){
 export function coachExerciseLog(sessions,name){ const out=[]; (sessions||[]).slice().sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(se=>{ const sets=[]; se.exercises.forEach(ex=>{ if(ex.name===name) ex.sets.forEach(st=>{ if((+st.kg||0)!==0||(+st.reps||0)>0||(+st.secs||0)>0) sets.push({kg:+st.kg||0, reps:+st.reps||0, secs:+st.secs||0}); }); }); if(sets.length) out.push({date:se.date, ts:se.ts, sets:sets}); }); return out; }
 
 export async function openClient(id){
-  CoachState.coachSel=id; CoachState.coachData={loading:true}; CoachState.coachDailySel=null; CoachState.coachCkSel=null; CoachState.coachSessSel=null; CoachState.coachSalidaSel=null; CoachState.notifDraft=""; CoachState.notifSending=false; CoachState.coachDayFilter=null; CoachState.coachEditDay=0; renderCoach();
+  CoachState.coachSel=id; CoachState.coachData={loading:true}; CoachState.coachDailySel=null; CoachState.coachCkSel=null; CoachState.coachSessSel=null; CoachState.coachCal={}; CoachState.coachSalidaSel=null; CoachState.notifDraft=""; CoachState.notifSending=false; CoachState.coachDayFilter=null; CoachState.coachEditDay=0; renderCoach();
   try{
     // Todas las lecturas del cliente salen juntas (antes iban de a una).
     const sb=State.sb;
