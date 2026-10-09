@@ -200,9 +200,11 @@ case "$1 $2" in
   *) exit 2;;
 esac`;
   const ahora = Date.now(), DIA = 864e5;
-  const publicar = (cambios = {}, env = {}) => {
+  // cambios: { slug: fecha | null (no está) | { status, updated_at } }; extra: más filas de la lista.
+  const publicar = (cambios = {}, env = {}, extra = []) => {
     const fechas = Object.assign(Object.fromEntries(FNS.map(n => [n, ahora])), cambios);
-    const lista = Object.entries(fechas).filter(([, v]) => v !== null).map(([slug, v], i) => ({ id: 'id' + i, slug, name: slug, status: 'ACTIVE', version: 7, updated_at: v }));
+    const lista = Object.entries(fechas).filter(([, v]) => v !== null)
+      .map(([slug, v], i) => Object.assign({ id: 'id' + i, slug, name: slug, status: 'ACTIVE', version: 7, updated_at: ahora }, typeof v === 'object' ? v : { updated_at: v })).concat(extra);
     const r = correr(fun, { archivos: { 'supabase/functions/notificar-cliente/index.ts': '// chat', '.lista.json': JSON.stringify(lista) }, programas: { supabase },
       env: d => Object.assign({ PROJECT_REF: 'proyecto', LISTA: path.join(d, '.lista.json') }, env) });
     r.deploys = r.log.split('\n').filter(l => l.startsWith('functions deploy ')).map(l => l.split(' ')[2]);
@@ -221,6 +223,13 @@ esac`;
   const corta = publicar({ admin: ahora - 2 * DIA }, { FALLA: 'admin' });
   t.eq(corta.deploys, FNS, 'si una no se puede publicar, sigue con las demás');
   t.ok(corta.code !== 0 && /admin/.test(corta.out), 'y al final falla nombrándola: ' + corta.out.trim());
+  // Las borradas pueden seguir en la lista como REMOVED (la CLI también las saltea): no cuentan.
+  const borrada = publicar({ 'notificar-cliente': { status: 'REMOVED', updated_at: ahora - 30 * DIA } });
+  t.eq(borrada.code, 0, 'una que no sale del repo pero ya se borró (REMOVED) no lo hace fallar: ' + borrada.out.trim().split('\n').pop());
+  const copia = publicar({}, {}, [{ id: 'vieja', slug: 'admin', name: 'admin', status: 'REMOVED', version: 2, updated_at: ahora - 90 * DIA }]);
+  t.eq(copia.code, 0, 'ni una copia borrada de una del repo: ' + copia.out.trim().split('\n').pop());
+  const frenada = publicar({ descanso: { status: 'THROTTLED' } });
+  t.ok(frenada.code !== 0 && /descanso: está frenada por Supabase/.test(frenada.out), 'si una está frenada falla y lo dice en castellano: ' + frenada.out.trim());
 
   // 6) Tarea «secrets»: cada clave de Apple sube con su Key ID y con APPLE_TEAM_ID. Si falta uno no
   //    se carga nada: iría vacío y pisaría el de Supabase (se cortan los avisos a iPhone).
