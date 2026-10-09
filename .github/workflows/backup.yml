@@ -12,16 +12,18 @@
 #      archivo no sirve para nada.
 #   3. La restaura en una base vacía y compara cuántas filas tiene cada tabla con la original.
 #      Si falta algo, la ejecución sale en rojo.
-#   4. Permisos de las funciones: la copia los lleva (GRANT/REVOKE) y además se guarda, cifrado
-#      igual, permisos-AAAA-MM-DD.sql, que los vuelve a cerrar después de restaurar. Antes la
-#      copia iba sin permisos (--no-privileges) y, al restaurarla, las funciones internas que
-#      cuida solo un REVOKE (tomar_avisos_vence, pasos_totales, product_off_lookup,
-#      cron_secret…) quedaban abiertas para cualquiera con la clave pública de la app. Aun con
-#      los permisos en la copia no alcanza: en Supabase todo lo que se crea en public nace
-#      abierto para anon y authenticated, y la copia no lo deshace (por eso el .sql).
+#   4. Permisos de las funciones y de las tablas: la copia los lleva (GRANT/REVOKE) y además se
+#      guarda, cifrado igual, permisos-AAAA-MM-DD.sql, que los vuelve a dejar como en la original
+#      después de restaurar. Antes la copia iba sin permisos (--no-privileges) y, al
+#      restaurarla, las funciones internas que cuida solo un REVOKE (tomar_avisos_vence,
+#      pasos_totales, product_off_lookup, cron_secret…) quedaban abiertas para cualquiera con la
+#      clave pública de la app. Aun con los permisos en la copia no alcanza: en Supabase todo lo
+#      que se crea en public nace abierto para anon y authenticated, y la copia no lo deshace
+#      (por eso el .sql). Lo mismo con las tablas: products volvía a mostrar quién cargó cada
+#      producto (created_by, photo_path), y las tablas cerradas con un REVOKE quedaban abiertas.
 #      Después de subir la copia se prueba en la base de prueba, abierta igual que Supabase,
-#      que con ese .sql ninguna función queda más abierta que en la original; si no, la
-#      ejecución sale en rojo (la copia ya quedó subida).
+#      que con ese .sql ninguna función, tabla ni columna queda más abierta que en la original;
+#      si no, la ejecución sale en rojo (la copia ya quedó subida).
 #   El archivo queda 21 días en la ejecución (Artifacts → backup-base): alcanza para tener
 #   las últimas 3 copias semanales sin dejar meses de copias a disposición.
 #
@@ -43,7 +45,8 @@
 # hay_avisos_vence, pasos_totales, product_off_lookup, cron_secret, release_lapsed_clients,
 # queue_inactivity_alerts, queue_deload_alerts) digan anon=false y auth=false. Con una copia
 # que no trae permisos-…sql (las de antes de octubre de 2026), volver a correr los archivos de
-# supabase/ de esas funciones (tienen el REVOKE) y revisar lo mismo.
+# supabase/ de esas funciones y de las tablas con un REVOKE (por ejemplo,
+# productos-off-servidor.sql) y revisar lo mismo.
 #
 # El log es PÚBLICO: no se imprime ningún dato ni cuántas filas tiene cada tabla, solo si
 # cada una llegó completa.
@@ -65,21 +68,48 @@ jobs:
       DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       PASS: ${{ secrets.BACKUP_PASSWORD }}
       PG: docker run --rm --network host -v ${{ github.workspace }}/out:/out -e PGPASSWORD=prueba postgres:18
-      # Funciones de public y si anon y authenticated las pueden llamar (nombre|anon|auth).
+      # Qué pueden anon y authenticated en public (nombre|anon|auth): llamar cada función y cada
+      # permiso de cada tabla (y vista) y de cada columna.
       PERMISOS: >-
-        select p.oid::regprocedure, has_function_privilege('anon', p.oid, 'execute'),
+        select p.oid::regprocedure::text, has_function_privilege('anon', p.oid, 'execute'),
         has_function_privilege('authenticated', p.oid, 'execute')
         from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prokind = 'f'
-      # El .sql que las vuelve a cerrar: a la que anon (o authenticated) no podía llamar, se le
-      # saca el permiso a public y a ese rol. No da ningún permiso nuevo.
+        union all select format('%s %s', c.relname, v), has_table_privilege('anon', c.oid, v), has_table_privilege('authenticated', c.oid, v)
+        from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        cross join unnest(array['select', 'insert', 'update', 'delete', 'truncate', 'references', 'trigger']) v
+        where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f')
+        union all select format('%s.%s %s', c.relname, a.attname, v), has_column_privilege('anon', c.oid, a.attnum, v),
+        has_column_privilege('authenticated', c.oid, a.attnum, v)
+        from pg_attribute a join pg_class c on c.oid = a.attrelid join pg_namespace n on n.oid = c.relnamespace
+        cross join unnest(array['select', 'insert', 'update', 'references']) v
+        where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f') and a.attnum > 0 and not a.attisdropped
+      # El .sql que deja todo como en la original, sin dar nada que la original no diera:
+      #   · a la función que anon (o authenticated) no podía llamar, se le saca el permiso a public
+      #     y a ese rol;
+      #   · a cada tabla se le saca todo a anon y authenticated y se les vuelve a dar exactamente lo
+      #     que tenían en la original (relacl y attacl). Sacar el permiso de la tabla también saca
+      #     el de las columnas: por eso van después, de a una.
       CERRAR: >-
-        select format('revoke execute on function %I.%I(%s) from public, %s;', n.nspname, p.proname,
+        select s from (
+        select 1 as o, format('revoke execute on function %I.%I(%s) from public, %s;', n.nspname, p.proname,
         pg_get_function_identity_arguments(p.oid), concat_ws(', ',
         case when not has_function_privilege('anon', p.oid, 'execute') then 'anon' end,
-        case when not has_function_privilege('authenticated', p.oid, 'execute') then 'authenticated' end))
+        case when not has_function_privilege('authenticated', p.oid, 'execute') then 'authenticated' end)) as s
         from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prokind = 'f'
         and not (has_function_privilege('anon', p.oid, 'execute') and has_function_privilege('authenticated', p.oid, 'execute'))
-        order by 1
+        union all select 2, format('revoke all on table %I.%I from anon, authenticated;', n.nspname, c.relname)
+        from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f')
+        union all select 3, format('grant %s on table %I.%I to %I;', string_agg(distinct a.privilege_type, ', '), n.nspname, c.relname, r.rolname)
+        from pg_class c join pg_namespace n on n.oid = c.relnamespace cross join aclexplode(c.relacl) a join pg_roles r on r.oid = a.grantee
+        where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f') and r.rolname in ('anon', 'authenticated')
+        group by n.nspname, c.relname, r.rolname
+        union all select distinct 4, format('grant %s (%I) on table %I.%I to %I;', a.privilege_type, t.attname, n.nspname, c.relname, r.rolname)
+        from pg_attribute t join pg_class c on c.oid = t.attrelid join pg_namespace n on n.oid = c.relnamespace
+        cross join aclexplode(t.attacl) a join pg_roles r on r.oid = a.grantee
+        where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f') and r.rolname in ('anon', 'authenticated')
+        and t.attnum > 0 and not t.attisdropped
+        ) x order by o, s
       # Tablas que se comparan después de restaurar.
       TABLAS: >-
         auth.users public.profiles public.routines public.sessions public.session_entries
@@ -116,7 +146,8 @@ jobs:
             --exclude-table-data='auth.mfa_challenges' --exclude-table-data='auth.mfa_amr_claims' \
             -f /out/backup.dump
           while read -r t a; do echo "$t $a $(contar $t)" >> out/filas.txt; done < out/antes.txt
-          # Permisos de las funciones (ver arriba, punto 4). Si no se pueden leer, la copia sigue.
+          # Permisos de las funciones y las tablas (ver arriba, punto 4). Si no se pueden leer, la
+          # copia sigue.
           $PG psql "$DB_URL" -Atc "$PERMISOS" 2>/dev/null | sort -t '|' -k1,1 > out/permisos.txt || true
           $PG psql "$DB_URL" -Atc "$CERRAR" > out/permisos.sql 2>/dev/null || rm -f out/permisos.sql
 
@@ -132,6 +163,7 @@ jobs:
             create schema if not exists extensions;
             create extension if not exists pgcrypto with schema extensions;
             create extension if not exists \"uuid-ossp\" with schema extensions;
+            alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
             alter default privileges in schema public grant all on functions to anon, authenticated, service_role;"
           # Algunos objetos propios de Supabase no existen en un Postgres común: esos errores
           # se ignoran; lo que importa es que lleguen todas las filas.
@@ -156,7 +188,7 @@ jobs:
             printf '%s' "$PASS" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
               --symmetric --cipher-algo AES256 --s2k-mode 3 --s2k-digest-algo SHA512 --s2k-count 65011712 \
               -o "out/permisos-$(date -u +%F).sql.gpg" out/permisos.sql
-          else echo "::warning::No se pudieron leer los permisos de las funciones: esta copia va sin permisos-…sql"; fi
+          else echo "::warning::No se pudieron leer los permisos: esta copia va sin permisos-…sql"; fi
           rm -f out/backup.dump out/filas.txt out/antes.txt
           ls out/*.gpg
 
@@ -167,9 +199,10 @@ jobs:
           retention-days: 21
 
       # Después de subir la copia (si esto falla, la copia igual quedó): con permisos.sql, en la
-      # base de prueba abierta como Supabase, ninguna función de public queda más abierta que en
-      # la original. El log muestra solo nombres de funciones (están en el repo), ningún dato.
-      - name: Probar los permisos de las funciones
+      # base de prueba abierta como Supabase, ninguna función, tabla ni columna de public queda
+      # más abierta que en la original. El log muestra solo nombres de funciones, tablas y
+      # columnas (están en el repo), ningún dato.
+      - name: Probar los permisos de las funciones y las tablas
         run: |
           if [ ! -s out/permisos.txt ] || [ ! -s out/permisos.sql ]; then echo "- no se pudieron leer de la original (se saltea)"; exit 0; fi
           $PG psql -h localhost -U postgres -q -f /out/permisos.sql > /dev/null 2>&1 || true
@@ -177,7 +210,7 @@ jobs:
           abiertas=$(join -t '|' out/permisos.txt out/permisos-copia.txt | awk -F'|' '($4 == "t" && $2 == "f") || ($5 == "t" && $3 == "f") { print $1 }')
           rm -f out/permisos.sql out/permisos.txt out/permisos-copia.txt
           if [ -n "$abiertas" ]; then echo "::error::Restauradas quedan abiertas: $(echo "$abiertas" | paste -sd ';' -)"; exit 1; fi
-          echo "OK permisos de las funciones"
+          echo "OK permisos de las funciones y las tablas"
 
       - name: Apagar la base de prueba
         if: always()
