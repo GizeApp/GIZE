@@ -1,13 +1,15 @@
 -- Panel de administrador → Productos: buscar en toda la base compartida, agregar productos
 -- nuevos (quedan como de GIZE y verificados) y borrar los que no van.
 -- Correr con el workflow "Supabase" → tarea sql → supabase/productos-admin.sql. Se puede
--- correr varias veces. Va después de productos.sql, productos-off.sql y admin.sql.
+-- correr varias veces. Va después de productos.sql, productos-off.sql, productos-revision.sql y
+-- admin.sql, y antes de pedidos-productos.sql y productos-off-servidor.sql.
 
 -- Igual que en productos-revision.sql y productos-off.sql, pero un administrador puede cargar
 -- productos sin el tope diario y con el origen y la verificación que elige. A los usuarios se
 -- les sigue forzando todo, incluida la foto de la tabla (productos-off.sql la había perdido):
 -- sin foto un producto cargado a mano no pasa por la revisión del panel. Y uno "de Open Food
--- Facts" tiene que traer su código de barras.
+-- Facts" tiene que traer su código de barras. La fecha la pone el servidor: el tope de 40 por
+-- día cuenta por created_at, y con una fecha vieja mandada a mano no contaba nunca.
 create or replace function public.products_before()
 returns trigger language plpgsql set search_path = public as $$
 begin
@@ -19,6 +21,7 @@ begin
     -- Lo que llega de la app nunca viene verificado, oculto ni con usos, reportes o escaneos.
     if auth.uid() is not null and not public.is_app_admin() then
       new.verified := false; new.hidden := false; new.uses := 0; new.reports := 0; new.scans := 0; new.created_by := auth.uid();
+      new.created_at := now();
       if new.source is distinct from 'off' then new.source := 'user'; end if;
       if new.source = 'user' and (new.photo_path is null or split_part(new.photo_path, '/', 1) <> auth.uid()::text) then
         raise exception 'Falta la foto de la tabla nutricional.' using errcode = '22023';
