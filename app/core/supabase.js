@@ -288,15 +288,22 @@ function takePendingCode(){
   try{ localStorage.removeItem(PENDING_CODE); }catch(e){}
   return (v && v.c && Date.now()-(v.t||0) < 2*3600000) ? v.c : null;
 }
+// Lo de la cuenta que queda en el dispositivo fuera del estado y el perfil: los recorridos y la
+// salida de Cardio en curso, y los borradores de rutina de los alumnos de un coach (coach/index.js).
+function accountKeys(){
+  let drafts=[]; try{ drafts=Object.keys(localStorage).filter(k=>k.indexOf("gize_rt_draft_")===0); }catch(e){}
+  return [TRACK_KEY].concat(runKeys(), drafts);
+}
 // Al cerrar sesión o borrar la cuenta: lo que quedó de esa cuenta en el dispositivo además de
 // los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso,
 // avisos de los hábitos, la salida de Cardio en curso, el cronómetro y el temporizador de
-// Cardio, los recorridos guardados y la imagen de la última salida compartida).
+// Cardio, los recorridos guardados, la imagen de la última salida compartida y los borradores
+// de rutina del coach).
 export function clearAccountLeftovers(uid){
   clearHabitAlarms();
   deleteShareFile();
   try{
-    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, RECOVERY_PENDING, "gize_auth_link_used", "gize_rest_timer", "gize_cardio_clock", TRACK_KEY].concat(runKeys()).forEach(k=>localStorage.removeItem(k));
+    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, RECOVERY_PENDING, "gize_auth_link_used", "gize_rest_timer", "gize_cardio_clock"].concat(accountKeys()).forEach(k=>localStorage.removeItem(k));
     if(uid){ [OUTBOX_KEY, OUTBOX_FAILED_KEY].forEach(k=>{ const q=readQueue(k).filter(i=>i.uid!==uid); if(q.length) writeQueue(k,q); else localStorage.removeItem(k); }); }
   }catch(e){}
 }
@@ -854,11 +861,13 @@ export async function afterLogin(sessionUser, stale){
     // También lo de Cardio de la otra cuenta: la salida en curso (y su GPS), los recorridos
     // guardados y la imagen compartida. Si no, al recargar se retomaría su salida en esta cuenta.
     stopForLogout(); deleteShareFile();
-    try{ localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); [TRACK_KEY].concat(runKeys()).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+    try{ [KEY, PROFILE_KEY].concat(accountKeys()).forEach(k=>localStorage.removeItem(k)); }catch(e){}
     location.reload(); return;
   }
   if(State.cloudUser && state.ownerUid!==State.cloudUser.id){ state.ownerUid=State.cloudUser.id; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
-  try{ localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
+  // Sesión sin «Mantener la sesión» (vive solo en esta pestaña): se anota de quién son los datos,
+  // para borrarlos la próxima vez que GIZE abra sin sesión (ver clearEndedSession).
+  try{ if(State.cloudUser && State.sb && sessionStorage.getItem(State.sb.auth.storageKey)!=null) localStorage.setItem(EPHEMERAL_KEY, State.cloudUser.id); else localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
   // Sin sesión viva (_staleBoot) getUser() y el envío de la cola esperarían los ~30 s de
   // reintentos de la librería con la pantalla vacía: se saltean y salen cuando se renueva
   // el token (watchAuth → flushOutbox + retryCloud).
@@ -2012,6 +2021,25 @@ async function showMailConfirmed(loading){
   }
 }
 
+// Sesión sin «Mantener la sesión» que ya terminó (se cerró la pestaña o la app sin «Salir»): al
+// volver a abrir GIZE sin sesión se borra lo de esa cuenta en este dispositivo, para que quien lo
+// use después no lo pueda leer. Queda lo que todavía no llegó a la cuenta (como localUnsynced):
+// la cola de envío, que va por usuario, y la rutina propia cambiada sin subir. Si esa cuenta
+// vuelve a entrar, se sube. Devuelve true si borró algo (lo que hay en memoria es lo viejo).
+async function clearEndedSession(){
+  let uid=""; try{ uid=localStorage.getItem(EPHEMERAL_KEY)||""; localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
+  if(!uid) return false;
+  let prof=null; try{ const c=JSON.parse(localStorage.getItem(PROFILE_KEY)||"null"); if(c && c.uid===uid) prof=c.profile; }catch(e){}
+  const own=!(prof && (prof.role==="coach" || prof.coach_id)) && onRegular() && state.ownerUid===uid && state.routineHash!==routineHash(state.days);
+  try{
+    if(own) localStorage.setItem(KEY, JSON.stringify({ ownerUid:uid, days:state.days, routineHash:state.routineHash, routineEditedAt:state.routineEditedAt }));
+    else localStorage.removeItem(KEY);
+    [PROFILE_KEY, "gize_rest_timer", "gize_cardio_clock"].concat(accountKeys()).forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+  await Promise.race([Promise.all([clearHabitAlarms(), deleteShareFile()]).catch(()=>{}), new Promise(r=>setTimeout(r, 2000))]);
+  return true;
+}
+
 export async function cloudBoot(){
   await ensureSb();
   // Sin la librería de Supabase no hay cuenta: antes se mostraba la app igual, "sin
@@ -2099,6 +2127,7 @@ export async function cloudBoot(){
     // venció del todo): antes se veía «Ingresar» sin explicación.
     else if(stored) showLogin(LOST_MSG, "in", {email:stored.user.email||""});
     else {
+      if(await clearEndedSession()){ location.reload(); return; }
       // Links de la landing: #registro abre "Crear cuenta" y #registro-coach lo abre con
       // "Soy coach" ya elegido. Se limpia el # para que recargar no lo repita. En la app de
       // iPhone no hay cuentas nuevas de coach (core/tienda.js): los dos abren el de alumno.
