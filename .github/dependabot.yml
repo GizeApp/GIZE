@@ -11,3 +11,8 @@ updates:
     directory: /.github/postgres
     schedule:
       interval: monthly
+  # Pillow del workflow «Fotos de videos», con versión y hash fijos (scripts/fotos-videos-requirements.txt).
+  - package-ecosystem: pip
+    directory: /scripts
+    schedule:
+      interval: monthly
