@@ -90,7 +90,7 @@ import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
 import { ChatUnread, chatOpenFor, openChat, refreshUnread } from './ui/chat.js';
 import { signedAudioUrl, togglePlay } from './ui/grabar.js';
 import { dropExMedia } from './core/videos.js';
-import { clearVariant, setVariant, todayEx, todayExs, variantOf } from './core/variantes.js';
+import { clearVariant, dropExpiredVariants, setVariant, todayEx, todayExs, variantOf } from './core/variantes.js';
 import { appIOS, joinMsgTienda } from './core/tienda.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
@@ -121,6 +121,7 @@ export function renderApp(){
   if(State.cloudProfile && State.cloudProfile.role==="coach"){ const v=document.getElementById("view"); if(v) v.innerHTML=""; renderCoach(); return; }
   setTimeout(renderFeedback,0);
   checkDaily();
+  if(dropExpiredVariants()) save(); // variante de otro día: vuelve el peso del original (core/variantes.js)
   // Semana de descarga: si empezó o terminó (app abierta de un día a otro, o sin señal), cambia
   // de rutina con lo guardado del bloque; la nube lo confirma cuando carga.
   // Con la ventana de «¡Entreno terminado!» abierta todavía no: «Seguir entrenando» tiene que
