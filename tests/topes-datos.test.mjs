@@ -36,6 +36,18 @@ export default async function ({ base, t }){
     t.ok(sql.includes('alter table public.' + tab + ' add constraint ' + con + ' check (' + expr + ') not valid;'), tab + ': tope de tamaño (' + expr + ')');
   }
 
+  // La lista final mide como el CHECK cuando la app vuelve a guardar (sin comprimir: lo guardado
+  // puede estar comprimido y parecer chico) y trae solo las tablas con filas que se pasan, así en
+  // el log «Filas devueltas: 0» quiere decir que no hay ninguna.
+  const fin = sql.slice(sql.lastIndexOf('select * from ('));
+  t.ok(/\) x where se_pasan > 0;\s*$/.test(fin), 'la lista final trae solo las tablas con filas que se pasan');
+  for (const [tab, col, max] of [['routines', 'days', 500000], ['routine_templates', 'days', 500000], ['routine_schedule', 'days', 500000],
+    ['coach_questions', 'daily', 100000], ['coach_questions', 'checkin', 100000], ['daily_logs', 'answers', 100000]])
+    t.ok(fin.includes('from public.' + tab + ' ') && fin.includes('pg_column_size(' + col + '::text::jsonb) > ' + max), 'lista: ' + tab + '.' + col + ' sin comprimir');
+  for (const [tab, max] of [['client_info', 200000], ['nutrition', 1000000]])
+    t.ok(new RegExp('pg_column_size\\(jsonb_populate_record\\(null::public\\.' + tab + ', to_jsonb\\(\\w\\)\\)\\) > ' + max).test(fin), 'lista: ' + tab + ', la fila entera sin comprimir');
+  t.ok(!/pg_column_size\((days|daily|checkin|answers|c\.\*|n\.\*)\) >/.test(fin), 'lista: ya no mide lo guardado (comprimido)');
+
   // Margen: el plan de comidas guardado más grande entra en el del alumno, y las rutinas que trae
   // la app pesan mucho menos que el tope.
   const tpl = +((read('supabase/planes-alimenticios-guardados.sql').match(/pg_column_size\(plan\) <= (\d+)/) || [])[1] || 0);
