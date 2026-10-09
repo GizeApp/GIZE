@@ -100,7 +100,7 @@ export function showLogin(msg, mode, vals){
 
 // Recuperar la contraseña, en tres pasos:
 //   "forgot"  pide el mail y manda el mail de recuperación.
-//   "code"    pide el código de 6 números que trae ese mail. Sirve en cualquier celular o
+//   "code"    pide el código que trae ese mail. Sirve en cualquier celular o
 //             navegador: el link del mail, en cambio, solo funciona donde se pidió (en la web
 //             por seguridad, ver LINK_REFUSED en core/supabase.js; en la app por el PKCE), y
 //             quien lo abría desde Gmail en otro navegador o en la compu quedaba trabado.
@@ -127,8 +127,8 @@ function showPasswordReset(msg, mode, vals){
   const link=(action, text)=>'<div class="auth-switch" data-auth="'+action+'" role="button" tabindex="0" style="animation-delay:'+nextDelay()+'">'+text+'</div>';
   const sub = isNew ? "Elegí tu contraseña nueva" : isCode ? "Código del mail" : "Recuperar contraseña";
   const note = isNew ? ""
-    : isCode ? (askEmail ? 'Escribí el mail de tu cuenta y el código de 6 números del mail que te mandamos. Funciona en este celular o en cualquier otro.'
-                         : 'Escribí el código de 6 números que te mandamos'+(email?' a <b>'+esc(email)+'</b>':'')+'. Funciona en este celular o en cualquier otro.')
+    : isCode ? (askEmail ? 'Escribí el mail de tu cuenta y el código del mail que te mandamos. Funciona en este celular o en cualquier otro.'
+                         : 'Escribí el código que te mandamos'+(email?' a <b>'+esc(email)+'</b>':'')+'. Funciona en este celular o en cualquier otro.')
     : "Te mandamos un mail con un link y un código para elegir una contraseña nueva.";
   const label = isNew ? "Contraseña nueva" : isCode ? "Código del mail" : "Recuperar contraseña";
   const btn = isNew ? ["do-newpass","Guardar contraseña"] : isCode ? ["do-code","Seguir"] : ["do-forgot","Mandarme el mail"];
@@ -143,7 +143,7 @@ function showPasswordReset(msg, mode, vals){
       (isNew ? field("auPass", auIcoLock, "pass", "Contraseña nueva (mín. 6)", "password", "new-password", "")
         : isCode ? (askEmail ? field("auEmail", auIcoMail, "", "Email de tu cuenta", "email", "username", email, ' data-ask-email')
                              : '<input id="auEmail" type="hidden" value="'+esc(email)+'">')+
-                   field("auOtp", auIcoTicket, "", "Código de 6 números", "text", "one-time-code", vals.code, ' inputmode="numeric" maxlength="12" autocapitalize="off" spellcheck="false"')
+                   field("auOtp", auIcoTicket, "", "Código del mail", "text", "one-time-code", vals.code, ' inputmode="numeric" maxlength="12" autocapitalize="off" spellcheck="false"')
         : field("auEmail", auIcoMail, "", "Email de tu cuenta", "email", "username", email))+
       (msg?'<div class="auth-msg'+(isOk?" ok":"")+'" role="alert" style="animation-delay:'+nextDelay()+'">'+esc(msg)+'</div>':'')+
       '<button class="gize-btn auth-btn" data-auth="'+btn[0]+'" style="animation-delay:'+nextDelay()+'">'+btn[1]+'</button>'+

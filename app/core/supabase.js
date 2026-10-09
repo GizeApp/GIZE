@@ -89,7 +89,7 @@ const CONFIRM_LANDING = LINK_TYPE==="signup";
 // con una sesión de recuperación y hay que pedir la contraseña nueva antes de abrir la app.
 const RECOVERY_LANDING = LINK_TYPE==="recovery";
 // ---- Recuperar la contraseña ----
-// El mail trae un botón y un código de 6 números (supabase/mails/recuperar.html). El botón
+// El mail trae un botón y un código de números (supabase/mails/recuperar.html). El botón
 // lleva el token a la web como https://gize.ar/app/#recuperar=<token_hash>. Abrirlo NO lo
 // gasta: GIZE lo canjea solo si el pedido salió de este mismo navegador (RECOVERY_REQ, con el
 // mail que se escribió) y la cuenta es la de ese mail. Si no, pide el código, que sigue
@@ -99,7 +99,7 @@ const RECOVERY_LANDING = LINK_TYPE==="recovery";
 //   El token nunca viaja por gize://: cualquier app instalada puede anotarse para abrir ese
 // esquema y con el token sola (sin la clave PKCE de este celular) entraría a la cuenta.
 export const RECOVERY_REQ = "gize_recovery_req";
-const RECOVERY_TTL = 2*3600000; // el link y el código vencen en 1 hora (tarea "mails" de supabase.yml)
+const RECOVERY_TTL = 2*3600000; // el link y el código vencen en 30 minutos (tarea "mails" de supabase.yml)
 export function markRecoveryRequest(email){
   try{ localStorage.setItem(RECOVERY_REQ, JSON.stringify({ t: Date.now(), email: String(email||"").trim().toLowerCase() })); }catch(e){}
 }
@@ -168,14 +168,14 @@ export function otpErrorKind(err){
 }
 export const RECOVERY_MSG = {
   // Botón del mail abierto donde no se pidió: el código sigue sirviendo.
-  elsewhere: "Abriste el botón del mail en un navegador o celular distinto del que lo pidió, y por seguridad no se usa acá. Escribí tu mail y el código de 6 números que trae el mail: todavía sirve.",
+  elsewhere: "Abriste el botón del mail en un navegador o celular distinto del que lo pidió, y por seguridad no se usa acá. Escribí tu mail y el código que trae el mail: todavía sirve.",
   // Pedido desde la app (el token de un pedido con PKCE empieza con «pkce_»).
-  elsewhereApp: "Lo pediste desde la app de GIZE: escribí ahí el código de 6 números del mail. O terminá acá: poné tu mail y el código, elegí la contraseña nueva y después entrá a la app con esa contraseña.",
+  elsewhereApp: "Lo pediste desde la app de GIZE: escribí ahí el código del mail. O terminá acá: poné tu mail y el código, elegí la contraseña nueva y después entrá a la app con esa contraseña.",
   // Link viejo (de antes del código en el mail) que no se pudo usar acá.
   oldLink: "Ese link ya se usó al abrirlo y no sirve en este navegador o celular. Pedí un mail nuevo y, si lo vas a abrir en otro lado, escribí el código que trae.",
-  used: "Ese link ya se usó o venció (dura 1 hora y sirve una sola vez). Pedí un mail nuevo.",
-  otherAccount: "Ese link es de otra cuenta, no de la que pediste recuperar. Escribí el código de 6 números del mail que te llegó a vos.",
-  offline: "No se pudo revisar el link. Revisá tu conexión a internet y tocá el botón del mail de nuevo, o escribí el código de 6 números que trae.",
+  used: "Ese link ya se usó o venció (dura 30 minutos y sirve una sola vez). Pedí un mail nuevo.",
+  otherAccount: "Ese link es de otra cuenta, no de la que pediste recuperar. Escribí el código del mail que te llegó a vos.",
+  offline: "No se pudo revisar el link. Revisá tu conexión a internet y tocá el botón del mail de nuevo, o escribí el código que trae.",
   rate: "Probaste muchas veces seguidas. Esperá unos minutos y volvé a intentar.",
 };
 // Canjea el token del botón del mail (#recuperar=...). Devuelve {ok:true} con la sesión de

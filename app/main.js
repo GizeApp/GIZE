@@ -978,19 +978,19 @@ document.body.addEventListener("click", async e=>{
     }
     // Supabase no dice si el mail tiene cuenta (para no revelar quién está registrado).
     // Se pasa directo a escribir el código: anda en cualquier celular o navegador.
-    showLogin("Listo. Si ese mail tiene una cuenta en GIZE, te llega un mail con un botón y un código de 6 números. Revisá también la carpeta de spam.","code",{email:email});
+    showLogin("Listo. Si ese mail tiene una cuenta en GIZE, te llega un mail con un botón y un código. Revisá también la carpeta de spam.","code",{email:email});
     return;
   }
   if(a==="do-code"){
     const email=((document.getElementById("auEmail")||{}).value||"").trim();
     const raw=((document.getElementById("auOtp")||{}).value||"");
     const ask=!!document.querySelector('#authHost [data-ask-email]');
-    // Se aceptan espacios o guiones al pegarlo («123 456»). Supabase lo manda de 6 números
+    // Se aceptan espacios o guiones al pegarlo («123 456»). Supabase lo manda de 8 números
     // (la tarea "mails" de .github/workflows/supabase.yml lo deja fijo en 6).
     const token=raw.replace(/[\s-]/g,"");
     const again=(m)=>showLogin(m,"code",ask ? {email:email, code:raw, askEmail:true} : {email:email, code:raw});
     if(!/^[^@ ]+@[^@ ]+\.[^@ ]+$/.test(email)){ again("Poné el mail de tu cuenta (ej: nombre@gmail.com)."); return; }
-    if(!/^\d{6,10}$/.test(token)){ again("Escribí los 6 números del código que te llegó por mail."); return; }
+    if(!/^\d{6,10}$/.test(token)){ again("Escribí los números del código que te llegó por mail."); return; }
     b.disabled=true; b.textContent="Revisando...";
     if(!State.sb) await ensureSb();
     if(!State.sb){ again("No se pudo conectar con el servidor. Revisá tu conexión a internet y volvé a intentar."); return; }
@@ -1001,7 +1001,7 @@ document.body.addEventListener("click", async e=>{
       const k=otpErrorKind(r.error);
       again(k==="rate" ? RECOVERY_MSG.rate
         : k==="offline" ? "No se pudo revisar el código. Revisá tu conexión a internet y volvé a intentar: el código sigue sirviendo."
-        : "El código no es correcto o ya venció (dura 1 hora, sirve una sola vez y deja de servir si pediste otro mail después). Revisalo, o pedí un mail nuevo.");
+        : "El código no es correcto o ya venció (dura 30 minutos, sirve una sola vez y deja de servir si pediste otro mail después). Revisalo, o pedí un mail nuevo.");
       return;
     }
     // Ya hay sesión de recuperación: no se abre la app hasta elegir la contraseña (o cancelar).

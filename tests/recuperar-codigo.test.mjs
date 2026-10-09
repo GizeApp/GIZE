@@ -1,7 +1,7 @@
 // Recuperar la contraseña con el código del mail. El link del mail solo funciona donde se
 // pidió (en la web por seguridad, en la app por el PKCE) y quien lo abría desde Gmail en otro
 // navegador o en la compu quedaba trabado. Ahora, después de pedir el mail, la app pide el
-// código de 6 números que trae (verifyOtp type "recovery") y de ahí pasa a elegir la contraseña
+// código de números que trae (verifyOtp type "recovery") y de ahí pasa a elegir la contraseña
 // nueva, en cualquier celular o navegador. «Ya tengo un código» lleva directo a ese paso.
 // El botón del mail ya no va a Supabase (que gastaba el token al abrirlo, y con él el código):
 // llega como #recuperar=<token_hash> y se canjea solo donde se pidió y para esa cuenta; en
@@ -54,7 +54,7 @@ export default async function ({ base, t }){
 
     // Corto: no se manda.
     await p.fill('#auOtp', '123'); await p.click('[data-auth="do-code"]'); await wait(300);
-    t.has(await msg(p), '6 números', 'un código incompleto pide los 6 números');
+    t.has(await msg(p), 'números del código', 'un código incompleto pide los números del código');
     t.eq(s.log.verify.length, 0, 'y no se manda a Supabase');
     t.eq(await p.inputValue('#auOtp'), '123', 'lo escrito queda en el campo');
 
