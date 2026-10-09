@@ -106,6 +106,18 @@ function plugin(name){
 }
 const bgPlugin = () => isNative() && !appAndroid() ? plugin("BackgroundGeolocation") : null;
 
+// El canal de notificaciones «Salidas de Cardio» que el plugin de ubicación creaba en cada arranque
+// de las versiones de la app de Android que tenían GPS. Android no lo borra al actualizar y quedaba
+// en Ajustes › Apps › GIZE › Notificaciones: la app de Android lo borra una vez (con el plugin de
+// notificaciones; si no existe, no pasa nada). Si falla, se prueba en el próximo arranque.
+const OLD_CHANNEL = "com.equimaps.capacitor_background_geolocation", OLD_CHANNEL_KEY = "gize_canal_salidas_borrado";
+function dropOldChannel(){
+  try { if (localStorage.getItem(OLD_CHANNEL_KEY) === "1") return; } catch (e) { return; }
+  const LN = plugin("LocalNotifications"); if (!LN) return;
+  Promise.resolve().then(() => LN.deleteChannel({ id: OLD_CHANNEL }))
+    .then(() => { try { localStorage.setItem(OLD_CHANNEL_KEY, "1"); } catch (e) {} }, () => {});
+}
+
 // Id de la salida: uuid, el mismo que después va a la nube. (Es newId() de core/supabase.js;
 // no se importa para no sumarle dependencias a este módulo, que main.js carga temprano.)
 function newId(){
@@ -683,8 +695,9 @@ function readSaved(){
 }
 (function restore(){
   // App nativa: primero se sacan los watchers que quedaron de antes de recargar (ver nids). En la
-  // de Android no hay plugin: solo se olvida la lista que pudo quedar de una versión anterior.
-  if (appAndroid()) setNids([]);
+  // de Android no hay plugin: solo se olvida la lista que pudo quedar de una versión anterior y se
+  // borra el canal de notificaciones que dejó (dropOldChannel).
+  if (appAndroid()){ setNids([]); dropOldChannel(); }
   else if (isNative()) orphans = dropOrphans();
   let got = null;
   try { got = readSaved(); } catch (e) { console.warn("No se pudo leer la salida en curso.", e); clearKeys(); }

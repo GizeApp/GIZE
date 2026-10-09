@@ -12,6 +12,8 @@
 //    watchers que había quedado anotada se olvida sin llamar al plugin. Sus coordenadas no salen
 //    del celular: sube sin recorrido (points 0) y no queda en la caché. Lo mismo con una salida
 //    de antes que había quedado en la cola de envío con su recorrido.
+//    El canal de notificaciones «Salidas de Cardio» que creaba el plugin de ubicación (y Android no
+//    borra al actualizar) se borra una sola vez; en el iPhone y en la web nunca se toca.
 // c) Con el puente de Android (window.androidBridge) aunque Capacitor no esté: igual.
 // d) Coach en la app de Android: la salida del alumno solo con sus números, sin pedir el recorrido.
 // e) La app de iPhone sigue igual: «Salir a moverte» y el recorrido de la salida (se pide).
@@ -227,6 +229,28 @@ async function coach(base, t, TRACK){
   await pg.close();
 }
 
+// El canal de notificaciones que dejó el plugin de ubicación: se borra una vez, solo en Android.
+const CANAL = 'com.equimaps.capacitor_background_geolocation';
+const LN_ESPIA = `window.__ln = []; window.__LN = new Proxy({}, { get: (o, k) => k === 'then' ? undefined : a => { window.__ln.push([String(k), a]); return Promise.resolve({}); } });`;
+async function canal(base, t){
+  for (const plat of ['android', 'ios', 'web']){
+    const cap = plat === 'web' ? `window.Capacitor = { isNativePlatform: () => false, getPlatform: () => 'web', Plugins: { LocalNotifications: window.__LN } };`
+      : `window.Capacitor = { isNativePlatform: () => true, getPlatform: () => '${plat}', isPluginAvailable: () => true, Plugins: { LocalNotifications: window.__LN, BackgroundGeolocation: window.__bg, App: ${APP} } };`;
+    const pg = await newPage({ user: ALUMNO, state: STATE, init: `(${ESPIAS})();` + LN_ESPIA + cap + COMPLETA, handlers: { '/profiles': profile('client') } });
+    const borrados = () => pg.p.evaluate(() => window.__ln.filter(x => x[0] === 'deleteChannel'));
+    await pg.p.goto(base + '/app/'); await wait(2000);
+    const una = await borrados();
+    await pg.p.reload(); await wait(2000);
+    const otra = await borrados();
+    if (plat === 'android'){
+      t.eq(una, [['deleteChannel', { id: CANAL }]], 'Android: al abrir se borra el canal «Salidas de Cardio» del plugin de ubicación');
+      t.eq(otra, [], 'Android: una sola vez (al volver a abrir ya no)');
+    } else t.eq([una, otra], [[], []], plat + ': nunca se toca ese canal');
+    t.eq(pg.errs, [], 'errores de la página (canal, ' + plat + ')');
+    await pg.close();
+  }
+}
+
 // La app de iPhone, igual que siempre (el control de las pruebas de arriba).
 async function iphone(base, t, TRACK){
   const S = { rows: [ROW(ALUMNO.id)], reqs: [] };
@@ -298,4 +322,5 @@ export default async function ({ base, t }){
   await puente(base, t);
   await coach(base, t, TRACK);
   await iphone(base, t, TRACK);
+  await canal(base, t);
 }
