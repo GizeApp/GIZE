@@ -8,12 +8,16 @@
 export const APNS_TTL = 40 * 60_000;
 
 // sign: firma un token nuevo (null si faltan las claves: no se guarda y se prueba la próxima vez).
+// Se guarda la firma en curso: varios mensajes que llegan juntos (una ráfaga) usan la misma y
+// no firman uno cada uno.
 export function tokenCache(sign: () => Promise<string | null>, ttl = APNS_TTL, now = () => Date.now()): () => Promise<string | null> {
-  let tok: { jwt: string; at: number } | null = null;
-  return async () => {
+  let tok: { jwt: Promise<string | null>; at: number } | null = null;
+  return () => {
     if (tok && now() - tok.at < ttl) return tok.jwt;
-    const jwt = await sign();
-    tok = jwt ? { jwt, at: now() } : null;
-    return jwt;
+    const mine = { jwt: sign(), at: now() };
+    tok = mine;
+    // Sin claves o con error no queda guardado: el próximo mensaje vuelve a probar.
+    mine.jwt.then((j) => { if (!j && tok === mine) tok = null; }, () => { if (tok === mine) tok = null; });
+    return mine.jwt;
   };
 }
