@@ -4,9 +4,10 @@
 //   app Salud) en un cuadrado redondeado, el título, «Tus pasos se cargan solos…» y la flecha.
 // · Conectando (pidiendo el permiso): «Conectando…», desactivado.
 // · Conectado: una fila con el tilde verde, «Conectado a …», «Actualizar ahora» y «Desconectar».
+//   Si la última lectura falló, abajo dice qué revisar (core/salud.js → saludError).
 // Los toques van con data-pg y los atiende screens/pasos.js (un solo lugar para los dos).
 // Estilos: css/screens/pasos.css (.salud-btn, .salud-ok).
-import { SaludState, plataforma, saludDisponible, saludNombre, saludPrendida } from '../core/salud.js';
+import { SaludState, plataforma, saludDisponible, saludError, saludNombre, saludPrendida } from '../core/salud.js';
 import { esc } from '../core/utils.js';
 import { checkSvg, chevronRightSvg, heartPulseSvg } from '../core/icons.js';
 
@@ -23,7 +24,7 @@ export function saludHtml(){
         '<button type="button" class="pg-link" data-pg="salud-sync"' + (b ? " disabled" : "") + '>' + (b ? "Actualizando…" : "Actualizar ahora") + '</button>' +
         '<span class="salud-ok-sep" aria-hidden="true">·</span>' +
         '<button type="button" class="pg-link" data-pg="salud-off">Desconectar</button>' +
-      '</span></div>';
+      '</span>' + (!b && saludError() ? '<span class="salud-ok-err" role="status">' + esc(saludError()) + '</span>' : '') + '</div>';
   }
   const c = SaludState.connecting;
   return '<button type="button" class="salud-btn salud-' + so + '" data-pg="salud-on"' + (c ? ' disabled aria-busy="true"' : "") + '>' +

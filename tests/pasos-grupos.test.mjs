@@ -288,7 +288,7 @@ export default async function ({ base, t }){
         Health: {
           isAvailable: async () => ({ available: true, platform: 'android' }),
           requestAuthorization: async o => { window.__health.pedidos.push(o); return { readAuthorized: ['steps'], readDenied: [], writeAuthorized: [], writeDenied: [] }; },
-          readSamples: async o => { window.__health.lecturas.push(o); return { samples: [
+          readSamples: async o => { window.__health.lecturas.push(o); if (window.__health.falla) throw new Error('SecurityException: falta el permiso READ_STEPS'); return { samples: [
             { dataType: 'steps', value: 4000, unit: 'count', startDate: hoy.toISOString(), endDate: hoy.toISOString(), sourceId: 'android' },
             { dataType: 'steps', value: 3000, unit: 'count', startDate: hoy.toISOString(), endDate: hoy.toISOString(), sourceId: 'com.android.healthconnect.phone.x' },
             { dataType: 'steps', value: 6500, unit: 'count', startDate: hoy.toISOString(), endDate: hoy.toISOString(), sourceId: 'com.reloj' },
@@ -330,6 +330,19 @@ export default async function ({ base, t }){
     await abrirPasos(p);
     t.ok(!!(await p.$('[data-pg="salud-off"]')), 'con «Desconectar»');
     t.ok(dialogs.length === 1 && /solo el total de la semana/.test(dialogs[0]), 'antes del permiso explica qué se lee y quién lo ve: ' + JSON.stringify(dialogs));
+    // Le sacó el permiso a GIZE en Health Connect: la lectura falla y se dice qué revisar (antes
+    // quedaba «Conectado» y «Actualizar ahora» no hacía nada).
+    await p.evaluate(() => { window.__health.falla = true; });
+    await p.click('.pg-hoy [data-pg="salud-sync"]'); await wait(800);
+    t.has(dialogs[dialogs.length - 1] || '', 'Health Connect → Permisos de apps → GIZE', 'lectura con error: avisa qué revisar');
+    t.has(await text(p, '.pg-hoy .salud-ok-err'), 'No se pudieron leer tus pasos', 'lectura con error: lo dice debajo de «Conectado»');
+    await p.click('#nav-cardio'); await wait(600);
+    t.has(await text(p, '#view .csec-pasos .salud-ok-err'), 'No se pudieron leer tus pasos', 'lectura con error: también en Cardio');
+    await p.evaluate(() => { window.__health.falla = false; });
+    const nd = dialogs.length;
+    await p.click('#view .csec-pasos [data-pg="salud-sync"]'); await wait(800);
+    t.ok(!(await p.$('.salud-ok-err')) && dialogs.length === nd, 'al volver a leer bien, se va el aviso');
+    await abrirPasos(p);
     await p.click('[data-pg="salud-off"]'); await wait(800);
     t.has(dialogs[dialogs.length - 1] || '', 'Health Connect → Permisos de apps → GIZE', 'al desconectar explica cómo quitar el permiso');
     t.ok(!!(await p.$('[data-pg="salud-on"]')), 'desconectado: vuelve a ofrecer «Conectar»');

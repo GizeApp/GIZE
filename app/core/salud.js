@@ -49,6 +49,14 @@ export function plataforma(){ try { return window.Capacitor && window.Capacitor.
 // ¿Se puede ofrecer en este celular? (app nativa con el plugin)
 export function saludDisponible(){ return !!plugin(); }
 export function saludNombre(){ return plataforma() === "ios" ? "Salud de Apple" : "Health Connect"; }
+// Qué revisar si la última lectura falló (le sacaron el permiso a GIZE, Health Connect sin
+// instalar o sin actualizar…): si no se decía, quedaba «Conectado» y los pasos no subían más.
+export function saludError(){
+  if (!SaludState.lastError) return "";
+  return plataforma() === "android"
+    ? "No se pudieron leer tus pasos. Revisá que GIZE tenga permiso en Health Connect → Permisos de apps → GIZE y que Health Connect esté instalada y actualizada. Si sigue igual, tocá «Desconectar» y volvé a conectar."
+    : "No se pudieron leer tus pasos de Salud de Apple. Probá de nuevo con «Actualizar ahora» y, si sigue igual, tocá «Desconectar» y volvé a conectar.";
+}
 
 const keyOn = () => "gize_salud_" + ((State.cloudUser && State.cloudUser.id) || "local");
 const keySent = () => "gize_salud_sent_" + ((State.cloudUser && State.cloudUser.id) || "local");

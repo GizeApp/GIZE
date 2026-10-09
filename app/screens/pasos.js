@@ -11,7 +11,7 @@ import { State, state } from '../core/state.js';
 import { esc, today } from '../core/utils.js';
 import { borrarGrupo, cambiarMiNombre, campeonGrupo, codigoValido, crearGrupo, linkInvitacion, mensajeError, misGrupos, pasosTxt,
   rankingGrupo, sacarMiembro, salirGrupo, semanaAR, textoSemana, tomarInvitacion, unirseGrupo } from '../core/grupos.js';
-import { SaludState, apagarSalud, prenderSalud, saludDisponible, syncSalud } from '../core/salud.js';
+import { SaludState, apagarSalud, prenderSalud, saludDisponible, saludError, syncSalud } from '../core/salud.js';
 import { ProgresoState } from './progreso.js';
 import { saludHtml } from '../ui/saludboton.js';
 import { renderApp } from '../main.js';
@@ -274,7 +274,10 @@ document.body.addEventListener("click", async e => {
     const p = syncSalud(true);
     if (State.view === "cardio") renderApp(); // «Actualizando…» en la sección Pasos de Cardio
     await p; refrescar();
-    if (State.view === "cardio") renderApp();
+    // Si no se pudo leer, se dice qué revisar (si no, el toque parecía no hacer nada).
+    const err = saludError();
+    if (State.view === "cardio" || err) renderApp();
+    if (err) alert(err);
     return;
   }
   if (a === "salud-off"){ alert(apagarSalud()); renderApp(); return; }
