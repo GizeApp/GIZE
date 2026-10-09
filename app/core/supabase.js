@@ -2056,8 +2056,13 @@ async function clearEndedSession(){
   let uid=""; try{ uid=localStorage.getItem(EPHEMERAL_KEY)||""; }catch(e){}
   if(!uid || await otherTabInside()) return false;
   try{ localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
+  // El dueño de los datos, como en afterLogin (sin ownerUid, el del último perfil guardado). Las
+  // versiones de antes de 761c79f anotaban "1" en vez de la cuenta: se descartaba la rutina sin subir.
+  let owner=state.ownerUid;
+  if(!owner){ try{ owner=(JSON.parse(localStorage.getItem(PROFILE_KEY)||"null")||{}).uid||null; }catch(e){} }
+  if(uid==="1" && owner) uid=owner;
   let prof=null; try{ const c=JSON.parse(localStorage.getItem(PROFILE_KEY)||"null"); if(c && c.uid===uid) prof=c.profile; }catch(e){}
-  const own=!(prof && (prof.role==="coach" || prof.coach_id)) && onRegular() && state.ownerUid===uid && state.routineHash!==routineHash(state.days);
+  const own=!(prof && (prof.role==="coach" || prof.coach_id)) && onRegular() && owner===uid && state.routineHash!==routineHash(state.days);
   try{
     if(own) localStorage.setItem(KEY, JSON.stringify({ ownerUid:uid, days:state.days, routineHash:state.routineHash, routineEditedAt:state.routineEditedAt }));
     else localStorage.removeItem(KEY);
