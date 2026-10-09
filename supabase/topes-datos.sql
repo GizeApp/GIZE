@@ -1,5 +1,5 @@
--- Tamaño máximo por fila en lo que se guarda como JSON o texto largo, y plantillas y preguntas
--- solo para coaches.
+-- Tamaño máximo por fila en lo que se guarda como JSON o texto largo, plantillas y preguntas
+-- solo para coaches, y cuántas plantillas y rutinas programadas puede haber.
 -- Antes cualquier cuenta, aunque no fuera coach, podía guardar plantillas o preguntas enormes y
 -- llenar la base (y la copia de seguridad), y un coach podía mandarle a un alumno una rutina,
 -- ficha o plan gigante que la app descarga cada vez que abre. Un alumno, lo mismo con las
@@ -49,6 +49,48 @@ create policy "coach gestiona sus preguntas" on public.coach_questions
   for all using (coach_id = auth.uid())
   with check (coach_id = auth.uid()
     and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'coach'));
+
+-- 5) Cuántas plantillas guarda un coach y cuántas rutinas programadas tiene un alumno. Con el
+--    tope de tamaño solo no alcanzaba: cualquiera se registra como coach (base.sql,
+--    handle_new_user), y podía guardar miles de plantillas de 500 KB o programarle a un alumno
+--    una rutina en cada fecha. De a una por coach o por alumno (lock), así dos a la vez no pasan.
+--    · Plantillas: 200 por coach (una biblioteca grande tiene decenas). Editar una que ya está
+--      (la app guarda con upsert) no suma.
+--    · Programadas: 60 pendientes por alumno (más de un año de cambios semanales). Las ya
+--      aplicadas no las lee nadie (la rutina ya pasó a routines): al programar otra quedan las 10
+--      más nuevas. Si no, programar para hoy (se aplica en el momento) una y otra vez las juntaba
+--      sin límite.
+create or replace function public.routine_templates_tope()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from public.routine_templates where id = new.id) then return new; end if;
+  perform pg_advisory_xact_lock(hashtextextended('routine_templates ' || new.coach_id, 0));
+  if (select count(*) from public.routine_templates where coach_id = new.coach_id) >= 200 then
+    raise exception 'Llegaste al máximo de rutinas guardadas (200). Borrá alguna para guardar otra.' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke all on function public.routine_templates_tope() from public, anon, authenticated;
+drop trigger if exists routine_templates_tope on public.routine_templates;
+create trigger routine_templates_tope before insert on public.routine_templates
+  for each row execute function public.routine_templates_tope();
+
+create or replace function public.routine_schedule_tope()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended('routine_schedule ' || new.client_id, 0));
+  delete from public.routine_schedule where id in (
+    select id from public.routine_schedule where client_id = new.client_id and applied_at is not null
+     order by applied_at desc offset 10);
+  if (select count(*) from public.routine_schedule where client_id = new.client_id and applied_at is null) >= 60 then
+    raise exception 'Este alumno ya tiene 60 rutinas programadas. Borrá alguna para programar otra.' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke all on function public.routine_schedule_tope() from public, anon, authenticated;
+drop trigger if exists routine_schedule_tope on public.routine_schedule;
+create trigger routine_schedule_tope before insert on public.routine_schedule
+  for each row execute function public.routine_schedule_tope();
 
 notify pgrst, 'reload schema';
 
