@@ -3,6 +3,8 @@
 // cada uno recorriera el resto del mail y la función quedaba trabajando hasta que la cortaban;
 // como todavía no había guardado nada, Resend lo reintentaba y pasaba lo mismo.
 // Ahora: limpieza lineal, menos texto procesado y la fila se guarda primero con el id de Resend.
+// El aviso a los administradores se anota en notified_at: si el primer intento se corta después
+// de guardar la fila, el reintento de Resend lo manda (antes no salía nunca).
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -45,5 +47,14 @@ export default async function ({ t }){
   t.ok(ins > 0 && get > ins && parse > ins, 'guarda la fila con el id de Resend antes de bajar y procesar el mail');
   t.ok(/body: "", body_missing: true \}/.test(src.slice(ins, get)), 'la fila nueva queda marcada sin texto hasta completarla');
   t.ok(/\.update\(\{ \.\.\.row, body: clip\(text, 20000\), body_missing: false \}\)\.eq\("id", rowId\)/.test(src), 'después completa esa misma fila');
-  t.ok(/if \(nuevo\) \{/.test(src), 'avisa a los administradores solo la primera vez');
+  // El aviso a los administradores: una vez por mail, también si el primer intento se cortó.
+  const up = src.indexOf('.update({ ...row, body: clip(text, 20000), body_missing: false })');
+  const marca = src.indexOf('.update({ notified_at: new Date().toISOString() })'), aviso = src.indexOf('await send(subs as Sub[]');
+  t.ok(up > 0 && marca > up && aviso > marca, 'anota el aviso después de guardar el texto y justo antes de mandarlo');
+  t.ok(/\.update\(\{ notified_at: new Date\(\)\.toISOString\(\) \}\)\s*\.eq\("id", rowId\)\.is\("notified_at", null\)\.select\("id"\);/.test(src), 'lo anota solo si todavía no estaba anotado (dos intentos a la vez avisan una vez)');
+  t.ok(/if \(ne \? nuevo : !!\(marca && marca\.length\)\) \{/.test(src), 'avisa si lo anotó este intento (sin la columna, como antes: el primero)');
+  t.ok(!/if \(!nuevo\) return json/.test(src), 'el reintento ya no vuelve antes de avisar');
+  const sql = fs.readFileSync(path.join(ROOT, 'supabase/contacto.sql'), 'utf8');
+  t.ok(/alter table public\.contact_messages add column notified_at timestamptz;\s*update public\.contact_messages set notified_at = created_at;/.test(sql)
+    && /if not exists \(select 1 from information_schema\.columns[\s\S]*?column_name = 'notified_at'\) then/.test(sql), 'contacto.sql: agrega notified_at y da por avisados los que ya estaban (solo la primera vez)');
 }

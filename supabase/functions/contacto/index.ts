@@ -215,7 +215,8 @@ Deno.serve(async (req) => {
   };
 
   // Primero se guarda la fila con el id de Resend (todavía sin el texto): si después algo se
-  // corta, el mail queda anotado y el reintento de Resend solo completa el texto.
+  // corta, el mail queda anotado y el reintento de Resend completa el texto (y avisa a los
+  // administradores si el aviso no había salido).
   let rowId = prev ? prev.id : null, nuevo = false;
   if (!prev) {
     const { data: ins, error } = await db.from("contact_messages")
@@ -243,11 +244,16 @@ Deno.serve(async (req) => {
     const text = tidy(String(full.text || "").slice(0, 50000) || htmlToText(String(full.html || "").slice(0, 200000)));
     const { error: upErr } = await db.from("contact_messages").update({ ...row, body: clip(text, 20000), body_missing: false }).eq("id", rowId);
     if (upErr) { console.error("update", upErr.message); return json({ error: "No se pudo guardar" }, 500); }
-    if (!nuevo) return json({ ok: true, completado: true });
   }
 
-  // Aviso a los administradores (solo la primera vez que llega el mail).
-  if (nuevo) {
+  // Aviso a los administradores, una vez por mail: se anota en notified_at (supabase/contacto.sql)
+  // justo antes de mandarlo. Antes salía solo en el primer intento: si ese intento se cortaba
+  // después de guardar la fila, el reintento de Resend completaba el texto y no avisaba nunca.
+  // Sin esa columna (falta correr el SQL) se avisa como antes, en el primer intento.
+  const { data: marca, error: ne } = await db.from("contact_messages").update({ notified_at: new Date().toISOString() })
+    .eq("id", rowId).is("notified_at", null).select("id");
+  if (ne && ne.code !== "PGRST204" && ne.code !== "42703") console.error("notified_at", ne.code, ne.message);
+  if (ne ? nuevo : !!(marca && marca.length)) {
     const { data: admins } = await db.from("app_admins").select("user_id");
     const ids = (admins || []).map((a) => a.user_id);
     if (ids.length) {
@@ -262,5 +268,5 @@ Deno.serve(async (req) => {
     }
   }
   // Sin el texto se contesta con error para que Resend lo vuelva a mandar más tarde.
-  return missing ? json({ error: "No se pudo leer el mail" }, 502) : json({ ok: true });
+  return missing ? json({ error: "No se pudo leer el mail" }, 502) : json(nuevo ? { ok: true } : { ok: true, completado: true });
 });
