@@ -738,19 +738,34 @@ function sameSession(a, b){
   const x=sessionIdOf(a), y=sessionIdOf(b);
   return !x || !y || x===y;
 }
+// _tabOwn: la sesión de esta pestaña está (o estuvo, en esta carga) en sessionStorage. Al
+// borrarla (Salir, o falló la renovación) la de localStorage puede ser la mantenida de otra
+// cuenta: no se borra, y esta pestaña no la toma (quedaba adentro de esa cuenta con lo de esta).
+let _tabOwn=false;
+const mainKey = k => !/-(code-verifier|user)$/.test(k);
 const authStorage = {
-  getItem(k){ try{ const s=sessionStorage.getItem(k); if(s!=null) return s; }catch(e){} try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  getItem(k){
+    try{ const s=sessionStorage.getItem(k); if(s!=null){ if(mainKey(k)) _tabOwn=true; return s; } }catch(e){}
+    if(_tabOwn && mainKey(k)) return null;
+    try{ return localStorage.getItem(k); }catch(e){ return null; }
+  },
   setItem(k, v){
     let ss=null, ls=null; try{ ss=sessionStorage.getItem(k); }catch(e){} try{ ls=localStorage.getItem(k); }catch(e){}
     const inLs=ls!=null && sameSession(ls, v);
     // La clave PKCE tiene que sobrevivir a que el sistema cierre la app mientras está en Google.
     const keep=/code-verifier$/.test(k) || (ss!=null && sameSession(ss, v) ? false : inLs || rememberSession());
     try{ (keep ? localStorage : sessionStorage).setItem(k, v); }catch(e){}
+    if(mainKey(k)) _tabOwn=!keep;
     // La copia de esta pestaña sí se borra; la de localStorage, solo si es esta misma sesión (si
     // es la de otra cuenta que eligió mantenerla, no se toca).
     try{ if(keep) sessionStorage.removeItem(k); else if(inLs) localStorage.removeItem(k); }catch(e){}
   },
-  removeItem(k){ try{ sessionStorage.removeItem(k); }catch(e){} try{ localStorage.removeItem(k); }catch(e){} }
+  // Lo mismo al borrar: antes «Salir» con la sesión de la pestaña borraba también la mantenida
+  // de otra cuenta.
+  removeItem(k){
+    let ss=null; try{ ss=sessionStorage.getItem(k); sessionStorage.removeItem(k); }catch(e){}
+    try{ const ls=localStorage.getItem(k); if(ls!=null && (ss!=null ? sameSession(ss, ls) : !(_tabOwn && mainKey(k)))) localStorage.removeItem(k); }catch(e){}
+  }
 };
 
 let _sbReady = null, _sbFailed = false;
@@ -790,8 +805,12 @@ export function ensureSb(){
 function watchAuth(sb){
   sb.auth.onAuthStateChange(ev=>{
     if(ev==="TOKEN_REFRESHED" || ev==="SIGNED_IN") setTimeout(()=>{ flushOutbox().then(()=>{ if(_staleBoot) retryCloud(); }); }, 0);
-    else if(ev==="SIGNED_OUT") setTimeout(sessionLost, 0);
+    // Un SIGNED_OUT de otra pestaña con otra cuenta (la de esta sigue guardada) no la cierra acá.
+    else if(ev==="SIGNED_OUT") setTimeout(()=>{ if(!stillStored()) sessionLost(); }, 0);
   });
+}
+function stillStored(){
+  try{ const s=JSON.parse(authStorage.getItem(State.sb.auth.storageKey)||"null"); return !!(s && s.user && State.cloudUser && s.user.id===State.cloudUser.id); }catch(e){ return false; }
 }
 // Con una cuenta adentro, un pedido a la base con la clave anónima quiere decir que la librería
 // no tiene sesión viva (token vencido que no se pudo renovar sin señal): la base lo rechaza o

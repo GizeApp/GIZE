@@ -16,6 +16,9 @@
 // 9) En el celular, la pestaña con la sesión queda congelada en segundo plano (no contesta) y se
 //    abre GIZE en otra (un link de WhatsApp): no se borran su entreno ni su salida de Cardio. Si
 //    esa sesión no se usa hace más de 30 minutos, se borra como siempre.
+// 10) Una cuenta sin «Mantener la sesión» en una pestaña y otra con «Mantener la sesión» en otra:
+//    «Salir» en la primera no borra ni cierra la sesión guardada de la otra, y esa pestaña sigue
+//    adentro.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
@@ -220,6 +223,44 @@ export default async function ({ base, t }){
     t.eq(c.marca, null, '9: y la marca');
     t.eq(e2, [], '9: errores de la pestaña nueva (sesión vieja)');
     t.eq(errs, [], '9: errores de la página');
+    await close();
+  }
+
+  // 10) A (ALUMNO) sin «Mantener la sesión» en una pestaña y B (OTRA) con «Mantener la sesión» en otra.
+  {
+    const OTRA = { id: '33333333-3333-3333-3333-333333333333', email: 'otra@prueba.test', aud: 'authenticated', role: 'authenticated' };
+    const SA = Object.assign(sesion(ALUMNO, 'rA'), { access_token: 'a.eyJzdWIiOiJhIn0.a' }), SB = Object.assign(sesion(OTRA, 'rB'), { access_token: 'b.eyJzdWIiOiJiIn0.b' });
+    const logout = [];
+    // Las dos pestañas contestan igual: la cuenta según el token, y se anota cada cierre de sesión.
+    const ruta = r => { const req = r.request(), u = new URL(req.url()), b = (req.headers().authorization || '').includes('b.eyJ');
+      if (u.pathname.startsWith('/auth/v1/logout')) logout.push(b ? 'B' : 'A');
+      const J = o => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+      if (u.pathname.startsWith('/auth/v1/user')) return J(b ? OTRA : ALUMNO);
+      if (u.pathname.startsWith('/auth/')) return J({});
+      if (u.pathname.includes('/rpc/')) return J(null);
+      return req.method() === 'GET' ? J((req.headers().accept || '').includes('vnd.pgrst.object') ? null : []) : r.fulfill({ status: 201, contentType: 'application/json', body: '[]' }); };
+    const { p, errs, close } = await newPage({ init: `if (!sessionStorage.getItem('b')) { sessionStorage.setItem('b', '1'); localStorage.clear();
+      localStorage.setItem('${SB_KEY}', ${JSON.stringify(JSON.stringify(SB))}); localStorage.setItem('gize_remember', '1'); }` });
+    await p.route(/supabase\.co/, ruta);
+    await p.goto(base + '/app/'); await wait(3000);
+    const p2 = await p.context().newPage(), errs2 = [];
+    p2.on('pageerror', e => errs2.push(e.message));
+    await p2.addInitScript(`if (!sessionStorage.getItem('a')) { sessionStorage.setItem('a', '1'); sessionStorage.setItem('${SB_KEY}', ${JSON.stringify(JSON.stringify(SA))}); }`);
+    await p2.route(/supabase\.co/, ruta);
+    await p2.goto(base + '/app/'); await wait(3000);
+    const quien = pg => pg.evaluate(async () => { const { State } = await import('/app/core/state.js'); return State.cloudUser && State.cloudUser.email; });
+    t.eq([await quien(p), await quien(p2)], ['otra@prueba.test', 'alumno@prueba.test'], '10: cada pestaña con su cuenta');
+    await p2.click('#nav-config'); await wait(500);
+    await p2.click('[data-auth="logout"]');
+    await p2.waitForEvent('load', { timeout: 30000 }).catch(() => {});
+    await wait(3000);
+    const ls = JSON.parse(await p.evaluate(k => localStorage.getItem(k), SB_KEY) || 'null');
+    t.ok(ls && ls.refresh_token === 'rB' && ls.user.id === OTRA.id, '10: la sesión guardada de la otra cuenta queda: ' + JSON.stringify(ls && ls.user && ls.user.id));
+    t.ok(logout.includes('A') && !logout.includes('B'), '10: se cierra solo la sesión de la que tocó «Salir»: ' + logout.join(','));
+    t.ok(!(await p.evaluate(async () => { const { State } = await import('/app/core/state.js'); return State.sessionLost; })) && !(await p.isVisible('#auEmail')), '10: la pestaña de la otra cuenta sigue adentro');
+    t.eq(errs2, [], '10: errores de la pestaña que salió');
+    t.eq(errs, [], '10: errores de la página');
+    await p2.close();
     await close();
   }
 }
