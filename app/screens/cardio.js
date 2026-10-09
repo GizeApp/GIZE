@@ -59,6 +59,24 @@ export const CardioState = {
 
 };
 
+// El cronómetro y el temporizador quedan guardados en el celular en cada cambio (main.js
+// saveClock): si el sistema cierra la app en segundo plano y la recarga, siguen donde estaban.
+// Todo sale de horas absolutas (Date.now), así que siguen contando bien. Lo que no se tocó en
+// 12 h no se retoma. Se borra al cerrar sesión (core/supabase.js clearAccountLeftovers).
+const CLOCK_KEY = "gize_cardio_clock", CLOCK_MAX_MS = 12 * 3600000;
+export function saveClock(){ try { localStorage.setItem(CLOCK_KEY, JSON.stringify(Object.assign({ v: 1, at: Date.now() }, CardioState))); } catch (e) {} }
+(function loadClock(){
+  let o; try { o = JSON.parse(localStorage.getItem(CLOCK_KEY) || "null"); } catch (e) { return; }
+  const now = Date.now(), num = v => typeof v === "number" && Number.isFinite(v) && v >= 0, bool = v => typeof v === "boolean";
+  if (!o || o.v !== 1 || !num(o.at) || o.at > now || now - o.at > CLOCK_MAX_MS) return;
+  if (!["stopwatch", "timer"].includes(o.cardioMode) || ![o.swAccum, o.swStartTs, o.tmRemainingMs, o.tmTarget, o.tmEndTs].every(num) || !(o.tmTarget > 0)) return;
+  if (![o.swRunning, o.tmRunning, o.tmFinished].every(bool) || !Array.isArray(o.swLaps) || o.swLaps.length > 1000 || !o.swLaps.every(num)) return;
+  for (const k in CardioState) CardioState[k] = o[k];
+  // Terminó con la app cerrada: queda terminado, sin sonar a destiempo.
+  if (CardioState.tmRunning && CardioState.tmEndTs <= now){ CardioState.tmRunning = false; CardioState.tmRemainingMs = 0; CardioState.tmFinished = true; }
+  else if (CardioState.tmRunning) CardioState.tmRemainingMs = CardioState.tmEndTs - now;
+})();
+
 // ---- Secciones desplegables ----
 // Abierta o cerrada, por sección, en este dispositivo. Sin localStorage (navegación privada):
 // las de siempre.

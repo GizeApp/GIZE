@@ -31,7 +31,7 @@ import { runningSetId, startTimer, stopTimer } from './ui/settimer.js';
 import { showLogin } from './screens/auth.js';
 
 import { ssGroupOf, ssNext } from './core/superserie.js';
-import { CardioState, closeSalida, liveMapTick, openTimePicker, paintSalida, renderCardio, salidaAction, setRing, swFrac } from './screens/cardio.js';
+import { CardioState, closeSalida, liveMapTick, openTimePicker, paintSalida, renderCardio, salidaAction, saveClock, setRing, swFrac } from './screens/cardio.js';
 
 import { CheckinState, checkinDraft, checkinHasAnswer, checkinWeek, renderFeedback, saveSession, todayWeightText, undoSaveSession } from './screens/checkin.js';
 
@@ -294,7 +294,7 @@ export function tick(){
     const now = Date.now();
     if (CardioState.tmRunning){
       const rem = CardioState.tmEndTs - now;
-      if (rem <= 0){ CardioState.tmRunning=false; CardioState.tmRemainingMs=0; CardioState.tmFinished=true; beep(); if(State.view==="cardio") renderApp(); }
+      if (rem <= 0){ CardioState.tmRunning=false; CardioState.tmRemainingMs=0; CardioState.tmFinished=true; saveClock(); beep(); if(State.view==="cardio") renderApp(); }
       else { CardioState.tmRemainingMs = rem; if(State.view==="cardio" && CardioState.cardioMode==="timer") setRing(rem / CardioState.tmTarget, fmt(rem,true)); }
     }
     if (State.view==="entreno"){ const w=document.getElementById("wkTime"); if(w){ const t=wkElapsedText(); if(w.textContent!==t) w.textContent=t; } }
@@ -482,17 +482,17 @@ document.body.addEventListener("click", async e => {
 
   // Cardio
   if (a.startsWith("sal-") && salidaAction(a, el)) return;
-  if (a === "cardio-mode") { CardioState.cardioMode = el.dataset.mode; renderApp(); return; }
+  if (a === "cardio-mode") { CardioState.cardioMode = el.dataset.mode; saveClock(); renderApp(); return; }
   // «Pasos» → «Competí con tus amigos»: Progreso → «Competencia de pasos».
   if (a === "cardio-pasos") { State.view = "progreso"; ProgresoState.section = "pasos"; ProgresoState.wAll = false; renderApp(); window.scrollTo(0, 0); return; }
-  if (a === "sw-toggle") { if(CardioState.swRunning){ CardioState.swAccum+=Date.now()-CardioState.swStartTs; CardioState.swRunning=false; } else { CardioState.swStartTs=Date.now(); CardioState.swRunning=true; } renderApp(); return; }
-  if (a === "sw-lap") { CardioState.swLaps.push(CardioState.swAccum+(Date.now()-CardioState.swStartTs)); renderApp(); return; }
-  if (a === "sw-reset") { CardioState.swRunning=false; CardioState.swAccum=0; CardioState.swStartTs=0; CardioState.swLaps=[]; renderApp(); return; }
-  if (a === "tm-pick") { openTimePicker(CardioState.tmRemainingMs, "Elegí el tiempo", t => { if(t>0){ CardioState.tmTarget=t; CardioState.tmRemainingMs=t; CardioState.tmFinished=false; } renderApp(); }); return; }
+  if (a === "sw-toggle") { if(CardioState.swRunning){ CardioState.swAccum+=Date.now()-CardioState.swStartTs; CardioState.swRunning=false; } else { CardioState.swStartTs=Date.now(); CardioState.swRunning=true; } saveClock(); renderApp(); return; }
+  if (a === "sw-lap") { CardioState.swLaps.push(CardioState.swAccum+(Date.now()-CardioState.swStartTs)); saveClock(); renderApp(); return; }
+  if (a === "sw-reset") { CardioState.swRunning=false; CardioState.swAccum=0; CardioState.swStartTs=0; CardioState.swLaps=[]; saveClock(); renderApp(); return; }
+  if (a === "tm-pick") { openTimePicker(CardioState.tmRemainingMs, "Elegí el tiempo", t => { if(t>0){ CardioState.tmTarget=t; CardioState.tmRemainingMs=t; CardioState.tmFinished=false; saveClock(); } renderApp(); }); return; }
   // «Listo» sin cambiar el tiempo deja todo como estaba (con las vueltas).
-  if (a === "sw-pick") { openTimePicker(CardioState.swAccum, "Arrancar desde", t => { if(t===Math.floor(CardioState.swAccum/1000)*1000){ renderApp(); return; } CardioState.swAccum=t; CardioState.swLaps=[]; renderApp(); }); return; }
-  if (a === "tm-toggle") { if(CardioState.tmRunning){ CardioState.tmRemainingMs=Math.max(0,CardioState.tmEndTs-Date.now()); CardioState.tmRunning=false; } else { initAudio(); CardioState.tmEndTs=Date.now()+CardioState.tmRemainingMs; CardioState.tmRunning=true; CardioState.tmFinished=false; } renderApp(); return; }
-  if (a === "tm-reset") { CardioState.tmRunning=false; CardioState.tmFinished=false; CardioState.tmRemainingMs=CardioState.tmTarget; renderApp(); return; }
+  if (a === "sw-pick") { openTimePicker(CardioState.swAccum, "Arrancar desde", t => { if(t===Math.floor(CardioState.swAccum/1000)*1000){ renderApp(); return; } CardioState.swAccum=t; CardioState.swLaps=[]; saveClock(); renderApp(); }); return; }
+  if (a === "tm-toggle") { if(CardioState.tmRunning){ CardioState.tmRemainingMs=Math.max(0,CardioState.tmEndTs-Date.now()); CardioState.tmRunning=false; } else { initAudio(); CardioState.tmEndTs=Date.now()+CardioState.tmRemainingMs; CardioState.tmRunning=true; CardioState.tmFinished=false; } saveClock(); renderApp(); return; }
+  if (a === "tm-reset") { CardioState.tmRunning=false; CardioState.tmFinished=false; CardioState.tmRemainingMs=CardioState.tmTarget; saveClock(); renderApp(); return; }
 
   // Comida
   if (a === "psec-open") { ProgresoState.section=el.dataset.v; ProgresoState.wAll=false; renderApp(); window.scrollTo(0,0); return; }
