@@ -1,7 +1,8 @@
 // Cardio «A pie» / «En bici», paso 3: las salidas en la nube, la ficha del coach y la privacidad.
 // a) supabase/cardio-a-pie.sql: tabla cardio_outings re-ejecutable, RLS (alumno: crear, leer y
 //    borrar las suyas; su coach: leer), sin update, topes (recorrido de hasta 200.000
-//    caracteres) y borrado en cascada con la cuenta. Política de privacidad con «Ubicación».
+//    caracteres) y borrado en cascada con la cuenta. Política de privacidad con «Ubicación» (la
+//    app de Android no la usa).
 // b) Alumno: guardar una salida terminada (core/salidas.js saveEnded) → la fila que sale por la
 //    cola (columnas, recorrido «1;…», sin coordenadas en ningún otro lado); tabla que falta → la
 //    salida queda pendiente sin trabar lo demás (un peso encolado detrás sale igual) y el pie lo
@@ -114,6 +115,10 @@ export default async function ({ base, t }){
   t.has(pol, 'tus salidas y sus recorridos', 'política: se borran con la cuenta');
   t.has(pol, '<b>OpenFreeMap:</b>', 'política: el mapa de fondo');
   t.ok(!/No usamos tu ubicación, tus contactos/.test(pol), 'política: ya no dice que nunca usa la ubicación');
+  // La app de Android no usa la ubicación (las salidas con GPS son de la app de iPhone y de la web).
+  const ubic = (pol.split('<h2 id="ubicacion">')[1] || '').split('<h2')[0];
+  t.has(ubic, '<b>La app de Android no usa tu ubicación:</b> no pide el permiso de ubicación y las salidas con GPS se registran solo en la app de iPhone y en la web.', 'política: en «Ubicación», que la app de Android no la usa');
+  t.ok(!/en Android se ve una notificación/.test(pol), 'política: ya no habla de la notificación de la salida en Android');
   t.has(read('app/screens/config.js'), 'tus salidas de Cardio (con sus recorridos)', 'eliminar la cuenta avisa que se borran las salidas');
 
   // ===== b) Alumno =====
