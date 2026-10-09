@@ -7,19 +7,23 @@
 //   · con la cuenta vencida ve una pantalla neutra con «Cerrar sesión»;
 //   · al vincularse, el alumno no ve el plan de su coach en el mensaje de error.
 //   · en el chat, el alumno de un coach vencido no ve «plan vencido» al mandar un mensaje.
+// En la app de Android, la bienvenida del coach tampoco habla de la prueba gratis.
 // En la web todo sigue como antes: «Soy coach», la prueba gratis, «Mi plan» y los precios.
 // Eliminar la cuenta de coach dice «se da de baja tu cuenta de coach» en todos lados.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const IOS = `(() => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: {} }; })();`;
+// La app de Android: con Capacitor, o solo con su puente (window.androidBridge).
+const ANDROID = `(() => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {} }; })();`;
+const PUENTE = `window.androidBridge = {};`;
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated', created_at: new Date().toISOString() };
 const D = n => new Date(Date.now() + n * 864e5).toISOString();
 // Lo que no se puede ver en el iPhone. «planes» (los planes alimenticios del coach) no cuenta.
 const PROHIBIDO = /prueba|gratis|\bplan\b|pago|precio|tarjeta|mercado|suscrip|contrat|\$|gize\.ar(?!\/privacidad)/i;
 
 const clientes = n => Array.from({ length: n }, (_, i) => ({ id: 'c' + i, role: 'client', full_name: 'Alumno ' + i, coach_id: COACH.id }));
-function coachPage(billingRow, { ios, n = 2, user = COACH } = {}){
-  return newPage({ user, init: ios ? IOS : undefined, handlers: {
+function coachPage(billingRow, { ios, init, n = 2, user = COACH } = {}){
+  return newPage({ user, init: ios ? IOS : init, handlers: {
     '/profiles': (r, J, i) => { if (i.m !== 'GET') return undefined; if (/coach_id=eq/.test(i.url.search)) return J(clientes(n));
       const me = { id: COACH.id, role: 'coach', full_name: 'Coach Prueba' }; return J(i.one ? me : [me]); },
     '/coach_billing': (r, J, i) => { const b = Object.assign({ coach_id: COACH.id }, billingRow); return J(i.one ? b : [b]); },
@@ -77,6 +81,17 @@ export default async function ({ base, t }){
   t.ok(join.every(m => !PROHIBIDO.test(m) && /Avisale/.test(m)), 'iPhone: el alumno no ve el plan de su coach: ' + join);
   t.eq(pg.errs, [], 'errores (coach iPhone)');
   await pg.close();
+
+  // La app de Android: la bienvenida del coach tampoco habla de la prueba gratis.
+  for (const [name, init] of [['Android', ANDROID], ['Android (puente)', PUENTE]]){
+    pg = await coachPage(prueba, { init, n: 10 });
+    await pg.p.goto(base + '/app/'); await wait(3000);
+    const b = await txt(pg.p, '#authHost');
+    t.has(b, '¡Bienvenido, coach!', name + ': bienvenida del coach');
+    t.ok(!/prueba|gratis|tarjeta/i.test(b) && !(await pg.p.$('.onb-trial')), name + ': la bienvenida no habla de la prueba gratis: ' + b);
+    t.eq(pg.errs, [], 'errores (bienvenida ' + name + ')');
+    await pg.close();
+  }
 
   // En la web, lo mismo con la prueba, «Mi plan» y los precios.
   pg = await coachPage(prueba, { n: 10 });

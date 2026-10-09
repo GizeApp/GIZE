@@ -20,7 +20,7 @@ import { CoachState } from './coach/state.js';
 
 import { renderApp } from '../main.js';
 
-import { appIOS, joinMsgTienda } from '../core/tienda.js';
+import { appNativa, joinMsgTienda } from '../core/tienda.js';
 
 // Bienvenida del primer ingreso. Antes todo esto iba en el formulario de "Crear cuenta"
 // (aviso de la prueba, código del coach) y era demasiado de golpe: ahora el registro pide
@@ -78,8 +78,8 @@ function showCoachWelcome(){
   const code=CoachState.coachInvite;
   const host=mount(
     '<h1 class="onb-title">¡Bienvenido, coach!</h1>'+
-    // En la app de iPhone no se habla de la prueba (core/tienda.js).
-    (appIOS() ? '' : '<div class="onb-trial">14 días gratis para probar todo · sin tarjeta</div>')+
+    // En las apps (iPhone y Android) no se habla de la prueba gratis (core/tienda.js appNativa).
+    (appNativa() ? '' : '<div class="onb-trial">14 días gratis para probar todo · sin tarjeta</div>')+
     '<p class="onb-text">Pasale este código a tu primer alumno. Lo carga una vez y quedan conectados.</p>'+
     (code ?
       '<div class="onb-code">'+

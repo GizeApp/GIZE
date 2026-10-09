@@ -2,12 +2,22 @@
 // solo desde la web. En la app de iPhone no se ofrece crear una cuenta de coach ni se habla de
 // la prueba, de planes, de precios ni de pagos (tampoco se dice dónde se contratan): la usan
 // los alumnos y los coaches que ya tienen cuenta. La web y la app de Android siguen como antes
-// (en Android ya no hay precios ni links de pago: ver screens/coach/plan.js).
+// (en Android ya no hay precios ni links de pago: ver screens/coach/plan.js), salvo la bienvenida
+// del coach, que en ninguna app habla de la prueba gratis (appNativa).
+import { appAndroid } from './plataforma.js';
 
 export function appIOS(){
   try {
     const C = window.Capacitor;
     return !!(C && C.isNativePlatform && C.isNativePlatform() && C.getPlatform && C.getPlatform() === "ios");
+  } catch (e) { return false; }
+}
+// Cualquiera de las apps de las tiendas (iPhone o Android, también con solo el puente de Android:
+// core/plataforma.js appAndroid). Ahí no se habla de la prueba gratis (Google Play y App Store).
+export function appNativa(){
+  try {
+    const C = window.Capacitor;
+    return !!(C && C.isNativePlatform && C.isNativePlatform()) || appAndroid();
   } catch (e) { return false; }
 }
 
