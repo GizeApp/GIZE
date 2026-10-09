@@ -7,7 +7,9 @@
 --      toques en "pagar"): antes podían quedar dos suscripciones cobrando todos los meses.
 --   2) Borrar la cuenta con una suscripción que se renueva: primero hay que cancelarla. Si
 --      no, la cuenta desaparecía y Mercado Pago le seguía cobrando (la función igual la
---      cancela si le llega un aviso de una cuenta que ya no existe).
+--      cancela si le llega un aviso de una cuenta que ya no existe). Al borrarla, los
+--      productos publicados de sus pedidos quedan sin la foto de la tabla (photo_path, con su
+--      id en la ruta), igual que cuando la borra un administrador desde el panel.
 
 alter table public.coach_billing add column if not exists mp_pending_id text;
 
@@ -23,6 +25,7 @@ begin
               where coach_id = auth.uid() and mp_preapproval_id is not null and mp_status = 'authorized') then
     raise exception 'Primero cancelá la renovación de tu plan en gize.ar/app (Mi plan → Cancelar la renovación), así Mercado Pago no te sigue cobrando.' using errcode = 'P0001';
   end if;
+  update public.products set photo_path = null where photo_path like auth.uid()::text || '/%';
   delete from auth.users where id = auth.uid();
 end $$;
 

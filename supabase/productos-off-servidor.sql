@@ -52,6 +52,15 @@ create trigger products_off_guard before insert or update on public.products
 drop policy if exists "usuarios agregan productos" on public.products;
 revoke insert, update, delete on public.products from anon, authenticated;
 
+--    Y cada usuario lee solo las columnas del catálogo: no quién cargó o escaneó primero cada
+--    producto (created_by), cuándo (created_at) ni la foto de la tabla de un pedido
+--    (photo_path), que dicen qué hizo cada persona. Son las que la app lee, filtra y ordena
+--    (app/core/productos.js, «hidden» la usa la política de lectura); el panel lee lo demás con
+--    sus funciones de administrador, y productos-off con la service role.
+revoke select on public.products from anon, authenticated;
+grant select (id, code, name, brand, kcal, protein, carbs, fat, unit, portion, source, verified, uses, scans, search, hidden)
+  on public.products to authenticated;
+
 -- 3) Tope de búsquedas en Open Food Facts por usuario (lo usa la función productos-off, 150 por
 --    día): así no se puede usar a GIZE para pedirle a OFF miles de códigos. Se guarda solo quién
 --    y cuándo (no el código), y lo de más de un día se borra solo.
