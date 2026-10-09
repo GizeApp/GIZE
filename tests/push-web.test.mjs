@@ -5,8 +5,10 @@
 // 3) Versiones anteriores (sin la cuenta anotada): se siguen guardando solo si la base dice que ese
 //    navegador ya era de esta cuenta; si no (es de otra cuenta), se dan de baja y se borran de la base.
 // 4) Las activó otra cuenta que se fue sin «Salir»: al entrar se dan de baja y se borran de la base.
-// 5) Sin «Mantener la sesión»: al cerrar la pestaña y volver a abrir GIZE se dan de baja en el
-//    navegador y se borran de la base sin sesión (forget_push_subscription).
+// 5) Sin «Mantener la sesión» no hay notificaciones en el navegador (seguirían llegando a la compu
+//    con la pestaña cerrada): al entrar se dan de baja las que había y activarlas avisa que hace
+//    falta «Mantener la sesión». Si quedó una de antes, al cerrar la pestaña y volver a abrir GIZE
+//    se da de baja en el navegador y se borra de la base sin sesión (forget_push_subscription).
 // 6) Cerrar sesión sin señal: se dan de baja igual en el navegador y, apenas hay señal, se borran
 //    de la base.
 // 7) La función de la base que borra sin sesión pide la dirección y su clave.
@@ -93,15 +95,24 @@ export default async function ({ base, t }){
     await close();
   }
 
-  // 5) Sin «Mantener la sesión», con las notificaciones activadas: se cierra la pestaña y se vuelve a abrir.
+  // 5) Sin «Mantener la sesión», con las notificaciones activadas antes en este navegador.
   {
     const m = mock();
     const EFIMERA = `const k = '${SB_KEY}', v = localStorage.getItem(k); if (v) { sessionStorage.setItem(k, v); localStorage.removeItem(k); }
       localStorage.setItem('gize_remember', '0'); sessionStorage.setItem('sub', '${EP}'); localStorage.setItem('gize_web_push', '${ALUMNO.id}');`;
-    const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, init: WEBPUSH(EFIMERA), handlers: m.handlers });
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, init: WEBPUSH(EFIMERA), handlers: m.handlers });
     await p.goto(base + '/app/'); await wait(3500);
-    t.ok(m.has('save'), '5: adentro, las notificaciones andan');
+    t.ok(!m.has('save'), '5: al entrar no se vuelven a guardar: ' + m.rpcs.join(' | '));
+    t.ok((await pushLog(p)).includes('unsubscribe'), '5: se dan de baja en el navegador');
+    t.ok(m.rpcs.some(x => x.startsWith('forget ') && x.includes(EP) && x.includes('CLAVE')), '5: y se borran de la base: ' + m.rpcs.join(' | '));
+    await p.click('#nav-config'); await wait(500);
+    t.ok(!(await p.evaluate(() => [...document.querySelectorAll('[data-action="cfg-notif-toggle"]')].some(e => e.classList.contains('on')))), '5: el interruptor aparece apagado');
+    await p.click('[data-action="cfg-notif-toggle"]'); await wait(1000);
+    t.eq(dialogs, ['Para recibir notificaciones en este navegador, cerrá sesión y volvé a entrar con «Mantener la sesión» tildado.'], '5: activarlas avisa que hace falta «Mantener la sesión»');
+    t.ok(!(await pushLog(p)).includes('subscribe') && !m.has('save'), '5: y no se activan: ' + m.rpcs.join(' | '));
+    // Una que quedó de una versión anterior: se cierra la pestaña y se vuelve a abrir.
     m.rpcs.length = 0;
+    await p.evaluate(([ep, id]) => { sessionStorage.setItem('push', ''); sessionStorage.setItem('sub', ep); localStorage.setItem('gize_web_push', id); }, [EP, ALUMNO.id]);
     await p.evaluate(k => sessionStorage.removeItem(k), SB_KEY); await p.reload(); await wait(5000);
     t.ok((await pushLog(p)).includes('unsubscribe'), '5: al volver a abrir sin sesión se dan de baja en el navegador');
     t.ok(m.rpcs.some(x => x.startsWith('forget ') && x.includes(EP) && x.includes('CLAVE')), '5: y se borran de la base sin sesión: ' + m.rpcs.join(' | '));

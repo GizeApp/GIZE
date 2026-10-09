@@ -38,6 +38,11 @@ const webOwner = () => { try { return localStorage.getItem(WEB_KEY) || ""; } cat
 // sesión): se borran apenas hay conexión con forget_push_subscription (supabase/notificaciones.sql),
 // que no pide sesión: alcanza con la dirección y su clave, que solo tiene este dispositivo.
 const FORGET_KEY = "gize_push_forget";
+// Sesión sin «Mantener la sesión» en el navegador (vive solo en esta pestaña): no hay
+// notificaciones, porque seguían llegando a la compu después de cerrar la pestaña, hasta que
+// alguien volviera a abrir GIZE (clearEndedSession en core/supabase.js). En la app agregada a
+// inicio del iPhone, como en las de las tiendas, la sesión no se trata como de una compu compartida.
+const tabOnly = () => { try { return navigator.standalone !== true && !!State.sb && sessionStorage.getItem(State.sb.auth.storageKey) != null; } catch (e) { return false; } };
 
 export function pushSupported(){
   if (nativePush()) return true;
@@ -185,6 +190,7 @@ export async function enablePush(){
   const PN = nativePush();
   if (PN) { const err = await enableNative(PN); if (!err) setPref(true); return err; }
   if (!pushSupported()) return pushUnsupportedMsg();
+  if (tabOnly()) return "Para recibir notificaciones en este navegador, cerrá sesión y volvé a entrar con «Mantener la sesión» tildado.";
   if (Notification.permission === "denied")
     return "Las notificaciones están bloqueadas para GIZE en este dispositivo. Para activarlas, habilitalas desde los ajustes del navegador o del celular.";
   const perm = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
@@ -255,6 +261,8 @@ export async function syncPush(){
     // Las activó otra cuenta y se fue sin «Salir» (o se le cerró la sesión): se dan de baja, para
     // que sus mensajes no le lleguen a quien entra ahora.
     if (own && own !== uid) { await pushDropHere(); return; }
+    // Sin «Mantener la sesión» no quedan activadas (ver tabOnly): las que había se dan de baja.
+    if (tabOnly()) { await pushDropHere(); return; }
     const reg = await registration();
     let sub = await reg.pushManager.getSubscription();
     if (!own) {
