@@ -3,6 +3,8 @@
 -- no podían guardar su dispositivo. Las apps guardan un token:
 --   fcm:<token>   Android (Firebase Cloud Messaging)
 --   apns:<token>  iPhone (Apple Push Notification service, token en hexadecimal)
+-- Las direcciones de navegador no llevan puerto (los servicios de push reales nunca lo usan):
+-- una con puerto, guardada a propósito, puede dejar la conexión colgada y trabar los avisos.
 -- Se puede correr varias veces.
 create or replace function public.push_subscriptions_validate()
 returns trigger
@@ -12,7 +14,7 @@ as $$
 begin
   if new.endpoint is null or char_length(new.endpoint) > 2048
      or not (
-       new.endpoint ~ '^https://([a-z0-9-]+\.)*(fcm\.googleapis\.com|android\.googleapis\.com|push\.services\.mozilla\.com|push\.apple\.com|notify\.windows\.com)(:[0-9]+)?/'
+       new.endpoint ~ '^https://([a-z0-9-]+\.)*(fcm\.googleapis\.com|android\.googleapis\.com|push\.services\.mozilla\.com|push\.apple\.com|notify\.windows\.com)/'
        -- Sin {20,4096}: Postgres no acepta repeticiones de más de 255 ("invalid repetition
        -- count") y todos los Android fallaban al guardar. El largo lo controla char_length.
        or (new.endpoint ~ '^fcm:[A-Za-z0-9_:.-]+$' and char_length(new.endpoint) >= 24)
@@ -26,3 +28,7 @@ begin
   end if;
   return new;
 end $$;
+
+-- Las que ya estaban guardadas con puerto se borran (la app vuelve a guardar el dispositivo
+-- al abrirse, ya sin puerto).
+delete from public.push_subscriptions where endpoint ~ '^https://[^/]*:[0-9]*/';

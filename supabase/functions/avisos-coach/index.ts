@@ -2,7 +2,9 @@
 // public.coach_alerts (ver supabase/avisos-coach.sql y descarga.sql): check-in semanal nuevo,
 // alumnos que llevan 4 días o más sin entrenar y semanas de descarga. La llama pg_cron cada minuto, solo si hay alguno.
 // Va sin "Verify JWT" (la llama la base, sin sesión). Llamarla de más no hace nada: toma
-// solo los avisos sin mandar y cada uno sale una vez (se marca al tomarlo).
+// solo los avisos sin mandar y cada uno sale una vez (se marca al tomarlo). Cada coach va
+// por su lado, en paralelo y con tiempo máximo: si a uno no se le puede mandar, sus avisos se
+// liberan para el próximo minuto y los de los demás salen igual.
 // Usa los mismos secrets que notificar-cliente (VAPID, FCM_SERVICE_ACCOUNT y los de Apple).
 //
 // Guardia opcional contra llamadas de afuera (la función es pública): si está puesto el secret
@@ -36,6 +38,16 @@ function cronOk(req: Request): boolean {
 type Sub = { id: string; user_id: string; endpoint: string; p256dh: string; auth: string };
 type ServiceAccount = { project_id: string; client_email: string; private_key: string };
 
+// Tiempo máximo de cada envío: un dispositivo que no contesta (por ejemplo, una dirección
+// guardada a propósito que deja la conexión colgada) no traba los avisos de los demás.
+const TOPE_MS = 10_000;
+// web-push corta la conexión con su opción timeout; por las dudas, también se deja de esperar.
+function conTope<T>(p: Promise<T>, ms = TOPE_MS): Promise<T> {
+  let t = 0;
+  return Promise.race([p, new Promise<T>((_, no) => { t = setTimeout(() => no(new Error("sin respuesta en " + ms / 1000 + " s")), ms); })])
+    .finally(() => clearTimeout(t));
+}
+
 function serviceAccount(): ServiceAccount | null {
   try {
     const sa = JSON.parse(Deno.env.get("FCM_SERVICE_ACCOUNT") || "");
@@ -53,6 +65,7 @@ async function fcmAccessToken(sa: ServiceAccount): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }),
+    signal: AbortSignal.timeout(TOPE_MS),
   });
   const j = await r.json();
   if (!r.ok || !j.access_token) throw new Error("OAuth FCM: " + JSON.stringify(j));
@@ -65,64 +78,75 @@ async function apnsJwt(): Promise<string | null> {
   return await new SignJWT({}).setProtectedHeader({ alg: "ES256", kid }).setIssuer(team).setIssuedAt().sign(key);
 }
 
-// Manda una notificación a todos los dispositivos de la lista (web, Android y iPhone).
-// Devuelve los ids de los dispositivos que ya no existen, para borrarlos.
+// Manda una notificación a todos los dispositivos de la lista (web, Android y iPhone), los
+// tres en paralelo. Devuelve los ids de los dispositivos que ya no existen, para borrarlos.
 async function send(subs: Sub[], title: string, body: string, tag: string): Promise<string[]> {
   const gone: string[] = [];
   const web = subs.filter((s) => s.endpoint.startsWith("https://"));
   const fcm = subs.filter((s) => s.endpoint.startsWith("fcm:"));
   const apns = subs.filter((s) => s.endpoint.startsWith("apns:"));
 
-  const pub = Deno.env.get("VAPID_PUBLIC_KEY"), priv = Deno.env.get("VAPID_PRIVATE_KEY");
-  if (web.length && pub && priv) {
+  const toWeb = async () => {
+    const pub = Deno.env.get("VAPID_PUBLIC_KEY"), priv = Deno.env.get("VAPID_PRIVATE_KEY");
+    if (!web.length || !pub || !priv) return;
     webpush.setVapidDetails(Deno.env.get("VAPID_SUBJECT") || "mailto:soporte@gize.ar", pub, priv);
     const payload = JSON.stringify({ title, body, tag, url: "./app/" });
     await Promise.all(web.map(async (s) => {
-      try { await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 60 * 60 * 24, urgency: "normal" }); }
+      try { await conTope(webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 60 * 60 * 24, urgency: "normal", timeout: TOPE_MS })); }
       catch (e) {
         const code = (e as { statusCode?: number }).statusCode;
         if (code === 404 || code === 410) gone.push(s.id); else console.error("push", code, (e as Error).message);
       }
     }));
-  }
+  };
 
-  const sa = fcm.length ? serviceAccount() : null;
-  if (sa) {
+  const toFcm = async () => {
+    const sa = fcm.length ? serviceAccount() : null;
+    if (!sa) return;
     let access = "";
     try { access = await fcmAccessToken(sa); } catch (e) { console.error((e as Error).message); }
     if (access) await Promise.all(fcm.map(async (s) => {
-      const r = await fetch("https://fcm.googleapis.com/v1/projects/" + sa.project_id + "/messages:send", {
-        method: "POST",
-        headers: { Authorization: "Bearer " + access, "Content-Type": "application/json" },
-        body: JSON.stringify({ message: {
-          token: s.endpoint.slice(4), notification: { title, body },
-          android: { priority: "HIGH", ttl: "86400s", notification: { sound: "default", color: "#2FA0FF", tag } },
-        } }),
-      });
-      if (r.ok) return;
-      const t = await r.text();
-      if (r.status === 404 || t.includes("UNREGISTERED")) gone.push(s.id); else console.error("fcm", r.status, t);
+      try {
+        const r = await fetch("https://fcm.googleapis.com/v1/projects/" + sa.project_id + "/messages:send", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + access, "Content-Type": "application/json" },
+          body: JSON.stringify({ message: {
+            token: s.endpoint.slice(4), notification: { title, body },
+            android: { priority: "HIGH", ttl: "86400s", notification: { sound: "default", color: "#2FA0FF", tag } },
+          } }),
+          signal: AbortSignal.timeout(TOPE_MS),
+        });
+        if (r.ok) return;
+        const t = await r.text();
+        if (r.status === 404 || t.includes("UNREGISTERED")) gone.push(s.id); else console.error("fcm", r.status, t);
+      } catch (e) { console.error("fcm", (e as Error).message); }
     }));
-  }
+  };
 
-  if (apns.length) {
+  const toApns = async () => {
+    if (!apns.length) return;
     let jwt: string | null = null;
     try { jwt = await apnsJwt(); } catch (e) { console.error("apns jwt", (e as Error).message); }
     if (jwt) await Promise.all(apns.map(async (s) => {
-      const r = await fetch("https://api.push.apple.com/3/device/" + s.endpoint.slice(5), {
-        method: "POST",
-        headers: {
-          authorization: "bearer " + jwt, "apns-topic": "ar.com.gize.app", "apns-push-type": "alert",
-          "apns-priority": "10", "apns-expiration": String(Math.floor(Date.now() / 1000) + 86400),
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ aps: { alert: { title, body }, sound: "default", "thread-id": tag } }),
-      });
-      if (r.ok) return;
-      const t = await r.text();
-      if (r.status === 410 || /BadDeviceToken|Unregistered|DeviceTokenNotForTopic/.test(t)) gone.push(s.id); else console.error("apns", r.status, t);
+      try {
+        const r = await fetch("https://api.push.apple.com/3/device/" + s.endpoint.slice(5), {
+          method: "POST",
+          headers: {
+            authorization: "bearer " + jwt, "apns-topic": "ar.com.gize.app", "apns-push-type": "alert",
+            "apns-priority": "10", "apns-expiration": String(Math.floor(Date.now() / 1000) + 86400),
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ aps: { alert: { title, body }, sound: "default", "thread-id": tag } }),
+          signal: AbortSignal.timeout(TOPE_MS),
+        });
+        if (r.ok) return;
+        const t = await r.text();
+        if (r.status === 410 || /BadDeviceToken|Unregistered|DeviceTokenNotForTopic/.test(t)) gone.push(s.id); else console.error("apns", r.status, t);
+      } catch (e) { console.error("apns", (e as Error).message); }
     }));
-  }
+  };
+
+  await Promise.allSettled([toWeb(), toFcm(), toApns()]);
   return gone;
 }
 
@@ -137,8 +161,9 @@ Deno.serve(async (req) => {
   if (!cronOk(req)) return json({ error: "No autorizado" }, 401);
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   // Tomar y marcar de una los pendientes: si dos llamadas se pisan, cada aviso sale una vez.
+  // Los de un coach al que no se le pudo mandar se liberan al final (ver más abajo).
   const { data: alerts, error } = await db.from("coach_alerts").update({ sent_at: new Date().toISOString() })
-    .is("sent_at", null).select("coach_id, client_id, kind, key, days");
+    .is("sent_at", null).select("id, coach_id, client_id, kind, key, days, created_at");
   if (error) return json({ error: error.message }, 500);
   if (!alerts || !alerts.length) return json({ sent: 0 });
 
@@ -174,20 +199,20 @@ Deno.serve(async (req) => {
   // El alumno se pudo haber desvinculado entre que se anotó el aviso y ahora.
   const stillMine = (a: { coach_id: string; client_id: string }) => (people || []).some((p) => p.id === a.client_id && p.coach_id === a.coach_id);
 
-  let sent = 0;
   const gone: string[] = [];
-  for (const coachId of coachIds) {
+  // Los avisos de un coach: devuelve cuántas notificaciones salieron.
+  const porCoach = async (coachId: string): Promise<number> => {
     const mine = (subs || []).filter((s) => s.user_id === coachId) as Sub[];
-    if (!mine.length) continue; // el coach no activó los avisos en ningún dispositivo
+    if (!mine.length) return 0; // el coach no activó los avisos en ningún dispositivo
     const { data: active } = await db.rpc("coach_active", { cid: coachId });
-    if (active === false) continue;
+    if (active === false) return 0;
     const list = alerts.filter((a) => a.coach_id === coachId && stillMine(a));
+    const msgs: [string, string, string][] = [];
 
     const checkins = list.filter((a) => a.kind === "checkin").map((a) => nameOf(a.client_id));
     if (checkins.length) {
       const body = checkins.length === 1 ? checkins[0] + " mandó su check-in semanal." : names(checkins) + " mandaron su check-in semanal.";
-      gone.push(...await send(mine, "Check-in semanal", body, "gize-checkin"));
-      sent++;
+      msgs.push(["Check-in semanal", body, "gize-checkin"]);
     }
 
     const idle = list.filter((a) => a.kind === "inactivo");
@@ -195,8 +220,7 @@ Deno.serve(async (req) => {
       const body = idle.length === 1
         ? nameOf(idle[0].client_id) + " lleva " + (idle[0].days || 4) + " días sin entrenar."
         : names(idle.map((a) => nameOf(a.client_id))) + " llevan 4 días o más sin entrenar.";
-      gone.push(...await send(mine, "Alumnos sin entrenar", body, "gize-inactivo"));
-      sent++;
+      msgs.push(["Alumnos sin entrenar", body, "gize-inactivo"]);
     }
 
     // Esta semana les toca descarga: primero los que todavía no tienen la rutina armada.
@@ -211,8 +235,7 @@ Deno.serve(async (req) => {
       if (ready.text) parts.push(!ready.many
         ? cap(ready.text) + " está en semana de descarga, con su rutina de descarga lista."
         : cap(ready.text) + " están en semana de descarga, con sus rutinas de descarga listas.");
-      gone.push(...await send(mine, "Semana de descarga", parts.join(" "), "gize-descarga"));
-      sent++;
+      msgs.push(["Semana de descarga", parts.join(" "), "gize-descarga"]);
     }
 
     // La semana que viene es de descarga y todavía no hay rutina (se vuelve a mirar al mandar).
@@ -221,9 +244,28 @@ Deno.serve(async (req) => {
       const body = !soon.many
         ? "A " + soon.text + " le toca semana de descarga la semana que viene. Armale la rutina de descarga en su ficha → Bloque / mesociclo."
         : "A " + soon.text + " les toca semana de descarga la semana que viene. Armales las rutinas de descarga en sus fichas → Bloque / mesociclo.";
-      gone.push(...await send(mine, "Descarga la semana que viene", body, "gize-descarga-prox"));
-      sent++;
+      msgs.push(["Descarga la semana que viene", body, "gize-descarga-prox"]);
     }
+
+    for (const g of await Promise.all(msgs.map(([title, body, tag]) => send(mine, title, body, tag)))) gone.push(...g);
+    return msgs.length;
+  };
+
+  // Todos los coaches a la vez, cada uno con su tiempo máximo: antes iban de a uno y, si uno se
+  // trababa, los que venían después se quedaban sin sus avisos (ya marcados como mandados).
+  const res = await Promise.allSettled(coachIds.map((c) => conTope(porCoach(c), 30_000)));
+  let sent = 0;
+  const retry: number[] = [];
+  res.forEach((r, i) => {
+    if (r.status === "fulfilled") { sent += r.value; return; }
+    console.error("avisos-coach", coachIds[i], (r.reason as Error)?.message);
+    // Se liberan para el próximo minuto (solo los de la última hora: si con un coach falla
+    // siempre, no se reintenta para siempre).
+    alerts.forEach((a) => { if (a.coach_id === coachIds[i] && Date.now() - Date.parse(a.created_at) < 3600_000) retry.push(a.id); });
+  });
+  if (retry.length) {
+    const { error: re } = await db.from("coach_alerts").update({ sent_at: null }).in("id", retry);
+    if (re) console.error("avisos-coach: no se pudieron liberar", re.message);
   }
   if (gone.length) await db.from("push_subscriptions").delete().in("id", gone);
   return json({ sent });
