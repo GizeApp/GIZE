@@ -1,5 +1,6 @@
 -- Panel de administrador → Productos: buscar en toda la base compartida, agregar productos
--- nuevos (quedan como de GIZE y verificados) y borrar los que no van.
+-- nuevos (quedan como de GIZE y verificados) y borrar los que no van (su código de barras queda
+-- bloqueado: no vuelve solo al escanearlo ni con las importaciones).
 -- Correr con el workflow "Supabase" → tarea sql → supabase/productos-admin.sql. Se puede
 -- correr varias veces. Va después de productos.sql, productos-off.sql, productos-revision.sql y
 -- admin.sql, y antes de pedidos-productos.sql y productos-off-servidor.sql.
@@ -87,16 +88,50 @@ end $$;
 revoke execute on function public.admin_product_add(text, text, text, numeric, numeric, numeric, numeric, text, numeric) from public, anon;
 grant execute on function public.admin_product_add(text, text, text, numeric, numeric, numeric, numeric, text, numeric) to authenticated;
 
--- Borrar un producto para siempre (sus reportes se borran solos). Lo que la gente ya anotó en
--- su diario no cambia: ahí se guarda una copia de los valores.
+-- Códigos de barras de los productos que borró un administrador. Antes «Borrar» sacaba la fila
+-- y nada más: el código volvía apenas alguien lo escaneaba (función productos-off) o con la
+-- importación del mes, como si nunca se hubiera visto. Para volver a cargarlo: «Agregar
+-- producto» o publicar un pedido desde el panel (eso lo saca de la lista).
+create table if not exists public.product_deleted_codes (
+  code       text primary key,
+  name       text,
+  deleted_at timestamptz not null default now()
+);
+alter table public.product_deleted_codes enable row level security;
+revoke all on public.product_deleted_codes from anon, authenticated;
+
+-- Trigger aparte de products_before (que se pisa si se vuelve a correr un archivo viejo). Un
+-- código borrado no se carga: la fila se saltea sin error, así una importación sigue con las
+-- demás. Lo carga solo un administrador desde el panel, y ahí deja de estar bloqueado.
+-- security definer: lee la lista aunque quien carga no tenga permiso sobre ella.
+create or replace function public.products_deleted_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.code is not null and exists (select 1 from public.product_deleted_codes where code = new.code) then
+    if auth.uid() is null or not public.is_app_admin() then return null; end if;
+    delete from public.product_deleted_codes where code = new.code;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.products_deleted_guard() from public, anon, authenticated;
+drop trigger if exists products_deleted_guard on public.products;
+create trigger products_deleted_guard before insert on public.products
+  for each row execute function public.products_deleted_guard();
+
+-- Borrar un producto para siempre (sus reportes se borran solos) y bloquear su código. Lo que
+-- la gente ya anotó en su diario no cambia: ahí se guarda una copia de los valores.
 create or replace function public.admin_product_delete(pid uuid)
 returns void language plpgsql security definer set search_path = public as $$
-declare n text;
+declare n text; c text;
 begin
   perform public.admin_assert();
-  delete from public.products where id = pid returning name into n;
+  delete from public.products where id = pid returning name, code into n, c;
   if n is null then raise exception 'Ese producto ya no existe.' using errcode = '22023'; end if;
-  perform public.admin_log('producto_borrar', pid::text, jsonb_build_object('name', n));
+  if c is not null then
+    insert into public.product_deleted_codes (code, name) values (c, n)
+      on conflict (code) do update set name = excluded.name, deleted_at = now();
+  end if;
+  perform public.admin_log('producto_borrar', pid::text, jsonb_build_object('name', n, 'code', c));
 end $$;
 revoke execute on function public.admin_product_delete(uuid) from public, anon;
 grant execute on function public.admin_product_delete(uuid) to authenticated;
@@ -104,4 +139,5 @@ grant execute on function public.admin_product_delete(uuid) to authenticated;
 notify pgrst, 'reload schema';
 
 -- Resumen (solo cantidades).
-select source, count(*) as productos, count(*) filter (where hidden) as ocultos from public.products group by source order by source;
+select source, count(*) as productos, count(*) filter (where hidden) as ocultos from public.products group by source
+union all select 'códigos borrados', count(*), null from public.product_deleted_codes order by 1;

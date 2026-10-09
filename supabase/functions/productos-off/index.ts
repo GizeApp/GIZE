@@ -11,7 +11,8 @@
 // Recibe { code } con el token del usuario logueado. Devuelve:
 //   { product }          el producto guardado (o el que ya estaba)
 //   { missing: true }    Open Food Facts no lo tiene
-//   { skipped: motivo }  lo tiene pero sin datos que sirvan, o está oculto en GIZE: no se guarda
+//   { skipped: motivo }  lo tiene pero sin datos que sirvan, o está oculto o lo borró un
+//                        administrador en GIZE: no se guarda
 // Si falla (o llega al límite), la app lo anota igual con los datos de OFF, sin guardarlo.
 //
 // Límites por usuario, para que no se use para llenar la base:
@@ -74,6 +75,13 @@ Deno.serve(async (req) => {
   const prev = await current();
   if (prev.error) return fail("leer", prev.error);
   if (prev.data) return answer(prev.data as Record<string, unknown>, false);
+
+  // ¿Lo borró un administrador? Ese código no se vuelve a cargar (product_deleted_codes, en
+  // supabase/productos-admin.sql; la base igual lo frena): se contesta como uno oculto, sin
+  // preguntarle a Open Food Facts. Si la tabla todavía no existe (falta correr ese SQL), sigue.
+  const del = await db.from("product_deleted_codes").select("code").eq("code", code).maybeSingle();
+  if (del.error) console.error("productos-off", "códigos borrados", del.error.code || "");
+  else if (del.data) return json({ skipped: "oculto" });
 
   // Tope de búsquedas en Open Food Facts por día. Si la función de la base todavía no existe
   // (falta correr productos-off-servidor.sql), se sigue sin tope.

@@ -2,7 +2,10 @@
 -- etiqueta se leyó dos veces por separado y entran solo las que coincidieron). Completan lo
 -- que trae el workflow "Importar productos de supermercado" (productos sin la tabla como texto).
 -- Valores cada 100 g o 100 ml. Se puede correr más de una vez: no duplica ni pisa lo
--- verificado, lo oculto ni lo que cargaron los usuarios.
+-- verificado, lo oculto ni lo que cargaron los usuarios, y no vuelve a cargar los códigos que
+-- borró un administrador (los saltea la base, ver products_deleted_guard en
+-- productos-admin.sql). Los de abajo sin código sí vuelven si se borraron: para sacarlos para
+-- siempre, ocultarlos en vez de borrarlos.
 -- Correr con: Actions → "Supabase" → tarea "sql" → archivo supabase/productos-etiquetas.sql
 
 -- Con código de barras (sale al escanear).
