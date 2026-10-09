@@ -5,6 +5,8 @@
 //    cambiaba de cuenta a quien ya estaba adentro: el chequeo de links solo miraba el #.
 // 3) Un link con ?error_description=... ponía cualquier texto en la pantalla de ingreso.
 // 4) Ingresar: los errores de Supabase, en castellano; sin confirmar, se reenvía el mail.
+// 5) Un link con el access_token repetido en el # (#access_token=&access_token=<otro>): el
+//    chequeo miraba el primero (vacío) y supabase-js usa el último, y cambiaba de cuenta.
 import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
 
 const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
@@ -75,6 +77,25 @@ export default async function ({ base, t }){
     t.eq(resent, 1, '4: sin confirmar, se reenvía el mail de confirmación');
     t.has(tx, 'te reenviamos el mail de confirmación', '4: y se avisa');
     t.eq(errs, [], '4: errores de la página');
+    await close();
+  }
+
+  // 5) Link con el access_token repetido en el #, estando adentro y sin haber pedido un link.
+  {
+    const OTRO = { id: '99999999-9999-4999-8999-999999999999', email: 'otro@prueba.test', aud: 'authenticated', role: 'authenticated' };
+    const users = [];
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: { days: [{ id: 'd1', name: 'Día 1', exercises: [] }], sessions: [], weights: [], daily: {} },
+      handlers: { '/auth/v1/user': r => { const otro = (r.request().headers().authorization || '').includes('otro'); users.push(otro ? 'otro' : 'alumno'); return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(otro ? OTRO : ALUMNO) }); }, '/profiles': profile('client') } });
+    for (const [i, h] of ['#access_token=&access_token=otro.eyJzdWIiOiI5OSJ9.x', '#access_token&access_token=otro.eyJzdWIiOiI5OSJ9.x'].entries()) {
+      users.length = 0;
+      // Otra dirección (?n=1): si cambia solo el #, la página no se vuelve a cargar.
+      await p.goto(base + '/app/' + (i ? '?n=' + i : '') + h + '&refresh_token=otro&expires_in=3600&token_type=bearer'); await wait(4000);
+      const s = JSON.parse((await stored(p)) || 'null');
+      t.ok(s && s.user && s.user.id === ALUMNO.id, '5: sigue en su cuenta con ' + h.slice(0, 16) + '…: ' + (s && s.user && s.user.id));
+      t.ok(!users.includes('otro'), '5: el token del link ni se prueba: ' + users.join(','));
+      t.eq(await p.evaluate(() => location.hash), '', '5: el link se saca de la dirección');
+    }
+    t.eq(errs, [], '5: errores de la página');
     await close();
   }
 }
