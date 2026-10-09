@@ -57,6 +57,13 @@ const INIT = ua => `(() => {
   localStorage.setItem('gize_lite', '0'); localStorage.setItem('gize_salida_aviso', '1');
 })();`;
 
+// Sin WebGL en el navegador de las pruebas, la primera vez que se pide (webglOk, al abrir el
+// recorrido) se devuelve uno falso; MapLibre después pide el suyo, no lo tiene y la vista sigue
+// sin mapa. Con WebGL de verdad no cambia nada.
+const WEBGL_FIJO = `(() => { const gc = HTMLCanvasElement.prototype.getContext; let una = true;
+  HTMLCanvasElement.prototype.getContext = function (type, ...a){ const r = gc.call(this, type, ...a);
+    if (r || !una || !/webgl/i.test(type)) return r; una = false; return { getExtension: () => null }; }; })();`;
+
 const vista = (p, sel) => p.evaluate(sel => {
   const v = document.querySelector(sel + ' .rv'); if (!v) return null;
   const vis = e => !!e && !e.hidden && getComputedStyle(e).display !== 'none';
@@ -157,15 +164,14 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores de la página (Chrome en Android sin conexión)');
   await pg.close();
 
-  // iPhone (Safari) y la compu: el mapa se pide como siempre.
+  // iPhone (Safari) y la compu: el mapa se pide como siempre. Si el navegador de las pruebas no
+  // tuviera WebGL (una máquina sin placa de video), el control igual corre: WEBGL_FIJO.
   for (const [name, ua] of [['iPhone', UA.iphone], ['compu', '']]){
-    pg = await abrirGuardada(base, saved, ua);
-    const gl = await pg.p.evaluate(async () => (await import('/app/ui/mapa.js')).webglOk());
+    pg = await abrirGuardada(base, saved, ua, WEBGL_FIJO);
+    t.eq(await pg.p.evaluate(async () => (await import('/app/ui/mapa.js')).webglOk()), true, name + ': hay WebGL (el de verdad o, si falta, el de la prueba)');
     t.eq(await pg.p.evaluate(async () => (await import('/app/core/plataforma.js')).navegadorAndroid()), false, name + ': no es Android');
-    if (gl){
-      for (let i = 0; i < 50 && !pg.reqs.some(u => /vendor\/maplibre-gl-6\.11\.2\/maplibre-gl\.js/.test(u)); i++) await wait(100);
-      t.ok(pg.reqs.some(u => /vendor\/maplibre-gl-6\.11\.2\/maplibre-gl\.js/.test(u)), name + ': se carga MapLibre para el mapa de calles');
-    }
+    for (let i = 0; i < 50 && !pg.reqs.some(u => /vendor\/maplibre-gl-6\.11\.2\/maplibre-gl\.js/.test(u)); i++) await wait(100);
+    t.ok(pg.reqs.some(u => /vendor\/maplibre-gl-6\.11\.2\/maplibre-gl\.js/.test(u)), name + ': se carga MapLibre para el mapa de calles');
     t.eq(pg.errs, [], 'errores de la página (' + name + ')');
     await pg.close();
   }
