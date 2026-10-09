@@ -6,6 +6,8 @@
 // 3) Si la rutina propia cambió sin subirse, queda solo la rutina.
 // 4) Con «Mantener la sesión» no se borra nada al abrir sin sesión (control).
 // 5) Cerrar sesión borra los borradores de rutina del coach.
+// 6) Con la sesión abierta en una pestaña, abrir GIZE en otra (sin sesión) no borra nada; y si la
+//    marca se perdió igual, el próximo save() de la pestaña con sesión la vuelve a poner.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
@@ -110,6 +112,33 @@ export default async function ({ base, t }){
     await wait(3000);
     t.eq((await claves(p)).drafts, [], '5: al cerrar sesión no quedan borradores de rutina');
     t.eq(errs, [], '5: errores de la página');
+    await close();
+  }
+
+  // 6) Sesión no mantenida abierta en una pestaña; se abre GIZE en otra (o en la app instalada).
+  {
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, init: EFIMERA, handlers: { '/profiles': profile('client'), '/body_weights': WEIGHTS } });
+    await p.goto(base + '/app/'); await wait(3000);
+    await p.evaluate(RESTOS, [COLA, DRAFT]);
+    await p.evaluate(id => localStorage.setItem('gize_web_push', id), ALUMNO.id);
+    const p2 = await p.context().newPage(), errs2 = [];
+    p2.on('pageerror', e => errs2.push(e.message));
+    await p2.route(/supabase\.co/, r => r.fulfill({ status: 200, contentType: 'application/json', body: new URL(r.request().url()).pathname.includes('/rpc/') ? 'null' : '[]' }));
+    await p2.goto(base + '/app/'); await wait(4000);
+    t.ok(await p2.isVisible('#auEmail'), '6: la pestaña nueva no tiene sesión y pide ingresar');
+    const c = await claves(p);
+    t.ok(c.st && c.st.weights && c.st.weights.length, '6: los datos de la sesión abierta siguen');
+    t.ok(!!c.prof && !!c.track && c.drafts.length === 1, '6: el perfil, los recorridos y los borradores también');
+    t.eq(c.marca, ALUMNO.id, '6: y la marca, para borrarlos cuando se cierre');
+    t.eq(await p.evaluate(() => localStorage.getItem('gize_web_push')), ALUMNO.id, '6: las notificaciones no se dan de baja');
+    t.ok(await p.evaluate(async () => { const { State } = await import('/app/core/state.js'); return !!State.cloudUser; }), '6: la primera pestaña sigue adentro');
+    t.eq(errs2, [], '6: errores de la pestaña nueva');
+    await p2.close();
+    // La marca se perdió igual (por ejemplo, la pestaña estaba dormida y no contestó).
+    await p.evaluate(() => localStorage.removeItem('gize_session_ephemeral'));
+    await p.evaluate(async () => { const { save } = await import('/app/core/storage.js'); save(); });
+    t.eq((await claves(p)).marca, ALUMNO.id, '6: el próximo save() vuelve a poner la marca');
+    t.eq(errs, [], '6: errores de la página');
     await close();
   }
 }
