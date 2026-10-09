@@ -4,7 +4,8 @@
 // scripts/ios-firma.py firma el JWT de App Store Connect con openssl. «Fotos de videos» corre
 // Pillow (versión y hash fijos) en un trabajo que solo lee y sube desde otro que no corre nada.
 // Todo trabajo que lee secrets corre solo desde main y en su Environment (play-release,
-// ios-release, production o backup), y los PR de iPhone compilan sin secrets. La tarea «funciones»
+// ios-release, production, catalogo o backup), los programados en uno sin revisores, y los PR de
+// iPhone compilan sin secrets. La tarea «funciones»
 // de supabase.yml controla al final que cada función quedó publicada y al día, y la tarea «secrets»
 // no carga una clave de Apple sin su Key ID y el Team ID.
 import crypto from 'node:crypto';
@@ -165,21 +166,27 @@ print(m.firma_cruda(bytes.fromhex(sys.argv[2])).hex())`;
   //    Environment limitado a main. La condición sola no alcanza (una rama puede traer el workflow
   //    sin ella); con los secrets en el Environment, otra rama no los recibe.
   const ENV = { 'android-release.yml': 'play-release', 'ios.yml': 'ios-release', 'supabase.yml': 'production',
-    'importar-off.yml': 'production', 'importar-super.yml': 'production', 'backup.yml': 'backup' };
-  const vistos = new Set();
+    'importar-off.yml': 'catalogo', 'importar-super.yml': 'catalogo', 'backup.yml': 'backup' };
+  const vistos = new Set(), usa = {};
   for (const f of fs.readdirSync(path.join(ROOT, '.github/workflows')).filter(f => /\.ya?ml$/.test(f)).sort()){
     const yml = leer('.github/workflows/' + f);
     t.ok(!/secrets\./.test(sinComentarios(yml.split(/^jobs:/m)[0])), f + ': no lee secrets fuera de los trabajos');
     for (const [n, b] of Object.entries(trabajos(yml))){
       if (!/\$\{\{\s*secrets\./.test(b)) continue;
       vistos.add(f);
-      const env = (b.match(/^    environment: (\S+)\s*$/m) || [])[1], cond = (b.match(/^    if: (.+)$/m) || [])[1] || '';
+      const env = usa[f] = (b.match(/^    environment: (\S+)\s*$/m) || [])[1], cond = (b.match(/^    if: (.+)$/m) || [])[1] || '';
       t.eq(env, ENV[f], f + ' → ' + n + ': corre en el Environment que guarda sus secrets');
       t.ok(cond.includes("github.ref == 'refs/heads/main'"), f + ' → ' + n + ': corre solo desde main');
     }
     if (ENV[f]) t.ok(yml.includes('Settings → Environments') && yml.includes('Environment "' + ENV[f] + '"'), f + ': explica qué Environment crear y qué secrets van ahí');
   }
   t.eq([...vistos].sort(), Object.keys(ENV).sort(), 'los workflows con secrets son los esperados');
+  // Un trabajo programado no puede ir en un Environment que pide aprobación («Required reviewers»):
+  // la corrida queda esperando y a los 30 días GitHub la cancela (el catálogo dejaba de actualizarse).
+  const conRevisores = new Set(Object.keys(usa).filter(f => /tildar «Required reviewers»/.test(leer('.github/workflows/' + f))).map(f => usa[f]));
+  t.ok(conRevisores.has('production') && conRevisores.has('ios-release'), 'production e ios-release piden aprobación: ' + [...conRevisores]);
+  for (const f of Object.keys(usa).filter(f => /^\s+schedule:/m.test(leer('.github/workflows/' + f))))
+    t.ok(!conRevisores.has(usa[f]), f + ' es programado y su Environment (' + usa[f] + ') no pide aprobación');
   // iPhone: los PR compilan para el simulador en un trabajo sin secrets; la versión firmada es otro.
   const ij = Object.values(trabajos(leer('.github/workflows/ios.yml')));
   const pr = ij.filter(b => /^    if: github\.event_name == 'pull_request'\s*$/m.test(b));

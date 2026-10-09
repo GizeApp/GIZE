@@ -6,7 +6,8 @@
 # Corre solo desde main: lanzado desde otra rama no arranca, así no se puede correr SQL
 # ni publicar funciones con código que no pasó por main.
 #
-# Corre en el Environment "production" (también lo usan importar-off.yml e importar-super.yml).
+# Corre en el Environment "production" (los importadores del catálogo usan otro, "catalogo", sin
+# revisores: ver importar-off.yml).
 # Crearlo (hace falta ser admin del repo): Settings → Environments → New environment →
 # "production"; en «Deployment branches and tags» elegir «Selected branches and tags» y agregar
 # solo main, y tildar «Required reviewers» con tu usuario (cada ejecución espera tu aprobación).
