@@ -1,7 +1,8 @@
 // Workflows de GitHub que manejan claves (sin GitHub: se leen los .yml y los pasos se corren con
 // herramientas simuladas). La copia de seguridad usa la imagen de Postgres fijada por digest en
 // .github/postgres/Dockerfile, que sigue Dependabot. El workflow de iPhone no instala nada de PyPI:
-// scripts/ios-firma.py firma el JWT de App Store Connect con openssl.
+// scripts/ios-firma.py firma el JWT de App Store Connect con openssl. «Fotos de videos» corre
+// Pillow (versión y hash fijos) en un trabajo que solo lee y sube desde otro que no corre nada.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const leer = f => { try { return fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch (e) { return ''; } };
 const sinComentarios = s => s.replace(/^\s*#.*$/gm, '');
+const CARPETAS = [];
 
 // Texto del «run: |» del paso que se llama así (sin la sangría del YAML).
 function paso(yml, nombre){
@@ -28,13 +30,28 @@ function paso(yml, nombre){
   return out ? out.join('\n') : '';
 }
 
+// Trabajos de un workflow: { nombre: texto } (lo que cuelga de «jobs:» con dos espacios).
+function trabajos(yml){
+  const out = {}; let act = null;
+  for (const l of (yml.split(/^jobs:\s*$/m)[1] || '').split('\n')){
+    const m = l.match(/^  ([\w-]+):\s*$/);
+    if (m) out[act = m[1]] = '';
+    else if (/^\S/.test(l)) act = null;
+    else if (act) out[act] += l + '\n';
+  }
+  return out;
+}
+
 // Corre un pedazo de bash como lo corre GitHub (bash -e), en una carpeta de prueba con
 // «programas» simulados delante en el PATH. Devuelve { code, out, dir }.
-function correr(script, { archivos = {}, programas = {}, env = {} } = {}){
+function correr(script, { archivos = {}, programas = {}, env = {}, prep } = {}){
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gize-wf-')), bin = path.join(dir, '.bin');
+  CARPETAS.push(dir);
   fs.mkdirSync(bin);
   for (const [f, s] of Object.entries(archivos)) { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), s); }
   for (const [p, s] of Object.entries(programas)) fs.writeFileSync(path.join(bin, p), '#!/bin/bash\n' + s + '\n', { mode: 0o755 });
+  if (prep) prep(dir);
+  if (typeof env === 'function') env = env(dir);
   fs.writeFileSync(path.join(dir, '.paso.sh'), script);
   const r = spawnSync('bash', ['-e', path.join(dir, '.paso.sh')], { cwd: dir, encoding: 'utf8', timeout: 30000,
     env: Object.assign({}, process.env, { PATH: bin + ':' + process.env.PATH, RUNNER_TEMP: dir, LOG: path.join(dir, '.log') }, env) });
@@ -95,4 +112,49 @@ print(m.firma_cruda(bytes.fromhex(sys.argv[2])).hex())`;
     t.eq(ls[40], '00' + '11'.repeat(31) + 'ff'.repeat(32), 'la firma DER pasa a r||s de 32 bytes cada uno');
   }
   fs.rmSync(tmp, { recursive: true, force: true });
+
+  // 3) «Fotos de videos»: Pillow (de PyPI) corre en un trabajo que solo puede leer el repo, con
+  //    versión y hash fijos; el que sube a revision-videos no corre código de terceros y arma el
+  //    commit en una carpeta nueva solo con las hojas (un .git plantado no corre con el token).
+  const fv = leer('.github/workflows/fotos-videos.yml'), jobs = trabajos(fv);
+  const arriba = fv.split(/^jobs:/m)[0];
+  t.ok(!/contents: write/.test(arriba), 'fotos-videos.yml no da permiso de escribir a todo el workflow');
+  const [arma] = Object.entries(jobs).find(([, b]) => b.includes('scripts/fotos-videos.py')) || [];
+  const [sube] = Object.entries(jobs).find(([, b]) => /git push/.test(b)) || [];
+  t.ok(arma && sube && arma !== sube, 'armar las hojas y subirlas van en trabajos separados');
+  if (arma && sube){
+    const a = jobs[arma], b = jobs[sube];
+    t.ok(/^    permissions:\s*\n\s+contents: read\s*$/m.test(a) && !/write/.test(a), 'el trabajo que arma las hojas solo puede leer el repo');
+    t.ok(!/github\.token|GH_TOKEN|git push/.test(a), 'y no recibe el token para subir');
+    t.ok(/pip install --require-hashes --only-binary :all: -r scripts\/fotos-videos-requirements\.txt/.test(a) && !/pip install (?!--require-hashes)/.test(a), 'Pillow se instala con versión y hash fijos');
+    t.ok(/^    permissions:\s*\n\s+contents: write\s*$/m.test(b), 'el que sube tiene permiso de escribir');
+    t.ok(!/pip|python|scripts\/|actions\/checkout/.test(sinComentarios(b)), 'y no corre código del repo ni de PyPI');
+    t.ok(new RegExp('^    needs: ' + arma + '\\s*$', 'm').test(b) && /actions\/download-artifact@[0-9a-f]{40} /.test(b), 'sube lo que dejó el otro trabajo (download-artifact fijado por SHA)');
+  }
+  const req = leer('scripts/fotos-videos-requirements.txt');
+  t.ok(/^pillow==[0-9.]+ \\\n(\s+--hash=sha256:[0-9a-f]{64}( \\)?\n)+/m.test(req), 'scripts/fotos-videos-requirements.txt fija Pillow con versión y hash');
+  t.ok(/- package-ecosystem: pip\s+directory: \/scripts\b/.test(dep), 'Dependabot sigue los requisitos de Python');
+  const subir = paso(fv, 'Subir a la rama revision-videos');
+  t.ok(subir, 'existe el paso «Subir a la rama revision-videos»');
+  if (subir){
+    // Lo que llegó del otro trabajo (y por las dudas también la carpeta donde se arman): las hojas,
+    // el resumen y un .git con hooks que, si corrieran, anotan el token.
+    const plantar = d => { for (const c of ['hojas', 'out']){
+      const x = path.join(d, c);
+      fs.mkdirSync(path.join(x, 'sub'), { recursive: true });
+      fs.writeFileSync(path.join(x, '001.jpg'), 'jpg'); fs.writeFileSync(path.join(x, 'resumen.json'), '{}'); fs.writeFileSync(path.join(x, 'sub', '002.jpg'), 'jpg');
+      spawnSync('git', ['init', '-q', x], { env: Object.assign({}, process.env, git(d)) });
+      for (const h of ['pre-commit', 'pre-push']) fs.writeFileSync(path.join(x, '.git', 'hooks', h), '#!/bin/sh\necho "$GH_TOKEN" >> "$RUNNER_TEMP/robado"\n', { mode: 0o755 });
+    }
+    spawnSync('git', ['init', '-q', '--bare', path.join(d, 'remoto.git')]);
+    fs.writeFileSync(path.join(d, '.gitconfig'), '[url "file://' + path.join(d, 'remoto.git') + '"]\n\tinsteadOf = https://x-access-token:TOKEN-DE-PRUEBA@github.com/gize/prueba.git\n'); };
+    const git = d => ({ HOME: d, GIT_CONFIG_GLOBAL: path.join(d, '.gitconfig'), GIT_CONFIG_NOSYSTEM: '1' });
+    let dir = '';
+    const r = correr(subir, { prep: d => { dir = d; plantar(d); }, env: d => Object.assign({ GH_TOKEN: 'TOKEN-DE-PRUEBA', REPO: 'gize/prueba', TMPDIR: d }, git(d)) });
+    const g = spawnSync('git', ['--git-dir', path.join(dir, 'remoto.git'), 'ls-tree', '-r', '--name-only', 'revision-videos'], { encoding: 'utf8', env: Object.assign({}, process.env, git(dir)) });
+    t.eq(r.code, 0, 'el paso sube las hojas: ' + r.out.trim().split('\n').pop());
+    t.eq(g.stdout.trim().split('\n'), ['001.jpg', 'resumen.json'], 'en revision-videos quedan solo las hojas y el resumen');
+    t.ok(!fs.existsSync(path.join(dir, 'robado')), 'los hooks del .git plantado no corren con el token');
+  }
+  for (const d of CARPETAS) fs.rmSync(d, { recursive: true, force: true });
 }

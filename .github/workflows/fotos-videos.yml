@@ -1,6 +1,10 @@
 # Hojas de contacto de los videos de ejercicios (4 fotogramas por video) para revisarlos a ojo,
 # y búsqueda de Shorts nuevos. Deja el resultado en la rama "revision-videos" (se pisa cada vez).
 # A mano: Actions → "Fotos de videos" → Run workflow.
+#
+# Dos trabajos: «fotos» arma las hojas (corre Pillow, que viene de PyPI, y lee páginas de
+# YouTube) y solo puede leer el repo; «subir» no corre nada de eso y es el único que puede
+# escribir: así un Pillow trucho no llega al permiso de subir cambios a otras ramas.
 name: Fotos de videos
 
 on:
@@ -10,12 +14,13 @@ on:
         description: "JSON con los ejercicios, sus videos y búsquedas"
         required: true
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   fotos:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     steps:
       # Sin dejar el token guardado en el checkout: el script procesa páginas de YouTube.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -24,19 +29,44 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - run: pip install pillow
+      # Versión y hash fijos (los actualiza Dependabot): pip no instala otro archivo.
+      - name: Instalar Pillow
+        run: |
+          pip install --require-hashes --only-binary :all: -r scripts/fotos-videos-requirements.txt
       - name: Armar hojas
         env:
           ARCHIVO: ${{ inputs.archivo }}
         run: |
           case "$ARCHIVO" in *..*|/*) echo "::error::Ruta inválida"; exit 1;; esac
           python3 scripts/fotos-videos.py "$ARCHIVO" "$RUNNER_TEMP/out"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hojas
+          path: |
+            ${{ runner.temp }}/out/*.jpg
+            ${{ runner.temp }}/out/resumen.json
+          if-no-files-found: error
+          retention-days: 1
+
+  subir:
+    needs: fotos
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: hojas
+          path: ${{ runner.temp }}/hojas
       - name: Subir a la rama revision-videos
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
-          cd "$RUNNER_TEMP/out"
+          # Commit en una carpeta nueva, solo con las hojas y el resumen sueltos: nada más de lo
+          # que llegó (ni carpetas ni un .git con «hooks» que correrían con el token).
+          cd "$(mktemp -d)"
+          find "$RUNNER_TEMP/hojas" -maxdepth 1 -type f \( -name '*.jpg' -o -name resumen.json \) -exec cp {} . \;
           git init -q -b revision-videos
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
