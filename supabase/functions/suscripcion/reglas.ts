@@ -42,3 +42,13 @@ export function alCobrar(cur: Bill, id: string, plan: string, max: number, paidU
 export function pedidaCancelada(cur: Bill, id: string, status: string): boolean {
   return status === "cancelled" && !!cur.mp_pending_id && id === cur.mp_pending_id && id !== cur.mp_preapproval_id;
 }
+
+// ¿Se da de baja el cambio de plan pedido cuando cobra la vigente? Si sigue sin pagar
+// («pending») hace más de PEDIDA_DIAS días: mientras sigue así Mercado Pago no avisa nada y,
+// desde que el cobro de la vigente ya no lo borra (ver alCobrar), quedaba para siempre y el panel
+// mostraba «eligió …». También si ya está cancelada (se perdió ese aviso). Si ya se autorizó
+// (pagó y espera el primer cobro), queda.
+export const PEDIDA_DIAS = 7;
+export function pedidaVencida(status: string, creada: string, now = Date.now()): boolean {
+  return status === "cancelled" || (status === "pending" && now - Date.parse(creada) > PEDIDA_DIAS * 864e5);
+}

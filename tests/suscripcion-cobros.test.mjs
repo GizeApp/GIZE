@@ -7,7 +7,8 @@
 // - Checkout: tope de 10 por hora por coach, se reusa el link sin pagar del mismo plan y el
 //   pendiente se guarda solo si nadie lo cambió mientras tanto.
 // - El cambio de plan pedido que se cancela sin pagarse se borra (antes lo borraba el cobro de
-//   la vigente; sin eso quedaba para siempre).
+//   la vigente; sin eso quedaba para siempre). Y si sigue sin pagar más de una semana, el cobro
+//   de la vigente lo da de baja y lo borra: mientras sigue «pending» Mercado Pago no avisa nada.
 // - El tope de 10 cuenta solo los intentos que crean una suscripción y el frenado con 429 no
 //   cuenta (antes cada toque frenado alargaba la espera). Reusar el link sin pagar igual lo
 //   consulta en Mercado Pago: tiene su tope aparte, de 30 por hora (antes no tenía ninguno).
@@ -60,18 +61,80 @@ export default async function ({ t }){
     t.ok(!r.pedidaCancelada(c, 'X', 'cancelled') && !r.pedidaCancelada(c, 'Z', 'cancelled'), 'la vigente o un checkout viejo cancelados no borran el pedido');
     t.ok(!r.pedidaCancelada({ mp_preapproval_id: 'X', mp_pending_id: null }, 'Y', 'cancelled'), 'sin pedido, nada');
     t.ok(!r.pedidaCancelada({ mp_preapproval_id: 'X', mp_pending_id: 'X' }, 'X', 'cancelled'), 'si la pedida es la vigente, no es un pedido que cae');
+
+    // La pedida que sigue sin pagar: vence a la semana.
+    const ya = Date.parse('2026-10-09T12:00:00Z'), dias = d => new Date(ya - d * 864e5).toISOString();
+    t.eq(r.PEDIDA_DIAS, 7, 'la pedida sin pagar vence a los 7 días');
+    t.ok(r.pedidaVencida('pending', dias(8), ya) && !r.pedidaVencida('pending', dias(6), ya), 'pending: vence pasada la semana');
+    t.ok(r.pedidaVencida('cancelled', dias(1), ya), 'cancelada (se perdió el aviso): se borra');
+    t.ok(!r.pedidaVencida('authorized', dias(30), ya) && !r.pedidaVencida('paused', dias(30), ya), 'autorizada (pagó y espera el cobro) o pausada: queda');
+    t.ok(!r.pedidaVencida('pending', '', ya), 'sin fecha: queda');
   }
 
   const src = fs.readFileSync(path.join(ROOT, DIR, 'index.ts'), 'utf8');
   const sync = src.slice(src.indexOf('async function syncPreapproval('), src.indexOf('async function cancelarMP('));
-  t.ok(/import \{ alCobrar, avisaSocios, esPedida, pedidaCancelada \} from "\.\/reglas\.ts";/.test(src), 'index.ts usa reglas.ts');
+  t.ok(/import \{ alCobrar, avisaSocios, esPedida, pedidaCancelada, pedidaVencida \} from "\.\/reglas\.ts";/.test(src), 'index.ts usa reglas.ts');
   t.ok(/if \(est && avisaSocios\(cur, id, String\(pa\.status\)\)\) \{/.test(sync), 'syncPreapproval: el mail a los socios pasa por avisaSocios');
-  t.ok(/if \(!esPedida\(cur, id\)\) \{/.test(sync), 'syncPreapproval: la que no es vigente ni pedida se da de baja');
   t.ok(/const \{ update, cancelar \} = alCobrar\(cur, id, plan, PLANES\[plan\]\.max, paidUntil\);/.test(sync) && /\.update\(update\)\.eq\("coach_id", coachId\)/.test(sync), 'syncPreapproval: guarda lo que dice alCobrar');
-  const cae = sync.indexOf('} else if (pedidaCancelada(cur, id, String(pa.status))) {');
-  t.ok(cae > sync.indexOf('} else if (id === cur.mp_preapproval_id) {') && /\} else if \(pedidaCancelada\(cur, id, String\(pa\.status\)\)\) \{[^}]*\.update\(\{ pending_plan: null, mp_pending_id: null, updated_at: [^}]*\}\)\s*\.eq\("coach_id", coachId\)\.eq\("mp_pending_id", id\);/.test(sync),
-    'syncPreapproval: la pedida cancelada borra el cambio de plan (si no pidió otro mientras tanto)');
-  t.ok(sync.indexOf('pending_plan: null') === sync.lastIndexOf('pending_plan: null') && sync.indexOf('pending_plan: null') > cae, 'syncPreapproval: ya no borra el pendiente en ningún otro caso');
+
+  // ---- Avisos de Mercado Pago de verdad (la función con Supabase y Mercado Pago simulados) ----
+  // Coach con el plan de 10 (X, cobrando) que pidió el de 25 (Y). pedida: cómo está Y.
+  const CO = 'c0ac4000-0000-4000-8000-000000000002';
+  const aviso = async ({ llega, pedida = null, pedidaHace = 2, otraPedida = null }) => {
+    const hace = d => new Date(Date.now() - d * 864e5).toISOString();
+    const bill = { coach_id: CO, plan: 'p10', max_clients: 10, mp_preapproval_id: 'X', mp_status: 'authorized', paid_until: hace(-20),
+      mp_pending_id: otraPedida || (pedida ? 'Y' : null), pending_plan: otraPedida || pedida ? 'p25' : null };
+    const subs = {
+      X: { id: 'X', status: 'authorized', external_reference: CO + '|p10', summarized: { last_charged_date: hace(1), charged_quantity: 3 }, date_created: hace(90), auto_recurring: { transaction_amount: 14900 } },
+      Y: { id: 'Y', status: pedida === 'cobrada' ? 'authorized' : pedida, external_reference: CO + '|p25', date_created: hace(pedidaHace), auto_recurring: { transaction_amount: 24900 },
+        summarized: pedida === 'cobrada' ? { last_charged_date: hace(0), charged_quantity: 1 } : { charged_quantity: 0 } },
+      Z: { id: 'Z', status: 'authorized', external_reference: CO + '|p25', date_created: hace(3), summarized: { charged_quantity: 0 } },
+    };
+    const mp = [];
+    const db = supabaseSimulado(q => {
+      if (q.tabla === 'coach_billing'){
+        if (q.accion === 'select') return { data: Object.assign({}, bill) };
+        if (q.accion === 'update'){ if (cumple(bill, q.filtros)) Object.assign(bill, q.valores); return { data: null }; }
+      }
+      if (q.tabla === 'profiles') return { data: { full_name: 'Coach' } };
+      return { data: null };
+    });
+    const fn = await funcion('suscripcion', {
+      env: { MP_ACCESS_TOKEN: 'TEST', SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'srv' },
+      npm: { '@supabase/supabase-js': { createClient: () => db } },
+      fetch: async (url, init = {}) => {
+        const m = init.method || 'GET', id = decodeURIComponent(new URL(String(url)).pathname.split('/').pop());
+        mp.push(m + ' ' + id);
+        if (m === 'PUT') subs[id].status = 'cancelled';
+        return new Response(JSON.stringify(subs[id]), { status: 200 });
+      },
+    });
+    const r = await fn.call(new Request('https://x.supabase.co/functions/v1/suscripcion?webhook=1', { method: 'POST', body: JSON.stringify({ type: 'subscription_preapproval', data: { id: llega } }) }));
+    return { status: r.status, bill, mp, cancelo: mp.filter(x => x.startsWith('PUT ')).map(x => x.slice(4)) };
+  };
+  {
+    let x = await aviso({ llega: 'X', pedida: 'pending', pedidaHace: 2 });
+    t.ok(x.status === 200 && x.bill.mp_pending_id === 'Y' && x.bill.pending_plan === 'p25' && x.cancelo.length === 0, 'cobro de la vigente, pedida sin pagar hace 2 días: el pedido queda');
+    t.ok(x.bill.paid_until > new Date().toISOString() && x.bill.plan === 'p10', 'cobro de la vigente: sigue el plan de 10, pago');
+    x = await aviso({ llega: 'X', pedida: 'pending', pedidaHace: 10 });
+    t.ok(x.bill.mp_pending_id === null && x.bill.pending_plan === null, 'cobro de la vigente, pedida sin pagar hace 10 días: se borra (antes quedaba para siempre)');
+    t.eq(x.cancelo, ['Y'], 'y se da de baja en Mercado Pago (así no se paga un link viejo)');
+    x = await aviso({ llega: 'X', pedida: 'authorized', pedidaHace: 10 });
+    t.ok(x.bill.mp_pending_id === 'Y' && x.cancelo.length === 0, 'cobro de la vigente, pedida ya autorizada (espera su cobro): queda');
+    x = await aviso({ llega: 'X', pedida: 'cancelled', pedidaHace: 1 });
+    t.ok(x.bill.mp_pending_id === null && x.cancelo.length === 0, 'cobro de la vigente, pedida cancelada (se perdió el aviso): se borra');
+    x = await aviso({ llega: 'X' });
+    t.ok(x.bill.mp_pending_id === null && x.mp.length === 1, 'cobro de la vigente sin pedido: una sola consulta a Mercado Pago');
+    x = await aviso({ llega: 'Y', pedida: 'cancelled' });
+    t.ok(x.bill.mp_pending_id === null && x.bill.pending_plan === null && x.bill.mp_preapproval_id === 'X', 'llega la pedida cancelada: se borra el pedido y sigue la vigente');
+    x = await aviso({ llega: 'Y', pedida: 'cancelled', otraPedida: 'Z' });
+    t.ok(x.bill.mp_pending_id === 'Z', 'llega una pedida vieja cancelada: no borra el pedido nuevo');
+    x = await aviso({ llega: 'Y', pedida: 'cobrada' });
+    t.ok(x.bill.plan === 'p25' && x.bill.max_clients === 25 && x.bill.mp_preapproval_id === 'Y' && x.bill.mp_pending_id === null, 'cobro de la pedida: pasa al plan de 25 y sin pedido');
+    t.eq(x.cancelo, ['X'], 'cobro de la pedida: la anterior se da de baja');
+    x = await aviso({ llega: 'Z', pedida: 'pending' });
+    t.ok(x.cancelo.includes('Z') && x.bill.mp_preapproval_id === 'X' && x.bill.mp_pending_id === 'Y', 'otra autorizada que no es la pedida: se da de baja y no cambia nada');
+  }
 
   // Checkout: lo que no se ve corriendo la función (dos checkouts a la vez).
   const co = src.slice(src.indexOf('if (input.action === "checkout")'));

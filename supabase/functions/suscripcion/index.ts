@@ -37,7 +37,7 @@
 //   cuáles ya se mandaron para no repetirlos.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { alCobrar, avisaSocios, esPedida, pedidaCancelada } from "./reglas.ts";
+import { alCobrar, avisaSocios, esPedida, pedidaCancelada, pedidaVencida } from "./reglas.ts";
 
 const PLANES: Record<string, { max: number; price: number; name: string }> = {
   p10: { max: 10, price: 14900, name: "GIZE Coach · hasta 10 clientes" },
@@ -135,6 +135,9 @@ async function syncPreapproval(id: string) {
     if (pa.status === "authorized" || pa.status === "paused") await cancelarMP(id);
     return null;
   }
+  // Borra el cambio de plan pedido (si mientras tanto no pidió otro).
+  const borrarPedida = (pid: string) => db.from("coach_billing").update({ pending_plan: null, mp_pending_id: null, updated_at: new Date().toISOString() })
+    .eq("coach_id", coachId).eq("mp_pending_id", pid);
 
   // Aviso a los socios de los cambios de la suscripción (una vez por suscripción y estado),
   // solo de la vigente o de la pedida (ver reglas.ts).
@@ -174,13 +177,24 @@ async function syncPreapproval(id: string) {
     const { update, cancelar } = alCobrar(cur, id, plan, PLANES[plan].max, paidUntil);
     if (cancelar) await cancelarMP(cancelar);
     await db.from("coach_billing").update(update).eq("coach_id", coachId);
+    // Cobró la vigente y hay un cambio de plan pedido: si quedó sin pagar más de una semana (o
+    // ya está cancelado), se da de baja y se borra (ver reglas.ts).
+    const pid = cur.mp_pending_id;
+    if (id === cur.mp_preapproval_id && pid && pid !== id) {
+      try {
+        const pend = await mp("/preapproval/" + encodeURIComponent(pid));
+        if (pedidaVencida(String(pend.status), String(pend.date_created || ""))) {
+          if (pend.status === "pending") await cancelarMP(pid);
+          await borrarPedida(pid);
+        }
+      } catch (e) { console.error("pedida", pid, (e as Error).message); }
+    }
   } else if (id === cur.mp_preapproval_id) {
     // paused / cancelled de la suscripción vigente: queda activo hasta paid_until.
     await db.from("coach_billing").update({ mp_status: pa.status, updated_at: new Date().toISOString() }).eq("coach_id", coachId);
   } else if (pedidaCancelada(cur, id, String(pa.status))) {
-    // El cambio de plan pedido se canceló sin pagarse: se borra (si mientras tanto no pidió otro).
-    await db.from("coach_billing").update({ pending_plan: null, mp_pending_id: null, updated_at: new Date().toISOString() })
-      .eq("coach_id", coachId).eq("mp_pending_id", id);
+    // El cambio de plan pedido se canceló sin pagarse: se borra.
+    await borrarPedida(id);
   }
   return { coachId, plan };
 }
