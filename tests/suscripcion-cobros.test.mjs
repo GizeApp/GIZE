@@ -8,11 +8,14 @@
 //   pendiente se guarda solo si nadie lo cambió mientras tanto.
 // - El cambio de plan pedido que se cancela sin pagarse se borra (antes lo borraba el cobro de
 //   la vigente; sin eso quedaba para siempre).
-// - El tope cuenta solo los intentos que van a crear una suscripción: reusar el link no cuenta y
-//   el frenado con 429 tampoco (antes cada toque frenado alargaba la espera).
+// - El tope de 10 cuenta solo los intentos que crean una suscripción y el frenado con 429 no
+//   cuenta (antes cada toque frenado alargaba la espera). Reusar el link sin pagar igual lo
+//   consulta en Mercado Pago: tiene su tope aparte, de 30 por hora (antes no tenía ninguno).
+//   El checkout se prueba corriendo la función (tests/funcion.mjs) con Mercado Pago simulado.
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { funcion, supabaseSimulado, cumple } from './funcion.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = 'supabase/functions/suscripcion';
@@ -70,25 +73,110 @@ export default async function ({ t }){
     'syncPreapproval: la pedida cancelada borra el cambio de plan (si no pidió otro mientras tanto)');
   t.ok(sync.indexOf('pending_plan: null') === sync.lastIndexOf('pending_plan: null') && sync.indexOf('pending_plan: null') > cae, 'syncPreapproval: ya no borra el pendiente en ningún otro caso');
 
-  // Checkout.
+  // Checkout: lo que no se ve corriendo la función (dos checkouts a la vez).
   const co = src.slice(src.indexOf('if (input.action === "checkout")'));
-  const tope = /const CHECKOUTS_POR_HORA = (\d+);/.exec(src);
-  t.ok(tope && Number(tope[1]) <= 10, 'tope de 10 checkouts por hora o menos');
-  const ins = co.indexOf('.from("mp_checkouts").insert({ coach_id: coachId })'), cnt = co.indexOf('.from("mp_checkouts").select("id", { count: "exact", head: true })'), crea = co.indexOf('mp("/preapproval", {');
-  t.ok(ins > 0 && cnt > ins && crea > cnt, 'anota el intento, cuenta y recién después crea la suscripción');
-  t.ok(/> CHECKOUTS_POR_HORA\) \{\s*if \(mio\) await db\.from\("mp_checkouts"\)\.delete\(\)\.eq\("id", mio\.id\);\s*return json\(\{ error: "[^"]+" \}, 429\);/.test(co), 'pasado el tope, 429, y ese intento no cuenta');
-  t.ok(/const \{ data: mio, error: ie \} = await db\.from\("mp_checkouts"\)\.insert\(\{ coach_id: coachId \}\)\.select\("id"\)\.maybeSingle\(\);/.test(co), 'se guarda el id del intento propio');
-  t.ok(/if \(ne\.code !== "42P01" && ne\.code !== "PGRST205"\) return json\([^;]*503\);/.test(co), 'si no se puede contar (y la tabla existe), no se crea nada');
-  const reusa = co.indexOf('bill.pending_plan === plan');
-  t.ok(reusa > 0 && reusa < ins && /prev\.status === "pending" && prev\.init_point/.test(co) && /=== email\) return json\(\{ url: prev\.init_point \}\)/.test(co), 'reusa el link sin pagar del mismo plan y mail (antes de anotar el intento: no cuenta)');
   t.ok(/q = bill\.mp_pending_id \? q\.eq\("mp_pending_id", bill\.mp_pending_id\) : q\.is\("mp_pending_id", null\);/.test(co), 'el pendiente se guarda solo si no cambió');
   t.ok(/if \(se \|\| !saved \|\| !saved\.length\) \{[\s\S]*?await cancelarMP\(pa\.id\);/.test(co), 'si otro checkout ganó, da de baja la suscripción recién creada');
   const guarda = co.indexOf('const { data: saved, error: se } = await q.select'), baja = co.indexOf('await cancelarMP(bill.mp_pending_id)');
   t.ok(guarda > 0 && baja > guarda, 'el pendiente anterior se da de baja recién después de guardar el nuevo');
+  const topes = [/const CHECKOUTS_POR_HORA = (\d+);/.exec(src), /const REUSOS_POR_HORA = (\d+);/.exec(src)].map(m => m && Number(m[1]));
+  t.ok(topes[0] && topes[0] <= 10 && topes[1] && topes[1] <= 30, 'topes por hora: 10 para crear y 30 para reusar, o menos: ' + topes);
+
+  // ---- Checkout de verdad: la función con Supabase y Mercado Pago simulados ----
+  // tabla: 'ok' | 'sin-tabla' | 'sin-columna' | 'falla' (no se puede contar).
+  const COACH = 'c0ac4000-0000-4000-8000-000000000001', MAIL = 'coach@prueba.test';
+  const checkout = async ({ tabla = 'ok', pendiente = null } = {}) => {
+    const bill = { coach_id: COACH, plan: 'trial', mp_preapproval_id: null, mp_status: null, mp_pending_id: null, pending_plan: null };
+    const intentos = [], mp = [];
+    let n = 0, creadas = 0;
+    const db = supabaseSimulado(q => {
+      if (q.tabla === 'profiles') return q.count ? { count: 0 } : { data: { role: 'coach' } };
+      if (q.tabla === 'coach_billing'){
+        if (q.accion === 'select') return { data: Object.assign({}, bill) };
+        if (q.accion === 'update'){ if (!cumple(bill, q.filtros)) return { data: [] }; Object.assign(bill, q.valores); return { data: [{ coach_id: COACH }] }; }
+      }
+      if (q.tabla === 'mp_checkouts'){
+        if (tabla === 'sin-tabla') return { error: { code: 'PGRST205', message: 'no existe mp_checkouts' } };
+        if (q.accion === 'insert'){
+          if (tabla === 'sin-columna' && 'reuso' in q.valores) return { error: { code: 'PGRST204', message: 'no existe reuso' } };
+          const f = Object.assign({ id: ++n, created_at: new Date().toISOString(), reuso: false }, q.valores);
+          intentos.push(f); return { data: { id: f.id } };
+        }
+        if (q.accion === 'select'){ if (tabla === 'falla') return { error: { code: '57014', message: 'tardó demasiado' } }; return { count: intentos.filter(f => cumple(f, q.filtros)).length }; }
+        if (q.accion === 'delete'){ for (let i = intentos.length - 1; i >= 0; i--) if (cumple(intentos[i], q.filtros)) intentos.splice(i, 1); return { data: null }; }
+      }
+      return { data: null };
+    }, { user: { id: COACH, email: MAIL } });
+    // Mercado Pago simulado: cada suscripción creada queda «pending» con su link.
+    const subs = {};
+    if (pendiente) { subs.P0 = { id: 'P0', status: 'pending', init_point: 'https://mp.test/P0', external_reference: COACH + '|' + pendiente, payer_email: MAIL }; Object.assign(bill, { mp_pending_id: 'P0', pending_plan: pendiente }); }
+    const fetch = async (url, init = {}) => {
+      const m = (init.method || 'GET'), u = new URL(String(url));
+      mp.push(m + ' ' + u.pathname);
+      if (m === 'POST' && u.pathname === '/preapproval'){
+        const b = JSON.parse(init.body), id = 'P' + (++creadas);
+        subs[id] = { id, status: 'pending', init_point: 'https://mp.test/' + id, external_reference: b.external_reference, payer_email: b.payer_email };
+        return new Response(JSON.stringify(subs[id]), { status: 201 });
+      }
+      const id = decodeURIComponent(u.pathname.split('/').pop());
+      if (m === 'PUT') subs[id].status = 'cancelled';
+      return new Response(JSON.stringify(subs[id] || {}), { status: subs[id] ? 200 : 404 });
+    };
+    const fn = await funcion('suscripcion', { fetch,
+      env: { MP_ACCESS_TOKEN: 'TEST', SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'srv' },
+      npm: { '@supabase/supabase-js': { createClient: () => db } } });
+    const pagar = async (plan) => {
+      const r = await fn.call(new Request('https://x.supabase.co/functions/v1/suscripcion', { method: 'POST', headers: { Authorization: 'Bearer x' }, body: JSON.stringify({ action: 'checkout', plan, mp_email: MAIL }) }));
+      return { status: r.status, ...(await r.json()) };
+    };
+    return { pagar, bill, intentos, mp };
+  };
+  const cuenta = (lista, re) => lista.filter(x => re.test(x)).length;
+  {
+    // Reusar el link: cada toque lo consulta en Mercado Pago, hasta 30 por hora.
+    const x = await checkout({ pendiente: 'p25' });
+    const res = [];
+    for (let i = 0; i < 35; i++) res.push(await x.pagar('p25'));
+    t.ok(res.slice(0, 30).every(r => r.status === 200 && r.url === 'https://mp.test/P0'), 'reusar: los primeros 30 devuelven el mismo link');
+    t.ok(res.slice(30).every(r => r.status === 429), 'reusar: del 31 en adelante, 429 (antes no tenía tope)');
+    t.eq([cuenta(x.mp, /^GET \/preapproval\//), cuenta(x.mp, /^POST/)], [30, 0], 'reusar: 30 consultas a Mercado Pago y ninguna suscripción nueva');
+    t.eq(x.intentos.length, 30, 'reusar: los frenados no quedan anotados');
+    // Los de crear se cuentan aparte: cambiar de plan sigue andando.
+    const r = await x.pagar('p50');
+    t.ok(r.status === 200 && r.url === 'https://mp.test/P1' && x.bill.mp_pending_id === 'P1', 'reusar no gasta los de crear: ' + JSON.stringify(r));
+  }
+  {
+    // Crear: 10 por hora (cambiando de plan cada vez, así no se reusa).
+    const x = await checkout();
+    const res = [];
+    for (let i = 0; i < 10; i++) res.push(await x.pagar(i % 2 ? 'p50' : 'p25'));
+    t.ok(res.every(r => r.status === 200 && /^https:\/\/mp\.test\/P\d+$/.test(r.url)), 'crear: los primeros 10 crean un link');
+    // El último pedido fue el de 50: otro plan ya no se puede crear, el de 50 se reusa.
+    const mas = [await x.pagar('p25'), await x.pagar('p25'), await x.pagar('p100')];
+    t.ok(mas.every(r => r.status === 429), 'crear: del 11 en adelante, 429: ' + mas.map(r => r.status));
+    t.eq(cuenta(x.mp, /^POST \/preapproval$/), 10, 'crear: 10 suscripciones en Mercado Pago');
+    t.eq(x.intentos.filter(f => !f.reuso).length, 10, 'crear: los frenados no quedan anotados (no alargan la espera)');
+    t.ok(cuenta(x.mp, /^PUT/) === 9, 'crear: cada link nuevo da de baja el anterior sin pagar');
+    const r = await x.pagar('p50');
+    t.ok(r.status === 200 && r.url === res[9].url, 'crear: pasado el tope, el link sin pagar se sigue reusando');
+  }
+  {
+    // Si no se puede contar (con la tabla), no se consulta ni se crea nada.
+    const x = await checkout({ tabla: 'falla', pendiente: 'p25' });
+    const a = await x.pagar('p25'), b = await x.pagar('p50');
+    t.ok(a.status === 503 && b.status === 503 && x.mp.length === 0, 'sin poder contar: 503 y nada a Mercado Pago');
+  }
+  for (const tabla of ['sin-tabla', 'sin-columna']){
+    // Sin correr el SQL: se sigue como antes, para no cortar los cobros.
+    const x = await checkout({ tabla, pendiente: 'p25' });
+    const a = await x.pagar('p25'), b = await x.pagar('p50');
+    t.ok(a.status === 200 && a.url === 'https://mp.test/P0' && b.status === 200 && b.url === 'https://mp.test/P1', tabla + ': reusa y crea igual: ' + JSON.stringify([a, b]));
+  }
 
   // La tabla del tope.
   const sql = fs.readFileSync(path.join(ROOT, 'supabase/pagos-seguros.sql'), 'utf8');
   t.ok(/create table if not exists public\.mp_checkouts \(/.test(sql) && /create index if not exists mp_checkouts_coach_idx on public\.mp_checkouts \(coach_id, created_at\);/.test(sql), 'pagos-seguros.sql: tabla mp_checkouts (re-ejecutable)');
   t.ok(/alter table public\.mp_checkouts enable row level security;/.test(sql) && /revoke all on public\.mp_checkouts from anon, authenticated;/.test(sql), 'pagos-seguros.sql: mp_checkouts sin acceso desde la app');
+  t.ok(/alter table public\.mp_checkouts add column if not exists reuso boolean not null default false;/.test(sql), 'pagos-seguros.sql: la columna reuso (re-ejecutable)');
   t.ok(!/@[a-z0-9-]+\.[a-z]{2,}/i.test(sql), 'sin mails en el SQL');
 }
