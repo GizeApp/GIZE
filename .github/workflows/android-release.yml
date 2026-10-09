@@ -3,7 +3,12 @@
 # El archivo queda en la ejecución, sección "Artifacts" (gize-play-store), y se sube en
 # Play Console → Probar y publicar → la versión que corresponda → Crear versión.
 #
-# Necesita estos secrets del repo (Settings → Secrets and variables → Actions):
+# Corre solo desde main y en el Environment "play-release". Crearlo (hace falta ser admin del
+# repo): Settings → Environments → New environment → "play-release"; en «Deployment branches and
+# tags» elegir «Selected branches and tags» y agregar solo main, y tildar «Required reviewers» con
+# tu usuario. Ahí van estos 4 secrets («Environment secrets»); después borralos de Settings →
+# Secrets and variables → Actions: mientras sigan en el repo, un workflow subido en otra rama los
+# puede leer. Si se borran del repo sin cargarlos acá, falla en «Preparar la clave de firma».
 #   ANDROID_KEYSTORE_BASE64   la clave de subida (.jks) en base64
 #   ANDROID_KEYSTORE_PASSWORD contraseña del .jks
 #   ANDROID_KEY_ALIAS         alias de la clave (gize)
@@ -24,6 +29,9 @@ permissions:
 
 jobs:
   aab:
+    # Desde otra rama no arranca, y los secrets de firma están en el Environment (ver arriba).
+    if: github.ref == 'refs/heads/main'
+    environment: play-release
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

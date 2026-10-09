@@ -15,9 +15,14 @@
 #   El archivo queda 21 días en la ejecución (Artifacts → backup-base): alcanza para tener
 #   las últimas 3 copias semanales sin dejar meses de copias a disposición.
 #
-# Corre solo desde main.
+# Corre solo desde main y en el Environment "backup". Crearlo (hace falta ser admin del repo):
+# Settings → Environments → New environment → "backup"; en «Deployment branches and tags» elegir
+# «Selected branches and tags» y agregar solo main, sin revisores (si no, la copia semanal queda
+# esperando). Los secrets de abajo van ahí («Environment secrets»); después borralos de Settings →
+# Secrets and variables → Actions: mientras sigan en el repo, un workflow subido en otra rama los
+# puede leer. Si se borran del repo sin cargarlos acá, falla en «Revisar los secrets».
 #
-# Secrets (Settings → Secrets and variables → Actions):
+# Secrets del Environment "backup":
 #   SUPABASE_DB_URL   Supabase → botón "Connect" → "Session pooler" → la URI, con la
 #                     contraseña de la base en lugar de [YOUR-PASSWORD].
 #   BACKUP_PASSWORD   una contraseña larga para cifrar las copias. Guardala aparte (gestor de
@@ -42,6 +47,7 @@ permissions:
 jobs:
   backup:
     if: github.ref == 'refs/heads/main'
+    environment: backup
     runs-on: ubuntu-24.04
     env:
       DB_URL: ${{ secrets.SUPABASE_DB_URL }}

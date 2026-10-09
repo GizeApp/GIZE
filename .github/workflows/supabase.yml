@@ -6,7 +6,16 @@
 # Corre solo desde main: lanzado desde otra rama no arranca, así no se puede correr SQL
 # ni publicar funciones con código que no pasó por main.
 #
-# Secrets del repo (Settings → Secrets and variables → Actions):
+# Corre en el Environment "production" (también lo usan importar-off.yml e importar-super.yml).
+# Crearlo (hace falta ser admin del repo): Settings → Environments → New environment →
+# "production"; en «Deployment branches and tags» elegir «Selected branches and tags» y agregar
+# solo main, y tildar «Required reviewers» con tu usuario (cada ejecución espera tu aprobación).
+# Ahí van todos los secrets de abajo y los de la tarea "secrets" (APNS_KEY_P8, APNS_KEY_ID,
+# SIWA_KEY_P8, SIWA_KEY_ID, APPLE_TEAM_ID) como «Environment secrets»; después borralos de
+# Settings → Secrets and variables → Actions: mientras sigan en el repo, un workflow subido en
+# otra rama los puede leer. Si se borran del repo sin cargarlos acá, falla en «Revisar el token».
+#
+# Secrets del Environment "production":
 #   SUPABASE_ACCESS_TOKEN  obligatorio. Token de supabase.com/dashboard/account/tokens con
 #                          acceso SOLO a este proyecto: Project Settings (read), Logs (read),
 #                          Database (read-write), Edge Functions (read-write),
@@ -56,8 +65,9 @@ permissions:
 
 jobs:
   supabase:
-    # Desde otra rama no arranca.
+    # Desde otra rama no arranca, y los secrets están en el Environment (ver arriba).
     if: github.ref == 'refs/heads/main'
+    environment: production
     runs-on: ubuntu-24.04
     env:
       PROJECT_REF: wegptuzhsrwppbknqstf

@@ -1,11 +1,17 @@
 # App de iPhone. Compila en una Mac de GitHub (no hace falta tener Mac).
-#   · En cada PR que toque ios/ o la config: compila para el simulador, sin firmar, para
-#     avisar si algo se rompió.
-#   · A mano (Actions → "App iPhone" → Run workflow): compila firmada y la sube a
-#     App Store Connect / TestFlight.
+#   · En cada PR que toque ios/ o la config (trabajo «simulador»): compila para el simulador,
+#     sin firmar y sin ningún secret, para avisar si algo se rompió.
+#   · A mano y solo desde main (Actions → "App iPhone" → Run workflow, trabajo «testflight»):
+#     compila firmada y la sube a App Store Connect / TestFlight.
 #
-# Secrets para subir (Settings → Secrets and variables → Actions):
-#   APPLE_TEAM_ID   Team ID de 10 caracteres (developer.apple.com → Account → Membership)
+# «testflight» corre en el Environment "ios-release". Crearlo (hace falta ser admin del repo):
+# Settings → Environments → New environment → "ios-release"; en «Deployment branches and tags»
+# elegir «Selected branches and tags» y agregar solo main, y tildar «Required reviewers» con tu
+# usuario. Ahí van estos secrets («Environment secrets»); después borralos de Settings → Secrets
+# and variables → Actions: mientras sigan en el repo, un workflow subido en otra rama los puede
+# leer. Si se borran del repo sin cargarlos acá, «testflight» falla en «Clave de App Store Connect».
+#   APPLE_TEAM_ID   Team ID de 10 caracteres (developer.apple.com → Account → Membership). Lo usa
+#                   también la tarea "secrets" de supabase.yml: cargalo además en "production".
 #   ASC_KEY_ID      Key ID de la clave de la API de App Store Connect
 #   ASC_ISSUER_ID   Issuer ID (App Store Connect → Usuarios y acceso → Integraciones → API)
 #   ASC_KEY_P8      contenido completo del archivo AuthKey_XXXX.p8
@@ -26,7 +32,8 @@ permissions:
   contents: read
 
 jobs:
-  ios:
+  simulador:
+    if: github.event_name == 'pull_request'
     runs-on: macos-latest
     # Con «shell: bash» GitHub corre cada paso con pipefail: si xcodebuild falla, el
     # «| tail -40» ya no esconde el error y el paso queda en rojo.
@@ -56,14 +63,38 @@ jobs:
         run: node scripts/build-web.mjs && npx cap sync ios
 
       - name: Compilar para el simulador (sin firmar)
-        if: github.event_name == 'pull_request'
         run: |
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO build | tail -40
 
+  # Los mismos pasos de arriba para armar el proyecto, y después la firma y la subida. Solo desde
+  # main y en el Environment con los secrets de Apple (ver arriba).
+  testflight:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: ios-release
+    runs-on: macos-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Elegir el Xcode más nuevo
+        run: |
+          X=$(ls -d /Applications/Xcode_*.app | sed -E 's#.*/Xcode_([0-9.]+)\.app#\1 &#' | grep -v beta | sort -V | tail -1 | cut -d' ' -f2)
+          echo "Usando $X"; sudo xcode-select -s "$X/Contents/Developer"; xcodebuild -version
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Sacar Facebook del plugin de login
+        run: node scripts/ios-sin-facebook.mjs
+      - name: Juntar la app web y pasarla al proyecto iOS
+        run: node scripts/build-web.mjs && npx cap sync ios
+
       - name: Clave de App Store Connect
-        if: github.event_name == 'workflow_dispatch'
         env:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -74,7 +105,6 @@ jobs:
       # Certificados intermedios oficiales de Apple (WWDR), para que la firma lleve la cadena
       # completa hasta la raíz de Apple.
       - name: Certificados intermedios de Apple
-        if: github.event_name == 'workflow_dispatch'
         run: |
           for c in AppleWWDRCAG3 AppleWWDRCAG4 AppleWWDRCAG5 AppleWWDRCAG6; do
             curl -fsSL -o "$RUNNER_TEMP/$c.cer" "https://www.apple.com/certificateauthority/$c.cer"
@@ -86,7 +116,6 @@ jobs:
       # la clave privada se crea en esta Mac y al final el certificado se revoca. El script no usa
       # paquetes de PyPI (firma con openssl): nada bajado en el momento corre al lado de la clave.
       - name: Certificado y perfil de App Store (temporales)
-        if: github.event_name == 'workflow_dispatch'
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -95,7 +124,6 @@ jobs:
         run: ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" python3 scripts/ios-firma.py crear
 
       - name: Compilar firmada y subir a TestFlight
-        if: github.event_name == 'workflow_dispatch'
         env:
           TEAM: ${{ secrets.APPLE_TEAM_ID }}
           KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -139,7 +167,7 @@ jobs:
 
       # Siempre, aunque algo haya fallado: se revoca el certificado temporal y se borra el perfil.
       - name: Revocar el certificado temporal
-        if: always() && github.event_name == 'workflow_dispatch'
+        if: always()
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}

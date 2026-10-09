@@ -4,7 +4,9 @@
 # Se corre a mano (Actions → "Importar productos de supermercado" → Run workflow) y una vez
 # por mes para traer lo nuevo.
 #
-# Usa el secret SUPABASE_ACCESS_TOKEN (el mismo del workflow "Supabase"). Corre solo desde main.
+# Usa el secret SUPABASE_ACCESS_TOKEN del Environment "production" (Settings → Environments, ver
+# supabase.yml). Corre solo desde main. Si "production" pide aprobación, la corrida de cada mes
+# queda esperando hasta que la apruebes (en la ejecución → «Review deployments»).
 # El log es PÚBLICO: el script imprime solo cantidades.
 name: Importar productos de supermercado
 
@@ -28,6 +30,7 @@ concurrency:
 jobs:
   importar:
     if: github.ref == 'refs/heads/main'
+    environment: production
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:

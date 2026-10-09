@@ -3,6 +3,8 @@
 // .github/postgres/Dockerfile, que sigue Dependabot. El workflow de iPhone no instala nada de PyPI:
 // scripts/ios-firma.py firma el JWT de App Store Connect con openssl. «Fotos de videos» corre
 // Pillow (versión y hash fijos) en un trabajo que solo lee y sube desde otro que no corre nada.
+// Todo trabajo que lee secrets corre solo desde main y en su Environment (play-release,
+// ios-release, production o backup), y los PR de iPhone compilan sin secrets.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -156,5 +158,31 @@ print(m.firma_cruda(bytes.fromhex(sys.argv[2])).hex())`;
     t.eq(g.stdout.trim().split('\n'), ['001.jpg', 'resumen.json'], 'en revision-videos quedan solo las hojas y el resumen');
     t.ok(!fs.existsSync(path.join(dir, 'robado')), 'los hooks del .git plantado no corren con el token');
   }
+
+  // 4) Claves de firma y de producción: cada trabajo que lee secrets corre solo desde main y en un
+  //    Environment limitado a main. La condición sola no alcanza (una rama puede traer el workflow
+  //    sin ella); con los secrets en el Environment, otra rama no los recibe.
+  const ENV = { 'android-release.yml': 'play-release', 'ios.yml': 'ios-release', 'supabase.yml': 'production',
+    'importar-off.yml': 'production', 'importar-super.yml': 'production', 'backup.yml': 'backup' };
+  const vistos = new Set();
+  for (const f of fs.readdirSync(path.join(ROOT, '.github/workflows')).filter(f => /\.ya?ml$/.test(f)).sort()){
+    const yml = leer('.github/workflows/' + f);
+    t.ok(!/secrets\./.test(sinComentarios(yml.split(/^jobs:/m)[0])), f + ': no lee secrets fuera de los trabajos');
+    for (const [n, b] of Object.entries(trabajos(yml))){
+      if (!/\$\{\{\s*secrets\./.test(b)) continue;
+      vistos.add(f);
+      const env = (b.match(/^    environment: (\S+)\s*$/m) || [])[1], cond = (b.match(/^    if: (.+)$/m) || [])[1] || '';
+      t.eq(env, ENV[f], f + ' → ' + n + ': corre en el Environment que guarda sus secrets');
+      t.ok(cond.includes("github.ref == 'refs/heads/main'"), f + ' → ' + n + ': corre solo desde main');
+    }
+    if (ENV[f]) t.ok(yml.includes('Settings → Environments') && yml.includes('Environment "' + ENV[f] + '"'), f + ': explica qué Environment crear y qué secrets van ahí');
+  }
+  t.eq([...vistos].sort(), Object.keys(ENV).sort(), 'los workflows con secrets son los esperados');
+  // iPhone: los PR compilan para el simulador en un trabajo sin secrets; la versión firmada es otro.
+  const ij = Object.values(trabajos(leer('.github/workflows/ios.yml')));
+  const pr = ij.filter(b => /^    if: github\.event_name == 'pull_request'\s*$/m.test(b));
+  t.ok(pr.length === 1 && !/secrets\./.test(pr[0]) && /CODE_SIGNING_ALLOWED=NO/.test(pr[0]), 'ios.yml compila los PR en un trabajo sin secrets');
+  t.ok(ij.some(b => /^    if: github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main'\s*$/m.test(b) && /altool --upload-app/.test(b)), 'ios.yml sube a TestFlight solo a mano y desde main');
+
   for (const d of CARPETAS) fs.rmSync(d, { recursive: true, force: true });
 }
