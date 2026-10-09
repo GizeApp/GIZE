@@ -4,10 +4,14 @@
 // como todavía no había guardado nada, Resend lo reintentaba y pasaba lo mismo.
 // Ahora: limpieza lineal, menos texto procesado y la fila se guarda primero con el id de Resend.
 // El aviso a los administradores se anota en notified_at: si el primer intento se corta después
-// de guardar la fila, el reintento de Resend lo manda (antes no salía nunca).
+// de guardar la fila, el reintento de Resend lo manda (antes no salía nunca). También si se
+// cortó después de guardar el texto: antes el reintento veía el texto y salía sin avisar.
+// La función se corre de verdad, con Supabase, Resend y web-push simulados (tests/funcion.mjs).
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { funcion, supabaseSimulado, cumple } from './funcion.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = 'supabase/functions/contacto';
@@ -57,4 +61,93 @@ export default async function ({ t }){
   const sql = fs.readFileSync(path.join(ROOT, 'supabase/contacto.sql'), 'utf8');
   t.ok(/alter table public\.contact_messages add column notified_at timestamptz;\s*update public\.contact_messages set notified_at = created_at;/.test(sql)
     && /if not exists \(select 1 from information_schema\.columns[\s\S]*?column_name = 'notified_at'\) then/.test(sql), 'contacto.sql: agrega notified_at y da por avisados los que ya estaban (solo la primera vez)');
+
+  // ---- La función de verdad: Resend reintenta y el aviso sale una vez ----
+  // corte: el intento se corta al anotar el aviso (después de guardar el texto).
+  // sinColumna: todavía no se corrió el SQL de notified_at.
+  const prueba = async ({ sinColumna = false } = {}) => {
+    const filas = [], avisos = [], bajadas = [];
+    let corte = false;
+    const db = supabaseSimulado(q => {
+      if (q.tabla === 'contact_messages'){
+        if (q.accion === 'select'){
+          if (sinColumna && /notified_at/.test(q.columnas)) return { error: { code: '42703', message: 'no existe notified_at' } };
+          const f = filas.find(x => cumple(x, q.filtros));
+          return { data: f ? { id: f.id, body_missing: f.body_missing, ...(sinColumna ? {} : { notified_at: f.notified_at }) } : null };
+        }
+        if (q.accion === 'upsert'){
+          if (filas.some(x => x.resend_id === q.valores.resend_id)) return { data: [] };
+          const f = Object.assign({ id: filas.length + 1, notified_at: null }, q.valores);
+          filas.push(f); return { data: [{ id: f.id }] };
+        }
+        if (q.accion === 'update'){
+          if ('notified_at' in q.valores){
+            if (sinColumna) return { error: { code: 'PGRST204', message: 'no existe notified_at' } };
+            if (corte) throw new Error('la función se cortó');
+          }
+          const hit = filas.filter(x => cumple(x, q.filtros));
+          hit.forEach(x => Object.assign(x, q.valores));
+          return { data: hit.map(x => ({ id: x.id })) };
+        }
+      }
+      if (q.tabla === 'app_admins') return { data: [{ user_id: 'admin-1' }] };
+      if (q.tabla === 'push_subscriptions') return { data: q.accion === 'select' ? [{ id: 's1', user_id: 'admin-1', endpoint: 'https://fcm.googleapis.com/fcm/send/abc', p256dh: 'p', auth: 'a' }] : null };
+      return { data: null };
+    });
+    const secreto = crypto.randomBytes(24);
+    const fn = await funcion('contacto', {
+      env: { RESEND_WEBHOOK_SECRET: 'whsec_' + secreto.toString('base64'), RESEND_FULL_KEY: 're_prueba', VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv', SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'srv' },
+      npm: { '@supabase/supabase-js': { createClient: () => db }, 'web-push': { default: { setVapidDetails(){}, sendNotification: async (sub, payload) => { avisos.push(JSON.parse(payload).title); } } } },
+      fetch: async (url) => {
+        bajadas.push(String(url));
+        return new Response(JSON.stringify({ from: 'Ana <ana@ejemplo.test>', to: ['contacto@gize.ar'], subject: 'Consulta', text: 'Hola, una consulta.', headers: {}, authentication: { dmarc: 'pass' } }), { status: 200 });
+      },
+    });
+    // Un aviso de Resend firmado como Svix.
+    const mandar = async () => {
+      const raw = JSON.stringify({ type: 'email.received', data: { email_id: 're_1', from: 'ana@ejemplo.test', to: ['contacto@gize.ar'], subject: 'Consulta' } });
+      const id = 'msg_1', ts = String(Math.floor(Date.now() / 1000));
+      const sig = crypto.createHmac('sha256', secreto).update(id + '.' + ts + '.' + raw).digest('base64');
+      try {
+        const r = await fn.call(new Request('https://x.supabase.co/functions/v1/contacto', { method: 'POST', body: raw, headers: { 'svix-id': id, 'svix-timestamp': ts, 'svix-signature': 'v1,' + sig } }));
+        return { status: r.status, ...(await r.json()) };
+      } catch (e) { return { cortada: true }; }
+    };
+    return { filas, avisos, bajadas, mandar, cortar: v => { corte = v; } };
+  };
+
+  {
+    // Primer intento entero; el reintento de Resend no hace nada.
+    const x = await prueba();
+    const r1 = await x.mandar();
+    t.ok(r1.ok && !r1.duplicado, 'mail nuevo: lo guarda (' + JSON.stringify(r1) + ')');
+    t.eq(x.avisos.length, 1, 'mail nuevo: avisa a los administradores');
+    t.ok(x.filas[0] && x.filas[0].body === 'Hola, una consulta.' && !x.filas[0].body_missing && !!x.filas[0].notified_at, 'mail nuevo: texto guardado y aviso anotado');
+    const r2 = await x.mandar();
+    t.ok(r2.duplicado, 'reintento: duplicado');
+    t.eq([x.avisos.length, x.bajadas.length], [1, 1], 'reintento: no vuelve a avisar ni a bajar el mail');
+  }
+  {
+    // El primer intento guarda el texto y se corta antes de anotar el aviso.
+    const x = await prueba();
+    x.cortar(true);
+    const r1 = await x.mandar();
+    t.ok(r1.cortada && x.filas[0] && !x.filas[0].body_missing && !x.filas[0].notified_at, 'cortado: quedó el texto, sin el aviso anotado');
+    t.eq(x.avisos.length, 0, 'cortado: el aviso no salió');
+    x.cortar(false);
+    const r2 = await x.mandar();
+    t.ok(r2.ok && !r2.duplicado, 'cortado: el reintento sigue (antes salía como duplicado): ' + JSON.stringify(r2));
+    t.eq(x.avisos.length, 1, 'cortado: el reintento avisa a los administradores');
+    t.ok(!!x.filas[0].notified_at, 'cortado: y lo anota');
+    const r3 = await x.mandar();
+    t.ok(r3.duplicado && x.avisos.length === 1, 'cortado: el siguiente reintento ya no avisa');
+  }
+  {
+    // Sin la columna (falta correr el SQL): como antes, avisa en el primer intento.
+    const x = await prueba({ sinColumna: true });
+    const r1 = await x.mandar();
+    t.ok(r1.ok && x.avisos.length === 1, 'sin notified_at: el primer intento guarda y avisa: ' + JSON.stringify(r1));
+    const r2 = await x.mandar();
+    t.ok(r2.duplicado && x.avisos.length === 1, 'sin notified_at: el reintento es duplicado y no avisa');
+  }
 }

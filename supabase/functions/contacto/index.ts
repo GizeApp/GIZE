@@ -189,9 +189,16 @@ Deno.serve(async (req) => {
   if (!resendId) return json({ error: "Falta el id del mail" }, 400);
 
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { data: prev, error: prevErr } = await db.from("contact_messages").select("id, body_missing").eq("resend_id", resendId).maybeSingle();
+  type Previo = { id: number; body_missing: boolean; notified_at?: string | null };
+  const previo = (cols: string) => db.from("contact_messages").select(cols).eq("resend_id", resendId).maybeSingle<Previo>();
+  let { data: prev, error: prevErr } = await previo("id, body_missing, notified_at");
+  // Sin la columna notified_at (falta correr supabase/contacto.sql) se lee como antes.
+  if (prevErr && (prevErr.code === "42703" || prevErr.code === "PGRST204")) ({ data: prev, error: prevErr } = await previo("id, body_missing"));
   if (prevErr) { console.error("select", prevErr.message); return json({ error: "No se pudo leer la base" }, 500); }
-  if (prev && !prev.body_missing) return json({ ok: true, duplicado: true }); // Resend reintenta: ya estaba
+  // Resend reintenta: si ya estaba con el texto y con el aviso hecho, no hay nada más que hacer.
+  // Con el texto pero sin el aviso (el intento anterior se cortó entre guardar el texto y
+  // anotarlo), se sigue para avisar. Sin la columna (notified_at undefined), como antes.
+  if (prev && !prev.body_missing && prev.notified_at !== null) return json({ ok: true, duplicado: true });
 
   // Lo que se sabe del mail: del aviso de Resend y, si se pudo bajar, del mail completo.
   const campos = (full: Record<string, any> | null) => {
