@@ -22,7 +22,7 @@ import { syncRouteViews } from './ui/mapa.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
-import { afterLogin, forgetStoredSession, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, clearAuthExpect, clearRecoveryPending, clearRecoveryRequest, dropRecoverySession, expectAuthLink, localUnsynced, markRecoveryRequest, otpErrorKind, PROFILE_KEY, RECOVERY_MSG, refreshOwnRoutine, setRecoveryPending, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithApple, signInWithGoogle } from './core/supabase.js';
+import { afterLogin, forgetStoredSession, sessionCloudId, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, clearAuthExpect, clearRecoveryPending, clearRecoveryRequest, dropRecoverySession, expectAuthLink, localUnsynced, markRecoveryRequest, otpErrorKind, PROFILE_KEY, RECOVERY_MSG, refreshOwnRoutine, setRecoveryPending, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithApple, signInWithGoogle } from './core/supabase.js';
 
 import { assistedKg, isAssisted, fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, intNum, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
@@ -764,7 +764,7 @@ document.body.addEventListener("click", async e => {
     if(se){ se.exercises=r.exercises; save(); cloudEditSession(se).then(ok=>{ if(!ok && !isOnline()) alert("El cambio se guardó en este dispositivo y se envía a tu cuenta cuando vuelva internet."); }); }
     closeSheet(()=>{ EditState.se=null; renderApp(); }); return;
   }
-  if (a === "session-remove") { if(confirm("¿Borrar este entreno del historial?")){ const _s=state.sessions.find(x=>x.id===el.dataset.id); if(_s&&_s.cloudId){ try{ cloudDeleteSession(_s.cloudId); }catch(e){} } state.sessions=state.sessions.filter(x=>x.id!==el.dataset.id); save(); renderApp(); } return; }
+  if (a === "session-remove") { if(confirm("¿Borrar este entreno del historial?")){ const _s=state.sessions.find(x=>x.id===el.dataset.id), _cid=sessionCloudId(_s); if(_cid){ try{ cloudDeleteSession(_cid); }catch(e){} } state.sessions=state.sessions.filter(x=>x.id!==el.dataset.id); save(); renderApp(); } return; }
 
   // Días
   if (a === "open-routines") { openRoutinePicker(); return; }

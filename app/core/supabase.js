@@ -900,6 +900,12 @@ export async function loadCloud(){
   // igual. Se reintenta más tarde; lo local queda como está y el pie avisa que no hay conexión.
   if(!await liveSession(State.cloudUser.id, _staleBoot ? 300 : 3000)){ scheduleCloudRetry(); return; }
   State.cloudLoading=true;
+  // Mientras se lee, syncExtras no encola nada: lo que se cargue en ese rato (agua, comidas,
+  // hábitos, preferencias, pesos) se compara con cómo estaba al empezar y no se pisa con lo de
+  // la nube (antes desaparecía y nunca se subía). Lo que la cola mande en ese rato también se
+  // vuelve a poner encima (pend0).
+  const day0=JSON.stringify(daySnapshot()), prefs0=JSON.stringify(prefsSnapshot());
+  const pend0=State.cloudUser ? myPending() : [];
   try{
     // Supabase no lanza cuando una lectura falla: devuelve {data:null, error}. Un data null
     // por error NO significa "no hay nada en la nube", así que cada lectura se chequea y,
@@ -999,6 +1005,10 @@ export async function loadCloud(){
     // celular): Entreno pasa al de hoy con las mismas reglas que al abrir (core/state.js).
     if(!isCoach) elegirDiaDeHoy();
     if(!ws.error && Array.isArray(ws.data)){
+      // Pesos cargados, cambiados o borrados que todavía no se encolaron (también los de
+      // durante la lectura): a la cola antes de tomar la lista de la nube; applyPending los
+      // vuelve a poner encima.
+      if(queueWeightDiff()) _weightsQueued=true;
       state.weights=ws.data.map(w=>({id:w.id, date:w.measured_on, kg:Number(w.kg)}));
       state.weightsSent=null; // se vuelve a tomar después de applyPending (ver más abajo)
     }
@@ -1025,12 +1035,14 @@ export async function loadCloud(){
     // Comidas, agua, pasos y hábitos de hoy. La nube manda solo si ya tiene el día
     // (water_ml lo escribe siempre la app); si no, se conserva lo local y se sube.
     _lastDay=null;
+    // Cambiado acá mientras se leía (el mismo día): manda lo de acá y se sube.
+    const d1=daySnapshot(), dayEdited=day0!=="null" && !!d1 && JSON.stringify(d1)!==day0;
     const todayRow=(!dl.error && Array.isArray(dl.data)) ? dl.data.find(r=>r.log_date===today()) : null;
     // Racha: los días que la app abrió con esta cuenta (también desde otros celulares). Una
     // fila con solo los pasos (de un día en que no se abrió la app) no cuenta.
     const opened=r=>r.water_ml!=null || r.habits_done!=null || !!(r.comment||r.soreness||r.performance||r.motivation||r.hunger||r.fatigue||r.sleep||r.answers);
     if(!dl.error && Array.isArray(dl.data)) mergeVisits(dl.data.filter(opened).map(r=>r.log_date));
-    if(!fe.error && todayRow && todayRow.water_ml!=null){
+    if(!fe.error && todayRow && todayRow.water_ml!=null && !dayEdited){
       state.diaryDate=state.waterDate=state.stepsDate=state.habitsDate=today();
       state.water=todayRow.water_ml||0;
       state.steps=todayRow.steps||0;
@@ -1039,13 +1051,15 @@ export async function loadCloud(){
       _lastDay=JSON.stringify(daySnapshot());
     }
     _lastPrefs=null;
-    if(!cp.error && cp.data){ applyPrefs(cp.data); _lastPrefs=JSON.stringify(prefsSnapshot()); }
+    if(!cp.error && cp.data && JSON.stringify(prefsSnapshot())===prefs0){ applyPrefs(cp.data); _lastPrefs=JSON.stringify(prefsSnapshot()); }
     if(!cp.error) state.cloudSeen=true; // desde acá lo local de este usuario ya se puede subir
-    applyPending(); // lo que la nube todavía no tiene (cola de envío) se vuelve a poner encima
+    applyPending(pend0); // lo que la nube todavía no tiene (cola de envío) se vuelve a poner encima
     if(!ws.error && Array.isArray(ws.data)) state.weightsSent=weightsSnapshot();
     save();
   }catch(e){ console.error("loadCloud",e); }
   State.cloudLoading=false;
+  // Pesos encolados durante la carga: syncExtras (abajo) ya no ve la diferencia y no los manda.
+  if(_weightsQueued){ _weightsQueued=false; setTimeout(()=>{ flushOutbox(); }, 0); }
   // Sin esto, si la app abría sin señal no volvía a intentar en toda la sesión: la rutina
   // nunca se subía y los cambios quedaban solo en el celular.
   if(!State.cloudReady) scheduleCloudRetry(); else _retryN=0;
@@ -1133,6 +1147,10 @@ window.addEventListener("online", ()=>{ if(State.cloudUser && !State.cloudReady)
 // Una foto nueva reemplaza a la anterior todavía pendiente, así la cola no crece.
 let _lastDay=null, _lastPrefs=null, _extrasTimer=null;
 const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Id de un entreno en la nube: el suyo (cloudId) o, si se guardó sin señal y la app se cerró
+// antes de marcarlo, su propio id (es el de la fila en la nube, ver cloudInsertSession). Los
+// entrenos viejos, guardados solo en el celular, tienen ids cortos y no tienen fila.
+export function sessionCloudId(se){ return (se && (se.cloudId || (UUID_RE.test(String(se.id)) ? se.id : null))) || null; }
 
 // Comidas de cada fecha que estaban en este dispositivo la última vez que se mandaron (o se
 // trajeron de la nube): state.foodsSeen = { fecha: [ids] }. En la nube se borra solo lo que
@@ -1203,6 +1221,18 @@ function applyPrefs(p){
 
 function weightsSnapshot(){ const m={}; (state.weights||[]).forEach(w=>{ if(w && w.date && Number(w.kg)>0) m[w.date]=Number(w.kg); }); return m; }
 
+// Peso corporal: cada fecha cargada, cambiada o borrada va por la cola, así un peso
+// anotado sin señal se sube cuando vuelve (antes se perdía al recargar desde la nube).
+let _weightsQueued=false;
+function queueWeightDiff(){
+  if(!state.weightsSent || !state.cloudSeen || !State.cloudUser) return false;
+  const cur=weightsSnapshot(), sent=state.weightsSent; let q=false;
+  Object.keys(cur).forEach(dt=>{ if(sent[dt]!==cur[dt]){ enqueue("weight", {date:dt, kg:cur[dt]}, dt); q=true; } });
+  Object.keys(sent).forEach(dt=>{ if(!(dt in cur)){ enqueue("weight", {date:dt, del:true}, dt); q=true; } });
+  state.weightsSent=cur;
+  return q;
+}
+
 export function syncExtras(){
   if(!State.cloudUser || State.cloudLoading || !state.cloudSeen) return;
   let queued=false;
@@ -1214,14 +1244,7 @@ export function syncExtras(){
   }
   const p=prefsSnapshot(), pj=JSON.stringify(p);
   if(pj!==_lastPrefs){ _lastPrefs=pj; enqueue("prefs", p, "prefs"); queued=true; }
-  // Peso corporal: cada fecha cargada, cambiada o borrada va por la cola, así un peso
-  // anotado sin señal se sube cuando vuelve (antes se perdía al recargar desde la nube).
-  if(state.weightsSent){
-    const cur=weightsSnapshot(), sent=state.weightsSent;
-    Object.keys(cur).forEach(dt=>{ if(sent[dt]!==cur[dt]){ enqueue("weight", {date:dt, kg:cur[dt]}, dt); queued=true; } });
-    Object.keys(sent).forEach(dt=>{ if(!(dt in cur)){ enqueue("weight", {date:dt, del:true}, dt); queued=true; } });
-    state.weightsSent=cur;
-  }
+  if(queueWeightDiff()) queued=true;
   if(queued){ clearTimeout(_extrasTimer); _extrasTimer=setTimeout(()=>{ flushOutbox(); }, 1500); }
 }
 
@@ -1697,8 +1720,13 @@ export function isOnline(){ return navigator.onLine!==false; }
 
 // loadCloud pisa state.sessions/daily/checkins con lo que hay en la nube: lo que
 // todavía está en la cola (y por eso la nube no lo tiene) se vuelve a poner encima.
-function applyPending(){
-  myPending().forEach(it=>{
+// extra: pendientes leídos antes (loadCloud), por si la cola los mandó y los sacó mientras
+// tanto: volver a poner uno que ya llegó a la nube no cambia nada (es la última versión local).
+function applyPending(extra){
+  const seen=new Set(), list=[];
+  (extra||[]).concat(myPending()).forEach(it=>{ if(it && !seen.has(it.id)){ seen.add(it.id); list.push(it); } });
+  list.sort((a,b)=>(a.ts||0)-(b.ts||0));
+  list.forEach(it=>{
     const p=it.p;
     if(it.k==="session"){
       if(!state.sessions.some(s=>s.id===p.id)) state.sessions.push(Object.assign({id:p.id, cloudId:p.id, date:p.date, ts:p.ts, day:p.day, exercises:p.exercises}, p.dur>0?{dur:p.dur}:{}));
