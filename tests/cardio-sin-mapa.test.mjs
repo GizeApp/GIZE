@@ -7,6 +7,8 @@
 //    imagen para compartir, sin los créditos del mapa.
 // b) iPhone (Safari) y la compu: el mapa se sigue pidiendo (MapLibre de vendor/).
 // c) Modo liviano en la compu: el mismo aspecto sin mapa (cartelito, grilla, escala y marcas).
+// e) Recorridos largos sin mapa, a 320 px: las marcas de km más espaciadas (cada 10 km pasando los
+//    50, cada 20 pasando los 150) y sin encimarse (en una ida y vuelta, las de la vuelta no van).
 // d) Tablets Android con «Sitio de escritorio» (Chrome en las de 10" o más, Samsung Internet en las
 //    Galaxy Tab): dicen ser una compu con Linux, y siguen sin mapa de calles. La compu con Linux
 //    (sin pantalla táctil), Windows, Mac (también el iPad) y las Chromebook siguen con mapa.
@@ -186,6 +188,45 @@ export default async function ({ base, t }){
     t.ok(v && v.sinMapa && !v.conMapa && v.nomap === NO_MAP && ESCALA.test(v.escala), name + ': el recorrido sin mapa, con el cartelito y la escala: ' + JSON.stringify(v));
     t.eq(pg.reqs.filter(u => MAPA.test(u)), [], name + ': nunca se pide MapLibre ni OpenFreeMap');
     t.eq(await pg.p.evaluate(() => window.__gl), 0, name + ': ningún contexto de WebGL');
+    t.eq(pg.errs, [], 'errores de la página (' + name + ')');
+    await pg.close();
+  }
+
+  // e) Recorridos largos en bici, a 320 px: una ida y vuelta de 120 km (60 al norte y volver por el
+  //    mismo camino) y 160 km de ida. Se anota dónde se escribe cada número de km.
+  const POS = `(() => { window.__pos = []; const ft = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (s, x, y, ...a){ if (/^\\d+$/.test(String(s))) window.__pos.push([String(s), x, y]); return ft.call(this, s, x, y, ...a); }; })();`;
+  const largos = await (async () => {
+    const h = await newPage({}); await h.p.goto(base + '/privacidad/');
+    const out = await h.p.evaluate(async () => {
+      const m = await import('/app/core/cardiogps.js');
+      const arma = (id, pts) => {
+        const dist = Math.round(pts.reduce((a, p, i) => i ? a + m.haversine(pts[i - 1], p) : 0, 0)), dur = pts[pts.length - 1].t;
+        return { rec: { id, mode: 'bici', date: '2026-10-03', startedAt: '2026-10-03T12:00:00.000Z', endedAt: new Date(Date.parse('2026-10-03T12:00:00.000Z') + dur * 1000).toISOString(),
+          dur, moving: dur, dist, kcal: 2000, avg: dist / dur * 3.6, max: 35, kg: 70, kgDefault: false, gap: 0, points: pts.length, breakdown: {}, segments: [], splits: [] }, track: m.encodeTrack([pts]) };
+      };
+      const ida = [], idaVuelta = [];
+      for (let i = 0; i <= 600; i++) idaVuelta.push({ lat: -34.6 + i * 100 / 111195, lon: -58.4, t: i * 14.4 });
+      for (let i = 599; i >= 0; i--) idaVuelta.push({ lat: -34.6 + i * 100 / 111195, lon: -58.4, t: (1200 - i) * 14.4 });
+      for (let i = 0; i <= 800; i++) ida.push({ lat: -34.6 + i * 200 / 111195, lon: -58.4, t: i * 28.8 });
+      return [arma('5a1d0000-0000-4000-8000-00000000e120', idaVuelta), arma('5a1d0000-0000-4000-8000-00000000e160', ida)];
+    });
+    await h.close(); return out;
+  })();
+  for (const [name, sv, esperadas] of [['ida y vuelta de 120 km', largos[0], ['10', '20', '30', '40', '50', '60']], ['160 km de ida', largos[1], ['20', '40', '60', '80', '100', '120', '140']]]){
+    pg = await abrirGuardada(base, sv, UA.android, POS, { viewport: { width: 320, height: 640 }, touch: true });
+    v = await listo(pg.p, '#salidaHost');
+    const pos = await pg.p.evaluate(() => window.__pos.slice());
+    // Las marcas del último dibujo (el resumen se puede redibujar al acomodarse): una por número.
+    const ult = new Map(pos.map(x => [x[0], x]));
+    const marcas = [...ult.values()], cerca = [];
+    for (let i = 0; i < marcas.length; i++) for (let j = i + 1; j < marcas.length; j++){
+      const d = Math.hypot(marcas[i][1] - marcas[j][1], marcas[i][2] - marcas[j][2]);
+      if (d < 20) cerca.push(marcas[i][0] + ' y ' + marcas[j][0] + ' a ' + Math.round(d) + ' px');
+    }
+    t.ok(v && v.sinMapa && v.nomap === NO_MAP, name + ': sin mapa de calles');
+    t.eq([...ult.keys()].sort((a, b) => a - b), esperadas, name + ': las marcas de km que se dibujan');
+    t.eq(cerca, [], name + ': ninguna marca encima de otra (a menos de 20 px)');
     t.eq(pg.errs, [], 'errores de la página (' + name + ')');
     await pg.close();
   }

@@ -11,7 +11,8 @@
 // Termina sola (4 a 6 s): nada queda dando vueltas. Con la app en segundo plano no se dibuja.
 // Con el neón apagado (html.sin-neon): grises a blanco y sin halo.
 // Sin mapa de calles (ui/mapa.js noMap), fuera de en vivo: una marca en cada km (cada 5 km si pasa
-// de 12 km) para darse una idea del tamaño del recorrido.
+// de 12 km, cada 10 si pasa de 50 y cada 20 si pasa de 150) para darse una idea del tamaño del
+// recorrido, sin que se encimen (ver drawMarks).
 import { colorDomain, haversine, simplifyLine, speedT, trackPoints } from '../core/cardiogps.js';
 import { gizeGamut } from './background.js';
 import { appAway, onAwayChange } from './pausa.js';
@@ -19,7 +20,10 @@ import { appAway, onAwayChange } from './pausa.js';
 const MAX_DRAW = 1500;    // con más puntos se simplifica para dibujar (no cambia la forma)
 const LINE_W = 5, HALO_W = 14, HI_W = 1.5;  // anchos en px CSS
 const TAIL = 0.06;        // la estela: el último 6 % de lo dibujado
-const KM_STEP = 1000, KM_STEP_LONG = 5000, KM_LONG = 12000; // marcas de km (sin mapa): cada 1 km, o cada 5 si pasa de 12 km
+// Marcas de km (sin mapa): [más de tantos metros, una cada tantos]; y nunca a menos de KM_GAP px
+// (CSS) de otra, del inicio o del final (en una ida y vuelta, las de la vuelta caen sobre las de la ida).
+const KM_STEPS = [[150000, 20000], [50000, 10000], [12000, 5000], [0, 1000]], KM_GAP = 20;
+const kmStep = total => KM_STEPS.find(x => total > x[0])[1];
 
 // ---- Colores ----
 function parseColor(s){
@@ -276,13 +280,17 @@ export function drawMarks(ctx, prep, xy, m, o){
     }
   }
   // Marcas de cada km (sin mapa, o.km), hasta m metros: círculo oscuro con borde blanco y el
-  // número. La última, si queda casi en el final, no va (taparía el punto del final).
-  if (o.km && prep.total > KM_STEP){
-    const step = prep.total > KM_LONG ? KM_STEP_LONG : KM_STEP;
+  // número. La última, si queda casi en el final, no va (taparía el punto del final); tampoco una
+  // que caería a menos de KM_GAP px de otra ya puesta, del inicio o del final (así no se enciman en
+  // los recorridos largos ni en las idas y vueltas).
+  if (o.km && prep.total > 1000){
+    const step = kmStep(prep.total), gap = KM_GAP * s, puestas = [first, last];
     ctx.save();
     ctx.font = "700 " + (9 * s) + "px Outfit, system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     for (let d = step; d < prep.total - step * 0.15 && d <= m; d += step){
       const q = pointAt(prep, xy, d); if (!q) continue;
+      if (puestas.some(p => Math.hypot(p.x - q.x, p.y - q.y) < gap)) continue;
+      puestas.push(q);
       ctx.beginPath(); ctx.arc(q.x, q.y, 8.5 * s, 0, Math.PI * 2);
       ctx.fillStyle = "rgba(10,12,18,.92)"; ctx.fill();
       ctx.lineWidth = 1.5 * s; ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.stroke();
