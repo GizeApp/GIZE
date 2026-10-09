@@ -265,13 +265,13 @@ function takePendingCode(){
 }
 // Al cerrar sesión o borrar la cuenta: lo que quedó de esa cuenta en el dispositivo además de
 // los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso,
-// avisos de los hábitos, la salida de Cardio en curso, los recorridos guardados y la imagen de
-// la última salida compartida).
+// avisos de los hábitos, la salida de Cardio en curso, el cronómetro y el temporizador de
+// Cardio, los recorridos guardados y la imagen de la última salida compartida).
 export function clearAccountLeftovers(uid){
   clearHabitAlarms();
   deleteShareFile();
   try{
-    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, RECOVERY_PENDING, "gize_auth_link_used", "gize_rest_timer", TRACK_KEY].concat(runKeys()).forEach(k=>localStorage.removeItem(k));
+    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, RECOVERY_PENDING, "gize_auth_link_used", "gize_rest_timer", "gize_cardio_clock", TRACK_KEY].concat(runKeys()).forEach(k=>localStorage.removeItem(k));
     if(uid){ [OUTBOX_KEY, OUTBOX_FAILED_KEY].forEach(k=>{ const q=readQueue(k).filter(i=>i.uid!==uid); if(q.length) writeQueue(k,q); else localStorage.removeItem(k); }); }
   }catch(e){}
 }

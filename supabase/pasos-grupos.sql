@@ -15,9 +15,12 @@
 --     (y su coach, como siempre).
 --   · Límites: 10 grupos por persona y 30 personas por grupo. Un día cuenta hasta 100.000 pasos
 --     (un número mal tipeado no gana la semana).
+--   · Quien el dueño saca del grupo no puede volver a entrar con el mismo código
+--     (pasos_expulsados).
 --
--- Se borra solo: al borrar la cuenta (auth.users) se van sus grupos (si era el dueño) y sus
--- lugares en los demás (on delete cascade).
+-- Se borra solo: al borrar la cuenta (auth.users) se van sus lugares en los grupos (on delete
+-- cascade). Si era el dueño, el grupo sigue y pasa a quien está hace más tiempo, como al salir
+-- (trigger pasos_traspasar_dueno); si estaba solo, el grupo se borra.
 --
 -- Correr con el workflow "Supabase" → tarea sql → supabase/pasos-grupos.sql (o pegarlo en
 -- Supabase → SQL Editor). Se puede volver a correr sin problema. Mientras no se corra, la app
@@ -51,11 +54,21 @@ alter table public.pasos_miembros drop constraint if exists pasos_miembros_apodo
 alter table public.pasos_miembros add constraint pasos_miembros_apodo_check check (apodo is null or char_length(btrim(apodo)) between 1 and 24);
 create index if not exists pasos_miembros_user_idx on public.pasos_miembros(user_id);
 
+-- Los que el dueño sacó de cada grupo: con el mismo código no vuelven a entrar (pasos_unirse).
+create table if not exists public.pasos_expulsados (
+  grupo_id  uuid not null references public.pasos_grupos(id) on delete cascade,
+  user_id   uuid not null references auth.users(id) on delete cascade,
+  primary key (grupo_id, user_id)
+);
+create index if not exists pasos_expulsados_user_idx on public.pasos_expulsados(user_id);
+
 -- Nadie las toca directo: solo las funciones de abajo (security definer).
 alter table public.pasos_grupos enable row level security;
 alter table public.pasos_miembros enable row level security;
+alter table public.pasos_expulsados enable row level security;
 revoke all on public.pasos_grupos from anon, authenticated;
 revoke all on public.pasos_miembros from anon, authenticated;
+revoke all on public.pasos_expulsados from anon, authenticated;
 
 -- Para sumar la semana de cada miembro rápido (si ya existe con otro nombre, no molesta).
 create index if not exists daily_logs_client_date_idx on public.daily_logs(client_id, log_date);
@@ -199,6 +212,10 @@ begin
   select g.id into gid from public.pasos_grupos g where g.codigo = c for update;
   if gid is null then raise exception 'Ese código no existe. Revisalo: son 8 letras y números.' using errcode = 'P0001'; end if;
   if exists (select 1 from public.pasos_miembros m where m.grupo_id = gid and m.user_id = me) then return gid; end if;
+  -- El dueño lo sacó: el código (y el link que le quedó) ya no le sirve para este grupo.
+  if exists (select 1 from public.pasos_expulsados e where e.grupo_id = gid and e.user_id = me) then
+    raise exception 'No podés volver a sumarte a este grupo.' using errcode = 'P0001';
+  end if;
   perform pg_advisory_xact_lock(hashtext('pasos:' || me::text));
   if (select count(*) from public.pasos_miembros m where m.user_id = me) >= 10 then
     raise exception 'Ya estás en 10 grupos, el máximo. Salí de alguno para sumarte a otro.' using errcode = 'P0001';
@@ -246,19 +263,26 @@ begin
   if not found then raise exception 'Solo quien armó el grupo lo puede borrar.' using errcode = 'P0001'; end if;
 end $$;
 
--- Sacar a alguien del grupo (solo el dueño; a sí mismo no: para eso está «Salir»).
+-- Sacar a alguien del grupo (solo el dueño; a sí mismo no: para eso está «Salir»). Queda anotado
+-- para que no vuelva a entrar con el mismo código.
 create or replace function public.pasos_sacar_miembro(p_grupo uuid, p_miembro uuid)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  quien uuid;
 begin
   if auth.uid() is null then raise exception 'Tenés que ingresar con tu cuenta.' using errcode = '42501'; end if;
   if not exists (select 1 from public.pasos_grupos g where g.id = p_grupo and g.dueno = auth.uid()) then
     raise exception 'Solo quien armó el grupo puede sacar a alguien.' using errcode = 'P0001';
   end if;
-  delete from public.pasos_miembros m where m.id = p_miembro and m.grupo_id = p_grupo and m.user_id <> auth.uid();
+  delete from public.pasos_miembros m where m.id = p_miembro and m.grupo_id = p_grupo and m.user_id <> auth.uid()
+    returning m.user_id into quien;
+  if quien is not null then
+    insert into public.pasos_expulsados (grupo_id, user_id) values (p_grupo, quien) on conflict do nothing;
+  end if;
 end $$;
 
 -- Cambiar el nombre con que me ven en un grupo (vacío = mi primer nombre).
@@ -294,8 +318,10 @@ as $$
    order by m.unido;
 $$;
 
--- Ranking de la semana. p_atras: 0 = esta semana, 1 = la pasada… (hasta 52). Solo si soy del
--- grupo (si no, no devuelve nada). Empatados comparten el puesto.
+-- Ranking de esta semana. Solo si soy del grupo (si no, no devuelve nada). Empatados comparten el
+-- puesto. p_atras queda por las versiones de la app que lo mandan, pero no se usa: de las semanas
+-- anteriores no se ve nada (a cada uno se le dice que los demás ven solo su total de la semana;
+-- de la pasada, solo el campeón). Antes dejaba ver hasta 52 semanas de cada miembro.
 create or replace function public.pasos_ranking(p_grupo uuid, p_atras int default 0)
 returns table (miembro uuid, nombre text, pasos int, puesto int, soy_yo boolean, desde date, hasta date)
 language sql
@@ -303,7 +329,7 @@ stable
 security definer
 set search_path = public
 as $$
-  with w as (select public.pasos_lunes(public.pasos_hoy()) - 7 * least(greatest(coalesce(p_atras, 0), 0), 52) as desde)
+  with w as (select public.pasos_lunes(public.pasos_hoy()) as desde)
   select t.miembro, t.nombre, t.pasos::int, (rank() over (order by t.pasos desc))::int,
          t.user_id = auth.uid(), w.desde, w.desde + 6
     from w cross join lateral public.pasos_totales(p_grupo, w.desde, w.desde + 6) t
@@ -313,6 +339,9 @@ $$;
 
 -- Campeón de la semana pasada: quien más pasos sumó de lunes a domingo (si alguien caminó). Con
 -- empate ganan todos los empatados (pedido). Solo si soy del grupo.
+-- Compiten solo los que ya estaban en el grupo antes de que terminara esa semana (lunes 0 h de
+-- Argentina): un grupo nuevo no tiene campeón hasta su primer lunes, y quien se suma el lunes no
+-- se lleva la copa de una semana que no jugó.
 create or replace function public.pasos_campeon(p_grupo uuid)
 returns table (miembro uuid, nombre text, pasos int, soy_yo boolean, desde date, hasta date)
 language sql
@@ -323,12 +352,39 @@ as $$
   with w as (select public.pasos_lunes(public.pasos_hoy()) - 7 as desde),
        t as (select t.*, w.desde, max(t.pasos) over () as top
                from w cross join lateral public.pasos_totales(p_grupo, w.desde, w.desde + 6) t
-              where public.pasos_soy_miembro(p_grupo))
+              where public.pasos_soy_miembro(p_grupo)
+                and t.unido < ((w.desde + 7)::timestamp at time zone 'America/Argentina/Buenos_Aires'))
   select t.miembro, t.nombre, t.pasos::int, t.user_id = auth.uid(), t.desde, t.desde + 6
     from t
    where t.pasos > 0 and t.pasos = t.top
    order by t.unido, t.miembro;
 $$;
+
+-- ===== Al borrar una cuenta =====
+
+-- Si era dueño de grupos, cada uno pasa a quien está hace más tiempo (como en pasos_salir): sin
+-- esto, la cascada de pasos_grupos.dueno borraba el grupo para todos. Si estaba solo, el grupo se
+-- borra igual (cascada). Va acá y no en delete_own_account: así existe solo si existen los grupos,
+-- y vale también para una cuenta borrada desde el panel de Supabase.
+create or replace function public.pasos_traspasar_dueno()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.pasos_grupos g
+     set dueno = (select m.user_id from public.pasos_miembros m
+                   where m.grupo_id = g.id and m.user_id <> old.id
+                   order by m.unido, m.id limit 1)
+   where g.dueno = old.id
+     and exists (select 1 from public.pasos_miembros m where m.grupo_id = g.id and m.user_id <> old.id);
+  return old;
+end $$;
+revoke all on function public.pasos_traspasar_dueno() from public, anon, authenticated;
+drop trigger if exists pasos_traspasar_dueno on auth.users;
+create trigger pasos_traspasar_dueno before delete on auth.users
+  for each row execute function public.pasos_traspasar_dueno();
 
 -- Solo usuarios logueados.
 revoke all on function public.pasos_hoy() from public, anon;

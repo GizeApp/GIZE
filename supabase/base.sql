@@ -10,7 +10,7 @@
 -- archivos posteriores las endurecieron (plan y cupo del coach, cuenta con suscripción de
 -- Mercado Pago, carpeta de las fotos). Vale la última que se corre. Si lo corrés, corré
 -- después, en este orden: endurecer-base.sql, suscripciones.sql, cupo-plan.sql,
--- pagos-seguros.sql, seguridad-base.sql y ejercicio-audio.sql.
+-- coach-alumnos.sql, pagos-seguros.sql, seguridad-base.sql y ejercicio-audio.sql.
 --
 -- Qué NO tiene:
 --   · Los CREATE TABLE (columnas, tipos, claves foráneas): no se exportaron. Para tenerlos,

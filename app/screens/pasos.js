@@ -256,7 +256,7 @@ document.body.addEventListener("click", async e => {
     return;
   }
   if (a === "sacar" && g){
-    if (!confirm(`¿Sacar a ${el.dataset.n || "esta persona"} del grupo?`)) return;
+    if (!confirm(`¿Sacar a ${el.dataset.n || "esta persona"} del grupo? No va a poder volver a sumarse con el código.`)) return;
     await ocupado(async () => { await sacarMiembro(g.id, el.dataset.m); PasosState.grupos = await misGrupos(); await cargarGrupo(g.id); });
     return;
   }
