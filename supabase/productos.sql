@@ -10,7 +10,8 @@
 -- directo, solo las columnas del catálogo) están en productos-off-servidor.sql.
 --
 -- Seguridad:
---   · Cualquier usuario con sesión lee; nadie carga, edita ni borra desde la app (los pedidos
+--   · Cualquier usuario con sesión lee (solo las columnas del catálogo, sin quién lo cargó ni la
+--     foto de la tabla); nadie carga, edita ni borra desde la app (los pedidos
 --     van por product_requests y lo de Open Food Facts por la función productos-off).
 --   · Límite de 40 productos nuevos por usuario por día.
 --   · Valores absurdos se rechazan (más de 950 kcal, macros de más de 100 g, etc.).
