@@ -2,11 +2,10 @@
 // Mercado Pago (suscripciones / preapproval) y mantiene al día public.coach_billing
 // (ver supabase/suscripciones.sql).
 //
-// Cómo publicarla (una sola vez):
-//   1. Supabase → Edge Functions → Deploy a new function → Via Editor.
-//      Nombre: EXACTAMENTE "suscripcion". Pegar este archivo entero y Deploy.
-//      En Settings de la función, APAGAR "Verify JWT": Mercado Pago avisa los pagos sin
-//      sesión de Supabase. Los pedidos de la app se validan igual con auth.getUser().
+// Cómo publicarla:
+//   1. Solo con la tarea "funciones" de .github/workflows/supabase.yml (no desde el panel de
+//      Supabase: se saltea el «solo desde main»). Va sin "Verify JWT": Mercado Pago avisa los
+//      pagos sin sesión de Supabase. Los pedidos de la app se validan igual con auth.getUser().
 //   2. Supabase → Edge Functions → Secrets → agregar:
 //        MP_ACCESS_TOKEN  Access Token de PRODUCCIÓN de Mercado Pago
 //                         (mercadopago.com.ar/developers → Tus integraciones → la app →

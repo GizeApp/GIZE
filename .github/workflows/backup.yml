@@ -27,15 +27,21 @@
 #   El archivo queda 21 días en la ejecución (Artifacts → backup-base): alcanza para tener
 #   las últimas 3 copias semanales sin dejar meses de copias a disposición.
 #
-# Corre solo desde main.
+# Corre solo desde main y en el Environment "backup". Crearlo (hace falta ser admin del repo):
+# Settings → Environments → New environment → "backup"; en «Deployment branches and tags» elegir
+# «Selected branches and tags» y agregar solo main, sin revisores (si no, la copia semanal queda
+# esperando). Los secrets de abajo van ahí («Environment secrets»); después borralos de Settings →
+# Secrets and variables → Actions: mientras sigan en el repo, un workflow subido en otra rama los
+# puede leer. Si se borran del repo sin cargarlos acá, falla en «Revisar los secrets».
 #
-# Secrets (Settings → Secrets and variables → Actions):
+# Secrets del Environment "backup":
 #   SUPABASE_DB_URL   Supabase → botón "Connect" → "Session pooler" → la URI, con la
 #                     contraseña de la base en lugar de [YOUR-PASSWORD].
 #   BACKUP_PASSWORD   una contraseña larga para cifrar las copias. Guardala aparte (gestor de
 #                     contraseñas): sin ella no se puede abrir ninguna copia.
 #
-# Restaurar una copia de verdad (en una emergencia):
+# Restaurar una copia de verdad (en una emergencia), con pg_restore 18 o más nuevo (la versión de
+# .github/postgres/Dockerfile: uno más viejo no lee la copia):
 #   gpg -d backup-AAAA-MM-DD.dump.gpg > backup.dump
 #   gpg -d permisos-AAAA-MM-DD.sql.gpg > permisos.sql
 #   pg_restore --clean --if-exists --no-owner -d "URI de la base" backup.dump
@@ -63,11 +69,12 @@ permissions:
 jobs:
   backup:
     if: github.ref == 'refs/heads/main'
+    environment: backup
     runs-on: ubuntu-24.04
     env:
       DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       PASS: ${{ secrets.BACKUP_PASSWORD }}
-      PG: docker run --rm --network host -v ${{ github.workspace }}/out:/out -e PGPASSWORD=prueba postgres:18
+      PG: docker run --rm --network host -v ${{ github.workspace }}/out:/out -e PGPASSWORD=prueba gize-postgres
       # Qué pueden anon y authenticated en public (nombre|anon|auth): llamar cada función y cada
       # permiso de cada tabla (y vista) y de cada columna.
       PERMISOS: >-
@@ -116,6 +123,10 @@ jobs:
         public.body_weights public.daily_logs public.checkins
         public.food_entries public.coach_billing public.routine_templates
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Revisar los secrets
         run: |
           [ -n "$DB_URL" ] || { echo "::error::Falta el secret SUPABASE_DB_URL"; exit 1; }
@@ -123,12 +134,21 @@ jobs:
           echo "::add-mask::$DB_URL"
           mkdir -p out
 
+      # La imagen de Postgres recibe la URI de la base y arma la copia: no puede ser un tag que
+      # se mueva. Sale de .github/postgres/Dockerfile, fijada por digest (la actualiza Dependabot).
+      - name: Imagen de Postgres
+        run: |
+          IMG=$(sed -n 's/^FROM \([^ ]*\).*/\1/p' .github/postgres/Dockerfile)
+          [[ "$IMG" =~ ^postgres:[0-9.]+@sha256:[0-9a-f]{64}$ ]] || { echo "::error::.github/postgres/Dockerfile tiene que fijar la imagen con @sha256:"; exit 1; }
+          docker pull -q "$IMG" > /dev/null
+          docker tag "$IMG" gize-postgres
+
       # Base vacía para la prueba. No es un "service" de GitHub: esos imprimen al final todo
       # lo que dijo Postgres, y un error de restauración puede citar valores de una fila.
       # Acá no se registra nada y su salida no llega al log.
       - name: Levantar la base de prueba
         run: |
-          docker run -d --name prueba -e POSTGRES_PASSWORD=prueba -p 5432:5432 postgres:18 \
+          docker run -d --name prueba -e POSTGRES_PASSWORD=prueba -p 5432:5432 gize-postgres \
             -c log_min_messages=panic -c log_min_error_statement=panic > /dev/null
           for i in $(seq 1 30); do docker exec prueba pg_isready -U postgres > /dev/null 2>&1 && break; sleep 2; done
           docker exec prueba pg_isready -U postgres > /dev/null

@@ -6,7 +6,17 @@
 # Corre solo desde main: lanzado desde otra rama no arranca, así no se puede correr SQL
 # ni publicar funciones con código que no pasó por main.
 #
-# Secrets del repo (Settings → Secrets and variables → Actions):
+# Corre en el Environment "production" (los importadores del catálogo usan otro, "catalogo", sin
+# revisores: ver importar-off.yml).
+# Crearlo (hace falta ser admin del repo): Settings → Environments → New environment →
+# "production"; en «Deployment branches and tags» elegir «Selected branches and tags» y agregar
+# solo main, y tildar «Required reviewers» con tu usuario (cada ejecución espera tu aprobación).
+# Ahí van todos los secrets de abajo y los de la tarea "secrets" (APNS_KEY_P8, APNS_KEY_ID,
+# SIWA_KEY_P8, SIWA_KEY_ID, APPLE_TEAM_ID) como «Environment secrets»; después borralos de
+# Settings → Secrets and variables → Actions: mientras sigan en el repo, un workflow subido en
+# otra rama los puede leer. Si se borran del repo sin cargarlos acá, falla en «Revisar el token».
+#
+# Secrets del Environment "production":
 #   SUPABASE_ACCESS_TOKEN  obligatorio. Token de supabase.com/dashboard/account/tokens con
 #                          acceso SOLO a este proyecto: Project Settings (read), Logs (read),
 #                          Database (read-write), Edge Functions (read-write),
@@ -56,8 +66,9 @@ permissions:
 
 jobs:
   supabase:
-    # Desde otra rama no arranca.
+    # Desde otra rama no arranca, y los secrets están en el Environment (ver arriba).
     if: github.ref == 'refs/heads/main'
+    environment: production
     runs-on: ubuntu-24.04
     env:
       PROJECT_REF: wegptuzhsrwppbknqstf
@@ -87,13 +98,36 @@ jobs:
       # Todas van sin "Verify JWT": suscripcion recibe los avisos de Mercado Pago sin
       # sesión, contacto los mails que avisa Resend (valida la firma del webhook), y las que
       # usa la app validan al usuario por su cuenta con auth.getUser().
+      # Si una no se puede publicar se sigue con las demás. Al final se mira en Supabase qué quedó:
+      # cada una activa y actualizada en esta ejecución (si no, sigue andando la versión anterior,
+      # con errores que ya se arreglaron), y ninguna otra publicada que no salga del repo (como una
+      # «notificar-cliente» creada desde el panel, que la app usa de respaldo y quedó vieja). Las
+      # borradas pueden seguir en la lista como REMOVED: esas no cuentan.
       - name: Publicar funciones
         if: inputs.tarea == 'funciones'
         run: |
+          desde=$(( $(date -u +%s) - 120 ))
           cp -r supabase/functions/notificar-cliente supabase/functions/rapid-worker
+          fns=""; mal=""
           for fn in rapid-worker suscripcion descanso avisos-coach admin contacto borrar-audios productos-off vence-plan; do
-            supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt --use-api
+            fns="$fns $fn"
+            supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt --use-api || mal="$mal $fn"
           done
+          [ -z "$mal" ] || echo "::error::No se pudieron publicar:$mal"
+          supabase functions list --project-ref "$PROJECT_REF" --output json > "$RUNNER_TEMP/funciones.json"
+          jq -r --arg fns "$fns" --argjson desde "$desde" '
+            (. // [] | map(select(.status != "REMOVED"))) as $l | ($fns | split(" ") | map(select(. != ""))) as $f | ($l | map({key: .slug, value: .}) | from_entries) as $p
+            | ($f[] | . as $n | $p[$n] as $x
+                | if $x == null then "\($n): no está publicada"
+                  elif $x.status == "THROTTLED" then "\($n): está frenada por Supabase (THROTTLED)"
+                  elif $x.status != "ACTIVE" then "\($n): no está activa (\($x.status))"
+                  elif ((($x.updated_at | numbers) // 0) / 1000) < $desde then "\($n): sigue la versión anterior (v\($x.version))"
+                  else empty end),
+              ($l[] | select(.slug | IN($f[]) | not) | "\(.slug): está publicada y no sale del repo (si no se usa, borrala en Supabase → Edge Functions)")
+          ' "$RUNNER_TEMP/funciones.json" > "$RUNNER_TEMP/control.txt"
+          while read -r l; do echo "::error::$l"; done < "$RUNNER_TEMP/control.txt"
+          [ -z "$mal" ] && [ ! -s "$RUNNER_TEMP/control.txt" ] || exit 1
+          echo "Publicadas y al día:$fns"
 
       - name: Cargar secrets de las funciones
         if: inputs.tarea == 'secrets'
@@ -110,7 +144,14 @@ jobs:
           AVISOS_PAGOS: ${{ secrets.AVISOS_PAGOS }}
         run: |
           # Se cargan los que estén en GitHub: Mercado Pago y, para la app de iPhone, la clave de Apple.
-          set -- 
+          # Cada clave de Apple va con su Key ID y con APPLE_TEAM_ID: si falta uno se cargaría vacío
+          # y pisaría el que está en Supabase (se cortan los avisos a iPhone o la revocación de Apple).
+          falta=""
+          [ -n "$APNS_KEY_P8" ] && [ -z "$APNS_KEY_ID" ] && falta="$falta APNS_KEY_ID"
+          [ -n "$SIWA_KEY_P8" ] && [ -z "$SIWA_KEY_ID" ] && falta="$falta SIWA_KEY_ID"
+          [ -n "$APNS_KEY_P8$SIWA_KEY_P8" ] && [ -z "$APPLE_TEAM_ID" ] && falta="$falta APPLE_TEAM_ID"
+          if [ -n "$falta" ]; then echo "::error::Faltan$falta. Cargalos en Settings → Environments → production → Environment secrets"; exit 1; fi
+          set --
           [ -n "$MP_ACCESS_TOKEN" ] && set -- "$@" MP_ACCESS_TOKEN="$MP_ACCESS_TOKEN"
           [ -n "$APNS_KEY_P8" ] && set -- "$@" APNS_KEY_P8="$APNS_KEY_P8" APNS_KEY_ID="$APNS_KEY_ID" APPLE_TEAM_ID="$APPLE_TEAM_ID"
           # Clave de «Sign in with Apple» (revocar el acceso al borrar una cuenta de Apple, ver borrar-audios).
@@ -119,7 +160,7 @@ jobs:
           [ -n "$RESEND_FULL_KEY" ] && set -- "$@" RESEND_FULL_KEY="$RESEND_FULL_KEY"
           [ -n "$RESEND_WEBHOOK_SECRET" ] && set -- "$@" RESEND_WEBHOOK_SECRET="$RESEND_WEBHOOK_SECRET"
           [ -n "$AVISOS_PAGOS" ] && set -- "$@" AVISOS_PAGOS="$AVISOS_PAGOS"
-          if [ $# -eq 0 ]; then echo "::error::No hay secrets para cargar en GitHub (Settings → Secrets and variables → Actions)"; exit 1; fi
+          if [ $# -eq 0 ]; then echo "::error::No hay secrets para cargar. Cargalos en Settings → Environments → production → Environment secrets"; exit 1; fi
           supabase secrets set --project-ref "$PROJECT_REF" "$@"
           # Solo los nombres: la lista trae también un resumen (hash) de cada valor y el log es público.
           supabase secrets list --project-ref "$PROJECT_REF" | awk -F'|' '{print $1}'

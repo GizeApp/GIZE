@@ -1,0 +1,6 @@
+# Pillow para scripts/fotos-videos.py (workflow «Fotos de videos»), con versión y hash fijos: pip
+# no instala otro archivo aunque aparezca en PyPI con el mismo nombre. Lo actualiza Dependabot.
+# Los hashes son de las ruedas de Linux para Python 3.12 (x86_64 y arm64).
+pillow==12.3.0 \
+    --hash=sha256:78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91 \
+    --hash=sha256:d9c7f76c0673154f044e9d78c8655fb4213f6ca31a836df48b40fe5d187717b9
