@@ -46,7 +46,7 @@ type ServiceAccount = { project_id: string; client_email: string; private_key: s
 const TOPE_MS = 10_000;
 // web-push corta la conexión con su opción timeout; por las dudas, también se deja de esperar.
 function conTope<T>(p: Promise<T>, ms = TOPE_MS): Promise<T> {
-  let t = 0;
+  let t: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([p, new Promise<T>((_, no) => { t = setTimeout(() => no(new Error("sin respuesta en " + ms / 1000 + " s")), ms); })])
     .finally(() => clearTimeout(t));
 }

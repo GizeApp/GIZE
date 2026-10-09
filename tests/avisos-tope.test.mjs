@@ -33,6 +33,8 @@ function envio(t, nombre, src){
   t.ok(!/^ {2}if \((web\.length|sa|apns\.length)\b/m.test(send), nombre + ': ningún canal espera a otro');
   const tope = /const TOPE_MS = ([\d_]+);/.exec(src);
   t.ok(tope && Number(tope[1].replace(/_/g, '')) <= 15000, nombre + ': tope de 15 segundos o menos');
+  // Con los tipos de Node (los trae web-push), setTimeout no devuelve un número: deno check fallaba.
+  t.ok(/let t: ReturnType<typeof setTimeout> \| undefined;/.test(src) && !/let t = 0;/.test(src), nombre + ': conTope guarda el timer con el tipo de setTimeout');
 }
 
 export default async function ({ t }){
