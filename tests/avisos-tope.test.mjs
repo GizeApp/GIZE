@@ -8,10 +8,13 @@
 //   mandar, sus avisos se liberan para el minuto siguiente. También los de una notificación
 //   que no le llegó a ningún dispositivo por una falla pasajera (sin respuesta, 429, 5xx, sin
 //   token de Google o Apple): antes send() se tragaba esos errores y el aviso se perdía.
+//   Una suscripción con claves mal armadas (web-push falla antes de mandar, sin statusCode) no
+//   es pasajera: antes se liberaba cada minuto durante una hora sin llegar nunca.
 // - La base no acepta direcciones de navegador con puerto (supabase/push-nativo.sql).
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { funcion, supabaseSimulado } from './funcion.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rd = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -20,7 +23,8 @@ const rd = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 function envio(t, nombre, src){
   const send = src.slice(src.indexOf('async function send('), src.indexOf('\n}\n', src.indexOf('async function send(')));
   t.ok(send.length > 100, nombre + ': está send()');
-  t.ok(/webpush\.sendNotification\([^;]*timeout: TOPE_MS/.test(send) && /conTope\(webpush\.sendNotification\(/.test(send), nombre + ': web-push con tiempo máximo');
+  const opts = /const opts = \{[^}]*timeout: TOPE_MS \};/.test(send) && /conTope\(webpush\.sendNotification\(sub, payload, opts\)\)/.test(send);
+  t.ok((/webpush\.sendNotification\([^;]*timeout: TOPE_MS/.test(send) || opts) && /conTope\(webpush\.sendNotification\(/.test(send), nombre + ': web-push con tiempo máximo');
   const fetches = send.match(/await fetch\(/g) || [];
   const conTope = send.match(/signal: AbortSignal\.timeout\(TOPE_MS\)/g) || [];
   t.ok(fetches.length === 2 && conTope.length === 2, nombre + ': Android e iPhone con tiempo máximo (' + conTope.length + ' de ' + fetches.length + ')');
@@ -117,4 +121,38 @@ export default async function ({ t }){
   }
   t.ok(/delete from public\.push_subscriptions where endpoint ~ '\^https:\/\/\[\^\/\]\*:\[0-9\]\*\/';/.test(sql), 'push-nativo.sql: borra las que ya estaban guardadas con puerto');
   t.ok(!/\(:\[0-9\]\+\)\?/.test(rd('supabase/validaciones.sql')), 'validaciones.sql: tampoco acepta puerto (si se vuelve a correr)');
+
+  // ---- avisos-coach de verdad (tests/funcion.mjs): qué avisos se liberan según cómo falla ----
+  // Un coach con un aviso y un solo dispositivo (navegador).
+  const corrida = async (falla) => {
+    const liberados = [], ahora = new Date().toISOString();
+    const db = supabaseSimulado(q => {
+      if (q.tabla === 'coach_alerts' && q.accion === 'update'){
+        if (q.valores.sent_at === null){ liberados.push(...q.filtros.find(f => f[0] === 'in')[2]); return { data: null }; }
+        return { data: [{ id: 1, coach_id: 'c1', client_id: 'k1', kind: 'checkin', key: 'k', days: null, created_at: ahora }] };
+      }
+      if (q.tabla === 'push_subscriptions' && q.accion === 'select')
+        return { data: [{ id: 's1', user_id: 'c1', endpoint: 'https://fcm.googleapis.com/fcm/send/x', p256dh: falla === 'claves' ? 'corta' : 'P'.repeat(87), auth: 'A'.repeat(22) }] };
+      if (q.tabla === 'profiles') return { data: [{ id: 'k1', full_name: 'Ana', coach_id: 'c1' }] };
+      if (q.tabla === 'coach_active') return { data: true };
+      return { data: null };
+    });
+    // web-push simulado: con las claves mal armadas falla antes de mandar, como el de verdad.
+    const armar = (sub) => { if (sub.keys.p256dh.length !== 87) throw new Error('The subscription p256dh value should be 65 bytes long.'); return {}; };
+    const wp = { setVapidDetails(){}, generateRequestDetails: armar, sendNotification: async (sub) => {
+      armar(sub);
+      if (falla === 'sin respuesta') throw new Error('Socket timeout');
+      if (typeof falla === 'number') throw Object.assign(new Error('Received unexpected response code'), { statusCode: falla });
+      return { statusCode: 201 };
+    } };
+    const fn = await funcion('avisos-coach', { env: { VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv', SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'srv' },
+      npm: { '@supabase/supabase-js': { createClient: () => db }, 'web-push': { default: wp } } });
+    const r = await (await fn.call(new Request('https://x.supabase.co/functions/v1/avisos-coach', { method: 'POST' }))).json();
+    return { sent: r.sent, liberados };
+  };
+  t.eq(await corrida(null), { sent: 1, liberados: [] }, 'avisos-coach: llega y no se libera');
+  t.eq(await corrida('sin respuesta'), { sent: 0, liberados: [1] }, 'avisos-coach: sin respuesta, se libera para el minuto siguiente');
+  t.eq(await corrida(503), { sent: 0, liberados: [1] }, 'avisos-coach: con 503, se libera');
+  t.eq(await corrida(400), { sent: 0, liberados: [] }, 'avisos-coach: con 400, no se libera');
+  t.eq(await corrida('claves'), { sent: 0, liberados: [] }, 'avisos-coach: con las claves mal armadas no se libera (antes se reintentaba cada minuto durante una hora)');
 }

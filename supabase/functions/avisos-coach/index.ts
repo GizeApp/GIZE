@@ -103,8 +103,14 @@ async function send(subs: Sub[], title: string, body: string, tag: string): Prom
     if (!web.length || !pub || !priv) return;
     webpush.setVapidDetails(Deno.env.get("VAPID_SUBJECT") || "mailto:soporte@gize.ar", pub, priv);
     const payload = JSON.stringify({ title, body, tag, url: "./app/" });
+    const opts = { TTL: 60 * 60 * 24, urgency: "normal", timeout: TOPE_MS };
     await Promise.all(web.map(async (s) => {
-      try { await conTope(webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 60 * 60 * 24, urgency: "normal", timeout: TOPE_MS })); llegaron++; }
+      const sub = { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } };
+      // Claves mal armadas (la base solo mira los caracteres): web-push falla antes de mandar y
+      // sin statusCode, como cuando no hay respuesta. No es pasajero: reintentar no lo arregla.
+      try { webpush.generateRequestDetails(sub, payload, opts); }
+      catch (e) { console.error("push: suscripción mal armada", (e as Error).message); return; }
+      try { await conTope(webpush.sendNotification(sub, payload, opts)); llegaron++; }
       catch (e) {
         const code = (e as { statusCode?: number }).statusCode;
         if (code === 404 || code === 410) gone.push(s.id);
