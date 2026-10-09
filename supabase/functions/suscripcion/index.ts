@@ -52,6 +52,9 @@ const MARGEN_DIAS = 3;
 // Checkouts por hora por coach: cada uno crea una suscripción en Mercado Pago con la cuenta de
 // GIZE (la misma con la que cobran todos), así que no puede ser sin límite.
 const CHECKOUTS_POR_HORA = 10;
+// Reusar el link sin pagar no crea nada, pero igual lo consulta en Mercado Pago con esa cuenta:
+// tiene su propio tope, más alto, para no gastar los de crear.
+const REUSOS_POR_HORA = 30;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -301,9 +304,32 @@ Deno.serve(async (req) => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "Poné el mail de tu cuenta de Mercado Pago" }, 400);
     const appUrl = Deno.env.get("APP_URL") || "https://gize.ar/app/";
 
+    // Tope por hora (supabase/pagos-seguros.sql, tabla mp_checkouts). Se anota el intento y
+    // después se cuenta: si se mandan varios a la vez, igual pasan como mucho los del tope. El
+    // frenado se borra: antes contaba, y cada toque mientras estaba frenado alargaba la espera.
+    // Reusar el link (reuso) y crear una suscripción se cuentan por separado. Devuelve la
+    // respuesta si hay que cortar.
+    const hora = new Date(Date.now() - 3600_000).toISOString();
+    await db.from("mp_checkouts").delete().eq("coach_id", coachId).lt("created_at", hora); // los viejos ya no cuentan
+    const frenar = async (reuso: boolean, max: number) => {
+      const { data: mio, error: ie } = await db.from("mp_checkouts").insert({ coach_id: coachId, reuso }).select("id").maybeSingle();
+      const { count: intentos, error: ne } = ie ? { count: 0, error: ie } : await db.from("mp_checkouts").select("id", { count: "exact", head: true }).eq("coach_id", coachId).eq("reuso", reuso).gte("created_at", hora);
+      if (ne) {
+        // Sin la tabla o la columna (falta correr el SQL) se sigue como antes, para no cortar los cobros.
+        console.error("mp_checkouts", ne.code, ne.message);
+        return ["42P01", "PGRST205", "42703", "PGRST204"].includes(ne.code) ? null : json({ error: "No se pudo preparar el pago. Probá de nuevo en un rato." }, 503);
+      }
+      if ((intentos || 0) <= max) return null;
+      if (mio) await db.from("mp_checkouts").delete().eq("id", mio.id);
+      return json({ error: "Probaste muchas veces seguidas. Esperá un rato y volvé a intentar." }, 429);
+    };
+
     // Si ya hay un link sin pagar del mismo plan y con el mismo mail, se usa ese: no hace falta
-    // crear (y después dar de baja) otra suscripción.
+    // crear (y después dar de baja) otra suscripción. Consultarlo también es un pedido a Mercado
+    // Pago con la cuenta de GIZE: antes no tenía tope.
     if (bill.mp_pending_id && bill.pending_plan === plan && bill.mp_pending_id !== bill.mp_preapproval_id) {
+      const frenado = await frenar(true, REUSOS_POR_HORA);
+      if (frenado) return frenado;
       try {
         const prev = await mp("/preapproval/" + encodeURIComponent(bill.mp_pending_id));
         if (prev.status === "pending" && prev.init_point && prev.external_reference === coachId + "|" + plan &&
@@ -311,22 +337,8 @@ Deno.serve(async (req) => {
       } catch (e) { console.error("checkout: pendiente", (e as Error).message); }
     }
 
-    // Tope por hora (supabase/pagos-seguros.sql, tabla mp_checkouts). Se anota el intento recién
-    // acá, antes de crear la suscripción (reusar el link no cuenta), y después se cuenta: si se
-    // mandan varios a la vez, igual pasan como mucho los del tope. El frenado se borra: antes
-    // contaba, y cada toque mientras estaba frenado alargaba la espera.
-    const hora = new Date(Date.now() - 3600_000).toISOString();
-    await db.from("mp_checkouts").delete().eq("coach_id", coachId).lt("created_at", hora); // los viejos ya no cuentan
-    const { data: mio, error: ie } = await db.from("mp_checkouts").insert({ coach_id: coachId }).select("id").maybeSingle();
-    const { count: intentos, error: ne } = ie ? { count: 0, error: ie } : await db.from("mp_checkouts").select("id", { count: "exact", head: true }).eq("coach_id", coachId).gte("created_at", hora);
-    if (ne) {
-      // Sin la tabla (falta correr el SQL) se sigue como antes, para no cortar los cobros.
-      console.error("mp_checkouts", ne.code, ne.message);
-      if (ne.code !== "42P01" && ne.code !== "PGRST205") return json({ error: "No se pudo preparar el pago. Probá de nuevo en un rato." }, 503);
-    } else if ((intentos || 0) > CHECKOUTS_POR_HORA) {
-      if (mio) await db.from("mp_checkouts").delete().eq("id", mio.id);
-      return json({ error: "Probaste muchas veces seguidas. Esperá un rato y volvé a intentar." }, 429);
-    }
+    const frenado = await frenar(false, CHECKOUTS_POR_HORA);
+    if (frenado) return frenado;
 
     let pa;
     try {

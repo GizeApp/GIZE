@@ -12,6 +12,8 @@
 --      en 10 por hora. Cada checkout crea una suscripción en Mercado Pago con la cuenta de
 --      GIZE: sin tope, un coach podía crear cientos (y mandar un mail a los socios por cada
 --      una que se daba de baja). Solo la usa la función: sin políticas, nadie más la ve.
+--      reuso: el toque que reusa el link sin pagar (no crea nada, pero igual consulta a
+--      Mercado Pago). Se cuenta aparte, con un tope de 30 por hora.
 
 alter table public.coach_billing add column if not exists mp_pending_id text;
 
@@ -38,6 +40,7 @@ create table if not exists public.mp_checkouts (
   coach_id   uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now()
 );
+alter table public.mp_checkouts add column if not exists reuso boolean not null default false;
 create index if not exists mp_checkouts_coach_idx on public.mp_checkouts (coach_id, created_at);
 alter table public.mp_checkouts enable row level security;
 revoke all on public.mp_checkouts from anon, authenticated;
