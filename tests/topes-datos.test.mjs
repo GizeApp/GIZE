@@ -7,6 +7,9 @@
 //     daily_logs.answers, con NOT VALID (lo que ya está no hace fallar el archivo).
 //   · Los topes dejan mucho margen sobre lo que arma la app (rutinas armadas, planes guardados).
 //   · Plantillas y preguntas: solo las crea o cambia un coach.
+//   · Cantidad: 200 plantillas por coach y 60 rutinas programadas pendientes por alumno (de las
+//     aplicadas quedan las 10 más nuevas). Cualquiera se registra como coach, y sin esto podía
+//     guardar miles de plantillas de 500 KB o programar una rutina en cada fecha.
 // Las pruebas no tienen Postgres: se revisa el SQL (se probó a mano contra un Postgres 16).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -71,4 +74,24 @@ export default async function ({ base, t }){
   t.ok(flat(read('supabase/preguntas-coach.sql')).includes('for all using (coach_id = auth.uid()) with check (coach_id = auth.uid() and ' + COACH + ');'), 'preguntas-coach.sql: la misma política');
   t.ok(flat(read('supabase/base.sql')).includes('on public.routine_templates for all using (coach_id = auth.uid()) with check (coach_id = auth.uid() and ' + COACH + ');'), 'base.sql: la misma política');
   t.has(read('supabase/base.sql'), 'topes-datos.sql', 'base.sql dice que después va topes-datos.sql');
+
+  // Cantidad de plantillas y de programadas: un trigger antes de cada alta, de a una por coach o
+  // por alumno (lock), así dos a la vez no pasan el tope.
+  const fn = n => (sql.match(new RegExp('create or replace function public\\.' + n + '\\(\\) returns trigger language plpgsql security definer set search_path = public as \\$\\$.*?\\$\\$;')) || [''])[0];
+  const tpls = fn('routine_templates_tope'), sch = fn('routine_schedule_tope');
+  t.ok(tpls.includes("if exists (select 1 from public.routine_templates where id = new.id) then return new; end if;"), 'plantillas: editar una que ya está (upsert) no suma');
+  t.ok(tpls.includes("perform pg_advisory_xact_lock(hashtextextended('routine_templates ' || new.coach_id, 0)); if (select count(*) from public.routine_templates where coach_id = new.coach_id) >= 200 then raise exception 'Llegaste al máximo de rutinas guardadas (200)."),
+    'plantillas: 200 por coach, de a una');
+  t.ok(sch.includes("perform pg_advisory_xact_lock(hashtextextended('routine_schedule ' || new.client_id, 0));"), 'programadas: de a una por alumno');
+  t.ok(sch.includes("delete from public.routine_schedule where id in ( select id from public.routine_schedule where client_id = new.client_id and applied_at is not null order by applied_at desc offset 10);"),
+    'programadas: de las aplicadas quedan las 10 más nuevas (programar para hoy una y otra vez no las junta)');
+  t.ok(sch.includes("if (select count(*) from public.routine_schedule where client_id = new.client_id and applied_at is null) >= 60 then raise exception"), 'programadas: 60 pendientes por alumno');
+  for (const [tab, f] of [['routine_templates', 'routine_templates_tope'], ['routine_schedule', 'routine_schedule_tope']]){
+    t.ok(sql.includes('revoke all on function public.' + f + '() from public, anon, authenticated;'), f + ': no se llama desde la app');
+    t.ok(sql.includes('drop trigger if exists ' + f + ' on public.' + tab + '; create trigger ' + f + ' before insert on public.' + tab + ' for each row execute function public.' + f + '();'), tab + ': trigger antes de cada alta (se puede volver a correr)');
+  }
+  // La app muestra el mensaje de la base al guardar (los dos casos dicen «No se pudo: …»).
+  const main = read('app/main.js');
+  t.ok(/routine_templates"\)\.upsert\(row\)\.select\(\);\s*if\(r\.error\) throw r\.error;[\s\S]{0,200}catch\(err\)\{ alert\("No se pudo: "\+\(\(err&&err\.message\)\|\|err\)\); \}/.test(main), 'plantillas: la app muestra el mensaje del tope');
+  t.ok(/routine_schedule"\)\.insert\(row\);\s*if\(r\.error\)\{ if\(r\.error\.code==="23505"\)[^\n]*throw r\.error; \}[\s\S]{0,400}catch\(err\)\{ alert\("No se pudo: "\+\(\(err&&err\.message\)\|\|err\)\)/.test(main), 'programadas: la app muestra el mensaje del tope');
 }
