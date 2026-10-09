@@ -9,8 +9,8 @@
 import { trophySvg, xSvg, chevronRightSvg } from '../core/icons.js';
 import { State, state } from '../core/state.js';
 import { esc, today } from '../core/utils.js';
-import { borrarGrupo, cambiarMiNombre, campeonGrupo, codigoValido, crearGrupo, linkInvitacion, mensajeError, misGrupos, pasosTxt,
-  rankingGrupo, sacarMiembro, salirGrupo, semanaAR, textoSemana, tomarInvitacion, unirseGrupo } from '../core/grupos.js';
+import { borrarGrupo, cambiarMiNombre, campeonGrupo, codigoValido, crearGrupo, faltaFuncion, linkInvitacion, mensajeError, misGrupos, pasosTxt,
+  rankingGrupo, sacarMiembro, salirGrupo, semanaAR, textoSemana, tomarInvitacion, unirseGrupo, verInvitacion } from '../core/grupos.js';
 import { SaludState, apagarSalud, prenderSalud, saludDisponible, saludError, syncSalud } from '../core/salud.js';
 import { ProgresoState } from './progreso.js';
 import { saludHtml } from '../ui/saludboton.js';
@@ -302,12 +302,19 @@ SaludState.onChange = fase => {
   if (!SaludState.busy && fase !== "subiendo") refrescar();
 };
 
-// Link de invitación (#grupo=CODIGO, ver core/grupos.js): al entrar con la cuenta, se suma y abre
-// el grupo. Un coach no ve Progreso: se le avisa.
+// Link de invitación (#grupo=CODIGO, ver core/grupos.js): al entrar con la cuenta se pregunta antes
+// de sumarse, porque los del grupo van a ver el nombre y los pasos de la semana; si dice que sí, se
+// suma y abre el grupo. Antes se sumaba solo: un link armado por otra persona (o que quedó de quien
+// usó antes el navegador) metía en su grupo a quien entraba. Un coach no ve Progreso: se le avisa.
 window.addEventListener("gize:login", async () => {
   const c = tomarInvitacion(); if (!c) return;
   if (State.cloudProfile && State.cloudProfile.role === "coach"){ setTimeout(() => alert("La competencia de pasos es para cuentas de alumno. Entrá con tu cuenta de alumno para sumarte al grupo."), 600); return; }
   try {
+    // Sin la función en la base (falta correr el SQL) se pregunta con el código.
+    let g; try { g = await verInvitacion(c); } catch (e) { if (!faltaFuncion(e)) throw e; }
+    if (g === null){ setTimeout(() => alert("El grupo de ese link de invitación ya no existe."), 600); return; }
+    if (g && g.soy_miembro && g.id){ PasosState.grupos = await misGrupos().catch(() => PasosState.grupos); abrirGrupo(g.id); return; }
+    if (!confirm("¿Querés sumarte " + (g ? "al grupo «" + g.nombre + "»" : "al grupo de pasos con el código " + c) + "? Los miembros van a ver tu nombre y tus pasos de la semana.")) return;
     const id = await unirseGrupo(c);
     PasosState.grupos = await misGrupos().catch(() => PasosState.grupos);
     if (id) abrirGrupo(id);
