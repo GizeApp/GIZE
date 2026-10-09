@@ -29,6 +29,15 @@ function nativePush(){
   try { return (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications) || null; } catch (e) { return null; }
 }
 const NATIVE_KEY = "gize_fcm_token"; // token guardado en este celular (para borrarlo al apagar)
+// Navegador: la cuenta que activó las notificaciones acá. Solo esa las vuelve a guardar al entrar
+// (syncPush). Antes alcanzaba con que el navegador tuviera el permiso (lo pudo dar cualquiera que
+// usó la compu) y cada cuenta que entraba quedaba registrada sin haberlas activado.
+const WEB_KEY = "gize_web_push";
+const webOwner = () => { try { return localStorage.getItem(WEB_KEY) || ""; } catch (e) { return ""; } };
+// Dispositivos dados de baja acá que no se pudieron borrar de la base (sin señal, o ya sin
+// sesión): se borran apenas hay conexión con forget_push_subscription (supabase/notificaciones.sql),
+// que no pide sesión: alcanza con la dirección y su clave, que solo tiene este dispositivo.
+const FORGET_KEY = "gize_push_forget";
 
 export function pushSupported(){
   if (nativePush()) return true;
@@ -38,7 +47,7 @@ export function pushSupported(){
 // ¿Están prendidas en este dispositivo? (para el interruptor de Configuración)
 export function pushOnHere(){
   if (nativePush()) { try { return prefOn() && !!localStorage.getItem(NATIVE_KEY); } catch (e) { return false; } }
-  return pushSupported() && Notification.permission === "granted" && prefOn();
+  return pushSupported() && Notification.permission === "granted" && prefOn() && !!State.cloudUser && webOwner() === State.cloudUser.id;
 }
 
 // ---------- app nativa (Firebase Cloud Messaging) ----------
@@ -83,6 +92,7 @@ async function saveNative(token){
   const r = await State.sb.rpc("save_push_subscription", { p_endpoint: nativeEndpoint(token), p_p256dh: kind, p_auth: kind });
   if (r.error) return "No se pudo guardar este dispositivo: " + (r.error.message || r.error);
   try { localStorage.setItem(NATIVE_KEY, token); } catch (e) {}
+  keepEndpoint(nativeEndpoint(token));
   return "";
 }
 async function enableNative(PN){
@@ -93,10 +103,11 @@ async function enableNative(PN){
   try { return await saveNative(await nativeToken(PN)); }
   catch (e) { return "No se pudieron activar las notificaciones: " + ((e && e.message) || e); }
 }
-async function dropNative(PN){
+// Primero la baja en el celular y después en la base (ver forgetServer).
+async function dropNative(PN, ajena){
   let tk = null; try { tk = localStorage.getItem(NATIVE_KEY); localStorage.removeItem(NATIVE_KEY); } catch (e) {}
-  try { if (tk && State.sb && State.cloudUser) await State.sb.rpc("delete_push_subscription", { p_endpoint: nativeEndpoint(tk) }); } catch (e) {}
   try { await PN.unregister(); } catch (e) {}
+  if (tk) await forgetServer(nativeEndpoint(tk), nativeEndpoint("").replace(":", ""), ajena);
 }
 
 export function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
@@ -135,8 +146,39 @@ async function saveSub(sub){
   const r = await State.sb.rpc("save_push_subscription", { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth });
   if (r.error) return "No se pudo guardar este dispositivo: " + (r.error.message || r.error) +
     (/function|schema cache|not found/i.test(r.error.message || "") ? "\n\nFalta correr supabase/notificaciones.sql en Supabase." : "");
+  keepEndpoint(j.endpoint);
   return "";
 }
+
+// ---------- bajas pendientes en la base ----------
+function forgets(){ try { const a = JSON.parse(localStorage.getItem(FORGET_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function setForgets(a){ try { if (a.length) localStorage.setItem(FORGET_KEY, JSON.stringify(a.slice(-5))); else localStorage.removeItem(FORGET_KEY); } catch (e) {} }
+// Ese dispositivo se volvió a guardar (el mismo token de celular, otra cuenta): ya no se borra.
+function keepEndpoint(endpoint){ const a = forgets(); if (a.some(x => x.e === endpoint)) setForgets(a.filter(x => x.e !== endpoint)); }
+// Borra de la base un dispositivo que ya se dio de baja acá. Con la sesión de su cuenta, como
+// siempre (hasta 5 s: sin señal no se espera más); si no sale, o es de otra cuenta (ajena: la
+// sesión de ahora no la puede borrar), queda anotado y se borra apenas haya conexión.
+async function forgetServer(endpoint, auth, ajena){
+  let ok = false;
+  if (!ajena && State.sb && State.cloudUser) {
+    try { const r = await Promise.race([State.sb.rpc("delete_push_subscription", { p_endpoint: endpoint }), new Promise(res => setTimeout(() => res({ error: "sin respuesta" }), 5000))]); ok = !r.error; } catch (e) {}
+  }
+  if (!ok && endpoint && auth) setForgets(forgets().filter(x => x.e !== endpoint).concat({ e: endpoint, a: auth, t: Date.now() }));
+}
+// Al abrir la app y al volver la señal. A los 30 días se deja: si el dispositivo ya no existe,
+// la función de Supabase borra la fila sola cuando un envío falla.
+export async function retryPushForget(){
+  const list = forgets(); if (!list.length || !State.sb) return;
+  const left = [];
+  for (const x of list) {
+    if (Date.now() - (x.t || 0) > 30 * 864e5) continue;
+    let ok = false;
+    try { const r = await State.sb.rpc("forget_push_subscription", { p_endpoint: x.e, p_auth: x.a }); ok = !r.error; } catch (e) {}
+    if (!ok) left.push(x);
+  }
+  setForgets(forgets().filter(x => !list.some(y => y.e === x.e)).concat(left));
+}
+window.addEventListener("online", () => { retryPushForget(); });
 
 // Activa: permiso → suscripción → se guarda en la base. Devuelve "" o un mensaje de error.
 export async function enablePush(){
@@ -153,6 +195,7 @@ export async function enablePush(){
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) });
     const err = await saveSub(sub);
     if (err) return err;
+    try { localStorage.setItem(WEB_KEY, State.cloudUser.id); } catch (e) {}
   } catch (e) {
     return "No se pudieron activar las notificaciones: " + ((e && e.message) || e);
   }
@@ -166,8 +209,9 @@ export async function disablePush(){
   await dropSub();
 }
 
-async function dropSub(){
-  const PN = nativePush(); if (PN) return dropNative(PN);
+async function dropSub(ajena){
+  const PN = nativePush(); if (PN) return dropNative(PN, ajena);
+  try { localStorage.removeItem(WEB_KEY); } catch (e) {}
   if (!pushSupported()) return;
   try {
     // Sin esperar a ready (puede tardar hasta 8 s si el service worker no llegó a instalarse):
@@ -175,8 +219,11 @@ async function dropSub(){
     const reg = await navigator.serviceWorker.getRegistration();
     const sub = reg && await reg.pushManager.getSubscription();
     if (!sub) return;
-    if (State.sb && State.cloudUser) await State.sb.rpc("delete_push_subscription", { p_endpoint: sub.endpoint });
-    await sub.unsubscribe();
+    const j = sub.toJSON();
+    // Primero la baja en este navegador, que no necesita señal: deja de recibir aunque lo de la
+    // base no salga (antes, sin señal, se cortaba ahí y la suscripción seguía viva).
+    try { await sub.unsubscribe(); } catch (e) {}
+    await forgetServer(j.endpoint, (j.keys || {}).auth, ajena);
   } catch (e) {}
 }
 
@@ -184,8 +231,14 @@ async function dropSub(){
 // (la próxima cuenta que entre los activa de nuevo si quiere). No toca la preferencia.
 export async function pushLogout(){ await dropSub(); }
 
+// Sin sesión de la cuenta que las activó (una sesión sin «Mantener la sesión» que terminó, ver
+// clearEndedSession en core/supabase.js, o entró otra cuenta): se dan de baja en este
+// dispositivo y se borran de la base apenas se pueda.
+export async function pushDropHere(){ await dropSub(true); retryPushForget(); }
+
 // Al entrar: si ya estaban activadas, re-guarda la suscripción (el navegador a veces la
-// renueva, y si el celular cambió de cuenta tiene que quedar a nombre de la actual).
+// renueva, y si el celular cambió de cuenta tiene que quedar a nombre de la actual). En el
+// navegador, solo si las activó esta misma cuenta (WEB_KEY).
 export async function syncPush(){
   const PN = nativePush();
   if (PN) {
@@ -198,8 +251,20 @@ export async function syncPush(){
   }
   if (!pushSupported() || !State.cloudUser || Notification.permission !== "granted" || !prefOn()) return;
   try {
+    const uid = State.cloudUser.id, own = webOwner();
+    // Las activó otra cuenta y se fue sin «Salir» (o se le cerró la sesión): se dan de baja, para
+    // que sus mensajes no le lleguen a quien entra ahora.
+    if (own && own !== uid) { await pushDropHere(); return; }
     const reg = await registration();
     let sub = await reg.pushManager.getSubscription();
+    if (!own) {
+      // Las versiones anteriores no anotaban la cuenta: se sigue solo si la base dice que este
+      // navegador ya era de esta cuenta. Si no, no se registra sola.
+      if (!sub) return;
+      const r = await State.sb.from("push_subscriptions").select("id").eq("endpoint", sub.endpoint).maybeSingle();
+      if (r.error || !r.data) return;
+      try { localStorage.setItem(WEB_KEY, uid); } catch (e) {}
+    }
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) });
     await saveSub(sub);
   } catch (e) { console.error("syncPush", e); }
@@ -208,6 +273,6 @@ export async function syncPush(){
 // ¿Está activo en este dispositivo? (permiso dado + preferencia + suscripción creada)
 export async function pushActiveHere(){
   if (nativePush()) return pushOnHere();
-  if (!pushSupported() || Notification.permission !== "granted" || !prefOn()) return false;
+  if (!pushOnHere()) return false;
   try { const reg = await registration(); return !!(await reg.pushManager.getSubscription()); } catch (e) { return false; }
 }

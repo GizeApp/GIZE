@@ -1,7 +1,7 @@
 import { mergeVisits } from '../ui/racha.js';
 import { DAILY_COLUMNS } from './questions.js';
 
-import { syncPush } from './push.js';
+import { pushDropHere, retryPushForget, syncPush } from './push.js';
 import { clearHabitAlarms } from '../ui/habitnotif.js';
 import { resolveAvatars } from './avatar.js';
 
@@ -2025,7 +2025,9 @@ async function showMailConfirmed(loading){
 // volver a abrir GIZE sin sesión se borra lo de esa cuenta en este dispositivo, para que quien lo
 // use después no lo pueda leer. Queda lo que todavía no llegó a la cuenta (como localUnsynced):
 // la cola de envío, que va por usuario, y la rutina propia cambiada sin subir. Si esa cuenta
-// vuelve a entrar, se sube. Devuelve true si borró algo (lo que hay en memoria es lo viejo).
+// vuelve a entrar, se sube. Las notificaciones se dan de baja en este dispositivo: si no, los
+// mensajes del coach le seguían llegando a la compu. Devuelve true si borró algo (lo que hay en
+// memoria es lo viejo).
 async function clearEndedSession(){
   let uid=""; try{ uid=localStorage.getItem(EPHEMERAL_KEY)||""; localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
   if(!uid) return false;
@@ -2036,7 +2038,7 @@ async function clearEndedSession(){
     else localStorage.removeItem(KEY);
     [PROFILE_KEY, "gize_rest_timer", "gize_cardio_clock"].concat(accountKeys()).forEach(k=>localStorage.removeItem(k));
   }catch(e){}
-  await Promise.race([Promise.all([clearHabitAlarms(), deleteShareFile()]).catch(()=>{}), new Promise(r=>setTimeout(r, 2000))]);
+  await Promise.race([Promise.all([clearHabitAlarms(), deleteShareFile(), pushDropHere()]).catch(()=>{}), new Promise(r=>setTimeout(r, 3000))]);
   return true;
 }
 
@@ -2139,4 +2141,5 @@ export async function cloudBoot(){
     }
   }catch(e){ console.error("cloudBoot",e); showLogin(offlineMsg,"in"); }
   finally{ if(window.coreEnter) window.coreEnter(); }
+  retryPushForget(); // un dispositivo que se dio de baja sin señal se borra de la base (core/push.js)
 }
