@@ -11,7 +11,7 @@
 
 import { State } from './state.js';
 
-import { esc, storageErrorText } from './utils.js';
+import { esc, storageCupoLleno, storageErrorText } from './utils.js';
 
 const BUCKET = "avatars";
 const SIZE = 320;
@@ -86,7 +86,8 @@ export async function uploadMyAvatar(file, cropped){
   if (State.cloudProfile) await cleanOldAvatars(uid, old);
   const path = uid + "/" + Date.now() + ".jpg"; // nombre nuevo: evita que se vea la foto vieja cacheada
   const up = await State.sb.storage.from(BUCKET).upload(path, blob, { contentType: "image/jpeg", upsert: false });
-  if (up.error) return "No se pudo subir la foto: " + storageErrorText(up.error, 2) + setupHint(up.error);
+  if (up.error) return storageCupoLleno(up.error) ? "Llegaste al límite de fotos por hoy. Probá mañana." // topes-archivos.sql
+    : "No se pudo subir la foto: " + storageErrorText(up.error, 2) + setupHint(up.error);
   // .select() para confirmar que se guardó: con RLS, un UPDATE que ninguna política
   // permite no da error, cambia 0 filas. Sin esto el usuario veía su foto (se muestra
   // apenas se sube) pero no quedaba en su perfil y el coach nunca la veía.

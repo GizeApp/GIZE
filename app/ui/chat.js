@@ -270,11 +270,11 @@ async function uploadAndSend(c, blob, type, secs){
   local.pending = true; local.id = "tmp-" + name;
   (c.msgs || (c.msgs = [])).push(local);
   c.sending++; if(C === c) paint(true);
-  const ok = await uploadAudio(path, blob, type);
+  const err = await uploadAudio(path, blob, type);
   c.sending--;
   c.msgs = c.msgs.filter(m => m !== local);
-  if(!ok){
-    local.pending = false; local.failed = "No se pudo subir el audio. Revisá la conexión.";
+  if(err){
+    local.pending = false; local.failed = err;
     c.msgs.push(local); if(C === c) paint(); return;
   }
   sendMsg({ audio_path: path, audio_secs: secs }, local, c);
