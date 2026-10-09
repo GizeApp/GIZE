@@ -141,7 +141,14 @@ jobs:
           AVISOS_PAGOS: ${{ secrets.AVISOS_PAGOS }}
         run: |
           # Se cargan los que estén en GitHub: Mercado Pago y, para la app de iPhone, la clave de Apple.
-          set -- 
+          # Cada clave de Apple va con su Key ID y con APPLE_TEAM_ID: si falta uno se cargaría vacío
+          # y pisaría el que está en Supabase (se cortan los avisos a iPhone o la revocación de Apple).
+          falta=""
+          [ -n "$APNS_KEY_P8" ] && [ -z "$APNS_KEY_ID" ] && falta="$falta APNS_KEY_ID"
+          [ -n "$SIWA_KEY_P8" ] && [ -z "$SIWA_KEY_ID" ] && falta="$falta SIWA_KEY_ID"
+          [ -n "$APNS_KEY_P8$SIWA_KEY_P8" ] && [ -z "$APPLE_TEAM_ID" ] && falta="$falta APPLE_TEAM_ID"
+          if [ -n "$falta" ]; then echo "::error::Faltan$falta. Cargalos en Settings → Environments → production → Environment secrets"; exit 1; fi
+          set --
           [ -n "$MP_ACCESS_TOKEN" ] && set -- "$@" MP_ACCESS_TOKEN="$MP_ACCESS_TOKEN"
           [ -n "$APNS_KEY_P8" ] && set -- "$@" APNS_KEY_P8="$APNS_KEY_P8" APNS_KEY_ID="$APNS_KEY_ID" APPLE_TEAM_ID="$APPLE_TEAM_ID"
           # Clave de «Sign in with Apple» (revocar el acceso al borrar una cuenta de Apple, ver borrar-audios).
@@ -150,7 +157,7 @@ jobs:
           [ -n "$RESEND_FULL_KEY" ] && set -- "$@" RESEND_FULL_KEY="$RESEND_FULL_KEY"
           [ -n "$RESEND_WEBHOOK_SECRET" ] && set -- "$@" RESEND_WEBHOOK_SECRET="$RESEND_WEBHOOK_SECRET"
           [ -n "$AVISOS_PAGOS" ] && set -- "$@" AVISOS_PAGOS="$AVISOS_PAGOS"
-          if [ $# -eq 0 ]; then echo "::error::No hay secrets para cargar en GitHub (Settings → Secrets and variables → Actions)"; exit 1; fi
+          if [ $# -eq 0 ]; then echo "::error::No hay secrets para cargar. Cargalos en Settings → Environments → production → Environment secrets"; exit 1; fi
           supabase secrets set --project-ref "$PROJECT_REF" "$@"
           # Solo los nombres: la lista trae también un resumen (hash) de cada valor y el log es público.
           supabase secrets list --project-ref "$PROJECT_REF" | awk -F'|' '{print $1}'

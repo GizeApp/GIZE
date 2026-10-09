@@ -5,7 +5,8 @@
 // Pillow (versión y hash fijos) en un trabajo que solo lee y sube desde otro que no corre nada.
 // Todo trabajo que lee secrets corre solo desde main y en su Environment (play-release,
 // ios-release, production o backup), y los PR de iPhone compilan sin secrets. La tarea «funciones»
-// de supabase.yml controla al final que cada función quedó publicada y al día.
+// de supabase.yml controla al final que cada función quedó publicada y al día, y la tarea «secrets»
+// no carga una clave de Apple sin su Key ID y el Team ID.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -220,6 +221,31 @@ esac`;
   const corta = publicar({ admin: ahora - 2 * DIA }, { FALLA: 'admin' });
   t.eq(corta.deploys, FNS, 'si una no se puede publicar, sigue con las demás');
   t.ok(corta.code !== 0 && /admin/.test(corta.out), 'y al final falla nombrándola: ' + corta.out.trim());
+
+  // 6) Tarea «secrets»: cada clave de Apple sube con su Key ID y con APPLE_TEAM_ID. Si falta uno no
+  //    se carga nada: iría vacío y pisaría el de Supabase (se cortan los avisos a iPhone).
+  const sec = paso(leer('.github/workflows/supabase.yml'), 'Cargar secrets de las funciones');
+  t.ok(sec, 'existe el paso «Cargar secrets de las funciones»');
+  if (sec){
+    const NOMBRES = ['MP_ACCESS_TOKEN', 'APNS_KEY_P8', 'APNS_KEY_ID', 'APPLE_TEAM_ID', 'SIWA_KEY_P8', 'SIWA_KEY_ID', 'RESEND_API_KEY', 'RESEND_FULL_KEY', 'RESEND_WEBHOOK_SECRET', 'AVISOS_PAGOS'];
+    const cargar = env => {
+      const r = correr(sec, { programas: { supabase: 'echo "$*" >> "$LOG"' }, env: Object.assign({ PROJECT_REF: 'proyecto' }, Object.fromEntries(NOMBRES.map(n => [n, ''])), env) });
+      r.set = r.log.split('\n').find(l => l.startsWith('secrets set ')) || '';
+      return r;
+    };
+    const apple = { APNS_KEY_P8: 'p8-push', APNS_KEY_ID: 'PUSH123', SIWA_KEY_P8: 'p8-siwa', SIWA_KEY_ID: 'SIWA123', APPLE_TEAM_ID: 'EQUIPO1234' };
+    const todo = cargar(apple);
+    t.eq(todo.code, 0, 'con todas las claves de Apple el paso anda: ' + todo.out.trim());
+    t.ok(['APNS_KEY_ID=PUSH123', 'SIWA_KEY_ID=SIWA123', 'APPLE_TEAM_ID=EQUIPO1234'].every(s => todo.set.includes(s)), 'carga cada clave con su Key ID y el Team ID: ' + todo.set);
+    for (const k of ['APPLE_TEAM_ID', 'APNS_KEY_ID', 'SIWA_KEY_ID']){
+      const r = cargar({ ...apple, [k]: '' });
+      t.ok(r.code !== 0 && !r.set && r.out.includes(k), 'sin ' + k + ' falla sin cargar nada (no lo pisa vacío): ' + r.out.trim());
+    }
+    const mp = cargar({ MP_ACCESS_TOKEN: 'mp-prueba' });
+    t.ok(mp.code === 0 && mp.set.includes('MP_ACCESS_TOKEN=mp-prueba') && !/APPLE|APNS|SIWA/.test(mp.set), 'sin claves de Apple carga lo demás: ' + mp.set);
+    const nada = cargar({});
+    t.ok(nada.code !== 0 && nada.out.includes('Settings → Environments → production'), 'sin secrets avisa que van en el Environment «production»: ' + nada.out.trim());
+  }
 
   for (const d of CARPETAS) fs.rmSync(d, { recursive: true, force: true });
 }
