@@ -1808,12 +1808,14 @@ async function onScannedCode(code){
   // guarda para todos (función "productos-off"). Si la función no responde (todavía no está
   // publicada, sin señal, límite del día, datos incompletos), se busca en Open Food Facts desde
   // el celular como antes: se puede anotar igual, pero no queda en la base compartida.
+  // Si OFF no lo tiene, sus valores no cierran o está oculto (reportado o sacado por un
+  // administrador), no: se ofrece pedirlo con la foto de la tabla.
   let food = null;
   try{ food = await productByCodeShared(code); }catch(e){}
   if(!food){
     const saved = await saveOffShared(code);
     if(saved && saved.food) food = saved.food;
-    else if(!(saved && saved.missing)){
+    else if(!(saved && (saved.missing || ["oculto","valores imposibles","calorías no cierran"].includes(saved.skipped)))){
       try{ food = await productByCode(code); }
       catch(e){ alert("No se pudo buscar el producto (¿sin conexión?). Probá de nuevo o cargalo a mano."); return; }
     }

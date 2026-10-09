@@ -65,9 +65,10 @@ export async function productByCodeShared(code){
 // barras y la función baja los datos de OFF, los revisa y lo guarda (si el código ya estaba,
 // no pisa nada). La base ya no acepta productos "de OFF" cargados directo desde la app.
 // Devuelve { food } si quedó en la base (o ya estaba), { missing: true } si OFF no lo tiene,
-// o null si no se pudo (sin sesión, la función todavía no está publicada, sin señal, límite
-// del día o datos incompletos en OFF): con null el alimento se anota igual con lo que trae
-// OFF, pero no queda en la base compartida.
+// { skipped: motivo } si la función no lo guardó (datos incompletos o imposibles en OFF, u
+// oculto por reportes o por un administrador) o null si no se pudo (sin sesión, la función
+// todavía no está publicada, sin señal, límite del día): con null el alimento se anota igual
+// con lo que trae OFF, pero no queda en la base compartida.
 const offAsked = new Map(); // código → respuesta de la función (se pregunta una vez por código)
 export async function saveOffShared(code){
   if (!ready()) return null;
@@ -80,6 +81,7 @@ export async function saveOffShared(code){
     const d = r && !r.error && r.data && typeof r.data === "object" ? r.data : null;
     if (d && d.product && d.product.id) out = { food: rowToFood(d.product) };
     else if (d && d.missing) out = { missing: true };
+    else if (d && d.skipped) out = { skipped: String(d.skipped) };
     // Con respuesta de la función no se vuelve a preguntar; si falló, se prueba la próxima vez.
     if (d) offAsked.set(c, out);
   } catch (e) {}
