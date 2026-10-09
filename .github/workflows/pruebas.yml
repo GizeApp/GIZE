@@ -1,5 +1,7 @@
 # Pruebas automáticas de la app y del panel (tests/, ver tests/README.md): en cada pull
 # request, en cada cambio a main y a mano desde Actions → "Pruebas" → Run workflow.
+# También corren con cambios en .github/, scripts/ y supabase/: hay pruebas que revisan los
+# workflows, los scripts y las funciones.
 # Supabase está simulado dentro del navegador: no usa secretos ni datos reales, y los
 # registros solo muestran datos de prueba.
 name: Pruebas
@@ -7,9 +9,9 @@ name: Pruebas
 on:
   push:
     branches: [main]
-    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/workflows/pruebas.yml"]
+    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/**", "scripts/**", "supabase/**"]
   pull_request:
-    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/workflows/pruebas.yml"]
+    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/**", "scripts/**", "supabase/**"]
   workflow_dispatch:
 
 # El token de GitHub de la ejecución solo puede leer el repo.

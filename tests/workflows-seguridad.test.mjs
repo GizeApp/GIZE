@@ -5,9 +5,9 @@
 // Pillow (versión y hash fijos) en un trabajo que solo lee y sube desde otro que no corre nada.
 // Todo trabajo que lee secrets corre solo desde main y en su Environment (play-release,
 // ios-release, production, catalogo o backup), los programados en uno sin revisores, y los PR de
-// iPhone compilan sin secrets. La tarea «funciones»
-// de supabase.yml controla al final que cada función quedó publicada y al día, y la tarea «secrets»
-// no carga una clave de Apple sin su Key ID y el Team ID.
+// iPhone compilan sin secrets. La tarea «funciones» de supabase.yml controla al final que cada
+// función quedó publicada y al día, y la tarea «secrets» no carga una clave de Apple sin su Key ID
+// y el Team ID. Esta prueba corre en GitHub también cuando cambia lo que revisa.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -268,6 +268,18 @@ esac`;
     t.ok(mp.code === 0 && mp.set.includes('MP_ACCESS_TOKEN=mp-prueba') && !/APPLE|APNS|SIWA/.test(mp.set), 'sin claves de Apple carga lo demás: ' + mp.set);
     const nada = cargar({});
     t.ok(nada.code !== 0 && nada.out.includes('Settings → Environments → production'), 'sin secrets avisa que van en el Environment «production»: ' + nada.out.trim());
+  }
+
+  // 7) En GitHub, esta prueba corre también cuando cambia lo que revisa (workflows, Dockerfile,
+  //    Dependabot, scripts y funciones), no solo con cambios de la app.
+  const pw = leer('.github/workflows/pruebas.yml');
+  const glob = g => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\0').replace(/\*/g, '[^/]*').replace(/\0/g, '.*') + '$');
+  const LEE = ['.github/workflows/ios.yml', '.github/postgres/Dockerfile', '.github/dependabot.yml', 'scripts/ios-firma.py',
+    'scripts/fotos-videos-requirements.txt', 'supabase/functions/admin/index.ts', 'tests/workflows-seguridad.test.mjs'];
+  for (const ev of ['push', 'pull_request']){
+    const m = pw.match(new RegExp('^  ' + ev + ':[\\s\\S]*?^    paths: (\\[.*\\])\\s*$', 'm'));
+    let paths = []; try { paths = JSON.parse(m[1]); } catch (e) {}
+    t.eq(LEE.filter(f => !paths.some(g => glob(g).test(f))), [], 'pruebas.yml corre con ' + ev + ' cuando cambia lo que revisa esta prueba');
   }
 
   for (const d of CARPETAS) fs.rmSync(d, { recursive: true, force: true });
