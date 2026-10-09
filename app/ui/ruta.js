@@ -10,6 +10,8 @@
 // lo compone la placa de video. La cabeza va en otra capa que sí se borra en cada cuadro.
 // Termina sola (4 a 6 s): nada queda dando vueltas. Con la app en segundo plano no se dibuja.
 // Con el neón apagado (html.sin-neon): grises a blanco y sin halo.
+// Sin mapa de calles (ui/mapa.js noMap), fuera de en vivo: una marca en cada km (cada 5 km si pasa
+// de 12 km) para darse una idea del tamaño del recorrido.
 import { colorDomain, haversine, simplifyLine, speedT, trackPoints } from '../core/cardiogps.js';
 import { gizeGamut } from './background.js';
 import { appAway, onAwayChange } from './pausa.js';
@@ -17,6 +19,7 @@ import { appAway, onAwayChange } from './pausa.js';
 const MAX_DRAW = 1500;    // con más puntos se simplifica para dibujar (no cambia la forma)
 const LINE_W = 5, HALO_W = 14, HI_W = 1.5;  // anchos en px CSS
 const TAIL = 0.06;        // la estela: el último 6 % de lo dibujado
+const KM_STEP = 1000, KM_STEP_LONG = 5000, KM_LONG = 12000; // marcas de km (sin mapa): cada 1 km, o cada 5 si pasa de 12 km
 
 // ---- Colores ----
 function parseColor(s){
@@ -272,6 +275,21 @@ export function drawMarks(ctx, prep, xy, m, o){
       ctx.stroke(); ctx.restore();
     }
   }
+  // Marcas de cada km (sin mapa, o.km), hasta m metros: círculo oscuro con borde blanco y el
+  // número. La última, si queda casi en el final, no va (taparía el punto del final).
+  if (o.km && prep.total > KM_STEP){
+    const step = prep.total > KM_LONG ? KM_STEP_LONG : KM_STEP;
+    ctx.save();
+    ctx.font = "700 " + (9 * s) + "px Outfit, system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (let d = step; d < prep.total - step * 0.15 && d <= m; d += step){
+      const q = pointAt(prep, xy, d); if (!q) continue;
+      ctx.beginPath(); ctx.arc(q.x, q.y, 8.5 * s, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(10,12,18,.92)"; ctx.fill();
+      ctx.lineWidth = 1.5 * s; ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.stroke();
+      ctx.fillStyle = "#FFFFFF"; ctx.fillText(String(d / 1000), q.x, q.y + 0.5 * s);
+    }
+    ctx.restore();
+  }
   // Inicio.
   ctx.save();
   ctx.beginPath(); ctx.arc(first.x, first.y, 6.5 * s, 0, Math.PI * 2);
@@ -361,7 +379,7 @@ export class RouteLayers {
   marks(head){
     const c = this.ctx.head; if (!c || !this.prep || !this.xy) return;
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, c.canvas.width, c.canvas.height); c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    drawMarks(c, this.prep, this.xy, this.m, { pal: this.pal, head: !!head && !this.live, headAtEnd: !!this.live, live: !!this.live, tip: this.tip, endScale: this.live ? 0 : this.endScale });
+    drawMarks(c, this.prep, this.xy, this.m, { pal: this.pal, head: !!head && !this.live, headAtEnd: !!this.live, live: !!this.live, tip: this.tip, endScale: this.live ? 0 : this.endScale, km: !!this.km && !this.live });
   }
   // Todo hasta m metros (sin animar). Sin m: el recorrido completo con el final.
   drawAll(m){
