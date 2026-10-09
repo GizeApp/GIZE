@@ -3,7 +3,8 @@
 //    la cuenta para recibir notificaciones si no las activó en este navegador.
 // 2) Activadas acá, se vuelven a guardar al entrar (el navegador a veces renueva la suscripción).
 // 3) Versiones anteriores (sin la cuenta anotada): se siguen guardando solo si la base dice que ese
-//    navegador ya era de esta cuenta; si no (es de otra cuenta), se dan de baja y se borran de la base.
+//    navegador ya era de esta cuenta; si no (es de otra cuenta, o la base ya no la tenía), se dan de
+//    baja, se borran de la base y se avisa una vez que se pueden volver a activar.
 // 4) Las activó otra cuenta que se fue sin «Salir»: al entrar se dan de baja y se borran de la base.
 // 5) Sin «Mantener la sesión» no hay notificaciones en el navegador (seguirían llegando a la compu
 //    con la pestaña cerrada): al entrar se dan de baja las que había y activarlas avisa que hace
@@ -70,15 +71,19 @@ export default async function ({ base, t }){
   // 3) Suscripción de una versión anterior (sin la cuenta anotada).
   for (const nuestra of [true, false]) {
     const m = mock({ '/push_subscriptions': (r, J, i) => i.m === 'GET' ? J(nuestra ? (i.one ? { id: 'x' } : [{ id: 'x' }]) : (i.one ? null : [])) : undefined });
-    const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, init: WEBPUSH(`sessionStorage.setItem('sub', '${EP}');`), handlers: m.handlers });
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, init: WEBPUSH(`sessionStorage.setItem('sub', '${EP}');`), handlers: m.handlers });
     await p.goto(base + '/app/'); await wait(3500);
     if (nuestra) {
       t.ok(m.has('save'), '3: la base dice que es de esta cuenta: se sigue guardando');
       t.eq(await p.evaluate(() => localStorage.getItem('gize_web_push')), ALUMNO.id, '3: y queda anotada');
+      t.eq(dialogs, [], '3: sin avisos');
     } else {
       t.ok(!m.has('save'), '3: la base no la tiene a nombre de esta cuenta: no se registra sola');
       t.ok((await pushLog(p)).includes('unsubscribe'), '3: y se da de baja en el navegador (puede ser de otra cuenta)');
       t.ok(m.rpcs.some(x => x.startsWith('forget ') && x.includes(EP) && x.includes('CLAVE')), '3: y se borra de la base con su clave: ' + m.rpcs.join(' | '));
+      t.eq(dialogs, ['Las notificaciones de GIZE se apagaron en este navegador con la actualización.\n\nSi las querés recibir, volvé a activarlas en Configuración → Notificaciones.'], '3: se avisa que se pueden volver a activar');
+      await p.reload(); await wait(3500);
+      t.eq(dialogs.length, 1, '3: el aviso sale una sola vez');
     }
     t.eq(errs, [], '3: errores de la página');
     await close();

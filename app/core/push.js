@@ -271,10 +271,17 @@ export async function syncPush(){
       // navegador ya era de esta cuenta. Si no, no se registra sola, y si es de otra cuenta (la
       // base no deja ver su fila) se da de baja: si no, sus mensajes le seguían llegando a quien
       // entró ahora (antes el save la pasaba a esta cuenta y a la otra le dejaban de llegar).
+      // También pasa si era de esta cuenta y la base ya no la tenía (se borró tras un envío
+      // fallido, o el navegador cambió la dirección): antes se volvía a guardar sola. Por eso se
+      // avisa, una sola vez (después ya no hay suscripción), que se pueden volver a activar.
       if (!sub) return;
       const r = await State.sb.from("push_subscriptions").select("id").eq("endpoint", sub.endpoint).maybeSingle();
       if (r.error) return;
-      if (!r.data) { await pushDropHere(); return; }
+      if (!r.data) {
+        await pushDropHere();
+        setTimeout(() => alert("Las notificaciones de GIZE se apagaron en este navegador con la actualización.\n\nSi las querés recibir, volvé a activarlas en Configuración → Notificaciones."), 900);
+        return;
+      }
       try { localStorage.setItem(WEB_KEY, uid); } catch (e) {}
     }
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) });
