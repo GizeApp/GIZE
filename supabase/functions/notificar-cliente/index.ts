@@ -6,9 +6,9 @@
 // Cómo publicarla (una sola vez):
 //   1. Supabase → Edge Functions → Deploy a new function → Via Editor.
 //      Nombre: notificar-cliente (la app también prueba "rapid-worker", el nombre que
-//      pone Supabase si no se cambia). Pegar este archivo entero, agregar apns.ts (de esta
-//      misma carpeta) y Deploy. (La tarea "funciones" de .github/workflows/supabase.yml
-//      publica la carpeta entera.)
+//      pone Supabase si no se cambia). Pegar este archivo entero, agregar
+//      supabase/functions/_shared/apns.ts (lo importa como ../_shared/apns.ts) y Deploy. (La
+//      tarea "funciones" de .github/workflows/supabase.yml publica todo junto.)
 //      En Settings de la función, "Verify JWT with legacy secret" puede ir apagado:
 //      la función ya chequea la sesión del coach con auth.getUser().
 //   2. Supabase → Edge Functions → Secrets → agregar:
@@ -34,7 +34,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 import { importPKCS8, SignJWT } from "npm:jose@5";
-import { tokenCache } from "./apns.ts";
+import { tokenCache } from "../_shared/apns.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -83,7 +83,7 @@ async function fcmAccessToken(sa: ServiceAccount): Promise<string> {
 
 // La app de iPhone guarda su token de Apple como endpoint "apns:<token>". Se manda por la
 // API HTTP/2 de APNs con un JWT firmado con la clave .p8 (vale hasta 1 hora). Se reusa el
-// mismo entre mensajes (ver apns.ts): si se firma uno por mensaje, Apple puede rechazarlos.
+// mismo entre mensajes (ver _shared/apns.ts): si se firma uno por mensaje, Apple puede rechazarlos.
 const APNS_TOPIC = "ar.com.gize.app";
 const apnsJwt = tokenCache(async () => {
   const p8 = Deno.env.get("APNS_KEY_P8"), kid = Deno.env.get("APNS_KEY_ID"), team = Deno.env.get("APPLE_TEAM_ID");

@@ -1,13 +1,15 @@
-// Avisos al iPhone (APNs) desde la función de mensajes (supabase/functions/notificar-cliente):
-// el token firmado se reusa entre mensajes por 40 minutos (Apple rechaza con 429 si se firma uno
-// nuevo más de una vez cada 20 minutos, y lo pide renovado antes de la hora). Varios mensajes
-// que llegan juntos comparten la misma firma.
+// Avisos al iPhone (APNs) desde la función de mensajes (supabase/functions/notificar-cliente) y
+// la de avisos al coach (avisos-coach): el token firmado se reusa por 40 minutos (Apple rechaza
+// con 429 si se firma uno nuevo más de una vez cada 20 minutos, y lo pide renovado antes de la
+// hora). Varios mensajes que llegan juntos comparten la misma firma. avisos-coach manda todos
+// los avisos a la vez y firmaba uno por envío (decenas en el mismo segundo): ahora usa el mismo
+// guardado, también para el token de Firebase.
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DIR = 'supabase/functions/notificar-cliente';
+const DIR = 'supabase/functions/_shared';
 
 export default async function ({ t }){
   let m = null;
@@ -41,8 +43,14 @@ export default async function ({ t }){
     falla = false;
     t.ok(tiro && await err() === 'ok', 'después de un error de firma, el próximo mensaje firma de nuevo');
   }
-  // La función usa el token guardado (no firma uno por mensaje).
-  const src = fs.readFileSync(path.join(ROOT, DIR, 'index.ts'), 'utf8');
-  t.ok(/import \{ tokenCache \} from "\.\/apns\.ts";/.test(src) && /const apnsJwt = tokenCache\(/.test(src), 'notificar-cliente firma con tokenCache (apns.ts)');
+  // Las funciones usan el token guardado (no firman uno por mensaje).
+  const src = fs.readFileSync(path.join(ROOT, 'supabase/functions/notificar-cliente/index.ts'), 'utf8');
+  t.ok(/import \{ tokenCache \} from "\.\.\/_shared\/apns\.ts";/.test(src) && /const apnsJwt = tokenCache\(/.test(src), 'notificar-cliente firma con tokenCache (_shared/apns.ts)');
   t.ok(!/async function apnsJwt\(/.test(src), 'sin el apnsJwt que firmaba en cada llamada');
+  t.ok(!fs.existsSync(path.join(ROOT, 'supabase/functions/notificar-cliente/apns.ts')), 'no queda una copia vieja en notificar-cliente');
+  const ac = fs.readFileSync(path.join(ROOT, 'supabase/functions/avisos-coach/index.ts'), 'utf8');
+  t.ok(/import \{ tokenCache \} from "\.\.\/_shared\/apns\.ts";/.test(ac) && /const apnsJwt = tokenCache\(/.test(ac) && !/async function apnsJwt\(/.test(ac), 'avisos-coach firma el token de Apple una vez (tokenCache)');
+  t.ok(/const fcmToken = tokenCache\(/.test(ac), 'avisos-coach pide el token de Firebase una vez (tokenCache)');
+  const send = ac.slice(ac.indexOf('async function send('), ac.indexOf('\n}\n', ac.indexOf('async function send(')));
+  t.ok(/await fcmToken\(\)/.test(send) && !/fcmAccessToken\(/.test(send) && /await apnsJwt\(\)/.test(send), 'avisos-coach: cada envío usa los tokens guardados');
 }
