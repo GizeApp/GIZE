@@ -30,6 +30,7 @@ import { loadCoachClients } from '../screens/coach/clientes.js';
 import { checkPaymentReturn } from '../screens/coach/plan.js';
 
 import { appIOS, joinMsgTienda } from './tienda.js';
+import { appAndroid } from './plataforma.js';
 
 import { renderCoach } from '../screens/coach/index.js';
 
@@ -1989,8 +1990,10 @@ const numIn=(v,lo,hi)=>{ const n=Number(v); return Number.isFinite(n) ? Math.min
 const objOr=v=>(v && typeof v==="object" && !Array.isArray(v)) ? v : {};
 // Resumen guardado (core/cardiogps.js summarize) + recorrido → fila de cardio_outings, dentro de
 // los límites de la tabla (un dato fuera de rango la haría rechazar para siempre).
+// La app de Android no manda coordenadas (no usa la ubicación): si en la cola quedó una salida de
+// una versión anterior con su recorrido, sube solo con los números (sin recorrido y points 0).
 function salidaRow(p, uid){
-  const kg=Number(p.kg), tr=p.track;
+  const kg=Number(p.kg), tr=appAndroid() ? null : p.track;
   return {
     id:p.id, client_id:uid, mode:p.mode==="bici"?"bici":"pie",
     performed_on:p.date || ymd(new Date(p.startedAt)), started_at:p.startedAt, ended_at:p.endedAt||null,
@@ -1999,7 +2002,7 @@ function salidaRow(p, uid){
     weight_kg:(kg>=20 && kg<=400) ? Math.round(kg*10)/10 : null, weight_default:!!p.kgDefault, gap_s:intIn(p.gap,0,86400),
     breakdown:objOr(p.breakdown), segments:Array.isArray(p.segments)?p.segments.slice(0,200):[], splits:Array.isArray(p.splits)?p.splits.slice(0,1000):[],
     track:(typeof tr==="string" && tr.length>=3 && tr.length<=200000 && tr.slice(0,2)==="1;") ? tr : null,
-    points:p.points==null ? null : intIn(p.points,0,200000),
+    points:appAndroid() ? 0 : p.points==null ? null : intIn(p.points,0,200000),
   };
 }
 // Fila de cardio_outings (sin el recorrido) → salida como la guarda la app (cloud: ya está en la nube).

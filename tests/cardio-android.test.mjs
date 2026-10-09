@@ -9,7 +9,9 @@
 //    OpenFreeMap y nunca se toca el plugin, el GPS ni el permiso de ubicación.
 // b) Una salida que quedó en curso de una versión anterior: al abrir se termina sola en el último
 //    punto medido (sin mirar el GPS ni llamar al plugin) y se guarda con sus números; la lista de
-//    watchers que había quedado anotada se olvida sin llamar al plugin.
+//    watchers que había quedado anotada se olvida sin llamar al plugin. Sus coordenadas no salen
+//    del celular: sube sin recorrido (points 0) y no queda en la caché. Lo mismo con una salida
+//    de antes que había quedado en la cola de envío con su recorrido.
 // c) Con el puente de Android (window.androidBridge) aunque Capacitor no esté: igual.
 // d) Coach en la app de Android: la salida del alumno solo con sus números, sin pedir el recorrido.
 // e) La app de iPhone sigue igual: «Salir a moverte» y el recorrido de la salida (se pide).
@@ -26,7 +28,7 @@ import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n');
 
-const ID1 = '5a1d0000-0000-4000-8000-0000000000a1', RUN = '5a1d0000-0000-4000-8000-0000000000b2';
+const ID1 = '5a1d0000-0000-4000-8000-0000000000a1', RUN = '5a1d0000-0000-4000-8000-0000000000b2', COLA = '5a1d0000-0000-4000-8000-0000000000c3';
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
 const A1 = '44444444-4444-4444-4444-444444444444';
 const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} };
@@ -39,11 +41,11 @@ const ROW = client => ({ id: ID1, client_id: client, mode: 'pie', performed_on: 
 const NUMEROS = ['5,50', 'km', 'Distancia', 'Tiempo', '45:01', 'Ritmo medio', 'Calorías', '366 kcal', '1 oct', 'Parciales', '20 min caminando · 15 trotando · 10 corriendo', 'La señal se cortó 5 min: ese rato no suma distancia.'];
 const MAPA = /maplibre|openfreemap/i;
 
-// Supabase falso de cardio_outings: la lista y el recorrido (anota cada pedido).
+// Supabase falso de cardio_outings: la lista y el recorrido (anota cada pedido y lo que se sube).
 const outings = (S, track) => (r, J, i) => {
   const q = decodeURIComponent(i.url.search);
   S.reqs.push(i.m + ' ' + q);
-  if (i.m !== 'GET') return J([], 201);
+  if (i.m !== 'GET'){ if (i.m === 'POST' && i.body) (S.subidas = S.subidas || []).push(...[].concat(JSON.parse(i.body))); return J([], 201); }
   if (/select=track/.test(q)) return J(i.one ? { track } : [{ track }]);
   return J(S.rows);
 };
@@ -146,11 +148,16 @@ async function enCurso(base, t, run){
   const pg = await newPage({ user: ALUMNO, state: STATE, init: NATIVA('android') + COMPLETA, handlers: { '/profiles': profile('client'), '/cardio_outings': outings(S, '') } });
   const p = pg.p, reqs = [];
   p.on('request', r => reqs.push(r.url()));
-  await p.addInitScript(([h, c]) => {
+  // En la cola de envío, una salida guardada sin conexión con la versión anterior (con su recorrido).
+  const cola = [{ id: 'q1', uid: ALUMNO.id, k: 'salida', key: COLA, ts: Date.now() - 86400000, p: { id: COLA, mode: 'pie', date: '2026-10-02', startedAt: '2026-10-02T13:00:00.000Z',
+    endedAt: '2026-10-02T13:30:00.000Z', dur: 1800, moving: 1790, dist: 3000, kcal: 200, avg: 6, max: 9, kg: 70, kgDefault: false, gap: 0, points: 300,
+    breakdown: { caminar: 1790 }, segments: [], splits: [[1000, 600], [1000, 600], [1000, 590]], track: run.track } }];
+  await p.addInitScript(([h, c, q]) => {
     if (sessionStorage.getItem('guardada')) return;
     sessionStorage.setItem('guardada', '1');
     localStorage.setItem('gize_salida_v1', h); localStorage.setItem('gize_salida_v1_c0', c); localStorage.setItem('gize_salida_nid', '["w1"]');
-  }, [JSON.stringify(run.header), JSON.stringify(run.pts)]);
+    localStorage.setItem('core_outbox_v1', q);
+  }, [JSON.stringify(run.header), JSON.stringify(run.pts), JSON.stringify(cola)]);
   await p.goto(base + '/app/'); await wait(2500);
   const g = await p.evaluate(async () => { const g = await import('/app/ui/gps.js'), r = g.GpsState.run; return r && { id: r.id, status: r.status, ended: r.ended, n: r.pts.length }; });
   t.eq(g, { id: RUN, status: 'ended', ended: run.lastT, n: run.pts.length }, 'Android: la salida en curso de antes queda terminada en el último punto medido, con todos sus puntos');
@@ -165,6 +172,12 @@ async function enCurso(base, t, run){
   const st = await p.evaluate(async () => { const { state } = await import('/app/core/state.js'), g = await import('/app/ui/gps.js'); return { ids: (state.salidas || []).map(s => s.id), run: g.GpsState.run }; });
   t.eq(st, { ids: [RUN], run: null }, 'Android: se guarda con sus números');
   t.ok(await p.$('#salidaHost .sov-solo [data-action="sal-del"]'), 'Android: guardada, sigue solo con los números');
+  // Lo que sube a la nube: los números, sin el recorrido.
+  const sub = (S.subidas || []).map(x => ({ id: x.id, track: x.track, points: x.points, numeros: x.distance_m > 0 && x.duration_s > 0 }));
+  t.eq(sub.filter(x => x.id === COLA), [{ id: COLA, track: null, points: 0, numeros: true }], 'Android: la salida de antes que estaba en la cola sube sin su recorrido');
+  t.eq(sub.filter(x => x.id === RUN), [{ id: RUN, track: null, points: 0, numeros: true }], 'Android: la salida terminada sube solo con sus números (sin recorrido, points 0)');
+  const loc = await p.evaluate(async id => { const { state } = await import('/app/core/state.js'); const c = JSON.parse(localStorage.getItem('gize_salidas_track_v1') || '[]'); return { points: (state.salidas.find(x => x.id === id) || {}).points, cache: c.map(x => x[0]) }; }, RUN);
+  t.eq(loc, { points: 0, cache: [] }, 'Android: el recorrido tampoco queda en la caché del celular');
   t.eq(reqs.filter(u => MAPA.test(u)), [], 'Android (salida de antes): nunca se pide el mapa');
   t.eq(await usos(p), [], 'Android (salida de antes): nunca se toca el plugin, el GPS ni el permiso');
   t.eq(pg.errs, [], 'errores de la página (salida de antes)');
@@ -277,7 +290,7 @@ export default async function ({ base, t }){
     let t = t0;
     for (let i = 0; i < 200; i++){ t += 1000; m.addPoint(r, { lat: -34.6 + i * 2.5 / 111195, lon: -58.4, acc: 5, spd: null, t }); }
     const lastT = r.start + r.pts[r.pts.length - 1][0];
-    return { TRACK: m.encodeTrack([pts]), run: { pts: r.pts, lastT, header: { v: 1, id: RUN, uid: null, mode: 'pie', start: t0, status: 'running', pauses: [], pausedAt: null, ended: null, seg: 0, n: r.pts.length, chunks: 1, lastT } } };
+    return { TRACK: m.encodeTrack([pts]), run: { pts: r.pts, lastT, track: m.encodeTrack([pts.slice(0, 300)]), header: { v: 1, id: RUN, uid: null, mode: 'pie', start: t0, status: 'running', pauses: [], pausedAt: null, ended: null, seg: 0, n: r.pts.length, chunks: 1, lastT } } };
   }, RUN);
   await helper.close();
   await alumno(base, t, TRACK);
