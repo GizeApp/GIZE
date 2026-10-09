@@ -5,13 +5,14 @@
 -- Correr con el workflow "Supabase" → tarea sql → supabase/productos.sql.
 -- OJO: NO volver a correr suelto. Redefine products_before, y la versión vigente (foto de la
 -- tabla obligatoria, scans) está en productos-admin.sql. Si lo corrés, corré después
--- productos-admin.sql.
+-- productos-admin.sql. Lo mismo con product_use y product_report: las vigentes (con topes por
+-- usuario) están en productos-topes.sql.
 --
 -- Seguridad:
 --   · Cualquier usuario con sesión lee y agrega; nadie edita ni borra desde la app.
 --   · Límite de 40 productos nuevos por usuario por día.
 --   · Valores absurdos se rechazan (más de 950 kcal, macros de más de 100 g, etc.).
---   · 3 reportes de usuarios distintos ocultan un producto sin verificar.
+--   · 3 reportes de usuarios distintos ocultan un producto sin verificar (ver productos-topes.sql).
 --   · Verificar (tilde ✓) u ocultar a mano: desde el editor SQL de Supabase, por ejemplo
 --       update public.products set verified = true where code = '7790070012345';
 
