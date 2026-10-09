@@ -6,6 +6,10 @@
 //   no por cada checkout que se crea y se da de baja sin pagar.
 // - Checkout: tope de 10 por hora por coach, se reusa el link sin pagar del mismo plan y el
 //   pendiente se guarda solo si nadie lo cambió mientras tanto.
+// - El cambio de plan pedido que se cancela sin pagarse se borra (antes lo borraba el cobro de
+//   la vigente; sin eso quedaba para siempre).
+// - El tope cuenta solo los intentos que van a crear una suscripción: reusar el link no cuenta y
+//   el frenado con 429 tampoco (antes cada toque frenado alargaba la espera).
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -45,15 +49,26 @@ export default async function ({ t }){
     t.ok(!r.avisaSocios(c, 'Y', 'cancelled'), 'la pedida que se da de baja sin pagar no avisa');
     t.ok(!r.avisaSocios(c, 'Z', 'cancelled') && !r.avisaSocios(c, 'Z', 'authorized'), 'un checkout viejo no avisa');
     t.ok(!r.avisaSocios({ mp_preapproval_id: null, mp_pending_id: 'P2' }, 'P1', 'cancelled'), 'coach en prueba: los checkouts que se dan de baja no avisan');
+
+    // La pedida que se cancela sin pagarse.
+    t.ok(r.pedidaCancelada(c, 'Y', 'cancelled'), 'la pedida cancelada: se borra el cambio de plan');
+    t.ok(r.pedidaCancelada({ mp_preapproval_id: null, mp_pending_id: 'P2' }, 'P2', 'cancelled'), 'coach en prueba: su checkout cancelado también se borra');
+    t.ok(!r.pedidaCancelada(c, 'Y', 'pending') && !r.pedidaCancelada(c, 'Y', 'authorized') && !r.pedidaCancelada(c, 'Y', 'paused'), 'la pedida sin cancelar queda');
+    t.ok(!r.pedidaCancelada(c, 'X', 'cancelled') && !r.pedidaCancelada(c, 'Z', 'cancelled'), 'la vigente o un checkout viejo cancelados no borran el pedido');
+    t.ok(!r.pedidaCancelada({ mp_preapproval_id: 'X', mp_pending_id: null }, 'Y', 'cancelled'), 'sin pedido, nada');
+    t.ok(!r.pedidaCancelada({ mp_preapproval_id: 'X', mp_pending_id: 'X' }, 'X', 'cancelled'), 'si la pedida es la vigente, no es un pedido que cae');
   }
 
   const src = fs.readFileSync(path.join(ROOT, DIR, 'index.ts'), 'utf8');
   const sync = src.slice(src.indexOf('async function syncPreapproval('), src.indexOf('async function cancelarMP('));
-  t.ok(/import \{ alCobrar, avisaSocios, esPedida \} from "\.\/reglas\.ts";/.test(src), 'index.ts usa reglas.ts');
+  t.ok(/import \{ alCobrar, avisaSocios, esPedida, pedidaCancelada \} from "\.\/reglas\.ts";/.test(src), 'index.ts usa reglas.ts');
   t.ok(/if \(est && avisaSocios\(cur, id, String\(pa\.status\)\)\) \{/.test(sync), 'syncPreapproval: el mail a los socios pasa por avisaSocios');
   t.ok(/if \(!esPedida\(cur, id\)\) \{/.test(sync), 'syncPreapproval: la que no es vigente ni pedida se da de baja');
   t.ok(/const \{ update, cancelar \} = alCobrar\(cur, id, plan, PLANES\[plan\]\.max, paidUntil\);/.test(sync) && /\.update\(update\)\.eq\("coach_id", coachId\)/.test(sync), 'syncPreapproval: guarda lo que dice alCobrar');
-  t.ok(!/pending_plan: null, mp_pending_id: null/.test(sync), 'syncPreapproval: ya no borra el pendiente siempre');
+  const cae = sync.indexOf('} else if (pedidaCancelada(cur, id, String(pa.status))) {');
+  t.ok(cae > sync.indexOf('} else if (id === cur.mp_preapproval_id) {') && /\} else if \(pedidaCancelada\(cur, id, String\(pa\.status\)\)\) \{[^}]*\.update\(\{ pending_plan: null, mp_pending_id: null, updated_at: [^}]*\}\)\s*\.eq\("coach_id", coachId\)\.eq\("mp_pending_id", id\);/.test(sync),
+    'syncPreapproval: la pedida cancelada borra el cambio de plan (si no pidió otro mientras tanto)');
+  t.ok(sync.indexOf('pending_plan: null') === sync.lastIndexOf('pending_plan: null') && sync.indexOf('pending_plan: null') > cae, 'syncPreapproval: ya no borra el pendiente en ningún otro caso');
 
   // Checkout.
   const co = src.slice(src.indexOf('if (input.action === "checkout")'));
@@ -61,10 +76,11 @@ export default async function ({ t }){
   t.ok(tope && Number(tope[1]) <= 10, 'tope de 10 checkouts por hora o menos');
   const ins = co.indexOf('.from("mp_checkouts").insert({ coach_id: coachId })'), cnt = co.indexOf('.from("mp_checkouts").select("id", { count: "exact", head: true })'), crea = co.indexOf('mp("/preapproval", {');
   t.ok(ins > 0 && cnt > ins && crea > cnt, 'anota el intento, cuenta y recién después crea la suscripción');
-  t.ok(/> CHECKOUTS_POR_HORA\) \{\s*return json\(\{ error: "[^"]+" \}, 429\);/.test(co), 'pasado el tope, 429');
+  t.ok(/> CHECKOUTS_POR_HORA\) \{\s*if \(mio\) await db\.from\("mp_checkouts"\)\.delete\(\)\.eq\("id", mio\.id\);\s*return json\(\{ error: "[^"]+" \}, 429\);/.test(co), 'pasado el tope, 429, y ese intento no cuenta');
+  t.ok(/const \{ data: mio, error: ie \} = await db\.from\("mp_checkouts"\)\.insert\(\{ coach_id: coachId \}\)\.select\("id"\)\.maybeSingle\(\);/.test(co), 'se guarda el id del intento propio');
   t.ok(/if \(ne\.code !== "42P01" && ne\.code !== "PGRST205"\) return json\([^;]*503\);/.test(co), 'si no se puede contar (y la tabla existe), no se crea nada');
   const reusa = co.indexOf('bill.pending_plan === plan');
-  t.ok(reusa > 0 && reusa < crea && /prev\.status === "pending" && prev\.init_point/.test(co) && /=== email\) return json\(\{ url: prev\.init_point \}\)/.test(co), 'reusa el link sin pagar del mismo plan y mail');
+  t.ok(reusa > 0 && reusa < ins && /prev\.status === "pending" && prev\.init_point/.test(co) && /=== email\) return json\(\{ url: prev\.init_point \}\)/.test(co), 'reusa el link sin pagar del mismo plan y mail (antes de anotar el intento: no cuenta)');
   t.ok(/q = bill\.mp_pending_id \? q\.eq\("mp_pending_id", bill\.mp_pending_id\) : q\.is\("mp_pending_id", null\);/.test(co), 'el pendiente se guarda solo si no cambió');
   t.ok(/if \(se \|\| !saved \|\| !saved\.length\) \{[\s\S]*?await cancelarMP\(pa\.id\);/.test(co), 'si otro checkout ganó, da de baja la suscripción recién creada');
   const guarda = co.indexOf('const { data: saved, error: se } = await q.select'), baja = co.indexOf('await cancelarMP(bill.mp_pending_id)');

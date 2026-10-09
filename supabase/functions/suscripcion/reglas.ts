@@ -34,3 +34,11 @@ export function alCobrar(cur: Bill, id: string, plan: string, max: number, paidU
   const cancelar = cur.mp_preapproval_id && cur.mp_preapproval_id !== id ? cur.mp_preapproval_id : null;
   return { update, cancelar };
 }
+
+// ¿Se borra el cambio de plan pedido? Cuando la suscripción pedida se cancela sin haberse
+// cobrado (el coach la cancela en Mercado Pago, o Mercado Pago la da de baja). Antes lo borraba
+// el cobro siguiente de la vigente; desde que ese cobro ya no lo borra (ver alCobrar), quedaba
+// para siempre y el panel mostraba «eligió …».
+export function pedidaCancelada(cur: Bill, id: string, status: string): boolean {
+  return status === "cancelled" && !!cur.mp_pending_id && id === cur.mp_pending_id && id !== cur.mp_preapproval_id;
+}
