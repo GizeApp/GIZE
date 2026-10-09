@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+import { funcion, supabaseSimulado } from './funcion.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -56,14 +57,7 @@ export default async function ({ base, t }){
   }
   {
     const src = fs.readFileSync(path.join(ROOT, 'supabase/functions/borrar-audios/index.ts'), 'utf8');
-    const rpc = src.indexOf('asUser.rpc("delete_own_account")'), cola = src.indexOf('await anotar(admin, paths);'), rm = src.indexOf('await borrar(admin, BUCKET, paths);');
-    t.ok(rpc > 0 && cola > rpc && rm > cola, 'borrar-audios: después de borrar la cuenta, anota las rutas en la cola y borra los audios');
-    t.ok(!/\.remove\(/.test(src) && (src.match(/await borrar\(/g) || []).length === 2, 'borrar-audios: los audios se borran solo con borrar() (cola.ts): ahí y en el cron');
-    const cron = src.slice(src.indexOf('if (new URL(req.url).searchParams.get("cola")) {'), src.indexOf('const asUser = createClient('));
-    t.ok(cron.length > 50 && /if \(!cronOk\(req\)\) return json\([^;]*401\);/.test(cron) && /await db\.from\("audios_por_borrar"\)\.select\("path"\)/.test(cron)
-      && /return json\(\{ removed: await borrar\(db, BUCKET, \(data \|\| \[\]\)\.map\(\(r\) => r\.path\)\) \}\);/.test(cron), 'borrar-audios: el cron (?cola=1) borra solo lo anotado en audios_por_borrar');
-    t.ok(src.lastIndexOf('await files(') < rpc && src.lastIndexOf('await subfolders(') < rpc, 'borrar-audios: las rutas se juntan antes (después ya no está la cuenta para saber cuáles son)');
-    t.ok(/if \(de\) \{[^}]*return json\(/.test(src.slice(rpc, rm)), 'borrar-audios: si la cuenta no se borra, vuelve sin tocar los audios');
+    t.ok(!/\.remove\(/.test(src) && (src.match(/await borrar\(/g) || []).length === 2, 'borrar-audios: los audios se borran solo con borrar() (cola.ts): al eliminar la cuenta y en el cron');
     const apple = src.slice(src.indexOf('async function revokeApple'), src.indexOf('Deno.serve('));
     t.ok(/fetch\("https:\/\/appleid\.apple\.com\/auth\/"[\s\S]*signal: AbortSignal\.timeout\(\d+\)/.test(apple), 'borrar-audios: las llamadas a Apple tienen tiempo máximo');
 
@@ -72,6 +66,52 @@ export default async function ({ base, t }){
     t.ok(/create table if not exists public\.audios_por_borrar \(/.test(sql) && /alter table public\.audios_por_borrar enable row level security;/.test(sql) && /revoke all on public\.audios_por_borrar from anon, authenticated;/.test(sql), 'borrar-audios.sql: la cola, sin acceso desde la app');
     t.ok(/select cron\.unschedule\('gize-audios-por-borrar'\) where exists/.test(sql) && /url := 'https:\/\/[a-z0-9]+\.supabase\.co\/functions\/v1\/borrar-audios\?cola=1'/.test(sql)
       && /'x-cron-secret', public\.cron_secret\(\)/.test(sql) && /where exists \(select 1 from public\.audios_por_borrar\);/.test(sql), 'borrar-audios.sql: el cron llama a la función solo si hay algo anotado (re-ejecutable)');
+  }
+
+  // ---- borrar-audios de verdad (tests/funcion.mjs): el orden y el cron ----
+  // El usuario es coach (carpeta con un alumno y los audios de ejercicios) y fue alumno de otros
+  // dos coaches (el actual y uno que aparece en sus mensajes).
+  const YO = 'aaaaaaaa-0000-4000-8000-000000000001', C1 = 'bbbbbbbb-0000-4000-8000-000000000002', C2 = 'cccccccc-0000-4000-8000-000000000003';
+  const correr = async ({ borraCuenta = true, renueva = false, cola = null, secreto = null } = {}) => {
+    const pasos = [], removidas = [];
+    const carpetas = { [YO]: [{ name: 'k1', id: null }, { name: 'ex', id: null }], [YO + '/k1']: [{ name: 'a.webm', id: '1' }], [YO + '/ex']: [{ name: 'e.webm', id: '2' }],
+      [C1 + '/' + YO]: [{ name: 'b.webm', id: '3' }], [C2 + '/' + YO]: [{ name: 'c.webm', id: '4' }] };
+    const db = supabaseSimulado(q => {
+      if (q.bucket && q.accion === 'list'){ pasos.push('listar'); return { data: carpetas[q.prefijo] || [] }; }
+      if (q.bucket && q.accion === 'remove'){ pasos.push('borrar audios'); removidas.push(...q.valores); return { data: q.valores }; }
+      if (q.tabla === 'coach_billing') return { data: renueva ? { mp_preapproval_id: 'X', mp_status: 'authorized' } : null };
+      if (q.tabla === 'profiles') return { data: { coach_id: C1 } };
+      if (q.tabla === 'coach_messages') return { data: [{ coach_id: C2 }] };
+      if (q.tabla === 'delete_own_account'){ pasos.push('borrar cuenta'); return borraCuenta ? { data: null } : { error: { code: 'P0001', message: 'Primero cancelá la renovación' } }; }
+      if (q.tabla === 'audios_por_borrar'){
+        pasos.push((q.accion === 'select' ? 'leer' : q.accion === 'upsert' ? 'anotar' : 'sacar') + ' cola');
+        return q.accion === 'select' ? { data: (cola || []).map(path => ({ path })) } : { data: null };
+      }
+      return { data: null };
+    }, { user: { id: YO, identities: [] } });
+    const fn = await funcion('borrar-audios', { env: { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'srv', ...(secreto ? { CRON_SECRET: secreto } : {}) },
+      npm: { '@supabase/supabase-js': { createClient: () => db } } });
+    const url = 'https://x.supabase.co/functions/v1/borrar-audios' + (cola ? '?cola=1' : '');
+    const r = await fn.call(new Request(url, { method: 'POST', headers: cola ? { 'x-cron-secret': 'otro' } : { Authorization: 'Bearer x' } }));
+    const res = { status: r.status, body: await r.json(), pasos: [...new Set(pasos)], removidas: removidas.slice() };
+    if (cola) {
+      const r2 = await fn.call(new Request(url, { method: 'POST', headers: { 'x-cron-secret': secreto } }));
+      res.conSecreto = { status: r2.status, body: await r2.json(), removidas: removidas.slice() };
+    }
+    return res;
+  };
+  {
+    let x = await correr();
+    t.eq(x.body, { removed: 4, deleted: true }, 'borrar-audios: borra la cuenta y sus 4 audios');
+    t.eq(x.pasos, ['listar', 'borrar cuenta', 'anotar cola', 'borrar audios', 'sacar cola'], 'borrar-audios: junta las rutas, borra la cuenta, las anota en la cola, borra los audios y los saca de la cola');
+    t.eq(x.removidas.sort(), [C1 + '/' + YO + '/b.webm', C2 + '/' + YO + '/c.webm', YO + '/ex/e.webm', YO + '/k1/a.webm'].sort(), 'borrar-audios: su carpeta de coach y sus conversaciones con cada coach que tuvo');
+    x = await correr({ borraCuenta: false });
+    t.ok(x.status === 409 && x.pasos.join() === 'listar,borrar cuenta' && x.removidas.length === 0, 'borrar-audios: si la cuenta no se borra, vuelve sin anotar ni borrar audios: ' + x.pasos);
+    x = await correr({ renueva: true });
+    t.ok(x.status === 409 && x.pasos.length === 0, 'borrar-audios: con la renovación activa no toca nada');
+    x = await correr({ cola: ['p/q/1.webm', 'p/q/2.webm'], secreto: 'cron-prueba' });
+    t.ok(x.status === 401 && x.removidas.length === 0, 'borrar-audios: el cron con otro secreto no borra nada');
+    t.ok(x.conSecreto.status === 200 && x.conSecreto.body.removed === 2 && x.conSecreto.removidas.join() === 'p/q/1.webm,p/q/2.webm', 'borrar-audios: el cron borra lo anotado en la cola: ' + JSON.stringify(x.conSecreto));
   }
 
   // La cola, con un Supabase simulado.

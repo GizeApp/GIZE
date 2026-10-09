@@ -9,33 +9,18 @@
 //   contaba de nuevo y se borraba, pero ya le había llegado en vivo al chat abierto del otro;
 // - se usa el id del alumno como está en la base y el texto se limpia como en contacto;
 // - cada envío (web, Android, iPhone) tiene tiempo máximo y van en paralelo.
+// La función se corre de verdad, con Supabase y web-push simulados (tests/funcion.mjs). Lo de la
+// base (chat_guardar) se revisa leyendo supabase/chat.sql: acá no hay Postgres.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { funcion, supabaseSimulado } from './funcion.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export default async function ({ t }){
   const src = fs.readFileSync(path.join(ROOT, 'supabase/functions/notificar-cliente/index.ts'), 'utf8');
   const h = src.slice(src.indexOf('Deno.serve('));
-  const ins = h.indexOf('admin.rpc("chat_guardar", {');
-  const push = h.indexOf('webpush.sendNotification('), fcm = h.indexOf('fetch("https://fcm.googleapis.com/v1/'), apns = h.indexOf('fetch("https://api.push.apple.com/');
-  t.ok(ins > 0 && push > ins && fcm > ins && apns > ins, 'el mensaje se guarda antes de mandar los avisos');
-  t.ok(/if \(saveErr \|\| !saved\) \{[\s\S]*?return json\(\{ error: "No se pudo guardar el mensaje\. Probá de nuevo\." \}, 500\);/.test(h.slice(ins, push)), 'si no se guarda, no manda avisos y contesta error');
-  t.ok(!/saved: !saveErr/.test(h) && /saved: true, id: saved\.id/.test(h), 'ya no contesta «llegó pero no se guardó»');
-  t.ok(/\.update\(\{ delivered \}\)\.eq\("id", saved\.id\)/.test(h), 'después anota a cuántos dispositivos llegó');
-
-  // El conteo.
-  t.ok(/const \{ count, error \} = await admin\.from\("coach_messages"\)\.select\("id", \{ count: "exact", head: true \}\)/.test(h) && /return error \? null : \(count \|\| 0\);/.test(h), 'el conteo devuelve null si falla');
-  t.ok(/if \(before === null\) return json\([^;]*503\);/.test(h) && /if \(before >= 30\) return json\([^;]*429\);/.test(h), 'antes de guardar: si no se pudo contar, no se manda; con 30, se frena');
-  t.ok(/p_coach: coachId, p_client: cid, p_sender: sender, p_body: body,\s*p_audio_path: audioPath, p_audio_secs: audioPath \? audioSecs : null, p_tope: 30,/.test(h), 'guarda con chat_guardar, con el tope de 30');
-  t.ok(/if \(!saveErr && !saved\) return json\(\{ error: "Mandaste muchos mensajes seguidos\. Esperá un minuto\." \}, 429\);/.test(h.slice(ins, push)), 'si la base no lo guardó por el tope, contesta 429 sin avisar');
-  // Sin el SQL nuevo todavía (la función no existe): como antes.
-  const viejo = h.slice(h.indexOf('if (saveErr && (saveErr.code === "PGRST202"'), push);
-  t.ok(viejo.length > 0 && viejo.length < h.length && /\.from\("coach_messages"\)\.insert\(/.test(viejo) && /const after = saved \? await recent\(\) : 0;/.test(viejo)
-    && /await admin\.from\("coach_messages"\)\.delete\(\)\.eq\("id", saved\.id\);/.test(viejo), 'sin chat_guardar (falta el SQL) guarda, cuenta de nuevo y borra el que se pasa, como antes');
-  t.eq((h.match(/\.from\("coach_messages"\)\.(insert|delete)\(/g) || []).length, 2, 'insert y delete directos solo en ese caso');
-
   // La función de la base: cuenta y guarda junto, de a uno por conversación y lado.
   const sql = fs.readFileSync(path.join(ROOT, 'supabase/chat.sql'), 'utf8');
   const fn = sql.slice(sql.indexOf('create or replace function public.chat_guardar('), sql.indexOf('end $$;', sql.indexOf('create or replace function public.chat_guardar(')));
@@ -46,12 +31,8 @@ export default async function ({ t }){
   t.ok(lock > 0 && cuenta > lock && guarda > cuenta, 'chat_guardar: primero espera su turno, después cuenta y recién ahí guarda');
   t.ok(/revoke all on function public\.chat_guardar\([^)]*\) from public, anon, authenticated;/.test(sql) && /grant execute on function public\.chat_guardar\([^)]*\) to service_role;/.test(sql), 'chat_guardar: solo la usa la función (service role)');
   t.ok(!/security definer/.test(fn), 'chat_guardar: corre con los permisos del que la llama');
-  t.ok(!/\(recent \|\| 0\) >= 30/.test(h), 'sin el conteo que tomaba un error como cero');
 
-  // El id del alumno y el texto.
-  t.ok(/const cid: string = client\.id;/.test(h) && /const fromClient = me === cid;/.test(h), 'usa el id del alumno como está en la base');
-  t.ok(!/clientId \+ "\/|\+ clientId\b|client_id: clientId|"client_id", clientId/.test(h), 'el id que vino en el pedido solo se usa para buscar al alumno');
-  t.ok(/new RegExp\("\^" \+ coachId \+ "\/" \+ cid \+ "\//.test(h), 'la ruta del audio se arma con el id de la base');
+  // El texto.
   const m = /const body = (String\(input\.body \|\| ""\)[^;]*);/.exec(h);
   t.ok(!!m, 'está la limpieza del texto');
   if (m){
@@ -67,4 +48,60 @@ export default async function ({ t }){
   t.ok(/let t: ReturnType<typeof setTimeout> \| undefined;/.test(src) && !/let t = 0;/.test(src), 'conTope guarda el timer con el tipo de setTimeout (deno check)');
   t.ok((h.match(/signal: AbortSignal\.timeout\(TOPE_MS\)/g) || []).length === 2 && /fetch\("https:\/\/oauth2\.googleapis\.com\/token"[\s\S]*?signal: AbortSignal\.timeout\(TOPE_MS\)/.test(src), 'Android, iPhone y el token de Firebase con tiempo máximo');
   t.ok(/await Promise\.allSettled\(\[toWeb\(\), toFcm\(\), toApns\(\)\]\)/.test(h), 'web, Android e iPhone en paralelo');
+
+  // ---- La función de verdad: qué se guarda, qué avisa y en qué orden ----
+  // El alumno le escribe a su coach (que tiene un navegador con los avisos prendidos).
+  // base: cómo contesta la base. antes: mensajes del último minuto al empezar.
+  const ALUMNO = '11111111-1111-1111-1111-111111111111', COACH = '33333333-3333-3333-3333-333333333333';
+  const mandar = async ({ base = 'ok', antes = 0, despues = antes + 1, clientId = ALUMNO, body = 'Hola' } = {}) => {
+    const orden = [], hechos = { guardar: null, insert: 0, borrados: [], delivered: null };
+    let conteos = 0;
+    const db = supabaseSimulado(q => {
+      if (q.tabla === 'profiles' && q.columnas === 'id, coach_id, full_name')
+        return { data: String(q.filtros[0][2]).toLowerCase() === ALUMNO ? { id: ALUMNO, coach_id: COACH, full_name: 'Ana' } : null };
+      if (q.tabla === 'coach_active') return { data: true };
+      if (q.tabla === 'coach_messages' && q.accion === 'select'){
+        conteos++; if (base === 'no cuenta') return { error: { code: '57014', message: 'tardó demasiado' } };
+        return { count: conteos === 1 ? antes : despues };
+      }
+      if (q.tabla === 'push_subscriptions' && q.accion === 'select') return { data: [{ id: 's1', endpoint: 'https://fcm.googleapis.com/fcm/send/x', p256dh: 'p', auth: 'a' }] };
+      if (q.tabla === 'chat_guardar'){
+        orden.push('guardar'); hechos.guardar = q.valores;
+        if (base === 'sin funcion') return { error: { code: 'PGRST202', message: 'no existe chat_guardar' } };
+        if (base === 'no guarda') return { error: { code: '22P05', message: 'texto inválido' } };
+        if (base === 'tope') return { data: null };
+        return { data: { id: 'm1', created_at: '2026-10-09T12:00:00Z' } };
+      }
+      if (q.tabla === 'coach_messages' && q.accion === 'insert'){ orden.push('guardar'); hechos.insert++; return { data: { id: 'm2', created_at: '2026-10-09T12:00:00Z' } }; }
+      if (q.tabla === 'coach_messages' && q.accion === 'delete'){ hechos.borrados.push(q.filtros[0][2]); return { data: null }; }
+      if (q.tabla === 'coach_messages' && q.accion === 'update'){ hechos.delivered = q.valores.delivered; return { data: null }; }
+      return { data: null };
+    }, { user: { id: ALUMNO } });
+    const fn = await funcion('notificar-cliente', {
+      env: { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'srv', VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv' },
+      npm: { '@supabase/supabase-js': { createClient: () => db }, 'web-push': { default: { setVapidDetails(){}, sendNotification: async () => { orden.push('aviso'); return { statusCode: 201 }; } } } },
+    });
+    const r = await fn.call(new Request('https://x.supabase.co/functions/v1/rapid-worker', { method: 'POST', headers: { Authorization: 'Bearer x' }, body: JSON.stringify({ client_id: clientId, body }) }));
+    return { status: r.status, res: await r.json(), orden, ...hechos };
+  };
+  let x = await mandar();
+  t.ok(x.status === 200 && x.res.saved === true && x.res.id === 'm1' && x.res.delivered === 1, 'mensaje normal: guardado y avisado: ' + JSON.stringify(x.res));
+  t.eq(x.orden, ['guardar', 'aviso'], 'mensaje normal: se guarda antes de avisar');
+  t.eq(x.guardar, { p_coach: COACH, p_client: ALUMNO, p_sender: 'client', p_body: 'Hola', p_audio_path: null, p_audio_secs: null, p_tope: 30 }, 'mensaje normal: chat_guardar con el tope de 30');
+  t.eq(x.delivered, 1, 'mensaje normal: anota a cuántos dispositivos llegó');
+  x = await mandar({ clientId: ALUMNO.toUpperCase() });
+  t.ok(x.status === 200 && x.guardar && x.guardar.p_client === ALUMNO, 'el id del alumno en mayúsculas: se guarda con el de la base');
+  x = await mandar({ base: 'tope', antes: 29 });
+  t.ok(x.status === 429 && !x.orden.includes('aviso'), 'la base no lo guardó por el tope (el 31 de varios a la vez): 429 y sin aviso');
+  x = await mandar({ antes: 30 });
+  t.ok(x.status === 429 && x.orden.length === 0, 'con 30 en el último minuto: 429 sin guardar ni avisar');
+  x = await mandar({ base: 'no cuenta' });
+  t.ok(x.status === 503 && x.orden.length === 0, 'si no se puede contar: 503 sin guardar ni avisar (antes pasaba todo)');
+  x = await mandar({ base: 'no guarda' });
+  t.ok(x.status === 500 && !x.orden.includes('aviso') && x.res.error === 'No se pudo guardar el mensaje. Probá de nuevo.', 'si no se guarda: error y sin aviso (antes avisaba igual)');
+  // Sin chat_guardar (falta correr supabase/chat.sql): como antes, guarda, cuenta de nuevo y borra el que se pasa.
+  x = await mandar({ base: 'sin funcion', antes: 29, despues: 30 });
+  t.ok(x.status === 200 && x.insert === 1 && x.borrados.length === 0 && x.orden.join() === 'guardar,guardar,aviso', 'sin chat_guardar: guarda directo y avisa');
+  x = await mandar({ base: 'sin funcion', antes: 29, despues: 31 });
+  t.ok(x.status === 429 && x.borrados.join() === 'm2' && !x.orden.includes('aviso'), 'sin chat_guardar: el que se pasa de 30 se borra, 429 y sin aviso');
 }
