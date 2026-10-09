@@ -4,7 +4,9 @@
 // orden con la barra relativa al primero y mi fila marcada, el campeón de la semana pasada con la
 // copa y el texto en dorado (#FFC940, también la copa chica al lado de su nombre), la semana de
 // lunes a domingo en hora de Argentina (aunque el celular esté en otra zona), los pasos anotados a
-// mano que suben a daily_logs y el contraste del texto en «Oscuro» y «Claro».
+// mano que suben a daily_logs y el contraste del texto en «Oscuro» y «Claro». En la base: quien el
+// dueño saca no vuelve con el código, el grupo sigue si el dueño borra su cuenta, el campeón sale
+// de los que ya estaban esa semana y el ranking es solo de esta semana.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -159,7 +161,7 @@ export default async function ({ base, t }){
   //    fila marcada, la semana que dice la base y lo del dueño (sacar gente, borrar).
   {
     const m = mock({ grupos: [GRUPO], ranking: { g1: RANKING }, campeon: { g1: CAMPEON } });
-    const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers, init: "localStorage.setItem('gize_lite','0');" });
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers, init: "localStorage.setItem('gize_lite','0');" });
     await p.goto(base + '/app/'); await wait(2500);
     await abrirPasos(p);
     t.has(await text(p, '.pg-grupo'), 'Los del laburo', 'la lista muestra mis grupos');
@@ -214,6 +216,7 @@ export default async function ({ base, t }){
     t.eq(await p.$$eval('.pg-rm', l => l.map(b => b.dataset.n)), ['Bruno', 'Caro', 'Dani', 'Euge'], 'el dueño puede sacar a los demás (no a sí mismo)');
     await p.click('.pg-rm[data-n="Euge"]'); await wait(600);
     t.ok(m.rpcs.some(x => x === 'sacar {"p_grupo":"g1","p_miembro":"m5"}'), 'sacar llama a pasos_sacar_miembro: ' + m.rpcs.join(' | '));
+    t.ok(dialogs.some(d => /¿Sacar a Euge del grupo\? No va a poder volver a sumarse con el código\./.test(d)), 'la confirmación avisa que no puede volver con el código: ' + JSON.stringify(dialogs));
     t.ok(m.rpcs.some(x => x === 'ranking {"p_grupo":"g1","p_atras":0}'), 'pide el ranking de esta semana');
     t.eq(errs, [], 'errores de la página (grupo)');
     await close();
@@ -381,5 +384,19 @@ export default async function ({ base, t }){
     t.ok(/America\/Argentina\/Buenos_Aires/.test(sql) && /isodow/.test(sql), 'semana de lunes a domingo en hora de Argentina');
     t.ok(/create table if not exists/.test(sql) && !/drop table/i.test(sql), 'se puede volver a correr sin borrar nada');
     t.ok(!/@[a-z0-9-]+\.[a-z]{2,}/i.test(sql), 'sin mails en el SQL');
+    const fn = n => defs.find(d => d.startsWith('create or replace function public.' + n + '(')) || '';
+    const cuerpo = n => fn(n).split('as $$')[1] || '';
+    // Quien el dueño saca del grupo no vuelve a entrar con el mismo código.
+    t.ok(/create table if not exists public\.pasos_expulsados/.test(sql) && /revoke all on public\.pasos_expulsados from anon, authenticated/.test(sql) && /alter table public\.pasos_expulsados enable row level security/.test(sql), 'pasos_expulsados: re-ejecutable y sin acceso directo');
+    t.ok(/returning m\.user_id into quien/.test(cuerpo('pasos_sacar_miembro')) && /insert into public\.pasos_expulsados \(grupo_id, user_id\) values \(p_grupo, quien\) on conflict do nothing/.test(cuerpo('pasos_sacar_miembro')), 'sacar a alguien lo anota en pasos_expulsados');
+    t.ok(/from public\.pasos_expulsados e where e\.grupo_id = gid and e\.user_id = me\) then\s*raise exception 'No podés volver a sumarte a este grupo\.' using errcode = 'P0001'/.test(cuerpo('pasos_unirse')), 'pasos_unirse no deja volver a quien el dueño sacó (P0001, la app lo muestra tal cual)');
+    // Si el dueño borra su cuenta, el grupo pasa a quien está hace más tiempo (como al salir).
+    t.ok(/drop trigger if exists pasos_traspasar_dueno on auth\.users;\s*create trigger pasos_traspasar_dueno before delete on auth\.users\s*for each row execute function public\.pasos_traspasar_dueno\(\)/.test(sql), 'trigger antes de borrar la cuenta (re-ejecutable)');
+    t.ok(/set dueno = \(select m\.user_id from public\.pasos_miembros m\s*where m\.grupo_id = g\.id and m\.user_id <> old\.id\s*order by m\.unido, m\.id limit 1\)/.test(cuerpo('pasos_traspasar_dueno')) && /return old;/.test(cuerpo('pasos_traspasar_dueno')), 'el grupo pasa al miembro más antiguo');
+    t.ok(/revoke all on function public\.pasos_traspasar_dueno\(\) from public, anon, authenticated/.test(sql), 'el trigger no se llama desde la app');
+    // Campeón: solo los que ya estaban antes de que terminara esa semana.
+    t.ok(/t\.unido < \(\(w\.desde \+ 7\)::timestamp at time zone 'America\/Argentina\/Buenos_Aires'\)/.test(cuerpo('pasos_campeon')), 'el campeón sale de los que ya estaban en el grupo esa semana');
+    // Ranking: solo esta semana (antes dejaba pedir hasta 52 semanas atrás).
+    t.ok(fn('pasos_ranking') && !/p_atras|52/.test(cuerpo('pasos_ranking')) && /pasos_lunes\(public\.pasos_hoy\(\)\) as desde/.test(cuerpo('pasos_ranking')), 'el ranking es solo de esta semana');
   }
 }
