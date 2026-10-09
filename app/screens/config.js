@@ -124,13 +124,14 @@ export function renderConfig() {
         : "";
 
   const notifOnNow = notifOn();
+  // Lo de la pantalla de inicio es solo para Safari: la app de la tienda tiene push nativo.
   const notifSection = '<div class="card cfg-card">' +
       '<div class="cfg-notif-row">' +
         '<span class="cfg-notif-ic">' + bellSvg + '</span>' +
         '<div class="cfg-notif-txt">' +
           '<div class="cfg-notif-label">Notificaciones</div>' +
           '<div class="cfg-notif-desc">Avisos de tu coach y recordatorios</div>' +
-          (!notifOnNow && isIOS() && !isStandalone() ? '<div class="cfg-notif-desc cfg-notif-ios">En iPhone, primero agregá GIZE a la pantalla de inicio (Compartir → Agregar a inicio) y abrila desde ahí.</div>' : '') +
+          (!notifOnNow && !IS_NATIVE && isIOS() && !isStandalone() ? '<div class="cfg-notif-desc cfg-notif-ios">En iPhone, primero agregá GIZE a la pantalla de inicio (Compartir → Agregar a inicio) y abrila desde ahí.</div>' : '') +
         '</div>' +
         '<button class="cfg-switch' + (notifOnNow ? ' on' : '') + '" data-action="cfg-notif-toggle" role="switch" aria-checked="' + notifOnNow + '"><span class="cfg-switch-knob"></span></button>' +
       '</div>' +
