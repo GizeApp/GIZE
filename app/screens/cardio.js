@@ -217,7 +217,7 @@ function renderSalidaTop(){
 function salirSection(){
   if (GpsState.run) return "";
   return '<section class="sal-card sal-salir" aria-label="Salir a moverte">' +
-    '<div class="sal-salir-t">A pie o en bici, con el GPS: distancia, ritmo, calorías y tu recorrido en el mapa.</div>' +
+    '<div class="sal-salir-t">A pie o en bici, con el GPS: distancia, ritmo, calorías y el dibujo de tu recorrido.</div>' +
     '<div class="ctrl-row"><button class="ctrl primary wide" data-action="sal-sheet">Salir a moverte</button></div>' +
   '</section>';
 }

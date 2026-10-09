@@ -155,6 +155,8 @@ async function flujo(base, t){
   t.has(v, 'Salir a moverte', 'Cardio: «Salir a moverte»');
   t.has(v, 'Cronómetro', 'el cronómetro sigue');
   t.ok(v.indexOf('Cronómetro y temporizador') < v.lastIndexOf('Salir a moverte'), '«Salir a moverte» va último, después del cronómetro');
+  // No promete un mapa: en los navegadores de Android el recorrido va sin mapa de calles.
+  t.eq(await tc(p, '#view .sal-salir-t'), 'A pie o en bici, con el GPS: distancia, ritmo, calorías y el dibujo de tu recorrido.', '«Salir a moverte»: qué mide, sin prometer un mapa');
   t.eq(await p.$$eval('#view [data-action="sal-start"], #view [data-action="sal-mode"]', l => l.length), 0, 'en la pantalla no está «Empezar»: va en la hoja');
   // «Salir a moverte» abre la hoja de abajo con las dos opciones y «Empezar».
   await abrirSalir(p);
