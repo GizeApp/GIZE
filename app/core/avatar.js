@@ -115,10 +115,14 @@ export async function removeMyAvatar(){
 // Fotos que quedaron en la carpeta propia porque falló borrar la anterior: hay un tope de 3 en
 // total (supabase/topes-archivos.sql), así que antes de subir otra se borran las más viejas que
 // la del perfil (se llaman {Date.now()}.jpg). Las más nuevas no: pueden ser de otro dispositivo.
+// Si el perfil que tiene este dispositivo no tiene foto, la más nueva tampoco se borra: puede ser
+// la que puso otro después (antes se borraban todas y el perfil quedaba apuntando a nada).
 async function cleanOldAvatars(uid, keep){
-  const n = s => parseInt(String(s || "").split("/").pop(), 10), lim = keep ? n(keep) : Infinity;
+  const n = s => parseInt(String(s || "").split("/").pop(), 10);
   const r = await State.sb.storage.from(BUCKET).list(uid, { limit: 100 }).catch(() => null);
-  const old = ((r && !r.error && r.data) || []).filter(it => it && it.id && n(it.name) < lim).map(it => uid + "/" + it.name);
+  const all = ((r && !r.error && r.data) || []).filter(it => it && it.id);
+  const lim = keep ? n(keep) : Math.max(...all.map(it => n(it.name)).filter(Number.isFinite));
+  const old = all.filter(it => n(it.name) < lim).map(it => uid + "/" + it.name);
   if (old.length) await State.sb.storage.from(BUCKET).remove(old).catch(() => {});
 }
 
