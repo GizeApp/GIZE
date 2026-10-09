@@ -55,7 +55,8 @@ export function superToRow(p){
 const q = v => v == null ? "null" : typeof v === "number" ? String(v) : "'" + String(v).replace(/'/g, "''") + "'";
 // Una tanda en una sola sentencia. Si el código ya está, se actualiza lo que vino de Open Food
 // Facts o de una carga anterior de esta importación, sin tocar lo verificado, lo oculto ni lo
-// que cargaron los usuarios.
+// que cargaron los usuarios. Un código que borró un administrador no se vuelve a cargar: lo
+// saltea la base (products_deleted_guard, ver supabase/productos-admin.sql).
 export function batchSql(rows){
   const vals = rows.map(r => "(" + [r.code, r.name, r.brand, r.kcal, r.protein, r.carbs, r.fat, r.unit, r.portion, "gize"].map(q).join(",") + ")").join(",\n");
   return `with x as (insert into public.products (code, name, brand, kcal, protein, carbs, fat, unit, portion, source) values\n${vals}\n` +
