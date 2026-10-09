@@ -2,6 +2,8 @@
 // que no contesta (por ejemplo, una dirección guardada a propósito con un puerto raro, que
 // deja la conexión colgada) no traba el aviso a los demás.
 // - admin (aviso a todos): web, Android e iPhone salen en paralelo y cada envío tiene tope.
+//   En cada canal van de a 100 a la vez (tanda.ts): con miles todos juntos, el tope corría
+//   para todos desde el principio y los últimos podían cortarse sin llegar.
 // - avisos-coach: cada coach va por su lado, en paralelo y con tope; si a uno no se le pudo
 //   mandar, sus avisos se liberan para el minuto siguiente. También los de una notificación
 //   que no le llegó a ningún dispositivo por una falla pasajera (sin respuesta, 429, 5xx, sin
@@ -30,7 +32,30 @@ function envio(t, nombre, src){
 }
 
 export default async function ({ t }){
-  envio(t, 'admin', rd('supabase/functions/admin/index.ts'));
+  const adm = rd('supabase/functions/admin/index.ts');
+  envio(t, 'admin', adm);
+  const asend = adm.slice(adm.indexOf('async function send('), adm.indexOf('\n}\n', adm.indexOf('async function send(')));
+  t.ok(/import \{ deA \} from "\.\/tanda\.ts";/.test(adm) && ['web', 'fcm', 'apns'].every(c => asend.includes('await deA(' + c + ', async (s) => {')) && !/Promise\.all\(\w+\.map\(/.test(asend), 'admin: cada canal manda de a tandas (deA), no todos juntos');
+  let tn = null;
+  try { tn = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/admin/tanda.ts')).href); }
+  catch (e) { t.ok(false, 'no se pudo cargar admin/tanda.ts: ' + (e && e.message ? e.message.split('\n')[0] : e)); }
+  if (tn){
+    t.ok(tn.TANDA >= 10 && tn.TANDA <= 200, 'admin: de a ' + tn.TANDA + ' a la vez');
+    // 250 envíos: nunca más de la tanda a la vez y cada uno una sola vez.
+    let vuelo = 0, max = 0;
+    const hechos = [];
+    await tn.deA(Array.from({ length: 250 }, (_, i) => i), async (x) => { vuelo++; max = Math.max(max, vuelo); await new Promise(z => setTimeout(z, 1 + (x % 3))); vuelo--; hechos.push(x); });
+    t.ok(max === tn.TANDA, 'deA: como mucho ' + tn.TANDA + ' a la vez (hubo ' + max + ')');
+    t.eq(hechos.slice().sort((a, b) => a - b), Array.from({ length: 250 }, (_, i) => i), 'deA: cada uno una sola vez');
+    // El tope corre desde que arranca cada envío: 6 envíos de 30 ms de a 2, con tope de 50 ms,
+    // tardan 90 ms en total y ninguno se corta (con el tope contado desde el principio, sí).
+    const tope = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('tope')), ms))]);
+    let cortados = 0;
+    await tn.deA([1, 2, 3, 4, 5, 6], async () => { try { await tope(new Promise(z => setTimeout(z, 30)), 50); } catch { cortados++; } }, 2);
+    t.eq(cortados, 0, 'deA: el tope corre desde que arranca cada envío');
+    await tn.deA([], async () => { throw new Error('no'); });
+    t.ok(true, 'deA: sin nada para mandar no hace nada');
+  }
 
   const ac = rd('supabase/functions/avisos-coach/index.ts');
   envio(t, 'avisos-coach', ac);
