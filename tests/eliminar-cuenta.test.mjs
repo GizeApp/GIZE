@@ -4,7 +4,14 @@
 // - Si todavía está publicada la función vieja (solo borraba audios), la app borra la cuenta
 //   con delete_own_account como antes.
 // - Si la función no deja (plan con renovación activa), se ve el motivo y la cuenta sigue.
+// - La función borra los audios recién después de borrar la cuenta: si la cuenta no se borra,
+//   los audios del otro siguen ahí. Y las llamadas a Apple tienen tiempo máximo.
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 async function run(base, fn){
   const r = await newPage({ user: ALUMNO, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} },
@@ -42,5 +49,14 @@ export default async function ({ base, t }){
     t.ok(!dialogs.includes('Tu cuenta fue eliminada.'), 'no dice que se eliminó');
     t.eq(errs, [], 'con error: errores de la página');
     await close();
+  }
+  {
+    const src = fs.readFileSync(path.join(ROOT, 'supabase/functions/borrar-audios/index.ts'), 'utf8');
+    const rpc = src.indexOf('asUser.rpc("delete_own_account")'), rm = src.indexOf('st.remove(');
+    t.ok(rpc > 0 && rm > rpc && src.indexOf('st.remove(', rm + 1) < 0, 'borrar-audios: los audios se borran después de borrar la cuenta (y en ningún otro lado)');
+    t.ok(src.lastIndexOf('await files(') < rpc && src.lastIndexOf('await subfolders(') < rpc, 'borrar-audios: las rutas se juntan antes (después ya no está la cuenta para saber cuáles son)');
+    t.ok(/if \(de\) \{[^}]*return json\(/.test(src.slice(rpc, rm)), 'borrar-audios: si la cuenta no se borra, vuelve sin tocar los audios');
+    const apple = src.slice(src.indexOf('async function revokeApple'), src.indexOf('Deno.serve('));
+    t.ok(/fetch\("https:\/\/appleid\.apple\.com\/auth\/"[\s\S]*signal: AbortSignal\.timeout\(\d+\)/.test(apple), 'borrar-audios: las llamadas a Apple tienen tiempo máximo');
   }
 }
