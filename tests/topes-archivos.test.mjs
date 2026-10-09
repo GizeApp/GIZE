@@ -74,9 +74,12 @@ export default async function ({ base, t }){
 
   // Foto de perfil: antes de subir otra, la app borra las viejas que quedaron (si falló borrar la
   // anterior), así no se llega al tope de 3 en total. La del perfil y las más nuevas (de otro
-  // dispositivo) no se tocan hasta tener la nueva guardada.
-  {
-    const ev = [], cur = ALUMNO.id + '/1700000000000.jpg', me = { id: ALUMNO.id, role: 'client', full_name: 'Prueba', coach_id: null, avatar_path: cur };
+  // dispositivo) no se tocan hasta tener la nueva guardada. Si el perfil que tiene la app no tiene
+  // foto, la más nueva tampoco se borra: puede ser la que puso otro dispositivo después.
+  for (const [cur, esperado] of [
+    [ALUMNO.id + '/1700000000000.jpg', ['listar', 'borrar 1600000000000.jpg,1650000000000.jpg', 'subir', 'borrar 1700000000000.jpg']],
+    [null, ['listar', 'borrar 1600000000000.jpg,1650000000000.jpg,1700000000000.jpg', 'subir']]]){
+    const ev = [], me = { id: ALUMNO.id, role: 'client', full_name: 'Prueba', coach_id: null, avatar_path: cur }, k = cur ? 'con foto' : 'sin foto';
     const files = ['1600000000000.jpg', '1650000000000.jpg', '1700000000000.jpg', '9999999999999.jpg'].map((name, i) => ({ name, id: 'a' + i }));
     const pg = await newPage({ user: ALUMNO, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} },
       handlers: { '/profiles': (r, J, i) => i.m === 'GET' ? J(i.one ? me : [me]) : undefined, '/object/list/avatars': (r, J) => (ev.push('listar'), J(files)) } });
@@ -88,9 +91,9 @@ export default async function ({ base, t }){
     const png = Buffer.from(await pg.p.evaluate(() => { const c = document.createElement('canvas'); c.width = c.height = 400; return c.toDataURL('image/png').split(',')[1]; }), 'base64');
     await pg.p.setInputFiles('[data-action="avatar-pick"]', { name: 'yo.png', mimeType: 'image/png', buffer: png }); await wait(600);
     await pg.p.click('.crp-ok'); await wait(1500);
-    t.eq(ev, ['listar', 'borrar 1600000000000.jpg,1650000000000.jpg', 'subir', 'borrar 1700000000000.jpg'], 'borra las viejas antes de subir y la anterior después de guardar la nueva');
-    t.eq(pg.dialogs, [], 'sin carteles (foto de perfil)');
-    t.eq(pg.errs, [], 'errores de la página (foto de perfil)');
+    t.eq(ev, esperado, k + ': borra las viejas antes de subir (no la más nueva) y la anterior después de guardar la nueva');
+    t.eq(pg.dialogs, [], k + ': sin carteles (foto de perfil)');
+    t.eq(pg.errs, [], k + ': errores de la página (foto de perfil)');
     await pg.close();
   }
 
