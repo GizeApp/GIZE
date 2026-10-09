@@ -6,6 +6,9 @@
 //    regla del plugin de ubicación (no va en Android) y con las líneas para leer los errores.
 // c) scripts/build-web.mjs (www/ para las apps): sin los logos en PNG, las imágenes de los mails ni
 //    BRAND.md; con todo lo de brand/ que la app y el CSS usan.
+// d) Para la app de Android (npm run android → build-web.mjs --android) tampoco va MapLibre (ahí
+//    nunca hay mapa); la de iPhone (npm run ios y su workflow, sin --android) sí lo lleva. Lo demás
+//    de vendor/ (Supabase, el lector de códigos de barras) va en las dos.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -55,5 +58,17 @@ export default async function ({ t }){
     for (const m of read('manifest.json').matchAll(/brand\/([\w./-]+\.\w+)/g)) usado.add(m[1]);
     t.ok(usado.size >= 4, 'www: se encontraron los archivos de brand/ que usa la app: ' + [...usado].join(', '));
     t.eq([...usado].filter(f => !brand.includes(f)), [], 'www: con todo lo de brand/ que usan la app y el CSS');
+    const ml = d => fs.readdirSync(path.join(d, 'vendor')).filter(f => /^maplibre/i.test(f));
+    t.eq(ml(www), ['maplibre-gl-6.11.2'], 'www sin --android (iPhone): con MapLibre');
+
+    // d) La de Android: sin MapLibre, con el resto de vendor/ y de la app.
+    execFileSync(process.execPath, ['scripts/build-web.mjs', '--android'], { cwd: tmp, stdio: 'pipe' });
+    t.eq(ml(www), [], 'www para Android: sin MapLibre');
+    for (const f of ['vendor/supabase-2.117.1.js', 'vendor/zxing.min.js', 'app/ui/mapa.js', 'index.html', 'brand/tokens.css'])
+      t.ok(fs.existsSync(path.join(www, f)), 'www para Android: sigue ' + f);
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  const pkg = JSON.parse(read('package.json')).scripts;
+  t.ok(/^node scripts\/build-web\.mjs --android && npx cap sync android$/.test(pkg.android), 'npm run android arma www/ sin MapLibre: ' + pkg.android);
+  t.ok(/build-web\.mjs &&/.test(pkg.ios) && !/--android/.test(pkg.ios), 'npm run ios arma www/ con MapLibre: ' + pkg.ios);
+  for (const m of read('.github/workflows/ios.yml').matchAll(/run: (.*build-web.*)/g)) t.ok(!/--android/.test(m[1]), 'workflow de iPhone con MapLibre: ' + m[1]);
 }
