@@ -11,6 +11,7 @@ import { save } from '../core/storage.js';
 
 import { DISCIPLINAS, myDisciplinas, toggleDisciplina } from '../core/disciplinas.js';
 
+import { rutinasDeDisciplinas } from '../core/rutinas-disciplina.js';
 import { CATALOGO, cargarCatalogo, copiarDias, diasDeEntreno, rutinasDeDias, rutinasPara } from '../core/rutinas-ejemplo.js';
 
 import { hideSilkBg, showSilkBg } from '../ui/background.js';
@@ -294,6 +295,8 @@ async function showRoutines(fromApp){
   // respuesta en 4 s (señal floja), también: el pedido sigue y la próxima vez ya está.
   let all=rutinasPara(state.sex, await Promise.race([cargarCatalogo(), new Promise(r=>setTimeout(()=>r(CATALOGO), 4000))]));
   if(!all.length) all=rutinasPara(state.sex, CATALOGO);
+  // Las de su disciplina (CrossFit, Running…) van primero, antes que las generales del mismo día.
+  all=rutinasDeDisciplinas(myDisciplinas().map(x=>x.id)).concat(all);
   const chip=(n, lbl)=>'<button type="button" class="onb-num onb-dias'+(n===OB.dias?' on':'')+'" data-onb="dias" data-v="'+n+'" aria-pressed="'+(n===OB.dias)+'">'+lbl+'</button>';
   // Lista de las rutinas de los días elegidos (se redibuja sola al tocar otro número).
   const listHtml=()=>{
@@ -303,7 +306,7 @@ async function showRoutines(fromApp){
   };
   const host=mount(
     '<h1 class="onb-title">Elegí tu rutina</h1>'+
-    '<p class="onb-text">¿Cuántos días por semana entrenás?</p>'+
+    '<p class="onb-text">'+(myDisciplinas().some(x=>x.id!=="fuerza")?'Te mostramos primero las de tu disciplina. ':'')+'¿Cuántos días por semana entrenás?</p>'+
     '<div class="onb-nums onb-nums-dias" role="group" aria-label="Días por semana">'+chip(0,"Todas")+[1,2,3,4,5].map(n=>chip(n, String(n))).join("")+'</div>'+
     '<div class="onb-routines" aria-live="polite">'+listHtml()+'</div>'+
     '<button type="button" class="onb-alt" data-onb="sexagain">Cambiar: '+(state.sex==="f"?"Mujer":state.sex==="m"?"Hombre":"Todas")+'</button>'+
