@@ -73,6 +73,12 @@ export default async function ({ t }){
   const runs = sinComentarios(bk).split('\n').filter(l => /docker run/.test(l));
   t.ok(runs.length >= 2 && runs.every(l => /\bgize-postgres\b/.test(l)), 'todos los docker run de backup.yml usan la imagen fijada (gize-postgres)');
   t.ok(/- package-ecosystem: docker\s+directory: \/\.github\/postgres\b/.test(dep), 'Dependabot sigue el Dockerfile de Postgres');
+  // Pero no propone otra versión mayor: la copia saldría de un pg_dump que el pg_restore anotado
+  // para emergencias no lee. La versión anotada en backup.yml es la del Dockerfile.
+  const dock = dep.split(/^  - /m).find(b => /^package-ecosystem: docker\b/.test(b)) || '';
+  t.ok(/\n    ignore:\s+- dependency-name: postgres\s+update-types: \["version-update:semver-major"\]/.test(dock), 'Dependabot no propone otra versión mayor de Postgres');
+  const mayor = (df.match(/^FROM postgres:(\d+)/m) || [])[1];
+  t.ok(mayor && new RegExp('pg_restore ' + mayor + ' o más nuevo').test(bk), 'backup.yml dice qué pg_restore hace falta para restaurar (' + mayor + ' o más nuevo)');
   const iCo = bk.indexOf('actions/checkout@'), iImg = bk.indexOf('- name: Imagen de Postgres'), iUsa = bk.indexOf('- name: Levantar la base de prueba');
   t.ok(iCo > 0 && iImg > iCo && iUsa > iImg, 'backup.yml baja el repo, prepara la imagen y recién después la usa');
   const img = paso(bk, 'Imagen de Postgres');

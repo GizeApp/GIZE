@@ -28,7 +28,8 @@
 #   BACKUP_PASSWORD   una contraseña larga para cifrar las copias. Guardala aparte (gestor de
 #                     contraseñas): sin ella no se puede abrir ninguna copia.
 #
-# Restaurar una copia de verdad (en una emergencia):
+# Restaurar una copia de verdad (en una emergencia), con pg_restore 18 o más nuevo (la versión de
+# .github/postgres/Dockerfile: uno más viejo no lee la copia):
 #   gpg -d backup-AAAA-MM-DD.dump.gpg > backup.dump
 #   pg_restore --clean --if-exists --no-owner -d "URI de la base" backup.dump
 #
