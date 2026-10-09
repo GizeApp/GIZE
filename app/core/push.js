@@ -259,10 +259,13 @@ export async function syncPush(){
     let sub = await reg.pushManager.getSubscription();
     if (!own) {
       // Las versiones anteriores no anotaban la cuenta: se sigue solo si la base dice que este
-      // navegador ya era de esta cuenta. Si no, no se registra sola.
+      // navegador ya era de esta cuenta. Si no, no se registra sola, y si es de otra cuenta (la
+      // base no deja ver su fila) se da de baja: si no, sus mensajes le seguían llegando a quien
+      // entró ahora (antes el save la pasaba a esta cuenta y a la otra le dejaban de llegar).
       if (!sub) return;
       const r = await State.sb.from("push_subscriptions").select("id").eq("endpoint", sub.endpoint).maybeSingle();
-      if (r.error || !r.data) return;
+      if (r.error) return;
+      if (!r.data) { await pushDropHere(); return; }
       try { localStorage.setItem(WEB_KEY, uid); } catch (e) {}
     }
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) });
