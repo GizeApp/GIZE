@@ -98,6 +98,9 @@ if (APPLY){
     }
     return { ok: false, data: null };
   };
+  // Sin la marca de revisado (supabase/admin.sql) fallaría cada tanda: se corta antes, avisando.
+  const col = await run("select 1 from information_schema.columns where table_schema = 'public' and table_name = 'products' and column_name = 'reviewed_at';");
+  if (!(col.ok && Array.isArray(col.data) && col.data.length)){ console.error("La base no respondió o falta la marca de revisado de los productos: correr supabase/admin.sql (workflow Supabase → sql) y volver a probar."); process.exit(1); }
   let nuevos = 0, actualizados = 0, fallidos = 0, motivo = "";
   // Si una tanda falla por un dato raro, se parte a la mitad hasta aislar el producto.
   const load = async list => {
@@ -108,7 +111,7 @@ if (APPLY){
     await load(list.slice(0, h)); await load(list.slice(h));
   };
   for (let i = 0; i < rows.length; i += 500) await load(rows.slice(i, i + 500));
-  console.log("Cargados · nuevos:", nuevos, "· actualizados:", actualizados, "· sin cambios (verificados o cargados por usuarios):",
+  console.log("Cargados · nuevos:", nuevos, "· actualizados:", actualizados, "· sin cambios (revisados en el panel, cargados por usuarios o códigos borrados):",
     rows.length - nuevos - actualizados - fallidos, "· con error:", fallidos);
   if (motivo) console.log("Primer error:", motivo);
   const c = await run("select source, count(*) as n from public.products group by source order by source;");

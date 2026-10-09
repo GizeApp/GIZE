@@ -15,7 +15,7 @@ import { renderCoach } from './index.js';
 
 import { rtDays } from './rutinas.js';
 
-import { Player, audioState, extFor, mmss, newAudioName, signedAudioUrl, startRecorder, togglePlay, uploadAudio } from '../../ui/grabar.js';
+import { AUDIO_CUPO, Player, audioState, extFor, mmss, newAudioName, signedAudioUrl, startRecorder, togglePlay, uploadAudio } from '../../ui/grabar.js';
 
 const MAX_SECS = 180;
 export const EX_AUDIO_RE = /^[0-9a-f-]{36}\/ex\/[A-Za-z0-9_-]{8,64}\.(webm|mp4|m4a|ogg|aac)$/;
@@ -69,9 +69,9 @@ async function start(ex){
 async function save(ex, blob, type, secs){
   R = { ex, uploading: true }; renderCoach();
   const path = State.cloudUser.id + "/ex/" + newAudioName() + "." + extFor(type);
-  const ok = await uploadAudio(path, blob, type);
+  const err = await uploadAudio(path, blob, type);
   R = null;
-  if(!ok){ renderCoach(); alert("No se pudo subir el audio. Revisá la conexión y probá de nuevo."); return; }
+  if(err){ renderCoach(); alert(err === AUDIO_CUPO ? err : "No se pudo subir el audio. Revisá la conexión y probá de nuevo."); return; }
   ex.audio = path; ex.audioSecs = secs;
   renderCoach();
 }

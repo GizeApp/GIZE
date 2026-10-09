@@ -4,7 +4,7 @@
 // guarda acá (lo guarda el servidor, ver saveOffShared). Sin sesión o sin señal, todo sigue
 // funcionando con la base propia y Open Food Facts.
 import { State } from './state.js';
-import { norm } from './utils.js';
+import { norm, storageCupoLleno } from './utils.js';
 
 const COLS = "id,code,name,brand,kcal,protein,carbs,fat,unit,portion,source,verified";
 const n1 = v => Math.round((Number(v) || 0) * 10) / 10;
@@ -112,21 +112,32 @@ export async function uploadLabelPhoto(file, code, prefix){
   const blob = await labelJpeg(file);
   const path = State.cloudUser.id + "/" + (prefix || "") + String(code || "x").replace(/\D/g, "").slice(0, 14) + "-" + Date.now() + ".jpg";
   const r = await State.sb.storage.from("productos").upload(path, blob, { contentType: "image/jpeg", upsert: false });
-  if (r.error) throw r.error;
+  // Tope de fotos por día (supabase/topes-archivos.sql): que no diga «Revisá tu conexión».
+  if (r.error) throw storageCupoLleno(r.error) ? new Error("Llegaste al límite de fotos por hoy. Probá mañana.") : r.error;
   return path;
 }
 
 // Pedido de un producto que no está (supabase/pedidos-productos.sql): el usuario manda la foto
 // de la tabla nutricional (y si quiere la del frente), el nombre y la marca. Los valores los
 // carga un administrador desde gize.ar/admin, que lo publica para todos.
+// Si el pedido no se guarda (tope de pedidos del día, no se pudo subir la otra foto), se borran
+// las fotos que ya se subieron: si no, quedaban para siempre en Storage sin ningún pedido.
+// Si la respuesta del pedido no llega (error sin código: se cortó la señal), no se sabe si la
+// base lo guardó: las fotos quedan, porque el pedido puede estar en el panel apuntando a ellas.
 export async function sendProductRequest({ name, brand, code, label, front }){
   if (!ready()) throw new Error("Tenés que iniciar sesión.");
   const c = String(code || "").replace(/\D/g, "");
-  const labelPath = await uploadLabelPhoto(label, c, "pedido-tabla-");
-  const frontPath = front ? await uploadLabelPhoto(front, c, "pedido-frente-") : null;
-  const r = await State.sb.from("product_requests").insert({ name: String(name).trim().slice(0, 120), brand: String(brand || "").trim().slice(0, 60) || null,
-    code: c.length >= 6 && c.length <= 14 ? c : null, label_path: labelPath, front_path: frontPath });
-  if (r.error) throw r.error;
+  const up = [];
+  try {
+    up.push(await uploadLabelPhoto(label, c, "pedido-tabla-"));
+    if (front) up.push(await uploadLabelPhoto(front, c, "pedido-frente-"));
+    const r = await State.sb.from("product_requests").insert({ name: String(name).trim().slice(0, 120), brand: String(brand || "").trim().slice(0, 60) || null,
+      code: c.length >= 6 && c.length <= 14 ? c : null, label_path: up[0], front_path: up[1] || null });
+    if (r.error){ if (!r.error.code) up.length = 0; throw r.error; }
+  } catch (e) {
+    if (up.length) try { await State.sb.storage.from("productos").remove(up); } catch (x) {}
+    throw e;
+  }
 }
 
 // Pedidos ya resueltos que el usuario todavía no vio: se avisan una vez al entrar a la app.

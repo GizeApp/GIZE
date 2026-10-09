@@ -106,28 +106,19 @@ Deno.serve(async (req) => {
   const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const st = admin.storage.from(BUCKET);
 
-  // Archivos de una carpeta (sin subcarpetas), de a 1000. Se listan todos antes de borrar:
-  // borrar mientras se pagina corre el offset y se saltearía archivos.
-  async function files(prefix: string): Promise<string[]> {
-    const out: string[] = [];
+  // Todos los archivos de una carpeta y de sus subcarpetas (la app no las crea, pero Storage
+  // las aceptaba antes de topes-archivos.sql y quedaban para siempre), de a 1000. Se listan
+  // todos antes de borrar: borrar mientras se pagina corre el offset y se saltearía archivos.
+  async function walk(prefix: string, depth = 0): Promise<string[]> {
+    const out: string[] = [], dirs: string[] = [];
     for (let offset = 0; ; offset += 1000) {
       const { data, error } = await st.list(prefix, { limit: 1000, offset });
       if (error) throw error;
       const items = data || [];
-      items.forEach((it) => { if (it && it.id) out.push(prefix + "/" + it.name); });
+      items.forEach((it) => { if (it && it.name) (it.id ? out : dirs).push(prefix + "/" + it.name); });
       if (items.length < 1000) break;
     }
-    return out;
-  }
-  async function subfolders(prefix: string): Promise<string[]> {
-    const out: string[] = [];
-    for (let offset = 0; ; offset += 1000) {
-      const { data, error } = await st.list(prefix, { limit: 1000, offset });
-      if (error) throw error;
-      const items = data || [];
-      items.forEach((it) => { if (it && !it.id && it.name) out.push(prefix + "/" + it.name); });
-      if (items.length < 1000) break;
-    }
+    if (depth < 10) for (const d of dirs) out.push(...await walk(d, depth + 1));
     return out;
   }
 
@@ -143,7 +134,7 @@ Deno.serve(async (req) => {
   const paths: string[] = [];
   try {
     // Como coach: su carpeta entera.
-    for (const dir of await subfolders(me)) paths.push(...await files(dir));
+    paths.push(...await walk(me));
     // Como alumno: la carpeta de su conversación con cada coach que tuvo (el actual y los
     // que aparecen en sus mensajes).
     const coaches = new Set<string>();
@@ -153,7 +144,7 @@ Deno.serve(async (req) => {
     const { data: msgs, error: ce } = await admin.from("coach_messages").select("coach_id").eq("client_id", me).not("audio_path", "is", null);
     if (ce) throw ce;
     (msgs || []).forEach((m) => { if (m.coach_id) coaches.add(m.coach_id); });
-    for (const c of coaches) if (UUID.test(c) && c !== me) paths.push(...await files(c + "/" + me));
+    for (const c of coaches) if (UUID.test(c) && c !== me) paths.push(...await walk(c + "/" + me));
   } catch (e) {
     console.error("borrar-audios", (e as Error).message);
     return json({ error: "No se pudieron revisar tus mensajes de voz. Probá de nuevo." }, 500);

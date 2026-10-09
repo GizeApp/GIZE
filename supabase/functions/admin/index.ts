@@ -158,21 +158,29 @@ async function mp(path: string, init: RequestInit = {}) {
 const USER_BUCKETS = ["avatars", "productos"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Todos los archivos de una carpeta y de sus subcarpetas (id null = subcarpeta: la app no las
+// crea, pero Storage las aceptaba antes de topes-archivos.sql y quedaban para siempre).
+// list() devuelve de a 1000 como máximo; se lista todo antes de borrar: borrar mientras se
+// pagina corre el offset y se saltearía archivos. Lanza si algo falla.
+// deno-lint-ignore no-explicit-any
+async function walk(st: any, bucket: string, prefix: string, depth = 0): Promise<string[]> {
+  const out: string[] = [], dirs: string[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await st.list(prefix, { limit: 1000, offset });
+    if (error) throw new Error(bucket + ": " + error.message);
+    (data || []).forEach((it: { id: string | null; name: string }) => { if (it && it.name) (it.id ? out : dirs).push(prefix + "/" + it.name); });
+    if (!data || data.length < 1000) break;
+  }
+  if (depth < 10) for (const d of dirs) out.push(...await walk(st, bucket, d, depth + 1));
+  return out;
+}
+
 // Borra todos los archivos de la carpeta del usuario en cada bucket y devuelve cuántos.
-// Primero lista todo (list() devuelve de a 1000 como máximo) y después borra: borrar
-// mientras se pagina corre el offset y se saltearía archivos. Lanza si algo falla.
 async function removeUserFiles(db: ReturnType<typeof createClient>, uid: string): Promise<number> {
   let total = 0;
   for (const bucket of USER_BUCKETS) {
     const st = db.storage.from(bucket);
-    const paths: string[] = [];
-    for (let offset = 0; ; offset += 1000) {
-      const { data, error } = await st.list(uid, { limit: 1000, offset });
-      if (error) throw new Error(bucket + ": " + error.message);
-      // id null = subcarpeta (la app no las crea; se ignoran).
-      (data || []).forEach((it) => { if (it && it.id) paths.push(uid + "/" + it.name); });
-      if (!data || data.length < 1000) break;
-    }
+    const paths = await walk(st, bucket, uid);
     for (let i = 0; i < paths.length; i += 100) {
       const { error } = await st.remove(paths.slice(i, i + 100));
       if (error) throw new Error(bucket + ": " + error.message);
@@ -189,24 +197,13 @@ async function removeUserFiles(db: ReturnType<typeof createClient>, uid: string)
 // deno-lint-ignore no-explicit-any
 async function removeChatAudios(db: any, uid: string): Promise<number> {
   const st = db.storage.from("chat-audio");
-  async function list(prefix: string, folders: boolean): Promise<string[]> {
-    const out: string[] = [];
-    for (let offset = 0; ; offset += 1000) {
-      const { data, error } = await st.list(prefix, { limit: 1000, offset });
-      if (error) throw new Error("chat-audio: " + error.message);
-      (data || []).forEach((it: { id: string | null; name: string }) => { if (it && it.name && (folders ? !it.id : !!it.id)) out.push(prefix + "/" + it.name); });
-      if (!data || data.length < 1000) break;
-    }
-    return out;
-  }
-  const paths: string[] = [];
-  for (const dir of await list(uid, true)) paths.push(...await list(dir, false));
+  const paths: string[] = await walk(st, "chat-audio", uid);
   const coaches = new Set<string>();
   const { data: prof } = await db.from("profiles").select("coach_id").eq("id", uid).maybeSingle();
   if (prof && prof.coach_id) coaches.add(prof.coach_id);
   const { data: msgs } = await db.from("coach_messages").select("coach_id").eq("client_id", uid).not("audio_path", "is", null);
   (msgs || []).forEach((m: { coach_id: string }) => { if (m.coach_id) coaches.add(m.coach_id); });
-  for (const c of coaches) if (UUID.test(c) && c !== uid) paths.push(...await list(c + "/" + uid, false));
+  for (const c of coaches) if (UUID.test(c) && c !== uid) paths.push(...await walk(st, "chat-audio", c + "/" + uid));
   for (let i = 0; i < paths.length; i += 100) {
     const { error } = await st.remove(paths.slice(i, i + 100));
     if (error) throw new Error("chat-audio: " + error.message);

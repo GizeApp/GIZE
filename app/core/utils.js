@@ -21,6 +21,14 @@ export function storageErrorText(err, maxMb){
   return m;
 }
 
+// La subida chocó con una política de Storage (403 o «row-level security»). Con las rutas que
+// arma la app, eso es el tope de archivos por día de supabase/topes-archivos.sql, no la señal.
+export function storageCupoLleno(err){
+  const m = String((err && (err.message || err.error)) || err || "");
+  const st = String((err && (err.statusCode || err.status)) || "");
+  return /row-level security/i.test(m) || (st === "403" && !/jwt/i.test(m));
+}
+
 // Fecha local YYYY-MM-DD. No usar toISOString(): pasa a UTC y, según la zona horaria,
 // devuelve el día anterior o el siguiente.
 export function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }

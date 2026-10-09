@@ -11,7 +11,7 @@
 
 import { State } from './state.js';
 
-import { esc, storageErrorText } from './utils.js';
+import { esc, storageCupoLleno, storageErrorText } from './utils.js';
 
 const BUCKET = "avatars";
 const SIZE = 320;
@@ -83,9 +83,11 @@ export async function uploadMyAvatar(file, cropped){
   let blob = cropped || null;
   if (!blob) try { blob = await squareJpeg(file); } catch (e) { return "No se pudo leer esa imagen. Probá con otra."; }
   const uid = State.cloudUser.id, old = State.cloudProfile && State.cloudProfile.avatar_path;
+  if (State.cloudProfile) await cleanOldAvatars(uid, old);
   const path = uid + "/" + Date.now() + ".jpg"; // nombre nuevo: evita que se vea la foto vieja cacheada
   const up = await State.sb.storage.from(BUCKET).upload(path, blob, { contentType: "image/jpeg", upsert: false });
-  if (up.error) return "No se pudo subir la foto: " + storageErrorText(up.error, 2) + setupHint(up.error);
+  if (up.error) return storageCupoLleno(up.error) ? "Llegaste al límite de fotos por hoy. Probá mañana." // topes-archivos.sql
+    : "No se pudo subir la foto: " + storageErrorText(up.error, 2) + setupHint(up.error);
   // .select() para confirmar que se guardó: con RLS, un UPDATE que ninguna política
   // permite no da error, cambia 0 filas. Sin esto el usuario veía su foto (se muestra
   // apenas se sube) pero no quedaba en su perfil y el coach nunca la veía.
@@ -108,6 +110,20 @@ export async function removeMyAvatar(){
   State.cloudProfile.avatar_path = null;
   State.sb.storage.from(BUCKET).remove([old]).catch(() => {});
   return "";
+}
+
+// Fotos que quedaron en la carpeta propia porque falló borrar la anterior: hay un tope de 3 en
+// total (supabase/topes-archivos.sql), así que antes de subir otra se borran las más viejas que
+// la del perfil (se llaman {Date.now()}.jpg). Las más nuevas no: pueden ser de otro dispositivo.
+// Si el perfil que tiene este dispositivo no tiene foto, la más nueva tampoco se borra: puede ser
+// la que puso otro después (antes se borraban todas y el perfil quedaba apuntando a nada).
+async function cleanOldAvatars(uid, keep){
+  const n = s => parseInt(String(s || "").split("/").pop(), 10);
+  const r = await State.sb.storage.from(BUCKET).list(uid, { limit: 100 }).catch(() => null);
+  const all = ((r && !r.error && r.data) || []).filter(it => it && it.id);
+  const lim = keep ? n(keep) : Math.max(...all.map(it => n(it.name)).filter(Number.isFinite));
+  const old = all.filter(it => n(it.name) < lim).map(it => uid + "/" + it.name);
+  if (old.length) await State.sb.storage.from(BUCKET).remove(old).catch(() => {});
 }
 
 // Guarda la ruta en el perfil propio. Primero con la función set_my_avatar (solo toca

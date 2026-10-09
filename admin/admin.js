@@ -1011,7 +1011,7 @@ async function saveProd(btn){
 }
 async function deleteProd(btn){
   const c = btn.closest("[data-prod]"), p = S.prods.find(x => x.id === c.dataset.prod); if (!p) return;
-  if (!confirm("¿Borrar «" + p.name + "»" + (p.code ? " (" + p.code + ")" : "") + " de la base? Desaparece de la app para todos y no se puede deshacer.\n\nLo que la gente ya anotó en su diario no cambia.")) return;
+  if (!confirm("¿Borrar «" + p.name + "»" + (p.code ? " (" + p.code + ")" : "") + " de la base? Desaparece de la app para todos y no se puede deshacer." + (p.code ? " El código no se vuelve a cargar solo (ni al escanearlo ni con las importaciones): para volver a tenerlo, «Agregar producto» o publicar un pedido con ese código." : "") + "\n\nLo que la gente ya anotó en su diario no cambia.")) return;
   btn.disabled = true;
   try { await rpc("admin_product_delete", { pid: p.id }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   S.prods = S.prods.filter(x => x.id !== p.id); paintProds(); toast("Producto borrado");

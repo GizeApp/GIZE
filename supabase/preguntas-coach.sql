@@ -14,10 +14,13 @@ create table if not exists public.coach_questions (
 
 alter table public.coach_questions enable row level security;
 
--- El coach lee y escribe solo su fila.
+-- El coach lee y escribe solo su fila, y solo un coach la crea o cambia (antes cualquier
+-- cuenta). Igual que en topes-datos.sql, que además pone el tope de tamaño de las preguntas.
 drop policy if exists "coach gestiona sus preguntas" on public.coach_questions;
 create policy "coach gestiona sus preguntas" on public.coach_questions
-  for all using (coach_id = auth.uid()) with check (coach_id = auth.uid());
+  for all using (coach_id = auth.uid())
+  with check (coach_id = auth.uid()
+    and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'coach'));
 
 -- Cada cliente puede leer (no modificar) las preguntas de su coach.
 drop policy if exists "cliente lee las preguntas de su coach" on public.coach_questions;

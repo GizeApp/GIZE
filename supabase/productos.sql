@@ -6,10 +6,13 @@
 -- OJO: NO volver a correr suelto. Redefine products_before, y la versión vigente (foto de la
 -- tabla obligatoria, scans) está en productos-admin.sql. Si lo corrés, corré después
 -- productos-admin.sql. Lo mismo con product_use y product_report: las vigentes (con topes por
--- usuario) están en productos-topes.sql.
+-- usuario) están en productos-topes.sql. Y los permisos de la app sobre la tabla (sin cargar
+-- directo, solo las columnas del catálogo) están en productos-off-servidor.sql.
 --
 -- Seguridad:
---   · Cualquier usuario con sesión lee y agrega; nadie edita ni borra desde la app.
+--   · Cualquier usuario con sesión lee (solo las columnas del catálogo, sin quién lo cargó ni la
+--     foto de la tabla); nadie carga, edita ni borra desde la app (los pedidos
+--     van por product_requests y lo de Open Food Facts por la función productos-off).
 --   · Límite de 40 productos nuevos por usuario por día.
 --   · Valores absurdos se rechazan (más de 950 kcal, macros de más de 100 g, etc.).
 --   · 3 reportes de usuarios distintos ocultan un producto sin verificar (ver productos-topes.sql).
