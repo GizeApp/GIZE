@@ -99,3 +99,22 @@ revoke all on function public.delete_push_subscription(text) from public;
 grant execute on function public.delete_push_subscription(text) to authenticated;
 
 notify pgrst, 'reload schema';
+
+-- 5) Borrar un dispositivo sin sesión. Si al cerrar sesión no hay señal (o la sesión ya terminó,
+--    como una sin «Mantener la sesión» al cerrar la pestaña), la app lo da de baja en el
+--    navegador o el celular pero la fila queda, y después ya no tiene sesión para borrarla con
+--    delete_push_subscription. Lo borra apenas vuelve la señal con la dirección y su clave
+--    «auth», que solo tiene ese dispositivo (en las apps, el token del celular). Ver app/core/push.js.
+create or replace function public.forget_push_subscription(p_endpoint text, p_auth text)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  delete from public.push_subscriptions
+   where endpoint = p_endpoint and auth = p_auth and coalesce(p_auth, '') <> '';
+$$;
+revoke all on function public.forget_push_subscription(text, text) from public;
+grant execute on function public.forget_push_subscription(text, text) to anon, authenticated;
+
+notify pgrst, 'reload schema';
