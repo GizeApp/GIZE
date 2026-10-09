@@ -123,7 +123,9 @@ export function renderApp(){
   checkDaily();
   // Semana de descarga: si empezó o terminó (app abierta de un día a otro, o sin señal), cambia
   // de rutina con lo guardado del bloque; la nube lo confirma cuando carga.
-  if((!State.cloudProfile || routineLocked()) && coachRoutineDue() && applyCoachRoutine()) save();
+  // Con la ventana de «¡Entreno terminado!» abierta todavía no: «Seguir entrenando» tiene que
+  // encontrar las series del entreno.
+  if((!State.cloudProfile || routineLocked()) && !CheckinState.fbSession && coachRoutineDue() && applyCoachRoutine()) save();
   markVisit(); paintStreak(); paintChatBtn(); // racha: hoy entró · chat con el coach
   document.getElementById("nav-entreno").classList.toggle("active", State.view==="entreno");
   document.getElementById("nav-habitos").classList.toggle("active", State.view==="habitos");
@@ -838,9 +840,13 @@ document.body.addEventListener("click", async e => {
     const prevId=runningSetId();
     if(prevId){ const r=stopTimer(), ps=d.exercises.reduce((f,x)=>f||x.sets.find(y=>y.id===prevId),null); if(ps && r && r.secs>0) ps.secs=String(r.secs); }
     const target=parseSecs(s.target)||parseSecs(s.secs)||0;
+    // Al terminar se busca la serie de nuevo: con coach, al volver a la app la rutina se vuelve a
+    // armar (applyCoachRoutine) y la de antes ya no es la que se ve ni la que se guarda.
+    const dId=d.id, exId=ex.id, sId=s.id;
     startTimer(s.id, target, secs=>{
-      s.secs=String(secs);
-      if(!s.done){ s.done=true; afterSetDone(d, ex, s); }
+      const d2=(state.days||[]).find(x=>x.id===dId), ex2=d2 && todayExs(d2).find(x=>x.id===exId), s2=ex2 && ex2.sets.find(x=>x.id===sId); if(!s2) return;
+      s2.secs=String(secs);
+      if(!s2.done){ s2.done=true; afterSetDone(d2, ex2, s2); }
       save(); renderApp();
     });
     renderApp(); return;
@@ -1695,6 +1701,7 @@ document.addEventListener("visibilitychange", async ()=>{
   // Sin coach: la rutina se pudo haber cambiado en otro dispositivo mientras esta quedaba
   // abierta. Se relee de la nube y, si cambió, se redibuja (ver refreshOwnRoutine).
   if(!routineLocked()){ if(await refreshOwnRoutine()) renderApp(); return; }
+  if(CheckinState.fbSession) return; // ventana de «¡Entreno terminado!» abierta (ver renderApp)
   // Primero con lo guardado (sin señal también): si cambió la semana, cambia la rutina ya.
   if(coachRoutineDue() && applyCoachRoutine()){ save(); renderApp(); }
   if(!State.sb || !State.cloudUser) return;
