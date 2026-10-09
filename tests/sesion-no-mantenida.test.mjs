@@ -8,6 +8,8 @@
 // 5) Cerrar sesión borra los borradores de rutina del coach.
 // 6) Con la sesión abierta en una pestaña, abrir GIZE en otra (sin sesión) no borra nada; y si la
 //    marca se perdió igual, el próximo save() de la pestaña con sesión la vuelve a poner.
+// 7) La marca de las versiones anteriores ("1" en vez de la cuenta, y sin state.ownerUid): la
+//    rutina sin subir queda igual.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
@@ -139,6 +141,23 @@ export default async function ({ base, t }){
     await p.evaluate(async () => { const { save } = await import('/app/core/storage.js'); save(); });
     t.eq((await claves(p)).marca, ALUMNO.id, '6: el próximo save() vuelve a poner la marca');
     t.eq(errs, [], '6: errores de la página');
+    await close();
+  }
+
+  // 7) Marca "1" de una versión anterior, con la rutina cambiada sin subir.
+  {
+    const VIEJO = ([st, q]) => { if (sessionStorage.getItem('viejo')) return; sessionStorage.setItem('viejo', '1');
+      localStorage.setItem('gize_session_ephemeral', '1'); localStorage.setItem('rutina_jero_v1', JSON.stringify(st));
+      localStorage.setItem('core_profile_v1', JSON.stringify({ uid: q, profile: { id: q, role: 'client' } })); };
+    const st = Object.assign({}, STATE, { days: [{ id: 'd1', name: 'Cambiada sin subir', exercises: [] }], routineHash: 'otra', weights: [{ id: 'w1', kg: 80 }] });
+    const { p, errs, close } = await newPage({ init: `(${VIEJO})(${JSON.stringify([st, ALUMNO.id])})` });
+    await p.goto(base + '/app/'); await wait(5000);
+    const c = await claves(p);
+    t.ok(c.st && c.st.ownerUid === ALUMNO.id && c.st.days && c.st.days[0].name === 'Cambiada sin subir', '7: la rutina sin subir queda, a nombre de su cuenta: ' + JSON.stringify(c.st));
+    t.ok(c.st && !c.st.weights, '7: y nada más del estado');
+    t.eq(c.prof, null, '7: el perfil se borra');
+    t.eq(c.marca, null, '7: la marca se saca');
+    t.eq(errs, [], '7: errores de la página');
     await close();
   }
 }
