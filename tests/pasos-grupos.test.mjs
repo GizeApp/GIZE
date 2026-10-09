@@ -126,7 +126,9 @@ export default async function ({ base, t }){
     await p.click('[data-action="psec-open"][data-v="pasos"]'); await wait(700);
     t.has(await text(p, '#pgData'), 'Todavía no estás en ningún grupo', 'sin grupos: lo explica');
     await p.fill('#pgNombre', 'Los del barrio');
-    await p.click('[data-pg="crear"]'); await wait(900);
+    await p.click('[data-pg="crear"]');
+    // Espera a que se abra el grupo (con la máquina cargada, 0,9 s fijos no alcanzaban).
+    await p.waitForFunction(() => { const e = document.querySelector('#pgData .pg-inv .pg-code'); return e && e.textContent.trim(); }, null, { timeout: 15000 }).catch(() => {});
     t.ok(m.rpcs.some(x => x.startsWith('crear ') && x.includes('"p_nombre":"Los del barrio"')), 'crear manda el nombre: ' + m.rpcs.join(' | '));
     t.eq(await text(p, '.pg-head .form-title'), 'Los del barrio', 'queda abierto el grupo nuevo');
     t.eq(await text(p, '#pgData .pg-inv .pg-code'), 'QRST6789', 'el código del grupo, arriba de todo');
