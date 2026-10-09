@@ -11,7 +11,7 @@ import { State } from '../../core/state.js';
 
 import { migrateNames } from '../../core/storage.js';
 
-import { esc, exMuscle, isTimedEx, mkEx, muscleOf, num, pickMuscle, searchExercises, today, withUnit } from '../../core/utils.js';
+import { esc, exMuscle, isTimedEx, mkEx, muscleOf, num, pickMuscle, searchExercises, today, uid, withUnit } from '../../core/utils.js';
 
 import { coachDatalist, coachLogFor, exChart, exSummary, exTable } from './clientes.js';
 import { kgText, suggest } from '../../core/progresion.js';
@@ -615,7 +615,8 @@ export function cpApply(name, cat){
   const day=(rtDays()||[])[CoachState.coachEditDay]; if(!day) return;
   const mm=pickMuscle(name, cat||CoachState.coachPCat);
   let ex;
-  if(CoachState.coachPicker.mode==="swap"){ ex=day.exercises[CoachState.coachPicker.i]; if(ex){ if(ex.name!==name) dropExMedia(ex); ex.name=name; ex.mus=mm; } }
+  // Al cambiarlo, series con ids nuevos: el alumno no hereda lo cargado en el viejo (mergeLocalProgress).
+  if(CoachState.coachPicker.mode==="swap"){ ex=day.exercises[CoachState.coachPicker.i]; if(ex){ if(ex.name!==name){ dropExMedia(ex); ex.sets.forEach(s=>{ s.id=uid(); }); } ex.name=name; ex.mus=mm; } }
   else if(CoachState.coachPicker.mode==="insert"){ ex=mkEx(name,3,mm); day.exercises.splice(CoachState.coachPicker.idx,0,ex); }
   else { ex=mkEx(name,3,mm); day.exercises.push(ex); }
   // el ejercicio recién agregado/cambiado arranca expandido para que el coach lo complete

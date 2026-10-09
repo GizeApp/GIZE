@@ -5,7 +5,9 @@
 // ya no la gama de neón en conic-gradient), letras blancas y una sombra neutra sin resplandor de
 // colores. El botón del chat, igual: el filete quieto (no gira) y sin brillos de la gama. La serie
 // hecha (pedido): relleno oscuro y tilde blanca, con el filete fino de neón de todos lados en el borde.
-import { newPage, wait, ALUMNO, profile, openAllEx } from './lib.mjs';
+import { newPage, wait, ALUMNO, openAllEx } from './lib.mjs';
+
+const COACH = '33333333-3333-3333-3333-333333333333';
 
 // Colores con "tinte": un canal le saca más de 40 a otro (el blanco y los grises no).
 const tinted = c => { const [r, g, b] = (c.match(/[\d.]+/g) || []).map(Number); return Math.max(r, g, b) - Math.min(r, g, b) > 40; };
@@ -21,10 +23,12 @@ const filete = v => /linear-gradient\(155deg/.test(v) && !/conic-gradient/.test(
 
 export default async function ({ base, t }){
   const days = [{ id: 'd1', name: 'Torso', exercises: [
-    { id: 'e1', name: 'Press de banca plano (barra)', audio: '11111111-1111-1111-1111-111111111111/ex/abcdefgh12.webm', audioSecs: 42, sets: [
+    { id: 'e1', name: 'Press de banca plano (barra)', audio: COACH + '/ex/abcdefgh12.webm', audioSecs: 42, sets: [
       { id: 's1', kg: '80', reps: '8', done: true, target: '6-8' }, { id: 's2', kg: '', reps: '', target: '6-8' }] },
     { id: 'e2', name: 'Remo con barra', sets: [{ id: 's3', kg: '', reps: '', targetKg: '70', target: '8' }] }] }];
-  const { p, errs, close } = await newPage({ user: ALUMNO, state: { days, sessions: [], weights: [], daily: {} }, handlers: { '/profiles': profile('client') } });
+  // El audio se ve solo si es del coach que tiene el alumno (ver exAudioBtn en screens/entreno.js).
+  const me = { id: ALUMNO.id, role: 'client', full_name: 'Prueba', coach_id: COACH };
+  const { p, errs, close } = await newPage({ user: ALUMNO, state: { days, sessions: [], weights: [], daily: {} }, handlers: { '/profiles': (r, J, i) => i.m === 'GET' ? J(i.one ? me : [me]) : undefined } });
   await p.goto(base + '/app/'); await wait(2500); await openAllEx(p);
   await p.evaluate(() => { document.getElementById('chatBtn').hidden = false; });
   const m = await p.evaluate(() => {

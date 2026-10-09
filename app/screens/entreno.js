@@ -290,10 +290,11 @@ export function renderEntreno(){
     }
     // Por tiempo (plancha, isométricos): segundos en vez de reps, con un cronómetro por serie.
     // El peso solo aparece si el coach lo pidió o el cliente ya lo cargó (casi siempre va sin peso).
-    const timed = isTimedEx(ex);
+    // En la caminata del granjero va siempre: si no, en una rutina propia no había dónde anotarlo.
+    const timed = isTimedEx(ex), carry = /granjero|farmer/i.test(ex.name||"");
     const setRow = (s,i) => {
       const tg = parseSecs(s.target);
-      const kgField = (s.targetKg || String(s.kg||"") !== "") ? `${kgInput(ex, s)}` : '';
+      const kgField = (carry || s.targetKg || String(s.kg||"") !== "") ? `${kgInput(ex, s)}` : '';
       return `
       <div class="set timed">
         <span class="idx${prSets.has(s.id)?' has-pr':''}">${prSets.has(s.id)?`<span class="pr-mark">${trophySvg}</span>`:''}${i+1}</span>
@@ -453,8 +454,12 @@ function exAudioLabel(path, secs){
   const st = audioState("ex:" + path);
   return (st.playing ? 'Pausar' : 'Escuchar a tu coach') + ' <span class="ex-audio-t">' + (st.on && st.time > 0 ? mmss(st.time) + ' / ' : '') + mmss(secs) + '</span>';
 }
+// Solo si el audio es del coach que tiene hoy: la base no deja escuchar los de otro (el que venció o
+// lo desvinculó) y el botón fallaba siempre con «Revisá la conexión». El audio queda en la rutina.
 export function exAudioBtn(ex){
   if(!ex || !ex.audio || !EX_AUDIO_RE.test(ex.audio)) return '';
+  const cid = State.cloudProfile && State.cloudProfile.coach_id;
+  if(!cid || ex.audio.split('/')[0] !== String(cid)) return '';
   return '<button class="ex-audio" data-action="ex-audio" data-path="' + esc(ex.audio) + '" data-secs="' + (parseInt(ex.audioSecs) || 0) + '">' + hpSvg + ' <span class="ex-audio-l">' + exAudioLabel(ex.audio, ex.audioSecs) + '</span></button>';
 }
 Player.subs.add(() => {
