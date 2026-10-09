@@ -16,6 +16,9 @@
 // Recibe {} con el token del usuario logueado (o { apple_code }, ver más abajo). Devuelve
 // { removed, deleted: true }.
 // Las apps viejas llaman después a delete_own_account: con la cuenta ya borrada no hace nada.
+// Con la cuenta ya borrada no se puede reintentar: las rutas se anotan en audios_por_borrar
+// (supabase/borrar-audios.sql) y lo que no se llega a borrar lo borra un cron cada hora, que
+// llama a esta función con ?cola=1 (y el header x-cron-secret, como avisos-coach).
 //
 // Cuentas con «Continuar con Apple»: Apple exige revocar el acceso de la app al borrar la
 // cuenta (si no, GIZE sigue en Ajustes → Apple ID → Iniciar sesión con Apple). La app de
@@ -26,6 +29,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { decodeJwt, importPKCS8, SignJWT } from "npm:jose@5";
+import { anotar, borrar } from "./cola.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -63,11 +67,35 @@ async function revokeApple(code: string, appleSub: string): Promise<void> {
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Guardia del cron (como en avisos-coach): con el secret CRON_SECRET puesto, se exige el header
+// "x-cron-secret" con ese valor. Igual el cron solo borra lo que anotó esta función.
+function sameSecret(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+function cronOk(req: Request): boolean {
+  const want = Deno.env.get("CRON_SECRET");
+  if (!want) return true;
+  return sameSecret(req.headers.get("x-cron-secret") || "", want);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
 
   const url = Deno.env.get("SUPABASE_URL")!;
+
+  // El cron: borra los audios que quedaron anotados (de a 1000 por vez).
+  if (new URL(req.url).searchParams.get("cola")) {
+    if (!cronOk(req)) return json({ error: "No autorizado" }, 401);
+    const db = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data, error } = await db.from("audios_por_borrar").select("path").order("created_at").limit(1000);
+    if (error) { console.error("borrar-audios: cola", error.message); return json({ error: "No se pudo leer la cola" }, 500); }
+    return json({ removed: await borrar(db, BUCKET, (data || []).map((r) => r.path)) });
+  }
+
   const asUser = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, {
     global: { headers: { Authorization: req.headers.get("Authorization") || "" } },
   });
@@ -150,13 +178,10 @@ Deno.serve(async (req) => {
     return json({ error: de.code === "P0001" ? de.message : "No se pudo eliminar la cuenta. Probá de nuevo." }, de.code === "P0001" ? 409 : 500);
   }
 
-  // Recién ahora los audios. La cuenta ya no está: si algo falla se anota y se contesta que
-  // se borró (reintentar ya no puede, no tiene sesión).
-  let removed = 0;
-  for (let i = 0; i < paths.length; i += 100) {
-    const { error } = await st.remove(paths.slice(i, i + 100));
-    if (error) { console.error("borrar-audios: quedaron audios sin borrar", me, (error as Error).message); continue; }
-    removed += Math.min(100, paths.length - i);
-  }
+  // Recién ahora los audios. La cuenta ya no está y no puede reintentar (no tiene sesión): se
+  // anotan primero en la cola y cada tanda se saca al borrarla. Si algo falla o la función se
+  // corta, el cron borra lo que quedó. Igual se contesta que se borró.
+  await anotar(admin, paths);
+  const removed = await borrar(admin, BUCKET, paths);
   return json({ removed, deleted: true });
 });
