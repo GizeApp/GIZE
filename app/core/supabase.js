@@ -291,10 +291,15 @@ function takePendingCode(){
 // Lo de la cuenta que queda en el dispositivo fuera del estado y el perfil: los recorridos y la
 // salida de Cardio en curso, los borradores de rutina de los alumnos de un coach (coach/index.js)
 // y la invitación a un grupo de pasos sin usar (core/grupos.js), que si no se usaba con la
-// próxima cuenta que entrara en el dispositivo.
-function accountKeys(){
+// próxima cuenta que entrara en el dispositivo. keepNew: al cambiar de cuenta o borrar una sesión
+// no mantenida, la invitación de un link recién abierto (en esta carga, o hace menos de 15 minutos
+// por si el ingreso volvió a cargar la página) queda: es de quien está entrando, y antes se perdía
+// sin aviso. Igual se pregunta antes de sumarse (screens/pasos.js).
+function accountKeys(keepNew){
   let drafts=[]; try{ drafts=Object.keys(localStorage).filter(k=>k.indexOf("gize_rt_draft_")===0); }catch(e){}
-  return [TRACK_KEY, "gize_grupo_pend"].concat(runKeys(), drafts);
+  let inv=null; try{ inv=JSON.parse(localStorage.getItem("gize_grupo_pend")||"null"); }catch(e){}
+  const fresh=!!(inv && inv.t && (inv.t>=performance.timeOrigin || Date.now()-inv.t<15*60000));
+  return [TRACK_KEY].concat(keepNew && fresh ? [] : ["gize_grupo_pend"], runKeys(), drafts);
 }
 // Al cerrar sesión o borrar la cuenta: lo que quedó de esa cuenta en el dispositivo además de
 // los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso,
@@ -889,7 +894,7 @@ export async function afterLogin(sessionUser, stale){
     // También lo de Cardio de la otra cuenta: la salida en curso (y su GPS), los recorridos
     // guardados y la imagen compartida. Si no, al recargar se retomaría su salida en esta cuenta.
     stopForLogout(); deleteShareFile();
-    try{ [KEY, PROFILE_KEY].concat(accountKeys()).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+    try{ [KEY, PROFILE_KEY].concat(accountKeys(true)).forEach(k=>localStorage.removeItem(k)); }catch(e){}
     location.reload(); return;
   }
   if(State.cloudUser && state.ownerUid!==State.cloudUser.id){ state.ownerUid=State.cloudUser.id; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
@@ -2071,7 +2076,7 @@ async function clearEndedSession(){
   try{
     if(own) localStorage.setItem(KEY, JSON.stringify({ ownerUid:uid, days:state.days, routineHash:state.routineHash, routineEditedAt:state.routineEditedAt }));
     else localStorage.removeItem(KEY);
-    [PROFILE_KEY, "gize_rest_timer", "gize_cardio_clock"].concat(accountKeys()).forEach(k=>localStorage.removeItem(k));
+    [PROFILE_KEY, "gize_rest_timer", "gize_cardio_clock"].concat(accountKeys(true)).forEach(k=>localStorage.removeItem(k));
   }catch(e){}
   await Promise.race([Promise.all([clearHabitAlarms(), deleteShareFile(), pushDropHere()]).catch(()=>{}), new Promise(r=>setTimeout(r, 3000))]);
   return true;

@@ -43,8 +43,8 @@ export const linkInvitacion = codigo => "https://gize.ar/app/#grupo=" + limpiarC
 
 // El link de invitación abre la app con #grupo=CODIGO. Se guarda apenas carga (antes del login:
 // quien no tiene cuenta primero se registra) y se usa al entrar, preguntando antes de sumarse
-// (app/screens/pasos.js). Vale 7 días y se borra al cerrar sesión o si entra otra cuenta
-// (clearAccountLeftovers y afterLogin en core/supabase.js).
+// (app/screens/pasos.js). Vale 7 días y se borra al cerrar sesión o si entra otra cuenta, salvo
+// la de un link recién abierto (accountKeys en core/supabase.js).
 const PEND = "gize_grupo_pend";
 export function guardarInvitacion(code){
   try { localStorage.setItem(PEND, JSON.stringify({ c: limpiarCodigo(code), t: Date.now() })); } catch (e) {}

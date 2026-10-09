@@ -1,7 +1,7 @@
 // Competencia de pasos (Progreso → «Competencia de pasos», app/screens/pasos.js, core/grupos.js y
 // supabase/pasos-grupos.sql): crear un grupo y conseguir el código y el link para invitar,
 // sumarse con el link gize.ar/app/#grupo=CODIGO (después de entrar y preguntando antes; el link
-// pendiente no queda para otra cuenta), el ranking de la semana en
+// pendiente no queda para otra cuenta, pero el recién abierto no se pierde), el ranking de la semana en
 // orden con la barra relativa al primero y mi fila marcada, el campeón de la semana pasada con la
 // copa y el texto en dorado (#FFC940, también la copa chica al lado de su nombre), la semana de
 // lunes a domingo en hora de Argentina (aunque el celular esté en otra zona), los pasos anotados a
@@ -195,9 +195,9 @@ export default async function ({ base, t }){
     await pg.close();
   }
   // 3d) La invitación pendiente no queda para otra cuenta: se borra al cerrar sesión y cuando
-  //     entra otra cuenta en el mismo navegador.
+  //     entra otra cuenta en el mismo navegador (una que quedó de hace una hora).
   {
-    const PEND = `localStorage.setItem('gize_grupo_pend', JSON.stringify({ c: 'WXYZ2345', t: Date.now() }));`;
+    const PEND = `localStorage.setItem('gize_grupo_pend', JSON.stringify({ c: 'WXYZ2345', t: Date.now() - 3600000 }));`;
     const m = mock({ onUnirse: SUMA, ver: { id: null, nombre: 'Running club', miembros: 4, soy_miembro: false } });
     const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
     await p.goto(base + '/app/'); await wait(3000);
@@ -218,6 +218,26 @@ export default async function ({ base, t }){
     t.ok(!m2.rpcs.some(x => x.startsWith('ver') || x.startsWith('unirse')) && !pg.dialogs.length, '3d: y no se usa con la cuenta nueva: ' + m2.rpcs.join(' | ') + ' ' + pg.dialogs.join(' | '));
     t.eq(pg.errs, [], '3d: errores de la página (otra cuenta)');
     await pg.close();
+  }
+  // 3e) El link recién abierto no se pierde con la limpieza al entrar: ni cuando los datos del
+  //     navegador son de otra cuenta, ni cuando quedó la marca de una sesión no mantenida.
+  {
+    const VER = { id: null, nombre: 'Running club', miembros: 4, soy_miembro: false };
+    const m = mock({ onUnirse: SUMA, ver: VER, ranking: { g2: RANKING } });
+    const pg = await newPage({ user: ALUMNO, state: Object.assign({}, STATE), handlers: m.handlers,
+      init: `if (!sessionStorage.getItem('otra')) { sessionStorage.setItem('otra', '1'); const s = JSON.parse(localStorage.getItem('rutina_jero_v1')); s.ownerUid = '33333333-3333-3333-3333-333333333333'; localStorage.setItem('rutina_jero_v1', JSON.stringify(s)); }` });
+    await pg.p.goto(base + '/app/#grupo=wxyz-2345'); await wait(6000);
+    t.eq(pg.dialogs, ['¿Querés sumarte al grupo «Running club»? Los miembros van a ver tu nombre y tus pasos de la semana.'], '3e: con datos de otra cuenta, igual pregunta: ' + m.rpcs.join(' | '));
+    t.ok(m.rpcs.some(x => x === 'unirse {"p_codigo":"WXYZ2345","p_apodo":null}'), '3e: y se suma: ' + m.rpcs.join(' | '));
+    t.eq(pg.errs, [], '3e: errores de la página (otra cuenta)');
+    await pg.close();
+    const p2 = await newPage({ init: `if (!sessionStorage.getItem('b')) { sessionStorage.setItem('b', '1'); localStorage.setItem('gize_session_ephemeral', '${ALUMNO.id}');
+      localStorage.setItem('rutina_jero_v1', JSON.stringify(Object.assign({ ownerUid: '${ALUMNO.id}' }, ${JSON.stringify(STATE)}))); }` });
+    await p2.p.goto(base + '/app/#grupo=wxyz-2345'); await wait(6000);
+    t.eq(await p2.p.evaluate(() => localStorage.getItem('gize_session_ephemeral')), null, '3e: se borraron los datos de la sesión no mantenida');
+    t.eq(await p2.p.evaluate(() => (JSON.parse(localStorage.getItem('gize_grupo_pend') || 'null') || {}).c), 'WXYZ2345', '3e: pero la invitación recién abierta queda para después de entrar');
+    t.eq(p2.errs, [], '3e: errores de la página (sesión no mantenida)');
+    await p2.close();
   }
 
   // 4) El grupo: campeón dorado arriba, ranking en orden con barras relativas al primero, mi
