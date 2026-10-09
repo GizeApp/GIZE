@@ -11,6 +11,8 @@ import { appAway, onAwayChange } from './pausa.js';
 
 import { esc, fmtDate } from '../core/utils.js';
 
+import { chatMsgTienda } from '../core/tienda.js';
+
 import { Player, audioState, extFor, mmss, newAudioName, signedAudioUrl, startRecorder, stopAudio, togglePlay, uploadAudio } from './grabar.js';
 
 const FN_NAMES = ["rapid-worker", "notificar-cliente"];
@@ -225,7 +227,7 @@ async function sendMsg(payload, local, c = C){
       else { local.id = r.id; local.created_at = r.created_at || local.created_at; }
     }
   }catch(e){
-    local.pending = false; local.failed = e.message || "No se pudo mandar.";
+    local.pending = false; local.failed = chatMsgTienda(e.message) || "No se pudo mandar.";
   }
   c.sending--;
   if(C === c) paint();
