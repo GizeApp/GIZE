@@ -7,6 +7,9 @@
 //    imagen para compartir, sin los créditos del mapa.
 // b) iPhone (Safari) y la compu: el mapa se sigue pidiendo (MapLibre de vendor/).
 // c) Modo liviano en la compu: el mismo aspecto sin mapa (cartelito, grilla, escala y marcas).
+// d) Tablets Android con «Sitio de escritorio» (Chrome en las de 10" o más, Samsung Internet en las
+//    Galaxy Tab): dicen ser una compu con Linux, y siguen sin mapa de calles. La compu con Linux
+//    (sin pantalla táctil), Windows, Mac (también el iPad) y las Chromebook siguen con mapa.
 import { newPage, wait, ALUMNO, profile, empezarSalida } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} };
@@ -18,7 +21,14 @@ const MAPA = /maplibre|openfreemap/i;
 const UA = {
   android: 'Mozilla/5.0 (Linux; Android 14; SM-A135M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
   iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1',
+  // «Sitio de escritorio» en una tablet Android: Chrome y Samsung Internet.
+  escritorio: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+  samsungEscritorio: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/25.0 Chrome/121.0.0.0 Safari/537.36',
+  chromebook: 'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+  windows: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+  ipad: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15',
 };
+const TABLET = { width: 1280, height: 800 };
 
 // El navegador (userAgent), espías de WebGL (contextos pedidos) y del texto que se escribe en
 // los canvas (marcas de km, créditos de la imagen), y un GPS web falso con un reloj que avanza:
@@ -120,11 +130,11 @@ async function navegadorAndroid(base, t){
   return saved;
 }
 
-// Una salida guardada abierta en otro navegador. extra: init de más.
-async function abrirGuardada(base, saved, ua, extra){
+// Una salida guardada abierta en otro navegador. extra: init de más. opts: touch, viewport.
+async function abrirGuardada(base, saved, ua, extra, opts){
   const local = Object.assign({}, saved.rec); delete local.cloud;
-  const pg = await newPage({ user: ALUMNO, state: Object.assign({}, STATE, { salidas: [local] }), handlers: H, reducedMotion: 'reduce',
-    init: INIT(ua) + `localStorage.setItem(${JSON.stringify(TRACK_KEY)}, ${JSON.stringify(JSON.stringify([[saved.rec.id, saved.track]]))});` + (extra || '') });
+  const pg = await newPage(Object.assign({ user: ALUMNO, state: Object.assign({}, STATE, { salidas: [local] }), handlers: H, reducedMotion: 'reduce' }, opts || {}, {
+    init: INIT(ua) + `localStorage.setItem(${JSON.stringify(TRACK_KEY)}, ${JSON.stringify(JSON.stringify([[saved.rec.id, saved.track]]))});` + (extra || '') }));
   const reqs = [];
   pg.p.on('request', r => reqs.push(r.url()));
   await pg.p.goto(base + '/app/'); await wait(2500);
@@ -165,5 +175,35 @@ export default async function ({ base, t }){
   t.ok((await pg.p.evaluate(() => window.__txt)).includes('1'), 'modo liviano: las marcas de cada km');
   t.eq(pg.reqs.filter(u => MAPA.test(u)), [], 'modo liviano: nunca se pide el mapa');
   t.eq(pg.errs, [], 'errores de la página (modo liviano)');
+  await pg.close();
+
+  // d) Tablets Android con «Sitio de escritorio»: sin mapa de calles, como en el celular. (Samsung
+  //    sin pantalla táctil: Samsung DeX con mouse.)
+  for (const [name, ua, touch] of [['tablet con «Sitio de escritorio» (Chrome)', UA.escritorio, true], ['Samsung Internet con «Sitio de escritorio»', UA.samsungEscritorio, false]]){
+    pg = await abrirGuardada(base, saved, ua, '', { touch, viewport: TABLET });
+    t.eq(await pg.p.evaluate(async () => [(await import('/app/core/plataforma.js')).navegadorAndroid(), (await import('/app/ui/mapa.js')).canUseMap()]), [true, false], name + ': navegador de Android, sin mapa de calles');
+    v = await listo(pg.p, '#salidaHost');
+    t.ok(v && v.sinMapa && !v.conMapa && v.nomap === NO_MAP && ESCALA.test(v.escala), name + ': el recorrido sin mapa, con el cartelito y la escala: ' + JSON.stringify(v));
+    t.eq(pg.reqs.filter(u => MAPA.test(u)), [], name + ': nunca se pide MapLibre ni OpenFreeMap');
+    t.eq(await pg.p.evaluate(() => window.__gl), 0, name + ': ningún contexto de WebGL');
+    t.eq(pg.errs, [], 'errores de la página (' + name + ')');
+    await pg.close();
+  }
+
+  // Quién cuenta como navegador de Android (userAgent, pantalla táctil y userAgentData).
+  pg = await newPage({});
+  await pg.p.goto(base + '/privacidad/');
+  const quien = await pg.p.evaluate(async ([casos]) => {
+    const m = await import('/app/core/plataforma.js');
+    return casos.map(([ua, touch, platform]) => {
+      Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+      Object.defineProperty(navigator, 'maxTouchPoints', { value: touch, configurable: true });
+      Object.defineProperty(navigator, 'userAgentData', { value: platform ? { platform, mobile: false } : undefined, configurable: true });
+      return m.navegadorAndroid();
+    });
+  }, [[[UA.android, 5, 'Android'], [UA.escritorio, 5, 'Linux'], [UA.escritorio, 0, 'Android'], [UA.samsungEscritorio, 0, null],
+    [UA.escritorio, 0, 'Linux'], [UA.chromebook, 10, 'Chrome OS'], [UA.windows, 10, 'Windows'], [UA.ipad, 5, null], [UA.iphone, 5, null]]]);
+  t.eq(quien, [true, true, true, true, false, false, false, false, false],
+    'navegador de Android: el celular, la tablet con «Sitio de escritorio» (táctil, userAgentData o Samsung) sí; la compu con Linux sin pantalla táctil, la Chromebook, Windows, el iPad y el iPhone no');
   await pg.close();
 }
