@@ -10,7 +10,8 @@
 # revisores: ver importar-off.yml).
 # Crearlo (hace falta ser admin del repo): Settings → Environments → New environment →
 # "production"; en «Deployment branches and tags» elegir «Selected branches and tags» y agregar
-# solo main, y tildar «Required reviewers» con tu usuario (cada ejecución espera tu aprobación).
+# solo main, sin «Required reviewers» (así lo decidió el dueño: con revisores, cada corrida de SQL o
+# funciones queda esperando su aprobación; el freno es que solo corre desde main).
 # Ahí van todos los secrets de abajo y los de la tarea "secrets" (APNS_KEY_P8, APNS_KEY_ID,
 # SIWA_KEY_P8, SIWA_KEY_ID, APPLE_TEAM_ID) como «Environment secrets»; después borralos de
 # Settings → Secrets and variables → Actions: mientras sigan en el repo, un workflow subido en

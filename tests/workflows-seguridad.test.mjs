@@ -190,7 +190,7 @@ print(m.firma_cruda(bytes.fromhex(sys.argv[2])).hex())`;
   // Un trabajo programado no puede ir en un Environment que pide aprobación («Required reviewers»):
   // la corrida queda esperando y a los 30 días GitHub la cancela (el catálogo dejaba de actualizarse).
   const conRevisores = new Set(Object.keys(usa).filter(f => /tildar «Required reviewers»/.test(leer('.github/workflows/' + f))).map(f => usa[f]));
-  t.ok(conRevisores.has('production') && conRevisores.has('ios-release'), 'production e ios-release piden aprobación: ' + [...conRevisores]);
+  t.ok(conRevisores.has('play-release') && conRevisores.has('ios-release'), 'las versiones de las tiendas piden aprobación: ' + [...conRevisores]);
   for (const f of Object.keys(usa).filter(f => /^\s+schedule:/m.test(leer('.github/workflows/' + f))))
     t.ok(!conRevisores.has(usa[f]), f + ' es programado y su Environment (' + usa[f] + ') no pide aprobación');
   // iPhone: los PR compilan para el simulador en un trabajo sin secrets; la versión firmada es otro.
