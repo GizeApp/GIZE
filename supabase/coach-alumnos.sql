@@ -5,6 +5,8 @@
 -- Tiene la versión vigente de join_coach: si se vuelve a correr suscripciones.sql,
 -- endurecer-base.sql o base.sql (que traen versiones viejas), correr después este.
 -- Al final devuelve una fila por coach que todavía tiene un código viejo (vacío = ninguno).
+-- Los mensajes de join_coach no mandan a renovar ni a ampliar el plan: los ven también las apps
+-- de Android e iPhone, y Google y Apple no dejan mandar a pagar por fuera de sus tiendas.
 --
 --   coach_remove_client(client uuid): el coach desvincula a un alumno suyo. El alumno no
 --     pierde nada: conserva su rutina, entrenos y registros, y queda sin coach (puede
@@ -102,13 +104,13 @@ begin
   if cid = me then return false; end if;
   if exists (select 1 from profiles where id = me and coach_id = cid) then return true; end if;
   if not public.coach_active(cid) then
-    raise exception 'Tu coach tiene el plan de GIZE vencido. Avisale para que lo renueve y volvé a intentar.' using errcode = 'P0001';
+    raise exception 'Tu coach tiene el plan de GIZE vencido: por ahora no puede sumar alumnos. Avisale y volvé a intentar.' using errcode = 'P0001';
   end if;
   -- Bloquea la fila del coach: dos clientes a la vez no pasan el cupo.
   select max_clients into lim from coach_billing where coach_id = cid for update;
   select count(*) into n from profiles where coach_id = cid;
   if n >= coalesce(lim, 10) then
-    raise exception 'Tu coach llegó al máximo de clientes de su plan. Avisale para que lo amplíe y volvé a intentar.' using errcode = 'P0001';
+    raise exception 'Tu coach llegó al máximo de alumnos: por ahora no puede sumar más. Avisale y volvé a intentar.' using errcode = 'P0001';
   end if;
   update profiles set coach_id = cid where id = me;
   return true;

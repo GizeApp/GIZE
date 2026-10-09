@@ -141,10 +141,12 @@ Deno.serve(async (req) => {
   }
 
   // Con el plan del coach vencido no hay mensajes (ver supabase/suscripciones.sql). Si la
-  // función coach_active todavía no existe (falta ese SQL), no se bloquea.
+  // función coach_active todavía no existe (falta ese SQL), no se bloquea. El texto no manda a
+  // renovar: lo ven también las apps de Android e iPhone (Google y Apple no dejan mandar a pagar
+  // por fuera de sus tiendas). En la web, renovar está en Mi plan.
   const { data: active, error: actErr } = await admin.rpc("coach_active", { cid: coachId });
   if (!actErr && active === false) {
-    return json({ error: fromClient ? "Tu coach tiene el plan de GIZE vencido: por ahora no le llegan mensajes." : "Tu plan de GIZE está vencido. Renovalo para seguir mandando mensajes." }, 402);
+    return json({ error: fromClient ? "Tu coach tiene el plan de GIZE vencido: por ahora no le llegan mensajes." : "Tu plan de GIZE está vencido: por ahora no podés mandar mensajes." }, 402);
   }
 
   // Freno a mensajes en ráfaga (30 por minuto por conversación y lado). Si no se puede contar,
