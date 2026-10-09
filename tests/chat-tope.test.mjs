@@ -64,6 +64,7 @@ export default async function ({ t }){
 
   // Tiempo máximo y en paralelo.
   t.ok(/conTope\(webpush\.sendNotification\([^;]*timeout: TOPE_MS/.test(h), 'web-push con tiempo máximo');
+  t.ok(/let t: ReturnType<typeof setTimeout> \| undefined;/.test(src) && !/let t = 0;/.test(src), 'conTope guarda el timer con el tipo de setTimeout (deno check)');
   t.ok((h.match(/signal: AbortSignal\.timeout\(TOPE_MS\)/g) || []).length === 2 && /fetch\("https:\/\/oauth2\.googleapis\.com\/token"[\s\S]*?signal: AbortSignal\.timeout\(TOPE_MS\)/.test(src), 'Android, iPhone y el token de Firebase con tiempo máximo');
   t.ok(/await Promise\.allSettled\(\[toWeb\(\), toFcm\(\), toApns\(\)\]\)/.test(h), 'web, Android e iPhone en paralelo');
 }
