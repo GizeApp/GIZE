@@ -1,10 +1,11 @@
 -- Cuentas demo para la revisión de Google Play (Contenido de la app → Datos de inicio de
 -- sesión). Las crea el workflow "Supabase" (tarea cuentas-demo), que reemplaza
--- la marca de la contraseña por la que se le pasa: la contraseña no queda en el repo.
+-- las marcas de los mails y de la contraseña con los secrets DEMO_EMAIL y DEMO_PASSWORD:
+-- ni los mails ni la contraseña quedan en el repo (es público y gize.ar sirve este archivo).
 -- Se puede correr varias veces: si las cuentas ya existen, solo les actualiza la contraseña.
 --
---   jeronimoperpi+coach@gmail.com    coach con plan de cortesía (sin vencimiento)
---   jeronimoperpi+cliente@gmail.com  cliente vinculado a ese coach, con peso y un entreno
+--   __DEMO_COACH__    coach con plan de cortesía (sin vencimiento)
+--   __DEMO_CLIENTE__  cliente vinculado a ese coach, con peso y un entreno
 
 do $$
 declare
@@ -16,8 +17,8 @@ declare
 begin
   for acc in
     select * from (values
-      ('jeronimoperpi+coach@gmail.com',   'Coach Demo',   'coach'),
-      ('jeronimoperpi+cliente@gmail.com', 'Cliente Demo', 'client')
+      ('__DEMO_COACH__',   'Coach Demo',   'coach'),
+      ('__DEMO_CLIENTE__', 'Cliente Demo', 'client')
     ) as t(email, full_name, role)
   loop
     select id into uid from auth.users where email = acc.email;
@@ -65,4 +66,4 @@ select u.email, p.role, p.full_name, p.coach_id is not null as vinculado, b.plan
   from auth.users u
   join public.profiles p on p.id = u.id
   left join public.coach_billing b on b.coach_id = u.id
- where u.email in ('jeronimoperpi+coach@gmail.com', 'jeronimoperpi+cliente@gmail.com');
+ where u.email in ('__DEMO_COACH__', '__DEMO_CLIENTE__');

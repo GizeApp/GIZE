@@ -21,6 +21,8 @@
 #   RESEND_WEBHOOK_SECRET  para "secrets". El "Signing secret" (whsec_…) del webhook de Resend que
 #                          avisa los mails recibidos (función "contacto").
 #   DEMO_PASSWORD          para "cuentas-demo". Contraseña de las cuentas demo de Google Play.
+#   DEMO_EMAIL             para "cuentas-demo". Mail base de las cuentas demo: se usan
+#                          usuario+coach@dominio y usuario+cliente@dominio (no van en el repo).
 #                          Va como secret y no como dato del formulario: el repo es público y
 #                          los datos del formulario quedan escritos en el log de la ejecución.
 #   SUPABASE_SERVICE_ROLE_KEY  para "borrar-fotos-progreso", solo si el token de arriba no puede
@@ -161,12 +163,15 @@ jobs:
           ARCHIVO: ${{ inputs.archivo }}
           TAREA: ${{ inputs.tarea }}
           DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+          DEMO_EMAIL: ${{ secrets.DEMO_EMAIL }}
         run: |
           if [ "$TAREA" = "cuentas-demo" ]; then
             if [ ${#DEMO_PASSWORD} -lt 8 ]; then echo "::error::Falta el secret DEMO_PASSWORD (al menos 8 caracteres)"; exit 1; fi
             echo "::add-mask::$DEMO_PASSWORD"
+            case "$DEMO_EMAIL" in *@*.*) ;; *) echo "::error::Falta el secret DEMO_EMAIL (el mail base de las cuentas demo)"; exit 1;; esac
+            echo "::add-mask::$DEMO_EMAIL"
             # Al pegar el secret suele colarse un Enter al final: se saca. Uno en el medio no se acepta.
-            python3 -c 'import os,sys; pw=os.environ["DEMO_PASSWORD"].strip(); "\n" in pw and sys.exit("DEMO_PASSWORD tiene un salto de línea en el medio"); sys.stdout.write(open("supabase/cuentas-demo.sql").read().replace("__DEMO_PASSWORD__", pw.replace("\x27","\x27\x27")))' > "$RUNNER_TEMP/q.sql"
+            python3 -c 'import os,sys,re; pw=os.environ["DEMO_PASSWORD"].strip(); "\n" in pw and sys.exit("DEMO_PASSWORD tiene un salto de línea en el medio"); m=re.fullmatch(r"([A-Za-z0-9._%-]+)@([A-Za-z0-9.-]+)", os.environ["DEMO_EMAIL"].strip()) or sys.exit("DEMO_EMAIL no es un mail válido"); q=open("supabase/cuentas-demo.sql").read().replace("__DEMO_COACH__", m[1]+"+coach@"+m[2]).replace("__DEMO_CLIENTE__", m[1]+"+cliente@"+m[2]); sys.stdout.write(q.replace("__DEMO_PASSWORD__", pw.replace("\x27","\x27\x27")))' > "$RUNNER_TEMP/q.sql"
           else
             case "$ARCHIVO" in *..*) echo "::error::Ruta inválida"; exit 1;; supabase/*.sql) ;; *) echo "::error::El archivo tiene que ser supabase/<algo>.sql"; exit 1;; esac
             [ -f "$ARCHIVO" ] || { echo "::error::No existe $ARCHIVO"; exit 1; }
