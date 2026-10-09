@@ -10,8 +10,8 @@
 -- archivos posteriores las endurecieron (plan y cupo del coach, cuenta con suscripción de
 -- Mercado Pago, carpeta de las fotos). Vale la última que se corre. Si lo corrés, corré
 -- después, en este orden: endurecer-base.sql, suscripciones.sql, cupo-plan.sql,
--- coach-alumnos.sql, pagos-seguros.sql, seguridad-base.sql, ejercicio-audio.sql y
--- topes-archivos.sql.
+-- coach-alumnos.sql, pagos-seguros.sql, seguridad-base.sql, ejercicio-audio.sql,
+-- topes-archivos.sql y topes-datos.sql.
 --
 -- Qué NO tiene:
 --   · Los CREATE TABLE (columnas, tipos, claves foráneas): no se exportaron. Para tenerlos,
@@ -329,11 +329,14 @@ drop policy if exists "cliente ve su rutina" on public.routines;
 create policy "cliente ve su rutina" on public.routines
   for select using ((client_id = auth.uid()) or is_my_client(client_id));
 
--- Biblioteca de rutinas del coach.
+-- Biblioteca de rutinas del coach: solo un coach crea o cambia plantillas (topes-datos.sql,
+-- que además pone el tope de tamaño de las rutinas).
 alter table public.routine_templates enable row level security;
 drop policy if exists "plantillas: el coach gestiona las suyas" on public.routine_templates;
 create policy "plantillas: el coach gestiona las suyas" on public.routine_templates
-  for all using (coach_id = auth.uid()) with check (coach_id = auth.uid());
+  for all using (coach_id = auth.uid())
+  with check (coach_id = auth.uid()
+    and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'coach'));
 
 
 -- ===== Storage: bucket "checkins" (las fotos de progreso de antes) =====
