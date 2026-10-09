@@ -25,6 +25,10 @@ export default async function ({ base, t }){
   t.ok(/o\.bucket_id = p_bucket and o\.owner_id = auth\.uid\(\)::text and o\.created_at > now\(\) - interval '1 day'/.test(cupo), 'el tope cuenta lo que subió cada uno en las últimas 24 horas');
   t.ok(/when 'chat-audio' then 300 when 'productos' then 40 when 'avatars' then 20 else 0 end/.test(cupo), 'topes por bucket (y 0 para los demás)');
   t.ok(/revoke all on function public\.storage_cupo_ok\(text\) from public, anon;/.test(sql), 'sin sesión no se usa');
+  // La lista final trae solo los buckets con archivos en subcarpetas («Filas devueltas: 0»: ninguno).
+  const fin = sql.slice(sql.lastIndexOf('select bucket_id')).replace(/\s+/g, ' ');
+  t.ok(/^select bucket_id, count\(\*\) as en_subcarpetas from storage\.objects where bucket_id in \('chat-audio', 'productos', 'avatars'\) and \(array_length\(storage\.foldername\(name\), 1\) > 2 or \(bucket_id <> 'chat-audio' and array_length\(storage\.foldername\(name\), 1\) > 1\)\) group by bucket_id/.test(fin),
+    'la lista final trae solo los buckets con archivos en subcarpetas: ' + fin.slice(0, 120));
 
   const conv = policy(sql, 'chat-audio: subir en mi conversación'), ex = policy(sql, 'ejercicio-audio: el coach sube');
   const prod = policy(sql, 'productos: sube en su carpeta'), av = policy(sql, 'avatar: subir la propia'), avUp = policy(sql, 'avatar: cambiar la propia');

@@ -52,12 +52,20 @@ create policy "coach gestiona sus preguntas" on public.coach_questions
 
 notify pgrst, 'reload schema';
 
--- Filas que ya se pasan del tope (solo cantidades, aproximado: lo guardado puede estar comprimido).
+-- Filas que ya se pasan del tope (solo cantidades), y solo las tablas que tienen alguna: en el
+-- workflow, «Filas devueltas: 0» quiere decir que no hay ninguna. Se miden como las mide el CHECK
+-- cuando la app las vuelve a guardar, sin comprimir (::text::jsonb, y la fila entera armada de
+-- nuevo con jsonb_populate_record): lo guardado puede estar comprimido y parecer mucho más chico.
 -- Las que aparezcan no se van a poder volver a guardar así: revisarlas a mano.
-select 'routines' as tabla, count(*) as se_pasan from public.routines where pg_column_size(days) > 500000
-union all select 'routine_templates', count(*) from public.routine_templates where pg_column_size(days) > 500000
-union all select 'routine_schedule', count(*) from public.routine_schedule where pg_column_size(days) > 500000
-union all select 'client_info', count(*) from public.client_info c where pg_column_size(c.*) > 200000
-union all select 'nutrition', count(*) from public.nutrition n where pg_column_size(n.*) > 1000000
-union all select 'coach_questions', count(*) from public.coach_questions where pg_column_size(daily) > 100000 or pg_column_size(checkin) > 100000
-union all select 'daily_logs', count(*) from public.daily_logs where pg_column_size(answers) > 100000;
+select * from (
+  select 'routines' as tabla, count(*) as se_pasan from public.routines where pg_column_size(days::text::jsonb) > 500000
+  union all select 'routine_templates', count(*) from public.routine_templates where pg_column_size(days::text::jsonb) > 500000
+  union all select 'routine_schedule', count(*) from public.routine_schedule where pg_column_size(days::text::jsonb) > 500000
+  union all select 'client_info', count(*) from public.client_info c
+    where pg_column_size(jsonb_populate_record(null::public.client_info, to_jsonb(c))) > 200000
+  union all select 'nutrition', count(*) from public.nutrition n
+    where pg_column_size(jsonb_populate_record(null::public.nutrition, to_jsonb(n))) > 1000000
+  union all select 'coach_questions', count(*) from public.coach_questions
+    where pg_column_size(daily::text::jsonb) > 100000 or pg_column_size(checkin::text::jsonb) > 100000
+  union all select 'daily_logs', count(*) from public.daily_logs where pg_column_size(answers::text::jsonb) > 100000
+) x where se_pasan > 0;

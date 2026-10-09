@@ -74,9 +74,13 @@ create policy "avatar: cambiar la propia" on storage.objects
 
 notify pgrst, 'reload schema';
 
--- Resumen (solo cantidades): archivos en subcarpetas que quedaron de antes, por bucket. Se
--- borran al eliminar la cuenta de su dueño (borrar-audios, el panel y la app ya las recorren).
-select bucket_id, count(*) filter (where array_length(storage.foldername(name), 1) > 2
-                                     or (bucket_id <> 'chat-audio' and array_length(storage.foldername(name), 1) > 1)) as en_subcarpetas,
-       count(*) as archivos
-  from storage.objects where bucket_id in ('chat-audio', 'productos', 'avatars') group by bucket_id order by bucket_id;
+-- Resumen (solo cantidades): archivos en subcarpetas que quedaron de antes, por bucket, y solo
+-- los buckets que tienen alguno: en el workflow, «Filas devueltas: 0» quiere decir que no hay
+-- ninguno. Se borran al eliminar la cuenta de su dueño (borrar-audios, el panel y la app ya las
+-- recorren).
+select bucket_id, count(*) as en_subcarpetas
+  from storage.objects
+ where bucket_id in ('chat-audio', 'productos', 'avatars')
+   and (array_length(storage.foldername(name), 1) > 2
+        or (bucket_id <> 'chat-audio' and array_length(storage.foldername(name), 1) > 1))
+ group by bucket_id order by bucket_id;
