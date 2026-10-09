@@ -1,5 +1,7 @@
 -- Explicación de voz del coach en cada ejercicio de la rutina.
 -- Correr UNA vez en Supabase → SQL Editor, DESPUÉS de chat.sql. Se puede volver a correr.
+-- OJO: la versión vigente de la política de subir (ruta exacta y tope por día) está en
+-- topes-archivos.sql: si volvés a correr este archivo, corré después topes-archivos.sql.
 --
 -- Los audios van al mismo bucket privado del chat (chat-audio), en la carpeta del coach:
 -- {coach}/ex/{archivo}. Así un mismo audio sirve para todos sus alumnos y sigue andando al
