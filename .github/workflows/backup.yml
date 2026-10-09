@@ -46,13 +46,17 @@ jobs:
     env:
       DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       PASS: ${{ secrets.BACKUP_PASSWORD }}
-      PG: docker run --rm --network host -v ${{ github.workspace }}/out:/out -e PGPASSWORD=prueba postgres:18
+      PG: docker run --rm --network host -v ${{ github.workspace }}/out:/out -e PGPASSWORD=prueba gize-postgres
       # Tablas que se comparan después de restaurar.
       TABLAS: >-
         auth.users public.profiles public.routines public.sessions public.session_entries
         public.body_weights public.daily_logs public.checkins
         public.food_entries public.coach_billing public.routine_templates
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Revisar los secrets
         run: |
           [ -n "$DB_URL" ] || { echo "::error::Falta el secret SUPABASE_DB_URL"; exit 1; }
@@ -60,12 +64,21 @@ jobs:
           echo "::add-mask::$DB_URL"
           mkdir -p out
 
+      # La imagen de Postgres recibe la URI de la base y arma la copia: no puede ser un tag que
+      # se mueva. Sale de .github/postgres/Dockerfile, fijada por digest (la actualiza Dependabot).
+      - name: Imagen de Postgres
+        run: |
+          IMG=$(sed -n 's/^FROM \([^ ]*\).*/\1/p' .github/postgres/Dockerfile)
+          [[ "$IMG" =~ ^postgres:[0-9.]+@sha256:[0-9a-f]{64}$ ]] || { echo "::error::.github/postgres/Dockerfile tiene que fijar la imagen con @sha256:"; exit 1; }
+          docker pull -q "$IMG" > /dev/null
+          docker tag "$IMG" gize-postgres
+
       # Base vacía para la prueba. No es un "service" de GitHub: esos imprimen al final todo
       # lo que dijo Postgres, y un error de restauración puede citar valores de una fila.
       # Acá no se registra nada y su salida no llega al log.
       - name: Levantar la base de prueba
         run: |
-          docker run -d --name prueba -e POSTGRES_PASSWORD=prueba -p 5432:5432 postgres:18 \
+          docker run -d --name prueba -e POSTGRES_PASSWORD=prueba -p 5432:5432 gize-postgres \
             -c log_min_messages=panic -c log_min_error_statement=panic > /dev/null
           for i in $(seq 1 30); do docker exec prueba pg_isready -U postgres > /dev/null 2>&1 && break; sleep 2; done
           docker exec prueba pg_isready -U postgres > /dev/null
