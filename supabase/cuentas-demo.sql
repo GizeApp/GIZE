@@ -2,7 +2,8 @@
 -- sesión). Las crea el workflow "Supabase" (tarea cuentas-demo), que reemplaza
 -- las marcas de los mails y de la contraseña con los secrets DEMO_EMAIL y DEMO_PASSWORD:
 -- ni los mails ni la contraseña quedan en el repo (es público y gize.ar sirve este archivo).
--- Se puede correr varias veces: si las cuentas ya existen, solo les actualiza la contraseña.
+-- Se puede correr varias veces: si las cuentas ya existen, solo les actualiza la contraseña y les
+-- cierra las sesiones abiertas (quien entró con la contraseña anterior queda afuera).
 --
 --   __DEMO_COACH__    coach con plan de cortesía (sin vencimiento)
 --   __DEMO_CLIENTE__  cliente vinculado a ese coach, con peso y un entreno
@@ -49,6 +50,9 @@ begin
     if acc.role = 'coach' then coach := uid; else client := uid; end if;
   end loop;
 
+  -- Cambiar la contraseña no corta las sesiones que ya estaban abiertas: se cierran acá.
+  delete from auth.sessions where user_id in (coach, client);
+  delete from auth.refresh_tokens where user_id in (coach::text, client::text);
   insert into public.coach_billing (coach_id, plan, max_clients)
   values (coach, 'cortesia', 50)
   on conflict (coach_id) do update set plan = 'cortesia', max_clients = 50, updated_at = now();
