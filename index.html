@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <!-- CSP: solo corren scripts de este sitio (nada inline). Por <meta> porque GitHub Pages no deja poner headers. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<!-- No filtrar la URL completa a sitios externos (links salientes): solo el origen. -->
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <script src="landing-inicio.js"></script>
 
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
