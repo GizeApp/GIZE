@@ -5,7 +5,7 @@
 // de privacidad nombrando a Apple.
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { getBrowser } from './lib.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -117,7 +117,7 @@ export default async function ({ t }){
   const prov = (((cfg.plugins || {}).SocialLogin || {}).providers) || {};
   t.ok(prov.apple === true && prov.facebook === false, 'capacitor.config.json: Apple sí, Facebook no');
   let sinFacebook = null;
-  try { ({ sinFacebook } = await import(path.join(ROOT, 'scripts/ios-sin-facebook.mjs'))); } catch (e) {}
+  try { ({ sinFacebook } = await import(pathToFileURL(path.join(ROOT, 'scripts/ios-sin-facebook.mjs')).href)); } catch (e) {}
   t.ok(typeof sinFacebook === 'function', 'existe scripts/ios-sin-facebook.mjs');
   if (sinFacebook){
     const out = sinFacebook(PAQUETE_7_20);

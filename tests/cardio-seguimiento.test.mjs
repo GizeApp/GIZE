@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n');
 const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [{ date: '2026-09-01', kg: 70 }, { date: '2026-09-20', kg: 72 }], daily: {} };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LAT0 = -34.6, LON0 = -58.4;
