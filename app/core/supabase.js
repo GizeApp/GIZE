@@ -688,6 +688,27 @@ export function applyBrand(){
 // los dos lados: las sesiones que ya estaban guardadas en localStorage siguen andando.
 export const REMEMBER_KEY = "gize_remember";
 const EPHEMERAL_KEY = "gize_session_ephemeral";
+// Sesión sin «Mantener la sesión» abierta en esta pestaña (ver clearEndedSession).
+function tabSession(){ try{ return !!(State.cloudUser && State.sb && sessionStorage.getItem(State.sb.auth.storageKey)!=null); }catch(e){ return false; } }
+// Mientras dura, la marca se vuelve a poner en cada save() y al pasar a segundo plano: otra
+// pestaña que no recibió respuesta (esta estaba dormida) pudo haberla sacado, y al cerrar esta
+// los datos quedaban en el navegador.
+function markTabSession(){ try{ if(tabSession()) localStorage.setItem(EPHEMERAL_KEY, State.cloudUser.id); }catch(e){} }
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden") markTabSession(); });
+// Otra pestaña (o la app instalada, que comparte lo guardado) que abre sin sesión pregunta antes
+// de borrar si alguna sigue adentro. Antes borraba los datos y daba de baja las notificaciones
+// de la sesión que seguía abierta.
+const tabsCh=(()=>{ try{ return new BroadcastChannel("gize_sesion"); }catch(e){ return null; } })();
+if(tabsCh) tabsCh.addEventListener("message", e=>{ if(e.data==="¿adentro?" && tabSession()){ markTabSession(); tabsCh.postMessage("adentro"); } });
+function otherTabInside(){
+  if(!tabsCh) return Promise.resolve(false);
+  return new Promise(ok=>{
+    const on=e=>{ if(e.data==="adentro") end(true); };
+    const end=v=>{ clearTimeout(tm); tabsCh.removeEventListener("message", on); ok(v); };
+    const tm=setTimeout(()=>end(false), 400);
+    tabsCh.addEventListener("message", on); tabsCh.postMessage("¿adentro?");
+  });
+}
 export function rememberSession(){ try{ return localStorage.getItem(REMEMBER_KEY)!=="0"; }catch(e){ return true; } }
 export function setRememberSession(on){ try{ localStorage.setItem(REMEMBER_KEY, on ? "1" : "0"); }catch(e){} }
 // La casilla se mira solo al entrar: la renovación del token se guarda donde ya estaba esa
@@ -869,7 +890,7 @@ export async function afterLogin(sessionUser, stale){
   if(State.cloudUser && state.ownerUid!==State.cloudUser.id){ state.ownerUid=State.cloudUser.id; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
   // Sesión sin «Mantener la sesión» (vive solo en esta pestaña): se anota de quién son los datos,
   // para borrarlos la próxima vez que GIZE abra sin sesión (ver clearEndedSession).
-  try{ if(State.cloudUser && State.sb && sessionStorage.getItem(State.sb.auth.storageKey)!=null) localStorage.setItem(EPHEMERAL_KEY, State.cloudUser.id); else localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
+  try{ if(tabSession()) localStorage.setItem(EPHEMERAL_KEY, State.cloudUser.id); else localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
   // Sin sesión viva (_staleBoot) getUser() y el envío de la cola esperarían los ~30 s de
   // reintentos de la librería con la pantalla vacía: se saltean y salen cuando se renueva
   // el token (watchAuth → flushOutbox + retryCloud).
@@ -1364,6 +1385,7 @@ export function sessionFromRow(se){
 }
 
 export function cloudSyncCore(){
+  markTabSession(); // sesión no mantenida: la marca vuelve a quedar (ver markTabSession)
   // Comidas/agua/pasos/hábitos/preferencias van por la cola: no dependen de cloudReady
   // (es data del propio cliente, no hay coach que pisar) y así funcionan sin conexión.
   try{ syncExtras(); }catch(e){ console.error("extras",e); }
@@ -2028,11 +2050,12 @@ async function showMailConfirmed(loading){
 // use después no lo pueda leer. Queda lo que todavía no llegó a la cuenta (como localUnsynced):
 // la cola de envío, que va por usuario, y la rutina propia cambiada sin subir. Si esa cuenta
 // vuelve a entrar, se sube. Las notificaciones se dan de baja en este dispositivo: si no, los
-// mensajes del coach le seguían llegando a la compu. Devuelve true si borró algo (lo que hay en
-// memoria es lo viejo).
+// mensajes del coach le seguían llegando a la compu. Si la sesión sigue abierta en otra pestaña
+// no se toca nada. Devuelve true si borró algo (lo que hay en memoria es lo viejo).
 async function clearEndedSession(){
-  let uid=""; try{ uid=localStorage.getItem(EPHEMERAL_KEY)||""; localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
-  if(!uid) return false;
+  let uid=""; try{ uid=localStorage.getItem(EPHEMERAL_KEY)||""; }catch(e){}
+  if(!uid || await otherTabInside()) return false;
+  try{ localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
   let prof=null; try{ const c=JSON.parse(localStorage.getItem(PROFILE_KEY)||"null"); if(c && c.uid===uid) prof=c.profile; }catch(e){}
   const own=!(prof && (prof.role==="coach" || prof.coach_id)) && onRegular() && state.ownerUid===uid && state.routineHash!==routineHash(state.days);
   try{
