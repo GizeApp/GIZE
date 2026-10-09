@@ -477,6 +477,9 @@ document.body.addEventListener("click", async e => {
   if (a === "hba-save") {
     const withTime=saveHabitAlarm(); closeSheet(()=>renderApp());
     if(withTime && alarmsSupported()) askAlarmPermission().then(ok=>{ if(ok) syncHabitAlarms(); else alert("Para que suene el aviso, permití las notificaciones de GIZE en los ajustes del celular."); });
+    // La web no puede sonar con la página cerrada: la hora queda guardada (suena en la app del
+    // celular con la misma cuenta) y se avisa al guardar, sin carteles en la hoja.
+    else if(withTime) alert("Guardado. El aviso suena solo en la app de GIZE para Android o iPhone: acá en la web no puede sonar.");
     return;
   }
 
