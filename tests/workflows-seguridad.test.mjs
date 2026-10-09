@@ -4,7 +4,8 @@
 // scripts/ios-firma.py firma el JWT de App Store Connect con openssl. «Fotos de videos» corre
 // Pillow (versión y hash fijos) en un trabajo que solo lee y sube desde otro que no corre nada.
 // Todo trabajo que lee secrets corre solo desde main y en su Environment (play-release,
-// ios-release, production o backup), y los PR de iPhone compilan sin secrets.
+// ios-release, production o backup), y los PR de iPhone compilan sin secrets. La tarea «funciones»
+// de supabase.yml controla al final que cada función quedó publicada y al día.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -45,7 +46,7 @@ function trabajos(yml){
 }
 
 // Corre un pedazo de bash como lo corre GitHub (bash -e), en una carpeta de prueba con
-// «programas» simulados delante en el PATH. Devuelve { code, out, dir }.
+// «programas» simulados delante en el PATH. Devuelve { code, out, log, dir }.
 function correr(script, { archivos = {}, programas = {}, env = {}, prep } = {}){
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gize-wf-')), bin = path.join(dir, '.bin');
   CARPETAS.push(dir);
@@ -183,6 +184,42 @@ print(m.firma_cruda(bytes.fromhex(sys.argv[2])).hex())`;
   const pr = ij.filter(b => /^    if: github\.event_name == 'pull_request'\s*$/m.test(b));
   t.ok(pr.length === 1 && !/secrets\./.test(pr[0]) && /CODE_SIGNING_ALLOWED=NO/.test(pr[0]), 'ios.yml compila los PR en un trabajo sin secrets');
   t.ok(ij.some(b => /^    if: github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main'\s*$/m.test(b) && /altool --upload-app/.test(b)), 'ios.yml sube a TestFlight solo a mano y desde main');
+
+  // 5) Funciones de Supabase: al final de «funciones» se mira qué quedó publicado (con la CLI
+  //    simulada). Falla si falta alguna, si alguna sigue con la versión anterior o si hay publicada
+  //    una que no sale del repo (como una «notificar-cliente» vieja, que la app usa de respaldo).
+  //    Si una no se puede publicar, sigue con las demás y al final falla.
+  const fun = paso(leer('.github/workflows/supabase.yml'), 'Publicar funciones');
+  const FNS = ((fun.match(/for fn in ([^;]+);/) || [])[1] || '').trim().split(/\s+/);
+  t.ok(FNS.length >= 9 && FNS.includes('rapid-worker') && FNS.includes('borrar-audios'), 'el paso publica las funciones del repo: ' + FNS.join(' '));
+  const supabase = `echo "$*" >> "$LOG"
+case "$1 $2" in
+  "functions deploy") [ "$3" != "$FALLA" ];;
+  "functions list") if [[ " $* " == *" --output json "* || " $* " == *" -o json "* ]]; then cat "$LISTA"; else echo "| ID | NAME | SLUG |"; fi;;
+  *) exit 2;;
+esac`;
+  const ahora = Date.now(), DIA = 864e5;
+  const publicar = (cambios = {}, env = {}) => {
+    const fechas = Object.assign(Object.fromEntries(FNS.map(n => [n, ahora])), cambios);
+    const lista = Object.entries(fechas).filter(([, v]) => v !== null).map(([slug, v], i) => ({ id: 'id' + i, slug, name: slug, status: 'ACTIVE', version: 7, updated_at: v }));
+    const r = correr(fun, { archivos: { 'supabase/functions/notificar-cliente/index.ts': '// chat', '.lista.json': JSON.stringify(lista) }, programas: { supabase },
+      env: d => Object.assign({ PROJECT_REF: 'proyecto', LISTA: path.join(d, '.lista.json') }, env) });
+    r.deploys = r.log.split('\n').filter(l => l.startsWith('functions deploy ')).map(l => l.split(' ')[2]);
+    return r;
+  };
+  const ok = publicar();
+  t.eq(ok.code, 0, 'con todas recién publicadas el paso anda: ' + ok.out.trim().split('\n').pop());
+  t.eq(ok.deploys, FNS, 'publica todas');
+  t.ok(/functions list --project-ref proyecto/.test(ok.log), 'después pide la lista de las publicadas');
+  const vieja = publicar({ 'vence-plan': ahora - 2 * DIA });
+  t.ok(vieja.code !== 0 && /vence-plan/.test(vieja.out), 'falla si una sigue con la versión anterior: ' + vieja.out.trim());
+  const falta = publicar({ 'borrar-audios': null });
+  t.ok(falta.code !== 0 && /borrar-audios/.test(falta.out), 'falla si falta una: ' + falta.out.trim());
+  const extra = publicar({ 'notificar-cliente': ahora - 30 * DIA });
+  t.ok(extra.code !== 0 && /notificar-cliente/.test(extra.out), 'falla si hay publicada una que no sale del repo: ' + extra.out.trim());
+  const corta = publicar({ admin: ahora - 2 * DIA }, { FALLA: 'admin' });
+  t.eq(corta.deploys, FNS, 'si una no se puede publicar, sigue con las demás');
+  t.ok(corta.code !== 0 && /admin/.test(corta.out), 'y al final falla nombrándola: ' + corta.out.trim());
 
   for (const d of CARPETAS) fs.rmSync(d, { recursive: true, force: true });
 }

@@ -97,13 +97,34 @@ jobs:
       # Todas van sin "Verify JWT": suscripcion recibe los avisos de Mercado Pago sin
       # sesión, contacto los mails que avisa Resend (valida la firma del webhook), y las que
       # usa la app validan al usuario por su cuenta con auth.getUser().
+      # Si una no se puede publicar se sigue con las demás. Al final se mira en Supabase qué quedó:
+      # cada una activa y actualizada en esta ejecución (si no, sigue andando la versión anterior,
+      # con errores que ya se arreglaron), y ninguna otra publicada que no salga del repo (como una
+      # «notificar-cliente» creada desde el panel, que la app usa de respaldo y quedó vieja).
       - name: Publicar funciones
         if: inputs.tarea == 'funciones'
         run: |
+          desde=$(( $(date -u +%s) - 120 ))
           cp -r supabase/functions/notificar-cliente supabase/functions/rapid-worker
+          fns=""; mal=""
           for fn in rapid-worker suscripcion descanso avisos-coach admin contacto borrar-audios productos-off vence-plan; do
-            supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt --use-api
+            fns="$fns $fn"
+            supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt --use-api || mal="$mal $fn"
           done
+          [ -z "$mal" ] || echo "::error::No se pudieron publicar:$mal"
+          supabase functions list --project-ref "$PROJECT_REF" --output json > "$RUNNER_TEMP/funciones.json"
+          jq -r --arg fns "$fns" --argjson desde "$desde" '
+            (. // []) as $l | ($fns | split(" ") | map(select(. != ""))) as $f | ($l | map({key: .slug, value: .}) | from_entries) as $p
+            | ($f[] | . as $n | $p[$n] as $x
+                | if $x == null then "\($n): no está publicada"
+                  elif $x.status != "ACTIVE" then "\($n): está \($x.status)"
+                  elif ((($x.updated_at | numbers) // 0) / 1000) < $desde then "\($n): sigue la versión anterior (v\($x.version))"
+                  else empty end),
+              ($l[] | select(.slug | IN($f[]) | not) | "\(.slug): está publicada y no sale del repo (si no se usa, borrala en Supabase → Edge Functions)")
+          ' "$RUNNER_TEMP/funciones.json" > "$RUNNER_TEMP/control.txt"
+          while read -r l; do echo "::error::$l"; done < "$RUNNER_TEMP/control.txt"
+          [ -z "$mal" ] && [ ! -s "$RUNNER_TEMP/control.txt" ] || exit 1
+          echo "Publicadas y al día:$fns"
 
       - name: Cargar secrets de las funciones
         if: inputs.tarea == 'secrets'
