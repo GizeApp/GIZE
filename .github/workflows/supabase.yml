@@ -100,6 +100,8 @@ jobs:
           APNS_KEY_P8: ${{ secrets.APNS_KEY_P8 }}
           APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SIWA_KEY_P8: ${{ secrets.SIWA_KEY_P8 }}
+          SIWA_KEY_ID: ${{ secrets.SIWA_KEY_ID }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FULL_KEY: ${{ secrets.RESEND_FULL_KEY }}
           RESEND_WEBHOOK_SECRET: ${{ secrets.RESEND_WEBHOOK_SECRET }}
@@ -109,6 +111,8 @@ jobs:
           set -- 
           [ -n "$MP_ACCESS_TOKEN" ] && set -- "$@" MP_ACCESS_TOKEN="$MP_ACCESS_TOKEN"
           [ -n "$APNS_KEY_P8" ] && set -- "$@" APNS_KEY_P8="$APNS_KEY_P8" APNS_KEY_ID="$APNS_KEY_ID" APPLE_TEAM_ID="$APPLE_TEAM_ID"
+          # Clave de «Sign in with Apple» (revocar el acceso al borrar una cuenta de Apple, ver borrar-audios).
+          [ -n "$SIWA_KEY_P8" ] && set -- "$@" SIWA_KEY_P8="$SIWA_KEY_P8" SIWA_KEY_ID="$SIWA_KEY_ID" APPLE_TEAM_ID="$APPLE_TEAM_ID"
           [ -n "$RESEND_API_KEY" ] && set -- "$@" RESEND_API_KEY="$RESEND_API_KEY"
           [ -n "$RESEND_FULL_KEY" ] && set -- "$@" RESEND_FULL_KEY="$RESEND_FULL_KEY"
           [ -n "$RESEND_WEBHOOK_SECRET" ] && set -- "$@" RESEND_WEBHOOK_SECRET="$RESEND_WEBHOOK_SECRET"

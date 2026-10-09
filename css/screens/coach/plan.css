@@ -45,6 +45,7 @@ a.pl-choose { display:block; text-align:center; text-decoration:none; }
 .pl-wall-t { font-size:clamp(26px,5vw,34px); font-weight:700; color:var(--txt); margin-bottom:8px; }
 .pl-wall-s { font-size:15px; color:var(--txt-2); max-width:520px; margin:0 auto 14px; line-height:1.5; }
 .pl-wall-out { display:block; min-width:200px; margin:18px auto 0; } /* «Cerrar sesión» de la cuenta inactiva (app de iPhone) */
+.pl-wall-del { max-width:320px; margin:36px auto 8px; } /* «Eliminar cuenta» de la cuenta inactiva */
 
 .pl-name { font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--gize-success); }
 .pl-oc { margin-top:22px; }

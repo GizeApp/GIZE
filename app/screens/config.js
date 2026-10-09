@@ -6,7 +6,7 @@
 import { State } from '../core/state.js';
 import { KEY, save } from '../core/storage.js';
 import { DISCIPLINAS, myDisciplinas, toggleDisciplina } from '../core/disciplinas.js';
-import { clearAccountLeftovers, loadCloud, deleteMyStorageFiles, deleteMyAccount, PROFILE_KEY } from '../core/supabase.js';
+import { appleCodeForDelete, clearAccountLeftovers, forgetStoredSession, loadCloud, deleteMyStorageFiles, deleteMyAccount, PROFILE_KEY } from '../core/supabase.js';
 import { esc } from '../core/utils.js';
 import { avatarHtml, avatarUrl } from '../core/avatar.js';
 import { showLogin } from './auth.js';
@@ -347,10 +347,12 @@ document.body.addEventListener("click", async function (e) {
       // de Storage. Si esto falla se corta acá, con la cuenta intacta, para poder reintentar
       // en vez de dejar fotos sin dueño.
       await deleteMyStorageFiles();
+      // Cuenta de Apple (app de iPhone): un código nuevo de Apple para revocar el acceso de GIZE.
+      const appleCode = await appleCodeForDelete();
       // Después la función borrar-audios: borra los mensajes de voz y la cuenta (llama a
       // delete_own_account, ver supabase/pagos-seguros.sql, que borra auth.users y en cascada
       // todo lo que depende de él).
-      await deleteMyAccount();
+      await deleteMyAccount(appleCode);
       State.signingOut = true; // la sesión se cierra a propósito: no pedir ingresar de nuevo (core/supabase.js → watchAuth)
       // Como al cerrar sesión: se da de baja este dispositivo para que la próxima cuenta que
       // entre acá no quede con las notificaciones prendidas sin haberlas activado. Va después
@@ -359,7 +361,8 @@ document.body.addEventListener("click", async function (e) {
       try { localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); } catch (err) {}
       stopForLogout(); // deja de mirar el GPS y borra la salida en curso
       clearAccountLeftovers(State.cloudUser && State.cloudUser.id);
-      try { await State.sb.auth.signOut(); } catch (err) {}
+      try { await Promise.race([State.sb.auth.signOut(), new Promise(r => setTimeout(r, 5000))]); } catch (err) {}
+      forgetStoredSession(); // la cuenta ya no existe: que no quede su sesión guardada en el dispositivo
       alert("Tu cuenta fue eliminada.");
       location.reload();
     } catch (err) {
