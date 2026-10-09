@@ -3,14 +3,12 @@
 // app instalada desde el navegador, Firebase (FCM) para la app de Android y el servicio
 // de Apple (APNs) para la app de iPhone.
 //
-// Cómo publicarla (una sola vez):
-//   1. Supabase → Edge Functions → Deploy a new function → Via Editor.
-//      Nombre: notificar-cliente (la app también prueba "rapid-worker", el nombre que
-//      pone Supabase si no se cambia). Pegar este archivo entero, agregar apns.ts (de esta
-//      misma carpeta) y Deploy. (La tarea "funciones" de .github/workflows/supabase.yml
-//      publica la carpeta entera.)
-//      En Settings de la función, "Verify JWT with legacy secret" puede ir apagado:
-//      la función ya chequea la sesión del coach con auth.getUser().
+// Cómo publicarla:
+//   1. Solo con la tarea "funciones" de .github/workflows/supabase.yml, que publica la carpeta
+//      entera (con apns.ts) como "rapid-worker", el nombre que usa la app. No crearla desde el
+//      panel de Supabase: se saltea el «solo desde main», y si hay otra publicada con otro
+//      nombre (por ejemplo "notificar-cliente") la tarea falla. Va sin "Verify JWT": la
+//      función ya chequea la sesión con auth.getUser().
 //   2. Supabase → Edge Functions → Secrets → agregar:
 //        VAPID_PUBLIC_KEY   (la misma que está en app/core/push.js)
 //        VAPID_PRIVATE_KEY  (la privada, nunca va en el código de la app)
