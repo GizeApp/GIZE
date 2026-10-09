@@ -10,6 +10,9 @@ const REPO = "GizeApp/gize";
 // dirección, y un link armado por otra persona dejaba este navegador (también gize.ar/app, que
 // comparte la sesión) adentro de SU cuenta. Con PKCE solo vale la vuelta de un ingreso que
 // empezó acá (Google), y esos links se ignoran.
+// ingresoAca: el ingreso empezó en el panel («Entrar», o la vuelta de Google con ?code=). Solo
+// así se cierra la sesión de una cuenta que no es administradora (ver boot).
+let ingresoAca = new URLSearchParams(location.search).has("code");
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "pkce", detectSessionInUrl: true } });
 
 const $root = document.getElementById("root");
@@ -91,16 +94,21 @@ async function boot(){
   const { data } = await sb.auth.getSession();
   const user = S.user = data && data.session ? data.session.user : null;
   if (location.hash.includes("access_token")) history.replaceState(null, "", location.pathname);
-  if (!user) return gate("Panel de administración de GIZE. Entrá con tu cuenta.", true);
+  if (!user){ ingresoAca = false; return gate("Panel de administración de GIZE. Entrá con tu cuenta.", true); }
   let ok = false, known = false; try { ok = await rpc("is_app_admin"); known = true; } catch (e) {}
   if (!known) return gate("No se pudo comprobar si la cuenta <b>" + esc(user.email) + "</b> es administradora. Revisá la conexión y recargá la página.", false);
-  // Una cuenta que no es administradora no se queda con la sesión abierta acá: se cierra en este
-  // navegador (la sesión es la misma que la de gize.ar/app) y se pide entrar con otra.
+  // Una cuenta que no es administradora y entró acá no se queda con la sesión abierta: se cierra
+  // en este navegador y se pide entrar con otra. La de gize.ar/app (es la misma sesión: al abrir
+  // el panel, o la que avisa la pestaña de la app al entrar o al volver a verse) no se toca:
+  // antes el panel la cerraba en el servidor y la app quedaba afuera.
   if (!ok){
+    if (!ingresoAca) return gate("La cuenta <b>" + esc(user.email) + "</b> no es administradora de GIZE.", false);
     S.user = null;
     try { await sb.auth.signOut({ scope: "local" }); } catch (e) {}
+    ingresoAca = false;
     return gate("La cuenta <b>" + esc(user.email) + "</b> no es administradora de GIZE, así que se cerró la sesión en este navegador. Entrá con una cuenta administradora.", true);
   }
+  ingresoAca = false;
   const v = (location.hash || "").replace("#", ""); if (SECTIONS.some(s => s[0] === v)) S.view = v;
   shell(); go(S.view);
   refreshUnread(); setInterval(refreshUnread, 60000);
@@ -1209,7 +1217,7 @@ document.addEventListener("click", async e => {
   if (b.closest("summary")) e.preventDefault(); // un botón en el título de un panel no lo pliega
   try {
     if (a === "google"){ await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } }); return; }
-    if (a === "login"){ const r = await sb.auth.signInWithPassword({ email: document.getElementById("lgMail").value.trim(), password: document.getElementById("lgPass").value }); if (r.error) toast("Mail o contraseña incorrectos."); return; }
+    if (a === "login"){ ingresoAca = true; const r = await sb.auth.signInWithPassword({ email: document.getElementById("lgMail").value.trim(), password: document.getElementById("lgPass").value }); if (r.error){ ingresoAca = false; toast("Mail o contraseña incorrectos."); } return; }
     if (a === "logout"){ await sb.auth.signOut(); return; }
     if (a === "closeDrawer"){ closeDrawer(); return; }
     if (a === "uSearch"){ S.q = document.getElementById("uQ").value.trim(); searchUsers(); return; }
