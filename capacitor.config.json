@@ -6,7 +6,17 @@
   "android": {
     "backgroundColor": "#000000",
     "adjustMarginsForEdgeToEdge": "auto",
-    "useLegacyBridge": true
+    "useLegacyBridge": true,
+    "includePlugins": [
+      "@capacitor/app",
+      "@capacitor/browser",
+      "@capacitor/filesystem",
+      "@capacitor/local-notifications",
+      "@capacitor/push-notifications",
+      "@capacitor/share",
+      "@capgo/capacitor-health",
+      "@capgo/capacitor-social-login"
+    ]
   },
   "plugins": {
     "PushNotifications": {

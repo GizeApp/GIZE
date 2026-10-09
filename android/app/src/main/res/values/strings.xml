@@ -4,11 +4,4 @@
     <string name="title_activity_main">GIZE</string>
     <string name="package_name">ar.com.gize.app</string>
     <string name="custom_url_scheme">ar.com.gize.app</string>
-    <!-- Notificación fija mientras hay una salida de Cardio en curso (plugin
-         @capacitor-community/background-geolocation): nombre del canal en los ajustes de Android,
-         el ícono blanco de las notificaciones de GIZE (el de la app, en colores, se ve como un
-         cuadrado en la barra de arriba) y el color de la marca. -->
-    <string name="capacitor_background_geolocation_notification_channel_name">Salidas de Cardio</string>
-    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_gize</string>
-    <string name="capacitor_background_geolocation_notification_color">#2FA0FF</string>
 </resources>

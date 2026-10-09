@@ -13,7 +13,18 @@
 // c) Con el puente de Android (window.androidBridge) aunque Capacitor no esté: igual.
 // d) Coach en la app de Android: la salida del alumno solo con sus números, sin pedir el recorrido.
 // e) La app de iPhone sigue igual: «Salir a moverte» y el recorrido de la salida (se pide).
+// f) Lo nativo: el build de Android no lleva el plugin de ubicación (capacitor.config.json
+//    android.includePlugins con todos los demás, y los gradle que escribe cap sync), el manifiesto
+//    no declara ningún permiso de ubicación (y los saca si una biblioteca los sumara), sin el
+//    servicio del GPS ni FOREGROUND_SERVICE; los workflows de Android frenan si el plugin vuelve
+//    después de cap sync. La app de iPhone sigue con el plugin.
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n');
 
 const ID1 = '5a1d0000-0000-4000-8000-0000000000a1', RUN = '5a1d0000-0000-4000-8000-0000000000b2';
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
@@ -217,7 +228,41 @@ async function iphone(base, t, TRACK){
   await pg.close();
 }
 
+function nativo(t){
+  const GEO = '@capacitor-community/background-geolocation';
+  // Los plugins de Capacitor de package.json (todo menos el núcleo, las plataformas y la CLI).
+  const deps = Object.keys(JSON.parse(read('package.json')).dependencies || {}).filter(d => !['@capacitor/android', '@capacitor/core', '@capacitor/ios', '@capacitor/cli'].includes(d));
+  t.ok(deps.includes(GEO), 'package.json sigue con el plugin de ubicación (la app de iPhone lo usa)');
+  const cfg = JSON.parse(read('capacitor.config.json'));
+  t.eq(cfg.android && cfg.android.includePlugins, deps.filter(d => d !== GEO), 'capacitor.config.json: Android con todos los plugins menos el de ubicación (si se suma uno a package.json, va acá también)');
+  t.ok(!cfg.includePlugins && !(cfg.ios && cfg.ios.includePlugins), 'capacitor.config.json: iPhone con todos los plugins');
+  // Lo que escribe cap sync (y los workflows vuelven a escribir con npm run android).
+  const gname = d => d.replace('@', '').replace('/', '-');
+  const settings = read('android/capacitor.settings.gradle'), build = read('android/app/capacitor.build.gradle');
+  const order = s => [...s.matchAll(/project\(':([^']+)'\)\.projectDir/g)].map(m => m[1]);
+  t.eq(order(settings), ['capacitor-android'].concat(cfg.android.includePlugins.map(gname)), 'Android: capacitor.settings.gradle con los plugins de includePlugins, en el orden en que los escribe cap sync');
+  t.eq([...build.matchAll(/implementation project\(':([^']+)'\)/g)].map(m => m[1]), cfg.android.includePlugins.map(gname), 'Android: capacitor.build.gradle con los mismos');
+  t.ok(!/geolocation/i.test(settings + build), 'Android: el plugin de ubicación no está en gradle');
+  const spm = read('ios/App/CapApp-SPM/Package.swift');
+  t.ok(spm.includes('.package(name: "CapacitorCommunityBackgroundGeolocation", path: "../../../node_modules/@capacitor-community/background-geolocation")'), 'iPhone: sigue con el plugin de ubicación');
+
+  const man = read('android/app/src/main/AndroidManifest.xml');
+  const perms = [...man.matchAll(/<uses-permission\b[^>]*>/g)].map(m => m[0]);
+  for (const x of ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'ACCESS_BACKGROUND_LOCATION', 'FOREGROUND_SERVICE_LOCATION'])
+    t.eq(perms.filter(p => p.includes('android.permission.' + x + '"')), ['<uses-permission android:name="android.permission.' + x + '" tools:node="remove" />'], 'Android: ' + x + ' solo para sacarlo (tools:node="remove")');
+  t.eq(perms.filter(p => /LOCATION/.test(p) && !/tools:node="remove"/.test(p)), [], 'Android: ningún permiso de ubicación declarado');
+  t.eq(perms.filter(p => /FOREGROUND_SERVICE/.test(p) && !/tools:node="remove"/.test(p)), [], 'Android: sin servicio en primer plano (lo usaba solo el plugin de ubicación)');
+  t.ok(!/<service\b|equimaps|foregroundServiceType|android\.hardware\.location/.test(man), 'Android: sin el servicio del GPS ni el GPS como característica');
+  t.ok(perms.some(p => p.includes('android.permission.POST_NOTIFICATIONS"')), 'Android: las notificaciones siguen');
+  t.ok(!/geolocation/i.test(read('android/app/src/main/res/values/strings.xml')), 'Android: sin los textos de la notificación del GPS');
+  for (const w of ['.github/workflows/android.yml', '.github/workflows/android-release.yml']){
+    const y = read(w), sync = y.indexOf('run: npm run android'), guard = y.indexOf('grep -q "background-geolocation" android/capacitor.settings.gradle android/app/capacitor.build.gradle android/app/src/main/assets/capacitor.plugins.json');
+    t.ok(sync > 0 && guard > sync && /exit 1/.test(y.slice(guard, guard + 400)), w + ': después de cap sync frena si el plugin de ubicación volvió al build');
+  }
+}
+
 export default async function ({ base, t }){
+  nativo(t);
   // Un recorrido de verdad (dos vueltas a una plaza) y una salida en curso de una versión
   // anterior (200 puntos en línea recta), armados con el motor.
   const helper = await newPage({});

@@ -1,9 +1,10 @@
 // Cardio «A pie» / «En bici», paso 2: el seguimiento con GPS (app/ui/gps.js) y la ubicación en
 // segundo plano de las apps nativas.
-// a) Archivos nativos: plugin de ubicación (+ compartir y archivos) en package.json, gradle y
-//    Package.swift; permisos y servicio cerrado (exported=false) en Android, sin ubicación «todo
-//    el tiempo»; textos, modo de fondo y foto en iPhone; useLegacyBridge (y que la app no cargue
-//    marcos de terceros: con ese puente, cualquier marco llegaría a lo nativo); PrivacyInfo.
+// a) Archivos nativos: plugin de ubicación (+ compartir y archivos) en package.json y
+//    Package.swift (iPhone; en Android, compartir y archivos sí pero la ubicación no: ver
+//    tests/cardio-android.test.mjs); textos, modo de fondo y foto en iPhone; useLegacyBridge (y que
+//    la app no cargue marcos de terceros: con ese puente, cualquier marco llegaría a lo nativo);
+//    PrivacyInfo.
 // b) Web con GPS falso: aviso «Usar tu ubicación» antes de pedir nada; empezar, puntos, partes de
 //    400 guardadas (la llena no se reescribe; se escribe como mucho cada 5 s o 20 puntos), pausa y
 //    seguir (sube seg, pantalla prendida pedida y soltada), recargar a mitad (se retoma con el
@@ -134,12 +135,10 @@ function staticChecks(t){
   const lock = JSON.parse(read('package-lock.json')).packages || {};
   t.eq(['@capacitor-community/background-geolocation', '@capacitor/share', '@capacitor/filesystem'].map(n => (lock['node_modules/' + n] || {}).version), ['1.2.26', '7.0.4', '7.1.8'], 'package-lock.json con las mismas versiones (CI usa npm ci)');
   const settings = read('android/capacitor.settings.gradle'), build = read('android/app/capacitor.build.gradle');
-  for (const [m, dir] of [['capacitor-community-background-geolocation', '@capacitor-community/background-geolocation'], ['capacitor-filesystem', '@capacitor/filesystem'], ['capacitor-share', '@capacitor/share']]){
+  for (const [m, dir] of [['capacitor-filesystem', '@capacitor/filesystem'], ['capacitor-share', '@capacitor/share']]){
     t.has(settings, `include ':${m}'\nproject(':${m}').projectDir = new File('../node_modules/${dir}/android')`, 'Android: ' + m + ' en capacitor.settings.gradle');
     t.has(build, `implementation project(':${m}')`, 'Android: ' + m + ' en capacitor.build.gradle');
   }
-  const order = s => [...s.matchAll(/project\(':([^']+)'\)\.projectDir/g)].map(m => m[1]);
-  t.eq(order(settings), ['capacitor-android', 'capacitor-community-background-geolocation', 'capacitor-app', 'capacitor-browser', 'capacitor-filesystem', 'capacitor-local-notifications', 'capacitor-push-notifications', 'capacitor-share', 'capgo-capacitor-health', 'capgo-capacitor-social-login'], 'Android: plugins en el orden en que los escribe cap sync');
   const spm = read('ios/App/CapApp-SPM/Package.swift');
   for (const [n, dir] of [['CapacitorCommunityBackgroundGeolocation', '@capacitor-community/background-geolocation'], ['CapacitorFilesystem', '@capacitor/filesystem'], ['CapacitorShare', '@capacitor/share']]){
     t.has(spm, `.package(name: "${n}", path: "../../../node_modules/${dir}")`, 'iPhone: ' + n + ' en Package.swift');
@@ -148,7 +147,7 @@ function staticChecks(t){
   t.has(read('scripts/ios-sin-facebook.mjs'), 'node_modules/@capgo/capacitor-social-login/Package.swift', 'el script de iPhone sigue tocando solo el plugin de login');
 
   const cfg = JSON.parse(read('capacitor.config.json'));
-  t.eq(cfg.android && cfg.android.useLegacyBridge, true, 'Android: useLegacyBridge (sin esto la ubicación se corta a los 5 min en segundo plano)');
+  t.eq(cfg.android && cfg.android.useLegacyBridge, true, 'Android: useLegacyBridge (se puso para la ubicación en segundo plano, que ya no está; queda como estaba)');
   // useLegacyBridge deja el puente con lo nativo al alcance de CUALQUIER marco de la página (sin
   // el control de origen del puente nuevo), y @capacitor/filesystem lee y escribe archivos de la
   // app. Por eso la app nativa no puede cargar marcos de terceros: la CSP deja solo el de Google
@@ -160,20 +159,6 @@ function staticChecks(t){
   const appJs = fs.readdirSync(path.join(ROOT, 'app'), { recursive: true }).filter(f => /\.(js|html)$/.test(f)).map(f => read(path.join('app', f))).join('\n');
   t.ok(!/<iframe|createElement\(\s*["']iframe/i.test(appJs), 'la app no arma iframes');
 
-  const man = read('android/app/src/main/AndroidManifest.xml');
-  t.has(man, 'xmlns:tools="http://schemas.android.com/tools"', 'Android: manifiesto con tools');
-  for (const x of ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_LOCATION', 'POST_NOTIFICATIONS'])
-    t.ok(new RegExp('<uses-permission android:name="android\\.permission\\.' + x + '" />').test(man), 'Android: permiso ' + x);
-  t.ok(!/<uses-permission[^>]*ACCESS_BACKGROUND_LOCATION/.test(man), 'Android: sin la ubicación «todo el tiempo» (ACCESS_BACKGROUND_LOCATION)');
-  const svc = (man.match(/<service[\s\S]*?\/>/) || [''])[0];
-  t.has(svc, 'com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService', 'Android: el servicio del plugin');
-  t.ok(/android:exported="false"/.test(svc) && /tools:replace="android:exported"/.test(svc) && /android:foregroundServiceType="location"/.test(svc), 'Android: servicio cerrado a otras apps (exported=false que pisa el del plugin), tipo location: ' + svc);
-  t.ok(/<uses-feature android:name="android\.hardware\.location\.gps" android:required="false" tools:replace="android:required" \/>/.test(man), 'Android: el GPS no es obligatorio para instalar la app');
-  const str = read('android/app/src/main/res/values/strings.xml');
-  t.has(str, '<string name="capacitor_background_geolocation_notification_channel_name">Salidas de Cardio</string>', 'Android: canal de la notificación');
-  t.has(str, '<string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_gize</string>', 'Android: ícono de la notificación (el blanco de GIZE)');
-  t.ok(fs.existsSync(path.join(ROOT, 'android/app/src/main/res/drawable/ic_stat_gize.xml')), 'Android: el ícono existe');
-  t.has(str, '<string name="capacitor_background_geolocation_notification_color">#2FA0FF</string>', 'Android: color de la notificación');
 
   const plist = read('ios/App/App/Info.plist');
   const val = k => (plist.match(new RegExp('<key>' + k + '</key>\\s*<string>([^<]*)</string>')) || [])[1] || '';
