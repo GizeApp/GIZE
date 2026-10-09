@@ -230,6 +230,13 @@ esac`;
   t.eq(copia.code, 0, 'ni una copia borrada de una del repo: ' + copia.out.trim().split('\n').pop());
   const frenada = publicar({ descanso: { status: 'THROTTLED' } });
   t.ok(frenada.code !== 0 && /descanso: está frenada por Supabase/.test(frenada.out), 'si una está frenada falla y lo dice en castellano: ' + frenada.out.trim());
+  // Cada carpeta de supabase/functions sale de esta tarea (notificar-cliente como rapid-worker), y
+  // ningún encabezado manda a crearla desde el panel: se saltea el «solo desde main» y el control
+  // de arriba falla con una «notificar-cliente» publicada aparte.
+  for (const f of fs.readdirSync(path.join(ROOT, 'supabase/functions')).filter(f => fs.existsSync(path.join(ROOT, 'supabase/functions', f, 'index.ts')))){
+    t.ok(FNS.includes(f === 'notificar-cliente' ? 'rapid-worker' : f), 'la tarea publica supabase/functions/' + f);
+    t.ok(!/Via Editor|Deploy a new function/i.test(leer('supabase/functions/' + f + '/index.ts')), 'supabase/functions/' + f + ' no dice de publicarla desde el panel');
+  }
 
   // 6) Tarea «secrets»: cada clave de Apple sube con su Key ID y con APPLE_TEAM_ID. Si falta uno no
   //    se carga nada: iría vacío y pisaría el de Supabase (se cortan los avisos a iPhone).
