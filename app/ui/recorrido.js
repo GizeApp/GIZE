@@ -84,12 +84,13 @@ export function splitsHtml(s, secCls){
 }
 
 // Avisos: calorías con 70 kg (sin peso cargado) y cortes del GPS. who: "yo" (el alumno) o "coach".
+// En la app de Android (ahí no hay GPS) el corte se cuenta sin nombrar el GPS.
 export function notesHtml(s, who){
   const notes = [];
   if (s.kgDefault) notes.push(who === "coach"
     ? "Calorías calculadas con " + dec(s.kg || 70, 0) + " kg porque el alumno no tenía su peso cargado."
     : "Calorías calculadas con " + dec(s.kg || 70, 0) + " kg porque no cargaste tu peso. Cargalo en Progreso para que sean exactas.");
   const gapMin = Math.round((Number(s.gap) || 0) / 60);
-  if (gapMin >= 1) notes.push("El GPS se cortó " + gapMin + " min: ese rato no suma distancia.");
+  if (gapMin >= 1) notes.push((appAndroid() ? "La señal se cortó " : "El GPS se cortó ") + gapMin + " min: ese rato no suma distancia.");
   return notes.map(t => '<div class="sal-note">' + esc(t) + '</div>').join("");
 }

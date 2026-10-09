@@ -30,12 +30,13 @@ const ID1 = '5a1d0000-0000-4000-8000-0000000000a1', RUN = '5a1d0000-0000-4000-80
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
 const A1 = '44444444-4444-4444-4444-444444444444';
 const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} };
-// Una salida medida en el iPhone (como la devuelve la nube, sin el recorrido).
+// Una salida medida en el iPhone (como la devuelve la nube, sin el recorrido), con un corte de
+// señal de 5 min: en el iPhone se avisa «El GPS se cortó…»; en Android, sin nombrar el GPS.
 const ROW = client => ({ id: ID1, client_id: client, mode: 'pie', performed_on: '2026-10-01', started_at: '2026-10-01T13:00:00+00:00', ended_at: '2026-10-01T13:45:01+00:00',
-  duration_s: 2701, moving_s: 2699, distance_m: 5499, kcal: 366, avg_speed_kmh: 7.33, max_speed_kmh: 11.01, weight_kg: 70, weight_default: false, gap_s: 0,
+  duration_s: 2701, moving_s: 2699, distance_m: 5499, kcal: 366, avg_speed_kmh: 7.33, max_speed_kmh: 11.01, weight_kg: 70, weight_default: false, gap_s: 300,
   breakdown: { caminar: 1204, trotar: 894, correr: 601 }, segments: [], splits: [[1000, 720], [1000, 630], [1000, 450], [1000, 409], [1000, 327], [499, 163]], points: 540,
   created_at: '2026-10-01T13:46:00+00:00' });
-const NUMEROS = ['5,50', 'km', 'Distancia', 'Tiempo', '45:01', 'Ritmo medio', 'Calorías', '366 kcal', '1 oct', 'Parciales', '20 min caminando · 15 trotando · 10 corriendo'];
+const NUMEROS = ['5,50', 'km', 'Distancia', 'Tiempo', '45:01', 'Ritmo medio', 'Calorías', '366 kcal', '1 oct', 'Parciales', '20 min caminando · 15 trotando · 10 corriendo', 'La señal se cortó 5 min: ese rato no suma distancia.'];
 const MAPA = /maplibre|openfreemap/i;
 
 // Supabase falso de cardio_outings: la lista y el recorrido (anota cada pedido).
@@ -203,9 +204,9 @@ async function coach(base, t, TRACK){
   await p.click('[data-coach="sec-open"][data-v="salidas"]'); await wait(500);
   await p.click(`[data-coach="salida-open"][data-id="${ID1}"]`); await wait(1000);
   const det = await text(p, '.co-sec-body');
-  for (const n of ['5,50 km', 'Tiempo', '45:01', 'Ritmo medio', '366 kcal', '1 oct', 'Parciales']) t.has(det, n, 'coach en Android: la salida muestra «' + n + '»');
+  for (const n of ['5,50 km', 'Tiempo', '45:01', 'Ritmo medio', '366 kcal', '1 oct', 'Parciales', 'La señal se cortó 5 min']) t.has(det, n, 'coach en Android: la salida muestra «' + n + '»');
   t.eq(await p.$$eval('.co-sec-body .sal-ruta, .co-sec-body [data-rv], .co-sec-body .rv, .co-sec-body canvas, .co-sec-body .sal-leg', l => l.length), 0, 'coach en Android: sin mapa, sin el dibujo del recorrido ni su leyenda');
-  t.ok(!/recorrido|mapa/i.test(det), 'coach en Android: ningún texto del recorrido ni del mapa');
+  t.ok(!/recorrido|mapa|GPS/i.test(det), 'coach en Android: ningún texto del recorrido, del mapa ni del GPS: ' + det.slice(0, 300));
   t.eq(C.reqs.filter(q => /select=track/.test(q)), [], 'coach en Android: el recorrido no se pide');
   t.eq(reqs.filter(u => MAPA.test(u)), [], 'coach en Android: nunca se pide el mapa');
   t.eq(await usos(p), [], 'coach en Android: nunca se toca el plugin, el GPS ni el permiso');
@@ -224,6 +225,7 @@ async function iphone(base, t, TRACK){
   await p.click(`[data-action="sal-open"][data-id="${ID1}"]`); await wait(1200);
   t.eq(S.reqs.filter(q => /select=track/.test(q)).length, 1, 'iPhone: al abrir la salida se pide su recorrido');
   t.ok(await p.$('#salidaHost .rv') && await p.$('#salidaHost [data-action="sal-share"]'), 'iPhone: el recorrido y «Compartir»');
+  t.has(await text(p, '#salidaHost'), 'El GPS se cortó 5 min', 'iPhone: el corte de señal sigue nombrando el GPS');
   t.eq(pg.errs, [], 'errores de la página (iPhone)');
   await pg.close();
 }
