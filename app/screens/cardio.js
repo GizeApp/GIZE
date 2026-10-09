@@ -493,7 +493,7 @@ export function salidaAction(a, el){
   if (a === "sal-save"){
     const e = endedSummary(); if (!e) { closeSalida(); renderApp(); return true; }
     const rec = saveEnded({ keepIfShort: true });
-    if (!rec) return true; // muy corta y no la quiso guardar: queda para decidir
+    if (!rec) return true; // muy corta y no la quiso guardar, o sin espacio: queda para decidir
     const o = SalidaState.open, shown = !!(o && o.shown);
     SalidaState.open = { kind: "saved", id: rec.id, track: e.track || "", shown };
     renderApp(); paintSalidaOverlay();

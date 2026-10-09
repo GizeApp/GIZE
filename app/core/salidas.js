@@ -2,8 +2,8 @@
 // sin coordenadas) y los recorridos (aparte, en una caché del celular y en la nube).
 //
 // · saveEnded(): la salida terminada de ui/gps.js → resumen y recorrido (core/cardiogps.js
-//   finishRun) → state.salidas + caché + cola de envío (core/supabase.js cloudSaveSalida) → se
-//   borra la salida en curso.
+//   finishRun) → cola de envío (core/supabase.js cloudSaveSalida) + state.salidas + caché → se
+//   borra la salida en curso (solo si quedó en la cola: con el celular lleno, no).
 // · getTrack(id): el recorrido de una salida propia, del celular o de la nube (lo usa el alumno
 //   al abrir una salida; las listas nunca lo traen). El coach no lo guarda en su celular: lo
 //   pide a la nube y lo tiene solo en memoria (screens/coach/salidas.js).
@@ -16,8 +16,8 @@ import { State, state } from './state.js';
 import { save } from './storage.js';
 import { ymd } from './utils.js';
 import { finishRun, fmtClock, isShort, lastWeight } from './cardiogps.js';
-import { discard, takeEnded } from '../ui/gps.js';
-import { cloudDeleteSalida, cloudSaveSalida, fetchSalidaTrack, newId, pendingSalidaTrack } from './supabase.js';
+import { discard, freeRunStorage, restoreRunStorage, takeEnded } from '../ui/gps.js';
+import { cloudDeleteSalida, cloudSaveSalida, fetchSalidaTrack, newId, pendingSalidaTrack, salidaPendiente } from './supabase.js';
 
 export const TRACK_KEY = "gize_salidas_track_v1";
 const TRACK_MAX = 15;             // recorridos en la caché
@@ -88,14 +88,27 @@ export function saveEnded(opts){
   const { rec, track } = finishRun(run, lastWeight(state.weights), Date.now(), ymd(new Date(run.start)));
   if (!rec.id) rec.id = newId();
   if (isShort(rec) && !confirm("La salida es muy corta (" + shortText(rec) + "). ¿Guardarla igual?")){ if (!(opts && opts.keepIfShort)) discard(); return null; }
+  // Primero a la cola (queda escrita en el acto) y después se borra la salida en curso: si la
+  // app se corta en el medio, al abrir se vuelve a guardar la misma (mismo id, no se duplica).
+  // La cola va antes que la caché: con el celular lleno, la caché se comería el lugar.
+  cloudSaveSalida(rec, track).catch(e => console.error("salida", e));
+  if (State.cloudUser && !salidaPendiente(rec.id)){
+    // No entró (sin espacio): se libera lo que ocupa la salida en curso (los puntos siguen en
+    // memoria) y se prueba de nuevo. Si igual no entra, no se borra nada: queda terminada para
+    // volver a tocar «Guardar».
+    freeRunStorage();
+    cloudSaveSalida(rec, track).catch(e => console.error("salida", e));
+    if (!salidaPendiente(rec.id)){
+      restoreRunStorage();
+      alert("No hay espacio en el celular para guardar la salida. No cierres GIZE: conectate a internet para que se suba lo pendiente y tocá «Guardar» de nuevo.");
+      return null;
+    }
+  }
   if (!Array.isArray(state.salidas)) state.salidas = [];
   // El mismo id reemplaza (si la app se cerró justo después de guardar, se guarda de nuevo igual).
   state.salidas = state.salidas.filter(x => x.id !== rec.id).concat([rec]);
   if (track) putTrack(rec.id, track);
   save();
-  // Primero a la cola (queda escrita en el acto) y después se borra la salida en curso: si la
-  // app se corta en el medio, al abrir se vuelve a guardar la misma (mismo id, no se duplica).
-  cloudSaveSalida(rec, track).catch(e => console.error("salida", e));
   discard();
   return rec;
 }
