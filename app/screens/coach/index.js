@@ -195,7 +195,7 @@ export function renderCoach(){
     else {
       const wchart=d.weights.length ? renderWChart(d.weights,false,"med") : '<div class="cal-hint">Sin registros de peso.</div>';
       // Peso día a día: gráfico a la izquierda, registros a la derecha (antes iban uno debajo del otro).
-      const wlist=d.weights.length ? '<table class="co-tbl"><thead><tr><th>Fecha</th><th>Peso</th></tr></thead><tbody>'+d.weights.slice().reverse().map(w=>'<tr><td class="dt">'+fmtDate(w.date)+'</td><td><b>'+dec(w.kg)+' kg</b></td></tr>').join("")+'</tbody></table>' : "";
+      const wlist=d.weights.length ? '<table class="co-tbl"><thead><tr><th>Fecha</th><th>Peso</th></tr></thead><tbody>'+d.weights.slice().reverse().map(w=>'<tr><td class="dt">'+esc(fmtDate(w.date))+'</td><td><b>'+dec(w.kg)+' kg</b></td></tr>').join("")+'</tbody></table>' : "";
       const wblock=d.weights.length ? '<div class="co-split"><div class="co-split-main">'+wchart+'</div><div class="co-split-side">'+wlist+'</div></div>' : wchart;
       // Historial de entrenos: calendario con los días entrenados y, al tocar uno, su sesión.
       const sessSorted=d.sessions.slice().sort((a,b)=>(b.ts||0)-(a.ts||0));
