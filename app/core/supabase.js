@@ -64,7 +64,9 @@ const BOOT_HASH = new URLSearchParams((location.hash||"").replace(/^#/,""));
 const RECOVER_HASH = (BOOT_HASH.get("recuperar")||"").trim();
 if(RECOVER_HASH){ try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){} }
 let LINK_REFUSED = "";
-if(BOOT_HASH.get("access_token")){
+// has() y no get(): get() da el PRIMER valor y supabase-js se queda con el ÚLTIMO, así que un
+// link con #access_token=&access_token=<otro> pasaba el chequeo y la librería lo usaba igual.
+if(BOOT_HASH.has("access_token")){
   let t=0; try{ t=+localStorage.getItem(AUTH_EXPECT)||0; }catch(e){}
   if(t && Date.now()-t < 7*86400000){ try{ localStorage.removeItem(AUTH_EXPECT); }catch(e){} }
   else { LINK_REFUSED = BOOT_HASH.get("type") || "login"; try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){} }
