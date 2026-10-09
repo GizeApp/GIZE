@@ -41,8 +41,9 @@ const FORGET_KEY = "gize_push_forget";
 // Sesión sin «Mantener la sesión» en el navegador (vive solo en esta pestaña): no hay
 // notificaciones, porque seguían llegando a la compu después de cerrar la pestaña, hasta que
 // alguien volviera a abrir GIZE (clearEndedSession en core/supabase.js). En la app agregada a
-// inicio del iPhone, como en las de las tiendas, la sesión no se trata como de una compu compartida.
-const tabOnly = () => { try { return navigator.standalone !== true && !!State.sb && sessionStorage.getItem(State.sb.auth.storageKey) != null; } catch (e) { return false; } };
+// inicio (iPhone, o instalada en Android), como en las de las tiendas, la sesión no se trata como
+// de una compu compartida.
+const tabOnly = () => { try { return !isStandalone() && !!State.sb && sessionStorage.getItem(State.sb.auth.storageKey) != null; } catch (e) { return false; } };
 
 export function pushSupported(){
   if (nativePush()) return true;

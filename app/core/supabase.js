@@ -1,7 +1,7 @@
 import { mergeVisits } from '../ui/racha.js';
 import { DAILY_COLUMNS } from './questions.js';
 
-import { pushDropHere, retryPushForget, syncPush } from './push.js';
+import { isStandalone, pushDropHere, retryPushForget, syncPush } from './push.js';
 import { clearHabitAlarms } from '../ui/habitnotif.js';
 import { resolveAvatars } from './avatar.js';
 
@@ -696,10 +696,10 @@ const EPHEMERAL_KEY = "gize_session_ephemeral";
 // Sesión sin «Mantener la sesión» abierta en esta pestaña (ver clearEndedSession).
 function tabSession(){ try{ return !!(State.cloudUser && State.sb && sessionStorage.getItem(State.sb.auth.storageKey)!=null); }catch(e){ return false; } }
 // El borrado al terminar una sesión no mantenida es para la compu compartida (el navegador). En la
-// app de las tiendas y en la agregada a inicio del iPhone el sistema la cierra solo, y con eso se
-// va la sesión de la pestaña: se borraban el entreno y la salida de Cardio en curso. Ahí queda
-// todo detrás del ingreso, como antes.
-const clearsEnded = () => !NativeApp() && navigator.standalone !== true;
+// app de las tiendas y en la agregada a inicio (iPhone, o instalada en Android) el sistema la
+// cierra solo, y con eso se va la sesión de la pestaña: se borraban el entreno y la salida de
+// Cardio en curso. Ahí queda todo detrás del ingreso, como antes.
+const clearsEnded = () => !NativeApp() && !isStandalone();
 // Mientras dura, la marca se vuelve a poner en cada save() y al pasar a segundo plano: otra
 // pestaña que no recibió respuesta (esta estaba dormida) pudo haberla sacado, y al cerrar esta
 // los datos quedaban en el navegador.

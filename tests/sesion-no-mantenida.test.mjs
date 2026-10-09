@@ -10,8 +10,9 @@
 //    marca se perdió igual, el próximo save() de la pestaña con sesión la vuelve a poner.
 // 7) La marca de las versiones anteriores ("1" en vez de la cuenta, y sin state.ownerUid): la
 //    rutina sin subir queda igual.
-// 8) En la app de las tiendas y en la agregada a inicio del iPhone el sistema la cierra solo (y con
-//    eso la sesión de la pestaña): no se borra nada, el entreno en curso queda detrás del ingreso.
+// 8) En la app de las tiendas y en la agregada a inicio (iPhone, o instalada en Android) el sistema
+//    la cierra solo (y con eso la sesión de la pestaña): no se borra nada, el entreno en curso queda
+//    detrás del ingreso.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
@@ -163,11 +164,14 @@ export default async function ({ base, t }){
     await close();
   }
 
-  // 8) Sesión no mantenida en la app de inicio del iPhone y en la de Android, con un entreno en curso.
+  // 8) Sesión no mantenida en la app de inicio del iPhone, en la de Android y en la web instalada en
+  //    Android (display-mode: standalone), con un entreno en curso.
   const IPHONE = `Object.defineProperty(navigator, 'standalone', { configurable: true, get: () => true });`;
+  const INSTALADA = `{ const mm = window.matchMedia.bind(window); window.matchMedia = q => /display-mode:\\s*standalone/.test(q)
+    ? { matches: true, media: q, onchange: null, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){}, dispatchEvent(){ return false; } } : mm(q); }`;
   const ANDROID = `window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: { App: { getInfo: async () => ({ build: '999', version: 'x' }),
     getLaunchUrl: async () => null, addListener: () => Promise.resolve({ remove(){} }) } } };`;
-  for (const [cual, init] of [['iPhone', IPHONE], ['Android', ANDROID]]) {
+  for (const [cual, init] of [['iPhone', IPHONE], ['Android', ANDROID], ['instalada en Android', INSTALADA]]) {
     const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, init: EFIMERA + ';' + init, handlers: { '/profiles': profile('client'), '/body_weights': WEIGHTS } });
     await p.route(u => !u.href.startsWith(base) && !/supabase\.co/.test(u.href), r => r.abort());
     await p.goto(base + '/app/'); await wait(3000);
