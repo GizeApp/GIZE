@@ -40,13 +40,15 @@ function secHead(title, kind){
 // Código para que se vinculen clientes. Con el cupo del plan lleno no se muestra: nadie más se
 // puede vincular (la base lo rechaza igual) y en su lugar se ofrece un plan más grande.
 // En la app de iPhone (core/tienda.js) el aviso no nombra el plan: solo que llegó al máximo.
+// Código viejo (6 caracteres, de antes de supabase/endurecer-base.sql): sigue sirviendo, pero es
+// más fácil de adivinar; se le sugiere cambiarlo (supabase/coach-alumnos.sql).
 const IS_NATIVE_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const IS_IOS_APP = appIOS();
 function inviteBox(){
-  const b=billing();
+  const b=billing(), viejo=!!CoachState.coachInvite && String(CoachState.coachInvite).length<8;
   if(b.known && b.atCap && IS_IOS_APP) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de alumnos de tu cuenta.</b><div class="co-invite-sub">Nadie más se puede vincular con tu código.</div></div>';
   if(b.known && b.atCap) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de tu plan</b> ('+b.count+'/'+b.max+' clientes)'+(IS_NATIVE_APP ? '<div class="co-invite-sub">Nadie más se puede vincular con tu código.</div>' : '<div class="co-invite-sub">Para sumar más clientes pasate a un plan más grande.</div><button class="co-copy-btn" data-plan="open">Ver planes</button>')+'</div>';
-  return '<div class="co-invite">Tu código de invitación<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Compartíselo a tus clientes para que se vinculen a vos.'+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div></div>';
+  return '<div class="co-invite">Tu código de invitación<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Compartíselo a tus clientes para que se vinculen a vos.'+(viejo?' Es un código del formato anterior, más corto y fácil de adivinar: te conviene cambiarlo. Sirve hasta que lo cambies.':'')+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div></div>';
 }
 
 // Cambios sin guardar: la primera vez que se dibuja una rutina (del cliente o en el editor) se
