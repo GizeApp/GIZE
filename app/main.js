@@ -52,7 +52,7 @@ import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
 
-import { EntrenoState, REST_DEFAULT, day, expandedOverride, exGroupIds, liveCounting, renderEntreno, dayNameCls, renderExList, renderExSheet, renderVarSheet, effectiveRest, restKey, wkElapsedText, wkFresh, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
+import { EntrenoState, REST_DEFAULT, day, expandedOverride, exGroupIds, liveCounting, renderEntreno, dayNameCls, renderExList, renderExSheet, renderVarSheet, effectiveRest, restKey, wkElapsedText, wkFresh, wkStarted, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
 import { HabitosState, addHabit, checkDaily, forgetHabitAlarm, habitAlarmDay, openHabitAlarm, paintHabitAlarmSheet, renderHabitAlarmSheet, renderHabitos, saveHabitAlarm } from './screens/habitos.js';
 import { alarmsSupported, askAlarmPermission, initHabitAlarms, syncHabitAlarms } from './ui/habitnotif.js';
@@ -896,7 +896,12 @@ document.body.addEventListener("click", async e => {
   else if (a === "removeex") { d.exercises = d.exercises.filter(x=>x.id!==el.dataset.ex); }
   else if (a === "wk-start") { state.wkStart={date:today(), day:d.id, ts:Date.now(), manual:true}; }
   else if (a === "wk-cancel") { if(!confirm("¿Cancelar el entrenamiento? El reloj vuelve a cero (las series tildadas quedan).")) return; delete state.wkStart; }
-  else if (a === "clear") { d.exercises.forEach(x=>x.sets.forEach(s=>s.done=false)); delete state.wkStart; }
+  else if (a === "clear") {
+    // Está debajo de «Finalizar» y «Cancelar»: si hay algo que perder (el reloj del entreno o las
+    // tildes), se pregunta antes, como en «Cancelar».
+    if((wkStarted(d) || d.exercises.some(x=>x.sets.some(s=>s.done))) && !confirm("¿Limpiar el día? Se destildan todas las series y el reloj del entreno vuelve a cero (los kg y reps quedan).")) return;
+    d.exercises.forEach(x=>x.sets.forEach(s=>s.done=false)); delete state.wkStart;
+  }
   else return;
   save(); renderApp();
 });
