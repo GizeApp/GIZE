@@ -181,22 +181,34 @@ Deno.serve(async (req) => {
   const apns = all.filter((s) => s.endpoint.startsWith("apns:"));
   if (web.length && !hasVapid && !fcm.length && !apns.length) return json({ error: "Faltan las claves VAPID en los Secrets de la función" }, 500);
 
-  // Primero se guarda (si no se puede, no sale ningún aviso y la app deja reintentar).
-  const { data: saved, error: saveErr } = await admin.from("coach_messages").insert({
-    coach_id: coachId, client_id: cid, sender, body, delivered: 0,
-    ...(audioPath ? { audio_path: audioPath, audio_secs: audioSecs } : {}),
-  }).select("id, created_at").maybeSingle();
+  // Primero se guarda (si no se puede, no sale ningún aviso y la app deja reintentar). Varios a
+  // la vez pasan juntos el primer conteo: la base cuenta y guarda junto, de a uno por
+  // conversación y lado (chat_guardar, supabase/chat.sql), y el que se pasa de 30 no se guarda.
+  // Antes se guardaba, se volvía a contar y se borraba, pero ya le había llegado en vivo al chat
+  // abierto del otro.
+  const g = await admin.rpc("chat_guardar", {
+    p_coach: coachId, p_client: cid, p_sender: sender, p_body: body,
+    p_audio_path: audioPath, p_audio_secs: audioPath ? audioSecs : null, p_tope: 30,
+  }).maybeSingle();
+  let saved = g.data as { id: string; created_at: string } | null, saveErr = g.error;
+  if (!saveErr && !saved) return json({ error: "Mandaste muchos mensajes seguidos. Esperá un minuto." }, 429);
+  if (saveErr && (saveErr.code === "PGRST202" || saveErr.code === "42883")) {
+    // Mientras no se corra supabase/chat.sql: se guarda, se cuenta de nuevo y el que se pasa
+    // de 30 se borra sin avisar (como antes).
+    ({ data: saved, error: saveErr } = await admin.from("coach_messages").insert({
+      coach_id: coachId, client_id: cid, sender, body, delivered: 0,
+      ...(audioPath ? { audio_path: audioPath, audio_secs: audioSecs } : {}),
+    }).select("id, created_at").maybeSingle());
+    const after = saved ? await recent() : 0;
+    if (saved && (after === null || after > 30)) {
+      await admin.from("coach_messages").delete().eq("id", saved.id);
+      return after === null ? json({ error: "No se pudo mandar el mensaje. Probá de nuevo." }, 503)
+        : json({ error: "Mandaste muchos mensajes seguidos. Esperá un minuto." }, 429);
+    }
+  }
   if (saveErr || !saved) {
     if (saveErr) console.error("coach_messages", saveErr.code, saveErr.message);
     return json({ error: "No se pudo guardar el mensaje. Probá de nuevo." }, 500);
-  }
-  // Varios a la vez pasan juntos el primer conteo: ya guardados, se cuenta de nuevo y los que
-  // se pasan de 30 se borran sin avisar.
-  const after = await recent();
-  if (after === null || after > 30) {
-    await admin.from("coach_messages").delete().eq("id", saved.id);
-    return after === null ? json({ error: "No se pudo mandar el mensaje. Probá de nuevo." }, 503)
-      : json({ error: "Mandaste muchos mensajes seguidos. Esperá un minuto." }, 429);
   }
 
   // Web, Android e iPhone en paralelo, cada envío con tiempo máximo.

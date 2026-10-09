@@ -4,7 +4,9 @@
 // nulo, id del alumno en mayúsculas) avisaba igual al celular del otro sin contar, y un error
 // al contar dejaba pasar todo. Ahora:
 // - se guarda antes de mandar los avisos (si no se guarda, no sale ningún aviso);
-// - si no se puede contar, no se manda; y se vuelve a contar ya guardado (varios a la vez);
+// - si no se puede contar, no se manda; y la base cuenta y guarda junto (chat_guardar, de a uno
+//   por conversación y lado), así el que se pasa de 30 no se guarda. Antes se guardaba, se
+//   contaba de nuevo y se borraba, pero ya le había llegado en vivo al chat abierto del otro;
 // - se usa el id del alumno como está en la base y el texto se limpia como en contacto;
 // - cada envío (web, Android, iPhone) tiene tiempo máximo y van en paralelo.
 import fs from 'node:fs';
@@ -16,7 +18,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export default async function ({ t }){
   const src = fs.readFileSync(path.join(ROOT, 'supabase/functions/notificar-cliente/index.ts'), 'utf8');
   const h = src.slice(src.indexOf('Deno.serve('));
-  const ins = h.indexOf('.from("coach_messages").insert(');
+  const ins = h.indexOf('admin.rpc("chat_guardar", {');
   const push = h.indexOf('webpush.sendNotification('), fcm = h.indexOf('fetch("https://fcm.googleapis.com/v1/'), apns = h.indexOf('fetch("https://api.push.apple.com/');
   t.ok(ins > 0 && push > ins && fcm > ins && apns > ins, 'el mensaje se guarda antes de mandar los avisos');
   t.ok(/if \(saveErr \|\| !saved\) \{[\s\S]*?return json\(\{ error: "No se pudo guardar el mensaje\. Probá de nuevo\." \}, 500\);/.test(h.slice(ins, push)), 'si no se guarda, no manda avisos y contesta error');
@@ -26,8 +28,24 @@ export default async function ({ t }){
   // El conteo.
   t.ok(/const \{ count, error \} = await admin\.from\("coach_messages"\)\.select\("id", \{ count: "exact", head: true \}\)/.test(h) && /return error \? null : \(count \|\| 0\);/.test(h), 'el conteo devuelve null si falla');
   t.ok(/if \(before === null\) return json\([^;]*503\);/.test(h) && /if \(before >= 30\) return json\([^;]*429\);/.test(h), 'antes de guardar: si no se pudo contar, no se manda; con 30, se frena');
-  const after = h.indexOf('const after = await recent();');
-  t.ok(after > ins && after < push && /if \(after === null \|\| after > 30\) \{\s*await admin\.from\("coach_messages"\)\.delete\(\)\.eq\("id", saved\.id\);/.test(h), 'ya guardado se cuenta de nuevo: el que se pasa se borra y no avisa');
+  t.ok(/p_coach: coachId, p_client: cid, p_sender: sender, p_body: body,\s*p_audio_path: audioPath, p_audio_secs: audioPath \? audioSecs : null, p_tope: 30,/.test(h), 'guarda con chat_guardar, con el tope de 30');
+  t.ok(/if \(!saveErr && !saved\) return json\(\{ error: "Mandaste muchos mensajes seguidos\. Esperá un minuto\." \}, 429\);/.test(h.slice(ins, push)), 'si la base no lo guardó por el tope, contesta 429 sin avisar');
+  // Sin el SQL nuevo todavía (la función no existe): como antes.
+  const viejo = h.slice(h.indexOf('if (saveErr && (saveErr.code === "PGRST202"'), push);
+  t.ok(viejo.length > 0 && viejo.length < h.length && /\.from\("coach_messages"\)\.insert\(/.test(viejo) && /const after = saved \? await recent\(\) : 0;/.test(viejo)
+    && /await admin\.from\("coach_messages"\)\.delete\(\)\.eq\("id", saved\.id\);/.test(viejo), 'sin chat_guardar (falta el SQL) guarda, cuenta de nuevo y borra el que se pasa, como antes');
+  t.eq((h.match(/\.from\("coach_messages"\)\.(insert|delete)\(/g) || []).length, 2, 'insert y delete directos solo en ese caso');
+
+  // La función de la base: cuenta y guarda junto, de a uno por conversación y lado.
+  const sql = fs.readFileSync(path.join(ROOT, 'supabase/chat.sql'), 'utf8');
+  const fn = sql.slice(sql.indexOf('create or replace function public.chat_guardar('), sql.indexOf('end $$;', sql.indexOf('create or replace function public.chat_guardar(')));
+  t.ok(fn.length > 100, 'chat.sql: está chat_guardar');
+  const lock = fn.indexOf('perform pg_advisory_xact_lock(hashtext(\'chat:\' || p_coach::text || \':\' || p_client::text), hashtext(p_sender));');
+  const cuenta = fn.search(/if \(select count\(\*\) from public\.coach_messages m\s+where m\.coach_id = p_coach and m\.client_id = p_client and m\.sender = p_sender\s+and m\.created_at >= now\(\) - interval '1 minute'\) >= p_tope then\s+return;/);
+  const guarda = fn.indexOf('insert into public.coach_messages');
+  t.ok(lock > 0 && cuenta > lock && guarda > cuenta, 'chat_guardar: primero espera su turno, después cuenta y recién ahí guarda');
+  t.ok(/revoke all on function public\.chat_guardar\([^)]*\) from public, anon, authenticated;/.test(sql) && /grant execute on function public\.chat_guardar\([^)]*\) to service_role;/.test(sql), 'chat_guardar: solo la usa la función (service role)');
+  t.ok(!/security definer/.test(fn), 'chat_guardar: corre con los permisos del que la llama');
   t.ok(!/\(recent \|\| 0\) >= 30/.test(h), 'sin el conteo que tomaba un error como cero');
 
   // El id del alumno y el texto.
