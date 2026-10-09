@@ -2,6 +2,8 @@
 -- Correr UNA vez en Supabase → SQL Editor, DESPUÉS de notificaciones.sql. Se puede volver
 -- a correr sin problema. Después publicar las funciones (workflow Supabase → funciones):
 -- la de mensajes ("rapid-worker") es la que guarda y avisa en los dos sentidos.
+-- OJO: la versión vigente de la política de subir audios (ruta exacta y tope por día) está en
+-- topes-archivos.sql: si volvés a correr este archivo, corré después topes-archivos.sql.
 --
 -- Usa la misma tabla de los mensajes del coach (coach_messages): lo que ya se mandó queda
 -- como el principio de la conversación.

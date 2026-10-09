@@ -1376,15 +1376,20 @@ export async function deleteMyStorageFiles(){
   for(const bucket of ["avatars","productos"]){
     const st=State.sb.storage.from(bucket);
     // Primero se listan todas (list() devuelve de a 1000 como máximo) y después se borran:
-    // borrar mientras se pagina corre el offset y se saltearía archivos.
-    const paths=[];
-    for(let offset=0;;offset+=1000){
-      const r=sbOk(await st.list(uid,{limit:1000, offset:offset}));
-      const items=r.data||[];
-      // id null = subcarpeta (la app no las crea; se ignoran).
-      items.forEach(it=>{ if(it && it.id) paths.push(uid+"/"+it.name); });
-      if(items.length<1000) break;
-    }
+    // borrar mientras se pagina corre el offset y se saltearía archivos. También las de las
+    // subcarpetas (id null): la app no las crea, pero Storage las aceptaba antes y quedaban.
+    const walk=async(prefix,depth)=>{
+      const files=[], dirs=[];
+      for(let offset=0;;offset+=1000){
+        const r=sbOk(await st.list(prefix,{limit:1000, offset:offset}));
+        const items=r.data||[];
+        items.forEach(it=>{ if(it && it.name) (it.id ? files : dirs).push(prefix+"/"+it.name); });
+        if(items.length<1000) break;
+      }
+      if(depth<10) for(const d of dirs) files.push(...await walk(d, depth+1));
+      return files;
+    };
+    const paths=await walk(uid, 0);
     for(let i=0;i<paths.length;i+=100) sbOk(await st.remove(paths.slice(i,i+100)));
   }
 }
