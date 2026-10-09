@@ -9,6 +9,7 @@
 // - Con la cuenta ya borrada no hay sesión para reintentar: las rutas se anotan en
 //   audios_por_borrar y lo que no se llega a borrar (falla o la función se corta) lo borra un
 //   cron cada hora. Antes quedaban para siempre sin dueño.
+// - Se sacan de la cola de a 50: con 100 rutas el pedido pasaba de 8.000 caracteres.
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -79,15 +80,15 @@ export default async function ({ base, t }){
   catch (e) { t.ok(false, 'no se pudo cargar borrar-audios/cola.ts: ' + (e && e.message ? e.message.split('\n')[0] : e)); }
   if (m){
     const fake = ({ falla = () => false, anotarFalla = false } = {}) => {
-      const cola = new Set(), upserts = [], tandas = [], borrados = [];
+      const cola = new Set(), upserts = [], tandas = [], borrados = [], sacadas = [];
       const db = {
         from: (tabla) => ({
           upsert: async (rows, opt) => { upserts.push([tabla, rows.length, opt && opt.onConflict]); if (anotarFalla) return { error: { message: 'sin tabla' } }; rows.forEach(r => cola.add(r.path)); return { error: null }; },
-          delete: () => ({ in: async (col, vals) => { vals.forEach(v => cola.delete(v)); return { error: null }; } }),
+          delete: () => ({ in: async (col, vals) => { sacadas.push(vals.slice()); vals.forEach(v => cola.delete(v)); return { error: null }; } }),
         }),
         storage: { from: (b) => ({ remove: async (paths) => { tandas.push([b, paths.length]); if (falla(paths)) return { data: null, error: new Error('Storage no contesta') }; borrados.push(...paths); return { data: paths, error: null }; } }) },
       };
-      return { db, cola, upserts, tandas, borrados };
+      return { db, cola, upserts, tandas, borrados, sacadas };
     };
     const rutas = Array.from({ length: 250 }, (_, i) => 'c0/a1/audio' + String(i).padStart(4, '0') + '.webm');
     const err = console.error; console.error = () => {};
@@ -97,18 +98,32 @@ export default async function ({ base, t }){
       t.ok(await m.anotar(f.db, rutas), 'anotar: anota las rutas');
       t.eq(f.cola.size, 250, 'anotar: quedan todas en la cola');
       t.eq(await m.borrar(f.db, 'chat-audio', rutas), 250, 'borrar: borra todas');
-      t.eq([f.tandas.length, f.cola.size], [3, 0], 'borrar: de a 100 y la cola queda vacía');
-      // Falla la segunda tanda: esas 100 quedan anotadas para el cron.
+      t.eq([f.tandas.length, f.cola.size], [5, 0], 'borrar: de a 50 y la cola queda vacía');
+      // Falla la tercera tanda: esas 50 quedan anotadas para el cron.
       f = fake({ falla: (p) => p[0] === rutas[100] });
       await m.anotar(f.db, rutas);
-      t.eq(await m.borrar(f.db, 'chat-audio', rutas), 150, 'si falla una tanda, sigue con las demás');
-      t.eq([...f.cola], rutas.slice(100, 200), 'la tanda que falló queda en la cola (antes se perdía)');
+      t.eq(await m.borrar(f.db, 'chat-audio', rutas), 200, 'si falla una tanda, sigue con las demás');
+      t.eq([...f.cola], rutas.slice(100, 150), 'la tanda que falló queda en la cola (antes se perdía)');
       // El cron la vuelve a pasar y ahora anda.
       const pendientes = [...f.cola];
       f.tandas.length = 0;
       const g = fake(); pendientes.forEach(p => g.cola.add(p));
-      t.eq(await m.borrar(g.db, 'chat-audio', pendientes), 100, 'el cron borra lo que quedó');
+      t.eq(await m.borrar(g.db, 'chat-audio', pendientes), 50, 'el cron borra lo que quedó');
       t.eq(g.cola.size, 0, 'y lo saca de la cola');
+      // Rutas de verdad (coach/alumno/nombre: 111 caracteres): sacarlas de la cola va con las rutas
+      // en la dirección del pedido, como lo arma supabase-js (path=in.(a,b,…)). Con 100 por tanda
+      // eran casi 12.000 caracteres; supabase-js avisa desde 8.000 y el servidor lo puede rechazar
+      // (los audios se borraban pero quedaban anotados para siempre).
+      const uuid = (i) => '0000000' + (i % 10) + '-aaaa-4bbb-8ccc-' + String(i).padStart(12, '0');
+      const largas = Array.from({ length: 400 }, (_, i) => uuid(i) + '/' + uuid(i + 1) + '/' + String(i).padStart(32, 'f') + '.webm');
+      t.eq(largas[0].length, 111, 'ruta de 111 caracteres');
+      f = fake();
+      await m.anotar(f.db, largas);
+      t.eq(await m.borrar(f.db, 'chat-audio', largas), 400, 'rutas largas: borra todas');
+      const url = (vals) => ('https://abcdefghijklmnopqrst.supabase.co/rest/v1/audios_por_borrar?' + new URLSearchParams({ path: 'in.(' + vals.join(',') + ')' })).length;
+      const mayor = Math.max(...f.sacadas.map(url));
+      t.ok(f.sacadas.length > 0 && mayor < 8000, 'rutas largas: cada pedido para sacarlas de la cola tiene menos de 8.000 caracteres (el mayor: ' + mayor + ')');
+      t.eq(f.cola.size, 0, 'rutas largas: la cola queda vacía');
       // Muchos audios: se anotan de a 1000.
       f = fake();
       const muchas = Array.from({ length: 2500 }, (_, i) => 'c0/ex/x' + String(i).padStart(5, '0') + '.webm');

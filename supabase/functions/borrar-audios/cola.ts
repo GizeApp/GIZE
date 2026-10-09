@@ -14,12 +14,16 @@ export async function anotar(db: Db, paths: string[]): Promise<boolean> {
   return true;
 }
 
-// Borra los audios de a 100 y saca de la cola cada tanda borrada: lo que falla (o lo que no se
+// Borra los audios de a 50 y saca de la cola cada tanda borrada: lo que falla (o lo que no se
 // llega a borrar si la función se corta) queda anotado para el cron. Devuelve cuántos borró.
+// De a 50 y no más: para sacarlas de la cola, las rutas van en la dirección del pedido (cada
+// una tiene 111 caracteres). Con 100 eran casi 12.000 caracteres (supabase-js avisa desde 8.000)
+// y, si se rechazaba, los audios se borraban pero seguían anotados: el cron repasaba siempre los
+// mismos 1000 más viejos.
 export async function borrar(db: Db, bucket: string, paths: string[]): Promise<number> {
   let removed = 0;
-  for (let i = 0; i < paths.length; i += 100) {
-    const tanda = paths.slice(i, i + 100);
+  for (let i = 0; i < paths.length; i += 50) {
+    const tanda = paths.slice(i, i + 50);
     const { error } = await db.storage.from(bucket).remove(tanda);
     if (error) { console.error("borrar-audios: quedaron audios sin borrar", (error as Error).message); continue; }
     removed += tanda.length;
