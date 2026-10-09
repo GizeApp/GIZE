@@ -10,6 +10,8 @@
 //    marca se perdió igual, el próximo save() de la pestaña con sesión la vuelve a poner.
 // 7) La marca de las versiones anteriores ("1" en vez de la cuenta, y sin state.ownerUid): la
 //    rutina sin subir queda igual.
+// 8) En la app de las tiendas y en la agregada a inicio del iPhone el sistema la cierra solo (y con
+//    eso la sesión de la pestaña): no se borra nada, el entreno en curso queda detrás del ingreso.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
@@ -158,6 +160,26 @@ export default async function ({ base, t }){
     t.eq(c.prof, null, '7: el perfil se borra');
     t.eq(c.marca, null, '7: la marca se saca');
     t.eq(errs, [], '7: errores de la página');
+    await close();
+  }
+
+  // 8) Sesión no mantenida en la app de inicio del iPhone y en la de Android, con un entreno en curso.
+  const IPHONE = `Object.defineProperty(navigator, 'standalone', { configurable: true, get: () => true });`;
+  const ANDROID = `window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: { App: { getInfo: async () => ({ build: '999', version: 'x' }),
+    getLaunchUrl: async () => null, addListener: () => Promise.resolve({ remove(){} }) } } };`;
+  for (const [cual, init] of [['iPhone', IPHONE], ['Android', ANDROID]]) {
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, init: EFIMERA + ';' + init, handlers: { '/profiles': profile('client'), '/body_weights': WEIGHTS } });
+    await p.route(u => !u.href.startsWith(base) && !/supabase\.co/.test(u.href), r => r.abort());
+    await p.goto(base + '/app/'); await wait(3000);
+    await p.evaluate(async () => { const { state } = await import('/app/core/state.js'), { save } = await import('/app/core/storage.js');
+      state.wkStart = { date: '2026-10-09', day: 'd1', ts: Date.now() }; save(); localStorage.setItem('gize_salidas_track_v1', '{"s1":"x"}'); });
+    t.eq((await claves(p)).marca, null, '8 ' + cual + ': no se anota la sesión para borrarla');
+    await cerrarYAbrir(p);
+    const c = await claves(p);
+    t.ok(c.st && c.st.wkStart && c.st.weights && c.st.weights.length, '8 ' + cual + ': el entreno en curso y los datos siguen detrás del ingreso');
+    t.eq(c.track, '{"s1":"x"}', '8 ' + cual + ': los recorridos también');
+    t.ok(await p.isVisible('#auEmail'), '8 ' + cual + ': pide ingresar');
+    t.eq(errs, [], '8 ' + cual + ': errores de la página');
     await close();
   }
 }
