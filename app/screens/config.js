@@ -19,7 +19,7 @@ import { TRACK_KEY } from '../core/salidas.js';
 import { deleteShareFile } from '../ui/compartir.js';
 import { temaOptionsHtml } from '../ui/tema.js';
 import { neonSwitchHtml } from '../ui/neon.js';
-import { appIOS } from '../core/tienda.js';
+import { appNativa } from '../core/tienda.js';
 import { bellSvg, fileTextSvg, instagramSvg, globeSvg, auIcoMail, whatsappSvg, chevronRightSvg, pencilSvg, checkSvg } from '../core/icons.js';
 
 const cameraSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
@@ -340,7 +340,7 @@ document.body.addEventListener("click", async function (e) {
         const bl = await State.sb.from("coach_billing").select("mp_status, mp_preapproval_id").eq("coach_id", State.cloudUser.id).maybeSingle();
         if (bl.data && bl.data.mp_preapproval_id && bl.data.mp_status === "authorized") {
           const rc = await State.sb.functions.invoke("suscripcion", { body: { action: "cancel" } });
-          if (rc.error || (rc.data && rc.data.error)) throw new Error(appIOS() ? "no se pudo dar de baja tu cuenta de coach. Probá de nuevo o escribinos a contacto@gize.ar" : "no se pudo cancelar tu suscripción en Mercado Pago. Probá de nuevo o escribinos a contacto@gize.ar");
+          if (rc.error || (rc.data && rc.data.error)) throw new Error(appNativa() ? "no se pudo dar de baja tu cuenta de coach. Probá de nuevo o escribinos a contacto@gize.ar" : "no se pudo cancelar tu suscripción en Mercado Pago. Probá de nuevo o escribinos a contacto@gize.ar");
         }
       }
       // Primero las fotos (perfil y productos): la función de abajo no puede borrar archivos

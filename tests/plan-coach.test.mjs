@@ -1,5 +1,6 @@
 // "Mi plan" del coach: el plan elegido en la página de inicio, el mensaje de WhatsApp, la
-// prueba gratis antes del plan pago y, en las apps de las tiendas, sin precios ni links.
+// prueba gratis antes del plan pago y, en las apps de las tiendas, nada de eso: sin la tira, sin
+// «Mi plan» y sin hablar de la prueba, de planes ni de precios.
 import { newPage, wait } from './lib.mjs';
 
 async function sheet(base, row, { native = false, url = '/app/', timezoneId } = {}){
@@ -11,7 +12,8 @@ async function sheet(base, row, { native = false, url = '/app/', timezoneId } = 
     State.sb = { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: row, error: null }) }) }) }) };
     CoachState.coachClients = [{ id: 'a' }, { id: 'b' }];
     await m.loadBilling(); const banner = m.renderPlanBanner().replace(/<[^>]+>/g, ''); m.openPlan();
-    const h = document.getElementById('planSheetHost'), ch = h.querySelector('.pl-card.chosen a.pl-alt');
+    // En las apps «Mi plan» no se abre (ni se arma su lugar): queda vacío.
+    const h = document.getElementById('planSheetHost') || document.createElement('div'), ch = h.querySelector('.pl-card.chosen a.pl-alt');
     return { banner, sheet: h.innerText.replace(/\s+/g, ' '), links: h.querySelectorAll('a.pl-alt').length, cards: h.querySelectorAll('button.pl-choose[data-plan="choose"]').length, chosen: ch ? decodeURIComponent(ch.href) : null,
       tags: [...h.querySelectorAll('.pl-tag')].map(x => x.textContent), wall: m.renderPaywall().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ') };
   }, row);
@@ -61,13 +63,15 @@ export default async function ({ base, t }){
   r = await sheet(base, { plan: 'p25', max_clients: 25, trial_ends_at: D(-40), paid_until: '2099-10-01T03:00:00Z' }, { timezoneId: 'Europe/Madrid' });
   t.has(r.banner, 'vence el 30', 'la fecha de vencimiento va en hora de Argentina'); await r.close();
 
-  // App de Android con la prueba vencida: sin precios ni links.
+  // App de Android con la prueba vencida: sin la tira, sin «Mi plan» y una pantalla neutra, sin la
+  // prueba, planes, precios ni links (como en el iPhone: ver coach-iphone.test.mjs).
   r = await sheet(base, { plan: 'trial', max_clients: 10, trial_ends_at: D(-2) }, { native: true });
   t.eq(r.links, 0, 'Android: sin links para contratar');
+  t.eq([r.banner, r.sheet], ['', ''], 'Android: sin la tira del plan y «Mi plan» no se abre');
   t.ok(!/\$/.test(r.sheet + r.wall), 'Android: sin precios');
   t.ok(!/Gimnasio|a medida|wa\.me/.test(r.sheet + r.wall), 'Android: sin los planes de gimnasio ni el plan a medida');
-  t.has(r.wall, 'Terminó tu prueba gratis', 'Android: pantalla de prueba vencida');
-  t.has(r.banner, 'Sin plan vigente', 'Android: tira sin plan');
+  t.has(r.wall, 'Tu cuenta de coach no está activa en este momento.', 'Android: pantalla neutra de la cuenta vencida');
+  t.ok(!/prueba|gratis|\bplan\b|vigente/i.test(r.wall), 'Android: sin hablar de la prueba ni del plan: ' + r.wall);
   // Venció hace 2 días: le quedan 2 de los 4 de gracia antes de que sus clientes pasen al sistema común.
   // En Android sin mandar a renovar ni a hablar con el equipo (Play no deja pagar por fuera).
   t.has(r.wall, 'tus clientes pasan a usar GIZE por su cuenta', 'Android: días de gracia, qué pasa después');
