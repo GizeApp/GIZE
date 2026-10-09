@@ -6,6 +6,9 @@
 //    regla del plugin de ubicación (no va en Android) y con las líneas para leer los errores.
 // c) scripts/build-web.mjs (www/ para las apps): sin los logos en PNG, las imágenes de los mails ni
 //    BRAND.md; con todo lo de brand/ que la app y el CSS usan.
+// e) En cada PR que toca Android (android.yml) se compila también la release con R8, sin firmar: un
+//    problema de R8 o de las reglas frena el PR (antes aparecía recién al armar la versión de Play
+//    desde main, porque la de prueba va sin R8).
 // d) Para la app de Android (npm run android → build-web.mjs --android) tampoco va MapLibre (ahí
 //    nunca hay mapa); la de iPhone (npm run ios y su workflow, sin --android) sí lo lleva. Lo demás
 //    de vendor/ (Supabase, el lector de códigos de barras) va en las dos.
@@ -71,4 +74,10 @@ export default async function ({ t }){
   t.ok(/^node scripts\/build-web\.mjs --android && npx cap sync android$/.test(pkg.android), 'npm run android arma www/ sin MapLibre: ' + pkg.android);
   t.ok(/build-web\.mjs &&/.test(pkg.ios) && !/--android/.test(pkg.ios), 'npm run ios arma www/ con MapLibre: ' + pkg.ios);
   for (const m of read('.github/workflows/ios.yml').matchAll(/run: (.*build-web.*)/g)) t.ok(!/--android/.test(m[1]), 'workflow de iPhone con MapLibre: ' + m[1]);
+
+  // e) R8 en cada PR de Android.
+  const y = read('.github/workflows/android.yml'), dbg = y.indexOf('run: ./gradlew assembleDebug --no-daemon'), r8 = y.indexOf('run: ./gradlew assembleRelease --no-daemon');
+  t.ok(/\n  pull_request:\n    paths: \[[^\]]*"android\/\*\*"/.test(y), 'android.yml corre en los PR que tocan android/');
+  t.ok(dbg > 0 && r8 > dbg && /working-directory: android\n\s*run: \.\/gradlew assembleRelease/.test(y), 'android.yml: además de la de prueba, compila la release con R8 (sin firmar)');
+  t.ok(!/GIZE_KEYSTORE/.test(y), 'android.yml: sin la clave de firma (la release sale sin firmar)');
 }

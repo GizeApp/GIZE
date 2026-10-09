@@ -297,7 +297,14 @@ function nativo(t){
   for (const w of ['.github/workflows/android.yml', '.github/workflows/android-release.yml']){
     const y = read(w), sync = y.indexOf('run: npm run android'), guard = y.indexOf('grep -q "background-geolocation" android/capacitor.settings.gradle android/app/capacitor.build.gradle android/app/src/main/assets/capacitor.plugins.json');
     t.ok(sync > 0 && guard > sync && /exit 1/.test(y.slice(guard, guard + 400)), w + ': después de cap sync frena si el plugin de ubicación volvió al build');
+    const archivos = y.indexOf('for f in android/capacitor.settings.gradle android/app/capacitor.build.gradle android/app/src/main/assets/capacitor.plugins.json; do');
+    t.ok(archivos > sync && archivos < guard && /if \[ ! -f "\$f" \]; then [^\n]*exit 1; fi/.test(y.slice(archivos, guard)), w + ': antes del grep revisa que estén los tres archivos (si falta uno, frena)');
   }
+  // Lo que lee Play: el manifiesto final del APK con R8 (unido con el de cada biblioteca).
+  const y = read('.github/workflows/android.yml'), rel = y.indexOf('./gradlew assembleRelease'), dump = y.indexOf('"$AAPT2" dump permissions "$APK" > permisos.txt');
+  t.ok(rel > 0 && dump > rel && y.includes('"$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > manifiesto.txt'), 'android.yml: lee los permisos y el manifiesto final del APK de la release');
+  t.ok(/if grep -E "LOCATION" permisos\.txt \|\| grep -Ei "geolocation\|hardware\\\.location" manifiesto\.txt; then\n\s*echo "::error::[^"]*"; exit 1/.test(y.slice(dump)), 'android.yml: frena si el APK pide la ubicación o trae el servicio del GPS');
+  t.ok(/if ! grep -q "android\.permission\.INTERNET" permisos\.txt/.test(y.slice(dump)), 'android.yml: si no pudo leer el manifiesto, frena (no pasa como «sin ubicación»)');
 }
 
 export default async function ({ base, t }){
