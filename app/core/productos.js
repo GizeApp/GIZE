@@ -120,8 +120,10 @@ export async function uploadLabelPhoto(file, code, prefix){
 // Pedido de un producto que no está (supabase/pedidos-productos.sql): el usuario manda la foto
 // de la tabla nutricional (y si quiere la del frente), el nombre y la marca. Los valores los
 // carga un administrador desde gize.ar/admin, que lo publica para todos.
-// Si el pedido no se guarda (sin señal, tope de pedidos del día), se borran las fotos que ya se
-// subieron: si no, quedaban para siempre en Storage sin ningún pedido.
+// Si el pedido no se guarda (tope de pedidos del día, no se pudo subir la otra foto), se borran
+// las fotos que ya se subieron: si no, quedaban para siempre en Storage sin ningún pedido.
+// Si la respuesta del pedido no llega (error sin código: se cortó la señal), no se sabe si la
+// base lo guardó: las fotos quedan, porque el pedido puede estar en el panel apuntando a ellas.
 export async function sendProductRequest({ name, brand, code, label, front }){
   if (!ready()) throw new Error("Tenés que iniciar sesión.");
   const c = String(code || "").replace(/\D/g, "");
@@ -131,7 +133,7 @@ export async function sendProductRequest({ name, brand, code, label, front }){
     if (front) up.push(await uploadLabelPhoto(front, c, "pedido-frente-"));
     const r = await State.sb.from("product_requests").insert({ name: String(name).trim().slice(0, 120), brand: String(brand || "").trim().slice(0, 60) || null,
       code: c.length >= 6 && c.length <= 14 ? c : null, label_path: up[0], front_path: up[1] || null });
-    if (r.error) throw r.error;
+    if (r.error){ if (!r.error.code) up.length = 0; throw r.error; }
   } catch (e) {
     if (up.length) try { await State.sb.storage.from("productos").remove(up); } catch (x) {}
     throw e;
