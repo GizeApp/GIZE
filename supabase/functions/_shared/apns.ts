@@ -1,8 +1,9 @@
 // Token de APNs (el JWT firmado con la clave .p8 que va en cada envío a un iPhone). Apple pide
 // no firmar uno nuevo más de una vez cada 20 minutos (si no, responde 429
 // TooManyProviderTokenUpdates y el aviso no llega) y cambiarlo antes de la hora. Cada mensaje del
-// chat llama a la función y firmaba uno nuevo: mientras la función siga viva entre mensajes, se
-// reusa el mismo por 40 minutos. Está aparte de index.ts para poder probarlo sin Deno
+// chat (notificar-cliente) y cada aviso al coach (avisos-coach) firmaba uno nuevo: mientras la
+// función siga viva, se reusa el mismo por 40 minutos. avisos-coach guarda así también el token
+// de Firebase (dura una hora). Está aparte para usarlo en las dos y probarlo sin Deno
 // (tests/apns-token.test.mjs).
 
 export const APNS_TTL = 40 * 60_000;
