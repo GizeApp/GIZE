@@ -34,6 +34,18 @@ alter table public.contact_messages add column if not exists reply_to text check
 alter table public.contact_messages add column if not exists auth_dmarc text check (auth_dmarc is null or char_length(auth_dmarc) <= 40);
 alter table public.contact_messages add column if not exists auth_spf text check (auth_spf is null or char_length(auth_spf) <= 40);
 alter table public.contact_messages add column if not exists auth_dkim text check (auth_dkim is null or char_length(auth_dkim) <= 40);
+-- Cuándo salió el aviso a los administradores: la función lo anota justo antes de mandarlo, y
+-- el reintento de Resend avisa si todavía no salió (antes, si el primer intento se cortaba
+-- después de guardar la fila, el aviso no salía nunca). La primera vez, los mensajes que ya
+-- estaban se dan por avisados.
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'contact_messages' and column_name = 'notified_at') then
+    alter table public.contact_messages add column notified_at timestamptz;
+    update public.contact_messages set notified_at = created_at;
+  end if;
+end $$;
 create index if not exists contact_messages_unread_idx on public.contact_messages (created_at desc) where read_at is null;
 create index if not exists contact_messages_created_idx on public.contact_messages (created_at desc);
 
