@@ -69,8 +69,13 @@ export default async function ({ base, t }){
   t.has(r.wall, 'Terminó tu prueba gratis', 'Android: pantalla de prueba vencida');
   t.has(r.banner, 'Sin plan vigente', 'Android: tira sin plan');
   // Venció hace 2 días: le quedan 2 de los 4 de gracia antes de que sus clientes pasen al sistema común.
+  // En Android sin mandar a renovar ni a hablar con el equipo (Play no deja pagar por fuera).
+  t.has(r.wall, 'tus clientes pasan a usar GIZE por su cuenta', 'Android: días de gracia, qué pasa después');
+  t.ok(!/renov|equipo|hablá|Elegí un plan/i.test(r.wall), 'Android: sin mandar a renovar: ' + r.wall); await r.close();
+  // En la web, con el plazo para renovar.
+  r = await sheet(base, { plan: 'trial', max_clients: 10, trial_ends_at: D(-2) });
   t.has(r.wall, 'Tenés hasta el', 'días de gracia: hasta cuándo puede renovar');
-  t.has(r.wall, 'tus clientes pasan a usar GIZE por su cuenta', 'días de gracia: qué pasa después'); await r.close();
+  t.has(r.wall, 'para renovar. Después, tus clientes pasan a usar GIZE por su cuenta', 'días de gracia: qué pasa después'); await r.close();
 
   // Venció hace 6 días: ya pasaron los 4 de gracia (sus clientes ya no están): sin ese aviso.
   r = await sheet(base, { plan: 'p25', max_clients: 25, trial_ends_at: D(-40), paid_until: D(-6) });

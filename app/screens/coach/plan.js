@@ -190,7 +190,10 @@ function graceLine(b){
   const end = Math.max(new Date(B.row.trial_ends_at || 0).getTime(), B.row.paid_until ? new Date(B.row.paid_until).getTime() : 0);
   const limit = end + GRACE_DAYS * 864e5;
   if(!(end > 0) || limit <= Date.now()) return "";
-  return '<div class="pl-wall-s pl-wall-grace">Tenés hasta el ' + fmtDate(ymd(new Date(limit).toISOString())) + ' para renovar. Después, tus clientes pasan a usar GIZE por su cuenta, con todo lo que les armaste.</div>';
+  const dia = fmtDate(ymd(new Date(limit).toISOString()));
+  // En las apps de las tiendas, sin mandar a renovar (se paga por fuera de Google y Apple).
+  return '<div class="pl-wall-s pl-wall-grace">' + (IS_NATIVE ? 'El ' + dia + ' tus clientes pasan a usar GIZE por su cuenta, con todo lo que les armaste.'
+    : 'Tenés hasta el ' + dia + ' para renovar. Después, tus clientes pasan a usar GIZE por su cuenta, con todo lo que les armaste.') + '</div>';
 }
 
 // Pantalla completa cuando no hay prueba ni plan vigente.
@@ -202,7 +205,7 @@ export function renderPaywall(){
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
     '<div class="pl-wall-hero"><div class="pl-wall-t">' + (B.row && B.row.paid_until ? 'Tu plan venció' : 'Terminó tu prueba gratis') + '</div>' +
     '<div class="pl-wall-s">Tus ' + b.count + ' cliente' + (b.count === 1 ? '' : 's') + ', rutinas y registros están guardados. ' +
-    (IS_NATIVE ? 'Para volver a verlos, hablá con el equipo de GIZE.' : 'Elegí un plan para volver a verlos y seguir sumando clientes: con tarjeta se renueva solo cada mes.') + '</div>' +
+    (IS_NATIVE ? '' : 'Elegí un plan para volver a verlos y seguir sumando clientes: con tarjeta se renueva solo cada mes.') + '</div>' +
     graceLine(b) +
     (B.confirming ? '<div class="pl-status">Confirmando tu pago con Mercado Pago…</div>' : '') + '</div>' +
     planCards(b) +

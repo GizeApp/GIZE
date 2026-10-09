@@ -110,6 +110,7 @@ html.tema-luz .pg-link.danger { color: #8A1A16; }
 .salud-ok-ico svg { width: 13px; height: 13px; }
 .salud-ok-t { font-weight: 700; color: var(--gize-text); }
 .salud-ok-acts { display: inline-flex; align-items: center; gap: 8px; }
+.salud-ok-err { flex-basis: 100%; color: var(--gize-warning); font-weight: 500; line-height: 1.35; }
 .salud-ok .pg-link { padding: 6px 0; }
 .salud-ok-sep { color: var(--txt-2); }
 /* «Claro»: el corazón y el verde más oscuros sobre el celeste (contraste AA). */

@@ -55,7 +55,11 @@ function nativeToken(PN){
 }
 function nativeForeground(PN){
   if (nativeListeners) return; nativeListeners = true;
-  // Con la app abierta Android no muestra la notificación: se avisa adentro de la app.
+  // Con la app abierta, iPhone ya muestra el cartel del sistema (presentationOptions "alert" en
+  // capacitor.config.json): uno propio encima lo duplicaba. Android solo lo deja en la barra de
+  // notificaciones, sin cartel: ahí se avisa adentro de la app.
+  let ios = false; try { ios = window.Capacitor.getPlatform() === "ios"; } catch (e) {}
+  if (ios) return;
   PN.addListener("pushNotificationReceived", n => {
     const box = document.createElement("div");
     box.setAttribute("role", "status");
