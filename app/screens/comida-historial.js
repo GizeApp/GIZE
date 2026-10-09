@@ -34,12 +34,14 @@ export async function loadDay(date, rerender) {
     rerender(); return;
   }
   try {
-    const r = await State.sb.from("food_entries").select("id, name, grams, kcal, protein, carbs, fat, unit, meal")
+    // Con base (valores cada 100 g): al cambiar algo del día se vuelve a subir entero, y sin ella
+    // quedaba en null en la nube y al editar los gramos se recalculaba de lo redondeado.
+    const r = await State.sb.from("food_entries").select("id, name, grams, kcal, protein, carbs, fat, unit, meal, base")
       .eq("client_id", State.cloudUser.id).eq("log_date", date).order("pos");
     if (r.error) throw r.error;
     const items = (r.data || []).map(x => ({
       id: x.id, meal: x.meal || undefined, name: x.name, grams: Number(x.grams) || 0, unit: x.unit || "g",
-      kcal: Math.round(Number(x.kcal) || 0), p: Number(x.protein) || 0, c: Number(x.carbs) || 0, f: Number(x.fat) || 0,
+      kcal: Math.round(Number(x.kcal) || 0), p: Number(x.protein) || 0, c: Number(x.carbs) || 0, f: Number(x.fat) || 0, base: x.base || undefined,
     }));
     // Lo cargado o borrado sin señal todavía no está en la nube: manda lo del celular.
     const pend = pendingFoods(date);

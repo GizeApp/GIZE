@@ -263,6 +263,13 @@ function startDays(n, first){
   save(); close(); renderApp();
 }
 
+// Elegida la opción, la lista espera al catálogo de la base (con señal floja puede tardar): la
+// opción queda marcada y se avisa que está cargando, así no parece que la pantalla no responde.
+function waitRoutines(host, v){
+  mark(host, "sex", v);
+  host.querySelector(".onb-opts").insertAdjacentHTML("afterend", '<p class="onb-text onb-wait" role="status">Cargando rutinas…</p>');
+}
+
 function showSex(){
   const host=mount(
     '<h1 class="onb-title">¿Para quién buscamos rutinas?</h1>'+
@@ -275,7 +282,7 @@ function showSex(){
   host.onclick=e=>{
     const b=e.target.closest("[data-onb]"); if(!b) return;
     if(b.dataset.onb==="back"){ host.onclick=null; showStartChoice(); return; }
-    if(b.dataset.onb==="sex"){ state.sex=b.dataset.v; save(); host.onclick=null; showRoutines(false); }
+    if(b.dataset.onb==="sex"){ state.sex=b.dataset.v; save(); host.onclick=null; waitRoutines(host, state.sex); showRoutines(false); }
   };
 }
 
@@ -283,8 +290,9 @@ function showSex(){
 // tiene ejercicios cargados); si no, es el último paso de la bienvenida. Arriba, los días por
 // semana (Todas · 1 · 2 · 3 · 4 · 5): la lista muestra solo las de esa cantidad de días.
 async function showRoutines(fromApp){
-  // Si en la base todavía no hay ninguna para esta opción, las de ejemplo de la app.
-  let all=rutinasPara(state.sex, await cargarCatalogo());
+  // Si en la base todavía no hay ninguna para esta opción, las de ejemplo de la app. Sin
+  // respuesta en 4 s (señal floja), también: el pedido sigue y la próxima vez ya está.
+  let all=rutinasPara(state.sex, await Promise.race([cargarCatalogo(), new Promise(r=>setTimeout(()=>r(CATALOGO), 4000))]));
   if(!all.length) all=rutinasPara(state.sex, CATALOGO);
   const chip=(n, lbl)=>'<button type="button" class="onb-num onb-dias'+(n===OB.dias?' on':'')+'" data-onb="dias" data-v="'+n+'" aria-pressed="'+(n===OB.dias)+'">'+lbl+'</button>';
   // Lista de las rutinas de los días elegidos (se redibuja sola al tocar otro número).
@@ -333,7 +341,7 @@ function showSexFromApp(){
   host.onclick=e=>{
     const b=e.target.closest("[data-onb]"); if(!b) return;
     if(b.dataset.onb==="cancel"){ host.onclick=null; closeOverlay(); return; }
-    if(b.dataset.onb==="sex"){ state.sex=b.dataset.v; save(); host.onclick=null; showRoutines(true); }
+    if(b.dataset.onb==="sex"){ state.sex=b.dataset.v; save(); host.onclick=null; waitRoutines(host, state.sex); showRoutines(true); }
   };
 }
 

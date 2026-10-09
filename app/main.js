@@ -486,6 +486,9 @@ document.body.addEventListener("click", async e => {
   if (a === "hba-save") {
     const withTime=saveHabitAlarm(); closeSheet(()=>renderApp());
     if(withTime && alarmsSupported()) askAlarmPermission().then(ok=>{ if(ok) syncHabitAlarms(); else alert("Para que suene el aviso, permití las notificaciones de GIZE en los ajustes del celular."); });
+    // La web no puede sonar con la página cerrada: la hora queda guardada (suena en la app del
+    // celular con la misma cuenta) y se avisa al guardar, sin carteles en la hoja.
+    else if(withTime) alert("Guardado. El aviso suena solo en la app de GIZE para Android o iPhone: acá en la web no puede sonar.");
     return;
   }
 
@@ -535,7 +538,8 @@ document.body.addEventListener("click", async e => {
       if(+state.calProfile.age>0 && +state.calProfile.height>0 && +state.calProfile.weight>0) state.calTarget = calcTarget(state.calProfile); }
     ComidaState.calEditing=false; save(); renderApp(); return;
   }
-  if (a === "cal-manual") { const m=parseInt((document.getElementById("calManual")||{}).value); if(m>0){ state.calTarget=m; if(state.calProfile && state.calProfile.macros){ state.calProfile=Object.assign({}, state.calProfile); delete state.calProfile.macros; } ComidaState.calEditing=false; save(); renderApp(); } else alert("Ingresá un número de calorías válido."); return; }
+  // Con o sin punto de miles («2.500», como se ven en la app); «2,500» da 2 y no pasa el rango.
+  if (a === "cal-manual") { const m=intNum((document.getElementById("calManual")||{}).value); if(m>=500 && m<=10000){ state.calTarget=m; if(state.calProfile && state.calProfile.macros){ state.calProfile=Object.assign({}, state.calProfile); delete state.calProfile.macros; } ComidaState.calEditing=false; save(); renderApp(); } else alert("Ingresá un número de calorías válido (ej: 2200)."); return; }
   if (a === "food-create-open") { ComidaState.searchOpen=false; ComidaState.foodForm={name:"",kcal:"",p:"",c:"",f:"",portion:"",unit:"g"}; ComidaState.creatingFood=true; renderApp(); return; }
   if (a === "food-create-cancel") { ComidaState.creatingFood=false; renderApp(); return; }
   if (a === "cf-unit") { ComidaState.foodForm.unit = el.dataset.val; renderApp(); return; }
@@ -1829,12 +1833,14 @@ async function onScannedCode(code){
   // guarda para todos (función "productos-off"). Si la función no responde (todavía no está
   // publicada, sin señal, límite del día, datos incompletos), se busca en Open Food Facts desde
   // el celular como antes: se puede anotar igual, pero no queda en la base compartida.
+  // Si OFF no lo tiene, sus valores no cierran o está oculto (reportado o sacado por un
+  // administrador), no: se ofrece pedirlo con la foto de la tabla.
   let food = null;
   try{ food = await productByCodeShared(code); }catch(e){}
   if(!food){
     const saved = await saveOffShared(code);
     if(saved && saved.food) food = saved.food;
-    else if(!(saved && saved.missing)){
+    else if(!(saved && (saved.missing || ["oculto","valores imposibles","calorías no cierran"].includes(saved.skipped)))){
       try{ food = await productByCode(code); }
       catch(e){ alert("No se pudo buscar el producto (¿sin conexión?). Probá de nuevo o cargalo a mano."); return; }
     }

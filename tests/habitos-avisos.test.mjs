@@ -1,6 +1,7 @@
 // Hábitos con días y aviso (⏰): cada hábito puede ir todos los días o días elegidos y tener
 // hora de aviso. Los del coach traen sus días (el alumno puede cambiarlos y ponerles hora).
-// En la web se ve la lista; en la app de Android se programan las notificaciones del celular.
+// En la web se ve la lista (al guardar una hora avisa que ahí no suena); en la app de Android se
+// programan las notificaciones del celular.
 import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
 
 const ARG = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short' });
@@ -51,7 +52,7 @@ const FILETE = /linear-gradient\(155deg/;
 
 export default async function ({ base, t }){
   // --- Web ---
-  let { p, errs, prefs, close } = await open(base);
+  let { p, errs, dialogs, prefs, close } = await open(base);
   t.has(await text(p, '.hb-list'), 'Creatina 5 g', 'hábito del coach de todos los días, hoy');
   t.ok(!!(await p.$('.hb-later-t')) && /Caminar/.test(await text(p, 'body')), 'sección "Otros días" con el del coach que no es hoy');
   t.ok(!(await text(p, '.hb-list')).includes('Caminar') || (await p.$$('.hb-list')).length > 1, 'el de otro día no está en la lista de hoy');
@@ -71,8 +72,11 @@ export default async function ({ base, t }){
   t.eq(await p.evaluate(() => [...document.querySelectorAll('#timePick .tw-unit')].map(e => e.textContent)), ['hora', 'min'], 'la rueda de la hora tiene horas y minutos');
   t.eq(await p.evaluate(() => [document.querySelectorAll('#twMin .tw-item').length, document.querySelectorAll('#twSec .tw-item').length]), [24, 60], 'de 00 a 23 horas y de 00 a 59 minutos');
   await p.click('#timePick [data-tp="close"]'); await wait(200);
+  const nDialogs = dialogs.length;
   await pickTime(p, '09:00'); await p.click('[data-action="hba-save"]'); await wait(400);
   t.has(await text(p, '.hb-list'), '09:00 · Todos los días', 'se ve la hora del aviso');
+  // En la web no suena: se avisa al guardar (la hora queda para la app del celular).
+  t.has(dialogs.slice(nDialogs).join(' | '), 'El aviso suena solo en la app de GIZE para Android o iPhone', 'web: avisa que acá no suena');
   t.ok(!(await text(p, 'body')).includes('⏰'), 'sin el reloj en ningún lado');
 
   // Cardio solo otro día: pasa a "Otros días" y no cuenta hoy.
@@ -119,7 +123,7 @@ export default async function ({ base, t }){
   await close();
 
   // --- App de Android: se programan las notificaciones ---
-  ({ p, errs, close } = await open(base, { native: true }));
+  ({ p, errs, dialogs, close } = await open(base, { native: true }));
   await addHabit(p, 'Creatina propia');
   const id2 = await p.evaluate(() => document.querySelector('[data-action="habit-toggle"]')?.dataset.id);
   await p.click(`[data-action="habit-alarm"][data-key="${id2}"]`); await wait(300);
@@ -135,6 +139,7 @@ export default async function ({ base, t }){
   await p.click(`[data-action="habit-remove"][data-id="${id2}"]`); await wait(1200);
   sched = await p.evaluate(() => window.__sched.map(n => n.title));
   t.eq(sched, ['Caminar 30 min'], 'al borrar un hábito se borra su aviso');
+  t.ok(!dialogs.some(d => /solo en la app/.test(d)), 'Android: no avisa que no suena');
   t.eq(errs, [], 'errores de la página (Android)');
   await close();
 
