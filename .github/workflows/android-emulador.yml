@@ -83,12 +83,19 @@ jobs:
       - name: Arrancar el emulador
         id: arranque
         run: |
+          # Si algo falla, se muestra lo último que dijo el emulador.
+          trap 'echo "--- emulador.log ---"; tail -60 "$RUNNER_TEMP/emulador.log"' ERR
+          "$ANDROID_HOME/emulator/emulator" -version | head -1
           nohup "$ANDROID_HOME/emulator/emulator" -avd gize -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim \
             -camera-back none -camera-front none -memory 3072 > "$RUNNER_TEMP/emulador.log" 2>&1 &
-          timeout 300 adb wait-for-device
-          if ! timeout 600 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 3; done'; then
-            tail -40 "$RUNNER_TEMP/emulador.log"; echo "::error::El emulador no terminó de arrancar"; exit 1
-          fi
+          EMU=$!
+          for i in $(seq 1 200); do
+            if ! kill -0 "$EMU" 2>/dev/null; then echo "::error::El emulador se cerró al arrancar"; false; fi
+            [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break
+            sleep 3
+          done
+          if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" != 1 ]; then echo "::error::El emulador no terminó de arrancar en 10 minutos"; false; fi
+          echo "Arrancó en $((SECONDS / 60)) min $((SECONDS % 60)) s"
           adb shell wm dismiss-keyguard || true
           for a in window_animation_scale transition_animation_scale animator_duration_scale; do adb shell settings put global $a 0; done
           # El teclado de la pantalla aparece aunque el emulador simule un teclado físico.
