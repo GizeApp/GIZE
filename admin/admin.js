@@ -17,12 +17,15 @@ const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "pkc
 
 const $root = document.getElementById("root");
 const S = { user: null, view: "resumen", overview: null, goals: null, tasks: null, users: null, q: "", coaches: null, fin: null, finTab: "numeros", dolar: null, prodTab: "pedidos", reqKind: "pendientes", reqs: null, prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false, repTab: "nuevo", reps: null, repPend: 0 };
-// Menú en tres bloques: Inicio (lo que hay que atender y los objetivos), la gestión del día a día
-// y lo del negocio y el sistema.
-const GROUPS = [["", [["resumen", "Inicio"]]],
-  ["Gestión", [["usuarios", "Usuarios"], ["coaches", "Coaches y pagos"], ["contacto", "Mensajes"], ["reportes", "Reportes"], ["productos", "Productos"], ["avisos", "Avisos"]]],
-  ["Negocio y sistema", [["finanzas", "Finanzas"], ["seguridad", "Seguridad"]]]];
-const SECTIONS = GROUPS.flatMap(g => g[1]);
+// Menú plano en dos tramos: lo de todos los días y, abajo, «Más». La clave "resumen" es la de
+// siempre (los links #resumen siguen andando) aunque ahora se llame Objetivos.
+const NAV_MAIN = [["resumen", "Objetivos"], ["usuarios", "Usuarios"], ["finanzas", "Finanzas"], ["seguridad", "Seguridad"]];
+const NAV_MORE = [["contacto", "Mensajes"], ["reportes", "Reportes"], ["productos", "Productos"], ["avisos", "Avisos"], ["estadisticas", "Estadísticas"]];
+// «Coaches y pagos» no tiene botón propio: es una pestaña de Usuarios (la clave "coaches" y el
+// link #coaches siguen andando; en el menú queda marcado Usuarios).
+const SECTIONS = NAV_MAIN.concat(NAV_MORE, [["coaches", "Coaches y pagos"]]);
+const NAV_OF = { coaches: "usuarios" };
+const userTabs = on => `<div class="tabs">${[["usuarios", "Todos los usuarios"], ["coaches", "Coaches y pagos"]].map(([k, l]) => `<button class="${on === k ? "on" : ""}" data-go="${k}">${l}</button>`).join("")}</div>`;
 
 // ---------- utilidades ----------
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -64,6 +67,13 @@ function panel(id, title, body, o){
   return `<details class="pnl" id="${id}" data-fold="${id}" data-def="${o.open === false ? 0 : 1}"${isOpen(id, o.open) ? " open" : ""}>
     <summary><span class="pnl-t">${title}</span><span class="pnl-s" id="${id}-s">${o.sum || ""}</span>${o.act || ""}</summary>
     <div class="pnl-b${o.flush ? " flush" : ""}">${body}</div></details>`;
+}
+// Igual que panel() pero fijo: siempre abierto, sin flecha. Para lo que se mira todos los días.
+// o: sum (resumen al lado del título), act (botón a la derecha), flush.
+function block(id, title, body, o){
+  o = o || {};
+  return `<section class="blk" id="${id}"><div class="blk-h"><span class="pnl-t">${title}</span><span class="pnl-s" id="${id}-s">${o.sum || ""}</span>${o.act || ""}</div>
+    <div class="pnl-b${o.flush ? " flush" : ""}">${body}</div></section>`;
 }
 function setSum(id, html){ const s = document.getElementById(id + "-s"); if (s) s.innerHTML = html || ""; }
 function openPanel(id){ const d = document.getElementById(id); if (d && !d.open) d.open = true; return d; }
@@ -119,18 +129,14 @@ sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !S.user) boot(); i
 function shell(){
   $root.innerHTML = `<div class="shell"><nav class="side">
       <img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE"><div class="side-sub">Administración</div>
-      ${GROUPS.map(([g, items], gi) => { const btns = items.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : k === "reportes" ? '<i id="navRep" hidden></i>' : ""}</button>`).join("");
-        return g ? `<div class="nav-grp" data-g="nav-g${gi}"><button class="nav-g" data-a="navG" aria-expanded="true">${g}<i class="nav-gb" hidden></i></button><div class="nav-items">${btns}</div></div>` : btns; }).join("")}
+      ${[NAV_MAIN, NAV_MORE].map((items, i) => (i ? '<div class="nav-sep">Más</div>' : "") + items.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : k === "reportes" ? '<i id="navRep" hidden></i>' : ""}</button>`).join("")).join("")}
       <div class="side-foot"><span class="side-mail">${esc(S.user.email)}<br></span><button data-a="logout">Salir</button> · <a href="../app/">Ir a la app</a></div>
     </nav><main class="main" id="main"></main></div>`;
 }
 function go(view){
   S.view = view; history.replaceState(null, "", "#" + view);
-  document.querySelectorAll(".nav").forEach(b => b.classList.toggle("on", b.dataset.go === view));
-  // Si se llega a una sección de un grupo plegado (por ejemplo desde «Para atender»), se abre.
-  const on = document.querySelector(".nav.on"), grp = on && on.closest(".nav-grp");
-  if (grp && grp.classList.contains("shut")) navGroup(grp, true); else navPaint();
-  ({ resumen: loadResumen, contacto: loadContacto, reportes: loadReportes, usuarios: loadUsuarios, coaches: loadCoaches, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
+  document.querySelectorAll(".nav").forEach(b => b.classList.toggle("on", b.dataset.go === (NAV_OF[view] || view)));
+  ({ resumen: loadResumen, estadisticas: loadEstadisticas, contacto: loadContacto, reportes: loadReportes, usuarios: loadUsuarios, coaches: loadCoaches, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
 }
 const main = () => document.getElementById("main");
 // Si la página tiene paneles, arriba a la derecha van «Abrir todo» y «Plegar todo».
@@ -139,30 +145,13 @@ function page(title, lead, body){
   main().innerHTML = `<div class="pg-h"><div class="h1">${title}</div><div class="pg-fold"><button data-a="foldAll" data-v="1">Abrir todo</button><button data-a="foldAll" data-v="0">Plegar todo</button></div></div><div class="lead">${lead}</div>${body}`;
 }
 function foldAll(open){ main().querySelectorAll(".pnl").forEach(d => { d.open = open; }); }
-// Grupos del menú: se pliegan tocando el título y quedan como los dejaste (como los paneles).
-// Sin nada guardado, arranca abierto solo el grupo de la sección en la que estás.
-function navPaint(){
-  document.querySelectorAll(".nav-grp").forEach(grp => {
-    const id = grp.dataset.g, open = id in FOLD ? !!FOLD[id] : !!grp.querySelector(".nav.on");
-    grp.classList.toggle("shut", !open);
-    grp.querySelector(".nav-g").setAttribute("aria-expanded", open);
-    // Plegado, el título suma los globitos de adentro (mensajes sin leer, productos).
-    const n = [...grp.querySelectorAll(".nav-items i:not([hidden])")].reduce((s, i) => s + num(i.textContent), 0), b = grp.querySelector(".nav-gb");
-    b.hidden = open || !n; b.textContent = n;
-  });
-}
-function navGroup(grp, open){
-  FOLD[grp.dataset.g] = open;
-  try { localStorage.setItem(FOLD_KEY, JSON.stringify(FOLD)); } catch (e) {}
-  navPaint();
-}
-function setPend(n){ const i = document.getElementById("navPend"); if (i){ i.hidden = !n; i.textContent = n; } navPaint(); }
+function setPend(n){ const i = document.getElementById("navPend"); if (i){ i.hidden = !n; i.textContent = n; } }
 // Globito de Productos: lo que falta revisar de la base más los pedidos de la gente.
 async function pendTotal(o){ let r = 0; try { r = num(await rpc("admin_requests_pending")); } catch (e) {} setPend(num(o && o.pending) + r); }
 // Mensajes de contacto sin leer: número en el menú y en la pestaña del navegador.
 function setUnread(n){
   S.unread = n || 0;
-  const i = document.getElementById("navMsg"); if (i){ i.hidden = !S.unread; i.textContent = S.unread; } navPaint();
+  const i = document.getElementById("navMsg"); if (i){ i.hidden = !S.unread; i.textContent = S.unread; }
   document.title = (S.unread ? "(" + S.unread + ") " : "") + "GIZE · Administración";
 }
 async function refreshUnread(){
@@ -177,7 +166,7 @@ async function refreshUnread(){
 }
 // Reportes sin revisar (chat y grupos de pasos): número en el menú. Apple y Google piden
 // atenderlos rápido (dentro de las 24 horas).
-function setRep(n){ S.repPend = num(n); const i = document.getElementById("navRep"); if (i){ i.hidden = !S.repPend; i.textContent = S.repPend; } navPaint(); }
+function setRep(n){ S.repPend = num(n); const i = document.getElementById("navRep"); if (i){ i.hidden = !S.repPend; i.textContent = S.repPend; } }
 async function refreshReps(){
   if (!S.user) return;
   try {
@@ -218,8 +207,8 @@ document.addEventListener("pointermove", e => {
 // Arriba lo que hay que atender, después los objetivos (supabase/objetivos.sql) y al final los
 // números y gráficos del resumen.
 async function loadResumen(){
-  page("Inicio", "Lo que hay que atender y cómo vienen los objetivos.", '<div class="empty">Cargando…</div>');
-  try { S.overview = await rpc("admin_overview"); } catch (e) { return page("Inicio", "", `<div class="empty">${esc(errMsg(e))}</div>`); }
+  page("Objetivos", "Lo que hay que atender, las metas y las tareas.", '<div class="empty">Cargando…</div>');
+  try { S.overview = await rpc("admin_overview"); } catch (e) { return page("Objetivos", "", `<div class="empty">${esc(errMsg(e))}</div>`); }
   const o = S.overview || {};
   // Lo que falta: con que falle uno, el resto se muestra igual.
   const [reqs, coaches, unread, goals, tasks, reps] = await Promise.all([
@@ -230,29 +219,37 @@ async function loadResumen(){
   if (coaches) S.coaches = coaches;
   setPend(num(o.pending) + num(reqs)); setUnread(num(unread)); setRep(reps);
   S.goals = goals; S.tasks = tasks; S.reqsPend = num(reqs);
+  page("Objetivos", "Lo que hay que atender, las metas y las tareas.",
+    block("hTodoB", "Para atender", '<div id="hTodo"></div>', { flush: true }) +
+    block("hGoalsB", "Objetivos", '<div id="hGoals"></div>', { act: '<button class="btn sm" data-a="gNew">+ Nuevo</button>' }) +
+    block("hTasksB", "Tareas", '<div id="hTasks"></div>'));
+  paintTodo(); paintGoals(); paintTasks();
+}
+// ---------- Estadísticas ----------
+// Los números, los gráficos y las versiones en uso (antes estaban en Inicio).
+async function loadEstadisticas(){
+  page("Estadísticas", "Cómo viene la app: usuarios, entrenos y versiones.", '<div class="empty">Cargando…</div>');
+  try { S.overview = await rpc("admin_overview"); } catch (e) { return page("Estadísticas", "", `<div class="empty">${esc(errMsg(e))}</div>`); }
+  if (S.view !== "estadisticas") return;
+  const o = S.overview || {};
   const k = (v, l, sub) => `<div class="kpi"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
   const versions = (o.versions || []).map(v => `<tr><td>${esc(v.platform === "android" ? "Android" : v.platform === "ios" ? "iPhone" : v.platform === "web" ? "Web" : v.platform)}</td><td>${esc(v.version)}</td><td>${n0(v.n)}</td></tr>`).join("");
-  // Cada bloque se pliega; de entrada quedan abiertos lo del día (atender, objetivos, tareas) y
-  // los números, y plegados los gráficos y las versiones.
-  page("Inicio", "Tocá el título de un bloque para abrirlo o plegarlo: queda como lo dejes.",
-    panel("hTodoB", "Para atender", '<div id="hTodo"></div>', { flush: true }) +
-    panel("hGoalsB", "Objetivos", '<div id="hGoals"></div>', { act: '<button class="btn sm" data-a="gNew">+ Nuevo</button>' }) +
-    panel("hTasksB", "Tareas", '<div id="hTasks"></div>') +
-    panel("hNumB", "Números", `<div class="grid kpis">
+  page("Estadísticas", "Cómo viene la app: usuarios, entrenos y versiones.",
+    block("hNumB", "Números", `<div class="grid kpis">
         ${k(n0(o.users), "Usuarios", "+" + n0(o.new7) + " esta semana · +" + n0(o.new30) + " en 30 días")}
         ${k(n0(o.active7), "Activos en 7 días", n0(o.sessions7) + " entrenos en la semana")}
         ${k(n0(o.paid), "Coaches pagando", n0(o.coaches) + " coaches · " + n0(o.trial) + " en prueba · " + n0(o.courtesy) + " de cortesía")}
         ${k(money(o.mrr), "Ingreso mensual", n0(o.linked) + " de " + n0(o.clients) + " alumnos con coach")}
-      </div>`, { sum: n0(o.users) + " usuarios · " + n0(o.paid) + " coaches pagando · " + money(o.mrr) + " por mes" }) +
-    panel("hChartsB", "Gráficos", `<div class="grid two">
+      </div>`) +
+    block("hChartsB", "Gráficos", `<div class="grid two">
         <div class="card"><div class="sec-t">Usuarios nuevos por semana</div><div class="sec-s">Últimas 12 semanas</div>${columns(o.signups || [], "usuarios nuevos")}</div>
         <div class="card"><div class="sec-t">Entrenos guardados por semana</div><div class="sec-s">Últimas 12 semanas</div>${columns(o.training || [], "entrenos")}</div>
-      </div>`, { open: false, sum: "+" + n0(o.new7) + " usuarios y " + n0(o.sessions7) + " entrenos esta semana" }) +
-    panel("hVerB", "Versiones en uso", `<div class="sec-s">Usuarios que abrieron la app en los últimos 30 días.</div>
+      </div>`) +
+    block("hVerB", "Versiones en uso", `<div class="sec-s">Usuarios que abrieron la app en los últimos 30 días.</div>
         ${versions ? `<div class="tscroll"><table class="table"><thead><tr><th>Plataforma</th><th>Versión</th><th>Usuarios</th></tr></thead><tbody>${versions}</tbody></table></div>` : '<div class="empty">Todavía no hay datos: se completan a medida que la gente abre la app.</div>'}`,
-      { open: false, sum: (o.versions || []).length ? (o.versions || []).length + (o.versions.length === 1 ? " versión" : " versiones") : "sin datos" }));
-  paintTodo(); paintGoals(); paintTasks();
+      { sum: (o.versions || []).length ? (o.versions || []).length + (o.versions.length === 1 ? " versión" : " versiones") : "sin datos" }));
 }
+
 // Lista de lo pendiente: cada fila lleva a su sección (las tareas, al bloque de abajo). Solo
 // aparece lo que tiene algo.
 function paintTodo(){
@@ -270,6 +267,7 @@ function paintTodo(){
   box.innerHTML = rows.length ? `<div class="list">${rows.map(([n, go, l, sub]) => `<button class="li" ${go === "tareas" ? 'data-a="toTasks"' : `data-go="${go}"`}><b>${n0(n)}</b><span>${l}<small>${sub}</small></span><i aria-hidden="true">›</i></button>`).join("")}</div>`
     : '<div class="calm pad">Todo al día: no hay nada pendiente.</div>';
   const n = rows.reduce((s, r) => s + r[0], 0);
+  const blk = document.getElementById("hTodoB"); if (blk) blk.classList.toggle("quiet", !rows.length);
   setSum("hTodoB", rows.length ? `<span class="dot"></span>${n0(n)} cosa${n === 1 ? "" : "s"} para atender` : "todo al día");
 }
 
@@ -454,8 +452,9 @@ async function reloadTasks(){
 
 // ---------- Usuarios ----------
 async function loadUsuarios(){
-  page("Usuarios", "Tocá una fila para ver la ficha y las acciones.", `
+  page("Usuarios", "Tocá una fila para ver la ficha y las acciones.", userTabs("usuarios") + `
     <div class="search"><input class="in" id="uQ" placeholder="Nombre o mail…" value="${esc(S.q)}"><button class="btn blue" data-a="uSearch">Buscar</button></div>
+    <div class="seg" id="uFilt" hidden></div>
     <div class="card"><div id="uList" class="empty">Cargando…</div></div>`);
   searchUsers();
 }
@@ -476,10 +475,20 @@ const USER_COLS = [
   ["visto", "Última vez", u => (u.last_seen_at || u.last_sign_in_at) ? Date.parse(u.last_seen_at || u.last_sign_in_at) : null],
   ["app", "App", u => u.app_platform ? platformTxt(u.app_platform, u.app_version).toLowerCase() : null],
 ];
+// Filtros de la lista (sobre las cuentas que trajo la búsqueda). Inactivo: nunca entró o hace más de 14 días.
+const INACTIVE_MS = 14 * 864e5;
+const lastSeenT = u => { const d = u.last_seen_at || u.last_sign_in_at; return d ? Date.parse(d) : null; };
+const isInactive = u => { const t = lastSeenT(u); return t == null || Date.now() - t > INACTIVE_MS; };
+const UFILTERS = [["todos", "Todos", () => true], ["alumnos", "Alumnos", u => u.role !== "coach"], ["coaches", "Coaches", u => u.role === "coach"],
+  ["sincoach", "Alumnos sin coach", u => u.role !== "coach" && !u.coach_name], ["inactivos", "Sin actividad (14+ días)", isInactive], ["admins", "Admins", u => !!u.is_admin]];
 function paintUsers(){
   const box = document.getElementById("uList"); if (!box || !S.users) return;
   const so = S.uSort || null, col = so && USER_COLS.find(c => c[0] === so.k);
-  const list = S.users.slice();
+  const fl = UFILTERS.find(f => f[0] === S.uFilter) || UFILTERS[0];
+  const bar = document.getElementById("uFilt");
+  if (bar){ bar.hidden = false; bar.innerHTML = UFILTERS.map(([k, l, fn]) => `<button class="${fl[0] === k ? "on" : ""}" data-a="ufilt" data-v="${k}">${l} <span class="muted">${S.users.filter(fn).length}</span></button>`).join(""); }
+  const list = S.users.filter(fl[2]);
+  if (!list.length){ box.className = "empty"; box.textContent = "Ninguna cuenta cumple este filtro."; return; }
   if (col){
     const dir = so.dir === "desc" ? -1 : 1;
     list.sort((a, b) => { const x = col[2](a), y = col[2](b);
@@ -493,8 +502,9 @@ function paintUsers(){
     <tr class="row" data-user="${esc(u.id)}"><td><b>${esc(u.full_name || "Sin nombre")}</b>${u.is_admin ? ' <span class="pill blue">admin</span>' : ""}<div class="muted small">${esc(u.email)}</div></td>
       <td>${u.role === "coach" ? '<span class="pill ok">Coach</span>' : '<span class="pill">Alumno</span>'}</td>
       <td class="muted">${esc(u.coach_name || "—")}</td><td class="muted">${fmtD(u.created_at)}</td>
-      <td class="muted">${ago(u.last_seen_at || u.last_sign_in_at)}</td><td class="muted small">${esc(platformTxt(u.app_platform, u.app_version))}</td></tr>`).join("")}</tbody></table>` +
+      <td class="${isInactive(u) ? "t-warn" : "muted"}">${ago(u.last_seen_at || u.last_sign_in_at)}</td><td class="muted small">${esc(platformTxt(u.app_platform, u.app_version))}</td></tr>`).join("")}</tbody></table>` +
     // admin_users trae 60 como mucho (las cuentas más nuevas).
+    (list.length !== S.users.length ? `<div class="muted small" style="padding:10px">Mostrando ${list.length} de ${S.users.length}.</div>` : "") +
     (S.users.length >= 60 ? `<div class="muted small" style="padding:10px">Se muestran las 60 cuentas más nuevas${S.q ? " que coinciden" : ""}: buscá por nombre o mail para ver otras.</div>` : "");
 }
 const platformTxt = (p, v) => !p ? "—" : (p === "android" ? "Android " : p === "ios" ? "iPhone " : "Web ") + (p === "web" ? "" : (v || ""));
@@ -515,11 +525,18 @@ async function openUser(id){
     ${d.role === "coach" && clients.length ? `<div class="sec-t">Alumnos</div><div class="list-mini">${clients.map(c => esc(c.name || "Sin nombre")).join(" · ")}</div>` : ""}
     <div class="sec-t" style="margin-top:18px">Acciones</div>
     <div class="row-btns">
+      ${d.role === "coach" ? `<button class="btn blue" data-a="toCoach" data-id="${esc(d.id)}">Plan y pagos</button>` : ""}
       ${d.role === "coach" ? `<button class="btn" data-a="role" data-id="${esc(d.id)}" data-v="client">Pasar a alumno</button>` : `<button class="btn" data-a="role" data-id="${esc(d.id)}" data-v="coach">Pasar a coach</button>`}
       ${d.coach ? `<button class="btn" data-a="unlink" data-id="${esc(d.id)}">Desvincular de su coach</button>` : ""}
       ${d.is_admin ? `<button class="btn" data-a="admin" data-id="${esc(d.id)}" data-v="0">Quitar administrador</button>` : `<button class="btn" data-a="admin" data-id="${esc(d.id)}" data-v="1">Hacer administrador</button>`}
       <button class="btn bad" data-a="delete" data-id="${esc(d.id)}" data-name="${esc(d.full_name || d.email)}">Eliminar cuenta</button>
     </div>`);
+}
+// Cambió un coach (pago, cortesía, prueba): si se está en Coaches y pagos se redibuja; desde Usuarios
+// se descarta la lista guardada (la próxima vez se vuelve a pedir) y se refresca la tabla.
+function afterCoach(){
+  if (S.view === "coaches") loadCoaches();
+  else { S.coaches = null; if (S.view === "usuarios") searchUsers(); }
 }
 function drawer(html){
   let bg = document.querySelector(".drawer-bg"), dr = document.querySelector(".drawer");
@@ -539,7 +556,7 @@ const mpTxt = s => ({ authorized: "activa", paused: "pausada", cancelled: "cance
 const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: "Hasta 50", p100: "Gimnasio chico (100)", p250: "Gimnasio (250)", p500: "Gimnasio grande (500)", cortesia: "Cortesía" }[p] || p || "—");
 async function loadCoaches(){
   page("Coaches y pagos", "Tocá un coach para cargar un pago, darle cortesía o más días de prueba.",
-    '<div id="cSoon"></div>' + panel("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>'));
+    userTabs("coaches") + '<div id="cSoon"></div>' + block("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>'));
   const box = document.getElementById("cList");
   try { S.coaches = await rpc("admin_coaches"); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.coaches.length){ box.textContent = "Todavía no hay coaches."; return; }
@@ -576,7 +593,7 @@ function paintSoon(){
   const list = (S.coaches || []).map(c => ({ c, v: venceDe(c) })).filter(x => x.v && x.v.dias <= 7 && x.v.dias > -30).sort((a, b) => a.v.t - b.v.t);
   if (!list.length){ box.innerHTML = ""; return; }
   const late = list.filter(x => x.v.vencido).length;
-  box.innerHTML = panel("cSoonB", "Vencen pronto", `<div class="list-mini">${list.map(({ c, v }) => `
+  box.innerHTML = block("cSoonB", "Vencen pronto", `<div class="list-mini">${list.map(({ c, v }) => `
     <div class="row" data-coach="${esc(c.id)}" style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;cursor:pointer">
       <span><b>${esc(c.full_name || "Sin nombre")}</b> <span class="muted small">${esc(c.email)}</span></span>
       <span class="pill ${v.vencido ? "bad" : "warn"}">${v.que === "pago" ? "Pago" : "Prueba"} ${venceTxt(v)}</span>
@@ -666,8 +683,9 @@ async function loadFinanzas(){
     <div data-fp="numeros">
     <div class="grid kpis wide" id="fKpis"></div>
     <div id="fDolar"></div>
-    ${panel("fEqB", "Punto de equilibrio", '<div class="sec-s">Coaches que hacen falta para cubrir los gastos. Cobran por transferencia, sin comisión.</div><div id="fEq"></div>')}
-    ${panel("fWhoB", "Quién pone qué", '<div class="sec-s">Gastos activos de cada socio, pasados a pesos por mes.</div><div id="fWho"></div>')}
+    <div id="fEmpty" class="card" hidden><div class="sec-t">Empezá cargando los gastos</div><div class="sec-s">Con los gastos cargados acá ves cuántos coaches hacen falta para cubrirlos y cuánto pone cada socio.</div><div class="row-btns"><button class="btn blue" data-a="fCost">+ Agregar gasto</button></div></div>
+    ${block("fEqB", "Punto de equilibrio", '<div class="sec-s">Coaches que hacen falta para cubrir los gastos. Cobran por transferencia, sin comisión.</div><div id="fEq"></div>')}
+    ${block("fWhoB", "Quién pone qué", '<div class="sec-s">Gastos activos de cada socio, pasados a pesos por mes.</div><div id="fWho"></div>')}
     </div>
     <div data-fp="gastos">
     <div class="card"><div class="card-h"><div><div class="sec-t">Gastos</div><div class="sec-s">Tocá uno para cambiarlo. Los que estás pensando y los pausados no suman.</div></div><button class="btn blue" data-a="fCost">+ Agregar gasto</button></div><div id="fCosts"></div></div></div>
@@ -727,8 +745,11 @@ function paintFinCalc(){
     <div class="sec-s">${d.at ? "Se usa la cotización guardada el " + fmtD(d.at) + "." : "No hay una cotización guardada."} Podés ponerla a mano:</div>
     <div class="search"><input class="in" id="fdT" type="number" min="1" step="0.01" placeholder="Tarjeta" value="${d.tarjeta || ""}"><input class="in" id="fdM" type="number" min="1" step="0.01" placeholder="MEP" value="${d.mep || ""}"><button class="btn blue" data-a="fDolarSave">Guardar</button></div></div>` : "";
 
-  // Punto de equilibrio
-  const eq = document.getElementById("fEq");
+  // Punto de equilibrio. Sin gastos cargados no hay nada que calcular: en vez de dos bloques
+  // vacíos se muestra una sola invitación a cargarlos.
+  const eq = document.getElementById("fEq"), sinGastos = !c.act.length;
+  ["fEqB", "fWhoB"].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = sinGastos; });
+  const em = document.getElementById("fEmpty"); if (em) em.hidden = !sinGastos;
   setSum("fEqB", !c.act.length || c.noRate ? "" : c.gap > 0 ? `<span class="t-warn">faltan ${money(c.gap)} por mes</span>` : `<span class="t-ok">cubierto · sobran ${money(c.result)}</span>`);
   if (!c.act.length) eq.innerHTML = '<div class="empty">Cargá los gastos para ver cuántos coaches hacen falta.</div>';
   else if (c.noRate) eq.innerHTML = '<div class="empty">Falta la cotización del dólar para pasar los gastos a pesos.</div>';
@@ -1227,9 +1248,9 @@ async function saveConfig(btn){
 // ---------- Seguridad y sistema ----------
 async function loadSeguridad(){
   page("Seguridad", "Copias de seguridad, administradores y registro de lo que se hace desde el panel.",
-    panel("sBkB", "Copias de seguridad", '<div class="sec-s">Se hacen solas todos los lunes y se prueban restaurándolas.</div><div id="bk" class="list-mini">Cargando…</div>', { open: false }) +
-    panel("sAdmB", "Administradores", '<div class="sec-s">Se agregan o quitan desde Usuarios → ficha → Hacer administrador.</div><div id="admins" class="list-mini">Cargando…</div>', { open: false }) +
-    panel("sAudB", "Registro de acciones", '<div class="sec-s">Las últimas 100 acciones hechas desde el panel.</div><div id="aud" class="empty">Cargando…</div>', { open: false }));
+    block("sBkB", "Copias de seguridad", '<div class="sec-s">Se hacen solas todos los lunes y se prueban restaurándolas.</div><div id="bk" class="list-mini">Cargando…</div>') +
+    block("sAdmB", "Administradores", '<div class="sec-s">Se agregan o quitan desde Usuarios → ficha → Hacer administrador.</div><div id="admins" class="list-mini">Cargando…</div>') +
+    block("sAudB", "Registro de acciones", '<div class="sec-s">Las últimas 100 acciones hechas desde el panel.</div><div id="aud" class="empty">Cargando…</div>'));
   // Con el repositorio privado GitHub no responde sin sesión: se deja el enlace a las copias.
   const bkLink = `<a href="https://github.com/${REPO}/actions/workflows/backup.yml" target="_blank" rel="noopener">Ver las copias en GitHub</a>`;
   fetch("https://api.github.com/repos/" + REPO + "/actions/workflows/backup.yml/runs?per_page=6").then(r => { if (!r.ok) throw 0; return r.json(); }).then(j => {
@@ -1308,28 +1329,28 @@ document.addEventListener("click", async e => {
       const menos = max < PLAN_MAX[plan] ? "\n\nOjo: el " + planTxt(plan) + " es para " + PLAN_MAX[plan] + " alumnos y le vas a dejar " + max + " como máximo." : "";
       if (!confirm("¿Habilitar el " + planTxt(plan) + " (" + max + " alumnos) hasta el " + fmtD(until + "T12:00:00") + "?" + menos)) return;
       await rpc("admin_set_paid", { cid: b.dataset.id, p_plan: plan, p_max: max, p_until: until });
-      toast("Pago cargado"); closeDrawer(); loadCoaches(); return;
+      toast("Pago cargado"); closeDrawer(); afterCoach(); return;
     }
     if (a === "pmClear"){
       // Si la prueba gratis sigue vigente, admin_clear_paid lo devuelve a la prueba (cobro-manual.sql).
       const c = (S.coaches || []).find(x => x.id === b.dataset.id), prueba = c && c.trial_ends_at && new Date(c.trial_ends_at) > new Date();
       if (!confirm(prueba ? "¿Cortar el pago ahora? Vuelve a la prueba gratis (hasta 10 alumnos) hasta el " + lastDay(c.trial_ends_at) + "; después queda sin plan."
         : "¿Cortar el pago ahora? Queda sin plan (sus alumnos siguen usando la app, pero él no ve sus fichas).")) return;
-      await rpc("admin_clear_paid", { cid: b.dataset.id }); toast("Pago cortado"); closeDrawer(); loadCoaches(); return;
+      await rpc("admin_clear_paid", { cid: b.dataset.id }); toast("Pago cortado"); closeDrawer(); afterCoach(); return;
     }
     if (a === "trSave"){
       const until = document.getElementById("trUntil").value, max = parseInt(document.getElementById("trMax").value, 10) || 10;
       if (!until){ toast("Elegí hasta qué fecha es la prueba."); return; }
       if (!confirm("¿Prueba gratis hasta el " + fmtD(until + "T12:00:00") + ", con " + max + " alumnos como máximo?")) return;
       await rpc("admin_set_trial", { cid: b.dataset.id, p_until: until, p_max: max });
-      toast("Prueba guardada"); closeDrawer(); loadCoaches(); return;
+      toast("Prueba guardada"); closeDrawer(); afterCoach(); return;
     }
     if (a === "plan"){
       const mode = b.dataset.mode, max = document.getElementById("ctMax");
       const msg = { cortesia: "¿Darle cortesía (gratis) con tope de " + (max && max.value) + " alumnos?", sin_cortesia: "¿Quitarle la cortesía? Vuelve a prueba (si ya venció, tiene que pagar)." }[mode];
       if (!confirm(msg)) return;
       await rpc("admin_set_plan", { cid: b.dataset.id, mode, p_max: max ? parseInt(max.value, 10) || 10 : null, p_days: null });
-      toast("Listo"); closeDrawer(); loadCoaches(); return;
+      toast("Listo"); closeDrawer(); afterCoach(); return;
     }
     if (a === "mtab"){ if (Object.values(S.drafts).some(v => v.trim()) && !confirm("Tenés una respuesta sin mandar. ¿Cambiar de lista igual? (queda guardada si el mensaje aparece en la otra lista)")) return; S.msgTab = b.dataset.v; loadContacto(); return; }
     if (a === "mread"){ markMsg(b); return; }
@@ -1339,6 +1360,12 @@ document.addEventListener("click", async e => {
     if (a === "rtab"){ S.repTab = b.dataset.v; loadReportes(); return; }
     if (a === "repReview"){ reviewRep(b); return; }
     if (a === "repUser"){ openUser(b.dataset.id); return; }
+    if (a === "toCoach"){
+      const id = b.dataset.id;
+      if (!S.coaches){ try { S.coaches = await rpc("admin_coaches"); } catch (e) { toast(errMsg(e)); return; } }
+      openCoach(id); return;
+    }
+    if (a === "ufilt"){ S.uFilter = b.dataset.v; paintUsers(); return; }
     if (a === "usort"){ const k = b.dataset.k, so = S.uSort; S.uSort = { k, dir: so && so.k === k && so.dir === "asc" ? "desc" : "asc" }; paintUsers(); return; }
     if (a === "ptab"){ S.prodTab = b.dataset.v; loadProductos(); return; }
     if (a === "rqKind"){ S.reqKind = b.dataset.v; loadPedidos(); return; }
@@ -1361,7 +1388,6 @@ document.addEventListener("click", async e => {
     if (a === "tDel"){ deleteTask(b); return; }
     if (a === "toTasks"){ const d = openPanel("hTasksB"); if (d) d.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     if (a === "foldAll"){ foldAll(b.dataset.v === "1"); return; }
-    if (a === "navG"){ const grp = b.closest(".nav-grp"); navGroup(grp, grp.classList.contains("shut")); return; }
     if (a === "gSave"){ saveGoal(b); return; }
     if (a === "gDel"){ deleteGoal(b); return; }
     if (a === "fTab"){ S.finTab = b.dataset.v; finTabs(); return; }
