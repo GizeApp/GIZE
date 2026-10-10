@@ -16,11 +16,11 @@ let ingresoAca = new URLSearchParams(location.search).has("code");
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "pkce", detectSessionInUrl: true } });
 
 const $root = document.getElementById("root");
-const S = { user: null, view: "resumen", overview: null, goals: null, tasks: null, users: null, q: "", coaches: null, fin: null, finTab: "numeros", dolar: null, prodTab: "pedidos", reqKind: "pendientes", reqs: null, prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false };
+const S = { user: null, view: "resumen", overview: null, goals: null, tasks: null, users: null, q: "", coaches: null, fin: null, finTab: "numeros", dolar: null, prodTab: "pedidos", reqKind: "pendientes", reqs: null, prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false, repTab: "nuevo", reps: null, repPend: 0 };
 // Menú en tres bloques: Inicio (lo que hay que atender y los objetivos), la gestión del día a día
 // y lo del negocio y el sistema.
 const GROUPS = [["", [["resumen", "Inicio"]]],
-  ["Gestión", [["usuarios", "Usuarios"], ["coaches", "Coaches y pagos"], ["contacto", "Mensajes"], ["productos", "Productos"], ["avisos", "Avisos"]]],
+  ["Gestión", [["usuarios", "Usuarios"], ["coaches", "Coaches y pagos"], ["contacto", "Mensajes"], ["reportes", "Reportes"], ["productos", "Productos"], ["avisos", "Avisos"]]],
   ["Negocio y sistema", [["finanzas", "Finanzas"], ["seguridad", "Seguridad"]]]];
 const SECTIONS = GROUPS.flatMap(g => g[1]);
 
@@ -111,7 +111,7 @@ async function boot(){
   ingresoAca = false;
   const v = (location.hash || "").replace("#", ""); if (SECTIONS.some(s => s[0] === v)) S.view = v;
   shell(); go(S.view);
-  refreshUnread(); setInterval(refreshUnread, 60000);
+  refreshUnread(); refreshReps(); setInterval(() => { refreshUnread(); refreshReps(); }, 60000);
 }
 sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !S.user) boot(); if (ev === "SIGNED_OUT") { S.user = null; gate("Cerraste la sesión.", true); } });
 
@@ -119,7 +119,7 @@ sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !S.user) boot(); i
 function shell(){
   $root.innerHTML = `<div class="shell"><nav class="side">
       <img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE"><div class="side-sub">Administración</div>
-      ${GROUPS.map(([g, items], gi) => { const btns = items.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : ""}</button>`).join("");
+      ${GROUPS.map(([g, items], gi) => { const btns = items.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : k === "reportes" ? '<i id="navRep" hidden></i>' : ""}</button>`).join("");
         return g ? `<div class="nav-grp" data-g="nav-g${gi}"><button class="nav-g" data-a="navG" aria-expanded="true">${g}<i class="nav-gb" hidden></i></button><div class="nav-items">${btns}</div></div>` : btns; }).join("")}
       <div class="side-foot"><span class="side-mail">${esc(S.user.email)}<br></span><button data-a="logout">Salir</button> · <a href="../app/">Ir a la app</a></div>
     </nav><main class="main" id="main"></main></div>`;
@@ -130,7 +130,7 @@ function go(view){
   // Si se llega a una sección de un grupo plegado (por ejemplo desde «Para atender»), se abre.
   const on = document.querySelector(".nav.on"), grp = on && on.closest(".nav-grp");
   if (grp && grp.classList.contains("shut")) navGroup(grp, true); else navPaint();
-  ({ resumen: loadResumen, contacto: loadContacto, usuarios: loadUsuarios, coaches: loadCoaches, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
+  ({ resumen: loadResumen, contacto: loadContacto, reportes: loadReportes, usuarios: loadUsuarios, coaches: loadCoaches, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
 }
 const main = () => document.getElementById("main");
 // Si la página tiene paneles, arriba a la derecha van «Abrir todo» y «Plegar todo».
@@ -175,7 +175,18 @@ async function refreshUnread(){
     setUnread(n);
   } catch (e) {}
 }
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshUnread(); });
+// Reportes sin revisar (chat y grupos de pasos): número en el menú. Apple y Google piden
+// atenderlos rápido (dentro de las 24 horas).
+function setRep(n){ S.repPend = num(n); const i = document.getElementById("navRep"); if (i){ i.hidden = !S.repPend; i.textContent = S.repPend; } navPaint(); }
+async function refreshReps(){
+  if (!S.user) return;
+  try {
+    const n = num(await rpc("admin_reports_pending"));
+    if (n > S.repPend && S.view === "reportes" && S.repTab === "nuevo") loadReportes();
+    setRep(n);
+  } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ refreshUnread(); refreshReps(); } });
 
 // ---------- gráfico de columnas (una serie, con detalle al pasar el dedo o el mouse) ----------
 function columns(data, label){
@@ -211,12 +222,13 @@ async function loadResumen(){
   try { S.overview = await rpc("admin_overview"); } catch (e) { return page("Inicio", "", `<div class="empty">${esc(errMsg(e))}</div>`); }
   const o = S.overview || {};
   // Lo que falta: con que falle uno, el resto se muestra igual.
-  const [reqs, coaches, unread, goals, tasks] = await Promise.all([
+  const [reqs, coaches, unread, goals, tasks, reps] = await Promise.all([
     rpc("admin_requests_pending").catch(() => 0), rpc("admin_coaches").catch(() => null),
-    rpc("admin_contact_unread").catch(() => S.unread), rpc("admin_goals").catch(e => ({ error: e })), rpc("admin_tasks").catch(e => ({ error: e }))]);
+    rpc("admin_contact_unread").catch(() => S.unread), rpc("admin_goals").catch(e => ({ error: e })), rpc("admin_tasks").catch(e => ({ error: e })),
+    rpc("admin_reports_pending").catch(() => S.repPend)]);
   if (S.view !== "resumen") return;
   if (coaches) S.coaches = coaches;
-  setPend(num(o.pending) + num(reqs)); setUnread(num(unread));
+  setPend(num(o.pending) + num(reqs)); setUnread(num(unread)); setRep(reps);
   S.goals = goals; S.tasks = tasks; S.reqsPend = num(reqs);
   const k = (v, l, sub) => `<div class="kpi"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
   const versions = (o.versions || []).map(v => `<tr><td>${esc(v.platform === "android" ? "Android" : v.platform === "ios" ? "iPhone" : v.platform === "web" ? "Web" : v.platform)}</td><td>${esc(v.version)}</td><td>${n0(v.n)}</td></tr>`).join("");
@@ -251,6 +263,7 @@ function paintTodo(){
   const rows = [
     [late + today, "tareas", (late + today === 1 ? "tarea " : "tareas ") + (late && today ? "vencidas o para hoy" : late ? (late === 1 ? "vencida" : "vencidas") : "para hoy"), "están más abajo, en Tareas"],
     [S.unread, "contacto", "mensaje" + (S.unread === 1 ? "" : "s") + " sin leer", "contacto@gize.ar"],
+    [S.repPend, "reportes", S.repPend === 1 ? "reporte sin revisar" : "reportes sin revisar", "chat y grupos de pasos: revisalos dentro de las 24 horas"],
     [prods, "productos", "producto" + (prods === 1 ? "" : "s") + " para revisar", "pedidos de la gente, cargados sin verificar y reportados"],
     [soon, "coaches", soon === 1 ? "coach vence en los próximos 7 días" : "coaches vencen en los próximos 7 días", "pago o prueba: conviene escribirles"],
     [num(o.overdue), "coaches", num(o.overdue) === 1 ? "coach sin pagar" : "coaches sin pagar", "prueba vencida y sin pago al día"]].filter(r => r[0] > 0);
@@ -935,6 +948,58 @@ async function sendReply(btn){
   paintMsgs();
 }
 
+// ---------- Reportes (chat y grupos de pasos) ----------
+// Lo que la gente reporta desde la app (app/ui/reportar.js, supabase/reportes.sql): un mensaje
+// del chat con su coach o el nombre de alguien de un grupo de pasos. Cada uno con lo justo para
+// decidir: el texto del mensaje (de un audio, solo cuánto dura), o el nombre y el grupo. Si hay
+// que actuar, «Ver cuenta» abre la ficha (desvincular, eliminar la cuenta).
+const REP_MOTIVO = { ofensivo: ["Ofensivo o acoso", "bad"], spam: ["Spam", "warn"], otro: ["Otro", ""] };
+async function loadReportes(){
+  page("Reportes", "Lo que la gente reporta en el chat con su coach y en los grupos de pasos. Revisalo dentro de las 24 horas: es lo que piden Apple y Google.", `
+    <div class="seg">${[["nuevo", "Sin revisar"], ["revisado", "Revisados"]].map(([k, l]) => `<button class="${S.repTab === k ? "on" : ""}" data-a="rtab" data-v="${k}">${l}</button>`).join("")}</div>
+    <div id="rList" class="empty">Cargando…</div>`);
+  const box = document.getElementById("rList");
+  try { S.reps = (await rpc("admin_reports_list", { p_status: S.repTab })) || []; }
+  catch (e) {
+    const falta = /admin_reports_list|schema cache|PGRST202/i.test(errMsg(e) + " " + (e && e.code));
+    box.className = "calm"; box.innerHTML = falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/reportes.sql</b>." : esc(errMsg(e));
+    return;
+  }
+  paintReps();
+  if (S.repTab === "nuevo") setRep(S.reps.length);
+}
+function repCtx(r){
+  if (r.kind === "chat"){
+    if (!r.msg_at) return '<div class="muted">El mensaje ya no existe (se borró una de las cuentas).</div>';
+    const txt = r.msg_audio_secs ? `<span class="muted">Mensaje de voz de ${Math.floor(r.msg_audio_secs / 60)}:${String(r.msg_audio_secs % 60).padStart(2, "0")} (el audio no se muestra)</span>${r.msg_body ? "<br>" + esc(r.msg_body) : ""}` : esc(r.msg_body || "");
+    return `<div class="rep-q msg-b">${txt}</div><div class="muted small">Mensaje del ${fmtDT(r.msg_at)}</div>`;
+  }
+  const ahora = r.member_name_now == null ? " · ya no está en el grupo" : r.member_name_now !== r.member_name ? " · ahora se llama «" + esc(r.member_name_now) + "»" : "";
+  return `<div class="rep-q">Nombre en el grupo: <b>«${esc(r.member_name || "")}»</b><span class="muted">${ahora}</span></div><div class="muted small">Grupo «${esc(r.group_name || "borrado")}»</div>`;
+}
+function paintReps(){
+  const box = document.getElementById("rList"); if (!box) return;
+  if (!S.reps.length){ box.className = "empty"; box.textContent = S.repTab === "nuevo" ? "No hay reportes sin revisar. 🎉" : "Todavía no hay reportes revisados."; return; }
+  box.className = "grid";
+  box.innerHTML = S.reps.map(r => { const mo = REP_MOTIVO[r.reason] || [r.reason, ""];
+    return `<div class="card rep" data-rep="${esc(r.id)}">
+      <div class="rep-h"><span class="pill ${mo[1]}">${esc(mo[0])}</span><span class="pill">${r.kind === "chat" ? "Chat" : "Grupo de pasos"}</span><span class="muted small">${ago(r.created_at)}</span></div>
+      ${repCtx(r)}
+      ${r.detail ? `<div class="rep-note"><span class="muted small">Nota de quien reportó</span><br>${esc(r.detail)}</div>` : ""}
+      <div class="muted small rep-who">Reportó ${esc(r.reporter_name || (r.reporter_id ? "Sin nombre" : "una cuenta borrada"))} · Reportado: <b>${esc(r.reported_name || "Sin nombre")}</b>${num(r.reported_total) > 1 ? ` · <span class="t-warn">${n0(r.reported_total)} reportes en total</span>` : ""}</div>
+      ${r.status === "revisado" ? `<div class="muted small rep-who">Revisado por ${esc(r.reviewed_by_name || "un administrador")} · ${fmtDT(r.reviewed_at)}</div>` : ""}
+      <div class="row-btns">${r.reported_id ? `<button class="btn" data-a="repUser" data-id="${esc(r.reported_id)}">Ver cuenta</button>` : ""}${r.status === "revisado" ? "" : `<button class="btn pri" data-a="repReview">Marcar revisado</button>`}</div>
+    </div>`; }).join("");
+}
+async function reviewRep(btn){
+  const id = btn.closest("[data-rep]").dataset.rep;
+  btn.disabled = true;
+  try { await rpc("admin_report_review", { p_id: id }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  toast("Marcado como revisado ✓");
+  S.reps = S.reps.filter(x => x.id !== id);
+  paintReps(); setRep(Math.max(0, S.repPend - 1));
+}
+
 // ---------- Productos ----------
 // Pendientes / reportados / ocultos: lo que falta revisar. «Toda la base»: buscar cualquier
 // producto (nombre, marca o código), editarlo, ocultarlo o borrarlo. «+ Agregar producto»:
@@ -1177,7 +1242,7 @@ async function loadSeguridad(){
   const what = a => ({ rol: "Cambió el rol a " + ((a.detail || {}).role === "coach" ? "coach" : "alumno"), desvincular: "Desvinculó de su coach", admin_si: "Hizo administrador", admin_no: "Quitó administrador",
     plan: ({ cortesia: "Dio cortesía", trial: "Extendió la prueba", sin_cortesia: "Quitó la cortesía", pago_manual: "Cargó un pago", prueba_hasta: "Cambió la prueba", cortar_pago: "Cortó el pago" }[(a.detail || {}).mode] || "Cambió el plan"), config: "Cambió el cartel de actualización",
     aviso: "Mandó una notificación a " + (a.target || ""), eliminar: "Eliminó la cuenta",
-    contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", pedido_publicado: "Publicó un producto pedido", pedido_rechazado: "Rechazó un pedido de producto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto", producto_nuevo: "Agregó un producto", producto_borrar: "Borró un producto",
+    contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", reporte_revisado: "Marcó un reporte como revisado", pedido_publicado: "Publicó un producto pedido", pedido_rechazado: "Rechazó un pedido de producto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto", producto_nuevo: "Agregó un producto", producto_borrar: "Borró un producto",
     fin_gasto_nuevo: "Agregó un gasto", fin_gasto: "Cambió un gasto", fin_gasto_borrar: "Borró un gasto", fin_ajustes: "Cambió los ajustes de finanzas",
     fin_pendiente_nuevo: "Agregó un pendiente", fin_pendiente_hecho: "Marcó un pendiente como hecho", fin_pendiente_deshacer: "Volvió a abrir un pendiente", fin_pendiente_borrar: "Borró un pendiente",
     objetivo_nuevo: "Agregó un objetivo", objetivo: "Cambió un objetivo", objetivo_borrar: "Borró un objetivo",
@@ -1264,6 +1329,9 @@ document.addEventListener("click", async e => {
     if (a === "mreply"){ const c = b.closest("[data-msg]"), r = c.querySelector(".msg-reply"); r.hidden = false; c.querySelector(".msg-acts").hidden = true; S.drafts[c.dataset.msg] = S.drafts[c.dataset.msg] || ""; r.querySelector("textarea").focus(); return; }
     if (a === "mcancel"){ const c = b.closest("[data-msg]"); delete S.drafts[c.dataset.msg]; c.querySelector(".msg-reply").hidden = true; c.querySelector(".msg-acts").hidden = false; return; }
     if (a === "msend"){ sendReply(b); return; }
+    if (a === "rtab"){ S.repTab = b.dataset.v; loadReportes(); return; }
+    if (a === "repReview"){ reviewRep(b); return; }
+    if (a === "repUser"){ openUser(b.dataset.id); return; }
     if (a === "usort"){ const k = b.dataset.k, so = S.uSort; S.uSort = { k, dir: so && so.k === k && so.dir === "asc" ? "desc" : "asc" }; paintUsers(); return; }
     if (a === "ptab"){ S.prodTab = b.dataset.v; loadProductos(); return; }
     if (a === "rqKind"){ S.reqKind = b.dataset.v; loadPedidos(); return; }
