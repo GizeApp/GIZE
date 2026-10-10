@@ -94,7 +94,7 @@ const CHAT = { arriba: '#chatHost .ch-back', abajo: '#chatHost .ch-input, #chatH
 const COACH_B = { arriba: '#coachHost .co-head' };
 
 // El recorrido. p: la página del WebView; dev: el celular (ver dispositivoAndroid); salida: carpeta.
-// Devuelve { lineas, fallo } para el informe.
+// Devuelve { lineas, problemas, fallo }: el informe, lo que se ve mal y si algún paso no se pudo hacer.
 export async function recorrido({ p, dev, salida, sb }){
   const filas = [], notas = [], problemas = [], pasosFallidos = [];
   const dialogos = [], errs = [];
