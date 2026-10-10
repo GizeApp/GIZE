@@ -71,6 +71,12 @@ export function renderCoachSettings(){
       '<label>Preguntas para tus clientes</label>'+
       '<button class="cp-copt cs-q-btn" data-coach="q-open">Editar preguntas del registro diario y del check-in</button>'+
     '</div>'+
+    // Personas bloqueadas desde el chat, como en Configuración del alumno: la lista es una hoja de
+    // ui/bloquear.js, encima de esta (la abre cualquier botón con data-bloqueados).
+    '<div class="cs-field">'+
+      '<label>Bloqueos</label>'+
+      '<button class="cp-copt cs-q-btn" data-bloqueados>Personas bloqueadas</button>'+
+    '</div>'+
     // Mismo link que en Configuración del alumno (ver LINKS.privacy en screens/config.js).
     '<div class="cs-field">'+
       '<label>Privacidad</label>'+

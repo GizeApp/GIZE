@@ -25,6 +25,8 @@ import { bellSvg, fileTextSvg, instagramSvg, globeSvg, auIcoMail, whatsappSvg, c
 const cameraSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
 const moonSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
 const sparkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg>';
+// Personas bloqueadas: un círculo tachado.
+const blockSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>';
 const zapSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
 
 function cfgRoleLabel(p) { return (p && p.role === "coach") ? "Coach" : "Cliente"; }
@@ -186,6 +188,16 @@ export function renderConfig() {
       '</div>' +
     '</div>';
 
+  // Personas bloqueadas desde el chat con el coach o desde un grupo de pasos, para desbloquearlas.
+  // La lista es una hoja de app/ui/bloquear.js (la abre cualquier botón con data-bloqueados).
+  const blockSection = !logged ? "" : '<div class="card cfg-card">' +
+      '<button type="button" class="cfg-link-row" data-bloqueados>' +
+        '<span class="cfg-link-ic">' + blockSvg + '</span>' +
+        '<span class="cfg-link-label">Personas bloqueadas</span>' +
+        '<span class="cfg-link-chev">' + chevronRightSvg + '</span>' +
+      '</button>' +
+    '</div>';
+
   const legalSection = '<div class="card cfg-card">' +
       cfgLinkRow(fileTextSvg, "Política de privacidad", LINKS.privacy) +
     '</div>';
@@ -209,7 +221,7 @@ export function renderConfig() {
 
   checkAdmin(renderApp); // solo las cuentas administradoras ven «Revisar productos»
   return '<div class="hb-head"><div class="hb-title">Configuración</div><div class="title-accent"></div></div>' +
-    account + adminEntry() + coachSection + discSection + notifSection + temaSection + neonSection + liteSection + legalSection + contactSection + dangerSection + about;
+    account + adminEntry() + coachSection + discSection + notifSection + temaSection + neonSection + liteSection + blockSection + legalSection + contactSection + dangerSection + about;
 }
 
 document.body.addEventListener("keydown", function (e) {
