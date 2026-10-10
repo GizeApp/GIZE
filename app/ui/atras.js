@@ -10,6 +10,7 @@
 
 // De la ventana de más arriba a la de más abajo: se toca la primera que se ve.
 const CERRAR = [
+  '#reportHost [data-rep="cancel"]',             // «Reportar» (encima de todo, también del chat)
   '.crp .crp-cancel',                            // acomodar la foto de perfil
   '.adm-zoom',                                   // panel: foto de un producto agrandada (se cierra con un toque)
   '#timePick [data-tp="close"]',                 // rueda de la hora / temporizador

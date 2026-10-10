@@ -4,6 +4,7 @@
 // redibuja atrás. La usan el alumno (botón de la barra de arriba) y el coach (ficha del
 // cliente). Mandar pasa por la función de mensajes, que guarda y le avisa al otro al
 // celular; los audios se suben antes al bucket privado chat-audio.
+// Un mensaje recibido se puede reportar con el «⋯» de al lado de la hora (ui/reportar.js).
 
 import { State } from '../core/state.js';
 
@@ -14,6 +15,8 @@ import { esc, fmtDate } from '../core/utils.js';
 import { chatMsgTienda } from '../core/tienda.js';
 
 import { Player, audioState, extFor, mmss, newAudioName, signedAudioUrl, startRecorder, stopAudio, togglePlay, uploadAudio } from './grabar.js';
+
+import { abrirReporte, cerrarReporte } from './reportar.js';
 
 const FN_NAMES = ["rapid-worker", "notificar-cliente"];
 const MAX_TXT = 1000;
@@ -102,6 +105,7 @@ export async function openChat(o){
 
 export function closeChat(fromNav){
   if(!C) return;
+  cerrarReporte();
   stopRec(true);
   stopAudio();
   if(C.chan) try{ State.sb.removeChannel(C.chan); }catch(e){}
@@ -318,6 +322,19 @@ function playUi(){
 }
 Player.subs.add(() => { if(C) playUi(); });
 
+// ---- Reportar ----
+
+// Un mensaje que me mandaron (los propios no). La persona sale del mensaje en la base; igual
+// va la de la otra punta de la conversación.
+function reportMsg(id){
+  const c = C; if(!c) return;
+  const m = (c.msgs || []).find(x => String(x.id) === id); if(!m || mine(m) || m.pending) return;
+  const txt = String(m.body || "").replace(/\s+/g, " ").trim();
+  const cita = m.audio_path ? "Mensaje de voz (" + mmss(m.audio_secs) + ")" + (txt ? ": " + txt : "") : txt;
+  abrirReporte({ kind: "chat", ref: m.id, reported: c.role === "coach" ? c.clientId : c.coachId, titulo: "Reportar mensaje",
+    cita: cita.length > 160 ? cita.slice(0, 159) + "…" : cita });
+}
+
 // ---- Dibujo ----
 
 function hm(iso){ const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }); }
@@ -333,7 +350,8 @@ function bubble(m){
     : '<div class="ch-txt">' + esc(m.body) + '</div>';
   const status = m.failed ? '<span class="ch-fail">' + esc(m.failed) + '</span>'
     : m.pending ? 'Enviando…'
-    : hm(m.created_at) + (me ? (m.read_at ? ' · <span class="ch-seen">Visto</span>' : ' · Enviado') : '');
+    : hm(m.created_at) + (me ? (m.read_at ? ' · <span class="ch-seen">Visto</span>' : ' · Enviado')
+      : '<button class="ch-more" data-chat="report" data-id="' + esc(String(m.id)) + '" aria-label="Reportar mensaje" title="Reportar mensaje">⋯</button>');
   return '<div class="ch-msg ' + (me ? 'me' : 'them') + (m.failed ? ' failed' : '') + '">' + inner + '<div class="ch-meta">' + status + '</div></div>';
 }
 
@@ -417,6 +435,7 @@ document.addEventListener("click", e => {
   else if(a === "rec-send") stopRec(false);
   else if(a === "rec-cancel") stopRec(true);
   else if(a === "play") playMsg(b.dataset.id);
+  else if(a === "report") reportMsg(b.dataset.id);
 });
 
 document.addEventListener("input", e => {
