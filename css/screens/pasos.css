@@ -70,6 +70,11 @@ html.tema-luz .pg { --pg-gold-text: #7A5200; --pg-gold-bg: linear-gradient(135de
 .pg-n { flex: none; min-width: 64px; text-align: right; font: 700 15px var(--gize-font-data, var(--gize-font)); font-variant-numeric: tabular-nums; color: var(--gize-text); }
 .pg-rm { flex: none; width: 30px; height: 30px; margin-right: -4px; border-radius: 50%; border: 1px solid var(--gize-border); background: transparent; color: var(--txt-2); display: grid; place-items: center; cursor: pointer; }
 .pg-rm svg { width: 14px; height: 14px; }
+/* «⋯» en la fila de otro: «Reportar» (app/ui/reportar.js). En mi fila, el mismo lugar vacío. */
+.pg-more, .pg-more-sp { flex: none; width: 30px; height: 30px; margin: 0 -6px 0 -4px; }
+.pg-more { border-radius: 50%; border: 0; background: transparent; color: var(--txt-2); font: 700 16px/1 var(--gize-font); display: grid; place-items: center; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; }
+.pg-more:active { background: color-mix(in srgb, var(--gize-text) 10%, transparent); }
 
 /* Invitar: el código grande y el botón. */
 .pg-inv-row { display: flex; align-items: center; gap: 10px; }

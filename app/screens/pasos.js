@@ -5,6 +5,7 @@
 // tienda (core/salud.js). No se anotan a mano en ningún lado (pedido).
 //
 // Las acciones van con data-pg (no data-action): se manejan acá, sin pasar por main.js.
+// El «⋯» en la fila de otro miembro abre «Reportar» (ui/reportar.js): se reporta su nombre.
 
 import { trophySvg, xSvg, chevronRightSvg } from '../core/icons.js';
 import { State, state } from '../core/state.js';
@@ -14,6 +15,7 @@ import { borrarGrupo, cambiarMiNombre, campeonGrupo, codigoValido, crearGrupo, f
 import { SaludState, apagarSalud, prenderSalud, saludDisponible, saludError, syncSalud } from '../core/salud.js';
 import { ProgresoState } from './progreso.js';
 import { saludHtml } from '../ui/saludboton.js';
+import { abrirReporte } from '../ui/reportar.js';
 import { renderApp } from '../main.js';
 
 export const PasosState = {
@@ -146,12 +148,16 @@ function grupoHtml(){
   const rows = r.map(x => {
     const pct = top > 0 ? Math.max(x.pasos > 0 ? 3 : 0, Math.round((x.pasos || 0) / top * 100)) : 0;
     const copa = campeones.has(x.miembro) ? `<span class="pg-copa" title="Campeón de la semana pasada" aria-label="Campeón de la semana pasada">${trophySvg}</span>` : "";
-    const rm = soyDueno && PasosState.sacando && !x.soy_yo ? `<button class="pg-rm" data-pg="sacar" data-m="${esc(x.miembro)}" data-n="${esc(x.nombre)}" aria-label="Sacar a ${esc(x.nombre)} del grupo">${xSvg}</button>` : "";
+    const sacando = soyDueno && PasosState.sacando;
+    const rm = sacando && !x.soy_yo ? `<button class="pg-rm" data-pg="sacar" data-m="${esc(x.miembro)}" data-n="${esc(x.nombre)}" aria-label="Sacar a ${esc(x.nombre)} del grupo">${xSvg}</button>` : "";
+    // Reportar a otro (en mi fila, el mismo lugar vacío: los números quedan alineados).
+    const mas = sacando ? "" : x.soy_yo ? '<span class="pg-more-sp" aria-hidden="true"></span>'
+      : `<button class="pg-more" data-pg="reportar" data-m="${esc(x.miembro)}" data-n="${esc(x.nombre)}" aria-label="Reportar a ${esc(x.nombre)}" title="Reportar">⋯</button>`;
     return `<div class="pg-row${x.soy_yo ? " me" : ""}"${x.soy_yo ? ' aria-current="true"' : ""}>
         <span class="pg-pos">${x.puesto || ""}</span>
         <div class="pg-mid"><div class="pg-name"><span class="pg-name-t">${esc(x.nombre)}</span>${x.soy_yo ? '<span class="pg-vos">vos</span>' : ""}${copa}</div>
           <div class="pg-bar" role="presentation"><i style="width:${pct}%"></i></div></div>
-        <span class="pg-n">${pasosTxt(x.pasos)}</span>${rm}
+        <span class="pg-n">${pasosTxt(x.pasos)}</span>${rm}${mas}
       </div>`;
   }).join("");
   return `${err}${solo(g) ? invitarHtml(g) : ""}${campeonHtml(d.campeon)}
@@ -253,6 +259,13 @@ document.body.addEventListener("click", async e => {
   if (a === "borrar" && g){
     if (!confirm(`¿Borrar «${g.nombre}»? Se borra para todos los que están.`)) return;
     await ocupado(async () => { await borrarGrupo(g.id); PasosState.grupo = null; delete PasosState.datos[g.id]; PasosState.grupos = await misGrupos(); });
+    return;
+  }
+  if (a === "reportar" && g){
+    const n = el.dataset.n || "esta persona";
+    abrirReporte({ kind: "grupo", ref: g.id, reported: el.dataset.m, titulo: "Reportar a " + n, cita: "Su nombre en «" + g.nombre + "»: " + n,
+      pie: g.soy_dueno ? "Como armaste el grupo, también podés sacarla con «Sacar a alguien del grupo», o salir vos con «Salir del grupo»."
+        : "Si no querés seguir en el grupo, podés salir cuando quieras con «Salir del grupo», abajo de todo." });
     return;
   }
   if (a === "sacar" && g){
