@@ -6,8 +6,11 @@
 # B) recorre las pantallas con la versión de prueba (debug) como alumno y como coach
 #    (scripts/android-recorrido.mjs), con Supabase simulado como en las pruebas, y revisa que la
 #    cabecera y la barra de abajo no queden debajo de las barras de Android.
-# Corre en Android 15 (API 35) y en Android 11 (API 30). Las capturas de la pantalla completa y el
-# informe (informe.txt) quedan en la ejecución, sección "Artifacts" (gize-android-emulador).
+# Corre en Android 15 (API 35, de borde a borde obligatorio) y en Android 14 (API 34). Más viejos
+# no sirven: sus imágenes traen el WebView de fábrica (Android 11: Chrome 83), que sin Play Store no
+# se actualiza y no corre la app; en los celulares de verdad el WebView se actualiza solo.
+# Las capturas de la pantalla completa y el informe (informe.txt) quedan en la ejecución, sección
+# "Artifacts" (gize-android-emulador).
 # El repo es público y los artifacts y registros también: solo datos de prueba
 # (alumno@prueba.test, coach@prueba.test) y ningún secret. Nada llega al Supabase real: el emulador
 # sale a internet por un proxy que no existe y el recorrido responde por Supabase.
@@ -30,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: [35, 30]
+        api: [35, 34]
     env:
       API: ${{ matrix.api }}
     steps:
@@ -166,6 +169,11 @@ jobs:
           node scripts/android-recorrido.mjs
         env:
           PW: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
+      - name: Registro del emulador (si algo falló)
+        if: ${{ failure() && steps.arranque.outcome != 'skipped' }}
+        run: |
+          tail -80 "$RUNNER_TEMP/emulador.log" || true
+          sudo dmesg | grep -iE "out of memory|killed process" | tail -5 || true
       - name: Resumen
         if: ${{ !cancelled() }}
         run: |
