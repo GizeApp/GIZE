@@ -112,10 +112,14 @@ export async function recorrido({ p, dev, salida, sb }){
   });
   const revisar = (ok, texto) => { (ok ? notas : problemas).push((ok ? 'OK: ' : 'PROBLEMA: ') + texto); return ok; };
   const paso = async (titulo, fn) => {
+    if (!appAdelante()){
+      problemas.push('PROBLEMA: antes de «' + titulo + '» la app no estaba adelante (' + (dev.geometria().foco || 'sin ventana') + '): se vuelve a abrir');
+      await dev.abrirApp(); await wait(2500);
+    }
     try { await fn(); }
     catch (e) {
       pasosFallidos.push(titulo + ': ' + String((e && e.message) || e).split('\n')[0]);
-      try { await dev.captura(path.join(salida, 'fallo-' + titulo.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.png')); } catch (e2) {}
+      try { await dev.captura(path.join(salida, 'fallo-' + titulo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.png')); } catch (e2) {}
     }
   };
   // Captura de la pantalla completa, con la revisión de los bordes de esa pantalla.
@@ -123,7 +127,11 @@ export async function recorrido({ p, dev, salida, sb }){
     if (arribaDeTodo) await p.evaluate(() => window.scrollTo(0, 0));
     await wait(800);
     let b;
-    try { b = bordes(Object.assign(dev.geometria(), { m: await p.evaluate(medirPagina, sel) })); }
+    try {
+      const g = dev.geometria();
+      b = bordes(Object.assign(g, { m: await p.evaluate(medirPagina, sel) }));
+      if (!g.foco.startsWith(PKG + '/')) { b.ok = false; b.problemas.unshift('la app no está adelante (ventana con el foco: ' + (g.foco || '?') + ')'); }
+    }
     catch (e) { b = { ok: false, problemas: ['no se pudieron medir los bordes: ' + e.message], detalle: '' }; }
     await dev.captura(path.join(salida, nombre + '.png'));
     filas.push({ nombre, titulo, b });
@@ -216,13 +224,17 @@ export async function recorrido({ p, dev, salida, sb }){
     const d = await p.evaluate(() => { const e = document.getElementById('chatText'); return { h: innerHeight, foco: document.activeElement && document.activeElement.id, valor: e ? e.value : '', r: e ? e.getBoundingClientRect().toJSON() : null }; });
     const abierto = dev.teclado();
     revisar(d.foco === 'chatText', 'al tocar el campo del chat queda para escribir (foco)');
-    revisar(abierto || d.h < antes.h - 100, 'se abrió el teclado de Android (alto del WebView ' + Math.round(antes.h) + ' → ' + Math.round(d.h) + ' px CSS)');
+    const encogio = d.h < antes.h - 100;
+    revisar(encogio || abierto, 'se abrió el teclado de Android (alto del WebView ' + Math.round(antes.h) + ' → ' + Math.round(d.h) + ' px CSS)');
+    if (abierto && !encogio) revisar(false, 'con el teclado abierto el WebView no se achicó: el teclado puede tapar el campo');
     revisar(d.valor.includes('Hola coach'), 'lo escrito con el teclado llega al campo');
     revisar(d.r && d.r.bottom <= d.h + 1 && d.r.top >= 0, 'con el teclado abierto el campo se sigue viendo (arriba del teclado)');
     await foto('11-teclado', 'Chat con el teclado abierto', CHAT);
-    await atras();   // cierra el teclado
-    if (dev.teclado()) await atras();
-    await atras();   // cierra el chat
+    // El primer «Atrás» cierra el teclado (el WebView vuelve a su alto); el siguiente, el chat.
+    await atras();
+    if (await p.evaluate(h => innerHeight < h - 100, antes.h)) await atras();
+    revisar(await p.evaluate(h => innerHeight >= h - 100, antes.h) && await visible('#chatHost .ch-ov'), '«Atrás» cierra el teclado y el chat sigue abierto');
+    await atras();
     revisar(!(await visible('#chatHost .ch-ov')) && appAdelante(), '«Atrás» cierra el chat y la app sigue abierta');
   });
   await paso('Configuración', async () => {
@@ -268,6 +280,7 @@ export function dispositivoAndroid(){
   return {
     adb,
     captura: f => fs.writeFileSync(f, execFileSync('adb', ['exec-out', 'screencap', '-p'], { maxBuffer: 64 << 20, timeout: 90000 })),
+    abrirApp: () => adb('shell', 'am', 'start', '-n', PKG + '/.MainActivity'),
     tecla: n => adb('shell', 'input', 'keyevent', String(n)),
     tocar: (x, y) => adb('shell', 'input', 'tap', String(x), String(y)),
     escribir: s => adb('shell', 'input', 'text', s.replace(/ /g, '%s')),

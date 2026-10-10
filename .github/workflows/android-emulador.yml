@@ -27,15 +27,20 @@ permissions:
 
 jobs:
   emulador:
-    name: Emulador (API ${{ matrix.api }})
+    name: Emulador (API ${{ matrix.api }}, ${{ matrix.gpu }})
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        api: [35, 34]
+        include:
+          - { api: 35, gpu: swiftshader_indirect }
+          - { api: 35, gpu: guest }
+          - { api: 35, gpu: swangle_indirect }
+          - { api: 34, gpu: swiftshader_indirect }
     env:
       API: ${{ matrix.api }}
+      GPU: ${{ matrix.gpu }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -98,8 +103,8 @@ jobs:
           "$ANDROID_HOME/emulator/emulator" -version | head -1
           # Sin Vulkan dentro del emulador: con swiftshader, Android 14 y 15 se cerraban al dibujar la
           # app. Si el emulador se cierra, el registro dice con qué código.
-          nohup bash -c '"$ANDROID_HOME/emulator/emulator" -avd gize -no-window -gpu swiftshader_indirect -feature -Vulkan -no-snapshot -noaudio \
-            -no-boot-anim -camera-back none -camera-front none -memory 3072; echo "El emulador terminó (código $?)"' > "$RUNNER_TEMP/emulador.log" 2>&1 &
+          nohup bash -c '"$ANDROID_HOME/emulator/emulator" -avd gize -no-window -gpu $GPU -feature -Vulkan -no-snapshot -noaudio \
+            -no-boot-anim -camera-back none -camera-front none -memory 3072 -timezone America/Argentina/Buenos_Aires; echo "El emulador terminó (código $?)"' > "$RUNNER_TEMP/emulador.log" 2>&1 &
           EMU=$!
           for i in $(seq 1 200); do
             if ! kill -0 "$EMU" 2>/dev/null; then echo "::error::El emulador se cerró al arrancar"; false; fi
@@ -185,7 +190,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
-          name: gize-android-emulador-api${{ matrix.api }}
+          name: gize-android-emulador-api${{ matrix.api }}-${{ matrix.gpu }}
           path: ${{ runner.temp }}/emulador
           retention-days: 14
 
