@@ -112,11 +112,13 @@ export async function recorrido({ p, dev, salida, sb }){
   });
   const revisar = (ok, texto) => { (ok ? notas : problemas).push((ok ? 'OK: ' : 'PROBLEMA: ') + texto); return ok; };
   const paso = async (titulo, fn) => {
-    if (!appAdelante()){
-      problemas.push('PROBLEMA: antes de «' + titulo + '» la app no estaba adelante (' + (dev.geometria().foco || 'sin ventana') + '): se vuelve a abrir');
-      await dev.abrirApp(); await wait(2500);
+    try {
+      if (!appAdelante()){
+        problemas.push('PROBLEMA: antes de «' + titulo + '» la app no estaba adelante (' + (dev.geometria().foco || 'sin ventana') + '): se vuelve a abrir');
+        await dev.abrirApp(); await wait(2500);
+      }
+      await fn();
     }
-    try { await fn(); }
     catch (e) {
       pasosFallidos.push(titulo + ': ' + String((e && e.message) || e).split('\n')[0]);
       try { await dev.captura(path.join(salida, 'fallo-' + titulo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.png')); } catch (e2) {}
@@ -137,7 +139,7 @@ export async function recorrido({ p, dev, salida, sb }){
     filas.push({ nombre, titulo, b });
   };
   const visible = sel => p.evaluate(s => { const e = document.querySelector(s); if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }, sel);
-  const appAdelante = () => dev.vivo() && dev.geometria().foco.startsWith(PKG + '/');
+  const appAdelante = () => { try { return dev.vivo() && dev.geometria().foco.startsWith(PKG + '/'); } catch (e) { return false; } };
   // Atrás de Android (la tecla del sistema, como el gesto).
   const atras = async () => { await dev.tecla(4); await wait(900); };
   const sinRealtime = () => p.evaluate(async () => {
@@ -240,6 +242,7 @@ export async function recorrido({ p, dev, salida, sb }){
   await paso('Configuración', async () => {
     await p.click('#nav-config'); await wait(900);
     await foto('12-configuracion', 'Configuración', TABS, { arribaDeTodo: true });
+    await p.screenshot({ path: path.join(salida, 'diag-12-cdp.png') }).catch(() => {}); await wait(3000); await dev.captura(path.join(salida, 'diag-12-despues.png'));
     await p.click('#view [data-bloqueados]'); await wait(1200);
     await foto('13-personas-bloqueadas', 'Configuración → Personas bloqueadas', { arriba: TABS.arriba, abajo: '#blockHost .sheet button' });
     await atras();

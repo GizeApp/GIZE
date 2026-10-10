@@ -95,13 +95,18 @@ Queries:
       InsetsSource id=3e3d0001 type=statusBars frame=[0,0][1080,136] visible=true flags= sideHint=TOP
       InsetsSource id=3e3d0005 type=mandatorySystemGestures frame=[0,0][1080,170] visible=true
       InsetsSource id=5a0b0001 type=navigationBars frame=[0,2337][1080,2400] visible=true`;
+  // Android 15 con el recorte de la cámara más alto que la barra de estado.
+  const win35r = `      InsetsSource id=3e3d0001 type=statusBars frame=[0,0][1080,63] visible=true
+      InsetsSource id=1 type=displayCutout frame=[0,0][1080,128] visible=true
+      InsetsSource id=5a0b0001 type=navigationBars frame=[0,2337][1080,2400] visible=true`;
   const win30 = `      mSource=InsetsSource type=ITYPE_STATUS_BAR frame=[0,0][1080,63] visible=true
       mSource=InsetsSource type=ITYPE_EXTRA_NAVIGATION_BAR frame=[0,0][0,0] visible=true
       mSource=InsetsSource type=ITYPE_NAVIGATION_BAR frame=[0,2214][1080,2340] visible=true
   mCurrentFocus=Window{1a2b3c u0 com.google.android.permissioncontroller/com.android.permissioncontroller.permission.ui.GrantPermissionsActivity}`;
-  t.eq(barrasDelSistema(win35), { estado: [0, 0, 1080, 136], navegacion: [0, 2337, 1080, 2400] }, 'barras de Android 15 (statusBars / navigationBars, sin las vacías)');
-  t.eq(barrasDelSistema(win30), { estado: [0, 0, 1080, 63], navegacion: [0, 2214, 1080, 2340] }, 'barras de Android 11 (ITYPE_…)');
-  t.eq(barrasDelSistema(''), { estado: null, navegacion: null }, 'sin dumpsys: sin barras');
+  t.eq(barrasDelSistema(win35), { estado: [0, 0, 1080, 136], navegacion: [0, 2337, 1080, 2400], recorte: null }, 'barras de Android 15 (statusBars / navigationBars, sin las vacías)');
+  t.eq(barrasDelSistema(win30), { estado: [0, 0, 1080, 63], navegacion: [0, 2214, 1080, 2340], recorte: null }, 'barras de Android 11 (ITYPE_…)');
+  t.eq(barrasDelSistema(win35r), { estado: [0, 0, 1080, 63], navegacion: [0, 2337, 1080, 2400], recorte: [0, 0, 1080, 128] }, 'y el recorte de la cámara (displayCutout)');
+  t.eq(barrasDelSistema(''), { estado: null, navegacion: null, recorte: null }, 'sin dumpsys: sin barras');
   t.eq(ventanaConFoco(win35), 'ar.com.gize.app/ar.com.gize.app.MainActivity', 'la ventana con el foco es la app');
   t.eq(ventanaConFoco(win30), 'com.google.android.permissioncontroller/com.android.permissioncontroller.permission.ui.GrantPermissionsActivity', 'o el pedido de permiso de Android');
   t.eq(ventanaConFoco(''), '', 'sin dumpsys: ninguna');
@@ -175,6 +180,10 @@ Queries:
   t.ok(!est.ok && /\(estimado\)/.test(est.detalle) && /empieza en y=42/.test(est.problemas[0]), 'sin el WebView, si ocupa toda la pantalla se toma desde arriba: ' + est.detalle);
   const est2 = bordes({ pantalla, barras: barras35, webview: null, m: m() });
   t.ok(est2.ok && /WebView y=136\.\.2158 \(estimado\)/.test(est2.detalle), 'y si no, debajo de la barra de estado: ' + est2.detalle);
+  // Con el recorte de la cámara más alto que la barra de estado, arriba manda el recorte.
+  const recorte = bordes({ pantalla, barras: barrasDelSistema(win35r), webview: [0, 63, 1080, 2337], m: m({ arriba: { top: 20, bottom: 50 } }) });
+  t.eq(recorte.problemas, ['la cabecera queda debajo de la barra de estado (empieza en y=116, la barra termina en y=128)'], 'la cabecera debajo del recorte de la cámara es un problema');
+  t.ok(bordes({ pantalla, barras: barrasDelSistema(win35r), webview: [0, 128, 1080, 2337], m: m() }).ok, 'y debajo del recorte, bien');
   // Pantallas sin cabecera o sin barra de abajo: no se revisa eso.
   t.ok(bordes({ pantalla, barras: barras35, webview: [0, 0, 1080, 2400], m: m({ arriba: null, abajo: null }) }).ok, 'sin cabecera ni barra de abajo para medir: nada que marcar');
 }

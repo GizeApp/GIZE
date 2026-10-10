@@ -310,7 +310,7 @@ esac`;
   }
   for (const c of ['npm ci', 'npm run android', './gradlew assembleDebug assembleRelease']) t.ok(sinComentarios(emu).includes(c), 'android-emulador.yml compila como android.yml: ' + c);
   t.ok(/^\s+name: gize-android-emulador\s*$/m.test(emu) && !/retention-days: (?!14\b)/.test(emu), 'las capturas quedan en el artifact gize-android-emulador por 14 días');
-  t.ok(/sudo tee \/etc\/udev\/rules\.d\/99-kvm4all\.rules/.test(emu) && /-gpu swiftshader_indirect/.test(emu) && /-no-window/.test(emu), 'emulador con KVM, sin ventana y con swiftshader');
+  t.ok(/sudo tee \/etc\/udev\/rules\.d\/99-kvm4all\.rules/.test(emu) && /-gpu swangle_indirect/.test(emu) && /-no-window/.test(emu), 'emulador con KVM, sin ventana y con video por software (SwiftShader con ANGLE)');
   t.ok(/settings put global http_proxy 127\.0\.0\.1:9\b/.test(emu), 'el emulador no sale a internet (proxy que no existe): la app nunca llega al Supabase real');
 
   //    La parte A (la versión de Play Store) con adb simulado: falla si la app no sigue abierta a

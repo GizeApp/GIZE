@@ -92,9 +92,10 @@ export function permisos(texto){
 // Un rectángulo [izq, arriba, der, abajo] de «[0,0][1080,136]».
 const rect = (a, b, c, d) => [+a, +b, +c, +d];
 
-// De «dumpsys window»: dónde están la barra de estado y la de navegación (o la de gestos), en
-// píxeles de la pantalla. Android 11 y 12 las llaman ITYPE_STATUS_BAR / ITYPE_NAVIGATION_BAR, y
-// desde Android 14, statusBars / navigationBars. Las que no aparecen (o miden 0) quedan en null.
+// De «dumpsys window»: dónde están la barra de estado, la de navegación (o la de gestos) y el
+// recorte de la cámara (displayCutout), en píxeles de la pantalla. Android 11 y 12 las llaman
+// ITYPE_STATUS_BAR / ITYPE_NAVIGATION_BAR, y desde Android 14, statusBars / navigationBars. Las
+// que no aparecen (o miden 0) quedan en null.
 export function barrasDelSistema(texto){
   const buscar = tipos => {
     const re = new RegExp('type=(?:' + tipos + ')\\s+frame=\\[(-?\\d+),(-?\\d+)\\]\\[(-?\\d+),(-?\\d+)\\]', 'g');
@@ -104,7 +105,7 @@ export function barrasDelSistema(texto){
     }
     return null;
   };
-  return { estado: buscar('ITYPE_STATUS_BAR|statusBars'), navegacion: buscar('ITYPE_NAVIGATION_BAR|navigationBars') };
+  return { estado: buscar('ITYPE_STATUS_BAR|statusBars'), navegacion: buscar('ITYPE_NAVIGATION_BAR|navigationBars'), recorte: buscar('displayCutout') };
 }
 
 // De «wm size»: el tamaño de la pantalla en píxeles (el que se esté usando, si se cambió).
@@ -173,7 +174,9 @@ export function ventanaConFoco(texto){
 // Devuelve { ok, problemas: [...], detalle: '...' }.
 export function bordes({ pantalla, barras, webview, m }){
   const dpr = m.dpr || 1, problemas = [], det = [];
-  const finEstado = barras && barras.estado ? barras.estado[3] : 0;
+  // Arriba manda lo que más baja: la barra de estado o el recorte de la cámara (si está arriba).
+  const rec = barras && barras.recorte && barras.recorte[1] === 0 ? barras.recorte[3] : 0;
+  const finEstado = Math.max(barras && barras.estado ? barras.estado[3] : 0, rec);
   const altoPantalla = (pantalla && pantalla.alto) || Math.round(m.screen[1] * dpr);
   const iniNav = barras && barras.navegacion ? barras.navegacion[1] : altoPantalla;
   let wv = webview, estimado = false;

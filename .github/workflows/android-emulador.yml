@@ -27,20 +27,15 @@ permissions:
 
 jobs:
   emulador:
-    name: Emulador (API ${{ matrix.api }}, ${{ matrix.gpu }})
+    name: Emulador (API ${{ matrix.api }})
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { api: 35, gpu: swiftshader_indirect }
-          - { api: 35, gpu: guest }
-          - { api: 35, gpu: swangle_indirect }
-          - { api: 34, gpu: swiftshader_indirect }
+        api: [35, 34]
     env:
       API: ${{ matrix.api }}
-      GPU: ${{ matrix.gpu }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -81,7 +76,7 @@ jobs:
           "$BT/apksigner" sign --ks "$RUNNER_TEMP/prueba.jks" --ks-pass pass:gize-prueba --out "$RUNNER_TEMP/app-release-prueba.apk" "$RUNNER_TEMP/alineada.apk"
           "$BT/apksigner" verify "$RUNNER_TEMP/app-release-prueba.apk"
       # Un celular tipo Pixel 6 (1080 × 2400) con Google APIs, sin ventana y con la placa de video
-      # simulada (swiftshader).
+      # simulada por software (SwiftShader).
       - name: Preparar el emulador (API ${{ matrix.api }})
         run: |
           # El emulador necesita la biblioteca de sonido de PulseAudio aunque corra sin sonido.
@@ -101,9 +96,10 @@ jobs:
           # Si algo falla, se muestra lo último que dijo el emulador.
           trap 'echo "--- emulador.log ---"; tail -60 "$RUNNER_TEMP/emulador.log"' ERR
           "$ANDROID_HOME/emulator/emulator" -version | head -1
-          # Sin Vulkan dentro del emulador: con swiftshader, Android 14 y 15 se cerraban al dibujar la
-          # app. Si el emulador se cierra, el registro dice con qué código.
-          nohup bash -c '"$ANDROID_HOME/emulator/emulator" -avd gize -no-window -gpu $GPU -feature -Vulkan -no-snapshot -noaudio \
+          # Video por software: SwiftShader a través de ANGLE (swangle_indirect) y sin Vulkan dentro
+          # del emulador. Con swiftshader_indirect el emulador se caía (Segmentation fault) al
+          # dibujar la app en Android 14 y 15. Si el emulador se cierra, el registro dice el código.
+          nohup bash -c '"$ANDROID_HOME/emulator/emulator" -avd gize -no-window -gpu swangle_indirect -feature -Vulkan -no-snapshot -noaudio \
             -no-boot-anim -camera-back none -camera-front none -memory 3072 -timezone America/Argentina/Buenos_Aires; echo "El emulador terminó (código $?)"' > "$RUNNER_TEMP/emulador.log" 2>&1 &
           EMU=$!
           for i in $(seq 1 200); do
@@ -190,7 +186,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
-          name: gize-android-emulador-api${{ matrix.api }}-${{ matrix.gpu }}
+          name: gize-android-emulador-api${{ matrix.api }}
           path: ${{ runner.temp }}/emulador
           retention-days: 14
 
