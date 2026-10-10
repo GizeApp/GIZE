@@ -52,6 +52,9 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           echo "SALIDA=$RUNNER_TEMP/emulador" >> "$GITHUB_ENV"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          # avdmanager y el emulador buscan el celular virtual en la misma carpeta (en el runner,
+          # sin esto avdmanager lo deja en otra y el emulador no lo encuentra).
+          echo "ANDROID_AVD_HOME=$HOME/.android/avd" >> "$GITHUB_ENV"
       - name: Instalar dependencias
         run: npm ci
       - name: Juntar la app web y pasarla al proyecto Android
@@ -73,13 +76,17 @@ jobs:
       # simulada (swiftshader).
       - name: Preparar el emulador (API ${{ matrix.api }})
         run: |
+          # El emulador necesita la biblioteca de sonido de PulseAudio aunque corra sin sonido.
+          sudo apt-get update -qq && sudo apt-get install -y -qq libpulse0 > /dev/null
           IMG="system-images;android-$API;google_apis;x86_64"
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin"
+          mkdir -p "$ANDROID_AVD_HOME"
           yes | "$SDKM/sdkmanager" --licenses > /dev/null || true
           if ! "$SDKM/sdkmanager" --install emulator platform-tools "$IMG" > "$RUNNER_TEMP/sdkmanager.log" 2>&1; then
             tail -30 "$RUNNER_TEMP/sdkmanager.log"; echo "::error::No se pudo instalar el emulador o la imagen $IMG"; exit 1
           fi
           echo no | "$SDKM/avdmanager" create avd --force -n gize -k "$IMG" -d pixel_6
+          "$SDKM/avdmanager" list avd
       - name: Arrancar el emulador
         id: arranque
         run: |
