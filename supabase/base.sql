@@ -11,7 +11,7 @@
 -- Mercado Pago, carpeta de las fotos). Vale la última que se corre. Si lo corrés, corré
 -- después, en este orden: endurecer-base.sql, suscripciones.sql, cupo-plan.sql,
 -- coach-alumnos.sql, pagos-seguros.sql, seguridad-base.sql, ejercicio-audio.sql,
--- topes-archivos.sql y topes-datos.sql.
+-- topes-archivos.sql, topes-datos.sql y bloqueos.sql.
 --
 -- Qué NO tiene:
 --   · Los CREATE TABLE (columnas, tipos, claves foráneas): no se exportaron. Para tenerlos,

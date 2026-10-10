@@ -3,8 +3,8 @@
 -- Correr UNA vez en Supabase → SQL Editor.
 -- OJO: NO volver a correr suelto. Redefine coach_active, y la versión vigente (que además
 -- mira el cupo del plan) está en cupo-plan.sql. También join_coach, cuya versión vigente (con
--- tope de códigos equivocados) está en coach-alumnos.sql. Si lo corrés, corré después
--- cupo-plan.sql y coach-alumnos.sql.
+-- tope de códigos equivocados, de coach-alumnos.sql, y sin vincular si uno bloqueó al otro) está
+-- en bloqueos.sql. Si lo corrés, corré después cupo-plan.sql, coach-alumnos.sql y bloqueos.sql.
 --
 --   Prueba           14 días, hasta 10 clientes, gratis
 --   Plan 10          hasta 10 clientes, $14.900 por mes

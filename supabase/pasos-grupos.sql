@@ -25,6 +25,10 @@
 -- Correr con el workflow "Supabase" → tarea sql → supabase/pasos-grupos.sql (o pegarlo en
 -- Supabase → SQL Editor). Se puede volver a correr sin problema. Mientras no se corra, la app
 -- muestra la sección con un aviso y todo lo demás sigue igual.
+-- OJO: las versiones vigentes de pasos_unirse, pasos_mis_grupos, pasos_ranking y pasos_campeon
+-- están en bloqueos.sql (las de acá y, además, no muestran a quien bloqueé y no dejan entrar a
+-- quien bloqueó el que armó el grupo): si se vuelve a correr este archivo, correr después
+-- bloqueos.sql.
 
 -- ===== Tablas =====
 
