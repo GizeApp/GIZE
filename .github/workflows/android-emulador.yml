@@ -100,7 +100,7 @@ jobs:
           # del emulador. Con swiftshader_indirect el emulador se caía (Segmentation fault) al
           # dibujar la app en Android 14 y 15. Si el emulador se cierra, el registro dice el código.
           nohup bash -c '"$ANDROID_HOME/emulator/emulator" -avd gize -no-window -gpu swangle_indirect -feature -Vulkan -no-snapshot -noaudio \
-            -no-boot-anim -camera-back none -camera-front none -memory 3072 -timezone America/Argentina/Buenos_Aires; echo "El emulador terminó (código $?)"' > "$RUNNER_TEMP/emulador.log" 2>&1 &
+            -no-boot-anim -camera-back none -camera-front none -memory 3072; echo "El emulador terminó (código $?)"' > "$RUNNER_TEMP/emulador.log" 2>&1 &
           EMU=$!
           for i in $(seq 1 200); do
             if ! kill -0 "$EMU" 2>/dev/null; then echo "::error::El emulador se cerró al arrancar"; false; fi
@@ -113,6 +113,9 @@ jobs:
           for a in window_animation_scale transition_animation_scale animator_duration_scale; do adb shell settings put global $a 0; done
           # El teclado de la pantalla aparece aunque el emulador simule un teclado físico.
           adb shell settings put secure show_ime_with_hard_keyboard 1
+          # Hora de Argentina, como la de los alumnos (horarios del chat, de las salidas, etc.).
+          adb shell settings put global auto_time_zone 0
+          adb shell cmd alarm set-timezone America/Argentina/Buenos_Aires > /dev/null 2>&1 || adb shell service call alarm 3 s16 America/Argentina/Buenos_Aires > /dev/null || true
           # Sin internet de verdad: todo sale por un proxy que no existe. La app nunca llega al
           # Supabase real (en el recorrido, Playwright responde por Supabase antes de salir).
           adb shell settings put global http_proxy 127.0.0.1:9
@@ -122,6 +125,7 @@ jobs:
             echo "GIZE en el emulador de Android"
             echo "Equipo: $(adb shell getprop ro.product.model | tr -d '\r'), Android $(adb shell getprop ro.build.version.release | tr -d '\r') (API $(adb shell getprop ro.build.version.sdk | tr -d '\r')), $(adb shell wm size | tr -d '\r' | sed 's/Physical size: //'), $(adb shell wm density | tr -d '\r' | sed 's/Physical density: //') dpi"
             echo "WebView: $WEBVIEW"
+            echo "Hora del emulador: $(adb shell date | tr -d '\r')"
             echo "Navegación del sistema: $(adb shell cmd overlay list android 2>/dev/null | tr -d '\r' | grep -q '\[x\] com.android.internal.systemui.navbar.gestural$' && echo gestos || echo botones)"
           } > "$SALIDA/informe.txt"
           cat "$SALIDA/informe.txt"
