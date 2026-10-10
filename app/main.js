@@ -1911,6 +1911,18 @@ function paintChatBtn(){
   b.setAttribute("aria-label", n ? "Chat con tu coach: "+n+" sin leer" : "Chat con tu coach");
 }
 ChatUnread.onChange=()=>{ paintChatBtn(); if(isCoach()) renderCoach(); };
+// Bloquear (app/ui/bloquear.js) corta en la base el vínculo coach ↔ alumno. El coach deja de ver
+// al alumno (sale de la lista y, si estaba abierta, de su ficha); el alumno queda sin coach: se
+// vuelve a leer la cuenta, como al desvincularse en Configuración (sin chat, con su rutina).
+window.addEventListener("gize:bloqueo", e=>{
+  const d=(e && e.detail)||{};
+  if(!d.desvinculado || !State.cloudUser) return;
+  if(isCoach()){
+    CoachState.coachClients=CoachState.coachClients.filter(c=>c.id!==d.target);
+    if(CoachState.coachSel===d.target){ CoachState.coachSel=null; CoachState.coachData=null; }
+    renderCoach();
+  } else loadCloud().then(()=>renderApp()).catch(()=>{});
+});
 // Tocar el aviso de un mensaje: el service worker avisa (app abierta) o abre ?chat=<alumno>.
 function chatFromPush(id){
   if(!id || !State.cloudUser || !State.cloudProfile || chatOpenFor()===id) return;

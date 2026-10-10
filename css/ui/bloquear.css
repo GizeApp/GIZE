@@ -1,0 +1,37 @@
+/* css/ui/bloquear.css
+   «Bloquear» (app/ui/bloquear.js): el menú del «⋯» (Reportar / Bloquear), la confirmación y la
+   lista «Personas bloqueadas». Es la hoja de abajo de siempre (.sheet de components.css, con lo
+   de cada apariencia en sus archivos), arriba de todo como la de «Reportar»: también del chat y
+   de la Configuración del coach. Lo que se reporta o bloquea (.rep-cita) y el aviso de error
+   (.rep-err) son los de css/ui/reportar.css.
+   Sin sombras ni animaciones propias: en GIZE básico (css/ui/basico.css) queda igual, plana. */
+#blockHost .sheet-bg { z-index: 440; }
+#blockHost .sheet { z-index: 441; }
+/* Con la hoja abierta, la pantalla de atrás queda quieta (como con #sheetHost). */
+html:has(#blockHost .sheet:not(.closing)), html:has(#blockHost .sheet:not(.closing)) body { overflow: hidden; }
+
+.blq-sheet .sheet-title { margin-bottom: 10px; overflow-wrap: anywhere; }
+.blq-txt { margin: 10px 2px 14px; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
+/* Qué pasa al bloquear: más a la vista que el resto. */
+.blq-txt.blq-que { margin-top: 4px; font-size: var(--text-body); color: var(--txt); }
+
+/* Opciones del «⋯»: una abajo de la otra; «Bloquear» en rojo, como «Eliminar cuenta». */
+.blq-opts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.blq-opt { width: 100%; padding: 14px; text-align: left; border-radius: var(--r-box); background: var(--card-2); border: 1px solid var(--border);
+  color: var(--txt); font: 600 var(--text-body) var(--gize-font); overflow-wrap: anywhere; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.blq-opt.danger { color: var(--gize-danger); }
+.blq-opt:focus-visible, .blq-un:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* «Bloquear» (confirmar): rojo lleno. */
+.blq-sheet .ctrl.blq-si { background: var(--gize-danger); color: #fff; border: 1px solid var(--gize-danger); }
+.blq-sheet .ctrl:disabled, .blq-un:disabled { opacity: .45; cursor: default; }
+.blq-reintentar { margin-bottom: 10px; }
+
+/* «Personas bloqueadas»: el nombre y «Desbloquear» en cada fila. */
+.blq-list { margin: 0 0 4px; border: 1px solid var(--border); border-radius: var(--r-box); background: var(--card-2); }
+.blq-row { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 10px 8px 14px; }
+.blq-row + .blq-row { border-top: 1px solid var(--border); }
+.blq-name { flex: 1; min-width: 0; font-size: var(--text-body); font-weight: 600; color: var(--txt); overflow-wrap: anywhere; }
+.blq-un { flex: none; padding: 9px 14px; border-radius: var(--r-btn); border: 1px solid var(--border); background: var(--card); color: var(--txt);
+  font: 600 var(--text-meta) var(--gize-font); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.blq-vacio { margin: 4px 2px 16px; font-size: var(--text-body); color: var(--txt-2); }

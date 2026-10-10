@@ -4,7 +4,8 @@
 // redibuja atrás. La usan el alumno (botón de la barra de arriba) y el coach (ficha del
 // cliente). Mandar pasa por la función de mensajes, que guarda y le avisa al otro al
 // celular; los audios se suben antes al bucket privado chat-audio.
-// Un mensaje recibido se puede reportar con el «⋯» de al lado de la hora (ui/reportar.js).
+// El «⋯» de al lado de la hora de un mensaje recibido abre «Reportar mensaje» (ui/reportar.js) y
+// «Bloquear a …» (ui/bloquear.js).
 
 import { State } from '../core/state.js';
 
@@ -16,7 +17,9 @@ import { chatMsgTienda } from '../core/tienda.js';
 
 import { Player, audioState, extFor, mmss, newAudioName, signedAudioUrl, startRecorder, stopAudio, togglePlay, uploadAudio } from './grabar.js';
 
-import { abrirReporte, cerrarReporte } from './reportar.js';
+import { cerrarReporte } from './reportar.js';
+
+import { abrirOpciones, cerrarBloqueo } from './bloquear.js';
 
 const FN_NAMES = ["rapid-worker", "notificar-cliente"];
 const MAX_TXT = 1000;
@@ -105,7 +108,7 @@ export async function openChat(o){
 
 export function closeChat(fromNav){
   if(!C) return;
-  cerrarReporte();
+  cerrarReporte(); cerrarBloqueo();
   stopRec(true);
   stopAudio();
   if(C.chan) try{ State.sb.removeChannel(C.chan); }catch(e){}
@@ -322,17 +325,33 @@ function playUi(){
 }
 Player.subs.add(() => { if(C) playUi(); });
 
-// ---- Reportar ----
+// ---- Reportar y bloquear ----
 
-// Un mensaje que me mandaron (los propios no). La persona sale del mensaje en la base; igual
-// va la de la otra punta de la conversación.
-function reportMsg(id){
+// Con quién es la conversación, para «Bloquear a …». Sin el nombre (main.js abre con «Tu coach» o
+// «Alumno»), «tu coach» o «este alumno».
+function otroNombre(c){
+  const n = String(c.name || "").trim();
+  return n && n !== "Tu coach" && n !== "Alumno" ? n : c.role === "coach" ? "este alumno" : "tu coach";
+}
+
+// El «⋯» de un mensaje que me mandaron (los propios no): reportarlo o bloquear a quien lo mandó.
+// La persona sale del mensaje en la base; igual va la de la otra punta de la conversación. Al
+// bloquear se corta el vínculo: al cerrar la hoja se cierra también el chat.
+function msgOptions(id){
   const c = C; if(!c) return;
   const m = (c.msgs || []).find(x => String(x.id) === id); if(!m || mine(m) || m.pending) return;
   const txt = String(m.body || "").replace(/\s+/g, " ").trim();
-  const cita = m.audio_path ? "Mensaje de voz (" + mmss(m.audio_secs) + ")" + (txt ? ": " + txt : "") : txt;
-  abrirReporte({ kind: "chat", ref: m.id, reported: c.role === "coach" ? c.clientId : c.coachId, titulo: "Reportar mensaje",
-    cita: cita.length > 160 ? cita.slice(0, 159) + "…" : cita });
+  let cita = m.audio_path ? "Mensaje de voz (" + mmss(m.audio_secs) + ")" + (txt ? ": " + txt : "") : txt;
+  cita = cita.length > 160 ? cita.slice(0, 159) + "…" : cita;
+  const otro = c.role === "coach" ? c.clientId : c.coachId, nombre = otroNombre(c);
+  abrirOpciones({ titulo: "Mensaje de " + nombre, cita,
+    reportar: { etiqueta: "Reportar mensaje", kind: "chat", ref: m.id, reported: otro, titulo: "Reportar mensaje", cita },
+    bloquear: { etiqueta: "Bloquear a " + nombre, kind: "chat", ref: m.id, target: otro, nombre,
+      texto: c.role === "coach"
+        ? "Se corta el vínculo: no van a poder mandarse mensajes y no se va a poder volver a sumar con tu código. Sus rutinas y registros quedan."
+        : "Se corta el vínculo: no van a poder mandarse mensajes y no te va a poder volver a sumar. Tus rutinas y registros quedan.",
+      listo: "Ya no están vinculados.",
+      alCerrar: () => { if(C === c) closeChat(); } } });
 }
 
 // ---- Dibujo ----
@@ -351,7 +370,7 @@ function bubble(m){
   const status = m.failed ? '<span class="ch-fail">' + esc(m.failed) + '</span>'
     : m.pending ? 'Enviando…'
     : hm(m.created_at) + (me ? (m.read_at ? ' · <span class="ch-seen">Visto</span>' : ' · Enviado')
-      : '<button class="ch-more" data-chat="report" data-id="' + esc(String(m.id)) + '" aria-label="Reportar mensaje" title="Reportar mensaje">⋯</button>');
+      : '<button class="ch-more" data-chat="more" data-id="' + esc(String(m.id)) + '" aria-label="Reportar o bloquear" title="Reportar o bloquear">⋯</button>');
   return '<div class="ch-msg ' + (me ? 'me' : 'them') + (m.failed ? ' failed' : '') + '">' + inner + '<div class="ch-meta">' + status + '</div></div>';
 }
 
@@ -435,7 +454,7 @@ document.addEventListener("click", e => {
   else if(a === "rec-send") stopRec(false);
   else if(a === "rec-cancel") stopRec(true);
   else if(a === "play") playMsg(b.dataset.id);
-  else if(a === "report") reportMsg(b.dataset.id);
+  else if(a === "more") msgOptions(b.dataset.id);
 });
 
 document.addEventListener("input", e => {

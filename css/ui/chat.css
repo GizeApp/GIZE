@@ -61,8 +61,8 @@ body.chat-open, html.chat-open { overflow: hidden; overscroll-behavior: none; }
 .ch-txt { white-space: pre-wrap; }
 .ch-meta { margin-top: 2px; font-size: 10.5px; color: var(--gize-text-2); text-align: right; font-variant-numeric: tabular-nums; }
 .ch-seen { color: color-mix(in srgb, var(--gize-r2) 55%, #fff); font-weight: 600; }
-/* «⋯» al lado de la hora de un mensaje recibido: «Reportar mensaje» (app/ui/reportar.js). Chico y
-   apagado, con más lugar para el dedo del que se ve. */
+/* «⋯» al lado de la hora de un mensaje recibido: «Reportar mensaje» y «Bloquear a …»
+   (app/ui/bloquear.js). Chico y apagado, con más lugar para el dedo del que se ve. */
 .ch-msg.them .ch-meta { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
 .ch-more { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 18px; margin: -3px -7px -3px 0;
   padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--gize-text-2); font: 700 14px/1 var(--gize-font); cursor: pointer;
