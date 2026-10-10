@@ -9,8 +9,8 @@
 # Corre en Android 15 (API 35, de borde a borde obligatorio) y en Android 14 (API 34). Más viejos
 # no sirven: sus imágenes traen el WebView de fábrica (Android 11: Chrome 83), que sin Play Store no
 # se actualiza y no corre la app; en los celulares de verdad el WebView se actualiza solo.
-# Las capturas de la pantalla completa y el informe (informe.txt) quedan en la ejecución, sección
-# "Artifacts" (gize-android-emulador).
+# Las capturas de la pantalla completa (y, en webview/, lo que dibujó la página) y el informe
+# (informe.txt) quedan en la ejecución, sección "Artifacts" (gize-android-emulador).
 # El repo es público y los artifacts y registros también: solo datos de prueba
 # (alumno@prueba.test, coach@prueba.test) y ningún secret. Nada llega al Supabase real: el emulador
 # sale a internet por un proxy que no existe y el recorrido responde por Supabase.
@@ -18,8 +18,6 @@ name: Android en emulador
 
 on:
   workflow_dispatch:
-  push:
-    branches: [android-emulador]
 
 # El token de GitHub de la ejecución solo puede leer el repo.
 permissions:
