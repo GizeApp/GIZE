@@ -8,6 +8,11 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { startServer, closeBrowser, checker } from './lib.mjs';
 
+// Las fechas que arman las pruebas (hoy, ayer, la semana) salen de la hora de Argentina, la misma
+// que usa el navegador de prueba (timezoneId en tests/lib.mjs). En GitHub la máquina está en UTC:
+// de 21 a 24 h, «hoy» daba otro día que en la app y fallaban las pruebas de pasos, agua y comida.
+if (!process.env.TZ) process.env.TZ = 'America/Argentina/Buenos_Aires';
+
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const only = process.argv[2] || '';
 let files = fs.readdirSync(dir).filter(f => f.endsWith('.test.mjs') && f.includes(only)).sort();
