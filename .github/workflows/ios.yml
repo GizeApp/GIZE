@@ -1,6 +1,8 @@
 # App de iPhone. Compila en una Mac de GitHub (no hace falta tener Mac).
 #   · En cada PR que toque ios/ o la config (trabajo «simulador»): compila para el simulador,
-#     sin firmar y sin ningún secret, para avisar si algo se rompió.
+#     sin firmar y sin ningún secret, para avisar si algo se rompió. También se corre a mano
+#     desde cualquier rama que no sea main (Actions → "App iPhone" → Run workflow, eligiendo la
+#     rama), para ver si compila antes de abrir el PR.
 #   · A mano y solo desde main (Actions → "App iPhone" → Run workflow, trabajo «testflight»):
 #     compila firmada y la sube a App Store Connect / TestFlight.
 #
@@ -33,7 +35,7 @@ permissions:
 
 jobs:
   simulador:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
     runs-on: macos-latest
     # Con «shell: bash» GitHub corre cada paso con pipefail: si xcodebuild falla, el
     # «| tail -40» ya no esconde el error y el paso queda en rojo.

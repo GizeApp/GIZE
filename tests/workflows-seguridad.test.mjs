@@ -4,12 +4,12 @@
 // scripts/ios-firma.py firma el JWT de App Store Connect con openssl. «Fotos de videos» corre
 // Pillow (versión y hash fijos) en un trabajo que solo lee y sube desde otro que no corre nada.
 // Todo trabajo que lee secrets corre solo desde main y en su Environment (play-release,
-// ios-release, production, catalogo o backup), los programados en uno sin revisores, y los PR de
-// iPhone compilan sin secrets. La tarea «funciones» de supabase.yml controla al final que cada
-// función quedó publicada y al día, y la tarea «secrets» no carga una clave de Apple sin su Key ID
-// y el Team ID. «Android en emulador» se corre solo a mano, sin secrets y con el token de solo
-// lectura, y su parte A falla si la app se cae. Esta prueba corre en GitHub también cuando cambia
-// lo que revisa.
+// ios-release, production, catalogo o backup), los programados en uno sin revisores, y el iPhone
+// compila para el simulador sin secrets (en los PR y a mano desde otra rama, nunca desde main). La
+// tarea «funciones» de supabase.yml controla al final que cada función quedó publicada y al día, y
+// la tarea «secrets» no carga una clave de Apple sin su Key ID y el Team ID. «Android en emulador»
+// se corre solo a mano, sin secrets y con el token de solo lectura, y su parte A falla si la app se
+// cae. Esta prueba corre en GitHub también cuando cambia lo que revisa.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -196,9 +196,21 @@ print(m.firma_cruda(bytes.fromhex(sys.argv[2])).hex())`;
   for (const f of Object.keys(usa).filter(f => /^\s+schedule:/m.test(leer('.github/workflows/' + f))))
     t.ok(!conRevisores.has(usa[f]), f + ' es programado y su Environment (' + usa[f] + ') no pide aprobación');
   // iPhone: los PR compilan para el simulador en un trabajo sin secrets; la versión firmada es otro.
+  // El del simulador también se corre a mano para probar una rama, pero nunca a mano desde main
+  // (ahí va «testflight»). Su «if:» se evalúa en cada caso (solo ==, !=, &&, || y paréntesis).
   const ij = Object.values(trabajos(leer('.github/workflows/ios.yml')));
-  const pr = ij.filter(b => /^    if: github\.event_name == 'pull_request'\s*$/m.test(b));
-  t.ok(pr.length === 1 && !/secrets\./.test(pr[0]) && /CODE_SIGNING_ALLOWED=NO/.test(pr[0]), 'ios.yml compila los PR en un trabajo sin secrets');
+  const corre = (cond, ev, ref) => {
+    if (!/^[\w.' ()=!&|\/-]+$/.test(cond)) return null;
+    try { return Function('return (' + cond.replace(/github\.event_name\b/g, JSON.stringify(ev)).replace(/github\.ref\b/g, JSON.stringify(ref)).replace(/([!=])=/g, '$1==') + ');')(); }
+    catch (e) { return null; }
+  };
+  const sim = ij.filter(b => /CODE_SIGNING_ALLOWED=NO/.test(b));
+  const condSim = sim.length === 1 ? ((sim[0].match(/^    if: (.+)$/m) || [])[1] || '').trim() : '';
+  t.ok(sim.length === 1 && !/secrets\./.test(sim[0]) && !/altool --upload-app|ios-firma\.py/.test(sim[0]), 'ios.yml compila para el simulador en un trabajo sin secrets, que no firma ni sube');
+  t.eq(corre(condSim, 'pull_request', 'refs/pull/7/merge'), true, 'el simulador corre en los PR: ' + condSim);
+  t.eq(corre(condSim, 'workflow_dispatch', 'refs/heads/otra-rama'), true, 'y a mano desde otra rama');
+  t.eq(corre(condSim, 'workflow_dispatch', 'refs/heads/main'), false, 'pero nunca a mano desde main');
+  t.eq(corre(condSim, 'push', 'refs/heads/main'), false, 'ni con otros eventos');
   t.ok(ij.some(b => /^    if: github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main'\s*$/m.test(b) && /altool --upload-app/.test(b)), 'ios.yml sube a TestFlight solo a mano y desde main');
 
   // 5) Funciones de Supabase: al final de «funciones» se mira qué quedó publicado (con la CLI
