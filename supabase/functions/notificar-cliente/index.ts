@@ -206,6 +206,9 @@ Deno.serve(async (req) => {
         : json({ error: "Mandaste muchos mensajes seguidos. Esperá un minuto." }, 429);
     }
   }
+  // Uno de los dos bloqueó al otro (supabase/bloqueos.sql): la base no lo guarda y dice por qué,
+  // sin contar quién bloqueó a quién. Sin aviso al celular.
+  if (saveErr && saveErr.code === "P0001" && saveErr.message) return json({ error: saveErr.message }, 403);
   if (saveErr || !saved) {
     if (saveErr) console.error("coach_messages", saveErr.code, saveErr.message);
     return json({ error: "No se pudo guardar el mensaje. Probá de nuevo." }, 500);
