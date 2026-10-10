@@ -136,6 +136,9 @@ export async function recorrido({ p, dev, salida, sb }){
     }
     catch (e) { b = { ok: false, problemas: ['no se pudieron medir los bordes: ' + e.message], detalle: '' }; }
     await dev.captura(path.join(salida, nombre + '.png'));
+    // Además, lo que dibujó la página misma (sin las barras de Android): si la captura de la
+    // pantalla se ve rota y esta no, es el video simulado del emulador y no la app.
+    await p.screenshot({ path: path.join(salida, 'webview', nombre + '.png') }).catch(() => {});
     filas.push({ nombre, titulo, b });
   };
   const visible = sel => p.evaluate(s => { const e = document.querySelector(s); if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }, sel);
@@ -242,7 +245,6 @@ export async function recorrido({ p, dev, salida, sb }){
   await paso('Configuración', async () => {
     await p.click('#nav-config'); await wait(900);
     await foto('12-configuracion', 'Configuración', TABS, { arribaDeTodo: true });
-    await p.screenshot({ path: path.join(salida, 'diag-12-cdp.png') }).catch(() => {}); await wait(3000); await dev.captura(path.join(salida, 'diag-12-despues.png'));
     await p.click('#view [data-bloqueados]'); await wait(1200);
     await foto('13-personas-bloqueadas', 'Configuración → Personas bloqueadas', { arriba: TABS.arriba, abajo: '#blockHost .sheet button' });
     await atras();
@@ -262,7 +264,10 @@ export async function recorrido({ p, dev, salida, sb }){
   });
 
   // ===== Informe =====
-  const lineas = [];
+  const medidas = filas.filter(f => f.b), malas = medidas.filter(f => !f.b.ok);
+  const lineas = ['Bordes (cabecera y barra de abajo contra las barras de Android): ' + medidas.length + ' pantallas revisadas, ' +
+    (malas.length ? malas.length + ' con problemas (' + malas.map(f => f.nombre + '.png').join(', ') + ')' : 'ninguna con problemas'),
+    'Capturas: la pantalla completa del celular (NN-….png) y, en webview/, lo que dibujó la página misma.', ''];
   for (const f of filas){
     const mal = f.b && !f.b.ok;
     if (mal) problemas.push('PROBLEMA: ' + f.nombre + '.png: ' + f.b.problemas.join('; '));
@@ -322,7 +327,7 @@ async function conectar(dev){
 
 async function main(){
   const salida = process.env.SALIDA || 'capturas-emulador', dev = dispositivoAndroid();
-  fs.mkdirSync(salida, { recursive: true });
+  fs.mkdirSync(path.join(salida, 'webview'), { recursive: true });
   const inf = ['', '== Parte B: recorrido con la versión de prueba (debug) y Supabase simulado =='];
   let fallo = false;
   dev.adb('logcat', '-c');
