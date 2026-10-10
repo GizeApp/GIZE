@@ -3,8 +3,10 @@
 // canvas (ui/ruta.js), proyectado con el mapa.
 //
 // · MapLibre se carga recién al mostrar un recorrido: nunca al abrir la app.
-// · Sin mapa (sin conexión, sin WebGL, modo liviano, placa de video lenta, o si OpenFreeMap no
-//   responde): el mismo recorrido sobre un fondo oscuro propio. Nunca tira error ni frena nada.
+// · Sin mapa (navegadores de Android, sin conexión, sin WebGL, modo liviano, placa de video lenta,
+//   o si OpenFreeMap no responde): el mismo recorrido sobre un fondo oscuro propio con una grilla,
+//   el cartelito fijo «Sin mapa de calles» y, en el resumen (no en vivo), la escala y las marcas
+//   de cada km. Nunca tira error ni frena nada.
 // · Un mapa por recorrido a la vista; se destruye (map.remove) apenas su lugar deja de estar en
 //   pantalla (ver syncRouteViews). Nada queda dibujando en segundo plano.
 //
@@ -12,7 +14,12 @@
 // HTML): la pantalla pone un lugar (routeSlot, un <div data-rv="nombre">) y después de dibujar,
 // syncRouteViews vuelve a poner cada vista en su lugar (o la crea, o destruye las que ya no
 // tienen lugar).
+//
+// En la app de Android (core/plataforma.js appAndroid) no hay mapa ni recorrido: routeSlot no
+// pone ningún lugar y canUseMap es false (no se carga MapLibre ni se pide nada a OpenFreeMap).
+// En los navegadores de Android (navegadorAndroid) el recorrido va, pero nunca el mapa de calles.
 import { esc } from '../core/utils.js';
+import { appAndroid, navegadorAndroid } from '../core/plataforma.js';
 import { decodeTrack } from '../core/cardiogps.js';
 import { RouteLayers, fitProjection, followProjection, prepareRoute, trackLayers, untrackLayers } from './ruta.js';
 
@@ -64,6 +71,9 @@ function brighten(map){
 // Metros por píxel CSS del mapa (MapLibre: teselas de 512 px) a ese zoom y esa latitud.
 const mPerPx = (lat, z) => 40075016.686 * Math.cos(lat * Math.PI / 180) / (512 * Math.pow(2, z));
 export const OFFLINE_TEXT = "Sin conexión: el recorrido sin el mapa de fondo.";
+export const NO_MAP_TEXT = "Sin mapa de calles";
+// Escala sin mapa: un largo redondo cerca del 22 % del ancho.
+const SCALE_FRAC = 0.22, SCALE_M = [50, 100, 200, 250, 500, 1000, 2000, 5000, 10000, 20000, 50000];
 
 // ---- MapLibre (se carga una sola vez, recién cuando hace falta) ----
 let _lib = null;
@@ -97,8 +107,11 @@ export function webglOk(){
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 // ¿Se puede poner el mapa de fondo? Con conexión, WebGL, sin modo liviano y sin una placa de
 // video lenta (app/lite.js, ANR «La GPU no responde» en Android). "gize_mapa_off" = "1" lo apaga
-// (para las pruebas y por si hiciera falta).
+// (para las pruebas y por si hiciera falta). En Android nunca (pedido: «nada de mapa para cardio
+// en android»): ni en la app ni en los navegadores, y se decide antes de webglOk, así no se crea
+// ningún contexto de WebGL.
 export function canUseMap(){
+  if (appAndroid() || navegadorAndroid()) return false;
   if (lsGet("gize_mapa_off") === "1" || lsGet("gize_gpu_lenta") === "1") return false;
   if (document.documentElement.classList.contains("lite")) return false;
   if (navigator.onLine === false) return false;
@@ -179,7 +192,9 @@ class RouteView {
     el.dataset.estado = "cargando";
     el.innerHTML = '<div class="rv-bg"></div><div class="rv-map"></div><div class="rv-layers"></div>' +
       (this.live ? '<div class="rv-here" hidden aria-hidden="true"><i class="rv-here-acc"></i><i class="rv-here-dot"></i></div>' : "") +
-      '<div class="rv-msg" hidden></div>';
+      '<div class="rv-msg" hidden></div>' +
+      (this.live ? "" : '<div class="rv-scale" hidden aria-hidden="true"><i></i><span></span></div>') +
+      '<div class="rv-nomap" hidden>' + NO_MAP_TEXT + '</div>';
     this.layers = trackLayers(new RouteLayers(el.querySelector(".rv-layers")));
     this.layers.live = this.live;
     this.prep = this.live ? null : prepareRoute(spec.pieces || decodeTrack(spec.track || ""), this.mode);
@@ -214,14 +229,39 @@ class RouteView {
     if (this.live){ const c = this.liveCenter; return c ? followProjection(c, this.liveSpan(), w, h) : null; }
     return this.prep ? fitProjection(this.prep.bounds, w, h, this.pad()) : null;
   }
-  reproject(){ const p = this.projection(); if (p && this.layers.prep) this.layers.setProjection(p); }
+  reproject(){ const p = this.projection(); if (p && this.layers.prep) this.layers.setProjection(p); this.scale(p); }
+  // Sin mapa de calles (navegadores de Android, sin conexión, modo liviano…): la grilla más
+  // marcada (CSS: .rv.sin-mapa), el cartelito fijo «Sin mapa de calles» y, fuera de en vivo, la
+  // escala y las marcas de cada km (ui/ruta.js drawMarks), para darse una idea del tamaño.
+  noMap(){
+    if (this.dead || this.map) return;
+    this.el.classList.add("sin-mapa");
+    const nm = this.el.querySelector(".rv-nomap"); if (nm) nm.hidden = false;
+    if (!this.live) this.layers.km = true;
+  }
+  // La escala (solo sin mapa y fuera de en vivo): una barra de un largo redondo (50 m … 50 km) y
+  // su texto, medida con la proyección de ahora.
+  scale(p){
+    const sc = this.el.querySelector(".rv-scale"); if (!sc) return;
+    const b = this.prep && this.prep.bounds, w = this.size().w;
+    if (this.map || !p || !b || !w || !this.el.classList.contains("sin-mapa")){ sc.hidden = true; return; }
+    const lat = (b.s + b.n) / 2, lon = (b.w + b.e) / 2;
+    const a = p(lon, lat), c = p(lon + 1000 / (111319.49 * Math.cos(lat * Math.PI / 180)), lat);
+    const pxPerM = Math.abs(c[0] - a[0]) / 1000;
+    if (!(pxPerM > 0)){ sc.hidden = true; return; }
+    const want = w * SCALE_FRAC / pxPerM;
+    const m = SCALE_M.reduce((x, y) => Math.abs(y - want) < Math.abs(x - want) ? y : x);
+    sc.firstChild.style.width = Math.round(m * pxPerM) + "px";
+    sc.lastChild.textContent = m >= 1000 ? (m / 1000) + " km" : m + " m";
+    sc.hidden = false;
+  }
 
   async start(){
     await new Promise(r => requestAnimationFrame(r));
     if (this.dead) return;
     const { w, h } = this.size();
     this.layers.resize(w || 300, h || 200);
-    if (this.live){ this.drawLive(); if (canUseMap()) this.liveMap(); return; }
+    if (this.live){ this.drawLive(); if (canUseMap()) this.liveMap(); else this.noMap(); return; }
     if (!this.prep){ this.msg("Esta salida no tiene recorrido."); this.finish(); return; }
     if (canUseMap()){
       this.msg("Cargando el mapa…");
@@ -229,7 +269,8 @@ class RouteView {
       catch (e) { if (this.dead) return; this.msg(navigator.onLine === false || /fetch|network|load|failed/i.test(String(e && e.message)) ? OFFLINE_TEXT : ""); }
       if (this.dead) return;
       if (this.map) this.msg("");
-    } else if (navigator.onLine === false && !isLite()) this.msg(OFFLINE_TEXT);
+    } else if (navigator.onLine === false && !isLite() && !navegadorAndroid()) this.msg(OFFLINE_TEXT);
+    this.noMap();
     this.reproject();
     this.play();
   }
@@ -412,7 +453,7 @@ class RouteView {
     if (!this.liveCenter) this.liveCenter = this.centerNow();
     const c = this.liveCenter || WAIT_CENTER;
     try { await this.makeMap({ center: [c.lon, c.lat], zoom: this.liveCenter ? this.liveZoom() : WAIT_ZOOM, interactive: false }); }
-    catch (e) { return; }
+    catch (e) { this.noMap(); return; }
     if (this.dead || !this.map) return;
     if (!this.liveCenter) this.liveCenter = this.centerNow();
     if (this.liveCenter) this.camera();
@@ -433,8 +474,10 @@ class RouteView {
 
 // ---- Lugares en la pantalla ----
 const views = new Map(), specs = new Map();
-// HTML del lugar donde va la vista «name». spec: ver RouteView (key cambia → vista nueva).
+// HTML del lugar donde va la vista «name». spec: ver RouteView (key cambia → vista nueva). En la
+// app de Android, nada (ni mapa ni recorrido).
 export function routeSlot(name, spec, cls){
+  if (appAndroid()) return "";
   specs.set(name, spec);
   return '<div class="rv-slot' + (cls ? " " + cls : "") + '" data-rv="' + esc(name) + '"></div>';
 }

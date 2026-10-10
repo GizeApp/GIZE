@@ -155,6 +155,8 @@ async function flujo(base, t){
   t.has(v, 'Salir a moverte', 'Cardio: «Salir a moverte»');
   t.has(v, 'Cronómetro', 'el cronómetro sigue');
   t.ok(v.indexOf('Cronómetro y temporizador') < v.lastIndexOf('Salir a moverte'), '«Salir a moverte» va último, después del cronómetro');
+  // No promete un mapa: en los navegadores de Android el recorrido va sin mapa de calles.
+  t.eq(await tc(p, '#view .sal-salir-t'), 'A pie o en bici, con el GPS: distancia, ritmo, calorías y el dibujo de tu recorrido.', '«Salir a moverte»: qué mide, sin prometer un mapa');
   t.eq(await p.$$eval('#view [data-action="sal-start"], #view [data-action="sal-mode"]', l => l.length), 0, 'en la pantalla no está «Empezar»: va en la hoja');
   // «Salir a moverte» abre la hoja de abajo con las dos opciones y «Empezar».
   await abrirSalir(p);
@@ -406,14 +408,14 @@ async function compartir(base, t, saved){
   t.eq(pg.errs, [], 'errores de la página (descarga)');
   await pg.close();
 
-  // App nativa: Filesystem (caché) + Share.
+  // App de iPhone: Filesystem (caché) + Share. (En la de Android no hay imagen del recorrido: tests/cardio-android.test.mjs.)
   pg = await withSaved(base, saved, { init: "localStorage.setItem('gize_mapa_off','1');" });
   p = pg.p;
   await p.goto(base + '/app/'); await wait(2500);
   await abrir(p, saved);
   await p.evaluate(() => {
     window.__nat = [];
-    window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', isPluginAvailable: n => n === 'Share' || n === 'Filesystem',
+    window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', isPluginAvailable: n => n === 'Share' || n === 'Filesystem',
       Plugins: {
         Filesystem: { writeFile: async o => { window.__nat.push(['write', o.path, o.directory, o.data.slice(0, 8)]); return { uri: 'file:///data/cache/' + o.path }; } },
         Share: { share: async o => { window.__nat.push(['share', o.title, o.files, o.dialogTitle]); return {}; } },

@@ -17,6 +17,11 @@
 // · Al terminar, el resumen se abre encima de todo (#salidaHost) con el recorrido dibujándose sobre
 //   el mapa (ui/recorrido.js, ui/mapa.js, ui/ruta.js); «Guardar» o «Descartar». Lo mismo al abrir
 //   una de «Tus salidas» (ahí: «Compartir», «Ver de nuevo», «Borrar»).
+// · App de Android (core/plataforma.js appAndroid): sin nada de ubicación. No está «Salir a
+//   moverte» (ni la hoja, ni el aviso de la ubicación, ni la salida en vivo) y las salidas medidas
+//   en el iPhone o en la web se abren solo con sus números: sin mapa, sin el dibujo del recorrido
+//   (ni se lo pide a la nube) y sin «Compartir» ni «Ver de nuevo». Quedan el plan de cardio del
+//   coach, los pasos y el cronómetro y temporizador.
 import { State, state } from '../core/state.js';
 
 import { esc, fmt, fmtDate, today, ymd } from '../core/utils.js';
@@ -33,6 +38,7 @@ import { legendHtml, mixHtml, notesHtml, prepOf, routeHtml, splitsHtml, statsHtm
 import { routeSlot, routeView, syncRouteViews } from '../ui/mapa.js';
 import { closeShareSheet, openShareSheet } from '../ui/compartir.js';
 import { appAway } from '../ui/pausa.js';
+import { appAndroid } from '../core/plataforma.js';
 import { renderApp } from '../main.js';
 
 export const CardioState = {
@@ -209,15 +215,16 @@ function renderSalidaTop(){
       '<div class="ctrl-row"><button class="ctrl ghost" data-action="sal-discard">Descartar</button><button class="ctrl primary" data-action="sal-review">Ver y guardar</button></div>' +
     '</section>';
   }
-  return r ? renderLive(r) : "";
+  // En la app de Android nunca hay una en curso (ui/gps.js la termina al abrir).
+  return r && !appAndroid() ? renderLive(r) : "";
 }
 
 // Último: «Salir a moverte», un botón que abre la hoja para empezar. Con una salida en curso o
-// sin guardar no va (esa está arriba de todo).
+// sin guardar no va (esa está arriba de todo). En la app de Android tampoco: ahí no hay GPS.
 function salirSection(){
-  if (GpsState.run) return "";
+  if (GpsState.run || appAndroid()) return "";
   return '<section class="sal-card sal-salir" aria-label="Salir a moverte">' +
-    '<div class="sal-salir-t">A pie o en bici, con el GPS: distancia, ritmo, calorías y tu recorrido en el mapa.</div>' +
+    '<div class="sal-salir-t">A pie o en bici, con el GPS: distancia, ritmo, calorías y el dibujo de tu recorrido.</div>' +
     '<div class="ctrl-row"><button class="ctrl primary wide" data-action="sal-sheet">Salir a moverte</button></div>' +
   '</section>';
 }
@@ -244,7 +251,7 @@ function salSheetHtml(){
 }
 function paintSalSheet(){ const c = salSheetEl(); if (c){ const card = c.querySelector(".ssh-card"); if (card) card.innerHTML = salSheetHtml(); } }
 export function openSalSheet(){
-  if (GpsState.run) return;
+  if (GpsState.run || appAndroid()) return;
   if (salSheetEl()){ paintSalSheet(); return; }
   const el = document.createElement("div");
   el.id = "salSheet"; el.className = "ssh";
@@ -392,14 +399,15 @@ function renderSalidasList(){
 
 // ---- Resumen encima de todo (#salidaHost) ----
 const reducedMotion = () => !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) || document.documentElement.classList.contains("lite");
-// La salida abierta: { rec, track (texto, "" sin recorrido, null cargando), saved }.
+// La salida abierta: { rec, track (texto, "" sin recorrido, null cargando), saved }. En la app de
+// Android el recorrido no se pide (ahí no se dibuja): track "".
 function openData(){
   const o = SalidaState.open; if (!o) return null;
   if (o.kind === "ended"){ const e = endedSummary(); return e ? { rec: e.rec, track: e.track || "", saved: false } : null; }
   const rec = (Array.isArray(state.salidas) ? state.salidas : []).find(x => x.id === o.id);
   if (!rec) return null;
   if (o.track === undefined){
-    if (rec.points === 0) o.track = "";
+    if (rec.points === 0 || appAndroid()) o.track = "";
     else {
       const c = cachedTrack(rec.id);
       if (c) o.track = c;
@@ -425,7 +433,9 @@ export function paintSalidaOverlay(){
   const d = openData();
   if (!d){ closeSalida(); return; }
   const o = SalidaState.open, { rec, track, saved } = d;
-  const prep = track ? prepOf(rec, track) : null;
+  // App de Android: solo los números (sin mapa, sin el dibujo del recorrido y sin compartirlo).
+  const solo = appAndroid();
+  const prep = track && !solo ? prepOf(rec, track) : null;
   // Sin recorrido para dibujar (o mientras llega): los números ya.
   if (track === "" || (track && !prep)) o.shown = true;
   const anim = !!prep && !o.shown && !reducedMotion();
@@ -437,14 +447,17 @@ export function paintSalidaOverlay(){
   document.documentElement.classList.add("sal-abierta");
   const scroll = host.querySelector(".sov") ? host.querySelector(".sov").scrollTop : 0;
   const name = "ov:" + rec.id;
-  const hero = track === null ? '<div class="sov-map sov-map-msg">Cargando el recorrido…</div>'
+  const hero = solo ? "" : track === null ? '<div class="sov-map sov-map-msg">Cargando el recorrido…</div>'
     : !prep ? '<div class="sov-map sov-map-msg">' + (track ? "No se pudo dibujar el recorrido." : rec.points === 0 ? "Esta salida no tiene recorrido." : "No se pudo cargar el recorrido. Volvé a abrir la salida para reintentar.") + '</div>'
     : routeHtml(name, rec, track, { cls: "sov-map", pad: { top: 84, right: 36, bottom: 128, left: 36 },
         onProgress: (m, total) => { if (!o.shown) setTxt("sovKm", fmtKm(total > 0 ? rec.dist * Math.min(1, m / total) : rec.dist)); },
         onDone: () => { if (SalidaState.open !== o) return; o.shown = true; setTxt("sovKm", fmtKm(rec.dist)); const n = document.getElementById("sovNums"); if (n) n.classList.add("in"); } });
   // «Compartir» espera a que llegue el recorrido (si no, la imagen saldría sin él).
   const shareOff = track === null ? " disabled" : "";
-  const btns = saved
+  const btns = solo
+    ? (saved ? '<button class="ctrl ghost wide sov-del" data-action="sal-del">Borrar</button>'
+      : '<button class="ctrl primary wide" data-action="sal-save">Guardar</button><button class="sov-link sov-del" data-action="sal-discard">Descartar</button>')
+    : saved
     ? '<button class="ctrl primary wide" data-action="sal-share"' + shareOff + '>Compartir</button>' +
       '<div class="sov-row"><button class="ctrl ghost" data-action="sal-replay"' + (prep ? "" : " disabled") + '>Ver de nuevo</button><button class="ctrl ghost sov-del" data-action="sal-del">Borrar</button></div>'
     : '<button class="ctrl primary wide" data-action="sal-save">Guardar</button>' +
@@ -452,14 +465,14 @@ export function paintSalidaOverlay(){
       '<button class="sov-link sov-del" data-action="sal-discard">Descartar</button>';
   const short = !saved && isShort(rec) ? '<div class="sal-note">La salida es muy corta (menos de 100 m o de 1 min en movimiento). Podés guardarla igual o descartarla.</div>' : "";
   const pend = saved && salidaPendiente(rec.id) ? '<div class="sal-tip">Todavía no se subió a tu cuenta: se sube sola apenas haya conexión.</div>' : "";
-  host.innerHTML = '<div class="sov" role="dialog" aria-modal="true" aria-label="Resumen de la salida">' +
+  host.innerHTML = '<div class="sov' + (solo ? " sov-solo" : "") + '" role="dialog" aria-modal="true" aria-label="Resumen de la salida">' +
     '<div class="sov-hero">' + hero +
       '<div class="sov-top"><button type="button" class="sov-x" data-action="sal-close" aria-label="Cerrar">‹</button><div class="sov-title">' + chip(rec.mode) + '<span>' + esc(when(rec)) + '</span></div></div>' +
       '<div class="sov-big"><b id="sovKm">' + (anim ? "0,00" : fmtKm(rec.dist)) + '</b><span>km</span></div>' +
     '</div>' +
     '<div class="sov-body">' +
       (saved ? "" : '<div class="sov-new">' + (isShort(rec) ? "Salida terminada" : "¡Salida terminada!") + '</div>') +
-      legendHtml(rec, track) +
+      (solo ? "" : legendHtml(rec, track)) +
       '<div class="sov-nums' + (o.shown ? " in" : "") + '" id="sovNums">' + statsHtml(rec) + mixHtml(rec, "sov-sec") + splitsHtml(rec, "sov-sec") + notesHtml(rec, "yo") + '</div>' +
       short + pend +
       '<div class="sov-btns">' + btns + '</div>' +
@@ -490,7 +503,11 @@ async function startSalida(){
 }
 
 // Lo que se toca de las salidas (main.js lo pasa acá). → true si era de las salidas.
+// En la app de Android no se hace nada de lo que usa el GPS, el mapa o el recorrido (la pantalla
+// ni lo muestra): se ignora.
+const SIN_UBICACION = new Set(["sal-sheet", "sal-mode", "sal-start", "sal-aviso-ok", "sal-settings", "sal-resume", "sal-pause", "sal-replay", "sal-share"]);
 export function salidaAction(a, el){
+  if (appAndroid() && SIN_UBICACION.has(a)) return true;
   if (a === "sal-sheet"){ openSalSheet(); return true; }
   if (a === "sal-sheet-close"){ closeSalSheet(); return true; }
   if (a === "sal-mode"){ setMode(el.dataset.mode); renderApp(); paintSalSheet(); return true; }

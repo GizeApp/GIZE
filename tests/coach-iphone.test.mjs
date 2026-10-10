@@ -7,19 +7,26 @@
 //   · con la cuenta vencida ve una pantalla neutra con «Cerrar sesión»;
 //   · al vincularse, el alumno no ve el plan de su coach en el mensaje de error.
 //   · en el chat, el alumno de un coach vencido no ve «plan vencido» al mandar un mensaje.
+// En la app de Android (con Capacitor o solo con su puente), lo mismo que en el iPhone para el
+// coach que ya tiene cuenta: ni el panel, ni su Configuración, ni la bienvenida, ni la pantalla de la
+// cuenta vencida hablan de la prueba, el plan, pagos ni precios (la vencida dice, además, cuándo sus
+// clientes pasan a usar GIZE por su cuenta), y el alumno tampoco ve el plan de su coach.
 // En la web todo sigue como antes: «Soy coach», la prueba gratis, «Mi plan» y los precios.
 // Eliminar la cuenta de coach dice «se da de baja tu cuenta de coach» en todos lados.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
 const IOS = `(() => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: {} }; })();`;
+// La app de Android: con Capacitor, o solo con su puente (window.androidBridge).
+const ANDROID = `(() => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {} }; })();`;
+const PUENTE = `window.androidBridge = {};`;
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated', created_at: new Date().toISOString() };
 const D = n => new Date(Date.now() + n * 864e5).toISOString();
-// Lo que no se puede ver en el iPhone. «planes» (los planes alimenticios del coach) no cuenta.
+// Lo que no se puede ver en las apps. «planes» (los planes alimenticios del coach) no cuenta.
 const PROHIBIDO = /prueba|gratis|\bplan\b|pago|precio|tarjeta|mercado|suscrip|contrat|\$|gize\.ar(?!\/privacidad)/i;
 
 const clientes = n => Array.from({ length: n }, (_, i) => ({ id: 'c' + i, role: 'client', full_name: 'Alumno ' + i, coach_id: COACH.id }));
-function coachPage(billingRow, { ios, n = 2, user = COACH } = {}){
-  return newPage({ user, init: ios ? IOS : undefined, handlers: {
+function coachPage(billingRow, { ios, init, n = 2, user = COACH } = {}){
+  return newPage({ user, init: ios ? IOS : init, handlers: {
     '/profiles': (r, J, i) => { if (i.m !== 'GET') return undefined; if (/coach_id=eq/.test(i.url.search)) return J(clientes(n));
       const me = { id: COACH.id, role: 'coach', full_name: 'Coach Prueba' }; return J(i.one ? me : [me]); },
     '/coach_billing': (r, J, i) => { const b = Object.assign({ coach_id: COACH.id }, billingRow); return J(i.one ? b : [b]); },
@@ -78,6 +85,42 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores (coach iPhone)');
   await pg.close();
 
+  // La app de Android, igual: en la prueba y con el cupo lleno, con un plan de cortesía y con más
+  // alumnos que los de su plan, sin prueba, plan, pagos ni precios.
+  for (const [name, init] of [['Android', ANDROID], ['Android (puente)', PUENTE]]){
+    pg = await coachPage(prueba, { init, n: 10 });
+    await pg.p.goto(base + '/app/'); await wait(3000);
+    const b = await txt(pg.p, '#authHost');
+    t.has(b, '¡Bienvenido, coach!', name + ': bienvenida del coach');
+    t.ok(!PROHIBIDO.test(b) && !(await pg.p.$('.onb-trial')), name + ': la bienvenida no habla de la prueba gratis: ' + b);
+    await pg.p.click('[data-onb="done"]'); await wait(400);
+    panel = await txt(pg.p, '#coachHost');
+    t.has(panel, 'Alumno 3', name + ': se ve el panel con sus alumnos');
+    t.has(panel, 'Llegaste al máximo de alumnos de tu cuenta.', name + ': aviso neutro del tope de alumnos');
+    t.ok(!PROHIBIDO.test(panel), name + ': el panel no habla de prueba, plan ni pagos: ' + panel.match(PROHIBIDO));
+    t.eq(await pg.p.evaluate(() => document.querySelectorAll('[data-plan]').length), 0, name + ': nada abre «Mi plan»');
+    await pg.p.click('[data-coach="open-settings"]'); await wait(500);
+    const aj = await txt(pg.p, '#coachSheetHost');
+    t.has(aj, 'Cerrar sesión', name + ': se ve su Configuración');
+    t.ok(!PROHIBIDO.test(aj) && !/Mi plan|Ver mi plan/.test(aj), name + ': Configuración sin plan ni pagos: ' + aj.match(PROHIBIDO));
+    const jn = await pg.p.evaluate(async () => { const m = await import('/app/core/tienda.js');
+      return [m.joinMsgTienda('Tu coach tiene el plan de GIZE vencido. Avisale para que lo renueve y volvé a intentar.'), m.chatMsgTienda('Tu plan de GIZE está vencido: por ahora no podés mandar mensajes.')]; });
+    t.ok(jn.every(m => !PROHIBIDO.test(m) && !/renov/i.test(m)), name + ': los mensajes del plan vencido, neutros: ' + jn);
+    t.eq(pg.errs, [], 'errores (coach ' + name + ')');
+    await pg.close();
+
+    for (const [cual, row, n, ve] of [['cortesía', { plan: 'cortesia', max_clients: 10, trial_ends_at: D(-40) }, 2, 'Tu código de invitación'],
+      ['más alumnos que los del plan', { plan: 'p10', max_clients: 10, trial_ends_at: D(-40), paid_until: D(20) }, 12, 'Tenés más alumnos que el máximo de tu cuenta']]){
+      pg = await coachPage(row, { init, n, user: Object.assign({}, COACH, { created_at: D(-60) }) });
+      await pg.p.goto(base + '/app/'); await wait(3000);
+      const v = await txt(pg.p, '#coachHost');
+      t.has(v, ve, name + ', ' + cual + ': se ve el panel');
+      t.ok(!PROHIBIDO.test(v), name + ', ' + cual + ': sin prueba, plan ni pagos: ' + v.match(PROHIBIDO));
+      t.eq(pg.errs, [], 'errores (' + name + ', ' + cual + ')');
+      await pg.close();
+    }
+  }
+
   // En la web, lo mismo con la prueba, «Mi plan» y los precios.
   pg = await coachPage(prueba, { n: 10 });
   await pg.p.goto(base + '/app/'); await wait(3000);
@@ -111,6 +154,20 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores (vencido iPhone)');
   await pg.close();
 
+  // En la app de Android, la misma pantalla neutra, con el día en que sus clientes pasan a usar GIZE
+  // por su cuenta (sin mandar a renovar).
+  for (const [name, init] of [['Android', ANDROID], ['Android (puente)', PUENTE]]){
+    pg = await coachPage(vencida, { init, user: viejo });
+    await pg.p.goto(base + '/app/'); await wait(3000);
+    const m = await txt(pg.p, '#coachHost');
+    t.has(m, 'Tu cuenta de coach no está activa en este momento.', name + ' vencido: pantalla neutra');
+    t.has(m, 'tus clientes pasan a usar GIZE por su cuenta', name + ' vencido: cuándo sus clientes pasan a usar GIZE por su cuenta');
+    t.ok(!PROHIBIDO.test(m) && !/equipo|hablá|renovar/i.test(m), name + ' vencido: sin prueba, plan, precios ni a quién recurrir: ' + m);
+    t.ok(!/Alumno 1/.test(m), name + ' vencido: no muestra a sus alumnos');
+    t.eq(pg.errs, [], 'errores (vencido ' + name + ')');
+    await pg.close();
+  }
+
   // En la web, la pantalla de siempre: la prueba terminó y los planes con precios.
   pg = await coachPage(vencida, { user: viejo });
   await pg.p.goto(base + '/app/'); await wait(3000);
@@ -120,8 +177,8 @@ export default async function ({ base, t }){
   await pg.close();
 
   // 4) Chat del alumno con el coach vencido: la función de mensajes responde 402 con el plan.
-  for (const ios of [true, false]){
-    const al = await newPage({ user: ALUMNO, init: ios ? IOS : undefined,
+  for (const [quien, init] of [['iPhone', IOS], ['Android', ANDROID], ['web', undefined]]){
+    const al = await newPage({ user: ALUMNO, init,
       state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} },
       handlers: { '/profiles': profile('client', { coach_id: COACH.id }),
         '/functions/v1/rapid-worker': (r, J) => J({ error: 'Tu coach tiene el plan de GIZE vencido: por ahora no le llegan mensajes.' }, 402) } });
@@ -130,10 +187,9 @@ export default async function ({ base, t }){
     await wait(400);
     await al.p.fill('#chatText', 'Hola'); await al.p.click('[data-chat="send"]'); await wait(1200);
     const fallo = await txt(al.p, '#chatHost .ch-fail');
-    const quien = ios ? 'iPhone' : 'web';
-    if (ios) {
-      t.has(fallo, 'Por ahora no se pueden mandar mensajes en esta conversación.', 'iPhone chat: aviso neutro');
-      t.ok(!PROHIBIDO.test(fallo) && !/renov/i.test(fallo), 'iPhone chat: sin el plan de su coach: ' + fallo);
+    if (init) {
+      t.has(fallo, 'Por ahora no se pueden mandar mensajes en esta conversación.', quien + ' chat: aviso neutro');
+      t.ok(!PROHIBIDO.test(fallo) && !/renov/i.test(fallo), quien + ' chat: sin el plan de su coach: ' + fallo);
     } else t.has(fallo, 'Tu coach tiene el plan de GIZE vencido', 'web chat: el aviso de siempre');
     t.eq(al.errs, [], 'errores (chat ' + quien + ')');
     await al.close();

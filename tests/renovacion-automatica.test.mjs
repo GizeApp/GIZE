@@ -1,6 +1,6 @@
 // Mi plan (web): además de la transferencia, cada plan se puede pagar con tarjeta por Mercado
-// Pago, que se renueva solo cada mes. En la app de Android no aparece (en la de iPhone ni
-// siquiera hay «Mi plan»: ver coach-iphone.test.mjs).
+// Pago, que se renueva solo cada mes. En las apps de Android y iPhone no hay «Mi plan» (ver
+// coach-iphone.test.mjs).
 import { newPage, wait } from './lib.mjs';
 
 async function open(base, native){
@@ -35,7 +35,8 @@ export default async function ({ base, t }){
   await web.close();
 
   const app = await open(base, true);
-  const n = await app.p.evaluate(() => ({ buy: document.querySelectorAll('#planSheetHost [data-plan="choose"]').length, txt: document.getElementById('planSheetHost').innerText }));
+  // («Mi plan» no se abre en las apps: ni se arma su lugar.)
+  const n = await app.p.evaluate(() => ({ buy: document.querySelectorAll('#planSheetHost [data-plan="choose"]').length, txt: (document.getElementById('planSheetHost') || {}).innerText || '' }));
   t.eq(n.buy, 0, 'Android: sin botón de pago');
   t.ok(!/Mercado Pago|tarjeta|\$/.test(n.txt), 'Android: sin hablar de pagos ni precios');
   await app.close();

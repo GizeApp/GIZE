@@ -47,6 +47,18 @@ jobs:
         run: npm ci
       - name: Juntar la app web y pasarla al proyecto Android
         run: npm run android
+      # La app de Android no usa la ubicación: el plugin queda afuera del build (capacitor.config.json
+      # android.includePlugins). Si después de cap sync volviera a aparecer, se frena acá.
+      # Si falta uno de los archivos, grep no encuentra nada y el control pasaría sin mirar: antes
+      # se revisa que estén los tres.
+      - name: Revisar que no quede el plugin de ubicación
+        run: |
+          for f in android/capacitor.settings.gradle android/app/capacitor.build.gradle android/app/src/main/assets/capacitor.plugins.json; do
+            if [ ! -f "$f" ]; then echo "::error::Falta $f (lo escribe cap sync)"; exit 1; fi
+          done
+          if grep -q "background-geolocation" android/capacitor.settings.gradle android/app/capacitor.build.gradle android/app/src/main/assets/capacitor.plugins.json; then
+            echo "::error::El plugin de ubicación quedó en el build de Android (ver android.includePlugins en capacitor.config.json)"; exit 1
+          fi
       - name: Preparar la clave de firma
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

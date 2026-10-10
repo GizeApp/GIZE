@@ -6,12 +6,11 @@
 //     habilita desde gize.ar/admin (supabase/cobro-manual.sql). Se renueva a mano cada mes.
 // Los límites los hace cumplir la base, no la app.
 //
-// En las apps de Android y iPhone no hay precios, links ni botones para contratar: Apple y
-// Google no permiten mandar a pagar por fuera de su sistema. En Android solo se ve el estado.
-// En la app de iPhone (core/tienda.js) ni eso: las cuentas de coach se manejan solo desde la
-// web, así que no hay tira, ni «Mi plan», ni prueba, ni planes. Si la cuenta no está activa,
-// una pantalla neutra con «Cerrar sesión»; el tope de alumnos se sigue respetando, sin
-// nombrar el plan.
+// En las apps de Android y iPhone (core/tienda.js appNativa) no se habla de la prueba gratis,
+// de planes, de precios ni de pagos: Apple y Google no permiten mandar a pagar por fuera de su
+// sistema. No hay tira, ni «Mi plan», ni prueba, ni planes. Si la cuenta no está activa, una
+// pantalla neutra con «Cerrar sesión» (en Android, además, el día en que sus clientes pasan a
+// usar GIZE por su cuenta); el tope de alumnos se sigue respetando, sin nombrar el plan.
 
 import { State } from '../../core/state.js';
 
@@ -21,7 +20,7 @@ import { CoachState } from './state.js';
 
 import { renderCoach } from './index.js';
 
-import { appIOS } from '../../core/tienda.js';
+import { appIOS, appNativa } from '../../core/tienda.js';
 
 // Precios: los mismos que plan_price (supabase/admin.sql), el panel de admin y la landing.
 export const PLANS = [
@@ -49,7 +48,8 @@ try {
 } catch (e) {}
 function chosenPlan(){ try { const v = localStorage.getItem(CHOSEN_KEY); return PLANS.some(p => p.id === v) ? v : null; } catch (e) { return null; } }
 
-const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+// Cualquiera de las apps (también la de Android con solo su puente): sin prueba, planes ni precios.
+const IS_NATIVE = appNativa();
 const IS_IOS = appIOS();
 const money = n => "$" + Number(n).toLocaleString("es-AR");
 // WhatsApp de GIZE (el mismo de Configuración → Contacto).
@@ -114,20 +114,21 @@ export function billing(){
 const AR_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" });
 function ymd(iso){ return AR_DAY.format(new Date(new Date(iso).getTime() - 1)); }
 
-// Tira debajo del código de invitación.
+// Tira debajo del código de invitación. En las apps no va (nombra la prueba y el plan).
 export function renderPlanBanner(){
-  const b = billing(); if(!b.known || IS_IOS) return "";
+  const b = billing(); if(!b.known || IS_NATIVE) return "";
   let txt, cls = "";
   if(b.comp) txt = "Plan cortesía · " + b.count + "/" + b.max + " clientes";
   else if(b.trial){ txt = "Prueba gratis · te quedan <b>" + b.daysLeft + " día" + (b.daysLeft === 1 ? "" : "s") + "</b> · " + b.count + "/" + b.max + " clientes"; if(b.daysLeft <= 3) cls = " warn"; }
   else if(b.trialFirst) txt = "Prueba gratis · te quedan <b>" + b.daysLeft + " día" + (b.daysLeft === 1 ? "" : "s") + "</b> · después sigue tu plan · " + b.count + "/" + b.max + " clientes";
   else if(b.paid) txt = (b.plan && b.plan.gym ? "Plan " + b.plan.name : b.max >= 100 ? "Plan Gimnasio" : "Plan " + b.max + " clientes") + " · " + b.count + "/" + b.max + (b.renews ? "" : " · vence el " + fmtDate(ymd(b.until)));
   else { txt = "Sin plan vigente"; cls = " warn"; }
-  return '<button class="pl-banner' + cls + (b.atCap ? " warn" : "") + '" data-plan="open"><span>' + txt + '</span><span class="pl-banner-go">' + (b.trial && !IS_NATIVE ? "Ver planes" : "Mi plan") + ' ›</span></button>';
+  return '<button class="pl-banner' + cls + (b.atCap ? " warn" : "") + '" data-plan="open"><span>' + txt + '</span><span class="pl-banner-go">' + (b.trial ? "Ver planes" : "Mi plan") + ' ›</span></button>';
 }
 
 function planCards(b){
   // En las apps de las tiendas no se habla de pagos ni de dónde se paga (reglas de Apple y Google).
+  // Ahí ni se llega (sin «Mi plan» ni la pantalla de la prueba vencida): por las dudas.
   if(IS_NATIVE) return '';
   const chosen = b.paid ? null : chosenPlan();
   const cards = PLANS.map(p => {
@@ -164,19 +165,19 @@ function statusLine(b){
   if(b.comp) return '<div class="pl-status ok">Tenés un plan de cortesía, sin vencimiento.</div>';
   if(b.trialFirst) return '<div class="pl-status ok">Tu plan de ' + b.max + ' clientes ya está pago. Primero termina tu prueba gratis (te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ') y después arranca el plan, al día hasta el ' + fmtDate(ymd(b.until)) + '.</div>';
   if(b.paid) return '<div class="pl-status ok">' + (b.plan && b.plan.gym ? 'Plan ' + b.plan.name + ' (' + b.max + ' alumnos)' : 'Plan de ' + b.max + ' clientes') + ' · ' + (b.renews ? 'se renueva solo cada mes' : 'al día hasta el ' + fmtDate(ymd(b.until))) + '.</div>';
-  const ch = !IS_NATIVE && PLANS.find(p => p.id === chosenPlan());
+  const ch = PLANS.find(p => p.id === chosenPlan());
   if(b.trial) return '<div class="pl-status">Estás en la prueba gratis: te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ' (hasta ' + b.max + ' clientes).' +
-    (IS_NATIVE ? '' : ch ? ' Elegiste el plan ' + (ch.gym ? ch.name : 'de hasta ' + ch.max + ' clientes') + ': contratalo cuando quieras para seguir después de la prueba.' : ' Elegí un plan y contratalo para seguir después.') + '</div>';
+    (ch ? ' Elegiste el plan ' + (ch.gym ? ch.name : 'de hasta ' + ch.max + ' clientes') + ': contratalo cuando quieras para seguir después de la prueba.' : ' Elegí un plan y contratalo para seguir después.') + '</div>';
   return '<div class="pl-status warn">Tu ' + (B.row && B.row.paid_until ? 'plan venció' : 'prueba gratis terminó') + '.</div>';
 }
 
-// Hoja "Mi plan" (desde la tira o desde Configuración).
+// Hoja "Mi plan" (desde la tira o desde Configuración). En las apps no se abre.
 export function renderPlanSheet(){
   let host = document.getElementById("planSheetHost");
   if(!host){ host = document.createElement("div"); host.id = "planSheetHost"; document.body.appendChild(host); }
-  if(!B.open || IS_IOS){ host.innerHTML = ""; return; }
+  if(!B.open || IS_NATIVE){ host.innerHTML = ""; return; }
   const b = billing();
-  const cancel = (!IS_NATIVE && b.paid && b.renews) ? '<button class="pl-cancel" data-plan="cancel">Cancelar la renovación</button>' : "";
+  const cancel = (b.paid && b.renews) ? '<button class="pl-cancel" data-plan="cancel">Cancelar la renovación</button>' : "";
   host.innerHTML = '<div class="cp-bg" data-plan="close"></div><div class="cp-ccard pl-sheet">' +
     '<div class="cp-head"><div class="cp-title">Mi plan</div><button class="cp-x" data-plan="close">✕</button></div>' +
     statusLine(b) + planCards(b) + cancel +
@@ -205,38 +206,40 @@ const WALL_DELETE = '<button class="logout-btn cfg-danger pl-wall-del" data-acti
 export function renderPaywall(){
   const b = billing();
   if(b.overCap) return renderOverCap(b);
-  if(IS_IOS) return renderInactiveIOS();
+  if(IS_NATIVE) return renderInactiveApp(b);
   return '<div class="co-wrap pl-wall">' +
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
     '<div class="pl-wall-hero"><div class="pl-wall-t">' + (B.row && B.row.paid_until ? 'Tu plan venció' : 'Terminó tu prueba gratis') + '</div>' +
     '<div class="pl-wall-s">Tus ' + b.count + ' cliente' + (b.count === 1 ? '' : 's') + ', rutinas y registros están guardados. ' +
-    (IS_NATIVE ? '' : 'Elegí un plan para volver a verlos y seguir sumando clientes: con tarjeta se renueva solo cada mes.') + '</div>' +
+    'Elegí un plan para volver a verlos y seguir sumando clientes: con tarjeta se renueva solo cada mes.</div>' +
     graceLine(b) +
     (B.confirming ? '<div class="pl-status">Confirmando tu pago con Mercado Pago…</div>' : '') + '</div>' +
     planCards(b) + WALL_DELETE +
   '</div>';
 }
 
-// App de iPhone: cuenta de coach sin prueba ni plan vigente. Sin nombrar la prueba, el plan,
-// precios ni adónde ir: solo que no está activa y «Cerrar sesión».
-function renderInactiveIOS(){
+// Apps de iPhone y Android: cuenta de coach sin prueba ni plan vigente. Sin nombrar la prueba, el
+// plan, precios ni adónde ir: solo que no está activa y «Cerrar sesión». En Android, además, el
+// día en que sus clientes pasan a usar GIZE por su cuenta (graceLine, sin mandar a renovar).
+function renderInactiveApp(b){
   return '<div class="co-wrap pl-wall">' +
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
     '<div class="pl-wall-hero"><div class="pl-wall-t">Tu cuenta de coach no está activa en este momento.</div>' +
+    (IS_IOS ? '' : graceLine(b)) +
     '<button class="pl-choose pl-wall-out" data-auth="logout">Cerrar sesión</button></div>' + WALL_DELETE +
   '</div>';
 }
 
 // Tiene más clientes que los de su plan: se pasa a uno más grande o desvincula clientes.
-// En iPhone, lo mismo sin nombrar el plan: «el máximo de alumnos de tu cuenta».
+// En las apps, lo mismo sin nombrar el plan: «el máximo de alumnos de tu cuenta».
 function renderOverCap(b){
   const extra = b.count - b.max;
   const list = CoachState.coachClients.map(c => '<div class="pl-oc-row"><span>' + esc(c.full_name || "Cliente") + '</span>' +
     '<button class="pl-link" data-plan="unlink" data-id="' + esc(c.id) + '"' + (B.busy ? ' disabled' : '') + '>Desvincular</button></div>').join("");
   return '<div class="co-wrap pl-wall">' +
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
-    '<div class="pl-wall-hero"><div class="pl-wall-t">' + (IS_IOS ? 'Tenés más alumnos que el máximo de tu cuenta' : 'Tenés más clientes que tu plan') + '</div>' +
-    '<div class="pl-wall-s">' + (IS_IOS ? 'Tenés ' + b.count + ' alumnos y el máximo de tu cuenta es ' + b.max + '. ' : 'Tenés ' + b.count + ' clientes y tu plan es de ' + b.max + '. ') +
+    '<div class="pl-wall-hero"><div class="pl-wall-t">' + (IS_NATIVE ? 'Tenés más alumnos que el máximo de tu cuenta' : 'Tenés más clientes que tu plan') + '</div>' +
+    '<div class="pl-wall-s">' + (IS_NATIVE ? 'Tenés ' + b.count + ' alumnos y el máximo de tu cuenta es ' + b.max + '. ' : 'Tenés ' + b.count + ' clientes y tu plan es de ' + b.max + '. ') +
     (IS_NATIVE ? 'Desvinculá ' : 'Contratá un plan más grande o desvinculá ') + extra + ' cliente' + (extra === 1 ? '' : 's') + ' para volver a ver sus fichas. Sus rutinas y registros quedan guardados.</div></div>' +
     planCards(b) +
     '<div class="pl-oc"><div class="pl-sub">Tus clientes</div>' + list + '</div>' + WALL_DELETE +
@@ -289,7 +292,7 @@ function rerender(){ renderPlanSheet(); renderCoach(); }
 // Vuelta de Mercado Pago (?pago=mp): el aviso del pago llega a la función en segundos,
 // así que se relee el plan unas veces hasta verlo activo.
 export async function checkPaymentReturn(){
-  if(IS_IOS) return;
+  if(IS_NATIVE) return;
   const u = new URL(location.href);
   if(!u.searchParams.has("pago")) return;
   u.searchParams.delete("pago"); u.searchParams.delete("preapproval_id");
@@ -308,7 +311,7 @@ export async function checkPaymentReturn(){
   else alert("Mercado Pago todavía no confirmó el cobro. Tu plan se activa solo apenas se acredite: podés seguir usando la app.");
 }
 
-export function openPlan(){ if(IS_IOS) return; B.open = true; renderPlanSheet(); }
+export function openPlan(){ if(IS_NATIVE) return; B.open = true; renderPlanSheet(); }
 
 document.body.addEventListener("click", e => {
   const b = e.target.closest("[data-plan]"); if(!b || b.disabled) return;

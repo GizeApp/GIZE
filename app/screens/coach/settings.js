@@ -19,7 +19,7 @@ import { adminEntry, checkAdmin } from '../admin-productos.js';
 import { temaOptionsHtml } from '../../ui/tema.js';
 import { neonSwitchHtml } from '../../ui/neon.js';
 
-import { appIOS } from '../../core/tienda.js';
+import { appNativa } from '../../core/tienda.js';
 
 export function renderCoachSettings(){
   const host=document.getElementById("coachSheetHost"); if(!host) return;
@@ -44,8 +44,8 @@ export function renderCoachSettings(){
       '<input class="co-note" data-coach="settings-name" value="'+esc(draft)+'">'+
       '<button class="co-save-rt" data-coach="settings-name-save">Guardar nombre</button>'+
     '</div>'+
-    // En la app de iPhone no hay «Mi plan»: la cuenta de coach se maneja desde la web (core/tienda.js).
-    (appIOS() ? '' : '<div class="cs-field">'+
+    // En las apps (iPhone y Android) no hay «Mi plan»: no se habla de planes (core/tienda.js appNativa).
+    (appNativa() ? '' : '<div class="cs-field">'+
       '<label>Plan de GIZE</label>'+
       '<button class="cp-copt cs-q-btn" data-plan="open">Ver mi plan y cantidad de clientes</button>'+
     '</div>')+

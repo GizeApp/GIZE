@@ -193,6 +193,23 @@ html.lite .cneon i { animation: none; }
   background: radial-gradient(circle at 1px 1px, rgba(255,255,255,.07) 1px, transparent 1.6px) 0 0 / 22px 22px,
     radial-gradient(120% 90% at 50% 30%, #0B0D14 0%, #000 75%); }
 .rv.con-mapa .rv-bg { opacity: 0; }
+/* Sin mapa de calles (app/ui/mapa.js noMap: navegadores de Android, sin conexión, modo liviano…):
+   la grilla más marcada (líneas cada 44 px y puntos cada 22 px), quieta, sin filtros ni sombras
+   (anda igual con css/ui/basico.css). */
+.rv.sin-mapa .rv-bg {
+  background: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px) 0 0 / 100% 44px,
+    linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px) 0 0 / 44px 100%,
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,.16) 1.2px, transparent 1.8px) 0 0 / 22px 22px,
+    radial-gradient(120% 90% at 50% 30%, #0B0D14 0%, #000 75%); }
+/* El cartelito fijo «Sin mapa de calles» (abajo a la derecha) y la escala (abajo a la izquierda;
+   en el resumen, a la derecha, arriba de los km grandes). */
+.rv-nomap { position: absolute; z-index: 4; right: 12px; bottom: 10px; font-size: 10px; line-height: 1.3; color: rgba(255,255,255,.55); pointer-events: none; white-space: nowrap; }
+.rv-scale { position: absolute; z-index: 4; left: 12px; bottom: 10px; display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
+.rv-scale[hidden], .rv-nomap[hidden] { display: none; }
+.rv-scale i { display: block; height: 5px; border: 1.5px solid rgba(255,255,255,.75); border-top: 0; }
+.rv-scale span { font-size: 10px; font-weight: 700; color: rgba(255,255,255,.8); letter-spacing: .02em; }
+.sov-map .rv-scale { left: auto; right: 24px; bottom: 122px; align-items: flex-end; }
+.sov-map .rv-nomap { right: 24px; bottom: 104px; }
 .rv .rv-map { position: absolute; inset: 0; } /* maplibre-gl.css (se carga después) le pone position: relative a .maplibregl-map */
 .rv-map .maplibregl-canvas { outline: none; }
 .rv-layers { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
@@ -240,6 +257,11 @@ html.sal-abierta, html.sal-abierta body { overflow: hidden; }
 .sov-big { position: absolute; z-index: 3; left: 20px; bottom: 34px; display: flex; align-items: baseline; gap: 8px; color: #fff; pointer-events: none; text-shadow: 0 2px 18px rgba(0,0,0,.6); }
 .sov-big b { font-size: clamp(56px, 19vw, 88px); font-weight: 700; letter-spacing: -.035em; line-height: .9; font-variant-numeric: tabular-nums; }
 .sov-big span { font-size: 22px; font-weight: 600; color: rgba(255,255,255,.72); }
+/* App de Android (app/screens/cardio.js, sin nada de ubicación): sin mapa ni dibujo del recorrido,
+   la cabecera es solo la fecha y los km, sin el alto del mapa. */
+.sov-solo .sov-hero { height: auto; min-height: 0; padding: calc(68px + env(safe-area-inset-top)) 20px 24px; background: radial-gradient(120% 90% at 50% 30%, #0B0D14 0%, #000 75%); }
+.sov-solo .sov-hero::before, .sov-solo .sov-hero::after { display: none; }
+.sov-solo .sov-big { position: static; }
 .sov-body { max-width: 540px; margin: 0 auto; padding: 16px 16px calc(28px + env(safe-area-inset-bottom)); }
 .sov-new { margin: 2px 2px 4px; font-size: var(--text-emphasis); font-weight: 700; color: var(--gize-text); }
 .sov-nums { opacity: 0; transform: translateY(10px); transition: opacity .4s ease, transform .4s ease; }

@@ -14,9 +14,13 @@
 // justo después de un toque. Orden: app nativa con los plugins Share y Filesystem (la imagen se
 // escribe en la caché del celular y se comparte el archivo) → Web Share con archivos (Chrome de
 // Android, Safari de iPhone) → «Guardar imagen» (descarga) → mantener apretada la vista previa.
+// En la app de Android no hay imagen del recorrido (ahí no hay nada de ubicación: la hoja no se
+// abre). Sin la foto del mapa (navegadores de Android, sin conexión, modo liviano) la imagen va
+// sobre el fondo propio y sin los créditos del mapa.
 import { CLASSES, breakdownText, decodeTrack, fmtClock, fmtKm, fmtKmh, fmtPace, modeLabel, paceOf, trimTrack } from '../core/cardiogps.js';
 import { drawRouteFlat, fitProjection, palette, prepareRoute, projectRoute } from './ruta.js';
 import { mapPhoto } from './mapa.js';
+import { appAndroid } from '../core/plataforma.js';
 
 export const W = 1080, H = 1920;
 const PANEL = { x: 48, y: 210, w: 984, h: 1060, r: 48 };
@@ -216,6 +220,7 @@ export function closeShareSheet(){
 }
 export function openShareSheet(rec, track){
   closeShareSheet();
+  if (appAndroid()) return null;
   const el = document.createElement("div");
   el.id = "salShare"; el.className = "ssh";
   el.innerHTML = '<div class="ssh-bg" data-sh="close"></div>' +

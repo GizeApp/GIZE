@@ -32,6 +32,18 @@ jobs:
         run: npm ci
       - name: Juntar la app web y pasarla al proyecto Android
         run: npm run android
+      # La app de Android no usa la ubicación: el plugin queda afuera del build (capacitor.config.json
+      # android.includePlugins). Si después de cap sync volviera a aparecer, se frena acá.
+      # Si falta uno de los archivos, grep no encuentra nada y el control pasaría sin mirar: antes
+      # se revisa que estén los tres.
+      - name: Revisar que no quede el plugin de ubicación
+        run: |
+          for f in android/capacitor.settings.gradle android/app/capacitor.build.gradle android/app/src/main/assets/capacitor.plugins.json; do
+            if [ ! -f "$f" ]; then echo "::error::Falta $f (lo escribe cap sync)"; exit 1; fi
+          done
+          if grep -q "background-geolocation" android/capacitor.settings.gradle android/app/capacitor.build.gradle android/app/src/main/assets/capacitor.plugins.json; then
+            echo "::error::El plugin de ubicación quedó en el build de Android (ver android.includePlugins en capacitor.config.json)"; exit 1
+          fi
       - name: Compilar APK de prueba
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
@@ -39,4 +51,39 @@ jobs:
         with:
           name: gize-android-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+      # R8 y el achicado de recursos van solo en la versión de Play Store (release), que se arma
+      # desde main con android-release.yml. Acá se compila también la release, sin firmar (sin la
+      # clave sale app-release-unsigned.apk): así un problema de R8 o de las reglas
+      # (proguard-rules.pro) frena el PR y no aparece recién al armar la versión para Play. Para
+      # probar en el celular sirve la de Play (prueba interna), no esta ni la de prueba de arriba.
+      - name: Compilar con R8 (como la versión de Play Store)
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+      # Lo que lee Play es el manifiesto final, ya unido con los de todas las bibliotecas: ahí no
+      # tiene que haber ningún permiso de ubicación, ni el servicio del GPS, ni el GPS como
+      # característica (aunque mañana los sumara una biblioteca nueva).
+      - name: Revisar el APK (sin ubicación)
+        working-directory: android
+        run: |
+          APK=app/build/outputs/apk/release/app-release-unsigned.apk
+          AAPT2="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)aapt2"
+          if [ ! -f "$APK" ] || [ ! -x "$AAPT2" ]; then echo "::error::Falta el APK ($APK) o aapt2 ($AAPT2)"; exit 1; fi
+          "$AAPT2" dump permissions "$APK" > permisos.txt
+          "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > manifiesto.txt
+          cat permisos.txt
+          # Si no se pudo leer (salida vacía), que no pase como «sin ubicación».
+          if ! grep -q "android.permission.INTERNET" permisos.txt || ! grep -q "ar.com.gize.app" manifiesto.txt; then
+            echo "::error::No se pudo leer el manifiesto del APK"; exit 1
+          fi
+          if grep -E "LOCATION" permisos.txt || grep -Ei "geolocation|hardware\.location" manifiesto.txt; then
+            echo "::error::El APK pide la ubicación o trae el servicio del GPS (ver arriba)"; exit 1
+          fi
+      # Para leer los errores de la versión con R8 (mapping.txt) y ver de dónde salió cada permiso.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gize-android-r8
+          path: |
+            android/app/build/outputs/mapping/release/mapping.txt
+            android/app/build/outputs/logs/manifest-merger-release-report.txt
           retention-days: 30

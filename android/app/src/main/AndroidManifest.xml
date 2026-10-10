@@ -61,15 +61,6 @@
         </provider>
         <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_gize" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/gize_notif" />
-        <!-- Servicio del GPS de las salidas de Cardio (plugin @capacitor-community/background-geolocation):
-             el plugin lo declara exportado, o sea que otras apps del celular podrían arrancarlo. Lo usa
-             solo GIZE, así que queda cerrado (exported=false). Tipo "location": sigue midiendo con la
-             pantalla apagada mientras se ve la notificación «Salida … en curso». -->
-        <service
-            android:name="com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService"
-            android:exported="false"
-            android:foregroundServiceType="location"
-            tools:replace="android:exported" />
     </application>
 
     <!-- Permissions -->
@@ -86,19 +77,15 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
-    <!-- Salidas a pie o en bici (Cardio): la ubicación precisa solo mientras hay una salida en curso,
-         para medir distancia, ritmo y calorías y dibujar el recorrido. Con la pantalla apagada o el
-         celular en el bolsillo sigue con un servicio en primer plano (FOREGROUND_SERVICE_LOCATION)
-         que muestra una notificación mientras dura la salida; al pausarla o terminarla se va.
-         Se arranca siempre con la app abierta, así que NO se pide la ubicación "todo el tiempo"
-         (ACCESS_BACKGROUND_LOCATION). -->
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <!-- El plugin pide GPS como obligatorio: así Google Play no esconde la app en tablets y equipos
-         sin GPS (ahí la salida no se puede medir, pero el resto de la app anda igual). -->
-    <uses-feature android:name="android.hardware.location.gps" android:required="false" tools:replace="android:required" />
+    <!-- Sin ubicación: la app de Android no usa la ubicación para nada (las salidas con GPS de
+         Cardio son solo de la app de iPhone y de la web). El plugin de ubicación no va en el build
+         de Android (capacitor.config.json android.includePlugins) y, por si alguna biblioteca
+         sumara estos permisos al unir los manifiestos, se sacan acá. Sin servicio en primer plano:
+         FOREGROUND_SERVICE lo usaba solo ese plugin. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" tools:node="remove" />
 
     <!-- Pasos automáticos desde Health Connect («Competencia de pasos»): SOLO lectura de pasos.
          El plugin declara más permisos (escribir, distancia, calorías, pulso, peso) que la app no

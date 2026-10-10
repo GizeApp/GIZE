@@ -1,20 +1,21 @@
 // Cardio «A pie» / «En bici», paso 2: el seguimiento con GPS (app/ui/gps.js) y la ubicación en
 // segundo plano de las apps nativas.
-// a) Archivos nativos: plugin de ubicación (+ compartir y archivos) en package.json, gradle y
-//    Package.swift; permisos y servicio cerrado (exported=false) en Android, sin ubicación «todo
-//    el tiempo»; textos, modo de fondo y foto en iPhone; useLegacyBridge (y que la app no cargue
-//    marcos de terceros: con ese puente, cualquier marco llegaría a lo nativo); PrivacyInfo.
+// a) Archivos nativos: plugin de ubicación (+ compartir y archivos) en package.json y
+//    Package.swift (iPhone; en Android, compartir y archivos sí pero la ubicación no: ver
+//    tests/cardio-android.test.mjs); textos, modo de fondo y foto en iPhone; useLegacyBridge (y que
+//    la app no cargue marcos de terceros: con ese puente, cualquier marco llegaría a lo nativo);
+//    PrivacyInfo.
 // b) Web con GPS falso: aviso «Usar tu ubicación» antes de pedir nada; empezar, puntos, partes de
 //    400 guardadas (la llena no se reescribe; se escribe como mucho cada 5 s o 20 puntos), pausa y
 //    seguir (sube seg, pantalla prendida pedida y soltada), recargar a mitad (se retoma con el
 //    mismo id y todos los puntos), terminar, descartar, permiso negado, sin espacio, y el tope de
 //    puntos (se achica y se reescribe todo).
-// c) App nativa con el plugin falso: permisos ANTES de addWatcher (requestPermissions:false),
-//    textos de la notificación, permiso negado, «Service not running.» se reintenta, recarga →
-//    saca el watcher que quedó de antes (anotado en el celular) y se engancha solo, pausa/terminar
-//    → removeWatcher, sin checkPermissions, permiso perdido, salida olvidada (1 h quieto: se
-//    pausa; 6 h sin moverse o 12 h: se termina; en los dos casos se apaga el GPS), ubicación
-//    apagada e iPhone (con la ubicación aproximada avisa cómo activar la exacta).
+// c) App de iPhone con el plugin falso (la de Android no usa la ubicación: ver
+//    tests/cardio-android.test.mjs): addWatcher pide el permiso, título de la salida, permiso
+//    negado, «Service not running.» se reintenta, recarga → saca el watcher que quedó de antes
+//    (anotado en el celular) y se engancha solo, pausa/terminar → removeWatcher, permiso perdido,
+//    salida olvidada (1 h quieto: se pausa; 6 h sin moverse o 12 h: se termina; en los dos casos
+//    se apaga el GPS), ubicación apagada y ubicación aproximada (avisa cómo activar la exacta).
 // d) App en segundo plano: se guarda en el acto y el GPS nativo sigue.
 // e) El reloj de main.js no se prende por una salida fuera de Cardio.
 import fs from 'node:fs';
@@ -31,7 +32,7 @@ const KEY = 'gize_salida_v1';
 const T = {
   webLimit: 'En el navegador, GIZE mide la salida solo con la pantalla prendida y la app abierta.',
   nativeTip: 'Podés bloquear el celular y guardarlo: GIZE sigue midiendo. No cierres GIZE desde las apps recientes.',
-  permAndroid: 'GIZE no tiene permiso para usar tu ubicación precisa, así que no puede medir la salida.',
+  permIos: 'GIZE no tiene permiso para usar tu ubicación, así que no puede medir la salida. Permitilo en Ajustes › GIZE › Ubicación.',
   permWeb: 'GIZE no tiene permiso para usar tu ubicación. Permitilo en los ajustes del navegador.',
   quota: 'El celular se quedó sin espacio para guardar la salida en curso: no cierres GIZE hasta terminarla.',
   notifMsg: 'GIZE está midiendo tu salida. Tocá para volver.',
@@ -77,9 +78,10 @@ const FAKE_WEB = () => {
 // App nativa con el plugin de ubicación falso. window.__bg anota las llamadas (log), los
 // watchers (cbs) y lo que se sacó (removed). La plataforma (window.__plat) y los permisos dados
 // quedan en sessionStorage (sobreviven a recargar, como en el celular). __fix(lat, lon, acc, t):
-// punto del GPS al watcher más nuevo; __bgErr(e): error al watcher más nuevo.
+// punto del GPS al watcher más nuevo; __bgErr(e): error al watcher más nuevo. addErr: el error
+// que manda el watcher apenas se engancha (permiso negado, ubicación apagada).
 const FAKE_NATIVE = () => {
-  const plat = window.__plat || 'android';
+  const plat = window.__plat || 'ios';
   const B = window.__bg = { log: [], added: 0, opts: [], cbs: {}, last: null, removed: [], settings: 0, grant: true, svcFails: 0, noCheck: false, addErr: null };
   B.perm = sessionStorage.getItem('__perm') || 'prompt';
   B.notif = sessionStorage.getItem('__notif') || 'prompt';
@@ -133,12 +135,10 @@ function staticChecks(t){
   const lock = JSON.parse(read('package-lock.json')).packages || {};
   t.eq(['@capacitor-community/background-geolocation', '@capacitor/share', '@capacitor/filesystem'].map(n => (lock['node_modules/' + n] || {}).version), ['1.2.26', '7.0.4', '7.1.8'], 'package-lock.json con las mismas versiones (CI usa npm ci)');
   const settings = read('android/capacitor.settings.gradle'), build = read('android/app/capacitor.build.gradle');
-  for (const [m, dir] of [['capacitor-community-background-geolocation', '@capacitor-community/background-geolocation'], ['capacitor-filesystem', '@capacitor/filesystem'], ['capacitor-share', '@capacitor/share']]){
+  for (const [m, dir] of [['capacitor-filesystem', '@capacitor/filesystem'], ['capacitor-share', '@capacitor/share']]){
     t.has(settings, `include ':${m}'\nproject(':${m}').projectDir = new File('../node_modules/${dir}/android')`, 'Android: ' + m + ' en capacitor.settings.gradle');
     t.has(build, `implementation project(':${m}')`, 'Android: ' + m + ' en capacitor.build.gradle');
   }
-  const order = s => [...s.matchAll(/project\(':([^']+)'\)\.projectDir/g)].map(m => m[1]);
-  t.eq(order(settings), ['capacitor-android', 'capacitor-community-background-geolocation', 'capacitor-app', 'capacitor-browser', 'capacitor-filesystem', 'capacitor-local-notifications', 'capacitor-push-notifications', 'capacitor-share', 'capgo-capacitor-health', 'capgo-capacitor-social-login'], 'Android: plugins en el orden en que los escribe cap sync');
   const spm = read('ios/App/CapApp-SPM/Package.swift');
   for (const [n, dir] of [['CapacitorCommunityBackgroundGeolocation', '@capacitor-community/background-geolocation'], ['CapacitorFilesystem', '@capacitor/filesystem'], ['CapacitorShare', '@capacitor/share']]){
     t.has(spm, `.package(name: "${n}", path: "../../../node_modules/${dir}")`, 'iPhone: ' + n + ' en Package.swift');
@@ -147,7 +147,7 @@ function staticChecks(t){
   t.has(read('scripts/ios-sin-facebook.mjs'), 'node_modules/@capgo/capacitor-social-login/Package.swift', 'el script de iPhone sigue tocando solo el plugin de login');
 
   const cfg = JSON.parse(read('capacitor.config.json'));
-  t.eq(cfg.android && cfg.android.useLegacyBridge, true, 'Android: useLegacyBridge (sin esto la ubicación se corta a los 5 min en segundo plano)');
+  t.eq(cfg.android && cfg.android.useLegacyBridge, true, 'Android: useLegacyBridge (se puso para la ubicación en segundo plano, que ya no está; queda como estaba)');
   // useLegacyBridge deja el puente con lo nativo al alcance de CUALQUIER marco de la página (sin
   // el control de origen del puente nuevo), y @capacitor/filesystem lee y escribe archivos de la
   // app. Por eso la app nativa no puede cargar marcos de terceros: la CSP deja solo el de Google
@@ -159,20 +159,6 @@ function staticChecks(t){
   const appJs = fs.readdirSync(path.join(ROOT, 'app'), { recursive: true }).filter(f => /\.(js|html)$/.test(f)).map(f => read(path.join('app', f))).join('\n');
   t.ok(!/<iframe|createElement\(\s*["']iframe/i.test(appJs), 'la app no arma iframes');
 
-  const man = read('android/app/src/main/AndroidManifest.xml');
-  t.has(man, 'xmlns:tools="http://schemas.android.com/tools"', 'Android: manifiesto con tools');
-  for (const x of ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_LOCATION', 'POST_NOTIFICATIONS'])
-    t.ok(new RegExp('<uses-permission android:name="android\\.permission\\.' + x + '" />').test(man), 'Android: permiso ' + x);
-  t.ok(!/<uses-permission[^>]*ACCESS_BACKGROUND_LOCATION/.test(man), 'Android: sin la ubicación «todo el tiempo» (ACCESS_BACKGROUND_LOCATION)');
-  const svc = (man.match(/<service[\s\S]*?\/>/) || [''])[0];
-  t.has(svc, 'com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService', 'Android: el servicio del plugin');
-  t.ok(/android:exported="false"/.test(svc) && /tools:replace="android:exported"/.test(svc) && /android:foregroundServiceType="location"/.test(svc), 'Android: servicio cerrado a otras apps (exported=false que pisa el del plugin), tipo location: ' + svc);
-  t.ok(/<uses-feature android:name="android\.hardware\.location\.gps" android:required="false" tools:replace="android:required" \/>/.test(man), 'Android: el GPS no es obligatorio para instalar la app');
-  const str = read('android/app/src/main/res/values/strings.xml');
-  t.has(str, '<string name="capacitor_background_geolocation_notification_channel_name">Salidas de Cardio</string>', 'Android: canal de la notificación');
-  t.has(str, '<string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_gize</string>', 'Android: ícono de la notificación (el blanco de GIZE)');
-  t.ok(fs.existsSync(path.join(ROOT, 'android/app/src/main/res/drawable/ic_stat_gize.xml')), 'Android: el ícono existe');
-  t.has(str, '<string name="capacitor_background_geolocation_notification_color">#2FA0FF</string>', 'Android: color de la notificación');
 
   const plist = read('ios/App/App/Info.plist');
   const val = k => (plist.match(new RegExp('<key>' + k + '</key>\\s*<string>([^<]*)</string>')) || [])[1] || '';
@@ -339,7 +325,9 @@ async function web(base, t){
 }
 
 async function native(base, t){
-  const pg = await newPage({ user: ALUMNO, state: STATE, init: FAKE_NATIVE, handlers: H });
+  // App de iPhone (la única con salidas nativas: la de Android no usa la ubicación, ver
+  // tests/cardio-android.test.mjs).
+  const pg = await newPage({ user: ALUMNO, state: STATE, init: "window.__plat = 'ios'; (" + FAKE_NATIVE + ")();", handlers: H });
   const p = pg.p;
   await p.goto(base + '/app/'); await wait(2500);
   // Lo del plugin de ubicación (las llamadas a LocalNotifications de otras partes de la app, aparte).
@@ -349,15 +337,18 @@ async function native(base, t){
   await reset();
   t.eq(await G(p, 'start', 'pie'), { ok: false, why: 'aviso' }, 'nativo: primero el aviso «Usar tu ubicación»');
   t.eq((await bg()).log, [], 'nativo: antes del aviso no se pide ningún permiso');
-  t.has((await G(p, 'disclosure')).text, 'en Android vas a ver una notificación de GIZE', 'aviso nativo: pantalla apagada y notificación');
+  const dn = (await G(p, 'disclosure')).text;
+  t.has(dn, 'también con la pantalla apagada o el celular en el bolsillo', 'aviso nativo: también con la pantalla apagada');
+  t.ok(!/Android/.test(dn), 'aviso nativo: no habla de Android (ahí no hay salidas con GPS)');
   t.eq(await G(p, 'hint'), T.nativeTip, 'nativo: se puede bloquear el celular');
   await G(p, 'acceptDisclosure');
 
-  // Android: notificaciones y ubicación ANTES de addWatcher, que va sin pedir permisos.
+  // iPhone: addWatcher pide el permiso (el plugin no tiene checkPermissions) y no se piden las
+  // notificaciones.
   t.eq(await G(p, 'start', 'pie'), { ok: true }, 'nativo: empieza');
   let b = await bg();
-  t.eq(b.log, ['notif-check', 'notif-request', 'check', 'request:{"permissions":["location"]}', 'add:false'], 'Android: permisos (notificación y ubicación) antes de addWatcher, y addWatcher sin pedirlos');
-  t.eq(b.opts[0], { backgroundTitle: 'Salida a pie en curso', backgroundMessage: T.notifMsg, requestPermissions: false, stale: false, distanceFilter: 2 }, 'addWatcher con la notificación de la salida a pie');
+  t.eq(b.log, ['add:true'], 'iPhone: addWatcher pide el permiso, sin nada antes');
+  t.eq(b.opts[0], { backgroundTitle: 'Salida a pie en curso', backgroundMessage: T.notifMsg, requestPermissions: true, stale: false, distanceFilter: 2 }, 'addWatcher con backgroundMessage (sigue en segundo plano) y la salida a pie');
   const T0 = (await gs(p)).run.start;
   await walk(p, '__fix', 1, 30, T0);
   t.eq((await gs(p)).run.pts.length, 30, 'nativo: los puntos del plugin quedan en la salida');
@@ -375,11 +366,11 @@ async function native(base, t){
   const id1 = (await gs(p)).run.id;
 
   t.eq(await ls(p, NID), ['w1'], 'el id del watcher nativo queda anotado en el celular');
-  // La app se recargó a mitad (el servicio de Android sigue teniendo el watcher de antes): al
-  // abrir saca ese y engancha uno nuevo solo, sin pedir permisos.
+  // La app se recargó a mitad (el plugin sigue teniendo el watcher de antes): al abrir saca ese y
+  // engancha uno nuevo solo.
   await p.reload(); await wait(2500);
   b = await bg();
-  t.eq([b.added, b.loc], [1, ['remove:w1', 'add:false']], 'al reabrir saca el watcher que quedó de antes y vuelve a enganchar el GPS solo, sin pedir permisos');
+  t.eq([b.added, b.loc], [1, ['remove:w1', 'add:true']], 'al reabrir saca el watcher que quedó de antes y vuelve a enganchar el GPS solo');
   t.eq(await ls(p, NID), ['w1'], 'queda anotado solo el nuevo');
   let s = await gs(p);
   t.ok(s.run && s.run.id === id1 && s.run.pts.length === 40 && s.restored, 'al reabrir: la misma salida, con todos los puntos');
@@ -387,42 +378,42 @@ async function native(base, t){
   t.ok((await gs(p)).run.pts.length === 55, 'después de reabrir sigue sumando puntos');
   await reset();
   await G(p, 'pause'); await wait(50);
-  t.eq((await bg()).removed, ['w1'], 'pausa: removeWatcher (se va la notificación)');
+  t.eq((await bg()).removed, ['w1'], 'pausa: removeWatcher');
   await G(p, 'resume'); await wait(700);
-  t.eq((await bg()).loc, ['remove:w1', 'check', 'add:false'], 'seguir: revisa el permiso (ya dado) y vuelve a enganchar');
+  t.eq((await bg()).loc, ['remove:w1', 'add:true'], 'seguir: vuelve a enganchar');
   await reset();
   await G(p, 'stop'); await wait(50);
   t.eq((await bg()).removed, ['w2'], 'terminar: removeWatcher');
   t.eq(await ls(p, NID), null, 'terminar: ya no queda ningún watcher anotado');
   await G(p, 'discard');
   // Un watcher anotado de antes (la página se recargó sin poder sacarlo) y sin salida: al abrir
-  // se saca igual (si no, la notificación y el GPS quedarían prendidos).
+  // se saca igual (si no, el GPS quedaría prendido).
   await p.evaluate(k => localStorage.setItem(k, '["viejo"]'), NID);
   await p.reload(); await wait(2500);
   t.eq([(await bg()).loc, await ls(p, NID), (await gs(p)).run], [['remove:viejo'], null, null], 'al abrir sin salida: saca el watcher viejo y lo borra de la lista');
 
-  // En bici: otra notificación y otro filtro de distancia.
+  // En bici: otro título y otro filtro de distancia.
   t.eq(await G(p, 'setMode', 'bici'), true, 'sin salida, cambia el modo');
   await reset();
   t.eq(await G(p, 'start'), { ok: true }, 'en bici');
   b = await bg();
-  t.eq([b.log, b.opts[b.opts.length - 1].backgroundTitle, b.opts[b.opts.length - 1].distanceFilter], [['notif-check', 'check', 'add:false'], 'Salida en bici en curso', 4], 'en bici: ya con permisos no los pide de nuevo; notificación «Salida en bici en curso»');
+  t.eq([b.log, b.opts[b.opts.length - 1].backgroundTitle, b.opts[b.opts.length - 1].distanceFilter], [['add:true'], 'Salida en bici en curso', 4], 'en bici: «Salida en bici en curso» y filtro de 4 m');
   await G(p, 'discard'); await wait(50);
   t.eq((await bg()).removed.length, 1, 'descartar saca el watcher');
 
-  // Permiso negado: no arranca, no hay watcher, ofrece los ajustes.
-  await p.evaluate(() => { window.__bg.setPerm('denied'); window.__bg.grant = false; });
+  // Permiso negado en el cartel del sistema: no arranca, se saca el watcher y ofrece los ajustes.
+  await p.evaluate(() => { window.__bg.addErr = { code: 'NOT_AUTHORIZED', message: 'Permission denied.' }; });
   await reset();
-  const added0 = (await bg()).added;
   t.eq(await G(p, 'start', 'pie'), { ok: false, why: 'permiso' }, 'permiso negado: no arranca');
   s = await gs(p);
-  t.eq([(await bg()).added, s.run, s.errorWhy, s.error], [added0, null, 'permiso', T.permAndroid], 'permiso negado: sin addWatcher, sin salida y con el aviso');
+  t.eq([(await bg()).removed.length, s.run, s.errorWhy, s.error], [1, null, 'permiso', T.permIos], 'permiso negado: se saca el watcher, sin salida y con el aviso');
+  t.eq(await lsKeys(p), [], 'permiso negado: nada guardado');
   t.eq(await G(p, 'openSettings'), true, 'ofrece abrir los ajustes');
   await wait(50);
   t.eq((await bg()).settings, 1, 'abre los ajustes de la app');
-  await p.evaluate(() => { window.__bg.setPerm('granted'); window.__bg.grant = true; });
+  await p.evaluate(() => { window.__bg.addErr = null; });
 
-  // «Service not running.» (el servicio todavía no se enlazó): se reintenta.
+  // «Service not running.» (el plugin todavía no está listo): se reintenta.
   await p.evaluate(() => { window.__bg.svcFails = 2; });
   await reset();
   t.eq(await G(p, 'start', 'pie'), { ok: true }, '«Service not running.»: se reintenta y arranca');
@@ -433,18 +424,9 @@ async function native(base, t){
   t.eq((await gs(p)).run.pts.length, 5, 'los puntos llegan al watcher que quedó');
   await G(p, 'discard');
   await p.evaluate(() => { window.__bg.svcFails = 10; });
-  t.eq(await G(p, 'start', 'pie'), { ok: false, why: 'servicio' }, 'si el servicio nunca arranca: avisa');
+  t.eq(await G(p, 'start', 'pie'), { ok: false, why: 'servicio' }, 'si nunca arranca: avisa');
   t.eq([(await gs(p)).run, await lsKeys(p)], [null, []], 'y no queda una salida a medias');
-
-  // Sin checkPermissions: el plugin pide el permiso y, con el primer punto, se engancha de nuevo.
-  await p.evaluate(() => { window.__bg.noCheck = true; });
-  await reset();
-  t.eq(await G(p, 'start', 'pie'), { ok: true }, 'sin checkPermissions también arranca');
-  await walk(p, '__fix', 1, 1, (await gs(p)).run.start); await wait(700);
-  b = await bg();
-  t.eq(b.loc, ['check', 'add:true', 'remove:w' + (b.added - 1), 'add:false'], 'el plugin pide el permiso y con el primer punto se vuelve a enganchar (servicio con permiso)');
-  await G(p, 'discard');
-  await p.evaluate(() => { window.__bg.noCheck = false; });
+  await p.evaluate(() => { window.__bg.svcFails = 0; });
 
   // Permiso perdido con la salida andando: con puntos se pausa; sin puntos se descarta.
   t.eq(await G(p, 'start', 'pie'), { ok: true }, 'arranca');
@@ -460,7 +442,7 @@ async function native(base, t){
   t.eq([(await gs(p)).run, (await gs(p)).errorWhy], [null, 'permiso'], 'permiso perdido sin puntos: no queda salida');
 
   // Salida olvidada (el celular quedó en casa): una hora quieto con el GPS mandando puntos → se
-  // pausa sola, sin la hora quieto, y se apaga el GPS (sin notificación).
+  // pausa sola, sin la hora quieto, y se apaga el GPS.
   t.eq(await G(p, 'start', 'pie'), { ok: true }, 'arranca (salida olvidada)');
   const T5 = (await gs(p)).run.start;
   await walk(p, '__fix', 1, 60, T5);
@@ -504,30 +486,21 @@ async function native(base, t){
   b = await bg();
   t.eq([(await gs(p)).error, b.removed.length], ['La ubicación del celular está apagada. Prendela para medir la salida.', 1], 'ubicación apagada: avisa y saca el watcher');
   await p.evaluate(() => { window.__bg.addErr = null; });
-  t.eq(pg.errs, [], 'errores de la página (Android)');
-  await pg.close();
 
-  // iPhone: el plugin no tiene checkPermissions: addWatcher pide el permiso.
-  const ip = await newPage({ user: ALUMNO, state: STATE, init: "window.__plat = 'ios'; (" + FAKE_NATIVE + ")();", handlers: H });
-  await ip.p.goto(base + '/app/'); await wait(2500);
-  await G(ip.p, 'acceptDisclosure');
-  await ip.p.evaluate(() => { window.__bg.log = []; });
-  t.eq(await G(ip.p, 'start', 'bici'), { ok: true }, 'iPhone: empieza');
-  const ib = await ip.p.evaluate(() => JSON.parse(JSON.stringify(window.__bg)));
-  t.eq([ib.log, ib.opts[0].requestPermissions, ib.opts[0].backgroundTitle], [['add:true'], true, 'Salida en bici en curso'], 'iPhone: addWatcher pide el permiso (y no se piden las notificaciones)');
   // Solo la ubicación aproximada («Ubicación exacta» apagada): cada punto con 1,5 km de error. El
   // filtro los descarta; sin el aviso diría «Buscando señal» para siempre.
-  const T6 = (await gs(ip.p)).run.start;
-  await ip.p.evaluate(([T6, LAT0, LON0]) => { for (let k = 1; k <= 6; k++) window.__fix(LAT0, LON0, 1500, T6 + k * 1000); }, [T6, LAT0, LON0]);
+  t.eq(await G(p, 'start', 'bici'), { ok: true }, 'arranca (ubicación aproximada)');
+  const T6 = (await gs(p)).run.start;
+  await p.evaluate(([T6, LAT0, LON0]) => { for (let k = 1; k <= 6; k++) window.__fix(LAT0, LON0, 1500, T6 + k * 1000); }, [T6, LAT0, LON0]);
   await wait(50);
-  t.eq((await gs(ip.p)).notice, T.preciseIos, 'iPhone con la ubicación aproximada: avisa cómo activar la exacta');
-  await ip.p.click('#nav-cardio'); await wait(400);
-  t.ok(await ip.p.$('#salLive [data-action="sal-settings"]'), 'con «Abrir ajustes»');
-  await walk(ip.p, '__fix', 10, 3, T6);
-  t.eq((await gs(ip.p)).notice, '', 'con un punto preciso el aviso se va');
-  await G(ip.p, 'discard');
-  t.eq(ip.errs, [], 'errores de la página (iPhone)');
-  await ip.close();
+  t.eq((await gs(p)).notice, T.preciseIos, 'iPhone con la ubicación aproximada: avisa cómo activar la exacta');
+  await p.click('#nav-cardio'); await wait(400);
+  t.ok(await p.$('#salLive [data-action="sal-settings"]'), 'con «Abrir ajustes»');
+  await walk(p, '__fix', 10, 3, T6);
+  t.eq((await gs(p)).notice, '', 'con un punto preciso el aviso se va');
+  await G(p, 'discard');
+  t.eq(pg.errs, [], 'errores de la página (iPhone)');
+  await pg.close();
 }
 
 export default async function ({ base, t }){

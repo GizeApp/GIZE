@@ -5,10 +5,12 @@
 // caminando var(--gize-r1), trotando var(--gize-r2), corriendo var(--gize-r3)); la leyenda de
 // colores del recorrido (lo más lento y lo más rápido), los parciales y los avisos.
 // Solo arma HTML: los colores salen de los tokens, que con el neón apagado ya son grises.
+// En la app de Android (core/plataforma.js appAndroid) no hay recorrido ni leyenda: solo los números.
 import { dec, esc } from '../core/utils.js';
 import { CLASSES, breakdownText, decodeTrack, fmtClock, fmtKm, fmtKmh, fmtPace, paceOrSpeed } from '../core/cardiogps.js';
 import { legendGradient, prepareRoute } from './ruta.js';
 import { routeSlot } from './mapa.js';
+import { appAndroid } from '../core/plataforma.js';
 
 const kcalTxt = s => s.kcal == null ? "–" : String(Math.round(s.kcal));
 export const salidaKey = (s, track) => s.id + ":" + (track ? track.length : 0);
@@ -25,6 +27,7 @@ export function prepOf(s, track){
 // El lugar del recorrido animado (ui/mapa.js). name: único en la pantalla. opts: pad, onProgress,
 // onDone, cls.
 export function routeHtml(name, s, track, opts){
+  if (appAndroid()) return "";
   opts = opts || {};
   const prep = prepOf(s, track);
   return routeSlot(name, { key: salidaKey(s, track), mode: s.mode, pieces: prep ? prep.pieces : [], pad: opts.pad, onProgress: opts.onProgress, onDone: opts.onDone }, opts.cls);
@@ -33,6 +36,7 @@ export function routeHtml(name, s, track, opts){
 // Leyenda: lo más lento y lo más rápido del recorrido (ritmo a pie, velocidad en bici), con el
 // mismo degradé que el dibujo.
 export function legendHtml(s, track){
+  if (appAndroid()) return "";
   const prep = prepOf(s, track);
   if (!prep) return "";
   const end = kmh => s.mode === "bici" ? fmtKmh(kmh) + " km/h" : (kmh > 0.5 ? fmtPace(3600 / kmh) : "–:–") + " /km";
@@ -80,12 +84,13 @@ export function splitsHtml(s, secCls){
 }
 
 // Avisos: calorías con 70 kg (sin peso cargado) y cortes del GPS. who: "yo" (el alumno) o "coach".
+// En la app de Android (ahí no hay GPS) el corte se cuenta sin nombrar el GPS.
 export function notesHtml(s, who){
   const notes = [];
   if (s.kgDefault) notes.push(who === "coach"
     ? "Calorías calculadas con " + dec(s.kg || 70, 0) + " kg porque el alumno no tenía su peso cargado."
     : "Calorías calculadas con " + dec(s.kg || 70, 0) + " kg porque no cargaste tu peso. Cargalo en Progreso para que sean exactas.");
   const gapMin = Math.round((Number(s.gap) || 0) / 60);
-  if (gapMin >= 1) notes.push("El GPS se cortó " + gapMin + " min: ese rato no suma distancia.");
+  if (gapMin >= 1) notes.push((appAndroid() ? "La señal se cortó " : "El GPS se cortó ") + gapMin + " min: ese rato no suma distancia.");
   return notes.map(t => '<div class="sal-note">' + esc(t) + '</div>').join("");
 }
