@@ -952,7 +952,8 @@ async function sendReply(btn){
 // Lo que la gente reporta desde la app (app/ui/reportar.js, supabase/reportes.sql): un mensaje
 // del chat con su coach o el nombre de alguien de un grupo de pasos. Cada uno con lo justo para
 // decidir: el texto del mensaje (de un audio, solo cuánto dura), o el nombre y el grupo. Si hay
-// que actuar, «Ver cuenta» abre la ficha (desvincular, eliminar la cuenta).
+// que actuar, «Ver cuenta» abre la ficha (desvincular, eliminar la cuenta). Si quien reportó también
+// bloqueó a esa persona (supabase/bloqueos.sql), el reporte lo dice.
 const REP_MOTIVO = { ofensivo: ["Ofensivo o acoso", "bad"], spam: ["Spam", "warn"], otro: ["Otro", ""] };
 async function loadReportes(){
   page("Reportes", "Lo que la gente reporta en el chat con su coach y en los grupos de pasos. Revisalo dentro de las 24 horas: es lo que piden Apple y Google.", `
@@ -965,6 +966,12 @@ async function loadReportes(){
     box.className = "calm"; box.innerHTML = falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/reportes.sql</b>." : esc(errMsg(e));
     return;
   }
+  // Quién además bloqueó: si falta bloqueos.sql en la base, la lista se ve igual, sin la marca.
+  try {
+    const ids = S.reps.map(r => r.id), b = ids.length ? await rpc("admin_reports_blocked", { p_ids: ids }) : [];
+    const si = new Set((b || []).map(x => (x && x.id) || x));
+    S.reps.forEach(r => { r.blocked = si.has(r.id); });
+  } catch (e) {}
   paintReps();
   if (S.repTab === "nuevo") setRep(S.reps.length);
 }
@@ -983,7 +990,7 @@ function paintReps(){
   box.className = "grid";
   box.innerHTML = S.reps.map(r => { const mo = REP_MOTIVO[r.reason] || [r.reason, ""];
     return `<div class="card rep" data-rep="${esc(r.id)}">
-      <div class="rep-h"><span class="pill ${mo[1]}">${esc(mo[0])}</span><span class="pill">${r.kind === "chat" ? "Chat" : "Grupo de pasos"}</span><span class="muted small">${ago(r.created_at)}</span></div>
+      <div class="rep-h"><span class="pill ${mo[1]}">${esc(mo[0])}</span><span class="pill">${r.kind === "chat" ? "Chat" : "Grupo de pasos"}</span>${r.blocked ? '<span class="pill warn">También lo bloqueó</span>' : ""}<span class="muted small">${ago(r.created_at)}</span></div>
       ${repCtx(r)}
       ${r.detail ? `<div class="rep-note"><span class="muted small">Nota de quien reportó</span><br>${esc(r.detail)}</div>` : ""}
       <div class="muted small rep-who">Reportó ${esc(r.reporter_name || (r.reporter_id ? "Sin nombre" : "una cuenta borrada"))} · Reportado: <b>${esc(r.reported_name || "Sin nombre")}</b>${num(r.reported_total) > 1 ? ` · <span class="t-warn">${n0(r.reported_total)} reportes en total</span>` : ""}</div>
