@@ -1,0 +1,181 @@
+# Prueba la app de Android en un emulador de GitHub, sin celular: a mano desde Actions →
+# "Android en emulador" → Run workflow.
+# Arma las dos versiones como android.yml y en el emulador:
+# A) abre la versión de Play Store (release, con R8), firmada con una clave de prueba que se crea
+#    acá y se tira (no es la de Play), y revisa que arranque sin caerse;
+# B) recorre las pantallas con la versión de prueba (debug) como alumno y como coach
+#    (scripts/android-recorrido.mjs), con Supabase simulado como en las pruebas, y revisa que la
+#    cabecera y la barra de abajo no queden debajo de las barras de Android.
+# Corre en Android 15 (API 35) y en Android 11 (API 30). Las capturas de la pantalla completa y el
+# informe (informe.txt) quedan en la ejecución, sección "Artifacts" (gize-android-emulador).
+# El repo es público y los artifacts y registros también: solo datos de prueba
+# (alumno@prueba.test, coach@prueba.test) y ningún secret. Nada llega al Supabase real: el emulador
+# sale a internet por un proxy que no existe y el recorrido responde por Supabase.
+name: Android en emulador
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [android-emulador]
+
+# El token de GitHub de la ejecución solo puede leer el repo.
+permissions:
+  contents: read
+
+jobs:
+  emulador:
+    name: Emulador (API ${{ matrix.api }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [35, 30]
+    env:
+      API: ${{ matrix.api }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+      # El emulador necesita KVM (la virtualización del procesador); en Ubuntu de GitHub viene
+      # cerrado para el usuario del runner.
+      - name: Habilitar KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          echo "SALIDA=$RUNNER_TEMP/emulador" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Juntar la app web y pasarla al proyecto Android
+        run: npm run android
+      - name: Compilar las dos versiones (prueba y Play Store)
+        working-directory: android
+        run: ./gradlew assembleDebug assembleRelease --no-daemon
+      # Sin la clave de Play el build deja app-release-unsigned.apk, que Android no instala. Se
+      # firma con una clave de prueba creada acá (vale un día y se pierde con el runner).
+      - name: Firmar la versión de Play Store con una clave de prueba
+        run: |
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)"
+          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/prueba.jks" -storepass gize-prueba -keypass gize-prueba \
+            -alias prueba -keyalg RSA -keysize 2048 -validity 1 -dname "CN=GIZE prueba en emulador"
+          "$BT/zipalign" -f -p 4 android/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/alineada.apk"
+          "$BT/apksigner" sign --ks "$RUNNER_TEMP/prueba.jks" --ks-pass pass:gize-prueba --out "$RUNNER_TEMP/app-release-prueba.apk" "$RUNNER_TEMP/alineada.apk"
+          "$BT/apksigner" verify "$RUNNER_TEMP/app-release-prueba.apk"
+      # Un celular tipo Pixel 6 (1080 × 2400) con Google APIs, sin ventana y con la placa de video
+      # simulada (swiftshader).
+      - name: Preparar el emulador (API ${{ matrix.api }})
+        run: |
+          IMG="system-images;android-$API;google_apis;x86_64"
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin"
+          yes | "$SDKM/sdkmanager" --licenses > /dev/null || true
+          if ! "$SDKM/sdkmanager" --install emulator platform-tools "$IMG" > "$RUNNER_TEMP/sdkmanager.log" 2>&1; then
+            tail -30 "$RUNNER_TEMP/sdkmanager.log"; echo "::error::No se pudo instalar el emulador o la imagen $IMG"; exit 1
+          fi
+          echo no | "$SDKM/avdmanager" create avd --force -n gize -k "$IMG" -d pixel_6
+      - name: Arrancar el emulador
+        id: arranque
+        run: |
+          nohup "$ANDROID_HOME/emulator/emulator" -avd gize -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim \
+            -camera-back none -camera-front none -memory 3072 > "$RUNNER_TEMP/emulador.log" 2>&1 &
+          timeout 300 adb wait-for-device
+          if ! timeout 600 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 3; done'; then
+            tail -40 "$RUNNER_TEMP/emulador.log"; echo "::error::El emulador no terminó de arrancar"; exit 1
+          fi
+          adb shell wm dismiss-keyguard || true
+          for a in window_animation_scale transition_animation_scale animator_duration_scale; do adb shell settings put global $a 0; done
+          # El teclado de la pantalla aparece aunque el emulador simule un teclado físico.
+          adb shell settings put secure show_ime_with_hard_keyboard 1
+          # Sin internet de verdad: todo sale por un proxy que no existe. La app nunca llega al
+          # Supabase real (en el recorrido, Playwright responde por Supabase antes de salir).
+          adb shell settings put global http_proxy 127.0.0.1:9
+          mkdir -p "$SALIDA"
+          WEBVIEW="$(adb shell dumpsys webviewupdate | sed -n 's/.*Current WebView package (name, version): //p' | head -1 | tr -d '\r')"
+          {
+            echo "GIZE en el emulador de Android"
+            echo "Equipo: $(adb shell getprop ro.product.model | tr -d '\r'), Android $(adb shell getprop ro.build.version.release | tr -d '\r') (API $(adb shell getprop ro.build.version.sdk | tr -d '\r')), $(adb shell wm size | tr -d '\r' | sed 's/Physical size: //'), $(adb shell wm density | tr -d '\r' | sed 's/Physical density: //') dpi"
+            echo "WebView: $WEBVIEW"
+            echo "Navegación del sistema: $(adb shell cmd overlay list android 2>/dev/null | tr -d '\r' | grep -q '\[x\] com.android.internal.systemui.navbar.gestural$' && echo gestos || echo botones)"
+          } > "$SALIDA/informe.txt"
+          cat "$SALIDA/informe.txt"
+      # Parte A: la versión que baja la gente de Play Store. Falla si la app no sigue abierta a los
+      # 20 segundos o si logcat muestra que se cayó (solo las líneas de la caída de GIZE).
+      - name: "Parte A: abrir la versión de Play Store (R8)"
+        run: |
+          PKG=ar.com.gize.app
+          adb install -r "$RUNNER_TEMP/app-release-prueba.apk"
+          adb logcat -c
+          adb shell am start -W -n "$PKG/.MainActivity"
+          sleep 20
+          PID="$(adb shell pidof "$PKG" | tr -d '\r' || true)"
+          adb exec-out screencap -p > "$SALIDA/00-release-inicio.png"
+          adb logcat -d -v threadtime > "$RUNNER_TEMP/logcat-release.txt"
+          adb shell dumpsys package "$PKG" > "$RUNNER_TEMP/paquete.txt"
+          node scripts/android-emulador.mjs permisos "$RUNNER_TEMP/paquete.txt" > "$RUNNER_TEMP/permisos.txt"
+          CAIDA=0
+          node scripts/android-emulador.mjs fallas "$PKG" "$RUNNER_TEMP/logcat-release.txt" > "$RUNNER_TEMP/fallas.txt" || CAIDA=1
+          {
+            echo
+            echo "== Parte A: versión de Play Store (release con R8), firmada con una clave de prueba =="
+            echo "A los 20 s sigue abierta: $([ -n "$PID" ] && echo "sí (pid $PID)" || echo NO)"
+            echo "Fallas en logcat: $([ "$CAIDA" = 1 ] && echo || echo ninguna)"
+            [ "$CAIDA" = 1 ] && sed 's/^/  /' "$RUNNER_TEMP/fallas.txt"
+            echo "Captura: 00-release-inicio.png"
+            echo "Permisos (dumpsys package):"
+            sed 's/^/  /' "$RUNNER_TEMP/permisos.txt"
+          } >> "$SALIDA/informe.txt"
+          cat "$RUNNER_TEMP/permisos.txt"
+          if [ "$CAIDA" = 1 ]; then cat "$RUNNER_TEMP/fallas.txt"; echo "::error::La versión de Play Store se cayó al abrir (ver arriba)"; fi
+          if [ -z "$PID" ]; then echo "::error::La versión de Play Store no sigue abierta a los 20 segundos"; fi
+          [ "$CAIDA" = 0 ] && [ -n "$PID" ]
+      # Playwright va aparte (no en package.json), la misma versión que las pruebas, sin bajar
+      # navegadores: maneja el WebView de la app en el emulador.
+      - name: Instalar Playwright
+        if: ${{ !cancelled() && steps.arranque.outcome == 'success' }}
+        run: npm install --prefix "$RUNNER_TEMP/pw" --no-audit --no-fund playwright@1.56.1
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      # Parte B: la versión de prueba (debug) deja que Playwright maneje el WebView. Tiene la misma
+      # identidad que la de Play: antes se desinstala la otra.
+      - name: "Parte B: recorrer la app (versión de prueba)"
+        if: ${{ !cancelled() && steps.arranque.outcome == 'success' }}
+        run: |
+          adb uninstall ar.com.gize.app || true
+          adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+          node scripts/android-recorrido.mjs
+        env:
+          PW: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
+      - name: Resumen
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f "$SALIDA/informe.txt" ]; then
+            { echo "## Android en emulador (API $API)"; echo '```'; cat "$SALIDA/informe.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: gize-android-emulador-api${{ matrix.api }}
+          path: ${{ runner.temp }}/emulador
+          retention-days: 14
+
+  # Las capturas de las dos versiones de Android, juntas en un solo artifact (una carpeta cada una).
+  artifact:
+    name: Juntar las capturas
+    needs: emulador
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/upload-artifact/merge@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gize-android-emulador
+          pattern: gize-android-emulador-api*
+          separate-directories: true
+          delete-merged: true
+          retention-days: 14

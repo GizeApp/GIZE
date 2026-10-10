@@ -7,7 +7,9 @@
 // ios-release, production, catalogo o backup), los programados en uno sin revisores, y los PR de
 // iPhone compilan sin secrets. La tarea «funciones» de supabase.yml controla al final que cada
 // función quedó publicada y al día, y la tarea «secrets» no carga una clave de Apple sin su Key ID
-// y el Team ID. Esta prueba corre en GitHub también cuando cambia lo que revisa.
+// y el Team ID. «Android en emulador» se corre solo a mano, sin secrets y con el token de solo
+// lectura, y su parte A falla si la app se cae. Esta prueba corre en GitHub también cuando cambia
+// lo que revisa.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -281,11 +283,76 @@ esac`;
   const pw = leer('.github/workflows/pruebas.yml');
   const glob = g => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\0').replace(/\*/g, '[^/]*').replace(/\0/g, '.*') + '$');
   const LEE = ['.github/workflows/ios.yml', '.github/postgres/Dockerfile', '.github/dependabot.yml', 'scripts/ios-firma.py',
-    'scripts/fotos-videos-requirements.txt', 'supabase/functions/admin/index.ts', 'tests/workflows-seguridad.test.mjs'];
+    'scripts/fotos-videos-requirements.txt', 'supabase/functions/admin/index.ts', 'tests/workflows-seguridad.test.mjs',
+    '.github/workflows/android-emulador.yml', 'scripts/android-emulador.mjs'];
   for (const ev of ['push', 'pull_request']){
     const m = pw.match(new RegExp('^  ' + ev + ':[\\s\\S]*?^    paths: (\\[.*\\])\\s*$', 'm'));
     let paths = []; try { paths = JSON.parse(m[1]); } catch (e) {}
     t.eq(LEE.filter(f => !paths.some(g => glob(g).test(f))), [], 'pruebas.yml corre con ' + ev + ' cuando cambia lo que revisa esta prueba');
+  }
+
+  // 8) «Android en emulador» (android-emulador.yml): el repo es público y sus registros y artifacts
+  //    también. Se corre solo a mano, el token solo lee, sin secrets ni Environment (la versión de
+  //    Play se firma con una clave de prueba creada ahí), con las mismas actions que android.yml
+  //    fijadas por el mismo SHA y ninguna de terceros, y compila como android.yml.
+  const emu = leer('.github/workflows/android-emulador.yml'), and = leer('.github/workflows/android.yml');
+  t.ok(emu, 'existe .github/workflows/android-emulador.yml');
+  const on = (emu.match(/^on:[ \t]*\n((?:[ \t]+.*\n|[ \t]*\n)*)/m) || [])[1] || '';
+  t.eq(on.split('\n').filter(l => /^  \S/.test(l)).map(l => l.trim()), ['workflow_dispatch:'], 'android-emulador.yml se corre solo a mano (workflow_dispatch)');
+  t.ok(/^permissions:\s*\n  contents: read\s*$/m.test(emu) && !/write|permissions: *\{/.test(sinComentarios(emu).split(/^jobs:/m)[1] || 'write'), 'android-emulador.yml: el token solo puede leer el repo');
+  t.ok(!/secrets\./.test(emu) && !/^\s+environment:/m.test(emu), 'android-emulador.yml: sin secrets ni Environment');
+  const fijadas = Object.fromEntries([...and.matchAll(/uses: (actions\/[\w-]+)@([0-9a-f]{40}) /g)].map(m => [m[1], m[2]]));
+  const usos = [...sinComentarios(emu).matchAll(/uses: (\S+)/g)].map(m => m[1]);
+  t.ok(usos.length >= 5, 'android-emulador.yml usa actions: ' + usos.join(' '));
+  for (const u of usos){
+    const m = u.match(/^(actions\/[\w-]+)(?:\/[\w-]+)?@([0-9a-f]{40})$/);
+    t.ok(m && fijadas[m[1]] === m[2], 'android-emulador.yml: ' + u + ' es de GitHub y va fijada con el mismo SHA que en android.yml');
+  }
+  for (const c of ['npm ci', 'npm run android', './gradlew assembleDebug assembleRelease']) t.ok(sinComentarios(emu).includes(c), 'android-emulador.yml compila como android.yml: ' + c);
+  t.ok(/^\s+name: gize-android-emulador\s*$/m.test(emu) && !/retention-days: (?!14\b)/.test(emu), 'las capturas quedan en el artifact gize-android-emulador por 14 días');
+  t.ok(/sudo tee \/etc\/udev\/rules\.d\/99-kvm4all\.rules/.test(emu) && /-gpu swiftshader_indirect/.test(emu) && /-no-window/.test(emu), 'emulador con KVM, sin ventana y con swiftshader');
+  t.ok(/settings put global http_proxy 127\.0\.0\.1:9\b/.test(emu), 'el emulador no sale a internet (proxy que no existe): la app nunca llega al Supabase real');
+
+  //    La parte A (la versión de Play Store) con adb simulado: falla si la app no sigue abierta a
+  //    los 20 s o si logcat muestra que GIZE se cayó, y entonces muestra solo esas líneas (no las de
+  //    otras apps). Deja la captura y los permisos en el informe.
+  const parteA = paso(emu, '"Parte A: abrir la versión de Play Store (R8)"');
+  t.ok(parteA, 'existe el paso «Parte A: abrir la versión de Play Store (R8)»');
+  if (parteA){
+    const adb = `echo "$*" >> "$LOG"
+case "$1" in
+  install) echo Success;;
+  exec-out) printf 'PNG';;
+  logcat) [ "$2" = -c ] || cat "$RUNNER_TEMP/.logcat";;
+  shell) case "$2" in
+    pidof) [ -n "$PIDAPP" ] && echo "$PIDAPP" || exit 1;;
+    dumpsys) cat "$RUNNER_TEMP/.paquete";;
+    *) echo "Status: ok";;
+  esac;;
+esac`;
+    const L = (pid, msg) => '10-10 12:00:00.123  ' + pid + '  ' + pid + ' E AndroidRuntime: ' + msg;
+    const CAE = [L(4321, 'FATAL EXCEPTION: main'), L(4321, 'Process: ar.com.gize.app, PID: 4321'), L(4321, 'java.lang.IllegalStateException: R8 sacó una clase')];
+    const OTRA = [L(777, 'FATAL EXCEPTION: main'), L(777, 'Process: com.android.otra, PID: 777'), L(777, 'java.lang.NullPointerException: de otra app')];
+    const PAQ = '    requested permissions:\n      android.permission.INTERNET\n      android.permission.POST_NOTIFICATIONS\n    install permissions:\n      android.permission.INTERNET: granted=true\n';
+    const abrir = (logcat, pid) => {
+      const r = correr(parteA, { archivos: { 'scripts/android-emulador.mjs': leer('scripts/android-emulador.mjs'), 'salida/informe.txt': 'GIZE en el emulador de Android\n',
+        '.logcat': logcat.join('\n') + '\n', '.paquete': PAQ }, programas: { adb, sleep: 'true' }, env: d => ({ SALIDA: path.join(d, 'salida'), PIDAPP: pid }) });
+      r.informe = fs.readFileSync(path.join(r.dir, 'salida/informe.txt'), 'utf8');
+      r.captura = fs.existsSync(path.join(r.dir, 'salida/00-release-inicio.png')) ? fs.readFileSync(path.join(r.dir, 'salida/00-release-inicio.png'), 'utf8') : '';
+      return r;
+    };
+    const bien = abrir(OTRA, '4321');
+    t.eq(bien.code, 0, 'parte A: abierta y sin caídas de GIZE (aunque se haya caído otra app), el paso anda: ' + bien.out.trim().split('\n').pop());
+    t.ok(/install -r \S+app-release-prueba\.apk/.test(bien.log) && bien.log.includes('shell am start -W -n ar.com.gize.app/.MainActivity'), 'instala la versión firmada con la clave de prueba y la abre: ' + bien.log);
+    t.eq(bien.captura, 'PNG', 'guarda la captura de la pantalla completa (screencap)');
+    t.ok(bien.informe.includes('A los 20 s sigue abierta: sí (pid 4321)') && bien.informe.includes('Fallas en logcat: ninguna'), 'el informe dice que sigue abierta y sin fallas: ' + bien.informe);
+    t.ok(bien.informe.includes('  install permissions:\n    android.permission.INTERNET: granted=true') && bien.informe.includes('android.permission.POST_NOTIFICATIONS'), 'y los permisos');
+    t.ok(!/de otra app/.test(bien.out + bien.informe), 'la caída de otra app no aparece');
+    const cae = abrir(OTRA.concat(CAE), '4321');
+    t.ok(cae.code !== 0 && CAE.every(l => cae.out.includes(l)) && /::error::/.test(cae.out), 'si GIZE se cayó, falla y muestra sus líneas: ' + cae.out.trim());
+    t.ok(!/de otra app/.test(cae.out + cae.informe) && CAE.every(l => cae.informe.includes(l)), 'solo las de GIZE, también en el informe');
+    const cerrada = abrir([], '');
+    t.ok(cerrada.code !== 0 && /no sigue abierta/.test(cerrada.out) && cerrada.informe.includes('sigue abierta: NO'), 'si la app no sigue abierta a los 20 s, falla: ' + cerrada.out.trim());
   }
 
   for (const d of CARPETAS) fs.rmSync(d, { recursive: true, force: true });
