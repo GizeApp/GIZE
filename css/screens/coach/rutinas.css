@@ -477,3 +477,218 @@ button.opt-count:hover { color: var(--gize-blue); }
 .ea-rec-dot { width:10px; height:10px; border-radius:999px; background:var(--gize-danger); animation:eaBlink 1s infinite; }
 @keyframes eaBlink { 50% { opacity:.25; } }
 .ea-t { font-weight:700; font-variant-numeric:tabular-nums; }
+
+/* ---- Editor de rutina rediseñado: cabecera del día compacta y ejercicios en grilla ---- */
+.co-day-card { padding:14px; border-radius:var(--r-card); }
+.co-day-head-row { align-items:center; gap:8px; }
+.co-dayname { font-size:20px; font-weight:800; padding:12px 14px; letter-spacing:-.01em; }
+.co-day-meta { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 20px; margin-top:12px; }
+.co-dias-wrap { display:flex; align-items:center; gap:10px; }
+.co-dias-wrap .co-note-lbl { margin:0; }
+.co-dias.hd-row { grid-template-columns:repeat(7, 32px); gap:5px; }
+.co-dias .hd-day { height:32px; font-size:12px; }
+.co-daynote { flex:1 1 220px; margin:0; display:flex; align-items:center; gap:10px; }
+.co-daynote .co-note-lbl { margin:0; }
+.co-daynote .co-note { flex:1; min-width:0; }
+
+/* Menú "⋯" del día: duplicar, mover y borrar, sin ocupar lugar fijo. */
+.co-day-menu { position:relative; flex:none; }
+.co-day-menu summary { list-style:none; display:grid; place-items:center; width:44px; height:44px; border-radius:var(--r-box); border:1px solid var(--border); background:var(--card-2); color:var(--txt-2); font-size:14px; letter-spacing:1px; cursor:pointer; user-select:none; }
+.co-day-menu summary::-webkit-details-marker { display:none; }
+.co-day-menu[open] summary, .co-day-menu summary:hover { color:var(--txt); border-color:var(--blue-2); }
+.co-day-pop { position:absolute; right:0; top:calc(100% + 6px); z-index:20; min-width:200px; display:flex; flex-direction:column; gap:4px; padding:6px; background:var(--card); border:1px solid var(--border); border-radius:var(--r-md); box-shadow:0 14px 36px rgba(0,0,0,.4); }
+.co-day-pop .co-day-mv { justify-content:flex-start; width:100%; border:0; background:none; min-height:40px; }
+.co-day-pop .co-day-mv:hover:not(:disabled) { background:var(--card-2); }
+.co-day-pop .co-day-mv.danger { color:var(--red); }
+.co-day-pop .co-day-mv.danger svg { color:var(--red); }
+
+/* Encabezado de Ejercicios: título + resumen a la izquierda, sugerencia de peso a la derecha. */
+.co-exc-section-head { margin:22px 2px 12px; flex-wrap:wrap; }
+.co-exc-title { display:flex; align-items:baseline; gap:10px; }
+.co-exc-count { font-size:var(--text-meta); color:var(--txt-3); font-variant-numeric:tabular-nums; }
+.co-sug-mini { display:inline-flex; align-items:center; gap:10px; font-size:var(--text-meta); font-weight:600; color:var(--txt-2); }
+
+/* Grilla de ejercicios: 1 columna en el celular, 2 y 3 al ensanchar. */
+.co-exc-grid { display:grid; grid-template-columns:1fr; gap:10px; margin-bottom:16px; align-items:start; }
+@media (min-width:600px){ .co-exc-grid { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+@media (min-width:900px){ .co-exc-grid { grid-template-columns:repeat(3, minmax(0,1fr)); } }
+.co-exc-grid > .co-exc, .co-exc-grid > .co-ss-group { margin:0; }
+.co-exc-grid > .co-exc-open, .co-exc-grid > .co-ss-group, .co-exc-grid > .cal-hint { grid-column:1 / -1; }
+.co-ss-group .co-exc { margin-bottom:8px; }
+
+/* Tarjeta cerrada: número + nombre arriba, puntitos de series en el medio, contador abajo. */
+.co-exc-collapsed { position:relative; flex-direction:column; align-items:stretch; gap:8px; min-height:0; padding:12px 14px 12px 16px; border-radius:var(--r-card); overflow:hidden; transition:border-color .15s, background .15s; }
+.co-exc-collapsed:hover { border-color:color-mix(in srgb, var(--gize-blue) 55%, var(--border)); }
+.co-exc-collapsed .co-exc-swatch { position:absolute; left:0; top:12px; bottom:12px; width:3px; height:auto; min-height:0; border-radius:0 3px 3px 0; align-self:auto; }
+.co-exc-collapsed .co-exc-cname { display:flex; align-items:flex-start; gap:10px; white-space:normal; font-size:var(--text-body); line-height:1.25; }
+.co-exc-collapsed .co-exc-ctext { flex:1; min-width:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.co-exc-collapsed .co-exc-ord { flex:none; margin:0; padding:0; background:none; font-size:20px; line-height:1; font-weight:800; color:var(--blue-2); vertical-align:baseline; min-width:18px; }
+.co-exc-collapsed .co-exc-ord.ss { background:none; color:var(--gize-r2); font-size:16px; }
+.co-exc-cmeta { min-height:18px; gap:8px; flex-wrap:wrap; }
+.co-exc-dots { display:inline-flex; gap:5px; }
+.co-exc-dots i { width:9px; height:9px; border-radius:50%; background:var(--gize-blue); }
+.co-exc-collapsed .co-exc-rirtxt { font-size:11px; }
+.co-exc-cfoot { display:flex; align-items:center; gap:6px; }
+.co-exc-cfoot .co-exc-icon-btn { margin-left:auto; width:36px; height:36px; }
+.co-exc-step { display:inline-flex; align-items:center; background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); }
+.co-exc-step b { padding:0 6px; min-width:64px; text-align:center; font-size:var(--text-meta); font-weight:700; color:var(--txt); font-variant-numeric:tabular-nums; }
+.co-exc-step button { width:36px; height:36px; display:grid; place-items:center; background:none; border:0; color:var(--blue-2); font-size:18px; font-weight:700; cursor:pointer; border-radius:var(--r-box); padding:0; }
+.co-exc-step button:hover:not(:disabled) { background:color-mix(in srgb, var(--gize-blue) 14%, transparent); }
+.co-exc-step button:disabled { opacity:.3; cursor:default; }
+
+/* Tarjeta abierta: ocupa toda la fila; acciones en renglón que se acomoda solo. */
+.co-exc-open { border-radius:var(--r-card); }
+.co-exc-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.co-exc-act { flex:1 1 84px; min-height:48px; }
+.co-exc-act.on { color:var(--gize-text); border-color:var(--gize-blue); background:color-mix(in srgb, var(--gize-blue) 14%, transparent); }
+
+/* "Agregar ejercicio": un casillero más de la grilla. */
+.co-rt-add-end { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; width:auto; min-height:104px; margin:0; border-radius:var(--r-card); border:1.5px dashed color-mix(in srgb, var(--gize-blue) 55%, var(--border)); font-size:var(--text-meta); }
+.co-rt-add-end span { font-size:24px; line-height:1; font-weight:400; }
+@media (max-width:599px){ .co-rt-add-end { min-height:56px; flex-direction:row; justify-content:center; gap:8px; } }
+
+@media (max-width:480px){
+  .co-day-meta { flex-direction:column; align-items:stretch; }
+  .co-dias-wrap { width:100%; }
+  .co-dias.hd-row { flex:1; grid-template-columns:repeat(7, minmax(0,1fr)); }
+  .co-daynote { flex-basis:auto; }
+}
+@media (prefers-reduced-motion: reduce){ .co-exc-collapsed { transition:none; } }
+
+/* ---- Configuración del ejercicio (tarjeta abierta): cabecera, panel de series, ajustes y casilleros ---- */
+.co-exc-open { background:var(--card); }
+.co-exc-open .co-exc-head { cursor:default; padding:14px 14px 12px; gap:10px; flex-wrap:wrap; }
+.co-exc-ordbtn { flex:none; width:38px; height:38px; display:grid; place-items:center; border-radius:50%; border:1.5px solid var(--gize-blue); background:color-mix(in srgb, var(--gize-blue) 12%, transparent); color:var(--gize-text); font:800 14px var(--gize-font); cursor:pointer; padding:0; }
+.co-exc-ordbtn.ss { border-color:var(--gize-r2); }
+.co-exc-ordbtn:hover { background:color-mix(in srgb, var(--gize-blue) 24%, transparent); }
+.co-exc-open .co-exc-name { flex:1 1 160px; background:none; border-color:transparent; font-size:20px; font-weight:800; padding:8px 6px; letter-spacing:-.01em; }
+.co-exc-open .co-exc-name:hover { background:var(--card-2); }
+.co-exc-open .co-exc-name:focus { background:var(--card-2); border-color:var(--gize-blue); outline:none; }
+.co-exc-open .co-seg { flex:none; }
+.co-exc-open .co-seg-opt { min-width:64px; min-height:34px; }
+.co-exc-open .co-day-menu summary { width:40px; height:40px; }
+.co-exc-open .co-exc-body { padding:0 14px 14px; }
+.co-pop-item { display:flex; align-items:center; gap:10px; width:100%; min-height:40px; padding:0 12px; background:none; border:0; border-radius:var(--r-box); color:var(--txt); font:600 var(--text-meta) var(--gize-font); text-align:left; cursor:pointer; white-space:nowrap; }
+.co-pop-item svg { width:16px; height:16px; flex:none; color:var(--blue-2); }
+.co-pop-item:hover:not(:disabled) { background:var(--card-2); }
+.co-pop-item:disabled { opacity:.35; cursor:default; }
+.co-pop-item.danger, .co-pop-item.danger svg { color:var(--red); }
+.co-exc-menu2 .co-day-pop { min-width:260px; }
+
+/* Panel de series */
+.co-sets-panel { padding:12px; background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-card); }
+.co-sets-panel .co-set-head { margin:0 0 8px; grid-template-columns:26px 1fr 1fr 24px; }
+.co-sets-panel .co-set-row { grid-template-columns:26px 1fr 1fr 24px; }
+.co-sets-panel .co-set-head.has-last, .co-sets-panel .co-set-row.has-last { grid-template-columns:26px minmax(0,1.1fr) minmax(0,1.3fr) minmax(0,1.3fr) 24px; }
+.co-set-head span { font-size:10px; }
+.co-set-last { min-width:0; padding:9px 6px; text-align:center; font-size:var(--text-meta); font-weight:700; color:var(--blue-2); background:var(--gize-surface, var(--card)); border:1px solid var(--border); border-radius:var(--r-box); font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.co-sets-panel .co-target { background:var(--card); padding:10px 6px; }
+.co-sets-panel .co-set-add { margin-top:6px; border-color:color-mix(in srgb, var(--gize-blue) 45%, var(--border)); color:var(--blue-2); font-weight:700; padding:10px; }
+.co-sets-panel .co-last-use { margin:2px 0 8px; }
+.co-last-none { margin:0 0 8px; font-size:var(--text-meta); color:var(--txt-3); }
+
+/* Descanso · RIR · Objetivo de progreso en una sola fila */
+.co-cfg-row { display:grid; grid-template-columns:110px 90px minmax(0,1fr); gap:10px; margin:14px 0; }
+.co-cfg-row .co-pin { text-align:center; }
+.co-cfg-row .co-pfield-goal .co-pin { text-align:left; padding-left:12px; }
+@media (max-width:480px){ .co-cfg-row { grid-template-columns:1fr 1fr; } .co-pfield-goal { grid-column:1 / -1; } }
+
+.co-exc-open .co-exc-fold { margin-top:14px; }
+.co-exc-open .co-exc-name { flex:1 1 120px; min-width:0; }
+.co-exc-open .co-exc-menu2 { order:2; }
+.co-exc-open .co-seg { order:3; }
+@media (max-width:640px){ .co-exc-open .co-seg { flex:1 0 100%; display:flex; } .co-exc-open .co-seg-opt { flex:1; } }
+
+/* ---- Ajuste fino: más cerca de la referencia ---- */
+/* Cabecera: número · nombre (campo con borde) · ⋯ · Reps/Tiempo */
+.co-exc-open .co-exc-head { flex-wrap:nowrap; padding:16px 16px 14px; gap:12px; }
+.co-exc-ordbtn { width:44px; height:44px; font-size:16px; }
+.co-exc-open .co-exc-name { background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-btn); min-height:44px; padding:0 16px; font-size:20px; }
+.co-exc-open .co-exc-name:hover { background:var(--card-2); border-color:color-mix(in srgb, var(--gize-blue) 40%, var(--border)); }
+.co-exc-open .co-day-menu summary { width:44px; height:44px; }
+.co-exc-open .co-seg { padding:4px; }
+.co-exc-open .co-seg-opt { min-width:76px; min-height:36px; }
+@media (max-width:640px){
+  .co-exc-open .co-exc-head { flex-wrap:wrap; }
+  .co-exc-open .co-exc-name { flex:1 1 0; }
+}
+
+/* Panel de series: títulos centrados sobre cada columna y campos grandes */
+.co-exc-open .co-exc-body { padding:0 16px 16px; }
+.co-sets-panel { padding:16px; border-radius:var(--r-card); background:color-mix(in srgb, var(--card-2) 60%, transparent); }
+.co-sets-panel .co-set-head { margin-bottom:10px; }
+.co-sets-panel .co-set-head span { text-align:center; font-size:11px; letter-spacing:.08em; }
+.co-sets-panel .co-set-head span:first-child { text-align:left; padding-left:4px; }
+.co-sets-panel .co-set-row { margin-bottom:8px; }
+.co-sets-panel .co-target { min-height:50px; font-size:20px; font-weight:800; border-radius:var(--r-btn); }
+.co-sets-panel .co-target::placeholder { font-weight:700; color:var(--txt-3); }
+.co-sets-panel .co-set-last { min-height:50px; display:grid; place-items:center; font-size:var(--text-body); border-radius:var(--r-btn); }
+.co-sets-panel .co-set-n { width:30px; height:30px; border-radius:var(--r-box); font-size:13px; font-weight:700; }
+.co-sets-panel .co-set-add { min-height:44px; border-radius:var(--r-btn); font-size:var(--text-body); }
+@media (max-width:480px){ .co-sets-panel { padding:12px; } .co-sets-panel .co-target { font-size:17px; min-height:46px; } }
+
+/* Descanso · RIR · Objetivo: campos altos, el objetivo no ocupa todo el ancho */
+.co-cfg-row { grid-template-columns:120px 90px minmax(0,360px); gap:14px; margin:18px 0; }
+.co-cfg-row .co-pin { min-height:44px; border-radius:var(--r-btn); font-size:var(--text-body); font-weight:700; }
+.co-cfg-row .co-pfield-goal .co-pin { font-weight:500; }
+.co-cfg-row .co-note-lbl { font-size:11px; letter-spacing:.08em; }
+@media (max-width:480px){ .co-cfg-row { grid-template-columns:1fr 1fr; } }
+
+/* Tres casilleros siempre en fila; el que se abre se resalta y su contenido aparece en un panel
+   debajo. Se pliega tocándolo de nuevo. En celular van apilados, con el panel pegado a su casillero. */
+.co-tiles { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; align-items:stretch; }
+.co-tile-btn { order:1; display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left; padding:16px 18px; min-width:0; background:color-mix(in srgb, var(--card-2) 70%, transparent); border:1px solid var(--border); border-radius:var(--r-card); color:var(--txt); font-family:inherit; cursor:pointer; transition:border-color .15s, background .15s; }
+.co-tile-btn b { font-size:var(--text-body); font-weight:700; }
+.co-tile-btn span { max-width:100%; font-size:var(--text-meta); color:var(--txt-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.co-tile-btn:hover { border-color:color-mix(in srgb, var(--gize-blue) 45%, var(--border)); }
+.co-tile-btn.on { border-color:var(--gize-blue); background:color-mix(in srgb, var(--gize-blue) 14%, var(--card)); }
+.co-tile-btn.on span { color:var(--blue-2); }
+.co-tile-panel { order:2; grid-column:1 / -1; padding:16px; background:color-mix(in srgb, var(--card-2) 70%, transparent); border:1px solid var(--border); border-radius:var(--r-card); }
+.co-tile-panel[hidden] { display:none; }
+.co-tile-panel .co-note-wrap { margin-top:0; }
+.co-tile-panel .co-note-wrap > .co-note-lbl { display:none; }
+.co-tile-panel .co-note, .co-tile-panel .co-note-area { min-height:48px; border-radius:var(--r-btn); padding:12px 14px; }
+.co-tile-panel .co-note-area { min-height:96px; }
+.co-tile-panel .ea-btn { min-height:48px; padding:0 20px; font-size:var(--text-body); }
+@media (max-width:700px){
+  .co-tiles { grid-template-columns:1fr; gap:8px; }
+  .co-tile-btn, .co-tile-panel { order:0; }
+}
+@media (prefers-reduced-motion: reduce){ .co-tile-btn { transition:none; } }
+
+/* Última vez: línea discreta debajo de las series */
+.co-last-line { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:4px 2px 10px; font-size:12px; color:var(--txt-3); }
+.co-last-line span { margin-right:2px; }
+.co-last-line i { font-style:normal; font-weight:600; color:var(--txt-2); background:var(--card); border:1px solid var(--border); border-radius:999px; padding:2px 9px; font-variant-numeric:tabular-nums; }
+
+/* Plegar el ejercicio abierto: flecha hacia arriba al final de la cabecera */
+.co-exc-foldbtn { order:4; flex:none; width:44px; height:44px; display:grid; place-items:center; padding:0; background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); color:var(--txt-2); cursor:pointer; }
+.co-exc-foldbtn svg { width:var(--icon-md); height:var(--icon-md); transform:rotate(180deg); }
+.co-exc-foldbtn:hover { color:var(--txt); border-color:var(--blue-2); }
+
+/* Arrastrar una tarjeta para hacer superserie (mantener apretada) */
+.co-exc-collapsed { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+.co-dragging { opacity:.35; }
+.co-drop-target { border-color:var(--gize-r2); box-shadow:0 0 0 2px color-mix(in srgb, var(--gize-r2) 55%, transparent), 0 0 28px -8px color-mix(in srgb, var(--gize-r2) 70%, transparent); }
+.co-drag-ghost { position:fixed; z-index:700; margin:0; pointer-events:none; opacity:.92; transform:scale(1.03) rotate(1.2deg); box-shadow:0 18px 40px rgba(0,0,0,.5); border-color:var(--gize-blue); }
+body.co-drag-on, body.co-drag-on * { cursor:grabbing !important; }
+.co-drag-hint { margin:-4px 2px 10px; font-size:12px; color:var(--txt-3); }
+
+/* Arrastre: el destino sobresale (crece, brilla y muestra "Unir con…"), el resto se apaga */
+body.co-drag-on .co-exc-collapsed:not(.co-drop-target):not(.co-dragging) { opacity:.55; transition:opacity .15s; }
+.co-exc-collapsed { transition:transform .16s ease, box-shadow .16s ease, border-color .15s, opacity .15s; }
+.co-drop-target { opacity:1 !important; transform:scale(1.045); z-index:5; border-color:var(--gize-r2);
+  background:color-mix(in srgb, var(--gize-r2) 14%, var(--card));
+  box-shadow:0 0 0 2px var(--gize-r2), 0 14px 36px -8px color-mix(in srgb, var(--gize-r2) 75%, transparent); }
+.co-drop-target::after { content:attr(data-join); max-width:92%; overflow:hidden; text-overflow:ellipsis; position:absolute; right:12px; top:10px; z-index:6; padding:3px 12px; border-radius:999px; white-space:nowrap;
+  background:linear-gradient(135deg, var(--gize-r1), var(--gize-r2)); color:var(--gize-text); font:800 11px var(--gize-font); letter-spacing:.04em; box-shadow:0 4px 14px rgba(0,0,0,.45); }
+.co-exc-collapsed.co-drop-target { overflow:visible; }
+.co-drag-ghost { opacity:.88; transition:box-shadow .15s, border-color .15s; }
+.co-drag-ghost.co-over { border-color:var(--gize-r2); box-shadow:0 22px 46px rgba(0,0,0,.55), 0 0 0 2px var(--gize-r2); }
+
+/* Al unir: la superserie late una vez y la tarjeta que llegó "aterriza" */
+@keyframes coSsJoin { 0% { transform:scale(.97); box-shadow:0 0 0 0 color-mix(in srgb, var(--gize-r2) 70%, transparent); } 40% { transform:scale(1.02); box-shadow:0 0 0 8px color-mix(in srgb, var(--gize-r2) 0%, transparent), 0 0 44px -6px color-mix(in srgb, var(--gize-r2) 80%, transparent); } 100% { transform:scale(1); } }
+@keyframes coSsLand { 0% { transform:translateY(-10px) scale(1.06); opacity:.4; } 60% { transform:translateY(2px) scale(.99); opacity:1; } 100% { transform:none; } }
+.co-ss-join { animation:coSsJoin .7s ease-out; }
+.co-ss-landed { animation:coSsLand .5s cubic-bezier(.2,.8,.3,1.2); }
+@media (prefers-reduced-motion: reduce){ .co-ss-join, .co-ss-landed { animation:none; } .co-drop-target { transform:none; } }

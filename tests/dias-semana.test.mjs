@@ -143,7 +143,7 @@ export default async function ({ base, t }){
     await p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1500);
     await p.click('[data-coach="client-tab"][data-t="rutina"]'); await wait(400);
     t.eq(await p.$$eval('.co-dias .hd-day', b => b.map(x => x.textContent)), ['L', 'M', 'M', 'J', 'V', 'S', 'D'], 'el editor del coach tiene los 7 días');
-    t.has(await text(p, '.co-dias-hint'), 'Sin días', 'sin días: elige a mano');
+    t.has(await p.$eval('.co-dias', e => e.title), 'Sin días', 'sin días: elige a mano');
     await p.click('.co-dias .hd-day[data-d="1"]'); await wait(250);
     await p.click('.co-dias .hd-day[data-d="4"]'); await wait(250);
     t.eq(await p.$$eval('.co-dias .hd-day.on', b => b.map(x => +x.dataset.d)), [1, 4], 'quedan marcados lunes y jueves');
