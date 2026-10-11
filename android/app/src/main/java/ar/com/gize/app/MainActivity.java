@@ -22,6 +22,8 @@ public class MainActivity extends BridgeActivity {
         // para leerse bien: se deja el texto al 100 %.
         if (getBridge() != null && getBridge().getWebView() != null) {
             getBridge().getWebView().getSettings().setTextZoom(100);
+            // Las ventanitas de aviso con «Aceptar» y «Cancelar» (Capacitor las trae en inglés).
+            getBridge().getWebView().setWebChromeClient(new DialogosEnCastellano(getBridge()));
         }
         // Android 15 y 16 (de borde a borde): Capacitor deja márgenes para las barras del sistema
         // pero no para el teclado, así que el teclado tapaba el campo que se estaba escribiendo y

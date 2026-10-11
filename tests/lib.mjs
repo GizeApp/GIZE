@@ -48,14 +48,30 @@ export async function newPage({ user, state, handlers = {}, viewport = { width: 
   p.on('pageerror', e => errs.push(e.message));
   p.dialogAnswer = undefined;
   p.on('dialog', d => { dialogs.push(d.message()); (d.type() === 'prompt' ? d.accept(p.dialogAnswer || '') : d.accept()).catch(() => {}); });
-  if (user) await p.addInitScript(([k, s, st]) => {
+  if (user) await p.addInitScript(`(() => {
     if (sessionStorage.getItem('init')) return;
-    sessionStorage.setItem('init', '1'); localStorage.clear();
-    localStorage.setItem(k, JSON.stringify(s)); localStorage.setItem('gize_remember', '1');
-    if (st) localStorage.setItem('rutina_jero_v1', JSON.stringify(st));
-  }, [SB_KEY, session(user), state ? Object.assign({ ownerUid: user.id }, state) : null]);
+    sessionStorage.setItem('init', '1');
+    (${sembrar})(${JSON.stringify(semilla(user, state))});
+  })()`);
   if (init) await p.addInitScript(init);
-  await p.route(/supabase\.co/, async r => {
+  await p.route(/supabase\.co/, supabaseFalso({ user, handlers, calls }));
+  return { p, errs, dialogs, calls, close: () => ctx.close() };
+}
+
+// La sesión de prueba y el estado de la app, como quedan en localStorage al entrar: semilla()
+// arma los datos y sembrar() (corre en la página) los guarda. Los usan newPage y el recorrido en
+// el emulador de Android (scripts/android-recorrido.mjs).
+export const semilla = (user, state) => [SB_KEY, session(user), state ? Object.assign({ ownerUid: user.id }, state) : null];
+export function sembrar([k, s, st]){
+  localStorage.clear();
+  localStorage.setItem(k, JSON.stringify(s)); localStorage.setItem('gize_remember', '1');
+  if (st) localStorage.setItem('rutina_jero_v1', JSON.stringify(st));
+}
+
+// Supabase simulado: atiende cada pedido a supabase.co (page.route) con los handlers, y anota
+// en calls «MÉTODO /ruta». Lo usan newPage y el recorrido en el emulador de Android.
+export function supabaseFalso({ user, handlers = {}, calls = [] } = {}){
+  return async r => {
     const req = r.request(), u = new URL(req.url()), pth = u.pathname, m = req.method();
     const one = (req.headers()['accept'] || '').includes('vnd.pgrst.object');
     const J = (o, st = 200) => r.fulfill({ status: st, contentType: 'application/json', body: JSON.stringify(o) });
@@ -68,8 +84,7 @@ export async function newPage({ user, state, handlers = {}, viewport = { width: 
     if (pth.includes('/rpc/')) return J(null);
     if (m !== 'GET') return r.fulfill({ status: 201, contentType: 'application/json', body: '[]' });
     return J(one ? null : []);
-  });
-  return { p, errs, dialogs, calls, close: () => ctx.close() };
+  };
 }
 
 // Estado guardado de la app (localStorage).
