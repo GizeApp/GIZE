@@ -1,4 +1,5 @@
 import { renderExAudio } from './audio-ej.js';
+import { mmss } from '../../ui/grabar.js';
 import { ssGroupOf, ssGroups, ssName } from '../../core/superserie.js';
 import { dropExMedia, libVideo } from '../../core/videos.js';
 
@@ -440,72 +441,180 @@ function exerciseCard(d, day, ex, i, rt){
   const ssCls=g ? ' co-ss'+(i===g.start?' co-ss-first':'')+(i===g.end?' co-ss-last':'') : '';
 
   if(!open){
+    // Tarjeta compacta: número, nombre, puntitos (uno por serie) y contador de series con
+    // − / + para cargar series sin abrirla. Tocarla en cualquier otro lado la abre.
+    const dots='<span class="co-exc-dots" aria-hidden="true">'+Array.from({length:Math.min(nSets,8)},()=>'<i></i>').join('')+'</span>';
+    const stepper='<span class="co-exc-step">'+
+        '<button type="button" data-coach="rt-setdel" data-i="'+i+'" data-j="'+(nSets-1)+'" aria-label="Una serie menos"'+(nSets<=1?' disabled':'')+'>−</button>'+
+        '<b>'+nSets+' serie'+(nSets===1?'':'s')+'</b>'+
+        '<button type="button" data-coach="rt-setadd" data-i="'+i+'" aria-label="Una serie más">+</button>'+
+      '</span>';
     return '<div class="co-exc co-exc-collapsed'+ssCls+'" data-coach="rt-toggle" data-i="'+i+'" data-id="'+esc(ex.id)+'">'+
         swatch+
-        '<div class="co-exc-cmain">'+
-          '<span class="co-exc-cname">'+ord+esc(ex.name||"Sin nombre")+'</span>'+
-          '<span class="co-exc-cmeta">'+badge+(rirTxt?'<span class="co-exc-rirtxt">'+esc(rirTxt)+'</span>':'')+'</span>'+
+        '<div class="co-exc-cname">'+ord+'<span class="co-exc-ctext">'+esc(ex.name||"Sin nombre")+'</span></div>'+
+        '<div class="co-exc-cmeta">'+dots+(timed?'<span class="co-exc-badge">Por tiempo</span>':'')+(rirTxt?'<span class="co-exc-rirtxt">'+esc(rirTxt)+'</span>':'')+'</div>'+
+        '<div class="co-exc-cfoot">'+stepper+
+          '<button class="co-exc-icon-btn" data-coach="rt-swap" data-i="'+i+'" title="Cambiar ejercicio" aria-label="Cambiar ejercicio">'+swapSvg+'</button>'+
+          chevron+
         '</div>'+
-        '<button class="co-exc-icon-btn" data-coach="rt-swap" data-i="'+i+'" title="Cambiar ejercicio" aria-label="Cambiar ejercicio">'+swapSvg+'</button>'+
-        chevron+
       '</div>';
   }
 
-  const act=(a, icon, label, extra)=>'<button class="co-exc-act'+(extra||"")+'" data-coach="'+a+'" data-i="'+i+'"'+
+  const act=(a, icon, label, extra)=>'<button class="co-pop-item'+(extra||"")+'" data-coach="'+a+'" data-i="'+i+'"'+
     ((a==="rt-up"&&i===0)||(a==="rt-down"&&i===(day.exercises||[]).length-1)?' disabled':'')+'>'+icon+'<span>'+label+'</span></button>';
   const up='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
   const down='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>';
-  const actions='<div class="co-exc-actions">'+
-      act("rt-up", up, "Subir")+act("rt-down", down, "Bajar")+act("rt-swap", swapSvg, "Cambiar")+
-      act("rt-dup", copySvg, "Duplicar")+act("rt-del", trashSvg, "Quitar", " danger")+
-    '</div>';
+  const plus='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+  const linked=!!ex.ss, isLast=i===(day.exercises||[]).length-1;
+  // Subir, bajar, cambiar, duplicar, insertar, superserie y quitar: en el menú "⋯" de la cabecera.
+  const menu='<details class="co-day-menu co-exc-menu2"><summary aria-label="Más opciones del ejercicio" title="Más opciones">•••</summary><div class="co-day-pop">'+
+      act("rt-up", up, "Subir")+act("rt-down", down, "Bajar")+act("rt-swap", swapSvg, "Cambiar ejercicio")+
+      act("rt-dup", copySvg, "Duplicar")+act("rt-ins", plus, "Insertar uno antes")+
+      (isLast ? '' : act("rt-ss", linkSvg, linked?"Separar de la superserie":"Unir con el siguiente (superserie)"))+
+      act("rt-del", trashSvg, "Quitar", " danger")+
+    '</div></details>';
 
   // Lo que hizo el cliente la última vez en este ejercicio (primero en este mismo día, si no
-  // en cualquiera): se ve arriba de las series.
+  // en cualquiera): cada serie lo muestra al lado de su objetivo.
   const log=coachLogFor(d.sessions, day.name, ex.name); const lastLog=log[0] || coachLogFor(d.sessions, null, ex.name)[0] || null;
   const setTxt=st=>st.secs>0 ? st.secs+' s' : (st.kg ? kgText(st.kg)+' kg × '+st.reps : st.reps+' reps');
+  const lastSets=lastLog ? lastLog.sets : null;
   const sets=(ex.sets||[]).map((st,j)=>
     '<div class="co-set-row">'+
       '<span class="co-set-n">'+(j+1)+'</span>'+
       '<input class="co-target" data-coach="rt-target" data-i="'+i+'" data-j="'+j+'" value="'+esc(st.target||"")+'" placeholder="'+(timed?'45 s':'8-10')+'" aria-label="'+(timed?'Tiempo':'Reps')+' objetivo, serie '+(j+1)+'">'+
       '<input class="co-target" data-coach="rt-targetkg" data-i="'+i+'" data-j="'+j+'" value="'+esc(st.targetKg||"")+'" placeholder="kg" aria-label="Peso propuesto, serie '+(j+1)+'">'+
-      '<button class="co-set-rm" data-coach="rt-setdel" data-i="'+i+'" data-j="'+j+'" title="Quitar serie" aria-label="Quitar serie '+(j+1)+'">\u2715</button>'+
+      '<button class="co-set-rm" data-coach="rt-setdel" data-i="'+i+'" data-j="'+j+'" title="Quitar serie" aria-label="Quitar serie '+(j+1)+'">✕</button>'+
     '</div>').join("");
   const setsTbl=nSets ? '<div class="co-set-head"><span>#</span><span>'+(timed?'Tiempo objetivo':'Reps objetivo')+'</span><span>'+(timed?'Peso (opcional)':'Peso propuesto')+'</span><span></span></div>'+sets : '';
-  // Última vez del cliente + la sugerencia de GIZE para cargarla de un toque como propuesta.
+  // La sugerencia de GIZE para cargarla de un toque como propuesta.
   const sg=lastLog ? suggest(ex, lastLog.sets, timed) : null;
-  const lastBox=nSets ? '<div class="co-last">'+
-      (lastLog ? '<div class="co-last-t">Última vez ('+esc(fmtShort(lastLog.date))+')</div><div class="co-last-sets">'+lastLog.sets.map(st=>'<span>'+esc(setTxt(st))+'</span>').join('')+'</div>' : '<div class="co-last-t">Todavía no hizo este ejercicio.</div>')+
-      (sg && sg.kg ? '<button type="button" class="co-last-use" data-coach="rt-sug-fill" data-i="'+i+'" data-kg="'+sg.kg+'">Proponer '+esc(kgText(sg.kg))+' kg <small>('+esc(coachWhy(sg.why))+')</small></button>' : '')+
-    '</div>' : '';
+  const sugBtn=(nSets && sg && sg.kg) ? '<button type="button" class="co-last-use" data-coach="rt-sug-fill" data-i="'+i+'" data-kg="'+sg.kg+'">Proponer '+esc(kgText(sg.kg))+' kg <small>('+esc(coachWhy(sg.why))+')</small></button>' : '';
+  // La última vez, como una línea chica debajo de las series (no una columna): lo central acá es cargar.
+  const lastLine=(nSets && lastLog) ? '<div class="co-last-line"><span>Última vez · '+esc(fmtShort(lastLog.date))+'</span>'+lastLog.sets.map(st=>'<i>'+esc(setTxt(st))+'</i>').join('')+'</div>' : '';
   const prog=exSummary(d, day.name, ex.name);
-  const field=(lbl, a, v, ph, cls)=>'<label class="co-pfield"><span class="co-note-lbl">'+lbl+'</span><input class="co-pin'+(cls||"")+'" data-coach="'+a+'" data-i="'+i+'" value="'+esc(v||"")+'" placeholder="'+ph+'"></label>';
+  const field=(lbl, a, v, ph)=>'<label class="co-pfield"><span class="co-note-lbl">'+lbl+'</span><input class="co-pin" data-coach="'+a+'" data-i="'+i+'" value="'+esc(v||"")+'" placeholder="'+ph+'"></label>';
+
+  // Nota, video y explicación de voz: tres casilleros que se abren en el lugar. Lo abierto se
+  // recuerda entre re-dibujos (tilesOpen) para que no se cierre al tocar otra cosa.
+  const openKey=tilesOpen.get(ex.id)||"";
+  const tile=(key, title, hint, body)=>'<button type="button" class="co-tile-btn'+(openKey===key?' on':'')+'" data-tile="'+key+'" data-ex="'+esc(ex.id)+'" aria-expanded="'+(openKey===key)+'"><b>'+title+'</b><span>'+hint+'</span></button>'+
+    '<div class="co-tile-panel" data-tile="'+key+'" data-ex="'+esc(ex.id)+'"'+(openKey===key?'':' hidden')+'>'+body+'</div>';
+  const vl=ex.video ? null : libVideo(ex.name);
+  const vidHint=ex.video ? esc(ex.video.replace(/^https?:\/\/(www\.)?/,'')) : (vl ? 'Elegido por GIZE' : 'Pegá un link');
+  const audHint=ex.audio ? 'Grabada'+(ex.audioSecs?' · '+esc(mmss(ex.audioSecs)):'') : 'Grabar · hasta 3 minutos';
+  const tiles='<div class="co-tiles">'+
+      tile('note','Nota para el cliente', ex.note ? esc(ex.note) : 'Técnica, tempo, qué cuidar…',
+        '<textarea class="co-note co-note-area" rows="2" data-coach="rt-note" data-i="'+i+'" placeholder="Técnica, tempo, qué cuidar…" aria-label="Nota para el cliente">'+esc(ex.note||"")+'</textarea>')+
+      tile('video','Link de video', vidHint,
+        '<input class="co-note" type="url" inputmode="url" data-coach="rt-video" data-i="'+i+'" value="'+esc(ex.video||"")+'" placeholder="Pegá el link de YouTube o Instagram" aria-label="Link de video">'+libVideoHint(ex))+
+      tile('audio','Explicación de voz', audHint, renderExAudio(ex, i))+
+    '</div>';
+
   return '<div class="co-exc co-exc-open'+ssCls+'" data-id="'+esc(ex.id)+'">'+
-      '<div class="co-exc-head" data-coach="rt-toggle" data-i="'+i+'" data-id="'+esc(ex.id)+'">'+
-        swatch+ord+
-        '<input class="co-exc-name" data-coach="rt-name" data-i="'+i+'" value="'+esc(ex.name||"")+'" list="exList" placeholder="Nombre del ejercicio">'+
-        chevron+
-      '</div>'+
-      actions+
-      '<div class="co-exc-body">'+
-        '<div class="co-mode"><span class="co-note-lbl">Se mide por</span><div class="co-seg" role="radiogroup" aria-label="Se mide por">'+
+      '<div class="co-exc-head">'+
+        '<button type="button" class="co-exc-ordbtn'+(g?' ss':'')+'" data-coach="rt-toggle" data-i="'+i+'" data-id="'+esc(ex.id)+'" title="Plegar ejercicio" aria-label="Plegar ejercicio">'+(tag||(i+1))+'</button>'+
+        '<input class="co-exc-name" data-coach="rt-name" data-i="'+i+'" value="'+esc(ex.name||"")+'" list="exList" placeholder="Nombre del ejercicio" aria-label="Nombre del ejercicio">'+
+        '<div class="co-seg" role="radiogroup" aria-label="Se mide por">'+
           '<button type="button" class="co-seg-opt'+(timed?'':' on')+'" role="radio" aria-checked="'+(!timed)+'" data-coach="rt-timed" data-i="'+i+'" data-v="0">Reps</button>'+
           '<button type="button" class="co-seg-opt'+(timed?' on':'')+'" role="radio" aria-checked="'+timed+'" data-coach="rt-timed" data-i="'+i+'" data-v="1">Tiempo</button>'+
-        '</div></div>'+
-        '<div class="co-prow">'+
-          field("RIR","rt-rir",ex.rir,"2-0")+
-          field("Descanso","rt-rest",ex.rest,"90 seg")+
         '</div>'+
-        '<div class="co-note-wrap"><span class="co-note-lbl">Objetivo de progreso</span><input class="co-note" data-coach="rt-goal" data-i="'+i+'" value="'+esc(ex.goal||"")+'" placeholder="Ej: sumar 1 rep por semana"></div>'+
-        lastBox+setsTbl+
-        '<button class="co-set-add" data-coach="rt-setadd" data-i="'+i+'">+ Serie</button>'+
-        '<div class="co-note-wrap"><span class="co-note-lbl">Nota para el cliente</span><textarea class="co-note co-note-area" rows="2" data-coach="rt-note" data-i="'+i+'" placeholder="Técnica, tempo, qué cuidar…">'+esc(ex.note||"")+'</textarea></div>'+
-        '<div class="co-note-wrap"><span class="co-note-lbl">Link de video</span><input class="co-note" type="url" inputmode="url" data-coach="rt-video" data-i="'+i+'" value="'+esc(ex.video||"")+'" placeholder="Pegá el link de YouTube o Instagram">'+libVideoHint(ex)+'</div>'+
-        renderExAudio(ex, i)+
+        menu+
+        '<button type="button" class="co-exc-foldbtn" data-coach="rt-toggle" data-i="'+i+'" data-id="'+esc(ex.id)+'" title="Plegar ejercicio" aria-label="Plegar ejercicio">'+chevronDownSvg+'</button>'+
+      '</div>'+
+      '<div class="co-exc-body">'+
+        '<div class="co-sets-panel">'+setsTbl+lastLine+sugBtn+
+          '<button class="co-set-add" data-coach="rt-setadd" data-i="'+i+'">+ Serie</button>'+
+        '</div>'+
+        '<div class="co-cfg-row">'+
+          field("Descanso","rt-rest",ex.rest,"90 seg")+
+          field("RIR","rt-rir",ex.rir,"2-0")+
+          '<label class="co-pfield co-pfield-goal"><span class="co-note-lbl">Objetivo de progreso</span><input class="co-pin" data-coach="rt-goal" data-i="'+i+'" value="'+esc(ex.goal||"")+'" placeholder="Ej: sumar 1 rep por semana"></label>'+
+        '</div>'+
+        tiles+
         '<details class="co-exc-fold"><summary>Ver progreso'+(prog?' <span class="co-exc-fold-hint">('+esc(prog)+')</span>':'')+'</summary><div class="co-exc-prog">'+exChart(d, day.name, ex.name)+'</div><div class="co-exc-tbl">'+exTable(d, day.name, ex.name)+'</div></details>'+
       '</div>'+
     '</div>';
 }
+
+// Casilleros abiertos del ejercicio (nota, video, voz): sobreviven a volver a dibujar el editor.
+const tilesOpen=new Map();
+document.addEventListener('click', e=>{
+  const b=e.target.closest && e.target.closest('.co-tile-btn'); if(!b) return;
+  const id=b.dataset.ex, key=b.dataset.tile, wrap=b.parentNode, willOpen=tilesOpen.get(id)!==key;
+  if(willOpen) tilesOpen.set(id,key); else tilesOpen.delete(id);
+  wrap.querySelectorAll('.co-tile-btn').forEach(x=>{ const on=willOpen && x.dataset.tile===key; x.classList.toggle('on',on); x.setAttribute('aria-expanded',on); });
+  wrap.querySelectorAll('.co-tile-panel').forEach(x=>{ x.hidden=!(willOpen && x.dataset.tile===key); });
+});
+
+// ---- Superserie arrastrando (prueba): mantener apretada una tarjeta cerrada y soltarla sobre otra ----
+// Se saca el ejercicio de su lugar y se lo pone justo después del de destino, unidos (ex.ss = "va
+// con el siguiente"). Si el destino ya estaba en una superserie, el arrastrado se suma a esa cadena.
+export function ssDropOnto(arr, from, to){
+  if(from===to || !arr[from] || !arr[to]) return false;
+  if(from>0 && arr[from-1].ss){ if(arr[from].ss) arr[from-1].ss=true; else delete arr[from-1].ss; }
+  const [x]=arr.splice(from,1);
+  const j=to>from ? to-1 : to, y=arr[j];
+  if(y.ss) x.ss=true; else delete x.ss;
+  y.ss=true;
+  arr.splice(j+1,0,x);
+  return true;
+}
+const HOLD_MS=450, MOVE_TOL=8;
+let dragSt=null, dragGuard=false;
+function dragEnd(commit){
+  const s=dragSt; if(!s) return; dragSt=null;
+  clearTimeout(s.timer); clearInterval(s.scroll);
+  if(s.ghost) s.ghost.remove();
+  document.querySelectorAll('.co-dragging,.co-drop-target').forEach(n=>n.classList.remove('co-dragging','co-drop-target'));
+  document.body.classList.remove('co-drag-on');
+  if(!s.active) return;
+  dragGuard=true; setTimeout(()=>{ dragGuard=false; }, 350);
+  if(commit && s.target!=null){
+    const day=(rtDays()||[])[CoachState.coachEditDay];
+    const mid=day && day.exercises[s.from] ? day.exercises[s.from].id : null;
+    if(day && ssDropOnto(day.exercises, s.from, s.target)){
+      renderCoach();
+      // Pequeña animación en la superserie recién armada (se saltea con "reducir movimiento").
+      const el=mid && document.querySelector('.co-exc[data-id="'+(window.CSS&&CSS.escape?CSS.escape(mid):mid)+'"]'), grp=el && el.closest('.co-ss-group');
+      if(grp){ grp.classList.add('co-ss-join'); el.classList.add('co-ss-landed'); setTimeout(()=>{ grp.classList.remove('co-ss-join'); el.classList.remove('co-ss-landed'); }, 900); }
+    }
+  }
+}
+function dragStart(s){
+  s.active=true;
+  const r=s.card.getBoundingClientRect();
+  s.ghost=s.card.cloneNode(true); s.ghost.classList.add('co-drag-ghost');
+  s.ghost.style.width=r.width+'px'; s.ghost.style.left=r.left+'px'; s.ghost.style.top=r.top+'px';
+  s.dx=s.x-r.left; s.dy=s.y-r.top;
+  document.body.appendChild(s.ghost);
+  s.card.classList.add('co-dragging'); document.body.classList.add('co-drag-on');
+  if(navigator.vibrate) try{ navigator.vibrate(15); }catch(e){}
+  s.scroll=setInterval(()=>{ const h=window.innerHeight; if(s.y<70) window.scrollBy(0,-14); else if(s.y>h-70) window.scrollBy(0,14); }, 16);
+}
+document.addEventListener('pointerdown', e=>{
+  if(dragSt || (e.pointerType==='mouse' && e.button!==0)) return;
+  const card=e.target.closest && e.target.closest('.co-exc-collapsed'); if(!card || e.target.closest('button,input,a')) return;
+  const s=dragSt={ card, name:((card.querySelector('.co-exc-ctext')||{}).textContent||'').trim(), from:+card.dataset.i, x:e.clientX, y:e.clientY, x0:e.clientX, y0:e.clientY, id:e.pointerId, active:false, target:null };
+  s.timer=setTimeout(()=>{ if(dragSt===s) dragStart(s); }, HOLD_MS);
+}, true);
+document.addEventListener('pointermove', e=>{
+  const s=dragSt; if(!s || e.pointerId!==s.id) return;
+  s.x=e.clientX; s.y=e.clientY;
+  if(!s.active){ if(Math.hypot(s.x-s.x0, s.y-s.y0)>MOVE_TOL) dragEnd(false); return; }
+  s.ghost.style.left=(s.x-s.dx)+'px'; s.ghost.style.top=(s.y-s.dy)+'px';
+  const el=document.elementFromPoint(s.x, s.y), tc=el && el.closest ? el.closest('.co-exc-collapsed') : null;
+  document.querySelectorAll('.co-drop-target').forEach(n=>{ if(n!==tc) n.classList.remove('co-drop-target'); });
+  if(tc && tc!==s.card){ tc.classList.add('co-drop-target'); tc.dataset.join='Unir con '+s.name+' → '+((tc.querySelector('.co-exc-ctext')||{}).textContent||'').trim(); s.target=+tc.dataset.i; } else s.target=null;
+  s.ghost.classList.toggle('co-over', s.target!=null);
+}, true);
+document.addEventListener('pointerup', e=>{ if(dragSt && e.pointerId===dragSt.id) dragEnd(true); }, true);
+document.addEventListener('pointercancel', e=>{ if(dragSt && e.pointerId===dragSt.id && !dragSt.active) dragEnd(false); }, true);
+// Ya arrastrando, el dedo no debe scrollear la página ni abrir el menú contextual.
+document.addEventListener('touchmove', e=>{ if(dragSt && dragSt.active) e.preventDefault(); }, { passive:false });
+document.addEventListener('contextmenu', e=>{ if(dragSt) e.preventDefault(); }, true);
+// Al soltar, el click que sigue no debe abrir ni cerrar la tarjeta.
+document.addEventListener('click', e=>{ if(dragGuard){ e.stopPropagation(); e.preventDefault(); } }, true);
 
 const linkSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>';
 
@@ -532,46 +641,46 @@ export function renderCoachRoutine(d){
   const day=rt[CoachState.coachEditDay];
   const totalSets=(day.exercises||[]).reduce((n,x)=>n+((x.sets||[]).length),0);
   const totalEx=(day.exercises||[]).length;
-  // Entre dos ejercicios: + para insertar y el botón para unirlos en superserie (o separarlos).
+  // Las tarjetas van en grilla (3 por fila en pantalla ancha); la abierta y las superseries
+  // ocupan toda la fila. Insertar y unir en superserie están en la barra de la tarjeta abierta.
   const exs=day.exercises||[], groups=ssGroups(exs);
   const cards=exs.map((ex,i)=>{
-    const prevSS=i>0 && !!exs[i-1].ss;
-    const link=i>0 ? '<button class="co-ss-link'+(prevSS?' on':'')+'" data-coach="rt-ss" data-i="'+(i-1)+'" aria-pressed="'+prevSS+'">'+linkSvg+'<span>'+(prevSS?'Separar':'Unir en superserie')+'</span></button>' : '';
-    // Los unidos van en un solo panel: cabecera arriba y "sin descanso" entre ejercicios.
     const g=groups.find(x=>i>=x.start && i<=x.end);
-    const gap='<div class="co-gap"><button class="co-rt-ins" data-coach="rt-ins" data-i="'+i+'" title="Insertar ejercicio ac\u00e1">+</button>'+link+'</div>';
     const open=g && i===g.start ? '<div class="co-ss-group"><div class="co-ss-head">'+linkSvg+ssName(g)+' '+g.letter+'<button class="co-ss-split" data-coach="rt-ss-split" data-i="'+g.start+'">Separar</button><span>una serie de cada uno, sin descanso entre medio</span></div>' : '';
     const div=g && i>g.start ? '<div class="ss-div" aria-hidden="true"><span>sin descanso</span></div>' : '';
-    return (g && i>g.start ? '' : gap)+open+(g && i>g.start ? gap+div : '')+exerciseCard(d, day, ex, i, rt)+(g && i===g.end ? '</div>' : '');
+    return open+div+exerciseCard(d, day, ex, i, rt)+(g && i===g.end ? '</div>' : '');
   }).join("");
+  const dotsOn=diasDe(day);
+  const dayMenu='<details class="co-day-menu"><summary aria-label="Más opciones del día" title="Más opciones">•••</summary><div class="co-day-pop">'+
+      '<button class="co-day-mv" data-coach="day-dup">'+copySvg+'<span>Duplicar este día</span></button>'+
+      (rt.length>1 ? '<button class="co-day-mv" data-coach="day-left"'+(CoachState.coachEditDay===0?' disabled':'')+'>'+chevronLeftSvg+'<span>Mover antes</span></button>'+
+        '<button class="co-day-mv" data-coach="day-right"'+(CoachState.coachEditDay===rt.length-1?' disabled':'')+'>'+chevronRightSvg+'<span>Mover después</span></button>'+
+        '<button class="co-day-mv danger" data-coach="day-del">'+trashSvg+'<span>Borrar día</span></button>' : '')+
+    '</div></details>';
+  const sugOff=rt.some(x=>x.noSug);
+  const sugToggle='<span class="co-sug-mini" title="'+(sugOff?'Apagada: el cliente solo ve el peso que vos propongas.':'GIZE le recomienda subir 2,5 kg cuando la vez pasada se pasó del rango de reps, salvo donde cargues tu peso propuesto.')+'"><span>Sugerencia de peso</span><button type="button" class="co-sug-tg'+(sugOff?'':' on')+'" data-coach="rt-nosug-all" role="switch" aria-checked="'+(!sugOff)+'" aria-label="Sugerencia automática de peso"><span></span></button></span>';
   return '<div class="co-sec">Rutina y progreso</div>'+coachDatalist()+
-    '<div class="co-daytabs">'+tabs+'<button class="co-daytab add" data-coach="day-add">+</button></div>'+
+    '<div class="co-daytabs">'+tabs+'<button class="co-daytab add" data-coach="day-add" aria-label="Agregar día">+</button></div>'+
     '<div class="co-day-card">'+
       '<div class="co-day-head-row">'+
-        '<input class="co-dayname" data-coach="day-name" value="'+esc(day.name||"")+'" placeholder="Nombre del d\u00eda">'+
+        '<input class="co-dayname" data-coach="day-name" value="'+esc(day.name||"")+'" placeholder="Nombre del día" aria-label="Nombre del día">'+
+        dayMenu+
       '</div>'+
-      // Días de la semana de este día (puede ser más de uno): el alumno abre la app y Entreno
-      // arranca en el día que toca hoy. Ninguno = como siempre.
-      (()=>{ const on=diasDe(day); return '<span class="co-note-lbl co-dias-lbl">D\u00edas de la semana</span><div class="hd-row co-dias" role="group" aria-label="D\u00edas de la semana de este d\u00eda">'+
-        SEMANA.map(n=>'<button class="hd-day'+(on.includes(n)?' on':'')+'" data-coach="day-dow" data-d="'+n+'" aria-label="'+DIA_LARGO[n]+'" aria-pressed="'+on.includes(n)+'">'+DIA_LETRA[n]+'</button>').join("")+
-        '</div><div class="co-dias-hint">'+(on.length?'El alumno abre la app esos d\u00edas y le aparece este d\u00eda directo.':'Sin d\u00edas: el alumno elige el d\u00eda a mano.')+'</div>'; })()+
-      // Mover el día entero antes o después (ej. Espalda antes que Pecho) sin rearmarlo.
-      // Para pasar de un día a otro están las pestañas de arriba.
-      (rt.length>1 ? '<span class="co-note-lbl co-day-move-lbl">Mover este d\u00eda</span><div class="co-day-move">'+
-        '<button class="co-day-mv" data-coach="day-left" aria-label="Mover este d\u00eda antes"'+(CoachState.coachEditDay===0?' disabled':'')+'>'+chevronLeftSvg+'<span>Antes</span></button>'+
-        '<button class="co-day-mv" data-coach="day-right" aria-label="Mover este d\u00eda despu\u00e9s"'+(CoachState.coachEditDay===rt.length-1?' disabled':'')+'><span>Despu\u00e9s</span>'+chevronRightSvg+'</button>'+
-        '<button class="co-day-del" data-coach="day-del">Borrar d\u00eda</button>'+
-      '</div>' : '')+
-      '<button class="co-day-mv co-day-dup" data-coach="day-dup">'+copySvg+'<span>Duplicar este d\u00eda</span></button>'+
-      '<div class="co-daystats"><span class="co-stat"><b>'+totalEx+'</b> ejercicio'+(totalEx===1?'':'s')+'</span><span class="co-stat"><b>'+totalSets+'</b> serie'+(totalSets===1?'':'s')+' en total</span></div>'+
-      '<div class="co-note-wrap"><span class="co-note-lbl">Nota general de este d\u00eda (la ve el cliente al entrar)</span><input class="co-note" data-coach="day-note" value="'+esc(day.note||"")+'" placeholder=""></div>'+
+      // Días de la semana de este día (puede ser más de uno): Entreno arranca en el día que toca hoy.
+      '<div class="co-day-meta">'+
+        '<div class="co-dias-wrap"><span class="co-note-lbl">Se repite</span><div class="hd-row co-dias" role="group" aria-label="Días de la semana de este día" title="'+(dotsOn.length?'El alumno abre la app esos días y le aparece este día directo.':'Sin días: el alumno elige el día a mano.')+'">'+
+          SEMANA.map(n=>'<button class="hd-day'+(dotsOn.includes(n)?' on':'')+'" data-coach="day-dow" data-d="'+n+'" aria-label="'+DIA_LARGO[n]+'" aria-pressed="'+dotsOn.includes(n)+'">'+DIA_LETRA[n]+'</button>').join("")+
+        '</div></div>'+
+        '<div class="co-note-wrap co-daynote"><span class="co-note-lbl">Nota</span><input class="co-note" data-coach="day-note" value="'+esc(day.note||"")+'" placeholder="La ve el alumno al entrar…"></div>'+
+      '</div>'+
     '</div>'+
-    // Sugerencia automática de peso: una sola llave para toda la rutina (la ve el cliente en
-    // cada ejercicio sin peso propuesto). Se guarda como noSug en los días.
-    (()=>{ const off=rt.some(x=>x.noSug); return '<div class="co-sug-all"><div class="co-sug-txt"><b>Sugerencia automática de peso</b>'+(off?'Apagada: el cliente solo ve el peso que vos propongas.':'GIZE le recomienda subir 2,5 kg cuando la vez pasada se pasó del rango de reps, salvo donde cargues tu peso propuesto.')+'</div><button type="button" class="co-sug-tg'+(off?'':' on')+'" data-coach="rt-nosug-all" role="switch" aria-checked="'+(!off)+'" aria-label="Sugerencia automática de peso"><span></span></button></div>'; })()+
-    '<div class="co-exc-section-head"><span class="co-sec" style="margin:0">Ejercicios</span><button class="co-rt-add" data-coach="rt-add">+ Agregar ejercicio</button></div>'+
-    (cards||'<div class="cal-hint">D\u00eda vac\u00edo. Agreg\u00e1 ejercicios ac\u00e1 abajo.</div>')+
-    (cards ? '<button class="co-rt-add-end" data-coach="rt-add">+ Agregar ejercicio al final</button>' : '')+
+    '<div class="co-exc-section-head"><div class="co-exc-title"><span class="co-sec" style="margin:0">Ejercicios</span><span class="co-exc-count">'+totalEx+' · '+totalSets+' serie'+(totalSets===1?'':'s')+'</span></div>'+sugToggle+'</div>'+
+    (exs.length>1 ? '<div class="co-drag-hint">Mantené apretado un ejercicio y soltalo sobre otro para unirlos en superserie.</div>' : '')+
+    '<div class="co-exc-grid">'+
+    cards+
+      '<button class="co-rt-add-end" data-coach="rt-add"><span>+</span>Agregar ejercicio</button>'+
+    '</div>'+
+    (cards ? '' : '<div class="cal-hint">Día vacío. Sumá el primer ejercicio.</div>')+
     (CoachState.coachTplEdit ? '' : (routineDirty() ? '<div class="co-unsaved">'+(CoachState.coachData.draftRestored ? 'Recuperamos los cambios que no se habían guardado. ' : 'Cambios sin guardar. ')+'Tocá <b>Guardar rutina</b> para que le lleguen al cliente.</div>' : '')+'<button class="co-save-rt" data-coach="save-routine">Guardar rutina</button>')+
     (CoachState.coachTplEdit ? "" : "<div class='rt-actions'><button class='co-copy-btn' data-coach='rt-apply'>"+downloadSvg+" Aplicar una de mis rutinas</button><button class='co-copy-btn' data-coach='rt-copy'>"+copySvg+" Copiar a otro cliente</button><button class='co-copy-btn' data-coach='rt-tosave'>"+saveSvg+" Guardar como rutina</button></div>");
 }
