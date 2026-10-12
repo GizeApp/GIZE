@@ -170,6 +170,13 @@ export function todayWeightText(){
   return w && Number(w.kg) > 0 ? String(w.kg).replace(".", ",") : "";
 }
 
+// ¿El registro del día tiene alguna respuesta? No cuentan los pasos (los suma el contador), el
+// peso ni _q (la foto de los textos de las preguntas). Lo usan «Guardar registro de hoy» y la
+// tarjeta de Progreso («Cargado hoy ✓»).
+export function dailyHasAnswer(r){
+  return Object.keys(r || {}).some(k => k !== "steps" && k !== "_q" && k !== "kg" && r[k] != null && String(r[k]).trim() !== "");
+}
+
 export function renderDaily(){
   const d = CheckinState.dailyForm || (state.daily[today()] || {});
   const kgVal = CheckinState.dailyForm && CheckinState.dailyForm.kg != null ? CheckinState.dailyForm.kg : (todayWeightText() || d.kg || "");

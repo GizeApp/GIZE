@@ -55,6 +55,8 @@ export default async function ({ base, t }){
     t.eq(await p.$$eval('.daily-card .dfield label', l => l.map(e => e.textContent)), ['Peso'], 'Registro de hoy: solo el peso, sin «Pasos»');
     t.eq(await p.$$eval('.daily-card input', l => l.map(e => e.id)), ['dKg'], 'Registro de hoy: ningún campo para anotar pasos');
     await p.fill('#dKg', '80,1');
+    // El registro tiene preguntas: sin responder alguna no se guarda (ver registro-tarjeta).
+    await p.click('[data-action="daily-set"][data-k="dolor"] >> nth=0'); await wait(200);
     await p.click('[data-action="daily-save"]'); await wait(1200);
     const st = await p.evaluate(async () => { const { state } = await import('/app/core/state.js'); return state.steps; });
     t.eq(st, 7342, 'guardar el registro no cambia los pasos del día');

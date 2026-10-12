@@ -33,7 +33,7 @@ import { showLogin } from './screens/auth.js';
 import { ssGroupOf, ssNext } from './core/superserie.js';
 import { CardioState, closeSalida, liveMapTick, openTimePicker, paintSalida, renderCardio, salidaAction, saveClock, setRing, swFrac } from './screens/cardio.js';
 
-import { CheckinState, checkinDraft, checkinHasAnswer, checkinWeek, renderFeedback, saveSession, todayWeightText, undoSaveSession } from './screens/checkin.js';
+import { CheckinState, checkinDraft, checkinHasAnswer, checkinWeek, dailyHasAnswer, renderFeedback, saveSession, todayWeightText, undoSaveSession } from './screens/checkin.js';
 
 import { loadCoachClients, openClient } from './screens/coach/clientes.js';
 
@@ -723,6 +723,10 @@ document.body.addEventListener("click", async e => {
     const d = CheckinState.dailyForm || {};
     const kg = parseFloat(String(d.kg||"").replace(",","."));
     const rec = Object.assign({}, state.daily[today()]||{}, d);
+    // Con preguntas, como el check-in: sin ninguna respuesta no se guarda ni se manda nada (lo
+    // escrito, también el peso, queda en el formulario). Si el coach las borró todas, alcanza
+    // con el peso.
+    if(clientQuestions("daily").length && !dailyHasAnswer(rec)){ alert("Respondé al menos una pregunta antes de guardar el registro."); return; }
     rec._q = questionSnapshot(clientQuestions("daily"), rec);
     state.daily[today()] = rec;
     // Los pasos no se anotan acá (pedido: nada de pasos a mano): va el contador del día, el que

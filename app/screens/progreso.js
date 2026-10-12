@@ -6,7 +6,7 @@ import { dec, esc, exKey, exMuscle, fmtDate, fmtSecs, mondayOf, num, setText, to
 
 import { kgText } from '../core/progresion.js';
 
-import { checkinSummary, renderCheckin, renderDaily, renderInfo } from './checkin.js';
+import { checkinSummary, dailyHasAnswer, renderCheckin, renderDaily, renderInfo } from './checkin.js';
 
 import { EntrenoState } from './entreno.js';
 
@@ -324,8 +324,7 @@ function sectionBody(id){
 // registro no tiene preguntas (el coach las borró todas y queda solo el peso): si no, con
 // anotar el peso en «Tu peso» ya decía «Cargado hoy ✓» sin responderle nada al coach.
 function dailyDone(){
-  const r=(state.daily||{})[today()];
-  if(r && Object.keys(r).some(k=>k!=="steps" && k!=="_q" && k!=="kg" && r[k]!=null && String(r[k]).trim()!=="")) return true;
+  if(dailyHasAnswer((state.daily||{})[today()])) return true;
   return !clientQuestions("daily").length && (state.weights||[]).some(w=>w && w.date===today() && Number(w.kg)>0);
 }
 
