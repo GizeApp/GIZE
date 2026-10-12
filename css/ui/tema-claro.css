@@ -117,7 +117,8 @@ html.tema-claro body:not(#_) :is(
     .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
     .join-box, .daynotes, .w-chart)::after,
 html.tema-claro body:not(#_) :is(.ptile, .plan-card, .plan-top, .plan-acc, .ss-group, .adm-entry, .co-ss-group)::after,
-html.tema-claro body:not(#_) :not(.ss-group) > .ex-collapsed:not(.ex-is-done)::after {
+html.tema-claro body:not(#_) :not(.ss-group) > .ex-collapsed:not(.ex-is-done)::after,
+html.tema-claro body:not(#_) :is(.co-exc:not(.co-drop-target), .co-exc-step)::after {
   content: ""; position: absolute; inset: 0; z-index: 3; padding: 1.5px; border-radius: inherit; pointer-events: none;
   background: var(--gize-rgb-ring);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -169,6 +170,12 @@ html.tema-claro body:not(#_) :is(.food-row, .diary-item, .w-item, .sess-item, .h
   -webkit-backdrop-filter: var(--gize-glass-blur); backdrop-filter: var(--gize-glass-blur);
   box-shadow: 0 8px 24px rgba(0,0,0,.22), var(--gize-glass-shine);
 }
+/* Ejercicios del editor de rutina del coach (cerrados, abiertos y adentro de una superserie) y su
+   contador de series: el vidrio de fila con el borde de neón en el ::after enmascarado de las cajas
+   (arriba), en vez del filete blanco. La tarjeta sobre la que se suelta otra para unirlas en
+   superserie usa su ::after para el cartel «Unir con…»: esa no lo lleva. */
+html.tema-claro body:not(#_) :is(.co-exc, .co-exc-step) { position: relative; isolation: isolate; border-color: transparent; }
+html.tema-claro body:not(#_) .co-exc-step { background: var(--card-2); }
 /* Clientes del coach: en celular cada fila es su propia caja (en compu es una tabla). */
 @media (max-width: 899px) {
   html.tema-claro body:not(#_) .co-trow:not(.co-thead) { background: var(--gize-glass); border-color: var(--gize-glass-line);

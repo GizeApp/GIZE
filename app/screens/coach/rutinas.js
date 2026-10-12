@@ -422,9 +422,9 @@ function libVideoHint(ex){
 }
 
 // Tarjeta de un ejercicio en el editor de rutina del coach. Pensada para el celular:
-// cerrada muestra el nombre completo (hasta 2 renglones) y las series; abierta, una barra
-// de acciones con botones grandes y con texto (subir, bajar, cambiar, duplicar, quitar) en
-// vez de íconos chicos y un menú escondido detrás de los seis puntitos.
+// cerrada muestra el nombre completo (hasta 2 renglones) y las series; abierta, la
+// configuración del ejercicio en la misma tarjeta, que crece hacia abajo en su casillero
+// de la grilla (no ocupa toda la fila) y con los mismos tamaños que cerrada.
 function exerciseCard(d, day, ex, i, rt){
   const open=CoachState.coachExpandedEx.has(ex.id);
   const nSets=(ex.sets||[]).length;
@@ -432,7 +432,9 @@ function exerciseCard(d, day, ex, i, rt){
   const timed=isTimedEx(ex);
   const badge='<span class="co-exc-badge">'+nSets+' serie'+(nSets===1?'':'s')+(timed?' · por tiempo':'')+'</span>';
   const rirTxt=rirRestSummary(ex);
-  const chevron='<span class="co-exc-chevron'+(open?' open':'')+'">'+chevronDownSvg+'</span>';
+  // Flecha para abrir y cerrar: el mismo botón en el mismo lugar (arriba a la derecha) en las
+  // dos formas de la tarjeta; cerrada apunta abajo y abierta, arriba.
+  const chevron='<button type="button" class="co-exc-chev'+(open?' open':'')+'" data-coach="rt-toggle" data-i="'+i+'" data-id="'+esc(ex.id)+'" aria-expanded="'+open+'" aria-label="'+(open?'Cerrar':'Abrir')+' ejercicio" title="'+(open?'Cerrar':'Abrir')+' ejercicio">'+chevronDownSvg+'</button>';
   // El número de orden sale solo de la posición en el día (1, 2, 3…): al subir, bajar o
   // agregar ejercicios se reacomoda sin que el coach lo cargue a mano.
   // En superserie lleva la letra y la posición (A1, A2…) y un filete de color al costado.
@@ -451,11 +453,10 @@ function exerciseCard(d, day, ex, i, rt){
       '</span>';
     return '<div class="co-exc co-exc-collapsed'+ssCls+'" data-coach="rt-toggle" data-i="'+i+'" data-id="'+esc(ex.id)+'">'+
         swatch+
-        '<div class="co-exc-cname">'+ord+'<span class="co-exc-ctext">'+esc(ex.name||"Sin nombre")+'</span></div>'+
+        '<div class="co-exc-head"><div class="co-exc-cname">'+ord+'<span class="co-exc-ctext">'+esc(ex.name||"Sin nombre")+'</span></div>'+chevron+'</div>'+
         '<div class="co-exc-cmeta">'+dots+(timed?'<span class="co-exc-badge">Por tiempo</span>':'')+(rirTxt?'<span class="co-exc-rirtxt">'+esc(rirTxt)+'</span>':'')+'</div>'+
         '<div class="co-exc-cfoot">'+stepper+
           '<button class="co-exc-icon-btn" data-coach="rt-swap" data-i="'+i+'" title="Cambiar ejercicio" aria-label="Cambiar ejercicio">'+swapSvg+'</button>'+
-          chevron+
         '</div>'+
       '</div>';
   }
@@ -511,28 +512,39 @@ function exerciseCard(d, day, ex, i, rt){
       tile('audio','Explicación de voz', audHint, renderExAudio(ex, i))+
     '</div>';
 
+  // Cabecera como la de la tarjeta cerrada (número, nombre, flecha), con el menú "⋯" antes de
+  // la flecha. Reps / Tiempo va arriba de las series, que es lo que cambia. Las series por un
+  // lado y descanso, casilleros y progreso por otro: van uno debajo del otro y, si la tarjeta es
+  // ancha (adentro de una superserie), lado a lado.
   return '<div class="co-exc co-exc-open'+ssCls+'" data-id="'+esc(ex.id)+'">'+
+      swatch+
       '<div class="co-exc-head">'+
-        '<button type="button" class="co-exc-ordbtn'+(g?' ss':'')+'" data-coach="rt-toggle" data-i="'+i+'" data-id="'+esc(ex.id)+'" title="Plegar ejercicio" aria-label="Plegar ejercicio">'+(tag||(i+1))+'</button>'+
+        ord+
         '<input class="co-exc-name" data-coach="rt-name" data-i="'+i+'" value="'+esc(ex.name||"")+'" list="exList" placeholder="Nombre del ejercicio" aria-label="Nombre del ejercicio">'+
-        '<div class="co-seg" role="radiogroup" aria-label="Se mide por">'+
-          '<button type="button" class="co-seg-opt'+(timed?'':' on')+'" role="radio" aria-checked="'+(!timed)+'" data-coach="rt-timed" data-i="'+i+'" data-v="0">Reps</button>'+
-          '<button type="button" class="co-seg-opt'+(timed?' on':'')+'" role="radio" aria-checked="'+timed+'" data-coach="rt-timed" data-i="'+i+'" data-v="1">Tiempo</button>'+
-        '</div>'+
         menu+
-        '<button type="button" class="co-exc-foldbtn" data-coach="rt-toggle" data-i="'+i+'" data-id="'+esc(ex.id)+'" title="Plegar ejercicio" aria-label="Plegar ejercicio">'+chevronDownSvg+'</button>'+
+        chevron+
       '</div>'+
       '<div class="co-exc-body">'+
-        '<div class="co-sets-panel">'+setsTbl+lastLine+sugBtn+
-          '<button class="co-set-add" data-coach="rt-setadd" data-i="'+i+'">+ Serie</button>'+
+        '<div class="co-exc-main">'+
+          '<div class="co-mode"><span class="co-note-lbl">Se mide por</span>'+
+            '<div class="co-seg" role="radiogroup" aria-label="Se mide por">'+
+              '<button type="button" class="co-seg-opt'+(timed?'':' on')+'" role="radio" aria-checked="'+(!timed)+'" data-coach="rt-timed" data-i="'+i+'" data-v="0">Reps</button>'+
+              '<button type="button" class="co-seg-opt'+(timed?' on':'')+'" role="radio" aria-checked="'+timed+'" data-coach="rt-timed" data-i="'+i+'" data-v="1">Tiempo</button>'+
+            '</div>'+
+          '</div>'+
+          '<div class="co-sets-panel">'+setsTbl+lastLine+sugBtn+
+            '<button class="co-set-add" data-coach="rt-setadd" data-i="'+i+'">+ Serie</button>'+
+          '</div>'+
         '</div>'+
-        '<div class="co-cfg-row">'+
-          field("Descanso","rt-rest",ex.rest,"90 seg")+
-          field("RIR","rt-rir",ex.rir,"2-0")+
-          '<label class="co-pfield co-pfield-goal"><span class="co-note-lbl">Objetivo de progreso</span><input class="co-pin" data-coach="rt-goal" data-i="'+i+'" value="'+esc(ex.goal||"")+'" placeholder="Ej: sumar 1 rep por semana"></label>'+
+        '<div class="co-exc-side">'+
+          '<div class="co-cfg-row">'+
+            field("Descanso","rt-rest",ex.rest,"90 seg")+
+            field("RIR","rt-rir",ex.rir,"2-0")+
+            '<label class="co-pfield co-pfield-goal"><span class="co-note-lbl">Objetivo de progreso</span><input class="co-pin" data-coach="rt-goal" data-i="'+i+'" value="'+esc(ex.goal||"")+'" placeholder="Ej: sumar 1 rep por semana"></label>'+
+          '</div>'+
+          tiles+
+          '<details class="co-exc-fold"><summary>Ver progreso'+(prog?' <span class="co-exc-fold-hint">('+esc(prog)+')</span>':'')+'</summary><div class="co-exc-prog">'+exChart(d, day.name, ex.name)+'</div><div class="co-exc-tbl">'+exTable(d, day.name, ex.name)+'</div></details>'+
         '</div>'+
-        tiles+
-        '<details class="co-exc-fold"><summary>Ver progreso'+(prog?' <span class="co-exc-fold-hint">('+esc(prog)+')</span>':'')+'</summary><div class="co-exc-prog">'+exChart(d, day.name, ex.name)+'</div><div class="co-exc-tbl">'+exTable(d, day.name, ex.name)+'</div></details>'+
       '</div>'+
     '</div>';
 }
@@ -641,8 +653,9 @@ export function renderCoachRoutine(d){
   const day=rt[CoachState.coachEditDay];
   const totalSets=(day.exercises||[]).reduce((n,x)=>n+((x.sets||[]).length),0);
   const totalEx=(day.exercises||[]).length;
-  // Las tarjetas van en grilla (3 por fila en pantalla ancha); la abierta y las superseries
-  // ocupan toda la fila. Insertar y unir en superserie están en la barra de la tarjeta abierta.
+  // Las tarjetas van en grilla (3 por fila en pantalla ancha); la abierta sigue en su casillero
+  // y crece hacia abajo, las superseries ocupan toda la fila. Se abre una sola a la vez
+  // (abrirSolo). Insertar y unir en superserie están en el menú "⋯" de la tarjeta abierta.
   const exs=day.exercises||[], groups=ssGroups(exs);
   const cards=exs.map((ex,i)=>{
     const g=groups.find(x=>i>=x.start && i<=x.end);
@@ -729,7 +742,14 @@ export function cpApply(name, cat){
   else if(CoachState.coachPicker.mode==="insert"){ ex=mkEx(name,3,mm); day.exercises.splice(CoachState.coachPicker.idx,0,ex); }
   else { ex=mkEx(name,3,mm); day.exercises.push(ex); }
   // el ejercicio recién agregado/cambiado arranca expandido para que el coach lo complete
-  // de una — el resto del día sigue colapsado (ver CoachState.coachExpandedEx).
-  if(ex) CoachState.coachExpandedEx.add(ex.id);
+  // de una — es el único abierto: el resto del día queda colapsado (abrirSolo).
+  if(ex) abrirSolo(ex.id);
   closeSheet(()=>{ CoachState.coachPicker=null; renderCoachPicker(); renderCoach(); }, {host:"#coachSheetHost", card:".cp-modal", duration:150});
+}
+
+// Un solo ejercicio abierto a la vez en el editor (CoachState.coachExpandedEx): abrir uno, o
+// agregarlo, duplicarlo, insertarlo o cambiarlo, cierra el que estaba abierto.
+export function abrirSolo(id){
+  CoachState.coachExpandedEx.clear();
+  if(id) CoachState.coachExpandedEx.add(id);
 }

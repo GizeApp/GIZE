@@ -44,7 +44,7 @@ import { renderCoachSettings } from './screens/coach/settings.js';
 // Registra los eventos del editor de preguntas del coach (efecto al importarlo).
 import './screens/coach/preguntas.js';
 
-import { coachPlanObj, cpApply, loadTpls, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
+import { abrirSolo, coachPlanObj, cpApply, loadTpls, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
 import { calState } from './screens/coach/calendario.js';
@@ -1480,12 +1480,15 @@ document.body.addEventListener("click", async e => {
   if(a==="rt-dup"){
     const day=(rtDays()||[])[CoachState.coachEditDay]; const i=+b.dataset.i; const ex=day&&day.exercises[i]; if(!ex) return;
     const copy=JSON.parse(JSON.stringify(ex)); copy.id=uid(); (copy.sets||[]).forEach(s=>{ s.id=uid(); s.kg=""; s.reps=""; s.done=false; });
-    day.exercises.splice(i+1,0,copy); CoachState.coachExpandedEx.add(copy.id); renderCoach(); return;
+    day.exercises.splice(i+1,0,copy); abrirSolo(copy.id); renderCoach(); return;
   }
+  // Abrir o cerrar un ejercicio (la flecha, o tocar la tarjeta cerrada): uno abierto a la vez.
+  // Tocar el contador de series de la tarjeta cerrada (también el texto del medio) no la abre.
   if(a==="rt-toggle"){
+    if(b.classList.contains("co-exc-collapsed") && e.target.closest(".co-exc-step")) return;
     const id=b.dataset.id;
     if(CoachState.coachExpandedEx.has(id)){ CoachState.coachExpandedEx.delete(id); CoachState.coachExMenu=null; }
-    else CoachState.coachExpandedEx.add(id);
+    else abrirSolo(id);
     renderCoach(); return;
   }
   if(a==="rt-menu"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day&&day.exercises[+b.dataset.i]; if(!ex) return; CoachState.coachExMenu=(CoachState.coachExMenu===ex.id)?null:ex.id; renderCoach(); return; }
