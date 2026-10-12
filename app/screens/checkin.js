@@ -18,7 +18,7 @@ import { renderApp } from '../main.js';
 
 import { day, wkElapsedMs, wkStarted } from './entreno.js';
 
-import { detectPRs } from './progreso.js';
+import { conCoach, detectPRs } from './progreso.js';
 
 export const CheckinState = {
 
@@ -134,16 +134,21 @@ export function renderFeedback(){
   };
   const jp=["No","S\u00ed"].map(v=>'<button class="fb-n wide'+(f.joint===v?' on':'')+'" data-action="fb-set" data-k="joint" data-v="'+v+'">'+v+'</button>').join("");
   const prBanner = (CheckinState.newPRs&&CheckinState.newPRs.length) ? '<div class="pr-box"><div class="pr-title">'+trophySvg+' ¡Nuevo récord!</div>'+CheckinState.newPRs.map(p=>'<div class="pr-line"><span class="pr-ex">'+esc(p.name)+'</span><span class="pr-val">'+kgText(num(p.kg))+' kg × '+p.reps+'</span><span class="pr-prev">antes '+kgText(num(p.prev))+' kg</span></div>').join("")+'</div>' : '';
+  // «Contale a tu coach cómo te fue» (fatiga, pump, dolor) y «Enviar a mi coach», solo con coach
+  // (conCoach, como el registro y el check-in en Progreso). Sin coach queda el resumen, los
+  // récords y «Listo» para cerrar (el mismo fb-skip que «Ahora no»).
+  const coach = conCoach();
   host.innerHTML='<div class="fb-bg"></div><div class="fb-card">'+
     '<div class="fb-title">\u00a1Entreno terminado!</div>'+
     renderSummary()+
     prBanner+
-    '<div class="fb-sub">Contale a tu coach c\u00f3mo te fue</div>'+
-    scale("rpe","Fatiga percibida","1 = nada \u00b7 5 = al l\u00edmite")+
-    scale("pump","Pump de la sesi\u00f3n","1 = nada \u00b7 5 = mucho")+
-    '<div class="fb-row"><div class="fb-lbl">Dolor articular<span class="fb-hint">\u00bfMolestia en alguna articulaci\u00f3n?</span></div><div class="fb-opts">'+jp+'</div></div>'+
-    '<button class="form-save" style="margin-top:16px" data-action="fb-save">Enviar a mi coach</button>'+
-    '<button class="logout-btn" style="margin-top:8px" data-action="fb-skip">Ahora no</button>'+
+    (coach ? '<div class="fb-sub">Contale a tu coach c\u00f3mo te fue</div>'+
+      scale("rpe","Fatiga percibida","1 = nada \u00b7 5 = al l\u00edmite")+
+      scale("pump","Pump de la sesi\u00f3n","1 = nada \u00b7 5 = mucho")+
+      '<div class="fb-row"><div class="fb-lbl">Dolor articular<span class="fb-hint">\u00bfMolestia en alguna articulaci\u00f3n?</span></div><div class="fb-opts">'+jp+'</div></div>'+
+      '<button class="form-save" style="margin-top:16px" data-action="fb-save">Enviar a mi coach</button>'+
+      '<button class="logout-btn" style="margin-top:8px" data-action="fb-skip">Ahora no</button>'
+    : '<button class="form-save" style="margin-top:16px" data-action="fb-skip">Listo</button>')+
     (CheckinState.undo && CheckinState.undo.id===CheckinState.fbSession ? '<button class="fb-undo" data-action="fb-undo">Lo toqué sin querer: seguir entrenando</button>' : '')+'</div>';
 }
 

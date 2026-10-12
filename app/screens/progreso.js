@@ -16,6 +16,8 @@ import { SUB_LABELS, volumeGroups } from '../core/subgrupos.js';
 
 import { pasosResumen, renderPasosSeccion } from './pasos.js';
 
+import { clientQuestions } from '../core/questions.js';
+
 export const ProgresoState = {
 
   // at: el día en que se armó el formulario. Si la app queda abierta de un día para otro, al
@@ -318,11 +320,13 @@ function sectionBody(id){
 
 // ¿Cargó hoy el registro? La app sube sola una fila del día (agua, pasos, hábitos) y al
 // volver a abrirla aparecía como registro con todo vacío: cuenta solo si tiene alguna
-// respuesta (los pasos no, los suma solo el contador) o el peso de hoy.
+// respuesta (los pasos no, los suma solo el contador). El peso de hoy cuenta solo si el
+// registro no tiene preguntas (el coach las borró todas y queda solo el peso): si no, con
+// anotar el peso en «Tu peso» ya decía «Cargado hoy ✓» sin responderle nada al coach.
 function dailyDone(){
   const r=(state.daily||{})[today()];
-  if(r && Object.keys(r).some(k=>k!=="steps" && k!=="_q" && r[k]!=null && String(r[k]).trim()!=="")) return true;
-  return (state.weights||[]).some(w=>w && w.date===today() && Number(w.kg)>0);
+  if(r && Object.keys(r).some(k=>k!=="steps" && k!=="_q" && k!=="kg" && r[k]!=null && String(r[k]).trim()!=="")) return true;
+  return !clientQuestions("daily").length && (state.weights||[]).some(w=>w && w.date===today() && Number(w.kg)>0);
 }
 
 // Resumen de cada tarjeta del menú: [texto, pendiente?]
