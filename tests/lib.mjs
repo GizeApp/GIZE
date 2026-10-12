@@ -104,6 +104,16 @@ export function checker(){
 export const ALUMNO = { id: '11111111-1111-1111-1111-111111111111', email: 'alumno@prueba.test', aud: 'authenticated', role: 'authenticated' };
 export const ADMIN = { id: '22222222-2222-2222-2222-222222222222', email: 'admin@prueba.test', aud: 'authenticated', role: 'authenticated' };
 export const profile = (role, extra) => (r, J, i) => i.m === 'GET' ? J(i.one ? Object.assign({ id: ALUMNO.id, role, full_name: 'Prueba', coach_id: null }, extra) : []) : undefined;
+// Ojo: la app lee su perfil con maybeSingle, que pide una lista, y profile() ahí responde []: la
+// app queda sin perfil (State.cloudProfile = null). perfil() lo devuelve como la base, para cuando
+// importa el vínculo con el coach: con perfil('client', CON_COACH) Progreso muestra el registro de
+// hoy, el check-in semanal y la ficha (sin coach no aparecen).
+export const CON_COACH = { coach_id: '33333333-3333-3333-3333-333333333333' };
+export const perfil = (role, extra) => (r, J, i) => {
+  if (i.m !== 'GET') return undefined;
+  const me = Object.assign({ id: ALUMNO.id, role, full_name: 'Prueba', coach_id: null }, extra);
+  return J(i.one ? me : [me]);
+};
 // Entreno: los ejercicios arrancan cerrados y en la app se abre uno a la vez. Para las pruebas
 // que miran varios ejercicios juntos, este atajo los deja a todos abiertos.
 export async function openAllEx(p){

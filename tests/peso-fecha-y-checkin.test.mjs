@@ -2,7 +2,7 @@
 //    uno nuevo, también en la nube y para el coach).
 // 2) Check-in semanal: lo escrito en una respuesta se guarda mientras se escribe; al volver de
 //    otra app la pantalla se redibuja y antes se perdía.
-import { newPage, saved, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, saved, wait, ALUMNO, profile, perfil, CON_COACH } from './lib.mjs';
 
 export default async function ({ base, t }){
   {
@@ -26,7 +26,8 @@ export default async function ({ base, t }){
   }
   {
     const { p, errs, close } = await newPage({ user: ALUMNO, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} },
-      handlers: { '/profiles': profile('client') } });
+      // Con coach (perfil y no profile, que deja la app sin perfil): sin coach no está el check-in.
+      handlers: { '/profiles': perfil('client', CON_COACH) } });
     await p.goto(base + '/app/'); await wait(2500);
     await p.click('#nav-progreso'); await wait(300);
     await p.click('[data-action="psec-open"][data-v="checkin"]'); await wait(300);

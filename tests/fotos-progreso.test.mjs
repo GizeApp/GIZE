@@ -1,7 +1,9 @@
 // Fotos de progreso: ya no existen en la app (se borraron, ver supabase/borrar-fotos-progreso.sql).
 // Aunque la base todavía devuelva filas de checkin_photos, el Check-in no las pide ni las
 // muestra, y ni al abrir la app ni al eliminar la cuenta se toca el bucket «checkins».
-import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, text, ALUMNO, perfil, CON_COACH } from './lib.mjs';
+// Con coach (perfil y no profile, que deja la app sin perfil): sin coach, Progreso no muestra el
+// check-in semanal.
 
 // Pedidos a Storage del bucket «checkins» (list, sign, borrar, subir). La tabla checkins
 // (las respuestas del check-in semanal, /rest/v1/checkins) sigue en uso y no cuenta.
@@ -12,7 +14,7 @@ export default async function ({ base, t }){
   const { p, errs, calls, close } = await newPage({ user: ALUMNO,
     state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} },
     handlers: {
-      '/profiles': profile('client'),
+      '/profiles': perfil('client', CON_COACH),
       '/checkin_photos': (r, J, i) => J(i.one ? photoRows[0] : photoRows),
       '/object/sign/checkins': (r, J) => J([{ path: photoRows[0].path, signedURL: '/object/sign/checkins/x?token=t', signedUrl: 'https://wegptuzhsrwppbknqstf.supabase.co/storage/v1/object/sign/checkins/x?token=t' }]),
       '/object/list/checkins': (r, J) => J([{ id: 'o1', name: '1700000000000.jpg' }]),

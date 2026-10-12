@@ -2,7 +2,9 @@
 // botones de 44 px, respuestas de texto que se ven enteras y el Peso de hoy ya cargado.
 // Sin campo de pasos (pedido: nada de pasos a mano): al guardar va el número del día que llegó
 // solo (Salud / Health Connect), sin cambiarlo.
-import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, text, ALUMNO, perfil, CON_COACH } from './lib.mjs';
+// Con coach (perfil y no profile, que deja la app sin perfil): sin coach, Progreso no muestra el
+// registro de hoy.
 
 const UA = 'Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36';
 const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
@@ -14,7 +16,7 @@ export default async function ({ base, t }){
   for (const [w, h] of [[320, 640], [360, 800], [393, 873], [412, 915]]){
     const { p, errs, close } = await newPage({ user: ALUMNO, viewport: { width: w, height: h },
       state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [{ date: TODAY, kg: 82.5 }], daily: {} },
-      handlers: { '/profiles': profile('client'), '/coach_questions': (r, J, i) => J(i.one ? cq : [cq]),
+      handlers: { '/profiles': perfil('client', CON_COACH), '/coach_questions': (r, J, i) => J(i.one ? cq : [cq]),
         '/body_weights': (r, J, i) => i.m === 'GET' ? J([{ measured_on: TODAY, kg: 82.5 }]) : undefined } });
     await p.goto(base + '/app/'); await wait(2500);
     await p.click('#nav-progreso'); await wait(300);
@@ -45,7 +47,7 @@ export default async function ({ base, t }){
     const posts = [];
     const { p, errs, dialogs, close } = await newPage({ user: ALUMNO,
       state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {}, steps: 7342, stepsDate: TODAY },
-      handlers: { '/profiles': profile('client'), '/coach_questions': (r, J, i) => J(i.one ? cq : [cq]),
+      handlers: { '/profiles': perfil('client', CON_COACH), '/coach_questions': (r, J, i) => J(i.one ? cq : [cq]),
         '/daily_logs': (r, J, i) => { if (i.m === 'POST' && i.body) posts.push(i.body); return undefined; } } });
     await p.goto(base + '/app/'); await wait(2500);
     await p.click('#nav-progreso'); await wait(300);
@@ -53,6 +55,8 @@ export default async function ({ base, t }){
     t.eq(await p.$$eval('.daily-card .dfield label', l => l.map(e => e.textContent)), ['Peso'], 'Registro de hoy: solo el peso, sin «Pasos»');
     t.eq(await p.$$eval('.daily-card input', l => l.map(e => e.id)), ['dKg'], 'Registro de hoy: ningún campo para anotar pasos');
     await p.fill('#dKg', '80,1');
+    // El registro tiene preguntas: sin responder alguna no se guarda (ver registro-tarjeta).
+    await p.click('[data-action="daily-set"][data-k="dolor"] >> nth=0'); await wait(200);
     await p.click('[data-action="daily-save"]'); await wait(1200);
     const st = await p.evaluate(async () => { const { state } = await import('/app/core/state.js'); return state.steps; });
     t.eq(st, 7342, 'guardar el registro no cambia los pasos del día');

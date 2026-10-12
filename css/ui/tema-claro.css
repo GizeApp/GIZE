@@ -116,7 +116,7 @@ html.tema-claro body:not(#_) :is(
     .card, .blk, .coach-banner, .cfg-card,
     .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
     .join-box, .daynotes, .w-chart)::after,
-html.tema-claro body:not(#_) :is(.ptile, .plan-card, .plan-top, .plan-acc, .ss-group, .adm-entry, .co-ss-group)::after,
+html.tema-claro body:not(#_) :is(.ptile, .wq, .plan-card, .plan-top, .plan-acc, .ss-group, .adm-entry, .co-ss-group)::after,
 html.tema-claro body:not(#_) :not(.ss-group) > .ex-collapsed:not(.ex-is-done)::after,
 html.tema-claro body:not(#_) :is(.co-exc:not(.co-drop-target), .co-exc-step)::after {
   content: ""; position: absolute; inset: 0; z-index: 3; padding: 1.5px; border-radius: inherit; pointer-events: none;
@@ -126,7 +126,7 @@ html.tema-claro body:not(#_) :is(.co-exc:not(.co-drop-target), .co-exc-step)::af
 }
 /* Las otras cajas con la gama (Progreso, Mi plan, superseries, ejercicio cerrado, Revisar
    productos): mismo vidrio y el mismo borde de neón en ::after. */
-html.tema-claro body:not(#_) :is(.ptile, .plan-card, .plan-top, .plan-acc, .ss-group, .adm-entry, .co-ss-group),
+html.tema-claro body:not(#_) :is(.ptile, .wq, .plan-card, .plan-top, .plan-acc, .ss-group, .adm-entry, .co-ss-group),
 html.tema-claro body:not(#_) :not(.ss-group) > .ex-collapsed:not(.ex-is-done) {
   position: relative; isolation: isolate;
   background: var(--gize-glass) padding-box;

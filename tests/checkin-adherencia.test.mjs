@@ -1,13 +1,15 @@
 // Pregunta de adherencia del check-in cambiada por el coach (opciones con palabras o
 // respuesta libre): la respuesta se marca, llega en answers (no a la columna numérica, que
 // la rechazaría) y el coach la ve como una pregunta más. Con un número sigue yendo a la columna.
-import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, ALUMNO, perfil, CON_COACH } from './lib.mjs';
+// Con coach (perfil y no profile, que deja la app sin perfil): sin coach, Progreso no muestra el
+// check-in semanal.
 
 async function enviar(base, t, tag, adhQ, responder){
   const posts = [];
   const cq = { daily: null, checkin: [{ id: 'q1', label: '¿Cómo fue tu semana?', type: 'text' }, adhQ] };
   const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: { sessions: [], daily: {}, weights: [] },
-    handlers: { '/profiles': profile('client', { coach_id: '33333333-3333-3333-3333-333333333333' }),
+    handlers: { '/profiles': perfil('client', CON_COACH),
       '/coach_questions': (r, J, i) => i.m === 'GET' ? J(i.one ? cq : [cq]) : undefined,
       '/checkins': (r, J, i) => i.m === 'POST' ? (posts.push(JSON.parse(i.body)), r.fulfill({ status: 201, body: '[]' })) : undefined } });
   await p.goto(base + '/app/'); await wait(2500);

@@ -2,7 +2,9 @@
 // falla, queda pendiente y la tarjeta lo muestra; si la base lo rechaza, avisa, no queda como
 // respondido y las respuestas vuelven al formulario (también después de traer lo de la nube).
 // El registro diario rechazado por la base tampoco dice «guardado».
-import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, text, ALUMNO, perfil, CON_COACH } from './lib.mjs';
+// Con coach (perfil y no profile, que deja la app sin perfil): sin coach, Progreso no muestra el
+// check-in semanal ni el registro de hoy.
 
 async function abrirCheckin(p){
   await p.click('#nav-progreso'); await wait(300);
@@ -21,7 +23,7 @@ export default async function ({ base, t }){
   // 1) Servidor caído (503) con el celular «en línea»: queda pendiente, sin decir «enviado».
   {
     const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: { sessions: [], daily: {}, weights: [] },
-      handlers: { '/profiles': profile('client'),
+      handlers: { '/profiles': perfil('client', CON_COACH),
         '/checkins': (r, J, i) => i.m === 'POST' ? r.fulfill({ status: 503, contentType: 'text/html', body: '<html>503</html>' }) : undefined } });
     await p.goto(base + '/app/'); await wait(2500);
     await abrirCheckin(p);
@@ -43,7 +45,7 @@ export default async function ({ base, t }){
   {
     let rechaza = true; const posts = [];
     const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: { sessions: [], daily: {}, weights: [] },
-      handlers: { '/profiles': profile('client'),
+      handlers: { '/profiles': perfil('client', CON_COACH),
         '/checkins': (r, J, i) => { if (i.m !== 'POST') return undefined; posts.push(JSON.parse(i.body));
           return rechaza ? J({ code: '23514', message: 'new row violates check constraint' }, 400) : r.fulfill({ status: 201, body: '[]' }); } } });
     await p.goto(base + '/app/'); await wait(2500);
@@ -82,7 +84,7 @@ export default async function ({ base, t }){
   // 3) Registro diario rechazado por la base: no dice «guardado».
   {
     const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: { sessions: [], daily: {}, weights: [] },
-      handlers: { '/profiles': profile('client'),
+      handlers: { '/profiles': perfil('client', CON_COACH),
         // Solo el registro (trae "comment"); la fila automática del día (agua, pasos) pasa.
         '/daily_logs': (r, J, i) => i.m === 'POST' && 'comment' in JSON.parse(i.body) ? J({ code: '22P02', message: 'invalid input syntax' }, 400) : undefined } });
     await p.goto(base + '/app/'); await wait(2500);

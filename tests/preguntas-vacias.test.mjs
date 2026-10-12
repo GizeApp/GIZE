@@ -1,12 +1,14 @@
 // El coach borró todas las preguntas (del registro y del check-in) y guardó: el alumno no ve
 // las predeterminadas, y el editor del coach, al volver a abrirlo, las muestra vacías.
-import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, text, ALUMNO, perfil, CON_COACH } from './lib.mjs';
+// Con coach (perfil y no profile, que deja la app sin perfil): sin coach, Progreso no muestra el
+// check-in semanal ni el registro de hoy.
 
 export default async function ({ base, t }){
   const cq = { daily: [], checkin: [] };
   {
     const { p, errs, close } = await newPage({ user: ALUMNO, state: { sessions: [], daily: {}, weights: [] },
-      handlers: { '/profiles': profile('client', { coach_id: '33333333-3333-3333-3333-333333333333' }),
+      handlers: { '/profiles': perfil('client', CON_COACH),
         '/coach_questions': (r, J, i) => i.m === 'GET' ? J(i.one ? cq : [cq]) : undefined } });
     await p.goto(base + '/app/'); await wait(2500);
     await p.click('#nav-progreso'); await wait(300);
