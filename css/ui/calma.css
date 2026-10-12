@@ -67,7 +67,7 @@ html:not(.sin-neon):not(#_) body:not(#_) :is(
     .co-invite, .co-table, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
     .card, .blk, .coach-banner, .cfg-card,
     .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
-    .join-box, .daynotes, .w-chart, .ptile, .ss-group, .co-ss-group, .hb-item, .hb-item:active,
+    .join-box, .daynotes, .w-chart, .ptile, .wq, .ss-group, .co-ss-group, .hb-item, .hb-item:active,
     .plan-card, .plan-acc, .plan-acc[open], .form-input.rq-neon,
     .ex-video, .ex-audio, .ex-var-btn, .wk-live, .wk-finish, .wk-cancel, .rest-inner,
     .co-head :is(.co-back, .co-logout, .co-gear), .co-head :is(.co-back, .co-logout, .co-gear):hover,

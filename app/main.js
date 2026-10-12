@@ -162,6 +162,18 @@ export function renderApp(){
   if (State.view==="entreno" && HabitosState.pendingFocusDay) { const i=v.querySelector(".day-name"); if(i){ i.focus(); i.select(); } HabitosState.pendingFocusDay=false; }
 }
 
+// Guarda un peso (kg con coma o punto) en esa fecha; si ese día ya tenía uno, lo cambia.
+// editId: el registro que se está corrigiendo (corregir la fecha lo mueve, no agrega otro).
+// Lo usan Peso corporal y «Tu peso» de Progreso. false: no se guardó (ya se avisó por qué).
+function saveWeight(date, kgTxt, editId){
+  const kg=parseFloat(String(kgTxt||"").replace(",","."));
+  if(!date){ alert("Elegí una fecha."); return false; }
+  if(!(kg>0)){ alert("Poné un peso válido."); return false; }
+  if(editId){ const old=state.weights.find(w=>w.id===editId); if(old && old.date!==date) state.weights=state.weights.filter(w=>w.id!==editId); }
+  const exw=state.weights.find(w=>w.date===date); if(exw) exw.kg=kg; else state.weights.push({id:uid(),date,kg});
+  return true;
+}
+
 // Gramos anotados: enteros, salvo lo que pesa menos de 10 g (un disparo de aceite, 0,3 g).
 // Formulario de "Registro de hoy": arranca con lo ya guardado hoy, menos los pasos (esos
 // salen del contador, que puede haber sumado desde entonces).
@@ -349,6 +361,7 @@ document.body.addEventListener("input", async e => {
   if (a === "macro-field") { const g=k=>parseFloat(String((document.getElementById("macro_"+k)||{}).value||"").replace(",", "."))||0; const el2=document.getElementById("macroSum"); if(el2) el2.innerHTML=macroSumText({p:g("p"),c:g("c"),f:g("f")}); return; }
   if (a === "cal-field") { ComidaState.calForm[t.dataset.field] = t.value; return; }
   if (a === "wkg-field") { ProgresoState.weightForm.kg = t.value; return; }
+  if (a === "wq-field") { ProgresoState.wqKg = t.value; return; }
   const d = day();
   if (a === "dayname"){ d.name = t.value.replace(/\s*\n\s*/g, " "); fitDayName(t); }
   else if (a === "subtitle") d.subtitle = t.value;
@@ -394,6 +407,8 @@ document.body.addEventListener("toggle", e => {
 
 document.body.addEventListener("keydown", async e => {
   if (e.key === "Enter" && e.target.dataset && e.target.dataset.action === "habit-name-input") { e.preventDefault(); addHabit(); }
+  // «Tu peso»: el Enter (o «Listo» del teclado) guarda, como tocar «Guardar».
+  if (e.key === "Enter" && e.target.id === "wqKg") { e.preventDefault(); const b=document.querySelector('[data-action="weight-today"]'); if(b) b.click(); }
   // Ejercicio cerrado (fila con role="button"): Enter o espacio lo abren, como un botón.
   if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("ex-collapsed")) { e.preventDefault(); e.target.click(); }
   if (e.key === "Enter" && e.target.classList && e.target.classList.contains("auth-in")) {
@@ -761,7 +776,10 @@ document.body.addEventListener("click", async e => {
     renderApp(); return;
   }
   if (a === "daily-set") { dailyFormInit(); CheckinState.dailyForm[el.dataset.k] = el.dataset.v; renderApp(); return; }
-  if (a === "weight-save") { const dEl=document.getElementById("wDate"), kEl=document.getElementById("wKg"); const date=dEl?dEl.value:""; const kg=parseFloat((kEl?kEl.value:"").replace(",",".")); if(!date){ alert("Elegí una fecha."); return; } if(!(kg>0)){ alert("Poné un peso válido."); return; } const eid=ProgresoState.weightForm&&ProgresoState.weightForm.editId; if(eid){ const old=state.weights.find(w=>w.id===eid); if(old && old.date!==date) state.weights=state.weights.filter(w=>w.id!==eid); } /* corregir la fecha mueve el registro, no agrega otro */ const exw=state.weights.find(w=>w.date===date); if(exw) exw.kg=kg; else state.weights.push({id:uid(),date,kg}); ProgresoState.weightForm={date:today(),kg:"",at:today()}; save(); renderApp(); return; }
+  if (a === "weight-save") { const dEl=document.getElementById("wDate"), kEl=document.getElementById("wKg"); if(!saveWeight(dEl?dEl.value:"", kEl?kEl.value:"", ProgresoState.weightForm&&ProgresoState.weightForm.editId)) return; ProgresoState.weightForm={date:today(),kg:"",at:today()}; save(); renderApp(); return; }
+  // «Tu peso» (arriba de Progreso): el de hoy en un toque, con lo mismo que Peso corporal.
+  if (a === "weight-today") { const kEl=document.getElementById("wqKg"); if(!saveWeight(today(), kEl?kEl.value:"")) return; ProgresoState.wqKg=""; ProgresoState.wqEdit=false; save(); renderApp(); return; }
+  if (a === "wq-edit") { const w=state.weights.find(x=>x.date===today()); ProgresoState.wqEdit=true; ProgresoState.wqKg=w?String(w.kg).replace(".",","):""; renderApp(); const i=document.getElementById("wqKg"); if(i){ i.focus(); i.select(); } return; }
   if (a === "weight-edit") { const w=state.weights.find(x=>x.id===el.dataset.id); if(w){ ProgresoState.weightForm={date:w.date,kg:String(w.kg).replace(".",","),at:today(),editId:w.id}; } renderApp(); return; }
   if (a === "weight-remove") { state.weights=state.weights.filter(x=>x.id!==el.dataset.id); save(); renderApp(); return; }
 

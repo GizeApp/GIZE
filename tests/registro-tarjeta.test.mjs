@@ -1,12 +1,14 @@
 // Tarjeta «Registro de hoy» en Progreso: la fila del día que la app sube sola (agua, pasos,
 // hábitos) no cuenta como registro cargado al volver a abrir la app; una respuesta sí.
-import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, ALUMNO, perfil, CON_COACH } from './lib.mjs';
+// Con coach (perfil y no profile, que deja la app sin perfil): sin coach, Progreso no muestra el
+// registro de hoy.
 
 const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
 
 async function tarjeta(base, rows){
   const { p, errs, close } = await newPage({ user: ALUMNO, state: { sessions: [], daily: {}, weights: [] },
-    handlers: { '/profiles': profile('client'), '/daily_logs': (r, J, i) => i.m === 'GET' ? J(rows) : undefined } });
+    handlers: { '/profiles': perfil('client', CON_COACH), '/daily_logs': (r, J, i) => i.m === 'GET' ? J(rows) : undefined } });
   await p.goto(base + '/app/'); await wait(2500);
   await p.click('#nav-progreso'); await wait(300);
   const tile = () => p.evaluate(() => { const b = document.querySelector('[data-action="psec-open"][data-v="registro"]'); return { txt: b.querySelector('.ptile-s').innerText.trim(), pend: b.classList.contains('pend') }; });

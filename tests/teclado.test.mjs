@@ -1,11 +1,13 @@
 // Teclado en la app de Android: el WebView se achica entero (adjustResize), así que la cuenta
 // del teclado "que tapa" da 0. Igual tiene que esconderse la barra de abajo mientras se
 // escribe. En la compu, achicar la ventana no la esconde.
-import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, ALUMNO, perfil, CON_COACH } from './lib.mjs';
+// Con coach (perfil y no profile, que deja la app sin perfil): sin coach, Progreso no muestra el
+// registro de hoy.
 
 async function scenario(base, touch){
   const pg = await newPage({ user: ALUMNO, touch, viewport: { width: 390, height: 800 },
-    state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} }, handlers: { '/profiles': profile('client') } });
+    state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} }, handlers: { '/profiles': perfil('client', CON_COACH) } });
   const { p } = pg;
   await p.goto(base + '/app/'); await wait(2500);
   await p.click('#nav-progreso'); await wait(300);

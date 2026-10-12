@@ -28,6 +28,10 @@ export const ProgresoState = {
 
   sessSel: null,   // entreno elegido en «Historial de entrenos» (null: el último)
 
+  wqKg: "",        // lo escrito en «Tu peso» (arriba de Progreso), así un redibujo no lo borra
+
+  wqEdit: false,   // «Tu peso» con el campo abierto para cambiar el peso de hoy ya cargado
+
 };
 
 export function renderWChart(ws, evenX, sz){
@@ -222,24 +226,44 @@ export function detectPRs(newExercises, priorSessions){
 
 export function allSetsDone(ex){ return (ex.sets||[]).length>0 && ex.sets.every(s=>s.done); }
 
-// Progreso: un menú de secciones (como «Mi plan» en Comida). Cada tarjeta muestra un
-// resumen y abre su propia pantalla, así la página no se hace eterna.
+// Progreso: arriba «Tu peso» (el de hoy se anota ahí mismo, sin abrir nada) y abajo un menú
+// de secciones en grupos (como «Mi plan» en Comida). Cada tarjeta muestra un resumen y abre su
+// propia pantalla, así la página no se hace eterna. «Peso corporal» (gráfico, historial y
+// otras fechas) se abre desde «Ver evolución».
 const SECTIONS = [
   ["peso", "Peso corporal"], ["registro", "Registro de hoy"], ["checkin", "Check-in semanal"],
   ["historial", "Historial de entrenos"], ["cargas", "Evolución de cargas"], ["volumen", "Volumen semanal"], ["ficha", "Mi ficha"],
   ["pasos", "Competencia de pasos"],
 ];
+// Lo que es para el coach: solo con un coach vinculado (ver conCoach).
+const COACH_SECS = ["registro", "checkin", "ficha"];
+// Grupos del menú, en este orden: [título, secciones, solo con coach].
+const GROUPS = [
+  ["Con tu coach", COACH_SECS, true],
+  ["Tus entrenos", ["historial", "cargas", "volumen"], false],
+  ["Con tus amigos", ["pasos"], false],
+];
+
+// ¿Alumno con coach? Sin sesión, sin perfil todavía (o sin señal y sin el perfil guardado) o
+// con cuenta de coach: no. Si se desvincula o el coach se va, el perfil nuevo llega con
+// loadCloud y al redibujar desaparecen el registro, el check-in y la ficha.
+export function conCoach(){ const p=State.cloudProfile; return !!(p && p.role!=="coach" && p.coach_id); }
+
 const sortedWeights = () => (state.weights||[]).slice().sort((a,b)=>a.date<b.date?-1:(a.date>b.date?1:0));
+// Diferencia del último peso con el anterior («▼ 0,8 kg»), para Peso corporal y «Tu peso».
+function wDelta(ws){
+  if(ws.length<2) return "";
+  const d=ws[ws.length-1].kg-ws[ws.length-2].kg;
+  return Math.abs(d)<0.05 ? '<span class="w-delta">sin cambios</span>' : '<span class="w-delta">'+(d>0?'▲ +':'▼ ')+dec(Math.abs(d))+' kg</span>';
+}
 
 function renderPeso(){
   if(ProgresoState.weightForm.at!==today()) ProgresoState.weightForm={date:today(), kg:"", at:today()};
   const ws=sortedWeights();
-  const latest=ws.length?ws[ws.length-1]:null, prev=ws.length>1?ws[ws.length-2]:null;
+  const latest=ws.length?ws[ws.length-1]:null;
   let header;
   if(latest){
-    let dh="";
-    if(prev){ const d=latest.kg-prev.kg; const z=Math.abs(d)<0.05; dh=z?'<span class="w-delta">sin cambios</span>':'<span class="w-delta">'+(d>0?'▲ +':'▼ ')+dec(Math.abs(d))+' kg</span>'; }
-    header=`<div class="w-current"><div class="w-now">${dec(latest.kg)} <small>kg</small></div><div class="w-meta">Último registro · ${fmtDate(latest.date)} ${dh}</div></div>`;
+    header=`<div class="w-current"><div class="w-now">${dec(latest.kg)} <small>kg</small></div><div class="w-meta">Último registro · ${fmtDate(latest.date)} ${wDelta(ws)}</div></div>`;
   } else {
     header=`<div class="cal-hint" style="padding:20px 8px">Todavía no cargaste tu peso. Empezá registrando el de hoy acá abajo.</div>`;
   }
@@ -256,6 +280,28 @@ function renderPeso(){
       <button class="form-save" style="width:auto;padding:0 18px;margin-top:0" data-action="weight-save">Guardar</button>
     </div>
     ${list?`<div class="w-list-head">Historial de peso</div>${list}${more}`:""}`;
+}
+
+// «Tu peso», lo primero de Progreso: el último peso grande, con la diferencia con el anterior,
+// y el de hoy en un toque (acepta coma: «79,5»; lo guarda saveWeight en main.js, el mismo de
+// Peso corporal). Si hoy ya está cargado se ve («Hoy: 79,5 kg ✓») y «Cambiar» vuelve a abrir el
+// campo. «Ver evolución» abre Peso corporal: el gráfico, el historial y las otras fechas.
+function renderPesoHoy(){
+  const ws=sortedWeights(), latest=ws.length?ws[ws.length-1]:null;
+  const hoy=ws.find(w=>w.date===today() && Number(w.kg)>0);
+  // Sin peso de hoy no hay nada que cambiar (pasó la medianoche o se borró en Peso corporal).
+  if(!hoy && ProgresoState.wqEdit){ ProgresoState.wqEdit=false; ProgresoState.wqKg=""; }
+  const now = latest
+    ? `<div class="wq-now"><span class="w-now">${dec(latest.kg)} <small>kg</small></span>${wDelta(ws)}</div>`+
+      (latest.date!==today() ? `<div class="w-meta">Último registro · ${fmtDate(latest.date)}</div>` : '')
+    : `<div class="wq-empty">Anotá tu peso de hoy para empezar a ver tu evolución.</div>`;
+  const form = (hoy && !ProgresoState.wqEdit)
+    ? `<div class="wq-hoy"><span class="wq-ok">Hoy: ${dec(hoy.kg)} kg ✓</span><button class="wq-edit" data-action="wq-edit">Cambiar</button></div>`
+    : `<div class="wq-form"><input id="wqKg" class="form-input" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="Peso de hoy (kg)" aria-label="Tu peso de hoy, en kg" value="${esc(ProgresoState.wqKg)}" data-action="wq-field"><button class="form-save" data-action="weight-today">Guardar</button></div>`;
+  return `<div class="wq">
+      <div class="wq-head"><span class="wq-t">Tu peso</span><button class="wq-go" data-action="psec-open" data-v="peso">${latest?'Ver evolución':'Otra fecha'} <span aria-hidden="true">›</span></button></div>
+      ${now}${form}
+    </div>`;
 }
 
 function sectionBody(id){
@@ -281,7 +327,6 @@ function dailyDone(){
 
 // Resumen de cada tarjeta del menú: [texto, pendiente?]
 function sectionSummary(id){
-  if(id==="peso"){ const ws=sortedWeights(); if(!ws.length) return ["Sin registros", true]; const l=ws[ws.length-1], p=ws.length>1?ws[ws.length-2]:null; const d=p?l.kg-p.kg:0; return [l.kg.toFixed(1).replace(".",",")+" kg"+(p&&Math.abs(d)>=0.05?(d>0?" · ▲ ":" · ▼ ")+Math.abs(d).toFixed(1).replace(".",","):""), false]; }
   if(id==="registro") return dailyDone() ? ["Cargado hoy ✓", false] : ["Pendiente de hoy", true];
   if(id==="checkin") return checkinSummary();
   if(id==="historial"){ const n=(state.sessions||[]).length; if(!n) return ["Sin entrenos todavía", false]; const last=(state.sessions||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0))[0]; return [n+" entreno"+(n===1?"":"s")+" · último "+fmtDate(last.date), false]; }
@@ -293,6 +338,9 @@ function sectionSummary(id){
 }
 
 export function renderProgreso(){
+  const coach = conCoach();
+  // Sección del coach abierta y ya sin coach (se desvinculó con la app abierta): vuelve al menú.
+  if(!coach && COACH_SECS.includes(ProgresoState.section)) ProgresoState.section = null;
   const sec = SECTIONS.find(x => x[0] === ProgresoState.section);
   // Competencia de pasos: su propio encabezado (dentro de un grupo, «‹» vuelve a la lista).
   if(sec && sec[0]==="pasos") return renderPasosSeccion();
@@ -300,12 +348,15 @@ export function renderProgreso(){
     return `<div class="form-head"><button class="form-back" data-action="psec-close" aria-label="Volver a Progreso">‹</button><div class="form-title">${sec[1]}</div></div>
       <div class="psec">${sectionBody(sec[0])}</div>`;
   }
-  const tiles = SECTIONS.map(([id, title]) => {
-    const [sum, pend] = sectionSummary(id);
+  const tile = id => {
+    const title = SECTIONS.find(x => x[0] === id)[1], [sum, pend] = sectionSummary(id);
     return `<button class="ptile${pend?' pend':''}" data-action="psec-open" data-v="${id}"><span class="ptile-t">${title}</span><span class="ptile-s">${pend?'<i></i>':''}${esc(sum)}</span><span class="ptile-go" aria-hidden="true">›</span></button>`;
-  }).join("");
+  };
+  const groups = GROUPS.filter(([, , soloCoach]) => coach || !soloCoach)
+    .map(([t, ids]) => `<div class="pgrp">${t}</div><div class="ptiles">${ids.map(tile).join("")}</div>`).join("");
   return `
     <div class="hb-head"><div class="hb-title">Progreso</div><div class="title-accent"></div></div>
-    <div class="ptiles">${tiles}</div>
+    ${renderPesoHoy()}
+    ${groups}
     ${(State.cloudProfile && State.cloudProfile.role!=="coach" && !State.cloudProfile.coach_id) ? '<div class="join-box"><div class="join-t">Vinculate a tu coach</div><div class="join-row"><input id="joinCode" class="form-input" placeholder="Código del coach"><button class="form-save join-btn" data-auth="join">Vincular</button></div></div>' : ''}`;
 }
