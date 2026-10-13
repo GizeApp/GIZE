@@ -65,7 +65,7 @@ function mealMeta(plan){
   return bits.length?bits.join(" · "):"Sin cargar";
 }
 
-const missingHint = err => '<div class="cal-hint" style="color:var(--red)">No se pudieron cargar tus planes: <b>'+esc(err)+'</b><br><br>Si dice que la tabla no existe, falta correr el SQL de planes en Supabase (supabase/planes-alimenticios-guardados.sql).</div>';
+export const missingHint = err => '<div class="cal-hint" style="color:var(--red)">No se pudieron cargar tus planes: <b>'+esc(err)+'</b><br><br>Si dice que la tabla no existe, falta correr el SQL de planes en Supabase (supabase/planes-alimenticios-guardados.sql).</div>';
 export const mealMissingMsg = "Falta correr el SQL de planes en Supabase.";
 const isMissing = err => /coach_meal_templates|does not exist|schema cache|not find the table|PGRST205|42P01/i.test(String(err||""));
 

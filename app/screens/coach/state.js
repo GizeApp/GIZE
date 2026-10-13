@@ -29,6 +29,21 @@ export const CoachState = {
 
   coachClientStats: {},
 
+  // Ya llegaron las estadísticas de los clientes (coach_client_stats): hasta entonces Inicio muestra «–» en vez de ceros.
+  coachStatsReady: false,
+
+  // Cliente al que apunta el panel de la derecha en Clientes (null = el primero, false = cerrado) y lo que se
+  // pidió de cada uno para ese panel (rutina, check-ins, peso).
+  coachPeek: null,
+  coachPeekData: {},
+
+  // Rutina elegida en Rutinas (id; null = la primera) y el día que se ve de ella.
+  coachTplPick: null,
+  coachTplDay: 0,
+
+  // «Asignar rutina» desde Inicio: el próximo cliente que se abra abre directo el selector de rutinas.
+  coachAssign: false,
+
   coachView: "clients",
 
   coachClientTab: "ficha",

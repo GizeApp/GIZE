@@ -27,7 +27,7 @@ export default async function ({ base, t }){
   const host = await text(p, '#coachHost');
   t.has(host, 'Ana Alumna', 'sin señal la alumna sigue en la lista');
   t.ok(!host.includes('Todavía no tenés clientes vinculados'), 'no muestra el cartel de «sin clientes»');
-  t.has(host, 'Clientes (1)', 'la pestaña sigue contando 1');
+  t.eq(await p.$$eval('#coachHost .cv-row', l => l.length), 1, 'la lista sigue con 1 cliente');
   t.has(host, 'Llegaste al máximo de tu plan (1/1 clientes)', 'el plan y el cupo siguen');
   const st = await p.evaluate(async () => { const { CoachState } = await import('/app/screens/coach/state.js'); return { n: CoachState.coachClients.length, inv: CoachState.coachInvite }; });
   t.eq(st, { n: 1, inv: 'ABC123' }, 'quedan la lista y el código de invitación');
