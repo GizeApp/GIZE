@@ -92,7 +92,7 @@ export async function loadCoachStats(){
         if(!stats[r.client_id].lastSess) stats[r.client_id].lastSess=r.performed_on;
       });
     }
-    CoachState.coachClientStats=stats; renderCoach();
+    CoachState.coachClientStats=stats; CoachState.coachStatsReady=true; renderCoach();
   }catch(e){ console.error("coachStats",e); }
 }
 

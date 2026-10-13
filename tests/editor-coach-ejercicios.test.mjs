@@ -1,5 +1,5 @@
 // Editor de rutina del coach (app/screens/coach/rutinas.js, css/screens/coach/rutinas.css): las
-// tarjetas de ejercicio de la grilla.
+// tarjetas de ejercicio (vista de lista: una fila por ejercicio, «Más opciones» abajo).
 // - Flecha para abrir y cerrar (.co-exc-chev): botón de 36 px arriba a la derecha, en el mismo
 //   lugar cerrada y abierta, con aria-expanded y «Abrir ejercicio» / «Cerrar ejercicio».
 // - Uno abierto a la vez: abrir otro (con la flecha o tocando la tarjeta cerrada) cierra el que
@@ -86,7 +86,7 @@ const filetes = p => p.evaluate(() => {
 });
 
 export default async function ({ base, t }){
-  // ---- Compu (1280 px, tres columnas) ----
+  // ---- Compu (1280 px, lista de una columna) ----
   {
     const { p, errs, dialogs, close } = await abrir(base, { width: 1280, height: 900 });
     let s = await tarjetas(p);
@@ -95,7 +95,7 @@ export default async function ({ base, t }){
     t.ok(s.every(x => x.chev && x.chev.exp === 'false' && x.chev.label === 'Abrir ejercicio' && x.chev.w >= 36 && x.chev.h >= 36),
       'cerradas: flecha «Abrir ejercicio» con aria-expanded="false" y 36 px para tocar: ' + JSON.stringify(s.map(x => x.chev)));
     t.eq(await p.$$eval('.co-exc-chev', b => b.every(x => x.tagName === 'BUTTON' && x.type === 'button')), true, 'la flecha es un botón');
-    t.eq(await p.evaluate(() => getComputedStyle(document.querySelector('.co-exc-grid')).gridTemplateColumns.split(' ').length), 3, 'tres columnas a 1280 px');
+    t.eq(await p.evaluate(() => getComputedStyle(document.querySelector('.co-exc-grid')).gridTemplateColumns.split(' ').length), 1, 'una sola columna (lista) a 1280 px');
     const c0 = await medir(p, 'e0'), c1 = await medir(p, 'e1'), c2 = await medir(p, 'e2');
 
     // Abrir con la flecha: crece hacia abajo en su casillero.
@@ -106,13 +106,17 @@ export default async function ({ base, t }){
     t.ok(await p.$eval('.co-exc-open .co-exc-chev svg', e => getComputedStyle(e).transform !== 'none'), 'abierta, la flecha apunta para arriba (girada)');
     const o1 = await medir(p, 'e1');
     t.eq([o1.chevTop, o1.chevRight], [c1.chevTop, c1.chevRight], 'la flecha queda en el mismo lugar (arriba a la derecha) cerrada y abierta');
-    t.ok(Math.abs(o1.w - c1.w) <= 1 && Math.abs(o1.w - c0.w) <= 1 && o1.x === c1.x, 'abierta, del mismo ancho que cerrada y en su casillero: ' + JSON.stringify({ abierta: o1.w, cerrada: c0.w, x: [o1.x, c1.x] }));
-    const fila = await p.evaluate(() => document.querySelector('.co-exc-grid').getBoundingClientRect().width);
-    t.ok(o1.w < fila / 2, 'no ocupa toda la fila: ' + o1.w + ' de ' + Math.round(fila));
+    t.ok(Math.abs(o1.w - c1.w) <= 1 && Math.abs(o1.w - c0.w) <= 1 && o1.x === c1.x, 'abierta, del mismo ancho que cerrada y en su lugar: ' + JSON.stringify({ abierta: o1.w, cerrada: c0.w, x: [o1.x, c1.x] }));
     t.ok(o1.h > c1.h + 200, 'crece hacia abajo: ' + c1.h + ' → ' + o1.h);
     const v0 = await medir(p, 'e0'), v2 = await medir(p, 'e2');
-    t.eq([v0.h, v2.h, v0.top, v2.top], [c0.h, c2.h, c0.top, c2.top], 'las de al lado no se estiran ni se mueven');
+    t.eq([v0.h, v2.h, v0.top], [c0.h, c2.h, c0.top], 'las otras no se estiran y la de arriba no se mueve');
+    t.ok(v2.top >= c2.top + (o1.h - c1.h) - 1, 'las de abajo bajan lo que crece la abierta (lista de una columna)');
     t.ok(o1.nameFont <= c1.nameFont, 'el nombre, del mismo tamaño que cerrada (no más grande): ' + c1.nameFont + ' → ' + o1.nameFont);
+    // «Más opciones» arranca cerrado, con el resumen de lo cargado; al abrirlo aparecen el resto de los campos.
+    t.eq(await p.$eval('.co-exc[data-id="e1"] .co-more-panel', e => e.hidden), true, '«Más opciones» arranca cerrado');
+    t.has(await p.$eval('.co-exc[data-id="e1"] .co-more-btn em', e => e.textContent), 'Descanso 90 seg', 'cerrado, resume lo cargado');
+    await p.click('.co-exc[data-id="e1"] .co-more-btn'); await wait(250);
+    t.eq(await p.$eval('.co-exc[data-id="e1"] .co-more-panel', e => e.hidden), false, '«Más opciones» se abre');
     let f = await campos(p, 'e1');
     t.ok(f.inputs.length >= 8 && f.inputs.every(x => x.h <= 44 && x.font === '16px'), 'campos de hasta 44 px de alto y letra de 16 px: ' + JSON.stringify(f.inputs));
     t.ok(f.ctrls.length >= 7 && f.ctrls.every(x => x.h <= 44), 'botones chicos (Reps/Tiempo, ⋯, flecha, + Serie, casilleros): ' + JSON.stringify(f.ctrls));
@@ -129,9 +133,11 @@ export default async function ({ base, t }){
 
     // El contador de series y cambiar ejercicio no abren ni cierran.
     const nSets = () => p.$eval('.co-exc[data-id="e5"] .co-exc-step b', e => e.textContent);
+    await p.hover('.co-exc[data-id="e5"] .co-exc-cname'); await wait(250); // el contador aparece al pasar el mouse
     await p.click('.co-exc[data-id="e5"] .co-exc-step b'); await wait(300);
     await p.click('.co-exc[data-id="e5"] [data-coach="rt-setadd"]'); await wait(300);
     t.eq([await abiertas(p), await nSets()], [['e0'], '4 series'], 'el contador suma una serie y no abre la tarjeta (ni tocando el texto del medio)');
+    await p.hover('.co-exc[data-id="e5"] .co-exc-cname'); await wait(250);
     await p.click('.co-exc[data-id="e5"] [data-coach="rt-swap"]'); await wait(400);
     t.ok(!!await p.$('.cp-modal'), 'cambiar ejercicio abre el buscador');
     await p.click('.cp-x'); await wait(400);
@@ -177,8 +183,6 @@ export default async function ({ base, t }){
     t.ok(os.nameFont <= cs.nameFont, 'superserie: el nombre no se agranda (' + cs.nameFont + ' → ' + os.nameFont + ')');
     f = await campos(p, 'e3');
     t.ok(f.inputs.every(x => x.h <= 44 && x.font === '16px') && f.ctrls.every(x => x.h <= 44), 'superserie: campos y botones chicos: ' + JSON.stringify(f));
-    t.ok(await p.evaluate(() => { const c = document.querySelector('.co-exc-open'), n = c.querySelector('.co-exc-name'), s = c.querySelector('.co-sets-panel');
-      return n.getBoundingClientRect().width <= 440 && s.getBoundingClientRect().width < c.getBoundingClientRect().width * .6; }), 'superserie: ni el nombre ni las series se estiran a todo el ancho');
 
     t.eq(dialogs, [], 'sin avisos');
     t.eq(errs, [], 'errores de la página (compu)');
@@ -231,10 +235,6 @@ export default async function ({ base, t }){
         if (!nombre.startsWith('Claro')) t.ok(/rgba\(255, 255, 255, 0\.18\)/.test(donde || ''), nombre + ', ' + k + ': sin neón, el filete blanco de las cajas: ' + JSON.stringify(x));
       }
     }
-    // Igual que la caja del día (.co-day-card), que ya lo tenía.
-    const dia = await p.evaluate(() => { const e = document.querySelector('.co-day-card'), s = getComputedStyle(e), a = getComputedStyle(e, '::after'), b = getComputedStyle(e, '::before');
-      return [s.backgroundImage, a.content !== 'none' ? a.backgroundImage : '', b.content !== 'none' ? b.backgroundImage : ''].join(' | '); });
-    t.eq(neon(dia), !sinNeon, nombre + ': la caja del día, igual que las tarjetas');
     t.eq(errs, [], 'errores de la página (' + nombre + ')');
     await close();
   }

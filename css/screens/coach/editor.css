@@ -1,0 +1,145 @@
+/* css/screens/coach/editor.css — editor de rutina del coach, vista de lista (ver exerciseCard() y
+   renderCoachRoutine() en app/screens/coach/rutinas.js): una fila por ejercicio, series arriba y
+   «Más opciones» abajo, pie fijo con «Guardar rutina». Solo cambia lo visual: las acciones son las
+   de siempre. Se carga al final para ganarle a rutinas.css; sin CSS anidado; colores de la marca. */
+
+/* ---------- Cabecera del alumno: volver, foto, nombre y actualizar en una línea ---------- */
+body:not(#_) .cv-chead { display:flex; align-items:center; flex-wrap:nowrap; gap:12px; margin-bottom:18px; }
+body:not(#_) .cv-chead .cv-back { flex:none; width:38px; height:38px; min-height:0; padding:0; justify-content:center; font-size:20px; line-height:1; border-radius:12px; }
+body:not(#_) .cv-chead .co-avatar-client { width:46px; height:46px; font-size:15px; }
+.cv-cname { flex:1; min-width:0; }
+body:not(#_) .cv-cname .co-client-name { font-size:26px; font-weight:700; line-height:1.15; margin:0; }
+body:not(#_) .cv-cname .co-client-disc { margin:2px 0 0; font-size:12px; }
+body:not(#_) .cv-chead .cv-refresh { flex:none; margin-left:auto; min-height:0; height:38px; padding:0 12px; }
+.cv-refresh span { display:none; }
+
+/* ---------- Pestañas Ficha / Rutina / Plan: subrayado ---------- */
+.cv-ctabs { display:flex; gap:26px; margin:0 0 18px; border-bottom:1px solid var(--gize-border); overflow-x:auto; scrollbar-width:none; }
+.cv-ctab { position:relative; flex:none; padding:10px 2px 12px; background:none; border:0; font:inherit; font-size:16px; font-weight:600; color:var(--txt-2); cursor:pointer; transition:var(--transition-tap); }
+.cv-ctab:hover { color:var(--txt); }
+.cv-ctab.on { color:var(--txt); }
+.cv-ctab.on::after { content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; border-radius:2px; background:var(--gize-blue); }
+
+/* ---------- Días: píldoras que se deslizan, y «Se repite» con círculos ---------- */
+body:not(#_) .co-daytabs { flex-wrap:nowrap; gap:10px; margin:0 0 16px; padding-bottom:2px; overflow-x:auto; scrollbar-width:none; }
+body:not(#_) .co-daytab { flex:none; display:flex; align-items:center; gap:8px; min-height:42px; padding:0 20px; border-radius:14px; font-size:15px; font-weight:600; white-space:nowrap; }
+body:not(#_) .co-daytab .co-daytab-dias { display:inline; margin:0; font-size:11px; }
+body:not(#_) .co-daytab.on { color:var(--txt); background:color-mix(in srgb, var(--gize-blue) 11%, var(--card)); border-color:color-mix(in srgb, var(--gize-blue) 60%, transparent); }
+body:not(#_) .co-daytab.add { min-width:42px; padding:0 14px; justify-content:center; background:none; border-style:dashed; color:var(--gize-blue); }
+
+.co-day-bar { max-width:860px; margin:0 0 20px; }
+.co-day-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+body:not(#_) .co-dias-wrap { gap:12px; }
+body:not(#_) .co-dias-wrap .co-note-lbl { margin:0; font-size:14px; font-weight:500; letter-spacing:0; text-transform:none; color:var(--txt-2); }
+body:not(#_) .co-dias.hd-row { grid-template-columns:repeat(7, 32px); gap:7px; }
+body:not(#_) .co-dias .hd-day { width:32px; height:32px; min-width:0; padding:0; border-radius:50%; font-size:12px; }
+body:not(#_) .co-day-bar .co-day-menu summary { width:46px; height:36px; border-radius:12px; }
+.co-day-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.6fr); gap:12px; margin-top:14px; }
+body:not(#_) .co-day-fields { align-items:start; }
+body:not(#_) .co-day-fields .co-pfield { display:flex; flex-direction:column; align-items:stretch; gap:6px; margin:0; }
+body:not(#_) .co-day-fields .co-pfield input { flex:none; }
+body:not(#_) .co-day-fields .co-dayname { width:100%; height:42px; padding:0 12px; font-size:15px; font-weight:600; letter-spacing:0; }
+body:not(#_) .co-day-fields .co-note { width:100%; height:42px; margin:0; padding:0 12px; font-size:15px; }
+@media (max-width: 640px){
+  .co-day-fields { grid-template-columns:minmax(0,1fr); }
+  .co-day-row { flex-wrap:nowrap; }
+  body:not(#_) .co-dias.hd-row { grid-template-columns:repeat(7, 27px); gap:5px; }
+  body:not(#_) .co-dias .hd-day { width:27px; height:27px; font-size:11px; }
+  body:not(#_) .co-dias-wrap { gap:8px; min-width:0; }
+}
+
+/* ---------- Encabezado de la lista y lista de ejercicios ---------- */
+body:not(#_) .co-exc-section-head { max-width:860px; margin:6px 2px 10px; }
+body:not(#_) .co-exc-count { font-size:12px; }
+.co-drag-hint, .co-unsaved { max-width:860px; }
+body:not(#_) .co-exc-grid { grid-template-columns:minmax(0,1fr); gap:10px; max-width:860px; margin-bottom:18px; }
+
+/* ---------- Ejercicio cerrado: número, nombre, «3 series · 8-10» y flecha ---------- */
+body:not(#_) .co-exc-collapsed { position:relative; flex-direction:column; justify-content:center; min-height:62px; padding:12px 12px 12px 16px; border-radius:16px; gap:0; overflow:visible; }
+body:not(#_) .co-exc-swatch { display:none; }
+body:not(#_) .co-exc-collapsed .co-exc-head { display:flex; align-items:center; gap:12px; }
+body:not(#_) .co-exc-collapsed .co-exc-cname { flex:1; min-width:0; display:flex; align-items:center; gap:14px; font-size:16px; font-weight:600; white-space:normal; -webkit-line-clamp:unset; }
+body:not(#_) .co-exc-collapsed .co-exc-ctext { display:block; font-size:16px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+body:not(#_) .co-exc-head .co-exc-ord { display:inline-grid; place-items:center; flex:none; width:32px; height:32px; min-width:32px; margin:0; padding:0; border-radius:50%;
+  background:var(--gize-surface-2); border:1px solid var(--gize-border); color:var(--txt); font-size:13px; font-weight:700; line-height:1; }
+body:not(#_) .co-exc-head .co-exc-ord.ss { background:var(--gize-surface-2); color:var(--gize-blue); border-color:color-mix(in srgb, var(--gize-blue) 45%, transparent); font-size:12px; border-radius:50%; padding:0; }
+body:not(#_) .co-exc-open .co-exc-head .co-exc-ord { color:var(--gize-blue); border-color:color-mix(in srgb, var(--gize-blue) 55%, transparent); }
+.co-exc-sum { flex:none; font-size:14px; color:var(--txt-2); font-variant-numeric:tabular-nums; white-space:nowrap; transition:opacity .15s; }
+@media (max-width: 640px){ .co-exc-sum .tg { display:none; } }
+body:not(#_) .co-exc-chev { width:36px; height:36px; background:none; border:0; color:var(--txt-3); border-radius:50%; }
+body:not(#_) .co-exc-chev:hover { color:var(--txt); background:color-mix(in srgb, var(--txt) 6%, transparent); }
+body:not(#_) .co-exc-collapsed .co-exc-chev svg { transform:rotate(-90deg); }
+body:not(#_) .co-exc-chev svg { width:16px; height:16px; }
+body:not(#_) .co-exc-chev.open svg { transform:rotate(180deg); }
+/* Contador de series y «cambiar ejercicio»: aparecen donde está el resumen al pasar el mouse (en el celular
+   se usan desde la tarjeta abierta: «+ Serie», la ✕ de cada serie y el menú ⋯). */
+body:not(#_) .co-exc-collapsed .co-exc-cfoot { position:absolute; right:56px; top:50%; transform:translateY(-50%); z-index:2; opacity:0; pointer-events:none; transition:opacity .15s; padding:0 0 0 10px; background:var(--gize-surface); border-radius:12px; }
+@media (hover:hover){
+  body:not(#_) .co-exc-collapsed:hover .co-exc-cfoot, body:not(#_) .co-exc-collapsed:focus-within .co-exc-cfoot { opacity:1; pointer-events:auto; }
+  body:not(#_) .co-exc-collapsed:hover .co-exc-sum, body:not(#_) .co-exc-collapsed:focus-within .co-exc-sum { opacity:0; }
+}
+/* Sin mouse o en pantallas angostas no hay lugar (taparía el nombre): se usan desde la tarjeta abierta. */
+@media (hover:none), (max-width: 699px){ body:not(#_) .co-exc-collapsed .co-exc-cfoot { display:none; } }
+
+/* ---------- Ejercicio abierto ---------- */
+body:not(#_) .co-exc-open { padding:12px 12px 6px 16px; border-radius:16px; border-color:color-mix(in srgb, var(--gize-blue) 60%, var(--gize-border)); }
+body:not(#_) .co-exc-open .co-exc-head { gap:12px; }
+body:not(#_) .co-exc-open .co-exc-name { height:40px; padding:0 8px; background:none; border:1px solid transparent; font-size:16px; font-weight:600; }
+body:not(#_) .co-exc-open .co-exc-name:hover { border-color:var(--gize-border); }
+body:not(#_) .co-exc-open .co-exc-name:focus { border-color:var(--gize-blue); background:var(--gize-surface-2); }
+body:not(#_) .co-exc-open .co-day-menu summary { width:36px; height:36px; border-radius:50%; border-color:transparent; background:none; }
+body:not(#_) .co-exc-open .co-exc-body { display:block; margin-top:6px; }
+body:not(#_) .co-exc-open .co-exc-main { display:block; }
+body:not(#_) .co-sets-panel { padding:0; background:none; border:0; border-radius:0; }
+body:not(#_) .co-sets-panel .co-set-head, body:not(#_) .co-sets-panel .co-set-row { grid-template-columns:44px minmax(0,1fr) minmax(0,1fr) 36px; gap:10px; }
+body:not(#_) .co-sets-panel .co-set-head { margin:10px 0 6px; }
+body:not(#_) .co-sets-panel .co-set-head span { font-size:11px; font-weight:700; letter-spacing:.08em; color:var(--txt-2); text-align:left; padding:0; }
+body:not(#_) .co-sets-panel .co-set-head span:nth-child(2), body:not(#_) .co-sets-panel .co-set-head span:nth-child(3) { padding-left:4px; }
+body:not(#_) .co-sets-panel .co-set-row { margin-bottom:8px; }
+body:not(#_) .co-sets-panel .co-set-n { width:auto; height:auto; background:none; font-size:15px; font-weight:700; color:var(--txt-2); justify-content:flex-start; padding-left:10px; }
+body:not(#_) .co-sets-panel .co-target { height:42px; padding:0 8px; border-radius:12px; background:var(--gize-surface-2); border-color:var(--gize-border); font-size:16px; font-weight:700; text-align:center; }
+body:not(#_) .co-sets-panel .co-target:focus { border-color:var(--gize-blue); outline:none; }
+body:not(#_) .co-sets-panel .co-set-rm { width:36px; height:36px; display:grid; place-items:center; padding:0; color:var(--txt-3); font-size:14px; }
+.co-sets-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:4px; }
+body:not(#_) .co-sets-panel .co-set-add { width:auto; min-height:34px; margin:0; padding:0 16px; border-radius:12px; border:1px dashed var(--gize-border); background:none; color:var(--gize-blue); font-size:14px; font-weight:600; }
+body:not(#_) .co-sets-foot .co-last-line { margin:0; justify-content:flex-end; font-size:12.5px; color:var(--txt-2); }
+body:not(#_) .co-sets-foot .co-last-line i { background:none; border:0; padding:0; border-radius:0; color:var(--txt-2); }
+body:not(#_) .co-sets-foot .co-last-line i::before { content:"·"; margin-right:6px; color:var(--txt-3); }
+
+/* «Más opciones» */
+.co-more { margin-top:14px; border-top:1px solid var(--gize-border); }
+.co-more-btn { display:flex; align-items:center; gap:12px; width:100%; padding:14px 2px 12px; background:none; border:0; font:inherit; font-size:14px; font-weight:600; color:var(--txt-2); text-align:left; cursor:pointer; transition:var(--transition-tap); }
+.co-more-btn:hover, .co-more-btn.on { color:var(--txt); }
+.co-more-btn em { margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-style:normal; font-size:12.5px; font-weight:500; color:var(--txt-3); }
+.co-more-btn.on em { display:none; }
+.co-more-btn svg { width:16px; height:16px; flex:none; color:var(--txt-3); transition:transform .15s; }
+.co-more-btn.on svg { transform:rotate(180deg); margin-left:auto; }
+.co-more-btn em + svg { margin-left:0; }
+.co-more-panel[hidden] { display:none; }
+.co-more-panel { padding:2px 0 10px; }
+body:not(#_) .co-more-panel .co-mode { margin:0 0 12px; }
+body:not(#_) .co-more-panel .co-cfg-row { margin:0 0 12px; }
+body:not(#_) .co-more-panel .co-tiles { gap:8px; }
+body:not(#_) .co-more-panel .co-tile-btn { min-height:44px; border-radius:12px; padding:8px 14px; }
+body:not(#_) .co-tile-btn.empty { border-style:dashed; }
+body:not(#_) .co-tile-btn.empty span { color:var(--gize-blue); }
+body:not(#_) .co-more-panel .co-exc-fold { margin-top:12px; }
+
+/* ---------- Agregar ejercicio y pie con «Guardar rutina» ---------- */
+body:not(#_) .co-rt-add-end { margin:2px 0 0; padding:15px; border:1px dashed var(--gize-border); border-radius:16px; background:none; color:var(--gize-blue); font-size:14px; font-weight:600; }
+body:not(#_) .co-rt-add-end:hover { background:color-mix(in srgb, var(--gize-blue) 7%, transparent); }
+.co-rt-add-end span { margin-right:4px; }
+.co-savebar { position:sticky; bottom:0; z-index:30; display:flex; align-items:center; justify-content:space-between; gap:12px; max-width:860px; margin-top:16px; padding:14px 0 calc(14px + env(safe-area-inset-bottom));
+  border-top:1px solid var(--gize-border); background:color-mix(in srgb, var(--gize-bg) 86%, transparent); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+body:not(#_) .co-savebar .co-save-rt { flex:0 0 auto; width:auto; min-width:150px; height:44px; margin:0; padding:0 26px; border-radius:14px; font-size:15px; font-weight:700; }
+body:not(#_) .co-savebar .co-more-actions summary { width:auto; height:44px; padding:0 20px; border-radius:14px; font-size:14px; font-weight:600; letter-spacing:0; background:none; }
+.co-savebar .co-more-actions .co-day-pop { top:auto; bottom:calc(100% + 8px); left:0; right:auto; min-width:250px; }
+@media (max-width: 899px){
+  .co-savebar { bottom:calc(84px + env(safe-area-inset-bottom)); padding-bottom:12px; max-width:none; }
+  body:not(#_) .co-savebar .co-save-rt { flex:1; }
+}
+
+/* Con el neón apagado, lo marcado va con filete blanco. */
+html.sin-neon body:not(#_) :is(.co-daytab.on, .co-exc-open, .co-exc-head .co-exc-ord.ss, .co-exc-open .co-exc-head .co-exc-ord) { border-color:rgba(255,255,255,.4); }
+html.sin-neon body:not(#_) .co-exc-open .co-exc-name:focus { border-color:rgba(255,255,255,.5); }
+html.sin-neon body:not(#_) .co-sets-panel .co-target:focus { border-color:rgba(255,255,255,.5); }

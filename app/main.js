@@ -48,7 +48,7 @@ import { abrirSolo, coachPlanObj, cpApply, loadTpls, refreshBlockWeeks, renderAp
 
 import { CoachState } from './screens/coach/state.js';
 import { calState } from './screens/coach/calendario.js';
-import { mealAction, nutritionRow } from './screens/coach/planes.js';
+import { mealAction, mealDirty, nutritionRow } from './screens/coach/planes.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
@@ -1205,6 +1205,21 @@ document.body.addEventListener("click", async e => {
   if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach();
 });
 
+// «Aplicar una de mis rutinas»: abre el selector con las rutinas guardadas del coach (también desde «Asignar rutina» de Inicio).
+async function abrirAplicarRutina(){
+  try{
+    CoachState.coachApplyPicker={tplId:null, days:{}, mode:"replace", loading:true};
+    renderApplyPicker();
+    const mnt=document.getElementById("applyMount");
+    if(!mnt || !mnt.innerHTML){ console.error("rt-apply: #applyMount no se montó"); alert("No se pudo abrir el selector de plantillas. Recargá la página y volvé a intentar."); return; }
+    await loadTpls();
+    if(CoachState.coachApplyPicker){ CoachState.coachApplyPicker.loading=false; renderApplyPicker(); }
+  }catch(err){
+    alert("No se pudo abrir el selector de plantillas. Revisá tu conexión y volvé a intentar.");
+    console.error("rt-apply", err);
+  }
+}
+
 document.body.addEventListener("click", async e => {
   const b=e.target.closest("[data-coach]"); if(!b) return;
   const a=b.dataset.coach;
@@ -1242,7 +1257,14 @@ document.body.addEventListener("click", async e => {
     }catch(err){ alert("No se pudo cambiar el código: "+((err&&err.message)||err)); }
     renderCoach(); return;
   }
-  if(a==="open"){ CoachState.coachClientTab="ficha"; CoachState.coachSec=null; CoachState.coachPlanSec=null; openClient(b.dataset.id); return; }
+  if(a==="open"){
+    // «Asignar rutina» (Inicio): el cliente que se toca abre directo el selector de sus rutinas.
+    const asignar=CoachState.coachAssign; CoachState.coachAssign=false;
+    CoachState.coachClientTab=asignar?"rutina":(b.dataset.t||"ficha"); CoachState.coachSec=null; CoachState.coachPlanSec=null;
+    const id=b.dataset.id;
+    openClient(id).then(()=>{ if(asignar && CoachState.coachSel===id && CoachState.coachData && CoachState.coachData.id) abrirAplicarRutina(); });
+    return;
+  }
   if((a==="back"||a==="refresh") && clientUnsaved()){ if(!confirm("Tenés cambios sin guardar en "+clientUnsaved()+". ¿Salir igual y perderlos?")) return; if(routineDirty()){ dropRoutineDraft(CoachState.coachData.id); CoachState.coachData.routineOrig=JSON.stringify(CoachState.coachData.routine||[]); } }
   if(a==="back"){ CoachState.coachSel=null; CoachState.coachData=null; renderCoach(); refreshCoachClients(); return; }
   if(a==="refresh"){ if(CoachState.coachSel) openClient(CoachState.coachSel); return; }
@@ -1263,6 +1285,29 @@ document.body.addEventListener("click", async e => {
     }
     return;
   }
+  // La barra lateral también está en la ficha de un cliente y en los editores: salir de ahí por la barra
+  // pregunta si hay algo sin guardar, igual que «‹ Volver».
+  if(/^view-(home|clients|tpls|meals)$/.test(a)){
+    CoachState.coachAssign=false;
+    if(CoachState.coachSel || CoachState.coachTplEdit || CoachState.coachMealEdit){
+      const sin=(CoachState.coachSel && clientUnsaved()) || (tplDirty() && "la rutina") || (mealDirty() && "el plan alimenticio") || "";
+      if(sin && !confirm("Tenés cambios sin guardar en "+sin+". ¿Salir igual y perderlos?")) return;
+      if(routineDirty()){ dropRoutineDraft(CoachState.coachData.id); CoachState.coachData.routineOrig=JSON.stringify(CoachState.coachData.routine||[]); }
+      CoachState.coachSel=null; CoachState.coachData=null; CoachState.coachTplEdit=null; CoachState.coachMealEdit=null; CoachState.coachEditDay=0; CoachState.coachPlanSec=null;
+      refreshCoachClients();
+    }
+  }
+  if(a==="view-home"){ CoachState.coachView="home"; renderCoach(); return; }
+  if(a==="home-assign"){
+    if(!CoachState.coachClients.length){ alert("Todavía no tenés clientes vinculados."); return; }
+    CoachState.coachAssign=true; CoachState.coachView="clients"; renderCoach(); return;
+  }
+  if(a==="assign-cancel"){ CoachState.coachAssign=false; renderCoach(); return; }
+  // Panel de la derecha de Clientes y vista de Rutinas (ver screens/coach/panel.js).
+  if(a==="peek-close"){ CoachState.coachPeek=false; renderCoach(); return; }
+  if(a==="peek-chat"){ openCoachChat(b.dataset.id); return; }
+  if(a==="tpl-pick"){ CoachState.coachTplPick=b.dataset.id; CoachState.coachTplDay=0; renderCoach(); return; }
+  if(a==="tpl-day"){ CoachState.coachTplDay=+b.dataset.i||0; renderCoach(); return; }
   if(a==="view-clients"){ CoachState.coachView="clients"; renderCoach(); return; }
   // «Mis planes» y planes guardados (ver screens/coach/planes.js).
   if((a==="view-meals" || /^mpk?-/.test(a)) && await mealAction(a, b)) return;
@@ -1446,20 +1491,7 @@ document.body.addEventListener("click", async e => {
     }catch(err){ st.loading=false; renderCopyPicker(); alert("No se pudo copiar: "+((err&&err.message)||err)); }
     return;
   }
-  if(a==="rt-apply"){
-    try{
-      CoachState.coachApplyPicker={tplId:null, days:{}, mode:"replace", loading:true};
-      renderApplyPicker();
-      const mnt=document.getElementById("applyMount");
-      if(!mnt || !mnt.innerHTML){ console.error("rt-apply: #applyMount no se montó"); alert("No se pudo abrir el selector de plantillas. Recargá la página y volvé a intentar."); return; }
-      await loadTpls();
-      if(CoachState.coachApplyPicker){ CoachState.coachApplyPicker.loading=false; renderApplyPicker(); }
-    }catch(err){
-      alert("No se pudo abrir el selector de plantillas. Revisá tu conexión y volvé a intentar.");
-      console.error("rt-apply", err);
-    }
-    return;
-  }
+  if(a==="rt-apply"){ await abrirAplicarRutina(); return; }
   if(a==="ap-cancel"){ closeSheet(()=>{ CoachState.coachApplyPicker=null; renderApplyPicker(); }, {host:"#applyMount", card:".cp-ccard", duration:150}); return; }
   if(a==="ap-back"){ CoachState.coachApplyPicker={tplId:null, days:{}, mode:"replace"}; renderApplyPicker(); return; }
   if(a==="ap-tpl"){ CoachState.coachApplyPicker.tplId=b.dataset.id; CoachState.coachApplyPicker.days={}; renderApplyPicker(); return; }

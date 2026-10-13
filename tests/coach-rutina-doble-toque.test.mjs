@@ -31,7 +31,7 @@ export default async function ({ base, t }){
   await p.fill('[data-coach="tpl-name"]', 'Fuerza 3 días'); await wait(100);
   await p.dblclick('[data-coach="tpl-save"]'); await wait(2000);
   t.eq(tplPosts.length, 1, 'doble toque: se guarda una sola rutina');
-  t.has(await text(p, '#coachHost'), 'Mis rutinas (1)', 'en «Mis rutinas» queda una');
+  t.eq(await p.$$eval('#coachHost .cv-tpl', l => l.length), 1, 'en «Rutinas» queda una');
   t.eq(dialogs.filter(d => d.includes('Rutina guardada')).length, 1, 'un solo «Rutina guardada»');
 
   // Rutina programada para la alumna: doble toque en «Guardar rutina programada».

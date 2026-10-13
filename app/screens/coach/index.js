@@ -1,9 +1,9 @@
 import { disciplinasLabel } from '../../core/disciplinas.js';
-import { copySvg, downloadSvg, gearSvg, resetSvg } from '../../core/icons.js';
+import { copySvg, gearSvg, resetSvg } from '../../core/icons.js';
 
 import { dec, esc, fmtDate, today } from '../../core/utils.js';
 
-import { coachActivity, coachInitials, renderCoachInfo } from './clientes.js';
+import { coachInitials, renderCoachInfo } from './clientes.js';
 
 import { renderApplyPicker, renderCoachBlock, renderCoachPlan, renderCoachRoutine, renderCoachSchedule, renderCopyPicker, renderSchedPicker } from './rutinas.js';
 
@@ -12,7 +12,6 @@ import { renderCoachCalendar, calSelDay } from './calendario.js';
 import { renderCoachCheckins, renderCoachDaily, renderCoachWeekly } from './seguimiento.js';
 
 import { CoachState } from './state.js';
-import { CATALOGO, diasDeEntreno, rutinasDeDias } from '../../core/rutinas-ejemplo.js';
 import { State } from '../../core/state.js';
 import { blockWeek, isDeload, weekRange } from '../../core/bloque.js';
 
@@ -32,7 +31,8 @@ import { appNativa } from '../../core/tienda.js';
 
 import { renderCoachSalidas, salidasTileText } from './salidas.js';
 import { syncRouteViews } from '../../ui/mapa.js';
-import { clientPlanDirty, mealEditHead, renderMealPicker, renderMealTplList, snapMealEdit } from './planes.js';
+import { clientPlanDirty, mealEditHead, renderMealPicker, snapMealEdit } from './planes.js';
+import { coachShell, secIcon, renderClientsView, renderHomeView, renderMealsView, renderTplsView } from './panel.js';
 
 // Título de sección con la ruedita que abre el editor de preguntas en esa pestaña.
 function secHead(title, kind){
@@ -106,65 +106,9 @@ export function renderCoach(){
   // leer los datos de los clientes, ver supabase/suscripciones.sql).
   if(!billing().active){ host.innerHTML=renderPaywall(); return; }
   if(!CoachState.coachSel && !CoachState.coachTplEdit && !CoachState.coachMealEdit){
-    const tabs='<div class="co-tabs">'+
-      '<button class="co-tab'+(CoachState.coachView==="clients"?" on":"")+'" data-coach="view-clients">Clientes <span class="co-tab-count'+(CoachState.coachClients.length?" has":"")+'">('+CoachState.coachClients.length+')</span></button>'+
-      '<button class="co-tab'+(CoachState.coachView==="tpls"?" on":"")+'" data-coach="view-tpls">Mis rutinas <span class="co-tab-count'+(CoachState.coachTpls.length?" has":"")+'">('+CoachState.coachTpls.length+')</span></button>'+
-      '<button class="co-tab'+(CoachState.coachView==="meals"?" on":"")+'" data-coach="view-meals">Mis planes <span class="co-tab-count'+(CoachState.coachMealTpls.length?" has":"")+'">('+CoachState.coachMealTpls.length+')</span></button>'+
-    '</div>';
-    let body="";
-    if(CoachState.coachView==="meals"){
-      body=renderMealTplList();
-    } else if(CoachState.coachView==="tpls"){
-      const tl=CoachState.coachTpls.length ? CoachState.coachTpls.map(t=>{
-        const nd=(t.days||[]).length;
-        const nex=(t.days||[]).reduce((n,d)=>n+((d.exercises||[]).length),0);
-        return '<div class="co-item tpl-item" data-coach="tpl-open" data-id="'+esc(t.id)+'">'+
-          '<div class="co-name">'+esc(t.name||"Sin nombre")+'</div>'+
-          '<div class="co-item-meta">'+nd+' día'+(nd===1?'':'s')+' · '+nex+' ejercicios</div>'+
-          '<div class="co-arrow">›</div></div>';
-      }).join("") : (CoachState.tplsError ? '<div class="cal-hint" style="color:var(--red)">No se pudieron cargar: <b>'+esc(CoachState.tplsError)+'</b><br><br>Si dice que la tabla no existe, falta correr el SQL de rutinas en Supabase.</div>' : '<div class="cal-hint">Todavía no creaste ninguna rutina. Creá una y después aplicásela a los clientes que quieras.</div>');
-      body='<div class="co-items">'+tl+'</div>'+
-        '<button class="co-add-day" data-coach="tpl-new">+ Crear rutina nueva</button>'+
-        '<button class="co-copy-btn" style="margin-top:8px" data-coach="tpl-seed-open" aria-expanded="'+!!CoachState.coachSeedOpen+'">'+downloadSvg+' Importar rutina armada</button>'+
-        (CoachState.coachSeedOpen ? '<div class="co-items tpl-seed-list">'+rutinasDeDias(CoachState.coachCat||CATALOGO, 0).map(r=>{
-          const nd=diasDeEntreno(r), nex=(r.days||[]).reduce((n,d)=>n+((d.exercises||[]).length),0);
-          return '<div class="co-item tpl-item" data-coach="tpl-seed-cat" data-id="'+esc(r.id)+'">'+
-            '<div class="co-name">'+esc(r.nombre)+'</div>'+
-            '<div class="co-item-meta">'+nd+' día'+(nd===1?'':'s')+' de entreno · '+nex+' ejercicios'+(r.para==="mujer"?' · para mujer':r.para==="hombre"?' · para hombre':'')+'</div>'+
-            '<div class="co-arrow">›</div></div>';
-        }).join("")+'</div>' : '');
-    } else {
-      const q=(CoachState.coachSearch||"").toLowerCase();
-      const filtered=CoachState.coachClients.filter(c=>(c.full_name||"").toLowerCase().includes(q));
-      const onboard='<div class="co-onboard">'+
-        '<div class="co-onboard-lead">Todavía no tenés clientes vinculados</div>'+
-        '<div class="co-item co-onboard-step"><div class="co-onboard-n">1</div><div class="co-onboard-txt">Copiá tu <b>código de invitación</b> de arriba</div></div>'+
-        '<div class="co-item co-onboard-step"><div class="co-onboard-n">2</div><div class="co-onboard-txt">Pasáselo a tu cliente por donde le quede más cómodo</div></div>'+
-        '<div class="co-item co-onboard-step"><div class="co-onboard-n">3</div><div class="co-onboard-txt">Se vincula solo — va a aparecer acá apenas lo haga</div></div>'+
-      '</div>';
-      const rows=filtered.map(c=>{
-        const st=CoachState.coachClientStats[c.id]||{};
-        const act=coachActivity(st.lastSess);
-        const statusLine=act.has ? '<div class="co-act-status"><span class="co-dot'+(act.active?' on':'')+'"></span>'+act.statusLabel+'</div>' : "";
-        return '<div class="co-trow" data-coach="open" data-id="'+esc(c.id)+'">'+
-            '<div class="co-td co-td-name">'+avatarHtml(c.avatar_path, coachInitials(c.full_name), 'co-avatar')+'<span class="co-cname">'+esc(c.full_name||"Sin nombre")+'</span>'+(unreadFor(c.id)?'<span class="chat-badge" title="Mensajes sin leer">'+unreadFor(c.id)+'</span>':'')+'</div>'+
-            '<div class="co-td co-td-email'+(c.email?'':' co-empty')+'">'+esc(c.email||"Sin email")+'</div>'+
-            '<div class="co-td co-td-activity"><div class="co-act-date">'+esc(act.label)+'</div>'+statusLine+'</div>'+
-            '<div class="co-td co-td-actions"><span class="co-arrow">›</span></div>'+
-          '</div>';
-      }).join("");
-      const list=filtered.length ? '<div class="co-table"><div class="co-trow co-thead"><div class="co-th">Nombre</div><div class="co-th">Email</div><div class="co-th">Última actividad</div><div class="co-th">Acciones</div></div>'+rows+'</div>' : '<div class="cal-hint">Sin resultados.</div>';
-      // Antes solo aparecía con más de 3 clientes — con pocos igual conviene mostrarlo
-      // siempre: en uso real la lista crece, y ocultarlo generaba la duda de "¿no hay
-      // buscador?" incluso con 1 o 2 clientes cargados.
-      const searchBox='<input class="co-search" placeholder="\u{1F50D} Buscar cliente…" data-coach="coach-search" value="'+esc(CoachState.coachSearch||"")+'">';
-      // El onboarding es un bloque ancho de texto/pasos, no una card angosta más — si lo
-      // metiera adentro de .co-items (grid de auto-fill,minmax(260px,1fr) en desktop)
-      // quedaría encajonado en una sola columna angosta con carriles vacíos al lado.
-      // Va como reemplazo del bloque entero (sin buscador ni grid), no como un item más.
-      body=(!CoachState.coachSearch && !CoachState.coachClients.length) ? onboard : searchBox+list;
-    }
-    host.innerHTML='<div class="co-wrap"><div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout co-q-btn" data-coach="q-open" title="Preguntas del registro diario y del check-in">Preguntas</button><button class="co-gear" data-coach="open-settings" title="Configuración">'+gearSvg+'</button><button class="co-logout" data-auth="logout">Salir</button></div></div>'+inviteBox()+renderPlanBanner()+tabs+body+'</div>';
+    // Las cuatro pantallas de arriba (Inicio, Clientes, Rutinas, Planes alimenticios): ver panel.js.
+    const v=CoachState.coachView, banner=renderPlanBanner();
+    host.innerHTML=coachShell(v, v==="meals" ? renderMealsView(banner) : v==="tpls" ? renderTplsView(banner) : v==="home" ? renderHomeView(banner) : renderClientsView(inviteBox(), banner));
   } else if(CoachState.coachTplEdit){
     const rt=CoachState.coachTplEdit.days||[];
     let ed="";
@@ -173,7 +117,7 @@ export function renderCoach(){
     const sch=!!CoachState.coachTplEdit.sched, dle=!!CoachState.coachTplEdit.deload;
     const who=esc((CoachState.coachData&&CoachState.coachData.name)||"el alumno");
     const dlRange=dle ? weekRange(CoachState.coachBlockForm||(CoachState.coachData&&CoachState.coachData.block), CoachState.coachTplEdit.wk) : null;
-    host.innerHTML='<div class="co-wrap">'+
+    host.innerHTML=coachShell(CoachState.coachSel?"clients":"tpls",
       '<div class="co-head"><button class="co-back" data-coach="tpl-back">‹ Volver</button>'+
       '<button class="co-logout" data-coach="tpl-del">'+(dle?(CoachState.coachTplEdit.saved?'Borrar rutina de descarga':'Descartar'):sch?'Borrar programación':'Borrar rutina')+'</button></div>'+
       (dle ? '<div class="co-sched-edit-t">Rutina de descarga \u00b7 semana '+CoachState.coachTplEdit.wk+' de '+who+'</div>'+
@@ -183,11 +127,10 @@ export function renderCoach(){
         '<div class="ci-f" style="margin-bottom:10px"><label>Empieza el</label><input class="co-note" type="date" data-coach="sched-date" min="'+esc(today())+'" value="'+esc(CoachState.coachTplEdit.starts_on||"")+'"></div>' : '')+
       (dle ? '' : '<div class="ci-f" style="margin-bottom:14px"><label>Nombre de la rutina'+(sch?' (opcional)':'')+'</label><input class="co-note" data-coach="tpl-name" value="'+esc(CoachState.coachTplEdit.name||"")+'"></div>')+
       ed+
-      '<button class="co-save-rt" data-coach="tpl-save">'+(dle?'Guardar rutina de descarga':sch?'Guardar rutina programada':'Guardar rutina')+'</button>'+
-    '</div>';
+      '<div class="co-savebar"><button class="co-save-rt" data-coach="tpl-save">'+(dle?'Guardar rutina de descarga':sch?'Guardar rutina programada':'Guardar rutina')+'</button></div>');
   } else if(CoachState.coachMealEdit && !CoachState.coachSel){
     // Plan guardado de «Mis planes»: el mismo editor del plan del cliente (ver planes.js).
-    host.innerHTML='<div class="co-wrap">'+mealEditHead()+renderCoachPlan(null)+'</div>';
+    host.innerHTML=coachShell("meals", mealEditHead()+renderCoachPlan(null));
   } else {
     const d=CoachState.coachData; let body="";
     if(!d||d.loading){ body='<div class="cal-hint">Cargando…</div>'; }
@@ -203,10 +146,10 @@ export function renderCoach(){
       const sess=sessSorted.length ? renderCoachCalendar("sess", d.sessions.map(se=>se.date), today(), ["entreno","entrenos"])+(calSelDay("sess")?(calSess.length?calSess.map(se=>renderSessionItem(se,{open:true, history:d.sessions})).join(""):'<div class="cal-hint">Ese día no hay entreno.</div>'):'<div class="cal-hint">Tocá un día marcado para ver el entreno.</div>') : "";
       const vol=(d.routine&&d.routine.length)?renderVolumen(d.routine):'<div class="cal-hint">Sin rutina cargada.</div>';
       const tab=CoachState.coachClientTab||"ficha";
-      const tabs='<div class="co-tabs">'+
-        '<button class="co-tab'+(tab==="ficha"?" on":"")+'" data-coach="client-tab" data-t="ficha">Ficha</button>'+
-        '<button class="co-tab'+(tab==="rutina"?" on":"")+'" data-coach="client-tab" data-t="rutina">Rutina</button>'+
-        '<button class="co-tab'+(tab==="plan"?" on":"")+'" data-coach="client-tab" data-t="plan">Plan alimenticio</button>'+
+      const tabs='<div class="cv-ctabs" role="tablist">'+
+        '<button class="cv-ctab'+(tab==="ficha"?" on":"")+'" role="tab" aria-selected="'+(tab==="ficha")+'" data-coach="client-tab" data-t="ficha">Ficha</button>'+
+        '<button class="cv-ctab'+(tab==="rutina"?" on":"")+'" role="tab" aria-selected="'+(tab==="rutina")+'" data-coach="client-tab" data-t="rutina">Rutina</button>'+
+        '<button class="cv-ctab'+(tab==="plan"?" on":"")+'" role="tab" aria-selected="'+(tab==="plan")+'" data-coach="client-tab" data-t="plan">Plan<span class="cv-more"> alimenticio</span></button>'+
       '</div>';
       let panel;
       if(tab==="rutina"){
@@ -232,12 +175,12 @@ export function renderCoach(){
           panel='<div class="form-head co-sec-head"><button class="form-back" data-coach="sec-close" aria-label="Volver a la ficha">‹</button><div class="form-title">'+cur[1]+'</div></div>'+
             '<div class="co-panel co-sec-body">'+cur[2]()+'</div>';
         } else {
-          panel='<div class="ptiles co-ptiles">'+SECS.map(x=>'<button class="ptile" data-coach="sec-open" data-v="'+x[0]+'"><span class="ptile-t">'+x[1]+'</span><span class="ptile-s">'+esc(x[3]())+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+
+          panel='<div class="ptiles co-ptiles">'+SECS.map(x=>'<button class="ptile" data-coach="sec-open" data-v="'+x[0]+'"><span class="ptile-t">'+secIcon(x[0])+x[1]+'</span><span class="ptile-s">'+esc(x[3]())+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+
             '<button class="logout-btn cfg-danger co-remove-client" data-coach="remove-client">Desvincular alumno</button>';
         }
       }
       body=tabs+panel;
     }
-    host.innerHTML='<div class="co-wrap"><div class="co-head"><button class="co-back" data-coach="back">‹ Volver</button><div class="co-head-actions"><button class="co-back" data-coach="refresh" style="margin-right:8px">'+resetSvg+' Actualizar</button><button class="co-gear" data-coach="open-settings" title="Configuración">'+gearSvg+'</button><button class="co-logout" data-auth="logout">Salir</button></div></div><div class="co-client-head">'+avatarHtml(CoachState.coachData&&CoachState.coachData.avatar, coachInitials(CoachState.coachData&&CoachState.coachData.name), 'co-avatar co-avatar-client')+'<div><div class="co-client-name">'+esc((CoachState.coachData&&CoachState.coachData.name)||"Cliente")+'</div>'+(disciplinasLabel(CoachState.coachData&&CoachState.coachData.disciplines)?'<div class="co-client-disc">'+esc(disciplinasLabel(CoachState.coachData.disciplines))+'</div>':'')+'</div></div>'+body+'</div>';
+    host.innerHTML=coachShell("clients", '<div class="co-head cv-chead"><button class="co-back cv-back" data-coach="back" aria-label="Volver" title="Volver">‹</button>'+avatarHtml(CoachState.coachData&&CoachState.coachData.avatar, coachInitials(CoachState.coachData&&CoachState.coachData.name), 'co-avatar co-avatar-client')+'<div class="cv-cname"><div class="co-client-name">'+esc((CoachState.coachData&&CoachState.coachData.name)||"Cliente")+'</div>'+(disciplinasLabel(CoachState.coachData&&CoachState.coachData.disciplines)?'<div class="co-client-disc">'+esc(disciplinasLabel(CoachState.coachData.disciplines))+'</div>':'')+'</div><button class="co-back cv-refresh" data-coach="refresh" aria-label="Actualizar" title="Actualizar">'+resetSvg+'<span>Actualizar</span></button></div>'+body);
   }
 }

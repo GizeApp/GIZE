@@ -90,7 +90,7 @@ export default async function ({ base, t }){
   const lst = await text(p, '#coachHost');
   t.has(lst, 'Definición', '«Mis planes» lista los planes guardados');
   t.has(lst, 'Plan base', 'con el guardado desde el cliente');
-  t.has(lst, 'Mis planes (2)', 'con la cantidad en la pestaña');
+  t.eq(await p.$$eval('#coachHost .cv-plan', l => l.length), 2, 'con los dos planes en la lista');
   await shot(p, '3-mis-planes');
 
   // Abrir uno, cambiarle el nombre y guardarlo.

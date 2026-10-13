@@ -451,10 +451,12 @@ function exerciseCard(d, day, ex, i, rt){
         '<b>'+nSets+' serie'+(nSets===1?'':'s')+'</b>'+
         '<button type="button" data-coach="rt-setadd" data-i="'+i+'" aria-label="Una serie más">+</button>'+
       '</span>';
+    // Resumen a la derecha: «3 series · 8-10» (el objetivo de la primera serie; en el celular, solo las series).
+    const tg=String(((ex.sets||[])[0]||{}).target||"").trim();
+    const sum='<span class="co-exc-sum">'+nSets+' serie'+(nSets===1?'':'s')+(tg?'<span class="tg"> · '+esc(tg)+'</span>':'')+'</span>';
     return '<div class="co-exc co-exc-collapsed'+ssCls+'" data-coach="rt-toggle" data-i="'+i+'" data-id="'+esc(ex.id)+'">'+
         swatch+
-        '<div class="co-exc-head"><div class="co-exc-cname">'+ord+'<span class="co-exc-ctext">'+esc(ex.name||"Sin nombre")+'</span></div>'+chevron+'</div>'+
-        '<div class="co-exc-cmeta">'+dots+(timed?'<span class="co-exc-badge">Por tiempo</span>':'')+(rirTxt?'<span class="co-exc-rirtxt">'+esc(rirTxt)+'</span>':'')+'</div>'+
+        '<div class="co-exc-head"><div class="co-exc-cname">'+ord+'<span class="co-exc-ctext">'+esc(ex.name||"Sin nombre")+'</span></div>'+sum+chevron+'</div>'+
         '<div class="co-exc-cfoot">'+stepper+
           '<button class="co-exc-icon-btn" data-coach="rt-swap" data-i="'+i+'" title="Cambiar ejercicio" aria-label="Cambiar ejercicio">'+swapSvg+'</button>'+
         '</div>'+
@@ -487,7 +489,7 @@ function exerciseCard(d, day, ex, i, rt){
       '<input class="co-target" data-coach="rt-targetkg" data-i="'+i+'" data-j="'+j+'" value="'+esc(st.targetKg||"")+'" placeholder="kg" aria-label="Peso propuesto, serie '+(j+1)+'">'+
       '<button class="co-set-rm" data-coach="rt-setdel" data-i="'+i+'" data-j="'+j+'" title="Quitar serie" aria-label="Quitar serie '+(j+1)+'">✕</button>'+
     '</div>').join("");
-  const setsTbl=nSets ? '<div class="co-set-head"><span>#</span><span>'+(timed?'Tiempo objetivo':'Reps objetivo')+'</span><span>'+(timed?'Peso (opcional)':'Peso propuesto')+'</span><span></span></div>'+sets : '';
+  const setsTbl=nSets ? '<div class="co-set-head"><span>Serie</span><span>'+(timed?'Tiempo':'Reps')+'</span><span>'+(timed?'Peso (opcional)':'Peso')+'</span><span></span></div>'+sets : '';
   // La sugerencia de GIZE para cargarla de un toque como propuesta.
   const sg=lastLog ? suggest(ex, lastLog.sets, timed) : null;
   const sugBtn=(nSets && sg && sg.kg) ? '<button type="button" class="co-last-use" data-coach="rt-sug-fill" data-i="'+i+'" data-kg="'+sg.kg+'">Proponer '+esc(kgText(sg.kg))+' kg <small>('+esc(coachWhy(sg.why))+')</small></button>' : '';
@@ -499,17 +501,17 @@ function exerciseCard(d, day, ex, i, rt){
   // Nota, video y explicación de voz: tres casilleros que se abren en el lugar. Lo abierto se
   // recuerda entre re-dibujos (tilesOpen) para que no se cierre al tocar otra cosa.
   const openKey=tilesOpen.get(ex.id)||"";
-  const tile=(key, title, hint, body)=>'<button type="button" class="co-tile-btn'+(openKey===key?' on':'')+'" data-tile="'+key+'" data-ex="'+esc(ex.id)+'" aria-expanded="'+(openKey===key)+'"><b>'+title+'</b><span>'+hint+'</span></button>'+
+  const tile=(key, title, hint, body)=>'<button type="button" class="co-tile-btn'+(openKey===key?' on':'')+(/^\+/.test(hint)?' empty':'')+'" data-tile="'+key+'" data-ex="'+esc(ex.id)+'" aria-expanded="'+(openKey===key)+'"><b>'+title+'</b><span>'+hint+'</span></button>'+
     '<div class="co-tile-panel" data-tile="'+key+'" data-ex="'+esc(ex.id)+'"'+(openKey===key?'':' hidden')+'>'+body+'</div>';
   const vl=ex.video ? null : libVideo(ex.name);
-  const vidHint=ex.video ? esc(ex.video.replace(/^https?:\/\/(www\.)?/,'')) : (vl ? 'Elegido por GIZE' : 'Pegá un link');
-  const audHint=ex.audio ? 'Grabada'+(ex.audioSecs?' · '+esc(mmss(ex.audioSecs)):'') : 'Grabar · hasta 3 minutos';
+  const vidHint=ex.video ? esc(ex.video.replace(/^https?:\/\/(www\.)?/,'')) : (vl ? 'Elegido por GIZE' : '+ Agregar video');
+  const audHint=ex.audio ? 'Grabada'+(ex.audioSecs?' · '+esc(mmss(ex.audioSecs)):'') : '+ Agregar audio';
   const tiles='<div class="co-tiles">'+
-      tile('note','Nota para el cliente', ex.note ? esc(ex.note) : 'Técnica, tempo, qué cuidar…',
+      tile('note','Comentario', ex.note ? esc(ex.note) : '+ Agregar comentario',
         '<textarea class="co-note co-note-area" rows="2" data-coach="rt-note" data-i="'+i+'" placeholder="Técnica, tempo, qué cuidar…" aria-label="Nota para el cliente">'+esc(ex.note||"")+'</textarea>')+
-      tile('video','Link de video', vidHint,
+      tile('video','Video', vidHint,
         '<input class="co-note" type="url" inputmode="url" data-coach="rt-video" data-i="'+i+'" value="'+esc(ex.video||"")+'" placeholder="Pegá el link de YouTube o Instagram" aria-label="Link de video">'+libVideoHint(ex))+
-      tile('audio','Explicación de voz', audHint, renderExAudio(ex, i))+
+      tile('audio','Audio', audHint, renderExAudio(ex, i))+
     '</div>';
 
   // Cabecera como la de la tarjeta cerrada (número, nombre, flecha), con el menú "⋯" antes de
@@ -526,24 +528,30 @@ function exerciseCard(d, day, ex, i, rt){
       '</div>'+
       '<div class="co-exc-body">'+
         '<div class="co-exc-main">'+
-          '<div class="co-mode"><span class="co-note-lbl">Se mide por</span>'+
-            '<div class="co-seg" role="radiogroup" aria-label="Se mide por">'+
-              '<button type="button" class="co-seg-opt'+(timed?'':' on')+'" role="radio" aria-checked="'+(!timed)+'" data-coach="rt-timed" data-i="'+i+'" data-v="0">Reps</button>'+
-              '<button type="button" class="co-seg-opt'+(timed?' on':'')+'" role="radio" aria-checked="'+timed+'" data-coach="rt-timed" data-i="'+i+'" data-v="1">Tiempo</button>'+
-            '</div>'+
-          '</div>'+
-          '<div class="co-sets-panel">'+setsTbl+lastLine+sugBtn+
-            '<button class="co-set-add" data-coach="rt-setadd" data-i="'+i+'">+ Serie</button>'+
+          '<div class="co-sets-panel">'+setsTbl+
+            '<div class="co-sets-foot"><button class="co-set-add" data-coach="rt-setadd" data-i="'+i+'">+ Serie</button>'+lastLine+'</div>'+sugBtn+
           '</div>'+
         '</div>'+
-        '<div class="co-exc-side">'+
-          '<div class="co-cfg-row">'+
-            field("Descanso","rt-rest",ex.rest,"90 seg")+
-            field("RIR","rt-rir",ex.rir,"2-0")+
-            '<label class="co-pfield co-pfield-goal"><span class="co-note-lbl">Objetivo de progreso</span><input class="co-pin" data-coach="rt-goal" data-i="'+i+'" value="'+esc(ex.goal||"")+'" placeholder="Ej: sumar 1 rep por semana"></label>'+
+        // «Más opciones»: cómo se mide, descanso, RIR, objetivo, comentario, video, audio y progreso.
+        // Cerrado muestra un resumen de lo que ya tiene cargado; lo abierto se recuerda entre re-dibujos.
+        '<div class="co-more">'+
+          '<button type="button" class="co-more-btn'+(moreOpen.has(ex.id)?' on':'')+'" data-more="'+esc(ex.id)+'" aria-expanded="'+moreOpen.has(ex.id)+'"><span>Más opciones</span>'+
+            '<em>'+esc([ex.rest&&('Descanso '+ex.rest), ex.rir&&('RIR '+ex.rir), ex.note&&'Comentario', ex.video&&'Video', ex.audio&&'Audio', timed&&'Por tiempo'].filter(Boolean).join(' · '))+'</em>'+chevronDownSvg+'</button>'+
+          '<div class="co-more-panel" data-more="'+esc(ex.id)+'"'+(moreOpen.has(ex.id)?'':' hidden')+'>'+
+            '<div class="co-mode"><span class="co-note-lbl">Se mide por</span>'+
+              '<div class="co-seg" role="radiogroup" aria-label="Se mide por">'+
+                '<button type="button" class="co-seg-opt'+(timed?'':' on')+'" role="radio" aria-checked="'+(!timed)+'" data-coach="rt-timed" data-i="'+i+'" data-v="0">Reps</button>'+
+                '<button type="button" class="co-seg-opt'+(timed?' on':'')+'" role="radio" aria-checked="'+timed+'" data-coach="rt-timed" data-i="'+i+'" data-v="1">Tiempo</button>'+
+              '</div>'+
+            '</div>'+
+            '<div class="co-cfg-row">'+
+              field("Descanso","rt-rest",ex.rest,"90 seg")+
+              field("RIR","rt-rir",ex.rir,"2-0")+
+              '<label class="co-pfield co-pfield-goal"><span class="co-note-lbl">Objetivo de progreso</span><input class="co-pin" data-coach="rt-goal" data-i="'+i+'" value="'+esc(ex.goal||"")+'" placeholder="Ej: sumar 1 rep por semana"></label>'+
+            '</div>'+
+            tiles+
+            '<details class="co-exc-fold"><summary>Ver progreso'+(prog?' <span class="co-exc-fold-hint">('+esc(prog)+')</span>':'')+'</summary><div class="co-exc-prog">'+exChart(d, day.name, ex.name)+'</div><div class="co-exc-tbl">'+exTable(d, day.name, ex.name)+'</div></details>'+
           '</div>'+
-          tiles+
-          '<details class="co-exc-fold"><summary>Ver progreso'+(prog?' <span class="co-exc-fold-hint">('+esc(prog)+')</span>':'')+'</summary><div class="co-exc-prog">'+exChart(d, day.name, ex.name)+'</div><div class="co-exc-tbl">'+exTable(d, day.name, ex.name)+'</div></details>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -551,6 +559,15 @@ function exerciseCard(d, day, ex, i, rt){
 
 // Casilleros abiertos del ejercicio (nota, video, voz): sobreviven a volver a dibujar el editor.
 const tilesOpen=new Map();
+// «Más opciones» abierto, por ejercicio (también sobrevive a volver a dibujar).
+const moreOpen=new Set();
+document.addEventListener('click', e=>{
+  const b=e.target.closest && e.target.closest('.co-more-btn'); if(!b) return;
+  const id=b.dataset.more, on=!moreOpen.has(id);
+  if(on) moreOpen.add(id); else moreOpen.delete(id);
+  b.classList.toggle('on',on); b.setAttribute('aria-expanded',on);
+  const pn=b.parentNode.querySelector('.co-more-panel'); if(pn) pn.hidden=!on;
+});
 document.addEventListener('click', e=>{
   const b=e.target.closest && e.target.closest('.co-tile-btn'); if(!b) return;
   const id=b.dataset.ex, key=b.dataset.tile, wrap=b.parentNode, willOpen=tilesOpen.get(id)!==key;
@@ -672,19 +689,19 @@ export function renderCoachRoutine(d){
     '</div></details>';
   const sugOff=rt.some(x=>x.noSug);
   const sugToggle='<span class="co-sug-mini" title="'+(sugOff?'Apagada: el cliente solo ve el peso que vos propongas.':'GIZE le recomienda subir 2,5 kg cuando la vez pasada se pasó del rango de reps, salvo donde cargues tu peso propuesto.')+'"><span>Sugerencia de peso</span><button type="button" class="co-sug-tg'+(sugOff?'':' on')+'" data-coach="rt-nosug-all" role="switch" aria-checked="'+(!sugOff)+'" aria-label="Sugerencia automática de peso"><span></span></button></span>';
-  return '<div class="co-sec">Rutina y progreso</div>'+coachDatalist()+
+  return coachDatalist()+
     '<div class="co-daytabs">'+tabs+'<button class="co-daytab add" data-coach="day-add" aria-label="Agregar día">+</button></div>'+
-    '<div class="co-day-card">'+
-      '<div class="co-day-head-row">'+
-        '<input class="co-dayname" data-coach="day-name" value="'+esc(day.name||"")+'" placeholder="Nombre del día" aria-label="Nombre del día">'+
-        dayMenu+
-      '</div>'+
+    '<div class="co-day-bar">'+
       // Días de la semana de este día (puede ser más de uno): Entreno arranca en el día que toca hoy.
-      '<div class="co-day-meta">'+
+      '<div class="co-day-row">'+
         '<div class="co-dias-wrap"><span class="co-note-lbl">Se repite</span><div class="hd-row co-dias" role="group" aria-label="Días de la semana de este día" title="'+(dotsOn.length?'El alumno abre la app esos días y le aparece este día directo.':'Sin días: el alumno elige el día a mano.')+'">'+
           SEMANA.map(n=>'<button class="hd-day'+(dotsOn.includes(n)?' on':'')+'" data-coach="day-dow" data-d="'+n+'" aria-label="'+DIA_LARGO[n]+'" aria-pressed="'+dotsOn.includes(n)+'">'+DIA_LETRA[n]+'</button>').join("")+
         '</div></div>'+
-        '<div class="co-note-wrap co-daynote"><span class="co-note-lbl">Nota</span><input class="co-note" data-coach="day-note" value="'+esc(day.note||"")+'" placeholder="La ve el alumno al entrar…"></div>'+
+        dayMenu+
+      '</div>'+
+      '<div class="co-day-fields">'+
+        '<label class="co-pfield"><span class="co-note-lbl">Nombre del día</span><input class="co-dayname" data-coach="day-name" value="'+esc(day.name||"")+'" placeholder="Nombre del día" aria-label="Nombre del día"></label>'+
+        '<label class="co-pfield co-daynote"><span class="co-note-lbl">Nota</span><input class="co-note" data-coach="day-note" value="'+esc(day.note||"")+'" placeholder="La ve el alumno al entrar…"></label>'+
       '</div>'+
     '</div>'+
     '<div class="co-exc-section-head"><div class="co-exc-title"><span class="co-sec" style="margin:0">Ejercicios</span><span class="co-exc-count">'+totalEx+' · '+totalSets+' serie'+(totalSets===1?'':'s')+'</span></div>'+sugToggle+'</div>'+
@@ -694,8 +711,13 @@ export function renderCoachRoutine(d){
       '<button class="co-rt-add-end" data-coach="rt-add"><span>+</span>Agregar ejercicio</button>'+
     '</div>'+
     (cards ? '' : '<div class="cal-hint">Día vacío. Sumá el primer ejercicio.</div>')+
-    (CoachState.coachTplEdit ? '' : (routineDirty() ? '<div class="co-unsaved">'+(CoachState.coachData.draftRestored ? 'Recuperamos los cambios que no se habían guardado. ' : 'Cambios sin guardar. ')+'Tocá <b>Guardar rutina</b> para que le lleguen al cliente.</div>' : '')+'<button class="co-save-rt" data-coach="save-routine">Guardar rutina</button>')+
-    (CoachState.coachTplEdit ? "" : "<div class='rt-actions'><button class='co-copy-btn' data-coach='rt-apply'>"+downloadSvg+" Aplicar una de mis rutinas</button><button class='co-copy-btn' data-coach='rt-copy'>"+copySvg+" Copiar a otro cliente</button><button class='co-copy-btn' data-coach='rt-tosave'>"+saveSvg+" Guardar como rutina</button></div>");
+    (CoachState.coachTplEdit ? '' : (routineDirty() ? '<div class="co-unsaved">'+(CoachState.coachData.draftRestored ? 'Recuperamos los cambios que no se habían guardado. ' : 'Cambios sin guardar. ')+'Tocá <b>Guardar rutina</b> para que le lleguen al cliente.</div>' : '')+
+      // Pie fijo: «Más acciones» (aplicar una de mis rutinas, copiar a otro cliente, guardar como rutina) y Guardar.
+      '<div class="co-savebar"><details class="co-day-menu co-more-actions"><summary>Más acciones</summary><div class="co-day-pop">'+
+        "<button class='co-day-mv' data-coach='rt-apply'>"+downloadSvg+"<span>Aplicar una de mis rutinas</span></button>"+
+        "<button class='co-day-mv' data-coach='rt-copy'>"+copySvg+"<span>Copiar a otro cliente</span></button>"+
+        "<button class='co-day-mv' data-coach='rt-tosave'>"+saveSvg+"<span>Guardar como rutina</span></button>"+
+      '</div></details><button class="co-save-rt" data-coach="save-routine">Guardar rutina</button></div>');
 }
 
 // Disciplina del alumno abierto (si el coach edita una plantilla suya, ninguna: [] y no la propia).
