@@ -359,7 +359,8 @@ export default async function ({ base, t }){
 
   // 9) App de Android con el plugin de Health Connect (simulado): sin permiso aparece el botón
   //    «Conectar Health Connect» (con el corazón y «Tus pasos se cargan solos…», el mismo en Cardio
-  //    y acá); al conectar pide SOLO leer pasos, la primera lectura del día trae 31 días (para el
+  //    y acá) y debajo, fijo, qué se lee y quién lo ve; al tocarlo pide el permiso en el acto, sin
+  //    ningún cartel propio antes (Apple, guía 5.1.1(iv)), y pide SOLO leer pasos, la primera lectura del día trae 31 días (para el
   //    promedio del mes de Cardio) y las siguientes 8, por día toma la fuente que más contó (no las
   //    suma), guarda los días anteriores en el registro del día y sube los pasos; conectado, la fila
   //    «Conectado a Health Connect» con «Actualizar ahora» y «Desconectar», que deja de leer.
@@ -391,6 +392,7 @@ export default async function ({ base, t }){
     await abrirPasos(p);
     const btn = await p.evaluate(() => { const b = document.querySelector('.pg-hoy .salud-btn[data-pg="salud-on"]'); return b && [!!b.querySelector('.salud-ico svg'), b.querySelector('.salud-t').textContent, b.querySelector('.salud-s').textContent]; });
     t.eq(btn, [true, 'Conectar Health Connect', 'Tus pasos se cargan solos, aunque no abras GIZE'], 'Android sin permiso: el botón «Conectar Health Connect» con el corazón y el subtítulo');
+    t.eq(await text(p, '.pg-hoy .salud-btn + .salud-nota'), 'GIZE solo lee tus pasos, para tu registro y tus grupos de pasos: no cambia nada en Health Connect. Tus amigos ven solo tu total de la semana.', 'debajo del botón, fijo: qué se lee y quién lo ve');
     t.eq(await p.evaluate(() => window.__health.lecturas.length), 0, 'sin permiso no lee nada');
     await p.click('[data-pg="salud-on"]'); await wait(1500);
     const h = await p.evaluate(() => window.__health);
@@ -415,7 +417,7 @@ export default async function ({ base, t }){
     t.ok(h2.length === 2 && dias2 >= 7 && dias2 <= 8, '«Actualizar ahora» el mismo día: lee solo los últimos 8 días (' + dias2 + ')');
     await abrirPasos(p);
     t.ok(!!(await p.$('[data-pg="salud-off"]')), 'con «Desconectar»');
-    t.ok(dialogs.length === 1 && /solo el total de la semana/.test(dialogs[0]), 'antes del permiso explica qué se lee y quién lo ve: ' + JSON.stringify(dialogs));
+    t.eq(dialogs, [], 'ningún cartel propio antes ni después del permiso (lo que se lee está escrito debajo del botón)');
     // Le sacó el permiso a GIZE en Health Connect: la lectura falla y se dice qué revisar (antes
     // quedaba «Conectado» y «Actualizar ahora» no hacía nada).
     await p.evaluate(() => { window.__health.falla = true; });

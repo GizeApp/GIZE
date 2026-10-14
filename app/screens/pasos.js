@@ -284,7 +284,7 @@ document.body.addEventListener("click", async e => {
     SaludState.connecting = true; renderApp(); // «Conectando…»
     let msg = "";
     try { msg = await prenderSalud(); } finally { SaludState.connecting = false; }
-    if (msg && msg !== "__silent") alert(msg);
+    if (msg) alert(msg);
     renderApp();
     refrescar();
     return;
