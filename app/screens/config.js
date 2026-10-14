@@ -5,7 +5,6 @@
 // cuando State.view === "config".
 import { State } from '../core/state.js';
 import { KEY, save } from '../core/storage.js';
-import { DISCIPLINAS, myDisciplinas, toggleDisciplina } from '../core/disciplinas.js';
 import { appleCodeForDelete, clearAccountLeftovers, forgetStoredSession, loadCloud, deleteMyStorageFiles, deleteMyAccount, PROFILE_KEY } from '../core/supabase.js';
 import { esc } from '../core/utils.js';
 import { avatarHtml, avatarUrl } from '../core/avatar.js';
@@ -154,16 +153,6 @@ export function renderConfig() {
 
   // Apariencia: «Oscuro» (la de siempre), «Claro» (blanco), «Azul» o «Rosa» (vidrio). Se guarda
   // en este dispositivo y se aplica al toque (app/ui/tema.js escucha los botones data-tema).
-  // El selector va en su propio renglón, debajo del título (cuatro opciones no entran al lado
-  // del texto en un celular angosto).
-  // Disciplina: el buscador de ejercicios muestra primero lo de su rubro (app/core/disciplinas.js).
-  const mine = myDisciplinas().map(d => d.id);
-  const discSection = (profile && profile.role === "coach") ? "" : '<div class="card cfg-card" id="cfgDisc">' +
-      '<div class="cfg-sub">Tu disciplina</div>' +
-      '<div class="cfg-disc-desc">Elegí qué entrenás (podés marcar más de una). Al armar tu rutina te mostramos primero esos ejercicios.</div>' +
-      '<div class="cfg-disc">' + DISCIPLINAS.map(d => '<button class="ex-chip' + (mine.includes(d.id) ? ' on' : '') + '" data-action="cfg-disc" data-id="' + d.id + '" aria-pressed="' + mine.includes(d.id) + '">' + esc(d.name) + '</button>').join("") + '</div>' +
-    '</div>';
-
   const temaSection = '<div class="card cfg-card">' +
       '<div class="cfg-notif-row cfg-tema-row">' +
         '<span class="cfg-notif-ic">' + moonSvg + '</span>' +
@@ -221,7 +210,7 @@ export function renderConfig() {
 
   checkAdmin(renderApp); // solo las cuentas administradoras ven «Revisar productos»
   return '<div class="hb-head"><div class="hb-title">Configuración</div><div class="title-accent"></div></div>' +
-    account + adminEntry() + coachSection + discSection + notifSection + temaSection + neonSection + liteSection + blockSection + legalSection + contactSection + dangerSection + about;
+    account + adminEntry() + coachSection + notifSection + temaSection + neonSection + liteSection + blockSection + legalSection + contactSection + dangerSection + about;
 }
 
 document.body.addEventListener("keydown", function (e) {
@@ -315,14 +304,6 @@ document.body.addEventListener("click", async function (e) {
       if (err) alert(err);
     }
     notifBtn.disabled = false;
-    renderApp();
-    return;
-  }
-
-  const discBtn = e.target.closest('[data-action="cfg-disc"]');
-  if (discBtn) {
-    toggleDisciplina(discBtn.dataset.id);
-    save();
     renderApp();
     return;
   }
