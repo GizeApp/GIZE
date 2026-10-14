@@ -124,6 +124,134 @@ export function optionsEditor(p){
     '<button class="pl-add" data-coach="pl-optsecadd">+ Agregar comida (Desayuno, Almuerzo\u2026)</button>';
 }
 
+// ---- Comidas en lista + detalle (Desayuno, Almuerzo…): una comida junta su horario y macros
+// (fila de trainDays/restDays) con sus opciones (sección de p.options con el mismo nombre). ----
+const normMeal = s => String(s||"").trim().toLowerCase();
+export const mealSet = () => CoachState.coachMealDay==="rest" ? "restDays" : "trainDays";
+
+export function mealItems(p){
+  const rows=p[mealSet()]||[], secs=p.options||[], used={};
+  const items=rows.map((r,i)=>{ const k=normMeal(r.meal); const j=k?secs.findIndex((s,x)=>!used[x]&&normMeal(s.title)===k):-1; if(j>=0) used[j]=1; return {row:i, sec:j}; });
+  secs.forEach((s,j)=>{ if(!used[j]) items.push({row:-1, sec:j}); });
+  return items;
+}
+
+// Fila de la comida elegida; si solo tenía opciones, la crea para poder cargarle horario y macros.
+export function mealRowOf(p, idx){
+  const it=mealItems(p)[idx]; if(!it) return null;
+  const set=mealSet(); p[set]=p[set]||[];
+  if(it.row<0){ p[set].push({meal:(p.options[it.sec].title)||"",time:"",kcal:"",cho:"",fat:"",prot:"",note:""}); return p[set][p[set].length-1]; }
+  return p[set][it.row];
+}
+
+const r1 = x => String(Math.round(x*10)/10).replace(".",",");
+export function mealTotals(p){
+  let k=0,c=0,f=0,pr=0; (p[mealSet()]||[]).forEach(r=>{ k+=num(r.kcal); c+=num(r.cho); f+=num(r.fat); pr+=num(r.prot); });
+  const s=(n,u,l)=>'<div class="cm-tot-i"><b>'+n+'</b><span>'+u+'</span>'+(l?'<small>'+l+'</small>':'')+'</div>';
+  return '<span class="cm-tot-l">Objetivo diario</span>'+s(Math.round(k).toLocaleString("es-AR"),"kcal")+s(r1(c)+" g","","Hidratos")+s(r1(f)+" g","","Grasas")+s(r1(pr)+" g","","Proteína");
+}
+
+function mealSub(p, it){
+  const sec=it.sec>=0?p.options[it.sec]:null, n=sec?(sec.opts||[]).length:0;
+  const t=it.row>=0?((p[mealSet()][it.row]||{}).time||""):"";
+  return (t?t+" · ":"")+(n?n+" opci"+(n===1?"ón":"ones"):"Sin cargar");
+}
+
+// Comidas que se pueden sumar con un toque. «Entre comidas» sirve para un alimento suelto (fruta, barra, licuado…).
+const MEAL_PRESETS=[["Desayuno","08:00"],["Almuerzo","13:00"],["Merienda","17:00"],["Cena","21:00"],["Colación","" ],["Pre-entreno",""],["Post-entreno",""],["Entre comidas",""]];
+function addMenu(p){
+  if(!CoachState.coachMealMenu) return "";
+  const have=new Set((p[mealSet()]||[]).map(r=>normMeal(r.meal)).concat((p.options||[]).map(s=>normMeal(s.title))));
+  const chips=MEAL_PRESETS.map(([n])=>'<button class="cm-chip'+(have.has(normMeal(n))?' used':'')+'" data-coach="cm-pick" data-n="'+esc(n)+'">'+esc(n)+'</button>').join("");
+  return '<div class="cm-menu">'+chips+'<button class="cm-chip other" data-coach="cm-pick" data-n="">Otra…</button></div>';
+}
+
+export function mealsStudio(p){
+  const items=mealItems(p), selRaw=CoachState.coachMealSel;
+  const extra = selRaw==="extras"||selRaw==="swaps";
+  const sel = extra ? selRaw : Math.min(Math.max(+selRaw||0,0), Math.max(items.length-1,0));
+  const day=(v,l)=>'<button class="cm-day-b'+(mealSet()===v?' on':'')+'" data-coach="cm-day" data-v="'+(v==="restDays"?"rest":"train")+'" aria-pressed="'+(mealSet()===v)+'">'+l+'</button>';
+  const list=items.map((it,m)=>{
+    const name=it.row>=0?(p[mealSet()][it.row].meal||""):(p.options[it.sec].title||"");
+    const filled=it.sec>=0&&(p.options[it.sec].opts||[]).some(o=>String(o.body||"").trim());
+    return '<button class="cm-li'+(sel===m?' on':'')+'" data-coach="cm-sel" data-m="'+m+'"><i class="cm-dot'+(filled?' ok':'')+'"></i><span class="cm-li-t"><b>'+esc(name||"Sin nombre")+'</b><small>'+esc(mealSub(p,it))+'</small></span><span class="cm-go" aria-hidden="true">›</span></button>';
+  }).join("");
+  const side='<aside class="cm-list">'+
+    '<div class="cm-day">'+day("trainDays","Día de entreno")+day("restDays","Día de descanso")+'</div>'+
+    list+'<button class="cm-add" data-coach="cm-add" aria-expanded="'+!!CoachState.coachMealMenu+'">'+(CoachState.coachMealMenu?'Cerrar':'+ Agregar comida')+'</button>'+addMenu(p)+
+    '<div class="cm-sep"></div>'+
+    '<button class="cm-li cm-li-x'+(selRaw==="extras"?' on':'')+'" data-coach="cm-sel" data-m="extras"><span class="cm-li-t"><b>Adicionales</b></span><span class="cm-go" aria-hidden="true">›</span></button>'+
+    '<button class="cm-li cm-li-x'+(selRaw==="swaps"?' on':'')+'" data-coach="cm-sel" data-m="swaps"><span class="cm-li-t"><b>Reemplazos</b></span><span class="cm-go" aria-hidden="true">›</span></button>'+
+  '</aside>';
+  let det;
+  if(sel==="extras") det='<div class="cm-h">Adicionales</div>'+listEditor(p,"extras","Aderezos y condimentos permitidos","");
+  else if(sel==="swaps") det='<div class="cm-h">Reemplazos</div>'+swapsEditor(p);
+  else if(!items.length) det='<div class="cm-empty">Todavía no cargaste comidas.<button class="cm-base" data-coach="cm-base">Cargar Desayuno, Almuerzo, Merienda y Cena</button><span>o elegí una desde <b>+ Agregar comida</b></span></div>';
+  else{
+    const it=items[sel], r=it.row>=0?p[mealSet()][it.row]:{meal:p.options[it.sec].title,time:"",kcal:"",cho:"",fat:"",prot:""};
+    const sec=it.sec>=0?p.options[it.sec]:null, n=sec?(sec.opts||[]).length:0;
+    const F=(k,l)=>'<label class="cm-f"><span>'+l+'</span><input class="ml-in" data-coach="cm-f" data-m="'+sel+'" data-k="'+k+'" value="'+esc(r[k]||"")+'" inputmode="decimal"></label>';
+    const opts=sec?(sec.opts||[]).map((o,j)=>{
+      const lines=String(o.body||"").split("\n").length;
+      return '<div class="opt-item"><div class="opt-item-head">'+
+        '<input class="ml-in opt-label" data-coach="pl-optlabel" data-i="'+it.sec+'" data-j="'+j+'" value="'+esc(o.label||"")+'" placeholder="Opción '+String.fromCharCode(65+j)+'">'+
+        '<button class="ml-del" data-coach="pl-optdel" data-i="'+it.sec+'" data-j="'+j+'" title="Quitar opción" aria-label="Quitar opción">✕</button></div>'+
+        '<textarea class="opt-body" rows="'+Math.max(4,lines+1)+'" data-coach="pl-optbody" data-i="'+it.sec+'" data-j="'+j+'" placeholder="Un alimento por renglón, por ejemplo:\n2 huevos revueltos\n1 tostada integral\n1 fruta">'+esc(o.body||"")+'</textarea></div>';
+    }).join(""):"";
+    const addB = sec ? '<button class="opt-add-card" data-coach="pl-optadd" data-i="'+it.sec+'">+ Agregar opción '+String.fromCharCode(65+n)+'</button>'
+      : '<button class="opt-add-card" data-coach="cm-optnew" data-m="'+sel+'">+ Agregar opción A</button>';
+    requestAnimationFrame(()=>document.querySelectorAll("#coachHost .opt-body").forEach(fitOptBody));
+    det='<div class="cm-head"><input class="ml-in cm-name" data-coach="cm-f" data-m="'+sel+'" data-k="meal" value="'+esc(r.meal||"")+'" placeholder="Nombre de la comida">'+
+        '<label class="cm-time"><span>Horario</span><input class="ml-in" data-coach="cm-f" data-m="'+sel+'" data-k="time" value="'+esc(r.time||"")+'" placeholder="08:00"></label></div>'+
+      '<div class="cm-sub">Aporte de esta comida</div>'+
+      '<div class="cm-macros">'+F("kcal","Kcal")+F("cho","Hidratos (g)")+F("fat","Grasas (g)")+F("prot","Proteína (g)")+'</div>'+
+      '<div class="cm-sub">Opciones <small>El cliente elige una</small></div>'+
+      '<div class="opt-grid">'+opts+addB+'</div>'+
+      '<button class="cm-del" data-coach="cm-del" data-m="'+sel+'">Quitar esta comida</button>';
+  }
+  return '<div class="cm-tot" id="cmTot">'+mealTotals(p)+'</div>'+
+    '<div class="cm-wrap">'+side+'<section class="cm-detail">'+det+'</section></div>';
+}
+
+// Cambios de la lista/detalle de comidas. true si lo manejó (el que llama redibuja).
+export function mealStudioAction(a, b, p){
+  const set=mealSet(), m=+b.dataset.m;
+  if(a==="cm-sel"){
+    if(b.dataset.m==="extras"||b.dataset.m==="swaps"){ CoachState.coachMealSel=b.dataset.m; return true; }
+    // Una comida que solo tenía opciones gana su fila de horario/macros al elegirla: el orden de la lista no se mueve al escribir.
+    const it=mealItems(p)[m]; let i=m;
+    if(it && it.row<0){ mealRowOf(p,m); i=mealItems(p).findIndex(x=>x.sec===it.sec); }
+    CoachState.coachMealSel=i; return true;
+  }
+  if(a==="cm-day"){ CoachState.coachMealDay=b.dataset.v==="rest"?"rest":"train"; CoachState.coachMealSel=0; return true; }
+  const addMeal=(nm,time)=>{ p[set]=p[set]||[]; p.options=p.options||[]; if(!nm) nm="Comida "+(p[set].length+1); p[set].push({meal:nm,time:time||"",kcal:"",cho:"",fat:"",prot:"",note:""}); if(!p.options.some(s=>normMeal(s.title)===normMeal(nm))) p.options.push({title:nm,opts:[{label:"Opción A",body:""}]}); return p[set].length-1; };
+  if(a==="cm-add"){ CoachState.coachMealMenu=!CoachState.coachMealMenu; return true; }
+  if(a==="cm-pick"){ const n=b.dataset.n||"", pr=MEAL_PRESETS.find(x=>x[0]===n); const ri=addMeal(n, pr?pr[1]:""); CoachState.coachMealMenu=false; CoachState.coachMealSel=mealItems(p).findIndex(it=>it.row===ri); return true; }
+  if(a==="cm-base"){ let ri=0; MEAL_PRESETS.slice(0,4).forEach(([n,t],i)=>{ const x=addMeal(n,t); if(!i) ri=x; }); CoachState.coachMealSel=mealItems(p).findIndex(it=>it.row===ri); return true; }
+  if(a==="cm-optnew"){ const it=mealItems(p)[m]; if(!it) return true; const r=p[set][it.row]; p.options=p.options||[]; p.options.push({title:(r&&r.meal)||"",opts:[{label:"Opción A",body:""}]}); return true; }
+  if(a==="cm-del"){
+    const it=mealItems(p)[m]; if(!it) return true; if(!confirm("¿Quitar esta comida con sus opciones?")) return false;
+    const other=set==="trainDays"?"restDays":"trainDays";
+    const nm=it.row>=0?normMeal(p[set][it.row].meal):"";
+    if(it.row>=0) p[set].splice(it.row,1);
+    if(it.sec>=0 && !(nm && (p[other]||[]).some(r=>normMeal(r.meal)===nm))) p.options.splice(it.sec,1);
+    CoachState.coachMealSel=0; return true;
+  }
+  return false;
+}
+
+// Escribe un campo del detalle (nombre, horario, macros). El nombre se copia a las opciones
+// para que sigan unidas a la comida.
+export function mealStudioInput(el, p){
+  const m=+el.dataset.m, k=el.dataset.k, it=mealItems(p)[m]; if(!it) return;
+  const r=mealRowOf(p, m); if(!r) return;
+  if(k==="meal" && it.sec>=0) p.options[it.sec].title=el.value;
+  r[k]=el.value;
+  const t=document.getElementById("cmTot"); if(t) t.innerHTML=mealTotals(p);
+  const li=document.querySelector('#coachHost .cm-li[data-m="'+m+'"]');
+  if(li){ const b=li.querySelector("b"); if(b&&k==="meal") b.textContent=el.value||"Sin nombre"; const s=li.querySelector("small"); if(s) s.textContent=mealSub(p, mealItems(p)[m]||it); }
+}
+
 export function swapsEditor(p){
   const arr=(p.swaps||[]);
   const rows=arr.map((sw,i)=>'<div class="sw-row"><input class="ml-in wide" data-coach="pl-swap" data-i="'+i+'" data-k="from" value="'+esc(sw.from||"")+'" placeholder=""><span class="sw-arrow">\u2192</span><input class="ml-in wide" data-coach="pl-swap" data-i="'+i+'" data-k="to" value="'+esc(sw.to||"")+'" placeholder=""><button class="ml-del" data-coach="pl-swapdel" data-i="'+i+'">\u2715</button></div>').join("");
@@ -165,29 +293,12 @@ export function renderCoachPlan(d){
   // Títulos cortos: en 320 px «entrenamiento» o «Personalización» no entraban en media tarjeta
   // y empujaban la grilla afuera del borde.
   const SECS=[
-    ["train","Días de entreno", ()=>card("Reparto de comidas", mealRows(p,"trainDays")), ()=>meals("trainDays")],
-    ["rest","Días de descanso", ()=>card("Reparto de comidas", mealRows(p,"restDays")), ()=>meals("restDays")],
+    ["comidas","Comidas", ()=>mealsStudio(p), ()=>{ const n=mealItems(p).length, t=tot(mealSet()); return n ? n+" comida"+(n===1?"":"s")+(t?" · "+t+" kcal":"") : "Sin cargar"; }],
     ["agua","Hidratación", ()=>card("Hidratación",
       '<div class="ci-grid-2">'+
         '<div class="ci-f"><label>Agua por día (litros)</label><input class="co-note" data-coach="pl-water" value="'+esc(p.water||"")+'" placeholder=""></div>'+
         '<div class="ci-f"><label>Sal por día (g)</label><input class="co-note" data-coach="pl-salt" value="'+esc(p.salt||"")+'" placeholder=""></div>'+
       '</div>'), ()=>[p.water?withUnit(p.water,"L de agua"):"", p.salt?withUnit(p.salt,"g de sal"):""].filter(Boolean).join(" · ")||"Sin cargar"],
-    ["ind","Indicaciones", ()=>card("Indicaciones",
-      '<div class="ci-grid-2">'+
-        '<div>'+listEditor(p,"guidelines","Pautas nutricionales","")+'</div>'+
-        '<div>'+listEditor(p,"supps","Suplementos recomendados","")+'</div>'+
-      '</div>'), ()=>{ const g=(p.guidelines||[]).length, sp=(p.supps||[]).length; return g||sp ? [g?cnt(g,"pauta","pautas"):"", sp?cnt(sp,"suplemento","suplementos"):""].filter(Boolean).join(" · ") : "Sin cargar"; }],
-    ["menu","Opciones de menú", ()=>card("Opciones de menú",
-      optionsEditor(p)+
-      '<div class="pl-divider"></div>'+
-      '<div class="ci-grid-2">'+
-        '<div>'+listEditor(p,"extras","Adicionales (aderezos, condimentos permitidos)","")+'</div>'+
-        '<div>'+swapsEditor(p)+'</div>'+
-      '</div>'), ()=>{ const o=(p.options||[]); return o.length ? o.map(x=>x.title||"Sección").slice(0,3).join(", ")+(o.length>3?"…":"") : "Sin opciones"; }],
-    ["cardio","Cardio prescripto", ()=>card("Cardio prescripto",
-      '<div class="co-note-wrap" style="margin-top:0"><span class="co-note-lbl">Indicación general de cardio</span><input class="co-note" data-coach="pl-cardiotext" value="'+esc((p.cardio&&p.cardio.text)||"")+'" placeholder=""></div>'+
-      cardioItemsEditor(p)), ()=>(p.cardio&&p.cardio.text)||((p.cardio&&p.cardio.items||[]).length?cnt(p.cardio.items.length,"sesión","sesiones"):"Sin cargar")],
-    ["habitos","Hábitos diarios", ()=>card("Checklist del cliente", habitsEditor(p)), ()=>{ const n=Array.isArray(p.habits)?p.habits.length:0; return n?cnt(n,"hábito","hábitos"):"Sin cargar"; }],
   ];
   // En «Mis planes» se guarda el plan guardado (planes.js); en el cliente, su plan.
   const tpl=!!(CoachState.coachMealEdit && !CoachState.coachSel);
@@ -199,6 +310,14 @@ export function renderCoachPlan(d){
   return '<div class="co-page-title">Plan nutricional</div>'+
     '<div class="ptiles co-ptiles">'+SECS.map(x=>'<button class="ptile" data-coach="plsec-open" data-v="'+x[0]+'"><span class="ptile-t">'+x[1]+'</span><span class="ptile-s">'+esc(String(x[3]()))+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+
     save+(tpl ? '' : clientPlanActions());
+}
+
+// Hábitos diarios del alumno (van en su Ficha; se guardan con el plan nutricional, que es donde viven los datos).
+export function renderCoachHabits(d){
+  const p=coachPlanObj(d);
+  return '<div class="ci-card plan-edit"><div class="pl-sub-row"><div class="pl-sub">Checklist del cliente</div></div>'+habitsEditor(p)+'</div>'+
+    (clientPlanDirty()?'<div class="co-unsaved">Cambios sin guardar. Tocá <b>Guardar hábitos</b>.</div>':'')+
+    '<button class="co-save-rt" data-coach="plan-save">Guardar hábitos</button>';
 }
 
 export function renderCoachBlock(d){

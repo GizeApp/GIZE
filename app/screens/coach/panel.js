@@ -46,7 +46,7 @@ const S = {
   bars: sm('<path d="M5 20V11M12 20V4M19 20v-7"/>'),
 };
 // Ícono de cada sección de la ficha del alumno (menú de tarjetas de index.js).
-const SEC_IC = { chat:S.chat, ficha:S.user, bloque:S.layers, daily:S.sun, checkin:S.check, hist:S.clock, salidas:S.route, volumen:S.bars, peso:S.scale };
+const SEC_IC = { chat:S.chat, ficha:S.user, bloque:S.layers, daily:S.sun, checkin:S.check, hist:S.clock, salidas:S.route, volumen:S.bars, peso:S.scale, habitos:S.check };
 export const secIcon = k => SEC_IC[k] || "";
 const unreadAll = () => CoachState.coachClients.reduce((n,c)=>n+(unreadFor(c.id)||0), 0);
 

@@ -53,6 +53,9 @@ export const CoachState = {
   coachPlanSec: null,
   // Comida desplegada en las opciones del plan (índice o null = todas cerradas).
   coachOptOpen: null,
+  coachMealSel: 0,
+  coachMealDay: "train",
+  coachMealMenu: false,
 
   coachTpls: [],
 

@@ -44,7 +44,7 @@ import { renderCoachSettings } from './screens/coach/settings.js';
 // Registra los eventos del editor de preguntas del coach (efecto al importarlo).
 import './screens/coach/preguntas.js';
 
-import { abrirSolo, coachPlanObj, cpApply, loadTpls, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody } from './screens/coach/rutinas.js';
+import { abrirSolo, coachPlanObj, cpApply, loadTpls, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody, mealStudioAction, mealStudioInput } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
 import { calState } from './screens/coach/calendario.js';
@@ -1615,6 +1615,7 @@ document.body.addEventListener("click", async e => {
     renderCoach(); return;
   }
   if(a==="pl-rest-toggle"){ coachPlanObj(CoachState.coachData); CoachState.coachPlanRestOpen=!CoachState.coachPlanRestOpen; renderCoach(); return; }
+  if(a==="cm-sel"||a==="cm-day"||a==="cm-add"||a==="cm-pick"||a==="cm-base"||a==="cm-optnew"||a==="cm-del"){ if(mealStudioAction(a,b,coachPlanObj(CoachState.coachData))) renderCoach(); return; }
   if(a==="pl-mealadd"){ const p=coachPlanObj(CoachState.coachData); (p[b.dataset.key]=p[b.dataset.key]||[]).push({meal:"",time:"",kcal:"",cho:"",fat:"",prot:"",note:""}); renderCoach(); return; }
   if(a==="pl-mealdel"){ const p=coachPlanObj(CoachState.coachData); p[b.dataset.key].splice(+b.dataset.i,1); renderCoach(); return; }
   if(a==="pl-listadd"){ const p=coachPlanObj(CoachState.coachData); (p[b.dataset.key]=p[b.dataset.key]||[]).push(""); renderCoach(); return; }
@@ -1696,6 +1697,7 @@ document.body.addEventListener("input", async e => {
     wp[w]=Object.assign({}, wp[w]||{}, {[a==="wk-goal"?"goal":"note"]:el.value}); return;
   }
   else if(a==="plan-kcal"||a==="plan-protein"||a==="plan-carbs"||a==="plan-fat"||a==="plan-notes"){ CoachState.coachPlanForm = CoachState.coachPlanForm || Object.assign({}, CoachState.coachData.plan||{}); CoachState.coachPlanForm[a.slice(5)] = el.value; }
+  else if(a==="cm-f"){ mealStudioInput(el, coachPlanObj(CoachState.coachData)); }
   else if(a==="pl-meal"){ const p=coachPlanObj(CoachState.coachData); const r=p[el.dataset.key][+el.dataset.i]; if(r) r[el.dataset.k]=el.value; }
   else if(a==="pl-list"){ const p=coachPlanObj(CoachState.coachData); p[el.dataset.key][+el.dataset.i]=el.value; }
   else if(a==="pl-water"){ coachPlanObj(CoachState.coachData).water=el.value; }

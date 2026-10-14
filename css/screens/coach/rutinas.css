@@ -684,3 +684,57 @@ body:not(#_) .co-exc-step { border-color:transparent; background:linear-gradient
 body:not(#_) .co-exc-collapsed:hover { border-color:color-mix(in srgb, var(--gize-blue) 55%, var(--border)); }
 body:not(#_) :is(.co-exc.co-drop-target, .co-exc.co-drag-ghost.co-over) { border-color:var(--gize-r2); }
 body:not(#_) .co-exc.co-drop-target { background:color-mix(in srgb, var(--gize-r2) 14%, var(--card)); }
+
+/* ---- Comidas en lista + detalle: Desayuno, Almuerzo… a la izquierda, la comida elegida a la derecha ---- */
+.cm-tot { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 26px; padding:16px 20px; margin-bottom:14px; background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); }
+.cm-tot-l { font-size:var(--text-meta); color:var(--txt-3); }
+.cm-tot-i b { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--txt); }
+.cm-tot-i span { margin-left:4px; font-size:var(--text-meta); color:var(--txt-3); }
+.cm-tot-i small { margin-left:5px; font-size:11px; color:var(--txt-3); }
+.cm-wrap { display:grid; grid-template-columns:260px minmax(0,1fr); gap:16px; align-items:start; }
+.cm-list { display:flex; flex-direction:column; gap:8px; }
+.cm-day { display:flex; gap:4px; padding:3px; background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); margin-bottom:4px; }
+.cm-day-b { flex:1; padding:7px 4px; border:0; border-radius:calc(var(--r-box) - 3px); background:none; color:var(--txt-3); font:inherit; font-size:var(--text-meta); font-weight:600; cursor:pointer; }
+.cm-day-b.on { background:var(--card); color:var(--txt); }
+.cm-li { display:flex; align-items:center; gap:10px; width:100%; padding:12px 14px; text-align:left; background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); color:var(--txt); font:inherit; cursor:pointer; }
+.cm-li:hover { border-color:var(--gize-blue); }
+.cm-li.on { border-color:var(--gize-blue); box-shadow:0 0 0 1px var(--gize-blue) inset; }
+.cm-li-t { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.cm-li-t b { font-size:var(--text-body); font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cm-li-t small { font-size:11px; color:var(--txt-3); }
+.cm-dot { flex:none; width:7px; height:7px; border-radius:50%; background:#f5a524; }
+.cm-dot.ok { background:#2fd39a; }
+.cm-go { color:var(--txt-3); }
+.cm-li-x { padding:10px 14px; }
+.cm-add { background:none; border:0; color:var(--gize-blue); font:inherit; font-size:var(--text-meta); font-weight:700; padding:10px; cursor:pointer; }
+.cm-sep { height:1px; background:var(--border); margin:4px 0; }
+.cm-detail { background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); padding:22px; min-width:0; }
+.cm-head { display:flex; align-items:flex-end; gap:12px; margin-bottom:20px; }
+.cm-name { flex:1; min-width:0; font-size:22px; font-weight:800; background:transparent; border-color:transparent; padding:6px 8px; }
+.cm-name:hover, .cm-name:focus { border-color:var(--border); }
+.cm-time { display:flex; align-items:center; gap:8px; font-size:var(--text-meta); color:var(--txt-3); }
+.cm-time .ml-in { width:84px; text-align:center; }
+.cm-h { font-size:22px; font-weight:800; margin-bottom:12px; }
+.cm-sub { margin:18px 0 8px; font-size:var(--text-meta); font-weight:700; color:var(--txt-2); }
+.cm-sub small { margin-left:6px; font-weight:400; color:var(--gize-blue); }
+.cm-macros { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.cm-f { display:flex; flex-direction:column; gap:4px; font-size:11px; color:var(--txt-3); }
+.cm-f .ml-in { padding:10px; font-size:var(--text-body); }
+.cm-del { display:block; margin:22px 0 0; background:none; border:0; padding:0; color:#ff5d5d; font:inherit; font-size:var(--text-meta); cursor:pointer; }
+.cm-empty { padding:30px 10px; text-align:center; color:var(--txt-2); }
+@media (max-width:760px){
+  .cm-wrap { grid-template-columns:1fr; }
+  .cm-detail { padding:16px; }
+  .cm-macros { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .cm-head { flex-direction:column; align-items:stretch; }
+}
+
+/* Elegir qué comida sumar */
+.cm-menu { display:flex; flex-wrap:wrap; gap:6px; padding:2px 0 6px; }
+.cm-chip { padding:7px 12px; border:1px solid var(--border); border-radius:999px; background:var(--card-2); color:var(--txt); font:inherit; font-size:var(--text-meta); font-weight:600; cursor:pointer; }
+.cm-chip:hover { border-color:var(--gize-blue); color:var(--gize-blue); }
+.cm-chip.used { opacity:.55; }
+.cm-chip.other { border-style:dashed; color:var(--gize-blue); }
+.cm-empty { display:flex; flex-direction:column; align-items:center; gap:12px; }
+.cm-empty span { font-size:var(--text-meta); color:var(--txt-3); }
+.cm-base { padding:10px 16px; border:1.5px dashed var(--gize-blue); border-radius:var(--r-box); background:none; color:var(--gize-blue); font:inherit; font-weight:700; cursor:pointer; }

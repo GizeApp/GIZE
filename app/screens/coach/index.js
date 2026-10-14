@@ -5,7 +5,7 @@ import { dec, esc, fmtDate, today } from '../../core/utils.js';
 
 import { coachInitials, renderCoachInfo } from './clientes.js';
 
-import { renderApplyPicker, renderCoachBlock, renderCoachPlan, renderCoachRoutine, renderCoachSchedule, renderCopyPicker, renderSchedPicker } from './rutinas.js';
+import { renderApplyPicker, renderCoachBlock, renderCoachHabits, renderCoachPlan, renderCoachRoutine, renderCoachSchedule, renderCopyPicker, renderSchedPicker } from './rutinas.js';
 
 import { renderCoachCalendar, calSelDay } from './calendario.js';
 
@@ -149,6 +149,7 @@ export function renderCoach(){
       const tabs='<div class="cv-ctabs" role="tablist">'+
         '<button class="cv-ctab'+(tab==="ficha"?" on":"")+'" role="tab" aria-selected="'+(tab==="ficha")+'" data-coach="client-tab" data-t="ficha">Ficha</button>'+
         '<button class="cv-ctab'+(tab==="rutina"?" on":"")+'" role="tab" aria-selected="'+(tab==="rutina")+'" data-coach="client-tab" data-t="rutina">Rutina</button>'+
+        '<button class="cv-ctab'+(tab==="stats"?" on":"")+'" role="tab" aria-selected="'+(tab==="stats")+'" data-coach="client-tab" data-t="stats">Estadísticas</button>'+
         '<button class="cv-ctab'+(tab==="plan"?" on":"")+'" role="tab" aria-selected="'+(tab==="plan")+'" data-coach="client-tab" data-t="plan">Plan<span class="cv-more"> alimenticio</span></button>'+
       '</div>';
       let panel;
@@ -162,6 +163,7 @@ export function renderCoach(){
           // El chat se abre encima (app/ui/chat.js), no como sección: ver "sec-open" en main.js.
           ["chat","Chat con "+esc(String(d.name||"el cliente").split(" ")[0]), null, ()=>{ const n=unreadFor(d.id); if(n) return n+(n===1?" mensaje nuevo":" mensajes nuevos"); if(d.notify&&d.notify.devices===0) return "Mensajes y audios · no tiene los avisos activados"; return "Mensajes y audios"; }],
           ["ficha","Ficha del cliente", ()=>renderCoachInfo(d), ()=>d.info&&Object.keys(d.info).length?"Datos y objetivos":"Sin completar"],
+          ["habitos","Hábitos diarios", ()=>renderCoachHabits(d), ()=>{ const h=d.plan&&d.plan.plan&&d.plan.plan.habits; const n=Array.isArray(h)?h.length:0; return n?n+(n===1?" hábito":" hábitos"):"Sin cargar"; }],
           ["bloque","Bloque / mesociclo", ()=>renderCoachBlock(d), ()=>{ const b=d.block; if(!b) return "Sin bloque"; const w=blockWeek(b, today()); const n=parseInt(b.weeks)||0; return (b.name||"Bloque cargado")+(w>=1&&(!n||w<=n)?" \u00b7 semana "+w+(isDeload(b,w)?" de descarga":""):""); }],
           ["daily","Seguimiento diario", ()=>secHead("Seguimiento diario","daily")+renderCoachDaily(d), ()=>{ const n=(d.daily||[]).length; return n?n+" registro"+(n===1?"":"s"):"Sin registros"; }],
           ["checkin","Check-in semanal", ()=>secHead("Check-in semanal","checkin")+renderCoachCheckins(d), ()=>{ const n=(d.checkins||[]).length; return n?n+" check-in"+(n===1?"":"s"):"Sin check-ins"; }],
@@ -170,13 +172,15 @@ export function renderCoach(){
           ["volumen","Volumen semanal por músculo", ()=>vol, ()=>{ let t=0; (d.routine||[]).forEach(x=>(x.exercises||[]).forEach(ex=>{ t+=(ex.sets||[]).length; })); return t?t+" series por semana":"Sin rutina"; }],
           ["peso","Peso corporal", ()=>'<div class="co-sec">Promedio semanal</div>'+renderCoachWeekly(d)+'<div class="co-sec">Día a día</div>'+wblock, ()=>{ const w=d.weights; return w.length?Number(w[w.length-1].kg).toFixed(1).replace(".",",")+" kg":"Sin registros"; }],
         ];
+        // Ficha: lo del alumno. Estadísticas: lo que fue registrando. «Bloque» ya no tiene tarjeta: se llega desde la rutina de descarga.
+        const ORDER={ ficha:["chat","ficha","habitos"], stats:["peso","hist","volumen","salidas","daily","checkin"] };
         const cur=SECS.find(x=>x[0]===CoachState.coachSec && x[2]);
+        const shown=(ORDER[tab]||ORDER.ficha).map(id=>SECS.find(x=>x[0]===id));
         if(cur){
-          panel='<div class="form-head co-sec-head"><button class="form-back" data-coach="sec-close" aria-label="Volver a la ficha">‹</button><div class="form-title">'+cur[1]+'</div></div>'+
+          panel='<div class="form-head co-sec-head"><button class="form-back" data-coach="sec-close" aria-label="Volver">‹</button><div class="form-title">'+cur[1]+'</div></div>'+
             '<div class="co-panel co-sec-body">'+cur[2]()+'</div>';
         } else {
-          panel='<div class="ptiles co-ptiles">'+SECS.map(x=>'<button class="ptile" data-coach="sec-open" data-v="'+x[0]+'"><span class="ptile-t">'+secIcon(x[0])+x[1]+'</span><span class="ptile-s">'+esc(x[3]())+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+
-            '<button class="logout-btn cfg-danger co-remove-client" data-coach="remove-client">Desvincular alumno</button>';
+          panel='<div class="ptiles co-ptiles">'+shown.map(x=>'<button class="ptile" data-coach="sec-open" data-v="'+x[0]+'"><span class="ptile-t">'+secIcon(x[0])+x[1]+'</span><span class="ptile-s">'+esc(x[3]())+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+(tab==="stats"?'':'<button class="logout-btn cfg-danger co-remove-client" data-coach="remove-client">Desvincular alumno</button>');
         }
       }
       body=tabs+panel;
