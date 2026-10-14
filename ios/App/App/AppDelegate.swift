@@ -1,6 +1,7 @@
 import UIKit
 import WebKit
 import Capacitor
+import StoreKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -60,8 +61,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 }
 
 // La pantalla de la app: es la de Capacitor (CAPBridgeViewController) y además le pone al WebView
-// las ventanitas de aviso en castellano (DialogosEnCastellano, abajo). Main.storyboard abre esta
-// en lugar de la de Capacitor.
+// las ventanitas de aviso en castellano (DialogosEnCastellano, abajo) y suma el plugin de las
+// compras con Apple (GizeComprasPlugin, abajo). Main.storyboard abre esta en lugar de la de
+// Capacitor.
 class GizeViewController: CAPBridgeViewController {
     // El WebView no retiene a su uiDelegate (lo guarda como weak): lo retiene la pantalla.
     private var dialogos: DialogosEnCastellano?
@@ -72,6 +74,8 @@ class GizeViewController: CAPBridgeViewController {
         let dialogos = DialogosEnCastellano(pantalla: self, original: webView?.uiDelegate)
         self.dialogos = dialogos
         webView?.uiDelegate = dialogos
+        // Las compras con Apple (la página lo usa como window.Capacitor.Plugins.GizeCompras).
+        bridge?.registerPluginInstance(GizeComprasPlugin())
     }
 }
 
@@ -190,5 +194,200 @@ class DialogosEnCastellano: NSObject, WKUIDelegate {
             return false
         }
         return tipo.hasPrefix("Capacitor")
+    }
+}
+
+// Compras con Apple (In-App Purchase, StoreKit 2): los planes de coach son suscripciones mensuales
+// que se renuevan solas (grupo «Plan de coach» en App Store Connect, IDs ar.com.gize.app.coach.p10…
+// p500, ver docs/APPLE-COMPRAS.md). Lo usa app/core/compras-apple.js; lo que compra el coach lo
+// verifica y lo guarda el servidor (supabase/functions/compras-apple). Sin paquetes de terceros.
+//   productos({ ids })          → { productos: [{ id, nombre, descripcion, precio, periodo }] }
+//                                  (precio: el que muestra Apple, con su moneda; periodo: "P1M")
+//   comprar({ id, cuenta })     → { estado: "ok" | "cancelado" | "pendiente", jws, transaccion }
+//                                  cuenta: el id del usuario de GIZE, va en la compra como
+//                                  appAccountToken (el servidor controla que sea el suyo).
+//   finalizar({ transaccion })  → le avisa a Apple que la compra ya quedó guardada.
+//   vigentes()                  → { jws: [..] } las suscripciones vigentes de esta cuenta de Apple
+//   restaurar()                 → lo mismo, después de pedirle a Apple que las vuelva a leer
+//                                  ({ estado: "cancelado" } si no se quiso identificar)
+//   administrar()               → abre la hoja de Apple para cambiar o cancelar la suscripción
+//   evento "transaccion"        → { jws, transaccion }: compras que llegan solas (renovaciones, una
+//                                  compra aprobada más tarde o hecha en otro dispositivo).
+// La compra se finaliza (transaction.finish) recién cuando la app confirma que el servidor la
+// guardó: si se corta en el medio (sin señal, la app se cierra), Apple la vuelve a mandar por
+// Transaction.updates al abrir la app y se reintenta. Para una suscripción, no finalizarla no le
+// quita nada al coach (el plan lo da el servidor) y nada se pierde.
+@objc(GizeComprasPlugin)
+public class GizeComprasPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "GizeComprasPlugin"
+    public let jsName = "GizeCompras"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "productos", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "comprar", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "finalizar", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "vigentes", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "restaurar", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "administrar", returnType: CAPPluginReturnPromise)
+    ]
+
+    // Compras verificadas por Apple que todavía no se finalizaron (por número de transacción).
+    // Se tocan solo desde el hilo principal.
+    private var porFinalizar: [UInt64: Transaction] = [:]
+    private var escucha: Task<Void, Never>?
+
+    override public func load() {
+        // Apple manda acá las renovaciones, las compras aprobadas más tarde, las de otros
+        // dispositivos y, al abrir la app, las que quedaron sin finalizar. Quedan guardadas hasta
+        // que la página se suscribe (retainUntilConsumed).
+        escucha = Task.detached { [weak self] in
+            for await resultado in Transaction.updates {
+                await self?.avisar(resultado)
+            }
+        }
+    }
+
+    deinit {
+        escucha?.cancel()
+    }
+
+    @MainActor
+    private func avisar(_ resultado: VerificationResult<Transaction>) {
+        guard case .verified(let transaccion) = resultado else {
+            return
+        }
+        porFinalizar[transaccion.id] = transaccion
+        notifyListeners("transaccion", data: ["jws": resultado.jwsRepresentation, "transaccion": String(transaccion.id)], retainUntilConsumed: true)
+    }
+
+    private static func periodo(_ p: Product.SubscriptionPeriod) -> String {
+        switch p.unit {
+        case .day: return "P\(p.value)D"
+        case .week: return "P\(p.value)W"
+        case .month: return "P\(p.value)M"
+        case .year: return "P\(p.value)Y"
+        @unknown default: return ""
+        }
+    }
+
+    @objc func productos(_ call: CAPPluginCall) {
+        let ids = call.getArray("ids", String.self) ?? []
+        Task {
+            do {
+                let lista = try await Product.products(for: ids)
+                let datos: [[String: Any]] = lista.map { p in
+                    [
+                        "id": p.id,
+                        "nombre": p.displayName,
+                        "descripcion": p.description,
+                        "precio": p.displayPrice,
+                        "periodo": p.subscription.map { GizeComprasPlugin.periodo($0.subscriptionPeriod) } ?? ""
+                    ]
+                }
+                call.resolve(["productos": datos])
+            } catch {
+                call.reject("No se pudieron cargar los planes", nil, error)
+            }
+        }
+    }
+
+    @objc func comprar(_ call: CAPPluginCall) {
+        guard let id = call.getString("id"), let texto = call.getString("cuenta"), let cuenta = UUID(uuidString: texto) else {
+            call.reject("Faltan los datos de la compra")
+            return
+        }
+        Task { @MainActor in
+            do {
+                guard let producto = try await Product.products(for: [id]).first else {
+                    call.reject("Ese plan no está en el App Store")
+                    return
+                }
+                let resultado = try await producto.purchase(options: [.appAccountToken(cuenta)])
+                switch resultado {
+                case .success(let verificacion):
+                    switch verificacion {
+                    case .verified(let transaccion):
+                        self.porFinalizar[transaccion.id] = transaccion
+                        call.resolve(["estado": "ok", "jws": verificacion.jwsRepresentation, "transaccion": String(transaccion.id)])
+                    case .unverified(_, let error):
+                        call.reject("Apple no pudo verificar la compra", nil, error)
+                    }
+                case .userCancelled:
+                    call.resolve(["estado": "cancelado"])
+                case .pending:
+                    // Espera una aprobación (Compra Familiar, «Pedir la compra»): si se aprueba,
+                    // llega por Transaction.updates.
+                    call.resolve(["estado": "pendiente"])
+                @unknown default:
+                    call.resolve(["estado": "cancelado"])
+                }
+            } catch {
+                call.reject("No se pudo completar la compra", nil, error)
+            }
+        }
+    }
+
+    @objc func finalizar(_ call: CAPPluginCall) {
+        guard let id = UInt64(call.getString("transaccion") ?? "") else {
+            call.reject("Falta la transacción")
+            return
+        }
+        Task { @MainActor in
+            if let transaccion = self.porFinalizar.removeValue(forKey: id) {
+                await transaccion.finish()
+            } else {
+                for await resultado in Transaction.unfinished {
+                    if case .verified(let transaccion) = resultado, transaccion.id == id {
+                        await transaccion.finish()
+                    }
+                }
+            }
+            call.resolve()
+        }
+    }
+
+    private static func suscripcionesVigentes() async -> [String] {
+        var lista: [String] = []
+        for await resultado in Transaction.currentEntitlements {
+            if case .verified(let transaccion) = resultado, transaccion.productType == .autoRenewable {
+                lista.append(resultado.jwsRepresentation)
+            }
+        }
+        return lista
+    }
+
+    @objc func vigentes(_ call: CAPPluginCall) {
+        Task {
+            call.resolve(["jws": await GizeComprasPlugin.suscripcionesVigentes()])
+        }
+    }
+
+    @objc func restaurar(_ call: CAPPluginCall) {
+        Task {
+            do {
+                try await AppStore.sync()
+            } catch StoreKitError.userCancelled {
+                call.resolve(["estado": "cancelado", "jws": [String]()])
+                return
+            } catch {
+                call.reject("No se pudieron restaurar las compras", nil, error)
+                return
+            }
+            call.resolve(["estado": "ok", "jws": await GizeComprasPlugin.suscripcionesVigentes()])
+        }
+    }
+
+    @objc func administrar(_ call: CAPPluginCall) {
+        Task { @MainActor in
+            guard let escena = self.bridge?.viewController?.view.window?.windowScene else {
+                call.reject("No se pudo abrir la suscripción")
+                return
+            }
+            do {
+                try await AppStore.showManageSubscriptions(in: escena)
+                call.resolve()
+            } catch {
+                call.reject("No se pudo abrir la suscripción", nil, error)
+            }
+        }
     }
 }
