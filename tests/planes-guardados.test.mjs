@@ -44,7 +44,8 @@ export default async function ({ base, t }){
   await p.click('[data-coach="client-tab"][data-t="plan"]'); await wait(300);
   t.ok(await p.$('[data-coach="mp-tosave"]'), 'botón «Guardar como plan» en el plan del cliente');
   t.ok(await p.$('[data-coach="mp-apply"]'), 'botón «Aplicar un plan guardado» en el plan del cliente');
-  const tabsFit = await p.evaluate(() => [...document.querySelectorAll('.co-tabs')].every(x => x.scrollWidth <= x.clientWidth + 1) && document.documentElement.scrollWidth <= innerWidth);
+  // Las pestañas de la ficha pasaron de .co-tabs a .cv-ctabs en el rediseño del panel (#331).
+  const tabsFit = await p.evaluate(() => { const l = [...document.querySelectorAll('.cv-ctabs')]; return l.length > 0 && l.every(x => x.scrollWidth <= x.clientWidth + 1) && document.documentElement.scrollWidth <= innerWidth; });
   t.ok(tabsFit, 'las pestañas no se salen en 390 px');
   await p.evaluate(() => document.querySelector('[data-coach="mp-tosave"]').scrollIntoView({ block: 'center' })); await wait(200);
   await shot(p, '1-plan-del-cliente');
@@ -82,7 +83,12 @@ export default async function ({ base, t }){
     pl.trainDays[0].kcal = '700'; return r; });
   t.ok(copia.distinct && copia.intact, 'el cliente recibe una copia (cambiarla no toca el plan guardado)');
   t.ok(copia.closed, 'se cierra el selector');
-  t.has(await text(p, '#coachHost'), '2 comidas', 'el editor muestra el plan nuevo');
+  // Desde el rediseño del plan (#332) la tarjeta «Comidas» junta el horario y las macros del día de
+  // entreno (Almuerzo, Cena) con las opciones de menú (Desayuno): el plan aplicado tiene 3 comidas.
+  t.has(await text(p, '[data-coach="plsec-open"][data-v="comidas"]'), '3 comidas · 1300 kcal', 'el editor muestra el plan nuevo');
+  await p.click('[data-coach="plsec-open"][data-v="comidas"]'); await wait(300);
+  t.eq(await p.$$eval('#coachHost .cm-li:not(.cm-li-x) b', l => l.map(e => e.textContent)), ['Almuerzo', 'Cena', 'Desayuno'], 'con las comidas del plan aplicado');
+  await p.click('[data-coach="plsec-close"]'); await wait(300);
 
   // «Mis planes» en el panel principal.
   await p.click('[data-coach="back"]'); await wait(600);

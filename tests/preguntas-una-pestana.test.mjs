@@ -22,6 +22,8 @@ export default async function ({ base, t }){
   await p.goto(base + '/app/'); await wait(3500);
   // Desde la ficha de la alumna: la ruedita del «Check-in semanal» abre el editor en esa pestaña.
   await p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1500);
+  // Desde el rediseño del panel (#332), el Check-in semanal está en la pestaña «Estadísticas» de la ficha.
+  await p.click('[data-coach="client-tab"][data-t="stats"]'); await wait(300);
   await p.click('[data-coach="sec-open"][data-v="checkin"]'); await wait(400);
   await p.click('.co-sec-gear[data-k="checkin"]'); await wait(800);
   const warn = await text(p, '.cq-warn');

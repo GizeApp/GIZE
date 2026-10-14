@@ -26,6 +26,8 @@ export default async function ({ base, t }){
   const ex = await p.evaluate(async () => { const { CoachState } = await import('/app/screens/coach/state.js'); const d = CoachState.coachData; return d && d.sessions && d.sessions[0] && d.sessions[0].exercises.map(e => e.name + ':' + e.sets.map(s => s.kg).join(',')); });
   t.eq(ex, ['Sentadilla libre:100', 'Sentadilla libre:60'], 'el coach ve el mismo ejercicio dos veces por separado');
   // Peso corporal con fechas armadas como HTML: quedan como texto en la tabla y en el gráfico.
+  // Desde el rediseño del panel (#332), Peso corporal está en la pestaña «Estadísticas» de la ficha.
+  await p.click('[data-coach="client-tab"][data-t="stats"]'); await wait(300);
   await p.click('[data-coach="sec-open"][data-v="peso"]'); await wait(500);
   t.eq(await p.$$eval('#coachHost #pwn, #coachHost #pwnlink', l => l.length), 0, 'la fecha del peso no mete elementos en la ficha');
   t.eq(await p.$$eval('#coachHost td.dt', l => l.map(e => e.textContent).filter(s => !/^Sem\./.test(s))), ['<a id=pwnlink href="http://127.0.0.1:9/x">x</a>', '<b id=pwn>x</b>'], 'la fecha se ve tal cual, como texto');
