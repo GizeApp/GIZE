@@ -1,12 +1,13 @@
-// Cardio en la app de Android: NADA de ubicación (pedidos: «solo mapa en iphone», «ANDROID SIN
-// NADA DE UBICACION» y «nada de mapa para cardio en android»).
-// a) Alumno en la app de Android (Capacitor falso con el plugin de ubicación espiado, y el GPS y
-//    los permisos del navegador espiados): Cardio sin «Salir a moverte» ni textos de GPS o mapa;
-//    el plan de cardio del coach, los pasos y el cronómetro siguen. Forzar las acciones o start()
-//    no arranca nada. Una salida medida en el iPhone se abre solo con sus números (distancia,
-//    tiempo, ritmo, calorías y fecha): sin mapa, sin el dibujo del recorrido (ni se lo pide a la
-//    nube, aunque esté en la caché), sin «Compartir» ni «Ver de nuevo». Nunca se pide MapLibre ni
-//    OpenFreeMap y nunca se toca el plugin, el GPS ni el permiso de ubicación.
+// Cardio en las apps de Android y de iPhone: NADA de ubicación (pedidos: «ANDROID SIN NADA DE
+// UBICACION», «nada de mapa para cardio en android» y, después del rechazo de Apple por el modo de
+// fondo "location" (guía 2.5.4), lo mismo en la app de iPhone). Cada prueba corre en las dos.
+// a) Alumno en la app (Capacitor falso con un plugin de ubicación espiado, y el GPS y los permisos
+//    del navegador espiados): Cardio sin «Salir a moverte» ni textos de GPS o mapa; el plan de
+//    cardio del coach, los pasos y el cronómetro siguen. Forzar las acciones o start() no arranca
+//    nada. Una salida medida en la web se abre solo con sus números (distancia, tiempo, ritmo,
+//    calorías y fecha): sin mapa, sin el dibujo del recorrido (ni se lo pide a la nube, aunque esté
+//    en la caché), sin «Compartir» ni «Ver de nuevo». Nunca se pide MapLibre ni OpenFreeMap y nunca
+//    se toca el plugin, el GPS ni el permiso de ubicación.
 // b) Una salida que quedó en curso de una versión anterior: al abrir se termina sola en el último
 //    punto medido (sin mirar el GPS ni llamar al plugin) y se guarda con sus números; la lista de
 //    watchers que había quedado anotada se olvida sin llamar al plugin. Sus coordenadas no salen
@@ -15,13 +16,14 @@
 //    El canal de notificaciones «Salidas de Cardio» que creaba el plugin de ubicación (y Android no
 //    borra al actualizar) se borra una sola vez; en el iPhone y en la web nunca se toca.
 // c) Con el puente de Android (window.androidBridge) aunque Capacitor no esté: igual.
-// d) Coach en la app de Android: la salida del alumno solo con sus números, sin pedir el recorrido.
-// e) La app de iPhone sigue igual: «Salir a moverte» y el recorrido de la salida (se pide).
-// f) Lo nativo: el build de Android no lleva el plugin de ubicación (capacitor.config.json
-//    android.includePlugins con todos los demás, y los gradle que escribe cap sync), el manifiesto
-//    no declara ningún permiso de ubicación (y los saca si una biblioteca los sumara), sin el
-//    servicio del GPS ni FOREGROUND_SERVICE; los workflows de Android frenan si el plugin vuelve
-//    después de cap sync. La app de iPhone sigue con el plugin.
+// d) Coach en la app: la salida del alumno solo con sus números, sin pedir el recorrido.
+// e) La web sigue igual: «Salir a moverte» y el recorrido de la salida (se pide).
+// f) Lo nativo: ningún plugin de ubicación en package.json (ni en Package.swift del iPhone), el
+//    build de Android con todos los plugins (capacitor.config.json android.includePlugins y los
+//    gradle que escribe cap sync), el manifiesto no declara ningún permiso de ubicación (y los
+//    saca si una biblioteca los sumara), sin el servicio del GPS ni FOREGROUND_SERVICE; los
+//    workflows de Android frenan si el plugin vuelve después de cap sync. Lo del Info.plist del
+//    iPhone está en tests/ios-sin-ubicacion.test.mjs.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,8 +36,8 @@ const ID1 = '5a1d0000-0000-4000-8000-0000000000a1', RUN = '5a1d0000-0000-4000-80
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
 const A1 = '44444444-4444-4444-4444-444444444444';
 const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} };
-// Una salida medida en el iPhone (como la devuelve la nube, sin el recorrido), con un corte de
-// señal de 5 min: en el iPhone se avisa «El GPS se cortó…»; en Android, sin nombrar el GPS.
+// Una salida medida en la web (como la devuelve la nube, sin el recorrido), con un corte de señal
+// de 5 min: en la web se avisa «El GPS se cortó…»; en las apps, sin nombrar el GPS.
 const ROW = client => ({ id: ID1, client_id: client, mode: 'pie', performed_on: '2026-10-01', started_at: '2026-10-01T13:00:00+00:00', ended_at: '2026-10-01T13:45:01+00:00',
   duration_s: 2701, moving_s: 2699, distance_m: 5499, kcal: 366, avg_speed_kmh: 7.33, max_speed_kmh: 11.01, weight_kg: 70, weight_default: false, gap_s: 300,
   breakdown: { caminar: 1204, trotar: 894, correr: 601 }, segments: [], splits: [[1000, 720], [1000, 630], [1000, 450], [1000, 409], [1000, 327], [499, 163]], points: 540,
@@ -65,6 +67,7 @@ const ESPIAS = () => {
   window.__bg = new Proxy({}, { get: (o, k) => k === 'then' ? undefined : () => { usos.push('plugin.' + String(k)); return Promise.resolve({ location: 'granted' }); } });
 };
 const APP = `{ getInfo: async () => ({ version: '1.0.0', build: '999' }), addListener: () => Promise.resolve({ remove(){} }), getLaunchUrl: async () => null }`;
+const PLATS = [['android', 'Android'], ['ios', 'iPhone']];
 const NATIVA = plat => `(${ESPIAS})();
   window.Capacitor = { isNativePlatform: () => true, getPlatform: () => '${plat}', isPluginAvailable: () => true,
     Plugins: { BackgroundGeolocation: window.__bg, App: ${APP} } };`;
@@ -88,13 +91,13 @@ async function forzar(p, t, que){
   const r = await p.evaluate(async () => {
     const c = await import('/app/screens/cardio.js'), g = await import('/app/ui/gps.js');
     c.openSalSheet();
-    for (const a of ['sal-sheet', 'sal-start', 'sal-aviso-ok', 'sal-resume', 'sal-settings']) c.salidaAction(a, document.body);
+    for (const a of ['sal-sheet', 'sal-start', 'sal-aviso-ok', 'sal-resume']) c.salidaAction(a, document.body);
     g.acceptDisclosure();
     const res = await g.start('pie');
     await new Promise(ok => setTimeout(ok, 300));
-    return { res, run: g.GpsState.run && g.GpsState.run.status, hoja: !!document.getElementById('salSheet'), aviso: !!document.getElementById('salAviso'), ajustes: g.openSettings() };
+    return { res, run: g.GpsState.run && g.GpsState.run.status, hoja: !!document.getElementById('salSheet'), aviso: !!document.getElementById('salAviso') };
   });
-  t.eq(r, { res: { ok: false, why: 'sin-gps' }, run: null, hoja: false, aviso: false, ajustes: false }, que + ': forzar «Salir a moverte», «Empezar» o start() no arranca nada');
+  t.eq(r, { res: { ok: false, why: 'sin-gps' }, run: null, hoja: false, aviso: false }, que + ': forzar «Salir a moverte», «Empezar» o start() no arranca nada');
 }
 // El resumen de la salida: solo los números.
 async function soloNumeros(p, t, que){
@@ -108,46 +111,47 @@ async function soloNumeros(p, t, que){
   return s;
 }
 
-async function alumno(base, t, TRACK){
+async function alumno(base, t, TRACK, plat, Q){
   const S = { rows: [ROW(ALUMNO.id)], reqs: [] };
-  const pg = await newPage({ user: ALUMNO, state: STATE, init: NATIVA('android') + COMPLETA,
+  const pg = await newPage({ user: ALUMNO, state: STATE, init: NATIVA(plat) + COMPLETA,
     handlers: { '/profiles': profile('client'), '/nutrition': PLAN, '/cardio_outings': outings(S, TRACK) } });
   const p = pg.p, reqs = [];
   p.on('request', r => reqs.push(r.url()));
   // El recorrido ya está en la caché del celular: igual no se dibuja.
   await p.addInitScript(([id, tr]) => localStorage.setItem('gize_salidas_track_v1', JSON.stringify([[id, tr]])), [ID1, TRACK]);
   await p.goto(base + '/app/'); await wait(2500);
-  t.ok(await p.evaluate(() => document.documentElement.classList.contains('android-app')), 'app de Android (html.android-app)');
+  t.eq(await p.evaluate(() => document.documentElement.classList.contains('android-app')), plat === 'android', Q + ': html.android-app solo en la de Android');
   await p.click('#nav-cardio'); await wait(500);
   const v = await text(p, '#view');
   for (const s of ['Tu cardio de esta semana', '30 min de cinta', 'Pasos', 'Tus salidas', 'Cronómetro y temporizador'])
-    t.has(v, s, 'Android: Cardio sigue con «' + s + '»');
-  t.ok(await p.$('#view [data-action="sw-toggle"]'), 'Android: el cronómetro sigue');
-  await sinSalir(p, t, 'Android');
-  await forzar(p, t, 'Android');
-  await sinSalir(p, t, 'Android, después de forzar');
+    t.has(v, s, Q + ': Cardio sigue con «' + s + '»');
+  t.ok(await p.$('#view [data-action="sw-toggle"]'), Q + ': el cronómetro sigue');
+  await sinSalir(p, t, Q);
+  await forzar(p, t, Q);
+  await sinSalir(p, t, Q + ', después de forzar');
 
-  // La salida medida en el iPhone: solo sus números.
+  // La salida medida en la web: solo sus números.
   await p.click(`[data-action="sal-open"][data-id="${ID1}"]`); await wait(800);
-  const s = await soloNumeros(p, t, 'Android');
-  for (const n of NUMEROS) t.has(s, n, 'Android: el resumen muestra «' + n + '»');
-  t.ok(await p.$('#salidaHost [data-action="sal-del"]'), 'Android: se puede borrar');
-  t.eq(S.reqs.filter(q => /select=track/.test(q)), [], 'Android: el recorrido no se pide a la nube');
+  const s = await soloNumeros(p, t, Q);
+  for (const n of NUMEROS) t.has(s, n, Q + ': el resumen muestra «' + n + '»');
+  t.ok(await p.$('#salidaHost [data-action="sal-del"]'), Q + ': se puede borrar');
+  t.eq(S.reqs.filter(q => /select=track/.test(q)), [], Q + ': el recorrido no se pide a la nube');
   // Las acciones del recorrido, forzadas: nada.
   await p.evaluate(async () => { const c = await import('/app/screens/cardio.js'); c.salidaAction('sal-share', document.body); c.salidaAction('sal-replay', document.body); });
   await wait(300);
-  t.eq(await p.$$eval('#salShare', l => l.length), 0, 'Android: no se arma la imagen del recorrido para compartir');
+  t.eq(await p.$$eval('#salShare', l => l.length), 0, Q + ': no se arma la imagen del recorrido para compartir');
+  t.eq(await p.evaluate(async () => { const c = await import('/app/ui/compartir.js'); return c.openShareSheet({ id: 'x', mode: 'pie', dist: 1000, dur: 600 }, '') === null && !document.getElementById('salShare'); }), true, Q + ': la hoja de compartir no se abre ni forzada');
   await p.click('#salidaHost [data-action="sal-close"]'); await wait(300);
-  t.eq(reqs.filter(u => MAPA.test(u)), [], 'Android: nunca se pide MapLibre ni OpenFreeMap');
-  t.eq(await usos(p), [], 'Android: nunca se toca el plugin de ubicación, el GPS ni el permiso de ubicación');
-  t.eq(pg.errs, [], 'errores de la página (Android)');
+  t.eq(reqs.filter(u => MAPA.test(u)), [], Q + ': nunca se pide MapLibre ni OpenFreeMap');
+  t.eq(await usos(p), [], Q + ': nunca se toca el plugin de ubicación, el GPS ni el permiso de ubicación');
+  t.eq(pg.errs, [], 'errores de la página (' + Q + ')');
   await pg.close();
 }
 
 // Una salida que quedó en curso (o en pausa) de una versión anterior con GPS.
-async function enCurso(base, t, run){
+async function enCurso(base, t, run, plat, Q){
   const S = { rows: [], reqs: [] };
-  const pg = await newPage({ user: ALUMNO, state: STATE, init: NATIVA('android') + COMPLETA, handlers: { '/profiles': profile('client'), '/cardio_outings': outings(S, '') } });
+  const pg = await newPage({ user: ALUMNO, state: STATE, init: NATIVA(plat) + COMPLETA, handlers: { '/profiles': profile('client'), '/cardio_outings': outings(S, '') } });
   const p = pg.p, reqs = [];
   p.on('request', r => reqs.push(r.url()));
   // En la cola de envío, una salida guardada sin conexión con la versión anterior (con su recorrido).
@@ -162,27 +166,27 @@ async function enCurso(base, t, run){
   }, [JSON.stringify(run.header), JSON.stringify(run.pts), JSON.stringify(cola)]);
   await p.goto(base + '/app/'); await wait(2500);
   const g = await p.evaluate(async () => { const g = await import('/app/ui/gps.js'), r = g.GpsState.run; return r && { id: r.id, status: r.status, ended: r.ended, n: r.pts.length }; });
-  t.eq(g, { id: RUN, status: 'ended', ended: run.lastT, n: run.pts.length }, 'Android: la salida en curso de antes queda terminada en el último punto medido, con todos sus puntos');
-  t.eq(await p.evaluate(() => localStorage.getItem('gize_salida_nid')), null, 'Android: la lista de watchers de antes se olvida');
+  t.eq(g, { id: RUN, status: 'ended', ended: run.lastT, n: run.pts.length }, Q + ': la salida en curso de antes queda terminada en el último punto medido, con todos sus puntos');
+  t.eq(await p.evaluate(() => localStorage.getItem('gize_salida_nid')), null, Q + ': la lista de watchers de antes se olvida');
   await p.click('#nav-cardio'); await wait(500);
-  t.has(await text(p, '#view'), 'Tu salida terminó', 'Android: Cardio la muestra para guardarla');
-  await sinSalir(p, t, 'Android (salida de antes)');
+  t.has(await text(p, '#view'), 'Tu salida terminó', Q + ': Cardio la muestra para guardarla');
+  await sinSalir(p, t, Q + ' (salida de antes)');
   await p.click('#view [data-action="sal-review"]'); await wait(800);
-  await soloNumeros(p, t, 'Android (salida de antes)');
-  t.ok(await p.$('#salidaHost [data-action="sal-save"]') && await p.$('#salidaHost [data-action="sal-discard"]'), 'Android: «Guardar» y «Descartar»');
+  await soloNumeros(p, t, Q + ' (salida de antes)');
+  t.ok(await p.$('#salidaHost [data-action="sal-save"]') && await p.$('#salidaHost [data-action="sal-discard"]'), Q + ': «Guardar» y «Descartar»');
   await p.click('#salidaHost [data-action="sal-save"]'); await wait(600);
   const st = await p.evaluate(async () => { const { state } = await import('/app/core/state.js'), g = await import('/app/ui/gps.js'); return { ids: (state.salidas || []).map(s => s.id), run: g.GpsState.run }; });
-  t.eq(st, { ids: [RUN], run: null }, 'Android: se guarda con sus números');
-  t.ok(await p.$('#salidaHost .sov-solo [data-action="sal-del"]'), 'Android: guardada, sigue solo con los números');
+  t.eq(st, { ids: [RUN], run: null }, Q + ': se guarda con sus números');
+  t.ok(await p.$('#salidaHost .sov-solo [data-action="sal-del"]'), Q + ': guardada, sigue solo con los números');
   // Lo que sube a la nube: los números, sin el recorrido.
   const sub = (S.subidas || []).map(x => ({ id: x.id, track: x.track, points: x.points, numeros: x.distance_m > 0 && x.duration_s > 0 }));
-  t.eq(sub.filter(x => x.id === COLA), [{ id: COLA, track: null, points: 0, numeros: true }], 'Android: la salida de antes que estaba en la cola sube sin su recorrido');
-  t.eq(sub.filter(x => x.id === RUN), [{ id: RUN, track: null, points: 0, numeros: true }], 'Android: la salida terminada sube solo con sus números (sin recorrido, points 0)');
+  t.eq(sub.filter(x => x.id === COLA), [{ id: COLA, track: null, points: 0, numeros: true }], Q + ': la salida de antes que estaba en la cola sube sin su recorrido');
+  t.eq(sub.filter(x => x.id === RUN), [{ id: RUN, track: null, points: 0, numeros: true }], Q + ': la salida terminada sube solo con sus números (sin recorrido, points 0)');
   const loc = await p.evaluate(async id => { const { state } = await import('/app/core/state.js'); const c = JSON.parse(localStorage.getItem('gize_salidas_track_v1') || '[]'); return { points: (state.salidas.find(x => x.id === id) || {}).points, cache: c.map(x => x[0]) }; }, RUN);
-  t.eq(loc, { points: 0, cache: [] }, 'Android: el recorrido tampoco queda en la caché del celular');
-  t.eq(reqs.filter(u => MAPA.test(u)), [], 'Android (salida de antes): nunca se pide el mapa');
-  t.eq(await usos(p), [], 'Android (salida de antes): nunca se toca el plugin, el GPS ni el permiso');
-  t.eq(pg.errs, [], 'errores de la página (salida de antes)');
+  t.eq(loc, { points: 0, cache: [] }, Q + ': el recorrido tampoco queda en la caché del celular');
+  t.eq(reqs.filter(u => MAPA.test(u)), [], Q + ' (salida de antes): nunca se pide el mapa');
+  t.eq(await usos(p), [], Q + ' (salida de antes): nunca se toca el plugin, el GPS ni el permiso');
+  t.eq(pg.errs, [], 'errores de la página (salida de antes, ' + Q + ')');
   await pg.close();
 }
 
@@ -204,9 +208,9 @@ async function puente(base, t){
   await pg.close();
 }
 
-async function coach(base, t, TRACK){
+async function coach(base, t, TRACK, plat, Q){
   const C = { rows: [ROW(A1)], reqs: [] };
-  const pg = await newPage({ user: COACH, init: NATIVA('android') + COMPLETA, handlers: {
+  const pg = await newPage({ user: COACH, init: NATIVA(plat) + COMPLETA, handlers: {
     '/profiles': (r, J, i) => { if (i.m !== 'GET') return undefined; const me = { id: COACH.id, role: 'coach', full_name: 'Coach Prueba' };
       if (/coach_id=eq/.test(i.url.search)) return J([{ id: A1, full_name: 'Ana Alumna' }]); return J(i.one ? me : [me]); },
     '/coach_billing': (r, J, i) => { const b = { coach_id: COACH.id, plan: 'cortesia', max_clients: 10, trial_ends_at: '2099-01-01T00:00:00Z' }; return J(i.one ? b : [b]); },
@@ -216,16 +220,17 @@ async function coach(base, t, TRACK){
   p.on('request', r => reqs.push(r.url()));
   await p.goto(base + '/app/'); await wait(3500);
   await p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1500);
+  await p.click('[data-coach="client-tab"][data-t="stats"]'); await wait(300); // las salidas van en «Estadísticas»
   await p.click('[data-coach="sec-open"][data-v="salidas"]'); await wait(500);
   await p.click(`[data-coach="salida-open"][data-id="${ID1}"]`); await wait(1000);
   const det = await text(p, '.co-sec-body');
-  for (const n of ['5,50 km', 'Tiempo', '45:01', 'Ritmo medio', '366 kcal', '1 oct', 'Parciales', 'La señal se cortó 5 min']) t.has(det, n, 'coach en Android: la salida muestra «' + n + '»');
-  t.eq(await p.$$eval('.co-sec-body .sal-ruta, .co-sec-body [data-rv], .co-sec-body .rv, .co-sec-body canvas, .co-sec-body .sal-leg', l => l.length), 0, 'coach en Android: sin mapa, sin el dibujo del recorrido ni su leyenda');
-  t.ok(!/recorrido|mapa|GPS/i.test(det), 'coach en Android: ningún texto del recorrido, del mapa ni del GPS: ' + det.slice(0, 300));
-  t.eq(C.reqs.filter(q => /select=track/.test(q)), [], 'coach en Android: el recorrido no se pide');
-  t.eq(reqs.filter(u => MAPA.test(u)), [], 'coach en Android: nunca se pide el mapa');
-  t.eq(await usos(p), [], 'coach en Android: nunca se toca el plugin, el GPS ni el permiso');
-  t.eq(pg.errs, [], 'errores de la página (coach en Android)');
+  for (const n of ['5,50 km', 'Tiempo', '45:01', 'Ritmo medio', '366 kcal', '1 oct', 'Parciales', 'La señal se cortó 5 min']) t.has(det, n, 'coach en ' + Q + ': la salida muestra «' + n + '»');
+  t.eq(await p.$$eval('.co-sec-body .sal-ruta, .co-sec-body [data-rv], .co-sec-body .rv, .co-sec-body canvas, .co-sec-body .sal-leg', l => l.length), 0, 'coach en ' + Q + ': sin mapa, sin el dibujo del recorrido ni su leyenda');
+  t.ok(!/recorrido|mapa|GPS/i.test(det), 'coach en ' + Q + ': ningún texto del recorrido, del mapa ni del GPS: ' + det.slice(0, 300));
+  t.eq(C.reqs.filter(q => /select=track/.test(q)), [], 'coach en ' + Q + ': el recorrido no se pide');
+  t.eq(reqs.filter(u => MAPA.test(u)), [], 'coach en ' + Q + ': nunca se pide el mapa');
+  t.eq(await usos(p), [], 'coach en ' + Q + ': nunca se toca el plugin, el GPS ni el permiso');
+  t.eq(pg.errs, [], 'errores de la página (coach en ' + Q + ')');
   await pg.close();
 }
 
@@ -251,29 +256,31 @@ async function canal(base, t){
   }
 }
 
-// La app de iPhone, igual que siempre (el control de las pruebas de arriba).
-async function iphone(base, t, TRACK){
+// La web, igual que siempre (el control de las pruebas de arriba).
+async function web(base, t, TRACK){
   const S = { rows: [ROW(ALUMNO.id)], reqs: [] };
-  const pg = await newPage({ user: ALUMNO, state: STATE, init: NATIVA('ios'), handlers: { '/profiles': profile('client'), '/cardio_outings': outings(S, TRACK) } });
+  const pg = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client'), '/cardio_outings': outings(S, TRACK) } });
   const p = pg.p;
   await p.goto(base + '/app/'); await wait(2500);
   await p.click('#nav-cardio'); await wait(500);
-  t.has(await text(p, '#view'), 'Salir a moverte', 'iPhone: «Salir a moverte» sigue');
+  t.has(await text(p, '#view'), 'Salir a moverte', 'web: «Salir a moverte» sigue');
   await p.click(`[data-action="sal-open"][data-id="${ID1}"]`); await wait(1200);
-  t.eq(S.reqs.filter(q => /select=track/.test(q)).length, 1, 'iPhone: al abrir la salida se pide su recorrido');
-  t.ok(await p.$('#salidaHost .rv') && await p.$('#salidaHost [data-action="sal-share"]'), 'iPhone: el recorrido y «Compartir»');
-  t.has(await text(p, '#salidaHost'), 'El GPS se cortó 5 min', 'iPhone: el corte de señal sigue nombrando el GPS');
-  t.eq(pg.errs, [], 'errores de la página (iPhone)');
+  t.eq(S.reqs.filter(q => /select=track/.test(q)).length, 1, 'web: al abrir la salida se pide su recorrido');
+  t.ok(await p.$('#salidaHost .rv') && await p.$('#salidaHost [data-action="sal-share"]'), 'web: el recorrido y «Compartir»');
+  t.has(await text(p, '#salidaHost'), 'El GPS se cortó 5 min', 'web: el corte de señal sigue nombrando el GPS');
+  t.eq(pg.errs, [], 'errores de la página (web)');
   await pg.close();
 }
 
 function nativo(t){
-  const GEO = '@capacitor-community/background-geolocation';
   // Los plugins de Capacitor de package.json (todo menos el núcleo, las plataformas y la CLI).
-  const deps = Object.keys(JSON.parse(read('package.json')).dependencies || {}).filter(d => !['@capacitor/android', '@capacitor/core', '@capacitor/ios', '@capacitor/cli'].includes(d));
-  t.ok(deps.includes(GEO), 'package.json sigue con el plugin de ubicación (la app de iPhone lo usa)');
+  const pkg = JSON.parse(read('package.json'));
+  const deps = Object.keys(pkg.dependencies || {}).filter(d => !['@capacitor/android', '@capacitor/core', '@capacitor/ios', '@capacitor/cli'].includes(d));
+  const todas = Object.keys(Object.assign({}, pkg.dependencies, pkg.devDependencies));
+  t.eq(todas.filter(d => /geoloc|location|gps/i.test(d)), [], 'package.json: ningún plugin de ubicación (ninguna de las dos apps la usa)');
+  t.eq(Object.keys(JSON.parse(read('package-lock.json')).packages || {}).filter(d => /geoloc|location|gps/i.test(d)), [], 'package-lock.json: tampoco (CI usa npm ci)');
   const cfg = JSON.parse(read('capacitor.config.json'));
-  t.eq(cfg.android && cfg.android.includePlugins, deps.filter(d => d !== GEO), 'capacitor.config.json: Android con todos los plugins menos el de ubicación (si se suma uno a package.json, va acá también)');
+  t.eq(cfg.android && cfg.android.includePlugins, deps, 'capacitor.config.json: Android con todos los plugins de package.json (si se suma uno, va acá también)');
   t.ok(!cfg.includePlugins && !(cfg.ios && cfg.ios.includePlugins), 'capacitor.config.json: iPhone con todos los plugins');
   // Lo que escribe cap sync (y los workflows vuelven a escribir con npm run android).
   const gname = d => d.replace('@', '').replace('/', '-');
@@ -283,7 +290,7 @@ function nativo(t){
   t.eq([...build.matchAll(/implementation project\(':([^']+)'\)/g)].map(m => m[1]), cfg.android.includePlugins.map(gname), 'Android: capacitor.build.gradle con los mismos');
   t.ok(!/geolocation/i.test(settings + build), 'Android: el plugin de ubicación no está en gradle');
   const spm = read('ios/App/CapApp-SPM/Package.swift');
-  t.ok(spm.includes('.package(name: "CapacitorCommunityBackgroundGeolocation", path: "../../../node_modules/@capacitor-community/background-geolocation")'), 'iPhone: sigue con el plugin de ubicación');
+  t.ok(/CapgoCapacitorHealth/.test(spm) && !/geolocation/i.test(spm), 'iPhone: Package.swift sin el plugin de ubicación (y con los demás)');
 
   const man = read('android/app/src/main/AndroidManifest.xml');
   const perms = [...man.matchAll(/<uses-permission\b[^>]*>/g)].map(m => m[0]);
@@ -324,10 +331,12 @@ export default async function ({ base, t }){
     return { TRACK: m.encodeTrack([pts]), run: { pts: r.pts, lastT, track: m.encodeTrack([pts.slice(0, 300)]), header: { v: 1, id: RUN, uid: null, mode: 'pie', start: t0, status: 'running', pauses: [], pausedAt: null, ended: null, seg: 0, n: r.pts.length, chunks: 1, lastT } } };
   }, RUN);
   await helper.close();
-  await alumno(base, t, TRACK);
-  await enCurso(base, t, run);
+  for (const [plat, Q] of PLATS){
+    await alumno(base, t, TRACK, plat, Q);
+    await enCurso(base, t, run, plat, Q);
+    await coach(base, t, TRACK, plat, Q);
+  }
   await puente(base, t);
-  await coach(base, t, TRACK);
-  await iphone(base, t, TRACK);
+  await web(base, t, TRACK);
   await canal(base, t);
 }

@@ -12,16 +12,16 @@
 //   achica a las salidas que siguen existiendo cada vez que se lee la nube (pruneTracks) y se
 //   borra al cerrar sesión (clearAccountLeftovers). Una salida que todavía no subió tiene su
 //   recorrido también en la cola de envío, así que no se pierde aunque salga de la caché.
-// · App de Android (core/plataforma.js appAndroid): sin nada de ubicación. La única salida que
-//   puede guardar es una que quedó en curso de una versión anterior (con GPS): va solo con sus
-//   números. El recorrido (las coordenadas) no sale del celular ni queda en la caché.
+// · Apps de Android y de iPhone (core/plataforma.js appNativa): sin nada de ubicación. La única
+//   salida que pueden guardar es una que quedó en curso de una versión anterior (con GPS): va solo
+//   con sus números. El recorrido (las coordenadas) no sale del celular ni queda en la caché.
 import { State, state } from './state.js';
 import { save } from './storage.js';
 import { ymd } from './utils.js';
 import { finishRun, fmtClock, isShort, lastWeight } from './cardiogps.js';
 import { discard, freeRunStorage, restoreRunStorage, takeEnded } from '../ui/gps.js';
 import { cloudDeleteSalida, cloudSaveSalida, fetchSalidaTrack, newId, pendingSalidaTrack, salidaPendiente } from './supabase.js';
-import { appAndroid } from './plataforma.js';
+import { appNativa } from './plataforma.js';
 
 export const TRACK_KEY = "gize_salidas_track_v1";
 const TRACK_MAX = 15;             // recorridos en la caché
@@ -90,10 +90,10 @@ export function saveEnded(opts){
   const me = State.cloudUser && State.cloudUser.id;
   if (run.uid && me && run.uid !== me){ discard(); return null; }
   const fin = finishRun(run, lastWeight(state.weights), Date.now(), ymd(new Date(run.start))), rec = fin.rec;
-  // App de Android: solo los números. Sin recorrido (points 0: en el iPhone y en la web se ve
-  // «Esta salida no tiene recorrido.»).
-  const track = appAndroid() ? null : fin.track;
-  if (appAndroid()) rec.points = 0;
+  // Apps de Android y de iPhone: solo los números. Sin recorrido (points 0: en la web se ve «Esta
+  // salida no tiene recorrido.»).
+  const track = appNativa() ? null : fin.track;
+  if (appNativa()) rec.points = 0;
   if (!rec.id) rec.id = newId();
   if (isShort(rec) && !confirm("La salida es muy corta (" + shortText(rec) + "). ¿Guardarla igual?")){ if (!(opts && opts.keepIfShort)) discard(); return null; }
   // Primero a la cola (queda escrita en el acto) y después se borra la salida en curso: si la

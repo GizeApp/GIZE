@@ -9,8 +9,8 @@
 // e) En cada PR que toca Android (android.yml) se compila también la release con R8, sin firmar: un
 //    problema de R8 o de las reglas frena el PR (antes aparecía recién al armar la versión de Play
 //    desde main, porque la de prueba va sin R8).
-// d) Para la app de Android (npm run android → build-web.mjs --android) tampoco va MapLibre (ahí
-//    nunca hay mapa); la de iPhone (npm run ios y su workflow, sin --android) sí lo lleva. Lo demás
+// d) En www/ tampoco va MapLibre: ni la app de Android ni la de iPhone tienen mapas (no usan la
+//    ubicación). npm run android, npm run ios y el workflow de iPhone arman el mismo www/. Lo demás
 //    de vendor/ (Supabase, el lector de códigos de barras) va en las dos.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -61,19 +61,18 @@ export default async function ({ t }){
     for (const m of read('manifest.json').matchAll(/brand\/([\w./-]+\.\w+)/g)) usado.add(m[1]);
     t.ok(usado.size >= 4, 'www: se encontraron los archivos de brand/ que usa la app: ' + [...usado].join(', '));
     t.eq([...usado].filter(f => !brand.includes(f)), [], 'www: con todo lo de brand/ que usan la app y el CSS');
+    // d) Sin MapLibre (en el repo sigue, para la web), con el resto de vendor/ y de la app.
     const ml = d => fs.readdirSync(path.join(d, 'vendor')).filter(f => /^maplibre/i.test(f));
-    t.eq(ml(www), ['maplibre-gl-6.11.2'], 'www sin --android (iPhone): con MapLibre');
-
-    // d) La de Android: sin MapLibre, con el resto de vendor/ y de la app.
-    execFileSync(process.execPath, ['scripts/build-web.mjs', '--android'], { cwd: tmp, stdio: 'pipe' });
-    t.eq(ml(www), [], 'www para Android: sin MapLibre');
+    t.eq(ml(tmp), ['maplibre-gl-6.11.2'], 'MapLibre sigue en vendor/ para la web');
+    t.eq(ml(www), [], 'www para las apps: sin MapLibre');
     for (const f of ['vendor/supabase-2.117.1.js', 'vendor/zxing.min.js', 'app/ui/mapa.js', 'index.html', 'brand/tokens.css'])
-      t.ok(fs.existsSync(path.join(www, f)), 'www para Android: sigue ' + f);
+      t.ok(fs.existsSync(path.join(www, f)), 'www para las apps: sigue ' + f);
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   const pkg = JSON.parse(read('package.json')).scripts;
-  t.ok(/^node scripts\/build-web\.mjs --android && npx cap sync android$/.test(pkg.android), 'npm run android arma www/ sin MapLibre: ' + pkg.android);
-  t.ok(/build-web\.mjs &&/.test(pkg.ios) && !/--android/.test(pkg.ios), 'npm run ios arma www/ con MapLibre: ' + pkg.ios);
-  for (const m of read('.github/workflows/ios.yml').matchAll(/run: (.*build-web.*)/g)) t.ok(!/--android/.test(m[1]), 'workflow de iPhone con MapLibre: ' + m[1]);
+  t.ok(/^node scripts\/build-web\.mjs && npx cap sync android$/.test(pkg.android), 'npm run android arma www/ con build-web.mjs: ' + pkg.android);
+  t.ok(/build-web\.mjs &&/.test(pkg.ios), 'npm run ios arma www/ con build-web.mjs: ' + pkg.ios);
+  const wf = [...read('.github/workflows/ios.yml').matchAll(/run: (.*build-web.*)/g)].map(m => m[1]);
+  t.ok(wf.length === 2 && wf.every(x => /^node scripts\/build-web\.mjs && npx cap sync ios$/.test(x)), 'el workflow de iPhone arma www/ igual, en los dos trabajos: ' + JSON.stringify(wf));
 
   // e) R8 en cada PR de Android.
   const y = read('.github/workflows/android.yml'), dbg = y.indexOf('run: ./gradlew assembleDebug --no-daemon'), r8 = y.indexOf('run: ./gradlew assembleRelease --no-daemon');

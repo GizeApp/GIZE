@@ -7,9 +7,9 @@
 //    corriendo, pausa y seguir, mini mapa, el punto en la pestaña), terminar → resumen encima de todo con el recorrido animado (se dibuja de
 //    a poco y termina), los números, «Ver de nuevo», «Guardar» y «Tus salidas» (volver a abrirla
 //    repite la animación sin pedir nada), «Borrar»; salida terminada sin guardar al recargar.
-// c) Compartir: imagen PNG de 1080 × 1920 por Web Share, descarga sin Web Share, y en la app
-//    nativa por Filesystem (caché, siempre el mismo archivo, que se borra al cerrar sesión) +
-//    Share; desactivado mientras llega el recorrido. «Ver de nuevo» a mitad del dibujo. El estado
+// c) Compartir: imagen PNG de 1080 × 1920 por Web Share y descarga sin Web Share; en las apps no
+//    hay imagen (sin nada de ubicación) y al cerrar sesión se borra la que una versión anterior
+//    dejó en la caché; desactivado mientras llega el recorrido. «Ver de nuevo» a mitad del dibujo. El estado
 //    del GPS que va y viene no redibuja la pantalla.
 // d) Movimiento reducido (dibujo completo de una), modo liviano (sin MapLibre), las apariencias
 //    (Claro, Azul, Rosa, sin neón) con sus colores y sin halo alrededor del recorrido (apariencia
@@ -408,7 +408,9 @@ async function compartir(base, t, saved){
   t.eq(pg.errs, [], 'errores de la página (descarga)');
   await pg.close();
 
-  // App de iPhone: Filesystem (caché) + Share. (En la de Android no hay imagen del recorrido: tests/cardio-android.test.mjs.)
+  // App de iPhone: sin imagen del recorrido (no usa la ubicación, como la de Android:
+  // tests/cardio-android.test.mjs). La que una versión anterior dejó en la caché (Filesystem,
+  // siempre con el mismo nombre) se borra al cerrar sesión o borrar la cuenta.
   pg = await withSaved(base, saved, { init: "localStorage.setItem('gize_mapa_off','1');" });
   p = pg.p;
   await p.goto(base + '/app/'); await wait(2500);
@@ -417,21 +419,14 @@ async function compartir(base, t, saved){
     window.__nat = [];
     window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', isPluginAvailable: n => n === 'Share' || n === 'Filesystem',
       Plugins: {
-        Filesystem: { writeFile: async o => { window.__nat.push(['write', o.path, o.directory, o.data.slice(0, 8)]); return { uri: 'file:///data/cache/' + o.path }; } },
-        Share: { share: async o => { window.__nat.push(['share', o.title, o.files, o.dialogTitle]); return {}; } },
+        Filesystem: { writeFile: async o => { window.__nat.push(['write', o.path]); return { uri: 'file:///data/cache/' + o.path }; }, deleteFile: async o => { window.__nat.push(['delete', o.path, o.directory]); } },
+        Share: { share: async o => { window.__nat.push(['share', o.title]); return {}; } },
       } };
   });
-  await p.click('#salidaHost [data-action="sal-share"]');
-  await p.waitForSelector('#salShare[data-listo="1"]', { timeout: 15000 }).catch(() => {});
-  t.eq(await p.$$eval('#salShare [data-sh="save"]', l => l.length), 0, 'en la app no aparece «Guardar imagen»');
-  await p.click('#salShare [data-sh="share"]'); await wait(800);
-  const nat = await p.evaluate(() => window.__nat);
-  const name = 'gize-salida.png';
-  t.eq(nat, [['write', name, 'CACHE', 'iVBORw0K'], ['share', 'Mi salida en GIZE', ['file:///data/cache/' + name], 'Compartir tu salida']], 'app nativa: el PNG a la caché (Filesystem, siempre con el mismo nombre: cada una pisa a la anterior) y se comparte el archivo (Share)');
-  // Al cerrar sesión o borrar la cuenta, la imagen se borra de la caché.
-  await p.evaluate(() => { window.Capacitor.Plugins.Filesystem.deleteFile = async o => { window.__nat.push(['delete', o.path, o.directory]); }; });
+  await p.click('#salidaHost [data-action="sal-share"]'); await wait(800);
+  t.eq(await p.$$eval('#salShare', l => l.length), 0, 'app de iPhone: «Compartir» no arma la imagen del recorrido');
   await p.evaluate(async uid => (await import('/app/core/supabase.js')).clearAccountLeftovers(uid), ALUMNO.id); await wait(100);
-  t.eq((await p.evaluate(() => window.__nat)).slice(-1), [['delete', name, 'CACHE']], 'al cerrar sesión se borra la imagen de la caché');
+  t.eq(await p.evaluate(() => window.__nat), [['delete', 'gize-salida.png', 'CACHE']], 'app de iPhone: no escribe ni comparte nada, y al cerrar sesión borra la imagen vieja de la caché');
   t.eq(pg.errs, [], 'errores de la página (nativo)');
   await pg.close();
 }
