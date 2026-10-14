@@ -28,6 +28,7 @@ import { unreadFor } from '../../ui/chat.js';
 import { billing, renderPaywall, renderPlanBanner } from './plan.js';
 
 import { appNativa } from '../../core/tienda.js';
+import { comprasApple } from '../../core/compras-apple.js';
 
 import { renderCoachSalidas, salidasTileText } from './salidas.js';
 import { syncRouteViews } from '../../ui/mapa.js';
@@ -41,11 +42,11 @@ function secHead(title, kind){
 
 // Código para que se vinculen clientes. Con el cupo del plan lleno no se muestra: nadie más se
 // puede vincular (la base lo rechaza igual) y en su lugar se ofrece un plan más grande.
-// En las apps de iPhone y Android (core/tienda.js appNativa) el aviso no nombra el plan: solo que
-// llegó al máximo.
+// En la app de Android (core/tienda.js appNativa) el aviso no nombra el plan: solo que llegó al
+// máximo. En la de iPhone, con los planes de Apple (core/compras-apple.js), es el de la web.
 // Código viejo (6 caracteres, de antes de supabase/endurecer-base.sql): sigue sirviendo, pero es
 // más fácil de adivinar; se le sugiere cambiarlo (supabase/coach-alumnos.sql).
-const IS_NATIVE_APP = appNativa();
+const IS_NATIVE_APP = appNativa() && !comprasApple();
 function inviteBox(){
   const b=billing(), viejo=!!CoachState.coachInvite && String(CoachState.coachInvite).length<8;
   if(b.known && b.atCap && IS_NATIVE_APP) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de alumnos de tu cuenta.</b><div class="co-invite-sub">Nadie más se puede vincular con tu código.</div></div>';
