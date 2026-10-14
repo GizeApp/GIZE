@@ -1,4 +1,4 @@
-import { pencilSvg, xSvg } from '../core/icons.js';
+import { auIcoUser, chartSvg, fileTextSvg, pencilSvg, shoeSvg, xSvg } from '../core/icons.js';
 
 import { State, state } from '../core/state.js';
 
@@ -232,6 +232,18 @@ export function allSetsDone(ex){ return (ex.sets||[]).length>0 && ex.sets.every(
 // de secciones en grupos (como «Mi plan» en Comida). Cada tarjeta muestra un resumen y abre su
 // propia pantalla, así la página no se hace eterna. «Peso corporal» (gráfico, historial y
 // otras fechas) se abre desde «Ver evolución».
+// Signifier de cada tarjeta del menú: un icono que adelanta qué hay adentro.
+const svg = d => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+d+'</svg>';
+const TILE_ICON = {
+  registro: fileTextSvg,
+  checkin: svg('<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 10h18M8 2.5v4M16 2.5v4"/><path d="m9 15.5 2 2 4-4"/>'),
+  ficha: auIcoUser,
+  historial: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  cargas: chartSvg,
+  volumen: svg('<path d="M5 21V12M12 21V4M19 21v-6"/>'),
+  pasos: shoeSvg,
+};
+
 const SECTIONS = [
   ["peso", "Peso corporal"], ["registro", "Registro de hoy"], ["checkin", "Check-in semanal"],
   ["historial", "Historial de entrenos"], ["cargas", "Evolución de cargas"], ["volumen", "Volumen semanal"], ["ficha", "Mi ficha"],
@@ -353,7 +365,7 @@ export function renderProgreso(){
   }
   const tile = id => {
     const title = SECTIONS.find(x => x[0] === id)[1], [sum, pend] = sectionSummary(id);
-    return `<button class="ptile${pend?' pend':''}" data-action="psec-open" data-v="${id}"><span class="ptile-t">${title}</span><span class="ptile-s">${pend?'<i></i>':''}${esc(sum)}</span><span class="ptile-go" aria-hidden="true">›</span></button>`;
+    return `<button class="ptile${pend?' pend':''}" data-action="psec-open" data-v="${id}"><span class="ptile-t">${TILE_ICON[id]?`<span class="ptile-ic" aria-hidden="true">${TILE_ICON[id]}</span>`:''}${title}</span><span class="ptile-s">${pend?'<i></i>':''}${esc(sum)}</span><span class="ptile-go" aria-hidden="true">›</span></button>`;
   };
   const groups = GROUPS.filter(([, , soloCoach]) => coach || !soloCoach)
     .map(([t, ids]) => `<div class="pgrp">${t}</div><div class="ptiles">${ids.map(tile).join("")}</div>`).join("");

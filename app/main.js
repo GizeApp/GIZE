@@ -694,8 +694,6 @@ document.body.addEventListener("click", async e => {
   if (a === "ss-split") { if(routineLocked()) return; const exs=day().exercises, g=ssGroupOf(exs, +el.dataset.i); if(g){ for(let k=g.start;k<=g.end;k++) delete exs[k].ss; save(); renderApp(); } return; }
   if (a === "ss-toggle") { if(routineLocked()) return; const exs=day().exercises, i=+el.dataset.i; const e=exs[i]; if(e && i<exs.length-1){ if(e.ss) delete e.ss; else e.ss=true; save(); renderApp(); } return; }
   if (a === "ex-insert") { SheetState.sheetGen++; EntrenoState.exPicker={mode:"insert", idx:(+el.dataset.i||0)}; EntrenoState.exCat=defaultExCat(EX_CATS); EntrenoState.exQuery=""; renderApp(); return; }
-  // Sin disciplina elegida: va a Ajustes, a la parte de «Tu disciplina».
-  if (a === "ex-disc-elegir") { closeSheet(()=>{ EntrenoState.exPicker=null; State.view="config"; renderApp(); requestAnimationFrame(()=>{ const c=document.getElementById("cfgDisc"); if(c) c.scrollIntoView({block:"center"}); }); }); return; }
   if (a === "ex-cat") {
     EntrenoState.exCat=el.dataset.cat; EntrenoState.exQuery="";
     document.querySelectorAll("#sheetHost .ex-chip").forEach(c=>c.classList.toggle("on", c.dataset.cat===EntrenoState.exCat));
