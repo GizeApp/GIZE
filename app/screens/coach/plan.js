@@ -6,11 +6,21 @@
 //     habilita desde gize.ar/admin (supabase/cobro-manual.sql). Se renueva a mano cada mes.
 // Los límites los hace cumplir la base, no la app.
 //
-// En las apps de Android y iPhone (core/tienda.js appNativa) no se habla de la prueba gratis,
-// de planes, de precios ni de pagos: Apple y Google no permiten mandar a pagar por fuera de su
-// sistema. No hay tira, ni «Mi plan», ni prueba, ni planes. Si la cuenta no está activa, una
-// pantalla neutra con «Cerrar sesión» (en Android, además, el día en que sus clientes pasan a
-// usar GIZE por su cuenta); el tope de alumnos se sigue respetando, sin nombrar el plan.
+// En la app de Android (core/tienda.js appNativa) no se habla de la prueba gratis, de planes, de
+// precios ni de pagos: Google no permite mandar a pagar por fuera de su sistema. No hay tira, ni
+// «Mi plan», ni prueba, ni planes. Si la cuenta no está activa, una pantalla neutra con «Cerrar
+// sesión» y el día en que sus clientes pasan a usar GIZE por su cuenta; el tope de alumnos se sigue
+// respetando, sin nombrar el plan.
+//
+// En la app de iPhone los planes se compran con Apple (core/compras-apple.js, In-App Purchase): la
+// tira, «Mi plan» y la pantalla del plan vencido muestran los planes con el precio que pone Apple y
+// «Suscribirme», lo que pide Apple para las suscripciones (regla 3.1.2: nombre, duración y precio,
+// que se renueva sola hasta cancelarla en los Ajustes de la cuenta de Apple, Términos de uso y
+// Política de privacidad, «Restaurar compras» y, con la suscripción activa, «Administrar
+// suscripción»). Nunca los precios en pesos, Mercado Pago, la transferencia ni la prueba gratis.
+// Si ya tiene un plan pagado por la web vigente (o cortesía), solo «Tu plan está activo»: no se
+// ofrece comprar (se pagaría dos veces). Un iPhone con una versión de la app sin el plugin de
+// compras sigue como Android (pantalla neutra).
 
 import { State } from '../../core/state.js';
 
@@ -21,6 +31,8 @@ import { CoachState } from './state.js';
 import { renderCoach } from './index.js';
 
 import { appIOS, appNativa } from '../../core/tienda.js';
+
+import { administrarApple, cargarProductosApple, comprarApple, comprasApple, escucharApple, finalizarApple, productosApple, restaurarApple, vigentesApple } from '../../core/compras-apple.js';
 
 // Precios: los mismos que plan_price (supabase/admin.sql), el panel de admin y la landing.
 export const PLANS = [
@@ -48,9 +60,13 @@ try {
 } catch (e) {}
 function chosenPlan(){ try { const v = localStorage.getItem(CHOSEN_KEY); return PLANS.some(p => p.id === v) ? v : null; } catch (e) { return null; } }
 
-// Cualquiera de las apps (también la de Android con solo su puente): sin prueba, planes ni precios.
+// Cualquiera de las apps (también la de Android con solo su puente): sin prueba ni precios en pesos.
 const IS_NATIVE = appNativa();
 const IS_IOS = appIOS();
+// App de iPhone con las compras de Apple: planes con el precio de Apple.
+const IAP = comprasApple();
+// Apps sin compras de Apple (Android, o un iPhone sin el plugin): nada de planes.
+const SIN_PLANES = IS_NATIVE && !IAP;
 const money = n => "$" + Number(n).toLocaleString("es-AR");
 // WhatsApp de GIZE (el mismo de Configuración → Contacto).
 const WA = "5493413490705";
@@ -69,6 +85,8 @@ function waCustom(){
 // billing: la fila de coach_billing. null + missing = todavía no se corrió el SQL (no se
 // bloquea nada en ese caso, así la app sigue andando mientras se configura).
 const B = { row: null, missing: false, loaded: false, busy: false, open: false, confirming: false, mpEmail: null, mailOpen: false };
+// Compras con Apple (app de iPhone): cargando/sin los precios, y la compra recién hecha.
+const A = { cargando: false, fallo: false, exito: false, iniciado: false };
 
 export async function loadBilling(){
   if(!State.sb || !State.cloudUser) return;
@@ -80,6 +98,7 @@ export async function loadBilling(){
     else { B.missing = !r.data; B.row = r.data || null; }
   }catch(e){ B.missing = true; }
   B.loaded = true;
+  if(IAP) iniciarApple();
 }
 
 export function billing(){
@@ -96,6 +115,9 @@ export function billing(){
   // lo trata como sin plan (coach_active en supabase/cupo-plan.sql) hasta que lo resuelva.
   const overCap = !comp && (paid || trial) && count > max;
   const active = comp || ((paid || trial) && !overCap);
+  // Lo pagado viene de una suscripción de Apple si no va más allá de lo que cubre Apple (como
+  // pagoDeApple en supabase/functions/compras-apple/reglas.ts); si va más allá, lo pagó por la web.
+  const apple = paid && !!r.apple_original_tx && !!r.apple_vence && paidUntil <= new Date(r.apple_vence).getTime();
   return {
     known: true, active, trial, paid, comp, count, max, overCap,
     atCap: count >= max,
@@ -106,6 +128,7 @@ export function billing(){
     until: paid ? r.paid_until : (trial ? r.trial_ends_at : null),
     renews: r.mp_status === "authorized",
     pending: r.pending_plan,
+    apple, appleRenueva: apple && !!r.apple_renueva, appleVence: apple ? r.apple_vence : null,
   };
 }
 
@@ -114,22 +137,30 @@ export function billing(){
 const AR_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" });
 function ymd(iso){ return AR_DAY.format(new Date(new Date(iso).getTime() - 1)); }
 
-// Tira debajo del código de invitación. En las apps no va (nombra la prueba y el plan).
+// Tira debajo del código de invitación. En las apps sin compras de Apple no va (nombra el plan).
 export function renderPlanBanner(){
-  const b = billing(); if(!b.known || IS_NATIVE) return "";
+  const b = billing(); if(!b.known || SIN_PLANES) return "";
+  if(IAP) return bannerApple(b);
   let txt, cls = "";
   if(b.comp) txt = "Plan cortesía · " + b.count + "/" + b.max + " clientes";
   else if(b.trial){ txt = "Prueba gratis · te quedan <b>" + b.daysLeft + " día" + (b.daysLeft === 1 ? "" : "s") + "</b> · " + b.count + "/" + b.max + " clientes"; if(b.daysLeft <= 3) cls = " warn"; }
   else if(b.trialFirst) txt = "Prueba gratis · te quedan <b>" + b.daysLeft + " día" + (b.daysLeft === 1 ? "" : "s") + "</b> · después sigue tu plan · " + b.count + "/" + b.max + " clientes";
-  else if(b.paid) txt = (b.plan && b.plan.gym ? "Plan " + b.plan.name : b.max >= 100 ? "Plan Gimnasio" : "Plan " + b.max + " clientes") + " · " + b.count + "/" + b.max + (b.renews ? "" : " · vence el " + fmtDate(ymd(b.until)));
+  else if(b.paid) txt = planCorto(b) + " · " + b.count + "/" + b.max + (b.renews || b.appleRenueva ? "" : " · vence el " + fmtDate(ymd(b.until)));
   else { txt = "Sin plan vigente"; cls = " warn"; }
   return '<button class="pl-banner' + cls + (b.atCap ? " warn" : "") + '" data-plan="open"><span>' + txt + '</span><span class="pl-banner-go">' + (b.trial ? "Ver planes" : "Mi plan") + ' ›</span></button>';
 }
 
+const planCorto = b => b.plan && b.plan.gym ? "Plan " + b.plan.name : b.max >= 100 ? "Plan Gimnasio" : "Plan " + b.max + " clientes";
+const planLargo = b => b.plan && b.plan.gym ? 'Plan ' + b.plan.name + ' (' + b.max + ' alumnos)' : 'Plan de ' + b.max + ' clientes';
+
 function planCards(b){
-  // En las apps de las tiendas no se habla de pagos ni de dónde se paga (reglas de Apple y Google).
-  // Ahí ni se llega (sin «Mi plan» ni la pantalla de la prueba vencida): por las dudas.
-  if(IS_NATIVE) return '';
+  // En las apps sin compras de Apple no se habla de pagos ni de dónde se paga (reglas de Apple y
+  // Google). Ahí ni se llega (sin «Mi plan» ni la pantalla de la prueba vencida): por las dudas.
+  if(SIN_PLANES) return '';
+  if(IAP) return appleCards(b);
+  // Con la suscripción de Apple vigente, en la web no se ofrece pagar otro plan (se pagaría dos
+  // veces): se cambia o se cancela desde el iPhone (statusLine lo dice).
+  if(b.apple) return '';
   const chosen = b.paid ? null : chosenPlan();
   const cards = PLANS.map(p => {
     const current = b.paid && b.plan && b.plan.id === p.id;
@@ -162,22 +193,26 @@ function planCards(b){
 
 function statusLine(b){
   if(!b.known) return "";
+  if(IAP) return appleStatus(b);
   if(b.comp) return '<div class="pl-status ok">Tenés un plan de cortesía, sin vencimiento.</div>';
+  if(b.apple) return '<div class="pl-status ok">' + planLargo(b) + ' · suscripción de Apple ' + (b.appleRenueva ? 'que se renueva sola cada mes' : 'al día hasta el ' + fmtDate(ymd(b.until))) +
+    '. La cambiás o la cancelás desde tu iPhone, en los Ajustes de tu cuenta de Apple.</div>';
   if(b.trialFirst) return '<div class="pl-status ok">Tu plan de ' + b.max + ' clientes ya está pago. Primero termina tu prueba gratis (te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ') y después arranca el plan, al día hasta el ' + fmtDate(ymd(b.until)) + '.</div>';
-  if(b.paid) return '<div class="pl-status ok">' + (b.plan && b.plan.gym ? 'Plan ' + b.plan.name + ' (' + b.max + ' alumnos)' : 'Plan de ' + b.max + ' clientes') + ' · ' + (b.renews ? 'se renueva solo cada mes' : 'al día hasta el ' + fmtDate(ymd(b.until))) + '.</div>';
+  if(b.paid) return '<div class="pl-status ok">' + planLargo(b) + ' · ' + (b.renews ? 'se renueva solo cada mes' : 'al día hasta el ' + fmtDate(ymd(b.until))) + '.</div>';
   const ch = PLANS.find(p => p.id === chosenPlan());
   if(b.trial) return '<div class="pl-status">Estás en la prueba gratis: te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ' (hasta ' + b.max + ' clientes).' +
     (ch ? ' Elegiste el plan ' + (ch.gym ? ch.name : 'de hasta ' + ch.max + ' clientes') + ': contratalo cuando quieras para seguir después de la prueba.' : ' Elegí un plan y contratalo para seguir después.') + '</div>';
   return '<div class="pl-status warn">Tu ' + (B.row && B.row.paid_until ? 'plan venció' : 'prueba gratis terminó') + '.</div>';
 }
 
-// Hoja "Mi plan" (desde la tira o desde Configuración). En las apps no se abre.
+// Hoja "Mi plan" (desde la tira o desde Configuración). En las apps sin compras de Apple no se abre.
 export function renderPlanSheet(){
   let host = document.getElementById("planSheetHost");
   if(!host){ host = document.createElement("div"); host.id = "planSheetHost"; document.body.appendChild(host); }
-  if(!B.open || IS_NATIVE){ host.innerHTML = ""; return; }
+  if(!B.open || SIN_PLANES){ host.innerHTML = ""; return; }
   const b = billing();
-  const cancel = (b.paid && b.renews) ? '<button class="pl-cancel" data-plan="cancel">Cancelar la renovación</button>' : "";
+  // Cancelar la suscripción de Mercado Pago: solo en la web (en el iPhone no se nombra).
+  const cancel = (b.paid && b.renews && !IAP) ? '<button class="pl-cancel" data-plan="cancel">Cancelar la renovación</button>' : "";
   host.innerHTML = '<div class="cp-bg" data-plan="close"></div><div class="cp-ccard pl-sheet">' +
     '<div class="cp-head"><div class="cp-title">Mi plan</div><button class="cp-x" data-plan="close">✕</button></div>' +
     statusLine(b) + planCards(b) + cancel +
@@ -192,8 +227,8 @@ function graceLine(b){
   const limit = end + GRACE_DAYS * 864e5;
   if(!(end > 0) || limit <= Date.now()) return "";
   const dia = fmtDate(ymd(new Date(limit).toISOString()));
-  // En las apps de las tiendas, sin mandar a renovar (se paga por fuera de Google y Apple).
-  return '<div class="pl-wall-s pl-wall-grace">' + (IS_NATIVE ? 'El ' + dia + ' tus clientes pasan a usar GIZE por su cuenta, con todo lo que les armaste.'
+  // En las apps sin compras de Apple, sin mandar a renovar (se paga por fuera de Google).
+  return '<div class="pl-wall-s pl-wall-grace">' + (SIN_PLANES ? 'El ' + dia + ' tus clientes pasan a usar GIZE por su cuenta, con todo lo que les armaste.'
     : 'Tenés hasta el ' + dia + ' para renovar. Después, tus clientes pasan a usar GIZE por su cuenta, con todo lo que les armaste.') + '</div>';
 }
 
@@ -206,7 +241,8 @@ const WALL_DELETE = '<button class="logout-btn cfg-danger pl-wall-del" data-acti
 export function renderPaywall(){
   const b = billing();
   if(b.overCap) return renderOverCap(b);
-  if(IS_NATIVE) return renderInactiveApp(b);
+  if(SIN_PLANES) return renderInactiveApp(b);
+  if(IAP) return renderPaywallApple(b);
   return '<div class="co-wrap pl-wall">' +
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
     '<div class="pl-wall-hero"><div class="pl-wall-t">' + (B.row && B.row.paid_until ? 'Tu plan venció' : 'Terminó tu prueba gratis') + '</div>' +
@@ -234,16 +270,192 @@ function renderInactiveApp(b){
 // En las apps, lo mismo sin nombrar el plan: «el máximo de alumnos de tu cuenta».
 function renderOverCap(b){
   const extra = b.count - b.max;
+  // ¿Se le ofrece un plan más grande? En la web sí; en el iPhone, con Apple, si no tiene un plan
+  // pagado por la web vigente; en las apps sin compras de Apple, no.
+  const ofrece = IAP ? !(b.comp || (b.paid && !b.apple)) : !IS_NATIVE;
   const list = CoachState.coachClients.map(c => '<div class="pl-oc-row"><span>' + esc(c.full_name || "Cliente") + '</span>' +
     '<button class="pl-link" data-plan="unlink" data-id="' + esc(c.id) + '"' + (B.busy ? ' disabled' : '') + '>Desvincular</button></div>').join("");
   return '<div class="co-wrap pl-wall">' +
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
-    '<div class="pl-wall-hero"><div class="pl-wall-t">' + (IS_NATIVE ? 'Tenés más alumnos que el máximo de tu cuenta' : 'Tenés más clientes que tu plan') + '</div>' +
-    '<div class="pl-wall-s">' + (IS_NATIVE ? 'Tenés ' + b.count + ' alumnos y el máximo de tu cuenta es ' + b.max + '. ' : 'Tenés ' + b.count + ' clientes y tu plan es de ' + b.max + '. ') +
-    (IS_NATIVE ? 'Desvinculá ' : 'Contratá un plan más grande o desvinculá ') + extra + ' cliente' + (extra === 1 ? '' : 's') + ' para volver a ver sus fichas. Sus rutinas y registros quedan guardados.</div></div>' +
-    planCards(b) +
+    '<div class="pl-wall-hero"><div class="pl-wall-t">' + (SIN_PLANES ? 'Tenés más alumnos que el máximo de tu cuenta' : 'Tenés más clientes que tu plan') + '</div>' +
+    '<div class="pl-wall-s">' + (SIN_PLANES ? 'Tenés ' + b.count + ' alumnos y el máximo de tu cuenta es ' + b.max + '. ' : 'Tenés ' + b.count + ' clientes y tu plan es de ' + b.max + '. ') +
+    (ofrece ? 'Contratá un plan más grande o desvinculá ' : 'Desvinculá ') + extra + ' cliente' + (extra === 1 ? '' : 's') + ' para volver a ver sus fichas. Sus rutinas y registros quedan guardados.</div></div>' +
+    (IAP ? appleStatus(b) : '') + planCards(b) +
     '<div class="pl-oc"><div class="pl-sub">Tus clientes</div>' + list + '</div>' + WALL_DELETE +
   '</div>';
+}
+
+// ---- App de iPhone: los planes con Apple (core/compras-apple.js) ----
+const HEAD_COACH = '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>';
+// Lo que pide Apple debajo de los planes (regla 3.1.2). Los textos legales se abren sin la barra que
+// lleva a la página de inicio (?app=1).
+const APPLE_RENUEVA = 'Se renueva solo cada mes hasta que la canceles desde los Ajustes de tu cuenta de Apple';
+const APPLE_LEGAL = '<div class="pl-fine pl-legal"><a class="pl-link" href="https://gize.ar/terminos/?app=1" target="_blank" rel="noopener">Términos de uso</a> · ' +
+  '<a class="pl-link" href="https://gize.ar/privacidad/?app=1" target="_blank" rel="noopener">Política de privacidad</a></div>';
+// Fecha (en hora de Argentina) en que vence o se renueva la suscripción de Apple.
+const diaApple = iso => fmtDate(AR_DAY.format(new Date(iso)));
+// ¿Tiene un plan vigente que no es de Apple (pagado por la web, o cortesía)? Ahí no se ofrece
+// comprar: pagaría dos veces.
+const planNoApple = b => b.comp || (b.paid && !b.apple);
+
+function bannerApple(b){
+  const n = b.count + "/" + b.max + " " + (b.plan && b.plan.gym ? "alumnos" : "clientes");
+  // En la prueba, sin nombrarla: solo cuántos tiene.
+  const txt = b.comp ? "Plan cortesía · " + n
+    : b.paid ? planCorto(b) + " · " + n + (b.apple ? (b.appleRenueva ? "" : " · vence el " + diaApple(b.appleVence)) : (b.renews ? "" : " · vence el " + fmtDate(ymd(b.until))))
+    : n;
+  return '<button class="pl-banner' + (b.atCap ? " warn" : "") + '" data-plan="open"><span>' + txt + '</span><span class="pl-banner-go">' + (b.paid || b.comp ? "Mi plan" : "Ver planes") + ' ›</span></button>';
+}
+
+function appleStatus(b){
+  if(!b.known) return "";
+  if(b.comp) return '<div class="pl-status ok"><b>Tu plan está activo.</b> Plan cortesía, sin vencimiento.</div>';
+  if(b.apple) return '<div class="pl-status ok"><b>' + (A.exito ? '¡Listo! ' : '') + 'Tu plan está activo.</b> ' + planLargo(b) + ' · ' +
+    (b.appleRenueva ? 'se renueva solo el ' : 'vence el ') + diaApple(b.appleVence) + '.</div>';
+  if(b.paid) return '<div class="pl-status ok"><b>Tu plan está activo.</b> ' + planLargo(b) + ', al día hasta el ' + fmtDate(ymd(b.until)) + '.</div>';
+  return "";
+}
+
+function appleCards(b){
+  if(planNoApple(b)) return "";
+  const prods = productosApple();
+  const pie = '<div class="pl-fine">El pago se cobra a tu cuenta de Apple al confirmar la suscripción. ' + APPLE_RENUEVA +
+      ' (al menos 24 horas antes de que termine el mes). Si cambiás de plan, Apple ajusta el cobro.</div>' + APPLE_LEGAL +
+    '<div class="pl-apple-acc">' + (b.apple ? '<button class="pl-choose pl-apple-manage" data-plan="apple-manage"' + (B.busy ? ' disabled' : '') + '>Administrar suscripción</button>' : '') +
+      '<button class="pl-cancel" data-plan="apple-restore"' + (B.busy ? ' disabled' : '') + '>' + (B.busy === "restaurar" ? 'Restaurando…' : 'Restaurar compras') + '</button></div>';
+  if(!prods){
+    if(!A.cargando && !A.fallo) cargarPlanesApple();
+    return '<div class="pl-status">' + (A.fallo ? 'No se pudieron cargar los planes. Revisá la conexión y <button class="pl-link" data-plan="apple-retry">probá de nuevo</button>.' : 'Cargando los planes…') + '</div>' + pie;
+  }
+  const cards = PLANS.map(p => {
+    const pr = prods[p.id]; if(!pr) return "";
+    const current = b.apple && b.plan && b.plan.id === p.id;
+    const tooSmall = b.count > p.max;
+    return '<div class="pl-card' + (current ? ' current' : '') + '">' +
+      '<div class="pl-name">' + esc(pr.nombre || (p.gym ? p.name : "Plan " + p.max + " clientes")) + '</div>' +
+      '<div class="pl-max">Hasta <b>' + p.max + '</b> ' + (p.gym ? 'alumnos' : 'clientes') + '</div>' +
+      '<div class="pl-price">' + esc(pr.precio) + '<span>/mes</span></div>' +
+      '<div class="pl-per">Suscripción mensual</div>' +
+      (current ? '<button class="pl-choose" disabled>Tu plan actual</button>'
+        : tooSmall ? '<button class="pl-choose" disabled>Tenés ' + b.count + ' clientes</button>'
+        : '<button class="pl-choose" data-plan="choose" data-id="' + p.id + '"' + (B.busy ? ' disabled' : '') + '>' + (B.busy === p.id ? 'Abriendo…' : b.apple ? 'Cambiar a este plan' : 'Suscribirme') + '</button>') +
+    '</div>';
+  }).join("");
+  return '<div class="pl-cards">' + cards + '</div>' + pie;
+}
+
+// Pantalla completa sin plan vigente, en el iPhone: los planes con Apple (sin nombrar la prueba).
+function renderPaywallApple(b){
+  return '<div class="co-wrap pl-wall">' + HEAD_COACH +
+    '<div class="pl-wall-hero"><div class="pl-wall-t">' + (B.row && B.row.paid_until ? 'Tu plan venció' : 'Elegí tu plan') + '</div>' +
+    '<div class="pl-wall-s">' + (b.count === 1 ? 'Tu cliente, sus' : 'Tus ' + b.count + ' clientes,') + ' rutinas y registros están guardados. ' +
+    'Elegí un plan para volver a verlos y seguir sumando clientes.</div>' +
+    graceLine(b) + '</div>' +
+    appleStatus(b) + planCards(b) + WALL_DELETE +
+  '</div>';
+}
+
+function cargarPlanesApple(){
+  if(A.cargando) return;
+  A.cargando = true;
+  cargarProductosApple().then(p => { A.cargando = false; A.fallo = !p; rerender(); });
+}
+
+// Manda a la función compras-apple lo que firmó Apple (un JWS, o varios al restaurar).
+// { ok, resultados?, error?, codigo? }
+async function enviarApple(jws){
+  try{
+    const r = await State.sb.functions.invoke("compras-apple", { body: { jws } });
+    if(!r.error) return { ok: Array.isArray(jws) || !!(r.data && r.data.ok), resultados: (r.data && r.data.resultados) || [] };
+    let j = null; try{ j = await r.error.context.json(); }catch(e){}
+    return { ok: false, error: (j && j.error) || (r.error.name === "FunctionsFetchError" ? "No se pudo conectar." : r.error.message), codigo: j && j.codigo };
+  }catch(e){ return { ok: false, error: (e && e.message) || String(e) }; }
+}
+
+// Una vez por sesión de coach: las compras que llegan solas (renovaciones, una compra aprobada más
+// tarde) van al servidor, y si la suscripción vence en menos de un día se vuelve a mirar (por si
+// Apple ya la renovó y el aviso todavía no llegó).
+function iniciarApple(){
+  if(A.iniciado || !State.cloudUser) return;
+  A.iniciado = true;
+  escucharApple(ev => {
+    if(!ev || !ev.jws || !State.sb || !State.cloudUser) return;
+    enviarApple(ev.jws).then(r => {
+      if(r.ok && ev.transaccion) finalizarApple(ev.transaccion).catch(() => {});
+      return loadBilling();
+    }).then(rerender, () => {});
+  });
+  cargarProductosApple();
+  const r = B.row;
+  if(r && r.apple_original_tx && r.apple_vence && new Date(r.apple_vence).getTime() - Date.now() < 864e5) sincronizarApple();
+}
+
+async function sincronizarApple(){
+  let lista = [];
+  try{ lista = await vigentesApple(); }catch(e){}
+  if(lista.length) await enviarApple(lista);
+  await loadBilling(); rerender();
+}
+
+async function comprarPlanApple(plan){
+  if(!State.sb || !State.cloudUser || B.busy) return;
+  B.busy = plan; A.exito = false; rerender();
+  let r;
+  try{ r = await comprarApple(plan, State.cloudUser.id); }
+  catch(e){ B.busy = false; rerender(); alert("No se pudo completar la compra: " + ((e && e.message) || e)); return; }
+  // Cerró la ventana de Apple sin comprar: nada.
+  if(!r || r.estado === "cancelado"){ B.busy = false; rerender(); return; }
+  if(r.estado === "pendiente"){
+    B.busy = false; rerender();
+    alert("Tu compra quedó esperando aprobación (por ejemplo, de quien organiza la familia en Apple). Cuando Apple la apruebe, tu plan se activa solo.");
+    return;
+  }
+  const env = await enviarApple(r.jws);
+  // Solo se le avisa a Apple que terminó cuando el servidor la guardó: si no, Apple la vuelve a
+  // mandar al abrir la app y se reintenta.
+  if(env.ok && r.transaccion) { try{ await finalizarApple(r.transaccion); }catch(e){} }
+  await loadBilling();
+  B.busy = false;
+  const bl = billing();
+  if(env.ok && bl.paid){
+    A.exito = true; rerender();
+    alert("¡Listo! Tu plan de " + bl.max + " " + (bl.plan && bl.plan.gym ? "alumnos" : "clientes") + " está activo.");
+  } else {
+    rerender();
+    alert(env.codigo === "otra-cuenta" ? "Esa suscripción de Apple es de otra cuenta de GIZE. Entrá con esa cuenta para usarla."
+      : "Apple confirmó tu compra, pero todavía no pudimos activar tu plan. Se activa solo en unos minutos; si no, tocá «Restaurar compras».");
+  }
+}
+
+async function restaurarPlanesApple(){
+  if(!State.sb || B.busy) return;
+  B.busy = "restaurar"; rerender();
+  let lista = [], err = "";
+  try{
+    const r = await restaurarApple();
+    if(r && r.estado === "cancelado"){ B.busy = false; rerender(); return; }
+    lista = (r && r.jws) || [];
+  }catch(e){ err = (e && e.message) || String(e); }
+  let ok = 0, otra = 0;
+  if(lista.length){
+    const env = await enviarApple(lista);
+    if(!env.ok) err = env.error || "no se pudo conectar";
+    ok = env.resultados.filter(x => x && x.ok).length;
+    otra = env.resultados.filter(x => x && x.codigo === "otra-cuenta").length;
+  }
+  await loadBilling();
+  B.busy = false; rerender();
+  alert(err ? "No se pudieron restaurar las compras: " + err
+    : ok && billing().apple ? "Listo: recuperamos tu suscripción de Apple."
+    : otra ? "Tu suscripción de Apple es de otra cuenta de GIZE. Entrá con esa cuenta para usarla."
+    : "No encontramos una suscripción vigente en tu cuenta de Apple.");
+}
+
+async function administrarPlanApple(){
+  try{ await administrarApple(); }
+  catch(e){ alert("No se pudo abrir la suscripción. Podés manejarla desde los Ajustes de tu cuenta de Apple."); }
+  // Al volver (pudo cambiar de plan o cancelar la renovación): se vuelve a mirar.
+  await sincronizarApple();
 }
 
 async function unlinkClient(id){
@@ -311,7 +523,7 @@ export async function checkPaymentReturn(){
   else alert("Mercado Pago todavía no confirmó el cobro. Tu plan se activa solo apenas se acredite: podés seguir usando la app.");
 }
 
-export function openPlan(){ if(IS_NATIVE) return; B.open = true; renderPlanSheet(); }
+export function openPlan(){ if(SIN_PLANES) return; B.open = true; A.exito = false; renderPlanSheet(); if(IAP && !productosApple()) cargarPlanesApple(); }
 
 document.body.addEventListener("click", e => {
   const b = e.target.closest("[data-plan]"); if(!b || b.disabled) return;
@@ -319,7 +531,10 @@ document.body.addEventListener("click", e => {
   if(a === "open"){ openPlan(); return; }
   if(a === "close"){ B.open = false; renderPlanSheet(); return; }
   if(a === "cancel"){ cancelRenewal(); return; }
-  if(a === "choose"){ if(!IS_NATIVE) choose(b.dataset.id); return; }
+  if(a === "choose"){ if(IAP) comprarPlanApple(b.dataset.id); else if(!IS_NATIVE) choose(b.dataset.id); return; }
+  if(a === "apple-restore"){ if(IAP) restaurarPlanesApple(); return; }
+  if(a === "apple-manage"){ if(IAP) administrarPlanApple(); return; }
+  if(a === "apple-retry"){ if(IAP){ A.fallo = false; cargarPlanesApple(); } return; }
   if(a === "mail-edit"){ B.mailOpen = true; renderPlanSheet(); const i = document.querySelector('[data-plan="mail"]'); if(i) i.focus(); return; }
   if(a === "unlink"){ unlinkClient(b.dataset.id); return; }
 });

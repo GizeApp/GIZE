@@ -9,6 +9,9 @@
 -- que se avisa, así cada vencimiento se avisa una sola vez) y les manda el mail. Si el mail no
 -- sale, se desmarca y se vuelve a intentar en la hora siguiente.
 -- No se avisa: la cortesía (no vence) ni la suscripción de Mercado Pago activa (se renueva sola).
+-- OJO: la versión vigente de hay_avisos_vence y tomar_avisos_vence (que además no avisa al plan de
+-- Apple que se renueva solo) está en compras-apple.sql. Si corrés este archivo, corré después
+-- compras-apple.sql.
 
 alter table public.coach_billing add column if not exists aviso_vence_para timestamptz;
 
