@@ -1,9 +1,11 @@
 // App de iPhone (App Store, reglas 3.1.1 y 3.1.3): las cuentas de coach se crean y se manejan
 // solo desde la web. En la app de iPhone no se ofrece crear una cuenta de coach: la usan los
 // alumnos y los coaches que ya tienen cuenta. En la de Android sí se puede crear.
-// En ninguna de las dos apps (appNativa) se habla de la prueba gratis, de planes, de precios ni de
-// pagos (tampoco se dice dónde se contratan): ni en el panel del coach (screens/coach/plan.js), ni
-// en la bienvenida, ni en los mensajes de abajo. La web sigue como antes.
+// En ninguna de las dos apps (appNativa) se habla de la prueba gratis ni de pagar por fuera de la
+// tienda (tampoco se dice dónde se contrata en la web): ni en el panel del coach
+// (screens/coach/plan.js), ni en la bienvenida, ni en los mensajes de abajo. En la de Android
+// tampoco de planes ni precios. En la de iPhone los planes de coach se compran con Apple
+// (core/compras-apple.js): ahí se ven con el precio de Apple. La web sigue como antes.
 import { appAndroid } from './plataforma.js';
 
 export function appIOS(){
