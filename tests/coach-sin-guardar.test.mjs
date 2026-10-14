@@ -51,10 +51,10 @@ export default async function ({ base, t }){
   await p.click('[data-coach="sec-open"][data-v="ficha"]'); await wait(300);
   await p.fill('[data-coach="info-objective"]', 'Bajar grasa'); await wait(100);
   await p.click('[data-coach="sec-close"]'); await wait(300);
-  // #332 sacó la tarjeta «Bloque / mesociclo» del menú de la ficha a propósito; la pantalla sigue
-  // (la rutina de descarga vuelve a ella). Se abre como lo hace la app al volver de esa rutina.
-  await p.evaluate(async () => { const { CoachState } = await import('/app/screens/coach/state.js'); const { renderCoach } = await import('/app/screens/coach/index.js');
-    CoachState.coachClientTab = 'ficha'; CoachState.coachSec = 'bloque'; renderCoach(); }); await wait(300);
+  // «Bloque / mesociclo» está en la pestaña Estadísticas (ahí se arman las semanas de descarga).
+  await p.click('[data-coach="client-tab"][data-t="stats"]'); await wait(300);
+  t.ok(await p.$('[data-coach="sec-open"][data-v="bloque"]'), 'Estadísticas tiene la tarjeta «Bloque / mesociclo»');
+  await p.click('[data-coach="sec-open"][data-v="bloque"]'); await wait(300);
   await p.fill('[data-coach="blk-name"]', 'Fuerza'); await wait(100);
   await p.click('[data-coach="refresh"]'); await wait(800);
   const conf = await p.evaluate(() => window.__conf);

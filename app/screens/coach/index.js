@@ -173,8 +173,9 @@ export function renderCoach(){
           ["volumen","Volumen semanal por músculo", ()=>vol, ()=>{ let t=0; (d.routine||[]).forEach(x=>(x.exercises||[]).forEach(ex=>{ t+=(ex.sets||[]).length; })); return t?t+" series por semana":"Sin rutina"; }],
           ["peso","Peso corporal", ()=>'<div class="co-sec">Promedio semanal</div>'+renderCoachWeekly(d)+'<div class="co-sec">Día a día</div>'+wblock, ()=>{ const w=d.weights; return w.length?Number(w[w.length-1].kg).toFixed(1).replace(".",",")+" kg":"Sin registros"; }],
         ];
-        // Ficha: lo del alumno. Estadísticas: lo que fue registrando. «Bloque» ya no tiene tarjeta: se llega desde la rutina de descarga.
-        const ORDER={ ficha:["chat","ficha","habitos"], stats:["peso","hist","volumen","salidas","daily","checkin"] };
+        // Ficha: lo del alumno. Estadísticas: lo que fue registrando y el bloque (mesociclo), desde
+        // donde se arman las semanas y las rutinas de descarga.
+        const ORDER={ ficha:["chat","ficha","habitos"], stats:["bloque","peso","hist","volumen","salidas","daily","checkin"] };
         const cur=SECS.find(x=>x[0]===CoachState.coachSec && x[2]);
         const shown=(ORDER[tab]||ORDER.ficha).map(id=>SECS.find(x=>x[0]===id));
         if(cur){
