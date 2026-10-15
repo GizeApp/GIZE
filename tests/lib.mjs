@@ -33,10 +33,37 @@ const now = () => Math.floor(Date.now() / 1000);
 const session = user => ({ access_token: 'x.eyJzdWIiOiJ1MyJ9.y', token_type: 'bearer', expires_in: 3600, expires_at: now() + 3600, refresh_token: 'r', user });
 const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
 
+// Avisos propios de la app (app/ui/avisos.js): alert() ya no abre el diálogo nativo sino un cartel
+// en la página (.av-bg, con «Listo» / «No se pudo» / «Ojo» y «Entendido»). Esto corre en la página:
+// apenas aparece un cartel lee lo que dice, tal como lo ve la persona (un párrafo por línea en
+// blanco), se lo pasa a la prueba (__gizeAviso) y, si tocar es true, toca «Entendido» cuando ya se
+// ve, como antes se aceptaba solo el alert(). Si llegan varios, la app los muestra de a uno.
+const LEER_AVISOS = tocar => `(() => {
+  const vistos = new WeakSet();
+  const leer = el => {
+    if (vistos.has(el)) return; vistos.add(el);
+    const tit = el.querySelector('.av-tit'), ps = [...el.querySelectorAll('.av-txt p')];
+    window.__gizeAviso({ titulo: tit ? tit.textContent : '', texto: ps.map(p => p.textContent).join('\\n\\n') });
+    if (!${tocar}) return;
+    const entendido = () => {
+      if (!el.isConnected) return;
+      if (!el.classList.contains('show')) return requestAnimationFrame(entendido);
+      const b = el.querySelector('.av-btn'); if (b) b.click();
+    };
+    requestAnimationFrame(entendido);
+  };
+  new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1 && n.classList.contains('av-bg')) leer(n); })
+    .observe(document, { childList: true, subtree: true });
+})()`;
+
 // Página nueva con Supabase simulado. handlers: { '/final/de/la/ruta': (route, J, info) => J(...) o undefined }
 // (funciones comunes, no async: undefined quiere decir "este no lo manejo").
 // info = { m, path, one, url, body }. Lo que no maneja un handler responde vacío.
-export async function newPage({ user, state, handlers = {}, viewport = { width: 390, height: 844 }, init, timezoneId = 'America/Argentina/Buenos_Aires', reducedMotion = 'no-preference', touch = false } = {}){
+// dialogs: todo lo que la app le muestra en un cartel, en orden: las preguntas nativas (confirm y
+// prompt, que se aceptan solas; prompt responde p.dialogAnswer) y los avisos propios (el texto del
+// cartel). avisos: solo los propios, con su título ({ titulo, texto }). Con tocarAvisos: false
+// quedan abiertos hasta que la prueba toque «Entendido» (.av-btn).
+export async function newPage({ user, state, handlers = {}, viewport = { width: 390, height: 844 }, init, timezoneId = 'America/Argentina/Buenos_Aires', reducedMotion = 'no-preference', touch = false, tocarAvisos = true } = {}){
   const b = await getBrowser();
   // touch: celular (pantalla táctil, pointer: coarse).
   const ctx = await b.newContext(Object.assign({ viewport, serviceWorkers: 'block', timezoneId, reducedMotion, locale: 'es-AR' }, touch ? { isMobile: true, hasTouch: true } : {}));
@@ -44,10 +71,12 @@ export async function newPage({ user, state, handlers = {}, viewport = { width: 
   // respuesta, la app dibuja el recorrido sobre su fondo propio.
   await ctx.route(/tiles\.openfreemap\.org/, r => r.abort());
   const p = await ctx.newPage();
-  const errs = [], dialogs = [], calls = [];
+  const errs = [], dialogs = [], avisos = [], calls = [];
   p.on('pageerror', e => errs.push(e.message));
   p.dialogAnswer = undefined;
   p.on('dialog', d => { dialogs.push(d.message()); (d.type() === 'prompt' ? d.accept(p.dialogAnswer || '') : d.accept()).catch(() => {}); });
+  await p.exposeFunction('__gizeAviso', a => { avisos.push(a); dialogs.push(a.texto); });
+  await p.addInitScript(LEER_AVISOS(tocarAvisos));
   if (user) await p.addInitScript(`(() => {
     if (sessionStorage.getItem('init')) return;
     sessionStorage.setItem('init', '1');
@@ -55,7 +84,7 @@ export async function newPage({ user, state, handlers = {}, viewport = { width: 
   })()`);
   if (init) await p.addInitScript(init);
   await p.route(/supabase\.co/, supabaseFalso({ user, handlers, calls }));
-  return { p, errs, dialogs, calls, close: () => ctx.close() };
+  return { p, errs, dialogs, avisos, calls, close: () => ctx.close() };
 }
 
 // La sesión de prueba y el estado de la app, como quedan en localStorage al entrar: semilla()
