@@ -14,7 +14,7 @@
 // clientes pasan a usar GIZE por su cuenta), y el alumno tampoco ve el plan de su coach.
 // En la web todo sigue como antes: «Soy coach», la prueba gratis, «Mi plan» y los precios.
 // Eliminar la cuenta de coach dice «se da de baja tu cuenta de coach» en todos lados.
-import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, ALUMNO, profile, configCoach, seccionesCoach, CONFIG_COACH } from './lib.mjs';
 
 const IOS = `(() => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: {} }; })();`;
 // La app de Android: con Capacitor, o solo con su puente (window.androidBridge).
@@ -34,6 +34,13 @@ function coachPage(billingRow, { ios, init, n = 2, user = COACH } = {}){
   } });
 }
 const txt = (p, sel) => p.evaluate(s => [...document.querySelectorAll(s)].map(e => e.innerText).join(' ').replace(/\s+/g, ' '), sel);
+// Su Configuración es una pantalla con un menú de secciones: el texto de todas (menú incluido) y
+// cuáles hay, para revisar que ninguna hable de planes ni pagos. «Perfil» muestra el mail de la
+// cuenta (coach@prueba.test, de la prueba y no de la app): ese no cuenta.
+async function configEntera(p){
+  const secs = await seccionesCoach(p, q => txt(q, '#coachHost .cv-wrap'));
+  return { texto: secs.map(s => s.v).join(' ').split(COACH.email).join('(mail)'), secs: secs.map(s => s.k) };
+}
 
 export default async function ({ base, t }){
   // 1) «Crear cuenta» en el iPhone: sin «Soy coach», sin la prueba; la cuenta nueva es de alumno.
@@ -70,13 +77,13 @@ export default async function ({ base, t }){
   t.has(panel, 'Llegaste al máximo de alumnos de tu cuenta.', 'iPhone: aviso neutro del tope de alumnos');
   t.ok(!PROHIBIDO.test(panel), 'iPhone: el panel no habla de prueba, plan ni pagos: ' + panel.match(PROHIBIDO));
   t.eq(await pg.p.evaluate(() => document.querySelectorAll('[data-plan]').length), 0, 'iPhone: nada abre «Mi plan»');
-  await pg.p.click('[data-coach="open-settings"]'); await wait(500);
-  const ajustes = await txt(pg.p, '#coachSheetHost');
+  const { texto: ajustes, secs } = await configEntera(pg.p);
   t.has(ajustes, 'Cerrar sesión', 'iPhone: se ve su Configuración');
   t.ok(!PROHIBIDO.test(ajustes), 'iPhone: Configuración sin plan ni pagos: ' + ajustes.match(PROHIBIDO));
-  t.ok(!/Mi plan|Ver mi plan/.test(ajustes), 'iPhone: sin «Ver mi plan y cantidad de clientes»');
-  // Eliminar la cuenta (sin escribir ELIMINAR: no se borra nada).
-  await pg.p.click('#coachSheetHost [data-action="cfg-delete-account"]'); await wait(800);
+  t.ok(!/Mi plan|Ver mi plan/.test(ajustes) && !secs.includes('plan'), 'iPhone: sin «Mi plan» ni «Ver mi plan y cantidad de clientes»: ' + secs);
+  // Eliminar la cuenta (sección «Cuenta»; sin escribir ELIMINAR: no se borra nada).
+  await configCoach(pg.p, 'cuenta');
+  await pg.p.click(CONFIG_COACH + ' [data-action="cfg-delete-account"]'); await wait(800);
   t.has(pg.dialogs[0] || '', 'y se da de baja tu cuenta de coach', 'eliminar: texto neutro');
   t.ok(!PROHIBIDO.test(pg.dialogs[0] || ''), 'eliminar: sin suscripción ni pagos');
   // El mensaje de join_coach cuando el coach está vencido o lleno, sin nombrar el plan.
@@ -100,10 +107,9 @@ export default async function ({ base, t }){
     t.has(panel, 'Llegaste al máximo de alumnos de tu cuenta.', name + ': aviso neutro del tope de alumnos');
     t.ok(!PROHIBIDO.test(panel), name + ': el panel no habla de prueba, plan ni pagos: ' + panel.match(PROHIBIDO));
     t.eq(await pg.p.evaluate(() => document.querySelectorAll('[data-plan]').length), 0, name + ': nada abre «Mi plan»');
-    await pg.p.click('[data-coach="open-settings"]'); await wait(500);
-    const aj = await txt(pg.p, '#coachSheetHost');
+    const { texto: aj, secs: ss } = await configEntera(pg.p);
     t.has(aj, 'Cerrar sesión', name + ': se ve su Configuración');
-    t.ok(!PROHIBIDO.test(aj) && !/Mi plan|Ver mi plan/.test(aj), name + ': Configuración sin plan ni pagos: ' + aj.match(PROHIBIDO));
+    t.ok(!PROHIBIDO.test(aj) && !/Mi plan|Ver mi plan/.test(aj) && !ss.includes('plan'), name + ': Configuración sin plan ni pagos: ' + aj.match(PROHIBIDO));
     const jn = await pg.p.evaluate(async () => { const m = await import('/app/core/tienda.js');
       return [m.joinMsgTienda('Tu coach tiene el plan de GIZE vencido. Avisale para que lo renueve y volvé a intentar.'), m.chatMsgTienda('Tu plan de GIZE está vencido: por ahora no podés mandar mensajes.')]; });
     t.ok(jn.every(m => !PROHIBIDO.test(m) && !/renov/i.test(m)), name + ': los mensajes del plan vencido, neutros: ' + jn);
@@ -131,9 +137,9 @@ export default async function ({ base, t }){
   t.has(panel, 'Prueba gratis · te quedan 3 días', 'web: tira de la prueba');
   t.has(panel, 'Llegaste al máximo de tu plan', 'web: el tope habla del plan');
   t.has(panel, 'Ver planes', 'web: botón «Ver planes»');
-  await pg.p.click('[data-coach="open-settings"]'); await wait(500);
-  t.has(await txt(pg.p, '#coachSheetHost'), 'Ver mi plan y cantidad de clientes', 'web: «Ver mi plan» en Configuración');
-  await pg.p.click('#coachSheetHost [data-plan="open"]'); await wait(500);
+  await configCoach(pg.p, 'plan');
+  t.has(await txt(pg.p, CONFIG_COACH), 'Ver mi plan y cantidad de clientes', 'web: «Ver mi plan» en Configuración (sección «Mi plan»)');
+  await pg.p.click(CONFIG_COACH + ' [data-plan="open"]'); await wait(500);
   const hoja = await txt(pg.p, '#planSheetHost');
   t.has(hoja, 'Estás en la prueba gratis', 'web: «Mi plan» con la prueba');
   t.has(hoja, '$24.900', 'web: «Mi plan» con los precios');

@@ -10,6 +10,7 @@
 
 // De la ventana de más arriba a la de más abajo: se toca la primera que se ve.
 const CERRAR = [
+  '.av-bg:not(.closing) .av-btn',                // cartel de aviso (ui/avisos.js, el alert() de la app): encima de todo
   '#blockHost [data-blq="cancel"]',              // «Bloquear» y «Personas bloqueadas» (encima de todo)
   '#reportHost [data-rep="cancel"]',             // «Reportar» (encima de todo, también del chat)
   '.crp .crp-cancel',                            // acomodar la foto de perfil

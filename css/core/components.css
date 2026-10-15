@@ -682,3 +682,10 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 .sx-set.zero .sx-val { opacity: .45; }
 .sx-set .sc-d { margin-top: 6px; }
 .sx-set .sc-d.none { display: none; }
+/* En 320 un «22,5 kg × 10» no entraba en la ficha y se salía: un poco menos de aire y, si igual no
+   entra (pesos de tres cifras), baja a la segunda línea en vez de cortarse. */
+@media (max-width: 380px) {
+  .sx-set { padding: 8px; }
+  .sx-set-v { gap: 6px; }
+  .sx-val { flex-wrap: wrap; }
+}

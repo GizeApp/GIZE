@@ -10,7 +10,7 @@
 // violeta y azul en las puntas (nada de conic-gradient ni de giro) y la sombra es neutra, sin
 // resplandor de colores. La gama entera de «Azul» (azul, violeta, cian) sigue en las barras de
 // progreso (--gize-rgb-line).
-import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, ALUMNO, profile, configCoach } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'Torso', exercises: [{ id: 'e1', name: 'Press de banca', sets: [{ id: 's1', kg: '80', reps: '8', done: true }] }] }], sessions: [], weights: [], daily: {} };
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
@@ -190,18 +190,20 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores de la página (movimiento reducido)');
   await pg.close();
 
-  // 7) Coach: el mismo selector en su Configuración.
+  // 7) Coach: el mismo selector en su Configuración (sección «Apariencia» de esa pantalla del panel).
   pg = await newPage({ user: COACH, handlers: COACH_H, init: () => localStorage.setItem('gize_lite', '0') });
   await pg.p.goto(base + '/app/'); await wait(3000);
-  await pg.p.click('[data-coach="open-settings"]'); await wait(500);
-  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('#coachSheetHost .cs-tema [data-tema]')].map(b => b.textContent + (b.classList.contains('on') ? '*' : ''))), ['Oscuro*', 'Claro', 'Azul', 'Rosa'], 'coach: Apariencia con Oscuro (elegido), Claro, Azul y Rosa');
+  await configCoach(pg.p, 'apariencia');
+  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('#coachHost .cs-body .cs-tema [data-tema]')].map(b => b.textContent + (b.classList.contains('on') ? '*' : ''))), ['Oscuro*', 'Claro', 'Azul', 'Rosa'], 'coach: Apariencia con Oscuro (elegido), Claro, Azul y Rosa');
   const bodyCoach = () => pg.p.evaluate(() => [document.documentElement.classList.contains('tema-claro'), getComputedStyle(document.body).backgroundColor, localStorage.getItem('gize_tema')]);
   t.eq(await bodyCoach(), [false, 'rgb(0, 0, 0)', null], 'coach: por defecto el look de siempre');
-  await pg.p.click('#coachSheetHost [data-tema="azul"]'); await wait(150);
+  await pg.p.click('#coachHost .cs-body [data-tema="azul"]'); await wait(150);
   t.eq(await bodyCoach(), [true, 'rgb(3, 8, 20)', 'azul'], 'coach: Azul se aplica y se guarda');
-  t.ok(/blur/.test(await pg.p.evaluate(() => getComputedStyle(document.querySelector('.cp-ccard')).backdropFilter)), 'coach: la ventana de Configuración es vidrio');
-  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('#coachSheetHost .cs-tema .on')].map(b => b.textContent)), ['Azul'], 'coach: queda marcada Azul');
-  await pg.p.click('#coachSheetHost [data-tema="oscuro"]'); await wait(150);
+  // Configuración ya no es una ventana: es una pantalla del panel y sus tarjetas son las del panel,
+  // con el vidrio «sólido» de Azul (--gize-surface #101A31, css/ui/tema-claro.css).
+  t.ok((await pg.p.evaluate(() => [...document.querySelectorAll('#coachHost .cs-body .cs-card')].map(c => getComputedStyle(c).backgroundImage))).every(b => b.includes('rgb(16, 26, 49)')), 'coach: las tarjetas de Configuración son de vidrio de Azul');
+  t.eq(await pg.p.evaluate(() => [...document.querySelectorAll('#coachHost .cs-body .cs-tema .on')].map(b => b.textContent)), ['Azul'], 'coach: queda marcada Azul');
+  await pg.p.click('#coachHost .cs-body [data-tema="oscuro"]'); await wait(150);
   t.eq(await bodyCoach(), [false, 'rgb(0, 0, 0)', null], 'coach: Oscuro vuelve al look de siempre');
   t.eq(pg.errs, [], 'errores de la página (coach)');
   await pg.close();

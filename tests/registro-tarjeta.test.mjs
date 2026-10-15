@@ -13,14 +13,14 @@ const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Bu
 // registro a la nube (las filas con "comment"; la fila automática del día no lo trae).
 async function tarjeta(base, rows, cq = null){
   const registros = [];
-  const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: { sessions: [], daily: {}, weights: [] },
+  const { p, errs, dialogs, avisos, close } = await newPage({ user: ALUMNO, state: { sessions: [], daily: {}, weights: [] },
     handlers: { '/profiles': perfil('client', CON_COACH),
       '/daily_logs': (r, J, i) => { if (i.m === 'GET') return J(rows); if (i.body) [].concat(JSON.parse(i.body)).forEach(x => { if (x && 'comment' in x) registros.push(x); }); return undefined; },
       '/coach_questions': (r, J, i) => i.m === 'GET' ? J(i.one ? cq : (cq ? [cq] : [])) : undefined } });
   await p.goto(base + '/app/'); await wait(2500);
   await p.click('#nav-progreso'); await wait(300);
   const tile = () => p.evaluate(() => { const b = document.querySelector('[data-action="psec-open"][data-v="registro"]'); return { txt: b.querySelector('.ptile-s').innerText.trim(), pend: b.classList.contains('pend') }; });
-  return { p, errs, dialogs, registros, close, tile };
+  return { p, errs, dialogs, avisos, registros, close, tile };
 }
 
 export default async function ({ base, t }){
@@ -81,7 +81,9 @@ export default async function ({ base, t }){
   await s.p.click('[data-action="psec-open"][data-v="registro"]'); await wait(300);
   await s.p.fill('#dKg', '79,2');
   await s.p.click('[data-action="daily-save"]'); await wait(1500);
-  t.eq(s.dialogs, ['Registro guardado ✓'], 'sin preguntas: el registro con solo el peso se guarda');
+  // El ✓ del mensaje lo muestra el cartel propio como «Listo» (app/ui/avisos.js).
+  t.eq(s.dialogs, ['Registro guardado'], 'sin preguntas: el registro con solo el peso se guarda');
+  t.eq(s.avisos.map(a => a.titulo), ['Listo'], 'sin preguntas: con el cartel de «Listo»');
   t.eq(s.registros.length, 1, 'sin preguntas: y va a la nube');
   t.eq((await saved(s.p)).weights.filter(w => w.date === TODAY).map(w => w.kg), [79.2], 'sin preguntas: con el peso nuevo');
   t.eq(s.errs, [], 'sin preguntas: errores de la página');

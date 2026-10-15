@@ -10,7 +10,7 @@
 // - Con el neón apagado (gize_neon = "0") ningún borde ni brillo del panel lleva color (queda el
 //   azul de acción y el rojo de borrar). El interruptor («Toque de color en los bordes») está en
 //   Configuración y cambia html.sin-neon.
-import { newPage, wait } from './lib.mjs';
+import { newPage, wait, configCoach } from './lib.mjs';
 
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
 const A1 = '44444444-4444-4444-4444-444444444444';
@@ -156,7 +156,8 @@ export default async function ({ base, t }){
       await p.click(`[data-coach="client-tab"][data-t="${tab}"]`); await wait(600);
       t.eq((await p.evaluate(scan)).neon, [], 'sin neón: pestaña ' + tab + ' sin bordes ni brillos de colores');
     }
-    await p.click('[data-coach="open-settings"]'); await wait(800);
+    // Configuración → «Apariencia» (la pantalla de Configuración del coach, con su menú de secciones).
+    await configCoach(p, 'apariencia'); await wait(500);
     const sw = await p.$('#coachHost [data-neon-toggle], [data-neon-toggle]');
     t.ok(!!sw, 'Configuración del coach tiene el interruptor de Neón');
     if (sw){

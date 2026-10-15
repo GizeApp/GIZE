@@ -6,6 +6,11 @@
 // varios seguidos se muestran uno después del otro. confirm() y prompt() siguen siendo los
 // nativos: devuelven un valor y hay que reescribir cada llamada para cambiarlos.
 //
+// Ojo: el alert() nativo frenaba la app hasta que se tocaba «Aceptar»; este no. Donde lo que
+// sigue saca el cartel antes de que se lea (recargar la página, como al eliminar la cuenta), se
+// espera a que lo cierren: alert() devuelve una promesa que se cumple al tocar «Entendido»
+// (await alert("…"); location.reload()).
+//
 // El tipo se deduce del texto: ✓ / «guardada» → listo; «No se pudo» → error; el resto, aviso.
 
 const OK = /✓|✓|^¡?(listo|gracias)|guardad[oa]|enviad[oa]|aplicad[oa]|copiad[oa]|borrad[oa]|programad[oa]|se (guard|cop|actualiz)/i;
@@ -35,7 +40,7 @@ function cerrar(){
   abierto = null;
   document.removeEventListener("keydown", a.onKey, true);
   a.el.classList.add("closing");
-  const fin = () => { a.el.remove(); if (a.volver && a.volver.isConnected) try { a.volver.focus({ preventScroll: true }); } catch (e) {} siguiente(); };
+  const fin = () => { a.el.remove(); if (a.volver && a.volver.isConnected) try { a.volver.focus({ preventScroll: true }); } catch (e) {} a.listo(); siguiente(); };
   // Sin animación (movimiento reducido) no hay transitionend: se cierra directo.
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) fin();
   else { a.el.addEventListener("transitionend", fin, { once: true }); setTimeout(() => { if (a.el.isConnected) fin(); }, 400); }
@@ -43,7 +48,7 @@ function cerrar(){
 
 function siguiente(){
   if (abierto || !cola.length) return;
-  const { msg } = cola.shift();
+  const { msg, listo } = cola.shift();
   const tipo = tipoDe(msg);
   // El ✓ suelto del final ya lo dice el ícono.
   const texto = msg.replace(/\s*[✓✓]\s*/g, " ").replace(/\s+([.!])/g, "$1").trim();
@@ -56,7 +61,7 @@ function siguiente(){
     '<div class="av-txt" id="avTxt"><p>' + esc(primera || "") + '</p>' + resto.map(r => '<p>' + esc(r) + '</p>').join("") + '</div>' +
     '<button type="button" class="av-btn">Entendido</button></div>';
   const onKey = e => { if (e.key === "Escape" || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); cerrar(); } };
-  abierto = { el, onKey, volver: document.activeElement };
+  abierto = { el, onKey, volver: document.activeElement, listo };
   document.addEventListener("keydown", onKey, true);
   el.addEventListener("click", e => { if (e.target === el || e.target.closest(".av-btn")) cerrar(); });
   document.body.appendChild(el);
@@ -64,6 +69,8 @@ function siguiente(){
 }
 
 window.alert = function(msg){
-  cola.push({ msg: msg == null ? "" : String(msg) });
-  siguiente();
+  return new Promise(listo => {
+    cola.push({ msg: msg == null ? "" : String(msg), listo });
+    siguiente();
+  });
 };

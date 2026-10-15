@@ -6,7 +6,7 @@
 //   «No bloqueaste a nadie.».
 // - En el coach, la hoja va encima de su Configuración; Escape y el «Atrás» de Android cierran la
 //   hoja y la Configuración queda abierta.
-import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, text, ALUMNO, profile, configCoach, CONFIG_COACH } from './lib.mjs';
 
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
 const B1 = '8d8d8d8d-0000-4000-8000-000000000001', B2 = '8d8d8d8d-0000-4000-8000-000000000002';
@@ -23,6 +23,8 @@ function bloqueos(s){
     },
   };
 }
+// La sección «Privacidad» de la Configuración del coach, abierta.
+const PRIVACIDAD = CONFIG_COACH + '[data-sec="privacidad"]';
 const filas = p => p.$$eval('#blockHost .blq-row', l => l.map(r => ({ n: r.querySelector('.blq-name').textContent, b: r.querySelector('.blq-un').innerText.trim() })));
 
 export default async function ({ base, t }){
@@ -87,22 +89,23 @@ export default async function ({ base, t }){
     }, bloqueos(s)) });
     await p.route(u => !u.href.startsWith(base) && !/supabase\.co/.test(u.href), r => r.abort());
     await p.goto(base + '/app/'); await wait(3500);
-    await p.click('[data-coach="open-settings"]'); await wait(500);
-    t.has(await text(p, '#coachSheetHost [data-bloqueados]'), 'Personas bloqueadas', 'coach: en su Configuración está «Personas bloqueadas»');
-    await p.click('#coachSheetHost [data-bloqueados]'); await wait(700);
+    // Configuración → «Privacidad» (la pantalla de Configuración del coach, con su menú de secciones).
+    await configCoach(p, 'privacidad');
+    t.has(await text(p, CONFIG_COACH + ' [data-bloqueados]'), 'Personas bloqueadas', 'coach: en su Configuración está «Personas bloqueadas»');
+    await p.click(CONFIG_COACH + ' [data-bloqueados]'); await wait(700);
     t.eq(await filas(p), [{ n: 'Ana Alumna', b: 'Desbloquear' }], 'coach: la lista');
     const arriba = await p.evaluate(() => { const b = document.querySelector('#blockHost .blq-un').getBoundingClientRect(); const e = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2); return !!(e && e.closest('#blockHost')); });
     t.ok(arriba, 'coach: la hoja está encima de su Configuración');
     // «Atrás» de Android: cierra la hoja y deja la Configuración.
     await p.evaluate(() => (window.__ls.backButton || []).forEach(f => f({ canGoBack: false }))); await wait(500);
     t.ok(!(await p.$('#blockHost .sheet')), 'coach: «Atrás» cierra la hoja');
-    t.ok(await p.isVisible('#coachSheetHost .cp-ccard'), 'coach: la Configuración sigue abierta');
-    await p.click('#coachSheetHost [data-bloqueados]'); await wait(700);
+    t.ok(await p.isVisible(PRIVACIDAD), 'coach: la Configuración sigue abierta');
+    await p.click(CONFIG_COACH + ' [data-bloqueados]'); await wait(700);
     await p.click(`#blockHost [data-blq="des"][data-id="${B1}"]`); await wait(700);
     t.eq(s.envios, [{ p_id: B1 }], 'coach: unblock_user');
     t.eq(await text(p, '#blockHost .blq-vacio'), 'No bloqueaste a nadie.', 'coach: lista vacía');
     await p.keyboard.press('Escape'); await wait(400);
-    t.ok(!(await p.$('#blockHost .sheet')) && await p.isVisible('#coachSheetHost .cp-ccard'), 'coach: Escape cierra la hoja y la Configuración queda');
+    t.ok(!(await p.$('#blockHost .sheet')) && await p.isVisible(PRIVACIDAD), 'coach: Escape cierra la hoja y la Configuración queda');
     t.eq(errs, [], 'errores de la página (coach)');
     await close();
   }

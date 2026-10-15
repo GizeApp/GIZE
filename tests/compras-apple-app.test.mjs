@@ -14,7 +14,7 @@
 // - Las compras que llegan solas (renovaciones) van a la función y se finalizan.
 // - Android (aunque tuviera el plugin) sigue sin planes; en la web, el plan de Apple no ofrece
 //   pagar otro con Mercado Pago.
-import { newPage, wait } from './lib.mjs';
+import { newPage, wait, configCoach, CONFIG_COACH } from './lib.mjs';
 
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated', created_at: new Date(Date.now() - 60 * 864e5).toISOString() };
 const D = n => new Date(Date.now() + n * 864e5).toISOString();
@@ -56,6 +56,12 @@ function pagina(fila, { init, servidor, n = 2 } = {}){
 }
 const txt = (p, sel) => p.evaluate(s => [...document.querySelectorAll(s)].map(e => e.innerText).join(' ').replace(/\s+/g, ' '), sel);
 const compras = p => p.evaluate(() => window.__compras);
+// «Mi plan» abierto: los planes de Apple con lo que pide Apple debajo (Términos de uso, Política de
+// privacidad y «Restaurar compras»).
+const hojaApple = p => p.evaluate(() => { const h = document.getElementById('planSheetHost');
+  return { suscribirme: h.querySelectorAll('[data-plan="choose"]').length, restaurar: !!h.querySelector('[data-plan="apple-restore"]'),
+    links: [...h.querySelectorAll('a')].map(a => a.innerText.trim() + ' ' + a.getAttribute('href')) }; });
+const LEGALES = ['Términos de uso https://gize.ar/terminos/?app=1', 'Política de privacidad https://gize.ar/privacidad/?app=1'];
 const VENCIDA = { plan: 'trial', max_clients: 10, trial_ends_at: D(-2) };
 const APPLE25 = { plan: 'p25', max_clients: 25, trial_ends_at: D(-40), paid_until: D(30), apple_original_tx: '2000000000000001', apple_vence: D(30), apple_renueva: true };
 
@@ -144,7 +150,7 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores (plan de la web en el iPhone)');
   await pg.close();
 
-  // 4) En la prueba: la tira no la nombra; «Ver planes» y Configuración llevan a los planes.
+  // 4) En la prueba: la tira no la nombra; «Ver planes» y Configuración → «Mi plan» llevan a los planes.
   // «Restaurar compras» manda las vigentes.
   pg = await pagina({ plan: 'trial', max_clients: 10, trial_ends_at: D(5) }, { init: plugin('ios'),
     servidor: b => Array.isArray(b.jws) ? [200, { resultados: [{ ok: true }] }, APPLE25] : [200, { ok: true }, null] });
@@ -153,11 +159,20 @@ export default async function ({ base, t }){
   t.has(tira, '2/10 clientes', 'en la prueba: la tira dice cuántos tiene');
   t.has(tira, 'Ver planes', 'en la prueba: «Ver planes»');
   t.ok(!PROHIBIDO.test(await txt(pg.p, '#coachHost')) && !/días?\b/.test(tira), 'en la prueba: no la nombra ni cuenta los días: ' + tira);
-  await pg.p.click('[data-coach="open-settings"]'); await wait(500);
-  t.has(await txt(pg.p, '#coachSheetHost'), 'Ver mi plan y cantidad de clientes', 'Configuración: «Ver mi plan»');
-  await pg.p.click('#coachSheetHost [data-plan="open"]'); await wait(600);
+  await pg.p.click('#coachHost .pl-banner'); await wait(600);
+  hoja = await txt(pg.p, '#planSheetHost');
+  t.has(hoja, 'US$ 14,99', '«Ver planes» del panel: los precios de Apple');
+  t.eq(await hojaApple(pg.p), { suscribirme: 6, restaurar: true, links: LEGALES }, '«Ver planes» del panel: «Suscribirme», «Restaurar compras», Términos y Política');
+  t.ok(!PROHIBIDO.test(hoja), '«Ver planes» del panel: sin la prueba ni pesos: ' + (hoja.match(PROHIBIDO) || [])[0]);
+  await pg.p.click('#planSheetHost [data-plan="close"].cp-x'); await wait(300);
+  await configCoach(pg.p, 'plan');
+  const secPlan = await txt(pg.p, CONFIG_COACH);
+  t.has(secPlan, 'Ver mi plan y cantidad de clientes', 'Configuración: «Mi plan» con «Ver mi plan»');
+  t.ok(!PROHIBIDO.test(secPlan), 'Configuración: «Mi plan» sin la prueba ni pesos: ' + secPlan);
+  await pg.p.click(CONFIG_COACH + ' [data-plan="open"]'); await wait(600);
   hoja = await txt(pg.p, '#planSheetHost');
   t.has(hoja, 'US$ 14,99', 'en la prueba: «Mi plan» con los precios de Apple');
+  t.eq(await hojaApple(pg.p), { suscribirme: 6, restaurar: true, links: LEGALES }, 'Configuración → «Mi plan»: «Suscribirme», «Restaurar compras», Términos y Política');
   t.ok(!PROHIBIDO.test(hoja), 'en la prueba: «Mi plan» sin la prueba ni pesos: ' + (hoja.match(PROHIBIDO) || [])[0]);
   await pg.p.click('#planSheetHost [data-plan="apple-restore"]'); await wait(1500);
   t.ok((await compras(pg.p)).some(x => x[0] === 'restaurar'), '«Restaurar compras» le pide a Apple');

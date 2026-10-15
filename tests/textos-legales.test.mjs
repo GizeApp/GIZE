@@ -9,12 +9,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, text, ALUMNO, profile, configCoach, seccionesCoach, CONFIG_COACH } from './lib.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} };
 const NATIVE = () => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: {} }; };
-const links = p => p.evaluate(() => [...document.querySelectorAll('#view a, #coachSheetHost a')].map(a => ({ href: a.getAttribute('href'), txt: a.innerText.replace(/\s+/g, ' ').trim() })));
+const links = p => p.evaluate(() => [...document.querySelectorAll('#view a, #coachHost .cs-body a')].map(a => ({ href: a.getAttribute('href'), txt: a.innerText.replace(/\s+/g, ' ').trim() })));
 // La página de inicio: gize.ar/ (con o sin ? o #). La política (gize.ar/privacidad/) no cuenta.
 const isLanding = h => /^https:\/\/gize\.ar\/?([?#].*)?$/.test(h || '');
 
@@ -57,13 +57,14 @@ export default async function ({ base, t }){
     '/coach_billing': (r, J, i) => { const b = { coach_id: COACH.id, plan: 'cortesia', max_clients: 10, trial_ends_at: '2099-01-01T00:00:00Z' }; return J(i.one ? b : [b]); },
   } });
   await pg.p.goto(base + '/app/'); await wait(3000);
-  await pg.p.click('[data-coach="open-settings"]'); await wait(500);
-  ls = await links(pg.p);
+  // Su Configuración es una pantalla con un menú de secciones: los links de todas.
+  ls = (await seccionesCoach(pg.p, links)).flatMap(s => s.v);
   priv = ls.find(l => l.txt === 'Política de privacidad');
   t.ok(!!priv, 'coach: está el link «Política de privacidad»');
   t.has(priv && priv.href, 'gize.ar/privacidad/?app=1', 'coach: la política se abre sin la barra de la página de inicio');
   t.ok(!ls.some(l => isLanding(l.href)), 'coach en iPhone: ningún link a la página de inicio');
-  await pg.p.click('#coachSheetHost [data-action="cfg-delete-account"]'); await wait(800);
+  await configCoach(pg.p, 'cuenta');
+  await pg.p.click(CONFIG_COACH + ' [data-action="cfg-delete-account"]'); await wait(800);
   const delMsg = pg.dialogs[0] || '';
   t.ok(!delMsg.includes('no pierden nada'), 'no promete que los alumnos no pierden nada: ' + delMsg);
   t.has(delMsg, 'se borran el chat que tenían con vos', 'avisa que se borra el chat con los alumnos');

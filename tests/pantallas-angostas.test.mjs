@@ -1,5 +1,6 @@
 // Pantallas angostas de Android (320x640 y 360x800): que nada se corte, se salga ni quede tapado.
-//   · Progreso → Historial del alumno: «Este entreno» y «La vez pasada» se leen enteros.
+//   · Progreso → Historial del alumno: cada serie (lo que hizo y la diferencia con la vez pasada)
+//     y la variación de cada ejercicio se leen enteras.
 //   · Comida → Agregar: «Agregar» y la ✕ en la misma fila; «Desayuno», «Almuerzo»… sin cortar.
 //   · Entreno: la palabra «reps» no queda debajo de la meta del coach (8-14).
 //   · Coach: un mail largo no se sale de la fila, la grilla del plan no pasa el borde y el
@@ -67,16 +68,21 @@ export default async function ({ base, t }){
       t.ok(sets.every(s => /^Repeticiones, serie \d+$/.test(s.aria || '')), W + 'el campo de reps dice qué es para el lector de pantalla');
       if (vp.width >= 360) t.ok(sets.every(s => s.unit != null), W + 'desde 360 se sigue viendo «reps»');
 
-      // Progreso → Historial: el entreno abierto, comparado con la vez pasada.
+      // Progreso → Historial: el entreno abierto, comparado con la vez pasada. Cada ejercicio es una
+      // tarjeta con la variación arriba y una ficha por serie: lo que hizo y, debajo, la diferencia.
       await tap(p, '#nav-progreso'); await wait(500);
       await tap(p, '[data-action="psec-open"][data-v="historial"]'); await wait(800);
       const h = await p.evaluate(() => {
-        const cells = [...document.querySelectorAll('.sc-row:not(.sc-head) .sc-now, .sc-row:not(.sc-head) .sc-prev')];
-        const cut = cells.filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent);
-        // Texto de cada celda contra la celda de al lado (que no se encimen).
+        const cells = [...document.querySelectorAll('.sess-body .sx-set')].filter(c => c.querySelector('.sx-val') && c.querySelector('.sc-d b'));
+        const textos = [...document.querySelectorAll('.sess-body :is(.sx-val, .sc-d b, .sx-badge)')];
+        const cut = textos.filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent);
+        // Que nada se encime: lo de cada ficha queda adentro de la ficha, y el nombre del ejercicio
+        // no pisa la variación de al lado.
         const textBox = e => { const r = document.createRange(); r.selectNodeContents(e); const rs = [...r.getClientRects()]; return rs.length ? { l: Math.min(...rs.map(x => x.left)), r: Math.max(...rs.map(x => x.right)) } : null; };
         const pisadas = [];
-        document.querySelectorAll('.sc-row').forEach(row => { const k = [...row.children]; for (let i = 1; i + 1 < k.length; i++){ const a = textBox(k[i]), b = k[i + 1].getBoundingClientRect(); if (a && a.r > b.left + 0.5) pisadas.push(k[i].textContent + ' / ' + k[i + 1].textContent); } });
+        cells.forEach(c => { const rc = c.getBoundingClientRect(); c.querySelectorAll('.sx-val, .sc-d b').forEach(e => { const a = e.getBoundingClientRect(); if (a.left < rc.left - 0.5 || a.right > rc.right + 0.5) pisadas.push(e.textContent); }); });
+        document.querySelectorAll('.sess-body .sx-h').forEach(x => { const n = x.querySelector('.sd-ex-name'), b = x.querySelector('.sx-badge'), a = n && textBox(n);
+          if (a && b && a.r > b.getBoundingClientRect().left + 0.5) pisadas.push(n.textContent + ' / ' + b.textContent); });
         const acts = document.querySelector('.sess-acts'), main = document.querySelector('.sess-main'), body = document.querySelector('.sess-body'), item = document.querySelector('.sess-det-wrap');
         const ra = acts && acts.getBoundingClientRect(), rm = main && main.getBoundingClientRect(), rb = body && body.getBoundingClientRect(), ri = item && item.getBoundingClientRect();
         return { cells: cells.length, cut, pisadas, actsOk: !!(ra && rm && (ra.left >= rm.right - 0.5 || ra.top >= rm.bottom - 0.5)),
@@ -84,7 +90,7 @@ export default async function ({ base, t }){
       });
       t.ok(h.cells >= 12, W + 'historial: se ven las series comparadas (' + h.cells + ')');
       t.eq(h.cut, [], W + 'historial: números cortados');
-      t.eq(h.pisadas, [], W + 'historial: columnas encimadas');
+      t.eq(h.pisadas, [], W + 'historial: textos encimados');
       t.ok(h.actsOk && h.actsIn, W + 'historial: Editar/Borrar quedan dentro de la tarjeta sin tapar la fecha');
       t.ok(h.bodyW != null && h.bodyW < 30, W + 'historial: el entreno abierto usa todo el ancho (sobran ' + h.bodyW + ' px a la derecha)');
       t.ok(await noHScroll(p), W + 'historial: sin scroll de costado');
@@ -137,7 +143,8 @@ export default async function ({ base, t }){
           // 18 px para la flechita del select.
           const room = s.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 18;
           const item = s.closest('.cq-item').getBoundingClientRect();
-          const btnsOut = [...s.closest('.cq-row').querySelectorAll('.cq-btn')].some(b => b.getBoundingClientRect().right > item.right + 0.5);
+          // ↑ ↓ ✕ de esa pregunta (en su tarjeta, debajo o al lado del texto y el tipo).
+          const btnsOut = [...s.closest('.cq-item').querySelectorAll('.cq-btn')].some(b => b.getBoundingClientRect().right > item.right + 0.5);
           return { need: Math.ceil(need), room: Math.floor(room), btnsOut }; });
       });
       t.ok(q.length > 0, W + 'preguntas: se ve el editor');
