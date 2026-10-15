@@ -71,7 +71,7 @@ begin
   values (coachios, 'trial', 10, now() - interval '1 day')
   on conflict (coach_id) do update set plan = 'trial', max_clients = 10, trial_ends_at = now() - interval '1 day',
     paid_until = null, mp_preapproval_id = null, mp_status = null, pending_plan = null,
-    apple_original_tx = null, apple_vence = null, apple_renueva = null, updated_at = now();
+    apple_original_tx = null, apple_vence = null, apple_renueva = false, updated_at = now();
 
   -- Datos para que la app no se vea vacía: 8 semanas de peso.
   insert into public.body_weights (client_id, measured_on, kg)

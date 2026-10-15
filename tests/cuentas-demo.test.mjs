@@ -22,6 +22,18 @@ export default async ({ t }) => {
   t.ok(/values \(coachios, 'trial', 10, now\(\) - interval '1 day'\)/.test(cuerpo), 'coach de la revisión: prueba vencida');
   t.ok(/paid_until = null[\s\S]*apple_vence = null/.test(cuerpo), 'y sin nada pagado');
   t.ok(/values \(coach, 'cortesia', 50\)/.test(cuerpo), 'el coach demo sigue con cortesía');
+  // Lo que se vacía tiene que poder quedar vacío: una columna «not null» puesta en null hace fallar
+  // toda la tarea (código 23502), como pasó con apple_renueva.
+  const sqls = fs.readdirSync(path.join(ROOT, 'supabase')).filter(f => f.endsWith('.sql')).map(f => fs.readFileSync(path.join(ROOT, 'supabase', f), 'utf8')).join('\n');
+  const crea = (sqls.match(/create table if not exists public\.coach_billing \(([\s\S]*?)\n\);/) || [])[1] || '';
+  const noNulas = new Set([
+    ...crea.split('\n').filter(l => /\bnot null\b/.test(l.replace(/--.*$/, ''))).map(l => l.trim().split(/\s+/)[0]),
+    ...[...sqls.matchAll(/alter table public\.coach_billing add column if not exists (\w+)[^;]*\bnot null\b/g)].map(m => m[1]),
+  ]);
+  t.ok(noNulas.has('plan') && noNulas.has('apple_renueva'), 'encuentra las columnas obligatorias de coach_billing: ' + [...noNulas].join(', '));
+  const vaciadas = [...cuerpo.matchAll(/\b(\w+) = null\b/g)].map(m => m[1]);
+  t.eq(vaciadas.filter(c => noNulas.has(c)), [], 'no vacía ninguna columna obligatoria de coach_billing');
+  t.ok(/apple_renueva = false/.test(cuerpo), 'apple_renueva queda en false');
   const wf = fs.readFileSync(path.join(ROOT, '.github/workflows/supabase.yml'), 'utf8');
   t.ok(/replace\("__DEMO_COACHIOS__", m\[1\]\+"\+coachios@"\+m\[2\]\)/.test(wf), 'el workflow arma el mail del coach de la revisión desde DEMO_EMAIL');
 };
