@@ -10,6 +10,8 @@
 //   audios_por_borrar y lo que no se llega a borrar (falla o la función se corta) lo borra un
 //   cron cada hora. Antes quedaban para siempre sin dueño.
 // - Se sacan de la cola de a 50: con 100 rutas el pedido pasaba de 8.000 caracteres.
+// - «Tu cuenta fue eliminada.» (un cartel propio, app/ui/avisos.js, que no frena la app como el
+//   alert() nativo) queda en pantalla hasta tocar «Entendido» y recién ahí la app se recarga.
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -18,12 +20,14 @@ import { funcion, supabaseSimulado } from './funcion.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-async function run(base, fn){
+async function run(base, fn, tocarAvisos = true){
   const r = await newPage({ user: ALUMNO, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} },
-    handlers: { '/profiles': profile('client'), '/functions/v1/borrar-audios': fn } });
+    handlers: { '/profiles': profile('client'), '/functions/v1/borrar-audios': fn }, tocarAvisos });
   r.p.dialogAnswer = 'ELIMINAR';
   await r.p.goto(base + '/app/'); await wait(2500);
   await r.p.click('#nav-config'); await wait(500);
+  // Marca de esta carga de la página: si la app se recarga, desaparece.
+  await r.p.evaluate(() => { window.__mismaCarga = true; });
   await r.p.click('[data-action="cfg-delete-account"]'); await wait(1500);
   r.fn = r.calls.filter(c => c.endsWith('/functions/v1/borrar-audios')).length;
   r.rpc = r.calls.filter(c => c.endsWith('/rpc/delete_own_account')).length;
@@ -37,6 +41,17 @@ export default async function ({ base, t }){
     t.eq(rpc, 0, 'función nueva: no llama aparte a delete_own_account');
     t.ok(dialogs.includes('Tu cuenta fue eliminada.'), 'función nueva: avisa que se eliminó: ' + JSON.stringify(dialogs));
     t.eq(errs, [], 'función nueva: errores de la página');
+    await close();
+  }
+  {
+    // El cartel de «Tu cuenta fue eliminada.» se puede leer: la app no se recarga hasta tocar «Entendido».
+    const { p, errs, close } = await run(base, (x, J) => J({ removed: 2, deleted: true }), false);
+    await wait(1000);
+    t.eq(await p.evaluate(() => [!!window.__mismaCarga, (document.querySelector('.av-bg .av-txt') || {}).textContent || '']), [true, 'Tu cuenta fue eliminada.'],
+      'el aviso de que se eliminó queda en pantalla, sin recargar');
+    await p.click('.av-bg .av-btn'); await wait(2500);
+    t.ok(await p.evaluate(() => !window.__mismaCarga && !!document.getElementById('auEmail')), 'al tocar «Entendido» se recarga y vuelve al ingreso');
+    t.eq(errs, [], 'cartel de cuenta eliminada: errores de la página');
     await close();
   }
   {

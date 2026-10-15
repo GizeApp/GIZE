@@ -1,5 +1,6 @@
 // «Atrás» de Android con ventanas que se agregan sueltas al <body>: la de acomodar la foto
-// de perfil y la foto agrandada del panel. Tiene que cerrar la ventana y quedarse en la
+// de perfil, la foto agrandada del panel y el cartel de aviso (el alert() de la app, que antes
+// era el nativo y lo cerraba el «Atrás»). Tiene que cerrar la ventana y quedarse en la
 // pestaña de abajo, no cambiar de pestaña por detrás ni sacar de la app.
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
 
@@ -14,7 +15,7 @@ const NATIVE = () => {
 export default async function ({ base, t }){
   const { p, errs, close } = await newPage({ user: ALUMNO, init: NATIVE,
     state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} },
-    handlers: { '/profiles': profile('client') } });
+    handlers: { '/profiles': profile('client') }, tocarAvisos: false });
   await p.route(u => !u.href.startsWith(base) && !/supabase\.co/.test(u.href), r => r.abort());
   await p.goto(base + '/app/'); await wait(3000);
   const back = async () => { await p.evaluate(() => (window.__ls.backButton || []).forEach(f => f({ canGoBack: false }))); await wait(500); };
@@ -42,6 +43,13 @@ export default async function ({ base, t }){
     z.style.cssText = 'position:fixed;inset:0'; z.addEventListener('click', () => z.remove()); document.body.appendChild(z); });
   await back();
   t.eq(await estado(), { crp: false, zoom: false, ajustes: true, min: 0 }, '«Atrás» cierra la foto agrandada y se queda donde estaba');
+
+  // Cartel de aviso (app/ui/avisos.js).
+  await p.evaluate(() => { alert('Nombre guardado ✓'); }); await wait(400);
+  t.ok(await p.$('.av-bg'), 'se ve el cartel de aviso');
+  await back();
+  t.ok(!(await p.$('.av-bg')), '«Atrás» cierra el cartel de aviso');
+  t.eq(await estado(), { crp: false, zoom: false, ajustes: true, min: 0 }, 'y se queda donde estaba');
 
   t.eq(errs, [], 'sin errores en la página');
   await close();

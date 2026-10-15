@@ -367,7 +367,9 @@ document.body.addEventListener("click", async function (e) {
       clearAccountLeftovers(State.cloudUser && State.cloudUser.id);
       try { await Promise.race([State.sb.auth.signOut(), new Promise(r => setTimeout(r, 5000))]); } catch (err) {}
       forgetStoredSession(); // la cuenta ya no existe: que no quede su sesión guardada en el dispositivo
-      alert("Tu cuenta fue eliminada.");
+      // Se recarga recién cuando cierra el aviso: alert() ya no frena la app (ui/avisos.js) y,
+      // si no, la recarga lo sacaba antes de que se pudiera leer.
+      await alert("Tu cuenta fue eliminada.");
       location.reload();
     } catch (err) {
       alert("No se pudo eliminar la cuenta: " + ((err && err.message) || err));
