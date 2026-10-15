@@ -26,10 +26,13 @@ export default async function ({ base, t }){
   await p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1500);
 
   // Plan alimenticio: una comida nueva en los días de entreno.
+  // Desde el rediseño del plan (#332) las comidas se cargan en la tarjeta «Comidas» (lista + detalle):
+  // «+ Agregar comida» → «Otra…» suma una comida sin nombre al día de entreno y se le escribe el nombre.
   await p.click('[data-coach="client-tab"][data-t="plan"]'); await wait(300);
-  await p.click('[data-coach="plsec-open"][data-v="train"]'); await wait(300);
-  await p.click('[data-coach="pl-mealadd"][data-key="trainDays"]'); await wait(300);
-  await p.fill('[data-coach="pl-meal"][data-k="meal"]', 'Desayuno'); await wait(100);
+  await p.click('[data-coach="plsec-open"][data-v="comidas"]'); await wait(300);
+  await p.click('[data-coach="cm-add"]'); await wait(300);
+  await p.click('[data-coach="cm-pick"][data-n=""]'); await wait(300);
+  await p.fill('[data-coach="cm-f"][data-k="meal"]', 'Desayuno'); await wait(100);
   t.has(await text(p, '#coachHost'), 'Cambios sin guardar. Tocá Guardar plan nutricional', 'el plan muestra el cartel de cambios sin guardar');
   // Atrás de Android: el primero cierra la sección, el segundo toca «‹ Volver».
   await p.evaluate(async () => { const { handleBack } = await import('/app/ui/atras.js'); handleBack(); }); await wait(300);
@@ -37,12 +40,20 @@ export default async function ({ base, t }){
   t.has((await p.evaluate(() => window.__conf)).join(' | '), 'Tenés cambios sin guardar en el plan alimenticio', 'Volver pregunta por el plan');
   t.eq((await st()).meal, 'Desayuno', 'al cancelar, el plan sigue como estaba');
   t.ok(await unload(), 'recargar la página avisa (plan)');
+  // La barra lateral (nueva en #331) también saca de la ficha: pregunta igual que «‹ Volver».
+  const n0 = (await p.evaluate(() => window.__conf)).length;
+  await p.click('[data-coach="view-home"]'); await wait(300);
+  t.has((await p.evaluate(() => window.__conf)).slice(n0).join(' | '), 'Tenés cambios sin guardar en el plan alimenticio', 'salir por la barra lateral pregunta por el plan');
+  t.eq(await st(), { sel: A1, meal: 'Desayuno', obj: null, blk: null }, 'al cancelar sigue en la alumna con el plan sin guardar');
 
   // Ficha y bloque.
   await p.click('[data-coach="client-tab"][data-t="ficha"]'); await wait(300);
   await p.click('[data-coach="sec-open"][data-v="ficha"]'); await wait(300);
   await p.fill('[data-coach="info-objective"]', 'Bajar grasa'); await wait(100);
   await p.click('[data-coach="sec-close"]'); await wait(300);
+  // «Bloque / mesociclo» está en la pestaña Estadísticas (ahí se arman las semanas de descarga).
+  await p.click('[data-coach="client-tab"][data-t="stats"]'); await wait(300);
+  t.ok(await p.$('[data-coach="sec-open"][data-v="bloque"]'), 'Estadísticas tiene la tarjeta «Bloque / mesociclo»');
   await p.click('[data-coach="sec-open"][data-v="bloque"]'); await wait(300);
   await p.fill('[data-coach="blk-name"]', 'Fuerza'); await wait(100);
   await p.click('[data-coach="refresh"]'); await wait(800);

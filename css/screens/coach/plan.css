@@ -52,3 +52,10 @@ a.pl-choose { display:block; text-align:center; text-decoration:none; }
 .pl-oc .pl-sub { font-size:13px; font-weight:600; color:var(--txt-2); margin-bottom:8px; }
 .pl-oc-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--r-btn); background:var(--card-2); margin-bottom:6px; font-size:14px; color:var(--txt); }
 .pl-oc-row span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* App de iPhone: planes con Apple (ver comprasApple en app/screens/coach/plan.js) */
+.pl-per { font-size:12.5px; color:var(--txt-2); margin-top:-4px; }
+.pl-legal { margin-top:10px; }
+.pl-legal .pl-link { font-size:12.5px; }
+.pl-apple-acc { display:flex; flex-direction:column; align-items:center; gap:4px; margin-top:12px; }
+.pl-apple-manage { width:100%; max-width:320px; }

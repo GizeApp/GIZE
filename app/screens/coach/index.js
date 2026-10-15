@@ -29,6 +29,7 @@ import { billing, renderPaywall, renderPlanBanner } from './plan.js';
 import { renderSettingsView } from './settings.js';
 
 import { appNativa } from '../../core/tienda.js';
+import { comprasApple } from '../../core/compras-apple.js';
 
 import { renderCoachSalidas, salidasTileText } from './salidas.js';
 import { syncRouteViews } from '../../ui/mapa.js';
@@ -42,11 +43,11 @@ function secHead(title, kind){
 
 // Código para que se vinculen clientes. Con el cupo del plan lleno no se muestra: nadie más se
 // puede vincular (la base lo rechaza igual) y en su lugar se ofrece un plan más grande.
-// En las apps de iPhone y Android (core/tienda.js appNativa) el aviso no nombra el plan: solo que
-// llegó al máximo.
+// En la app de Android (core/tienda.js appNativa) el aviso no nombra el plan: solo que llegó al
+// máximo. En la de iPhone, con los planes de Apple (core/compras-apple.js), es el de la web.
 // Código viejo (6 caracteres, de antes de supabase/endurecer-base.sql): sigue sirviendo, pero es
 // más fácil de adivinar; se le sugiere cambiarlo (supabase/coach-alumnos.sql).
-const IS_NATIVE_APP = appNativa();
+const IS_NATIVE_APP = appNativa() && !comprasApple();
 function inviteBox(){
   const b=billing(), viejo=!!CoachState.coachInvite && String(CoachState.coachInvite).length<8;
   if(b.known && b.atCap && IS_NATIVE_APP) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de alumnos de tu cuenta.</b><div class="co-invite-sub">Nadie más se puede vincular con tu código.</div></div>';
@@ -173,8 +174,9 @@ export function renderCoach(){
           ["volumen","Volumen semanal por músculo", ()=>vol, ()=>{ let t=0; (d.routine||[]).forEach(x=>(x.exercises||[]).forEach(ex=>{ t+=(ex.sets||[]).length; })); return t?t+" series por semana":"Sin rutina"; }],
           ["peso","Peso corporal", ()=>'<div class="co-sec">Promedio semanal</div>'+renderCoachWeekly(d)+'<div class="co-sec">Día a día</div>'+wblock, ()=>{ const w=d.weights; return w.length?Number(w[w.length-1].kg).toFixed(1).replace(".",",")+" kg":"Sin registros"; }],
         ];
-        // Ficha: lo del alumno. Estadísticas: lo que fue registrando. «Bloque» ya no tiene tarjeta: se llega desde la rutina de descarga.
-        const ORDER={ ficha:["chat","ficha","habitos"], stats:["peso","hist","volumen","salidas","daily","checkin"] };
+        // Ficha: lo del alumno. Estadísticas: lo que fue registrando y el bloque (mesociclo), desde
+        // donde se arman las semanas y las rutinas de descarga.
+        const ORDER={ ficha:["chat","ficha","habitos"], stats:["bloque","peso","hist","volumen","salidas","daily","checkin"] };
         const cur=SECS.find(x=>x[0]===CoachState.coachSec && x[2]);
         const shown=(ORDER[tab]||ORDER.ficha).map(id=>SECS.find(x=>x[0]===id));
         if(cur){

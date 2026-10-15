@@ -17,11 +17,11 @@
 // · Al terminar, el resumen se abre encima de todo (#salidaHost) con el recorrido dibujándose sobre
 //   el mapa (ui/recorrido.js, ui/mapa.js, ui/ruta.js); «Guardar» o «Descartar». Lo mismo al abrir
 //   una de «Tus salidas» (ahí: «Compartir», «Ver de nuevo», «Borrar»).
-// · App de Android (core/plataforma.js appAndroid): sin nada de ubicación. No está «Salir a
-//   moverte» (ni la hoja, ni el aviso de la ubicación, ni la salida en vivo) y las salidas medidas
-//   en el iPhone o en la web se abren solo con sus números: sin mapa, sin el dibujo del recorrido
-//   (ni se lo pide a la nube) y sin «Compartir» ni «Ver de nuevo». Quedan el plan de cardio del
-//   coach, los pasos y el cronómetro y temporizador.
+// · Apps de Android y de iPhone (core/plataforma.js appNativa): sin nada de ubicación. No está
+//   «Salir a moverte» (ni la hoja, ni el aviso de la ubicación, ni la salida en vivo) y las salidas
+//   medidas en la web (o con una versión anterior) se abren solo con sus números: sin mapa, sin el
+//   dibujo del recorrido (ni se lo pide a la nube) y sin «Compartir» ni «Ver de nuevo». Quedan el
+//   plan de cardio del coach, los pasos y el cronómetro y temporizador.
 import { State, state } from '../core/state.js';
 
 import { esc, fmt, fmtDate, today, ymd } from '../core/utils.js';
@@ -31,14 +31,14 @@ import { saludHtml } from '../ui/saludboton.js';
 import { pasosTxt } from '../core/grupos.js';
 import { bikeSvg, chevronDownSvg, shoeSvg } from '../core/icons.js';
 import { CLASSES, FIRST_ACC_M, breakdownText, finishRun, fmtClock, fmtKm, fmtKmh, fmtPace, haversine, isShort, lastPoint, lastWeight, liveHole, livePath, livePathKey, modeLabel, paceOrSpeed } from '../core/cardiogps.js';
-import { GpsState, acceptDisclosure, ackRestored, discard, disclosure, hint, isNative, live, needsPrecise, onHere, onPoint, openSettings, pause, restoredText, resume, setMode, start, stop, takeEnded } from '../ui/gps.js';
+import { GpsState, acceptDisclosure, ackRestored, discard, disclosure, hint, live, onHere, onPoint, pause, restoredText, resume, setMode, start, stop, takeEnded } from '../ui/gps.js';
 import { cachedTrack, deleteSalida, getTrack, salidasList, saveEnded } from '../core/salidas.js';
 import { salidaPendiente } from '../core/supabase.js';
 import { legendHtml, mixHtml, notesHtml, prepOf, routeHtml, splitsHtml, statsHtml } from '../ui/recorrido.js';
 import { routeSlot, routeView, syncRouteViews } from '../ui/mapa.js';
 import { closeShareSheet, openShareSheet } from '../ui/compartir.js';
 import { appAway } from '../ui/pausa.js';
-import { appAndroid } from '../core/plataforma.js';
+import { appNativa } from '../core/plataforma.js';
 import { renderApp } from '../main.js';
 
 export const CardioState = {
@@ -198,8 +198,7 @@ export function endedSummary(){
 
 function errorHtml(){
   if (!GpsState.error) return "";
-  const btn = GpsState.errorWhy === "permiso" && isNative() ? '<button type="button" class="sal-link" data-action="sal-settings">Abrir ajustes</button>' : "";
-  return '<div class="sal-err" role="alert">' + esc(GpsState.error) + btn + '</div>';
+  return '<div class="sal-err" role="alert">' + esc(GpsState.error) + '</div>';
 }
 
 // Arriba de todo: la salida terminada sin guardar o la que está en curso (o en pausa).
@@ -215,14 +214,15 @@ function renderSalidaTop(){
       '<div class="ctrl-row"><button class="ctrl ghost" data-action="sal-discard">Descartar</button><button class="ctrl primary" data-action="sal-review">Ver y guardar</button></div>' +
     '</section>';
   }
-  // En la app de Android nunca hay una en curso (ui/gps.js la termina al abrir).
-  return r && !appAndroid() ? renderLive(r) : "";
+  // En las apps de Android y de iPhone nunca hay una en curso (ui/gps.js la termina al abrir).
+  return r && !appNativa() ? renderLive(r) : "";
 }
 
 // Último: «Salir a moverte», un botón que abre la hoja para empezar. Con una salida en curso o
-// sin guardar no va (esa está arriba de todo). En la app de Android tampoco: ahí no hay GPS.
+// sin guardar no va (esa está arriba de todo). En las apps de Android y de iPhone tampoco: ahí no
+// hay GPS.
 function salirSection(){
-  if (GpsState.run || appAndroid()) return "";
+  if (GpsState.run || appNativa()) return "";
   return '<section class="sal-card sal-salir" aria-label="Salir a moverte">' +
     '<div class="sal-salir-t">A pie o en bici, con el GPS: distancia, ritmo, calorías y el dibujo de tu recorrido.</div>' +
     '<div class="ctrl-row"><button class="ctrl primary wide" data-action="sal-sheet">Salir a moverte</button></div>' +
@@ -251,7 +251,7 @@ function salSheetHtml(){
 }
 function paintSalSheet(){ const c = salSheetEl(); if (c){ const card = c.querySelector(".ssh-card"); if (card) card.innerHTML = salSheetHtml(); } }
 export function openSalSheet(){
-  if (GpsState.run || appAndroid()) return;
+  if (GpsState.run || appNativa()) return;
   if (salSheetEl()){ paintSalSheet(); return; }
   const el = document.createElement("div");
   el.id = "salSheet"; el.className = "ssh";
@@ -293,7 +293,7 @@ function renderLive(r){
     '</div>' +
     routeSlot("live", { key: "live:" + r.id, mode: r.mode, live: true, here: liveHere, status: liveStatus, tip: liveTip }, "sal-minimap") +
     '<div class="sal-gps" id="salGps" hidden></div>' +
-    (GpsState.notice ? '<div class="sal-note">' + esc(GpsState.notice) + (needsPrecise() && isNative() ? '<button type="button" class="sal-link" data-action="sal-settings">Abrir ajustes</button>' : "") + '</div>' : "") +
+    (GpsState.notice ? '<div class="sal-note">' + esc(GpsState.notice) + '</div>' : "") +
     errorHtml() +
     (s.kgDefault ? '<div class="sal-tip">Calorías con 70 kg: cargá tu peso en Progreso para que sean exactas.</div>' : "") +
     '<div class="sal-tip">' + esc(hint()) + '</div>' +
@@ -399,15 +399,15 @@ function renderSalidasList(){
 
 // ---- Resumen encima de todo (#salidaHost) ----
 const reducedMotion = () => !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) || document.documentElement.classList.contains("lite");
-// La salida abierta: { rec, track (texto, "" sin recorrido, null cargando), saved }. En la app de
-// Android el recorrido no se pide (ahí no se dibuja): track "".
+// La salida abierta: { rec, track (texto, "" sin recorrido, null cargando), saved }. En las apps de
+// Android y de iPhone el recorrido no se pide (ahí no se dibuja): track "".
 function openData(){
   const o = SalidaState.open; if (!o) return null;
   if (o.kind === "ended"){ const e = endedSummary(); return e ? { rec: e.rec, track: e.track || "", saved: false } : null; }
   const rec = (Array.isArray(state.salidas) ? state.salidas : []).find(x => x.id === o.id);
   if (!rec) return null;
   if (o.track === undefined){
-    if (rec.points === 0 || appAndroid()) o.track = "";
+    if (rec.points === 0 || appNativa()) o.track = "";
     else {
       const c = cachedTrack(rec.id);
       if (c) o.track = c;
@@ -433,8 +433,9 @@ export function paintSalidaOverlay(){
   const d = openData();
   if (!d){ closeSalida(); return; }
   const o = SalidaState.open, { rec, track, saved } = d;
-  // App de Android: solo los números (sin mapa, sin el dibujo del recorrido y sin compartirlo).
-  const solo = appAndroid();
+  // Apps de Android y de iPhone: solo los números (sin mapa, sin el dibujo del recorrido y sin
+  // compartirlo).
+  const solo = appNativa();
   const prep = track && !solo ? prepOf(rec, track) : null;
   // Sin recorrido para dibujar (o mientras llega): los números ya.
   if (track === "" || (track && !prep)) o.shown = true;
@@ -503,18 +504,17 @@ async function startSalida(){
 }
 
 // Lo que se toca de las salidas (main.js lo pasa acá). → true si era de las salidas.
-// En la app de Android no se hace nada de lo que usa el GPS, el mapa o el recorrido (la pantalla
-// ni lo muestra): se ignora.
-const SIN_UBICACION = new Set(["sal-sheet", "sal-mode", "sal-start", "sal-aviso-ok", "sal-settings", "sal-resume", "sal-pause", "sal-replay", "sal-share"]);
+// En las apps de Android y de iPhone no se hace nada de lo que usa el GPS, el mapa o el recorrido
+// (la pantalla ni lo muestra): se ignora.
+const SIN_UBICACION = new Set(["sal-sheet", "sal-mode", "sal-start", "sal-aviso-ok", "sal-resume", "sal-pause", "sal-replay", "sal-share"]);
 export function salidaAction(a, el){
-  if (appAndroid() && SIN_UBICACION.has(a)) return true;
+  if (appNativa() && SIN_UBICACION.has(a)) return true;
   if (a === "sal-sheet"){ openSalSheet(); return true; }
   if (a === "sal-sheet-close"){ closeSalSheet(); return true; }
   if (a === "sal-mode"){ setMode(el.dataset.mode); renderApp(); paintSalSheet(); return true; }
   if (a === "sal-start"){ startSalida(); return true; }
   if (a === "sal-aviso-ok"){ acceptDisclosure(); closeAviso(); startSalida(); return true; }
   if (a === "sal-aviso-no"){ closeAviso(); return true; }
-  if (a === "sal-settings"){ openSettings(); return true; }
   if (a === "sal-ack"){ ackRestored(); return true; }
   if (a === "sal-pause"){ pause(); return true; }
   if (a === "sal-resume"){ resume(); return true; }

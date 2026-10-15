@@ -63,6 +63,22 @@ jobs:
         run: node scripts/ios-sin-facebook.mjs
       - name: Juntar la app web y pasarla al proyecto iOS
         run: node scripts/build-web.mjs && npx cap sync ios
+      # La app de iPhone no usa la ubicación, como la de Android (Apple la rechazó por el modo de
+      # fondo "location"): ni un plugin de ubicación en el build, ni textos de permiso de ubicación
+      # (NSLocation…) ni el modo de fondo "location" en el Info.plist. Si vuelve algo de eso, se
+      # frena acá. Si falta uno de los archivos, grep no encuentra nada y el control pasaría sin
+      # mirar: antes se revisa que estén.
+      - name: Revisar que la app no use la ubicación
+        run: |
+          for f in ios/App/CapApp-SPM/Package.swift ios/App/App/capacitor.config.json ios/App/App/Info.plist; do
+            if [ ! -f "$f" ]; then echo "::error::Falta $f"; exit 1; fi
+          done
+          if grep -qi "geolocation" ios/App/CapApp-SPM/Package.swift ios/App/App/capacitor.config.json; then
+            echo "::error::Quedó un plugin de ubicación en el build de iPhone (ver package.json)"; exit 1
+          fi
+          if grep -q "NSLocation" ios/App/App/Info.plist || plutil -extract UIBackgroundModes json -o - ios/App/App/Info.plist 2>/dev/null | grep -q '"location"'; then
+            echo "::error::El Info.plist pide la ubicación o tiene el modo de fondo location"; exit 1
+          fi
 
       - name: Compilar para el simulador (sin firmar)
         run: |
@@ -95,6 +111,18 @@ jobs:
         run: node scripts/ios-sin-facebook.mjs
       - name: Juntar la app web y pasarla al proyecto iOS
         run: node scripts/build-web.mjs && npx cap sync ios
+      # Lo mismo que en «simulador»: la app no usa la ubicación.
+      - name: Revisar que la app no use la ubicación
+        run: |
+          for f in ios/App/CapApp-SPM/Package.swift ios/App/App/capacitor.config.json ios/App/App/Info.plist; do
+            if [ ! -f "$f" ]; then echo "::error::Falta $f"; exit 1; fi
+          done
+          if grep -qi "geolocation" ios/App/CapApp-SPM/Package.swift ios/App/App/capacitor.config.json; then
+            echo "::error::Quedó un plugin de ubicación en el build de iPhone (ver package.json)"; exit 1
+          fi
+          if grep -q "NSLocation" ios/App/App/Info.plist || plutil -extract UIBackgroundModes json -o - ios/App/App/Info.plist 2>/dev/null | grep -q '"location"'; then
+            echo "::error::El Info.plist pide la ubicación o tiene el modo de fondo location"; exit 1
+          fi
 
       - name: Clave de App Store Connect
         env:

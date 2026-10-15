@@ -110,6 +110,8 @@ html.tema-luz .pg-link.danger { color: #8A1A16; }
 .salud-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .salud-t { font-size: var(--text-body); font-weight: 700; color: var(--gize-text); line-height: 1.25; }
 .salud-s { font-size: 12px; font-weight: 500; color: var(--txt-2); line-height: 1.35; }
+/* Debajo del botón, fijo: qué lee GIZE y quién lo ve (no hay cartel propio antes del permiso). */
+.salud-nota { margin: 8px 2px 0; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.4; }
 .salud-ok { --salud-ok: #4ADE80; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 12px; font-size: var(--text-meta); }
 .salud-ok-ico { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: var(--salud-ok); background: color-mix(in srgb, var(--salud-ok) 18%, transparent); }
 .salud-ok-ico svg { width: 13px; height: 13px; }

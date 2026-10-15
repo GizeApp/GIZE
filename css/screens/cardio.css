@@ -108,7 +108,6 @@ html.lite .cneon i { animation: none; }
 .ssh-card.sal-start .sal-modes { margin-top: 4px; }
 .ssh-card.sal-start .ssh-close { margin-top: 8px; }
 .sal-err { margin: 0 0 14px; padding: 10px 12px; border-radius: var(--r-btn); background: var(--gize-danger-bg); color: var(--gize-danger); font-size: var(--text-meta); line-height: 1.45; }
-.sal-link { display: block; margin-top: 6px; background: none; border: none; padding: 0; color: var(--gize-blue); font: 700 var(--text-meta) var(--gize-font); text-decoration: underline; cursor: pointer; }
 
 /* En vivo */
 .sal-live-top { display: flex; align-items: center; gap: 8px; font-size: var(--text-meta); color: var(--txt-2); }

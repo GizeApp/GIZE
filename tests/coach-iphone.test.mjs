@@ -1,5 +1,6 @@
 // App de iPhone y las cuentas de coach (App Store, reglas 3.1.1 y 3.1.3): los coaches se
-// registran y manejan su cuenta solo desde la web. En el iPhone:
+// registran solo desde la web. En el iPhone sin el plugin de compras con Apple (una versión de la
+// app que no lo trae; con el plugin, los planes se compran con Apple: compras-apple-app.test.mjs):
 //   · «Crear cuenta» no ofrece «Soy coach» (tampoco con el link #registro-coach) ni habla de la prueba;
 //   · el coach que ya tiene cuenta entra y usa el panel sin ver prueba, plan, pagos ni precios
 //     (ni en el panel, ni en su Configuración, ni en la bienvenida); al llegar al tope de

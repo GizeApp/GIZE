@@ -5,22 +5,21 @@
 //
 // Privacidad: por defecto la imagen NO muestra dónde empezás ni dónde terminás: se oculta todo lo
 // del recorrido que pasa a menos de 200 m (en línea recta) de esos dos lugares, aunque dé vueltas
-// cerca (core/cardiogps.js trimTrack), solo en la imagen. Se puede cambiar en la hoja. En la app
-// nativa la imagen se escribe siempre con el mismo nombre en la caché (cada una pisa a la
-// anterior) y se borra al cerrar sesión o borrar la cuenta (deleteShareFile).
+// cerca (core/cardiogps.js trimTrack), solo en la imagen. Se puede cambiar en la hoja.
 //
 // Se comparte en dos toques: «Compartir» abre la hoja y arma la imagen (puede tardar unos
 // segundos con el mapa); el segundo toque la manda, porque el navegador solo deja compartir
-// justo después de un toque. Orden: app nativa con los plugins Share y Filesystem (la imagen se
-// escribe en la caché del celular y se comparte el archivo) → Web Share con archivos (Chrome de
-// Android, Safari de iPhone) → «Guardar imagen» (descarga) → mantener apretada la vista previa.
-// En la app de Android no hay imagen del recorrido (ahí no hay nada de ubicación: la hoja no se
-// abre). Sin la foto del mapa (navegadores de Android, sin conexión, modo liviano) la imagen va
-// sobre el fondo propio y sin los créditos del mapa.
+// justo después de un toque. Orden: Web Share con archivos (Chrome de Android, Safari de iPhone)
+// → «Guardar imagen» (descarga) → mantener apretada la vista previa. Solo en la web: en las apps
+// de Android y de iPhone no hay imagen del recorrido (ahí no hay nada de ubicación: la hoja no se
+// abre). Las versiones anteriores de las apps la escribían en la caché del celular (CACHE_FILE,
+// con el plugin Filesystem): deleteShareFile la borra al cerrar sesión o borrar la cuenta. Sin la
+// foto del mapa (navegadores de Android, sin conexión, modo liviano) la imagen va sobre el fondo
+// propio y sin los créditos del mapa.
 import { CLASSES, breakdownText, decodeTrack, fmtClock, fmtKm, fmtKmh, fmtPace, modeLabel, paceOf, trimTrack } from '../core/cardiogps.js';
 import { drawRouteFlat, fitProjection, palette, prepareRoute, projectRoute } from './ruta.js';
 import { mapPhoto } from './mapa.js';
-import { appAndroid } from '../core/plataforma.js';
+import { appNativa } from '../core/plataforma.js';
 
 export const W = 1080, H = 1920;
 const PANEL = { x: 48, y: 210, w: 984, h: 1060, r: 48 };
@@ -29,7 +28,7 @@ export const TITLE = "Mi salida en GIZE";
 // Créditos del mapa (los del estilo de OpenFreeMap; los datos de OpenMapTiles y OpenStreetMap
 // piden que se nombren): van en la imagen siempre que lleva la foto del mapa.
 export const MAP_CREDIT = "OpenFreeMap © OpenMapTiles © OpenStreetMap";
-// Nombre fijo de la imagen en la caché de la app nativa: cada una pisa a la anterior.
+// Nombre fijo de la imagen que las versiones anteriores de las apps dejaban en la caché.
 export const CACHE_FILE = "gize-salida.png";
 
 function dateText(rec){
@@ -153,6 +152,7 @@ export async function storyImage(rec, track, { hideEnds = true } = {}){
 function offset(a, dx, dy){ const o = new Float64Array(a.length); for (let i = 0; i < a.length; i += 2){ o[i] = a[i] + dx; o[i + 1] = a[i + 1] + dy; } return o; }
 
 // ---- Mandar la imagen ----
+// Un plugin de la app nativa (solo para borrar la imagen vieja de la caché: deleteShareFile).
 function nativePlugin(name){
   try {
     const C = window.Capacitor;
@@ -161,29 +161,17 @@ function nativePlugin(name){
     return (C.Plugins && C.Plugins[name]) || (C.registerPlugin ? C.registerPlugin(name) : null);
   } catch (e) { return null; }
 }
-const isNativeApp = () => { try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) { return false; } };
 export const fileName = rec => "gize-salida-" + String((rec && rec.id) || "").replace(/[^a-z0-9]/gi, "").slice(0, 8) + ".png";
-const toBase64 = blob => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1] || ""); r.onerror = () => bad(r.error); r.readAsDataURL(blob); });
 const canceled = e => /cancel|abort/i.test(String((e && (e.name + " " + e.message)) || e));
 
 // ¿Hay cómo compartir el archivo (no solo descargarlo)?
 export function canShareFile(blob, rec){
-  if (nativePlugin("Share") && nativePlugin("Filesystem")) return true;
   try { const f = new File([blob], fileName(rec), { type: "image/png" }); return !!(navigator.canShare && navigator.canShare({ files: [f] })); } catch (e) { return false; }
 }
 // Comparte la imagen. → "shared" | "saved" | "cancel" | "fail".
 export async function shareImage(blob, rec, { download = false } = {}){
   const name = fileName(rec);
   if (!download){
-    const Sh = nativePlugin("Share"), Fs = nativePlugin("Filesystem");
-    if (Sh && Fs){
-      try {
-        const data = await toBase64(blob);
-        const { uri } = await Fs.writeFile({ path: CACHE_FILE, data, directory: "CACHE" });
-        await Sh.share({ title: TITLE, files: [uri], dialogTitle: "Compartir tu salida" });
-        return "shared";
-      } catch (e) { if (canceled(e)) return "cancel"; console.warn("compartir", e); }
-    }
     try {
       const f = new File([blob], name, { type: "image/png" });
       if (navigator.canShare && navigator.canShare({ files: [f] }) && navigator.share){
@@ -192,7 +180,6 @@ export async function shareImage(blob, rec, { download = false } = {}){
       }
     } catch (e) { if (canceled(e)) return "cancel"; console.warn("compartir", e); }
   }
-  if (isNativeApp()) return "fail";
   try {
     const url = URL.createObjectURL(blob), a = document.createElement("a");
     a.href = url; a.download = "gize-salida.png"; a.rel = "noopener";
@@ -202,8 +189,8 @@ export async function shareImage(blob, rec, { download = false } = {}){
   } catch (e) { return "fail"; }
 }
 
-// Borra la imagen que quedó en la caché de la app nativa (al cerrar sesión o borrar la cuenta).
-// Sin la app o sin el plugin, nada. No falla nunca.
+// Borra la imagen que una versión anterior de la app dejó en la caché (al cerrar sesión o borrar
+// la cuenta). Sin la app o sin el plugin, nada. No falla nunca.
 export function deleteShareFile(){
   const Fs = nativePlugin("Filesystem");
   if (!Fs || typeof Fs.deleteFile !== "function") return Promise.resolve();
@@ -220,7 +207,7 @@ export function closeShareSheet(){
 }
 export function openShareSheet(rec, track){
   closeShareSheet();
-  if (appAndroid()) return null;
+  if (appNativa()) return null;
   const el = document.createElement("div");
   el.id = "salShare"; el.className = "ssh";
   el.innerHTML = '<div class="ssh-bg" data-sh="close"></div>' +
@@ -231,7 +218,7 @@ export function openShareSheet(rec, track){
       '<div class="ssh-msg" aria-live="polite"></div>' +
       '<div class="ssh-btns">' +
         '<button type="button" class="ctrl primary" data-sh="share" disabled>Compartir</button>' +
-        (isNativeApp() ? '' : '<button type="button" class="ctrl ghost" data-sh="save" disabled>Guardar imagen</button>') +
+        '<button type="button" class="ctrl ghost" data-sh="save" disabled>Guardar imagen</button>' +
       '</div>' +
       '<button type="button" class="ssh-close" data-sh="close">Cerrar</button>' +
     '</div>';
@@ -245,7 +232,7 @@ export function openShareSheet(rec, track){
     if ((k === "share" || k === "save") && s.blob){
       const res = await shareImage(s.blob, rec, { download: k === "save" });
       if (sheet !== s) return;
-      msg(s, res === "saved" ? "Listo: la imagen quedó en tus descargas." : res === "fail" ? "No se pudo compartir la imagen." + (isNativeApp() ? "" : " Probá con «Guardar imagen».") : "");
+      msg(s, res === "saved" ? "Listo: la imagen quedó en tus descargas." : res === "fail" ? "No se pudo compartir la imagen. Probá con «Guardar imagen»." : "");
     }
   });
   requestAnimationFrame(() => el.classList.add("open"));
@@ -264,10 +251,10 @@ async function build(s){
   if (!blob){ prev.innerHTML = '<div class="ssh-wait">No se pudo armar la imagen.</div>'; return; }
   if (s.url) URL.revokeObjectURL(s.url);
   s.blob = blob; s.url = URL.createObjectURL(blob);
-  prev.innerHTML = '<img class="ssh-img" alt="Imagen de tu salida para compartir" src="' + s.url + '">' + (isNativeApp() ? '' : '<div class="ssh-hint">También podés mantener apretada la imagen para guardarla.</div>');
+  prev.innerHTML = '<img class="ssh-img" alt="Imagen de tu salida para compartir" src="' + s.url + '"><div class="ssh-hint">También podés mantener apretada la imagen para guardarla.</div>';
   const share = s.el.querySelector("[data-sh=share]"), save = s.el.querySelector("[data-sh=save]");
   const can = canShareFile(blob, s.rec);
-  if (share){ share.disabled = false; share.hidden = !can && !isNativeApp(); }
+  if (share){ share.disabled = false; share.hidden = !can; }
   if (save){ save.disabled = false; save.classList.toggle("primary", !can); save.classList.toggle("ghost", can); }
   s.el.dataset.listo = "1";
 }

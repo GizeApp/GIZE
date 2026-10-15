@@ -1,18 +1,30 @@
 // En qué equipo corre GIZE, para lo de Cardio que cambia según dónde se abre:
-// · appAndroid(): la app de Android (Capacitor; html.android-app, ver app/lite.js). Ahí no hay
-//   NADA de ubicación: ni salidas con GPS, ni mapas, ni el dibujo del recorrido. El plugin de
-//   ubicación ni siquiera va en el build de Android (capacitor.config.json android.includePlugins)
-//   y el manifiesto no declara ningún permiso de ubicación. Las salidas medidas en el iPhone o en
-//   la web se ven solo con sus números (distancia, tiempo, ritmo, calorías y fecha).
+// · appNativa(): las apps de las tiendas, la de Android y la de iPhone (Capacitor). Ahí no hay
+//   NADA de ubicación: ni salidas con GPS, ni mapas, ni el dibujo del recorrido. Ninguna de las
+//   dos lleva un plugin de ubicación (no está en package.json), el manifiesto de Android no
+//   declara ningún permiso de ubicación y el Info.plist del iPhone no tiene textos de ubicación ni
+//   el modo de fondo "location" (tests/cardio-android.test.mjs y tests/ios-sin-ubicacion.test.mjs).
+//   Las salidas medidas en la web (o con una versión anterior) se ven solo con sus números
+//   (distancia, tiempo, ritmo, calorías y fecha).
+// · appAndroid(): solo la de Android (html.android-app, ver app/lite.js), para lo que es propio de
+//   Android y no de la ubicación (la placa de video, la tienda: core/tienda.js, y el canal de
+//   notificaciones que dejó el GPS de las versiones viejas: ui/gps.js).
 // · navegadorAndroid(): la web abierta en un navegador de Android (Chrome, Samsung Internet…,
 //   también en «Sitio de escritorio», como vienen las tablets grandes). Las
 //   salidas con GPS andan como siempre, pero sin el mapa de calles (ui/mapa.js canUseMap): el
 //   recorrido va sobre el fondo propio, con la grilla, la escala y las marcas de cada km.
-// · iPhone (app y Safari) y la compu: todo, con el mapa de calles.
+// · La web en el iPhone (Safari) y en la compu: todo, con el mapa de calles.
 export function appAndroid(){
   try {
     const C = window.Capacitor;
     return !!((C && C.isNativePlatform && C.isNativePlatform() && C.getPlatform && C.getPlatform() === "android") || window.androidBridge);
+  } catch (e) { return false; }
+}
+// La app de Android o la de iPhone (no la web, aunque esté agregada a la pantalla de inicio).
+export function appNativa(){
+  try {
+    const C = window.Capacitor;
+    return !!((C && C.isNativePlatform && C.isNativePlatform()) || appAndroid());
   } catch (e) { return false; }
 }
 // Además de «Android» en el userAgent, cuenta el «Sitio de escritorio» (Chrome lo pone solo en las
@@ -22,8 +34,7 @@ export function appAndroid(){
 // compu con Linux y pantalla táctil, que es rara, se queda sin el mapa de calles (el GPS sigue).
 export function navegadorAndroid(){
   try {
-    const C = window.Capacitor;
-    if (appAndroid() || (C && C.isNativePlatform && C.isNativePlatform())) return false;
+    if (appNativa()) return false;
     const ua = navigator.userAgent || "", d = navigator.userAgentData;
     if (/Android/i.test(ua) || (d && /android/i.test(d.platform || ""))) return true;
     return /\bLinux\b/i.test(ua) && !/CrOS/i.test(ua) && (/SamsungBrowser/i.test(ua) || navigator.maxTouchPoints > 0);

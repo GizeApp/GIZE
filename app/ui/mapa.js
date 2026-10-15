@@ -15,11 +15,12 @@
 // syncRouteViews vuelve a poner cada vista en su lugar (o la crea, o destruye las que ya no
 // tienen lugar).
 //
-// En la app de Android (core/plataforma.js appAndroid) no hay mapa ni recorrido: routeSlot no
-// pone ningún lugar y canUseMap es false (no se carga MapLibre ni se pide nada a OpenFreeMap).
+// En las apps de Android y de iPhone (core/plataforma.js appNativa) no hay mapa ni recorrido:
+// routeSlot no pone ningún lugar y canUseMap es false (no se carga MapLibre ni se pide nada a
+// OpenFreeMap; MapLibre ni siquiera va en las apps: scripts/build-web.mjs).
 // En los navegadores de Android (navegadorAndroid) el recorrido va, pero nunca el mapa de calles.
 import { esc } from '../core/utils.js';
-import { appAndroid, navegadorAndroid } from '../core/plataforma.js';
+import { appNativa, navegadorAndroid } from '../core/plataforma.js';
 import { decodeTrack } from '../core/cardiogps.js';
 import { RouteLayers, fitProjection, followProjection, prepareRoute, trackLayers, untrackLayers } from './ruta.js';
 
@@ -108,10 +109,10 @@ const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return 
 // ¿Se puede poner el mapa de fondo? Con conexión, WebGL, sin modo liviano y sin una placa de
 // video lenta (app/lite.js, ANR «La GPU no responde» en Android). "gize_mapa_off" = "1" lo apaga
 // (para las pruebas y por si hiciera falta). En Android nunca (pedido: «nada de mapa para cardio
-// en android»): ni en la app ni en los navegadores, y se decide antes de webglOk, así no se crea
-// ningún contexto de WebGL.
+// en android»): ni en la app ni en los navegadores; tampoco en la app de iPhone (sin nada de
+// ubicación). Se decide antes de webglOk, así no se crea ningún contexto de WebGL.
 export function canUseMap(){
-  if (appAndroid() || navegadorAndroid()) return false;
+  if (appNativa() || navegadorAndroid()) return false;
   if (lsGet("gize_mapa_off") === "1" || lsGet("gize_gpu_lenta") === "1") return false;
   if (document.documentElement.classList.contains("lite")) return false;
   if (navigator.onLine === false) return false;
@@ -474,10 +475,10 @@ class RouteView {
 
 // ---- Lugares en la pantalla ----
 const views = new Map(), specs = new Map();
-// HTML del lugar donde va la vista «name». spec: ver RouteView (key cambia → vista nueva). En la
-// app de Android, nada (ni mapa ni recorrido).
+// HTML del lugar donde va la vista «name». spec: ver RouteView (key cambia → vista nueva). En las
+// apps de Android y de iPhone, nada (ni mapa ni recorrido).
 export function routeSlot(name, spec, cls){
-  if (appAndroid()) return "";
+  if (appNativa()) return "";
   specs.set(name, spec);
   return '<div class="rv-slot' + (cls ? " " + cls : "") + '" data-rv="' + esc(name) + '"></div>';
 }

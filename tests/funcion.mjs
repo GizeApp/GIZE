@@ -2,6 +2,9 @@
 // para probar lo que hace y no solo cómo está escrita. Los paquetes npm: (supabase-js,
 // web-push, jose) se cambian por los simulados de cada prueba, Deno.serve guarda el handler y
 // Deno.env lee los Secrets de la prueba. Nada sale a internet: fetch también es simulado.
+// Además, una prueba puede reemplazar un archivo propio que importa index.ts (sim.modulos), por
+// ejemplo la raíz de Apple de compras-apple por una de prueba: el reemplazo pasa acá, al cargar el
+// módulo en Node, sin nada en el código de la función que lo permita.
 import { register } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -14,11 +17,19 @@ const HOOKS = `
 const EXPORTS = ${JSON.stringify(EXPORTS)};
 export async function resolve(spec, ctx, next){
   const m = /^npm:((?:@[^/]+\\/)?[^@]+)(?:@.*)?$/.exec(spec);
-  return m ? { url: 'npm-simulado:' + m[1], shortCircuit: true } : next(spec, ctx);
+  if (m) return { url: 'npm-simulado:' + m[1], shortCircuit: true };
+  // Archivo propio reemplazado por la prueba (sim.modulos): lo dice la dirección de index.ts.
+  const p = ctx.parentURL && /[?&]sim=([^&]*)/.exec(ctx.parentURL), sim = p ? JSON.parse(decodeURIComponent(p[1])) : {};
+  if (sim[spec]) return { url: 'modulo-simulado:' + encodeURIComponent(JSON.stringify([spec, sim[spec], ctx.parentURL])), shortCircuit: true };
+  return next(spec, ctx);
 }
 export async function load(url, ctx, next){
   // Los .ts de las funciones son módulos (sin esto Node avisa que no sabe de qué tipo son).
   if (/^file:.*\\.ts(\\?|$)/.test(url)) return next(url, Object.assign({}, ctx, { format: 'module-typescript' }));
+  if (url.startsWith('modulo-simulado:')){
+    const [spec, nombres] = JSON.parse(decodeURIComponent(url.slice(16)));
+    return { format: 'module', shortCircuit: true, source: nombres.map(n => 'export const ' + n + ' = globalThis.__modulos[' + JSON.stringify(spec) + '][' + JSON.stringify(n) + '];').join('\\n') };
+  }
   if (!url.startsWith('npm-simulado:')) return next(url, ctx);
   const pkg = url.slice(13), sim = n => 'globalThis.__npm[' + JSON.stringify(pkg) + '][' + JSON.stringify(n) + ']';
   const source = (EXPORTS[pkg] || []).map(n => n === 'default'
@@ -28,7 +39,8 @@ export async function load(url, ctx, next){
 }`;
 let registrado = false, vez = 0;
 
-// sim: { npm: { paquete: { nombre: valor } }, env: { SECRET: 'valor' }, fetch }.
+// sim: { npm: { paquete: { nombre: valor } }, env: { SECRET: 'valor' }, fetch,
+//        modulos: { './archivo.ts': { nombre: valor } } (solo los que importa index.ts) }.
 // Devuelve { call(req), logs }: call corre el handler con esos simulados puestos y junta en
 // logs lo que la función escribe con console.error.
 export async function funcion(nombre, sim = {}){
@@ -37,10 +49,13 @@ export async function funcion(nombre, sim = {}){
   const logs = [];
   const poner = () => {
     globalThis.__npm = sim.npm || {};
+    globalThis.__modulos = sim.modulos || {};
     globalThis.Deno = { serve: (h) => { handler = h; }, env: { get: (k) => (sim.env || {})[k] } };
   };
   poner();
-  await import(pathToFileURL(path.join(ROOT, 'supabase/functions', nombre, 'index.ts')).href + '?v=' + (++vez));
+  const mods = Object.fromEntries(Object.entries(sim.modulos || {}).map(([k, v]) => [k, Object.keys(v)]));
+  await import(pathToFileURL(path.join(ROOT, 'supabase/functions', nombre, 'index.ts')).href + '?v=' + (++vez) +
+    (Object.keys(mods).length ? '&sim=' + encodeURIComponent(JSON.stringify(mods)) : ''));
   return {
     logs,
     async call(req){

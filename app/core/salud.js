@@ -18,7 +18,10 @@
 //   se toma la fuente que más contó, en vez de sumarlas.
 //
 // Se prende desde Cardio → «Pasos» o «Competencia de pasos» (con el permiso del sistema) y queda
-// prendido en este celular para esta cuenta.
+// prendido en este celular para esta cuenta. Tocar «Conectar» va directo al permiso del sistema,
+// sin un cartel propio antes: lo que se lee y quién lo ve está escrito debajo del botón
+// (ui/saludboton.js). Apple rechazó la app por un confirm «¿Activar?» antes del permiso, que dejaba
+// cancelar (guía 5.1.1(iv)): después de un aviso propio, siempre tiene que seguir el del sistema.
 //
 // Los envíos no se esperan: lo leído queda guardado acá al momento y la cola (queueSteps) los
 // manda y reintenta sola. Si no, la primera lectura (hasta 31 días, un envío por día, uno detrás
@@ -148,8 +151,8 @@ export async function syncSalud(force){
   return touched || envios.length > 0;
 }
 
-// Prender: disponibilidad → permiso → primera lectura. Devuelve "" si quedó prendido o el mensaje
-// para mostrar.
+// Prender: disponibilidad → permiso del sistema → primera lectura. Devuelve "" si quedó prendido o
+// el mensaje para mostrar. Sin carteles propios antes del permiso (ver arriba).
 export async function prenderSalud(){
   const H = plugin(); if (!H) return "Esto funciona en la app de GIZE para Android o iPhone.";
   const name = saludNombre();
@@ -160,7 +163,6 @@ export async function prenderSalud(){
       ? "Para traer tus pasos necesitás Health Connect, la app de salud de Google (Android 9 o más nuevo). Instalala o actualizala desde Play Store y probá de nuevo."
       : "Este dispositivo no tiene " + name + ".";
   }
-  if (!confirm("GIZE va a leer tus pasos de " + name + " para tu registro y tus grupos de pasos (tus amigos ven solo el total de la semana). Solo se leen: no se cambia nada en " + name + ". ¿Activar?")) return "__silent";
   try {
     const r = await H.requestAuthorization({ read: ["steps"], write: [] });
     // En Android se sabe qué permitió. En iPhone Apple nunca dice si dio permiso de lectura.

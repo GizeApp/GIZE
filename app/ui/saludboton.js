@@ -2,14 +2,22 @@
 // «Competencia de pasos» (pedido: «mejorá el botón para conectar con Salud de Apple»).
 // · Sin conectar: un botón ancho con el corazón (dibujo propio, genérico: no es el ícono de la
 //   app Salud) en un cuadrado redondeado, el título, «Tus pasos se cargan solos…» y la flecha.
+//   Debajo, fijo, qué se lee y quién lo ve (antes iba en un cartel «¿Activar?» antes del permiso
+//   del sistema, y Apple no lo acepta: tocar el botón va directo al permiso, core/salud.js).
 // · Conectando (pidiendo el permiso): «Conectando…», desactivado.
 // · Conectado: una fila con el tilde verde, «Conectado a …», «Actualizar ahora» y «Desconectar».
 //   Si la última lectura falló, abajo dice qué revisar (core/salud.js → saludError).
 // Los toques van con data-pg y los atiende screens/pasos.js (un solo lugar para los dos).
-// Estilos: css/screens/pasos.css (.salud-btn, .salud-ok).
+// Estilos: css/screens/pasos.css (.salud-btn, .salud-nota, .salud-ok).
 import { SaludState, plataforma, saludDisponible, saludError, saludNombre, saludPrendida } from '../core/salud.js';
 import { esc } from '../core/utils.js';
 import { checkSvg, chevronRightSvg, heartPulseSvg } from '../core/icons.js';
+
+// Lo que antes decía el cartel previo al permiso: qué lee GIZE y quién lo ve.
+export function saludNota(){
+  const nom = esc(saludNombre());
+  return "GIZE solo lee tus pasos, para tu registro y tus grupos de pasos: no cambia nada en " + nom + ". Tus amigos ven solo tu total de la semana.";
+}
 
 // "" en la web (sin el plugin): ahí no hay nada que conectar.
 export function saludHtml(){
@@ -31,5 +39,6 @@ export function saludHtml(){
     '<span class="salud-ico" aria-hidden="true">' + heartPulseSvg + '</span>' +
     '<span class="salud-txt"><b class="salud-t">Conectar ' + nom + '</b><span class="salud-s">Tus pasos se cargan solos, aunque no abras GIZE</span></span>' +
     (c ? '<span class="salud-busy">Conectando…</span>' : '<span class="salud-go" aria-hidden="true">' + chevronRightSvg + '</span>') +
-  '</button>';
+  '</button>' +
+  '<p class="salud-nota">' + saludNota() + '</p>';
 }

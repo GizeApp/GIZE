@@ -208,6 +208,11 @@ async function nativo(base, t){
     t.ok(b, name + ': en «Pasos», el botón para conectar Salud de Apple');
     if (!b){ await pg.close(); continue; }
     t.eq([b.ico, b.t, b.s, b.go], [true, 'Conectar Salud de Apple', 'Tus pasos se cargan solos, aunque no abras GIZE', true], name + ': con el corazón, el título, el subtítulo y la flecha');
+    // Lo que se lee y quién lo ve va escrito debajo del botón, a la vista (antes era un cartel
+    // «¿Activar?» antes del permiso, y Apple lo rechazó: guía 5.1.1(iv)).
+    const nota = await p.evaluate(() => { const e = document.querySelector('#view .csec-pasos .salud-btn + .salud-nota'); return e && { t: e.textContent, h: e.getBoundingClientRect().height }; });
+    t.ok(nota && nota.h > 0, name + ': debajo del botón, la nota a la vista');
+    t.eq(nota && nota.t, 'GIZE solo lee tus pasos, para tu registro y tus grupos de pasos: no cambia nada en Salud de Apple. Tus amigos ven solo tu total de la semana.', name + ': la nota dice qué se lee, que no se cambia nada y que los amigos ven solo el total de la semana');
     t.ok(b.cw - b.w <= 32, name + ': el botón ocupa todo el ancho: ' + b.w + ' de ' + b.cw);
     t.ok(/linear-gradient/.test(b.ring) && !/conic/.test(b.ring) && b.anim === 'none' && b.glow === 'none', name + ': con el filete fino, quieto y sin resplandor: ' + b.ring.slice(0, 80) + ' / ' + b.glow);
     const k = await contraste(p);
@@ -216,6 +221,9 @@ async function nativo(base, t){
     await p.click('#view .csec-pasos [data-pg="salud-on"]'); await wait(400);
     const busy = await p.evaluate(() => { const e = document.querySelector('#view .csec-pasos .salud-btn'); return e && [e.disabled, e.textContent.includes('Conectando…')]; });
     t.eq(busy, [true, true], name + ': mientras pide el permiso, «Conectando…» y desactivado');
+    // Tocar «Conectar» va directo al permiso del sistema (requestAuthorization), sin ningún cartel
+    // propio antes que se pueda cancelar.
+    t.eq([pg.dialogs, await p.evaluate(() => typeof window.__permOk)], [[], 'function'], name + ': sin cartel propio, directo al permiso del sistema');
     await p.evaluate(() => window.__permOk && window.__permOk({})); await wait(1200);
     t.has(await text(p, '#view .csec-pasos .salud-ok'), 'Conectado a Salud de Apple', name + ': conectado, «Conectado a Salud de Apple»');
     t.eq(await p.$$eval('#view .csec-pasos .salud-ok [data-pg]', l => l.map(e => e.textContent)), ['Actualizar ahora', 'Desconectar'], name + ': con «Actualizar ahora» y «Desconectar»');

@@ -319,8 +319,19 @@ document.body.addEventListener("click", async function (e) {
   if (delAccBtn) {
     if (!State.sb || !State.cloudUser) { alert("Iniciá sesión para poder eliminar tu cuenta."); return; }
     const isCoach = !!(State.cloudProfile && State.cloudProfile.role === "coach");
+    // Plan de coach con una suscripción de Apple que se renueva sola (app de iPhone,
+    // supabase/compras-apple.sql): Apple la sigue cobrando aunque se borre la cuenta, y solo la
+    // puede cancelar el coach desde su cuenta de Apple. Se le avisa antes.
+    let appleAviso = "";
+    if (isCoach) {
+      try {
+        const ab = await State.sb.from("coach_billing").select("*").eq("coach_id", State.cloudUser.id).maybeSingle();
+        if (ab.data && ab.data.apple_renueva && ab.data.apple_vence && new Date(ab.data.apple_vence).getTime() > Date.now())
+          appleAviso = "Ojo: tu suscripción de Apple no se cancela al eliminar la cuenta y Apple te la sigue cobrando. Cancelala antes desde los Ajustes de tu cuenta de Apple (Ajustes → tu nombre → Suscripciones).\n\n";
+      } catch (err) {}
+    }
     if (!confirm(isCoach
-      ? "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se da de baja tu cuenta de coach. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
+      ? appleAviso + "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se da de baja tu cuenta de coach. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
       : "¿Seguro que querés eliminar tu cuenta? Se va a borrar tu rutina, tus registros, tus salidas de Cardio (con sus recorridos) y tu vínculo con tu coach de forma permanente. Esta acción no se puede deshacer.")) return;
     const typed = prompt('Para confirmar, escribí ELIMINAR (en mayúsculas):');
     if (typed !== "ELIMINAR") { if (typed !== null) alert("No coincide, no se eliminó nada."); return; }

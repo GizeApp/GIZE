@@ -1,31 +1,30 @@
 // Salidas de Cardio «A pie» / «En bici»: el GPS y la salida en curso. Las cuentas están en
 // core/cardiogps.js (motor puro: filtro, tramos, calorías) y la pantalla en screens/cardio.js.
 //
-// · App de iPhone: plugin @capacitor-community/background-geolocation con el modo de fondo
-//   "location" (Info.plist): con backgroundMessage sigue midiendo con la pantalla apagada o el
-//   celular en el bolsillo. El permiso lo pide el plugin al enganchar (addWatcher).
-// · App de Android: NADA de ubicación (core/plataforma.js appAndroid). No se empieza ni se retoma
-//   ninguna salida y nunca se le habla al plugin, que ni siquiera va en el build de Android
-//   (capacitor.config.json android.includePlugins). Una salida que quedó en curso de una versión
-//   anterior se termina sola al abrir (sin mirar el GPS), para guardarla o descartarla.
-// · Web: navigator.geolocation.watchPosition + la pantalla prendida (wakeLock) mientras corre.
-//   Con la pantalla apagada o la pestaña oculta los navegadores dejan de mandar la ubicación:
-//   la pantalla lo avisa (TEXTS.webLimit) y el motor marca ese hueco al volver.
+// · Solo en la web: navigator.geolocation.watchPosition + la pantalla prendida (wakeLock) mientras
+//   corre. Con la pantalla apagada o la pestaña oculta los navegadores dejan de mandar la
+//   ubicación: la pantalla lo avisa (TEXTS.webLimit) y el motor marca ese hueco al volver.
+// · Apps de Android y de iPhone: NADA de ubicación (core/plataforma.js appNativa). No se empieza
+//   ni se retoma ninguna salida, nunca se mira el GPS y nunca se pide el permiso: ninguna de las
+//   dos lleva un plugin de ubicación. (La de iPhone usaba @capacitor-community/background-
+//   geolocation con el modo de fondo "location"; Apple no lo aceptó y se sacó, como en Android.)
+//   Una salida que quedó en curso de una versión anterior se termina sola al abrir (sin mirar el
+//   GPS), para guardarla o descartarla.
 //
 // La salida en curso (con TODOS sus puntos, para el mapa) se guarda en el celular: una cabecera
 // (RUN_KEY) y los puntos en partes de 400 (RUN_KEY_c0, _c1…). Una parte llena se escribe una sola
 // vez; solo se reescribe la última. Se escribe como mucho cada 5 s o cada 20 puntos, y en el acto
-// al empezar, pausar, seguir, terminar o irse la app a segundo plano. Al abrir la app se retoma
-// sola (en el celular vuelve a enganchar el GPS en el acto).
+// al empezar, pausar, seguir, terminar o irse la app a segundo plano. Al abrir la página se retoma
+// sola (vuelve a mirar la ubicación en el acto).
 // Con la app en segundo plano (ui/pausa.js) NO se deja de medir: solo se guarda y no se le avisa
 // a la pantalla (no se dibuja nada hasta volver).
 //
 // Nombres nuevos a propósito (gize_salida_v1…): lo de la versión anterior con GPS
 // (gize_cardio_run) lo sigue borrando core/state.js en los celulares viejos.
 import { State, state } from '../core/state.js';
-import { MODES, addPoint, createClock, endRun, isAccepted, lastPoint, lastWeight, liveStats, modeOk, newRun, pauseRun, resumeRun } from '../core/cardiogps.js';
+import { addPoint, createClock, endRun, isAccepted, lastPoint, lastWeight, liveStats, modeOk, newRun, pauseRun, resumeRun } from '../core/cardiogps.js';
 import { appAway, onAwayChange } from './pausa.js';
-import { appAndroid } from '../core/plataforma.js';
+import { appAndroid, appNativa } from '../core/plataforma.js';
 
 export const RUN_KEY = "gize_salida_v1";
 const CHUNK = 400;                       // puntos por parte guardada
@@ -36,39 +35,28 @@ const MAX_RUN_MS = 12 * 3600000;         // ni una salida de más de 12 h
 const IDLE_MS = 3600000;                 // una hora sin moverse: se pausa sola (y se apaga el GPS)
 const COARSE_M = 100, COARSE_N = 5, COARSE_MS = 30000; // ubicación aproximada: precisión peor que 100 m, 5 puntos o 30 s
 const GAP_MS = 120000;                   // sin puntos más que esto: corte de señal, no «quieto»
-const NID_KEY = "gize_salida_nid";       // ids de los watchers del GPS nativo enganchados (ver dropOrphans)
-const RETRY_MS = 500, RETRIES = 10;      // «Service not running.»: el plugin todavía no está listo
-const SETTLE_MS = 600;                   // sin error en este rato, el GPS nativo quedó enganchado
+const NID_KEY = "gize_salida_nid";       // watchers del plugin de ubicación de las apps de antes (ver forgetNids)
 const MAX_CHUNKS = 400;                  // tope al leer partes (30.000 puntos son 75)
 
 export const TEXTS = {
-  notifTitle: { pie: "Salida a pie en curso", bici: "Salida en bici en curso" },
-  notifMsg: "GIZE está midiendo tu salida. Tocá para volver.",
   webLimit: "En el navegador, GIZE mide la salida solo con la pantalla prendida y la app abierta.",
-  nativeTip: "Podés bloquear el celular y guardarlo: GIZE sigue midiendo. No cierres GIZE desde las apps recientes.",
   noSignal: "No llega la señal del GPS. El tiempo sigue contando.",
   hole: "Con la pantalla bloqueada o en otra app, el navegador no deja medir: ese tramo se sumó en línea recta. Dejá GIZE abierta para medirlo entero.",
   quota: "El celular se quedó sin espacio para guardar la salida en curso: no cierres GIZE hasta terminarla.",
-  permIos: "GIZE no tiene permiso para usar tu ubicación, así que no puede medir la salida. Permitilo en Ajustes › GIZE › Ubicación.",
   permWeb: "GIZE no tiene permiso para usar tu ubicación. Permitilo en los ajustes del navegador.",
   locOff: "La ubicación del celular está apagada. Prendela para medir la salida.",
   noGpsWeb: "Este navegador no puede usar la ubicación, así que no puede medir la salida.",
-  noGpsNative: "No se pudo usar el GPS del celular, así que no puede medir la salida.",
-  service: "No se pudo arrancar el GPS del celular. Cerrá GIZE, volvé a abrirla y probá de nuevo.",
   idle: "La salida se pausó sola porque no te moviste en una hora (así no gasta batería). Tocá «Seguir» para continuar o «Terminar» para guardarla.",
-  preciseIos: "Tu celular le da a GIZE solo la ubicación aproximada y así no se puede medir la salida. Activá «Ubicación exacta» en Ajustes › GIZE › Ubicación.",
   preciseWeb: "Tu celular le da a GIZE solo la ubicación aproximada y así no se puede medir la salida. Activá la ubicación exacta para el navegador en los ajustes del celular.",
 };
 
-// Aviso propio antes del permiso del sistema: qué se usa, cuándo y quién ve el recorrido. Se
-// muestra la primera vez que se toca «Empezar» (app de iPhone y web: en la de Android no hay
-// salidas con GPS).
+// Aviso propio antes del permiso del navegador: qué se usa, cuándo y quién ve el recorrido. Se
+// muestra la primera vez que se toca «Empezar». Solo en la web: en las apps de las tiendas no hay
+// salidas con GPS (ni este aviso, ni ningún permiso de ubicación).
 export function disclosure(){
   return {
     title: "Usar tu ubicación",
-    text: isNative()
-      ? "Para medir tu salida, GIZE usa la ubicación de tu celular mientras la salida está en curso, también con la pantalla apagada o el celular en el bolsillo. Cuando terminás, deja de usarla. Tu recorrido lo ven solo vos y tu coach."
-      : "Para medir tu salida, GIZE usa la ubicación de tu celular mientras la salida está en curso. Cuando terminás, deja de usarla. Tu recorrido lo ven solo vos y tu coach.",
+    text: "Para medir tu salida, GIZE usa la ubicación de tu celular mientras la salida está en curso. Cuando terminás, deja de usarla. Tu recorrido lo ven solo vos y tu coach.",
     ok: "Seguir",
     no: "Ahora no",
   };
@@ -86,12 +74,9 @@ export function acceptDisclosure(){ try { localStorage.setItem(ASK_KEY, "1"); } 
 // acá» del mini mapa. No cuenta para la distancia ni se guarda. null hasta el primer dato.
 export const GpsState = { mode: "pie", run: null, restored: false, restoredGapMs: 0, error: "", errorWhy: "", gps: "off", notice: "", here: null };
 
-export const isNative = () => { try { const C = window.Capacitor; return !!(C && C.isNativePlatform && C.isNativePlatform()); } catch (e) { return false; } };
-const platform = () => { try { return isNative() ? window.Capacitor.getPlatform() : "web"; } catch (e) { return "web"; } };
-
 // Plugins de Capacitor sin bundler (como core/push.js): el que ya expone el puente nativo o,
-// si no, registerPlugin (una sola vez por nombre). Si la app no lo trae, null. El de ubicación,
-// nunca en la app de Android (no lo trae y ahí no se usa la ubicación).
+// si no, registerPlugin (una sola vez por nombre). Si la app no lo trae, null. Acá solo se usa el
+// de notificaciones, para borrar el canal viejo de Android (dropOldChannel).
 const plugins = {};
 function plugin(name){
   if (plugins[name]) return plugins[name];
@@ -104,8 +89,6 @@ function plugin(name){
     return P || null;
   } catch (e) { return null; }
 }
-const bgPlugin = () => isNative() && !appAndroid() ? plugin("BackgroundGeolocation") : null;
-
 // El canal de notificaciones «Salidas de Cardio» que el plugin de ubicación creaba en cada arranque
 // de las versiones de la app de Android que tenían GPS. Android no lo borra al actualizar y quedaba
 // en Ajustes › Apps › GIZE › Notificaciones: la app de Android lo borra una vez (con el plugin de
@@ -167,12 +150,10 @@ function noteHere(raw, now){
 }
 function clearHere(){ GpsState.here = null; clearTimeout(hereTimer); hereTimer = null; hereAt = 0; }
 function setError(why){
-  const p = platform();
   GpsState.errorWhy = why;
-  GpsState.error = why === "permiso" ? (p === "ios" ? TEXTS.permIos : TEXTS.permWeb)
-    : why === "sin-gps" ? (p === "web" ? TEXTS.noGpsWeb : TEXTS.noGpsNative)
-    : why === "apagada" ? TEXTS.locOff
-    : why === "servicio" ? TEXTS.service : "";
+  GpsState.error = why === "permiso" ? TEXTS.permWeb
+    : why === "sin-gps" ? TEXTS.noGpsWeb
+    : why === "apagada" ? TEXTS.locOff : "";
   if (why === "apagada") GpsState.errorWhy = "sin-gps";
 }
 function clearError(){ GpsState.error = ""; GpsState.errorWhy = ""; }
@@ -251,100 +232,13 @@ export function freeRunStorage(){ clearKeys(); resetSaved(); }
 export function restoreRunStorage(){ if (GpsState.run) write(); }
 function clearRun(){ clearHere(); GpsState.run = null; GpsState.gps = "off"; GpsState.restored = false; GpsState.restoredGapMs = 0; resetSaved(); clearKeys(); }
 
-// ---- Mirar la ubicación ----
-let nativeId = null, nativeGen = 0;
+// ---- Mirar la ubicación (solo en la web) ----
 let webId = null, wake = null, wakeAsk = false;
-export const watching = () => nativeId != null || webId != null;
+export const watching = () => webId != null;
 
-// Con backgroundMessage, el plugin de iPhone sigue midiendo en segundo plano (y muestra el
-// indicador de ubicación). El permiso lo pide el plugin (requestPermissions).
-function watcherOpts(mode){
-  return { backgroundTitle: TEXTS.notifTitle[modeOk(mode) ? mode : "pie"], backgroundMessage: TEXTS.notifMsg,
-    requestPermissions: true, stale: false, distanceFilter: MODES[modeOk(mode) ? mode : "pie"].distanceFilterM };
-}
-// Los watchers nativos enganchados quedan anotados en el celular (NID_KEY) hasta que el plugin
-// confirma que los sacó: el plugin los puede seguir teniendo aunque la página se recargue (cambio
-// de cuenta, «Borrar datos del celular»), y sin el id no hay cómo sacarlos (el GPS quedaría
-// prendido). Al abrir, dropOrphans saca los que quedaron.
-function nids(){
-  try { const a = JSON.parse(localStorage.getItem(NID_KEY) || "[]"); return Array.isArray(a) ? a.filter(x => typeof x === "string" && x.length <= 200).slice(-20) : []; } catch (e) { return []; }
-}
-function setNids(a){ try { if (a.length) localStorage.setItem(NID_KEY, JSON.stringify(a)); else localStorage.removeItem(NID_KEY); } catch (e) {} }
-const rememberNid = id => { id = String(id); const a = nids(); if (!a.includes(id)) setNids(a.concat([id])); };
-const forgetNid = id => { id = String(id); const a = nids(); if (a.includes(id)) setNids(a.filter(x => x !== id)); };
-function dropNative(id){
-  const P = bgPlugin();
-  if (P && id != null) Promise.resolve().then(() => P.removeWatcher({ id })).then(() => forgetNid(id), () => {});
-}
-// Al abrir la app (nativa): saca los watchers que quedaron de antes de recargar la página. Se
-// espera a que termine antes de enganchar uno nuevo (attachNative).
-let orphans = Promise.resolve();
-function dropOrphans(){
-  const P = bgPlugin(), old = nids();
-  if (!P || !old.length) return Promise.resolve();
-  return Promise.all(old.map(id => Promise.resolve().then(() => P.removeWatcher({ id })).then(() => forgetNid(id), () => {}))).then(() => {});
-}
-
-// Engancha el GPS nativo (addWatcher, que pide el permiso si hace falta). Resuelve "ok" |
-// "permiso" | "apagada" | "sin-gps" | "servicio" | "cancel" (se pausó o terminó mientras
-// arrancaba). Los errores que llegan después de resolver los maneja lost().
-function attachNative(){
-  const P = bgPlugin(), gen = ++nativeGen;
-  if (nativeId != null){ const id = nativeId; nativeId = null; dropNative(id); }
-  return new Promise(resolve => {
-    let done = false, tries = 0;
-    const settle = res => { if (!done){ done = true; resolve(res); } };
-    if (!P || typeof P.addWatcher !== "function"){ settle("sin-gps"); return; }
-    const go = () => {
-      if (gen !== nativeGen){ settle("cancel"); return; }
-      const r = GpsState.run;
-      if (!r || r.status !== "running"){ settle("cancel"); return; }
-      // dead: este intento ya no sirve ("svc": no llegó a quedar guardado en el plugin; "auth":
-      // quedó guardado y hay que sacarlo).
-      let id = null, dead = "";
-      const cb = (loc, err) => {
-        if (gen !== nativeGen || dead) return;
-        if (err){
-          const msg = String((err && err.message) || err);
-          if (/service not running/i.test(msg)){
-            dead = "svc";
-            if (++tries < RETRIES) setTimeout(go, RETRY_MS);
-            else if (!done) settle("servicio"); else lost("servicio");
-            return;
-          }
-          if (err.code === "NOT_AUTHORIZED"){
-            dead = "auth";
-            if (id != null){ if (nativeId === id) nativeId = null; dropNative(id); }
-            const why = /disabled/i.test(msg) ? "apagada" : "permiso";
-            if (!done) settle(why); else lost(why);
-            return;
-          }
-          // Otro error: no llega la señal. El plugin sigue intentando; el tiempo sigue contando.
-          if (GpsState.notice !== TEXTS.noSignal){ GpsState.notice = TEXTS.noSignal; GpsState.gps = "buscando"; emit(); }
-          return;
-        }
-        if (!loc) return;
-        settle("ok");
-        nativeFix(loc);
-      };
-      Promise.resolve().then(() => P.addWatcher(watcherOpts(r.mode), cb)).then(wid => {
-        id = wid;
-        if (dead === "svc") return;
-        if (wid != null) rememberNid(wid);
-        if (gen !== nativeGen || dead){ dropNative(wid); settle("cancel"); return; }
-        nativeId = wid;
-        setTimeout(() => { if (!dead) settle(gen === nativeGen ? "ok" : "cancel"); }, SETTLE_MS);
-      }, e => {
-        console.error("gps", e);
-        if (gen === nativeGen){ if (!done) settle("sin-gps"); else lost("sin-gps"); }
-      });
-    };
-    orphans.then(go, go);
-  });
-}
-function nativeFix(loc){
-  handlePoint({ lat: loc.latitude, lon: loc.longitude, acc: loc.accuracy, spd: loc.speed, t: loc.time });
-}
+// Las versiones anteriores de las apps anotaban en el celular los watchers del plugin de ubicación
+// (NID_KEY): al abrir, las apps olvidan esa lista sin llamar a nada (el plugin ya no está).
+function forgetNids(){ try { localStorage.removeItem(NID_KEY); } catch (e) {} }
 
 function attachWeb(){
   if (webId != null){ try { navigator.geolocation.clearWatch(webId); } catch (e) {} webId = null; }
@@ -376,7 +270,7 @@ async function webDenied(){
 // la ubicación). Se suelta en pausa y al terminar; al volver a la pestaña se pide de nuevo
 // (el navegador la suelta sola al ocultarla).
 async function lockScreen(){
-  if (isNative() || wake || wakeAsk || !navigator.wakeLock || document.visibilityState !== "visible") return;
+  if (appNativa() || wake || wakeAsk || !navigator.wakeLock || document.visibilityState !== "visible") return;
   wakeAsk = true;
   try {
     const w = await navigator.wakeLock.request("screen");
@@ -387,22 +281,16 @@ async function lockScreen(){
 }
 function unlockScreen(){ const w = wake; wake = null; if (w) try { Promise.resolve(w.release()).catch(() => {}); } catch (e) {} }
 
-// Deja de mirar la ubicación (nativo y web) y suelta la pantalla.
+// Deja de mirar la ubicación y suelta la pantalla.
 function stopWatch(){
-  nativeGen++;
-  if (nativeId != null){ const id = nativeId; nativeId = null; dropNative(id); }
   if (webId != null){ try { navigator.geolocation.clearWatch(webId); } catch (e) {} webId = null; }
   unlockScreen();
 }
-// Engancha según la plataforma («Seguir», o al retomar sola al abrir la app). En la app de
-// Android nunca (no usa la ubicación).
-async function startWatch(){
-  if (appAndroid()) return;
-  if (!isNative()){ attachWeb(); return; }
-  const r = GpsState.run;
-  if (!r || r.status !== "running") return;
-  const res = await attachNative();
-  if (res !== "ok" && res !== "cancel") lost(res);
+// Vuelve a mirar la ubicación («Seguir», o al retomar sola al abrir la página). En las apps de
+// las tiendas nunca (no usan la ubicación).
+function startWatch(){
+  if (appNativa()) return;
+  attachWeb();
 }
 // Se perdió el permiso (o el GPS) con la salida andando: deja de mirar y, si ya había medido
 // algo, la pausa (el tiempo no sigue contando sin medir); si no había nada, la descarta.
@@ -423,7 +311,7 @@ let clock = createClock();
 const HOLE_NOTICE_MS = 60000;
 let holeAt = 0;
 
-// Un punto del GPS (nativo o web) para la salida en curso.
+// Un punto del GPS para la salida en curso.
 function handlePoint(raw){
   const r = GpsState.run;
   if (!r || r.status !== "running") return;
@@ -438,9 +326,9 @@ function handlePoint(raw){
   if (why === "paused") return;
   let changed = false;
   if (GpsState.notice === TEXTS.noSignal){ GpsState.notice = ""; changed = true; }
-  // Volvió de un corte (en la web: pantalla bloqueada u otra app): se avisa un minuto.
+  // Volvió de un corte (pantalla bloqueada u otra app): se avisa un minuto.
   const lp = isAccepted(why) && lastPoint(r);
-  if (lp && lp.hole && !isNative() && !GpsState.notice){ GpsState.notice = TEXTS.hole; holeAt = now; changed = true; }
+  if (lp && lp.hole && !GpsState.notice){ GpsState.notice = TEXTS.hole; holeAt = now; changed = true; }
   else if (GpsState.notice === TEXTS.hole && !(now - holeAt < HOLE_NOTICE_MS)){ GpsState.notice = ""; changed = true; }
   if (coarseCheck(raw, why, now)) changed = true;
   if (r.pts.length !== before) persist(false);
@@ -484,15 +372,12 @@ function overdue(r, now){
 }
 
 // ---- Ubicación aproximada ----
-// Con la «Ubicación exacta» apagada (iPhone) o solo la aproximada (navegador), cada punto llega
-// con cientos de metros de error y el filtro los descarta todos: sin este aviso la pantalla diría
-// «Buscando señal» para siempre. Varios seguidos peores que 100 m → aviso (con «Abrir ajustes»
-// en la app); se va con el primer punto que sirve.
+// Con solo la ubicación aproximada para el navegador, cada punto llega con cientos de metros de
+// error y el filtro los descarta todos: sin este aviso la pantalla diría «Buscando señal» para
+// siempre. Varios seguidos peores que 100 m → aviso; se va con el primer punto que sirve.
 let coarse = { n: 0, t0: 0 };
-const preciseText = () => platform() === "ios" ? TEXTS.preciseIos : TEXTS.preciseWeb;
-const isPreciseNotice = t => !!t && (t === TEXTS.preciseIos || t === TEXTS.preciseWeb);
-// ¿El aviso de ahora es el de la ubicación aproximada? (la pantalla ofrece «Abrir ajustes»).
-export const needsPrecise = () => isPreciseNotice(GpsState.notice);
+const preciseText = () => TEXTS.preciseWeb;
+const isPreciseNotice = t => !!t && t === TEXTS.preciseWeb;
 function coarseCheck(raw, why, now){
   const acc = Number(raw && raw.acc);
   if (isAccepted(why)){
@@ -527,14 +412,12 @@ function begin(mode){
 // Empezar una salida. → { ok: true } o { ok: false, why }:
 //   "aviso": falta el aviso «Usar tu ubicación» (disclosure(); al aceptar, acceptDisclosure() y
 //            start() de nuevo). No se pidió ningún permiso.
-//   "permiso": sin permiso de ubicación (GpsState.error; nativo: openSettings()).
-//   "sin-gps": el celular o el navegador no puede usar la ubicación, o está apagada. En la app de
-//            Android, siempre y sin tocar nada (no usa la ubicación: la pantalla ni lo ofrece).
-//   "servicio": el GPS del celular no arrancó.
+//   "permiso": sin permiso de ubicación (GpsState.error).
+//   "sin-gps": el navegador no puede usar la ubicación, o está apagada. En las apps de Android y
+//            de iPhone, siempre y sin tocar nada (no usan la ubicación: la pantalla ni lo ofrece).
 //   "en-curso": ya hay una salida (en curso, o terminada sin guardar: takeEnded()).
-//   "cancel": se descartó mientras arrancaba.
 export async function start(mode){
-  if (appAndroid()) return { ok: false, why: "sin-gps" };
+  if (appNativa()) return { ok: false, why: "sin-gps" };
   if (GpsState.run || starting) return { ok: false, why: "en-curso" };
   if (mode !== undefined) setMode(mode);
   if (needsDisclosure()) return { ok: false, why: "aviso" };
@@ -542,16 +425,6 @@ export async function start(mode){
   starting = true;
   try {
     const m = GpsState.mode;
-    if (isNative()){
-      if (!bgPlugin()) return fail("sin-gps");
-      begin(m);
-      emit();
-      const res = await attachNative();
-      if (res === "ok") return { ok: true };
-      if (res === "cancel") return GpsState.run ? { ok: true } : { ok: false, why: "cancel" };
-      stopWatch(); clearRun();
-      return fail(res);
-    }
     if (!navigator.geolocation || typeof navigator.geolocation.watchPosition !== "function") return fail("sin-gps");
     // watchPosition va en el mismo toque de «Empezar» (sin esperar nada antes): en el iPhone
     // (Safari y la app instalada desde Safari) el cartel del permiso puede no salir si se lo pide
@@ -572,12 +445,12 @@ export function pause(){
   write(); emit();
 }
 export function resume(){
-  const r = GpsState.run; if (!r || r.status !== "paused" || appAndroid()) return;
+  const r = GpsState.run; if (!r || r.status !== "paused" || appNativa()) return;
   resumeRun(r, Date.now()); GpsState.restored = false; clearError(); GpsState.gps = "buscando";
   if (GpsState.notice !== TEXTS.quota) GpsState.notice = "";
   coarse = { n: 0, t0: 0 }; rawAt = 0;
   write(); emit();
-  startWatch().catch(e => console.error("gps", e));
+  startWatch();
 }
 // Terminar: la salida queda "ended" (guardada en el celular hasta que se guarde o descarte).
 export function stop(){
@@ -602,16 +475,8 @@ export function live(now){
   if (GpsState.run) GpsState.gps = s.gps;
   return s;
 }
-// Ajustes de la app (permiso negado). En la web no hay: false.
-export function openSettings(){
-  const P = bgPlugin();
-  if (!P || typeof P.openSettings !== "function") return false;
-  Promise.resolve().then(() => P.openSettings()).catch(() => {});
-  return true;
-}
-// Texto fijo de la pantalla en vivo: en la app, que se puede bloquear el celular; en la web, que
-// la pantalla tiene que quedar prendida.
-export const hint = () => isNative() ? TEXTS.nativeTip : TEXTS.webLimit;
+// Texto fijo de la pantalla en vivo: la pantalla tiene que quedar prendida.
+export const hint = () => TEXTS.webLimit;
 // «Retomamos tu salida (el GPS estuvo cortado N min)», mientras GpsState.restored.
 export function restoredText(){
   if (!GpsState.restored) return "";
@@ -634,8 +499,8 @@ export function stopForLogout(){
 // ---- App en segundo plano ----
 const WEB_RETRY_MS = 8000;
 let webRetry = null;
-// Al irse se guarda en el acto (el sistema puede matar la app); el GPS sigue. Al volver, la
-// pantalla se pone al día una vez y en la web se vuelve a pedir la pantalla prendida.
+// Al irse se guarda en el acto (el sistema puede matar la página). Al volver, la pantalla se pone
+// al día una vez y se vuelve a pedir la pantalla prendida.
 onAwayChange(away => {
   if (away){ if (GpsState.run && GpsState.run.status !== "ended") write(); return; }
   if (GpsState.run && overdue(GpsState.run, Date.now())) return;
@@ -694,11 +559,10 @@ function readSaved(){
   return { run, repaired, chunks: n };
 }
 (function restore(){
-  // App nativa: primero se sacan los watchers que quedaron de antes de recargar (ver nids). En la
-  // de Android no hay plugin: solo se olvida la lista que pudo quedar de una versión anterior y se
-  // borra el canal de notificaciones que dejó (dropOldChannel).
-  if (appAndroid()){ setNids([]); dropOldChannel(); }
-  else if (isNative()) orphans = dropOrphans();
+  // Apps de las tiendas: se olvida la lista de watchers que pudo quedar de una versión anterior
+  // (sin llamar a ningún plugin) y en Android se borra el canal de notificaciones que dejó el GPS
+  // (dropOldChannel).
+  if (appNativa()){ forgetNids(); if (appAndroid()) dropOldChannel(); }
   let got = null;
   try { got = readSaved(); } catch (e) { console.warn("No se pudo leer la salida en curso.", e); clearKeys(); }
   if (!got) return;
@@ -708,10 +572,11 @@ function readSaved(){
   else Object.assign(saved, { closed: Math.floor(r.pts.length / CHUNK), chunks: got.chunks, n: r.pts.length, at: now, arr: r.pts });
   if (r.status === "ended") return; // terminada sin guardar: la pantalla muestra el resumen
   // Abandonada (sin puntos hace más de 6 h, o más de 12 h desde que empezó): se termina sola en
-  // el último momento que se midió. En la app de Android, siempre: ahí no se mira el GPS, así que
-  // la que quedó en curso o en pausa de una versión anterior queda terminada para guardarla.
+  // el último momento que se midió. En las apps de Android y de iPhone, siempre: ahí no se mira el
+  // GPS, así que la que quedó en curso o en pausa de una versión anterior queda terminada para
+  // guardarla.
   const lastT = lastPointT(r), last = Math.max(r.start, lastT || 0, r.status === "paused" ? r.pausedAt : 0);
-  if (appAndroid() || now - last > STALE_MS || now - r.start > MAX_RUN_MS){
+  if (appNativa() || now - last > STALE_MS || now - r.start > MAX_RUN_MS){
     endRun(r, r.status === "paused" ? r.pausedAt : (lastT || r.start));
     write();
     return;
@@ -719,7 +584,7 @@ function readSaved(){
   if (r.status !== "running") return; // pausada: queda pausada
   GpsState.restored = true; GpsState.restoredGapMs = Math.max(0, now - (lastT || r.start)); GpsState.gps = "buscando";
   watchSince = now;
-  // La salida siguió mientras la app estaba cerrada: se vuelve a mirar el GPS en el acto (el
+  // La salida siguió mientras la página estaba cerrada: se vuelve a mirar el GPS en el acto (el
   // hueco hasta el primer punto nuevo lo maneja el motor como corte de señal).
-  startWatch().catch(e => console.error("gps", e));
+  startWatch();
 })();

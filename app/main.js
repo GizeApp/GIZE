@@ -1340,10 +1340,10 @@ document.body.addEventListener("click", async e => {
   if(a==="tpl-new"){ CoachState.coachTplEdit={id:null, name:"", days:[]}; CoachState.coachEditDay=0; renderCoach(); return; }
   if(a==="tpl-open"){ const t=CoachState.coachTpls.find(x=>x.id===b.dataset.id); if(t){ CoachState.coachTplEdit=JSON.parse(JSON.stringify(t)); CoachState.coachEditDay=0; renderCoach(); } return; }
   // Rutina de descarga (ver supabase/descarga.sql): mismo editor, se guarda en el bloque del
-  // alumno y al volver o guardar se queda en Ficha → Bloque, con la semana abierta.
+  // alumno y al volver o guardar se queda en Estadísticas → Bloque, con la semana abierta.
   if(CoachState.coachTplEdit && CoachState.coachTplEdit.deload && (a==="tpl-back"||a==="tpl-save"||a==="tpl-del")){
     const e=CoachState.coachTplEdit;
-    const leave=()=>{ CoachState.coachTplEdit=null; CoachState.coachEditDay=0; CoachState.coachClientTab="ficha"; CoachState.coachSec="bloque"; CoachState.coachWeekSel=e.wk; renderCoach(); window.scrollTo(0,0); };
+    const leave=()=>{ CoachState.coachTplEdit=null; CoachState.coachEditDay=0; CoachState.coachClientTab="stats"; CoachState.coachSec="bloque"; CoachState.coachWeekSel=e.wk; renderCoach(); window.scrollTo(0,0); };
     if(a==="tpl-back"){
       if(JSON.stringify(e.days)!==e.orig && !confirm("¿Salir sin guardar la rutina de descarga?")) return;
       leave(); return;
