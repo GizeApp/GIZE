@@ -156,6 +156,25 @@ export async function openAllEx(p){
   await wait(150);
 }
 
+// Configuración del coach (app/screens/coach/settings.js): una pantalla del panel con un menú de
+// secciones (Perfil, Apariencia, Avisos, Mi plan, Preguntas, Privacidad, Cuenta). configCoach toca
+// la tuerca de la barra lateral (si no está abierta) y la sección, como la persona; lo que muestra
+// la sección queda en CONFIG_COACH.
+export const CONFIG_COACH = '#coachHost .cs-body';
+export async function configCoach(p, seccion){
+  if (!await p.$('#coachHost .cs-layout')) { await p.click('[data-coach="open-settings"]'); await wait(500); }
+  if (seccion) { await p.click(`#coachHost .cs-nav [data-coach="settings-sec"][data-k="${seccion}"]`); await wait(300); }
+}
+// Recorre todas las secciones del menú: [{ k, nombre, v }] con v = lo que devuelve leer(p) con esa
+// sección abierta (para revisar algo en toda la Configuración, como antes en la ventana única).
+export async function seccionesCoach(p, leer){
+  await configCoach(p);
+  const secs = await p.$$eval('#coachHost .cs-nav [data-coach="settings-sec"]', l => l.map(b => [b.dataset.k, b.querySelector('b').textContent]));
+  const out = [];
+  for (const [k, nombre] of secs){ await configCoach(p, k); out.push({ k, nombre, v: await leer(p) }); }
+  return out;
+}
+
 // Cardio: «Salir a moverte» (lo último de la pestaña) abre la hoja de abajo con «A pie» / «En
 // bici» y «Empezar». abrirSalir la abre; empezarSalida la abre si hace falta y toca «Empezar».
 export async function abrirSalir(p){

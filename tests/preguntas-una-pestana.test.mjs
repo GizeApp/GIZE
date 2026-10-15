@@ -20,7 +20,8 @@ export default async function ({ base, t }){
       },
     } });
   await p.goto(base + '/app/'); await wait(3500);
-  // Desde la ficha de la alumna: la ruedita del «Check-in semanal» abre el editor en esa pestaña.
+  // Desde la ficha de la alumna: la ruedita del «Check-in semanal» abre el editor en esa pestaña
+  // (la sección «Preguntas» de la pantalla Configuración).
   await p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1500);
   // Desde el rediseño del panel (#332), el Check-in semanal está en la pestaña «Estadísticas» de la ficha.
   await p.click('[data-coach="client-tab"][data-t="stats"]'); await wait(300);
@@ -51,16 +52,17 @@ export default async function ({ base, t }){
   const cq = await p.evaluate(async () => { const { State } = await import('/app/core/state.js'); return State.coachQ; });
   t.eq(cq && cq.daily, SAVED.daily, 'en el celular quedan las preguntas propias del registro');
 
-  // Otra vez sin señal: si al guardar todavía no se pueden leer, no se guarda nada a ciegas.
+  // Otra vez sin señal: si al guardar todavía no se pueden leer, no se guarda nada a ciegas. Se
+  // vuelve a abrir el editor desde «Preguntas» de la barra lateral.
   falla = true; ups.length = 0;
-  await p.click('.co-sec-gear[data-k="checkin"]'); await wait(800);
+  await p.click('.cv-side [data-coach="q-open"]'); await wait(800);
   await p.click('[data-coach="q-tab"][data-k="daily"]'); await wait(200);
   await p.click('[data-coach="q-add"]'); await wait(200);
   await p.fill('.cq-label >> nth=-1', '¿Tomaste la creatina?'); await wait(100);
   await p.click('[data-coach="q-save"]'); await wait(800);
   t.eq(ups.length, 0, 'sin poder leer las guardadas no se guarda');
   t.ok(dialogs.some(d => d.includes('No se pudieron leer tus preguntas guardadas')), 'avisa que no se guardó: ' + dialogs.join(' | '));
-  t.ok(await p.$('.cq-card'), 'el editor sigue abierto con lo cargado');
+  t.ok(await p.$('#coachHost .cs-body[data-sec="preguntas"]') && (await p.$$eval('.cq-label', l => l.map(e => e.value))).includes('¿Tomaste la creatina?'), 'el editor sigue abierto con lo cargado');
   t.eq(errs, [], 'errores de la página');
   await close();
 }

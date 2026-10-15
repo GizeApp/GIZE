@@ -8,7 +8,7 @@
 // el dispositivo ("gize_neon" = "0"), la clase ya está antes de la primera pintada, y queda el look
 // en blanco y gris: sin el toque de color en los bordes ni resplandores de colores (chat y
 // racha). Anda igual con «Azul».
-import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, ALUMNO, profile, configCoach } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'Torso', exercises: [{ id: 'e1', name: 'Press de banca', sets: [{ id: 's1', kg: '80', reps: '8' }] }] }], sessions: [], weights: [], daily: {} };
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
@@ -178,30 +178,34 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores de la página (liviano)');
   await pg.close();
 
-  // 7) Coach: el mismo interruptor en su Configuración.
+  // 7) Coach: el mismo interruptor en su Configuración: sección «Apariencia», tarjeta «Neón» (después
+  // de la del tema). «Guardar nombre» está en la sección «Perfil».
   pg = await newPage({ user: COACH, handlers: COACH_H, init: () => localStorage.setItem('gize_lite', '0') });
   await pg.p.goto(base + '/app/'); await wait(3000);
-  await pg.p.click('[data-coach="open-settings"]'); await wait(500);
-  const coach = () => pg.p.evaluate(() => {
-    const sw = document.querySelector('#coachSheetHost [data-neon-toggle]'), save = document.querySelector('#coachSheetHost .co-save-rt');
-    const lbl = sw && document.getElementById(sw.getAttribute('aria-labelledby'));
-    const cs = save && getComputedStyle(save);
-    return { sw: sw && sw.getAttribute('aria-checked'), lbl: lbl && lbl.textContent, clase: document.documentElement.classList.contains('sin-neon'),
-      saved: localStorage.getItem('gize_neon'), desc: sw && sw.closest('.cs-field') ? sw.closest('.cs-field').textContent : '',
-      save: cs && { bg: cs.backgroundImage, anim: cs.animationName, sombra: cs.boxShadow } };
-  });
+  const coach = async () => {
+    await configCoach(pg.p, 'perfil');
+    const save = await pg.p.evaluate(() => { const b = document.querySelector('#coachHost .cs-body [data-coach="settings-name-save"]'), cs = b && getComputedStyle(b);
+      return cs && { bg: cs.backgroundImage, anim: cs.animationName, sombra: cs.boxShadow }; });
+    await configCoach(pg.p, 'apariencia');
+    return pg.p.evaluate(save => {
+      const sw = document.querySelector('#coachHost .cs-body [data-neon-toggle]'), card = sw && sw.closest('.cs-card');
+      const lbl = sw && document.getElementById(sw.getAttribute('aria-labelledby'));
+      return { sw: sw && sw.getAttribute('aria-checked'), tit: card && card.querySelector('.cs-h').textContent, lbl: lbl && lbl.textContent,
+        clase: document.documentElement.classList.contains('sin-neon'), saved: localStorage.getItem('gize_neon'), desc: card ? card.textContent : '', save };
+    }, save);
+  };
   // «Guardar nombre»: [con el filete, con la gama (conic-gradient), animación, relleno blanco, brillo de color].
   const guardar = s => s && [filete(s.bg), /conic/.test(s.bg), s.anim, BLANCO.test(s.bg), conTinte(s.sombra)];
   let c = await coach();
-  t.eq([c.sw, c.lbl, c.clase, c.saved], ['true', 'Neón en este dispositivo', false, null], 'coach: el interruptor de Neón, prendido');
-  t.ok(await pg.p.evaluate(() => { const a = document.querySelector('#coachSheetHost .cs-tema'), b = document.querySelector('#coachSheetHost [data-neon-toggle]'); return !!(a && b && a.closest('.cs-field').nextElementSibling === b.closest('.cs-field')); }), 'coach: va al lado de «Apariencia en este dispositivo»');
+  t.eq([c.sw, c.tit, c.lbl, c.clase, c.saved], ['true', 'Neón', 'Toque de color en los bordes', false, null], 'coach: el interruptor de Neón, prendido');
+  t.ok(await pg.p.evaluate(() => { const a = document.querySelector('#coachHost .cs-body .cs-tema'), b = document.querySelector('#coachHost .cs-body [data-neon-toggle]'); return !!(a && b && a.closest('.cs-card').nextElementSibling === b.closest('.cs-card')); }), 'coach: va al lado del tema, en «Apariencia»');
   t.has(c.desc, 'Toque de color en los bordes', 'coach: el interruptor dice qué hace');
   t.eq(guardar(c.save), [true, false, 'none', true, false], 'coach: «Guardar nombre» relleno de blanco con el filete quieto (sin el anillo que gira): ' + JSON.stringify(c.save));
-  await pg.p.click('#coachSheetHost [data-neon-toggle]'); await wait(200);
+  await pg.p.click('#coachHost .cs-body [data-neon-toggle]'); await wait(200);
   c = await coach();
   t.eq([c.sw, c.clase, c.saved], ['false', true, '0'], 'coach: se apaga al toque y queda guardado');
   t.eq(guardar(c.save).slice(0, 3), [false, false, 'none'], 'coach: «Guardar nombre» sin filete de color, sin anillo ni giro: ' + JSON.stringify(c.save));
-  await pg.p.click('#coachSheetHost [data-neon-toggle]'); await wait(200);
+  await pg.p.click('#coachHost .cs-body [data-neon-toggle]'); await wait(200);
   c = await coach();
   t.eq([c.sw, c.clase, c.saved, guardar(c.save)], ['true', false, null, [true, false, 'none', true, false]], 'coach: se vuelve a prender (vuelve el filete quieto)');
   t.eq(pg.errs, [], 'errores de la página (coach)');

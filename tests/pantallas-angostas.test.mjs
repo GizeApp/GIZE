@@ -137,7 +137,8 @@ export default async function ({ base, t }){
           // 18 px para la flechita del select.
           const room = s.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 18;
           const item = s.closest('.cq-item').getBoundingClientRect();
-          const btnsOut = [...s.closest('.cq-row').querySelectorAll('.cq-btn')].some(b => b.getBoundingClientRect().right > item.right + 0.5);
+          // ↑ ↓ ✕ de esa pregunta (en su tarjeta, debajo o al lado del texto y el tipo).
+          const btnsOut = [...s.closest('.cq-item').querySelectorAll('.cq-btn')].some(b => b.getBoundingClientRect().right > item.right + 0.5);
           return { need: Math.ceil(need), room: Math.floor(room), btnsOut }; });
       });
       t.ok(q.length > 0, W + 'preguntas: se ve el editor');
