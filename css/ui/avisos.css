@@ -1,0 +1,23 @@
+/* Carteles de aviso (app/ui/avisos.js): reemplazan el alert() nativo. Centrado, con ícono y color
+   según el tipo: listo (cian/verde), no se pudo (rojo) y aviso (azul). */
+.av-bg { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: rgba(0,0,0,.55); opacity: 0; transition: opacity var(--duration-frequent) ease; }
+.av-bg.show { opacity: 1; }
+.av-card { --av: var(--gize-blue); width: min(360px, 100%); text-align: center; background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r-card); padding: 26px 22px 20px; box-shadow: 0 18px 50px rgba(0,0,0,.4);
+  transform: translateY(8px) scale(.96); transition: transform var(--duration-standard) var(--ease-drawer); }
+.av-bg.show .av-card { transform: none; }
+.av-ok { --av: var(--gize-success); }
+.av-err { --av: var(--gize-danger); }
+.av-ico { width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  color: var(--av); background: color-mix(in srgb, var(--av) 14%, transparent); border: 1px solid color-mix(in srgb, var(--av) 40%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--av) 25%, transparent); }
+.av-ico svg { width: 26px; height: 26px; }
+.av-tit { font-size: 17px; font-weight: 800; color: var(--txt); margin-bottom: 6px; }
+.av-txt { font-size: var(--text-body); line-height: 1.45; color: var(--txt-2); overflow-wrap: anywhere; max-height: 50vh; overflow-y: auto; }
+.av-txt p { margin: 0 0 8px; }
+.av-txt p:last-child { margin-bottom: 0; }
+.av-btn { margin-top: 18px; width: 100%; padding: 12px; border: 0; border-radius: var(--r-btn); cursor: pointer; font: inherit; font-weight: 700;
+  font-size: var(--text-emphasis); color: #04121a; background: var(--av); }
+.av-btn:focus-visible { outline: 2px solid var(--av); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .av-bg, .av-card { transition: none; } }

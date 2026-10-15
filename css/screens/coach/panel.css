@@ -222,3 +222,74 @@ button.cv-tile { cursor:pointer; border-color:color-mix(in srgb, var(--gize-blue
 html.sin-neon body:not(#_) :is(.cv-nav-i.on, .cv-pill.on, button.cv-tile, .cv-ex.ss, .cv-ex.ss .cv-ex-n) { border-color:rgba(255,255,255,.4); }
 html.sin-neon body:not(#_) .cv-tpl.on { outline-color:rgba(255,255,255,.4); }
 html.sin-neon body:not(#_) .cv-table .co-trow.on { border-left-color:rgba(255,255,255,.5); }
+
+/* ---------- Configuración (app/screens/coach/settings.js) ---------- */
+.cs-title { margin:2px 0 16px; }
+.cs-layout { display:grid; grid-template-columns:minmax(0,1fr); gap:16px; }
+.cs-nav { display:flex; gap:8px; overflow-x:auto; padding:2px 2px 6px; margin:0 -16px; padding-inline:16px; scrollbar-width:none; }
+.cs-nav::-webkit-scrollbar { display:none; }
+.cs-nav-i { display:flex; align-items:center; gap:10px; flex:none; padding:9px 14px; background:var(--gize-surface); border:1px solid var(--gize-border); border-radius:999px;
+    color:var(--txt-2); font:inherit; cursor:pointer; text-align:left; transition:var(--transition-tap); }
+.cs-nav-t { display:flex; flex-direction:column; min-width:0; }
+.cs-nav-t b { font-size:var(--text-body); font-weight:600; color:inherit; white-space:nowrap; }
+.cs-nav-t small { display:none; font-size:11px; color:var(--txt-3); }
+.cs-nav-i.on { color:var(--txt); background:color-mix(in srgb, var(--txt) 10%, var(--gize-surface)); border-color:color-mix(in srgb, var(--gize-blue) 55%, transparent); }
+.cs-nav-i:focus-visible, .cs-link:focus-visible, .cs-pill:focus-visible { outline:2px solid var(--gize-blue); outline-offset:2px; }
+.cs-ic { width:18px; height:18px; flex:none; }
+.cs-body { display:flex; flex-direction:column; gap:14px; min-width:0; }
+.cs-card { padding:18px 18px 20px; }
+.cs-h { font-family:var(--gize-font); font-size:17px; font-weight:700; color:var(--txt); margin:0 0 4px; }
+.cs-sub { font-size:var(--text-meta); line-height:1.4; color:var(--txt-2); margin:0 0 14px; }
+.cs-card .cs-avatar-row { margin-bottom:0; }
+.cs-card .cs-field { margin:0 0 10px; }
+.cs-card .co-note.cs-name { margin-top:0; padding:12px 14px; font-size:var(--text-body); border-radius:var(--r-btn); }
+.cs-save { margin-top:0; }
+.cs-photo-rm { display:block; margin-top:8px; background:none; border:0; padding:0; font:inherit; font-size:var(--text-meta); font-weight:600; color:var(--gize-danger); cursor:pointer; }
+.cs-row { display:flex; align-items:center; gap:12px; }
+.cs-row-ic { display:flex; align-items:center; justify-content:center; width:38px; height:38px; flex:none; border-radius:12px; color:var(--txt-2);
+    background:color-mix(in srgb, var(--txt) 7%, transparent); border:1px solid var(--gize-border); }
+.cs-row-t { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; text-align:left; }
+.cs-row-t b { font-size:var(--text-emphasis); font-weight:600; color:var(--txt); overflow-wrap:anywhere; }
+.cs-row-t span { font-size:var(--text-meta); color:var(--txt-2); }
+.cs-row-c { flex:none; }
+.cs-link { display:flex; align-items:center; gap:12px; width:100%; padding:12px 14px; background:var(--gize-surface-2); border:1px solid var(--gize-border); border-radius:var(--r-btn);
+    color:var(--txt); font:inherit; text-decoration:none; cursor:pointer; transition:var(--transition-tap); }
+.cs-link:hover { border-color:color-mix(in srgb, var(--gize-blue) 55%, transparent); }
+.cs-link > .cs-ic { color:var(--txt-3); }
+.cs-pill { padding:9px 18px; border-radius:999px; font:inherit; font-size:var(--text-body); font-weight:700; cursor:pointer; color:#04121a; background:var(--gize-blue); border:0; }
+.cs-pill.on { color:var(--txt); background:none; border:1px solid var(--gize-border); }
+.cs-out { margin:0; width:100%; }
+.cs-card .cs-tema { margin-top:0; }
+@media (min-width: 820px) {
+  .cs-layout { grid-template-columns:230px minmax(0,1fr); gap:24px; align-items:start; }
+  .cs-nav { flex-direction:column; overflow:visible; margin:0; padding:0; position:sticky; top:16px; gap:4px; }
+  .cs-nav-i { border-radius:14px; padding:10px 12px; background:none; border-color:transparent; }
+  .cs-nav-i:hover { background:color-mix(in srgb, var(--txt) 5%, transparent); }
+  .cs-nav-i.on { background:color-mix(in srgb, var(--txt) 9%, transparent); border-color:var(--gize-border); }
+  .cs-nav-t small { display:block; }
+  .cs-card { padding:22px 24px 24px; }
+}
+
+.cv-util-i.on { color:var(--txt); background:color-mix(in srgb, var(--txt) 9%, transparent); border-color:var(--gize-border); }
+
+/* Editor de preguntas dentro de Configuración (app/screens/coach/preguntas.js): cada pregunta es una
+   tarjeta con el número, el texto y el tipo de respuesta, y los botones de subir / bajar / borrar. */
+.cs-body .cq-tabs { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:0 0 14px; padding:4px; border:1px solid var(--gize-border); border-radius:14px; background:var(--gize-surface-2); }
+.cs-body .cq-tab { padding:10px 8px; border:0; border-radius:10px; background:none; color:var(--txt-2); }
+.cs-body .cq-tab.on { color:var(--txt); background:color-mix(in srgb, var(--gize-blue) 18%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--gize-blue) 50%, transparent); }
+.cs-body .cq-item { display:grid; grid-template-columns:28px minmax(0,1fr); grid-template-areas:"n main" ". acts"; gap:10px; padding:14px; margin-bottom:10px; border-radius:16px; }
+.cs-body .cq-n { grid-area:n; margin:2px 0 0; width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:12px; font-weight:700; color:var(--txt-2); }
+.cs-body .cq-main { grid-area:main; display:flex; flex-direction:column; gap:8px; min-width:0; }
+.cs-body .cq-label { margin:0; min-height:0; font-size:var(--text-body); padding:10px 12px; }
+.cs-body .cq-cfg { display:flex; flex-direction:column; gap:8px; }
+.cs-body .cq-type, .cs-body .cq-opts { width:100%; margin:0; padding:10px 12px; }
+.cs-body .cq-acts { grid-area:acts; display:flex; justify-content:flex-end; gap:6px; }
+.cs-body .cq-btn { width:38px; height:38px; font-size:16px; line-height:1; }
+.cs-body .cq-add { width:100%; margin-top:6px; }
+.cs-body .cq-bar { display:flex; flex-direction:column; gap:8px; }
+.cs-body .cq-bar .co-save-rt, .cs-body .cq-bar .cq-reset { margin:0; width:100%; }
+@media (min-width: 820px) {
+  .cs-body .cq-item { grid-template-columns:28px minmax(0,1fr) auto; grid-template-areas:"n main acts"; align-items:start; }
+  .cs-body .cq-bar { flex-direction:row-reverse; justify-content:flex-start; }
+  .cs-body .cq-bar .co-save-rt, .cs-body .cq-bar .cq-reset { width:auto; padding-inline:26px; }
+}

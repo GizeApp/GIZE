@@ -60,7 +60,7 @@ export function coachShell(active, inner){
       '<nav class="cv-nav" aria-label="Panel de coach">'+NAV.map(n=>'<button class="cv-nav-i'+(n[0]===active?' on':'')+'" data-coach="view-'+n[0]+'"'+(n[0]===active?' aria-current="page"':'')+(n[0]==="clients"&&unreadAll()?' title="Tenés mensajes sin leer"':'')+'>'+n[2]+(n[0]==="clients"&&unreadAll()?'<i class="cv-pip" aria-hidden="true"></i>':'')+'<span>'+n[1]+'</span></button>').join("")+'</nav>'+
       '<div class="cv-util">'+
         '<button class="cv-util-i co-q-btn" data-coach="q-open" title="Preguntas del registro diario y del check-in">'+I.help+'<span>Preguntas</span></button>'+
-        '<button class="cv-util-i" data-coach="open-settings" title="Configuración">'+gearSvg+'<span>Configuración</span></button>'+
+        '<button class="cv-util-i'+(active==="settings"?' on':'')+'" data-coach="open-settings" title="Configuración"'+(active==="settings"?' aria-current="page"':'')+'>'+gearSvg+'<span>Configuración</span></button>'+
         '<button class="cv-util-i cv-out" data-auth="logout"><span>Salir</span></button>'+
       '</div>'+
     '</aside>'+

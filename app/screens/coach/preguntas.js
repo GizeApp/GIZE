@@ -1,11 +1,11 @@
 // Editor de las preguntas que responden los clientes del coach: las del "Registro de hoy"
-// y las del "Check-in semanal". Se abre desde Configuración (tuerca del panel) en el mismo
-// modal (.cp-ccard en #coachSheetHost). Las preguntas valen para todos los clientes del
+// y las del "Check-in semanal". Es la sección «Preguntas» de la pantalla Configuración (tuerca
+// del panel, ver settings.js). Las preguntas valen para todos los clientes del
 // coach y se guardan en la tabla coach_questions (ver supabase/preguntas-coach.sql).
 //
 // Mientras se edita se trabaja sobre una copia (CoachState.coachQEdit); recién "Guardar"
 // la manda a la base. Los campos de texto no re-renderizan en cada tecla (mismo criterio
-// que "settings-name" en main.js: re-dibujar el modal le sacaría el foco al input).
+// que "settings-name" en main.js: re-dibujar la pantalla le sacaría el foco al input).
 
 import { State } from '../../core/state.js';
 
@@ -15,7 +15,12 @@ import { defaultQuestions, newQuestionId, normalizeQuestions } from '../../core/
 
 import { CoachState } from './state.js';
 
-import { renderCoachSettings } from './settings.js';
+// Quién vuelve a dibujar la pantalla de Configuración (la registra settings.js: así no se importan
+// entre sí). El editor vive adentro de esa pantalla, en la sección «Preguntas».
+let repintar = () => {};
+export const alRepintar = fn => { repintar = fn; };
+// ¿Hay cambios sin guardar? (los chequea main.js antes de salir de la pantalla).
+export const qDirty = () => !!(CoachState.coachQEdit && CoachState.coachQEdit.dirty);
 
 const KIND_LABEL = { daily: "Registro de hoy", checkin: "Check-in semanal" };
 const KIND_HINT = {
@@ -43,61 +48,59 @@ function currentList(kind){
 // cambió mientras tanto (ver saveQuestions).
 function loadLists(ed){ ["daily", "checkin"].forEach(k => { ed[k] = currentList(k); ed.base[k] = JSON.stringify(ed[k]); }); }
 
-function openEditor(tab){
-  const ed = CoachState.coachQEdit = { tab: (tab === "checkin" ? "checkin" : "daily"), dirty: false, dirtyTabs: {}, base: {} };
+// Arma la copia de trabajo si no hay una (al entrar a la sección). `tab` elige la pestaña.
+export function ensureEditor(tab){
+  let ed = CoachState.coachQEdit;
+  if(ed){ if(tab) ed.tab = (tab === "checkin" ? "checkin" : "daily"); return ed; }
+  ed = CoachState.coachQEdit = { tab: (tab === "checkin" ? "checkin" : "daily"), dirty: false, dirtyTabs: {}, base: {} };
   loadLists(ed);
-  renderQuestionsEditor();
   // Si todavía no se leyeron (o cambiaron en otro dispositivo), se leen y se refresca,
   // salvo que el coach ya haya empezado a editar.
   loadCoachQuestions().then(() => {
-    const ed = CoachState.coachQEdit; if(!ed || ed.dirty) return;
-    loadLists(ed); renderQuestionsEditor();
+    const cur = CoachState.coachQEdit; if(cur !== ed || ed.dirty) return;
+    loadLists(ed); repintar();
   }).catch(() => {});
+  return ed;
 }
 
 function questionRow(q, i, n){
   const isOpt = q.type === "options";
   return '<div class="cq-item">' +
-    '<div class="cq-top"><span class="cq-n">' + (i + 1) + '</span>' +
-      '<textarea class="co-note cq-label" rows="2" data-coach="q-label" data-i="' + i + '" placeholder="Escribí la pregunta">' + esc(q.label) + '</textarea></div>' +
-    '<div class="cq-row">' +
-      '<select class="co-note cq-type" data-coach="q-type" data-i="' + i + '" aria-label="Tipo de respuesta">' +
-        '<option value="text"' + (isOpt ? '' : ' selected') + '>Respuesta libre</option>' +
-        '<option value="options"' + (isOpt ? ' selected' : '') + '>Elegir una opción</option>' +
-      '</select>' +
+    '<span class="cq-n">' + (i + 1) + '</span>' +
+    '<div class="cq-main">' +
+      '<textarea class="co-note cq-label" rows="2" data-coach="q-label" data-i="' + i + '" placeholder="Escribí la pregunta" aria-label="Pregunta ' + (i + 1) + '">' + esc(q.label) + '</textarea>' +
+      '<div class="cq-cfg">' +
+        '<select class="co-note cq-type" data-coach="q-type" data-i="' + i + '" aria-label="Tipo de respuesta">' +
+          '<option value="text"' + (isOpt ? '' : ' selected') + '>Respuesta libre</option>' +
+          '<option value="options"' + (isOpt ? ' selected' : '') + '>Elegir una opción</option>' +
+        '</select>' +
+        (isOpt ? '<input class="co-note cq-opts" data-coach="q-opts" data-i="' + i + '" value="' + esc((q.options || []).join(", ")) + '" placeholder="Opciones separadas por coma: Nada, Poco, Mucho" aria-label="Opciones">' : '') +
+      '</div>' +
+    '</div>' +
+    '<div class="cq-acts">' +
       '<button class="cq-btn" data-coach="q-up" data-i="' + i + '" title="Subir" aria-label="Subir"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
       '<button class="cq-btn" data-coach="q-down" data-i="' + i + '" title="Bajar" aria-label="Bajar"' + (i === n - 1 ? ' disabled' : '') + '>↓</button>' +
       '<button class="cq-btn del" data-coach="q-del" data-i="' + i + '" title="Borrar pregunta" aria-label="Borrar pregunta">✕</button>' +
     '</div>' +
-    (isOpt ? '<input class="co-note cq-opts" data-coach="q-opts" data-i="' + i + '" value="' + esc((q.options || []).join(", ")) + '" placeholder="Opciones separadas por coma: Nada, Poco, Mucho">' : '') +
   '</div>';
 }
 
+// El editor como contenido de la sección «Preguntas» (lo envuelve settings.js).
 export function renderQuestionsEditor(){
-  const host = document.getElementById("coachSheetHost"); if(!host) return;
-  const ed = CoachState.coachQEdit;
-  if(!ed){ renderCoachSettings(); return; }
+  const ed = ensureEditor();
   const list = ed[ed.tab];
   const tabs = Object.keys(KIND_LABEL).map(k =>
     '<button class="cq-tab' + (ed.tab === k ? ' on' : '') + '" data-coach="q-tab" data-k="' + k + '">' + KIND_LABEL[k] + '</button>').join("");
-  const warn = CoachState.coachQError ? '<div class="cq-warn">No se pudieron leer tus preguntas guardadas (¿sin conexión?): lo que ves puede no estar al día. Antes de guardar se vuelven a leer. Si es la primera vez, falta correr <b>supabase/preguntas-coach.sql</b> en Supabase.</div>' : '';
-  host.innerHTML = '<div class="cp-bg" data-coach="q-close"></div><div class="cp-ccard cq-card">' +
-    '<div class="cp-head"><button class="cq-back" data-coach="q-close" aria-label="Volver">‹</button><div class="cp-title">Preguntas para tus clientes</div><button class="cp-x" data-coach="q-close" aria-label="Cerrar">✕</button></div>' +
-    '<div class="cq-tabs">' + tabs + '</div>' +
-    '<div class="cq-hint">' + KIND_HINT[ed.tab] + ' Los cambios valen para todos tus clientes.</div>' +
-    warn +
+  const warn = CoachState.coachQError ? '<div class="cq-warn">No se pudieron leer tus preguntas guardadas (¿sin conexión?): lo que ves puede no estar al día. Antes de guardar se vuelven a leer. Si es la primera vez, falta correr supabase/preguntas-coach.sql en Supabase.</div>' : '';
+  return '<section class="cv-card cs-card">' +
+    '<h2 class="cs-h">Preguntas para tus clientes</h2>' +
+    '<p class="cs-sub">' + KIND_HINT[ed.tab] + ' Los cambios valen para todos tus clientes.</p>' +
+    '<div class="cq-tabs" role="tablist">' + tabs + '</div>' + warn +
     (list.length ? list.map((q, i) => questionRow(q, i, list.length)).join("") : '<div class="cal-hint">Sin preguntas. Tus clientes solo van a ver ' + (ed.tab === "daily" ? 'el peso.' : 'un check-in vacío.') + '</div>') +
     '<button class="pl-add cq-add" data-coach="q-add">+ Agregar pregunta</button>' +
-    '<button class="co-save-rt" data-coach="q-save">Guardar preguntas</button>' +
-    '<button class="logout-btn cq-reset" data-coach="q-reset">Volver a las predeterminadas</button>' +
-  '</div>';
-}
-
-function closeEditor(){
-  const ed = CoachState.coachQEdit;
-  if(ed && ed.dirty && !confirm("Tenés cambios sin guardar en las preguntas. ¿Salir igual?")) return;
-  CoachState.coachQEdit = null;
-  renderCoachSettings();
+  '</section>' +
+  '<div class="cq-bar"><button class="co-save-rt cq-save" data-coach="q-save">Guardar preguntas</button>' +
+    '<button class="logout-btn cq-reset" data-coach="q-reset">Volver a las predeterminadas</button></div>';
 }
 
 // Marca la pestaña abierta como editada: al guardar solo va lo que se tocó.
@@ -108,7 +111,7 @@ async function saveQuestions(btn){
   // Solo las pestañas editadas: la otra queda como está en la base. Si la lectura había fallado,
   // el editor la mostraba con las predeterminadas y al guardar pisaba las propias del coach.
   const kinds = ["daily", "checkin"].filter(k => ed.dirtyTabs[k]);
-  if(!kinds.length){ CoachState.coachQEdit = null; renderCoachSettings(); return; }
+  if(!kinds.length){ CoachState.coachQEdit = null; repintar(); return; }
   const bad = kinds.find(k => (ed[k] || []).some(q => q.type === "options" && !(q.options || []).filter(o => String(o).trim()).length && String(q.label || "").trim()));
   if(bad && !confirm("Hay preguntas de \"Elegir una opción\" sin opciones en " + KIND_LABEL[bad] + ". Se van a guardar como respuesta libre. ¿Seguir?")) return;
   btn.textContent = "Guardando...";
@@ -126,7 +129,7 @@ async function saveQuestions(btn){
   const changed = kinds.filter(k => JSON.stringify(currentList(k)) !== ed.base[k]);
   if(changed.length && !confirm("Tus preguntas guardadas de " + changed.map(k => "«" + KIND_LABEL[k] + "»").join(" y ") + " no son las que tenías en pantalla (no se habían podido leer o cambiaron en otro dispositivo). ¿Reemplazarlas igual por las que armaste?\n\nSi cancelás, se muestran las guardadas para editarlas.")){
     changed.forEach(k => { ed[k] = currentList(k); ed.base[k] = JSON.stringify(ed[k]); delete ed.dirtyTabs[k]; });
-    renderQuestionsEditor(); return;
+    repintar(); return;
   }
   const row = { coach_id: State.cloudUser.id, updated_at: new Date().toISOString() };
   kinds.forEach(k => { row[k] = normalizeQuestions(ed[k]) || []; });
@@ -140,29 +143,27 @@ async function saveQuestions(btn){
   State.coachQ = Object.assign({}, State.coachQ); kinds.forEach(k => { State.coachQ[k] = row[k]; }); CoachState.coachQError = null;
   CoachState.coachQEdit = null;
   alert("Preguntas guardadas ✓ Tus clientes las ven la próxima vez que abran la app.");
-  renderCoachSettings();
+  repintar();
 }
 
 document.body.addEventListener("click", e => {
   const b = e.target.closest("[data-coach]"); if(!b) return;
   const a = b.dataset.coach; if(a.indexOf("q-") !== 0) return;
-  if(a === "q-open"){ openEditor(b.dataset.k); return; }
   const ed = CoachState.coachQEdit; if(!ed) return;
   const list = ed[ed.tab], i = +b.dataset.i;
-  if(a === "q-close"){ closeEditor(); return; }
   if(a === "q-save"){ saveQuestions(b); return; }
-  if(a === "q-tab"){ ed.tab = b.dataset.k; renderQuestionsEditor(); return; }
+  if(a === "q-tab"){ ed.tab = b.dataset.k; repintar(); return; }
   if(a === "q-add"){
-    list.push({ id: newQuestionId(), label: "", type: "text" }); touch(ed); renderQuestionsEditor();
+    list.push({ id: newQuestionId(), label: "", type: "text" }); touch(ed); repintar();
     const ins = document.querySelectorAll(".cq-label"); const last = ins[ins.length - 1]; if(last) last.focus();
     return;
   }
-  if(a === "q-del"){ if(confirm("¿Borrar esta pregunta? Las respuestas que ya dieron tus clientes no se pierden.")){ list.splice(i, 1); touch(ed); renderQuestionsEditor(); } return; }
-  if(a === "q-up" && i > 0){ list.splice(i - 1, 0, list.splice(i, 1)[0]); touch(ed); renderQuestionsEditor(); return; }
-  if(a === "q-down" && i < list.length - 1){ list.splice(i + 1, 0, list.splice(i, 1)[0]); touch(ed); renderQuestionsEditor(); return; }
+  if(a === "q-del"){ if(confirm("¿Borrar esta pregunta? Las respuestas que ya dieron tus clientes no se pierden.")){ list.splice(i, 1); touch(ed); repintar(); } return; }
+  if(a === "q-up" && i > 0){ list.splice(i - 1, 0, list.splice(i, 1)[0]); touch(ed); repintar(); return; }
+  if(a === "q-down" && i < list.length - 1){ list.splice(i + 1, 0, list.splice(i, 1)[0]); touch(ed); repintar(); return; }
   if(a === "q-reset"){
     if(confirm("¿Volver a las preguntas predeterminadas de " + KIND_LABEL[ed.tab] + "? Se reemplazan las de esta pestaña (tocá Guardar para aplicarlo).")){
-      ed[ed.tab] = defaultQuestions(ed.tab); touch(ed); renderQuestionsEditor();
+      ed[ed.tab] = defaultQuestions(ed.tab); touch(ed); repintar();
     }
   }
 });
@@ -181,6 +182,6 @@ document.body.addEventListener("change", e => {
   const q = ed[ed.tab][+el.dataset.i]; if(!q) return;
   q.type = el.value === "options" ? "options" : "text";
   if(q.type === "options" && !(q.options && q.options.length)) q.options = [];
-  touch(ed); renderQuestionsEditor();
+  touch(ed); repintar();
   const o = document.querySelector('.cq-opts[data-i="' + el.dataset.i + '"]'); if(o) o.focus();
 });

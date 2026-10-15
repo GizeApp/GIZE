@@ -11,6 +11,7 @@ import { checkinSummary, dailyHasAnswer, renderCheckin, renderDaily, renderInfo 
 import { EntrenoState } from './entreno.js';
 
 import { renderSessionItem } from '../ui/sessiondetail.js';
+import { renderCoachCalendar } from './coach/calendario.js';
 
 import { SUB_LABELS, volumeGroups } from '../core/subgrupos.js';
 
@@ -28,7 +29,7 @@ export const ProgresoState = {
 
   wAll: false,     // historial de peso completo (si no, los últimos 5)
 
-  sessSel: null,   // entreno elegido en «Historial de entrenos» (null: el último)
+  histCal: { m: null, d: null },   // calendario de «Historial de entrenos»: mes visible (YYYY-MM) y día abierto (null: el del último entreno)
 
   wqKg: "",        // lo escrito en «Tu peso» (arriba de Progreso), así un redibujo no lo borra
 
@@ -129,21 +130,22 @@ export function renderCargas(){
     '<div class="load-cap" style="margin-top:18px">Historial detallado</div>'+histBlock;
 }
 
-// Como en el panel del coach: una lista desplegable para elegir el entreno y abajo ese entreno
-// abierto, comparado con la vez anterior. Arranca en el último.
+// Como en el panel del coach: un calendario con punto en cada día que entrenó, y abajo el/los
+// entrenos del día elegido (por defecto el del último entreno), cada uno comparado con la vez anterior.
 export function renderHistorial(){
   const sess=(state.sessions||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0));
   if(!sess.length) return "";
-  const key=se=>String(se.id||se.ts||se.date);
-  const one=sess.find(se=>key(se)===ProgresoState.sessSel) || sess[0];
-  const opts=sess.map(se=>{
-    return '<option value="'+esc(key(se))+'"'+(se===one?' selected':'')+'>'+esc(fmtDate(se.date)+' · '+(se.day||'Entreno'))+'</option>'; }).join("");
-  const pick='<label class="co-pick sess-pick"><span>Entreno</span><select class="co-select" data-action="sess-pick" aria-label="Elegir entreno">'+opts+'</select></label>';
-  const item=renderSessionItem(one, { open:true, history:state.sessions,
+  const hc=ProgresoState.histCal;
+  const dias=sess.map(se=>se.date);
+  // Si el día abierto ya no tiene entrenos (se borró el último), vuelve al del más reciente.
+  if(!hc.d || !dias.includes(hc.d)) hc.d=sess[0].date;
+  const delDia=sess.filter(se=>se.date===hc.d).sort((x,y)=>(x.ts||0)-(y.ts||0));
+  const items=delDia.map(one=>renderSessionItem(one, { open:true, history:state.sessions,
     removeBtn:'<div class="sess-acts"><button class="diary-rm sess-edit" data-action="session-edit" data-id="'+esc(one.id)+'" title="Editar entreno" aria-label="Editar entreno">'+pencilSvg+'</button>'+
-      '<button class="diary-rm" data-action="session-remove" data-id="'+esc(one.id)+'" title="Borrar entreno" aria-label="Borrar entreno">'+xSvg+'</button></div>' });
+      '<button class="diary-rm" data-action="session-remove" data-id="'+esc(one.id)+'" title="Borrar entreno" aria-label="Borrar entreno">'+xSvg+'</button></div>' })).join("");
   return '<div class="hb-head" style="margin-top:28px"><div class="hb-title">Historial de entrenos</div><div class="title-accent"></div></div>'+
-    '<div class="sess-hint">Elegí un entreno para ver los pesos y las series ('+sess.length+' en total).</div>'+pick+item;
+    '<div class="sess-hint">Tocá un día marcado para ver los pesos y las series ('+sess.length+' entreno'+(sess.length===1?'':'s')+' en total).</div>'+
+    renderCoachCalendar("hist", dias, today(), ["entreno","entrenos"], { st:hc, act:"hist-cal" })+items;
 }
 
 // occ: si el día tiene el mismo ejercicio más de una vez, cuál es (0 = el primero): el segundo

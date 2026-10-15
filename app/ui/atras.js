@@ -23,6 +23,7 @@ const CERRAR = [
   '#planSheetHost .cp-x[data-plan="close"]',     // coach: «Mi plan»
   '#coachSheetHost [data-cp="cancel"]',          // coach: selector de ejercicios
   '#coachSheetHost [data-coach="settings-cancel"]',
+  '[data-coach="settings-back"]',                // coach: Configuración → el panel
   '#coachSheetHost [data-coach="q-close"]',
   '#streakHost [data-action="streak-close"]',    // racha
   '#salShare .ssh-close',                        // Cardio: «Compartir tu salida»
