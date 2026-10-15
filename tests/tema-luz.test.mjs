@@ -13,7 +13,7 @@
 // guardada la «Claro» vieja ("claro") sigue viendo «Azul» (el vidrio sobre marino), con «Azul»
 // marcado. Anda con el neón apagado (el filete blanco del vidrio, sin ningún color y la llama
 // gris) y con el modo liviano (sin desenfoques y la barra de abajo sólida).
-import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, ALUMNO, profile, configCoach, seccionesCoach } from './lib.mjs';
 
 const STATE = { days: [{ id: 'd1', name: 'Torso', exercises: [{ id: 'e1', name: 'Press de banca', note: 'Bajá controlado', sets: [{ id: 's1', kg: '80', reps: '8', done: true }, { id: 's2', kg: '80', reps: '8' }] },
   { id: 'e2', name: 'Remo con barra', sets: [{ id: 's3', kg: '60', reps: '10' }] }] }], sessions: [], weights: [], daily: {} };
@@ -29,8 +29,8 @@ const LUZ_BG = 'rgb(160, 189, 219)', NAVY = 'rgb(3, 8, 20)', PLUM = 'rgb(20, 6, 
 // Contraste de todo el texto visible de la pantalla contra el fondo que tiene detrás (el primer
 // color de fondo, o el color liso de un degradé, subiendo por los padres). Devuelve el mínimo y
 // los que no llegan a 4,5 (AA). No cuenta el texto de campos vacíos (placeholder), lo
-// deshabilitado ni lo que está transparente a propósito.
-const contraste = p => p.evaluate(() => {
+// deshabilitado ni lo que está transparente a propósito. dentro: solo lo de adentro de ese selector.
+const contraste = (p, dentro = 'body') => p.evaluate(dentro => {
   const rgb = s => { const m = String(s).match(/rgba?\(([^)]*)\)/); if (!m) return null; const n = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: n[0], g: n[1], b: n[2], a: n[3] === undefined ? 1 : n[3] }; };
   const lum = c => [c.r, c.g, c.b].map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0);
   const mix = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
@@ -50,7 +50,7 @@ const contraste = p => p.evaluate(() => {
     for (let x = e; x; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < .95) return false; }
     return true; };
   const malos = []; let min = 99, n = 0;
-  const els = [...document.querySelectorAll('body *')].filter(e => !['SCRIPT', 'STYLE', 'svg', 'SVG', 'OPTION'].includes(e.tagName) && !e.closest('svg')
+  const els = [...document.querySelectorAll(dentro + ' *')].filter(e => !['SCRIPT', 'STYLE', 'svg', 'SVG', 'OPTION'].includes(e.tagName) && !e.closest('svg')
     && [...e.childNodes].some(t => t.nodeType === 3 && t.textContent.trim()) && !e.closest('[disabled], [aria-hidden="true"], #splashHost'));
   const campos = [...document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=range]), textarea')].filter(e => e.value);
   for (const e of els.concat(campos)) {
@@ -61,7 +61,7 @@ const contraste = p => p.evaluate(() => {
     if (k < 4.5) malos.push((e.textContent || e.value).trim().slice(0, 30) + ' (' + k.toFixed(2) + ')');
   }
   return { n, min: Math.round(min * 100) / 100, malos };
-});
+}, dentro);
 
 const look = p => p.evaluate(() => {
   const cs = (s, pe) => { const e = document.querySelector(s); return e ? getComputedStyle(e, pe || null) : null; };
@@ -220,21 +220,32 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores de la página (liviano)');
   await pg.close();
 
-  // 9) Coach: «Claro» desde su Configuración; la lista de clientes, legible.
-  pg = await newPage({ user: COACH, handlers: COACH_H, init: () => localStorage.setItem('gize_lite', '0') });
+  // 9) Coach: «Claro» desde su Configuración; la lista de clientes y los carteles de aviso, legibles.
+  // (Los carteles quedan abiertos para medirlos: tocarAvisos false.)
+  pg = await newPage({ user: COACH, handlers: COACH_H, init: () => localStorage.setItem('gize_lite', '0'), tocarAvisos: false });
   await pg.p.goto(base + '/app/'); await wait(3300);
-  await pg.p.click('[data-coach="open-settings"]'); await wait(500);
-  await pg.p.click('#coachSheetHost [data-tema="luz"]'); await wait(400);
+  // Configuración del coach: una pantalla del panel con un menú de secciones; el tema está en «Apariencia».
+  await configCoach(pg.p, 'apariencia');
+  await pg.p.click('#coachHost .cs-body [data-tema="luz"]'); await wait(400);
   t.eq(await pg.p.evaluate(() => [document.documentElement.classList.contains('tema-luz'), getComputedStyle(document.body).backgroundColor, localStorage.getItem('gize_tema'),
-    [...document.querySelectorAll('#coachSheetHost .cs-tema .on')].map(b => b.textContent)]), [true, LUZ_BG, 'luz', ['Claro']], 'coach: Claro se aplica, se guarda y queda marcada');
-  k = await contraste(pg.p);
-  t.ok(!k.malos.length, 'coach: Configuración con contraste AA (mín. ' + k.min + '): ' + k.malos.join(' | '));
-  await pg.p.click('[data-coach="settings-cancel"]').catch(() => {}); await wait(400);
-  await pg.p.evaluate(async () => { const s = document.getElementById('coachSheetHost'); if (s) s.innerHTML = ''; });
-  await wait(200);
+    [...document.querySelectorAll('#coachHost .cs-body .cs-tema .on')].map(b => b.textContent)]), [true, LUZ_BG, 'luz', ['Claro']], 'coach: Claro se aplica, se guarda y queda marcada');
+  // Todas las secciones, legibles (antes era una sola ventana con todo).
+  const secs = await seccionesCoach(pg.p, contraste);
+  const malosCfg = secs.flatMap(s => s.v.malos.map(m => s.nombre + ': ' + m)), minCfg = Math.min(...secs.map(s => s.v.min));
+  t.ok(secs.length >= 6 && !malosCfg.length, 'coach: Configuración con contraste AA (mín. ' + minCfg + ', ' + secs.length + ' secciones): ' + malosCfg.join(' | '));
+  // «‹ Volver»: de nuevo en el panel, donde estaba.
+  await pg.p.click('[data-coach="settings-back"]'); await wait(400);
   t.ok(await pg.p.evaluate(() => /gize-firma-horizontal-oscuro\.svg/.test(getComputedStyle(document.querySelector('.co-brand .brand-logo')).content)), 'coach: el logo del panel, oscuro');
   k = await contraste(pg.p);
   t.ok(k.n > 5 && !k.malos.length, 'coach: la lista de clientes con contraste AA (mín. ' + k.min + ', ' + k.n + ' textos): ' + k.malos.join(' | '));
+  // Los carteles de aviso (app/ui/avisos.js), de los tres tipos: «Listo», «No se pudo» y «Ojo».
+  for (const msg of ['Nombre guardado ✓', 'No se pudo guardar: sin conexión.', 'Poné un nombre.']){
+    await pg.p.evaluate(m => { alert(m); }, msg); await wait(600);
+    k = await contraste(pg.p, '.av-bg');
+    t.ok(k.n >= 3 && !k.malos.length, 'coach: el cartel «' + msg + '» con contraste AA (mín. ' + k.min + ', ' + k.n + ' textos): ' + k.malos.join(' | '));
+    await pg.p.click('.av-bg .av-btn'); await wait(500);
+  }
+  t.eq(pg.avisos.map(a => a.titulo), ['Listo', 'No se pudo', 'Ojo'], 'coach: los tres carteles salieron');
   t.eq(pg.errs, [], 'errores de la página (coach)');
   await pg.close();
 }

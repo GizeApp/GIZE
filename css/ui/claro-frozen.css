@@ -164,6 +164,11 @@ html.tema-luz:not(#_):not(#__) body:not(#_) .navbar::before { background: var(--
 html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-seg { background: rgba(255,255,255,.28); border: 1px solid var(--frz-line); border-radius: 999px; }
 html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-seg-opt { border-radius: 999px; color: var(--gize-text); }
 html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-seg-opt.on { background: #0B0D11; color: #fff; box-shadow: none; }
+/* «Activar» los avisos en la Configuración del coach (.cs-pill, css/screens/coach/panel.css): el texto
+   oscuro sobre el azul marino de acá no se leía. Principal en negro con texto blanco, como los demás. */
+html.tema-luz:not(#_):not(#__) body:not(#_) .cs-pill:not(.on) { background: #0B0D11; color: #fff; }
+/* «Entendido» de los carteles de aviso (css/ui/avisos.css): los colores de acá son oscuros, va en blanco. */
+html.tema-luz:not(#_):not(#__) body:not(#_) .av-btn { color: #fff; }
 html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-switch { background: rgba(255,255,255,.4); border: 1px solid rgba(11,13,17,.34); }
 html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-switch.on { background: var(--gize-blue); border-color: var(--gize-blue); }
 html.tema-luz:not(#_):not(#__) body:not(#_) :is(.cfg-notif-ic, .cfg-link-ic, .cal-empty-ic, .cfg-avatar) { background: rgba(255,255,255,.42); border: 1px solid var(--frz-line); color: var(--gize-text); }
