@@ -26,6 +26,7 @@ import { avatarHtml } from '../../core/avatar.js';
 import { unreadFor } from '../../ui/chat.js';
 
 import { billing, renderPaywall, renderPlanBanner } from './plan.js';
+import { renderSettingsView } from './settings.js';
 
 import { appNativa } from '../../core/tienda.js';
 
@@ -108,7 +109,7 @@ export function renderCoach(){
   if(!CoachState.coachSel && !CoachState.coachTplEdit && !CoachState.coachMealEdit){
     // Las cuatro pantallas de arriba (Inicio, Clientes, Rutinas, Planes alimenticios): ver panel.js.
     const v=CoachState.coachView, banner=renderPlanBanner();
-    host.innerHTML=coachShell(v, v==="meals" ? renderMealsView(banner) : v==="tpls" ? renderTplsView(banner) : v==="home" ? renderHomeView(banner) : renderClientsView(inviteBox(), banner));
+    host.innerHTML=coachShell(v, v==="settings" ? renderSettingsView() : v==="meals" ? renderMealsView(banner) : v==="tpls" ? renderTplsView(banner) : v==="home" ? renderHomeView(banner) : renderClientsView(inviteBox(), banner));
   } else if(CoachState.coachTplEdit){
     const rt=CoachState.coachTplEdit.days||[];
     let ed="";

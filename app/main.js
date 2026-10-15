@@ -1,3 +1,4 @@
+import './ui/avisos.js';
 import './ui/errores.js';
 
 import './ui/keyboard.js';
@@ -42,7 +43,7 @@ import { clientUnsaved, dropRoutineDraft, renderCoach, routineDirty, tplDirty } 
 import { renderCoachSettings } from './screens/coach/settings.js';
 
 // Registra los eventos del editor de preguntas del coach (efecto al importarlo).
-import './screens/coach/preguntas.js';
+import { ensureEditor, qDirty } from './screens/coach/preguntas.js';
 
 import { abrirSolo, coachPlanObj, cpApply, loadTpls, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody, mealStudioAction, mealStudioInput } from './screens/coach/rutinas.js';
 
@@ -427,7 +428,6 @@ document.body.addEventListener("change", async e => {
   if (a === "daily-kg" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":t.dataset.k] = t.value; return; }
   if (a === "ci-set") { checkinFormInit()[t.dataset.k] = t.value; return; }
   if (a === "load-ex") { EntrenoState.loadEx = t.value; renderApp(); return; }
-  if (a === "sess-pick") { ProgresoState.sessSel = t.value; renderApp(); return; }
   // Foto de perfil (Ajustes del cliente y Configuración del coach).
   if (a === "avatar-pick") {
     const file=t.files&&t.files[0]; t.value=""; if(!file) return;
@@ -440,7 +440,7 @@ document.body.addEventListener("change", async e => {
     const err=await uploadMyAvatar(file, cropped);
     document.body.classList.remove("avatar-busy");
     if(err){ alert(err); return; }
-    if(CoachState.coachSettingsOpen) renderCoachSettings(); else renderApp();
+    if(CoachState.coachView==="settings" && State.cloudProfile && State.cloudProfile.role==="coach") renderCoachSettings(); else renderApp();
     if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach();
     return;
   }
@@ -803,6 +803,9 @@ document.body.addEventListener("click", async e => {
     if(se){ se.exercises=r.exercises; save(); cloudEditSession(se).then(ok=>{ if(!ok && !isOnline()) alert("El cambio se guardó en este dispositivo y se envía a tu cuenta cuando vuelva internet."); }); }
     closeSheet(()=>{ EditState.se=null; renderApp(); }); return;
   }
+  // Calendario de «Historial de entrenos» (Progreso): cambiar de mes / abrir un día.
+  if (a === "hist-cal-nav") { ProgresoState.histCal.m=el.dataset.m; renderApp(); return; }
+  if (a === "hist-cal-day") { ProgresoState.histCal.d=el.dataset.d; renderApp(); return; }
   if (a === "session-remove") { if(confirm("¿Borrar este entreno del historial?")){ const _s=state.sessions.find(x=>x.id===el.dataset.id), _cid=sessionCloudId(_s); if(_cid){ try{ cloudDeleteSession(_cid); }catch(e){} } state.sessions=state.sessions.filter(x=>x.id!==el.dataset.id); save(); renderApp(); } return; }
 
   // Días
@@ -1199,7 +1202,7 @@ document.body.addEventListener("click", async e => {
   const b=e.target.closest('[data-action="avatar-remove"]'); if(!b) return;
   if(!confirm("¿Quitar tu foto de perfil? Vas a volver a mostrar tus iniciales.")) return;
   const err=await removeMyAvatar(); if(err){ alert(err); return; }
-  if(CoachState.coachSettingsOpen) renderCoachSettings(); else renderApp();
+  renderCoachSettings();
   if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach();
 });
 
@@ -1266,17 +1269,24 @@ document.body.addEventListener("click", async e => {
   if((a==="back"||a==="refresh") && clientUnsaved()){ if(!confirm("Tenés cambios sin guardar en "+clientUnsaved()+". ¿Salir igual y perderlos?")) return; if(routineDirty()){ dropRoutineDraft(CoachState.coachData.id); CoachState.coachData.routineOrig=JSON.stringify(CoachState.coachData.routine||[]); } }
   if(a==="back"){ CoachState.coachSel=null; CoachState.coachData=null; renderCoach(); refreshCoachClients(); return; }
   if(a==="refresh"){ if(CoachState.coachSel) openClient(CoachState.coachSel); return; }
-  if(a==="open-settings"){ CoachState.coachNameForm=null; CoachState.coachSettingsOpen=true; renderCoachSettings(); return; }
-  if(a==="settings-cancel"){ closeSheet(()=>{ CoachState.coachSettingsOpen=false; CoachState.coachNameForm=null; renderCoachSettings(); }, {host:"#coachSheetHost", card:".cp-ccard", duration:150}); return; }
+  // Preguntas sin guardar: se avisa antes de irse de la sección (o de la pantalla).
+  if((a==="settings-sec" || a==="settings-back" || /^(view-(home|clients|tpls|meals)|open-settings|q-open)$/.test(a)) && CoachState.coachView==="settings" && qDirty()){
+    if(!confirm("Tenés cambios sin guardar en las preguntas. ¿Salir igual y perderlos?")) return;
+    CoachState.coachQEdit=null;
+  }
+  if(a==="settings-sec"){ CoachState.coachSetSec=b.dataset.k||"perfil"; CoachState.coachNameForm=null; renderCoachSettings(); return; }
+  if(a==="settings-back"){ CoachState.coachNameForm=null; CoachState.coachQEdit=null; CoachState.coachView=CoachState.coachBackView||"home"; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="settings-name-save"){
-    const val=(CoachState.coachNameForm!=null?CoachState.coachNameForm:"").trim();
+    const val=(CoachState.coachNameForm!=null?CoachState.coachNameForm:(b.closest(".cs-body").querySelector('[data-coach="settings-name"]')||{}).value||"").trim();
     if(!val){ alert("Poné un nombre."); return; }
     const prevHtml=b.innerHTML; b.disabled=true; b.innerHTML="Guardando…";
     try{
       const r=await State.sb.from("profiles").update({full_name:val}).eq("id",State.cloudUser.id);
       if(r.error) throw r.error;
       await loadCloud();
-      closeSheet(()=>{ CoachState.coachSettingsOpen=false; CoachState.coachNameForm=null; renderCoachSettings(); renderCoach(); }, {host:"#coachSheetHost", card:".cp-ccard", duration:150});
+      CoachState.coachNameForm=null;
+      renderCoachSettings();
+      alert("Nombre guardado ✓");
     }catch(err){
       alert("No se pudo guardar: "+((err&&err.message)||err));
       b.disabled=false; b.innerHTML=prevHtml;
@@ -1285,8 +1295,10 @@ document.body.addEventListener("click", async e => {
   }
   // La barra lateral también está en la ficha de un cliente y en los editores: salir de ahí por la barra
   // pregunta si hay algo sin guardar, igual que «‹ Volver».
-  if(/^view-(home|clients|tpls|meals)$/.test(a)){
+  if(/^(view-(home|clients|tpls|meals)|open-settings|q-open)$/.test(a)){
     CoachState.coachAssign=false;
+    // Para «‹ Volver» de Configuración: la pantalla desde la que se entró.
+    if((a==="open-settings" || a==="q-open") && CoachState.coachView!=="settings") CoachState.coachBackView=CoachState.coachView;
     if(CoachState.coachSel || CoachState.coachTplEdit || CoachState.coachMealEdit){
       const sin=(CoachState.coachSel && clientUnsaved()) || (tplDirty() && "la rutina") || (mealDirty() && "el plan alimenticio") || "";
       if(sin && !confirm("Tenés cambios sin guardar en "+sin+". ¿Salir igual y perderlos?")) return;
@@ -1294,6 +1306,13 @@ document.body.addEventListener("click", async e => {
       CoachState.coachSel=null; CoachState.coachData=null; CoachState.coachTplEdit=null; CoachState.coachMealEdit=null; CoachState.coachEditDay=0; CoachState.coachPlanSec=null;
       refreshCoachClients();
     }
+  }
+  if(a==="open-settings" || a==="q-open"){
+    CoachState.coachNameForm=null; CoachState.coachView="settings"; CoachState.coachQEdit=null;
+    // «Preguntas» (barra lateral o el engranaje de la ficha) abre directo esa sección, con la pestaña que se tocó.
+    CoachState.coachSetSec=a==="q-open"?"preguntas":(b.dataset.sec||"perfil");
+    if(a==="q-open") ensureEditor(b.dataset.k);
+    renderCoach(); window.scrollTo(0,0); return;
   }
   if(a==="view-home"){ CoachState.coachView="home"; renderCoach(); return; }
   if(a==="home-assign"){

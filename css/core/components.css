@@ -658,3 +658,27 @@ html:has(#sheetHost .sheet:not(.closing)), html:has(#sheetHost .sheet:not(.closi
 /* Variante del día en el historial (cliente y coach): «Hizo X en lugar de Y». */
 .sd-var { font-size: 11px; color: var(--txt-3); margin: -2px 0 6px; }
 .sd-var b { color: var(--txt-2); font-weight: 600; }
+
+/* Detalle del entreno en tarjetas (app/ui/sessiondetail.js): un ejercicio por tarjeta y las series
+   como fichas en grilla, con la variación contra la vez pasada a la vista. En pantallas anchas las
+   tarjetas se acomodan de a dos o más en vez de una lista larga. */
+.sx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.sx-card { background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px; min-width: 0; }
+.sx-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 2px; }
+.sx-h .sd-ex-name { min-width: 0; overflow-wrap: anywhere; }
+.sx-card .sd-ex-meta { font-family: inherit; margin-bottom: 8px; }
+.sx-badge { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: var(--gize-radius-pill); white-space: nowrap;
+    color: var(--txt-3); background: color-mix(in srgb, var(--txt-3) 12%, transparent); }
+.sx-badge.new { color: var(--gize-blue); background: color-mix(in srgb, var(--gize-blue) 14%, transparent); }
+.sx-badge.up { color: var(--gize-success); background: color-mix(in srgb, var(--gize-success) 14%, transparent); }
+.sx-badge.down { color: var(--gize-danger); background: color-mix(in srgb, var(--gize-danger) 14%, transparent); }
+.sx-sets { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 6px; }
+.sx-set { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-box); padding: 8px 10px; min-width: 0; font-variant-numeric: tabular-nums; }
+.sx-set-v { display: flex; align-items: center; gap: 8px; }
+.sx-val { display: flex; align-items: baseline; gap: 3px; min-width: 0; color: var(--txt); font-size: var(--text-emphasis); }
+.sx-val b { font-weight: 800; }
+.sx-val small { font-size: 11px; color: var(--txt-3); }
+.sx-val i { font-style: normal; color: var(--txt-3); margin: 0 1px; }
+.sx-set.zero .sx-val { opacity: .45; }
+.sx-set .sc-d { margin-top: 6px; }
+.sx-set .sc-d.none { display: none; }

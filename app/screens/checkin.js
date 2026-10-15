@@ -177,6 +177,23 @@ export function dailyHasAnswer(r){
   return Object.keys(r || {}).some(k => k !== "steps" && k !== "_q" && k !== "kg" && r[k] != null && String(r[k]).trim() !== "");
 }
 
+// Señal visual de cada opción de una escala (Nada → Mucho, Malo → Muy bueno…): barritas que van
+// subiendo, con tantas llenas como lugar ocupa la opción, así se lee de un vistazo sin la palabra.
+// El color depende de la pregunta: más es peor (dolor, cansancio), más es mejor (rendimiento,
+// motivación, sueño) o neutro (el resto, incluidas las que arma el coach). Solo de 2 a 5 opciones:
+// con más (1 a 10) los números ya alcanzan.
+const TONO = { soreness:"mal", fatigue:"mal", performance:"bien", motivation:"bien", sleep:"bien" };
+function optGlyph(qid, i, n, label){
+  // «Nada» es cero: ninguna barra llena.
+  if(/^nada$/i.test(String(label).trim())) i = -1;
+  if(n < 2 || n > 5) return "";
+  let bars = "";
+  for(let k = 0; k < n; k++) bars += '<i style="height:' + (5 + k * (9 / (n - 1))).toFixed(1) + 'px"' + (k <= i ? ' class="f"' : '') + '></i>';
+  return '<span class="sc-bars sc-t-' + (TONO[qid] || "neu") + '" aria-hidden="true">' + bars + '</span>';
+}
+const optBtn = (q, o, i, on, action) => '<button class="sc-opt' + (optGlyph(q.id, i, q.options.length, o) ? ' sc-g' : '') + (on ? ' on' : '') + '" data-action="' + action + '" data-k="' + esc(q.id) + '" data-v="' + esc(o) + '"' + (on ? ' aria-pressed="true"' : ' aria-pressed="false"') + '>' +
+  optGlyph(q.id, i, q.options.length, o) + '<span class="sc-txt">' + esc(o) + '</span></button>';
+
 export function renderDaily(){
   const d = CheckinState.dailyForm || (state.daily[today()] || {});
   const kgVal = CheckinState.dailyForm && CheckinState.dailyForm.kg != null ? CheckinState.dailyForm.kg : (todayWeightText() || d.kg || "");
@@ -185,7 +202,7 @@ export function renderDaily(){
   // mano en ningún lado (pedido): llegan solos de Salud / Health Connect (core/salud.js).
   const rows = clientQuestions("daily").map(q=>{
     if(q.type==="options"){
-      const opts = q.options.map(o=>'<button class="sc-opt'+(String(d[q.id])===o?' on':'')+'" data-action="daily-set" data-k="'+esc(q.id)+'" data-v="'+esc(o)+'">'+esc(o)+'</button>').join("");
+      const opts = q.options.map((o,i)=>optBtn(q, o, i, String(d[q.id])===o, "daily-set")).join("");
       return '<div class="dq-row"><span class="sc-lbl">'+esc(q.label)+'</span><div class="sc-opts">'+opts+'</div></div>';
     }
     // Texto: se ve entero (baja de línea) y la pregunta con la misma letra que las de opciones.
@@ -246,7 +263,7 @@ export function renderCheckin(){
   const f = CheckinState.checkinForm || checkinDraft(wk);
   const qs = clientQuestions("checkin").map(q=>{
     if(q.type==="options"){
-      const opts = q.options.map(o=>'<button class="sc-opt'+(String(f[q.id])===o?' on':'')+'" data-action="ci-opt" data-k="'+esc(q.id)+'" data-v="'+esc(o)+'">'+esc(o)+'</button>').join("");
+      const opts = q.options.map((o,i)=>optBtn(q, o, i, String(f[q.id])===o, "ci-opt")).join("");
       return '<div class="ci-q"><label>'+esc(q.label)+'</label><div class="sc-opts">'+opts+'</div></div>';
     }
     return '<div class="ci-q"><label>'+esc(q.label)+'</label><textarea class="ci-in" rows="2" data-action="ci-set" data-k="'+esc(q.id)+'">'+esc(f[q.id]||"")+'</textarea></div>';

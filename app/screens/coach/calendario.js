@@ -11,10 +11,13 @@ export function calSelDay(key){ return calState(key).d; }
 
 // Calendario de una sección: punto verde en cada día con registro (`days`: lista de YYYY-MM-DD);
 // ese día es un botón que abre su detalle abajo. El mes se navega con ‹ ›.
-export function renderCoachCalendar(key, days, todayIso, noun){
+// `own` (opcional): para usarlo fuera del panel del coach (Progreso del alumno): { st: {m,d}, act: "prefijo" }.
+// Con eso el estado sale de `own.st` y los botones son data-action="<act>-day" / "<act>-nav" en vez de data-coach.
+export function renderCoachCalendar(key, days, todayIso, noun, own){
   const has={}; days.forEach(d=>{ if(d) has[d]=1; });
   const dates=Object.keys(has).sort();
-  const st=calState(key);
+  const st=own ? own.st : calState(key);
+  const at=(n)=>own ? 'data-action="'+own.act+'-'+n+'"' : 'data-coach="cal-'+n+'"';
   let ym=st.m;
   if(!/^\d{4}-\d{2}$/.test(ym||"")) ym=(dates.length?dates[dates.length-1]:todayIso).slice(0,7);
   const y=parseInt(ym.slice(0,4),10), m=parseInt(ym.slice(5,7),10);
@@ -29,14 +32,14 @@ export function renderCoachCalendar(key, days, todayIso, noun){
     const iso=ym+"-"+p2(d), on=!!has[iso];
     const cls="cal-x-day"+(on?" on":"")+(iso===todayIso?" today":"")+(iso===st.d?" sel":"");
     cells+= on
-      ? '<button class="'+cls+'" data-coach="cal-day" data-k="'+key+'" data-d="'+iso+'" aria-label="'+d+' de '+MESES[m-1]+': con registro"'+(iso===st.d?' aria-pressed="true"':'')+'>'+d+'</button>'
+      ? '<button class="'+cls+'" '+at("day")+' data-k="'+key+'" data-d="'+iso+'" aria-label="'+d+' de '+MESES[m-1]+': con registro"'+(iso===st.d?' aria-pressed="true"':'')+'>'+d+'</button>'
       : '<span class="'+cls+'">'+d+'</span>';
   }
 
   return '<div class="cal-x">'+
-    '<div class="cal-x-head"><button class="cal-x-nav" data-coach="cal-nav" data-k="'+key+'" data-m="'+prev+'" aria-label="Mes anterior">‹</button>'+
+    '<div class="cal-x-head"><button class="cal-x-nav" '+at("nav")+' data-k="'+key+'" data-m="'+prev+'" aria-label="Mes anterior">‹</button>'+
       '<div class="cal-x-title">'+MESES[m-1]+' '+y+'<span>'+(inMonth?inMonth+" "+noun[inMonth===1?0:1]:"Sin registros")+'</span></div>'+
-      '<button class="cal-x-nav" data-coach="cal-nav" data-k="'+key+'" data-m="'+next+'" aria-label="Mes siguiente">›</button></div>'+
+      '<button class="cal-x-nav" '+at("nav")+' data-k="'+key+'" data-m="'+next+'" aria-label="Mes siguiente">›</button></div>'+
     '<div class="cal-x-grid cal-x-dow">'+DIAS.map(x=>'<span>'+x+'</span>').join("")+'</div>'+
     '<div class="cal-x-grid">'+cells+'</div>'+
     '<div class="cal-x-legend"><span><i class="on"></i>Con registro</span><span><i></i>Sin registro</span></div>'+

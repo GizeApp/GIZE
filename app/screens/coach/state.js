@@ -92,7 +92,7 @@ export const CoachState = {
 
   coachPQ: "",
 
-  coachSettingsOpen: false,
+
 
   // Editor de preguntas (ver preguntas.js): copia de trabajo mientras está abierto, y el
   // error de la última lectura de coach_questions (tabla sin crear, sin conexión…).
@@ -117,6 +117,9 @@ export const CoachState = {
   notifSending: false,
 
   coachNameForm: null,
+  // Sección abierta de la pantalla Configuración (coachView "settings", ver settings.js).
+  coachSetSec: "perfil",
+  coachBackView: "clients",
 
   // ids de ejercicios expandidos en el editor de rutina — por defecto todo colapsado
   // para no tener una interfaz gigante con muchos ejercicios (ver renderCoachRoutine()).
