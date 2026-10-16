@@ -44,6 +44,20 @@
 --      misma lista con la que la app copia una rutina armada (copiarDias en
 --      app/core/rutinas-ejemplo.js). Función rutina_generica, trigger rutinas_catalogo_limpiar.
 --   4) Carga o actualiza estas rutinas (activas, ordenadas por días por semana).
+--   5) Comprueba cómo quedó, antes del commit. Si algo no está bien, corta con un código propio
+--      (el log del workflow muestra solo el código: «La consulta falló (código GZ00N)») y no
+--      queda nada aplicado:
+--        GZ001  hay una rutina activa en el catálogo que no es de estas;
+--        GZ002  una rutina activa del catálogo todavía tiene notas, objetivo, video o audio (o
+--               algo que rutina_generica sacaría);
+--        GZ003  falta una rutina activa para alguna cantidad de días, de 1 a 6;
+--        GZ004  a una rutina de quien entrena sin coach, de las que la base acepta, le queda un
+--               texto de una rutina del catálogo (nota, objetivo, video o un nombre o subtítulo
+--               de día que no es genérico).
+--      Y después del commit (lo anterior ya quedó aplicado):
+--        GZ005  quedan rutinas de quien entrena sin coach con esos textos que la base no acepta
+--               (datos viejos o más grandes que el tope): este archivo no las puede cambiar.
+--      Sin error, todo quedó como se espera.
 --   Al final devuelve SOLO cantidades (el log del workflow es público): rutinas activas de cada
 --   cantidad de días, cuántas se escondieron, cuántas rutinas de personas se limpiaron y
 --   cuántos días cambiaron de nombre o de subtítulo.
@@ -180,7 +194,9 @@ insert into rg_genericas (id) values ('7a1c0001-0000-4000-8000-000000000001'::uu
 drop table if exists pg_temp.rg_resumen;
 create temp table rg_resumen (que text primary key, n bigint not null);
 
-with textos as (
+-- Los textos del catálogo (de cualquier rutina, activa o no) y los días de las escondidas.
+drop table if exists pg_temp.rg_textos;
+create temp table rg_textos as
   select
     array(select v #>> '{}' from public.rutinas_catalogo c, jsonb_path_query(c.days, 'lax $[*].note') v where jsonb_typeof(v) = 'string'
           union
@@ -190,12 +206,13 @@ with textos as (
     -- Nombre y subtítulo de cada día de las rutinas escondidas (las que no son genéricas).
     array(select coalesce(d->>'name', '') || chr(31) || coalesce(d->>'subtitle', '')
             from public.rutinas_catalogo c, jsonb_array_elements(case when jsonb_typeof(c.days) = 'array' then c.days else '[]'::jsonb end) d
-           where c.id not in (select id from rg_genericas) and jsonb_typeof(d) = 'object') as pares
-), sin_coach as (
+           where c.id not in (select id from rg_genericas) and jsonb_typeof(d) = 'object') as pares;
+
+with sin_coach as (
   select r.client_id, r.days as antes, pg_temp.rg_sin_textos(r.days, t.notas, t.metas, t.videos, t.pares) as days
     from public.routines r
     join public.profiles p on p.id = r.client_id
-    cross join textos t
+    cross join rg_textos t
    where p.coach_id is null
      and p.role is distinct from 'coach'
      and jsonb_typeof(r.days) = 'array'
@@ -310,9 +327,81 @@ on conflict (id) do update set
   nombre = excluded.nombre, para = excluded.para, descripcion = excluded.descripcion,
   days = excluded.days, orden = excluded.orden, activa = true;
 
+-- 5) Cómo quedó (ver arriba los códigos). Si algo falla, no queda nada aplicado.
+do $$
+declare
+  n bigint;
+  faltan text;
+begin
+  select count(*) into n from public.rutinas_catalogo c
+   where c.activa and c.id not in (select id from rg_genericas);
+  if n > 0 then
+    raise exception 'Quedan % rutinas activas en el catálogo que no son las genéricas.', n using errcode = 'GZ001';
+  end if;
+
+  select count(*) into n from public.rutinas_catalogo c
+   where c.activa
+     and (c.days is distinct from public.rutina_generica(c.days)
+          or jsonb_path_exists(c.days, 'lax $[*].note')
+          or jsonb_path_exists(c.days, 'lax $[*].exercises[*].note')
+          or jsonb_path_exists(c.days, 'lax $[*].exercises[*].goal')
+          or jsonb_path_exists(c.days, 'lax $[*].exercises[*].video')
+          or jsonb_path_exists(c.days, 'lax $[*].exercises[*].videoFor')
+          or jsonb_path_exists(c.days, 'lax $[*].exercises[*].audio'));
+  if n > 0 then
+    raise exception 'Quedan % rutinas activas del catálogo con notas, objetivos, videos o audios.', n using errcode = 'GZ002';
+  end if;
+
+  select string_agg(k::text, ', ' order by k) into faltan
+    from generate_series(1, 6) k
+   where not exists (
+     select 1 from public.rutinas_catalogo c
+      where c.activa and jsonb_typeof(c.days) = 'array'
+        and (select count(*) from jsonb_array_elements(c.days) d
+              where jsonb_typeof(d->'exercises') = 'array' and jsonb_array_length(d->'exercises') > 0) = k);
+  if faltan is not null then
+    raise exception 'No hay rutina activa de % días por semana.', faltan using errcode = 'GZ003';
+  end if;
+
+  -- Las mismas cuentas que la limpieza (1): si la base acepta la rutina limpia, ya tiene que estar así.
+  select count(*) into n from (
+    select r.days, pg_temp.rg_sin_textos(r.days, t.notas, t.metas, t.videos, t.pares) as limpia
+      from public.routines r
+      join public.profiles p on p.id = r.client_id
+      cross join rg_textos t
+     where p.coach_id is null
+       and p.role is distinct from 'coach'
+       and jsonb_typeof(r.days) = 'array') x
+   where x.limpia is distinct from x.days
+     and public.routine_days_ok(x.limpia)
+     and pg_column_size(x.limpia) <= 500000;
+  if n > 0 then
+    raise exception 'A % rutinas de personas sin coach les quedan textos del catálogo.', n using errcode = 'GZ004';
+  end if;
+end $$;
+
 commit;
 
 notify pgrst, 'reload schema';
+
+-- Lo que este archivo no puede cambiar (lo de arriba ya quedó aplicado): rutinas que la base no
+-- acepta y siguen con textos del catálogo.
+do $$
+declare
+  n bigint;
+begin
+  select count(*) into n
+    from public.routines r
+    join public.profiles p on p.id = r.client_id
+    cross join rg_textos t
+   where p.coach_id is null
+     and p.role is distinct from 'coach'
+     and jsonb_typeof(r.days) = 'array'
+     and pg_temp.rg_sin_textos(r.days, t.notas, t.metas, t.videos, t.pares) is distinct from r.days;
+  if n > 0 then
+    raise exception 'Quedan % rutinas de personas sin coach con textos del catálogo que la base no acepta.', n using errcode = 'GZ005';
+  end if;
+end $$;
 
 -- Resultado: solo cantidades (el log del workflow es público). activas_de_N_dias: rutinas
 -- genéricas activas con N días de entreno (los de descanso no cuentan); otras_activas y

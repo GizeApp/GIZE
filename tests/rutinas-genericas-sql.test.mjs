@@ -67,7 +67,7 @@ export default async ({ t }) => {
   t.ok(/public\.routine_days_ok\(c\.days\)/.test(updRutinas[0] || '') && /pg_column_size\(c\.days\) <= 500000/.test(updRutinas[0] || ''), 'solo las que la base acepta (no frena todo con routines_validate ni con el tope)');
   t.ok(/updated_at = now\(\)/.test(updRutinas[0] || ''), 'la limpia queda más nueva que la del celular');
   t.ok(!/update public\.routine_templates|delete from|truncate|drop table if exists public\./i.test(cuerpo), 'no toca las plantillas de los coaches ni borra nada');
-  const textos = (cuerpo.match(/with textos as \(([\s\S]*?)\n\), sin_coach as/) || [])[1] || '';
+  const textos = (cuerpo.match(/create temp table rg_textos as\n([\s\S]*?as pares);/) || [])[1] || '';
   t.ok(/public\.rutinas_catalogo c, jsonb_path_query\(c\.days, 'lax \$\[\*\]\.note'\)/.test(textos) && /'lax \$\[\*\]\.exercises\[\*\]\.note'/.test(textos), 'las notas que saca son las que están en el catálogo (días y ejercicios)');
   t.ok(!/where[^)]*activa/.test(textos), 'de cualquier rutina del catálogo, activa o no');
   const fnTextos = (cuerpo.match(/create or replace function pg_temp\.rg_sin_textos[\s\S]*?\$\$;/) || [''])[0];
@@ -77,7 +77,8 @@ export default async ({ t }) => {
   // Nombres de día: solo los días con el mismo nombre y subtítulo que un día de una rutina
   // escondida (no genérica) del catálogo; se quedan si todas sus palabras son de rutina.
   t.ok(/pg_temp\.rg_dia_nombre\(case when d->>'note' = any\(notas\) then d - 'note' else d end, n, pares\)/.test(fnTextos), 'cambia los nombres dentro de la misma limpieza (mismo alcance: sin coach)');
-  t.eq([...cuerpo.matchAll(/pg_temp\.rg_sin_textos\(/g)].length, 2, 'rg_sin_textos: se define y se usa una sola vez');
+  const usos = [...cuerpo.matchAll(/pg_temp\.rg_sin_textos\(([^)]*)\)/g)].map(m => m[1]);
+  t.eq(usos.slice(1), Array(3).fill('r.days, t.notas, t.metas, t.videos, t.pares'), 'rg_sin_textos: la limpieza y los dos controles la usan igual');
   t.ok(/pg_temp\.rg_sin_textos\(r\.days, t\.notas, t\.metas, t\.videos, t\.pares\)/.test(sinCoach), 'se usa con las rutinas de quien no tiene coach');
   t.ok(/coalesce\(d->>'name', ''\) \|\| chr\(31\) \|\| coalesce\(d->>'subtitle', ''\)\s+from public\.rutinas_catalogo c, [^\n]*\n\s+where c\.id not in \(select id from rg_genericas\) and jsonb_typeof\(d\) = 'object'\) as pares/.test(textos),
     'los pares nombre + subtítulo salen solo de las rutinas escondidas (no genéricas)');
@@ -128,17 +129,43 @@ export default async ({ t }) => {
   t.ok(valida && 'rutinas_catalogo_limpiar' < valida, 'corre antes que la validación (' + valida + ', van por orden alfabético): se valida lo que queda');
   t.ok(/revoke all on function public\.rutina_generica\(jsonb\) from public, anon;/.test(cuerpo), 'rutina_generica: nada para usuarios sin sesión');
   t.ok(cuerpo.indexOf('create trigger rutinas_catalogo_limpiar') < cuerpo.indexOf('insert into public.rutinas_catalogo'), 'las genéricas también pasan por el control');
-  t.ok(cuerpo.indexOf('with textos as') < cuerpo.indexOf('update public.rutinas_catalogo'), 'limpia las rutinas antes de tocar el catálogo');
+  t.ok(cuerpo.indexOf('create temp table rg_textos') < cuerpo.indexOf('update public.rutinas_catalogo'), 'toma los textos y limpia las rutinas antes de tocar el catálogo');
   t.has(leer('supabase/rutinas-catalogo.sql'), 'rutinas-genericas.sql', 'rutinas-catalogo.sql explica dónde está el control');
 
   // 4) Carga: upsert, todo en una transacción y se puede correr varias veces.
   t.ok(/on conflict \(id\) do update set[\s\S]*days = excluded\.days, orden = excluded\.orden, activa = true;/.test(cuerpo), 'actualiza las que ya están (por id)');
-  t.ok(/^\s*begin;/m.test(cuerpo) && cuerpo.indexOf('begin;') < cuerpo.indexOf('with textos as') && cuerpo.indexOf('commit;') > cuerpo.indexOf('insert into public.rutinas_catalogo'), 'todo en una transacción');
-  t.ok(/drop table if exists pg_temp\.rg_genericas;/.test(cuerpo) && /drop table if exists pg_temp\.rg_resumen;/.test(cuerpo), 'las tablas temporales se rehacen al volver a correrlo');
+  t.ok(/^\s*begin;/m.test(cuerpo) && cuerpo.indexOf('begin;') < cuerpo.indexOf('create temp table rg_textos') && cuerpo.indexOf('commit;') > cuerpo.indexOf('insert into public.rutinas_catalogo'), 'todo en una transacción');
+  t.ok(['rg_genericas', 'rg_resumen', 'rg_textos'].every(x => cuerpo.includes('drop table if exists pg_temp.' + x + ';\ncreate temp table ' + x + ' ')), 'las tablas temporales se rehacen al volver a correrlo');
+
+  // 5) Comprobación: si algo no quedó bien corta con un código propio, el único dato que muestra
+  //    el log del workflow. GZ001 a GZ004 antes del commit (no queda nada aplicado); GZ005 después.
+  const ini = cuerpo.indexOf('do $$'), fin = cuerpo.indexOf('end $$;', ini), commit = cuerpo.indexOf('commit;');
+  const control = cuerpo.slice(ini, fin), despues = cuerpo.slice(commit);
+  t.ok(ini > cuerpo.indexOf('insert into public.rutinas_catalogo') && fin < commit, 'el control va al final de la transacción, antes del commit');
+  const codigos = [...cuerpo.matchAll(/using errcode = '(\w+)'/g)].map(m => m[1]);
+  t.eq(codigos, ['GZ001', 'GZ002', 'GZ003', 'GZ004', 'GZ005'], 'un código por condición, en orden');
+  t.eq([...control.matchAll(/using errcode = '(\w+)'/g)].map(m => m[1]), ['GZ001', 'GZ002', 'GZ003', 'GZ004'], 'GZ001 a GZ004 dentro de la transacción');
+  t.ok(/errcode = 'GZ005'/.test(despues) && despues.indexOf('GZ005') < despues.indexOf('with genericas as ('), 'GZ005 después del commit (lo demás ya quedó) y antes del resumen');
+  for (const c of codigos) t.ok(new RegExp('--\\s+' + c + '\\s').test(sql), 'el encabezado explica ' + c);
+  const wf = leer('.github/workflows/supabase.yml');
+  t.ok(wf.includes('capture("(SQLSTATE|ERROR:)[ :]*(?<c>[0-9A-Z]{5})\\\\b")'), 'el workflow muestra el código del error');
+  t.ok(codigos.every(c => ('ERROR:  ' + c + ': Quedan 2 rutinas').match(/(SQLSTATE|ERROR:)[ :]*(?<c>[0-9A-Z]{5})\b/).groups.c === c), 'y lo encuentra en el mensaje');
+  const bloque = c => { const i = cuerpo.indexOf("errcode = '" + c + "'"); return cuerpo.slice(cuerpo.lastIndexOf(c === 'GZ001' || c === 'GZ005' ? 'begin' : 'end if;', i), i); };
+  t.ok(/c\.activa and c\.id not in \(select id from rg_genericas\)/.test(bloque('GZ001')), 'GZ001: activas que no son genéricas');
+  t.ok(/c\.days is distinct from public\.rutina_generica\(c\.days\)/.test(bloque('GZ002')) && ['note', 'goal', 'video', 'videoFor', 'audio'].every(k => bloque('GZ002').includes('exercises[*].' + k + "')")) && bloque('GZ002').includes("'lax $[*].note'"), 'GZ002: notas, objetivo, video, audio o lo que rutina_generica sacaría');
+  t.ok(/generate_series\(1, 6\)/.test(bloque('GZ003')) && /c\.activa/.test(bloque('GZ003')), 'GZ003: una activa de cada cantidad de días, de 1 a 6');
+  for (const c of ['GZ004', 'GZ005']){
+    t.ok(/join public\.profiles p on p\.id = r\.client_id/.test(bloque(c)) && /where p\.coach_id is null\s+and p\.role is distinct from 'coach'/.test(bloque(c)), c + ': mismo alcance que la limpieza (sin coach)');
+  }
+  t.ok(/public\.routine_days_ok\(x\.limpia\)\s+and pg_column_size\(x\.limpia\) <= 500000/.test(bloque('GZ004')), 'GZ004: solo las que la limpieza podía cambiar (si no, cortaría siempre)');
+  t.ok(!/routine_days_ok/.test(bloque('GZ005')), 'GZ005: todas las que siguen con textos del catálogo');
+  const raises = [...cuerpo.matchAll(/raise exception [^;]*;/g)].map(m => m[0]);
+  t.ok(raises.length === 5 && raises.every(r => /^raise exception '[^'%]*%[^'%]*', (n|faltan) using errcode = 'GZ00\d';$/.test(r)), 'los mensajes solo llevan cantidades: ' + raises.length);
 
   // Resultado: el log del workflow es público, así que la última consulta devuelve solo cantidades.
-  const ultima = cuerpo.slice(cuerpo.lastIndexOf('notify pgrst')).replace(/^notify pgrst, 'reload schema';/, '').trim();
-  t.ok(/^with genericas as \(/.test(ultima) && cuerpo.indexOf('commit;') < cuerpo.lastIndexOf('notify pgrst'), 'termina con la consulta del resumen, después del commit');
+  const ultima = cuerpo.slice(cuerpo.lastIndexOf('with genericas as (')).trim();
+  t.ok(cuerpo.indexOf('commit;') < cuerpo.lastIndexOf('notify pgrst') && cuerpo.lastIndexOf('notify pgrst') < cuerpo.lastIndexOf('with genericas as ('), 'termina con la consulta del resumen, después del commit');
+  t.ok(!/;\s*\S/.test(ultima.replace(/;\s*$/, '')), 'y no hay nada después');
   const alias = [...ultima.matchAll(/\bas (\w+)(?=,|;|\s*$)/g)].map(m => m[1]);
   t.eq(alias, ['activas_de_1_dia', 'activas_de_2_dias', 'activas_de_3_dias', 'activas_de_4_dias', 'activas_de_5_dias', 'activas_de_6_dias', 'otras_activas', 'activas_con_notas',
     'escondidas_ahora', 'escondidas_en_total', 'rutinas_limpiadas', 'rutinas_sin_poder_limpiar', 'dias_renombrados', 'subtitulos_cambiados'], 'columnas del resumen');
