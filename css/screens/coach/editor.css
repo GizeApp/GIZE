@@ -186,3 +186,9 @@ body:not(#_) .co-savebar .co-more-actions summary { width:auto; height:44px; pad
 html.sin-neon body:not(#_) :is(.co-daytab.on, .co-exc-open, .co-exc-head .co-exc-ord.ss, .co-exc-open .co-exc-head .co-exc-ord) { border-color:rgba(255,255,255,.4); }
 html.sin-neon body:not(#_) .co-exc-open .co-exc-name:focus { border-color:rgba(255,255,255,.5); }
 html.sin-neon body:not(#_) .co-sets-panel .co-target:focus { border-color:rgba(255,255,255,.5); }
+
+/* ---------- Bloque / mesociclo: las semanas de descarga en azul, como dice la leyenda ----------
+   En «Oscuro» y «Claro» el fondo de los botones de css/ui/estetica-login.css y claro-frozen.css le
+   ganaba a .bw.dl (botones-rediseno.css): la semana de descarga quedaba igual que las otras y su
+   número, oscuro sobre oscuro (o blanco sobre blanco), no se leía. */
+html:not(#_) body.silk-coach:not(#_):not(#__) .bw-grid .bw.dl { background:var(--acc); border-color:var(--acc); }
