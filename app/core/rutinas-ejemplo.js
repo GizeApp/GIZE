@@ -1,8 +1,9 @@
 // Rutinas armadas para elegir en la bienvenida (y desde Entreno → "Ver rutinas armadas").
 // Salen de la tabla rutinas_catalogo (supabase/rutinas-catalogo.sql), que cargan los
 // administradores; si todavía no hay ninguna (o no hay conexión), se usan las de CATALOGO.
-// Las de CATALOGO también están en supabase/rutinas-catalogo-1a5.sql (mismos id, nombres y
-// ejercicios): si se cambia una acá, cambiarla también ahí.
+// Las de CATALOGO son rutinas genéricas, de 1 a 6 días por semana, sin notas ni nada escrito
+// para una persona. También están en supabase/rutinas-genericas.sql (mismos id, nombres y días,
+// tal cual): si se cambia una acá, cambiarla también ahí (tests/rutinas-armadas.test.mjs lo revisa).
 // para: "mujer" | "hombre" | "todos". A quien elige "Mujer" se le muestran las de mujer y
 // las de todos; a "Hombre", las de hombre y las de todos; a "Prefiero no decir", todas.
 //
@@ -43,8 +44,8 @@ const piernaB = dia => d("Pierna B", dia + " · Glúteos · Cuádriceps · Isqui
 
 export const CATALOGO = [
   { id: "7a1c0001-0000-4000-8000-000000000001", nombre: "Cuerpo completo · 1 día", para: "todos",
-    desc: "Una sesión por semana con lo básico de todo el cuerpo. Para arrancar o para semanas cargadas.", days: [
-    d("Cuerpo completo", "Una vez por semana · Todo el cuerpo", [
+    desc: "Una sesión por semana con lo básico de todo el cuerpo (por ejemplo, el miércoles). Para arrancar o para semanas cargadas.", days: [
+    d("Cuerpo completo", "Miércoles · Todo el cuerpo", [
       ["Prensa 45", "cuadriceps"], ["Curl femoral sentado", "isquios"], ["Press plano con mancuernas", "pecho"], ["Jalón al pecho", "espalda"],
       ["Remo en polea baja", "espalda"], ["Press de hombros con mancuernas", "hombros"], ["Encogimiento en polea", "abs"]]) ] },
 
@@ -125,6 +126,27 @@ export const CATALOGO = [
     d("Brazos y hombros", "Sábado · Hombros · Bíceps · Tríceps", [
       ["Vuelos laterales en polea", "hombros"], ["Curl con barra Z", "biceps"], ["Press francés con mancuernas", "triceps"], ["Curl en banco inclinado", "biceps"],
       ["Extensión con soga", "triceps"], ["Curl martillo", "biceps"]]) ] },
+
+  { id: "7a1c0009-0000-4000-8000-000000000009", nombre: "PPL · 6 días", para: "todos",
+    desc: "Empuje, tirón y piernas dos veces por semana, de lunes a sábado (domingo libre). Para quien ya entrena seguido.", days: [
+    d("Empuje A", "Lunes · Pecho · Hombros · Tríceps", [
+      ["Press de banca plano (barra)", "pecho"], ["Press inclinado con mancuernas", "pecho"], ["Press de hombros con mancuernas", "hombros"], ["Aperturas en máquina", "pecho"],
+      ["Vuelos laterales con mancuernas", "hombros"], ["Extensión con soga", "triceps"]]),
+    d("Tirón A", "Martes · Espalda · Bíceps · Hombro posterior", [
+      ["Jalón al pecho", "espalda"], ["Remo con barra", "espalda"], ["Remo en polea baja", "espalda"], ["Vuelos posteriores", "hombros"],
+      ["Curl con barra Z", "biceps"], ["Curl martillo", "biceps"]]),
+    d("Piernas A", "Miércoles · Cuádriceps · Isquios · Gemelos", [
+      ["Sentadilla libre", "cuadriceps"], ["Peso muerto rumano", "isquios"], ["Prensa 45", "cuadriceps"], ["Curl femoral sentado", "isquios"],
+      ["Gemelos de pie", "gemelos"], ["Encogimiento en polea", "abs"]]),
+    d("Empuje B", "Jueves · Pecho · Hombros · Tríceps", [
+      ["Press inclinado en Smith", "pecho"], ["Press de pecho en máquina", "pecho"], ["Press de hombros en Smith", "hombros"], ["Cruce de poleas", "pecho"],
+      ["Vuelos laterales en polea", "hombros"], ["Press francés con mancuernas", "triceps"]]),
+    d("Tirón B", "Viernes · Espalda · Bíceps · Hombro posterior", [
+      ["Jalón neutro", "espalda"], ["Remo en máquina", "espalda"], ["Remo unilateral con mancuerna", "espalda"], ["Jalón a la cara", "hombros"],
+      ["Curl en banco inclinado", "biceps"], ["Curl en polea", "biceps"]]),
+    d("Piernas B", "Sábado · Glúteos · Cuádriceps · Isquios", [
+      ["Empuje de cadera", "gluteos"], ["Sentadilla búlgara", "cuadriceps"], ["Curl femoral acostado", "isquios"], ["Extensión de cuádriceps", "cuadriceps"],
+      ["Aductores en máquina", "aductores"], ["Gemelos sentado", "gemelos"], ["Elevación de piernas", "abs"]]) ] },
 ];
 
 // Las de la base (una vez por sesión). Si falla o está vacía, las de ejemplo.
@@ -156,15 +178,35 @@ export function rutinasPara(sexo, lista){
 export function diasDeEntreno(r){ return (r.days || []).filter(d => (d.exercises || []).length).length; }
 
 // Copia de los días para el usuario: ids nuevos y series vacías. Las rutinas del catálogo
-// pueden venir de la rutina de un alumno: sin los kilos que el coach le propuso a esa
-// persona ("Tu coach propone …") ni sus audios (son de la carpeta de ese coach y quien
-// entrena solo no los puede escuchar).
+// pueden venir de una plantilla de un coach o de la rutina de un alumno, con cosas escritas
+// para esa persona. Por eso se copia solo lo que hace a la rutina (lo que no está en la lista
+// no pasa, aunque mañana la rutina tenga un campo nuevo):
+//   · día: nombre, subtítulo y días de la semana (dias);
+//   · ejercicio: nombre, músculo (mus), RIR, descanso, si va por tiempo (timed) y si va en
+//     superserie con el siguiente (ss);
+//   · serie: el objetivo (target: «8-12», «45 s»), con kilos, reps y tilde vacíos.
+// Queda afuera, entre otras cosas: las notas del día y del ejercicio (note: lo que el coach le
+// escribió a ese alumno), el objetivo de progreso (goal, también texto del coach), el video
+// que pegó el coach (video / videoFor: sin él, la app usa el de su biblioteca), su audio
+// (audio / audioSecs: es de la carpeta de ese coach y quien entrena solo no lo puede
+// escuchar), los kilos que le propuso («Tu coach propone …», targetKg), los segundos anotados
+// (secs) y «sin sugerencias de peso» (noSug), que el coach apaga para un alumno en particular.
+// La base guarda el catálogo con la misma lista (rutina_generica en supabase/rutinas-genericas.sql;
+// si se cambia una, cambiar la otra: tests/rutinas-genericas-sql.test.mjs lo revisa).
 // El día de la semana que dice el subtítulo («Jueves · …») queda asignado (day.dias,
 // core/diasemana.js): así la app abre en el día que toca; se cambia en Entreno.
+export const CAMPOS_DIA = ["name", "subtitle", "dias"];
+export const CAMPOS_EJ = ["name", "mus", "rir", "rest", "timed", "ss"];
+const solo = (o, campos) => { const out = {}; campos.forEach(k => { if (o[k] !== undefined) out[k] = o[k]; }); return out; };
+const objetos = l => (Array.isArray(l) ? l : []).filter(x => x && typeof x === "object" && !Array.isArray(x));
 export function copiarDias(days){
-  const out = JSON.parse(JSON.stringify(days || []));
-  out.forEach(d => { d.id = uid(); if (!Array.isArray(d.dias)) { const w = diasDeSubtitulo(d.subtitle); if (w) d.dias = w; } (d.exercises || []).forEach(ex => { ex.id = uid(); delete ex.audio; delete ex.audioSecs; (ex.sets || []).forEach(st => { st.id = uid(); st.kg = ""; st.reps = ""; st.done = false; delete st.targetKg; }); }); });
-  return out;
+  return objetos(JSON.parse(JSON.stringify(days || []))).map(d => {
+    const day = Object.assign({ id: uid() }, solo(d, CAMPOS_DIA));
+    if (!Array.isArray(day.dias)) { delete day.dias; const w = diasDeSubtitulo(d.subtitle); if (w) day.dias = w; }
+    day.exercises = objetos(d.exercises).map(ex => Object.assign({ id: uid() }, solo(ex, CAMPOS_EJ), {
+      sets: objetos(ex.sets).map(st => Object.assign({ id: uid(), kg: "", reps: "", done: false }, st.target !== undefined ? { target: st.target } : {})) }));
+    return day;
+  });
 }
 
 // Filtro por días por semana (0: todas). Orden: de menos a más días, como vienen.

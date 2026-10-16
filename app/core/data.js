@@ -25,7 +25,7 @@ export const EX_DB = {
 };
 
 // Estado inicial de quien entra por primera vez: un día vacío. La rutina la elige en la
-// bienvenida (rutinas armadas de 1 a 5 días, ver core/rutinas-ejemplo.js) o la arma a mano.
+// bienvenida (rutinas armadas de 1 a 6 días, ver core/rutinas-ejemplo.js) o la arma a mano.
 export const DEFAULT = {
   days: [{ id:"d1", name:"Día 1", subtitle:"", exercises:[] }],
   habits: []
