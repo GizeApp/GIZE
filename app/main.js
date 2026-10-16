@@ -1538,7 +1538,12 @@ document.body.addEventListener("click", async e => {
     D.splice(i+1, 0, c); CoachState.coachEditDay=i+1; renderCoach(); return; }
   // Días de la semana del día abierto (core/diasemana.js): queda como cambio sin guardar.
   if(a==="day-dow"){ const day=(rtDays()||[])[CoachState.coachEditDay]; if(day){ toggleDia(day, b.dataset.d); renderCoach(); } return; }
-  if(a==="day-del"){ const D=rtDays(); if(D&&D.length>1){ D.splice(CoachState.coachEditDay,1); CoachState.coachEditDay=0; renderCoach(); } return; }
+  // Borrar un día con ejercicios se pregunta antes (está al lado de «Mover después» y se iban
+  // todos sus ejercicios de un toque, sin forma de recuperarlos salvo salir sin guardar nada).
+  if(a==="day-del"){ const D=rtDays(), d=D&&D[CoachState.coachEditDay]; if(!d||D.length<2) return;
+    const n=(d.exercises||[]).length;
+    if(n && !confirm("¿Borrar el día «"+(d.name||"sin nombre")+"» con sus "+n+" ejercicio"+(n===1?"":"s")+"?")) return;
+    D.splice(CoachState.coachEditDay,1); CoachState.coachEditDay=0; renderCoach(); return; }
   if(a==="rt-setadd"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex) ex.sets.push(mkSet()); renderCoach(); return; }
   if(a==="rt-setdel"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex && ex.sets.length>1) ex.sets.splice(+b.dataset.j,1); renderCoach(); return; }
   if(a==="rt-nosug-all"){ const rt=rtDays()||[]; const off=rt.some(x=>x.noSug); rt.forEach(x=>{ if(off) delete x.noSug; else x.noSug=true; (x.exercises||[]).forEach(e=>delete e.noSug); }); renderCoach(); return; }
