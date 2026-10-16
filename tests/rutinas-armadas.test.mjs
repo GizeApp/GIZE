@@ -1,7 +1,8 @@
-// Rutinas armadas de 1 a 5 días por semana. Quien entra por primera vez sin coach arranca
-// sin rutina (ya no con la «Meso 2») y en la bienvenida se le ofrece elegir una, con un filtro
-// por días por semana; lo mismo desde Entreno → "Ver rutinas armadas". Las cuentas que ya
+// Rutinas armadas genéricas de 1 a 6 días por semana. Quien entra por primera vez sin coach
+// arranca sin rutina (ya no con la «Meso 2») y en la bienvenida se le ofrece elegir una, con un
+// filtro por días por semana; lo mismo desde Entreno → "Ver rutinas armadas". Las cuentas que ya
 // tienen la rutina de ejemplo vieja no la pierden. El coach las importa en «Mis rutinas».
+// Las de la app (CATALOGO) son las mismas, tal cual, que carga supabase/rutinas-genericas.sql.
 import { newPage, wait, saved, text, ALUMNO } from './lib.mjs';
 
 const OLD = [
@@ -21,10 +22,24 @@ export default async function ({ base, t }){
     const { p, errs, close } = await newPage({});
     await p.goto(base + '/app/'); await wait(1500);
     const r = await p.evaluate(async () => {
-      const m = await import('/app/core/rutinas-ejemplo.js'), d = await import('/app/core/data.js');
-      const out = { dias: {}, malos: [], series: [], reps: [], porDia: [], volumen: [], cuantas: m.CATALOGO.length, sql: [] };
+      const m = await import('/app/core/rutinas-ejemplo.js'), d = await import('/app/core/data.js'), w = await import('/app/core/diasemana.js');
+      const out = { dias: {}, malos: [], series: [], reps: [], porDia: [], volumen: [], semana: [], textos: [], campos: [], cuantas: m.CATALOGO.length, sql: [] };
+      const lunesPrimero = dow => (dow + 6) % 7;
       for (const r of m.CATALOGO){
-        const n = m.diasDeEntreno(r); (out.dias[n] = out.dias[n] || []).push(r.nombre);
+        const n = m.diasDeEntreno(r); (out.dias[n] = out.dias[n] || []).push(r.nombre + ' (' + r.para + ')');
+        if (!r.nombre || r.nombre.length > 80 || !r.desc || r.desc.length > 160 || !new RegExp('· ' + n + ' días?$').test(r.nombre)) out.textos.push(r.nombre + ': ' + (r.desc || '').length);
+        if (!/^7a1c000[1-9]-0000-4000-8000-00000000000[1-9]$/.test(r.id) || r.id.slice(7, 8) !== r.id.slice(-1)) out.textos.push(r.nombre + ': id ' + r.id);
+        if (!['todos', 'mujer', 'hombre'].includes(r.para)) out.textos.push(r.nombre + ': para ' + r.para);
+        // Cada día de entreno dice su día de la semana («Lunes · …»), en orden y, con 3 días o
+        // menos, con un día de descanso entre medio.
+        const sem = r.days.filter(day => day.exercises.length).map(day => (w.diasDeSubtitulo(day.subtitle) || [-1])[0]);
+        const idx = sem.map(lunesPrimero);
+        if (sem.includes(-1) || idx.some((x, i) => i && x <= idx[i - 1]) || (n <= 3 && idx.some((x, i) => i && x - idx[i - 1] < 2))) out.semana.push(r.nombre + ': ' + r.days.map(day => day.subtitle).join(' | '));
+        // Nada escrito para una persona: solo los campos que copia la app (copiarDias).
+        for (const day of r.days){
+          Object.keys(day).forEach(k => { if (!['id', 'exercises'].concat(m.CAMPOS_DIA).includes(k)) out.campos.push(r.nombre + ' / ' + day.name + ': ' + k); });
+          for (const ex of day.exercises) Object.keys(ex).forEach(k => { if (!['id', 'sets'].concat(m.CAMPOS_EJ).includes(k)) out.campos.push(r.nombre + ' / ' + ex.name + ': ' + k); });
+        }
         const vol = {};
         for (const day of r.days){
           if (day.exercises.length && (day.exercises.length < 5 || day.exercises.length > 7)) out.porDia.push(r.nombre + ' / ' + day.name + ': ' + day.exercises.length);
@@ -41,33 +56,36 @@ export default async function ({ base, t }){
         if (n >= 3) for (const k of r.para === 'mujer' ? ['espalda', 'cuadriceps', 'gluteos'] : ['pecho', 'espalda', 'cuadriceps'])
           if (!(vol[k] >= 6 && vol[k] <= 20)) out.volumen.push(r.nombre + ' ' + k + ': ' + vol[k]);
       }
-      // El SQL para Supabase tiene las mismas rutinas (id, nombre, ejercicios y series).
-      const sql = await (await fetch('/supabase/rutinas-catalogo-1a5.sql')).text();
-      const rows = [...sql.matchAll(/\('([0-9a-f-]{36})'::uuid, '((?:[^']|'')*)', '(\w+)', '(?:[^']|'')*',\s*'((?:[^']|'')*)'::jsonb/g)]
-        .map(x => ({ id: x[1], nombre: x[2].replace(/''/g, "'"), para: x[3], days: JSON.parse(x[4].replace(/''/g, "'")) }));
-      const shape = days => days.map(dd => dd.name + ':' + dd.exercises.map(e => e.name + '×' + e.sets.length + '@' + e.sets.map(s => s.target).join('/')).join(',')).join('|');
+      // El SQL para Supabase carga las mismas rutinas, tal cual (id, nombre, para, descripción y días).
+      const sql = await (await fetch('/supabase/rutinas-genericas.sql')).text();
+      const rows = [...sql.matchAll(/\('([0-9a-f-]{36})'::uuid, '((?:[^']|'')*)', '(\w+)', '((?:[^']|'')*)',\s*'((?:[^']|'')*)'::jsonb/g)]
+        .map(x => ({ id: x[1], nombre: x[2].replace(/''/g, "'"), para: x[3], desc: x[4].replace(/''/g, "'"), days: JSON.parse(x[5].replace(/''/g, "'")) }));
       out.sqlN = rows.length;
+      out.sqlIds = rows.map(x => x.id).join(',') === m.CATALOGO.map(x => x.id).join(',');
       for (const r of m.CATALOGO){
         const row = rows.find(x => x.id === r.id);
-        if (!row || row.nombre !== r.nombre || row.para !== r.para || shape(row.days) !== shape(r.days)) out.sql.push(r.nombre);
+        if (!row || row.nombre !== r.nombre || row.para !== r.para || row.desc !== r.desc || JSON.stringify(row.days) !== JSON.stringify(r.days)) out.sql.push(r.nombre);
       }
-      out.meso = /set activa = false where nombre ilike '%Meso 2%'/.test(sql);
       // Filtro por días: rutinasDeDias.
-      out.filtro = [1, 2, 3, 4, 5].map(k => m.rutinasDeDias(m.CATALOGO, k).every(x => m.diasDeEntreno(x) === k));
+      out.filtro = [1, 2, 3, 4, 5, 6].map(k => m.rutinasDeDias(m.CATALOGO, k).every(x => m.diasDeEntreno(x) === k));
       out.todas = m.rutinasDeDias(m.CATALOGO, 0).map(x => m.diasDeEntreno(x));
       return out;
     });
-    for (const n of [1, 2, 3, 4, 5]) t.ok((r.dias[n] || []).length >= 1, 'hay rutina de ' + n + ' día(s): ' + JSON.stringify(r.dias));
+    for (const n of [1, 2, 3, 4, 5, 6]) t.ok((r.dias[n] || []).some(x => /\(todos\)$/.test(x)), 'hay rutina genérica (para todos) de ' + n + ' día(s): ' + JSON.stringify(r.dias));
+    t.eq(Object.keys(r.dias).map(Number).sort(), [1, 2, 3, 4, 5, 6], 'de 1 a 6 días, nada más');
     t.ok(r.cuantas <= 9, 'la lista es corta: ' + r.cuantas);
+    t.eq(r.textos, [], 'nombre (≤ 80, termina en «· N días»), descripción (≤ 160), id y para');
+    t.eq(r.semana, [], 'cada día de entreno dice su día de la semana, en orden y con descanso');
+    t.eq(r.campos, [], 'sin notas ni nada escrito para una persona');
     t.eq(r.malos, [], 'todos los ejercicios están en la lista (EX_DB) con su músculo');
     t.eq(r.series, [], 'músculos grandes 2 series por ejercicio, chicos 3');
     t.eq(r.reps, [], 'todas las series de 8-12, con RIR y descanso');
     t.eq(r.porDia, [], 'de 5 a 7 ejercicios por día');
     t.eq(r.volumen, [], 'volumen semanal razonable');
-    t.eq(r.sql, [], 'el SQL tiene las mismas rutinas que la app');
+    t.eq(r.sql, [], 'el SQL tiene las mismas rutinas que la app, tal cual');
     t.eq(r.sqlN, r.cuantas, 'el SQL carga todas');
-    t.ok(r.meso, 'el SQL esconde la Meso 2');
-    t.eq(r.filtro, [true, true, true, true, true], 'rutinasDeDias filtra por días');
+    t.ok(r.sqlIds, 'en el mismo orden');
+    t.eq(r.filtro, [true, true, true, true, true, true], 'rutinasDeDias filtra por días');
     t.eq(r.todas, r.todas.slice().sort((a, b) => a - b), 'sin filtro van de menos a más días');
     t.eq(errs, [], 'catálogo: errores de la página');
     await close();
@@ -103,11 +121,11 @@ export default async function ({ base, t }){
     await p.click('[data-onb="sex"][data-v="m"]'); await wait(600);
     t.ok(/¿Cuántos días por semana entrenás\?/.test(await text(p, '#authHost')), 'pregunta los días por semana');
     const chips = await p.$$eval('[data-onb="dias"]', l => l.map(b => b.innerText.trim()));
-    t.eq(chips, ['Todas', '1', '2', '3', '4', '5'], 'botones de días');
+    t.eq(chips, ['Todas', '1', '2', '3', '4', '5', '6'], 'botones de días');
     const lista = () => p.$$eval('.onb-routine b', l => l.map(b => b.innerText.trim()));
     const todas = await lista();
     t.ok(todas.length >= 5 && !todas.some(n => /Glúteos/.test(n)), 'hombre: todas menos las de mujer: ' + todas.join(', '));
-    for (const n of [1, 2, 3, 4, 5]){
+    for (const n of [1, 2, 3, 4, 5, 6]){
       await p.click('[data-onb="dias"][data-v="' + n + '"]'); await wait(150);
       const l = await lista();
       t.ok(l.length >= 1 && l.every(x => x.includes('· ' + n + ' día')), n + ' día(s): ' + l.join(', '));

@@ -209,7 +209,7 @@ function showStartChoice(){
     '<h1 class="onb-title">¿Cómo querés arrancar?</h1>'+
     '<p class="onb-text">Vos elegís. Lo podés cambiar cuando quieras.</p>'+
     '<div class="onb-opts">'+
-      option("rutina", OB.start, "Elegir una rutina armada", "Recomendado. Rutinas listas de 1 a 5 días por semana. La podés cambiar después.", "start")+
+      option("rutina", OB.start, "Elegir una rutina armada", "Recomendado. Rutinas listas de 1 a 6 días por semana. La podés cambiar después.", "start")+
       option("vacio", OB.start, "Empezar vacío", "Armás tus días de a poco.", "start")+
     '</div>'+
     '<button type="button" class="gize-btn auth-btn onb-main" data-onb="next">Continuar</button>',
@@ -289,7 +289,7 @@ function showSex(){
 
 // Lista de rutinas. fromApp: abierta desde Entreno (se puede cerrar y pide confirmar si ya
 // tiene ejercicios cargados); si no, es el último paso de la bienvenida. Arriba, los días por
-// semana (Todas · 1 · 2 · 3 · 4 · 5): la lista muestra solo las de esa cantidad de días.
+// semana (Todas · 1 · 2 · 3 · 4 · 5 · 6): la lista muestra solo las de esa cantidad de días.
 async function showRoutines(fromApp){
   // Si en la base todavía no hay ninguna para esta opción, las de ejemplo de la app. Sin
   // respuesta en 4 s (señal floja), también: el pedido sigue y la próxima vez ya está.
@@ -307,7 +307,7 @@ async function showRoutines(fromApp){
   const host=mount(
     '<h1 class="onb-title">Elegí tu rutina</h1>'+
     '<p class="onb-text">'+(myDisciplinas().some(x=>x.id!=="fuerza")?'Te mostramos primero las de tu disciplina. ':'')+'¿Cuántos días por semana entrenás?</p>'+
-    '<div class="onb-nums onb-nums-dias" role="group" aria-label="Días por semana">'+chip(0,"Todas")+[1,2,3,4,5].map(n=>chip(n, String(n))).join("")+'</div>'+
+    '<div class="onb-nums onb-nums-dias" role="group" aria-label="Días por semana">'+chip(0,"Todas")+[1,2,3,4,5,6].map(n=>chip(n, String(n))).join("")+'</div>'+
     '<div class="onb-routines" aria-live="polite">'+listHtml()+'</div>'+
     '<button type="button" class="onb-alt" data-onb="sexagain">Cambiar: '+(state.sex==="f"?"Mujer":state.sex==="m"?"Hombre":"Todas")+'</button>'+
     (fromApp?'<button type="button" class="onb-alt" data-onb="cancel">Cancelar</button>':'<button type="button" class="onb-alt" data-onb="empty">Prefiero arrancar vacío</button>'), "Elegí tu rutina");

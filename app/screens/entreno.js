@@ -374,7 +374,7 @@ export function renderEntreno(){
       ${routineLocked()?'':`<button class="day-del" data-action="delday" title="Eliminar día" aria-label="Eliminar día">${trashSvg}</button>`}
     </div>
     ${cards || (!routineLocked() && !(state.days||[]).some(x=>(x.exercises||[]).length)
-      ? '<div class="empty empty-pick">Todavía no tenés rutina.<br>Elegí una rutina armada de 1 a 5 días por semana o agregá tus ejercicios acá abajo.<button class="wk-start empty-pick-btn" data-action="open-routines">Elegir una rutina armada</button></div>'
+      ? '<div class="empty empty-pick">Todavía no tenés rutina.<br>Elegí una rutina armada de 1 a 6 días por semana o agregá tus ejercicios acá abajo.<button class="wk-start empty-pick-btn" data-action="open-routines">Elegir una rutina armada</button></div>'
       : '<div class="empty">Día vacío.<br>' + (routineLocked()?'Tu coach todavía no te cargó ejercicios.':'Agregá ejercicios acá abajo 👇') + '</div>')}
     ${routineLocked()?'':'<button class="add-ex" data-action="ex-add-open">+ Agregar ejercicio</button>'}
     ${renderDayNotes(d)}
