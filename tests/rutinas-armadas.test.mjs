@@ -2,7 +2,8 @@
 // arranca sin rutina (ya no con la «Meso 2») y en la bienvenida se le ofrece elegir una, con un
 // filtro por días por semana; lo mismo desde Entreno → "Ver rutinas armadas". Las cuentas que ya
 // tienen la rutina de ejemplo vieja no la pierden. El coach las importa en «Mis rutinas».
-// Las de la app (CATALOGO) son las mismas, tal cual, que carga supabase/rutinas-genericas.sql.
+// Las de la app (CATALOGO) son las mismas, tal cual, que carga supabase/rutinas-genericas.sql
+// (lo demás de ese archivo lo revisa tests/rutinas-genericas-sql.test.mjs).
 import { newPage, wait, saved, text, ALUMNO } from './lib.mjs';
 
 const OLD = [

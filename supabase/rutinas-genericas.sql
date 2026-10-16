@@ -14,15 +14,61 @@
 --   · Torso / Pierna + Brazos · 5 días (para todos)
 --   · PPL · 6 días (para todos)
 --
--- Pegar entero en el editor SQL de Supabase (o workflow "Supabase" → tarea sql →
--- supabase/rutinas-genericas.sql), después de rutinas-catalogo.sql. Carga o actualiza estas
--- rutinas (activas, ordenadas por días por semana) y esconde (activa = false; no se borra) toda
--- otra rutina del catálogo. No toca las rutinas de nadie (solo la tabla rutinas_catalogo). Al
--- final devuelve solo cantidades (el log del workflow es público).
+-- Por qué: el catálogo se había cargado copiando plantillas de un coach, con las notas que ese
+-- coach le escribe a una alumna, y quien elegía una de esas rutinas las veía en su Entreno.
+-- Este archivo, todo junto (si algo falla no queda nada a medias):
+--   1) Limpia lo que ya se copió. En la rutina de quien entrena SIN coach (profiles.coach_id
+--      vacío; no las cuentas de coach) saca la nota del día o del ejercicio (note), el objetivo
+--      de progreso (goal) y el video que pegó el coach (video, videoFor) SOLO si ese mismo texto
+--      está en alguna rutina del catálogo (activa o no). No toca a nadie con coach (la alumna de
+--      la plantilla sigue con las notas de su coach) ni las plantillas de los coaches
+--      (routine_templates). La rutina limpia queda con updated_at = ahora, así el celular toma
+--      esa en vez de volver a subir la que tenía. Una rutina que la base ya no acepta (datos
+--      viejos, ver seguridad-base.sql, o más grande que el tope de topes-datos.sql) se saltea y
+--      se cuenta al final (rutinas_sin_poder_limpiar).
+--   2) Esconde (activa = false; no se borra) toda rutina del catálogo que no sea una de estas.
+--      Las escondidas quedan como estaban: así, si hace falta, este archivo se puede volver a
+--      correr y sigue encontrando esos textos.
+--   3) Para lo que venga: cada vez que una rutina del catálogo se carga o se cambia estando
+--      activa (o se vuelve a activar), la base le deja solo lo que hace a la rutina: nombre,
+--      subtítulo y días de la semana del día; nombre, músculo, RIR, descanso, por tiempo y
+--      superserie del ejercicio; objetivo de cada serie (kilos, reps y tilde vacíos). Es la
+--      misma lista con la que la app copia una rutina armada (copiarDias en
+--      app/core/rutinas-ejemplo.js). Función rutina_generica, trigger rutinas_catalogo_limpiar.
+--   4) Carga o actualiza estas rutinas (activas, ordenadas por días por semana).
+--   Al final devuelve SOLO cantidades (el log del workflow es público): rutinas activas de cada
+--   cantidad de días, cuántas se escondieron y cuántas rutinas de personas se limpiaron.
+--
+-- Correr con el workflow "Supabase" → tarea sql → supabase/rutinas-genericas.sql, después de
+-- rutinas-catalogo.sql (y de seguridad-base.sql y ejercicio-audio.sql, que ya están corridos).
 -- Se puede correr varias veces. Reemplaza a rutinas-catalogo-1a5.sql (las de 1 a 5 días, que
 -- son las mismas de acá salvo la de 6 días).
 
 begin;
+
+-- 1) Lo que ya se copió del catálogo a la rutina de quien entrena sin coach.
+-- Saca de los días y ejercicios las notas, objetivos y videos que estén en las listas (el
+-- resto, igual: mismo orden y misma forma).
+create or replace function pg_temp.rg_sin_textos(days jsonb, notas text[], metas text[], videos text[])
+returns jsonb
+language sql
+immutable
+as $$
+  select case when jsonb_typeof(days) <> 'array' then days else coalesce((
+    select jsonb_agg(case when jsonb_typeof(d) <> 'object' then d else
+      (case when d->>'note' = any(notas) then d - 'note' else d end)
+      || case when jsonb_typeof(d->'exercises') <> 'array' then '{}'::jsonb else jsonb_build_object('exercises', coalesce((
+        select jsonb_agg(case when jsonb_typeof(e) <> 'object' then e else
+          e - array_remove(array[
+            case when e->>'note' = any(notas) then 'note' end,
+            case when e->>'goal' = any(metas) then 'goal' end,
+            case when e->>'video' = any(videos) then 'video' end,
+            case when e->>'video' = any(videos) then 'videoFor' end], null)
+          end order by i)
+          from jsonb_array_elements(d->'exercises') with ordinality as y(e, i)), '[]'::jsonb)) end
+      end order by n)
+      from jsonb_array_elements(days) with ordinality as x(d, n)), '[]'::jsonb) end;
+$$;
 
 -- Las rutinas genéricas (los id de CATALOGO) y lo que cuenta la última consulta (solo cantidades).
 drop table if exists pg_temp.rg_genericas;
@@ -31,7 +77,38 @@ insert into rg_genericas (id) values ('7a1c0001-0000-4000-8000-000000000001'::uu
 drop table if exists pg_temp.rg_resumen;
 create temp table rg_resumen (que text primary key, n bigint not null);
 
--- 1) Del catálogo quedan activas solo las genéricas (las otras se esconden, no se borran).
+with textos as (
+  select
+    array(select v #>> '{}' from public.rutinas_catalogo c, jsonb_path_query(c.days, 'lax $[*].note') v where jsonb_typeof(v) = 'string'
+          union
+          select v #>> '{}' from public.rutinas_catalogo c, jsonb_path_query(c.days, 'lax $[*].exercises[*].note') v where jsonb_typeof(v) = 'string') as notas,
+    array(select v #>> '{}' from public.rutinas_catalogo c, jsonb_path_query(c.days, 'lax $[*].exercises[*].goal') v where jsonb_typeof(v) = 'string') as metas,
+    array(select v #>> '{}' from public.rutinas_catalogo c, jsonb_path_query(c.days, 'lax $[*].exercises[*].video') v where jsonb_typeof(v) = 'string') as videos
+), sin_coach as (
+  select r.client_id, r.days as antes, pg_temp.rg_sin_textos(r.days, t.notas, t.metas, t.videos) as days
+    from public.routines r
+    join public.profiles p on p.id = r.client_id
+    cross join textos t
+   where p.coach_id is null
+     and p.role is distinct from 'coach'
+     and jsonb_typeof(r.days) = 'array'
+), cambian as (
+  select client_id, days from sin_coach where days is distinct from antes
+), limpias as (
+  -- Solo las que la base acepta (si no, el control de routines_validate frenaría todo).
+  update public.routines r set days = c.days, updated_at = now()
+    from cambian c
+   where r.client_id = c.client_id
+     and public.routine_days_ok(c.days)
+     and pg_column_size(c.days) <= 500000
+  returning r.client_id
+)
+insert into rg_resumen (que, n)
+select 'rutinas_limpiadas', (select count(*) from limpias)
+union all
+select 'rutinas_sin_poder_limpiar', (select count(*) from cambian) - (select count(*) from limpias);
+
+-- 2) Del catálogo quedan activas solo las genéricas (las otras se esconden, no se borran).
 with escondidas as (
   update public.rutinas_catalogo set activa = false
    where activa and id not in (select id from rg_genericas)
@@ -39,7 +116,57 @@ with escondidas as (
 )
 insert into rg_resumen (que, n) select 'catalogo_escondidas', count(*) from escondidas;
 
--- 2) Las rutinas genéricas.
+-- 3) Lo que se guarda en el catálogo: solo lo que hace a la rutina (ver arriba). Las series
+--    quedan con kilos, reps y tilde vacíos.
+create or replace function public.rutina_generica(days jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = public
+as $$
+  select case when jsonb_typeof(days) <> 'array' then days else coalesce((
+    select jsonb_agg(
+      (select coalesce(jsonb_object_agg(k, v), '{}'::jsonb) from jsonb_each(d) as c(k, v)
+        where k in ('id', 'name', 'subtitle', 'dias'))
+      || jsonb_build_object('exercises', coalesce((
+        select jsonb_agg(
+          (select coalesce(jsonb_object_agg(k, v), '{}'::jsonb) from jsonb_each(e) as c(k, v)
+            where k in ('id', 'name', 'mus', 'rir', 'rest', 'timed', 'ss'))
+          || jsonb_build_object('sets', coalesce((
+            select jsonb_agg(
+              (select coalesce(jsonb_object_agg(k, v), '{}'::jsonb) from jsonb_each(s) as c(k, v)
+                where k in ('id', 'target'))
+              || '{"kg": "", "reps": "", "targetKg": "", "done": false}'::jsonb
+              order by j)
+              from jsonb_array_elements(case when jsonb_typeof(e->'sets') = 'array' then e->'sets' else '[]'::jsonb end) with ordinality as z(s, j)
+             where jsonb_typeof(s) = 'object'), '[]'::jsonb))
+          order by i)
+          from jsonb_array_elements(case when jsonb_typeof(d->'exercises') = 'array' then d->'exercises' else '[]'::jsonb end) with ordinality as y(e, i)
+         where jsonb_typeof(e) = 'object'), '[]'::jsonb))
+      order by n)
+      from jsonb_array_elements(days) with ordinality as x(d, n)
+     where jsonb_typeof(d) = 'object'), '[]'::jsonb) end;
+$$;
+revoke all on function public.rutina_generica(jsonb) from public, anon;
+grant execute on function public.rutina_generica(jsonb) to authenticated;
+
+create or replace function public.rutinas_catalogo_limpiar()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.days := public.rutina_generica(new.days);
+  return new;
+end $$;
+revoke all on function public.rutinas_catalogo_limpiar() from public, anon;
+
+-- Corre antes que rutinas_catalogo_validate (van por orden alfabético): se valida lo que queda.
+drop trigger if exists rutinas_catalogo_limpiar on public.rutinas_catalogo;
+create trigger rutinas_catalogo_limpiar before insert or update of days, activa on public.rutinas_catalogo
+  for each row when (new.activa) execute function public.rutinas_catalogo_limpiar();
+
+-- 4) Las rutinas genéricas.
 insert into public.rutinas_catalogo (id, nombre, para, descripcion, days, orden, activa) values
   ('7a1c0001-0000-4000-8000-000000000001'::uuid, 'Cuerpo completo · 1 día', 'todos', 'Una sesión por semana con lo básico de todo el cuerpo (por ejemplo, el miércoles). Para arrancar o para semanas cargadas.',
    '[{"id":"d-1","name":"Cuerpo completo","subtitle":"Miércoles · Todo el cuerpo","exercises":[{"id":"e-2","name":"Prensa 45","mus":"cuadriceps","rir":"2-1","rest":"2''-3''","sets":[{"id":"s-3","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"},{"id":"s-4","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"}]},{"id":"e-5","name":"Curl femoral sentado","mus":"isquios","rir":"2-1","rest":"2''-3''","sets":[{"id":"s-6","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"},{"id":"s-7","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"}]},{"id":"e-8","name":"Press plano con mancuernas","mus":"pecho","rir":"2-1","rest":"2''-3''","sets":[{"id":"s-9","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"},{"id":"s-a","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"}]},{"id":"e-b","name":"Jalón al pecho","mus":"espalda","rir":"2-1","rest":"2''-3''","sets":[{"id":"s-c","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"},{"id":"s-d","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"}]},{"id":"e-e","name":"Remo en polea baja","mus":"espalda","rir":"2-1","rest":"2''-3''","sets":[{"id":"s-f","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"},{"id":"s-g","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"}]},{"id":"e-h","name":"Press de hombros con mancuernas","mus":"hombros","rir":"1-0","rest":"1:30-2''","sets":[{"id":"s-i","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"},{"id":"s-j","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"},{"id":"s-k","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"}]},{"id":"e-l","name":"Encogimiento en polea","mus":"abs","rir":"1-0","rest":"1:30-2''","sets":[{"id":"s-m","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"},{"id":"s-n","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"},{"id":"s-o","kg":"","reps":"","targetKg":"","done":false,"target":"8-12"}]}]}]'::jsonb, 10, true),
@@ -86,4 +213,6 @@ select (select count(*) from genericas where dias = 1) as activas_de_1_dia,
        (select count(*) from public.rutinas_catalogo where activa
            and (jsonb_path_exists(days, 'lax $[*].note') or jsonb_path_exists(days, 'lax $[*].exercises[*].note'))) as activas_con_notas,
        (select n from rg_resumen where que = 'catalogo_escondidas') as escondidas_ahora,
-       (select count(*) from public.rutinas_catalogo where not activa) as escondidas_en_total;
+       (select count(*) from public.rutinas_catalogo where not activa) as escondidas_en_total,
+       (select n from rg_resumen where que = 'rutinas_limpiadas') as rutinas_limpiadas,
+       (select n from rg_resumen where que = 'rutinas_sin_poder_limpiar') as rutinas_sin_poder_limpiar;

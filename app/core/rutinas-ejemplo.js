@@ -191,6 +191,8 @@ export function diasDeEntreno(r){ return (r.days || []).filter(d => (d.exercises
 // (audio / audioSecs: es de la carpeta de ese coach y quien entrena solo no lo puede
 // escuchar), los kilos que le propuso («Tu coach propone …», targetKg), los segundos anotados
 // (secs) y «sin sugerencias de peso» (noSug), que el coach apaga para un alumno en particular.
+// La base guarda el catálogo con la misma lista (rutina_generica en supabase/rutinas-genericas.sql;
+// si se cambia una, cambiar la otra: tests/rutinas-genericas-sql.test.mjs lo revisa).
 // El día de la semana que dice el subtítulo («Jueves · …») queda asignado (day.dias,
 // core/diasemana.js): así la app abre en el día que toca; se cambia en Entreno.
 export const CAMPOS_DIA = ["name", "subtitle", "dias"];
