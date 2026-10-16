@@ -27,6 +27,16 @@ body:not(#_) .co-daytab .co-daytab-dias { display:inline; margin:0; font-size:11
 body:not(#_) .co-daytab.on { color:var(--txt); background:color-mix(in srgb, var(--gize-blue) 11%, var(--card)); border-color:color-mix(in srgb, var(--gize-blue) 60%, transparent); }
 body:not(#_) .co-daytab.add { min-width:42px; padding:0 14px; justify-content:center; background:none; border-style:dashed; color:var(--gize-blue); }
 
+/* Días que se arrastran para cambiarlos de lugar (rutinas.js, «Días: arrastrar»): la pestaña que se
+   mueve queda tenue, la fantasma sigue al dedo y una rayita azul marca dónde cae. */
+body:not(#_) .co-daytab[data-coach="edit-day"] { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+body:not(#_) .co-daytabs + .co-day-hint { margin:-8px 2px 14px; }
+body:not(#_) .co-daytab.co-drop-l { box-shadow:inset 3px 0 0 var(--gize-blue); }
+body:not(#_) .co-daytab.co-drop-r { box-shadow:inset -3px 0 0 var(--gize-blue); }
+html.sin-neon body:not(#_) .co-daytab.co-drop-l { box-shadow:inset 3px 0 0 rgba(255,255,255,.7); }
+html.sin-neon body:not(#_) .co-daytab.co-drop-r { box-shadow:inset -3px 0 0 rgba(255,255,255,.7); }
+body:not(#_) .co-day-ghost { transform:scale(1.04) rotate(-1.5deg); }
+
 .co-day-bar { max-width:860px; margin:0 0 20px; }
 .co-day-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
 body:not(#_) .co-dias-wrap { gap:12px; }

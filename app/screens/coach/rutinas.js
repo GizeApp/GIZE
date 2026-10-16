@@ -800,6 +800,75 @@ document.addEventListener('contextmenu', e=>{ if(dragSt) e.preventDefault(); }, 
 // Al soltar, el click que sigue no debe abrir ni cerrar la tarjeta.
 document.addEventListener('click', e=>{ if(dragGuard){ e.stopPropagation(); e.preventDefault(); } }, true);
 
+// ---- Días: arrastrar una pestaña para cambiarla de lugar ----
+// Con mouse se aprieta y se mueve; en el celular se mantiene apretada (como los ejercicios) y se
+// desliza. Al soltar, el día pasa a ese lugar con todo lo suyo (ejercicios, nota, audios, días de
+// la semana) y queda como cambio sin guardar; el día que se estaba viendo sigue elegido. En el
+// menú «⋯» del día siguen «Mover antes» y «Mover después». Mismo editor en la rutina del alumno,
+// en «Mis rutinas», en las programadas y en la de descarga.
+export function moveDay(D, from, to){
+  if(!Array.isArray(D) || from===to || !(from>=0 && from<D.length) || !(to>=0 && to<D.length)) return false;
+  const [x]=D.splice(from,1); D.splice(to,0,x);
+  return true;
+}
+const dayTabs=()=>[...document.querySelectorAll('.co-daytabs .co-daytab[data-coach="edit-day"]')];
+let dayDrag=null, dayGuard=false;
+function dayDragEnd(commit){
+  const s=dayDrag; if(!s) return; dayDrag=null;
+  clearTimeout(s.timer); clearInterval(s.scroll);
+  if(s.ghost) s.ghost.remove();
+  document.querySelectorAll('.co-daytab.co-dragging,.co-daytab.co-drop-l,.co-daytab.co-drop-r').forEach(n=>n.classList.remove('co-dragging','co-drop-l','co-drop-r'));
+  document.body.classList.remove('co-drag-on');
+  if(!s.active) return;
+  dayGuard=true; setTimeout(()=>{ dayGuard=false; }, 350);
+  const D=rtDays(); if(!commit || s.to==null || !D) return;
+  const cur=D[CoachState.coachEditDay];
+  if(moveDay(D, s.from, s.to)){ CoachState.coachEditDay=Math.max(0, D.indexOf(cur)); renderCoach(); }
+}
+function dayDragStart(s){
+  s.active=true;
+  const r=s.tab.getBoundingClientRect();
+  s.ghost=s.tab.cloneNode(true); s.ghost.classList.add('co-drag-ghost','co-day-ghost'); s.ghost.classList.remove('on');
+  s.ghost.style.width=r.width+'px'; s.ghost.style.left=r.left+'px'; s.ghost.style.top=r.top+'px';
+  s.dx=s.x-r.left;
+  document.body.appendChild(s.ghost);
+  s.tab.classList.add('co-dragging'); document.body.classList.add('co-drag-on');
+  if(!s.mouse && navigator.vibrate) try{ navigator.vibrate(15); }catch(e){}
+  // Con muchos días la fila se desliza sola cerca de los bordes.
+  const strip=s.tab.parentNode;
+  s.scroll=setInterval(()=>{ const sr=strip.getBoundingClientRect(); if(s.x<sr.left+36) strip.scrollLeft-=12; else if(s.x>sr.right-36) strip.scrollLeft+=12; }, 16);
+}
+// A qué lugar va: cuántas de las otras pestañas quedan con el medio a la izquierda del dedo.
+function dayDragOver(s){
+  const others=dayTabs().filter((t,k)=>k!==s.from);
+  let n=0; others.forEach(t=>{ const r=t.getBoundingClientRect(); if(r.left+r.width/2<s.x) n++; });
+  s.to=n;
+  others.forEach((t,k)=>{ t.classList.toggle('co-drop-l', n!==s.from && k===n); t.classList.toggle('co-drop-r', n!==s.from && n===others.length && k===others.length-1); });
+}
+document.addEventListener('pointerdown', e=>{
+  if(dayDrag || dragSt || (e.pointerType==='mouse' && e.button!==0)) return;
+  const tab=e.target.closest && e.target.closest('.co-daytabs .co-daytab[data-coach="edit-day"]'); if(!tab) return;
+  const tabs=dayTabs(); if(tabs.length<2) return;
+  const s=dayDrag={ tab, from:tabs.indexOf(tab), x:e.clientX, y:e.clientY, x0:e.clientX, y0:e.clientY, id:e.pointerId, mouse:e.pointerType==='mouse', active:false, to:null };
+  if(!s.mouse) s.timer=setTimeout(()=>{ if(dayDrag===s) dayDragStart(s); }, HOLD_MS);
+}, true);
+document.addEventListener('pointermove', e=>{
+  const s=dayDrag; if(!s || e.pointerId!==s.id) return;
+  s.x=e.clientX; s.y=e.clientY;
+  if(!s.active){
+    if(Math.hypot(s.x-s.x0, s.y-s.y0)<=MOVE_TOL) return;
+    // Con mouse, moverlo apretado ya es arrastrar; con el dedo, moverse antes de tiempo es deslizar la fila.
+    if(s.mouse) dayDragStart(s); else { dayDragEnd(false); return; }
+  }
+  s.ghost.style.left=(s.x-s.dx)+'px';
+  dayDragOver(s);
+}, true);
+document.addEventListener('pointerup', e=>{ if(dayDrag && e.pointerId===dayDrag.id) dayDragEnd(true); }, true);
+document.addEventListener('pointercancel', e=>{ if(dayDrag && e.pointerId===dayDrag.id && !dayDrag.active) dayDragEnd(false); }, true);
+document.addEventListener('touchmove', e=>{ if(dayDrag && dayDrag.active) e.preventDefault(); }, { passive:false });
+document.addEventListener('contextmenu', e=>{ if(dayDrag) e.preventDefault(); }, true);
+document.addEventListener('click', e=>{ if(dayGuard){ e.stopPropagation(); e.preventDefault(); } }, true);
+
 const linkSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>';
 const plusSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
@@ -822,7 +891,8 @@ export function renderCoachRoutine(d){
   if(!rt.length) return '<div class="co-sec">Rutina y progreso</div><div class="cal-hint">El cliente todav\u00eda no tiene rutina.</div><button class="co-add-day" data-coach="day-add">+ Agregar d\u00eda</button>';
   if(CoachState.coachEditDay>=rt.length) CoachState.coachEditDay=0;
   // Cada pestaña con sus días de la semana abajo, chiquito (core/diasemana.js).
-  const tabs=rt.map((x,i)=>{ const dt=diasTexto(x); return '<button class="co-daytab'+(i===CoachState.coachEditDay?' on':'')+'" data-coach="edit-day" data-i="'+i+'">'+esc(x.name||('D\u00eda '+(i+1)))+(dt?'<small class="co-daytab-dias">'+esc(dt)+'</small>':'')+'</button>'; }).join("");
+  // Con dos días o más se pueden arrastrar para cambiarlos de lugar (ver «Días: arrastrar»).
+  const tabs=rt.map((x,i)=>{ const dt=diasTexto(x); return '<button class="co-daytab'+(i===CoachState.coachEditDay?' on':'')+'" data-coach="edit-day" data-i="'+i+'"'+(rt.length>1?' title="Arrastralo para cambiarlo de lugar"':'')+'>'+esc(x.name||('D\u00eda '+(i+1)))+(dt?'<small class="co-daytab-dias">'+esc(dt)+'</small>':'')+'</button>'; }).join("");
   const day=rt[CoachState.coachEditDay];
   const totalSets=(day.exercises||[]).reduce((n,x)=>n+((x.sets||[]).length),0);
   const totalEx=(day.exercises||[]).length;
@@ -851,6 +921,7 @@ export function renderCoachRoutine(d){
   const sugToggle='<span class="co-sug-mini" title="'+(sugOff?'Apagada: el cliente solo ve el peso que vos propongas.':'GIZE le recomienda subir 2,5 kg cuando la vez pasada se pasó del rango de reps, salvo donde cargues tu peso propuesto.')+'"><span>Sugerencia de peso</span><button type="button" class="co-sug-tg'+(sugOff?'':' on')+'" data-coach="rt-nosug-all" role="switch" aria-checked="'+(!sugOff)+'" aria-label="Sugerencia automática de peso"><span></span></button></span>';
   return coachDatalist()+
     '<div class="co-daytabs">'+tabs+'<button class="co-daytab add" data-coach="day-add" aria-label="Agregar día">+</button></div>'+
+    (rt.length>1 ? '<div class="co-drag-hint co-day-hint">Para cambiar el orden de los días, arrastralos (en el celular, mantené apretado uno).</div>' : '')+
     '<div class="co-day-bar">'+
       // Días de la semana de este día (puede ser más de uno): Entreno arranca en el día que toca hoy.
       '<div class="co-day-row">'+
