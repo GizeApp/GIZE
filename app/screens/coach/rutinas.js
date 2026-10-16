@@ -765,6 +765,7 @@ document.addEventListener('contextmenu', e=>{ if(dragSt) e.preventDefault(); }, 
 document.addEventListener('click', e=>{ if(dragGuard){ e.stopPropagation(); e.preventDefault(); } }, true);
 
 const linkSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>';
+const plusSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
 // El motivo de la sugerencia está escrito para el cliente; en el editor se lee en tercera persona.
 const coachWhy=w=>String(w).replace(/^Llegaste/,"Llegó").replace(/^La vez pasada hiciste/,"La vez pasada hizo").replace(/^La vez pasada aguantaste/,"La vez pasada aguantó").replace(/^Completá/,"Le falta completar").replace(/^Mismo peso que la vez pasada, una rep más\./,"Mismo peso, una rep más.").replace(/: subí el peso\./,": subir el peso.").replace(/: sumá una más\./,": una más.").replace(/: sumá 5 segundos\./,": 5 segundos más.").replace(/ antes de subir\.$/," antes de subir.");
@@ -791,13 +792,17 @@ export function renderCoachRoutine(d){
   const totalEx=(day.exercises||[]).length;
   // Las tarjetas van en grilla (3 por fila en pantalla ancha); la abierta sigue en su casillero
   // y crece hacia abajo, las superseries ocupan toda la fila. Se abre una sola a la vez
-  // (abrirSolo). Insertar y unir en superserie están en el menú "⋯" de la tarjeta abierta.
+  // (abrirSolo). Unir en superserie está en el menú "⋯" de la tarjeta abierta.
+  // Entre ejercicio y ejercicio, una línea finita «+ Agregar ejercicio» (como antes del rediseño):
+  // el buscador agrega el nuevo justo ahí (rt-ins), no al final. Adentro de una superserie el
+  // nuevo queda en la superserie (cpApply).
   const exs=day.exercises||[], groups=ssGroups(exs);
+  const ins=i=>'<button type="button" class="co-ins" data-coach="rt-ins" data-i="'+i+'" title="Agregar un ejercicio acá" aria-label="Agregar un ejercicio entre '+esc(exs[i-1].name||"el anterior")+' y '+esc(exs[i].name||"el siguiente")+'"><span class="co-ins-b">'+plusSvg+'Agregar ejercicio</span></button>';
   const cards=exs.map((ex,i)=>{
-    const g=groups.find(x=>i>=x.start && i<=x.end);
+    const g=groups.find(x=>i>=x.start && i<=x.end), inGroup=!!(g && i>g.start);
     const open=g && i===g.start ? '<div class="co-ss-group"><div class="co-ss-head">'+linkSvg+ssName(g)+' '+g.letter+'<button class="co-ss-split" data-coach="rt-ss-split" data-i="'+g.start+'">Separar</button><span>una serie de cada uno, sin descanso entre medio</span></div>' : '';
-    const div=g && i>g.start ? '<div class="ss-div" aria-hidden="true"><span>sin descanso</span></div>' : '';
-    return open+div+exerciseCard(d, day, ex, i, rt)+(g && i===g.end ? '</div>' : '');
+    const div=inGroup ? '<div class="ss-div" aria-hidden="true"><span>sin descanso</span></div>' : '';
+    return (i>0 && !inGroup ? ins(i) : '')+open+(inGroup ? ins(i) : '')+div+exerciseCard(d, day, ex, i, rt)+(g && i===g.end ? '</div>' : '');
   }).join("");
   const dotsOn=diasDe(day);
   const dayMenu='<details class="co-day-menu"><summary aria-label="Más opciones del día" title="Más opciones">•••</summary><div class="co-day-pop">'+
@@ -880,7 +885,14 @@ export function cpApply(name, cat){
   let ex;
   // Al cambiarlo, series con ids nuevos: el alumno no hereda lo cargado en el viejo (mergeLocalProgress).
   if(CoachState.coachPicker.mode==="swap"){ ex=day.exercises[CoachState.coachPicker.i]; if(ex){ if(ex.name!==name){ dropExMedia(ex); ex.sets.forEach(s=>{ s.id=uid(); }); } ex.name=name; ex.mus=mm; } }
-  else if(CoachState.coachPicker.mode==="insert"){ ex=mkEx(name,3,mm); day.exercises.splice(CoachState.coachPicker.idx,0,ex); }
+  else if(CoachState.coachPicker.mode==="insert"){
+    ex=mkEx(name,3,mm);
+    // Entre dos de una superserie (el de arriba va "con el siguiente"): el nuevo se suma a la
+    // superserie; si no, el de abajo quedaba afuera y el nuevo unido al de arriba.
+    const k=Math.min(Math.max(+CoachState.coachPicker.idx||0,0), day.exercises.length), prev=day.exercises[k-1];
+    if(prev && prev.ss && k<day.exercises.length) ex.ss=true;
+    day.exercises.splice(k,0,ex);
+  }
   else { ex=mkEx(name,3,mm); day.exercises.push(ex); }
   // el ejercicio recién agregado/cambiado arranca expandido para que el coach lo complete
   // de una — es el único abierto: el resto del día queda colapsado (abrirSolo).

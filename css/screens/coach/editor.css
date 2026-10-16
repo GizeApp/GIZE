@@ -125,6 +125,32 @@ body:not(#_) .co-tile-btn.empty { border-style:dashed; }
 body:not(#_) .co-tile-btn.empty span { color:var(--gize-blue); }
 body:not(#_) .co-more-panel .co-exc-fold { margin-top:12px; }
 
+/* ---------- Agregar entre ejercicios (rt-ins): una línea de neón finita con «+ Agregar ejercicio» ----------
+   Ocupa el hueco de la lista (márgenes negativos: casi no la alarga). Con mouse se ve tenue y se
+   prende al pasar; en pantallas táctiles se ve siempre y el área para tocar es más alta. */
+body:not(#_) .co-ins { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:20px; min-height:0; margin:-10px 0; padding:0;
+  background:none; border:0; border-radius:0; box-shadow:none; color:var(--gize-blue); font:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+body:not(#_) .co-ins::before { content:""; position:absolute; left:18px; right:18px; top:50%; height:1px; pointer-events:none;
+  background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--gize-blue) 55%, transparent) 18%, color-mix(in srgb, var(--gize-blue) 55%, transparent) 82%, transparent);
+  opacity:.45; transition:opacity .15s; }
+.co-ins-b { position:relative; display:inline-flex; align-items:center; gap:5px; padding:1px 10px 1px 8px; border-radius:999px; font-size:11px; font-weight:600; line-height:14px; white-space:nowrap;
+  background:var(--gize-surface); border:1px solid color-mix(in srgb, var(--gize-blue) 40%, var(--gize-border)); opacity:.6; transition:opacity .15s, border-color .15s; }
+.co-ins-b svg { width:11px; height:11px; flex:none; }
+body:not(#_) .co-ins:hover::before, body:not(#_) .co-ins:focus-visible::before { opacity:1; }
+body:not(#_) .co-ins:hover .co-ins-b, body:not(#_) .co-ins:focus-visible .co-ins-b { opacity:1; border-color:color-mix(in srgb, var(--gize-blue) 75%, transparent); }
+body:not(#_) .co-ins:focus-visible { outline:none; }
+body:not(#_) .co-ss-group .co-ins { margin:-6px 0 2px; }
+@media (hover:none), (pointer:coarse){
+  body:not(#_) .co-ins { height:28px; margin:-10px 0; }
+  body:not(#_) .co-ss-group .co-ins { margin:-8px 0 0; }
+  body:not(#_) .co-ins::before { opacity:.6; }
+  .co-ins-b { opacity:.85; }
+}
+html.sin-neon body:not(#_) .co-ins::before { background:linear-gradient(90deg, transparent, rgba(255,255,255,.22) 18%, rgba(255,255,255,.22) 82%, transparent); }
+html.sin-neon .co-ins-b { border-color:rgba(255,255,255,.22); }
+html.tema-luz.sin-neon body:not(#_) .co-ins::before { background:linear-gradient(90deg, transparent, rgba(11,13,17,.2) 18%, rgba(11,13,17,.2) 82%, transparent); }
+html.tema-luz.sin-neon .co-ins-b { border-color:rgba(11,13,17,.2); }
+
 /* ---------- Agregar ejercicio y pie con «Guardar rutina» ---------- */
 body:not(#_) .co-rt-add-end { margin:2px 0 0; padding:15px; border:1px dashed var(--gize-border); border-radius:16px; background:none; color:var(--gize-blue); font-size:14px; font-weight:600; }
 body:not(#_) .co-rt-add-end:hover { background:color-mix(in srgb, var(--gize-blue) 7%, transparent); }
