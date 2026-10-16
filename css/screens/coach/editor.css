@@ -69,13 +69,18 @@ body:not(#_) .co-exc-collapsed { position:relative; flex-direction:column; justi
 body:not(#_) .co-exc-swatch { display:none; }
 body:not(#_) .co-exc-collapsed .co-exc-head { display:flex; align-items:center; gap:12px; }
 body:not(#_) .co-exc-collapsed .co-exc-cname { flex:1; min-width:0; display:flex; align-items:center; gap:14px; font-size:16px; font-weight:600; white-space:normal; -webkit-line-clamp:unset; }
-body:not(#_) .co-exc-collapsed .co-exc-ctext { display:block; font-size:16px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* El nombre entero, hasta dos renglones (en el celular «Camilla de cuádri…» o «Sillón de isquiotibi…»
+   no dejaban saber cuál era; adentro de una superserie se cortaba casi siempre). */
+body:not(#_) .co-exc-collapsed .co-exc-ctext { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; font-size:16px; font-weight:600; line-height:1.25; overflow:hidden; white-space:normal; overflow-wrap:anywhere; }
 body:not(#_) .co-exc-head .co-exc-ord { display:inline-grid; place-items:center; flex:none; width:32px; height:32px; min-width:32px; margin:0; padding:0; border-radius:50%;
   background:var(--gize-surface-2); border:1px solid var(--gize-border); color:var(--txt); font-size:13px; font-weight:700; line-height:1; }
 body:not(#_) .co-exc-head .co-exc-ord.ss { background:var(--gize-surface-2); color:var(--gize-blue); border-color:color-mix(in srgb, var(--gize-blue) 45%, transparent); font-size:12px; border-radius:50%; padding:0; }
 body:not(#_) .co-exc-open .co-exc-head .co-exc-ord { color:var(--gize-blue); border-color:color-mix(in srgb, var(--gize-blue) 55%, transparent); }
 .co-exc-sum { flex:none; font-size:14px; color:var(--txt-2); font-variant-numeric:tabular-nums; white-space:nowrap; transition:opacity .15s; }
 @media (max-width: 640px){ .co-exc-sum .tg { display:none; } }
+/* En pantallas muy angostas (320 px) el «3 series» le dejaba al nombre menos de 100 px: se saca de la
+   tarjeta cerrada (se ve al abrirla) para que el nombre entre entero. */
+@media (max-width: 359px){ body:not(#_) .co-exc-collapsed .co-exc-sum { display:none; } }
 body:not(#_) .co-exc-chev { width:36px; height:36px; background:none; border:0; color:var(--txt-3); border-radius:50%; }
 body:not(#_) .co-exc-chev:hover { color:var(--txt); background:color-mix(in srgb, var(--txt) 6%, transparent); }
 body:not(#_) .co-exc-collapsed .co-exc-chev svg { transform:rotate(-90deg); }
