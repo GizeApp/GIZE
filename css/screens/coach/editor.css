@@ -39,7 +39,7 @@ body:not(#_) .co-daytab.co-drop-l { box-shadow:inset 3px 0 0 var(--gize-blue); }
 body:not(#_) .co-daytab.co-drop-r { box-shadow:inset -3px 0 0 var(--gize-blue); }
 html.sin-neon body:not(#_) .co-daytab.co-drop-l { box-shadow:inset 3px 0 0 rgba(255,255,255,.7); }
 html.sin-neon body:not(#_) .co-daytab.co-drop-r { box-shadow:inset -3px 0 0 rgba(255,255,255,.7); }
-body:not(#_) .co-day-ghost { transform:scale(1.04) rotate(-1.5deg); }
+html:not(#_):not(#__) body.silk-coach:not(#_) .co-daytab.co-day-ghost { transform:scale(1.04) rotate(-1.5deg); opacity:.96; background:var(--gize-surface-2); border-color:var(--gize-blue); color:var(--txt); }
 
 .co-day-bar { max-width:860px; margin:0 0 20px; }
 .co-day-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
