@@ -31,6 +31,10 @@ body:not(#_) .co-daytab.add { min-width:42px; padding:0 14px; justify-content:ce
    mueve queda tenue, la fantasma sigue al dedo y una rayita azul marca dónde cae. */
 body:not(#_) .co-daytab[data-coach="edit-day"] { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
 body:not(#_) .co-daytabs + .co-day-hint { margin:-8px 2px 14px; }
+/* Con mouse la fila de días no se puede deslizar (la ruedita mueve la página y no hay barra): con
+   seis o siete días los últimos y el «+» quedaban afuera, sin forma de llegar. En la compu van en
+   varios renglones; en pantallas táctiles sigue la fila que se desliza con el dedo. */
+@media (hover:hover) and (pointer:fine){ body:not(#_) .co-daytabs { flex-wrap:wrap; overflow-x:visible; } }
 body:not(#_) .co-daytab.co-drop-l { box-shadow:inset 3px 0 0 var(--gize-blue); }
 body:not(#_) .co-daytab.co-drop-r { box-shadow:inset -3px 0 0 var(--gize-blue); }
 html.sin-neon body:not(#_) .co-daytab.co-drop-l { box-shadow:inset 3px 0 0 rgba(255,255,255,.7); }

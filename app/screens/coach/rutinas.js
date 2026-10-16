@@ -869,7 +869,7 @@ function dayDragStart(s){
   const r=s.tab.getBoundingClientRect();
   s.ghost=s.tab.cloneNode(true); s.ghost.classList.add('co-drag-ghost','co-day-ghost'); s.ghost.classList.remove('on');
   s.ghost.style.width=r.width+'px'; s.ghost.style.left=r.left+'px'; s.ghost.style.top=r.top+'px';
-  s.dx=s.x-r.left;
+  s.dx=s.x-r.left; s.dy=s.y-r.top;
   document.body.appendChild(s.ghost);
   s.tab.classList.add('co-dragging'); document.body.classList.add('co-drag-on');
   if(!s.mouse && navigator.vibrate) try{ navigator.vibrate(15); }catch(e){}
@@ -877,10 +877,13 @@ function dayDragStart(s){
   const strip=s.tab.parentNode;
   s.scroll=setInterval(()=>{ const sr=strip.getBoundingClientRect(); if(s.x<sr.left+36) strip.scrollLeft-=12; else if(s.x>sr.right-36) strip.scrollLeft+=12; }, 16);
 }
-// A qué lugar va: cuántas de las otras pestañas quedan con el medio a la izquierda del dedo.
+// A qué lugar va: cuántas de las otras pestañas quedan antes del dedo, en orden de lectura (en la
+// compu las pestañas van en varios renglones: las de un renglón de arriba cuentan todas; las del
+// mismo renglón, si tienen el medio a la izquierda).
 function dayDragOver(s){
   const others=dayTabs().filter((t,k)=>k!==s.from);
-  let n=0; others.forEach(t=>{ const r=t.getBoundingClientRect(); if(r.left+r.width/2<s.x) n++; });
+  let n=0; others.forEach(t=>{ const r=t.getBoundingClientRect(), cy=r.top+r.height/2, fila=r.height*0.75;
+    if(cy<s.y-fila || (Math.abs(cy-s.y)<=fila && r.left+r.width/2<s.x)) n++; });
   s.to=n;
   others.forEach((t,k)=>{ t.classList.toggle('co-drop-l', n!==s.from && k===n); t.classList.toggle('co-drop-r', n!==s.from && n===others.length && k===others.length-1); });
 }
@@ -899,7 +902,7 @@ document.addEventListener('pointermove', e=>{
     // Con mouse, moverlo apretado ya es arrastrar; con el dedo, moverse antes de tiempo es deslizar la fila.
     if(s.mouse) dayDragStart(s); else { dayDragEnd(false); return; }
   }
-  s.ghost.style.left=(s.x-s.dx)+'px';
+  s.ghost.style.left=(s.x-s.dx)+'px'; s.ghost.style.top=(s.y-s.dy)+'px';
   dayDragOver(s);
 }, true);
 document.addEventListener('pointerup', e=>{ if(dayDrag && e.pointerId===dayDrag.id) dayDragEnd(true); }, true);
