@@ -731,6 +731,35 @@ document.addEventListener('keydown', e=>{
   closeMenus(null); const s=m.querySelector('summary'); if(s) s.focus();
 });
 
+// ---- Subir / bajar un ejercicio («⋯») sin desarmar superseries ----
+// En la rutina, ex.ss quiere decir "va con el siguiente": antes se cambiaban los dos ejercicios de
+// lugar con su ss y la superserie se armaba con otro (subir el segundo de una superserie metía en
+// ella al ejercicio de abajo). Ahora:
+// - Adentro de su superserie cambia de lugar con el de al lado y la superserie queda igual.
+// - Si no, se mueve el bloque entero (el ejercicio suelto, o su superserie si está en una punta) al
+//   otro lado del vecino, que también puede ser un suelto o una superserie entera.
+export function moveEx(arr, i, dir){
+  const j=i+dir; if(!Array.isArray(arr) || !arr[i] || !arr[j]) return false;
+  const setSS=(e,v)=>{ if(v) e.ss=true; else delete e.ss; };
+  const g=ssGroupOf(arr, i);
+  if(g && j>=g.start && j<=g.end){
+    const a=Math.min(i,j), b=Math.max(i,j), fa=!!arr[a].ss, fb=!!arr[b].ss;
+    [arr[a],arr[b]]=[arr[b],arr[a]]; setSS(arr[a],fa); setSS(arr[b],fb);
+    return true;
+  }
+  const a=g?g.start:i, b=g?g.end:i, ng=ssGroupOf(arr, j), na=ng?ng.start:j, nb=ng?ng.end:j;
+  const block=arr.splice(a, b-a+1);
+  arr.splice(dir<0 ? na : nb-block.length+1, 0, ...block);
+  return true;
+}
+// Quitar un ejercicio: si era el último de una superserie, el de arriba deja de ir "con el
+// siguiente" (si no, el ejercicio de abajo quedaba metido en la superserie).
+export function removeEx(arr, i){
+  const ex=Array.isArray(arr) && arr[i]; if(!ex) return null;
+  if(!ex.ss && i>0 && arr[i-1].ss) delete arr[i-1].ss;
+  return arr.splice(i,1)[0];
+}
+
 // ---- Superserie arrastrando (prueba): mantener apretada una tarjeta cerrada y soltarla sobre otra ----
 // Se saca el ejercicio de su lugar y se lo pone justo después del de destino, unidos (ex.ss = "va
 // con el siguiente"). Si el destino ya estaba en una superserie, el arrastrado se suma a esa cadena.

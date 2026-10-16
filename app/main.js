@@ -45,7 +45,7 @@ import { renderCoachSettings } from './screens/coach/settings.js';
 // Registra los eventos del editor de preguntas del coach (efecto al importarlo).
 import { ensureEditor, qDirty } from './screens/coach/preguntas.js';
 
-import { abrirSolo, coachPlanObj, cpApply, loadTpls, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody, mealStudioAction, mealStudioInput } from './screens/coach/rutinas.js';
+import { abrirSolo, coachPlanObj, cpApply, loadTpls, moveEx, refreshBlockWeeks, removeEx, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody, mealStudioAction, mealStudioInput } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
 import { calState } from './screens/coach/calendario.js';
@@ -1545,14 +1545,14 @@ document.body.addEventListener("click", async e => {
   if(a==="rt-sug-fill"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const e=day&&day.exercises[+b.dataset.i]; const kg=parseFloat(b.dataset.kg); if(e && kg>0){ e.sets.forEach(st=>{ st.targetKg=String(kg).replace(".", ","); }); renderCoach(); } return; }
   if(a==="rt-ss-split"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const g=day && ssGroupOf(day.exercises, +b.dataset.i); if(g){ for(let k=g.start;k<=g.end;k++) delete day.exercises[k].ss; renderCoach(); } return; }
   if(a==="rt-ss"){ const i=+b.dataset.i; const day=(rtDays()||[])[CoachState.coachEditDay]; const e=day&&day.exercises[i]; if(e && i<day.exercises.length-1){ if(e.ss) delete e.ss; else e.ss=true; renderCoach(); } return; }
-  if(a==="rt-up"){ const i=+b.dataset.i; const day=(rtDays()||[])[CoachState.coachEditDay]; if(day&&i>0){ const arr=day.exercises; [arr[i-1],arr[i]]=[arr[i],arr[i-1]]; CoachState.coachExMenu=null; renderCoach(); } return; }
-  if(a==="rt-down"){ const i=+b.dataset.i; const day=(rtDays()||[])[CoachState.coachEditDay]; if(day&&i<day.exercises.length-1){ const arr=day.exercises; [arr[i+1],arr[i]]=[arr[i],arr[i+1]]; CoachState.coachExMenu=null; renderCoach(); } return; }
+  // Subir / bajar sin desarmar superseries (moveEx en rutinas.js).
+  if(a==="rt-up"||a==="rt-down"){ const day=(rtDays()||[])[CoachState.coachEditDay]; if(day && moveEx(day.exercises, +b.dataset.i, a==="rt-up"?-1:1)){ CoachState.coachExMenu=null; renderCoach(); } return; }
   // Quitar un ejercicio se lleva sus series, objetivos, nota, video y audio: se pregunta antes
   // (deshacerlo era salir sin guardar y perder también todo lo demás).
   if(a==="rt-del"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day&&day.exercises[+b.dataset.i]; if(!ex) return;
     if(!confirm("¿Quitar «"+(ex.name||"este ejercicio")+"» de "+(day.name?"«"+day.name+"»":"este día")+"?")) return;
     CoachState.coachExpandedEx.delete(ex.id); if(CoachState.coachExMenu===ex.id) CoachState.coachExMenu=null;
-    day.exercises.splice(+b.dataset.i,1); renderCoach(); return; }
+    removeEx(day.exercises, +b.dataset.i); renderCoach(); return; }
   if(a==="rt-dup"){
     const day=(rtDays()||[])[CoachState.coachEditDay]; const i=+b.dataset.i; const ex=day&&day.exercises[i]; if(!ex) return;
     const copy=JSON.parse(JSON.stringify(ex)); copy.id=uid(); (copy.sets||[]).forEach(s=>{ s.id=uid(); s.kg=""; s.reps=""; s.done=false; });
