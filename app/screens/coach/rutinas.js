@@ -299,6 +299,16 @@ export function renderCoachPlan(d){
         '<div class="ci-f"><label>Agua por día (litros)</label><input class="co-note" data-coach="pl-water" value="'+esc(p.water||"")+'" placeholder=""></div>'+
         '<div class="ci-f"><label>Sal por día (g)</label><input class="co-note" data-coach="pl-salt" value="'+esc(p.salt||"")+'" placeholder=""></div>'+
       '</div>'), ()=>[p.water?withUnit(p.water,"L de agua"):"", p.salt?withUnit(p.salt,"g de sal"):""].filter(Boolean).join(" · ")||"Sin cargar"],
+    // Pautas, suplementos y cardio: el alumno los sigue viendo (Comida → Pautas y Cardio → «Tu cardio
+    // de esta semana»); sin estas tarjetas el coach no los podía cargar, cambiar ni borrar.
+    ["ind","Indicaciones", ()=>card("Indicaciones",
+      '<div class="ci-grid-2">'+
+        '<div>'+listEditor(p,"guidelines","Pautas nutricionales","")+'</div>'+
+        '<div>'+listEditor(p,"supps","Suplementos recomendados","")+'</div>'+
+      '</div>'), ()=>{ const g=(p.guidelines||[]).length, sp=(p.supps||[]).length; return g||sp ? [g?cnt(g,"pauta","pautas"):"", sp?cnt(sp,"suplemento","suplementos"):""].filter(Boolean).join(" · ") : "Sin cargar"; }],
+    ["cardio","Cardio", ()=>card("Cardio indicado",
+      '<div class="co-note-wrap" style="margin-top:0"><span class="co-note-lbl">Indicación general de cardio</span><input class="co-note" data-coach="pl-cardiotext" value="'+esc((p.cardio&&p.cardio.text)||"")+'" placeholder=""></div>'+
+      cardioItemsEditor(p)), ()=>(p.cardio&&p.cardio.text)||((p.cardio&&p.cardio.items||[]).length?cnt(p.cardio.items.length,"sesión","sesiones"):"Sin cargar")],
   ];
   // En «Mis planes» se guarda el plan guardado (planes.js); en el cliente, su plan.
   const tpl=!!(CoachState.coachMealEdit && !CoachState.coachSel);
