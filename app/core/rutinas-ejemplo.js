@@ -156,15 +156,33 @@ export function rutinasPara(sexo, lista){
 export function diasDeEntreno(r){ return (r.days || []).filter(d => (d.exercises || []).length).length; }
 
 // Copia de los días para el usuario: ids nuevos y series vacías. Las rutinas del catálogo
-// pueden venir de la rutina de un alumno: sin los kilos que el coach le propuso a esa
-// persona ("Tu coach propone …") ni sus audios (son de la carpeta de ese coach y quien
-// entrena solo no los puede escuchar).
+// pueden venir de una plantilla de un coach o de la rutina de un alumno, con cosas escritas
+// para esa persona. Por eso se copia solo lo que hace a la rutina (lo que no está en la lista
+// no pasa, aunque mañana la rutina tenga un campo nuevo):
+//   · día: nombre, subtítulo y días de la semana (dias);
+//   · ejercicio: nombre, músculo (mus), RIR, descanso, si va por tiempo (timed) y si va en
+//     superserie con el siguiente (ss);
+//   · serie: el objetivo (target: «8-12», «45 s»), con kilos, reps y tilde vacíos.
+// Queda afuera, entre otras cosas: las notas del día y del ejercicio (note: lo que el coach le
+// escribió a ese alumno), el objetivo de progreso (goal, también texto del coach), el video
+// que pegó el coach (video / videoFor: sin él, la app usa el de su biblioteca), su audio
+// (audio / audioSecs: es de la carpeta de ese coach y quien entrena solo no lo puede
+// escuchar), los kilos que le propuso («Tu coach propone …», targetKg), los segundos anotados
+// (secs) y «sin sugerencias de peso» (noSug), que el coach apaga para un alumno en particular.
 // El día de la semana que dice el subtítulo («Jueves · …») queda asignado (day.dias,
 // core/diasemana.js): así la app abre en el día que toca; se cambia en Entreno.
+export const CAMPOS_DIA = ["name", "subtitle", "dias"];
+export const CAMPOS_EJ = ["name", "mus", "rir", "rest", "timed", "ss"];
+const solo = (o, campos) => { const out = {}; campos.forEach(k => { if (o[k] !== undefined) out[k] = o[k]; }); return out; };
+const objetos = l => (Array.isArray(l) ? l : []).filter(x => x && typeof x === "object" && !Array.isArray(x));
 export function copiarDias(days){
-  const out = JSON.parse(JSON.stringify(days || []));
-  out.forEach(d => { d.id = uid(); if (!Array.isArray(d.dias)) { const w = diasDeSubtitulo(d.subtitle); if (w) d.dias = w; } (d.exercises || []).forEach(ex => { ex.id = uid(); delete ex.audio; delete ex.audioSecs; (ex.sets || []).forEach(st => { st.id = uid(); st.kg = ""; st.reps = ""; st.done = false; delete st.targetKg; }); }); });
-  return out;
+  return objetos(JSON.parse(JSON.stringify(days || []))).map(d => {
+    const day = Object.assign({ id: uid() }, solo(d, CAMPOS_DIA));
+    if (!Array.isArray(day.dias)) { delete day.dias; const w = diasDeSubtitulo(d.subtitle); if (w) day.dias = w; }
+    day.exercises = objetos(d.exercises).map(ex => Object.assign({ id: uid() }, solo(ex, CAMPOS_EJ), {
+      sets: objetos(ex.sets).map(st => Object.assign({ id: uid(), kg: "", reps: "", done: false }, st.target !== undefined ? { target: st.target } : {})) }));
+    return day;
+  });
 }
 
 // Filtro por días por semana (0: todas). Orden: de menos a más días, como vienen.
