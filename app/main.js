@@ -1705,7 +1705,8 @@ document.body.addEventListener("input", async e => {
   const a=a0; const day=(rtDays()||[])[CoachState.coachEditDay];
   if(!day && /^(rt-|day-)/.test(a)) return;
   if(a==="rt-name"){ if(day.exercises[+el.dataset.i]) day.exercises[+el.dataset.i].name=el.value; }
-  else if(a==="day-name"){ day.name=el.value; }
+  // El nombre del día también en su pestaña, mientras se escribe (antes seguía el viejo hasta redibujar).
+  else if(a==="day-name"){ day.name=el.value; const tb=document.querySelector('#coachHost .co-daytab.on[data-coach="edit-day"]'); if(tb && tb.firstChild && tb.firstChild.nodeType===3) tb.firstChild.textContent=el.value||("Día "+(CoachState.coachEditDay+1)); }
   else if(a==="rt-target"){ const ex=day.exercises[+el.dataset.i]; const st=ex&&ex.sets[+el.dataset.j]; if(st){ const v=el.value.trim(); if(v) st.target=v; else delete st.target; } }
   else if(a==="rt-targetkg"){ const ex=day.exercises[+el.dataset.i]; const st=ex&&ex.sets[+el.dataset.j]; if(st) st.targetKg=el.value; }
   else if(a==="rt-note"){ const ex=day.exercises[+el.dataset.i]; if(ex){ const v=el.value.trim(); if(v) ex.note=v; else delete ex.note; } }
