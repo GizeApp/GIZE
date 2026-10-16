@@ -104,8 +104,19 @@ function secCuenta(){
 const BODY = { perfil: secPerfil, apariencia: secApariencia, avisos: secAvisos, plan: secPlan, preguntas: secPreguntas, privacidad: secPrivacidad, cuenta: secCuenta };
 
 // Contenido de la pantalla (lo envuelve coachShell en index.js).
+// En el celular el menú de secciones es una fila que se desliza: al redibujar volvía al principio y
+// la sección elegida («Privacidad», «Cuenta», o «Preguntas» desde el «?») quedaba afuera de la
+// pantalla. Después de dibujar, la elegida se corre a la vista.
+function mostrarElegida(){
+  const nav = document.querySelector("#coachHost .cs-nav"), on = nav && nav.querySelector(".cs-nav-i.on");
+  if(!on || nav.scrollWidth <= nav.clientWidth) return;
+  const nr = nav.getBoundingClientRect(), r = on.getBoundingClientRect();
+  if(r.left < nr.left || r.right > nr.right) nav.scrollLeft += (r.left + r.width / 2) - (nr.left + nr.width / 2);
+}
+
 export function renderSettingsView(){
   checkAdmin(renderCoachSettings);
+  queueMicrotask(mostrarElegida);
   const secs = secciones();
   let k = CoachState.coachSetSec;
   if(!secs.some(s => s[0] === k)) k = "perfil";
