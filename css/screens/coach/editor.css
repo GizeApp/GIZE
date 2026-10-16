@@ -125,6 +125,13 @@ body:not(#_) .co-tile-btn.empty { border-style:dashed; }
 body:not(#_) .co-tile-btn.empty span { color:var(--gize-blue); }
 body:not(#_) .co-more-panel .co-exc-fold { margin-top:12px; }
 
+/* Menú «⋯» del ejercicio abierto: la tarjeta (y su superserie) pasan adelante y no recortan el menú
+   (antes «Quitar ejercicio» quedaba cortado abajo); .up lo abre para arriba si abajo no entra. */
+body:not(#_) .co-exc.co-menu-on { overflow:visible; z-index:30; }
+body:not(#_) .co-ss-group.co-menu-on { position:relative; z-index:30; }
+body:not(#_) .co-day-menu.up .co-day-pop { top:auto; bottom:calc(100% + 6px); }
+.co-pop-sep { flex:none; height:1px; margin:3px 8px; border:0; background:var(--gize-border); }
+
 /* ---------- Agregar entre ejercicios (rt-ins): una línea de neón finita con «+ Agregar ejercicio» ----------
    Ocupa el hueco de la lista (márgenes negativos: casi no la alarga). Con mouse se ve tenue y se
    prende al pasar; en pantallas táctiles se ve siempre y el área para tocar es más alta. */

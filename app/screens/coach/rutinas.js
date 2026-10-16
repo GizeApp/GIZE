@@ -589,11 +589,12 @@ function exerciseCard(d, day, ex, i, rt){
   const plus='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
   const linked=!!ex.ss, isLast=i===(day.exercises||[]).length-1;
   // Subir, bajar, cambiar, duplicar, insertar, superserie y quitar: en el menú "⋯" de la cabecera.
-  const menu='<details class="co-day-menu co-exc-menu2"><summary aria-label="Más opciones del ejercicio" title="Más opciones">•••</summary><div class="co-day-pop">'+
+  // «Quitar ejercicio» va último, separado y en rojo; el menú no se recorta (ver «Menús ⋯» más abajo).
+  const menu='<details class="co-day-menu co-exc-menu2"><summary aria-label="Más opciones del ejercicio" title="Más opciones">•••</summary><div class="co-day-pop" role="menu">'+
       act("rt-up", up, "Subir")+act("rt-down", down, "Bajar")+act("rt-swap", swapSvg, "Cambiar ejercicio")+
       act("rt-dup", copySvg, "Duplicar")+act("rt-ins", plus, "Insertar uno antes")+
       (isLast ? '' : act("rt-ss", linkSvg, linked?"Separar de la superserie":"Unir con el siguiente (superserie)"))+
-      act("rt-del", trashSvg, "Quitar", " danger")+
+      '<hr class="co-pop-sep">'+act("rt-del", trashSvg, "Quitar ejercicio", " danger")+
     '</div></details>';
 
   // Lo que hizo el cliente la última vez en este ejercicio (primero en este mismo día, si no
@@ -693,6 +694,41 @@ document.addEventListener('click', e=>{
   if(willOpen) tilesOpen.set(id,key); else tilesOpen.delete(id);
   wrap.querySelectorAll('.co-tile-btn').forEach(x=>{ const on=willOpen && x.dataset.tile===key; x.classList.toggle('on',on); x.setAttribute('aria-expanded',on); });
   wrap.querySelectorAll('.co-tile-panel').forEach(x=>{ x.hidden=!(willOpen && x.dataset.tile===key); });
+});
+
+// ---- Menús «⋯» (details.co-day-menu: el del día, el de cada ejercicio y «Más acciones») ----
+// La tarjeta del ejercicio recorta lo que se sale (overflow:hidden por el filete): con pocas series
+// «Quitar ejercicio», el último, quedaba cortado y había que abrir «Más opciones» para alcanzarlo.
+// Abierto, la tarjeta (y su superserie) pasan adelante sin recortar (.co-menu-on); si abajo no
+// entra (fin de la pantalla o la barra de abajo del celular), abre para arriba y, si tampoco, se
+// desliza el panel lo justo. Se cierra al elegir una opción, al tocar afuera, con Escape o al abrir otro.
+function closeMenus(except){ document.querySelectorAll('details.co-day-menu[open]').forEach(d=>{ if(d!==except) d.open=false; }); }
+function placeMenu(d){
+  const pop=d.querySelector('.co-day-pop'), sum=d.querySelector('summary'); if(!pop || !sum || d.classList.contains('co-more-actions')) return;
+  d.classList.remove('up');
+  const r=pop.getBoundingClientRect(), s=sum.getBoundingClientRect();
+  let bottom=innerHeight-8;
+  const nav=document.querySelector('.cv-nav'), nr=nav && nav.getBoundingClientRect();
+  if(nr && nr.height && getComputedStyle(nav).position==='fixed' && nr.top<innerHeight) bottom=Math.min(bottom, nr.top-8);
+  if(r.bottom<=bottom) return;
+  if(s.top-r.height-6>=8){ d.classList.add('up'); return; }
+  const host=document.getElementById('coachHost'); if(host) host.scrollTop+=Math.ceil(r.bottom-bottom);
+}
+document.addEventListener('toggle', e=>{
+  const d=e.target; if(!d || !d.classList || !d.classList.contains('co-day-menu')) return;
+  [d.closest('.co-exc'), d.closest('.co-ss-group')].forEach(x=>{ if(x) x.classList.toggle('co-menu-on', d.open); });
+  if(!d.open){ d.classList.remove('up'); return; }
+  closeMenus(d); placeMenu(d);
+}, true);
+document.addEventListener('click', e=>{
+  const t=e.target, m=t && t.closest && t.closest('details.co-day-menu');
+  if(m && t.closest('.co-day-pop button:not(:disabled)')){ m.open=false; return; }
+  if(!m) closeMenus(null);
+}, true);
+document.addEventListener('keydown', e=>{
+  if(e.key!=='Escape') return;
+  const m=document.querySelector('details.co-day-menu[open]'); if(!m) return;
+  closeMenus(null); const s=m.querySelector('summary'); if(s) s.focus();
 });
 
 // ---- Superserie arrastrando (prueba): mantener apretada una tarjeta cerrada y soltarla sobre otra ----
