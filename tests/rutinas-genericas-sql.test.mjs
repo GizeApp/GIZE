@@ -1,7 +1,8 @@
 // supabase/rutinas-genericas.sql (se corre con el workflow "Supabase" → tarea sql): carga las
 // rutinas genéricas de 1 a 6 días de la app (CATALOGO, app/core/rutinas-ejemplo.js), esconde las
 // demás del catálogo, limpia las notas del catálogo que ya se habían copiado a la rutina de
-// quien entrena sin coach y deja un control para que el catálogo no vuelva a guardar notas.
+// quien entrena sin coach (y los nombres de día que no son genéricos, «Martina - Pierna») y deja
+// un control para que el catálogo no vuelva a guardar notas.
 // Que las rutinas sean las mismas que las de la app, tal cual, lo revisa rutinas-armadas.test.mjs.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -73,6 +74,42 @@ export default async ({ t }) => {
   t.ok(/d->>'note' = any\(notas\)/.test(fnTextos) && /e->>'note' = any\(notas\)/.test(fnTextos), 'saca la nota solo si es exactamente un texto del catálogo');
   t.ok(/order by i\)/.test(fnTextos) && /order by n\)/.test(fnTextos), 'mantiene el orden de días y ejercicios');
 
+  // Nombres de día: solo los días con el mismo nombre y subtítulo que un día de una rutina
+  // escondida (no genérica) del catálogo; se quedan si todas sus palabras son de rutina.
+  t.ok(/pg_temp\.rg_dia_nombre\(case when d->>'note' = any\(notas\) then d - 'note' else d end, n, pares\)/.test(fnTextos), 'cambia los nombres dentro de la misma limpieza (mismo alcance: sin coach)');
+  t.eq([...cuerpo.matchAll(/pg_temp\.rg_sin_textos\(/g)].length, 2, 'rg_sin_textos: se define y se usa una sola vez');
+  t.ok(/pg_temp\.rg_sin_textos\(r\.days, t\.notas, t\.metas, t\.videos, t\.pares\)/.test(sinCoach), 'se usa con las rutinas de quien no tiene coach');
+  t.ok(/coalesce\(d->>'name', ''\) \|\| chr\(31\) \|\| coalesce\(d->>'subtitle', ''\)\s+from public\.rutinas_catalogo c, [^\n]*\n\s+where c\.id not in \(select id from rg_genericas\) and jsonb_typeof\(d\) = 'object'\) as pares/.test(textos),
+    'los pares nombre + subtítulo salen solo de las rutinas escondidas (no genéricas)');
+  const fnDia = (cuerpo.match(/create or replace function pg_temp\.rg_dia_nombre[\s\S]*?\$\$;/) || [''])[0];
+  t.ok(/\(coalesce\(d->>'name', ''\) \|\| chr\(31\) \|\| coalesce\(d->>'subtitle', ''\)\) = any \(pares\)\) then d/.test(fnDia), 'un día que no es de esas rutinas queda igual');
+  t.ok(/pg_temp\.rg_generico\(d->>'name'\)/.test(fnDia) && /coalesce\(pg_temp\.rg_musculos\(d\), 'Día ' \|\| n\)/.test(fnDia), 'nombre: si no es genérico, los músculos o «Día N»');
+  t.ok(/pg_temp\.rg_generico\(d->>'subtitle'\)/.test(fnDia) && /pg_temp\.rg_solo_dias\(split_part\(d->>'subtitle', '·', 1\)\)/.test(fnDia), 'subtítulo: si no es genérico, el día de la semana y los músculos');
+  // Los músculos, como los nombra la app (EX_CATS), como mucho tres.
+  const fnMus = (cuerpo.match(/create or replace function pg_temp\.rg_musculos[\s\S]*?\$\$;/) || [''])[0];
+  const exCats = JSON.parse((leer('app/core/data.js').match(/export const EX_CATS = (\[[^;]*\]);/) || [])[1] || '[]');
+  t.eq([...fnMus.matchAll(/\('(\w+)', '([^']+)'\)/g)].map(m => [m[1], m[2]]), exCats, 'etiquetas de los músculos = EX_CATS de data.js');
+  t.ok(/limit 3\)/.test(fnMus), 'como mucho tres músculos');
+  // La lista de palabras genéricas: todos los días de las rutinas genéricas pasan; un nombre
+  // con el de una persona, no. (Misma cuenta que rg_palabras, en JS.)
+  const fnPal = (cuerpo.match(/create or replace function pg_temp\.rg_palabras[\s\S]*?\$\$;/) || [''])[0];
+  const [, de, a] = fnPal.match(/translate\(coalesce\(t, ''\), '([^']+)', '([^']+)'\)/) || [, '', ''];
+  t.ok(de.length > 20 && [...de].length === [...a].length, 'saca los acentos (mayúsculas y minúsculas)');
+  t.ok(/'\[\[:space:\]\[:punct:\]·«»¿¡“”‘’–—…\]\+'/.test(fnPal) && /w !~ '\^\(\[a-d\]\|\[0-9\]\+\|x\[0-9\]\+\|\[0-9\]\+x\)\$'/.test(fnPal), 'separa por espacios y signos; sin letras sueltas A-D ni números');
+  const vocab = lista((cuerpo.match(/create or replace function pg_temp\.rg_generico[\s\S]*?array\[([\s\S]*?)\]\)\);/) || [])[1] || '');
+  const palabras = x => [...String(x || '')].map(c => de.includes(c) ? [...a][[...de].indexOf(c)] : c).join('').toLowerCase()
+    .split(/[\s!-/:-@[-`{-~·«»¿¡“”‘’–—…]+/).filter(w => w && !/^([a-d]|[0-9]+|x[0-9]+|[0-9]+x)$/.test(w));
+  const generico = x => palabras(x).every(w => vocab.includes(w));
+  t.ok(vocab.length > 100 && ['pierna', 'torso', 'empuje', 'tiron', 'gluteos', 'dia', 'lunes', 'sabado', 'y', 'de'].every(w => vocab.includes(w)), 'lista de palabras genéricas: ' + vocab.length);
+  t.ok(vocab.every(w => /^[a-z]+$/.test(w) && palabras(w).join() === w), 'la lista ya está normalizada (minúscula, sin acentos)');
+  const noGen = [...new Set(rows.flatMap(r => r.days.flatMap(d => [d.name, d.subtitle])))].filter(x => !generico(x));
+  t.eq(noGen, [], 'los nombres y subtítulos de las rutinas genéricas son genéricos');
+  t.eq(['Pierna A', 'Torso (Upper)', 'Día 2 (B)', 'Glúteos e isquios', 'Lunes · Pecho · Espalda', 'Full body x2', 'Martina - Pierna', 'Día de Juli', 'Pierna Martu', 'Lunes · Para Ana'].map(generico),
+    [true, true, true, true, true, true, false, false, false, false], 'genérico o no (ejemplos)');
+  const semana = lista((cuerpo.match(/create or replace function pg_temp\.rg_solo_dias[\s\S]*?bool_or\(w = any \(array\[([^\]]*)\]/) || [])[1] || '');
+  t.ok(['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].every(w => semana.includes(w) && vocab.includes(w)), 'días de la semana');
+  t.ok(/dias as \(/.test(cuerpo) && /from limpias l\s+join sin_coach s on s\.client_id = l\.client_id/.test(cuerpo), 'cuenta los días cambiados solo de las rutinas que sí se limpiaron');
+
   // 2) Las demás del catálogo se esconden (no se borran).
   t.ok(/update public\.rutinas_catalogo set activa = false\s+where activa and id not in \(select id from rg_genericas\)/.test(cuerpo), 'esconde las que no son genéricas');
 
@@ -104,7 +141,7 @@ export default async ({ t }) => {
   t.ok(/^with genericas as \(/.test(ultima) && cuerpo.indexOf('commit;') < cuerpo.lastIndexOf('notify pgrst'), 'termina con la consulta del resumen, después del commit');
   const alias = [...ultima.matchAll(/\bas (\w+)(?=,|;|\s*$)/g)].map(m => m[1]);
   t.eq(alias, ['activas_de_1_dia', 'activas_de_2_dias', 'activas_de_3_dias', 'activas_de_4_dias', 'activas_de_5_dias', 'activas_de_6_dias', 'otras_activas', 'activas_con_notas',
-    'escondidas_ahora', 'escondidas_en_total', 'rutinas_limpiadas', 'rutinas_sin_poder_limpiar'], 'columnas del resumen');
+    'escondidas_ahora', 'escondidas_en_total', 'rutinas_limpiadas', 'rutinas_sin_poder_limpiar', 'dias_renombrados', 'subtitulos_cambiados'], 'columnas del resumen');
   const salida = ultima.slice(ultima.indexOf('\nselect '));
   t.eq(salida.split(/,\n\s*/).filter(c => !/^\s*(select )?\(select (count\(\*\)|n) from /.test(c)), [], 'cada columna es una cantidad (count o el número guardado)');
   t.ok(!/email|full_name|nombre|descripcion|client_id|coach_id|auth\.|select \*|->>|#>>/.test(ultima), 'sin columnas de personas ni textos');

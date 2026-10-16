@@ -22,10 +22,18 @@
 --      de progreso (goal) y el video que pegó el coach (video, videoFor) SOLO si ese mismo texto
 --      está en alguna rutina del catálogo (activa o no). No toca a nadie con coach (la alumna de
 --      la plantilla sigue con las notas de su coach) ni las plantillas de los coaches
---      (routine_templates). La rutina limpia queda con updated_at = ahora, así el celular toma
---      esa en vez de volver a subir la que tenía. Una rutina que la base ya no acepta (datos
---      viejos, ver seguridad-base.sql, o más grande que el tope de topes-datos.sql) se saltea y
---      se cuenta al final (rutinas_sin_poder_limpiar).
+--      (routine_templates).
+--      También los nombres de los días: un día que se llama y tiene el subtítulo exactamente como
+--      un día de una rutina escondida del catálogo (las que no son estas) conserva el nombre si
+--      es genérico (todas sus palabras están en la lista de rg_generico: «Pierna A», «Torso
+--      (Upper)», «Día 2») y si no («Martina - Pierna») pasa a llamarse por los músculos de sus
+--      ejercicios («Cuádriceps · Isquios», como mucho tres) o «Día N» si no tiene ejercicios. Lo
+--      mismo el subtítulo: si no es genérico queda el día de la semana con que empezaba
+--      («Lunes») y los músculos, o vacío.
+--      La rutina limpia queda con updated_at = ahora, así el celular toma esa en vez de volver a
+--      subir la que tenía. Una rutina que la base ya no acepta (datos viejos, ver
+--      seguridad-base.sql, o más grande que el tope de topes-datos.sql) se saltea y se cuenta al
+--      final (rutinas_sin_poder_limpiar).
 --   2) Esconde (activa = false; no se borra) toda rutina del catálogo que no sea una de estas.
 --      Las escondidas quedan como estaban: así, si hace falta, este archivo se puede volver a
 --      correr y sigue encontrando esos textos.
@@ -37,7 +45,8 @@
 --      app/core/rutinas-ejemplo.js). Función rutina_generica, trigger rutinas_catalogo_limpiar.
 --   4) Carga o actualiza estas rutinas (activas, ordenadas por días por semana).
 --   Al final devuelve SOLO cantidades (el log del workflow es público): rutinas activas de cada
---   cantidad de días, cuántas se escondieron y cuántas rutinas de personas se limpiaron.
+--   cantidad de días, cuántas se escondieron, cuántas rutinas de personas se limpiaron y
+--   cuántos días cambiaron de nombre o de subtítulo.
 --
 -- Correr con el workflow "Supabase" → tarea sql → supabase/rutinas-genericas.sql, después de
 -- rutinas-catalogo.sql (y de seguridad-base.sql y ejercicio-audio.sql, que ya están corridos).
@@ -47,16 +56,110 @@
 begin;
 
 -- 1) Lo que ya se copió del catálogo a la rutina de quien entrena sin coach.
--- Saca de los días y ejercicios las notas, objetivos y videos que estén en las listas (el
--- resto, igual: mismo orden y misma forma).
-create or replace function pg_temp.rg_sin_textos(days jsonb, notas text[], metas text[], videos text[])
+-- Palabras de un nombre: en minúscula, sin acentos ni signos, sin letras sueltas de la A a la D
+-- ni números («Pierna (B) 2», «Full body x2» → pierna; full, body). Lo que no es una letra común
+-- queda en la palabra (y no va a estar en la lista).
+create or replace function pg_temp.rg_palabras(t text)
+returns text[]
+language sql
+immutable
+as $$
+  select coalesce(array_agg(w order by i), '{}')
+    from regexp_split_to_table(
+           regexp_replace(lower(translate(coalesce(t, ''), 'áàâäãéèêëíìîïóòôöõúùûüñçÁÀÂÄÃÉÈÊËÍÌÎÏÓÒÔÖÕÚÙÛÜÑÇ', 'aaaaaeeeeiiiiooooouuuuncaaaaaeeeeiiiiooooouuuunc')),
+                          '[[:space:][:punct:]·«»¿¡“”‘’–—…]+', ' ', 'g'), ' ') with ordinality as x(w, i)
+   where w <> '' and w !~ '^([a-d]|[0-9]+|x[0-9]+|[0-9]+x)$';
+$$;
+
+-- Genérico: todas sus palabras son de rutina (grupos musculares, tipos de día, días de la
+-- semana, conectores). Uno vacío también.
+create or replace function pg_temp.rg_generico(t text)
+returns boolean
+language sql
+immutable
+as $$
+  select not exists (select 1 from unnest(pg_temp.rg_palabras(t)) w where w <> all (array[
+    'dia', 'dias', 'semana', 'semanal', 'sesion', 'rutina', 'entrenamiento', 'entreno', 'bloque', 'fase', 'parte', 'version',
+    'variante', 'opcion', 'extra', 'opcional', 'general', 'basico', 'basica', 'completo', 'completa', 'entero', 'todo',
+    'una', 'vez', 'por', 'ppl', 'split', 'full', 'body', 'fullbody', 'upper', 'lower', 'push', 'pull', 'legs', 'leg', 'arms',
+    'chest', 'back', 'shoulders', 'day', 'rest',
+    'torso', 'tren', 'superior', 'inferior', 'pierna', 'piernas', 'empuje', 'tiron', 'traccion', 'cuerpo', 'gluteo',
+    'gluteos', 'cola', 'brazo', 'brazos', 'hombro', 'hombros', 'espalda', 'pecho', 'pectoral', 'pectorales', 'biceps',
+    'triceps', 'cuadriceps', 'isquios', 'isquiotibiales', 'femoral', 'femorales', 'gemelo', 'gemelos', 'pantorrillas',
+    'abdomen', 'abdominal', 'abdominales', 'abs', 'core', 'aductor', 'aductores', 'abductor', 'abductores', 'lumbar',
+    'lumbares', 'trapecio', 'trapecios', 'dorsal', 'dorsales', 'antebrazo', 'antebrazos', 'deltoides', 'cadera', 'cuello',
+    'posterior', 'posteriores', 'anterior', 'lateral', 'laterales', 'frontal', 'alto', 'alta', 'bajo', 'baja', 'medio',
+    'media',
+    'cardio', 'hiit', 'aerobico', 'caminar', 'caminata', 'bici', 'bicicleta', 'eliptico', 'cinta', 'correr', 'trote',
+    'minutos', 'min', 'movilidad', 'estiramiento', 'estiramientos', 'elongacion', 'descanso', 'activo', 'activa',
+    'recuperacion', 'libre', 'fuerza', 'hipertrofia', 'potencia', 'resistencia', 'tecnica', 'volumen', 'intensidad',
+    'carga', 'descarga', 'pesado', 'liviano', 'foco', 'enfasis', 'crossfit', 'running', 'halterofilia',
+    'y', 'e', 'o', 'u', 'de', 'del', 'con', 'sin', 'el', 'la', 'los', 'las', 'en', 'para', 'mas', 'al',
+    'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo', 'lun', 'mar', 'mie', 'mier', 'jue', 'vie', 'sab', 'dom']));
+$$;
+
+-- Solo días de la semana («Lunes», «Lunes y jueves»).
+create or replace function pg_temp.rg_solo_dias(t text)
+returns boolean
+language sql
+immutable
+as $$
+  select coalesce(bool_and(w = any (array['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo', 'lun', 'mar', 'mie', 'mier', 'jue', 'vie', 'sab', 'dom', 'y', 'e']))
+                  and bool_or(w = any (array['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo', 'lun', 'mar', 'mie', 'mier', 'jue', 'vie', 'sab', 'dom'])), false)
+    from unnest(pg_temp.rg_palabras(t)) w;
+$$;
+
+-- Los músculos de los ejercicios del día (como los nombra la app, EX_CATS en
+-- app/core/data.js), en el orden en que aparecen, como mucho tres: «Cuádriceps · Isquios».
+create or replace function pg_temp.rg_musculos(d jsonb)
+returns text
+language sql
+immutable
+as $$
+  select string_agg(etiqueta, ' · ' order by primero) from (
+    select m.etiqueta, min(x.i) as primero
+      from jsonb_array_elements(case when jsonb_typeof(d->'exercises') = 'array' then d->'exercises' else '[]'::jsonb end) with ordinality as x(e, i)
+      join (values ('pecho', 'Pecho'), ('espalda', 'Espalda'), ('hombros', 'Hombros'), ('biceps', 'Bíceps'), ('triceps', 'Tríceps'),
+                 ('cuadriceps', 'Cuádriceps'), ('isquios', 'Isquios'), ('gluteos', 'Glúteos'), ('aductores', 'Aductores'),
+                 ('gemelos', 'Gemelos'), ('abs', 'Abdominales'), ('antebrazo', 'Antebrazo'), ('cuello', 'Cuello'),
+                 ('olimpicos', 'Halterofilia'), ('crossfit', 'CrossFit'), ('running', 'Running')) as m(mus, etiqueta)
+        on m.mus = x.e->>'mus'
+     group by m.etiqueta
+     order by min(x.i)
+     limit 3) t;
+$$;
+
+-- Nombre y subtítulo de un día copiado de una rutina escondida del catálogo (pares: nombre y
+-- subtítulo de cada día de esas rutinas): si no son genéricos, se cambian (ver arriba). n es el
+-- lugar del día en la rutina (para «Día N»).
+create or replace function pg_temp.rg_dia_nombre(d jsonb, n bigint, pares text[])
+returns jsonb
+language sql
+immutable
+as $$
+  select case
+    when jsonb_typeof(d) <> 'object'
+      or not ((coalesce(d->>'name', '') || chr(31) || coalesce(d->>'subtitle', '')) = any (pares)) then d
+    else d
+      || case when pg_temp.rg_generico(d->>'name') then '{}'::jsonb
+              else jsonb_build_object('name', coalesce(pg_temp.rg_musculos(d), 'Día ' || n)) end
+      || case when pg_temp.rg_generico(d->>'subtitle') then '{}'::jsonb
+              else jsonb_build_object('subtitle', concat_ws(' · ',
+                     case when pg_temp.rg_solo_dias(split_part(d->>'subtitle', '·', 1)) then btrim(split_part(d->>'subtitle', '·', 1)) end,
+                     pg_temp.rg_musculos(d))) end
+  end;
+$$;
+
+-- Saca de los días y ejercicios las notas, objetivos y videos que estén en las listas y cambia
+-- los nombres de día que no son genéricos (el resto, igual: mismo orden y misma forma).
+create or replace function pg_temp.rg_sin_textos(days jsonb, notas text[], metas text[], videos text[], pares text[])
 returns jsonb
 language sql
 immutable
 as $$
   select case when jsonb_typeof(days) <> 'array' then days else coalesce((
     select jsonb_agg(case when jsonb_typeof(d) <> 'object' then d else
-      (case when d->>'note' = any(notas) then d - 'note' else d end)
+      pg_temp.rg_dia_nombre(case when d->>'note' = any(notas) then d - 'note' else d end, n, pares)
       || case when jsonb_typeof(d->'exercises') <> 'array' then '{}'::jsonb else jsonb_build_object('exercises', coalesce((
         select jsonb_agg(case when jsonb_typeof(e) <> 'object' then e else
           e - array_remove(array[
@@ -83,9 +186,13 @@ with textos as (
           union
           select v #>> '{}' from public.rutinas_catalogo c, jsonb_path_query(c.days, 'lax $[*].exercises[*].note') v where jsonb_typeof(v) = 'string') as notas,
     array(select v #>> '{}' from public.rutinas_catalogo c, jsonb_path_query(c.days, 'lax $[*].exercises[*].goal') v where jsonb_typeof(v) = 'string') as metas,
-    array(select v #>> '{}' from public.rutinas_catalogo c, jsonb_path_query(c.days, 'lax $[*].exercises[*].video') v where jsonb_typeof(v) = 'string') as videos
+    array(select v #>> '{}' from public.rutinas_catalogo c, jsonb_path_query(c.days, 'lax $[*].exercises[*].video') v where jsonb_typeof(v) = 'string') as videos,
+    -- Nombre y subtítulo de cada día de las rutinas escondidas (las que no son genéricas).
+    array(select coalesce(d->>'name', '') || chr(31) || coalesce(d->>'subtitle', '')
+            from public.rutinas_catalogo c, jsonb_array_elements(case when jsonb_typeof(c.days) = 'array' then c.days else '[]'::jsonb end) d
+           where c.id not in (select id from rg_genericas) and jsonb_typeof(d) = 'object') as pares
 ), sin_coach as (
-  select r.client_id, r.days as antes, pg_temp.rg_sin_textos(r.days, t.notas, t.metas, t.videos) as days
+  select r.client_id, r.days as antes, pg_temp.rg_sin_textos(r.days, t.notas, t.metas, t.videos, t.pares) as days
     from public.routines r
     join public.profiles p on p.id = r.client_id
     cross join textos t
@@ -102,11 +209,24 @@ with textos as (
      and public.routine_days_ok(c.days)
      and pg_column_size(c.days) <= 500000
   returning r.client_id
+), dias as (
+  -- Días que cambiaron de nombre o de subtítulo en las rutinas limpias (mismo lugar, antes y después).
+  select count(*) filter (where a.d->'name' is distinct from b.d->'name') as nombres,
+         count(*) filter (where a.d->'subtitle' is distinct from b.d->'subtitle') as subtitulos
+    from limpias l
+    join sin_coach s on s.client_id = l.client_id,
+         jsonb_array_elements(s.antes) with ordinality as a(d, i),
+         jsonb_array_elements(s.days) with ordinality as b(d, i)
+   where a.i = b.i
 )
 insert into rg_resumen (que, n)
 select 'rutinas_limpiadas', (select count(*) from limpias)
 union all
-select 'rutinas_sin_poder_limpiar', (select count(*) from cambian) - (select count(*) from limpias);
+select 'rutinas_sin_poder_limpiar', (select count(*) from cambian) - (select count(*) from limpias)
+union all
+select 'dias_renombrados', (select nombres from dias)
+union all
+select 'subtitulos_cambiados', (select subtitulos from dias);
 
 -- 2) Del catálogo quedan activas solo las genéricas (las otras se esconden, no se borran).
 with escondidas as (
@@ -215,4 +335,6 @@ select (select count(*) from genericas where dias = 1) as activas_de_1_dia,
        (select n from rg_resumen where que = 'catalogo_escondidas') as escondidas_ahora,
        (select count(*) from public.rutinas_catalogo where not activa) as escondidas_en_total,
        (select n from rg_resumen where que = 'rutinas_limpiadas') as rutinas_limpiadas,
-       (select n from rg_resumen where que = 'rutinas_sin_poder_limpiar') as rutinas_sin_poder_limpiar;
+       (select n from rg_resumen where que = 'rutinas_sin_poder_limpiar') as rutinas_sin_poder_limpiar,
+       (select n from rg_resumen where que = 'dias_renombrados') as dias_renombrados,
+       (select n from rg_resumen where que = 'subtitulos_cambiados') as subtitulos_cambiados;
