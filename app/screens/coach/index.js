@@ -17,7 +17,7 @@ import { blockWeek, isDeload, weekRange } from '../../core/bloque.js';
 
 import { renderVolumen, renderWChart } from '../progreso.js';
 
-import { showSilkBg } from '../../ui/background.js';
+import { lucesCoach, showSilkBg } from '../../ui/background.js';
 
 import { renderSessionItem } from '../../ui/sessiondetail.js';
 
@@ -104,6 +104,7 @@ export function renderCoach(){
   const v=document.getElementById("view"); if(v && v.firstChild) v.innerHTML="";
   showSilkBg();
   document.body.classList.add("silk-coach");
+  lucesCoach(); // las luces del fondo («Oscuro»): se mueven muy despacio (app/ui/background.js)
   // Sin prueba ni plan vigente: solo la pantalla de planes (la base igual no le deja
   // leer los datos de los clientes, ver supabase/suscripciones.sql).
   if(!billing().active){ host.innerHTML=renderPaywall(); return; }

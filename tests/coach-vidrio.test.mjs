@@ -5,8 +5,10 @@
 //   una rutina nueva» y «Mi plan»…) tienen contraste ≥ 5:1 contra el fondo REAL: una captura sin
 //   texto, con el vidrio, las luces y el grano. Se toma el píxel del fondo más parecido al texto
 //   (percentil 95), no el promedio. «▸ Ver progreso» (12 px, azul) ≥ 4,5:1. Como las luces se mueven,
-//   cada texto se mide con las luces quietas al principio, a la mitad y al final de su vuelta, y
-//   cuenta la peor.
+//   cada texto se mide con las luces frenadas en una punta de su recorrido, en el medio y en la otra
+//   (la más prendida), y cuenta la peor.
+// - Las luces se notan pero no saltan: de una punta del recorrido a la otra el fondo cambia ≥ 15/255
+//   en la compu (≥ 12 en el celular) y el paso de cada segundo (donde van más rápido) ≤ 2/255.
 // - Adentro de las ventanas de vidrio no quedan bloques opacos (#12151B / #0B0D11): los grupos
 //   musculares, el buscador, «Cancelar» y las tarjetas de «Mi plan» van en el mismo material.
 // - Alcance: con «Claro», «Azul», «Rosa» y en la app del alumno la hoja no cambia nada: los estilos
@@ -14,8 +16,9 @@
 //   apagada. En «Oscuro», en cambio, sí cambia (la hoja está cargada y hace algo).
 // - «Reducir transparencia» del sistema: rellenos sólidos y sin desenfoque, también en liviano y en
 //   la app de Android. Las luces (lo único que se mueve) quedan quietas, pintadas en la capa del fondo
-//   y sin sus capas, con «reducir movimiento», con «reducir transparencia», en liviano y en la app de
-//   Android; en GIZE básico y con colores forzados no hay ni capa ni luces.
+//   y sin sus capas (y app/ui/background.js no las mueve), con «reducir movimiento», con «reducir
+//   transparencia», en liviano y en la app de Android; en GIZE básico y con colores forzados no hay
+//   ni capa ni luces.
 // - Placa de video: una sola capa fija de pantalla completa con will-change (la aurora de abajo no
 //   se pinta) y las dos luces, capas chicas, las únicas otras con will-change; en la app de Android
 //   sin will-change; en GIZE básico sin la capa (queda el degradé de siempre); en liviano sin el grano
@@ -130,29 +133,31 @@ const MEDIR = async ({ png, items }) => {
     return { n: it.n, t: it.t, cr: Math.round(cr * 100) / 100 };
   });
 };
-// Las luces del fondo quietas en un punto de su vuelta (f = 0, .5 o 1): las reglas que las dejan ahí
-// sin animación (la captura con animations: 'disabled' cancela las animaciones que no terminan).
-const LUCES_EN = f => document.getAnimations().filter(a => a.effect && a.effect.target === document.querySelector('.app-aurora')).map(a => {
-  const ps = a.effect.pseudoElement, era = a.currentTime;
-  a.currentTime = a.effect.getComputedTiming().duration * f;
-  const q = getComputedStyle(a.effect.target, ps), tr = q.transform, op = q.opacity; // (q está viva: se lee antes de devolverla)
-  a.currentTime = era;
-  return `html body .app-aurora${ps} { animation: none !important; transform: ${tr} !important; opacity: ${op} !important; }`;
-}).join('\n');
-// Una captura sin texto con las luces al principio, a la mitad y al final de su vuelta (una sola si
-// no se mueven); de cada texto queda el peor contraste.
+// Las luces del fondo (app/ui/background.js las mueve una vez por segundo): frenarlas como con la app
+// en segundo plano ("pause"; el freno llega en el próximo segundo) y ponerlas en un punto de su
+// recorrido (0 = una punta, 1 = la otra, la más prendida). Devuelve si hay luces que mover.
+const BG = '/app/ui/background.js';
+const hayLuces = p => p.evaluate(() => getComputedStyle(document.querySelector('.app-aurora'), '::before').content !== 'none');
+async function frenarLuces(p){
+  if (!await hayLuces(p)) return false;
+  await p.evaluate(() => document.dispatchEvent(new Event('pause')));
+  for (let i = 0; i < 30 && (await p.evaluate(async bg => (await import(bg)).lucesEstado().andando, BG)); i++) await wait(100);
+  return true;
+}
+const soltarLuces = p => p.evaluate(() => document.dispatchEvent(new Event('resume')));
+const lucesEn = (p, f) => p.evaluate(async ([bg, f]) => (await import(bg)).pintarLuces(f), [BG, f]);
+// Una captura sin texto con las luces en una punta, en el medio y en la otra (una sola si no hay
+// luces que se muevan); de cada texto queda el peor contraste.
 async function contraste(p, sels){
   const items = await p.evaluate(TEXTOS, sels);
-  const st = await p.addStyleTag({ content: SIN_TEXTO }); await wait(150);
+  const st = await p.addStyleTag({ content: SIN_TEXTO });
+  const mueven = await frenarLuces(p); await wait(150);
   const pngs = [];
-  for (const f of [0, 0.5, 1]){
-    const reglas = await p.evaluate(LUCES_EN, f);
-    const fijas = reglas ? await p.addStyleTag({ content: reglas }) : null;
-    if (fijas) await wait(60);
+  for (const f of mueven ? [[0, 0], [0.5, 0.5], [1, 1]] : [null]){
+    if (f) { await lucesEn(p, f); await wait(60); }
     pngs.push((await p.screenshot({ animations: 'disabled', caret: 'hide' })).toString('base64'));
-    if (fijas) await fijas.evaluate(e => e.remove());
-    if (!reglas) break;
   }
+  if (mueven) await soltarLuces(p);
   await st.evaluate(e => e.remove());
   const res = []; for (const png of pngs) res.push(await p.evaluate(MEDIR, { png, items }));
   return res[0].map((r, i) => Object.assign({}, r, { cr: Math.min(...res.map(x => x[i].cr)) }));
@@ -200,16 +205,36 @@ const conHojaApagada = async (p, fn, arg) => {
 const OPACOS = sel => [...document.querySelectorAll(sel + ' *')].filter(e => { const s = getComputedStyle(e), r = e.getBoundingClientRect();
   return r.width >= 18 && r.height >= 12 && s.visibility !== 'hidden' && /^rgb\((18, 21, 27|11, 13, 17)\)$/.test(s.backgroundColor); })
   .map(e => String(e.className).split(' ')[0] + ' ' + getComputedStyle(e).backgroundColor);
-// Las luces del fondo: el content de sus dos capas (.app-aurora::before/::after), cuántas animaciones
-// cg-luz-* hay y cuántas luces de color (radiales que no son negras) pinta la capa del fondo.
-const LUCES = () => {
+// Las luces del fondo: el content de sus dos capas (.app-aurora::before/::after), si
+// app/ui/background.js las está moviendo y cuántas luces de color (radiales que no son negras) pinta
+// la capa del fondo. (El freno llega en el próximo segundo: después de cambiar algo, esperar 1,2 s.)
+const LUCES = async bg => {
   const au = document.querySelector('.app-aurora'), s = getComputedStyle(document.body, '::after');
   const deColor = (s.backgroundImage.match(/radial-gradient\((?:[^()]|\([^()]*\))*\)/g) || [])
     .filter(g => (g.match(/rgba?\([^)]*\)/g) || []).some(c => c.match(/[\d.]+/g).slice(0, 3).some(Number)));
-  return [['::before', '::after'].map(ps => getComputedStyle(au, ps).content), document.getAnimations().filter(a => /^cg-luz-/.test(a.animationName)).length, deColor.length];
+  return [['::before', '::after'].map(ps => getComputedStyle(au, ps).content), (await import(bg)).lucesEstado().andando, deColor.length];
 };
-const MOVIDAS = [['""', '""'], 2, 0]; // las dos capas, moviéndose; la capa del fondo sin luces
-const QUIETAS = [['none', 'none'], 0, 2]; // sin esas capas ni animación; las dos luces en la capa del fondo
+const MOVIDAS = [['""', '""'], true, 0]; // las dos capas, moviéndose; la capa del fondo sin luces
+const QUIETAS = [['none', 'none'], false, 2]; // sin esas capas y quietas; las dos luces en la capa del fondo
+// Cuánto cambia el fondo (máximo por canal, de 255) entre las luces en las fases a y b.
+async function cambio(p, a, b){
+  const png = async f => { await lucesEn(p, f); await wait(80); return (await p.screenshot({ animations: 'disabled', caret: 'hide' })).toString('base64'); };
+  const A = await png(a), B = await png(b);
+  return p.evaluate(async ([a, b]) => {
+    const px = async src => { const i = new Image(); i.src = 'data:image/png;base64,' + src; await i.decode(); const c = document.createElement('canvas'); c.width = i.width; c.height = i.height;
+      const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(i, 0, 0); return g.getImageData(0, 0, i.width, i.height).data; };
+    const X = await px(a), Y = await px(b); let m = 0; for (let k = 0; k < X.length; k++) if (k % 4 !== 3) m = Math.max(m, Math.abs(X[k] - Y[k])); return m; }, [A, B]);
+}
+// Se notan pero no saltan: de una punta a la otra (≥ min) y el paso de un segundo donde van más rápido
+// (en el medio: π/2 de la fase por ida) ≤ 2/255.
+async function seNotan(t, p, donde, min){
+  if (!await frenarLuces(p)) { t.ok(false, donde + ': no hay luces que se muevan'); return; }
+  const d = await p.evaluate(async bg => (await import(bg)).LUCES.map(l => Math.PI / 2 / l.ida), BG);
+  const pasada = await cambio(p, [0, 0], [1, 1]), paso = await cambio(p, [0.5, 0.5], [0.5 + d[0], 0.5 + d[1]]);
+  await soltarLuces(p);
+  t.ok(pasada >= min, donde + ': las luces se notan (de una punta a la otra el fondo cambia ' + pasada + '/255, ≥ ' + min + ')');
+  t.ok(paso <= 2, donde + ': el paso de cada segundo no se ve (' + paso + '/255, ≤ 2)');
+}
 // Sombras con desenfoque (las de abajo, no la luz interna de 1 px): [blur en px] de las que no son inset.
 const DESENFOQUES = v => String(v).split(/,(?![^(]*\))/).filter(x => x.trim() && x.trim() !== 'none' && !/inset/.test(x))
   .map(x => +((x.replace(/rgba?\([^)]*\)/, '').match(/-?[\d.]+px/g) || [])[2] || '0px').replace('px', ''));
@@ -237,6 +262,8 @@ export default async function ({ base, t }){
     // «▸ Ver progreso» (Más opciones): 12 px en azul, ≥ 4,5:1 sobre la fila de vidrio.
     await go(p, 'mas'); await p.mouse.move(1436, 896); await wait(250);
     revisar(t, 'Oscuro, Más opciones', await contraste(p, [['«▸ Ver progreso»', '.co-exc[data-id="e1"] .co-exc-fold summary']]), [['«▸ Ver progreso»']], 4.5);
+    await go(p, 'inicio'); await p.mouse.move(1436, 896); await wait(250);
+    await seNotan(t, p, 'Oscuro, compu, Inicio', 15);
 
     // La botonera que aparece al pasar el mouse tapa el final de un nombre largo: debajo del contador
     // no se ve el nombre (la misma captura con y sin el texto del nombre).
@@ -420,22 +447,25 @@ export default async function ({ base, t }){
     // Las luces, más chicas en el celular y lejos de la franja de arriba (antes teñían el logo y «Salir»):
     // dónde queda lo que se ve de cada una (en % de la pantalla: radios, centro y borde de arriba) al
     // principio, a la mitad y al final de su vuelta.
-    const luces = await p.evaluate(() => {
-      const au = document.querySelector('.app-aurora'), W = innerWidth, H = innerHeight, out = [];
-      for (const a of document.getAnimations().filter(x => x.effect && x.effect.target === au)) for (const f of [0, 0.5, 1]){
-        const era = a.currentTime; a.currentTime = a.effect.getComputedTiming().duration * f;
-        const q = getComputedStyle(au, a.effect.pseudoElement), m = new DOMMatrixReadOnly(q.transform), [ox, oy] = q.transformOrigin.split(' ').map(parseFloat);
+    await frenarLuces(p);
+    const luces = await p.evaluate(async bg => {
+      const au = document.querySelector('.app-aurora'), W = innerWidth, H = innerHeight, out = [], m0 = await import(bg);
+      for (const ps of ['::before', '::after']) for (const f of [0, 0.5, 1]){
+        m0.pintarLuces([f, f]);
+        const q = getComputedStyle(au, ps), m = new DOMMatrixReadOnly(q.transform), [ox, oy] = q.transformOrigin.split(' ').map(parseFloat);
         const g = q.backgroundImage.match(/^radial-gradient\(([\d.]+)% ([\d.]+)% at ([\d.]+)% ([\d.]+)%/);
-        a.currentTime = era;
         if (!g) { out.push(null); continue; }
         const [rx, ry, cx, cy] = g.slice(1).map(v => v / 100), w = parseFloat(q.width) * m.m11, h = parseFloat(q.height) * m.m22;
         const x = parseFloat(q.left) + ox * (1 - m.m11) + m.m41, y = parseFloat(q.top) + oy * (1 - m.m22) + m.m42;
         out.push([rx * w / W, ry * h / H, (y + cy * h) / H, (y + cy * h - ry * h) / H].map(v => Math.round(v * 1000) / 10));
       }
       return out;
-    });
+    }, BG);
+    await soltarLuces(p);
     t.ok(luces.length === 6 && luces.every(l => l && l[0] <= 62 && l[1] <= 24 && l[2] >= 30 && l[3] >= 12),
-      'celular: dos luces chicas (lo que se ve ≤ 62 % × 24 %), lejos de la franja de arriba en toda su vuelta: ' + JSON.stringify(luces));
+      'celular: dos luces chicas (lo que se ve ≤ 62 % × 24 %), lejos de la franja de arriba en todo su recorrido: ' + JSON.stringify(luces));
+    await go(p, 'editor');
+    await seNotan(t, p, 'Oscuro, celular, editor', 12);
     t.eq(errs, [], 'Oscuro, celular: errores de la página');
     await close();
   }
@@ -512,7 +542,7 @@ export default async function ({ base, t }){
       return [s.content !== 'none', s.animationName, s.transitionDuration.split(',').every(d => parseFloat(d) === 0),
         document.getAnimations().filter(a => a.effect && a.effect.target === document.body).length]; });
     t.eq(capa, [true, 'none', true, 0], 'menos movimiento: la capa del fondo está y no tiene animación ni transición');
-    t.eq(await p.evaluate(LUCES), QUIETAS, 'menos movimiento y menos transparencia: las luces quietas en la capa del fondo, sin sus capas');
+    t.eq(await p.evaluate(LUCES, BG), QUIETAS, 'menos movimiento y menos transparencia: las luces quietas en la capa del fondo, sin sus capas');
     t.eq(errs, [], 'menos transparencia: errores de la página');
     await close();
   }
@@ -522,7 +552,7 @@ export default async function ({ base, t }){
     const cdp = await p.context().newCDPSession(p);
     await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: rt }] });
     await p.goto(base + '/app/'); await wait(3500);
-    t.eq(await p.evaluate(LUCES), QUIETAS, n + ': las luces quietas en la capa del fondo, sin sus capas');
+    t.eq(await p.evaluate(LUCES, BG), QUIETAS, n + ': las luces quietas en la capa del fondo, sin sus capas');
     t.eq(errs, [], n + ': errores de la página');
     await close();
   }
@@ -534,7 +564,7 @@ export default async function ({ base, t }){
     await p.goto(base + '/app/'); await wait(3500);
     t.eq(await p.evaluate(() => [matchMedia('(forced-colors: active)').matches, getComputedStyle(document.body, '::after').content]), [true, 'none'],
       'colores forzados: el panel no pinta su capa de fondo');
-    t.eq((await p.evaluate(LUCES)).slice(0, 2), [['none', 'none'], 0], 'colores forzados: tampoco las luces');
+    t.eq((await p.evaluate(LUCES, BG)).slice(0, 2), [['none', 'none'], false], 'colores forzados: tampoco las luces');
     t.eq(errs, [], 'colores forzados: errores de la página');
     await close();
   }
@@ -544,7 +574,7 @@ export default async function ({ base, t }){
     const { p, errs, close } = await abrir(base);
     await p.goto(base + '/app/'); await wait(3500);
     await go(p, 'menu');
-    const ver = async () => Object.assign({ luces: await p.evaluate(LUCES) }, await p.evaluate(() => { const s = getComputedStyle(document.body, '::after'), pop = document.querySelector('.co-exc-open .co-day-pop');
+    const ver = async () => Object.assign({ luces: await p.evaluate(LUCES, BG) }, await p.evaluate(() => { const s = getComputedStyle(document.body, '::after'), pop = document.querySelector('.co-exc-open .co-day-pop');
       const ex = getComputedStyle(document.querySelector('.co-exc-collapsed'));
       return { capa: s.content !== 'none', will: s.willChange, grano: /url\(/.test(s.backgroundImage), aurora: getComputedStyle(document.querySelector('.app-aurora')).visibility,
         auroraBg: getComputedStyle(document.querySelector('.app-aurora')).backgroundImage.slice(0, 16), blur: getComputedStyle(pop).backdropFilter,
@@ -556,12 +586,12 @@ export default async function ({ base, t }){
     t.ok(normal.tok !== 'none' && /blur/.test(normal.tok), 'normal: las ventanas y la píldora sí llevan desenfoque: ' + normal.tok);
     t.ok(Math.max(...DESENFOQUES(normal.sombra)) >= 20 && normal.brillo, 'normal (compu): las filas con su sombra y su brillo: ' + normal.sombra);
     // (las filas tienen transición en la sombra: se espera a que termine)
-    await p.evaluate(() => document.documentElement.classList.add('lite')); await wait(800);
+    await p.evaluate(() => document.documentElement.classList.add('lite')); await wait(1200);
     const lite = await ver();
     t.eq([lite.capa, lite.grano, lite.blur, lite.tok], [true, false, 'none', 'none'], 'liviano: la capa sin grano y nada con desenfoque');
     t.eq(lite.luces, QUIETAS, 'liviano: las luces quietas en la capa del fondo, sin sus capas');
     t.eq([DESENFOQUES(lite.sombra), lite.brillo], [[], false], 'liviano: las filas sin sombras con desenfoque ni brillo (solo la luz interna): ' + lite.sombra);
-    await p.evaluate(() => { document.documentElement.classList.remove('lite'); document.documentElement.classList.add('android-app'); }); await wait(800);
+    await p.evaluate(() => { document.documentElement.classList.remove('lite'); document.documentElement.classList.add('android-app'); }); await wait(1200);
     const android = await ver();
     t.eq([android.capa, android.will, android.blur, android.tok], [true, 'auto', 'none', 'none'], 'app de Android: la capa sin will-change y nada con desenfoque');
     t.eq(android.luces, QUIETAS, 'app de Android: las luces quietas en la capa del fondo, sin sus capas (ver vidrio.css, 2b)');
@@ -569,7 +599,7 @@ export default async function ({ base, t }){
     await p.evaluate(() => document.documentElement.classList.add('lite', 'basico'));
     const basico = await ver();
     t.eq([basico.capa, basico.aurora, basico.auroraBg], [false, 'visible', 'linear-gradient('], 'GIZE básico: sin la capa; queda la aurora con el degradé liso de siempre');
-    t.eq(basico.luces.slice(0, 2), [['none', 'none'], 0], 'GIZE básico: sin las luces');
+    t.eq(basico.luces.slice(0, 2), [['none', 'none'], false], 'GIZE básico: sin las luces');
     t.eq(errs, [], 'liviano / Android / básico: errores de la página');
     await close();
   }
