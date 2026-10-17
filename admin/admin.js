@@ -509,9 +509,16 @@ function paintUsers(){
 }
 const platformTxt = (p, v) => !p ? "—" : (p === "android" ? "Android " : p === "ios" ? "iPhone " : "Web ") + (p === "web" ? "" : (v || ""));
 
+// Si la ficha se cerró (o se abrió la de otro) mientras llegaba el detalle, esa respuesta vieja no
+// la vuelve a abrir ni pisa la ficha nueva: con la red lenta, la ficha cerrada reaparecía y su fondo
+// tapaba la tabla.
+let userReq = 0;
 async function openUser(id){
+  const req = ++userReq;
   drawer('<div class="empty">Cargando…</div>');
-  let d; try { d = await rpc("admin_user_detail", { uid: id }); } catch (e) { return drawer(`<div class="empty">${esc(errMsg(e))}</div>`); }
+  const dr = document.querySelector(".drawer"), vigente = () => req === userReq && dr.isConnected;
+  let d; try { d = await rpc("admin_user_detail", { uid: id }); } catch (e) { if (vigente()) drawer(`<div class="empty">${esc(errMsg(e))}</div>`); return; }
+  if (!vigente()) return;
   if (!d) return drawer('<div class="empty">No se encontró el usuario.</div>');
   const f = (l, v) => `<div class="fact"><span>${l}</span><b>${v}</b></div>`;
   const clients = (d.clients || []);
@@ -1361,8 +1368,9 @@ document.addEventListener("click", async e => {
     if (a === "repReview"){ reviewRep(b); return; }
     if (a === "repUser"){ openUser(b.dataset.id); return; }
     if (a === "toCoach"){
-      const id = b.dataset.id;
+      const id = b.dataset.id, dr = b.closest(".drawer");
       if (!S.coaches){ try { S.coaches = await rpc("admin_coaches"); } catch (e) { toast(errMsg(e)); return; } }
+      if (dr && !dr.isConnected) return; // cerró la ficha mientras se traían los coaches
       openCoach(id); return;
     }
     if (a === "ufilt"){ S.uFilter = b.dataset.v; paintUsers(); return; }

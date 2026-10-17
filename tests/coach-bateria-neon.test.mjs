@@ -10,6 +10,11 @@
 // - Con el neón apagado (gize_neon = "0") ningún borde ni brillo del panel lleva color (queda el
 //   azul de acción y el rojo de borrar). El interruptor («Toque de color en los bordes») está en
 //   Configuración y cambia html.sin-neon.
+// - En «Oscuro» el panel va en vidrio sobre su propia capa de fondo (body.silk-coach::after,
+//   css/screens/coach/vidrio.css): quieta (sin animación ni transición), fija detrás de #coachHost,
+//   con luces radiales suaves de la marca (alfa ≤ .2: un tinte, no manchas) y, sin neón, solo grises.
+//   La aurora de siempre queda tapada y sin pintarse (una sola capa fija de pantalla completa). Las
+//   luces se revisan en el celular y en la compu (cada ancho tiene las suyas), con y sin neón.
 import { newPage, wait, configCoach } from './lib.mjs';
 
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
@@ -17,7 +22,7 @@ const A1 = '44444444-4444-4444-4444-444444444444';
 const SPY = `window.__arc = 0; { const o = CanvasRenderingContext2D.prototype.arc;
   CanvasRenderingContext2D.prototype.arc = function () { window.__arc++; return o.apply(this, arguments); }; }`;
 
-const open = init => newPage({ user: COACH, viewport: { width: 390, height: 844 }, init: `localStorage.setItem('gize_lite','0');${SPY}${init || ''}`,
+const open = (init, viewport = { width: 390, height: 844 }) => newPage({ user: COACH, viewport, init: `localStorage.setItem('gize_lite','0');${SPY}${init || ''}`,
   handlers: {
     '/profiles': (r, J, i) => { if (i.m !== 'GET') return undefined; const me = { id: COACH.id, role: 'coach', full_name: 'Coach Prueba' };
       if (/coach_id=eq/.test(i.url.search)) return J([{ id: A1, full_name: 'Ana Alumna' }]); return J(i.one ? me : [me]); },
@@ -32,6 +37,23 @@ const fondo = () => {
   const a = document.querySelector('.app-aurora');
   return { calm, bg: getComputedStyle(a).backgroundImage, spans: [...a.querySelectorAll('span')].map(s => getComputedStyle(s).display),
     canvas: getComputedStyle(document.getElementById('silkCanvas')).display, arc: window.__arc };
+};
+
+// La capa del fondo del panel en «Oscuro» (body.silk-coach::after): cómo está puesta, si algo la
+// anima, sus luces radiales (los colores que no son negro: el negro es la viñeta de los bordes) y
+// todos los colores que pinta.
+const capa = () => {
+  const s = getComputedStyle(document.body, '::after');
+  if (s.content === 'none') return null;
+  const colores = v => (String(v || '').match(/rgba?\([^)]*\)/g) || []).map(c => c.match(/[\d.]+/g).map(Number));
+  const radiales = (s.backgroundImage.match(/radial-gradient\((?:[^()]|\([^()]*\))*\)/g) || []);
+  const luces = radiales.map(colores).map(cs => cs.filter(([r, g, b]) => r + g + b > 0)).filter(cs => cs.length);
+  const anims = document.getAnimations().filter(a => a.effect && a.effect.target === document.body && a.effect.pseudoElement === '::after').length;
+  const au = getComputedStyle(document.querySelector('.app-aurora'));
+  return { pos: s.position, z: s.zIndex, pe: s.pointerEvents, inset: [s.top, s.right, s.bottom, s.left].join(' '),
+    anim: s.animationName, trans: s.transitionDuration.split(',').every(d => parseFloat(d) === 0), anims, conic: /conic-gradient/.test(s.backgroundImage),
+    luces, colores: colores(s.backgroundImage), host: +getComputedStyle(document.getElementById('coachHost')).zIndex,
+    aurora: au.visibility, bg: s.backgroundImage.replace(/url\("data:[^"]{40}[^"]*"\)/, 'url(grano)').slice(0, 400) };
 };
 
 // Lo que se ve: animaciones sin fin y lo que gira (en toda la página); y en el panel, la gama RGB
@@ -98,6 +120,7 @@ export default async function ({ base, t }){
     t.ok(/^linear-gradient\(/.test(f0.calm) && f0.bg === f0.calm && !/radial-gradient/.test(f0.bg), 'el fondo del panel es el degradé liso de la apariencia: ' + f0.bg.slice(0, 70));
     t.ok(f0.spans.length > 0 && f0.spans.every(d => d === 'none'), 'sin las manchas de color de la aurora: ' + JSON.stringify(f0.spans));
     t.eq([f0.canvas, f0.arc, (await p.evaluate(() => window.__arc)) - f0.arc], ['none', 0, 0], 'sin partículas: el canvas oculto y nunca se dibuja');
+    t.eq(await p.evaluate(capa), null, '«Azul»: sin la capa de vidrio del panel (es solo de «Oscuro»)');
     const s0 = await p.evaluate(scan);
     t.eq(s0.inf, [], 'lista: nada gira ni late sin parar');
     calma(s0, 'lista');
@@ -139,6 +162,51 @@ export default async function ({ base, t }){
     await close();
   }
 
+  // ---- «Oscuro» con neón: el vidrio sobre su capa de fondo, quieta y con luces suaves ----
+  {
+    const { p, errs, close } = await open('');
+    await p.goto(base + '/app/'); await wait(3500);
+    t.ok(await p.$('#coachHost .co-wrap'), 'Oscuro: se ve el panel del coach');
+    t.ok(!/tema-/.test(await p.evaluate(() => document.documentElement.className)), 'Oscuro: sin clase de otra apariencia');
+    const f0 = await p.evaluate(fondo);
+    t.ok(/^linear-gradient\(/.test(f0.calm) && f0.bg === f0.calm, 'Oscuro: la aurora sigue con el degradé liso de la apariencia (calma.css): ' + f0.bg.slice(0, 70));
+    t.ok(f0.spans.length > 0 && f0.spans.every(d => d === 'none'), 'Oscuro: sin las manchas de color de la aurora: ' + JSON.stringify(f0.spans));
+    t.eq([f0.canvas, f0.arc], ['none', 0], 'Oscuro: sin partículas');
+    const c0 = await p.evaluate(capa);
+    t.ok(!!c0, 'Oscuro: el panel tiene su capa de fondo (body.silk-coach::after)');
+    if (c0){
+      t.eq([c0.pos, c0.inset, c0.pe], ['fixed', '0px 0px 0px 0px', 'none'], 'la capa del fondo es fija, de pantalla completa y no recibe toques');
+      t.ok(+c0.z < c0.host, 'la capa queda detrás de #coachHost: z ' + c0.z + ' < ' + c0.host);
+      t.eq([c0.anim, c0.trans, c0.anims, c0.conic], ['none', true, 0, false], 'la capa del fondo está quieta: sin animación, sin transición y sin la gama (conic-gradient)');
+      t.ok(c0.luces.length >= 1 && c0.luces.every(cs => cs.every(([, , , a = 1]) => a <= 0.2)),
+        'las luces del fondo son suaves (alfa ≤ .2): ' + JSON.stringify(c0.luces));
+      t.ok(c0.luces.some(cs => cs.some(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) > 24)), 'con neón, las luces llevan el tinte de la marca: ' + c0.bg);
+      t.eq(c0.aurora, 'hidden', 'la aurora de abajo no se pinta (queda una sola capa fija de pantalla completa)');
+    }
+    await wait(500);
+    t.eq((await p.evaluate(capa) || {}).bg, c0 && c0.bg, 'la capa del fondo no cambia sola');
+    const s0 = await p.evaluate(scan);
+    t.eq(s0.inf, [], 'Oscuro, lista: nada gira ni late sin parar');
+    calma(s0, 'Oscuro, lista');
+    await p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1200);
+    const s1 = await p.evaluate(scan);
+    t.eq(s1.inf, [], 'Oscuro, ficha: nada gira ni late sin parar');
+    calma(s1, 'Oscuro, ficha');
+    for (const tab of ['rutina', 'plan']){
+      await p.click(`[data-coach="client-tab"][data-t="${tab}"]`); await wait(600);
+      const s = await p.evaluate(scan);
+      t.eq(s.inf, [], 'Oscuro, pestaña ' + tab + ': nada gira ni late sin parar');
+      calma(s, 'Oscuro, pestaña ' + tab, false);
+    }
+    // ~6 s sin tocar (html.fondo-quieto) y en segundo plano: la capa sigue igual y nada se dibuja.
+    await wait(6500);
+    t.eq([await p.evaluate(() => document.documentElement.classList.contains('fondo-quieto')), (await p.evaluate(capa) || {}).bg], [true, c0 && c0.bg],
+      'Oscuro sin tocar: html.fondo-quieto y la capa del fondo igual');
+    t.eq(await p.evaluate(() => window.__arc), 0, 'Oscuro: en todo el recorrido el fondo de partículas nunca se dibujó');
+    t.eq(errs, [], 'Oscuro: errores de la página');
+    await close();
+  }
+
   // ---- Neón apagado: el panel sobrio, y el interruptor en Configuración ----
   {
     const { p, errs, close } = await open(`localStorage.setItem('gize_neon','0');`);
@@ -147,6 +215,13 @@ export default async function ({ base, t }){
     const f = await p.evaluate(fondo);
     t.ok(/^linear-gradient\(/.test(f.calm) && f.bg === f.calm, 'sin neón: el fondo también es el degradé liso: ' + f.bg.slice(0, 70));
     t.eq([f.canvas, f.arc], ['none', 0], 'sin neón: sin partículas');
+    const cs = await p.evaluate(capa);
+    t.ok(!!cs, 'sin neón: el panel también tiene su capa de fondo');
+    if (cs){
+      t.eq([cs.anim, cs.trans, cs.anims], ['none', true, 0], 'sin neón: la capa del fondo está quieta');
+      t.ok(cs.luces.length >= 1 && cs.luces.every(l => l.every(([, , , a = 1]) => a <= 0.2)), 'sin neón: luces suaves (alfa ≤ .2): ' + JSON.stringify(cs.luces));
+      t.ok(cs.colores.every(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) <= 24), 'sin neón: la capa del fondo es solo gris (sin tinte): ' + cs.bg);
+    }
     const s0 = await p.evaluate(scan);
     t.eq(s0.neon, [], 'sin neón: la lista no tiene bordes ni brillos de colores');
     t.eq(s0.filete, [], 'sin neón: la lista sin el filete de color (blanco y gris)');
@@ -167,11 +242,33 @@ export default async function ({ base, t }){
       await sw.click(); await wait(200);
       t.eq(await p.evaluate(() => [document.documentElement.classList.contains('sin-neon'), localStorage.getItem('gize_neon')]), [false, null], 'prenderlo saca html.sin-neon');
       calma(await p.evaluate(scan), 'neón prendido desde Configuración');
+      const cp = await p.evaluate(capa);
+      t.ok(!!cp && cp.luces.some(cs => cs.some(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) > 24)), 'neón prendido desde Configuración: las luces del fondo con el tinte de la marca');
       await sw.click(); await wait(200);
       t.eq(await p.evaluate(() => [document.documentElement.classList.contains('sin-neon'), localStorage.getItem('gize_neon')]), [true, '0'], 'apagarlo pone html.sin-neon y queda guardado');
       t.eq((await p.evaluate(scan)).filete, [], 'apagado otra vez: sin el filete de color');
+      const ca = await p.evaluate(capa);
+      t.ok(!!ca && ca.colores.every(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) <= 24), 'apagado otra vez: la capa del fondo vuelve a gris');
     }
     t.eq(errs, [], 'sin neón: errores de la página');
+    await close();
+  }
+  // ---- La capa del fondo en la compu (1440 × 900): las luces de la compu, con y sin neón ----
+  for (const [nombre, init] of [['con neón', ''], ['sin neón', "localStorage.setItem('gize_neon','0');"]]){
+    const { p, errs, close } = await open(init, { width: 1440, height: 900 });
+    await p.goto(base + '/app/'); await wait(3500);
+    t.ok(await p.$('#coachHost .co-wrap'), 'compu, ' + nombre + ': se ve el panel del coach');
+    t.ok(await p.evaluate(() => matchMedia('(min-width: 900px)').matches), 'compu, ' + nombre + ': es el ancho de la compu (sus luces, no las del celular)');
+    const c = await p.evaluate(capa);
+    t.ok(!!c, 'compu, ' + nombre + ': el panel tiene su capa de fondo');
+    if (c){
+      t.eq([c.pos, c.inset, c.anim, c.trans, c.anims], ['fixed', '0px 0px 0px 0px', 'none', true, 0], 'compu, ' + nombre + ': la capa es fija, de pantalla completa y quieta');
+      t.ok(c.luces.length >= 1 && c.luces.every(cs => cs.every(([, , , a = 1]) => a <= 0.2)), 'compu, ' + nombre + ': las luces del fondo son suaves (alfa ≤ .2): ' + JSON.stringify(c.luces));
+      if (init) t.ok(c.colores.every(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) <= 24), 'compu, sin neón: la capa del fondo es solo gris (sin tinte): ' + c.bg);
+      else t.ok(c.luces.some(cs => cs.some(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) > 24)), 'compu, con neón: las luces llevan el tinte de la marca: ' + c.bg);
+      t.eq(c.aurora, 'hidden', 'compu, ' + nombre + ': la aurora de abajo no se pinta');
+    }
+    t.eq(errs, [], 'compu, ' + nombre + ': errores de la página');
     await close();
   }
 }
