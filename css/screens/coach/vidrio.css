@@ -166,7 +166,8 @@ html:not(.tema-claro):not(.tema-luz):not(.basico):not(#_) body.silk-coach .app-a
    adentro o hacia afuera, ±5 % de tamaño y de 40 % a 100 % de brillo (con los colores de la luz
    quieta divididos por .7, --cg-ma0/1 y --cg-mb0/1: alfa ≤ .15). En el medio (sin transform y al
    70 %, como arrancan) se ven igual que quietas. En una ida el centro de la luz cambia ~20 niveles
-   de color (de 255): se nota que respira; cada segundo, 2 como mucho: el paso no se ve.
+   de color (de 255): se nota que respira; cada segundo, 1 o 2 (3 en algún píxel suelto): el paso
+   no se ve.
    Sin animación de CSS a propósito: con una (aunque sea a saltitos) Chromium despierta al
    compositor en cada cuadro de la pantalla mientras el panel está a la vista y recalcula el estilo
    de las dos capas en cada cuadro del scroll. Así (medido con un trace de Chromium, CPU ×4): quieto,

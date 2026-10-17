@@ -327,9 +327,9 @@ export function hideSilkBg(){
 //   en 41 s de ida, la azul en 59 s, así entre las dos nunca se repite el mismo dibujo. En una punta
 //   está más afuera, un poco más chica y apagada; en la otra, unos puntos más adentro, más grande y
 //   prendida. Arranca en el medio, que es como se ve quieta (con reducir movimiento, liviano…).
-// - Cada segundo el fondo cambia 2 niveles de color como mucho (de 255) y la luz se corre ~2 px: el
-//   paso no se ve. En una ida el centro de la luz cambia ~20 niveles (medido: 23 en la compu, 17 en
-//   el celular): se nota que respira, sin llamar la atención.
+// - Cada segundo el fondo cambia 1 o 2 niveles de color (de 255; 3 en algún píxel suelto) y la luz
+//   se corre ~2 px: el paso no se ve. En una ida el centro de la luz cambia ~20 niveles (medido: 23
+//   en la compu, 17 en el celular): se nota que respira, sin llamar la atención.
 // - Se frena y después sigue desde donde quedó (sin saltar): con la app en segundo plano o la
 //   pestaña oculta, detrás del splash, fuera del panel, a los 3 minutos sin tocar nada (sigue con el
 //   primer toque) y cuando no hay luces que mover (la hoja no las pone en las otras apariencias, con
