@@ -13,15 +13,22 @@
      leyendo su fondo).
    - Superficies: vidrio. Relleno translúcido, un brillo arriba, filete especular (--cg-ring: el toque
      de color de siempre en las puntas, armado con --gize-r1/--gize-r2), luz interna arriba y sombra
-     neutra. backdrop-filter solo donde de verdad pasa contenido por detrás (menús, ventanas, la
-     píldora de navegación del celular y la pestaña que se arrastra). Tarjetas, filas y barra lateral
-     van sin desenfoque: detrás solo está el fondo quieto (ver --cg-card-blur).
-   - Los controles de adentro de las tarjetas (botones de Tema, «Toque de color», fichas, campos,
-     números de los ejercicios…) pasan al mismo material; los campos conservan el borde azul de foco.
+     neutra. backdrop-filter solo en lo grande por donde de verdad pasa contenido por detrás (las
+     ventanas y la píldora de navegación del celular). Tarjetas, filas, barra lateral, los menús ⋯
+     (chicos y casi llenos: el desenfoque no se veía) y la pestaña que se arrastra van sin
+     desenfoque (ver --cg-card-blur).
+   - Los controles de adentro de las tarjetas y de las ventanas (botones de Tema, «Toque de color»,
+     fichas, campos, números de los ejercicios, los grupos musculares y el buscador del selector de
+     ejercicios, «Cancelar», las tarjetas de «Mi plan»…) pasan al mismo material; los campos
+     conservan el borde azul de foco y los estados (abierto, elegido, dónde cae lo que arrastrás) se
+     siguen viendo.
+   - Sombras: las grandes con desenfoque solo en la compu. En el celular, liviano y la app de Android
+     las filas y tarjetas quedan con la luz interna de arriba (medido: con las sombras, el scroll del
+     editor en el celular pintaba el doble que antes).
    - Liviano, GIZE básico (Android), app de Android, «menos transparencia» y navegadores sin
-     backdrop-filter: sin desenfoque y rellenos casi sólidos (o sólidos). Básico ni siquiera pinta la
-     capa del fondo. Nada se mueve: no hay nada que frenar con prefers-reduced-motion,
-     html.app-pausada ni html.fondo-quieto.
+     backdrop-filter: sin desenfoque y rellenos casi sólidos (o sólidos: «menos transparencia» gana
+     en todos los modos). Básico ni siquiera pinta la capa del fondo. Nada se mueve: no hay nada que
+     frenar con prefers-reduced-motion, html.app-pausada ni html.fondo-quieto.
 
    Alcance: html:not(.tema-claro):not(.tema-luz) body.silk-coach → solo el panel del coach en
    «Oscuro», con y sin neón. «Azul», «Rosa» y «Claro» (ya son vidrio con su propio fondo) y la app del
@@ -34,9 +41,11 @@ html:not(.tema-claro):not(.tema-luz) body.silk-coach {
   --cg-fill: rgba(14,18,29,.75);          /* tarjetas grandes (sin desenfoque: ver --cg-card-blur) */
   --cg-row: rgba(15,19,30,.88);           /* filas: más cubiertas, sin desenfoque */
   --cg-group: rgba(14,18,29,.42);         /* superserie: deja ver la fila de adentro */
-  --cg-step: rgba(24,29,41,.94);          /* contador de series: casi sólido, encima de la fila */
+  --cg-step: rgb(23,28,40);               /* contador de series: sólido (tapa el final de un nombre largo) */
   --cg-pop: rgba(16,20,31,.92);           /* menús y ventanas: se leen sobre contenido */
   --cg-ins: rgba(11,13,17,.96);           /* la píldora «+ Agregar ejercicio» */
+  --cg-row-solid: rgb(17,21,33);          /* una fila ya mezclada con el fondo (a media altura): lo que tapa */
+  --cg-pop-solid: rgb(16,20,31);          /* la pestaña que se arrastra */
   --cg-nav-fill: rgba(16,20,32,.62);      /* píldora de navegación del celular */
   --cg-side-fill: rgba(12,16,26,.55);     /* barra lateral */
   --cg-chip: rgba(255,255,255,.045);      /* botones y fichas de adentro */
@@ -52,6 +61,11 @@ html:not(.tema-claro):not(.tema-luz) body.silk-coach {
   --cg-glint: radial-gradient(120% 140% at 0% 0%, rgba(255,255,255,.035), rgba(255,255,255,0) 48%);
   --cg-hi: inset 0 1px 0 rgba(255,255,255,.10);
   --cg-shadow: 0 1px 2px rgba(0,0,0,.35), 0 24px 48px -24px rgba(0,0,0,.85);
+  /* Lo que llevan puesto tarjetas y filas. En el celular, solo la luz interna; en liviano y Android,
+     además, las filas sin el brillo (sección 9). */
+  --cg-card-sh: var(--cg-hi), var(--cg-shadow);
+  --cg-row-sh: var(--cg-hi), 0 12px 28px -18px rgba(0,0,0,.85);
+  --cg-row-sheen: var(--cg-sheen);
   --cg-blur: blur(18px) saturate(165%);
   /* Tarjetas y barra lateral sin desenfoque: detrás solo está el fondo quieto y liso, así que no se
      ve (medido: ≤ 8/255 por píxel) pero se recalcula en cada cuadro del scroll (medido con la CPU
@@ -121,14 +135,16 @@ html.lite:not(.tema-claro):not(.tema-luz) body.silk-coach { --cg-grano: none; }
 html.android-app:not(.tema-claro):not(.tema-luz) body.silk-coach::after { will-change: auto; }
 /* GIZE básico (fondos lisos): sin la capa; queda el degradé de calma.css, como en el resto de la app. */
 html.basico:not(.tema-claro):not(.tema-luz) body.silk-coach::after { content: none; }
-@media (forced-colors: active) { html body.silk-coach::after { content: none; } }
+/* Colores forzados (contraste alto de Windows): sin la capa. Con el mismo prefijo que la regla de
+   arriba, así gana por orden (con uno más corto no se aplicaba). */
+@media (forced-colors: active) { html:not(.tema-claro):not(.tema-luz) body.silk-coach::after { content: none; } }
 
 /* ---------- 3) Superficies grandes: vidrio (relleno translúcido, sin desenfoque) ---------- */
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.cv-card, .co-invite, .pl-banner, .ptile) {
   isolation: isolate; /* el filete (z 3) queda adentro de la tarjeta, no por encima de lo de al lado */
   background: var(--cg-glint) border-box, var(--cg-sheen) 0 0 / 100% 220px no-repeat border-box, linear-gradient(var(--cg-fill), var(--cg-fill)) border-box;
   -webkit-backdrop-filter: var(--cg-card-blur); backdrop-filter: var(--cg-card-blur);
-  box-shadow: var(--cg-hi), var(--cg-shadow);
+  box-shadow: var(--cg-card-sh);
 }
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.cv-card, .co-invite, .pl-banner:not(.warn), .ptile) { border-color: transparent; }
 /* .cv-card ya es relative (y .cv-peek, sticky): no se toca. Las otras necesitan una caja para el filete. */
@@ -146,7 +162,7 @@ html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.cv-car
     position: relative; isolation: isolate; border-color: transparent;
     background: var(--cg-glint) border-box, var(--cg-sheen) 0 0 / 100% 220px no-repeat border-box, linear-gradient(var(--cg-fill), var(--cg-fill)) border-box;
     -webkit-backdrop-filter: var(--cg-card-blur); backdrop-filter: var(--cg-card-blur);
-    box-shadow: var(--cg-hi), var(--cg-shadow);
+    box-shadow: var(--cg-card-sh);
   }
   html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-table::after {
     content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 3; padding: 1.5px; border-radius: inherit; pointer-events: none;
@@ -188,37 +204,61 @@ html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.cv-car
    arrastrar para unir en superserie (.co-drop-target) se queda con su tinte violeta de rutinas.css:
    si no, mientras arrastrás no se ve dónde cae. */
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-exc:not(.co-drop-target) {
-  background: var(--cg-sheen) padding-box, linear-gradient(var(--cg-row), var(--cg-row)) padding-box, var(--cg-ring) border-box;
-  box-shadow: var(--cg-hi), 0 12px 28px -18px rgba(0,0,0,.85);
+  background: var(--cg-row-sheen) padding-box, linear-gradient(var(--cg-row), var(--cg-row)) padding-box, var(--cg-ring) border-box;
+  box-shadow: var(--cg-row-sh);
 }
-/* El contador de series (se ve al pasar el mouse) con el mismo filete, casi sólido encima de la fila. */
+/* El contador de series (se ve al pasar el mouse) con el mismo filete, sólido encima de la fila. */
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-exc-step {
   background: linear-gradient(var(--cg-step), var(--cg-step)) padding-box, var(--cg-ring) border-box;
 }
-/* Al pasar el mouse se esconde el resumen; la botonera ya no necesita tapar con un fondo opaco. */
-html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-exc-collapsed .co-exc-cfoot { background: none; }
+/* La botonera que aparece al pasar el mouse tapa el final de un nombre largo (antes, con un fondo
+   lleno). El nombre solo puede quedar debajo de su borde izquierdo y del contador (sólido): ahí va
+   el color de la fila ya mezclado, que entra en 10 px para que el nombre se apague en vez de
+   cortarse. El resto queda transparente: un rectángulo lleno se notaba sobre la fila de vidrio. */
+html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-exc-collapsed .co-exc-cfoot {
+  background: linear-gradient(90deg, rgba(17,21,33,0), var(--cg-row-solid) 10px, var(--cg-row-solid) 24px, rgba(17,21,33,0) 24px);
+}
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-ss-group {
   isolation: isolate;
-  background: var(--cg-sheen) border-box, linear-gradient(var(--cg-group), var(--cg-group)) border-box;
-  box-shadow: var(--cg-hi), var(--cg-shadow);
+  background: var(--cg-row-sheen) border-box, linear-gradient(var(--cg-group), var(--cg-group)) border-box;
+  box-shadow: var(--cg-card-sh);
 }
 @media (max-width: 899px) {
   html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-trow:not(.co-thead) {
-    background: var(--cg-sheen), linear-gradient(var(--cg-row), var(--cg-row)); border-color: var(--cg-line);
-    box-shadow: var(--cg-hi), 0 12px 28px -18px rgba(0,0,0,.85);
+    background: var(--cg-row-sheen), linear-gradient(var(--cg-row), var(--cg-row)); border-color: var(--cg-line);
+    box-shadow: var(--cg-row-sh);
   }
+}
+/* Rutinas › «Importar rutina armada»: la lista, como las filas de los ejercicios (con su filete). */
+html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .tpl-seed-list .co-item {
+  background: var(--cg-row-sheen) padding-box, linear-gradient(var(--cg-row), var(--cg-row)) padding-box, var(--cg-ring) border-box;
+  box-shadow: var(--cg-row-sh);
+}
+html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .tpl-seed-list .co-item:active {
+  background: var(--cg-row-sheen) padding-box, linear-gradient(var(--cg-chip-on), var(--cg-chip-on)) padding-box,
+    linear-gradient(var(--cg-row), var(--cg-row)) padding-box, var(--cg-ring) border-box;
 }
 
 /* ---------- 6) Lo de adentro: botones, fichas y controles en el mismo material ----------
-   Antes eran bloques opacos (#12151B) adentro de una tarjeta de vidrio y se veían como agujeros.
-   Solo estos controles, no todo #coachHost. Lo elegido (.on) conserva su marca de siempre, y los de
-   borrar (.cfg-danger) su borde rojo (css/screens/config.css, con !important). */
+   Antes eran bloques opacos (#12151B, #0B0D11) adentro de una tarjeta o una ventana de vidrio y se
+   veían como agujeros. Solo estos controles, no todo #coachHost ni las ventanas enteras. Lo elegido
+   (.on) conserva su marca de siempre, y los de borrar (.cfg-danger) su borde rojo
+   (css/screens/config.css, con !important). Los estados se siguen viendo: dónde cae la pestaña de
+   día que arrastrás, el ⋯ abierto o con el mouse encima. */
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.co-daytab:not(.on), .co-copy-btn, .hd-day:not(.on), .cv-tile:not(button), .cv-peek-rt,
-    .co-ss-split, .cv-x, .cs-link, .co-remove-client, .cp-copt:not(.on), .cs-neon, .cq-item, .cq-tabs, .co-seg, .cv-card .logout-btn) {
+    .co-ss-split, .cv-x, .cs-link, .co-remove-client, .cp-copt:not(.on), .cs-neon, .cq-item, .cq-tabs, .co-seg, .cp-cat,
+    :is(.cv-card, .cp-ccard, .cp-modal) .logout-btn) {
   background: var(--cg-chip-bg); border-color: var(--cg-line); box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
 }
+/* Dónde cae la pestaña de día que arrastrás: la rayita de css/screens/coach/editor.css (azul; blanca
+   sin neón), que la regla de arriba tapaba. */
+html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-daytab:not(.on).co-drop-l { box-shadow: inset 3px 0 0 var(--gize-blue); }
+html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-daytab:not(.on).co-drop-r { box-shadow: inset -3px 0 0 var(--gize-blue); }
+html.sin-neon:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-daytab:not(.on).co-drop-l { box-shadow: inset 3px 0 0 rgba(255,255,255,.7); }
+html.sin-neon:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-daytab:not(.on).co-drop-r { box-shadow: inset -3px 0 0 rgba(255,255,255,.7); }
 /* Al pasar el mouse, como en la capa de botones (css/ui/estetica-login.css), pero en vidrio. */
-html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.co-copy-btn, .cp-copt:not(.on), .cv-card .logout-btn:not(.cfg-danger)):hover {
+html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.co-copy-btn, .cp-copt:not(.on), .cp-cat,
+    :is(.cv-card, .cp-ccard, .cp-modal) .logout-btn:not(.cfg-danger)):hover {
   background: var(--cg-chip-on-bg); border-color: var(--gize-text-2);
 }
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .cs-link:hover { border-color: color-mix(in srgb, var(--gize-blue) 55%, transparent); }
@@ -234,18 +274,35 @@ html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-exc-hea
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-day-menu > summary {
   background: var(--cg-chip-bg); border-color: var(--cg-line); box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
 }
+/* El ⋯ abierto o con el mouse encima: el borde azul de siempre (css/screens/coach/rutinas.css). */
+html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.co-day-menu[open] > summary, .co-day-menu > summary:hover) { border-color: var(--blue-2); }
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-exc .co-day-menu > summary { background: none; border-color: transparent; box-shadow: none; }
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-daytab.on { background: var(--cg-chip-on-bg); }
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-avatar { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); }
 /* Campos: hundidos en el vidrio. Con foco vuelven a lo de siempre (el borde azul de foco). */
-html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.co-note, .co-search, .co-dayname, .ml-in, .opt-body, .co-target, .co-pin):not(:focus) {
+html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.co-note, .co-search, .co-dayname, .ml-in, .opt-body, .co-target, .co-pin, .cp-search):not(:focus) {
   background: var(--cg-well); border-color: var(--cg-line); box-shadow: inset 0 1px 2px rgba(0,0,0,.35);
 }
+/* «Mi plan»: las tarjetas de los planes y el estado en el mismo material. Los bordes de color (el
+   plan «Más elegido», el actual, el estado en verde o rojo) se quedan. */
+html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.pl-card, .pl-status) { background: var(--cg-chip-bg); }
+html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.pl-card:not(.best):not(.current), .pl-status:not(.ok):not(.warn)) { border-color: var(--cg-line); }
+/* Sin neón, el «Más elegido» lleva el filete blanco en el fondo (borde transparente, plan.css): el
+   relleno de abajo va sólido para que el filete no se vea a través de la tarjeta. */
+html.sin-neon:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .pl-card.best {
+  background: linear-gradient(var(--cg-chip), var(--cg-chip)) padding-box, linear-gradient(var(--cg-row-solid), var(--cg-row-solid)) padding-box,
+    var(--gize-rgb-line) border-box;
+}
+/* «▸ Ver progreso» (Más opciones de un ejercicio): el azul claro de la marca, que sobre el vidrio
+   se lee (el --blue-2 de rutinas.css quedaba en 3,6:1). */
+html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-exc-fold summary { color: var(--gize-blue); }
 
-/* ---------- 7) Menús, ventanas y lo que flota: vidrio con desenfoque ---------- */
+/* ---------- 7) Menús, ventanas y lo que flota ----------
+   Desenfoque solo en las ventanas (grandes: detrás pasa el panel entero). Los menús ⋯ y la pestaña
+   que se arrastra son chicos y casi llenos (92 %): el desenfoque no se veía y costaba un pase más
+   en cada cuadro mientras se arrastra. */
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-day-pop {
   background: var(--cg-sheen), linear-gradient(var(--cg-pop), var(--cg-pop)); border-color: rgba(255,255,255,.10);
-  -webkit-backdrop-filter: var(--cg-blur); backdrop-filter: var(--cg-blur);
   box-shadow: var(--cg-hi), 0 18px 40px -12px rgba(0,0,0,.7);
 }
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-pop-sep { background: var(--cg-line); }
@@ -255,12 +312,10 @@ html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.cp-mod
   -webkit-backdrop-filter: var(--cg-blur); backdrop-filter: var(--cg-blur);
   box-shadow: var(--cg-hi), 0 30px 70px -20px rgba(0,0,0,.8);
 }
-/* La pestaña de día que se arrastra (rutinas.js, la agrega a body): el vidrio de los menús, casi lleno
-   (92 %) y con desenfoque, así no se mezcla con la pestaña de abajo; con su borde azul de siempre
-   (css/screens/coach/editor.css). */
+/* La pestaña de día que se arrastra (rutinas.js, la agrega a body): llena, así no se mezcla con la
+   pestaña de abajo; con su borde azul de siempre (css/screens/coach/editor.css). */
 html:not(.tema-claro):not(.tema-luz):not(#_):not(#__) body.silk-coach:not(#_) .co-daytab.co-day-ghost {
-  background: var(--cg-sheen), linear-gradient(var(--cg-pop), var(--cg-pop));
-  -webkit-backdrop-filter: var(--cg-blur); backdrop-filter: var(--cg-blur);
+  background: var(--cg-sheen), linear-gradient(var(--cg-pop-solid), var(--cg-pop-solid));
 }
 /* «+ Agregar ejercicio» entre ejercicios: la píldora en vidrio oscuro (sigue tenue hasta pasar el
    mouse; tan oscura como antes para que el azul se lea igual). */
@@ -270,8 +325,13 @@ html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-ins-b {
 
 /* ---------- 8) Celular: franja de arriba, píldora de navegación y Configuración ---------- */
 @media (max-width: 899px) {
-  html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .cv-util-i {
+  html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .cv-util-i:not(.on) {
     background: var(--cg-chip-bg); border-color: var(--cg-line); box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  /* La elegida (Configuración abierta): el relleno más claro de siempre (panel.css), sobre el vidrio. */
+  html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .cv-util-i.on {
+    background: linear-gradient(rgba(255,255,255,.09), rgba(255,255,255,.09)), linear-gradient(var(--cg-fill), var(--cg-fill));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10);
   }
   html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .cv-nav {
     background: var(--cg-sheen), linear-gradient(var(--cg-nav-fill), var(--cg-nav-fill)); border-color: rgba(255,255,255,.10);
@@ -292,20 +352,29 @@ html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-ins-b {
   }
 }
 
-/* ---------- 9) Sin desenfoque y sin transparencia ---------- */
-/* Modo liviano y app de Android (que ya apaga todo backdrop-filter): sin desenfoque y, donde el
-   contenido pasa por detrás (menús, ventanas, píldora), rellenos casi sólidos. */
+/* ---------- 9) Celular, liviano, Android y «menos transparencia» ---------- */
+/* Celular: sin las sombras grandes con desenfoque; queda la luz interna de arriba. Con ellas el
+   scroll del editor (13 ejercicios, 390 px, densidad 2,6) pintaba el doble que antes; sin ellas
+   pinta un poco menos que antes (medido con el trace de Chrome). */
+@media (max-width: 899px) {
+  html:not(.tema-claro):not(.tema-luz) body.silk-coach { --cg-card-sh: var(--cg-hi); --cg-row-sh: var(--cg-hi); }
+}
+/* Modo liviano y app de Android (que ya apaga todo backdrop-filter): sin desenfoque, sin sombras
+   grandes ni el brillo de las filas y, donde el contenido pasa por detrás (ventanas, píldora),
+   rellenos casi sólidos. */
 html.lite:not(.tema-claro):not(.tema-luz) body.silk-coach,
 html.android-app:not(.tema-claro):not(.tema-luz) body.silk-coach {
   --cg-blur: none; --cg-card-blur: none;
   --cg-pop: rgba(16,20,31,.97); --cg-nav-fill: rgba(16,20,32,.96);
+  --cg-card-sh: var(--cg-hi); --cg-row-sh: var(--cg-hi); --cg-row-sheen: none;
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   html:not(.tema-claro):not(.tema-luz) body.silk-coach { --cg-pop: rgba(16,20,31,.97); --cg-nav-fill: rgba(16,20,32,.96); }
 }
-/* «Reducir transparencia» del sistema: todo sólido (los mismos colores, ya mezclados). */
+/* «Reducir transparencia» del sistema: todo sólido (los mismos colores, ya mezclados). Con :not(#_)
+   para ganarle también a liviano y a la app de Android, que van arriba con más peso. */
 @media (prefers-reduced-transparency: reduce) {
-  html:not(.tema-claro):not(.tema-luz) body.silk-coach {
+  html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach {
     --cg-blur: none; --cg-card-blur: none;
     --cg-fill: rgb(14,18,29); --cg-row: rgb(15,19,30); --cg-group: rgb(14,18,29); --cg-step: rgb(24,29,41);
     --cg-pop: rgb(16,20,31); --cg-nav-fill: rgb(16,20,32); --cg-side-fill: rgb(12,16,26);

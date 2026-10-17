@@ -13,7 +13,8 @@
 // - En «Oscuro» el panel va en vidrio sobre su propia capa de fondo (body.silk-coach::after,
 //   css/screens/coach/vidrio.css): quieta (sin animación ni transición), fija detrás de #coachHost,
 //   con luces radiales suaves de la marca (alfa ≤ .2: un tinte, no manchas) y, sin neón, solo grises.
-//   La aurora de siempre queda tapada y sin pintarse (una sola capa fija de pantalla completa).
+//   La aurora de siempre queda tapada y sin pintarse (una sola capa fija de pantalla completa). Las
+//   luces se revisan en el celular y en la compu (cada ancho tiene las suyas), con y sin neón.
 import { newPage, wait, configCoach } from './lib.mjs';
 
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
@@ -21,7 +22,7 @@ const A1 = '44444444-4444-4444-4444-444444444444';
 const SPY = `window.__arc = 0; { const o = CanvasRenderingContext2D.prototype.arc;
   CanvasRenderingContext2D.prototype.arc = function () { window.__arc++; return o.apply(this, arguments); }; }`;
 
-const open = init => newPage({ user: COACH, viewport: { width: 390, height: 844 }, init: `localStorage.setItem('gize_lite','0');${SPY}${init || ''}`,
+const open = (init, viewport = { width: 390, height: 844 }) => newPage({ user: COACH, viewport, init: `localStorage.setItem('gize_lite','0');${SPY}${init || ''}`,
   handlers: {
     '/profiles': (r, J, i) => { if (i.m !== 'GET') return undefined; const me = { id: COACH.id, role: 'coach', full_name: 'Coach Prueba' };
       if (/coach_id=eq/.test(i.url.search)) return J([{ id: A1, full_name: 'Ana Alumna' }]); return J(i.one ? me : [me]); },
@@ -250,6 +251,24 @@ export default async function ({ base, t }){
       t.ok(!!ca && ca.colores.every(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) <= 24), 'apagado otra vez: la capa del fondo vuelve a gris');
     }
     t.eq(errs, [], 'sin neón: errores de la página');
+    await close();
+  }
+  // ---- La capa del fondo en la compu (1440 × 900): las luces de la compu, con y sin neón ----
+  for (const [nombre, init] of [['con neón', ''], ['sin neón', "localStorage.setItem('gize_neon','0');"]]){
+    const { p, errs, close } = await open(init, { width: 1440, height: 900 });
+    await p.goto(base + '/app/'); await wait(3500);
+    t.ok(await p.$('#coachHost .co-wrap'), 'compu, ' + nombre + ': se ve el panel del coach');
+    t.ok(await p.evaluate(() => matchMedia('(min-width: 900px)').matches), 'compu, ' + nombre + ': es el ancho de la compu (sus luces, no las del celular)');
+    const c = await p.evaluate(capa);
+    t.ok(!!c, 'compu, ' + nombre + ': el panel tiene su capa de fondo');
+    if (c){
+      t.eq([c.pos, c.inset, c.anim, c.trans, c.anims], ['fixed', '0px 0px 0px 0px', 'none', true, 0], 'compu, ' + nombre + ': la capa es fija, de pantalla completa y quieta');
+      t.ok(c.luces.length >= 1 && c.luces.every(cs => cs.every(([, , , a = 1]) => a <= 0.2)), 'compu, ' + nombre + ': las luces del fondo son suaves (alfa ≤ .2): ' + JSON.stringify(c.luces));
+      if (init) t.ok(c.colores.every(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) <= 24), 'compu, sin neón: la capa del fondo es solo gris (sin tinte): ' + c.bg);
+      else t.ok(c.luces.some(cs => cs.some(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) > 24)), 'compu, con neón: las luces llevan el tinte de la marca: ' + c.bg);
+      t.eq(c.aurora, 'hidden', 'compu, ' + nombre + ': la aurora de abajo no se pinta');
+    }
+    t.eq(errs, [], 'compu, ' + nombre + ': errores de la página');
     await close();
   }
 }

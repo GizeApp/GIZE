@@ -1,20 +1,30 @@
 // Panel del coach en «Oscuro»: vidrio sobre su capa de fondo (css/screens/coach/vidrio.css).
 // - Se lee: los textos importantes (etiquetas grises de 11–14 px, la sección elegida de
 //   Configuración, los botones de Tema, el menú ⋯ con «Quitar ejercicio» en rojo, «+ Agregar
-//   ejercicio» al pasar el mouse, la barra de abajo del celular…) tienen contraste ≥ 5:1 contra el
-//   fondo REAL: una captura sin texto, con el vidrio, las luces y el grano. Se toma el píxel del fondo
-//   más parecido al texto (percentil 95), no el promedio.
+//   ejercicio» al pasar el mouse, la barra de abajo del celular, el selector de ejercicios, «Programar
+//   una rutina nueva» y «Mi plan»…) tienen contraste ≥ 5:1 contra el fondo REAL: una captura sin
+//   texto, con el vidrio, las luces y el grano. Se toma el píxel del fondo más parecido al texto
+//   (percentil 95), no el promedio. «▸ Ver progreso» (12 px, azul) ≥ 4,5:1.
+// - Adentro de las ventanas de vidrio no quedan bloques opacos (#12151B / #0B0D11): los grupos
+//   musculares, el buscador, «Cancelar» y las tarjetas de «Mi plan» van en el mismo material.
 // - Alcance: con «Claro», «Azul», «Rosa» y en la app del alumno la hoja no cambia nada: los estilos
 //   calculados de toda la página (y de sus ::before / ::after) son los mismos con la hoja prendida y
 //   apagada. En «Oscuro», en cambio, sí cambia (la hoja está cargada y hace algo).
-// - «Reducir transparencia» del sistema: rellenos sólidos y sin desenfoque; con «reducir
-//   movimiento», nada se mueve (tampoco sin él: la capa del fondo no tiene animación).
+// - «Reducir transparencia» del sistema: rellenos sólidos y sin desenfoque, también en liviano y en
+//   la app de Android; con «reducir movimiento», nada se mueve (tampoco sin él: la capa del fondo no
+//   tiene animación).
 // - Placa de video: una sola capa fija de pantalla completa con will-change (la aurora de abajo no
 //   se pinta); en la app de Android sin will-change; en GIZE básico sin la capa (queda el degradé de
 //   siempre); en liviano sin el grano y sin desenfoque.
 // - Lo que no se rompe: el campo con foco conserva su borde de siempre; al arrastrar para unir en
-//   superserie, la tarjeta de destino conserva su tinte; los filetes (z 3) quedan adentro de su
-//   tarjeta (isolation) y el panel de la barra lateral (z -1) adentro de la barra.
+//   superserie, la tarjeta de destino conserva su tinte; la pestaña de día donde cae la que
+//   arrastrás conserva su rayita (con y sin neón); el ⋯ abierto o con el mouse encima, su borde azul;
+//   en el celular, «Configuración» elegida en la franja de arriba se distingue de las otras; la
+//   botonera que aparece al pasar el mouse tapa el final de un nombre largo; los filetes (z 3) quedan
+//   adentro de su tarjeta (isolation) y el panel de la barra lateral (z -1) adentro de la barra.
+// - Desenfoque solo en las ventanas y la píldora del celular (no en los menús ⋯ ni en la pestaña que
+//   se arrastra). Sombras grandes con desenfoque solo en la compu: en el celular, liviano y Android
+//   las filas y tarjetas van con la luz interna. Con colores forzados (contraste alto) no hay capa.
 import { newPage, wait, configCoach, ALUMNO, profile } from './lib.mjs';
 
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
@@ -57,18 +67,25 @@ const go = async (p, vista) => {
   else {
     if (!await p.$('.cv-ctabs')) { await click('[data-coach="view-clients"]'); await click(`[data-coach="open"][data-id="${ABRIR}"]`); await wait(500); }
     await click('[data-coach="client-tab"][data-t="rutina"]');
+    if (vista === 'mas') {
+      // «Más opciones» del segundo ejercicio abierto: «▸ Ver progreso».
+      if (!await p.$('.co-exc-open[data-id="e1"]')) await click('.co-exc[data-id="e1"] .co-exc-chev');
+      if (!await p.$('.co-exc[data-id="e1"] .co-more-btn.on')) await click('.co-exc[data-id="e1"] .co-more-btn');
+      await p.evaluate(() => { const h = document.getElementById('coachHost'), c = document.querySelector('.co-exc[data-id="e1"]'); h.scrollTop += c.getBoundingClientRect().top - 60; });
+    }
     if (vista === 'menu') {
       if (!await p.$('.co-exc-open[data-id="e1"]')) await click('.co-exc[data-id="e1"] .co-exc-chev');
       await p.evaluate(() => { const h = document.getElementById('coachHost'), c = document.querySelector('.co-exc[data-id="e1"]'); h.scrollTop += c.getBoundingClientRect().top - 150; });
       await click('.co-exc-open .co-exc-menu2 > summary');
     }
   }
-  if (vista !== 'menu') await p.evaluate(() => { document.getElementById('coachHost').scrollTop = 0; });
+  if (vista !== 'menu' && vista !== 'mas') await p.evaluate(() => { document.getElementById('coachHost').scrollTop = 0; });
   await wait(300);
 };
 
 // ---------- Contraste contra el fondo real ----------
-const SIN_TEXTO = `#coachHost *, #coachHost *::before, #coachHost *::after, #coachHost *::placeholder {
+const VENTANAS = '#coachHost, #applyMount, #coachSheetHost, #planSheetHost';
+const SIN_TEXTO = `:is(${VENTANAS}) *, :is(${VENTANAS}) *::before, :is(${VENTANAS}) *::after, :is(${VENTANAS}) *::placeholder {
   color: transparent !important; -webkit-text-fill-color: transparent !important; text-shadow: none !important; caret-color: transparent !important; }`;
 // Los textos de lo que matchea cada selector: caja y color (con la opacidad de los de arriba). Los
 // tapados por otra cosa (un menú, la barra de abajo) no se miden.
@@ -150,6 +167,18 @@ async function sinCambios(p){
   const dif = (a, b) => { const x = String(a).split('|'), y = String(b).split('|'); return x.map((v, i) => v === y[i] ? null : v + ' / ' + y[i]).filter(Boolean).join('; ').slice(0, 160); };
   return Object.keys(con).filter(k => con[k] === otra[k] && con[k] !== sin[k]).map(k => k + ': ' + dif(sin[k], con[k]));
 }
+// Lo mismo con la hoja apagada: para comparar un estado (hover, abierto, dónde cae) con el de siempre.
+const conHojaApagada = async (p, fn, arg) => {
+  await p.evaluate(h => { document.querySelector(h).sheet.disabled = true; }, HOJA); await wait(120);
+  try { return await p.evaluate(fn, arg); } finally { await p.evaluate(h => { document.querySelector(h).sheet.disabled = false; }, HOJA); await wait(120); }
+};
+// Bloques opacos #12151B / #0B0D11 (los de antes) adentro de una ventana de vidrio.
+const OPACOS = sel => [...document.querySelectorAll(sel + ' *')].filter(e => { const s = getComputedStyle(e), r = e.getBoundingClientRect();
+  return r.width >= 18 && r.height >= 12 && s.visibility !== 'hidden' && /^rgb\((18, 21, 27|11, 13, 17)\)$/.test(s.backgroundColor); })
+  .map(e => String(e.className).split(' ')[0] + ' ' + getComputedStyle(e).backgroundColor);
+// Sombras con desenfoque (las de abajo, no la luz interna de 1 px): [blur en px] de las que no son inset.
+const DESENFOQUES = v => String(v).split(/,(?![^(]*\))/).filter(x => x.trim() && x.trim() !== 'none' && !/inset/.test(x))
+  .map(x => +((x.replace(/rgba?\([^)]*\)/, '').match(/-?[\d.]+px/g) || [])[2] || '0px').replace('px', ''));
 
 export default async function ({ base, t }){
   // ---- «Oscuro», compu: se lee, capas, foco, arrastre y apilado ----
@@ -170,6 +199,101 @@ export default async function ({ base, t }){
     if (await p.$('.co-exc-open .co-exc-menu2[open]')) { await p.click('.co-exc-open .co-exc-menu2 > summary'); await wait(200); }
     await p.hover('.co-exc-grid > .co-ins'); await wait(300);
     revisar(t, 'Oscuro, editor', await contraste(p, [['«+ Agregar ejercicio» al pasar el mouse', '.co-exc-grid > .co-ins:hover .co-ins-b']]), [['«+ Agregar ejercicio» al pasar el mouse']]);
+
+    // «▸ Ver progreso» (Más opciones): 12 px en azul, ≥ 4,5:1 sobre la fila de vidrio.
+    await go(p, 'mas'); await p.mouse.move(1436, 896); await wait(250);
+    revisar(t, 'Oscuro, Más opciones', await contraste(p, [['«▸ Ver progreso»', '.co-exc[data-id="e1"] .co-exc-fold summary']]), [['«▸ Ver progreso»']], 4.5);
+
+    // La botonera que aparece al pasar el mouse tapa el final de un nombre largo: debajo del contador
+    // no se ve el nombre (la misma captura con y sin el texto del nombre).
+    await go(p, 'editor');
+    await p.evaluate(() => { const c = document.querySelector('.co-exc-grid > .co-exc-collapsed[data-id="e2"]');
+      c.querySelector('.co-exc-ctext').textContent = 'Peso muerto rumano con mancuernas a una pierna en déficit con pausa isométrica abajo';
+      const h = document.getElementById('coachHost'); h.scrollTop += c.getBoundingClientRect().top - 300; });
+    await wait(200);
+    { const bb = await p.$('.co-exc-collapsed[data-id="e2"] .co-exc-ctext').then(e => e.boundingBox()); await p.mouse.move(bb.x + 10, bb.y + bb.height / 2); }
+    await wait(400);
+    const tapa = await p.evaluate(() => { const c = document.querySelector('.co-exc-collapsed[data-id="e2"]'), n = c.querySelector('.co-exc-ctext').getBoundingClientRect(),
+      f = c.querySelector('.co-exc-cfoot').getBoundingClientRect(), st = c.querySelector('.co-exc-step').getBoundingClientRect();
+      return { x: f.left + 10, y: st.top, w: Math.min(n.right, st.right) - f.left - 10, h: st.height, op: getComputedStyle(c.querySelector('.co-exc-cfoot')).opacity }; });
+    t.ok(tapa.w > 20 && tapa.op === '1', 'el nombre largo llega debajo de la botonera, que está a la vista: ' + JSON.stringify(tapa));
+    if (tapa.w > 20){
+      const clip = { x: tapa.x, y: tapa.y, width: tapa.w, height: tapa.h };
+      const conNombre = await p.screenshot({ clip, animations: 'disabled', caret: 'hide' });
+      const st = await p.addStyleTag({ content: '.co-exc-collapsed[data-id="e2"] .co-exc-ctext { color: transparent !important; }' }); await wait(150);
+      const sinNombre = await p.screenshot({ clip, animations: 'disabled', caret: 'hide' });
+      await st.evaluate(e => e.remove());
+      const dif = await p.evaluate(async ([a, b]) => {
+        const px = async src => { const i = new Image(); i.src = 'data:image/png;base64,' + src; await i.decode(); const c = document.createElement('canvas'); c.width = i.width; c.height = i.height;
+          const g = c.getContext('2d'); g.drawImage(i, 0, 0); return g.getImageData(0, 0, i.width, i.height).data; };
+        const A = await px(a), B = await px(b); let m = 0; for (let k = 0; k < A.length; k++) if (k % 4 !== 3) m = Math.max(m, Math.abs(A[k] - B[k])); return m; },
+        [conNombre.toString('base64'), sinNombre.toString('base64')]);
+      t.ok(dif <= 3, 'debajo de la botonera no se ve el nombre (diferencia máxima ' + dif + '/255)');
+    }
+    await p.mouse.move(1436, 896); await wait(200);
+
+    // La pestaña de día donde cae la que arrastrás: la rayita de siempre (azul; blanca sin neón).
+    await go(p, 'editor');
+    const caida = () => { const d = document.querySelector('.co-daytab[data-coach="edit-day"]:not(.on)'), out = [];
+      for (const c of ['co-drop-l', 'co-drop-r']) { d.classList.add(c); out.push(getComputedStyle(d).boxShadow); d.classList.remove(c); } return out; };
+    for (const neon of [true, false]){
+      await p.evaluate(n => document.documentElement.classList.toggle('sin-neon', !n), neon); await wait(150);
+      const con = await p.evaluate(caida), sin = await conHojaApagada(p, caida);
+      t.eq(con, sin, (neon ? 'con' : 'sin') + ' neón: la pestaña donde cae la que arrastrás conserva su rayita: ' + con.join(' / '));
+      t.ok(/ 3px 0px 0px 0px inset/.test(con[0]) && /-3px 0px 0px 0px inset/.test(con[1]), (neon ? 'con' : 'sin') + ' neón: la rayita a la izquierda o a la derecha');
+    }
+    await p.evaluate(() => document.documentElement.classList.remove('sin-neon')); await wait(150);
+
+    // El ⋯ del día y «Más acciones»: con el mouse encima y abierto, el borde de siempre (azul).
+    const bordeDe = sel => getComputedStyle(document.querySelector(sel)).borderTopColor;
+    for (const [n, sel] of [['⋯ del día', 'details.co-day-menu:not(.co-exc-menu2):not(.co-more-actions) > summary'], ['«Más acciones»', '.co-more-actions > summary']]){
+      if (!await p.$(sel)) { t.ok(false, 'Oscuro, editor: no se vio ' + n); continue; }
+      await p.mouse.move(1436, 896); await wait(200);
+      const quieto = await p.evaluate(bordeDe, sel);
+      await p.hover(sel); await wait(250);
+      const hov = [await p.evaluate(bordeDe, sel), await conHojaApagada(p, bordeDe, sel)];
+      await p.click(sel); await p.mouse.move(1436, 896); await wait(250);
+      const abierto = [await p.evaluate(bordeDe, sel), await conHojaApagada(p, bordeDe, sel), await p.evaluate(s => document.querySelector(s).parentElement.open, sel)];
+      if (abierto[2]) { await p.click(sel); await wait(200); }
+      t.eq(hov[0], hov[1], n + ' con el mouse encima: el borde de siempre (' + hov[0] + ')');
+      t.ok(abierto[2], n + ' se abre');
+      t.eq(abierto[0], abierto[1], n + ' abierto: el borde de siempre (' + abierto[0] + ')');
+      t.ok(hov[0] !== quieto && abierto[0] !== quieto, n + ': abierto o con el mouse encima se distingue del quieto (' + quieto + ')');
+    }
+    await p.mouse.move(1436, 896); await wait(200);
+
+    // Desenfoque: no en la pestaña que se arrastra (chica, llena y se mueve en cada cuadro).
+    const fantasma = await p.evaluate(() => { const d = document.querySelector('.co-daytab[data-coach="edit-day"]').cloneNode(true);
+      d.classList.add('co-drag-ghost', 'co-day-ghost'); d.classList.remove('on'); document.body.appendChild(d); const s = getComputedStyle(d);
+      const v = [s.backdropFilter, s.backgroundImage.slice(s.backgroundImage.lastIndexOf('linear-gradient('))]; d.remove(); return v; });
+    t.ok(fantasma[0] === 'none' && /^linear-gradient\(rgb\(/.test(fantasma[1]), 'la pestaña que se arrastra va llena y sin desenfoque: ' + fantasma.join(' / '));
+
+    // Las ventanas: vidrio con desenfoque y, adentro, nada opaco (#12151B / #0B0D11); se lee.
+    // «+ Agregar ejercicio» → selector de ejercicios.
+    await p.click('.co-rt-add-end'); await wait(700);
+    t.ok(await p.$('#coachSheetHost .cp-modal'), 'se abre el selector de ejercicios');
+    t.ok((await p.evaluate(() => getComputedStyle(document.querySelector('#coachSheetHost .cp-modal')).backdropFilter)) !== 'none', 'el selector de ejercicios es vidrio con desenfoque');
+    t.eq(await p.evaluate(OPACOS, '#coachSheetHost'), [], 'selector de ejercicios: sin bloques opacos adentro (grupos musculares, buscador)');
+    revisar(t, 'Oscuro, selector de ejercicios', await contraste(p, [['grupos musculares', '#coachSheetHost .cp-cat']]), [['grupos musculares']]);
+    await p.keyboard.press('Escape'); await wait(300);
+    await p.evaluate(() => { const b = document.querySelector('#coachSheetHost .cp-bg'); if (b) b.click(); }); await wait(500);
+    // «+ Programar una rutina nueva»: «Cancelar» en vidrio.
+    await p.evaluate(() => { document.getElementById('coachHost').scrollTop = 0; });
+    await p.click('[data-coach="sched-new"]'); await wait(700);
+    t.ok(await p.$('#applyMount .cp-ccard'), 'se abre «Programar una rutina nueva»');
+    t.eq(await p.evaluate(OPACOS, '#applyMount'), [], '«Programar una rutina nueva»: sin bloques opacos adentro («Cancelar»)');
+    revisar(t, 'Oscuro, programar', await contraste(p, [['«Cancelar»', '#applyMount .logout-btn']]), [['«Cancelar»']]);
+    await p.evaluate(() => { const b = document.querySelector('#applyMount [data-coach="sp-cancel"].logout-btn, #applyMount .cp-bg'); if (b) b.click(); }); await wait(500);
+    // «Mi plan»: las tarjetas de los planes y el estado.
+    await go(p, 'inicio');
+    await p.click('.pl-banner[data-plan="open"]'); await wait(700);
+    t.ok(await p.$('#planSheetHost .pl-card'), 'se abre «Mi plan»');
+    t.eq(await p.evaluate(OPACOS, '#planSheetHost'), [], '«Mi plan»: sin bloques opacos adentro (tarjetas, estado)');
+    const best = () => getComputedStyle(document.querySelector('#planSheetHost .pl-card.best')).borderTopColor;
+    t.eq(await p.evaluate(best), await conHojaApagada(p, best), '«Mi plan»: el «Más elegido» conserva su borde');
+    revisar(t, 'Oscuro, Mi plan', await contraste(p, [['clientes y precio', '#planSheetHost :is(.pl-max, .pl-price)'], ['estado', '#planSheetHost .pl-status']]), [['clientes y precio'], ['estado']]);
+    await p.evaluate(() => { const b = document.querySelector('#planSheetHost .cp-bg'); if (b) b.click(); }); await wait(600);
+    await go(p, 'editor'); // lo de abajo mira el editor
 
     // La capa del fondo y la aurora: una sola capa fija de pantalla completa (la del panel).
     const capas = await p.evaluate(() => {
@@ -235,7 +359,18 @@ export default async function ({ base, t }){
     const leer = async (vista, sels) => { await go(p, vista); revisar(t, 'Oscuro, celular, ' + vista, await contraste(p, sels), sels); };
     await leer('clientes', [['barra de abajo', '.cv-nav-i'], ['franja de arriba («Salir»)', '.cv-util-i'], ['actividad', '.co-act-date']]);
     await leer('config', [['secciones', '.cs-nav-i'], ['botones de Tema', '.cs-tema-opt'], ['«Toque de color en los bordes»', '.cs-neon > span']]);
+    // «Configuración» elegida en la franja de arriba: se distingue de las otras (como antes) y conserva su borde.
+    const util = () => [...document.querySelectorAll('.cv-util-i')].map(e => { const s = getComputedStyle(e); return { on: e.classList.contains('on'), bg: s.backgroundImage + ' ' + s.backgroundColor, b: s.borderTopColor }; });
+    const u = await p.evaluate(util), us = await conHojaApagada(p, util);
+    const uOn = u.find(x => x.on), uOff = u.find(x => !x.on);
+    t.ok(uOn && uOff && uOn.bg !== uOff.bg, 'celular: «Configuración» elegida se distingue de los otros botones de arriba: ' + JSON.stringify([uOn, uOff]));
+    t.eq(uOn && uOn.b, (us.find(x => x.on) || {}).b, 'celular: «Configuración» elegida conserva su borde de siempre');
     await leer('menu', [['menú ⋯', '.co-exc-open .co-pop-item:not(:disabled)'], ['«+ Agregar ejercicio»', '.co-ins-b'], ['«3 series»', '.co-exc-sum']]);
+    // Sin sombras grandes con desenfoque en el celular (con ellas el scroll del editor pintaba el doble).
+    const pesadas = await p.evaluate(() => [...document.querySelectorAll('#coachHost :is(.co-exc, .co-ss-group, .cv-card, .co-trow, .pl-banner, .ptile)')]
+      .map(e => [String(e.className).split(' ')[0], getComputedStyle(e).boxShadow]));
+    const conBlur = pesadas.filter(([, v]) => DESENFOQUES(v).some(b => b > 2));
+    t.ok(pesadas.length > 0 && conBlur.length === 0, 'celular: filas y tarjetas sin sombras con desenfoque (' + pesadas.length + ' revisadas): ' + JSON.stringify(conBlur.slice(0, 3)));
     // Las luces, más chicas en el celular y lejos de la franja de arriba (antes teñían el logo y «Salir»).
     const luces = await p.evaluate(() => (getComputedStyle(document.body, '::after').backgroundImage.match(/radial-gradient\((?:[^()]|\([^()]*\))*\)/g) || [])
       .filter(g => (g.match(/rgba?\([^)]*\)/g) || []).some(c => c.match(/[\d.]+/g).slice(0, 3).some(Number)))
@@ -293,6 +428,13 @@ export default async function ({ base, t }){
       return ['--cg-fill', '--cg-row', '--cg-group', '--cg-step', '--cg-pop', '--cg-nav-fill', '--cg-side-fill', '--cg-chip', '--cg-chip-on', '--cg-well', '--cg-pit', '--cg-ins', '--cg-blur', '--cg-card-blur']
         .map(k => k + ': ' + s.getPropertyValue(k).trim()); });
     t.ok(tokens.every(x => /: (rgb\(\d+, ?\d+, ?\d+\)|none)$/.test(x)), 'menos transparencia: los rellenos del vidrio son sólidos y sin desenfoque: ' + JSON.stringify(tokens));
+    // También en liviano y en la app de Android (sus reglas tienen más peso: «menos transparencia» gana igual).
+    for (const cls of ['lite', 'android-app']){
+      await p.evaluate(c => document.documentElement.classList.add(c), cls); await wait(100);
+      const tk = await p.evaluate(() => { const s = getComputedStyle(document.body); return ['--cg-pop', '--cg-nav-fill', '--cg-fill', '--cg-row', '--cg-blur'].map(k => k + ': ' + s.getPropertyValue(k).trim()); });
+      await p.evaluate(c => document.documentElement.classList.remove(c), cls);
+      t.ok(tk.every(x => /: (rgb\(\d+, ?\d+, ?\d+\)|none)$/.test(x)), 'menos transparencia + ' + cls + ': rellenos sólidos (menús, ventanas, píldora): ' + JSON.stringify(tk));
+    }
     // Y en lo que se ve: el relleno es un color sólido; arriba solo quedan los brillos blancos.
     const solido = v => { const cs = (v.bg.match(/rgba?\([^)]*\)/g) || []).map(c => c.match(/[\d.]+/g).map(Number))
       .filter(([r, g, b, a = 1]) => a > 0 && !(r === 255 && g === 255 && b === 255));
@@ -314,23 +456,41 @@ export default async function ({ base, t }){
     await close();
   }
 
+  // ---- Colores forzados (contraste alto): sin la capa del fondo ----
+  {
+    const { p, errs, close } = await abrir(base);
+    await p.emulateMedia({ forcedColors: 'active' });
+    await p.goto(base + '/app/'); await wait(3500);
+    t.eq(await p.evaluate(() => [matchMedia('(forced-colors: active)').matches, getComputedStyle(document.body, '::after').content]), [true, 'none'],
+      'colores forzados: el panel no pinta su capa de fondo');
+    t.eq(errs, [], 'colores forzados: errores de la página');
+    await close();
+  }
+
   // ---- Liviano, app de Android y GIZE básico ----
   {
     const { p, errs, close } = await abrir(base);
     await p.goto(base + '/app/'); await wait(3500);
     await go(p, 'menu');
     const ver = () => p.evaluate(() => { const s = getComputedStyle(document.body, '::after'), pop = document.querySelector('.co-exc-open .co-day-pop');
+      const ex = getComputedStyle(document.querySelector('.co-exc-collapsed'));
       return { capa: s.content !== 'none', will: s.willChange, grano: /url\(/.test(s.backgroundImage), aurora: getComputedStyle(document.querySelector('.app-aurora')).visibility,
-        auroraBg: getComputedStyle(document.querySelector('.app-aurora')).backgroundImage.slice(0, 16), blur: getComputedStyle(pop).backdropFilter }; });
+        auroraBg: getComputedStyle(document.querySelector('.app-aurora')).backgroundImage.slice(0, 16), blur: getComputedStyle(pop).backdropFilter,
+        tok: getComputedStyle(document.body).getPropertyValue('--cg-blur').trim(), sombra: ex.boxShadow, brillo: !/^none/.test(ex.backgroundImage) }; });
     const normal = await ver();
     t.eq([normal.capa, normal.will, normal.grano, normal.aurora], [true, 'transform', true, 'hidden'], 'normal: la capa con grano y capa propia; la aurora sin pintarse');
-    t.ok(normal.blur !== 'none', 'normal: el menú ⋯ es vidrio con desenfoque: ' + normal.blur);
-    await p.evaluate(() => document.documentElement.classList.add('lite'));
+    t.eq(normal.blur, 'none', 'normal: el menú ⋯ sin desenfoque (chico y casi lleno: no se veía)');
+    t.ok(normal.tok !== 'none' && /blur/.test(normal.tok), 'normal: las ventanas y la píldora sí llevan desenfoque: ' + normal.tok);
+    t.ok(Math.max(...DESENFOQUES(normal.sombra)) >= 20 && normal.brillo, 'normal (compu): las filas con su sombra y su brillo: ' + normal.sombra);
+    // (las filas tienen transición en la sombra: se espera a que termine)
+    await p.evaluate(() => document.documentElement.classList.add('lite')); await wait(800);
     const lite = await ver();
-    t.eq([lite.capa, lite.grano, lite.blur], [true, false, 'none'], 'liviano: la capa sin grano y el menú sin desenfoque');
-    await p.evaluate(() => { document.documentElement.classList.remove('lite'); document.documentElement.classList.add('android-app'); });
+    t.eq([lite.capa, lite.grano, lite.blur, lite.tok], [true, false, 'none', 'none'], 'liviano: la capa sin grano y nada con desenfoque');
+    t.eq([DESENFOQUES(lite.sombra), lite.brillo], [[], false], 'liviano: las filas sin sombras con desenfoque ni brillo (solo la luz interna): ' + lite.sombra);
+    await p.evaluate(() => { document.documentElement.classList.remove('lite'); document.documentElement.classList.add('android-app'); }); await wait(800);
     const android = await ver();
-    t.eq([android.capa, android.will, android.blur], [true, 'auto', 'none'], 'app de Android: la capa sin will-change y sin desenfoque');
+    t.eq([android.capa, android.will, android.blur, android.tok], [true, 'auto', 'none', 'none'], 'app de Android: la capa sin will-change y nada con desenfoque');
+    t.eq([DESENFOQUES(android.sombra), android.brillo], [[], false], 'app de Android: las filas sin sombras con desenfoque ni brillo: ' + android.sombra);
     await p.evaluate(() => document.documentElement.classList.add('lite', 'basico'));
     const basico = await ver();
     t.eq([basico.capa, basico.aurora, basico.auroraBg], [false, 'visible', 'linear-gradient('], 'GIZE básico: sin la capa; queda la aurora con el degradé liso de siempre');
