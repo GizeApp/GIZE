@@ -267,8 +267,18 @@ html.sin-neon body:not(#_) .co-sets-panel .co-target:focus { border-color:rgba(2
   body:not(#_) .co-ins:focus-visible .co-ins-b { outline:2px solid var(--gize-blue); outline-offset:2px; }
   html.sin-neon body:not(#_) :is(.co-ins:hover, .co-ins:focus-visible) .co-ins-b { border-color:rgba(255,255,255,.6); }
   html.sin-neon body:not(#_) .co-ins:focus-visible .co-ins-b { outline-color:rgba(255,255,255,.7); }
-  html.tema-luz.sin-neon body:not(#_) :is(.co-ins:hover, .co-ins:focus-visible) .co-ins-b { border-color:rgba(11,13,17,.55); }
-  html.tema-luz.sin-neon body:not(#_) .co-ins:focus-visible .co-ins-b { outline-color:rgba(11,13,17,.6); }
+  /* En «Claro» el azul de la marca (marino) es casi el gris del «+» quieto y el relleno teñido lo
+     apagaba: se prende al revés, lleno de marino con la cruz blanca (el aro, un poco más oscuro, para
+     que el borde contra el fondo no quede más suave que quieto). Sin neón, lleno de negro, sin color. */
+  html.tema-luz body:not(#_) :is(.co-ins:hover, .co-ins:focus-visible) .co-ins-b { color:#fff; background-color:var(--gize-blue);
+    border-color:color-mix(in srgb, var(--gize-blue) 70%, #000); }
+  html.tema-luz.sin-neon body:not(#_) :is(.co-ins:hover, .co-ins:focus-visible) .co-ins-b { color:#fff; background-color:var(--gize-text); border-color:var(--gize-text); }
+  html.tema-luz.sin-neon body:not(#_) .co-ins:focus-visible .co-ins-b { outline-color:var(--gize-text); }
+  /* Arrastrando una tarjeta (para armar una superserie): los «+» se apagan como las tarjetas y no se
+     prenden al pasar (soltar en un hueco no hace nada). El destino se busca con elementFromPoint, que
+     saltea lo que no toma el mouse. */
+  body:not(#_).co-drag-on .co-ins { pointer-events:none; }
+  body:not(#_).co-drag-on .co-ins .co-ins-b { opacity:.55; }
 }
 /* Con «reducir movimiento», cambia de una (sin fundido). */
 @media (min-width: 900px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: reduce){

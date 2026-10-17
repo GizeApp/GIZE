@@ -13,15 +13,21 @@
 //   siempre, en el medio, con al menos 12 px libres hasta la tarjeta de arriba y hasta la de abajo
 //   (también en la superserie). Quieto, gris (no del color de la marca); al pasar el mouse por el
 //   hueco (también por una punta) o llegar con el teclado (:focus-visible) se prende con el color de
-//   la marca, y con el teclado lleva anillo de foco. Sin texto y sin línea en ningún estado (fuera del
+//   la marca (en «Claro», al revés: lleno de marino, o de negro sin neón, con la cruz blanca), y con
+//   el teclado lleva anillo de foco. Sin texto y sin línea en ningún estado (fuera del
 //   «+», el hueco se pinta igual que sin el botón). El botón tapa todo el hueco (de una tarjeta a la
 //   otra, del ancho de la tarjeta), con title «Agregar ejercicio acá» y aria-label «Agregar ejercicio
 //   acá, entre <el de arriba> y <el de abajo>». Una sola parada de Tab por hueco. Con «reducir
-//   movimiento», sin fundido. Tocarlo (también en una punta del hueco) abre el buscador y agrega ahí.
+//   movimiento», sin fundido. Tocarlo (también en una punta del hueco) abre el buscador y agrega ahí;
+//   con el teclado, Enter o Espacio también (en la superserie, lo agregado queda adentro).
+// - Arrastrando una tarjeta con el mouse para armar una superserie, los «+» se apagan como las
+//   tarjetas y no se prenden al pasar (soltar en un hueco no hace nada); soltarla sobre otra arma la
+//   superserie y queda como cambio sin guardar.
 // - Adentro de una superserie, «sin descanso» se lee siempre (también con el mouse) y no pisa el «+»
 //   (queda a la izquierda, sin las rayas); lo agregado queda en la superserie.
 // - Se ve: la cruz ≥ 3:1 contra su relleno y el aro ≥ 3:1 contra el fondo de alrededor, quieto y con
-//   el mouse, en Oscuro, Claro, Azul, Rosa, sin neón, liviano y básico.
+//   el mouse, en Oscuro, Claro, Claro sin neón, Azul, Rosa, sin neón, liviano y básico. En «Claro» (con
+//   y sin neón), con el mouse la cruz se ve más que quieto y el aro no menos.
 // - Celular y tableta (pantalla táctil) y la compu con menos de 900 px quedan como antes: la línea
 //   con «+ Agregar ejercicio» a la vista en lo táctil y tenue hasta pasar el mouse en la ventana
 //   angosta, la grilla de 860 px como máximo y las tarjetas de siempre.
@@ -35,6 +41,7 @@ const rutina = () => [{ id: 'd0', name: 'Pierna', subtitle: '', exercises: NOMBR
   { id: 'e' + k, name, rir: '2', rest: '90 seg', sets: [0, 1, 2].map(j => ({ id: 'e' + k + 's' + j, kg: '', reps: '', target: '8-10' })) },
   k === 3 ? { ss: true } : {})) }]; // Camilla + Sillón: superserie A
 const TEMA = { Oscuro: '', Claro: "localStorage.setItem('gize_tema','luz');", Azul: "localStorage.setItem('gize_tema','azul');",
+  'Claro sin neón': "localStorage.setItem('gize_tema','luz');localStorage.setItem('gize_neon','0');",
   Rosa: "localStorage.setItem('gize_tema','rosa');", 'sin neón': "localStorage.setItem('gize_neon','0');" };
 
 async function abrir(base, { vp, touch = false, init = '', reducedMotion } = {}){
@@ -72,7 +79,8 @@ const medidas = p => p.evaluate(() => {
     nombreFlecha: Math.round(Math.abs(mid(nm) - mid(chev)) * 10) / 10, scroll: h.scrollWidth > h.clientWidth };
 });
 // Cada botón para agregar: dónde está respecto de lo de arriba y lo de abajo, qué dice y cómo se ve.
-const botones = p => p.evaluate(() => [...document.querySelectorAll('.co-exc-grid .co-ins')].map(b => {
+const botones = p => p.evaluate(() => { const q = document.body.appendChild(document.createElement('i')); q.style.color = 'var(--gize-text)';
+  const tinta = getComputedStyle(q).color; q.remove(); return [...document.querySelectorAll('.co-exc-grid .co-ins')].map(b => {
   // Abajo: la tarjeta (o la superserie) que sigue, salteando «sin descanso» (.ss-div).
   let sig = b.nextElementSibling; while (sig && !sig.matches('.co-exc, .co-ss-group')) sig = sig.nextElementSibling;
   const R = e => e.getBoundingClientRect(), r = R(b), a = R(b.previousElementSibling), z = R(sig);
@@ -83,9 +91,14 @@ const botones = p => p.evaluate(() => [...document.querySelectorAll('.co-exc-gri
     op: +ms.opacity, vis: ms.visibility, mas: { x: mr.left + mr.width / 2, y: mr.top + mr.height / 2, w: mr.width, h: mr.height, radio: ms.borderRadius, top: mr.top, bottom: mr.bottom, left: mr.left, right: mr.right },
     // Lo libre entre el «+» y cada tarjeta; el color de la cruz y del aro, y el de la marca (el del botón).
     libre: [Math.round((mr.top - a.bottom) * 10) / 10, Math.round((z.top - mr.bottom) * 10) / 10],
-    color: ms.color, aro: ms.borderTopColor, acento: getComputedStyle(b).color,
-    trans: ms.transitionDuration, foco: b.matches(':focus-visible') };
-}));
+    color: ms.color, aro: ms.borderTopColor, fondo: ms.backgroundColor, acento: getComputedStyle(b).color, tinta,
+    trans: ms.transitionDuration, foco: b.matches(':focus-visible'), hover: b.matches(':hover') };
+}); });
+// Prendido (mouse o teclado): la cruz del color de la marca; en «Claro», al revés: lleno de marino
+// (sin neón, del negro de la letra) con la cruz blanca.
+const prendido = (b, nombre = '') => /^Claro/.test(nombre)
+  ? b.color === 'rgb(255, 255, 255)' && b.fondo === (nombre === 'Claro' ? b.acento : b.tinta)
+  : b.color === b.acento;
 // Una tira de la pantalla a lo ancho del hueco (sin el medio, donde va el «+»): para ver que no se pinta nada.
 const tira = (p, b) => p.screenshot({ clip: { x: Math.round(b.left), y: Math.round((b.top + b.bottom) / 2) - 2, width: Math.round(b.width), height: 4 }, animations: 'disabled' })
   .then(buf => buf.toString('base64'));
@@ -260,6 +273,50 @@ export default async function ({ base, t }){
     await close();
   }
 
+  // ---- Con el teclado: Espacio en el hueco de la superserie agrega ahí, adentro ----
+  {
+    const { p, errs, close } = await abrir(base, { vp: { width: 1440, height: 900 } });
+    await p.mouse.move(1436, 896); await alCentro(p, '.co-ss-group .co-ins'); await wait(200);
+    await p.focus('.co-ss-group .co-ins[data-i="4"]'); await p.keyboard.press('Space'); await wait(500);
+    t.ok(!!await p.$('.cp-modal'), 'teclado: Espacio en el hueco de la superserie abre el buscador');
+    await elegir(p, 'Zancada');
+    const n = await nombres(p);
+    t.ok(n.length === 7 && n[3] === 'Camilla de cuádriceps+' && /Zancada.*\+$/.test(n[4]) && n[5] === 'Sillón de isquiotibiales',
+      'teclado: lo agregado queda en ese hueco, adentro de la superserie: ' + JSON.stringify(n));
+    await p.focus('.co-exc-grid > .co-ins[data-i="1"]'); await p.keyboard.press('Enter'); await wait(500);
+    t.ok(!!await p.$('.cp-modal'), 'teclado: Enter en un hueco también abre el buscador');
+    t.eq(errs, [], 'teclado: errores de la página');
+    await close();
+  }
+
+  // ---- Arrastrar con el mouse para armar una superserie: los «+» se apagan y no se prenden ----
+  {
+    const { p, errs, close } = await abrir(base, { vp: { width: 1440, height: 900 } });
+    await alCentro(p, '.co-exc-grid > .co-ins[data-i="1"]'); await wait(200);
+    const centro = (sel, dx = 60) => p.$eval(sel, (e, dx) => { const r = e.getBoundingClientRect(); return [r.left + dx, r.top + r.height / 2]; }, dx);
+    const src = await centro('.co-exc[data-id="e0"] .co-exc-cname');
+    await p.mouse.move(src[0], src[1]); await p.mouse.down(); await wait(650);
+    // Pasando por el hueco de abajo de «Prensa 45°»: ningún «+» se prende y todos se apagan.
+    const g = await centro('.co-exc-grid > .co-ins[data-i="2"]', 200);
+    for (let s = 1; s <= 10; s++){ await p.mouse.move(src[0] + (g[0] - src[0]) * s / 10, src[1] + (g[1] - src[1]) * s / 10); await wait(30); }
+    await wait(250);
+    const d = await p.evaluate(() => ({ on: document.body.classList.contains('co-drag-on'), hover: [...document.querySelectorAll('.co-ins')].filter(e => e.matches(':hover')).length,
+      op: [...document.querySelectorAll('.co-exc-grid .co-ins-b')].map(e => +getComputedStyle(e).opacity) }));
+    t.ok(d.on && d.hover === 0 && d.op.every(o => o < 1), 'arrastrando: los «+» se apagan como las tarjetas y el del hueco no se prende: ' + JSON.stringify(d));
+    const tg = await centro('.co-exc[data-id="e2"]', 300);
+    for (let s = 1; s <= 8; s++){ await p.mouse.move(g[0] + (tg[0] - g[0]) * s / 8, g[1] + (tg[1] - g[1]) * s / 8); await wait(30); }
+    await wait(200);
+    t.ok(!!await p.$('.co-exc[data-id="e2"] .co-drop-target, .co-exc[data-id="e2"].co-drop-target'), 'arrastrando: sobre «Peso muerto rumano» se marca el destino');
+    await p.mouse.up(); await wait(700);
+    const n = await nombres(p);
+    t.ok(n[0] === 'Prensa 45°' && n[1] === 'Peso muerto rumano+' && n[2] === 'Sentadilla libre', 'arrastrando: al soltar sobre otra tarjeta arma la superserie: ' + JSON.stringify(n));
+    t.ok(!await p.$('.cp-modal') && !!await p.$('.co-unsaved'), 'arrastrando: no abre el buscador y queda como cambio sin guardar');
+    const fin = await p.evaluate(() => [...document.querySelectorAll('.co-exc-grid .co-ins-b')].map(e => +getComputedStyle(e).opacity));
+    t.ok(fin.every(o => o === 1), 'después de soltar, los «+» vuelven a verse enteros: ' + JSON.stringify(fin));
+    t.eq(errs, [], 'arrastrando: errores de la página');
+    await close();
+  }
+
   // ---- «Reducir movimiento»: cambia de una ----
   {
     const { p, errs, close } = await abrir(base, { vp: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
@@ -294,9 +351,12 @@ export default async function ({ base, t }){
     await alCentro(p, '.co-exc-grid > .co-ins[data-i="2"]'); await wait(300);
     await p.mouse.move(x.left + 30, (x.top + x.bottom) / 2); await wait(400);
     const y = (await botones(p)).find(b => b.i === 2);
-    t.ok(y.op === 1 && y.color === y.acento && y.linea.every(c => c === 'none') && !y.texto, nombre + ': con el mouse se prende con el color de la marca, sin línea ni texto');
+    t.ok(y.op === 1 && prendido(y, nombre) && y.linea.every(c => c === 'none') && !y.texto,
+      nombre + ': con el mouse se prende (con el color de la marca; en «Claro», lleno con la cruz blanca), sin línea ni texto: ' + JSON.stringify([y.color, y.fondo, y.acento]));
     const m = await contrasteMas(p, SEL);
     t.ok(m.cruz >= 3 && m.aro >= 3, nombre + ': con el mouse, el «+» se ve (cruz ≥ 3:1 contra su relleno, aro ≥ 3:1 contra el fondo): ' + JSON.stringify(m));
+    // En «Claro» el azul de la marca es casi el gris de quieto: con el mouse no puede verse menos.
+    if (/^Claro/.test(nombre)) t.ok(m.cruz > q.cruz && m.aro >= q.aro, nombre + ': con el mouse, la cruz se ve más que quieto y el aro no menos: ' + JSON.stringify({ quieto: q, mouse: m }));
     t.eq(errs, [], nombre + ': errores de la página');
     await close();
   }
