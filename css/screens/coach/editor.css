@@ -152,8 +152,9 @@ body:not(#_) .co-day-menu.up .co-day-pop { top:auto; bottom:calc(100% + 6px); }
 .co-pop-sep { flex:none; height:1px; margin:3px 8px; border:0; background:var(--gize-border); }
 
 /* ---------- Agregar entre ejercicios (rt-ins): una línea de neón finita con «+ Agregar ejercicio» ----------
-   Ocupa el hueco de la lista (márgenes negativos: casi no la alarga). Con mouse se ve tenue y se
-   prende al pasar; en pantallas táctiles se ve siempre y el área para tocar es más alta. */
+   Ocupa el hueco de la lista (márgenes negativos: casi no la alarga). En pantallas táctiles se ve
+   siempre y el área para tocar es más alta; con mouse y menos de 900 px se ve tenue y se prende al
+   pasar. En la compu (900 px o más, con mouse) es un «+» redondo sin línea: ver «Compu», abajo. */
 body:not(#_) .co-ins { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:20px; min-height:0; margin:-10px 0; padding:0;
   background:none; border:0; border-radius:0; box-shadow:none; color:var(--gize-blue); font:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; }
 body:not(#_) .co-ins::before { content:""; position:absolute; left:18px; right:18px; top:50%; height:1px; pointer-events:none;
@@ -195,6 +196,70 @@ body:not(#_) .co-savebar .co-more-actions summary { width:auto; height:44px; pad
 html.sin-neon body:not(#_) :is(.co-daytab.on, .co-exc-open, .co-exc-head .co-exc-ord.ss, .co-exc-open .co-exc-head .co-exc-ord) { border-color:rgba(255,255,255,.4); }
 html.sin-neon body:not(#_) .co-exc-open .co-exc-name:focus { border-color:rgba(255,255,255,.5); }
 html.sin-neon body:not(#_) .co-sets-panel .co-target:focus { border-color:rgba(255,255,255,.5); }
+
+/* ---------- Compu (900 px o más, con mouse): más aire y un «+» que aparece en el hueco ----------
+   Pedidos: «en el celular se ve bien, el tema es en la PC, se ve como más angosto» y «están muy juntos
+   los botones de agregar ejercicio y la línea azul hace que se vea raro». Medido a 1100, 1280, 1440 y
+   1920 px: las tarjetas tenían el alto y el relleno del celular (66 px, 12 px) en filas de 788 a 860 px
+   (tiras finitas: 13 veces más anchas que altas, en el celular 5), el hueco entre una y otra era más
+   chico que en el celular (20 px contra 28) y la píldora lo llenaba (a 2 px de cada tarjeta, con la
+   línea azul de punta a punta). Y la lista se cortaba en 860 px, más angosta que la cabecera, las
+   pestañas y «Programar una rutina nueva» de arriba (a 1440 px quedaban 268 px vacíos a su derecha).
+   En la compu: toda la pantalla del editor en una columna de lectura de 960 px como máximo (cabecera,
+   pestañas, «Programar una rutina nueva», el día y la lista terminan en el mismo borde: sin franja
+   vacía abajo de la cabecera y sin tiras de punta a punta en pantallas grandes), tarjetas de 76 px
+   con más relleno y 16 px entre una y otra. Entre tarjeta y tarjeta no se ve nada hasta pasar el
+   mouse por el hueco (el botón ocupa todo el hueco, del ancho de la tarjeta) o llegar con el teclado:
+   ahí aparece un «+» redondo de 24 px en el medio, sin texto ni línea («Agregar ejercicio acá» va en
+   el title y, con entre qué ejercicios queda, en el aria-label). Tocarlo hace lo de siempre.
+   Celular, tabletas (pantalla táctil) y ventanas de menos de 900 px quedan como estaban. */
+@media (min-width: 900px) and (hover: hover) and (pointer: fine){
+  /* 960 px + los 40 de cada lado del panel. Solo en la pestaña Rutina y en el editor de «Mis rutinas»
+     (las otras pantallas del panel siguen con su tope de 1240 px). */
+  body:not(#_) .cv-wrap:has(.co-exc-grid, .co-sched) { max-width:1040px; }
+  body:not(#_) :is(.co-day-bar, .co-exc-section-head, .co-drag-hint, .co-unsaved, .co-exc-grid, .co-savebar) { max-width:none; }
+  /* 8 px de la grilla a cada lado del botón (16 px de alto con -8 de margen: su fila mide 0) = 16 px
+     entre tarjetas, y el botón tapa justo ese hueco. Al final, lo mismo hasta «Agregar ejercicio». */
+  body:not(#_) .co-exc-grid { gap:8px; }
+  body:not(#_) .co-rt-add-end { margin-top:8px; }
+  /* 76 px: 17 + la cabecera de 40 (la misma que la abierta, así la flecha no se mueve al abrirla) + 17. */
+  body:not(#_) .co-exc-collapsed { min-height:0; padding:17px 14px 17px 20px; }
+  body:not(#_) .co-exc-collapsed .co-exc-head { min-height:40px; }
+  /* El número y el nombre, a la altura del resumen y de la flecha (bajaban 4 px). */
+  body:not(#_) .co-exc-collapsed .co-exc-cname { padding-top:0; }
+  body:not(#_) .co-exc-open { padding:17px 14px 8px 20px; }
+  body:not(#_) .co-exc-collapsed .co-exc-cfoot { right:58px; }
+  /* Reps y kg de la tarjeta abierta: 220 px cada uno como máximo (para «10-12» o «80» sobraba; con
+     la columna entera quedaban de casi 500 px), y la ✕ al lado de su serie. */
+  body:not(#_) .co-sets-panel :is(.co-set-head, .co-set-row) { grid-template-columns:44px repeat(2, minmax(0,220px)) 36px; }
+  body:not(#_) .co-ss-group { padding:14px 14px 6px; }
+  /* Adentro de la superserie el hueco entre las dos tarjetas es de 46 px, con «sin descanso» en el
+     medio: el botón lo tapa entero (el cartelito queda abajo y no toma el mouse) y su «+» aparece
+     sobre la raya, en el lugar del cartelito, que se apaga mientras tanto. */
+  body:not(#_) .co-ss-group .ss-div { height:46px; margin:0; pointer-events:none; }
+  body:not(#_) .co-ss-group .ss-div span { transition:opacity .15s; }
+  body:not(#_) :is(.co-ins:hover, .co-ins:focus-visible) + .ss-div span { opacity:0; }
+
+  body:not(#_) .co-ins { z-index:2; height:16px; margin:-8px 0; }
+  /* -8 arriba: arranca en el borde de la tarjeta (se come su margen de 8); -46 abajo: no ocupa lugar. */
+  body:not(#_) .co-ss-group .co-ins { height:46px; margin:-8px 0 -46px; }
+  body:not(#_) .co-ins::before { content:none; }
+  .co-ins-t { display:none; }
+  /* Quieto no se ve ni se toca (si no, lo que sobresale arriba y abajo le sacaría clics a las tarjetas). */
+  body:not(#_) .co-ins .co-ins-b { justify-content:center; width:24px; height:24px; padding:0; gap:0; border-radius:50%; opacity:0; pointer-events:none;
+    transform:scale(.8); box-shadow:0 4px 12px -4px rgba(0,0,0,.35); transition:opacity .15s, transform .15s, border-color .15s; }
+  body:not(#_) .co-ins .co-ins-b svg { width:12px; height:12px; }
+  body:not(#_) :is(.co-ins:hover, .co-ins:focus-visible) .co-ins-b { opacity:1; pointer-events:auto; transform:none; }
+  body:not(#_) .co-ins:focus-visible .co-ins-b { outline:2px solid var(--gize-blue); outline-offset:2px; }
+  html.sin-neon body:not(#_) :is(.co-ins:hover, .co-ins:focus-visible) .co-ins-b { border-color:rgba(255,255,255,.45); }
+  html.sin-neon body:not(#_) .co-ins:focus-visible .co-ins-b { outline-color:rgba(255,255,255,.7); }
+  html.tema-luz.sin-neon body:not(#_) :is(.co-ins:hover, .co-ins:focus-visible) .co-ins-b { border-color:rgba(11,13,17,.4); }
+  html.tema-luz.sin-neon body:not(#_) .co-ins:focus-visible .co-ins-b { outline-color:rgba(11,13,17,.6); }
+}
+/* Con «reducir movimiento», aparece de una (sin fundido ni zoom). */
+@media (min-width: 900px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: reduce){
+  body:not(#_) .co-ins .co-ins-b, body:not(#_) .co-ss-group .ss-div span { transform:none; transition:none; }
+}
 
 /* ---------- Bloque / mesociclo: las semanas de descarga en azul, como dice la leyenda ----------
    En «Oscuro» y «Claro» el fondo de los botones de css/ui/estetica-login.css y claro-frozen.css le

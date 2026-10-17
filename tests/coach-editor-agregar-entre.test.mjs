@@ -1,8 +1,10 @@
 // Editor de rutina del coach (app/screens/coach/rutinas.js, css/screens/coach/editor.css): entre
-// ejercicio y ejercicio hay una línea finita «+ Agregar ejercicio» (.co-ins, data-coach="rt-ins"),
-// como antes del rediseño. El buscador que abre agrega el ejercicio justo ahí, no al final.
-// - Una entre cada par de ejercicios (la del final es «Agregar ejercicio» de siempre); casi no
-//   alarga la lista: en la compu el hueco entre dos tarjetas queda en ~20 px.
+// ejercicio y ejercicio hay un botón para agregar ahí (.co-ins, data-coach="rt-ins", «Agregar
+// ejercicio acá»; el lector de pantalla dice además entre qué dos ejercicios queda). El buscador que
+// abre agrega el ejercicio justo ahí, no al final.
+// - Uno entre cada par de ejercicios (el del final es «Agregar ejercicio» de siempre). En la compu
+//   es el hueco entero entre dos tarjetas (12 a 16 px, con un «+» que aparece al pasar el mouse: ver
+//   coach-editor-compu); en el celular, la línea finita «+ Agregar ejercicio» de siempre.
 // - Adentro de una superserie, el nuevo queda en la superserie (no deja afuera al de abajo).
 // - En el celular (pantalla táctil) se ve y tiene al menos 28 px de alto para tocarla.
 // - Lo mismo en una de «Mis rutinas» y en la rutina de descarga (mismo editor).
@@ -33,16 +35,20 @@ async function abrir(base, viewport, touch){
   await pg.p.click('[data-coach="client-tab"][data-t="rutina"]'); await wait(600);
   return pg;
 }
+// El nombre del botón i: «Agregar ejercicio acá, entre <el de arriba> y <el de abajo>».
+const nombreDe = i => 'Agregar ejercicio acá, entre ' + NOMBRES[i - 1] + ' y ' + NOMBRES[i];
 const orden = p => p.$$eval('.co-exc-grid .co-exc', l => l.map(e => e.dataset.id));
 const nombres = p => p.evaluate(async () => { const { rtDays } = await import('/app/screens/coach/rutinas.js'); const { CoachState } = await import('/app/screens/coach/state.js');
   return rtDays()[CoachState.coachEditDay].exercises.map(e => e.name + (e.ss ? '+' : '')); });
-// Las líneas para insertar: su data-i, dónde quedan respecto de las tarjetas de arriba y abajo y su tamaño.
+// Los botones para insertar: su data-i, dónde quedan respecto de las tarjetas de arriba y abajo, su
+// tamaño, su nombre y el texto que se ve.
 const lineas = p => p.evaluate(() => [...document.querySelectorAll('.co-exc-grid .co-ins')].map(b => {
   b.scrollIntoView({ block: 'center' });
   const r = b.getBoundingClientRect(), cards = [...document.querySelectorAll('.co-exc-grid .co-exc')];
   const i = +b.dataset.i, arriba = cards[i - 1].getBoundingClientRect(), abajo = cards[i].getBoundingClientRect();
   const mid = r.top + r.height / 2, hit = document.elementFromPoint(r.left + r.width / 2, mid);
-  return { i, txt: b.textContent.trim(), h: Math.round(r.height), entre: mid > arriba.bottom - 2 && mid < abajo.top + 2, hueco: Math.round(abajo.top - arriba.bottom),
+  return { i, txt: b.innerText.trim(), label: b.getAttribute('aria-label'), h: Math.round(r.height), entre: mid > arriba.bottom - 2 && mid < abajo.top + 2,
+    hueco: Math.round(abajo.top - arriba.bottom), tapa: r.top <= arriba.bottom + 1 && r.bottom >= abajo.top - 1,
     tocable: !!hit && b.contains(hit), op: +getComputedStyle(b.querySelector('.co-ins-b')).opacity };
 }));
 async function elegir(p, q){ await p.fill('.cp-search', q); await wait(300); await p.click('.cp-ex'); await wait(600); }
@@ -52,14 +58,14 @@ export default async function ({ base, t }){
   {
     const { p, errs, close } = await abrir(base, { width: 1280, height: 900 });
     let L = await lineas(p);
-    t.eq(L.map(x => x.i), [1, 2, 3, 4, 5], 'una línea para agregar entre cada par de ejercicios (5 para 6 ejercicios)');
-    t.ok(L.every(x => x.txt === 'Agregar ejercicio' && x.entre && x.tocable), 'cada línea dice «Agregar ejercicio», está entre las dos tarjetas y se puede tocar: ' + JSON.stringify(L));
-    t.ok(L.filter(x => x.i <= 2).every(x => x.hueco <= 24), 'casi no alarga la lista (hueco entre tarjetas de hasta 24 px): ' + JSON.stringify(L.map(x => x.hueco)));
+    t.eq(L.map(x => x.i), [1, 2, 3, 4, 5], 'un botón para agregar entre cada par de ejercicios (5 para 6 ejercicios)');
+    t.ok(L.every(x => x.label === nombreDe(x.i) && x.entre && x.tocable), 'cada botón se llama «Agregar ejercicio acá, entre … y …», está entre las dos tarjetas y se puede tocar: ' + JSON.stringify(L));
+    t.ok(L.filter(x => x.i <= 2).every(x => x.hueco >= 12 && x.hueco <= 16 && x.tapa), 'compu: el botón tapa todo el hueco entre las tarjetas (12 a 16 px): ' + JSON.stringify(L.map(x => [x.hueco, x.tapa])));
     t.eq(await p.$$eval('.co-rt-add-end[data-coach="rt-add"]', l => l.length), 1, 'sigue «Agregar ejercicio» al final');
 
     // Entre «Prensa 45°» y «Peso muerto rumano»: el buscador agrega ahí.
     await p.click('.co-ins[data-i="2"]'); await wait(400);
-    t.ok(!!await p.$('.cp-modal'), 'la línea abre el buscador de ejercicios');
+    t.ok(!!await p.$('.cp-modal'), 'el botón abre el buscador de ejercicios');
     await elegir(p, 'Zancada');
     let n = await nombres(p);
     t.eq(n.length, 7, 'se agregó un ejercicio');
@@ -74,7 +80,7 @@ export default async function ({ base, t }){
     await p.click('.co-ss-group .co-ins'); await wait(400);
     await elegir(p, 'Zancada inversa');
     n = await nombres(p);
-    t.eq(enSS, 5, 'la línea de adentro de la superserie va entre Camilla y Sillón');
+    t.eq(enSS, 5, 'el botón de adentro de la superserie va entre Camilla y Sillón');
     t.ok(n[4] === 'Camilla de cuádriceps+' && /Zancada inversa/.test(n[5]) && /\+$/.test(n[5]) && n[6] === 'Sillón de isquiotibiales' && n[7] === 'Gemelos parado',
       'adentro de la superserie el nuevo queda unido y Sillón sigue en la superserie: ' + JSON.stringify(n));
     t.has(await p.$eval('.co-ss-group .co-ss-head', e => e.textContent), 'Triserie', 'la superserie pasa a triserie con el nuevo');
@@ -84,7 +90,7 @@ export default async function ({ base, t }){
     await p.evaluate(async () => { const { CoachState } = await import('/app/screens/coach/state.js'); const d = CoachState.coachData; d.routineOrig = JSON.stringify(d.routine); });
     await p.click('[data-coach="view-tpls"]'); await wait(800);
     await p.click('[data-coach="tpl-open"]'); await wait(600);
-    t.eq((await lineas(p)).map(x => x.i), [1, 2, 3, 4, 5], 'en «Mis rutinas» también están las líneas para agregar');
+    t.eq((await lineas(p)).map(x => x.i), [1, 2, 3, 4, 5], 'en «Mis rutinas» también están los botones para agregar');
     await p.click('.co-ins[data-i="1"]'); await wait(400);
     await elegir(p, 'Zancada');
     n = await nombres(p);
@@ -100,7 +106,7 @@ export default async function ({ base, t }){
     await p.click('[data-coach="sec-open"][data-v="bloque"]'); await wait(400);
     await p.click('[data-coach="wk-open"][data-w="4"]'); await wait(400);
     await p.click('[data-coach="dl-new"][data-from="rutina"]'); await wait(600);
-    t.eq((await lineas(p)).map(x => x.i), [1, 2, 3, 4, 5], 'en la rutina de descarga también están las líneas para agregar');
+    t.eq((await lineas(p)).map(x => x.i), [1, 2, 3, 4, 5], 'en la rutina de descarga también están los botones para agregar');
     await p.click('.co-ins[data-i="3"]'); await wait(400);
     await elegir(p, 'Zancada');
     const n = await nombres(p);
@@ -114,7 +120,8 @@ export default async function ({ base, t }){
     const { p, errs, close } = await abrir(base, { width: 390, height: 844 }, true);
     const L = await lineas(p);
     t.eq(L.map(x => x.i), [1, 2, 3, 4, 5], 'celular: las cinco líneas para agregar');
-    t.ok(L.every(x => x.h >= 28 && x.entre && x.op >= 0.8), 'celular: se ven y tienen al menos 28 px de alto para tocarlas: ' + JSON.stringify(L));
+    t.ok(L.every(x => x.h >= 28 && x.entre && x.op >= 0.8 && x.txt === 'Agregar ejercicio' && x.label === nombreDe(x.i)),
+      'celular: dicen «Agregar ejercicio», se ven y tienen al menos 28 px de alto para tocarlas: ' + JSON.stringify(L));
     t.ok(L.filter(x => x.i <= 2).every(x => x.hueco <= 30), 'celular: el hueco entre tarjetas queda chico: ' + JSON.stringify(L.map(x => x.hueco)));
     await p.$eval('.co-ins[data-i="1"]', b => b.scrollIntoView({ block: 'center' })); await wait(200);
     await p.tap('.co-ins[data-i="1"]'); await wait(500);
