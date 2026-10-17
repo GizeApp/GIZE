@@ -1,6 +1,7 @@
 // Editor de rutina del coach (app/screens/coach/rutinas.js, css/screens/coach/editor.css): entre
 // ejercicio y ejercicio hay un botón para agregar ahí (.co-ins, data-coach="rt-ins", «Agregar
-// ejercicio acá»). El buscador que abre agrega el ejercicio justo ahí, no al final.
+// ejercicio acá»; el lector de pantalla dice además entre qué dos ejercicios queda). El buscador que
+// abre agrega el ejercicio justo ahí, no al final.
 // - Uno entre cada par de ejercicios (el del final es «Agregar ejercicio» de siempre). En la compu
 //   es el hueco entero entre dos tarjetas (12 a 16 px, con un «+» que aparece al pasar el mouse: ver
 //   coach-editor-compu); en el celular, la línea finita «+ Agregar ejercicio» de siempre.
@@ -34,6 +35,8 @@ async function abrir(base, viewport, touch){
   await pg.p.click('[data-coach="client-tab"][data-t="rutina"]'); await wait(600);
   return pg;
 }
+// El nombre del botón i: «Agregar ejercicio acá, entre <el de arriba> y <el de abajo>».
+const nombreDe = i => 'Agregar ejercicio acá, entre ' + NOMBRES[i - 1] + ' y ' + NOMBRES[i];
 const orden = p => p.$$eval('.co-exc-grid .co-exc', l => l.map(e => e.dataset.id));
 const nombres = p => p.evaluate(async () => { const { rtDays } = await import('/app/screens/coach/rutinas.js'); const { CoachState } = await import('/app/screens/coach/state.js');
   return rtDays()[CoachState.coachEditDay].exercises.map(e => e.name + (e.ss ? '+' : '')); });
@@ -56,7 +59,7 @@ export default async function ({ base, t }){
     const { p, errs, close } = await abrir(base, { width: 1280, height: 900 });
     let L = await lineas(p);
     t.eq(L.map(x => x.i), [1, 2, 3, 4, 5], 'un botón para agregar entre cada par de ejercicios (5 para 6 ejercicios)');
-    t.ok(L.every(x => x.label === 'Agregar ejercicio acá' && x.entre && x.tocable), 'cada botón se llama «Agregar ejercicio acá», está entre las dos tarjetas y se puede tocar: ' + JSON.stringify(L));
+    t.ok(L.every(x => x.label === nombreDe(x.i) && x.entre && x.tocable), 'cada botón se llama «Agregar ejercicio acá, entre … y …», está entre las dos tarjetas y se puede tocar: ' + JSON.stringify(L));
     t.ok(L.filter(x => x.i <= 2).every(x => x.hueco >= 12 && x.hueco <= 16 && x.tapa), 'compu: el botón tapa todo el hueco entre las tarjetas (12 a 16 px): ' + JSON.stringify(L.map(x => [x.hueco, x.tapa])));
     t.eq(await p.$$eval('.co-rt-add-end[data-coach="rt-add"]', l => l.length), 1, 'sigue «Agregar ejercicio» al final');
 
@@ -117,7 +120,7 @@ export default async function ({ base, t }){
     const { p, errs, close } = await abrir(base, { width: 390, height: 844 }, true);
     const L = await lineas(p);
     t.eq(L.map(x => x.i), [1, 2, 3, 4, 5], 'celular: las cinco líneas para agregar');
-    t.ok(L.every(x => x.h >= 28 && x.entre && x.op >= 0.8 && x.txt === 'Agregar ejercicio' && x.label === 'Agregar ejercicio acá'),
+    t.ok(L.every(x => x.h >= 28 && x.entre && x.op >= 0.8 && x.txt === 'Agregar ejercicio' && x.label === nombreDe(x.i)),
       'celular: dicen «Agregar ejercicio», se ven y tienen al menos 28 px de alto para tocarlas: ' + JSON.stringify(L));
     t.ok(L.filter(x => x.i <= 2).every(x => x.hueco <= 30), 'celular: el hueco entre tarjetas queda chico: ' + JSON.stringify(L.map(x => x.hueco)));
     await p.$eval('.co-ins[data-i="1"]', b => b.scrollIntoView({ block: 'center' })); await wait(200);

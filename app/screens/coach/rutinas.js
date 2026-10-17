@@ -945,8 +945,9 @@ export function renderCoachRoutine(d){
   // justo en ese lugar, no al final. Adentro de una superserie el nuevo queda en la superserie
   // (cpApply). En el celular es la línea finita con «+ Agregar ejercicio»; en la compu, un «+»
   // redondo que aparece al pasar el mouse por el hueco (el texto se oculta: css/screens/coach/editor.css).
+  // El lector de pantalla dice además entre qué dos ejercicios queda (si no, eran todos iguales).
   const exs=day.exercises||[], groups=ssGroups(exs);
-  const ins=i=>'<button type="button" class="co-ins" data-coach="rt-ins" data-i="'+i+'" title="Agregar ejercicio acá" aria-label="Agregar ejercicio acá"><span class="co-ins-b">'+plusSvg+'<span class="co-ins-t">Agregar ejercicio</span></span></button>';
+  const ins=i=>'<button type="button" class="co-ins" data-coach="rt-ins" data-i="'+i+'" title="Agregar ejercicio acá" aria-label="Agregar ejercicio acá, entre '+esc(exs[i-1].name||"el anterior")+' y '+esc(exs[i].name||"el siguiente")+'"><span class="co-ins-b">'+plusSvg+'<span class="co-ins-t">Agregar ejercicio</span></span></button>';
   const cards=exs.map((ex,i)=>{
     const g=groups.find(x=>i>=x.start && i<=x.end), inGroup=!!(g && i>g.start);
     const open=g && i===g.start ? '<div class="co-ss-group"><div class="co-ss-head">'+linkSvg+ssName(g)+' '+g.letter+'<button class="co-ss-split" data-coach="rt-ss-split" data-i="'+g.start+'">Separar</button><span>una serie de cada uno, sin descanso entre medio</span></div>' : '';

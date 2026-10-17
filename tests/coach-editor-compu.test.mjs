@@ -1,16 +1,22 @@
 // Editor de rutina del coach en la compu (css/screens/coach/editor.css, «Compu»). El dueño: «en el
 // celular se ve bien, el tema es en la PC, se ve como más angosto» y «están muy juntos los botones de
 // agregar ejercicio y la línea azul hace que se vea raro». En la compu (900 px o más, con mouse):
-// - Más aire, a 1280 y a 1440 px: la lista del ancho del panel (llega hasta donde llegan la cabecera
-//   y «Programar una rutina nueva»), tarjetas de al menos 72 px de alto con relleno cómodo, 12 a 16 px
-//   entre una y otra, la letra de siempre (nombre 16 px, resumen 14 px) y el nombre a la altura de la
-//   flecha. Sin scroll de costado.
+// - Más aire, a 1100, 1280, 1440 y 1920 px: una columna de lectura de 960 px como máximo (la lista,
+//   la cabecera, las pestañas y «Programar una rutina nueva» terminan en el mismo borde: sin franja
+//   vacía y sin tiras de punta a punta), tarjetas de al menos 72 px de alto con relleno cómodo y no
+//   más finitas que antes (menos de 13 veces más anchas que altas), 12 a 16 px entre una y otra, la
+//   letra de siempre (nombre 16 px, resumen 14 px) y el nombre a la altura de la flecha. Reps y kg de
+//   la tarjeta abierta, de 240 px como máximo. Sin scroll de costado. Las otras pestañas del alumno
+//   siguen con el ancho del panel.
 // - Entre tarjeta y tarjeta, un botón que tapa todo el hueco (de una tarjeta a la otra, del ancho de
 //   la tarjeta) y no se ve: no pinta nada en el hueco y no hay línea azul en ningún estado. Al pasar
 //   el mouse por el hueco (también por una punta) o llegar con el teclado (:focus-visible) aparece en
-//   el medio un «+» redondo de 22 a 26 px, sin texto, con aria-label y title «Agregar ejercicio acá».
-//   Una sola parada de Tab por hueco. Con «reducir movimiento», sin fundido. Tocarlo (también en una
-//   punta del hueco) abre el buscador y agrega ahí; adentro de una superserie, en la superserie.
+//   el medio un «+» redondo de 22 a 26 px, sin texto, con title «Agregar ejercicio acá» y aria-label
+//   «Agregar ejercicio acá, entre <el de arriba> y <el de abajo>». Una sola parada de Tab por hueco.
+//   Con «reducir movimiento», sin fundido. Tocarlo (también en una punta del hueco) abre el buscador
+//   y agrega ahí. Adentro de una superserie el hueco es de 44 a 48 px y el botón lo tapa entero
+//   (también abajo de «sin descanso»): el «+» aparece en el medio, sobre la raya, y el cartelito se
+//   apaga mientras tanto; lo agregado queda en la superserie.
 // - El «+» se ve: ≥ 3:1 contra su relleno en Oscuro, Claro, Azul, Rosa, sin neón, liviano y básico.
 // - Celular y tableta (pantalla táctil) y la compu con menos de 900 px quedan como antes: la línea
 //   con «+ Agregar ejercicio» a la vista en lo táctil y tenue hasta pasar el mouse en la ventana
@@ -20,6 +26,7 @@ import { newPage, wait } from './lib.mjs';
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
 const A1 = '44444444-4444-4444-4444-444444444444';
 const NOMBRES = ['Sentadilla libre', 'Prensa 45°', 'Peso muerto rumano', 'Camilla de cuádriceps', 'Sillón de isquiotibiales', 'Gemelos parado'];
+const nombreDe = i => 'Agregar ejercicio acá, entre ' + NOMBRES[i - 1] + ' y ' + NOMBRES[i];
 const rutina = () => [{ id: 'd0', name: 'Pierna', subtitle: '', exercises: NOMBRES.map((name, k) => Object.assign(
   { id: 'e' + k, name, rir: '2', rest: '90 seg', sets: [0, 1, 2].map(j => ({ id: 'e' + k + 's' + j, kg: '', reps: '', target: '8-10' })) },
   k === 3 ? { ss: true } : {})) }]; // Camilla + Sillón: superserie A
@@ -49,12 +56,12 @@ const alCentro = (p, sel) => p.$eval(sel, e => e.scrollIntoView({ block: 'center
 // Columna, tarjetas, huecos y letra del editor.
 const medidas = p => p.evaluate(() => {
   const R = e => e.getBoundingClientRect(), mid = e => R(e).top + R(e).height / 2;
-  const grid = document.querySelector('.co-exc-grid'), head = document.querySelector('.cv-chead'), sched = document.querySelector('.co-sched');
+  const grid = document.querySelector('.co-exc-grid'), head = document.querySelector('.cv-chead'), sched = document.querySelector('.co-sched'), tabs = document.querySelector('.cv-ctabs');
   const top = [...grid.children].filter(e => e.matches('.co-exc, .co-ss-group'));
   const cards = [...document.querySelectorAll('.co-exc-grid .co-exc-collapsed')], c = cards[0], s = getComputedStyle(c);
   const nm = c.querySelector('.co-exc-ctext'), sum = c.querySelector('.co-exc-sum'), chev = c.querySelector('.co-exc-chev'), h = document.getElementById('coachHost');
   return { ancho: Math.round(R(grid).width), izq: Math.round(R(grid).left), der: Math.round(R(grid).right),
-    cabecera: [Math.round(R(head).left), Math.round(R(head).right)], programar: Math.round(R(sched).right),
+    cabecera: [Math.round(R(head).left), Math.round(R(head).right)], programar: Math.round(R(sched).right), pestanas: Math.round(R(tabs).right),
     altos: cards.map(e => Math.round(R(e).height)), relleno: [s.paddingTop, s.paddingRight, s.paddingBottom, s.paddingLeft].map(parseFloat),
     huecos: top.slice(1).map((e, i) => Math.round(R(e).top - R(top[i]).bottom)),
     letra: [parseFloat(getComputedStyle(nm).fontSize), parseFloat(getComputedStyle(sum).fontSize)],
@@ -62,7 +69,9 @@ const medidas = p => p.evaluate(() => {
 });
 // Cada botón para agregar: dónde está respecto de lo de arriba y lo de abajo, qué dice y cómo se ve.
 const botones = p => p.evaluate(() => [...document.querySelectorAll('.co-exc-grid .co-ins')].map(b => {
-  const R = e => e.getBoundingClientRect(), r = R(b), a = R(b.previousElementSibling), z = R(b.nextElementSibling);
+  // Abajo: la tarjeta (o la superserie) que sigue, salteando «sin descanso» (.ss-div).
+  let sig = b.nextElementSibling; while (sig && !sig.matches('.co-exc, .co-ss-group')) sig = sig.nextElementSibling;
+  const R = e => e.getBoundingClientRect(), r = R(b), a = R(b.previousElementSibling), z = R(sig);
   const m = b.querySelector('.co-ins-b'), mr = R(m), ms = getComputedStyle(m), t = b.querySelector('.co-ins-t');
   return { i: +b.dataset.i, top: r.top, bottom: r.bottom, left: r.left, width: r.width, arriba: a.bottom, abajo: z.top, cardLeft: a.left, cardWidth: a.width,
     enSS: !!b.closest('.co-ss-group'), label: b.getAttribute('aria-label'), title: b.getAttribute('title'), tab: b.tabIndex,
@@ -101,19 +110,31 @@ async function contrasteMas(p){
 }
 
 export default async function ({ base, t }){
-  // ---- Compu: más aire a 1280 y a 1440 px ----
-  for (const vp of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]){
+  // ---- Compu: más aire a 1100, 1280, 1440 y 1920 px ----
+  for (const vp of [{ width: 1100, height: 800 }, { width: 1280, height: 800 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }]){
     const { p, errs, close } = await abrir(base, { vp });
     const m = await medidas(p), k = vp.width + ' px';
-    t.ok(m.izq === m.cabecera[0] && Math.abs(m.der - m.cabecera[1]) <= 1 && Math.abs(m.der - m.programar) <= 1,
-      k + ': la lista llega hasta donde llegan la cabecera y «Programar una rutina nueva» (sin franja vacía al costado): ' + JSON.stringify(m));
-    t.ok(m.ancho >= (vp.width === 1280 ? 960 : 1100), k + ': la lista usa el ancho de la pantalla: ' + m.ancho + ' px');
+    t.ok(m.izq === m.cabecera[0] && Math.abs(m.der - m.cabecera[1]) <= 1 && Math.abs(m.der - m.programar) <= 1 && Math.abs(m.der - m.pestanas) <= 1,
+      k + ': la lista termina donde terminan la cabecera, las pestañas y «Programar una rutina nueva» (sin franja vacía al costado): ' + JSON.stringify(m));
+    t.ok(vp.width >= 1280 ? m.ancho === 960 : m.ancho >= 760 && m.ancho <= 960, k + ': una columna de lectura de 960 px como máximo: ' + m.ancho + ' px');
     t.ok(m.altos.every(h => h >= 72), k + ': tarjetas de al menos 72 px de alto: ' + JSON.stringify(m.altos));
+    t.ok(m.ancho / m.altos[0] < 13, k + ': las tarjetas no quedan más finitas que antes (menos de 13 veces más anchas que altas): ' + (m.ancho / m.altos[0]).toFixed(1));
     t.ok(m.relleno[0] >= 14 && m.relleno[2] >= 14 && m.relleno[3] >= 18, k + ': relleno cómodo (arriba y abajo ≥ 14 px, a la izquierda ≥ 18): ' + JSON.stringify(m.relleno));
     t.ok(m.huecos.length === 4 && m.huecos.every(h => h >= 12 && h <= 16), k + ': 12 a 16 px entre una tarjeta y la otra: ' + JSON.stringify(m.huecos));
     t.ok(m.letra[0] >= 16 && m.letra[1] >= 14, k + ': la letra de siempre (nombre ≥ 16 px, resumen ≥ 14): ' + JSON.stringify(m.letra));
     t.ok(m.nombreFlecha <= 2, k + ': el nombre a la altura de la flecha: ' + m.nombreFlecha + ' px');
     t.ok(!m.scroll, k + ': sin scroll de costado');
+    // La tarjeta abierta: reps y kg de 240 px como máximo, con la ✕ al lado.
+    await p.click('.co-exc[data-id="e1"] .co-exc-chev'); await wait(400);
+    const fila = await p.$eval('.co-exc-open .co-set-row', r => [...r.children].map(e => { const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.width)]; }));
+    t.ok(fila[1][1] <= 240 && fila[2][1] <= 240 && fila[1][1] >= 160 && fila[3][0] - (fila[2][0] + fila[2][1]) <= 16,
+      k + ': reps y kg de 160 a 240 px, con la ✕ al lado: ' + JSON.stringify(fila));
+    if (vp.width === 1440){
+      // Las otras pestañas del alumno (Ficha) siguen con el ancho del panel.
+      await p.click('[data-coach="client-tab"][data-t="ficha"]'); await wait(500);
+      const der = await p.$eval('.cv-chead', e => Math.round(e.getBoundingClientRect().right));
+      t.ok(der > m.der + 100, k + ': en Ficha la cabecera sigue con el ancho del panel: ' + der);
+    }
     t.eq(errs, [], k + ': errores de la página');
     await close();
   }
@@ -126,7 +147,7 @@ export default async function ({ base, t }){
     t.eq(B.map(b => b.i), [1, 2, 3, 4, 5], 'un botón por hueco (5 para 6 ejercicios)');
     t.ok(B.every(b => Math.abs(b.top - b.arriba) <= 1 && Math.abs(b.bottom - b.abajo) <= 1 && Math.abs(b.left - b.cardLeft) <= 1 && Math.abs(b.width - b.cardWidth) <= 1),
       'cada botón tapa todo el hueco, de una tarjeta a la otra y del ancho de la tarjeta: ' + JSON.stringify(B.map(b => [b.i, Math.round(b.top - b.arriba), Math.round(b.bottom - b.abajo), Math.round(b.width - b.cardWidth)])));
-    t.ok(B.every(b => b.label === 'Agregar ejercicio acá' && b.title === 'Agregar ejercicio acá'), 'aria-label y title «Agregar ejercicio acá»: ' + JSON.stringify(B.map(b => [b.label, b.title])));
+    t.ok(B.every(b => b.label === nombreDe(b.i) && b.title === 'Agregar ejercicio acá'), 'title «Agregar ejercicio acá» y aria-label con entre qué ejercicios queda: ' + JSON.stringify(B.map(b => [b.label, b.title])));
     t.ok(B.every(b => b.tab === 0), 'una parada de Tab por hueco (botones comunes, sin tabindex de más)');
     t.ok(B.every(b => b.linea.every(c => c === 'none')), 'quieto: sin la línea azul (ni ::before ni ::after): ' + JSON.stringify(B.map(b => b.linea)));
     t.ok(B.every(b => b.op === 0 && b.toca === 'none' && !b.texto), 'quieto: el «+» no se ve ni se toca, y no hay texto: ' + JSON.stringify(B.map(b => [b.op, b.toca, b.texto])));
@@ -179,13 +200,24 @@ export default async function ({ base, t }){
     await elegir(p, 'Zancada');
     let n = await nombres(p);
     t.ok(n.length === 7 && n[1] === 'Prensa 45°' && /Zancada/.test(n[2]) && n[3] === 'Peso muerto rumano', 'se agrega en ese hueco: ' + JSON.stringify(n));
-    // Adentro de la superserie: el «+» no pisa «sin descanso» y lo agregado queda en la superserie.
-    await alCentro(p, '.co-ss-group .co-ins'); await p.mouse.move(1436, 896); await wait(200);
+    // Adentro de la superserie: 44 a 48 px entre las dos tarjetas y el botón tapa todo ese hueco
+    // (también abajo de «sin descanso», que no toma el mouse). Con el mouse en la parte de abajo
+    // aparece el «+» en el medio, sobre la raya, y «sin descanso» se apaga mientras tanto (no se
+    // pisan). Lo agregado queda en la superserie.
+    await alCentro(p, '.co-ss-group .co-ins'); await p.mouse.move(1436, 896); await wait(300);
     x = (await botones(p)).find(b => b.enSS);
-    await p.mouse.move(x.left + 30, (x.top + x.bottom) / 2); await wait(400);
+    const cartel = () => p.$eval('.co-ss-group .ss-div span', e => +getComputedStyle(e).opacity);
+    t.ok(x.abajo - x.arriba >= 44 && x.abajo - x.arriba <= 48, 'superserie: 44 a 48 px entre las dos tarjetas: ' + Math.round(x.abajo - x.arriba));
+    t.eq(await cartel(), 1, 'superserie: quieto se ve «sin descanso»');
+    const todo = await p.evaluate(([x0, y0, y1]) => { const out = []; for (let y = Math.ceil(y0) + 1; y < y1 - 1; y += 2) { const e = document.elementFromPoint(x0, y); out.push(!!e && !!e.closest('.co-ss-group .co-ins')); } return out; },
+      [x.left + 30, x.arriba, x.abajo]);
+    t.ok(todo.length >= 20 && todo.every(Boolean), 'superserie: todo el hueco es el botón (arriba, encima y abajo de «sin descanso»): ' + todo.map(Number).join(''));
+    await p.mouse.move(x.left + 30, x.abajo - 6); await wait(400);
     x = (await botones(p)).find(b => b.enSS);
-    const div = await p.$eval('.co-ss-group .ss-div', e => { const r = e.getBoundingClientRect(); return [r.top, r.bottom]; });
-    t.ok(x.op === 1 && x.mas.y + x.mas.h / 2 <= div[0] + 1, 'superserie: el «+» aparece entre la tarjeta y «sin descanso», sin pisarlo: ' + JSON.stringify([x.mas, div]));
+    const div = await p.$eval('.co-ss-group .ss-div', e => { const r = e.getBoundingClientRect(); return (r.top + r.bottom) / 2; });
+    t.ok(x.op === 1 && Math.abs(x.mas.y - (x.arriba + x.abajo) / 2) <= 1 && Math.abs(x.mas.y - div) <= 1 && Math.abs(x.mas.x - (x.left + x.width / 2)) <= 1,
+      'superserie: con el mouse abajo de «sin descanso» aparece el «+», en el medio del hueco y sobre la raya: ' + JSON.stringify([x.mas, x.arriba, x.abajo, div]));
+    t.eq(await cartel(), 0, 'superserie: mientras se ve el «+», «sin descanso» se apaga');
     await p.mouse.down(); await p.mouse.up(); await wait(500);
     await elegir(p, 'Zancada inversa');
     n = await nombres(p);
@@ -201,6 +233,8 @@ export default async function ({ base, t }){
     await alCentro(p, '.co-exc-grid > .co-ins[data-i="2"]'); await wait(200);
     const x = (await botones(p)).find(b => b.i === 2);
     t.ok(x.trans.split(',').every(s => parseFloat(s) === 0), 'con «reducir movimiento», el «+» aparece sin fundido: ' + x.trans);
+    const tc = await p.$eval('.co-ss-group .ss-div span', e => getComputedStyle(e).transitionDuration);
+    t.ok(tc.split(',').every(s => parseFloat(s) === 0), 'con «reducir movimiento», «sin descanso» se apaga sin fundido: ' + tc);
     await p.mouse.move(x.left + 30, (x.top + x.bottom) / 2); await wait(50);
     t.eq((await botones(p)).find(b => b.i === 2).op, 1, 'con «reducir movimiento», se ve apenas llega el mouse');
     t.eq(errs, [], 'reducir movimiento: errores de la página');
@@ -239,7 +273,7 @@ export default async function ({ base, t }){
     t.ok(a.max === '860px' && a.gap === '10px' && a.pad === '12px 12px 12px 16px' && a.minH === '62px', nombre + ': grilla y tarjetas de siempre: ' + JSON.stringify(a));
     t.ok(a.h === esperado.h && a.margen === '-10px' && a.linea === esperado.linea && a.op === esperado.op && a.radio === '999px',
       nombre + ': la línea con la píldora de siempre: ' + JSON.stringify(a));
-    t.ok(/Agregar ejercicio/.test(a.texto) && a.label === 'Agregar ejercicio acá', nombre + ': con «+ Agregar ejercicio» a la vista y su nombre: ' + JSON.stringify([a.texto, a.label]));
+    t.ok(/Agregar ejercicio/.test(a.texto) && a.label === nombreDe(1), nombre + ': con «+ Agregar ejercicio» a la vista y su nombre: ' + JSON.stringify([a.texto, a.label]));
     t.eq(errs, [], nombre + ': errores de la página');
     await close();
   }

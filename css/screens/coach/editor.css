@@ -201,17 +201,22 @@ html.sin-neon body:not(#_) .co-sets-panel .co-target:focus { border-color:rgba(2
    Pedidos: «en el celular se ve bien, el tema es en la PC, se ve como más angosto» y «están muy juntos
    los botones de agregar ejercicio y la línea azul hace que se vea raro». Medido a 1100, 1280, 1440 y
    1920 px: las tarjetas tenían el alto y el relleno del celular (66 px, 12 px) en filas de 788 a 860 px
-   (tiras finitas), el hueco entre una y otra era más chico que en el celular (20 px contra 28) y la
-   píldora lo llenaba (a 2 px de cada tarjeta, con la línea azul de punta a punta). Y la lista se
-   cortaba en 860 px, más angosta que la cabecera, las pestañas y «Programar una rutina nueva» de
-   arriba (a 1440 px quedaban 268 px vacíos a su derecha; a 1920, 300).
-   En la compu: el editor del ancho del panel, como lo de arriba (el panel ya tiene su tope: 1240 px
-   con los márgenes), tarjetas de 76 px con más relleno y 16 px entre una y otra. Entre tarjeta y
-   tarjeta no se ve nada hasta pasar el mouse por el hueco (el botón ocupa todo el hueco, del ancho de
-   la tarjeta) o llegar con el teclado: ahí aparece un «+» redondo de 24 px en el medio, sin texto ni
-   línea (el nombre, «Agregar ejercicio acá», va en aria-label y en el title). Tocarlo hace lo de
-   siempre. Celular, tabletas (pantalla táctil) y ventanas de menos de 900 px quedan como estaban. */
+   (tiras finitas: 13 veces más anchas que altas, en el celular 5), el hueco entre una y otra era más
+   chico que en el celular (20 px contra 28) y la píldora lo llenaba (a 2 px de cada tarjeta, con la
+   línea azul de punta a punta). Y la lista se cortaba en 860 px, más angosta que la cabecera, las
+   pestañas y «Programar una rutina nueva» de arriba (a 1440 px quedaban 268 px vacíos a su derecha).
+   En la compu: toda la pantalla del editor en una columna de lectura de 960 px como máximo (cabecera,
+   pestañas, «Programar una rutina nueva», el día y la lista terminan en el mismo borde: sin franja
+   vacía abajo de la cabecera y sin tiras de punta a punta en pantallas grandes), tarjetas de 76 px
+   con más relleno y 16 px entre una y otra. Entre tarjeta y tarjeta no se ve nada hasta pasar el
+   mouse por el hueco (el botón ocupa todo el hueco, del ancho de la tarjeta) o llegar con el teclado:
+   ahí aparece un «+» redondo de 24 px en el medio, sin texto ni línea («Agregar ejercicio acá» va en
+   el title y, con entre qué ejercicios queda, en el aria-label). Tocarlo hace lo de siempre.
+   Celular, tabletas (pantalla táctil) y ventanas de menos de 900 px quedan como estaban. */
 @media (min-width: 900px) and (hover: hover) and (pointer: fine){
+  /* 960 px + los 40 de cada lado del panel. Solo en la pestaña Rutina y en el editor de «Mis rutinas»
+     (las otras pantallas del panel siguen con su tope de 1240 px). */
+  body:not(#_) .cv-wrap:has(.co-exc-grid, .co-sched) { max-width:1040px; }
   body:not(#_) :is(.co-day-bar, .co-exc-section-head, .co-drag-hint, .co-unsaved, .co-exc-grid, .co-savebar) { max-width:none; }
   /* 8 px de la grilla a cada lado del botón (16 px de alto con -8 de margen: su fila mide 0) = 16 px
      entre tarjetas, y el botón tapa justo ese hueco. Al final, lo mismo hasta «Agregar ejercicio». */
@@ -224,13 +229,20 @@ html.sin-neon body:not(#_) .co-sets-panel .co-target:focus { border-color:rgba(2
   body:not(#_) .co-exc-collapsed .co-exc-cname { padding-top:0; }
   body:not(#_) .co-exc-open { padding:17px 14px 8px 20px; }
   body:not(#_) .co-exc-collapsed .co-exc-cfoot { right:58px; }
+  /* Reps y kg de la tarjeta abierta: 220 px cada uno como máximo (para «10-12» o «80» sobraba; con
+     la columna entera quedaban de casi 500 px), y la ✕ al lado de su serie. */
+  body:not(#_) .co-sets-panel :is(.co-set-head, .co-set-row) { grid-template-columns:44px repeat(2, minmax(0,220px)) 36px; }
   body:not(#_) .co-ss-group { padding:14px 14px 6px; }
-  /* Adentro de la superserie el botón va entre la tarjeta y «sin descanso»: más alto, para que el
-     «+» no pise el cartelito; la raya queda en el medio entre las dos tarjetas. */
-  body:not(#_) .co-ss-group .ss-div { margin:0 0 22px; }
+  /* Adentro de la superserie el hueco entre las dos tarjetas es de 46 px, con «sin descanso» en el
+     medio: el botón lo tapa entero (el cartelito queda abajo y no toma el mouse) y su «+» aparece
+     sobre la raya, en el lugar del cartelito, que se apaga mientras tanto. */
+  body:not(#_) .co-ss-group .ss-div { height:46px; margin:0; pointer-events:none; }
+  body:not(#_) .co-ss-group .ss-div span { transition:opacity .15s; }
+  body:not(#_) :is(.co-ins:hover, .co-ins:focus-visible) + .ss-div span { opacity:0; }
 
   body:not(#_) .co-ins { z-index:2; height:16px; margin:-8px 0; }
-  body:not(#_) .co-ss-group .co-ins { height:24px; margin:-8px 0 0; }
+  /* -8 arriba: arranca en el borde de la tarjeta (se come su margen de 8); -46 abajo: no ocupa lugar. */
+  body:not(#_) .co-ss-group .co-ins { height:46px; margin:-8px 0 -46px; }
   body:not(#_) .co-ins::before { content:none; }
   .co-ins-t { display:none; }
   /* Quieto no se ve ni se toca (si no, lo que sobresale arriba y abajo le sacaría clics a las tarjetas). */
@@ -246,7 +258,7 @@ html.sin-neon body:not(#_) .co-sets-panel .co-target:focus { border-color:rgba(2
 }
 /* Con «reducir movimiento», aparece de una (sin fundido ni zoom). */
 @media (min-width: 900px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: reduce){
-  body:not(#_) .co-ins .co-ins-b { transform:none; transition:none; }
+  body:not(#_) .co-ins .co-ins-b, body:not(#_) .co-ss-group .ss-div span { transform:none; transition:none; }
 }
 
 /* ---------- Bloque / mesociclo: las semanas de descarga en azul, como dice la leyenda ----------
