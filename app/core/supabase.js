@@ -290,14 +290,15 @@ function takePendingCode(){
   return (v && v.c && Date.now()-(v.t||0) < 2*3600000) ? v.c : null;
 }
 // Lo de la cuenta que queda en el dispositivo fuera del estado y el perfil: los recorridos y la
-// salida de Cardio en curso, los borradores de rutina de los alumnos de un coach (coach/index.js)
-// y la invitación a un grupo de pasos sin usar (core/grupos.js), que si no se usaba con la
-// próxima cuenta que entrara en el dispositivo. keepNew: al cambiar de cuenta o borrar una sesión
-// no mantenida, la invitación de un link recién abierto (en esta carga, o hace menos de 15 minutos
-// por si el ingreso volvió a cargar la página) queda: es de quien está entrando, y antes se perdía
-// sin aviso. Igual se pregunta antes de sumarse (screens/pasos.js).
+// salida de Cardio en curso, los borradores de rutina de los alumnos de un coach (coach/index.js),
+// el borrador de la bienvenida (screens/onboarding.js) y la invitación a un grupo de pasos sin
+// usar (core/grupos.js), que si no se usaba con la próxima cuenta que entrara en el dispositivo.
+// keepNew: al cambiar de cuenta o borrar una sesión no mantenida, la invitación de un link recién
+// abierto (en esta carga, o hace menos de 15 minutos por si el ingreso volvió a cargar la página)
+// queda: es de quien está entrando, y antes se perdía sin aviso. Igual se pregunta antes de
+// sumarse (screens/pasos.js).
 function accountKeys(keepNew){
-  let drafts=[]; try{ drafts=Object.keys(localStorage).filter(k=>k.indexOf("gize_rt_draft_")===0); }catch(e){}
+  let drafts=[]; try{ drafts=Object.keys(localStorage).filter(k=>/^gize_(rt|onb)_draft_/.test(k)); }catch(e){}
   let inv=null; try{ inv=JSON.parse(localStorage.getItem("gize_grupo_pend")||"null"); }catch(e){}
   const fresh=!!(inv && inv.t && (inv.t>=performance.timeOrigin || Date.now()-inv.t<15*60000));
   return [TRACK_KEY].concat(keepNew && fresh ? [] : ["gize_grupo_pend"], runKeys(), drafts);

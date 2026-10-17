@@ -1,0 +1,213 @@
+/* css/screens/bienvenida.css
+   Bienvenida del primer ingreso (app/screens/onboarding.js), al estilo de Aera con el look de
+   GIZE: una sola tarjeta en #authHost (casi toda la pantalla en el celular) con la cabecera
+   (flecha para volver, barra de avance y «n/N»), una pregunta por pantalla que scrollea en el
+   medio y «Continuar» fijo abajo. También la bienvenida del coach y «Ver rutinas armadas» desde
+   Entreno, sin la cabecera. Solo tokens (--card, --card-2, --border, --txt*, --gize-blue…), así
+   anda en Oscuro, Claro, Azul, Rosa, sin neón, liviano y GIZE básico.
+   Las reglas de la tarjeta van con .auth-card.onb-wiz (dos clases) para ganarle a las de
+   .auth-card de los @media de auth.css. */
+
+.onb-card:focus, #onbTit:focus { outline: none; }
+/* [hidden] = no se dibuja. Sin esto, un display propio (la cabecera es grid, la flecha flex) le
+   gana al [hidden] del navegador y la flecha quedaba dibujada en el primer paso (y el «Atrás»
+   de Android la tocaba, ver app/ui/atras.js). Lo mismo pasó con .auth-google[hidden]. */
+.onb-wiz [hidden] { display: none !important; }
+
+/* ---------- La tarjeta ---------- */
+.auth-card.onb-wiz {
+  display: flex; flex-direction: column; gap: 0; padding: 12px 16px 16px; text-align: left; min-height: 420px; max-width: 440px;
+  height: calc(100vh - 48px);
+  height: min(760px, calc(100vh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  height: min(760px, calc(100dvh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+}
+/* Celular: la tarjeta ocupa todo #authHost (que deja 16 px alrededor). --kb es lo que tapa el
+   teclado en el iPhone (app/ui/keyboard.js); en Android la ventana se achica sola (dvh). La línea
+   con 100vh es para los WebView viejos sin dvh. */
+@media (max-width: 480px) {
+  .auth-card.onb-wiz {
+    max-width: 100%; padding: 12px 16px 16px; gap: 0;
+    height: calc(100vh - var(--kb, 0px) - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    height: calc(100dvh - var(--kb, 0px) - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
+/* Con el teclado abierto: sin alto mínimo y sin la bajada ni los botones de abajo, así
+   «Continuar» queda arriba del teclado aunque la pantalla sea chica. */
+html.kb-open .auth-card.onb-wiz { min-height: 0; margin-top: 0; } /* arriba de todo: lo de abajo lo tapa el teclado */
+html.kb-open .onb-wiz :is(.onb-body .onb-text, .onb-foot-alt) { display: none; }
+
+/* ---------- Cabecera: volver, avance y n/N ---------- */
+.onb-head { flex: none; display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 12px; min-height: 44px; }
+.onb-back {
+  grid-column: 1; width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: 1px solid var(--border); background: var(--card-2); color: var(--txt); cursor: pointer; transition: var(--transition-tap);
+}
+.onb-back svg { width: 22px; height: 22px; }
+.onb-back:hover { border-color: var(--txt-3); }
+.onb-back:focus-visible { outline: 2px solid var(--gize-blue); outline-offset: 2px; }
+.onb-back:disabled { opacity: .45; cursor: default; }
+.onb-prog { grid-column: 2; height: 4px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.onb-prog-fill {
+  display: block; height: 100%; border-radius: inherit; background: var(--gize-blue);
+  transform-origin: left center; transform: scaleX(var(--p, 0));
+  transition: transform var(--duration-standard) var(--ease-drawer);
+}
+.onb-count { grid-column: 3; min-width: 2.6em; text-align: right; font: 600 13px var(--gize-font); color: var(--txt-2); font-variant-numeric: tabular-nums; }
+
+/* ---------- El medio: la pregunta (scrollea sola; la cabecera y el pie quedan) ---------- */
+.onb-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none;
+  display: flex; flex-direction: column; gap: 14px; padding: 18px 4px 14px; margin: 0 -4px;
+}
+.onb-body::-webkit-scrollbar { display: none; }
+/* Al cambiar de pregunta, el contenido entra con un fundido corto (nada espera a que termine:
+   sin animaciones queda igual, ya visible). */
+.onb-body > * { flex: none; animation: authFadeUp var(--duration-standard) var(--ease-drawer) both; }
+.onb-body > .auth-msg:not(.ok) { animation: authFadeUp var(--duration-standard) var(--ease-drawer) both, authShake .4s ease .05s; }
+/* Intro y coach: centrados (con márgenes automáticos y no justify-content, así si no entra se
+   puede scrollear sin que se corte arriba). */
+.onb-body.onb-centro { text-align: center; }
+.onb-body.onb-centro > :first-child { margin-top: auto; }
+.onb-body.onb-centro > :last-child { margin-bottom: auto; }
+.onb-centro .auth-brand-ic { margin: 0 auto 4px; }
+.onb-centro .auth-logo { margin-bottom: 10px; }
+
+.onb-title { margin: 0; font: 800 28px/1.15 var(--gize-font); color: var(--txt); letter-spacing: -.015em; overflow-wrap: break-word; }
+.onb-text { margin: 0; font: 400 15px/1.45 var(--gize-font); color: var(--txt-2); }
+.onb-hint { margin: 0; font: 500 13.5px/1.45 var(--gize-font); color: var(--txt-2); }
+.onb-label { margin: 0 0 -6px; font: 600 13.5px/1.4 var(--gize-font); color: var(--txt-2); }
+@media (max-width: 380px) { .onb-title { font-size: 25px; } }
+
+/* ---------- Pie: «Continuar» fijo y lo secundario ---------- */
+.onb-foot { flex: none; display: flex; flex-direction: column; gap: 6px; padding-top: 10px; }
+.onb-foot-alt { display: flex; flex-direction: column; gap: 6px; }
+.onb-foot-alt:empty { display: none; }
+/* El principal no usa la entrada escalonada de .auth-btn (opacity:0 + animation forwards): el
+   relleno de la animación le gana a cualquier opacity y deshabilitado nunca se veía pálido.
+   El !important de dos clases le gana al de una de movimiento reducido (components.css). Se
+   queda auth-btn para que Claro lo pinte negro (claro-frozen.css). */
+.onb-wiz .onb-main { opacity: 1; animation: none; width: 100%; margin: 0; }
+.onb-wiz .onb-main:disabled { opacity: .45 !important; cursor: default; }
+.onb-wiz .onb-main[aria-busy="true"] { opacity: .7 !important; cursor: progress; }
+.onb-wiz .onb-main:disabled::before { animation: none; }
+.onb-later, .onb-link {
+  min-height: 44px; padding: 0 12px; border: 0; border-radius: var(--r-btn); background: transparent;
+  color: var(--txt-2); font: 600 14.5px var(--gize-font); cursor: pointer;
+}
+.onb-later { width: 100%; }
+.onb-link { align-self: flex-start; padding: 0 4px; text-decoration: underline; text-underline-offset: 3px; }
+.onb-later:hover, .onb-link:hover { color: var(--txt); }
+.onb-later:disabled { opacity: .45; cursor: default; }
+.onb-later:focus-visible, .onb-link:focus-visible { outline: 2px solid var(--gize-blue); outline-offset: 2px; }
+.onb-alt {
+  width: 100%; min-height: 48px; padding: 0 16px; border-radius: 999px; background: var(--card-2); border: 1px solid var(--border);
+  color: var(--txt); font: 600 15px var(--gize-font); cursor: pointer; transition: var(--transition-tap);
+}
+.onb-alt:hover { border-color: var(--txt-3); }
+.onb-alt:disabled { opacity: .45; cursor: default; }
+/* Lo que lee el lector de pantalla («Vinculando…», «Cargando rutinas…»); no se ve. */
+.onb-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+
+/* ---------- Opciones ---------- */
+.onb-opts { display: flex; flex-direction: column; gap: 10px; }
+.onb-opt {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 14px;
+  border-radius: var(--r-card); text-align: left; cursor: pointer;
+  background: var(--card-2); border: 1px solid var(--border); color: var(--txt); font: 400 14px/1.35 var(--gize-font); transition: var(--transition-tap);
+}
+.onb-opt-txt { min-width: 0; }
+.onb-opt b { display: block; font-weight: 700; font-size: 15px; }
+.onb-opt small { display: block; margin-top: 2px; color: var(--txt-2); font-size: 13px; }
+.onb-emo {
+  width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; line-height: 1; background: color-mix(in srgb, var(--txt) 6%, transparent);
+}
+/* El circulito: vacío sin elegir, lleno con la tilde al elegir (también sin neón). */
+.onb-opt-dot {
+  flex: none; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1.5px solid var(--txt-3); color: var(--gize-bg);
+}
+.onb-opt-dot svg { width: 14px; height: 14px; visibility: hidden; }
+:is(.onb-opt, .onb-routine, .onb-num).on {
+  border-color: var(--gize-blue); background: color-mix(in srgb, var(--gize-blue) 12%, var(--card-2)); box-shadow: 0 0 0 1px var(--gize-blue);
+}
+.on > .onb-opt-dot { background: var(--gize-blue); border-color: var(--gize-blue); }
+.on > .onb-opt-dot svg { visibility: visible; }
+:is(.onb-opt, .onb-routine, .onb-num):hover { border-color: var(--txt-3); }
+:is(.onb-opt, .onb-routine, .onb-num).on:hover { border-color: var(--gize-blue); }
+:is(.onb-opt, .onb-routine, .onb-num, .onb-copy, .onb-alt):focus-visible { outline: 2px solid var(--gize-blue); outline-offset: 2px; }
+
+/* Disciplinas: baldosas verticales (emoji arriba, nombre abajo, la tilde arriba a la derecha).
+   Dos columnas desde 360 px, una en 320. */
+.onb-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.onb-opt.onb-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 10px; min-height: 104px; }
+.onb-tile b { font: 700 15px/1.25 var(--gize-font); overflow-wrap: anywhere; }
+.onb-tile .onb-opt-dot { position: absolute; top: 10px; right: 10px; border-radius: 7px; }
+
+/* ---------- Números (días por semana) ---------- */
+.onb-nums { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.onb-num {
+  height: 48px; padding: 0; border-radius: var(--r-btn); background: var(--card-2); border: 1px solid var(--border);
+  color: var(--txt); font: 700 16px var(--gize-font); cursor: pointer; transition: var(--transition-tap);
+}
+/* Filtro de la lista de rutinas (Todas · 1 · 2 · 3 · 4 · 5 · 6). */
+.onb-nums-dias { grid-template-columns: 1.6fr repeat(6, 1fr); gap: 6px; }
+.onb-nums-dias .onb-num { height: 40px; font-size: 14px; }
+/* «¿Cuántos días por semana vas a entrenar?»: 3 × 2, el número grande y «días» chico. */
+.onb-nums-6 { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.onb-nums-6 .onb-num { height: auto; min-height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.onb-nums-6 .onb-num b { font: 800 28px/1 var(--gize-font); }
+.onb-nums-6 .onb-num small { font: 600 12.5px var(--gize-font); color: var(--txt-2); }
+
+/* ---------- Rutinas armadas ---------- */
+.onb-routines { display: flex; flex-direction: column; gap: 10px; }
+.onb-wiz .onb-routines { max-height: none; overflow: visible; } /* scrollea el medio, no la lista */
+.onb-routine {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; width: 100%; padding: 14px; text-align: left; cursor: pointer;
+  border-radius: var(--r-card); background: var(--card-2); border: 1px solid var(--border); color: var(--txt); font: 400 14px/1.4 var(--gize-font);
+  transition: var(--transition-tap);
+}
+.onb-routine-txt { min-width: 0; }
+.onb-routine b { display: block; font-size: 15px; }
+.onb-routine small { display: block; margin-top: 2px; color: var(--txt-2); font-size: 13px; }
+
+/* ---------- Ruedas: estatura, peso y la fecha ---------- */
+.onb-rueda { display: flex; }
+/* Pantallas bajas: tres filas a la vista (la del medio queda dentro de la parte sin desvanecer). */
+@media (max-height: 700px) { .onb-wiz :is(.rd, .rd-row) { --rd-filas: 3; } }
+.onb-fecha {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 12px; row-gap: 4px; padding: 12px 14px;
+  background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-card);
+}
+.onb-fecha-lbl { grid-column: 1 / -1; font: 600 11px var(--gize-font); letter-spacing: .2em; text-transform: uppercase; color: var(--txt-2); }
+.onb-fecha-val { font: 700 17px/1.3 var(--gize-font); color: var(--txt); }
+.onb-edad { padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--gize-blue) 16%, transparent); color: var(--txt); font: 700 13px var(--gize-font); white-space: nowrap; }
+
+/* ---------- Campos: código del coach y nombre del primer día ---------- */
+.onb-field { opacity: 1; }
+.onb-wiz .auth-msg { opacity: 1; }
+.onb-field .auth-in { text-transform: uppercase; }
+.onb-field .auth-in::placeholder { text-transform: none; }
+.onb-field-free .auth-in { text-transform: none; padding-left: 14px; } /* sin ícono a la izquierda */
+
+/* ---------- Coach: prueba y código ---------- */
+.onb-trial {
+  padding: 9px 12px; border-radius: var(--r-box); font: 500 13.5px/1.3 var(--gize-font); color: var(--gize-success);
+  background: var(--gize-success-bg); border: 1px solid color-mix(in srgb, var(--gize-success) 35%, transparent);
+}
+.onb-code { text-align: left; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-box); padding: 16px 16px 14px; }
+.onb-code-lbl { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--txt-3); }
+.onb-code-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+.onb-code-val { font: 800 clamp(22px,7vw,28px)/1 var(--gize-font-data); color: var(--gize-blue); letter-spacing: .14em; overflow-wrap: anywhere; }
+.onb-copy {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--border); color: var(--txt); font: 600 14px var(--gize-font); cursor: pointer; transition: var(--transition-tap);
+}
+.onb-copy svg { width: 14px; height: 14px; }
+.onb-copy:hover { border-color: var(--txt-3); }
+.onb-copy.copied { color: var(--gize-success); border-color: color-mix(in srgb, var(--gize-success) 45%, transparent); }
+
+/* ---------- Movimiento reducido: sin fundidos ni transiciones (GIZE básico ya los saca todos) ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .onb-body > *, .onb-body > .auth-msg:not(.ok), .onb-prog-fill, .onb-opts, .onb-fecha { animation: none; transition: none; }
+}

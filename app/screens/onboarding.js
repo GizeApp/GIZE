@@ -1,9 +1,9 @@
-import { auIcoTicket, checkSvg } from '../core/icons.js';
+import { auIcoTicket, checkSvg, chevronLeftSvg } from '../core/icons.js';
 
 import { State, state } from '../core/state.js';
 import { diaDeHoy } from '../core/diasemana.js';
 
-import { esc } from '../core/utils.js';
+import { dec, esc, uid } from '../core/utils.js';
 
 import { applyBrand, loadCloud } from '../core/supabase.js';
 
@@ -15,24 +15,33 @@ import { rutinasDeDisciplinas } from '../core/rutinas-disciplina.js';
 import { CATALOGO, cargarCatalogo, copiarDias, diasDeEntreno, rutinasDeDias, rutinasPara } from '../core/rutinas-ejemplo.js';
 
 import { hideSilkBg, showSilkBg } from '../ui/background.js';
+import { itemsRango, montarRueda, ruedaHtml } from '../ui/rueda.js';
 
+import { coachGoal } from './comida.js';
 import { CoachState } from './coach/state.js';
 
 import { renderApp } from '../main.js';
 
 import { appNativa, joinMsgTienda } from '../core/tienda.js';
 
-// Bienvenida del primer ingreso. Antes todo esto iba en el formulario de "Crear cuenta"
-// (aviso de la prueba, código del coach) y era demasiado de golpe: ahora el registro pide
-// lo justo y esto aparece una sola vez, ya adentro, encima de la app.
-//   Coach:   "¡Bienvenido, coach!" con su código para pasarle al primer alumno.
-//   Cliente: "¡Bienvenido!" y después el código de su coach (opcional).
-// Solo para cuentas nuevas (creadas hace menos de 7 días): las de antes no la ven nunca.
-// Se marca como vista por cuenta en este dispositivo.
+// Bienvenida del primer ingreso, encima de la app (en #authHost, con la tarjeta del login).
+// Solo para cuentas nuevas (creadas hace menos de 7 días): las de antes no la ven nunca. Se marca
+// como vista por cuenta en este dispositivo, recién al terminar.
+//   Coach:   «¡Bienvenido, coach!» con su código para pasarle al primer alumno (una pantalla).
+//   Cliente: «¡Bienvenido!» y después una pregunta por pantalla, como en Aera: arriba la flecha
+//            para volver, la barra de avance y «n/N»; abajo «Continuar» siempre a mano. Los pasos
+//            (pasos()) dependen del camino: disciplina, código del coach, los datos del cuerpo
+//            (sexo, cumpleaños, estatura, peso, objetivo, actividad y, si entrena por su cuenta,
+//            experiencia) y cómo arranca (rutina armada o vacío).
+// Lo que contesta va a un borrador en el dispositivo (gize_onb_draft_<uid>): si se recarga la
+// página sigue en el mismo paso. Los datos del cuerpo van a calProfile (aplicarCuerpo).
+// «Ver rutinas armadas» desde Entreno (openRoutinePicker) usa la misma tarjeta, sin la cabecera.
 const SEEN_PREFIX = "gize_onb_";
+const DRAFT_PREFIX = "gize_onb_draft_";
 const NEW_ACCOUNT_MS = 7*24*3600000;
 
 const seenKey = () => SEEN_PREFIX + State.cloudUser.id;
+const draftKey = () => DRAFT_PREFIX + State.cloudUser.id;
 function markSeen(){ try{ localStorage.setItem(seenKey(), "1"); }catch(e){} }
 // ¿Ya tiene una rutina con ejercicios? Pasa al entrar por primera vez en otro dispositivo
 // (la marca de vista es por dispositivo): la bienvenida no le ofrece armar otra encima.
@@ -40,321 +49,818 @@ const hasWork = () => (state.days||[]).some(d=>(d.exercises||[]).length);
 const REPLACE_MSG = "Ya tenés una rutina cargada. Esto la reemplaza en todos tus dispositivos. No toca tus pesos, entrenos ni hábitos. ¿Seguro?";
 const okToReplace = () => !hasWork() || confirm(REPLACE_MSG);
 
+// ---- Opciones de cada pregunta: [valor, emoji, nombre, descripción] ----
+const EMO_DISC = { fuerza:"💪", crossfit:"🔥", powerlifting:"🏋️", weightlifting:"🥇", running:"🏃", hibrido:"⚡" };
+const SEXOS = [["f","👩","Mujer"], ["m","👨","Hombre"], ["x","🔒","Prefiero no decir"]];
+const OBJETIVOS = [
+  ["fuerza","🏋️","Ganar fuerza","Levantar más: fuerza y potencia"],
+  ["musculo","💪","Ganar músculo","Hipertrofia: más masa muscular"],
+  ["grasa","🔥","Bajar grasa","Quemar grasa y definir"],
+  ["resistencia","🚴","Resistencia","Mejorar tu condición cardiovascular"],
+  ["salud","🌱","Salud y bienestar","Sentirte mejor en general"]];
+// Los nombres de GIZE (los mismos de «Tu meta diaria» en Comida) con las descripciones de Aera.
+const ACTIVIDADES = [
+  ["sed","🛋️","Sedentario","0 a 1 día de entreno por semana · menos de 5.000 pasos por día"],
+  ["lig","🚶","Ligero","2 a 3 días · 5.000 a 8.000 pasos"],
+  ["mod","🤸","Moderado","3 a 5 días · 8.000 a 10.000 pasos"],
+  ["act","🏃","Activo","5 a 6 días · 10.000 a 12.000 pasos"],
+  ["muy","⚡","Muy activo","Entrenás todos los días · más de 12.000 pasos"]];
+const NIVELES = [
+  ["principiante","🌱","Principiante","Recién empezás o entrenás hace menos de 1 año"],
+  ["intermedio","📈","Intermedio","De 1 a 3 años entrenando seguido"],
+  ["avanzado","🏆","Avanzado","Más de 3 años de entrenamiento constante"]];
+const ARRANQUES = [
+  ["rutina","📋","Elegir una rutina armada","Recomendado. Rutinas listas de 1 a 6 días por semana. La podés cambiar después."],
+  ["vacio","✏️","Empezar vacío","Armás tus días de a poco."]];
+// Objetivo → objetivo de la meta de calorías de Comida (bajar / mantener / ganar).
+const META_GOAL = { grasa:"bajar", musculo:"ganar", fuerza:"mantener", resistencia:"mantener", salud:"mantener" };
+// Experiencia → días por semana que le sugerimos.
+const SUGERIDOS = { principiante:3, intermedio:4, avanzado:5 };
+const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const MESES_CORTOS = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+// Rangos de las ruedas y el valor con el que arrancan si no hay un dato real.
+const ALTURA = { min:120, max:220, def:170 };
+const PESO = { min:30, max:250, paso:0.5, def:70 };
+const EDAD = { min:18, max:100, def:25 };
+
+// Pasos del cuerpo y dónde queda cada respuesta en el borrador (D.ans).
+const CUERPO = ["sexo","nac","altura","peso","objetivo","actividad","nivel"];
+const CLAVE = { sexo:"sex", nac:"nac", altura:"altura", peso:"peso", objetivo:"objetivo", actividad:"actividad", nivel:"nivel" };
+
+const kg = n => n % 1 ? dec(n, 1) : String(n);
+const ITEMS_DIA = itemsRango(1, 31, 1);
+const ITEMS_MES = itemsRango(1, 12, 1, m => MESES_CORTOS[m-1], m => MESES[m-1]);
+const ITEMS_ALTURA = itemsRango(ALTURA.min, ALTURA.max, 1, String, v => v+" cm");
+const ITEMS_PESO = itemsRango(PESO.min, PESO.max, PESO.paso, kg, v => kg(v)+" kg");
+const anioMax = () => new Date().getFullYear() - EDAD.min;
+const anioMin = () => new Date().getFullYear() - EDAD.max;
+const itemsAnio = () => itemsRango(anioMin(), anioMax(), 1);
+
+// ---- Estado de la bienvenida ----
+let D = null;        // borrador del cliente: { v, t, paso, detour, linked0, work0, body0, ans, flags }
+let modo = "";       // "intro" | "wiz" (los pasos) | "coach" | "app" («Ver rutinas armadas»)
+let tok = 0;         // cambia con cada pantalla: una espera vieja (el catálogo) no la pisa
+let ocupado = false; // vinculando con el coach: la flecha y los botones de abajo no andan
+let ruedas = [];     // ruedas de la pantalla actual (se desarman al cambiar de paso)
+let _cat = null;     // catálogo ya esperado (el de la base o, si no llegó a tiempo, el de la app)
+let filtroApp = null; // días por semana elegidos en «Ver rutinas armadas» en esta sesión
+let _mostradas = [];  // las rutinas de la lista que se ve (la tocada se busca acá aunque después llegue el catálogo)
+
+const cp = () => state.calProfile || {};
+const conCoach = () => !!(State.cloudProfile && State.cloudProfile.coach_id);
+const metaCompleta = () => +cp().age > 0 && +cp().height > 0 && +cp().weight > 0;
+// Entrena por su cuenta: sin coach y sin una rutina propia ya armada en otro dispositivo.
+const porSuCuenta = () => !!D && !D.work0 && !conCoach();
+
+// ---- Borrador (para seguir donde quedó si se recarga la página) ----
+function leerBorrador(){
+  try{
+    const d=JSON.parse(localStorage.getItem(draftKey())||"null");
+    if(d && d.v===1 && d.ans && typeof d.ans==="object"){
+      if(!d.flags || typeof d.flags!=="object") d.flags={};
+      if(!d.flags.tocado || typeof d.flags.tocado!=="object") d.flags.tocado={};
+      return d;
+    }
+  }catch(e){}
+  return null;
+}
+function guardarBorrador(){ if(!D || !State.cloudUser) return; D.t=Date.now(); try{ localStorage.setItem(draftKey(), JSON.stringify(D)); }catch(e){} }
+function borrarBorrador(){ try{ if(State.cloudUser) localStorage.removeItem(draftKey()); }catch(e){} }
+
 export function maybeShowOnboarding(){
   const u=State.cloudUser, p=State.cloudProfile;
   if(!u || !p || !u.created_at) return;
-  if(Date.now()-Date.parse(u.created_at) > NEW_ACCOUNT_MS) return;
+  if(Date.now()-Date.parse(u.created_at) > NEW_ACCOUNT_MS){ borrarBorrador(); return; }
   try{ if(localStorage.getItem(seenKey())) return; }catch(e){ return; }
   // Ya está abierta (afterLogin corrió dos veces, p. ej. al volver de Apple o Google): no se
   // vuelve a empezar desde «¡Bienvenido!» con lo que ya eligió.
   if(document.querySelector("#authHost .onb-card")) return;
-  if(p.role==="coach") showCoachWelcome(); else showClientWelcome();
+  if(p.role==="coach"){ showCoachWelcome(); return; }
+  const d=leerBorrador();
+  if(d){ D=d; reanudar(); } else showIntro();
 }
 
-function mount(inner, label){
-  const host=document.getElementById("authHost"); if(!host) return null;
-  host.style.display="flex";
+// ---- Camino ----
+// N (el «n/N» de arriba) es el largo del camino tal como se conoce ahora: se vuelve a calcular
+// en cada pantalla. linked0, work0 y body0 se toman al tocar «Empezar» y quedan en el borrador,
+// así el camino no cambia al recargar.
+function pasos(){
+  const p = ["disc"];
+  if (!D.linked0 && !D.work0) p.push("code");
+  const coach = conCoach(), solo = !D.work0 && !coach, metaCoach = coach && coachGoal();
+  if (D.body0){
+    // Con la meta del coach, solo el peso (lo ven Progreso, Cardio y el coach); el resto no se usaría.
+    if (metaCoach) p.push("peso");
+    else { p.push("sexo", "nac", "altura", "peso", "objetivo", "actividad"); if (solo) p.push("nivel"); }
+  }
+  if (solo) p.push("arranque", ...(D.ans.start === "vacio" ? ["dias", "primer"] : ["rutina"]));
+  return p;
+}
+// Último paso del cuerpo del camino: al dejarlo para adelante se aplican las respuestas.
+function ultimoCuerpo(){ const p=pasos().filter(x=>CUERPO.indexOf(x)>=0); return p.length ? p[p.length-1] : null; }
+
+// ---- Fechas ----
+const diasDelMes = (m, y) => new Date(y, m, 0).getDate();
+const fechaValida = f => ({ d: Math.min(f.d, diasDelMes(f.m, f.y)), m: f.m, y: f.y });
+// Años cumplidos hoy (fecha local).
+function edadDe(f){
+  const t=new Date(); let e=t.getFullYear()-f.y;
+  if(t.getMonth()+1<f.m || (t.getMonth()+1===f.m && t.getDate()<f.d)) e--;
+  return e;
+}
+// Hoy hace n años (el 29 de febrero pasa al 28 si ese año no lo tiene).
+function haceAnios(n){ const t=new Date(); return fechaValida({ d:t.getDate(), m:t.getMonth()+1, y:t.getFullYear()-n }); }
+const fechaTexto = f => f.d+" de "+MESES[f.m-1]+" de "+f.y;
+// Edad que ya está en la cuenta (Comida o la ficha del coach): cuenta como respondida.
+function edadReal(){
+  const e=+cp().age>0 ? Math.round(+cp().age) : Math.round(+((state.info||{}).age)||0);
+  return e>=EDAD.min && e<=EDAD.max ? e : 0;
+}
+
+// ---- Cómo se aplican las respuestas ----
+// Corre cada vez que deja el último paso del cuerpo para adelante (con «Continuar» o «Ahora
+// no»): si vuelve, cambia algo y sigue, se aplica de nuevo. Lo salteado no borra lo que ya había.
+function aplicarCuerpo(){
+  const a = D.ans, cpn = Object.assign({}, state.calProfile || {}); // conserva macros y claves que no conoce
+  if (a.sex) state.sex = a.sex;
+  if (a.sex === "f" || a.sex === "m") cpn.sex = a.sex; // «Prefiero no decir» nunca va a la meta
+  if (a.nac){ const e = edadDe(fechaValida(a.nac)); if (e >= EDAD.min && e <= EDAD.max) cpn.age = String(e); }
+  if (a.altura) cpn.height = String(a.altura);
+  if (a.peso) cpn.weight = String(a.peso);
+  if (a.objetivo){ cpn.trainGoal = a.objetivo; cpn.goal = META_GOAL[a.objetivo]; }
+  if (a.actividad) cpn.activity = a.actividad;
+  if (a.nivel) cpn.level = a.nivel;
+  cpn.bodyAsked = true;                       // en otro dispositivo no se vuelve a preguntar
+  state.calProfile = cpn;
+  save(); guardarBorrador();
+}
+
+// ---- La tarjeta ----
+const host = () => document.getElementById("authHost");
+const card = () => document.querySelector("#authHost .onb-wiz");
+const $ = s => { const c=card(); return c ? c.querySelector(s) : null; };
+function sr(t){ const s=$(".onb-sr"); if(s) s.textContent=t||""; }
+function destruirRuedas(){ ruedas.forEach(r=>{ try{ r.destruir(); }catch(e){} }); ruedas=[]; }
+function clickMain(){ const m=$(".onb-main"); if(m && !m.disabled && !m.hidden) m.click(); }
+
+// Se arma una vez por bienvenida: entre pasos cambia solo el contenido de .onb-body y el pie
+// (volver a montar la tarjeta repetía la animación de entrada y en el iPhone parecía que se
+// abría otra ventana).
+function montarShell(m){
+  const h=host(); if(!h) return null;
+  destruirRuedas();
+  modo=m; ocupado=false;
+  h.style.display="flex";
   hideSilkBg();
-  host.innerHTML=
+  h.innerHTML=
     '<div class="gize-aurora auth-aurora" aria-hidden="true"><span></span><span></span><span></span><span></span></div>'+
-    '<div class="auth-card onb-card" role="dialog" aria-modal="true" aria-label="'+label+'" tabindex="-1">'+
-      '<div class="auth-brand-ic" aria-hidden="true"><img src="brand/logo/gize-marca-blanca.svg" alt=""></div>'+
-      inner+
+    '<div class="auth-card onb-card onb-wiz" role="dialog" aria-modal="true" aria-labelledby="onbTit" tabindex="-1">'+
+      '<div class="onb-head" hidden>'+
+        '<button type="button" class="onb-back" data-onb="back" aria-label="Volver al paso anterior" hidden>'+chevronLeftSvg+'</button>'+
+        '<div class="onb-prog" role="progressbar" aria-label="Avance" aria-valuemin="1" aria-valuemax="1" aria-valuenow="1"><span class="onb-prog-fill"></span></div>'+
+        '<span class="onb-count" aria-hidden="true"></span>'+
+      '</div>'+
+      '<div class="onb-body"></div>'+
+      '<div class="onb-foot">'+
+        '<button type="button" class="gize-btn auth-btn onb-main" data-onb="next">Continuar</button>'+
+        '<div class="onb-foot-alt"></div>'+
+        '<p class="onb-sr" role="status" aria-live="polite"></p>'+
+      '</div>'+
     '</div>';
-  // Cada paso arranca arriba de todo (el anterior pudo haber quedado corrido).
-  host.scrollTop=0; host.scrollLeft=0;
-  // El foco va a la tarjeta (lector de pantalla) y no al campo: en el celular abriría el teclado.
-  host.querySelector(".onb-card").focus({preventScroll:true});
-  return host;
+  h.scrollTop=0; h.scrollLeft=0;
+  const c=h.querySelector(".onb-card");
+  c.addEventListener("keydown", trampa);
+  // Con el teclado abierto, el campo que se toca queda a la vista dentro de la tarjeta.
+  c.querySelector(".onb-body").addEventListener("focusin", e=>{
+    const t=e.target; if(!t || t.tagName!=="INPUT") return;
+    setTimeout(()=>{ if(document.activeElement===t){ try{ t.scrollIntoView({block:"nearest"}); }catch(err){} } }, 250);
+  });
+  h.onclick=alTocar;
+  return c;
 }
 
-function close(){
-  markSeen();
-  const h=document.getElementById("authHost"); if(h){ h.style.display="none"; h.innerHTML=""; }
-  showSilkBg(); // la app ya está dibujada por detrás: solo vuelve el fondo animado
+// El Tab queda dentro de la tarjeta (es una ventana encima de la app).
+function trampa(e){
+  if(e.key!=="Tab") return;
+  const c=e.currentTarget, act=document.activeElement;
+  const f=[...c.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])')].filter(x=>!x.disabled && x.getClientRects().length);
+  if(!f.length) return;
+  if(!c.contains(act) || act===c){ e.preventDefault(); (e.shiftKey ? f[f.length-1] : f[0]).focus(); return; }
+  const antes=f.filter(x=>x!==act && (x.compareDocumentPosition(act) & Node.DOCUMENT_POSITION_FOLLOWING));
+  const despues=f.filter(x=>x!==act && !act.contains(x) && (act.compareDocumentPosition(x) & Node.DOCUMENT_POSITION_FOLLOWING));
+  if(e.shiftKey && !antes.length){ e.preventDefault(); f[f.length-1].focus(); }
+  else if(!e.shiftKey && !despues.length){ e.preventDefault(); f[0].focus(); }
 }
 
-function showCoachWelcome(){
-  const code=CoachState.coachInvite;
-  const host=mount(
-    '<h1 class="onb-title">¡Bienvenido, coach!</h1>'+
-    // En las apps (iPhone y Android) no se habla de la prueba gratis (core/tienda.js appNativa).
-    (appNativa() ? '' : '<div class="onb-trial">14 días gratis para probar todo · sin tarjeta</div>')+
-    '<p class="onb-text">Pasale este código a tu primer alumno. Lo carga una vez y quedan conectados.</p>'+
-    (code ?
-      '<div class="onb-code">'+
-        '<div class="onb-code-lbl">Tu código</div>'+
-        '<div class="onb-code-row"><span class="onb-code-val">'+esc(code)+'</span>'+
-        '<button type="button" class="onb-copy" data-onb="copy">Copiar</button></div>'+
-      '</div>' :
-      '<p class="onb-text">Tu código de invitación aparece arriba de todo en tu panel.</p>')+
-    '<button type="button" class="gize-btn auth-btn onb-main" data-onb="done">Ir a mi panel</button>',
-    "Bienvenida");
-  if(!host) return;
-  host.onclick=async e=>{
-    const b=e.target.closest("[data-onb]"); if(!b) return;
-    if(b.dataset.onb==="done"){ host.onclick=null; close(); return; }
-    if(b.dataset.onb==="copy"){
-      try{ await navigator.clipboard.writeText(code); }
-      catch(err){ alert("No se pudo copiar. Código: "+code); return; }
-      b.innerHTML=checkSvg+" Copiado"; b.classList.add("copied");
-      setTimeout(()=>{ b.textContent="Copiar"; b.classList.remove("copied"); }, 1600);
-    }
-  };
+// Dibuja una pantalla: el contenido, el botón principal (main: { onb, label, disabled }, o null
+// para esconderlo) y los botones de abajo (alt). El foco va al título.
+function pintar(o){
+  const c=card(); if(!c) return null;
+  destruirRuedas(); tok++;
+  const body=c.querySelector(".onb-body");
+  body.className="onb-body"+(o.centro?" onb-centro":"");
+  body.innerHTML=o.html;
+  body.scrollTop=0;
+  const m=c.querySelector(".onb-main");
+  m.removeAttribute("aria-busy"); delete m.dataset.txt;
+  m.hidden=!o.main;
+  if(o.main){ m.dataset.onb=o.main.onb; m.textContent=o.main.label; m.disabled=!!o.main.disabled; }
+  c.querySelector(".onb-foot-alt").innerHTML=o.alt||"";
+  sr(o.sr||"");
+  const t=c.querySelector("#onbTit"); if(t){ try{ t.focus({preventScroll:true}); }catch(e){ t.focus(); } }
+  return c;
 }
 
-function showClientWelcome(){
-  const host=mount(
-    '<div class="auth-logo"><img src="brand/logo/gize-logotipo.svg" alt="GIZE"></div>'+
-    '<h1 class="onb-title onb-title-gap">¡Bienvenido!</h1>'+
-    '<p class="onb-text">Tu coach arma el plan, vos registrás cada serie y los dos ven la evolución.</p>'+
-    '<button type="button" class="gize-btn auth-btn onb-main" data-onb="start">Empezar</button>',
-    "Bienvenida");
-  if(!host) return;
-  host.onclick=e=>{
-    if(!e.target.closest('[data-onb="start"]')) return;
-    host.onclick=null;
-    showDisciplina();
-  };
+// Cabecera: flecha para volver (no en el primer paso), barra de avance y «n/N».
+function cabeza(){
+  const c=card(); if(!c) return;
+  const head=c.querySelector(".onb-head");
+  if(modo!=="wiz" || !D){ head.hidden=true; return; }
+  const ps=pasos(), N=ps.length, i=Math.max(0, ps.indexOf(D.paso)), n=i+1;
+  head.hidden=false;
+  c.querySelector(".onb-back").hidden = i===0 && !D.detour;
+  const pr=c.querySelector(".onb-prog");
+  pr.style.setProperty("--p", String(n/N));
+  pr.setAttribute("aria-valuemax", String(N)); pr.setAttribute("aria-valuenow", String(n)); pr.setAttribute("aria-valuetext", "Paso "+n+" de "+N);
+  c.querySelector(".onb-count").textContent=n+"/"+N;
 }
 
-// ¿Qué entrenás? (una o más; se puede saltear y cambiar en Ajustes). Con eso el buscador de
-// ejercicios muestra primero lo suyo, y su coach la ve en la ficha (core/disciplinas.js).
-function showDisciplina(){
-  const mine=myDisciplinas().map(d=>d.id);
-  const host=mount(
-    '<h1 class="onb-title">¿Qué entrenás?</h1>'+
-    '<p class="onb-text">Podés elegir más de una. Te mostramos primero esos ejercicios.</p>'+
-    '<div class="onb-disc">'+DISCIPLINAS.map(d=>'<button type="button" class="onb-num onb-disc-opt'+(mine.includes(d.id)?' on':'')+'" data-onb="disc" data-v="'+d.id+'" aria-pressed="'+mine.includes(d.id)+'">'+esc(d.name)+'</button>').join("")+'</div>'+
-    '<button type="button" class="gize-btn auth-btn onb-main" data-onb="dnext">Continuar</button>'+
-    '<button type="button" class="onb-alt" data-onb="dskip">Saltear</button>',
-    "Tu disciplina");
-  if(!host) return;
-  host.onclick=e=>{
-    const b=e.target.closest("[data-onb]"); if(!b) return;
-    if(b.dataset.onb==="disc"){
-      toggleDisciplina(b.dataset.v); save();
-      const on=myDisciplinas().some(d=>d.id===b.dataset.v);
-      b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
-      return;
-    }
-    host.onclick=null;
-    // Ya vinculado (código de un intento anterior de registro): no se le pide de nuevo.
-    // Con coach, la rutina la arma el coach: no se le ofrece armar una. Con rutina propia
-    // (entró primero en otro dispositivo) tampoco: se queda con la suya.
-    if((State.cloudProfile && State.cloudProfile.coach_id) || hasWork()) close();
-    else showClientCode();
-  };
+// Marcar una opción cambia solo los botones de ese grupo (no se vuelve a dibujar la tarjeta).
+function mark(attr, val){
+  const c=card(); if(!c) return;
+  c.querySelectorAll('[data-onb="'+attr+'"]').forEach(x=>{ const on=x.dataset.v===String(val); x.classList.toggle("on", on); x.setAttribute("aria-pressed", String(on)); });
 }
 
-function showClientCode(msg, value){
-  const host=mount(
-    '<h1 class="onb-title">¿Tenés un código de tu coach?</h1>'+
-    '<p class="onb-text">Es opcional. Con el código, tu coach te arma el plan.</p>'+
-    '<div class="auth-field onb-field">'+
-      '<span class="auth-ic" aria-hidden="true">'+auIcoTicket+'</span>'+
-      '<input id="onbCode" class="auth-in" type="text" placeholder="Código de tu coach" aria-label="Código de tu coach" autocomplete="off" autocapitalize="characters" value="'+esc(value||"")+'">'+
-    '</div>'+
-    (msg?'<div class="auth-msg" role="alert">'+esc(msg)+'</div>':'')+
-    '<button type="button" class="gize-btn auth-btn onb-main" data-onb="join">Vincular con mi coach</button>'+
-    '<button type="button" class="onb-alt" data-onb="solo">Entreno por mi cuenta</button>',
-    "Código de tu coach");
-  if(!host) return;
-  const inp=host.querySelector("#onbCode");
-  inp.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); host.querySelector('[data-onb="join"]').click(); } });
-  host.onclick=async e=>{
-    const b=e.target.closest("[data-onb]"); if(!b || b.disabled) return;
-    if(b.dataset.onb==="solo"){ host.onclick=null; if(hasWork()) close(); else showStartChoice(); return; }
-    const code=inp.value.trim();
-    if(!code){ showClientCode("Poné el código que te pasó tu coach, o tocá \"Entreno por mi cuenta\".", code); return; }
-    b.disabled=true; b.textContent="Vinculando...";
-    try{
-      const r=await State.sb.rpc("join_coach",{code:code});
-      if(r.data!==true){
-        // join_coach trae un mensaje propio para plan vencido o cupo lleno.
-        const m=(r.error && r.error.code==="P0001" && joinMsgTienda(r.error.message)) || "Código inválido. Revisalo con tu coach.";
-        showClientCode(m, code); return;
+// «Continuar» y la ayuda de abajo, según lo que hay contestado.
+function refrescar(){
+  if(modo!=="wiz" || !D) return;
+  const P=PANTALLAS[D.detour ? "desvio" : D.paso]; if(!P) return;
+  const m=$(".onb-main");
+  if(m && !m.hasAttribute("aria-busy")) m.disabled = !!(P.valido && !P.valido());
+  const h=$(".onb-hint");
+  if(h && P.pista){ const t=P.pista(); h.textContent=t||""; h.hidden=!t; }
+}
+
+// Ocupado: el botón principal dice qué está pasando (y el lector de pantalla también). Con
+// bloquear, tampoco andan la flecha de volver ni los botones de abajo (vinculando: la base
+// pudo haberlo vinculado igual, así que eso no se deja a medias).
+function ocupadoUI(on, txt, bloquear){
+  const c=card(); if(!c) return;
+  const m=c.querySelector(".onb-main");
+  if(on){ m.dataset.txt=m.textContent; m.textContent=txt; m.disabled=true; m.setAttribute("aria-busy","true"); sr(txt); }
+  else { m.removeAttribute("aria-busy"); if(m.dataset.txt){ m.textContent=m.dataset.txt; delete m.dataset.txt; } m.disabled=false; sr(""); }
+  if(bloquear) c.querySelectorAll(".onb-back, .onb-foot-alt button").forEach(b=>{ b.disabled=on; });
+  if(!on) refrescar();
+}
+
+// ---- Piezas de las pantallas ----
+const tit = t => '<h1 id="onbTit" class="onb-title" tabindex="-1">'+t+'</h1>';
+const sub = t => '<p class="onb-text">'+t+'</p>';
+const PISTA = '<p class="onb-hint" hidden></p>';
+const AHORA_NO = '<button type="button" class="onb-later" data-onb="later">Ahora no</button>';
+const dot = '<span class="onb-opt-dot" aria-hidden="true">'+checkSvg+'</span>';
+function opcion(attr, o, sel){
+  const on=o[0]===sel;
+  return '<button type="button" class="onb-opt'+(on?' on':'')+'" data-onb="'+attr+'" data-v="'+o[0]+'" aria-pressed="'+on+'">'+
+    '<span class="onb-emo" aria-hidden="true">'+o[1]+'</span>'+
+    '<span class="onb-opt-txt"><b>'+o[2]+'</b>'+(o[3]?'<small>'+o[3]+'</small>':'')+'</span>'+dot+'</button>';
+}
+const opciones = (attr, lista, sel) => '<div class="onb-opts" role="group" aria-labelledby="onbTit">'+lista.map(o=>opcion(attr, o, sel)).join("")+'</div>';
+// «Prefiero no decir» explica qué rutinas ve, cuando las rutinas dependen de esto.
+const sexos = rutinas => SEXOS.map(o=>o[0]==="x" && rutinas ? o.concat("Te mostramos todas las rutinas") : o);
+const sexoTxt = () => state.sex==="f" ? "Mujer" : state.sex==="m" ? "Hombre" : "Todas";
+
+// Rueda sola (estatura, peso): la respuesta (D.ans[k]) existe si la tocó o si arrancó en un dato real.
+function ruedaSimple(k, sel, items, index){
+  const api=montarRueda($(sel), { items, index,
+    onChange(){ if(D.flags.tocado[k]) D.ans[k]=api.v; refrescar(); },
+    onCommit(){ guardarBorrador(); },
+    onToque(){ D.flags.tocado[k]=true; D.ans[k]=api.v; refrescar(); guardarBorrador(); },
+    onEnter: clickMain });
+  ruedas=[api];
+}
+
+// ---- Rutinas armadas (la lista de la bienvenida y la de «Ver rutinas armadas») ----
+// El catálogo de la base; si no llega en 4 s (señal floja), el de la app. El pedido sigue y,
+// cuando llega, queda para la próxima vez.
+function catalogo(){
+  const base=cargarCatalogo().then(c=>{ _cat=c; return c; });
+  return Promise.race([base, new Promise(r=>setTimeout(()=>r(_cat || (_cat=CATALOGO)), 4000))]);
+}
+// Primero las de sus disciplinas (CrossFit, Running…) y, si busca resistencia, las de running e híbrido.
+function idsRutinas(){
+  const ids=myDisciplinas().map(x=>x.id);
+  if(cp().trainGoal==="resistencia") ["running","hibrido"].forEach(x=>{ if(ids.indexOf(x)<0) ids.push(x); });
+  return ids;
+}
+function rutinasTodas(){
+  let all=rutinasPara(state.sex, _cat || CATALOGO);
+  if(!all.length) all=rutinasPara(state.sex, CATALOGO);
+  return rutinasDeDisciplinas(idsRutinas()).concat(all);
+}
+function introRutinas(){
+  const t=[];
+  if(myDisciplinas().some(x=>x.id!=="fuerza")) t.push("Te mostramos primero las de tu disciplina.");
+  else if(cp().trainGoal==="resistencia") t.push("Te mostramos primero las de resistencia.");
+  return t;
+}
+const chip = (n, sel, lbl) => '<button type="button" class="onb-num onb-dias'+(n===sel?' on':'')+'" data-onb="dias" data-v="'+n+'" aria-pressed="'+(n===sel)+'">'+lbl+'</button>';
+const chipsDias = sel => '<p class="onb-label">¿Cuántos días por semana entrenás?</p>'+
+  '<div class="onb-nums onb-nums-dias" role="group" aria-label="Días por semana">'+chip(0, sel, "Todas")+[1,2,3,4,5,6].map(n=>chip(n, sel, String(n))).join("")+'</div>';
+// sel: la elegida en la bienvenida; app: desde Entreno (ahí tocar una la elige al toque).
+function listaHtml(n, sel, app){
+  const all=rutinasTodas(), list=rutinasDeDias(all, n);
+  _mostradas=list;
+  if(!list.length) return '<p class="onb-text">'+(all.length && n ? 'Todavía no hay rutinas de '+n+' día'+(n===1?'':'s')+' para esta opción. Probá con otra cantidad de días.' : 'Todavía no hay rutinas para esta opción.')+'</p>';
+  return list.map(r=>{
+    const k=diasDeEntreno(r), on=!app && r.id===sel;
+    return '<button type="button" class="onb-routine'+(on?' on':'')+'" data-onb="pick" data-v="'+esc(r.id)+'"'+(app?'':' aria-pressed="'+on+'"')+'>'+
+      '<span class="onb-routine-txt"><b>'+esc(r.nombre)+'</b><small>'+k+' día'+(k===1?'':'s')+' por semana'+(r.desc?' · '+esc(r.desc):'')+'</small></span>'+(app?'':dot)+'</button>';
+  }).join("");
+}
+// Filtro de la lista: lo que tocó o, si no tocó nada, los días que le sugerimos por su experiencia.
+const filtroWiz = () => D.ans.filtro!=null ? D.ans.filtro : (SUGERIDOS[D.ans.nivel] || 0);
+function pintarLista(){
+  const box=$(".onb-routines"); if(!box) return;
+  if(modo==="app"){ box.innerHTML=listaHtml(filtroApp, null, true); return; }
+  const n=filtroWiz();
+  // Si el filtro esconde la que había elegido, deja de estar elegida.
+  if(D.ans.rutina && !rutinasDeDias(rutinasTodas(), n).some(r=>r.id===D.ans.rutina)) D.ans.rutina=null;
+  box.innerHTML=listaHtml(n, D.ans.rutina, false);
+  refrescar();
+}
+
+// ---- Las pantallas de la bienvenida ----
+// prep(): valores por defecto · html() · montar(): ruedas y campos · valido(): habilita
+// «Continuar» · pista(): la ayuda de abajo · alt(): botones de abajo · etiqueta(): el texto de
+// «Continuar» · alSalir(): guarda la respuesta al seguir (false: no sigue) · fin(): si es el último.
+const PANTALLAS = {
+  disc: {
+    html(){
+      const mine=myDisciplinas().map(d=>d.id);
+      return tit("¿Qué entrenás?")+sub("Podés elegir más de una. Te mostramos primero esos ejercicios.")+
+        '<div class="onb-tiles" role="group" aria-labelledby="onbTit">'+DISCIPLINAS.map(d=>{ const on=mine.indexOf(d.id)>=0;
+          return '<button type="button" class="onb-opt onb-tile'+(on?' on':'')+'" data-onb="disc" data-v="'+d.id+'" aria-pressed="'+on+'">'+
+            '<span class="onb-emo" aria-hidden="true">'+(EMO_DISC[d.id]||"")+'</span><b>'+esc(d.name)+'</b>'+dot+'</button>'; }).join("")+'</div>';
+    },
+    valido: () => myDisciplinas().length > 0,
+    alt: () => '<button type="button" class="onb-later" data-onb="dskip">Saltear</button>'
+  },
+
+  code: {
+    html(){
+      const t=tit("¿Tenés un código de tu coach?")+sub("Es opcional. Con el código, tu coach te arma la rutina y ve tu progreso.");
+      if(conCoach()) return t+'<div class="auth-msg ok" role="status">Ya estás vinculado con tu coach.</div>';
+      return t+'<div class="auth-field onb-field">'+
+          '<span class="auth-ic" aria-hidden="true">'+auIcoTicket+'</span>'+
+          '<input id="onbCode" class="auth-in" type="text" placeholder="Código de tu coach" aria-label="Código de tu coach" autocomplete="off" autocapitalize="characters">'+
+        '</div>';
+    },
+    montar(){
+      const inp=$("#onbCode"); if(!inp) return;
+      inp.addEventListener("input", refrescar);
+      inp.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); clickMain(); } });
+    },
+    valido: () => conCoach() || !!((($("#onbCode")||{}).value)||"").trim(),
+    etiqueta: () => conCoach() ? "Continuar" : "Vincular con mi coach",
+    alt: () => conCoach() ? "" : '<button type="button" class="onb-alt" data-onb="solo">Entreno por mi cuenta</button>',
+    alSalir: () => conCoach() ? true : vincular()
+  },
+
+  sexo: {
+    prep(){ if(!D.ans.sex){ const s=state.sex || cp().sex; if(s==="f" || s==="m" || s==="x") D.ans.sex=s; } },
+    html(){
+      return tit("¿Cuál es tu sexo?")+sub(porSuCuenta() ? "Lo usamos para calcular tus calorías y mostrarte rutinas pensadas para vos." : "Lo usamos para calcular tus calorías.")+
+        opciones("sex", sexos(porSuCuenta()), D.ans.sex);
+    },
+    valido: () => !!D.ans.sex
+  },
+
+  nac: {
+    // Una edad que ya está en la cuenta cuenta como respondida; la de 25 años de arranque, no.
+    prep(){ if(!D.ans.nac){ const e=edadReal(); if(e) D.ans.nac=haceAnios(e); } },
+    html(){
+      const f=fechaValida(D.ans.nac || haceAnios(EDAD.def)), y=Math.min(anioMax(), Math.max(anioMin(), f.y));
+      return tit("¿Cuándo es tu cumpleaños?")+sub("Con tu edad calculamos mejor tus calorías. Tu fecha no se sube a tu cuenta: solo la edad.")+
+        '<div class="onb-fecha"><span class="onb-fecha-lbl">Fecha elegida</span><b class="onb-fecha-val"></b><span class="onb-edad"></span></div>'+
+        '<div class="rd-row" role="group" aria-labelledby="onbTit"><div class="rd-band" aria-hidden="true"></div>'+
+          ruedaHtml({ id:"onbDia", label:"Día", items:ITEMS_DIA, index:f.d-1, chica:true })+
+          ruedaHtml({ id:"onbMes", label:"Mes", items:ITEMS_MES, index:f.m-1, chica:true })+
+          ruedaHtml({ id:"onbAnio", label:"Año", items:itemsAnio(), index:y-anioMin(), chica:true })+
+        '</div>'+PISTA;
+    },
+    montar(){
+      const f=fechaValida(D.ans.nac || haceAnios(EDAD.def)), y=Math.min(anioMax(), Math.max(anioMin(), f.y));
+      let rd=null, rm=null, ra=null;
+      // La fecha de las ruedas, con el día corregido (nunca un 31 de febrero, aunque esté a mitad de camino).
+      const actual = () => fechaValida({ d:rd.v, m:rm.v, y:ra.v });
+      const pintarFecha = () => {
+        if(!ra) return;
+        const g=actual(), e=edadDe(g), v=$(".onb-fecha-val"), ed=$(".onb-edad");
+        if(v) v.textContent=fechaTexto(g);
+        if(ed) ed.textContent=e+" años";
+        ra.texto(g.y+", "+e+" años");
+        if(D.flags.tocado.nac) D.ans.nac=g;
+        refrescar();
+      };
+      const toque = () => { D.flags.tocado.nac=true; pintarFecha(); guardarBorrador(); };
+      // El día que no existe en ese mes (31 de febrero) pasa al último del mes.
+      const commit = () => { if(!ra) return; const g=actual(); if(rd.v!==g.d) rd.ir(g.d-1); pintarFecha(); guardarBorrador(); };
+      const op = (items, index) => ({ items, index, onChange:pintarFecha, onCommit:commit, onToque:toque, onEnter:clickMain });
+      rd=montarRueda($("#onbDia"), op(ITEMS_DIA, f.d-1));
+      rm=montarRueda($("#onbMes"), op(ITEMS_MES, f.m-1));
+      ra=montarRueda($("#onbAnio"), op(itemsAnio(), y-anioMin()));
+      ruedas=[rd, rm, ra];
+      this._fecha=actual;
+      pintarFecha();
+    },
+    valido(){ if(!D.ans.nac || !this._fecha) return false; const e=edadDe(this._fecha()); return e>=EDAD.min && e<=EDAD.max; },
+    pista(){
+      if(!D.ans.nac) return "Mové las ruedas hasta tu fecha de nacimiento.";
+      if(this._fecha && edadDe(this._fecha())<EDAD.min) return "GIZE es para mayores de 18 años.";
+      return "";
+    },
+    alSalir(){ if(this._fecha) D.ans.nac=this._fecha(); return true; },
+    alt: () => AHORA_NO
+  },
+
+  altura: {
+    prep(){
+      if(D.ans.altura==null){ const h=Math.round(+cp().height || +((state.info||{}).height_cm) || 0); if(h>=ALTURA.min && h<=ALTURA.max) D.ans.altura=h; }
+    },
+    html(){
+      const v=D.ans.altura!=null ? D.ans.altura : ALTURA.def;
+      return tit("¿Cuánto medís?")+sub("Lo usamos para calcular tus calorías.")+
+        '<div class="onb-rueda">'+ruedaHtml({ id:"onbAltura", label:"Estatura", items:ITEMS_ALTURA, index:v-ALTURA.min, unit:"cm" })+'</div>'+PISTA;
+    },
+    montar(){ const v=D.ans.altura!=null ? D.ans.altura : ALTURA.def; ruedaSimple("altura", "#onbAltura", ITEMS_ALTURA, v-ALTURA.min); },
+    valido: () => D.ans.altura!=null,
+    pista: () => D.ans.altura==null ? "Mové la rueda o tocá el número del medio para confirmarlo." : "",
+    alSalir(){ if(D.ans.altura!=null && ruedas[0]) D.ans.altura=ruedas[0].v; return true; },
+    alt: () => AHORA_NO
+  },
+
+  peso: {
+    prep(){
+      if(D.ans.peso==null){
+        let w=+cp().weight || 0;
+        w=Math.round(w*2)/2;
+        if(w>=PESO.min && w<=PESO.max) D.ans.peso=w;
       }
+    },
+    html(){
+      const v=D.ans.peso!=null ? D.ans.peso : PESO.def;
+      return tit("¿Cuánto pesás?")+sub("Lo usamos para calcular tus calorías.")+
+        '<div class="onb-rueda">'+ruedaHtml({ id:"onbPeso", label:"Peso", items:ITEMS_PESO, index:Math.round((v-PESO.min)/PESO.paso), unit:"kg" })+'</div>'+PISTA;
+    },
+    montar(){ const v=D.ans.peso!=null ? D.ans.peso : PESO.def; ruedaSimple("peso", "#onbPeso", ITEMS_PESO, Math.round((v-PESO.min)/PESO.paso)); },
+    valido: () => D.ans.peso!=null,
+    pista: () => D.ans.peso==null ? "Mové la rueda o tocá el número del medio para confirmarlo." : "",
+    alSalir(){ if(D.ans.peso!=null && ruedas[0]) D.ans.peso=ruedas[0].v; return true; },
+    alt: () => AHORA_NO
+  },
+
+  objetivo: {
+    prep(){ if(!D.ans.objetivo && META_GOAL[cp().trainGoal]) D.ans.objetivo=cp().trainGoal; },
+    html(){
+      return tit("¿Cuál es tu objetivo principal?")+sub(porSuCuenta() ? "Ajustamos tus calorías y las rutinas que te sugerimos." : "Ajustamos tus calorías a lo que buscás.")+
+        opciones("goal", OBJETIVOS, D.ans.objetivo);
+    },
+    valido: () => !!D.ans.objetivo,
+    alt: () => AHORA_NO
+  },
+
+  actividad: {
+    prep(){ if(!D.ans.actividad && ACTIVIDADES.some(x=>x[0]===cp().activity)) D.ans.actividad=cp().activity; },
+    html(){
+      return tit("Tu nivel de actividad")+sub("Con esto calculamos cuántas calorías gastás por día.")+
+        opciones("act", ACTIVIDADES, D.ans.actividad);
+    },
+    valido: () => !!D.ans.actividad,
+    alt: () => AHORA_NO
+  },
+
+  nivel: {
+    prep(){ if(!D.ans.nivel && SUGERIDOS[cp().level]) D.ans.nivel=cp().level; },
+    html(){ return tit("Tu experiencia entrenando")+sub("Con esto te sugerimos cuántos días por semana entrenar.")+opciones("nivel", NIVELES, D.ans.nivel); },
+    valido: () => !!D.ans.nivel,
+    alt: () => AHORA_NO
+  },
+
+  arranque: {
+    prep(){ if(D.ans.start!=="vacio") D.ans.start="rutina"; },
+    html(){ return tit("¿Cómo querés arrancar?")+sub("Vos elegís. Lo podés cambiar cuando quieras.")+opciones("arranque", ARRANQUES, D.ans.start); },
+    // El catálogo se pide ya: cuando toque «Continuar» seguramente ya llegó.
+    montar(){ cargarCatalogo().then(c=>{ _cat=c; }, ()=>{}); },
+    valido: () => true,
+    // Con señal floja la lista espera al catálogo: el botón avisa que está cargando (la flecha
+    // para volver sigue andando) y a los 4 s sigue con las rutinas de la app.
+    alSalir(){
+      if(D.ans.start!=="rutina" || _cat) return true;
+      const t=tok;
+      ocupadoUI(true, "Cargando rutinas…", false);
+      return catalogo().then(()=>t===tok);
+    }
+  },
+
+  rutina: {
+    // Sin las preguntas del cuerpo (ya las había contestado), el sexo de su meta filtra las rutinas.
+    prep(){ if(!D.body0 && !state.sex){ const s=cp().sex; if(s==="f" || s==="m") state.sex=s; } },
+    html(){
+      const t=introRutinas();
+      if(SUGERIDOS[D.ans.nivel]) t.push("Te sugerimos rutinas de "+SUGERIDOS[D.ans.nivel]+" días por tu experiencia.");
+      return tit("Elegí tu rutina")+(t.length ? sub(t.join(" ")) : "")+chipsDias(filtroWiz())+
+        '<button type="button" class="onb-link" data-onb="sexagain">Cambiar: '+sexoTxt()+'</button>'+
+        '<div class="onb-routines" aria-live="polite">'+(_cat ? "" : '<p class="onb-text">Cargando rutinas…</p>')+'</div>';
+    },
+    montar(){
+      if(_cat){ pintarLista(); return; }
+      const t=tok;
+      catalogo().then(()=>{ if(t===tok) pintarLista(); });
+    },
+    // Tocar una rutina la elige (no la carga): «Empezar» la carga, así no se reemplaza nada sin querer.
+    valido: () => !!D.ans.rutina && !!_cat,
+    alt: () => '<button type="button" class="onb-later" data-onb="empty">Prefiero arrancar vacío</button>',
+    fin(){
+      const r=_mostradas.find(x=>x.id===D.ans.rutina); if(!r) return;
+      if(!okToReplace()) return;
+      state.days=copiarDias(r.days);
+      State.activeId=(diaDeHoy(state.days)||state.days[0]).id; // el de hoy, si dice el día (core/diasemana.js)
+      State.view="entreno";
+      state.calProfile=Object.assign({}, state.calProfile||{}, { daysPerWeek: diasDeEntreno(r) });
+      terminar();
+    }
+  },
+
+  // Desvío desde la lista («Cambiar: …»): no cuenta como paso y no tiene «Continuar».
+  desvio: {
+    html(){ return tit("¿Para quién buscamos rutinas?")+sub("Así te mostramos las rutinas pensadas para vos.")+opciones("sex", sexos(true), state.sex); },
+    valido: () => true
+  },
+
+  dias: {
+    prep(){ if(!D.flags.diasTocado || D.ans.dias==null) D.ans.dias=SUGERIDOS[D.ans.nivel] || 4; },
+    html(){
+      const n=SUGERIDOS[D.ans.nivel];
+      return tit("¿Cuántos días por semana vas a entrenar?")+
+        sub(n ? "Te sugerimos "+n+" por tu experiencia. Lo podés cambiar cuando quieras." : "Armamos tu semana con esa cantidad de días. Lo podés cambiar cuando quieras.")+
+        '<div class="onb-nums onb-nums-6" role="group" aria-labelledby="onbTit">'+[1,2,3,4,5,6].map(k=>{ const on=k===D.ans.dias;
+          return '<button type="button" class="onb-num'+(on?' on':'')+'" data-onb="days" data-v="'+k+'" aria-pressed="'+on+'"><b>'+k+'</b><small>'+(k===1?'día':'días')+'</small></button>'; }).join("")+'</div>';
+    },
+    valido: () => true
+  },
+
+  primer: {
+    html(){
+      return tit("¿Cómo se llama tu primer día?")+sub("Por ejemplo: Tren superior, Piernas, Día A.")+
+        '<div class="auth-field onb-field onb-field-free"><input id="onbFirst" class="auth-in" type="text" maxlength="40" placeholder="Día 1" aria-label="Nombre del primer día" value="'+esc(D.ans.primer||"")+'"></div>';
+    },
+    montar(){
+      const inp=$("#onbFirst"); if(!inp) return;
+      inp.addEventListener("input", ()=>{ D.ans.primer=inp.value; guardarBorrador(); });
+      inp.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); clickMain(); } });
+    },
+    valido: () => true,
+    fin(){
+      if(!okToReplace()) return;
+      const n=Math.max(1, Math.min(6, +D.ans.dias || 1));
+      state.calProfile=Object.assign({}, state.calProfile||{}, { daysPerWeek: n });
+      startDays(n, (D.ans.primer||"").trim());
+    }
+  }
+};
+
+// ---- Navegación ----
+function ir(paso, o){
+  o=o||{};
+  if(!D || !card()) return;
+  D.paso=paso; D.detour=!!o.detour;
+  const P=PANTALLAS[D.detour ? "desvio" : paso];
+  if(P.prep) P.prep();
+  const ps=pasos(), ultimo=!D.detour && ps[ps.length-1]===paso;
+  const label=ultimo ? (paso==="rutina" || paso==="primer" ? "Empezar" : "Completar") : (P.etiqueta ? P.etiqueta() : "Continuar");
+  pintar({ html:P.html(), main: D.detour ? null : { onb:"next", label }, alt: P.alt ? P.alt() : "", sr:o.sr });
+  cabeza();
+  if(P.montar) P.montar();
+  refrescar();
+  guardarBorrador();
+}
+
+async function siguiente(){
+  if(!D || ocupado || D.detour) return;
+  const paso=D.paso, P=PANTALLAS[paso];
+  if(P.valido && !P.valido()) return;
+  if(P.alSalir){ const ok=await P.alSalir(); if(ok===false || !D || D.paso!==paso || !card()) return; }
+  avanzar(paso);
+}
+function avanzar(paso){
+  if(paso===ultimoCuerpo()) aplicarCuerpo();
+  const ps=pasos(), i=ps.indexOf(paso);
+  if(i>=0 && i<ps.length-1){ ir(ps[i+1]); return; }
+  const P=PANTALLAS[paso];
+  if(P && P.fin) P.fin(); else terminar();
+}
+// «Ahora no»: saltea solo este paso. Lo que ya se había aplicado antes queda (se cambia en Comida o Progreso).
+function ahoraNo(){
+  if(!D || ocupado) return;
+  const paso=D.paso, k=CLAVE[paso];
+  if(k){ delete D.ans[k]; if(D.flags.tocado[k]) D.flags.tocado[k]=false; }
+  avanzar(paso);
+}
+function atras(){
+  if(!D || ocupado) return;
+  if(D.detour){ ir("rutina"); return; }
+  const ps=pasos(), i=ps.indexOf(D.paso);
+  if(i<=0) return; // en el primer paso no hay a dónde volver (y la flecha no se dibuja)
+  ir(ps[i-1]);
+}
+// Al volver a abrir la app: el paso donde quedó o, si ese paso ya no está en el camino (por
+// ejemplo, lo vinculó su coach mientras tanto), el primero sin contestar.
+function reanudar(){
+  if(!montarShell("wiz")) return;
+  const ps=pasos();
+  const falta=x=>{ const k=CLAVE[x]; if(k) return D.ans[k]==null; if(x==="code") return !conCoach(); return x!=="disc"; };
+  const p=ps.indexOf(D.paso)>=0 ? D.paso : (ps.filter(falta)[0] || ps[ps.length-1]);
+  ir(p, { detour: D.detour && p==="rutina" });
+}
+
+// Vincular con el código: lo mismo de siempre (join_coach, el perfil, loadCloud y el nombre del
+// coach) y después sigue con el paso que corresponde, que ya es el camino con coach.
+async function vincular(){
+  const inp=$("#onbCode"), code=((inp && inp.value)||"").trim();
+  if(!code) return false;
+  ocupado=true;
+  ocupadoUI(true, "Vinculando…", true);
+  let msg="";
+  try{
+    const r=await State.sb.rpc("join_coach",{code:code});
+    if(r.data!==true){
+      // join_coach trae un mensaje propio para plan vencido o cupo lleno.
+      msg=(r.error && r.error.code==="P0001" && joinMsgTienda(r.error.message)) || "Código inválido. Revisalo con tu coach.";
+    } else {
       const pr=await State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle();
       if(pr.data) State.cloudProfile=pr.data;
       await loadCloud();
       try{ const cn=await State.sb.rpc("my_coach_name"); State.brandName=cn.data||""; }catch(e2){}
       applyBrand();
-      host.onclick=null; close(); renderApp();
-    }catch(err){ showClientCode("No se pudo vincular: "+((err&&err.message)||err), code); }
-  };
-}
-
-
-// ---- Cómo arrancar (entrena por su cuenta) ----
-// "Elegir una rutina armada" (la recomendada) pregunta el sexo y muestra las rutinas que
-// corresponden, con un filtro por días por semana (ver core/rutinas-ejemplo.js); "Empezar
-// vacío" arma sus días en 3 pasos cortos.
-// dias: filtro de la lista de rutinas armadas (0 = todas).
-const OB = { start: "rutina", step: 1, days: 4, goal: "", first: "", dias: 0 };
-
-function option(val, sel, title, sub, attr){
-  return '<button type="button" class="onb-opt'+(val===sel?' on':'')+'" data-onb="'+attr+'" data-v="'+val+'" aria-pressed="'+(val===sel)+'">'+
-    '<span class="onb-opt-dot" aria-hidden="true"></span><span><b>'+title+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</span></button>';
-}
-
-// Marcar una opción cambia solo los botones de ese grupo: volver a montar la tarjeta repetía
-// la animación de entrada y en el iPhone parecía que se abría otra ventana con lo marcado.
-function mark(host, attr, val){
-  host.querySelectorAll('[data-onb="'+attr+'"]').forEach(x=>{ const on=x.dataset.v===String(val); x.classList.toggle("on", on); x.setAttribute("aria-pressed", String(on)); });
-}
-
-function showStartChoice(){
-  const host=mount(
-    '<h1 class="onb-title">¿Cómo querés arrancar?</h1>'+
-    '<p class="onb-text">Vos elegís. Lo podés cambiar cuando quieras.</p>'+
-    '<div class="onb-opts">'+
-      option("rutina", OB.start, "Elegir una rutina armada", "Recomendado. Rutinas listas de 1 a 6 días por semana. La podés cambiar después.", "start")+
-      option("vacio", OB.start, "Empezar vacío", "Armás tus días de a poco.", "start")+
-    '</div>'+
-    '<button type="button" class="gize-btn auth-btn onb-main" data-onb="next">Continuar</button>',
-    "Cómo arrancar");
-  if(!host) return;
-  host.onclick=e=>{
-    const b=e.target.closest("[data-onb]"); if(!b) return;
-    if(b.dataset.onb==="start"){ OB.start=b.dataset.v; mark(host, "start", OB.start); return; }
-    if(b.dataset.onb==="next"){ host.onclick=null; if(OB.start==="rutina") showSex(); else { OB.step=1; showWizard(); } }
-  };
-}
-
-function steps(n){ return '<div class="onb-steps" aria-hidden="true">'+[1,2,3].map(i=>'<span'+(i<=n?' class="on"':'')+'></span>').join("")+'</div><div class="onb-step-lbl">Paso '+n+' de 3</div>'; }
-
-const GOALS = [["musculo","Ganar músculo"],["grasa","Bajar grasa"],["fuerza","Ganar fuerza"],["salud","Salud y bienestar"]];
-
-function showWizard(){
-  let inner;
-  if(OB.step===1) inner='<h1 class="onb-title onb-left">¿Cuántos días por semana pensás entrenar?</h1>'+
-    '<p class="onb-text onb-left">Armamos tu semana con esa cantidad de días. Lo podés cambiar cuando quieras.</p>'+
-    '<div class="onb-nums">'+[1,2,3,4,5].map(n=>'<button type="button" class="onb-num'+(n===OB.days?' on':'')+'" data-onb="days" data-v="'+n+'">'+(n===5?'5+':n)+'</button>').join("")+'</div>';
-  else if(OB.step===2) inner='<h1 class="onb-title onb-left">¿Cuál es tu objetivo principal?</h1>'+
-    '<div class="onb-opts">'+GOALS.map(g=>option(g[0], OB.goal, g[1], "", "goal")).join("")+'</div>';
-  else inner='<h1 class="onb-title onb-left">¿Cómo se llama tu primer día?</h1>'+
-    '<p class="onb-text onb-left">Por ejemplo: Tren superior, Piernas, Día A.</p>'+
-    '<div class="auth-field onb-field onb-field-free"><input id="onbFirst" class="auth-in" type="text" maxlength="40" placeholder="Día 1" aria-label="Nombre del primer día" value="'+esc(OB.first)+'"></div>';
-  const host=mount(steps(OB.step)+inner+
-    '<button type="button" class="gize-btn auth-btn onb-main" data-onb="wnext">'+(OB.step===3?'Empezar':'Siguiente')+'</button>'+
-    '<button type="button" class="onb-alt" data-onb="empty">Prefiero arrancar vacío</button>', "Armar tu semana");
-  if(!host) return;
-  const inp=host.querySelector("#onbFirst");
-  if(inp){ inp.addEventListener("input", ()=>{ OB.first=inp.value; }); inp.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); host.querySelector('[data-onb="wnext"]').click(); } }); }
-  host.onclick=e=>{
-    const b=e.target.closest("[data-onb]"); if(!b) return;
-    const a=b.dataset.onb;
-    if(a==="days"){ OB.days=+b.dataset.v; mark(host, "days", OB.days); return; }
-    if(a==="goal"){ OB.goal=b.dataset.v; mark(host, "goal", OB.goal); return; }
-    if(a==="empty"){ if(!okToReplace()) return; host.onclick=null; startDays(1, ""); return; }
-    if(a==="wnext"){
-      if(OB.step<3){ OB.step++; showWizard(); return; }
-      if(!okToReplace()) return;
-      host.onclick=null; if(OB.goal) state.goal=OB.goal; startDays(OB.days, OB.first.trim());
+      renderApp(); // la app de abajo ya queda con el coach
     }
-  };
+  }catch(err){ msg="No se pudo vincular: "+((err&&err.message)||err); }
+  ocupado=false;
+  if(!card()) return false;
+  ocupadoUI(false, "", true);
+  if(msg){ errorCodigo(msg); return false; }
+  return true;
+}
+function errorCodigo(msg){
+  const c=card(); if(!c) return;
+  const old=c.querySelector(".onb-body .auth-msg"); if(old) old.remove();
+  const f=c.querySelector(".onb-field"); if(!f) return;
+  f.insertAdjacentHTML("afterend", '<div class="auth-msg" role="alert">'+esc(msg)+'</div>');
+}
+
+// ---- Cliente: «¡Bienvenido!» ----
+function showIntro(){
+  D=null;
+  if(!montarShell("intro")) return;
+  pintar({ centro:true, main:{ onb:"start", label:"Empezar" },
+    html:'<div class="auth-logo"><img src="brand/logo/gize-logotipo.svg" alt="GIZE"></div>'+
+      tit("¡Bienvenido!")+sub("Te hacemos unas preguntas cortas para dejar GIZE listo para vos. Es un minuto.") });
+  cabeza();
+}
+function empezar(){
+  D={ v:1, t:Date.now(), paso:"disc", detour:false, linked0:conCoach(), work0:hasWork(),
+    body0:!metaCompleta() && !cp().bodyAsked, ans:{ start:"rutina" }, flags:{ tocado:{} } };
+  modo="wiz";
+  ir(pasos()[0]);
 }
 
 // Semana vacía: n días sin ejercicios, el primero con el nombre que eligió.
 function startDays(n, first){
-  const uid=()=>Math.random().toString(36).slice(2,9);
   state.days=Array.from({length:Math.max(1,n)}, (_,i)=>({ id:uid(), name: i===0 ? (first||"Día 1") : "Día "+(i+1), subtitle:"", exercises:[] }));
   State.activeId=state.days[0].id; State.view="entreno";
-  save(); close(); renderApp();
+  terminar();
 }
 
-// Elegida la opción, la lista espera al catálogo de la base (con señal floja puede tardar): la
-// opción queda marcada y se avisa que está cargando, así no parece que la pantalla no responde.
-function waitRoutines(host, v){
-  mark(host, "sex", v);
-  host.querySelector(".onb-opts").insertAdjacentHTML("afterend", '<p class="onb-text onb-wait" role="status">Cargando rutinas…</p>');
+function cerrarHost(){
+  destruirRuedas(); modo=""; ocupado=false;
+  const h=host(); if(h){ h.onclick=null; h.style.display="none"; h.innerHTML=""; }
+}
+// Fin de la bienvenida del cliente: queda vista, se borra el borrador y se redibuja la app (Comida,
+// Progreso y Entreno ya con lo que contestó).
+function terminar(){
+  markSeen(); borrarBorrador(); D=null;
+  save();
+  cerrarHost();
+  showSilkBg();
+  renderApp();
+}
+// Coach: la app ya está dibujada por detrás, solo vuelve el fondo animado.
+function close(){ markSeen(); cerrarHost(); showSilkBg(); }
+// Cierra la ventana sin marcar la bienvenida (se abrió desde la app).
+function closeOverlay(){ cerrarHost(); showSilkBg(); }
+
+// ---- Coach ----
+function showCoachWelcome(){
+  const code=CoachState.coachInvite;
+  if(!montarShell("coach")) return;
+  pintar({ centro:true, main:{ onb:"done", label:"Ir a mi panel" },
+    html:'<div class="auth-brand-ic" aria-hidden="true"><img src="brand/logo/gize-marca-blanca.svg" alt=""></div>'+
+      tit("¡Bienvenido, coach!")+
+      // En las apps (iPhone y Android) no se habla de la prueba gratis (core/tienda.js appNativa).
+      (appNativa() ? '' : '<div class="onb-trial">14 días gratis para probar todo · sin tarjeta</div>')+
+      sub("Pasale este código a tu primer alumno. Lo carga una vez y quedan conectados.")+
+      (code ?
+        '<div class="onb-code">'+
+          '<div class="onb-code-lbl">Tu código</div>'+
+          '<div class="onb-code-row"><span class="onb-code-val">'+esc(code)+'</span>'+
+          '<button type="button" class="onb-copy" data-onb="copy">Copiar</button></div>'+
+        '</div>' :
+        sub("Tu código de invitación aparece arriba de todo en tu panel.")) });
+  cabeza();
+}
+async function copiar(b){
+  const code=CoachState.coachInvite;
+  try{ await navigator.clipboard.writeText(code); }
+  catch(err){ alert("No se pudo copiar. Código: "+code); return; }
+  b.innerHTML=checkSvg+" Copiado"; b.classList.add("copied");
+  setTimeout(()=>{ b.textContent="Copiar"; b.classList.remove("copied"); }, 1600);
 }
 
-function showSex(){
-  const host=mount(
-    '<h1 class="onb-title">¿Para quién buscamos rutinas?</h1>'+
-    '<p class="onb-text">Así te mostramos las rutinas pensadas para vos.</p>'+
-    '<div class="onb-opts">'+
-      option("f", state.sex, "Mujer", "", "sex")+option("m", state.sex, "Hombre", "", "sex")+option("x", state.sex, "Prefiero no decir", "Te mostramos todas", "sex")+
-    '</div>'+
-    '<button type="button" class="onb-alt" data-onb="back">Volver</button>', "Rutinas");
-  if(!host) return;
-  host.onclick=e=>{
-    const b=e.target.closest("[data-onb]"); if(!b) return;
-    if(b.dataset.onb==="back"){ host.onclick=null; showStartChoice(); return; }
-    if(b.dataset.onb==="sex"){ state.sex=b.dataset.v; save(); host.onclick=null; waitRoutines(host, state.sex); showRoutines(false); }
-  };
+// ---- Desde Entreno: «Ver rutinas armadas» ----
+// La misma tarjeta, sin cabecera ni «Ahora no»: tocar una rutina la elige al toque (con la
+// confirmación si ya tiene ejercicios) y «Cancelar» cierra sin marcar la bienvenida. El filtro
+// arranca en los días por semana de su bienvenida y después queda lo que toque en esta sesión.
+export function openRoutinePicker(){
+  if(!montarShell("app")) return;
+  if(!state.sex) appSexo(); else appLista();
 }
-
-// Lista de rutinas. fromApp: abierta desde Entreno (se puede cerrar y pide confirmar si ya
-// tiene ejercicios cargados); si no, es el último paso de la bienvenida. Arriba, los días por
-// semana (Todas · 1 · 2 · 3 · 4 · 5 · 6): la lista muestra solo las de esa cantidad de días.
-async function showRoutines(fromApp){
+const CANCELAR = '<button type="button" class="onb-alt" data-onb="cancel">Cancelar</button>';
+function appSexo(){
+  pintar({ main:null, alt:CANCELAR, html:tit("¿Para quién buscamos rutinas?")+sub("Así te mostramos las rutinas pensadas para vos.")+opciones("sex", sexos(true), state.sex) });
+  cabeza();
+}
+function appLista(o){
+  if(filtroApp==null) filtroApp=+cp().daysPerWeek || 0;
+  const t=introRutinas();
+  pintar({ main:null, alt:CANCELAR, sr:o && o.sr,
+    html:tit("Elegí tu rutina")+(t.length ? sub(t.join(" ")) : "")+chipsDias(filtroApp)+
+      '<button type="button" class="onb-link" data-onb="sexagain">Cambiar: '+sexoTxt()+'</button>'+
+      '<div class="onb-routines" aria-live="polite">'+(_cat ? listaHtml(filtroApp, null, true) : '<p class="onb-text">Cargando rutinas…</p>')+'</div>' });
+  cabeza();
   // Si en la base todavía no hay ninguna para esta opción, las de ejemplo de la app. Sin
   // respuesta en 4 s (señal floja), también: el pedido sigue y la próxima vez ya está.
-  let all=rutinasPara(state.sex, await Promise.race([cargarCatalogo(), new Promise(r=>setTimeout(()=>r(CATALOGO), 4000))]));
-  if(!all.length) all=rutinasPara(state.sex, CATALOGO);
-  // Las de su disciplina (CrossFit, Running…) van primero, antes que las generales del mismo día.
-  all=rutinasDeDisciplinas(myDisciplinas().map(x=>x.id)).concat(all);
-  const chip=(n, lbl)=>'<button type="button" class="onb-num onb-dias'+(n===OB.dias?' on':'')+'" data-onb="dias" data-v="'+n+'" aria-pressed="'+(n===OB.dias)+'">'+lbl+'</button>';
-  // Lista de las rutinas de los días elegidos (se redibuja sola al tocar otro número).
-  const listHtml=()=>{
-    const list=rutinasDeDias(all, OB.dias);
-    if(!list.length) return '<p class="onb-text">'+(all.length && OB.dias ? 'Todavía no hay rutinas de '+OB.dias+' día'+(OB.dias===1?'':'s')+' para esta opción. Probá con otra cantidad de días.' : 'Todavía no hay rutinas para esta opción.')+'</p>';
-    return list.map(r=>{ const n=diasDeEntreno(r); return '<button type="button" class="onb-routine" data-onb="pick" data-v="'+esc(r.id)+'"><b>'+esc(r.nombre)+'</b><small>'+n+' día'+(n===1?'':'s')+' por semana'+(r.desc?' · '+esc(r.desc):'')+'</small></button>'; }).join("");
-  };
-  const host=mount(
-    '<h1 class="onb-title">Elegí tu rutina</h1>'+
-    '<p class="onb-text">'+(myDisciplinas().some(x=>x.id!=="fuerza")?'Te mostramos primero las de tu disciplina. ':'')+'¿Cuántos días por semana entrenás?</p>'+
-    '<div class="onb-nums onb-nums-dias" role="group" aria-label="Días por semana">'+chip(0,"Todas")+[1,2,3,4,5,6].map(n=>chip(n, String(n))).join("")+'</div>'+
-    '<div class="onb-routines" aria-live="polite">'+listHtml()+'</div>'+
-    '<button type="button" class="onb-alt" data-onb="sexagain">Cambiar: '+(state.sex==="f"?"Mujer":state.sex==="m"?"Hombre":"Todas")+'</button>'+
-    (fromApp?'<button type="button" class="onb-alt" data-onb="cancel">Cancelar</button>':'<button type="button" class="onb-alt" data-onb="empty">Prefiero arrancar vacío</button>'), "Elegí tu rutina");
-  if(!host) return;
-  host.onclick=e=>{
-    const b=e.target.closest("[data-onb]"); if(!b) return;
-    const a=b.dataset.onb;
-    if(a==="dias"){
-      OB.dias=+b.dataset.v||0;
-      host.querySelectorAll('[data-onb="dias"]').forEach(x=>{ const on=+x.dataset.v===OB.dias; x.classList.toggle("on", on); x.setAttribute("aria-pressed", String(on)); });
-      const box=host.querySelector(".onb-routines"); box.innerHTML=listHtml(); box.scrollTop=0;
-      return;
-    }
-    if(a==="cancel"){ host.onclick=null; closeOverlay(); return; }
-    if(a==="empty"){ if(!okToReplace()) return; host.onclick=null; startDays(1, ""); return; }
-    if(a==="sexagain"){ host.onclick=null; if(fromApp) showSexFromApp(); else showSex(); return; }
-    if(a==="pick"){
-      const r=all.find(x=>x.id===b.dataset.v); if(!r) return;
-      const hasWork=(state.days||[]).some(d=>(d.exercises||[]).length);
-      if(hasWork && !confirm(fromApp ? "Esto reemplaza tus días de rutina por «"+r.nombre+"». No toca tus pesos, entrenos ni hábitos. ¿Seguro?" : REPLACE_MSG)) return;
-      host.onclick=null;
-      state.days=copiarDias(r.days); State.activeId=(diaDeHoy(state.days)||state.days[0]).id; State.view="entreno"; // el de hoy, si dice el día (core/diasemana.js)
-      save(); if(fromApp) closeOverlay(); else close(); renderApp();
-    }
-  };
+  const tk=tok, antes=_cat;
+  catalogo().then(()=>{ if(tk===tok && modo==="app" && _cat!==antes) pintarLista(); });
+}
+function appElegir(id){
+  const r=_mostradas.find(x=>x.id===id); if(!r) return;
+  if(hasWork() && !confirm("Esto reemplaza tus días de rutina por «"+r.nombre+"». No toca tus pesos, entrenos ni hábitos. ¿Seguro?")) return;
+  state.days=copiarDias(r.days); State.activeId=(diaDeHoy(state.days)||state.days[0]).id; State.view="entreno";
+  save(); closeOverlay(); renderApp();
 }
 
-function showSexFromApp(){
-  const host=mount(
-    '<h1 class="onb-title">¿Para quién buscamos rutinas?</h1>'+
-    '<div class="onb-opts">'+option("f", state.sex, "Mujer", "", "sex")+option("m", state.sex, "Hombre", "", "sex")+option("x", state.sex, "Prefiero no decir", "Te mostramos todas", "sex")+'</div>'+
-    '<button type="button" class="onb-alt" data-onb="cancel">Cancelar</button>', "Rutinas");
-  if(!host) return;
-  host.onclick=e=>{
-    const b=e.target.closest("[data-onb]"); if(!b) return;
-    if(b.dataset.onb==="cancel"){ host.onclick=null; closeOverlay(); return; }
-    if(b.dataset.onb==="sex"){ state.sex=b.dataset.v; save(); host.onclick=null; waitRoutines(host, state.sex); showRoutines(true); }
-  };
-}
-
-// Cierra la ventana sin marcar la bienvenida (se abrió desde la app).
-function closeOverlay(){
-  const h=document.getElementById("authHost"); if(h){ h.style.display="none"; h.innerHTML=""; }
-  showSilkBg();
-}
-
-// Desde Entreno: "Ver rutinas armadas".
-export function openRoutinePicker(){
-  if(!state.sex) showSexFromApp(); else showRoutines(true);
+// ---- Toques (uno solo para toda la tarjeta) ----
+function alTocar(e){
+  const b=e.target.closest("[data-onb]"); if(!b || b.disabled) return;
+  const a=b.dataset.onb, v=b.dataset.v;
+  if(modo==="coach"){ if(a==="done") close(); else if(a==="copy") copiar(b); return; }
+  if(modo==="intro"){ if(a==="start") empezar(); return; }
+  if(modo==="app"){
+    if(a==="cancel"){ closeOverlay(); return; }
+    if(a==="sex"){ state.sex=v; save(); mark("sex", v); appLista({ sr:"Cargando rutinas…" }); return; }
+    if(a==="sexagain"){ appSexo(); return; }
+    if(a==="dias"){ filtroApp=+v||0; mark("dias", filtroApp); pintarLista(); return; }
+    if(a==="pick") appElegir(v);
+    return;
+  }
+  if(modo!=="wiz" || !D) return;
+  if(a==="next"){ siguiente(); return; }
+  if(a==="back"){ atras(); return; }
+  if(a==="later"){ ahoraNo(); return; }
+  if(ocupado) return;
+  if(a==="dskip"){ avanzar("disc"); return; }
+  if(a==="solo"){ const ps=pasos(), i=ps.indexOf("code"); if(i>=0 && i<ps.length-1) ir(ps[i+1]); return; }
+  if(a==="empty"){ D.ans.start="vacio"; ir("dias"); return; }
+  if(a==="sexagain"){ ir("rutina", { detour:true }); return; }
+  if(a==="disc"){
+    toggleDisciplina(v); save();
+    const on=myDisciplinas().some(d=>d.id===v);
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
+    refrescar(); return;
+  }
+  if(a==="sex"){
+    // En el desvío: solo el filtro de rutinas (state.sex), y vuelve a la lista.
+    if(D.detour){ state.sex=v; save(); mark("sex", v); ir("rutina", { sr:"Cargando rutinas…" }); return; }
+    D.ans.sex=v;
+  }
+  else if(a==="goal") D.ans.objetivo=v;
+  else if(a==="act") D.ans.actividad=v;
+  else if(a==="nivel") D.ans.nivel=v;
+  else if(a==="days"){ D.ans.dias=+v; D.flags.diasTocado=true; }
+  else if(a==="arranque"){ D.ans.start=v; mark(a, v); cabeza(); guardarBorrador(); return; } // N cambia ahí mismo
+  else if(a==="dias"){ D.ans.filtro=+v||0; mark(a, D.ans.filtro); pintarLista(); guardarBorrador(); return; }
+  else if(a==="pick"){ D.ans.rutina=v; mark(a, v); refrescar(); guardarBorrador(); return; }
+  else return;
+  mark(a, v); refrescar(); guardarBorrador();
 }

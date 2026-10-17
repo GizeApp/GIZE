@@ -185,6 +185,9 @@ html.tema-luz:not(#_):not(#__) body:not(#_) .auth-remember input:checked + .auth
 html.tema-luz:not(#_):not(#__) body:not(#_) .auth-or::before, html.tema-luz:not(#_):not(#__) body:not(#_) .auth-or::after { background: rgba(11,13,17,.16); }
 html.tema-luz:not(#_):not(#__) body:not(#_) .auth-google { background: rgba(255,255,255,.9); border-color: #fff; color: #1F1F1F; }
 html.tema-luz:not(#_):not(#__) body:not(#_) .auth-head .auth-sub { color: var(--gize-text-2); }
+/* Bienvenida (css/screens/bienvenida.css): el aviso de código inválido, con el rojo más oscuro
+   para que se lea sobre el vidrio (AA, tests/bienvenida-temas.test.mjs). */
+html.tema-luz:not(#_):not(#__) body:not(#_) .onb-wiz .auth-msg:not(.ok) { color: #7A1014; }
 
 /* Racha: llama helada (marino y celeste) en vez de violeta; apagada y con el neón apagado, gris. */
 html.tema-luz:not(.sin-neon):not(#_):not(#__) .flame:not(.off, .streak.out .flame) linearGradient[id$="o"] stop:nth-child(1) { stop-color: #CFE0F2; }

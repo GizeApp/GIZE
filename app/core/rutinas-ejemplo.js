@@ -149,21 +149,25 @@ export const CATALOGO = [
       ["Aductores en máquina", "aductores"], ["Gemelos sentado", "gemelos"], ["Elevación de piernas", "abs"]]) ] },
 ];
 
-// Las de la base (una vez por sesión). Si falla o está vacía, las de ejemplo.
-let _base = null;
-export async function cargarCatalogo(){
-  if (_base) return _base;
-  try {
-    if (State.sb && State.cloudUser) {
-      const r = await State.sb.from("rutinas_catalogo").select("id, nombre, para, descripcion, days").eq("activa", true).order("orden").order("nombre");
-      if (!r.error && Array.isArray(r.data) && r.data.length) {
-        _base = r.data.filter(x => Array.isArray(x.days) && x.days.length).map(x => { migrateNames(x.days); return { id: x.id, nombre: x.nombre, para: x.para, desc: x.descripcion || "", days: x.days }; });
-        if (_base.length) return _base;
+// Las de la base (una vez por sesión). Si falla o está vacía, las de ejemplo. Mientras el pedido
+// está en camino, quien vuelva a pedirlas espera ese mismo (la bienvenida las pide antes de que
+// toque «Continuar» y después las espera: así sale un solo pedido).
+let _base = null, _pend = null;
+export function cargarCatalogo(){
+  if (_base) return Promise.resolve(_base);
+  return _pend || (_pend = (async () => {
+    try {
+      if (State.sb && State.cloudUser) {
+        const r = await State.sb.from("rutinas_catalogo").select("id, nombre, para, descripcion, days").eq("activa", true).order("orden").order("nombre");
+        if (!r.error && Array.isArray(r.data) && r.data.length) {
+          _base = r.data.filter(x => Array.isArray(x.days) && x.days.length).map(x => { migrateNames(x.days); return { id: x.id, nombre: x.nombre, para: x.para, desc: x.descripcion || "", days: x.days }; });
+          if (_base.length) return _base;
+        }
       }
-    }
-  } catch (e) {}
-  _base = null;
-  return CATALOGO;
+    } catch (e) {}
+    _base = null;
+    return CATALOGO;
+  })().finally(() => { _pend = null; }));
 }
 
 // sexo: "f" | "m" | "x" (prefiero no decir: todas).

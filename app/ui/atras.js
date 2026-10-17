@@ -13,6 +13,8 @@ const CERRAR = [
   '.av-bg:not(.closing) .av-btn',                // cartel de aviso (ui/avisos.js, el alert() de la app): encima de todo
   '#blockHost [data-blq="cancel"]',              // «Bloquear» y «Personas bloqueadas» (encima de todo)
   '#reportHost [data-rep="cancel"]',             // «Reportar» (encima de todo, también del chat)
+  '#authHost .onb-card [data-onb="back"]',       // bienvenida: paso anterior (en el primero no se dibuja)
+  '#authHost .onb-card [data-onb="cancel"]',     // «Ver rutinas armadas» abierto desde Entreno
   '.crp .crp-cancel',                            // acomodar la foto de perfil
   '.adm-zoom',                                   // panel: foto de un producto agrandada (se cierra con un toque)
   '#timePick [data-tp="close"]',                 // rueda de la hora / temporizador
