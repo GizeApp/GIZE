@@ -1,23 +1,27 @@
 // Editor de rutina del coach en la compu (css/screens/coach/editor.css, «Compu»). El dueño: «en el
-// celular se ve bien, el tema es en la PC, se ve como más angosto» y «están muy juntos los botones de
-// agregar ejercicio y la línea azul hace que se vea raro». En la compu (900 px o más, con mouse):
+// celular se ve bien, el tema es en la PC, se ve como más angosto», «están muy juntos los botones de
+// agregar ejercicio y la línea azul hace que se vea raro» y después «quiero más espacio entre el más y
+// los ejercicios, en la computadora aparecen muy pegados y no quiero que desaparezca, quiero que esté
+// visible para el usuario». En la compu (900 px o más, con mouse):
 // - Más aire, a 1100, 1280, 1440 y 1920 px: una columna de lectura de 960 px como máximo (la lista,
 //   la cabecera, las pestañas y «Programar una rutina nueva» terminan en el mismo borde: sin franja
 //   vacía y sin tiras de punta a punta), tarjetas de al menos 72 px de alto con relleno cómodo y no
-//   más finitas que antes (menos de 13 veces más anchas que altas), 12 a 16 px entre una y otra, la
-//   letra de siempre (nombre 16 px, resumen 14 px) y el nombre a la altura de la flecha. Reps y kg de
-//   la tarjeta abierta, de 240 px como máximo. Sin scroll de costado. Las otras pestañas del alumno
-//   siguen con el ancho del panel.
-// - Entre tarjeta y tarjeta, un botón que tapa todo el hueco (de una tarjeta a la otra, del ancho de
-//   la tarjeta) y no se ve: no pinta nada en el hueco y no hay línea azul en ningún estado. Al pasar
-//   el mouse por el hueco (también por una punta) o llegar con el teclado (:focus-visible) aparece en
-//   el medio un «+» redondo de 22 a 26 px, sin texto, con title «Agregar ejercicio acá» y aria-label
-//   «Agregar ejercicio acá, entre <el de arriba> y <el de abajo>». Una sola parada de Tab por hueco.
-//   Con «reducir movimiento», sin fundido. Tocarlo (también en una punta del hueco) abre el buscador
-//   y agrega ahí. Adentro de una superserie el hueco es de 44 a 48 px y el botón lo tapa entero
-//   (también abajo de «sin descanso»): el «+» aparece en el medio, sobre la raya, y el cartelito se
-//   apaga mientras tanto; lo agregado queda en la superserie.
-// - El «+» se ve: ≥ 3:1 contra su relleno en Oscuro, Claro, Azul, Rosa, sin neón, liviano y básico.
+//   más finitas que antes (menos de 13 veces más anchas que altas), la letra de siempre (nombre 16 px,
+//   resumen 14 px) y el nombre a la altura de la flecha. Reps y kg de la tarjeta abierta, de 240 px
+//   como máximo. Sin scroll de costado. Las otras pestañas del alumno siguen con el ancho del panel.
+// - Entre tarjeta y tarjeta, 48 a 56 px (todos iguales) y un «+» redondo de 22 a 26 px que se ve
+//   siempre, en el medio, con al menos 12 px libres hasta la tarjeta de arriba y hasta la de abajo
+//   (también en la superserie). Quieto, gris (no del color de la marca); al pasar el mouse por el
+//   hueco (también por una punta) o llegar con el teclado (:focus-visible) se prende con el color de
+//   la marca, y con el teclado lleva anillo de foco. Sin texto y sin línea en ningún estado (fuera del
+//   «+», el hueco se pinta igual que sin el botón). El botón tapa todo el hueco (de una tarjeta a la
+//   otra, del ancho de la tarjeta), con title «Agregar ejercicio acá» y aria-label «Agregar ejercicio
+//   acá, entre <el de arriba> y <el de abajo>». Una sola parada de Tab por hueco. Con «reducir
+//   movimiento», sin fundido. Tocarlo (también en una punta del hueco) abre el buscador y agrega ahí.
+// - Adentro de una superserie, «sin descanso» se lee siempre (también con el mouse) y no pisa el «+»
+//   (queda a la izquierda, sin las rayas); lo agregado queda en la superserie.
+// - Se ve: la cruz ≥ 3:1 contra su relleno y el aro ≥ 3:1 contra el fondo de alrededor, quieto y con
+//   el mouse, en Oscuro, Claro, Azul, Rosa, sin neón, liviano y básico.
 // - Celular y tableta (pantalla táctil) y la compu con menos de 900 px quedan como antes: la línea
 //   con «+ Agregar ejercicio» a la vista en lo táctil y tenue hasta pasar el mouse en la ventana
 //   angosta, la grilla de 860 px como máximo y las tarjetas de siempre.
@@ -76,7 +80,10 @@ const botones = p => p.evaluate(() => [...document.querySelectorAll('.co-exc-gri
   return { i: +b.dataset.i, top: r.top, bottom: r.bottom, left: r.left, width: r.width, arriba: a.bottom, abajo: z.top, cardLeft: a.left, cardWidth: a.width,
     enSS: !!b.closest('.co-ss-group'), label: b.getAttribute('aria-label'), title: b.getAttribute('title'), tab: b.tabIndex,
     linea: [getComputedStyle(b, '::before').content, getComputedStyle(b, '::after').content], texto: !!t && t.getClientRects().length > 0,
-    op: +ms.opacity, toca: ms.pointerEvents, mas: { x: mr.left + mr.width / 2, y: mr.top + mr.height / 2, w: mr.width, h: mr.height, radio: ms.borderRadius },
+    op: +ms.opacity, vis: ms.visibility, mas: { x: mr.left + mr.width / 2, y: mr.top + mr.height / 2, w: mr.width, h: mr.height, radio: ms.borderRadius, top: mr.top, bottom: mr.bottom, left: mr.left, right: mr.right },
+    // Lo libre entre el «+» y cada tarjeta; el color de la cruz y del aro, y el de la marca (el del botón).
+    libre: [Math.round((mr.top - a.bottom) * 10) / 10, Math.round((z.top - mr.bottom) * 10) / 10],
+    color: ms.color, aro: ms.borderTopColor, acento: getComputedStyle(b).color,
     trans: ms.transitionDuration, foco: b.matches(':focus-visible') };
 }));
 // Una tira de la pantalla a lo ancho del hueco (sin el medio, donde va el «+»): para ver que no se pinta nada.
@@ -89,24 +96,38 @@ const sinMedio = (p, png, w) => p.evaluate(async ({ png, w }) => {
   for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) { if (Math.abs(x - w / 2) < 40) continue; const k = (y * img.width + x) * 4; out.push(d[k], d[k + 1], d[k + 2]); }
   return out.join(',');
 }, { png, w });
-// Contraste del «+» (el trazo, con su color) contra su relleno: la captura con el «+» a la vista y el
-// trazo escondido, el relleno de alrededor del centro.
-async function contrasteMas(p){
-  const ic = await p.$eval('.co-ins:hover .co-ins-b svg', e => { const r = e.getBoundingClientRect(); let op = 1; for (let a = e; a; a = a.parentElement) op *= +getComputedStyle(a).opacity;
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2, color: getComputedStyle(e).color, op }; });
-  const st = await p.addStyleTag({ content: '.co-ins svg { visibility: hidden !important; }' }); await wait(120);
-  const png = (await p.screenshot({ clip: { x: Math.round(ic.x) - 3, y: Math.round(ic.y) - 3, width: 6, height: 6 }, animations: 'disabled' })).toString('base64');
-  await st.evaluate(e => e.remove()); await wait(120);
-  return p.evaluate(async ({ png, ic }) => {
+// Contraste del «+» (sel: su .co-ins-b). Una captura alrededor con el aro transparente y la cruz
+// escondida: el relleno (en el centro y por dentro del aro) y el fondo de afuera. La cruz, con su color
+// y su opacidad, sobre el relleno del centro; el aro (1 px, con su color y su opacidad) sobre el
+// relleno de adentro, contra el fondo de afuera, en 8 sectores alrededor: vale el peor.
+async function contrasteMas(p, sel){
+  const m = await p.$eval(sel, e => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); let op = 1; for (let a = e; a; a = a.parentElement) op *= +getComputedStyle(a).opacity;
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, rad: r.width / 2, aro: s.borderTopColor, cruz: getComputedStyle(e.querySelector('svg')).color, op }; });
+  const H = Math.ceil(m.rad) + 8, x0 = Math.round(m.x) - H, y0 = Math.round(m.y) - H;
+  const st = await p.addStyleTag({ content: '.co-ins-b { border-color: transparent !important; } .co-ins svg { visibility: hidden !important; }' }); await wait(150);
+  const png = (await p.screenshot({ clip: { x: x0, y: y0, width: 2 * H, height: 2 * H }, animations: 'disabled' })).toString('base64');
+  await st.evaluate(e => e.remove()); await wait(150);
+  return p.evaluate(async ({ png, m, cx, cy }) => {
     const img = new Image(); img.src = 'data:image/png;base64,' + png; await img.decode();
     const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0);
-    const d = g.getImageData(0, 0, img.width, img.height).data; let r = 0, gg = 0, b = 0; const n = d.length / 4;
-    for (let k = 0; k < d.length; k += 4) { r += d[k]; gg += d[k + 1]; b += d[k + 2]; } r /= n; gg /= n; b /= n;
-    const lin = v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }, L = (x, y, z) => .2126 * lin(x) + .7152 * lin(y) + .0722 * lin(z);
-    const [cr, cg, cb, ca = 1] = ic.color.match(/[\d.]+/g).map(Number), al = ca * ic.op;
-    const Li = L(cr * al + r * (1 - al), cg * al + gg * (1 - al), cb * al + b * (1 - al)), Lf = L(r, gg, b);
-    return Math.round((Math.max(Li, Lf) + .05) / (Math.min(Li, Lf) + .05) * 100) / 100;
-  }, { png, ic });
+    const d = g.getImageData(0, 0, img.width, img.height).data;
+    const prom = (r0, r1, sec) => { const s = [0, 0, 0]; let n = 0;
+      for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) {
+        const dx = x + .5 - cx, dy = y + .5 - cy, r = Math.hypot(dx, dy); if (r < r0 || r > r1) continue;
+        if (sec !== undefined && Math.floor(((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI)) * 8) % 8 !== sec) continue;
+        const k = (y * img.width + x) * 4; s[0] += d[k]; s[1] += d[k + 1]; s[2] += d[k + 2]; n++; }
+      return s.map(v => v / n); };
+    // rgb(), rgba() o color(srgb …) → [r, g, b, a] en 0-255.
+    const col = t => { const v = t.match(/[\d.]+/g).map(Number), f = /^color\(srgb/.test(t) ? 255 : 1; return [v[0] * f, v[1] * f, v[2] * f, v.length > 3 ? v[3] : 1]; };
+    const sobre = (cc, al, f) => cc.slice(0, 3).map((v, k) => v * al + f[k] * (1 - al));
+    const lin = v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }, L = q => .2126 * lin(q[0]) + .7152 * lin(q[1]) + .0722 * lin(q[2]);
+    const cr = (a, b) => Math.round((Math.max(L(a), L(b)) + .05) / (Math.min(L(a), L(b)) + .05) * 100) / 100;
+    const ic = col(m.cruz), ar = col(m.aro), centro = prom(0, 4);
+    const cruz = cr(sobre(ic, ic[3] * m.op, centro), centro);
+    const aro = Math.min(...[0, 1, 2, 3, 4, 5, 6, 7].map(sec => { const adentro = prom(m.rad - 3.5, m.rad - 2, sec), afuera = prom(m.rad + 1.5, m.rad + 4, sec);
+      return cr(sobre(ar, ar[3] * m.op, adentro), afuera); }));
+    return { cruz, aro };
+  }, { png, m, cx: m.x - x0, cy: m.y - y0 });
 }
 
 export default async function ({ base, t }){
@@ -120,7 +141,7 @@ export default async function ({ base, t }){
     t.ok(m.altos.every(h => h >= 72), k + ': tarjetas de al menos 72 px de alto: ' + JSON.stringify(m.altos));
     t.ok(m.ancho / m.altos[0] < 13, k + ': las tarjetas no quedan más finitas que antes (menos de 13 veces más anchas que altas): ' + (m.ancho / m.altos[0]).toFixed(1));
     t.ok(m.relleno[0] >= 14 && m.relleno[2] >= 14 && m.relleno[3] >= 18, k + ': relleno cómodo (arriba y abajo ≥ 14 px, a la izquierda ≥ 18): ' + JSON.stringify(m.relleno));
-    t.ok(m.huecos.length === 4 && m.huecos.every(h => h >= 12 && h <= 16), k + ': 12 a 16 px entre una tarjeta y la otra: ' + JSON.stringify(m.huecos));
+    t.ok(m.huecos.length === 4 && m.huecos.every(h => h >= 48 && h <= 56 && h === m.huecos[0]), k + ': 48 a 56 px entre una tarjeta y la otra, todos iguales (lugar para el «+» y aire): ' + JSON.stringify(m.huecos));
     t.ok(m.letra[0] >= 16 && m.letra[1] >= 14, k + ': la letra de siempre (nombre ≥ 16 px, resumen ≥ 14): ' + JSON.stringify(m.letra));
     t.ok(m.nombreFlecha <= 2, k + ': el nombre a la altura de la flecha: ' + m.nombreFlecha + ' px');
     t.ok(!m.scroll, k + ': sin scroll de costado');
@@ -139,46 +160,53 @@ export default async function ({ base, t }){
     await close();
   }
 
-  // ---- Compu (1440 px): el «+» del hueco ----
+  // ---- Compu (1440 px): el «+» a la vista en cada hueco ----
   {
     const { p, errs, close } = await abrir(base, { vp: { width: 1440, height: 900 } });
     await p.mouse.move(1436, 896); await alCentro(p, '.co-exc-grid > .co-ins[data-i="2"]'); await wait(300);
     let B = await botones(p);
+    const quietos = L => L.every(b => b.color !== b.acento);
     t.eq(B.map(b => b.i), [1, 2, 3, 4, 5], 'un botón por hueco (5 para 6 ejercicios)');
     t.ok(B.every(b => Math.abs(b.top - b.arriba) <= 1 && Math.abs(b.bottom - b.abajo) <= 1 && Math.abs(b.left - b.cardLeft) <= 1 && Math.abs(b.width - b.cardWidth) <= 1),
       'cada botón tapa todo el hueco, de una tarjeta a la otra y del ancho de la tarjeta: ' + JSON.stringify(B.map(b => [b.i, Math.round(b.top - b.arriba), Math.round(b.bottom - b.abajo), Math.round(b.width - b.cardWidth)])));
     t.ok(B.every(b => b.label === nombreDe(b.i) && b.title === 'Agregar ejercicio acá'), 'title «Agregar ejercicio acá» y aria-label con entre qué ejercicios queda: ' + JSON.stringify(B.map(b => [b.label, b.title])));
     t.ok(B.every(b => b.tab === 0), 'una parada de Tab por hueco (botones comunes, sin tabindex de más)');
     t.ok(B.every(b => b.linea.every(c => c === 'none')), 'quieto: sin la línea azul (ni ::before ni ::after): ' + JSON.stringify(B.map(b => b.linea)));
-    t.ok(B.every(b => b.op === 0 && b.toca === 'none' && !b.texto), 'quieto: el «+» no se ve ni se toca, y no hay texto: ' + JSON.stringify(B.map(b => [b.op, b.toca, b.texto])));
-    // Quieto no pinta nada en el hueco: la misma tira con los botones y sin ellos.
+    // Quieto se ve en todos los huecos (también en la superserie), sin texto, gris (no del color de la marca).
+    t.ok(B.every(b => b.op === 1 && b.vis === 'visible' && !b.texto), 'quieto: el «+» se ve en cada hueco, sin texto: ' + JSON.stringify(B.map(b => [b.op, b.vis, b.texto])));
+    t.ok(quietos(B), 'quieto: el «+» es gris, no del color de la marca: ' + JSON.stringify(B.map(b => [b.color, b.aro, b.acento])));
+    t.ok(B.every(b => b.mas.w >= 22 && b.mas.w <= 26 && b.mas.h === b.mas.w && b.mas.radio === '50%'), 'un «+» redondo de 22 a 26 px: ' + JSON.stringify(B.map(b => b.mas)));
+    t.ok(B.every(b => Math.abs(b.mas.x - (b.left + b.width / 2)) <= 1 && Math.abs(b.mas.y - (b.arriba + b.abajo) / 2) <= 1),
+      'en el medio del hueco (a lo ancho y a lo alto): ' + JSON.stringify(B.map(b => [b.i, Math.round(b.mas.x - (b.left + b.width / 2)), Math.round(b.mas.y - (b.arriba + b.abajo) / 2)])));
+    t.ok(B.every(b => b.libre[0] >= 12 && b.libre[1] >= 12), 'al menos 12 px libres entre el «+» y la tarjeta de arriba y la de abajo: ' + JSON.stringify(B.map(b => [b.i, b.libre])));
+    // Fuera del «+» no se pinta nada en el hueco (ninguna línea): la misma tira con los botones y sin ellos.
     const b2 = B.find(b => b.i === 2);
     const quieto = await sinMedio(p, await tira(p, b2), b2.width);
     let st = await p.addStyleTag({ content: '.co-ins { visibility: hidden !important; }' }); await wait(150);
     const sinBoton = await sinMedio(p, await tira(p, b2), b2.width);
     await st.evaluate(e => e.remove()); await wait(150);
-    t.ok(quieto === sinBoton, 'quieto: en el hueco no se pinta nada');
+    t.ok(quieto === sinBoton, 'quieto: fuera del «+», el hueco no se pinta (sin línea)');
 
-    // Al pasar el mouse por una punta del hueco: aparece el «+» en el medio, sin línea.
+    // Al pasar el mouse por una punta del hueco: el «+» de ese hueco se prende con el color de la marca, sin línea.
     await p.mouse.move(b2.left + 30, (b2.top + b2.bottom) / 2); await wait(400);
     t.ok(await p.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return !!e && !!e.closest('.co-ins[data-i="2"]'); }, [b2.left + 30, (b2.top + b2.bottom) / 2]),
       'la punta izquierda del hueco también es el botón');
     B = await botones(p);
     let x = B.find(b => b.i === 2);
-    t.ok(x.op === 1 && x.toca === 'auto', 'con el mouse en el hueco aparece el «+»: ' + JSON.stringify([x.op, x.toca]));
-    t.ok(x.mas.w >= 22 && x.mas.w <= 26 && x.mas.h === x.mas.w && x.mas.radio === '50%', 'un «+» redondo de 22 a 26 px: ' + JSON.stringify(x.mas));
-    t.ok(Math.abs(x.mas.x - (x.left + x.width / 2)) <= 1 && Math.abs(x.mas.y - (x.top + x.bottom) / 2) <= 1, 'en el medio del hueco: ' + JSON.stringify([x.mas, x.left, x.width, x.top, x.bottom]));
+    t.ok(x.op === 1 && x.color === x.acento && x.aro === x.acento, 'con el mouse en el hueco, el «+» (cruz y aro) se prende con el color de la marca: ' + JSON.stringify([x.op, x.color, x.aro, x.acento]));
+    t.ok(Math.abs(x.mas.x - (x.left + x.width / 2)) <= 1 && Math.abs(x.mas.y - (x.top + x.bottom) / 2) <= 1 && x.libre.every(v => v >= 12), 'con el mouse, en el mismo lugar: ' + JSON.stringify([x.mas, x.libre]));
     t.ok(!x.texto && x.linea.every(c => c === 'none'), 'con el mouse: sin texto ni línea');
-    t.ok(B.filter(b => b.i !== 2).every(b => b.op === 0), 'los otros huecos siguen sin nada');
+    t.ok(quietos(B.filter(b => b.i !== 2)) && B.every(b => b.op === 1), 'los otros huecos siguen con su «+» gris');
     // Con el mouse, solo cambia el medio: el resto del hueco es igual que quieto (no aparece ninguna línea).
     t.ok(await sinMedio(p, await tira(p, x), x.width) === quieto, 'con el mouse: el hueco, fuera del «+», igual que quieto (sin línea)');
-    // Sobre una tarjeta no aparece ninguno.
+    // Sobre una tarjeta no se prende ninguno (y siguen a la vista).
     const card = await p.$eval('.co-exc-grid > .co-exc[data-id="e1"]', e => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
     await p.mouse.move(card[0], card[1]); await wait(400);
-    t.ok((await botones(p)).every(b => b.op === 0), 'con el mouse sobre una tarjeta no aparece ningún «+»');
+    B = await botones(p);
+    t.ok(quietos(B) && B.every(b => b.op === 1), 'con el mouse sobre una tarjeta, los «+» siguen grises y a la vista');
 
     // Con el teclado: Tab desde la flecha de la segunda tarjeta llega al hueco de abajo (pasando por
-    // los botones que aparecen al pasar el mouse) y el «+» se ve, con su anillo de foco.
+    // los botones que aparecen al pasar el mouse) y el «+» se prende, con su anillo de foco.
     await p.mouse.move(1436, 896); await wait(200);
     await p.focus('.co-exc[data-id="e1"] .co-exc-chev');
     let tabs = 0;
@@ -186,7 +214,7 @@ export default async function ({ base, t }){
     await wait(400);
     B = await botones(p); x = B.find(b => b.foco);
     t.ok(!!x && x.i === 2, 'con Tab se llega al hueco que sigue: ' + JSON.stringify(x && x.i));
-    t.ok(!!x && x.op === 1 && x.linea.every(c => c === 'none'), 'con el teclado el «+» se ve, sin línea: ' + JSON.stringify(x && [x.op, x.linea]));
+    t.ok(!!x && x.op === 1 && x.color === x.acento && x.linea.every(c => c === 'none'), 'con el teclado el «+» se prende, sin línea: ' + JSON.stringify(x && [x.op, x.color, x.linea]));
     t.ok(await p.$eval('.co-ins:focus-visible .co-ins-b', e => getComputedStyle(e).outlineStyle !== 'none' && parseFloat(getComputedStyle(e).outlineWidth) >= 2), 'con el teclado, el «+» lleva anillo de foco');
     await p.keyboard.press('Tab'); await wait(100);
     t.ok(await p.evaluate(() => !!document.activeElement.closest('.co-exc[data-id="e2"]')), 'el Tab siguiente ya es la tarjeta de abajo (una parada por hueco)');
@@ -200,24 +228,29 @@ export default async function ({ base, t }){
     await elegir(p, 'Zancada');
     let n = await nombres(p);
     t.ok(n.length === 7 && n[1] === 'Prensa 45°' && /Zancada/.test(n[2]) && n[3] === 'Peso muerto rumano', 'se agrega en ese hueco: ' + JSON.stringify(n));
-    // Adentro de la superserie: 44 a 48 px entre las dos tarjetas y el botón tapa todo ese hueco
-    // (también abajo de «sin descanso», que no toma el mouse). Con el mouse en la parte de abajo
-    // aparece el «+» en el medio, sobre la raya, y «sin descanso» se apaga mientras tanto (no se
-    // pisan). Lo agregado queda en la superserie.
+    // Adentro de la superserie: el mismo hueco, el «+» en el medio con aire, y el botón tapa todo el
+    // hueco (también «sin descanso», que no toma el mouse). «Sin descanso» se lee siempre (también
+    // con el mouse), sin rayas que crucen el «+», y no lo pisa. Lo agregado queda en la superserie.
     await alCentro(p, '.co-ss-group .co-ins'); await p.mouse.move(1436, 896); await wait(300);
     x = (await botones(p)).find(b => b.enSS);
-    const cartel = () => p.$eval('.co-ss-group .ss-div span', e => +getComputedStyle(e).opacity);
-    t.ok(x.abajo - x.arriba >= 44 && x.abajo - x.arriba <= 48, 'superserie: 44 a 48 px entre las dos tarjetas: ' + Math.round(x.abajo - x.arriba));
-    t.eq(await cartel(), 1, 'superserie: quieto se ve «sin descanso»');
+    const cartel = () => p.$eval('.co-ss-group .ss-div', d => { const e = d.querySelector('span'), r = e.getBoundingClientRect(), s = getComputedStyle(e);
+      return { op: +s.opacity, vis: s.visibility, top: r.top, bottom: r.bottom, left: r.left, right: r.right, w: r.width,
+        rayas: [getComputedStyle(d, '::before').content, getComputedStyle(d, '::after').content] }; });
+    const separados = (c, m) => c.right + 8 <= m.left || c.left >= m.right + 8 || c.bottom <= m.top || c.top >= m.bottom;
+    let c = await cartel();
+    t.ok(x.abajo - x.arriba >= 48 && x.abajo - x.arriba <= 56, 'superserie: 48 a 56 px entre las dos tarjetas: ' + Math.round(x.abajo - x.arriba));
+    t.ok(x.op === 1 && x.libre.every(v => v >= 12) && Math.abs(x.mas.x - (x.left + x.width / 2)) <= 1, 'superserie: quieto se ve el «+», en el medio, con 12 px libres o más: ' + JSON.stringify([x.mas, x.libre]));
+    t.ok(c.op === 1 && c.vis === 'visible' && c.w > 40 && c.top >= x.arriba && c.bottom <= x.abajo, 'superserie: quieto se lee «sin descanso», en el hueco: ' + JSON.stringify(c));
+    t.ok(separados(c, x.mas), 'superserie: «sin descanso» no pisa el «+» (al menos 8 px de costado): ' + JSON.stringify([c, x.mas]));
+    t.ok(c.rayas.every(v => v === 'none'), 'superserie: sin rayas que crucen el «+»: ' + JSON.stringify(c.rayas));
     const todo = await p.evaluate(([x0, y0, y1]) => { const out = []; for (let y = Math.ceil(y0) + 1; y < y1 - 1; y += 2) { const e = document.elementFromPoint(x0, y); out.push(!!e && !!e.closest('.co-ss-group .co-ins')); } return out; },
       [x.left + 30, x.arriba, x.abajo]);
-    t.ok(todo.length >= 20 && todo.every(Boolean), 'superserie: todo el hueco es el botón (arriba, encima y abajo de «sin descanso»): ' + todo.map(Number).join(''));
+    t.ok(todo.length >= 20 && todo.every(Boolean), 'superserie: todo el hueco es el botón (también encima de «sin descanso»): ' + todo.map(Number).join(''));
     await p.mouse.move(x.left + 30, x.abajo - 6); await wait(400);
-    x = (await botones(p)).find(b => b.enSS);
-    const div = await p.$eval('.co-ss-group .ss-div', e => { const r = e.getBoundingClientRect(); return (r.top + r.bottom) / 2; });
-    t.ok(x.op === 1 && Math.abs(x.mas.y - (x.arriba + x.abajo) / 2) <= 1 && Math.abs(x.mas.y - div) <= 1 && Math.abs(x.mas.x - (x.left + x.width / 2)) <= 1,
-      'superserie: con el mouse abajo de «sin descanso» aparece el «+», en el medio del hueco y sobre la raya: ' + JSON.stringify([x.mas, x.arriba, x.abajo, div]));
-    t.eq(await cartel(), 0, 'superserie: mientras se ve el «+», «sin descanso» se apaga');
+    x = (await botones(p)).find(b => b.enSS); c = await cartel();
+    t.ok(x.color === x.acento && Math.abs(x.mas.y - (x.arriba + x.abajo) / 2) <= 1 && Math.abs(x.mas.x - (x.left + x.width / 2)) <= 1,
+      'superserie: con el mouse en la parte de abajo se prende el «+», en el medio del hueco: ' + JSON.stringify([x.mas, x.color, x.arriba, x.abajo]));
+    t.ok(c.op === 1 && separados(c, x.mas), 'superserie: con el mouse, «sin descanso» se sigue leyendo y no pisa el «+»: ' + JSON.stringify([c, x.mas]));
     await p.mouse.down(); await p.mouse.up(); await wait(500);
     await elegir(p, 'Zancada inversa');
     n = await nombres(p);
@@ -227,31 +260,43 @@ export default async function ({ base, t }){
     await close();
   }
 
-  // ---- «Reducir movimiento»: aparece de una ----
+  // ---- «Reducir movimiento»: cambia de una ----
   {
     const { p, errs, close } = await abrir(base, { vp: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
     await alCentro(p, '.co-exc-grid > .co-ins[data-i="2"]'); await wait(200);
     const x = (await botones(p)).find(b => b.i === 2);
-    t.ok(x.trans.split(',').every(s => parseFloat(s) === 0), 'con «reducir movimiento», el «+» aparece sin fundido: ' + x.trans);
-    const tc = await p.$eval('.co-ss-group .ss-div span', e => getComputedStyle(e).transitionDuration);
-    t.ok(tc.split(',').every(s => parseFloat(s) === 0), 'con «reducir movimiento», «sin descanso» se apaga sin fundido: ' + tc);
+    t.ok(x.trans.split(',').every(s => parseFloat(s) === 0), 'con «reducir movimiento», el «+» cambia sin fundido: ' + x.trans);
+    t.ok(x.op === 1, 'con «reducir movimiento», el «+» también se ve quieto');
     await p.mouse.move(x.left + 30, (x.top + x.bottom) / 2); await wait(50);
-    t.eq((await botones(p)).find(b => b.i === 2).op, 1, 'con «reducir movimiento», se ve apenas llega el mouse');
+    const y = (await botones(p)).find(b => b.i === 2);
+    t.ok(y.color === y.acento, 'con «reducir movimiento», se prende apenas llega el mouse: ' + JSON.stringify([y.color, y.acento]));
     t.eq(errs, [], 'reducir movimiento: errores de la página');
     await close();
   }
 
-  // ---- El «+» se ve en cada apariencia (≥ 3:1 contra su relleno) ----
+  // ---- El «+» se ve en cada apariencia: quieto y con el mouse, la cruz ≥ 3:1 contra su relleno y el
+  // aro ≥ 3:1 contra el fondo de alrededor ----
   for (const [nombre, init, clases] of [...Object.entries(TEMA).map(([k, v]) => [k, v, null]), ['liviano', '', ['lite']], ['básico', '', ['lite', 'basico']]]){
     const { p, errs, close } = await abrir(base, { vp: { width: 1440, height: 900 }, init });
     if (clases) { await p.evaluate(c => document.documentElement.classList.add(...c), clases); await wait(300); }
-    await alCentro(p, '.co-exc-grid > .co-ins[data-i="2"]'); await wait(200);
+    await p.mouse.move(1436, 896); await alCentro(p, '.co-exc-grid > .co-ins[data-i="2"]'); await wait(300);
+    const SEL = '.co-exc-grid > .co-ins[data-i="2"] .co-ins-b';
     const x = (await botones(p)).find(b => b.i === 2);
+    t.ok(x.op === 1 && x.color !== x.acento && x.linea.every(c => c === 'none') && !x.texto, nombre + ': quieto se ve el «+», gris, sin línea ni texto: ' + JSON.stringify([x.op, x.color, x.acento]));
+    const q = await contrasteMas(p, SEL);
+    t.ok(q.cruz >= 3 && q.aro >= 3, nombre + ': quieto, el «+» se ve (cruz ≥ 3:1 contra su relleno, aro ≥ 3:1 contra el fondo): ' + JSON.stringify(q));
+    // También arriba y abajo de la pantalla (el fondo cambia: en «Claro» va de celeste a azul).
+    for (const [donde, block] of [['arriba', 'start'], ['abajo', 'end']]){
+      await p.$eval('.co-exc-grid > .co-ins[data-i="2"]', (e, block) => e.scrollIntoView({ block }), block); await wait(300);
+      const r = await contrasteMas(p, SEL);
+      t.ok(r.cruz >= 3 && r.aro >= 3, nombre + ': quieto, ' + donde + ' de la pantalla, el «+» se ve (cruz y aro ≥ 3:1): ' + JSON.stringify(r));
+    }
+    await alCentro(p, '.co-exc-grid > .co-ins[data-i="2"]'); await wait(300);
     await p.mouse.move(x.left + 30, (x.top + x.bottom) / 2); await wait(400);
     const y = (await botones(p)).find(b => b.i === 2);
-    t.ok(y.op === 1 && y.linea.every(c => c === 'none') && !y.texto, nombre + ': con el mouse aparece el «+», sin línea ni texto');
-    const cr = await contrasteMas(p);
-    t.ok(cr >= 3, nombre + ': el «+» se ve (≥ 3:1 contra su relleno): ' + cr + ':1');
+    t.ok(y.op === 1 && y.color === y.acento && y.linea.every(c => c === 'none') && !y.texto, nombre + ': con el mouse se prende con el color de la marca, sin línea ni texto');
+    const m = await contrasteMas(p, SEL);
+    t.ok(m.cruz >= 3 && m.aro >= 3, nombre + ': con el mouse, el «+» se ve (cruz ≥ 3:1 contra su relleno, aro ≥ 3:1 contra el fondo): ' + JSON.stringify(m));
     t.eq(errs, [], nombre + ': errores de la página');
     await close();
   }
