@@ -2,7 +2,7 @@
 // buscador de ejercicios le muestra primero lo suyo («Para vos» y los grupos de su disciplina).
 // #333 sacó la tarjeta «Tu disciplina» de Ajustes (y la invitación del buscador que llevaba ahí):
 // la disciplina se elige solo en la bienvenida de una cuenta nueva (app/screens/onboarding.js).
-import { newPage, wait, ALUMNO } from './lib.mjs';
+import { newPage, wait, text, ALUMNO, onbSinCuerpo } from './lib.mjs';
 
 const profile = (r, J, i) => i.m === 'GET' ? J(i.one ? { id: ALUMNO.id, role: 'client', full_name: 'Prueba', coach_id: null } : [{ id: ALUMNO.id, role: 'client', full_name: 'Prueba', coach_id: null }]) : undefined;
 
@@ -53,12 +53,16 @@ export default async function ({ base, t }){
     t.ok(await p.$eval('[data-onb="disc"][data-v="crossfit"]', e => e.classList.contains('on')), 'CrossFit queda marcado');
     await wait(2500);
     t.ok(posts.some(x => /"disciplines":\["crossfit"\]/.test(x || '')), 'se guarda con las preferencias');
-    // Sigue la bienvenida: entrena por su cuenta y arranca vacío.
-    await p.click('[data-onb="dnext"]'); await wait(300);
+    // Sigue la bienvenida: entrena por su cuenta, saltea los datos del cuerpo y arranca vacío, con un día.
+    await p.click('[data-onb="next"]'); await wait(300);
     await p.click('[data-onb="solo"]'); await wait(300);
+    await onbSinCuerpo(p);
     await p.click('.onb-opt[data-v="vacio"]'); await wait(150);
     await p.click('[data-onb="next"]'); await wait(300);
-    await p.click('[data-onb="empty"]'); await wait(800);
+    await p.click('[data-onb="days"][data-v="1"]'); await wait(150);
+    await p.click('[data-onb="next"]'); await wait(300);
+    t.has(await text(p, '#authHost'), '¿Cómo se llama tu primer día?', 'pregunta el nombre del primer día');
+    await p.click('[data-onb="next"]'); await wait(800);
 
     await p.click('#view [data-action="ex-add-open"]'); await wait(500);
     const chips = await p.$$eval('.ex-chip', l => l.slice(0, 4).map(e => e.textContent));

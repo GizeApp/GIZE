@@ -4,7 +4,7 @@
 // solo lo que hace a la rutina: ni notas del día o del ejercicio, ni objetivo de progreso, ni el
 // video o el audio del coach, ni kilos propuestos o anotados, ni «sin sugerencias». Se prueba al
 // elegirla en la bienvenida, desde Entreno → "Ver rutinas armadas" y al importarla un coach.
-import { newPage, wait, saved, text, ALUMNO } from './lib.mjs';
+import { newPage, wait, saved, text, ALUMNO, onbSinCuerpo } from './lib.mjs';
 
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
 // Una fila del catálogo como quedó al copiar la plantilla de un coach.
@@ -64,10 +64,11 @@ export default async function ({ base, t }){
     await p.click('[data-onb="start"]'); await wait(300);
     await p.click('[data-onb="dskip"]'); await wait(300);
     await p.click('[data-onb="solo"]'); await wait(300);
-    await p.click('[data-onb="next"]'); await wait(300);
-    await p.click('[data-onb="sex"][data-v="x"]'); await wait(800);
+    await onbSinCuerpo(p, 'x');
+    await p.click('[data-onb="next"]'); await wait(800);
     t.ok(await p.isVisible('.onb-routine[data-v="' + FILA.id + '"]'), 'bienvenida: ofrece la rutina del catálogo');
-    await p.click('.onb-routine[data-v="' + FILA.id + '"]'); await wait(1500);
+    await p.click('.onb-routine[data-v="' + FILA.id + '"]'); await wait(300);
+    await p.click('[data-onb="next"]'); await wait(1500);
     revisar(t, (await saved(p)).days, 'bienvenida');
     t.ok(ups.length > 0, 'bienvenida: la rutina se sube a la cuenta');
     t.ok(ups.length && !ups.some(d => PERSONAL.test(JSON.stringify(d))), 'bienvenida: lo que se sube tampoco las tiene');

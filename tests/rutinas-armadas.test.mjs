@@ -4,7 +4,7 @@
 // tienen la rutina de ejemplo vieja no la pierden. El coach las importa en «Mis rutinas».
 // Las de la app (CATALOGO) son las mismas, tal cual, que carga supabase/rutinas-genericas.sql
 // (lo demás de ese archivo lo revisa tests/rutinas-genericas-sql.test.mjs).
-import { newPage, wait, saved, text, ALUMNO } from './lib.mjs';
+import { newPage, wait, saved, text, ALUMNO, onbSinCuerpo } from './lib.mjs';
 
 const OLD = [
   ['Vuelos laterales sentado', 'Jalón unilateral en estocada', 'Remo neutro abierto en polea baja', 'Press inclinado con mancuernas', 'Peck deck', 'Curl bíceps en polea baja frontal', 'Extensión de tríceps parado en polea'],
@@ -104,25 +104,28 @@ export default async function ({ base, t }){
     t.ok(/Bienvenido/.test(await text(p, '#authHost')), 've la bienvenida');
     await p.click('[data-onb="start"]'); await wait(300);
     t.ok(/¿Qué entrenás\?/.test(await text(p, '#authHost')), 'pregunta la disciplina');
+    // La tarjeta es una sola en toda la bienvenida: ni marcar una opción ni pasar de pregunta la vuelve a abrir.
     await p.$eval('#authHost .onb-card', e => { e.dataset.misma = '1'; });
     await p.click('[data-onb="disc"][data-v="crossfit"]'); await wait(200);
     t.eq(await p.$eval('#authHost .onb-card', e => e.dataset.misma || ''), '1', 'marcar una opción no vuelve a abrir la tarjeta (no parece otra ventana)');
     t.ok(await p.$eval('[data-onb="disc"][data-v="crossfit"]', e => e.classList.contains('on')), 'la disciplina queda marcada');
-    await p.click('[data-onb="dnext"]'); await wait(300);
+    await p.click('[data-onb="next"]'); await wait(300);
     t.eq(await p.evaluate(async () => (await import('/app/core/state.js')).state.disciplinas), ['crossfit'], 'y se guarda');
     await p.click('[data-onb="solo"]'); await wait(300);
-    await p.$eval('#authHost .onb-card', e => { e.dataset.misma = '1'; });
+    await onbSinCuerpo(p, 'm');
+    t.ok(/¿Cómo querés arrancar\?/.test(await text(p, '#authHost')), 'después de los datos del cuerpo, cómo arrancar');
+    t.eq(await p.$eval('#authHost .onb-card', e => e.dataset.misma || ''), '1', 'la tarjeta es la misma en todos los pasos');
     await p.click('.onb-opt[data-v="vacio"]'); await wait(150);
     t.eq(await p.getAttribute('.onb-opt.on', 'data-v'), 'vacio', 'se marca la otra opción');
     t.eq(await p.$eval('#authHost .onb-card', e => e.dataset.misma || ''), '1', 'y la tarjeta es la misma');
     await p.click('.onb-opt[data-v="rutina"]'); await wait(150);
     t.eq(await p.getAttribute('.onb-opt.on', 'data-v'), 'rutina', 'elegir una rutina armada viene marcado');
     t.ok(/Recomendado/.test(await text(p, '.onb-opt.on')), 'y es la recomendada');
-    await p.click('[data-onb="next"]'); await wait(300);
-    await p.click('[data-onb="sex"][data-v="m"]'); await wait(600);
+    await p.click('[data-onb="next"]'); await wait(600);
     t.ok(/¿Cuántos días por semana entrenás\?/.test(await text(p, '#authHost')), 'pregunta los días por semana');
     const chips = await p.$$eval('[data-onb="dias"]', l => l.map(b => b.innerText.trim()));
     t.eq(chips, ['Todas', '1', '2', '3', '4', '5', '6'], 'botones de días');
+    t.eq(await p.getAttribute('[data-onb="dias"][data-v="0"]', 'aria-pressed'), 'true', 'sin contestar la experiencia, arranca en «Todas»');
     const lista = () => p.$$eval('.onb-routine b', l => l.map(b => b.innerText.trim()));
     const todas = await lista();
     t.ok(todas.length >= 5 && !todas.some(n => /Glúteos/.test(n)), 'hombre: todas menos las de mujer: ' + todas.join(', '));
@@ -134,10 +137,16 @@ export default async function ({ base, t }){
     }
     await p.click('[data-onb="dias"][data-v="3"]'); await wait(150);
     await p.click('[data-onb="sexagain"]'); await wait(300);
+    t.ok(/¿Para quién buscamos rutinas\?/.test(await text(p, '#authHost')), '«Cambiar» pregunta para quién');
     await p.click('[data-onb="sex"][data-v="f"]'); await wait(600);
+    t.eq(await p.getAttribute('[data-onb="dias"][data-v="3"]', 'aria-pressed'), 'true', 'al volver a la lista sigue el filtro de 3 días');
     const fem = await lista();
     t.ok(fem.includes('Glúteos y piernas · 3 días') && fem.includes('Cuerpo completo · 3 días') && fem.every(x => /3 días/.test(x)), 'mujer, 3 días: ' + fem.join(', '));
-    await p.click('.onb-routine:has-text("Cuerpo completo · 3 días")'); await wait(1500);
+    await p.click('.onb-routine:has-text("Cuerpo completo · 3 días")'); await wait(300);
+    t.ok(await p.$eval('.onb-routine.on', e => /Cuerpo completo · 3 días/.test(e.textContent)), 'tocar una rutina la elige');
+    t.ok(await p.isVisible('#authHost .onb-card'), 'y todavía no la carga (falta «Empezar»)');
+    t.eq(await p.$eval('#authHost .onb-main', b => b.textContent), 'Empezar', 'el botón dice «Empezar»');
+    await p.click('[data-onb="next"]'); await wait(1500);
     const st = await saved(p);
     t.eq(st.days.map(d => d.name), ['Día A', 'Día B', 'Día C'], 'cargó los días de la rutina elegida');
     t.eq(st.days[0].exercises[0].name, 'Sentadilla en Smith', 'con sus ejercicios');
