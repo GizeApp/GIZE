@@ -2,7 +2,8 @@
 // - La apariencia tranquila (css/ui/calma.css) también en el panel: fondo liso con el degradé de la
 //   apariencia (sin manchas de color y sin partículas: el canvas está oculto y nunca se dibuja),
 //   bordes con el filete fino de un toque de color (linear-gradient a 155°, ya no la gama RGB en
-//   conic-gradient), nada gira y sin brillos de colores (solo sombras neutras).
+//   conic-gradient), nada gira y sin brillos de colores (solo sombras neutras; lo elegido lleva un
+//   resplandor suave y quieto de la marca: css/screens/coach/neon.css).
 // - Nada en pantalla gira ni late sin parar.
 // - A los ~6 s sin tocar se pone html.fondo-quieto y se saca al deslizar adentro de #coachHost (que
 //   tiene su propio scroll, no el del documento); el fondo sigue sin dibujarse.
@@ -88,7 +89,11 @@ const scan = () => {
         if (s.animationName !== 'none') spin.add(n + ':' + s.animationName);
       }
       // Brillos: box-shadow, text-shadow y drop-shadow sin ningún color con tinte (sombras neutras).
-      for (const k of ['boxShadow', 'textShadow', 'filter']) if (tinte(s[k], 24)) brillos.add(n + ' ' + k + ': ' + s[k]);
+      // Salvo el resplandor suave y quieto de lo elegido (css/screens/coach/neon.css: el ::before de la
+      // pestaña, el día o la opción elegida y la rayita de la pestaña elegida de la ficha), pedido por
+      // el dueño («neón a casi todo»). Que no gire ni lata lo revisa lo de arriba; sin neón no está.
+      const elegido = (ps === '::before' && e.matches('.on')) || (ps === '::after' && e.matches('.cv-ctab.on'));
+      for (const k of ['boxShadow', 'textShadow', 'filter']) if (tinte(s[k], 24) && !(k === 'boxShadow' && elegido)) brillos.add(n + ' ' + k + ': ' + s[k]);
       // Con el neón apagado no debería quedar ningún borde, brillo ni degradé con color. El rojo de
       // borrar no es neón: se deja.
       if (e.closest('.cfg-danger')) continue;
