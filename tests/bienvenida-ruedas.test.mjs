@@ -8,6 +8,8 @@
 //   · El foco con el teclado se ve en la franja del medio (la máscara cortaría un outline).
 //   · Fecha: el día que no existe (31 de febrero) pasa al último del mes, también si se toca
 //     «Continuar» a mitad de camino; con menos de 18 años no deja seguir.
+//   · Enter o «Continuar» enseguida (la rueda todavía en camino) guardan lo que eligió, no la fila
+//     que pasaba por el medio; con la tecla sostenida la rueda se mueve.
 import { newPage, wait, text, ALUMNO, perfil, onbAhoraNo } from './lib.mjs';
 
 const NUEVO = () => Object.assign({}, ALUMNO, { created_at: new Date().toISOString() });
@@ -136,14 +138,21 @@ export default async function ({ base, t }){
     await ir('#onbDia', 30); await wait(300);
     t.eq(await valor(p, '#onbDia'), 29, '31 de febrero de 2000 (bisiesto) → 29');
     t.ok(/, \d+ años$/.test(await p.getAttribute('#onbAnio', 'aria-valuetext')), 'el año dice la edad: ' + await p.getAttribute('#onbAnio', 'aria-valuetext'));
-    // Menos de 18: no deja seguir.
+    // Menos de 18: no deja seguir. El 31 de diciembre de hace 18 años: todavía no los cumplió
+    // (salvo hoy 31 de diciembre). Antes quedaba el día que venía (28 o 29) y del 28 al 30 de
+    // diciembre ya daba 18.
     const hoy = new Date();
     if (!(hoy.getMonth() === 11 && hoy.getDate() === 31)){
       await tecla(p, '#onbAnio', 'End', 1200);
       await tecla(p, '#onbMes', 'End', 1200);
+      await tecla(p, '#onbDia', 'End', 1200);
+      t.eq(await text(p, '.onb-fecha-val'), '31 de diciembre de ' + (hoy.getFullYear() - 18), 'el 31 de diciembre de hace 18 años');
       t.eq(await text(p, '.onb-edad'), '17 años', '17 años');
       t.eq(await habilitado(p), false, 'con 17, «Continuar» no anda');
       t.eq(await text(p, '#authHost .onb-hint'), 'GIZE es para mayores de 18 años.', 'y dice por qué');
+      // El lector de pantalla también: la ayuda es un aviso (role=status) y las ruedas la nombran.
+      t.eq(await p.evaluate(() => [...document.querySelectorAll('#authHost .rd-list')].map(l => { const d = document.getElementById(l.getAttribute('aria-describedby') || '-');
+        return d ? d.getAttribute('role') + ': ' + d.textContent : ''; })), Array(3).fill('status: GIZE es para mayores de 18 años.'), 'y el lector de pantalla también lo sabe');
       t.ok(await p.isVisible('#authHost [data-onb="later"]'), '«Ahora no» sigue andando');
     }
     // «Continuar» a mitad de camino: igual guarda una fecha que existe.
@@ -155,6 +164,35 @@ export default async function ({ base, t }){
     t.ok(nac && nac.m === 2 && nac.y === 2001 && nac.d >= 1 && nac.d <= 28, 'tocando «Continuar» a mitad de camino queda una fecha que existe: ' + JSON.stringify(nac));
     t.eq(await text(p, '#onbTit'), '¿Cuánto medís?', 'y sigue');
     t.eq(errs, [], 'fecha: errores de la página');
+    await close();
+  }
+
+  // 5) Teclas seguidas (como la repetición de una tecla sostenida, cada 30 ms) y Enter o
+  //    «Continuar» enseguida, con la rueda todavía en camino: se guarda lo que eligió.
+  {
+    const { p, errs, close } = await abrir(base);
+    const borrador = () => p.evaluate(id => (JSON.parse(localStorage.getItem('gize_onb_draft_' + id)) || { ans: {} }).ans, ALUMNO.id);
+    const anio = new Date().getFullYear();
+    await p.focus('#onbAnio');
+    for (let i = 0; i < 10; i++){ await p.keyboard.press('ArrowDown'); await wait(30); }
+    t.eq(await text(p, '.onb-edad'), '35 años', 'año: diez veces ↓ seguidas, 35 años');
+    await p.keyboard.press('Enter'); await wait(400);
+    t.eq(((await borrador()).nac || {}).y, anio - 35, 'año: Enter enseguida guarda el año elegido');
+    t.eq(await text(p, '#onbTit'), '¿Cuánto medís?', 'año: y sigue');
+    await onbAhoraNo(p); await wait(200);
+    await p.focus('#onbPeso');
+    const mitad = [];
+    for (let i = 0; i < 10; i++){ await p.keyboard.press('ArrowUp'); await wait(30); if (i === 4) mitad.push(await valor(p, '#onbPeso')); }
+    t.ok(mitad[0] >= 71.5, 'peso: con la tecla sostenida la rueda se mueve: ' + mitad[0]);
+    await p.keyboard.press('Enter'); await wait(400);
+    t.eq((await borrador()).peso, 75, 'peso: diez veces ↑ y Enter enseguida, 75 kg');
+    // Tocar una fila lejos y «Continuar» enseguida.
+    await p.click('#authHost [data-onb="back"]'); await wait(400);
+    t.eq(await text(p, '#onbTit'), '¿Cuánto pesás?', 'de vuelta en el peso');
+    await p.click('#onbPeso .rd-item[data-i="82"]'); await wait(40);
+    await p.click('#authHost [data-onb="next"]'); await wait(400);
+    t.eq((await borrador()).peso, 71, 'peso: tocar 71 y «Continuar» enseguida, 71 kg');
+    t.eq(errs, [], 'teclas seguidas: errores de la página');
     await close();
   }
 }

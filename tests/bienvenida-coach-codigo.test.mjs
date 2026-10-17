@@ -4,7 +4,8 @@
 // plan de comidas del coach ya trae calorías, solo pregunta el peso (lo ven Progreso y el coach).
 // Mientras vincula, «Vinculando…», la flecha y «Entreno por mi cuenta» quedan quietos y el
 // «Atrás» de Android no saca de la app (la base pudo haberlo vinculado igual). Un código malo
-// avisa ahí mismo y deja el código escrito. Quien ya entra vinculado no ve el paso del código.
+// avisa ahí mismo, deja el código escrito y el foco vuelve al campo. Quien ya entra vinculado no
+// ve el paso del código.
 import { newPage, wait, text, ALUMNO, onbPaso, onbSiguiente } from './lib.mjs';
 
 const COACH_ID = '33333333-3333-3333-3333-333333333333';
@@ -97,9 +98,16 @@ export default async function ({ base, t }){
     const pg = await pagina(base, { join: () => resp }), p = pg.p;
     await p.click('[data-onb="dskip"]'); await wait(250);
     await p.fill('#onbCode', 'mal123');
-    await p.click('[data-onb="next"]'); await wait(800);
+    // Con el teclado: Enter sobre «Vincular con mi coach» (mientras espera se deshabilita y el foco se iba al fondo).
+    await p.focus('#authHost [data-onb="next"]'); await p.keyboard.press('Enter'); await wait(800);
     t.eq(await text(p, '#authHost .auth-msg[role="alert"]'), 'Código inválido. Revisalo con tu coach.', 'b: avisa que el código no anda');
     t.eq(await p.inputValue('#onbCode'), 'mal123', 'b: el código queda escrito');
+    t.eq(await p.evaluate(() => { const a = document.activeElement, d = document.getElementById(a.getAttribute('aria-describedby') || '-');
+      return [a.id, a.getAttribute('aria-invalid'), d ? d.textContent : '', a.selectionStart, a.selectionEnd]; }),
+      ['onbCode', 'true', 'Código inválido. Revisalo con tu coach.', 0, 6], 'b: el foco vuelve al campo, con el código elegido y el aviso asociado');
+    await p.keyboard.type('ok456');
+    t.eq([await p.inputValue('#onbCode'), await p.getAttribute('#onbCode', 'aria-invalid')], ['ok456', null], 'b: al escribir otro, se reemplaza y deja de estar marcado');
+    await p.fill('#onbCode', 'mal123');
     t.eq(await p.$eval('#authHost .onb-main', b => [b.disabled, b.textContent]), [false, 'Vincular con mi coach'], 'b: se puede volver a intentar');
     t.eq((await onbPaso(p)).n, '2/11', 'b: sigue en el código');
     resp = { error: { code: 'P0001', message: 'Tu coach llegó al máximo de alumnos.' } };

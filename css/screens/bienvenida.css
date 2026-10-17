@@ -31,6 +31,10 @@
     height: calc(100dvh - var(--kb, 0px) - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
 }
+/* Pantalla baja (celular acostado, o el teclado que achica la ventana en Android): sin el alto
+   mínimo, así la tarjeta entra en la pantalla, con la cabecera y «Continuar» a la vista; scrollea
+   solo el medio. */
+@media (max-height: 480px) { .auth-card.onb-wiz { min-height: 0; } }
 /* Con el teclado abierto: sin alto mínimo y sin la bajada ni los botones de abajo, así
    «Continuar» queda arriba del teclado aunque la pantalla sea chica. */
 html.kb-open .auth-card.onb-wiz { min-height: 0; margin-top: 0; } /* arriba de todo: lo de abajo lo tapa el teclado */
@@ -82,6 +86,12 @@ html.kb-open .onb-wiz :is(.onb-body .onb-text, .onb-foot-alt) { display: none; }
 .onb-foot { flex: none; display: flex; flex-direction: column; gap: 6px; padding-top: 10px; }
 .onb-foot-alt { display: flex; flex-direction: column; gap: 6px; }
 .onb-foot-alt:empty { display: none; }
+/* La ayuda de las ruedas (por qué «Continuar» no anda todavía, o cómo anotar el peso de hoy) va
+   arriba del botón, siempre a la vista (en 320 px, debajo de las ruedas quedaba cortada). Vacía
+   no ocupa lugar, pero sigue dibujada: es un aviso para el lector de pantalla (role=status) y
+   con display:none el aviso no se leería al aparecer. */
+.onb-foot > .onb-hint { text-align: center; }
+.onb-foot > .onb-hint:empty { margin-bottom: -6px; }
 /* El principal no usa la entrada escalonada de .auth-btn (opacity:0 + animation forwards): el
    relleno de la animación le gana a cualquier opacity y deshabilitado nunca se veía pálido.
    El !important de dos clases le gana al de una de movimiento reducido (components.css). Se

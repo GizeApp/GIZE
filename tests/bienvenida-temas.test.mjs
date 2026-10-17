@@ -7,7 +7,9 @@
 // fecha entran en la tarjeta y todo el texto tiene contraste AA. «Continuar» deshabilitado se ve
 // pálido (también en básico y con movimiento reducido); en básico todo se ve sin animaciones.
 // Con el teclado abierto «Continuar» queda arriba del teclado (iPhone: --kb; Android: la
-// ventana se achica). Las capturas van a la carpeta SHOTS si está puesta.
+// ventana se achica). La ayuda que dice por qué «Continuar» no anda (ruedas sin tocar, menos de
+// 18) se ve entera, también en 320 × 568. Con el celular acostado la tarjeta entra en la pantalla
+// (la cabecera y «Continuar» a la vista). Las capturas van a la carpeta SHOTS si está puesta.
 import { newPage, wait, ALUMNO, perfil, contraste, onbAhoraNo, onbSiguiente } from './lib.mjs';
 
 const SHOTS = process.env.SHOTS;
@@ -17,6 +19,17 @@ const TEMAS = { oscuro: [], claro: ['tema-luz'], azul: ['tema-claro'], rosa: ['t
 const CLASES = ['tema-luz', 'tema-claro', 'tema-rosa', 'sin-neon', 'lite', 'basico'];
 // Sin el modo liviano automático (la máquina de las pruebas puede parecer «de gama baja»).
 const SIN_LITE = `localStorage.setItem('gize_lite', '0');`;
+
+// Texto oculto al lector (aria-hidden) que igual se ve: el «n/N», los números de las ruedas y la unidad.
+const OCULTOS = ['.onb-count', '.rd-item.on', '.rd-item.on + .rd-item', '.rd-unit'];
+// ¿Se ve entero? Dentro de la pantalla y sin que lo corte ninguna caja que scrollea. (Va como
+// texto: la página no deja usar eval, ver la CSP de app/index.html.)
+const ENTERO = `e => { const r = e.getBoundingClientRect(); if (!r.height || r.top < 0 || r.bottom > innerHeight + .5) return false;
+  for (let x = e.parentElement; x && x !== document.documentElement; x = x.parentElement) { const cs = getComputedStyle(x);
+    if (cs.overflowY === 'visible' && cs.overflowX === 'visible') continue; const a = x.getBoundingClientRect(); if (r.top < a.top - .5 || r.bottom > a.bottom + .5) return false; }
+  return true; }`;
+const pista = p => p.evaluate(`(() => { const entero = ${ENTERO}, h = document.querySelector('#authHost .onb-hint'), m = document.querySelector('#authHost .onb-main');
+  return { txt: h ? h.textContent : '', entera: !!h && entero(h) && h.getBoundingClientRect().bottom <= m.getBoundingClientRect().top + .5 }; })()`);
 
 const poner = async (p, clases) => { await p.evaluate(([todas, cl]) => { const h = document.documentElement.classList; todas.forEach(c => h.remove(c)); cl.forEach(c => h.add(c)); }, [CLASES, clases]); await wait(350); };
 
@@ -37,7 +50,9 @@ async function revisar(t, p, tag){
   t.eq(r.cortados, [], tag + ': ningún texto cortado');
   if (r.wl) t.ok(r.wl <= 22, tag + ': «Weightlifting» en una línea (' + r.wl + ' px)');
   t.ok(r.ruedas, tag + ': las ruedas de la fecha entran en la tarjeta');
-  const k = await contraste(p, '#authHost .onb-card');
+  const h = await pista(p);
+  if (h.txt) t.ok(h.entera, tag + ': la ayuda se ve entera, arriba de «Continuar»: ' + h.txt);
+  const k = await contraste(p, '#authHost .onb-card', OCULTOS);
   t.ok(k.n > 0 && !k.malos.length, tag + ': contraste AA (mín. ' + k.min + '): ' + k.malos.join(' | '));
   if (SHOTS) await p.screenshot({ path: SHOTS + '/' + tag + '.png' });
 }
@@ -105,6 +120,40 @@ export default async function ({ base, t }){
       await poner(pg.p, []);
     });
     t.eq(pg.errs, [], vp.width + ': errores de la página');
+    await pg.close();
+  }
+
+  // 2b) 320 × 568: el cumpleaños sin tocar y con menos de 18: la ayuda se ve (antes quedaba
+  //     debajo de las ruedas, cortada por el medio que scrollea, y «Continuar» no anda sin decir por qué).
+  for (const vp of [{ width: 320, height: 568 }, { width: 320, height: 640 }]){
+    const pg = await cliente(base, vp), p = pg.p;
+    await p.click('[data-onb="start"]'); await wait(300);
+    await p.click('[data-onb="dskip"]'); await wait(250);
+    await p.click('[data-onb="solo"]'); await wait(250);
+    await p.click('[data-onb="sex"][data-v="f"]'); await onbSiguiente(p); await wait(300);
+    t.eq(await pista(p), { txt: 'Mové las ruedas hasta tu fecha de nacimiento.', entera: true }, vp.width + 'x' + vp.height + ': sin tocar las ruedas, la ayuda se ve');
+    const hoy = new Date();
+    if (!(hoy.getMonth() === 11 && hoy.getDate() === 31)){
+      for (const sel of ['#onbAnio', '#onbMes', '#onbDia']) { await p.focus(sel); await p.keyboard.press('End'); await wait(900); }
+      t.eq(await pista(p), { txt: 'GIZE es para mayores de 18 años.', entera: true }, vp.width + 'x' + vp.height + ': con 17 años, dice por qué no sigue');
+      if (SHOTS) await p.screenshot({ path: SHOTS + '/' + vp.width + 'x' + vp.height + '-menor18.png' });
+    }
+    t.eq(pg.errs, [], vp.width + 'x' + vp.height + ': errores de la página');
+    await pg.close();
+  }
+
+  // 2c) Celular acostado: la tarjeta entra en la pantalla (antes medía 420 px de alto mínimo y
+  //     «Empezar» / «Continuar» quedaban afuera).
+  for (const vp of [{ width: 740, height: 360 }, { width: 844, height: 390 }]){
+    const pg = await cliente(base, vp, { touch: true }), p = pg.p;
+    const entra = () => p.evaluate(`(() => { const entero = ${ENTERO}, c = document.querySelector('#authHost .onb-card').getBoundingClientRect();
+      return c.top >= 0 && c.bottom <= innerHeight + .5 && entero(document.querySelector('#authHost .onb-main')); })()`);
+    t.ok(await entra(), vp.width + 'x' + vp.height + ': la bienvenida entra con «Empezar» a la vista');
+    await p.click('[data-onb="start"]'); await wait(400);
+    t.ok(await entra(), vp.width + 'x' + vp.height + ': la disciplina también, con «Continuar» a la vista');
+    t.ok(await p.evaluate(() => document.querySelector('#authHost .onb-head').getBoundingClientRect().top >= 0), vp.width + 'x' + vp.height + ': y la cabecera');
+    if (SHOTS) await p.screenshot({ path: SHOTS + '/' + vp.width + 'x' + vp.height + '-disciplina.png' });
+    t.eq(pg.errs, [], vp.width + 'x' + vp.height + ': errores de la página');
     await pg.close();
   }
 

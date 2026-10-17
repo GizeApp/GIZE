@@ -202,7 +202,9 @@ export async function onbSinCuerpo(p, sexo = 'x'){
 // color de fondo, o el color liso de un degradé, subiendo por los padres). Devuelve el mínimo y
 // los que no llegan a 4,5 (AA). No cuenta el texto de campos vacíos (placeholder), lo
 // deshabilitado ni lo que está transparente a propósito. dentro: solo lo de adentro de ese selector.
-export const contraste = (p, dentro = 'body') => p.evaluate(dentro => {
+// tambien: selectores de texto oculto al lector (aria-hidden) que igual se ve y se mide (p. ej. el
+// «n/N» de la bienvenida o los números de una rueda).
+export const contraste = (p, dentro = 'body', tambien = []) => p.evaluate(([dentro, tambien]) => {
   const rgb = s => { const m = String(s).match(/rgba?\(([^)]*)\)/); if (!m) return null; const n = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: n[0], g: n[1], b: n[2], a: n[3] === undefined ? 1 : n[3] }; };
   const lum = c => [c.r, c.g, c.b].map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0);
   const mix = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
@@ -223,7 +225,8 @@ export const contraste = (p, dentro = 'body') => p.evaluate(dentro => {
     return true; };
   const malos = []; let min = 99, n = 0;
   const els = [...document.querySelectorAll(dentro + ' *')].filter(e => !['SCRIPT', 'STYLE', 'svg', 'SVG', 'OPTION'].includes(e.tagName) && !e.closest('svg')
-    && [...e.childNodes].some(t => t.nodeType === 3 && t.textContent.trim()) && !e.closest('[disabled], [aria-hidden="true"], #splashHost'));
+    && [...e.childNodes].some(t => t.nodeType === 3 && t.textContent.trim()) && !e.closest('[disabled], #splashHost')
+    && (!e.closest('[aria-hidden="true"]') || tambien.some(s => e.matches(s))));
   const campos = [...document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=range]), textarea')].filter(e => e.value);
   for (const e of els.concat(campos)) {
     if (!visible(e)) continue;
@@ -233,4 +236,4 @@ export const contraste = (p, dentro = 'body') => p.evaluate(dentro => {
     if (k < 4.5) malos.push((e.textContent || e.value).trim().slice(0, 30) + ' (' + k.toFixed(2) + ')');
   }
   return { n, min: Math.round(min * 100) / 100, malos };
-}, dentro);
+}, [dentro, tambien]);

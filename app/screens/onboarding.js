@@ -182,15 +182,19 @@ function edadReal(){
 }
 
 // ---- Cómo se aplican las respuestas ----
+// ¿Este peso lo anotó la bienvenida? Por el id o, si se recargó la página (loadCloud trae la fila
+// de la nube con otro id), por la fecha y los kilos que anotó.
+const pesoMio = x => x.id === D.flags.pesoId || (x.date === D.flags.pesoFecha && +x.kg === +D.flags.pesoKg);
 // ¿Se puede anotar hoy el peso de la bienvenida? Con la nube sin leer, loadCloud lo pisaría.
 function pesoSeGuarda(){
   if (!state.cloudSeen || !state.weightsSent) return false;
-  return !(state.weights || []).some(x => x.date === today() && x.id !== D.flags.pesoId);
+  return !(state.weights || []).some(x => x.date === today() && !pesoMio(x));
 }
 function pesoDeHoy(kgHoy){
   if (!pesoSeGuarda()) return;
   const w = state.weights.find(x => x.date === today());
   if (w) w.kg = kgHoy; else { const id = uid(); state.weights.push({ id, date: today(), kg: kgHoy }); D.flags.pesoId = id; }
+  D.flags.pesoFecha = today(); D.flags.pesoKg = kgHoy;
 }
 // Corre cada vez que deja el último paso del cuerpo para adelante (con «Continuar» o «Ahora
 // no»): si vuelve, cambia algo y sigue, se aplica de nuevo. Lo salteado no borra lo que ya había.
@@ -248,6 +252,9 @@ function montarShell(m){
       '</div>'+
       '<div class="onb-body"></div>'+
       '<div class="onb-foot">'+
+        // Por qué «Continuar» no anda todavía (ruedas sin tocar, menos de 18): en el pie, a la vista
+        // aunque la pregunta no entre (320 px), y las ruedas la nombran (aria-describedby).
+        '<p class="onb-hint" id="onbPista" role="status" aria-live="polite"></p>'+
         '<button type="button" class="gize-btn auth-btn onb-main" data-onb="next">Continuar</button>'+
         '<div class="onb-foot-alt"></div>'+
         '<p class="onb-sr" role="status" aria-live="polite"></p>'+
@@ -292,6 +299,7 @@ function pintar(o){
   m.hidden=!o.main;
   if(o.main){ m.dataset.onb=o.main.onb; m.textContent=o.main.label; m.disabled=!!o.main.disabled; }
   c.querySelector(".onb-foot-alt").innerHTML=o.alt||"";
+  c.querySelector(".onb-hint").textContent="";
   sr(o.sr||"");
   const t=c.querySelector("#onbTit"); if(t){ try{ t.focus({preventScroll:true}); }catch(e){ t.focus(); } }
   return c;
@@ -317,14 +325,17 @@ function mark(attr, val){
   c.querySelectorAll('[data-onb="'+attr+'"]').forEach(x=>{ const on=x.dataset.v===String(val); x.classList.toggle("on", on); x.setAttribute("aria-pressed", String(on)); });
 }
 
-// «Continuar» y la ayuda de abajo, según lo que hay contestado.
+// «Continuar», la ayuda de abajo y la bajada (la del peso cambia al tocar la rueda), según lo que
+// hay contestado. La ayuda se escribe solo si cambia: es un aviso para el lector de pantalla.
 function refrescar(){
   if(modo!=="wiz" || !D) return;
   const P=PANTALLAS[D.detour ? "desvio" : D.paso]; if(!P) return;
   const m=$(".onb-main");
   if(m && !m.hasAttribute("aria-busy")) m.disabled = !!(P.valido && !P.valido());
   const h=$(".onb-hint");
-  if(h && P.pista){ const t=P.pista(); h.textContent=t||""; h.hidden=!t; }
+  if(h){ const t=(P.pista && P.pista()) || ""; if(h.textContent!==t) h.textContent=t; }
+  const s=P.subtitulo && $(".onb-body > .onb-text");
+  if(s){ const t=P.subtitulo(); if(s.textContent!==t) s.textContent=t; }
 }
 
 // Ocupado: el botón principal dice qué está pasando (y el lector de pantalla también). Con
@@ -342,7 +353,6 @@ function ocupadoUI(on, txt, bloquear){
 // ---- Piezas de las pantallas ----
 const tit = t => '<h1 id="onbTit" class="onb-title" tabindex="-1">'+t+'</h1>';
 const sub = t => '<p class="onb-text">'+t+'</p>';
-const PISTA = '<p class="onb-hint" hidden></p>';
 const AHORA_NO = '<button type="button" class="onb-later" data-onb="later">Ahora no</button>';
 const dot = '<span class="onb-opt-dot" aria-hidden="true">'+checkSvg+'</span>';
 function opcion(attr, o, sel){
@@ -406,8 +416,11 @@ function listaHtml(n, sel, app){
 }
 // Filtro de la lista: lo que tocó o, si no tocó nada, los días que le sugerimos por su experiencia.
 const filtroWiz = () => D.ans.filtro!=null ? D.ans.filtro : (SUGERIDOS[D.ans.nivel] || 0);
+// «Cargando rutinas…» (del lector de pantalla) se borra cuando la lista ya está.
+function listaLista(){ const s=$(".onb-sr"); if(s && s.textContent==="Cargando rutinas…") sr(""); }
 function pintarLista(){
   const box=$(".onb-routines"); if(!box) return;
+  listaLista();
   if(modo==="app"){ box.innerHTML=listaHtml(filtroApp, null, true); return; }
   const n=filtroWiz();
   // Si el filtro esconde la que había elegido, deja de estar elegida.
@@ -444,7 +457,7 @@ const PANTALLAS = {
     },
     montar(){
       const inp=$("#onbCode"); if(!inp) return;
-      inp.addEventListener("input", refrescar);
+      inp.addEventListener("input", ()=>{ inp.removeAttribute("aria-invalid"); inp.removeAttribute("aria-describedby"); refrescar(); });
       inp.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); clickMain(); } });
     },
     valido: () => conCoach() || !!((($("#onbCode")||{}).value)||"").trim(),
@@ -470,10 +483,10 @@ const PANTALLAS = {
       return tit("¿Cuándo es tu cumpleaños?")+sub("Con tu edad calculamos mejor tus calorías. Tu fecha no se sube a tu cuenta: solo la edad.")+
         '<div class="onb-fecha"><span class="onb-fecha-lbl">Fecha elegida</span><b class="onb-fecha-val"></b><span class="onb-edad"></span></div>'+
         '<div class="rd-row" role="group" aria-labelledby="onbTit"><div class="rd-band" aria-hidden="true"></div>'+
-          ruedaHtml({ id:"onbDia", label:"Día", items:ITEMS_DIA, index:f.d-1, chica:true })+
-          ruedaHtml({ id:"onbMes", label:"Mes", items:ITEMS_MES, index:f.m-1, chica:true })+
-          ruedaHtml({ id:"onbAnio", label:"Año", items:itemsAnio(), index:y-anioMin(), chica:true })+
-        '</div>'+PISTA;
+          ruedaHtml({ id:"onbDia", label:"Día", items:ITEMS_DIA, index:f.d-1, chica:true, desc:"onbPista" })+
+          ruedaHtml({ id:"onbMes", label:"Mes", items:ITEMS_MES, index:f.m-1, chica:true, desc:"onbPista" })+
+          ruedaHtml({ id:"onbAnio", label:"Año", items:itemsAnio(), index:y-anioMin(), chica:true, desc:"onbPista" })+
+        '</div>';
     },
     montar(){
       const f=fechaValida(D.ans.nac || haceAnios(EDAD.def)), y=Math.min(anioMax(), Math.max(anioMin(), f.y));
@@ -517,7 +530,7 @@ const PANTALLAS = {
     html(){
       const v=D.ans.altura!=null ? D.ans.altura : ALTURA.def;
       return tit("¿Cuánto medís?")+sub("Lo usamos para calcular tus calorías.")+
-        '<div class="onb-rueda">'+ruedaHtml({ id:"onbAltura", label:"Estatura", items:ITEMS_ALTURA, index:v-ALTURA.min, unit:"cm" })+'</div>'+PISTA;
+        '<div class="onb-rueda">'+ruedaHtml({ id:"onbAltura", label:"Estatura", items:ITEMS_ALTURA, index:v-ALTURA.min, unit:"cm", desc:"onbPista" })+'</div>';
     },
     montar(){ const v=D.ans.altura!=null ? D.ans.altura : ALTURA.def; ruedaSimple("altura", "#onbAltura", ITEMS_ALTURA, v-ALTURA.min); },
     valido: () => D.ans.altura!=null,
@@ -536,13 +549,24 @@ const PANTALLAS = {
     },
     html(){
       const v=D.ans.peso!=null ? D.ans.peso : PESO.def;
-      const s=pesoSeGuarda() ? (conCoach() ? "Lo guardamos en Progreso y tu coach lo ve." : "Lo guardamos en Progreso para ver cómo cambia.") : "Lo usamos para calcular tus calorías.";
-      return tit("¿Cuánto pesás?")+sub(s)+
-        '<div class="onb-rueda">'+ruedaHtml({ id:"onbPeso", label:"Peso", items:ITEMS_PESO, index:Math.round((v-PESO.min)/PESO.paso), unit:"kg" })+'</div>'+PISTA;
+      return tit("¿Cuánto pesás?")+sub(this.subtitulo())+
+        '<div class="onb-rueda">'+ruedaHtml({ id:"onbPeso", label:"Peso", items:ITEMS_PESO, index:Math.round((v-PESO.min)/PESO.paso), unit:"kg", desc:"onbPista" })+'</div>';
+    },
+    // Hoy se anota solo si toca la rueda (o la tiene que tocar para seguir, si arrancó en 70). Si
+    // arrancó en un dato real (su último peso, quizá de hace días) y no la toca, no se anota: ahí
+    // no se promete Progreso.
+    anota: () => pesoSeGuarda() && (D.flags.tocado.peso || D.ans.peso==null),
+    subtitulo(){
+      if(!this.anota()) return "Lo usamos para calcular tus calorías.";
+      return conCoach() ? "Lo guardamos en Progreso y tu coach lo ve." : "Lo guardamos en Progreso para ver cómo cambia.";
     },
     montar(){ const v=D.ans.peso!=null ? D.ans.peso : PESO.def; ruedaSimple("peso", "#onbPeso", ITEMS_PESO, Math.round((v-PESO.min)/PESO.paso)); },
     valido: () => D.ans.peso!=null,
-    pista: () => D.ans.peso==null ? "Mové la rueda o tocá el número del medio para confirmarlo." : "",
+    pista(){
+      if(D.ans.peso==null) return "Mové la rueda o tocá el número del medio para confirmarlo.";
+      if(!D.flags.tocado.peso && pesoSeGuarda()) return "Mové la rueda o tocá el número del medio para anotarlo hoy en Progreso.";
+      return "";
+    },
     alSalir(){ if(D.ans.peso!=null && ruedas[0]) D.ans.peso=ruedas[0].v; return true; },
     alt: () => AHORA_NO
   },
@@ -740,11 +764,17 @@ async function vincular(){
   if(msg){ errorCodigo(msg); return false; }
   return true;
 }
+// El aviso queda abajo del campo y el foco vuelve al campo, con el código elegido para corregirlo
+// (al deshabilitarse «Vincular» mientras esperaba, el foco se había ido al fondo de la página).
 function errorCodigo(msg){
   const c=card(); if(!c) return;
   const old=c.querySelector(".onb-body .auth-msg"); if(old) old.remove();
   const f=c.querySelector(".onb-field"); if(!f) return;
-  f.insertAdjacentHTML("afterend", '<div class="auth-msg" role="alert">'+esc(msg)+'</div>');
+  f.insertAdjacentHTML("afterend", '<div class="auth-msg" id="onbCodeMsg" role="alert">'+esc(msg)+'</div>');
+  const inp=c.querySelector("#onbCode"); if(!inp) return;
+  inp.setAttribute("aria-invalid", "true"); inp.setAttribute("aria-describedby", "onbCodeMsg");
+  try{ inp.focus({preventScroll:true}); }catch(e){ inp.focus(); }
+  try{ inp.select(); }catch(e){}
 }
 
 // ---- Cliente: «¡Bienvenido!» ----
@@ -836,6 +866,7 @@ function appLista(o){
       '<button type="button" class="onb-link" data-onb="sexagain">Cambiar: '+sexoTxt()+'</button>'+
       '<div class="onb-routines" aria-live="polite">'+(_cat ? listaHtml(filtroApp, null, true) : '<p class="onb-text">Cargando rutinas…</p>')+'</div>' });
   cabeza();
+  if(_cat) listaLista();
   // Si en la base todavía no hay ninguna para esta opción, las de ejemplo de la app. Sin
   // respuesta en 4 s (señal floja), también: el pedido sigue y la próxima vez ya está.
   const tk=tok, antes=_cat;

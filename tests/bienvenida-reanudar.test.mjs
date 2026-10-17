@@ -4,7 +4,8 @@
 // cuenta y en las cuentas de más de 7 días. Y los cuidados con lo que ya está en la cuenta: una
 // meta de calorías puesta a mano no se pisa; si hoy ya tiene un peso anotado (de otro
 // dispositivo) no se cambia; y si no se pudo leer la nube, no se anota ningún peso (al leerla
-// después lo pisaría).
+// después lo pisaría). El peso que anotó la bienvenida se puede corregir también después de
+// recargar (la nube lo trae con otro id).
 import { newPage, wait, text, ALUMNO, perfil, onbPaso, onbSiguiente, onbAhoraNo } from './lib.mjs';
 
 const KEY = 'gize_onb_draft_' + ALUMNO.id;
@@ -129,6 +130,39 @@ export default async function ({ base, t }){
     t.eq(e.w, [], 'sin nube: no anota el peso de hoy');
     t.eq(e.cp && e.cp.weight, '70.5', 'sin nube: el peso queda para la meta');
     t.eq(errs, [], 'sin nube: errores de la página');
+    await close();
+  }
+
+  // 7) El peso que anotó la bienvenida, después de recargar: la nube lo trae con su propio id,
+  //    pero sigue siendo el de la bienvenida y se puede corregir (antes Progreso se quedaba con el
+  //    viejo y la meta usaba el nuevo).
+  {
+    const filas = [], subidos = [];
+    const { p, errs, close } = await abrir(base, { '/body_weights': (r, J, i) => {
+      if (i.m === 'GET') return J(filas);
+      const b = JSON.parse(i.body);
+      (Array.isArray(b) ? b : [b]).forEach(x => { subidos.push(x.kg); const f = filas.find(y => y.measured_on === x.measured_on); if (f) f.kg = x.kg; else filas.push(Object.assign({ id: 'nube-' + filas.length }, x)); });
+      return undefined; } });
+    await hastaElPeso(p, 'm');
+    await p.focus('#onbPeso'); for (let i = 0; i < 2; i++) await p.keyboard.press('ArrowUp'); await wait(900); // 71
+    await onbSiguiente(p);
+    for (let i = 0; i < 3; i++) await onbAhoraNo(p); // objetivo, actividad y experiencia: se aplica
+    t.eq((await onbPaso(p)).n, '10/11', 'corregir tras recargar: llega a cómo arrancar');
+    await wait(2500);
+    t.ok(subidos.includes(71), 'se sube el peso de hoy (71): ' + subidos.join(', '));
+    await p.reload(); await wait(3000);
+    t.eq((await estado(p)).w, [{ date: hoy(), kg: 71 }], 'al recargar, el peso de hoy viene de la nube');
+    for (let i = 0; i < 4; i++){ await p.click('[data-onb="back"]'); await wait(300); }
+    t.eq((await onbPaso(p)).titulo, '¿Cuánto pesás?', 'vuelve al peso');
+    t.has(await text(p, '#authHost .onb-body .onb-text'), 'Lo guardamos en Progreso', 'sigue diciendo que lo guarda en Progreso');
+    await p.focus('#onbPeso'); for (let i = 0; i < 2; i++) await p.keyboard.press('ArrowUp'); await wait(900); // 72
+    await onbSiguiente(p);
+    for (let i = 0; i < 3; i++) await onbAhoraNo(p);
+    const e = await estado(p);
+    t.eq([e.cp && e.cp.weight, e.w], ['72', [{ date: hoy(), kg: 72 }]], 'corregido: la meta y el peso de hoy, 72');
+    await wait(2500);
+    t.ok(subidos.includes(72), 'y se sube el 72: ' + subidos.join(', '));
+    t.eq(errs, [], 'corregir tras recargar: errores de la página');
     await close();
   }
 }

@@ -11,6 +11,11 @@
 // app la esté moviendo sola. Lo que mueve la app (la posición de arranque, ir() desde el código,
 // el día que se corrige solo) no cuenta: se anota adónde va (objetivo) y los scroll hasta llegar
 // ahí no son de la persona (salvo que la agarre a mitad de camino).
+//
+// El valor (api.v) es el que eligió, no la fila que pasa por la franja: con el teclado o al tocar
+// una fila la rueda tarda en llegar y un Enter o «Continuar» a mitad de camino guardaba un valor
+// viejo. Las teclas seguidas (o sostenidas) mueven la rueda al toque: el desplazamiento suave
+// volvía a empezar con cada tecla y la rueda casi no se movía.
 import { esc } from '../core/utils.js';
 
 export const RD_ALTO = 44; // alto de cada fila (igual que en css/ui/rueda.css)
@@ -25,11 +30,13 @@ export function itemsRango(min, max, paso, fmt = String, vt = fmt){
   return out;
 }
 
-export function ruedaHtml({ id, label, items, index, unit = "", chica = false }){
+// desc: id de lo que explica la rueda (aria-describedby), p. ej. por qué «Continuar» no anda todavía.
+export function ruedaHtml({ id, label, items, index, unit = "", chica = false, desc = "" }){
   const it = items[index] || items[0];
   return '<div class="rd' + (chica ? ' rd-chica' : '') + '">' +
     '<div class="rd-band" aria-hidden="true"></div>' +
     '<div class="rd-list" id="' + id + '" role="spinbutton" tabindex="0" aria-label="' + esc(label) + '"' +
+      (desc ? ' aria-describedby="' + esc(desc) + '"' : '') +
       ' aria-valuemin="' + items[0].v + '" aria-valuemax="' + items[items.length - 1].v + '" aria-valuenow="' + it.v + '"' +
       ' aria-valuetext="' + esc(it.vt) + '" data-v="' + it.v + '">' +
       items.map((x, i) => '<div class="rd-item" data-i="' + i + '" aria-hidden="true">' + esc(x.t) + '</div>').join("") +
@@ -49,7 +56,7 @@ export function montarRueda(list, { items, index, onChange, onCommit, onToque, o
   const n = items.length, rd = list.parentElement, filas = list.children;
   const clamp = i => Math.max(0, Math.min(n - 1, i | 0));
   const conScrollend = "onscrollend" in window;
-  let cur = -1, objetivo = -1, raf = 0, rafIni = 0, intentos = 0, timer = 0, seguro = 0, vivo = true;
+  let cur = -1, objetivo = -1, raf = 0, rafIni = 0, intentos = 0, timer = 0, seguro = 0, vivo = true, ultTecla = 0;
 
   // Cambia la fila marcada: solo la vieja y la nueva (nada de recorrer las 441 filas del peso).
   const marcar = i => {
@@ -64,6 +71,8 @@ export function montarRueda(list, { items, index, onChange, onCommit, onToque, o
     return true;
   };
   const toque = i => { if (onToque) onToque(items[i].v, i); };
+  // El valor elegido: adonde va la rueda si todavía está en camino; si no, la fila del medio.
+  const elegido = () => objetivo >= 0 ? objetivo : Math.max(0, cur);
 
   const commit = () => {
     timer = 0;
@@ -95,7 +104,7 @@ export function montarRueda(list, { items, index, onChange, onCommit, onToque, o
   // abajo, así que ↑ la lleva una fila más abajo (al revés de la rueda de la hora de Cardio,
   // donde ↑ sube la lista).
   const alTecla = e => {
-    const k = e.key, base = objetivo >= 0 ? objetivo : Math.max(0, cur);
+    const k = e.key, base = elegido();
     let t = -1;
     if (k === "ArrowUp" || k === "ArrowRight") t = base + 1;
     else if (k === "ArrowDown" || k === "ArrowLeft") t = base - 1;
@@ -103,12 +112,20 @@ export function montarRueda(list, { items, index, onChange, onCommit, onToque, o
     else if (k === "PageDown") t = base - 10;
     else if (k === "Home") t = 0;
     else if (k === "End") t = n - 1;
-    else if (k === "Enter"){ e.preventDefault(); toque(Math.max(0, cur)); if (onEnter) onEnter(); return; }
+    else if (k === "Enter"){
+      e.preventDefault();
+      // Si todavía va en camino, llega ya: lo que se guarda es lo que eligió.
+      if (objetivo >= 0) api.ir(objetivo);
+      toque(Math.max(0, cur)); if (onEnter) onEnter(); return;
+    }
     else return;
     e.preventDefault();
     rd.classList.add("foco");
     t = clamp(t);
-    api.ir(t, { suave: true });
+    // Tecla sostenida o seguida: al toque (el desplazamiento suave volvía a arrancar con cada una).
+    const ahora = Date.now(), seguida = e.repeat || objetivo >= 0 || ahora - ultTecla < 250;
+    ultTecla = ahora;
+    api.ir(t, { suave: !seguida });
     toque(t);
   };
   // Tocar una fila la lleva al medio; la del medio también cuenta (confirma el valor que venía).
@@ -128,16 +145,17 @@ export function montarRueda(list, { items, index, onChange, onCommit, onToque, o
   const alSalir = () => rd.classList.remove("foco");
 
   const api = {
-    get i(){ return Math.max(0, cur); },
-    get v(){ return items[Math.max(0, cur)].v; },
+    get i(){ return elegido(); },
+    get v(){ return items[elegido()].v; },
     ir(i, op){
       if (!vivo) return;
       i = clamp(i);
       const top = i * RD_ALTO;
       if (op && op.suave && !quieto() && Math.abs(list.scrollTop - top) >= 1){
         objetivo = i;
-        // Por si el navegador no llega a avisar que terminó (sin scroll real, rueda oculta).
-        clearTimeout(seguro); seguro = setTimeout(() => { objetivo = -1; commit(); }, 1500);
+        // Por si el navegador no llega a avisar que terminó (sin scroll real, rueda oculta): la
+        // deja en el valor elegido.
+        clearTimeout(seguro); seguro = setTimeout(() => { if (objetivo >= 0) api.ir(objetivo); commit(); }, 1500);
         list.scrollTo({ top, behavior: "smooth" });
         return;
       }
