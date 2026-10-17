@@ -322,6 +322,14 @@ html:not(.tema-claro):not(.tema-luz):not(#_):not(#__) body.silk-coach:not(#_) .c
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-ins-b {
   background: linear-gradient(var(--cg-ins), var(--cg-ins)); box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
 }
+/* En la compu es el «+» redondo que aparece en el hueco (css/screens/coach/editor.css): la misma
+   ficha de vidrio, con el brillo de arriba y una sombra que la despega de las tarjetas. */
+@media (min-width: 900px) and (hover: hover) and (pointer: fine) {
+  html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) .co-ins .co-ins-b {
+    background: var(--cg-sheen), linear-gradient(var(--cg-ins), var(--cg-ins));
+    box-shadow: var(--cg-hi), 0 6px 16px -6px rgba(0,0,0,.85);
+  }
+}
 
 /* ---------- 8) Celular: franja de arriba, píldora de navegación y Configuración ---------- */
 @media (max-width: 899px) {

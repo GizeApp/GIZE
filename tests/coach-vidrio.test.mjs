@@ -1,10 +1,11 @@
 // Panel del coach en «Oscuro»: vidrio sobre su capa de fondo (css/screens/coach/vidrio.css).
 // - Se lee: los textos importantes (etiquetas grises de 11–14 px, la sección elegida de
 //   Configuración, los botones de Tema, el menú ⋯ con «Quitar ejercicio» en rojo, «+ Agregar
-//   ejercicio» al pasar el mouse, la barra de abajo del celular, el selector de ejercicios, «Programar
+//   ejercicio» del celular, la barra de abajo del celular, el selector de ejercicios, «Programar
 //   una rutina nueva» y «Mi plan»…) tienen contraste ≥ 5:1 contra el fondo REAL: una captura sin
 //   texto, con el vidrio, las luces y el grano. Se toma el píxel del fondo más parecido al texto
-//   (percentil 95), no el promedio. «▸ Ver progreso» (12 px, azul) ≥ 4,5:1.
+//   (percentil 95), no el promedio. «▸ Ver progreso» (12 px, azul) ≥ 4,5:1. El «+» que aparece entre
+//   ejercicios al pasar el mouse en la compu (un ícono, sin texto) ≥ 3:1 contra su relleno.
 // - Adentro de las ventanas de vidrio no quedan bloques opacos (#12151B / #0B0D11): los grupos
 //   musculares, el buscador, «Cancelar» y las tarjetas de «Mi plan» van en el mismo material.
 // - Alcance: con «Claro», «Azul», «Rosa» y en la app del alumno la hoja no cambia nada: los estilos
@@ -126,8 +127,13 @@ const MEDIR = async ({ png, items }) => {
     return { n: it.n, t: it.t, cr: Math.round(cr * 100) / 100 };
   });
 };
-async function contraste(p, sels){
-  const items = await p.evaluate(TEXTOS, sels);
+// Los íconos (svg, trazo en currentColor) de lo que matchea cada selector: su caja y su color.
+const ICONOS = sels => sels.flatMap(([n, sel]) => [...document.querySelectorAll(sel)].map(e => {
+  const r = e.getBoundingClientRect(); let op = 1; for (let a = e; a; a = a.parentElement) op *= +getComputedStyle(a).opacity;
+  return { n, t: 'ícono', color: getComputedStyle(e).color, op, x: r.left, y: r.top, w: r.width, h: r.height };
+}));
+async function contraste(p, sels, iconos = false){
+  const items = await p.evaluate(iconos ? ICONOS : TEXTOS, sels);
   const st = await p.addStyleTag({ content: SIN_TEXTO }); await wait(150);
   const png = (await p.screenshot({ animations: 'disabled', caret: 'hide' })).toString('base64');
   await st.evaluate(e => e.remove());
@@ -195,10 +201,11 @@ export default async function ({ base, t }){
     await leer('editor', [['días sin elegir', '.co-daytab:not(.on)'], ['«Se repite»', '.co-dias-wrap .co-note-lbl, .hd-day'], ['«3 series · 10-12»', '.co-exc-sum']]);
     await leer('menu', [['menú ⋯', '.co-exc-open .co-pop-item:not(.danger):not(:disabled)'], ['«Quitar ejercicio»', '.co-exc-open .co-pop-item.danger'],
       ['«3 series · 10-12»', '.co-exc-sum'], ['«Serie / Reps / Peso»', '.co-set-head span']]);
-    // «+ Agregar ejercicio» es tenue a propósito hasta pasar el mouse: se mide con el mouse encima.
+    // El «+» entre ejercicios no se ve hasta pasar el mouse por el hueco: se mide con el mouse encima
+    // (un ícono: ≥ 3:1 contra su relleno de vidrio; la captura sin texto también lo esconde).
     if (await p.$('.co-exc-open .co-exc-menu2[open]')) { await p.click('.co-exc-open .co-exc-menu2 > summary'); await wait(200); }
     await p.hover('.co-exc-grid > .co-ins'); await wait(300);
-    revisar(t, 'Oscuro, editor', await contraste(p, [['«+ Agregar ejercicio» al pasar el mouse', '.co-exc-grid > .co-ins:hover .co-ins-b']]), [['«+ Agregar ejercicio» al pasar el mouse']]);
+    revisar(t, 'Oscuro, editor', await contraste(p, [['«+» al pasar el mouse', '.co-exc-grid > .co-ins:hover .co-ins-b svg']], true), [['«+» al pasar el mouse']], 3);
 
     // «▸ Ver progreso» (Más opciones): 12 px en azul, ≥ 4,5:1 sobre la fila de vidrio.
     await go(p, 'mas'); await p.mouse.move(1436, 896); await wait(250);

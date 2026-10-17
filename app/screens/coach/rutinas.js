@@ -941,11 +941,12 @@ export function renderCoachRoutine(d){
   // Las tarjetas van en grilla (3 por fila en pantalla ancha); la abierta sigue en su casillero
   // y crece hacia abajo, las superseries ocupan toda la fila. Se abre una sola a la vez
   // (abrirSolo). Unir en superserie está en el menú "⋯" de la tarjeta abierta.
-  // Entre ejercicio y ejercicio, una línea finita «+ Agregar ejercicio» (como antes del rediseño):
-  // el buscador agrega el nuevo justo ahí (rt-ins), no al final. Adentro de una superserie el
-  // nuevo queda en la superserie (cpApply).
+  // Entre ejercicio y ejercicio, un botón para agregar ahí (rt-ins): el buscador agrega el nuevo
+  // justo en ese lugar, no al final. Adentro de una superserie el nuevo queda en la superserie
+  // (cpApply). En el celular es la línea finita con «+ Agregar ejercicio»; en la compu, un «+»
+  // redondo que aparece al pasar el mouse por el hueco (el texto se oculta: css/screens/coach/editor.css).
   const exs=day.exercises||[], groups=ssGroups(exs);
-  const ins=i=>'<button type="button" class="co-ins" data-coach="rt-ins" data-i="'+i+'" title="Agregar un ejercicio acá" aria-label="Agregar un ejercicio entre '+esc(exs[i-1].name||"el anterior")+' y '+esc(exs[i].name||"el siguiente")+'"><span class="co-ins-b">'+plusSvg+'Agregar ejercicio</span></button>';
+  const ins=i=>'<button type="button" class="co-ins" data-coach="rt-ins" data-i="'+i+'" title="Agregar ejercicio acá" aria-label="Agregar ejercicio acá"><span class="co-ins-b">'+plusSvg+'<span class="co-ins-t">Agregar ejercicio</span></span></button>';
   const cards=exs.map((ex,i)=>{
     const g=groups.find(x=>i>=x.start && i<=x.end), inGroup=!!(g && i>g.start);
     const open=g && i===g.start ? '<div class="co-ss-group"><div class="co-ss-head">'+linkSvg+ssName(g)+' '+g.letter+'<button class="co-ss-split" data-coach="rt-ss-split" data-i="'+g.start+'">Separar</button><span>una serie de cada uno, sin descanso entre medio</span></div>' : '';
