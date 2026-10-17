@@ -11,10 +11,14 @@
 //   azul de acción y el rojo de borrar). El interruptor («Toque de color en los bordes») está en
 //   Configuración y cambia html.sin-neon.
 // - En «Oscuro» el panel va en vidrio sobre su propia capa de fondo (body.silk-coach::after,
-//   css/screens/coach/vidrio.css): quieta (sin animación ni transición), fija detrás de #coachHost,
-//   con luces radiales suaves de la marca (alfa ≤ .2: un tinte, no manchas) y, sin neón, solo grises.
-//   La aurora de siempre queda tapada y sin pintarse (una sola capa fija de pantalla completa). Las
-//   luces se revisan en el celular y en la compu (cada ancho tiene las suyas), con y sin neón.
+//   css/screens/coach/vidrio.css): quieta (sin animación ni transición), fija detrás de #coachHost.
+//   Arriba, dos luces radiales suaves de la marca (alfa ≤ .2: un tinte, no manchas; sin neón, solo
+//   grises) que se mueven muy despacio: son lo único que anima sin parar en el panel, cada una en su
+//   capa chica (.app-aurora::before/::after), solo con transform y opacity, a saltitos (steps), con
+//   vueltas de 40 s o más y distintas, corriéndose unos pocos puntos de la pantalla. La aurora de
+//   siempre queda tapada y sin pintarse (una sola capa fija de pantalla completa). Las luces se
+//   revisan en el celular y en la compu (cada ancho tiene las suyas), con y sin neón. Con la app en
+//   segundo plano se frenan; sin tocar (html.fondo-quieto) siguen (van tan despacio que no se notan).
 import { newPage, wait, configCoach } from './lib.mjs';
 
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
@@ -41,20 +45,40 @@ const fondo = () => {
 
 // La capa del fondo del panel en «Oscuro» (body.silk-coach::after): cómo está puesta, si algo la
 // anima, sus luces radiales (los colores que no son negro: el negro es la viñeta de los bordes) y
-// todos los colores que pinta.
+// todos los colores que pinta. Las luces que se mueven son .app-aurora::before/::after: sus colores
+// cuentan como luces de la capa, y mov dice cómo se mueven (ver movimiento()).
 const capa = () => {
   const s = getComputedStyle(document.body, '::after');
   if (s.content === 'none') return null;
   const colores = v => (String(v || '').match(/rgba?\([^)]*\)/g) || []).map(c => c.match(/[\d.]+/g).map(Number));
-  const radiales = (s.backgroundImage.match(/radial-gradient\((?:[^()]|\([^()]*\))*\)/g) || []);
-  const luces = radiales.map(colores).map(cs => cs.filter(([r, g, b]) => r + g + b > 0)).filter(cs => cs.length);
+  const radiales = v => (String(v).match(/radial-gradient\((?:[^()]|\([^()]*\))*\)/g) || []);
+  const au = document.querySelector('.app-aurora'), ps = ['::before', '::after'].map(p => getComputedStyle(au, p)).filter(q => q.content !== 'none');
+  const fondos = [s.backgroundImage, ...ps.map(q => q.backgroundImage)];
+  const luces = fondos.flatMap(radiales).map(colores).map(cs => cs.filter(([r, g, b]) => r + g + b > 0)).filter(cs => cs.length);
   const anims = document.getAnimations().filter(a => a.effect && a.effect.target === document.body && a.effect.pseudoElement === '::after').length;
-  const au = getComputedStyle(document.querySelector('.app-aurora'));
+  // Cómo se mueven las luces: cada animación con su capa, sus propiedades, su duración y sus saltitos.
+  const mov = document.getAnimations().filter(a => a.effect && a.effect.target === au).map(a => {
+    const t = a.effect.getComputedTiming(), q = getComputedStyle(au, a.effect.pseudoElement), kf = a.effect.getKeyframes();
+    return { ps: a.effect.pseudoElement, name: a.animationName, dur: t.duration / 1000, it: t.iterations, dir: t.direction, play: a.playState,
+      props: [...new Set(kf.flatMap(k => Object.keys(k).filter(x => !['offset', 'computedOffset', 'easing', 'composite'].includes(x))))].sort(),
+      steps: kf.slice(0, -1).every(k => /^steps\(/.test(k.easing)), will: q.willChange, area: parseFloat(q.width) * parseFloat(q.height) / (innerWidth * innerHeight) };
+  });
   return { pos: s.position, z: s.zIndex, pe: s.pointerEvents, inset: [s.top, s.right, s.bottom, s.left].join(' '),
     anim: s.animationName, trans: s.transitionDuration.split(',').every(d => parseFloat(d) === 0), anims, conic: /conic-gradient/.test(s.backgroundImage),
-    luces, colores: colores(s.backgroundImage), host: +getComputedStyle(document.getElementById('coachHost')).zIndex,
-    aurora: au.visibility, bg: s.backgroundImage.replace(/url\("data:[^"]{40}[^"]*"\)/, 'url(grano)').slice(0, 400) };
+    luces, colores: fondos.flatMap(colores), host: +getComputedStyle(document.getElementById('coachHost')).zIndex, mov,
+    aurora: getComputedStyle(au).visibility, bg: s.backgroundImage.replace(/url\("data:[^"]{40}[^"]*"\)/, 'url(grano)').slice(0, 400) };
 };
+// Las luces en un punto de su vuelta (0, .5 o 1): cuánto se corrieron (en % del lado más largo de la
+// pantalla), cuánto crecieron y su brillo. Se las lleva ahí un instante y se las devuelve (sin
+// pause()/play(): así html.app-pausada las sigue pudiendo frenar).
+const enPunto = f => document.getAnimations().filter(a => a.effect && a.effect.target === document.querySelector('.app-aurora')).map(a => {
+  const ps = a.effect.pseudoElement, d = a.effect.getComputedTiming().duration, era = a.currentTime;
+  a.currentTime = d * f;
+  const q = getComputedStyle(a.effect.target, ps), m = new DOMMatrixReadOnly(q.transform === 'none' ? undefined : q.transform), lado = Math.max(innerWidth, innerHeight);
+  const v = { ps, dx: Math.abs(m.m41) / lado * 100, dy: Math.abs(m.m42) / lado * 100, esc: m.m11, op: +q.opacity, m: q.transform };
+  a.currentTime = era;
+  return v;
+});
 
 // Lo que se ve: animaciones sin fin y lo que gira (en toda la página); y en el panel, la gama RGB
 // (conic-gradient), los brillos de color, los filetes y los bordes/brillos/degradés con color.
@@ -69,14 +93,16 @@ const scan = () => {
   const sat = v => tinte(v, 70); // color de verdad (la gama, el azul de acción), no un gris azulado
   const FILETE = /linear-gradient\(155deg/;
   const name = (e, ps) => String(e.className && e.className.baseVal === undefined ? e.className : e.tagName).trim().split(/\s+/)[0] + (ps || '');
-  const inf = new Set(), spin = new Set(), conic = new Set(), brillos = new Set(), neon = new Set(), filete = [];
+  const inf = new Set(), luces = new Set(), spin = new Set(), conic = new Set(), brillos = new Set(), neon = new Set(), filete = [];
   document.querySelectorAll('*').forEach(e => {
     if (!e.getClientRects().length) return; // no se ve: no anima
     for (const ps of [null, '::before', '::after']){
       const s = getComputedStyle(e, ps);
       if (ps && s.content === 'none') continue;
       const n = name(e, ps);
-      if (s.animationName !== 'none' && s.animationIterationCount === 'infinite' && s.animationPlayState !== 'paused') inf.add(n + ':' + s.animationName);
+      // Las dos luces del fondo del panel van aparte (se revisan con movimiento()); todo lo demás, nada.
+      const luz = ps && e.classList.contains('app-aurora') && /^cg-luz-[ab]$/.test(s.animationName);
+      if (s.animationName !== 'none' && s.animationIterationCount === 'infinite' && s.animationPlayState !== 'paused') (luz ? luces : inf).add(n + ':' + s.animationName);
       if (/spin/i.test(s.animationName)) spin.add(n + ':' + s.animationName);
       if (/conic-gradient/.test(s.backgroundImage)) conic.add(n);
       if (!e.closest('#coachHost')) continue;
@@ -97,7 +123,7 @@ const scan = () => {
     }
   });
   neon.delete('co-tabs::after'); // la rayita azul de la pestaña elegida: color de acción, no neón
-  return { inf: [...inf], spin: [...spin], conic: [...conic], brillos: [...brillos], neon: [...neon], filete };
+  return { inf: [...inf], luces: [...luces], spin: [...spin], conic: [...conic], brillos: [...brillos], neon: [...neon], filete };
 };
 
 export default async function ({ base, t }){
@@ -108,6 +134,30 @@ export default async function ({ base, t }){
     t.eq(s.brillos, [], donde + ': sin brillos de colores (box-shadow, text-shadow, drop-shadow)');
     if (conFilete) t.ok(s.filete.length > 0 && s.filete.every(f => f.toque && f.neutro && f.anim === 'none'),
       donde + ': los bordes son el filete fino con un toque de color: ' + JSON.stringify(s.filete.slice(0, 4)));
+  };
+  // Lo único que se mueve sin parar en el panel en «Oscuro»: las dos luces del fondo.
+  const LUCES = ['gize-aurora::before:cg-luz-a', 'gize-aurora::after:cg-luz-b'];
+  // Cómo se mueven: dos capas chicas, solo transform y opacity (las mueve la placa, sin repintar), a
+  // saltitos (steps: la placa dibuja ~1 cuadro por segundo, no 60), vueltas de 40 s o más y distintas
+  // (no se ve un ciclo), will-change solo en ellas.
+  const movimiento = (c, donde) => {
+    const m = (c && c.mov) || [];
+    t.eq(m.map(x => x.ps + ' ' + x.name).sort(), ['::after cg-luz-b', '::before cg-luz-a'], donde + ': las dos luces se mueven (.app-aurora::before/::after)');
+    t.ok(m.length === 2 && m.every(x => x.it === Infinity && x.dir === 'alternate' && x.dur >= 40) && m[0].dur !== m[1].dur,
+      donde + ': vueltas largas (≥ 40 s), distintas, de ida y vuelta: ' + JSON.stringify(m.map(x => [x.name, x.dur, x.it, x.dir])));
+    t.ok(m.length === 2 && m.every(x => x.props.join() === 'opacity,transform' && x.steps),
+      donde + ': solo transform y opacity, a saltitos: ' + JSON.stringify(m.map(x => [x.name, x.props, x.steps])));
+    t.ok(m.length === 2 && m.every(x => x.will === 'transform, opacity' && x.area <= 0.4) && m.reduce((a, x) => a + x.area, 0) <= 0.6,
+      donde + ': cada luz es una capa chica con will-change (≤ 40 % de la pantalla, las dos ≤ 60 %): ' + JSON.stringify(m.map(x => [x.will, +x.area.toFixed(2)])));
+  };
+  // Dónde llegan: congeladas al principio, a la mitad y al final de la vuelta. Se corren unos pocos
+  // puntos de la pantalla (≤ 5 % del lado más largo), crecen poco y se apagan poco; y se mueven de verdad.
+  const recorrido = async (p, donde) => {
+    const pts = []; for (const f of [0, 0.5, 1]) pts.push(await p.evaluate(enPunto, f));
+    const todas = pts.flat();
+    t.ok(todas.length === 6 && todas.every(v => v.dx <= 5 && v.dy <= 5 && v.esc >= 1 && v.esc <= 1.1 && v.op >= 0.7 && v.op <= 1),
+      donde + ': las luces se corren poco (≤ 5 %), crecen poco y se apagan poco: ' + JSON.stringify(todas.map(v => [v.ps, +v.dx.toFixed(2), +v.dy.toFixed(2), +v.esc.toFixed(3), v.op])));
+    t.ok(pts[0].length === 2 && pts[0].every((v, i) => v.m !== pts[2][i].m && v.op !== pts[2][i].op), donde + ': y se mueven de verdad (de la punta a la otra cambian)');
   };
 
   // ---- Neón prendido (apariencia tranquila): ahorro de batería en el panel ----
@@ -122,7 +172,7 @@ export default async function ({ base, t }){
     t.eq([f0.canvas, f0.arc, (await p.evaluate(() => window.__arc)) - f0.arc], ['none', 0, 0], 'sin partículas: el canvas oculto y nunca se dibuja');
     t.eq(await p.evaluate(capa), null, '«Azul»: sin la capa de vidrio del panel (es solo de «Oscuro»)');
     const s0 = await p.evaluate(scan);
-    t.eq(s0.inf, [], 'lista: nada gira ni late sin parar');
+    t.eq([s0.inf, s0.luces], [[], []], 'lista: nada gira ni late sin parar (en «Azul» tampoco las luces del fondo)');
     calma(s0, 'lista');
     await p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1200);
     const s1 = await p.evaluate(scan);
@@ -182,26 +232,41 @@ export default async function ({ base, t }){
         'las luces del fondo son suaves (alfa ≤ .2): ' + JSON.stringify(c0.luces));
       t.ok(c0.luces.some(cs => cs.some(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) > 24)), 'con neón, las luces llevan el tinte de la marca: ' + c0.bg);
       t.eq(c0.aurora, 'hidden', 'la aurora de abajo no se pinta (queda una sola capa fija de pantalla completa)');
+      movimiento(c0, 'Oscuro, celular');
+      await recorrido(p, 'Oscuro, celular');
     }
     await wait(500);
     t.eq((await p.evaluate(capa) || {}).bg, c0 && c0.bg, 'la capa del fondo no cambia sola');
     const s0 = await p.evaluate(scan);
-    t.eq(s0.inf, [], 'Oscuro, lista: nada gira ni late sin parar');
+    t.eq(s0.inf, [], 'Oscuro, lista: nada gira ni late sin parar (salvo las luces del fondo)');
+    t.eq(s0.luces, LUCES, 'Oscuro, lista: lo único que se mueve son las dos luces del fondo');
     calma(s0, 'Oscuro, lista');
     await p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1200);
     const s1 = await p.evaluate(scan);
-    t.eq(s1.inf, [], 'Oscuro, ficha: nada gira ni late sin parar');
+    t.eq([s1.inf, s1.luces], [[], LUCES], 'Oscuro, ficha: nada gira ni late sin parar (salvo las luces del fondo)');
     calma(s1, 'Oscuro, ficha');
     for (const tab of ['rutina', 'plan']){
       await p.click(`[data-coach="client-tab"][data-t="${tab}"]`); await wait(600);
       const s = await p.evaluate(scan);
-      t.eq(s.inf, [], 'Oscuro, pestaña ' + tab + ': nada gira ni late sin parar');
+      t.eq([s.inf, s.luces], [[], LUCES], 'Oscuro, pestaña ' + tab + ': nada gira ni late sin parar (salvo las luces del fondo)');
       calma(s, 'Oscuro, pestaña ' + tab, false);
     }
-    // ~6 s sin tocar (html.fondo-quieto) y en segundo plano: la capa sigue igual y nada se dibuja.
+    // ~6 s sin tocar (html.fondo-quieto): la capa sigue igual, nada se dibuja y las luces siguen (van
+    // tan despacio que mientras se usa el panel no se notan: frenarlas ahí sería no verlas nunca).
     await wait(6500);
     t.eq([await p.evaluate(() => document.documentElement.classList.contains('fondo-quieto')), (await p.evaluate(capa) || {}).bg], [true, c0 && c0.bg],
       'Oscuro sin tocar: html.fondo-quieto y la capa del fondo igual');
+    const juego = () => document.getAnimations().filter(a => /^cg-luz-/.test(a.animationName)).map(a => a.playState);
+    t.eq(await p.evaluate(juego), ['running', 'running'], 'Oscuro sin tocar: las luces siguen');
+    // En segundo plano (Capacitor manda "pause": html.app-pausada) se frenan; al volver, siguen.
+    await p.evaluate(() => document.dispatchEvent(new Event('pause'))); await wait(200);
+    t.eq(await p.evaluate(juego), ['paused', 'paused'], 'Oscuro en segundo plano: las luces se frenan');
+    await p.evaluate(() => document.dispatchEvent(new Event('resume'))); await wait(200);
+    t.eq(await p.evaluate(juego), ['running', 'running'], 'Oscuro de vuelta: las luces siguen');
+    // Mientras está el splash (body.is-booting) tampoco se mueven.
+    await p.evaluate(() => document.body.classList.add('is-booting')); await wait(100);
+    t.eq(await p.evaluate(juego), ['paused', 'paused'], 'Oscuro detrás del splash: las luces quietas');
+    await p.evaluate(() => document.body.classList.remove('is-booting'));
     t.eq(await p.evaluate(() => window.__arc), 0, 'Oscuro: en todo el recorrido el fondo de partículas nunca se dibujó');
     t.eq(errs, [], 'Oscuro: errores de la página');
     await close();
@@ -220,7 +285,8 @@ export default async function ({ base, t }){
     if (cs){
       t.eq([cs.anim, cs.trans, cs.anims], ['none', true, 0], 'sin neón: la capa del fondo está quieta');
       t.ok(cs.luces.length >= 1 && cs.luces.every(l => l.every(([, , , a = 1]) => a <= 0.2)), 'sin neón: luces suaves (alfa ≤ .2): ' + JSON.stringify(cs.luces));
-      t.ok(cs.colores.every(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) <= 24), 'sin neón: la capa del fondo es solo gris (sin tinte): ' + cs.bg);
+      t.ok(cs.colores.every(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) <= 24), 'sin neón: la capa del fondo y las luces son solo gris (sin tinte): ' + cs.bg);
+      movimiento(cs, 'sin neón, celular');
     }
     const s0 = await p.evaluate(scan);
     t.eq(s0.neon, [], 'sin neón: la lista no tiene bordes ni brillos de colores');
@@ -264,9 +330,11 @@ export default async function ({ base, t }){
     if (c){
       t.eq([c.pos, c.inset, c.anim, c.trans, c.anims], ['fixed', '0px 0px 0px 0px', 'none', true, 0], 'compu, ' + nombre + ': la capa es fija, de pantalla completa y quieta');
       t.ok(c.luces.length >= 1 && c.luces.every(cs => cs.every(([, , , a = 1]) => a <= 0.2)), 'compu, ' + nombre + ': las luces del fondo son suaves (alfa ≤ .2): ' + JSON.stringify(c.luces));
-      if (init) t.ok(c.colores.every(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) <= 24), 'compu, sin neón: la capa del fondo es solo gris (sin tinte): ' + c.bg);
+      if (init) t.ok(c.colores.every(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) <= 24), 'compu, sin neón: la capa del fondo y las luces son solo gris (sin tinte): ' + c.bg);
       else t.ok(c.luces.some(cs => cs.some(([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) > 24)), 'compu, con neón: las luces llevan el tinte de la marca: ' + c.bg);
       t.eq(c.aurora, 'hidden', 'compu, ' + nombre + ': la aurora de abajo no se pinta');
+      movimiento(c, 'compu, ' + nombre);
+      await recorrido(p, 'compu, ' + nombre);
     }
     t.eq(errs, [], 'compu, ' + nombre + ': errores de la página');
     await close();
