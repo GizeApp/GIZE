@@ -3,7 +3,7 @@ import { auIcoTicket, checkSvg, chevronLeftSvg } from '../core/icons.js';
 import { State, state } from '../core/state.js';
 import { diaDeHoy } from '../core/diasemana.js';
 
-import { dec, esc, uid } from '../core/utils.js';
+import { dec, esc, today, uid } from '../core/utils.js';
 
 import { applyBrand, loadCloud } from '../core/supabase.js';
 
@@ -13,11 +13,12 @@ import { DISCIPLINAS, myDisciplinas, toggleDisciplina } from '../core/disciplina
 
 import { rutinasDeDisciplinas } from '../core/rutinas-disciplina.js';
 import { CATALOGO, cargarCatalogo, copiarDias, diasDeEntreno, rutinasDeDias, rutinasPara } from '../core/rutinas-ejemplo.js';
+import { lastWeight } from '../core/cardiogps.js';
 
 import { hideSilkBg, showSilkBg } from '../ui/background.js';
 import { itemsRango, montarRueda, ruedaHtml } from '../ui/rueda.js';
 
-import { coachGoal } from './comida.js';
+import { calcTarget, coachGoal } from './comida.js';
 import { CoachState } from './coach/state.js';
 
 import { renderApp } from '../main.js';
@@ -34,7 +35,8 @@ import { appNativa, joinMsgTienda } from '../core/tienda.js';
 //            (sexo, cumpleaños, estatura, peso, objetivo, actividad y, si entrena por su cuenta,
 //            experiencia) y cómo arranca (rutina armada o vacío).
 // Lo que contesta va a un borrador en el dispositivo (gize_onb_draft_<uid>): si se recarga la
-// página sigue en el mismo paso. Los datos del cuerpo van a calProfile (aplicarCuerpo).
+// página sigue en el mismo paso. Los datos del cuerpo van a la meta de Comida (calProfile), al
+// peso de hoy y a la meta de pasos (aplicarCuerpo).
 // «Ver rutinas armadas» desde Entreno (openRoutinePicker) usa la misma tarjeta, sin la cabecera.
 const SEEN_PREFIX = "gize_onb_";
 const DRAFT_PREFIX = "gize_onb_draft_";
@@ -74,6 +76,8 @@ const ARRANQUES = [
   ["vacio","✏️","Empezar vacío","Armás tus días de a poco."]];
 // Objetivo → objetivo de la meta de calorías de Comida (bajar / mantener / ganar).
 const META_GOAL = { grasa:"bajar", musculo:"ganar", fuerza:"mantener", resistencia:"mantener", salud:"mantener" };
+// Actividad → meta de pasos por día.
+const PASOS_DIA = { sed:6000, lig:8000, mod:10000, act:12000, muy:15000 };
 // Experiencia → días por semana que le sugerimos.
 const SUGERIDOS = { principiante:3, intermedio:4, avanzado:5 };
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
@@ -150,7 +154,7 @@ function pasos(){
   const coach = conCoach(), solo = !D.work0 && !coach, metaCoach = coach && coachGoal();
   if (D.body0){
     // Con la meta del coach, solo el peso (lo ven Progreso, Cardio y el coach); el resto no se usaría.
-    if (metaCoach) p.push("peso");
+    if (metaCoach){ if (pesoSeGuarda()) p.push("peso"); }
     else { p.push("sexo", "nac", "altura", "peso", "objetivo", "actividad"); if (solo) p.push("nivel"); }
   }
   if (solo) p.push("arranque", ...(D.ans.start === "vacio" ? ["dias", "primer"] : ["rutina"]));
@@ -178,6 +182,16 @@ function edadReal(){
 }
 
 // ---- Cómo se aplican las respuestas ----
+// ¿Se puede anotar hoy el peso de la bienvenida? Con la nube sin leer, loadCloud lo pisaría.
+function pesoSeGuarda(){
+  if (!state.cloudSeen || !state.weightsSent) return false;
+  return !(state.weights || []).some(x => x.date === today() && x.id !== D.flags.pesoId);
+}
+function pesoDeHoy(kgHoy){
+  if (!pesoSeGuarda()) return;
+  const w = state.weights.find(x => x.date === today());
+  if (w) w.kg = kgHoy; else { const id = uid(); state.weights.push({ id, date: today(), kg: kgHoy }); D.flags.pesoId = id; }
+}
 // Corre cada vez que deja el último paso del cuerpo para adelante (con «Continuar» o «Ahora
 // no»): si vuelve, cambia algo y sigue, se aplica de nuevo. Lo salteado no borra lo que ya había.
 function aplicarCuerpo(){
@@ -192,6 +206,18 @@ function aplicarCuerpo(){
   if (a.nivel) cpn.level = a.nivel;
   cpn.bodyAsked = true;                       // en otro dispositivo no se vuelve a preguntar
   state.calProfile = cpn;
+  // Meta: solo con sexo m/f, edad, estatura y peso; nunca encima de una meta propia ni de la del coach.
+  const lista = (cpn.sex === "m" || cpn.sex === "f") && +cpn.age > 0 && +cpn.height > 0 && +cpn.weight > 0;
+  if (lista && !coachGoal() && (!state.calTarget || D.flags.metaPuesta)){
+    const full = Object.assign({ activity:"mod", goal:"mantener" }, cpn);
+    const k = calcTarget(full);
+    if (k >= 1000 && k <= 6000){ state.calProfile = full; state.calTarget = k; D.flags.metaPuesta = true; }
+  }
+  if (a.peso && D.flags.tocado.peso) pesoDeHoy(+a.peso);
+  const fichaPasos = +((state.info || {}).steps_goal) > 0; // la meta de pasos del coach manda
+  if (a.actividad && !fichaPasos && (state.stepsGoal === 10000 || state.stepsGoal === D.flags.pasos)){
+    state.stepsGoal = PASOS_DIA[a.actividad]; D.flags.pasos = state.stepsGoal;
+  }
   save(); guardarBorrador();
 }
 
@@ -503,14 +529,15 @@ const PANTALLAS = {
   peso: {
     prep(){
       if(D.ans.peso==null){
-        let w=+cp().weight || 0;
+        let w=+cp().weight; if(!(w>0)) w=+lastWeight(state.weights)||0;
         w=Math.round(w*2)/2;
         if(w>=PESO.min && w<=PESO.max) D.ans.peso=w;
       }
     },
     html(){
       const v=D.ans.peso!=null ? D.ans.peso : PESO.def;
-      return tit("¿Cuánto pesás?")+sub("Lo usamos para calcular tus calorías.")+
+      const s=pesoSeGuarda() ? (conCoach() ? "Lo guardamos en Progreso y tu coach lo ve." : "Lo guardamos en Progreso para ver cómo cambia.") : "Lo usamos para calcular tus calorías.";
+      return tit("¿Cuánto pesás?")+sub(s)+
         '<div class="onb-rueda">'+ruedaHtml({ id:"onbPeso", label:"Peso", items:ITEMS_PESO, index:Math.round((v-PESO.min)/PESO.paso), unit:"kg" })+'</div>'+PISTA;
     },
     montar(){ const v=D.ans.peso!=null ? D.ans.peso : PESO.def; ruedaSimple("peso", "#onbPeso", ITEMS_PESO, Math.round((v-PESO.min)/PESO.paso)); },
@@ -531,9 +558,10 @@ const PANTALLAS = {
   },
 
   actividad: {
-    prep(){ if(!D.ans.actividad && ACTIVIDADES.some(x=>x[0]===cp().activity)) D.ans.actividad=cp().activity; },
+    prep(){ if(!D.ans.actividad && PASOS_DIA[cp().activity]) D.ans.actividad=cp().activity; },
     html(){
-      return tit("Tu nivel de actividad")+sub("Con esto calculamos cuántas calorías gastás por día.")+
+      const pasosCoach=+((state.info||{}).steps_goal) > 0; // la meta de pasos la puso el coach
+      return tit("Tu nivel de actividad")+sub(pasosCoach ? "Con esto calculamos cuántas calorías gastás por día." : "Con esto calculamos cuántas calorías gastás por día y tu meta de pasos.")+
         opciones("act", ACTIVIDADES, D.ans.actividad);
     },
     valido: () => !!D.ans.actividad,

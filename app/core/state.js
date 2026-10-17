@@ -96,6 +96,10 @@ if (!Array.isArray(state.regularDays)) state.regularDays = null;
 if (typeof state.routineMode !== "string") state.routineMode = "regular";
 if (!Array.isArray(state.preDeloadDays)) state.preDeloadDays = null;
 
+// Datos para la meta de Comida (viaja como client_prefs.cal_profile): sex ("f"|"m"), age, height,
+// weight, activity, goal ("bajar"|"mantener"|"ganar"), macros (los puestos a mano) y, desde la
+// bienvenida (screens/onboarding.js), trainGoal (su objetivo), level (su experiencia),
+// daysPerWeek (días por semana que entrena) y bodyAsked (ya se le preguntaron los datos del cuerpo).
 if (typeof state.calProfile === "undefined") state.calProfile = null;
 
 if (typeof state.steps === "undefined") state.steps = 0;
