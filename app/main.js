@@ -45,7 +45,7 @@ import { renderCoachSettings } from './screens/coach/settings.js';
 // Registra los eventos del editor de preguntas del coach (efecto al importarlo).
 import { ensureEditor, qDirty } from './screens/coach/preguntas.js';
 
-import { abrirSolo, coachPlanObj, cpApply, loadTpls, refreshBlockWeeks, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody, mealStudioAction, mealStudioInput } from './screens/coach/rutinas.js';
+import { abrirSolo, coachPlanObj, cpApply, loadTpls, moveEx, refreshBlockWeeks, removeEx, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody, mealStudioAction, mealStudioInput } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
 import { calState } from './screens/coach/calendario.js';
@@ -1538,16 +1538,26 @@ document.body.addEventListener("click", async e => {
     D.splice(i+1, 0, c); CoachState.coachEditDay=i+1; renderCoach(); return; }
   // Días de la semana del día abierto (core/diasemana.js): queda como cambio sin guardar.
   if(a==="day-dow"){ const day=(rtDays()||[])[CoachState.coachEditDay]; if(day){ toggleDia(day, b.dataset.d); renderCoach(); } return; }
-  if(a==="day-del"){ const D=rtDays(); if(D&&D.length>1){ D.splice(CoachState.coachEditDay,1); CoachState.coachEditDay=0; renderCoach(); } return; }
+  // Borrar un día con ejercicios se pregunta antes (está al lado de «Mover después» y se iban
+  // todos sus ejercicios de un toque, sin forma de recuperarlos salvo salir sin guardar nada).
+  if(a==="day-del"){ const D=rtDays(), d=D&&D[CoachState.coachEditDay]; if(!d||D.length<2) return;
+    const n=(d.exercises||[]).length;
+    if(n && !confirm("¿Borrar el día «"+(d.name||"sin nombre")+"» con sus "+n+" ejercicio"+(n===1?"":"s")+"?")) return;
+    D.splice(CoachState.coachEditDay,1); CoachState.coachEditDay=0; renderCoach(); return; }
   if(a==="rt-setadd"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex) ex.sets.push(mkSet()); renderCoach(); return; }
   if(a==="rt-setdel"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex && ex.sets.length>1) ex.sets.splice(+b.dataset.j,1); renderCoach(); return; }
   if(a==="rt-nosug-all"){ const rt=rtDays()||[]; const off=rt.some(x=>x.noSug); rt.forEach(x=>{ if(off) delete x.noSug; else x.noSug=true; (x.exercises||[]).forEach(e=>delete e.noSug); }); renderCoach(); return; }
   if(a==="rt-sug-fill"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const e=day&&day.exercises[+b.dataset.i]; const kg=parseFloat(b.dataset.kg); if(e && kg>0){ e.sets.forEach(st=>{ st.targetKg=String(kg).replace(".", ","); }); renderCoach(); } return; }
   if(a==="rt-ss-split"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const g=day && ssGroupOf(day.exercises, +b.dataset.i); if(g){ for(let k=g.start;k<=g.end;k++) delete day.exercises[k].ss; renderCoach(); } return; }
   if(a==="rt-ss"){ const i=+b.dataset.i; const day=(rtDays()||[])[CoachState.coachEditDay]; const e=day&&day.exercises[i]; if(e && i<day.exercises.length-1){ if(e.ss) delete e.ss; else e.ss=true; renderCoach(); } return; }
-  if(a==="rt-up"){ const i=+b.dataset.i; const day=(rtDays()||[])[CoachState.coachEditDay]; if(day&&i>0){ const arr=day.exercises; [arr[i-1],arr[i]]=[arr[i],arr[i-1]]; CoachState.coachExMenu=null; renderCoach(); } return; }
-  if(a==="rt-down"){ const i=+b.dataset.i; const day=(rtDays()||[])[CoachState.coachEditDay]; if(day&&i<day.exercises.length-1){ const arr=day.exercises; [arr[i+1],arr[i]]=[arr[i],arr[i+1]]; CoachState.coachExMenu=null; renderCoach(); } return; }
-  if(a==="rt-del"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex){ CoachState.coachExpandedEx.delete(ex.id); if(CoachState.coachExMenu===ex.id) CoachState.coachExMenu=null; } day.exercises.splice(+b.dataset.i,1); renderCoach(); return; }
+  // Subir / bajar sin desarmar superseries (moveEx en rutinas.js).
+  if(a==="rt-up"||a==="rt-down"){ const day=(rtDays()||[])[CoachState.coachEditDay]; if(day && moveEx(day.exercises, +b.dataset.i, a==="rt-up"?-1:1)){ CoachState.coachExMenu=null; renderCoach(); } return; }
+  // Quitar un ejercicio se lleva sus series, objetivos, nota, video y audio: se pregunta antes
+  // (deshacerlo era salir sin guardar y perder también todo lo demás).
+  if(a==="rt-del"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day&&day.exercises[+b.dataset.i]; if(!ex) return;
+    if(!confirm("¿Quitar «"+(ex.name||"este ejercicio")+"» de "+(day.name?"«"+day.name+"»":"este día")+"?")) return;
+    CoachState.coachExpandedEx.delete(ex.id); if(CoachState.coachExMenu===ex.id) CoachState.coachExMenu=null;
+    removeEx(day.exercises, +b.dataset.i); renderCoach(); return; }
   if(a==="rt-dup"){
     const day=(rtDays()||[])[CoachState.coachEditDay]; const i=+b.dataset.i; const ex=day&&day.exercises[i]; if(!ex) return;
     const copy=JSON.parse(JSON.stringify(ex)); copy.id=uid(); (copy.sets||[]).forEach(s=>{ s.id=uid(); s.kg=""; s.reps=""; s.done=false; });
@@ -1695,7 +1705,8 @@ document.body.addEventListener("input", async e => {
   const a=a0; const day=(rtDays()||[])[CoachState.coachEditDay];
   if(!day && /^(rt-|day-)/.test(a)) return;
   if(a==="rt-name"){ if(day.exercises[+el.dataset.i]) day.exercises[+el.dataset.i].name=el.value; }
-  else if(a==="day-name"){ day.name=el.value; }
+  // El nombre del día también en su pestaña, mientras se escribe (antes seguía el viejo hasta redibujar).
+  else if(a==="day-name"){ day.name=el.value; const tb=document.querySelector('#coachHost .co-daytab.on[data-coach="edit-day"]'); if(tb && tb.firstChild && tb.firstChild.nodeType===3) tb.firstChild.textContent=el.value||("Día "+(CoachState.coachEditDay+1)); }
   else if(a==="rt-target"){ const ex=day.exercises[+el.dataset.i]; const st=ex&&ex.sets[+el.dataset.j]; if(st){ const v=el.value.trim(); if(v) st.target=v; else delete st.target; } }
   else if(a==="rt-targetkg"){ const ex=day.exercises[+el.dataset.i]; const st=ex&&ex.sets[+el.dataset.j]; if(st) st.targetKg=el.value; }
   else if(a==="rt-note"){ const ex=day.exercises[+el.dataset.i]; if(ex){ const v=el.value.trim(); if(v) ex.note=v; else delete ex.note; } }

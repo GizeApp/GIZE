@@ -27,6 +27,20 @@ body:not(#_) .co-daytab .co-daytab-dias { display:inline; margin:0; font-size:11
 body:not(#_) .co-daytab.on { color:var(--txt); background:color-mix(in srgb, var(--gize-blue) 11%, var(--card)); border-color:color-mix(in srgb, var(--gize-blue) 60%, transparent); }
 body:not(#_) .co-daytab.add { min-width:42px; padding:0 14px; justify-content:center; background:none; border-style:dashed; color:var(--gize-blue); }
 
+/* Días que se arrastran para cambiarlos de lugar (rutinas.js, «Días: arrastrar»): la pestaña que se
+   mueve queda tenue, la fantasma sigue al dedo y una rayita azul marca dónde cae. */
+body:not(#_) .co-daytab[data-coach="edit-day"] { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+body:not(#_) .co-daytabs + .co-day-hint { margin:-8px 2px 14px; }
+/* Con mouse la fila de días no se puede deslizar (la ruedita mueve la página y no hay barra): con
+   seis o siete días los últimos y el «+» quedaban afuera, sin forma de llegar. En la compu van en
+   varios renglones; en pantallas táctiles sigue la fila que se desliza con el dedo. */
+@media (hover:hover) and (pointer:fine){ body:not(#_) .co-daytabs { flex-wrap:wrap; overflow-x:visible; } }
+body:not(#_) .co-daytab.co-drop-l { box-shadow:inset 3px 0 0 var(--gize-blue); }
+body:not(#_) .co-daytab.co-drop-r { box-shadow:inset -3px 0 0 var(--gize-blue); }
+html.sin-neon body:not(#_) .co-daytab.co-drop-l { box-shadow:inset 3px 0 0 rgba(255,255,255,.7); }
+html.sin-neon body:not(#_) .co-daytab.co-drop-r { box-shadow:inset -3px 0 0 rgba(255,255,255,.7); }
+html:not(#_):not(#__) body.silk-coach:not(#_) .co-daytab.co-day-ghost { transform:scale(1.04) rotate(-1.5deg); opacity:.96; background:var(--gize-surface-2); border-color:var(--gize-blue); color:var(--txt); }
+
 .co-day-bar { max-width:860px; margin:0 0 20px; }
 .co-day-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
 body:not(#_) .co-dias-wrap { gap:12px; }
@@ -59,13 +73,18 @@ body:not(#_) .co-exc-collapsed { position:relative; flex-direction:column; justi
 body:not(#_) .co-exc-swatch { display:none; }
 body:not(#_) .co-exc-collapsed .co-exc-head { display:flex; align-items:center; gap:12px; }
 body:not(#_) .co-exc-collapsed .co-exc-cname { flex:1; min-width:0; display:flex; align-items:center; gap:14px; font-size:16px; font-weight:600; white-space:normal; -webkit-line-clamp:unset; }
-body:not(#_) .co-exc-collapsed .co-exc-ctext { display:block; font-size:16px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* El nombre entero, hasta dos renglones (en el celular «Camilla de cuádri…» o «Sillón de isquiotibi…»
+   no dejaban saber cuál era; adentro de una superserie se cortaba casi siempre). */
+body:not(#_) .co-exc-collapsed .co-exc-ctext { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; font-size:16px; font-weight:600; line-height:1.25; overflow:hidden; white-space:normal; overflow-wrap:anywhere; }
 body:not(#_) .co-exc-head .co-exc-ord { display:inline-grid; place-items:center; flex:none; width:32px; height:32px; min-width:32px; margin:0; padding:0; border-radius:50%;
   background:var(--gize-surface-2); border:1px solid var(--gize-border); color:var(--txt); font-size:13px; font-weight:700; line-height:1; }
 body:not(#_) .co-exc-head .co-exc-ord.ss { background:var(--gize-surface-2); color:var(--gize-blue); border-color:color-mix(in srgb, var(--gize-blue) 45%, transparent); font-size:12px; border-radius:50%; padding:0; }
 body:not(#_) .co-exc-open .co-exc-head .co-exc-ord { color:var(--gize-blue); border-color:color-mix(in srgb, var(--gize-blue) 55%, transparent); }
 .co-exc-sum { flex:none; font-size:14px; color:var(--txt-2); font-variant-numeric:tabular-nums; white-space:nowrap; transition:opacity .15s; }
 @media (max-width: 640px){ .co-exc-sum .tg { display:none; } }
+/* En pantallas muy angostas (320 px) el «3 series» le dejaba al nombre menos de 100 px: se saca de la
+   tarjeta cerrada (se ve al abrirla) para que el nombre entre entero. */
+@media (max-width: 359px){ body:not(#_) .co-exc-collapsed .co-exc-sum { display:none; } }
 body:not(#_) .co-exc-chev { width:36px; height:36px; background:none; border:0; color:var(--txt-3); border-radius:50%; }
 body:not(#_) .co-exc-chev:hover { color:var(--txt); background:color-mix(in srgb, var(--txt) 6%, transparent); }
 body:not(#_) .co-exc-collapsed .co-exc-chev svg { transform:rotate(-90deg); }
@@ -125,6 +144,39 @@ body:not(#_) .co-tile-btn.empty { border-style:dashed; }
 body:not(#_) .co-tile-btn.empty span { color:var(--gize-blue); }
 body:not(#_) .co-more-panel .co-exc-fold { margin-top:12px; }
 
+/* Menú «⋯» del ejercicio abierto: la tarjeta (y su superserie) pasan adelante y no recortan el menú
+   (antes «Quitar ejercicio» quedaba cortado abajo); .up lo abre para arriba si abajo no entra. */
+body:not(#_) .co-exc.co-menu-on { overflow:visible; z-index:30; }
+body:not(#_) .co-ss-group.co-menu-on { position:relative; z-index:30; }
+body:not(#_) .co-day-menu.up .co-day-pop { top:auto; bottom:calc(100% + 6px); }
+.co-pop-sep { flex:none; height:1px; margin:3px 8px; border:0; background:var(--gize-border); }
+
+/* ---------- Agregar entre ejercicios (rt-ins): una línea de neón finita con «+ Agregar ejercicio» ----------
+   Ocupa el hueco de la lista (márgenes negativos: casi no la alarga). Con mouse se ve tenue y se
+   prende al pasar; en pantallas táctiles se ve siempre y el área para tocar es más alta. */
+body:not(#_) .co-ins { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:20px; min-height:0; margin:-10px 0; padding:0;
+  background:none; border:0; border-radius:0; box-shadow:none; color:var(--gize-blue); font:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+body:not(#_) .co-ins::before { content:""; position:absolute; left:18px; right:18px; top:50%; height:1px; pointer-events:none;
+  background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--gize-blue) 55%, transparent) 18%, color-mix(in srgb, var(--gize-blue) 55%, transparent) 82%, transparent);
+  opacity:.45; transition:opacity .15s; }
+.co-ins-b { position:relative; display:inline-flex; align-items:center; gap:5px; padding:1px 10px 1px 8px; border-radius:999px; font-size:11px; font-weight:600; line-height:14px; white-space:nowrap;
+  background:var(--gize-surface); border:1px solid color-mix(in srgb, var(--gize-blue) 40%, var(--gize-border)); opacity:.6; transition:opacity .15s, border-color .15s; }
+.co-ins-b svg { width:11px; height:11px; flex:none; }
+body:not(#_) .co-ins:hover::before, body:not(#_) .co-ins:focus-visible::before { opacity:1; }
+body:not(#_) .co-ins:hover .co-ins-b, body:not(#_) .co-ins:focus-visible .co-ins-b { opacity:1; border-color:color-mix(in srgb, var(--gize-blue) 75%, transparent); }
+body:not(#_) .co-ins:focus-visible { outline:none; }
+body:not(#_) .co-ss-group .co-ins { margin:-6px 0 2px; }
+@media (hover:none), (pointer:coarse){
+  body:not(#_) .co-ins { height:28px; margin:-10px 0; }
+  body:not(#_) .co-ss-group .co-ins { margin:-8px 0 0; }
+  body:not(#_) .co-ins::before { opacity:.6; }
+  .co-ins-b { opacity:.85; }
+}
+html.sin-neon body:not(#_) .co-ins::before { background:linear-gradient(90deg, transparent, rgba(255,255,255,.22) 18%, rgba(255,255,255,.22) 82%, transparent); }
+html.sin-neon .co-ins-b { border-color:rgba(255,255,255,.22); }
+html.tema-luz.sin-neon body:not(#_) .co-ins::before { background:linear-gradient(90deg, transparent, rgba(11,13,17,.2) 18%, rgba(11,13,17,.2) 82%, transparent); }
+html.tema-luz.sin-neon .co-ins-b { border-color:rgba(11,13,17,.2); }
+
 /* ---------- Agregar ejercicio y pie con «Guardar rutina» ---------- */
 body:not(#_) .co-rt-add-end { margin:2px 0 0; padding:15px; border:1px dashed var(--gize-border); border-radius:16px; background:none; color:var(--gize-blue); font-size:14px; font-weight:600; }
 body:not(#_) .co-rt-add-end:hover { background:color-mix(in srgb, var(--gize-blue) 7%, transparent); }
@@ -143,3 +195,9 @@ body:not(#_) .co-savebar .co-more-actions summary { width:auto; height:44px; pad
 html.sin-neon body:not(#_) :is(.co-daytab.on, .co-exc-open, .co-exc-head .co-exc-ord.ss, .co-exc-open .co-exc-head .co-exc-ord) { border-color:rgba(255,255,255,.4); }
 html.sin-neon body:not(#_) .co-exc-open .co-exc-name:focus { border-color:rgba(255,255,255,.5); }
 html.sin-neon body:not(#_) .co-sets-panel .co-target:focus { border-color:rgba(255,255,255,.5); }
+
+/* ---------- Bloque / mesociclo: las semanas de descarga en azul, como dice la leyenda ----------
+   En «Oscuro» y «Claro» el fondo de los botones de css/ui/estetica-login.css y claro-frozen.css le
+   ganaba a .bw.dl (botones-rediseno.css): la semana de descarga quedaba igual que las otras y su
+   número, oscuro sobre oscuro (o blanco sobre blanco), no se leía. */
+html:not(#_) body.silk-coach:not(#_):not(#__) .bw-grid .bw.dl { background:var(--acc); border-color:var(--acc); }

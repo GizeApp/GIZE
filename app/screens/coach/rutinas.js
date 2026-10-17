@@ -299,6 +299,16 @@ export function renderCoachPlan(d){
         '<div class="ci-f"><label>Agua por día (litros)</label><input class="co-note" data-coach="pl-water" value="'+esc(p.water||"")+'" placeholder=""></div>'+
         '<div class="ci-f"><label>Sal por día (g)</label><input class="co-note" data-coach="pl-salt" value="'+esc(p.salt||"")+'" placeholder=""></div>'+
       '</div>'), ()=>[p.water?withUnit(p.water,"L de agua"):"", p.salt?withUnit(p.salt,"g de sal"):""].filter(Boolean).join(" · ")||"Sin cargar"],
+    // Pautas, suplementos y cardio: el alumno los sigue viendo (Comida → Pautas y Cardio → «Tu cardio
+    // de esta semana»); sin estas tarjetas el coach no los podía cargar, cambiar ni borrar.
+    ["ind","Indicaciones", ()=>card("Indicaciones",
+      '<div class="ci-grid-2">'+
+        '<div>'+listEditor(p,"guidelines","Pautas nutricionales","")+'</div>'+
+        '<div>'+listEditor(p,"supps","Suplementos recomendados","")+'</div>'+
+      '</div>'), ()=>{ const g=(p.guidelines||[]).length, sp=(p.supps||[]).length; return g||sp ? [g?cnt(g,"pauta","pautas"):"", sp?cnt(sp,"suplemento","suplementos"):""].filter(Boolean).join(" · ") : "Sin cargar"; }],
+    ["cardio","Cardio", ()=>card("Cardio indicado",
+      '<div class="co-note-wrap" style="margin-top:0"><span class="co-note-lbl">Indicación general de cardio</span><input class="co-note" data-coach="pl-cardiotext" value="'+esc((p.cardio&&p.cardio.text)||"")+'" placeholder=""></div>'+
+      cardioItemsEditor(p)), ()=>(p.cardio&&p.cardio.text)||((p.cardio&&p.cardio.items||[]).length?cnt(p.cardio.items.length,"sesión","sesiones"):"Sin cargar")],
   ];
   // En «Mis planes» se guarda el plan guardado (planes.js); en el cliente, su plan.
   const tpl=!!(CoachState.coachMealEdit && !CoachState.coachSel);
@@ -589,11 +599,12 @@ function exerciseCard(d, day, ex, i, rt){
   const plus='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
   const linked=!!ex.ss, isLast=i===(day.exercises||[]).length-1;
   // Subir, bajar, cambiar, duplicar, insertar, superserie y quitar: en el menú "⋯" de la cabecera.
-  const menu='<details class="co-day-menu co-exc-menu2"><summary aria-label="Más opciones del ejercicio" title="Más opciones">•••</summary><div class="co-day-pop">'+
+  // «Quitar ejercicio» va último, separado y en rojo; el menú no se recorta (ver «Menús ⋯» más abajo).
+  const menu='<details class="co-day-menu co-exc-menu2"><summary aria-label="Más opciones del ejercicio" title="Más opciones">•••</summary><div class="co-day-pop" role="menu">'+
       act("rt-up", up, "Subir")+act("rt-down", down, "Bajar")+act("rt-swap", swapSvg, "Cambiar ejercicio")+
       act("rt-dup", copySvg, "Duplicar")+act("rt-ins", plus, "Insertar uno antes")+
       (isLast ? '' : act("rt-ss", linkSvg, linked?"Separar de la superserie":"Unir con el siguiente (superserie)"))+
-      act("rt-del", trashSvg, "Quitar", " danger")+
+      '<hr class="co-pop-sep">'+act("rt-del", trashSvg, "Quitar ejercicio", " danger")+
     '</div></details>';
 
   // Lo que hizo el cliente la última vez en este ejercicio (primero en este mismo día, si no
@@ -695,6 +706,70 @@ document.addEventListener('click', e=>{
   wrap.querySelectorAll('.co-tile-panel').forEach(x=>{ x.hidden=!(willOpen && x.dataset.tile===key); });
 });
 
+// ---- Menús «⋯» (details.co-day-menu: el del día, el de cada ejercicio y «Más acciones») ----
+// La tarjeta del ejercicio recorta lo que se sale (overflow:hidden por el filete): con pocas series
+// «Quitar ejercicio», el último, quedaba cortado y había que abrir «Más opciones» para alcanzarlo.
+// Abierto, la tarjeta (y su superserie) pasan adelante sin recortar (.co-menu-on); si abajo no
+// entra (fin de la pantalla o la barra de abajo del celular), abre para arriba y, si tampoco, se
+// desliza el panel lo justo. Se cierra al elegir una opción, al tocar afuera, con Escape o al abrir otro.
+function closeMenus(except){ document.querySelectorAll('details.co-day-menu[open]').forEach(d=>{ if(d!==except) d.open=false; }); }
+function placeMenu(d){
+  const pop=d.querySelector('.co-day-pop'), sum=d.querySelector('summary'); if(!pop || !sum || d.classList.contains('co-more-actions')) return;
+  d.classList.remove('up');
+  const r=pop.getBoundingClientRect(), s=sum.getBoundingClientRect();
+  let bottom=innerHeight-8;
+  const nav=document.querySelector('.cv-nav'), nr=nav && nav.getBoundingClientRect();
+  if(nr && nr.height && getComputedStyle(nav).position==='fixed' && nr.top<innerHeight) bottom=Math.min(bottom, nr.top-8);
+  if(r.bottom<=bottom) return;
+  if(s.top-r.height-6>=8){ d.classList.add('up'); return; }
+  const host=document.getElementById('coachHost'); if(host) host.scrollTop+=Math.ceil(r.bottom-bottom);
+}
+document.addEventListener('toggle', e=>{
+  const d=e.target; if(!d || !d.classList || !d.classList.contains('co-day-menu')) return;
+  [d.closest('.co-exc'), d.closest('.co-ss-group')].forEach(x=>{ if(x) x.classList.toggle('co-menu-on', d.open); });
+  if(!d.open){ d.classList.remove('up'); return; }
+  closeMenus(d); placeMenu(d);
+}, true);
+document.addEventListener('click', e=>{
+  const t=e.target, m=t && t.closest && t.closest('details.co-day-menu');
+  if(m && t.closest('.co-day-pop button:not(:disabled)')){ m.open=false; return; }
+  if(!m) closeMenus(null);
+}, true);
+document.addEventListener('keydown', e=>{
+  if(e.key!=='Escape') return;
+  const m=document.querySelector('details.co-day-menu[open]'); if(!m) return;
+  closeMenus(null); const s=m.querySelector('summary'); if(s) s.focus();
+});
+
+// ---- Subir / bajar un ejercicio («⋯») sin desarmar superseries ----
+// En la rutina, ex.ss quiere decir "va con el siguiente": antes se cambiaban los dos ejercicios de
+// lugar con su ss y la superserie se armaba con otro (subir el segundo de una superserie metía en
+// ella al ejercicio de abajo). Ahora:
+// - Adentro de su superserie cambia de lugar con el de al lado y la superserie queda igual.
+// - Si no, se mueve el bloque entero (el ejercicio suelto, o su superserie si está en una punta) al
+//   otro lado del vecino, que también puede ser un suelto o una superserie entera.
+export function moveEx(arr, i, dir){
+  const j=i+dir; if(!Array.isArray(arr) || !arr[i] || !arr[j]) return false;
+  const setSS=(e,v)=>{ if(v) e.ss=true; else delete e.ss; };
+  const g=ssGroupOf(arr, i);
+  if(g && j>=g.start && j<=g.end){
+    const a=Math.min(i,j), b=Math.max(i,j), fa=!!arr[a].ss, fb=!!arr[b].ss;
+    [arr[a],arr[b]]=[arr[b],arr[a]]; setSS(arr[a],fa); setSS(arr[b],fb);
+    return true;
+  }
+  const a=g?g.start:i, b=g?g.end:i, ng=ssGroupOf(arr, j), na=ng?ng.start:j, nb=ng?ng.end:j;
+  const block=arr.splice(a, b-a+1);
+  arr.splice(dir<0 ? na : nb-block.length+1, 0, ...block);
+  return true;
+}
+// Quitar un ejercicio: si era el último de una superserie, el de arriba deja de ir "con el
+// siguiente" (si no, el ejercicio de abajo quedaba metido en la superserie).
+export function removeEx(arr, i){
+  const ex=Array.isArray(arr) && arr[i]; if(!ex) return null;
+  if(!ex.ss && i>0 && arr[i-1].ss) delete arr[i-1].ss;
+  return arr.splice(i,1)[0];
+}
+
 // ---- Superserie arrastrando (prueba): mantener apretada una tarjeta cerrada y soltarla sobre otra ----
 // Se saca el ejercicio de su lugar y se lo pone justo después del de destino, unidos (ex.ss = "va
 // con el siguiente"). Si el destino ya estaba en una superserie, el arrastrado se suma a esa cadena.
@@ -764,7 +839,80 @@ document.addEventListener('contextmenu', e=>{ if(dragSt) e.preventDefault(); }, 
 // Al soltar, el click que sigue no debe abrir ni cerrar la tarjeta.
 document.addEventListener('click', e=>{ if(dragGuard){ e.stopPropagation(); e.preventDefault(); } }, true);
 
+// ---- Días: arrastrar una pestaña para cambiarla de lugar ----
+// Con mouse se aprieta y se mueve; en el celular se mantiene apretada (como los ejercicios) y se
+// desliza. Al soltar, el día pasa a ese lugar con todo lo suyo (ejercicios, nota, audios, días de
+// la semana) y queda como cambio sin guardar; el día que se estaba viendo sigue elegido. En el
+// menú «⋯» del día siguen «Mover antes» y «Mover después». Mismo editor en la rutina del alumno,
+// en «Mis rutinas», en las programadas y en la de descarga.
+export function moveDay(D, from, to){
+  if(!Array.isArray(D) || from===to || !(from>=0 && from<D.length) || !(to>=0 && to<D.length)) return false;
+  const [x]=D.splice(from,1); D.splice(to,0,x);
+  return true;
+}
+const dayTabs=()=>[...document.querySelectorAll('.co-daytabs .co-daytab[data-coach="edit-day"]')];
+let dayDrag=null, dayGuard=false;
+function dayDragEnd(commit){
+  const s=dayDrag; if(!s) return; dayDrag=null;
+  clearTimeout(s.timer); clearInterval(s.scroll);
+  if(s.ghost) s.ghost.remove();
+  document.querySelectorAll('.co-daytab.co-dragging,.co-daytab.co-drop-l,.co-daytab.co-drop-r').forEach(n=>n.classList.remove('co-dragging','co-drop-l','co-drop-r'));
+  document.body.classList.remove('co-drag-on');
+  if(!s.active) return;
+  dayGuard=true; setTimeout(()=>{ dayGuard=false; }, 350);
+  const D=rtDays(); if(!commit || s.to==null || !D) return;
+  const cur=D[CoachState.coachEditDay];
+  if(moveDay(D, s.from, s.to)){ CoachState.coachEditDay=Math.max(0, D.indexOf(cur)); renderCoach(); }
+}
+function dayDragStart(s){
+  s.active=true;
+  const r=s.tab.getBoundingClientRect();
+  s.ghost=s.tab.cloneNode(true); s.ghost.classList.add('co-drag-ghost','co-day-ghost'); s.ghost.classList.remove('on');
+  s.ghost.style.width=r.width+'px'; s.ghost.style.left=r.left+'px'; s.ghost.style.top=r.top+'px';
+  s.dx=s.x-r.left; s.dy=s.y-r.top;
+  document.body.appendChild(s.ghost);
+  s.tab.classList.add('co-dragging'); document.body.classList.add('co-drag-on');
+  if(!s.mouse && navigator.vibrate) try{ navigator.vibrate(15); }catch(e){}
+  // Con muchos días la fila se desliza sola cerca de los bordes.
+  const strip=s.tab.parentNode;
+  s.scroll=setInterval(()=>{ const sr=strip.getBoundingClientRect(); if(s.x<sr.left+36) strip.scrollLeft-=12; else if(s.x>sr.right-36) strip.scrollLeft+=12; }, 16);
+}
+// A qué lugar va: cuántas de las otras pestañas quedan antes del dedo, en orden de lectura (en la
+// compu las pestañas van en varios renglones: las de un renglón de arriba cuentan todas; las del
+// mismo renglón, si tienen el medio a la izquierda).
+function dayDragOver(s){
+  const others=dayTabs().filter((t,k)=>k!==s.from);
+  let n=0; others.forEach(t=>{ const r=t.getBoundingClientRect(), cy=r.top+r.height/2, fila=r.height*0.75;
+    if(cy<s.y-fila || (Math.abs(cy-s.y)<=fila && r.left+r.width/2<s.x)) n++; });
+  s.to=n;
+  others.forEach((t,k)=>{ t.classList.toggle('co-drop-l', n!==s.from && k===n); t.classList.toggle('co-drop-r', n!==s.from && n===others.length && k===others.length-1); });
+}
+document.addEventListener('pointerdown', e=>{
+  if(dayDrag || dragSt || (e.pointerType==='mouse' && e.button!==0)) return;
+  const tab=e.target.closest && e.target.closest('.co-daytabs .co-daytab[data-coach="edit-day"]'); if(!tab) return;
+  const tabs=dayTabs(); if(tabs.length<2) return;
+  const s=dayDrag={ tab, from:tabs.indexOf(tab), x:e.clientX, y:e.clientY, x0:e.clientX, y0:e.clientY, id:e.pointerId, mouse:e.pointerType==='mouse', active:false, to:null };
+  if(!s.mouse) s.timer=setTimeout(()=>{ if(dayDrag===s) dayDragStart(s); }, HOLD_MS);
+}, true);
+document.addEventListener('pointermove', e=>{
+  const s=dayDrag; if(!s || e.pointerId!==s.id) return;
+  s.x=e.clientX; s.y=e.clientY;
+  if(!s.active){
+    if(Math.hypot(s.x-s.x0, s.y-s.y0)<=MOVE_TOL) return;
+    // Con mouse, moverlo apretado ya es arrastrar; con el dedo, moverse antes de tiempo es deslizar la fila.
+    if(s.mouse) dayDragStart(s); else { dayDragEnd(false); return; }
+  }
+  s.ghost.style.left=(s.x-s.dx)+'px'; s.ghost.style.top=(s.y-s.dy)+'px';
+  dayDragOver(s);
+}, true);
+document.addEventListener('pointerup', e=>{ if(dayDrag && e.pointerId===dayDrag.id) dayDragEnd(true); }, true);
+document.addEventListener('pointercancel', e=>{ if(dayDrag && e.pointerId===dayDrag.id && !dayDrag.active) dayDragEnd(false); }, true);
+document.addEventListener('touchmove', e=>{ if(dayDrag && dayDrag.active) e.preventDefault(); }, { passive:false });
+document.addEventListener('contextmenu', e=>{ if(dayDrag) e.preventDefault(); }, true);
+document.addEventListener('click', e=>{ if(dayGuard){ e.stopPropagation(); e.preventDefault(); } }, true);
+
 const linkSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>';
+const plusSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
 // El motivo de la sugerencia está escrito para el cliente; en el editor se lee en tercera persona.
 const coachWhy=w=>String(w).replace(/^Llegaste/,"Llegó").replace(/^La vez pasada hiciste/,"La vez pasada hizo").replace(/^La vez pasada aguantaste/,"La vez pasada aguantó").replace(/^Completá/,"Le falta completar").replace(/^Mismo peso que la vez pasada, una rep más\./,"Mismo peso, una rep más.").replace(/: subí el peso\./,": subir el peso.").replace(/: sumá una más\./,": una más.").replace(/: sumá 5 segundos\./,": 5 segundos más.").replace(/ antes de subir\.$/," antes de subir.");
@@ -785,19 +933,24 @@ export function renderCoachRoutine(d){
   if(!rt.length) return '<div class="co-sec">Rutina y progreso</div><div class="cal-hint">El cliente todav\u00eda no tiene rutina.</div><button class="co-add-day" data-coach="day-add">+ Agregar d\u00eda</button>';
   if(CoachState.coachEditDay>=rt.length) CoachState.coachEditDay=0;
   // Cada pestaña con sus días de la semana abajo, chiquito (core/diasemana.js).
-  const tabs=rt.map((x,i)=>{ const dt=diasTexto(x); return '<button class="co-daytab'+(i===CoachState.coachEditDay?' on':'')+'" data-coach="edit-day" data-i="'+i+'">'+esc(x.name||('D\u00eda '+(i+1)))+(dt?'<small class="co-daytab-dias">'+esc(dt)+'</small>':'')+'</button>'; }).join("");
+  // Con dos días o más se pueden arrastrar para cambiarlos de lugar (ver «Días: arrastrar»).
+  const tabs=rt.map((x,i)=>{ const dt=diasTexto(x); return '<button class="co-daytab'+(i===CoachState.coachEditDay?' on':'')+'" data-coach="edit-day" data-i="'+i+'"'+(rt.length>1?' title="Arrastralo para cambiarlo de lugar"':'')+'>'+esc(x.name||('D\u00eda '+(i+1)))+(dt?'<small class="co-daytab-dias">'+esc(dt)+'</small>':'')+'</button>'; }).join("");
   const day=rt[CoachState.coachEditDay];
   const totalSets=(day.exercises||[]).reduce((n,x)=>n+((x.sets||[]).length),0);
   const totalEx=(day.exercises||[]).length;
   // Las tarjetas van en grilla (3 por fila en pantalla ancha); la abierta sigue en su casillero
   // y crece hacia abajo, las superseries ocupan toda la fila. Se abre una sola a la vez
-  // (abrirSolo). Insertar y unir en superserie están en el menú "⋯" de la tarjeta abierta.
+  // (abrirSolo). Unir en superserie está en el menú "⋯" de la tarjeta abierta.
+  // Entre ejercicio y ejercicio, una línea finita «+ Agregar ejercicio» (como antes del rediseño):
+  // el buscador agrega el nuevo justo ahí (rt-ins), no al final. Adentro de una superserie el
+  // nuevo queda en la superserie (cpApply).
   const exs=day.exercises||[], groups=ssGroups(exs);
+  const ins=i=>'<button type="button" class="co-ins" data-coach="rt-ins" data-i="'+i+'" title="Agregar un ejercicio acá" aria-label="Agregar un ejercicio entre '+esc(exs[i-1].name||"el anterior")+' y '+esc(exs[i].name||"el siguiente")+'"><span class="co-ins-b">'+plusSvg+'Agregar ejercicio</span></button>';
   const cards=exs.map((ex,i)=>{
-    const g=groups.find(x=>i>=x.start && i<=x.end);
+    const g=groups.find(x=>i>=x.start && i<=x.end), inGroup=!!(g && i>g.start);
     const open=g && i===g.start ? '<div class="co-ss-group"><div class="co-ss-head">'+linkSvg+ssName(g)+' '+g.letter+'<button class="co-ss-split" data-coach="rt-ss-split" data-i="'+g.start+'">Separar</button><span>una serie de cada uno, sin descanso entre medio</span></div>' : '';
-    const div=g && i>g.start ? '<div class="ss-div" aria-hidden="true"><span>sin descanso</span></div>' : '';
-    return open+div+exerciseCard(d, day, ex, i, rt)+(g && i===g.end ? '</div>' : '');
+    const div=inGroup ? '<div class="ss-div" aria-hidden="true"><span>sin descanso</span></div>' : '';
+    return (i>0 && !inGroup ? ins(i) : '')+open+(inGroup ? ins(i) : '')+div+exerciseCard(d, day, ex, i, rt)+(g && i===g.end ? '</div>' : '');
   }).join("");
   const dotsOn=diasDe(day);
   const dayMenu='<details class="co-day-menu"><summary aria-label="Más opciones del día" title="Más opciones">•••</summary><div class="co-day-pop">'+
@@ -810,6 +963,7 @@ export function renderCoachRoutine(d){
   const sugToggle='<span class="co-sug-mini" title="'+(sugOff?'Apagada: el cliente solo ve el peso que vos propongas.':'GIZE le recomienda subir 2,5 kg cuando la vez pasada se pasó del rango de reps, salvo donde cargues tu peso propuesto.')+'"><span>Sugerencia de peso</span><button type="button" class="co-sug-tg'+(sugOff?'':' on')+'" data-coach="rt-nosug-all" role="switch" aria-checked="'+(!sugOff)+'" aria-label="Sugerencia automática de peso"><span></span></button></span>';
   return coachDatalist()+
     '<div class="co-daytabs">'+tabs+'<button class="co-daytab add" data-coach="day-add" aria-label="Agregar día">+</button></div>'+
+    (rt.length>1 ? '<div class="co-drag-hint co-day-hint">Para cambiar el orden de los días, arrastralos (en el celular, mantené apretado uno).</div>' : '')+
     '<div class="co-day-bar">'+
       // Días de la semana de este día (puede ser más de uno): Entreno arranca en el día que toca hoy.
       '<div class="co-day-row">'+
@@ -880,7 +1034,14 @@ export function cpApply(name, cat){
   let ex;
   // Al cambiarlo, series con ids nuevos: el alumno no hereda lo cargado en el viejo (mergeLocalProgress).
   if(CoachState.coachPicker.mode==="swap"){ ex=day.exercises[CoachState.coachPicker.i]; if(ex){ if(ex.name!==name){ dropExMedia(ex); ex.sets.forEach(s=>{ s.id=uid(); }); } ex.name=name; ex.mus=mm; } }
-  else if(CoachState.coachPicker.mode==="insert"){ ex=mkEx(name,3,mm); day.exercises.splice(CoachState.coachPicker.idx,0,ex); }
+  else if(CoachState.coachPicker.mode==="insert"){
+    ex=mkEx(name,3,mm);
+    // Entre dos de una superserie (el de arriba va "con el siguiente"): el nuevo se suma a la
+    // superserie; si no, el de abajo quedaba afuera y el nuevo unido al de arriba.
+    const k=Math.min(Math.max(+CoachState.coachPicker.idx||0,0), day.exercises.length), prev=day.exercises[k-1];
+    if(prev && prev.ss && k<day.exercises.length) ex.ss=true;
+    day.exercises.splice(k,0,ex);
+  }
   else { ex=mkEx(name,3,mm); day.exercises.push(ex); }
   // el ejercicio recién agregado/cambiado arranca expandido para que el coach lo complete
   // de una — es el único abierto: el resto del día queda colapsado (abrirSolo).
