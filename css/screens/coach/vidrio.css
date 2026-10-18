@@ -1,16 +1,21 @@
-/* css/screens/coach/vidrio.css — panel del coach en «Oscuro»: vidrio sobre una aurora quieta de la marca.
+/* css/screens/coach/vidrio.css — panel del coach en «Oscuro»: vidrio sobre una aurora de la marca.
    ---------------------------------------------------------------------------------------------
    Pedido: un fondo «más pro», estilo vidrio («Liquid Glass»). Es la propuesta «A · Vidrio aurora»,
    con las luces bajadas a un tinte de la marca (sin manchas de color) y los arreglos de la revisión.
+   Después: «un fondo en movimiento muy sutil que no sea muy pesado» (las luces se mueven, sección 2b).
 
    - Fondo: una capa fija y quieta (body.silk-coach::after) detrás de #coachHost (z 150): negro
-     azulado, dos luces chicas y suaves de la marca (violeta arriba a la derecha, azul a la izquierda
-     del contenido; alfa ≤ .10, más chicas en el celular), una viñeta que oscurece los bordes y un
-     grano fino (PNG de 64 px en data:, ~3 KB) que evita el escalonado de los degradés. Sin animación,
-     sin filter y sin mix-blend-mode: se pinta una sola vez. Con el neón apagado las luces son grises.
-     La aurora de siempre (.app-aurora, el degradé de css/ui/calma.css) queda tapada: se le pone
+     azulado, una viñeta que oscurece los bordes y un grano fino (PNG de 64 px en data:, ~3 KB) que
+     evita el escalonado de los degradés. Sin animación, sin filter y sin mix-blend-mode: se pinta
+     una sola vez. Arriba, dos luces chicas y suaves de la marca (violeta arriba a la derecha, azul a
+     la izquierda del contenido; alfa .10 en promedio, más chicas en el celular; grises con el neón
+     apagado) que se corren y «respiran» muy despacio: cada una es una capa chica propia que se pinta
+     una vez y solo cambia transform y opacity, una vez por segundo (app/ui/background.js), con pasos
+     que no se ven (sección 2b). Con el movimiento apagado (reducir movimiento o transparencia,
+     liviano, la app de Android) las luces se pintan quietas en la capa del fondo, como antes. La
+     aurora de siempre (.app-aurora, el degradé de css/ui/calma.css) queda tapada: se le pone
      visibility:hidden para que no sean dos capas fijas de pantalla completa (las pruebas siguen
-     leyendo su fondo).
+     leyendo su fondo); sus ::before y ::after son las dos luces.
    - Superficies: vidrio. Relleno translúcido, un brillo arriba, filete especular (--cg-ring: el toque
      de color de siempre en las puntas, armado con --gize-r1/--gize-r2), luz interna arriba y sombra
      neutra. backdrop-filter solo en lo grande por donde de verdad pasa contenido por detrás (las
@@ -27,8 +32,9 @@
      editor en el celular pintaba el doble que antes).
    - Liviano, GIZE básico (Android), app de Android, «menos transparencia» y navegadores sin
      backdrop-filter: sin desenfoque y rellenos casi sólidos (o sólidos: «menos transparencia» gana
-     en todos los modos). Básico ni siquiera pinta la capa del fondo. Nada se mueve: no hay nada que
-     frenar con prefers-reduced-motion, html.app-pausada ni html.fondo-quieto.
+     en todos los modos). Básico ni siquiera pinta la capa del fondo. Lo único que se mueve son las
+     luces: quietas con prefers-reduced-motion; frenadas con la app en segundo plano o la pestaña
+     oculta, detrás del splash y a los 3 minutos sin tocar nada (siguen con el primer toque).
 
    Alcance: html:not(.tema-claro):not(.tema-luz) body.silk-coach → solo el panel del coach en
    «Oscuro», con y sin neón. «Azul», «Rosa» y «Claro» (ya son vidrio con su propio fondo) y la app del
@@ -78,10 +84,21 @@ html:not(.tema-claro):not(.tema-luz) body.silk-coach {
      gama de «Oscuro»; con color-mix, abajo, sale de los tokens de la marca. */
   --cg-ring: linear-gradient(155deg, rgba(181,119,255,.54) 0%, rgba(255,255,255,.20) 18%,
     rgba(255,255,255,.08) 52%, rgba(255,255,255,.05) 80%, rgba(89,179,255,.40) 100%);
-  /* Las luces del fondo (alfa ≤ .10: un tinte de la marca, no manchas). La azul va a la derecha de
-     la barra lateral, para que la barra no se vea como una columna azul. */
-  --cg-luz-a: radial-gradient(40vmax 30vmax at 96% 4%, rgba(166,92,255,.10), rgba(166,92,255,.035) 45%, rgba(166,92,255,0) 72%);
-  --cg-luz-b: radial-gradient(34vmax 28vmax at 30% 30%, rgba(47,160,255,.08), rgba(47,160,255,.028) 45%, rgba(47,160,255,0) 72%);
+  /* Las luces del fondo (alfa ≤ .10: un tinte de la marca, no manchas): sus colores (centro, a
+     media distancia y el borde, transparente) y, quietas, dónde van. La azul va a la derecha de la
+     barra lateral, para que la barra no se vea como una columna azul. Las que se mueven (sección 2b)
+     van en su propia capa con estos colores divididos por .7 (--cg-ma0/1 y --cg-mb0/1): respiran
+     entre 40 % y 100 % de brillo, y en el medio (70 %) se ven igual que quietas. */
+  --cg-la0: rgba(166,92,255,.10); --cg-la1: rgba(166,92,255,.035); --cg-la2: rgba(166,92,255,0);
+  --cg-lb0: rgba(47,160,255,.08); --cg-lb1: rgba(47,160,255,.028); --cg-lb2: rgba(47,160,255,0);
+  --cg-ma0: rgba(166,92,255,.143); --cg-ma1: rgba(166,92,255,.05);
+  --cg-mb0: rgba(47,160,255,.114); --cg-mb1: rgba(47,160,255,.04);
+  --cg-luz-a: radial-gradient(40vmax 30vmax at 96% 4%, var(--cg-la0), var(--cg-la1) 45%, var(--cg-la2) 72%);
+  --cg-luz-b: radial-gradient(34vmax 28vmax at 30% 30%, var(--cg-lb0), var(--cg-lb1) 45%, var(--cg-lb2) 72%);
+  /* Con movimiento (lo normal): la capa quieta va sin luces (none) y las dos capas de las luces
+     existen (--cg-luces es el content de .app-aurora::before/::after). Sin movimiento (sección 2b),
+     al revés: las luces quietas en la capa del fondo y sin esas capas. */
+  --cg-fondo-a: none; --cg-fondo-b: none; --cg-luces: "";
   --cg-base: linear-gradient(180deg, #05070D 0%, #070A14 50%, #05060B 100%);
   /* grano: PNG de 64 × 64 con ruido blanco y negro de alfa ≤ 4 % (CSP: img-src data: permitido) */
   --cg-grano: url("data:image/png;base64,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");
@@ -98,19 +115,27 @@ html:not(.tema-claro):not(.tema-luz) body.silk-coach {
 html.sin-neon:not(.tema-claro):not(.tema-luz) body.silk-coach {
   --cg-ring: linear-gradient(160deg, rgba(255,255,255,.34) 0%, rgba(255,255,255,.18) 20%,
     rgba(255,255,255,.08) 55%, rgba(255,255,255,.06) 80%, rgba(255,255,255,.14) 100%);
-  --cg-luz-a: radial-gradient(40vmax 30vmax at 96% 4%, rgba(214,218,226,.075), rgba(214,218,226,.026) 45%, rgba(214,218,226,0) 72%);
-  --cg-luz-b: radial-gradient(34vmax 28vmax at 30% 30%, rgba(206,212,222,.06), rgba(206,212,222,.02) 45%, rgba(206,212,222,0) 72%);
+  --cg-la0: rgba(214,218,226,.075); --cg-la1: rgba(214,218,226,.026); --cg-la2: rgba(214,218,226,0);
+  --cg-lb0: rgba(206,212,222,.06); --cg-lb1: rgba(206,212,222,.02); --cg-lb2: rgba(206,212,222,0);
+  --cg-ma0: rgba(214,218,226,.107); --cg-ma1: rgba(214,218,226,.037);
+  --cg-mb0: rgba(206,212,222,.086); --cg-mb1: rgba(206,212,222,.029);
   --cg-base: linear-gradient(180deg, #06070A 0%, #0A0C11 50%, #05060A 100%);
 }
 /* Celular: las luces más chicas y lejos de la franja de arriba (antes teñían el logo y «Salir»). */
 @media (max-width: 899px) {
   html:not(.tema-claro):not(.tema-luz) body.silk-coach {
-    --cg-luz-a: radial-gradient(80% 30% at 100% 36%, rgba(166,92,255,.07), rgba(166,92,255,.025) 45%, rgba(166,92,255,0) 72%);
-    --cg-luz-b: radial-gradient(80% 30% at 0% 78%, rgba(47,160,255,.07), rgba(47,160,255,.025) 45%, rgba(47,160,255,0) 72%);
+    --cg-la0: rgba(166,92,255,.07); --cg-la1: rgba(166,92,255,.025);
+    --cg-lb0: rgba(47,160,255,.07); --cg-lb1: rgba(47,160,255,.025);
+    --cg-ma0: rgba(166,92,255,.10); --cg-ma1: rgba(166,92,255,.036);
+    --cg-mb0: rgba(47,160,255,.10); --cg-mb1: rgba(47,160,255,.036);
+    --cg-luz-a: radial-gradient(80% 30% at 100% 36%, var(--cg-la0), var(--cg-la1) 45%, var(--cg-la2) 72%);
+    --cg-luz-b: radial-gradient(80% 30% at 0% 78%, var(--cg-lb0), var(--cg-lb1) 45%, var(--cg-lb2) 72%);
   }
   html.sin-neon:not(.tema-claro):not(.tema-luz) body.silk-coach {
-    --cg-luz-a: radial-gradient(80% 30% at 100% 36%, rgba(214,218,226,.055), rgba(214,218,226,.02) 45%, rgba(214,218,226,0) 72%);
-    --cg-luz-b: radial-gradient(80% 30% at 0% 78%, rgba(206,212,222,.05), rgba(206,212,222,.018) 45%, rgba(206,212,222,0) 72%);
+    --cg-la0: rgba(214,218,226,.055); --cg-la1: rgba(214,218,226,.02);
+    --cg-lb0: rgba(206,212,222,.05); --cg-lb1: rgba(206,212,222,.018);
+    --cg-ma0: rgba(214,218,226,.079); --cg-ma1: rgba(214,218,226,.029);
+    --cg-mb0: rgba(206,212,222,.071); --cg-mb1: rgba(206,212,222,.026);
   }
 }
 
@@ -121,23 +146,99 @@ html:not(.tema-claro):not(.tema-luz) body.silk-coach::after {
      repintaba: medido). En Android no hace falta (ver abajo). */
   will-change: transform;
   background-color: #05070D;
+  /* Las luces (--cg-fondo-a/-b) solo cuando no se mueven; si no, van en none (sección 2b). */
   background-image: var(--cg-grano), radial-gradient(130% 95% at 50% 42%, rgba(0,0,0,0) 52%, rgba(0,0,0,.5) 100%),
-    var(--cg-luz-a), var(--cg-luz-b), var(--cg-base);
+    var(--cg-fondo-a), var(--cg-fondo-b), var(--cg-base);
   background-size: 64px 64px, auto, auto, auto, auto;
   background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
 }
 /* La aurora de siempre queda tapada por la capa de arriba: no se pinta (una sola capa fija). En GIZE
-   básico la capa de arriba no está, así que ahí la aurora (un degradé liso) se queda. */
-html:not(.tema-claro):not(.tema-luz):not(.basico):not(#_) body.silk-coach .app-aurora { visibility: hidden; }
+   básico la capa de arriba no está, así que ahí la aurora (un degradé liso) se queda. Con z 1 sus
+   ::before/::after (las luces, 2b) quedan arriba de la capa del fondo y debajo de #coachHost. */
+html:not(.tema-claro):not(.tema-luz):not(.basico):not(#_) body.silk-coach .app-aurora { visibility: hidden; z-index: 1; }
+
+/* ---------- 2b) Las luces: dos capas chicas que se mueven muy despacio ----------
+   Cada luz es un ::before/::after de .app-aurora del tamaño de lo que se ve de la luz (no de toda la
+   pantalla): la parte que queda afuera se recorta, con un margen que cubre lo que se corre. Se pinta
+   una sola vez; lo único que cambia es transform y opacity, que pone app/ui/background.js una vez por
+   segundo («Las luces del fondo del panel del coach», en --cg-ta/--cg-oa y --cg-tb/--cg-ob). Cada luz
+   va y vuelve (41 s de ida la violeta, 59 s la azul, más lentas en las puntas): ±3,5 vmin hacia
+   adentro o hacia afuera, ±5 % de tamaño y de 40 % a 100 % de brillo (con los colores de la luz
+   quieta divididos por .7, --cg-ma0/1 y --cg-mb0/1: alfa ≤ .15). En el medio (sin transform y al
+   70 %, como arrancan) se ven igual que quietas. En una ida el centro de la luz cambia ~20 niveles
+   de color (de 255): se nota que respira; cada segundo, 1 o 2 (3 en algún píxel suelto): el paso
+   no se ve.
+   Sin animación de CSS a propósito: con una (aunque sea a saltitos) Chromium despierta al
+   compositor en cada cuadro de la pantalla mientras el panel está a la vista y recalcula el estilo
+   de las dos capas en cada cuadro del scroll. Así (medido con un trace de Chromium, CPU ×4): quieto,
+   la placa dibuja un cuadro por segundo y el hilo principal recalcula una vez por segundo el estilo
+   de .app-aurora y sus hijos, sin layout ni pintar (el compositor, ~3 ms/s contra ~27 con la
+   animación); en un scroll de Clientes, ~9 recálculos (uno por segundo) contra ~410. Las capas:
+   530 × 405 y 706 × 581 px en la compu de 1440 × 900 (16 % y 32 % de la pantalla), 248 × 365 cada
+   una en el celular de 390 × 844. Lo que sí cuesta es tenerlas: en cada cuadro del scroll hay que
+   mezclarlas con el resto (son translúcidas; sin placa de video, la composición por software trabaja
+   ~45 % más) y armar dos capas más (el hilo principal, hasta ~20 % más en la lista de Clientes de la
+   compu). Los equipos flojos van en liviano, con las luces quietas en la capa del fondo.
+   La forma está calculada para que, en el medio, coincidan con --cg-luz-a/-b (el borde de la luz,
+   al 72 % del radio de esos degradés, es el borde de la capa: 62,5 % = 45/72; medido: ≤ 3/255 de
+   diferencia por píxel, solo por el orden de las capas). */
+html:not(.tema-claro):not(.tema-luz):not(.basico) body.silk-coach .app-aurora::before,
+html:not(.tema-claro):not(.tema-luz):not(.basico) body.silk-coach .app-aurora::after {
+  content: var(--cg-luces); position: absolute; visibility: visible; pointer-events: none;
+  will-change: transform, opacity;
+}
+html:not(.tema-claro):not(.tema-luz):not(.basico) body.silk-coach .app-aurora::before { transform: var(--cg-ta, none); opacity: var(--cg-oa, .7); }
+html:not(.tema-claro):not(.tema-luz):not(.basico) body.silk-coach .app-aurora::after { transform: var(--cg-tb, none); opacity: var(--cg-ob, .7); }
+/* Compu: la violeta en la esquina de arriba a la derecha (se recorta arriba y a la derecha, con 4vmax
+   de margen: más que lo que entra, 3,5 vmin) y la azul entera (casi toda adentro). */
+@media (min-width: 900px) {
+  html:not(.tema-claro):not(.tema-luz):not(.basico) body.silk-coach .app-aurora::before {
+    top: -4vmax; right: -4vmax; bottom: calc(96% - 21.6vmax); left: calc(96% - 28.8vmax);
+    transform-origin: 28.8vmax calc(100% - 21.6vmax);
+    background: radial-gradient(28.8vmax 21.6vmax at 28.8vmax calc(100% - 21.6vmax), var(--cg-ma0), var(--cg-ma1) 62.5%, var(--cg-la2));
+  }
+  html:not(.tema-claro):not(.tema-luz):not(.basico) body.silk-coach .app-aurora::after {
+    top: calc(30% - 20.16vmax); left: calc(30% - 24.48vmax); width: 48.96vmax; height: 40.32vmax;
+    background: radial-gradient(50% 50% at 50% 50%, var(--cg-mb0), var(--cg-mb1) 62.5%, var(--cg-lb2));
+  }
+}
+/* Celular: cada una en un borde, con la mitad de afuera recortada (6 % de margen: 23 px, más que lo
+   que entra, 3,5 vmin = 14 px). */
+@media (max-width: 899px) {
+  html:not(.tema-claro):not(.tema-luz):not(.basico) body.silk-coach .app-aurora::before {
+    top: 14.4%; right: -6%; bottom: 42.4%; left: 42.4%; transform-origin: 90.57% 50%;
+    background: radial-gradient(90.57% 50% at 90.57% 50%, var(--cg-ma0), var(--cg-ma1) 62.5%, var(--cg-la2));
+  }
+  html:not(.tema-claro):not(.tema-luz):not(.basico) body.silk-coach .app-aurora::after {
+    top: 56.4%; right: 42.4%; bottom: .4%; left: -6%; transform-origin: 9.43% 50%;
+    background: radial-gradient(90.57% 50% at 9.43% 50%, var(--cg-mb0), var(--cg-mb1) 62.5%, var(--cg-lb2));
+  }
+}
+/* Sin movimiento: las luces quietas en la capa del fondo (idéntico a antes) y sin sus capas (sin
+   ellas, app/ui/background.js no mueve nada). Modo liviano, la app de Android y, abajo, reducir
+   movimiento, reducir transparencia (sección 9) y colores forzados (ni capa ni luces). GIZE básico
+   ni siquiera tiene la capa del fondo.
+   App de Android (casi siempre va en básico; esto es para quien sacó el modo liviano): medido en
+   Chromium emulando un Android de 412 × 915 con densidad 2,6, las dos capas suman 1,4 Mpx (~6 MB en
+   la placa, más de media pantalla) que hay que mezclar en cada cuadro del scroll. Ahí la capa del
+   fondo ya va sin capa propia y la placa tuvo cuelgues («La GPU no responde»): quietas. */
+html.lite:not(.tema-claro):not(.tema-luz) body.silk-coach,
+html.android-app:not(.tema-claro):not(.tema-luz) body.silk-coach { --cg-fondo-a: var(--cg-luz-a); --cg-fondo-b: var(--cg-luz-b); --cg-luces: none; }
+@media (prefers-reduced-motion: reduce) {
+  html:not(.tema-claro):not(.tema-luz) body.silk-coach { --cg-fondo-a: var(--cg-luz-a); --cg-fondo-b: var(--cg-luz-b); --cg-luces: none; }
+}
 /* Modo liviano: sin el grano (una capa de imagen menos). */
 html.lite:not(.tema-claro):not(.tema-luz) body.silk-coach { --cg-grano: none; }
 /* App de Android: las pantallas tienen densidad alta y el scroll ya va por la placa; sin capa propia. */
 html.android-app:not(.tema-claro):not(.tema-luz) body.silk-coach::after { will-change: auto; }
 /* GIZE básico (fondos lisos): sin la capa; queda el degradé de calma.css, como en el resto de la app. */
 html.basico:not(.tema-claro):not(.tema-luz) body.silk-coach::after { content: none; }
-/* Colores forzados (contraste alto de Windows): sin la capa. Con el mismo prefijo que la regla de
-   arriba, así gana por orden (con uno más corto no se aplicaba). */
-@media (forced-colors: active) { html:not(.tema-claro):not(.tema-luz) body.silk-coach::after { content: none; } }
+/* Colores forzados (contraste alto de Windows): sin la capa ni las luces. Con el mismo prefijo que
+   la regla de arriba, así gana por orden (con uno más corto no se aplicaba). */
+@media (forced-colors: active) {
+  html:not(.tema-claro):not(.tema-luz) body.silk-coach::after { content: none; }
+  html:not(.tema-claro):not(.tema-luz) body.silk-coach { --cg-luces: none; }
+}
 
 /* ---------- 3) Superficies grandes: vidrio (relleno translúcido, sin desenfoque) ---------- */
 html:not(.tema-claro):not(.tema-luz):not(#_) body.silk-coach:not(#_) :is(.cv-card, .co-invite, .pl-banner, .ptile) {
@@ -391,5 +492,7 @@ html.android-app:not(.tema-claro):not(.tema-luz) body.silk-coach {
     --cg-fill: rgb(14,18,29); --cg-row: rgb(15,19,30); --cg-group: rgb(14,18,29); --cg-step: rgb(24,29,41);
     --cg-pop: rgb(16,20,31); --cg-nav-fill: rgb(16,20,32); --cg-side-fill: rgb(12,16,26);
     --cg-chip: rgb(25,29,39); --cg-chip-on: rgb(38,42,51); --cg-well: rgb(9,12,19); --cg-pit: rgb(10,13,21); --cg-ins: rgb(11,13,17);
+    /* y las luces quietas (sección 2b) */
+    --cg-fondo-a: var(--cg-luz-a); --cg-fondo-b: var(--cg-luz-b); --cg-luces: none;
   }
 }
