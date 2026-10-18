@@ -260,8 +260,8 @@ export default async function ({ base, t }){
     await leer('editor', [['días sin elegir', '.co-daytab:not(.on)'], ['«Se repite»', '.co-dias-wrap .co-note-lbl, .hd-day'], ['«3 series · 10-12»', '.co-exc-sum']]);
     await leer('menu', [['menú ⋯', '.co-exc-open .co-pop-item:not(.danger):not(:disabled)'], ['«Quitar ejercicio»', '.co-exc-open .co-pop-item.danger'],
       ['«3 series · 10-12»', '.co-exc-sum'], ['«Serie / Reps / Peso»', '.co-set-head span']]);
-    // El «+» entre ejercicios no se ve hasta pasar el mouse por el hueco: se mide con el mouse encima
-    // (un ícono: ≥ 3:1 contra su relleno de vidrio; la captura sin texto también lo esconde).
+    // El «+» entre ejercicios (se ve siempre; quieto, gris: ver coach-editor-compu): se mide con el
+    // mouse encima (un ícono: ≥ 3:1 contra su relleno de vidrio; la captura sin texto también lo esconde).
     if (await p.$('.co-exc-open .co-exc-menu2[open]')) { await p.click('.co-exc-open .co-exc-menu2 > summary'); await wait(200); }
     await p.hover('.co-exc-grid > .co-ins'); await wait(300);
     revisar(t, 'Oscuro, editor', await contraste(p, [['«+» al pasar el mouse', '.co-exc-grid > .co-ins:hover .co-ins-b svg']], true), [['«+» al pasar el mouse']], 3);

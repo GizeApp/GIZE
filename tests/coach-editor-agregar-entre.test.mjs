@@ -3,7 +3,7 @@
 // ejercicio acá»; el lector de pantalla dice además entre qué dos ejercicios queda). El buscador que
 // abre agrega el ejercicio justo ahí, no al final.
 // - Uno entre cada par de ejercicios (el del final es «Agregar ejercicio» de siempre). En la compu
-//   es el hueco entero entre dos tarjetas (12 a 16 px, con un «+» que aparece al pasar el mouse: ver
+//   es el hueco entero entre dos tarjetas (48 a 56 px, con un «+» a la vista en el medio: ver
 //   coach-editor-compu); en el celular, la línea finita «+ Agregar ejercicio» de siempre.
 // - Adentro de una superserie, el nuevo queda en la superserie (no deja afuera al de abajo).
 // - En el celular (pantalla táctil) se ve y tiene al menos 28 px de alto para tocarla.
@@ -60,7 +60,7 @@ export default async function ({ base, t }){
     let L = await lineas(p);
     t.eq(L.map(x => x.i), [1, 2, 3, 4, 5], 'un botón para agregar entre cada par de ejercicios (5 para 6 ejercicios)');
     t.ok(L.every(x => x.label === nombreDe(x.i) && x.entre && x.tocable), 'cada botón se llama «Agregar ejercicio acá, entre … y …», está entre las dos tarjetas y se puede tocar: ' + JSON.stringify(L));
-    t.ok(L.filter(x => x.i <= 2).every(x => x.hueco >= 12 && x.hueco <= 16 && x.tapa), 'compu: el botón tapa todo el hueco entre las tarjetas (12 a 16 px): ' + JSON.stringify(L.map(x => [x.hueco, x.tapa])));
+    t.ok(L.filter(x => x.i <= 2).every(x => x.hueco >= 48 && x.hueco <= 56 && x.tapa), 'compu: el botón tapa todo el hueco entre las tarjetas (48 a 56 px): ' + JSON.stringify(L.map(x => [x.hueco, x.tapa])));
     t.eq(await p.$$eval('.co-rt-add-end[data-coach="rt-add"]', l => l.length), 1, 'sigue «Agregar ejercicio» al final');
 
     // Entre «Prensa 45°» y «Peso muerto rumano»: el buscador agrega ahí.
