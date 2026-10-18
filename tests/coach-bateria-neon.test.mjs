@@ -71,6 +71,11 @@ const scan = () => {
   const FILETE = /linear-gradient\(155deg/;
   const name = (e, ps) => String(e.className && e.className.baseVal === undefined ? e.className : e.tagName).trim().split(/\s+/)[0] + (ps || '');
   const inf = new Set(), spin = new Set(), conic = new Set(), brillos = new Set(), neon = new Set(), filete = [];
+  // Las sombras de neon.css tal como quedan calculadas (una caja de prueba en el body, que hereda los tokens).
+  const ref = document.createElement('div'); document.body.appendChild(ref);
+  const permitidas = new Set(['var(--nn-brillo)', 'var(--nn-brillo-in)', 'var(--nn-raya-brillo)'].map(v => { ref.style.boxShadow = v; return getComputedStyle(ref).boxShadow; })
+    .filter(v => v && v !== 'none'));
+  ref.remove();
   document.querySelectorAll('*').forEach(e => {
     if (!e.getClientRects().length) return; // no se ve: no anima
     for (const ps of [null, '::before', '::after']){
@@ -91,8 +96,11 @@ const scan = () => {
       // Brillos: box-shadow, text-shadow y drop-shadow sin ningún color con tinte (sombras neutras).
       // Salvo el resplandor suave y quieto de lo elegido (css/screens/coach/neon.css: el ::before de la
       // pestaña, el día o la opción elegida y la rayita de la pestaña elegida de la ficha), pedido por
-      // el dueño («neón a casi todo»). Que no gire ni lata lo revisa lo de arriba; sin neón no está.
-      const elegido = (ps === '::before' && e.matches('.on')) || (ps === '::after' && e.matches('.cv-ctab.on'));
+      // el dueño («neón a casi todo»): solo si es exactamente una de las sombras de esa hoja
+      // (--nn-brillo, --nn-brillo-in, --nn-raya-brillo) y no tiene transición ni animación. Que no gire
+      // ni lata lo revisa lo de arriba; sin neón no está.
+      const elegido = ((ps === '::before' && e.matches('.on')) || (ps === '::after' && e.matches('.cv-ctab.on'))) && permitidas.has(s.boxShadow) &&
+        s.transitionDuration.split(',').every(d => parseFloat(d) === 0) && s.animationName === 'none';
       for (const k of ['boxShadow', 'textShadow', 'filter']) if (tinte(s[k], 24) && !(k === 'boxShadow' && elegido)) brillos.add(n + ' ' + k + ': ' + s[k]);
       // Con el neón apagado no debería quedar ningún borde, brillo ni degradé con color. El rojo de
       // borrar no es neón: se deja.

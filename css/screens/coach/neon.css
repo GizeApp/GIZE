@@ -12,32 +12,39 @@
      las secciones de Configuración, los días de una rutina en Rutinas y la rutina elegida, los
      días de «Asignar rutina»); los días de «Se repite»; las fichas del panel lateral de Clientes;
      los campos con foco; los menús ⋯ y las ventanas; los botones secundarios. Las tarjetas (las
-     estadísticas de Inicio, el panel lateral) ya lo tenían; en «Azul», «Rosa» y «Claro» lo suma el
-     cartel del plan, y la barra de la izquierda, en la línea de su borde. Los botones principales
-     (blancos) quedan como están.
+     estadísticas de Inicio, la del panel lateral) ya lo tenían; adentro del panel lateral, las
+     fichas (Entrenos, Check-ins, Peso, la rutina) pasan del borde gris al filete tenue y la de
+     Chat, la única que se toca, al más claro. En «Azul», «Rosa» y «Claro» lo suma el cartel del
+     plan, y la barra de la izquierda, en la línea de su borde. Los botones principales (blancos)
+     quedan como están.
    - Un solo grosor (--nn-w, el de las tarjetas). Quieto: tenue en reposo, más claro al pasar el
      mouse y claro en lo elegido. Solo lo elegido suma un resplandor suave (sombra, nunca animada).
    Cómo se dibuja, sin mover nada (mismo tamaño y lugar con y sin esta hoja):
    - El filete va en un ::after con máscara (como las tarjetas) que tapa el borde de 1 px
      (inset -1px): el borde queda transparente y en su lugar se ve el filete. A los que estaban
      en position: static se les pone relative (no cambia su caja). Sin z-index: no se sale de su
-     caja ni tapa a nadie.
+     caja ni tapa a nadie. Las pestañas de los días y los días de «Asignar rutina» recortaban lo de
+     adentro (overflow: hidden): ahora no, así el filete y el resplandor se ven enteros.
    - El resplandor de lo elegido va en el ::before (una sombra hacia afuera de una caja vacía): así
      no pisa las sombras que ya tiene cada botón en cada apariencia. Adentro de una fila con scroll
      propio (que lo cortaría en línea recta) va por dentro, debajo del texto.
    - Las ventanas (.cp-modal, .cp-ccard) tienen scroll propio: un ::after se iría con el contenido.
-     Ahí el filete son los bordes de siempre en dos tonos (arriba y a la izquierda el violeta,
-     abajo y a la derecha el azul), como el degradé de las puntas.
+     Ahí el filete va en capas de fondo (no se mueven al deslizar): cuatro tiras finas y un arco
+     en cada esquina, con el mismo degradé (violeta arriba a la izquierda, azul abajo a la derecha).
    - Los campos no tienen ::after: con foco conservan su borde azul de siempre y suman el
      resplandor de la marca alrededor (el foco se ve más, no menos).
    - El punteado (agregar día, «+ Agregar ejercicio») toma el color de cada lado.
    Apariencias: los colores salen de los tokens de cada una (--gize-r1 / --gize-r2): en «Azul»,
-   «Rosa» y «Claro» el filete es el de su gama (en «Claro», con neutros oscuros). Sin color-mix()
+   «Rosa» y «Claro» el filete es el de su gama. En «Claro» va encima de la línea blanca del vidrio,
+   como sus tarjetas, y lo elegido es el azul marino de su selección con la marca en las puntas; la
+   rayita de la ficha, la marca oscurecida (3:1 o más sobre el celeste). Sin color-mix()
    (iOS 15) quedan los mismos colores escritos a mano. Neón apagado (html.sin-neon): el filete
    blanco y gris de las tarjetas sin neón (a 160°: coach-bateria-neon pide que no quede ninguno a
-   155°) y sin resplandor. Liviano y la app de Android: sin resplandor. GIZE básico: nada de esto
-   (quedan los bordes lisos de siempre). Colores forzados: sin filete ni resplandor (quedan los
-   bordes del sistema). «Reducir movimiento»: nada de esto se anima.
+   155°; en «Claro», el blanco del vidrio) y sin resplandor. Liviano y la app de Android: líneas
+   lisas (sin máscaras ni resplandor; lo elegido, con el tono de la marca). GIZE básico: nada de esto
+   (quedan los bordes lisos de siempre). Colores forzados: sin filete, sin resplandor y sin la línea
+   en degradé de la barra (quedan los bordes del sistema). «Reducir movimiento»: nada de esto se
+   anima.
    Alcance: solo el panel del coach (body.silk-coach). La app del alumno no cambia
    (tests/coach-neon-todo.test.mjs). Las reglas llevan :not(#_) en html y body, como
    css/screens/coach/vidrio.css, para ganarle a las capas de botones, de vidrio y de cada
@@ -63,8 +70,12 @@ html:not(#_) body.silk-coach {
   --nn-guion-b: rgba(110,190,255,.58);    /* abajo y a la derecha */
   --nn-guion-a-hi: rgba(196,156,255,.9);
   --nn-guion-b-hi: rgba(130,198,255,.88);
-  --nn-borde-a: rgba(186,140,255,.42);    /* ventanas: arriba y a la izquierda */
-  --nn-borde-b: rgba(110,190,255,.36);
+  --nn-borde-a: rgba(186,140,255,.42);    /* ventanas: la esquina de arriba a la izquierda */
+  --nn-borde-b: rgba(110,190,255,.36);    /* y la de abajo a la derecha */
+  --nn-v-n1: rgba(255,255,255,.14);       /* ventanas: el neutro de arriba a la derecha */
+  --nn-v-n2: rgba(255,255,255,.07);       /* y el de abajo a la izquierda */
+  --nn-borde-l: rgba(148,165,255,.39);    /* liviano: la línea lisa de las ventanas */
+  --nn-linea-on: rgba(107,126,255,.85);   /* liviano: la línea lisa de lo elegido */
   --nn-lado: linear-gradient(180deg, rgba(186,140,255,.55), rgba(255,255,255,.12) 28%, rgba(255,255,255,.08) 72%, rgba(110,190,255,.48));
 }
 /* «Azul» y «Rosa» sin color-mix: sus colores, escritos a mano. */
@@ -83,6 +94,7 @@ html.tema-claro:not(#_) body.silk-coach {
   --nn-guion-a: rgba(182,150,250,.62); --nn-guion-b: rgba(120,190,245,.58);
   --nn-guion-a-hi: rgba(190,160,250,.9); --nn-guion-b-hi: rgba(136,198,246,.88);
   --nn-borde-a: rgba(182,150,250,.42); --nn-borde-b: rgba(120,190,245,.36);
+  --nn-borde-l: rgba(151,170,248,.39); --nn-linea-on: rgba(114,140,245,.85);
   --nn-lado: linear-gradient(180deg, rgba(182,150,250,.55), rgba(255,255,255,.12) 28%, rgba(255,255,255,.08) 72%, rgba(120,190,245,.48));
 }
 html.tema-rosa:not(#_) body.silk-coach {
@@ -100,20 +112,26 @@ html.tema-rosa:not(#_) body.silk-coach {
   --nn-guion-a: rgba(226,146,248,.62); --nn-guion-b: rgba(255,146,196,.58);
   --nn-guion-a-hi: rgba(230,160,250,.9); --nn-guion-b-hi: rgba(255,160,202,.88);
   --nn-borde-a: rgba(226,146,248,.42); --nn-borde-b: rgba(255,146,196,.36);
+  --nn-borde-l: rgba(240,146,222,.39); --nn-linea-on: rgba(236,94,207,.85);
   --nn-lado: linear-gradient(180deg, rgba(226,146,248,.55), rgba(255,255,255,.12) 28%, rgba(255,255,255,.08) 72%, rgba(255,146,196,.48));
 }
-/* «Claro» sin color-mix: fondo claro, así que el medio del filete es un gris oscuro translúcido. */
+/* «Claro» sin color-mix: fondo claro. Como las tarjetas de «Claro» (css/ui/claro-frozen.css), el
+   filete va encima de la línea blanca del vidrio (abajo, en el ::after): el medio, más blanco
+   todavía (el borde de vidrio se ve nítido sobre el celeste). Lo elegido, el azul marino de la selección de «Claro» (se ve como
+   antes, a 5:1) con el violeta y el azul de la marca en las puntas. */
 html.tema-luz:not(#_) body.silk-coach {
-  --nn-filete: linear-gradient(155deg, rgba(134,64,236,.42) 0%, rgba(11,13,17,.13) 22%, rgba(11,13,17,.08) 50%,
-    rgba(11,13,17,.07) 78%, rgba(30,128,224,.38) 100%);
-  --nn-filete-hi: linear-gradient(155deg, rgba(134,64,236,.62) 0%, rgba(11,13,17,.20) 26%, rgba(11,13,17,.12) 52%,
-    rgba(11,13,17,.11) 76%, rgba(30,128,224,.56) 100%);
-  --nn-filete-on: linear-gradient(155deg, rgba(134,64,236,.88) 0%, rgba(134,64,236,.52) 26%, rgba(11,13,17,.24) 50%,
-    rgba(30,128,224,.52) 74%, rgba(30,128,224,.85) 100%);
+  --nn-filete: linear-gradient(155deg, rgba(172,107,251,.72) 0%, rgba(255,255,255,.34) 22%, rgba(255,255,255,.28) 50%,
+    rgba(255,255,255,.26) 78%, rgba(35,115,194,.85) 100%);
+  --nn-filete-hi: linear-gradient(155deg, rgba(172,118,251,.84) 0%, rgba(255,255,255,.62) 26%, rgba(255,255,255,.56) 52%,
+    rgba(255,255,255,.54) 76%, rgba(132,190,246,.80) 100%);
+  --nn-filete-on: linear-gradient(155deg, rgb(129,74,224) 0%, rgb(63,67,159) 11%, rgb(23,63,120) 22%, rgb(23,63,120) 78%,
+    rgb(27,80,144) 89%, rgb(39,130,216) 100%);
+  --nn-v-n1: rgba(255,255,255,.70); --nn-v-n2: rgba(255,255,255,.62);
+  --nn-borde-l: rgba(82,96,230,.32); --nn-linea-on: rgb(56,67,153);
   --nn-brillo: -4px -2px 16px -4px rgba(155,77,250,.42), 4px 2px 16px -4px rgba(43,147,240,.38);
   --nn-brillo-in: inset 4px 3px 12px -6px rgba(155,77,250,.32), inset -4px -3px 12px -6px rgba(43,147,240,.30);
   --nn-foco: -3px -2px 12px -6px rgba(155,77,250,.42), 3px 2px 12px -6px rgba(43,147,240,.40);
-  --nn-raya: linear-gradient(90deg, #9B4DFA, #2B93F0);
+  --nn-raya: linear-gradient(90deg, #703AB4, #216BAD);   /* la marca oscurecida: a 3:1 o más sobre el celeste */
   --nn-raya-brillo: 0 0 6px rgba(155,77,250,.30);
   --nn-guion-a: rgba(134,64,236,.55); --nn-guion-b: rgba(30,128,224,.52);
   --nn-guion-a-hi: rgba(134,64,236,.85); --nn-guion-b-hi: rgba(30,128,224,.82);
@@ -141,26 +159,30 @@ html.tema-luz:not(#_) body.silk-coach {
     --nn-borde-a: color-mix(in srgb, var(--gize-r2) 36%, rgba(255,255,255,.10)); --nn-borde-b: color-mix(in srgb, var(--gize-r1) 30%, rgba(255,255,255,.10));
     --nn-lado: linear-gradient(180deg, color-mix(in srgb, var(--gize-r2) 45%, rgba(255,255,255,.16)), rgba(255,255,255,.12) 28%,
       rgba(255,255,255,.08) 72%, color-mix(in srgb, var(--gize-r1) 40%, rgba(255,255,255,.12)));
+    --nn-linea-on: color-mix(in srgb, color-mix(in srgb, var(--gize-r2) 50%, var(--gize-r1)) 85%, transparent);
   }
   html.tema-luz:not(#_) body.silk-coach {
-    --nn-filete: linear-gradient(155deg, color-mix(in srgb, var(--gize-r2) 38%, rgba(11,13,17,.06)) 0%, rgba(11,13,17,.13) 22%,
-      rgba(11,13,17,.08) 50%, rgba(11,13,17,.07) 78%, color-mix(in srgb, var(--gize-r1) 34%, rgba(11,13,17,.05)) 100%);
-    --nn-filete-hi: linear-gradient(155deg, color-mix(in srgb, var(--gize-r2) 58%, rgba(11,13,17,.08)) 0%, rgba(11,13,17,.20) 26%,
-      rgba(11,13,17,.12) 52%, rgba(11,13,17,.11) 76%, color-mix(in srgb, var(--gize-r1) 52%, rgba(11,13,17,.07)) 100%);
-    --nn-filete-on: linear-gradient(155deg, color-mix(in srgb, var(--gize-r2) 86%, rgba(11,13,17,.2)) 0%,
-      color-mix(in srgb, var(--gize-r2) 50%, rgba(11,13,17,.1)) 26%, rgba(11,13,17,.24) 50%,
-      color-mix(in srgb, var(--gize-r1) 50%, rgba(11,13,17,.1)) 74%, color-mix(in srgb, var(--gize-r1) 84%, rgba(11,13,17,.2)) 100%);
+    --nn-filete: linear-gradient(155deg, color-mix(in srgb, var(--gize-r2) 60%, rgba(255,255,255,.3)) 0%, rgba(255,255,255,.34) 22%,
+      rgba(255,255,255,.28) 50%, rgba(255,255,255,.26) 78%, color-mix(in srgb, color-mix(in srgb, var(--gize-r1) 62%, var(--gize-blue)) 85%, transparent) 100%);
+    --nn-filete-hi: linear-gradient(155deg, color-mix(in srgb, var(--gize-r2) 66%, rgba(255,255,255,.5)) 0%, rgba(255,255,255,.62) 26%,
+      rgba(255,255,255,.56) 52%, rgba(255,255,255,.54) 76%, color-mix(in srgb, var(--gize-r1) 58%, rgba(255,255,255,.5)) 100%);
+    --nn-filete-on: linear-gradient(155deg, color-mix(in srgb, var(--gize-r2) 80%, var(--gize-blue)) 0%,
+      color-mix(in srgb, var(--gize-r2) 30%, var(--gize-blue)) 11%, var(--gize-blue) 22%, var(--gize-blue) 78%,
+      color-mix(in srgb, var(--gize-r1) 20%, var(--gize-blue)) 89%, color-mix(in srgb, var(--gize-r1) 80%, var(--gize-blue)) 100%);
     --nn-brillo: -4px -2px 16px -4px color-mix(in srgb, var(--gize-r2) 42%, transparent), 4px 2px 16px -4px color-mix(in srgb, var(--gize-r1) 38%, transparent);
     --nn-brillo-in: inset 4px 3px 12px -6px color-mix(in srgb, var(--gize-r2) 32%, transparent), inset -4px -3px 12px -6px color-mix(in srgb, var(--gize-r1) 30%, transparent);
     --nn-foco: -3px -2px 12px -6px color-mix(in srgb, var(--gize-r2) 42%, transparent), 3px 2px 12px -6px color-mix(in srgb, var(--gize-r1) 40%, transparent);
-    --nn-raya: linear-gradient(90deg, var(--gize-r2), var(--gize-r1));
+    --nn-raya: linear-gradient(90deg, color-mix(in srgb, var(--gize-r2) 70%, #0B0D11), color-mix(in srgb, var(--gize-r1) 70%, #0B0D11));
     --nn-raya-brillo: 0 0 6px color-mix(in srgb, var(--gize-r2) 30%, transparent);
     --nn-guion-a: color-mix(in srgb, var(--gize-r2) 55%, rgba(11,13,17,.1)); --nn-guion-b: color-mix(in srgb, var(--gize-r1) 52%, rgba(11,13,17,.1));
     --nn-guion-a-hi: color-mix(in srgb, var(--gize-r2) 85%, rgba(11,13,17,.2)); --nn-guion-b-hi: color-mix(in srgb, var(--gize-r1) 82%, rgba(11,13,17,.2));
     --nn-borde-a: color-mix(in srgb, var(--gize-r2) 32%, rgba(11,13,17,.08)); --nn-borde-b: color-mix(in srgb, var(--gize-r1) 28%, rgba(11,13,17,.08));
     --nn-lado: linear-gradient(180deg, color-mix(in srgb, var(--gize-r2) 40%, rgba(11,13,17,.08)), rgba(11,13,17,.10) 28%,
       rgba(11,13,17,.08) 72%, color-mix(in srgb, var(--gize-r1) 36%, rgba(11,13,17,.08)));
+    --nn-linea-on: color-mix(in srgb, var(--gize-r2) 25%, var(--gize-blue));
   }
+  /* Liviano: la línea lisa de las ventanas, el promedio de las dos esquinas. */
+  html:not(#_):not(#__) body.silk-coach { --nn-borde-l: color-mix(in srgb, var(--nn-borde-a) 50%, var(--nn-borde-b)); }
 }
 /* Neón apagado: el filete blanco y gris de las tarjetas sin neón (a 160°), sin resplandor; el
    punteado y las ventanas en gris. La rayita de la pestaña elegida queda azul (el azul de acción). */
@@ -176,20 +198,22 @@ html.sin-neon:not(.tema-luz):not(#_) body.silk-coach {
   --nn-guion-a: rgba(255,255,255,.26); --nn-guion-b: rgba(255,255,255,.20);
   --nn-guion-a-hi: rgba(255,255,255,.5); --nn-guion-b-hi: rgba(255,255,255,.42);
 }
+/* «Claro» sin neón: el filete blanco del vidrio (como las tarjetas de «Claro» sin neón, blanco .72);
+   lo elegido, un gris casi negro (a 4:1 o más sobre el celeste), sin color. */
 html.sin-neon.tema-luz:not(#_) body.silk-coach {
-  --nn-filete: linear-gradient(160deg, rgba(11,13,17,.26) 0%, rgba(11,13,17,.13) 22%, rgba(11,13,17,.08) 55%,
-    rgba(11,13,17,.07) 80%, rgba(11,13,17,.12) 100%);
-  --nn-filete-hi: linear-gradient(160deg, rgba(11,13,17,.40) 0%, rgba(11,13,17,.20) 26%, rgba(11,13,17,.12) 55%,
-    rgba(11,13,17,.10) 80%, rgba(11,13,17,.18) 100%);
-  --nn-filete-on: linear-gradient(160deg, rgba(11,13,17,.70) 0%, rgba(11,13,17,.42) 30%, rgba(11,13,17,.28) 58%,
-    rgba(11,13,17,.40) 100%);
+  --nn-filete: linear-gradient(160deg, rgba(255,255,255,.84) 0%, rgba(255,255,255,.74) 22%, rgba(255,255,255,.70) 55%,
+    rgba(255,255,255,.68) 80%, rgba(255,255,255,.74) 100%);
+  --nn-filete-hi: linear-gradient(160deg, rgba(255,255,255,.98) 0%, rgba(255,255,255,.90) 26%, rgba(255,255,255,.86) 55%,
+    rgba(255,255,255,.84) 80%, rgba(255,255,255,.90) 100%);
+  --nn-filete-on: linear-gradient(160deg, rgba(11,13,17,.80) 0%, rgba(11,13,17,.66) 30%, rgba(11,13,17,.60) 58%,
+    rgba(11,13,17,.68) 100%);
   --nn-brillo: 0 0 0 0 transparent; --nn-brillo-in: inset 0 0 0 0 transparent;
   --nn-foco: 0 0 0 3px rgba(11,13,17,.10);
   --nn-guion-a: rgba(11,13,17,.26); --nn-guion-b: rgba(11,13,17,.20);
   --nn-guion-a-hi: rgba(11,13,17,.5); --nn-guion-b-hi: rgba(11,13,17,.42);
 }
-/* Liviano y la app de Android: el filete sí (es una línea), los resplandores no. Con :not(#__) para
-   ganarle a los tokens de arriba, que tienen más peso. */
+/* Liviano y la app de Android: sin resplandores (y sin el filete con máscara: sección 10). Con
+   :not(#__) para ganarle a los tokens de arriba, que tienen más peso. */
 html.lite:not(#_):not(#__) body.silk-coach, html.android-app:not(#_):not(#__) body.silk-coach {
   --nn-brillo: 0 0 0 0 transparent; --nn-brillo-in: inset 0 0 0 0 transparent; --nn-raya-brillo: 0 0 0 0 transparent;
   --nn-foco: 0 0 0 0 transparent; /* el campo con foco queda con su borde de foco, como antes */
@@ -198,20 +222,28 @@ html.lite:not(#_):not(#__) body.silk-coach, html.android-app:not(#_):not(#__) bo
 /* ---------- 2) El filete en el ::after ----------
    Todo lo que lleva filete: las pestañas de los días, los días de «Se repite», los botones
    secundarios, las fichas, los selectores y la navegación elegida. El borde queda transparente y el
-   ::after lo tapa con el filete (inset -1px: la caja del borde; los que no tienen borde, 0). */
+   ::after lo tapa con el filete (inset -1px: la caja del borde; los que no tienen borde, 0).
+   Liviano y la app de Android no lo llevan (sección 10): una máscara por botón cuesta al deslizar en
+   un celular modesto; ahí queda el borde liso de siempre. */
 /* Los que estaban quietos (static) pasan a relative para alojar el ::after (su caja no cambia). */
-html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-copy-btn, .hd-day, .hd-all, .cv-tile:not(button), .cv-peek-rt, .cv-x,
+html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-copy-btn, .hd-day, .hd-all, .cv-tile, .cv-peek-rt, .cv-x,
     .co-ss-split, .co-seg, .co-seg-opt.on, .cp-cat, .cp-copt, :is(.cv-card, .cp-ccard, .cp-modal) .logout-btn:not(.cfg-danger), .cv-pill,
     .ap-day, .ap-radio, .cs-nav-i.on, .cv-util-i.on, .cm-day-b.on, .co-day-menu:not(.co-exc-menu2) > summary) {
   position: relative;
 }
-html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab:not(.add):not(.co-day-ghost), .co-copy-btn, .hd-day, .hd-all,
-    .cv-tile:not(button), .cv-peek-rt, .cv-x, .co-ss-split, .co-seg, .cp-cat, .cp-copt, :is(.cv-card, .cp-ccard, .cp-modal) .logout-btn:not(.cfg-danger),
+/* Las pestañas de los días y los días de «Asignar rutina» recortaban lo de adentro (overflow: hidden,
+   de la familia de cajas del coach en css/ui/theme.css): el filete, que va sobre el borde, y el
+   resplandor de afuera quedaban cortados. Sin recorte (su contenido no se sale: las pestañas no
+   cortan renglón y el nombre del día parte las palabras largas). */
+html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab:not(.co-day-ghost), .ap-day) { overflow: visible; }
+html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .ap-day .ap-dname { overflow-wrap: anywhere; }
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab:not(.add):not(.co-day-ghost), .co-copy-btn, .hd-day, .hd-all,
+    .cv-tile, .cv-peek-rt, .cv-x, .co-ss-split, .co-seg, .cp-cat, .cp-copt, :is(.cv-card, .cp-ccard, .cp-modal) .logout-btn:not(.cfg-danger),
     .cv-pill, .ap-day, .ap-radio, .cv-nav-i.on, .cs-nav-i.on, .cv-util-i.on, .co-day-pop, .co-day-menu:not(.co-exc-menu2):not([open]) > summary:not(:hover)) {
   border-color: transparent;
 }
-html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab:not(.add):not(.co-day-ghost), .co-copy-btn, .hd-day, .hd-all,
-    .cv-tile:not(button), .cv-peek-rt, .cv-x, .co-ss-split, .co-seg, .co-seg-opt.on, .cp-cat, .cp-copt, :is(.cv-card, .cp-ccard, .cp-modal) .logout-btn:not(.cfg-danger),
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab:not(.add):not(.co-day-ghost), .co-copy-btn, .hd-day, .hd-all,
+    .cv-tile, .cv-peek-rt, .cv-x, .co-ss-split, .co-seg, .co-seg-opt.on, .cp-cat, .cp-copt, :is(.cv-card, .cp-ccard, .cp-modal) .logout-btn:not(.cfg-danger),
     .cv-pill, .ap-day, .ap-radio, .cv-nav-i.on, .cs-nav-i.on, .cv-util-i.on, .cm-day-b.on, .co-day-menu:not(.co-exc-menu2) > summary, .co-day-pop)::after {
   content: ""; display: block; position: absolute; top: var(--nn-b, -1px); right: var(--nn-b, -1px); bottom: var(--nn-b, -1px); left: var(--nn-b, -1px);
   border-radius: inherit; padding: var(--nn-w); pointer-events: none;
@@ -224,6 +256,9 @@ html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-seg-opt.on, .
 @media (max-width: 899px) {
   html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cv-nav-i.on { --nn-b: 0px; }
 }
+/* La ficha de Chat del panel lateral (la única que se toca): el filete más claro, así se lee como
+   botón entre las otras fichas (Entrenos, Check-ins, Peso), que llevan el tenue. */
+html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) button.cv-tile { --nn-f: var(--nn-filete-hi); }
 
 /* ---------- 3) Al pasar el mouse y lo elegido ---------- */
 @media (hover: hover) {
@@ -232,10 +267,11 @@ html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-seg-opt.on, .
       .ap-radio:not(.on)):hover {
     --nn-f: var(--nn-filete-hi);
   }
+  html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) button.cv-tile:hover { --nn-f: var(--nn-filete-on); }
 }
 /* El ⋯ abierto o con el mouse encima: se ve su borde azul de siempre (rutinas.css, vidrio.css), sin
    el filete encima. */
-html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-day-menu:not(.co-exc-menu2)[open] > summary, .co-day-menu:not(.co-exc-menu2) > summary:hover)::after {
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-day-menu:not(.co-exc-menu2)[open] > summary, .co-day-menu:not(.co-exc-menu2) > summary:hover)::after {
   content: none;
 }
 /* Lo elegido: el filete claro. */
@@ -250,7 +286,7 @@ html:not(.sin-neon):not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cv-tp
 }
 /* …y un resplandor suave alrededor, quieto, en el ::before (una caja vacía del tamaño del botón: la
    sombra queda afuera y no pisa las que ya tiene cada uno). */
-html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab.on:not(.co-day-ghost), .hd-day.on, .hd-all.on, .cv-nav-i.on, .cv-util-i.on, .co-seg-opt.on,
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab.on:not(.co-day-ghost), .hd-day.on, .hd-all.on, .cv-nav-i.on, .cv-util-i.on, .co-seg-opt.on,
     .cp-copt.on, .cv-pill.on, .ap-day.on, .ap-radio.on, .cs-nav-i.on, .cm-day-b.on)::before {
   content: ""; display: block; position: absolute; top: var(--nn-b, -1px); right: var(--nn-b, -1px); bottom: var(--nn-b, -1px); left: var(--nn-b, -1px);
   border-radius: inherit; background: none; pointer-events: none; animation: none; transition: none;
@@ -261,23 +297,24 @@ html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab.on:not
    fila recortaría el resplandor de afuera en línea recta. Ahí va por dentro, debajo del texto
    (z -1 en una caja aislada). */
 html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab.on, .cv-pill.on, .ap-day.on) { isolation: isolate; }
-html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab.on:not(.co-day-ghost), .cv-pill.on, .ap-day.on)::before {
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab.on:not(.co-day-ghost), .cv-pill.on, .ap-day.on)::before {
   z-index: -1; box-shadow: var(--nn-brillo-in);
 }
 @media (max-width: 819px) {
   html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cs-nav-i.on { isolation: isolate; }
-  html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cs-nav-i.on::before { z-index: -1; box-shadow: var(--nn-brillo-in); }
+  /* (con .cs-nav adelante: así pesa más que la regla general del resplandor de afuera) */
+  html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) .cs-nav .cs-nav-i.on::before { z-index: -1; box-shadow: var(--nn-brillo-in); }
 }
 /* En la compu (mouse) las pestañas de los días van en varias filas, sin scroll: resplandor de afuera. */
 @media (hover: hover) and (pointer: fine) {
-  html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .co-daytab.on:not(.co-day-ghost)::before { z-index: auto; box-shadow: var(--nn-brillo); }
+  html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) .co-daytab.on:not(.co-day-ghost)::before { z-index: auto; box-shadow: var(--nn-brillo); }
 }
 
 /* ---------- 4) Navegación: la barra lateral (compu) y la píldora de abajo (celular) ---------- */
 /* Compu, «Oscuro»: el panel de vidrio de la barra lateral ya tiene su filete en el ::after
-   (vidrio.css): pasa a ser el de neón. */
+   (vidrio.css): pasa a ser el de neón, con el grosor de los demás (vidrio.css le daba 1 px). */
 @media (min-width: 900px) {
-  html:not(.tema-claro):not(.tema-luz):not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cv-side::after { background: var(--nn-filete); }
+  html:not(.tema-claro):not(.tema-luz):not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cv-side::after { background: var(--nn-filete); padding: var(--nn-w); }
   /* «Azul», «Rosa» y «Claro»: la barra es una columna con una línea a la derecha; la línea pasa a ser
      un degradé vertical con el toque de color arriba y abajo (border-image: solo se pinta donde hay
      borde, a la derecha, y no cambia su ancho). */
@@ -288,8 +325,8 @@ html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab.on:not
 }
 /* El cartel del plan («Plan cortesía · 8/30 clientes»): en «Oscuro» ya es vidrio con filete; en
    «Azul», «Rosa» y «Claro» era el único sin el filete de las tarjetas. */
-html:is(.tema-claro, .tema-luz):not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .pl-banner:not(.warn) { position: relative; border-color: transparent; }
-html:is(.tema-claro, .tema-luz):not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .pl-banner:not(.warn)::after {
+html:is(.tema-claro, .tema-luz):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) .pl-banner:not(.warn) { position: relative; border-color: transparent; }
+html:is(.tema-claro, .tema-luz):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) .pl-banner:not(.warn)::after {
   content: ""; display: block; position: absolute; top: -1px; right: -1px; bottom: -1px; left: -1px; border-radius: inherit; padding: var(--nn-w);
   pointer-events: none; background: var(--nn-filete);
   -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
@@ -297,16 +334,17 @@ html:is(.tema-claro, .tema-luz):not(.basico):not(#_):not(#__) body.silk-coach:no
 }
 /* Celular: la píldora de abajo, con el filete en su ::after (vidrio.css no lo usa). */
 @media (max-width: 899px) {
-  html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cv-nav { border-color: transparent; }
-  html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cv-nav::after {
+  html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) .cv-nav { border-color: transparent; }
+  html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) .cv-nav::after {
     content: ""; display: block; position: absolute; top: -1px; right: -1px; bottom: -1px; left: -1px; border-radius: inherit; padding: var(--nn-w);
     pointer-events: none; background: var(--nn-filete);
     -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
     -webkit-mask-composite: xor; mask: linear-gradient(#000, #000) content-box exclude, linear-gradient(#000, #000);
   }
   /* La franja de arriba (Preguntas, Configuración, Salir): fichas con filete. */
-  html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cv-util-i { position: relative; border-color: transparent; }
-  html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cv-util-i::after {
+  html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cv-util-i { position: relative; }
+  html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) .cv-util-i { border-color: transparent; }
+  html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) .cv-util-i::after {
     content: ""; display: block; position: absolute; top: -1px; right: -1px; bottom: -1px; left: -1px; border-radius: inherit; padding: var(--nn-w);
     pointer-events: none; background: var(--nn-f, var(--nn-filete));
     -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
@@ -315,13 +353,22 @@ html:is(.tema-claro, .tema-luz):not(.basico):not(#_):not(#__) body.silk-coach:no
 }
 /* Configuración en el celular (hasta 819 px, como vidrio.css): las secciones son fichas en fila. */
 @media (max-width: 819px) {
-  html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cs-nav-i:not(.on) { position: relative; border-color: transparent; }
-  html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cs-nav-i:not(.on)::after {
+  html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) .cs-nav-i:not(.on) { position: relative; }
+  html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) .cs-nav-i:not(.on) { border-color: transparent; }
+  html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) .cs-nav-i:not(.on)::after {
     content: ""; display: block; position: absolute; top: -1px; right: -1px; bottom: -1px; left: -1px; border-radius: inherit; padding: var(--nn-w);
     pointer-events: none; background: var(--nn-filete);
     -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
     -webkit-mask-composite: xor; mask: linear-gradient(#000, #000) content-box exclude, linear-gradient(#000, #000);
   }
+}
+/* «Claro» con neón: como sus tarjetas (css/ui/claro-frozen.css), el filete va encima de la línea
+   blanca del vidrio; el gris solo casi no se veía sobre el celeste. */
+html.tema-luz:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab:not(.add):not(.co-day-ghost), .co-copy-btn,
+    .hd-day, .hd-all, .cv-tile, .cv-peek-rt, .cv-x, .co-ss-split, .co-seg, .co-seg-opt.on, .cp-cat, .cp-copt,
+    :is(.cv-card, .cp-ccard, .cp-modal) .logout-btn:not(.cfg-danger), .cv-pill, .ap-day, .ap-radio, .cv-nav-i.on, .cs-nav-i, .cv-util-i, .cm-day-b.on,
+    .co-day-menu:not(.co-exc-menu2) > summary, .co-day-pop, .cv-nav, .pl-banner:not(.warn))::after {
+  background: var(--nn-f, var(--nn-filete)), linear-gradient(var(--frz-line), var(--frz-line));
 }
 
 /* ---------- 5) Pestañas de la ficha: la rayita de la elegida en degradé ---------- */
@@ -339,9 +386,39 @@ html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab.add, .
   }
 }
 
-/* ---------- 7) Ventanas: los bordes de siempre en dos tonos (tienen scroll propio) ---------- */
-html:not(.sin-neon):not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.cp-modal, .cp-ccard) {
-  border-color: var(--nn-borde-a) var(--nn-borde-b) var(--nn-borde-b) var(--nn-borde-a);
+/* ---------- 7) Ventanas: el filete en el fondo (tienen scroll propio) ----------
+   Un ::after se iría con el contenido al deslizar; las capas de fondo no (quedan en la caja). El
+   borde queda transparente y encima del relleno de cada apariencia van las cuatro tiras y los arcos
+   de --nn-ventana: el mismo degradé de las tarjetas, sin cortes en las esquinas. El relleno es el de
+   siempre de cada una (vidrio.css, tema-claro.css, claro-frozen.css). */
+/* Las capas: cuatro tiras de --nn-w en los lados y un arco en cada esquina (del radio de la ventana,
+   --nn-vr), con los colores del degradé de las tarjetas (violeta arriba a la izquierda, azul abajo a
+   la derecha, neutro en las otras dos). Se arman en la ventana misma, con su radio. */
+html:not(#_) body.silk-coach :is(.cp-modal, .cp-ccard) {
+  --nn-vr: var(--r-md, 12px);
+  --nn-ventana:
+    radial-gradient(circle at 100% 100%, transparent calc(var(--nn-vr) - var(--nn-w) - .5px), var(--nn-borde-a) calc(var(--nn-vr) - var(--nn-w) + .25px)) 0 0 / var(--nn-vr) var(--nn-vr) no-repeat border-box,
+    radial-gradient(circle at 0 100%, transparent calc(var(--nn-vr) - var(--nn-w) - .5px), var(--nn-v-n1) calc(var(--nn-vr) - var(--nn-w) + .25px)) 100% 0 / var(--nn-vr) var(--nn-vr) no-repeat border-box,
+    radial-gradient(circle at 0 0, transparent calc(var(--nn-vr) - var(--nn-w) - .5px), var(--nn-borde-b) calc(var(--nn-vr) - var(--nn-w) + .25px)) 100% 100% / var(--nn-vr) var(--nn-vr) no-repeat border-box,
+    radial-gradient(circle at 100% 0, transparent calc(var(--nn-vr) - var(--nn-w) - .5px), var(--nn-v-n2) calc(var(--nn-vr) - var(--nn-w) + .25px)) 0 100% / var(--nn-vr) var(--nn-vr) no-repeat border-box,
+    linear-gradient(90deg, var(--nn-borde-a), var(--nn-v-n1) 45%) var(--nn-vr) 0 / calc(100% - 2 * var(--nn-vr)) var(--nn-w) no-repeat border-box,
+    linear-gradient(180deg, var(--nn-v-n1), var(--nn-v-n1) 35%, var(--nn-borde-b)) 100% var(--nn-vr) / var(--nn-w) calc(100% - 2 * var(--nn-vr)) no-repeat border-box,
+    linear-gradient(90deg, var(--nn-v-n2), var(--nn-v-n2) 35%, var(--nn-borde-b)) var(--nn-vr) 100% / calc(100% - 2 * var(--nn-vr)) var(--nn-w) no-repeat border-box,
+    linear-gradient(180deg, var(--nn-borde-a), var(--nn-v-n2) 55%) 0 var(--nn-vr) / var(--nn-w) calc(100% - 2 * var(--nn-vr)) no-repeat border-box;
+}
+html:not(#_) body.silk-coach .cp-modal { --nn-vr: 6px; }
+html:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(.tema-claro):not(.tema-luz):not(#_):not(#__) body.silk-coach:not(#_) :is(.cp-modal, .cp-ccard) {
+  border-color: transparent;
+  background: var(--nn-ventana), var(--cg-sheen), linear-gradient(var(--cg-pop), var(--cg-pop));
+}
+html.tema-claro:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body.silk-coach:not(#_) :is(.cp-modal, .cp-ccard) {
+  border-color: transparent;
+  background: var(--nn-ventana), var(--gize-glass-sheet);
+}
+/* (en «Claro», con un :not(#___) más: claro-frozen.css pinta las ventanas con un #streakHost en la lista) */
+html.tema-luz:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__):not(#___) body.silk-coach:not(#_) :is(.cp-modal, .cp-ccard) {
+  border-color: transparent;
+  background: var(--nn-ventana), var(--frz-glass-solid);
 }
 
 /* ---------- 8) Campos con foco: el borde azul de siempre y el resplandor de la marca ---------- */
@@ -356,12 +433,27 @@ html:not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-note, .co-sea
     transition: none;
   }
 }
-/* Colores forzados (contraste alto): el navegador ya saca los degradés y las sombras y pinta los
-   bordes con el color del sistema (también los transparentes); acá solo se sacan las cajas vacías
-   del filete. */
+/* Colores forzados (contraste alto): el navegador ya saca los degradés de fondo y las sombras y pinta
+   los bordes con el color del sistema (también los transparentes); acá se sacan las cajas vacías
+   del filete y la línea en degradé de la barra (border-image no lo saca el navegador: taparía el
+   borde del sistema). */
 @media (forced-colors: active) {
   html:not(#_):not(#__):not(#___) body.silk-coach:not(#_) :is(.co-daytab, .co-copy-btn, .hd-day, .hd-all, .cv-tile, .cv-peek-rt, .cv-x, .co-ss-split, .co-seg, .co-seg-opt, .cp-cat,
       .cp-copt, .logout-btn, .cv-pill, .ap-day, .ap-radio, .cv-nav-i, .cs-nav-i, .cm-day-b, .co-day-menu > summary, .co-day-pop, .cv-nav, .cv-util-i, .pl-banner)::after {
     content: none;
   }
+  html:not(#_):not(#__):not(#___) body.silk-coach:not(#_) .cv-side { border-image: none; }
+}
+
+/* ---------- 10) Liviano y la app de Android: líneas lisas ----------
+   Sin el ::after con máscara ni el ::before del resplandor (arriba quedan afuera): los botones con
+   su borde de siempre. Lo elegido, una línea lisa con el tono de la marca (sin neón, la de siempre);
+   las ventanas, una línea lisa (el promedio de las dos esquinas). El punteado, la rayita de la
+   ficha y la barra lateral son colores de borde o de fondo: quedan. */
+html:is(.lite, .android-app):not(.sin-neon):not(.basico):not(#_):not(#__) body.silk-coach:not(#_) :is(.co-daytab.on:not(.co-day-ghost), .hd-day.on, .hd-all.on,
+    .cv-nav-i.on, .cv-util-i.on, .cp-copt.on, .cv-pill.on, .ap-day.on, .ap-radio.on, .cs-nav-i.on) {
+  border-color: var(--nn-linea-on);
+}
+html:is(.lite, .android-app):not(.sin-neon):not(.basico):not(#_):not(#__):not(#___) body.silk-coach:not(#_) :is(.cp-modal, .cp-ccard) {
+  border-color: var(--nn-borde-l);
 }
