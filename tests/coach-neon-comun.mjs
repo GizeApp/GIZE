@@ -282,4 +282,9 @@ const QUE_CEL = {
     ['«Se repite» elegido', '.hd-day.on', true], ['«+ Programar una rutina nueva»', '.co-sched-new']],
 };
 
-export { COACH, ymd, ago, CLIENTES, ABRIR, ej, RUTINA, TPL, handlers, D, M, TEMA, abrir, cerrarVentanas, go, HOJA, hoja, LEER, leer, colores, conTinte, tinte, fuerza, tono, dTono, hex, F155, F160, conNeon, gris, brillo, transparente, CAJAS, seMueve, ESTILOS, sinCambios, VENTANAS, SIN_TEXTO, TEXTOS, MEDIR, medir, contrasteIgual, PIXELES, pixeles, caja, rayita, croma, RECORTE, recortan, QUE, QUE_CEL };
+// Las luces del fondo de «Oscuro» cambian una vez por segundo (app/ui/background.js): para comparar
+// capturas tomadas en momentos distintos (con la hoja prendida y apagada) se las frena como con la app
+// en segundo plano ("pause", que solo frena el fondo y las animaciones).
+const quietas = p => p.evaluate(() => document.dispatchEvent(new Event('pause'))).then(() => wait(1200));
+
+export { quietas, COACH, ymd, ago, CLIENTES, ABRIR, ej, RUTINA, TPL, handlers, D, M, TEMA, abrir, cerrarVentanas, go, HOJA, hoja, LEER, leer, colores, conTinte, tinte, fuerza, tono, dTono, hex, F155, F160, conNeon, gris, brillo, transparente, CAJAS, seMueve, ESTILOS, sinCambios, VENTANAS, SIN_TEXTO, TEXTOS, MEDIR, medir, contrasteIgual, PIXELES, pixeles, caja, rayita, croma, RECORTE, recortan, QUE, QUE_CEL };

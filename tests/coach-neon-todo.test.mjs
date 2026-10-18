@@ -25,13 +25,13 @@
 // - La app del alumno no cambia nada (estilos calculados idénticos con la hoja prendida y apagada).
 // - Nada late ni gira (el resplandor está quieto).
 import { newPage, wait, ALUMNO, profile } from './lib.mjs';
-import { handlers, D, M, TEMA, abrir, go, hoja, leer, colores, conTinte, tinte, fuerza, tono, dTono, hex, conNeon, gris, brillo, transparente, seMueve, sinCambios, contrasteIgual, pixeles, caja, rayita, croma, recortan, QUE, QUE_CEL } from './coach-neon-comun.mjs';
+import { handlers, D, M, TEMA, abrir, go, hoja, leer, colores, conTinte, tinte, fuerza, tono, dTono, hex, conNeon, gris, brillo, transparente, seMueve, sinCambios, contrasteIgual, pixeles, caja, rayita, croma, recortan, QUE, QUE_CEL, quietas } from './coach-neon-comun.mjs';
 
 export default async function ({ base, t }){
   // ---- «Oscuro», compu, neón prendido: el filete en todo, lo elegido más claro y con resplandor ----
   {
     const { p, errs, close } = await abrir(base);
-    await p.goto(base + '/app/'); await wait(3500);
+    await p.goto(base + '/app/'); await wait(3500); await quietas(p);
     t.ok(await p.evaluate(() => { const l = [...document.querySelectorAll('link[rel="stylesheet"]')].map(x => x.getAttribute('href'));
       const i = l.indexOf('css/screens/coach/vidrio.css'); return i >= 0 && l[i + 1] === 'css/screens/coach/neon.css'; }), 'app/index.html carga css/screens/coach/neon.css justo después de vidrio.css');
     const tokens = await p.evaluate(() => ['--gize-r1', '--gize-r2'].map(k => getComputedStyle(document.documentElement).getPropertyValue(k).trim()));
@@ -161,7 +161,7 @@ export default async function ({ base, t }){
   // ---- «Oscuro», celular ----
   {
     const { p, errs, close } = await abrir(base, { vp: M, touch: true });
-    await p.goto(base + '/app/'); await wait(3500);
+    await p.goto(base + '/app/'); await wait(3500); await quietas(p);
     await go(p, 'editor');
     for (const [n, sel, on] of QUE_CEL.editor){
       const v = await leer(p, sel);
