@@ -153,6 +153,9 @@ export default async function ({ base, t }){
     t.ok(B.every(b => b.op === 0 && b.toca === 'none' && !b.texto), 'quieto: el «+» no se ve ni se toca, y no hay texto: ' + JSON.stringify(B.map(b => [b.op, b.toca, b.texto])));
     // Quieto no pinta nada en el hueco: la misma tira con los botones y sin ellos.
     const b2 = B.find(b => b.i === 2);
+    // Las luces del fondo de «Oscuro» cambian una vez por segundo (app/ui/background.js): para comparar
+    // las tiras del hueco píxel a píxel se las frena como con la app en segundo plano ("pause").
+    await p.evaluate(() => document.dispatchEvent(new Event('pause'))); await wait(1200);
     const quieto = await sinMedio(p, await tira(p, b2), b2.width);
     let st = await p.addStyleTag({ content: '.co-ins { visibility: hidden !important; }' }); await wait(150);
     const sinBoton = await sinMedio(p, await tira(p, b2), b2.width);
@@ -172,6 +175,7 @@ export default async function ({ base, t }){
     t.ok(B.filter(b => b.i !== 2).every(b => b.op === 0), 'los otros huecos siguen sin nada');
     // Con el mouse, solo cambia el medio: el resto del hueco es igual que quieto (no aparece ninguna línea).
     t.ok(await sinMedio(p, await tira(p, x), x.width) === quieto, 'con el mouse: el hueco, fuera del «+», igual que quieto (sin línea)');
+    await p.evaluate(() => document.dispatchEvent(new Event('resume')));
     // Sobre una tarjeta no aparece ninguno.
     const card = await p.$eval('.co-exc-grid > .co-exc[data-id="e1"]', e => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
     await p.mouse.move(card[0], card[1]); await wait(400);

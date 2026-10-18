@@ -1,4 +1,4 @@
-import { appPaused, onAwayChange } from './pausa.js';
+import { appAway, appPaused, onAwayChange } from './pausa.js';
 
 export function auCreateNoise(){
   const permutation=[151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
@@ -51,6 +51,7 @@ onAwayChange(away => {
   wakeBg();
   activeAgain();
   if(silkVisible && silkRafId==null) silkLoop();
+  lucesCoach();
 });
 
 // ---- Fondo quieto cuando nadie toca nada (ahorro de batería) ----
@@ -60,6 +61,8 @@ onAwayChange(away => {
 // desde donde estaba. Mientras se mueve se ve exactamente igual que antes.
 const IDLE_MS = 6000;
 let lastInput = Date.now(), still = false, idleTimer = null; // still: lo leen los loops de los canvas
+// Las luces del panel del coach (al final del archivo): wakeBg las despierta, por eso van acá.
+let luzT = 0, luzLast = 0, luzTimer = null, luzDormida = false;
 const whenWakeList = [];
 function whenWake(fn){ if(!whenWakeList.includes(fn)) whenWakeList.push(fn); }
 function checkIdle(){
@@ -72,6 +75,7 @@ function checkIdle(){
 // Cualquier toque/scroll/tecla: anota la hora (barato, va en cada evento) y, si estaba quieto, arranca.
 export function wakeBg(){
   lastInput = Date.now();
+  if(luzDormida){ luzDormida = false; lucesCoach(); } // las luces del panel, frenadas por falta de uso
   if(still){
     still = false;
     document.documentElement.classList.remove("fondo-quieto");
@@ -96,10 +100,11 @@ export function setLite(on){
   // En Android el modo liviano es GIZE básico (app/lite.js, css/ui/basico.css).
   document.documentElement.classList.toggle("basico", on && androidApp());
   if(on) silkClear(); else if(silkVisible && silkRafId==null) silkLoop();
+  lucesCoach();
 }
 
 // El modo liviano automático por batería baja (app/lite.js) entra y sale con la app abierta.
-document.addEventListener("gize:lite", () => { if(noParticles()) silkClear(); else if(silkVisible && silkRafId==null) silkLoop(); });
+document.addEventListener("gize:lite", () => { if(noParticles()) silkClear(); else if(silkVisible && silkRafId==null) silkLoop(); lucesCoach(); });
 
 // Si nadie eligió a mano y el fondo va a menos de ~25 cuadros por segundo, el equipo no da:
 // se pasa solo a modo liviano y queda anotado para los próximos arranques.
@@ -307,3 +312,73 @@ export function hideSilkBg(){
   document.body.classList.remove("silk-on");
   document.body.classList.remove("silk-coach");
 }
+
+// ---- Las luces del fondo del panel del coach (css/screens/coach/vidrio.css, sección 2b) ----
+// Pedido: «un fondo en movimiento muy sutil que no sea muy pesado». Las dos luces de la marca son dos
+// capas chicas que se pintan una sola vez (.app-aurora::before/::after); acá solo se les cambia
+// transform y opacity, una vez por segundo, con variables de .app-aurora (--cg-ta/--cg-oa la violeta,
+// --cg-tb/--cg-ob la azul). La placa las mueve sin repintar y entre un segundo y el otro no se hace
+// nada. Con una animación de CSS (aunque fuera a saltitos) Chromium despierta al compositor en cada
+// cuadro de la pantalla mientras dure y recalcula el estilo de las dos capas en cada cuadro del
+// scroll. Medido con un trace de Chromium (compu, CPU ×4): quieto, el compositor pasa de ~27 ms/s
+// (2.480 tareas en 10 s) a ~3 ms/s (~370) y dibuja un cuadro por segundo; en un scroll de Clientes,
+// de ~410 recálculos de estilo a ~9 (uno por segundo).
+// - Cada luz va y vuelve por su recorrido, más lenta en las puntas: la violeta (arriba a la derecha)
+//   en 41 s de ida, la azul en 59 s, así entre las dos nunca se repite el mismo dibujo. En una punta
+//   está más afuera, un poco más chica y apagada; en la otra, unos puntos más adentro, más grande y
+//   prendida. Arranca en el medio, que es como se ve quieta (con reducir movimiento, liviano…).
+// - Cada segundo el fondo cambia 1 o 2 niveles de color (de 255; 3 en algún píxel suelto) y la luz
+//   se corre ~2 px: el paso no se ve. En una ida el centro de la luz cambia ~20 niveles (medido: 23
+//   en la compu, 17 en el celular): se nota que respira, sin llamar la atención.
+// - Se frena y después sigue desde donde quedó (sin saltar): con la app en segundo plano o la
+//   pestaña oculta, detrás del splash, fuera del panel, a los 3 minutos sin tocar nada (sigue con el
+//   primer toque) y cuando no hay luces que mover (la hoja no las pone en las otras apariencias, con
+//   reducir movimiento o transparencia, en liviano, en la app de Android, en GIZE básico ni con
+//   colores forzados: ahí quedan quietas en la capa del fondo o no están).
+// Cada luz: [x, y] (vmin), escala y brillo en una punta (de) y en la otra (a); el medio es como está quieta.
+export const LUCES = [
+  { ida: 41, de: [3.5, -2.5, .95, .4], a: [-3.5, 2.5, 1.05, 1] }, // violeta: entra hacia abajo a la izquierda
+  { ida: 59, de: [-3.5, 2.5, .95, .4], a: [3.5, -2.5, 1.05, 1] }, // azul: hacia la derecha y arriba
+];
+const LUZ_MS = 1000, LUZ_QUIETO_MS = 3 * 60 * 1000;
+// Dónde está cada luz a los t segundos (0 = una punta, 1 = la otra): ida y vuelta, más lenta en las
+// puntas (coseno). En t = 0, las dos en el medio.
+export function lucesFase(t){
+  return LUCES.map(l => { const u = (t / l.ida + .5) % 2, p = u <= 1 ? u : 2 - u; return (1 - Math.cos(Math.PI * p)) / 2; });
+}
+// Pone las luces en esas fases (también lo usan las pruebas, con las luces frenadas).
+export function pintarLuces(fases){
+  const au = document.querySelector(".app-aurora"); if(!au) return;
+  const poner = (k, v) => { if(au.style.getPropertyValue(k) !== v) au.style.setProperty(k, v); }; // igual: ni se toca
+  fases.forEach((e, i) => {
+    const l = LUCES[i], v = l.de.map((d, k) => d + (l.a[k] - d) * e), n = "ab"[i];
+    poner("--cg-t" + n, "translate3d(" + v[0].toFixed(2) + "vmin, " + v[1].toFixed(2) + "vmin, 0) scale(" + v[2].toFixed(4) + ")");
+    poner("--cg-o" + n, v[3].toFixed(3));
+  });
+}
+// Para las pruebas: el reloj de las luces (segundos de recorrido) y si están andando.
+export function lucesEstado(){ return { t: luzT, andando: luzTimer != null }; }
+function luzTick(){
+  luzTimer = null;
+  const b = document.body, au = document.querySelector(".app-aurora");
+  if(!b || !au || !b.classList.contains("silk-coach")) return; // fuera del panel: las vuelve a arrancar renderCoach
+  if(appAway()) return;                                       // al volver: onAwayChange
+  if(booting()){ whenSplashGone(lucesCoach); return; }
+  if(Date.now() - lastInput > LUZ_QUIETO_MS){ luzDormida = true; return; } // con el primer toque: wakeBg
+  // ¿Hay luces que mover? Lo decide la hoja (una sola fuente): si no, se sacan las variables y listo.
+  if(getComputedStyle(au, "::before").content === "none"){ ["--cg-ta", "--cg-oa", "--cg-tb", "--cg-ob"].forEach(k => au.style.removeProperty(k)); return; }
+  const now = performance.now();
+  if(luzLast) luzT += Math.min(now - luzLast, 2 * LUZ_MS) / 1000; // un timer atrasado no las hace saltar
+  luzLast = now;
+  pintarLuces(lucesFase(luzT));
+  luzTimer = setTimeout(luzTick, LUZ_MS);
+}
+// Las arranca si corresponde (si ya andan, nada). Lo llama renderCoach en cada pantalla del panel.
+export function lucesCoach(){ if(luzTimer != null) return; luzLast = 0; luzTick(); }
+// Cuando terminan de cargar las hojas (si el panel se dibujó antes, todavía no había luces) y al
+// prender o apagar «reducir movimiento», «reducir transparencia» o los colores forzados.
+window.addEventListener("load", () => lucesCoach());
+["(prefers-reduced-motion: reduce)", "(prefers-reduced-transparency: reduce)", "(forced-colors: active)"].forEach(q => {
+  try { const m = window.matchMedia && window.matchMedia(q); if(!m) return;
+    if(m.addEventListener) m.addEventListener("change", () => lucesCoach()); else if(m.addListener) m.addListener(() => lucesCoach()); } catch(e){}
+});
