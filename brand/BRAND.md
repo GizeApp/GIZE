@@ -122,7 +122,8 @@ las variables en el resto del CSS, en vez de repetir hex sueltos.
   escala y opacidad). A los 2,4 s (o cuando la app ya armó su pantalla, si tarda más: mientras
   tanto el logo queda quieto) sale primero la marca (crece un poquito, a 1,04, y se
   desvanece) y después se funde el fondo. Si la app no aparece, debajo del logo sale
-  «Está tardando más de lo normal» con «Reintentar». Nada de rayos, ondas, destellos ni chispas. Liviano para la placa de video: pocas piezas chicas, solo opacidad, escala y
+  «Está tardando más de lo normal» (o «No se pudo abrir GIZE» / «No se pudo abrir tu cuenta») con
+  «Reintentar». Nada de rayos, ondas, destellos ni chispas. Liviano para la placa de video: pocas piezas chicas, solo opacidad, escala y
   trazo; sin blur, filtros, backdrop-filter, mix-blend ni will-change, y al terminar no queda
   nada en el DOM. Modo liviano: la marca ya armada y quieta, se va a los 0,85 s; movimiento
   reducido: quieta, se va en menos de 1 s.

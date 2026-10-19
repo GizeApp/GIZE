@@ -1,9 +1,9 @@
 // La web instalada (sw.js) con la red colgada: el wifi conectado pero sin respuesta, o un iPhone que
 // vuelve de segundo plano con la conexión trabada. sw.js pedía cada archivo a la red sin límite
 // («network-first») y, como la app son muchos archivos chicos, uno solo que no llegaba la dejaba sin
-// arrancar. Ahora, si la red no contesta en 3,5 s y hay copia guardada, va la copia (y por un rato
-// las demás también, sin volver a esperar): la app abre con lo guardado. Con la red bien, sigue
-// trayendo lo último.
+// arrancar. Ahora, si la página no llega de la red en 3,5 s y hay copia guardada, va la copia y esa
+// carga entera usa lo guardado (sus archivos sin volver a esperar): la app abre con lo guardado. Con
+// la red bien, sigue trayendo lo último (ver también arranque-sw-version-nueva).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';

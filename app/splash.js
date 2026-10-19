@@ -24,11 +24,20 @@
   var arranco = false; // app/main.js ya corrió: llegaron y encajaron todos sus módulos
 
   function reduced() { return matchMedia('(prefers-reduced-motion: reduce)').matches; }
-  // Recargar como cerrar y abrir la app. Antes se le avisa al service worker (sw.js) que vuelva a
-  // pedir todo a la red: si la red estuvo colgada, venía dando lo guardado sin esperarla.
-  function recargar() {
-    try { var c = navigator.serviceWorker && navigator.serviceWorker.controller; if (c) c.postMessage('gize:red'); } catch (e) {}
-    location.reload();
+  // Recargar como cerrar y abrir la app. soloRed: la app no arrancó porque sus archivos no encajaban
+  // (uno viejo guardado con otro nuevo): antes se le pide al service worker (sw.js) que esa carga
+  // venga entera de la red, sin usar lo guardado por tardar, y se espera que conteste (como mucho
+  // 0,6 s) para que la recarga no le gane al aviso.
+  function recargar(soloRed) {
+    var ido = false, ir = function () { if (!ido) { ido = true; location.reload(); } };
+    try {
+      var c = soloRed && navigator.serviceWorker && navigator.serviceWorker.controller;
+      if (c && window.MessageChannel) {
+        var ch = new MessageChannel(); ch.port1.onmessage = ir;
+        c.postMessage('gize:solo-red', [ch.port2]); setTimeout(ir, 600); return;
+      }
+    } catch (e) {}
+    ir();
   }
   // min: desde cuándo se puede ir (terminó la entrada); out: lo que dura la salida (#splash.sale).
   function tiempos() {
@@ -46,9 +55,9 @@
     host.appendChild(el);
     document.body.classList.add('is-booting', 'sp-tapa');
     var state = { el: el, startTs: Date.now(), done: false, saliendo: false, timers: [] };
-    state.espera = setTimeout(function () { trabado(state, false); }, ESPERA_MS);
+    state.espera = setTimeout(function () { trabado(state); }, ESPERA_MS);
     var b = el.querySelector('.sp-r-btn');
-    if (b) b.addEventListener('click', function () { b.disabled = true; recargar(); });
+    if (b) b.addEventListener('click', function () { b.disabled = true; recargar(state.modulo); });
     current = state;
     return state;
   }
@@ -68,14 +77,23 @@
     }
   }
 
-  // La app no aparece: el cartel debajo del logo, con «Reintentar». fallo: no llegó a arrancar.
-  function trabado(state, fallo) {
+  // La app no aparece: el cartel debajo del logo, con «Reintentar». titulo: ya se sabe que falló (si
+  // no, «Está tardando más de lo normal»); modulo: falló porque la app no llegó a arrancar.
+  function trabado(state, titulo, modulo) {
     if (!state || state.done || state.saliendo) return;
     var r = state.el.querySelector('.sp-reintento'); if (!r) return;
-    if (fallo) r.querySelector('.sp-r-tit').textContent = 'No se pudo abrir GIZE';
+    if (titulo) r.querySelector('.sp-r-tit').textContent = titulo;
+    // Un archivo que no llegó o que no encaja con los demás: también puede ser una versión nueva a
+    // medio llegar, no solo la conexión.
+    if (modulo) { state.modulo = true; r.querySelector('.sp-r-txt').textContent = 'Puede que GIZE se esté actualizando o que falle la conexión. Tocá Reintentar.'; }
     state.el.classList.add('trabado');
     r.hidden = false;
   }
+
+  // La app arrancó pero no puede saber con qué cuenta entrar (afterLogin en core/supabase.js: sin
+  // el rol recordado y sin poder leerlo de la base): el cartel ya, sin esperar los 15 s. El splash
+  // se queda; si la cuenta llega sola después (reintentos de fondo), entra y se va como siempre.
+  window.coreTrabado = function () { trabado(current, 'No se pudo abrir tu cuenta'); };
 
   // La app llama a esto cuando ya armó la pantalla real (login, app de cliente
   // o panel de coach) que corresponde al splash activo. No corta la animación
@@ -123,9 +141,9 @@
       try { antes = Number(sessionStorage.getItem(RECARGA)) || 0; } catch (e) {}
       if (Date.now() - antes > 120000) {
         try { sessionStorage.setItem(RECARGA, String(Date.now())); anotado = !!sessionStorage.getItem(RECARGA); } catch (e) {}
-        if (anotado) { recargar(); return; }
+        if (anotado) { recargar(true); return; }
       }
-      trabado(current, true);
+      trabado(current, 'No se pudo abrir GIZE', true);
     }, 1500);
   }
   window.addEventListener('error', function (e) {

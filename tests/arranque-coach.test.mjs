@@ -133,14 +133,15 @@ export default async function ({ base, t }){
     if (nombre !== 'sin señal') t.ok(r && r.alumnas, '(3) ' + nombre + ': con sus alumnos');
     else {
       // Sin señal la lista no llega: dice que está cargando (no «no tenés clientes», como antes) y,
-      // cuando vuelve la conexión, aparecen.
+      // cuando vuelve la conexión, aparecen. Sin el aviso 'online': con un wifi sin internet (o la red
+      // colgada de un iPhone) no llega nunca, y la lista se quedaba cargando para siempre.
       await wait(9000);
       const txt = await p.evaluate(() => document.getElementById('coachHost').innerText);
       t.ok(/Cargando tus clientes/.test(txt) && !/Todavía no tenés clientes/.test(txt), '(3) sin señal: «Cargando tus clientes…», no «no tenés clientes»: ' + txt.replace(/\s+/g, ' ').slice(0, 160));
       sinRed = false;
-      await p.evaluate(() => window.dispatchEvent(new Event('online')));
-      const v = await hasta(p, x => x.alumnas, 12000);
-      t.ok(v && v.alumnas, '(3) sin señal: al volver la conexión aparecen sus alumnos');
+      const t1 = Date.now();
+      const v = await hasta(p, x => x.alumnas, 30000);
+      t.ok(v && v.alumnas, '(3) sin señal: al volver la conexión aparecen sus alumnos solos, sin el aviso «online» (' + ((Date.now() - t1) / 1000).toFixed(1) + ' s)');
     }
     await close();
   }

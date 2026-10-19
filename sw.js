@@ -19,16 +19,40 @@ self.addEventListener("activate", e => {
   );
 });
 
-// Red colgada (un iPhone que vuelve de segundo plano, un wifi sin internet): el pedido no termina
-// nunca y, como la app son muchos archivos chicos (app/**), uno solo que no llega la deja sin
-// arrancar: quedaba la pantalla vacía con la barra de abajo. Si en TOPE_RED ms la red no contestó y
-// hay copia guardada, va la copia (la red sigue y, si llega, actualiza la caché); sin copia se sigue
-// esperando a la red. Después de una espera así, durante LENTA_MS lo guardado va directo, sin volver
-// a esperar el tope en cada archivo (la red lo actualiza de fondo). La app pide salir de ese modo
-// ("gize:red", app/splash.js) antes de recargar porque no arrancó.
-const TOPE_RED = 3500, LENTA_MS = 20000;
-let lentaHasta = 0;
-self.addEventListener("message", e => { if (e.data === "gize:red") lentaHasta = 0; });
+// Red colgada o lenta (un iPhone que vuelve de segundo plano, un wifi sin internet): un pedido puede
+// no terminar nunca y, como la app son muchos archivos chicos (app/**), uno solo que no llega la deja
+// sin arrancar (quedaba la pantalla vacía con la barra de abajo). Pero tampoco se pueden mezclar
+// versiones: un archivo viejo guardado con uno nuevo de la red (recién publicada una versión) no
+// encajan y la app no arranca. Por eso se decide por cada carga de la página, no por archivo:
+//  - La página (la navegación) se pide a la red; si en TOPE_RED ms no contestó y hay copia guardada,
+//    va la copia, y esa carga entera usa lo guardado: sus archivos salen de la caché sin esperar a
+//    la red (que sigue de fondo y actualiza la caché para la próxima vez).
+//  - Si la página vino de la red, sus archivos también, sin tope aunque tarden: lo guardado solo si
+//    la red falla del todo (sin internet), como siempre.
+// Si igual una carga no arranca porque sus archivos no encajan (una caché a medio actualizar), la
+// app (app/splash.js) recarga sola una vez y antes pide «gize:solo-red»: durante SOLO_RED_MS ni la
+// página usa la copia por tardar, así esa carga viene entera de la red.
+const TOPE_RED = 3500, SOLO_RED_MS = 30000;
+let soloRedHasta = 0;
+self.addEventListener("message", e => {
+  if (e.data !== "gize:solo-red") return;
+  soloRedHasta = Date.now() + SOLO_RED_MS;
+  try { if (e.ports && e.ports[0]) e.ports[0].postMessage("ok"); } catch (x) {} // ya puede recargar
+});
+// De dónde vino la página de cada carga ("guardada" o "red"), por el id de su ventana
+// (e.resultingClientId en la navegación, e.clientId en sus archivos). Si el navegador no da ese id,
+// vale la última navegación (la app instalada es una sola ventana).
+const origen = new Map();
+let ultima = { de: "red", t: 0, sinId: false };
+function anotar(e, de) {
+  const id = e.resultingClientId;
+  ultima = { de, t: Date.now(), sinId: !id };
+  if (id) { origen.set(id, de); if (origen.size > 40) origen.delete(origen.keys().next().value); }
+}
+function origenDe(e) {
+  if (e.clientId && origen.has(e.clientId)) return origen.get(e.clientId);
+  return ultima.sinId && Date.now() - ultima.t < 60000 ? ultima.de : "red";
+}
 
 self.addEventListener("fetch", e => {
   const req = e.request;
@@ -38,6 +62,7 @@ self.addEventListener("fetch", e => {
   // ahora está en vendor/ (mismo origen), así que se cachea como el resto.
   if (url.origin !== self.location.origin) return;
   const nav = req.mode === "navigate";
+  const soloRed = Date.now() < soloRedHasta;
 
   // cache:"no-cache" = siempre preguntarle al servidor si hay versión nueva (con ETag:
   // si no cambió, responde 304 y no se descarga de nuevo). Sin esto, el fetch pasaba por
@@ -61,15 +86,20 @@ self.addEventListener("fetch", e => {
   // sitio) no tiene versión sin conexión.
   const guardada = () => caches.match(req).then(r => r || (nav && url.pathname.indexOf("/app") === 0
     ? caches.match("./app/").then(a => a || caches.match("./app/index.html")) : null)).catch(() => null);
-  e.respondWith(new Promise(ok => {
-    let listo = false;
-    const dar = r => { if (!listo) { listo = true; ok(r); } };
-    const tope = setTimeout(() => guardada().then(r => { if (r && !listo) { lentaHasta = Date.now() + LENTA_MS; dar(r); } }),
-      Date.now() < lentaHasta ? 0 : TOPE_RED);
-    fresca.then(r => { clearTimeout(tope); dar(r); },
-      // Sin internet: lo que haya en caché.
-      () => { clearTimeout(tope); guardada().then(r => dar(r || Response.error())); });
-  }));
+  if (!nav && !soloRed && origenDe(e) === "guardada") {
+    // Archivo de una carga que salió de lo guardado: la copia, ya (sin copia, la red).
+    e.respondWith(guardada().then(r => r || fresca.catch(() => Response.error())));
+  } else {
+    e.respondWith(new Promise(ok => {
+      let listo = false;
+      const dar = (r, de) => { if (listo) return; listo = true; if (nav) anotar(e, de); ok(r); };
+      // Solo la página espera con tope: sus archivos siguen lo que pasó con ella.
+      const tope = nav && !soloRed ? setTimeout(() => guardada().then(r => { if (r) dar(r, "guardada"); }), TOPE_RED) : null;
+      fresca.then(r => { clearTimeout(tope); dar(r, "red"); },
+        // Sin internet: lo que haya en caché.
+        () => { clearTimeout(tope); guardada().then(r => dar(r || Response.error(), r ? "guardada" : "red")); });
+    }));
+  }
   // La copia nueva se termina de guardar aunque ya se haya respondido con la guardada.
   e.waitUntil(Promise.race([fresca.then(() => guardar, () => {}), new Promise(r => setTimeout(r, 60000))]));
 });

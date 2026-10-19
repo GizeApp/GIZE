@@ -24,7 +24,7 @@ import { syncRouteViews } from './ui/mapa.js';
 
 import { KEY, migrateNames, routineHash, save } from './core/storage.js';
 
-import { afterLogin, forgetStoredSession, sessionCloudId, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, clearAuthExpect, clearRecoveryPending, clearRecoveryRequest, dropRecoverySession, expectAuthLink, localUnsynced, markRecoveryRequest, otpErrorKind, PROFILE_KEY, RECOVERY_MSG, refreshOwnRoutine, setRecoveryPending, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithApple, signInWithGoogle } from './core/supabase.js';
+import { afterLogin, despertarSesion, forgetStoredSession, sessionCloudId, applyCoachRoutine, coachRoutineDue, cloudBoot, cloudDeleteSession, cloudEditSession, cloudSaveCheckin, cloudSaveFoods, cloudSaveDaily, cloudSessionFeedback, ensureSb, flushOutbox, isOnline, loadCloud, newId, pendingCount, clearAccountLeftovers, clearAuthExpect, clearRecoveryPending, clearRecoveryRequest, dropRecoverySession, expectAuthLink, localUnsynced, markRecoveryRequest, otpErrorKind, PROFILE_KEY, RECOVERY_MSG, refreshOwnRoutine, setRecoveryPending, sbOk, setPendingCode, syncRoutineNow, setRememberSession, signInWithApple, signInWithGoogle } from './core/supabase.js';
 
 import { assistedKg, isAssisted, fmt, hkey, mkEx, mkSet, mondayOf, muscleOf, intNum, norm, num, pickMuscle, parseSecs, tabRipple, today, uid } from './core/utils.js';
 
@@ -1979,6 +1979,24 @@ function refreshCoachClients(){
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") refreshCoachClients(); });
 // Volvió la conexión y la lista todavía no llegó (el panel dice «Cargando tus clientes…»): se pide ya.
 window.addEventListener("online", ()=>{ if(!CoachState.coachClientsLoaded){ coachListAt=0; refreshCoachClients(); } });
+// Y además sola, cada vez más espaciado (5, 10 y después cada 15 s), mientras no llegue: con un wifi
+// sin internet (o la red colgada de un iPhone) el aviso 'online' no llega nunca y el panel se quedaba
+// con «Cargando tus clientes…» aunque la red ya anduviera.
+let clientesT=null, clientesN=0;
+function reintentarClientes(){
+  clearTimeout(clientesT);
+  if(!isCoach() || CoachState.coachClientsLoaded){ clientesN=0; return; }
+  clientesT=setTimeout(()=>{
+    if(!isCoach() || CoachState.coachClientsLoaded || !State.cloudUser) return;
+    coachListAt=Date.now();
+    despertarSesion(); // la sesión, si quedó sin renovar por la red colgada (core/supabase.js)
+    loadCoachClients().catch(()=>{}).then(()=>{
+      if(CoachState.coachClientsLoaded){ clientesN=0; if(!CoachState.coachSel) renderCoach(); }
+      else reintentarClientes();
+    });
+  }, Math.min(15000, 5000*Math.pow(2, clientesN++)));
+}
+window.addEventListener("gize:login", reintentarClientes);
 
 // ---- Chat coach ↔ alumno (app/ui/chat.js) ----
 // Alumno: botón de la barra de arriba (#chatBtn) con el globito de mensajes sin leer.
