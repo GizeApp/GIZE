@@ -1,0 +1,72 @@
+# Base de pruebas con Postgres (tests/pg.mjs, ver tests/pg/README.md): arma en un Postgres 16 de verdad
+# el esquema de la base desde los supabase/*.sql del repo (sobre un Supabase simulado y el esquema base
+# inferido) y corre las pruebas de los gimnasios (tests/gimnasios-*.test.mjs: la matriz de personas
+# y RLS, que sin gimnasios todo sigue igual, el cupo, EXPLAIN ANALYZE) y las de SQL leído (*-sql).
+# Corre con cada push a cualquier rama que cambie la base, sus pruebas o este workflow, y a mano desde
+# Actions → "Base de pruebas" → Run workflow.
+# No usa secrets ni Environment y no se conecta a producción: todo es de prueba (nombres inventados y
+# mails @ejemplo.test). La imagen de Postgres va fijada por digest (.github/postgres-pruebas/Dockerfile).
+name: Base de pruebas
+
+on:
+  push:
+    branches: ["**"]
+    paths: ["supabase/**", "tests/pg.mjs", "tests/pg/**", "tests/gimnasios-*.test.mjs", "tests/*-sql.test.mjs", "tests/run.mjs", "tests/lib.mjs",
+            ".github/workflows/base-de-pruebas.yml", ".github/postgres-pruebas/**"]
+  workflow_dispatch:
+
+# El token de GitHub de la ejecución solo puede leer el repo.
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    name: Postgres 16 con el esquema del repo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Imagen de Postgres
+        run: |
+          IMG=$(sed -n 's/^FROM \([^ ]*\).*/\1/p' .github/postgres-pruebas/Dockerfile)
+          [[ "$IMG" =~ ^postgres:[0-9.]+@sha256:[0-9a-f]{64}$ ]] || { echo "::error::.github/postgres-pruebas/Dockerfile tiene que fijar la imagen con @sha256:"; exit 1; }
+          docker pull -q "$IMG" > /dev/null
+          docker tag "$IMG" gize-postgres-pruebas
+
+      # Solo escucha adentro del contenedor: las pruebas entran con docker exec (psql por la entrada
+      # estándar). Arranca dos veces (la primera, para crear la base): se espera la segunda.
+      - name: Levantar Postgres
+        run: |
+          docker run -d --name gize-pg -e POSTGRES_PASSWORD=prueba -e POSTGRES_INITDB_ARGS="--locale=C.UTF-8 --encoding=UTF8" gize-postgres-pruebas \
+            -c timezone=UTC -c fsync=off -c synchronous_commit=off -c full_page_writes=off > /dev/null
+          for i in $(seq 1 60); do
+            [ "$(docker logs gize-pg 2>&1 | grep -c 'database system is ready to accept connections')" -ge 2 ] && break; sleep 1
+          done
+          docker exec gize-pg psql -U postgres -Atc 'show server_version'
+
+      # Playwright va aparte (como en pruebas.yml): tests/run.mjs lo importa, pero estas pruebas no
+      # abren ningún navegador.
+      - name: Instalar Playwright (sin navegador)
+        run: npm install --prefix "$RUNNER_TEMP/pw" --no-audit --no-fund playwright@1.56.1
+
+      - name: Pruebas con Postgres
+        run: node tests/run.mjs gimnasios
+        env:
+          PW: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
+          GIZE_PSQL: docker exec -i gize-pg psql -U postgres
+          GIZE_PG_OBLIGATORIO: "1"
+
+      - name: Pruebas de SQL leído
+        run: node tests/run.mjs -sql
+        env:
+          PW: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
+
+      - name: Apagar Postgres
+        if: always()
+        run: docker rm -f gize-pg > /dev/null 2>&1 || true

@@ -16,6 +16,15 @@ updates:
     ignore:
       - dependency-name: postgres
         update-types: ["version-update:semver-major"]
+  # La imagen de Postgres de la base de pruebas (.github/postgres-pruebas/Dockerfile), también por
+  # digest. Se queda en 16 (la versión de las pruebas): otra mayor va a mano, con tests/pg/README.md.
+  - package-ecosystem: docker
+    directory: /.github/postgres-pruebas
+    schedule:
+      interval: monthly
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
   # Pillow del workflow «Fotos de videos», con versión y hash fijos (scripts/fotos-videos-requirements.txt).
   - package-ecosystem: pip
     directory: /scripts

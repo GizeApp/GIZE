@@ -9,7 +9,8 @@
 // tarea «funciones» de supabase.yml controla al final que cada función quedó publicada y al día, y
 // la tarea «secrets» no carga una clave de Apple sin su Key ID y el Team ID. «Android en emulador»
 // se corre solo a mano, sin secrets y con el token de solo lectura, y su parte A falla si la app se
-// cae. Esta prueba corre en GitHub también cuando cambia lo que revisa.
+// cae. «Base de pruebas» corre en cada rama, sin secrets, con la imagen de Postgres fijada por digest.
+// Esta prueba corre en GitHub también cuando cambia lo que revisa.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -296,7 +297,7 @@ esac`;
   const glob = g => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\0').replace(/\*/g, '[^/]*').replace(/\0/g, '.*') + '$');
   const LEE = ['.github/workflows/ios.yml', '.github/postgres/Dockerfile', '.github/dependabot.yml', 'scripts/ios-firma.py',
     'scripts/fotos-videos-requirements.txt', 'supabase/functions/admin/index.ts', 'tests/workflows-seguridad.test.mjs',
-    '.github/workflows/android-emulador.yml', 'scripts/android-emulador.mjs'];
+    '.github/workflows/android-emulador.yml', 'scripts/android-emulador.mjs', '.github/workflows/base-de-pruebas.yml', '.github/postgres-pruebas/Dockerfile'];
   for (const ev of ['push', 'pull_request']){
     const m = pw.match(new RegExp('^  ' + ev + ':[\\s\\S]*?^    paths: (\\[.*\\])\\s*$', 'm'));
     let paths = []; try { paths = JSON.parse(m[1]); } catch (e) {}
@@ -365,6 +366,38 @@ esac`;
     t.ok(!/de otra app/.test(cae.out + cae.informe) && CAE.every(l => cae.informe.includes(l)), 'solo las de GIZE, también en el informe');
     const cerrada = abrir([], '');
     t.ok(cerrada.code !== 0 && /no sigue abierta/.test(cerrada.out) && cerrada.informe.includes('sigue abierta: NO'), 'si la app no sigue abierta a los 20 s, falla: ' + cerrada.out.trim());
+  }
+
+  // 9) «Base de pruebas» (base-de-pruebas.yml): las pruebas con Postgres de verdad, con cada push a
+  //    cualquier rama, sin secrets ni Environment y con el token de solo lectura, las mismas actions que
+  //    pruebas.yml fijadas por el mismo SHA, y la imagen de Postgres fijada por digest
+  //    (.github/postgres-pruebas/Dockerfile), que sigue Dependabot sin saltar de versión mayor.
+  const bp = leer('.github/workflows/base-de-pruebas.yml'), dfp = leer('.github/postgres-pruebas/Dockerfile'), bpc = sinComentarios(bp);
+  t.ok(bp, 'existe .github/workflows/base-de-pruebas.yml');
+  t.ok(/^FROM postgres:16@sha256:[0-9a-f]{64}\s*$/m.test(dfp), '.github/postgres-pruebas/Dockerfile fija postgres:16 por digest');
+  t.ok(/^on:\s*\n  push:\s*\n    branches: \["\*\*"\]/m.test(bp) && /^  workflow_dispatch:/m.test(bp), 'base-de-pruebas.yml corre con cada push, en cualquier rama (y a mano)');
+  t.ok(/^permissions:\s*\n  contents: read\s*$/m.test(bp) && !/:\s*write\b|permissions:\s*write/.test(bpc), 'base-de-pruebas.yml: el token solo puede leer el repo');
+  t.ok(!/secrets\./.test(bp) && !/^\s+environment:/m.test(bp), 'base-de-pruebas.yml: sin secrets ni Environment');
+  t.ok(!/postgres:\d/.test(bpc), 'base-de-pruebas.yml no nombra un tag de Postgres suelto (la imagen sale del Dockerfile)');
+  const corridas = bpc.split('\n').filter(l => /docker run/.test(l));
+  t.ok(corridas.length === 1 && corridas.every(l => /\bgize-postgres-pruebas\b/.test(l)), 'su docker run usa la imagen fijada (gize-postgres-pruebas)');
+  const deCI = Object.fromEntries([...pw.matchAll(/uses: (actions\/[\w-]+)@([0-9a-f]{40}) /g)].map(m => [m[1], m[2]]));
+  const usaBp = [...bpc.matchAll(/uses: (\S+)/g)].map(m => m[1]);
+  t.ok(usaBp.length === 2 && usaBp.every(u => { const m = u.match(/^(actions\/[\w-]+)@([0-9a-f]{40})$/); return m && deCI[m[1]] === m[2]; }), 'base-de-pruebas.yml: checkout y setup-node fijados con el mismo SHA que pruebas.yml: ' + usaBp.join(' '));
+  t.ok(/persist-credentials: false/.test(bp), 'base-de-pruebas.yml: el checkout no deja el token guardado');
+  t.ok(/run: node tests\/run\.mjs gimnasios\s+env:[\s\S]*?GIZE_PSQL: docker exec -i gize-pg psql -U postgres[\s\S]*?GIZE_PG_OBLIGATORIO: "1"/.test(bp), 'corre las pruebas de los gimnasios contra ese Postgres, y si no hay Postgres falla');
+  t.ok(/run: node tests\/run\.mjs -sql/.test(bp) && /if: always\(\)\s+run: docker rm -f gize-pg/.test(bp), 'también las de SQL leído, y al final apaga el contenedor');
+  t.ok(/- package-ecosystem: docker\s+directory: \/\.github\/postgres-pruebas\s+schedule:\s+interval: monthly\s+ignore:\s+- dependency-name: postgres\s+update-types: \["version-update:semver-major"\]/.test(dep),
+    'Dependabot sigue la imagen de la base de pruebas, sin saltar de versión mayor');
+  const imgBp = paso(bp, 'Imagen de Postgres');
+  t.ok(imgBp, 'base-de-pruebas.yml: existe el paso «Imagen de Postgres»');
+  if (imgBp){
+    const docker = 'echo "$*" >> "$LOG"';
+    const bien = correr(imgBp, { archivos: { '.github/postgres-pruebas/Dockerfile': dfp }, programas: { docker } });
+    const ref = (dfp.match(/^FROM (\S+)/m) || [])[1];
+    t.ok(bien.code === 0 && ref && bien.log.includes('pull -q ' + ref) && bien.log.includes('tag ' + ref + ' gize-postgres-pruebas'), 'baja la imagen por digest y la nombra gize-postgres-pruebas: ' + bien.log);
+    const suelto = correr(imgBp, { archivos: { '.github/postgres-pruebas/Dockerfile': 'FROM postgres:16\n' }, programas: { docker } });
+    t.ok(suelto.code !== 0 && !suelto.log.includes('pull') && /@sha256/.test(suelto.out), 'con un tag sin digest falla y no baja nada: ' + suelto.out.trim());
   }
 
   for (const d of CARPETAS) fs.rmSync(d, { recursive: true, force: true });
