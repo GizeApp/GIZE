@@ -6,16 +6,15 @@ import { newPage, saved, wait, ALUMNO, profile, openAllEx } from './lib.mjs';
 export default async function ({ base, t }){
   const days = [{ id: 'd1', name: 'Torso', exercises: [{ id: 'e1', name: 'Remo con barra', sets: [{ id: 's1', kg: '60', reps: '8', done: true }, { id: 's2', kg: '', reps: '' }] }] }];
   const t0 = Date.now() - 25 * 60000; // entrenando hace 25 min
-  const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: { days, sessions: [], weights: [], daily: {} }, handlers: { '/profiles': profile('client') },
+  const { p, errs, preguntas, close } = await newPage({ user: ALUMNO, state: { days, sessions: [], weights: [], daily: {} }, handlers: { '/profiles': profile('client') },
     init: `(() => { const k = 'rutina_jero_v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); const d = new Date(); const ymd = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); s.wkStart = { date: ymd, day: 'd1', ts: ${t0}, manual: true }; localStorage.setItem(k, JSON.stringify(s)); })()` });
   await p.goto(base + '/app/'); await wait(2500);
   t.ok(await p.$('#wkTime'), 'al abrir: se ve «Entrenando hace…»');
 
-  // 1) Cancelar la confirmación: no se guarda nada y el tiempo sigue.
-  p.removeAllListeners('dialog');
-  const msgs = [];
-  p.on('dialog', d => { msgs.push(d.message()); d.dismiss().catch(() => {}); });
-  await p.click('[data-action="save-session"]'); await wait(600);
+  // 1) Cancelar la confirmación (se toca «Cancelar» en el cartel): no se guarda nada y el tiempo sigue.
+  p.contestar = false;
+  await p.click('[data-action="save-session"]'); await wait(800);
+  const msgs = preguntas.map(q => q.texto);
   t.ok(msgs.length === 1 && /Terminar y guardar/.test(msgs[0]), 'pide confirmación antes de guardar: ' + msgs[0]);
   let st = await saved(p);
   t.eq(st.sessions.length, 0, 'cancelando no se guarda el entreno');
@@ -23,8 +22,7 @@ export default async function ({ base, t }){
   t.ok(await p.$('#wkTime'), 'cancelando sigue «Entrenando hace…»');
 
   // 2) Aceptar: se guarda y aparece «¡Entreno terminado!» con la opción de seguir.
-  p.removeAllListeners('dialog');
-  p.on('dialog', d => d.accept().catch(() => {}));
+  p.contestar = true;
   await wait(1600); // el guardado ignora toques repetidos en 1,5 s
   await p.click('[data-action="save-session"]'); await wait(800);
   st = await saved(p);

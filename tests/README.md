@@ -21,9 +21,15 @@ Cada archivo `*.test.mjs` exporta una función `async ({ base, t })`: `base` es 
 del servidor local y `t.ok` / `t.eq` / `t.has` anotan lo que falla. Las ayudas (servidor,
 navegador, Supabase simulado) están en `tests/lib.mjs`.
 
-Los avisos de la app ya no son el `alert()` nativo sino un cartel propio (`app/ui/avisos.js`):
-`newPage` lee lo que dice cada cartel, lo anota en `dialogs` junto con las preguntas nativas
-(`confirm` y `prompt`) y toca «Entendido» (con `tocarAvisos: false` quedan abiertos).
+Los avisos y las preguntas de la app ya no son `alert()`, `confirm()` ni `prompt()` nativos sino
+carteles propios (`app/ui/avisos.js`: `alert`, `confirmar` y `pedir`). `newPage` lee lo que dice
+cada cartel y lo anota en `dialogs`. A los avisos les toca «Entendido» (con `tocarAvisos: false`
+quedan abiertos). Las preguntas las contesta tocando el botón de verdad, según `p.contestar`:
+`true` (de entrada) acepta, `false` toca «Cancelar», `null` la deja abierta para manejarla a mano
+(teclado, «Atrás»), o una función que decide por pregunta; en un `pedir()` escribe `p.dialogAnswer`.
+Cada pregunta queda en `preguntas` (texto, título, botones y qué se contestó). Solo toca un botón
+que se ve: si otra ventana lo tapa (o queda fuera de la pantalla) no lo toca y lo anota en `errs`
+(«cartel tapado: …»), porque una persona tampoco podría.
 
 Las funciones de Supabase (`supabase/functions/*/index.ts`, escritas para Deno) se corren en
 Node con `tests/funcion.mjs`: los paquetes `npm:` (supabase-js, web-push, jose), `Deno.serve`,

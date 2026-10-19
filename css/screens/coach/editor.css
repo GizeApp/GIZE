@@ -47,6 +47,10 @@ body:not(#_) .co-dias-wrap { gap:12px; }
 body:not(#_) .co-dias-wrap .co-note-lbl { margin:0; font-size:14px; font-weight:500; letter-spacing:0; text-transform:none; color:var(--txt-2); }
 body:not(#_) .co-dias.hd-row { grid-template-columns:repeat(7, 32px); gap:7px; }
 body:not(#_) .co-dias .hd-day { width:32px; height:32px; min-width:0; padding:0; border-radius:50%; font-size:12px; }
+/* «Claro»: el día de la semana elegido es una burbuja chica sobre el celeste. Con el filete de 1,5 px,
+   según dónde cae entre píxeles, abajo la línea quedaba en una sola fila suavizada y se veía a
+   menos de 4,5:1 (pasó al subir la fila de los días, #335). Un poco más gruesa, se ve siempre. */
+html.tema-luz body.silk-coach:not(#_) .co-dias .hd-day.on { --nn-w: 2px; }
 body:not(#_) .co-day-bar .co-day-menu summary { width:46px; height:36px; border-radius:12px; }
 .co-day-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.6fr); gap:12px; margin-top:14px; }
 body:not(#_) .co-day-fields { align-items:start; }

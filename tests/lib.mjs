@@ -33,24 +33,58 @@ const now = () => Math.floor(Date.now() / 1000);
 const session = user => ({ access_token: 'x.eyJzdWIiOiJ1MyJ9.y', token_type: 'bearer', expires_in: 3600, expires_at: now() + 3600, refresh_token: 'r', user });
 const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
 
-// Avisos propios de la app (app/ui/avisos.js): alert() ya no abre el diálogo nativo sino un cartel
-// en la página (.av-bg, con «Listo» / «No se pudo» / «Ojo» y «Entendido»). Esto corre en la página:
-// apenas aparece un cartel lee lo que dice, tal como lo ve la persona (un párrafo por línea en
-// blanco), se lo pasa a la prueba (__gizeAviso) y, si tocar es true, toca «Entendido» cuando ya se
-// ve, como antes se aceptaba solo el alert(). Si llegan varios, la app los muestra de a uno.
+// Carteles propios de la app (app/ui/avisos.js): alert(), confirmar() y pedir() no abren el
+// diálogo nativo sino un cartel en la página (.av-bg). Esto corre en la página: apenas aparece uno
+// lee lo que dice, tal como lo ve la persona (un párrafo por línea en blanco), y:
+//   · aviso (alert, un solo botón «Entendido»): se lo pasa a la prueba (__gizeAviso) y, si tocar es
+//     true, toca «Entendido» cuando ya se ve, como antes se aceptaba solo el alert();
+//   · pregunta (confirmar / pedir, con «Cancelar» y el botón de la acción): le pregunta a la prueba
+//     qué contestar (__gizePregunta, ver p.contestar en newPage) y toca el botón de verdad (en un
+//     pedir() antes escribe la respuesta en el campo). Así «cancelar no hace nada» se prueba
+//     tocando «Cancelar», no cambiando lo que devuelve una función.
+// Si llegan varios, la app los muestra de a uno.
+// Solo se toca un botón que se ve: si otra ventana lo tapa (o quedó fuera de la pantalla), una
+// persona no lo podría tocar. Se espera un rato (puede estar yéndose el arranque) y, si sigue tapado,
+// no se toca y queda anotado en errs: «cartel tapado: …».
 const LEER_AVISOS = tocar => `(() => {
   const vistos = new WeakSet();
+  const tapa = b => {
+    const r = b.getBoundingClientRect(), h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    if (h && b.contains(h)) return '';
+    const v = h && h.closest('[id], [class]');
+    return !h ? 'fuera de la pantalla' : v ? (v.id ? '#' + v.id : '.' + (v.getAttribute('class') || '').trim().split(/\\s+/).join('.')) : h.tagName;
+  };
+  // Toca sel cuando el cartel ya se ve (como una persona); antes() escribe en el campo.
+  const tocarCuando = (el, sel, antes) => {
+    let n = 0;
+    const ir = () => {
+      if (!el.isConnected || el.classList.contains('closing')) return;
+      if (!el.classList.contains('show')) return requestAnimationFrame(ir);
+      const b = el.querySelector(sel); if (!b) return;
+      const q = tapa(b);
+      if (q) {
+        if (++n < 300) return requestAnimationFrame(ir);
+        return window.__gizeTapado('cartel tapado: no se puede tocar «' + b.textContent + '» (' + q + ')');
+      }
+      if (antes) antes();
+      b.click();
+    };
+    requestAnimationFrame(ir);
+  };
   const leer = el => {
     if (vistos.has(el)) return; vistos.add(el);
-    const tit = el.querySelector('.av-tit'), ps = [...el.querySelectorAll('.av-txt p')];
-    window.__gizeAviso({ titulo: tit ? tit.textContent : '', texto: ps.map(p => p.textContent).join('\\n\\n') });
-    if (!${tocar}) return;
-    const entendido = () => {
-      if (!el.isConnected) return;
-      if (!el.classList.contains('show')) return requestAnimationFrame(entendido);
-      const b = el.querySelector('.av-btn'); if (b) b.click();
-    };
-    requestAnimationFrame(entendido);
+    const q = s => el.querySelector(s), tit = q('.av-tit'), ps = [...el.querySelectorAll('.av-txt p')];
+    const a = { titulo: tit ? tit.textContent : '', texto: ps.map(p => p.textContent).join('\\n\\n') };
+    const go = q('.av-go');
+    if (!go) { window.__gizeAviso(a); if (${tocar}) tocarCuando(el, '.av-btn'); return; }
+    const campo = q('.av-in'), sec = q('.av-sec'), card = q('.av-card');
+    Object.assign(a, { tipo: campo ? 'pedir' : 'confirmar', ok: go.textContent, cancelar: sec ? sec.textContent : '', peligro: !!(card && card.classList.contains('av-err')) });
+    if (campo) a.valor = campo.value;
+    window.__gizePregunta(a).then(r => {
+      if (!r || !r.tocar) return; // la prueba la contesta a mano
+      if (r.tocar === 'cancelar') return tocarCuando(el, '.av-sec');
+      tocarCuando(el, '.av-go', campo && typeof r.valor === 'string' ? () => { campo.value = r.valor; campo.dispatchEvent(new Event('input', { bubbles: true })); } : null);
+    }).catch(() => {});
   };
   new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1 && n.classList.contains('av-bg')) leer(n); })
     .observe(document, { childList: true, subtree: true });
@@ -59,10 +93,19 @@ const LEER_AVISOS = tocar => `(() => {
 // Página nueva con Supabase simulado. handlers: { '/final/de/la/ruta': (route, J, info) => J(...) o undefined }
 // (funciones comunes, no async: undefined quiere decir "este no lo manejo").
 // info = { m, path, one, url, body }. Lo que no maneja un handler responde vacío.
-// dialogs: todo lo que la app le muestra en un cartel, en orden: las preguntas nativas (confirm y
-// prompt, que se aceptan solas; prompt responde p.dialogAnswer) y los avisos propios (el texto del
-// cartel). avisos: solo los propios, con su título ({ titulo, texto }). Con tocarAvisos: false
+// dialogs: el texto de todo lo que la app le muestra en un cartel, en orden (avisos y preguntas, y
+// algún diálogo nativo que quede, que se acepta solo).
+// avisos: solo los avisos propios (alert), con su título ({ titulo, texto }). Con tocarAvisos: false
 // quedan abiertos hasta que la prueba toque «Entendido» (.av-btn).
+// preguntas: cada confirmar() / pedir() que se mostró, con lo que se contestó
+// ({ tipo: 'confirmar' | 'pedir', titulo, texto, ok, cancelar, peligro, valor, respuesta }).
+// Cómo se contestan (se lee en el momento en que aparece cada una; la prueba lo puede cambiar
+// entre un paso y otro):
+//   p.contestar = true   (de entrada) toca el botón de la acción («Borrar», «Guardar»…);
+//   p.contestar = false  toca «Cancelar» (confirmar → false, pedir → null);
+//   p.contestar = null   la deja abierta, para manejarla a mano (Escape, Atrás, el foco…);
+//   p.contestar = q => … decide por pregunta: true / false / null / un texto (pedir).
+//   p.dialogAnswer       lo que se escribe en un pedir() al aceptar (sin definir: queda lo que propone la app).
 export async function newPage({ user, state, handlers = {}, viewport = { width: 390, height: 844 }, init, timezoneId = 'America/Argentina/Buenos_Aires', reducedMotion = 'no-preference', touch = false, tocarAvisos = true } = {}){
   const b = await getBrowser();
   // touch: celular (pantalla táctil, pointer: coarse).
@@ -71,11 +114,20 @@ export async function newPage({ user, state, handlers = {}, viewport = { width: 
   // respuesta, la app dibuja el recorrido sobre su fondo propio.
   await ctx.route(/tiles\.openfreemap\.org/, r => r.abort());
   const p = await ctx.newPage();
-  const errs = [], dialogs = [], avisos = [], calls = [];
+  const errs = [], dialogs = [], avisos = [], preguntas = [], calls = [];
   p.on('pageerror', e => errs.push(e.message));
   p.dialogAnswer = undefined;
+  p.contestar = true;
   p.on('dialog', d => { dialogs.push(d.message()); (d.type() === 'prompt' ? d.accept(p.dialogAnswer || '') : d.accept()).catch(() => {}); });
   await p.exposeFunction('__gizeAviso', a => { avisos.push(a); dialogs.push(a.texto); });
+  await p.exposeFunction('__gizeTapado', m => { errs.push(m); });
+  await p.exposeFunction('__gizePregunta', q => {
+    let r = typeof p.contestar === 'function' ? p.contestar(q) : p.contestar;
+    if (r === undefined) r = true;
+    if (r === true && q.tipo === 'pedir' && typeof p.dialogAnswer === 'string') r = p.dialogAnswer;
+    q.respuesta = r; preguntas.push(q); dialogs.push(q.texto);
+    return r === null ? { tocar: null } : r === false ? { tocar: 'cancelar' } : { tocar: 'ok', valor: typeof r === 'string' ? r : undefined };
+  });
   await p.addInitScript(LEER_AVISOS(tocarAvisos));
   if (user) await p.addInitScript(`(() => {
     if (sessionStorage.getItem('init')) return;
@@ -84,7 +136,7 @@ export async function newPage({ user, state, handlers = {}, viewport = { width: 
   })()`);
   if (init) await p.addInitScript(init);
   await p.route(/supabase\.co/, supabaseFalso({ user, handlers, calls }));
-  return { p, errs, dialogs, avisos, calls, close: () => ctx.close() };
+  return { p, errs, dialogs, avisos, preguntas, calls, close: () => ctx.close() };
 }
 
 // La sesión de prueba y el estado de la app, como quedan en localStorage al entrar: semilla()

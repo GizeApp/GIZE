@@ -67,6 +67,14 @@ function cerrar(valor){
   else { a.el.addEventListener("transitionend", fin, { once: true }); setTimeout(() => { if (a.el.isConnected) fin(); }, 400); }
 }
 
+// Foco al siguiente (o anterior, con Shift) de los elementos sel de la ventana, dando la vuelta.
+export function circular(caja, sel, atras){
+  const l = [...caja.querySelectorAll(sel)].filter(x => !x.disabled);
+  if (!l.length) return;
+  const i = l.indexOf(document.activeElement);
+  l[i < 0 ? 0 : (i + (atras ? -1 : 1) + l.length) % l.length].focus();
+}
+
 function siguiente(){
   if (abierto || !cola.length) return;
   const { msg, listo, modo, conf } = cola.shift();   // modo: undefined (alert) | "confirm" | "prompt"
@@ -89,10 +97,13 @@ function siguiente(){
   const campo = () => el.querySelector(".av-in");
   const aceptar = () => cerrar(modo === "prompt" ? campo().value : true);
   const cancelar = () => cerrar(modo === "prompt" ? null : false);
-  // Escape cancela; Enter acepta (en un confirm lo resuelve el botón con foco).
+  // Escape cancela; Enter acepta (en un confirm lo resuelve el botón con foco). Tab da la vuelta
+  // adentro del cartel: como con el diálogo nativo, con el teclado no se llega a lo de atrás
+  // (se podía tocar otro botón de la pantalla con la pregunta todavía abierta).
   const onKey = e => {
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); modo ? cancelar() : cerrar(); }
     else if (e.key === "Enter" && (!modo || modo === "prompt")) { e.preventDefault(); e.stopPropagation(); modo ? aceptar() : cerrar(); }
+    else if (e.key === "Tab") { e.preventDefault(); e.stopPropagation(); circular(el, ".av-in, .av-btn", e.shiftKey); }
   };
   abierto = { el, onKey, volver: document.activeElement, listo };
   document.addEventListener("keydown", onKey, true);
