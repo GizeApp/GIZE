@@ -270,7 +270,7 @@ esac`;
   const sec = paso(leer('.github/workflows/supabase.yml'), 'Cargar secrets de las funciones');
   t.ok(sec, 'existe el paso «Cargar secrets de las funciones»');
   if (sec){
-    const NOMBRES = ['MP_ACCESS_TOKEN', 'APNS_KEY_P8', 'APNS_KEY_ID', 'APPLE_TEAM_ID', 'SIWA_KEY_P8', 'SIWA_KEY_ID', 'RESEND_API_KEY', 'RESEND_FULL_KEY', 'RESEND_WEBHOOK_SECRET', 'AVISOS_PAGOS'];
+    const NOMBRES = ['MP_ACCESS_TOKEN', 'APNS_KEY_P8', 'APNS_KEY_ID', 'APPLE_TEAM_ID', 'SIWA_KEY_P8', 'SIWA_KEY_ID', 'RESEND_API_KEY', 'RESEND_FULL_KEY', 'RESEND_WEBHOOK_SECRET', 'AVISOS_PAGOS', 'ANTHROPIC_API_KEY'];
     const cargar = env => {
       const r = correr(sec, { programas: { supabase: 'echo "$*" >> "$LOG"' }, env: Object.assign({ PROJECT_REF: 'proyecto' }, Object.fromEntries(NOMBRES.map(n => [n, ''])), env) });
       r.set = r.log.split('\n').find(l => l.startsWith('secrets set ')) || '';
@@ -288,6 +288,14 @@ esac`;
     t.ok(mp.code === 0 && mp.set.includes('MP_ACCESS_TOKEN=mp-prueba') && !/APPLE|APNS|SIWA/.test(mp.set), 'sin claves de Apple carga lo demás: ' + mp.set);
     const nada = cargar({});
     t.ok(nada.code !== 0 && nada.out.includes('Settings → Environments → production'), 'sin secrets avisa que van en el Environment «production»: ' + nada.out.trim());
+    // La clave de la IA (función «ia»): se carga si está en GitHub; si no está, no se carga vacía
+    // (pisaría la de Supabase) y lo demás sale igual. Nunca se imprime.
+    const ia = cargar({ MP_ACCESS_TOKEN: 'mp-prueba', ANTHROPIC_API_KEY: 'clave-ia-de-prueba' });
+    t.ok(ia.code === 0 && ia.set.includes('ANTHROPIC_API_KEY=clave-ia-de-prueba'), 'con ANTHROPIC_API_KEY la carga: ' + ia.set.replace(/=\S+/g, '=…'));
+    t.ok(!ia.out.includes('clave-ia-de-prueba'), 'la clave de la IA no aparece en lo que imprime el paso');
+    t.ok(!mp.set.includes('ANTHROPIC_API_KEY'), 'sin ANTHROPIC_API_KEY no se carga nada vacío: ' + mp.set);
+    const wf = leer('.github/workflows/supabase.yml');
+    t.ok(/\n {10}ANTHROPIC_API_KEY: \$\{\{ secrets\.ANTHROPIC_API_KEY \}\}\n/.test(wf) && !/echo[^\n]*ANTHROPIC_API_KEY/.test(sec), 'ANTHROPIC_API_KEY sale del Environment y no se imprime');
   }
 
   // 7) En GitHub, esta prueba corre también cuando cambia lo que revisa (workflows, Dockerfile,
