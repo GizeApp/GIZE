@@ -2,7 +2,9 @@
 // «Claro»): fondo liso con el degradé de cada una (sin manchas de color y sin partículas: el
 // canvas está oculto y nunca se dibuja), cajas y botones con el filete fino de un toque de color
 // en el borde (linear-gradient a 155°, ya no la gama RGB en conic-gradient), nada gira y sin
-// brillos de colores (solo sombras neutras). Los botones principales quedan rellenos: blancos en
+// brillos de colores (solo sombras neutras), salvo el resplandor suave y quieto de lo elegido (el día
+// de Entreno y la pestaña de la barra de abajo: css/ui/neon-app.css, pedido por el dueño: «un poco
+// de los neones brillosos» del panel del coach). Los botones principales quedan rellenos: blancos en
 // las oscuras y del color del texto en «Claro», con el filete quieto de borde. «Claro» es el
 // celeste helado de css/ui/claro-frozen.css: sobre su degradé lleva dos brillos claros
 // (radial-gradient de celestes casi blancos, no manchas de color) y en sus cajas de vidrio el
@@ -52,7 +54,12 @@ export default async function ({ base, t }){
       const box = document.querySelector('#view .ex-collapsed');
       const capas = e => e ? [null, '::before', '::after'].map(ps => getComputedStyle(e, ps).backgroundImage).join(' | ') : '';
       // Todo lo visible (con sus ::before/::after): gama RGB, lo que gira y las sombras.
-      const conic = [], spin = [], sombras = [];
+      const conic = [], spin = [], sombras = [], elegidos = [];
+      // El resplandor de lo elegido (css/ui/neon-app.css), tal como queda calculado: una caja de
+      // prueba en el body, que hereda los tokens. Solo vale en el ::before de lo elegido, quieto.
+      const caja = document.createElement('div'); document.body.appendChild(caja);
+      const permitidas = new Set(['var(--nn-brillo)', 'var(--nn-brillo-in)'].map(x => { caja.style.boxShadow = x; return getComputedStyle(caja).boxShadow; }).filter(x => x && x !== 'none'));
+      caja.remove();
       for (const e of document.querySelectorAll('body *')) {
         if (!e.getClientRects().length) continue;
         const id = e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).join('.') : '');
@@ -62,13 +69,16 @@ export default async function ({ base, t }){
           const n = id + (ps || '');
           if (/conic-gradient/.test(cs.backgroundImage)) conic.push(n);
           if (/spin/i.test(cs.animationName) || (/linear-gradient\(155deg/.test(cs.backgroundImage) && cs.animationName !== 'none')) spin.push(n + ' ' + cs.animationName);
+          const elegido = ps === '::before' && e.matches('.active, .on') && permitidas.has(cs.boxShadow) && cs.animationName === 'none' &&
+            cs.transitionDuration.split(',').every(d => parseFloat(d) === 0);
+          if (elegido) { elegidos.push(n); continue; }
           for (const k of ['boxShadow', 'textShadow', 'filter']) if (cs[k] !== 'none') sombras.push([n, k, cs[k]]);
         }
       }
       return { calm, text, bg: ac.backgroundImage, op: ac.opacity, spans: [...a.querySelectorAll('span')].map(s => getComputedStyle(s).display),
         canvas: getComputedStyle(document.getElementById('silkCanvas')).display, arc: window.__arc,
         box: capas(box), btn: wb.backgroundImage, anim: wb.animationName, btnBg: wcs.backgroundColor, shadow: wcs.boxShadow,
-        save: getComputedStyle(document.querySelector('.save-session')).backgroundImage, conic, spin, sombras };
+        save: getComputedStyle(document.querySelector('.save-session')).backgroundImage, conic, spin, sombras, elegidos };
     });
     const n = nombre + ': ';
     // Fondo: el degradé liso de la apariencia (también con el neón apagado), sin manchas ni partículas.
@@ -80,7 +90,9 @@ export default async function ({ base, t }){
     t.eq(v.conic, [], n + 'nada con el borde de la gama RGB (conic-gradient)');
     t.eq(v.spin, [], n + 'nada gira');
     t.eq(v.anim, 'none', n + 'el borde del botón principal queda quieto');
-    t.eq(v.sombras.filter(([, , s]) => conTinte(s)).map(x => x.join(' ')), [], n + 'sin brillos de colores (box-shadow, text-shadow, drop-shadow)');
+    t.eq(v.sombras.filter(([, , s]) => conTinte(s)).map(x => x.join(' ')), [], n + 'sin brillos de colores (box-shadow, text-shadow, drop-shadow), salvo el de lo elegido');
+    if (!sinNeon) t.ok(v.elegidos.some(x => /^button\.tab\.active::before$/.test(x)) && v.elegidos.some(x => /nav-item.*active::before$/.test(x)),
+      n + 'lo elegido (el día y la pestaña de abajo) con el resplandor suave y quieto del neón: ' + JSON.stringify(v.elegidos));
     if (!sinNeon) {
       const neutro = nombre === 'Claro' ? 'rgba(11, 13, 17' : 'rgba(255, 255, 255';
       t.ok(FILETE.test(v.box) && conTinte(v.box), n + 'las cajas (el ejercicio) con el filete fino con un toque de color: ' + v.box.slice(0, 80));
