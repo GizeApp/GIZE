@@ -1,4 +1,5 @@
 import { esc } from '../core/utils.js';
+import { sinMovimiento } from './desplegar.js';
 
 import { ComidaState, shortName, cookPortion, entryBase, entryCookState, foodByName, mealChips, mealNow, previewStr, selectedFoodValues } from '../screens/comida.js';
 import { foodUnit, unitText } from '../core/foodunits.js';
@@ -97,23 +98,17 @@ export function closeSheet(mutate, opts){
 
 export let collapseGen = {};
 
-export function collapseExerciseAnimated(exId, after, flash){
-  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const card = document.querySelector('.card[data-ex-id="'+exId+'"]');
-  if(!card || reduced){ after(); return; }
+// Destello al completar un ejercicio (main.js): la card se marca un momento y recién ahí se
+// cierra (after → ui/desplegar.js la achica hasta la fila). Sin la card a la vista, con «reducir
+// movimiento» o en modo liviano, after va directo.
+export function exCompleteFlash(exId, after){
+  const card = document.querySelector('.card[data-ex-id="'+CSS.escape(exId)+'"]');
+  if(!card || sinMovimiento()){ after(); return; }
   const gen = (collapseGen[exId] = (collapseGen[exId]||0) + 1);
-  const startCollapse = ()=>{
-    card.classList.add("ex-collapsing");
-    setTimeout(()=>{ if(collapseGen[exId]===gen) after(); }, 150);
-  };
-  // El flash solo aplica cuando el ejercicio se acaba de completar (ver main.js): un
-  // destello verde breve que refuerza el check antes de encogerse a la fila compacta.
-  // El colapso manual (botón de flecha) va directo al encogido, sin flash.
-  if(!flash){ startCollapse(); return; }
   card.classList.add("ex-complete-flash");
   setTimeout(()=>{
     if(collapseGen[exId]!==gen) return;
     card.classList.remove("ex-complete-flash");
-    startCollapse();
+    after();
   }, 220);
 }

@@ -2,6 +2,12 @@ import { State } from '../core/state.js';
 
 export const revealedBlocks = new Set();
 
+// Clase del bloque ya revelado, para escribirla en el HTML. Si la agregaba recién
+// initScrollReveal(), en el medio otro código medía la pantalla (restoreTabScroll) con el bloque
+// todavía oculto y la transición de entrada (tokens.css) se repetía en cada redibujo: la portada
+// del día desaparecía y volvía a subir con cada toque (video del 19/10).
+export const revealCls = key => revealedBlocks.has(key) ? " reveal-in" : "";
+
 export let scrollRevealObserver = null;
 
 export function initScrollReveal(){
