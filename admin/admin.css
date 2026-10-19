@@ -405,7 +405,7 @@ textarea.in { resize: vertical; min-height: 90px; line-height: 1.45; }
 .ia-bar .mk.tope { background: var(--red); }
 .ia-bar .mk em { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 11px; color: var(--txt-2); white-space: nowrap; }
 /* En el celular las marcas solo dicen el monto (con el nombre se pisaban) y abajo va la referencia. */
-.ia-ley { display: none; margin: -14px 0 8px; }
+.ia-ley { display: none; margin: -4px 0 8px; }
 @media (max-width: 600px) { .ia-bar .mk-l { display: none; } .ia-ley { display: block; } }
 .ia-bar.sm { height: 6px; margin: 8px 0; }
 .ia-home b { font-size: 20px; }
