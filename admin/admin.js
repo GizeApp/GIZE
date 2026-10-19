@@ -1460,7 +1460,7 @@ function paintIA(foco){
   const lista = `<ul class="ia-checks">${clave}
     ${ia.clave_rechazada ? ok(false, "La API rechazó la clave (" + fmtDT(ia.clave_rechazada) + ").", "Creá otra en la Console (workspace «gize-produccion») y cargala de nuevo.") : ""}
     ${ok(!!ia.ancla, ia.ancla && c ? "Ciclo de los créditos: del " + fmtDU(c.inicio) + " al " + fmtDU(c.fin) + "." : "Falta la fecha en que vencen los créditos.", ia.ancla ? "" : "Está en la Console de Anthropic → Billing → «Promotional credits». Cargala en Ciclo.")}
-    ${ok(!!ia.pedidos_desde, ia.pedidos_desde ? "Se leen los pedidos que llegaron desde el " + fmtDT(ia.pedidos_desde) + "." : "Falta la fecha de la política de privacidad.", ia.pedidos_desde ? "" : "Hasta cargarla, no se lee ningún pedido.")}</ul>`;
+    ${ok(!!ia.pedidos_desde, ia.pedidos_desde ? "Se leen los pedidos que llegaron desde el " + fmtDT(ia.pedidos_desde) + "." : "Falta la fecha de la política de privacidad.", ia.pedidos_desde ? "" : "Hasta cargarla, no se lee ningún pedido. El día que se publique la política, avisalo en Avisos y después cargá ese día en Funciones.")}</ul>`;
   const listo = ia.activa && fun.etiqueta_admin && f.clave && ia.ancla && ia.pedidos_desde;
   const master = `<div class="ia-master"><div><b>IA activada</b><small>${ia.activa ? (listo ? "Anda: aparece «Leer con IA» en Pedidos. Apagala y nadie llama a la IA." : "Prendida, pero falta algo de la lista de abajo.") : "Apagada: no se llama nunca a la IA y todo se carga a mano."}</small></div>
     <button class="tgl" role="switch" aria-checked="${ia.activa ? "true" : "false"}" aria-label="IA activada" data-a="iaOn"></button></div>`;
@@ -1500,7 +1500,7 @@ function paintIA(foco){
     ${alt ? `<div class="muted small">Si lee mal las tablas, probá con ${esc(alt.nombre)}${veces > 1 ? ": cuesta unas " + veces + " veces más por tabla (igual son centavos)" : ""}.</div>` : ""}` : "";
   const desde = `<label class="lbl" for="iaDesde">Día en que se publicó la política de privacidad</label>
     <div class="search"><input class="in" id="iaDesde" type="date" aria-label="Día en que se publicó la política de privacidad" value="${esc(diaPolitica(ia.pedidos_desde))}"><button class="btn" data-a="iaDesde">Guardar fecha</button></div>
-    <div class="muted small">Si es hoy, se leen los pedidos que lleguen desde ahora; si es otro día, desde el día siguiente (así nunca se lee uno de antes).</div>`;
+    <div class="muted small">Si es hoy, se leen los pedidos que lleguen desde ahora; si es otro día, desde el día siguiente (así nunca se lee uno de antes). Ese día, avisá el cambio en la app desde <a href="#avisos" data-go="avisos">Avisos</a> (ej: «Actualizamos la política de privacidad: sumamos las funciones con IA»).</div>`;
   // Uso.
   const NOMF = { etiqueta: "Tablas", plato: "Platos", texto: "Textos", rutina: "Rutinas", resumen: "Resúmenes" };
   const seg = ms => (num(ms) / 1000).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " s";

@@ -259,6 +259,8 @@ export default async function ({ base, t }){
   t.has(pag, 'Falta la clave de la IA.', 'avisa que falta la clave');
   t.has(pag, 'Falta la fecha en que vencen los créditos.', 'avisa que falta la fecha de los créditos');
   t.has(pag, 'Falta la fecha de la política de privacidad.', 'avisa que falta la fecha de la política');
+  t.has(pag, 'El día que se publique la política, avisalo en Avisos', 'recuerda avisar el cambio de la política en la app (la política lo promete)');
+  t.ok(await ia.isVisible('#iaFunB a[data-go="avisos"]'), 'con un enlace a Avisos');
   t.ok(a.fnBodies.length >= 1 && a.fnBodies.every(b => b.modo === 'estado'), 'pregunta a la función si está la clave (sin leer nada): ' + JSON.stringify(a.fnBodies));
   // El modelo: solo los que sirven para tablas, con lo que cuesta cada una, y el más capaz con su nombre.
   t.eq(await ia.$$eval('#iaModelo option', os => os.map(o => o.textContent)), ['Modelo de prueba (el de siempre) · unos US$ 0,0005 por tabla', 'Modelo capaz · unos US$ 0,0098 por tabla'], 'el modelo: solo los de tablas, con el costo de cada una');
