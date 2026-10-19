@@ -460,7 +460,7 @@ async function administrarPlanApple(){
 
 async function unlinkClient(id){
   const c = CoachState.coachClients.find(x => x.id === id); if(!c) return;
-  if(!confirm("¿Desvincular a " + (c.full_name || "este cliente") + "? Deja de verte como coach; sus datos quedan en su cuenta.")) return;
+  if(!await confirmar("¿Desvincular a " + (c.full_name || "este cliente") + "? Deja de verte como coach; sus datos quedan en su cuenta.")) return;
   B.busy = true; rerender();
   try{
     const r = await State.sb.rpc("coach_remove_client", { client: id });
@@ -493,7 +493,7 @@ async function choose(plan){
 
 async function cancelRenewal(){
   const b = billing();
-  if(!confirm("¿Cancelar la renovación? Tu plan sigue activo hasta el " + fmtDate(ymd(b.until)) + " y después se corta.")) return;
+  if(!await confirmar("¿Cancelar la renovación? Tu plan sigue activo hasta el " + fmtDate(ymd(b.until)) + " y después se corta.")) return;
   const r = await State.sb.functions.invoke("suscripcion", { body: { action: "cancel" } });
   if(r.error){ alert("No se pudo cancelar. Probá de nuevo o cancelala desde Mercado Pago → Suscripciones."); return; }
   await loadBilling(); rerender();

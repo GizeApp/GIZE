@@ -163,7 +163,7 @@ export async function mealAction(a, b){
   }
   if(a==="mp-back"){
     if(CoachState.coachPlanSec){ CoachState.coachPlanSec=null; renderCoach(); return true; }
-    if(mealDirty() && !confirm("Tenés cambios sin guardar. ¿Salir igual y perderlos?")) return true;
+    if(mealDirty() && !await confirmar("Tenés cambios sin guardar. ¿Salir igual y perderlos?")) return true;
     CoachState.coachMealEdit=null; CoachState.coachView="meals"; renderCoach(); window.scrollTo(0,0); return true;
   }
   if(a==="mp-save"){
@@ -186,7 +186,7 @@ export async function mealAction(a, b){
   if(a==="mp-del"){
     const e=CoachState.coachMealEdit;
     if(!e||!e.id){ CoachState.coachMealEdit=null; CoachState.coachView="meals"; renderCoach(); return true; }
-    if(!confirm("¿Borrar este plan guardado? No cambia el plan de los clientes que ya lo tienen aplicado.")) return true;
+    if(!await confirmar("¿Borrar este plan guardado? No cambia el plan de los clientes que ya lo tienen aplicado.")) return true;
     try{ sbOk(await State.sb.from(TABLE).delete().eq("id",e.id)); await loadMealTpls(); }catch(err){ alert("No se pudo: "+errMsg(err)); return true; }
     CoachState.coachMealEdit=null; CoachState.coachView="meals"; renderCoach(); return true;
   }
@@ -194,7 +194,7 @@ export async function mealAction(a, b){
   if(a==="mp-tosave"){
     const d=CoachState.coachData; if(!d||!d.id) return true;
     const def="Plan de "+String(d.name||"cliente").split(" ")[0];
-    const nm=prompt("Nombre para guardar este plan en «Mis planes»:", def);
+    const nm=await pedir("Nombre para guardar este plan en «Mis planes»:", def, { titulo: "Guardar plan", ok: "Guardar" });
     if(!nm||!nm.trim()) return true;
     const f=CoachState.coachPlanForm || Object.assign(planDefault(), (d.plan&&d.plan.plan)?copy(d.plan.plan):{});
     try{
@@ -223,7 +223,7 @@ export async function mealAction(a, b){
     const st=CoachState.coachMealPicker, d=CoachState.coachData; if(!st||st.busy||!d||!d.id) return true;
     const tpl=CoachState.coachMealTpls.find(t=>t.id===b.dataset.id); if(!tpl) return true;
     const who=d.name||"este cliente";
-    if(!confirm("¿Aplicar «"+(tpl.name||"este plan")+"» a "+who+"?\n\nReemplaza el plan alimenticio que tiene ahora"+(clientPlanDirty()?" y se pierden los cambios sin guardar":"")+".")) return true;
+    if(!await confirmar("¿Aplicar «"+(tpl.name||"este plan")+"» a "+who+"?\n\nReemplaza el plan alimenticio que tiene ahora"+(clientPlanDirty()?" y se pierden los cambios sin guardar":"")+".")) return true;
     st.busy=true; renderMealPicker();
     try{
       const row=await applyTo(d.id, tpl);
@@ -238,7 +238,7 @@ export async function mealAction(a, b){
     const tpl=CoachState.coachMealTpls.find(t=>t.id===st.tplId); if(!tpl) return true;
     const to=CoachState.coachClients.filter(c=>st.sel[c.id]);
     if(!to.length){ alert("Elegí al menos un cliente."); return true; }
-    if(!confirm("¿Aplicar «"+(tpl.name||"este plan")+"» a "+to.length+" cliente"+(to.length===1?"":"s")+"?\n\nReemplaza el plan alimenticio que tenga cada uno.")) return true;
+    if(!await confirmar("¿Aplicar «"+(tpl.name||"este plan")+"» a "+to.length+" cliente"+(to.length===1?"":"s")+"?\n\nReemplaza el plan alimenticio que tenga cada uno.")) return true;
     st.busy=true; renderMealPicker();
     const bad=[];
     for(const c of to){ try{ await applyTo(c.id, tpl); }catch(err){ bad.push((c.full_name||c.email||"Cliente")+": "+errMsg(err)); } }

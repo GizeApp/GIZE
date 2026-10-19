@@ -519,24 +519,22 @@ export function salidaAction(a, el){
   if (a === "sal-pause"){ pause(); return true; }
   if (a === "sal-resume"){ resume(); return true; }
   if (a === "sal-stop"){
-    if (!confirm("¿Terminar la salida?")) return true;
-    stop(); renderApp();
-    openSalida({ kind: "ended" });
+    confirmar("¿Terminar la salida?").then(ok => { if (!ok) return; stop(); renderApp(); openSalida({ kind: "ended" }); });
     return true;
   }
   if (a === "sal-review"){ if (takeEnded()) openSalida({ kind: "ended" }); return true; }
   if (a === "sal-save"){
     const e = endedSummary(); if (!e) { closeSalida(); renderApp(); return true; }
-    const rec = saveEnded({ keepIfShort: true });
-    if (!rec) return true; // muy corta y no la quiso guardar, o sin espacio: queda para decidir
-    const o = SalidaState.open, shown = !!(o && o.shown);
-    SalidaState.open = { kind: "saved", id: rec.id, track: e.track || "", shown };
-    renderApp(); paintSalidaOverlay();
+    saveEnded({ keepIfShort: true }).then(rec => {
+      if (!rec) return; // muy corta y no la quiso guardar, o sin espacio: queda para decidir
+      const o = SalidaState.open, shown = !!(o && o.shown);
+      SalidaState.open = { kind: "saved", id: rec.id, track: e.track || "", shown };
+      renderApp(); paintSalidaOverlay();
+    });
     return true;
   }
   if (a === "sal-discard"){
-    if (!confirm("¿Descartar esta salida? No se va a guardar.")) return true;
-    discard(); closeSalida(); renderApp();
+    confirmar("¿Descartar esta salida? No se va a guardar.").then(ok => { if (!ok) return; discard(); closeSalida(); renderApp(); });
     return true;
   }
   if (a === "sal-open"){ openSalida({ kind: "saved", id: el.dataset.id }); return true; }
@@ -554,9 +552,11 @@ export function salidaAction(a, el){
   }
   if (a === "sal-del"){
     const d = openData(); if (!d || !d.saved) return true;
-    if (!confirm("¿Borrar esta salida?")) return true;
-    deleteSalida(d.rec.id).catch(e => console.error("salida", e));
-    closeSalida(); renderApp();
+    confirmar("¿Borrar esta salida?").then(ok => {
+      if (!ok) return;
+      deleteSalida(d.rec.id).catch(e => console.error("salida", e));
+      closeSalida(); renderApp();
+    });
     return true;
   }
   return false;

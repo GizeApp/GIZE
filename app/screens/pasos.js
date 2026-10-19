@@ -213,7 +213,7 @@ async function invitar(g){
     if (navigator.share){ await navigator.share({ title: "Competencia de pasos", text, url }); return; }
   } catch (e) { if (/cancel|abort/i.test(String((e && (e.name + " " + e.message)) || e))) return; }
   try { await navigator.clipboard.writeText(text + "\n" + url); alert("Copiamos el link para invitar. Pegalo en un mensaje a tus amigos."); }
-  catch (e) { prompt("Copiá este link y mandáselo a tus amigos:", url); }
+  catch (e) { await pedir("Copiá este link y mandáselo a tus amigos:", url, { titulo: "Link del grupo", ok: "Listo", cancelar: "Cerrar" }); }
 }
 
 
@@ -247,18 +247,18 @@ document.body.addEventListener("click", async e => {
   }
   if (a === "invitar" && g){ invitar(g); return; }
   if (a === "nombre" && g){
-    const v = prompt("¿Con qué nombre te ven en este grupo? (vacío: tu primer nombre)", "");
+    const v = await pedir("¿Con qué nombre te ven en este grupo? (vacío: tu primer nombre)", "", { titulo: "Tu nombre en el grupo", ok: "Guardar" });
     if (v === null) return;
     await ocupado(async () => { await cambiarMiNombre(g.id, v.trim().slice(0, 24)); cargarGrupo(g.id); });
     return;
   }
   if (a === "salir" && g){
-    if (!confirm(`¿Salir de «${g.nombre}»?` + (g.soy_dueno && g.miembros > 1 ? " El grupo sigue y pasa a manos de quien está hace más tiempo." : ""))) return;
+    if (!await confirmar(`¿Salir de «${g.nombre}»?` + (g.soy_dueno && g.miembros > 1 ? " El grupo sigue y pasa a manos de quien está hace más tiempo." : ""))) return;
     await ocupado(async () => { await salirGrupo(g.id); PasosState.grupo = null; delete PasosState.datos[g.id]; PasosState.grupos = await misGrupos(); });
     return;
   }
   if (a === "borrar" && g){
-    if (!confirm(`¿Borrar «${g.nombre}»? Se borra para todos los que están.`)) return;
+    if (!await confirmar(`¿Borrar «${g.nombre}»? Se borra para todos los que están.`)) return;
     await ocupado(async () => { await borrarGrupo(g.id); PasosState.grupo = null; delete PasosState.datos[g.id]; PasosState.grupos = await misGrupos(); });
     return;
   }
@@ -275,7 +275,7 @@ document.body.addEventListener("click", async e => {
     return;
   }
   if (a === "sacar" && g){
-    if (!confirm(`¿Sacar a ${el.dataset.n || "esta persona"} del grupo? No va a poder volver a sumarse con el código.`)) return;
+    if (!await confirmar(`¿Sacar a ${el.dataset.n || "esta persona"} del grupo? No va a poder volver a sumarse con el código.`)) return;
     await ocupado(async () => { await sacarMiembro(g.id, el.dataset.m); PasosState.grupos = await misGrupos(); await cargarGrupo(g.id); });
     return;
   }
@@ -333,7 +333,7 @@ window.addEventListener("gize:login", async () => {
     let g; try { g = await verInvitacion(c); } catch (e) { if (!faltaFuncion(e)) throw e; }
     if (g === null){ setTimeout(() => alert("El grupo de ese link de invitación ya no existe."), 600); return; }
     if (g && g.soy_miembro && g.id){ PasosState.grupos = await misGrupos().catch(() => PasosState.grupos); abrirGrupo(g.id); return; }
-    if (!confirm("¿Querés sumarte " + (g ? "al grupo «" + g.nombre + "»" : "al grupo de pasos con el código " + c) + "? Los miembros van a ver tu nombre y tus pasos de la semana.")) return;
+    if (!await confirmar("¿Querés sumarte " + (g ? "al grupo «" + g.nombre + "»" : "al grupo de pasos con el código " + c) + "? Los miembros van a ver tu nombre y tus pasos de la semana.")) return;
     const id = await unirseGrupo(c);
     PasosState.grupos = await misGrupos().catch(() => PasosState.grupos);
     if (id) abrirGrupo(id);

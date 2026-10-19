@@ -52,7 +52,7 @@ function renderSummary(){
     cell(sm.sets,"Series")+cell(sm.exs,"Ejercicios")+
     '</div></div>';
 }
-export function saveSession(){
+export async function saveSession(){
   const d=day(); const exs=[];
   // Los kg y reps de la rutina quedan cargados de una vez a la otra: si tildó alguna serie, se
   // guardan solo las tildadas (las otras son de la vez pasada y hoy no se hicieron, p. ej. la
@@ -76,11 +76,11 @@ export function saveSession(){
   const dup=(state.sessions||[]).slice().reverse().find(s=>s.date===today() && s.day===d.name && JSON.stringify(s.exercises)===sig);
   if(dup){
     const mins=Math.max(1, Math.round((Date.now()-(dup.ts||Date.now()))/60000));
-    if(!confirm("Este entreno ya lo guardaste hoy"+(dup.ts?" (hace "+mins+" min)":"")+", con los mismos pesos y repeticiones.\n\n¿Guardarlo otra vez?")) return;
+    if(!await confirmar("Este entreno ya lo guardaste hoy"+(dup.ts?" (hace "+mins+" min)":"")+", con los mismos pesos y repeticiones.\n\n¿Guardarlo otra vez?")) return;
   }
   // Se pide confirmación: tocarlo sin querer terminaba el entreno y cortaba el tiempo, sin
   // forma de volver. (Igual, desde la ventana de «¡Entreno terminado!» se puede seguir.)
-  else if(!confirm("¿Terminar y guardar el entreno de hoy?\n\nSe guarda en tu historial y se detiene el tiempo de entreno.")) return;
+  else if(!await confirmar("¿Terminar y guardar el entreno de hoy?\n\nSe guarda en tu historial y se detiene el tiempo de entreno.")) return;
   CheckinState.newPRs=detectPRs(exs, state.sessions); // contra el historial ANTES de sumar esta sesión
   // Resumen: tiempo desde la primera serie tildada, series, volumen y la vez anterior de ese día.
   const dur = wkStarted(d) ? Math.min(43200, Math.round(wkElapsedMs()/1000)) : 0;

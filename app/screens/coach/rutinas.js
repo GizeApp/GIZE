@@ -178,10 +178,12 @@ export function mealsStudio(p){
   }).join("");
   const side='<aside class="cm-list">'+
     '<div class="cm-day">'+day("trainDays","Día de entreno")+day("restDays","Día de descanso")+'</div>'+
-    list+'<button class="cm-add" data-coach="cm-add" aria-expanded="'+!!CoachState.coachMealMenu+'">'+(CoachState.coachMealMenu?'Cerrar':'+ Agregar comida')+'</button>'+addMenu(p)+
+    // En el celular las comidas van en una tira que se desliza de costado (css: .cm-rail); en la compu el rail no existe (display:contents).
+    '<div class="cm-rail">'+list+'<button class="cm-add" data-coach="cm-add" aria-expanded="'+!!CoachState.coachMealMenu+'">'+(CoachState.coachMealMenu?'Cerrar':'+ Agregar comida')+'</button>'+
     '<div class="cm-sep"></div>'+
     '<button class="cm-li cm-li-x'+(selRaw==="extras"?' on':'')+'" data-coach="cm-sel" data-m="extras"><span class="cm-li-t"><b>Adicionales</b></span><span class="cm-go" aria-hidden="true">›</span></button>'+
     '<button class="cm-li cm-li-x'+(selRaw==="swaps"?' on':'')+'" data-coach="cm-sel" data-m="swaps"><span class="cm-li-t"><b>Reemplazos</b></span><span class="cm-go" aria-hidden="true">›</span></button>'+
+    '</div>'+addMenu(p)+
   '</aside>';
   let det;
   if(sel==="extras") det='<div class="cm-h">Adicionales</div>'+listEditor(p,"extras","Aderezos y condimentos permitidos","");
@@ -203,10 +205,11 @@ export function mealsStudio(p){
     requestAnimationFrame(()=>document.querySelectorAll("#coachHost .opt-body").forEach(fitOptBody));
     det='<div class="cm-head"><input class="ml-in cm-name" data-coach="cm-f" data-m="'+sel+'" data-k="meal" value="'+esc(r.meal||"")+'" placeholder="Nombre de la comida">'+
         '<label class="cm-time"><span>Horario</span><input class="ml-in" data-coach="cm-f" data-m="'+sel+'" data-k="time" value="'+esc(r.time||"")+'" placeholder="08:00"></label></div>'+
-      '<div class="cm-sub">Aporte de esta comida</div>'+
-      '<div class="cm-macros">'+F("kcal","Kcal")+F("cho","Hidratos (g)")+F("fat","Grasas (g)")+F("prot","Proteína (g)")+'</div>'+
-      '<div class="cm-sub">Opciones <small>El cliente elige una</small></div>'+
+      // Lo principal arriba: qué come (las opciones). El aporte en macros es de apoyo y va abajo, más tenue.
+      '<div class="cm-sub cm-sub-opts">Opciones <small>El cliente elige una</small></div>'+
       '<div class="opt-grid">'+opts+addB+'</div>'+
+      '<div class="cm-aporte"><div class="cm-sub">Aporte de esta comida</div>'+
+      '<div class="cm-macros">'+F("kcal","Kcal")+F("cho","Hidratos (g)")+F("fat","Grasas (g)")+F("prot","Proteína (g)")+'</div></div>'+
       '<button class="cm-del" data-coach="cm-del" data-m="'+sel+'">Quitar esta comida</button>';
   }
   return '<div class="cm-tot" id="cmTot">'+mealTotals(p)+'</div>'+
@@ -230,7 +233,7 @@ export function mealStudioAction(a, b, p){
   if(a==="cm-base"){ let ri=0; MEAL_PRESETS.slice(0,4).forEach(([n,t],i)=>{ const x=addMeal(n,t); if(!i) ri=x; }); CoachState.coachMealSel=mealItems(p).findIndex(it=>it.row===ri); return true; }
   if(a==="cm-optnew"){ const it=mealItems(p)[m]; if(!it) return true; const r=p[set][it.row]; p.options=p.options||[]; p.options.push({title:(r&&r.meal)||"",opts:[{label:"Opción A",body:""}]}); return true; }
   if(a==="cm-del"){
-    const it=mealItems(p)[m]; if(!it) return true; if(!confirm("¿Quitar esta comida con sus opciones?")) return false;
+    const it=mealItems(p)[m]; if(!it) return true; // la confirmación se pide en main.js antes de llegar acá
     const other=set==="trainDays"?"restDays":"trainDays";
     const nm=it.row>=0?normMeal(p[set][it.row].meal):"";
     if(it.row>=0) p[set].splice(it.row,1);
@@ -922,10 +925,10 @@ const fmtShort=dt=>{ const p=String(dt||"").split("-"); return p.length===3 ? (+
 const fmtDia = iso => { const [y, m, dd] = String(iso).split("-").map(Number); return new Date(y, m - 1, dd).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }); };
 export function renderCoachSchedule(d){
   const list=d.schedule||[];
-  return '<div class="co-panel co-sched"><div class="co-sec">Rutinas programadas</div>'+
-    '<div class="co-sched-sub">Dejá lista la próxima rutina y elegí desde qué día empieza: ese día le cambia sola, sin tocar la de ahora.</div>'+
+  // Sin título ni bajada: la explicación va en el title del botón y cada fila ya dice «Desde el…».
+  return '<div class="co-sched">'+
     (list.length ? list.map(s=>'<div class="co-sched-row"><div class="co-sched-info"><b>Desde el '+esc(fmtDia(s.starts_on))+'</b><span>'+esc(s.name||"Rutina programada")+' · '+(s.days||[]).length+' día'+((s.days||[]).length===1?'':'s')+'</span></div><button class="co-copy-btn" data-coach="sched-open" data-id="'+esc(s.id)+'">Editar</button></div>').join("") : '')+
-    '<button class="co-copy-btn co-sched-new" data-coach="sched-new">+ Programar una rutina nueva</button></div>';
+    '<button class="co-copy-btn co-sched-new" data-coach="sched-new" title="Dejá lista la próxima rutina y elegí desde qué día empieza: ese día le cambia sola, sin tocar la de ahora.">+ Programar una rutina nueva</button></div>';
 }
 
 export function renderCoachRoutine(d){
@@ -966,7 +969,6 @@ export function renderCoachRoutine(d){
   const sugToggle='<span class="co-sug-mini" title="'+(sugOff?'Apagada: el cliente solo ve el peso que vos propongas.':'GIZE le recomienda subir 2,5 kg cuando la vez pasada se pasó del rango de reps, salvo donde cargues tu peso propuesto.')+'"><span>Sugerencia de peso</span><button type="button" class="co-sug-tg'+(sugOff?'':' on')+'" data-coach="rt-nosug-all" role="switch" aria-checked="'+(!sugOff)+'" aria-label="Sugerencia automática de peso"><span></span></button></span>';
   return coachDatalist()+
     '<div class="co-daytabs">'+tabs+'<button class="co-daytab add" data-coach="day-add" aria-label="Agregar día">+</button></div>'+
-    (rt.length>1 ? '<div class="co-drag-hint co-day-hint">Para cambiar el orden de los días, arrastralos (en el celular, mantené apretado uno).</div>' : '')+
     '<div class="co-day-bar">'+
       // Días de la semana de este día (puede ser más de uno): Entreno arranca en el día que toca hoy.
       '<div class="co-day-row">'+
@@ -980,8 +982,7 @@ export function renderCoachRoutine(d){
         '<label class="co-pfield co-daynote"><span class="co-note-lbl">Nota</span><input class="co-note" data-coach="day-note" value="'+esc(day.note||"")+'" placeholder="La ve el alumno al entrar…"></label>'+
       '</div>'+
     '</div>'+
-    '<div class="co-exc-section-head"><div class="co-exc-title"><span class="co-sec" style="margin:0">Ejercicios</span><span class="co-exc-count">'+totalEx+' · '+totalSets+' serie'+(totalSets===1?'':'s')+'</span></div>'+sugToggle+'</div>'+
-    (exs.length>1 ? '<div class="co-drag-hint">Mantené apretado un ejercicio y soltalo sobre otro para unirlos en superserie.</div>' : '')+
+    '<div class="co-exc-section-head"><div class="co-exc-title"'+(exs.length>1?' title="Mantené apretado un ejercicio y soltalo sobre otro para unirlos en superserie."':'')+'><span class="co-sec" style="margin:0">Ejercicios</span><span class="co-exc-count">'+totalEx+' · '+totalSets+' serie'+(totalSets===1?'':'s')+'</span></div>'+sugToggle+'</div>'+
     '<div class="co-exc-grid">'+
     cards+
       '<button class="co-rt-add-end" data-coach="rt-add"><span>+</span>Agregar ejercicio</button>'+

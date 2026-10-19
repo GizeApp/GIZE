@@ -160,7 +160,7 @@ export async function checkProductRequests(onRetry){
     if (ok.length) alert("¡Listo! Ya agregamos a GIZE " + (ok.length === 1 ? "el producto que pediste: «" + ok[0].name + "»" : "los productos que pediste: " + ok.map(x => "«" + x.name + "»").join(", ")) + ". Buscalo o escanealo para anotarlo.");
     for (const x of no){
       await seen(x);
-      const again = confirm("No pudimos agregar «" + x.name + "»" + (x.note ? ": " + x.note : "") + ".\n\n¿Lo mandás de nuevo con otra foto? El nombre y la marca ya quedan cargados.");
+      const again = await confirmar("No pudimos agregar «" + x.name + "»" + (x.note ? ": " + x.note : "") + ".\n\n¿Lo mandás de nuevo con otra foto? El nombre y la marca ya quedan cargados.");
       if (again && onRetry){ onRetry({ name: x.name || "", brand: x.brand || "", code: x.code || "" }); break; }
     }
   } catch (e) {

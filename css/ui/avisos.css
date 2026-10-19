@@ -22,4 +22,13 @@
 .av-btn { margin-top: 18px; width: 100%; padding: 12px; border: 0; border-radius: var(--r-btn); cursor: pointer; font: inherit; font-weight: 700;
   font-size: var(--text-emphasis); color: #04121a; background: var(--av); }
 .av-btn:focus-visible { outline: 2px solid var(--av); outline-offset: 3px; }
+/* Confirmar: dos botones; en peligro la acción va en rojo. */
+.av-btns { display: flex; gap: 10px; margin-top: 18px; }
+.av-btns .av-btn { margin-top: 0; flex: 1; }
+.av-sec { background: transparent; color: var(--txt); border: 1px solid var(--border); }
+.av-sec:hover { background: color-mix(in srgb, var(--txt) 8%, transparent); }
+.av-err .av-go { color: #fff; }
 @media (prefers-reduced-motion: reduce) { .av-bg, .av-card { transition: none; } }
+.av-in { margin-top: 14px; width: 100%; box-sizing: border-box; padding: 12px; border-radius: var(--r-box); border: 1px solid var(--border);
+  background: var(--card-2); color: var(--txt); font: inherit; font-size: var(--text-body); }
+.av-in:focus { outline: 2px solid var(--av); outline-offset: 1px; }
