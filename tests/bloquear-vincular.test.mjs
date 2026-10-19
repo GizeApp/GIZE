@@ -4,7 +4,7 @@
 // a) La base: la versión vigente de join_coach está en bloqueos.sql, es la de coach-alumnos.sql
 //    entera más el chequeo (antes de vincular y sin anotarlo como código equivocado), sin mandar a
 //    renovar ni a ampliar el plan; los archivos con versiones viejas mandan a correr bloqueos.sql
-//    después.
+//    después. La vigente de hoy es la de gimnasios-vinculo.sql, que suma las reglas de los gimnasios.
 // b) La app muestra el aviso tal cual al vincularse en Configuración, en la web y en el iPhone.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,8 +36,10 @@ export default async function ({ base, t }){
   for (const m of [...fn.matchAll(/raise exception '([^']+)'/g)].map(m => m[1])) t.ok(!MANDA.test(m), 'join_coach: no manda a renovar ni a ampliar: ' + m);
   t.ok(/revoke execute on function public\.join_coach\(text\) from public, anon;/.test(sql) && /grant\s+execute on function public\.join_coach\(text\) to authenticated;/.test(sql), 'join_coach: solo usuarios con sesión');
   // Las cabeceras dicen cuál es la vigente y qué correr después.
-  t.ok(/versión vigente de join_coach está en bloqueos\.sql/.test(read('supabase/coach-alumnos.sql').split('\n').slice(0, 12).join(' ')), 'coach-alumnos.sql: la vigente de join_coach está en bloqueos.sql');
-  t.ok(/vigentes de join_coach/.test(sql.split('\n').slice(0, 20).join(' ')), 'bloqueos.sql: dice que tiene la vigente de join_coach');
+  // Desde los gimnasios, la vigente es la de supabase/gimnasios-vinculo.sql (esta con las reglas de
+  // los gimnasios; tests/gimnasios-sql.test.mjs controla que tenga todo lo de acá).
+  t.ok(/versión vigente de join_coach está en gimnasios-vinculo\.sql/.test(read('supabase/coach-alumnos.sql').split('\n').slice(0, 12).join(' ')), 'coach-alumnos.sql: la vigente de join_coach está en gimnasios-vinculo.sql');
+  t.ok(/join_coach[\s\S]*la vigente está en gimnasios-vinculo\.sql/.test(sql.split('\n').slice(0, 20).join(' ')), 'bloqueos.sql: dice que la vigente de join_coach está en gimnasios-vinculo.sql');
   for (const f of ['supabase/suscripciones.sql', 'supabase/endurecer-base.sql', 'supabase/base.sql'])
     t.ok(/bloqueos\.sql/.test(read(f).split('\n').slice(0, 15).join('\n')), f + ': avisa que después hay que correr bloqueos.sql');
 

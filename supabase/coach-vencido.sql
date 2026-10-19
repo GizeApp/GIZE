@@ -1,6 +1,9 @@
 -- Coach con el plan vencido: a los 4 días sus alumnos pasan solos al sistema común.
 -- Correr con el workflow "Supabase" → tarea sql → supabase/coach-vencido.sql (después de
 -- suscripciones.sql, cupo-plan.sql y avisos-coach.sql). Se puede volver a correr.
+-- OJO: la versión vigente de release_lapsed_clients está en gimnasios-vinculo.sql (la de acá, solo
+-- con los vínculos propios y sin los dueños de un gimnasio): si corrés este archivo, corré después
+-- gimnasios.sql y gimnasios-vinculo.sql.
 --
 -- Qué pasaba: si al coach se le terminaba la prueba o el plan pago, sus alumnos seguían
 -- vinculados a alguien que ya no podía verlos. Conservaban todo, pero la rutina les quedaba

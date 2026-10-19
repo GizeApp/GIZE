@@ -12,6 +12,10 @@
 -- después, en este orden: endurecer-base.sql, suscripciones.sql, cupo-plan.sql,
 -- coach-alumnos.sql, pagos-seguros.sql, seguridad-base.sql, ejercicio-audio.sql,
 -- topes-archivos.sql, topes-datos.sql y bloqueos.sql.
+-- Con los gimnasios: la vigente de is_my_client y join_coach está en gimnasios-vinculo.sql, y con
+-- ese aplicado este archivo falla entero sin cambiar nada (join_coach cambió de tipo). Para correrlo
+-- igual: primero el bloque «Para volver atrás» de gimnasios-vinculo.sql, y al final gimnasios.sql y
+-- gimnasios-vinculo.sql.
 --
 -- Qué NO tiene:
 --   · Los CREATE TABLE (columnas, tipos, claves foráneas): no se exportaron. Para tenerlos,

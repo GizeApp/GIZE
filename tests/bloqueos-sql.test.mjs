@@ -38,7 +38,8 @@ export default async ({ t }) => {
   t.has(sql, 'Correr con el workflow "Supabase" → tarea sql → supabase/bloqueos.sql', 'encabezado: cómo correrlo');
   t.has(sql, 'Se puede correr varias veces', 'encabezado: se puede correr varias veces');
   t.ok(/después de\s+(--\s+)?supabase\/coach-alumnos\.sql, supabase\/chat\.sql, supabase\/pasos-grupos\.sql y supabase\/reportes\.sql/.test(cabeza), 'encabezado: de qué depende');
-  t.ok(/versiones vigentes de join_coach[\s\S]*pasos_unirse, pasos_ranking, pasos_campeon y\s+(--\s+)?pasos_mis_grupos[\s\S]*correr\s+(--\s+)?después este/.test(cabeza), 'encabezado: qué versiones vigentes tiene y que va después de los otros');
+  t.ok(/versiones vigentes de pasos_unirse, pasos_ranking, pasos_campeon y\s+(--\s+)?pasos_mis_grupos[\s\S]*correr\s+(--\s+)?después este/.test(cabeza), 'encabezado: qué versiones vigentes tiene y que va después de los otros');
+  t.ok(/join_coach[\s\S]*ya no es la vigente: la vigente está en gimnasios-vinculo\.sql/.test(cabeza), 'encabezado: la vigente de join_coach está en gimnasios-vinculo.sql');
   const pasosCabeza = read('supabase/pasos-grupos.sql').split('\n').slice(0, 35).join(' ');
   t.ok(/vigentes de pasos_unirse, pasos_mis_grupos, pasos_ranking y pasos_campeon/.test(pasosCabeza) && /bloqueos\.sql/.test(pasosCabeza), 'pasos-grupos.sql: las vigentes están en bloqueos.sql');
 

@@ -1,9 +1,11 @@
 -- Endurecimiento de la base (auditoría de septiembre 2026).
 -- Correr UNA vez en Supabase → SQL Editor.
 -- OJO: NO volver a correr suelto. Redefine join_coach, y la versión vigente (que además mira
--- el plan y el cupo del coach, pone un tope a los códigos equivocados y no vincula si uno
--- bloqueó al otro) está en bloqueos.sql. Si lo corrés, corré después suscripciones.sql,
--- cupo-plan.sql, coach-alumnos.sql y bloqueos.sql.
+-- el plan y el cupo del coach, pone un tope a los códigos equivocados, no vincula si uno
+-- bloqueó al otro y suma las reglas de los gimnasios) está en gimnasios-vinculo.sql. Si lo
+-- corrés, corré después suscripciones.sql, cupo-plan.sql, coach-alumnos.sql, bloqueos.sql,
+-- gimnasios.sql y gimnasios-vinculo.sql. Con gimnasios-vinculo.sql aplicado, este archivo falla
+-- entero sin cambiar nada (join_coach cambió de tipo): primero el bloque «Para volver atrás» de ese.
 -- Todo el script corre como una sola transacción: si algo falla, no se aplica nada.
 --
 -- Qué hace:

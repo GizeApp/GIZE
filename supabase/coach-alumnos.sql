@@ -2,10 +2,12 @@
 -- se vincula con ese código (join_coach).
 -- Correr con el workflow "Supabase" → tarea sql → supabase/coach-alumnos.sql, después de
 -- suscripciones.sql y cupo-plan.sql. Se puede correr varias veces.
--- OJO: la versión vigente de join_coach está en bloqueos.sql (la de acá y, además, no vincula si
--- uno bloqueó al otro): si se vuelve a correr este archivo, correr después bloqueos.sql. Y si se
+-- OJO: la versión vigente de join_coach está en gimnasios-vinculo.sql (la de bloqueos.sql, que es
+-- la de acá y además no vincula si uno bloqueó al otro, con las reglas de los gimnasios). Si se
 -- vuelve a correr suscripciones.sql, endurecer-base.sql o base.sql (que traen versiones viejas),
--- correr después este y bloqueos.sql.
+-- correr después este, bloqueos.sql, gimnasios.sql y gimnasios-vinculo.sql. Con
+-- gimnasios-vinculo.sql aplicado, este archivo falla entero sin cambiar nada (join_coach cambió de
+-- tipo): primero el bloque «Para volver atrás» de ese.
 -- Al final devuelve una fila por coach que todavía tiene un código viejo (vacío = ninguno).
 -- Los mensajes de join_coach no mandan a renovar ni a ampliar el plan: los ven también las apps
 -- de Android e iPhone, y Google y Apple no dejan mandar a pagar por fuera de sus tiendas.

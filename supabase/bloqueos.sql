@@ -9,11 +9,14 @@
 -- (usa profiles, coach_messages, los grupos de pasos y content_reports).
 -- Se puede correr varias veces. Mientras no se corra, la app muestra las hojas igual y al bloquear
 -- dice «No se pudo, probá de nuevo».
--- OJO: acá están las versiones vigentes de join_coach (la de coach-alumnos.sql, que además no
--- vincula si uno bloqueó al otro) y de pasos_unirse, pasos_ranking, pasos_campeon y
+-- OJO: acá están las versiones vigentes de pasos_unirse, pasos_ranking, pasos_campeon y
 -- pasos_mis_grupos (las de pasos-grupos.sql, que además no muestran a quien bloqueé y no dejan
--- entrar a quien bloqueó el que armó el grupo). Si se vuelve a correr coach-alumnos.sql o
--- pasos-grupos.sql, correr después este.
+-- entrar a quien bloqueó el que armó el grupo): si se vuelve a correr pasos-grupos.sql, correr
+-- después este. La de join_coach de acá (la de coach-alumnos.sql, que además no vincula si uno
+-- bloqueó al otro) ya no es la vigente: la vigente está en gimnasios-vinculo.sql, que le suma las
+-- reglas de los gimnasios. Con gimnasios-vinculo.sql aplicado, este archivo falla entero sin
+-- cambiar nada (join_coach cambió de tipo): para correrlo, primero el bloque «Para volver atrás»
+-- de ese, y después de este, gimnasios.sql y gimnasios-vinculo.sql.
 --
 -- Qué pasa al bloquear (block_user):
 --   · Si son coach y alumno, se corta el vínculo igual que con coach_remove_client: el alumno

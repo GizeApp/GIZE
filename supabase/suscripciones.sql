@@ -1,10 +1,12 @@
 -- Suscripción de los coaches: 14 días de prueba y después un plan mensual por
 -- Mercado Pago, que define cuántos clientes puede tener.
 -- Correr UNA vez en Supabase → SQL Editor.
--- OJO: NO volver a correr suelto. Redefine coach_active, y la versión vigente (que además
--- mira el cupo del plan) está en cupo-plan.sql. También join_coach, cuya versión vigente (con
--- tope de códigos equivocados, de coach-alumnos.sql, y sin vincular si uno bloqueó al otro) está
--- en bloqueos.sql. Si lo corrés, corré después cupo-plan.sql, coach-alumnos.sql y bloqueos.sql.
+-- OJO: NO volver a correr suelto. Redefine coach_active, is_my_client y join_coach, y las
+-- versiones vigentes están en gimnasios-vinculo.sql (antes: coach_active en cupo-plan.sql y
+-- join_coach en coach-alumnos.sql y bloqueos.sql). Si lo corrés, corré después cupo-plan.sql,
+-- coach-alumnos.sql, bloqueos.sql, gimnasios.sql y gimnasios-vinculo.sql. Con gimnasios-vinculo.sql
+-- aplicado, este archivo falla entero sin cambiar nada (join_coach cambió de tipo): primero el
+-- bloque «Para volver atrás» de ese.
 --
 --   Prueba           14 días, hasta 10 clientes, gratis
 --   Plan 10          hasta 10 clientes, $14.900 por mes

@@ -5,6 +5,9 @@
 -- El plan cortesía no cambia (el cupo lo decide el administrador).
 -- Correr con el workflow "Supabase" → tarea sql → supabase/cupo-plan.sql, después de
 -- suscripciones.sql. Se puede correr varias veces.
+-- OJO: la versión vigente de coach_active está en gimnasios-vinculo.sql (la de acá, con el cupo
+-- cacheado y, para el dueño de un gimnasio, el plan del gimnasio): si corrés este archivo, corré
+-- después gimnasios.sql y gimnasios-vinculo.sql.
 
 -- Contar los clientes de un coach no recorre la tabla (coach_active se usa en cada política).
 create index if not exists profiles_coach_id_idx on public.profiles(coach_id);
