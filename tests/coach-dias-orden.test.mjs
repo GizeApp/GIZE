@@ -65,7 +65,7 @@ export default async function ({ base, t }){
     const { p, errs, dialogs, writes, close } = await abrir(base, { width: 1280, height: 800 });
     const antes = huella(await dias(p));
     t.eq(await pestanas(p), ['Pierna', 'Torso', 'Brazos'], 'arranca Pierna, Torso, Brazos');
-    t.ok(await p.$('.co-day-hint'), 'dice que los días se pueden arrastrar');
+    // (El texto «Para cambiar el orden de los días, arrastralos» se sacó al simplificar el editor, #335.)
     t.ok(!(await p.$('.co-unsaved')), 'sin cambios todavía');
     await arrastrarMouse(p, 'Brazos', 'Pierna', 'antes');
     t.eq(await pestanas(p), ['Brazos', 'Pierna', 'Torso'], 'arrastrando con el mouse, Brazos pasa a ser el primero');

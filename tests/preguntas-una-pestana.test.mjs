@@ -9,7 +9,7 @@ export default async function ({ base, t }){
   const A1 = '44444444-4444-4444-4444-444444444444';
   const SAVED = { daily: [{ id: 'qd1', label: '¿Cuántas horas dormiste?', type: 'text' }], checkin: [{ id: 'qc1', label: '¿Cómo fue la semana?', type: 'text' }] };
   let falla = true; const ups = [];
-  const { p, errs, dialogs, close } = await newPage({ user: COACH, viewport: { width: 1100, height: 900 },
+  const { p, errs, dialogs, preguntas, close } = await newPage({ user: COACH, viewport: { width: 1100, height: 900 },
     handlers: {
       '/profiles': (r, J, i) => { if (i.m !== 'GET') return undefined; const me = { id: COACH.id, role: 'coach', full_name: 'Coach Prueba' };
         if (/coach_id=eq/.test(i.url.search)) return J([{ id: A1, full_name: 'Ana Alumna' }]); return J(i.one ? me : [me]); },
@@ -36,14 +36,15 @@ export default async function ({ base, t }){
   // Vuelve la señal y guarda: antes se leen las guardadas. Su check-in no es el que estaba en
   // pantalla (las predeterminadas): pregunta, y al cancelar muestra el guardado para editarlo.
   falla = false;
-  await p.evaluate(() => { window.__conf = []; window.__ok = false; window.confirm = m => (window.__conf.push(m), window.__ok); });
+  p.contestar = false; // se toca «Cancelar» en la pregunta
+  const n0 = preguntas.length;
   await p.click('[data-coach="q-save"]'); await wait(1000);
   t.eq(ups.length, 0, 'no reemplaza sin preguntar las del check-in que no se habían leído');
-  t.has((await p.evaluate(() => window.__conf)).join(' | '), 'no son las que tenías en pantalla', 'pregunta antes de reemplazarlas');
+  t.has(preguntas.slice(n0).map(q => q.texto).join(' | '), 'no son las que tenías en pantalla', 'pregunta antes de reemplazarlas');
   t.eq(await p.$$eval('.cq-label', l => l.map(e => e.value)), ['¿Cómo fue la semana?'], 'al cancelar muestra las del check-in guardadas');
   await p.click('[data-coach="q-add"]'); await wait(200);
   await p.fill('.cq-label >> nth=-1', '¿Entrenaste los 4 días?'); await wait(100);
-  await p.evaluate(() => { window.__ok = true; });
+  p.contestar = true;
   await p.click('[data-coach="q-save"]'); await wait(1000);
   t.eq(ups.length, 1, 'con señal se guarda');
   const row = ups[0] || {};

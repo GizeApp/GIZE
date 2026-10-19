@@ -1,5 +1,6 @@
 /* Selector propio (app/ui/selector.js): reemplaza la lista desplegable nativa de los <select>.
-   Hoja desde abajo en el celular, tarjeta centrada en la compu. */
+   Hoja desde abajo en el celular, tarjeta centrada en la compu. Debajo de los carteles (.av-bg, 1200):
+   una pregunta que llega con la hoja abierta se ve encima. */
 .sl-bg { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: flex-end; justify-content: center;
   background: rgba(0,0,0,.55); opacity: 0; transition: opacity var(--duration-frequent, .15s) ease; }
 .sl-bg.show { opacity: 1; }
