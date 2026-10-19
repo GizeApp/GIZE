@@ -83,7 +83,7 @@ function shortText(rec){
 // estaba: la pantalla de Cardio, que tiene «Guardar» y «Descartar», la deja para decidir).
 // → la salida guardada, o null.
 // Las calorías van con el último peso cargado; sin peso, 70 kg (kgDefault: la pantalla avisa).
-export function saveEnded(opts){
+export async function saveEnded(opts){
   const run = takeEnded();
   if (!run) return null;
   // Quedó de otra cuenta (se cerró la sesión sin borrarla): no va a la cuenta de ahora.
@@ -95,7 +95,7 @@ export function saveEnded(opts){
   const track = appNativa() ? null : fin.track;
   if (appNativa()) rec.points = 0;
   if (!rec.id) rec.id = newId();
-  if (isShort(rec) && !confirm("La salida es muy corta (" + shortText(rec) + "). ¿Guardarla igual?")){ if (!(opts && opts.keepIfShort)) discard(); return null; }
+  if (isShort(rec) && !await confirmar("La salida es muy corta (" + shortText(rec) + "). ¿Guardarla igual?")){ if (!(opts && opts.keepIfShort)) discard(); return null; }
   // Primero a la cola (queda escrita en el acto) y después se borra la salida en curso: si la
   // app se corta en el medio, al abrir se vuelve a guardar la misma (mismo id, no se duplica).
   // La cola va antes que la caché: con el celular lleno, la caché se comería el lugar.

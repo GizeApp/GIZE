@@ -113,7 +113,7 @@ async function saveQuestions(btn){
   const kinds = ["daily", "checkin"].filter(k => ed.dirtyTabs[k]);
   if(!kinds.length){ CoachState.coachQEdit = null; repintar(); return; }
   const bad = kinds.find(k => (ed[k] || []).some(q => q.type === "options" && !(q.options || []).filter(o => String(o).trim()).length && String(q.label || "").trim()));
-  if(bad && !confirm("Hay preguntas de \"Elegir una opción\" sin opciones en " + KIND_LABEL[bad] + ". Se van a guardar como respuesta libre. ¿Seguir?")) return;
+  if(bad && !await confirmar("Hay preguntas de \"Elegir una opción\" sin opciones en " + KIND_LABEL[bad] + ". Se van a guardar como respuesta libre. ¿Seguir?")) return;
   btn.textContent = "Guardando...";
   // Sin haber podido leer las guardadas no se sabe qué se reemplaza: primero se vuelven a leer.
   if(CoachState.coachQError){
@@ -127,7 +127,7 @@ async function saveQuestions(btn){
   // Lo guardado no es lo que el editor tenía al abrir (no se había podido leer, o cambió en otro
   // dispositivo): se pregunta antes de reemplazarlo. Si no, se muestra lo guardado para editarlo.
   const changed = kinds.filter(k => JSON.stringify(currentList(k)) !== ed.base[k]);
-  if(changed.length && !confirm("Tus preguntas guardadas de " + changed.map(k => "«" + KIND_LABEL[k] + "»").join(" y ") + " no son las que tenías en pantalla (no se habían podido leer o cambiaron en otro dispositivo). ¿Reemplazarlas igual por las que armaste?\n\nSi cancelás, se muestran las guardadas para editarlas.")){
+  if(changed.length && !await confirmar("Tus preguntas guardadas de " + changed.map(k => "«" + KIND_LABEL[k] + "»").join(" y ") + " no son las que tenías en pantalla (no se habían podido leer o cambiaron en otro dispositivo). ¿Reemplazarlas igual por las que armaste?\n\nSi cancelás, se muestran las guardadas para editarlas.")){
     changed.forEach(k => { ed[k] = currentList(k); ed.base[k] = JSON.stringify(ed[k]); delete ed.dirtyTabs[k]; });
     repintar(); return;
   }
@@ -146,7 +146,7 @@ async function saveQuestions(btn){
   repintar();
 }
 
-document.body.addEventListener("click", e => {
+document.body.addEventListener("click", async e => {
   const b = e.target.closest("[data-coach]"); if(!b) return;
   const a = b.dataset.coach; if(a.indexOf("q-") !== 0) return;
   const ed = CoachState.coachQEdit; if(!ed) return;
@@ -158,11 +158,11 @@ document.body.addEventListener("click", e => {
     const ins = document.querySelectorAll(".cq-label"); const last = ins[ins.length - 1]; if(last) last.focus();
     return;
   }
-  if(a === "q-del"){ if(confirm("¿Borrar esta pregunta? Las respuestas que ya dieron tus clientes no se pierden.")){ list.splice(i, 1); touch(ed); repintar(); } return; }
+  if(a === "q-del"){ if(await confirmar("¿Borrar esta pregunta? Las respuestas que ya dieron tus clientes no se pierden.")){ list.splice(i, 1); touch(ed); repintar(); } return; }
   if(a === "q-up" && i > 0){ list.splice(i - 1, 0, list.splice(i, 1)[0]); touch(ed); repintar(); return; }
   if(a === "q-down" && i < list.length - 1){ list.splice(i + 1, 0, list.splice(i, 1)[0]); touch(ed); repintar(); return; }
   if(a === "q-reset"){
-    if(confirm("¿Volver a las preguntas predeterminadas de " + KIND_LABEL[ed.tab] + "? Se reemplazan las de esta pestaña (tocá Guardar para aplicarlo).")){
+    if(await confirmar("¿Volver a las preguntas predeterminadas de " + KIND_LABEL[ed.tab] + "? Se reemplazan las de esta pestaña (tocá Guardar para aplicarlo).")){
       ed[ed.tab] = defaultQuestions(ed.tab); touch(ed); repintar();
     }
   }

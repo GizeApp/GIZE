@@ -76,14 +76,14 @@ async function save(ex, blob, type, secs){
   renderCoach();
 }
 
-document.body.addEventListener("click", e => {
+document.body.addEventListener("click", async e => {
   const b = e.target.closest('[data-coach^="ea-"]'); if(!b || b.disabled) return;
   const a = b.dataset.coach, ex = exAt(b.dataset.i); if(!ex) return;
   if(a === "ea-rec") start(ex);
   else if(a === "ea-stop"){ if(R && R.rec) R.rec.stop(false); }
   else if(a === "ea-cancel"){ if(R && R.rec) R.rec.stop(true); }
   else if(a === "ea-play") togglePlay("ex:" + ex.audio, () => signedAudioUrl(ex.audio));
-  else if(a === "ea-del"){ if(confirm("¿Borrar la explicación de voz de este ejercicio?")){ delete ex.audio; delete ex.audioSecs; renderCoach(); } }
+  else if(a === "ea-del"){ if(await confirmar("¿Borrar la explicación de voz de este ejercicio?")){ delete ex.audio; delete ex.audioSecs; renderCoach(); } }
 });
 
 // El botón de escuchar cambia entre play y pausa sin redibujar todo el editor.

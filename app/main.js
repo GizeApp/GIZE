@@ -1,4 +1,5 @@
 import './ui/avisos.js';
+import './ui/selector.js';
 import './ui/errores.js';
 
 import './ui/keyboard.js';
@@ -600,7 +601,7 @@ document.body.addEventListener("click", async e => {
   }
   if (a === "prod-report") {
     const f=ComidaState.selectedFood; if(!f || !f.gid) return;
-    const why=prompt("¿Qué dato está mal? (por ejemplo: las calorías, el nombre, la marca)"); if(why===null) return;
+    const why=await pedir("¿Qué dato está mal? (por ejemplo: las calorías, el nombre, la marca)", "", { titulo: "Reportar un dato", ok: "Enviar" }); if(why===null) return;
     reportShared(f.gid, why).then(ok=>alert(ok?"Gracias, lo vamos a revisar.":"No se pudo enviar el reporte. Probá de nuevo más tarde."));
     return;
   }
@@ -685,7 +686,7 @@ document.body.addEventListener("click", async e => {
   // Pasos
   if (a === "steps-add") { state.steps = Math.max(0,(state.steps||0)+parseInt(el.dataset.n)); save(); renderApp(); return; }
   if (a === "steps-set") { const n=intNum((document.getElementById("stepInput")||{}).value); if(n>=0){ state.steps=n; save(); renderApp(); } else alert("Pon\u00e9 un n\u00famero v\u00e1lido."); return; }
-  if (a === "steps-goal") { const g=prompt("Meta diaria de pasos:", state.stepsGoal||10000); if(g!==null){ const n=intNum(g); if(n>0){ state.stepsGoal=n; save(); renderApp(); } } return; }
+  if (a === "steps-goal") { const g=await pedir("Meta diaria de pasos:", state.stepsGoal||10000, { titulo: "Meta de pasos", ok: "Guardar" }); if(g!==null){ const n=intNum(g); if(n>0){ state.stepsGoal=n; save(); renderApp(); } } return; }
   if (a === "steps-live") { if(liveCounting) stopLive(); else startLive(); return; }
 
   // Ejercicios (picker)
@@ -714,7 +715,7 @@ document.body.addEventListener("click", async e => {
     return;
   }
   if (a === "ex-choose") { const name=el.dataset.name; const d=day(); const mm=pickMuscle(name, el.dataset.cat||EntrenoState.exCat); if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex) swapEx(ex, name, mm); } else if(EntrenoState.exPicker && EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(name,2,mm))); } else { d.exercises.push(openEx(mkEx(name,2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); return; }
-  if (a === "ex-custom") { const nm=prompt(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:",""); if(nm && nm.trim()){ const d=day(); const mm=EntrenoState.exCat; if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex) swapEx(ex, nm.trim(), mm); } else if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(nm.trim(),2,mm))); } else { d.exercises.push(openEx(mkEx(nm.trim(),2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); } return; }
+  if (a === "ex-custom") { const nm=await pedir(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:","",{ titulo: "Ejercicio propio", ok: "Agregar" }); if(nm && nm.trim()){ const d=day(); const mm=EntrenoState.exCat; if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="swap"){ const ex=d.exercises.find(x=>x.id===EntrenoState.exPicker.exId); if(ex) swapEx(ex, nm.trim(), mm); } else if(EntrenoState.exPicker&&EntrenoState.exPicker.mode==="insert"){ d.exercises.splice(EntrenoState.exPicker.idx,0,openEx(mkEx(nm.trim(),2,mm))); } else { d.exercises.push(openEx(mkEx(nm.trim(),2,mm))); } save(); closeSheet(()=>{ EntrenoState.exPicker=null; renderApp(); }); } return; }
 
   // Peso corporal
   if (a === "daily-save") {
@@ -787,7 +788,7 @@ document.body.addEventListener("click", async e => {
 
   // Agua
   if (a === "water-add") { const n=parseInt(el.dataset.n)||0; state.water=Math.max(0,(state.water||0)+n); save(); renderApp(); return; }
-  if (a === "water-goal") { const v=prompt("Meta de agua en ml (ej: 3000):", String(Math.round(state.waterGoal||3000))); if(v!==null){ const n=intNum(v); if(n>0){ state.waterGoal=n; save(); renderApp(); } } return; }
+  if (a === "water-goal") { const v=await pedir("Meta de agua en ml (ej: 3000):", String(Math.round(state.waterGoal||3000)), { titulo: "Meta de agua", ok: "Guardar" }); if(v!==null){ const n=intNum(v); if(n>0){ state.waterGoal=n; save(); renderApp(); } } return; }
   if (a === "rest-set") { startRest(parseInt(el.dataset.sec)||120); return; }
   if (a === "rest-pick") { state.restDefault = parseInt(el.dataset.sec)||120; save(); renderRestBar(); return; }
   if (a === "rest-play") { startRest(state.restDefault||120); return; }
@@ -806,12 +807,12 @@ document.body.addEventListener("click", async e => {
   // Calendario de «Historial de entrenos» (Progreso): cambiar de mes / abrir un día.
   if (a === "hist-cal-nav") { ProgresoState.histCal.m=el.dataset.m; renderApp(); return; }
   if (a === "hist-cal-day") { ProgresoState.histCal.d=el.dataset.d; renderApp(); return; }
-  if (a === "session-remove") { if(confirm("¿Borrar este entreno del historial?")){ const _s=state.sessions.find(x=>x.id===el.dataset.id), _cid=sessionCloudId(_s); if(_cid){ try{ cloudDeleteSession(_cid); }catch(e){} } state.sessions=state.sessions.filter(x=>x.id!==el.dataset.id); save(); renderApp(); } return; }
+  if (a === "session-remove") { if(await confirmar("¿Borrar este entreno del historial?")){ const _s=state.sessions.find(x=>x.id===el.dataset.id), _cid=sessionCloudId(_s); if(_cid){ try{ cloudDeleteSession(_cid); }catch(e){} } state.sessions=state.sessions.filter(x=>x.id!==el.dataset.id); save(); renderApp(); } return; }
 
   // Días
   if (a === "open-routines") { openRoutinePicker(); return; }
   if (a === "addday") { const nd={id:uid(),name:"Nuevo",subtitle:"",exercises:[]}; state.days.push(nd); State.activeId=nd.id; State.dayPickedOn=today(); HabitosState.pendingFocusDay=true; save(); renderApp(); return; }
-  if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(confirm("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); State.activeId=state.days[0].id; State.dayPickedOn=today(); save(); renderApp(); } return; }
+  if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(await confirmar("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); State.activeId=state.days[0].id; State.dayPickedOn=today(); save(); renderApp(); } return; }
   // Días de la semana del día abierto (core/diasemana.js): se abren los 7 botones debajo del
   // nombre, cada toque guarda (y sube con la rutina) y «Listo» los vuelve a cerrar.
   if (a === "dias-open") { if(!routineLocked()){ EntrenoState.diasOpen = day().id; renderApp(); } return; }
@@ -830,7 +831,7 @@ document.body.addEventListener("click", async e => {
     // queda guardado como mejor marca y le tapa los récords de verdad.
     if(!s.done){
       const prev=suspiciousKg(ex, s);
-      if(prev!==null && !confirm("¿Seguro que son "+String(s.kg).replace(".",",")+" kg?"+(prev?" Tu mejor marca en este ejercicio es "+String(prev).replace(".",",")+" kg.":"")+"\n\nSi lo escribiste mal, tocá Cancelar y corregilo.")){
+      if(prev!==null && !await confirmar("¿Seguro que son "+String(s.kg).replace(".",",")+" kg?"+(prev?" Tu mejor marca en este ejercicio es "+String(prev).replace(".",",")+" kg.":"")+"\n\nSi lo escribiste mal, tocá Cancelar y corregilo.")){
         const inp=document.querySelector('input.kg[data-set="'+CSS.escape(s.id)+'"]'); if(inp){ inp.focus(); inp.select(); }
         return;
       }
@@ -928,11 +929,11 @@ document.body.addEventListener("click", async e => {
   else if (a === "removeset") { ex.sets = ex.sets.filter(x=>x.id!==el.dataset.set); }
   else if (a === "removeex") { d.exercises = d.exercises.filter(x=>x.id!==el.dataset.ex); }
   else if (a === "wk-start") { state.wkStart={date:today(), day:d.id, ts:Date.now(), manual:true}; }
-  else if (a === "wk-cancel") { if(!confirm("¿Cancelar el entrenamiento? El reloj vuelve a cero (las series tildadas quedan).")) return; delete state.wkStart; }
+  else if (a === "wk-cancel") { if(!await confirmar("¿Cancelar el entrenamiento? El reloj vuelve a cero (las series tildadas quedan).")) return; delete state.wkStart; }
   else if (a === "clear") {
     // Está debajo de «Finalizar» y «Cancelar»: si hay algo que perder (el reloj del entreno o las
     // tildes), se pregunta antes, como en «Cancelar».
-    if((wkStarted(d) || d.exercises.some(x=>x.sets.some(s=>s.done))) && !confirm("¿Limpiar el día? Se destildan todas las series y el reloj del entreno vuelve a cero (los kg y reps quedan).")) return;
+    if((wkStarted(d) || d.exercises.some(x=>x.sets.some(s=>s.done))) && !await confirmar("¿Limpiar el día? Se destildan todas las series y el reloj del entreno vuelve a cero (los kg y reps quedan).")) return;
     d.exercises.forEach(x=>x.sets.forEach(s=>s.done=false)); delete state.wkStart;
   }
   else return;
@@ -1071,11 +1072,11 @@ document.body.addEventListener("click", async e=>{
     // cola antes de contar, así solo avisa si de verdad quedó algo sin subir.
     if(State.cloudUser){ b.disabled=true; try{ await flushOutbox(); await syncRoutineNow(); }catch(e){} b.disabled=false; }
     // Una salida de Cardio en curso (o terminada sin guardar) se pierde al cerrar sesión.
-    if(GpsState.run && !confirm("Tenés una salida de Cardio "+(GpsState.run.status==="ended"?"sin guardar":"en curso")+". Si cerrás sesión se pierde.\n\n¿Cerrar sesión igual?")) return;
+    if(GpsState.run && !await confirmar("Tenés una salida de Cardio "+(GpsState.run.status==="ended"?"sin guardar":"en curso")+". Si cerrás sesión se pierde.\n\n¿Cerrar sesión igual?")) return;
     if(State.cloudUser && localUnsynced()){
       const n=pendingCount();
       const que = n>0 ? n+" registro"+(n>1?"s":"")+(state.routineHash!==routineHash(state.days)?" y cambios de tu rutina":"") : "cambios de tu rutina";
-      if(!confirm("Tenés "+que+" que todavía no se guardaron en tu cuenta (sin conexión). Si cerrás sesión ahora se pierden.\n\nConectate a internet, abrí la app y esperá unos segundos antes de salir.\n\n¿Cerrar sesión igual?")) return;
+      if(!await confirmar("Tenés "+que+" que todavía no se guardaron en tu cuenta (sin conexión). Si cerrás sesión ahora se pierden.\n\nConectate a internet, abrí la app y esperá unos segundos antes de salir.\n\n¿Cerrar sesión igual?")) return;
     }
     State.signingOut=true; // el SIGNED_OUT que viene es este: no es una sesión perdida (core/supabase.js → watchAuth)
     try{ await pushLogout(); }catch(e){} // antes del signOut: borrar el dispositivo necesita la sesión
@@ -1189,7 +1190,7 @@ document.body.addEventListener("click", async e => {
   if(a==="cat"){ CoachState.coachPCat=b.dataset.c; CoachState.coachPQ=""; renderCoachPicker(); return; }
   if(a==="cats"){ CoachState.coachPCat=null; CoachState.coachPQ=""; renderCoachPicker(); return; }
   if(a==="choose"){ cpApply(b.dataset.name, b.dataset.cat); return; }
-  if(a==="custom"){ const nm=prompt(CoachState.coachPicker&&CoachState.coachPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:",""); if(nm&&nm.trim()) cpApply(nm.trim()); return; }
+  if(a==="custom"){ const nm=await pedir(CoachState.coachPicker&&CoachState.coachPicker.mode==="swap"?"Nuevo nombre del ejercicio:":"Nombre del ejercicio:","",{ titulo: "Ejercicio propio", ok: "Agregar" }); if(nm&&nm.trim()) cpApply(nm.trim()); return; }
 });
 
 document.body.addEventListener("input", async e => {
@@ -1200,7 +1201,7 @@ document.body.addEventListener("input", async e => {
 
 document.body.addEventListener("click", async e => {
   const b=e.target.closest('[data-action="avatar-remove"]'); if(!b) return;
-  if(!confirm("¿Quitar tu foto de perfil? Vas a volver a mostrar tus iniciales.")) return;
+  if(!await confirmar("¿Quitar tu foto de perfil? Vas a volver a mostrar tus iniciales.")) return;
   const err=await removeMyAvatar(); if(err){ alert(err); return; }
   renderCoachSettings();
   if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach();
@@ -1247,7 +1248,7 @@ document.body.addEventListener("click", async e => {
     renderCoachSettings(); return;
   }
   if(a==="rotate-invite"){
-    if(!confirm("¿Cambiar tu código de invitación?\n\nEl código actual deja de servir: nadie más se va a poder vincular con él. Tus clientes ya vinculados siguen igual.")) return;
+    if(!await confirmar("¿Cambiar tu código de invitación?\n\nEl código actual deja de servir: nadie más se va a poder vincular con él. Tus clientes ya vinculados siguen igual.")) return;
     b.disabled=true;
     try{
       const r=await State.sb.rpc("rotate_invite_code");
@@ -1266,12 +1267,12 @@ document.body.addEventListener("click", async e => {
     openClient(id).then(()=>{ if(asignar && CoachState.coachSel===id && CoachState.coachData && CoachState.coachData.id) abrirAplicarRutina(); });
     return;
   }
-  if((a==="back"||a==="refresh") && clientUnsaved()){ if(!confirm("Tenés cambios sin guardar en "+clientUnsaved()+". ¿Salir igual y perderlos?")) return; if(routineDirty()){ dropRoutineDraft(CoachState.coachData.id); CoachState.coachData.routineOrig=JSON.stringify(CoachState.coachData.routine||[]); } }
+  if((a==="back"||a==="refresh") && clientUnsaved()){ if(!await confirmar("Tenés cambios sin guardar en "+clientUnsaved()+". ¿Salir igual y perderlos?")) return; if(routineDirty()){ dropRoutineDraft(CoachState.coachData.id); CoachState.coachData.routineOrig=JSON.stringify(CoachState.coachData.routine||[]); } }
   if(a==="back"){ CoachState.coachSel=null; CoachState.coachData=null; renderCoach(); refreshCoachClients(); return; }
   if(a==="refresh"){ if(CoachState.coachSel) openClient(CoachState.coachSel); return; }
   // Preguntas sin guardar: se avisa antes de irse de la sección (o de la pantalla).
   if((a==="settings-sec" || a==="settings-back" || /^(view-(home|clients|tpls|meals)|open-settings|q-open)$/.test(a)) && CoachState.coachView==="settings" && qDirty()){
-    if(!confirm("Tenés cambios sin guardar en las preguntas. ¿Salir igual y perderlos?")) return;
+    if(!await confirmar("Tenés cambios sin guardar en las preguntas. ¿Salir igual y perderlos?")) return;
     CoachState.coachQEdit=null;
   }
   if(a==="settings-sec"){ CoachState.coachSetSec=b.dataset.k||"perfil"; CoachState.coachNameForm=null; renderCoachSettings(); return; }
@@ -1301,7 +1302,7 @@ document.body.addEventListener("click", async e => {
     if((a==="open-settings" || a==="q-open") && CoachState.coachView!=="settings") CoachState.coachBackView=CoachState.coachView;
     if(CoachState.coachSel || CoachState.coachTplEdit || CoachState.coachMealEdit){
       const sin=(CoachState.coachSel && clientUnsaved()) || (tplDirty() && "la rutina") || (mealDirty() && "el plan alimenticio") || "";
-      if(sin && !confirm("Tenés cambios sin guardar en "+sin+". ¿Salir igual y perderlos?")) return;
+      if(sin && !await confirmar("Tenés cambios sin guardar en "+sin+". ¿Salir igual y perderlos?")) return;
       if(routineDirty()){ dropRoutineDraft(CoachState.coachData.id); CoachState.coachData.routineOrig=JSON.stringify(CoachState.coachData.routine||[]); }
       CoachState.coachSel=null; CoachState.coachData=null; CoachState.coachTplEdit=null; CoachState.coachMealEdit=null; CoachState.coachEditDay=0; CoachState.coachPlanSec=null;
       refreshCoachClients();
@@ -1345,12 +1346,12 @@ document.body.addEventListener("click", async e => {
     const e=CoachState.coachTplEdit;
     const leave=()=>{ CoachState.coachTplEdit=null; CoachState.coachEditDay=0; CoachState.coachClientTab="stats"; CoachState.coachSec="bloque"; CoachState.coachWeekSel=e.wk; renderCoach(); window.scrollTo(0,0); };
     if(a==="tpl-back"){
-      if(JSON.stringify(e.days)!==e.orig && !confirm("¿Salir sin guardar la rutina de descarga?")) return;
+      if(JSON.stringify(e.days)!==e.orig && !await confirmar("¿Salir sin guardar la rutina de descarga?")) return;
       leave(); return;
     }
     if(a==="tpl-del"){
-      if(!e.saved){ if(JSON.stringify(e.days)!==e.orig && !confirm("¿Descartar esta rutina de descarga?")) return; leave(); return; }
-      if(!confirm("¿Borrar la rutina de descarga de la semana "+e.wk+"? Esa semana el alumno sigue con su rutina de siempre.")) return;
+      if(!e.saved){ if(JSON.stringify(e.days)!==e.orig && !await confirmar("¿Descartar esta rutina de descarga?")) return; leave(); return; }
+      if(!await confirmar("¿Borrar la rutina de descarga de la semana "+e.wk+"? Esa semana el alumno sigue con su rutina de siempre.")) return;
       const f=blockForm(); if(f.deload_routines && typeof f.deload_routines==="object") delete f.deload_routines[e.wk];
       b.disabled=true;
       if(await saveBlock(f)){ alert("Rutina de descarga borrada ✓"); leave(); } else b.disabled=false;
@@ -1398,7 +1399,7 @@ document.body.addEventListener("click", async e => {
     CoachState.coachTplEdit={sched:true, id:s.id, name:s.name||"", starts_on:s.starts_on, days:JSON.parse(JSON.stringify(s.days||[]))};
     CoachState.coachEditDay=0; renderCoach(); window.scrollTo(0,0); return;
   }
-  if(a==="tpl-back" && tplDirty() && !confirm("Tenés cambios sin guardar. ¿Salir igual y perderlos?")) return;
+  if(a==="tpl-back" && tplDirty() && !await confirmar("Tenés cambios sin guardar. ¿Salir igual y perderlos?")) return;
   if(a==="tpl-back" && CoachState.coachTplEdit && CoachState.coachTplEdit.sched){ CoachState.coachTplEdit=null; CoachState.coachEditDay=0; renderCoach(); return; }
   if(a==="tpl-save" && CoachState.coachTplEdit && CoachState.coachTplEdit.sched){
     const e=CoachState.coachTplEdit, cid=CoachState.coachSel;
@@ -1419,7 +1420,7 @@ document.body.addEventListener("click", async e => {
   if(a==="tpl-del" && CoachState.coachTplEdit && CoachState.coachTplEdit.sched){
     const e=CoachState.coachTplEdit;
     if(e.id){
-      if(!confirm("¿Borrar esta rutina programada? El alumno sigue con la de ahora.")) return;
+      if(!await confirmar("¿Borrar esta rutina programada? El alumno sigue con la de ahora.",{titulo:"Borrar rutina programada",ok:"Borrar",peligro:true})) return;
       try{ sbOk(await State.sb.from("routine_schedule").delete().eq("id",e.id)); }catch(err){ alert("No se pudo: "+((err&&err.message)||err)); return; }
     }
     CoachState.coachTplEdit=null; CoachState.coachEditDay=0; await openClient(CoachState.coachSel, true); return;
@@ -1443,7 +1444,7 @@ document.body.addEventListener("click", async e => {
   }
   if(a==="tpl-del"){
     if(!CoachState.coachTplEdit||!CoachState.coachTplEdit.id){ CoachState.coachTplEdit=null; CoachState.coachView="tpls"; renderCoach(); return; }
-    if(!confirm("\u00bfBorrar esta rutina? No afecta a los clientes que ya la tienen aplicada.")) return;
+    if(!await confirmar("\u00bfBorrar esta rutina? No afecta a los clientes que ya la tienen aplicada.",{titulo:"Borrar rutina",ok:"Borrar",peligro:true})) return;
     try{ sbOk(await State.sb.from("routine_templates").delete().eq("id",CoachState.coachTplEdit.id)); await loadTpls(); }catch(e){ alert("No se pudo: "+((e&&e.message)||e)); }
     CoachState.coachTplEdit=null; CoachState.coachView="tpls"; renderCoach(); return;
   }
@@ -1462,7 +1463,7 @@ document.body.addEventListener("click", async e => {
   if(a==="salida-close"){ CoachState.coachSalidaSel=null; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="edit-day"){ CoachState.coachEditDay=+b.dataset.i||0; renderCoach(); return; }
   if(a==="rt-tosave"){
-    const nm=prompt("Nombre para guardar esta rutina en tu biblioteca:","");
+    const nm=await pedir("Nombre para guardar esta rutina en tu biblioteca:","",{ titulo: "Guardar rutina", ok: "Guardar" });
     if(!nm||!nm.trim()) return;
     try{
       const days=JSON.parse(JSON.stringify(CoachState.coachData.routine||[]));
@@ -1476,7 +1477,7 @@ document.body.addEventListener("click", async e => {
   if(a==="remove-client"){
     const d=CoachState.coachData; if(!d||!d.id) return;
     const nm=d.name||"este cliente";
-    if(!confirm("¿Desvincular a "+nm+"?\n\nVas a dejar de ver sus entrenos y su progreso, y no vas a poder editarle la rutina. "+nm+" no pierde nada: conserva su rutina y sus registros, y se puede volver a vincular con tu código.")) return;
+    if(!await confirmar("¿Desvincular a "+nm+"?\n\nVas a dejar de ver sus entrenos y su progreso, y no vas a poder editarle la rutina. "+nm+" no pierde nada: conserva su rutina y sus registros, y se puede volver a vincular con tu código.")) return;
     b.disabled=true;
     try{
       const r=await State.sb.rpc("coach_remove_client",{client:d.id});
@@ -1496,7 +1497,7 @@ document.body.addEventListener("click", async e => {
     const toName=to.full_name||to.email||"ese cliente";
     const days=JSON.parse(JSON.stringify(CoachState.coachData.routine||[]));
     if(!days.length){ alert("Esta rutina está vacía: no hay nada para copiar."); return; }
-    if(!confirm("¿Copiar esta rutina a "+toName+"?\n\nReemplaza la rutina que tenga ahora.")) return;
+    if(!await confirmar("¿Copiar esta rutina a "+toName+"?\n\nReemplaza la rutina que tenga ahora.")) return;
     // Ids nuevos y sin lo que cargó este cliente (kg, reps, segundos y tildes).
     days.forEach(d=>{ d.id=uid(); (d.exercises||[]).forEach(ex=>{ ex.id=uid(); (ex.sets||[]).forEach(s=>{ s.id=uid(); s.kg=""; s.reps=""; s.done=false; if("secs" in s) s.secs=""; }); }); });
     st.loading=true; renderCopyPicker();
@@ -1542,7 +1543,7 @@ document.body.addEventListener("click", async e => {
   // todos sus ejercicios de un toque, sin forma de recuperarlos salvo salir sin guardar nada).
   if(a==="day-del"){ const D=rtDays(), d=D&&D[CoachState.coachEditDay]; if(!d||D.length<2) return;
     const n=(d.exercises||[]).length;
-    if(n && !confirm("¿Borrar el día «"+(d.name||"sin nombre")+"» con sus "+n+" ejercicio"+(n===1?"":"s")+"?")) return;
+    if(n && !await confirmar("¿Borrar el día «"+(d.name||"sin nombre")+"» con sus "+n+" ejercicio"+(n===1?"":"s")+"?")) return;
     D.splice(CoachState.coachEditDay,1); CoachState.coachEditDay=0; renderCoach(); return; }
   if(a==="rt-setadd"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex) ex.sets.push(mkSet()); renderCoach(); return; }
   if(a==="rt-setdel"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex && ex.sets.length>1) ex.sets.splice(+b.dataset.j,1); renderCoach(); return; }
@@ -1555,7 +1556,7 @@ document.body.addEventListener("click", async e => {
   // Quitar un ejercicio se lleva sus series, objetivos, nota, video y audio: se pregunta antes
   // (deshacerlo era salir sin guardar y perder también todo lo demás).
   if(a==="rt-del"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day&&day.exercises[+b.dataset.i]; if(!ex) return;
-    if(!confirm("¿Quitar «"+(ex.name||"este ejercicio")+"» de "+(day.name?"«"+day.name+"»":"este día")+"?")) return;
+    if(!await confirmar("¿Quitar «"+(ex.name||"este ejercicio")+"» de "+(day.name?"«"+day.name+"»":"este día")+"?")) return;
     CoachState.coachExpandedEx.delete(ex.id); if(CoachState.coachExMenu===ex.id) CoachState.coachExMenu=null;
     removeEx(day.exercises, +b.dataset.i); renderCoach(); return; }
   if(a==="rt-dup"){
@@ -1624,7 +1625,7 @@ document.body.addEventListener("click", async e => {
   }
   if(a==="dl-del"){
     const w=parseInt(b.dataset.w); if(!(w>=1)) return;
-    if(!confirm("¿Borrar la rutina de descarga de la semana "+w+"? Esa semana el alumno sigue con su rutina de siempre.")) return;
+    if(!await confirmar("¿Borrar la rutina de descarga de la semana "+w+"? Esa semana el alumno sigue con su rutina de siempre.")) return;
     const f=blockForm(); if(f.deload_routines && typeof f.deload_routines==="object") delete f.deload_routines[w];
     b.disabled=true;
     if(await saveBlock(f)) alert("Rutina de descarga borrada ✓");
@@ -1642,7 +1643,7 @@ document.body.addEventListener("click", async e => {
     renderCoach(); return;
   }
   if(a==="pl-rest-toggle"){ coachPlanObj(CoachState.coachData); CoachState.coachPlanRestOpen=!CoachState.coachPlanRestOpen; renderCoach(); return; }
-  if(a==="cm-sel"||a==="cm-day"||a==="cm-add"||a==="cm-pick"||a==="cm-base"||a==="cm-optnew"||a==="cm-del"){ if(mealStudioAction(a,b,coachPlanObj(CoachState.coachData))) renderCoach(); return; }
+  if(a==="cm-sel"||a==="cm-day"||a==="cm-add"||a==="cm-pick"||a==="cm-base"||a==="cm-optnew"||a==="cm-del"){ if(a==="cm-del" && !await confirmar("¿Quitar esta comida con sus opciones?")) return; if(mealStudioAction(a,b,coachPlanObj(CoachState.coachData))) renderCoach(); return; }
   if(a==="pl-mealadd"){ const p=coachPlanObj(CoachState.coachData); (p[b.dataset.key]=p[b.dataset.key]||[]).push({meal:"",time:"",kcal:"",cho:"",fat:"",prot:"",note:""}); renderCoach(); return; }
   if(a==="pl-mealdel"){ const p=coachPlanObj(CoachState.coachData); p[b.dataset.key].splice(+b.dataset.i,1); renderCoach(); return; }
   if(a==="pl-listadd"){ const p=coachPlanObj(CoachState.coachData); (p[b.dataset.key]=p[b.dataset.key]||[]).push(""); renderCoach(); return; }
@@ -1782,12 +1783,12 @@ async function saveBlock(bf){
     if(dls.indexOf(+k)<0){ lost.push(+k); return; }
     if(st===bf.start_date) dr[+k]={days:r.days, start:bf.start_date}; else carry.push(+k);
   });
-  if(lost.length && !confirm("La rutina de descarga de la semana "+lost.join(", ")+" queda afuera (la semana ya no es de descarga o el bloque es más corto) y se borra. ¿Guardar igual?")) return false;
+  if(lost.length && !await confirmar("La rutina de descarga de la semana "+lost.join(", ")+" queda afuera (la semana ya no es de descarga o el bloque es más corto) y se borra. ¿Guardar igual?")) return false;
   if(carry.length){
     const wks="semana"+(carry.length>1?"s ":" ")+carry.join(", ");
-    if(confirm("Cambiaste la fecha de inicio del bloque. ¿Las rutinas de descarga ya armadas ("+wks+") siguen valiendo con las fechas nuevas?"))
+    if(await confirmar("Cambiaste la fecha de inicio del bloque. ¿Las rutinas de descarga ya armadas ("+wks+") siguen valiendo con las fechas nuevas?"))
       carry.forEach(k=>{ dr[k]={days:drAll[k].days, start:bf.start_date}; });
-    else if(!confirm("¿Borrar las rutinas de descarga de "+(carry.length>1?"las ":"la ")+wks+"? (por ejemplo, si es un mesociclo nuevo)\n\nSi cancelás, no se guarda nada.")) return false;
+    else if(!await confirmar("¿Borrar las rutinas de descarga de "+(carry.length>1?"las ":"la ")+wks+"? (por ejemplo, si es un mesociclo nuevo)\n\nSi cancelás, no se guarda nada.")) return false;
   }
   const wpAll=(bf.week_plan&&typeof bf.week_plan==="object")?bf.week_plan:{}, wp={};
   Object.keys(wpAll).forEach(k=>{
@@ -1955,7 +1956,7 @@ async function onScannedCode(code){
     }
   }
   if(!food){
-    if(confirm("Todavía no tenemos el código " + code + ".\n\n¿Nos mandás una foto de la tabla nutricional? Lo revisamos y lo agregamos a GIZE para todos.")){
+    if(await confirmar("Todavía no tenemos el código " + code + ".\n\n¿Nos mandás una foto de la tabla nutricional? Lo revisamos y lo agregamos a GIZE para todos.")){
       ComidaState.searchOpen=false; openRequest({ code: String(code).replace(/\D/g,"") });
     }
     return;

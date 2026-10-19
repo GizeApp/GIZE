@@ -2,7 +2,10 @@
    Sobrio: fondo plano, grises, el azul solo para lo activo y los colores de estado solo donde
    informan algo. La gama RGB de la marca queda en dos lugares: la línea bajo el título de cada
    página y el anillo del botón de entrar. */
-:root { --bg: var(--gize-bg); --card: var(--gize-surface); --card-2: var(--gize-surface-2); --border: var(--gize-border);
+:root { /* medidas que usan los carteles compartidos con la app (css/ui/avisos.css) */
+  --r-box: 14px; --r-btn: 14px; --r-card: 18px; --text-body: 14px; --text-emphasis: 15px; --text-meta: 12px;
+  --duration-frequent: .15s; --duration-standard: .22s; --ease-drawer: cubic-bezier(.32,.72,0,1);
+  --bg: var(--gize-bg); --card: var(--gize-surface); --card-2: var(--gize-surface-2); --border: var(--gize-border);
   --line: #141821; --hover: #0f1319;
   --txt: var(--gize-text); --txt-2: var(--gize-text-2); --blue: var(--gize-blue); --red: var(--gize-danger); --ok: var(--gize-success); --warn: var(--gize-warning); }
 * { box-sizing: border-box; margin: 0; padding: 0; }

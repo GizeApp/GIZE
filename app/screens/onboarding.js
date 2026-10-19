@@ -49,7 +49,7 @@ function markSeen(){ try{ localStorage.setItem(seenKey(), "1"); }catch(e){} }
 // (la marca de vista es por dispositivo): la bienvenida no le ofrece armar otra encima.
 const hasWork = () => (state.days||[]).some(d=>(d.exercises||[]).length);
 const REPLACE_MSG = "Ya tenés una rutina cargada. Esto la reemplaza en todos tus dispositivos. No toca tus pesos, entrenos ni hábitos. ¿Seguro?";
-const okToReplace = () => !hasWork() || confirm(REPLACE_MSG);
+const okToReplace = async () => !hasWork() || await confirmar(REPLACE_MSG);
 
 // ---- Opciones de cada pregunta: [valor, emoji, nombre, descripción] ----
 const EMO_DISC = { fuerza:"💪", crossfit:"🔥", powerlifting:"🏋️", weightlifting:"🥇", running:"🏃", hibrido:"⚡" };
@@ -633,9 +633,9 @@ const PANTALLAS = {
     // Tocar una rutina la elige (no la carga): «Empezar» la carga, así no se reemplaza nada sin querer.
     valido: () => !!D.ans.rutina && !!_cat,
     alt: () => '<button type="button" class="onb-later" data-onb="empty">Prefiero arrancar vacío</button>',
-    fin(){
+    async fin(){
       const r=_mostradas.find(x=>x.id===D.ans.rutina); if(!r) return;
-      if(!okToReplace()) return;
+      if(!await okToReplace()) return;
       state.days=copiarDias(r.days);
       State.activeId=(diaDeHoy(state.days)||state.days[0]).id; // el de hoy, si dice el día (core/diasemana.js)
       State.view="entreno";
@@ -673,8 +673,8 @@ const PANTALLAS = {
       inp.addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); clickMain(); } });
     },
     valido: () => true,
-    fin(){
-      if(!okToReplace()) return;
+    async fin(){
+      if(!await okToReplace()) return;
       const n=Math.max(1, Math.min(6, +D.ans.dias || 1));
       state.calProfile=Object.assign({}, state.calProfile||{}, { daysPerWeek: n });
       startDays(n, (D.ans.primer||"").trim());
@@ -872,9 +872,9 @@ function appLista(o){
   const tk=tok, antes=_cat;
   catalogo().then(()=>{ if(tk===tok && modo==="app" && _cat!==antes) pintarLista(); });
 }
-function appElegir(id){
+async function appElegir(id){
   const r=_mostradas.find(x=>x.id===id); if(!r) return;
-  if(hasWork() && !confirm("Esto reemplaza tus días de rutina por «"+r.nombre+"». No toca tus pesos, entrenos ni hábitos. ¿Seguro?")) return;
+  if(hasWork() && !await confirmar("Esto reemplaza tus días de rutina por «"+r.nombre+"». No toca tus pesos, entrenos ni hábitos. ¿Seguro?")) return;
   state.days=copiarDias(r.days); State.activeId=(diaDeHoy(state.days)||state.days[0]).id; State.view="entreno";
   save(); closeOverlay(); renderApp();
 }

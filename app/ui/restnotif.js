@@ -37,7 +37,7 @@ async function askExact(LN){
     const s = await LN.checkExactNotificationSetting();
     if (!s || s.exact_alarm === "granted") return;
     try { localStorage.setItem(EXACT_KEY, "1"); } catch (e) {}
-    if (confirm("Para que los avisos de fin de descanso y del temporizador suenen justo a tiempo con la pantalla apagada, activá «Alarmas y recordatorios» para GIZE en la pantalla que se abre.")) await LN.changeExactNotificationSetting();
+    if (await confirmar("Para que los avisos de fin de descanso y del temporizador suenen justo a tiempo con la pantalla apagada, activá «Alarmas y recordatorios» para GIZE en la pantalla que se abre.")) await LN.changeExactNotificationSetting();
   } catch (e) {}
 }
 

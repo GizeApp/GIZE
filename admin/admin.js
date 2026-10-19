@@ -349,7 +349,7 @@ async function saveGoal(btn){
   closeDrawer(); toast("Objetivo guardado ✓"); reloadGoals();
 }
 async function deleteGoal(btn){
-  if (!confirm("¿Borrar este objetivo?")) return;
+  if (!await confirmar("¿Borrar este objetivo?")) return;
   btn.disabled = true;
   try { await rpc("admin_goal_delete", { p_id: Number(btn.dataset.id) }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   closeDrawer(); toast("Objetivo borrado"); reloadGoals();
@@ -440,7 +440,7 @@ async function saveTask(btn){
   closeDrawer(); toast("Tarea guardada ✓"); reloadTasks();
 }
 async function deleteTask(btn){
-  if (!confirm("¿Borrar esta tarea?")) return;
+  if (!await confirmar("¿Borrar esta tarea?")) return;
   btn.disabled = true;
   try { await rpc("admin_task_delete", { p_id: Number(btn.dataset.id) }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   closeDrawer(); toast("Tarea borrada"); reloadTasks();
@@ -899,7 +899,7 @@ async function saveCost(btn){
 }
 async function deleteCost(btn){
   const c = S.fin.costs.find(x => x.id === Number(btn.dataset.id));
-  if (!confirm("¿Borrar el gasto «" + (c ? c.name : "") + "»?")) return;
+  if (!await confirmar("¿Borrar el gasto «" + (c ? c.name : "") + "»?")) return;
   btn.disabled = true;
   try { await rpc("admin_fin_cost_delete", { p_id: Number(btn.dataset.id) }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   closeDrawer(); toast("Gasto borrado"); reloadFin();
@@ -964,7 +964,7 @@ async function sendReply(btn){
   const c = btn.closest("[data-msg]"), id = Number(c.dataset.msg), t = c.querySelector(".msg-reply textarea"), text = t.value.trim();
   const m = S.msgs.find(x => x.id === id);
   if (text.length < 2) return toast("Escribí la respuesta.");
-  if (!confirm("¿Mandar la respuesta a " + (m ? (m.reply_to || m.from_email) : "esta persona") + "?")) return;
+  if (!await confirmar("¿Mandar la respuesta a " + (m ? (m.reply_to || m.from_email) : "esta persona") + "?")) return;
   btn.disabled = true; S.sending = true;
   try { await fn({ action: "responder", message_id: id, text }); }
   catch (e) { btn.disabled = false; return toast(errMsg(e)); }
@@ -1099,7 +1099,7 @@ async function saveProd(btn){
   const row = prodValues(c); if (!row) return;
   const mode = btn.dataset.mode; // «Toda la base»: keep / hide / show (la verificación no cambia)
   const verified = mode ? p.verified : btn.dataset.verify === "1", hidden = mode ? (mode === "keep" ? p.hidden : mode === "hide") : btn.dataset.hide === "1";
-  if (mode === "hide" && !confirm("¿Ocultar «" + row.p_name + "»? Deja de aparecer en la app (lo podés volver a mostrar).")) return;
+  if (mode === "hide" && !await confirmar("¿Ocultar «" + row.p_name + "»? Deja de aparecer en la app (lo podés volver a mostrar).")) return;
   btn.disabled = true;
   try { await rpc("admin_product_save", Object.assign({ pid: p.id, p_unit: p.unit, p_verified: verified, p_hidden: hidden }, row)); }
   catch (e) { btn.disabled = false; return toast(errMsg(e)); }
@@ -1111,7 +1111,7 @@ async function saveProd(btn){
 }
 async function deleteProd(btn){
   const c = btn.closest("[data-prod]"), p = S.prods.find(x => x.id === c.dataset.prod); if (!p) return;
-  if (!confirm("¿Borrar «" + p.name + "»" + (p.code ? " (" + p.code + ")" : "") + " de la base? Desaparece de la app para todos y no se puede deshacer." + (p.code ? " El código no se vuelve a cargar solo (ni al escanearlo ni con las importaciones): para volver a tenerlo, «Agregar producto» o publicar un pedido con ese código." : "") + "\n\nLo que la gente ya anotó en su diario no cambia.")) return;
+  if (!await confirmar("¿Borrar «" + p.name + "»" + (p.code ? " (" + p.code + ")" : "") + " de la base? Desaparece de la app para todos y no se puede deshacer." + (p.code ? " El código no se vuelve a cargar solo (ni al escanearlo ni con las importaciones): para volver a tenerlo, «Agregar producto» o publicar un pedido con ese código." : "") + "\n\nLo que la gente ya anotó en su diario no cambia.")) return;
   btn.disabled = true;
   try { await rpc("admin_product_delete", { pid: p.id }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   S.prods = S.prods.filter(x => x.id !== p.id); paintProds(); toast("Producto borrado");
@@ -1167,7 +1167,7 @@ async function publishReq(btn){
   if (code && !/^[0-9]{6,14}$/.test(code)) return toast("El código de barras tiene que ser de 6 a 14 números (o dejalo vacío).");
   if (portion && (portion < 1 || portion > 2000)) return toast("La porción tiene que ser entre 1 y 2000.");
   const calc = row.p_protein * 4 + row.p_carbs * 4 + row.p_fat * 9;
-  if (Math.abs(row.p_kcal - calc) > Math.max(30, calc * 0.25) && !confirm("Las calorías (" + row.p_kcal + ") no coinciden con los macros (darían unas " + Math.round(calc) + "). ¿Publicar igual?")) return;
+  if (Math.abs(row.p_kcal - calc) > Math.max(30, calc * 0.25) && !await confirmar("Las calorías (" + row.p_kcal + ") no coinciden con los macros (darían unas " + Math.round(calc) + "). ¿Publicar igual?")) return;
   btn.disabled = true;
   try { await rpc("admin_request_publish", Object.assign({ rid: r.id, p_code: code || null, p_unit: c.querySelector('[data-k="unit"]').value, p_portion: portion || null }, row)); }
   catch (e) { btn.disabled = false; return toast(errMsg(e)); }
@@ -1176,7 +1176,7 @@ async function publishReq(btn){
 }
 async function rejectReq(btn){
   const c = btn.closest("[data-req]"), r = S.reqs.find(x => String(x.id) === c.dataset.req); if (!r) return;
-  const why = prompt("¿Por qué lo rechazás? Se lo mostramos a quien lo pidió (ej: la foto de la tabla no se lee, falta la tabla).", "La foto de la tabla no se lee bien");
+  const why = await pedir("¿Por qué lo rechazás? Se lo mostramos a quien lo pidió (ej: la foto de la tabla no se lee, falta la tabla).", "La foto de la tabla no se lee bien", { titulo: "Rechazar producto", ok: "Rechazar" });
   if (why === null) return;
   btn.disabled = true;
   try { await rpc("admin_request_reject", { rid: r.id, p_note: why.trim() }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
@@ -1234,7 +1234,7 @@ async function sendAviso(btn){
   const target = (document.querySelector("#avT button.on") || {}).dataset.v, title = document.getElementById("avTitle").value.trim(), body = document.getElementById("avBody").value.trim();
   if (!title || !body) return toast("Completá el título y el mensaje.");
   const who = { todos: "a TODOS los usuarios", coaches: "a todos los coaches", alumnos: "a todos los alumnos" }[target];
-  if (!confirm("¿Mandar esta notificación " + who + "?\n\n" + title + "\n" + body)) return;
+  if (!await confirmar("¿Mandar esta notificación " + who + "?\n\n" + title + "\n" + body)) return;
   btn.disabled = true;
   try { const r = await fn({ action: "aviso", target, title, body }); toast("Enviada a " + n0(r.users) + " usuario" + (r.users === 1 ? "" : "s") + " (" + n0(r.devices) + " dispositivos)"); document.getElementById("avTitle").value = ""; document.getElementById("avBody").value = ""; }
   catch (e) { toast(errMsg(e)); }
@@ -1246,7 +1246,7 @@ async function saveConfig(btn){
   const base = S.config || {}, v = { android: Object.assign({}, base.android), ios: Object.assign({}, base.ios) };
   document.querySelectorAll("input[data-v]").forEach(i => { const [pl, k] = i.dataset.v.split("."); if (!v[pl]) return; v[pl][k] = ["ultima", "minima"].includes(k) ? Math.max(0, parseInt(i.value, 10) || 0) : i.value.trim(); });
   for (const pl of ["android", "ios"]) if (v[pl] && v[pl].tienda && !/^https:\/\//i.test(v[pl].tienda)) return toast("El link de la tienda tiene que empezar con https://");
-  if (!confirm("¿Guardar el cartel? A los usuarios con una versión más vieja que «Última» les va a aparecer.")) return;
+  if (!await confirmar("¿Guardar el cartel? A los usuarios con una versión más vieja que «Última» les va a aparecer.")) return;
   btn.disabled = true;
   try { await rpc("admin_set_config", { p_key: "version", p_value: v }); S.config = v; toast("Cartel guardado"); } catch (e) { toast(errMsg(e)); }
   btn.disabled = false;
@@ -1321,11 +1321,11 @@ document.addEventListener("click", async e => {
     if (a === "logout"){ await sb.auth.signOut(); return; }
     if (a === "closeDrawer"){ closeDrawer(); return; }
     if (a === "uSearch"){ S.q = document.getElementById("uQ").value.trim(); searchUsers(); return; }
-    if (a === "role"){ if (!confirm(b.dataset.v === "coach" ? "¿Pasar esta cuenta a coach?" : "¿Pasar esta cuenta a alumno?")) return; await rpc("admin_set_role", { uid: b.dataset.id, p_role: b.dataset.v }); toast("Rol cambiado"); openUser(b.dataset.id); searchUsers(); return; }
-    if (a === "unlink"){ if (!confirm("¿Desvincular a este alumno de su coach?")) return; await rpc("admin_unlink", { uid: b.dataset.id }); toast("Desvinculado"); openUser(b.dataset.id); searchUsers(); return; }
-    if (a === "admin"){ const on = b.dataset.v === "1"; if (!confirm(on ? "¿Hacer administrador a esta cuenta? Va a poder ver y cambiar todo el panel." : "¿Quitarle el acceso al panel?")) return; await rpc("admin_set_admin", { uid: b.dataset.id, on_off: on }); toast(on ? "Ahora es administrador" : "Ya no es administrador"); openUser(b.dataset.id); searchUsers(); return; }
+    if (a === "role"){ if (!await confirmar(b.dataset.v === "coach" ? "¿Pasar esta cuenta a coach?" : "¿Pasar esta cuenta a alumno?")) return; await rpc("admin_set_role", { uid: b.dataset.id, p_role: b.dataset.v }); toast("Rol cambiado"); openUser(b.dataset.id); searchUsers(); return; }
+    if (a === "unlink"){ if (!await confirmar("¿Desvincular a este alumno de su coach?")) return; await rpc("admin_unlink", { uid: b.dataset.id }); toast("Desvinculado"); openUser(b.dataset.id); searchUsers(); return; }
+    if (a === "admin"){ const on = b.dataset.v === "1"; if (!await confirmar(on ? "¿Hacer administrador a esta cuenta? Va a poder ver y cambiar todo el panel." : "¿Quitarle el acceso al panel?")) return; await rpc("admin_set_admin", { uid: b.dataset.id, on_off: on }); toast(on ? "Ahora es administrador" : "Ya no es administrador"); openUser(b.dataset.id); searchUsers(); return; }
     if (a === "delete"){
-      const t = prompt("Vas a eliminar la cuenta de " + b.dataset.name + " y TODOS sus datos. No se puede deshacer.\n\nSi tiene una suscripción en Mercado Pago, se cancela.\n\nEscribí ELIMINAR para confirmar:");
+      const t = await pedir("Vas a eliminar la cuenta de " + b.dataset.name + " y TODOS sus datos. No se puede deshacer.\n\nSi tiene una suscripción en Mercado Pago, se cancela.\n\nEscribí ELIMINAR para confirmar:", "", { titulo: "Eliminar cuenta", ok: "Eliminar" });
       if (t !== "ELIMINAR") return;
       b.disabled = true; await fn({ action: "eliminar", user_id: b.dataset.id }); toast("Cuenta eliminada"); closeDrawer(); searchUsers(); return;
     }
@@ -1334,32 +1334,32 @@ document.addEventListener("click", async e => {
       const plan = document.getElementById("pmPlan").value, max = parseInt(document.getElementById("pmMax").value, 10) || PLAN_MAX[plan], until = document.getElementById("pmUntil").value;
       if (!until){ toast("Elegí hasta qué fecha pagó."); return; }
       const menos = max < PLAN_MAX[plan] ? "\n\nOjo: el " + planTxt(plan) + " es para " + PLAN_MAX[plan] + " alumnos y le vas a dejar " + max + " como máximo." : "";
-      if (!confirm("¿Habilitar el " + planTxt(plan) + " (" + max + " alumnos) hasta el " + fmtD(until + "T12:00:00") + "?" + menos)) return;
+      if (!await confirmar("¿Habilitar el " + planTxt(plan) + " (" + max + " alumnos) hasta el " + fmtD(until + "T12:00:00") + "?" + menos)) return;
       await rpc("admin_set_paid", { cid: b.dataset.id, p_plan: plan, p_max: max, p_until: until });
       toast("Pago cargado"); closeDrawer(); afterCoach(); return;
     }
     if (a === "pmClear"){
       // Si la prueba gratis sigue vigente, admin_clear_paid lo devuelve a la prueba (cobro-manual.sql).
       const c = (S.coaches || []).find(x => x.id === b.dataset.id), prueba = c && c.trial_ends_at && new Date(c.trial_ends_at) > new Date();
-      if (!confirm(prueba ? "¿Cortar el pago ahora? Vuelve a la prueba gratis (hasta 10 alumnos) hasta el " + lastDay(c.trial_ends_at) + "; después queda sin plan."
+      if (!await confirmar(prueba ? "¿Cortar el pago ahora? Vuelve a la prueba gratis (hasta 10 alumnos) hasta el " + lastDay(c.trial_ends_at) + "; después queda sin plan."
         : "¿Cortar el pago ahora? Queda sin plan (sus alumnos siguen usando la app, pero él no ve sus fichas).")) return;
       await rpc("admin_clear_paid", { cid: b.dataset.id }); toast("Pago cortado"); closeDrawer(); afterCoach(); return;
     }
     if (a === "trSave"){
       const until = document.getElementById("trUntil").value, max = parseInt(document.getElementById("trMax").value, 10) || 10;
       if (!until){ toast("Elegí hasta qué fecha es la prueba."); return; }
-      if (!confirm("¿Prueba gratis hasta el " + fmtD(until + "T12:00:00") + ", con " + max + " alumnos como máximo?")) return;
+      if (!await confirmar("¿Prueba gratis hasta el " + fmtD(until + "T12:00:00") + ", con " + max + " alumnos como máximo?")) return;
       await rpc("admin_set_trial", { cid: b.dataset.id, p_until: until, p_max: max });
       toast("Prueba guardada"); closeDrawer(); afterCoach(); return;
     }
     if (a === "plan"){
       const mode = b.dataset.mode, max = document.getElementById("ctMax");
       const msg = { cortesia: "¿Darle cortesía (gratis) con tope de " + (max && max.value) + " alumnos?", sin_cortesia: "¿Quitarle la cortesía? Vuelve a prueba (si ya venció, tiene que pagar)." }[mode];
-      if (!confirm(msg)) return;
+      if (!await confirmar(msg)) return;
       await rpc("admin_set_plan", { cid: b.dataset.id, mode, p_max: max ? parseInt(max.value, 10) || 10 : null, p_days: null });
       toast("Listo"); closeDrawer(); afterCoach(); return;
     }
-    if (a === "mtab"){ if (Object.values(S.drafts).some(v => v.trim()) && !confirm("Tenés una respuesta sin mandar. ¿Cambiar de lista igual? (queda guardada si el mensaje aparece en la otra lista)")) return; S.msgTab = b.dataset.v; loadContacto(); return; }
+    if (a === "mtab"){ if (Object.values(S.drafts).some(v => v.trim()) && !await confirmar("Tenés una respuesta sin mandar. ¿Cambiar de lista igual? (queda guardada si el mensaje aparece en la otra lista)")) return; S.msgTab = b.dataset.v; loadContacto(); return; }
     if (a === "mread"){ markMsg(b); return; }
     if (a === "mreply"){ const c = b.closest("[data-msg]"), r = c.querySelector(".msg-reply"); r.hidden = false; c.querySelector(".msg-acts").hidden = true; S.drafts[c.dataset.msg] = S.drafts[c.dataset.msg] || ""; r.querySelector("textarea").focus(); return; }
     if (a === "mcancel"){ const c = b.closest("[data-msg]"); delete S.drafts[c.dataset.msg]; c.querySelector(".msg-reply").hidden = true; c.querySelector(".msg-acts").hidden = false; return; }
@@ -1405,7 +1405,7 @@ document.addEventListener("click", async e => {
     if (a === "fSave"){ saveFinSettings(b); return; }
     if (a === "fDolarSave"){ saveDolar(b); return; }
     if (a === "fTodo"){ finTodo(b.dataset.v, Number(b.dataset.id), null, b); return; }
-    if (a === "fTodoDel"){ if (!confirm("¿Borrar este pendiente?")) return; finTodo("borrar", Number(b.dataset.id), null, b); return; }
+    if (a === "fTodoDel"){ if (!await confirmar("¿Borrar este pendiente?")) return; finTodo("borrar", Number(b.dataset.id), null, b); return; }
     if (a === "fTodoAdd"){ const i = document.getElementById("fTodoIn"), t = i.value.trim(); if (!t) return toast("Escribí el pendiente."); finTodo("nuevo", null, t, b); return; }
   } catch (err) { b.disabled = false; toast(errMsg(err)); }
 });

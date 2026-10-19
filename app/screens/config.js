@@ -257,7 +257,7 @@ document.body.addEventListener("click", async function (e) {
 
   const unlinkBtn = e.target.closest('[data-action="cfg-unlink-coach"]');
   if (unlinkBtn) {
-    if (!confirm("¿Seguro que te querés desvincular de tu coach? Vas a necesitar su código de invitación de nuevo si te querés volver a vincular.")) return;
+    if (!await confirmar("¿Seguro que te querés desvincular de tu coach? Vas a necesitar su código de invitación de nuevo si te querés volver a vincular.")) return;
     const prevHtml = unlinkBtn.innerHTML;
     unlinkBtn.disabled = true; unlinkBtn.innerHTML = "Desvinculando…";
     try {
@@ -276,7 +276,7 @@ document.body.addEventListener("click", async function (e) {
   if (clearBtn) {
     // Con la cuenta iniciada solo se borra la copia del celular: la sesión sigue y los datos
     // se vuelven a bajar de la cuenta. Para dejar el celular limpio está «Cerrar sesión».
-    if (confirm(State.cloudUser
+    if (await confirmar(State.cloudUser
       ? "¿Seguro? Se borra la copia guardada en este dispositivo (rutinas, pesos, hábitos) y se vuelve a bajar de tu cuenta. Lo que todavía no se subió a tu cuenta puede perderse.\n\nTu sesión sigue iniciada: para dejar el dispositivo limpio usá «Cerrar sesión»."
       : "¿Seguro? Se va a borrar todo lo guardado en este dispositivo (rutinas, pesos, hábitos). Esta acción no se puede deshacer.")) {
       try { localStorage.removeItem(KEY); } catch (err) {}
@@ -330,10 +330,10 @@ document.body.addEventListener("click", async function (e) {
           appleAviso = "Ojo: tu suscripción de Apple no se cancela al eliminar la cuenta y Apple te la sigue cobrando. Cancelala antes desde los Ajustes de tu cuenta de Apple (Ajustes → tu nombre → Suscripciones).\n\n";
       } catch (err) {}
     }
-    if (!confirm(isCoach
+    if (!await confirmar(isCoach
       ? appleAviso + "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se da de baja tu cuenta de coach. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
       : "¿Seguro que querés eliminar tu cuenta? Se va a borrar tu rutina, tus registros, tus salidas de Cardio (con sus recorridos) y tu vínculo con tu coach de forma permanente. Esta acción no se puede deshacer.")) return;
-    const typed = prompt('Para confirmar, escribí ELIMINAR (en mayúsculas):');
+    const typed = await pedir('Para confirmar, escribí ELIMINAR (en mayúsculas):', "", { titulo: "Eliminar cuenta", ok: "Eliminar" });
     if (typed !== "ELIMINAR") { if (typed !== null) alert("No coincide, no se eliminó nada."); return; }
     const prevHtml = delAccBtn.innerHTML;
     delAccBtn.disabled = true; delAccBtn.innerHTML = "Eliminando…";
