@@ -36,7 +36,8 @@ const LLENO = () => {
   };
 };
 
-const saveEnded = p => p.evaluate(async () => { const r = (await import('/app/core/salidas.js')).saveEnded(); return r ? r.id : null; });
+// saveEnded es async (pregunta con un cartel propio si la salida es muy corta).
+const saveEnded = p => p.evaluate(async () => { const r = await (await import('/app/core/salidas.js')).saveEnded(); return r ? r.id : null; });
 const runKeys = p => p.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('gize_salida_v1')).sort());
 const appRun = p => p.evaluate(async () => { const r = (await import('/app/ui/gps.js')).GpsState.run; return r ? { id: r.id, status: r.status } : null; });
 const salidas = p => p.evaluate(async () => ((await import('/app/core/state.js')).state.salidas || []).map(s => s.id));

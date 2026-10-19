@@ -1,11 +1,16 @@
 /* Carteles de aviso (app/ui/avisos.js): reemplazan el alert() nativo. Centrado, con ícono y color
    según el tipo: listo (cian/verde), no se pudo (rojo) y aviso (azul). */
-.av-bg { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;
+/* Encima de todas las ventanas de la app, también de la hoja del selector (.sl-bg, 1100): una pregunta
+   que llega con la hoja abierta se ve y se contesta primero (ui/atras.js la cierra antes que la hoja).
+   --kb es lo que tapa el teclado del celular (app/ui/keyboard.js: iPhone y Chrome de Android lo abren
+   encima de la página sin achicarla): el cartel se centra en lo que queda arriba, así en un pedir()
+   el campo y los botones no quedan debajo del teclado. */
+.av-bg { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; padding: 20px 20px calc(20px + var(--kb, 0px));
   background: rgba(0,0,0,.55); opacity: 0; transition: opacity var(--duration-frequent) ease; }
 .av-bg.show { opacity: 1; }
 /* Al tocar «Entendido» se va al toque: deja pasar los toques mientras se desvanece. */
 .av-bg.closing { opacity: 0; pointer-events: none; }
-.av-card { --av: var(--gize-blue); width: min(360px, 100%); text-align: center; background: var(--card); border: 1px solid var(--border);
+.av-card { --av: var(--gize-blue); width: min(360px, 100%); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; text-align: center; background: var(--card); border: 1px solid var(--border);
   border-radius: var(--r-card); padding: 26px 22px 20px; box-shadow: 0 18px 50px rgba(0,0,0,.4);
   transform: translateY(8px) scale(.96); transition: transform var(--duration-standard) var(--ease-drawer); }
 .av-bg.show .av-card { transform: none; }
