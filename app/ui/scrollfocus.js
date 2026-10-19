@@ -15,7 +15,9 @@ export function initScrollReveal(){
   const blocks = document.querySelectorAll("#view [data-reveal]");
   if (!blocks.length) return;
   const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reduceMotion) { blocks.forEach(b=>b.classList.add("reveal-in")); return; }
+  // Con «reducir movimiento» se revelan todos de una, y quedan anotados: así el HTML del próximo
+  // redibujo ya los trae revelados (revealCls) y ui/parche.js no los cambia en cada toque.
+  if (reduceMotion) { blocks.forEach(b=>{ b.classList.add("reveal-in"); revealedBlocks.add(b.dataset.reveal); }); return; }
   scrollRevealObserver = new IntersectionObserver(entries=>{
     entries.forEach(entry=>{
       if (!entry.isIntersecting) return;

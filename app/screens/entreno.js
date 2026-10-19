@@ -160,7 +160,9 @@ export function renderBlockBanner(){
 // ejercicio ya salen adentro del ejercicio («Nota de tu coach»): acá no se repiten.
 export function renderDayNotes(d){
   if(!d.note) return "";
-  const k = 'notes-'+d.id;
+  // Una sola clave para las notas de todos los días (como la portada): al cambiar de día ya salen
+  // reveladas y no suben con su entrada encima del deslizamiento del cambio de día.
+  const k = 'notes';
   return '<div class="daynotes'+revealCls(k)+'" data-reveal="'+esc(k)+'"><div class="dn-head">Nota de tu coach \u00b7 '+esc(d.name)+'</div>'+
     '<div class="dn-general">'+esc(d.note)+'</div></div>';
 }

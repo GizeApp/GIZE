@@ -75,7 +75,7 @@ import { anchorFocus, initScrollReveal, setupExerciseFocus } from './ui/scrollfo
 
 import { SheetState, closeSheet, exCompleteFlash, renderSheet, sheetUnitFood, unitsLabel } from './ui/sheet.js';
 import { parchar } from './ui/parche.js';
-import { cerrar, desplegar, entrarDia, terminarDespliegue } from './ui/desplegar.js';
+import { desplegar, entrarDia, terminarDespliegue } from './ui/desplegar.js';
 import { clientQuestions, questionSnapshot } from './core/questions.js';
 import { renderConfig } from './screens/config.js';
 
@@ -285,7 +285,7 @@ function openEx(e){ expandedOverride.clear(); expandedOverride.add(e.id); return
 // cerró (o se destildó y sigue abierto a propósito), no hace nada.
 function closeEx(ex, ids){
   if(!ids.some(id=>expandedOverride.has(id))) return;
-  cerrar(ids, ex.id, ()=>{ ids.forEach(id=>expandedOverride.delete(id)); renderApp(); });
+  desplegar(ex.id, ()=>{ ids.forEach(id=>expandedOverride.delete(id)); renderApp(); });
 }
 // Lleva la pantalla a la serie que sigue y la marca un momento.
 function goToSet(t){
@@ -876,7 +876,9 @@ document.body.addEventListener("click", async e => {
           exCompleteFlash(ex.id, ()=>closeEx(ex, [ex.id]));
         }, PR_HOLD_MS);
       }
-      else exCompleteFlash(ex.id, ()=>{ if(allSetsDone(ex)) closeEx(ex, [ex.id]); }); // si en el destello destildó, queda abierto
+      // La tilde se ve en el acto (antes la última serie seguía sin tildar durante el destello y
+      // mientras se cerraba); si en el destello destildó, queda abierto.
+      else { desplegar(ex.id, renderApp); exCompleteFlash(ex.id, ()=>{ if(allSetsDone(ex)) closeEx(ex, [ex.id]); }); }
     }
     // El ejercicio queda quieto bajo el dedo aunque la portada cambie de alto (la primera serie
     // tildada cambia «Iniciar entrenamiento» por el reloj).

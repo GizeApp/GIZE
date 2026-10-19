@@ -3,8 +3,9 @@
 // del día, la fila de días y todos los ejercicios, y lo que tenía animación de entrada la repetía
 // (la portada «saltaba» en cada toque, ver el video del 19/10). Ahora se arma el HTML nuevo aparte
 // y se cambian solo los bloques de arriba (hijos directos de #view) que cambiaron: se compara
-// desde el principio y desde el final, y lo del medio se reemplaza. Lo que quedó igual sigue
-// siendo el mismo nodo: no parpadea, no repite su entrada y no pierde el foco ni el scroll.
+// desde el principio y desde el final, y lo del medio se reemplaza (de a pares si son tantos
+// bloques como antes). Lo que quedó igual sigue siendo el mismo nodo: no parpadea, no repite su
+// entrada y no pierde el foco ni el scroll.
 export function parchar(host, html){
   // Lo escrito en un campo vive en .value, no en el atributo: se pasa al atributo para que la
   // comparación vea lo que está en pantalla. Si el dato cambió por otro lado (una variante, «Usar
@@ -12,6 +13,17 @@ export function parchar(host, html){
   host.querySelectorAll("input, textarea").forEach(alAtributo);
   // Un style vacío (lo que queda al sacar el último estilo puesto desde JS) no cuenta como cambio.
   host.querySelectorAll('[style=""]').forEach(n => n.removeAttribute("style"));
+  // El alto del nombre del día (rutina propia) lo pone fitDayName() en main.js después de cada
+  // redibujo: no es parte del HTML. Si contaba, la portada nunca era igual y se recreaba en cada
+  // toque, con todo lo que hay entre ella y el ejercicio tocado. Se saca para comparar y se vuelve
+  // a poner al final (en el medio nadie mide la pantalla).
+  const altos = [...host.querySelectorAll("textarea.day-name[style]")].map(n => [n, n.getAttribute("style")]);
+  altos.forEach(([n]) => n.removeAttribute("style"));
+  try { cambiar(host, html); }
+  finally { altos.forEach(([n, st]) => { if (n.isConnected) n.setAttribute("style", st); }); }
+}
+
+function cambiar(host, html){
   const tpl = document.createElement("template");
   tpl.innerHTML = html;
   const nuevos = [...tpl.content.childNodes], viejos = [...host.childNodes];
@@ -20,6 +32,12 @@ export function parchar(host, html){
   while (i < vv && i < nv && viejos[i].isEqualNode(nuevos[i])) i++;
   let j = 0;
   while (j < vv - i && j < nv - i && viejos[vv - 1 - j].isEqualNode(nuevos[nv - 1 - j])) j++;
+  // Lo del medio, si son tantos bloques como antes (abrir uno y cerrar otro), se compara de a pares:
+  // lo que quedó entre los dos tampoco se vuelve a crear.
+  if (vv === nv){
+    for (let k = i; k < vv - j; k++) if (!viejos[k].isEqualNode(nuevos[k])) viejos[k].replaceWith(nuevos[k]);
+    return;
+  }
   const ref = j ? viejos[vv - j] : null;
   for (let k = i; k < vv - j; k++) viejos[k].remove();
   const frag = document.createDocumentFragment();
