@@ -12,6 +12,8 @@
 //   «Agregar con nombre propio», «Cerrar sesión», «+ Agregar ejercicio», «Ver rutinas armadas»,
 //   agregar día, «Editar meta», «+500 ml», la meta de agua): dos botones iguales quedan iguales. Al
 //   pasar el mouse, más claros.
+// - Las ventanas propias (#335): la opción elegida del selector lleva lo de lo elegido; «Cancelar» de
+//   las preguntas y del selector, los cantos; el campo de pedir() con foco suma el resplandor.
 // - Lo que se repite no suma capas con máscara: con 4 ejercicios abiertos, las mismas máscaras que con
 //   ninguno.
 // - Lo pintado: el resplandor del día elegido y el de la pestaña de abajo se ven en la captura.
@@ -97,8 +99,18 @@ export default async function ({ base, t }){
     t.eq(f.bordes[0], f0.bordes[0], 'Oscuro: el campo con foco conserva su borde (' + f0.bordes[0] + ')');
     t.ok(f0.sombra !== 'none' && f.sombra.startsWith(f0.sombra) && tinte(f.sombra.slice(f0.sombra.length)), 'Oscuro: el campo con foco conserva su aro (' + f0.sombra.slice(0, 60) + ') y suma el resplandor: ' + f.sombra.slice(f0.sombra.length, f0.sombra.length + 90));
     await p.evaluate(() => document.activeElement.blur());
+    // El campo de una pregunta propia (pedir(), app/ui/avisos.js): su contorno de foco de siempre y el
+    // resplandor de la marca.
+    await ir(p, 'entreno'); p.contestar = null;
+    await p.evaluate(() => { window.pedir('¿Cómo se llama el día?', { valor: 'Torso' }); }); await wait(700);
+    await p.focus('.av-bg .av-in'); await wait(300);
+    const pf = await leer(p, '.av-bg .av-in'); await hoja(p, false, h); await wait(300);
+    const pf0 = await leer(p, '.av-bg .av-in'); await hoja(p, true, h); await wait(300);
+    t.ok(pf0.outline[0] !== 'none' && pf.outline.join() === pf0.outline.join() && pf.bordes[0] === pf0.bordes[0], 'Oscuro: el campo de una pregunta propia con foco conserva su contorno y su borde (' + pf0.outline.join(' ') + ')');
+    t.ok(!tinte(pf0.sombra) && tinte(pf.sombra), 'Oscuro: y suma el resplandor de la marca: ' + pf.sombra.slice(0, 90));
+    await p.click('.av-bg .av-sec'); p.contestar = true; await wait(500);
     // No se mueve nada, nada recorta el filete ni el resplandor y los textos se leen igual.
-    for (const vista of ['entreno', 'ejercicio', 'variantes', 'ajustes', 'habitos', 'cardio', 'comida', 'progreso']){
+    for (const vista of ['entreno', 'ejercicio', 'variantes', 'ajustes', 'habitos', 'cardio', 'comida', 'progreso', 'pregunta', 'selector']){
       await ir(p, vista);
       const d = await seMueve(p, h);
       t.eq(d.slice(0, 4), [], 'Oscuro, ' + vista + ': nada cambia de lugar ni de tamaño con el neón (' + d.length + ')');
@@ -121,6 +133,9 @@ export default async function ({ base, t }){
     await contrasteIgual(t, p, 'Oscuro, Entreno', [['días', '.tabs .tab'], ['nombre del día', '.day-head .day-name'], ['«Limpiar»', '.day-head .clear'], ['barra de abajo', '.nav-item']], { h, zona: ZONA });
     await ir(p, 'variantes');
     await contrasteIgual(t, p, 'Oscuro, variantes', [['variantes', '.var-sheet .var-pick .vp-n'], ['«Cerrar»', '.var-sheet .ctrl.ghost']], { h, zona: ZONA });
+    await ir(p, 'selector');
+    await contrasteIgual(t, p, 'Oscuro, selector', [['opciones', '.sl-bg .sl-op'], ['«Cancelar»', '.sl-bg .sl-x']], { h, zona: ZONA });
+    await ir(p, 'entreno');
     t.eq(errs, [], 'Oscuro, celular: errores de la página');
     await close();
   }

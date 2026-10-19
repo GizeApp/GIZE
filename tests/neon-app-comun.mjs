@@ -40,14 +40,16 @@ const abrir = (base, { vp = M, tema = 'oscuro', neon = true, touch = vp === M, r
 
 // Las pantallas: entreno (arriba), ejercicio (el primero abierto), variantes («Ver variantes» del
 // primero), ajustes, habitos, cardio, comida (con la meta de calorías puesta), agua (Comida con «Más
-// opciones de agua» abierto), progreso; con la rutina propia, buscador (el de «+ Agregar
-// ejercicio») y dias (los días de la semana del día).
+// opciones de agua» abierto), progreso; pregunta (una pregunta propia abierta, confirmar() de
+// app/ui/avisos.js, sobre Entreno) y selector (el selector propio de app/ui/selector.js abierto sobre
+// Progreso, como el de «Evolución de cargas»: un <select> de tres opciones con la del medio elegida);
+// con la rutina propia, buscador (el de «+ Agregar ejercicio») y dias (los días de la semana del día).
 async function ir(p, vista){
   const click = async sel => { await p.click(sel); await wait(700); };
-  // Cierra lo que haya abierto (una ventana de abajo).
-  await p.evaluate(() => { const b = document.querySelector('.sheet-bg'); if (b) b.click(); }); await wait(500);
-  const nav = { entreno: 'entreno', ejercicio: 'entreno', variantes: 'entreno', buscador: 'entreno', dias: 'entreno', ajustes: 'config',
-    habitos: 'habitos', cardio: 'cardio', comida: 'comida', agua: 'comida', progreso: 'progreso' }[vista];
+  // Cierra lo que haya abierto (una pregunta, el selector, una ventana de abajo).
+  await p.evaluate(() => { for (const s of ['.av-bg:not(.closing) .av-sec', '.sl-bg:not(.closing) .sl-x', '.sheet-bg']) { const b = document.querySelector(s); if (b) b.click(); } }); await wait(500);
+  const nav = { entreno: 'entreno', ejercicio: 'entreno', variantes: 'entreno', buscador: 'entreno', dias: 'entreno', pregunta: 'entreno', ajustes: 'config',
+    habitos: 'habitos', cardio: 'cardio', comida: 'comida', agua: 'comida', progreso: 'progreso', selector: 'progreso' }[vista];
   if (!await p.$('#nav-' + nav + '.active')) await click('#nav-' + nav);
   // Entreno «arriba», como al entrar: los ejercicios cerrados (lo que queda abierto pasa por debajo de
   // la barra de abajo, que es translúcida, y cambia el fondo de sus letras).
@@ -64,6 +66,18 @@ async function ir(p, vista){
   if (vista === 'buscador') await click('[data-action="ex-add-open"]');
   if (vista === 'agua' && !await p.$('.wm-extra')) await click('[data-action="water-toggle"]');
   if (vista === 'dias' && !await p.$('.dd-chip')) await click('[data-action="dias-open"]');
+  if (vista === 'pregunta') {
+    // Queda abierta (p.contestar = null): la cierra el próximo ir() con «Cancelar».
+    p.contestar = null;
+    await p.evaluate(() => { window.confirmar('¿Querés limpiar lo que cargaste hoy?', { ok: 'Limpiar' }); }); await wait(700);
+    p.contestar = true;
+  }
+  if (vista === 'selector') {
+    await p.evaluate(() => { const v = document.getElementById('view');
+      v.insertAdjacentHTML('afterbegin', '<select class="form-input" id="nnSel" style="margin:12px 0"><option>Press inclinado con mancuernas</option>' +
+        '<option selected>Sentadilla en Smith</option><option>Vuelos laterales sentado</option></select>'); });
+    await click('#nnSel');
+  }
   await wait(300);
 }
 
@@ -81,6 +95,8 @@ const QUE = {
   ajustes: [['«Cerrar sesión»', '.logout-btn:not(.cfg-danger)'], ['pestaña elegida de la barra', '.nav-item.active', 'on']],
   comida: [['«Editar meta»', '.cal-edit']],
   agua: [['«+500 ml»', '.wm-extra .qbtn'], ['la meta de agua', '.wm-extra .water-goal']],
+  pregunta: [['«Cancelar» de una pregunta', '.av-bg .av-sec']],
+  selector: [['opción elegida del selector', '.sl-bg .sl-op.on', 'on'], ['«Cancelar» del selector', '.sl-bg .sl-x']],
 };
 // Con la rutina propia.
 const QUE_PROPIA = {
@@ -113,6 +129,6 @@ const PINTA = sel => { const e = [...document.querySelectorAll(sel)].find(x => x
 // Para medir el contraste: los textos se borran en toda la página.
 const ZONA = 'body';
 // Lo que no puede recortar lo de adentro (el filete sobre el borde y el resplandor de afuera).
-const ZONA_RECORTE = '#view *, .navbar *, .sheet *';
+const ZONA_RECORTE = '#view *, .navbar *, .sheet *, .av-bg *, .sl-bg *';
 
 export { DIAS, BLOQUE, handlers, D, M, TEMA, abrir, ir, HOJA_APP, QUE, QUE_PROPIA, cantos, YA, PRINCIPALES, PINTA, ZONA, ZONA_RECORTE };

@@ -29,7 +29,7 @@ export default async function ({ base, t }){
     const { p, errs, close } = await abrir(base, { tema });
     await p.goto(base + '/app/'); await wait(3500);
     const [r1, r2] = (await p.evaluate(() => ['--gize-r1', '--gize-r2'].map(k => getComputedStyle(document.documentElement).getPropertyValue(k).trim()))).map(hex);
-    for (const vista of ['entreno', 'variantes']){
+    for (const vista of ['entreno', 'variantes', 'pregunta', 'selector']){
       await ir(p, vista);
       for (const [n, sel, como] of QUE[vista]){
         const v = await leer(p, sel);
@@ -87,7 +87,7 @@ export default async function ({ base, t }){
     await p.goto(base + '/app/'); await wait(3500);
     t.ok(await p.evaluate(() => document.documentElement.classList.contains('sin-neon')), 'sin neón (' + tema + '): html.sin-neon');
     const portada = [], elegidos = [];
-    for (const vista of ['entreno', 'variantes']){
+    for (const vista of ['entreno', 'variantes', 'pregunta', 'selector']){
       await ir(p, vista);
       for (const [n, sel, como] of QUE[vista]){
         const v = await leer(p, sel);

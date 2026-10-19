@@ -9,16 +9,19 @@
    Qué lo lleva en la app:
    - Lo elegido, con el filete claro y el resplandor: el día de Entreno (Torso / Piernas…), la
      pestaña de la barra de abajo, la categoría elegida al buscar un ejercicio, el día de la semana
-     elegido y la variante elegida («Ver variantes»).
+     elegido, la variante elegida («Ver variantes») y la opción elegida del selector propio (la hoja
+     que reemplaza la lista de los <select>, app/ui/selector.js).
    - La portada del día (el nombre grande con «Iniciar entrenamiento»): un filete un poco más
      claro que el de las tarjetas.
    - Con los cantos de color (tenues): los otros días, categorías y días de la semana, y toda la
      familia de los botones secundarios que está en la app («Limpiar», «Ver rutinas armadas»,
      «+ Agregar ejercicio», «Iniciar descanso», el tiempo de descanso, «Agregar con nombre propio»,
-     los botones de borde de las ventanas como «Cerrar» o «Cancelar», «+500 ml», la meta de agua,
-     «Editar meta», «Cerrar sesión»): todos iguales entre sí.
+     los botones de borde de las ventanas como «Cerrar» o «Cancelar», también el «Cancelar» de las
+     preguntas propias y el «Cerrar» del selector, «+500 ml», la meta de agua, «Editar meta», «Cerrar
+     sesión»): todos iguales entre sí.
    - Punteado de neón (dos tonos de la marca): «+ Serie» y el «+» entre ejercicios.
-   - Los campos con foco conservan su aro azul de siempre y suman el resplandor de la marca.
+   - Los campos con foco conservan su aro azul de siempre y suman el resplandor de la marca (también
+     el campo de las preguntas propias, pedir()).
    - Las tarjetas y las filas de la lista (la semana del bloque, «Rutina asignada por tu coach»,
      cada ejercicio, la nota del coach, las cajas de Hábitos, Cardio, Progreso y Ajustes, la barra
      de abajo) ya llevaban el filete tenue (css/ui/calma.css, tema-claro.css, claro-frozen.css:
@@ -244,18 +247,18 @@ html.lite:not(#_):not(#__) body, html.android-app:not(#_):not(#__) body {
 }
 
 /* ---------- 2) Lo elegido y la portada del día: el filete en el ::after ----------
-   Solo lo elegido (el día, la categoría, el día de la semana, la variante, la pestaña de la barra de
-   abajo) y la portada del día: dos o tres por pantalla. El borde queda transparente y el ::after lo
+   Solo lo elegido (el día, la categoría, el día de la semana, la variante, la opción del selector, la
+   pestaña de la barra de abajo) y la portada del día: dos o tres por pantalla. El borde queda transparente y el ::after lo
    tapa con el filete (inset -1px: la caja del borde; la pestaña de la barra no tiene borde: 0).
    Liviano y la app de Android no lo llevan (sección 6). */
 /* Los que estaban quietos (static) pasan a relative para alojar el ::after (su caja no cambia). */
-html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.ex-chip.on, .dd-chip.on, .var-pick.on) {
+html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.ex-chip.on, .dd-chip.on, .var-pick.on, .sl-op.on) {
   position: relative;
 }
-html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .day-head) {
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .sl-op.on, .day-head) {
   border-color: transparent;
 }
-html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .day-head, .nav-item.active)::after {
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .sl-op.on, .day-head, .nav-item.active)::after {
   content: ""; display: block; position: absolute; top: var(--nn-b, -1px); right: var(--nn-b, -1px); bottom: var(--nn-b, -1px); left: var(--nn-b, -1px);
   border-radius: inherit; padding: var(--nn-w); pointer-events: none;
   background: var(--nn-f, var(--nn-filete-on));
@@ -272,17 +275,17 @@ html.tema-luz:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:no
 /* «Claro» con neón: como sus tarjetas (css/ui/claro-frozen.css), el filete va encima de la línea
    blanca del vidrio; el gris solo casi no se veía sobre el celeste. */
 html.tema-luz:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on,
-    .var-pick.on, .day-head, .nav-item.active)::after {
+    .var-pick.on, .sl-op.on, .day-head, .nav-item.active)::after {
   background: var(--nn-f, var(--nn-filete-on)), linear-gradient(var(--frz-line), var(--frz-line));
 }
 
 /* ---------- 3) Lo elegido: el resplandor suave y quieto, en el ::before ----------
-   Los días, las categorías, los días de la semana y la variante elegida están en una fila con scroll
-   (o una lista que se desliza), que cortaría el de afuera en línea recta: ahí va por dentro, debajo
-   del texto (z -1 en una caja aislada). El de los días pisa el brillo que seguía al mouse (apagado,
+   Los días, las categorías, los días de la semana, la variante y la opción del selector elegidas
+   están en una fila con scroll (o una lista que se desliza), que cortaría el de afuera en línea
+   recta: ahí va por dentro, debajo del texto (z -1 en una caja aislada). El de los días pisa el brillo que seguía al mouse (apagado,
    css/ui/botones-rediseno.css): su lugar, su tamaño y su transición. */
-html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on) { isolation: isolate; }
-html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .nav-item.active)::before {
+html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .sl-op.on) { isolation: isolate; }
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .sl-op.on, .nav-item.active)::before {
   content: ""; display: block; position: absolute; top: var(--nn-b, -1px); right: var(--nn-b, -1px); bottom: var(--nn-b, -1px); left: var(--nn-b, -1px);
   width: auto; height: auto; margin: 0; border-radius: inherit; background: none; opacity: 1; transform: none;
   pointer-events: none; animation: none; transition: none;
@@ -300,7 +303,8 @@ html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-c
    familia de css/ui/botones-rediseno.css, la que está en la app: «Limpiar», «Ver rutinas armadas»,
    «+ Agregar ejercicio», «Iniciar descanso» y el tiempo de descanso de cada ejercicio, «Agregar con
    nombre propio», los botones de borde de las ventanas como «Cerrar» o «Cancelar», «+500 ml», la meta
-   de agua, «Editar meta», «Cerrar sesión»). Las filas de las listas (.ex-pick) no: son filas.
+   de agua, «Editar meta», «Cerrar sesión»; y los de las ventanas propias: «Cancelar» de confirmar() y
+   pedir() y «Cerrar» del selector). Las filas de las listas (.ex-pick, .sl-op) no: son filas.
    Sin ::after ni máscara (se repiten de a muchos: dos por ejercicio abierto): todo en sombras de
    adentro, sin desenfoque, que no suman capas y se pintan como un borde. Una línea fina alrededor
    (--nn-canto-n, en el lugar del borde, que queda transparente) y encima dos medialunas que se afinan
@@ -309,7 +313,7 @@ html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-c
    ve con su borde nítido. Sin neón quedan grises, como siempre. */
 html:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab:not(.active), .ex-chip:not(.on),
     .dd-chip:not(.on), .clear, .load-def, .add-ex, .rest-btn-full, .rest-edit, .ex-custom, .qbtn, .cal-edit, .water-goal,
-    .logout-btn:not(.cfg-danger), .ctrl.ghost:not(.sov-del)) {
+    .logout-btn:not(.cfg-danger), .ctrl.ghost:not(.sov-del), .av-sec, .sl-x) {
   border-color: transparent; background-clip: padding-box;
   box-shadow: var(--nn-cantos);
 }
@@ -317,7 +321,7 @@ html:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) b
 @media (hover: hover) {
   html:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab:not(.active), .ex-chip:not(.on),
       .dd-chip:not(.on), .clear, .load-def, .add-ex, .rest-btn-full, .rest-edit, .ex-custom, .qbtn, .cal-edit, .water-goal,
-      .logout-btn:not(.cfg-danger), .ctrl.ghost:not(.sov-del)):hover {
+      .logout-btn:not(.cfg-danger), .ctrl.ghost:not(.sov-del), .av-sec, .sl-x):hover {
     box-shadow: var(--nn-cantos-hi);
   }
 }
@@ -342,6 +346,9 @@ html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.field inpu
 html:not(.tema-claro):not(.tema-luz):not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.field input, .form-input:not(.rq-neon)):focus {
   box-shadow: var(--login-ring), var(--nn-foco);
 }
+/* El campo de las preguntas propias (pedir(), app/ui/avisos.js) marca el foco con su contorno (outline):
+   lo conserva y suma solo el resplandor. */
+html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) .av-in:focus { box-shadow: var(--nn-foco); }
 
 /* ---------- 6) Liviano y la app de Android: líneas lisas ----------
    Sin el ::after con máscara, el ::before del resplandor ni los cantos (arriba quedan afuera): los
@@ -349,7 +356,7 @@ html:not(.tema-claro):not(.tema-luz):not(.basico):not(#_):not(#__) body:not(.sil
    siempre); la pestaña de la barra no tiene borde: la línea va por dentro, en una sombra sin
    desenfoque. En «Claro» no: lo elegido ya es una pastilla negra (una línea azul marino encima casi no
    se ve) y la de la barra perdería la sombra que la levanta. */
-html:is(.lite, .android-app):not(.sin-neon):not(.tema-luz):not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on) {
+html:is(.lite, .android-app):not(.sin-neon):not(.tema-luz):not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .sl-op.on) {
   border-color: var(--nn-linea-on);
 }
 html:is(.lite, .android-app):not(.sin-neon):not(.tema-luz):not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) .nav-item.active {
@@ -367,8 +374,8 @@ html:is(.lite, .android-app):not(.sin-neon):not(.tema-luz):not(.basico):not(#_):
    bordes con el color del sistema (también los transparentes); acá se sacan las cajas vacías del
    filete y del resplandor. */
 @media (forced-colors: active) {
-  html:not(#_):not(#__):not(#___) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .day-head, .nav-item.active)::after,
-  html:not(#_):not(#__):not(#___) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .nav-item.active)::before {
+  html:not(#_):not(#__):not(#___) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .sl-op.on, .day-head, .nav-item.active)::after,
+  html:not(#_):not(#__):not(#___) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .sl-op.on, .nav-item.active)::before {
     content: none;
   }
 }
