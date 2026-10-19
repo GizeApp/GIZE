@@ -1,6 +1,9 @@
 // Aviso de fin de descanso en la app de Android: desde Android 14 «Alarmas y recordatorios»
 // viene apagado y el aviso salía tarde (alarma inexacta). En el primer descanso se pide una sola
 // vez, antes de programar el aviso; si ya está permitido, o en iPhone, no se pregunta nada.
+// La pregunta es un cartel propio (confirmar, app/ui/avisos.js) que no frena la app: si el descanso
+// termina o se saltea mientras está abierta, al contestar no se programa el aviso de ese descanso
+// (antes sonaba un «¡Descanso terminado!» de un descanso que ya no estaba).
 import { newPage, wait, ALUMNO } from './lib.mjs';
 
 // exacta: lo que contesta el celular ('granted' o 'denied'); al ir a la pantalla del sistema, el
@@ -18,7 +21,9 @@ const NATIVO = (plat, exacta) => `(() => {
     } } };
 })();`;
 
-const descanso = p => p.evaluate(async () => { const r = await import('/app/ui/restbar.js'); r.startRest(60); await new Promise(ok => setTimeout(ok, 300)); r.stopRest(); });
+// Un descanso de 60 s que se saltea al rato (la pregunta, si la hay, ya se contestó: tarda lo que
+// tarda el cartel en aparecer y cerrarse).
+const descanso = p => p.evaluate(async () => { const r = await import('/app/ui/restbar.js'); r.startRest(60); await new Promise(ok => setTimeout(ok, 1200)); r.stopRest(); });
 
 export default async function ({ base, t }){
   // Android 14 recién instalada: se pide en el primer descanso, antes de programar el aviso.
@@ -43,6 +48,22 @@ export default async function ({ base, t }){
   await descanso(pg.p);
   t.eq(pg.dialogs, [], 'Android con alarma exacta: sin preguntas');
   t.eq(await pg.p.evaluate(() => window.__log), ['check', 'schedule 4101'], 'Android con alarma exacta: programa el aviso');
+  await pg.close();
+
+  // La pregunta queda abierta y mientras tanto el descanso se saltea (o termina): al contestar «sí»
+  // se abre el ajuste, pero el aviso de ese descanso ya no se programa.
+  pg = await newPage({ user: ALUMNO, init: NATIVO('android', 'denied'), state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} } });
+  pg.p.contestar = null; // se contesta a mano
+  await pg.p.goto(base + '/app/'); await wait(2500);
+  await pg.p.evaluate(async () => { (await import('/app/ui/restbar.js')).startRest(60); }); await wait(800);
+  t.ok(await pg.p.$('.av-bg .av-go'), 'Android: la pregunta está abierta');
+  await pg.p.evaluate(async () => { (await import('/app/ui/restbar.js')).stopRest(); }); await wait(200);
+  await pg.p.click('.av-bg .av-go'); await wait(800);
+  t.eq(await pg.p.evaluate(() => window.__log), ['check', 'change'], 'Android: descanso salteado con la pregunta abierta: abre el ajuste pero no programa un aviso viejo');
+  // Un descanso nuevo después sí se programa.
+  await pg.p.evaluate(async () => { (await import('/app/ui/restbar.js')).startRest(60); }); await wait(500);
+  t.eq(await pg.p.evaluate(() => window.__log.filter(x => x !== 'check')), ['change', 'schedule 4101'], 'Android: el descanso siguiente se programa');
+  t.eq(pg.errs, [], 'errores (descanso salteado con la pregunta abierta)');
   await pg.close();
 
   // iPhone: no existe ese ajuste.

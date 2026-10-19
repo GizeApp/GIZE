@@ -56,7 +56,7 @@ async function abrirMenu(p, id, touch){
 
 export default async function ({ base, t }){
   for (const [donde, viewport, touch] of [['compu', { width: 1280, height: 800 }, false], ['celular', { width: 390, height: 844 }, true]]){
-    const { p, errs, dialogs, close } = await abrir(base, viewport, touch);
+    const { p, errs, dialogs, preguntas, close } = await abrir(base, viewport, touch);
     // Abierta y con «Más opciones» cerrado: la tarjeta más corta (una serie).
     await p.click('.co-exc[data-id="e1"] .co-exc-chev'); await wait(400);
     t.eq(await p.$eval('.co-exc[data-id="e1"] .co-more-panel', e => e.hidden), true, donde + ': «Más opciones» cerrado');
@@ -82,19 +82,19 @@ export default async function ({ base, t }){
     o = await opciones(p);
     t.ok(o && o.filter(x => !x.sep).every(x => x.ve), donde + ': con «Más opciones» abierto también se ve todo: ' + JSON.stringify(o));
 
-    // Quitar: pregunta antes. Cancelando no pasa nada.
-    await p.evaluate(() => { window.__conf = window.confirm; window.confirm = m => { window.__pregunta = m; return false; }; });
+    // Quitar: pregunta antes. Cancelando (se toca «Cancelar» en el cartel) no pasa nada.
+    p.contestar = false;
     await p.click('details.co-exc-menu2[open] [data-coach="rt-del"]'); await wait(400);
-    t.has(await p.evaluate(() => window.__pregunta || ''), '¿Quitar «Prensa 45°»', donde + ': pregunta antes de quitar, con el nombre');
+    t.has((preguntas[preguntas.length - 1] || {}).texto || '', '¿Quitar «Prensa 45°»', donde + ': pregunta antes de quitar, con el nombre');
     t.eq(await ids(p), ['e0', 'e1', 'e2', 'e3'], donde + ': cancelando, el ejercicio sigue');
     t.eq(await p.$$eval('details.co-day-menu[open]', l => l.length), 0, donde + ': elegir una opción cierra el menú');
-    await p.evaluate(() => { window.confirm = window.__conf; });
+    p.contestar = true;
     // Aceptando, se quita y queda como cambio sin guardar.
     await abrirMenu(p, 'e1', touch);
     if (touch) await p.tap('details.co-exc-menu2[open] [data-coach="rt-del"]'); else await p.click('details.co-exc-menu2[open] [data-coach="rt-del"]');
     await wait(500);
     t.eq(await ids(p), ['e0', 'e2', 'e3'], donde + ': «Quitar ejercicio» lo saca de la rutina');
-    t.ok(dialogs.some(d => /¿Quitar «Prensa 45°» de «Pierna»\?/.test(d)), donde + ': la pregunta nativa: ' + JSON.stringify(dialogs));
+    t.ok(dialogs.some(d => /¿Quitar «Prensa 45°» de «Pierna»\?/.test(d)), donde + ': la pregunta: ' + JSON.stringify(dialogs));
     t.ok(await p.$('.co-unsaved'), donde + ': queda como cambio sin guardar');
 
     // El último de la lista (una serie, al fondo): el menú entra igual (abre para arriba si hace falta).

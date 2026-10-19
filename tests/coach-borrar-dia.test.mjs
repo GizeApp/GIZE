@@ -15,7 +15,7 @@ const rutina = () => [
 
 export default async function ({ base, t }){
   const ACTUAL = rutina();
-  const { p, errs, dialogs, close } = await newPage({ user: COACH, viewport: { width: 390, height: 844 }, touch: true,
+  const { p, errs, dialogs, preguntas, close } = await newPage({ user: COACH, viewport: { width: 390, height: 844 }, touch: true,
     handlers: {
       '/profiles': (r, J, i) => { if (i.m !== 'GET') return undefined; const me = { id: COACH.id, role: 'coach', full_name: 'Coach Prueba' };
         if (/coach_id=eq/.test(i.url.search)) return J([{ id: A1, full_name: 'Ana Alumna' }]); return J(i.one ? me : [me]); },
@@ -29,16 +29,18 @@ export default async function ({ base, t }){
   const dias = () => p.$$eval('.co-daytab[data-coach="edit-day"]', l => l.map(b => b.childNodes[0].textContent.trim()));
   const borrar = async () => { await p.tap('.co-day-bar .co-day-menu summary'); await wait(250); await p.tap('[data-coach="day-del"]'); await wait(400); };
 
-  // Cancelando, el día sigue.
-  await p.evaluate(() => { window.__conf = window.confirm; window.confirm = m => { window.__pregunta = m; return false; }; });
+  // Cancelando (se toca «Cancelar» en el cartel), el día sigue.
+  p.contestar = false;
   await borrar();
-  t.eq(await p.evaluate(() => window.__pregunta || ''), '¿Borrar el día «Pierna» con sus 2 ejercicios?', 'pregunta antes de borrar un día con ejercicios');
+  const q = preguntas[preguntas.length - 1] || {};
+  t.eq(q.texto, '¿Borrar el día «Pierna» con sus 2 ejercicios?', 'pregunta antes de borrar un día con ejercicios');
+  t.ok(q.peligro && q.ok === 'Borrar', 'la pregunta va en rojo y el botón dice «Borrar»: ' + JSON.stringify(q));
   t.eq(await dias(p), ['Pierna', 'Torso', 'Día vacío'], 'cancelando, el día sigue');
-  await p.evaluate(() => { window.confirm = window.__conf; });
+  p.contestar = true;
   // Aceptando, se borra.
   await borrar();
   t.eq(await dias(p), ['Torso', 'Día vacío'], 'aceptando, se borra');
-  t.ok(dialogs.some(d => d === '¿Borrar el día «Pierna» con sus 2 ejercicios?'), 'la pregunta nativa: ' + JSON.stringify(dialogs));
+  t.ok(dialogs.some(d => d === '¿Borrar el día «Pierna» con sus 2 ejercicios?'), 'la pregunta: ' + JSON.stringify(dialogs));
   // Un día vacío se borra sin preguntar.
   await p.tap('.co-daytab[data-i="1"]'); await wait(300);
   const n = dialogs.length;

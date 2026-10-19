@@ -9,7 +9,7 @@ export default async function ({ base, t }){
   const A1 = '44444444-4444-4444-4444-444444444444';
   const ACTUAL = [{ id: 'd0', name: 'Full body', subtitle: '', exercises: [{ id: 'e0', name: 'Peso muerto', sets: [{ id: 's0', kg: '', reps: '' }] }] }];
   const sched = [];
-  const { p, errs, close } = await newPage({ user: COACH, viewport: { width: 1100, height: 900 },
+  const { p, errs, preguntas, close } = await newPage({ user: COACH, viewport: { width: 1100, height: 900 },
     handlers: {
       '/profiles': (r, J, i) => { if (i.m !== 'GET') return undefined; const me = { id: COACH.id, role: 'coach', full_name: 'Coach Prueba' };
         if (/coach_id=eq/.test(i.url.search)) return J([{ id: A1, full_name: 'Ana Alumna' }]); return J(i.one ? me : [me]); },
@@ -20,8 +20,9 @@ export default async function ({ base, t }){
   const st = () => p.evaluate(async () => { const { CoachState } = await import('/app/screens/coach/state.js'); const f = CoachState.coachPlanForm;
     return { sel: CoachState.coachSel, meal: f && f.trainDays && f.trainDays[0] && f.trainDays[0].meal, obj: CoachState.coachInfoForm && CoachState.coachInfoForm.objective, blk: CoachState.coachBlockForm && CoachState.coachBlockForm.name }; });
   const unload = () => p.evaluate(() => { const ev = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(ev); return ev.defaultPrevented; });
-  // «Cancelar» en el aviso (y se anota qué dice).
-  await p.addInitScript(() => { window.__conf = []; window.__ok = false; window.confirm = m => (window.__conf.push(m), window.__ok); });
+  // Se toca «Cancelar» en la pregunta (el cartel propio, app/ui/avisos.js); lo que dice queda en preguntas.
+  p.contestar = false;
+  const conf = () => preguntas.map(q => q.texto);
   await p.goto(base + '/app/'); await wait(3500);
   await p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1500);
 
@@ -37,13 +38,13 @@ export default async function ({ base, t }){
   // Atrás de Android: el primero cierra la sección, el segundo toca «‹ Volver».
   await p.evaluate(async () => { const { handleBack } = await import('/app/ui/atras.js'); handleBack(); }); await wait(300);
   await p.evaluate(async () => { const { handleBack } = await import('/app/ui/atras.js'); handleBack(); }); await wait(300);
-  t.has((await p.evaluate(() => window.__conf)).join(' | '), 'Tenés cambios sin guardar en el plan alimenticio', 'Volver pregunta por el plan');
+  t.has(conf().join(' | '), 'Tenés cambios sin guardar en el plan alimenticio', 'Volver pregunta por el plan');
   t.eq((await st()).meal, 'Desayuno', 'al cancelar, el plan sigue como estaba');
   t.ok(await unload(), 'recargar la página avisa (plan)');
   // La barra lateral (nueva en #331) también saca de la ficha: pregunta igual que «‹ Volver».
-  const n0 = (await p.evaluate(() => window.__conf)).length;
+  const n0 = conf().length;
   await p.click('[data-coach="view-home"]'); await wait(300);
-  t.has((await p.evaluate(() => window.__conf)).slice(n0).join(' | '), 'Tenés cambios sin guardar en el plan alimenticio', 'salir por la barra lateral pregunta por el plan');
+  t.has(conf().slice(n0).join(' | '), 'Tenés cambios sin guardar en el plan alimenticio', 'salir por la barra lateral pregunta por el plan');
   t.eq(await st(), { sel: A1, meal: 'Desayuno', obj: null, blk: null }, 'al cancelar sigue en la alumna con el plan sin guardar');
 
   // Ficha y bloque.
@@ -57,8 +58,7 @@ export default async function ({ base, t }){
   await p.click('[data-coach="sec-open"][data-v="bloque"]'); await wait(300);
   await p.fill('[data-coach="blk-name"]', 'Fuerza'); await wait(100);
   await p.click('[data-coach="refresh"]'); await wait(800);
-  const conf = await p.evaluate(() => window.__conf);
-  t.has(conf[conf.length - 1], 'en el plan alimenticio, la ficha y el bloque', 'Actualizar pregunta por los tres');
+  t.has(conf()[conf().length - 1], 'en el plan alimenticio, la ficha y el bloque', 'Actualizar pregunta por los tres');
   t.eq(await st(), { sel: A1, meal: 'Desayuno', obj: 'Bajar grasa', blk: 'Fuerza' }, 'al cancelar no se vuelve a leer nada');
 
   // Guardar una rutina programada vuelve a leer al alumno: lo demás sin guardar queda.
@@ -71,7 +71,7 @@ export default async function ({ base, t }){
   t.eq(await st(), { sel: A1, meal: 'Desayuno', obj: 'Bajar grasa', blk: 'Fuerza' }, 'después de guardarla siguen el plan, la ficha y el bloque sin guardar');
 
   // Aceptando el aviso se sale, y ya no queda nada pendiente.
-  await p.evaluate(() => { window.__ok = true; });
+  p.contestar = true;
   await p.click('[data-coach="back"]'); await wait(600);
   t.eq((await st()).sel, null, 'aceptando, Volver sale a la lista');
   t.ok(!(await unload()), 'en la lista, recargar ya no avisa');

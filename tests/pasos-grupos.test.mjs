@@ -167,7 +167,7 @@ export default async function ({ base, t }){
   {
     const m = mock({ onUnirse: SUMA, ver: 'falta' });
     const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
-    p.removeAllListeners('dialog'); p.on('dialog', d => { dialogs.push(d.message()); d.dismiss().catch(() => {}); });
+    p.contestar = false; // se toca «Cancelar» en la pregunta
     await p.goto(base + '/app/#grupo=wxyz-2345'); await wait(3200);
     t.eq(dialogs, ['¿Querés sumarte al grupo de pasos con el código WXYZ2345? Los miembros van a ver tu nombre y tus pasos de la semana.'], '3b: sin la función, pregunta con el código');
     t.ok(!m.rpcs.some(x => x.startsWith('unirse')), '3b: si dice que no, no se suma: ' + m.rpcs.join(' | '));
