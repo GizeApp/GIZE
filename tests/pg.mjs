@@ -7,9 +7,13 @@
 //      El SQL va siempre por la entrada estándar, así anda igual dentro del contenedor.
 //   2. PG_BIN, o el initdb de versión más alta en /usr/lib/postgresql/*/bin: arma un cluster en una
 //      carpeta temporal, que escucha solo en un socket Unix dentro de esa carpeta (no choca con otro
-//      Postgres ni con otra prueba que corra a la vez), y lo apaga y lo borra al salir. initdb no
-//      corre como root: si la prueba corre como root, initdb y postgres corren como el usuario
-//      «postgres» del sistema.
+//      Postgres ni con otra prueba que corra a la vez), y lo apaga y lo borra al salir (también si
+//      se cierra la terminal: SIGHUP). initdb no corre como root: si la prueba corre como root,
+//      initdb y postgres corren como el usuario «postgres» del sistema.
+//      El cluster entra sin contraseña (trust), así que solo lo alcanza quien llega al socket: la
+//      carpeta queda 0700 (de quien corre la prueba, o de «postgres» si corre como root, que igual
+//      entra) y el socket 0700. Otro usuario de la máquina no puede conectarse como superusuario.
+//      Si una corrida anterior murió sin limpiar (kill -9), la próxima apaga y borra ese cluster.
 // Sin ninguno (o si el cluster local no arranca), las pruebas se saltean con un aviso. Con
 // GIZE_PG_OBLIGATORIO=1 (base-de-pruebas.yml), que falte Postgres es una falla. Con GIZE_PG_SALTEAR=1
 // se saltean siempre.
@@ -70,27 +74,59 @@ function buscarBin(){
   return null;
 }
 
-// Cluster temporal local. Devuelve el comando de psql o un motivo para saltear.
-function clusterLocal(){
+const esRoot = () => typeof process.getuid === 'function' && process.getuid() === 0;
+const carpetaTemp = () => esRoot() ? '/tmp' : os.tmpdir();
+const ejecutor = bin => (b, args) => {
+  const como = esRoot() ? ['runuser', '-u', 'postgres', '--'] : [];
+  return spawnSync(como[0] || path.join(bin, b), como.length ? [...como.slice(1), path.join(bin, b), ...args] : args, { encoding: 'utf8' });
+};
+const vivo = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+
+// Los clusters de corridas que murieron sin limpiar (kill -9, la máquina se apagó): la carpeta
+// gize-pg-* anota el proceso de la prueba en prueba.pid; si ese proceso ya no existe, se apaga y se
+// borra. Las carpetas sin prueba.pid o de una prueba que sigue corriendo no se tocan.
+export function limpiarViejos(bin = buscarBin()){
+  const borradas = [];
+  if (!bin) return borradas;
+  const run = ejecutor(bin);
+  let dirs = [];
+  try { dirs = fs.readdirSync(carpetaTemp()).filter(d => d.startsWith('gize-pg-')).map(d => path.join(carpetaTemp(), d)); } catch (e) {}
+  for (const dir of dirs){
+    let pid;
+    try { pid = Number(fs.readFileSync(path.join(dir, 'prueba.pid'), 'utf8')); } catch (e) { continue; }
+    if (!pid || pid === process.pid || vivo(pid)) continue;
+    if (fs.existsSync(path.join(dir, 'data', 'postmaster.pid'))) run('pg_ctl', ['-D', path.join(dir, 'data'), '-m', 'immediate', 'stop']);
+    fs.rmSync(dir, { recursive: true, force: true });
+    borradas.push(dir);
+  }
+  return borradas;
+}
+
+// Cluster temporal local. Devuelve el comando de psql (y la carpeta) o un motivo para saltear.
+export function clusterLocal(){
   const bin = buscarBin();
   if (!bin) return { motivo: 'no hay Postgres (instalá postgresql-16 o definí GIZE_PSQL; ver tests/pg/README.md)' };
-  const root = typeof process.getuid === 'function' && process.getuid() === 0;
+  const root = esRoot();
   if (root && spawnSync('id', ['postgres']).status !== 0) return { motivo: 'corre como root y no hay usuario «postgres» para initdb' };
-  const como = root ? ['runuser', '-u', 'postgres', '--'] : [];
-  const dir = fs.mkdtempSync(path.join(root ? '/tmp' : os.tmpdir(), 'gize-pg-'));
-  fs.chmodSync(dir, 0o755);
-  if (root) spawnSync('chown', ['postgres:postgres', dir]);
+  limpiarViejos(bin);
+  // mkdtemp la crea 0700. Como root pasa a ser de «postgres» (root entra igual); si no, queda del
+  // usuario que corre la prueba. Nadie más llega al socket.
+  const dir = fs.mkdtempSync(path.join(carpetaTemp(), 'gize-pg-'));
+  fs.writeFileSync(path.join(dir, 'prueba.pid'), String(process.pid));
+  if (root) spawnSync('chown', ['-R', 'postgres:postgres', dir]);
   const data = path.join(dir, 'data');
-  const run = (b, args) => spawnSync(como[0] || path.join(bin, b), como.length ? [...como.slice(1), path.join(bin, b), ...args] : args, { encoding: 'utf8' });
+  const run = ejecutor(bin);
   const ini = run('initdb', ['-D', data, '-U', 'postgres', '--auth=trust', '-E', 'UTF8', '--locale=C.UTF-8', '--no-sync']);
   if (ini.status !== 0) { fs.rmSync(dir, { recursive: true, force: true }); return { motivo: 'initdb falló: ' + String(ini.stderr || ini.stdout).trim().split('\n').pop() }; }
-  const opts = `-p 5432 -k ${dir} -c listen_addresses='' -c fsync=off -c synchronous_commit=off -c full_page_writes=off -c timezone=UTC -c max_connections=40`;
+  const opts = `-p 5432 -k ${dir} -c listen_addresses='' -c unix_socket_permissions=0700 -c fsync=off -c synchronous_commit=off -c full_page_writes=off -c timezone=UTC -c max_connections=40`;
   const ini2 = run('pg_ctl', ['-D', data, '-l', path.join(dir, 'postgres.log'), '-o', opts, '-w', 'start']);
   if (ini2.status !== 0) { const log = fs.existsSync(path.join(dir, 'postgres.log')) ? fs.readFileSync(path.join(dir, 'postgres.log'), 'utf8') : ''; fs.rmSync(dir, { recursive: true, force: true }); return { motivo: 'Postgres no arrancó: ' + (String(ini2.stderr || '') + log).trim().split('\n').pop() }; }
   const apagar = () => { run('pg_ctl', ['-D', data, '-m', 'immediate', 'stop']); fs.rmSync(dir, { recursive: true, force: true }); };
   process.on('exit', apagar);
-  for (const s of ['SIGINT', 'SIGTERM']) process.once(s, () => process.exit(s === 'SIGINT' ? 130 : 143));
-  return { psql: [path.join(bin, 'psql'), '-h', dir, '-p', '5432', '-U', 'postgres'] };
+  // Sin esto, SIGHUP (se cerró la terminal o se cortó el SSH) mata la prueba sin pasar por «exit», y
+  // el postmaster (que corre en su propia sesión) queda vivo con su carpeta.
+  for (const [s, c] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]]) process.once(s, () => process.exit(c));
+  return { psql: [path.join(bin, 'psql'), '-h', dir, '-p', '5432', '-U', 'postgres'], dir };
 }
 
 const ARGS = ['-X', '-q', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-v', 'VERBOSITY=verbose'];
@@ -138,7 +174,7 @@ class Base {
 let n = 0;
 async function armar(){
   if (process.env.GIZE_PG_SALTEAR === '1') return { saltear: 'GIZE_PG_SALTEAR=1' };
-  let psql;
+  let psql, dir = null;
   if (process.env.GIZE_PSQL) psql = process.env.GIZE_PSQL.trim().split(/\s+/);
   else {
     const c = clusterLocal();
@@ -146,9 +182,9 @@ async function armar(){
       if (process.env.GIZE_PG_OBLIGATORIO === '1') throw new Error('GIZE_PG_OBLIGATORIO=1 y ' + c.motivo);
       return { saltear: c.motivo };
     }
-    psql = c.psql;
+    psql = c.psql; dir = c.dir;
   }
-  const h = { psql, plantillas: {} };
+  const h = { psql, plantillas: {}, dir };
   h.admin = new Base(h, 'postgres');
   h.version = (await h.admin.sql('show server_version;')).trim();
   h.base = nombre => new Base(h, nombre);

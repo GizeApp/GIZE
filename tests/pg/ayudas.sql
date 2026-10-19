@@ -69,7 +69,8 @@ end $$;
 --   I1  seats_used = recount_seats para cada fila de coach_billing (seats_drift vacío), y
 --       recount_seats = la definición de la spec, escrita con vinculo_gym;
 --   I2  ficha activa o pausada con cuenta: trainer_id = coach_id si ese coach es dueño, admin o
---       profe activo del gimnasio de la ficha; si no, null. Ficha sin cuenta: sin profe;
+--       profe activo del gimnasio de la ficha; si no, null. Ficha sin cuenta, en baja o visita: sin
+--       profe;
 --   I3  ficha pendiente: sin profe;
 --   I4  gimnasio abierto con dueño: exactamente una fila «owner» activa en gym_staff, la del dueño;
 --   I5  a lo sumo una ficha que no es baja por cuenta.
@@ -93,6 +94,8 @@ begin
                                              then p.coach_id end);
   select v || coalesce(jsonb_agg(format('I2 ficha sin cuenta %s con profe %s', m.full_name, prueba.n(m.trainer_id))), '[]') into v
     from public.gym_members m where m.member_id is null and m.trainer_id is not null;
+  select v || coalesce(jsonb_agg(format('I2 ficha %s de %s con profe %s', m.status, prueba.n(m.member_id), prueba.n(m.trainer_id))), '[]') into v
+    from public.gym_members m where m.status in ('baja', 'visita') and m.member_id is not null and m.trainer_id is not null;
   select v || coalesce(jsonb_agg(format('I3 ficha pendiente de %s con profe %s', prueba.n(m.member_id), prueba.n(m.trainer_id))), '[]') into v
     from public.gym_members m where m.status = 'pendiente' and m.trainer_id is not null;
   select v || coalesce(jsonb_agg(format('I4 gimnasio %s: dueño %s', g.name, prueba.n(g.owner_id))), '[]') into v

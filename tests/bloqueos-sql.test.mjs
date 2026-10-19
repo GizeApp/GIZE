@@ -36,12 +36,18 @@ export default async ({ t }) => {
 
   // Encabezado como los demás archivos.
   t.has(sql, 'Correr con el workflow "Supabase" → tarea sql → supabase/bloqueos.sql', 'encabezado: cómo correrlo');
-  t.has(sql, 'Se puede correr varias veces', 'encabezado: se puede correr varias veces');
+  // Se puede volver a correr hasta que se aplica gimnasios-vinculo.sql: ahí join_coach devuelve json y
+  // este archivo (que la define con boolean) falla entero a propósito. La cabecera lo dice.
+  t.ok(/Se puede correr varias veces mientras no esté aplicado gimnasios-vinculo\.sql/.test(cabeza.replace(/\n--\s*/g, ' ')), 'encabezado: se puede correr varias veces, mientras no esté aplicado gimnasios-vinculo.sql');
   t.ok(/después de\s+(--\s+)?supabase\/coach-alumnos\.sql, supabase\/chat\.sql, supabase\/pasos-grupos\.sql y supabase\/reportes\.sql/.test(cabeza), 'encabezado: de qué depende');
   t.ok(/versiones vigentes de pasos_unirse, pasos_ranking, pasos_campeon y\s+(--\s+)?pasos_mis_grupos[\s\S]*correr\s+(--\s+)?después este/.test(cabeza), 'encabezado: qué versiones vigentes tiene y que va después de los otros');
   t.ok(/join_coach[\s\S]*ya no es la vigente: la vigente está en gimnasios-vinculo\.sql/.test(cabeza), 'encabezado: la vigente de join_coach está en gimnasios-vinculo.sql');
   const pasosCabeza = read('supabase/pasos-grupos.sql').split('\n').slice(0, 35).join(' ');
   t.ok(/vigentes de pasos_unirse, pasos_mis_grupos, pasos_ranking y pasos_campeon/.test(pasosCabeza) && /bloqueos\.sql/.test(pasosCabeza), 'pasos-grupos.sql: las vigentes están en bloqueos.sql');
+  // Si no, quien sigue la nota con los gimnasios aplicados se queda sin los filtros de bloqueos
+  // (tests/gimnasios-base.test.mjs corre esos pasos en Postgres).
+  t.ok(/Con gimnasios-vinculo\.sql aplicado, bloqueos\.sql falla entero[\s\S]*el bloque\s+(--\s+)?«Para volver atrás» de gimnasios-vinculo\.sql, bloqueos\.sql, gimnasios\.sql y gimnasios-vinculo\.sql/.test(pasosCabeza),
+    'pasos-grupos.sql: con gimnasios-vinculo.sql aplicado, dice en qué orden volver a poner los filtros de bloqueos');
 
   // Tablas.
   t.ok(/create table if not exists public\.user_blocks \(/.test(code), 'la tabla user_blocks');

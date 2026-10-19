@@ -8,9 +8,15 @@
 // Quién mira: un coach independiente C (100 alumnos) a su alumna C1; el profe pA1 del gimnasio A (100
 // fichas) a su socia A1; la dueña dA, como profe, a A7; y la dueña a A1, que compartió (en la etapa 0
 // da 0 filas: la política de lectura de la dueña llega en la etapa 1; se mide igual, de referencia).
-// Cada consulta, la mejor de 3 vueltas. Se exige: con las nuevas, menos de 2 s cada una y no más lenta
-// que el doble de la de hoy (o 50 ms más), y las mismas filas con las dos. Los tiempos se imprimen: con datos
-// inventados y sin los índices de producción que el repo no declara, son una referencia.
+// Cada consulta, la mejor de 3 vueltas, con JIT apagado (si no, el costo de la consulta sin índice
+// pasa el umbral del JIT y casi todo lo que se mide es compilar con LLVM, igual con las de hoy y con
+// las nuevas). Se mide dos veces: con el esquema del repo y con un índice en
+// session_entries(session_id), que el repo no declara y producción puede tener (tests/pg/README.md,
+// D10): sin él, la ficha recorre session_entries entera por cada entreno, con o sin RLS.
+// Se exige: con las nuevas, menos de 2 s cada una y no más lenta que el doble de la de hoy (o 50 ms
+// más), las mismas filas con las dos, sessions leída por sessions_client_created_idx y, con el índice,
+// ninguna lectura secuencial de session_entries. Los tiempos se imprimen: con datos inventados, son
+// una referencia (los ajustes del servidor de producción, como jit y work_mem, los compara la huella).
 import { conPg, leer, volverAtras } from './pg.mjs';
 
 const ID = n => 'c0000000-0000-4000-8000-' + n.padStart(12, '0');
@@ -73,11 +79,13 @@ const RESTO = id => `select json_build_array(${['body_weights', 'daily_logs', 'c
 const MEDIR = `
 create table prueba.textos (nombre text primary key, sql text not null);
 -- La consulta q como quien (con las funciones de hoy si viejas): la mejor de «vueltas» corridas de
--- EXPLAIN ANALYZE, y cuántas filas devuelve. Deshace todo, también el cambio de funciones.
+-- EXPLAIN ANALYZE (sin JIT), cuántas filas devuelve y el plan de la mejor. Deshace todo, también el
+-- cambio de funciones.
 create function prueba.medir(quien uuid, q text, viejas boolean, vueltas int) returns jsonb language plpgsql as $f$
-declare p json; mejor numeric; r json; res jsonb; i int; e text; m text;
+declare p json; mejor numeric; plan json; r json; res jsonb; i int; e text; m text;
 begin
   begin
+    perform set_config('jit', 'off', true);
     if viejas then
       execute (select sql from prueba.textos where nombre = 'coach_active');
       execute (select sql from prueba.textos where nombre = 'is_my_client');
@@ -86,10 +94,10 @@ begin
     execute q into r;
     for i in 1..vueltas loop
       execute 'explain (analyze, buffers, format json) ' || q into p;
-      if mejor is null or (p->0->>'Execution Time')::numeric < mejor then mejor := (p->0->>'Execution Time')::numeric; end if;
+      if mejor is null or (p->0->>'Execution Time')::numeric < mejor then mejor := (p->0->>'Execution Time')::numeric; plan := p; end if;
     end loop;
     res := jsonb_build_object('ms', round(mejor, 1), 'filas', case when json_typeof(r) = 'array' and json_typeof(r->0) = 'object' then json_array_length(r) else 0 end,
-                              'datos', case when json_typeof(r->0) = 'number' then r::jsonb end);
+                              'datos', case when json_typeof(r->0) = 'number' then r::jsonb end, 'plan', plan::jsonb);
     raise exception using errcode = 'GZ995';
   exception when others then
     get stacked diagnostics e = returned_sqlstate, m = message_text;
@@ -109,19 +117,36 @@ export default async function ({ t }){
 
   const CASOS = [['C', 'C1', 'coach independiente → su alumna', 500], ['pA1', 'A1', 'profe del gimnasio → su socia', 500],
     ['dA', 'A7', 'dueña como profe → su socio', 500], ['dA', 'A1', 'dueña → socia que compartió (etapa 1)', 0]];
-  const filas = [];
-  for (const [quien, de, que, esperadas] of CASOS){
-    for (const [nombre, q] of [['entrenos', FICHA(P[de])], ['resto', RESTO(P[de])]]){
-      const [v, n] = [await db.json(`select prueba.medir('${P[quien]}', $q$${q}$q$, true, 3);`), await db.json(`select prueba.medir('${P[quien]}', $q$${q}$q$, false, 3);`)];
-      t.ok(!v.error && !n.error, que + ' (' + nombre + '): la consulta corre: ' + JSON.stringify([v, n]));
-      if (v.error || n.error) continue;
-      filas.push([que, nombre, v.ms, n.ms]);
-      if (nombre === 'entrenos') t.eq([v.filas, n.filas], [esperadas, esperadas], que + ': ve ' + esperadas + ' entrenos, con las de hoy y con las nuevas');
-      else t.eq(n.datos, v.datos, que + ': el resto de la ficha, igual con las de hoy y con las nuevas');
-      t.ok(n.ms < 2000, que + ' (' + nombre + '): menos de 2 s con las nuevas (' + n.ms + ' ms; hoy ' + v.ms + ' ms)');
-      t.ok(n.ms <= Math.max(2 * v.ms, v.ms + 50), que + ' (' + nombre + '): la nueva no es más lenta que el doble de la de hoy (hoy ' + v.ms + ' ms, nueva ' + n.ms + ' ms)');
+  // Los nodos del plan: [tipo, tabla, índice], recorriendo los Plans de cada nodo.
+  const nodos = (n, acc = []) => { if (!n) return acc; acc.push([n['Node Type'], n['Relation Name'] || null, n['Index Name'] || null]); (n.Plans || []).forEach(x => nodos(x, acc)); return acc; };
+  const medir = async variante => {
+    const filas = [];
+    for (const [quien, de, que, esperadas] of CASOS){
+      for (const [nombre, q] of [['entrenos', FICHA(P[de])], ['resto', RESTO(P[de])]]){
+        const [v, n] = [await db.json(`select prueba.medir('${P[quien]}', $q$${q}$q$, true, 3);`), await db.json(`select prueba.medir('${P[quien]}', $q$${q}$q$, false, 3);`)];
+        const que2 = que + ' (' + nombre + ', ' + variante + ')';
+        t.ok(!v.error && !n.error, que2 + ': la consulta corre: ' + JSON.stringify([v, n]).slice(0, 500));
+        if (v.error || n.error) continue;
+        filas.push([que, nombre, v.ms, n.ms]);
+        const plan = nodos(n.plan[0].Plan);
+        t.ok(!('JIT' in n.plan[0]) && !('JIT' in v.plan[0]), que2 + ': sin JIT en lo medido');
+        if (nombre === 'entrenos'){
+          t.eq([v.filas, n.filas], [esperadas, esperadas], que2 + ': ve ' + esperadas + ' entrenos, con las de hoy y con las nuevas');
+          t.ok(plan.some(([, tb, ix]) => ix === 'sessions_client_created_idx') && !plan.some(([tipo, tb]) => tipo === 'Seq Scan' && tb === 'sessions'),
+            que2 + ': sessions se lee por sessions_client_created_idx: ' + JSON.stringify(plan.filter(([, tb]) => tb === 'sessions')));
+          if (variante === 'con índice') t.ok(!plan.some(([tipo, tb]) => tipo === 'Seq Scan' && tb === 'session_entries'),
+            que2 + ': con el índice, session_entries no se recorre entera: ' + JSON.stringify(plan.filter(([, tb]) => tb === 'session_entries')));
+        } else t.eq(n.datos, v.datos, que2 + ': el resto de la ficha, igual con las de hoy y con las nuevas');
+        t.ok(n.ms < 2000, que2 + ': menos de 2 s con las nuevas (' + n.ms + ' ms; hoy ' + v.ms + ' ms)');
+        t.ok(n.ms <= Math.max(2 * v.ms, v.ms + 50), que2 + ': la nueva no es más lenta que el doble de la de hoy (hoy ' + v.ms + ' ms, nueva ' + n.ms + ' ms)');
+      }
     }
-  }
-  console.log(filas.map(([que, nombre, v, n]) => '    ' + (que + ' (' + nombre + ')').padEnd(58) + ' hoy ' + String(v).padStart(7) + ' ms   nueva ' + String(n).padStart(7) + ' ms').join('\n'));
+    console.log('    ' + variante + ' (sin JIT; la mejor de 3):\n' + filas.map(([que, nombre, v, n]) => '      ' + (que + ' (' + nombre + ')').padEnd(58) + ' hoy '
+      + String(v).padStart(7) + ' ms   nueva ' + String(n).padStart(7) + ' ms' + (v >= 1 ? '   ×' + (v / Math.max(n, 0.1)).toFixed(1) : '')).join('\n'));
+  };
+  await medir('esquema del repo');
+  // D10: producción puede tener un índice en session_entries(session_id) que el repo no declara.
+  await db.sql('create index session_entries_session_prueba_idx on public.session_entries (session_id); analyze public.session_entries;');
+  await medir('con índice');
   await db.borrar();
 }

@@ -18,12 +18,19 @@
 --   con:<tabla>.<restricción>   md5 de la definición (checks, únicas, claves foráneas con su on delete)
 --   idx:<tabla>.<índice>        md5 de la definición
 --   pol:<tabla>.<política>      comando, roles, md5 de using y de with check (public y storage.objects)
---   trg:<tabla>.<trigger>       md5 de la definición (los que llaman a funciones de public)
+--   trg:<tabla>.<trigger>       md5 de la definición y la función que llama (todos los de las tablas
+--                               de public, llamen a la función que llamen: un «Database Webhook» de
+--                               Supabase o un moddatetime llaman a funciones de otros esquemas; y los
+--                               de otras tablas que llaman a funciones de public)
 --   fn:<función(args)>          md5 del cuerpo, lenguaje, security definer, volatilidad, ajustes, resultado
 --   fnacl:<función(args)>       quién la puede llamar (anon, authenticated, service_role)
 --   fndueno:<función(args)>     dueño
 --   tblacl:<tabla>              permisos de anon, authenticated y service_role sobre la tabla
 --   colacl:<tabla>.<columna>    permisos por columna (los que hay)
+--   defacl:<rol>.<esquema>.<tipo>  permisos por defecto (alter default privileges): de qué gozan las
+--                               funciones y tablas nuevas sin un grant explícito
+--   servidor:<ajuste>           ajustes del servidor que cambian los planes y los tiempos (jit,
+--                               work_mem, random_page_cost…)
 --   bucket:<id>                 público, tope y tipos de cada bucket
 --   cron:<tarea>                horario y md5 del comando
 --   pub:<publicación>           tablas de la publicación de realtime
@@ -73,10 +80,11 @@ kv(k, v) as (
          format('%s %s %s using=%s check=%s', permissive, cmd, roles, coalesce(md5(qual), '-'), coalesce(md5(with_check), '-'))
     from pg_policies where schemaname = 'public' or (schemaname = 'storage' and tablename = 'objects')
   union all
-  select 'trg:' || case when n.nspname = 'public' then '' else n.nspname || '.' end || c.relname || '.' || g.tgname, md5(pg_get_triggerdef(g.oid))
+  select 'trg:' || case when n.nspname = 'public' then '' else n.nspname || '.' end || c.relname || '.' || g.tgname,
+         md5(pg_get_triggerdef(g.oid)) || ' ' || pn.nspname || '.' || p.proname
     from pg_trigger g join pg_class c on c.oid = g.tgrelid join pg_namespace n on n.oid = c.relnamespace
     join pg_proc p on p.oid = g.tgfoid join pg_namespace pn on pn.oid = p.pronamespace
-   where not g.tgisinternal and pn.nspname = 'public'
+   where not g.tgisinternal and (n.nspname = 'public' or pn.nspname = 'public')
   union all
   select 'fn:' || sig, format('%s %s secdef=%s vol=%s config=%s returns %s', md5(prosrc), lanname, prosecdef, provolatile,
                               coalesce(array_to_string(proconfig, ','), '-'), res) from f
@@ -93,6 +101,16 @@ kv(k, v) as (
   union all
   select 'colacl:' || t.relname || '.' || a.attname, array_to_string(array(select x::text from unnest(a.attacl) x order by 1), ' ')
     from t join pg_attribute a on a.attrelid = t.oid and a.attnum > 0 and not a.attisdropped and a.attacl is not null
+  union all
+  select 'defacl:' || pg_get_userbyid(d.defaclrole) || '.' || coalesce(dn.nspname, '*') || '.' || d.defaclobjtype::text,
+         array_to_string(array(select x::text from unnest(d.defaclacl) x order by 1), ' ')
+    from pg_default_acl d left join pg_namespace dn on dn.oid = d.defaclnamespace
+  union all
+  select 'servidor:' || name, setting || coalesce(' ' || nullif(unit, ''), '')
+    from pg_settings
+   where name in ('jit', 'jit_above_cost', 'jit_inline_above_cost', 'jit_optimize_above_cost', 'work_mem', 'random_page_cost',
+                  'seq_page_cost', 'effective_cache_size', 'shared_buffers', 'max_parallel_workers_per_gather', 'plan_cache_mode',
+                  'default_statistics_target', 'enable_seqscan', 'statement_timeout', 'default_transaction_isolation')
   union all
   select 'bucket:' || id, format('public=%s limit=%s mime=%s', public, coalesce(file_size_limit::text, '-'),
                                  coalesce(array_to_string(array(select m from unnest(allowed_mime_types) m order by 1), ','), '-'))

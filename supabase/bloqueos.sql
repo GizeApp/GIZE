@@ -7,8 +7,9 @@
 -- Correr con el workflow "Supabase" → tarea sql → supabase/bloqueos.sql, después de
 -- supabase/coach-alumnos.sql, supabase/chat.sql, supabase/pasos-grupos.sql y supabase/reportes.sql
 -- (usa profiles, coach_messages, los grupos de pasos y content_reports).
--- Se puede correr varias veces. Mientras no se corra, la app muestra las hojas igual y al bloquear
--- dice «No se pudo, probá de nuevo».
+-- Se puede correr varias veces mientras no esté aplicado gimnasios-vinculo.sql (después, ver el
+-- OJO). Mientras no se corra, la app muestra las hojas igual y al bloquear dice «No se pudo, probá
+-- de nuevo».
 -- OJO: acá están las versiones vigentes de pasos_unirse, pasos_ranking, pasos_campeon y
 -- pasos_mis_grupos (las de pasos-grupos.sql, que además no muestran a quien bloqueé y no dejan
 -- entrar a quien bloqueó el que armó el grupo): si se vuelve a correr pasos-grupos.sql, correr

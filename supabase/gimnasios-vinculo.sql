@@ -1,6 +1,7 @@
 -- Gimnasios: el vínculo de cada persona con su coach, ahora también dentro de un gimnasio.
 -- Correr con el workflow "Supabase" → tarea sql → supabase/gimnasios-vinculo.sql, después de
--- supabase/gimnasios.sql. Se puede correr varias veces.
+-- supabase/gimnasios.sql. Se puede correr varias veces. Sin gimnasios.sql falla entero, sin cambiar
+-- nada (lo primero del archivo lo controla).
 -- OJO: canónico. Acá están las versiones vigentes de coach_active, is_my_client, join_coach,
 -- release_lapsed_clients, coach_client_ok y profiles_gym_sync. Las versiones viejas están en
 -- base.sql, endurecer-base.sql, suscripciones.sql, cupo-plan.sql, coach-alumnos.sql, bloqueos.sql y
@@ -12,22 +13,26 @@
 --
 -- SIN GIMNASIOS TODO SIGUE IGUAL: sin filas en gyms, gym_staff y gym_members, cada función da el
 -- mismo resultado que la de hoy (lo prueba tests/gimnasios-igual.test.mjs con datos al azar contra
--- las versiones de hoy, que están copiadas al final). Qué cambia cuando hay gimnasios:
+-- las versiones de hoy, que están copiadas al final). Lo único distinto sin gimnasios es quién puede
+-- llamar a coach_active desde afuera (abajo), y la app no la llama. Qué cambia cuando hay gimnasios:
 --
 --   coach_active(cid): el dueño de un gimnasio abierto tiene el plan del gimnasio (gym_active: con
 --     5 días de gracia y sin corte por cupo). Para cualquier otro coach, la regla de cupo-plan.sql,
 --     con el cupo cacheado (seats_used, que solo cuenta sus vínculos propios) en lugar del count(*).
+--     Pasa a ser solo del service role (la app no la llama; el bloque para volver atrás devuelve
+--     el permiso de hoy).
 --   is_my_client(target) y coach_client_ok(coach, client): decide la relación. Si el socio lo atiende
 --     un profe de su gimnasio (vinculo_gym), vale el plan del gimnasio; si no (alumno propio, o socio
 --     con un coach de afuera), el plan del coach, como hoy. coach_client_ok es la misma con el coach
 --     explícito, para rapid-worker y avisos-coach (etapa 1); no la puede llamar la app.
 --   release_lapsed_clients(): solo suelta vínculos propios, y no toca a los dueños de un gimnasio
---     abierto (sus alumnos siguen el calendario del gimnasio: 10 días, etapa 1). Bloquea primero las
---     filas de coach_billing de esos coaches y recuenta el cupo una vez al final (gize.gym_bulk).
---   profiles_gym_sync (trigger): cuando cambia el coach de alguien con ficha activa o pausada, el
---     profe de la ficha queda igual a su coach si ese coach es del equipo del gimnasio, y si no,
---     vacío. Así el profe que dejó de atender a un socio (desvincularse, bloqueo, el coach lo saca)
---     deja de ver su ficha. Los avisos al dueño llegan en la etapa 1.
+--     abierto (sus alumnos siguen el calendario del gimnasio: 10 días, etapa 1). Recuenta el cupo
+--     una vez al final (gize.gym_bulk), y recién ahí bloquea las filas de coach_billing.
+--   profiles_gym_sync (trigger): cuando cambia el coach de alguien, el profe de cada una de sus
+--     fichas (menos las solicitudes) vuelve a salir de gym_profe_ficha: su coach si la ficha está
+--     activa o pausada y ese coach es del equipo del gimnasio; si no, vacío. Así el profe que dejó
+--     de atender a un socio (desvincularse, bloqueo, el coach lo saca), también con la ficha en
+--     baja, deja de ver su ficha. Los avisos al dueño llegan en la etapa 1.
 --   join_coach(code): los pasos de hoy (bloqueos.sql) con estos agregados:
 --     · Quien es del equipo de un gimnasio (recepción, administración que no es coach) no se vincula
 --       con ningún código.
@@ -43,9 +48,30 @@
 --       cupo: la ficha ya cuenta).
 --     · El código de un profe del gimnasio sin plan propio vigente manda a pedir el del gimnasio.
 --     · El cupo se cuenta con recount_seats (con el dueño de un gimnasio: fichas más alumnos
---       propios) y bloquea también la fila del coach anterior, siempre en el mismo orden: los
---       triggers del cupo la actualizan y así dos cambios cruzados no se trancan.
+--       propios). Bloquea primero el perfil y después las filas de coach_billing del coach nuevo y
+--       del anterior, en orden de coach_id: el mismo orden que los demás caminos (desvincularse,
+--       el cron, los triggers del cupo), así dos cambios cruzados no se trancan.
 --   Los mensajes no hablan del plan ni mandan a renovar o ampliar (los filtran las apps, core/tienda.js).
+
+
+-- ===== Antes que nada: ¿está gimnasios.sql? =====
+
+-- Los cuerpos plpgsql no se revisan al crearlos: sin gimnasios.sql (o con su bloque «Para volver
+-- atrás» ya corrido), este archivo se aplicaría sin error y después fallaría cada lectura del coach,
+-- cada vínculo y cada desvínculo. Se frena acá, sin cambiar nada.
+do $$ begin
+  if to_regclass('public.gyms') is null or to_regclass('public.gym_staff') is null or to_regclass('public.gym_members') is null
+     or to_regclass('public.gym_codes') is null or to_regclass('public.gym_audit') is null
+     or to_regprocedure('public.vinculo_gym(uuid)') is null or to_regprocedure('public.gym_de_dueno(uuid)') is null
+     or to_regprocedure('public.gym_active(uuid)') is null or to_regprocedure('public.recount_seats(uuid)') is null
+     or to_regprocedure('public.gym_recontar(uuid[])') is null or to_regprocedure('public.gym_profe_ficha(uuid, uuid, text)') is null
+     or not exists (select 1 from pg_attribute where attrelid = 'public.coach_billing'::regclass and attname = 'seats_used' and not attisdropped) then
+    raise exception 'Primero correr supabase/gimnasios.sql: este archivo usa sus tablas y funciones.';
+  end if;
+  if to_regprocedure('public.bloqueo_entre(uuid, uuid)') is null then
+    raise exception 'Primero correr supabase/bloqueos.sql: join_coach usa bloqueo_entre.';
+  end if;
+end $$;
 
 
 -- ===== Plan y cupo del coach =====
@@ -69,8 +95,13 @@ begin
             or ((b.trial_ends_at > now() or coalesce(b.paid_until, '-infinity') > now())
                 and b.seats_used <= coalesce(b.max_clients, 10))));
 end $$;
-revoke execute on function public.coach_active(uuid) from public, anon;
-grant  execute on function public.coach_active(uuid) to authenticated, service_role;
+-- Solo el service role (avisos-coach y notificar-cliente). La app no la llama y ninguna política la
+-- usa directo (is_my_client y join_coach la llaman como security definer): con sesión, cualquiera
+-- podía preguntar por cualquier uuid, y para la dueña de un gimnasio da el estado del plan del
+-- gimnasio, que el equipo y los socios no tienen que ver (§1.2). El bloque para volver atrás
+-- devuelve el permiso de hoy.
+revoke execute on function public.coach_active(uuid) from public, anon, authenticated;
+grant  execute on function public.coach_active(uuid) to service_role;
 
 
 -- ===== ¿Es mi alumno o mi socio? =====
@@ -94,6 +125,7 @@ begin
   return public.coach_active(coach);                            -- alumno propio o coach de afuera: como hoy
 end $$;
 revoke all on function public.coach_client_ok(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.coach_client_ok(uuid, uuid) to service_role;
 
 -- La usan casi todas las políticas del lado del coach (leer registros, editar rutina, fotos…).
 -- create or replace conserva los permisos que tenía.
@@ -111,6 +143,9 @@ end $$;
 
 -- ===== El profe de la ficha sigue al coach =====
 
+-- Todas las fichas de la persona menos las solicitudes (que no tienen profe): también las de baja y
+-- las visitas, que quedan sin profe (gym_profe_ficha), así una ficha en baja que todavía tenía al
+-- profe de antes deja de verla ese profe cuando la persona se desvincula.
 create or replace function public.profiles_gym_sync()
 returns trigger
 language plpgsql
@@ -119,14 +154,9 @@ set search_path = public
 as $$
 begin
   update public.gym_members m
-     set trainer_id = t.nuevo
-    from (select case when exists (select 1 from public.gym_staff s
-                                    where s.gym_id = f.gym_id and s.user_id = new.coach_id and s.left_at is null
-                                      and s.role in ('owner', 'admin', 'profe'))
-                      then new.coach_id end as nuevo, f.id
-            from public.gym_members f
-           where f.member_id = new.id and f.status in ('activo', 'pausado')) t
-   where m.id = t.id and m.trainer_id is distinct from t.nuevo;
+     set trainer_id = public.gym_profe_ficha(m.gym_id, m.member_id, m.status)
+   where m.member_id = new.id and m.status <> 'pendiente'
+     and m.trainer_id is distinct from public.gym_profe_ficha(m.gym_id, m.member_id, m.status);
   return null;
 end $$;
 revoke all on function public.profiles_gym_sync() from public, anon, authenticated;
@@ -228,6 +258,7 @@ begin
     if not public.gym_active(f_gym) then
       raise exception 'Por ahora el gimnasio no puede asignarte profe. Consultá en recepción.' using errcode = 'P0001';
     end if;
+    perform 1 from profiles where id = me for update;   -- primero el perfil, después coach_billing
     perform 1 from coach_billing where coach_id in (cid, (select coach_id from profiles where id = me)) order by coach_id for update;
     update profiles set coach_id = cid where id = me;   -- profiles_gym_sync pone el profe en la ficha
     insert into gym_audit (gym_id, actor_id, action, gym_member_id, target_user)
@@ -245,7 +276,9 @@ begin
     raise exception 'Tu coach tiene el plan de GIZE vencido: por ahora no puede sumar alumnos. Avisale y volvé a intentar.' using errcode = 'P0001';
   end if;
   -- Bloquea la fila del coach: dos clientes a la vez no pasan el cupo.
-  -- (Y antes, la del coach anterior, en orden: los triggers del cupo la actualizan.)
+  -- (Antes, el perfil, como los demás caminos que cambian un vínculo; y con la del coach la del coach
+  -- anterior, en orden de coach_id: los triggers del cupo la actualizan.)
+  perform 1 from profiles where id = me for update;
   perform 1 from coach_billing where coach_id in (cid, (select coach_id from profiles where id = me)) order by coach_id for update;
   select max_clients into lim from coach_billing where coach_id = cid for update;
   n := public.recount_seats(cid);
@@ -262,8 +295,10 @@ grant  execute on function public.join_coach(text) to authenticated;
 -- ===== Coach con el plan vencido: a los 4 días sus alumnos propios quedan sin coach =====
 
 -- La de coach-vencido.sql, solo con vínculos propios (vinculo_gym null) y sin los dueños de un
--- gimnasio abierto. Bloquea en orden las filas de coach_billing de esos coaches (como join_coach) y
--- recuenta el cupo una vez al final, con la marca gize.gym_bulk. La tarea de cron no cambia.
+-- gimnasio abierto. Recuenta el cupo una vez al final, con la marca gize.gym_bulk; las filas de
+-- coach_billing las bloquea ese recuento, después de los perfiles (como todos los caminos: si las
+-- bloqueara antes, se trancaría con un alumno que se desvincula en Ajustes a la misma hora). La tarea
+-- de cron no cambia.
 create or replace function public.release_lapsed_clients()
 returns integer
 language plpgsql
@@ -280,7 +315,6 @@ begin
      and exists (select 1 from public.profiles p
                   where p.coach_id = b.coach_id and coalesce(p.role, 'client') <> 'coach' and public.vinculo_gym(p.id) is null);
   if cs is null then return 0; end if;
-  perform 1 from public.coach_billing where coach_id = any(cs) order by coach_id for update;
   perform set_config('gize.gym_bulk', 'on', true);
   with released as (
     update public.profiles p

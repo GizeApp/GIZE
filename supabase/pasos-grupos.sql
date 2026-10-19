@@ -28,7 +28,9 @@
 -- OJO: las versiones vigentes de pasos_unirse, pasos_mis_grupos, pasos_ranking y pasos_campeon
 -- están en bloqueos.sql (las de acá y, además, no muestran a quien bloqueé y no dejan entrar a
 -- quien bloqueó el que armó el grupo): si se vuelve a correr este archivo, correr después
--- bloqueos.sql.
+-- bloqueos.sql. Con gimnasios-vinculo.sql aplicado, bloqueos.sql falla entero (join_coach cambió
+-- de tipo) y las de acá quedarían sin filtrar los bloqueos: entonces, en este orden, el bloque
+-- «Para volver atrás» de gimnasios-vinculo.sql, bloqueos.sql, gimnasios.sql y gimnasios-vinculo.sql.
 
 -- ===== Tablas =====
 

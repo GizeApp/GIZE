@@ -14,13 +14,25 @@
 //    gimnasios-vinculo.sql solo cambia las cuatro canónicas (mismos permisos) y suma las dos suyas.
 // c) Los dos archivos se pueden volver a correr (misma huella) y volver atrás con sus bloques
 //    comentados deja exactamente la huella de la base de hoy.
-import { conPg, leer, orden, simuladas, cuerpo, volverAtras, huella, diferencias } from './pg.mjs';
+// d) El orden: gimnasios-vinculo.sql sin gimnasios.sql, y volver atrás gimnasios.sql con
+//    gimnasios-vinculo.sql aplicado, fallan enteros sin cambiar nada (si no, se aplicaban sin error
+//    y después fallaba cada lectura del coach). Volver a correr pasos-grupos.sql con los gimnasios
+//    aplicados y seguir su nota «OJO» deja los filtros de bloqueos puestos.
+// e) La huella ve un trigger de una tabla de public que llama a una función de otro esquema (un
+//    «Database Webhook» en coach_billing, que ahora se escribe en cada vínculo), los permisos por
+//    defecto y los ajustes del servidor; y las funciones que llama el service role no dependen de
+//    los permisos por defecto.
+// f) El cluster local: nadie más de la máquina entra al socket, y se apaga y se borra también con
+//    SIGHUP o, si murió con kill -9, en la corrida siguiente.
+import fs from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { conPg, leer, orden, simuladas, cuerpo, volverAtras, huella, diferencias, limpiarViejos } from './pg.mjs';
 
 const NUEVAS_TABLAS = ['gyms', 'gym_staff', 'gym_invites', 'gym_codes', 'gym_members', 'gym_member_notes', 'gym_audit',
   'gym_alerts', 'gym_bajas', 'gym_entries', 'gym_turnos'];
 const NUEVAS_FN = ['gym_mi_rol', 'gym_soy_socio', 'gym_role', 'vinculo_gym', 'gym_de_dueno', 'gym_active', 'gym_operativo',
   'gym_reads_member', 'recount_seats', 'seats_drift', 'gym_recontar', 'gym_cupo_profiles', 'gym_cupo_members',
-  'gym_cupo_staff', 'gym_cupo_gyms', 'coach_billing_cupo', 'gym_codes_unico', 'gym_members_sin_cuenta'];
+  'gym_cupo_staff', 'gym_cupo_gyms', 'coach_billing_cupo', 'gym_codes_unico', 'gym_profe_ficha', 'gym_members_profe', 'gym_members_pedido_sin_cuenta'];
 const NUEVAS_EN_VIEJAS = ['col:coach_billing.seats_used', 'col:coach_messages.gym_id', 'con:coach_billing.coach_billing_seats_used_check',
   'trg:profiles.profiles_gym_cupo_alta', 'trg:profiles.profiles_gym_cupo_cambio', 'trg:profiles.profiles_gym_cupo_baja',
   'trg:coach_billing.coach_billing_cupo'];
@@ -154,8 +166,10 @@ export default async function ({ t }){
   const hV = await huella(v);
   const dV = diferencias(hG, hV);
   t.eq(dV.faltan, [], 'gimnasios-vinculo.sql no borra nada');
-  t.eq(dV.cambian, CANONICAS.map(f => Object.keys(hG).find(k => k.startsWith('fn:' + f + '('))).sort(),
-    'gimnasios-vinculo.sql solo cambia las cuatro canónicas (y no sus permisos ni sus dueños)');
+  t.eq(dV.cambian, [...CANONICAS.map(f => Object.keys(hG).find(k => k.startsWith('fn:' + f + '('))), 'fnacl:coach_active(cid uuid)'].sort(),
+    'gimnasios-vinculo.sql solo cambia las cuatro canónicas y el permiso de coach_active (no los demás permisos ni los dueños)');
+  t.eq([hG['fnacl:coach_active(cid uuid)'], hV['fnacl:coach_active(cid uuid)']], ['anon=false authenticated=true service_role=true', 'anon=false authenticated=false service_role=true'],
+    'coach_active: hoy la puede llamar cualquiera con sesión; con gimnasios-vinculo.sql, solo el service role');
   t.eq(dV.nuevas, ['fn:coach_client_ok(coach uuid, client uuid)', 'fn:profiles_gym_sync()', 'fnacl:coach_client_ok(coach uuid, client uuid)',
     'fnacl:profiles_gym_sync()', 'fndueno:coach_client_ok(coach uuid, client uuid)', 'fndueno:profiles_gym_sync()', 'trg:profiles.profiles_gym_sync'],
     'y suma coach_client_ok y profiles_gym_sync');
@@ -183,4 +197,99 @@ export default async function ({ t }){
   await v.archivo('supabase/gimnasios-vinculo.sql');
   t.eq(diferencias(hV, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y los gimnasios otra vez dejan la misma huella');
   await v.borrar();
+
+  // ===== d) El orden de los archivos =====
+  const solo = await h.nueva('gize_sin');
+  const r3 = await solo.intentar(leer('supabase/gimnasios-vinculo.sql'), { una: true });
+  t.ok(!r3.ok && /Primero correr supabase\/gimnasios\.sql/.test(r3.msg), 'gimnasios-vinculo.sql sin gimnasios.sql: falla entero con «Primero correr supabase/gimnasios.sql»: ' + (r3.msg || 'corrió'));
+  t.eq(diferencias(hSin, await huella(solo)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada (la base de hoy sigue igual)');
+  await solo.archivo('supabase/gimnasios.sql');
+  await solo.intentar(atrasG, { una: true });
+  const r4 = await solo.intentar(leer('supabase/gimnasios-vinculo.sql'), { una: true });
+  t.ok(!r4.ok && /Primero correr supabase\/gimnasios\.sql/.test(r4.msg), 'tampoco después de volver atrás gimnasios.sql: ' + (r4.msg || 'corrió'));
+  await solo.borrar();
+  const mal = await h.nueva('gize_con');
+  const r5 = await mal.intentar(atrasG, { una: true });
+  t.ok(!r5.ok && /Primero el bloque «Para volver atrás» de supabase\/gimnasios-vinculo\.sql/.test(r5.msg) && /coach_active/.test(r5.msg) && /profiles_gym_sync/.test(r5.msg),
+    'volver atrás gimnasios.sql con gimnasios-vinculo.sql todavía aplicado: se frena y dice qué funciones usan los gimnasios: ' + (r5.msg || 'corrió'));
+  t.eq(diferencias(hV, await huella(mal)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
+  // Volver a correr pasos-grupos.sql con los gimnasios aplicados, siguiendo su nota «OJO».
+  const PASOS = ['pasos_unirse', 'pasos_ranking', 'pasos_campeon', 'pasos_mis_grupos'];
+  const deBloqueos = Object.fromEntries(PASOS.map(f => [f, cuerpo(leer('supabase/bloqueos.sql'), f)]));
+  // Cuáles de las cuatro tienen el cuerpo de bloqueos.sql (las que filtran los bloqueos).
+  const pasos = async db => { const p = await db.json(`select json_object_agg(proname, prosrc) from pg_proc where pronamespace = 'public'::regnamespace
+      and proname = any(array[${PASOS.map(x => "'" + x + "'").join(',')}]);`); return PASOS.filter(f => p[f] === deBloqueos[f]); };
+  t.eq(await pasos(mal), PASOS, 'con los gimnasios, las de pasos son las de bloqueos.sql (filtran los bloqueos)');
+  const nota = leer('supabase/pasos-grupos.sql').split('\n').slice(0, 40).join(' ').replace(/\s*--\s*/g, ' ');
+  t.ok(/el bloque «Para volver atrás» de gimnasios-vinculo\.sql, bloqueos\.sql, gimnasios\.sql y gimnasios-vinculo\.sql/.test(nota), 'pasos-grupos.sql dice el orden para volver a poner los filtros');
+  await mal.archivo('supabase/pasos-grupos.sql');
+  t.eq(await pasos(mal), [], 'después de pasos-grupos.sql, ninguna filtra los bloqueos');
+  const sinOrden = await mal.intentar(leer('supabase/bloqueos.sql'), { una: true });
+  t.eq(sinOrden.code, '42P13', 'bloqueos.sql solo, con gimnasios-vinculo.sql aplicado: falla entero (por eso la nota)');
+  t.ok((await mal.intentar(atrasV, { una: true })).ok, 'la nota, paso 1: volver atrás gimnasios-vinculo.sql');
+  await mal.archivo('supabase/bloqueos.sql');
+  await mal.archivo('supabase/gimnasios.sql');
+  await mal.archivo('supabase/gimnasios-vinculo.sql');
+  t.eq(await pasos(mal), PASOS, 'siguiendo la nota (volver atrás, bloqueos.sql, gimnasios.sql y gimnasios-vinculo.sql), las de pasos vuelven a filtrar los bloqueos');
+  t.eq(diferencias(hV, await huella(mal)), { nuevas: [], faltan: [], cambian: [] }, 'y la base queda igual que con los gimnasios recién aplicados');
+  await mal.borrar();
+
+  // ===== e) Lo que la huella tiene que ver =====
+  const hu = await h.nueva('gize_con');
+  const antesTrg = await huella(hu);
+  await hu.sql(`create schema supabase_functions;
+    create function supabase_functions.http_request() returns trigger language plpgsql as $$ begin return new; end $$;
+    create trigger aviso_plan after update on public.coach_billing for each row execute function supabase_functions.http_request();`);
+  const dTrg = diferencias(antesTrg, await huella(hu));
+  t.eq([dTrg.nuevas, dTrg.faltan, dTrg.cambian], [['trg:coach_billing.aviso_plan'], [], []], 'un trigger en coach_billing que llama a una función de otro esquema (Database Webhook) aparece en la huella');
+  t.ok(/ supabase_functions\.http_request$/.test((await huella(hu))['trg:coach_billing.aviso_plan']), 'con la función que llama');
+  t.ok(Object.keys(antesTrg).some(k => k.startsWith('trg:auth.users.')), 'y siguen los triggers de auth.users que llaman a funciones de public');
+  t.ok(['servidor:jit', 'servidor:work_mem', 'servidor:random_page_cost'].every(k => k in antesTrg), 'la huella trae los ajustes del servidor que cambian los planes (jit, work_mem, random_page_cost)');
+  t.ok(Object.keys(antesTrg).some(k => /^defacl:postgres\.public\.f$/.test(k)) && /service_role=X/.test(antesTrg['defacl:postgres.public.f']), 'y los permisos por defecto de las funciones nuevas: ' + antesTrg['defacl:postgres.public.f']);
+  await hu.borrar();
+  // Con otros permisos por defecto (si producción no fuera como el Supabase simulado), las funciones
+  // que llama el service role lo siguen dejando.
+  const pd = await h.nueva('gize_sin');
+  await pd.sql('alter default privileges in schema public revoke all on functions from service_role;');
+  const hPd = await huella(pd);
+  t.ok(hPd['defacl:postgres.public.f'] !== hSin['defacl:postgres.public.f'], 'la huella ve el cambio de permisos por defecto');
+  await pd.archivo('supabase/gimnasios.sql');
+  await pd.archivo('supabase/gimnasios-vinculo.sql');
+  const SERVICIO = ['coach_client_ok(uuid, uuid)', 'coach_active(uuid)', 'vinculo_gym(uuid)', 'gym_role(uuid, uuid)', 'gym_de_dueno(uuid)', 'gym_active(uuid)',
+    'gym_operativo(uuid)', 'recount_seats(uuid)', 'seats_drift()'];
+  const sp = await pd.json(`select json_object_agg(f, has_function_privilege('service_role', ('public.' || f)::regprocedure, 'execute')) from unnest(array[${SERVICIO.map(f => "'" + f + "'").join(',')}]) f;`);
+  t.eq(Object.entries(sp).filter(([, v]) => !v).map(([f]) => f), [], 'sin permisos por defecto para el service role, igual puede llamar a coach_client_ok, coach_active y las internas que usa');
+  await pd.borrar();
+
+  // ===== f) El cluster local =====
+  if (!h.dir){ console.log('    — el cluster local se saltea: la base es un servidor ya levantado (GIZE_PSQL)'); return; }
+  const modo = fs.statSync(h.dir).mode & 0o777;
+  t.eq([modo.toString(8), (await h.admin.sql('show unix_socket_permissions;')).trim()], ['700', '0700'], 'la carpeta del cluster y su socket: 0700');
+  if (process.getuid && process.getuid() === 0 && spawnSync('id', ['nobody']).status === 0){
+    const otro = spawnSync('runuser', ['-u', 'nobody', '--', h.psql[0], '-h', h.dir, '-p', '5432', '-U', 'postgres', '-d', 'postgres', '-Atc', 'select 1'], { encoding: 'utf8' });
+    t.ok(otro.status !== 0, 'otro usuario de la máquina (nobody) no entra al cluster: ' + String(otro.stderr || otro.stdout).trim().split('\n').pop());
+  }
+  // Un proceso aparte arma su cluster; con SIGHUP lo apaga y lo borra; con kill -9 lo limpia la corrida siguiente.
+  const hijo = () => new Promise((ok, mal) => {
+    const p = spawn(process.execPath, ['--input-type=module', '-e', `import { clusterLocal } from ${JSON.stringify(new URL('./pg.mjs', import.meta.url).href)};
+      const c = clusterLocal(); console.log(JSON.stringify(c)); setInterval(() => {}, 1000);`], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    p.stdout.on('data', d => { out += d; const l = out.split('\n')[0]; if (out.includes('\n')) { try { ok({ p, c: JSON.parse(l) }); } catch (e) { mal(e); } } });
+    p.on('error', mal);
+    setTimeout(() => mal(new Error('el proceso aparte no armó el cluster: ' + out)), 60000);
+  });
+  const fin = p => new Promise(ok => p.on('exit', (code, sig) => ok(code ?? sig)));
+  const postmaster = dir => spawnSync('pgrep', ['-f', dir + '/data'], { encoding: 'utf8' }).status === 0;
+  let x = await hijo();
+  t.ok(x.c.dir && fs.existsSync(x.c.dir) && postmaster(x.c.dir), 'el proceso aparte levantó su cluster');
+  process.kill(x.p.pid, 'SIGHUP');
+  const cod = await fin(x.p);
+  t.eq([cod, fs.existsSync(x.c.dir), postmaster(x.c.dir)], [129, false, false], 'con SIGHUP (se cerró la terminal) sale con 129 y apaga y borra su cluster');
+  x = await hijo();
+  process.kill(x.p.pid, 'SIGKILL');
+  await fin(x.p);
+  t.ok(fs.existsSync(x.c.dir) && postmaster(x.c.dir), 'con kill -9 el cluster queda');
+  const borradas = limpiarViejos();
+  t.ok(borradas.includes(x.c.dir) && !fs.existsSync(x.c.dir) && !postmaster(x.c.dir), 'y la corrida siguiente lo apaga y lo borra (sin tocar los de pruebas que siguen corriendo): ' + JSON.stringify(borradas));
+  t.ok(fs.existsSync(h.dir), 'el cluster de esta prueba sigue');
 }

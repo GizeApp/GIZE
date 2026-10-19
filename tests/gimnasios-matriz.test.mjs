@@ -19,8 +19,13 @@
 // e) Casos obligatorios de §6.12 que entran en la etapa 0 (2, 3, 4, 5, 6 a medias, 7, 8, 9, 10 a
 //    medias, 11, 12, 13, 14 a medias, 16 en SQL y 19), con los invariantes I1 a I5 después de cada
 //    operación (I1: seats_used = recount_seats).
+//    También: la ficha en baja (con el profe de antes, y después de desvincularse) no la ve el profe;
+//    la solicitud de quien borra su cuenta se borra; quien solo pidió sumarse no lee el gimnasio ni
+//    puede preguntar por el plan de nadie (coach_active es del service role).
 // f) Concurrencia: dos join_coach a la vez por el último lugar (de un coach independiente y de la
-//    dueña), y dos pedidos a la vez con el código del gimnasio de la misma persona.
+//    dueña), dos pedidos a la vez con el código del gimnasio de la misma persona, dos alumnos que se
+//    desvinculan a la vez (y un join_coach con un desvínculo): el cupo queda exacto; y el cron de los
+//    planes vencidos con un alumno que se desvincula a la misma hora no se trancan.
 import { conPg } from './pg.mjs';
 
 const ID = n => 'a0000000-0000-4000-8000-' + n.padStart(12, '0');
@@ -160,8 +165,9 @@ export default async function ({ t }){
     rA: { gyms: ['A'], gym_staff: staffA, gym_members: [], gym_member_notes: [], gym_audit: [], gym_bajas: [], gym_entries: [], coach_billing: [] },
     dB: { gyms: ['B'], gym_staff: ['dB'], gym_members: ['B1'], gym_member_notes: [], gym_audit: ['B'], gym_bajas: [], gym_entries: ['B1'], coach_billing: ['dB'] },
     B1: { gyms: ['B'], gym_staff: [], gym_members: ['B1'], gym_member_notes: [], gym_audit: [], gym_bajas: [], gym_entries: ['B1'], coach_billing: [] } };
+  // A6 solo pidió sumarse (con el código, que es público): no lee el gimnasio (dueño, plan) hasta que la aprueben.
   for (const s of ['A1', 'A2', 'A3', 'A5', 'A6', 'A7'])
-    ESPERA[s] = { gyms: ['A'], gym_staff: [], gym_members: [s], gym_member_notes: [], gym_audit: [], gym_bajas: s === 'A2' ? ['A2'] : [],
+    ESPERA[s] = { gyms: s === 'A6' ? [] : ['A'], gym_staff: [], gym_members: [s], gym_member_notes: [], gym_audit: [], gym_bajas: s === 'A2' ? ['A2'] : [],
       gym_entries: ['A1', 'A2', 'A5'].includes(s) ? [s] : [], coach_billing: [] };
   for (const s of ['C', 'C1', 'D1', 'P1', 'N'])
     ESPERA[s] = { gyms: [], gym_staff: [], gym_members: [], gym_member_notes: [], gym_audit: [], gym_bajas: [], gym_entries: [], coach_billing: s === 'C' ? ['C'] : [] };
@@ -196,7 +202,7 @@ export default async function ({ t }){
     'vinculo_gym: A1, A2 y A7 con A, B1 con B; el resto (A3 sin profe, A5 visita, A6 pendiente, P1, D1, C1, N) sin gimnasio');
   t.eq(mapa(fn.recount), { C: 1, dA: 6, dB: 1, pA1: 1 }, 'recount_seats: dA = fichas A1, A2, A3, A4, A7 + D1; pA1 = P1; C = C1; dB = B1');
   t.eq(mapa(fn.rol), mapa(Object.fromEntries(PERSONAS.map(p => [P[p], { dA: 'owner', aA: 'admin', pA1: 'profe', rA: 'recepcion' }[p] || null]))), 'gym_mi_rol(A) de cada uno');
-  t.eq(mapa(fn.socio), mapa(Object.fromEntries(PERSONAS.map(p => [P[p], ['A1', 'A2', 'A3', 'A5', 'A6', 'A7'].includes(p)]))), 'gym_soy_socio(A): A1, A2, A3, A5, A6 y A7');
+  t.eq(mapa(fn.socio), mapa(Object.fromEntries(PERSONAS.map(p => [P[p], ['A1', 'A2', 'A3', 'A5', 'A7'].includes(p)]))), 'gym_soy_socio(A): A1, A2, A3, A5 (visita) y A7; A6 (solicitud) no');
   t.eq(mapa(fn.activo), { C: true, dA: true, dB: true, pA1: true }, 'coach_active: dA (plan del gimnasio), pA1 (plan propio), C y dB');
 
   // gym_active / gym_operativo en los bordes, y coach_active de la dueña.
@@ -239,14 +245,24 @@ export default async function ({ t }){
   // Quién puede llamar a cada función.
   const INTERNAS = ['gym_role(uuid, uuid)', 'vinculo_gym(uuid)', 'gym_de_dueno(uuid)', 'gym_active(uuid)', 'gym_operativo(uuid)', 'recount_seats(uuid)',
     'seats_drift()', 'gym_recontar(uuid[])', 'coach_client_ok(uuid, uuid)', 'release_lapsed_clients()', 'gym_cupo_profiles()', 'gym_cupo_members()',
-    'gym_cupo_staff()', 'gym_cupo_gyms()', 'coach_billing_cupo()', 'gym_codes_unico()', 'gym_members_sin_cuenta()', 'profiles_gym_sync()'];
-  const APP = ['gym_mi_rol(uuid)', 'gym_soy_socio(uuid)', 'gym_reads_member(uuid)', 'is_my_client(uuid)', 'join_coach(text)', 'coach_active(uuid)'];
+    'gym_cupo_staff()', 'gym_cupo_gyms()', 'coach_billing_cupo()', 'gym_codes_unico()', 'gym_profe_ficha(uuid, uuid, text)', 'gym_members_profe()',
+    'gym_members_pedido_sin_cuenta()', 'profiles_gym_sync()', 'coach_active(uuid)'];
+  const APP = ['gym_mi_rol(uuid)', 'gym_soy_socio(uuid)', 'gym_reads_member(uuid)', 'is_my_client(uuid)', 'join_coach(text)'];
   const permisos = await J(`select jsonb_object_agg(f, jsonb_build_array(has_function_privilege('anon', ('public.' || f)::regprocedure, 'execute'),
       has_function_privilege('authenticated', ('public.' || f)::regprocedure, 'execute'), has_function_privilege('service_role', ('public.' || f)::regprocedure, 'execute')))
     from unnest(array[${[...INTERNAS, ...APP].map(f => `'${f}'`).join(', ')}]) f;`);
   for (const f of INTERNAS) t.eq(permisos[f], [false, false, true], f + ': interna (ni anon ni authenticated; sí el service role)');
   for (const f of APP) t.eq(permisos[f], [f === 'is_my_client(uuid)', true, true], f + ': la app con sesión' + (f === 'is_my_client(uuid)' ? ' (y anon, como hoy)' : ''));
   t.eq(await PROBAR('N', `select to_jsonb(public.vinculo_gym('${P.A1}'))`), { error: '42501' }, 'llamarla desde la app da 42501');
+  // Quien pidió sumarse con el código del gimnasio (público) no averigua el plan de la dueña ni el
+  // de nadie del equipo: no lee el gimnasio y coach_active es del service role.
+  const curioso = await V([['N', `select public.join_coach('FUERZA22')::jsonb`],
+    ['N', 'select coalesce(jsonb_agg(jsonb_build_object(\'gym\', name, \'owner\', owner_id, \'lapsed\', lapsed_at)), \'[]\') from public.gyms'],
+    ['N', `select to_jsonb(public.coach_active('${P.dA}'))`], ['rA', `select to_jsonb(public.coach_active('${P.pA1}'))`],
+    ['servicio', `select to_jsonb(public.coach_active('${P.dA}'))`]]);
+  t.eq(curioso, [{ code: 'P0001', message: 'Listo: le pediste a Gimnasio Fuerza que te sume. Cuando te acepten vas a ver a tu profe acá.' }, [],
+    { error: '42501', msg: 'permission denied for function coach_active' }, { error: '42501', msg: 'permission denied for function coach_active' }, true],
+    'con la solicitud recién hecha no lee el gimnasio; ni ella ni la recepción pueden llamar a coach_active; el service role sí');
 
   // ===== c) Tablas de hoy vía is_my_client =====
   const LECTORES = ['dA', 'aA', 'pA1', 'rA', 'dB', 'C', 'A1', 'N'], DUENOS = ['A1', 'A2', 'A3', 'A5', 'A6', 'A7', 'B1', 'P1', 'D1', 'C1'];
@@ -453,6 +469,52 @@ export default async function ({ t }){
   t.eq([b[1], nn(b[2].fichas).A1, b[2].inv], [true, [null, 'activo', null], []], 'la socia borra su cuenta: la ficha queda «sin app», con su estado (y sigue contando)');
   t.eq(await INV(), [], 'nada de eso quedó (se deshizo) y los invariantes siguen');
 
+  // La ficha en baja no la ve el profe (DNI, nota interna, ingresos): §6.13, «el gimnasio deja de ver
+  // sus datos al instante», también si la persona sigue con su profe como alumna propia (C = pA1).
+  const verA1 = ['pA1', `select jsonb_build_array((select count(*) from public.gym_members where id = '${F.A1}'),
+      (select count(*) from public.gym_member_notes where gym_member_id = '${F.A1}'), (select count(*) from public.gym_entries where gym_member_id = '${F.A1}'),
+      public.is_my_client('${P.A1}'))`];
+  const fichaA1 = ['postgres', `select jsonb_build_array((select coach_id from public.profiles where id = '${P.A1}'), (select trainer_id from public.gym_members where id = '${F.A1}'),
+      (select status from public.gym_members where id = '${F.A1}'), prueba.invariantes())`];
+  const bajaA1 = `update public.gym_members set status = 'baja', left_at = now() where id = '${F.A1}'`;
+  const nomF = r => [nom(r[0]), nom(r[1]), r[2], r[3]];
+  let bj = await V([verA1, ['postgres', bajaA1], fichaA1, verA1]);
+  t.eq(bj[0], [1, 1, 1, true], 'antes: pA1 ve la ficha de A1, su nota y su ingreso');
+  t.eq([nomF(bj[2]), bj[3]], [['pA1', null, 'baja', []], [0, 0, 0, true]],
+    'A1 se da de baja y sigue con pA1 como alumna propia (C = pA1): la ficha queda sin profe y pA1 deja de ver ficha, nota e ingresos (sus registros los sigue leyendo, con su plan)');
+  bj = await V([['postgres', bajaA1], ['A1', 'with x as (update public.profiles set coach_id = null where id = auth.uid() returning 1) select to_jsonb(count(*)) from x'], fichaA1, verA1]);
+  t.eq([nomF(bj[2]), bj[3]], [[null, null, 'baja', []], [0, 0, 0, false]], 'y si después se desvincula en Ajustes: C = T = null y pA1 no ve nada');
+  // Aunque una ficha en baja quedara con el profe de antes (sin el trigger), la política no se la muestra.
+  bj = await V([['postgres', 'alter table public.gym_members disable trigger gym_members_profe'],
+    ['postgres', `update public.gym_members set status = 'baja', left_at = now(), trainer_id = '${P.pA1}' where id = '${F.A1}'`],
+    ['postgres', 'alter table public.gym_members enable trigger gym_members_profe'],
+    ['A1', 'with x as (update public.profiles set coach_id = null where id = auth.uid() returning 1) select to_jsonb(count(*)) from x'], fichaA1, verA1]);
+  t.eq([nomF(bj[4]), bj[5]], [[null, null, 'baja', []], [0, 0, 0, false]], 'una ficha en baja con C = T = pA1 (estado que puede dejar una RPC): al desvincularse, profiles_gym_sync le saca el profe');
+  bj = await V([['postgres', 'alter table public.gym_members disable trigger gym_members_profe'],
+    ['postgres', `update public.gym_members set status = 'baja', left_at = now(), trainer_id = '${P.pA1}' where id = '${F.A1}'`],
+    ['postgres', 'alter table public.gym_members enable trigger gym_members_profe'], fichaA1, verA1]);
+  t.eq([nomF(bj[3]).slice(0, 3), bj[3][3].some(v => /^I2 ficha baja de A1 con profe pA1/.test(v)), bj[4]], [['pA1', 'pA1', 'baja'], true, [0, 0, 0, true]],
+    'y mientras tanto: I2 lo marca y la política del profe (solo fichas activas o pausadas) no le muestra ficha, nota ni ingresos');
+  bj = await V([['postgres', bajaA1], ['postgres', `update public.gym_members set status = 'activo', left_at = null where id = '${F.A1}'`], fichaA1, verA1]);
+  t.eq([nomF(bj[2]), bj[3]], [['pA1', 'pA1', 'activo', []], [1, 1, 1, true]], 'la vuelta (baja → activo) con C = pA1: pA1 vuelve a ser su profe en la ficha');
+  bj = await V([['postgres', `update public.profiles set coach_id = '${P.pA1}' where id = '${P.A5}'`],
+    ['postgres', `select to_jsonb(trainer_id) from public.gym_members where id = '${F.A5}'`], ['pA1', `select to_jsonb(count(*)) from public.gym_members where id = '${F.A5}'`],
+    ['postgres', `update public.gym_members set status = 'activo', visita_hasta = null, visita_tipo = null where id = '${F.A5}'`],
+    ['postgres', `select to_jsonb(trainer_id) from public.gym_members where id = '${F.A5}'`], ['postgres', 'select prueba.invariantes()']]);
+  t.eq([bj[1], bj[2], nom(bj[4]), bj[5]], [null, 0, 'pA1', []], 'una visita con C = pA1 no tiene profe en la ficha ni la ve pA1; al hacerla socia, sí');
+
+  // La solicitud de quien borra su cuenta se borra: tenía su nombre y su mail, copiados por join_coach.
+  const pedido = await V([['N', `select public.join_coach('FUERZA22')::jsonb`],
+    ['dA', `select to_jsonb(count(*)) from public.gym_members where status = 'pendiente' and email = 'n@ejemplo.test'`],
+    ['N', 'select to_jsonb(true) from (select public.delete_own_account()) x'],
+    ['postgres', `select jsonb_build_array((select count(*) from auth.users where id = '${P.N}'),
+        (select count(*) from public.gym_members where email = 'n@ejemplo.test' or member_id = '${P.N}'), prueba.invariantes())`],
+    ['dA', `select to_jsonb(count(*)) from public.gym_members where status = 'pendiente' and member_id is null`],
+    ['aA', `select to_jsonb(count(*)) from public.gym_members where status = 'pendiente' and member_id is null`],
+    ['postgres', `select to_jsonb(count(*)) from public.gym_audit where action = 'solicitud' and target_user = '${P.N}'`]]);
+  t.eq(pedido.slice(1), [1, true, [0, 0, []], 0, 0, 1],
+    'N pide sumarse (la dueña ve su pedido con el mail), borra su cuenta: el pedido se borra entero; la dueña y el encargado ven 0 pedidos sin cuenta (en gym_audit quedan solo uuids)');
+
   // Caso 16 en SQL: la solicitud queda después del commit, con status 400 y el cuerpo P0001.
   const c16 = await db.json(`begin;
     set local role authenticated;
@@ -489,5 +551,59 @@ export default async function ({ t }){
   const [e1, e2] = await Promise.all([aLaVez(nuevos[4], 'FUERZA22'), aLaVez(nuevos[4], 'FUERZA22')]);
   t.eq(await J(`select to_jsonb(count(*)) from public.gym_members where member_id = '${nuevos[4]}';`), 1, 'dos pedidos a la vez de la misma persona: una sola ficha: ' + JSON.stringify([e1, e2]));
   t.eq(await INV(), [], 'invariantes después de lo concurrente (seats_drift vacío)');
+
+  // d) Dos alumnos de un coach sobre el cupo (12 de 10) se desvinculan a la vez en Ajustes: el cupo
+  //    queda exacto (10) y el coach vuelve a tener acceso. (Contando en la misma sentencia que esperaba
+  //    el bloqueo, quedaba en 11 y el coach seguía sin ver a ninguno.)
+  const K = ID('e7'), KS = Array.from({ length: 12 }, (_, i) => ID('7' + String(i).padStart(2, '0')));
+  await db.sql(`insert into auth.users (id, email, raw_user_meta_data) values ('${K}', 'coach.k@ejemplo.test', '{"full_name":"Coach K","role":"coach"}'),
+      ${KS.map((u, i) => `('${u}', 'k${i}@ejemplo.test', '{"full_name":"Alumno K${i}"}')`).join(', ')};
+    update public.coach_billing set plan = 'p10', max_clients = 10, trial_ends_at = now() - interval '30 days', paid_until = now() + interval '20 days' where coach_id = '${K}';
+    update public.profiles set coach_id = '${K}' where id in (${KS.map(u => `'${u}'`).join(', ')});`);
+  const cupoK = () => J(`select jsonb_build_array((select seats_used from public.coach_billing where coach_id = '${K}'), (select count(*) from public.profiles where coach_id = '${K}'),
+      prueba.probar('servicio', $q$select to_jsonb(public.coach_active('${K}'))$q$)->'ok', prueba.probar('${K}', $q$select to_jsonb(count(*)) from public.sessions$q$)->'ok');`);
+  await db.sql(`insert into public.sessions (id, client_id, performed_on, day_name) select md5('k:' || u)::uuid, u, current_date, 'A' from unnest(array[${KS.map(u => `'${u}'::uuid`).join(',')}]) u;`);
+  t.eq(await cupoK(), [12, 12, false, 0], 'el coach K, 12 alumnos con cupo de 10: sin acceso, como hoy');
+  const salir = (quien, antes, despues) => db.json(`select pg_sleep(${antes});
+    begin;
+    set local role authenticated;
+    select set_config('request.jwt.claims', '{"sub":"${quien}","role":"authenticated"}', true);
+    update public.profiles set coach_id = null where id = '${quien}';
+    select pg_sleep(${despues});
+    commit;
+    select to_jsonb(true);`).catch(e => ({ error: e.code, msg: e.msg }));
+  const dos = await Promise.all([salir(KS[0], 0, 0.8), salir(KS[1], 0.3, 0)]);
+  t.eq(dos, [true, true], 'los dos se desvinculan');
+  t.eq(await cupoK(), [10, 10, true, 10], 'quedan 10: seats_used 10 (exacto), el coach vuelve a tener acceso y ve a sus 10 alumnos');
+  t.eq(await INV(), [], 'invariantes (seats_drift vacío) después de los dos desvínculos a la vez');
+  // join_coach (con el bloqueo tomado) y otro alumno que se desvincula mientras tanto.
+  const entra = (quien, codigo, despues) => db.json(`begin;
+    set local role authenticated;
+    select set_config('request.jwt.claims', '{"sub":"${quien}","role":"authenticated"}', true);
+    select public.join_coach('${codigo}')::jsonb;
+    select pg_sleep(${despues});
+    commit;`).catch(e => ({ error: e.code, msg: e.msg }));
+  await db.sql(`update public.profiles set invite_code = 'COACHKKK' where id = '${K}'; update public.coach_billing set max_clients = 11 where coach_id = '${K}';`);
+  const mixto = await Promise.all([entra(KS[0], 'COACHKKK', 0.8), salir(KS[2], 0.3, 0)]);
+  t.eq(mixto, [true, true], 'uno entra con el código mientras otro se desvincula');
+  t.eq((await cupoK()).slice(0, 3), [10, 10, true], 'el cupo queda exacto (10: entró uno y salió otro)');
+  t.eq(await INV(), [], 'invariantes después del join_coach y el desvínculo a la vez');
+
+  // e) El cron de los planes vencidos y un alumno que se desvincula a la misma hora, con otro perfil
+  //    tomado por una tercera sesión: no se trancan (antes, release_lapsed_clients bloqueaba primero
+  //    coach_billing y el alumno primero su perfil: deadlock 40P01).
+  const V2 = ID('e8'), VS = [ID('801'), ID('802'), ID('803')];
+  await db.sql(`insert into auth.users (id, email, raw_user_meta_data) values ('${V2}', 'coach.v@ejemplo.test', '{"full_name":"Coach V","role":"coach"}'),
+      ${VS.map((u, i) => `('${u}', 'v${i}@ejemplo.test', '{"full_name":"Alumno V${i}"}')`).join(', ')};
+    update public.coach_billing set plan = 'p10', max_clients = 10, trial_ends_at = now() - interval '40 days', paid_until = now() - interval '10 days' where coach_id = '${V2}';
+    update public.profiles set coach_id = '${V2}' where id in (${VS.map(u => `'${u}'`).join(', ')});`);
+  const tres = await Promise.all([
+    db.json(`begin; update public.profiles set full_name = full_name where id = '${VS[0]}'; select pg_sleep(1.2); commit; select to_jsonb(true);`).catch(e => ({ error: e.code, msg: e.msg })),
+    db.json(`select pg_sleep(0.3); select to_jsonb(public.release_lapsed_clients());`).catch(e => ({ error: e.code, msg: e.msg })),
+    salir(VS[2], 0.6, 0)]);
+  t.ok(tres[0] === true && typeof tres[1] === 'number' && tres[1] >= 2 && tres[2] === true,
+    'el cron (release_lapsed_clients) y el alumno que se desvincula terminan los dos, sin deadlock: ' + JSON.stringify(tres));
+  t.eq(await J(`select to_jsonb(count(*)) from public.profiles where coach_id = '${V2}';`), 0, 'los tres quedan sin el coach vencido');
+  t.eq(await INV(), [], 'invariantes (seats_drift vacío) después del cron y el desvínculo a la vez');
   await db.borrar();
 }

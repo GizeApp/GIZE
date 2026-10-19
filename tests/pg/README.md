@@ -40,6 +40,12 @@ Arma un cluster temporal en `/tmp`, que escucha solo en un socket dentro de esa 
 otro Postgres ni con otra prueba que corra a la vez), y lo borra al salir. `initdb` no corre como
 root: si la prueba corre como root, `initdb` y `postgres` corren como el usuario `postgres` del sistema.
 
+El cluster entra sin contraseña (`trust`), así que lo cuida el permiso del socket: la carpeta queda
+`0700` (de quien corre la prueba, o de `postgres` si corre como root) y el socket `0700`. Ningún otro
+usuario de la máquina se conecta como superusuario. Se apaga y se borra también con `SIGHUP` (se cerró
+la terminal o se cortó el SSH); si la prueba murió con `kill -9`, lo limpia la corrida siguiente (la
+carpeta anota el proceso de la prueba en `prueba.pid`).
+
 | Variable | Qué hace |
 |---|---|
 | `GIZE_PSQL` | Usa un Postgres ya levantado: el comando de `psql` para conectarse (en GitHub, `docker exec -i gize-pg psql -U postgres`). El SQL va por la entrada estándar. |
@@ -56,10 +62,10 @@ fijada por digest en `.github/postgres-pruebas/Dockerfile`; sin secrets.
 
 | Archivo | Qué prueba |
 |---|---|
-| `gimnasios-base` | Que la base se arma; que cada función que una nota «OJO» declara vigente quedó con el cuerpo de ese archivo (si el orden estuviera mal, lo dice); que `gimnasios.sql` no cambia nada de lo que ya existía (huella del esquema igual, y las operaciones de hoy dan lo mismo); que los dos archivos se pueden volver a correr; y que volver atrás deja exactamente la huella de la base de hoy. |
+| `gimnasios-base` | Que la base se arma; que cada función que una nota «OJO» declara vigente quedó con el cuerpo de ese archivo (si el orden estuviera mal, lo dice); que `gimnasios.sql` no cambia nada de lo que ya existía (huella del esquema igual, y las operaciones de hoy dan lo mismo); que los dos archivos se pueden volver a correr; que volver atrás deja exactamente la huella de la base de hoy; que correrlos en el orden equivocado falla sin cambiar nada; que la nota de `pasos-grupos.sql` deja los filtros de bloqueos; qué ve la huella (triggers con funciones de otros esquemas, permisos por defecto, ajustes del servidor); y que el cluster local no lo alcanza otro usuario y se limpia con `SIGHUP` o en la corrida siguiente. |
 | `gimnasios-igual` | «Sin gimnasios todo sigue igual»: las cuatro funciones canónicas contra las de hoy (que salen del bloque comentado de `gimnasios-vinculo.sql`), con 200 semillas de datos al azar; y después de cada operación, `seats_used` igual al recuento. |
-| `gimnasios-matriz` | La matriz de personas de la spec: qué lee, escribe y borra cada una en cada tabla nueva y en las de hoy, cada función, `join_coach` fila por fila, los casos obligatorios de la etapa 0, los invariantes después de cada operación y la concurrencia. |
-| `gimnasios-rendimiento` | `EXPLAIN ANALYZE` de la ficha de un alumno con 500 entrenos, con las funciones de hoy y las nuevas. |
+| `gimnasios-matriz` | La matriz de personas de la spec: qué lee, escribe y borra cada una en cada tabla nueva y en las de hoy, cada función, `join_coach` fila por fila, los casos obligatorios de la etapa 0, la ficha en baja, la solicitud de quien borra su cuenta, los invariantes después de cada operación y la concurrencia (el último lugar, dos desvínculos a la vez, un vínculo y un desvínculo a la vez, y el cron de planes vencidos con un desvínculo: sin deadlock y con el cupo exacto). |
+| `gimnasios-rendimiento` | `EXPLAIN ANALYZE` (sin JIT) de la ficha de un alumno con 500 entrenos, con las funciones de hoy y las nuevas, con el esquema del repo y con un índice en `session_entries(session_id)`; y que `sessions` se lea por su índice. |
 | `gimnasios-sql` | Sin Postgres: cabeceras, permisos, que se pueda volver a correr, los mensajes de `join_coach`, sin mails ni uuids. |
 
 ## Dónde la base de pruebas puede no ser producción
@@ -73,15 +79,16 @@ del repo. Estas son las diferencias posibles, y lo que mide la huella del esquem
 | D1 | Las 13 tablas inferidas: tipos, `not null`, defaults, checks, claves foráneas y sus `on delete`, índices, columnas viejas o de más. | `col:`, `con:` e `idx:` de cada tabla. |
 | D2 | Funciones o políticas cambiadas a mano en el SQL Editor y no copiadas al repo, y objetos que solo existen allá (por ejemplo, políticas de las tablas base con otros nombres, o la `schedule_rest_alarm(int)` vieja). | `fn:` (md5 del cuerpo, lenguaje, `security definer`, ajustes) y `pol:` (md5 de `using` y `with check`). |
 | D3 | Archivos que se editaron después de la última vez que se corrieron, u orden real distinto. | Lo mismo que D2. |
-| D4 | Lo que maneja Supabase: `auth`, `storage` (por ejemplo, el bucket `checkins`, que ningún archivo crea), versiones de extensiones, `vault`. | `ext:`, `bucket:`, `pol:storage.objects.*`, `trg:` (los que llaman a funciones de `public`). Lo interno de `auth` y `storage` se deja afuera a propósito. |
+| D4 | Lo que maneja Supabase: `auth`, `storage` (por ejemplo, el bucket `checkins`, que ningún archivo crea), versiones de extensiones, `vault`, y triggers que se arman desde el panel («Database Webhooks», `moddatetime`), que llaman a funciones de otros esquemas. | `ext:`, `bucket:`, `pol:storage.objects.*`, `trg:` (todos los de las tablas de `public`, con la función que llaman, y los de otras tablas que llaman a funciones de `public`). Lo interno de `auth` y `storage` se deja afuera a propósito. **Antes de aplicar `gimnasios.sql`, mirar los `trg:coach_billing.*` de producción**: desde los gimnasios, cada vínculo y cada desvínculo actualiza `coach_billing.seats_used`, así que un trigger de esa tabla (un webhook que avisa del plan, un `updated_at`) se dispararía con cada alumno que entra o sale. |
 | D5 | Roles: en Supabase `postgres` no es superusuario (tiene `bypassrls`) y algunos objetos son de `supabase_admin`. | `rol:` y `fndueno:`. |
-| D6 | Permisos por defecto y `revoke` aplicados o no. | `fnacl:`, `tblacl:` y `colacl:` (anon, authenticated, service_role). |
+| D6 | Permisos por defecto (`alter default privileges`) y `revoke` aplicados o no. Las funciones nuevas que llama el service role tienen su `grant` escrito y no dependen de los permisos por defecto; el resto sí. | `defacl:` (los permisos por defecto de cada rol y esquema), `fnacl:`, `tblacl:` y `colacl:` (anon, authenticated, service_role). |
 | D7 | Versión de Postgres (producción: no se sabe si 15 o 17; prueba: 16). | `version`. Si producción no es 16, se cambia `.github/postgres-pruebas/Dockerfile`. |
 | D8 | Ajustes por rol (`statement_timeout` de `anon` y `authenticated` en Supabase). | `ajuste:`. |
 | D9 | Datos que rompan la igualdad sin gimnasios (por ejemplo, coaches con `coach_id`, que hoy cuentan en el cupo de su coach). | Cuatro conteos `dato:` (no se comparan: se muestran). |
-| D10 | Índices de producción que el repo no declara: cambian los tiempos del `EXPLAIN`. En particular, el repo no tiene un índice en `session_entries(session_id)`: sin él, la ficha con 500 entrenos recorre la tabla por cada entreno. | `idx:`. |
-| D11 | Tablas de la publicación de realtime. | `pub:supabase_realtime`. |
+| D10 | Índices de producción que el repo no declara: cambian los tiempos del `EXPLAIN`. En particular, el repo no tiene un índice en `session_entries(session_id)`: sin él, la ficha con 500 entrenos recorre la tabla por cada entreno. `gimnasios-rendimiento` mide con y sin ese índice. | `idx:`. |
+| D11 | Tablas de la publicación de realtime. Si `coach_billing` estuviera en la publicación, cada cambio de `seats_used` (cada vínculo y desvínculo) saldría por realtime: mirarlo antes de aplicar `gimnasios.sql`, como los triggers de D4. | `pub:supabase_realtime`. |
 | D12 | Tareas de pg_cron: nombre, horario, comando (acá no corren nunca). | `cron:` (horario y md5 del comando). |
+| D13 | Ajustes del servidor que cambian los planes y los tiempos: `jit` y sus umbrales, `work_mem`, `random_page_cost`, `effective_cache_size`… Los tiempos de `gimnasios-rendimiento` son de un Postgres local con JIT apagado. | `servidor:`. |
 
 ### Cómo compararla con producción (cuando el dueño lo apruebe)
 
@@ -115,6 +122,26 @@ que está en producción (o se vuelve a correr el archivo del repo, si lo correc
   `release_lapsed_gyms` y el `before delete` de `profiles` (cerrar el gimnasio del dueño que borra
   su cuenta).
 - **Cupo y bloqueos de filas**: los triggers del cupo actualizan la fila de `coach_billing` del coach
-  anterior y del nuevo. `join_coach` y `release_lapsed_clients` bloquean esas filas siempre en el
-  mismo orden, así dos cambios cruzados no se trancan; las RPC nuevas que cambien vínculos tienen que
-  hacer lo mismo.
+  anterior y del nuevo, siempre al final: primero se bloquean las filas de `profiles` (y de las
+  tablas de gimnasios) y recién después las de `coach_billing`, en orden de `coach_id`, y se cuenta
+  en otra sentencia, después de tener el bloqueo (si no, dos desvínculos a la vez dejaban el cupo
+  corrido). `join_coach` bloquea primero el perfil y `release_lapsed_clients` ya no bloquea
+  `coach_billing` antes de soltar a los alumnos. Las RPC nuevas que cambien vínculos tienen que
+  respetar ese orden. Ojo con la restauración al pagar (§6.13): el pago escribe `coach_billing`
+  antes que los perfiles, al revés que todo lo demás; `gym_restaurar` tiene que soltar esa fila o
+  hacerse en otra transacción.
+- **El profe de la ficha** (`trainer_id`) ya no lo escribe nadie a mano: sale de `gym_profe_ficha`
+  en cada escritura de la ficha y en cada cambio de coach. Las RPC de la etapa 1 cambian el coach
+  (`profiles.coach_id`) o el estado y la ficha se alinea sola. La trampa C20 sigue (cuando un profe
+  deja el equipo, sus fichas no se recalculan: lo hace `gym_quitar_staff`).
+
+## Rendimiento (`gimnasios-rendimiento`)
+
+Con datos inventados (3 fichas de 500 entrenos de 8 series, 100 alumnos por coach), en un Postgres 16
+local, sin JIT y la mejor de 3 vueltas, la ficha de entrenos con las funciones nuevas tarda
+aproximadamente la mitad que con las de hoy con el esquema del repo, y un tercio con un índice en
+`session_entries(session_id)` (que producción puede tener o no: D10). Buena parte de lo que tarda sin
+ese índice es recorrer `session_entries` por cada entreno, con o sin RLS. La prueba imprime las dos
+tablas y no exige un número fijo: exige que las nuevas no sean más lentas que el doble de las de hoy,
+menos de 2 s, las mismas filas, y que `sessions` se lea por su índice. Los tiempos de producción
+dependen de sus índices (D10) y de sus ajustes (D13).

@@ -24,8 +24,9 @@
 --   gym_codes         el código del gimnasio para pedir sumarse (8 caracteres, el alfabeto de
 --                     my_invite_code; no puede ser el código personal de un coach).
 --   gym_members       la ficha de cada socio: con cuenta (member_id) o sin app, con su estado
---                     (pendiente, activo, pausado, visita, baja) y su profe (trainer_id). Si la
---                     cuenta se borra, la ficha queda sin app, con su estado y sin profe.
+--                     (pendiente, activo, pausado, visita, baja) y su profe (trainer_id, que sale
+--                     solo: ver gym_profe_ficha). Si la cuenta se borra, la ficha queda sin app,
+--                     con su estado y sin profe; una solicitud pendiente, en cambio, se borra.
 --   gym_member_notes  notas internas de la ficha (aparte: el socio lee su ficha y no las notas).
 --   gym_audit         quién hizo qué en el gimnasio (sobrevive al gimnasio: sin clave foránea).
 --   gym_alerts        avisos pendientes de mandar (uno por destinatario, tipo y motivo).
@@ -40,11 +41,13 @@
 --
 -- Quién lee qué (solo lectura por política; escribir es solo por funciones, desde la etapa 1, y
 -- ninguna tabla nueva tiene permiso de insert, update ni delete para la app):
---   gyms              su equipo y sus socios (no dados de baja).
+--   gyms              su equipo y sus socios (ficha activa, pausada o visita: no quien solo pidió
+--                     sumarse con el código, que es público, ni quien se dio de baja).
 --   gym_staff         el equipo del mismo gimnasio, y cada uno su propia fila.
---   gym_members       dueño y administración: todas las de su gimnasio; profe: las que tiene
---                     asignadas; socio: la suya. La recepción, por función (etapa 1).
---   gym_member_notes  dueño, administración y el profe asignado (el socio no, ni las de su ficha).
+--   gym_members       dueño y administración: todas las de su gimnasio; profe: las activas o pausadas
+--                     que tiene asignadas; socio: la suya. La recepción, por función (etapa 1).
+--   gym_member_notes  dueño, administración y el profe asignado de una ficha activa o pausada (el
+--                     socio no, ni las de su ficha).
 --   gym_audit         dueño y administración.
 --   gym_bajas         dueño y administración, y el socio las suyas.
 --   gym_entries       las de las fichas que uno ve (dueño y administración, todas; profe, las de sus
@@ -54,13 +57,14 @@
 -- anda siempre»). Lo que corta el plan son los registros del socio (is_my_client, gym_reads_member).
 --
 -- Funciones (security definer con search_path fijo; plpgsql, ver «Funciones de permiso»):
---   gym_mi_rol(g), gym_soy_socio(g)  mi rol en el gimnasio g / si tengo ficha (no baja) en g. Las
---                     usan las políticas: responden solo sobre quien llama.
+--   gym_mi_rol(g), gym_soy_socio(g)  mi rol en el gimnasio g / si tengo ficha activa, pausada o
+--                     visita en g. Las usan las políticas: responden solo sobre quien llama.
 --   gym_reads_member(socio)  ¿puedo leer los registros de ese socio como dueño o administración?
 --                     Solo si su ficha está activa o pausada, aceptó la hoja (terms_at), eligió
 --                     compartir (share_admin) y el plan del gimnasio está al día. La usan las
 --                     políticas de lectura de la etapa 1.
---   Internas (sin permiso para la app; las llaman otras funciones):
+--   Internas (sin permiso para la app; las llaman otras funciones y el service role, que tiene
+--   permiso explícito y no depende de los permisos por defecto del esquema):
 --   gym_role(g, u)    el rol activo de u en g.
 --   vinculo_gym(p)    el gimnasio del vínculo de p con su coach: p tiene ficha activa o pausada y su
 --                     coach (profiles.coach_id) es dueño, admin o profe activo de ESE gimnasio. Si no
@@ -75,6 +79,9 @@
 --                     Un socio de A con un coach de afuera cuenta en A (la ficha) y en ese coach.
 --   seats_drift()     las filas de coach_billing donde seats_used no coincide con recount_seats
 --                     (tiene que dar vacío siempre).
+--   gym_profe_ficha(g, socio, estado)  el profe que le toca a una ficha: el coach de la persona si la
+--                     ficha está activa o pausada y ese coach es dueño, admin o profe activo de g; si
+--                     no, null. Lo aplica el trigger gym_members_profe en cada escritura de la ficha.
 --
 -- Cupo cacheado: seats_used = recount_seats(coach_id), siempre. Lo recalculan triggers por fila
 -- cuando cambia algo que lo afecta: profiles (coach_id, alta y baja de cuentas, también por las
@@ -83,6 +90,10 @@
 -- no recalculan por fila: la operación recalcula una vez al final. seats_used se usa solo para leer
 -- (coach_active en las políticas); donde se aplica el cupo (join_coach) se cuenta exacto con
 -- recount_seats y la fila de coach_billing bloqueada.
+-- Orden de bloqueo: la fila de coach_billing se bloquea siempre al final, después de las de profiles
+-- y de las tablas de gimnasios (gym_recontar). Una función que bloquee coach_billing antes de cambiar
+-- un perfil se tranca con quien cambia ese perfil desde la app (desvincularse en Ajustes): bloquear
+-- antes el perfil, como join_coach.
 --
 -- Para volver atrás: el bloque comentado del final (antes, el de gimnasios-vinculo.sql).
 
@@ -368,7 +379,7 @@ security definer
 set search_path = public
 as $$
 begin
-  return exists (select 1 from public.gym_members m where m.gym_id = g and m.member_id = auth.uid() and m.status <> 'baja');
+  return exists (select 1 from public.gym_members m where m.gym_id = g and m.member_id = auth.uid() and m.status in ('activo', 'pausado', 'visita'));
 end $$;
 revoke all on function public.gym_soy_socio(uuid) from public, anon;
 grant execute on function public.gym_soy_socio(uuid) to authenticated;
@@ -387,6 +398,7 @@ begin
   return r;
 end $$;
 revoke all on function public.gym_role(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.gym_role(uuid, uuid) to service_role;
 
 create or replace function public.vinculo_gym(p uuid)
 returns uuid
@@ -407,6 +419,7 @@ begin
   return g;
 end $$;
 revoke all on function public.vinculo_gym(uuid) from public, anon, authenticated;
+grant execute on function public.vinculo_gym(uuid) to service_role;
 
 create or replace function public.gym_de_dueno(cid uuid)
 returns uuid
@@ -421,6 +434,7 @@ begin
   return g;
 end $$;
 revoke all on function public.gym_de_dueno(uuid) from public, anon, authenticated;
+grant execute on function public.gym_de_dueno(uuid) to service_role;
 
 -- Plan del gimnasio = plan del dueño (prueba y pago, lo que termine más tarde; la cortesía no vence),
 -- con 5 días de gracia y sin corte por cupo: sobre el cupo solo se frenan las altas.
@@ -439,6 +453,7 @@ begin
             or greatest(b.trial_ends_at, coalesce(b.paid_until, '-infinity')) > now() - interval '5 days'));
 end $$;
 revoke all on function public.gym_active(uuid) from public, anon, authenticated;
+grant execute on function public.gym_active(uuid) to service_role;
 
 -- Lo operativo (recepción, cuotas, clases) sigue hasta 10 días después de vencido.
 create or replace function public.gym_operativo(g uuid)
@@ -456,6 +471,7 @@ begin
             or greatest(b.trial_ends_at, coalesce(b.paid_until, '-infinity')) > now() - interval '10 days'));
 end $$;
 revoke all on function public.gym_operativo(uuid) from public, anon, authenticated;
+grant execute on function public.gym_operativo(uuid) to service_role;
 
 -- ¿Puedo (dueño o administración) leer los registros de este socio? Solo si su ficha está activa o
 -- pausada, aceptó la hoja, eligió compartir y el plan del gimnasio está al día.
@@ -497,6 +513,7 @@ begin
            where g.owner_id = cid and g.closed_at is null and m.status in ('activo', 'pausado'));
 end $$;
 revoke all on function public.recount_seats(uuid) from public, anon, authenticated;
+grant execute on function public.recount_seats(uuid) to service_role;
 
 -- Tiene que dar vacío siempre (lo miran las pruebas y, desde la etapa 2, la tarea de cada noche).
 create or replace function public.seats_drift()
@@ -511,12 +528,19 @@ as $$
    where b.seats_used is distinct from r.n;
 $$;
 revoke all on function public.seats_drift() from public, anon, authenticated;
+grant execute on function public.seats_drift() to service_role;
 
 
 -- ===== Cupo cacheado: triggers =====
 
 -- Recalcula seats_used de esos coaches (los null y los que no tienen fila se saltean). Con la marca
 -- gize.gym_bulk no hace nada: la operación masiva recalcula al final.
+-- Primero bloquea las filas (en orden de coach_id) y recién después cuenta, en otra sentencia: así el
+-- conteo ve lo que confirmó quien tenía la fila. Contando en la misma sentencia que espera el bloqueo,
+-- dos alumnos que se desvinculan a la vez dejaban seats_used con uno de más (el segundo contaba sin
+-- ver al primero), y con el cupo justo el coach quedaba sin acceso a ninguno.
+-- Orden de bloqueo en toda la base: primero las filas de profiles y de las tablas de gimnasios, y al
+-- final las de coach_billing (acá, siempre de último). join_coach y release_lapsed_clients lo respetan.
 create or replace function public.gym_recontar(cids uuid[])
 returns void
 language plpgsql
@@ -525,6 +549,7 @@ set search_path = public
 as $$
 begin
   if coalesce(current_setting('gize.gym_bulk', true), '') = 'on' then return; end if;
+  perform 1 from public.coach_billing where coach_id = any(cids) order by coach_id for update;
   update public.coach_billing b set seats_used = r.n
     from (select c, public.recount_seats(c) as n from (select distinct unnest(cids) as c) u where c is not null) r
    where b.coach_id = r.c and b.seats_used is distinct from r.n;
@@ -667,22 +692,67 @@ drop trigger if exists coach_billing_cupo on public.coach_billing;
 create trigger coach_billing_cupo before insert on public.coach_billing
   for each row execute function public.coach_billing_cupo();
 
--- La ficha de quien borra su cuenta queda «sin app» (member_id null por la clave foránea), con su estado,
--- y sin profe: el profe deja de verla (DNI, teléfono) junto con todo lo demás de esa persona.
-create or replace function public.gym_members_sin_cuenta()
+-- El profe de una ficha (trainer_id) sale siempre de lo demás: es el coach de la persona
+-- (profiles.coach_id) solo si la ficha está activa o pausada y ese coach es dueño, admin o profe
+-- activo de ese gimnasio. Si no, null: una ficha en baja, una visita, una solicitud o una ficha sin
+-- app no tienen profe, y el que dejó de atenderla deja de verla (DNI, nota interna, ingresos).
+create or replace function public.gym_profe_ficha(g uuid, socio uuid, estado text)
+returns uuid
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare t uuid;
+begin
+  if socio is null or estado is null or estado not in ('activo', 'pausado') then return null; end if;
+  select p.coach_id into t
+    from public.profiles p
+    join public.gym_staff s on s.gym_id = g and s.user_id = p.coach_id
+                           and s.left_at is null and s.role in ('owner', 'admin', 'profe')
+   where p.id = socio;
+  return t;
+end $$;
+revoke all on function public.gym_profe_ficha(uuid, uuid, text) from public, anon, authenticated;
+
+-- Cada vez que se escribe una ficha (alta, estado, cuenta, gimnasio o profe), el profe se recalcula:
+-- al pasar a baja o a visita queda sin profe, al volver a activa toma el coach de la persona si es
+-- del equipo, y la ficha de quien borra su cuenta queda «sin app» (member_id null por la clave
+-- foránea), con su estado y sin profe. Cuando cambia el coach, lo alinea profiles_gym_sync
+-- (gimnasios-vinculo.sql).
+create or replace function public.gym_members_profe()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
 begin
-  new.trainer_id := null;
+  new.trainer_id := public.gym_profe_ficha(new.gym_id, new.member_id, new.status);
   return new;
 end $$;
-revoke all on function public.gym_members_sin_cuenta() from public, anon, authenticated;
-drop trigger if exists gym_members_sin_cuenta on public.gym_members;
-create trigger gym_members_sin_cuenta before update of member_id on public.gym_members
-  for each row when (new.member_id is null and old.member_id is not null) execute function public.gym_members_sin_cuenta();
+revoke all on function public.gym_members_profe() from public, anon, authenticated;
+drop trigger if exists gym_members_profe on public.gym_members;
+create trigger gym_members_profe before insert or update of status, member_id, gym_id, trainer_id on public.gym_members
+  for each row execute function public.gym_members_profe();
+
+-- La solicitud pendiente de quien borra su cuenta se borra: tenía su nombre y su mail (copiados por
+-- join_coach, no cargados por el gimnasio), nunca fue socio ni aceptó la hoja, y no tiene pagos ni
+-- ingresos. Una ficha de verdad queda «sin app» (arriba). gym_audit solo guarda uuids: queda.
+create or replace function public.gym_members_pedido_sin_cuenta()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.gym_members where id = new.id and status = 'pendiente' and member_id is null;
+  return null;
+end $$;
+revoke all on function public.gym_members_pedido_sin_cuenta() from public, anon, authenticated;
+drop trigger if exists gym_members_pedido_sin_cuenta on public.gym_members;
+create trigger gym_members_pedido_sin_cuenta after update of member_id on public.gym_members
+  for each row when (old.member_id is not null and new.member_id is null and new.status = 'pendiente')
+  execute function public.gym_members_pedido_sin_cuenta();
 
 -- El código del gimnasio no puede ser el código personal de un coach (join_coach busca primero el
 -- personal). my_invite_code y rotate_invite_code no miran gym_codes: si alguna vez chocaran (una en
@@ -728,7 +798,7 @@ drop policy if exists "fichas: dueño y administración, el profe asignado y el 
 create policy "fichas: dueño y administración, el profe asignado y el socio" on public.gym_members
   for select to authenticated using (
     public.gym_mi_rol(gym_id) in ('owner', 'admin')
-    or (trainer_id = (select auth.uid()) and public.gym_mi_rol(gym_id) in ('owner', 'admin', 'profe'))
+    or (trainer_id = (select auth.uid()) and status in ('activo', 'pausado') and public.gym_mi_rol(gym_id) in ('owner', 'admin', 'profe'))
     or member_id = (select auth.uid()));
 
 alter table public.gym_member_notes enable row level security;
@@ -740,7 +810,8 @@ create policy "notas: dueño, administración y el profe asignado" on public.gym
     select 1 from public.gym_members m
      where m.id = gym_member_id
        and (public.gym_mi_rol(m.gym_id) in ('owner', 'admin')
-            or (m.trainer_id = (select auth.uid()) and public.gym_mi_rol(m.gym_id) in ('owner', 'admin', 'profe')))));
+            or (m.trainer_id = (select auth.uid()) and m.status in ('activo', 'pausado')
+                and public.gym_mi_rol(m.gym_id) in ('owner', 'admin', 'profe')))));
 
 alter table public.gym_audit enable row level security;
 revoke all on public.gym_audit from anon, authenticated;
@@ -786,8 +857,26 @@ notify pgrst, 'reload schema';
 
 -- ===== Para volver atrás =====
 -- Primero el bloque «Para volver atrás» de gimnasios-vinculo.sql (la coach_active de ahí lee
--- seats_used). Después esto, sin los «-- » (las políticas se van con sus tablas):
+-- seats_used). Después esto, sin los «-- » (las políticas se van con sus tablas). Lo primero frena
+-- todo si alguna función todavía usa lo que se borra acá (por ejemplo, si no se corrió antes el
+-- bloque de gimnasios-vinculo.sql): sin eso se borraría sin error y después fallarían las lecturas
+-- del coach, los vínculos y los desvínculos.
 --
+-- do $$
+-- declare f text;
+-- begin
+--   select string_agg(p.proname, ', ' order by p.proname) into f
+--     from pg_proc p
+--    where p.pronamespace = 'public'::regnamespace
+--      and p.proname not in ('gym_mi_rol', 'gym_soy_socio', 'gym_role', 'vinculo_gym', 'gym_de_dueno', 'gym_active',
+--                            'gym_operativo', 'gym_reads_member', 'recount_seats', 'seats_drift', 'gym_recontar',
+--                            'gym_cupo_profiles', 'gym_cupo_members', 'gym_cupo_staff', 'gym_cupo_gyms', 'coach_billing_cupo',
+--                            'gym_codes_unico', 'gym_profe_ficha', 'gym_members_profe', 'gym_members_pedido_sin_cuenta')
+--      and p.prosrc ~ '\m(gym_[a-z_]+|gyms|vinculo_gym|recount_seats|seats_drift|seats_used)\M';
+--   if f is not null then
+--     raise exception 'Primero el bloque «Para volver atrás» de supabase/gimnasios-vinculo.sql: todavía usan los gimnasios %', f;
+--   end if;
+-- end $$;
 -- drop trigger if exists profiles_gym_cupo_alta on public.profiles;
 -- drop trigger if exists profiles_gym_cupo_cambio on public.profiles;
 -- drop trigger if exists profiles_gym_cupo_baja on public.profiles;
@@ -799,7 +888,8 @@ notify pgrst, 'reload schema';
 --   public.vinculo_gym(uuid), public.gym_de_dueno(uuid), public.gym_active(uuid), public.gym_operativo(uuid),
 --   public.gym_reads_member(uuid), public.recount_seats(uuid), public.seats_drift(), public.gym_recontar(uuid[]),
 --   public.gym_cupo_profiles(), public.gym_cupo_members(), public.gym_cupo_staff(), public.gym_cupo_gyms(),
---   public.coach_billing_cupo(), public.gym_codes_unico(), public.gym_members_sin_cuenta();
+--   public.coach_billing_cupo(), public.gym_codes_unico(), public.gym_profe_ficha(uuid, uuid, text),
+--   public.gym_members_profe(), public.gym_members_pedido_sin_cuenta();
 -- alter table public.coach_billing drop constraint if exists coach_billing_seats_used_check;
 -- alter table public.coach_billing drop column if exists seats_used;
 -- alter table public.coach_messages drop column if exists gym_id;

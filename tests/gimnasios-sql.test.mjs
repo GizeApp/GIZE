@@ -87,17 +87,43 @@ export default async ({ t }) => {
 
   // Funciones: security definer con search_path fijo; las internas sin permiso para la app.
   const fns = [...(gc + vc).matchAll(/create or replace function public\.(\w+)\(([^\n]*)\)\s*returns[\s\S]*?\nas \$\$/g)];
-  t.eq(fns.length, 24, 'funciones: ' + fns.map(m => m[1]).join(', '));
+  t.eq(fns.length, 26, 'funciones: ' + fns.map(m => m[1]).join(', '));
   for (const [txt, name] of fns) t.ok(/security definer\s+set search_path = public/.test(txt), name + ': security definer con search_path fijo');
   const INTERNAS = { 'gym_role(uuid, uuid)': g, 'vinculo_gym(uuid)': g, 'gym_de_dueno(uuid)': g, 'gym_active(uuid)': g, 'gym_operativo(uuid)': g,
     'recount_seats(uuid)': g, 'seats_drift()': g, 'gym_recontar(uuid[])': g, 'gym_cupo_profiles()': g, 'gym_cupo_members()': g, 'gym_cupo_staff()': g,
-    'gym_cupo_gyms()': g, 'coach_billing_cupo()': g, 'gym_codes_unico()': g, 'gym_members_sin_cuenta()': g, 'coach_client_ok(uuid, uuid)': v, 'profiles_gym_sync()': v };
+    'gym_cupo_gyms()': g, 'coach_billing_cupo()': g, 'gym_codes_unico()': g, 'gym_profe_ficha(uuid, uuid, text)': g, 'gym_members_profe()': g,
+    'gym_members_pedido_sin_cuenta()': g, 'coach_client_ok(uuid, uuid)': v, 'profiles_gym_sync()': v };
   for (const [sig, s] of Object.entries(INTERNAS)) t.ok(sinComentarios(s).includes('revoke all on function public.' + sig + ' from public, anon, authenticated;'), sig + ': interna (sin permiso para la app)');
   for (const sig of ['gym_mi_rol(uuid)', 'gym_soy_socio(uuid)', 'gym_reads_member(uuid)'])
     t.ok(gc.includes('revoke all on function public.' + sig + ' from public, anon;') && gc.includes('grant execute on function public.' + sig + ' to authenticated;'), sig + ': solo con sesión');
-  t.ok(vc.includes('revoke execute on function public.coach_active(uuid) from public, anon;') && vc.includes('grant  execute on function public.coach_active(uuid) to authenticated, service_role;'), 'coach_active: los permisos de hoy');
+  // Las que llama el service role (avisos-coach, notificar-cliente y, desde la etapa 1, rapid-worker y
+  // las tareas) tienen el permiso escrito: no dependen de los permisos por defecto del esquema.
+  for (const [sig, s] of [['gym_role(uuid, uuid)', g], ['vinculo_gym(uuid)', g], ['gym_de_dueno(uuid)', g], ['gym_active(uuid)', g], ['gym_operativo(uuid)', g],
+    ['recount_seats(uuid)', g], ['seats_drift()', g], ['coach_client_ok(uuid, uuid)', v]])
+    t.ok(sinComentarios(s).includes('grant execute on function public.' + sig + ' to service_role;'), sig + ': permiso explícito para el service role');
+  t.ok(vc.includes('revoke execute on function public.coach_active(uuid) from public, anon, authenticated;') && vc.includes('grant  execute on function public.coach_active(uuid) to service_role;'),
+    'coach_active: solo el service role (la app no la llama; con sesión se podía preguntar el plan de cualquiera)');
+  t.ok(vAtras.includes('-- grant  execute on function public.coach_active(uuid) to authenticated, service_role;'),
+    'volver atrás devuelve el permiso de hoy de coach_active');
   t.ok(vc.includes('revoke execute on function public.join_coach(text) from public, anon;') && vc.includes('grant  execute on function public.join_coach(text) to authenticated;'), 'join_coach: los permisos de hoy');
   t.ok(vc.includes('revoke execute on function public.release_lapsed_clients() from public, anon, authenticated;'), 'release_lapsed_clients: interna, como hoy');
+
+  // Orden de los archivos: gimnasios-vinculo.sql sin gimnasios.sql, y volver atrás gimnasios.sql con
+  // gimnasios-vinculo.sql todavía aplicado, se frenan antes de cambiar nada (lo prueba en Postgres
+  // tests/gimnasios-base.test.mjs).
+  const guardia = vc.indexOf("raise exception 'Primero correr supabase/gimnasios.sql");
+  t.ok(guardia > 0 && guardia < vc.indexOf('create or replace function'), 'gimnasios-vinculo.sql: lo primero controla que esté gimnasios.sql');
+  for (const x of ["to_regclass('public.gym_members')", "to_regprocedure('public.vinculo_gym(uuid)')", "to_regprocedure('public.recount_seats(uuid)')", "attname = 'seats_used'"])
+    t.ok(vc.slice(0, guardia).includes(x), 'la guardia mira ' + x);
+  const atrasG = gAtras.split('\n').filter(l => l.startsWith('-- ')).map(l => l.slice(3)).join('\n');
+  t.ok(atrasG.indexOf('raise exception \'Primero el bloque «Para volver atrás» de supabase/gimnasios-vinculo.sql') > 0
+    && atrasG.indexOf('raise exception') < atrasG.indexOf('drop trigger'), 'gimnasios.sql: volver atrás se frena si alguna función todavía usa los gimnasios');
+
+  // El profe solo ve fichas activas o pausadas (y sus notas); el profe de la ficha sale solo.
+  t.ok(/trainer_id = \(select auth\.uid\(\)\) and status in \('activo', 'pausado'\)/.test(gc) && /m\.trainer_id = \(select auth\.uid\(\)\) and m\.status in \('activo', 'pausado'\)/.test(gc),
+    'fichas y notas: el profe, solo las activas o pausadas');
+  t.ok(/create trigger gym_members_profe before insert or update of status, member_id, gym_id, trainer_id on public\.gym_members/.test(gc), 'trigger gym_members_profe en cada escritura de la ficha');
+  t.ok(/create trigger gym_members_pedido_sin_cuenta after update of member_id on public\.gym_members/.test(gc) && /new\.status = 'pendiente'/.test(gc), 'la solicitud de quien borra su cuenta se borra');
   t.ok(!/grant[^;]*is_my_client|revoke[^;]*is_my_client/.test(vc), 'is_my_client: create or replace, conserva los permisos que tenía');
 
   // join_coach canónica: todo lo de la de bloqueos.sql.
