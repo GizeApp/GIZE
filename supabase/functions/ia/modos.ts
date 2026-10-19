@@ -1,7 +1,7 @@
 // Lo de cada modo de la función «ia»: el pedido a la API (instrucciones, esquema de la respuesta y
 // tamaño) y lo que se hace con la respuesta. Las cuentas las hace siempre el código, nunca la IA.
 // Por ahora hay uno solo, «etiqueta»: leer la tabla nutricional de la foto de un pedido de producto.
-import { imagenTokens, MODELOS, type Modelo } from "./precios.ts";
+import { costo, imagenTokens, MODELOS, type Modelo } from "./precios.ts";
 
 // ---------- etiqueta ----------
 const num = { anyOf: [{ type: "number" }, { type: "null" }] };
@@ -51,6 +51,9 @@ export const ENTRADA_TEXTO_ETIQUETA =
 // Entrada máxima: el texto más la foto más grande que puede mandar la app (1600 × 1600).
 export const ENTRADA_MAX_ETIQUETA = ENTRADA_TEXTO_ETIQUETA + Math.ceil(LADO_MAX / 28) ** 2;
 export const entradaEtiqueta = (ancho: number, alto: number, modelo: Modelo) => ENTRADA_TEXTO_ETIQUETA + imagenTokens(ancho, alto, modelo);
+// Lo que sale una tabla típica (la foto de 1600 × 1200 de la app y unos 100 tokens de respuesta),
+// para mostrar en el panel cuánto cuesta cada modelo. Es una cuenta aproximada, no la reserva.
+export const costoTablaTipica = (modelo: Modelo) => costo({ input_tokens: entradaEtiqueta(1600, 1200, modelo), output_tokens: 100 }, modelo);
 
 // El pedido a la API. Sin razonamiento (es copiar números) y sin nada que cobre aparte: ni
 // herramientas del servidor, ni región de procesamiento, ni modo rápido, ni reintentos en otro modelo.

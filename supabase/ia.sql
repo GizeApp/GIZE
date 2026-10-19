@@ -57,6 +57,9 @@ create table if not exists public.ia_ciclos (
   ahorro_at   timestamptz,
   cortado_at  timestamptz
 );
+-- Cuántas veces frenó la guardia en el ciclo, por código (tope_dia, ritmo, ahorro, tope_mes,
+-- tope_persona, pausada): esas llamadas no llegan a ia_llamadas.
+alter table public.ia_ciclos add column if not exists frenos jsonb not null default '{}';
 
 -- ---------- cada uso de la IA ----------
 -- Sin datos de la persona más que su id (para los topes), que se borra a los 90 días.
@@ -152,6 +155,13 @@ returns timestamptz language sql stable set search_path = public as $$
 $$;
 revoke all on function public.ia_hoy() from public, anon, authenticated;
 
+-- Suma una frenada de la guardia al ciclo (para el panel). La usa ia_reservar.
+create or replace function public.ia_frenada(p_ciclo bigint, p_codigo text)
+returns void language sql security definer set search_path = public as $$
+  update public.ia_ciclos set frenos = jsonb_set(frenos, array[p_codigo], to_jsonb(coalesce((frenos ->> p_codigo)::int, 0) + 1)) where id = p_ciclo;
+$$;
+revoke all on function public.ia_frenada(bigint, text) from public, anon, authenticated;
+
 -- Coach con plan pago o de cortesía (la prueba gratis no cuenta). Lo mismo que coach_active
 -- (cupo-plan.sql) sin la prueba.
 create or replace function public.coach_pago(cid uuid)
@@ -221,10 +231,13 @@ begin
          set estado = case when gastado + reservado >= ahorro then 'ahorro' else 'normal' end, cortado_por = null, vuelve = null
        where id = v_c.id returning * into v_c;
     elsif v_c.cortado_por = 'creditos' then
+      perform public.ia_frenada(v_c.id, 'pausada');
       return jsonb_build_object('ok', false, 'codigo', 'pausada', 'motivo', 'creditos', 'vuelve', v_c.vuelve);
     elsif v_c.cortado_por = 'admin' then
+      perform public.ia_frenada(v_c.id, 'pausada');
       return jsonb_build_object('ok', false, 'codigo', 'pausada', 'motivo', 'admin');
     else
+      perform public.ia_frenada(v_c.id, 'tope_mes');
       return jsonb_build_object('ok', false, 'codigo', 'tope_mes', 'motivo', v_c.cortado_por, 'vuelve', coalesce(v_c.vuelve, v_c.fin));
     end if;
   end if;
@@ -232,6 +245,7 @@ begin
   -- 4) Tope del ciclo (lo gastado, lo reservado y esta llamada).
   if v_c.gastado + v_c.reservado + p_max_usd > v_c.tope then
     perform public.ia_cortar(v_c.id, 'tope', v_c.fin);
+    perform public.ia_frenada(v_c.id, 'tope_mes');
     return jsonb_build_object('ok', false, 'codigo', 'tope_mes', 'motivo', 'tope', 'vuelve', v_c.fin);
   end if;
 
@@ -243,6 +257,7 @@ begin
   if v_c.estado = 'ahorro' then
     if p_funcion in ('plato', 'texto') and p_rol = 'alumno'
        and not exists (select 1 from public.profiles p where p.id = p_uid and p.coach_id is not null and public.coach_pago(p.coach_id)) then
+      perform public.ia_frenada(v_c.id, 'ahorro');
       return jsonb_build_object('ok', false, 'codigo', 'ahorro', 'vuelve', v_c.fin);
     end if;
     v_ahorro := p_funcion = 'rutina';
@@ -255,6 +270,7 @@ begin
   v_dias := greatest(1, ceil(extract(epoch from (v_c.fin - now())) / 86400));
   v_limite := greatest(2, 2 * (v_c.tope - v_c.gastado) / v_dias);
   if v_hoy + p_max_usd > v_limite then
+    perform public.ia_frenada(v_c.id, 'ritmo');
     return jsonb_build_object('ok', false, 'codigo', 'ritmo', 'vuelve', v_manana);
   end if;
 
@@ -267,6 +283,7 @@ begin
    where l.user_id = p_uid and l.creada >= v_hoy0
      and (l.estado in ('ok', 'vacia', 'reservada', 'vencida') or (l.estado = 'error' and (l.usd is null or l.usd > 0)));
   if v_n_f >= v_tope_f or v_n_t >= v_tope_t then
+    perform public.ia_frenada(v_c.id, 'tope_dia');
     return jsonb_build_object('ok', false, 'codigo', 'tope_dia', 'vuelve', v_manana, 'tope', case when v_n_f >= v_tope_f then v_tope_f else v_tope_t end);
   end if;
 
@@ -274,6 +291,7 @@ begin
   v_usd_ciclo := coalesce((v_cfg.topes -> p_rol ->> 'usd_ciclo')::numeric, 0);
   select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = p_uid;
   if v_mio + p_max_usd > v_usd_ciclo then
+    perform public.ia_frenada(v_c.id, 'tope_persona');
     return jsonb_build_object('ok', false, 'codigo', 'tope_persona', 'vuelve', v_c.fin);
   end if;
 
@@ -387,15 +405,30 @@ begin
       'gastado', v_gastado, 'reservado', coalesce(v_c.reservado, 0), 'estado', coalesce(v_c.estado, 'normal'),
       'cortado_por', v_c.cortado_por, 'vuelve', v_c.vuelve, 'aviso_at', v_c.aviso_at, 'ahorro_at', v_c.ahorro_at, 'cortado_at', v_c.cortado_at,
       'hoy', round(v_hoy, 4), 'limite_hoy', round(greatest(2, 2 * (v_tope - v_gastado) / v_dias), 2),
-      'proyeccion', round(v_gastado + v_7 / v_d7 * v_dias, 2)) end,
-    'por_funcion', coalesce((select jsonb_object_agg(x.funcion, jsonb_build_object('usos', x.n, 'usd', x.usd))
-        from (select l.funcion, count(*) n, round(sum(coalesce(l.usd, l.max_usd)), 4) usd from public.ia_llamadas l where l.ciclo_id = v_c.id group by l.funcion) x), '{}'::jsonb),
+      'proyeccion', round(v_gastado + v_7 / v_d7 * v_dias, 2), 'frenos', coalesce(v_c.frenos, '{}'::jsonb)) end,
+    -- Por función: usos, dólares y cuánto tarda (mediana y 95 %, de las que respondieron), en ms.
+    'por_funcion', coalesce((select jsonb_object_agg(x.funcion, jsonb_build_object('usos', x.n, 'usd', x.usd, 'p50', x.p50, 'p95', x.p95))
+        from (select l.funcion, count(*) n, round(sum(coalesce(l.usd, l.max_usd)), 4) usd,
+                     round(percentile_cont(0.5) within group (order by l.ms) filter (where l.estado in ('ok', 'vacia') and l.ms is not null)) p50,
+                     round(percentile_cont(0.95) within group (order by l.ms) filter (where l.estado in ('ok', 'vacia') and l.ms is not null)) p95
+                from public.ia_llamadas l where l.ciclo_id = v_c.id group by l.funcion) x), '{}'::jsonb),
     'errores', coalesce((select jsonb_object_agg(x.codigo, x.n)
         from (select coalesce(l.codigo, l.estado) codigo, count(*) n from public.ia_llamadas l where l.ciclo_id = v_c.id and l.estado in ('error', 'vencida') group by 1) x), '{}'::jsonb),
-    -- Los pedidos leídos con IA que ya se publicaron: cuántos sin corregir (todo y solo las calorías).
+    -- Los pedidos leídos con IA que ya se publicaron: cuántos sin corregir (todo y solo las
+    -- calorías) y cuántos con cada campo corregido; y de los leídos, cuántos con las calorías que
+    -- no cerraban con los macros (revisar).
     'tablas', (select jsonb_build_object(
         'leidas', count(*) filter (where r.ai_at is not null),
         'sin_tabla', count(*) filter (where r.ai_encontrada is false),
+        'con_tabla', count(*) filter (where r.ai_encontrada is true),
+        'revisar', count(*) filter (where r.ai_encontrada is true and r.ai_revisar is true),
+        'campos', jsonb_build_object(
+          'kcal', count(*) filter (where r.status = 'cargado' and r.ai_encontrada and r.ai_corregido is not null and 'kcal' = any(coalesce(r.ai_corregidos, '{}'::text[]))),
+          'protein', count(*) filter (where r.status = 'cargado' and r.ai_encontrada and r.ai_corregido is not null and 'protein' = any(coalesce(r.ai_corregidos, '{}'::text[]))),
+          'carbs', count(*) filter (where r.status = 'cargado' and r.ai_encontrada and r.ai_corregido is not null and 'carbs' = any(coalesce(r.ai_corregidos, '{}'::text[]))),
+          'fat', count(*) filter (where r.status = 'cargado' and r.ai_encontrada and r.ai_corregido is not null and 'fat' = any(coalesce(r.ai_corregidos, '{}'::text[]))),
+          'portion', count(*) filter (where r.status = 'cargado' and r.ai_encontrada and r.ai_corregido is not null and 'portion' = any(coalesce(r.ai_corregidos, '{}'::text[]))),
+          'unit', count(*) filter (where r.status = 'cargado' and r.ai_encontrada and r.ai_corregido is not null and 'unit' = any(coalesce(r.ai_corregidos, '{}'::text[])))),
         'publicadas', count(*) filter (where r.status = 'cargado' and r.ai_encontrada and r.ai_corregido is not null),
         'sin_corregir', count(*) filter (where r.status = 'cargado' and r.ai_encontrada and r.ai_corregido = false),
         'kcal_bien', count(*) filter (where r.status = 'cargado' and r.ai_encontrada and r.ai_corregido is not null and not ('kcal' = any(coalesce(r.ai_corregidos, '{}'::text[])))))

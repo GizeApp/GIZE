@@ -8,7 +8,7 @@
 //     → { ok: true, encontrada, unidad, columna, porcion, por_porcion, kcal, p, c, f, revisar,
 //         dudosos, modelo, modelo_nombre } y guarda lo leído en product_requests.ai_*.
 //   { modo: "estado" } → { ok: true, clave, modelos }: si está cargada la clave y qué modelos se
-//     pueden elegir (para la página «IA» del panel). No llama a la API.
+//     pueden elegir, con lo que cuesta una tabla con cada uno (para el panel). No llama a la API.
 // Si algo no deja: { ok: false, codigo, mensaje, motivo?, vuelve? } (los códigos, en
 // supabase/ia.sql). Por ahora es solo para administradores (public.is_app_admin): las etapas que
 // siguen suman a quien mandó el pedido, la foto del plato, el texto y lo del coach.
@@ -28,7 +28,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { costo, MODELOS, modeloDe, reserva, type Modelo, type Uso } from "./precios.ts";
-import { ENTRADA_MAX_ETIQUETA, entradaEtiqueta, etiquetaPost, FOTO_MAX, LADO_MAX, MAX_TOKENS_ETIQUETA, pedidoEtiqueta, TIEMPO_ETIQUETA } from "./modos.ts";
+import { costoTablaTipica, ENTRADA_MAX_ETIQUETA, entradaEtiqueta, etiquetaPost, FOTO_MAX, LADO_MAX, MAX_TOKENS_ETIQUETA, pedidoEtiqueta, TIEMPO_ETIQUETA } from "./modos.ts";
 import { jpegTamano } from "./jpeg.ts";
 import { clasificarError, llamar } from "./api.ts";
 
@@ -91,11 +91,13 @@ Deno.serve(async (req) => {
 
   // Por ahora, solo administradores (las etapas que siguen suman a quien mandó el pedido).
   const { data: esAdmin, error: eAdmin } = await asUser.rpc("is_app_admin");
-  if (eAdmin || esAdmin !== true) return no("no_habilitado", { mensaje: "Por ahora la lectura con IA es solo para el equipo de GIZE." });
+  if (eAdmin || esAdmin !== true) return no("no_habilitado", { motivo: "solo_admin", mensaje: "Por ahora la lectura con IA es solo para el equipo de GIZE." });
 
   const clave = Deno.env.get("ANTHROPIC_API_KEY") || "";
   if (modo === "estado") {
-    return json({ ok: true, clave: !!clave, modelos: (Object.keys(MODELOS) as Modelo[]).map((id) => ({ id, nombre: MODELOS[id].nombre, defecto: MODELOS[id].defecto })) });
+    // Para cada modelo: si sirve para las tablas y cuánto sale una tabla típica (el panel lo muestra).
+    return json({ ok: true, clave: !!clave, modelos: (Object.keys(MODELOS) as Modelo[]).map((id) => ({ id, nombre: MODELOS[id].nombre, defecto: MODELOS[id].defecto,
+      tabla: MODELOS[id].tabla, usd_tabla: costoTablaTipica(id) })) });
   }
   const pedido = Number(input && input.pedido);
   if (!Number.isSafeInteger(pedido) || pedido <= 0) return no("error", { mensaje: "Falta el pedido." }, 400);
@@ -196,9 +198,9 @@ Deno.serve(async (req) => {
   // anota si el administrador lo corrigió (admin_request_publish).
   const ai = et.encontrada
     ? { ai_encontrada: true, ai_kcal: et.kcal, ai_protein: et.p, ai_carbs: et.c, ai_fat: et.f, ai_unit: et.unidad, ai_portion: et.porcion,
-        ai_por_porcion: et.por_porcion, ai_revisar: et.revisar, ai_dudosos: et.dudosos }
+        ai_por_porcion: et.por_porcion, ai_revisar: et.revisar, ai_dudosos: et.dudosos, ai_columna: et.columna }
     : { ai_encontrada: false, ai_kcal: null, ai_protein: null, ai_carbs: null, ai_fat: null, ai_unit: null, ai_portion: null,
-        ai_por_porcion: null, ai_revisar: null, ai_dudosos: null };
+        ai_por_porcion: null, ai_revisar: null, ai_dudosos: null, ai_columna: null };
   const up = await db.from("product_requests").update({ ...ai, ai_modelo: modelo, ai_at: new Date().toISOString(), ai_corregido: null, ai_corregidos: null }).eq("id", pedido);
   if (up.error) log("guardar", up.error.code || "");
   return json({ ok: true, ...et, modelo, modelo_nombre: MODELOS[modelo].nombre });

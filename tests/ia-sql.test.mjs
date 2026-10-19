@@ -64,9 +64,9 @@ export default async ({ t }) => {
     t.ok(new RegExp('revoke all on function public\\.' + e + ' from public, anon, authenticated;').test(code), sig + ': nada para public, anon ni authenticated');
     t.ok(new RegExp('grant execute on function public\\.' + e + ' to service_role;').test(code), sig + ': solo la service role');
   }
-  for (const sig of ['ia_ciclo_de(timestamptz, timestamptz)', 'ia_ciclo_tomar()', 'ia_hoy()'])
+  for (const sig of ['ia_ciclo_de(timestamptz, timestamptz)', 'ia_ciclo_tomar()', 'ia_hoy()', 'ia_frenada(bigint, text)'])
     t.ok(code.includes('revoke all on function public.' + sig + ' from public, anon, authenticated;') && !code.includes('grant execute on function public.' + sig), sig + ': uso interno');
-  for (const name of ['ia_ciclo_tomar', 'ia_reservar', 'ia_cerrar', 'ia_cortar', 'ia_vencer', 'ia_limpiar', 'coach_pago', 'admin_ia_estado', 'admin_ia_config', 'admin_ia_ciclo', 'admin_ia_reintentar'])
+  for (const name of ['ia_ciclo_tomar', 'ia_frenada', 'ia_reservar', 'ia_cerrar', 'ia_cortar', 'ia_vencer', 'ia_limpiar', 'coach_pago', 'admin_ia_estado', 'admin_ia_config', 'admin_ia_ciclo', 'admin_ia_reintentar'])
     t.ok(/security definer set search_path = public/.test(fn(code, name)), name + ': security definer con search_path fijo');
   // Panel: primero, que sea administrador.
   for (const name of ['admin_ia_estado', 'admin_ia_config', 'admin_ia_ciclo', 'admin_ia_reintentar']){
@@ -103,12 +103,15 @@ export default async ({ t }) => {
   const iDrop = pcode.indexOf('drop function if exists public.admin_requests(text);'), iCreate = pcode.indexOf('create or replace function public.admin_requests(kind text)');
   t.ok(iDrop > 0 && iCreate > iDrop, 'pedidos-productos.sql: borra admin_requests antes de cambiarle lo que devuelve');
   t.ok(/grant execute on function public\.admin_requests\(text\) to authenticated;/.test(pcode.slice(iCreate)), 'y le vuelve a dar los permisos');
-  const cols = ['ai_encontrada', 'ai_kcal', 'ai_protein', 'ai_carbs', 'ai_fat', 'ai_unit', 'ai_portion', 'ai_por_porcion', 'ai_revisar', 'ai_dudosos', 'ai_modelo', 'ai_at', 'ai_corregido', 'ai_corregidos'];
+  const cols = ['ai_encontrada', 'ai_kcal', 'ai_protein', 'ai_carbs', 'ai_fat', 'ai_unit', 'ai_portion', 'ai_por_porcion', 'ai_revisar', 'ai_dudosos', 'ai_modelo', 'ai_at', 'ai_corregido', 'ai_corregidos', 'ai_columna'];
   for (const c of cols){
     t.ok(new RegExp('add column if not exists ' + c + '\\b').test(pcode), 'product_requests.' + c);
     t.ok(new RegExp('new\\.' + c + ' := null;').test(fn(pcode, 'product_requests_before')), 'desde la app, ' + c + ' entra vacío');
   }
-  t.ok(/r\.ai_kcal, r\.ai_protein/.test(fn(pcode, 'admin_requests')), 'admin_requests devuelve lo que leyó la IA');
+  t.ok(/r\.ai_kcal, r\.ai_protein/.test(fn(pcode, 'admin_requests')) && /r\.ai_columna/.test(fn(pcode, 'admin_requests')), 'admin_requests devuelve lo que leyó la IA (con la columna de la tabla)');
+  // Cada vez que la guardia frena, se cuenta en el ciclo (esas llamadas no quedan en ia_llamadas).
+  for (const cod of ['tope_mes', 'ahorro', 'ritmo', 'tope_dia', 'tope_persona'])
+    t.ok(new RegExp("perform public\\.ia_frenada\\(v_c\\.id, '" + cod + "'\\);\\s+return jsonb_build_object\\('ok', false, 'codigo', '" + cod + "'").test(res), 'ia_reservar cuenta la frenada «' + cod + '»');
   const pub = fn(pcode, 'admin_request_publish');
   t.ok(/update public\.product_requests set ai_corregido = cardinality\(corr\) > 0, ai_corregidos = corr where id = rid;/.test(pub), 'al publicar se anota qué corrigió el administrador');
 
@@ -353,5 +356,40 @@ reset role;
 do $$ begin
   assert (select ai_corregidos from public.product_requests where name = 'Galletitas') = array['carbs'], 'corrigió los carbos';
   assert (select ai_corregido from public.product_requests where name = 'Yogur') = false, 'sin corregir (redondeo)';
+end $$;`],
+  ['un macro que la IA dejó vacío («no aporta») y se publicó en 0 no cuenta como corrección', `
+set role authenticated; set request.jwt.claim.sub = '${ALUMNO_ID}';
+insert into public.product_requests (name, label_path) values ('Gaseosa', '${ALUMNO_ID}/pedido-tabla-3.jpg'), ('Agua saborizada', '${ALUMNO_ID}/pedido-tabla-4.jpg');
+reset role;
+update public.product_requests set ai_encontrada = true, ai_kcal = 42, ai_protein = null, ai_carbs = 10.6, ai_fat = null, ai_unit = 'ml', ai_portion = 200, ai_columna = '100', ai_at = now()
+ where name in ('Gaseosa', 'Agua saborizada');
+set role authenticated; set request.jwt.claim.sub = '${ADMIN_ID}';
+do $$ begin
+  assert (select ai_columna from public.admin_requests('pendientes') where name = 'Gaseosa') = '100', 'admin_requests trae ai_columna';
+  perform public.admin_request_publish((select id from public.admin_requests('pendientes') where name = 'Gaseosa'), null, 'Gaseosa', null, 42, 0, 10.6, 0, 'ml', 200);
+  perform public.admin_request_publish((select id from public.admin_requests('pendientes') where name = 'Agua saborizada'), null, 'Agua saborizada', null, 42, 1.5, 10.6, 0, 'ml', 200);
+end $$;
+reset role;
+do $$ begin
+  assert (select ai_corregido from public.product_requests where name = 'Gaseosa') = false, 'vacío y 0: sin corregir ' || (select coalesce(ai_corregidos::text, '') from public.product_requests where name = 'Gaseosa');
+  assert (select ai_corregidos from public.product_requests where name = 'Agua saborizada') = array['protein'], 'vacío y 1,5: corrigió la proteína';
+end $$;
+set role authenticated; set request.jwt.claim.sub = '${ADMIN_ID}';
+do $$ declare e jsonb := public.admin_ia_estado(); begin
+  assert (e #>> '{tablas,campos,protein}')::int >= 1 and (e #>> '{tablas,campos,carbs}')::int >= 1, 'el panel cuenta las correcciones por campo ' || (e -> 'tablas')::text;
+  assert (e #>> '{tablas,con_tabla}')::int >= 4, 'tablas con tabla ' || (e -> 'tablas')::text;
+end $$;`],
+  ['el panel cuenta las frenadas de la guardia y lo que tarda cada función', `
+reset role; update public.ia_ciclos set estado = 'normal', cortado_por = null, vuelve = null, gastado = 10, frenos = '{}';
+update public.ia_config set topes = jsonb_set(topes, '{admin,etiqueta}', '0');
+set role service_role;
+do $$ begin assert (${RES()})->>'codigo' = 'tope_dia'; assert (${RES()})->>'codigo' = 'tope_dia'; end $$;
+reset role; update public.ia_config set topes = jsonb_set(topes, '{admin,etiqueta}', '300');
+insert into public.ia_llamadas (ciclo_id, user_id, rol, funcion, modelo, estado, max_usd, usd, ms)
+  select (select id from public.ia_ciclos where inicio <= now() and fin > now()), '${ADMIN_ID}', 'admin', 'etiqueta', 'modelo-x', 'ok', 0.0014, 0.0004, x from unnest(array[1000, 2000, 3000, 4000]) x;
+set role authenticated; set request.jwt.claim.sub = '${ADMIN_ID}';
+do $$ declare e jsonb := public.admin_ia_estado(); begin
+  assert (e #>> '{ciclo,frenos,tope_dia}')::int = 2, 'frenadas por el tope del día ' || (e #> '{ciclo,frenos}')::text;
+  assert (e #>> '{por_funcion,etiqueta,p50}')::numeric between 1000 and 4000 and (e #>> '{por_funcion,etiqueta,p95}')::numeric >= (e #>> '{por_funcion,etiqueta,p50}')::numeric, 'mediana y 95 % ' || (e #> '{por_funcion}')::text;
 end $$;`],
 ];

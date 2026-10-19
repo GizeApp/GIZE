@@ -38,6 +38,9 @@ const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
 // apenas aparece un cartel lee lo que dice, tal como lo ve la persona (un párrafo por línea en
 // blanco), se lo pasa a la prueba (__gizeAviso) y, si tocar es true, toca «Entendido» cuando ya se
 // ve, como antes se aceptaba solo el alert(). Si llegan varios, la app los muestra de a uno.
+// Las preguntas propias (confirmar() y pedir(), que reemplazan a confirm() y prompt()) se aceptan
+// solas igual que las nativas: toca el botón de aceptar (.av-go) y, en pedir(), escribe antes lo
+// que diga p.dialogAnswer (vacío si no dice nada, como el prompt nativo de antes).
 const LEER_AVISOS = tocar => `(() => {
   const vistos = new WeakSet();
   const leer = el => {
@@ -45,9 +48,11 @@ const LEER_AVISOS = tocar => `(() => {
     const tit = el.querySelector('.av-tit'), ps = [...el.querySelectorAll('.av-txt p')];
     window.__gizeAviso({ titulo: tit ? tit.textContent : '', texto: ps.map(p => p.textContent).join('\\n\\n') });
     if (!${tocar}) return;
-    const entendido = () => {
+    const entendido = async () => {
       if (!el.isConnected) return;
       if (!el.classList.contains('show')) return requestAnimationFrame(entendido);
+      const go = el.querySelector('.av-go');
+      if (go){ const i = el.querySelector('.av-in'); if (i) i.value = await window.__gizeRespuesta(); go.click(); return; }
       const b = el.querySelector('.av-btn'); if (b) b.click();
     };
     requestAnimationFrame(entendido);
@@ -76,6 +81,7 @@ export async function newPage({ user, state, handlers = {}, viewport = { width: 
   p.dialogAnswer = undefined;
   p.on('dialog', d => { dialogs.push(d.message()); (d.type() === 'prompt' ? d.accept(p.dialogAnswer || '') : d.accept()).catch(() => {}); });
   await p.exposeFunction('__gizeAviso', a => { avisos.push(a); dialogs.push(a.texto); });
+  await p.exposeFunction('__gizeRespuesta', () => p.dialogAnswer || '');
   await p.addInitScript(LEER_AVISOS(tocarAvisos));
   if (user) await p.addInitScript(`(() => {
     if (sessionStorage.getItem('init')) return;

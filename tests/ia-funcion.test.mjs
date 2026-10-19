@@ -96,7 +96,7 @@ export default async function ({ t }){
   let x = await correr({ user: null });
   t.ok(x.status === 401 && x.res.codigo === 'sin_sesion' && x.fetches.length === 0 && x.db.length === 0, 'sin sesión: 401 y nada más: ' + JSON.stringify(x.res));
   x = await correr({ admin: false });
-  t.ok(x.status === 403 && x.res.codigo === 'no_habilitado' && x.fetches.length === 0 && x.db.length === 0, 'quien no es administrador: 403, sin tocar la base ni la API: ' + JSON.stringify(x.res));
+  t.ok(x.status === 403 && x.res.codigo === 'no_habilitado' && x.res.motivo === 'solo_admin' && x.fetches.length === 0 && x.db.length === 0, 'quien no es administrador: 403 (solo_admin), sin tocar la base ni la API: ' + JSON.stringify(x.res));
   x = await correr({ body: { modo: 'plato', imagen: 'x' } });
   t.ok(x.status === 400 && x.fetches.length === 0, 'otro modo (todavía no existe): 400 sin llamar');
 
@@ -108,6 +108,9 @@ export default async function ({ t }){
   t.ok(x.status === 200 && x.res.ok && x.res.clave === false && x.fetches.length === 0, 'modo estado sin clave: clave false');
   t.eq(x.res.modelos.map(m => m.id), ids, 'modo estado: la lista de modelos para el panel');
   t.ok(x.res.modelos.every(m => m.nombre) && x.res.modelos.filter(m => m.defecto).length === 1, 'cada modelo con su nombre y uno de siempre');
+  t.ok(x.res.modelos.every(m => typeof m.tabla === 'boolean' && m.usd_tabla > 0), 'cada modelo dice si sirve para las tablas y cuánto sale una: ' + JSON.stringify(x.res.modelos));
+  const tablas = x.res.modelos.filter(m => m.tabla), mDef = tablas.find(m => m.defecto), mCaro = tablas.filter(m => !m.defecto).sort((a, b) => b.usd_tabla - a.usd_tabla)[0];
+  t.ok(mDef && mCaro && mCaro.usd_tabla / mDef.usd_tabla > 15 && mCaro.usd_tabla / mDef.usd_tabla < 25 && mDef.usd_tabla < 0.001, 'para las tablas: el de siempre (menos de una décima de centavo) y el capaz, unas 20 veces más: ' + JSON.stringify(tablas));
   t.ok(!JSON.stringify(x.res).includes('srv') && !JSON.stringify(x.res).includes(CLAVE), 'modo estado no devuelve claves');
   x = await correr({ body: { modo: 'estado' } });
   t.ok(x.res.clave === true && x.fetches.length === 0, 'modo estado con clave: clave true, sin llamar');
@@ -182,7 +185,7 @@ export default async function ({ t }){
   t.eq(x.updates.length, 1, 'guarda lo leído en el pedido');
   const ai = (x.updates[0] || {}).valores || {};
   t.ok(ai.ai_encontrada === true && ai.ai_kcal === 450 && ai.ai_protein === 7 && ai.ai_carbs === 70 && ai.ai_fat === 15 && ai.ai_unit === 'g' && ai.ai_portion === 30
-    && ai.ai_por_porcion === false && ai.ai_revisar === false && ai.ai_modelo === defecto && typeof ai.ai_at === 'string', 'ai_* del pedido: ' + JSON.stringify(ai));
+    && ai.ai_por_porcion === false && ai.ai_revisar === false && ai.ai_modelo === defecto && ai.ai_columna === '100' && typeof ai.ai_at === 'string', 'ai_* del pedido: ' + JSON.stringify(ai));
   t.eq((x.updates[0] || {}).filtros, [['eq', 'id', 7]], 'solo ese pedido');
   // Los registros.
   const logs = x.logs.join('\n');
@@ -194,6 +197,7 @@ export default async function ({ t }){
   const leer = async (out, extra) => { const r = await correr({ api: () => http(200, respuesta(out, extra)) }); return r; };
   x = await leer({ encontrada: true, unidad: 'g', columna: 'porcion', porcion: 50, kcal: 219, kj: 920, proteinas: 2.8, carbohidratos: 30, grasas: 10, dudosos: [] });
   t.ok(x.res.kcal === 438 && x.res.p === 5.6 && x.res.c === 60 && x.res.f === 20 && x.res.porcion === 50 && x.res.por_porcion === false && x.res.columna === 'porcion', 'por porción con tamaño: se pasa a cada 100: ' + JSON.stringify(x.res));
+  t.eq((x.updates[0] || {}).valores.ai_columna, 'porcion', 'y queda anotado que era por porción (el panel lo avisa también después)');
   x = await leer({ encontrada: true, unidad: 'ml', columna: 'porcion', porcion: null, kcal: 76, kj: null, proteinas: 2.9, carbohidratos: 12, grasas: 1.8, dudosos: [] });
   t.ok(x.res.por_porcion === true && x.res.kcal === 76 && x.res.unidad === 'ml', 'por porción sin tamaño: queda por porción (por_porcion): ' + JSON.stringify(x.res));
   t.ok((x.updates[0] || {}).valores.ai_por_porcion === true, 'y se guarda así');
@@ -205,7 +209,7 @@ export default async function ({ t }){
   x = await leer({ encontrada: false, unidad: 'g', columna: '100', porcion: null, kcal: null, kj: null, proteinas: null, carbohidratos: null, grasas: null, dudosos: [] });
   t.ok(x.status === 200 && x.res.ok === true && x.res.encontrada === false, 'sin tabla legible: ok, encontrada false');
   t.ok(x.rpcs.ia_cerrar[0].p_estado === 'vacia' && x.rpcs.ia_cerrar[0].p_usd > 0, 'sin tabla: se cierra como vacía y con su costo');
-  t.ok((x.updates[0] || {}).valores.ai_encontrada === false && (x.updates[0] || {}).valores.ai_kcal === null, 'sin tabla: queda anotado');
+  t.ok((x.updates[0] || {}).valores.ai_encontrada === false && (x.updates[0] || {}).valores.ai_kcal === null && (x.updates[0] || {}).valores.ai_columna === null, 'sin tabla: queda anotado');
   // Bloques de razonamiento antes del texto: se toma el texto.
   x = await correr({ api: () => http(200, { ...respuesta(TABLA100), content: [{ type: 'thinking', thinking: '', signature: 's' }, { type: 'text', text: JSON.stringify(TABLA100) }] }) });
   t.ok(x.status === 200 && x.res.kcal === 450, 'con bloques de razonamiento antes: toma el de texto');

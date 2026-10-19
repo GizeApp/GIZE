@@ -32,7 +32,9 @@ create index if not exists product_requests_pending_idx on public.product_reques
 create index if not exists product_requests_user_idx on public.product_requests(user_id);
 
 -- Lo que leyó la IA de la foto de la tabla (cada 100 g o ml; si la tabla era solo por porción y no
--- decía el tamaño, por porción: ai_por_porcion).
+-- decía el tamaño, por porción: ai_por_porcion). ai_columna: de qué columna salieron los valores
+-- («100» o «porcion»: si era por porción con el tamaño, la función ya los pasó a cada 100 y el
+-- panel lo avisa, porque no coinciden con los números de la foto).
 alter table public.product_requests
   add column if not exists ai_encontrada  boolean,
   add column if not exists ai_kcal        numeric,
@@ -47,7 +49,8 @@ alter table public.product_requests
   add column if not exists ai_modelo      text,
   add column if not exists ai_at          timestamptz,
   add column if not exists ai_corregido   boolean,
-  add column if not exists ai_corregidos  text[];
+  add column if not exists ai_corregidos  text[],
+  add column if not exists ai_columna     text;
 
 alter table public.product_requests enable row level security;
 revoke all on public.product_requests from anon, authenticated;
@@ -77,7 +80,7 @@ begin
     -- Lo de la IA lo escribe solo la función «ia».
     new.ai_encontrada := null; new.ai_kcal := null; new.ai_protein := null; new.ai_carbs := null; new.ai_fat := null;
     new.ai_unit := null; new.ai_portion := null; new.ai_por_porcion := null; new.ai_revisar := null; new.ai_dudosos := null;
-    new.ai_modelo := null; new.ai_at := null; new.ai_corregido := null; new.ai_corregidos := null;
+    new.ai_modelo := null; new.ai_at := null; new.ai_corregido := null; new.ai_corregidos := null; new.ai_columna := null;
     if (select count(*) from public.product_requests where user_id = auth.uid() and created_at > now() - interval '1 day') >= 15 then
       raise exception 'Llegaste al límite de pedidos por hoy. Probá mañana.' using errcode = '22023';
     end if;
@@ -111,7 +114,7 @@ create or replace function public.admin_requests(kind text)
 returns table (id bigint, code text, name text, brand text, label_path text, front_path text, status text, note text,
   created_at timestamptz, done_at timestamptz, user_email text, user_name text, existing_id uuid, existing_name text,
   ai_encontrada boolean, ai_kcal numeric, ai_protein numeric, ai_carbs numeric, ai_fat numeric, ai_unit text, ai_portion numeric,
-  ai_por_porcion boolean, ai_revisar boolean, ai_dudosos text[], ai_modelo text, ai_at timestamptz, ai_corregido boolean)
+  ai_por_porcion boolean, ai_revisar boolean, ai_dudosos text[], ai_modelo text, ai_at timestamptz, ai_corregido boolean, ai_columna text)
 language plpgsql stable security definer set search_path = public as $$
 begin
   perform public.admin_assert();
@@ -119,7 +122,7 @@ begin
     select r.id, r.code, r.name, r.brand, r.label_path, r.front_path, r.status, r.note, r.created_at, r.done_at,
            u.email::text, p.full_name, e.id, e.name,
            r.ai_encontrada, r.ai_kcal, r.ai_protein, r.ai_carbs, r.ai_fat, r.ai_unit, r.ai_portion,
-           r.ai_por_porcion, r.ai_revisar, r.ai_dudosos, r.ai_modelo, r.ai_at, r.ai_corregido
+           r.ai_por_porcion, r.ai_revisar, r.ai_dudosos, r.ai_modelo, r.ai_at, r.ai_corregido, r.ai_columna
       from public.product_requests r
       left join auth.users u on u.id = r.user_id
       left join public.profiles p on p.id = r.user_id
@@ -184,13 +187,14 @@ begin
   end if;
   update public.product_requests set status = 'cargado', product_id = pid, name = p_name, done_at = now() where id = rid;
   -- Si se leyó con IA: qué campos corrigió el administrador (más del 1 %, con un mínimo de 0,1, o
-  -- la unidad). Con eso el panel mide qué tan bien lee.
+  -- la unidad). Con eso el panel mide qué tan bien lee. Un macro que la IA dejó vacío (la tabla
+  -- dice «no aporta») y se publicó en 0 no es una corrección: el panel lo publica así (vacío = 0).
   if r.ai_at is not null and r.ai_encontrada is true then
     corr := array_remove(array[
       case when public.ia_distinto(r.ai_kcal, p_kcal) then 'kcal' end,
-      case when public.ia_distinto(r.ai_protein, coalesce(p_protein, 0)) then 'protein' end,
-      case when public.ia_distinto(r.ai_carbs, coalesce(p_carbs, 0)) then 'carbs' end,
-      case when public.ia_distinto(r.ai_fat, coalesce(p_fat, 0)) then 'fat' end,
+      case when public.ia_distinto(coalesce(r.ai_protein, 0), coalesce(p_protein, 0)) then 'protein' end,
+      case when public.ia_distinto(coalesce(r.ai_carbs, 0), coalesce(p_carbs, 0)) then 'carbs' end,
+      case when public.ia_distinto(coalesce(r.ai_fat, 0), coalesce(p_fat, 0)) then 'fat' end,
       case when public.ia_distinto(r.ai_portion, p_portion) then 'portion' end,
       case when coalesce(r.ai_unit, 'g') <> case when p_unit = 'ml' then 'ml' else 'g' end then 'unit' end], null);
     update public.product_requests set ai_corregido = cardinality(corr) > 0, ai_corregidos = corr where id = rid;

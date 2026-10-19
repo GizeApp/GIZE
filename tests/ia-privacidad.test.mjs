@@ -24,7 +24,12 @@ export default async ({ t }) => {
   t.has(ia, 'artículo 12 de la Ley 25.326 y su Decreto 1558/2001', 'cita la ley y el decreto');
   t.has(ia, 'no usa estos datos para entrenar', 'Anthropic no entrena con estos datos');
   t.has(ia, '30 días', 'cuánto los guarda Anthropic');
+  t.has(ia, 'Qué se envía en las funciones de comida', 'lo que no se manda vale para la comida');
   t.has(ia, 'Nunca tu nombre, tu mail, tu peso', 'qué no se manda');
+  t.has(ia, 'El resumen para tu coach es aparte y lleva otros datos', 'el resumen del coach es la excepción, y lo dice');
+  // El «nunca tu peso» no puede valer para todo: el resumen del coach sí lo manda.
+  const nunca = ia.indexOf('Nunca tu nombre, tu mail, tu peso'), resumen = ia.indexOf('Resumen para tu coach');
+  t.ok(nunca > 0 && resumen > nunca && /se envían a Anthropic tus números de la semana \(entrenos, comidas, peso/.test(ia.slice(resumen)), 'el resumen del coach dice que manda el peso');
   t.has(ia, 'nunca tus pasos', 'los pasos no se mandan');
   t.has(ia, 'No son un consejo médico ni nutricional', 'son estimaciones, no consejo médico');
   t.has(ia, 'mayores de 18 años', 'solo para mayores de 18');
@@ -34,8 +39,11 @@ export default async ({ t }) => {
   t.ok(!/las ve solo el equipo de GIZE/.test(txt), 'las fotos de productos ya no dicen que las ve solo el equipo de GIZE');
   t.has(txt, 'la foto de la tabla se envía a Anthropic para leerla', '«Cámara y fotos» dice que la tabla puede ir a Anthropic');
   t.ok(/<li><b>Anthropic:<\/b>/.test(html), 'Anthropic en la lista de empresas');
+  t.has(txt, 'recibe la foto o el texto de cada consulta o, en el resumen para tu coach, tus números de la semana', 'la lista de empresas dice qué recibe Anthropic, también en el resumen');
   t.has(txt, 'Estos proveedores están obligados por contrato a proteger tus datos', 'la frase de los proveedores');
-  t.has(txt, 'tu permiso y tu uso de las funciones con IA', '«Qué se borra» incluye lo de la IA');
+  t.has(txt, 'tu permiso para usar las funciones con IA. No conservamos', '«Qué se borra» incluye el permiso de la IA');
+  t.has(txt, 'El registro de cuándo se usó la IA (la fecha, la función y lo que costó) queda sin tu cuenta', 'y dice que el registro de uso queda sin la cuenta (ia_llamadas: on delete set null)');
+  t.ok(!/tu uso de las funciones con IA\. No conservamos/.test(txt), 'no dice que el uso se borra');
   t.has(txt, 'atiende las denuncias y reclamos', 'el derecho a reclamar ante la AAIP');
   t.ok(/href="https:\/\/www\.argentina\.gob\.ar\/aaip\/datospersonales"/.test(html), 'con el contacto de la AAIP');
   // Los pasos automáticos: igual que antes.
