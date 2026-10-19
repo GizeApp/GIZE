@@ -22,22 +22,39 @@ const st0 = () => ({ days: JSON.parse(JSON.stringify(DAYS)), regularDays: JSON.p
 const handlers = { '/profiles': perfil('client', CON_COACH), '/routines': (r, J, i) => i.m === 'GET' ? J(i.one ? { days: DAYS } : [{ days: DAYS }]) : undefined };
 
 // Muestreo por cuadro: el ejercicio id (fila, card o la card que se está cerrando), la portada y
-// cuántos ejercicios hay en pantalla.
+// cuántos ejercicios hay en pantalla. top0: dónde estaba el ejercicio en el momento del toque (se
+// anota al llegar el click, antes de que la app haga nada); tras: el cuadro es posterior al toque.
+// Lo que se mueve antes del toque no es del abrir/cerrar (la app terminando de arrancar).
 const empezar = (p, id) => p.evaluate(id => {
-  window.__f = []; window.__on = true;
+  window.__f = []; window.__on = true; window.__top0 = null;
   const nodo = () => document.querySelector('#view .card[data-ex-id="' + id + '"], #view .ex-collapsed[data-ex="' + id + '"]')
     || [...document.querySelectorAll('#view .card.ex-anim')].find(c => c.querySelector('[data-ex="' + id + '"]'));
+  window.__nodo = nodo;
+  if (!window.__escuchaClic){
+    window.__escuchaClic = true;
+    addEventListener('click', () => { if (!window.__on || window.__top0 != null) return; const n = window.__nodo(); window.__top0 = n ? n.getBoundingClientRect().top : null; }, true);
+  }
   const loop = () => {
     if (!window.__on) return;
     const n = nodo(), dh = document.querySelector('#view .day-head'), cs = dh && getComputedStyle(dh);
     const r = n && n.getBoundingClientRect();
-    window.__f.push({ hay: !!n, op: n ? +getComputedStyle(n).opacity : 0, top: r ? r.top : null, h: r ? r.height : 0,
+    window.__f.push({ hay: !!n, op: n ? +getComputedStyle(n).opacity : 0, top: r ? r.top : null, h: r ? r.height : 0, tras: window.__top0 != null,
       dhOp: cs ? +cs.opacity : 0, dhTf: cs ? cs.transform : '', ejercicios: document.querySelectorAll('#view .card[data-ex-id], #view .ex-collapsed, #view .card.ex-anim').length });
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
 }, id);
-const parar = async p => { await wait(650); return p.evaluate(() => { window.__on = false; return window.__f; }); };
+const parar = async p => { await wait(650); const r = await p.evaluate(() => { window.__on = false; return { f: window.__f, top0: window.__top0 }; }); r.f.top0 = r.top0; return r.f; };
+// Cuánto se movió el ejercicio tocado desde el toque (en los cuadros de después), y los top de esos cuadros.
+const movida = f => { const l = f.filter(x => x.tras && x.top != null); return f.top0 == null || !l.length ? NaN : Math.max(...l.map(x => Math.abs(x.top - f.top0))); };
+const tops = f => Math.round(f.top0) + ' → ' + f.filter(x => x.tras && x.top != null).map(x => Math.round(x.top)).filter((x, k, l) => !k || x !== l[k - 1]).join(' ');
+// Después de abrir la app: sin la pantalla de inicio (app/splash.js dura 3 s; a los 2,5 s todavía
+// tapaba la lista y un toque del dedo le caía a ella, o p.tap esperaba a que se fuera y lo que se
+// medía cambiaba en el medio), con la letra ya cargada y dos cuadros quietos.
+const asentar = async p => {
+  await p.waitForFunction(() => !document.body.classList.contains('is-booting') && !document.querySelector('#splashHost *'), null, { timeout: 10000 });
+  await p.evaluate(() => document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
+};
 // Muestreo por cuadro de dónde está el ejercicio id (fila o card) y si hay una animación en curso.
 const seguir = (p, id) => p.evaluate(id => {
   window.__g = []; window.__gon = true;
@@ -53,29 +70,51 @@ const juntar = async (p, ms = 800) => { await wait(ms); return p.evaluate(() => 
 const salto = g => { const i = g.findIndex((x, k) => k > 0 && g[k - 1].anim && !x.anim); return i > 0 ? Math.abs(g[i].y - g[i - 1].y) : NaN; };
 const soloSube = g => g.every((x, k) => k === 0 || x.y <= g[k - 1].y + 0.5);
 const subida = g => g.map(x => Math.round(x.y) + (x.anim ? '*' : '')).filter((x, k, l) => k === 0 || x !== l[k - 1]).join(' ');
+// Toque del dedo en el centro del elemento, sin que Playwright mueva antes la pantalla: p.tap, si
+// con la máquina cargada no da en el blanco a la primera, reintenta corriendo el scroll, y eso
+// corría lo que se mide (o achicaba la barra de abajo como si hubiera sido el dedo). Antes de tocar
+// se espera (hasta 5 s) a que el elemento esté quieto dos cuadros y sea lo que hay en ese punto (no
+// tapado por un cartel o una ventana), como hace p.tap pero sin mover el scroll.
+const dedo = async (p, sel) => {
+  let xy = null;
+  for (let i = 0; i < 50 && !xy; i++){
+    xy = await p.evaluate(sel => new Promise(res => {
+      const el = document.querySelector(sel); if (!el) return res(null);
+      const r0 = el.getBoundingClientRect();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, en = document.elementFromPoint(x, y);
+        res(el.isConnected && Math.abs(r.top - r0.top) < 0.5 && en && (en === el || el.contains(en)) ? [x, y] : null);
+      }));
+    }), sel);
+    if (!xy) await wait(100);
+  }
+  if (!xy) throw new Error('no se puede tocar ' + sel + ' (no está, se mueve o está tapado)');
+  await p.touchscreen.tap(xy[0], xy[1]);
+};
 const sinPop = f => f.every(x => x.dhOp === 1 && (x.dhTf === 'none' || x.dhTf === ''));
 const intermedios = (f, a, b) => f.filter(x => x.h > Math.min(a, b) + 4 && x.h < Math.max(a, b) - 4).length;
 
 export default async function ({ base, t }){
   // ---- Abrir y cerrar: sin cuadro en blanco, sin «pop» de la portada, animado y en el lugar ----
   {
-    const { p, errs, close } = await newPage({ user: ALUMNO, state: st0(), handlers, touch: true, init: () => { try { localStorage.setItem('gize_lite', '0'); } catch (e) {} } });
-    await p.goto(base + '/app/'); await wait(2500);
+    const { p, errs, avisos, close } = await newPage({ user: ALUMNO, state: st0(), handlers, touch: true, init: () => { try { localStorage.setItem('gize_lite', '0'); } catch (e) {} } });
+    await p.goto(base + '/app/'); await wait(2500); await asentar(p);
     t.ok(await p.$('.coach-banner'), 'rutina del coach (como en el video)');
     // Marca los nodos de la portada y de otro ejercicio: si se redibujara todo, se perderían.
     await p.evaluate(() => { document.querySelector('#view .day-head').__marca = 1; document.querySelector('#view .ex-collapsed[data-ex="e2"]').__marca = 1; });
     const h0 = await p.$eval('#view .ex-collapsed[data-ex="e1"]', n => n.getBoundingClientRect().height);
 
     await empezar(p, 'e1');
-    await p.tap('#view .ex-collapsed[data-ex="e1"]');
+    await dedo(p, '#view .ex-collapsed[data-ex="e1"]');
     let f = await parar(p);
+    t.ok(await p.$('#view .card[data-ex-id="e1"]'), 'abrir: se abrió el ejercicio (carteles: ' + JSON.stringify(avisos) + ')');
     const h1 = await p.$eval('#view .card[data-ex-id="e1"]', n => n.getBoundingClientRect().height);
     t.ok(f.length > 5, 'abrir: hay cuadros muestreados (' + f.length + ')');
     t.ok(f.every(x => x.hay && x.op > 0.95), 'abrir: el ejercicio se ve en todos los cuadros (nunca desaparece)');
     t.ok(f.every(x => x.ejercicios === 6), 'abrir: la lista entera sigue en pantalla en todos los cuadros');
     t.ok(sinPop(f), 'abrir: la portada del día no se mueve ni se apaga');
     t.ok(intermedios(f, h0, h1) >= 2, 'abrir: crece de a poco (' + intermedios(f, h0, h1) + ' cuadros intermedios entre ' + Math.round(h0) + ' y ' + Math.round(h1) + ' px)');
-    t.ok(Math.max(...f.map(x => Math.abs(x.top - f[0].top))) <= 1, 'abrir: la fila tocada no se mueve');
+    t.ok(movida(f) <= 1, 'abrir: la fila tocada no se mueve (' + tops(f) + ')');
     t.eq(await p.evaluate(() => [!!document.querySelector('#view .day-head').__marca, !!document.querySelector('#view .ex-collapsed[data-ex="e2"]').__marca]), [true, true],
       'abrir: la portada y los otros ejercicios son los mismos nodos (no se redibujó todo)');
     t.eq(await p.$$eval('#view .ex-anim, #view .card[style]', l => l.map(n => n.outerHTML.slice(0, 160))), [], 'al terminar no queda nada de la animación');
@@ -84,14 +123,14 @@ export default async function ({ base, t }){
     await p.fill('#view input.kg[data-set="a0"]', '12,5');
     await p.fill('#view input.reps[data-set="a0"]', '10');
     await empezar(p, 'e1');
-    await p.tap('#view .card[data-ex-id="e1"] [data-action="ex-collapse"]');
+    await dedo(p, '#view .card[data-ex-id="e1"] [data-action="ex-collapse"]');
     f = await parar(p);
     t.ok(await p.$('#view .ex-collapsed[data-ex="e1"]'), 'cerrar: queda la fila');
     t.ok(f.every(x => x.hay && x.op > 0.95), 'cerrar: el ejercicio no se vuelve invisible (antes quedaba en blanco)');
     t.ok(f.every(x => x.ejercicios === 6), 'cerrar: la lista entera sigue en pantalla en todos los cuadros');
     t.ok(sinPop(f), 'cerrar: la portada del día no se mueve ni se apaga');
     t.ok(intermedios(f, h0, h1) >= 2, 'cerrar: se achica de a poco (' + intermedios(f, h0, h1) + ' cuadros intermedios)');
-    t.ok(Math.max(...f.map(x => Math.abs(x.top - f[0].top))) <= 1, 'cerrar: el ejercicio no se mueve de lugar');
+    t.ok(movida(f) <= 1, 'cerrar: el ejercicio no se mueve de lugar (' + tops(f) + ')');
     await p.tap('#view .ex-collapsed[data-ex="e1"]'); await wait(500);
     t.eq(await p.evaluate(() => [document.querySelector('#view input.kg[data-set="a0"]').value, document.querySelector('#view input.reps[data-set="a0"]').value]), ['12,5', '10'],
       'lo escrito (kg y reps) sigue ahí después de cerrar y abrir');
@@ -174,7 +213,7 @@ export default async function ({ base, t }){
   // ---- Lo que tocó el dedo queda quieto: abrir uno de abajo cierra el de arriba ----
   {
     const { p, errs, close } = await newPage({ user: ALUMNO, state: st0(), handlers, touch: true, init: () => { try { localStorage.setItem('gize_lite', '0'); } catch (e) {} } });
-    await p.goto(base + '/app/'); await wait(2500);
+    await p.goto(base + '/app/'); await wait(2500); await asentar(p);
     await p.tap('#view .ex-collapsed[data-ex="e1"]'); await wait(500);
     // Baja hasta que la fila del 5 quede en el medio de la pantalla (la card del 1 queda arriba).
     await p.evaluate(() => { const r = document.querySelector('#view .ex-collapsed[data-ex="e5"]').getBoundingClientRect(); scrollBy(0, r.top - innerHeight / 2); });
@@ -182,16 +221,16 @@ export default async function ({ base, t }){
     const y0 = await p.evaluate(() => scrollY);
     t.ok(y0 > 300, 'hay lugar para bajar (' + y0 + ' px)');
     await empezar(p, 'e5');
-    await p.tap('#view .ex-collapsed[data-ex="e5"]');
+    await dedo(p, '#view .ex-collapsed[data-ex="e5"]');
     const f = await parar(p);
     t.ok(!(await p.$('#view .card[data-ex-id="e1"]')) && await p.$('#view .card[data-ex-id="e5"]'), 'se abrió el 5 y se cerró el 1');
-    const mov = Math.max(...f.map(x => Math.abs(x.top - f[0].top)));
-    t.ok(mov <= 2, 'el ejercicio tocado no salta aunque el de arriba se achique (se movió ' + mov.toFixed(1) + ' px; antes ~200)');
+    const mov = movida(f);
+    t.ok(mov <= 2, 'el ejercicio tocado no salta aunque el de arriba se achique (se movió ' + mov.toFixed(1) + ' px; antes ~200): ' + tops(f));
     t.ok(f.every(x => x.hay && x.op > 0.95), 'y se ve en todos los cuadros');
     // Tildar la primera serie cambia «Iniciar entrenamiento» por el reloj (la portada crece): el
     // ejercicio tampoco se corre.
     const ya = await p.$eval('#view .card[data-ex-id="e5"]', n => n.getBoundingClientRect().top);
-    await p.tap('#view .card[data-ex-id="e5"] [data-action="toggle"][data-set="f0"]'); await wait(400);
+    await dedo(p, '#view .card[data-ex-id="e5"] [data-action="toggle"][data-set="f0"]'); await wait(400);
     t.ok(await p.$('#view .day-head .wk-live'), 'arrancó el reloj del entreno');
     const yb = await p.$eval('#view .card[data-ex-id="e5"]', n => n.getBoundingClientRect().top);
     t.ok(Math.abs(yb - ya) <= 1, 'al tildar, el ejercicio queda quieto aunque la portada cambie (' + (yb - ya).toFixed(1) + ' px)');
@@ -224,7 +263,7 @@ export default async function ({ base, t }){
   // ---- Cambiar de día con los chips: nunca en blanco ----
   {
     const { p, errs, close } = await newPage({ user: ALUMNO, state: st0(), handlers, touch: true, init: () => { try { localStorage.setItem('gize_lite', '0'); } catch (e) {} } });
-    await p.goto(base + '/app/'); await wait(2500);
+    await p.goto(base + '/app/'); await wait(2500); await asentar(p);
     await p.evaluate(() => {
       window.__f = []; window.__on = true;
       const loop = () => { if (!window.__on) return; const dh = document.querySelector('#view .day-head'), dn = document.querySelector('#view .daynotes');
@@ -249,7 +288,7 @@ export default async function ({ base, t }){
   for (const [tag, opts] of [['reducir movimiento', { reducedMotion: 'reduce', init: () => { try { localStorage.setItem('gize_lite', '0'); } catch (e) {} } }],
     ['modo liviano', { init: () => { try { localStorage.setItem('gize_lite', '1'); } catch (e) {} } }]]){
     const { p, errs, close } = await newPage(Object.assign({ user: ALUMNO, state: st0(), handlers, touch: true }, opts));
-    await p.goto(base + '/app/'); await wait(2500);
+    await p.goto(base + '/app/'); await wait(2500); await asentar(p);
     if (tag === 'modo liviano') t.ok(await p.evaluate(() => document.documentElement.classList.contains('lite')), tag + ': está en modo liviano');
     await p.evaluate(() => { document.querySelector('#view .day-head').__marca = 1; document.querySelector('#view .ex-collapsed[data-ex="e2"]').__marca = 1; });
     const r = await p.evaluate(() => {
@@ -285,7 +324,7 @@ export default async function ({ base, t }){
       { id: 'k6', name: 'Cruce de poleas', sets: S('k6_', 3) }] }];
     const { p, errs, close } = await newPage({ user: ALUMNO, state: { days: dias, sessions: [], weights: [], daily: {} }, handlers: { '/profiles': profile('client') }, touch: true,
       init: () => { try { localStorage.setItem('gize_lite', '0'); } catch (e) {} } });
-    await p.goto(base + '/app/'); await wait(2500);
+    await p.goto(base + '/app/'); await wait(2500); await asentar(p);
     t.ok(await p.$('#view textarea.day-name') && !(await p.$('.coach-banner')), 'rutina propia (nombre del día editable)');
 
     // En el lugar también con rutina propia: el alto que fitDayName le pone al nombre del día no
@@ -299,19 +338,20 @@ export default async function ({ base, t }){
     // Tildar la primera serie: la portada crece (reloj), el ejercicio queda quieto y la barra de
     // abajo no se achica (no hubo dedo).
     await p.tap('#view .ex-collapsed[data-ex="k1"]'); await wait(500);
+    await p.evaluate(() => scrollTo(0, 0)); await wait(300); // arriba de todo, con la barra abierta
     const n0 = await p.evaluate(() => document.querySelector('.navbar').classList.contains('compacta'));
     const c0 = await p.$eval('#view .card[data-ex-id="k1"]', n => n.getBoundingClientRect().top);
-    await p.tap('#view .card[data-ex-id="k1"] [data-action="toggle"][data-set="k1_0"]'); await wait(500);
+    await dedo(p, '#view .card[data-ex-id="k1"] [data-action="toggle"][data-set="k1_0"]'); await wait(500);
     const tras = await p.evaluate(() => ({ reloj: !!document.querySelector('#view .day-head .wk-live'), y: scrollY, compacta: document.querySelector('.navbar').classList.contains('compacta'),
       top: document.querySelector('#view .card[data-ex-id="k1"]').getBoundingClientRect().top }));
-    t.ok(!n0 && tras.reloj && tras.y > 0, 'arrancó el reloj y la app corrió el scroll ' + tras.y + ' px para dejar quieto el ejercicio');
+    t.ok(!n0 && tras.reloj && tras.y > 0, 'arrancó el reloj y la app corrió el scroll ' + tras.y + ' px para dejar quieto el ejercicio (barra achicada antes: ' + n0 + ')');
     t.ok(Math.abs(tras.top - c0) <= 1, 'el ejercicio quedó quieto (' + (tras.top - c0).toFixed(1) + ' px)');
     t.ok(!tras.compacta, 'la barra de abajo no se achicó sola al tildar');
 
     // (1) Completar el ejercicio 1 (los otros sin hacer): la tilde se ve en el acto, destella, se
     // cierra hasta el alto de la fila «Completado» y lo de abajo no salta al final.
     await seguir(p, 'k2');
-    await p.tap('#view .card[data-ex-id="k1"] [data-action="toggle"][data-set="k1_1"]'); await wait(60);
+    await dedo(p, '#view .card[data-ex-id="k1"] [data-action="toggle"][data-set="k1_1"]'); await wait(60);
     t.ok(await p.$('#view .card[data-ex-id="k1"] [data-set="k1_1"].done.on'), 'completar: la última tilde se ve en el acto (no recién al cerrarse)');
     let g = await juntar(p, 900);
     t.ok(await p.$('#view .ex-collapsed.ex-is-done[data-ex="k1"]'), 'completar: queda la fila «Completado»');
@@ -321,7 +361,7 @@ export default async function ({ base, t }){
     // (2) Cerrar uno sin hacer con la primera fila completada (la primera fila mide distinto).
     await p.tap('#view .ex-collapsed[data-ex="k2"]'); await wait(500);
     await seguir(p, 'k3');
-    await p.tap('#view .card[data-ex-id="k2"] [data-action="ex-collapse"]');
+    await dedo(p, '#view .card[data-ex-id="k2"] [data-action="ex-collapse"]');
     g = await juntar(p);
     t.ok(await p.$('#view .ex-collapsed[data-ex="k2"]:not(.ex-is-done)'), 'cerrar con la primera fila completada: queda la fila común');
     t.ok(g.some(x => x.anim) && salto(g) <= 1.5, 'cerrar con la primera fila completada: lo de abajo no salta al final (' + salto(g) + ' px): ' + subida(g));
@@ -331,7 +371,7 @@ export default async function ({ base, t }){
     await p.tap('#view .ex-collapsed[data-ex="k4"]'); await wait(500);
     t.ok(await p.$('#view .ss-group .card[data-ex-id="k4"]') && await p.$('#view .ss-group .card[data-ex-id="k5"]'), 'la superserie se abre entera');
     await seguir(p, 'k6');
-    await p.tap('#view .card[data-ex-id="k4"] [data-action="ex-collapse"]');
+    await dedo(p, '#view .card[data-ex-id="k4"] [data-action="ex-collapse"]');
     g = await juntar(p);
     t.ok(await p.$('#view .ss-group .ex-collapsed[data-ex="k4"]') && await p.$('#view .ss-group .ex-collapsed[data-ex="k5"]'), 'la superserie se cierra entera');
     t.ok(g.some(x => x.anim) && salto(g) <= 1.5, 'cerrar la superserie: lo de abajo no salta al final (' + salto(g) + ' px): ' + subida(g));
