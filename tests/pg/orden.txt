@@ -1,0 +1,78 @@
+# Orden en que tests/pg.mjs carga los supabase/*.sql para armar la base de pruebas, sobre
+# tests/pg/supabase-simulado.sql y tests/pg/esquema-base.sql. Un archivo por línea; lo que sigue a
+# «#» es un comentario. El repo no tiene una lista: sale del orden en que llegó cada archivo a main
+# (git log --diff-filter=A), corregido con los «después de …» de cada cabecera y las notas «OJO»
+# (la versión vigente de una función es la del archivo que corre último). La prueba
+# tests/gimnasios-base.test.mjs controla que, cargado así, cada función que nombra una nota «OJO»
+# quede con el cuerpo del archivo que la nota declara vigente.
+# Cada archivo corre en una sola transacción, como la tarea sql del workflow «Supabase» (un solo
+# pedido a la Management API); rutinas-genericas.sql trae su propio begin/commit y corre tal cual.
+# Quedan afuera: cuentas-demo.sql (lleva marcas que reemplazan los secrets del workflow) y
+# auditoria.sql, estado.sql y seguridad-chequeo.sql (solo leen: la prueba los corre al final).
+base.sql                      # foto (septiembre) de las políticas y funciones de las tablas base
+preguntas-coach.sql           # estos tres llegaron a main antes que endurecer-base.sql, que hace
+foto-perfil.sql               #   «update storage.buckets … where id = 'avatars'»: el bucket lo crea
+notificaciones.sql            #   foto-perfil.sql (si va después, avatars queda sin topes)
+endurecer-base.sql
+estadisticas-coach.sql
+validaciones.sql
+suscripciones.sql
+plan-gimnasio.sql
+push-nativo.sql
+descanso.sql
+descanso-dispositivo.sql
+seguridad-base.sql
+login-google.sql
+avisos-pagos.sql
+series-por-tiempo.sql
+cupo-plan.sql                 # adelantado: coach-alumnos.sql va «después de suscripciones.sql y cupo-plan.sql»
+coach-alumnos.sql
+pagos-seguros.sql
+avisos-coach.sql
+comidas-secciones.sql
+duracion-entreno.sql
+productos.sql
+productos-revision.sql
+admin.sql
+productos-off.sql
+rutina-programada.sql
+productos-etiquetas.sql
+contacto.sql
+descarga.sql
+finanzas.sql
+productos-admin.sql
+rutinas-catalogo.sql
+rutina-del-coach.sql
+chat.sql
+mail-clientes.sql
+ejercicio-audio.sql
+cobro-manual.sql
+pedidos-productos.sql
+habitos-avisos.sql
+borrar-fotos-progreso.sql
+productos-off-servidor.sql
+cardio-salidas.sql
+cardio-recorridos.sql
+cardio-sin-gps.sql
+errores-cliente.sql
+precios-2026-10.sql
+checkin-fecha.sql
+planes-alimenticios-guardados.sql
+cardio-a-pie.sql
+objetivos.sql
+coach-vencido.sql
+aviso-vencimiento.sql
+disciplinas.sql
+pasos-grupos.sql
+productos-topes.sql
+topes-archivos.sql
+topes-datos.sql
+borrar-audios.sql
+cron-limpieza.sql
+reportes.sql
+bloqueos.sql
+compras-apple.sql
+rutinas-genericas.sql
+# Hasta acá, la base de hoy («gize_sin»). Con los gimnasios («gize_con»), además:
+#   gimnasios.sql               tablas, funciones de permiso y triggers del cupo (no cambia nada)
+#   gimnasios-vinculo.sql       versiones canónicas de coach_active, is_my_client, join_coach…

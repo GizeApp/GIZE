@@ -1,0 +1,120 @@
+# Base de pruebas con Postgres
+
+Un Postgres 16 de verdad con el esquema de la base de GIZE, armado **desde el repo**, para probar
+la RLS, las funciones y los triggers sin tocar producción. Lo usan las pruebas
+`tests/gimnasios-*.test.mjs` (etapa 0 del panel para gimnasios). La ayuda es `tests/pg.mjs`.
+
+## Cómo se arma
+
+En este orden, cada archivo en una sola transacción (como la tarea sql del workflow «Supabase»):
+
+1. `supabase-simulado.sql`: lo que Supabase ya trae y los `.sql` dan por hecho. Los roles `anon`,
+   `authenticated` y `service_role` (con `bypassrls`) y los demás de Supabase; `auth.users` y
+   `auth.uid()`/`auth.jwt()` con la definición de Supabase (leen `request.jwt.claims`); `storage`
+   con `buckets`, `objects` (con RLS) y `foldername`; el esquema `extensions` con `pgcrypto` y
+   `uuid-ossp`; `cron` y `net` simulados (las tareas quedan anotadas y no corren, los pedidos
+   quedan en una cola); `vault` con un secreto de prueba; la publicación `supabase_realtime`; y lo
+   que se crea en `public` nace abierto para `anon`, `authenticated` y `service_role`, como en
+   Supabase (así los `revoke` del repo valen lo mismo que allá).
+2. `esquema-base.sql`: las 13 tablas que existen en producción y ningún archivo del repo crea
+   (`base.sql`: «Los CREATE TABLE no se exportaron»), **inferidas** de lo que usan la app y las
+   funciones. Lo que es supuesto está marcado.
+3. Los `supabase/*.sql` en el orden de `orden.txt` (con la razón de cada lugar que no es el
+   cronológico). Lo único que se cambia de esos archivos: cada `create extension if not exists
+   pg_cron/pg_net` va comentado (no existen en un Postgres común). Cualquier otro error corta.
+4. `ayudas.sql`: el esquema `prueba`, solo de la base de pruebas: correr SQL como cada persona (su
+   rol y su `auth.uid()`, como PostgREST), con o sin deshacer, y los invariantes de los gimnasios.
+
+Eso es la base de hoy, `gize_sin`. Con `supabase/gimnasios.sql` y `supabase/gimnasios-vinculo.sql`
+encima, `gize_con`. Las dos se arman una vez por proceso (menos de 2 segundos) y cada prueba
+trabaja en una copia nueva.
+
+## Correrla
+
+```
+PW=/tmp/pw/node_modules/playwright/index.mjs node tests/run.mjs gimnasios
+```
+
+Hace falta Postgres 16 (`postgresql-16`; las pruebas buscan `initdb` en `/usr/lib/postgresql/*/bin`).
+Arma un cluster temporal en `/tmp`, que escucha solo en un socket dentro de esa carpeta (no choca con
+otro Postgres ni con otra prueba que corra a la vez), y lo borra al salir. `initdb` no corre como
+root: si la prueba corre como root, `initdb` y `postgres` corren como el usuario `postgres` del sistema.
+
+| Variable | Qué hace |
+|---|---|
+| `GIZE_PSQL` | Usa un Postgres ya levantado: el comando de `psql` para conectarse (en GitHub, `docker exec -i gize-pg psql -U postgres`). El SQL va por la entrada estándar. |
+| `PG_BIN` | La carpeta de `initdb`, `pg_ctl` y `psql`, si no es la de siempre. |
+| `GIZE_PG_OBLIGATORIO=1` | Si no hay Postgres, falla en vez de saltearse (lo usa GitHub). |
+| `GIZE_PG_SALTEAR=1` | Se saltean siempre. |
+| `GIZE_SEMILLAS`, `GIZE_SEMILLA` | Cuántas semillas al azar corre `gimnasios-igual` (200) y desde cuál: para repetir una que falló, `GIZE_SEMILLA=n GIZE_SEMILLAS=1`. |
+
+En GitHub corren en **Base de pruebas** (`.github/workflows/base-de-pruebas.yml`): con cada push a
+cualquier rama que cambie `supabase/`, estas pruebas o el workflow; con la imagen `postgres:16`
+fijada por digest en `.github/postgres-pruebas/Dockerfile`; sin secrets.
+
+## Qué prueba cada archivo
+
+| Archivo | Qué prueba |
+|---|---|
+| `gimnasios-base` | Que la base se arma; que cada función que una nota «OJO» declara vigente quedó con el cuerpo de ese archivo (si el orden estuviera mal, lo dice); que `gimnasios.sql` no cambia nada de lo que ya existía (huella del esquema igual, y las operaciones de hoy dan lo mismo); que los dos archivos se pueden volver a correr; y que volver atrás deja exactamente la huella de la base de hoy. |
+| `gimnasios-igual` | «Sin gimnasios todo sigue igual»: las cuatro funciones canónicas contra las de hoy (que salen del bloque comentado de `gimnasios-vinculo.sql`), con 200 semillas de datos al azar; y después de cada operación, `seats_used` igual al recuento. |
+| `gimnasios-matriz` | La matriz de personas de la spec: qué lee, escribe y borra cada una en cada tabla nueva y en las de hoy, cada función, `join_coach` fila por fila, los casos obligatorios de la etapa 0, los invariantes después de cada operación y la concurrencia. |
+| `gimnasios-rendimiento` | `EXPLAIN ANALYZE` de la ficha de un alumno con 500 entrenos, con las funciones de hoy y las nuevas. |
+| `gimnasios-sql` | Sin Postgres: cabeceras, permisos, que se pueda volver a correr, los mensajes de `join_coach`, sin mails ni uuids. |
+
+## Dónde la base de pruebas puede no ser producción
+
+La spec pedía un volcado del esquema de producción; acá no se toca producción, así que la base sale
+del repo. Estas son las diferencias posibles, y lo que mide la huella del esquema
+(`supabase/esquema-huella.sql`) para encontrarlas:
+
+| # | Posible diferencia | Qué compara la huella |
+|---|---|---|
+| D1 | Las 13 tablas inferidas: tipos, `not null`, defaults, checks, claves foráneas y sus `on delete`, índices, columnas viejas o de más. | `col:`, `con:` e `idx:` de cada tabla. |
+| D2 | Funciones o políticas cambiadas a mano en el SQL Editor y no copiadas al repo, y objetos que solo existen allá (por ejemplo, políticas de las tablas base con otros nombres, o la `schedule_rest_alarm(int)` vieja). | `fn:` (md5 del cuerpo, lenguaje, `security definer`, ajustes) y `pol:` (md5 de `using` y `with check`). |
+| D3 | Archivos que se editaron después de la última vez que se corrieron, u orden real distinto. | Lo mismo que D2. |
+| D4 | Lo que maneja Supabase: `auth`, `storage` (por ejemplo, el bucket `checkins`, que ningún archivo crea), versiones de extensiones, `vault`. | `ext:`, `bucket:`, `pol:storage.objects.*`, `trg:` (los que llaman a funciones de `public`). Lo interno de `auth` y `storage` se deja afuera a propósito. |
+| D5 | Roles: en Supabase `postgres` no es superusuario (tiene `bypassrls`) y algunos objetos son de `supabase_admin`. | `rol:` y `fndueno:`. |
+| D6 | Permisos por defecto y `revoke` aplicados o no. | `fnacl:`, `tblacl:` y `colacl:` (anon, authenticated, service_role). |
+| D7 | Versión de Postgres (producción: no se sabe si 15 o 17; prueba: 16). | `version`. Si producción no es 16, se cambia `.github/postgres-pruebas/Dockerfile`. |
+| D8 | Ajustes por rol (`statement_timeout` de `anon` y `authenticated` en Supabase). | `ajuste:`. |
+| D9 | Datos que rompan la igualdad sin gimnasios (por ejemplo, coaches con `coach_id`, que hoy cuentan en el cupo de su coach). | Cuatro conteos `dato:` (no se comparan: se muestran). |
+| D10 | Índices de producción que el repo no declara: cambian los tiempos del `EXPLAIN`. En particular, el repo no tiene un índice en `session_entries(session_id)`: sin él, la ficha con 500 entrenos recorre la tabla por cada entreno. | `idx:`. |
+| D11 | Tablas de la publicación de realtime. | `pub:supabase_realtime`. |
+| D12 | Tareas de pg_cron: nombre, horario, comando (acá no corren nunca). | `cron:` (horario y md5 del comando). |
+
+### Cómo compararla con producción (cuando el dueño lo apruebe)
+
+Ninguna de estas formas imprime datos de nadie: la huella es estructura, hashes y cuatro conteos.
+
+1. **SQL Editor** (lo más simple): el dueño pega `supabase/esquema-huella.sql` en Supabase → SQL
+   Editor, copia el resultado (un JSON) a un archivo y corre
+   `node tests/pg/comparar-huella.mjs <archivo>`, que arma esta base, le saca la misma huella y
+   lista lo que está solo en producción, lo que está solo en el repo y lo que difiere. Con `--con`
+   compara contra la base con los gimnasios (después de aplicarlos). No va por el workflow: la
+   tarea sql no imprime resultados porque el log es público.
+2. **La copia de seguridad semanal** (sin tocar producción): el dueño, con `BACKUP_PASSWORD`,
+   descifra la copia en su computadora (ver `backup.yml`), la restaura con `pg_restore --schema-only`
+   en un Postgres local preparado como lo hace `backup.yml` (roles y extensiones), corre ahí
+   `supabase/esquema-huella.sql` y compara como en 1. Solo el esquema: los datos no hacen falta.
+3. **`npx supabase db dump --schema-only`** (como dice `base.sql`), restaurado igual que en 2.
+
+Si aparece una diferencia en D1, se corrige `esquema-base.sql`; en D2 o D3, se copia al repo lo
+que está en producción (o se vuelve a correr el archivo del repo, si lo correcto es el repo).
+
+## Lo que la etapa 0 deja anotado para la etapa 1
+
+- **`join_coach` con el código de un gimnasio** guarda la solicitud y responde `400` con el cuerpo de
+  un `P0001`, sin `raise` (`response.status`). En SQL está probado; falta probar de punta a punta
+  con PostgREST que la transacción se confirma con ese status y que supabase-js arma el `error`.
+  Si no se confirma: responder `P0001` sin guardar la solicitud y mandar a `gize.ar/app`.
+- **La trampa C20**: si un profe deja el gimnasio sin que le reasignen los socios, el vínculo pasa a
+  ser propio y los sigue leyendo con su plan. Lo evita `gym_quitar_staff`, que tiene que reasignar
+  en la misma operación; `gimnasios-matriz` lo deja a la vista (invariante I2).
+- **Antes del primer gimnasio**: `rapid-worker` y `avisos-coach` con `coach_client_ok`,
+  `release_lapsed_gyms` y el `before delete` de `profiles` (cerrar el gimnasio del dueño que borra
+  su cuenta).
+- **Cupo y bloqueos de filas**: los triggers del cupo actualizan la fila de `coach_billing` del coach
+  anterior y del nuevo. `join_coach` y `release_lapsed_clients` bloquean esas filas siempre en el
+  mismo orden, así dos cambios cruzados no se trancan; las RPC nuevas que cambien vínculos tienen que
+  hacer lo mismo.

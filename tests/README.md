@@ -35,3 +35,19 @@ Las funciones de Supabase (`supabase/functions/*/index.ts`, escritas para Deno) 
 Node con `tests/funcion.mjs`: los paquetes `npm:` (supabase-js, web-push, jose), `Deno.serve`,
 `Deno.env` y `fetch` son simulados, así que tampoco salen a internet. Así se prueba lo que la
 función hace (qué guarda, qué manda y en qué orden) y no solo cómo está escrita.
+
+## Base de pruebas con Postgres
+
+Las pruebas `tests/gimnasios-*.test.mjs` corren contra un **Postgres 16 de verdad**, con el esquema
+de la base armado desde los `supabase/*.sql` del repo sobre un Supabase simulado (roles, `auth`,
+`storage`, `cron`, `net`, `vault`). No tocan producción. La ayuda es `tests/pg.mjs` y todo lo demás
+está en [`tests/pg/README.md`](pg/README.md): cómo se arma, qué prueba cada archivo, las variables
+(`GIZE_PSQL`, `PG_BIN`, `GIZE_PG_OBLIGATORIO`, `GIZE_SEMILLAS`…) y dónde puede no coincidir con
+producción.
+
+```
+PW=/tmp/pw/node_modules/playwright/index.mjs node tests/run.mjs gimnasios   # hace falta postgresql-16
+```
+
+Sin Postgres se saltean con un aviso. En GitHub corren en **Base de pruebas**
+(`.github/workflows/base-de-pruebas.yml`), con cada push a cualquier rama que toque la base.
