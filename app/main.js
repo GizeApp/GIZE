@@ -1851,6 +1851,9 @@ elegirDiaDeHoy(); // con la rutina ya acomodada: Entreno abre en el día de hoy 
 // que quedó guardado del bloque (la nube lo confirma cuando vuelve la conexión).
 if (coachRoutineDue() && applyCoachRoutine()) save();
 
+// Al splash (app/splash.js): la app arrancó, llegaron todos sus módulos. Si no avisa, el splash
+// recarga una vez o muestra «Reintentar» en vez de dejar la pantalla vacía.
+if (window.coreArranco) window.coreArranco();
 cloudBoot();
 
 initTabScroll(); // días de Entreno: ruedita y arrastre con el mouse
@@ -1974,6 +1977,8 @@ function refreshCoachClients(){
   loadCoachClients().then(()=>{ if(!CoachState.coachSel) renderCoach(); }).catch(()=>{});
 }
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") refreshCoachClients(); });
+// Volvió la conexión y la lista todavía no llegó (el panel dice «Cargando tus clientes…»): se pide ya.
+window.addEventListener("online", ()=>{ if(!CoachState.coachClientsLoaded){ coachListAt=0; refreshCoachClients(); } });
 
 // ---- Chat coach ↔ alumno (app/ui/chat.js) ----
 // Alumno: botón de la barra de arriba (#chatBtn) con el globito de mensajes sin leer.

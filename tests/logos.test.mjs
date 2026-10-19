@@ -25,7 +25,8 @@ const init = (tema, lite = '0') => `localStorage.setItem('gize_lite','${lite}');
 const marcaDe = (p, sel) => p.evaluate(s => { const e = document.querySelector(s); if (!e) return null;
   const c = getComputedStyle(e).content; return /url\(/.test(c) ? c : e.getAttribute('src'); }, sel);
 
-// Mide el splash apenas aparece.
+// Mide el splash apenas aparece y, cuando empieza a irse (#splash.sale, lo pone app/splash.js cuando
+// la app ya está), su salida: tiempos desde ese momento (saleAt: desde que apareció, en s).
 const spy = () => {
   window.__t0 = performance.now();
   new MutationObserver((ms, o) => { const s = document.getElementById('splash'); if (!s) return; o.disconnect();
@@ -34,9 +35,13 @@ const spy = () => {
     window.__sp = { marca: !!s.querySelector('.sp-marca[role="img"][aria-label="GIZE"] .sp-orbe .sp-color'), luces: s.querySelectorAll('.sp-rayos, .sp-onda, .sp-luces, .sp-destello').length,
       viejo: !!s.querySelector('.sp-icon, .splash-logo, .sp-glass, .sl-dot'), bg: getComputedStyle(s).backgroundColor,
       arc: cs('.sp-arco') && cs('.sp-arco').stroke, dash: cs('.sp-arco') && cs('.sp-arco').strokeDashoffset, color: cs('.sp-color') && cs('.sp-color').backgroundImage,
-      anims: ['.sp-orbe', '.sp-arco', '.sp-halo'].map(q => cs(q) && cs(q).animationName),
-      out: getComputedStyle(s).animationName, outDelay: parseFloat(getComputedStyle(s).animationDelay), outDur: parseFloat(getComputedStyle(s).animationDuration),
-      exit: marca && marca.animationName.split(',').pop().trim(), exitEnd: marca && ult(marca.animationDelay) + ult(marca.animationDuration) };
+      anims: ['.sp-orbe', '.sp-arco', '.sp-halo'].map(q => cs(q) && cs(q).animationName) };
+    const t1 = performance.now();
+    new MutationObserver((m2, o2) => { if (!s.classList.contains('sale')) return; o2.disconnect();
+      const sp = getComputedStyle(s), mc = cs('.sp-marca');
+      Object.assign(window.__sp, { saleAt: (performance.now() - t1) / 1000, out: sp.animationName, outDelay: parseFloat(sp.animationDelay), outDur: parseFloat(sp.animationDuration),
+        exit: mc && mc.animationName.split(',').pop().trim(), exitEnd: mc && ult(mc.animationDelay) + ult(mc.animationDuration) });
+    }).observe(s, { attributes: true, attributeFilter: ['class'] });
     new MutationObserver((m2, o2) => { if (document.getElementById('splash')) return; o2.disconnect(); window.__gone = performance.now() - window.__t0; })
       .observe(document.body, { childList: true, subtree: true });
   }).observe(document, { childList: true, subtree: true });
@@ -121,13 +126,14 @@ export default async function ({ base, t }){
     pg = await newPage({ user: ALUMNO, state: STATE, handlers: { '/profiles': profile('client') }, init: init(tema) });
     await pg.p.addInitScript(spy);
     await pg.p.goto(base + '/app/');
-    await pg.p.waitForFunction(() => window.__sp, null, { timeout: 3000 }).catch(() => {});
+    await pg.p.waitForFunction(() => window.__sp && window.__sp.out, null, { timeout: 4000 }).catch(() => {});
     const sp = await pg.p.evaluate(() => window.__sp || {});
     t.eq([sp.marca, sp.luces, sp.viejo, sp.arc], [true, 0, false, g], tema + ': el splash es el logo tranquilo (la G y el orbe, sin rayos ni ondas)');
     t.ok((sp.color || '').includes(si) && !(sp.color || '').includes(no), tema + ': el orbe del splash con su paleta: ' + sp.color);
     t.eq(sp.anims, ['sp-orbe', 'sp-trazo', 'sp-respira'], tema + ': aparece animado (el orbe, la G que se traza y el resplandor que respira)');
-    t.ok(sp.out === 'splash-out' && sp.exit === 'sp-exit' && sp.exitEnd <= sp.outDelay + 0.001 && sp.outDelay + sp.outDur <= 3.05 + 0.001,
-      tema + ': sale primero la marca y después el fondo, en 3 s: ' + JSON.stringify([sp.exitEnd, sp.outDelay]));
+    // Entrada de 2,4 s y salida de 0,6 s: 3 s en total con la app lista.
+    t.ok(sp.out === 'splash-out' && sp.exit === 'sp-exit' && sp.exitEnd <= sp.outDelay + 0.001 && sp.saleAt >= 2.38 && sp.outDelay + sp.outDur <= 0.6 + 0.001,
+      tema + ': sale primero la marca y después el fondo, en 3 s: ' + JSON.stringify([sp.exitEnd, sp.outDelay, sp.saleAt]));
     await pg.p.waitForFunction(() => window.__gone, null, { timeout: 7000 }).catch(() => {});
     const gone = await pg.p.evaluate(() => window.__gone);
     t.ok(gone > 2700 && gone < 5000 && await pg.p.evaluate(() => !document.body.classList.contains('is-booting')), tema + ': el splash se va (' + Math.round(gone) + ' ms)');
@@ -145,7 +151,7 @@ export default async function ({ base, t }){
   let sp = await pg.p.evaluate(() => window.__sp || {});
   let gone = await pg.p.evaluate(() => window.__gone);
   t.eq([sp.marca, sp.dash, sp.anims], [true, '0px', ['none', 'none', 'none']], 'liviano: la marca completa y quieta');
-  t.ok(sp.exitEnd <= sp.outDelay + 0.001 && sp.outDelay + 0.25 <= 0.9, 'liviano: sale primero la marca, todo en menos de 0,9 s: ' + JSON.stringify([sp.exitEnd, sp.outDelay]));
+  t.ok(sp.out === 'splash-out' && sp.exitEnd <= sp.outDelay + 0.001 && sp.outDelay + sp.outDur <= 0.45, 'liviano: sale primero la marca, y la salida dura menos de medio segundo: ' + JSON.stringify([sp.exitEnd, sp.outDelay, sp.outDur]));
   t.ok(gone && gone < 1600, 'liviano: el splash se va enseguida (' + Math.round(gone) + ' ms)');
   await pg.close();
 

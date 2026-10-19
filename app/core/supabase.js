@@ -864,7 +864,8 @@ function reloadSbScript(){
 
 // El perfil se guarda también en el dispositivo: si la app abre sin internet, loadCloud()
 // no lo puede leer y un coach terminaba viendo la app de cliente. Se guarda junto con el
-// id de usuario para no usarle el perfil de otra cuenta; el logout lo borra.
+// id de usuario para no usarle el perfil de otra cuenta; el logout lo borra. Es el rol
+// recordado: con él afterLogin() entra al panel (o a la app) sin esperar a la red lenta.
 export const PROFILE_KEY = "core_profile_v1";
 function saveCachedProfile(p){ try{ if(p) localStorage.setItem(PROFILE_KEY, JSON.stringify({uid:State.cloudUser.id, profile:p})); }catch(e){} }
 function cachedProfile(){
@@ -892,7 +893,21 @@ async function touchMe(){
   }catch(e){}
 }
 
+// Tope del ingreso para lo que necesita la red. Con la red colgada (un iPhone que vuelve de segundo
+// plano, un wifi sin internet) una consulta puede no contestar nunca, y sin señal supabase-js
+// reintenta cada lectura ~7 s: antes cada paso se esperaba sin límite y el splash se iba igual, así
+// que se veía la app a medio armar (a un coach, la barra del alumno) o quedaba trabada. Ahora los
+// pasos comparten ARRANQUE_MS (cada uno espera lo que queda, nunca menos de 0,8 s); lo que no llegó
+// sigue de fondo y, cuando llega, se redibuja.
+const ARRANQUE_MS = 6000;
+// Espera pr como mucho ms; si no llegó, sigue con «fuera» (pr sigue corriendo igual).
+function conTope(pr, ms, fuera){
+  let t; const tope=new Promise(ok=>{ t=setTimeout(()=>ok(fuera), ms); });
+  return Promise.race([Promise.resolve(pr).finally(()=>clearTimeout(t)), tope]);
+}
+
 export async function afterLogin(sessionUser, stale){
+  const fin=Date.now()+ARRANQUE_MS, resta=()=>Math.max(800, fin-Date.now());
   clearAuthExpect(); // ya entró: un link ajeno que llegue después no se acepta sin preguntar
   clearRecoveryPending(); // entró de verdad (con la contraseña nueva o con otro ingreso)
   // getUser() revalida el token pegándole a la red. Si no hay conexión esa llamada
@@ -932,19 +947,26 @@ export async function afterLogin(sessionUser, stale){
   // Sin sesión viva (_staleBoot) getUser() y el envío de la cola esperarían los ~30 s de
   // reintentos de la librería con la pantalla vacía: se saltean y salen cuando se renueva
   // el token (watchAuth → flushOutbox + retryCloud).
+  // Con tope: con la red colgada (o la sesión tomada por otro pedido de la librería) no volvía nunca.
   let gu=null;
-  if(!_staleBoot){ try { gu=await State.sb.auth.getUser(); if(gu.data.user) State.cloudUser=gu.data.user; } catch(e){} }
+  if(!_staleBoot){ try { gu=await conTope(State.sb.auth.getUser(), Math.min(4000, resta()), null); if(gu && gu.data.user) State.cloudUser=gu.data.user; } catch(e){} }
   // Sesión cerrada desde otro dispositivo con el token todavía vigente: el servidor dice que
   // no existe y la librería la borra. Seguir cargaría la cuenta sin sesión: se pide ingresar.
   if(gu && gu.error && gu.error.name==="AuthSessionMissingError"){ sessionLost(); return; }
   rescueFailed();
   // Primero se envía lo que quedó pendiente de otra sesión (sin conexión, app cerrada):
   // loadCloud() reemplaza entrenos/registros locales por los de la nube.
-  if(!_staleBoot){ try { await flushOutbox(); } catch(e){ console.error("flushOutbox",e); } }
+  // Si tarda, sigue de fondo: loadCloud() vuelve a poner encima lo que todavía no salió (pend0).
+  if(!_staleBoot){ try { await conTope(flushOutbox(), Math.min(4000, resta())); } catch(e){ console.error("flushOutbox",e); } }
   // El nombre del coach no depende de loadCloud(): se pide en paralelo en vez de después.
   let coachNameP=_staleBoot ? Promise.resolve({data:null}) : Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null}));
   _inLogin=true; // lo salteado lo completa afterLogin mismo (ver abajo), no staleCatchUp()
-  await loadCloud();
+  // Con el rol ya conocido (el perfil guardado en este celular) la lectura se espera solo lo que
+  // queda del tope: se entra con lo local y, cuando llega, se redibuja. Sin rol conocido (primera
+  // vez en este celular) se la espera entera: no se adivina si es coach (el splash avisa si tarda).
+  const lectura=loadCloud();
+  const leyo=(State.cloudProfile || cachedProfile()) ? await conTope(lectura.then(()=>true), resta(), false) : (await lectura, true);
+  if(!leyo) lectura.then(()=>{ if(!State.cloudReady || !State.cloudUser) return; if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach(); else renderApp(); });
   if(!State.cloudProfile) State.cloudProfile=cachedProfile(); // sin conexión: el último perfil conocido
   // Registro con Google (o Apple) eligiendo "Soy coach": la cuenta nace como cliente (ver login-google.sql).
   const gi=takeGoogleIntent();
@@ -965,17 +987,17 @@ export async function afterLogin(sessionUser, stale){
   }catch(e){}
   if(gi && gi.role==="coach" && !appIOS() && Date.now()-gi.t < 15*60*1000 && State.cloudProfile && State.cloudProfile.role!=="coach"){
     try{
-      const rc=await State.sb.rpc("become_coach_new_account");
-      if(rc.data===true){ try{ localStorage.removeItem("jfit_pending_code"); }catch(e){} await loadCloud(); }
+      const rc=await conTope(State.sb.rpc("become_coach_new_account"), 8000, {data:null});
+      if(rc.data===true){ try{ localStorage.removeItem("jfit_pending_code"); }catch(e){} await conTope(loadCloud(), 8000); }
     }catch(e){ console.error("become coach",e); }
   }
   try{
     // takePendingCode lo saca del dispositivo pase lo que pase (y si venció no lo usa).
     const pc=takePendingCode();
     if(pc && State.cloudProfile && State.cloudProfile.role!=="coach" && !State.cloudProfile.coach_id){
-      const r2=await State.sb.rpc("join_coach",{code:pc});
+      const r2=await conTope(State.sb.rpc("join_coach",{code:pc}), 8000, {data:null});
       if(r2.error && r2.error.code==="P0001" && r2.error.message){ const m=joinMsgTienda(r2.error.message); setTimeout(()=>alert(m+" Podés poner el código después en Configuración."), 600); }
-      if(r2.data===true){ coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null})); const pr=await State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle(); if(pr.data) State.cloudProfile=pr.data; await loadCloud(); }
+      if(r2.data===true){ coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null})); const pr=await conTope(State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle(), 8000, {data:null}); if(pr.data) State.cloudProfile=pr.data; await conTope(loadCloud(), 8000); }
     }
   }catch(e){ console.error("pending code",e); }
   _inLogin=false;
@@ -984,10 +1006,22 @@ export async function afterLogin(sessionUser, stale){
   hideLogin();
   try{
     if(State.cloudProfile && State.cloudProfile.role==="coach"){ State.brandName=State.cloudProfile.full_name||""; }
-    else { const cn=await coachNameP; State.brandName=cn.data||""; }
+    else {
+      const cn=await conTope(coachNameP, resta(), null);
+      if(cn) State.brandName=cn.data||"";
+      else coachNameP.then(r=>{ if(r && r.data){ State.brandName=r.data; applyBrand(); } }); // llega tarde
+    }
   }catch(e){ State.brandName=""; }
   applyBrand();
-  if (State.cloudProfile && State.cloudProfile.role==="coach"){ if(!_staleBoot) await Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]); renderCoach(); checkPaymentReturn(); syncPush(); }
+  if (State.cloudProfile && State.cloudProfile.role==="coach"){
+    // Los alumnos también con tope: si no llegan, el panel dice «Cargando…» (no «no tenés clientes»)
+    // y se redibuja cuando llegan.
+    if(!_staleBoot){
+      const datos=Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]);
+      if(!await conTope(datos.then(()=>true), resta(), false)) datos.then(()=>renderCoach());
+    }
+    renderCoach(); checkPaymentReturn(); syncPush();
+  }
   else { renderApp(); syncPush(); } // sin await: no demora la entrada
   maybeShowOnboarding(); // cuenta nueva: bienvenida (una sola vez), encima de la app
   window.dispatchEvent(new Event("gize:login")); // chat: botón, globitos y aviso tocado (main.js)

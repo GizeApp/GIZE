@@ -2,6 +2,10 @@ export const CoachState = {
 
   coachClients: [],
 
+  // La base ya contestó la lista de clientes (loadCoachClients). Hasta entonces (red lenta o sin
+  // señal) el panel ya se ve (ver afterLogin) y dice «Cargando…» en vez de «no tenés clientes».
+  coachClientsLoaded: false,
+
   coachSel: null,
 
   coachData: null,
