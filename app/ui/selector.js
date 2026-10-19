@@ -9,6 +9,8 @@
 // En el celular sube como hoja desde abajo; en la compu es una tarjeta centrada. Se cierra con Escape,
 // tocando afuera, o con el botón «atrás» de Android (ui/atras.js toca .sl-x).
 
+import { circular } from "./avisos.js";
+
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
@@ -67,6 +69,8 @@ function abrir(sel){
   const ops = () => [...el.querySelectorAll(".sl-op:not([disabled])")];
   const onKey = e => {
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cerrar(); }
+    // Tab da la vuelta adentro de la hoja (con el teclado no se sale a la pantalla de atrás).
+    else if (e.key === "Tab") { e.preventDefault(); e.stopPropagation(); circular(el, ".sl-op, .sl-x", e.shiftKey); }
     else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault(); e.stopPropagation();
       const l = ops(), k = l.indexOf(document.activeElement);
