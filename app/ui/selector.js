@@ -8,6 +8,11 @@
 //
 // En el celular sube como hoja desde abajo; en la compu es una tarjeta centrada. Se cierra con Escape,
 // tocando afuera, o con el botón «atrás» de Android (ui/atras.js toca .sl-x).
+//
+// Si con la hoja abierta la pantalla se redibuja (llega algo de la red y se vuelve a dibujar la ficha,
+// un cajón del panel…), el <select> de atrás se cambia por otro igual: lo que se elige va al nuevo
+// (el mismo id, o el mismo name y data-*). Si ya no está en la pantalla, la hoja se cierra sola sin
+// elegir nada, como la lista nativa, que se va con su <select>.
 
 import { circular } from "./avisos.js";
 
@@ -21,17 +26,44 @@ function cerrar(){
   if (!a) return;
   abierto = null;
   document.removeEventListener("keydown", a.onKey, true);
+  a.obs.disconnect();
   a.el.classList.add("closing");
   const fin = () => { a.el.remove(); try { a.sel.focus({ preventScroll: true }); } catch (e) {} };
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) fin();
   else { a.el.addEventListener("transitionend", fin, { once: true }); setTimeout(() => { if (a.el.isConnected) fin(); }, 400); }
 }
 
-function elegir(sel, idx){
-  if (sel.selectedIndex !== idx) {
-    sel.selectedIndex = idx;
-    sel.dispatchEvent(new Event("input", { bubbles: true }));
-    sel.dispatchEvent(new Event("change", { bubbles: true }));
+// El <select> que está hoy en la pantalla en lugar de sel (sel mismo si sigue), o null si ya no está.
+function actual(sel){
+  if (sel.isConnected) return sel;
+  let l;
+  if (sel.id) l = [document.getElementById(sel.id)];
+  else {
+    const at = [...sel.attributes].filter(x => x.name === "name" || x.name.startsWith("data-"));
+    if (!at.length) return null;
+    l = [...document.querySelectorAll("select" + at.map(x => "[" + CSS.escape(x.name) + '="' + CSS.escape(x.value) + '"]').join(""))];
+  }
+  l = l.filter(propio);
+  return l.length === 1 ? l[0] : null;
+}
+
+// a.orig es el <select> con el que se armó la hoja (data-i son sus índices); a.sel, el que está hoy.
+function elegir(a, idx){
+  const op = a.orig.options[idx], sel = actual(a.sel);
+  if (sel && op) {
+    let i = idx;
+    if (sel !== a.orig) {
+      // Otro <select> (se redibujó): la opción se busca por su valor (y su texto, si hay repetidos).
+      const ops = [...sel.options], igual = o => o.value === op.value;
+      const o = ops.find(o => igual(o) && o.textContent === op.textContent) || ops.find(igual);
+      i = o ? o.index : -1;
+    }
+    a.sel = sel;   // al cerrar, el foco vuelve al que se ve
+    if (i >= 0 && sel.selectedIndex !== i) {
+      sel.selectedIndex = i;
+      sel.dispatchEvent(new Event("input", { bubbles: true }));
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+    }
   }
   cerrar();
 }
@@ -68,6 +100,9 @@ function abrir(sel){
     '<button type="button" class="sl-x">Cancelar</button></div>';
   const ops = () => [...el.querySelectorAll(".sl-op:not([disabled])")];
   const onKey = e => {
+    // Con un cartel abierto encima (una pregunta que llegó con la hoja abierta) el teclado es del cartel:
+    // Escape cancela solo la pregunta y Enter no elige nada en la hoja de abajo.
+    if (document.querySelector(".av-bg:not(.closing)")) return;
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cerrar(); }
     // Tab da la vuelta adentro de la hoja (con el teclado no se sale a la pantalla de atrás).
     else if (e.key === "Tab") { e.preventDefault(); e.stopPropagation(); circular(el, ".sl-op, .sl-x", e.shiftKey); }
@@ -77,11 +112,18 @@ function abrir(sel){
       l[(k + (e.key === "ArrowDown" ? 1 : -1) + l.length) % l.length].focus();
     }
   };
-  abierto = { el, sel, onKey };
+  // Si el <select> se va de la pantalla (se redibujó), se sigue con el que lo reemplaza; si no hay, se cierra.
+  const obs = new MutationObserver(() => {
+    if (abierto !== a || a.sel.isConnected) return;
+    const n = actual(a.sel);
+    if (n) a.sel = n; else cerrar();
+  });
+  const a = abierto = { el, sel, orig: sel, onKey, obs };
+  obs.observe(document.body, { childList: true, subtree: true });
   document.addEventListener("keydown", onKey, true);
   el.addEventListener("click", e => {
     const op = e.target.closest(".sl-op");
-    if (op) elegir(sel, +op.dataset.i);
+    if (op) elegir(a, +op.dataset.i);
     else if (e.target === el || e.target.closest(".sl-x")) cerrar();
   });
   document.body.appendChild(el);

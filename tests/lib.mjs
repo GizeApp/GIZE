@@ -43,15 +43,31 @@ const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
 //     pedir() antes escribe la respuesta en el campo). Así «cancelar no hace nada» se prueba
 //     tocando «Cancelar», no cambiando lo que devuelve una función.
 // Si llegan varios, la app los muestra de a uno.
+// Solo se toca un botón que se ve: si otra ventana lo tapa (o quedó fuera de la pantalla), una
+// persona no lo podría tocar. Se espera un rato (puede estar yéndose el arranque) y, si sigue tapado,
+// no se toca y queda anotado en errs: «cartel tapado: …».
 const LEER_AVISOS = tocar => `(() => {
   const vistos = new WeakSet();
+  const tapa = b => {
+    const r = b.getBoundingClientRect(), h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    if (h && b.contains(h)) return '';
+    const v = h && h.closest('[id], [class]');
+    return !h ? 'fuera de la pantalla' : v ? (v.id ? '#' + v.id : '.' + (v.getAttribute('class') || '').trim().split(/\\s+/).join('.')) : h.tagName;
+  };
   // Toca sel cuando el cartel ya se ve (como una persona); antes() escribe en el campo.
   const tocarCuando = (el, sel, antes) => {
+    let n = 0;
     const ir = () => {
       if (!el.isConnected || el.classList.contains('closing')) return;
       if (!el.classList.contains('show')) return requestAnimationFrame(ir);
+      const b = el.querySelector(sel); if (!b) return;
+      const q = tapa(b);
+      if (q) {
+        if (++n < 300) return requestAnimationFrame(ir);
+        return window.__gizeTapado('cartel tapado: no se puede tocar «' + b.textContent + '» (' + q + ')');
+      }
       if (antes) antes();
-      const b = el.querySelector(sel); if (b) b.click();
+      b.click();
     };
     requestAnimationFrame(ir);
   };
@@ -104,6 +120,7 @@ export async function newPage({ user, state, handlers = {}, viewport = { width: 
   p.contestar = true;
   p.on('dialog', d => { dialogs.push(d.message()); (d.type() === 'prompt' ? d.accept(p.dialogAnswer || '') : d.accept()).catch(() => {}); });
   await p.exposeFunction('__gizeAviso', a => { avisos.push(a); dialogs.push(a.texto); });
+  await p.exposeFunction('__gizeTapado', m => { errs.push(m); });
   await p.exposeFunction('__gizePregunta', q => {
     let r = typeof p.contestar === 'function' ? p.contestar(q) : p.contestar;
     if (r === undefined) r = true;

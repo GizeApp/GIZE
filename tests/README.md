@@ -27,7 +27,9 @@ cada cartel y lo anota en `dialogs`. A los avisos les toca «Entendido» (con `t
 quedan abiertos). Las preguntas las contesta tocando el botón de verdad, según `p.contestar`:
 `true` (de entrada) acepta, `false` toca «Cancelar», `null` la deja abierta para manejarla a mano
 (teclado, «Atrás»), o una función que decide por pregunta; en un `pedir()` escribe `p.dialogAnswer`.
-Cada pregunta queda en `preguntas` (texto, título, botones y qué se contestó).
+Cada pregunta queda en `preguntas` (texto, título, botones y qué se contestó). Solo toca un botón
+que se ve: si otra ventana lo tapa (o queda fuera de la pantalla) no lo toca y lo anota en `errs`
+(«cartel tapado: …»), porque una persona tampoco podría.
 
 Las funciones de Supabase (`supabase/functions/*/index.ts`, escritas para Deno) se corren en
 Node con `tests/funcion.mjs`: los paquetes `npm:` (supabase-js, web-push, jose), `Deno.serve`,
