@@ -34,8 +34,12 @@
      barra): la máscara cuesta al pintar y al recalcular estilos, por eso solo ahí.
    - Lo demás, sin máscara ni capas: los cantos son sombras de adentro sin desenfoque (una línea
      fina alrededor y dos medialunas, violeta arriba a la izquierda y azul abajo a la derecha). Lo
-     que se repite (los dos botones de descanso de cada ejercicio abierto) no suma nada al deslizar
-     ni al volver a dibujar Entreno cuando se marca una serie.
+     que se repite (los dos botones de descanso de cada ejercicio abierto) no suma capas con
+     máscara: son tres por pantalla con o sin ejercicios abiertos. Igual cuesta algo (medido en
+     «Oscuro» con la CPU 4 veces más lenta, el 19/10): volver a dibujar Entreno al marcar una serie,
+     unos 3 ms más con todo cerrado y 6 ms más con 8 ejercicios abiertos (de 69 a 74 ms); pintar
+     la pantalla entera, 2,4 a 4,5 ms más (los cantos, 2,5 de esos 4,5). Al deslizar con el dedo
+     no hay diferencia (17 ms por cuadro con y sin la hoja, sin cuadros caídos).
    - El resplandor de lo elegido, en el ::before: por dentro y debajo del texto en los días y las
      categorías (están en una fila con scroll, que lo cortaría en línea recta) y por fuera en la
      barra de abajo. El ::before de los días era el brillo que seguía al mouse (apagado,
