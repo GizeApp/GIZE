@@ -15,10 +15,11 @@ const low = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]
 // Grupos a los que suman las series de un ejercicio (claves de SUB_LABELS o de EX_CATS).
 export function volumeGroups(ex){
   const m = exMuscle(ex), n = low(ex && ex.name);
+  if (m === "running") return []; // correr no suma series de fuerza
   if (/hiperextension|lumbar/.test(n)) return m === "isquios" ? ["isquios", "espalda_baja"] : ["espalda_baja", "isquios"];
   if (m === "pecho"){
-    if (/inclinad|polea baja/.test(n)) return ["pecho_sup"];
-    if (/declinad|fondos|descendente/.test(n)) return ["pecho_inf"];
+    if (/inclinad|polea baja|descendente/.test(n)) return ["pecho_sup"];
+    if (/declinad|fondos/.test(n)) return ["pecho_inf"];
     return ["pecho_med"];
   }
   if (m === "espalda"){

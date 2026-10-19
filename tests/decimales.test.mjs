@@ -61,6 +61,9 @@ export default async function ({ base, t }){
     await p.goto(base + '/app/'); await wait(3500);
     await p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1500);
 
+    // Desde el rediseño del panel (#332), Peso corporal y Seguimiento diario están en la pestaña
+    // «Estadísticas» de la ficha (al cerrar una sección se vuelve a esa pestaña).
+    await p.click('[data-coach="client-tab"][data-t="stats"]'); await wait(300);
     await p.click('[data-coach="sec-open"][data-v="peso"]'); await wait(400);
     const cells = await p.$$eval('.co-sec-body .co-tbl td', l => l.map(e => e.textContent.trim()));
     t.ok(cells.includes('80,5 kg') && cells.includes('81,3 kg'), 'peso día a día con coma: ' + JSON.stringify(cells));
@@ -71,7 +74,7 @@ export default async function ({ base, t }){
     await p.click('[data-coach="sec-close"]'); await wait(300);
 
     await p.click('[data-coach="sec-open"][data-v="daily"]'); await wait(400);
-    await p.selectOption('select[data-coach="daily-pick"]', '2026-09-21'); await wait(400);
+    await p.click('[data-coach="cal-day"][data-k="daily"][data-d="2026-09-21"]'); await wait(400); // el día en el calendario
     t.has(await text(p, '.ck-adh'), 'Peso: 80,5 kg', 'seguimiento diario, el peso con coma');
 
     const ex = await p.evaluate(async () => {

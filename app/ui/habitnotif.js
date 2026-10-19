@@ -7,15 +7,19 @@
 //
 // Se reprograma todo cuando cambia la lista de avisos (se compara con la última que se
 // programó): al entrar, al cambiar un hábito, al llegar el plan del coach o al cerrar sesión.
+// En Android, además, una vez por arranque aunque no haya cambiado: «Forzar detención» (o los
+// limpiadores que la fuerzan) borra las alarmas de la app y el plugin las sigue listando como
+// programadas, así que no sonaban más hasta reiniciar el celular.
 
 import { habitAlarmList } from '../screens/habitos.js';
 
-const FIRST_ID = 5000, LAST_ID = 5999;  // rango propio (el del descanso es 4101)
+const FIRST_ID = 5000, LAST_ID = 5999;  // rango propio (el del descanso es 4101 y el del temporizador, 4102)
 const CHANNEL = "habitos_aviso";
 const KEY = "gize_habit_alarms_v1";     // última lista programada en este celular
 
 function cap(){ try { return window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() ? window.Capacitor : null; } catch (e) { return null; } }
 function LN(){ const C = cap(); return C && C.Plugins && C.Plugins.LocalNotifications; }
+function android(){ try { return !!cap() && window.Capacitor.getPlatform() === "android"; } catch (e) { return false; } }
 export const alarmsSupported = () => !!LN();
 
 // Pide el permiso de notificaciones (al guardar un aviso: es un toque del usuario). Devuelve
@@ -39,11 +43,13 @@ function plan(list){
     if (!a.days) out.push(Object.assign({ on: { hour: hh, minute: mm } }, base));
     else a.days.forEach(d => out.push(Object.assign({ on: { weekday: d + 1, hour: hh, minute: mm } }, base)));
   });
-  // iPhone guarda como mucho 64 notificaciones programadas (una es la del descanso).
+  // iPhone guarda como mucho 64 notificaciones programadas (otras son las del descanso y del
+  // temporizador de Cardio).
   return out.slice(0, 60).map((n, i) => Object.assign({ id: FIRST_ID + i }, n));
 }
 
 let timer = null, running = false, again = false;
+let rearm = android(); // falta la vuelta de este arranque (se apaga al programar bien)
 export function syncHabitAlarms(){ if (!LN()) return; clearTimeout(timer); timer = setTimeout(run, 400); }
 
 async function run(){
@@ -51,17 +57,22 @@ async function run(){
   running = true;
   try {
     const ln = LN(); if (!ln) return;
-    const want = plan(habitAlarmList());
+    let want = plan(habitAlarmList());
     const sig = JSON.stringify(want);
     let last = null; try { last = localStorage.getItem(KEY); } catch (e) {}
-    if (sig === last) return;
+    if (sig === last && !rearm) return;
     if (want.length){
       const p = await ln.checkPermissions().catch(() => null);
       if (!p || p.display !== "granted") return; // se reintenta cuando dé el permiso (al guardar un aviso)
     }
+    // Solo la vuelta del arranque: los que están a la vista en la barra no se tocan (cancelarlos o
+    // programarlos borra la notificación, y su alarma sigue: el plugin la reprogramó al sonar).
+    let shown = [];
+    if (sig === last) try { shown = ((await ln.getDeliveredNotifications()).notifications || []).map(n => n.id); } catch (e) {}
+    want = want.filter(n => !shown.includes(n.id));
     // Se borran los programados antes (los del rango propio) y se programan los de ahora.
     const pend = await ln.getPending().catch(() => ({ notifications: [] }));
-    const old = (pend.notifications || []).filter(n => n.id >= FIRST_ID && n.id <= LAST_ID).map(n => ({ id: n.id }));
+    const old = (pend.notifications || []).filter(n => n.id >= FIRST_ID && n.id <= LAST_ID && !shown.includes(n.id)).map(n => ({ id: n.id }));
     if (old.length) await ln.cancel({ notifications: old }).catch(() => {});
     if (want.length){
       try { await ln.createChannel({ id: CHANNEL, name: "Avisos de hábitos", description: "Los avisos que ponés en tus hábitos (creatina, cardio…).", importance: 4, visibility: 1, vibration: true }); } catch (e) {}
@@ -72,6 +83,7 @@ async function run(){
       })) });
     }
     try { localStorage.setItem(KEY, sig); } catch (e) {}
+    rearm = false;
   } catch (e) {
     console.error("avisos de hábitos", e);
   } finally {

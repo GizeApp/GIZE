@@ -10,6 +10,12 @@
 
 // De la ventana de más arriba a la de más abajo: se toca la primera que se ve.
 const CERRAR = [
+  '.av-bg:not(.closing) .av-btn',                // cartel de aviso (ui/avisos.js, el alert() de la app): encima de todo
+  '.sl-bg:not(.closing) .sl-x',                  // selector propio de los <select> (ui/selector.js)
+  '#blockHost [data-blq="cancel"]',              // «Bloquear» y «Personas bloqueadas» (encima de todo)
+  '#reportHost [data-rep="cancel"]',             // «Reportar» (encima de todo, también del chat)
+  '#authHost .onb-card [data-onb="back"]',       // bienvenida: paso anterior (en el primero no se dibuja)
+  '#authHost .onb-card [data-onb="cancel"]',     // «Ver rutinas armadas» abierto desde Entreno
   '.crp .crp-cancel',                            // acomodar la foto de perfil
   '.adm-zoom',                                   // panel: foto de un producto agrandada (se cierra con un toque)
   '#timePick [data-tp="close"]',                 // rueda de la hora / temporizador
@@ -21,10 +27,12 @@ const CERRAR = [
   '#planSheetHost .cp-x[data-plan="close"]',     // coach: «Mi plan»
   '#coachSheetHost [data-cp="cancel"]',          // coach: selector de ejercicios
   '#coachSheetHost [data-coach="settings-cancel"]',
+  '[data-coach="settings-back"]',                // coach: Configuración → el panel
   '#coachSheetHost [data-coach="q-close"]',
   '#streakHost [data-action="streak-close"]',    // racha
   '#salShare .ssh-close',                        // Cardio: «Compartir tu salida»
   '#salAviso .ctrl[data-action="sal-aviso-no"]', // Cardio: «Usar tu ubicación»
+  '#salSheet .ssh-close',                        // Cardio: «Salir a moverte» (la hoja para empezar)
   '#salidaHost [data-action="sal-close"]',       // Cardio: resumen de una salida
   '#sheetHost [data-action="search-close"]',     // hojas de abajo (alimento, ejercicio, hábito…)
   '#sheetHost [data-action$="-cancel"]',

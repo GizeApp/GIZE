@@ -1,4 +1,4 @@
-import { pencilSvg, xSvg } from '../core/icons.js';
+import { auIcoUser, chartSvg, fileTextSvg, pencilSvg, shoeSvg, xSvg } from '../core/icons.js';
 
 import { State, state } from '../core/state.js';
 
@@ -6,13 +6,18 @@ import { dec, esc, exKey, exMuscle, fmtDate, fmtSecs, mondayOf, num, setText, to
 
 import { kgText } from '../core/progresion.js';
 
-import { checkinSummary, renderCheckin, renderDaily, renderInfo } from './checkin.js';
+import { checkinSummary, dailyHasAnswer, renderCheckin, renderDaily, renderInfo } from './checkin.js';
 
 import { EntrenoState } from './entreno.js';
 
 import { renderSessionItem } from '../ui/sessiondetail.js';
+import { renderCoachCalendar } from './coach/calendario.js';
 
 import { SUB_LABELS, volumeGroups } from '../core/subgrupos.js';
+
+import { pasosResumen, renderPasosSeccion } from './pasos.js';
+
+import { clientQuestions } from '../core/questions.js';
 
 export const ProgresoState = {
 
@@ -24,7 +29,11 @@ export const ProgresoState = {
 
   wAll: false,     // historial de peso completo (si no, los últimos 5)
 
-  sessSel: null,   // entreno elegido en «Historial de entrenos» (null: el último)
+  histCal: { m: null, d: null },   // calendario de «Historial de entrenos»: mes visible (YYYY-MM) y día abierto (null: el del último entreno)
+
+  wqKg: "",        // lo escrito en «Tu peso» (arriba de Progreso), así un redibujo no lo borra
+
+  wqEdit: false,   // «Tu peso» con el campo abierto para cambiar el peso de hoy ya cargado
 
 };
 
@@ -57,7 +66,7 @@ export function renderWChart(ws, evenX, sz){
   const yVals=[]; for(let i=0;i<=nTicks;i++) yVals.push(loK+i*stepK);
   const grid=yVals.map(v=>{const y=Y(v).toFixed(1);return '<line x1="'+pl+'" y1="'+y+'" x2="'+(W-pr)+'" y2="'+y+'" style="stroke:var(--gize-border)" stroke-width="1"/><text x="'+(pl-8)+'" y="'+(parseFloat(y)+FS/3).toFixed(1)+'" style="fill:var(--gize-text-2)" font-size="'+FS+'" text-anchor="end">'+dec(v,decK)+'</text>';}).join("");
   const dots=pts.map((p,i)=>'<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+(i===pts.length-1?DR:DR2)+'" style="fill:'+(i===pts.length-1?'var(--gize-blue)':'var(--gize-text-2)')+'"/>').join("");
-  const xl='<text x="'+pl+'" y="'+(H-6)+'" style="fill:var(--gize-text-2)" font-size="'+FS+'" text-anchor="start">'+fmtDate(ws[0].date)+'</text>'+(ws.length>1?'<text x="'+(W-pr)+'" y="'+(H-6)+'" style="fill:var(--gize-text-2)" font-size="'+FS+'" text-anchor="end">'+fmtDate(ws[ws.length-1].date)+'</text>':'');
+  const xl='<text x="'+pl+'" y="'+(H-6)+'" style="fill:var(--gize-text-2)" font-size="'+FS+'" text-anchor="start">'+esc(fmtDate(ws[0].date))+'</text>'+(ws.length>1?'<text x="'+(W-pr)+'" y="'+(H-6)+'" style="fill:var(--gize-text-2)" font-size="'+FS+'" text-anchor="end">'+esc(fmtDate(ws[ws.length-1].date))+'</text>':'');
   return '<div class="w-chart"><svg viewBox="0 0 '+W+' '+H+'" width="100%"><defs><linearGradient id="wg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--gize-blue)"/><stop offset="1" style="stop-color:var(--gize-blue);stop-opacity:0"/></linearGradient></defs>'+grid+(area?'<path d="'+area+'" fill="url(#wg)" opacity="0.3"/>':'')+(pts.length>1?'<path d="'+line+'" fill="none" style="stroke:var(--gize-blue)" stroke-width="'+SW+'" stroke-linecap="round" stroke-linejoin="round"/>':'')+dots+xl+'</svg></div>';
 }
 
@@ -121,21 +130,22 @@ export function renderCargas(){
     '<div class="load-cap" style="margin-top:18px">Historial detallado</div>'+histBlock;
 }
 
-// Como en el panel del coach: una lista desplegable para elegir el entreno y abajo ese entreno
-// abierto, comparado con la vez anterior. Arranca en el último.
+// Como en el panel del coach: un calendario con punto en cada día que entrenó, y abajo el/los
+// entrenos del día elegido (por defecto el del último entreno), cada uno comparado con la vez anterior.
 export function renderHistorial(){
   const sess=(state.sessions||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0));
   if(!sess.length) return "";
-  const key=se=>String(se.id||se.ts||se.date);
-  const one=sess.find(se=>key(se)===ProgresoState.sessSel) || sess[0];
-  const opts=sess.map(se=>{
-    return '<option value="'+esc(key(se))+'"'+(se===one?' selected':'')+'>'+esc(fmtDate(se.date)+' · '+(se.day||'Entreno'))+'</option>'; }).join("");
-  const pick='<label class="co-pick sess-pick"><span>Entreno</span><select class="co-select" data-action="sess-pick" aria-label="Elegir entreno">'+opts+'</select></label>';
-  const item=renderSessionItem(one, { open:true, history:state.sessions,
+  const hc=ProgresoState.histCal;
+  const dias=sess.map(se=>se.date);
+  // Si el día abierto ya no tiene entrenos (se borró el último), vuelve al del más reciente.
+  if(!hc.d || !dias.includes(hc.d)) hc.d=sess[0].date;
+  const delDia=sess.filter(se=>se.date===hc.d).sort((x,y)=>(x.ts||0)-(y.ts||0));
+  const items=delDia.map(one=>renderSessionItem(one, { open:true, history:state.sessions,
     removeBtn:'<div class="sess-acts"><button class="diary-rm sess-edit" data-action="session-edit" data-id="'+esc(one.id)+'" title="Editar entreno" aria-label="Editar entreno">'+pencilSvg+'</button>'+
-      '<button class="diary-rm" data-action="session-remove" data-id="'+esc(one.id)+'" title="Borrar entreno" aria-label="Borrar entreno">'+xSvg+'</button></div>' });
+      '<button class="diary-rm" data-action="session-remove" data-id="'+esc(one.id)+'" title="Borrar entreno" aria-label="Borrar entreno">'+xSvg+'</button></div>' })).join("");
   return '<div class="hb-head" style="margin-top:28px"><div class="hb-title">Historial de entrenos</div><div class="title-accent"></div></div>'+
-    '<div class="sess-hint">Elegí un entreno para ver los pesos y las series ('+sess.length+' en total).</div>'+pick+item;
+    '<div class="sess-hint">Tocá un día marcado para ver los pesos y las series ('+sess.length+' entreno'+(sess.length===1?'':'s')+' en total).</div>'+
+    renderCoachCalendar("hist", dias, today(), ["entreno","entrenos"], { st:hc, act:"hist-cal" })+items;
 }
 
 // occ: si el día tiene el mismo ejercicio más de una vez, cuál es (0 = el primero): el segundo
@@ -220,23 +230,56 @@ export function detectPRs(newExercises, priorSessions){
 
 export function allSetsDone(ex){ return (ex.sets||[]).length>0 && ex.sets.every(s=>s.done); }
 
-// Progreso: un menú de secciones (como «Mi plan» en Comida). Cada tarjeta muestra un
-// resumen y abre su propia pantalla, así la página no se hace eterna.
+// Progreso: arriba «Tu peso» (el de hoy se anota ahí mismo, sin abrir nada) y abajo un menú
+// de secciones en grupos (como «Mi plan» en Comida). Cada tarjeta muestra un resumen y abre su
+// propia pantalla, así la página no se hace eterna. «Peso corporal» (gráfico, historial y
+// otras fechas) se abre desde «Ver evolución».
+// Signifier de cada tarjeta del menú: un icono que adelanta qué hay adentro.
+const svg = d => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+d+'</svg>';
+const TILE_ICON = {
+  registro: fileTextSvg,
+  checkin: svg('<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 10h18M8 2.5v4M16 2.5v4"/><path d="m9 15.5 2 2 4-4"/>'),
+  ficha: auIcoUser,
+  historial: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  cargas: chartSvg,
+  volumen: svg('<path d="M5 21V12M12 21V4M19 21v-6"/>'),
+  pasos: shoeSvg,
+};
+
 const SECTIONS = [
   ["peso", "Peso corporal"], ["registro", "Registro de hoy"], ["checkin", "Check-in semanal"],
   ["historial", "Historial de entrenos"], ["cargas", "Evolución de cargas"], ["volumen", "Volumen semanal"], ["ficha", "Mi ficha"],
+  ["pasos", "Competencia de pasos"],
 ];
+// Lo que es para el coach: solo con un coach vinculado (ver conCoach).
+const COACH_SECS = ["registro", "checkin", "ficha"];
+// Grupos del menú, en este orden: [título, secciones, solo con coach].
+const GROUPS = [
+  ["Con tu coach", COACH_SECS, true],
+  ["Tus entrenos", ["historial", "cargas", "volumen"], false],
+  ["Con tus amigos", ["pasos"], false],
+];
+
+// ¿Alumno con coach? Sin sesión, sin perfil todavía (o sin señal y sin el perfil guardado) o
+// con cuenta de coach: no. Si se desvincula o el coach se va, el perfil nuevo llega con
+// loadCloud y al redibujar desaparecen el registro, el check-in y la ficha.
+export function conCoach(){ const p=State.cloudProfile; return !!(p && p.role!=="coach" && p.coach_id); }
+
 const sortedWeights = () => (state.weights||[]).slice().sort((a,b)=>a.date<b.date?-1:(a.date>b.date?1:0));
+// Diferencia del último peso con el anterior («▼ 0,8 kg»), para Peso corporal y «Tu peso».
+function wDelta(ws){
+  if(ws.length<2) return "";
+  const d=ws[ws.length-1].kg-ws[ws.length-2].kg;
+  return Math.abs(d)<0.05 ? '<span class="w-delta">sin cambios</span>' : '<span class="w-delta">'+(d>0?'▲ +':'▼ ')+dec(Math.abs(d))+' kg</span>';
+}
 
 function renderPeso(){
   if(ProgresoState.weightForm.at!==today()) ProgresoState.weightForm={date:today(), kg:"", at:today()};
   const ws=sortedWeights();
-  const latest=ws.length?ws[ws.length-1]:null, prev=ws.length>1?ws[ws.length-2]:null;
+  const latest=ws.length?ws[ws.length-1]:null;
   let header;
   if(latest){
-    let dh="";
-    if(prev){ const d=latest.kg-prev.kg; const z=Math.abs(d)<0.05; dh=z?'<span class="w-delta">sin cambios</span>':'<span class="w-delta">'+(d>0?'▲ +':'▼ ')+dec(Math.abs(d))+' kg</span>'; }
-    header=`<div class="w-current"><div class="w-now">${dec(latest.kg)} <small>kg</small></div><div class="w-meta">Último registro · ${fmtDate(latest.date)} ${dh}</div></div>`;
+    header=`<div class="w-current"><div class="w-now">${dec(latest.kg)} <small>kg</small></div><div class="w-meta">Último registro · ${fmtDate(latest.date)} ${wDelta(ws)}</div></div>`;
   } else {
     header=`<div class="cal-hint" style="padding:20px 8px">Todavía no cargaste tu peso. Empezá registrando el de hoy acá abajo.</div>`;
   }
@@ -255,6 +298,28 @@ function renderPeso(){
     ${list?`<div class="w-list-head">Historial de peso</div>${list}${more}`:""}`;
 }
 
+// «Tu peso», lo primero de Progreso: el último peso grande, con la diferencia con el anterior,
+// y el de hoy en un toque (acepta coma: «79,5»; lo guarda saveWeight en main.js, el mismo de
+// Peso corporal). Si hoy ya está cargado se ve («Hoy: 79,5 kg ✓») y «Cambiar» vuelve a abrir el
+// campo. «Ver evolución» abre Peso corporal: el gráfico, el historial y las otras fechas.
+function renderPesoHoy(){
+  const ws=sortedWeights(), latest=ws.length?ws[ws.length-1]:null;
+  const hoy=ws.find(w=>w.date===today() && Number(w.kg)>0);
+  // Sin peso de hoy no hay nada que cambiar (pasó la medianoche o se borró en Peso corporal).
+  if(!hoy && ProgresoState.wqEdit){ ProgresoState.wqEdit=false; ProgresoState.wqKg=""; }
+  const now = latest
+    ? `<div class="wq-now"><span class="w-now">${dec(latest.kg)} <small>kg</small></span>${wDelta(ws)}</div>`+
+      (latest.date!==today() ? `<div class="w-meta">Último registro · ${fmtDate(latest.date)}</div>` : '')
+    : `<div class="wq-empty">Anotá tu peso de hoy para empezar a ver tu evolución.</div>`;
+  const form = (hoy && !ProgresoState.wqEdit)
+    ? `<div class="wq-hoy"><span class="wq-ok">Hoy: ${dec(hoy.kg)} kg ✓</span><button class="wq-edit" data-action="wq-edit">Cambiar</button></div>`
+    : `<div class="wq-form"><input id="wqKg" class="form-input" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="Peso de hoy (kg)" aria-label="Tu peso de hoy, en kg" value="${esc(ProgresoState.wqKg)}" data-action="wq-field"><button class="form-save" data-action="weight-today">Guardar</button></div>`;
+  return `<div class="wq">
+      <div class="wq-head"><span class="wq-t">Tu peso</span><button class="wq-go" data-action="psec-open" data-v="peso">${latest?'Ver evolución':'Otra fecha'} <span aria-hidden="true">›</span></button></div>
+      ${now}${form}
+    </div>`;
+}
+
 function sectionBody(id){
   const empty = t => `<div class="cal-hint" style="padding:20px 8px">${t}</div>`;
   if(id==="peso") return renderPeso();
@@ -269,37 +334,46 @@ function sectionBody(id){
 
 // ¿Cargó hoy el registro? La app sube sola una fila del día (agua, pasos, hábitos) y al
 // volver a abrirla aparecía como registro con todo vacío: cuenta solo si tiene alguna
-// respuesta (los pasos no, los suma solo el contador) o el peso de hoy.
+// respuesta (los pasos no, los suma solo el contador). El peso de hoy cuenta solo si el
+// registro no tiene preguntas (el coach las borró todas y queda solo el peso): si no, con
+// anotar el peso en «Tu peso» ya decía «Cargado hoy ✓» sin responderle nada al coach.
 function dailyDone(){
-  const r=(state.daily||{})[today()];
-  if(r && Object.keys(r).some(k=>k!=="steps" && k!=="_q" && r[k]!=null && String(r[k]).trim()!=="")) return true;
-  return (state.weights||[]).some(w=>w && w.date===today() && Number(w.kg)>0);
+  if(dailyHasAnswer((state.daily||{})[today()])) return true;
+  return !clientQuestions("daily").length && (state.weights||[]).some(w=>w && w.date===today() && Number(w.kg)>0);
 }
 
 // Resumen de cada tarjeta del menú: [texto, pendiente?]
 function sectionSummary(id){
-  if(id==="peso"){ const ws=sortedWeights(); if(!ws.length) return ["Sin registros", true]; const l=ws[ws.length-1], p=ws.length>1?ws[ws.length-2]:null; const d=p?l.kg-p.kg:0; return [l.kg.toFixed(1).replace(".",",")+" kg"+(p&&Math.abs(d)>=0.05?(d>0?" · ▲ ":" · ▼ ")+Math.abs(d).toFixed(1).replace(".",","):""), false]; }
   if(id==="registro") return dailyDone() ? ["Cargado hoy ✓", false] : ["Pendiente de hoy", true];
   if(id==="checkin") return checkinSummary();
   if(id==="historial"){ const n=(state.sessions||[]).length; if(!n) return ["Sin entrenos todavía", false]; const last=(state.sessions||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0))[0]; return [n+" entreno"+(n===1?"":"s")+" · último "+fmtDate(last.date), false]; }
   if(id==="cargas"){ const n=exercisesInHistory().length; return [n?n+" ejercicio"+(n===1?"":"s"):"Sin datos todavía", false]; }
   if(id==="volumen"){ let t=0; (state.days||[]).forEach(d=>(d.exercises||[]).forEach(ex=>{ t+=(ex.sets||[]).length; })); return [t?t+" series por semana":"Sin rutina", false]; }
   if(id==="ficha") return [state.info?"Tus datos y objetivos":"Sin completar", false];
+  if(id==="pasos") return [pasosResumen(), false];
   return ["", false];
 }
 
 export function renderProgreso(){
+  const coach = conCoach();
+  // Sección del coach abierta y ya sin coach (se desvinculó con la app abierta): vuelve al menú.
+  if(!coach && COACH_SECS.includes(ProgresoState.section)) ProgresoState.section = null;
   const sec = SECTIONS.find(x => x[0] === ProgresoState.section);
+  // Competencia de pasos: su propio encabezado (dentro de un grupo, «‹» vuelve a la lista).
+  if(sec && sec[0]==="pasos") return renderPasosSeccion();
   if(sec){
     return `<div class="form-head"><button class="form-back" data-action="psec-close" aria-label="Volver a Progreso">‹</button><div class="form-title">${sec[1]}</div></div>
       <div class="psec">${sectionBody(sec[0])}</div>`;
   }
-  const tiles = SECTIONS.map(([id, title]) => {
-    const [sum, pend] = sectionSummary(id);
-    return `<button class="ptile${pend?' pend':''}" data-action="psec-open" data-v="${id}"><span class="ptile-t">${title}</span><span class="ptile-s">${pend?'<i></i>':''}${esc(sum)}</span><span class="ptile-go" aria-hidden="true">›</span></button>`;
-  }).join("");
+  const tile = id => {
+    const title = SECTIONS.find(x => x[0] === id)[1], [sum, pend] = sectionSummary(id);
+    return `<button class="ptile${pend?' pend':''}" data-action="psec-open" data-v="${id}"><span class="ptile-t">${TILE_ICON[id]?`<span class="ptile-ic" aria-hidden="true">${TILE_ICON[id]}</span>`:''}${title}</span><span class="ptile-s">${pend?'<i></i>':''}${esc(sum)}</span><span class="ptile-go" aria-hidden="true">›</span></button>`;
+  };
+  const groups = GROUPS.filter(([, , soloCoach]) => coach || !soloCoach)
+    .map(([t, ids]) => `<div class="pgrp">${t}</div><div class="ptiles">${ids.map(tile).join("")}</div>`).join("");
   return `
     <div class="hb-head"><div class="hb-title">Progreso</div><div class="title-accent"></div></div>
-    <div class="ptiles">${tiles}</div>
+    ${renderPesoHoy()}
+    ${groups}
     ${(State.cloudProfile && State.cloudProfile.role!=="coach" && !State.cloudProfile.coach_id) ? '<div class="join-box"><div class="join-t">Vinculate a tu coach</div><div class="join-row"><input id="joinCode" class="form-input" placeholder="Código del coach"><button class="form-save join-btn" data-auth="join">Vincular</button></div></div>' : ''}`;
 }

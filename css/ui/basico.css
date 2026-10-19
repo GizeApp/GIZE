@@ -1,0 +1,18 @@
+/* css/ui/basico.css
+   GIZE básico (html.basico): la app de Android va así por defecto (app/lite.js). En los Android
+   de gama media/baja lo que traba no es la lógica sino dibujar: sombras con desenfoque, brillos,
+   degradés, filtros y animaciones obligan a la placa de video a repintar en cada toque o scroll.
+   Acá la app queda plana: fondos lisos, bordes simples, sin sombras ni animaciones. Se carga
+   última para ganarle a todo. Se puede volver a la apariencia completa en Ajustes. */
+html.basico *, html.basico *::before, html.basico *::after {
+  box-shadow: none !important; text-shadow: none !important; filter: none !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+}
+/* Sin animaciones ni transiciones, salvo el splash del arranque (dura 3 segundos y ya va sin
+   filtros, ver css/core/splash.css). */
+html.basico :not(#splash, #splash *), html.basico :not(#splash *)::before, html.basico :not(#splash *)::after {
+  transition: none !important; animation: none !important;
+}
+html.basico :is(#silkCanvas, .gize-aurora) { display: none !important; }
+html.basico body { background: #05070d !important; }

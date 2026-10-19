@@ -29,6 +29,21 @@ export const CoachState = {
 
   coachClientStats: {},
 
+  // Ya llegaron las estadísticas de los clientes (coach_client_stats): hasta entonces Inicio muestra «–» en vez de ceros.
+  coachStatsReady: false,
+
+  // Cliente al que apunta el panel de la derecha en Clientes (null = el primero, false = cerrado) y lo que se
+  // pidió de cada uno para ese panel (rutina, check-ins, peso).
+  coachPeek: null,
+  coachPeekData: {},
+
+  // Rutina elegida en Rutinas (id; null = la primera) y el día que se ve de ella.
+  coachTplPick: null,
+  coachTplDay: 0,
+
+  // «Asignar rutina» desde Inicio: el próximo cliente que se abra abre directo el selector de rutinas.
+  coachAssign: false,
+
   coachView: "clients",
 
   coachClientTab: "ficha",
@@ -38,6 +53,9 @@ export const CoachState = {
   coachPlanSec: null,
   // Comida desplegada en las opciones del plan (índice o null = todas cerradas).
   coachOptOpen: null,
+  coachMealSel: 0,
+  coachMealDay: "train",
+  coachMealMenu: false,
 
   coachTpls: [],
 
@@ -74,7 +92,7 @@ export const CoachState = {
 
   coachPQ: "",
 
-  coachSettingsOpen: false,
+
 
   // Editor de preguntas (ver preguntas.js): copia de trabajo mientras está abierto, y el
   // error de la última lectura de coach_questions (tabla sin crear, sin conexión…).
@@ -89,6 +107,9 @@ export const CoachState = {
   coachCkSel: null,
 
   coachSessSel: null,
+  // Calendario de «Historial de entrenos»: mes visible (YYYY-MM; null = el del último entreno) y día abierto.
+  coachCalMonth: null,
+  coachCalDay: null,
   // Salida de Cardio abierta en «Salidas a pie y en bici» (id, o null = la lista).
   coachSalidaSel: null,
   // Mensaje que el coach está escribiendo en "Notificación al cliente" y si se está enviando.
@@ -96,6 +117,9 @@ export const CoachState = {
   notifSending: false,
 
   coachNameForm: null,
+  // Sección abierta de la pantalla Configuración (coachView "settings", ver settings.js).
+  coachSetSec: "perfil",
+  coachBackView: "clients",
 
   // ids de ejercicios expandidos en el editor de rutina — por defecto todo colapsado
   // para no tener una interfaz gigante con muchos ejercicios (ver renderCoachRoutine()).

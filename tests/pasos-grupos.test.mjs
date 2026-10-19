@@ -1,0 +1,504 @@
+// Competencia de pasos (Progreso → «Competencia de pasos», app/screens/pasos.js, core/grupos.js y
+// supabase/pasos-grupos.sql): crear un grupo y conseguir el código y el link para invitar,
+// sumarse con el link gize.ar/app/#grupo=CODIGO (después de entrar y preguntando antes; el link
+// pendiente no queda para otra cuenta, pero el recién abierto no se pierde), el ranking de la semana en
+// orden con la barra relativa al primero y mi fila marcada, el campeón de la semana pasada con la
+// copa y el texto en dorado (#FFC940, también la copa chica al lado de su nombre), la semana de
+// lunes a domingo en hora de Argentina (aunque el celular esté en otra zona), los pasos anotados a
+// mano que suben a daily_logs y el contraste del texto en «Oscuro» y «Claro». En la base: quien el
+// dueño saca no vuelve con el código, el grupo sigue si el dueño borra su cuenta, el campeón sale
+// de los que ya estaban esa semana y el ranking es solo de esta semana.
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} };
+const SEM = { desde: '2026-10-05', hasta: '2026-10-11' };
+const GRUPO = { id: 'g1', nombre: 'Los del laburo', codigo: 'ABCD2345', soy_dueno: true, miembros: 5, mi_puesto: 2 };
+const RANKING = [
+  { miembro: 'm1', nombre: 'Bruno', pasos: 71240, puesto: 1, soy_yo: false },
+  { miembro: 'm2', nombre: 'Prueba', pasos: 52300, puesto: 2, soy_yo: true },
+  { miembro: 'm3', nombre: 'Caro', pasos: 35620, puesto: 3, soy_yo: false },
+  { miembro: 'm4', nombre: 'Dani', pasos: 17810, puesto: 4, soy_yo: false },
+  { miembro: 'm5', nombre: 'Euge', pasos: 0, puesto: 5, soy_yo: false },
+].map(r => Object.assign(r, SEM));
+const CAMPEON = { miembro: 'm3', nombre: 'Caro', pasos: 84210, soy_yo: false, desde: '2026-09-28', hasta: '2026-10-04' };
+const GOLD = 'rgb(255, 201, 64)';
+
+// Supabase simulado con los grupos en memoria. rpcs: lo que se llamó, con su cuerpo.
+function mock({ grupos = [], ranking = {}, campeon = {}, onCrear, onUnirse, ver } = {}){
+  const rpcs = [], posts = [];
+  const db = { grupos: grupos.slice() };
+  const handlers = {
+    '/profiles': profile('client', { full_name: 'Prueba Alumno' }),
+    '/rpc/pasos_mis_grupos': (r, J) => (rpcs.push('mis_grupos'), J(db.grupos)),
+    '/rpc/pasos_crear_grupo': (r, J, i) => { rpcs.push('crear ' + i.body); const g = onCrear(JSON.parse(i.body)); db.grupos.push(g); return J([{ id: g.id, codigo: g.codigo }]); },
+    '/rpc/pasos_ver_invitacion': (r, J, i) => { rpcs.push('ver ' + i.body); return ver === 'falta' ? J({ code: 'PGRST202', message: 'Could not find the function public.pasos_ver_invitacion' }, 404) : J(ver ? [ver] : []); },
+    '/rpc/pasos_unirse': (r, J, i) => { rpcs.push('unirse ' + i.body); const g = onUnirse(JSON.parse(i.body)); db.grupos.push(g); return J(g.id); },
+    '/rpc/pasos_sacar_miembro': (r, J, i) => (rpcs.push('sacar ' + i.body), J(null)),
+    '/rpc/pasos_ranking': (r, J, i) => (rpcs.push('ranking ' + i.body), J(ranking[JSON.parse(i.body).p_grupo] || [])),
+    '/rpc/pasos_campeon': (r, J, i) => { rpcs.push('campeon ' + i.body); const c = campeon[JSON.parse(i.body).p_grupo]; return J(c ? [].concat(c) : []); },
+    '/daily_logs': (r, J, i) => { if (i.m !== 'GET') posts.push(i.body || ''); return undefined; },
+  };
+  return { handlers, rpcs, posts, db };
+}
+const SUMA = b => Object.assign({}, GRUPO, { id: 'g2', codigo: b.p_codigo, soy_dueno: false });
+const SHARE = `Object.defineProperty(navigator, 'share', { configurable: true, value: async d => { window.__shared = d; } });`;
+const abrirPasos = async p => {
+  await p.click('#nav-progreso'); await wait(300);
+  await p.click('[data-action="psec-open"][data-v="pasos"]'); await wait(700);
+};
+
+// Contraste del texto visible dentro de la sección contra el fondo que tiene detrás (como en
+// tema-luz.test.mjs). Devuelve el mínimo y los que no llegan a 4,5 (AA).
+const contraste = p => p.evaluate(() => {
+  const rgb = s => { const m = String(s).match(/rgba?\(([^)]*)\)/); if (!m) return null; const n = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: n[0], g: n[1], b: n[2], a: n[3] === undefined ? 1 : n[3] }; };
+  const lum = c => [c.r, c.g, c.b].map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0);
+  const mix = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
+  const fondo = e => {
+    const capas = [];
+    for (let x = e; x; x = x.parentElement) {
+      const cs = getComputedStyle(x), img = cs.backgroundImage;
+      // Degradé liso (filete) o el primer color de un degradé de dos tonos (la tarjeta dorada).
+      const liso = /^linear-gradient\((?:[^,]*deg, )?(rgba?\([^)]*\))[^,]*, (rgba?\([^)]*\))/.exec(img);
+      if (liso) { const a = rgb(liso[1]), b = rgb(liso[2]); const c = a.a <= b.a ? a : b; capas.push(c); if (c.a >= 1) break; }
+      const c = rgb(cs.backgroundColor); if (c && c.a > 0) { capas.push(c); if (c.a >= 1) break; }
+    }
+    let base = rgb(getComputedStyle(document.body).backgroundColor);
+    for (let i = capas.length - 1; i >= 0; i--) base = capas[i].a >= 1 ? capas[i] : mix(capas[i], base);
+    return base;
+  };
+  const malos = []; let min = 99, n = 0;
+  const els = [...document.querySelectorAll('#view .pg *, #view .pg-head *')].filter(e => !e.closest('svg') && e.tagName !== 'svg'
+    && [...e.childNodes].some(t => t.nodeType === 3 && t.textContent.trim()) && !e.closest('[disabled]'));
+  for (const e of els) {
+    const r = e.getBoundingClientRect(); if (!r.width || !r.height) continue;
+    const c = rgb(getComputedStyle(e).color); if (!c || c.a < .95) continue;
+    const L1 = lum(c), L2 = lum(fondo(e)), k = (Math.max(L1, L2) + .05) / (Math.min(L1, L2) + .05);
+    n++; if (k < min) min = k;
+    if (k < 4.5) malos.push(e.textContent.trim().slice(0, 30) + ' (' + k.toFixed(2) + ')');
+  }
+  return { n, min: Math.round(min * 100) / 100, malos };
+});
+
+export default async function ({ base, t }){
+  // 1) La semana: de lunes a domingo en hora de Argentina, aunque el celular esté en Tokio.
+  {
+    const { p, errs, close } = await newPage({ timezoneId: 'Asia/Tokyo' });
+    await p.goto(base + '/app/'); await wait(1200);
+    const r = await p.evaluate(async () => {
+      const g = await import('/app/core/grupos.js');
+      const at = s => g.semanaAR(Date.parse(s));
+      return {
+        domingoNoche: at('2026-10-11T23:59:00-03:00'),     // en UTC ya es lunes 02:59
+        lunes: at('2026-10-12T00:00:00-03:00'),
+        martes: at('2026-10-06T10:00:00-03:00'),
+        pasada: g.semanaAR(Date.parse('2026-10-06T10:00:00-03:00'), 1),
+        finDeAnio: at('2027-01-01T12:00:00-03:00'),
+        fecha: g.fechaAR(Date.parse('2026-10-12T02:30:00Z')),
+        texto: [g.textoSemana('2026-10-05', '2026-10-11'), g.textoSemana('2026-09-28', '2026-10-04')],
+        pasos: g.pasosTxt(52300), link: g.linkInvitacion('abcd-2345'),
+        codigos: [g.codigoValido('ABCD2345'), g.codigoValido('abcd 2345'), g.codigoValido('ABCD0123'), g.codigoValido('ABC')],
+      };
+    });
+    t.eq(r.domingoNoche, { desde: '2026-10-05', hasta: '2026-10-11' }, 'domingo 23:59 en Argentina sigue siendo la semana del lunes 5');
+    t.eq(r.lunes, { desde: '2026-10-12', hasta: '2026-10-18' }, 'el lunes 00:00 de Argentina empieza la semana nueva');
+    t.eq(r.martes, { desde: '2026-10-05', hasta: '2026-10-11' }, 'un martes cae en su semana (lunes a domingo)');
+    t.eq(r.pasada, { desde: '2026-09-28', hasta: '2026-10-04' }, 'la semana pasada');
+    t.eq(r.finDeAnio, { desde: '2026-12-28', hasta: '2027-01-03' }, 'la semana que cruza el año');
+    t.eq(r.fecha, '2026-10-11', 'las 02:30 UTC del lunes son todavía domingo en Argentina');
+    t.eq(r.texto, ['5 al 11 de oct', '28 de sep al 4 de oct'], 'texto de la semana');
+    t.eq(r.pasos, '52.300', 'pasos con punto de miles');
+    t.eq(r.link, 'https://gize.ar/app/#grupo=ABCD2345', 'link de invitación');
+    t.eq(r.codigos, [true, true, false, false], 'códigos válidos: 8 letras y números sin 0, 1, I, L ni O');
+    t.eq(errs, [], 'errores de la página (semana)');
+    await close();
+  }
+
+  // 2) Crear un grupo: el nombre va a la base y aparece el código para invitar (arriba, porque
+  //    estoy solo), con «Invitar» que comparte el link.
+  {
+    const m = mock({ onCrear: b => ({ id: 'g9', nombre: b.p_nombre, codigo: 'QRST6789', soy_dueno: true, miembros: 1, mi_puesto: 1 }),
+      ranking: { g9: [Object.assign({ miembro: 'y', nombre: 'Prueba', pasos: 0, puesto: 1, soy_yo: true }, SEM)] } });
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers, init: SHARE });
+    await p.goto(base + '/app/'); await wait(2500);
+    await p.click('#nav-progreso'); await wait(300);
+    t.has(await text(p, '[data-action="psec-open"][data-v="pasos"]'), 'Competencia de pasos', 'Progreso tiene la tarjeta «Competencia de pasos»');
+    await p.click('[data-action="psec-open"][data-v="pasos"]'); await wait(700);
+    t.has(await text(p, '#pgData'), 'Todavía no estás en ningún grupo', 'sin grupos: lo explica');
+    await p.fill('#pgNombre', 'Los del barrio');
+    await p.click('[data-pg="crear"]');
+    // Espera a que se abra el grupo (con la máquina cargada, 0,9 s fijos no alcanzaban).
+    await p.waitForFunction(() => { const e = document.querySelector('#pgData .pg-inv .pg-code'); return e && e.textContent.trim(); }, null, { timeout: 15000 }).catch(() => {});
+    t.ok(m.rpcs.some(x => x.startsWith('crear ') && x.includes('"p_nombre":"Los del barrio"')), 'crear manda el nombre: ' + m.rpcs.join(' | '));
+    t.eq(await text(p, '.pg-head .form-title'), 'Los del barrio', 'queda abierto el grupo nuevo');
+    t.eq(await text(p, '#pgData .pg-inv .pg-code'), 'QRST6789', 'el código del grupo, arriba de todo');
+    t.has(await text(p, '#pgData .pg-inv .join-t'), 'invitá a tus amigos', 'invita a sumar amigos');
+    await p.click('[data-pg="invitar"]'); await wait(300);
+    const sh = await p.evaluate(() => window.__shared);
+    t.eq(sh && sh.url, 'https://gize.ar/app/#grupo=QRST6789', 'Invitar comparte el link con el código');
+    t.has(sh && sh.text, 'QRST6789', 'el mensaje también lleva el código');
+    t.eq(dialogs, [], 'sin carteles al crear');
+    t.eq(errs, [], 'errores de la página (crear)');
+    await close();
+  }
+
+  // 3) Sumarse con el link: gize.ar/app/#grupo=CODIGO. Al entrar se pregunta, con el nombre del
+  //    grupo y qué van a ver los demás; al decir que sí se suma y abre el grupo.
+  {
+    const m = mock({ onUnirse: b => Object.assign({}, GRUPO, { id: 'g2', nombre: 'Running club', codigo: b.p_codigo, soy_dueno: false }),
+      ranking: { g2: RANKING }, campeon: { g2: CAMPEON }, ver: { id: null, nombre: 'Running club', miembros: 4, soy_miembro: false } });
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
+    await p.goto(base + '/app/#grupo=wxyz-2345'); await wait(3200);
+    t.ok(m.rpcs.some(x => x === 'ver {"p_codigo":"WXYZ2345"}'), 'busca el grupo del código: ' + m.rpcs.join(' | '));
+    t.eq(dialogs, ['¿Querés sumarte al grupo «Running club»? Los miembros van a ver tu nombre y tus pasos de la semana.'], 'pregunta antes de sumarse');
+    t.ok(m.rpcs.some(x => x === 'unirse {"p_codigo":"WXYZ2345","p_apodo":null}'), 'al aceptar llama a pasos_unirse con el código limpio: ' + m.rpcs.join(' | '));
+    t.eq(await p.evaluate(() => location.hash), '', 'el #grupo= se saca de la dirección');
+    t.eq(await text(p, '.pg-head .form-title'), 'Running club', 'abre el grupo al que se sumó');
+    t.eq(await p.$$eval('.pg-row', l => l.length), 5, 'con su ranking');
+    t.eq(await p.$$('[data-pg="borrar"]').then(l => l.length), 0, 'quien no es dueño no puede borrar el grupo');
+    t.eq(await p.$$('.pg-rm').then(l => l.length), 0, 'ni sacar gente');
+    t.eq(errs, [], 'errores de la página (link)');
+    await close();
+  }
+  // 3b) Dice que no: no se suma. Sin la función nueva en la base, pregunta con el código.
+  {
+    const m = mock({ onUnirse: SUMA, ver: 'falta' });
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
+    p.removeAllListeners('dialog'); p.on('dialog', d => { dialogs.push(d.message()); d.dismiss().catch(() => {}); });
+    await p.goto(base + '/app/#grupo=wxyz-2345'); await wait(3200);
+    t.eq(dialogs, ['¿Querés sumarte al grupo de pasos con el código WXYZ2345? Los miembros van a ver tu nombre y tus pasos de la semana.'], '3b: sin la función, pregunta con el código');
+    t.ok(!m.rpcs.some(x => x.startsWith('unirse')), '3b: si dice que no, no se suma: ' + m.rpcs.join(' | '));
+    t.eq(await p.evaluate(() => localStorage.getItem('gize_grupo_pend')), null, '3b: la invitación no queda');
+    t.eq(errs, [], '3b: errores de la página');
+    await close();
+  }
+  // 3c) Ya es del grupo: lo abre sin preguntar. Un código que no existe se avisa y no se suma.
+  {
+    const m = mock({ onUnirse: SUMA, grupos: [Object.assign({}, GRUPO, { id: 'g2', nombre: 'Running club', soy_dueno: false })], ranking: { g2: RANKING },
+      ver: { id: 'g2', nombre: 'Running club', miembros: 5, soy_miembro: true } });
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
+    await p.goto(base + '/app/#grupo=wxyz-2345'); await wait(3200);
+    t.eq(dialogs, [], '3c: si ya es del grupo, no pregunta');
+    t.ok(!m.rpcs.some(x => x.startsWith('unirse')), '3c: ni se vuelve a sumar');
+    t.eq(await text(p, '.pg-head .form-title'), 'Running club', '3c: abre el grupo');
+    t.eq(errs, [], '3c: errores de la página');
+    await close();
+    const m2 = mock({ onUnirse: SUMA });
+    const pg = await newPage({ user: ALUMNO, state: STATE, handlers: m2.handlers });
+    await pg.p.goto(base + '/app/#grupo=wxyz-2345'); await wait(3200);
+    t.eq(pg.dialogs, ['El grupo de ese link de invitación ya no existe.'], '3c: código que no existe: se avisa');
+    t.ok(!m2.rpcs.some(x => x.startsWith('unirse')), '3c: y no se suma');
+    t.eq(pg.errs, [], '3c: errores de la página (código que no existe)');
+    await pg.close();
+  }
+  // 3d) La invitación pendiente no queda para otra cuenta: se borra al cerrar sesión y cuando
+  //     entra otra cuenta en el mismo navegador (una que quedó de hace una hora).
+  {
+    const PEND = `localStorage.setItem('gize_grupo_pend', JSON.stringify({ c: 'WXYZ2345', t: Date.now() - 3600000 }));`;
+    const m = mock({ onUnirse: SUMA, ver: { id: null, nombre: 'Running club', miembros: 4, soy_miembro: false } });
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
+    await p.goto(base + '/app/'); await wait(3000);
+    await p.evaluate(PEND);
+    await p.click('#nav-config'); await wait(500);
+    await p.click('[data-auth="logout"]');
+    await p.waitForEvent('load', { timeout: 30000 }).catch(() => {});
+    await wait(2500);
+    t.eq(await p.evaluate(() => localStorage.getItem('gize_grupo_pend')), null, '3d: al cerrar sesión se borra la invitación pendiente');
+    t.eq(errs, [], '3d: errores de la página (cerrar sesión)');
+    await close();
+    // Los datos del navegador son de otra cuenta (quedó de alguien que no tocó «Salir»).
+    const m2 = mock({ onUnirse: SUMA, ver: { id: null, nombre: 'Running club', miembros: 4, soy_miembro: false } });
+    const pg = await newPage({ user: ALUMNO, state: Object.assign({}, STATE), handlers: m2.handlers,
+      init: `if (!sessionStorage.getItem('otra')) { sessionStorage.setItem('otra', '1'); const s = JSON.parse(localStorage.getItem('rutina_jero_v1')); s.ownerUid = '33333333-3333-3333-3333-333333333333'; localStorage.setItem('rutina_jero_v1', JSON.stringify(s)); ${PEND} }` });
+    await pg.p.goto(base + '/app/'); await wait(5000);
+    t.eq(await pg.p.evaluate(() => localStorage.getItem('gize_grupo_pend')), null, '3d: si entra otra cuenta, se borra');
+    t.ok(!m2.rpcs.some(x => x.startsWith('ver') || x.startsWith('unirse')) && !pg.dialogs.length, '3d: y no se usa con la cuenta nueva: ' + m2.rpcs.join(' | ') + ' ' + pg.dialogs.join(' | '));
+    t.eq(pg.errs, [], '3d: errores de la página (otra cuenta)');
+    await pg.close();
+  }
+  // 3e) El link recién abierto no se pierde con la limpieza al entrar: ni cuando los datos del
+  //     navegador son de otra cuenta, ni cuando quedó la marca de una sesión no mantenida.
+  {
+    const VER = { id: null, nombre: 'Running club', miembros: 4, soy_miembro: false };
+    const m = mock({ onUnirse: SUMA, ver: VER, ranking: { g2: RANKING } });
+    const pg = await newPage({ user: ALUMNO, state: Object.assign({}, STATE), handlers: m.handlers,
+      init: `if (!sessionStorage.getItem('otra')) { sessionStorage.setItem('otra', '1'); const s = JSON.parse(localStorage.getItem('rutina_jero_v1')); s.ownerUid = '33333333-3333-3333-3333-333333333333'; localStorage.setItem('rutina_jero_v1', JSON.stringify(s)); }` });
+    await pg.p.goto(base + '/app/#grupo=wxyz-2345'); await wait(6000);
+    t.eq(pg.dialogs, ['¿Querés sumarte al grupo «Running club»? Los miembros van a ver tu nombre y tus pasos de la semana.'], '3e: con datos de otra cuenta, igual pregunta: ' + m.rpcs.join(' | '));
+    t.ok(m.rpcs.some(x => x === 'unirse {"p_codigo":"WXYZ2345","p_apodo":null}'), '3e: y se suma: ' + m.rpcs.join(' | '));
+    t.eq(pg.errs, [], '3e: errores de la página (otra cuenta)');
+    await pg.close();
+    const p2 = await newPage({ init: `if (!sessionStorage.getItem('b')) { sessionStorage.setItem('b', '1'); localStorage.setItem('gize_session_ephemeral', '${ALUMNO.id}');
+      localStorage.setItem('rutina_jero_v1', JSON.stringify(Object.assign({ ownerUid: '${ALUMNO.id}' }, ${JSON.stringify(STATE)}))); }` });
+    await p2.p.goto(base + '/app/#grupo=wxyz-2345'); await wait(6000);
+    t.eq(await p2.p.evaluate(() => localStorage.getItem('gize_session_ephemeral')), null, '3e: se borraron los datos de la sesión no mantenida');
+    t.eq(await p2.p.evaluate(() => (JSON.parse(localStorage.getItem('gize_grupo_pend') || 'null') || {}).c), 'WXYZ2345', '3e: pero la invitación recién abierta queda para después de entrar');
+    t.eq(p2.errs, [], '3e: errores de la página (sesión no mantenida)');
+    await p2.close();
+  }
+
+  // 4) El grupo: campeón dorado arriba, ranking en orden con barras relativas al primero, mi
+  //    fila marcada, la semana que dice la base y lo del dueño (sacar gente, borrar).
+  {
+    const m = mock({ grupos: [GRUPO], ranking: { g1: RANKING }, campeon: { g1: CAMPEON } });
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers, init: "localStorage.setItem('gize_lite','0');" });
+    await p.goto(base + '/app/'); await wait(2500);
+    await abrirPasos(p);
+    t.has(await text(p, '.pg-grupo'), 'Los del laburo', 'la lista muestra mis grupos');
+    t.has(await text(p, '.pg-grupo'), '5 personas · vas 2º', 'con cuántos son y en qué puesto voy');
+    await p.click('[data-pg="abrir"][data-id="g1"]'); await wait(700);
+    const r = await p.evaluate(() => {
+      const rows = [...document.querySelectorAll('.pg-row')];
+      const champ = document.querySelector('#pgData > .pg-champ');
+      const cs = s => { const e = document.querySelector(s); return e ? getComputedStyle(e) : null; };
+      return {
+        first: document.querySelector('#pgData').firstElementChild === champ,
+        champ: champ && champ.innerText.replace(/\s+/g, ' ').trim(),
+        champT: cs('.pg-champ-t') && cs('.pg-champ-t').color, trofeo: cs('.pg-champ .pg-trofeo') && cs('.pg-champ .pg-trofeo').color,
+        trofeoSvg: !!document.querySelector('.pg-champ .pg-trofeo svg'),
+        copa: rows.filter(x => x.querySelector('.pg-copa')).map(x => x.querySelector('.pg-name-t').textContent),
+        copaColor: cs('.pg-row .pg-copa') && cs('.pg-row .pg-copa').color,
+        names: rows.map(x => x.querySelector('.pg-name-t').textContent), pos: rows.map(x => x.querySelector('.pg-pos').textContent),
+        n: rows.map(x => x.querySelector('.pg-n').textContent),
+        bars: rows.map(x => x.querySelector('.pg-bar i').style.width),
+        barPx: rows.map(x => Math.round(x.querySelector('.pg-bar i').getBoundingClientRect().width / x.querySelector('.pg-bar').getBoundingClientRect().width * 100)),
+        me: rows.filter(x => x.classList.contains('me')).map(x => x.querySelector('.pg-name-t').textContent),
+        meBg: rows.find(x => x.classList.contains('me')) && getComputedStyle(rows.find(x => x.classList.contains('me'))).backgroundImage,
+        sem: document.querySelectorAll('.pg-sec-t')[0] && document.querySelectorAll('.pg-sec-t')[0].innerText,
+        rm: document.querySelectorAll('.pg-rm').length, sacando: !!document.querySelector('[data-pg="sacando"]'), borrar: !!document.querySelector('[data-pg="borrar"]'),
+        code: cs('.pg-code') && document.querySelector('.pg-code').textContent,
+        over: document.documentElement.scrollWidth > innerWidth,
+      };
+    });
+    t.ok(r.first, 'el campeón de la semana pasada va arriba de todo');
+    t.has(r.champ, 'Campeón de la semana pasada', 'dice «Campeón de la semana pasada»');
+    t.has(r.champ, 'Caro · 84.210 pasos', 'con el nombre y los pasos del campeón');
+    t.eq(r.champT, GOLD, 'el texto del campeón en dorado (#FFC940)');
+    t.ok(r.trofeoSvg && r.trofeo === GOLD, 'la copa del campeón en dorado: ' + r.trofeo);
+    t.eq(r.copa, ['Caro'], 'la copa chica al lado del nombre del campeón (y de nadie más)');
+    t.eq(r.copaColor, GOLD, 'la copa chica también dorada');
+    t.eq(r.names, ['Bruno', 'Prueba', 'Caro', 'Dani', 'Euge'], 'ranking ordenado por pasos');
+    t.eq(r.pos, ['1', '2', '3', '4', '5'], 'con el puesto');
+    t.eq(r.n, ['71.240', '52.300', '35.620', '17.810', '0'], 'y los pasos de la semana');
+    t.eq(r.bars, ['100%', '73%', '50%', '25%', '0%'], 'la barra es relativa al primero');
+    t.ok(Math.abs(r.barPx[1] - 73) <= 2 && r.barPx[0] >= 99, 'las barras se ven de ese largo: ' + r.barPx);
+    t.eq(r.me, ['Prueba'], 'mi fila marcada');
+    t.ok(/linear-gradient\(155deg/.test(r.meBg || ''), 'mi fila con el filete fino de neón: ' + r.meBg);
+    t.eq(r.sem, 'Esta semana · 5 al 11 de oct', 'la semana del ranking (de lunes a domingo)');
+    t.ok(r.rm === 0 && r.sacando, 'las ✕ para sacar gente aparecen recién con «Sacar a alguien del grupo»');
+    t.ok(r.borrar, 'el dueño puede borrar el grupo');
+    t.eq(r.code, 'ABCD2345', 'el código para invitar');
+    t.ok(!r.over, 'sin scroll de costado a 390 px');
+    const a = await contraste(p);
+    t.ok(a.n > 15 && !a.malos.length, 'Oscuro: todo el texto con contraste AA (mín. ' + a.min + '): ' + a.malos.join(' | '));
+    // Sacar a alguien: el dueño a los demás (no a sí mismo), con confirmación, y llama a la base.
+    await p.click('[data-pg="sacando"]'); await wait(200);
+    t.eq(await p.$$eval('.pg-rm', l => l.map(b => b.dataset.n)), ['Bruno', 'Caro', 'Dani', 'Euge'], 'el dueño puede sacar a los demás (no a sí mismo)');
+    await p.click('.pg-rm[data-n="Euge"]'); await wait(600);
+    t.ok(m.rpcs.some(x => x === 'sacar {"p_grupo":"g1","p_miembro":"m5"}'), 'sacar llama a pasos_sacar_miembro: ' + m.rpcs.join(' | '));
+    t.ok(dialogs.some(d => /¿Sacar a Euge del grupo\? No va a poder volver a sumarse con el código\./.test(d)), 'la confirmación avisa que no puede volver con el código: ' + JSON.stringify(dialogs));
+    t.ok(m.rpcs.some(x => x === 'ranking {"p_grupo":"g1","p_atras":0}'), 'pide el ranking de esta semana');
+    t.eq(errs, [], 'errores de la página (grupo)');
+    await close();
+  }
+
+  // 4b) Empate en la semana pasada: ganan todos (pedido). «Campeones», los dos nombres y la copa
+  //     chica al lado de cada uno.
+  {
+    const TIE = [CAMPEON, { ...CAMPEON, miembro: 'm1', nombre: 'Bruno' }];
+    const m = mock({ grupos: [GRUPO], ranking: { g1: RANKING }, campeon: { g1: TIE } });
+    const { p, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers, init: "localStorage.setItem('gize_lite','0');" });
+    await p.goto(base + '/app/'); await wait(2500);
+    await abrirPasos(p);
+    await p.click('[data-pg="abrir"][data-id="g1"]'); await wait(700);
+    const champ = (await text(p, '#pgData > .pg-champ')).replace(/\s+/g, ' ');
+    t.has(champ, 'Campeones de la semana pasada', 'empate: «Campeones de la semana pasada»');
+    t.has(champ, 'Caro y Bruno · 84.210 pasos cada uno', 'empate: los dos nombres con sus pasos');
+    const copas = await p.evaluate(() => [...document.querySelectorAll('.pg-row')].filter(x => x.querySelector('.pg-copa')).map(x => x.querySelector('.pg-name-t').textContent));
+    t.eq(copas.sort(), ['Bruno', 'Caro'], 'empate: la copa chica al lado de los dos');
+    await close();
+  }
+
+  // 5) «Claro»: el mismo grupo legible, con el dorado más oscuro en el texto y la copa dorada sobre
+  //    su insignia oscura.
+  {
+    const m = mock({ grupos: [GRUPO], ranking: { g1: RANKING }, campeon: { g1: CAMPEON } });
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers, init: "localStorage.setItem('gize_lite','0');localStorage.setItem('gize_tema','luz');" });
+    await p.goto(base + '/app/'); await wait(2500);
+    await abrirPasos(p);
+    await p.click('[data-pg="abrir"][data-id="g1"]'); await wait(700);
+    const r = await p.evaluate(() => ({ luz: document.documentElement.classList.contains('tema-luz'),
+      trofeo: getComputedStyle(document.querySelector('.pg-champ .pg-trofeo')).color, t: getComputedStyle(document.querySelector('.pg-champ-t')).color }));
+    t.ok(r.luz, 'Claro: html.tema-luz');
+    t.eq(r.trofeo, GOLD, 'Claro: la copa sigue dorada');
+    t.eq(r.t, 'rgb(122, 82, 0)', 'Claro: el texto dorado más oscuro, para que se lea');
+    const a = await contraste(p);
+    t.ok(a.n > 15 && !a.malos.length, 'Claro: todo el texto con contraste AA (mín. ' + a.min + '): ' + a.malos.join(' | '));
+    t.eq(errs, [], 'errores de la página (Claro)');
+    await close();
+  }
+
+  // 6) Sin carga a mano (pedido): en la web no hay campo para anotar pasos; se avisa que se cargan
+  //    solos desde la app de GIZE conectada a Salud de Apple / Health Connect. El nombre del grupo
+  //    nuevo dice «Nombre del grupo» (sin ejemplos).
+  {
+    const m = mock({ grupos: [GRUPO], ranking: { g1: RANKING }, campeon: { g1: CAMPEON } });
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
+    await p.goto(base + '/app/'); await wait(2500);
+    await abrirPasos(p);
+    t.eq(await p.$$eval('#pgSteps, [data-pg="pasos"]', x => x.length), 0, 'web: no hay campo para anotar pasos a mano');
+    t.has(await text(p, '.pg-hoy .pg-note'), 'se cargan solos desde la app de GIZE', 'web: avisa que se cargan solos desde la app');
+    t.eq(await p.$$eval('[data-pg="salud-on"]', x => x.length), 0, 'web: sin botón de conectar Salud');
+    t.eq(await p.getAttribute('#pgNombre', 'placeholder'), 'Nombre del grupo', 'el grupo nuevo dice «Nombre del grupo»');
+    t.eq(errs, [], 'errores de la página (web)');
+    await close();
+  }
+
+  // 9) App de Android con el plugin de Health Connect (simulado): sin permiso aparece el botón
+  //    «Conectar Health Connect» (con el corazón y «Tus pasos se cargan solos…», el mismo en Cardio
+  //    y acá) y debajo, fijo, qué se lee y quién lo ve; al tocarlo pide el permiso en el acto, sin
+  //    ningún cartel propio antes (Apple, guía 5.1.1(iv)), y pide SOLO leer pasos, la primera lectura del día trae 31 días (para el
+  //    promedio del mes de Cardio) y las siguientes 8, por día toma la fuente que más contó (no las
+  //    suma), guarda los días anteriores en el registro del día y sube los pasos; conectado, la fila
+  //    «Conectado a Health Connect» con «Actualizar ahora» y «Desconectar», que deja de leer.
+  {
+    const m = mock({ grupos: [GRUPO], ranking: { g1: RANKING }, campeon: { g1: CAMPEON } });
+    const NATIVE = () => {
+      window.__health = { pedidos: [], lecturas: [] };
+      const hoy = new Date(); hoy.setHours(10, 0, 0, 0);
+      const ayer = new Date(hoy); ayer.setDate(ayer.getDate() - 1);
+      window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android', Plugins: {
+        App: { getInfo: async () => ({ build: '999', version: 'x' }), getLaunchUrl: async () => null, addListener: () => Promise.resolve({ remove(){} }) },
+        Health: {
+          isAvailable: async () => ({ available: true, platform: 'android' }),
+          requestAuthorization: async o => { window.__health.pedidos.push(o); return { readAuthorized: ['steps'], readDenied: [], writeAuthorized: [], writeDenied: [] }; },
+          readSamples: async o => { window.__health.lecturas.push(o); if (window.__health.falla) throw new Error('SecurityException: falta el permiso READ_STEPS'); return { samples: [
+            { dataType: 'steps', value: 4000, unit: 'count', startDate: hoy.toISOString(), endDate: hoy.toISOString(), sourceId: 'android' },
+            { dataType: 'steps', value: 3000, unit: 'count', startDate: hoy.toISOString(), endDate: hoy.toISOString(), sourceId: 'com.android.healthconnect.phone.x' },
+            { dataType: 'steps', value: 6500, unit: 'count', startDate: hoy.toISOString(), endDate: hoy.toISOString(), sourceId: 'com.reloj' },
+            { dataType: 'steps', value: 9100, unit: 'count', startDate: ayer.toISOString(), endDate: ayer.toISOString(), sourceId: 'android' },
+          ] }; },
+        } } };
+    };
+    const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers, init: NATIVE });
+    await p.route(u => !u.href.startsWith(base) && !/supabase\.co/.test(u.href), r => r.abort());
+    await p.goto(base + '/app/'); await wait(2500);
+    // En Cardio también se ofrece conectar (pedido).
+    await p.click('#nav-cardio'); await wait(600);
+    t.has(await text(p, '#view .csec-pasos .salud-btn'), 'Conectar Health Connect', 'Cardio → Pasos: ofrece conectar Health Connect');
+    await abrirPasos(p);
+    const btn = await p.evaluate(() => { const b = document.querySelector('.pg-hoy .salud-btn[data-pg="salud-on"]'); return b && [!!b.querySelector('.salud-ico svg'), b.querySelector('.salud-t').textContent, b.querySelector('.salud-s').textContent]; });
+    t.eq(btn, [true, 'Conectar Health Connect', 'Tus pasos se cargan solos, aunque no abras GIZE'], 'Android sin permiso: el botón «Conectar Health Connect» con el corazón y el subtítulo');
+    t.eq(await text(p, '.pg-hoy .salud-btn + .salud-nota'), 'GIZE solo lee tus pasos, para tu registro y tus grupos de pasos: no cambia nada en Health Connect. Tus amigos ven solo tu total de la semana.', 'debajo del botón, fijo: qué se lee y quién lo ve');
+    t.eq(await p.evaluate(() => window.__health.lecturas.length), 0, 'sin permiso no lee nada');
+    await p.click('[data-pg="salud-on"]'); await wait(1500);
+    const h = await p.evaluate(() => window.__health);
+    t.eq(h.pedidos, [{ read: ['steps'], write: [] }], 'pide solo leer pasos (nada de escribir)');
+    t.ok(h.lecturas.length === 1 && h.lecturas[0].dataType === 'steps' && h.lecturas[0].limit === 0, 'lee los pasos: ' + JSON.stringify(h.lecturas));
+    const dias = h.lecturas[0] ? Math.round((Date.parse(h.lecturas[0].endDate) - Date.parse(h.lecturas[0].startDate)) / 864e5) : -1;
+    t.ok(dias >= 30 && dias <= 31, 'la primera lectura del día trae los últimos 31 días (' + dias + ')');
+    t.eq(await text(p, '#pgHoyN'), '7.000', 'hoy: la fuente que más contó (el celular, 4000 + 3000), sin sumar el reloj');
+    const b = m.posts.map(x => { try { return JSON.parse(x); } catch (e) { return null; } }).flat().filter(Boolean);
+    t.ok(b.some(x => x.steps === 7000) && b.some(x => x.steps === 9100), 'sube hoy y ayer a daily_logs: ' + JSON.stringify(b));
+    t.has(await text(p, '.pg-hoy .salud-ok'), 'Conectado a Health Connect', 'conectado: la fila «Conectado a Health Connect»');
+    t.ok(await p.evaluate(async () => { const { state } = await import('/app/core/state.js'), u = await import('/app/core/utils.js'); const d = new Date(); d.setDate(d.getDate() - 1); return state.daily[u.ymd(d)] && state.daily[u.ymd(d)].steps === '9100'; }), 'ayer queda guardado en el registro del día (aunque no tuviera registro)');
+    await p.click('#nav-cardio'); await wait(600);
+    t.has(await text(p, '#view .csec-pasos .salud-ok'), 'Conectado a Health Connect', 'Cardio conectado: «Conectado a Health Connect»');
+    t.has(await text(p, '#view .csec-pasos .salud-ok'), 'Actualizar ahora', 'Cardio conectado: con «Actualizar ahora»');
+    t.eq(await p.$$eval('#view .csec-pasos [data-pg="salud-on"]', x => x.length), 0, 'Cardio conectado: sin botón de conectar');
+    t.eq(await text(p, '#cpasN'), '7.000', 'Cardio: los pasos de hoy');
+    t.eq(await text(p, '.cpas-st-ayer .cpas-st-v'), '9.100', 'Cardio: ayer, desde Health Connect');
+    await p.click('#view .csec-pasos [data-pg="salud-sync"]'); await wait(800);
+    const h2 = await p.evaluate(() => window.__health.lecturas);
+    const dias2 = h2[1] ? Math.round((Date.parse(h2[1].endDate) - Date.parse(h2[1].startDate)) / 864e5) : -1;
+    t.ok(h2.length === 2 && dias2 >= 7 && dias2 <= 8, '«Actualizar ahora» el mismo día: lee solo los últimos 8 días (' + dias2 + ')');
+    await abrirPasos(p);
+    t.ok(!!(await p.$('[data-pg="salud-off"]')), 'con «Desconectar»');
+    t.eq(dialogs, [], 'ningún cartel propio antes ni después del permiso (lo que se lee está escrito debajo del botón)');
+    // Le sacó el permiso a GIZE en Health Connect: la lectura falla y se dice qué revisar (antes
+    // quedaba «Conectado» y «Actualizar ahora» no hacía nada).
+    await p.evaluate(() => { window.__health.falla = true; });
+    await p.click('.pg-hoy [data-pg="salud-sync"]'); await wait(800);
+    t.has(dialogs[dialogs.length - 1] || '', 'Health Connect → Permisos de apps → GIZE', 'lectura con error: avisa qué revisar');
+    t.has(await text(p, '.pg-hoy .salud-ok-err'), 'No se pudieron leer tus pasos', 'lectura con error: lo dice debajo de «Conectado»');
+    await p.click('#nav-cardio'); await wait(600);
+    t.has(await text(p, '#view .csec-pasos .salud-ok-err'), 'No se pudieron leer tus pasos', 'lectura con error: también en Cardio');
+    await p.evaluate(() => { window.__health.falla = false; });
+    const nd = dialogs.length;
+    await p.click('#view .csec-pasos [data-pg="salud-sync"]'); await wait(800);
+    t.ok(!(await p.$('.salud-ok-err')) && dialogs.length === nd, 'al volver a leer bien, se va el aviso');
+    await abrirPasos(p);
+    await p.click('[data-pg="salud-off"]'); await wait(800);
+    t.has(dialogs[dialogs.length - 1] || '', 'Health Connect → Permisos de apps → GIZE', 'al desconectar explica cómo quitar el permiso');
+    t.ok(!!(await p.$('[data-pg="salud-on"]')), 'desconectado: vuelve a ofrecer «Conectar»');
+    t.eq(errs, [], 'errores de la página (Health Connect)');
+    await close();
+  }
+
+  // 10) En la web no hay nada de Salud: ni el botón, ni lecturas.
+  {
+    const m = mock({ grupos: [] });
+    const { p, close } = await newPage({ user: ALUMNO, state: STATE, handlers: m.handlers });
+    await p.goto(base + '/app/'); await wait(2500);
+    await abrirPasos(p);
+    t.ok(!(await p.$('[data-pg="salud-on"]')) && !(await p.$('[data-pg="salud-off"]')), 'web: sin «Conectar» ni «Desconectar»');
+    t.ok(!(await p.evaluate(async () => (await import('/app/core/salud.js')).saludDisponible())), 'web: Salud no disponible');
+    await close();
+  }
+
+  // 11) Apps nativas: el plugin, solo lectura de pasos y lo que piden Health Connect y HealthKit.
+  {
+    const rd = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const pkg = JSON.parse(rd('package.json'));
+    t.ok(/^7\./.test(pkg.dependencies['@capgo/capacitor-health'] || ''), 'package.json: @capgo/capacitor-health 7.x (Capacitor 7)');
+    t.ok(/minSdkVersion = 26/.test(rd('android/variables.gradle')), 'Android: minSdk 26 (lo pide Health Connect)');
+    t.ok(/':capgo-capacitor-health'/.test(rd('android/capacitor.settings.gradle')) && /':capgo-capacitor-health'/.test(rd('android/app/capacitor.build.gradle')), 'Android: el plugin está en Gradle');
+    const man = rd('android/app/src/main/AndroidManifest.xml');
+    const health = [...man.matchAll(/<uses-permission android:name="android\.permission\.health\.(\w+)"( tools:node="remove")? \/>/g)];
+    t.eq(health.filter(x => !x[2]).map(x => x[1]), ['READ_STEPS'], 'Android: de Health Connect solo READ_STEPS');
+    t.ok(['WRITE_STEPS', 'READ_WEIGHT', 'WRITE_WEIGHT', 'READ_DISTANCE', 'READ_HEART_RATE', 'READ_ACTIVE_CALORIES_BURNED'].every(k => health.some(x => x[1] === k && x[2])), 'Android: los demás permisos del plugin se sacan');
+    t.ok(/androidx\.health\.ACTION_SHOW_PERMISSIONS_RATIONALE/.test(man) && /android\.intent\.action\.VIEW_PERMISSION_USAGE/.test(man) && /android\.intent\.category\.HEALTH_PERMISSIONS/.test(man), 'Android: pantalla de privacidad de Health Connect (Android 13 y 14+)');
+    t.ok(/gize\.ar\/privacidad\/#salud/.test(rd('android/app/src/main/java/ar/com/gize/app/PermisosSaludActivity.java')), 'Android: la pantalla abre la política en #salud');
+    t.ok(/id="salud"/.test(rd('privacidad/index.html')), 'la política tiene la sección #salud');
+    const ent = rd('ios/App/App/App.entitlements'), info = rd('ios/App/App/Info.plist');
+    t.ok(/<key>com\.apple\.developer\.healthkit<\/key>\s*<true\/>/.test(ent), 'iPhone: entitlement de HealthKit');
+    t.ok(/<key>NSHealthShareUsageDescription<\/key>\s*<string>[^<]*pasos[^<]*<\/string>/.test(info), 'iPhone: texto del permiso de Salud (pasos)');
+    t.ok(/CapgoCapacitorHealth/.test(rd('ios/App/CapApp-SPM/Package.swift')), 'iPhone: el plugin está en el paquete de Swift');
+  }
+
+  // 8) La base: tablas sin acceso directo, funciones seguras, límites y semana de Argentina.
+  {
+    const sql = fs.readFileSync(path.join(ROOT, 'supabase/pasos-grupos.sql'), 'utf8');
+    const defs = [...sql.matchAll(/create or replace function public\.(\w+)\([^)]*\)[\s\S]*?\$\$;|create or replace function public\.(\w+)\([^)]*\)[\s\S]*?end \$\$;/g)].map(x => x[0]);
+    t.ok(defs.length >= 14, 'define las funciones (' + defs.length + ')');
+    t.ok(defs.filter(d => /security definer/.test(d)).every(d => /set search_path = public/.test(d)), 'toda función security definer con search_path fijo');
+    t.ok(/revoke all on public\.pasos_grupos from anon, authenticated/.test(sql) && /revoke all on public\.pasos_miembros from anon, authenticated/.test(sql), 'sin acceso directo a las tablas');
+    t.ok(/enable row level security/.test(sql), 'con RLS');
+    t.ok(/revoke all on function public\.pasos_totales\(uuid, date, date\) from public, anon, authenticated/.test(sql), 'los totales de otros solo por las funciones');
+    t.ok(/>= 10 then/.test(sql) && />= 30 then/.test(sql), 'límites: 10 grupos por persona y 30 por grupo');
+    t.ok(/America\/Argentina\/Buenos_Aires/.test(sql) && /isodow/.test(sql), 'semana de lunes a domingo en hora de Argentina');
+    t.ok(/create table if not exists/.test(sql) && !/drop table/i.test(sql), 'se puede volver a correr sin borrar nada');
+    t.ok(!/@[a-z0-9-]+\.[a-z]{2,}/i.test(sql), 'sin mails en el SQL');
+    const fn = n => defs.find(d => d.startsWith('create or replace function public.' + n + '(')) || '';
+    const cuerpo = n => fn(n).split('as $$')[1] || '';
+    // Quien el dueño saca del grupo no vuelve a entrar con el mismo código.
+    t.ok(/create table if not exists public\.pasos_expulsados/.test(sql) && /revoke all on public\.pasos_expulsados from anon, authenticated/.test(sql) && /alter table public\.pasos_expulsados enable row level security/.test(sql), 'pasos_expulsados: re-ejecutable y sin acceso directo');
+    t.ok(/returning m\.user_id into quien/.test(cuerpo('pasos_sacar_miembro')) && /insert into public\.pasos_expulsados \(grupo_id, user_id\) values \(p_grupo, quien\) on conflict do nothing/.test(cuerpo('pasos_sacar_miembro')), 'sacar a alguien lo anota en pasos_expulsados');
+    t.ok(/from public\.pasos_expulsados e where e\.grupo_id = gid and e\.user_id = me\) then\s*raise exception 'No podés volver a sumarte a este grupo\.' using errcode = 'P0001'/.test(cuerpo('pasos_unirse')), 'pasos_unirse no deja volver a quien el dueño sacó (P0001, la app lo muestra tal cual)');
+    // Si el dueño borra su cuenta, el grupo pasa a quien está hace más tiempo (como al salir).
+    t.ok(/drop trigger if exists pasos_traspasar_dueno on auth\.users;\s*create trigger pasos_traspasar_dueno before delete on auth\.users\s*for each row execute function public\.pasos_traspasar_dueno\(\)/.test(sql), 'trigger antes de borrar la cuenta (re-ejecutable)');
+    t.ok(/set dueno = \(select m\.user_id from public\.pasos_miembros m\s*where m\.grupo_id = g\.id and m\.user_id <> old\.id\s*order by m\.unido, m\.id limit 1\)/.test(cuerpo('pasos_traspasar_dueno')) && /return old;/.test(cuerpo('pasos_traspasar_dueno')), 'el grupo pasa al miembro más antiguo');
+    t.ok(/revoke all on function public\.pasos_traspasar_dueno\(\) from public, anon, authenticated/.test(sql), 'el trigger no se llama desde la app');
+    // Campeón: solo los que ya estaban antes de que terminara esa semana.
+    t.ok(/t\.unido < \(\(w\.desde \+ 7\)::timestamp at time zone 'America\/Argentina\/Buenos_Aires'\)/.test(cuerpo('pasos_campeon')), 'el campeón sale de los que ya estaban en el grupo esa semana');
+    // Antes de sumarse con un link se pregunta: el grupo de un código, solo con sesión y el id solo
+    // si ya soy miembro.
+    t.ok(/where auth\.uid\(\) is not null/.test(cuerpo('pasos_ver_invitacion')) && /case when public\.pasos_soy_miembro\(g\.id\) then g\.id end/.test(cuerpo('pasos_ver_invitacion')), 'pasos_ver_invitacion: con sesión y el id solo para miembros');
+    t.ok(/revoke all on function public\.pasos_ver_invitacion\(text\) from public, anon;/.test(sql) && /grant execute on function public\.pasos_ver_invitacion\(text\) to authenticated;/.test(sql), 'pasos_ver_invitacion: solo usuarios logueados');
+    // Ranking: solo esta semana (antes dejaba pedir hasta 52 semanas atrás).
+    t.ok(fn('pasos_ranking') && !/p_atras|52/.test(cuerpo('pasos_ranking')) && /pasos_lunes\(public\.pasos_hoy\(\)\) as desde/.test(cuerpo('pasos_ranking')), 'el ranking es solo de esta semana');
+  }
+}

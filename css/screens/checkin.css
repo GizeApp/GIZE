@@ -69,7 +69,7 @@
 
 .mc-arr { color:var(--blue-2); }
 
-.fi-card { background:var(--card); border:1px solid var(--border); border-radius:4px; padding:var(--space-14); margin-bottom:var(--space-8); }
+.fi-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); padding:var(--space-14); margin-bottom:var(--space-8); }
 
 .fi-chips { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px; margin-bottom:12px; }
 
@@ -89,7 +89,7 @@
 
 .fb-title { font-size:19px; font-weight:800; color:var(--gize-text); margin-bottom:4px; }
 
-.pr-box { background:var(--card-2); border:1px solid var(--green); border-radius:4px; padding:var(--space-12) var(--space-14); margin-bottom:var(--space-14); }
+.pr-box { background:var(--card-2); border:1px solid var(--green); border-radius:var(--r-box); padding:var(--space-12) var(--space-14); margin-bottom:var(--space-14); }
 
 .pr-title { display:flex; align-items:center; gap:var(--space-6); font-size:var(--text-emphasis); font-weight:800; color:var(--green); margin-bottom:var(--space-8); }
 
@@ -117,7 +117,7 @@
 
 .fb-n { flex:1; padding:12px 0; background:var(--card-2); border:1px solid var(--border); border-radius:3px; color:var(--txt-2); font-size: var(--text-body); font-weight:700; cursor:pointer; }
 
-.daily-card, .ci-card { background:var(--card); border:1px solid var(--border); border-radius:4px; padding:var(--space-14); margin-bottom:var(--space-8); }
+.daily-card, .ci-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); padding:var(--space-14); margin-bottom:var(--space-8); }
 
 .daily-top { display:flex; gap:10px; margin-bottom:12px; }
 
@@ -126,9 +126,9 @@
 .dfield label { display:block; font-size:10px; color:var(--txt-3); text-transform:uppercase; letter-spacing:.08em; font-weight:700; margin-bottom:5px; }
 
 /* Pregunta del registro diario (antes .sc-row, que choca con la grilla del historial del coach). */
-.dq-row { display:block; margin-bottom:12px; }
+.dq-row { display:block; margin-bottom:16px; }
 
-.sc-lbl { display:block; font-size:var(--text-meta); color:var(--txt-2); font-weight:600; margin-bottom:6px; }
+.sc-lbl { display:block; font-size:var(--text-emphasis); color:var(--txt); font-weight:700; line-height:1.3; margin-bottom:8px; }
 
 .sc-opts { display:flex; flex-wrap:wrap; gap:5px; }
 
@@ -150,7 +150,7 @@
 /* Resumen al terminar el entreno (renderSummary en app/screens/checkin.js) */
 .sum-box { margin: 10px 0 14px; }
 .sum-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.sum-cell { background: var(--card-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.sum-cell { background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-card); padding: 10px 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
 .sum-cell b { font-size: 20px; font-weight: 700; color: var(--gize-text); font-variant-numeric: tabular-nums; line-height: 1.15; }
 .sum-cell span { font-size: 11px; color: var(--txt-2); }
 .sum-cell.big { grid-column: 1 / -1; padding: 14px 10px; border: 1.5px solid transparent;
@@ -164,3 +164,16 @@
 .daily-card .form-input:not(:focus) { border-color:rgba(255,255,255,.34); }
 /* «Seguir entrenando»: deshace el guardado si se tocó sin querer (screens/checkin.js). */
 .fb-undo { display:block; width:100%; margin:10px auto 0; background:none; border:0; color:var(--txt-2); font-size: var(--text-meta); text-decoration:underline; text-underline-offset:3px; padding:8px; cursor:pointer; }
+
+/* Escalas del registro y del check-in: cada opción lleva barritas que suben (ver optGlyph en
+   screens/checkin.js) y la palabra más grande, para entenderla sin leer letra chica. */
+body:not(#_) .sc-opt.sc-g { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; min-height:62px; padding:9px 4px; }
+.sc-opt .sc-txt { font-size:13px; line-height:1.2; }
+.sc-bars { display:flex; align-items:flex-end; gap:2px; height:14px; }
+.sc-bars i { display:block; width:4px; border-radius:2px; background:currentColor; opacity:.22; }
+.sc-bars i.f { opacity:1; }
+.sc-bars.sc-t-neu { color:var(--gize-blue); }
+.sc-bars.sc-t-bien { color:var(--gize-success); }
+.sc-bars.sc-t-mal { color:var(--gize-warning); }
+/* Elegida: el fondo es de color, así que las barras pasan a ser del color del texto. */
+.sc-opt.on .sc-bars { color:currentColor; }

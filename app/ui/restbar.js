@@ -33,13 +33,20 @@ function nextTick(){
   rest.id = setTimeout(restTick, (ms <= 0 ? 0 : (ms % 1000) || 1000) + 10);
 }
 
+// El descanso del coach es texto libre. Acá los minutos se anotan 2' y los segundos 90'' (o 90"):
+// antes el primer apóstrofo eran minutos y 90'' daba 90 minutos. Un rango ("60-90 seg") toma el primero.
 export function parseRest(txt){
   if(!txt) return 0;
-  const t=String(txt).trim();
+  const t=String(txt).trim().replace(/[\u2019\u00b4\u2032]/g,"'").replace(/[\u201d\u2033]/g,'"');
   let m=t.match(/(\d+):(\d+)/);
   if(m) return (+m[1])*60 + (+m[2]);
-  m=t.match(/(\d+)\s*['\u2032]/);
-  if(m) return (+m[1])*60;
+  m=t.match(/(\d+)\s*(?:'|min[a-z]*)\s*(?:y\s*)?(\d{1,2})(?!\d)/i); // 1'30, 1'30'', 1 min 30 seg
+  if(m) return (+m[1])*60 + (+m[2]);
+  m=t.match(/(\d+)(?:\s*[-\u2013]\s*\d+)?\s*(?:''|"|s\b|seg)/i);
+  if(m) return +m[1];
+  m=t.match(/(\d+(?:[.,]\d+)?)(?:\s*[-\u2013]\s*[\d.,]+)?\s*(?:'|min)/i);
+  if(m) return Math.round(parseFloat(m[1].replace(",","."))*60);
+  // Sin unidad: hasta 10 son minutos ("3"), más son segundos ("90").
   m=t.match(/(\d+)/);
   if(m){ const n=+m[1]; return n<=10 ? n*60 : n; }
   return 0;

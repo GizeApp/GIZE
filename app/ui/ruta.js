@@ -10,6 +10,9 @@
 // lo compone la placa de video. La cabeza va en otra capa que sí se borra en cada cuadro.
 // Termina sola (4 a 6 s): nada queda dando vueltas. Con la app en segundo plano no se dibuja.
 // Con el neón apagado (html.sin-neon): grises a blanco y sin halo.
+// Sin mapa de calles (ui/mapa.js noMap), fuera de en vivo: una marca en cada km (cada 5 km si pasa
+// de 12 km, cada 10 si pasa de 50 y cada 20 si pasa de 150) para darse una idea del tamaño del
+// recorrido, sin que se encimen (ver drawMarks).
 import { colorDomain, haversine, simplifyLine, speedT, trackPoints } from '../core/cardiogps.js';
 import { gizeGamut } from './background.js';
 import { appAway, onAwayChange } from './pausa.js';
@@ -17,6 +20,10 @@ import { appAway, onAwayChange } from './pausa.js';
 const MAX_DRAW = 1500;    // con más puntos se simplifica para dibujar (no cambia la forma)
 const LINE_W = 5, HALO_W = 14, HI_W = 1.5;  // anchos en px CSS
 const TAIL = 0.06;        // la estela: el último 6 % de lo dibujado
+// Marcas de km (sin mapa): [más de tantos metros, una cada tantos]; y nunca a menos de KM_GAP px
+// (CSS) de otra, del inicio o del final (en una ida y vuelta, las de la vuelta caen sobre las de la ida).
+const KM_STEPS = [[150000, 20000], [50000, 10000], [12000, 5000], [0, 1000]], KM_GAP = 20;
+const kmStep = total => KM_STEPS.find(x => total > x[0])[1];
 
 // ---- Colores ----
 function parseColor(s){
@@ -40,7 +47,9 @@ export function palette(){
   const h = document.documentElement;
   if (h.classList.contains("sin-neon")) return { slow: [110, 116, 130], mid: [178, 184, 194], fast: [255, 255, 255], glow: false };
   const g = gizeGamut(), def = [[47, 160, 255], [166, 92, 255], [255, 61, 174]];
-  return { slow: parseColor(g[0]) || def[0], mid: parseColor(g[1]) || def[1], fast: parseColor(g[2]) || def[2], glow: true };
+  // Sin halo de color alrededor del recorrido (apariencia tranquila, css/ui/calma.css): la línea
+  // conserva los colores de velocidad.
+  return { slow: parseColor(g[0]) || def[0], mid: parseColor(g[1]) || def[1], fast: parseColor(g[2]) || def[2], glow: false };
 }
 // Color de t (0 lento … 1 rápido) como [r, g, b]: lento → medio → rápido.
 export function colorRGB(t, pal){
@@ -55,21 +64,35 @@ export function legendGradient(pal){
 }
 
 // ---- El recorrido listo para dibujar ----
-// pieces: [[{lat, lon, t (s)}]] (core/cardiogps.js decodeTrack). → { pieces, tt (0..1 por punto),
-// cd (metros acumulados por punto), total, dom ([lento, rápido] km/h), bounds } o null.
+// pieces: [[{lat, lon, t (s)}]] (core/cardiogps.js decodeTrack o livePath). → { pieces,
+// tt (0..1 por punto), cd (metros acumulados por punto), total, dom ([lento, rápido] km/h),
+// bounds, gaps (índices de las piezas que se unen con la anterior con una línea recta en neón:
+// por ahí no se midió, por una pausa o un corte del GPS) } o null.
+// Una pieza con cut (core/cardiogps.js trimTrack: la recortó la privacidad) no se une: la línea
+// cruzaría la zona oculta.
 export function prepareRoute(pieces, mode){
-  pieces = (pieces || []).filter(pc => pc && pc.length >= 2);
-  if (!pieces.length) return null;
-  if (trackPoints(pieces) > MAX_DRAW){
-    const b = boundsOf(pieces), span = Math.max((b.n - b.s) * 111195, (b.e - b.w) * 111195 * Math.cos((b.s + b.n) / 2 * Math.PI / 180));
-    pieces = pieces.map(pc => simplifyLine(pc, Math.max(1, span / 1200))).filter(pc => pc.length >= 2);
-    if (!pieces.length) return null;
+  let list = (pieces || []).filter(pc => pc && pc.length >= 1).map(pc => ({ pc, cut: !!pc.cut }));
+  const keep = () => {
+    // Una pieza que no se dibuja (menos de 2 puntos) corta la unión de la que sigue.
+    let lost = false;
+    list = list.filter(o => { if (o.pc.length >= 2){ if (lost) o.cut = true; lost = false; return true; } lost = true; return false; });
+  };
+  keep();
+  if (!list.length) return null;
+  if (trackPoints(list.map(o => o.pc)) > MAX_DRAW){
+    const ps = list.map(o => o.pc), b = boundsOf(ps), span = Math.max((b.n - b.s) * 111195, (b.e - b.w) * 111195 * Math.cos((b.s + b.n) / 2 * Math.PI / 180));
+    list.forEach(o => { o.pc = simplifyLine(o.pc, Math.max(1, span / 1200)); });
+    keep();
+    if (!list.length) return null;
   }
+  pieces = list.map(o => o.pc);
+  const gaps = [];
+  list.forEach((o, k) => { if (k && !o.cut) gaps.push(k); });
   let acc = 0;
   const cd = pieces.map(pc => pc.map((p, i) => (acc += i ? haversine(pc[i - 1], p) : 0)));
   const speeds = smoothSpeeds(pieces, mode === "bici" ? 8 : 15), dom = colorDomain(perSecond(pieces, speeds), mode);
   const tt = speeds.map(sp => sp.map(v => speedT(v, dom)));
-  return { pieces, tt, cd, total: acc, dom, bounds: boundsOf(pieces) };
+  return { pieces, tt, cd, total: acc, dom, bounds: boundsOf(pieces), gaps };
 }
 // km/h en cada punto para el color: el desplazamiento en línea recta sobre una ventana de
 // ±winS segundos (así el zigzag del GPS entre puntos cercanos no suma camino ni pinta de
@@ -190,12 +213,58 @@ export function strokeRange(ctx, prep, xy, from, to, kind, pal, scale = 1){
   }
 }
 
+// Línea gris de puntos (fina, discreta): por donde no se midió.
+function dashed(ctx, ax, ay, bx, by, s){
+  ctx.save();
+  ctx.setLineDash([3 * s, 5 * s]); ctx.lineCap = "round"; ctx.lineWidth = 2 * s;
+  ctx.strokeStyle = "rgba(170,176,188,.75)";
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+  ctx.restore();
+}
+
+// Las uniones entre piezas (pausas y cortes del GPS: prep.gaps), hasta m metros: en neón como el
+// resto (pedido), con el degradé del color del final de una pieza al del comienzo de la otra.
+function drawGaps(ctx, prep, xy, m, s, pal){
+  for (const k of prep.gaps || []){
+    const a = xy[k - 1], b = xy[k];
+    if (!(a && b && prep.cd[k][0] <= m)) continue;
+    const ax = a[a.length - 2], ay = a[a.length - 1], bx = b[0], by = b[1];
+    const ta = prep.tt[k - 1], c0 = colorAt(ta[ta.length - 1], pal), c1 = colorAt(prep.tt[k][0], pal);
+    ctx.save();
+    ctx.lineCap = "round"; ctx.lineWidth = LINE_W * s;
+    if (Math.abs(bx - ax) + Math.abs(by - ay) > 0.5){
+      const g = ctx.createLinearGradient(ax, ay, bx, by); g.addColorStop(0, c0); g.addColorStop(1, c1); ctx.strokeStyle = g;
+    } else ctx.strokeStyle = c0;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.restore();
+  }
+}
+
 // Marcas de inicio (anillo frío con centro blanco) y fin (punto intenso, endScale 0..1,2), la
-// estela y la cabeza (punto blanco con aura del color del momento) hasta m metros.
+// estela y la cabeza (punto blanco con aura del color del momento) hasta m metros, y las uniones
+// de las pausas y los cortes (en neón).
+// En vivo (o.tip: { x, y, dash } o null): del final del recorrido hasta «estás acá» (el punto
+// azul, ui/mapa.js) la punta: del color del final o, si en el medio hubo un hueco sin señal o el
+// dato es flojo, gris de puntos. Así el recorrido llega siempre a donde está la persona, sin
+// inventar por dónde fue.
 export function drawMarks(ctx, prep, xy, m, o){
   const pal = o.pal, s = o.scale || 1;
   const first = { x: xy[0][0], y: xy[0][1] };
   const lk = xy.length - 1, la = xy[lk], last = { x: la[la.length - 2], y: la[la.length - 1] };
+  drawGaps(ctx, prep, xy, m, s, pal);
+  if (o.live){
+    const tp = o.tip;
+    if (tp && (Math.abs(tp.x - last.x) + Math.abs(tp.y - last.y)) > 0.5){
+      if (tp.dash) dashed(ctx, last.x, last.y, tp.x, tp.y, s);
+      else {
+        const tt = prep.tt[lk];
+        ctx.save();
+        ctx.lineCap = "round"; ctx.lineWidth = LINE_W * s; ctx.strokeStyle = colorAt(tt[tt.length - 1], pal);
+        ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(tp.x, tp.y); ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
   // Estela: una sola línea blanca que se enciende hacia la cabeza.
   if (o.head && m > 0 && m < prep.total){
     const from = Math.max(0, m - prep.total * TAIL), p0 = pointAt(prep, xy, from), p1 = pointAt(prep, xy, m);
@@ -209,6 +278,25 @@ export function drawMarks(ctx, prep, xy, m, o){
       for (let j = 0; j <= steps; j++){ const q = pointAt(prep, xy, from + (m - from) * j / steps); if (q) j ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
       ctx.stroke(); ctx.restore();
     }
+  }
+  // Marcas de cada km (sin mapa, o.km), hasta m metros: círculo oscuro con borde blanco y el
+  // número. La última, si queda casi en el final, no va (taparía el punto del final); tampoco una
+  // que caería a menos de KM_GAP px de otra ya puesta, del inicio o del final (así no se enciman en
+  // los recorridos largos ni en las idas y vueltas).
+  if (o.km && prep.total > 1000){
+    const step = kmStep(prep.total), gap = KM_GAP * s, puestas = [first, last];
+    ctx.save();
+    ctx.font = "700 " + (9 * s) + "px Outfit, system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (let d = step; d < prep.total - step * 0.15 && d <= m; d += step){
+      const q = pointAt(prep, xy, d); if (!q) continue;
+      if (puestas.some(p => Math.hypot(p.x - q.x, p.y - q.y) < gap)) continue;
+      puestas.push(q);
+      ctx.beginPath(); ctx.arc(q.x, q.y, 8.5 * s, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(10,12,18,.92)"; ctx.fill();
+      ctx.lineWidth = 1.5 * s; ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.stroke();
+      ctx.fillStyle = "#FFFFFF"; ctx.fillText(String(d / 1000), q.x, q.y + 0.5 * s);
+    }
+    ctx.restore();
   }
   // Inicio.
   ctx.save();
@@ -226,8 +314,9 @@ export function drawMarks(ctx, prep, xy, m, o){
     ctx.lineWidth = 2 * s; ctx.strokeStyle = "#FFFFFF"; ctx.stroke();
     ctx.restore();
   }
-  // Cabeza (en vivo, headAtEnd: dónde está ahora la persona).
-  if ((o.head && m > 0 && m < prep.total) || o.headAtEnd){
+  // Cabeza (en vivo, headAtEnd: dónde está ahora la persona). Con la punta no: ahí está el punto
+  // azul de «estás acá».
+  if ((o.head && m > 0 && m < prep.total) || (o.headAtEnd && !(o.live && o.tip))){
     const p = pointAt(prep, xy, o.headAtEnd ? prep.total : m); if (!p) return;
     const c = colorRGB(p.t, pal);
     ctx.save();
@@ -264,7 +353,7 @@ export function drawRouteFlat(ctx, prep, xy, o){
 export class RouteLayers {
   constructor(host, opts){
     this.host = host; this.pal = palette(); this.prep = null; this.xy = null; this.drawn = 0; this.m = 0;
-    this.endScale = 0; this.raf = 0; this.w = 0; this.h = 0;
+    this.endScale = 0; this.raf = 0; this.w = 0; this.h = 0; this.tip = null;
     this.dpr = Math.min(window.devicePixelRatio || 1, document.documentElement.classList.contains("android-app") ? 1 : 2);
     const mk = cls => { const c = document.createElement("canvas"); c.className = "rv-cv " + cls; c.setAttribute("aria-hidden", "true"); host.appendChild(c); return c; };
     this.cv = { halo: this.pal.glow ? mk("rv-halo") : null, line: mk("rv-line"), hi: mk("rv-hi"), head: mk("rv-head") };
@@ -298,7 +387,7 @@ export class RouteLayers {
   marks(head){
     const c = this.ctx.head; if (!c || !this.prep || !this.xy) return;
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, c.canvas.width, c.canvas.height); c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    drawMarks(c, this.prep, this.xy, this.m, { pal: this.pal, head: !!head && !this.live, headAtEnd: !!this.live, endScale: this.live ? 0 : this.endScale });
+    drawMarks(c, this.prep, this.xy, this.m, { pal: this.pal, head: !!head && !this.live, headAtEnd: !!this.live, live: !!this.live, tip: this.tip, endScale: this.live ? 0 : this.endScale, km: !!this.km && !this.live });
   }
   // Todo hasta m metros (sin animar). Sin m: el recorrido completo con el final.
   drawAll(m){

@@ -4,6 +4,7 @@ import { exVideo } from '../core/videos.js';
 import { EQ_LABELS, equipOf, todayExs, variantOf, variantsFor } from '../core/variantes.js';
 
 import { EX_CATS, EX_DB, RC } from '../core/data.js';
+import { FOR_YOU, forYouList, orderedCats } from '../core/disciplinas.js';
 
 import { checkSvg, chevronDownSvg, pencilSvg, playSvg, resetSvg, searchSvg, swapSvg, trashSvg, trophySvg, xSvg } from '../core/icons.js';
 
@@ -28,6 +29,8 @@ import { timerText } from '../ui/settimer.js';
 
 import { focusFor } from '../ui/scrollfocus.js';
 
+import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto, hoyDow } from '../core/diasemana.js';
+
 export const EntrenoState = {
 
   exPicker: null,
@@ -43,6 +46,9 @@ export const EntrenoState = {
 
   // Ejercicio con el editor de descanso abierto (solo sin coach).
   restEditEx: null,
+
+  // Día con los botones de los días de la semana abiertos (solo sin coach, ver diasRow).
+  diasOpen: null,
 
 };
 
@@ -208,11 +214,31 @@ function renderSuggestion(ex, timed, occ){
   return `<div class="prog-sug"><span class="ps-ic">${upSvg}</span><div class="ps-txt"><span class="ps-lbl">Recomendación</span> <b>${esc(sg.text)}</b><span class="ps-why">${esc(sg.why)}</span></div></div>`;
 }
 
+// Días de la semana del día (core/diasemana.js), chiquito debajo del nombre de la portada:
+// «Lun · Jue». Sin coach se toca para elegirlos (7 botones de lunes a domingo y «Listo»); sin
+// ninguno elegido queda la invitación «Elegir días de la semana». Con coach se ve, sin tocar.
+const calSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
+function diasRow(d){
+  const txt = diasTexto(d), esHoy = diasDe(d).includes(hoyDow());
+  const label = txt ? esc(txt) + (esHoy ? ' <span class="dd-hoy">· hoy</span>' : '') : '';
+  if (routineLocked()) return txt ? `<div class="day-dias ro" aria-label="Días de la semana: ${esc(txt)}">${calSvg}<span>${label}</span></div>` : '';
+  if (EntrenoState.diasOpen === d.id) {
+    const on = diasDe(d);
+    const chips = SEMANA.map(n => `<button class="dd-chip${on.includes(n) ? ' on' : ''}" data-action="dia-toggle" data-d="${n}" aria-pressed="${on.includes(n)}" aria-label="${DIA_LARGO[n]}">${DIA_LETRA[n]}</button>`).join("");
+    return `<div class="day-dias-edit"><div class="dd-week" role="group" aria-label="Días de la semana de ${esc(d.name)}">${chips}</div>` +
+      `<p class="dd-hint">Si hoy es uno de estos días, la app abre directo acá.</p>` +
+      `<button class="dd-done" data-action="dias-close">Listo</button></div>`;
+  }
+  return txt ? `<button class="day-dias" data-action="dias-open" aria-label="Días de la semana: ${esc(txt)}. Cambiar">${calSvg}<span>${label}</span></button>`
+    : `<button class="day-dias empty" data-action="dias-open">${calSvg}<span>Elegir días de la semana</span></button>`;
+}
+
+// El nombre de la portada va grande; si es largo baja de tamaño para no ocupar media pantalla
+// (también mientras se escribe: app/main.js → fitDayName).
+export function dayNameCls(name){ const n = String(name || '').length; return n > 32 ? 'dn-xl' : n > 14 ? 'dn-l' : ''; }
+
 export function renderEntreno(){
   const d = day();
-  const total = d.exercises.reduce((a,e)=>a+e.sets.length,0);
-  const done = d.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0);
-  const pct = total ? Math.round(done/total*100) : 0;
   const tabs = state.days.map(x =>
     `<button class="tab${x.id===State.activeId?' active':''}" data-action="tab" data-day="${esc(x.id)}">${esc(x.name)}</button>`
   ).join("") + (routineLocked() ? "" : `<button class="tab tab-add" data-action="addday" title="Agregar día">+</button>`);
@@ -249,7 +275,7 @@ export function renderEntreno(){
         let bestSecs=0; (ex.sets||[]).forEach(s=>{ const r=parseSecs(s.secs); if(r>bestSecs) bestSecs=r; });
         meta = isTimedEx(ex) ? (bestSecs>0 ? 'máx '+fmtSecs(bestSecs) : 'Completado')
           : best ? (String(num(best.kg)).replace('.',',')+' kg × '+(parseInt(best.reps)||0)) : (bestReps>0 ? bestReps+' reps' : 'Completado'); // números: kg y reps pueden venir de la rutina que escribe el coach
-        badge = `<span class="ex-collapsed-badge">${isPR?trophySvg:checkSvg}</span>`;
+        badge = `<span class="ex-collapsed-badge${isPR?' is-pr':''}">${isPR?trophySvg:checkSvg}</span>`;
         cls = meta==='Completado' ? ' is-done' : '';
       } else {
         meta = nd ? nd+'/'+n+' series' : n+(n===1?' serie':' series');
@@ -264,10 +290,11 @@ export function renderEntreno(){
     }
     // Por tiempo (plancha, isométricos): segundos en vez de reps, con un cronómetro por serie.
     // El peso solo aparece si el coach lo pidió o el cliente ya lo cargó (casi siempre va sin peso).
-    const timed = isTimedEx(ex);
+    // En la caminata del granjero va siempre: si no, en una rutina propia no había dónde anotarlo.
+    const timed = isTimedEx(ex), carry = /granjero|farmer/i.test(ex.name||"");
     const setRow = (s,i) => {
       const tg = parseSecs(s.target);
-      const kgField = (s.targetKg || String(s.kg||"") !== "") ? `${kgInput(ex, s)}` : '';
+      const kgField = (carry || s.targetKg || String(s.kg||"") !== "") ? `${kgInput(ex, s)}` : '';
       return `
       <div class="set timed">
         <span class="idx${prSets.has(s.id)?' has-pr':''}">${prSets.has(s.id)?`<span class="pr-mark">${trophySvg}</span>`:''}${i+1}</span>
@@ -329,27 +356,25 @@ export function renderEntreno(){
   // creyendo que lo cargado ya está guardado.
   const syncWarn = (State.cloudUser && !State.cloudReady && !State.cloudLoading)
     ? '<div class="sync-warn" role="status">Todavía no se guardó en tu cuenta: lo que cargues queda en este celular y se sube solo cuando vuelva la conexión. No cierres sesión ni desinstales la app.</div>' : '';
+  // Arriba, la «portada» del día (.day-head, css/screens/entreno.css): solo el nombre grande y
+  // centrado, «Iniciar entrenamiento» (o el reloj con Finalizar y Cancelar), «Limpiar» abajo y el
+  // tachito chico en la esquina. La barra y la cuenta de series se sacaron (pedido).
   return `
     ${syncWarn}
     ${renderBlockBanner()}
     ${routineLocked()?'<div class="coach-banner">Rutina asignada por tu coach</div>':''}
     <div class="tabs">${tabs}</div>
     <div class="day-head" data-reveal="dayhead-${esc(d.id)}">
-      <div class="day-top">
-        ${routineLocked() ? `<h2 class="day-name">${esc(d.name)}</h2>` : `<textarea class="day-name" rows="1" data-action="dayname" enterkeyhint="done" aria-label="Nombre del día">${esc(d.name)}</textarea>`}
-        ${routineLocked()?'':`<button class="day-del" data-action="delday" title="Eliminar día">${trashSvg}</button>`}
-      </div>
+      ${routineLocked() ? `<h2 class="day-name ${dayNameCls(d.name)}">${esc(d.name)}</h2>` : `<textarea class="day-name ${dayNameCls(d.name)}" rows="1" data-action="dayname" enterkeyhint="done" aria-label="Nombre del día">${esc(d.name)}</textarea>`}
+      ${diasRow(d)}
       ${wkStarted(d) ? `<div class="wk-live"><span class="wk-dot"></span>Entrenando hace <b id="wkTime">${wkElapsedText()}</b></div>
         <div class="wk-actions"><button class="wk-finish" data-action="save-session">${checkSvg} Finalizar</button><button class="wk-cancel" data-action="wk-cancel">Cancelar</button></div>`
         : d.exercises.length ? `<button class="wk-start" data-action="wk-start">${playSvg} Iniciar entrenamiento</button>` : ''}
-      <div class="progress-row">
-        <div class="bar"><div style="width:${pct}%"></div></div>
-        <span class="count">${done}/${total} series</span>
-        <button class="clear" data-action="clear">Limpiar</button>
-      </div>
+      <button class="clear" data-action="clear">Limpiar</button>
+      ${routineLocked()?'':`<button class="day-del" data-action="delday" title="Eliminar día" aria-label="Eliminar día">${trashSvg}</button>`}
     </div>
     ${cards || (!routineLocked() && !(state.days||[]).some(x=>(x.exercises||[]).length)
-      ? '<div class="empty empty-pick">Todavía no tenés rutina.<br>Elegí una rutina armada de 1 a 5 días por semana o agregá tus ejercicios acá abajo.<button class="wk-start empty-pick-btn" data-action="open-routines">Elegir una rutina armada</button></div>'
+      ? '<div class="empty empty-pick">Todavía no tenés rutina.<br>Elegí una rutina armada de 1 a 6 días por semana o agregá tus ejercicios acá abajo.<button class="wk-start empty-pick-btn" data-action="open-routines">Elegir una rutina armada</button></div>'
       : '<div class="empty">Día vacío.<br>' + (routineLocked()?'Tu coach todavía no te cargó ejercicios.':'Agregá ejercicios acá abajo 👇') + '</div>')}
     ${routineLocked()?'':'<button class="add-ex" data-action="ex-add-open">+ Agregar ejercicio</button>'}
     ${renderDayNotes(d)}
@@ -364,12 +389,15 @@ export function renderExList(){
     const res = searchExercises(n=>norm(n).includes(nq), EX_CATS).slice(0,60);
     return res.length ? res.map(r=>`<button class="ex-pick" data-action="ex-choose" data-name="${esc(r.name)}" data-cat="${esc(r.cat)}">${esc(r.label)}</button>`).join("") : '<div class="cal-hint">Sin resultados</div>';
   }
+  // «Para vos»: los ejercicios clave de su disciplina; cada uno cuenta para su grupo muscular.
+  if(EntrenoState.exCat===FOR_YOU) return forYouList().map(n=>`<button class="ex-pick" data-action="ex-choose" data-name="${esc(n)}" data-cat="">${esc(n)}</button>`).join("");
   return (EX_DB[EntrenoState.exCat]||[]).map(n=>`<button class="ex-pick" data-action="ex-choose" data-name="${esc(n)}" data-cat="${esc(EntrenoState.exCat)}">${esc(n)}</button>`).join("");
 }
 
 export function renderExSheet(){
   if(!EntrenoState.exPicker) return "";
-  const chips = EX_CATS.map(c=>`<button class="ex-chip${EntrenoState.exCat===c[0]?' on':''}" data-action="ex-cat" data-cat="${c[0]}">${c[1]}</button>`).join("");
+  const chips = orderedCats(EX_CATS).map(c=>`<button class="ex-chip${EntrenoState.exCat===c[0]?' on':''}${c[0]===FOR_YOU?' ex-chip-vos':''}" data-action="ex-cat" data-cat="${c[0]}">${c[1]}</button>`).join("");
+  // Sin disciplina elegida: una invitación a elegirla (en Ajustes) para ver primero lo suyo.
   return `
     <div class="sheet-bg" data-action="ex-cancel"></div>
     <div class="sheet ex-sheet">
@@ -424,8 +452,12 @@ function exAudioLabel(path, secs){
   const st = audioState("ex:" + path);
   return (st.playing ? 'Pausar' : 'Escuchar a tu coach') + ' <span class="ex-audio-t">' + (st.on && st.time > 0 ? mmss(st.time) + ' / ' : '') + mmss(secs) + '</span>';
 }
+// Solo si el audio es del coach que tiene hoy: la base no deja escuchar los de otro (el que venció o
+// lo desvinculó) y el botón fallaba siempre con «Revisá la conexión». El audio queda en la rutina.
 export function exAudioBtn(ex){
   if(!ex || !ex.audio || !EX_AUDIO_RE.test(ex.audio)) return '';
+  const cid = State.cloudProfile && State.cloudProfile.coach_id;
+  if(!cid || ex.audio.split('/')[0] !== String(cid)) return '';
   return '<button class="ex-audio" data-action="ex-audio" data-path="' + esc(ex.audio) + '" data-secs="' + (parseInt(ex.audioSecs) || 0) + '">' + hpSvg + ' <span class="ex-audio-l">' + exAudioLabel(ex.audio, ex.audioSecs) + '</span></button>';
 }
 Player.subs.add(() => {

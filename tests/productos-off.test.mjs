@@ -4,6 +4,9 @@
 // source 'off' y datos que la base no podía comprobar). Si la función falla o todavía no está
 // publicada, el alimento se anota igual con los datos de Open Food Facts, sin guardarlo.
 // Además: la función revisa los datos de OFF con las mismas reglas que la importación mensual.
+// Lo que la función rechaza por valores imposibles o porque está oculto (reportado o sacado por
+// un administrador) no se trae igual desde OFF: se ofrece pedirlo. Y lo que llega directo de OFF
+// (búsqueda por nombre o sin la función) pasa por los mismos límites.
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { newPage, saved, wait, text, ALUMNO, profile } from './lib.mjs';
@@ -14,7 +17,7 @@ const OFF_PRODUCT = { code: CODE, product_name: 'Galletitas de Open Food Facts',
   nutriments: { 'energy-kcal_100g': 450, proteins_100g: 7, carbohydrates_100g: 70, fat_100g: 15 } };
 
 // Abre Comida, escanea (escribe) el código y devuelve lo que pasó.
-async function scan(base, fnReply){
+async function scan(base, fnReply, offProduct = OFF_PRODUCT){
   const posts = [], fnBodies = [], offCalls = [], rpcs = [];
   const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {}, calTarget: 2000 },
     handlers: {
@@ -26,7 +29,7 @@ async function scan(base, fnReply){
   await p.route(/openfoodfacts\.org/, r => {
     offCalls.push(r.request().url());
     return /\/api\/v2\/product\//.test(r.request().url())
-      ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 1, product: OFF_PRODUCT }) })
+      ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 1, product: offProduct }) })
       : r.fulfill({ status: 200, contentType: 'application/json', body: '{"products":[]}' });
   });
   await p.goto(base + '/app/'); await wait(2500);
@@ -77,6 +80,39 @@ export default async function ({ base, t }){
   t.eq(d.offCalls, [], 'si la función dice que OFF no lo tiene, no se busca de nuevo');
   t.has(d.dialogs.join(' | '), 'Todavía no tenemos el código ' + CODE, 'ofrece pedir el producto');
   t.eq(d.posts, [], 'no carga nada en la tabla');
+
+  // 4b) La función no lo guardó porque está oculto o sus valores no pueden ser: tampoco se trae
+  //     desde el celular (volvían los mismos datos malos), se ofrece pedirlo.
+  for (const why of ['oculto', 'valores imposibles', 'calorías no cierran']){
+    const x = await scan(base, (r, J) => J({ skipped: why }));
+    t.eq(x.offCalls, [], why + ': no se busca en Open Food Facts desde el celular');
+    t.eq(x.diary, [], why + ': no se abre el producto');
+    t.has(x.dialogs.join(' | '), 'Todavía no tenemos el código ' + CODE, why + ': ofrece pedir el producto');
+  }
+  // Con la tabla incompleta en OFF sí se anota con lo que trae OFF (como antes).
+  const inc = await scan(base, (r, J) => J({ skipped: 'tabla incompleta' }));
+  t.eq(inc.diary, [['Galletitas de Open Food Facts · Marca Off', 50, 225]], 'tabla incompleta: se anota igual con los datos de OFF');
+
+  // 4c) Sin la función, un producto de OFF con los kJ en el lugar de las kcal no se anota.
+  const KJ = Object.assign({}, OFF_PRODUCT, { nutriments: { 'energy-kcal_100g': 1590, proteins_100g: 8, carbohydrates_100g: 75, fat_100g: 2 } });
+  const kj = await scan(base, r => r.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"x"}' }), KJ);
+  t.eq(kj.diary, [], 'valores imposibles de OFF: no se abre el producto');
+  t.has(kj.dialogs.join(' | '), 'Todavía no tenemos el código ' + CODE, 'valores imposibles de OFF: ofrece pedirlo');
+
+  // 4d) Lo que llega directo de OFF (también la búsqueda por nombre) pasa por los mismos límites.
+  {
+    const { p, close } = await newPage({});
+    await p.goto(base + '/app/'); await wait(1000);
+    const out = await p.evaluate(async list => { const m = await import('/app/core/off.js'); return list.map(x => !!m.offToFood(x)); }, [
+      OFF_PRODUCT, KJ,
+      { code: '1', product_name: 'Cerveza', nutriments: { 'energy-kcal_100g': 43, proteins_100g: 0.5, carbohydrates_100g: 3.6, fat_100g: 0, alcohol_100g: 5 } },
+      { code: '2', product_name: 'Solo calorías y proteína', nutriments: { 'energy-kcal_100g': 120, proteins_100g: 10 } },
+      { code: '3', product_name: 'No cierra', nutriments: { 'energy-kcal_100g': 50, proteins_100g: 20, carbohydrates_100g: 20, fat_100g: 20 } },
+      { code: '4', product_name: 'Macros de más', nutriments: { 'energy-kcal_100g': 900, proteins_100g: 60, carbohydrates_100g: 60, fat_100g: 10 } },
+    ]);
+    t.eq(out, [true, false, true, true, false, false], 'offToFood descarta los valores imposibles o que no cierran');
+    await close();
+  }
 
   // 5) La función revisa los datos de OFF con las mismas reglas que la importación mensual.
   let fn = null, lib = null;

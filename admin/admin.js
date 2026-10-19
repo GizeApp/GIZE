@@ -6,16 +6,26 @@
 const SB_URL = "https://wegptuzhsrwppbknqstf.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlZ3B0dXpoc3J3cHBia25xc3RmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDkxODgsImV4cCI6MjA5ODU4NTE4OH0.pWBes8juiNcCrFG377w_Ga9IQ4EE37p5AJwUpYs2k8Q";
 const REPO = "GizeApp/gize";
-const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "implicit", detectSessionInUrl: true } });
+// PKCE y no "implicit": con "implicit" la librería toma cualquier #access_token=... de la
+// dirección, y un link armado por otra persona dejaba este navegador (también gize.ar/app, que
+// comparte la sesión) adentro de SU cuenta. Con PKCE solo vale la vuelta de un ingreso que
+// empezó acá (Google), y esos links se ignoran.
+// ingresoAca: el ingreso empezó en el panel («Entrar», o la vuelta de Google con ?code=). Solo
+// así se cierra la sesión de una cuenta que no es administradora (ver boot).
+let ingresoAca = new URLSearchParams(location.search).has("code");
+const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "pkce", detectSessionInUrl: true } });
 
 const $root = document.getElementById("root");
-const S = { user: null, view: "resumen", overview: null, goals: null, tasks: null, users: null, q: "", coaches: null, fin: null, finTab: "numeros", dolar: null, prodTab: "pedidos", reqKind: "pendientes", reqs: null, prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false };
-// Menú en tres bloques: Inicio (lo que hay que atender y los objetivos), la gestión del día a día
-// y lo del negocio y el sistema.
-const GROUPS = [["", [["resumen", "Inicio"]]],
-  ["Gestión", [["usuarios", "Usuarios"], ["coaches", "Coaches y pagos"], ["contacto", "Mensajes"], ["productos", "Productos"], ["avisos", "Avisos"]]],
-  ["Negocio y sistema", [["finanzas", "Finanzas"], ["seguridad", "Seguridad"]]]];
-const SECTIONS = GROUPS.flatMap(g => g[1]);
+const S = { user: null, view: "resumen", overview: null, goals: null, tasks: null, users: null, q: "", coaches: null, fin: null, finTab: "numeros", dolar: null, prodTab: "pedidos", reqKind: "pendientes", reqs: null, prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false, repTab: "nuevo", reps: null, repPend: 0 };
+// Menú plano en dos tramos: lo de todos los días y, abajo, «Más». La clave "resumen" es la de
+// siempre (los links #resumen siguen andando) aunque ahora se llame Objetivos.
+const NAV_MAIN = [["resumen", "Objetivos"], ["usuarios", "Usuarios"], ["finanzas", "Finanzas"], ["seguridad", "Seguridad"]];
+const NAV_MORE = [["contacto", "Mensajes"], ["reportes", "Reportes"], ["productos", "Productos"], ["avisos", "Avisos"], ["estadisticas", "Estadísticas"]];
+// «Coaches y pagos» no tiene botón propio: es una pestaña de Usuarios (la clave "coaches" y el
+// link #coaches siguen andando; en el menú queda marcado Usuarios).
+const SECTIONS = NAV_MAIN.concat(NAV_MORE, [["coaches", "Coaches y pagos"]]);
+const NAV_OF = { coaches: "usuarios" };
+const userTabs = on => `<div class="tabs">${[["usuarios", "Todos los usuarios"], ["coaches", "Coaches y pagos"]].map(([k, l]) => `<button class="${on === k ? "on" : ""}" data-go="${k}">${l}</button>`).join("")}</div>`;
 
 // ---------- utilidades ----------
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -45,6 +55,39 @@ async function fn(body){
 }
 const errMsg = e => (e && (e.message || e.error_description)) || "Algo salió mal.";
 
+// ---------- paneles plegables ----------
+// Cada bloque se abre o se pliega tocando su título y queda como lo dejaste (en este navegador).
+// Plegado muestra una línea de resumen (cuántos hay, cómo viene) para no tener que abrirlo.
+const FOLD_KEY = "gize-admin-fold";
+let FOLD = {}; try { FOLD = JSON.parse(localStorage.getItem(FOLD_KEY)) || {}; } catch (e) {}
+const isOpen = (id, def) => id in FOLD ? !!FOLD[id] : def !== false;
+// o: { open: false } plegado de entrada, sum: resumen, act: botón a la derecha, flush: sin márgenes adentro.
+function panel(id, title, body, o){
+  o = o || {};
+  return `<details class="pnl" id="${id}" data-fold="${id}" data-def="${o.open === false ? 0 : 1}"${isOpen(id, o.open) ? " open" : ""}>
+    <summary><span class="pnl-t">${title}</span><span class="pnl-s" id="${id}-s">${o.sum || ""}</span>${o.act || ""}</summary>
+    <div class="pnl-b${o.flush ? " flush" : ""}">${body}</div></details>`;
+}
+// Igual que panel() pero fijo: siempre abierto, sin flecha. Para lo que se mira todos los días.
+// o: sum (resumen al lado del título), act (botón a la derecha), flush.
+function block(id, title, body, o){
+  o = o || {};
+  return `<section class="blk" id="${id}"><div class="blk-h"><span class="pnl-t">${title}</span><span class="pnl-s" id="${id}-s">${o.sum || ""}</span>${o.act || ""}</div>
+    <div class="pnl-b${o.flush ? " flush" : ""}">${body}</div></section>`;
+}
+function setSum(id, html){ const s = document.getElementById(id + "-s"); if (s) s.innerHTML = html || ""; }
+function openPanel(id){ const d = document.getElementById(id); if (d && !d.open) d.open = true; return d; }
+// El evento toggle no burbujea: se escucha en la captura.
+document.addEventListener("toggle", e => {
+  const d = e.target; if (!d.dataset) return;
+  if (d.dataset.msg && S.msgOpen){ S.msgOpen[d.dataset.msg] = d.open; return; }
+  if (!d.dataset.fold) return;
+  // Al dibujarse abierto también dispara toggle: si no cambió nada, no se guarda.
+  if (isOpen(d.dataset.fold, d.dataset.def !== "0") === d.open) return;
+  FOLD[d.dataset.fold] = d.open;
+  try { localStorage.setItem(FOLD_KEY, JSON.stringify(FOLD)); } catch (e) {}
+}, true);
+
 // ---------- entrada ----------
 function gate(msg, withLogin){
   $root.innerHTML = `<div class="aurora-bg" aria-hidden="true"><div class="gize-aurora"><span></span><span></span><span></span><span></span></div></div><div class="gate"><img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE"><p>${msg}</p>
@@ -59,14 +102,26 @@ function gate(msg, withLogin){
 }
 async function boot(){
   const { data } = await sb.auth.getSession();
-  S.user = data && data.session ? data.session.user : null;
+  const user = S.user = data && data.session ? data.session.user : null;
   if (location.hash.includes("access_token")) history.replaceState(null, "", location.pathname);
-  if (!S.user) return gate("Panel de administración de GIZE. Entrá con tu cuenta.", true);
-  let ok = false; try { ok = await rpc("is_app_admin"); } catch (e) {}
-  if (!ok) return gate("La cuenta <b>" + esc(S.user.email) + "</b> no es administradora de GIZE.", false);
+  if (!user){ ingresoAca = false; return gate("Panel de administración de GIZE. Entrá con tu cuenta.", true); }
+  let ok = false, known = false; try { ok = await rpc("is_app_admin"); known = true; } catch (e) {}
+  if (!known) return gate("No se pudo comprobar si la cuenta <b>" + esc(user.email) + "</b> es administradora. Revisá la conexión y recargá la página.", false);
+  // Una cuenta que no es administradora y entró acá no se queda con la sesión abierta: se cierra
+  // en este navegador y se pide entrar con otra. La de gize.ar/app (es la misma sesión: al abrir
+  // el panel, o la que avisa la pestaña de la app al entrar o al volver a verse) no se toca:
+  // antes el panel la cerraba en el servidor y la app quedaba afuera.
+  if (!ok){
+    if (!ingresoAca) return gate("La cuenta <b>" + esc(user.email) + "</b> no es administradora de GIZE.", false);
+    S.user = null;
+    try { await sb.auth.signOut({ scope: "local" }); } catch (e) {}
+    ingresoAca = false;
+    return gate("La cuenta <b>" + esc(user.email) + "</b> no es administradora de GIZE, así que se cerró la sesión en este navegador. Entrá con una cuenta administradora.", true);
+  }
+  ingresoAca = false;
   const v = (location.hash || "").replace("#", ""); if (SECTIONS.some(s => s[0] === v)) S.view = v;
   shell(); go(S.view);
-  refreshUnread(); setInterval(refreshUnread, 60000);
+  refreshUnread(); refreshReps(); setInterval(() => { refreshUnread(); refreshReps(); }, 60000);
 }
 sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !S.user) boot(); if (ev === "SIGNED_OUT") { S.user = null; gate("Cerraste la sesión.", true); } });
 
@@ -74,17 +129,22 @@ sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" && !S.user) boot(); i
 function shell(){
   $root.innerHTML = `<div class="shell"><nav class="side">
       <img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE"><div class="side-sub">Administración</div>
-      ${GROUPS.map(([g, items]) => (g ? `<div class="nav-g">${g}</div>` : "") + items.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : ""}</button>`).join("")).join("")}
+      ${[NAV_MAIN, NAV_MORE].map((items, i) => (i ? '<div class="nav-sep">Más</div>' : "") + items.map(([k, l]) => `<button class="nav" data-go="${k}">${l}${k === "productos" ? '<i id="navPend" hidden></i>' : k === "contacto" ? '<i id="navMsg" hidden></i>' : k === "reportes" ? '<i id="navRep" hidden></i>' : ""}</button>`).join("")).join("")}
       <div class="side-foot"><span class="side-mail">${esc(S.user.email)}<br></span><button data-a="logout">Salir</button> · <a href="../app/">Ir a la app</a></div>
     </nav><main class="main" id="main"></main></div>`;
 }
 function go(view){
   S.view = view; history.replaceState(null, "", "#" + view);
-  document.querySelectorAll(".nav").forEach(b => b.classList.toggle("on", b.dataset.go === view));
-  ({ resumen: loadResumen, contacto: loadContacto, usuarios: loadUsuarios, coaches: loadCoaches, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
+  document.querySelectorAll(".nav").forEach(b => b.classList.toggle("on", b.dataset.go === (NAV_OF[view] || view)));
+  ({ resumen: loadResumen, estadisticas: loadEstadisticas, contacto: loadContacto, reportes: loadReportes, usuarios: loadUsuarios, coaches: loadCoaches, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
 }
 const main = () => document.getElementById("main");
-function page(title, lead, body){ main().innerHTML = `<div class="h1">${title}</div><div class="lead">${lead}</div>${body}`; }
+// Si la página tiene paneles, arriba a la derecha van «Abrir todo» y «Plegar todo».
+function page(title, lead, body){
+  // (sin paneles, el CSS los esconde: algunas páginas los dibujan después de cargar)
+  main().innerHTML = `<div class="pg-h"><div class="h1">${title}</div><div class="pg-fold"><button data-a="foldAll" data-v="1">Abrir todo</button><button data-a="foldAll" data-v="0">Plegar todo</button></div></div><div class="lead">${lead}</div>${body}`;
+}
+function foldAll(open){ main().querySelectorAll(".pnl").forEach(d => { d.open = open; }); }
 function setPend(n){ const i = document.getElementById("navPend"); if (i){ i.hidden = !n; i.textContent = n; } }
 // Globito de Productos: lo que falta revisar de la base más los pedidos de la gente.
 async function pendTotal(o){ let r = 0; try { r = num(await rpc("admin_requests_pending")); } catch (e) {} setPend(num(o && o.pending) + r); }
@@ -104,7 +164,18 @@ async function refreshUnread(){
     setUnread(n);
   } catch (e) {}
 }
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshUnread(); });
+// Reportes sin revisar (chat y grupos de pasos): número en el menú. Apple y Google piden
+// atenderlos rápido (dentro de las 24 horas).
+function setRep(n){ S.repPend = num(n); const i = document.getElementById("navRep"); if (i){ i.hidden = !S.repPend; i.textContent = S.repPend; } }
+async function refreshReps(){
+  if (!S.user) return;
+  try {
+    const n = num(await rpc("admin_reports_pending"));
+    if (n > S.repPend && S.view === "reportes" && S.repTab === "nuevo") loadReportes();
+    setRep(n);
+  } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ refreshUnread(); refreshReps(); } });
 
 // ---------- gráfico de columnas (una serie, con detalle al pasar el dedo o el mouse) ----------
 function columns(data, label){
@@ -136,39 +207,49 @@ document.addEventListener("pointermove", e => {
 // Arriba lo que hay que atender, después los objetivos (supabase/objetivos.sql) y al final los
 // números y gráficos del resumen.
 async function loadResumen(){
-  page("Inicio", "Lo que hay que atender y cómo vienen los objetivos.", '<div class="empty">Cargando…</div>');
-  try { S.overview = await rpc("admin_overview"); } catch (e) { return page("Inicio", "", `<div class="empty">${esc(errMsg(e))}</div>`); }
+  page("Objetivos", "Lo que hay que atender, las metas y las tareas.", '<div class="empty">Cargando…</div>');
+  try { S.overview = await rpc("admin_overview"); } catch (e) { return page("Objetivos", "", `<div class="empty">${esc(errMsg(e))}</div>`); }
   const o = S.overview || {};
   // Lo que falta: con que falle uno, el resto se muestra igual.
-  const [reqs, coaches, unread, goals, tasks] = await Promise.all([
+  const [reqs, coaches, unread, goals, tasks, reps] = await Promise.all([
     rpc("admin_requests_pending").catch(() => 0), rpc("admin_coaches").catch(() => null),
-    rpc("admin_contact_unread").catch(() => S.unread), rpc("admin_goals").catch(e => ({ error: e })), rpc("admin_tasks").catch(e => ({ error: e }))]);
+    rpc("admin_contact_unread").catch(() => S.unread), rpc("admin_goals").catch(e => ({ error: e })), rpc("admin_tasks").catch(e => ({ error: e })),
+    rpc("admin_reports_pending").catch(() => S.repPend)]);
   if (S.view !== "resumen") return;
   if (coaches) S.coaches = coaches;
-  setPend(num(o.pending) + num(reqs)); setUnread(num(unread));
+  setPend(num(o.pending) + num(reqs)); setUnread(num(unread)); setRep(reps);
   S.goals = goals; S.tasks = tasks; S.reqsPend = num(reqs);
+  page("Objetivos", "Lo que hay que atender, las metas y las tareas.",
+    block("hTodoB", "Para atender", '<div id="hTodo"></div>', { flush: true }) +
+    block("hGoalsB", "Objetivos", '<div id="hGoals"></div>', { act: '<button class="btn sm" data-a="gNew">+ Nuevo</button>' }) +
+    block("hTasksB", "Tareas", '<div id="hTasks"></div>'));
+  paintTodo(); paintGoals(); paintTasks();
+}
+// ---------- Estadísticas ----------
+// Los números, los gráficos y las versiones en uso (antes estaban en Inicio).
+async function loadEstadisticas(){
+  page("Estadísticas", "Cómo viene la app: usuarios, entrenos y versiones.", '<div class="empty">Cargando…</div>');
+  try { S.overview = await rpc("admin_overview"); } catch (e) { return page("Estadísticas", "", `<div class="empty">${esc(errMsg(e))}</div>`); }
+  if (S.view !== "estadisticas") return;
+  const o = S.overview || {};
   const k = (v, l, sub) => `<div class="kpi"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
   const versions = (o.versions || []).map(v => `<tr><td>${esc(v.platform === "android" ? "Android" : v.platform === "ios" ? "iPhone" : v.platform === "web" ? "Web" : v.platform)}</td><td>${esc(v.version)}</td><td>${n0(v.n)}</td></tr>`).join("");
-  page("Inicio", "Lo que hay que atender y cómo vienen los objetivos.", `
-    <section class="blk"><div class="blk-h"><div class="sec-t">Para atender</div></div><div id="hTodo"></div></section>
-    <section class="blk"><div class="blk-h"><div class="sec-t">Objetivos</div><button class="btn sm" data-a="gNew">+ Nuevo objetivo</button></div><div id="hGoals"></div></section>
-    <section class="blk" id="hTasksB"><div class="blk-h"><div class="sec-t">Tareas</div></div><div id="hTasks"></div></section>
-    <section class="blk"><div class="blk-h"><div class="sec-t">Números</div></div>
-      <div class="grid kpis">
+  page("Estadísticas", "Cómo viene la app: usuarios, entrenos y versiones.",
+    block("hNumB", "Números", `<div class="grid kpis">
         ${k(n0(o.users), "Usuarios", "+" + n0(o.new7) + " esta semana · +" + n0(o.new30) + " en 30 días")}
         ${k(n0(o.active7), "Activos en 7 días", n0(o.sessions7) + " entrenos en la semana")}
         ${k(n0(o.paid), "Coaches pagando", n0(o.coaches) + " coaches · " + n0(o.trial) + " en prueba · " + n0(o.courtesy) + " de cortesía")}
         ${k(money(o.mrr), "Ingreso mensual", n0(o.linked) + " de " + n0(o.clients) + " alumnos con coach")}
-      </div>
-      <div class="grid two">
+      </div>`) +
+    block("hChartsB", "Gráficos", `<div class="grid two">
         <div class="card"><div class="sec-t">Usuarios nuevos por semana</div><div class="sec-s">Últimas 12 semanas</div>${columns(o.signups || [], "usuarios nuevos")}</div>
         <div class="card"><div class="sec-t">Entrenos guardados por semana</div><div class="sec-s">Últimas 12 semanas</div>${columns(o.training || [], "entrenos")}</div>
-      </div>
-      <details class="card fold mt"><summary><span class="sec-t">Versiones en uso</span><span class="muted small">Usuarios que abrieron la app en los últimos 30 días</span></summary>
-        ${versions ? `<div class="tscroll"><table class="table"><thead><tr><th>Plataforma</th><th>Versión</th><th>Usuarios</th></tr></thead><tbody>${versions}</tbody></table></div>` : '<div class="empty">Todavía no hay datos: se completan a medida que la gente abre la app.</div>'}
-      </details></section>`);
-  paintTodo(); paintGoals(); paintTasks();
+      </div>`) +
+    block("hVerB", "Versiones en uso", `<div class="sec-s">Usuarios que abrieron la app en los últimos 30 días.</div>
+        ${versions ? `<div class="tscroll"><table class="table"><thead><tr><th>Plataforma</th><th>Versión</th><th>Usuarios</th></tr></thead><tbody>${versions}</tbody></table></div>` : '<div class="empty">Todavía no hay datos: se completan a medida que la gente abre la app.</div>'}`,
+      { sum: (o.versions || []).length ? (o.versions || []).length + (o.versions.length === 1 ? " versión" : " versiones") : "sin datos" }));
 }
+
 // Lista de lo pendiente: cada fila lleva a su sección (las tareas, al bloque de abajo). Solo
 // aparece lo que tiene algo.
 function paintTodo(){
@@ -179,11 +260,15 @@ function paintTodo(){
   const rows = [
     [late + today, "tareas", (late + today === 1 ? "tarea " : "tareas ") + (late && today ? "vencidas o para hoy" : late ? (late === 1 ? "vencida" : "vencidas") : "para hoy"), "están más abajo, en Tareas"],
     [S.unread, "contacto", "mensaje" + (S.unread === 1 ? "" : "s") + " sin leer", "contacto@gize.ar"],
+    [S.repPend, "reportes", S.repPend === 1 ? "reporte sin revisar" : "reportes sin revisar", "chat y grupos de pasos: revisalos dentro de las 24 horas"],
     [prods, "productos", "producto" + (prods === 1 ? "" : "s") + " para revisar", "pedidos de la gente, cargados sin verificar y reportados"],
     [soon, "coaches", soon === 1 ? "coach vence en los próximos 7 días" : "coaches vencen en los próximos 7 días", "pago o prueba: conviene escribirles"],
     [num(o.overdue), "coaches", num(o.overdue) === 1 ? "coach sin pagar" : "coaches sin pagar", "prueba vencida y sin pago al día"]].filter(r => r[0] > 0);
-  box.innerHTML = rows.length ? `<div class="card list">${rows.map(([n, go, l, sub]) => `<button class="li" ${go === "tareas" ? 'data-a="toTasks"' : `data-go="${go}"`}><b>${n0(n)}</b><span>${l}<small>${sub}</small></span><i aria-hidden="true">›</i></button>`).join("")}</div>`
-    : '<div class="card calm">Todo al día: no hay nada pendiente.</div>';
+  box.innerHTML = rows.length ? `<div class="list">${rows.map(([n, go, l, sub]) => `<button class="li" ${go === "tareas" ? 'data-a="toTasks"' : `data-go="${go}"`}><b>${n0(n)}</b><span>${l}<small>${sub}</small></span><i aria-hidden="true">›</i></button>`).join("")}</div>`
+    : '<div class="calm pad">Todo al día: no hay nada pendiente.</div>';
+  const n = rows.reduce((s, r) => s + r[0], 0);
+  const blk = document.getElementById("hTodoB"); if (blk) blk.classList.toggle("quiet", !rows.length);
+  setSum("hTodoB", rows.length ? `<span class="dot"></span>${n0(n)} cosa${n === 1 ? "" : "s"} para atender` : "todo al día");
 }
 
 // ---------- Objetivos ----------
@@ -224,10 +309,14 @@ function paintGoals(){
   const g = S.goals;
   if (g && g.error){
     const falta = /admin_goals|schema cache/i.test(errMsg(g.error));
-    box.innerHTML = `<div class="card calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/objetivos.sql</b>." : esc(errMsg(g.error))}</div>`;
-    return;
+    box.innerHTML = `<div class="calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/objetivos.sql</b>." : esc(errMsg(g.error))}</div>`;
+    setSum("hGoalsB", ""); return;
   }
-  if (!g || !g.length){ box.innerHTML = '<div class="card calm">Todavía no hay objetivos. Poné una meta con fecha (por ejemplo, 40 coaches pagando a fin de año) y acá se ve cuánto falta y si con el ritmo actual se llega.</div>'; return; }
+  if (!g || !g.length){ box.innerHTML = '<div class="calm">Todavía no hay objetivos. Poné una meta con fecha (por ejemplo, 40 coaches pagando a fin de año) y acá se ve cuánto falta y si con el ritmo actual se llega.</div>'; setSum("hGoalsB", "ninguno todavía"); return; }
+  // Resumen plegado: cuántos hay en cada estado («2 en camino · 1 atrasado»).
+  const cnt = {}; g.forEach(x => { const st = goalState(x).st; cnt[st] = (cnt[st] || 0) + 1; });
+  const GSUM = [["Atrasado", "atrasado", "atrasados", "t-warn"], ["Venció", "vencido", "vencidos", "t-bad"], ["En camino", "en camino", "en camino"], ["Recién empieza", "recién empieza", "recién empiezan"], ["Cumplido", "cumplido", "cumplidos"]];
+  setSum("hGoalsB", GSUM.filter(s => cnt[s[0]]).map(([st, one, many, cls]) => `<span class="${cls || ""}">${cnt[st]} ${cnt[st] === 1 ? one : many}</span>`).join(" · "));
   box.innerHTML = `<div class="goals">${g.map(x => { const s = goalState(x);
     return `<button class="card goal" data-goal="${esc(x.id)}">
       <div class="goal-h"><span>${esc(x.label || (METRICS[x.metric] || [x.metric])[0])}</span><span class="pill ${s.cls}">${s.st}</span></div>
@@ -260,7 +349,7 @@ async function saveGoal(btn){
   closeDrawer(); toast("Objetivo guardado ✓"); reloadGoals();
 }
 async function deleteGoal(btn){
-  if (!confirm("¿Borrar este objetivo?")) return;
+  if (!await confirmar("¿Borrar este objetivo?")) return;
   btn.disabled = true;
   try { await rpc("admin_goal_delete", { p_id: Number(btn.dataset.id) }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   closeDrawer(); toast("Objetivo borrado"); reloadGoals();
@@ -290,10 +379,13 @@ function paintTasks(){
   const box = document.getElementById("hTasks"); if (!box) return;
   if (S.tasks && S.tasks.error){
     const falta = /admin_tasks|schema cache/i.test(errMsg(S.tasks.error));
-    box.innerHTML = `<div class="card calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/objetivos.sql</b>." : esc(errMsg(S.tasks.error))}</div>`;
-    return;
+    box.innerHTML = `<div class="calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/objetivos.sql</b>." : esc(errMsg(S.tasks.error))}</div>`;
+    setSum("hTasksB", ""); return;
   }
   const all = taskList(), open = all.filter(t => !t.done), done = all.filter(t => t.done);
+  const late = open.filter(t => t.due_date && dueDays(t.due_date) < 0).length, today = open.filter(t => t.due_date && dueDays(t.due_date) === 0).length;
+  setSum("hTasksB", !open.length ? (done.length ? "todo hecho" : "ninguna todavía")
+    : [late ? `<span class="t-bad">${late} vencida${late === 1 ? "" : "s"}</span>` : "", today ? `<span class="t-warn">${today} para hoy</span>` : "", open.length + " pendiente" + (open.length === 1 ? "" : "s")].filter(Boolean).join(" · "));
   const byDate = (a, b) => (a.due_date || "9999") < (b.due_date || "9999") ? -1 : (a.due_date || "9999") > (b.due_date || "9999") ? 1 : a.id - b.id;
   const groups = [["Vencidas", t => t.due_date && dueDays(t.due_date) < 0], ["Hoy", t => t.due_date && dueDays(t.due_date) === 0],
     ["Próximos 7 días", t => t.due_date && dueDays(t.due_date) > 0 && dueDays(t.due_date) <= 7], ["Más adelante", t => t.due_date && dueDays(t.due_date) > 7], ["Sin fecha", t => !t.due_date]];
@@ -302,7 +394,7 @@ function paintTasks(){
       <button class="task" data-task="${esc(t.id)}"><span>${esc(t.title)}</span>
         <small>${t.done ? "hecha " + ago(t.done_at) : t.due_date ? dueTxt(t.due_date) : ""}${t.goal_id && goalName(t.goal_id) ? `<span class="muted">${t.done || t.due_date ? " · " : ""}${esc(goalName(t.goal_id))}</span>` : ""}</small></button></div>`;
   const opts = goalList().map(g => `<option value="${esc(g.id)}">${esc(goalName(g.id))}</option>`).join("");
-  box.innerHTML = `<div class="card">
+  box.innerHTML = `<div>
     <div class="task-add"><input class="in" id="tNew" maxlength="200" placeholder="Agregar una tarea…" autocomplete="off">
       <input class="in" id="tNewDue" type="date" aria-label="Fecha (opcional)">
       ${opts ? `<select class="in" id="tNewGoal" aria-label="Objetivo (opcional)"><option value="">Sin objetivo</option>${opts}</select>` : ""}
@@ -348,7 +440,7 @@ async function saveTask(btn){
   closeDrawer(); toast("Tarea guardada ✓"); reloadTasks();
 }
 async function deleteTask(btn){
-  if (!confirm("¿Borrar esta tarea?")) return;
+  if (!await confirmar("¿Borrar esta tarea?")) return;
   btn.disabled = true;
   try { await rpc("admin_task_delete", { p_id: Number(btn.dataset.id) }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   closeDrawer(); toast("Tarea borrada"); reloadTasks();
@@ -360,8 +452,9 @@ async function reloadTasks(){
 
 // ---------- Usuarios ----------
 async function loadUsuarios(){
-  page("Usuarios", "Tocá una fila para ver la ficha y las acciones.", `
+  page("Usuarios", "Tocá una fila para ver la ficha y las acciones.", userTabs("usuarios") + `
     <div class="search"><input class="in" id="uQ" placeholder="Nombre o mail…" value="${esc(S.q)}"><button class="btn blue" data-a="uSearch">Buscar</button></div>
+    <div class="seg" id="uFilt" hidden></div>
     <div class="card"><div id="uList" class="empty">Cargando…</div></div>`);
   searchUsers();
 }
@@ -382,10 +475,20 @@ const USER_COLS = [
   ["visto", "Última vez", u => (u.last_seen_at || u.last_sign_in_at) ? Date.parse(u.last_seen_at || u.last_sign_in_at) : null],
   ["app", "App", u => u.app_platform ? platformTxt(u.app_platform, u.app_version).toLowerCase() : null],
 ];
+// Filtros de la lista (sobre las cuentas que trajo la búsqueda). Inactivo: nunca entró o hace más de 14 días.
+const INACTIVE_MS = 14 * 864e5;
+const lastSeenT = u => { const d = u.last_seen_at || u.last_sign_in_at; return d ? Date.parse(d) : null; };
+const isInactive = u => { const t = lastSeenT(u); return t == null || Date.now() - t > INACTIVE_MS; };
+const UFILTERS = [["todos", "Todos", () => true], ["alumnos", "Alumnos", u => u.role !== "coach"], ["coaches", "Coaches", u => u.role === "coach"],
+  ["sincoach", "Alumnos sin coach", u => u.role !== "coach" && !u.coach_name], ["inactivos", "Sin actividad (14+ días)", isInactive], ["admins", "Admins", u => !!u.is_admin]];
 function paintUsers(){
   const box = document.getElementById("uList"); if (!box || !S.users) return;
   const so = S.uSort || null, col = so && USER_COLS.find(c => c[0] === so.k);
-  const list = S.users.slice();
+  const fl = UFILTERS.find(f => f[0] === S.uFilter) || UFILTERS[0];
+  const bar = document.getElementById("uFilt");
+  if (bar){ bar.hidden = false; bar.innerHTML = UFILTERS.map(([k, l, fn]) => `<button class="${fl[0] === k ? "on" : ""}" data-a="ufilt" data-v="${k}">${l} <span class="muted">${S.users.filter(fn).length}</span></button>`).join(""); }
+  const list = S.users.filter(fl[2]);
+  if (!list.length){ box.className = "empty"; box.textContent = "Ninguna cuenta cumple este filtro."; return; }
   if (col){
     const dir = so.dir === "desc" ? -1 : 1;
     list.sort((a, b) => { const x = col[2](a), y = col[2](b);
@@ -399,15 +502,23 @@ function paintUsers(){
     <tr class="row" data-user="${esc(u.id)}"><td><b>${esc(u.full_name || "Sin nombre")}</b>${u.is_admin ? ' <span class="pill blue">admin</span>' : ""}<div class="muted small">${esc(u.email)}</div></td>
       <td>${u.role === "coach" ? '<span class="pill ok">Coach</span>' : '<span class="pill">Alumno</span>'}</td>
       <td class="muted">${esc(u.coach_name || "—")}</td><td class="muted">${fmtD(u.created_at)}</td>
-      <td class="muted">${ago(u.last_seen_at || u.last_sign_in_at)}</td><td class="muted small">${esc(platformTxt(u.app_platform, u.app_version))}</td></tr>`).join("")}</tbody></table>` +
+      <td class="${isInactive(u) ? "t-warn" : "muted"}">${ago(u.last_seen_at || u.last_sign_in_at)}</td><td class="muted small">${esc(platformTxt(u.app_platform, u.app_version))}</td></tr>`).join("")}</tbody></table>` +
     // admin_users trae 60 como mucho (las cuentas más nuevas).
+    (list.length !== S.users.length ? `<div class="muted small" style="padding:10px">Mostrando ${list.length} de ${S.users.length}.</div>` : "") +
     (S.users.length >= 60 ? `<div class="muted small" style="padding:10px">Se muestran las 60 cuentas más nuevas${S.q ? " que coinciden" : ""}: buscá por nombre o mail para ver otras.</div>` : "");
 }
 const platformTxt = (p, v) => !p ? "—" : (p === "android" ? "Android " : p === "ios" ? "iPhone " : "Web ") + (p === "web" ? "" : (v || ""));
 
+// Si la ficha se cerró (o se abrió la de otro) mientras llegaba el detalle, esa respuesta vieja no
+// la vuelve a abrir ni pisa la ficha nueva: con la red lenta, la ficha cerrada reaparecía y su fondo
+// tapaba la tabla.
+let userReq = 0;
 async function openUser(id){
+  const req = ++userReq;
   drawer('<div class="empty">Cargando…</div>');
-  let d; try { d = await rpc("admin_user_detail", { uid: id }); } catch (e) { return drawer(`<div class="empty">${esc(errMsg(e))}</div>`); }
+  const dr = document.querySelector(".drawer"), vigente = () => req === userReq && dr.isConnected;
+  let d; try { d = await rpc("admin_user_detail", { uid: id }); } catch (e) { if (vigente()) drawer(`<div class="empty">${esc(errMsg(e))}</div>`); return; }
+  if (!vigente()) return;
   if (!d) return drawer('<div class="empty">No se encontró el usuario.</div>');
   const f = (l, v) => `<div class="fact"><span>${l}</span><b>${v}</b></div>`;
   const clients = (d.clients || []);
@@ -421,11 +532,18 @@ async function openUser(id){
     ${d.role === "coach" && clients.length ? `<div class="sec-t">Alumnos</div><div class="list-mini">${clients.map(c => esc(c.name || "Sin nombre")).join(" · ")}</div>` : ""}
     <div class="sec-t" style="margin-top:18px">Acciones</div>
     <div class="row-btns">
+      ${d.role === "coach" ? `<button class="btn blue" data-a="toCoach" data-id="${esc(d.id)}">Plan y pagos</button>` : ""}
       ${d.role === "coach" ? `<button class="btn" data-a="role" data-id="${esc(d.id)}" data-v="client">Pasar a alumno</button>` : `<button class="btn" data-a="role" data-id="${esc(d.id)}" data-v="coach">Pasar a coach</button>`}
       ${d.coach ? `<button class="btn" data-a="unlink" data-id="${esc(d.id)}">Desvincular de su coach</button>` : ""}
       ${d.is_admin ? `<button class="btn" data-a="admin" data-id="${esc(d.id)}" data-v="0">Quitar administrador</button>` : `<button class="btn" data-a="admin" data-id="${esc(d.id)}" data-v="1">Hacer administrador</button>`}
       <button class="btn bad" data-a="delete" data-id="${esc(d.id)}" data-name="${esc(d.full_name || d.email)}">Eliminar cuenta</button>
     </div>`);
+}
+// Cambió un coach (pago, cortesía, prueba): si se está en Coaches y pagos se redibuja; desde Usuarios
+// se descarta la lista guardada (la próxima vez se vuelve a pedir) y se refresca la tabla.
+function afterCoach(){
+  if (S.view === "coaches") loadCoaches();
+  else { S.coaches = null; if (S.view === "usuarios") searchUsers(); }
 }
 function drawer(html){
   let bg = document.querySelector(".drawer-bg"), dr = document.querySelector(".drawer");
@@ -444,11 +562,14 @@ function coachState(c){
 const mpTxt = s => ({ authorized: "activa", paused: "pausada", cancelled: "cancelada", pending: "pendiente" }[s] || s || "—");
 const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: "Hasta 50", p100: "Gimnasio chico (100)", p250: "Gimnasio (250)", p500: "Gimnasio grande (500)", cortesia: "Cortesía" }[p] || p || "—");
 async function loadCoaches(){
-  page("Coaches y pagos", "Plan, alumnos y estado del pago. Tocá un coach para cargar un pago, darle cortesía o más días de prueba.", '<div id="cSoon"></div><div class="card"><div id="cList" class="empty">Cargando…</div></div>');
+  page("Coaches y pagos", "Tocá un coach para cargar un pago, darle cortesía o más días de prueba.",
+    userTabs("coaches") + '<div id="cSoon"></div>' + block("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>'));
   const box = document.getElementById("cList");
   try { S.coaches = await rpc("admin_coaches"); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.coaches.length){ box.textContent = "Todavía no hay coaches."; return; }
   paintSoon();
+  const cnt = st => S.coaches.filter(c => coachState(c).includes(st)).length;
+  setSum("cListB", S.coaches.length + (S.coaches.length === 1 ? " coach · " : " coaches · ") + cnt("Pagado") + " pagando · " + cnt("Prueba") + " en prueba" + (cnt("Sin pagar") ? ` · <span class="t-bad">${cnt("Sin pagar")} sin pagar</span>` : ""));
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Coach</th><th>Plan</th><th>Alumnos</th><th>Estado</th><th>Mercado Pago</th><th>Paga</th></tr></thead><tbody>${S.coaches.map(c => `
     <tr class="row" data-coach="${esc(c.id)}"><td><b>${esc(c.full_name || "Sin nombre")}</b><div class="muted small">${esc(c.email)}</div></td>
@@ -478,11 +599,12 @@ function paintSoon(){
   const box = document.getElementById("cSoon"); if (!box) return;
   const list = (S.coaches || []).map(c => ({ c, v: venceDe(c) })).filter(x => x.v && x.v.dias <= 7 && x.v.dias > -30).sort((a, b) => a.v.t - b.v.t);
   if (!list.length){ box.innerHTML = ""; return; }
-  box.innerHTML = `<div class="card"><div class="sec-t" style="margin-top:0">Vencen pronto</div><div class="list-mini">${list.map(({ c, v }) => `
+  const late = list.filter(x => x.v.vencido).length;
+  box.innerHTML = block("cSoonB", "Vencen pronto", `<div class="list-mini">${list.map(({ c, v }) => `
     <div class="row" data-coach="${esc(c.id)}" style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;cursor:pointer">
       <span><b>${esc(c.full_name || "Sin nombre")}</b> <span class="muted small">${esc(c.email)}</span></span>
       <span class="pill ${v.vencido ? "bad" : "warn"}">${v.que === "pago" ? "Pago" : "Prueba"} ${venceTxt(v)}</span>
-    </div>`).join("")}</div></div>`;
+    </div>`).join("")}</div>`, { sum: (list.length - late ? list.length - late + " por vencer" : "") + (late ? (list.length - late ? " · " : "") + `<span class="t-bad">${late} vencido${late === 1 ? "" : "s"}</span>` : "") });
 }
 
 const PLAN_MAX = { p10: 10, p25: 25, p50: 50, p100: 100, p250: 250, p500: 500 };
@@ -507,22 +629,20 @@ async function openCoach(id){
       <div class="fact"><span>Alumnos</span><b>${n0(c.clients)} de ${n0(c.max_clients)}</b></div><div class="fact"><span>Pago al día hasta</span><b>${lastDay(c.paid_until)}</b></div>
       <div class="fact"><span>Prueba hasta</span><b>${lastDay(c.trial_ends_at)}</b></div><div class="fact"><span>Mercado Pago</span><b>${c.has_mp ? esc(mpTxt(c.mp_status)) : "Sin suscripción"}</b></div>
     </div>
-    <div class="sec-t">Pago manual</div>
-    <div class="sec-s">Cuando te paga (transferencia, efectivo, link), cargá el plan y hasta cuándo queda habilitado. Los meses se cuentan desde que termina lo que ya tiene: si está en la prueba gratis, el plan arranca cuando la prueba termina (no pierde días); si ya estaba al día, desde su vencimiento.</div>
+    ${panel("drPago", "Pago manual", `<div class="sec-s">Cuando te paga (transferencia, efectivo, link), cargá el plan y hasta cuándo queda habilitado. Los meses se cuentan desde que termina lo que ya tiene: si está en la prueba gratis, el plan arranca cuando la prueba termina (no pierde días); si ya estaba al día, desde su vencimiento.</div>
     <label class="lbl">Plan</label>
     <select class="in" id="pmPlan">${Object.keys(PLAN_MAX).map(p => `<option value="${p}"${(c.plan === p || (!PLAN_MAX[c.plan] && p === "p25")) ? " selected" : ""}>${esc(planTxt(p))} · ${money(PLAN_PRICE[p])}/mes</option>`).join("")}</select>
     <label class="lbl">Alumnos máximos</label><input class="in" id="pmMax" type="number" min="1" max="1000" value="${PLAN_MAX[c.plan] ? Number(c.max_clients) || PLAN_MAX[c.plan] : 25}">
     <label class="lbl">Pagado hasta</label>
     <div class="search"><input class="in" id="pmUntil" type="date" value="${hastaMeses(c, 1)}">
       <button class="btn" data-a="pmMeses" data-id="${esc(c.id)}" data-m="1">+1 mes</button><button class="btn" data-a="pmMeses" data-id="${esc(c.id)}" data-m="3">+3</button><button class="btn" data-a="pmMeses" data-id="${esc(c.id)}" data-m="12">+12</button></div>
-    <div class="search" style="margin-top:8px"><button class="btn blue" data-a="pmSave" data-id="${esc(c.id)}">Guardar pago</button>${c.paid_until && new Date(c.paid_until) > new Date() && c.plan !== "cortesia" ? `<button class="btn" data-a="pmClear" data-id="${esc(c.id)}">Cortar ahora</button>` : ""}</div>
-    ${c.has_mp ? `<div class="sec-t" style="margin-top:18px">Cobros de Mercado Pago</div><div id="pays" class="list-mini">Cargando…</div>` : ""}
-    <div class="sec-t" style="margin-top:18px">Cortesía o prueba</div>
-    <div class="sec-s">Gratis. En la prueba elegís hasta qué día y cuántos alumnos puede tener.</div>
+    <div class="search" style="margin:8px 0 0"><button class="btn blue" data-a="pmSave" data-id="${esc(c.id)}">Guardar pago</button>${c.paid_until && new Date(c.paid_until) > new Date() && c.plan !== "cortesia" ? `<button class="btn" data-a="pmClear" data-id="${esc(c.id)}">Cortar ahora</button>` : ""}</div>`)}
+    ${c.has_mp ? panel("drMp", "Cobros de Mercado Pago", '<div id="pays" class="list-mini">Cargando…</div>') : ""}
+    ${panel("drPrueba", "Cortesía o prueba", `<div class="sec-s">Gratis. En la prueba elegís hasta qué día y cuántos alumnos puede tener.</div>
     ${c.plan === "cortesia" ? `<button class="btn" data-a="plan" data-id="${esc(c.id)}" data-mode="sin_cortesia">Quitar la cortesía</button>` :
       `<label class="lbl">Cortesía: gratis, con tope de alumnos</label><div class="search"><input class="in" id="ctMax" type="number" min="1" value="${Math.max(10, c.max_clients || 10)}"><button class="btn blue" data-a="plan" data-id="${esc(c.id)}" data-mode="cortesia">Dar cortesía</button></div>`}
     ${c.plan === "cortesia" ? "" : `<label class="lbl">Prueba gratis hasta</label><input class="in" id="trUntil" type="date" min="${isoDay(new Date())}" value="${c.trial_ends_at && new Date(c.trial_ends_at) > new Date() ? isoDay(new Date(new Date(c.trial_ends_at).getTime() - 1)) : isoDay(new Date(Date.now() + 14 * 864e5))}">
-    <label class="lbl">Alumnos máximos en la prueba</label><div class="search"><input class="in" id="trMax" type="number" min="1" max="1000" value="${Number(c.max_clients) || 10}"><button class="btn blue" data-a="trSave" data-id="${esc(c.id)}">Guardar prueba</button></div>`}`);
+    <label class="lbl">Alumnos máximos en la prueba</label><div class="search" style="margin:0"><input class="in" id="trMax" type="number" min="1" max="1000" value="${Number(c.max_clients) || 10}"><button class="btn blue" data-a="trSave" data-id="${esc(c.id)}">Guardar prueba</button></div>`}`, { open: false, sum: c.plan === "cortesia" ? "tiene cortesía" : "" })}`);
   if (!c.has_mp) return;
   const box = document.getElementById("pays");
   try {
@@ -570,10 +690,10 @@ async function loadFinanzas(){
     <div data-fp="numeros">
     <div class="grid kpis wide" id="fKpis"></div>
     <div id="fDolar"></div>
-    <div class="grid two">
-      <div class="card"><div class="sec-t">Punto de equilibrio</div><div class="sec-s">Coaches que hacen falta para cubrir los gastos. Cobran por transferencia, sin comisión.</div><div id="fEq"></div></div>
-      <div class="card"><div class="sec-t">Quién pone qué</div><div class="sec-s">Gastos activos de cada socio, pasados a pesos por mes.</div><div id="fWho"></div></div>
-    </div></div>
+    <div id="fEmpty" class="card" hidden><div class="sec-t">Empezá cargando los gastos</div><div class="sec-s">Con los gastos cargados acá ves cuántos coaches hacen falta para cubrirlos y cuánto pone cada socio.</div><div class="row-btns"><button class="btn blue" data-a="fCost">+ Agregar gasto</button></div></div>
+    ${block("fEqB", "Punto de equilibrio", '<div class="sec-s">Coaches que hacen falta para cubrir los gastos. Cobran por transferencia, sin comisión.</div><div id="fEq"></div>')}
+    ${block("fWhoB", "Quién pone qué", '<div class="sec-s">Gastos activos de cada socio, pasados a pesos por mes.</div><div id="fWho"></div>')}
+    </div>
     <div data-fp="gastos">
     <div class="card"><div class="card-h"><div><div class="sec-t">Gastos</div><div class="sec-s">Tocá uno para cambiarlo. Los que estás pensando y los pausados no suman.</div></div><button class="btn blue" data-a="fCost">+ Agregar gasto</button></div><div id="fCosts"></div></div></div>
     <div class="narrow" data-fp="facturacion">
@@ -632,8 +752,12 @@ function paintFinCalc(){
     <div class="sec-s">${d.at ? "Se usa la cotización guardada el " + fmtD(d.at) + "." : "No hay una cotización guardada."} Podés ponerla a mano:</div>
     <div class="search"><input class="in" id="fdT" type="number" min="1" step="0.01" placeholder="Tarjeta" value="${d.tarjeta || ""}"><input class="in" id="fdM" type="number" min="1" step="0.01" placeholder="MEP" value="${d.mep || ""}"><button class="btn blue" data-a="fDolarSave">Guardar</button></div></div>` : "";
 
-  // Punto de equilibrio
-  const eq = document.getElementById("fEq");
+  // Punto de equilibrio. Sin gastos cargados no hay nada que calcular: en vez de dos bloques
+  // vacíos se muestra una sola invitación a cargarlos.
+  const eq = document.getElementById("fEq"), sinGastos = !c.act.length;
+  ["fEqB", "fWhoB"].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = sinGastos; });
+  const em = document.getElementById("fEmpty"); if (em) em.hidden = !sinGastos;
+  setSum("fEqB", !c.act.length || c.noRate ? "" : c.gap > 0 ? `<span class="t-warn">faltan ${money(c.gap)} por mes</span>` : `<span class="t-ok">cubierto · sobran ${money(c.result)}</span>`);
   if (!c.act.length) eq.innerHTML = '<div class="empty">Cargá los gastos para ver cuántos coaches hacen falta.</div>';
   else if (c.noRate) eq.innerHTML = '<div class="empty">Falta la cotización del dólar para pasar los gastos a pesos.</div>';
   else {
@@ -649,6 +773,7 @@ function paintFinCalc(){
   const who = {}, names = {};
   c.act.forEach(x => { const n = (x.paid_by || "").trim() || "Sin asignar", key = n.toLowerCase(); names[key] = names[key] || n; who[key] = (who[key] || 0) + c.perMonth(x); });
   const rows = Object.keys(who).map(key => [names[key], who[key]]).filter(r => r[1] > 0).sort((a, b) => b[1] - a[1]);
+  setSum("fWhoB", rows.map(([n, v]) => esc(n) + " " + pct(c.cost ? v / c.cost : 0)).join(" · "));
   document.getElementById("fWho").innerHTML = !rows.length ? '<div class="empty">Cuando cargues los gastos y quién paga cada uno, acá se ve cuánto pone cada socio.</div>' :
     rows.map(([n, v]) => `<div class="share"><div class="share-h"><b>${esc(n)}</b><span>${money(v)} <span class="muted small">· ${pct(c.cost ? v / c.cost : 0)}</span></span></div><div class="meter"><i style="width:${c.cost ? Math.round(v / c.cost * 100) : 0}%"></i></div></div>`).join("") +
     (c.act.some(x => x.period === "anual") ? '<div class="muted small" style="margin-top:8px">Los gastos anuales van divididos por 12.</div>' : "");
@@ -774,7 +899,7 @@ async function saveCost(btn){
 }
 async function deleteCost(btn){
   const c = S.fin.costs.find(x => x.id === Number(btn.dataset.id));
-  if (!confirm("¿Borrar el gasto «" + (c ? c.name : "") + "»?")) return;
+  if (!await confirmar("¿Borrar el gasto «" + (c ? c.name : "") + "»?")) return;
   btn.disabled = true;
   try { await rpc("admin_fin_cost_delete", { p_id: Number(btn.dataset.id) }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   closeDrawer(); toast("Gasto borrado"); reloadFin();
@@ -800,10 +925,16 @@ async function loadContacto(){
 function paintMsgs(){
   const box = document.getElementById("mList"); if (!box) return;
   if (!S.msgs.length){ box.className = "empty"; box.textContent = S.msgTab === "nuevos" ? "No hay mensajes sin leer. 🎉" : "Todavía no hay mensajes."; return; }
-  box.className = "grid";
-  box.innerHTML = S.msgs.map(m => `<div class="card msg${m.read_at ? "" : " unread"}" data-msg="${esc(m.id)}">
-      <div class="msg-h"><div><b>${esc(m.from_name || m.from_email)}</b>${m.from_name ? ` <span class="muted small">&lt;${esc(m.from_email)}&gt;</span>` : ""}</div>
-        <span class="muted small">${fmtDT(m.created_at)}</span></div>
+  // Cada mensaje es una fila plegada (de quién, asunto, fecha y el principio del texto); se abre
+  // tocándola. Lo abierto se recuerda mientras no se recargue la página.
+  S.msgOpen = S.msgOpen || {};
+  box.className = "msgs";
+  box.innerHTML = S.msgs.map(m => `<details class="pnl msg${m.read_at ? "" : " unread"}" data-msg="${esc(m.id)}"${S.msgOpen[m.id] || S.drafts[m.id] != null ? " open" : ""}>
+      <summary><span class="msg-from">${m.read_at ? "" : '<i class="dot" aria-label="Sin leer"></i>'}${esc(m.from_name || m.from_email)}</span>
+        <span class="msg-sum"><b>${esc(m.subject || "(sin asunto)")}</b> <span class="muted">${esc((m.body || "").replace(/\s+/g, " ").slice(0, 140))}</span></span>
+        ${m.auth_dmarc === "pass" || m.body_missing ? "" : '<span class="pill warn" title="Remitente sin verificar">⚠</span>'}${m.replied_at ? '<span class="pill ok">Respondido</span>' : ""}<span class="muted small msg-d">${fmtDT(m.created_at)}</span></summary>
+      <div class="pnl-b">
+      ${m.from_name ? `<div class="muted small">${esc(m.from_email)}</div>` : ""}
       ${m.auth_dmarc === "pass" || m.body_missing ? "" : '<div class="msg-warn">⚠ Remitente sin verificar: puede ser otra persona haciéndose pasar por esta dirección. No borres cuentas ni des datos por un mail así; pedí que lo confirme desde la app.</div>'}
       <div class="msg-s">${esc(m.subject || "(sin asunto)")}${m.to_email && m.to_email !== "contacto@gize.ar" ? ` <span class="pill">${esc(m.to_email)}</span>` : ""}${m.reply_to ? ` <span class="pill blue">responder a ${esc(m.reply_to)}</span>` : ""}${m.attachments ? ` <span class="pill">${m.attachments} adjunto${m.attachments === 1 ? "" : "s"}</span>` : ""}${m.replied_at ? ' <span class="pill ok">Respondido</span>' : ""}</div>
       <div class="msg-b">${m.body_missing ? '<span class="muted">Todavía no se pudo leer el texto de este mail (se vuelve a intentar solo).</span>' : esc(m.body || "(vacío)")}</div>
@@ -812,7 +943,7 @@ function paintMsgs(){
         <div class="row-btns"><button class="btn" data-a="mcancel">Cancelar</button><button class="btn pri" data-a="msend">Enviar respuesta</button></div></div>
       <div class="row-btns msg-acts"><button class="btn blue" data-a="mreply">${m.replied_at ? "Responder otra vez" : "Responder"}</button>
         <button class="btn" data-a="mread" data-v="${m.read_at ? "0" : "1"}">${m.read_at ? "Marcar sin leer" : "Marcar como leído"}</button></div>
-    </div>`).join("");
+    </div></details>`).join("");
   // Las respuestas a medio escribir vuelven a su lugar (la lista se redibuja entera).
   Object.keys(S.drafts).forEach(id => {
     const c = box.querySelector(`[data-msg="${id}"]`); if (!c) return;
@@ -833,7 +964,7 @@ async function sendReply(btn){
   const c = btn.closest("[data-msg]"), id = Number(c.dataset.msg), t = c.querySelector(".msg-reply textarea"), text = t.value.trim();
   const m = S.msgs.find(x => x.id === id);
   if (text.length < 2) return toast("Escribí la respuesta.");
-  if (!confirm("¿Mandar la respuesta a " + (m ? (m.reply_to || m.from_email) : "esta persona") + "?")) return;
+  if (!await confirmar("¿Mandar la respuesta a " + (m ? (m.reply_to || m.from_email) : "esta persona") + "?")) return;
   btn.disabled = true; S.sending = true;
   try { await fn({ action: "responder", message_id: id, text }); }
   catch (e) { btn.disabled = false; return toast(errMsg(e)); }
@@ -843,6 +974,65 @@ async function sendReply(btn){
   if (m){ const was = !m.read_at; m.replied_at = new Date().toISOString(); m.reply = text; m.replied_by_name = "vos"; m.read_at = m.read_at || m.replied_at; if (was) setUnread(Math.max(0, S.unread - 1)); }
   if (S.msgTab === "nuevos") S.msgs = S.msgs.filter(x => x.id !== id);
   paintMsgs();
+}
+
+// ---------- Reportes (chat y grupos de pasos) ----------
+// Lo que la gente reporta desde la app (app/ui/reportar.js, supabase/reportes.sql): un mensaje
+// del chat con su coach o el nombre de alguien de un grupo de pasos. Cada uno con lo justo para
+// decidir: el texto del mensaje (de un audio, solo cuánto dura), o el nombre y el grupo. Si hay
+// que actuar, «Ver cuenta» abre la ficha (desvincular, eliminar la cuenta). Si quien reportó también
+// bloqueó a esa persona (supabase/bloqueos.sql), el reporte lo dice.
+const REP_MOTIVO = { ofensivo: ["Ofensivo o acoso", "bad"], spam: ["Spam", "warn"], otro: ["Otro", ""] };
+async function loadReportes(){
+  page("Reportes", "Lo que la gente reporta en el chat con su coach y en los grupos de pasos. Revisalo dentro de las 24 horas: es lo que piden Apple y Google.", `
+    <div class="seg">${[["nuevo", "Sin revisar"], ["revisado", "Revisados"]].map(([k, l]) => `<button class="${S.repTab === k ? "on" : ""}" data-a="rtab" data-v="${k}">${l}</button>`).join("")}</div>
+    <div id="rList" class="empty">Cargando…</div>`);
+  const box = document.getElementById("rList");
+  try { S.reps = (await rpc("admin_reports_list", { p_status: S.repTab })) || []; }
+  catch (e) {
+    const falta = /admin_reports_list|schema cache|PGRST202/i.test(errMsg(e) + " " + (e && e.code));
+    box.className = "calm"; box.innerHTML = falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/reportes.sql</b>." : esc(errMsg(e));
+    return;
+  }
+  // Quién además bloqueó: si falta bloqueos.sql en la base, la lista se ve igual, sin la marca.
+  try {
+    const ids = S.reps.map(r => r.id), b = ids.length ? await rpc("admin_reports_blocked", { p_ids: ids }) : [];
+    const si = new Set((b || []).map(x => (x && x.id) || x));
+    S.reps.forEach(r => { r.blocked = si.has(r.id); });
+  } catch (e) {}
+  paintReps();
+  if (S.repTab === "nuevo") setRep(S.reps.length);
+}
+function repCtx(r){
+  if (r.kind === "chat"){
+    if (!r.msg_at) return '<div class="muted">El mensaje ya no existe (se borró una de las cuentas).</div>';
+    const txt = r.msg_audio_secs ? `<span class="muted">Mensaje de voz de ${Math.floor(r.msg_audio_secs / 60)}:${String(r.msg_audio_secs % 60).padStart(2, "0")} (el audio no se muestra)</span>${r.msg_body ? "<br>" + esc(r.msg_body) : ""}` : esc(r.msg_body || "");
+    return `<div class="rep-q msg-b">${txt}</div><div class="muted small">Mensaje del ${fmtDT(r.msg_at)}</div>`;
+  }
+  const ahora = r.member_name_now == null ? " · ya no está en el grupo" : r.member_name_now !== r.member_name ? " · ahora se llama «" + esc(r.member_name_now) + "»" : "";
+  return `<div class="rep-q">Nombre en el grupo: <b>«${esc(r.member_name || "")}»</b><span class="muted">${ahora}</span></div><div class="muted small">Grupo «${esc(r.group_name || "borrado")}»</div>`;
+}
+function paintReps(){
+  const box = document.getElementById("rList"); if (!box) return;
+  if (!S.reps.length){ box.className = "empty"; box.textContent = S.repTab === "nuevo" ? "No hay reportes sin revisar. 🎉" : "Todavía no hay reportes revisados."; return; }
+  box.className = "grid";
+  box.innerHTML = S.reps.map(r => { const mo = REP_MOTIVO[r.reason] || [r.reason, ""];
+    return `<div class="card rep" data-rep="${esc(r.id)}">
+      <div class="rep-h"><span class="pill ${mo[1]}">${esc(mo[0])}</span><span class="pill">${r.kind === "chat" ? "Chat" : "Grupo de pasos"}</span>${r.blocked ? '<span class="pill warn">También lo bloqueó</span>' : ""}<span class="muted small">${ago(r.created_at)}</span></div>
+      ${repCtx(r)}
+      ${r.detail ? `<div class="rep-note"><span class="muted small">Nota de quien reportó</span><br>${esc(r.detail)}</div>` : ""}
+      <div class="muted small rep-who">Reportó ${esc(r.reporter_name || (r.reporter_id ? "Sin nombre" : "una cuenta borrada"))} · Reportado: <b>${esc(r.reported_name || "Sin nombre")}</b>${num(r.reported_total) > 1 ? ` · <span class="t-warn">${n0(r.reported_total)} reportes en total</span>` : ""}</div>
+      ${r.status === "revisado" ? `<div class="muted small rep-who">Revisado por ${esc(r.reviewed_by_name || "un administrador")} · ${fmtDT(r.reviewed_at)}</div>` : ""}
+      <div class="row-btns">${r.reported_id ? `<button class="btn" data-a="repUser" data-id="${esc(r.reported_id)}">Ver cuenta</button>` : ""}${r.status === "revisado" ? "" : `<button class="btn pri" data-a="repReview">Marcar revisado</button>`}</div>
+    </div>`; }).join("");
+}
+async function reviewRep(btn){
+  const id = btn.closest("[data-rep]").dataset.rep;
+  btn.disabled = true;
+  try { await rpc("admin_report_review", { p_id: id }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  toast("Marcado como revisado ✓");
+  S.reps = S.reps.filter(x => x.id !== id);
+  paintReps(); setRep(Math.max(0, S.repPend - 1));
 }
 
 // ---------- Productos ----------
@@ -909,7 +1099,7 @@ async function saveProd(btn){
   const row = prodValues(c); if (!row) return;
   const mode = btn.dataset.mode; // «Toda la base»: keep / hide / show (la verificación no cambia)
   const verified = mode ? p.verified : btn.dataset.verify === "1", hidden = mode ? (mode === "keep" ? p.hidden : mode === "hide") : btn.dataset.hide === "1";
-  if (mode === "hide" && !confirm("¿Ocultar «" + row.p_name + "»? Deja de aparecer en la app (lo podés volver a mostrar).")) return;
+  if (mode === "hide" && !await confirmar("¿Ocultar «" + row.p_name + "»? Deja de aparecer en la app (lo podés volver a mostrar).")) return;
   btn.disabled = true;
   try { await rpc("admin_product_save", Object.assign({ pid: p.id, p_unit: p.unit, p_verified: verified, p_hidden: hidden }, row)); }
   catch (e) { btn.disabled = false; return toast(errMsg(e)); }
@@ -921,7 +1111,7 @@ async function saveProd(btn){
 }
 async function deleteProd(btn){
   const c = btn.closest("[data-prod]"), p = S.prods.find(x => x.id === c.dataset.prod); if (!p) return;
-  if (!confirm("¿Borrar «" + p.name + "»" + (p.code ? " (" + p.code + ")" : "") + " de la base? Desaparece de la app para todos y no se puede deshacer.\n\nLo que la gente ya anotó en su diario no cambia.")) return;
+  if (!await confirmar("¿Borrar «" + p.name + "»" + (p.code ? " (" + p.code + ")" : "") + " de la base? Desaparece de la app para todos y no se puede deshacer." + (p.code ? " El código no se vuelve a cargar solo (ni al escanearlo ni con las importaciones): para volver a tenerlo, «Agregar producto» o publicar un pedido con ese código." : "") + "\n\nLo que la gente ya anotó en su diario no cambia.")) return;
   btn.disabled = true;
   try { await rpc("admin_product_delete", { pid: p.id }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   S.prods = S.prods.filter(x => x.id !== p.id); paintProds(); toast("Producto borrado");
@@ -977,7 +1167,7 @@ async function publishReq(btn){
   if (code && !/^[0-9]{6,14}$/.test(code)) return toast("El código de barras tiene que ser de 6 a 14 números (o dejalo vacío).");
   if (portion && (portion < 1 || portion > 2000)) return toast("La porción tiene que ser entre 1 y 2000.");
   const calc = row.p_protein * 4 + row.p_carbs * 4 + row.p_fat * 9;
-  if (Math.abs(row.p_kcal - calc) > Math.max(30, calc * 0.25) && !confirm("Las calorías (" + row.p_kcal + ") no coinciden con los macros (darían unas " + Math.round(calc) + "). ¿Publicar igual?")) return;
+  if (Math.abs(row.p_kcal - calc) > Math.max(30, calc * 0.25) && !await confirmar("Las calorías (" + row.p_kcal + ") no coinciden con los macros (darían unas " + Math.round(calc) + "). ¿Publicar igual?")) return;
   btn.disabled = true;
   try { await rpc("admin_request_publish", Object.assign({ rid: r.id, p_code: code || null, p_unit: c.querySelector('[data-k="unit"]').value, p_portion: portion || null }, row)); }
   catch (e) { btn.disabled = false; return toast(errMsg(e)); }
@@ -986,7 +1176,7 @@ async function publishReq(btn){
 }
 async function rejectReq(btn){
   const c = btn.closest("[data-req]"), r = S.reqs.find(x => String(x.id) === c.dataset.req); if (!r) return;
-  const why = prompt("¿Por qué lo rechazás? Se lo mostramos a quien lo pidió (ej: la foto de la tabla no se lee, falta la tabla).", "La foto de la tabla no se lee bien");
+  const why = await pedir("¿Por qué lo rechazás? Se lo mostramos a quien lo pidió (ej: la foto de la tabla no se lee, falta la tabla).", "La foto de la tabla no se lee bien", { titulo: "Rechazar producto", ok: "Rechazar" });
   if (why === null) return;
   btn.disabled = true;
   try { await rpc("admin_request_reject", { rid: r.id, p_note: why.trim() }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
@@ -1028,24 +1218,23 @@ async function loadAvisos(){
     <label><span class="lbl">Nombre (ej: 1.0.7)</span><input class="in" data-v="${pl}.version" value="${esc(c.version || "")}"></label>
     <label><span class="lbl">Mínima obligatoria</span><input class="in" data-v="${pl}.minima" type="number" value="${esc(c.minima || 0)}"></label></div>
     <label><span class="lbl">Link de la tienda</span><input class="in" data-v="${pl}.tienda" value="${esc(c.tienda || "")}"></label></div>`; };
-  page("Avisos", "Notificaciones a los usuarios y cartel de actualización de la app.", `
-    <div class="grid two">
-      <div class="card"><div class="sec-t">Notificación a los usuarios</div><div class="sec-s">Les llega a quienes activaron los avisos en su celular o computadora.</div>
+  const vtxt = pl => (S.config[pl] || {}).version || "—";
+  page("Avisos", "Notificaciones a los usuarios y cartel de actualización de la app.",
+    panel("avNotB", "Notificación a los usuarios", `<div class="sec-s">Les llega a quienes activaron los avisos en su celular o computadora.</div>
         <label class="lbl">A quién</label><div class="seg" id="avT">${[["todos", "Todos"], ["coaches", "Coaches"], ["alumnos", "Alumnos"]].map(([k, l], i) => `<button class="${i ? "" : "on"}" data-a="avT" data-v="${k}">${l}</button>`).join("")}</div>
         <label class="lbl">Título (hasta 60 letras)</label><input class="in" id="avTitle" maxlength="60" placeholder="Ej: Salió la versión 1.0.7">
         <label class="lbl">Mensaje (hasta 180 letras)</label><textarea class="in" id="avBody" maxlength="180" placeholder="Ej: Superseries, resumen del entreno y mucho más. Actualizá desde Play Store."></textarea>
         <div class="preview"><img src="../icon-192.png" alt=""><div><b id="pvT">Título</b><span id="pvB">Mensaje</span></div></div>
-        <div class="row-btns"><button class="btn pri" data-a="avSend">Enviar notificación</button></div></div>
-      <div><div class="sec-t">Cartel de actualización</div><div class="sec-s">Subí «Última» recién cuando la versión ya esté publicada en la tienda. «Mínima» obliga a actualizar (pantalla que no se puede cerrar).</div>
-        <div class="grid">${vf("android", "Android")}${vf("ios", "iPhone")}</div>
-        <div class="row-btns"><button class="btn blue" data-a="cfgSave">Guardar cartel</button></div></div>
-    </div>`);
+        <div class="row-btns"><button class="btn pri" data-a="avSend">Enviar notificación</button></div>`) +
+    panel("avCfgB", "Cartel de actualización", `<div class="sec-s">Subí «Última» recién cuando la versión ya esté publicada en la tienda. «Mínima» obliga a actualizar (pantalla que no se puede cerrar).</div>
+        <div class="grid two">${vf("android", "Android")}${vf("ios", "iPhone")}</div>
+        <div class="row-btns"><button class="btn blue" data-a="cfgSave">Guardar cartel</button></div>`, { open: false, sum: "Android " + esc(vtxt("android")) + " · iPhone " + esc(vtxt("ios")) }));
 }
 async function sendAviso(btn){
   const target = (document.querySelector("#avT button.on") || {}).dataset.v, title = document.getElementById("avTitle").value.trim(), body = document.getElementById("avBody").value.trim();
   if (!title || !body) return toast("Completá el título y el mensaje.");
   const who = { todos: "a TODOS los usuarios", coaches: "a todos los coaches", alumnos: "a todos los alumnos" }[target];
-  if (!confirm("¿Mandar esta notificación " + who + "?\n\n" + title + "\n" + body)) return;
+  if (!await confirmar("¿Mandar esta notificación " + who + "?\n\n" + title + "\n" + body)) return;
   btn.disabled = true;
   try { const r = await fn({ action: "aviso", target, title, body }); toast("Enviada a " + n0(r.users) + " usuario" + (r.users === 1 ? "" : "s") + " (" + n0(r.devices) + " dispositivos)"); document.getElementById("avTitle").value = ""; document.getElementById("avBody").value = ""; }
   catch (e) { toast(errMsg(e)); }
@@ -1057,7 +1246,7 @@ async function saveConfig(btn){
   const base = S.config || {}, v = { android: Object.assign({}, base.android), ios: Object.assign({}, base.ios) };
   document.querySelectorAll("input[data-v]").forEach(i => { const [pl, k] = i.dataset.v.split("."); if (!v[pl]) return; v[pl][k] = ["ultima", "minima"].includes(k) ? Math.max(0, parseInt(i.value, 10) || 0) : i.value.trim(); });
   for (const pl of ["android", "ios"]) if (v[pl] && v[pl].tienda && !/^https:\/\//i.test(v[pl].tienda)) return toast("El link de la tienda tiene que empezar con https://");
-  if (!confirm("¿Guardar el cartel? A los usuarios con una versión más vieja que «Última» les va a aparecer.")) return;
+  if (!await confirmar("¿Guardar el cartel? A los usuarios con una versión más vieja que «Última» les va a aparecer.")) return;
   btn.disabled = true;
   try { await rpc("admin_set_config", { p_key: "version", p_value: v }); S.config = v; toast("Cartel guardado"); } catch (e) { toast(errMsg(e)); }
   btn.disabled = false;
@@ -1065,33 +1254,37 @@ async function saveConfig(btn){
 
 // ---------- Seguridad y sistema ----------
 async function loadSeguridad(){
-  page("Seguridad", "Copias de seguridad, administradores y registro de lo que se hace desde el panel.", `
-    <div class="grid two"><div class="card"><div class="sec-t">Copias de seguridad</div><div class="sec-s">Se hacen solas todos los lunes y se prueban restaurándolas.</div><div id="bk" class="list-mini">Cargando…</div></div>
-    <div class="card"><div class="sec-t">Administradores</div><div class="sec-s">Se agregan o quitan desde Usuarios → ficha → Hacer administrador.</div><div id="admins" class="list-mini">Cargando…</div></div></div>
-    <div class="card mt"><div class="sec-t">Registro de acciones</div><div class="sec-s">Las últimas 100 acciones hechas desde el panel.</div><div id="aud" class="empty">Cargando…</div></div>`);
+  page("Seguridad", "Copias de seguridad, administradores y registro de lo que se hace desde el panel.",
+    block("sBkB", "Copias de seguridad", '<div class="sec-s">Se hacen solas todos los lunes y se prueban restaurándolas.</div><div id="bk" class="list-mini">Cargando…</div>') +
+    block("sAdmB", "Administradores", '<div class="sec-s">Se agregan o quitan desde Usuarios → ficha → Hacer administrador.</div><div id="admins" class="list-mini">Cargando…</div>') +
+    block("sAudB", "Registro de acciones", '<div class="sec-s">Las últimas 100 acciones hechas desde el panel.</div><div id="aud" class="empty">Cargando…</div>'));
   // Con el repositorio privado GitHub no responde sin sesión: se deja el enlace a las copias.
   const bkLink = `<a href="https://github.com/${REPO}/actions/workflows/backup.yml" target="_blank" rel="noopener">Ver las copias en GitHub</a>`;
   fetch("https://api.github.com/repos/" + REPO + "/actions/workflows/backup.yml/runs?per_page=6").then(r => { if (!r.ok) throw 0; return r.json(); }).then(j => {
     const runs = j.workflow_runs || [], box = document.getElementById("bk"); if (!box) return;
+    const r0 = runs[0]; setSum("sBkB", !r0 ? "" : "última " + ago(r0.created_at) + (r0.status !== "completed" ? " · en curso" : r0.conclusion === "success" ? ' · <span class="t-ok">OK</span>' : ' · <span class="t-bad">falló</span>'));
     box.innerHTML = runs.length ? `<table class="table"><tbody>${runs.map(r => `<tr><td>${fmtDT(r.created_at)}</td><td>${r.status !== "completed" ? '<span class="pill warn">En curso</span>' : r.conclusion === "success" ? '<span class="pill ok">OK</span>' : '<span class="pill bad">Falló</span>'}</td><td><a href="${esc(r.html_url)}" target="_blank" rel="noopener">ver</a></td></tr>`).join("")}</tbody></table>` : "Todavía no hay copias.";
   }).catch(() => { const box = document.getElementById("bk"); if (box) box.innerHTML = bkLink + '<div class="muted small">Hace falta entrar con la cuenta de GitHub de GIZE.</div>'; });
   // admin_list_admins trae a todos los administradores (admin.sql). Si la base todavía no la
   // tiene, se sigue con lo de antes: los administradores entre las 60 cuentas más nuevas.
   rpc("admin_list_admins").catch(() => rpc("admin_users", { q: "" }).then(us => us.filter(u => u.is_admin)))
-    .then(us => { const box = document.getElementById("admins"); if (box) box.innerHTML = (us || []).map(u => esc((u.full_name || "Sin nombre") + " · " + u.email)).join("<br>") || "—"; }).catch(() => {});
+    .then(us => { const box = document.getElementById("admins"); if (!box) return; us = us || [];
+      box.innerHTML = us.map(u => esc((u.full_name || "Sin nombre") + " · " + u.email)).join("<br>") || "—";
+      setSum("sAdmB", us.length ? us.length + " cuenta" + (us.length === 1 ? "" : "s") : ""); }).catch(() => {});
   const box = document.getElementById("aud");
   try { S.audit = await rpc("admin_audit_list", { lim: 100 }); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.audit.length){ box.textContent = "Todavía no hay acciones registradas."; return; }
   const what = a => ({ rol: "Cambió el rol a " + ((a.detail || {}).role === "coach" ? "coach" : "alumno"), desvincular: "Desvinculó de su coach", admin_si: "Hizo administrador", admin_no: "Quitó administrador",
     plan: ({ cortesia: "Dio cortesía", trial: "Extendió la prueba", sin_cortesia: "Quitó la cortesía", pago_manual: "Cargó un pago", prueba_hasta: "Cambió la prueba", cortar_pago: "Cortó el pago" }[(a.detail || {}).mode] || "Cambió el plan"), config: "Cambió el cartel de actualización",
     aviso: "Mandó una notificación a " + (a.target || ""), eliminar: "Eliminó la cuenta",
-    contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", pedido_publicado: "Publicó un producto pedido", pedido_rechazado: "Rechazó un pedido de producto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto", producto_nuevo: "Agregó un producto", producto_borrar: "Borró un producto",
+    contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", reporte_revisado: "Marcó un reporte como revisado", pedido_publicado: "Publicó un producto pedido", pedido_rechazado: "Rechazó un pedido de producto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto", producto_nuevo: "Agregó un producto", producto_borrar: "Borró un producto",
     fin_gasto_nuevo: "Agregó un gasto", fin_gasto: "Cambió un gasto", fin_gasto_borrar: "Borró un gasto", fin_ajustes: "Cambió los ajustes de finanzas",
     fin_pendiente_nuevo: "Agregó un pendiente", fin_pendiente_hecho: "Marcó un pendiente como hecho", fin_pendiente_deshacer: "Volvió a abrir un pendiente", fin_pendiente_borrar: "Borró un pendiente",
     objetivo_nuevo: "Agregó un objetivo", objetivo: "Cambió un objetivo", objetivo_borrar: "Borró un objetivo",
     tarea_nueva: "Agregó una tarea", tarea: "Cambió una tarea", tarea_hecha: "Marcó una tarea como hecha", tarea_deshacer: "Volvió a abrir una tarea", tarea_borrar: "Borró una tarea" }[a.action] || a.action);
   const goalTxt = d => d ? (d.label || (METRICS[d.metric] || [d.metric])[0]) + (d.target != null ? " · meta " + (METRICS[d.metric] || [, n0])[1](d.target) : "") : "";
   const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : (a.target_name || "");
+  setSum("sAudB", "última: " + esc(what(S.audit[0])).toLowerCase() + " · " + ago(S.audit[0].created_at));
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Sobre</th></tr></thead><tbody>${S.audit.map(a => `<tr><td class="muted">${fmtDT(a.created_at)}</td><td>${esc(a.admin_name || "—")}</td><td>${esc(what(a))}</td><td class="muted">${esc(extra(a) || "")}</td></tr>`).join("")}</tbody></table>`;
 }
@@ -1108,7 +1301,7 @@ document.addEventListener("input", e => {
 document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.id === "uQ"){ S.q = e.target.value.trim(); searchUsers(); }
   if (e.key === "Enter" && e.target.id === "pQ"){ S.prodQ = e.target.value.trim(); loadProductos(); }
-  if (e.key === "Enter" && (e.target.id === "tNew" || e.target.id === "tNewDue")){ const b = document.querySelector('[data-a="tAdd"]'); if (b) b.click(); }
+  if (e.key === "Enter" && (e.target.id === "tNew" || e.target.id === "tNewDueTxt")){ const b = document.querySelector('[data-a="tAdd"]'); if (b) b.click(); }
   if (e.key === "Enter" && e.target.id === "fTodoIn"){ const b = document.querySelector('[data-a="fTodoAdd"]'); if (b) b.click(); }
   if (e.key === "Escape"){ const z = document.querySelector(".zoom"); if (z){ z.remove(); return; } closeDrawer(); }
 });
@@ -1121,55 +1314,66 @@ document.addEventListener("click", async e => {
   const tt = e.target.closest("[data-task]"); if (tt){ openTask(tt.dataset.task); return; }
   const b = e.target.closest("[data-a]"); if (!b) return;
   const a = b.dataset.a;
+  if (b.closest("summary")) e.preventDefault(); // un botón en el título de un panel no lo pliega
   try {
     if (a === "google"){ await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } }); return; }
-    if (a === "login"){ const r = await sb.auth.signInWithPassword({ email: document.getElementById("lgMail").value.trim(), password: document.getElementById("lgPass").value }); if (r.error) toast("Mail o contraseña incorrectos."); return; }
+    if (a === "login"){ ingresoAca = true; const r = await sb.auth.signInWithPassword({ email: document.getElementById("lgMail").value.trim(), password: document.getElementById("lgPass").value }); if (r.error){ ingresoAca = false; toast("Mail o contraseña incorrectos."); } return; }
     if (a === "logout"){ await sb.auth.signOut(); return; }
     if (a === "closeDrawer"){ closeDrawer(); return; }
     if (a === "uSearch"){ S.q = document.getElementById("uQ").value.trim(); searchUsers(); return; }
-    if (a === "role"){ if (!confirm(b.dataset.v === "coach" ? "¿Pasar esta cuenta a coach?" : "¿Pasar esta cuenta a alumno?")) return; await rpc("admin_set_role", { uid: b.dataset.id, p_role: b.dataset.v }); toast("Rol cambiado"); openUser(b.dataset.id); searchUsers(); return; }
-    if (a === "unlink"){ if (!confirm("¿Desvincular a este alumno de su coach?")) return; await rpc("admin_unlink", { uid: b.dataset.id }); toast("Desvinculado"); openUser(b.dataset.id); searchUsers(); return; }
-    if (a === "admin"){ const on = b.dataset.v === "1"; if (!confirm(on ? "¿Hacer administrador a esta cuenta? Va a poder ver y cambiar todo el panel." : "¿Quitarle el acceso al panel?")) return; await rpc("admin_set_admin", { uid: b.dataset.id, on_off: on }); toast(on ? "Ahora es administrador" : "Ya no es administrador"); openUser(b.dataset.id); searchUsers(); return; }
+    if (a === "role"){ if (!await confirmar(b.dataset.v === "coach" ? "¿Pasar esta cuenta a coach?" : "¿Pasar esta cuenta a alumno?")) return; await rpc("admin_set_role", { uid: b.dataset.id, p_role: b.dataset.v }); toast("Rol cambiado"); openUser(b.dataset.id); searchUsers(); return; }
+    if (a === "unlink"){ if (!await confirmar("¿Desvincular a este alumno de su coach?")) return; await rpc("admin_unlink", { uid: b.dataset.id }); toast("Desvinculado"); openUser(b.dataset.id); searchUsers(); return; }
+    if (a === "admin"){ const on = b.dataset.v === "1"; if (!await confirmar(on ? "¿Hacer administrador a esta cuenta? Va a poder ver y cambiar todo el panel." : "¿Quitarle el acceso al panel?")) return; await rpc("admin_set_admin", { uid: b.dataset.id, on_off: on }); toast(on ? "Ahora es administrador" : "Ya no es administrador"); openUser(b.dataset.id); searchUsers(); return; }
     if (a === "delete"){
-      const t = prompt("Vas a eliminar la cuenta de " + b.dataset.name + " y TODOS sus datos. No se puede deshacer.\n\nSi tiene una suscripción en Mercado Pago, se cancela.\n\nEscribí ELIMINAR para confirmar:");
+      const t = await pedir("Vas a eliminar la cuenta de " + b.dataset.name + " y TODOS sus datos. No se puede deshacer.\n\nSi tiene una suscripción en Mercado Pago, se cancela.\n\nEscribí ELIMINAR para confirmar:", "", { titulo: "Eliminar cuenta", ok: "Eliminar" });
       if (t !== "ELIMINAR") return;
       b.disabled = true; await fn({ action: "eliminar", user_id: b.dataset.id }); toast("Cuenta eliminada"); closeDrawer(); searchUsers(); return;
     }
-    if (a === "pmMeses"){ const c = (S.coaches || []).find(x => x.id === b.dataset.id); const u = document.getElementById("pmUntil"); if (c && u) u.value = hastaMeses(c, parseInt(b.dataset.m, 10) || 1); return; }
+    if (a === "pmMeses"){ const c = (S.coaches || []).find(x => x.id === b.dataset.id); const u = document.getElementById("pmUntil"); if (c && u){ u.value = hastaMeses(c, parseInt(b.dataset.m, 10) || 1); u.dispatchEvent(new Event("change")); } return; }
     if (a === "pmSave"){
       const plan = document.getElementById("pmPlan").value, max = parseInt(document.getElementById("pmMax").value, 10) || PLAN_MAX[plan], until = document.getElementById("pmUntil").value;
       if (!until){ toast("Elegí hasta qué fecha pagó."); return; }
       const menos = max < PLAN_MAX[plan] ? "\n\nOjo: el " + planTxt(plan) + " es para " + PLAN_MAX[plan] + " alumnos y le vas a dejar " + max + " como máximo." : "";
-      if (!confirm("¿Habilitar el " + planTxt(plan) + " (" + max + " alumnos) hasta el " + fmtD(until + "T12:00:00") + "?" + menos)) return;
+      if (!await confirmar("¿Habilitar el " + planTxt(plan) + " (" + max + " alumnos) hasta el " + fmtD(until + "T12:00:00") + "?" + menos)) return;
       await rpc("admin_set_paid", { cid: b.dataset.id, p_plan: plan, p_max: max, p_until: until });
-      toast("Pago cargado"); closeDrawer(); loadCoaches(); return;
+      toast("Pago cargado"); closeDrawer(); afterCoach(); return;
     }
     if (a === "pmClear"){
       // Si la prueba gratis sigue vigente, admin_clear_paid lo devuelve a la prueba (cobro-manual.sql).
       const c = (S.coaches || []).find(x => x.id === b.dataset.id), prueba = c && c.trial_ends_at && new Date(c.trial_ends_at) > new Date();
-      if (!confirm(prueba ? "¿Cortar el pago ahora? Vuelve a la prueba gratis (hasta 10 alumnos) hasta el " + lastDay(c.trial_ends_at) + "; después queda sin plan."
+      if (!await confirmar(prueba ? "¿Cortar el pago ahora? Vuelve a la prueba gratis (hasta 10 alumnos) hasta el " + lastDay(c.trial_ends_at) + "; después queda sin plan."
         : "¿Cortar el pago ahora? Queda sin plan (sus alumnos siguen usando la app, pero él no ve sus fichas).")) return;
-      await rpc("admin_clear_paid", { cid: b.dataset.id }); toast("Pago cortado"); closeDrawer(); loadCoaches(); return;
+      await rpc("admin_clear_paid", { cid: b.dataset.id }); toast("Pago cortado"); closeDrawer(); afterCoach(); return;
     }
     if (a === "trSave"){
       const until = document.getElementById("trUntil").value, max = parseInt(document.getElementById("trMax").value, 10) || 10;
       if (!until){ toast("Elegí hasta qué fecha es la prueba."); return; }
-      if (!confirm("¿Prueba gratis hasta el " + fmtD(until + "T12:00:00") + ", con " + max + " alumnos como máximo?")) return;
+      if (!await confirmar("¿Prueba gratis hasta el " + fmtD(until + "T12:00:00") + ", con " + max + " alumnos como máximo?")) return;
       await rpc("admin_set_trial", { cid: b.dataset.id, p_until: until, p_max: max });
-      toast("Prueba guardada"); closeDrawer(); loadCoaches(); return;
+      toast("Prueba guardada"); closeDrawer(); afterCoach(); return;
     }
     if (a === "plan"){
       const mode = b.dataset.mode, max = document.getElementById("ctMax");
       const msg = { cortesia: "¿Darle cortesía (gratis) con tope de " + (max && max.value) + " alumnos?", sin_cortesia: "¿Quitarle la cortesía? Vuelve a prueba (si ya venció, tiene que pagar)." }[mode];
-      if (!confirm(msg)) return;
+      if (!await confirmar(msg)) return;
       await rpc("admin_set_plan", { cid: b.dataset.id, mode, p_max: max ? parseInt(max.value, 10) || 10 : null, p_days: null });
-      toast("Listo"); closeDrawer(); loadCoaches(); return;
+      toast("Listo"); closeDrawer(); afterCoach(); return;
     }
-    if (a === "mtab"){ if (Object.values(S.drafts).some(v => v.trim()) && !confirm("Tenés una respuesta sin mandar. ¿Cambiar de lista igual? (queda guardada si el mensaje aparece en la otra lista)")) return; S.msgTab = b.dataset.v; loadContacto(); return; }
+    if (a === "mtab"){ if (Object.values(S.drafts).some(v => v.trim()) && !await confirmar("Tenés una respuesta sin mandar. ¿Cambiar de lista igual? (queda guardada si el mensaje aparece en la otra lista)")) return; S.msgTab = b.dataset.v; loadContacto(); return; }
     if (a === "mread"){ markMsg(b); return; }
     if (a === "mreply"){ const c = b.closest("[data-msg]"), r = c.querySelector(".msg-reply"); r.hidden = false; c.querySelector(".msg-acts").hidden = true; S.drafts[c.dataset.msg] = S.drafts[c.dataset.msg] || ""; r.querySelector("textarea").focus(); return; }
     if (a === "mcancel"){ const c = b.closest("[data-msg]"); delete S.drafts[c.dataset.msg]; c.querySelector(".msg-reply").hidden = true; c.querySelector(".msg-acts").hidden = false; return; }
     if (a === "msend"){ sendReply(b); return; }
+    if (a === "rtab"){ S.repTab = b.dataset.v; loadReportes(); return; }
+    if (a === "repReview"){ reviewRep(b); return; }
+    if (a === "repUser"){ openUser(b.dataset.id); return; }
+    if (a === "toCoach"){
+      const id = b.dataset.id, dr = b.closest(".drawer");
+      if (!S.coaches){ try { S.coaches = await rpc("admin_coaches"); } catch (e) { toast(errMsg(e)); return; } }
+      if (dr && !dr.isConnected) return; // cerró la ficha mientras se traían los coaches
+      openCoach(id); return;
+    }
+    if (a === "ufilt"){ S.uFilter = b.dataset.v; paintUsers(); return; }
     if (a === "usort"){ const k = b.dataset.k, so = S.uSort; S.uSort = { k, dir: so && so.k === k && so.dir === "asc" ? "desc" : "asc" }; paintUsers(); return; }
     if (a === "ptab"){ S.prodTab = b.dataset.v; loadProductos(); return; }
     if (a === "rqKind"){ S.reqKind = b.dataset.v; loadPedidos(); return; }
@@ -1190,7 +1394,8 @@ document.addEventListener("click", async e => {
     if (a === "tDone"){ doneTask(b); return; }
     if (a === "tSave"){ saveTask(b); return; }
     if (a === "tDel"){ deleteTask(b); return; }
-    if (a === "toTasks"){ document.getElementById("hTasksB").scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (a === "toTasks"){ const d = openPanel("hTasksB"); if (d) d.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (a === "foldAll"){ foldAll(b.dataset.v === "1"); return; }
     if (a === "gSave"){ saveGoal(b); return; }
     if (a === "gDel"){ deleteGoal(b); return; }
     if (a === "fTab"){ S.finTab = b.dataset.v; finTabs(); return; }
@@ -1200,9 +1405,42 @@ document.addEventListener("click", async e => {
     if (a === "fSave"){ saveFinSettings(b); return; }
     if (a === "fDolarSave"){ saveDolar(b); return; }
     if (a === "fTodo"){ finTodo(b.dataset.v, Number(b.dataset.id), null, b); return; }
-    if (a === "fTodoDel"){ if (!confirm("¿Borrar este pendiente?")) return; finTodo("borrar", Number(b.dataset.id), null, b); return; }
+    if (a === "fTodoDel"){ if (!await confirmar("¿Borrar este pendiente?")) return; finTodo("borrar", Number(b.dataset.id), null, b); return; }
     if (a === "fTodoAdd"){ const i = document.getElementById("fTodoIn"), t = i.value.trim(); if (!t) return toast("Escribí el pendiente."); finTodo("nuevo", null, t, b); return; }
   } catch (err) { b.disabled = false; toast(errMsg(err)); }
 });
+
+// Fechas en día/mes/año. El <input type="date"> sale en el orden del idioma del navegador (en
+// inglés, mes/día): a cada uno se le pone adelante un campo dd/mm/aaaa y un botón que abre el
+// calendario. El valor sigue en el input original (aaaa-mm-dd), así el resto del panel no cambia.
+const isoToDmy = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ""); return m ? m[3] + "/" + m[2] + "/" + m[1] : ""; };
+export function dmyToIso(s){
+  const m = /^\s*(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})\s*$/.exec(s || ""); if (!m) return "";
+  const d = +m[1], mo = +m[2], y = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  if (t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return "";
+  return y + "-" + String(mo).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+}
+const CAL_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>';
+function dayFirst(inp){
+  inp.dataset.df = "1";
+  const wrap = document.createElement("span"); wrap.className = "dfield";
+  inp.parentNode.insertBefore(wrap, inp);
+  const txt = document.createElement("input");
+  txt.type = "text"; txt.className = inp.className; txt.id = (inp.id || "fecha") + "Txt";
+  txt.inputMode = "numeric"; txt.autocomplete = "off"; txt.placeholder = "dd/mm/aaaa"; txt.value = isoToDmy(inp.value);
+  txt.setAttribute("aria-label", inp.getAttribute("aria-label") || "Fecha (día/mes/año)");
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "dfield-cal"; btn.title = "Elegir en el calendario"; btn.setAttribute("aria-label", "Elegir en el calendario"); btn.innerHTML = CAL_SVG;
+  wrap.append(txt, btn, inp);
+  inp.classList.add("dfield-native"); inp.tabIndex = -1; inp.setAttribute("aria-hidden", "true");
+  txt.addEventListener("input", () => { const v = dmyToIso(txt.value); inp.value = v; txt.classList.toggle("bad", !!txt.value.trim() && !v); });
+  txt.addEventListener("blur", () => { if (inp.value) txt.value = isoToDmy(inp.value); });
+  inp.addEventListener("change", () => { txt.value = isoToDmy(inp.value); txt.classList.remove("bad"); });
+  btn.addEventListener("click", () => { try { inp.showPicker(); } catch (e) { txt.focus(); } });
+}
+const dayFirstAll = () => document.querySelectorAll('input[type="date"]:not([data-df])').forEach(dayFirst);
+new MutationObserver(dayFirstAll).observe(document.body, { childList: true, subtree: true });
+dayFirstAll();
 
 boot();

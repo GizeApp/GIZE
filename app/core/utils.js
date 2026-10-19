@@ -21,6 +21,14 @@ export function storageErrorText(err, maxMb){
   return m;
 }
 
+// La subida chocó con una política de Storage (403 o «row-level security»). Con las rutas que
+// arma la app, eso es el tope de archivos por día de supabase/topes-archivos.sql, no la señal.
+export function storageCupoLleno(err){
+  const m = String((err && (err.message || err.error)) || err || "");
+  const st = String((err && (err.statusCode || err.status)) || "");
+  return /row-level security/i.test(m) || (st === "403" && !/jwt/i.test(m));
+}
+
 // Fecha local YYYY-MM-DD. No usar toISOString(): pasa a UTC y, según la zona horaria,
 // devuelve el día anterior o el siguiente.
 export function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
@@ -111,8 +119,9 @@ export function tabRipple(btn, clientX, clientY){
 
 // ---- Ejercicios por tiempo (plancha, isométricos, colgado de barra…) ----
 // En vez de reps se anotan segundos, y cada serie tiene un cronómetro. El coach lo elige por
-// ejercicio (ex.timed); si no eligió nada se deduce del nombre.
-const TIMED_RE = /plancha|plank|isom[eé]tric|hollow|wall ?sit|sentadilla (isom|en (la )?pared|contra (la )?pared)|dead ?hang|colgad|l-?sit|puente (isom|sostenid)|sostenid|\bhold\b|farmer|paseo del granjero|caminata del granjero/i;
+// ejercicio (ex.timed); si no eligió nada se deduce del nombre. Colgarse es de la barra: «Elevación
+// de piernas colgado» es de repeticiones.
+const TIMED_RE = /rodaje|fondo largo|fartlek|ritmo tempo|carrera en cinta|air bike|ski erg|ergómetro|plancha|plank|isom[eé]tric|hollow|wall ?sit|sentadilla (isom|en (la )?pared|contra (la )?pared)|dead ?hang|colga(r(se)?|d[oa]s?) (de|en) (la )?barra|l-?sit|puente (isom|sostenid)|sostenid|\bhold\b|farmer|paseo del granjero|caminata del granjero/i;
 export function isTimedEx(ex){ if(!ex) return false; if(typeof ex.timed === "boolean") return ex.timed; return TIMED_RE.test(ex.name || ""); }
 // "45", "45 s", "45''", "0:45", "1:30", "1'30", "1 min" → segundos. Un rango ("30-45") toma el primero.
 export function parseSecs(v){

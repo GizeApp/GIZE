@@ -23,7 +23,7 @@ import { kgText } from '../../core/progresion.js';
 import { dropRoutineDraft, readRoutineDraft, renderCoach } from './index.js';
 
 import { loadTpls } from './rutinas.js';
-import { loadMealTpls } from './planes.js';
+import { clientPlanDirty, loadMealTpls } from './planes.js';
 
 import { CoachState } from './state.js';
 
@@ -34,7 +34,7 @@ import { renderWChart } from '../progreso.js';
 export async function loadCoachClients(){
   try{
     // Lista de clientes y código de invitación salen juntos.
-    const icP=Promise.resolve(State.sb.rpc("my_invite_code")).catch(()=>({data:null}));
+    const icP=Promise.resolve(State.sb.rpc("my_invite_code")).catch(e=>({data:null, error:e}));
     const billP=loadBilling();
     // Supabase no tira excepción cuando una query falla (devuelve {data:null, error}).
     // Si "email" no existe en profiles (o RLS no deja leerla) o todavía no está la
@@ -49,7 +49,9 @@ export async function loadCoachClients(){
       if(!r.error) break;
       console.error("coachClients ("+c+")",r.error);
     }
-    CoachState.coachClients=r.data||[];
+    // Sin señal fallan todos los intentos: queda la lista que ya estaba (antes se vaciaba y el
+    // panel mostraba «Todavía no tenés clientes vinculados» y «Clientes (0)»). Igual el código.
+    if(!r.error) CoachState.coachClients=r.data||[];
     // El mail sale de las cuentas (supabase/mail-clientes.sql): profiles no lo tiene.
     try{
       const em=await State.sb.rpc("my_clients_emails");
@@ -58,7 +60,7 @@ export async function loadCoachClients(){
     // Fotos de los clientes y la propia: se piden los links y se redibuja cuando llegan.
     const paths=CoachState.coachClients.map(c=>c.avatar_path).concat([State.cloudProfile&&State.cloudProfile.avatar_path]);
     resolveAvatars(paths).then(ok=>{ if(ok) renderCoach(); }).catch(()=>{});
-    const ic=await icP; CoachState.coachInvite=ic.data||null;
+    const ic=await icP; if(!ic.error) CoachState.coachInvite=ic.data||null;
     await billP;
   }catch(e){ console.error("coachClients",e); }
   loadCoachStats(); loadTpls(); loadMealTpls();
@@ -90,7 +92,7 @@ export async function loadCoachStats(){
         if(!stats[r.client_id].lastSess) stats[r.client_id].lastSess=r.performed_on;
       });
     }
-    CoachState.coachClientStats=stats; renderCoach();
+    CoachState.coachClientStats=stats; CoachState.coachStatsReady=true; renderCoach();
   }catch(e){ console.error("coachStats",e); }
 }
 
@@ -137,8 +139,11 @@ export function coachLogFor(sessions, dayName, name){
 
 export function coachExerciseLog(sessions,name){ const out=[]; (sessions||[]).slice().sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(se=>{ const sets=[]; se.exercises.forEach(ex=>{ if(ex.name===name) ex.sets.forEach(st=>{ if((+st.kg||0)!==0||(+st.reps||0)>0||(+st.secs||0)>0) sets.push({kg:+st.kg||0, reps:+st.reps||0, secs:+st.secs||0}); }); }); if(sets.length) out.push({date:se.date, ts:se.ts, sets:sets}); }); return out; }
 
-export async function openClient(id){
-  CoachState.coachSel=id; CoachState.coachData={loading:true}; CoachState.coachDailySel=null; CoachState.coachCkSel=null; CoachState.coachSessSel=null; CoachState.coachSalidaSel=null; CoachState.notifDraft=""; CoachState.notifSending=false; CoachState.coachDayFilter=null; CoachState.coachEditDay=0; renderCoach();
+// keep: vuelve a leer al mismo alumno (después de guardar o borrar una rutina programada) sin
+// perder lo que el coach tenía sin guardar del plan, la ficha y el bloque.
+export async function openClient(id, keep){
+  const d0=CoachState.coachData, forms=(keep && d0 && d0.id===id) ? { p:clientPlanDirty()?CoachState.coachPlanForm:null, i:CoachState.coachInfoForm, b:CoachState.coachBlockForm } : {};
+  CoachState.coachSel=id; CoachState.coachData={loading:true}; CoachState.coachDailySel=null; CoachState.coachCkSel=null; CoachState.coachSessSel=null; CoachState.coachCal={}; CoachState.coachSalidaSel=null; CoachState.notifDraft=""; CoachState.notifSending=false; CoachState.coachDayFilter=null; CoachState.coachEditDay=0; renderCoach();
   try{
     // Todas las lecturas del cliente salen juntas (antes iban de a una).
     const sb=State.sb;
@@ -159,6 +164,16 @@ export async function openClient(id){
       // recorrido: ese se pide al abrir una (ver salidas.js). Sin la tabla, la sección lo avisa.
       Promise.resolve(sb.from("cardio_outings").select(SALIDA_COLS).eq("client_id",id).order("started_at",{ascending:false}).order("id").limit(SALIDAS_MAX)).catch(e=>({data:null, error:e}))
     ]);
+    // Supabase no lanza cuando una lectura falla (sin señal, por ejemplo): devuelve {data:null,
+    // error}. Si falla cualquiera de estas, la ficha no se arma: vacía parecía real y al guardar
+    // (ficha, plan, rutina o bloque) se pisaba lo del alumno. Va antes del borrador de la rutina,
+    // para no descartarlo por una lectura fallida. Programadas y salidas siguen tolerantes.
+    const reads=[ws, ss, rt, dl, ck, ci, bl, np];
+    if(reads.some(r=>!r || r.error)){
+      if(CoachState.coachSel!==id) return;
+      console.error("openClient", reads.map(r=>r && r.error).filter(Boolean));
+      CoachState.coachData={error:true}; renderCoach(); return;
+    }
     const weights=(ws.data||[]).map(w=>({date:w.measured_on, kg:Number(w.kg)}));
     // Variantes del día (core/variantes.js): el registro del día dice qué ejercicio cambió por cuál.
     const sessions=markSubs((ss.data||[]).map(sessionFromRow), dl.data||[]);
@@ -170,7 +185,7 @@ export async function openClient(id){
     const dr=readRoutineDraft(id), saved=JSON.stringify(routine);
     if(dr && Array.isArray(dr.days) && JSON.stringify(dr.days)!==saved){
       const c0=CoachState.coachClients.find(x=>x.id===id);
-      if(dr.base===saved || confirm("Hay cambios en la rutina de "+((c0&&c0.full_name)||"este cliente")+" que no se guardaron, pero la rutina guardada cambió desde entonces. ¿Recuperar tus cambios? (Si cancelás, se descartan.)")){
+      if(dr.base===saved || await confirmar("Hay cambios en la rutina de "+((c0&&c0.full_name)||"este cliente")+" que no se guardaron, pero la rutina guardada cambió desde entonces. ¿Recuperar tus cambios? (Si cancelás, se descartan.)")){
         routineOrig=saved; routine=dr.days; migrateNames(routine); restored=true;
       } else dropRoutineDraft(id);
     } else if(dr) dropRoutineDraft(id);
@@ -181,11 +196,15 @@ export async function openClient(id){
     CoachState.coachData={id:id, info:(ci.data||{}), block:((bl.data&&bl.data[0])||null), name:(c&&c.full_name)||"Cliente", avatar:(c&&c.avatar_path)||null, weights:weights, sessions:sessions, routine:routine, routineOrig:routineOrig, draftRestored:restored, loadEx:null, daily:(dl.data||[]), checkins:(ck.data||[]), plan:(np.data||null), schedule:(sc&&!sc.error&&sc.data)||[],
       salidas:(so && !so.error && Array.isArray(so.data)) ? so.data.map(salidaFromRow) : [], salidasError:(so && so.error) ? (salidaNoTable(so.error) ? "tabla" : "error") : ""};
     if(restored) CoachState.coachClientTab="rutina";
-    CoachState.coachPlanForm=null; CoachState.coachInfoForm=null; CoachState.coachBlockForm=null; CoachState.coachWeekSel=null;
+    CoachState.coachPlanForm=forms.p||null; CoachState.coachInfoForm=forms.i||null; CoachState.coachBlockForm=forms.b||null; CoachState.coachWeekSel=null;
     // Notificaciones: si el cliente las tiene activadas y los últimos mensajes. Aparte,
     // para no demorar la ficha; se redibuja cuando llega.
     const dRef=CoachState.coachData;
     loadClientNotify(id).then(n=>{ if(CoachState.coachData===dRef){ dRef.notify=n; renderCoach(); } }).catch(()=>{});
+    // Su disciplina (Ajustes del alumno, client_prefs.disciplines): se ve en la ficha y ordena el
+    // buscador de ejercicios al armarle la rutina. Aparte: sin la columna, la ficha carga igual.
+    Promise.resolve(State.sb.from("client_prefs").select("disciplines").eq("client_id",id).maybeSingle())
+      .then(r=>{ if(CoachState.coachData===dRef && r && !r.error && r.data && Array.isArray(r.data.disciplines)){ dRef.disciplines=r.data.disciplines; renderCoach(); } }).catch(()=>{});
     // La foto casi siempre ya tiene link desde la lista; si venció o todavía no llegó, se pide y se redibuja.
     if(CoachState.coachData.avatar) resolveAvatars([CoachState.coachData.avatar]).then(ok=>{ if(ok&&CoachState.coachSel===id) renderCoach(); }).catch(()=>{});
     CoachState.coachExpandedEx=new Set(); CoachState.coachExMenu=null; CoachState.coachPlanRestOpen=null;

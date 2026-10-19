@@ -1,0 +1,256 @@
+// Cardio sin mapa de calles (pedido: «nada de mapa para cardio en android»).
+// a) Navegador de Android (Chrome en un Android): la salida con GPS anda como siempre (aviso,
+//    empezar, puntos, distancia, terminar y guardar), pero nunca se pide MapLibre ni OpenFreeMap ni
+//    se crea un contexto de WebGL. En vivo y en el resumen: el cartelito fijo «Sin mapa de calles»
+//    (no el texto de arriba del mapa) y la grilla más marcada; en el resumen, además, la escala y
+//    las marcas de cada km. Sin conexión, sin el aviso «Sin conexión…» (ahí nunca hay mapa). La
+//    imagen para compartir, sin los créditos del mapa.
+// b) iPhone (Safari) y la compu: el mapa se sigue pidiendo (MapLibre de vendor/).
+// c) Modo liviano en la compu: el mismo aspecto sin mapa (cartelito, grilla, escala y marcas).
+// e) Recorridos largos sin mapa, a 320 px: las marcas de km más espaciadas (cada 10 km pasando los
+//    50, cada 20 pasando los 150) y sin encimarse (en una ida y vuelta, las de la vuelta no van).
+// d) Tablets Android con «Sitio de escritorio» (Chrome en las de 10" o más, Samsung Internet en las
+//    Galaxy Tab): dicen ser una compu con Linux, y siguen sin mapa de calles. La compu con Linux
+//    (sin pantalla táctil), Windows, Mac (también el iPad) y las Chromebook siguen con mapa.
+import { newPage, wait, ALUMNO, profile, empezarSalida } from './lib.mjs';
+
+const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} };
+const H = { '/profiles': profile('client') };
+const TRACK_KEY = 'gize_salidas_track_v1';
+const NO_MAP = 'Sin mapa de calles', OFFLINE = 'Sin conexión: el recorrido sin el mapa de fondo.';
+const MAP_CREDIT = 'OpenFreeMap © OpenMapTiles © OpenStreetMap';
+const MAPA = /maplibre|openfreemap/i;
+const UA = {
+  android: 'Mozilla/5.0 (Linux; Android 14; SM-A135M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
+  iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1',
+  // «Sitio de escritorio» en una tablet Android: Chrome y Samsung Internet.
+  escritorio: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+  samsungEscritorio: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/25.0 Chrome/121.0.0.0 Safari/537.36',
+  chromebook: 'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+  windows: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+  ipad: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15',
+};
+const TABLET = { width: 1280, height: 800 };
+
+// El navegador (userAgent), espías de WebGL (contextos pedidos) y del texto que se escribe en
+// los canvas (marcas de km, créditos de la imagen), y un GPS web falso con un reloj que avanza:
+// __push(lat, lon, acc, t) manda un punto a la hora t y el reloj de la página queda en t.
+const INIT = ua => `(() => {
+  ${ua ? `Object.defineProperty(Navigator.prototype, 'userAgent', { get: () => ${JSON.stringify(ua)}, configurable: true });` : ''}
+  window.__gl = 0; window.__txt = [];
+  const gc = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (type, ...a){ if (/webgl/i.test(type)) window.__gl++; return gc.call(this, type, ...a); };
+  const ft = CanvasRenderingContext2D.prototype.fillText;
+  CanvasRenderingContext2D.prototype.fillText = function (s, ...a){ window.__txt.push(String(s)); return ft.call(this, s, ...a); };
+  const real = Date.now.bind(Date);
+  window.__skew = 0; Date.now = () => real() + window.__skew;
+  window.__geo = { watchers: {}, n: 0 };
+  Object.defineProperty(navigator, 'geolocation', { value: {
+    watchPosition(ok, err){ const id = ++window.__geo.n; window.__geo.watchers[id] = { ok, err }; return id; },
+    clearWatch(id){ delete window.__geo.watchers[id]; }, getCurrentPosition(){},
+  }, configurable: true });
+  Object.defineProperty(navigator, 'wakeLock', { value: { request: async () => ({ addEventListener(){}, release: async () => {} }) }, configurable: true });
+  window.__push = (lat, lon, acc, t) => {
+    window.__skew = t - real();
+    for (const k in window.__geo.watchers) window.__geo.watchers[k].ok({ coords: { latitude: lat, longitude: lon, accuracy: acc, speed: null }, timestamp: t });
+  };
+  localStorage.setItem('gize_lite', '0'); localStorage.setItem('gize_salida_aviso', '1');
+})();`;
+
+// Sin WebGL en el navegador de las pruebas, la primera vez que se pide (webglOk, al abrir el
+// recorrido) se devuelve uno falso; MapLibre después pide el suyo, no lo tiene y la vista sigue
+// sin mapa. Con WebGL de verdad no cambia nada.
+const WEBGL_FIJO = `(() => { const gc = HTMLCanvasElement.prototype.getContext; let una = true;
+  HTMLCanvasElement.prototype.getContext = function (type, ...a){ const r = gc.call(this, type, ...a);
+    if (r || !una || !/webgl/i.test(type)) return r; una = false; return { getExtension: () => null }; }; })();`;
+
+const vista = (p, sel) => p.evaluate(sel => {
+  const v = document.querySelector(sel + ' .rv'); if (!v) return null;
+  const vis = e => !!e && !e.hidden && getComputedStyle(e).display !== 'none';
+  const nm = v.querySelector('.rv-nomap'), sc = v.querySelector('.rv-scale'), msg = v.querySelector('.rv-msg');
+  const r = v.getBoundingClientRect(), nr = vis(nm) ? nm.getBoundingClientRect() : null;
+  return {
+    sinMapa: v.classList.contains('sin-mapa'), conMapa: v.classList.contains('con-mapa'), estado: v.dataset.estado,
+    nomap: vis(nm) ? nm.textContent : '', nomapAdentro: !!nr && nr.left >= r.left && nr.right <= r.right && nr.top >= r.top && nr.bottom <= r.bottom,
+    msg: vis(msg) ? msg.textContent : '',
+    escala: vis(sc) ? sc.querySelector('span').textContent : null, escalaPx: vis(sc) ? Math.round(sc.querySelector('i').getBoundingClientRect().width) : 0, ancho: Math.round(r.width),
+    grilla: getComputedStyle(v.querySelector('.rv-bg')).backgroundImage,
+  };
+}, sel);
+const linea = (p, sel) => p.evaluate(sel => {
+  const c = document.querySelector(sel + ' .rv-line'); if (!c || !c.width) return 0;
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0;
+  for (let i = 3; i < d.length; i += 16) if (d[i] > 200) n++;
+  return n;
+}, sel);
+const listo = async (p, sel) => { for (let i = 0; i < 100; i++){ const v = await vista(p, sel); if (v && v.estado === 'listo') return v; await wait(100); } return vista(p, sel); };
+const ESCALA = /^(50|100|200|250|500) m$|^(1|2|5|10|20|50) km$/;
+
+// a) Navegador de Android: una salida entera.
+async function navegadorAndroid(base, t){
+  const pg = await newPage({ user: ALUMNO, state: STATE, handlers: H, init: INIT(UA.android), reducedMotion: 'reduce' });
+  const p = pg.p, reqs = [];
+  p.on('request', r => reqs.push(r.url()));
+  await p.goto(base + '/app/'); await wait(2500);
+  t.eq(await p.evaluate(async () => { const m = await import('/app/core/plataforma.js'); return [m.navegadorAndroid(), m.appAndroid()]; }), [true, false], 'Chrome en Android: navegador de Android (no la app)');
+  t.eq(await p.evaluate(async () => (await import('/app/ui/mapa.js')).canUseMap()), false, 'Chrome en Android: sin mapa de calles');
+  await p.click('#nav-cardio'); await wait(400);
+  await empezarSalida(p); await wait(500);
+  t.eq(await p.evaluate(() => Object.keys(window.__geo.watchers).length), 1, 'Chrome en Android: la salida mira el GPS como siempre');
+  // 800 puntos al norte a 10 km/h (≈ 2,2 km), uno por segundo.
+  const t0 = await p.evaluate(() => Date.now() + 1000);
+  await p.evaluate(t0 => { for (let i = 0; i < 800; i++) window.__push(-34.6 + i * 10 / 3.6 / 111195, -58.4, 5, t0 + i * 1000); }, t0);
+  await wait(400);
+  await p.evaluate(async () => (await import('/app/screens/cardio.js')).liveMapTick(true)); await wait(300);
+  const dist = await p.evaluate(() => document.getElementById('salDist').textContent);
+  t.ok(parseFloat(dist.replace(',', '.')) > 2, 'Chrome en Android: suma la distancia: ' + dist);
+  let v = await vista(p, '.sal-minimap');
+  t.ok(v && v.sinMapa && !v.conMapa, 'en vivo: el recorrido sin mapa de calles: ' + JSON.stringify(v));
+  t.eq([v && v.nomap, v && v.nomapAdentro], [NO_MAP, true], 'en vivo: el cartelito fijo «Sin mapa de calles», adentro del mini mapa');
+  t.ok(v && v.msg !== NO_MAP, 'en vivo: el cartelito no es el texto de arriba del mapa');
+  t.eq(v && v.escala, null, 'en vivo: sin escala');
+  t.ok(await linea(p, '.sal-minimap') > 30, 'en vivo: el recorrido se dibuja');
+  t.ok(/linear-gradient/.test(v && v.grilla), 'en vivo: la grilla más marcada: ' + (v && v.grilla.slice(0, 60)));
+
+  // Terminar: el resumen con la escala y las marcas de cada km.
+  await p.evaluate(() => { window.__txt.length = 0; });
+  await p.click('#salLive [data-action="sal-stop"]'); await wait(300);
+  v = await listo(p, '#salidaHost');
+  t.ok(v && v.sinMapa && !v.conMapa, 'resumen: sin mapa de calles: ' + JSON.stringify(v));
+  t.eq([v && v.nomap, v && v.msg], [NO_MAP, ''], 'resumen: el cartelito fijo, sin otro aviso arriba');
+  t.ok(v && ESCALA.test(v.escala) && v.escalaPx > v.ancho * 0.1 && v.escalaPx < v.ancho * 0.4, 'resumen: la escala con un largo redondo: ' + JSON.stringify(v && [v.escala, v.escalaPx, v.ancho]));
+  const marcas = await p.evaluate(() => window.__txt.filter(x => /^\d+$/.test(x)));
+  t.ok(marcas.includes('1') && marcas.includes('2'), 'resumen: las marcas de cada km (1 y 2): ' + JSON.stringify([...new Set(marcas)]));
+  await p.click('#salidaHost [data-action="sal-save"]'); await wait(600);
+  const saved = await p.evaluate(async k => { const { state } = await import('/app/core/state.js'); const rec = (state.salidas || [])[0]; const c = JSON.parse(localStorage.getItem(k) || '[]'); return { rec, track: rec && (c.find(x => x[0] === rec.id) || [])[1] }; }, TRACK_KEY);
+  t.ok(saved.rec && saved.track, 'Chrome en Android: la salida se guarda con su recorrido');
+
+  // Compartir: la imagen sin la foto del mapa ni sus créditos.
+  await p.evaluate(() => { window.__txt.length = 0; });
+  await p.click('#salidaHost [data-action="sal-share"]');
+  await p.waitForSelector('#salShare[data-listo="1"]', { timeout: 15000 }).catch(() => {});
+  const txt = await p.evaluate(() => window.__txt.slice());
+  t.ok(txt.includes('Entrenado con GIZE'), 'compartir: se armó la imagen');
+  t.ok(!txt.includes(MAP_CREDIT), 'compartir: sin los créditos del mapa (no lleva mapa)');
+  t.eq(reqs.filter(u => MAPA.test(u)), [], 'Chrome en Android: nunca se pide MapLibre ni OpenFreeMap');
+  t.eq(await p.evaluate(() => window.__gl), 0, 'Chrome en Android: ningún contexto de WebGL');
+  t.eq(pg.errs, [], 'errores de la página (Chrome en Android)');
+  await pg.close();
+  return saved;
+}
+
+// Una salida guardada abierta en otro navegador. extra: init de más. opts: touch, viewport.
+async function abrirGuardada(base, saved, ua, extra, opts){
+  const local = Object.assign({}, saved.rec); delete local.cloud;
+  const pg = await newPage(Object.assign({ user: ALUMNO, state: Object.assign({}, STATE, { salidas: [local] }), handlers: H, reducedMotion: 'reduce' }, opts || {}, {
+    init: INIT(ua) + `localStorage.setItem(${JSON.stringify(TRACK_KEY)}, ${JSON.stringify(JSON.stringify([[saved.rec.id, saved.track]]))});` + (extra || '') }));
+  const reqs = [];
+  pg.p.on('request', r => reqs.push(r.url()));
+  await pg.p.goto(base + '/app/'); await wait(2500);
+  await pg.p.click('#nav-cardio'); await wait(400);
+  await pg.p.click(`[data-action="sal-open"][data-id="${saved.rec.id}"]`); await wait(300);
+  return Object.assign(pg, { reqs });
+}
+
+export default async function ({ base, t }){
+  const saved = await navegadorAndroid(base, t);
+  if (!saved.rec || !saved.track) return;
+
+  // Chrome en Android sin conexión: el cartelito, sin el aviso de «Sin conexión…».
+  let pg = await abrirGuardada(base, saved, UA.android, "Object.defineProperty(Navigator.prototype, 'onLine', { get: () => false, configurable: true });");
+  let v = await listo(pg.p, '#salidaHost');
+  t.eq([v && v.nomap, v && v.msg], [NO_MAP, ''], 'Chrome en Android sin conexión: «Sin mapa de calles» y no el aviso de «' + OFFLINE + '»');
+  t.eq(pg.reqs.filter(u => MAPA.test(u)), [], 'Chrome en Android sin conexión: nunca se pide el mapa');
+  t.eq(pg.errs, [], 'errores de la página (Chrome en Android sin conexión)');
+  await pg.close();
+
+  // iPhone (Safari) y la compu: el mapa se pide como siempre. Si el navegador de las pruebas no
+  // tuviera WebGL (una máquina sin placa de video), el control igual corre: WEBGL_FIJO.
+  for (const [name, ua] of [['iPhone', UA.iphone], ['compu', '']]){
+    pg = await abrirGuardada(base, saved, ua, WEBGL_FIJO);
+    t.eq(await pg.p.evaluate(async () => (await import('/app/ui/mapa.js')).webglOk()), true, name + ': hay WebGL (el de verdad o, si falta, el de la prueba)');
+    t.eq(await pg.p.evaluate(async () => (await import('/app/core/plataforma.js')).navegadorAndroid()), false, name + ': no es Android');
+    for (let i = 0; i < 50 && !pg.reqs.some(u => /vendor\/maplibre-gl-6\.11\.2\/maplibre-gl\.js/.test(u)); i++) await wait(100);
+    t.ok(pg.reqs.some(u => /vendor\/maplibre-gl-6\.11\.2\/maplibre-gl\.js/.test(u)), name + ': se carga MapLibre para el mapa de calles');
+    t.eq(pg.errs, [], 'errores de la página (' + name + ')');
+    await pg.close();
+  }
+
+  // Modo liviano en la compu: el mismo aspecto sin mapa.
+  pg = await abrirGuardada(base, saved, '', "localStorage.setItem('gize_lite', '1');");
+  v = await listo(pg.p, '#salidaHost');
+  t.ok(v && v.sinMapa && v.nomap === NO_MAP && ESCALA.test(v.escala) && /linear-gradient/.test(v.grilla), 'modo liviano: cartelito, escala y grilla: ' + JSON.stringify(v));
+  t.ok((await pg.p.evaluate(() => window.__txt)).includes('1'), 'modo liviano: las marcas de cada km');
+  t.eq(pg.reqs.filter(u => MAPA.test(u)), [], 'modo liviano: nunca se pide el mapa');
+  t.eq(pg.errs, [], 'errores de la página (modo liviano)');
+  await pg.close();
+
+  // d) Tablets Android con «Sitio de escritorio»: sin mapa de calles, como en el celular. (Samsung
+  //    sin pantalla táctil: Samsung DeX con mouse.)
+  for (const [name, ua, touch] of [['tablet con «Sitio de escritorio» (Chrome)', UA.escritorio, true], ['Samsung Internet con «Sitio de escritorio»', UA.samsungEscritorio, false]]){
+    pg = await abrirGuardada(base, saved, ua, '', { touch, viewport: TABLET });
+    t.eq(await pg.p.evaluate(async () => [(await import('/app/core/plataforma.js')).navegadorAndroid(), (await import('/app/ui/mapa.js')).canUseMap()]), [true, false], name + ': navegador de Android, sin mapa de calles');
+    v = await listo(pg.p, '#salidaHost');
+    t.ok(v && v.sinMapa && !v.conMapa && v.nomap === NO_MAP && ESCALA.test(v.escala), name + ': el recorrido sin mapa, con el cartelito y la escala: ' + JSON.stringify(v));
+    t.eq(pg.reqs.filter(u => MAPA.test(u)), [], name + ': nunca se pide MapLibre ni OpenFreeMap');
+    t.eq(await pg.p.evaluate(() => window.__gl), 0, name + ': ningún contexto de WebGL');
+    t.eq(pg.errs, [], 'errores de la página (' + name + ')');
+    await pg.close();
+  }
+
+  // e) Recorridos largos en bici, a 320 px: una ida y vuelta de 120 km (60 al norte y volver por el
+  //    mismo camino) y 160 km de ida. Se anota dónde se escribe cada número de km.
+  const POS = `(() => { window.__pos = []; const ft = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (s, x, y, ...a){ if (/^\\d+$/.test(String(s))) window.__pos.push([String(s), x, y]); return ft.call(this, s, x, y, ...a); }; })();`;
+  const largos = await (async () => {
+    const h = await newPage({}); await h.p.goto(base + '/privacidad/');
+    const out = await h.p.evaluate(async () => {
+      const m = await import('/app/core/cardiogps.js');
+      const arma = (id, pts) => {
+        const dist = Math.round(pts.reduce((a, p, i) => i ? a + m.haversine(pts[i - 1], p) : 0, 0)), dur = pts[pts.length - 1].t;
+        return { rec: { id, mode: 'bici', date: '2026-10-03', startedAt: '2026-10-03T12:00:00.000Z', endedAt: new Date(Date.parse('2026-10-03T12:00:00.000Z') + dur * 1000).toISOString(),
+          dur, moving: dur, dist, kcal: 2000, avg: dist / dur * 3.6, max: 35, kg: 70, kgDefault: false, gap: 0, points: pts.length, breakdown: {}, segments: [], splits: [] }, track: m.encodeTrack([pts]) };
+      };
+      const ida = [], idaVuelta = [];
+      for (let i = 0; i <= 600; i++) idaVuelta.push({ lat: -34.6 + i * 100 / 111195, lon: -58.4, t: i * 14.4 });
+      for (let i = 599; i >= 0; i--) idaVuelta.push({ lat: -34.6 + i * 100 / 111195, lon: -58.4, t: (1200 - i) * 14.4 });
+      for (let i = 0; i <= 800; i++) ida.push({ lat: -34.6 + i * 200 / 111195, lon: -58.4, t: i * 28.8 });
+      return [arma('5a1d0000-0000-4000-8000-00000000e120', idaVuelta), arma('5a1d0000-0000-4000-8000-00000000e160', ida)];
+    });
+    await h.close(); return out;
+  })();
+  for (const [name, sv, esperadas] of [['ida y vuelta de 120 km', largos[0], ['10', '20', '30', '40', '50', '60']], ['160 km de ida', largos[1], ['20', '40', '60', '80', '100', '120', '140']]]){
+    pg = await abrirGuardada(base, sv, UA.android, POS, { viewport: { width: 320, height: 640 }, touch: true });
+    v = await listo(pg.p, '#salidaHost');
+    const pos = await pg.p.evaluate(() => window.__pos.slice());
+    // Las marcas del último dibujo (el resumen se puede redibujar al acomodarse): una por número.
+    const ult = new Map(pos.map(x => [x[0], x]));
+    const marcas = [...ult.values()], cerca = [];
+    for (let i = 0; i < marcas.length; i++) for (let j = i + 1; j < marcas.length; j++){
+      const d = Math.hypot(marcas[i][1] - marcas[j][1], marcas[i][2] - marcas[j][2]);
+      if (d < 20) cerca.push(marcas[i][0] + ' y ' + marcas[j][0] + ' a ' + Math.round(d) + ' px');
+    }
+    t.ok(v && v.sinMapa && v.nomap === NO_MAP, name + ': sin mapa de calles');
+    t.eq([...ult.keys()].sort((a, b) => a - b), esperadas, name + ': las marcas de km que se dibujan');
+    t.eq(cerca, [], name + ': ninguna marca encima de otra (a menos de 20 px)');
+    t.eq(pg.errs, [], 'errores de la página (' + name + ')');
+    await pg.close();
+  }
+
+  // Quién cuenta como navegador de Android (userAgent, pantalla táctil y userAgentData).
+  pg = await newPage({});
+  await pg.p.goto(base + '/privacidad/');
+  const quien = await pg.p.evaluate(async ([casos]) => {
+    const m = await import('/app/core/plataforma.js');
+    return casos.map(([ua, touch, platform]) => {
+      Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true });
+      Object.defineProperty(navigator, 'maxTouchPoints', { value: touch, configurable: true });
+      Object.defineProperty(navigator, 'userAgentData', { value: platform ? { platform, mobile: false } : undefined, configurable: true });
+      return m.navegadorAndroid();
+    });
+  }, [[[UA.android, 5, 'Android'], [UA.escritorio, 5, 'Linux'], [UA.escritorio, 0, 'Android'], [UA.samsungEscritorio, 0, null],
+    [UA.escritorio, 0, 'Linux'], [UA.chromebook, 10, 'Chrome OS'], [UA.windows, 10, 'Windows'], [UA.ipad, 5, null], [UA.iphone, 5, null]]]);
+  t.eq(quien, [true, true, true, true, false, false, false, false, false],
+    'navegador de Android: el celular, la tablet con «Sitio de escritorio» (táctil, userAgentData o Samsung) sí; la compu con Linux sin pantalla táctil, la Chromebook, Windows, el iPad y el iPhone no');
+  await pg.close();
+}

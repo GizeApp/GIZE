@@ -1,5 +1,5 @@
 /* css/ui/restbar.css */
-.rest-inner { position: relative; overflow: hidden; display:flex; align-items:center; gap:10px; background: var(--card-2); border:1px solid var(--blue); border-radius: 4px; padding: 11px 12px; box-shadow: 0 6px 24px rgba(0,0,0,.45), var(--glow-md); }
+.rest-inner { position: relative; overflow: hidden; display:flex; align-items:center; gap:10px; background: var(--card-2); border:1px solid var(--blue); border-radius: var(--r-box); padding: 11px 12px; box-shadow: 0 6px 24px rgba(0,0,0,.45), var(--glow-md); }
 
 .rest-lbl { font-size: var(--text-meta); color: var(--txt-2); }
 
@@ -7,7 +7,7 @@
 
 .rest-opts { display:flex; gap:5px; margin-left:auto; }
 
-.rest-opt { padding: 6px 9px; border-radius: 4px; background: var(--card); border:1px solid var(--border); color: var(--txt-2); font-size: var(--text-meta); font-weight:600; cursor:pointer; }
+.rest-opt { padding: 6px 9px; border-radius: var(--r-box); background: var(--card); border:1px solid var(--border); color: var(--txt-2); font-size: var(--text-meta); font-weight:600; cursor:pointer; }
 
 .rest-x { background:none; border:none; color: var(--txt-3); font-size:16px; cursor:pointer; padding:4px 6px; }
 
@@ -27,4 +27,4 @@
 
 .rest-idle .rest-opts { margin-left: 10px; }
 
-.rest-play { margin-left:auto; width:40px; height:40px; border-radius:4px; background: var(--green); border:none; color:var(--gize-bg); font-size: var(--text-body); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.rest-play { margin-left:auto; width:40px; height:40px; border-radius:var(--r-box); background: var(--green); border:none; color:var(--gize-bg); font-size: var(--text-body); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }

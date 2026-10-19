@@ -1,7 +1,8 @@
 // Cardio «A pie» / «En bici», paso 3: las salidas en la nube, la ficha del coach y la privacidad.
 // a) supabase/cardio-a-pie.sql: tabla cardio_outings re-ejecutable, RLS (alumno: crear, leer y
 //    borrar las suyas; su coach: leer), sin update, topes (recorrido de hasta 200.000
-//    caracteres) y borrado en cascada con la cuenta. Política de privacidad con «Ubicación».
+//    caracteres) y borrado en cascada con la cuenta. Política de privacidad con «Ubicación» (las
+//    apps de Android y de iPhone no la usan: las salidas con GPS son solo de la web).
 // b) Alumno: guardar una salida terminada (core/salidas.js saveEnded) → la fila que sale por la
 //    cola (columnas, recorrido «1;…», sin coordenadas en ningún otro lado); tabla que falta → la
 //    salida queda pendiente sin trabar lo demás (un peso encolado detrás sale igual) y el pie lo
@@ -107,13 +108,18 @@ export default async function ({ base, t }){
   const pol = read('privacidad/index.html');
   t.has(pol, '<h2 id="ubicacion">Ubicación</h2>', 'política: sección Ubicación');
   t.has(pol, 'solo mientras registrás una salida a pie o en bici', 'política: cuándo se usa la ubicación');
-  t.has(pol, 'con la pantalla bloqueada o la app en segundo plano', 'política: en segundo plano solo durante la salida');
+  t.ok(!/con la pantalla bloqueada o la app en segundo plano/.test(pol), 'política: ya no habla de usar la ubicación en segundo plano (la app de iPhone ya no la usa)');
   t.has(pol, 'lo ven solo vos y tu coach', 'política: quién ve el recorrido');
   t.has(pol, 'Se borra cuando borrás la salida o tu cuenta', 'política: cómo se borra');
   t.has(pol, '<b>Salidas a pie o en bici:</b>', 'política: qué se guarda de una salida');
   t.has(pol, 'tus salidas y sus recorridos', 'política: se borran con la cuenta');
   t.has(pol, '<b>OpenFreeMap:</b>', 'política: el mapa de fondo');
   t.ok(!/No usamos tu ubicación, tus contactos/.test(pol), 'política: ya no dice que nunca usa la ubicación');
+  // Las apps de Android y de iPhone no usan la ubicación (las salidas con GPS son solo de la web).
+  const ubic = (pol.split('<h2 id="ubicacion">')[1] || '').split('<h2')[0];
+  t.has(ubic, '<b>Las apps de Android y de iPhone no usan tu ubicación:</b> no piden el permiso de ubicación, no la usan en segundo plano y las salidas con GPS se registran solo en la web.', 'política: en «Ubicación», que las apps de Android y de iPhone no la usan');
+  t.ok(!/app de iPhone/.test(ubic), 'política: «Ubicación» ya no dice que la app de iPhone la usa');
+  t.ok(!/en Android se ve una notificación/.test(pol), 'política: ya no habla de la notificación de la salida en Android');
   t.has(read('app/screens/config.js'), 'tus salidas de Cardio (con sus recorridos)', 'eliminar la cuenta avisa que se borran las salidas');
 
   // ===== b) Alumno =====
@@ -309,6 +315,7 @@ export default async function ({ base, t }){
   t.eq(sel, LIST_COLS, 'coach: pide las columnas de la lista (sin el recorrido)');
   t.ok(list.length === 1 && list[0].q.includes('client_id=eq.' + A1) && /order=started_at\.desc/.test(list[0].q) && /limit=30/.test(list[0].q) && !/track/.test(list[0].q),
     'coach: al abrir la ficha, las últimas 30 salidas del alumno sin el recorrido: ' + JSON.stringify(list.map(r => r.q)));
+  await cp.click('[data-coach="client-tab"][data-t="stats"]'); await wait(300); // las salidas van en «Estadísticas»
   const tile = await text(cp, '[data-coach="sec-open"][data-v="salidas"]');
   t.has(tile, 'Salidas a pie y en bici', 'coach: tarjeta de salidas en la ficha');
   t.has(tile, '2 salidas · última 1 oct', 'coach: cuántas y la última');
@@ -357,6 +364,7 @@ export default async function ({ base, t }){
   const cn = await coachPage(C2, { init: "localStorage.setItem('gize_neon','0');" });
   await cn.p.goto(base + '/app/'); await wait(3500);
   await cn.p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1200);
+  await cn.p.click('[data-coach="client-tab"][data-t="stats"]'); await wait(300);
   await cn.p.click('[data-coach="sec-open"][data-v="salidas"]'); await wait(400);
   await cn.p.click(`[data-coach="salida-open"][data-id="${ID(7)}"]`); await wait(800);
   await rutaLista(cn.p);
@@ -381,6 +389,7 @@ export default async function ({ base, t }){
   await cm.p.goto(base + '/app/'); await wait(3500);
   await cm.p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1200);
   t.has(await text(cm.p, '#coachHost'), 'Ana Alumna', 'sin tabla: la ficha se abre igual');
+  await cm.p.click('[data-coach="client-tab"][data-t="stats"]'); await wait(300);
   t.has(await text(cm.p, '[data-coach="sec-open"][data-v="salidas"]'), 'Todavía no disponibles', 'sin tabla: la tarjeta lo dice');
   await cm.p.click('[data-coach="sec-open"][data-v="salidas"]'); await wait(400);
   t.has(await text(cm.p, '.co-sec-body'), 'falta crear su tabla', 'sin tabla: la sección explica por qué');

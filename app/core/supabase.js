@@ -1,13 +1,13 @@
 import { mergeVisits } from '../ui/racha.js';
 import { DAILY_COLUMNS } from './questions.js';
 
-import { syncPush } from './push.js';
+import { isStandalone, pushDropHere, retryPushForget, syncPush } from './push.js';
 import { clearHabitAlarms } from '../ui/habitnotif.js';
 import { resolveAvatars } from './avatar.js';
 
 import { loadCoachQuestions } from '../screens/coach/preguntas.js';
 
-import { State, state, ensureDays } from './state.js';
+import { State, state, ensureDays, elegirDiaDeHoy } from './state.js';
 import { activeDeload } from './bloque.js';
 import { markSubs, mergeTodaySubs, todaySubs } from './variantes.js';
 
@@ -28,6 +28,9 @@ import { routineLocked } from '../screens/entreno.js';
 import { loadCoachClients } from '../screens/coach/clientes.js';
 
 import { checkPaymentReturn } from '../screens/coach/plan.js';
+
+import { appIOS, joinMsgTienda } from './tienda.js';
+import { appNativa } from './plataforma.js';
 
 import { renderCoach } from '../screens/coach/index.js';
 
@@ -52,12 +55,34 @@ const BOOT_AUTH = new URLSearchParams((location.hash||"").replace(/^#/,"") + "&"
 // de la URL antes de que la librería lo lea y se explica qué hacer.
 const AUTH_EXPECT = "gize_auth_expect";
 export function expectAuthLink(){ try{ localStorage.setItem(AUTH_EXPECT, String(Date.now())); }catch(e){} }
+// Cualquier ingreso terminado apaga la marca (afterLogin, y el código de recuperación): si no,
+// quedaba prendida hasta 7 días y en ese tiempo un link ajeno se aceptaba sin preguntar.
+export function clearAuthExpect(){ try{ localStorage.removeItem(AUTH_EXPECT); }catch(e){} }
 const BOOT_HASH = new URLSearchParams((location.hash||"").replace(/^#/,""));
+// Botón del mail de recuperar contraseña (plantilla supabase/mails/recuperar.html): llega como
+// #recuperar=<token_hash> y se saca de la URL enseguida. Abrirlo no gasta nada: el token se
+// canjea solo si el pedido salió de este navegador (useRecoveryLink, más abajo).
+const RECOVER_HASH = (BOOT_HASH.get("recuperar")||"").trim();
+if(RECOVER_HASH){ try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){} }
 let LINK_REFUSED = "";
-if(BOOT_HASH.get("access_token")){
+// has() y no get(): get() da el PRIMER valor y supabase-js se queda con el ÚLTIMO, así que un
+// link con #access_token=&access_token=<otro> pasaba el chequeo y la librería lo usaba igual.
+if(BOOT_HASH.has("access_token")){
   let t=0; try{ t=+localStorage.getItem(AUTH_EXPECT)||0; }catch(e){}
   if(t && Date.now()-t < 7*86400000){ try{ localStorage.removeItem(AUTH_EXPECT); }catch(e){} }
   else { LINK_REFUSED = BOOT_HASH.get("type") || "login"; try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){} }
+}
+// supabase-js también toma los tokens de la query (?access_token=...), y ahí mandan sobre los
+// del #: el chequeo de arriba no los veía y un link así cambiaba de cuenta a quien ya estaba
+// adentro. Supabase nunca los pone en la query: se sacan siempre, antes de crear el cliente.
+{
+  const qs=new URLSearchParams(location.search||"");
+  if(qs.has("access_token") || qs.has("refresh_token")){
+    ["access_token","refresh_token","expires_in","expires_at","token_type","type","provider_token","provider_refresh_token"].forEach(k=>qs.delete(k));
+    const q=qs.toString();
+    try{ history.replaceState(null,"",location.pathname+(q?"?"+q:"")+location.hash); }catch(e){}
+    if(!LINK_REFUSED) LINK_REFUSED="login";
+  }
 }
 // El tipo sale solo del # (donde lo pone Supabase) y solo si el link se aceptó: con
 // ?type=recovery en la URL no se abre la pantalla de contraseña nueva.
@@ -66,10 +91,118 @@ const CONFIRM_LANDING = LINK_TYPE==="signup";
 // Link del mail de "olvidé mi contraseña" en la web (#access_token=...&type=recovery): entra
 // con una sesión de recuperación y hay que pedir la contraseña nueva antes de abrir la app.
 const RECOVERY_LANDING = LINK_TYPE==="recovery";
-// En la app el link vuelve por gize://confirmado (el único que Android abre además del de
-// Google), así que se marca en el celular que se pidió recuperar la contraseña.
+// ---- Recuperar la contraseña ----
+// El mail trae un botón y un código de números (supabase/mails/recuperar.html). El botón
+// lleva el token a la web como https://gize.ar/app/#recuperar=<token_hash>. Abrirlo NO lo
+// gasta: GIZE lo canjea solo si el pedido salió de este mismo navegador (RECOVERY_REQ, con el
+// mail que se escribió) y la cuenta es la de ese mail. Si no, pide el código, que sigue
+// sirviendo y anda en cualquier lado (también en la app, que lo pide apenas se manda el mail).
+//   Antes el botón iba directo a Supabase (/auth/v1/verify), que gastaba el token al abrirlo:
+// quien lo tocaba en Gmail o en otro navegador quedaba sin link (no servía ahí) y sin código.
+//   El token nunca viaja por gize://: cualquier app instalada puede anotarse para abrir ese
+// esquema y con el token sola (sin la clave PKCE de este celular) entraría a la cuenta.
 export const RECOVERY_REQ = "gize_recovery_req";
-function recoveryRequested(){ try{ const t=+localStorage.getItem(RECOVERY_REQ)||0; return t>0 && Date.now()-t < 86400000; }catch(e){ return false; } }
+const RECOVERY_TTL = 2*3600000; // el link y el código vencen en 30 minutos (tarea "mails" de supabase.yml)
+export function markRecoveryRequest(email){
+  try{ localStorage.setItem(RECOVERY_REQ, JSON.stringify({ t: Date.now(), email: String(email||"").trim().toLowerCase() })); }catch(e){}
+}
+export function clearRecoveryRequest(){ try{ localStorage.removeItem(RECOVERY_REQ); }catch(e){} }
+// El pedido de este navegador o celular, si es reciente. Las versiones anteriores guardaban
+// solo la hora (sin mail): se aceptan sin chequear el mail.
+function recoveryRequest(){
+  try{
+    const raw=localStorage.getItem(RECOVERY_REQ); if(!raw) return null;
+    let o=null; try{ o=JSON.parse(raw); }catch(e){}
+    if(typeof o==="number") o={ t:o, email:"" };
+    if(!o || !(o.t>0) || Date.now()-o.t > RECOVERY_TTL) return null;
+    return { t:o.t, email:String(o.email||"") };
+  }catch(e){ return null; }
+}
+function recoveryRequested(){ return !!recoveryRequest(); }
+// Contraseña nueva pendiente: con la sesión de recuperación ya puesta, la app no se abre hasta
+// elegirla (o tocar «Cancelar»). Sin esto, cerrar la app en ese paso dejaba la cuenta adentro
+// para la próxima vez, aunque fuera un celular prestado.
+// Va atado a esa sesión (session_id del token): otro ingreso de la misma cuenta no la toca.
+const RECOVERY_PENDING = "gize_recovery_pending";
+function sessionIdOf(session){
+  try{ const b=String(session.access_token||"").split(".")[1].replace(/-/g,"+").replace(/_/g,"/"); return String(JSON.parse(atob(b)).session_id||""); }catch(e){ return ""; }
+}
+export function setRecoveryPending(session){
+  try{ if(session && session.user && session.user.id) localStorage.setItem(RECOVERY_PENDING, JSON.stringify({ uid: session.user.id, sid: sessionIdOf(session) })); }catch(e){}
+}
+export function clearRecoveryPending(){ try{ localStorage.removeItem(RECOVERY_PENDING); }catch(e){} }
+function recoveryPendingFor(session){
+  try{
+    const m=JSON.parse(localStorage.getItem(RECOVERY_PENDING)||"null");
+    if(!m || !session || !session.user || m.uid!==session.user.id) return false;
+    const sid=sessionIdOf(session);
+    return !m.sid || !sid || m.sid===sid;
+  }catch(e){ return false; }
+}
+// Sale de la sesión de recuperación aunque no haya señal: primero se borra la sesión guardada
+// (así no queda adentro aunque se cierre la app) y después se avisa a Supabase, sin esperarlo.
+export async function dropRecoverySession(){
+  clearRecoveryPending();
+  if(!State.sb) await ensureSb();
+  if(!State.sb) return;
+  let tok=""; try{ const st=JSON.parse(authStorage.getItem(State.sb.auth.storageKey)||"null"); tok=(st && st.access_token)||""; }catch(e){}
+  try{ const k=State.sb.auth.storageKey; authStorage.removeItem(k); authStorage.removeItem(k+"-user"); }catch(e){}
+  try{ State.sb.auth.signOut({ scope:"local" }).catch(()=>{}); }catch(e){}
+  if(tok){ try{ fetch(SB_URL+"/auth/v1/logout?scope=local", { method:"POST", headers:{ apikey:SB_KEY, Authorization:"Bearer "+tok } }).catch(()=>{}); }catch(e){} }
+}
+// Borra la sesión guardada en este dispositivo, pase lo que pase con signOut: sin señal y con
+// el token vencido, supabase-js devuelve el error sin borrarla y al recargar la app volvía a
+// entrar a la misma cuenta. Avisa a Supabase sin esperarlo (si hay señal, la cierra allá también).
+export function forgetStoredSession(){
+  if(!State.sb) return;
+  const k=State.sb.auth.storageKey;
+  let tok=""; try{ const st=JSON.parse(authStorage.getItem(k)||"null"); tok=(st && st.access_token)||""; }catch(e){}
+  try{ authStorage.removeItem(k); authStorage.removeItem(k+"-user"); authStorage.removeItem(k+"-code-verifier"); }catch(e){}
+  if(tok){ try{ fetch(SB_URL+"/auth/v1/logout?scope=local", { method:"POST", headers:{ apikey:SB_KEY, Authorization:"Bearer "+tok } }).catch(()=>{}); }catch(e){} }
+}
+// Qué salió mal al canjear un código o un link: "rate" (muchos intentos), "offline" (sin
+// conexión o el servidor no respondió: el código puede seguir sirviendo) o "used" (equivocado,
+// vencido o ya usado).
+export function otpErrorKind(err){
+  const st=err && err.status, msg=(err && err.message)||"";
+  if(st===429 || /rate limit|too many/i.test(msg)) return "rate";
+  if(!st || st>=500) return "offline";
+  return "used";
+}
+export const RECOVERY_MSG = {
+  // Botón del mail abierto donde no se pidió: el código sigue sirviendo.
+  elsewhere: "Abriste el botón del mail en un navegador o celular distinto del que lo pidió, y por seguridad no se usa acá. Escribí tu mail y el código que trae el mail: todavía sirve.",
+  // Pedido desde la app (el token de un pedido con PKCE empieza con «pkce_»).
+  elsewhereApp: "Lo pediste desde la app de GIZE: escribí ahí el código del mail. O terminá acá: poné tu mail y el código, elegí la contraseña nueva y después entrá a la app con esa contraseña.",
+  // Link viejo (de antes del código en el mail) que no se pudo usar acá.
+  oldLink: "Ese link ya se usó al abrirlo y no sirve en este navegador o celular. Pedí un mail nuevo y, si lo vas a abrir en otro lado, escribí el código que trae.",
+  used: "Ese link ya se usó o venció (dura 30 minutos y sirve una sola vez). Pedí un mail nuevo.",
+  otherAccount: "Ese link es de otra cuenta, no de la que pediste recuperar. Escribí el código del mail que te llegó a vos.",
+  offline: "No se pudo revisar el link. Revisá tu conexión a internet y tocá el botón del mail de nuevo, o escribí el código que trae.",
+  rate: "Probaste muchas veces seguidas. Esperá unos minutos y volvé a intentar.",
+};
+// Canjea el token del botón del mail (#recuperar=...). Devuelve {ok:true} con la sesión de
+// recuperación puesta, o {ok:false, why}: "elsewhere" | "used" | "offline" | "rate" | "otherAccount".
+export async function useRecoveryLink(tokenHash){
+  const req=recoveryRequest();
+  // Sin el mail del pedido (marcas de versiones anteriores) no se puede chequear la cuenta.
+  if(!req || !req.email) return { ok:false, why:"elsewhere" };
+  if(!State.sb) await ensureSb();
+  if(!State.sb) return { ok:false, why:"offline" };
+  let r;
+  try{ r=await State.sb.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" }); }
+  catch(e){ r={ error:e }; }
+  if(r.error || !r.data || !r.data.session) return { ok:false, why: otpErrorKind(r.error) };
+  const got=String((r.data.user && r.data.user.email)||"").trim().toLowerCase();
+  // Un link ajeno que llega justo mientras hay un pedido propio: no se entra a esa cuenta.
+  if(!got || got!==req.email){
+    await dropRecoverySession();
+    return { ok:false, why:"otherAccount" };
+  }
+  clearRecoveryRequest(); clearAuthExpect();
+  setRecoveryPending(r.data.session);
+  return { ok:true };
+}
 const CONFIRM_ERROR = !!(BOOT_AUTH.get("error_code") || BOOT_AUTH.get("error_description"));
 const CONFIRM_ERROR_MSG = "El link de confirmación venció o ya se usó. Probá ingresar con tu email y contraseña; si no te deja, registrate de nuevo para recibir otro mail.";
 
@@ -91,15 +224,34 @@ async function openAuthLink(url){
   const mark=(p.get("code")||p.get("access_token")||p.get("error_code")||"").slice(-24);
   try{ if(mark && localStorage.getItem(AUTH_LINK_USED)===mark) return false; localStorage.setItem(AUTH_LINK_USED, mark); }catch(e){}
   const failMsg = isGoogle ? GOOGLE_ERROR_MSG : CONFIRM_ERROR_MSG;
-  if(p.get("error")||p.get("error_code")||p.get("error_description")){ clearGoogleIntent(); showLogin(failMsg+authErrDetail(p.get("error_description")||p.get("error")),"in"); return true; }
+  // El token de recuperar contraseña no se acepta por gize:// (cualquier app podría abrir ese
+  // esquema y quedárselo): el botón del mail va a la web y en la app se escribe el código.
+  if(!isGoogle && p.get("recuperar")) return false;
+  // Sin el detalle del link: cualquiera puede armar uno con un texto propio (error_description).
+  if(p.get("error")||p.get("error_code")||p.get("error_description")){ clearGoogleIntent(); showLogin(failMsg,"in"); return true; }
   // Solo el código PKCE: un link con tokens sueltos (#access_token=...) se ignora.
   const code=p.get("code"); if(!code) return false;
   if(!State.sb) await ensureSb();
   if(!State.sb){ clearGoogleIntent(); showLogin(failMsg,"in"); return true; }
   const r=await State.sb.auth.exchangeCodeForSession(code);
-  if(r.error||!r.data.session){ clearGoogleIntent(); showLogin(failMsg+authErrDetail(r.error && r.error.message),"in"); return true; }
+  if(r.error||!r.data.session){
+    clearGoogleIntent();
+    // Link de los mails de antes (va a Supabase, que ya gastó el token al abrirlo) que no se
+    // pudo canjear acá: el código de ese mail tampoco sirve, hay que pedir otro.
+    // Sin la clave PKCE de este celular («code verifier») el link es de otro celular: puede
+    // ser de recuperar la contraseña o de confirmar el mail, se avisan las dos cosas.
+    const pedido=recoveryRequested(), otro=/verifier|flow.?state/i.test((r.error && r.error.message)||"");
+    if(!isGoogle && (pedido || otro)){
+      clearRecoveryRequest(); if(window.coreCancel) window.coreCancel();
+      if(pedido) showLogin(RECOVERY_MSG.oldLink, "forgot");
+      else showLogin("Ese link se pidió en otro celular o navegador y por seguridad no sirve acá. Si era para confirmar tu mail, ya quedó confirmado: ingresá con tu mail y tu contraseña. Si era para cambiar la contraseña, pedí un mail nuevo desde «¿Olvidaste tu contraseña?».", "in");
+      return true;
+    }
+    showLogin(failMsg+authErrDetail(r.error && r.error.message),"in"); return true;
+  }
   if(!isGoogle && recoveryRequested()){
-    try{ localStorage.removeItem(RECOVERY_REQ); }catch(e){}
+    clearRecoveryRequest(); clearAuthExpect();
+    setRecoveryPending(r.data.session);
     if(window.coreCancel) window.coreCancel();
     showLogin("", "newpass");
     return true;
@@ -137,15 +289,30 @@ function takePendingCode(){
   try{ localStorage.removeItem(PENDING_CODE); }catch(e){}
   return (v && v.c && Date.now()-(v.t||0) < 2*3600000) ? v.c : null;
 }
+// Lo de la cuenta que queda en el dispositivo fuera del estado y el perfil: los recorridos y la
+// salida de Cardio en curso, los borradores de rutina de los alumnos de un coach (coach/index.js),
+// el borrador de la bienvenida (screens/onboarding.js) y la invitación a un grupo de pasos sin
+// usar (core/grupos.js), que si no se usaba con la próxima cuenta que entrara en el dispositivo.
+// keepNew: al cambiar de cuenta o borrar una sesión no mantenida, la invitación de un link recién
+// abierto (en esta carga, o hace menos de 15 minutos por si el ingreso volvió a cargar la página)
+// queda: es de quien está entrando, y antes se perdía sin aviso. Igual se pregunta antes de
+// sumarse (screens/pasos.js).
+function accountKeys(keepNew){
+  let drafts=[]; try{ drafts=Object.keys(localStorage).filter(k=>/^gize_(rt|onb)_draft_/.test(k)); }catch(e){}
+  let inv=null; try{ inv=JSON.parse(localStorage.getItem("gize_grupo_pend")||"null"); }catch(e){}
+  const fresh=!!(inv && inv.t && (inv.t>=performance.timeOrigin || Date.now()-inv.t<15*60000));
+  return [TRACK_KEY].concat(keepNew && fresh ? [] : ["gize_grupo_pend"], runKeys(), drafts);
+}
 // Al cerrar sesión o borrar la cuenta: lo que quedó de esa cuenta en el dispositivo además de
 // los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso,
-// avisos de los hábitos, la salida de Cardio en curso, los recorridos guardados y la imagen de
-// la última salida compartida).
+// avisos de los hábitos, la salida de Cardio en curso, el cronómetro y el temporizador de
+// Cardio, los recorridos guardados, la imagen de la última salida compartida, los borradores
+// de rutina del coach y la invitación a un grupo de pasos).
 export function clearAccountLeftovers(uid){
   clearHabitAlarms();
   deleteShareFile();
   try{
-    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, "gize_auth_link_used", "gize_rest_timer", TRACK_KEY].concat(runKeys()).forEach(k=>localStorage.removeItem(k));
+    [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, RECOVERY_PENDING, "gize_auth_link_used", "gize_rest_timer", "gize_cardio_clock"].concat(accountKeys()).forEach(k=>localStorage.removeItem(k));
     if(uid){ [OUTBOX_KEY, OUTBOX_FAILED_KEY].forEach(k=>{ const q=readQueue(k).filter(i=>i.uid!==uid); if(q.length) writeQueue(k,q); else localStorage.removeItem(k); }); }
   }catch(e){}
 }
@@ -424,9 +591,16 @@ export function mergeLocalProgress(cloudDays, localDays){
 // rutina armada por el coach, esa; si no, la de siempre (state.regularDays, la de la tabla
 // routines). Lo cargado a mano (kg, reps, tildes) se conserva como siempre, y al pasar a la
 // de descarga se guarda lo de la de siempre para devolverlo cuando vuelve (el lunes siguiente).
-// Devuelve true si cambió de una a otra.
+// Devuelve true si cambió de una a otra (o si aplicó la que esperaba a que terminara el entreno).
 // ¿Hay un entreno en curso? (empezado hace menos de 6 horas: uno olvidado no frena nada)
 const training = () => !!(state.wkStart && Date.now() - (state.wkStart.ts || 0) < 6 * 3600 * 1000);
+// ¿La rutina que llega (days) deja afuera series cargadas del día que se está entrenando? Pasa
+// cuando el coach aplica una rutina nueva (series con otros ids).
+function dropsWorkout(days){
+  const d = (state.days || []).find(x => x.id === state.wkStart.day); if(!d) return false;
+  const ids = new Set(); (days || []).forEach(x => (x.exercises || []).forEach(ex => (ex.sets || []).forEach(s => ids.add(s.id))));
+  return (d.exercises || []).some(ex => (ex.sets || []).some(s => !ids.has(s.id) && (s.done || [s.kg, s.reps, s.secs].some(v => v != null && String(v) !== ""))));
+}
 export function applyCoachRoutine(){
   const regular = Array.isArray(state.regularDays) && state.regularDays.length ? state.regularDays : null;
   const dl = activeDeload(state.block, today());
@@ -434,6 +608,7 @@ export function applyCoachRoutine(){
   // En medio de un entreno que pasa la medianoche del domingo no se cambia de rutina (se
   // perdería lo cargado): cambia al guardarlo o cancelarlo, en el próximo dibujo de la app.
   if(mode !== prev && training()) return false;
+  const pend = !!state.routinePending; delete state.routinePending;
   if(!dl && !regular){
     // Sin rutina de siempre en la nube: al terminar la descarga vuelve lo que tenía antes (si
     // no hay nada guardado, queda la de descarga hasta que el coach cargue otra).
@@ -449,19 +624,24 @@ export function applyCoachRoutine(){
     state.days = mergeLocalProgress(clone(regular), state.preDeloadDays);
     state.preDeloadDays = null;
   } else {
-    state.days = mergeLocalProgress(clone(dl ? dl.days : regular), state.days);
+    const nd = mergeLocalProgress(clone(dl ? dl.days : regular), state.days);
+    // Una rutina nueva del coach en medio de un entreno borraría lo cargado hoy, que todavía no se
+    // guardó: queda esperando y se aplica al guardarlo o cancelarlo (ver coachRoutineDue).
+    if(training() && dropsWorkout(nd)){ state.routinePending = true; return false; }
+    state.days = nd;
   }
   if(mode === "regular") state.preDeloadDays = null;
   state.routineMode = mode;
   migrateNames(state.days);
   ensureDays();
-  return mode !== prev;
+  return mode !== prev || pend;
 }
 
 // ¿Toca cambiar de rutina? (empezó o terminó la semana de descarga desde la última vez). Es
 // barato: se mira en cada renderApp para que cambie aunque la app siga abierta o sin señal.
 export function coachRoutineDue(){
   if(training()) return false;
+  if(state.routinePending) return true; // la rutina nueva que esperó a que terminara el entreno
   const mode = state.routineMode || "regular";
   if(mode === "regular" && !(Array.isArray(state.regularDays) && state.regularDays.length)) return false;
   const dl = activeDeload(state.block, today());
@@ -477,7 +657,17 @@ function leaveCoachRoutine(){
     else if(Array.isArray(state.preDeloadDays) && state.preDeloadDays.length) state.days = state.preDeloadDays;
     ensureDays();
   }
-  state.routineMode = "regular"; state.regularDays = null; state.preDeloadDays = null;
+  state.routineMode = "regular"; state.regularDays = null; state.preDeloadDays = null; delete state.routinePending;
+}
+// El plan de su coach venció hace más de 4 días y la base lo pasó al sistema común
+// (supabase/coach-vencido.sql): se le avisa una vez (por celular), solo si pasó hace poco.
+const COACH_LEFT_KEY="gize_coach_left_visto";
+function noticeCoachLeft(p){
+  if(!p || p.role==="coach" || p.coach_id || !p.coach_left_at) return;
+  const t=new Date(p.coach_left_at).getTime();
+  if(!(t>0) || Date.now()-t > 30*864e5) return;
+  try{ if(localStorage.getItem(COACH_LEFT_KEY)===p.coach_left_at) return; localStorage.setItem(COACH_LEFT_KEY, p.coach_left_at); }catch(e){ return; }
+  setTimeout(()=>alert("Tu coach ya no está en GIZE.\n\nTu rutina y todo tu progreso siguen acá, y ahora los podés modificar vos. Si vuelve, te podés vincular de nuevo con su código."), 900);
 }
 // Mientras se muestra una rutina de descarga no se sube la rutina como propia del alumno.
 const onRegular = () => (state.routineMode || "regular") === "regular";
@@ -505,17 +695,79 @@ export function applyBrand(){
 // los dos lados: las sesiones que ya estaban guardadas en localStorage siguen andando.
 export const REMEMBER_KEY = "gize_remember";
 const EPHEMERAL_KEY = "gize_session_ephemeral";
+// Sesión sin «Mantener la sesión» abierta en esta pestaña (ver clearEndedSession).
+function tabSession(){ try{ return !!(State.cloudUser && State.sb && sessionStorage.getItem(State.sb.auth.storageKey)!=null); }catch(e){ return false; } }
+// El borrado al terminar una sesión no mantenida es para la compu compartida (el navegador). En la
+// app de las tiendas y en la agregada a inicio (iPhone, o instalada en Android) el sistema la
+// cierra solo, y con eso se va la sesión de la pestaña: se borraban el entreno y la salida de
+// Cardio en curso. Ahí queda todo detrás del ingreso, como antes.
+const clearsEnded = () => !NativeApp() && !isStandalone();
+// Mientras dura, la marca se vuelve a poner en cada save() y al pasar a segundo plano: otra
+// pestaña que no recibió respuesta (esta estaba dormida) pudo haberla sacado, y al cerrar esta
+// los datos quedaban en el navegador. Junto va la hora (EPHEMERAL_AT): en el celular una pestaña
+// en segundo plano queda congelada y no contesta, y abrir un link de GIZE en otra borraba su
+// entreno y su salida de Cardio en curso. Por eso no se borra si se usó hace menos de 30
+// minutos. Al cerrar la pestaña (pagehide) se saca la hora: ahí se borra enseguida, como antes.
+const EPHEMERAL_AT = "gize_session_ephemeral_t";
+let _markedAt = "";
+function markTabSession(){ try{ if(tabSession() && clearsEnded()){ localStorage.setItem(EPHEMERAL_KEY, State.cloudUser.id); localStorage.setItem(EPHEMERAL_AT, _markedAt=String(Date.now())); } }catch(e){} }
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden") markTabSession(); });
+window.addEventListener("pagehide", ()=>{ try{ if(_markedAt && localStorage.getItem(EPHEMERAL_AT)===_markedAt) localStorage.removeItem(EPHEMERAL_AT); }catch(e){} });
+const usedLately = () => { try{ const d=Date.now()-Number(localStorage.getItem(EPHEMERAL_AT)||0); return d>=0 && d<30*60000; }catch(e){ return false; } };
+// Otra pestaña (o la app instalada, que comparte lo guardado) que abre sin sesión pregunta antes
+// de borrar si alguna sigue adentro. Antes borraba los datos y daba de baja las notificaciones
+// de la sesión que seguía abierta.
+const tabsCh=(()=>{ try{ return new BroadcastChannel("gize_sesion"); }catch(e){ return null; } })();
+if(tabsCh) tabsCh.addEventListener("message", e=>{ if(e.data==="¿adentro?" && tabSession()){ markTabSession(); tabsCh.postMessage("adentro"); } });
+function otherTabInside(){
+  if(!tabsCh) return Promise.resolve(false);
+  return new Promise(ok=>{
+    const on=e=>{ if(e.data==="adentro") end(true); };
+    const end=v=>{ clearTimeout(tm); tabsCh.removeEventListener("message", on); ok(v); };
+    const tm=setTimeout(()=>end(false), 400);
+    tabsCh.addEventListener("message", on); tabsCh.postMessage("¿adentro?");
+  });
+}
 export function rememberSession(){ try{ return localStorage.getItem(REMEMBER_KEY)!=="0"; }catch(e){ return true; } }
 export function setRememberSession(on){ try{ localStorage.setItem(REMEMBER_KEY, on ? "1" : "0"); }catch(e){} }
+// La casilla se mira solo al entrar: la renovación del token se guarda donde ya estaba esa
+// sesión. Antes cada renovación volvía a leer la casilla, que vale para todo el navegador: si
+// alguien la tildaba en otra pestaña, una sesión que no se quería mantener pasaba a
+// localStorage (y pisaba la que estaba guardada ahí) y quedaba para el próximo que usara la compu.
+function sameSession(a, b){
+  try{ a=JSON.parse(a); b=JSON.parse(b); }catch(e){ return false; }
+  if(!a || !b || !a.user || !b.user || a.user.id!==b.user.id) return false;
+  const x=sessionIdOf(a), y=sessionIdOf(b);
+  return !x || !y || x===y;
+}
+// _tabOwn: la sesión de esta pestaña está (o estuvo, en esta carga) en sessionStorage. Al
+// borrarla (Salir, o falló la renovación) la de localStorage puede ser la mantenida de otra
+// cuenta: no se borra, y esta pestaña no la toma (quedaba adentro de esa cuenta con lo de esta).
+let _tabOwn=false;
+const mainKey = k => !/-(code-verifier|user)$/.test(k);
 const authStorage = {
-  getItem(k){ try{ const s=sessionStorage.getItem(k); if(s!=null) return s; }catch(e){} try{ return localStorage.getItem(k); }catch(e){ return null; } },
-  setItem(k, v){
-    // La clave PKCE tiene que sobrevivir a que el sistema cierre la app mientras está en Google.
-    const keep=rememberSession() || /code-verifier$/.test(k);
-    try{ (keep ? localStorage : sessionStorage).setItem(k, v); }catch(e){}
-    try{ (keep ? sessionStorage : localStorage).removeItem(k); }catch(e){}
+  getItem(k){
+    try{ const s=sessionStorage.getItem(k); if(s!=null){ if(mainKey(k)) _tabOwn=true; return s; } }catch(e){}
+    if(_tabOwn && mainKey(k)) return null;
+    try{ return localStorage.getItem(k); }catch(e){ return null; }
   },
-  removeItem(k){ try{ sessionStorage.removeItem(k); }catch(e){} try{ localStorage.removeItem(k); }catch(e){} }
+  setItem(k, v){
+    let ss=null, ls=null; try{ ss=sessionStorage.getItem(k); }catch(e){} try{ ls=localStorage.getItem(k); }catch(e){}
+    const inLs=ls!=null && sameSession(ls, v);
+    // La clave PKCE tiene que sobrevivir a que el sistema cierre la app mientras está en Google.
+    const keep=/code-verifier$/.test(k) || (ss!=null && sameSession(ss, v) ? false : inLs || rememberSession());
+    try{ (keep ? localStorage : sessionStorage).setItem(k, v); }catch(e){}
+    if(mainKey(k)) _tabOwn=!keep;
+    // La copia de esta pestaña sí se borra; la de localStorage, solo si es esta misma sesión (si
+    // es la de otra cuenta que eligió mantenerla, no se toca).
+    try{ if(keep) sessionStorage.removeItem(k); else if(inLs) localStorage.removeItem(k); }catch(e){}
+  },
+  // Lo mismo al borrar: antes «Salir» con la sesión de la pestaña borraba también la mantenida
+  // de otra cuenta.
+  removeItem(k){
+    let ss=null; try{ ss=sessionStorage.getItem(k); sessionStorage.removeItem(k); }catch(e){}
+    try{ const ls=localStorage.getItem(k); if(ls!=null && (ss!=null ? sameSession(ss, ls) : !(_tabOwn && mainKey(k)))) localStorage.removeItem(k); }catch(e){}
+  }
 };
 
 let _sbReady = null, _sbFailed = false;
@@ -555,8 +807,12 @@ export function ensureSb(){
 function watchAuth(sb){
   sb.auth.onAuthStateChange(ev=>{
     if(ev==="TOKEN_REFRESHED" || ev==="SIGNED_IN") setTimeout(()=>{ flushOutbox().then(()=>{ if(_staleBoot) retryCloud(); }); }, 0);
-    else if(ev==="SIGNED_OUT") setTimeout(sessionLost, 0);
+    // Un SIGNED_OUT de otra pestaña con otra cuenta (la de esta sigue guardada) no la cierra acá.
+    else if(ev==="SIGNED_OUT") setTimeout(()=>{ if(!stillStored()) sessionLost(); }, 0);
   });
+}
+function stillStored(){
+  try{ const s=JSON.parse(authStorage.getItem(State.sb.auth.storageKey)||"null"); return !!(s && s.user && State.cloudUser && s.user.id===State.cloudUser.id); }catch(e){ return false; }
 }
 // Con una cuenta adentro, un pedido a la base con la clave anónima quiere decir que la librería
 // no tiene sesión viva (token vencido que no se pudo renovar sin señal): la base lo rechaza o
@@ -637,6 +893,8 @@ async function touchMe(){
 }
 
 export async function afterLogin(sessionUser, stale){
+  clearAuthExpect(); // ya entró: un link ajeno que llegue después no se acepta sin preguntar
+  clearRecoveryPending(); // entró de verdad (con la contraseña nueva o con otro ingreso)
   // getUser() revalida el token pegándole a la red. Si no hay conexión esa llamada
   // falla y ANTES dejábamos State.cloudUser en null: como flushOutbox()/pendingCount()
   // filtran la cola por el id de usuario, un cloudUser null "escondía" lo pendiente
@@ -664,11 +922,13 @@ export async function afterLogin(sessionUser, stale){
     // También lo de Cardio de la otra cuenta: la salida en curso (y su GPS), los recorridos
     // guardados y la imagen compartida. Si no, al recargar se retomaría su salida en esta cuenta.
     stopForLogout(); deleteShareFile();
-    try{ localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); [TRACK_KEY].concat(runKeys()).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+    try{ [KEY, PROFILE_KEY].concat(accountKeys(true)).forEach(k=>localStorage.removeItem(k)); }catch(e){}
     location.reload(); return;
   }
   if(State.cloudUser && state.ownerUid!==State.cloudUser.id){ state.ownerUid=State.cloudUser.id; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
-  try{ localStorage.removeItem(EPHEMERAL_KEY); }catch(e){}
+  // Sesión sin «Mantener la sesión» (vive solo en esta pestaña): se anota de quién son los datos,
+  // para borrarlos la próxima vez que GIZE abra sin sesión (ver clearEndedSession).
+  if(tabSession() && clearsEnded()) markTabSession(); else try{ localStorage.removeItem(EPHEMERAL_KEY); localStorage.removeItem(EPHEMERAL_AT); }catch(e){}
   // Sin sesión viva (_staleBoot) getUser() y el envío de la cola esperarían los ~30 s de
   // reintentos de la librería con la pantalla vacía: se saltean y salen cuando se renueva
   // el token (watchAuth → flushOutbox + retryCloud).
@@ -703,7 +963,7 @@ export async function afterLogin(sessionUser, stale){
       setTimeout(()=>alert("Creamos una cuenta nueva de GIZE con "+mail+".\n\nSi es tu primera vez, ¡bienvenido! Si ya tenías una cuenta con OTRO mail, andá a Ajustes → Salir y entrá con ese mail y tu contraseña: ahí están tus datos."), 900);
     }
   }catch(e){}
-  if(gi && gi.role==="coach" && Date.now()-gi.t < 15*60*1000 && State.cloudProfile && State.cloudProfile.role!=="coach"){
+  if(gi && gi.role==="coach" && !appIOS() && Date.now()-gi.t < 15*60*1000 && State.cloudProfile && State.cloudProfile.role!=="coach"){
     try{
       const rc=await State.sb.rpc("become_coach_new_account");
       if(rc.data===true){ try{ localStorage.removeItem("jfit_pending_code"); }catch(e){} await loadCloud(); }
@@ -714,7 +974,7 @@ export async function afterLogin(sessionUser, stale){
     const pc=takePendingCode();
     if(pc && State.cloudProfile && State.cloudProfile.role!=="coach" && !State.cloudProfile.coach_id){
       const r2=await State.sb.rpc("join_coach",{code:pc});
-      if(r2.error && r2.error.code==="P0001" && r2.error.message){ const m=r2.error.message; setTimeout(()=>alert(m+" Podés poner el código después en Configuración."), 600); }
+      if(r2.error && r2.error.code==="P0001" && r2.error.message){ const m=joinMsgTienda(r2.error.message); setTimeout(()=>alert(m+" Podés poner el código después en Configuración."), 600); }
       if(r2.data===true){ coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null})); const pr=await State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle(); if(pr.data) State.cloudProfile=pr.data; await loadCloud(); }
     }
   }catch(e){ console.error("pending code",e); }
@@ -739,6 +999,12 @@ export async function loadCloud(){
   // igual. Se reintenta más tarde; lo local queda como está y el pie avisa que no hay conexión.
   if(!await liveSession(State.cloudUser.id, _staleBoot ? 300 : 3000)){ scheduleCloudRetry(); return; }
   State.cloudLoading=true;
+  // Mientras se lee, syncExtras no encola nada: lo que se cargue en ese rato (agua, comidas,
+  // hábitos, preferencias, pesos) se compara con cómo estaba al empezar y no se pisa con lo de
+  // la nube (antes desaparecía y nunca se subía). Lo que la cola mande en ese rato también se
+  // vuelve a poner encima (pend0).
+  const day0=JSON.stringify(daySnapshot()), prefs0=JSON.stringify(prefsSnapshot());
+  const pend0=State.cloudUser ? myPending() : [];
   try{
     // Supabase no lanza cuando una lectura falla: devuelve {data:null, error}. Un data null
     // por error NO significa "no hay nada en la nube", así que cada lectura se chequea y,
@@ -783,6 +1049,7 @@ export async function loadCloud(){
     // Sin coach: si quedó en una rutina de descarga, vuelve a la suya ya, antes de cualquier
     // otra lectura (si la de la rutina falla, igual no se sube la de descarga como propia).
     if(!(State.cloudProfile && State.cloudProfile.role==="coach") && !routineLocked()) leaveCoachRoutine();
+    noticeCoachLeft(State.cloudProfile);
     // Link de la foto de perfil propia (no frena el arranque; redibuja Ajustes al llegar).
     if(State.cloudProfile && State.cloudProfile.avatar_path){
       resolveAvatars([State.cloudProfile.avatar_path]).then(ok=>{ if(ok && State.view==="config") renderApp(); }).catch(()=>{});
@@ -833,7 +1100,14 @@ export async function loadCloud(){
       if(await upRoutine()) markRoutineSynced(state.days);
     }
     State.cloudReady=true;
+    // La rutina de la nube puede traer los días de la semana (los puso el coach o vienen de otro
+    // celular): Entreno pasa al de hoy con las mismas reglas que al abrir (core/state.js).
+    if(!isCoach) elegirDiaDeHoy();
     if(!ws.error && Array.isArray(ws.data)){
+      // Pesos cargados, cambiados o borrados que todavía no se encolaron (también los de
+      // durante la lectura): a la cola antes de tomar la lista de la nube; applyPending los
+      // vuelve a poner encima.
+      if(queueWeightDiff()) _weightsQueued=true;
       state.weights=ws.data.map(w=>({id:w.id, date:w.measured_on, kg:Number(w.kg)}));
       state.weightsSent=null; // se vuelve a tomar después de applyPending (ver más abajo)
     }
@@ -860,12 +1134,14 @@ export async function loadCloud(){
     // Comidas, agua, pasos y hábitos de hoy. La nube manda solo si ya tiene el día
     // (water_ml lo escribe siempre la app); si no, se conserva lo local y se sube.
     _lastDay=null;
+    // Cambiado acá mientras se leía (el mismo día): manda lo de acá y se sube.
+    const d1=daySnapshot(), dayEdited=day0!=="null" && !!d1 && JSON.stringify(d1)!==day0;
     const todayRow=(!dl.error && Array.isArray(dl.data)) ? dl.data.find(r=>r.log_date===today()) : null;
     // Racha: los días que la app abrió con esta cuenta (también desde otros celulares). Una
     // fila con solo los pasos (de un día en que no se abrió la app) no cuenta.
     const opened=r=>r.water_ml!=null || r.habits_done!=null || !!(r.comment||r.soreness||r.performance||r.motivation||r.hunger||r.fatigue||r.sleep||r.answers);
     if(!dl.error && Array.isArray(dl.data)) mergeVisits(dl.data.filter(opened).map(r=>r.log_date));
-    if(!fe.error && todayRow && todayRow.water_ml!=null){
+    if(!fe.error && todayRow && todayRow.water_ml!=null && !dayEdited){
       state.diaryDate=state.waterDate=state.stepsDate=state.habitsDate=today();
       state.water=todayRow.water_ml||0;
       state.steps=todayRow.steps||0;
@@ -874,13 +1150,15 @@ export async function loadCloud(){
       _lastDay=JSON.stringify(daySnapshot());
     }
     _lastPrefs=null;
-    if(!cp.error && cp.data){ applyPrefs(cp.data); _lastPrefs=JSON.stringify(prefsSnapshot()); }
+    if(!cp.error && cp.data && JSON.stringify(prefsSnapshot())===prefs0){ applyPrefs(cp.data); _lastPrefs=JSON.stringify(prefsSnapshot()); }
     if(!cp.error) state.cloudSeen=true; // desde acá lo local de este usuario ya se puede subir
-    applyPending(); // lo que la nube todavía no tiene (cola de envío) se vuelve a poner encima
+    applyPending(pend0); // lo que la nube todavía no tiene (cola de envío) se vuelve a poner encima
     if(!ws.error && Array.isArray(ws.data)) state.weightsSent=weightsSnapshot();
     save();
   }catch(e){ console.error("loadCloud",e); }
   State.cloudLoading=false;
+  // Pesos encolados durante la carga: syncExtras (abajo) ya no ve la diferencia y no los manda.
+  if(_weightsQueued){ _weightsQueued=false; setTimeout(()=>{ flushOutbox(); }, 0); }
   // Sin esto, si la app abría sin señal no volvía a intentar en toda la sesión: la rutina
   // nunca se subía y los cambios quedaban solo en el celular.
   if(!State.cloudReady) scheduleCloudRetry(); else _retryN=0;
@@ -931,7 +1209,7 @@ export function refreshOwnRoutine(){
       state.days=rt.data.days;
       const raw=JSON.parse(JSON.stringify(state.days)); // la de la nube, sin migrar (ver loadCloud)
       const fixed=migrateNames(state.days);
-      ensureDays();
+      ensureDays(); elegirDiaDeHoy();
       markRoutineSynced(raw); // también la guarda en el dispositivo
       if(fixed) cloudSyncCore(); // la corregida se sube una vez (sin marcarla como editada acá)
       return true;
@@ -968,6 +1246,33 @@ window.addEventListener("online", ()=>{ if(State.cloudUser && !State.cloudReady)
 // Una foto nueva reemplaza a la anterior todavía pendiente, así la cola no crece.
 let _lastDay=null, _lastPrefs=null, _extrasTimer=null;
 const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Id de un entreno en la nube: el suyo (cloudId) o, si se guardó sin señal y la app se cerró
+// antes de marcarlo, su propio id (es el de la fila en la nube, ver cloudInsertSession). Los
+// entrenos viejos, guardados solo en el celular, tienen ids cortos y no tienen fila.
+export function sessionCloudId(se){ return (se && (se.cloudId || (UUID_RE.test(String(se.id)) ? se.id : null))) || null; }
+
+// Comidas de cada fecha que estaban en este dispositivo la última vez que se mandaron (o se
+// trajeron de la nube): state.foodsSeen = { fecha: [ids] }. En la nube se borra solo lo que
+// estaba acá y ya no está (removed). Antes se borraba todo lo que no estuviera en la lista de
+// este dispositivo, y uno desactualizado (una pestaña abierta desde ayer) borraba las comidas
+// cargadas desde otro.
+function foodsRemoved(k, key, dt, ids){
+  const cur=new Set(ids), out=new Set();
+  const seen=(state.foodsSeen && state.foodsSeen[dt]) || [];
+  seen.forEach(x=>{ if(!cur.has(x)) out.add(x); });
+  // Lo que ya se iba a borrar con un envío anterior todavía pendiente (este lo reemplaza).
+  const pend=myPending().filter(i=>i.k===k && i.key===key).pop();
+  ((pend && pend.p && pend.p.removed) || []).forEach(x=>{ if(!cur.has(x)) out.add(x); });
+  return [...out];
+}
+function noteFoodsSeen(dt, ids){
+  const old=daysAgo(62), m={};
+  Object.keys(state.foodsSeen||{}).forEach(k=>{ if(k>=old && k!==dt) m[k]=state.foodsSeen[k]; });
+  m[dt]=ids.slice();
+  state.foodsSeen=m;
+}
+// La foto del día sin la lista de lo borrado (es lo que se compara con _lastDay).
+const daySnap = p => { const o=Object.assign({}, p); delete o.removed; return o; };
 
 function daySnapshot(){
   const t=today();
@@ -985,7 +1290,7 @@ function daySnapshot(){
 function prefsSnapshot(){
   return { cal_profile:state.calProfile||null, cal_target:state.calTarget||null, steps_goal:state.stepsGoal||null, water_goal:state.waterGoal||null,
     rest_default:state.restDefault||null, habits:(state.habits||[]).map(h=>({id:h.id, name:h.name})), foods:state.foods||[],
-    habit_alarms:state.habitAlarms||{} };
+    habit_alarms:state.habitAlarms||{}, disciplines:Array.isArray(state.disciplinas)?state.disciplinas:[] };
 }
 
 function applyHabitsDone(hd){
@@ -1006,6 +1311,7 @@ function applyPrefs(p){
   if(p.rest_default) state.restDefault=p.rest_default;
   if(Array.isArray(p.foods)) state.foods=p.foods;
   if(p.habit_alarms && typeof p.habit_alarms==="object") state.habitAlarms=p.habit_alarms;
+  if(Array.isArray(p.disciplines)) state.disciplinas=p.disciplines.filter(x=>typeof x==="string");
   if(Array.isArray(p.habits)){
     const done=new Set((state.habits||[]).filter(h=>h.done).map(h=>h.name)); // las tildes de hoy no viajan en prefs
     state.habits=p.habits.map(h=>({id:h.id, name:h.name, done:done.has(h.name)}));
@@ -1014,23 +1320,83 @@ function applyPrefs(p){
 
 function weightsSnapshot(){ const m={}; (state.weights||[]).forEach(w=>{ if(w && w.date && Number(w.kg)>0) m[w.date]=Number(w.kg); }); return m; }
 
+// Peso corporal: cada fecha cargada, cambiada o borrada va por la cola, así un peso
+// anotado sin señal se sube cuando vuelve (antes se perdía al recargar desde la nube).
+let _weightsQueued=false;
+function queueWeightDiff(){
+  if(!state.weightsSent || !state.cloudSeen || !State.cloudUser) return false;
+  const cur=weightsSnapshot(), sent=state.weightsSent; let q=false;
+  Object.keys(cur).forEach(dt=>{ if(sent[dt]!==cur[dt]){ enqueue("weight", {date:dt, kg:cur[dt]}, dt); q=true; } });
+  Object.keys(sent).forEach(dt=>{ if(!(dt in cur)){ enqueue("weight", {date:dt, del:true}, dt); q=true; } });
+  state.weightsSent=cur;
+  return q;
+}
+
 export function syncExtras(){
   if(!State.cloudUser || State.cloudLoading || !state.cloudSeen) return;
   let queued=false;
   const d=daySnapshot();
-  if(d){ const j=JSON.stringify(d); if(j!==_lastDay){ _lastDay=j; enqueue("day", d, d.dt); queued=true; } }
+  if(d){
+    const ids=d.foods.map(f=>f.id), j=JSON.stringify(d);
+    if(j!==_lastDay){ _lastDay=j; enqueue("day", Object.assign({}, d, {removed:foodsRemoved("day", d.dt, d.dt, ids)}), d.dt); queued=true; }
+    noteFoodsSeen(d.dt, ids);
+  }
   const p=prefsSnapshot(), pj=JSON.stringify(p);
   if(pj!==_lastPrefs){ _lastPrefs=pj; enqueue("prefs", p, "prefs"); queued=true; }
-  // Peso corporal: cada fecha cargada, cambiada o borrada va por la cola, así un peso
-  // anotado sin señal se sube cuando vuelve (antes se perdía al recargar desde la nube).
-  if(state.weightsSent){
-    const cur=weightsSnapshot(), sent=state.weightsSent;
-    Object.keys(cur).forEach(dt=>{ if(sent[dt]!==cur[dt]){ enqueue("weight", {date:dt, kg:cur[dt]}, dt); queued=true; } });
-    Object.keys(sent).forEach(dt=>{ if(!(dt in cur)){ enqueue("weight", {date:dt, del:true}, dt); queued=true; } });
-    state.weightsSent=cur;
-  }
+  if(queueWeightDiff()) queued=true;
   if(queued){ clearTimeout(_extrasTimer); _extrasTimer=setTimeout(()=>{ flushOutbox(); }, 1500); }
 }
+
+// El día cambió con la app abierta (checkDaily): el día nuevo vacío de este dispositivo no se
+// manda. Si se mandaba, pisaba el agua, los hábitos (y antes las comidas) que ya se hubieran
+// cargado hoy desde otro dispositivo. Se trae lo de hoy de la nube (refreshToday).
+export function dayRolled(){
+  const d=daySnapshot(); if(!d) return;
+  _lastDay=JSON.stringify(d);
+  setTimeout(()=>{ refreshToday(true); }, 0);
+}
+
+// Comidas, agua, pasos y hábitos de hoy desde la nube, al volver a primer plano o al pasar de
+// día con la app abierta: otro dispositivo pudo haber cargado algo. Solo si este no tiene nada
+// propio sin mandar (lo suyo se manda primero y manda). rolled: si la nube todavía no tiene el
+// día, se manda el de este dispositivo (cuenta para la racha), sin pisar nada.
+let _refreshing=false;
+export async function refreshToday(rolled){
+  if(!State.sb || !State.cloudUser || !State.cloudReady || State.cloudLoading || !state.cloudSeen || _refreshing) return;
+  if(State.cloudProfile && State.cloudProfile.role==="coach") return;
+  const t=today(), d0=daySnapshot(); if(!d0) return;
+  const local=JSON.stringify(d0);
+  const busy=()=>local!==_lastDay || myPending().some(i=>i.k==="day" && i.key===t);
+  if(busy()) return;
+  _refreshing=true;
+  try{
+    const uid=State.cloudUser.id, sb=State.sb;
+    const [dl, fe]=await Promise.all([
+      sb.from("daily_logs").select("water_ml, steps, habits_done").eq("client_id",uid).eq("log_date",t).maybeSingle(),
+      sb.from("food_entries").select("*").eq("client_id",uid).eq("log_date",t).order("pos")
+    ]);
+    if(dl.error || fe.error || today()!==t || !State.cloudUser || State.cloudUser.id!==uid) return;
+    // Mientras se leía, se cargó algo acá: eso se manda y manda.
+    if(JSON.stringify(daySnapshot())!==local || busy()) return;
+    const row=dl.data;
+    if(!row || row.water_ml==null){
+      // La nube todavía no tiene el día: se manda el de este dispositivo (agua y hábitos de hoy,
+      // las comidas no se borran: removed va vacío).
+      if(rolled){ _lastDay=null; syncExtras(); }
+      return;
+    }
+    state.water=row.water_ml||0;
+    state.steps=Math.max(state.steps||0, row.steps||0);
+    state.diary=(fe.data||[]).map(r=>({id:r.id, meal:r.meal||undefined, name:r.name, grams:Number(r.grams)||0, kcal:r.kcal||0, p:Number(r.protein)||0, c:Number(r.carbs)||0, f:Number(r.fat)||0, unit:r.unit||"g", base:r.base||undefined}));
+    applyHabitsDone(row.habits_done);
+    const now=JSON.stringify(daySnapshot());
+    _lastDay=now;
+    save();
+    if(now!==local) renderApp();
+  }catch(e){ console.error("refreshToday",e); }
+  finally{ _refreshing=false; }
+}
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") refreshToday(false); });
 
 // Fila de "sessions" (con sus session_entries) → entreno como lo guarda la app.
 // Las series se ordenan por set_order (su número dentro del ejercicio): Supabase no
@@ -1057,6 +1423,7 @@ export function sessionFromRow(se){
 }
 
 export function cloudSyncCore(){
+  markTabSession(); // sesión no mantenida: la marca vuelve a quedar (ver markTabSession)
   // Comidas/agua/pasos/hábitos/preferencias van por la cola: no dependen de cloudReady
   // (es data del propio cliente, no hay coach que pisar) y así funcionan sin conexión.
   try{ syncExtras(); }catch(e){ console.error("extras",e); }
@@ -1096,15 +1463,20 @@ export async function deleteMyStorageFiles(){
   for(const bucket of ["avatars","productos"]){
     const st=State.sb.storage.from(bucket);
     // Primero se listan todas (list() devuelve de a 1000 como máximo) y después se borran:
-    // borrar mientras se pagina corre el offset y se saltearía archivos.
-    const paths=[];
-    for(let offset=0;;offset+=1000){
-      const r=sbOk(await st.list(uid,{limit:1000, offset:offset}));
-      const items=r.data||[];
-      // id null = subcarpeta (la app no las crea; se ignoran).
-      items.forEach(it=>{ if(it && it.id) paths.push(uid+"/"+it.name); });
-      if(items.length<1000) break;
-    }
+    // borrar mientras se pagina corre el offset y se saltearía archivos. También las de las
+    // subcarpetas (id null): la app no las crea, pero Storage las aceptaba antes y quedaban.
+    const walk=async(prefix,depth)=>{
+      const files=[], dirs=[];
+      for(let offset=0;;offset+=1000){
+        const r=sbOk(await st.list(prefix,{limit:1000, offset:offset}));
+        const items=r.data||[];
+        items.forEach(it=>{ if(it && it.name) (it.id ? files : dirs).push(prefix+"/"+it.name); });
+        if(items.length<1000) break;
+      }
+      if(depth<10) for(const d of dirs) files.push(...await walk(d, depth+1));
+      return files;
+    };
+    const paths=await walk(uid, 0);
     for(let i=0;i<paths.length;i+=100) sbOk(await st.remove(paths.slice(i,i+100)));
   }
 }
@@ -1114,8 +1486,25 @@ export async function deleteMyStorageFiles(){
 // (auth.users y en cascada todo lo que depende de ella). Va todo junto en la función para que
 // nadie pueda borrar los audios del otro sin eliminar su cuenta. Si falla, lanza con el motivo
 // y la cuenta sigue: se puede reintentar.
-export async function deleteMyAccount(){
-  const r=await State.sb.functions.invoke("borrar-audios", { body: {} });
+// Cuenta creada con «Continuar con Apple», en la app de iPhone: Apple pide revocar el acceso de
+// la app al borrarla, y para eso el servidor necesita un código nuevo de Apple (vence en 5
+// minutos). Se pide con la misma hoja de Apple. Si la cierra o falla, la cuenta se borra igual.
+export async function appleCodeForDelete(){
+  const u=State.cloudUser;
+  const isApple=!!(u && ((u.identities||[]).some(i=>i && i.provider==="apple") || ((u.app_metadata && u.app_metadata.providers)||[]).includes("apple")));
+  if(!isApple || !appleLoginAvailable()) return "";
+  try{
+    const SL=window.Capacitor.Plugins.SocialLogin;
+    if(!_nativeAppleReady) _nativeAppleReady = SL.initialize({ apple: {} }).catch(e => { _nativeAppleReady = null; throw e; });
+    await _nativeAppleReady;
+    const res=await SL.login({ provider: "apple", options: {} });
+    const r=(res && res.result) || {};
+    return String(r.authorizationCode || (r.accessToken && r.accessToken.token) || "");
+  }catch(e){ console.error("apple borrar", String((e && (e.message||e.code))||e)); return ""; }
+}
+
+export async function deleteMyAccount(appleCode){
+  const r=await State.sb.functions.invoke("borrar-audios", { body: appleCode ? { apple_code: appleCode } : {} });
   if(r.error){
     let detail="";
     try{ const ctx=r.error.context; if(ctx && ctx.json){ const j=await ctx.json(); detail=j && j.error; } }catch(e){}
@@ -1208,6 +1597,13 @@ function enqueue(k, p, key){
   return item.id;
 }
 
+// Lo que el cliente sacó del diario de ese día en este dispositivo (p.removed). Un envío de
+// una versión anterior de la app (sin removed) no borra nada: borraba todo lo que no tuviera.
+async function deleteFoods(uid, p){
+  const ids=(Array.isArray(p.removed) ? p.removed : []).filter(x=>UUID_RE.test(String(x)));
+  if(ids.length) sbOk(await State.sb.from("food_entries").delete().eq("client_id",uid).eq("log_date",p.dt).in("id",ids));
+}
+
 async function sendItem(it){
   const sb=State.sb, uid=it.uid, p=it.p;
   if(it.k==="session"){
@@ -1259,33 +1655,34 @@ async function sendItem(it){
     } else sbOk(r);
   } else if(it.k==="day"){
     // Solo las columnas del día: el upsert no toca comentario, sueño, etc. del registro.
-    sbOk(await sb.from("daily_logs").upsert({client_id:uid, log_date:p.dt, water_ml:p.water, steps:p.steps, habits_done:p.habits},{onConflict:"client_id,log_date"}));
+    // Sin los pasos: van solos por queueSteps (Salud). Mandarlos acá pisaba con 0 los del
+    // celular desde la web o desde un dispositivo que no los cuenta.
+    sbOk(await sb.from("daily_logs").upsert({client_id:uid, log_date:p.dt, water_ml:p.water, habits_done:p.habits},{onConflict:"client_id,log_date"}));
     if(p.foods.length){
       sbOk(await sb.from("food_entries").upsert(p.foods.map((f,i)=>({id:f.id, client_id:uid, log_date:p.dt, pos:i, meal:f.meal||null, name:f.name, grams:f.grams, unit:f.unit, kcal:f.kcal, protein:f.p, carbs:f.c, fat:f.f, base:f.base})),{onConflict:"id"}));
     }
-    // Lo que el cliente sacó del diario de ese día.
-    let del=sb.from("food_entries").delete().eq("client_id",uid).eq("log_date",p.dt);
-    if(p.foods.length) del=del.not("id","in","("+p.foods.map(f=>f.id).join(",")+")");
-    sbOk(await del);
+    await deleteFoods(uid, p);
   } else if(it.k==="foods"){
     // Comidas de un día anterior, cargadas o borradas desde Comida (el agua, los pasos y los
     // hábitos de ese día no se tocan). Mismo reemplazo que el día de hoy.
     if(p.foods.length){
       sbOk(await sb.from("food_entries").upsert(p.foods.map((f,i)=>({id:f.id, client_id:uid, log_date:p.dt, pos:i, meal:f.meal||null, name:f.name, grams:f.grams, unit:f.unit, kcal:f.kcal, protein:f.p, carbs:f.c, fat:f.f, base:f.base})),{onConflict:"id"}));
     }
-    let del=sb.from("food_entries").delete().eq("client_id",uid).eq("log_date",p.dt);
-    if(p.foods.length) del=del.not("id","in","("+p.foods.map(f=>f.id).join(",")+")");
-    sbOk(await del);
+    await deleteFoods(uid, p);
   } else if(it.k==="steps"){
-    // Pasos de un día (solo esa columna; lo usó una versión de prueba de la app que leía
-    // Health Connect). Queda por si alguno quedó en la cola de un celular.
+    // Pasos de un día, solo esa columna (queueSteps: Salud / Health Connect). El resto del
+    // registro del día no se toca.
     sbOk(await sb.from("daily_logs").upsert({client_id:uid, log_date:p.dt, steps:p.steps},{onConflict:"client_id,log_date"}));
   } else if(it.k==="weight"){
     // Solo esa fecha: otro dispositivo pudo cargar otras y no se tocan.
     if(p.del) sbOk(await sb.from("body_weights").delete().eq("client_id",uid).eq("measured_on",p.date));
     else sbOk(await sb.from("body_weights").upsert({client_id:uid, measured_on:p.date, kg:p.kg},{onConflict:"client_id,measured_on"}));
   } else if(it.k==="prefs"){
-    sbOk(await sb.from("client_prefs").upsert(Object.assign({client_id:uid, updated_at:new Date().toISOString()}, p),{onConflict:"client_id"}));
+    const row=Object.assign({client_id:uid, updated_at:new Date().toISOString()}, p);
+    let r=await sb.from("client_prefs").upsert(row,{onConflict:"client_id"});
+    // Sin supabase/disciplinas.sql la columna todavía no existe: el resto se sube igual.
+    if(r.error && /disciplines/.test(r.error.message||"")){ delete row.disciplines; r=await sb.from("client_prefs").upsert(row,{onConflict:"client_id"}); }
+    sbOk(r);
   } else if(it.k==="checkin"){
     // La columna adherence es un número del 1 al 10. Si el coach cambió esa pregunta (opciones
     // con palabras o respuesta libre), la respuesta va en answers como cualquier otra: antes se
@@ -1428,8 +1825,13 @@ export function isOnline(){ return navigator.onLine!==false; }
 
 // loadCloud pisa state.sessions/daily/checkins con lo que hay en la nube: lo que
 // todavía está en la cola (y por eso la nube no lo tiene) se vuelve a poner encima.
-function applyPending(){
-  myPending().forEach(it=>{
+// extra: pendientes leídos antes (loadCloud), por si la cola los mandó y los sacó mientras
+// tanto: volver a poner uno que ya llegó a la nube no cambia nada (es la última versión local).
+function applyPending(extra){
+  const seen=new Set(), list=[];
+  (extra||[]).concat(myPending()).forEach(it=>{ if(it && !seen.has(it.id)){ seen.add(it.id); list.push(it); } });
+  list.sort((a,b)=>(a.ts||0)-(b.ts||0));
+  list.forEach(it=>{
     const p=it.p;
     if(it.k==="session"){
       if(!state.sessions.some(s=>s.id===p.id)) state.sessions.push(Object.assign({id:p.id, cloudId:p.id, date:p.date, ts:p.ts, day:p.day, exercises:p.exercises}, p.dur>0?{dur:p.dur}:{}));
@@ -1449,9 +1851,10 @@ function applyPending(){
       state.water=p.water; state.steps=p.steps;
       state.diary=p.foods.map(f=>({id:f.id, meal:f.meal||undefined, name:f.name, grams:f.grams, kcal:f.kcal, p:f.p, c:f.c, f:f.f, unit:f.unit, base:f.base||undefined}));
       applyHabitsDone(p.habits);
-      _lastDay=JSON.stringify(p);
+      _lastDay=JSON.stringify(daySnap(p));
     } else if(it.k==="steps"){
-      if(state.daily[p.dt]) state.daily[p.dt].steps=String(p.steps);
+      // Aunque ese día no tenga registro: la fila de daily_logs se crea con los pasos solos.
+      state.daily[p.dt]=Object.assign({}, state.daily[p.dt]||{}, {steps:String(p.steps)});
       if(p.dt===today() && state.stepsDate===p.dt) state.steps=Math.max(state.steps||0, p.steps);
     } else if(it.k==="weight"){
       state.weights=(state.weights||[]).filter(w=>w.date!==p.date);
@@ -1471,6 +1874,24 @@ function applyPending(){
 
 window.addEventListener("online", ()=>{ flushOutbox(); });
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") flushOutbox(); });
+
+// Pasos de un día solos (la columna steps de daily_logs, nada más): los que se leen de Salud /
+// Health Connect (core/salud.js; no hay pasos a mano). Van directo a
+// la cola y no por la foto del día: así no se manda la foto de este celular (podría pisar
+// comidas o agua cargadas en otro) y no se pierden si loadCloud reemplaza el estado.
+// Devuelve la promesa del envío.
+export function queueSteps(dt, steps){
+  if(!State.cloudUser) return Promise.resolve(false);
+  enqueue("steps", {dt:dt, steps:Math.max(0, Math.round(steps)||0)}, dt);
+  refreshSyncFoot();
+  return flushOutbox();
+}
+// Los pasos de hoy ya van por queueSteps: que la foto del día no cuente ese cambio como algo
+// nuevo para mandar (sí cuenta si además cambió otra cosa).
+export function noteStepsSynced(n){
+  if(!_lastDay) return;
+  try{ const d=JSON.parse(_lastDay); if(d && d.dt===today()){ d.steps=n; _lastDay=JSON.stringify(d); } }catch(e){}
+}
 
 // Las funciones cloud* devuelven true si quedó en la nube, false si quedó pendiente y
 // "failed" si la base lo rechazó (ver enqueueAndSend).
@@ -1508,8 +1929,15 @@ export function cloudSessionFeedback(se){
 // reemplaza a una anterior que todavía no se mandó.
 export function cloudSaveFoods(dt, list){
   const foods=(list||[]).map(e=>{ if(!UUID_RE.test(String(e.id))) e.id=newId(); return {id:e.id, meal:e.meal||null, name:e.name, grams:e.grams, unit:e.unit||"g", kcal:e.kcal||0, p:e.p||0, c:e.c||0, f:e.f||0, base:e.base||null}; });
-  return enqueueAndSend("foods", {dt:dt, foods:foods}, "foods:"+dt);
+  if(!State.cloudUser) return Promise.resolve(true);
+  const ids=foods.map(f=>f.id), removed=foodsRemoved("foods", "foods:"+dt, dt, ids);
+  noteFoodsSeen(dt, ids);
+  return enqueueAndSend("foods", {dt:dt, foods:foods, removed:removed}, "foods:"+dt);
 }
+
+// Un día anterior recién traído de la nube (screens/comida-historial.js): lo que se borre de
+// esa lista se borra en la nube.
+export function foodsLoaded(dt, ids){ if(State.cloudUser) noteFoodsSeen(dt, ids); }
 
 // Lo que todavía no subió de un día anterior (para mostrarlo encima de lo que trae la nube).
 export function pendingFoods(dt){
@@ -1563,8 +1991,11 @@ const numIn=(v,lo,hi)=>{ const n=Number(v); return Number.isFinite(n) ? Math.min
 const objOr=v=>(v && typeof v==="object" && !Array.isArray(v)) ? v : {};
 // Resumen guardado (core/cardiogps.js summarize) + recorrido → fila de cardio_outings, dentro de
 // los límites de la tabla (un dato fuera de rango la haría rechazar para siempre).
+// Las apps de Android y de iPhone no mandan coordenadas (no usan la ubicación): si en la cola quedó
+// una salida de una versión anterior con su recorrido, sube solo con los números (sin recorrido y
+// points 0).
 function salidaRow(p, uid){
-  const kg=Number(p.kg), tr=p.track;
+  const kg=Number(p.kg), tr=appNativa() ? null : p.track;
   return {
     id:p.id, client_id:uid, mode:p.mode==="bici"?"bici":"pie",
     performed_on:p.date || ymd(new Date(p.startedAt)), started_at:p.startedAt, ended_at:p.endedAt||null,
@@ -1573,7 +2004,7 @@ function salidaRow(p, uid){
     weight_kg:(kg>=20 && kg<=400) ? Math.round(kg*10)/10 : null, weight_default:!!p.kgDefault, gap_s:intIn(p.gap,0,86400),
     breakdown:objOr(p.breakdown), segments:Array.isArray(p.segments)?p.segments.slice(0,200):[], splits:Array.isArray(p.splits)?p.splits.slice(0,1000):[],
     track:(typeof tr==="string" && tr.length>=3 && tr.length<=200000 && tr.slice(0,2)==="1;") ? tr : null,
-    points:p.points==null ? null : intIn(p.points,0,200000),
+    points:appNativa() ? 0 : p.points==null ? null : intIn(p.points,0,200000),
   };
 }
 // Fila de cardio_outings (sin el recorrido) → salida como la guarda la app (cloud: ya está en la nube).
@@ -1660,6 +2091,34 @@ async function showMailConfirmed(loading){
   }
 }
 
+// Sesión sin «Mantener la sesión» que ya terminó (se cerró la pestaña sin «Salir»; ver clearsEnded): al
+// volver a abrir GIZE sin sesión se borra lo de esa cuenta en este dispositivo, para que quien lo
+// use después no lo pueda leer. Queda lo que todavía no llegó a la cuenta (como localUnsynced):
+// la cola de envío, que va por usuario, y la rutina propia cambiada sin subir. Si esa cuenta
+// vuelve a entrar, se sube. Las notificaciones se dan de baja en este dispositivo: si no, los
+// mensajes del coach le seguían llegando a la compu. Si la sesión sigue abierta en otra pestaña
+// (o se usó hace poco, ver markTabSession) no se toca nada. Devuelve true si borró algo (lo que
+// hay en memoria es lo viejo).
+async function clearEndedSession(){
+  let uid=""; try{ uid=localStorage.getItem(EPHEMERAL_KEY)||""; }catch(e){}
+  if(!uid || !clearsEnded() || usedLately() || await otherTabInside()) return false;
+  try{ localStorage.removeItem(EPHEMERAL_KEY); localStorage.removeItem(EPHEMERAL_AT); }catch(e){}
+  // El dueño de los datos, como en afterLogin (sin ownerUid, el del último perfil guardado). Las
+  // versiones de antes de 761c79f anotaban "1" en vez de la cuenta: se descartaba la rutina sin subir.
+  let owner=state.ownerUid;
+  if(!owner){ try{ owner=(JSON.parse(localStorage.getItem(PROFILE_KEY)||"null")||{}).uid||null; }catch(e){} }
+  if(uid==="1" && owner) uid=owner;
+  let prof=null; try{ const c=JSON.parse(localStorage.getItem(PROFILE_KEY)||"null"); if(c && c.uid===uid) prof=c.profile; }catch(e){}
+  const own=!(prof && (prof.role==="coach" || prof.coach_id)) && onRegular() && owner===uid && state.routineHash!==routineHash(state.days);
+  try{
+    if(own) localStorage.setItem(KEY, JSON.stringify({ ownerUid:uid, days:state.days, routineHash:state.routineHash, routineEditedAt:state.routineEditedAt }));
+    else localStorage.removeItem(KEY);
+    [PROFILE_KEY, "gize_rest_timer", "gize_cardio_clock"].concat(accountKeys(true)).forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+  await Promise.race([Promise.all([clearHabitAlarms(), deleteShareFile(), pushDropHere()]).catch(()=>{}), new Promise(r=>setTimeout(r, 3000))]);
+  return true;
+}
+
 export async function cloudBoot(){
   await ensureSb();
   // Sin la librería de Supabase no hay cuenta: antes se mostraba la app igual, "sin
@@ -1700,23 +2159,46 @@ export async function cloudBoot(){
     // celular, y con eso lo que todavía no se había subido (un tester perdió su rutina así).
     // Ahora quedan detrás del login: si vuelve a entrar la misma cuenta se suben, y si entra
     // otra, afterLogin() arranca de cero (state.ownerUid).
-    if(LINK_REFUSED && !sess.data.session){
-      if(LINK_REFUSED==="recovery") showLogin("Por seguridad, abrí el link del mail en el mismo navegador donde pediste cambiar la contraseña. Si no, pedí uno nuevo acá.","forgot");
+    // Botón del mail de recuperar contraseña (#recuperar=...), sin una cuenta adentro.
+    if(RECOVER_HASH && !sess.data.session){
+      const res=await useRecoveryLink(RECOVER_HASH);
+      if(res.ok) showLogin("", "newpass");
+      else if(res.why==="used") showLogin(RECOVERY_MSG.used, "forgot");
+      // Pedido desde la app: el botón del mail abre el navegador. Se puede terminar acá con el
+      // código, o escribirlo en la app (que ya lo está pidiendo).
+      else showLogin(res.why==="elsewhere" && /^pkce_/.test(RECOVER_HASH) ? RECOVERY_MSG.elsewhereApp : (RECOVERY_MSG[res.why]||RECOVERY_MSG.elsewhere), "code", { askEmail:true });
+    }
+    // Contraseña nueva a medio elegir (se cerró la app en ese paso): se vuelve a pedir.
+    // También sin señal (sesión guardada sin confirmar): la app no se abre en esa cuenta.
+    else if(sess.data.session && recoveryPendingFor(sess.data.session)){
+      showLogin("", "newpass");
+    }
+    else if(LINK_REFUSED && !sess.data.session){
+      // Link de los mails de antes: Supabase ya lo gastó al abrirlo, y el código también.
+      if(LINK_REFUSED==="recovery") showLogin(RECOVERY_MSG.oldLink,"forgot");
       else if(LINK_REFUSED==="signup") showLogin("Listo, tu mail quedó confirmado. Ingresá con tu mail y tu contraseña.","in");
       else showLogin("No se pudo completar el ingreso desde ese link. Ingresá con tu mail y contraseña o con Google.","in");
     }
     else if(sess.data.session && RECOVERY_LANDING){
       try{ history.replaceState(null,"",location.pathname); }catch(e){}
+      clearRecoveryRequest(); setRecoveryPending(sess.data.session);
       showLogin("", "newpass");
     }
     else if(sess.data.session){
       if(CONFIRM_LANDING) await showMailConfirmed(afterLogin(sess.data.session.user, stale));
       else await afterLogin(sess.data.session.user, stale);
+      // El link para cambiar la contraseña se abrió en un navegador que ya tenía una cuenta
+      // adentro: no se toca (cambiar de cuenta sin salir mezclaría los datos) y se explica.
+      // El botón nuevo (#recuperar) no se gastó: el código del mail sigue sirviendo.
+      if(RECOVER_HASH) setTimeout(()=>alert("Ese link para cambiar la contraseña se abrió en un navegador donde ya hay una cuenta abierta, así que no se usa acá. Seguís con esa cuenta.\n\nEscribí el código de 6 números que trae el mail en GIZE, en el celular o navegador donde pediste el cambio (en «Ya tengo un código»). Todavía sirve."), 600);
+      else if(LINK_REFUSED==="recovery") setTimeout(()=>alert("Ese link para cambiar la contraseña se abrió en un navegador distinto del que lo pidió, así que no sirve acá (es por seguridad). Seguís con la cuenta que ya tenías abierta.\n\nPara cambiar la contraseña, pedí un mail nuevo desde «¿Olvidaste tu contraseña?», en el celular o navegador donde la vayas a cambiar."), 600);
     }
     else if(CONFIRM_ERROR){
       try{ history.replaceState(null,"",location.pathname); }catch(e){}
       // Volvió de Google con error (canceló, o el proveedor falló): no es el link del mail.
-      showLogin((takeGoogleIntent() ? GOOGLE_ERROR_MSG : CONFIRM_ERROR_MSG)+authErrDetail(BOOT_AUTH.get("error_description")),"in");
+      // Sin el detalle que trae el link (error_description): cualquiera puede armar un link con
+      // un texto propio y se mostraba en la pantalla de ingreso de GIZE.
+      showLogin(takeGoogleIntent() ? GOOGLE_ERROR_MSG : CONFIRM_ERROR_MSG,"in");
     }
     // La app estaba cerrada y la abrió el link del mail.
     else if(app && await openAuthLink(((await app.getLaunchUrl().catch(()=>null))||{}).url)){}
@@ -1724,14 +2206,17 @@ export async function cloudBoot(){
     // venció del todo): antes se veía «Ingresar» sin explicación.
     else if(stored) showLogin(LOST_MSG, "in", {email:stored.user.email||""});
     else {
+      if(await clearEndedSession()){ location.reload(); return; }
       // Links de la landing: #registro abre "Crear cuenta" y #registro-coach lo abre con
-      // "Soy coach" ya elegido. Se limpia el # para que recargar no lo repita.
+      // "Soy coach" ya elegido. Se limpia el # para que recargar no lo repita. En la app de
+      // iPhone no hay cuentas nuevas de coach (core/tienda.js): los dos abren el de alumno.
       const h=location.hash;
       if(h==="#registro"||h==="#registro-coach"){
         try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){}
-        showLogin(isOnline()?"":offlineMsg,"up",h==="#registro-coach"?{role:"coach"}:{});
+        showLogin(isOnline()?"":offlineMsg,"up",h==="#registro-coach"&&!appIOS()?{role:"coach"}:{});
       } else showLogin(isOnline()?"":offlineMsg,"in"); // sin señal, que se sepa por qué no va a poder entrar
     }
   }catch(e){ console.error("cloudBoot",e); showLogin(offlineMsg,"in"); }
   finally{ if(window.coreEnter) window.coreEnter(); }
+  retryPushForget(); // un dispositivo que se dio de baja sin señal se borra de la base (core/push.js)
 }

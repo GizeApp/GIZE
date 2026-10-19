@@ -1,0 +1,58 @@
+/* css/ui/rueda.css
+   Rueda para elegir un número (app/ui/rueda.js): estatura, peso y fecha de nacimiento en la
+   bienvenida. Solo tokens, así anda en todas las apariencias (Oscuro, Claro, Azul, Rosa, sin
+   neón, liviano y GIZE básico). Cada fila mide 44 px (RD_ALTO en rueda.js).
+   El desvanecido de arriba y de abajo es una máscara en la caja quieta (.rd o .rd-row), nunca en
+   la que scrollea: en el Safari del iPhone la máscara sobre el elemento que scrollea se dibujaba
+   cortada (ver css/screens/cardio.css). La máscara también anda sobre las tarjetas de vidrio. */
+.rd {
+  position: relative; flex: 1 1 0; min-width: 0; --rd-filas: 5; height: calc(var(--rd-filas) * 44px);
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+}
+/* Fecha: tres ruedas en fila (día, mes, año) con una sola franja y una sola máscara. */
+.rd-row {
+  position: relative; display: flex; gap: 8px; --rd-filas: 5; height: calc(var(--rd-filas) * 44px);
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+}
+.rd-row .rd { -webkit-mask-image: none; mask-image: none; height: 100%; }
+/* Primero va la franja compartida (.rd-band): las ruedas son los hijos 2 (día), 3 (mes) y 4 (año). */
+.rd-row > .rd:nth-child(2) { flex: .8 1 0; }
+.rd-row > .rd:nth-child(3) { flex: 1.2 1 0; }
+.rd-row > .rd:nth-child(4) { flex: 1.1 1 0; }
+
+.rd-list {
+  position: relative; z-index: 1; height: 100%; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; touch-action: pan-y;
+  padding: calc((var(--rd-filas) * 44px - 44px) / 2) 0; scroll-behavior: auto; scrollbar-width: none; contain: content; outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.rd-list::-webkit-scrollbar { display: none; }
+/* Sin outline: la máscara lo cortaría. El foco se dibuja en la franja (.rd.foco, abajo). */
+.rd-list:focus, .rd-list:focus-visible { outline: none; }
+
+.rd-item {
+  height: 44px; display: flex; align-items: center; justify-content: center; scroll-snap-align: center;
+  font: 600 26px var(--gize-font); font-variant-numeric: tabular-nums; color: var(--txt-2); cursor: pointer;
+  user-select: none; -webkit-user-select: none; white-space: nowrap;
+}
+.rd-item.on { color: var(--txt); font-weight: 700; }
+.rd-chica .rd-item { font-size: 22px; }
+
+/* La franja del medio: marca el valor elegido. */
+.rd-band {
+  position: absolute; top: 50%; transform: translateY(-50%); height: 44px; left: 0; right: 0; box-sizing: border-box;
+  background: color-mix(in srgb, var(--gize-blue) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gize-blue) 35%, transparent);
+  border-radius: var(--r-card); pointer-events: none;
+}
+/* Foco con el teclado: el borde de la franja (está en el medio, donde la máscara no tapa nada). */
+.rd.foco .rd-band { border: 2px solid var(--gize-blue); }
+/* En la fila de la fecha la franja es una sola (la de .rd-row); la de cada columna aparece solo con el foco. */
+.rd-row .rd .rd-band { background: transparent; border-color: transparent; }
+.rd-row .rd.foco .rd-band { border: 2px solid var(--gize-blue); }
+
+.rd-unit {
+  position: absolute; z-index: 2; left: calc(50% + 2.4em); top: 50%; transform: translateY(-50%);
+  color: var(--txt-2); font: 600 15px var(--gize-font); pointer-events: none;
+}

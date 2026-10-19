@@ -3,15 +3,18 @@
 // abre (la política de privacidad, también para el coach), y los avisos de «Borrar datos de
 // este dispositivo» y de eliminar la cuenta de coach dicen la verdad. Además, ni la página
 // de inicio ni el mail de registro ni los permisos del iPhone prometen fotos de progreso.
+// Los Términos de uso (gize.ar/terminos, los pide Apple para las suscripciones de la app de
+// iPhone) dicen cómo se renueva y se cancela la suscripción con Apple, y desde la app se abren sin
+// la barra que lleva a la página de inicio, igual que la política.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, text, ALUMNO, profile, configCoach, seccionesCoach, CONFIG_COACH } from './lib.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} };
 const NATIVE = () => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: {} }; };
-const links = p => p.evaluate(() => [...document.querySelectorAll('#view a, #coachSheetHost a')].map(a => ({ href: a.getAttribute('href'), txt: a.innerText.replace(/\s+/g, ' ').trim() })));
+const links = p => p.evaluate(() => [...document.querySelectorAll('#view a, #coachHost .cs-body a')].map(a => ({ href: a.getAttribute('href'), txt: a.innerText.replace(/\s+/g, ' ').trim() })));
 // La página de inicio: gize.ar/ (con o sin ? o #). La política (gize.ar/privacidad/) no cuenta.
 const isLanding = h => /^https:\/\/gize\.ar\/?([?#].*)?$/.test(h || '');
 
@@ -27,7 +30,7 @@ export default async function ({ base, t }){
   let priv = ls.find(l => l.txt === 'Política de privacidad');
   t.ok(!!priv, 'iPhone: está el link «Política de privacidad»');
   t.has(priv && priv.href, 'gize.ar/privacidad/?app=1', 'la política se abre sin la barra que lleva a la página de inicio');
-  t.ok(!(await text(pg.p, '#view')).includes('Términos y condiciones'), 'no dice «Términos y condiciones» (no existen)');
+  t.ok(!(await text(pg.p, '#view')).includes('Términos y condiciones'), 'no dice «Términos y condiciones» (se llaman «Términos de uso»)');
   t.eq(pg.errs, [], 'errores de la página (iPhone)');
   await pg.close();
 
@@ -54,13 +57,14 @@ export default async function ({ base, t }){
     '/coach_billing': (r, J, i) => { const b = { coach_id: COACH.id, plan: 'cortesia', max_clients: 10, trial_ends_at: '2099-01-01T00:00:00Z' }; return J(i.one ? b : [b]); },
   } });
   await pg.p.goto(base + '/app/'); await wait(3000);
-  await pg.p.click('[data-coach="open-settings"]'); await wait(500);
-  ls = await links(pg.p);
+  // Su Configuración es una pantalla con un menú de secciones: los links de todas.
+  ls = (await seccionesCoach(pg.p, links)).flatMap(s => s.v);
   priv = ls.find(l => l.txt === 'Política de privacidad');
   t.ok(!!priv, 'coach: está el link «Política de privacidad»');
   t.has(priv && priv.href, 'gize.ar/privacidad/?app=1', 'coach: la política se abre sin la barra de la página de inicio');
   t.ok(!ls.some(l => isLanding(l.href)), 'coach en iPhone: ningún link a la página de inicio');
-  await pg.p.click('#coachSheetHost [data-action="cfg-delete-account"]'); await wait(800);
+  await configCoach(pg.p, 'cuenta');
+  await pg.p.click(CONFIG_COACH + ' [data-action="cfg-delete-account"]'); await wait(800);
   const delMsg = pg.dialogs[0] || '';
   t.ok(!delMsg.includes('no pierden nada'), 'no promete que los alumnos no pierden nada: ' + delMsg);
   t.has(delMsg, 'se borran el chat que tenían con vos', 'avisa que se borra el chat con los alumnos');
@@ -77,9 +81,21 @@ export default async function ({ base, t }){
   t.eq(await topLinks(), [], 'desde la app, la política no tiene links visibles a la página de inicio ni a la app web');
   t.has(await text(pg.p, 'main'), 'Apple Push Notification service', 'la política nombra el servicio de avisos de iPhone');
   t.has(await text(pg.p, 'main'), 'Open Food Facts:', 'la política nombra a Open Food Facts como destinatario');
+  t.has(await text(pg.p, 'main'), 'Plan de coach comprado en la app de iPhone: el pago lo procesa Apple', 'la política dice que en el iPhone el pago lo procesa Apple');
   await pg.p.goto(base + '/privacidad/'); await wait(300);
   t.eq(await topLinks(), ['../', '../app/'], 'entrando directo, la barra de arriba sigue');
   t.eq(pg.errs, [], 'errores de la página (política)');
+  // Términos de uso: igual que la política, y con lo de la suscripción de Apple.
+  await pg.p.goto(base + '/terminos/?app=1'); await wait(300);
+  t.eq((await topLinks()).filter(h => !h.startsWith('../privacidad/')), [], 'desde la app, los términos no tienen links visibles a la página de inicio ni a la app web');
+  t.ok(await pg.p.evaluate(() => [...document.querySelectorAll('a')].some(a => a.getAttribute('href') === '../privacidad/?app=1')), 'desde la app, la política se abre también sin la barra');
+  const term = await text(pg.p, 'main');
+  for (const f of ['mayores de 18 años', 'se renueva sola cada mes', 'Ajustes de tu cuenta de Apple', 'Eliminar tu cuenta de GIZE no cancela la suscripción de Apple', 'licencia de uso estándar de Apple'])
+    t.has(term, f, 'los términos dicen: ' + f);
+  t.ok(!/Mercado Pago|transferencia|\$\d/.test(term), 'los términos no mandan a pagar por fuera de Apple');
+  await pg.p.goto(base + '/terminos/'); await wait(300);
+  t.eq(await topLinks(), ['../', '../app/', '../privacidad/'], 'entrando directo, la barra de arriba sigue');
+  t.eq(pg.errs, [], 'errores de la página (términos)');
   await pg.close();
 
   // 5) Nada promete fotos de progreso (se sacaron de la app).

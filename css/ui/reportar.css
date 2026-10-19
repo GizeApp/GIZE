@@ -1,0 +1,29 @@
+/* css/ui/reportar.css
+   «Reportar» (app/ui/reportar.js): la hoja de abajo de siempre (.sheet de components.css, con lo
+   de cada apariencia en sus archivos), pero arriba de todo: también del chat (z-index 400).
+   Sin sombras ni animaciones propias: en GIZE básico (css/ui/basico.css) queda igual, plana. */
+#reportHost .sheet-bg { z-index: 440; }
+#reportHost .sheet { z-index: 441; }
+/* Con la hoja abierta, la pantalla de atrás queda quieta (como con #sheetHost). */
+html:has(#reportHost .sheet:not(.closing)), html:has(#reportHost .sheet:not(.closing)) body { overflow: hidden; }
+
+.rep-sheet .sheet-title { margin-bottom: 10px; }
+/* Lo que se reporta (el mensaje, o el nombre en el grupo), para que se vea qué se manda. */
+.rep-cita { margin: 0 0 14px; padding: 10px 12px; border-left: 3px solid var(--border); border-radius: 0 10px 10px 0; background: var(--card-2);
+  color: var(--txt-2); font-size: var(--text-meta); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.rep-lbl { margin: 0 2px 8px; font-size: var(--text-meta); font-weight: 600; color: var(--txt-2); }
+/* Los motivos: uno abajo del otro, con el circulito de elegir. */
+.rep-opts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.rep-opt { position: relative; width: 100%; padding: 13px 14px 13px 44px; text-align: left; border-radius: var(--r-box); background: var(--card-2);
+  border: 1px solid var(--border); color: var(--txt); font: 600 var(--text-body) var(--gize-font); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.rep-opt::before { content: ""; position: absolute; left: 14px; top: 50%; width: 18px; height: 18px; margin-top: -9px; box-sizing: border-box;
+  border-radius: 50%; border: 2px solid var(--txt-2); }
+.rep-opt.on { border-color: var(--blue); }
+.rep-opt.on::before { border-color: var(--blue); background: radial-gradient(circle, var(--blue) 0 4px, transparent 4.5px); }
+.rep-opt:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.rep-nota { display: block; min-height: 64px; resize: none; font: 16px/1.4 var(--gize-font); }
+.rep-txt { margin: 10px 2px 14px; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
+.rep-err { margin: -4px 0 14px; padding: 10px 12px; border-radius: var(--r-btn); background: var(--gize-danger-bg); color: var(--gize-danger);
+  font-size: var(--text-meta); line-height: 1.45; }
+.rep-sheet .ctrl:disabled { opacity: .45; cursor: default; }

@@ -1,0 +1,111 @@
+/* css/ui/estetica-login.css
+   La estética del login (css/screens/auth.css + css/core/components.css) llevada al resto de
+   las secciones: cajas con esquinas más redondas y el borde con la gama RGB quieto, campos
+   de texto con el mismo relleno, esquina y aro azul al enfocar, y los selectores (pestañas,
+   chips) con el riel hundido y la activa marcada con borde azul y aro.
+   Se carga al final de la cadena de css/ui, solo para los temas oscuros: «Claro» y «Luz»
+   tienen su propia paleta. Es una capa aparte para poder quitarla sin tocar nada más. */
+
+html:not(.tema-claro):not(.tema-luz) body:not(#_) {
+  --login-r-card: 22px;   /* tarjeta del login */
+  --login-r-field: 14px;  /* campos del login */
+  --login-ring: 0 0 0 4px color-mix(in srgb, var(--gize-blue) 22%, transparent);
+}
+
+/* ---------- 1) Cajas: esquina del login + borde RGB + resplandor suave ---------- */
+/* :not(.sin-neon) iguala el peso de la regla de css/ui/calma.css, que va antes: gana por orden. */
+html:not(.tema-claro):not(.tema-luz):not(.sin-neon) body:not(#_) :is(
+    .co-invite, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
+    .join-box, .daynotes, .w-chart) {
+  border-radius: var(--login-r-card);
+  border: 1.5px solid transparent;
+  background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box,
+    var(--gize-rgb-ring) border-box;
+  box-shadow: 0 18px 44px rgba(0,0,0,.42),
+    0 0 56px -16px color-mix(in srgb, var(--gize-r2) 30%, transparent);
+}
+html.sin-neon:not(.tema-claro):not(.tema-luz) body:not(#_) :is(
+    .co-invite, .co-day-card, .ci-card, .opt-sec, .week-editor, .ck-card, .tpl-item,
+    .card, .blk, .coach-banner, .cfg-card,
+    .daily-card, .water-card, .vol-card, .fi-card, .mc-block, .cardio-rx, .sal-card, .plan-banner,
+    .join-box, .daynotes, .w-chart) {
+  background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box,
+    linear-gradient(rgba(255,255,255,.18), rgba(255,255,255,.18)) border-box;
+  box-shadow: 0 18px 44px rgba(0,0,0,.42);
+}
+/* La tabla del coach en pantalla ancha: mismo borde (en celular sigue siendo un contenedor suelto). */
+@media (min-width: 900px) {
+  html:not(.tema-claro):not(.tema-luz) body:not(#_) .co-table { border-radius: var(--login-r-card); }
+}
+
+/* ---------- 2) Campos de texto: como los del login ---------- */
+html:not(.tema-claro):not(.tema-luz) body:not(#_) :is(.form-input, .co-rt-name, .co-select, .field input) {
+  background: var(--gize-surface-2);
+  border: 1px solid var(--gize-border);
+  border-radius: var(--login-r-field);
+  color: var(--gize-text);
+  transition: border-color .15s, background-color .15s, box-shadow .18s;
+}
+html:not(.tema-claro):not(.tema-luz) body:not(#_) :is(.form-input, .co-rt-name, .co-select, .field input):hover {
+  border-color: var(--gize-text-2);
+}
+html:not(.tema-claro):not(.tema-luz) body:not(#_) :is(.form-input, .co-rt-name, .co-select, .field input):is(:focus, :focus-visible) {
+  outline: none;
+  border-color: var(--gize-blue);
+  background: var(--gize-surface);
+  box-shadow: var(--login-ring);
+}
+html:not(.tema-claro):not(.tema-luz) body:not(#_) .form-input { padding: 15px 14px; }
+html:not(.tema-claro):not(.tema-luz) body:not(#_) .form-label {
+  margin: 0 0 7px 2px; color: var(--gize-text-2); font-weight: 600; letter-spacing: .01em;
+}
+
+/* ---------- 3) Selectores: riel hundido, la activa con borde azul y aro ---------- */
+html:not(.tema-claro):not(.tema-luz) body:not(#_) :is(.tab, .cmode, .seg button, .ex-chip, .rest-opt, .fb-n, .sc-opt, .preset, .co-daytab, .ap-day, .ap-radio) {
+  border-radius: var(--login-r-field);
+  border-color: var(--gize-border);
+  background: color-mix(in srgb, var(--gize-surface-2) 70%, transparent);
+}
+html:not(.tema-claro):not(.tema-luz) body:not(#_) :is(.tab.active, .cmode.active, .seg button.on, .ex-chip.on, .rest-opt.on, .fb-n.on,
+    .sc-opt.on, .preset.on, .co-daytab.on, .ap-day.on, .ap-radio.on) {
+  background: var(--gize-surface);
+  border-color: var(--gize-blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gize-blue) 22%, transparent);
+}
+html:not(.tema-claro):not(.tema-luz) body:not(#_) .co-tabs {
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--gize-surface-2) 70%, transparent);
+  border-color: var(--gize-border);
+}
+html:not(.tema-claro):not(.tema-luz) body:not(#_) .co-tabs::before {
+  border-radius: var(--login-r-field);
+  background: var(--gize-surface);
+  border: 1px solid var(--gize-blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gize-blue) 22%, transparent);
+}
+html:not(.tema-claro):not(.tema-luz) body:not(#_) .co-tabs::after { display: none; }
+
+/* ---------- 4) Botones secundarios: mismas esquinas y borde que el resto del login ---------- */
+html:not(.tema-claro):not(.tema-luz) body:not(#_) :is(.co-back, .co-logout, .co-copy-btn, .load-def, .clear, .reset-routine, .logout-btn,
+    .qbtn, .ctrl.ghost, .co-exc-btn, .co-daynav-btn, .bw, .cp-back, .pl-toggle, .ex-custom, .cp-copt, .cp-cat, .cp-ex, .ex-pick, .co-rt-add) {
+  border-radius: var(--login-r-field);
+  border-color: var(--gize-border);
+  background: var(--gize-surface-2);
+}
+html:not(.tema-claro):not(.tema-luz) body:not(#_) :is(.co-back, .co-logout, .co-copy-btn, .load-def, .clear, .reset-routine, .logout-btn,
+    .qbtn, .ctrl.ghost, .co-exc-btn, .co-daynav-btn, .bw, .cp-back, .pl-toggle, .ex-custom, .cp-copt, .cp-cat, .cp-ex, .ex-pick, .co-rt-add):hover {
+  border-color: var(--gize-text-2);
+  background: var(--gize-surface);
+}
+/* Los de la cabecera del coach ya llevan borde RGB (css/ui/gize-surfaces.css): se respeta. */
+html:not(.tema-claro):not(.tema-luz) body:not(#_) .co-head :is(.co-back, .co-logout, .co-gear) {
+  border: 1.5px solid transparent;
+  background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box, var(--gize-rgb-ring) border-box;
+}
+
+/* Sin neón no hay color en los bordes: el selector deslizante del coach va en gris. */
+html.sin-neon:not(.tema-claro):not(.tema-luz) body:not(#_) .co-tabs::before {
+  border-color: rgba(255,255,255,.28); box-shadow: none;
+}

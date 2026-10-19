@@ -105,7 +105,12 @@ export function paintStreak(){
     return;
   }
   if (lostNow) setTimeout(paintStreak, 400); // todavía está la pantalla de inicio: se muestra después
-  b.className = "streak" + (n > 0 ? " lit" : " out");
+  // Solo se redibuja si cambió: paintStreak corre en cada cambio de pantalla y rehacer la llama
+  // reiniciaba su animación, que en SVG obliga a recalcular el diseño de toda la pantalla en
+  // cada cuadro (era lo que más costaba al cambiar de pestaña, en todos los celulares).
+  const cls = "streak" + (n > 0 ? " lit" : " out");
+  if (b.className === cls && b._n === n && b.querySelector(".flame")) return;
+  b.className = cls; b._n = n;
   b.innerHTML = flameSvg(22) + `<b>${n}</b>`;
 }
 

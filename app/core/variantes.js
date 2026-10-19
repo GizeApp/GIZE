@@ -144,15 +144,36 @@ export function clearVariant(id){
   if (!Object.keys(v.map).length) delete state.exVariant;
   return o;
 }
-// Al guardar el entreno: se sacan las de ese día (se devuelven para «Seguir entrenando»).
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+// Al guardar el entreno: se sacan las de ese día (se devuelven para «Seguir entrenando») y vuelve
+// el peso que tenía el ejercicio de la rutina (kg0), también en las series tildadas: el entreno ya
+// quedó guardado. Si no, la vez siguiente el original arrancaba con los kg de la variante.
 export function takeVariants(d){
   const out = {};
-  (d && d.exercises || []).forEach(ex => { if (variantOf(ex)) out[ex.id] = clearVariant(ex.id); });
-  if (state.exVariant && !store()) delete state.exVariant; // vencida
+  (d && d.exercises || []).forEach(ex => {
+    if (!variantOf(ex)) return;
+    const o = out[ex.id] = clearVariant(ex.id);
+    if (o.kg0){ o.kgNow = {}; (ex.sets || []).forEach(s => { if (has(o.kg0, s.id)){ o.kgNow[s.id] = s.kg; s.kg = o.kg0[s.id]; } }); }
+  });
+  dropExpiredVariants();
   return out;
+}
+// Variante vencida (otro día, sin guardar el entreno): vuelve el peso del ejercicio de la rutina
+// en las series sin tildar, como «Volver al original». Devuelve true si había una.
+export function dropExpiredVariants(){
+  const v = state.exVariant;
+  if (!v || store()) return false;
+  const map = v.map && typeof v.map === "object" ? v.map : {};
+  (state.days || []).forEach(d => (d.exercises || []).forEach(ex => { const o = map[ex.id];
+    if (o && o.from === ex.name && o.kg0) (ex.sets || []).forEach(s => { if (!s.done && has(o.kg0, s.id)) s.kg = o.kg0[s.id]; }); }));
+  delete state.exVariant;
+  return true;
 }
 export function restoreVariants(map){
   if (!map || !Object.keys(map).length) return;
+  // Vuelven los kg que tenía la variante (ver takeVariants).
+  (state.days || []).forEach(d => (d.exercises || []).forEach(ex => { const o = map[ex.id];
+    if (o && o.kgNow){ (ex.sets || []).forEach(s => { if (has(o.kgNow, s.id)) s.kg = o.kgNow[s.id]; }); delete o.kgNow; } }));
   let v = store(); if (!v){ v = { date: today(), map: {} }; state.exVariant = v; }
   Object.assign(v.map, map);
 }

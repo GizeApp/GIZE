@@ -1,12 +1,12 @@
 import { answeredQuestions, coachOwnQuestions, DAILY_COLUMNS } from '../../core/questions.js';
 
-import { dec, esc, fmtDate } from '../../core/utils.js';
+import { dec, esc, fmtDate, today } from '../../core/utils.js';
 
 import { weeklyAvg } from './clientes.js';
 
 import { renderWChart } from '../progreso.js';
 
-import { CoachState } from './state.js';
+import { renderCoachCalendar, calSelDay } from './calendario.js';
 
 export function renderCoachWeekly(d){
   const avg=weeklyAvg(d.weights);
@@ -38,27 +38,20 @@ function qaList(list){
   return list.map(q=>'<div class="ck-q"><div class="ck-qt">'+esc(q.label)+'</div><div class="ck-qa">'+esc(String(q.value))+'</div></div>').join("");
 }
 
-// Selector de día / semana / entreno: muestra un registro por vez. Arranca en "Ninguno"
-// para que la sección no ocupe lugar hasta que el coach elige qué quiere ver.
-export function picker(action, items, sel, label){
-  const none='<option value=""'+(sel?'':' selected')+'>Ninguno</option>';
-  return '<label class="co-pick"><span>'+label+'</span><select class="co-select" data-coach="'+action+'">'+none+
-    items.map(it=>'<option value="'+esc(it.v)+'"'+(it.v===sel?' selected':'')+'>'+esc(it.t)+'</option>').join("")+'</select></label>';
-}
-
 export function renderCoachDaily(d){
   const rows=(d.daily||[]).slice().sort((a,b)=>String(b.log_date).localeCompare(String(a.log_date)));
   if(!rows.length) return '<div class="cal-hint">El cliente todav\u00eda no carg\u00f3 registros diarios.</div>';
   const wmap={}; (d.weights||[]).forEach(w=>wmap[w.date]=w.kg);
-  const sel=rows.some(r=>r.log_date===CoachState.coachDailySel) ? CoachState.coachDailySel : "";
-  const pick=picker("daily-pick", rows.map(x=>({v:x.log_date, t:dayLabel(x.log_date)})), sel, "Día");
-  if(!sel) return pick;
+  const cal=renderCoachCalendar("daily", rows.map(x=>x.log_date), today(), ["registro","registros"]);
+  const sel=calSelDay("daily");
+  if(!sel) return cal+'<div class="cal-hint">Tocá un día marcado para ver el registro.</div>';
   const r=rows.find(x=>x.log_date===sel);
+  if(!r) return cal+'<div class="cal-hint">Ese día no hay registro.</div>';
   const w=wmap[r.log_date];
   const qs=answeredQuestions("daily", dailyAnswers(r), coachOwnQuestions("daily"));
   const top='<div class="ck-head">'+dayLabel(r.log_date)+
     '<span class="ck-adh">Peso: <b>'+(w?dec(w)+' kg':'\u2014')+'</b> · Pasos: <b>'+(r.steps?Number(r.steps).toLocaleString("es-AR"):'\u2014')+'</b></span></div>';
-  return pick+
+  return cal+
     '<div class="ck-card">'+top+(qs.length?qaList(qs):'<div class="cal-hint">Ese día no respondió las preguntas del registro.</div>')+'</div>';
 }
 
@@ -77,13 +70,24 @@ function ckLabel(c){
   }catch(e){ return "Semana del "+fmtDate(c.week_start); }
 }
 
+// Día (YYYY-MM-DD, hora de Argentina) en que se cargó el check-in; sin fecha guardada, el lunes de su semana.
+function ckDay(c){
+  const t=c && (c.created_at || c.inserted_at);
+  const dt=t ? new Date(t) : null;
+  if(dt && !isNaN(dt)){
+    try{ return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Argentina/Buenos_Aires",year:"numeric",month:"2-digit",day:"2-digit"}).format(dt); }catch(e){}
+  }
+  return String(c.week_start||"");
+}
+
 export function renderCoachCheckins(d){
   const cks=(d.checkins||[]).slice().sort((a,b)=>String(b.week_start).localeCompare(String(a.week_start)));
   if(!cks.length) return '<div class="cal-hint">El cliente todav\u00eda no respondi\u00f3 ning\u00fan check-in.</div>';
-  const sel=cks.some(c=>c.week_start===CoachState.coachCkSel) ? CoachState.coachCkSel : "";
-  const pick=picker("ck-pick", cks.map(x=>({v:x.week_start, t:ckLabel(x)})), sel, "Check-in");
-  if(!sel) return pick;
-  const c=cks.find(x=>x.week_start===sel);
+  const cal=renderCoachCalendar("ck", cks.map(ckDay), today(), ["check-in","check-ins"]);
+  const sel=calSelDay("ck");
+  if(!sel) return cal+'<div class="cal-hint">Tocá un día marcado para ver el check-in.</div>';
+  const c=cks.find(x=>ckDay(x)===sel);
+  if(!c) return cal+'<div class="cal-hint">Ese día no hay check-in.</div>';
   const a=Object.assign({}, c.answers||{});
   // La adherencia del 1 al 10 tiene su propia columna y se muestra en el encabezado. Si el
   // coach le cambió las opciones (palabras) o el tipo (respuesta libre), va como una más.
@@ -91,6 +95,6 @@ export function renderCoachCheckins(d){
   if(!adhN && c.adherence!=null && String(c.adherence).trim()!=="" && (a.adherence==null || a.adherence==="")) a.adherence=c.adherence;
   const qs=answeredQuestions("checkin", a, coachOwnQuestions("checkin")).filter(q=>q.id!=="adherence" || !adhN);
   const adh=adhN?'<span class="ck-adh">Adherencia: <b>'+adhN+'/10</b></span>':'';
-  return pick+
+  return cal+
     '<div class="ck-card"><div class="ck-head">'+esc(ckLabel(c))+' '+adh+'</div>'+(qs.length?qaList(qs):'<div class="cal-hint">Sin respuestas.</div>')+'</div>';
 }

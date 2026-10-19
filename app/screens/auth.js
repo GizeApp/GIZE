@@ -1,4 +1,4 @@
-import { auIcoEye, auIcoLock, auIcoMail, auIcoUser } from '../core/icons.js';
+import { auIcoEye, auIcoLock, auIcoMail, auIcoTicket, auIcoUser } from '../core/icons.js';
 
 import { hideSilkBg, startAuthParticles, stopAuthParticles } from '../ui/background.js';
 
@@ -8,8 +8,12 @@ import { appleLoginAvailable, mountGoogleButton, rememberSession } from '../core
 
 import { isIOS, isStandalone } from '../core/push.js';
 
+import { appIOS } from '../core/tienda.js';
+
 const nativeApp = () => { try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) { return false; } };
 const iosSafari = () => { try { return isIOS() && !isStandalone() && !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) { return false; } };
+
+const auIcoDown = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"/></svg>';
 
 // "G" oficial de Google: las pautas de marca piden los cuatro colores, sin recolorear.
 const googleLogo = '<svg class="auth-google-ic" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
@@ -21,7 +25,7 @@ const appleLogo = '<svg class="auth-apple-ic" viewBox="0 0 814 1000" aria-hidden
 
 export function showLogin(msg, mode, vals){
   mode = mode || "in"; vals = vals || {};
-  if(mode==="forgot" || mode==="newpass") return showPasswordReset(msg, mode, vals);
+  if(mode==="forgot" || mode==="code" || mode==="newpass") return showPasswordReset(msg, mode, vals);
   const isUp = mode==="up";
   const eq = v => esc(v==null?"":v);
   const host=document.getElementById("authHost"); if(!host) return;
@@ -30,14 +34,20 @@ export function showLogin(msg, mode, vals){
   const isOk = !!msg && /^listo/i.test(String(msg).trim());
   let stepIdx=-1;
   const nextDelay=()=>{ stepIdx++; return (0.14+stepIdx*0.055).toFixed(3)+"s"; };
-  const role = vals.role==="coach" ? "coach" : "client";
-  const field=(id, icon, extraClass, ph, type, autocomplete, value)=>
+  // App de iPhone: las cuentas de coach se crean solo desde la web (core/tienda.js), así que
+  // ahí no está «Soy coach» y toda cuenta nueva es de alumno.
+  const ios = appIOS();
+  const role = vals.role==="coach" && !ios ? "coach" : "client";
+  const field=(id, icon, extraClass, ph, type, autocomplete, value, label)=>
     '<div class="auth-field'+(extraClass?(" "+extraClass):"")+'" style="animation-delay:'+nextDelay()+'">'+
-      '<span class="auth-ic" aria-hidden="true">'+icon+'</span>'+
-      '<input id="'+id+'" class="auth-in" type="'+type+'" placeholder="'+ph+'" autocomplete="'+autocomplete+'" aria-label="'+ph+'" value="'+eq(value)+'">'+
-      (id==="auPass" ? '<button type="button" class="auth-toggle-pass" data-toggle-pass aria-label="Mostrar contraseña">'+auIcoEye+'</button>' : '')+
+      '<label class="auth-lbl" for="'+id+'">'+label+'</label>'+
+      '<div class="auth-box">'+
+        '<span class="auth-ic" aria-hidden="true">'+icon+'</span>'+
+        '<input id="'+id+'" class="auth-in" type="'+type+'" placeholder="'+ph+'" autocomplete="'+autocomplete+'" value="'+eq(value)+'">'+
+        (id==="auPass" ? '<button type="button" class="auth-toggle-pass" data-toggle-pass aria-label="Mostrar contraseña">'+auIcoEye+'</button>' : '')+
+      '</div>'+
     '</div>';
-  const roleField = isUp ?
+  const roleField = isUp && ios ? '<input id="auRole" type="hidden" value="client">' : isUp ?
     '<div class="auth-field auth-role" style="animation-delay:'+nextDelay()+'">'+
       '<div class="auth-role-group" role="radiogroup" aria-label="Tipo de cuenta">'+
         '<button type="button" class="auth-role-opt'+(role==="client"?" active":"")+'" data-auth-role="client" role="radio" aria-checked="'+(role==="client")+'">Soy cliente</button>'+
@@ -52,18 +62,26 @@ export function showLogin(msg, mode, vals){
     '<canvas class="auth-particles" aria-hidden="true"></canvas>'+
     '<div class="auth-card" role="region" aria-label="'+(isUp?"Crear cuenta":"Iniciar sesión")+'">'+
       '<div class="auth-brand-ic" aria-hidden="true"><img src="brand/logo/gize-marca-blanca.svg" alt=""></div>'+
-      '<div class="auth-logo"><img src="brand/logo/gize-logotipo.svg" alt="GIZE"></div>'+
-      '<div class="auth-sub">Tu planilla de entrenamiento</div>'+
+      '<div class="auth-tabs" role="tablist" aria-label="Ingresar o crear cuenta">'+
+        '<button type="button" class="auth-tab'+(isUp?"":" active")+'" role="tab" aria-selected="'+(!isUp)+'" data-auth="to-login">Ingresar</button>'+
+        '<button type="button" class="auth-tab'+(isUp?" active":"")+'" role="tab" aria-selected="'+isUp+'" data-auth="to-signup">Crear cuenta</button>'+
+      '</div>'+
+      '<div class="auth-head">'+
+        '<h1 class="auth-title">'+(isUp?"Creá tu cuenta":"Bienvenido de vuelta")+'</h1>'+
+        '<p class="auth-sub">'+(isUp?"Tarda menos de un minuto.":"Entrá para ver tu rutina de hoy.")+'</p>'+
+      '</div>'+
       roleField+
-      (isUp?field("auName", auIcoUser, "", "Tu nombre y apellido", "text", "name", vals.name):"")+
-      field("auEmail", auIcoMail, "", "Email (ej: nombre@gmail.com)", "email", "username", vals.email)+
-      field("auPass", auIcoLock, "pass", "Contraseña (mínimo 6)", "password", isUp?"new-password":"current-password", "")+
-      (isUp?"":'<button type="button" class="auth-forgot" data-auth="to-forgot" style="animation-delay:'+nextDelay()+'">¿Olvidaste tu contraseña?</button>')+
-      '<label class="auth-remember" style="animation-delay:'+nextDelay()+'">'+
-        '<input id="auRemember" type="checkbox"'+(rememberSession()?" checked":"")+'>'+
-        '<span class="auth-remember-box" aria-hidden="true"></span>'+
-        '<span>Mantener la sesión iniciada</span>'+
-      '</label>'+
+      (isUp?field("auName", auIcoUser, "", "Tu nombre", "text", "name", vals.name, "Nombre y apellido"):"")+
+      field("auEmail", auIcoMail, "", "nombre@gmail.com", "email", "username", vals.email, "Email")+
+      field("auPass", auIcoLock, "pass", "Mínimo 6 caracteres", "password", isUp?"new-password":"current-password", "", "Contraseña")+
+      '<div class="auth-row" style="animation-delay:'+nextDelay()+'">'+
+        '<label class="auth-remember">'+
+          '<input id="auRemember" type="checkbox"'+(rememberSession()?" checked":"")+'>'+
+          '<span class="auth-remember-box" aria-hidden="true"></span>'+
+          '<span>Mantener la sesión</span>'+
+        '</label>'+
+        (isUp?"":'<button type="button" class="auth-forgot" data-auth="to-forgot">¿Olvidaste tu contraseña?</button>')+
+      '</div>'+
       // En Safari del iPhone la página puede perder lo guardado (y con eso la sesión) si no se
       // abre por unos días; con GIZE agregada a la pantalla de inicio eso no pasa.
       (iosSafari()?'<div class="auth-ios-tip" style="animation-delay:'+nextDelay()+'">En iPhone, para que no se te cierre la sesión, agregá GIZE a la pantalla de inicio (Compartir → Agregar a inicio) y entrá siempre desde ese ícono.</div>':'')+
@@ -73,42 +91,65 @@ export function showLogin(msg, mode, vals){
       // App de iPhone: App Store pide ofrecer Apple si se puede entrar con Google (guía 4.8).
       (appleLoginAvailable()?'<button type="button" class="auth-apple" data-auth="apple" style="animation-delay:'+nextDelay()+'">'+appleLogo+'<span>Continuar con Apple</span></button>':'')+
       '<button type="button" class="auth-google" data-auth="google" style="animation-delay:'+nextDelay()+'">'+googleLogo+'<span>Continuar con Google</span></button>'+
-      '<div class="auth-switch" data-auth="'+(isUp?"to-login":"to-signup")+'" role="button" tabindex="0" style="animation-delay:'+nextDelay()+'">'+(isUp?"Ya tengo cuenta":"Crear una cuenta nueva")+'</div>'+
       // En las apps de Android y iPhone ya está instalada: el botón no va (y App Review lo marcaría).
-      (nativeApp()?'':'<button type="button" class="auth-install" data-install style="animation-delay:'+nextDelay()+'">Instalar GIZE en el celular</button>')+
+      (nativeApp()?'':'<button type="button" class="auth-install" data-install style="animation-delay:'+nextDelay()+'">'+auIcoDown+'<span>Instalar GIZE en el celular</span></button>')+
     '</div>';
   startAuthParticles(host.querySelector(".auth-particles"));
   mountGoogleButton().catch(()=>{});
 }
 
-// Recuperar la contraseña: "forgot" pide el mail para mandar el link; "newpass" aparece al
-// volver del link (ya con una sesión de recuperación) para elegir la contraseña nueva.
+// Recuperar la contraseña, en tres pasos:
+//   "forgot"  pide el mail y manda el mail de recuperación.
+//   "code"    pide el código que trae ese mail. Sirve en cualquier celular o
+//             navegador: el link del mail, en cambio, solo funciona donde se pidió (en la web
+//             por seguridad, ver LINK_REFUSED en core/supabase.js; en la app por el PKCE), y
+//             quien lo abría desde Gmail en otro navegador o en la compu quedaba trabado.
+//   "newpass" aparece con la sesión de recuperación (por el código o por el link) para
+//             elegir la contraseña nueva.
+// El mail viaja de un paso al otro en vals.email (en "code" va en un campo oculto #auEmail,
+// así «Volver a ingresar» y «Pedir un mail nuevo» lo traen escrito). Si no se sabe (botón del
+// mail abierto en otro navegador, «Ya tengo un código» sin mail), vals.askEmail lo pide ahí.
 function showPasswordReset(msg, mode, vals){
   const host=document.getElementById("authHost"); if(!host) return;
   host.style.display="flex";
   hideSilkBg();
-  const isNew = mode==="newpass";
+  const isNew = mode==="newpass", isCode = mode==="code", askEmail = isCode && !!vals.askEmail;
   const isOk = !!msg && /^listo/i.test(String(msg).trim());
+  const email = String(vals.email||"").trim();
   let stepIdx=-1;
   const nextDelay=()=>{ stepIdx++; return (0.14+stepIdx*0.055).toFixed(3)+"s"; };
-  const field=(id, icon, extraClass, ph, type, autocomplete, value)=>
+  const field=(id, icon, extraClass, ph, type, autocomplete, value, extra)=>
     '<div class="auth-field'+(extraClass?(" "+extraClass):"")+'" style="animation-delay:'+nextDelay()+'">'+
       '<span class="auth-ic" aria-hidden="true">'+icon+'</span>'+
-      '<input id="'+id+'" class="auth-in" type="'+type+'" placeholder="'+ph+'" autocomplete="'+autocomplete+'" aria-label="'+ph+'" value="'+esc(value||"")+'">'+
+      '<input id="'+id+'" class="auth-in" type="'+type+'" placeholder="'+ph+'" autocomplete="'+autocomplete+'" aria-label="'+ph+'" value="'+esc(value||"")+'"'+(extra||"")+'>'+
       (id==="auPass" ? '<button type="button" class="auth-toggle-pass" data-toggle-pass aria-label="Mostrar contraseña">'+auIcoEye+'</button>' : '')+
     '</div>';
+  const link=(action, text)=>'<div class="auth-switch" data-auth="'+action+'" role="button" tabindex="0" style="animation-delay:'+nextDelay()+'">'+text+'</div>';
+  const sub = isNew ? "Elegí tu contraseña nueva" : isCode ? "Código del mail" : "Recuperar contraseña";
+  const note = isNew ? ""
+    : isCode ? (askEmail ? 'Escribí el mail de tu cuenta y el código del mail que te mandamos. Funciona en este celular o en cualquier otro.'
+                         : 'Escribí el código que te mandamos'+(email?' a <b>'+esc(email)+'</b>':'')+'. Funciona en este celular o en cualquier otro.')
+    : "Te mandamos un mail con un link y un código para elegir una contraseña nueva.";
+  const label = isNew ? "Contraseña nueva" : isCode ? "Código del mail" : "Recuperar contraseña";
+  const btn = isNew ? ["do-newpass","Guardar contraseña"] : isCode ? ["do-code","Seguir"] : ["do-forgot","Mandarme el mail"];
   host.innerHTML =
     '<div class="gize-aurora auth-aurora" aria-hidden="true"><span></span><span></span><span></span><span></span></div>'+
     '<canvas class="auth-particles" aria-hidden="true"></canvas>'+
-    '<div class="auth-card" role="region" aria-label="'+(isNew?"Contraseña nueva":"Recuperar contraseña")+'">'+
+    '<div class="auth-card" role="region" aria-label="'+label+'">'+
       '<div class="auth-brand-ic" aria-hidden="true"><img src="brand/logo/gize-marca-blanca.svg" alt=""></div>'+
       '<div class="auth-logo"><img src="brand/logo/gize-logotipo.svg" alt="GIZE"></div>'+
-      '<div class="auth-sub">'+(isNew?"Elegí tu contraseña nueva":"Te mandamos un link a tu mail para elegir una contraseña nueva")+'</div>'+
+      '<div class="auth-sub">'+sub+'</div>'+
+      (note?'<p class="auth-note">'+note+'</p>':'')+
       (isNew ? field("auPass", auIcoLock, "pass", "Contraseña nueva (mín. 6)", "password", "new-password", "")
-             : field("auEmail", auIcoMail, "", "Email de tu cuenta", "email", "username", vals.email))+
+        : isCode ? (askEmail ? field("auEmail", auIcoMail, "", "Email de tu cuenta", "email", "username", email, ' data-ask-email')
+                             : '<input id="auEmail" type="hidden" value="'+esc(email)+'">')+
+                   field("auOtp", auIcoTicket, "", "Código del mail", "text", "one-time-code", vals.code, ' inputmode="numeric" maxlength="12" autocapitalize="off" spellcheck="false"')
+        : field("auEmail", auIcoMail, "", "Email de tu cuenta", "email", "username", email))+
       (msg?'<div class="auth-msg'+(isOk?" ok":"")+'" role="alert" style="animation-delay:'+nextDelay()+'">'+esc(msg)+'</div>':'')+
-      '<button class="gize-btn auth-btn" data-auth="'+(isNew?"do-newpass":"do-forgot")+'" style="animation-delay:'+nextDelay()+'">'+(isNew?"Guardar contraseña":"Mandarme el link")+'</button>'+
-      (isNew?"":'<div class="auth-switch" data-auth="to-login" role="button" tabindex="0" style="animation-delay:'+nextDelay()+'">Volver a ingresar</div>')+
+      '<button class="gize-btn auth-btn" data-auth="'+btn[0]+'" style="animation-delay:'+nextDelay()+'">'+btn[1]+'</button>'+
+      (isNew ? link("cancel-newpass", "Cancelar")
+        : isCode ? link("to-forgot", "Pedir un mail nuevo")+link("to-login", "Volver a ingresar")
+        : link("to-code", "Ya tengo un código")+link("to-login", "Volver a ingresar"))+
     '</div>';
   startAuthParticles(host.querySelector(".auth-particles"));
 }

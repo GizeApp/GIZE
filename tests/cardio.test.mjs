@@ -1,5 +1,6 @@
 // Cardio, cronómetro pausado: tocar el número y «Listo» sin mover las ruedas deja el tiempo
 // y las vueltas como estaban (con más de 60 min se cortaba a 1:00:00 y se borraban las vueltas).
+// La sección «Cronómetro y temporizador» arranca cerrada: primero se abre.
 import { newPage, wait, text, ALUMNO, profile } from './lib.mjs';
 
 export default async function ({ base, t }){
@@ -7,6 +8,8 @@ export default async function ({ base, t }){
     handlers: { '/profiles': profile('client') } });
   await p.goto(base + '/app/'); await wait(2500);
   await p.click('#nav-cardio'); await wait(300);
+  // «Cronómetro y temporizador» arranca cerrado: se abre tocando el título.
+  await p.click('.csec-tools .csec-sum'); await wait(200);
 
   // 1:15:15 con una vuelta, pausado.
   await p.click('[data-action="sw-toggle"]'); await wait(200);

@@ -3,7 +3,7 @@
 
 .ph-date { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.7); color:var(--gize-text); font-size:10px; text-align:center; padding:3px; }
 
-.ck-card { background:var(--card); border:1px solid var(--border); border-radius:4px; padding:14px; margin-bottom:10px; }
+.ck-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r-box); padding:14px; margin-bottom:10px; }
 
 .ck-head { font-size: var(--text-meta); color:var(--blue-2); text-transform:uppercase; letter-spacing:.08em; font-weight:700; margin-bottom:12px; display:flex; justify-content:space-between; }
 

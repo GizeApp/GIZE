@@ -12,7 +12,6 @@
     "@capacitor/cli": "^7.4.0"
   },
   "dependencies": {
-    "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor/android": "^7.4.0",
     "@capacitor/app": "^7.1.2",
     "@capacitor/browser": "^7.0.5",
@@ -22,6 +21,7 @@
     "@capacitor/local-notifications": "^7.0.7",
     "@capacitor/push-notifications": "^7.0.7",
     "@capacitor/share": "^7.0.4",
+    "@capgo/capacitor-health": "7.2.15",
     "@capgo/capacitor-social-login": "^7.20.0"
   }
 }

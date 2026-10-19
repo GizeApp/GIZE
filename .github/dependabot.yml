@@ -6,3 +6,18 @@ updates:
     directory: /
     schedule:
       interval: monthly
+  # La imagen de Postgres de la copia de seguridad, fijada por digest (.github/postgres/Dockerfile).
+  # Solo dentro de la misma versión mayor: con otra, las copias salen de un pg_dump nuevo y
+  # restaurarlas pide un pg_restore igual o más nuevo (ver backup.yml). Ese cambio va a mano.
+  - package-ecosystem: docker
+    directory: /.github/postgres
+    schedule:
+      interval: monthly
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+  # Pillow del workflow «Fotos de videos», con versión y hash fijos (scripts/fotos-videos-requirements.txt).
+  - package-ecosystem: pip
+    directory: /scripts
+    schedule:
+      interval: monthly

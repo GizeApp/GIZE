@@ -1,13 +1,15 @@
 // Pregunta de adherencia del check-in cambiada por el coach (opciones con palabras o
 // respuesta libre): la respuesta se marca, llega en answers (no a la columna numérica, que
 // la rechazaría) y el coach la ve como una pregunta más. Con un número sigue yendo a la columna.
-import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, ALUMNO, perfil, CON_COACH } from './lib.mjs';
+// Con coach (perfil y no profile, que deja la app sin perfil): sin coach, Progreso no muestra el
+// check-in semanal.
 
 async function enviar(base, t, tag, adhQ, responder){
   const posts = [];
   const cq = { daily: null, checkin: [{ id: 'q1', label: '¿Cómo fue tu semana?', type: 'text' }, adhQ] };
   const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: { sessions: [], daily: {}, weights: [] },
-    handlers: { '/profiles': profile('client', { coach_id: '33333333-3333-3333-3333-333333333333' }),
+    handlers: { '/profiles': perfil('client', CON_COACH),
       '/coach_questions': (r, J, i) => i.m === 'GET' ? J(i.one ? cq : [cq]) : undefined,
       '/checkins': (r, J, i) => i.m === 'POST' ? (posts.push(JSON.parse(i.body)), r.fulfill({ status: 201, body: '[]' })) : undefined } });
   await p.goto(base + '/app/'); await wait(2500);
@@ -60,13 +62,15 @@ export default async function ({ base, t }){
     const { CoachState } = await import('/app/screens/coach/state.js');
     const { renderCoachCheckins } = await import('/app/screens/coach/seguimiento.js');
     const txt = h => { const d = document.createElement('div'); d.innerHTML = h; return d.innerText.replace(/\s+/g, ' ').trim(); };
-    CoachState.coachCkSel = '2026-09-21';
-    return {
-      palabras: txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', adherence: null, answers: { q1: 'Bien', adherence: 'Bastante', _q: { adherence: '¿Cuánto cumpliste el plan?' } } }] })),
-      numero: txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', adherence: 8, answers: { q1: 'Bien' } }] })),
-      // Con la fecha en que lo cargó (02:30 UTC del 2 de octubre = 1 de octubre a la noche en Argentina).
-      fecha: txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', created_at: '2026-10-02T02:30:00Z', adherence: 8, answers: { q1: 'Bien' } }] })),
-    };
+    // En el calendario de check-ins (coach/calendario.js) el detalle se ve al tocar el día marcado.
+    const dia = d => { CoachState.coachCal = { ck: { m: null, d } }; };
+    dia('2026-09-21');
+    const palabras = txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', adherence: null, answers: { q1: 'Bien', adherence: 'Bastante', _q: { adherence: '¿Cuánto cumpliste el plan?' } } }] }));
+    const numero = txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', adherence: 8, answers: { q1: 'Bien' } }] }));
+    // Con la fecha en que lo cargó (02:30 UTC del 2 de octubre = 1 de octubre a la noche en Argentina).
+    dia('2026-10-01');
+    const fecha = txt(renderCoachCheckins({ checkins: [{ week_start: '2026-09-21', created_at: '2026-10-02T02:30:00Z', adherence: 8, answers: { q1: 'Bien' } }] }));
+    return { palabras, numero, fecha };
   });
   t.has(vista.palabras, 'Bastante', 'coach: ve la adherencia en palabras');
   t.ok(!vista.palabras.includes('/10'), 'coach: no muestra «0/10» con una respuesta en palabras: ' + vista.palabras);

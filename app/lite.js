@@ -5,8 +5,7 @@
 // App de Android (Capacitor): html.android-app. Ahí la placa de video es la que se traba
 // (Play Console: ANR «La GPU no responde» en un Galaxy A13 al abrir), así que sin
 // backdrop-filter (css/ui/lite.css y los temas) y con el fondo animado más barato
-// (app/ui/background.js). Y el liviano entra antes: con 4 GB o menos, 4 núcleos o menos, o
-// una placa de video de gama baja (se mira una sola vez y queda anotado en "gize_gpu_lenta").
+// (app/ui/background.js). Y va siempre en GIZE básico (ver más abajo).
 (function () {
   try {
     var o = localStorage.getItem("gize_lite"), n = navigator, c = n.connection || {}, w = window, C = w.Capacitor;
@@ -15,27 +14,16 @@
     if (android) document.documentElement.classList.add("android-app");
     var weak = (n.deviceMemory && n.deviceMemory <= 4) || (n.hardwareConcurrency && n.hardwareConcurrency <= 2) ||
       c.saveData === true || localStorage.getItem("gize_lite_auto") === "1";
-    if (android && !weak && o !== "0") weak = (n.hardwareConcurrency && n.hardwareConcurrency <= 4) || gpuLenta();
-    if (o === "1" || (o !== "0" && weak)) document.documentElement.classList.add("lite");
+    // App de Android: GIZE básico siempre (html.lite + html.basico, css/ui/basico.css), salvo que
+    // se elija la apariencia completa en Ajustes. Aun en modo liviano, las sombras, brillos y
+    // animaciones trababan los Android de gama media (Galaxy A13). iPhone y web quedan completos.
+    if (android && o !== "0") weak = true;
+    if (o === "1" || (o !== "0" && weak)){
+      document.documentElement.classList.add("lite");
+      if (android) document.documentElement.classList.add("basico");
+    }
   } catch (e) {}
 
-  // Mali de gama baja (G52 del A13, G57, G31…), Adreno 3xx a 61x, PowerVR: el WebView no da
-  // para desenfoques ni bordes girando. Se crea un contexto WebGL solo la primera vez.
-  function gpuLenta() {
-    var v = localStorage.getItem("gize_gpu_lenta");
-    if (v === null) {
-      v = "0";
-      try {
-        var gl = document.createElement("canvas").getContext("webgl");
-        var ext = gl && gl.getExtension("WEBGL_debug_renderer_info");
-        var r = gl ? String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) || "") : "";
-        if (/Mali-(4|T|G31|G51|G52|G57|G71|G72)|Adreno \(TM\) ([3-5]\d\d|6[01]\d)\b|PowerVR/i.test(r)) v = "1";
-        var lose = gl && gl.getExtension("WEBGL_lose_context"); if (lose) lose.loseContext();
-      } catch (e) {}
-      localStorage.setItem("gize_gpu_lenta", v);
-    }
-    return v === "1";
-  }
 })();
 
 // Ahorro de batería: con la batería baja (20 % o menos y sin cargar) o con el ahorro de datos
@@ -72,10 +60,11 @@
   } catch (e) {}
 })();
 
-// Apariencia: «Oscuro» (la de siempre, por defecto), «Claro» (blanco con texto oscuro:
-// html.tema-luz, css/ui/tema-luz.css), «Azul» (vidrio sobre círculos de color: html.tema-claro,
-// css/ui/tema-claro.css; antes se llamaba «Claro») o «Rosa» (el mismo vidrio con la paleta rosa:
-// html.tema-claro + html.tema-rosa, css/ui/tema-rosa.css). Se elige en Ajustes (cliente) o en
+// Apariencia: «Oscuro» (la de siempre, por defecto), «Claro» (vidrio blanco sobre celeste con
+// texto oscuro: html.tema-luz, css/ui/tema-luz.css y css/ui/claro-frozen.css), «Azul» (vidrio
+// sobre círculos de color: html.tema-claro, css/ui/tema-claro.css; antes se llamaba «Claro») o
+// «Rosa» (el mismo vidrio con la paleta rosa: html.tema-claro + html.tema-rosa,
+// css/ui/tema-rosa.css). Se elige en Ajustes (cliente) o en
 // Configuración (coach) y se guarda en este dispositivo ("gize_tema" = "luz", "azul" o "rosa";
 // ver app/ui/tema.js). Quien eligió «Azul» cuando se llamaba «Claro» tiene guardado "claro": se
 // toma como «Azul» y se pasa a "azul". Va acá, igual que el modo liviano, para que la primera
@@ -89,7 +78,7 @@
     if (t === "luz") c.add("tema-luz");
     else { c.add("tema-claro"); if (t === "rosa") c.add("tema-rosa"); }
     // La barra del sistema (Android) con el color del fondo: los <meta> vienen después de este script.
-    var barra = t === "luz" ? "#F4F5F8" : t === "rosa" ? "#14060F" : "#030814";
+    var barra = t === "luz" ? "#C6D8EA" : t === "rosa" ? "#14060F" : "#030814";
     document.addEventListener("DOMContentLoaded", function () {
       if (!c.contains("tema-claro") && !c.contains("tema-luz")) return;
       var m = document.querySelectorAll('meta[name="theme-color"]');

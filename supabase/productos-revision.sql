@@ -4,7 +4,8 @@
 -- supabase/productos.sql).
 -- OJO: NO volver a correr suelto. Redefine products_before y admin_product_save, y las
 -- versiones vigentes están en productos-admin.sql y admin.sql (que además anota en el
--- registro). Si lo corrés, corré después admin.sql y productos-admin.sql.
+-- registro). Si lo corrés, corré después admin.sql y productos-admin.sql. Y la política de
+-- subir fotos al bucket productos (ruta exacta y tope por día) está en topes-archivos.sql.
 --
 -- Administradores: se agregan a mano desde el editor SQL de Supabase (no va en este archivo
 -- porque el repositorio es público):

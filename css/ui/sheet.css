@@ -1,7 +1,7 @@
 /* css/ui/sheet.css */
 .sheet-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 
-.sheet-input { width: 110px; background: var(--card-2); border: 1px solid var(--border); border-radius: 4px; padding: 13px; text-align: center; color: var(--txt); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sheet-input { width: 110px; background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-box); padding: 13px; text-align: center; color: var(--txt); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .sheet-input:focus { outline: none; border-color: var(--blue); box-shadow: var(--focus-ring); }
 

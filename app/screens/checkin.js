@@ -18,7 +18,7 @@ import { renderApp } from '../main.js';
 
 import { day, wkElapsedMs, wkStarted } from './entreno.js';
 
-import { detectPRs } from './progreso.js';
+import { conCoach, detectPRs } from './progreso.js';
 
 export const CheckinState = {
 
@@ -52,12 +52,17 @@ function renderSummary(){
     cell(sm.sets,"Series")+cell(sm.exs,"Ejercicios")+
     '</div></div>';
 }
-export function saveSession(){
+export async function saveSession(){
   const d=day(); const exs=[];
+  // Los kg y reps de la rutina quedan cargados de una vez a la otra: si tildó alguna serie, se
+  // guardan solo las tildadas (las otras son de la vez pasada y hoy no se hicieron, p. ej. la
+  // máquina estaba ocupada). Quien nunca tilda guarda las que tienen reps o segundos.
+  const anyDone=todayExs(d).some(ex=>(ex.sets||[]).some(s=>s.done));
   // Con la variante elegida por hoy (core/variantes.js): se guarda lo que se hizo de verdad y,
   // en originalName, el ejercicio de la rutina.
   todayExs(d).forEach(ex=>{
-    const sets=(ex.sets||[]).map(s=>{ const o={kg:parseFloat(String(s.kg).replace(",","."))||0, reps:parseInt(s.reps)||0}; const sc=parseSecs(s.secs); if(sc>0) o.secs=Math.min(36000,sc); return o; }).filter((o,i)=>o.reps>0||o.secs>0||(o.kg!==0&&ex.sets[i].done));
+    const sets=(ex.sets||[]).map(s=>{ const o={kg:parseFloat(String(s.kg).replace(",","."))||0, reps:parseInt(s.reps)||0}; const sc=parseSecs(s.secs); if(sc>0) o.secs=Math.min(36000,sc); return o; })
+      .filter((o,i)=>anyDone ? !!ex.sets[i].done && (o.reps>0||o.secs>0||o.kg!==0) : (o.reps>0||o.secs>0));
     // Una serie con solo el peso (lo completa la app al cargar el primero, o "Usar estos
     // pesos") y sin reps ni tildar no se hizo: no se guarda como serie de 0 reps.
     if(sets.length) exs.push(ex.origName ? {name:ex.name, originalName:ex.origName, sets:sets} : {name:ex.name, sets:sets});
@@ -71,11 +76,11 @@ export function saveSession(){
   const dup=(state.sessions||[]).slice().reverse().find(s=>s.date===today() && s.day===d.name && JSON.stringify(s.exercises)===sig);
   if(dup){
     const mins=Math.max(1, Math.round((Date.now()-(dup.ts||Date.now()))/60000));
-    if(!confirm("Este entreno ya lo guardaste hoy"+(dup.ts?" (hace "+mins+" min)":"")+", con los mismos pesos y repeticiones.\n\n¿Guardarlo otra vez?")) return;
+    if(!await confirmar("Este entreno ya lo guardaste hoy"+(dup.ts?" (hace "+mins+" min)":"")+", con los mismos pesos y repeticiones.\n\n¿Guardarlo otra vez?")) return;
   }
   // Se pide confirmación: tocarlo sin querer terminaba el entreno y cortaba el tiempo, sin
   // forma de volver. (Igual, desde la ventana de «¡Entreno terminado!» se puede seguir.)
-  else if(!confirm("¿Terminar y guardar el entreno de hoy?\n\nSe guarda en tu historial y se detiene el tiempo de entreno.")) return;
+  else if(!await confirmar("¿Terminar y guardar el entreno de hoy?\n\nSe guarda en tu historial y se detiene el tiempo de entreno.")) return;
   CheckinState.newPRs=detectPRs(exs, state.sessions); // contra el historial ANTES de sumar esta sesión
   // Resumen: tiempo desde la primera serie tildada, series, volumen y la vez anterior de ese día.
   const dur = wkStarted(d) ? Math.min(43200, Math.round(wkElapsedMs()/1000)) : 0;
@@ -91,6 +96,10 @@ export function saveSession(){
   noteSubs(d.name, exs);
   CheckinState.undo.variants=takeVariants(d);
   state.sessions.push(_ns);
+  // Se destilda el día, como «Limpiar»: si no, la vez siguiente todas seguían tildadas y se
+  // volvían a guardar como hechas. Los kg y reps quedan de punto de partida.
+  CheckinState.undo.done={}; CheckinState.undo.dayId=d.id;
+  (d.exercises||[]).forEach(ex=>(ex.sets||[]).forEach(st=>{ CheckinState.undo.done[st.id]=!!st.done; st.done=false; }));
   save();
   cloudInsertSession(_ns).then(ok=>{
     // Con internet queda en la cola y se reintenta solo; el aviso es solo para sin conexión.
@@ -102,7 +111,7 @@ export function saveSession(){
 
 // «Seguir entrenando» desde la ventana de «¡Entreno terminado!»: saca el entreno recién
 // guardado (también de la nube o de la cola) y vuelve el reloj del entreno como estaba.
-// Las series cargadas del día no se tocan (guardar no las borra).
+// Las series cargadas del día no se tocan (guardar no las borra) y vuelven a quedar tildadas.
 export function undoSaveSession(){
   const u=CheckinState.undo; if(!u) return;
   const se=(state.sessions||[]).find(x=>x.id===u.id);
@@ -110,6 +119,7 @@ export function undoSaveSession(){
   state.sessions=(state.sessions||[]).filter(x=>x.id!==u.id);
   if(u.wkStart) state.wkStart=u.wkStart;
   restoreVariants(u.variants);
+  if(u.done){ const d=(state.days||[]).find(x=>x.id===u.dayId); ((d && d.exercises)||[]).forEach(ex=>(ex.sets||[]).forEach(st=>{ if(Object.prototype.hasOwnProperty.call(u.done, st.id)) st.done=u.done[st.id]; })); }
   CheckinState.undo=null; CheckinState.fbSession=null; CheckinState.fbForm=null; CheckinState.newPRs=[];
   save();
 }
@@ -124,16 +134,21 @@ export function renderFeedback(){
   };
   const jp=["No","S\u00ed"].map(v=>'<button class="fb-n wide'+(f.joint===v?' on':'')+'" data-action="fb-set" data-k="joint" data-v="'+v+'">'+v+'</button>').join("");
   const prBanner = (CheckinState.newPRs&&CheckinState.newPRs.length) ? '<div class="pr-box"><div class="pr-title">'+trophySvg+' ¡Nuevo récord!</div>'+CheckinState.newPRs.map(p=>'<div class="pr-line"><span class="pr-ex">'+esc(p.name)+'</span><span class="pr-val">'+kgText(num(p.kg))+' kg × '+p.reps+'</span><span class="pr-prev">antes '+kgText(num(p.prev))+' kg</span></div>').join("")+'</div>' : '';
+  // «Contale a tu coach cómo te fue» (fatiga, pump, dolor) y «Enviar a mi coach», solo con coach
+  // (conCoach, como el registro y el check-in en Progreso). Sin coach queda el resumen, los
+  // récords y «Listo» para cerrar (el mismo fb-skip que «Ahora no»).
+  const coach = conCoach();
   host.innerHTML='<div class="fb-bg"></div><div class="fb-card">'+
     '<div class="fb-title">\u00a1Entreno terminado!</div>'+
     renderSummary()+
     prBanner+
-    '<div class="fb-sub">Contale a tu coach c\u00f3mo te fue</div>'+
-    scale("rpe","Fatiga percibida","1 = nada \u00b7 5 = al l\u00edmite")+
-    scale("pump","Pump de la sesi\u00f3n","1 = nada \u00b7 5 = mucho")+
-    '<div class="fb-row"><div class="fb-lbl">Dolor articular<span class="fb-hint">\u00bfMolestia en alguna articulaci\u00f3n?</span></div><div class="fb-opts">'+jp+'</div></div>'+
-    '<button class="form-save" style="margin-top:16px" data-action="fb-save">Enviar a mi coach</button>'+
-    '<button class="logout-btn" style="margin-top:8px" data-action="fb-skip">Ahora no</button>'+
+    (coach ? '<div class="fb-sub">Contale a tu coach c\u00f3mo te fue</div>'+
+      scale("rpe","Fatiga percibida","1 = nada \u00b7 5 = al l\u00edmite")+
+      scale("pump","Pump de la sesi\u00f3n","1 = nada \u00b7 5 = mucho")+
+      '<div class="fb-row"><div class="fb-lbl">Dolor articular<span class="fb-hint">\u00bfMolestia en alguna articulaci\u00f3n?</span></div><div class="fb-opts">'+jp+'</div></div>'+
+      '<button class="form-save" style="margin-top:16px" data-action="fb-save">Enviar a mi coach</button>'+
+      '<button class="logout-btn" style="margin-top:8px" data-action="fb-skip">Ahora no</button>'
+    : '<button class="form-save" style="margin-top:16px" data-action="fb-skip">Listo</button>')+
     (CheckinState.undo && CheckinState.undo.id===CheckinState.fbSession ? '<button class="fb-undo" data-action="fb-undo">Lo toqué sin querer: seguir entrenando</button>' : '')+'</div>';
 }
 
@@ -155,14 +170,39 @@ export function todayWeightText(){
   return w && Number(w.kg) > 0 ? String(w.kg).replace(".", ",") : "";
 }
 
+// ¿El registro del día tiene alguna respuesta? No cuentan los pasos (los suma el contador), el
+// peso ni _q (la foto de los textos de las preguntas). Lo usan «Guardar registro de hoy» y la
+// tarjeta de Progreso («Cargado hoy ✓»).
+export function dailyHasAnswer(r){
+  return Object.keys(r || {}).some(k => k !== "steps" && k !== "_q" && k !== "kg" && r[k] != null && String(r[k]).trim() !== "");
+}
+
+// Señal visual de cada opción de una escala (Nada → Mucho, Malo → Muy bueno…): barritas que van
+// subiendo, con tantas llenas como lugar ocupa la opción, así se lee de un vistazo sin la palabra.
+// El color depende de la pregunta: más es peor (dolor, cansancio), más es mejor (rendimiento,
+// motivación, sueño) o neutro (el resto, incluidas las que arma el coach). Solo de 2 a 5 opciones:
+// con más (1 a 10) los números ya alcanzan.
+const TONO = { soreness:"mal", fatigue:"mal", performance:"bien", motivation:"bien", sleep:"bien" };
+function optGlyph(qid, i, n, label){
+  // «Nada» es cero: ninguna barra llena.
+  if(/^nada$/i.test(String(label).trim())) i = -1;
+  if(n < 2 || n > 5) return "";
+  let bars = "";
+  for(let k = 0; k < n; k++) bars += '<i style="height:' + (5 + k * (9 / (n - 1))).toFixed(1) + 'px"' + (k <= i ? ' class="f"' : '') + '></i>';
+  return '<span class="sc-bars sc-t-' + (TONO[qid] || "neu") + '" aria-hidden="true">' + bars + '</span>';
+}
+const optBtn = (q, o, i, on, action) => '<button class="sc-opt' + (optGlyph(q.id, i, q.options.length, o) ? ' sc-g' : '') + (on ? ' on' : '') + '" data-action="' + action + '" data-k="' + esc(q.id) + '" data-v="' + esc(o) + '"' + (on ? ' aria-pressed="true"' : ' aria-pressed="false"') + '>' +
+  optGlyph(q.id, i, q.options.length, o) + '<span class="sc-txt">' + esc(o) + '</span></button>';
+
 export function renderDaily(){
   const d = CheckinState.dailyForm || (state.daily[today()] || {});
   const kgVal = CheckinState.dailyForm && CheckinState.dailyForm.kg != null ? CheckinState.dailyForm.kg : (todayWeightText() || d.kg || "");
   // Preguntas del coach (o las predeterminadas): las de opciones van como botones, las de
-  // texto como campo. Peso y pasos quedan fijos arriba: alimentan el gráfico y Hábitos.
+  // texto como campo. El peso queda fijo arriba: alimenta el gráfico. Los pasos no se anotan a
+  // mano en ningún lado (pedido): llegan solos de Salud / Health Connect (core/salud.js).
   const rows = clientQuestions("daily").map(q=>{
     if(q.type==="options"){
-      const opts = q.options.map(o=>'<button class="sc-opt'+(String(d[q.id])===o?' on':'')+'" data-action="daily-set" data-k="'+esc(q.id)+'" data-v="'+esc(o)+'">'+esc(o)+'</button>').join("");
+      const opts = q.options.map((o,i)=>optBtn(q, o, i, String(d[q.id])===o, "daily-set")).join("");
       return '<div class="dq-row"><span class="sc-lbl">'+esc(q.label)+'</span><div class="sc-opts">'+opts+'</div></div>';
     }
     // Texto: se ve entero (baja de línea) y la pregunta con la misma letra que las de opciones.
@@ -174,7 +214,6 @@ export function renderDaily(){
     <div class="daily-card">
       <div class="daily-top">
         <div class="dfield"><label>Peso</label><input id="dKg" class="form-input" type="text" inputmode="decimal" placeholder="kg" value="${esc(kgVal)}" data-action="daily-kg"></div>
-        <div class="dfield"><label>Pasos</label><input id="dSteps" class="form-input" type="text" inputmode="numeric" placeholder="0" value="${esc(CheckinState.dailyForm && CheckinState.dailyForm.steps!=null ? CheckinState.dailyForm.steps : (state.steps||""))}" data-action="daily-steps"></div>
       </div>
       ${rows}
       <button class="form-save" style="margin-top:12px" data-action="daily-save">Guardar registro de hoy</button>
@@ -224,7 +263,7 @@ export function renderCheckin(){
   const f = CheckinState.checkinForm || checkinDraft(wk);
   const qs = clientQuestions("checkin").map(q=>{
     if(q.type==="options"){
-      const opts = q.options.map(o=>'<button class="sc-opt'+(String(f[q.id])===o?' on':'')+'" data-action="ci-opt" data-k="'+esc(q.id)+'" data-v="'+esc(o)+'">'+esc(o)+'</button>').join("");
+      const opts = q.options.map((o,i)=>optBtn(q, o, i, String(f[q.id])===o, "ci-opt")).join("");
       return '<div class="ci-q"><label>'+esc(q.label)+'</label><div class="sc-opts">'+opts+'</div></div>';
     }
     return '<div class="ci-q"><label>'+esc(q.label)+'</label><textarea class="ci-in" rows="2" data-action="ci-set" data-k="'+esc(q.id)+'">'+esc(f[q.id]||"")+'</textarea></div>';
@@ -246,12 +285,14 @@ export function planSections(p){
   if(!p) return "";
   const meals=(rows,title)=>{
     if(!rows || !rows.length) return "";
-    let tk=0,tc=0,tf=0,tp=0;
-    const body=rows.map((r,i)=>{ tk+=+r.kcal||0;tc+=+r.cho||0;tf+=+r.fat||0;tp+=+r.prot||0;
+    // Como en el panel del coach (mealRows): num() acepta la coma («32,5») y los gramos van con un
+    // decimal y coma (10.1 + 20.2 daba 30.299999999999997).
+    let tk=0,tc=0,tf=0,tp=0; const r1=x=>String(Math.round(x*10)/10).replace(".",",");
+    const body=rows.map((r,i)=>{ tk+=num(r.kcal);tc+=num(r.cho);tf+=num(r.fat);tp+=num(r.prot);
       return '<tr class="mc-mrow mr-'+(i%4)+'"><td class="mc-meal">'+esc(r.meal||"")+(r.time?'<span class="mc-time">'+esc(r.time)+'</span>':'')+'</td><td>'+esc(r.kcal||"-")+'</td><td>'+esc(r.cho||"-")+'</td><td>'+esc(r.fat||"-")+'</td><td>'+esc(r.prot||"-")+'</td></tr>'+
         (r.note?'<tr class="mc-noter"><td colspan="5">'+esc(r.note)+'</td></tr>':''); }).join("");
     return '<div class="mc-block"><div class="mc-title">'+title+'</div><table class="mc-tbl"><thead><tr><th>Comida</th><th>Kcal</th><th>Hidr.</th><th>Gras.</th><th>Prot.</th></tr></thead><tbody>'+body+
-      '<tr class="mc-tot mc-goal"><td>Objetivo</td><td>'+tk+'</td><td>'+tc+'</td><td>'+tf+'</td><td>'+tp+'</td></tr></tbody></table></div>';
+      '<tr class="mc-tot mc-goal"><td>Objetivo</td><td>'+Math.round(tk)+'</td><td>'+r1(tc)+'</td><td>'+r1(tf)+'</td><td>'+r1(tp)+'</td></tr></tbody></table></div>';
   };
   const list=(arr,title,icon,cls)=>{ if(!arr||!arr.filter(x=>x&&x.trim()).length) return ""; return '<div class="mc-block'+(cls?' '+cls:'')+'"><div class="mc-title'+(cls?' '+cls+'-t':'')+'">'+icon+' '+title+'</div><ul class="mc-list">'+arr.filter(x=>x&&x.trim()).map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul></div>'; };
   const ws=(p.water||p.salt)?'<div class="mc-block"><div class="mc-ws">'+(p.water?'<span>💧 '+esc(withUnit(p.water,'L de agua por día'))+'</span>':'')+(p.salt?'<span>🧂 '+esc(withUnit(p.salt,'g de sal por día'))+'</span>':'')+'</div></div>':'';

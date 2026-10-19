@@ -35,6 +35,8 @@ export default async function ({ base, t }){
       } });
     await p.goto(base + '/app/'); await wait(3500);
     await p.click(`[data-coach="open"][data-id="${A1}"]`); await wait(1500);
+    // Desde el rediseño del panel (#332), Volumen semanal está en la pestaña «Estadísticas» de la ficha.
+    await p.click('[data-coach="client-tab"][data-t="stats"]'); await wait(300);
     t.eq(await text(p, '[data-coach="sec-open"][data-v="volumen"] .ptile-s'), '5 series por semana', 'coach: tarjeta de Volumen semanal');
     await p.click('[data-coach="sec-open"][data-v="volumen"]'); await wait(400);
     t.has(await text(p, '.vol-sub'), '5 series por semana', 'coach: adentro, el mismo total que la tarjeta');

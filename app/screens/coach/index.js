@@ -1,21 +1,23 @@
-import { copySvg, downloadSvg, gearSvg, resetSvg } from '../../core/icons.js';
+import { disciplinasLabel } from '../../core/disciplinas.js';
+import { copySvg, gearSvg, resetSvg } from '../../core/icons.js';
 
 import { dec, esc, fmtDate, today } from '../../core/utils.js';
 
-import { coachActivity, coachInitials, renderCoachInfo } from './clientes.js';
+import { coachInitials, renderCoachInfo } from './clientes.js';
 
-import { renderApplyPicker, renderCoachBlock, renderCoachPlan, renderCoachRoutine, renderCoachSchedule, renderCopyPicker, renderSchedPicker } from './rutinas.js';
+import { renderApplyPicker, renderCoachBlock, renderCoachHabits, renderCoachPlan, renderCoachRoutine, renderCoachSchedule, renderCopyPicker, renderSchedPicker } from './rutinas.js';
 
-import { picker, renderCoachCheckins, renderCoachDaily, renderCoachWeekly } from './seguimiento.js';
+import { renderCoachCalendar, calSelDay } from './calendario.js';
+
+import { renderCoachCheckins, renderCoachDaily, renderCoachWeekly } from './seguimiento.js';
 
 import { CoachState } from './state.js';
-import { CATALOGO, diasDeEntreno, rutinasDeDias } from '../../core/rutinas-ejemplo.js';
 import { State } from '../../core/state.js';
 import { blockWeek, isDeload, weekRange } from '../../core/bloque.js';
 
 import { renderVolumen, renderWChart } from '../progreso.js';
 
-import { showSilkBg } from '../../ui/background.js';
+import { lucesCoach, showSilkBg } from '../../ui/background.js';
 
 import { renderSessionItem } from '../../ui/sessiondetail.js';
 
@@ -24,10 +26,15 @@ import { avatarHtml } from '../../core/avatar.js';
 import { unreadFor } from '../../ui/chat.js';
 
 import { billing, renderPaywall, renderPlanBanner } from './plan.js';
+import { renderSettingsView } from './settings.js';
+
+import { appNativa } from '../../core/tienda.js';
+import { comprasApple } from '../../core/compras-apple.js';
 
 import { renderCoachSalidas, salidasTileText } from './salidas.js';
 import { syncRouteViews } from '../../ui/mapa.js';
-import { mealEditHead, renderMealPicker, renderMealTplList, snapMealEdit } from './planes.js';
+import { clientPlanDirty, mealEditHead, renderMealPicker, snapMealEdit } from './planes.js';
+import { coachShell, secIcon, renderClientsView, renderHomeView, renderMealsView, renderTplsView } from './panel.js';
 
 // Título de sección con la ruedita que abre el editor de preguntas en esa pestaña.
 function secHead(title, kind){
@@ -36,11 +43,16 @@ function secHead(title, kind){
 
 // Código para que se vinculen clientes. Con el cupo del plan lleno no se muestra: nadie más se
 // puede vincular (la base lo rechaza igual) y en su lugar se ofrece un plan más grande.
-const IS_NATIVE_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+// En la app de Android (core/tienda.js appNativa) el aviso no nombra el plan: solo que llegó al
+// máximo. En la de iPhone, con los planes de Apple (core/compras-apple.js), es el de la web.
+// Código viejo (6 caracteres, de antes de supabase/endurecer-base.sql): sigue sirviendo, pero es
+// más fácil de adivinar; se le sugiere cambiarlo (supabase/coach-alumnos.sql).
+const IS_NATIVE_APP = appNativa() && !comprasApple();
 function inviteBox(){
-  const b=billing();
-  if(b.known && b.atCap) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de tu plan</b> ('+b.count+'/'+b.max+' clientes)'+(IS_NATIVE_APP ? '<div class="co-invite-sub">Nadie más se puede vincular con tu código.</div>' : '<div class="co-invite-sub">Para sumar más clientes pasate a un plan más grande.</div><button class="co-copy-btn" data-plan="open">Ver planes</button>')+'</div>';
-  return '<div class="co-invite">Tu código de invitación<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Compartíselo a tus clientes para que se vinculen a vos.'+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div></div>';
+  const b=billing(), viejo=!!CoachState.coachInvite && String(CoachState.coachInvite).length<8;
+  if(b.known && b.atCap && IS_NATIVE_APP) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de alumnos de tu cuenta.</b><div class="co-invite-sub">Nadie más se puede vincular con tu código.</div></div>';
+  if(b.known && b.atCap) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de tu plan</b> ('+b.count+'/'+b.max+' clientes)<div class="co-invite-sub">Para sumar más clientes pasate a un plan más grande.</div><button class="co-copy-btn" data-plan="open">Ver planes</button></div>';
+  return '<div class="co-invite">Tu código de invitación<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Compartíselo a tus clientes para que se vinculen a vos.'+(viejo?' Es un código del formato anterior, más corto y fácil de adivinar: te conviene cambiarlo. Sirve hasta que lo cambies.':'')+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div></div>';
 }
 
 // Cambios sin guardar: la primera vez que se dibuja una rutina (del cliente o en el editor) se
@@ -52,7 +64,14 @@ function snapEdits(){
   const e=CoachState.coachTplEdit; if(e && !e.deload && e.orig0===undefined) e.orig0=tplSnap(e);
   const d=CoachState.coachData; if(d && d.id && Array.isArray(d.routine) && d.routineOrig===undefined) d.routineOrig=JSON.stringify(d.routine);
 }
-window.addEventListener("beforeunload", ev => { if(tplDirty() || routineDirty()){ ev.preventDefault(); ev.returnValue=""; } });
+// Qué tiene sin guardar el alumno abierto, para el aviso al salir: la rutina, el plan alimenticio,
+// la ficha y el bloque (los formularios de la ficha y el bloque existen solo después de editarlos).
+export function clientUnsaved(){
+  const d=CoachState.coachData; if(!d || !d.id) return "";
+  const q=[routineDirty()&&"la rutina", clientPlanDirty()&&"el plan alimenticio", CoachState.coachInfoForm&&"la ficha", CoachState.coachBlockForm&&"el bloque"].filter(Boolean);
+  return q.length>1 ? q.slice(0,-1).join(", ")+" y "+q[q.length-1] : (q[0]||"");
+}
+window.addEventListener("beforeunload", ev => { if(tplDirty() || clientUnsaved()){ ev.preventDefault(); ev.returnValue=""; } });
 
 // Borrador de la rutina del cliente en este dispositivo: se guarda con cada cambio y al salir
 // de la app. En el celular, ir a otra app (a copiar la rutina de WhatsApp, por ejemplo) puede
@@ -85,69 +104,14 @@ export function renderCoach(){
   const v=document.getElementById("view"); if(v && v.firstChild) v.innerHTML="";
   showSilkBg();
   document.body.classList.add("silk-coach");
+  lucesCoach(); // las luces del fondo («Oscuro»): se mueven muy despacio (app/ui/background.js)
   // Sin prueba ni plan vigente: solo la pantalla de planes (la base igual no le deja
   // leer los datos de los clientes, ver supabase/suscripciones.sql).
   if(!billing().active){ host.innerHTML=renderPaywall(); return; }
   if(!CoachState.coachSel && !CoachState.coachTplEdit && !CoachState.coachMealEdit){
-    const tabs='<div class="co-tabs">'+
-      '<button class="co-tab'+(CoachState.coachView==="clients"?" on":"")+'" data-coach="view-clients">Clientes <span class="co-tab-count'+(CoachState.coachClients.length?" has":"")+'">('+CoachState.coachClients.length+')</span></button>'+
-      '<button class="co-tab'+(CoachState.coachView==="tpls"?" on":"")+'" data-coach="view-tpls">Mis rutinas <span class="co-tab-count'+(CoachState.coachTpls.length?" has":"")+'">('+CoachState.coachTpls.length+')</span></button>'+
-      '<button class="co-tab'+(CoachState.coachView==="meals"?" on":"")+'" data-coach="view-meals">Mis planes <span class="co-tab-count'+(CoachState.coachMealTpls.length?" has":"")+'">('+CoachState.coachMealTpls.length+')</span></button>'+
-    '</div>';
-    let body="";
-    if(CoachState.coachView==="meals"){
-      body=renderMealTplList();
-    } else if(CoachState.coachView==="tpls"){
-      const tl=CoachState.coachTpls.length ? CoachState.coachTpls.map(t=>{
-        const nd=(t.days||[]).length;
-        const nex=(t.days||[]).reduce((n,d)=>n+((d.exercises||[]).length),0);
-        return '<div class="co-item tpl-item" data-coach="tpl-open" data-id="'+esc(t.id)+'">'+
-          '<div class="co-name">'+esc(t.name||"Sin nombre")+'</div>'+
-          '<div class="co-item-meta">'+nd+' día'+(nd===1?'':'s')+' · '+nex+' ejercicios</div>'+
-          '<div class="co-arrow">›</div></div>';
-      }).join("") : (CoachState.tplsError ? '<div class="cal-hint" style="color:var(--red)">No se pudieron cargar: <b>'+esc(CoachState.tplsError)+'</b><br><br>Si dice que la tabla no existe, falta correr el SQL de rutinas en Supabase.</div>' : '<div class="cal-hint">Todavía no creaste ninguna rutina. Creá una y después aplicásela a los clientes que quieras.</div>');
-      body='<div class="co-items">'+tl+'</div>'+
-        '<button class="co-add-day" data-coach="tpl-new">+ Crear rutina nueva</button>'+
-        '<button class="co-copy-btn" style="margin-top:8px" data-coach="tpl-seed-open" aria-expanded="'+!!CoachState.coachSeedOpen+'">'+downloadSvg+' Importar rutina armada</button>'+
-        (CoachState.coachSeedOpen ? '<div class="co-items tpl-seed-list">'+rutinasDeDias(CoachState.coachCat||CATALOGO, 0).map(r=>{
-          const nd=diasDeEntreno(r), nex=(r.days||[]).reduce((n,d)=>n+((d.exercises||[]).length),0);
-          return '<div class="co-item tpl-item" data-coach="tpl-seed-cat" data-id="'+esc(r.id)+'">'+
-            '<div class="co-name">'+esc(r.nombre)+'</div>'+
-            '<div class="co-item-meta">'+nd+' día'+(nd===1?'':'s')+' de entreno · '+nex+' ejercicios'+(r.para==="mujer"?' · para mujer':r.para==="hombre"?' · para hombre':'')+'</div>'+
-            '<div class="co-arrow">›</div></div>';
-        }).join("")+'</div>' : '');
-    } else {
-      const q=(CoachState.coachSearch||"").toLowerCase();
-      const filtered=CoachState.coachClients.filter(c=>(c.full_name||"").toLowerCase().includes(q));
-      const onboard='<div class="co-onboard">'+
-        '<div class="co-onboard-lead">Todavía no tenés clientes vinculados</div>'+
-        '<div class="co-item co-onboard-step"><div class="co-onboard-n">1</div><div class="co-onboard-txt">Copiá tu <b>código de invitación</b> de arriba</div></div>'+
-        '<div class="co-item co-onboard-step"><div class="co-onboard-n">2</div><div class="co-onboard-txt">Pasáselo a tu cliente por donde le quede más cómodo</div></div>'+
-        '<div class="co-item co-onboard-step"><div class="co-onboard-n">3</div><div class="co-onboard-txt">Se vincula solo — va a aparecer acá apenas lo haga</div></div>'+
-      '</div>';
-      const rows=filtered.map(c=>{
-        const st=CoachState.coachClientStats[c.id]||{};
-        const act=coachActivity(st.lastSess);
-        const statusLine=act.has ? '<div class="co-act-status"><span class="co-dot'+(act.active?' on':'')+'"></span>'+act.statusLabel+'</div>' : "";
-        return '<div class="co-trow" data-coach="open" data-id="'+esc(c.id)+'">'+
-            '<div class="co-td co-td-name">'+avatarHtml(c.avatar_path, coachInitials(c.full_name), 'co-avatar')+'<span class="co-cname">'+esc(c.full_name||"Sin nombre")+'</span>'+(unreadFor(c.id)?'<span class="chat-badge" title="Mensajes sin leer">'+unreadFor(c.id)+'</span>':'')+'</div>'+
-            '<div class="co-td co-td-email'+(c.email?'':' co-empty')+'">'+esc(c.email||"Sin email")+'</div>'+
-            '<div class="co-td co-td-activity"><div class="co-act-date">'+esc(act.label)+'</div>'+statusLine+'</div>'+
-            '<div class="co-td co-td-actions"><span class="co-arrow">›</span></div>'+
-          '</div>';
-      }).join("");
-      const list=filtered.length ? '<div class="co-table"><div class="co-trow co-thead"><div class="co-th">Nombre</div><div class="co-th">Email</div><div class="co-th">Última actividad</div><div class="co-th">Acciones</div></div>'+rows+'</div>' : '<div class="cal-hint">Sin resultados.</div>';
-      // Antes solo aparecía con más de 3 clientes — con pocos igual conviene mostrarlo
-      // siempre: en uso real la lista crece, y ocultarlo generaba la duda de "¿no hay
-      // buscador?" incluso con 1 o 2 clientes cargados.
-      const searchBox='<input class="co-search" placeholder="\u{1F50D} Buscar cliente…" data-coach="coach-search" value="'+esc(CoachState.coachSearch||"")+'">';
-      // El onboarding es un bloque ancho de texto/pasos, no una card angosta más — si lo
-      // metiera adentro de .co-items (grid de auto-fill,minmax(260px,1fr) en desktop)
-      // quedaría encajonado en una sola columna angosta con carriles vacíos al lado.
-      // Va como reemplazo del bloque entero (sin buscador ni grid), no como un item más.
-      body=(!CoachState.coachSearch && !CoachState.coachClients.length) ? onboard : searchBox+list;
-    }
-    host.innerHTML='<div class="co-wrap"><div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout co-q-btn" data-coach="q-open" title="Preguntas del registro diario y del check-in">Preguntas</button><button class="co-gear" data-coach="open-settings" title="Configuración">'+gearSvg+'</button><button class="co-logout" data-auth="logout">Salir</button></div></div>'+inviteBox()+renderPlanBanner()+tabs+body+'</div>';
+    // Las cuatro pantallas de arriba (Inicio, Clientes, Rutinas, Planes alimenticios): ver panel.js.
+    const v=CoachState.coachView, banner=renderPlanBanner();
+    host.innerHTML=coachShell(v, v==="settings" ? renderSettingsView() : v==="meals" ? renderMealsView(banner) : v==="tpls" ? renderTplsView(banner) : v==="home" ? renderHomeView(banner) : renderClientsView(inviteBox(), banner));
   } else if(CoachState.coachTplEdit){
     const rt=CoachState.coachTplEdit.days||[];
     let ed="";
@@ -156,7 +120,7 @@ export function renderCoach(){
     const sch=!!CoachState.coachTplEdit.sched, dle=!!CoachState.coachTplEdit.deload;
     const who=esc((CoachState.coachData&&CoachState.coachData.name)||"el alumno");
     const dlRange=dle ? weekRange(CoachState.coachBlockForm||(CoachState.coachData&&CoachState.coachData.block), CoachState.coachTplEdit.wk) : null;
-    host.innerHTML='<div class="co-wrap">'+
+    host.innerHTML=coachShell(CoachState.coachSel?"clients":"tpls",
       '<div class="co-head"><button class="co-back" data-coach="tpl-back">‹ Volver</button>'+
       '<button class="co-logout" data-coach="tpl-del">'+(dle?(CoachState.coachTplEdit.saved?'Borrar rutina de descarga':'Descartar'):sch?'Borrar programación':'Borrar rutina')+'</button></div>'+
       (dle ? '<div class="co-sched-edit-t">Rutina de descarga \u00b7 semana '+CoachState.coachTplEdit.wk+' de '+who+'</div>'+
@@ -166,11 +130,10 @@ export function renderCoach(){
         '<div class="ci-f" style="margin-bottom:10px"><label>Empieza el</label><input class="co-note" type="date" data-coach="sched-date" min="'+esc(today())+'" value="'+esc(CoachState.coachTplEdit.starts_on||"")+'"></div>' : '')+
       (dle ? '' : '<div class="ci-f" style="margin-bottom:14px"><label>Nombre de la rutina'+(sch?' (opcional)':'')+'</label><input class="co-note" data-coach="tpl-name" value="'+esc(CoachState.coachTplEdit.name||"")+'"></div>')+
       ed+
-      '<button class="co-save-rt" data-coach="tpl-save">'+(dle?'Guardar rutina de descarga':sch?'Guardar rutina programada':'Guardar rutina')+'</button>'+
-    '</div>';
+      '<div class="co-savebar"><button class="co-save-rt" data-coach="tpl-save">'+(dle?'Guardar rutina de descarga':sch?'Guardar rutina programada':'Guardar rutina')+'</button></div>');
   } else if(CoachState.coachMealEdit && !CoachState.coachSel){
     // Plan guardado de «Mis planes»: el mismo editor del plan del cliente (ver planes.js).
-    host.innerHTML='<div class="co-wrap">'+mealEditHead()+renderCoachPlan(null)+'</div>';
+    host.innerHTML=coachShell("meals", mealEditHead()+renderCoachPlan(null));
   } else {
     const d=CoachState.coachData; let body="";
     if(!d||d.loading){ body='<div class="cal-hint">Cargando…</div>'; }
@@ -178,20 +141,19 @@ export function renderCoach(){
     else {
       const wchart=d.weights.length ? renderWChart(d.weights,false,"med") : '<div class="cal-hint">Sin registros de peso.</div>';
       // Peso día a día: gráfico a la izquierda, registros a la derecha (antes iban uno debajo del otro).
-      const wlist=d.weights.length ? '<table class="co-tbl"><thead><tr><th>Fecha</th><th>Peso</th></tr></thead><tbody>'+d.weights.slice().reverse().map(w=>'<tr><td class="dt">'+fmtDate(w.date)+'</td><td><b>'+dec(w.kg)+' kg</b></td></tr>').join("")+'</tbody></table>' : "";
+      const wlist=d.weights.length ? '<table class="co-tbl"><thead><tr><th>Fecha</th><th>Peso</th></tr></thead><tbody>'+d.weights.slice().reverse().map(w=>'<tr><td class="dt">'+esc(fmtDate(w.date))+'</td><td><b>'+dec(w.kg)+' kg</b></td></tr>').join("")+'</tbody></table>' : "";
       const wblock=d.weights.length ? '<div class="co-split"><div class="co-split-main">'+wchart+'</div><div class="co-split-side">'+wlist+'</div></div>' : wchart;
-      // Historial de entrenos: un entreno por vez con el mismo selector que el seguimiento.
+      // Historial de entrenos: calendario con los días entrenados y, al tocar uno, su sesión.
       const sessSorted=d.sessions.slice().sort((a,b)=>(b.ts||0)-(a.ts||0));
-      const sessKey=se=>String(se.ts||se.date);
-      const sessSel=sessSorted.some(se=>sessKey(se)===CoachState.coachSessSel) ? CoachState.coachSessSel : "";
-      const sessOne=sessSorted.find(se=>sessKey(se)===sessSel);
-      const sess=sessSorted.length ? picker("sess-pick", sessSorted.map(se=>({v:sessKey(se), t:fmtDate(se.date)+" · "+(se.day||"Entreno")})), sessSel, "Entreno")+(sessOne?renderSessionItem(sessOne,{open:true, history:d.sessions}):"") : "";
+      const calSess=sessSorted.length ? d.sessions.filter(se=>se.date===calSelDay("sess")).sort((x,y)=>(x.ts||0)-(y.ts||0)) : [];
+      const sess=sessSorted.length ? renderCoachCalendar("sess", d.sessions.map(se=>se.date), today(), ["entreno","entrenos"])+(calSelDay("sess")?(calSess.length?calSess.map(se=>renderSessionItem(se,{open:true, history:d.sessions})).join(""):'<div class="cal-hint">Ese día no hay entreno.</div>'):'<div class="cal-hint">Tocá un día marcado para ver el entreno.</div>') : "";
       const vol=(d.routine&&d.routine.length)?renderVolumen(d.routine):'<div class="cal-hint">Sin rutina cargada.</div>';
       const tab=CoachState.coachClientTab||"ficha";
-      const tabs='<div class="co-tabs">'+
-        '<button class="co-tab'+(tab==="ficha"?" on":"")+'" data-coach="client-tab" data-t="ficha">Ficha</button>'+
-        '<button class="co-tab'+(tab==="rutina"?" on":"")+'" data-coach="client-tab" data-t="rutina">Rutina</button>'+
-        '<button class="co-tab'+(tab==="plan"?" on":"")+'" data-coach="client-tab" data-t="plan">Plan alimenticio</button>'+
+      const tabs='<div class="cv-ctabs" role="tablist">'+
+        '<button class="cv-ctab'+(tab==="ficha"?" on":"")+'" role="tab" aria-selected="'+(tab==="ficha")+'" data-coach="client-tab" data-t="ficha">Ficha</button>'+
+        '<button class="cv-ctab'+(tab==="rutina"?" on":"")+'" role="tab" aria-selected="'+(tab==="rutina")+'" data-coach="client-tab" data-t="rutina">Rutina</button>'+
+        '<button class="cv-ctab'+(tab==="stats"?" on":"")+'" role="tab" aria-selected="'+(tab==="stats")+'" data-coach="client-tab" data-t="stats">Estadísticas</button>'+
+        '<button class="cv-ctab'+(tab==="plan"?" on":"")+'" role="tab" aria-selected="'+(tab==="plan")+'" data-coach="client-tab" data-t="plan">Plan<span class="cv-more"> alimenticio</span></button>'+
       '</div>';
       let panel;
       if(tab==="rutina"){
@@ -204,6 +166,7 @@ export function renderCoach(){
           // El chat se abre encima (app/ui/chat.js), no como sección: ver "sec-open" en main.js.
           ["chat","Chat con "+esc(String(d.name||"el cliente").split(" ")[0]), null, ()=>{ const n=unreadFor(d.id); if(n) return n+(n===1?" mensaje nuevo":" mensajes nuevos"); if(d.notify&&d.notify.devices===0) return "Mensajes y audios · no tiene los avisos activados"; return "Mensajes y audios"; }],
           ["ficha","Ficha del cliente", ()=>renderCoachInfo(d), ()=>d.info&&Object.keys(d.info).length?"Datos y objetivos":"Sin completar"],
+          ["habitos","Hábitos diarios", ()=>renderCoachHabits(d), ()=>{ const h=d.plan&&d.plan.plan&&d.plan.plan.habits; const n=Array.isArray(h)?h.length:0; return n?n+(n===1?" hábito":" hábitos"):"Sin cargar"; }],
           ["bloque","Bloque / mesociclo", ()=>renderCoachBlock(d), ()=>{ const b=d.block; if(!b) return "Sin bloque"; const w=blockWeek(b, today()); const n=parseInt(b.weeks)||0; return (b.name||"Bloque cargado")+(w>=1&&(!n||w<=n)?" \u00b7 semana "+w+(isDeload(b,w)?" de descarga":""):""); }],
           ["daily","Seguimiento diario", ()=>secHead("Seguimiento diario","daily")+renderCoachDaily(d), ()=>{ const n=(d.daily||[]).length; return n?n+" registro"+(n===1?"":"s"):"Sin registros"; }],
           ["checkin","Check-in semanal", ()=>secHead("Check-in semanal","checkin")+renderCoachCheckins(d), ()=>{ const n=(d.checkins||[]).length; return n?n+" check-in"+(n===1?"":"s"):"Sin check-ins"; }],
@@ -212,17 +175,20 @@ export function renderCoach(){
           ["volumen","Volumen semanal por músculo", ()=>vol, ()=>{ let t=0; (d.routine||[]).forEach(x=>(x.exercises||[]).forEach(ex=>{ t+=(ex.sets||[]).length; })); return t?t+" series por semana":"Sin rutina"; }],
           ["peso","Peso corporal", ()=>'<div class="co-sec">Promedio semanal</div>'+renderCoachWeekly(d)+'<div class="co-sec">Día a día</div>'+wblock, ()=>{ const w=d.weights; return w.length?Number(w[w.length-1].kg).toFixed(1).replace(".",",")+" kg":"Sin registros"; }],
         ];
+        // Ficha: lo del alumno. Estadísticas: lo que fue registrando y el bloque (mesociclo), desde
+        // donde se arman las semanas y las rutinas de descarga.
+        const ORDER={ ficha:["chat","ficha","habitos"], stats:["bloque","peso","hist","volumen","salidas","daily","checkin"] };
         const cur=SECS.find(x=>x[0]===CoachState.coachSec && x[2]);
+        const shown=(ORDER[tab]||ORDER.ficha).map(id=>SECS.find(x=>x[0]===id));
         if(cur){
-          panel='<div class="form-head co-sec-head"><button class="form-back" data-coach="sec-close" aria-label="Volver a la ficha">‹</button><div class="form-title">'+cur[1]+'</div></div>'+
+          panel='<div class="form-head co-sec-head"><button class="form-back" data-coach="sec-close" aria-label="Volver">‹</button><div class="form-title">'+cur[1]+'</div></div>'+
             '<div class="co-panel co-sec-body">'+cur[2]()+'</div>';
         } else {
-          panel='<div class="ptiles co-ptiles">'+SECS.map(x=>'<button class="ptile" data-coach="sec-open" data-v="'+x[0]+'"><span class="ptile-t">'+x[1]+'</span><span class="ptile-s">'+esc(x[3]())+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+
-            '<button class="logout-btn cfg-danger co-remove-client" data-coach="remove-client">Desvincular alumno</button>';
+          panel='<div class="ptiles co-ptiles">'+shown.map(x=>'<button class="ptile" data-coach="sec-open" data-v="'+x[0]+'"><span class="ptile-t">'+secIcon(x[0])+x[1]+'</span><span class="ptile-s">'+esc(x[3]())+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+(tab==="stats"?'':'<button class="logout-btn cfg-danger co-remove-client" data-coach="remove-client">Desvincular alumno</button>');
         }
       }
       body=tabs+panel;
     }
-    host.innerHTML='<div class="co-wrap"><div class="co-head"><button class="co-back" data-coach="back">‹ Volver</button><div class="co-head-actions"><button class="co-back" data-coach="refresh" style="margin-right:8px">'+resetSvg+' Actualizar</button><button class="co-gear" data-coach="open-settings" title="Configuración">'+gearSvg+'</button><button class="co-logout" data-auth="logout">Salir</button></div></div><div class="co-client-head">'+avatarHtml(CoachState.coachData&&CoachState.coachData.avatar, coachInitials(CoachState.coachData&&CoachState.coachData.name), 'co-avatar co-avatar-client')+'<div class="co-client-name">'+esc((CoachState.coachData&&CoachState.coachData.name)||"Cliente")+'</div></div>'+body+'</div>';
+    host.innerHTML=coachShell("clients", '<div class="co-head cv-chead"><button class="co-back cv-back" data-coach="back" aria-label="Volver" title="Volver">‹</button>'+avatarHtml(CoachState.coachData&&CoachState.coachData.avatar, coachInitials(CoachState.coachData&&CoachState.coachData.name), 'co-avatar co-avatar-client')+'<div class="cv-cname"><div class="co-client-name">'+esc((CoachState.coachData&&CoachState.coachData.name)||"Cliente")+'</div>'+(disciplinasLabel(CoachState.coachData&&CoachState.coachData.disciplines)?'<div class="co-client-disc">'+esc(disciplinasLabel(CoachState.coachData.disciplines))+'</div>':'')+'</div><button class="co-back cv-refresh" data-coach="refresh" aria-label="Actualizar" title="Actualizar">'+resetSvg+'<span>Actualizar</span></button></div>'+body);
   }
 }

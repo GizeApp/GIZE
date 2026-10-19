@@ -23,7 +23,7 @@ set search_path = public
 as $$
 begin
   if new.endpoint is null or char_length(new.endpoint) > 2048
-     or new.endpoint !~ '^https://([a-z0-9-]+\.)*(fcm\.googleapis\.com|android\.googleapis\.com|push\.services\.mozilla\.com|push\.apple\.com|notify\.windows\.com)(:[0-9]+)?/' then
+     or new.endpoint !~ '^https://([a-z0-9-]+\.)*(fcm\.googleapis\.com|android\.googleapis\.com|push\.services\.mozilla\.com|push\.apple\.com|notify\.windows\.com)/' then
     raise exception 'Este navegador usa un servicio de notificaciones que GIZE no reconoce. Probá con Chrome, Safari, Firefox o Edge.'
       using errcode = '22023';
   end if;
@@ -100,7 +100,7 @@ notify pgrst, 'reload schema';
 select 'Dispositivo de servicio desconocido' as chequeo,
        split_part(split_part(endpoint, '://', 2), '/', 1) || ' (' || count(*) || ')' as detalle
   from public.push_subscriptions
- where endpoint !~ '^https://([a-z0-9-]+\.)*(fcm\.googleapis\.com|android\.googleapis\.com|push\.services\.mozilla\.com|push\.apple\.com|notify\.windows\.com)(:[0-9]+)?/'
+ where endpoint !~ '^https://([a-z0-9-]+\.)*(fcm\.googleapis\.com|android\.googleapis\.com|push\.services\.mozilla\.com|push\.apple\.com|notify\.windows\.com)/'
  group by split_part(split_part(endpoint, '://', 2), '/', 1)
 union all
 select 'Foto fuera de su carpeta', id::text || ' → ' || avatar_path

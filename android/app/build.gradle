@@ -32,8 +32,11 @@ android {
     buildTypes {
         release {
             if (System.getenv("GIZE_KEYSTORE")) signingConfig signingConfigs.release
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // R8: saca el código y los recursos de Android que no se usan (la app pesa menos).
+            // Las clases que se buscan por nombre quedan protegidas en proguard-rules.pro.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

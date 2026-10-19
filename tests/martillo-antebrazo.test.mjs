@@ -9,16 +9,22 @@ export default async function ({ base, t }){
     const { EX_DB } = await import('/app/core/data.js');
     const { searchExercises, pickMuscle } = await import('/app/core/utils.js');
     const { equipOf } = await import('/app/core/variantes.js');
+    const { libVideo } = await import('/app/core/videos.js');
     return { rot: ['Rotación de antebrazo con mancuerna', 'Rotación de antebrazo en polea'].map(n => EX_DB.antebrazo.includes(n) && equipOf(n)),
       ante: EX_DB.antebrazo.includes('Curl martillo en polea'), bi: EX_DB.biceps.includes('Curl martillo en polea'),
       labels: searchExercises(n => n === 'Curl martillo en polea', [['biceps', 'Bíceps'], ['antebrazo', 'Antebrazo']]).map(x => x.label),
-      mus: pickMuscle('Curl martillo en polea', 'antebrazo') };
+      mus: pickMuscle('Curl martillo en polea', 'antebrazo'),
+      nuevos: ['Extensión de muñeca con kettlebell', 'Curl de muñeca con barra', 'Desviación cubital con mancuerna', 'Pronación de antebrazo con mancuerna']
+        .map(n => EX_DB.antebrazo.includes(n) && equipOf(n)),
+      vids: ['Extensión de muñeca con kettlebell', 'Curl de muñeca con barra', 'Desviación cubital con mancuerna', 'Pronación de antebrazo con mancuerna'].map(libVideo) };
   });
   t.eq(r.rot, ['mancuernas', 'polea'], 'rotación de antebrazo (con mancuerna y en polea) en Antebrazo, con su equipo');
   t.ok(r.ante, 'está en Antebrazo');
   t.ok(r.bi, 'sigue en Bíceps');
   t.eq(r.labels.sort(), ['Curl martillo en polea · Antebrazo', 'Curl martillo en polea · Bíceps'], 'al buscarlo sale en los dos grupos');
   t.eq(r.mus, 'antebrazo', 'elegido desde Antebrazo cuenta para antebrazo');
+  t.ok(r.vids.every(Boolean), 'los nuevos tienen video');
+  t.eq(r.nuevos, ['kettlebell', 'barra', 'mancuernas', 'mancuernas'], 'ejercicios nuevos de antebrazo, con su equipo');
   t.eq(errs, [], 'errores de la página');
   await close();
 }

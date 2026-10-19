@@ -84,6 +84,15 @@ export default async function ({ base, t }){
     await p.click('[data-ex-id="e1"] [data-action="toggle"][data-set="s1"]'); await wait(400);
     await p.evaluate(async () => (await import('/app/screens/checkin.js')).saveSession()); await wait(600);
     st = await saved(p);
+    t.eq(st.days[0].exercises[0].sets.map(s => s.kg), ['50', '50'], 'al guardar vuelve el peso del original (no queda el de la variante)');
+    // «Seguir entrenando»: vuelve la variante con sus kg; y se guarda de nuevo.
+    await p.click('#fbHost [data-action="fb-undo"]'); await wait(400);
+    st = await saved(p);
+    t.eq([st.exVariant && st.exVariant.map.e1 && st.exVariant.map.e1.name, st.days[0].exercises[0].sets.map(s => s.kg)], [MANC, ['24', '22']], '«Seguir entrenando»: vuelve la variante con sus kg');
+    await wait(1200);
+    await p.evaluate(async () => (await import('/app/screens/checkin.js')).saveSession()); await wait(600);
+    st = await saved(p);
+    t.eq(st.days[0].exercises[0].sets.map(s => s.kg), ['50', '50'], 'guardado otra vez: de nuevo el peso del original');
     const last = st.sessions[st.sessions.length - 1];
     t.eq(last && last.exercises[0], { name: MANC, originalName: BANCA, sets: [{ kg: 24, reps: 10 }] }, 'el entreno guardado tiene la variante y el original');
     t.ok(!st.exVariant, 'al guardar se borra la variante de hoy');
@@ -106,6 +115,8 @@ export default async function ({ base, t }){
     t.eq((await card(p)).name, MANC, 'elegida otra vez');
     await p.evaluate(async () => { const { state } = await import('/app/core/state.js'); state.exVariant.date = '2020-01-01'; delete state.wkStart; (await import('/app/main.js')).renderApp(); }); await wait(200);
     t.eq((await card(p)).name, BANCA, 'al día siguiente vuelve el original');
+    t.eq((await card(p)).kgs, ['50', '50'], 'al día siguiente vuelve también su peso');
+    t.ok(!(await saved(p)).exVariant, 'y la variante vencida se borra');
     t.eq(errs, [], 'errores de la página');
     await close();
   }

@@ -1,10 +1,15 @@
--- Cuentas demo para la revisión de Google Play (Contenido de la app → Datos de inicio de
--- sesión). Las crea el workflow "Supabase" (tarea cuentas-demo), que reemplaza
--- la marca de la contraseña por la que se le pasa: la contraseña no queda en el repo.
--- Se puede correr varias veces: si las cuentas ya existen, solo les actualiza la contraseña.
+-- Cuentas demo para la revisión de las tiendas (Google Play: Contenido de la app → Datos de inicio
+-- de sesión; Apple: Información para la revisión de la app). Las crea el workflow "Supabase" (tarea cuentas-demo), que reemplaza
+-- las marcas de los mails y de la contraseña con los secrets DEMO_EMAIL y DEMO_PASSWORD:
+-- ni los mails ni la contraseña quedan en el repo (es público y gize.ar sirve este archivo).
+-- Se puede correr varias veces: si las cuentas ya existen, solo les actualiza la contraseña y les
+-- cierra las sesiones abiertas (quien entró con la contraseña anterior queda afuera).
 --
---   jeronimoperpi+coach@gmail.com    coach con plan de cortesía (sin vencimiento)
---   jeronimoperpi+cliente@gmail.com  cliente vinculado a ese coach, con peso y un entreno
+--   __DEMO_COACH__    coach con plan de cortesía (sin vencimiento)
+--   __DEMO_CLIENTE__  cliente vinculado a ese coach, con peso y un entreno
+--   __DEMO_COACHIOS__ coach para la revisión de Apple: sin plan (la prueba ya terminó), así en el
+--                     iPhone ve los planes de Apple y los puede comprar con Sandbox. Cada vez que
+--                     se corre vuelve a quedar sin plan (se borra lo que haya comprado).
 
 do $$
 declare
@@ -13,11 +18,13 @@ declare
   uid uuid;
   coach uuid;
   client uuid;
+  coachios uuid;
 begin
   for acc in
     select * from (values
-      ('jeronimoperpi+coach@gmail.com',   'Coach Demo',   'coach'),
-      ('jeronimoperpi+cliente@gmail.com', 'Cliente Demo', 'client')
+      ('__DEMO_COACH__',   'Coach Demo',   'coach'),
+      ('__DEMO_CLIENTE__', 'Cliente Demo', 'client'),
+      ('__DEMO_COACHIOS__', 'Coach Revisión', 'coach')
     ) as t(email, full_name, role)
   loop
     select id into uid from auth.users where email = acc.email;
@@ -45,14 +52,26 @@ begin
     end if;
     -- Por si el perfil ya existía (cuenta creada antes desde la app o el panel).
     update public.profiles set role = acc.role, full_name = acc.full_name where id = uid;
-    if acc.role = 'coach' then coach := uid; else client := uid; end if;
+    if acc.email = '__DEMO_COACHIOS__' then coachios := uid;
+    elsif acc.role = 'coach' then coach := uid; else client := uid; end if;
   end loop;
 
+  -- Cambiar la contraseña no corta las sesiones que ya estaban abiertas: se cierran acá.
+  delete from auth.sessions where user_id in (coach, client, coachios);
+  delete from auth.refresh_tokens where user_id in (coach::text, client::text, coachios::text);
   insert into public.coach_billing (coach_id, plan, max_clients)
   values (coach, 'cortesia', 50)
   on conflict (coach_id) do update set plan = 'cortesia', max_clients = 50, updated_at = now();
 
   update public.profiles set coach_id = coach where id = client;
+
+  -- Coach de la revisión de Apple: sin plan, con la prueba terminada y sin nada comprado.
+  delete from public.apple_subs where user_id = coachios;
+  insert into public.coach_billing (coach_id, plan, max_clients, trial_ends_at)
+  values (coachios, 'trial', 10, now() - interval '1 day')
+  on conflict (coach_id) do update set plan = 'trial', max_clients = 10, trial_ends_at = now() - interval '1 day',
+    paid_until = null, mp_preapproval_id = null, mp_status = null, pending_plan = null,
+    apple_original_tx = null, apple_vence = null, apple_renueva = false, updated_at = now();
 
   -- Datos para que la app no se vea vacía: 8 semanas de peso.
   insert into public.body_weights (client_id, measured_on, kg)
@@ -65,4 +84,4 @@ select u.email, p.role, p.full_name, p.coach_id is not null as vinculado, b.plan
   from auth.users u
   join public.profiles p on p.id = u.id
   left join public.coach_billing b on b.coach_id = u.id
- where u.email in ('jeronimoperpi+coach@gmail.com', 'jeronimoperpi+cliente@gmail.com');
+ where u.email in ('__DEMO_COACH__', '__DEMO_CLIENTE__', '__DEMO_COACHIOS__');

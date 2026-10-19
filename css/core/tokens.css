@@ -2,6 +2,9 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 :root {
+    /* Esquinas: un solo lugar para todo el redondeo de la app. Cajas y campos (--r-box),
+       chicos (--r-md), botones (--r-btn) y tarjetas grandes (--r-card). */
+    --r-box: 14px; --r-md: 12px; --r-btn: 14px; --r-card: 18px;
     /* Marca GIZE: los valores salen de brand/tokens.css (--gize-*, fuente de verdad en
        brand/BRAND.md). Estos alias mantienen los nombres que ya usa el resto del CSS.
        red/ring-over → --gize-danger; xl-* (tablas tipo Excel) → --gize-success;
@@ -63,7 +66,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: 0; pointer-event
     background: radial-gradient(720px circle at 50% -6%, color-mix(in srgb, var(--gize-blue) 6%, transparent), transparent 55%); }
 
 
-.top-btn { width: 38px; height: 38px; border-radius: 4px; background: var(--card); border: 1px solid var(--border);
+.top-btn { width: 38px; height: 38px; border-radius: var(--r-box); background: var(--card); border: 1px solid var(--border);
     color: var(--txt-2); display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
 .top-btn svg { width: var(--icon-lg); height: var(--icon-lg); }
@@ -80,7 +83,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: 0; pointer-event
     50% { filter: drop-shadow(0 0 11px var(--glow-over)); }
   }
 
-.reset-routine { display:block; margin:16px auto 0; background:none; border:1px solid var(--border); color:var(--txt-2); font-size: var(--text-meta); padding:9px 16px; border-radius:4px; cursor:pointer; }
+.reset-routine { display:block; margin:16px auto 0; background:none; border:1px solid var(--border); color:var(--txt-2); font-size: var(--text-meta); padding:9px 16px; border-radius:var(--r-box); cursor:pointer; }
 
 .reset-routine:active { background:var(--card-2); }
 
@@ -88,7 +91,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: 0; pointer-event
 
 @keyframes authShake { 15%,85%{ transform:translateX(-1px);} 30%,70%{ transform:translateX(2px);} 45%,60%{ transform:translateX(-3px);} }
 
-.opt-card { background:var(--card-2); border:1px solid var(--border); border-radius:4px; padding:10px; margin-bottom:8px; }
+.opt-card { background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); padding:10px; margin-bottom:8px; }
 
 .opt-head { display:flex; gap:6px; margin-bottom:8px; }
 

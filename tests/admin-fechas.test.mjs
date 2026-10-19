@@ -48,6 +48,8 @@ export default async function ({ base, t }){
   await p.click('tr[data-coach="c4"]'); await wait(300);
   t.eq(await fact('Prueba hasta'), await fecha(2025, 10, 2), 'ficha: «Prueba hasta» es el último día');
   t.eq(await p.inputValue('#trUntil'), '2025-10-02', 'ficha: el calendario de la prueba dice el mismo día');
+  t.eq(await p.inputValue('#trUntilTxt'), '02/10/2025', 'la fecha se ve con el día primero');
+  t.ok(await p.isVisible('.dfield-cal'), 'botón para abrir el calendario');
   await p.click('.drawer [data-a="closeDrawer"]');
   await p.click('tr[data-coach="c1"]'); await wait(300);
   t.eq(await fact('Pago al día hasta'), await fecha(2025, 10, 15), 'ficha: «Pago al día hasta» es el último día pagado');
@@ -58,6 +60,10 @@ export default async function ({ base, t }){
   t.eq(await p.inputValue('#pmUntil'), '2025-11-30', 'del 31/10, un mes más es el 30/11');
   await p.click('[data-a="pmMeses"][data-m="3"]'); t.eq(await p.inputValue('#pmUntil'), '2026-01-31', 'del 31/10, +3 es el 31/1');
   await p.click('[data-a="pmMeses"][data-m="12"]'); t.eq(await p.inputValue('#pmUntil'), '2026-10-31', 'del 31/10, +12 es el 31/10');
+  t.eq(await p.inputValue('#pmUntilTxt'), '31/10/2026', 'los botones de meses cambian también la fecha día/mes');
+  await p.fill('#pmUntilTxt', '5/11/2026'); t.eq(await p.inputValue('#pmUntil'), '2026-11-05', 'escribir día/mes/año guarda esa fecha');
+  await p.fill('#pmUntilTxt', '31/02/2026'); t.eq(await p.inputValue('#pmUntil'), '', 'una fecha que no existe no se toma');
+  t.ok(await p.$eval('#pmUntilTxt', e => e.classList.contains('bad')), 'y se marca en rojo');
   await p.click('.drawer [data-a="closeDrawer"]');
   await p.click('tr[data-coach="c7"]'); await wait(300);
   t.eq(await p.inputValue('#pmUntil'), '2026-02-28', 'del 31/1, un mes más es el 28/2');

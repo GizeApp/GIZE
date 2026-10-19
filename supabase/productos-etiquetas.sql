@@ -2,7 +2,11 @@
 -- etiqueta se leyó dos veces por separado y entran solo las que coincidieron). Completan lo
 -- que trae el workflow "Importar productos de supermercado" (productos sin la tabla como texto).
 -- Valores cada 100 g o 100 ml. Se puede correr más de una vez: no duplica ni pisa lo
--- verificado, lo oculto ni lo que cargaron los usuarios.
+-- verificado, lo oculto, lo corregido en el panel (reviewed_at, va después de admin.sql) ni lo
+-- que cargaron los usuarios, y no vuelve a cargar los códigos que
+-- borró un administrador (los saltea la base, ver products_deleted_guard en
+-- productos-admin.sql). Los de abajo sin código sí vuelven si se borraron: para sacarlos para
+-- siempre, ocultarlos en vez de borrarlos.
 -- Correr con: Actions → "Supabase" → tarea "sql" → archivo supabase/productos-etiquetas.sql
 
 -- Con código de barras (sale al escanear).
@@ -72,7 +76,7 @@ insert into public.products (code, name, brand, kcal, protein, carbs, fat, unit,
 ('90415418','Bebida energizante Red Bull Sugar Free','Red Bull',3,0,0,0,'ml',250,'gize')
 on conflict (code) do update set name = excluded.name, brand = excluded.brand, kcal = excluded.kcal, protein = excluded.protein,
   carbs = excluded.carbs, fat = excluded.fat, unit = excluded.unit, portion = excluded.portion, source = 'gize'
-where products.source in ('off', 'gize') and not products.verified and not products.hidden;
+where products.source in ('off', 'gize') and not products.verified and not products.hidden and products.reviewed_at is null;
 
 -- Sin código propio (quesos que se venden por peso: el código es interno de cada comercio).
 insert into public.products (code, name, brand, kcal, protein, carbs, fat, unit, portion, source)

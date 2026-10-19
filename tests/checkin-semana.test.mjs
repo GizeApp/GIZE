@@ -1,6 +1,8 @@
 // Check-in abierto el domingo y enviado pasada la medianoche: va a la semana que decía la
 // pantalla. Y un check-in sin ninguna respuesta no se manda.
-import { newPage, wait, saved, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, saved, ALUMNO, perfil, CON_COACH } from './lib.mjs';
+// Con coach (perfil y no profile, que deja la app sin perfil): sin coach, Progreso no muestra el
+// check-in semanal.
 
 // Reloj de la página movible (solo Date): arranca en startIso y se cambia con window.__setNow(ms).
 // Fechas pasadas: así la sesión simulada nunca parece vencida.
@@ -19,7 +21,7 @@ export default async function ({ base, t }){
     const posts = [];
     const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, init: fakeClock('2026-09-27T23:50:00-03:00'),
       state: { sessions: [], daily: {}, weights: [] },
-      handlers: { '/profiles': profile('client'),
+      handlers: { '/profiles': perfil('client', CON_COACH),
         '/checkins': (r, J, i) => i.m === 'POST' ? (posts.push(JSON.parse(i.body)), r.fulfill({ status: 201, body: '[]' })) : undefined } });
     await p.goto(base + '/app/'); await wait(2500);
     await p.click('#nav-progreso'); await wait(300);
@@ -41,7 +43,7 @@ export default async function ({ base, t }){
   {
     const posts = [];
     const { p, errs, dialogs, close } = await newPage({ user: ALUMNO, state: { sessions: [], daily: {}, weights: [] },
-      handlers: { '/profiles': profile('client'),
+      handlers: { '/profiles': perfil('client', CON_COACH),
         '/checkins': (r, J, i) => i.m === 'POST' ? (posts.push(i.body), r.fulfill({ status: 201, body: '[]' })) : undefined } });
     await p.goto(base + '/app/'); await wait(2500);
     await p.click('#nav-progreso'); await wait(300);

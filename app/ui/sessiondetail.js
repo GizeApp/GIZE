@@ -18,32 +18,47 @@ function varNote(ex){
   return '<div class="sd-var">Hizo <b>' + esc(ex.name) + '</b> en lugar de <b>' + esc(ex.originalName) + '</b></div>';
 }
 
-function exerciseBlock(ex){
-  const sets = ex.sets || [];
-  const best = sets.reduce((b, s) => (Number(s.kg) || 0) !== 0 && (!b || Number(s.kg) > Number(b.kg)) ? s : b, null);
+// Tarjeta de un ejercicio: nombre + cómo le fue arriba, y las series como fichas en grilla
+// (en vez de una lista vertical) para ver todo el ejercicio de un vistazo. Con `prev` (coach),
+// cada ficha lleva debajo la diferencia contra la vez pasada y el título muestra la variación
+// de la mejor serie.
+function setChip(s, i, diff){
+  const kg = Number(s.kg) || 0, secs = Number(s.secs) || 0, reps = Number(s.reps) || 0;
   // Series por tiempo (plancha, isométricos): el tiempo va donde van las reps y el kg solo si hubo.
-  const rows = sets.map((s, i) => (Number(s.secs) || 0) > 0 ?
-    '<div class="sd-set"><span class="sd-n">' + (i + 1) + '</span>' +
-    '<span class="sd-kg">' + ((Number(s.kg) || 0) !== 0 ? fmtKg(s.kg) + '<small>kg</small>' : '') + '</span>' +
-    '<span class="sd-x">' + ((Number(s.kg) || 0) !== 0 ? '·' : '') + '</span>' +
-    '<span class="sd-reps">' + fmtSecs(s.secs) + '</span></div>' :
-    '<div class="sd-set"><span class="sd-n">' + (i + 1) + '</span>' +
-    '<span class="sd-kg">' + fmtKg(s.kg) + '<small>kg</small></span>' +
-    '<span class="sd-x">×</span>' +
-    '<span class="sd-reps">' + (Number(s.reps) || 0) + '<small>reps</small></span></div>'
-  ).join("");
+  const val = secs > 0
+    ? (kg !== 0 ? '<b>' + fmtKg(kg) + '</b><small>kg</small><i>·</i>' : '') + '<b>' + fmtSecs(secs) + '</b>'
+    : (kg !== 0 ? '<b>' + fmtKg(kg) + '</b><small>kg</small><i>×</i>' : '') + '<b>' + reps + '</b>' + (kg !== 0 ? '' : '<small>reps</small>');
+  return '<div class="sx-set' + (secs <= 0 && reps === 0 ? ' zero' : '') + '"><div class="sx-set-v"><span class="sd-n">' + (i + 1) + '</span>' +
+    '<span class="sx-val">' + val + '</span></div>' + (diff || '') + '</div>';
+}
+const bestKg = sets => sets.reduce((m, s) => Math.max(m, Number(s.kg) || 0), 0);
+// Reps de las series que ambos entrenos tienen (las de más no se pueden comparar).
+const commonReps = (sets, n) => sets.slice(0, n).reduce((t, s) => t + (Number(s.reps) || 0), 0);
+// Variación del ejercicio contra la vez pasada: primero el kg de la mejor serie y, si no cambió, las reps totales.
+function deltaBadge(sets, prev){
+  if (!prev) return '<span class="sx-badge new">Primera vez</span>';
+  const ps = prev.ex.sets || [];
+  const dk = Math.round((bestKg(sets) - bestKg(ps)) * 100) / 100;
+  const n = Math.min(sets.length, ps.length), dr = commonReps(sets, n) - commonReps(ps, n);
+  const d = dk || dr, txt = dk ? fmtKg(Math.abs(dk)) + ' kg' : Math.abs(dr) + (Math.abs(dr) === 1 ? ' rep' : ' reps');
+  return d ? '<span class="sx-badge ' + (d > 0 ? 'up' : 'down') + '">' + (d > 0 ? '▲ +' : '▼ −') + txt + '</span>' : '<span class="sx-badge eq">= igual</span>';
+}
+function exerciseCard(ex, prev, compare){
+  const sets = ex.sets || [], ps = prev ? (prev.ex.sets || []) : [];
+  const best = sets.reduce((b, s) => (Number(s.kg) || 0) !== 0 && (!b || Number(s.kg) > Number(b.kg)) ? s : b, null);
   const meta = [sets.length + (sets.length === 1 ? " serie" : " series")];
   if (best) meta.push("mejor " + fmtKg(best.kg) + " kg");
   const maxSecs = sets.reduce((m, s) => Math.max(m, Number(s.secs) || 0), 0);
   if (maxSecs > 0) meta.push("máx " + fmtSecs(maxSecs));
-  return '<div class="sd-ex"><div class="sd-ex-h"><span class="sd-ex-name">' + esc(ex.name || "") + '</span>' +
-    '<span class="sd-ex-meta">' + meta.join(" · ") + '</span></div>' + varNote(ex) + rows + '</div>';
+  if (prev) meta.push("vs " + fmtDate(prev.date));
+  return '<div class="sx-card"><div class="sx-h"><span class="sd-ex-name">' + esc(ex.name || "") + '</span>' + (compare ? deltaBadge(sets, prev) : '') + '</div>' +
+    '<div class="sd-ex-meta">' + meta.join(" · ") + '</div>' + varNote(ex) +
+    '<div class="sx-sets">' + sets.map((s, i) => setChip(s, i, prev ? setDiff(s, ps[i]) : '')).join("") + '</div></div>';
 }
+const exerciseBlock = ex => exerciseCard(ex, null, false);
 
 // Coach: cada ejercicio de este entreno al lado de la vez pasada que lo hizo (el entreno
 // anterior con ese ejercicio), serie por serie, con la diferencia marcada en color.
-const setTxt = s => !s ? "—" : (Number(s.secs) || 0) > 0 ? ((Number(s.kg) || 0) !== 0 ? fmtKg(s.kg) + " kg · " : "") + fmtSecs(s.secs)
-  : fmtKg(s.kg) + " kg × " + (Number(s.reps) || 0);
 function setDiff(s, p){
   if (!s || !p) return '<span class="sc-d none"></span>';
   const out = [];
@@ -54,20 +69,7 @@ function setDiff(s, p){
   if (dr) out.push('<b class="' + (dr > 0 ? 'up' : 'down') + '">' + (dr > 0 ? '▲ +' : '▼ −') + (timed ? fmtSecs(Math.abs(dr)) : Math.abs(dr) + (Math.abs(dr) === 1 ? ' rep' : ' reps')) + '</b>');
   return '<span class="sc-d">' + (out.length ? out.join("") : '<b class="eq">= igual</b>') + '</span>';
 }
-function exerciseCompare(ex, prev){
-  const sets = ex.sets || [], ps = prev ? (prev.ex.sets || []) : [];
-  const n = Math.max(sets.length, ps.length);
-  let rows = "";
-  for (let i = 0; i < n; i++){
-    rows += '<div class="sc-row"><span class="sd-n">' + (i + 1) + '</span>' +
-      '<span class="sc-now">' + (sets[i] ? setTxt(sets[i]) : '<i>no la hizo</i>') + '</span>' +
-      (prev ? '<span class="sc-prev">' + (ps[i] ? setTxt(ps[i]) : '—') + '</span>' + setDiff(sets[i], ps[i]) : '') + '</div>';
-  }
-  return '<div class="sd-ex sc-ex"><div class="sd-ex-h"><span class="sd-ex-name">' + esc(ex.name || "") + '</span>' +
-    '<span class="sd-ex-meta">' + (prev ? 'la vez pasada: ' + fmtDate(prev.date) : 'primera vez que lo hace') + '</span></div>' + varNote(ex) +
-    (prev ? '<div class="sc-row sc-head"><span></span><span>Este entreno</span><span>La vez pasada</span><span>Diferencia</span></div>' : '') +
-    rows + '</div>';
-}
+const exerciseCompare = (ex, prev) => exerciseCard(ex, prev, true);
 // La vez anterior que hizo ese ejercicio (mismo nombre), antes de este entreno.
 function prevOf(name, se, all){
   const key = String(name || "").trim().toLowerCase(), t = se.ts || 0;
@@ -111,6 +113,6 @@ export function renderSessionItem(se, opts){
       '<div class="sess-date">' + fmtDate(se.date) + ' · ' + esc(se.day || "") + '</div>' +
       '<div class="sess-exs">' + esc(names) + '</div></div>' +
       '<span class="sess-chev" aria-hidden="true"></span></summary>' +
-    '<div class="sess-body">' + totals + feedbackChips(se) + (opts.history ? exs.map(e => exerciseCompare(e, prevOf(e.name, se, opts.history))).join("") : exs.map(exerciseBlock).join("")) + '</div></details>' +
+    '<div class="sess-body">' + totals + feedbackChips(se) + '<div class="sx-grid">' + (opts.history ? exs.map(e => exerciseCompare(e, prevOf(e.name, se, opts.history))).join("") : exs.map(exerciseBlock).join("")) + '</div></div></details>' +
     rm + '</div>';
 }

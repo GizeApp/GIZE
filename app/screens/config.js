@@ -4,8 +4,8 @@
 // ya no hace falta el parche: main.js llama a renderConfig() directamente
 // cuando State.view === "config".
 import { State } from '../core/state.js';
-import { KEY } from '../core/storage.js';
-import { clearAccountLeftovers, loadCloud, deleteMyStorageFiles, deleteMyAccount, PROFILE_KEY } from '../core/supabase.js';
+import { KEY, save } from '../core/storage.js';
+import { appleCodeForDelete, clearAccountLeftovers, forgetStoredSession, loadCloud, deleteMyStorageFiles, deleteMyAccount, PROFILE_KEY } from '../core/supabase.js';
 import { esc } from '../core/utils.js';
 import { avatarHtml, avatarUrl } from '../core/avatar.js';
 import { showLogin } from './auth.js';
@@ -18,11 +18,14 @@ import { TRACK_KEY } from '../core/salidas.js';
 import { deleteShareFile } from '../ui/compartir.js';
 import { temaOptionsHtml } from '../ui/tema.js';
 import { neonSwitchHtml } from '../ui/neon.js';
+import { appNativa } from '../core/tienda.js';
 import { bellSvg, fileTextSvg, instagramSvg, globeSvg, auIcoMail, whatsappSvg, chevronRightSvg, pencilSvg, checkSvg } from '../core/icons.js';
 
 const cameraSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
 const moonSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
 const sparkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg>';
+// Personas bloqueadas: un círculo tachado.
+const blockSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>';
 const zapSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
 
 function cfgRoleLabel(p) { return (p && p.role === "coach") ? "Coach" : "Cliente"; }
@@ -122,13 +125,14 @@ export function renderConfig() {
         : "";
 
   const notifOnNow = notifOn();
+  // Lo de la pantalla de inicio es solo para Safari: la app de la tienda tiene push nativo.
   const notifSection = '<div class="card cfg-card">' +
       '<div class="cfg-notif-row">' +
         '<span class="cfg-notif-ic">' + bellSvg + '</span>' +
         '<div class="cfg-notif-txt">' +
           '<div class="cfg-notif-label">Notificaciones</div>' +
           '<div class="cfg-notif-desc">Avisos de tu coach y recordatorios</div>' +
-          (!notifOnNow && isIOS() && !isStandalone() ? '<div class="cfg-notif-desc cfg-notif-ios">En iPhone, primero agregá GIZE a la pantalla de inicio (Compartir → Agregar a inicio) y abrila desde ahí.</div>' : '') +
+          (!notifOnNow && !IS_NATIVE && isIOS() && !isStandalone() ? '<div class="cfg-notif-desc cfg-notif-ios">En iPhone, primero agregá GIZE a la pantalla de inicio (Compartir → Agregar a inicio) y abrila desde ahí.</div>' : '') +
         '</div>' +
         '<button class="cfg-switch' + (notifOnNow ? ' on' : '') + '" data-action="cfg-notif-toggle" role="switch" aria-checked="' + notifOnNow + '"><span class="cfg-switch-knob"></span></button>' +
       '</div>' +
@@ -141,7 +145,7 @@ export function renderConfig() {
         '<span class="cfg-notif-ic">' + zapSvg + '</span>' +
         '<div class="cfg-notif-txt">' +
           '<div class="cfg-notif-label">Modo liviano</div>' +
-          '<div class="cfg-notif-desc">Menos animaciones y más fluidez</div>' +
+          '<div class="cfg-notif-desc">' + (document.documentElement.classList.contains("android-app") ? 'Sin sombras, brillos ni animaciones: mucho más fluida' : 'Menos animaciones y más fluidez') + '</div>' +
         '</div>' +
         '<button class="cfg-switch' + (liteOnNow ? ' on' : '') + '" data-action="cfg-lite-toggle" role="switch" aria-checked="' + liteOnNow + '"><span class="cfg-switch-knob"></span></button>' +
       '</div>' +
@@ -149,8 +153,6 @@ export function renderConfig() {
 
   // Apariencia: «Oscuro» (la de siempre), «Claro» (blanco), «Azul» o «Rosa» (vidrio). Se guarda
   // en este dispositivo y se aplica al toque (app/ui/tema.js escucha los botones data-tema).
-  // El selector va en su propio renglón, debajo del título (cuatro opciones no entran al lado
-  // del texto en un celular angosto).
   const temaSection = '<div class="card cfg-card">' +
       '<div class="cfg-notif-row cfg-tema-row">' +
         '<span class="cfg-notif-ic">' + moonSvg + '</span>' +
@@ -169,10 +171,20 @@ export function renderConfig() {
         '<span class="cfg-notif-ic">' + sparkSvg + '</span>' +
         '<div class="cfg-notif-txt">' +
           '<div class="cfg-notif-label" id="cfgNeonLbl">Neón</div>' +
-          '<div class="cfg-notif-desc">Bordes y brillos de colores</div>' +
+          '<div class="cfg-notif-desc">Toque de color en los bordes</div>' +
         '</div>' +
         neonSwitchHtml("cfgNeonLbl") +
       '</div>' +
+    '</div>';
+
+  // Personas bloqueadas desde el chat con el coach o desde un grupo de pasos, para desbloquearlas.
+  // La lista es una hoja de app/ui/bloquear.js (la abre cualquier botón con data-bloqueados).
+  const blockSection = !logged ? "" : '<div class="card cfg-card">' +
+      '<button type="button" class="cfg-link-row" data-bloqueados>' +
+        '<span class="cfg-link-ic">' + blockSvg + '</span>' +
+        '<span class="cfg-link-label">Personas bloqueadas</span>' +
+        '<span class="cfg-link-chev">' + chevronRightSvg + '</span>' +
+      '</button>' +
     '</div>';
 
   const legalSection = '<div class="card cfg-card">' +
@@ -198,7 +210,7 @@ export function renderConfig() {
 
   checkAdmin(renderApp); // solo las cuentas administradoras ven «Revisar productos»
   return '<div class="hb-head"><div class="hb-title">Configuración</div><div class="title-accent"></div></div>' +
-    account + adminEntry() + coachSection + notifSection + temaSection + neonSection + liteSection + legalSection + contactSection + dangerSection + about;
+    account + adminEntry() + coachSection + notifSection + temaSection + neonSection + liteSection + blockSection + legalSection + contactSection + dangerSection + about;
 }
 
 document.body.addEventListener("keydown", function (e) {
@@ -245,7 +257,7 @@ document.body.addEventListener("click", async function (e) {
 
   const unlinkBtn = e.target.closest('[data-action="cfg-unlink-coach"]');
   if (unlinkBtn) {
-    if (!confirm("¿Seguro que te querés desvincular de tu coach? Vas a necesitar su código de invitación de nuevo si te querés volver a vincular.")) return;
+    if (!await confirmar("¿Seguro que te querés desvincular de tu coach? Vas a necesitar su código de invitación de nuevo si te querés volver a vincular.")) return;
     const prevHtml = unlinkBtn.innerHTML;
     unlinkBtn.disabled = true; unlinkBtn.innerHTML = "Desvinculando…";
     try {
@@ -264,7 +276,7 @@ document.body.addEventListener("click", async function (e) {
   if (clearBtn) {
     // Con la cuenta iniciada solo se borra la copia del celular: la sesión sigue y los datos
     // se vuelven a bajar de la cuenta. Para dejar el celular limpio está «Cerrar sesión».
-    if (confirm(State.cloudUser
+    if (await confirmar(State.cloudUser
       ? "¿Seguro? Se borra la copia guardada en este dispositivo (rutinas, pesos, hábitos) y se vuelve a bajar de tu cuenta. Lo que todavía no se subió a tu cuenta puede perderse.\n\nTu sesión sigue iniciada: para dejar el dispositivo limpio usá «Cerrar sesión»."
       : "¿Seguro? Se va a borrar todo lo guardado en este dispositivo (rutinas, pesos, hábitos). Esta acción no se puede deshacer.")) {
       try { localStorage.removeItem(KEY); } catch (err) {}
@@ -307,10 +319,21 @@ document.body.addEventListener("click", async function (e) {
   if (delAccBtn) {
     if (!State.sb || !State.cloudUser) { alert("Iniciá sesión para poder eliminar tu cuenta."); return; }
     const isCoach = !!(State.cloudProfile && State.cloudProfile.role === "coach");
-    if (!confirm(isCoach
-      ? "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se cancela tu suscripción de GIZE. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
+    // Plan de coach con una suscripción de Apple que se renueva sola (app de iPhone,
+    // supabase/compras-apple.sql): Apple la sigue cobrando aunque se borre la cuenta, y solo la
+    // puede cancelar el coach desde su cuenta de Apple. Se le avisa antes.
+    let appleAviso = "";
+    if (isCoach) {
+      try {
+        const ab = await State.sb.from("coach_billing").select("*").eq("coach_id", State.cloudUser.id).maybeSingle();
+        if (ab.data && ab.data.apple_renueva && ab.data.apple_vence && new Date(ab.data.apple_vence).getTime() > Date.now())
+          appleAviso = "Ojo: tu suscripción de Apple no se cancela al eliminar la cuenta y Apple te la sigue cobrando. Cancelala antes desde los Ajustes de tu cuenta de Apple (Ajustes → tu nombre → Suscripciones).\n\n";
+      } catch (err) {}
+    }
+    if (!await confirmar(isCoach
+      ? appleAviso + "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se da de baja tu cuenta de coach. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
       : "¿Seguro que querés eliminar tu cuenta? Se va a borrar tu rutina, tus registros, tus salidas de Cardio (con sus recorridos) y tu vínculo con tu coach de forma permanente. Esta acción no se puede deshacer.")) return;
-    const typed = prompt('Para confirmar, escribí ELIMINAR (en mayúsculas):');
+    const typed = await pedir('Para confirmar, escribí ELIMINAR (en mayúsculas):', "", { titulo: "Eliminar cuenta", ok: "Eliminar" });
     if (typed !== "ELIMINAR") { if (typed !== null) alert("No coincide, no se eliminó nada."); return; }
     const prevHtml = delAccBtn.innerHTML;
     delAccBtn.disabled = true; delAccBtn.innerHTML = "Eliminando…";
@@ -321,17 +344,19 @@ document.body.addEventListener("click", async function (e) {
         const bl = await State.sb.from("coach_billing").select("mp_status, mp_preapproval_id").eq("coach_id", State.cloudUser.id).maybeSingle();
         if (bl.data && bl.data.mp_preapproval_id && bl.data.mp_status === "authorized") {
           const rc = await State.sb.functions.invoke("suscripcion", { body: { action: "cancel" } });
-          if (rc.error || (rc.data && rc.data.error)) throw new Error("no se pudo cancelar tu suscripción en Mercado Pago. Probá de nuevo o escribinos a contacto@gize.ar");
+          if (rc.error || (rc.data && rc.data.error)) throw new Error(appNativa() ? "no se pudo dar de baja tu cuenta de coach. Probá de nuevo o escribinos a contacto@gize.ar" : "no se pudo cancelar tu suscripción en Mercado Pago. Probá de nuevo o escribinos a contacto@gize.ar");
         }
       }
       // Primero las fotos (perfil y productos): la función de abajo no puede borrar archivos
       // de Storage. Si esto falla se corta acá, con la cuenta intacta, para poder reintentar
       // en vez de dejar fotos sin dueño.
       await deleteMyStorageFiles();
+      // Cuenta de Apple (app de iPhone): un código nuevo de Apple para revocar el acceso de GIZE.
+      const appleCode = await appleCodeForDelete();
       // Después la función borrar-audios: borra los mensajes de voz y la cuenta (llama a
       // delete_own_account, ver supabase/pagos-seguros.sql, que borra auth.users y en cascada
       // todo lo que depende de él).
-      await deleteMyAccount();
+      await deleteMyAccount(appleCode);
       State.signingOut = true; // la sesión se cierra a propósito: no pedir ingresar de nuevo (core/supabase.js → watchAuth)
       // Como al cerrar sesión: se da de baja este dispositivo para que la próxima cuenta que
       // entre acá no quede con las notificaciones prendidas sin haberlas activado. Va después
@@ -340,8 +365,11 @@ document.body.addEventListener("click", async function (e) {
       try { localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); } catch (err) {}
       stopForLogout(); // deja de mirar el GPS y borra la salida en curso
       clearAccountLeftovers(State.cloudUser && State.cloudUser.id);
-      try { await State.sb.auth.signOut(); } catch (err) {}
-      alert("Tu cuenta fue eliminada.");
+      try { await Promise.race([State.sb.auth.signOut(), new Promise(r => setTimeout(r, 5000))]); } catch (err) {}
+      forgetStoredSession(); // la cuenta ya no existe: que no quede su sesión guardada en el dispositivo
+      // Se recarga recién cuando cierra el aviso: alert() ya no frena la app (ui/avisos.js) y,
+      // si no, la recarga lo sacaba antes de que se pudiera leer.
+      await alert("Tu cuenta fue eliminada.");
       location.reload();
     } catch (err) {
       alert("No se pudo eliminar la cuenta: " + ((err && err.message) || err));

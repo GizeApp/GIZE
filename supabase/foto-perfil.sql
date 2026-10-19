@@ -1,5 +1,8 @@
 -- Foto de perfil para clientes y coaches.
 -- Correr UNA vez en Supabase → SQL Editor. Se puede volver a correr sin problema.
+-- OJO: las versiones vigentes de las políticas de subir y cambiar la foto (ruta exacta y tope
+-- por día) están en topes-archivos.sql: si volvés a correr este archivo, corré después
+-- topes-archivos.sql.
 -- Mientras no se corra, la app sigue mostrando las iniciales.
 
 -- 1) Dónde queda guardada la foto de cada perfil.

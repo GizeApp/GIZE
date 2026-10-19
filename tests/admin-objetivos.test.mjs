@@ -60,6 +60,26 @@ export default async function ({ base, t }){
   // Ficha de una tarea
   await p.click('[data-task="3"]'); await wait(300);
   t.eq(await p.inputValue('#tTitle'), 'Armar el video', 'la ficha abre la tarea tocada');
+  await p.click('.drawer [data-a="closeDrawer"]');
+
+  // Bloques fijos: resumen en el título, sin flechas para plegar, «+ Nuevo» abre el formulario
+  t.has(await text(p, '#hGoalsB .blk-h'), '1 atrasado · 1 cumplido', 'resumen de objetivos en el título');
+  t.has(await text(p, '#hTasksB .blk-h'), '1 vencida', 'resumen de tareas en el título');
+  t.eq(await p.$$eval('#main .pnl', ds => ds.length), 0, 'Objetivos no tiene paneles plegables');
+  t.ok(!(await p.isVisible('.pg-fold')), 'sin «Abrir todo / Plegar todo» en esta pantalla');
+  await p.click('#hGoalsB [data-a="gNew"]'); await wait(300);
+  t.ok(await p.isVisible('.drawer'), '«+ Nuevo» abre el formulario');
+  await p.click('.drawer [data-a="closeDrawer"]');
+  // Menú plano: lo de todos los días arriba y «Más» abajo, todo a la vista y sin plegar
+  for (const k of ['resumen', 'usuarios', 'finanzas', 'seguridad', 'contacto', 'reportes', 'productos', 'avisos', 'estadisticas'])
+    t.ok(await p.isVisible('[data-go="' + k + '"]'), 'el menú muestra «' + k + '» sin abrir nada');
+  t.eq(await p.$$eval('.nav', ns => ns.slice(0, 4).map(n => n.dataset.go)), ['resumen', 'usuarios', 'finanzas', 'seguridad'], 'arriba van las cuatro de todos los días');
+  t.eq(await text(p, '[data-go="resumen"]'), 'Objetivos', 'la primera sección se llama Objetivos');
+  t.ok(!(await p.$('.nav[data-go="coaches"]')), '«Coaches y pagos» no tiene botón propio en el menú: es una pestaña de Usuarios');
+  // Estadísticas: los números, los gráficos y las versiones salieron de Inicio
+  t.ok(!(await p.isVisible('#hNumB')), 'Objetivos ya no trae los números');
+  await p.click('[data-go="estadisticas"]'); await wait(800);
+  t.ok(await p.isVisible('#hNumB') && await p.isVisible('#hChartsB') && await p.isVisible('#hVerB'), 'Estadísticas muestra números, gráficos y versiones');
   t.eq(errs, [], 'errores de la página');
   await close();
 }

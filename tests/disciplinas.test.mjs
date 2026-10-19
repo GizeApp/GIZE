@@ -1,0 +1,123 @@
+// Disciplinas (app/core/disciplinas.js): la persona elige en la bienvenida qué entrena y el
+// buscador de ejercicios le muestra primero lo suyo («Para vos» y los grupos de su disciplina).
+// #333 sacó la tarjeta «Tu disciplina» de Ajustes (y la invitación del buscador que llevaba ahí):
+// la disciplina se elige solo en la bienvenida de una cuenta nueva (app/screens/onboarding.js).
+import { newPage, wait, text, ALUMNO, onbSinCuerpo } from './lib.mjs';
+
+const profile = (r, J, i) => i.m === 'GET' ? J(i.one ? { id: ALUMNO.id, role: 'client', full_name: 'Prueba', coach_id: null } : [{ id: ALUMNO.id, role: 'client', full_name: 'Prueba', coach_id: null }]) : undefined;
+
+export default async function ({ base, t }){
+  // La base: grupos nuevos, ejercicios clave que existen, running por tiempo y sin volumen.
+  {
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: { days: [{ id: 'd1', name: 'Día 1', exercises: [] }], sessions: [], weights: [], daily: {} },
+      handlers: { '/profiles': profile } });
+    await p.goto(base + '/app/'); await wait(2500);
+    const b = await p.evaluate(async () => {
+      const { EX_DB, EX_CATS } = await import('/app/core/data.js');
+      const { DISCIPLINAS } = await import('/app/core/disciplinas.js');
+      const { isTimedEx, exMuscle } = await import('/app/core/utils.js');
+      const { volumeGroups } = await import('/app/core/subgrupos.js');
+      const { libVideo } = await import('/app/core/videos.js');
+      const all = new Set(Object.values(EX_DB).flat());
+      return { cats: ['olimpicos', 'crossfit', 'running'].filter(c => EX_CATS.some(x => x[0] === c) && EX_DB[c].length >= 9),
+        missing: DISCIPLINAS.flatMap(d => d.top.filter(n => !all.has(n))),
+        timed: ['Rodaje suave', 'Fondo largo', 'Air bike'].map(n => isTimedEx({ name: n })).concat(isTimedEx({ name: 'Fondos en paralelas' })),
+        sinVideo: ['olimpicos', 'crossfit', 'running'].flatMap(c => EX_DB[c]).concat(DISCIPLINAS.flatMap(d => d.top)).filter(n => !libVideo(n)),
+        vol: volumeGroups({ name: 'Fartlek', mus: 'running' }), frontal: exMuscle({ name: 'Sentadilla frontal' }) };
+    });
+    t.eq(b.cats, ['olimpicos', 'crossfit', 'running'], 'grupos nuevos: Halterofilia, CrossFit y Running');
+    t.eq(b.missing, [], 'los ejercicios clave de cada disciplina existen');
+    t.eq(b.timed, [true, true, true, false], 'correr y las máquinas de cardio van por tiempo (los fondos no)');
+    t.eq(b.vol, [], 'correr no suma al volumen de fuerza');
+    t.eq(b.sinVideo, [], 'todos los ejercicios nuevos y los clave tienen video');
+    t.eq(b.frontal, 'cuadriceps', 'la sentadilla frontal sigue contando para cuádriceps');
+
+    // Sin disciplina: el buscador abre en Pecho, sin «Para vos».
+    await p.click('#view [data-action="ex-add-open"]'); await wait(500);
+    t.eq(await p.$eval('.ex-chip.on', e => e.textContent), 'Pecho', 'sin disciplina abre en Pecho, como siempre');
+    t.ok(!(await p.$('.ex-chip-vos')), 'sin disciplina no hay «Para vos»');
+    t.eq(errs, [], 'errores de la página (sin disciplina)');
+    await close();
+  }
+
+  // Cuenta nueva: en la bienvenida elige CrossFit (antes se elegía en Ajustes → «Tu disciplina»).
+  {
+    const NUEVO = Object.assign({}, ALUMNO, { created_at: new Date().toISOString() });
+    const { p, errs, close } = await newPage({ user: NUEVO, state: { days: [{ id: 'd1', name: 'Día 1', exercises: [] }], sessions: [], weights: [], daily: {} },
+      handlers: { '/profiles': profile } });
+    const posts = [];
+    await p.route(/client_prefs/, r => { if (r.request().method() !== 'GET') posts.push(r.request().postData()); r.fulfill({ status: 201, contentType: 'application/json', body: '[]' }); });
+    await p.goto(base + '/app/'); await wait(2500);
+    await p.click('[data-onb="start"]'); await wait(300);
+    await p.click('[data-onb="disc"][data-v="crossfit"]'); await wait(400);
+    t.ok(await p.$eval('[data-onb="disc"][data-v="crossfit"]', e => e.classList.contains('on')), 'CrossFit queda marcado');
+    await wait(2500);
+    t.ok(posts.some(x => /"disciplines":\["crossfit"\]/.test(x || '')), 'se guarda con las preferencias');
+    // Sigue la bienvenida: entrena por su cuenta, saltea los datos del cuerpo y arranca vacío, con un día.
+    await p.click('[data-onb="next"]'); await wait(300);
+    await p.click('[data-onb="solo"]'); await wait(300);
+    await onbSinCuerpo(p);
+    await p.click('.onb-opt[data-v="vacio"]'); await wait(150);
+    await p.click('[data-onb="next"]'); await wait(300);
+    await p.click('[data-onb="days"][data-v="1"]'); await wait(150);
+    await p.click('[data-onb="next"]'); await wait(300);
+    t.has(await text(p, '#authHost'), '¿Cómo se llama tu primer día?', 'pregunta el nombre del primer día');
+    await p.click('[data-onb="next"]'); await wait(800);
+
+    await p.click('#view [data-action="ex-add-open"]'); await wait(500);
+    const chips = await p.$$eval('.ex-chip', l => l.slice(0, 4).map(e => e.textContent));
+    t.eq(chips, ['Para vos', 'CrossFit', 'Halterofilia', 'Pecho'], 'primero «Para vos» y los grupos de su disciplina');
+    const list = await p.$$eval('#exList .ex-pick', l => l.map(e => e.textContent));
+    t.ok(list.includes('Thruster con barra') && list.includes('Wall ball'), '«Para vos» trae los ejercicios clave');
+    await p.click('#exList .ex-pick[data-name="Wall ball"]'); await wait(700);
+    const ex = await p.evaluate(() => JSON.parse(localStorage.getItem('rutina_jero_v1')).days[0].exercises.map(e => [e.name, e.mus]));
+    t.eq(ex, [['Wall ball', 'crossfit']], 'el ejercicio elegido desde «Para vos» cuenta para su grupo');
+    t.eq(errs, [], 'errores de la página');
+    await close();
+  }
+
+  // Si la columna todavía no existe en la base, el resto de las preferencias se sube igual.
+  {
+    const NUEVO = Object.assign({}, ALUMNO, { created_at: new Date().toISOString() });
+    const { p, close } = await newPage({ user: NUEVO, state: { days: [{ id: 'd1', name: 'Día 1', exercises: [] }], sessions: [], weights: [], daily: {}, disciplinas: ['running'] },
+      handlers: { '/profiles': profile } });
+    const bodies = [];
+    await p.route(/client_prefs/, r => { const m = r.request().method(); if (m === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      const d = r.request().postData() || ''; bodies.push(d);
+      if (/disciplines/.test(d)) return r.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ code: 'PGRST204', message: "Could not find the 'disciplines' column of 'client_prefs' in the schema cache" }) });
+      r.fulfill({ status: 201, contentType: 'application/json', body: '[]' }); });
+    await p.goto(base + '/app/'); await wait(2500);
+    // La disciplina se elige en la bienvenida (ya no en Ajustes, ver #333).
+    await p.click('[data-onb="start"]'); await wait(300);
+    await p.click('[data-onb="disc"][data-v="fuerza"]'); await wait(3000);
+    t.ok(bodies.some(x => !/disciplines/.test(x) && /rest_default|habits/.test(x)), 'sin la columna nueva, se reintenta sin la disciplina');
+    await close();
+  }
+
+  // Coach: ve la disciplina del alumno en la ficha y el buscador le ofrece primero «Para su disciplina».
+  {
+    const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
+    const al = { id: ALUMNO.id, full_name: 'Ana', role: 'client', coach_id: COACH.id };
+    const { p, errs, close } = await newPage({ user: COACH, viewport: { width: 1200, height: 900 }, handlers: {
+      '/profiles': (r, J, i) => i.m !== 'GET' ? undefined : (/coach_id=eq/.test(i.url.search) ? J([al]) : J(i.one ? { id: COACH.id, role: 'coach', full_name: 'Coach' } : [{ id: COACH.id, role: 'coach', full_name: 'Coach' }])),
+      '/coach_billing': (r, J, i) => J(i.one ? { plan: 'cortesia', max_clients: 50, trial_ends_at: '2099-01-01T00:00:00Z' } : [{ plan: 'cortesia', max_clients: 50, trial_ends_at: '2099-01-01T00:00:00Z' }]),
+      '/client_prefs': (r, J, i) => i.m === 'GET' ? J(i.one ? { disciplines: ['powerlifting'] } : [{ disciplines: ['powerlifting'] }]) : undefined,
+      '/routines': (r, J, i) => i.m === 'GET' ? J(i.one ? { days: [{ id: 'd1', name: 'Día 1', exercises: [] }] } : [{ days: [{ id: 'd1', name: 'Día 1', exercises: [] }] }]) : undefined,
+    } });
+    await p.goto(base + '/app/'); await wait(3000);
+    await p.evaluate(async id => { const m = await import('/app/screens/coach/clientes.js'); await m.openClient(id); }, ALUMNO.id); await wait(1200);
+    t.has(await p.evaluate(() => (document.querySelector('.co-client-disc') || {}).textContent || ''), 'Powerlifting', 'coach: la ficha muestra la disciplina del alumno');
+    const cats = await p.evaluate(async () => {
+      const { CoachState } = await import('/app/screens/coach/state.js'); const r = await import('/app/screens/coach/rutinas.js');
+      CoachState.coachPicker = { mode: 'add' }; CoachState.coachPCat = null; CoachState.coachPQ = '';
+      const d = document.createElement('div'); d.innerHTML = r.coachPickerMarkup();
+      const first = [...d.querySelectorAll('.cp-cat')].slice(0, 4).map(b => b.textContent);
+      CoachState.coachPCat = '_vos'; d.innerHTML = r.coachPickerMarkup();
+      return { first, list: [...d.querySelectorAll('.cp-ex')].map(b => b.textContent).slice(0, 3) };
+    });
+    t.eq(cats.first, ['Para su disciplina', 'Cuádriceps', 'Pecho', 'Isquios'], 'coach: primero «Para su disciplina» y sus grupos');
+    t.eq(cats.list, ['Sentadilla libre', 'Sentadilla con pausa', 'Sentadilla barra baja'], 'coach: los ejercicios clave de powerlifting');
+    t.eq(errs, [], 'coach: errores de la página');
+    await close();
+  }
+}

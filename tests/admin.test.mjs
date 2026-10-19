@@ -39,6 +39,8 @@ export default async function ({ base, t }){
   t.ok(!!(await p.$('#trUntil')) && !!(await p.$('#trMax')), 'prueba con calendario y alumnos escritos');
   // La prueba termina el 18/9 a las 22:30 (hora de Argentina): un mes desde ahí es el 18/10.
   t.eq(await p.inputValue('#pmUntil'), '2026-10-18', 'en prueba, "Pagado hasta" se cuenta desde el fin de la prueba');
+  t.ok(!(await p.isVisible('#trUntil')), '«Cortesía o prueba» arranca plegado');
+  await p.click('#drPrueba > summary');
   await p.fill('#trUntil', '2026-11-10'); await p.fill('#trMax', '15');
   await p.click('[data-a="trSave"]'); await wait(500);
   await p.click('tr[data-coach="c2"]'); await wait(400);

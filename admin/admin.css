@@ -2,7 +2,10 @@
    Sobrio: fondo plano, grises, el azul solo para lo activo y los colores de estado solo donde
    informan algo. La gama RGB de la marca queda en dos lugares: la línea bajo el título de cada
    página y el anillo del botón de entrar. */
-:root { --bg: var(--gize-bg); --card: var(--gize-surface); --card-2: var(--gize-surface-2); --border: var(--gize-border);
+:root { /* medidas que usan los carteles compartidos con la app (css/ui/avisos.css) */
+  --r-box: 14px; --r-btn: 14px; --r-card: 18px; --text-body: 14px; --text-emphasis: 15px; --text-meta: 12px;
+  --duration-frequent: .15s; --duration-standard: .22s; --ease-drawer: cubic-bezier(.32,.72,0,1);
+  --bg: var(--gize-bg); --card: var(--gize-surface); --card-2: var(--gize-surface-2); --border: var(--gize-border);
   --line: #141821; --hover: #0f1319;
   --txt: var(--gize-text); --txt-2: var(--gize-text-2); --blue: var(--gize-blue); --red: var(--gize-danger); --ok: var(--gize-success); --warn: var(--gize-warning); }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -19,7 +22,8 @@ a { color: var(--blue); }
 .side { position: sticky; top: 0; height: 100vh; padding: 24px 14px; border-right: 1px solid var(--border); background: var(--bg); display: flex; flex-direction: column; gap: 2px; }
 .side img { width: 120px; margin: 0 0 2px 10px; }
 .side-sub { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--txt-2); margin: 0 0 22px 10px; }
-.nav-g { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--txt-2); opacity: .7; margin: 18px 0 6px 10px; }
+/* Menú plano: lo de todos los días arriba y «Más» abajo. */
+.nav-sep { margin: 18px 0 4px; padding: 0 10px; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--txt-2); }
 .nav { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 0; background: none; color: var(--txt-2); font-weight: 500; font-size: 14px; text-align: left; transition: background .15s, color .15s; }
 .nav:hover { background: var(--card); color: var(--txt); }
 .nav.on { background: var(--card); color: var(--txt); font-weight: 600; box-shadow: inset 2px 0 0 var(--blue); }
@@ -30,12 +34,12 @@ a { color: var(--blue); }
 .h1 { font-size: 24px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 4px; }
 .h1:not(.sm)::after { content: ""; display: block; width: 40px; height: 2px; margin-top: 10px; border-radius: 2px; background: var(--gize-rgb-line); }
 .h1.sm { font-size: 20px; }
-.lead { color: var(--txt-2); font-size: 14px; margin: 8px 0 28px; max-width: 70ch; }
+.lead { color: var(--txt-2); font-size: 14px; margin: 8px 0 20px; max-width: 70ch; }
 @media (max-width: 860px) {
   .shell { grid-template-columns: 1fr; }
   .side { position: sticky; top: 0; z-index: 20; height: auto; flex-direction: row; align-items: center; overflow-x: auto; gap: 2px; padding: calc(8px + env(safe-area-inset-top)) 10px 8px; border-right: 0; border-bottom: 1px solid var(--border); scrollbar-width: none; }
   .side::-webkit-scrollbar { display: none; }
-  .side img, .side-sub, .side-mail, .nav-g { display: none; }
+  .side img, .side-sub, .side-mail, .nav-sep { display: none; }
   /* «Salir» e «Ir a la app» quedan al final de la fila de pestañas (sin el mail) */
   .side-foot { display: flex; align-items: center; gap: 6px; margin: 0 0 0 8px; padding: 0 12px; white-space: nowrap; font-size: 13px; }
   .nav { width: auto; white-space: nowrap; padding: 8px 12px; font-size: 13.5px; }
@@ -61,12 +65,41 @@ a { color: var(--blue); }
 .sec-t { font-size: 14.5px; font-weight: 600; margin-bottom: 4px; }
 .sec-s { font-size: 12.5px; color: var(--txt-2); margin-bottom: 14px; line-height: 1.45; }
 
-/* Inicio: bloques, lista de lo que hay que atender y objetivos */
-.blk { margin-bottom: 32px; }
-.blk-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; min-height: 32px; }
-.blk-h .sec-t { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--txt-2); }
+/* Paneles plegables: el título abre o pliega; plegado queda una fila con el resumen. */
+.pg-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pg-fold { display: flex; gap: 2px; flex: none; margin-top: 2px; }
+.main:not(:has(.pnl ~ .pnl ~ .pnl)) .pg-fold { display: none; }
+.pg-fold button { border: 0; background: none; padding: 5px 8px; border-radius: 6px; color: var(--txt-2); font-size: 12.5px; font-weight: 600; }
+.pg-fold button:hover { color: var(--txt); background: var(--card); }
+.pnl { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; }
+.pnl > summary { list-style: none; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 14px 8px 12px; cursor: pointer; user-select: none; border-radius: 12px; }
+.pnl > summary::-webkit-details-marker { display: none; }
+.pnl > summary::before { content: ""; flex: none; width: 7px; height: 7px; margin: 0 2px 0 4px; border: solid var(--txt-2); border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform .15s; }
+.pnl[open] > summary::before { transform: rotate(45deg) translate(-2px, -1px); }
+.pnl > summary:hover { background: var(--hover); }
+.pnl > summary:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.pnl-t { flex: none; font-size: 14.5px; font-weight: 600; }
+.pnl-s { flex: 1; min-width: 0; font-size: 13px; color: var(--txt-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pnl > summary .btn { flex: none; margin-left: auto; }
+.pnl-b { padding: 4px 16px 16px; }
+.pnl-b.flush { padding: 0 0 4px; }
+.blk { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; }
+.blk-h { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 14px 8px 16px; }
+.blk-h .btn { flex: none; margin-left: auto; }
+.blk.quiet .pnl-b { display: none; }
+.pnl .card, .pnl .kpi, .blk .card, .blk .kpi { background: var(--card-2); }
+.pnl .kpis:last-child, .blk .kpis:last-child { margin-bottom: 0; }
+.drawer .pnl { margin-top: 10px; }
+.t-ok { color: var(--ok); }
+.t-warn { color: var(--warn); }
+.t-bad { color: var(--red); }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--blue); margin-right: 7px; vertical-align: 1px; }
+.pnl-s .dot { background: var(--warn); }
+
+/* Inicio: lista de lo que hay que atender y objetivos */
 .calm { color: var(--txt-2); font-size: 14px; line-height: 1.5; }
-.list { padding: 4px 0; }
+.calm.pad { padding: 4px 18px 12px 38px; }
+.list { padding: 0; border-top: 1px solid var(--line); }
 .li { display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 18px; border: 0; background: none; text-align: left; border-bottom: 1px solid var(--line); }
 .li:last-child { border-bottom: 0; }
 .li:hover { background: var(--hover); }
@@ -140,7 +173,7 @@ a { color: var(--blue); }
 .in:focus { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 18%, transparent); }
 textarea.in { resize: vertical; min-height: 90px; line-height: 1.45; }
 .lbl { display: block; font-size: 12px; font-weight: 600; color: var(--txt-2); margin: 12px 0 6px; }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 15px; border-radius: 8px; border: 1px solid var(--border); background: var(--card-2); font-weight: 600; font-size: 13.5px; transition: border-color .15s, background .15s; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; padding: 9px 15px; border-radius: 8px; border: 1px solid var(--border); background: var(--card-2); font-weight: 600; font-size: 13.5px; transition: border-color .15s, background .15s; }
 .btn:hover { border-color: #394150; }
 .btn.sm { padding: 6px 12px; font-size: 13px; }
 .btn.pri { background: #fff; color: #000; border-color: #fff; }
@@ -226,15 +259,34 @@ textarea.in { resize: vertical; min-height: 90px; line-height: 1.45; }
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); animation: gize-spin 5s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .gate .btn.pri::before { animation: none; } }
 
-/* Mensajes de contacto */
+/* Mensajes de contacto: una fila por mensaje que se despliega */
+.msgs .pnl { margin-bottom: 6px; }
 .msg.unread { border-color: color-mix(in srgb, var(--blue) 50%, var(--border)); }
-.msg-h { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.msg > summary { gap: 10px; }
+.msg-from { flex: none; width: 170px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg:not(.unread) .msg-from { font-weight: 500; color: var(--txt-2); }
+.msg-sum { flex: 1; min-width: 0; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg-sum b { font-weight: 600; }
+.msg:not(.unread) .msg-sum b { font-weight: 500; }
+.msg-d { flex: none; }
+.msg[open] .msg-sum .muted { display: none; }
+@media (max-width: 700px) {
+  .msg > summary { flex-wrap: wrap; row-gap: 2px; }
+  .msg-from { width: auto; flex: 1; }
+  .msg-sum { order: 5; flex-basis: 100%; padding-left: 21px; }
+}
 .msg-s { margin: 6px 0 10px; font-weight: 600; }
 .msg-b { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; color: var(--txt); max-height: 420px; overflow: auto; }
 .msg-r { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 12px; padding: 10px 12px; border-left: 2px solid var(--ok); background: color-mix(in srgb, var(--ok) 5%, transparent); border-radius: 6px; line-height: 1.45; }
 .msg-reply { margin-top: 12px; }
 .msg-reply textarea { width: 100%; min-height: 120px; }
 .msg-warn { margin-top: 8px; padding: 8px 10px; border-radius: 8px; font-size: 13px; color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); }
+
+/* Reportes (chat y grupos de pasos): lo reportado, la nota y quién. */
+.rep-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+.rep-q { margin-bottom: 4px; padding: 8px 12px; border-left: 2px solid var(--border); border-radius: 0 8px 8px 0; background: var(--card-2); line-height: 1.5; overflow-wrap: anywhere; }
+.rep-note { margin-top: 10px; overflow-wrap: anywhere; line-height: 1.45; }
+.rep-who { margin-top: 8px; }
 
 /* Finanzas */
 .kpis.wide { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
@@ -280,3 +332,28 @@ textarea.in { resize: vertical; min-height: 90px; line-height: 1.45; }
   .prod-top .seg { width: 100%; }
   .main > .seg { width: 100%; }
 }
+
+/* Fecha día/mes/año (ver dayFirst en admin.js): texto + botón de calendario; el input nativo queda
+   invisible detrás, solo para abrir el calendario. */
+.dfield { position: relative; display: flex; align-items: center; width: 100%; }
+.dfield > .in { padding-right: 40px; }
+.dfield > .in.bad { border-color: var(--red); }
+.dfield-cal { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 6px; background: none; color: var(--txt-2); cursor: pointer; }
+.dfield-cal:hover { color: var(--txt); background: var(--card); }
+.dfield > .dfield-native { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+
+/* Apariencia tranquila (como la app, css/ui/calma.css): fondo liso en degradé en vez de la aurora
+   de colores, y el botón de entrar con un filete quieto en vez del anillo que gira. */
+.aurora-bg { opacity: 1; background: linear-gradient(180deg, #0E1424 0%, #080B15 38%, #05070D 100%); }
+.aurora-bg .gize-aurora { display: none; }
+.gate .btn.pri::before { animation: none;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--gize-r2) 45%, rgba(255,255,255,.10)) 0%,
+    rgba(255,255,255,.10) 28%, rgba(255,255,255,.08) 72%, color-mix(in srgb, var(--gize-r1) 32%, rgba(255,255,255,.08)) 100%); }
+
+#uFilt { flex-wrap: wrap; }
+#uFilt button .muted { font-weight: 500; margin-left: 2px; }
+/* Pestañas de página (Usuarios / Coaches y pagos) */
+.tabs { display: flex; gap: 4px; margin: 0 0 18px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tabs button { flex: none; border: 0; background: none; padding: 9px 14px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--txt-2); font-weight: 600; font-size: 14px; }
+.tabs button:hover { color: var(--txt); }
+.tabs button.on { color: var(--txt); border-bottom-color: var(--blue); }

@@ -4,6 +4,8 @@
 // redibuja atrás. La usan el alumno (botón de la barra de arriba) y el coach (ficha del
 // cliente). Mandar pasa por la función de mensajes, que guarda y le avisa al otro al
 // celular; los audios se suben antes al bucket privado chat-audio.
+// El «⋯» de al lado de la hora de un mensaje recibido abre «Reportar mensaje» (ui/reportar.js) y
+// «Bloquear a …» (ui/bloquear.js).
 
 import { State } from '../core/state.js';
 
@@ -11,7 +13,13 @@ import { appAway, onAwayChange } from './pausa.js';
 
 import { esc, fmtDate } from '../core/utils.js';
 
+import { chatMsgTienda } from '../core/tienda.js';
+
 import { Player, audioState, extFor, mmss, newAudioName, signedAudioUrl, startRecorder, stopAudio, togglePlay, uploadAudio } from './grabar.js';
+
+import { cerrarReporte } from './reportar.js';
+
+import { abrirOpciones, cerrarBloqueo } from './bloquear.js';
 
 const FN_NAMES = ["rapid-worker", "notificar-cliente"];
 const MAX_TXT = 1000;
@@ -100,6 +108,7 @@ export async function openChat(o){
 
 export function closeChat(fromNav){
   if(!C) return;
+  cerrarReporte(); cerrarBloqueo();
   stopRec(true);
   stopAudio();
   if(C.chan) try{ State.sb.removeChannel(C.chan); }catch(e){}
@@ -126,8 +135,15 @@ async function load(){
       .order("created_at", { ascending: false }).limit(150);
     if(C !== c) return;
     if(r.error){ c.error = "No se pudo cargar la conversación. Revisá la conexión."; c.msgs = c.msgs || []; paint(); return; }
+    const known = new Set((c.msgs || []).map(m => m.id));
     const pending = (c.msgs || []).filter(m => m.pending);
-    c.msgs = (r.data || []).reverse().map(norm).concat(pending);
+    // De los nuevos (del más nuevo al más viejo), el propio que todavía espera la respuesta
+    // reemplaza al local (ver ownLocal).
+    const rows = (r.data || []).map(norm).map(m => {
+      const j = known.has(m.id) ? -1 : ownLocal(pending, m);
+      return j < 0 ? m : keepUrl(m, pending.splice(j, 1)[0]);
+    });
+    c.msgs = rows.reverse().concat(pending);
     c.error = "";
     paint(true);
     markRead();
@@ -138,6 +154,16 @@ async function load(){
 function norm(m){ return Object.assign({}, m, { sender: m.sender || "coach", body: m.body || "" }); }
 
 function mine(m){ return m.sender === (C.role === "coach" ? "coach" : "client"); }
+
+// El mensaje propio que todavía espera la respuesta de la función. La función lo guarda antes
+// de mandar los avisos, así que Realtime (o una recarga) trae el guardado antes de que conteste:
+// ocupa el lugar del local, si no se veía dos veces («Enviando…» y «Enviado»).
+function ownLocal(list, m){
+  if(!mine(m)) return -1;
+  return list.findIndex(x => x.pending && x.body === m.body && (x.audio_path || null) === (m.audio_path || null));
+}
+// El audio recién grabado se sigue escuchando del archivo local.
+function keepUrl(m, local){ if(local.localUrl) m.localUrl = local.localUrl; return m; }
 
 function markRead(){
   const c = C; if(!c || document.visibilityState === "hidden") return;
@@ -181,6 +207,8 @@ function listen(){
         const list = c.msgs || (c.msgs = []);
         const i = list.findIndex(x => x.id === m.id);
         if(i >= 0){ list[i] = Object.assign(list[i], m); paint(); return; }
+        const j = ownLocal(list, m);
+        if(j >= 0){ list[j] = keepUrl(m, list[j]); paint(); return; }
         list.push(m);
         paint(true);
         markRead();
@@ -225,7 +253,7 @@ async function sendMsg(payload, local, c = C){
       else { local.id = r.id; local.created_at = r.created_at || local.created_at; }
     }
   }catch(e){
-    local.pending = false; local.failed = e.message || "No se pudo mandar.";
+    local.pending = false; local.failed = chatMsgTienda(e.message) || "No se pudo mandar.";
   }
   c.sending--;
   if(C === c) paint();
@@ -268,11 +296,11 @@ async function uploadAndSend(c, blob, type, secs){
   local.pending = true; local.id = "tmp-" + name;
   (c.msgs || (c.msgs = [])).push(local);
   c.sending++; if(C === c) paint(true);
-  const ok = await uploadAudio(path, blob, type);
+  const err = await uploadAudio(path, blob, type);
   c.sending--;
   c.msgs = c.msgs.filter(m => m !== local);
-  if(!ok){
-    local.pending = false; local.failed = "No se pudo subir el audio. Revisá la conexión.";
+  if(err){
+    local.pending = false; local.failed = err;
     c.msgs.push(local); if(C === c) paint(); return;
   }
   sendMsg({ audio_path: path, audio_secs: secs }, local, c);
@@ -297,6 +325,35 @@ function playUi(){
 }
 Player.subs.add(() => { if(C) playUi(); });
 
+// ---- Reportar y bloquear ----
+
+// Con quién es la conversación, para «Bloquear a …». Sin el nombre (main.js abre con «Tu coach» o
+// «Alumno»), «tu coach» o «este alumno».
+function otroNombre(c){
+  const n = String(c.name || "").trim();
+  return n && n !== "Tu coach" && n !== "Alumno" ? n : c.role === "coach" ? "este alumno" : "tu coach";
+}
+
+// El «⋯» de un mensaje que me mandaron (los propios no): reportarlo o bloquear a quien lo mandó.
+// La persona sale del mensaje en la base; igual va la de la otra punta de la conversación. Al
+// bloquear se corta el vínculo: al cerrar la hoja se cierra también el chat.
+function msgOptions(id){
+  const c = C; if(!c) return;
+  const m = (c.msgs || []).find(x => String(x.id) === id); if(!m || mine(m) || m.pending) return;
+  const txt = String(m.body || "").replace(/\s+/g, " ").trim();
+  let cita = m.audio_path ? "Mensaje de voz (" + mmss(m.audio_secs) + ")" + (txt ? ": " + txt : "") : txt;
+  cita = cita.length > 160 ? cita.slice(0, 159) + "…" : cita;
+  const otro = c.role === "coach" ? c.clientId : c.coachId, nombre = otroNombre(c);
+  abrirOpciones({ titulo: "Mensaje de " + nombre, cita,
+    reportar: { etiqueta: "Reportar mensaje", kind: "chat", ref: m.id, reported: otro, titulo: "Reportar mensaje", cita },
+    bloquear: { etiqueta: "Bloquear a " + nombre, kind: "chat", ref: m.id, target: otro, nombre,
+      texto: c.role === "coach"
+        ? "Se corta el vínculo: no van a poder mandarse mensajes y no se va a poder volver a sumar con tu código. Sus rutinas y registros quedan."
+        : "Se corta el vínculo: no van a poder mandarse mensajes y no te va a poder volver a sumar. Tus rutinas y registros quedan.",
+      listo: "Ya no están vinculados.",
+      alCerrar: () => { if(C === c) closeChat(); } } });
+}
+
 // ---- Dibujo ----
 
 function hm(iso){ const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }); }
@@ -312,7 +369,8 @@ function bubble(m){
     : '<div class="ch-txt">' + esc(m.body) + '</div>';
   const status = m.failed ? '<span class="ch-fail">' + esc(m.failed) + '</span>'
     : m.pending ? 'Enviando…'
-    : hm(m.created_at) + (me ? (m.read_at ? ' · <span class="ch-seen">Visto</span>' : ' · Enviado') : '');
+    : hm(m.created_at) + (me ? (m.read_at ? ' · <span class="ch-seen">Visto</span>' : ' · Enviado')
+      : '<button class="ch-more" data-chat="more" data-id="' + esc(String(m.id)) + '" aria-label="Reportar o bloquear" title="Reportar o bloquear">⋯</button>');
   return '<div class="ch-msg ' + (me ? 'me' : 'them') + (m.failed ? ' failed' : '') + '">' + inner + '<div class="ch-meta">' + status + '</div></div>';
 }
 
@@ -396,6 +454,7 @@ document.addEventListener("click", e => {
   else if(a === "rec-send") stopRec(false);
   else if(a === "rec-cancel") stopRec(true);
   else if(a === "play") playMsg(b.dataset.id);
+  else if(a === "more") msgOptions(b.dataset.id);
 });
 
 document.addEventListener("input", e => {
