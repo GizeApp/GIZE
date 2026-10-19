@@ -290,3 +290,7 @@ html.sin-neon body:not(#_) .co-sets-panel .co-target:focus { border-color:rgba(2
    ganaba a .bw.dl (botones-rediseno.css): la semana de descarga quedaba igual que las otras y su
    número, oscuro sobre oscuro (o blanco sobre blanco), no se leía. */
 html:not(#_) body.silk-coach:not(#_):not(#__) .bw-grid .bw.dl { background:var(--acc); border-color:var(--acc); }
+
+/* «Borrar rutina» / «Borrar programación»: acción destructiva, en rojo. */
+html:not(#_):not(#__) body:not(#_) .co-logout[data-coach="tpl-del"] { color: var(--gize-danger); border-color: color-mix(in srgb, var(--gize-danger) 55%, transparent); background: color-mix(in srgb, var(--gize-danger) 10%, transparent); }
+html:not(#_):not(#__) body:not(#_) .co-logout[data-coach="tpl-del"]:hover { color: var(--gize-danger); border-color: var(--gize-danger); background: color-mix(in srgb, var(--gize-danger) 18%, transparent); }

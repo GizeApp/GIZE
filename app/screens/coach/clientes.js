@@ -185,7 +185,7 @@ export async function openClient(id, keep){
     const dr=readRoutineDraft(id), saved=JSON.stringify(routine);
     if(dr && Array.isArray(dr.days) && JSON.stringify(dr.days)!==saved){
       const c0=CoachState.coachClients.find(x=>x.id===id);
-      if(dr.base===saved || confirm("Hay cambios en la rutina de "+((c0&&c0.full_name)||"este cliente")+" que no se guardaron, pero la rutina guardada cambió desde entonces. ¿Recuperar tus cambios? (Si cancelás, se descartan.)")){
+      if(dr.base===saved || await confirmar("Hay cambios en la rutina de "+((c0&&c0.full_name)||"este cliente")+" que no se guardaron, pero la rutina guardada cambió desde entonces. ¿Recuperar tus cambios? (Si cancelás, se descartan.)")){
         routineOrig=saved; routine=dr.days; migrateNames(routine); restored=true;
       } else dropRoutineDraft(id);
     } else if(dr) dropRoutineDraft(id);

@@ -729,6 +729,38 @@ body:not(#_) .co-exc.co-drop-target { background:color-mix(in srgb, var(--gize-r
   .cm-head { flex-direction:column; align-items:stretch; }
 }
 
+/* Tira de comidas: en la compu es la columna de siempre (el rail no existe y el menú de «Agregar comida»
+   queda justo después del botón por el order); en el celular se desliza de costado. */
+.cm-rail { display:contents; }
+.cm-sep, .cm-li-x { order:1; }
+.cm-menu { order:0; }
+@media (max-width:760px){
+  .cm-rail { display:flex; gap:8px; overflow-x:auto; scroll-snap-type:x proximity; margin:0 -16px; padding:2px 16px 6px; scrollbar-width:none; }
+  .cm-rail::-webkit-scrollbar { display:none; }
+  .cm-rail > * { flex:none; scroll-snap-align:start; }
+  .cm-sep, .cm-go { display:none; }
+  .cm-li, .cm-li-x { order:0; width:auto; min-width:128px; max-width:200px; padding:10px 14px; }
+  .cm-li-x { min-width:0; }
+  .cm-add { align-self:center; white-space:nowrap; }
+  .cm-menu { order:0; }
+  /* Objetivo diario: cuatro números en una grilla en vez de una tira que se corta */
+  .cm-tot { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 12px; padding:14px 16px; }
+  .cm-tot-l { grid-column:1 / -1; }
+  .cm-tot-i { display:flex; align-items:baseline; flex-wrap:wrap; }
+  .cm-tot-i small { font-size:var(--text-meta); }
+  /* Encabezado de la comida: nombre arriba, horario en su propia línea */
+  .cm-head { gap:6px; margin-bottom:14px; }
+  .cm-name { font-size:20px; border-color:var(--border); }
+  .cm-time { justify-content:space-between; font-size:var(--text-body); color:var(--txt-2); }
+  .cm-time .ml-in { width:110px; }
+  /* Etiquetas que se leen y la aclaración de «Opciones» en su propia línea */
+  .cm-f { font-size:var(--text-meta); gap:6px; color:var(--txt-2); }
+  .cm-f .ml-in { padding:12px 10px; }
+  .cm-sub { margin:20px 0 10px; font-size:var(--text-body); color:var(--txt); }
+  .cm-sub small { display:block; margin:2px 0 0; font-size:var(--text-meta); }
+  .cm-del { margin-top:18px; padding:10px 0; font-size:var(--text-body); }
+}
+
 /* Elegir qué comida sumar */
 .cm-menu { display:flex; flex-wrap:wrap; gap:6px; padding:2px 0 6px; }
 .cm-chip { padding:7px 12px; border:1px solid var(--border); border-radius:999px; background:var(--card-2); color:var(--txt); font:inherit; font-size:var(--text-meta); font-weight:600; cursor:pointer; }
@@ -738,3 +770,29 @@ body:not(#_) .co-exc.co-drop-target { background:color-mix(in srgb, var(--gize-r
 .cm-empty { display:flex; flex-direction:column; align-items:center; gap:12px; }
 .cm-empty span { font-size:var(--text-meta); color:var(--txt-3); }
 .cm-base { padding:10px 16px; border:1.5px dashed var(--gize-blue); border-radius:var(--r-box); background:none; color:var(--gize-blue); font:inherit; font-weight:700; cursor:pointer; }
+
+/* Jerarquía del editor de comidas: lo principal es qué come (opciones); el objetivo diario y el aporte en
+   macros son datos de apoyo, más tenues y chicos. */
+.cm-tot { padding:10px 16px; gap:4px 20px; background:transparent; }
+.cm-tot-i b { font-size:16px; font-weight:700; color:var(--txt-2); }
+.cm-name { font-size:26px; }
+.cm-head { margin-bottom:8px; }
+.cm-sub-opts { margin:14px 0 10px; font-size:16px; font-weight:800; color:var(--txt); }
+.cm-sub-opts small { font-size:var(--text-meta); font-weight:500; }
+.opt-grid { grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; }
+.opt-item { padding:12px; }
+.opt-body { min-height:150px; font-size:var(--text-emphasis); }
+.opt-add-card { min-height:150px; }
+.cm-aporte { margin-top:22px; padding-top:14px; border-top:1px solid var(--border); }
+.cm-aporte .cm-sub { margin:0 0 8px; font-size:var(--text-meta); font-weight:600; color:var(--txt-3); }
+.cm-aporte .cm-f { font-size:11px; }
+.cm-aporte .cm-f .ml-in { padding:7px 10px; font-size:var(--text-body); }
+.cm-aporte .cm-macros { max-width:620px; }
+@media (max-width:760px){
+  .cm-tot { padding:12px 16px; background:var(--card); }
+  .cm-tot-i b { font-size:18px; }
+  .cm-name { font-size:22px; }
+  .opt-body { min-height:130px; }
+  .opt-add-card { min-height:52px; }
+  .cm-aporte .cm-sub { font-size:var(--text-body); color:var(--txt-2); }
+}
