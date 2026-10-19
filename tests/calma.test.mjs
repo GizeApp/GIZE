@@ -4,7 +4,8 @@
 // en el borde (linear-gradient a 155°, ya no la gama RGB en conic-gradient), nada gira y sin
 // brillos de colores (solo sombras neutras), salvo el resplandor suave y quieto de lo elegido (el día
 // de Entreno y la pestaña de la barra de abajo: css/ui/neon-app.css, pedido por el dueño: «un poco
-// de los neones brillosos» del panel del coach). Los botones principales quedan rellenos: blancos en
+// de los neones brillosos» del panel del coach) y los cantos de color de los botones secundarios y
+// los otros días (de la misma hoja: sombras de adentro sin desenfoque, son el borde, no brillan). Los botones principales quedan rellenos: blancos en
 // las oscuras y del color del texto en «Claro», con el filete quieto de borde. «Claro» es el
 // celeste helado de css/ui/claro-frozen.css: sobre su degradé lleva dos brillos claros
 // (radial-gradient de celestes casi blancos, no manchas de color) y en sus cajas de vidrio el
@@ -54,11 +55,13 @@ export default async function ({ base, t }){
       const box = document.querySelector('#view .ex-collapsed');
       const capas = e => e ? [null, '::before', '::after'].map(ps => getComputedStyle(e, ps).backgroundImage).join(' | ') : '';
       // Todo lo visible (con sus ::before/::after): gama RGB, lo que gira y las sombras.
-      const conic = [], spin = [], sombras = [], elegidos = [];
+      const conic = [], spin = [], sombras = [], elegidos = [], cantados = [];
       // El resplandor de lo elegido (css/ui/neon-app.css), tal como queda calculado: una caja de
       // prueba en el body, que hereda los tokens. Solo vale en el ::before de lo elegido, quieto.
       const caja = document.createElement('div'); document.body.appendChild(caja);
       const permitidas = new Set(['var(--nn-brillo)', 'var(--nn-brillo-in)'].map(x => { caja.style.boxShadow = x; return getComputedStyle(caja).boxShadow; }).filter(x => x && x !== 'none'));
+      // Los cantos (el borde de los botones secundarios, css/ui/neon-app.css), calculados igual.
+      const cantos = new Set(['var(--nn-cantos)', 'var(--nn-cantos-hi)'].map(x => { caja.style.boxShadow = x; return getComputedStyle(caja).boxShadow; }).filter(x => x && x !== 'none'));
       caja.remove();
       for (const e of document.querySelectorAll('body *')) {
         if (!e.getClientRects().length) continue;
@@ -72,13 +75,14 @@ export default async function ({ base, t }){
           const elegido = ps === '::before' && e.matches('.active, .on') && permitidas.has(cs.boxShadow) && cs.animationName === 'none' &&
             cs.transitionDuration.split(',').every(d => parseFloat(d) === 0);
           if (elegido) { elegidos.push(n); continue; }
+          if (!ps && cantos.has(cs.boxShadow)) { cantados.push(n); continue; }
           for (const k of ['boxShadow', 'textShadow', 'filter']) if (cs[k] !== 'none') sombras.push([n, k, cs[k]]);
         }
       }
       return { calm, text, bg: ac.backgroundImage, op: ac.opacity, spans: [...a.querySelectorAll('span')].map(s => getComputedStyle(s).display),
         canvas: getComputedStyle(document.getElementById('silkCanvas')).display, arc: window.__arc,
         box: capas(box), btn: wb.backgroundImage, anim: wb.animationName, btnBg: wcs.backgroundColor, shadow: wcs.boxShadow,
-        save: getComputedStyle(document.querySelector('.save-session')).backgroundImage, conic, spin, sombras, elegidos };
+        save: getComputedStyle(document.querySelector('.save-session')).backgroundImage, conic, spin, sombras, elegidos, cantados };
     });
     const n = nombre + ': ';
     // Fondo: el degradé liso de la apariencia (también con el neón apagado), sin manchas ni partículas.
@@ -93,6 +97,8 @@ export default async function ({ base, t }){
     t.eq(v.sombras.filter(([, , s]) => conTinte(s)).map(x => x.join(' ')), [], n + 'sin brillos de colores (box-shadow, text-shadow, drop-shadow), salvo el de lo elegido');
     if (!sinNeon) t.ok(v.elegidos.some(x => /^button\.tab\.active::before$/.test(x)) && v.elegidos.some(x => /nav-item.*active::before$/.test(x)),
       n + 'lo elegido (el día y la pestaña de abajo) con el resplandor suave y quieto del neón: ' + JSON.stringify(v.elegidos));
+    if (!sinNeon) t.ok(v.cantados.some(x => /^button\.tab(\.|$)/.test(x)), n + 'los otros días con los cantos de color (sin desenfoque): ' + JSON.stringify(v.cantados.slice(0, 4)));
+    else t.eq(v.cantados, [], n + 'sin cantos de color');
     if (!sinNeon) {
       const neutro = nombre === 'Claro' ? 'rgba(11, 13, 17' : 'rgba(255, 255, 255';
       t.ok(FILETE.test(v.box) && conTinte(v.box), n + 'las cajas (el ejercicio) con el filete fino con un toque de color: ' + v.box.slice(0, 80));

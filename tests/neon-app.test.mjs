@@ -2,12 +2,18 @@
 // «quiero que traslades la estética de un poco de los neones brillosos a la app común y la apliques
 // en la estética que ya está ahora».
 // - El mismo filete del panel (un degradé a 155° con máscara, el color de la marca en las puntas, sale
-//   de --gize-r1 / --gize-r2): tenue en los otros días, «Limpiar», «Iniciar descanso», el tiempo de
-//   descanso, «Cerrar» de la ventana de variantes, «Cerrar sesión», «+ Agregar ejercicio», «Ver
-//   rutinas armadas», agregar día, las categorías del buscador y los días de la semana; un poco más
-//   claro en la portada del día; claro en lo elegido (el día, la pestaña de la barra de abajo, la
-//   variante, la categoría y el día de la semana), que suma un resplandor suave y quieto: por dentro
-//   en las filas con scroll, por fuera en la barra. Al pasar el mouse, más claro.
+//   de --gize-r1 / --gize-r2) solo en la portada del día (un poco más claro que las tarjetas) y en lo
+//   elegido (el día, la pestaña de la barra de abajo, la variante, la categoría y el día de la semana),
+//   claro y con un resplandor suave y quieto: por dentro en las filas con scroll, por fuera en la barra.
+// - Lo demás, con los cantos de color, sin máscara (sombras de adentro sin desenfoque: una línea fina
+//   y dos medialunas, violeta arriba a la izquierda y azul abajo a la derecha): los otros días, las
+//   categorías y los días de la semana, y toda la familia de los botones secundarios que está en la
+//   app («Limpiar», «Iniciar descanso», el tiempo de descanso, «Cerrar» y «Cancelar» de las ventanas,
+//   «Agregar con nombre propio», «Cerrar sesión», «+ Agregar ejercicio», «Ver rutinas armadas»,
+//   agregar día, «Editar meta», «+500 ml», la meta de agua): dos botones iguales quedan iguales. Al
+//   pasar el mouse, más claros.
+// - Lo que se repite no suma capas con máscara: con 4 ejercicios abiertos, las mismas máscaras que con
+//   ninguno.
 // - Lo pintado: el resplandor del día elegido y el de la pestaña de abajo se ven en la captura.
 // - Las tarjetas y las filas ya tenían el filete tenue (la semana del bloque, «Rutina asignada por tu
 //   coach», los ejercicios, la nota del coach) y los principales son blancos: la hoja no los toca.
@@ -19,21 +25,28 @@
 //   colores forzados: en tests/neon-app-temas.test.mjs. Lo común, en tests/neon-app-comun.mjs.
 import { wait } from './lib.mjs';
 import { leer, colores, conTinte, tinte, fuerza, tono, dTono, hex, conNeon, brillo, transparente, seMueve, contrasteIgual, recortan, pixeles, caja, croma, hoja } from './coach-neon-comun.mjs';
-import { D, M, abrir, ir, HOJA_APP, QUE, QUE_PROPIA, YA, PRINCIPALES, PINTA, ZONA, ZONA_RECORTE } from './neon-app-comun.mjs';
+import { D, M, abrir, ir, HOJA_APP, QUE, QUE_PROPIA, cantos, YA, PRINCIPALES, PINTA, ZONA, ZONA_RECORTE } from './neon-app-comun.mjs';
 
 export default async function ({ base, t }){
   const h = HOJA_APP;
-  // Revisa cada cosa de una lista: el filete, el borde que toma, las puntas y el resplandor.
+  // Revisa cada cosa de una lista: el filete (lo elegido y la portada) o los cantos (lo demás), el
+  // borde que toman, las puntas y el resplandor.
   const revisar = async (p, donde, lista, r1, r2, fuerzas) => {
     for (const [n, sel, como] of lista){
       const v = await leer(p, sel);
       if (!v) { t.ok(false, donde + ': no se vio ' + n + ' (' + sel + ')'); continue; }
-      t.ok(conNeon(v), donde + ': ' + n + ' lleva el filete de neón (::after con máscara, 155°, con color): ' + (v.after ? v.after.bg.slice(0, 130) : 'sin ::after'));
-      if (v.estilo !== 'none' && v.ancho > 0) t.ok(v.bordes.every(transparente), donde + ': ' + n + ': el filete toma el lugar del borde (transparente): ' + v.bordes[0]);
-      if (conNeon(v)) {
-        const cs = colores(v.after.bg);
-        t.ok(dTono(tono(cs[0]), tono(r2)) <= 20 && dTono(tono(cs[cs.length - 1]), tono(r1)) <= 20, donde + ': ' + n + ': las puntas tienen el tono de --gize-r2 y --gize-r1');
-        if (fuerzas) (fuerzas[como || 'tenue'] = fuerzas[como || 'tenue'] || []).push(fuerza(v.after.bg));
+      if (v.estilo !== 'none' && v.ancho > 0) t.ok(v.bordes.every(transparente), donde + ': ' + n + ': el neón toma el lugar del borde (transparente): ' + v.bordes[0]);
+      if (como) {
+        t.ok(conNeon(v), donde + ': ' + n + ' lleva el filete de neón (::after con máscara, 155°, con color): ' + (v.after ? v.after.bg.slice(0, 130) : 'sin ::after'));
+        if (conNeon(v)) {
+          const cs = colores(v.after.bg);
+          t.ok(dTono(tono(cs[0]), tono(r2)) <= 20 && dTono(tono(cs[cs.length - 1]), tono(r1)) <= 20, donde + ': ' + n + ': las puntas tienen el tono de --gize-r2 y --gize-r1');
+          if (fuerzas) (fuerzas[como] = fuerzas[como] || []).push(fuerza(v.after.bg));
+        }
+      } else {
+        const c = cantos(v);
+        t.ok(c.ok && dTono(tono(c.a), tono(r2)) <= 20 && dTono(tono(c.b), tono(r1)) <= 20, donde + ': ' + n + ' lleva los cantos de color (sin máscara; violeta arriba a la izquierda, azul abajo a la derecha, con el tono de --gize-r2 y --gize-r1): ' + v.sombra.slice(0, 160));
+        t.ok(!v.after || !v.after.mask || v.after.mask === 'none', donde + ': ' + n + ': sin capa con máscara');
       }
       t.eq(brillo(v), como === 'on', donde + ': ' + n + (como === 'on' ? ' (elegido) tiene' : ' no tiene') + ' resplandor suave: ' + (v.before ? v.before.sh.slice(0, 90) : 'sin ::before'));
       if (v.before && como === 'on') t.ok(v.before.anim === 'none', donde + ': el resplandor de ' + n + ' está quieto');
@@ -50,8 +63,7 @@ export default async function ({ base, t }){
     const fuerzas = {};
     for (const vista of Object.keys(QUE)){ await ir(p, vista); await revisar(p, 'Oscuro, ' + vista, QUE[vista], r1, r2, fuerzas); }
     const max = k => Math.max(...(fuerzas[k] || [0])), min = k => Math.min(...(fuerzas[k] || [99]));
-    t.ok(min('hi') > max('tenue') + .3 && min('on') > min('hi') + .3, 'Oscuro: el filete del resto es el más tenue (' + max('tenue').toFixed(2) + '), el de la portada más claro (' +
-      min('hi').toFixed(2) + ') y el de lo elegido el más claro (' + min('on').toFixed(2) + ')');
+    t.ok(min('on') > max('hi') + .3, 'Oscuro: el filete de la portada (' + max('hi').toFixed(2) + ') es más tenue que el de lo elegido (' + min('on').toFixed(2) + ')');
     // El resplandor: por dentro en el día elegido (la fila de los días tiene scroll y lo cortaría), por
     // fuera en la pestaña de la barra.
     await ir(p, 'entreno');
@@ -91,8 +103,20 @@ export default async function ({ base, t }){
       const d = await seMueve(p, h);
       t.eq(d.slice(0, 4), [], 'Oscuro, ' + vista + ': nada cambia de lugar ni de tamaño con el neón (' + d.length + ')');
       if (QUE[vista]) { const rc = await recortan(p, { h, zona: ZONA_RECORTE });
-        t.ok(rc.n >= QUE[vista].length && !rc.malos.length, 'Oscuro, ' + vista + ': nada con el filete sobre el borde o el resplandor de afuera recorta lo de adentro (' + rc.n + '): ' + rc.malos.slice(0, 4).join(' | ')); }
+        t.ok(rc.n >= QUE[vista].filter(x => x[2]).length && !rc.malos.length, 'Oscuro, ' + vista + ': nada con el filete sobre el borde o el resplandor de afuera recorta lo de adentro (' + rc.n + '): ' + rc.malos.slice(0, 4).join(' | ')); }
     }
+    // Lo que se repite no suma capas con máscara (cuestan al pintar y al volver a dibujar Entreno cada
+    // vez que se marca una serie): con los 4 ejercicios abiertos, las mismas que con ninguno.
+    await ir(p, 'entreno');
+    const MASCARAS = () => [...document.querySelectorAll('body *')].filter(e => e.getClientRects().length).reduce((n, e) => n + ['::before', '::after']
+      .filter(ps => { const s = getComputedStyle(e, ps); return s.content !== 'none' && (s.maskImage || s.webkitMaskImage || 'none') !== 'none'; }).length, 0);
+    const abiertos = ids => p.evaluate(async ids => { const e = await import('/app/screens/entreno.js'), m = await import('/app/main.js');
+      e.expandedOverride.clear(); ids.forEach(i => e.expandedOverride.add(i)); m.renderApp(); }, ids).then(() => wait(400));
+    await abiertos([]); const m0 = await p.evaluate(MASCARAS);
+    await abiertos(['a1', 'a2', 'a3', 'a4']); const m4 = await p.evaluate(MASCARAS), botones = await p.evaluate(() => document.querySelectorAll('.card .rest-btn-full, .card .rest-edit').length);
+    await hoja(p, false, h); const m4s = await p.evaluate(MASCARAS); await hoja(p, true, h);
+    t.ok(botones >= 8 && m4 === m0 && m4 - m4s <= 3, 'Oscuro: con 4 ejercicios abiertos (' + botones + ' botones de descanso) no se suman capas con máscara: ' + m0 + ' → ' + m4 + ' (sin la hoja, ' + m4s + ')');
+    await abiertos([]);
     await ir(p, 'entreno');
     await contrasteIgual(t, p, 'Oscuro, Entreno', [['días', '.tabs .tab'], ['nombre del día', '.day-head .day-name'], ['«Limpiar»', '.day-head .clear'], ['barra de abajo', '.nav-item']], { h, zona: ZONA });
     await ir(p, 'variantes');
@@ -133,11 +157,12 @@ export default async function ({ base, t }){
     const quieto = await leer(p, sel);
     await p.hover(sel); await wait(250);
     const encima = await leer(p, sel);
-    t.ok(conNeon(quieto) && conNeon(encima) && fuerza(encima.after.bg) > fuerza(quieto.after.bg) + .3, 'compu: al pasar el mouse por un día, el filete se aclara');
+    t.ok(cantos(quieto).ok && cantos(encima).ok && fuerza(encima.sombra) > fuerza(quieto.sombra) + .3, 'compu: al pasar el mouse por un día, los cantos se aclaran: ' + encima.sombra.slice(0, 120));
     t.ok(!brillo(encima), 'compu: al pasar el mouse no suma resplandor (es solo de lo elegido)');
+    const lim0 = await leer(p, '.day-head .clear');
     await p.hover('.day-head .clear'); await wait(250);
     const lim = await leer(p, '.day-head .clear');
-    t.ok(conNeon(lim) && fuerza(lim.after.bg) > fuerza(quieto.after.bg) + .3, 'compu: al pasar el mouse por «Limpiar», el filete se aclara');
+    t.ok(cantos(lim).ok && fuerza(lim.sombra) > fuerza(lim0.sombra) + .3, 'compu: al pasar el mouse por «Limpiar», los cantos se aclaran');
     await p.mouse.move(5, 895); await wait(200);
     const d = await seMueve(p, h);
     t.eq(d.slice(0, 4), [], 'compu: nada cambia de lugar ni de tamaño con el neón (' + d.length + ')');

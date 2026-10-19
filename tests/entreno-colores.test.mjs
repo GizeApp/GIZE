@@ -1,9 +1,12 @@
 // Entreno del alumno con menos colores (pedido: con verde, azul y violeta a la vez se veía
-// infantil). Recomendación, propuesta del coach, serie hecha, objetivo, número del ejercicio y
-// pestaña del día van en blanco y grises. Con la apariencia tranquila (css/ui/calma.css), video y
-// audio del coach llevan el filete fino con un toque de color en el borde (linear-gradient a 155°,
-// ya no la gama de neón en conic-gradient), letras blancas y una sombra neutra sin resplandor de
-// colores. El botón del chat, igual: el filete quieto (no gira) y sin brillos de la gama. La serie
+// infantil). Recomendación, propuesta del coach, serie hecha, objetivo y número del ejercicio van en
+// blanco y grises. La pestaña del día también (relleno, borde y letras); su único color es el neón de
+// lo elegido de css/ui/neon-app.css (pedido del dueño: «un poco de los neones brillosos» del panel del
+// coach): el filete claro en el ::after y el resplandor suave en el ::before, exactamente los tokens de
+// esa hoja (--nn-filete-on y --nn-brillo-in), y nada más (tests/neon-app.test.mjs revisa el resto).
+// Con la apariencia tranquila (css/ui/calma.css), video y audio del coach llevan el filete fino con
+// un toque de color en el borde (linear-gradient a 155°, ya no la gama de neón en conic-gradient),
+// letras blancas y una sombra neutra sin resplandor de colores. El botón del chat, igual: el filete quieto (no gira) y sin brillos de la gama. La serie
 // hecha (pedido): relleno oscuro y tilde blanca, con el filete fino de neón de todos lados en el borde.
 import { newPage, wait, ALUMNO, openAllEx } from './lib.mjs';
 
@@ -35,6 +38,12 @@ export default async function ({ base, t }){
     const out = {};
     const put = (name, el, props) => { if (!el) { out[name] = 'no está'; return; } const cs = getComputedStyle(el); out[name] = props.map(k => cs[k]); };
     put('pestaña del día', document.querySelector('.tabs .tab.active'), ['backgroundColor', 'borderTopColor', 'color']);
+    { // El neón de lo elegido, contra los tokens de css/ui/neon-app.css calculados en una caja de prueba.
+      const tab = document.querySelector('.tabs .tab.active'), a = getComputedStyle(tab, '::after'), b = getComputedStyle(tab, '::before');
+      const caja = document.createElement('div'); document.body.appendChild(caja);
+      caja.style.backgroundImage = 'var(--nn-filete-on)'; caja.style.boxShadow = 'var(--nn-brillo-in)';
+      const tok = [getComputedStyle(caja).backgroundImage, getComputedStyle(caja).boxShadow]; caja.remove();
+      out.pestanaNeon = { after: [a.content, a.backgroundImage, a.boxShadow], before: [b.content, b.backgroundImage, b.boxShadow], tok }; }
     put('ver video', document.querySelector('.ex-video'), ['color']);
     put('ícono del video', document.querySelector('.ex-video svg'), ['color']);
     put('audio del coach', document.querySelector('.ex-audio'), ['color']);
@@ -54,10 +63,13 @@ export default async function ({ base, t }){
     return out;
   });
   for (const [k, v] of Object.entries(m)){
-    if (k.startsWith('chat') || k === 'botones' || k === 'hechaRing') continue;
+    if (k.startsWith('chat') || k === 'botones' || k === 'hechaRing' || k === 'pestanaNeon') continue;
     t.ok(Array.isArray(v), k + ': está en la pantalla');
     if (Array.isArray(v)) t.eq(v.filter(tinted), [], k + ': sin color (blanco o gris)');
   }
+  { const { after, before, tok } = m.pestanaNeon;
+    t.ok(after[0] !== 'none' && after[1] === tok[0] && after[2] === 'none', 'pestaña del día: el color del ::after es solo el filete de lo elegido (--nn-filete-on): ' + after[1].slice(0, 80));
+    t.ok(before[0] !== 'none' && before[2] === tok[1] && before[1] === 'none', 'pestaña del día: el del ::before, solo el resplandor de lo elegido (--nn-brillo-in): ' + before[2].slice(0, 80)); }
   t.ok(m.hechaRing && /linear-gradient\(155deg/.test(m.hechaRing[0]), 'serie hecha: el filete fino de neón: ' + (m.hechaRing && m.hechaRing[0]));
   t.ok(m.hechaRing && m.hechaRing[1] === 'none' && m.hechaRing[2] === 'none', 'serie hecha: sin resplandor y quieta: ' + (m.hechaRing && m.hechaRing.slice(1)));
   for (const [i, name] of ['ver video', 'escuchar a tu coach'].entries()){

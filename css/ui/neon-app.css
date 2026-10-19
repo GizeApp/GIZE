@@ -12,21 +12,27 @@
      elegido y la variante elegida («Ver variantes»).
    - La portada del día (el nombre grande con «Iniciar entrenamiento»): un filete un poco más
      claro que el de las tarjetas.
-   - Con el filete tenue: los otros días, categorías y días de la semana; los botones secundarios
-     («Limpiar», «Ver rutinas armadas», «+ Agregar ejercicio», «Iniciar descanso», el tiempo de
-     descanso, «Cerrar sesión», los botones de borde de las ventanas como «Cerrar»).
+   - Con los cantos de color (tenues): los otros días, categorías y días de la semana, y toda la
+     familia de los botones secundarios que está en la app («Limpiar», «Ver rutinas armadas»,
+     «+ Agregar ejercicio», «Iniciar descanso», el tiempo de descanso, «Agregar con nombre propio»,
+     los botones de borde de las ventanas como «Cerrar» o «Cancelar», «+500 ml», la meta de agua,
+     «Editar meta», «Cerrar sesión»): todos iguales entre sí.
    - Punteado de neón (dos tonos de la marca): «+ Serie» y el «+» entre ejercicios.
    - Los campos con foco conservan su aro azul de siempre y suman el resplandor de la marca.
    - Las tarjetas y las filas de la lista (la semana del bloque, «Rutina asignada por tu coach»,
      cada ejercicio, la nota del coach, las cajas de Hábitos, Cardio, Progreso y Ajustes, la barra
      de abajo) ya llevaban el filete tenue (css/ui/calma.css, tema-claro.css, claro-frozen.css:
-     --gize-rgb-ring, el mismo degradé a 155°): quedan como están. Los principales (blancos; negros
-     en «Claro») también.
+     --gize-rgb-ring, el mismo degradé a 155°), y los botones de arriba (el chat y la racha) también:
+     quedan como están. Los principales (blancos; negros en «Claro») también.
    Cómo se dibuja, sin mover nada (mismo tamaño y lugar con y sin esta hoja):
-   - Como en el panel: el filete en un ::after con máscara sobre el borde de 1 px (inset -1px; el
-     borde queda transparente). Los que estaban quietos (static) pasan a relative (no cambia su
-     caja). Son pocos por pantalla (los días, un par de botones): las filas que se repiten de a
-     muchas (ejercicios, comidas) no suman ninguna capa con máscara.
+   - Lo elegido y la portada, como en el panel: el filete en un ::after con máscara sobre el borde de
+     1 px (inset -1px; el borde queda transparente). Los que estaban quietos (static) pasan a relative
+     (no cambia su caja). Son dos o tres por pantalla (el día elegido, la portada, la pestaña de la
+     barra): la máscara cuesta al pintar y al recalcular estilos, por eso solo ahí.
+   - Lo demás, sin máscara ni capas: los cantos son sombras de adentro sin desenfoque (una línea
+     fina alrededor y dos medialunas, violeta arriba a la izquierda y azul abajo a la derecha). Lo
+     que se repite (los dos botones de descanso de cada ejercicio abierto) no suma nada al deslizar
+     ni al volver a dibujar Entreno cuando se marca una serie.
    - El resplandor de lo elegido, en el ::before: por dentro y debajo del texto en los días y las
      categorías (están en una fila con scroll, que lo cortaría en línea recta) y por fuera en la
      barra de abajo. El ::before de los días era el brillo que seguía al mouse (apagado,
@@ -34,12 +40,13 @@
    - En la portada del día, «Azul» y «Rosa» ya tenían el filete en el ::after (se aclara ese) y
      «Claro» en el ::before (se reemplaza por el ::after, para que no queden dos).
    - El punteado y el foco son colores de borde y sombras: sin capas nuevas.
-   Apariencias: los colores salen de los tokens de cada una (en «Azul», «Rosa» y «Claro», el filete es
-   el de su gama; en «Claro» va encima de la línea blanca del vidrio, como sus tarjetas). Neón apagado
-   (html.sin-neon): el filete blanco y gris, sin resplandor. Liviano y la app de Android: líneas lisas
-   (sin máscaras ni resplandor; lo elegido, con el tono de la marca). GIZE básico: nada de esto.
-   Colores forzados: sin filete ni resplandor (quedan los bordes del sistema). «Reducir movimiento»:
-   nada de esto se anima.
+   Apariencias: los colores salen de los tokens de cada una (en «Azul», «Rosa» y «Claro», el filete y
+   los cantos son los de su gama; en «Claro» van con la línea blanca del vidrio, como sus tarjetas).
+   Neón apagado (html.sin-neon): lo elegido y la portada con el filete blanco y gris, sin resplandor;
+   lo demás, gris como siempre. Liviano y la app de Android: líneas lisas (sin máscaras, cantos ni
+   resplandor; lo elegido, con el tono de la marca, salvo en «Claro», donde ya es la pastilla negra).
+   GIZE básico: nada de esto. Colores forzados: sin filete ni resplandor (quedan los bordes del
+   sistema). «Reducir movimiento»: nada de esto se anima.
    Alcance: la app del alumno (body sin .silk-coach); el panel del coach no cambia. Las reglas llevan
    :not(#_) en html y body, como el panel, para ganarle a las capas de botones y de cada apariencia
    sin depender del orden. Sin CSS anidado (css-sin-anidar). */
@@ -72,6 +79,14 @@ html:not(#_) body {
   --nn-borde-l: rgba(148,165,255,.39);    /* liviano: la línea lisa de las ventanas */
   --nn-linea-on: rgba(107,126,255,.85);   /* liviano: la línea lisa de lo elegido */
   --nn-lado: linear-gradient(180deg, rgba(186,140,255,.55), rgba(255,255,255,.12) 28%, rgba(255,255,255,.08) 72%, rgba(110,190,255,.48));
+  /* los cantos de color (lo demás, sin máscara): el de la izquierda y el de la derecha, como las puntas del filete */
+  --nn-canto-a: rgba(186,140,255,.50); --nn-canto-b: rgba(110,190,255,.42);
+  --nn-canto-a-hi: rgba(186,140,255,.72); --nn-canto-b-hi: rgba(110,190,255,.62);
+  --nn-canto-n: rgba(255,255,255,.12); --nn-canto-n-hi: rgba(255,255,255,.24);   /* la línea de alrededor */
+  /* los cantos enteros (sección 3b): dos medialunas de adentro sin desenfoque, corridas hacia abajo a la
+     derecha (se ve arriba a la izquierda) y al revés, encima de la línea de alrededor */
+  --nn-cantos: inset 2.5px 1px 0 -1px var(--nn-canto-a), inset -2.5px -1px 0 -1px var(--nn-canto-b), inset 0 0 0 1px var(--nn-canto-n);
+  --nn-cantos-hi: inset 2.5px 1px 0 -1px var(--nn-canto-a-hi), inset -2.5px -1px 0 -1px var(--nn-canto-b-hi), inset 0 0 0 1px var(--nn-canto-n-hi);
 }
 /* «Azul» y «Rosa» sin color-mix: sus colores, escritos a mano. */
 html.tema-claro:not(#_) body {
@@ -91,6 +106,8 @@ html.tema-claro:not(#_) body {
   --nn-borde-a: rgba(182,150,250,.42); --nn-borde-b: rgba(120,190,245,.36);
   --nn-borde-l: rgba(151,170,248,.39); --nn-linea-on: rgba(114,140,245,.85);
   --nn-lado: linear-gradient(180deg, rgba(182,150,250,.55), rgba(255,255,255,.12) 28%, rgba(255,255,255,.08) 72%, rgba(120,190,245,.48));
+  --nn-canto-a: rgba(182,150,250,.50); --nn-canto-b: rgba(120,190,245,.42);
+  --nn-canto-a-hi: rgba(182,150,250,.72); --nn-canto-b-hi: rgba(120,190,245,.62);
 }
 html.tema-rosa:not(#_) body {
   --nn-filete: linear-gradient(155deg, rgba(226,146,248,.50) 0%, rgba(255,255,255,.15) 22%, rgba(255,255,255,.07) 50%,
@@ -109,6 +126,8 @@ html.tema-rosa:not(#_) body {
   --nn-borde-a: rgba(226,146,248,.42); --nn-borde-b: rgba(255,146,196,.36);
   --nn-borde-l: rgba(240,146,222,.39); --nn-linea-on: rgba(236,94,207,.85);
   --nn-lado: linear-gradient(180deg, rgba(226,146,248,.55), rgba(255,255,255,.12) 28%, rgba(255,255,255,.08) 72%, rgba(255,146,196,.48));
+  --nn-canto-a: rgba(226,146,248,.50); --nn-canto-b: rgba(255,146,196,.42);
+  --nn-canto-a-hi: rgba(226,146,248,.72); --nn-canto-b-hi: rgba(255,146,196,.62);
 }
 /* «Claro» sin color-mix: fondo claro. Como las tarjetas de «Claro» (css/ui/claro-frozen.css), el
    filete va encima de la línea blanca del vidrio (abajo, en el ::after): el medio, más blanco
@@ -132,6 +151,10 @@ html.tema-luz:not(#_) body {
   --nn-guion-a-hi: rgba(134,64,236,.85); --nn-guion-b-hi: rgba(30,128,224,.82);
   --nn-borde-a: rgba(134,64,236,.34); --nn-borde-b: rgba(30,128,224,.30);
   --nn-lado: linear-gradient(180deg, rgba(134,64,236,.45), rgba(11,13,17,.10) 28%, rgba(11,13,17,.08) 72%, rgba(30,128,224,.40));
+  /* los cantos, con el blanco del vidrio mezclado (no hay línea blanca debajo: son el borde mismo) */
+  --nn-canto-a: rgba(191,142,252,.87); --nn-canto-b: rgba(105,160,214,.88);
+  --nn-canto-a-hi: rgba(174,111,251,.93); --nn-canto-b-hi: rgba(77,142,206,.93);
+  --nn-canto-n: var(--frz-line, rgba(255,255,255,.70)); --nn-canto-n-hi: rgba(255,255,255,.92);   /* la línea blanca del vidrio */
 }
 /* Con color-mix: los mismos degradés armados con los tokens de la apariencia (--gize-r1 / --gize-r2),
    como el filete de las tarjetas. Uno para las oscuras («Oscuro», «Azul», «Rosa») y otro para «Claro». */
@@ -155,6 +178,8 @@ html.tema-luz:not(#_) body {
     --nn-lado: linear-gradient(180deg, color-mix(in srgb, var(--gize-r2) 45%, rgba(255,255,255,.16)), rgba(255,255,255,.12) 28%,
       rgba(255,255,255,.08) 72%, color-mix(in srgb, var(--gize-r1) 40%, rgba(255,255,255,.12)));
     --nn-linea-on: color-mix(in srgb, color-mix(in srgb, var(--gize-r2) 50%, var(--gize-r1)) 85%, transparent);
+    --nn-canto-a: color-mix(in srgb, var(--gize-r2) 42%, rgba(255,255,255,.14)); --nn-canto-b: color-mix(in srgb, var(--gize-r1) 34%, rgba(255,255,255,.12));
+    --nn-canto-a-hi: color-mix(in srgb, var(--gize-r2) 64%, rgba(255,255,255,.22)); --nn-canto-b-hi: color-mix(in srgb, var(--gize-r1) 56%, rgba(255,255,255,.18));
   }
   html.tema-luz:not(#_) body {
     --nn-filete: linear-gradient(155deg, color-mix(in srgb, var(--gize-r2) 60%, rgba(255,255,255,.3)) 0%, rgba(255,255,255,.34) 22%,
@@ -175,6 +200,10 @@ html.tema-luz:not(#_) body {
     --nn-lado: linear-gradient(180deg, color-mix(in srgb, var(--gize-r2) 40%, rgba(11,13,17,.08)), rgba(11,13,17,.10) 28%,
       rgba(11,13,17,.08) 72%, color-mix(in srgb, var(--gize-r1) 36%, rgba(11,13,17,.08)));
     --nn-linea-on: color-mix(in srgb, var(--gize-r2) 25%, var(--gize-blue));
+    --nn-canto-a: color-mix(in srgb, var(--gize-r2) 55%, rgba(255,255,255,.7));
+    --nn-canto-b: color-mix(in srgb, color-mix(in srgb, var(--gize-r1) 62%, var(--gize-blue)) 60%, rgba(255,255,255,.7));
+    --nn-canto-a-hi: color-mix(in srgb, var(--gize-r2) 75%, rgba(255,255,255,.7));
+    --nn-canto-b-hi: color-mix(in srgb, color-mix(in srgb, var(--gize-r1) 62%, var(--gize-blue)) 75%, rgba(255,255,255,.7));
   }
   /* Liviano: la línea lisa de las ventanas, el promedio de las dos esquinas. */
   html:not(#_):not(#__) body { --nn-borde-l: color-mix(in srgb, var(--nn-borde-a) 50%, var(--nn-borde-b)); }
@@ -214,25 +243,22 @@ html.lite:not(#_):not(#__) body, html.android-app:not(#_):not(#__) body {
   --nn-foco: 0 0 0 0 transparent; /* el campo con foco queda con su borde de foco, como antes */
 }
 
-/* ---------- 2) La app del alumno: el filete en el ::after ----------
-   Todo lo que lleva filete: los días, las categorías y los días de la semana, los botones
-   secundarios, la portada del día y lo elegido (también la pestaña de la barra de abajo). El borde
-   queda transparente y el ::after lo tapa con el filete (inset -1px: la caja del borde; la pestaña
-   de la barra no tiene borde: 0). Liviano y la app de Android no lo llevan (sección 6). */
+/* ---------- 2) Lo elegido y la portada del día: el filete en el ::after ----------
+   Solo lo elegido (el día, la categoría, el día de la semana, la variante, la pestaña de la barra de
+   abajo) y la portada del día: dos o tres por pantalla. El borde queda transparente y el ::after lo
+   tapa con el filete (inset -1px: la caja del borde; la pestaña de la barra no tiene borde: 0).
+   Liviano y la app de Android no lo llevan (sección 6). */
 /* Los que estaban quietos (static) pasan a relative para alojar el ::after (su caja no cambia). */
-html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.ex-chip, .dd-chip, .var-pick.on, .clear, .load-def, .add-ex,
-    .rest-btn-full, .rest-edit, .logout-btn:not(.cfg-danger), .ctrl.ghost:not(.sov-del)) {
+html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.ex-chip.on, .dd-chip.on, .var-pick.on) {
   position: relative;
 }
-html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab, .ex-chip, .dd-chip, .var-pick.on,
-    .day-head, .clear, .load-def, .add-ex, .rest-btn-full, .rest-edit, .logout-btn:not(.cfg-danger), .ctrl.ghost:not(.sov-del)) {
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .day-head) {
   border-color: transparent;
 }
-html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab, .ex-chip, .dd-chip, .var-pick.on,
-    .day-head, .clear, .load-def, .add-ex, .rest-btn-full, .rest-edit, .logout-btn:not(.cfg-danger), .ctrl.ghost:not(.sov-del), .nav-item.active)::after {
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .day-head, .nav-item.active)::after {
   content: ""; display: block; position: absolute; top: var(--nn-b, -1px); right: var(--nn-b, -1px); bottom: var(--nn-b, -1px); left: var(--nn-b, -1px);
   border-radius: inherit; padding: var(--nn-w); pointer-events: none;
-  background: var(--nn-f, var(--nn-filete));
+  background: var(--nn-f, var(--nn-filete-on));
   -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
   -webkit-mask-composite: xor; mask: linear-gradient(#000, #000) content-box exclude, linear-gradient(#000, #000);
 }
@@ -243,22 +269,18 @@ html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) .nav-item.activ
    iba en el ::before (css/ui/claro-frozen.css): lo reemplaza este, así no quedan dos. */
 html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) .day-head::after { --nn-f: var(--nn-filete-hi); }
 html.tema-luz:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) .day-head::before { content: none; }
+/* «Claro» con neón: como sus tarjetas (css/ui/claro-frozen.css), el filete va encima de la línea
+   blanca del vidrio; el gris solo casi no se veía sobre el celeste. */
+html.tema-luz:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on,
+    .var-pick.on, .day-head, .nav-item.active)::after {
+  background: var(--nn-f, var(--nn-filete-on)), linear-gradient(var(--frz-line), var(--frz-line));
+}
 
-/* ---------- 3) Al pasar el mouse y lo elegido ---------- */
-@media (hover: hover) {
-  html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab:not(.active), .ex-chip:not(.on), .dd-chip:not(.on), .clear, .load-def,
-      .add-ex, .rest-btn-full, .rest-edit, .logout-btn:not(.cfg-danger), .ctrl.ghost:not(.sov-del)):hover {
-    --nn-f: var(--nn-filete-hi);
-  }
-}
-/* Lo elegido: el filete claro… */
-html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .nav-item.active) {
-  --nn-f: var(--nn-filete-on);
-}
-/* …y un resplandor suave, quieto, en el ::before. Los días, las categorías, los días de la semana y la
-   variante elegida están en una fila con scroll (o una lista que se desliza), que cortaría el de afuera
-   en línea recta: ahí va por dentro, debajo del texto (z -1 en una caja aislada). El de los días
-   pisa el brillo que seguía al mouse (apagado): su lugar, su tamaño y su transición. */
+/* ---------- 3) Lo elegido: el resplandor suave y quieto, en el ::before ----------
+   Los días, las categorías, los días de la semana y la variante elegida están en una fila con scroll
+   (o una lista que se desliza), que cortaría el de afuera en línea recta: ahí va por dentro, debajo
+   del texto (z -1 en una caja aislada). El de los días pisa el brillo que seguía al mouse (apagado,
+   css/ui/botones-rediseno.css): su lugar, su tamaño y su transición. */
 html:not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on) { isolation: isolate; }
 html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .nav-item.active)::before {
   content: ""; display: block; position: absolute; top: var(--nn-b, -1px); right: var(--nn-b, -1px); bottom: var(--nn-b, -1px); left: var(--nn-b, -1px);
@@ -272,11 +294,32 @@ html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-c
 html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) .navbar .nav-item.active::before {
   z-index: auto; box-shadow: var(--nn-brillo);
 }
-/* «Claro» con neón: como sus tarjetas (css/ui/claro-frozen.css), el filete va encima de la línea
-   blanca del vidrio; el gris solo casi no se veía sobre el celeste. */
-html.tema-luz:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab, .ex-chip, .dd-chip,
-    .var-pick.on, .day-head, .clear, .load-def, .add-ex, .rest-btn-full, .rest-edit, .logout-btn:not(.cfg-danger), .ctrl.ghost:not(.sov-del), .nav-item.active)::after {
-  background: var(--nn-f, var(--nn-filete)), linear-gradient(var(--frz-line), var(--frz-line));
+
+/* ---------- 3b) Lo demás: los cantos de color, sin máscara ----------
+   Los otros días, categorías y días de la semana, y todos los botones secundarios de la app (la misma
+   familia de css/ui/botones-rediseno.css, la que está en la app: «Limpiar», «Ver rutinas armadas»,
+   «+ Agregar ejercicio», «Iniciar descanso» y el tiempo de descanso de cada ejercicio, «Agregar con
+   nombre propio», los botones de borde de las ventanas como «Cerrar» o «Cancelar», «+500 ml», la meta
+   de agua, «Editar meta», «Cerrar sesión»). Las filas de las listas (.ex-pick) no: son filas.
+   Sin ::after ni máscara (se repiten de a muchos: dos por ejercicio abierto): todo en sombras de
+   adentro, sin desenfoque, que no suman capas y se pintan como un borde. Una línea fina alrededor
+   (--nn-canto-n, en el lugar del borde, que queda transparente) y encima dos medialunas que se afinan
+   solas en las curvas: la violeta arriba a la izquierda y la azul abajo a la derecha, como las puntas
+   del filete a 155°. El relleno no pasa por debajo del borde transparente (padding-box): el botón se
+   ve con su borde nítido. Sin neón quedan grises, como siempre. */
+html:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab:not(.active), .ex-chip:not(.on),
+    .dd-chip:not(.on), .clear, .load-def, .add-ex, .rest-btn-full, .rest-edit, .ex-custom, .qbtn, .cal-edit, .water-goal,
+    .logout-btn:not(.cfg-danger), .ctrl.ghost:not(.sov-del)) {
+  border-color: transparent; background-clip: padding-box;
+  box-shadow: var(--nn-cantos);
+}
+/* Al pasar el mouse, más claros. */
+@media (hover: hover) {
+  html:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab:not(.active), .ex-chip:not(.on),
+      .dd-chip:not(.on), .clear, .load-def, .add-ex, .rest-btn-full, .rest-edit, .ex-custom, .qbtn, .cal-edit, .water-goal,
+      .logout-btn:not(.cfg-danger), .ctrl.ghost:not(.sov-del)):hover {
+    box-shadow: var(--nn-cantos-hi);
+  }
 }
 
 /* ---------- 4) Punteado de neón: «+ Serie» y el «+» entre ejercicios ---------- */
@@ -301,13 +344,15 @@ html:not(.tema-claro):not(.tema-luz):not(.basico):not(#_):not(#__) body:not(.sil
 }
 
 /* ---------- 6) Liviano y la app de Android: líneas lisas ----------
-   Sin el ::after con máscara ni el ::before del resplandor (arriba quedan afuera): los botones con su
-   borde de siempre. Lo elegido, una línea lisa con el tono de la marca (sin neón, la de siempre); la
-   pestaña de la barra no tiene borde: la línea va por dentro, en una sombra sin desenfoque. */
-html:is(.lite, .android-app):not(.sin-neon):not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on) {
+   Sin el ::after con máscara, el ::before del resplandor ni los cantos (arriba quedan afuera): los
+   botones con su borde de siempre. Lo elegido, una línea lisa con el tono de la marca (sin neón, la de
+   siempre); la pestaña de la barra no tiene borde: la línea va por dentro, en una sombra sin
+   desenfoque. En «Claro» no: lo elegido ya es una pastilla negra (una línea azul marino encima casi no
+   se ve) y la de la barra perdería la sombra que la levanta. */
+html:is(.lite, .android-app):not(.sin-neon):not(.tema-luz):not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on) {
   border-color: var(--nn-linea-on);
 }
-html:is(.lite, .android-app):not(.sin-neon):not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) .nav-item.active {
+html:is(.lite, .android-app):not(.sin-neon):not(.tema-luz):not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) .nav-item.active {
   box-shadow: inset 0 0 0 1px var(--nn-linea-on);
 }
 
@@ -322,8 +367,7 @@ html:is(.lite, .android-app):not(.sin-neon):not(.basico):not(#_):not(#__) body:n
    bordes con el color del sistema (también los transparentes); acá se sacan las cajas vacías del
    filete y del resplandor. */
 @media (forced-colors: active) {
-  html:not(#_):not(#__):not(#___) body:not(.silk-coach):not(#_) :is(.tabs .tab, .ex-chip, .dd-chip, .var-pick, .day-head, .clear, .load-def, .add-ex,
-      .rest-btn-full, .rest-edit, .logout-btn, .ctrl.ghost, .nav-item.active)::after,
+  html:not(#_):not(#__):not(#___) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .day-head, .nav-item.active)::after,
   html:not(#_):not(#__):not(#___) body:not(.silk-coach):not(#_) :is(.tabs .tab.active, .ex-chip.on, .dd-chip.on, .var-pick.on, .nav-item.active)::before {
     content: none;
   }

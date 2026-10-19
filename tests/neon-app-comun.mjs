@@ -5,6 +5,7 @@
 // mismo que en el panel (tests/coach-neon-comun.mjs), con esta hoja. No es una prueba (no termina en
 // .test.mjs): la importan las dos.
 import { newPage, wait, ALUMNO } from './lib.mjs';
+import { colores, conTinte } from './coach-neon-comun.mjs';
 
 const ymd = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(d);
 const lunes = () => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d); };
@@ -34,19 +35,25 @@ const TEMA = { oscuro: '', claro: "localStorage.setItem('gize_tema','luz');", az
 // armadas).
 const abrir = (base, { vp = M, tema = 'oscuro', neon = true, touch = vp === M, reducedMotion, coach = true, init = '' } = {}) =>
   newPage({ user: ALUMNO, viewport: vp, touch, reducedMotion, handlers: handlers(coach),
-    state: { days: DIAS, sessions: [], weights: [], daily: {}, block: coach ? BLOQUE : null },
+    state: { days: DIAS, sessions: [], weights: [], daily: {}, block: coach ? BLOQUE : null, calTarget: 2200 },
     init: "localStorage.setItem('gize_lite','0');" + TEMA[tema] + (neon ? '' : "localStorage.setItem('gize_neon','0');") + init });
 
 // Las pantallas: entreno (arriba), ejercicio (el primero abierto), variantes («Ver variantes» del
-// primero), ajustes, habitos, cardio, comida, progreso; con la rutina propia, buscador (el de
-// «+ Agregar ejercicio») y dias (los días de la semana del día).
+// primero), ajustes, habitos, cardio, comida (con la meta de calorías puesta), agua (Comida con «Más
+// opciones de agua» abierto), progreso; con la rutina propia, buscador (el de «+ Agregar
+// ejercicio») y dias (los días de la semana del día).
 async function ir(p, vista){
   const click = async sel => { await p.click(sel); await wait(700); };
   // Cierra lo que haya abierto (una ventana de abajo).
   await p.evaluate(() => { const b = document.querySelector('.sheet-bg'); if (b) b.click(); }); await wait(500);
   const nav = { entreno: 'entreno', ejercicio: 'entreno', variantes: 'entreno', buscador: 'entreno', dias: 'entreno', ajustes: 'config',
-    habitos: 'habitos', cardio: 'cardio', comida: 'comida', progreso: 'progreso' }[vista];
+    habitos: 'habitos', cardio: 'cardio', comida: 'comida', agua: 'comida', progreso: 'progreso' }[vista];
   if (!await p.$('#nav-' + nav + '.active')) await click('#nav-' + nav);
+  // Entreno «arriba», como al entrar: los ejercicios cerrados (lo que queda abierto pasa por debajo de
+  // la barra de abajo, que es translúcida, y cambia el fondo de sus letras).
+  if (vista === 'entreno' && await p.$('#view .card[data-ex-id]')) {
+    await p.evaluate(async () => { const e = await import('/app/screens/entreno.js'), m = await import('/app/main.js'); e.expandedOverride.clear(); m.renderApp(); }); await wait(300);
+  }
   await p.evaluate(() => window.scrollTo(0, 0)); await wait(200);
   if (['ejercicio', 'variantes'].includes(vista)) {
     if (!await p.$('.card[data-ex-id="a1"]')) await click('.ex-collapsed[data-ex="a1"]');
@@ -55,12 +62,16 @@ async function ir(p, vista){
     if (vista === 'variantes') await click('.card[data-ex-id="a1"] .ex-var-btn');
   }
   if (vista === 'buscador') await click('[data-action="ex-add-open"]');
+  if (vista === 'agua' && !await p.$('.wm-extra')) await click('[data-action="water-toggle"]');
   if (vista === 'dias' && !await p.$('.dd-chip')) await click('[data-action="dias-open"]');
   await wait(300);
 }
 
-// Lo que lleva el filete en cada pantalla: [nombre, selector, cómo] (cómo: 'on' lo elegido, con el
-// filete claro y el resplandor; 'hi' la portada, un poco más claro que el resto; nada, el tenue).
+// Lo que lleva el neón en cada pantalla: [nombre, selector, cómo]. cómo: 'on' lo elegido, con el
+// filete claro (::after con máscara) y el resplandor; 'hi' la portada, con el filete un poco más claro
+// que las tarjetas; nada, los cantos de color (sombras de adentro sin máscara: una línea fina y las
+// medialunas violeta y azul). Los cantos van en toda la familia de los botones secundarios que está en
+// la app (css/ui/botones-rediseno.css): que dos botones iguales no queden distintos.
 const HOJA_APP = 'link[href$="ui/neon-app.css"]';
 const QUE = {
   entreno: [['días', '.tabs .tab:not(.active)'], ['día elegido', '.tabs .tab.active', 'on'], ['portada del día', '.day-head', 'hi'],
@@ -68,12 +79,29 @@ const QUE = {
   ejercicio: [['«Iniciar descanso»', '.card .rest-btn-full'], ['tiempo de descanso', '.card .rest-edit']],
   variantes: [['variante elegida', '.var-sheet .var-pick.on', 'on'], ['«Cerrar»', '.var-sheet .ctrl.ghost']],
   ajustes: [['«Cerrar sesión»', '.logout-btn:not(.cfg-danger)'], ['pestaña elegida de la barra', '.nav-item.active', 'on']],
+  comida: [['«Editar meta»', '.cal-edit']],
+  agua: [['«+500 ml»', '.wm-extra .qbtn'], ['la meta de agua', '.wm-extra .water-goal']],
 };
 // Con la rutina propia.
 const QUE_PROPIA = {
   entreno: [['«+ Agregar ejercicio»', '.add-ex'], ['«Ver rutinas armadas»', '.load-def'], ['agregar día', '.tabs .tab-add']],
-  buscador: [['categorías', '.ex-chip:not(.on)'], ['categoría elegida', '.ex-chip.on', 'on']],
+  buscador: [['categorías', '.ex-chip:not(.on)'], ['categoría elegida', '.ex-chip.on', 'on'], ['«Agregar con nombre propio»', '.ex-custom'],
+    ['«Cancelar»', '.sheet [data-action="ex-cancel"]']],
   dias: [['días de la semana', '.dd-chip:not(.on)'], ['día de la semana elegido', '.dd-chip.on', 'on']],
+};
+// Los cantos (lo que lee leer() de tests/coach-neon-comun.mjs): tres sombras de adentro sin desenfoque.
+// Una medialuna corrida hacia abajo a la derecha (se ve arriba a la izquierda) con el tono de --gize-r2,
+// otra al revés con el de --gize-r1 y la línea de alrededor (sin corrimiento y sin color). a y b: los
+// colores de las medialunas; linea: el de la línea.
+const SOMBRAS = v => String(v || '').split(/,(?![^(]*\))/).map(x => x.trim()).filter(x => x && x !== 'none').map(x => {
+  const c = (x.match(/rgba?\([^)]*\)|color\(srgb[^)]*\)/) || [''])[0], n = x.replace(c, '').match(/-?[\d.]+px/g) || [];
+  return { color: c, inset: /inset/.test(x), dx: parseFloat(n[0]) || 0, dy: parseFloat(n[1]) || 0, blur: parseFloat(n[2]) || 0, spread: parseFloat(n[3]) || 0 }; });
+const cantos = v => {
+  const ss = SOMBRAS(v && v.sombra), cs = ss.map(x => colores(x.color)[0]);
+  const ia = ss.findIndex(x => x.inset && x.dx > 0 && x.dy > 0 && !x.blur), ib = ss.findIndex(x => x.inset && x.dx < 0 && x.dy < 0 && !x.blur);
+  const linea = ss.find(x => x.inset && !x.dx && !x.dy && !x.blur && x.spread > 0);
+  return { ok: ia >= 0 && ib >= 0 && !!linea && conTinte(cs[ia]) && conTinte(cs[ib]) && !conTinte(colores(linea.color)[0]) && ss.every(x => x.inset && !x.blur),
+    a: cs[ia], b: cs[ib], linea: linea && linea.color };
 };
 // Las tarjetas y filas que ya tenían el filete tenue (no cambian) y los principales (tampoco).
 const YA = [['la semana del bloque', '.blk'], ['«Rutina asignada por tu coach»', '.coach-banner'], ['un ejercicio', '.ex-collapsed'], ['la nota del coach', '.daynotes']];
@@ -87,4 +115,4 @@ const ZONA = 'body';
 // Lo que no puede recortar lo de adentro (el filete sobre el borde y el resplandor de afuera).
 const ZONA_RECORTE = '#view *, .navbar *, .sheet *';
 
-export { DIAS, BLOQUE, handlers, D, M, TEMA, abrir, ir, HOJA_APP, QUE, QUE_PROPIA, YA, PRINCIPALES, PINTA, ZONA, ZONA_RECORTE };
+export { DIAS, BLOQUE, handlers, D, M, TEMA, abrir, ir, HOJA_APP, QUE, QUE_PROPIA, cantos, YA, PRINCIPALES, PINTA, ZONA, ZONA_RECORTE };
