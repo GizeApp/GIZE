@@ -1,5 +1,6 @@
-// «Usar IA en Comida»: el permiso, una sola vez, antes del primer uso de la foto del plato o de
-// «Contame qué comiste» (y antes de abrir la cámara o la galería, como pide Apple 5.1.2(i)). El
+// «Usar IA en Comida»: el permiso, una sola vez, antes del primer uso de la foto del plato (y antes
+// de abrir la cámara o la galería, como pide Apple 5.1.2(i)). «(y lo que escribas)» y «tu texto»
+// siguen siendo ciertos: con la foto puede ir la aclaración opcional («¿Qué es?»). El
 // texto es el de la política de privacidad (privacidad/index.html#ia); si cambia, se sube
 // ia_config.aviso_version y se vuelve a preguntar. También lo usa Ajustes → Funciones con IA al
 // prenderla.
