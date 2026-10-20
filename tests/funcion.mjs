@@ -72,7 +72,8 @@ export async function funcion(nombre, sim = {}){
 // esperarla, se le pasa a responder(q), que devuelve { data, error, count }:
 //   q = { tabla, accion ('select' | 'insert' | 'upsert' | 'update' | 'delete' | 'rpc'), valores,
 //         opciones, filtros: [[op, columna, valor]], columnas, count, single, limit }
-// Storage: q = { bucket, accion ('list' | 'remove'), prefijo, valores }.
+// Storage: q = { bucket, accion ('list' | 'remove' | 'download'), prefijo, valores } (en download,
+// prefijo es la ruta del archivo y la respuesta, un Blob en data).
 // user: el usuario de auth.getUser() (con el token del pedido).
 export function supabaseSimulado(responder, { user = null } = {}){
   const resp = (q) => Promise.resolve().then(() => responder(q)).then(r => ({ data: r && r.data !== undefined ? r.data : null, error: (r && r.error) || null, count: r && r.count !== undefined ? r.count : null }));
@@ -97,7 +98,8 @@ export function supabaseSimulado(responder, { user = null } = {}){
   return {
     from: (tabla) => consulta({ tabla }),
     rpc: (nombre, args) => consulta({ tabla: nombre, accion: 'rpc', valores: args }),
-    storage: { from: (bucket) => ({ list: (prefijo, o) => resp({ bucket, accion: 'list', prefijo, opciones: o }), remove: (valores) => resp({ bucket, accion: 'remove', valores }) }) },
+    storage: { from: (bucket) => ({ list: (prefijo, o) => resp({ bucket, accion: 'list', prefijo, opciones: o }), remove: (valores) => resp({ bucket, accion: 'remove', valores }),
+      download: (prefijo) => resp({ bucket, accion: 'download', prefijo }) }) },
     auth: { getUser: async () => ({ data: { user }, error: null }), admin: { getUserById: async (id) => ({ data: { user: { id, email: 'usuario@prueba.test' } } }) } },
   };
 }
