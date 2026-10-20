@@ -11,7 +11,7 @@
 //   del socio, sin planes, precios ni «renovar».
 // - Un coach sin gimnasio: la pantalla del plan vencido de siempre, y su tira cuenta seats_used si la
 //   base lo trae (igual a su lista).
-import { wait, newPage } from './lib.mjs';
+import { wait, newPage, configCoach } from './lib.mjs';
 import { entrarProfe, miGimnasioProfe, alumnosProfe, COACH, S, M, D, IOS, ANDROID, hostTxt, rpcs, captura } from './gym-comun.mjs';
 
 const dias = n => new Date(Date.now() + n * 864e5).toISOString();
@@ -36,6 +36,9 @@ export default async function ({ base, t }){
     if (caso.startsWith('sin la fila') || caso.startsWith('prueba vencida')){
       t.ok(!/Mi plan|Prueba gratis|Sin plan vigente|Ver planes/.test(h), caso + ': sin la tira del plan ni la prueba');
       t.ok(!/Tu código personal/.test(h), caso + ': sin el código personal');
+      await configCoach(p);
+      const secs = await p.$$eval('#coachHost .cs-nav [data-coach="settings-sec"]', l => l.map(b => b.dataset.k));
+      t.ok(secs.length > 3 && !secs.includes('plan'), caso + ': Configuración sin «Mi plan»: ' + secs.join(', '));
     }
     if (caso.startsWith('plan propio vencido')){
       t.has(h, 'Tu plan de coach venció: tus alumnos propios vuelven cuando lo renueves. Tus socios del gimnasio siguen igual.', caso + ': el cartel sobre sus alumnos propios');

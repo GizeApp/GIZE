@@ -13,6 +13,8 @@ import { avatarHtml, avatarUrl } from '../../core/avatar.js';
 import { coachInitials } from './clientes.js';
 
 import { CoachState } from './state.js';
+import { billing } from './plan.js';
+import { esProfeGym } from './gimnasio.js';
 
 import { pushOnHere } from '../../core/push.js';
 
@@ -44,7 +46,9 @@ const IC = {
 function secciones(){
   const l = [["perfil", "Perfil", IC.user, "Foto y nombre"], ["apariencia", "Apariencia", IC.palette, "Tema y neón"], ["avisos", "Avisos", IC.bell, pushOnHere() ? "Activados" : "Apagados"]];
   // En el panel del gimnasio el plan es el del gimnasio: está en «Plan de GIZE» (sin los planes de coach).
-  if((!appNativa() || comprasApple()) && !enMarcoGym()) l.push(["plan", "Mi plan", IC.card, "Plan y clientes"]);
+  // El profe de un gimnasio sin alumnos propios ni plan propio no tiene plan que mirar (el del gimnasio
+  // lo maneja la administración): sin «Mi plan».
+  if((!appNativa() || comprasApple()) && !enMarcoGym() && !(esProfeGym() && !billing().propio)) l.push(["plan", "Mi plan", IC.card, "Plan y clientes"]);
   l.push(["preguntas", "Preguntas", IC.help, "Registro y check-in"], ["privacidad", "Privacidad", IC.shield, "Bloqueos y políticas"], ["cuenta", "Cuenta", IC.out, "Sesión y baja"]);
   return l;
 }
