@@ -132,6 +132,7 @@ export function handlersGym(user, o = {}){
     if (v && v.demora) return new Promise(ok => setTimeout(ok, v.demora)).then(() => r(J, v.valor));
     return r(J, v);
   };
+  if (o.handlers) Object.assign(handlers, o.handlers);
   return { handlers, st };
 }
 
@@ -157,4 +158,41 @@ export async function captura(p, nombre){
   const fs = await import('node:fs');
   fs.mkdirSync(CAPTURAS, { recursive: true });
   await p.screenshot({ path: CAPTURAS + '/' + nombre + '.png', fullPage: false });
+}
+
+// ---- El socio (parte 3): la app de siempre con lo del gimnasio ----
+// Martina Sosa (ALUMNO), socia de Gimnasio Fuerza con Lucía de profe. extra pisa campos de la ficha.
+export const FICHA_SOCIO = F.A1;
+export function miGimnasioSocio(extra = {}, rol = 'socio'){
+  const gym = { id: G, name: 'Gimnasio Fuerza', city: 'Rosario', province: 'Santa Fe', address: 'Av. Pellegrini 1200', whatsapp: '+54 341 555-0000', contact_email: 'hola@fuerza.test', default_trainer_id: PROFE.id };
+  if (rol === 'pendiente') return { gym: { id: G, name: 'Gimnasio Fuerza', city: 'Rosario' }, rol: 'pendiente', puede_crear: false,
+    solicitud: Object.assign({ id: F.A6, gym: 'Gimnasio Fuerza', requested_at: dias(-1), terms: true, foto: 'falta', foto_pend_path: null }, extra) };
+  return { gym, rol: 'socio', puede_crear: false, ficha: Object.assign({ id: F.A1, status: 'activo', paused_until: null, terms_at: dias(-10), terms_version: '2026-10-borrador',
+    share_admin: false, profe: { id: PROFE.id, name: 'Lucía Profe' }, coach_externo: false, foto: 'falta', foto_rechazo: null, foto_path: null, foto_pend_path: null, origen: 'codigo' }, extra) };
+}
+// Entra como la socia (cuenta común, sin la bienvenida). o: lo de entrar (gym, rpc, perfil, init, vp, tema…).
+// Con un profe del gimnasio, coach_id es el de Lucía; sin profe, null.
+export function entrarSocio(base, o = {}){
+  const g = o.gym === undefined ? miGimnasioSocio() : o.gym;
+  const conProfe = g && g.ficha && g.ficha.profe ? PROFE.id : null;
+  return entrar(base, ALUMNO, Object.assign({ rol: 'client', nombre: 'Martina Sosa', perfil: Object.assign({ coach_id: conProfe }, o.perfil || {}) }, o, { gym: g }));
+}
+// Lo que se ve de la hoja del socio, de Ajustes → Tu gimnasio y de la tarjeta de Entreno.
+export const hojaTxt = p => p.evaluate(() => { const e = document.querySelector('#gymSocioHost .gys-sheet'); return e ? e.innerText.replace(/\s+/g, ' ').trim() : ''; });
+export const gymCfgTxt = p => p.evaluate(() => { const e = document.getElementById('cfgGym'); return e ? e.innerText.replace(/\s+/g, ' ').trim() : ''; });
+export const tarjetaTxt = p => p.evaluate(() => { const e = document.querySelector('#view .gym-card'); return e ? e.innerText.replace(/\s+/g, ' ').trim() : ''; });
+export async function ajustes(p){ await p.click('#nav-config'); await wait(500); }
+// Una foto (PNG de 64×64) para elegir.
+export const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAQElEQVR42u3OMQ0AAAgDsPk3DRZ4SFoHzUcR0NLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0nqwAeKbAQHk/s0wAAAAAElFTkSuQmCC', 'base64');
+// Supabase Storage simulado para gym-fotos (se suma a o.handlers de entrar): subir anota la ruta en
+// subidas; firmar devuelve un link que sirve esa misma foto.
+export function storageGym(subidas = []){
+  return {
+    '.jpg': (r, J, i) => {
+      if (i.path.includes('/object/sign/')) return J({ signedURL: '/object/sign/gym-fotos/foto?token=t' });
+      if (i.m === 'POST' && i.path.includes('/object/gym-fotos/')){ subidas.push(i.path.replace(/^.*\/object\/gym-fotos\//, '')); return J({ Key: 'gym-fotos/x', Id: 'x' }); }
+      return undefined;
+    },
+    '/object/sign/gym-fotos/foto': (r, J, i) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }),
+  };
 }

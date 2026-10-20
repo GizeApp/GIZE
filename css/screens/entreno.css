@@ -388,3 +388,26 @@ body:not(#_) .var-pick.on { border-color:var(--gize-text); }
 .ex-disc-hint { display:block; width:100%; margin:4px 0 10px; padding:9px 12px; border-radius:var(--r-btn); border:1px dashed var(--line, rgba(255,255,255,.18));
   background:none; color:var(--txt-2); font:inherit; font-size:13px; line-height:1.4; text-align:left; cursor:pointer; }
 .ex-disc-hint b { color:var(--txt, #fff); font-weight:600; }
+
+/* «Tu gimnasio» arriba de Entreno (socio de un gimnasio: screens/entreno.js renderGymCard). Una fila
+   que lleva a Ajustes → Tu gimnasio; si falta confirmar la hoja, una tarjeta con dos botones. */
+.gym-card { display:flex; align-items:center; gap:10px; width:100%; margin:0 0 12px; padding:10px 12px; text-align:left;
+  background:var(--card-2); border:1px solid var(--border); border-radius:var(--r-box); color:var(--txt);
+  font:inherit; font-size:var(--text-meta); cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.gym-card:focus-visible, .gym-card-btns button:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
+.gym-card-ic { flex:none; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:var(--card); border:1px solid var(--border); color:var(--blue-2, var(--blue)); }
+.gym-card-ic svg { width:17px; height:17px; }
+.gym-card-t { flex:1; min-width:0; color:var(--txt-2); overflow-wrap:anywhere; line-height:1.35; }
+.gym-card-t b { color:var(--txt); font-weight:700; }
+.gym-card-pausa { color:var(--gize-warning, #f5a524); font-weight:600; }
+.gym-card-chev { flex:none; display:flex; color:var(--txt-3); }
+.gym-card-chev svg { width:16px; height:16px; }
+.gym-card-conf { display:block; cursor:default; border-color:var(--blue); border-left-width:3px; }
+.gym-card-conf .gym-card-top { display:flex; align-items:center; gap:10px; }
+.gym-card-conf .gym-card-top b { font-size:var(--text-body); overflow-wrap:anywhere; }
+.gym-card-conf p { margin:8px 0 10px; color:var(--txt-2); line-height:1.45; }
+.gym-card-btns { display:flex; flex-wrap:wrap; gap:8px; }
+.gym-card-btns button { flex:1 1 140px; min-height:40px; padding:9px 12px; border-radius:var(--r-btn); font:600 var(--text-meta) var(--gize-font); cursor:pointer; }
+.gym-card-go { background:var(--blue); color:var(--gize-text); border:1px solid var(--blue); }
+.gym-card-sec { background:var(--card); color:var(--txt); border:1px solid var(--border); }

@@ -6,9 +6,10 @@ import { EQ_LABELS, equipOf, todayExs, variantOf, variantsFor } from '../core/va
 import { EX_CATS, EX_DB, RC } from '../core/data.js';
 import { FOR_YOU, forYouList, orderedCats } from '../core/disciplinas.js';
 
-import { checkSvg, chevronDownSvg, pencilSvg, playSvg, resetSvg, searchSvg, swapSvg, trashSvg, trophySvg, xSvg } from '../core/icons.js';
+import { checkSvg, chevronDownSvg, chevronRightSvg, pencilSvg, playSvg, resetSvg, searchSvg, swapSvg, trashSvg, trophySvg, xSvg } from '../core/icons.js';
 
 import { State, state } from '../core/state.js';
+import { Gym, rolGym } from '../core/gimnasio.js';
 import { activeDeload, blockWeek as bBlockWeek, isDeload as bIsDeload, weekPlanOf } from '../core/bloque.js';
 
 import { save } from '../core/storage.js';
@@ -238,6 +239,37 @@ function diasRow(d){
 
 // El nombre de la portada va grande; si es largo baja de tamaño para no ocupar media pantalla
 // (también mientras se escribe: app/main.js → fitDayName).
+// «Tu gimnasio» arriba de Entreno (etapa 1, parte 3; SPEC §3.2): «Gimnasio Fuerza · Profe: Martina».
+// Solo con ficha en un gimnasio (mi_gimnasio, core/gimnasio.js); para cualquier otra cuenta, nada.
+// Todavía sin Cuota, Pase ni Clases (etapas 2 y 3). Si falta que acepte la hoja (una cuenta
+// convertida o un pedido hecho con la app vieja), en su lugar va la tarjeta para confirmar. Los
+// botones (data-gys) los atiende app/screens/gym/socio.js.
+const gymIco = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/></svg>';
+export function renderGymCard(){
+  const gi = Gym.info, rol = rolGym();
+  if (!gi || !gi.gym || (rol !== "socio" && rol !== "pendiente")) return "";
+  const nom = esc(gi.gym.name || "");
+  const confirmar = (titulo, texto, otro) => `<div class="gym-card gym-card-conf" role="region" aria-labelledby="gymCardT">
+      <div class="gym-card-top"><span class="gym-card-ic">${gymIco}</span><b id="gymCardT">${titulo}</b></div>
+      <p>${texto}</p>
+      <div class="gym-card-btns"><button type="button" class="gym-card-go" data-gys="confirmar">${otro ? "Ver y confirmar" : "Entendido"}</button><button type="button" class="gym-card-sec" data-gys="salir">${rol === "pendiente" ? "Cancelar el pedido" : "Salir del gimnasio"}</button></div>
+    </div>`;
+  if (rol === "pendiente"){
+    const sol = gi.solicitud || {};
+    return sol.terms ? "" : confirmar("Confirmá tu pedido a " + nom, "Pediste sumarte con una versión anterior de la app. Antes de que te acepten, mirá qué ve el gimnasio.", true);
+  }
+  const f = gi.ficha || {};
+  if (!f.terms_at) return f.origen === "conversion"
+    ? confirmar("Tu coach ahora es " + nom, "Esto es lo que ve el gimnasio y lo que podés compartir con la administración. Tocá «Entendido» para verlo.", false)
+    : confirmar("Confirmá tu lugar en " + nom, "Te sumaste con una versión anterior de la app: falta que veas qué ve el gimnasio.", true);
+  const pn = f.profe && String(f.profe.name || "").trim().split(/\s+/)[0];
+  const quien = f.coach_externo ? "Coach externo" : pn ? "Profe: " + esc(pn) : "Sin profe";
+  const pausa = f.status === "pausado" ? ' · <span class="gym-card-pausa">Pausado' + (f.paused_until ? " hasta el " + esc(String(f.paused_until).slice(8, 10) + "/" + String(f.paused_until).slice(5, 7)) : "") + '</span>' : "";
+  return `<button type="button" class="gym-card" data-gys="ajustes" aria-label="${nom}, ${quien}. Abrir Tu gimnasio en Ajustes">
+      <span class="gym-card-ic">${gymIco}</span><span class="gym-card-t"><b>${nom}</b> · ${quien}${pausa}</span><span class="gym-card-chev" aria-hidden="true">${chevronRightSvg}</span>
+    </button>`;
+}
+
 export function dayNameCls(name){ const n = String(name || '').length; return n > 32 ? 'dn-xl' : n > 14 ? 'dn-l' : ''; }
 
 export function renderEntreno(){
@@ -364,7 +396,7 @@ export function renderEntreno(){
   // tachito chico en la esquina. La barra y la cuenta de series se sacaron (pedido).
   // Entra con el revelado una sola vez (no una por día): al cambiar de día no queda en blanco.
   return `
-    ${syncWarn}
+    ${renderGymCard()}${syncWarn}
     ${renderBlockBanner()}
     ${routineLocked()?'<div class="coach-banner">Rutina asignada por tu coach</div>':''}
     <div class="tabs">${tabs}</div>

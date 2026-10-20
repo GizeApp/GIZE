@@ -3,7 +3,7 @@
 // renderApp por monkey-patching para no tocar el original; con módulos reales
 // ya no hace falta el parche: main.js llama a renderConfig() directamente
 // cuando State.view === "config".
-import { Gym, rolGym } from '../core/gimnasio.js';
+import { Gym, rolGym, esSocioGym, fotoSocio, releerGym } from '../core/gimnasio.js';
 import { State } from '../core/state.js';
 import { KEY, save } from '../core/storage.js';
 import { appleCodeForDelete, clearAccountLeftovers, forgetStoredSession, loadCloud, deleteMyStorageFiles, deleteMyAccount, PROFILE_KEY } from '../core/supabase.js';
@@ -30,6 +30,73 @@ const blockSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 const zapSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
 
 function cfgRoleLabel(p) { return (p && p.role === "coach") ? "Coach" : "Cliente"; }
+
+// ---- Ajustes → Tu gimnasio (etapa 1, parte 3; SPEC §3.2) ----
+// Solo para quien tiene ficha en un gimnasio (socio) o un pedido pendiente: lo dice mi_gimnasio()
+// (core/gimnasio.js). Para cualquier otra cuenta no se dibuja nada. Los botones (data-gys) los
+// atiende app/screens/gym/socio.js, que se carga recién al tocarlos.
+const gymFicha = () => (rolGym() === "socio" && Gym.info && Gym.info.ficha) || null;
+// El profe del socio es del gimnasio (no un coach de afuera): «Dejar a tu profe» lo deja sin profe
+// pero socio (el trigger profiles_gym_sync, supabase/gimnasios-vinculo.sql).
+const profeDelGym = () => { const f = gymFicha(); return !!(f && f.profe && !f.coach_externo); };
+function ddmm(d){ const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ""); return m ? m[3] + "/" + m[2] : ""; }
+function gymFotoHtml(f){
+  const path = f.foto === "pendiente" ? f.foto_pend_path : f.foto_path;
+  const url = path ? fotoSocio(path) : "";
+  const estado = f.foto === "ok" ? "La aprobó el gimnasio."
+    : f.foto === "pendiente" ? "Esperando que el gimnasio la apruebe."
+    : f.foto === "rechazada" ? "El gimnasio no la aprobó" + (f.foto_rechazo ? ": " + f.foto_rechazo : ".")
+    : "Todavía no tenés foto del gimnasio.";
+  const boton = f.foto === "ok" ? "Pedir cambio de foto" : f.foto === "pendiente" ? "Mandar otra" : "Mandar una foto";
+  return '<div class="cfg-gym-foto">' +
+      '<span class="cfg-gym-av' + (url ? ' has-photo' : '') + '">' + (url ? '<img src="' + esc(url) + '" alt="Tu foto del gimnasio">' : '<span aria-hidden="true">' + cameraSvg + '</span>') + '</span>' +
+      '<div class="cfg-gym-foto-txt"><div class="cfg-notif-label">Foto del gimnasio</div>' +
+        '<div class="cfg-notif-desc' + (f.foto === "rechazada" ? ' cfg-gym-mal' : '') + '" role="status">' + esc(estado) + '</div>' +
+        '<div class="cfg-notif-desc">La ve la recepción. Tu foto de perfil no cambia.</div></div>' +
+      // El selector de archivos: un <label> con el input escondido a la vista (no con «hidden»), así se
+      // llega con el teclado y se abre en el mismo toque (como «Sacar foto» del panel).
+      '<label class="cfg-gym-btn cfg-gym-foto-acc">' + boton + '<input type="file" accept="image/*" data-gys-foto class="gys-foto-in"></label>' +
+    '</div>';
+}
+function gymSection(){
+  const gi = Gym.info, rol = rolGym();
+  if (!gi || !gi.gym || !esSocioGym()) return "";
+  const g = gi.gym, nom = esc(g.name || "");
+  const cab = '<div class="cfg-sub">Tu gimnasio</div>';
+  if (rol === "pendiente"){
+    const sol = gi.solicitud || {};
+    return '<div class="card cfg-card cfg-gym" id="cfgGym">' + cab +
+      '<div class="cfg-gym-name">Pedido enviado a ' + nom + '</div>' +
+      '<div class="cfg-notif-desc">Cuando te acepten, vas a ver acá a tu profe. Mientras, seguís usando GIZE como siempre.</div>' +
+      (!sol.terms ? '<div class="cfg-gym-aviso"><div class="cfg-notif-desc">Falta que confirmes qué ve el gimnasio.</div><button type="button" class="form-save cfg-gym-go" data-gys="confirmar">Ver y confirmar</button></div>' : '') +
+      gymFotoHtml({ foto: sol.foto === "pendiente" ? "pendiente" : "falta", foto_pend_path: sol.foto_pend_path }) +
+      '<button class="logout-btn cfg-danger" data-gys="cancelar-pedido">Cancelar el pedido</button>' +
+    '</div>';
+  }
+  const f = gi.ficha || {};
+  const quien = f.coach_externo
+    ? '<div class="cfg-gym-row"><span class="cfg-gym-k">Coach</span><span class="cfg-gym-v">Coach externo</span></div><div class="cfg-notif-desc">Tu coach no es del gimnasio: sigue igual que siempre.</div>'
+    : f.profe
+      ? '<div class="cfg-gym-row"><span class="cfg-gym-k">Profe</span><span class="cfg-gym-v">' + esc(f.profe.name || "") + '</span><button type="button" class="cfg-gym-btn" data-action="cfg-unlink-coach">Dejar a tu profe</button></div>'
+      : '<div class="cfg-gym-row"><span class="cfg-gym-k">Profe</span><span class="cfg-gym-v cfg-gym-sin">Sin profe</span></div><div class="cfg-notif-desc">El gimnasio te puede asignar uno. Si tenés el código de un profe del gimnasio, ponelo arriba.</div>';
+  const share = !!f.share_admin;
+  const confirmado = !!f.terms_at;
+  return '<div class="card cfg-card cfg-gym" id="cfgGym">' + cab +
+    '<div class="cfg-gym-name">' + nom + (g.city ? '<span class="cfg-gym-city"> · ' + esc(g.city) + '</span>' : '') + '</div>' +
+    (f.status === "pausado" ? '<div class="cfg-notif-desc">Tu ficha está pausada' + (f.paused_until ? ' hasta el ' + ddmm(f.paused_until) : '') + '.</div>' : '') +
+    quien +
+    (confirmado
+      ? '<div class="cfg-notif-row">' +
+          '<div class="cfg-notif-txt"><div class="cfg-notif-label" id="cfgGymShare">Compartir mis registros con la administración</div>' +
+          '<div class="cfg-notif-desc">Entrenos, comidas, peso, registro diario y check-ins, con el dueño y los encargados. Sin tus pasos ni tus recorridos.</div></div>' +
+          '<button class="cfg-switch' + (share ? ' on' : '') + '" data-gys="compartir" role="switch" aria-checked="' + share + '" aria-labelledby="cfgGymShare"><span class="cfg-switch-knob"></span></button>' +
+        '</div>'
+      : '<div class="cfg-gym-aviso"><div class="cfg-notif-desc">Falta que confirmes qué ve el gimnasio.</div><button type="button" class="form-save cfg-gym-go" data-gys="confirmar">Ver y confirmar</button></div>') +
+    '<button type="button" class="cfg-link-row" data-gys="ver-hoja"><span class="cfg-link-ic">' + fileTextSvg + '</span><span class="cfg-link-label">Qué ve el gimnasio</span><span class="cfg-link-chev">' + chevronRightSvg + '</span></button>' +
+    gymFotoHtml(f) +
+    '<button class="logout-btn cfg-danger" data-gys="salir">Salir del gimnasio</button>' +
+  '</div>';
+}
 
 // En las apps de Android y iPhone ningún link puede llevar a precios ni a links de pago
 // (reglas de Apple y Google): la página de inicio tiene los planes y el botón para contratar.
@@ -110,16 +177,18 @@ export function renderConfig() {
   const needsLink = logged && profile && profile.role !== "coach" && !profile.coach_id;
   const linked = logged && profile && profile.role !== "coach" && !!profile.coach_id;
 
+  // El socio con un profe del gimnasio lo ve (y lo deja) en «Tu gimnasio», más abajo.
   const coachSection = !logged ? "" :
+    linked && profeDelGym() ? "" :
     linked
       ? '<div class="card cfg-card"><div class="cfg-row-simple"><span>Tu coach</span><button class="cfg-ok" data-action="cfg-unlink-coach" title="Desvincularte de tu coach">Vinculado' + checkSvg + '</button></div></div>'
       : needsLink
         // Card normal (no .join-box) para que tenga el mismo espaciado que el resto; input y
         // botón en una fila así "Vincular" no queda como una pastilla gigante a todo el ancho.
         ? '<div class="card cfg-card">' +
-            '<div class="cfg-sub">Vinculate a tu coach</div>' +
+            '<div class="cfg-sub" id="joinCodeLbl">Código de tu coach o gimnasio</div>' +
             '<div class="join-row">' +
-              '<input id="joinCode" class="form-input" placeholder="Código del coach">' +
+              '<input id="joinCode" class="form-input" placeholder="Código" aria-labelledby="joinCodeLbl" autocomplete="off" autocapitalize="characters">' +
               '<button class="form-save join-btn" data-auth="join">Vincular</button>' +
             '</div>' +
           '</div>'
@@ -211,7 +280,7 @@ export function renderConfig() {
 
   checkAdmin(renderApp); // solo las cuentas administradoras ven «Revisar productos»
   return '<div class="hb-head"><div class="hb-title">Configuración</div><div class="title-accent"></div></div>' +
-    account + adminEntry() + coachSection + notifSection + temaSection + neonSection + liteSection + blockSection + legalSection + contactSection + dangerSection + about;
+    account + adminEntry() + coachSection + gymSection() + notifSection + temaSection + neonSection + liteSection + blockSection + legalSection + contactSection + dangerSection + about;
 }
 
 document.body.addEventListener("keydown", function (e) {
@@ -258,13 +327,19 @@ document.body.addEventListener("click", async function (e) {
 
   const unlinkBtn = e.target.closest('[data-action="cfg-unlink-coach"]');
   if (unlinkBtn) {
-    if (!await confirmar("¿Seguro que te querés desvincular de tu coach? Vas a necesitar su código de invitación de nuevo si te querés volver a vincular.")) return;
+    // Socio con un profe del gimnasio: deja al profe pero sigue en el gimnasio (para irse está «Salir
+    // del gimnasio»).
+    const gymProfe = profeDelGym(), gymNom = gymProfe ? ((Gym.info.gym || {}).name || "el gimnasio") : "";
+    if (gymProfe
+      ? !await confirmar("¿Dejar a tu profe? Seguís en " + gymNom + ", sin profe. Para tener otro, pedíselo al gimnasio o poné el código de otro profe del gimnasio.", { titulo: "Dejar a tu profe", ok: "Dejar a tu profe", peligro: true })
+      : !await confirmar("¿Seguro que te querés desvincular de tu coach? Vas a necesitar su código de invitación de nuevo si te querés volver a vincular.")) return;
     const prevHtml = unlinkBtn.innerHTML;
-    unlinkBtn.disabled = true; unlinkBtn.innerHTML = "Desvinculando…";
+    unlinkBtn.disabled = true; unlinkBtn.innerHTML = gymProfe ? "Dejando…" : "Desvinculando…";
     try {
       const r = await State.sb.from("profiles").update({ coach_id: null }).eq("id", State.cloudUser.id);
       if (r.error) throw r.error;
       await loadCloud();
+      if (esSocioGym()) await releerGym();
       renderApp();
     } catch (err) {
       alert("No se pudo desvincular: " + ((err && err.message) || err));

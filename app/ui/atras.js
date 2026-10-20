@@ -12,6 +12,8 @@
 const CERRAR = [
   '.av-bg:not(.closing) .av-btn',                // cartel (ui/avisos.js: alert, y en confirmar / pedir el primero es «Cancelar»): encima de todo, también del selector
   '.sl-bg:not(.closing) .sl-x',                  // selector propio de los <select> (ui/selector.js)
+  '.crp .crp-cancel',                            // acomodar la foto (también la del gimnasio, encima de la hoja del socio)
+  '#gymSocioHost [data-gys-h="cancel"]',        // gimnasio: la hoja del socio (encima de todo, también de la bienvenida)
   '#blockHost [data-blq="cancel"]',              // «Bloquear» y «Personas bloqueadas» (encima de todo)
   '#reportHost [data-rep="cancel"]',             // «Reportar» (encima de todo, también del chat)
   '#authHost .onb-card [data-onb="back"]',       // bienvenida: paso anterior (en el primero no se dibuja)

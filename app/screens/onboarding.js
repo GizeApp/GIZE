@@ -1,4 +1,4 @@
-import { quiereGym } from '../core/gimnasio.js';
+import { cargarSocio, codigoInfo, quiereGym } from '../core/gimnasio.js';
 import { auIcoTicket, checkSvg, chevronLeftSvg } from '../core/icons.js';
 
 import { State, state } from '../core/state.js';
@@ -741,6 +741,9 @@ function reanudar(){
 
 // Vincular con el código: lo mismo de siempre (join_coach, el perfil, loadCloud y el nombre del
 // coach) y después sigue con el paso que corresponde, que ya es el camino con coach.
+// El código de un gimnasio (gym_codigo_info, como en Ajustes) abre la hoja para pedir sumarse
+// (app/screens/gym/socio.js): si pide, sigue con el paso que corresponde (sin coach mientras el
+// gimnasio no lo acepte); si cierra la hoja sin pedir, queda en el código.
 async function vincular(){
   const inp=$("#onbCode"), code=((inp && inp.value)||"").trim();
   if(!code) return false;
@@ -748,6 +751,15 @@ async function vincular(){
   ocupadoUI(true, "Vinculando…", true);
   let msg="";
   try{
+    const ci=await codigoInfo(code);
+    if(ci && ci.tipo==="gym"){
+      ocupado=false; if(card()) ocupadoUI(false, "", true);
+      const m=await cargarSocio();
+      if(!m){ errorCodigo("No se pudo abrir: revisá tu conexión y probá de nuevo."); return false; }
+      const res=await m.abrirCodigo(code, ci.gym);
+      return !!res && !!card();
+    }
+    if(ci && (ci.error || ci.tipo===null)) throw { aviso: ci.error ? joinMsgTienda(ci.error.message) : "Código inválido. Revisalo con tu coach." };
     const r=await State.sb.rpc("join_coach",{code:code});
     if(r.data!==true){
       // join_coach trae un mensaje propio para plan vencido o cupo lleno.
@@ -760,7 +772,7 @@ async function vincular(){
       applyBrand();
       renderApp(); // la app de abajo ya queda con el coach
     }
-  }catch(err){ msg="No se pudo vincular: "+((err&&err.message)||err); }
+  }catch(err){ msg=(err && err.aviso) || "No se pudo vincular: "+((err&&err.message)||err); }
   ocupado=false;
   if(!card()) return false;
   ocupadoUI(false, "", true);

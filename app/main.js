@@ -98,7 +98,7 @@ import { signedAudioUrl, togglePlay } from './ui/grabar.js';
 import { dropExMedia } from './core/videos.js';
 import { clearVariant, dropExpiredVariants, setVariant, todayEx, todayExs, variantOf } from './core/variantes.js';
 import { appIOS, joinMsgTienda } from './core/tienda.js';
-import { alRedibujar, pintarGym } from './core/gimnasio.js';
+import { alRedibujar, cargarSocio, codigoInfo, esSocioGym, pintarGym, releerGym } from './core/gimnasio.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
 const autoKg = new Set();
@@ -1120,7 +1120,28 @@ document.body.addEventListener("click", async e=>{
   // Los errores de join_coach con mensaje propio (plan vencido, cupo lleno) se muestran tal cual.
   // En iPhone, sin hablar del plan del coach (core/tienda.js).
   const joinErr=er=>(er && er.code==="P0001" && er.message) ? joinMsgTienda(er.message) : "";
-  if(a==="join"){ const code=((document.getElementById("joinCode")||{}).value||"").trim(); if(!code){ alert("Poné el código de tu coach."); return; } try{ const r=await State.sb.rpc("join_coach",{code:code}); if(r.data===true){ const pr=await State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle(); if(pr.data) State.cloudProfile=pr.data; await loadCloud(); alert("¡Listo! Te vinculaste con tu coach."); renderApp(); } else { alert(joinErr(r.error) || "Código inválido. Revisalo con tu coach."); } }catch(err){ alert("No se pudo vincular: "+((err&&err.message)||err)); } return; }
+  // «Código de tu coach o gimnasio»: primero se pregunta de quién es (gym_codigo_info). El de un
+  // gimnasio abre la hoja para pedir sumarse (app/screens/gym/socio.js); el de un coach sigue como
+  // siempre con join_coach (que trae los textos propios de los socios de un gimnasio, §1.3). Uno que
+  // no existe ya quedó anotado como intento: no se manda dos veces. Sin la función (o sin señal),
+  // join_coach como siempre.
+  if(a==="join"){
+    const code=((document.getElementById("joinCode")||{}).value||"").trim(); if(!code){ alert("Poné el código de tu coach o de tu gimnasio."); return; }
+    try{
+      const ci=await codigoInfo(code);
+      if(ci && ci.error){ alert(joinErr(ci.error)); return; }
+      if(ci && ci.tipo==="gym"){ const m=await cargarSocio(); if(m) m.abrirCodigo(code, ci.gym); else alert("No se pudo abrir: revisá tu conexión y probá de nuevo."); return; }
+      if(ci && ci.tipo===null){ alert("Código inválido. Revisalo con tu coach."); return; }
+      const r=await State.sb.rpc("join_coach",{code:code});
+      if(r.data===true){ const pr=await State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle(); if(pr.data) State.cloudProfile=pr.data; await loadCloud(); if(esSocioGym()) await releerGym(); alert("¡Listo! Te vinculaste con tu coach."); renderApp(); }
+      else {
+        // Sin gym_codigo_info, join_coach con el código de un gimnasio pide sumarse («Listo: …»).
+        if(r.error && r.error.code==="P0001" && /^Listo:/.test(r.error.message||"")){ await releerGym(); renderApp(); }
+        alert(joinErr(r.error) || "Código inválido. Revisalo con tu coach.");
+      }
+    }catch(err){ alert("No se pudo vincular: "+((err&&err.message)||err)); }
+    return;
+  }
   if(a==="google"){
     const mode = document.getElementById("auRole") ? "up" : "in";
     const role=((document.getElementById("auRole")||{}).value||"client").trim();

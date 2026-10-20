@@ -41,7 +41,7 @@ import { TRACK_KEY, pruneTracks } from './salidas.js';
 import { deleteShareFile } from '../ui/compartir.js';
 
 // Gimnasios (core/gimnasio.js): mi_gimnasio() al entrar y los links #gimnasio / #equipo=.
-import { GYM_CACHE, avisarCodigo, cargarPanelGym, consultarGym, gymSinEspera, ingresoParaLink, quiereGym } from './gimnasio.js';
+import { GYM_CACHE, cargarPanelGym, cargarSocio, codigoInfo, consultarGym, gymSinEspera, ingresoParaLink, linksSocio, quiereGym } from './gimnasio.js';
 
 export const SB_URL = "https://wegptuzhsrwppbknqstf.supabase.co";
 
@@ -1062,7 +1062,13 @@ export async function afterLogin(sessionUser, stale){
   try{
     // takePendingCode lo saca del dispositivo pase lo que pase (y si venció no lo usa).
     const pc=takePendingCode();
-    if(pc && State.cloudProfile && State.cloudProfile.role!=="coach" && !State.cloudProfile.coach_id){
+    // El código del gimnasio (gym_codigo_info) no va a join_coach: abre la hoja para pedir sumarse
+    // (app/screens/gym/socio.js). Uno que no existe ya quedó anotado como intento: no se manda dos
+    // veces. Sin la función (o sin señal), como siempre.
+    const ci=(pc && State.cloudProfile && State.cloudProfile.role!=="coach" && !State.cloudProfile.coach_id) ? await conTope(codigoInfo(pc), 8000, null) : null;
+    if(ci && ci.tipo==="gym") setTimeout(()=>cargarSocio().then(m=>m && m.abrirCodigo(pc, ci.gym)), 900);
+    else if(ci && ci.error){ const m=joinMsgTienda(ci.error.message); setTimeout(()=>alert(m+" Podés poner el código después en Configuración."), 600); }
+    else if(pc && !(ci && ci.tipo===null) && State.cloudProfile && State.cloudProfile.role!=="coach" && !State.cloudProfile.coach_id){
       const r2=await conTope(State.sb.rpc("join_coach",{code:pc}), 8000, {data:null});
       if(r2.error && r2.error.code==="P0001" && r2.error.message){ const m=joinMsgTienda(r2.error.message); setTimeout(()=>alert(m+" Podés poner el código después en Configuración."), 600); }
       if(r2.data===true){ coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null})); const pr=await conTope(State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle(), 8000, {data:null}); if(pr.data) State.cloudProfile=pr.data; await conTope(loadCloud(), 8000); }
@@ -1092,7 +1098,7 @@ export async function afterLogin(sessionUser, stale){
   }
   else { renderApp(); syncPush(); } // sin await: no demora la entrada
   maybeShowOnboarding(); // cuenta nueva: bienvenida (una sola vez), encima de la app
-  avisarCodigo(); // entró con el link del código de un gimnasio (core/gimnasio.js)
+  linksSocio(); // entró con un link del socio: el código del gimnasio o el de su ficha (core/gimnasio.js)
   window.dispatchEvent(new Event("gize:login")); // chat: botón, globitos y aviso tocado (main.js)
 }
 
