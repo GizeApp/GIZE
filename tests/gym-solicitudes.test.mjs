@@ -20,17 +20,18 @@ export default async function ({ base, t }){
   // Socio nuevo, sin profe.
   await p.selectOption('#coachHost select[data-gym-sol="profe"][data-id="' + F.A6 + '"]', '');
   await p.click('#coachHost [data-gym="sol-nuevo"][data-id="' + F.A6 + '"]'); await wait(800);
-  t.eq(rpcs(pg.st, 'gym_aprobar'), [{ ficha: F.A6, profe: null, unir_a_ficha: null, foto_ok: false }], 'Socio nuevo sin profe: gym_aprobar(ficha, null, null, false)');
+  t.eq(rpcs(pg.st, 'gym_aprobar'), [{ ficha: F.A6, profe: null, unir_a_ficha: null, foto_ok: false, foto: null }], 'Socio nuevo sin profe: gym_aprobar(ficha, null, null, false, null)');
   // Clara: con el profe por defecto y la foto aprobada.
   await p.click('#coachHost [data-gym="sol-nuevo"][data-id="' + ID('f21') + '"]'); await wait(800);
-  t.eq(rpcs(pg.st, 'gym_aprobar')[1], { ficha: ID('f21'), profe: PROFE.id, unir_a_ficha: null, foto_ok: true }, 'Socio nuevo con su profe y la foto aprobada');
+  t.eq(rpcs(pg.st, 'gym_aprobar')[1], { ficha: ID('f21'), profe: PROFE.id, unir_a_ficha: null, foto_ok: true, foto: 'a0000000-0000-4000-8000-00000000aaaa/' + ID('f21') + '/' + ID('99') + '.jpg' },
+    'Socio nuevo con su profe y la foto aprobada: manda la ruta de la foto que se ve (si el socio la cambió, el servidor no la aprueba)');
   // Es la ficha de… (Tomás de nuevo en la lista)
   pg.st.rpcs.length = 0;
   await p.evaluate(() => { const b = document.querySelector('[data-gym="reintentar"]'); if (b) b.click(); });
   await p.click('#coachHost [data-gym="socios-tab"][data-v="solicitudes"]'); await wait(800);
   await p.click('#coachHost [data-gym="sol-unir"][data-id="' + F.A6 + '"]'); await wait(800);
   t.ok(pg.preguntas.some(q => /Unir el pedido de Tomás Ríos con la ficha de Raúl Díaz/.test(q.texto)), 'pregunta antes de unir: ' + JSON.stringify(pg.preguntas.map(q => q.texto)));
-  t.eq(rpcs(pg.st, 'gym_aprobar'), [{ ficha: F.A6, profe: PROFE.id, unir_a_ficha: F.A4, foto_ok: false }], 'Es la ficha de…: gym_aprobar con unir_a_ficha');
+  t.eq(rpcs(pg.st, 'gym_aprobar'), [{ ficha: F.A6, profe: PROFE.id, unir_a_ficha: F.A4, foto_ok: false, foto: null }], 'Es la ficha de…: gym_aprobar con unir_a_ficha');
   // Rechazar con motivo
   p.contestar = q => q.tipo === 'pedir' ? 'No es del barrio' : true;
   await p.click('#coachHost [data-gym="socios-tab"][data-v="solicitudes"]'); await wait(800);
@@ -58,7 +59,7 @@ export default async function ({ base, t }){
     await wait(6500);
     t.eq(await q.$eval('#coachHost select[data-gym-sol="profe"][data-id="' + F.A6 + '"]', s => s.value), PROFE.id, 'cuando llega el equipo, el profe por defecto elegido');
     await q.click('#coachHost [data-gym="sol-nuevo"][data-id="' + F.A6 + '"]'); await wait(800);
-    t.eq(rpcs(pe.st, 'gym_aprobar'), [{ ficha: F.A6, profe: PROFE.id, unir_a_ficha: null, foto_ok: false }], 'y se aprueba con ese profe');
+    t.eq(rpcs(pe.st, 'gym_aprobar'), [{ ficha: F.A6, profe: PROFE.id, unir_a_ficha: null, foto_ok: false, foto: null }], 'y se aprueba con ese profe');
     // El buscador de arriba también busca en Solicitudes (nombre o mail).
     await q.fill('#coachHost [data-gym-in="q"]', 'elena'); await wait(400);
     let tx = await hostTxt(q);

@@ -51,7 +51,7 @@ export default async function ({ t: t0 }){
     ['rA', rpc('gym_ingreso_manual', NUEVO, F.A2)],
     ['dA', rpc('gym_exportar', 'socios')],
     ['dA', rpc('gym_asignar_profe', [F.A3], P.pA2)],
-    ['dA', rpc('gym_aprobar', F.A6, null, null, false)],
+    ['dA', rpc('gym_aprobar', F.A6, null, null, false, null)],
     ['pA1', `select to_jsonb(public.is_my_client('${P.P1}'))`]]);
   const ok = r => r && !r.error;
   const resumen = r => [r[1], r[2], r[3], r[4], ok(r[5]), ok(r[6]), ok(r[7]), ok(r[8]), ok(r[9]), r[10]];
@@ -120,7 +120,7 @@ export default async function ({ t: t0 }){
   // ===== Sobre el cupo: solo se frenan las altas =====
   x = await V([['postgres', `update public.coach_billing set max_clients = 3 where coach_id = '${P.dA}'`], ['dA', rpc('mi_gimnasio')],
     ['pA1', `select to_jsonb(public.is_my_client('${P.A1}'))`], ['dA', `select to_jsonb(public.gym_reads_member('${P.A1}'))`], ['rA', rpc('gym_ingreso_manual', NUEVO, F.A2)],
-    ['dA', rpc('gym_asignar_profe', [F.A3], P.pA2)], ['dA', rpc('gym_aprobar', F.A6, null, null, false)], ['dA', rpc('gym_ficha_crear', { nombre: 'Gabriel Núñez' })],
+    ['dA', rpc('gym_asignar_profe', [F.A3], P.pA2)], ['dA', rpc('gym_aprobar', F.A6, null, null, false, null)], ['dA', rpc('gym_ficha_crear', { nombre: 'Gabriel Núñez' })],
     ['dA', rpc('gym_baja', F.A2, null)], ['dA', rpc('gym_reactivar', F.A2)], ['N', `select public.join_coach('FUERZA22')::jsonb`], ['N', `select public.join_coach('${CODIGO.dA}')::jsonb`]]);
   const NO = 'El gimnasio no puede sumar socios en este momento.';
   t.eq([x[1].plan.sobre_cupo, x[1].plan.estado, x[2], x[3], ok(x[4]), x[5].ok], [true, 'activo', true, true, true, [F.A3]],

@@ -1607,8 +1607,9 @@ grant execute on function public.gym_solicitudes() to authenticated;
 
 -- Aprobar una solicitud como socio nuevo (con profe, o null = sin profe; cupo exacto) o como «es la
 -- ficha de…» (unir_a_ficha: la ficha sin app pasa a ser de esa cuenta; no ocupa otro lugar; la
--- recepción, solo la del link o la del mail verificado). Con foto_ok, la foto que propuso queda aprobada.
-create or replace function public.gym_aprobar(ficha uuid, profe uuid, unir_a_ficha uuid, foto_ok boolean)
+-- recepción, solo la del link o la del mail verificado). Con foto_ok, la foto que propuso queda aprobada:
+-- foto es la ruta que vio el equipo; si el socio mandó otra mientras tanto, no se aprueba ninguna.
+create or replace function public.gym_aprobar(ficha uuid, profe uuid, unir_a_ficha uuid, foto_ok boolean, foto text)
 returns jsonb
 language plpgsql
 security definer
@@ -1620,6 +1621,9 @@ begin
   if socio is not null then perform 1 from public.profiles where id = socio for update; end if;
   select m.* into f from public.gym_members m where m.id = ficha and m.gym_id = g for update;
   if f.id is null or f.status <> 'pendiente' then raise exception 'Esa solicitud ya no está pendiente.' using errcode = 'P0001'; end if;
+  if coalesce(foto_ok, false) and f.foto_pend_path is distinct from foto then
+    raise exception 'La foto cambió: mirala de nuevo.' using errcode = 'P0001';
+  end if;
   if unir_a_ficha is null then
     perform public.gym_aprobar_interno(ficha, profe);
     res := ficha;
@@ -1669,8 +1673,8 @@ begin
   end if;
   return jsonb_build_object('ok', true, 'id', res);
 end $$;
-revoke all on function public.gym_aprobar(uuid, uuid, uuid, boolean) from public, anon;
-grant execute on function public.gym_aprobar(uuid, uuid, uuid, boolean) to authenticated;
+revoke all on function public.gym_aprobar(uuid, uuid, uuid, boolean, text) from public, anon;
+grant execute on function public.gym_aprobar(uuid, uuid, uuid, boolean, text) to authenticated;
 
 -- Rechazar una solicitud: se borra (era un pedido, sin datos del gimnasio); queda en la auditoría.
 create or replace function public.gym_rechazar(ficha uuid, motivo text)
@@ -2079,8 +2083,9 @@ end $$;
 revoke all on function public.gym_foto_staff(uuid, text) from public, anon;
 grant execute on function public.gym_foto_staff(uuid, text) to authenticated;
 
--- Aprobar o rechazar la foto que propuso el socio.
-create or replace function public.gym_foto_resolver(ficha uuid, aprobar boolean, motivo text)
+-- Aprobar o rechazar la foto que propuso el socio. foto es la ruta que vio el equipo: si el socio mandó
+-- otra mientras tanto, no se aprueba ni se rechaza la que nadie miró.
+create or replace function public.gym_foto_resolver(ficha uuid, aprobar boolean, motivo text, foto text)
 returns jsonb
 language plpgsql
 security definer
@@ -2090,6 +2095,7 @@ declare g uuid := public.gym_exigir_altas(); f record;
 begin
   select m.id, m.member_id, m.foto_path, m.foto_pend_path into f from public.gym_members m where m.id = ficha and m.gym_id = g for update;
   if f.id is null or f.foto_pend_path is null then raise exception 'No hay ninguna foto para aprobar.' using errcode = 'P0001'; end if;
+  if f.foto_pend_path is distinct from foto then raise exception 'La foto cambió: mirala de nuevo.' using errcode = 'P0001'; end if;
   -- La propuesta puede venir de la carpeta de un pedido unido a esta ficha: basta con que sea de este
   -- gimnasio y esté subida.
   if coalesce(aprobar, false) and not (split_part(f.foto_pend_path, '/', 1) = g::text
@@ -2111,8 +2117,8 @@ begin
   end if;
   return jsonb_build_object('foto', case when coalesce(aprobar, false) then 'ok' else 'rechazada' end);
 end $$;
-revoke all on function public.gym_foto_resolver(uuid, boolean, text) from public, anon;
-grant execute on function public.gym_foto_resolver(uuid, boolean, text) to authenticated;
+revoke all on function public.gym_foto_resolver(uuid, boolean, text, text) from public, anon;
+grant execute on function public.gym_foto_resolver(uuid, boolean, text, text) to authenticated;
 
 
 -- ===== Recepción y asistencia =====
@@ -2378,11 +2384,11 @@ notify pgrst, 'reload schema';
 -- delete from public.app_config where key = 'gimnasios';
 -- drop function if exists public.gym_diaria(), public.gym_tick(), public.gym_restaurar(uuid), public.release_lapsed_gyms(),
 --   public.gym_ingresos(date), public.gym_ingreso_manual(uuid, uuid), public.buscar_socio(text),
---   public.gym_foto_resolver(uuid, boolean, text), public.gym_foto_staff(uuid, text), public.gym_socios_resumen(),
+--   public.gym_foto_resolver(uuid, boolean, text, text), public.gym_foto_staff(uuid, text), public.gym_socios_resumen(),
 --   public.gym_baja(uuid, text), public.gym_reactivar(uuid), public.gym_pausar(uuid, date), public.gym_dejar_socio(uuid),
 --   public.gym_asignar_profe(uuid[], uuid), public.gym_nota_guardar(uuid, text), public.gym_ficha_link(uuid),
 --   public.gym_ficha_editar(uuid, jsonb), public.gym_ficha_crear(jsonb), public.gym_ficha_datos(jsonb, boolean),
---   public.gym_rechazar(uuid, text), public.gym_aprobar(uuid, uuid, uuid, boolean), public.gym_solicitudes(),
+--   public.gym_rechazar(uuid, text), public.gym_aprobar(uuid, uuid, uuid, boolean, text), public.gym_solicitudes(),
 --   public.gym_foto_proponer(text), public.gym_salir(boolean), public.gym_compartir_admin(boolean, text),
 --   public.gym_confirmar_hoja(text, boolean, text), public.gym_unirse_token(text, text, text, boolean, text),
 --   public.gym_unirse_token_info(text), public.gym_cancelar_solicitud(), public.gym_unirse(text, text, boolean, text),

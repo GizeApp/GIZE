@@ -7,7 +7,7 @@
 //     con el registro diario de gym_registro_lectura (sin pasos) y «Lo edita su profe, Lucía»;
 //   · no compartió: «El socio no compartió sus registros con la administración».
 import { wait } from './lib.mjs';
-import { entrar, DUENA, F, S, G, TOKEN, hostTxt, modalTxt, rpcs, ir } from './gym-comun.mjs';
+import { entrar, DUENA, F, S, G, ID, TOKEN, hostTxt, modalTxt, rpcs, ir } from './gym-comun.mjs';
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAQElEQVR42u3OMQ0AAAgDsPk3DRZ4SFoHzUcR0NLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0nqwAeKbAQHk/s0wAAAAAElFTkSuQmCC', 'base64');
 
@@ -62,10 +62,10 @@ export default async function ({ base, t }){
   t.ok(await p.$('#coachHost [data-gym="reactivar"]') && !(await p.$('#coachHost [data-gym="pausar"]')), 'pausado: [Reactivar], no [Pausar]');
   t.has(txt, 'Propuesta', 'la foto que propuso, para aprobar');
   await p.click('#coachHost [data-gym="foto-aprobar"]'); await wait(600);
-  t.eq(rpcs(pg.st, 'gym_foto_resolver'), [{ ficha: F.A2, aprobar: true, motivo: null }], 'aprobar la foto: gym_foto_resolver');
+  t.eq(rpcs(pg.st, 'gym_foto_resolver'), [{ ficha: F.A2, aprobar: true, motivo: null, foto: G + '/' + F.A2 + '/' + ID('99') + '.jpg' }], 'aprobar la foto: gym_foto_resolver con la ruta de la que se ve');
   p.contestar = q => q.tipo === 'pedir' ? 'Está borrosa' : true;
   await p.click('#coachHost [data-gym="foto-rechazar"]'); await wait(700);
-  t.eq(rpcs(pg.st, 'gym_foto_resolver')[1], { ficha: F.A2, aprobar: false, motivo: 'Está borrosa' }, 'rechazarla, con el motivo');
+  t.eq(rpcs(pg.st, 'gym_foto_resolver')[1], { ficha: F.A2, aprobar: false, motivo: 'Está borrosa', foto: G + '/' + F.A2 + '/' + ID('99') + '.jpg' }, 'rechazarla, con el motivo');
   await p.click('#coachHost [data-gym="reactivar"]'); await wait(600);
   t.eq(rpcs(pg.st, 'gym_reactivar'), [{ ficha: F.A2 }], 'reactivar: gym_reactivar');
 

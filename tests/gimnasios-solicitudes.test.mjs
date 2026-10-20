@@ -112,7 +112,7 @@ export default async function ({ t: t0 }){
   const grande = ['postgres', `update public.coach_billing set max_clients = 500 where coach_id = '${P.dA}'`];
   x = await V([cuentas, grande, ['postgres', `update public.gyms set settings = '{"aprobar_solas": true}' where id = '${G.A}'`], ...NUEVAS.map(u => [u, unirse()])]);
   t.eq(x.slice(3).map(r => r.estado || r.msg), NUEVAS.map(() => 'activo'), 'con «Aprobar solas», 31 personas el mismo día: entran todas');
-  x = await V([cuentas, grande, ...NUEVAS.flatMap(u => [[u, unirse()], ['dA', `select to_jsonb(public.gym_aprobar((select id from public.gym_members where member_id = '${u}'), null, null, false))`]])]);
+  x = await V([cuentas, grande, ...NUEVAS.flatMap(u => [[u, unirse()], ['dA', `select to_jsonb(public.gym_aprobar((select id from public.gym_members where member_id = '${u}'), null, null, false, null))`]])]);
   t.eq([x.slice(2).filter((_, i) => i % 2 === 0).map(r => r.estado || r.msg), x.slice(2).filter((_, i) => i % 2 === 1).map(r => r.ok || r.msg)],
     [NUEVAS.map(() => 'pendiente'), NUEVAS.map(() => true)], 'y si la dueña las aprueba a medida que llegan, también');
   // Cancelar y volver a pedir: 5 por persona y día.
@@ -165,7 +165,7 @@ export default async function ({ t: t0 }){
   t.eq([x[1].estado, x[2].status, x[2].unir, x[4].estado], ['pendiente', 'pendiente', sinDni.id, 'vencido'], 'queda un pedido que apunta a esa ficha; el link ya no sirve');
   const sol = x[3].find(s => s.member_id === P.N2);
   t.eq([sol.via, sol.unir_sugerida, sol.coincidencias.map(c => [c.id === sinDni.id, c.motivo])], ['ficha', sinDni.id, [[true, 'link']]], 'gym_solicitudes la muestra con la coincidencia «link»');
-  x = await V([['N2', usar(tokSin, null)], ['dA', `select to_jsonb(public.gym_aprobar((select id from public.gym_members where member_id = '${P.N2}' and status = 'pendiente'), '${P.pA1}', '${sinDni.id}', false))`],
+  x = await V([['N2', usar(tokSin, null)], ['dA', `select to_jsonb(public.gym_aprobar((select id from public.gym_members where member_id = '${P.N2}' and status = 'pendiente'), '${P.pA1}', '${sinDni.id}', false, null))`],
     ['postgres', ficha('N2')], ['postgres', cupo], ['postgres', `select to_jsonb(count(*)) from public.gym_members where member_id = '${P.N2}'`]]);
   t.eq([x[1].id, x[2].id, x[2].status, nom(x[2].coach), nom(x[2].trainer), x[2].terms, x[3], x[4]], [sinDni.id, sinDni.id, 'activo', 'pA1', 'pA1', VER, [8, []], 1],
     '«Es la ficha de…»: la ficha cargada pasa a ser de esa cuenta (con la hoja), con el profe elegido; el pedido se borra; no ocupa otro lugar (8)');
@@ -174,7 +174,7 @@ export default async function ({ t: t0 }){
   // El id del pedido lo anota un paso de postgres (la recepción no lee gym_members: lo ve por gym_solicitudes).
   const marca = w => ['postgres', `select to_jsonb(set_config('prueba.pedido', (select id::text from public.gym_members where member_id = '${P[w]}' and status = 'pendiente'), true))`];
   const pedido = `current_setting('prueba.pedido')::uuid`;
-  const aprobar = (profe, quien = 'dA') => [quien, `select to_jsonb(public.gym_aprobar(${pedido}, ${profe ? lit(profe) : 'null'}, null, false))`];
+  const aprobar = (profe, quien = 'dA') => [quien, `select to_jsonb(public.gym_aprobar(${pedido}, ${profe ? lit(profe) : 'null'}, null, false, null))`];
   x = await V([['N', unirse()], marca('N'), aprobar(P.pA1), ['postgres', ficha('N')], ['postgres', cupo], ['postgres', alertas('solicitud_aprobada')],
     ['postgres', alertas('socios_asignados')], ['pA1', `select to_jsonb(public.is_my_client('${P.N}'))`], aprobar(null)]);
   t.eq([x[2].ok, x[2].id === x[3].id, x[3].status, nom(x[3].coach), nom(x[3].trainer), x[4], destinos(x[5]), destinos(x[6]), x[7], x[8].msg],
@@ -208,7 +208,7 @@ export default async function ({ t: t0 }){
   // ===== «Es la ficha de…» desde la recepción: solo la del link o la del mail verificado =====
   // Los ids los anota un paso de postgres (la recepción no lee gym_members).
   const unirA = sql => ['postgres', `select to_jsonb(set_config('prueba.unir', (${sql})::text, true))`];
-  const unir = quien => [quien, `select to_jsonb(public.gym_aprobar(${pedido}, null, current_setting('prueba.unir')::uuid, false))`];
+  const unir = quien => [quien, `select to_jsonb(public.gym_aprobar(${pedido}, null, current_setting('prueba.unir')::uuid, false, null))`];
   const leeA4 = ['N', `select jsonb_build_array((select count(*) from public.gym_members where dni is not null and member_id = '${P.N}'), (select count(*) from public.gym_entries where gym_member_id = '${F.A4}'))`];
   x = await V([['N', unirse()], marca('N'), unirA(`'${F.A4}'`), unir('rA'), leeA4, unir('aA'), leeA4]);
   t.eq([x[3].error, x[4], x[5].ok, x[6]], ['42501', [0, 0], true, [1, 1]],
@@ -230,7 +230,7 @@ export default async function ({ t: t0 }){
     begin;
     set local role authenticated;
     select set_config('request.jwt.claims', '{"sub":"${P.dA}","role":"authenticated"}', true);
-    select public.gym_aprobar('${fid}', '${P.pA1}', null, false)::jsonb;
+    select public.gym_aprobar('${fid}', '${P.pA1}', null, false, null)::jsonb;
     select pg_sleep(0.5);
     commit;`).catch(e => ({ error: e.code, msg: e.msg }));
   const dos = await Promise.all([aprobarYa(ids[0], 0), aprobarYa(ids[1], 0.15)]);

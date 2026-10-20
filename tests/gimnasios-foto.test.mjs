@@ -4,7 +4,8 @@
 // libre y nunca la reemplaza; la recepción ve solo la del gimnasio.
 // - Bucket privado gym-fotos ({gimnasio}/{ficha}/{uuid}.jpg|webp): quién sube a qué carpeta, quién ve
 //   qué, sin cambiar ni borrar desde la app, tope de 5 subidas por día para el socio.
-// - gym_foto_proponer, gym_foto_staff, gym_foto_resolver y gym_aprobar(…, foto_ok): estados y auditoría.
+// - gym_foto_proponer, gym_foto_staff, gym_foto_resolver y gym_aprobar(…, foto_ok, foto): estados y auditoría;
+//   se aprueba o rechaza solo la foto que vio el equipo (si el socio la cambió en el medio, no).
 import { conPg } from './pg.mjs';
 import { P, F, G, VER, DATOS, ayudas, rpc, nom, conCanon } from './gimnasios-comun.mjs';
 
@@ -81,8 +82,8 @@ export default async function ({ t: t0 }){
   await db.sql(`insert into storage.objects (bucket_id, name, owner_id) values ('gym-fotos', '${p2}', '${P.A1}');`);
   x = await V([['A1', rpc('gym_foto_proponer', p1)], ['postgres', ficha(F.A1)], ['A1', rpc('mi_gimnasio')], ['dA', rpc('mi_gimnasio')],
     ['postgres', `select coalesce(jsonb_agg(substr(recipient, 3)), '[]') from public.gym_alerts where kind = 'foto_para_aprobar'`],
-    ['dA', rpc('gym_foto_resolver', F.A1, true, null)], ['postgres', ficha(F.A1)], ['A1', rpc('mi_gimnasio')],
-    ['A1', rpc('gym_foto_proponer', p2)], ['postgres', ficha(F.A1)], ['rA', rpc('gym_foto_resolver', F.A1, false, 'Se ve muy oscura')], ['postgres', ficha(F.A1)],
+    ['dA', rpc('gym_foto_resolver', F.A1, true, null, p1)], ['postgres', ficha(F.A1)], ['A1', rpc('mi_gimnasio')],
+    ['A1', rpc('gym_foto_proponer', p2)], ['postgres', ficha(F.A1)], ['rA', rpc('gym_foto_resolver', F.A1, false, 'Se ve muy oscura', p2)], ['postgres', ficha(F.A1)],
     ['A1', rpc('mi_gimnasio')], ['postgres', `select coalesce(jsonb_agg(action order by id), '[]') from public.gym_audit where gym_member_id = '${F.A1}'`]]);
   t.eq([x[0], x[1], x[2].ficha.foto], [{ foto: 'pendiente' }, { ok: null, pend: p1, rechazo: null, por: null }, 'pendiente'], 'el socio propone: queda pendiente (la aprobada no cambia)');
   t.eq([x[3].contadores.fotos_pendientes, x[4].map(nom).sort()], [1, ['aA', 'dA']], 'la administración la ve en «Para hacer» y se anota el aviso');
@@ -96,9 +97,15 @@ export default async function ({ t: t0 }){
   x = await V([['A6', rpc('gym_foto_proponer', ruta(F.A6, 903))], ['dA', rpc('mi_gimnasio')], ['A1', rpc('gym_foto_proponer', p2)], ['dA', rpc('mi_gimnasio')]]);
   t.eq([x[0], x[1].contadores.solicitudes, x[1].contadores.fotos_pendientes, x[3].contadores.fotos_pendientes], [{ foto: 'pendiente' }, 1, 0, 1],
     'mi_gimnasio: la foto de un pedido no cuenta en fotos_pendientes (sí la de un socio)');
-  x = await V([['A1', rpc('gym_foto_proponer', ruta(F.A2, 901))], ['A1', rpc('gym_foto_proponer', ruta(F.A1, 777))], ['A2', rpc('gym_foto_proponer', p1)], ['pA1', rpc('gym_foto_resolver', F.A1, true, null)]]);
+  x = await V([['A1', rpc('gym_foto_proponer', ruta(F.A2, 901))], ['A1', rpc('gym_foto_proponer', ruta(F.A1, 777))], ['A2', rpc('gym_foto_proponer', p1)], ['pA1', rpc('gym_foto_resolver', F.A1, true, null, p2)]]);
   t.eq([x[0].msg, x[1].msg, x[2].msg, x[3].error], ['No encontramos la foto: probá de nuevo.', 'No encontramos la foto: probá de nuevo.', 'No encontramos la foto: probá de nuevo.', '42501'],
     'no se propone la foto de otra ficha ni una que no se subió; el profe no resuelve');
+  // El equipo resuelve la foto que vio: si el socio mandó otra entre que la miraron y el toque, no se
+  // aprueba ni se rechaza la que nadie miró (regla del 20/10: la foto nueva la aprueba el gimnasio).
+  x = await V([['A1', rpc('gym_foto_proponer', p2)], ['A1', rpc('gym_foto_proponer', p1)], ['rA', rpc('gym_foto_resolver', F.A1, true, null, p2)],
+    ['dA', rpc('gym_foto_resolver', F.A1, false, 'Borrosa', p2)], ['dA', rpc('gym_foto_resolver', F.A1, true, null, null)], ['postgres', ficha(F.A1)]]);
+  t.eq([x[2].msg, x[3].msg, x[4].msg, x[5]], ['La foto cambió: mirala de nuevo.', 'La foto cambió: mirala de nuevo.', 'La foto cambió: mirala de nuevo.', { ok: null, pend: p1, rechazo: null, por: null }],
+    'gym_foto_resolver con otra ruta que la propuesta de ahora (el socio la cambió mientras el equipo la miraba): no aprueba ni rechaza nada');
   x = await V([['A1', rpc('gym_foto_proponer', p2)], ['dA', rpc('gym_foto_staff', F.A1, ruta(F.A1, 900))], ['postgres', ficha(F.A1)],
     ['postgres', `select data from public.gym_audit where action = 'foto_staff'`]]);
   t.eq([x[1], x[2], x[3]], [{ foto: 'ok' }, { ok: p1, pend: null, rechazo: null, por: P.dA }, { reemplaza: null, descarta: p2 }],
@@ -106,22 +113,28 @@ export default async function ({ t: t0 }){
   x = await V([['dA', rpc('gym_foto_staff', F.A4, ruta(F.A2, 901))]]);
   t.eq(x[0].msg, 'No encontramos la foto: probá de nuevo.', 'gym_foto_staff con la foto de otra ficha: no');
   // Al aprobar la solicitud, con «Aprobar la foto».
-  x = await V([['A6', rpc('gym_foto_proponer', ruta(F.A6, 903))], ['dA', rpc('gym_aprobar', F.A6, null, null, true)], ['postgres', ficha(F.A6)]]);
+  const estadoA6 = ['postgres', `select to_jsonb(status) from public.gym_members where id = '${F.A6}'`];
+  x = await V([['A6', rpc('gym_foto_proponer', ruta(F.A6, 903))], ['A6', subir(ruta(F.A6, 904))], ['A6', rpc('gym_foto_proponer', ruta(F.A6, 904))], ['rA', rpc('gym_aprobar', F.A6, null, null, true, ruta(F.A6, 903))],
+    ['dA', rpc('gym_aprobar', F.A6, null, F.A4, true, ruta(F.A6, 903))], ['dA', rpc('gym_aprobar', F.A6, null, null, true, null)], ['postgres', ficha(F.A6)], estadoA6]);
+  t.eq([x[2], x[3].msg, x[4].msg, x[5].msg, x[6], x[7]], [{ foto: 'pendiente' }, 'La foto cambió: mirala de nuevo.', 'La foto cambió: mirala de nuevo.', 'La foto cambió: mirala de nuevo.',
+    { ok: null, pend: ruta(F.A6, 904), rechazo: null, por: null }, 'pendiente'],
+    'gym_aprobar(…, foto_ok) con otra ruta que la propuesta de ahora: no aprueba el pedido ni la foto (como socio nuevo ni «es la ficha de…»)');
+  x = await V([['A6', rpc('gym_foto_proponer', ruta(F.A6, 903))], ['dA', rpc('gym_aprobar', F.A6, null, null, true, ruta(F.A6, 903))], ['postgres', ficha(F.A6)]]);
   t.eq(x[2], { ok: ruta(F.A6, 903), pend: null, rechazo: null, por: P.dA }, 'gym_aprobar(…, foto_ok): la foto que propuso al pedir queda aprobada');
-  x = await V([['A6', rpc('gym_foto_proponer', ruta(F.A6, 903))], ['dA', rpc('gym_aprobar', F.A6, null, null, false)], ['postgres', ficha(F.A6)]]);
+  x = await V([['A6', rpc('gym_foto_proponer', ruta(F.A6, 903))], ['dA', rpc('gym_aprobar', F.A6, null, null, false, null)], ['postgres', ficha(F.A6)]]);
   t.eq(x[2], { ok: null, pend: ruta(F.A6, 903), rechazo: null, por: null }, 'sin «Aprobar la foto», queda pendiente');
   // «Es la ficha de…»: la foto del pedido queda en la carpeta del pedido (que se borra) y se sigue viendo.
   const verA6 = `select coalesce(jsonb_agg(name), '[]') from storage.objects where bucket_id = 'gym-fotos' and name = '${ruta(F.A6, 903)}'`;
-  x = await V([['A6', rpc('gym_foto_proponer', ruta(F.A6, 903))], ['dA', rpc('gym_aprobar', F.A6, null, F.A4, true)], ['postgres', ficha(F.A4)],
+  x = await V([['A6', rpc('gym_foto_proponer', ruta(F.A6, 903))], ['dA', rpc('gym_aprobar', F.A6, null, F.A4, true, ruta(F.A6, 903))], ['postgres', ficha(F.A4)],
     ['A6', verA6], ['rA', verA6], ['dA', verA6], ['aA', verA6], ['pA1', verA6], ['N', verA6], ['A6', rpc('mi_gimnasio')]]);
   t.eq([x[2].ok, x[3], x[4], x[5], x[6], x[7], x[8], x[9].ficha.foto], [ruta(F.A6, 903), [ruta(F.A6, 903)], [ruta(F.A6, 903)], [ruta(F.A6, 903)], [ruta(F.A6, 903)], [], [], 'ok'],
     '«es la ficha de…» con «Aprobar la foto»: la foto aprobada se sigue viendo (el socio, la recepción, la dueña y la administración; no otro profe ni otra cuenta)');
-  x = await V([['A6', rpc('gym_foto_proponer', ruta(F.A6, 903))], ['dA', rpc('gym_aprobar', F.A6, null, F.A4, false)], ['postgres', ficha(F.A4)], ['rA', verA6],
-    ['dA', rpc('gym_foto_resolver', F.A4, true, null)], ['postgres', ficha(F.A4)]]);
+  x = await V([['A6', rpc('gym_foto_proponer', ruta(F.A6, 903))], ['dA', rpc('gym_aprobar', F.A6, null, F.A4, false, null)], ['postgres', ficha(F.A4)], ['rA', verA6],
+    ['dA', rpc('gym_foto_resolver', F.A4, true, null, ruta(F.A6, 903))], ['postgres', ficha(F.A4)]]);
   t.eq([x[2].pend, x[3], x[4], x[5].ok], [ruta(F.A6, 903), [ruta(F.A6, 903)], { foto: 'ok' }, ruta(F.A6, 903)],
     'sin «Aprobar la foto», queda propuesta en la ficha, se ve y se aprueba después');
-  x = await V([['postgres', `update public.gym_members set foto_pend_path = '${ruta(F.A4, 950)}' where id = '${F.A4}'`], ['dA', rpc('gym_foto_resolver', F.A4, true, null)],
-    ['postgres', `update public.gym_members set foto_pend_path = '${ruta(F.B1, 902, G.B)}' where id = '${F.A4}'`], ['dA', rpc('gym_foto_resolver', F.A4, true, null)]]);
+  x = await V([['postgres', `update public.gym_members set foto_pend_path = '${ruta(F.A4, 950)}' where id = '${F.A4}'`], ['dA', rpc('gym_foto_resolver', F.A4, true, null, ruta(F.A4, 950))],
+    ['postgres', `update public.gym_members set foto_pend_path = '${ruta(F.B1, 902, G.B)}' where id = '${F.A4}'`], ['dA', rpc('gym_foto_resolver', F.A4, true, null, ruta(F.B1, 902, G.B))]]);
   t.eq([x[1].msg, x[3].msg], ['No encontramos la foto: pedile que mande otra.', 'No encontramos la foto: pedile que mande otra.'],
     'gym_foto_resolver no aprueba una foto que no está subida ni una de otro gimnasio');
 
@@ -141,7 +154,7 @@ export default async function ({ t: t0 }){
   // ===== Las fotos que ya no usa ninguna ficha (para borrarlas por la API de Storage) =====
   const viejas = `update storage.objects set created_at = now() - interval '3 days' where bucket_id = 'gym-fotos'`;
   const huerfanas = ['servicio', `select coalesce(jsonb_agg(x order by x), '[]') from public.gym_fotos_huerfanas() x`];
-  x = await V([['A1', rpc('gym_foto_proponer', p2)], ['dA', rpc('gym_foto_resolver', F.A1, false, null)], ['postgres', viejas], huerfanas,
+  x = await V([['A1', rpc('gym_foto_proponer', p2)], ['dA', rpc('gym_foto_resolver', F.A1, false, null, p2)], ['postgres', viejas], huerfanas,
     ['A1', `select to_jsonb(count(*)) from public.gym_fotos_huerfanas()`]]);
   t.eq(x[3], [ruta(F.A1, 900), p2, ruta(F.A2, 901), ruta(F.A6, 903), ruta(F.B1, 902, G.B)].sort(), 'gym_fotos_huerfanas: las que no usa ninguna ficha (acá, todas: ninguna está aprobada ni propuesta)');
   t.eq(x[4].error, '42501', 'solo el service role');

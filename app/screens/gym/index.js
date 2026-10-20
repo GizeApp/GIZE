@@ -326,8 +326,9 @@ async function subirFoto(fichaId, file){
 
 const aprobar = ocupado("sol", async (id, unir) => {
   const o = (GS.solicitudes || []).find(x => x.id === id), f = o ? solElegido(o) : {};
-  const r = await rpc("gym_aprobar", { ficha: id, profe: f.profe || null, unir_a_ficha: unir || null, foto_ok: !!f.foto });
-  if (r.error){ alert(r.msg); return; }
+  // foto: la que se ve en la solicitud; si el socio mandó otra mientras tanto, el servidor no la aprueba.
+  const r = await rpc("gym_aprobar", { ficha: id, profe: f.profe || null, unir_a_ficha: unir || null, foto_ok: !!f.foto, foto: f.foto ? (o && o.foto_pend_path) || null : null });
+  if (r.error){ alert(r.msg); despues(); return; }
   GS.solicitudes = (GS.solicitudes || []).filter(s => s.id !== id); delete GS.solForm[id];
   despues();
 });
@@ -448,8 +449,10 @@ async function alTocar(e){
   if ((a === "foto-aprobar" || a === "foto-rechazar") && s){
     let mot = null;
     if (a === "foto-rechazar"){ mot = await pedir("¿Por qué no sirve? (se lo mostramos al socio)", "No se ve bien la cara: mandá otra.", { titulo: "Rechazar la foto", ok: "Rechazar" }); if (mot === null) return; }
-    const r = await rpc("gym_foto_resolver", { ficha: s.id, aprobar: a === "foto-aprobar", motivo: mot });
-    if (r.error) return alert(r.msg);
+    // La foto que se ve en la ficha: si el socio mandó otra mientras tanto, el servidor no la resuelve.
+    const fp = (f.datos && f.datos.foto_pend_path) || null;
+    const r = await rpc("gym_foto_resolver", { ficha: s.id, aprobar: a === "foto-aprobar", motivo: mot, foto: fp });
+    if (r.error){ alert(r.msg); cargarFicha(s.id); return; }
     cargarFicha(s.id); despues(); return;
   }
   if (a === "entreno" && s && s.member_id){

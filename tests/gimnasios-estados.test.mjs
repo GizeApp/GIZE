@@ -26,7 +26,7 @@ export default async function ({ t: t0 }){
   const BASE = { dA: 6, pA1: 1, pA2: 0, C: 1, dB: 1 };
 
   // ===== gym_aprobar (S pendiente → activo) =====
-  let x = await V([['dA', rpc('gym_aprobar', F.A6, P.pA2, null, false)], ['postgres', ESTADO('A6')], ['postgres', cupos]]);
+  let x = await V([['dA', rpc('gym_aprobar', F.A6, P.pA2, null, false, null)], ['postgres', ESTADO('A6')], ['postgres', cupos]]);
   t.eq([est(x[1]), x[2]], [{ coach: 'pA2', status: 'activo', trainer: 'pA2', restore: null, inv: [] }, Object.assign({}, BASE, { dA: 7 })],
     'gym_aprobar con profe: S = activo, C = T = profe elegido; ocupa un lugar del gimnasio (7), no del profe');
 
