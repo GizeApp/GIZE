@@ -268,7 +268,7 @@ begin
       end if;
       -- El pedido (gym_pedir, el mismo de gym_unirse): sin la hoja aceptada (terms_at) y sin compartir
       -- nada; el coach no cambia. Se une sola a su ficha si el mail verificado coincide con una sin
-      -- app, y entra directo si el gimnasio aprueba solo. Tope: 30 pedidos por gimnasio en 24 horas.
+      -- app, y entra directo si el gimnasio aprueba solo. Tope: 30 pendientes por gimnasio en 24 horas.
       r := public.gym_pedir(me, g_id, 'join_coach', null, false, null);
       -- Sale como error (status 400, cuerpo P0001) sin raise: un raise desharía la solicitud.
       perform set_config('response.status', '400', true);
@@ -529,7 +529,10 @@ revoke all on function public.gym_aprobar_interno(uuid, uuid) from public, anon,
 --   · si no, una solicitud «pendiente» (sin profe, no ocupa lugar), con la hoja si la mandó;
 --   · con «Aprobar solas» prendido, la solicitud entra como socio nuevo con el profe por defecto
 --     (si el gimnasio no tiene lugar, queda pendiente).
--- Tope: 30 pedidos con el código por gimnasio en 24 horas (de a uno por gimnasio).
+-- Tope (spec §1.3): 30 solicitudes pendientes por gimnasio de las últimas 24 horas (las aprobadas,
+-- también con «Aprobar solas», no cuentan: el día que un gimnasio pide a todos sus socios que pongan
+-- el código entran todos), de a uno por gimnasio; y 5 pedidos por persona y gimnasio en 24 horas
+-- (cancelar y volver a pedir no llena de avisos al dueño).
 -- Devuelve {estado: 'pendiente'|'activo'|'unida', ficha}.
 create or replace function public.gym_pedir(me uuid, g uuid, via text, hoja text, compartir boolean, compartir_v text)
 returns jsonb
@@ -559,8 +562,12 @@ begin
     end if;
   end if;
   perform pg_advisory_xact_lock(hashtext('gym_solicitud'), hashtext(g::text));
-  if (select count(*) from public.gym_members where gym_id = g and source = 'codigo' and requested_at > now() - interval '24 hours') >= 30 then
+  if (select count(*) from public.gym_members where gym_id = g and status = 'pendiente' and requested_at > now() - interval '24 hours') >= 30 then
     raise exception '% recibió muchos pedidos hoy. Probá de nuevo mañana.', nom using errcode = 'P0001';
+  end if;
+  if (select count(*) from public.gym_audit a where a.gym_id = g and a.at > now() - interval '24 hours' and a.action = 'solicitud'
+                                                 and a.target_user = me) >= 5 then
+    raise exception 'Hiciste muchos pedidos hoy. Probá de nuevo mañana.' using errcode = 'P0001';
   end if;
   insert into public.gym_members (gym_id, member_id, full_name, email, status, source, requested_at, created_by,
                                   terms_at, terms_version, share_admin, share_admin_at, share_admin_version)

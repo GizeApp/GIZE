@@ -105,6 +105,20 @@ export default async function ({ t: t0 }){
   t.eq(x[1], { error: 'P0001', msg: 'Gimnasio Fuerza recibió muchos pedidos hoy. Probá de nuevo mañana.' }, 'el pedido 31 del día se frena (también con gym_unirse)');
   x = await V([['postgres', treinta], ['dA', fichaN('n@ejemplo.test')], ['N', unirse()]]);
   t.eq(x[2].estado, 'unida', 'la unión por mail no es un pedido: no la frena el tope');
+  // El tope es de pedidos pendientes: el día que el gimnasio pide a todos que pongan el código, entran todos.
+  const NUEVAS = Array.from({ length: 31 }, (_, i) => 'd0000000-0000-4000-8000-' + String(i + 1).padStart(12, '0'));
+  const cuentas = ['postgres', `insert into auth.users (id, email, raw_user_meta_data) select u, 'socia' || n || '@ejemplo.test', '{"full_name":"Socia Nueva"}'
+    from unnest(array[${NUEVAS.map(u => `'${u}'::uuid`).join(',')}]) with ordinality x(u, n) returning to_jsonb(true)`];
+  const grande = ['postgres', `update public.coach_billing set max_clients = 500 where coach_id = '${P.dA}'`];
+  x = await V([cuentas, grande, ['postgres', `update public.gyms set settings = '{"aprobar_solas": true}' where id = '${G.A}'`], ...NUEVAS.map(u => [u, unirse()])]);
+  t.eq(x.slice(3).map(r => r.estado || r.msg), NUEVAS.map(() => 'activo'), 'con «Aprobar solas», 31 personas el mismo día: entran todas');
+  x = await V([cuentas, grande, ...NUEVAS.flatMap(u => [[u, unirse()], ['dA', `select to_jsonb(public.gym_aprobar((select id from public.gym_members where member_id = '${u}'), null, null, false))`]])]);
+  t.eq([x.slice(2).filter((_, i) => i % 2 === 0).map(r => r.estado || r.msg), x.slice(2).filter((_, i) => i % 2 === 1).map(r => r.ok || r.msg)],
+    [NUEVAS.map(() => 'pendiente'), NUEVAS.map(() => true)], 'y si la dueña las aprueba a medida que llegan, también');
+  // Cancelar y volver a pedir: 5 por persona y día.
+  x = await V([...[1, 2, 3, 4, 5].flatMap(() => [['N', unirse()], ['N', rpc('gym_cancelar_solicitud')]]), ['N', unirse()]]);
+  t.eq([x.filter((_, i) => i % 2 === 0 && i < 10).map(r => r.estado), x[10]], [['pendiente', 'pendiente', 'pendiente', 'pendiente', 'pendiente'],
+    { error: 'P0001', msg: 'Hiciste muchos pedidos hoy. Probá de nuevo mañana.' }], 'cancelar y volver a pedir: hasta 5 pedidos por persona en el día');
 
   // ===== Link #unirme con DNI =====
   const info = tok => rpc('gym_unirse_token_info', tok);
