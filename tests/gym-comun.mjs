@@ -193,6 +193,7 @@ export function storageGym(subidas = []){
       if (i.m === 'POST' && i.path.includes('/object/gym-fotos/')){ subidas.push(i.path.replace(/^.*\/object\/gym-fotos\//, '')); return J({ Key: 'gym-fotos/x', Id: 'x' }); }
       return undefined;
     },
-    '/object/sign/gym-fotos/foto': (r, J, i) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }),
+    // Una imagen que se vea en las capturas (el ícono de la app).
+    '/object/sign/gym-fotos/foto': (r, J, i) => import('node:fs').then(fs => r.fulfill({ status: 200, contentType: 'image/png', body: fs.readFileSync(new URL('../icon-192.png', import.meta.url)) })),
   };
 }
