@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Términos de uso · GIZE</title>
-<meta name="description" content="Términos de uso de GIZE: la cuenta, el uso de la app y los planes de coach con suscripción mensual.">
+<meta name="description" content="Términos de uso de GIZE: la cuenta, el uso de la app, los planes de coach e IA Plus, con suscripción mensual.">
 <meta name="theme-color" content="#000000">
 <link rel="icon" href="../icon-192.png">
 <link rel="stylesheet" href="../brand/fonts/outfit.css">
@@ -30,6 +30,9 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
 /* Abierta desde la app (?app=1): sin la barra de arriba, que lleva a la página de inicio (tiene
    los precios y el botón para contratar, y las apps de las tiendas no pueden llevar ahí). */
 .en-app .top{display:none}
+/* Lo que se contrata solo en la web (IA Plus con Mercado Pago): desde las apps no se muestra (las
+   tiendas no permiten hablar de pagar por fuera de su sistema). */
+.en-app .solo-web{display:none}
 </style>
 <script>if (/[?&]app=1(&|$)/.test(location.search)) document.documentElement.className += " en-app";</script>
 </head>
@@ -38,7 +41,7 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
   <div class="top"><a class="brand" href="../">GIZE</a><a href="../app/">Abrir la app</a></div>
 
   <h1>Términos de uso</h1>
-  <p class="upd">Última actualización: 14 de octubre de 2026</p>
+  <p class="upd">Última actualización: 20 de octubre de 2026</p>
 
   <p>GIZE es una app para entrenar con tu coach: el coach arma tu rutina, vos registrás tus entrenamientos y ambos ven tu progreso. Estos términos valen para la app web (gize.ar), la app de Android y la de iPhone. Al crear una cuenta o usar GIZE, los aceptás. Cómo usamos tus datos está en la <a href="../privacidad/">Política de privacidad</a>.</p>
 
@@ -59,13 +62,28 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
   <h2 id="planes">Planes de coach</h2>
   <p>Para los alumnos, GIZE no tiene costo. Los coaches usan GIZE con un plan mensual que define cuántos clientes o alumnos pueden tener. Sin un plan vigente, el coach no puede ver los datos de sus clientes; sus rutinas y registros quedan guardados, y a los 4 días sus clientes pasan a usar GIZE por su cuenta, con todo lo que les armó.</p>
 
+  <h2 id="iaplus">IA Plus</h2>
+  <p>Las funciones con IA de Comida (la foto del plato y «Contame qué comiste») son opcionales y dan valores estimados (ver la Política de privacidad, «Funciones con inteligencia artificial»). Cuando IA Plus está disponible, se pueden usar gratis hasta <b>3 veces por semana</b>, sumando las dos (la semana empieza el lunes a las 00:00, hora de Argentina). <b>IA Plus</b> es una suscripción mensual que saca ese límite semanal. Sigue habiendo un máximo por día (hoy, hasta 8 fotos y 15 textos) y uno por mes, para que el servicio alcance para todos: no es un uso ilimitado. Si tu coach tiene un plan pago o de cortesía, IA Plus está incluido, para vos y para tu coach, sin costo.</p>
+  <p>La IA depende de un servicio externo y puede no estar disponible por momentos; mientras tanto podés cargar todo a mano, como siempre.</p>
+  <div class="card solo-web">
+    <p style="margin:0 0 8px"><b>En la web (gize.ar), con Mercado Pago:</b></p>
+    <ul style="margin:0">
+      <li>Se paga en pesos, una vez por mes, con Mercado Pago. Antes de confirmar se muestra el precio.</li>
+      <li>Se renueva sola cada mes hasta que la canceles.</li>
+      <li><b>Botón de baja:</b> la cancelás cuando quieras desde la app web, en <b>Ajustes → Mi IA Plus → Cancelar suscripción</b>. No se te cobra más y la seguís usando hasta el final del mes ya pagado.</li>
+      <li><b>Botón de arrepentimiento:</b> dentro de los <b>10 días corridos</b> desde el primer cobro podés revocar la contratación sin dar motivos, en <b>Ajustes → Mi IA Plus → Botón de arrepentimiento</b> (Ley 24.240, art. 34, y Resolución 424/2020 de la Secretaría de Comercio Interior). IA Plus se cancela en el momento y te devolvemos todo lo cobrado por el mismo medio de pago.</li>
+      <li>También podés pedir la baja o el arrepentimiento escribiendo a <a href="mailto:contacto@gize.ar">contacto@gize.ar</a>.</li>
+    </ul>
+  </div>
+  <p>En la app de iPhone, IA Plus es una suscripción de Apple y vale lo de «Suscripción con Apple», acá abajo.</p>
+
   <h2 id="apple">Suscripción con Apple (app de iPhone)</h2>
   <div class="card">
     <ul style="margin:0">
-      <li>En la app de iPhone, los planes de coach son <b>suscripciones mensuales que se renuevan solas</b>. Antes de confirmar, la app muestra el nombre del plan, la duración (un mes) y el precio que pone Apple, en la moneda de tu cuenta de Apple.</li>
+      <li>En la app de iPhone, los planes de coach e IA Plus son <b>suscripciones mensuales que se renuevan solas</b>. Antes de confirmar, la app muestra el nombre, la duración (un mes) y el precio que pone Apple, en la moneda de tu cuenta de Apple.</li>
       <li>El pago se cobra a tu <b>cuenta de Apple</b> al confirmar la compra.</li>
       <li>La suscripción <b>se renueva sola cada mes</b>, al mismo precio, salvo que la canceles al menos 24 horas antes de que termine el mes en curso. La renovación se cobra dentro de las 24 horas anteriores al final del mes.</li>
-      <li>La administrás y la cancelás desde los <b>Ajustes de tu cuenta de Apple</b> (en el iPhone: Ajustes → tu nombre → Suscripciones), o desde la app: Mi plan → Administrar suscripción. Si la cancelás, el plan sigue hasta el final del mes ya pagado.</li>
+      <li>La administrás y la cancelás desde los <b>Ajustes de tu cuenta de Apple</b> (en el iPhone: Ajustes → tu nombre → Suscripciones), o desde la app: Mi plan → Administrar suscripción (IA Plus: Ajustes → Mi IA Plus → Administrar suscripción). Si la cancelás, sigue hasta el final del mes ya pagado.</li>
       <li>Si te pasás a un plan más grande, Apple lo cambia enseguida y ajusta el cobro; si te pasás a uno más chico, el cambio empieza en la próxima renovación.</li>
       <li><b>Eliminar tu cuenta de GIZE no cancela la suscripción de Apple</b>: cancelala vos desde los Ajustes de tu cuenta de Apple.</li>
       <li>Los reembolsos los decide y los hace Apple, según sus condiciones (<a href="https://reportaproblem.apple.com/" rel="noopener">reportaproblem.apple.com</a>).</li>

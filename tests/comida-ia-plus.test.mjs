@@ -228,6 +228,23 @@ export default async function ({ base, t }){
     await close();
   }
 
+  // ---------- Términos: IA Plus ----------
+  {
+    const { p, errs, close } = await newPage();
+    const main = () => p.evaluate(() => document.querySelector('main').innerText.replace(/\s+/g, ' '));
+    await p.goto(base + '/terminos/'); await wait(300);
+    let m = await main();
+    for (const f of ['IA Plus es una suscripción mensual que saca ese límite semanal', 'no es un uso ilimitado', 'Botón de baja:', 'Ajustes → Mi IA Plus → Cancelar suscripción',
+      'Botón de arrepentimiento:', '10 días corridos', 'Ley 24.240', 'te devolvemos todo lo cobrado', 'con Mercado Pago'])
+      t.has(m, f, 'términos (web): ' + f);
+    await p.goto(base + '/terminos/?app=1'); await wait(300);
+    m = await main();
+    t.has(m, 'IA Plus es una suscripción mensual', 'términos (desde la app): qué es IA Plus');
+    t.ok(!/Mercado Pago|\$\d/.test(m), 'términos (desde la app): nada de Mercado Pago ni precios en pesos');
+    t.eq(errs, [], 'términos: errores');
+    await close();
+  }
+
   // ---------- Vuelta de Mercado Pago ----------
   {
     const { p, errs, S, close } = await pagina({ estado: LIMITE });
