@@ -11,6 +11,7 @@ import { esc } from '../../core/utils.js';
 import { showSilkBg, lucesCoach } from '../../ui/background.js';
 import { resolveAvatars } from '../../core/avatar.js';
 import { cropAvatar } from '../../ui/recorte.js';
+import { circular } from '../../ui/avisos.js';
 import { Gym, rolGym, esPanelGym, linkCrear, linkEquipo, olvidarLinks, releerGym, redibujar } from '../../core/gimnasio.js';
 import { CoachState } from '../coach/state.js';
 import { usarMarco } from '../coach/panel.js';
@@ -18,7 +19,7 @@ import { renderCoach, clientUnsaved, tplDirty } from '../coach/index.js';
 import { openClient } from '../coach/clientes.js';
 import { GS, rpc, info, gym, yo, esDueno, enApp, pedirFotos, copiar, plural, primerNombre, hoyAR, APP_URL, fecha } from './estado.js';
 import { marcoGym, hojaMas, cabeza, btn, btn2, vacio } from './marco.js';
-import { renderInicio, marcarRecepcion } from './inicio.js';
+import { renderInicio } from './inicio.js';
 import { renderSocios, ventanaSumar, profesDelEquipo } from './socios.js';
 import { fotosDeSolicitudes, solElegido } from './solicitudes.js';
 import { renderFicha, fotosDeFicha, sinCambiarProfe } from './ficha.js';
@@ -157,12 +158,28 @@ function pintarModal(){
     : m.tipo === "asignar" ? ventanaAsignar(m) : m.tipo === "pausar" ? ventanaPausar(m) : m.tipo === "link" ? ventanaLink(m) : "";
   h.className = "gy-capa";
   h.innerHTML = '<div class="gy-modal-bg" data-gym="cerrar"></div><div class="gy-modal" role="dialog" aria-modal="true">' + cuerpo + '</div>';
+  // El nombre de la ventana para los lectores de pantalla: su título.
+  const t = h.querySelector(".gy-modal h2"); if (t){ t.id = "gymModalT"; h.querySelector(".gy-modal").setAttribute("aria-labelledby", "gymModalT"); }
   restaurarFoco(foco);
   pintarQrs();
   if (!foco){ const p = h.querySelector("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, .gy-x"); if (p) p.focus({ preventScroll: true }); }
 }
-function abrir(m){ GS.modal = m; pintarModal(); }
-function cerrarModal(){ GS.modal = null; pintarModal(); }
+// Al cerrar, el foco vuelve a lo que abrió la ventana (o al mismo botón, si el panel se redibujó).
+let volver = null;
+const FOCO = 'a[href], button, input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])';
+function selDe(el){
+  if (!el || !el.dataset || !el.dataset.gym) return "";
+  return '[data-gym="' + el.dataset.gym + '"]' + (el.dataset.v ? '[data-v="' + el.dataset.v + '"]' : "") + (el.dataset.id ? '[data-id="' + el.dataset.id + '"]' : "");
+}
+function abrir(m){
+  if (!GS.modal){ const a = document.activeElement; volver = a && a !== document.body && !a.closest("#gymModal") ? { el: a, sel: selDe(a) } : null; }
+  GS.modal = m; pintarModal();
+}
+function cerrarModal(){
+  GS.modal = null; pintarModal();
+  const v = volver; volver = null;
+  if (v) queueMicrotask(() => { const el = v.el.isConnected ? v.el : (v.sel && document.querySelector("#coachHost " + v.sel)); if (el) el.focus({ preventScroll: true }); });
+}
 
 const MOTIVO = { falta_confirmacion: "no confirmó lo que ve el gimnasio", coach_externo: "tiene un coach de afuera del gimnasio", bloqueo: "no se le puede asignar ese profe",
   no_es_profe: "ese profe no puede tener socios", sin_app: "todavía no usa la app", no_activa: "no está activo" };
@@ -255,7 +272,8 @@ function cargarVista(){
   else if (v === "profes"){ cargarEquipo(); if (GS.socios === null) cargarSocios(); }
   else if (v === "config"){ if (GS.equipo === null) cargarEquipo(); cargarDpa(); releerGym().then(repintar); }
   else if (v === "plan"){ releerGym().then(repintar); }
-  else if (v === "recepcion") marcarRecepcion();
+  // La recepción de ahora es un cartel («llega en la próxima actualización»): abrirla no tacha «Probá la
+  // recepción»; lo tacha el primer uso de verdad (marcarRecepcion, parte 4) o un ingreso registrado.
 }
 // Después de cambiar algo: las listas y los contadores.
 function despues(){ releerGym().then(repintar); cargarSocios(); if (GS.tab === "solicitudes" || GS.solicitudes) cargarSolicitudes(); }
@@ -634,6 +652,11 @@ async function alCambiar(e){
 
 function alTeclado(e){
   if (e.key === "Escape" && GS.modal && !document.querySelector(".av-bg")){ e.preventDefault(); cerrarModal(); repintar(); return; }
+  // Con una ventana abierta, Tab da la vuelta adentro (no se va al panel de atrás), como los avisos.
+  if (e.key === "Tab" && GS.modal && !document.querySelector(".av-bg")){
+    const caja = document.querySelector("#gymModal .gy-modal, #gymModal .gy-sheet");
+    if (caja){ e.preventDefault(); circular(caja, FOCO, e.shiftKey); return; }
+  }
   if (e.key === "Enter" && e.target.matches && e.target.matches('#coachHost .gy-row[data-gym="abrir"]')){ e.preventDefault(); abrirFicha(e.target.dataset.id); }
 }
 

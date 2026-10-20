@@ -27,6 +27,16 @@ export default async function ({ base, t }){
     await p.click('#coachHost [data-gym="eq-tab"][data-v="recepcion"]'); await wait(300);
     t.has(await hostTxt(p), 'Rocío Recepción', 'pestaña Recepción');
     await p.click('#coachHost [data-gym="eq-tab"][data-v="profe"]'); await wait(300);
+    // La ventana con el teclado: tiene nombre, Tab no se va al panel de atrás y al cerrarla con Escape el
+    // foco vuelve a «Invitar».
+    await p.focus('#coachHost .gy-head [data-gym="invitar"]'); await p.keyboard.press('Enter'); await wait(400);
+    t.eq(await p.evaluate(() => { const m = document.querySelector('#gymModal .gy-modal'), id = m && m.getAttribute('aria-labelledby'); return id && document.getElementById(id) ? document.getElementById(id).textContent : null; }),
+      'Invitar al equipo', 'la ventana tiene nombre (su título)');
+    let adentro = true;
+    for (let i = 0; i < 12; i++){ await p.keyboard.press(i % 4 === 3 ? 'Shift+Tab' : 'Tab'); adentro = adentro && await p.evaluate(() => !!document.activeElement.closest('#gymModal')); }
+    t.ok(adentro, 'Tab da la vuelta adentro de la ventana');
+    await p.keyboard.press('Escape'); await wait(300);
+    t.ok(await p.evaluate(() => document.activeElement && document.activeElement.matches('#coachHost [data-gym="invitar"]')), 'Escape: el foco vuelve a «Invitar»');
     // Invitar a un profe
     await p.click('#coachHost .gy-head [data-gym="invitar"]'); await wait(400);
     let m = await modalTxt(p);

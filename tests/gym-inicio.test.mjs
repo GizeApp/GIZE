@@ -68,7 +68,7 @@ export default async function ({ base, t }){
     t.eq(pasos, [['Invitá a tus profes', true], ['Sumá socios: compartí el código o cargalos', false], ['Probá la recepción con tu celular', false]], 'primer día: los tres pasos, «Invitá a tus profes» tachado (hay una invitación)');
     await pg.p.click('#coachHost .gy-paso:has-text("Probá la recepción")'); await wait(400);
     await pg.p.click('#coachHost [data-gym="ir"][data-v="inicio"]'); await wait(400);
-    t.ok(await pg.p.evaluate(() => document.querySelectorAll('#coachHost .gy-pasos li.hecho').length === 2), 'después de abrir la recepción, ese paso queda tachado');
+    t.ok(await pg.p.evaluate(() => document.querySelectorAll('#coachHost .gy-pasos li.hecho').length === 1), 'abrir la recepción de ahora (un cartel: llega en la próxima actualización) no tacha «Probá la recepción»');
     await pg.close();
   }
   // La administración también ve Inicio con los contadores.

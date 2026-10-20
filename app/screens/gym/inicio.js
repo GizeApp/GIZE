@@ -63,4 +63,5 @@ export function renderInicio(){
 }
 const PROBADA = "gize_gym_recepcion_vista";
 export function recepcionProbada(){ try { return localStorage.getItem(PROBADA) === "1"; } catch (e) { return false; } }
+// Para el primer uso de verdad de la recepción (buscar o registrar un ingreso: parte 4).
 export function marcarRecepcion(){ try { localStorage.setItem(PROBADA, "1"); } catch (e) {} }
