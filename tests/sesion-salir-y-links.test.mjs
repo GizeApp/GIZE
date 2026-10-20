@@ -13,11 +13,14 @@ const SB_KEY = 'sb-wegptuzhsrwppbknqstf-auth-token';
 const stored = p => p.evaluate(k => localStorage.getItem(k) || sessionStorage.getItem(k), SB_KEY);
 
 export default async function ({ base, t }){
-  // 1) Cerrar sesión sin señal con el token vencido.
+  // 1) Cerrar sesión sin señal con el token vencido. Es un alumno que ya usó la app con señal: el
+  // celular recuerda su rol (core_profile_v1). Sin el rol y sin poder leerlo la app no adivina que
+  // es alumno (podría ser un coach): se queda en el splash con «Reintentar» (ver arranque-sin-rol).
   {
     const down = r => r.abort('internetdisconnected');
     const { p, errs, close } = await newPage({ user: ALUMNO, state: { days: [{ id: 'd1', name: 'Día 1', exercises: [] }], sessions: [], weights: [], daily: {} },
       init: `(() => { if (sessionStorage.getItem('vencido')) return; sessionStorage.setItem('vencido', '1');
+        localStorage.setItem('core_profile_v1', JSON.stringify({ uid: '${ALUMNO.id}', profile: { id: '${ALUMNO.id}', role: 'client', full_name: 'Prueba', coach_id: null } }));
         const k = '${SB_KEY}'; const s = JSON.parse(localStorage.getItem(k) || 'null'); if (!s) return;
         s.expires_at = Math.floor(Date.now() / 1000) - 7200; localStorage.setItem(k, JSON.stringify(s)); })()`,
       handlers: { '/auth/v1/token': down, '/auth/v1/user': down, '/auth/v1/logout': down, '/profiles': profile('client') } });

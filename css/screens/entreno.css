@@ -347,6 +347,9 @@ html.lite .wk-start::before { animation: none; }
 .ex-chev { flex: none; display: inline-flex; color: var(--gize-text-2); transition: transform .2s ease; }
 .ex-chev svg { width: var(--icon-md); height: var(--icon-md); }
 .ex-chev.up svg { transform: rotate(180deg); }
+/* Abriéndose o cerrándose (app/ui/desplegar.js): el alto lo lleva el JS cuadro a cuadro (de la
+   fila a la card o al revés) y lo que no entra queda tapado. */
+.card.ex-anim { overflow: hidden; }
 .ex-collapsed:focus-visible { outline: 2px solid var(--gize-text); outline-offset: 2px; }
 .ex-collapsed:active { background: var(--card-2); }
 /* Cerrado y sin terminar: mismo borde de neón que el ejercicio abierto (sigue siendo «su» caja). */

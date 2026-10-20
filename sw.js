@@ -1,6 +1,6 @@
 // GIZE service worker — "network-first" para que SIEMPRE veas la última versión,
 // y cache de respaldo para poder abrir la app sin internet.
-const CACHE = "core-v377";
+const CACHE = "core-v381";
 // El CSS y el JS ahora viven repartidos en muchos archivos chiquitos (css/**, app/**),
 // así que no se listan todos acá a mano: quedan cacheados solos por el fetch handler
 // de abajo apenas se piden la primera vez (mismo criterio "network-first" de siempre).
@@ -19,6 +19,41 @@ self.addEventListener("activate", e => {
   );
 });
 
+// Red colgada o lenta (un iPhone que vuelve de segundo plano, un wifi sin internet): un pedido puede
+// no terminar nunca y, como la app son muchos archivos chicos (app/**), uno solo que no llega la deja
+// sin arrancar (quedaba la pantalla vacía con la barra de abajo). Pero tampoco se pueden mezclar
+// versiones: un archivo viejo guardado con uno nuevo de la red (recién publicada una versión) no
+// encajan y la app no arranca. Por eso se decide por cada carga de la página, no por archivo:
+//  - La página (la navegación) se pide a la red; si en TOPE_RED ms no contestó y hay copia guardada,
+//    va la copia, y esa carga entera usa lo guardado: sus archivos salen de la caché sin esperar a
+//    la red (que sigue de fondo y actualiza la caché para la próxima vez).
+//  - Si la página vino de la red, sus archivos también, sin tope aunque tarden: lo guardado solo si
+//    la red falla del todo (sin internet), como siempre.
+// Si igual una carga no arranca porque sus archivos no encajan (una caché a medio actualizar), la
+// app (app/splash.js) recarga sola una vez y antes pide «gize:solo-red»: durante SOLO_RED_MS ni la
+// página usa la copia por tardar, así esa carga viene entera de la red.
+const TOPE_RED = 3500, SOLO_RED_MS = 30000;
+let soloRedHasta = 0;
+self.addEventListener("message", e => {
+  if (e.data !== "gize:solo-red") return;
+  soloRedHasta = Date.now() + SOLO_RED_MS;
+  try { if (e.ports && e.ports[0]) e.ports[0].postMessage("ok"); } catch (x) {} // ya puede recargar
+});
+// De dónde vino la página de cada carga ("guardada" o "red"), por el id de su ventana
+// (e.resultingClientId en la navegación, e.clientId en sus archivos). Si el navegador no da ese id,
+// vale la última navegación (la app instalada es una sola ventana).
+const origen = new Map();
+let ultima = { de: "red", t: 0, sinId: false };
+function anotar(e, de) {
+  const id = e.resultingClientId;
+  ultima = { de, t: Date.now(), sinId: !id };
+  if (id) { origen.set(id, de); if (origen.size > 40) origen.delete(origen.keys().next().value); }
+}
+function origenDe(e) {
+  if (e.clientId && origen.has(e.clientId)) return origen.get(e.clientId);
+  return ultima.sinId && Date.now() - ultima.t < 60000 ? ultima.de : "red";
+}
+
 self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
@@ -26,6 +61,8 @@ self.addEventListener("fetch", e => {
   // Nunca cachear la API (Supabase, Open Food Facts): siempre red. La librería de Supabase
   // ahora está en vendor/ (mismo origen), así que se cachea como el resto.
   if (url.origin !== self.location.origin) return;
+  const nav = req.mode === "navigate";
+  const soloRed = Date.now() < soloRedHasta;
 
   // cache:"no-cache" = siempre preguntarle al servidor si hay versión nueva (con ETag:
   // si no cambió, responde 304 y no se descarga de nuevo). Sin esto, el fetch pasaba por
@@ -33,24 +70,38 @@ self.addEventListener("fetch", e => {
   // un cambio, el celular seguía usando el JS/CSS viejo durante ese rato.
   // Una navegación no se puede re-armar con opciones (el navegador tira error), así que
   // para esa se pide la URL.
-  const net = req.mode === "navigate" ? fetch(url.href, { cache: "no-cache", credentials: "same-origin" })
+  const net = nav ? fetch(url.href, { cache: "no-cache", credentials: "same-origin" })
     : fetch(req, { cache: "no-cache" });
-  e.respondWith(
-    net
-      .then(res => {
-        // Una navegación que el servidor redirigió (ej. /CORE/landing → /CORE/landing/) no
-        // se puede devolver tal cual: Chrome la rechaza y muestra la página de error (había
-        // que apretar F5). Se le pasa la redirección al navegador para que cambie la dirección.
-        if (req.mode === "navigate" && res.redirected) return Response.redirect(res.url, 301);
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(req, copy)).catch(()=>{});
-        return res;
-      })
-      // Sin internet: lo que haya en caché; si no hay y es una pantalla de la app (/app/…),
-      // la app. La landing (raíz del sitio) no tiene versión sin conexión.
-      .catch(() => caches.match(req).then(r => r || (req.mode === "navigate" && url.pathname.indexOf("/app") === 0
-        ? caches.match("./app/").then(a => a || caches.match("./app/index.html")) : Response.error())))
-  );
+  let guardar = Promise.resolve();
+  const fresca = net.then(res => {
+    // Una navegación que el servidor redirigió (ej. /CORE/landing → /CORE/landing/) no
+    // se puede devolver tal cual: Chrome la rechaza y muestra la página de error (había
+    // que apretar F5). Se le pasa la redirección al navegador para que cambie la dirección.
+    if (nav && res.redirected) return Response.redirect(res.url, 301);
+    const copy = res.clone();
+    guardar = caches.open(CACHE).then(c => c.put(req, copy)).catch(()=>{});
+    return res;
+  });
+  // Lo guardado; si no hay y es una pantalla de la app (/app/…), la app. La landing (raíz del
+  // sitio) no tiene versión sin conexión.
+  const guardada = () => caches.match(req).then(r => r || (nav && url.pathname.indexOf("/app") === 0
+    ? caches.match("./app/").then(a => a || caches.match("./app/index.html")) : null)).catch(() => null);
+  if (!nav && !soloRed && origenDe(e) === "guardada") {
+    // Archivo de una carga que salió de lo guardado: la copia, ya (sin copia, la red).
+    e.respondWith(guardada().then(r => r || fresca.catch(() => Response.error())));
+  } else {
+    e.respondWith(new Promise(ok => {
+      let listo = false;
+      const dar = (r, de) => { if (listo) return; listo = true; if (nav) anotar(e, de); ok(r); };
+      // Solo la página espera con tope: sus archivos siguen lo que pasó con ella.
+      const tope = nav && !soloRed ? setTimeout(() => guardada().then(r => { if (r) dar(r, "guardada"); }), TOPE_RED) : null;
+      fresca.then(r => { clearTimeout(tope); dar(r, "red"); },
+        // Sin internet: lo que haya en caché.
+        () => { clearTimeout(tope); guardada().then(r => dar(r || Response.error(), r ? "guardada" : "red")); });
+    }));
+  }
+  // La copia nueva se termina de guardar aunque ya se haya respondido con la guardada.
+  e.waitUntil(Promise.race([fresca.then(() => guardar, () => {}), new Promise(r => setTimeout(r, 60000))]));
 });
 
 // ---- Notificaciones push (mensajes del chat coach ↔ alumno) ----

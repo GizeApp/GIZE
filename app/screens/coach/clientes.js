@@ -43,15 +43,22 @@ export async function loadCoachClients(){
     // id y nombre y la foto se perdía aunque la columna existiera — el coach veía
     // siempre las iniciales. Ninguna de las dos columnas es crítica para ver la lista.
     const cols=["id, full_name, email, avatar_path","id, full_name, avatar_path","id, full_name, email","id, full_name"];
+    // Solo un error de columna (no existe o no se puede leer) prueba con menos columnas: sin señal
+    // no sirve, y cada intento son ~7 s de reintentos de supabase-js (el panel tardaba ~30 s).
+    const deColumna=e=>/^(42703|42501|PGRST)/.test(String((e && e.code) || ""));
     let r;
     for(const c of cols){
       r=await State.sb.from("profiles").select(c).eq("coach_id",State.cloudUser.id).order("full_name");
       if(!r.error) break;
       console.error("coachClients ("+c+")",r.error);
+      if(!deColumna(r.error)) break;
     }
     // Sin señal fallan todos los intentos: queda la lista que ya estaba (antes se vaciaba y el
     // panel mostraba «Todavía no tenés clientes vinculados» y «Clientes (0)»). Igual el código.
     if(!r.error) CoachState.coachClients=r.data||[];
+    // La base contestó (aunque sea con un error): desde acá, lista vacía es «no tenés clientes». Sin
+    // señal no: el panel sigue diciendo «Cargando tus clientes…» y se pide de nuevo al volver la red.
+    if(!r.error || r.error.code) CoachState.coachClientsLoaded=true;
     // El mail sale de las cuentas (supabase/mail-clientes.sql): profiles no lo tiene.
     try{
       const em=await State.sb.rpc("my_clients_emails");

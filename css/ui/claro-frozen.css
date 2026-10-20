@@ -167,8 +167,9 @@ html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-seg-opt.on { background: #0B0D1
 /* «Activar» los avisos en la Configuración del coach (.cs-pill, css/screens/coach/panel.css): el texto
    oscuro sobre el azul marino de acá no se leía. Principal en negro con texto blanco, como los demás. */
 html.tema-luz:not(#_):not(#__) body:not(#_) .cs-pill:not(.on) { background: #0B0D11; color: #fff; }
-/* «Entendido» de los carteles de aviso (css/ui/avisos.css): los colores de acá son oscuros, va en blanco. */
-html.tema-luz:not(#_):not(#__) body:not(#_) .av-btn { color: #fff; }
+/* «Entendido» de los carteles de aviso (css/ui/avisos.css): los colores de acá son oscuros, va en blanco.
+   «Cancelar» de las preguntas (.av-sec) no: no tiene relleno, va con el texto oscuro sobre el vidrio. */
+html.tema-luz:not(#_):not(#__) body:not(#_) .av-btn:not(.av-sec) { color: #fff; }
 html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-switch { background: rgba(255,255,255,.4); border: 1px solid rgba(11,13,17,.34); }
 html.tema-luz:not(#_):not(#__) body:not(#_) .cfg-switch.on { background: var(--gize-blue); border-color: var(--gize-blue); }
 html.tema-luz:not(#_):not(#__) body:not(#_) :is(.cfg-notif-ic, .cfg-link-ic, .cal-empty-ic, .cfg-avatar) { background: rgba(255,255,255,.42); border: 1px solid var(--frz-line); color: var(--gize-text); }
@@ -348,6 +349,12 @@ html.tema-luz:not(#_):not(#__) body:not(#_) :is(.streak-note, #streakHost .stk-c
   background: var(--frz-glass-solid); border-color: var(--frz-line);
   -webkit-backdrop-filter: var(--frz-blur); backdrop-filter: var(--frz-blur);
 }
+/* Las ventanas propias (#335): las preguntas y avisos (.av-card, app/ui/avisos.js) y la hoja del selector
+   (.sl-card, app/ui/selector.js). Se pintan con var(--card), que acá es el vidrio translúcido de las cajas
+   (blanco al 40 %, pensado para ir con desenfoque): sin desenfoque se leía lo de atrás y la barra de abajo
+   se veía a través de «Cancelar». Van con el mismo vidrio casi opaco de las hojas (su base celeste es
+   opaca, así que no dejan pasar nada) y sin desenfoque (no se vería: el relleno tapa todo). */
+html.tema-luz:not(#_):not(#__) body:not(#_) :is(.av-card, .sl-card) { background: var(--frz-glass-solid); border-color: var(--frz-line); }
 /* Campos del coach que «Claro» pintaba de blanco: como los demás campos. */
 html.tema-luz:not(#_):not(#__) body.silk-coach:not(#_) :is(.co-note, .co-search, .co-dayname, .ml-in, .opt-body, .co-exc-name, .co-exc-btn, .pl-help, .bw, .cs-neon) {
   background: var(--frz-field); border-color: var(--frz-line);

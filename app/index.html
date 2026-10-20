@@ -82,11 +82,12 @@
 <link rel="stylesheet" href="css/ui/neon-app.css">
 
 </head>
-<body class="is-booting">
+<body class="is-booting sp-tapa">
   <!-- Splash de arranque (css/core/splash.css, lo usa app/splash.js): el logo oficial, tranquilo.
        La marca aparece suave mientras la G se traza, el orbe se enciende y su resplandor respira
        una vez, la palabra GIZE sube apenas debajo, el logo armado descansa un momento y se va
-       (3 s en total): primero la marca (crece un poco y se desvanece), después el fondo.
+       (3 s en total): primero la marca (crece un poco y se desvanece), después el fondo. Se va recién
+       cuando la app armó su pantalla (app/splash.js); body.sp-tapa esconde lo de abajo hasta entonces.
        Pocas piezas chicas: nada de pantalla completa animada salvo el fundido final del fondo. Los colores (fondo, G y orbe) salen de la apariencia elegida. -->
   <template id="splashTpl">
     <div id="splash" class="sp" role="status">
@@ -105,6 +106,12 @@
         <use class="sp-l" href="#spLG"/><use class="sp-l" href="#spLI"/><use class="sp-l" href="#spLZ"/><use class="sp-l" href="#spLE"/>
       </svg>
       <p class="splash-txt">Preparando tu entrenamiento</p>
+      <!-- La app no aparece (app/splash.js): en lugar del texto, este cartel con «Reintentar». -->
+      <div class="sp-reintento" role="alert" hidden>
+        <p class="sp-r-tit">Está tardando más de lo normal</p>
+        <p class="sp-r-txt">Revisá tu conexión a internet y tocá Reintentar.</p>
+        <button type="button" class="sp-r-btn">Reintentar</button>
+      </div>
     </div>
   </template>
   <div id="splashHost"></div>

@@ -27,7 +27,7 @@ import { parseRest } from '../ui/restbar.js';
 
 import { timerText } from '../ui/settimer.js';
 
-import { focusFor } from '../ui/scrollfocus.js';
+import { focusFor, revealCls } from '../ui/scrollfocus.js';
 
 import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto, hoyDow } from '../core/diasemana.js';
 
@@ -160,7 +160,10 @@ export function renderBlockBanner(){
 // ejercicio ya salen adentro del ejercicio («Nota de tu coach»): acá no se repiten.
 export function renderDayNotes(d){
   if(!d.note) return "";
-  return '<div class="daynotes" data-reveal="notes-'+esc(d.id)+'"><div class="dn-head">Nota de tu coach \u00b7 '+esc(d.name)+'</div>'+
+  // Una sola clave para las notas de todos los días (como la portada): al cambiar de día ya salen
+  // reveladas y no suben con su entrada encima del deslizamiento del cambio de día.
+  const k = 'notes';
+  return '<div class="daynotes'+revealCls(k)+'" data-reveal="'+esc(k)+'"><div class="dn-head">Nota de tu coach \u00b7 '+esc(d.name)+'</div>'+
     '<div class="dn-general">'+esc(d.note)+'</div></div>';
 }
 
@@ -359,12 +362,13 @@ export function renderEntreno(){
   // Arriba, la «portada» del día (.day-head, css/screens/entreno.css): solo el nombre grande y
   // centrado, «Iniciar entrenamiento» (o el reloj con Finalizar y Cancelar), «Limpiar» abajo y el
   // tachito chico en la esquina. La barra y la cuenta de series se sacaron (pedido).
+  // Entra con el revelado una sola vez (no una por día): al cambiar de día no queda en blanco.
   return `
     ${syncWarn}
     ${renderBlockBanner()}
     ${routineLocked()?'<div class="coach-banner">Rutina asignada por tu coach</div>':''}
     <div class="tabs">${tabs}</div>
-    <div class="day-head" data-reveal="dayhead-${esc(d.id)}">
+    <div class="day-head${revealCls('dayhead')}" data-reveal="dayhead">
       ${routineLocked() ? `<h2 class="day-name ${dayNameCls(d.name)}">${esc(d.name)}</h2>` : `<textarea class="day-name ${dayNameCls(d.name)}" rows="1" data-action="dayname" enterkeyhint="done" aria-label="Nombre del día">${esc(d.name)}</textarea>`}
       ${diasRow(d)}
       ${wkStarted(d) ? `<div class="wk-live"><span class="wk-dot"></span>Entrenando hace <b id="wkTime">${wkElapsedText()}</b></div>
