@@ -63,7 +63,7 @@ function foto(s, d){
     (pend ? '<figure class="gy-pend">' + fotoHtml(pend, s.nombre, "gy-av-xl") + '<figcaption>Propuesta' + (d.foto_pend_at ? ' el ' + fecha(d.foto_pend_at) : '') + '</figcaption></figure>' : '') + '</div>' +
     (d && d.foto_rechazo && !pend ? '<p class="gy-fino">Última rechazada: ' + esc(d.foto_rechazo) + '</p>' : '') +
     '<div class="gy-acc">' + (pend ? btn('data-gym="foto-aprobar"', "Aprobar") + '<button class="cv-link gy-peligro" data-gym="foto-rechazar">Rechazar</button>' : '') +
-    (s.estado !== "baja" ? '<label class="co-copy-btn cv-sec-btn gy-btn2 gy-foto-btn">' + (s.foto_path ? 'Sacar otra foto' : 'Sacar foto') + '<input type="file" accept="image/*" capture="user" data-gym-foto="' + esc(s.id) + '" hidden></label>' : '') +
+    (s.estado !== "baja" ? '<label class="co-copy-btn cv-sec-btn gy-btn2 gy-foto-btn">' + (s.foto_path ? 'Sacar otra foto' : 'Sacar foto') + '<input type="file" accept="image/*" capture="user" data-gym-foto="' + esc(s.id) + '" class="gy-foto-in"></label>' : '') +
     '</div></section>';
 }
 

@@ -123,7 +123,7 @@ export function ventanaSumar(m){
       '<div class="gy-codigo gy-link"><span class="gy-url">' + esc(url) + '</span></div>' +
       '<div class="gy-acc"><a class="gize-btn cv-btn" href="' + esc("https://wa.me/" + String(m.creada.tel || "").replace(/\D/g, "") + "?text=" + encodeURIComponent(txt)) + '" target="_blank" rel="noopener">Mandar por WhatsApp</a>' +
       btn2('data-gym="copiar" data-v="' + esc(url) + '"', "Copiar link") +
-      '<label class="co-copy-btn cv-sec-btn gy-btn2 gy-foto-btn">Sacar foto<input type="file" accept="image/*" capture="user" data-gym-foto="' + esc(m.creada.id) + '" hidden></label></div>' +
+      '<label class="co-copy-btn cv-sec-btn gy-btn2 gy-foto-btn">Sacar foto<input type="file" accept="image/*" capture="user" data-gym-foto="' + esc(m.creada.id) + '" class="gy-foto-in"></label></div>' +
       '<button class="cv-link" data-gym="sumar-otra">Cargar otra ficha</button>';
   } else {
     const d = m.datos || {};

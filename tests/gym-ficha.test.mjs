@@ -69,6 +69,13 @@ export default async function ({ base, t }){
   await p.click('#coachHost [data-gym="reactivar"]'); await wait(600);
   t.eq(rpcs(pg.st, 'gym_reactivar'), [{ ficha: F.A2 }], 'reactivar: gym_reactivar');
 
+  // ---- «Sacar foto» con el teclado: Tab llega al botón (antes el input estaba con «hidden») ----
+  {
+    await p.focus('#coachHost [data-gym="foto-aprobar"], #coachHost [data-gym="reactivar"]');
+    let llega = false;
+    for (let i = 0; i < 40 && !llega; i++){ await p.keyboard.press('Tab'); llega = await p.evaluate(id => !!(document.activeElement && document.activeElement.dataset && document.activeElement.dataset.gymFoto === id), F.A2); }
+    t.ok(llega, '«Sacar foto»: se llega con Tab (y se abre con Enter o espacio)');
+  }
   // ---- Sacar la foto con la cámara: queda aprobada ----
   await p.setInputFiles('#coachHost [data-gym-foto="' + F.A2 + '"]', { name: 'foto.png', mimeType: 'image/png', buffer: PNG });
   await p.waitForSelector('.crp .crp-ok', { timeout: 5000 }).catch(() => {});

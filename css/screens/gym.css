@@ -118,7 +118,11 @@ a.gize-btn.cv-btn { text-decoration:none; }
 .gy-fotos figure { margin:0; display:flex; flex-direction:column; align-items:center; gap:6px; }
 .gy-fotos figcaption { font-size:var(--text-meta); color:var(--txt-2); }
 .gy-pend .gy-av { outline:2px dashed color-mix(in srgb, var(--gize-warning) 70%, transparent); outline-offset:3px; }
-.gy-foto-btn { cursor:pointer; }
+.gy-foto-btn { cursor:pointer; position:relative; }
+/* El input de la foto queda escondido a la vista pero se alcanza con el teclado (Tab + Enter o espacio):
+   con «hidden», «Sacar foto» no se podía usar sin mouse. El anillo de foco va en el botón. */
+.gy-foto-in { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.gy-foto-btn:has(.gy-foto-in:focus-visible) { outline:2px solid var(--gize-blue); outline-offset:2px; }
 .gy-ing { margin-top:8px; font-size:var(--text-meta); color:var(--txt-2); }
 .gy-ul { margin:4px 0 0; padding-left:20px; display:grid; gap:4px; }
 .gy-ol { margin:0; padding-left:20px; display:grid; gap:8px; font-size:var(--text-body); color:var(--txt); }
