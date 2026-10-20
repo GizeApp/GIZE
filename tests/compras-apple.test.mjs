@@ -60,10 +60,10 @@ function certificado({ serie, sujeto, emisor, pub, firma, ca = false, oids = [],
     nombre(sujeto), pub.export({ type: 'spki', format: 'der' }), tlv(0xa3, seq(...ext)));
   return seq(tbs, alg, tlv(3, Buffer.concat([Buffer.from([0]), crypto.sign('sha384', tbs, firma)])));
 }
-const DIA = 864e5;
+export const DIA = 864e5;
 // de: otra autoridad cuya raíz se reusa (para probar un intermedio o una hoja distintos bajo la
 // raíz que acepta la función).
-function autoridad({ oidHoja = true, oidInter = true, interCA = true, hojaHasta = null, nombreRaiz = 'Raiz de prueba', de = null } = {}){
+export function autoridad({ oidHoja = true, oidInter = true, interCA = true, hojaHasta = null, nombreRaiz = 'Raiz de prueba', de = null } = {}){
   const kr = de ? de.claveRaiz : crypto.generateKeyPairSync('ec', { namedCurve: 'P-384' });
   const ki = crypto.generateKeyPairSync('ec', { namedCurve: 'P-384' });
   const kh = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
@@ -76,7 +76,7 @@ function autoridad({ oidHoja = true, oidInter = true, interCA = true, hojaHasta 
     huella: crypto.createHash('sha256').update(raiz).digest('hex') };
 }
 const b64u = b => Buffer.from(b).toString('base64url');
-function firmar(ca, datos, { cadena, alg = 'ES256', clave } = {}){
+export function firmar(ca, datos, { cadena, alg = 'ES256', clave } = {}){
   const cab = b64u(JSON.stringify({ alg, x5c: (cadena || [ca.hoja, ca.inter, ca.raiz]).map(c => c.toString('base64')) }));
   const cuerpo = b64u(JSON.stringify(datos));
   const sig = crypto.sign('sha256', Buffer.from(cab + '.' + cuerpo), { key: clave || ca.claveHoja, dsaEncoding: 'ieee-p1363' });
@@ -87,14 +87,14 @@ function firmar(ca, datos, { cadena, alg = 'ES256', clave } = {}){
 const COACH = 'c0ac4000-0000-4000-8000-0000000000a1', OTRO = 'c0ac4000-0000-4000-8000-0000000000b2', ALUMNO = 'a1a1a1a1-0000-4000-8000-000000000001';
 const ahora = Date.now();
 const iso = ms => new Date(ms).toISOString();
-const tx = (o = {}) => Object.assign({
+export const tx = (o = {}) => Object.assign({
   transactionId: '2000000000000001', originalTransactionId: '2000000000000001', bundleId: 'ar.com.gize.app',
   productId: 'ar.com.gize.app.coach.p25', purchaseDate: ahora - 60000, expiresDate: ahora + 30 * DIA, type: 'Auto-Renewable Subscription',
   appAccountToken: COACH, environment: 'Sandbox', signedDate: ahora - 50000, inAppOwnershipType: 'PURCHASED',
 }, o);
-const ren = (o = {}) => Object.assign({ originalTransactionId: '2000000000000001', autoRenewProductId: 'ar.com.gize.app.coach.p25', productId: 'ar.com.gize.app.coach.p25',
+export const ren = (o = {}) => Object.assign({ originalTransactionId: '2000000000000001', autoRenewProductId: 'ar.com.gize.app.coach.p25', productId: 'ar.com.gize.app.coach.p25',
   autoRenewStatus: 1, environment: 'Sandbox', signedDate: ahora }, o);
-const aviso = (ca, tipo, t, r, o = {}) => firmar(ca, Object.assign({ notificationType: tipo, notificationUUID: crypto.randomUUID(), version: '2.0', signedDate: ahora,
+export const aviso = (ca, tipo, t, r, o = {}) => firmar(ca, Object.assign({ notificationType: tipo, notificationUUID: crypto.randomUUID(), version: '2.0', signedDate: ahora,
   data: { bundleId: 'ar.com.gize.app', environment: 'Sandbox', appAppleId: 1, status: 1, signedTransactionInfo: t && firmar(ca, t), signedRenewalInfo: r ? firmar(ca, r) : undefined } }, o));
 
 function escenario(ca, { billing = {}, usuario = COACH, roles = { [COACH]: 'coach', [OTRO]: 'coach', [ALUMNO]: 'client' }, subs = [] } = {}){

@@ -18,6 +18,11 @@ export const PRODUCTOS_APPLE = {
   "ar.com.gize.app.coach.p500": { plan: "p500", max: 500 },
 };
 export const productoDelPlan = plan => Object.keys(PRODUCTOS_APPLE).find(k => PRODUCTOS_APPLE[k].plan === plan) || null;
+// IA Plus (core/ia-plus.js): la suscripción mensual de la IA de Comida, en su propio grupo de App
+// Store Connect («GIZE IA Plus»). Es la misma que supabase/functions/compras-apple/planes.ts
+// (tests/ia-plus-funciones.test.mjs controla que sean iguales). No va en PRODUCTOS_APPLE: no es un
+// plan de coach.
+export const PRODUCTO_IA_PLUS = "ar.com.gize.app.iaplus.mensual";
 
 // El plugin, sin bundler (como core/push.js). null fuera de la app de iPhone o si la app instalada
 // no lo trae.
@@ -60,6 +65,24 @@ export function cargarProductosApple(){
 // Comprar: { estado: "ok" | "cancelado" | "pendiente", jws, transaccion }. cuenta: el id del
 // usuario de GIZE (Apple lo guarda en la compra como appAccountToken y el servidor lo controla).
 export const comprarApple = (plan, cuenta) => pluginCompras().comprar({ id: productoDelPlan(plan), cuenta });
+// IA Plus con Apple: el producto con el precio que pone Apple ({ id, nombre, descripcion, precio,
+// periodo }) o null si no se pudo traer (se vuelve a probar), y comprarlo.
+let plusApple = null, cargandoPlus = null;
+export const productoPlusApple = () => plusApple;
+export function cargarPlusApple(){
+  const P = pluginCompras();
+  if (!P) return Promise.resolve(null);
+  if (plusApple) return Promise.resolve(plusApple);
+  if (!cargandoPlus) {
+    cargandoPlus = Promise.resolve().then(() => P.productos({ ids: [PRODUCTO_IA_PLUS] })).then(r => {
+      const p = ((r && r.productos) || []).find(x => x && x.id === PRODUCTO_IA_PLUS && x.precio);
+      plusApple = p || null;
+      return plusApple;
+    }, () => null).finally(() => { cargandoPlus = null; });
+  }
+  return cargandoPlus;
+}
+export const comprarPlusApple = cuenta => pluginCompras().comprar({ id: PRODUCTO_IA_PLUS, cuenta });
 // Se le avisa a Apple que la compra ya quedó guardada (solo cuando el servidor la aceptó: si no,
 // Apple la vuelve a mandar al abrir la app y se reintenta).
 export const finalizarApple = transaccion => pluginCompras().finalizar({ transaccion: String(transaccion) });
