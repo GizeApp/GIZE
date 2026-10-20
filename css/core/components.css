@@ -130,14 +130,9 @@ textarea.day-name { display: block; resize: none; overflow: hidden; height: auto
      todavía en curso); .ex-collapsed no lo usa, ver comentario arriba. */
 .card.ex-focused { opacity: 1; transform: scale(1); }
 
-/* .ex-collapsing siempre gana el empate con .ex-focused (misma especificidad, define
-     después en la cascada): si justo se está colapsando, eso manda sobre el foco. */
-.card.ex-collapsing { opacity: 0; transform: scale(.97) translateY(-4px); pointer-events: none; }
-
-/* Destello verde al completar un ejercicio (collapseExerciseAnimated con flash=true en
-     sheet.js): confirma el check antes de que la card se encoja a la fila compacta.
-     Solo se dispara desde JS — con prefers-reduced-motion el colapso animado ni se
-     ejecuta, así que esta clase nunca llega a agregarse. */
+/* Destello verde al completar un ejercicio (exCompleteFlash en ui/sheet.js): confirma el
+     check antes de que la card se achique hasta la fila compacta (ui/desplegar.js). Solo se
+     dispara desde JS — con prefers-reduced-motion o en modo liviano ni se agrega. */
 @keyframes exCompleteFlash {
   0% { background: var(--card); border-color: var(--border); box-shadow: none; }
   40% { background: color-mix(in srgb, var(--gize-blue) 14%, transparent); border-color: var(--green); box-shadow: 0 0 0 1px color-mix(in srgb, var(--gize-blue) 30%, transparent), 0 0 16px color-mix(in srgb, var(--gize-blue) 22%, transparent); }

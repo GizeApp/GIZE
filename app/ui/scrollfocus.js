@@ -2,6 +2,12 @@ import { State } from '../core/state.js';
 
 export const revealedBlocks = new Set();
 
+// Clase del bloque ya revelado, para escribirla en el HTML. Si la agregaba recién
+// initScrollReveal(), en el medio otro código medía la pantalla (restoreTabScroll) con el bloque
+// todavía oculto y la transición de entrada (tokens.css) se repetía en cada redibujo: la portada
+// del día desaparecía y volvía a subir con cada toque (video del 19/10).
+export const revealCls = key => revealedBlocks.has(key) ? " reveal-in" : "";
+
 export let scrollRevealObserver = null;
 
 export function initScrollReveal(){
@@ -9,7 +15,9 @@ export function initScrollReveal(){
   const blocks = document.querySelectorAll("#view [data-reveal]");
   if (!blocks.length) return;
   const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reduceMotion) { blocks.forEach(b=>b.classList.add("reveal-in")); return; }
+  // Con «reducir movimiento» se revelan todos de una, y quedan anotados: así el HTML del próximo
+  // redibujo ya los trae revelados (revealCls) y ui/parche.js no los cambia en cada toque.
+  if (reduceMotion) { blocks.forEach(b=>{ b.classList.add("reveal-in"); revealedBlocks.add(b.dataset.reveal); }); return; }
   scrollRevealObserver = new IntersectionObserver(entries=>{
     entries.forEach(entry=>{
       if (!entry.isIntersecting) return;

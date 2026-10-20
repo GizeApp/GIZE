@@ -73,7 +73,9 @@ import { cancelCardioAlert, scheduleCardioAlert } from './ui/restnotif.js';
 
 import { anchorFocus, initScrollReveal, setupExerciseFocus } from './ui/scrollfocus.js';
 
-import { SheetState, closeSheet, collapseExerciseAnimated, renderSheet, sheetUnitFood, unitsLabel } from './ui/sheet.js';
+import { SheetState, closeSheet, exCompleteFlash, renderSheet, sheetUnitFood, unitsLabel } from './ui/sheet.js';
+import { parchar } from './ui/parche.js';
+import { desplegar, entrarDia, terminarDespliegue } from './ui/desplegar.js';
 import { clientQuestions, questionSnapshot } from './core/questions.js';
 import { renderConfig } from './screens/config.js';
 
@@ -118,6 +120,7 @@ document.addEventListener("click", e => {
 });
 
 export function renderApp(){
+  terminarDespliegue(); // un ejercicio abriéndose o cerrándose queda ya como termina (ui/desplegar.js)
   queueMicrotask(scheduleTick); // después de dibujar: ¿hay un reloj a la vista que actualizar?
   queueMicrotask(syncSalida);   // y los recorridos de Cardio (mapa) a su lugar, o afuera
   // Una cuenta de coach ve solo su panel: si algo pedía la pantalla del cliente, quedaba
@@ -151,7 +154,9 @@ export function renderApp(){
   showSilkBg();
   document.body.classList.remove("silk-coach");
   const v = document.getElementById("view");
-  v.innerHTML = State.view==="entreno" ? renderEntreno() : State.view==="habitos" ? renderHabitos() : State.view==="cardio" ? renderCardio() : State.view==="comida" ? renderComida() : renderProgreso();
+  // Entreno se redibuja en el lugar (ui/parche.js): solo cambia lo que cambió.
+  if (State.view==="entreno") parchar(v, renderEntreno());
+  else v.innerHTML = State.view==="habitos" ? renderHabitos() : State.view==="cardio" ? renderCardio() : State.view==="comida" ? renderComida() : renderProgreso();
   if(State.view==="entreno") restoreTabScroll();
   if (State.view==="comida") animateCalRing();
   initScrollReveal();
@@ -276,6 +281,12 @@ function swapEx(ex, name, mm){
 }
 // Un ejercicio recién agregado aparece abierto (y cierra el que estaba abierto), para cargarle las series.
 function openEx(e){ expandedOverride.clear(); expandedOverride.add(e.id); return e; }
+// Cierra esos ejercicios achicándolos hasta la fila (ui/desplegar.js). Si mientras tanto ya se
+// cerró (o se destildó y sigue abierto a propósito), no hace nada.
+function closeEx(ex, ids){
+  if(!ids.some(id=>expandedOverride.has(id))) return;
+  desplegar(ex.id, ()=>{ ids.forEach(id=>expandedOverride.delete(id)); renderApp(); });
+}
 // Lleva la pantalla a la serie que sigue y la marca un momento.
 function goToSet(t){
   const inp=document.querySelector('[data-ex="'+CSS.escape(t.ex)+'"][data-set="'+CSS.escape(t.set)+'"]');
@@ -820,7 +831,14 @@ document.body.addEventListener("click", async e => {
   if (a === "dia-toggle") { if(routineLocked()) return; toggleDia(day(), el.dataset.d); save(); renderApp(); return; }
 
   // Entreno
-  if (a === "tab") { State.activeId = el.dataset.day; State.dayPickedOn = today(); EntrenoState.diasOpen = null; setTimeout(renderApp, 130); return; } // deja ver el ripple antes del rerender
+  // Cambiar de día: en el acto (antes esperaba 130 ms para dejar ver el ripple del chip); el ripple
+  // sigue en el chip nuevo y lo de abajo entra deslizándose hacia el lado del día elegido.
+  if (a === "tab") {
+    const ix = id => state.days.findIndex(x => x.id === id), dir = Math.sign(ix(el.dataset.day) - ix(State.activeId));
+    State.activeId = el.dataset.day; State.dayPickedOn = today(); EntrenoState.diasOpen = null; renderApp();
+    const nb = document.querySelector('#view .tab.active'); if (nb) tabRipple(nb, e.clientX, e.clientY);
+    entrarDia(dir); return;
+  }
   const d = day();
   const exsToday = todayExs(d);
   const ex = el.dataset.ex && exsToday.find(x=>x.id===el.dataset.ex);
@@ -851,16 +869,20 @@ document.body.addEventListener("click", async e => {
       // Con récord, primero se festeja en la fila y después se colapsa el ejercicio.
       // Mientras dura el festejo queda abierto (si no, renderApp ya lo dibuja colapsado).
       if(prDiff!==null){
-        renderApp(); playPR(s.id, prDiff);
+        desplegar(ex.id, renderApp); playPR(s.id, prDiff);
         setTimeout(()=>{
           // Si mientras tanto destildó algo o ya lo cerró, no se toca.
           if(!allSetsDone(ex) || !expandedOverride.has(ex.id)) return;
-          collapseExerciseAnimated(ex.id, ()=>{ expandedOverride.delete(ex.id); renderApp(); }, true);
+          exCompleteFlash(ex.id, ()=>closeEx(ex, [ex.id]));
         }, PR_HOLD_MS);
       }
-      else collapseExerciseAnimated(ex.id, ()=>{ expandedOverride.delete(ex.id); renderApp(); }, true);
+      // La tilde se ve en el acto (antes la última serie seguía sin tildar durante el destello y
+      // mientras se cerraba); si en el destello destildó, queda abierto.
+      else { desplegar(ex.id, renderApp); exCompleteFlash(ex.id, ()=>{ if(allSetsDone(ex)) closeEx(ex, [ex.id]); }); }
     }
-    else { renderApp(); if(prDiff!==null) playPR(s.id, prDiff); }
+    // El ejercicio queda quieto bajo el dedo aunque la portada cambie de alto (la primera serie
+    // tildada cambia «Iniciar entrenamiento» por el reloj).
+    else { desplegar(ex.id, renderApp); if(prDiff!==null) playPR(s.id, prDiff); }
     return;
   }
   // Cronómetro de la serie (ejercicios por tiempo, como la plancha). Si ya corre, lo frena y
@@ -904,8 +926,9 @@ document.body.addEventListener("click", async e => {
   }
   // Abrir y cerrar un ejercicio con la flechita (una superserie, entera).
   // Uno abierto a la vez: abrir otro cierra el anterior (salvo su superserie, que va entera).
-  if (a === "ex-expand") { if(!ex) return; expandedOverride.clear(); exGroupIds(d.exercises, ex.id).forEach(id=>expandedOverride.add(id)); renderApp(); return; }
-  if (a === "ex-collapse") { if(!ex) return; const ids=exGroupIds(d.exercises, ex.id); collapseExerciseAnimated(ex.id, ()=>{ ids.forEach(id=>expandedOverride.delete(id)); renderApp(); }); return; }
+  // En el lugar y animado, con el ejercicio tocado quieto bajo el dedo (ui/desplegar.js).
+  if (a === "ex-expand") { if(!ex) return; const ids=exGroupIds(d.exercises, ex.id); desplegar(ex.id, ()=>{ expandedOverride.clear(); ids.forEach(id=>expandedOverride.add(id)); renderApp(); }); return; }
+  if (a === "ex-collapse") { if(!ex) return; closeEx(ex, exGroupIds(d.exercises, ex.id)); return; }
   // Descanso por ejercicio. Sin coach se guarda en el ejercicio (viaja con la rutina);
   // con coach, como preferencia propia (state.restPrefs) sin tocar la rutina del coach.
   if (a === "rest-edit") {
