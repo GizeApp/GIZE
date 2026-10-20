@@ -1507,7 +1507,9 @@ grant execute on function public.gym_compartir_admin(boolean, text) to authentic
 -- Salir del gimnasio: la ficha pasa a baja y el gimnasio deja de ver sus datos al instante. Si lo
 -- atendía alguien del equipo, queda sin coach, salvo «Seguir con mi profe como alumno propio» (solo
 -- si el profe tiene plan propio vigente con lugar; con la dueña, el plan del gimnasio). Un coach de
--- afuera no cambia. Un pedido pendiente se cancela.
+-- afuera no cambia. Un pedido pendiente se cancela. A una cuenta convertida (alumno de antes del coach
+-- que pasó a gimnasio) salir no le quita su coach (§1.5, M2): sin seguir_con_profe (null), sigue con él;
+-- solo deja el coaching si lo pide (false).
 create or replace function public.gym_salir(seguir_con_profe boolean)
 returns jsonb
 language plpgsql
@@ -1530,7 +1532,7 @@ begin
   del_equipo := c is not null and exists (select 1 from public.gym_staff s where s.gym_id = f.gym_id and s.user_id = c
                                                 and s.left_at is null and s.role in ('owner', 'admin', 'profe'));
   update public.gym_members set status = 'baja', left_at = now(), baja_motivo = 'socio' where id = f.id;
-  if del_equipo and coalesce(seguir_con_profe, false) then
+  if del_equipo and coalesce(seguir_con_profe, f.source = 'conversion') then
     perform 1 from public.coach_billing where coach_id in (c, dueno) order by coach_id for update;
     if c = dueno then
       sigue := public.gym_active(f.gym_id);

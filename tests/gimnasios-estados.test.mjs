@@ -105,6 +105,16 @@ export default async function ({ t: t0 }){
   x = await V([['A7', rpc('gym_salir', true)], ['postgres', ESTADO('A7')], ['postgres', cupos]]);
   t.eq([x[0].sigue_con_profe, est(x[1]), x[2]], [true, { coach: 'dA', status: 'baja', trainer: null, restore: null, inv: [] }, BASE],
     'con la dueña como profe (cuenta convertida): sigue como alumno propio en la misma fila del plan (6: deja de contar la ficha, cuenta el vínculo)');
+  // Salir no le quita su coach a una cuenta convertida (§1.5, M2): sin decir nada (null) sigue con la
+  // dueña; solo si lo pide (false) deja también el coaching. A un socio que no es convertido, null = no seguir.
+  x = await V([['postgres', `select to_jsonb(source) from public.gym_members where id = '${F.A7}'`], ['A7', rpc('gym_salir', null)], ['postgres', ESTADO('A7')]]);
+  t.eq([x[0], x[1].sigue_con_profe, est(x[2])], ['conversion', true, { coach: 'dA', status: 'baja', trainer: null, restore: null, inv: [] }],
+    'cuenta convertida, gym_salir(null): sigue con su coach (la dueña) como alumno propio');
+  x = await V([['A7', rpc('gym_salir', false)], ['postgres', ESTADO('A7')]]);
+  t.eq([x[0].sigue_con_profe, est(x[1])], [false, { coach: null, status: 'baja', trainer: null, restore: null, inv: [] }],
+    'cuenta convertida, gym_salir(false): lo pidió, sale también del coaching');
+  x = await V([['A1', rpc('gym_salir', null)], ['postgres', ESTADO('A1')]]);
+  t.eq([x[0].sigue_con_profe, est(x[1]).coach], [false, null], 'socio que entró con el código, gym_salir(null): sale sin profe, como hoy');
   x = await V([['A3', `select public.join_coach('${CODIGO.C}')::jsonb`], ['A3', rpc('gym_salir', false)], ['postgres', ESTADO('A3')], ['postgres', cupos]]);
   t.eq([est(x[2]), x[3]], [{ coach: 'C', status: 'baja', trainer: null, restore: null, inv: [] }, Object.assign({}, BASE, { dA: 5, C: 2 })], 'con coach de afuera: sale y el coach externo no cambia');
   const fichaA1 = ['postgres', `select jsonb_build_object('status', status, 'member', member_id, 'trainer', trainer_id, 'terms', terms_at is not null,

@@ -211,7 +211,9 @@ function salirHtml(){
   return '<div class="sheet-title" id="gysT">¿Salir de ' + nom + '?</div>' +
     '<p class="gys-p">Tu ficha pasa a baja y el gimnasio deja de ver tus datos al instante. Tus entrenos, comidas y registros siguen siendo tuyos.</p>' +
     (p ? '<label class="gys-check"><input type="checkbox" data-gys-in="seguir"' + (S.seguir ? " checked" : "") + (S.ocupado ? " disabled" : "") + '>' +
-          '<span><b>Seguir con ' + esc(primerNombre(p.name) || "mi profe") + ' como alumno propio</b> <span class="gys-fino">Solo si tiene lugar para sumarte. Si no lo tildás, salís sin profe.</span></span></label>'
+          '<span><b>Seguir con ' + esc(primerNombre(p.name) || "mi profe") + ' como alumno propio</b> <span class="gys-fino">' +
+          (f.origen === "conversion" ? 'Seguís con ' + esc(primerNombre(p.name) || "tu coach") + ' como hasta ahora; destildalo si querés salir también de su coaching.'
+            : 'Solo si tiene lugar para sumarte. Si no lo tildás, salís sin profe.') + '</span></span></label>'
       : f.coach_externo ? '<p class="gys-p gys-fino">Tu coach de afuera del gimnasio sigue igual.</p>' : "") +
     errHtml() +
     '<div class="sheet-btns">' + btnH("cancel", "Cancelar", "ghost", S.ocupado ? " disabled" : "") +
@@ -253,7 +255,12 @@ export function abrirConfirmar(){
   return abrir({ modo: "hoja", accion: "confirmar", gym: info().gym || {}, conversion: !!(f && f.origen === "conversion") });
 }
 export function abrirVerHoja(){ return abrir({ modo: "hoja", accion: "ver", gym: info().gym || {} }); }
-export function abrirSalir(){ return abrir({ modo: "salir", gym: info().gym || {} }); }
+// A una cuenta convertida (alumno del coach desde antes del gimnasio) salir no le quita su coach (§1.5,
+// M2): «Seguir con…» viene tildado y lo destilda solo si quiere dejar también el coaching.
+export function abrirSalir(){
+  const f = ficha();
+  return abrir({ modo: "salir", gym: info().gym || {}, seguir: !!(f && f.profe && f.origen === "conversion") });
+}
 
 // ---- Lo que hace cada botón de la hoja ----
 async function enviar(){

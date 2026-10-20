@@ -1,6 +1,7 @@
 // Gimnasios, etapa 1 (parte 3): la tarjeta de confirmación cuando falta aceptar la hoja (terms_at vacío,
 // SPEC §1.5 y §3.4). Cuenta convertida: «Tu coach ahora es Gimnasio Fuerza…» [Entendido] → la hoja →
-// gym_confirmar_hoja (la casilla sin marcar), [Salir del gimnasio] con «Seguir con mi profe». Quien
+// gym_confirmar_hoja (la casilla sin marcar), [Salir del gimnasio] con «Seguir con mi profe» tildado (salir
+// no le quita su coach a una cuenta convertida). Quien
 // entró con la app vieja: «Confirmá tu lugar en…»; con el pedido todavía pendiente: «Confirmá tu
 // pedido…» con [Cancelar el pedido]. Mientras falta, Ajustes no ofrece «Compartir».
 import { wait } from './lib.mjs';
@@ -57,15 +58,26 @@ export default async function ({ base, t }){
     t.eq(rpcs(pg.st, 'gym_confirmar_hoja'), [{ hoja_version: '2026-10-borrador', share_admin: true, compartir_version: '2026-10-borrador' }], 'confirmar marcando: con la versión de «compartir»');
     await pg.close();
   }
-  // [Salir del gimnasio] desde la tarjeta: puede seguir con su coach (la dueña) como alumno propio.
+  // [Salir del gimnasio] desde la tarjeta: salir no le quita su coach (la dueña, §1.5 y M2). «Seguir con
+  // Carla» viene tildado; tocando solo «Salir del gimnasio», sigue con ella como alumno propio.
   {
     const pg = await abrir(base, CONVERTIDA), p = pg.p;
     await p.click('#view .gym-card [data-gys="salir"]'); await wait(600);
-    t.has(await hojaTxt(p), 'Seguir con Carla como alumno propio', 'salir: ofrece seguir con su coach');
+    const h = await hojaTxt(p);
+    t.has(h, 'Seguir con Carla como alumno propio', 'salir: ofrece seguir con su coach');
+    t.has(h, 'Seguís con Carla como hasta ahora; destildalo si querés salir también de su coaching.', 'salir: dice que sigue con su coach salvo que lo destilde');
+    t.eq(await p.$eval('#gymSocioHost input[data-gys-in="seguir"]', i => i.checked), true, 'salir: «Seguir con Carla» tildado de entrada');
+    await p.click('#gymSocioHost [data-gys-h="salir-si"]'); await wait(1500);
+    t.eq(rpcs(pg.st, 'gym_salir'), [{ seguir_con_profe: true }], 'salir sin tocar la casilla: sigue con su coach, gym_salir(true)');
+    t.eq(await tarjeta(p), null, 'y ya no hay tarjeta');
+    await pg.close();
+  }
+  {
+    const pg = await abrir(base, CONVERTIDA), p = pg.p;
+    await p.click('#view .gym-card [data-gys="salir"]'); await wait(600);
     await p.click('#gymSocioHost .gys-check');
     await p.click('#gymSocioHost [data-gys-h="salir-si"]'); await wait(1500);
-    t.eq(rpcs(pg.st, 'gym_salir'), [{ seguir_con_profe: true }], 'salir siguiendo con su coach: gym_salir(true)');
-    t.eq(await tarjeta(p), null, 'y ya no hay tarjeta');
+    t.eq(rpcs(pg.st, 'gym_salir'), [{ seguir_con_profe: false }], 'destildándola, sale también del coaching: gym_salir(false)');
     await pg.close();
   }
   // Mientras falta confirmar, Ajustes no ofrece «Compartir»: pide confirmar.
