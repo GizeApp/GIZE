@@ -147,6 +147,8 @@ export default async function ({ t: t0 }){
   t.eq([de('pA1').mis_fichas.map(nom).sort(), de('pA1').mis_socios.map(nom).sort(), de('dA').mis_socios.map(nom)], [['A1', 'A2'], ['A1', 'A2'], ['A7']], 'mis_fichas y mis_socios del profe (y de la dueña como profe)');
   t.eq([de('A1').ficha.profe.name, de('A1').ficha.coach_externo, de('A1').ficha.foto, de('A7').ficha.terms_at, de('A6').solicitud.gym, de('dA').codigo],
     ['Martina Profe', false, 'falta', null, 'Gimnasio Fuerza', 'FUERZA22'], 'la ficha del socio (profe, coach externo, foto), la solicitud y el código del gimnasio para el equipo');
+  t.eq([de('A7').ficha.origen, de('A1').ficha.origen, de('A1').ficha.foto_path, de('A1').ficha.foto_pend_path, de('A6').solicitud.foto, de('A6').solicitud.terms],
+    ['conversion', 'codigo', null, null, 'falta', true], 'la app del socio: de dónde viene la ficha (cuenta convertida o no), las rutas de su foto y la foto del pedido');
 
   // gym_equipo (panel del dueño, Profes): rol, socios asignados y la versión de la app (vieja según
   // app_config «version»: la misma que el cartel de actualizar). gym_socios_resumen marca lo mismo.

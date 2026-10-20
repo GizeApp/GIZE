@@ -637,8 +637,10 @@ grant execute on function public.gym_fotos_huerfanas() to service_role;
 --              recibe estado y fechas; la recepción, nada. contadores, solo dueño y administración.
 --   Socio:    {gym, rol: 'socio', ficha: {id, status, paused_until, terms_at, terms_version,
 --              share_admin, profe: {id, name}|null, coach_externo, foto: ok|pendiente|rechazada|falta,
---              foto_rechazo}}.
---   Pedido:   {gym, rol: 'pendiente', solicitud: {id, gym, requested_at, terms}}.
+--              foto_rechazo, foto_path, foto_pend_path, origen (gym_members.source: la tarjeta de
+--              confirmación distingue una cuenta convertida, 'conversion', de un pedido con la app vieja)}}.
+--   Pedido:   {gym, rol: 'pendiente', solicitud: {id, gym, requested_at, terms, foto: pendiente|falta,
+--              foto_pend_path}}.
 --   Un coach sin gimnasio que puede crear uno (interruptor prendido): {gym: null, rol: null,
 --              puede_crear: true}. La app lo trata como «sin gimnasio» salvo en #gimnasio.
 create or replace function public.mi_gimnasio()
@@ -691,7 +693,9 @@ begin
       return jsonb_build_object('gym', (select jsonb_build_object('id', y.id, 'name', y.name, 'city', y.city) from public.gyms y where y.id = m.gym_id),
         'rol', 'pendiente', 'puede_crear', false,
         'solicitud', jsonb_build_object('id', m.id, 'gym', (select y.name from public.gyms y where y.id = m.gym_id),
-                                        'requested_at', m.requested_at, 'terms', m.terms_at is not null));
+                                        'requested_at', m.requested_at, 'terms', m.terms_at is not null,
+                                        'foto', case when m.foto_pend_path is not null then 'pendiente' else 'falta' end,
+                                        'foto_pend_path', m.foto_pend_path));
     end if;
     select p.coach_id into c from public.profiles p where p.id = me;
     return jsonb_build_object('gym', public.gym_json(m.gym_id), 'rol', 'socio', 'puede_crear', false,
@@ -701,7 +705,7 @@ begin
         'coach_externo', c is not null and m.trainer_id is null,
         'foto', case when m.foto_pend_path is not null then 'pendiente' when m.foto_path is not null then 'ok'
                      when m.foto_rechazo is not null then 'rechazada' else 'falta' end,
-        'foto_rechazo', m.foto_rechazo));
+        'foto_rechazo', m.foto_rechazo, 'foto_path', m.foto_path, 'foto_pend_path', m.foto_pend_path, 'origen', m.source));
   end if;
   if public.gym_crear_motivo(me) is null then
     return jsonb_build_object('gym', null, 'rol', null, 'puede_crear', true);
