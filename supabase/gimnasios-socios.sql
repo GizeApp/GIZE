@@ -1745,14 +1745,16 @@ revoke all on function public.gym_pausar(uuid, date) from public, anon;
 grant execute on function public.gym_pausar(uuid, date) to authenticated;
 
 -- Reactivar: una pausada vuelve a activa; una en baja, con cupo exacto (no la de un socio que salió
--- él mismo: para volver, pide sumarse).
+-- él mismo: para volver, pide sumarse). Una baja que tenía cuenta vuelve como ficha sin app, sin la
+-- hoja y sin compartir: el gimnasio no vuelve a sumar a nadie (ni a leer sus registros) sin que esa
+-- persona lo acepte. Para unirla otra vez, el link #unirme (con su DNI) o «es la ficha de…».
 create or replace function public.gym_reactivar(ficha uuid)
 returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
-declare g uuid := public.gym_exigir(array['owner', 'admin']); f record; socio uuid; c uuid;
+declare g uuid := public.gym_exigir(array['owner', 'admin']); f record; socio uuid;
 begin
   select m.member_id into socio from public.gym_members m where m.id = ficha and m.gym_id = g;
   if socio is not null then perform 1 from public.profiles where id = socio for update; end if;
@@ -1764,20 +1766,23 @@ begin
     if f.member_id is not null and f.baja_motivo = 'socio' then
       raise exception 'Esa persona salió del gimnasio: para volver tiene que pedir sumarse.' using errcode = 'P0001';
     end if;
-    select p.coach_id into c from public.profiles p where p.id = f.member_id;
-    if not public.gym_cupo_ok(g, array[c]) then
+    if not public.gym_cupo_ok(g, '{}') then
       raise exception 'El gimnasio no puede sumar socios en este momento.' using errcode = 'P0001';
     end if;
     begin
-      update public.gym_members set status = 'activo', left_at = null, baja_motivo = null where id = f.id;
+      update public.gym_members set status = 'activo', left_at = null, baja_motivo = null, member_id = null,
+             terms_at = null, terms_version = null, share_admin = false,
+             share_admin_at = case when share_admin then now() else share_admin_at end, share_admin_version = null
+       where id = f.id;
     exception when unique_violation then
-      raise exception 'Esa persona ya está en otro gimnasio (o el DNI está en otra ficha).' using errcode = 'P0001';
+      raise exception 'El DNI de esa ficha ya está en otra ficha activa.' using errcode = 'P0001';
     end;
   else
     raise exception 'Esa ficha ya está activa.' using errcode = 'P0001';
   end if;
-  perform public.gym_auditar(g, 'reactivar', f.id, f.member_id, jsonb_build_object('antes', f.status));
-  return jsonb_build_object('ok', true);
+  perform public.gym_auditar(g, 'reactivar', f.id, f.member_id,
+    jsonb_build_object('antes', f.status, 'sin_app', f.status = 'baja' and f.member_id is not null));
+  return jsonb_build_object('ok', true, 'sin_app', f.member_id is null or f.status = 'baja');
 end $$;
 revoke all on function public.gym_reactivar(uuid) from public, anon;
 grant execute on function public.gym_reactivar(uuid) to authenticated;

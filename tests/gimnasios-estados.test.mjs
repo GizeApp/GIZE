@@ -107,9 +107,22 @@ export default async function ({ t: t0 }){
     'con la dueña como profe (cuenta convertida): sigue como alumno propio en la misma fila del plan (6: deja de contar la ficha, cuenta el vínculo)');
   x = await V([['A3', `select public.join_coach('${CODIGO.C}')::jsonb`], ['A3', rpc('gym_salir', false)], ['postgres', ESTADO('A3')], ['postgres', cupos]]);
   t.eq([est(x[2]), x[3]], [{ coach: 'C', status: 'baja', trainer: null, restore: null, inv: [] }, Object.assign({}, BASE, { dA: 5, C: 2 })], 'con coach de afuera: sale y el coach externo no cambia');
-  x = await V([['dA', rpc('gym_baja', F.A1, 'Se mudó')], ['postgres', ESTADO('A1')], leen, ['dA', rpc('gym_reactivar', F.A1)], ['postgres', ESTADO('A1')]]);
-  t.eq([est(x[1]), x[2], est(x[4])], [{ coach: null, status: 'baja', trainer: null, restore: null, inv: [] }, [0, false], { coach: null, status: 'activo', trainer: null, restore: null, inv: [] }],
-    'gym_baja: S = baja y C = T = null (era del equipo); reactivar: vuelve activa (con cupo exacto), sin profe');
+  const fichaA1 = ['postgres', `select jsonb_build_object('status', status, 'member', member_id, 'trainer', trainer_id, 'terms', terms_at is not null,
+    'share', share_admin, 'inv', prueba.invariantes()) from public.gym_members where id = '${F.A1}'`];
+  x = await V([['dA', rpc('gym_baja', F.A1, 'Se mudó')], ['postgres', ESTADO('A1')], leen, ['dA', rpc('gym_reactivar', F.A1)], fichaA1, admin,
+    ['dA', `select to_jsonb(count(*)) from public.body_weights where client_id = '${P.A1}'`], ['A1', rpc('mi_gimnasio')], ['postgres', ESTADO('A1')]]);
+  t.eq([est(x[1]), x[2], x[3], x[4]], [{ coach: null, status: 'baja', trainer: null, restore: null, inv: [] }, [0, false], { ok: true, sin_app: true },
+    { status: 'activo', member: null, trainer: null, terms: false, share: false, inv: [] }],
+    'gym_baja: S = baja y C = T = null (era del equipo); reactivar: la ficha vuelve activa (con cupo exacto) pero sin app, sin la hoja y sin compartir');
+  t.eq([x[5], x[6], x[7], est(x[8]).coach], [[false, 0], 0, null, null],
+    'la persona no vuelve a ser socia sin aceptarlo: la administración no lee sus registros y su app no muestra el gimnasio (para unirla, el link #unirme)');
+  x = await V([['dA', rpc('gym_baja', F.A1, null)], ['A1', `select public.join_coach('${CODIGO.C}')::jsonb`], ['dA', rpc('gym_reactivar', F.A1)],
+    ['A1', rpc('mi_gimnasio')], ['postgres', ESTADO('A1')], ['dA', `select to_jsonb(count(*)) from public.body_weights where client_id = '${P.A1}'`],
+    ['dA', `select to_jsonb(public.gym_reads_member('${P.A1}'))`], fichaA1]);
+  t.eq([x[1], x[3], est(x[4]).coach, x[5], x[6], x[7].member, x[7].share], [true, null, 'C', 0, false, null, false],
+    'baja del gimnasio, se va con un coach de afuera y el gimnasio la reactiva: sigue con su coach, no es socia y el gimnasio no lee nada de ella');
+  x = await V([['dA', rpc('gym_baja', F.A1, null)], ['dA', rpc('gym_reactivar', F.A1)], ['dA', rpc('gym_ficha_link', F.A1)]]);
+  t.ok(typeof x[2] === 'object' && x[2] && !x[2].error, 'después de reactivarla, el gimnasio puede mandarle el link #unirme: ' + JSON.stringify(x[2]));
   x = await V([['A1', rpc('gym_salir', false)], ['dA', rpc('gym_reactivar', F.A1)]]);
   t.eq(x[1].msg, 'Esa persona salió del gimnasio: para volver tiene que pedir sumarse.', 'a quien salió solo, el gimnasio no lo reactiva');
   x = await V([['dA', rpc('gym_baja', F.A4, null)], ['postgres', `update public.coach_billing set max_clients = 5 where coach_id = '${P.dA}'`], ['dA', rpc('gym_reactivar', F.A4)]]);
