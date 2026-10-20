@@ -34,7 +34,9 @@ export default async ({ t }) => {
   t.has(ia, 'No son un consejo médico ni nutricional', 'son estimaciones, no consejo médico');
   t.has(ia, 'mayores de 18 años', 'solo para mayores de 18');
   t.has(ia, 'Ajustes → Funciones con IA', 'cómo apagarlas');
-  t.has(ia, 'solo los pedidos que llegan desde la fecha de esta política', 'solo los pedidos posteriores a la política');
+  t.has(ia, 'solo los pedidos que llegan desde el 19 de octubre de 2026', 'solo los pedidos desde una fecha fija (no se mueve al actualizar la política)');
+  t.has(txt, 'si activás las funciones con IA, sacar la foto de un plato para calcularlo', '«Cámara y fotos» incluye la foto del plato');
+  t.has(txt, 'La foto del plato también se envía a Anthropic para calcularlo, y GIZE no la guarda', '«Cámara y fotos» dice adónde va la foto del plato');
   // Los arreglos de la sección de fotos, la lista de empresas, lo que se borra y los derechos.
   t.ok(!/las ve solo el equipo de GIZE/.test(txt), 'las fotos de productos ya no dicen que las ve solo el equipo de GIZE');
   t.has(txt, 'la foto de la tabla se envía a Anthropic para leerla', '«Cámara y fotos» dice que la tabla puede ir a Anthropic');
