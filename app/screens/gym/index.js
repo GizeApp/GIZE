@@ -134,7 +134,7 @@ function pintarModal(){
   const cuerpo = m.tipo === "sumar" ? ventanaSumar(m) : m.tipo === "invitar" ? ventanaInvitar(m) : m.tipo === "quitar" ? ventanaQuitar(m) : m.tipo === "qr" ? ventanaQr()
     : m.tipo === "asignar" ? ventanaAsignar(m) : m.tipo === "pausar" ? ventanaPausar(m) : m.tipo === "link" ? ventanaLink(m) : "";
   h.className = "gy-capa";
-  h.innerHTML = '<div class="gy-modal-bg" data-gym="cerrar"></div><div class="gy-modal cv-card" role="dialog" aria-modal="true">' + cuerpo + '</div>';
+  h.innerHTML = '<div class="gy-modal-bg" data-gym="cerrar"></div><div class="gy-modal" role="dialog" aria-modal="true">' + cuerpo + '</div>';
   restaurarFoco(foco);
   pintarQrs();
   if (!foco){ const p = h.querySelector("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, .gy-x"); if (p) p.focus({ preventScroll: true }); }

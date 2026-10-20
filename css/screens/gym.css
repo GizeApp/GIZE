@@ -86,8 +86,8 @@ a.gize-btn.cv-btn { text-decoration:none; }
 /* Inicio */
 .gy-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:0 0 18px; }
 .gy-stat { padding:14px; border-radius:18px; text-align:left; }
-.gy-stat .cv-stat-n { font-size:32px; margin-top:6px; }
-.gy-stat .cv-stat-n small { font-size:15px; font-weight:600; color:var(--txt-2); }
+.gy-stat .cv-stat-n { font-size:28px; margin-top:6px; white-space:nowrap; }
+.gy-stat .cv-stat-n small { font-size:13px; font-weight:600; color:var(--txt-2); }
 .gy-stat-s { margin-top:4px; font-size:12px; color:var(--txt-2); }
 .gy-cols { display:grid; gap:18px; }
 .gy-todo { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 16px; border-top:1px solid var(--gize-border); }
@@ -176,7 +176,9 @@ a.gize-btn.cv-btn { text-decoration:none; }
 /* Ventanas */
 .gy-capa { position:fixed; inset:0; z-index:400; }
 .gy-modal-bg, .gy-sheet-bg { position:absolute; inset:0; background:rgba(0,0,0,.55); }
-.gy-modal { position:absolute; left:0; right:0; bottom:0; max-height:88vh; max-height:88dvh; overflow-y:auto; padding:18px 16px calc(20px + env(safe-area-inset-bottom)); border-radius:22px 22px 0 0; box-sizing:border-box; }
+/* Opacas, como las preguntas de la app (.av-card): en «Claro», su vidrio sólido. */
+.gy-modal { position:absolute; left:0; right:0; bottom:0; max-height:88vh; max-height:88dvh; overflow-y:auto; padding:18px 16px calc(20px + env(safe-area-inset-bottom)); border-radius:22px 22px 0 0; box-sizing:border-box;
+    background:var(--frz-glass-solid, var(--gize-surface)); border:1px solid var(--gize-border); box-shadow:0 20px 60px rgba(0,0,0,.45); color:var(--txt); }
 .gy-modal-h, .gy-sheet-h { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
 .gy-modal-h h2 { margin:0; font-family:var(--gize-font); font-size:20px; color:var(--txt); }
 .gy-x { width:36px; height:36px; flex:none; border-radius:50%; border:1px solid var(--gize-border); background:none; color:var(--txt); font:inherit; cursor:pointer; }
@@ -186,9 +188,10 @@ a.gize-btn.cv-btn { text-decoration:none; }
 .gy-radio b { grid-area:t; color:var(--txt); font-size:var(--text-body); }
 .gy-radio span { grid-area:s; color:var(--txt-2); font-size:var(--text-meta); line-height:1.4; }
 .gy-radio.on { border-color:color-mix(in srgb, var(--gize-blue) 70%, transparent); background:color-mix(in srgb, var(--gize-blue) 10%, transparent); }
-.gy-sheet { position:absolute; left:0; right:0; bottom:0; padding:16px 16px calc(20px + env(safe-area-inset-bottom)); border-radius:22px 22px 0 0; background:var(--gize-surface); border-top:1px solid var(--gize-border); }
+.gy-sheet { position:absolute; left:0; right:0; bottom:0; padding:16px 16px calc(20px + env(safe-area-inset-bottom)); border-radius:22px 22px 0 0; background:var(--frz-glass-solid, var(--gize-surface)); border-top:1px solid var(--gize-border); }
 .gy-sheet-h b { font-size:18px; color:var(--txt); }
 .gy-mas { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.gy-mas-i svg { width:20px; height:20px; flex:none; }
 .gy-mas-i { display:flex; align-items:center; gap:10px; min-height:52px; padding:0 14px; border-radius:var(--r-box); border:1px solid var(--gize-border); background:var(--gize-surface-2); color:var(--txt); font:inherit; font-weight:600; text-align:left; cursor:pointer; }
 .gy-imprimir { text-align:center; color:var(--txt); }
 .gy-imprimir h3 { margin:4px 0; font-size:22px; }
