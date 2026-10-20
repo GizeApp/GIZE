@@ -18,9 +18,13 @@
 -- Códigos que devuelve ia_reservar (y la función, con el mismo nombre): pausada (motivo: apagada,
 -- sin_ciclo, creditos, admin), tope_mes, ahorro, ritmo, tope_dia, tope_persona, error.
 --
+-- La app (foto del plato y «Contame qué comiste») pregunta ia_mi_estado() para saber si muestra
+-- los botones, guarda el permiso con ia_permiso() y los avisos de «¿Está mal?» con ia_reportar().
+--
 -- Correr con el workflow "Supabase" → tarea sql → supabase/ia.sql, después de
 -- supabase/admin.sql, supabase/cupo-plan.sql y supabase/pedidos-productos.sql (las columnas ai_*
--- de los pedidos). Se puede correr varias veces. Usa pg_cron (como descanso.sql).
+-- de los pedidos); food_entries es de supabase/base.sql. Se puede correr varias veces. Usa
+-- pg_cron (como descanso.sql).
 
 -- ---------- configuración (una sola fila) ----------
 create table if not exists public.ia_config (
@@ -673,10 +677,11 @@ grant execute on function public.ia_mi_estado() to authenticated;
 
 -- Aceptar o apagar la IA de Comida (la hoja del permiso y Ajustes → Funciones con IA). Para
 -- aceptar hay que haber visto el aviso vigente (p_version = ia_config.aviso_version): si el texto
--- cambió, la app lo vuelve a mostrar. Guarda cuándo y qué versión. Devuelve ia_mi_estado().
+-- cambió, la app lo vuelve a mostrar. Guarda cuándo (la hora de verdad, no la de la transacción:
+-- apagar y volver a prender seguido tiene que quedar en orden) y qué versión. Devuelve ia_mi_estado().
 create or replace function public.ia_permiso(p_tipo text, p_acepta boolean, p_version int default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare v_uid uuid := auth.uid(); v_ver int;
+declare v_uid uuid := auth.uid(); v_ver int; v_ahora timestamptz := clock_timestamp();
 begin
   if v_uid is null then raise exception 'Iniciá sesión para usar la IA.' using errcode = '42501'; end if;
   if p_tipo is null or p_tipo <> 'comida' or p_acepta is null then raise exception 'Pedido inválido.' using errcode = '22023'; end if;
@@ -684,12 +689,12 @@ begin
   v_ver := coalesce(v_ver, 1);
   if p_acepta and coalesce(p_version, 0) <> v_ver then raise exception 'El aviso cambió: volvé a leerlo.' using errcode = '22023'; end if;
   insert into public.ia_permisos (user_id, comida_ok_at, comida_no_at, version, updated_at)
-  values (v_uid, case when p_acepta then now() end, case when not p_acepta then now() end, case when p_acepta then v_ver else 0 end, now())
+  values (v_uid, case when p_acepta then v_ahora end, case when not p_acepta then v_ahora end, case when p_acepta then v_ver else 0 end, v_ahora)
   on conflict (user_id) do update
-     set comida_ok_at = case when p_acepta then now() else ia_permisos.comida_ok_at end,
-         comida_no_at = case when p_acepta then ia_permisos.comida_no_at else now() end,
+     set comida_ok_at = case when p_acepta then v_ahora else ia_permisos.comida_ok_at end,
+         comida_no_at = case when p_acepta then ia_permisos.comida_no_at else v_ahora end,
          version = case when p_acepta then v_ver else ia_permisos.version end,
-         updated_at = now();
+         updated_at = v_ahora;
   return public.ia_mi_estado();
 end $$;
 revoke all on function public.ia_permiso(text, boolean, int) from public, anon;
