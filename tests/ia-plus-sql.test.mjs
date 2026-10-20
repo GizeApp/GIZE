@@ -15,7 +15,9 @@
 //      arrepentimiento), también con la IA apagada;
 //    - panel: dar y sacar IA Plus a mano por mail, lista y resumen; desde la app no se puede;
 //    - no se prende IA Plus con la IA de Comida apagada; después de arrepentirse, 60 días de espera
-//      (espera_hasta) y quien se arrepintió dos veces queda en la lista del panel.
+//      (espera_hasta) y quien se arrepintió dos veces queda en la lista del panel;
+//    - botón de arrepentimiento y de baja sin sesión (pedido_baja): código, tope por mail, solo la
+//      función lo puede llamar y el panel los ve y los marca atendidos.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -282,6 +284,33 @@ reset role;
 ${COMO(ADMIN_ID)}
 do $$ declare l jsonb := public.admin_ia_plus_lista(); begin
   assert exists (select 1 from jsonb_array_elements(l) x where x ->> 'user_id' = '${ALUMNO_ID}' and (x ->> 'arrepentimientos')::int = 2), 'en la lista ' || l::text;
+end $$;
+reset role;`],
+  ['botón de arrepentimiento y de baja sin sesión: código, cuenta, tope por mail, panel', `
+update auth.users set email = 'alumno@prueba.test' where id = '${ALUMNO_ID}';
+do $$ declare j jsonb; m text := (select email from auth.users where id = '${ALUMNO_ID}'); begin
+  j := public.pedido_baja('arrepentimiento', 'iaplus', upper(m), 'mp: x');
+  assert (j ->> 'ok')::boolean and j ->> 'codigo' ~ '^GZ-[0-9A-F]{8}$' and (j ->> 'cuenta')::boolean, 'pedido ' || j::text;
+  j := public.pedido_baja('baja', 'coach', 'nadie@nada.test', null);
+  assert (j ->> 'ok')::boolean and not (j ->> 'cuenta')::boolean, 'sin cuenta ' || j::text;
+  j := public.pedido_baja('otra', 'iaplus', m, null); assert j ->> 'codigo' = 'invalido', 'tipo ' || j::text;
+  j := public.pedido_baja('baja', 'iaplus', 'no-es-mail', null); assert j ->> 'codigo' = 'invalido', 'mail ' || j::text;
+  perform public.pedido_baja('baja', 'iaplus', m, null); perform public.pedido_baja('baja', 'iaplus', m, null);
+  j := public.pedido_baja('baja', 'iaplus', m, null); assert j ->> 'codigo' = 'muchos', 'tope por mail ' || j::text;
+end $$;
+${COMO(OTRO_ID)}
+do $$ begin
+  begin perform public.pedido_baja('baja', 'iaplus', 'a@b.cd', null); raise exception 'pidió desde la app'; exception when insufficient_privilege then null; end;
+  begin perform 1 from public.pedidos_baja; raise exception 'leyó los pedidos'; exception when insufficient_privilege then null; end;
+  begin perform public.admin_pedidos_baja(); raise exception 'vio los pedidos'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+${COMO(ADMIN_ID)}
+do $$ declare l jsonb := public.admin_pedidos_baja(); i bigint; begin
+  assert jsonb_array_length(l) = 4, 'lista ' || l::text;
+  i := (l -> 0 ->> 'id')::bigint;
+  l := public.admin_pedido_baja_atendido(i);
+  assert exists (select 1 from jsonb_array_elements(l) x where (x ->> 'id')::bigint = i and x ->> 'atendido_at' is not null), 'atendido ' || l::text;
 end $$;
 reset role;`],
 ];

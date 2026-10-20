@@ -75,6 +75,7 @@ export default async function ({ t }){
       if (q.tabla === 'profiles') return { data: q.columnas === 'role' ? { role: o.rol || 'client' } : { id: UID, full_name: 'Alumno' } };
       if (q.tabla === 'ia_config') return { data: { plus: cfg } };
       if (q.tabla === 'ia_plus_incluido') return { data: !!o.incluido };
+      if (q.tabla === 'pedido_baja'){ (st.pedidos = st.pedidos || []).push(q.valores); return { data: o.pedido || { ok: true, codigo: 'GZ-ABCDEF12', cuenta: true } }; }
       if (q.tabla === 'coach_billing'){ st.billing.push(q); return { data: null }; }
       if (q.tabla === 'mp_avisos'){ st.avisos.push(q.valores && q.valores.clave); return { data: null }; }
       if (q.tabla === 'mp_checkouts'){
@@ -111,7 +112,8 @@ export default async function ({ t }){
     const fn = await funcion('suscripcion', { fetch, env: Object.assign({ RESEND_API_KEY: 're', AVISOS_PAGOS: 'socios@prueba.test' }, ENV), npm: { '@supabase/supabase-js': { createClient: () => db } } });
     const app = async body => { const r = await fn.call(new Request('https://x.supabase.co/functions/v1/suscripcion', { method: 'POST', headers: { Authorization: 'Bearer x' }, body: JSON.stringify(body) })); return { status: r.status, ...(await r.json()) }; };
     const hook = async (type, id) => (await fn.call(new Request('https://x.supabase.co/functions/v1/suscripcion?webhook=1', { method: 'POST', body: JSON.stringify({ type, data: { id } }) }))).status;
-    return { st, subs, app, hook, logs: fn.logs };
+    const publico = async body => { const r = await fn.call(new Request('https://x.supabase.co/functions/v1/suscripcion?pedido=1', { method: 'POST', body: JSON.stringify(body) })); return { status: r.status, ...(await r.json()) }; };
+    return { st, subs, app, hook, publico, logs: fn.logs };
   };
   const cobrada = (id, o = {}) => ({ id, status: 'authorized', external_reference: 'iaplus|' + UID, auto_recurring: { transaction_amount: 4500 },
     summarized: { last_charged_date: '2026-10-19T12:00:00.000Z', charged_quantity: 1 }, date_created: '2026-10-19T11:00:00Z', ...o });
@@ -254,6 +256,22 @@ export default async function ({ t }){
     x = await mpSim({ fila: conPlus, rutas: pago('refunded') });
     await x.hook('payment', '555');
     t.ok(Date.parse(x.st.plus.mp_hasta) > Date.now() + 9 * DIA && !x.st.mp.includes('GET /v1/payments/555'), 'un pago que no es de IA Plus: ni se consulta');
+
+    // Botón de arrepentimiento y de baja sin sesión (gize.ar/baja/).
+    x = await mpSim();
+    r = await x.publico({ tipo: 'arrepentimiento', servicio: 'iaplus', email: ' Alumno@Prueba.test ', detalle: 'op 123' });
+    t.eq([r.status, r.codigo], [200, 'GZ-ABCDEF12'], 'pedido sin sesión: contesta con el código');
+    t.eq(x.st.pedidos, [{ p_tipo: 'arrepentimiento', p_servicio: 'iaplus', p_email: 'alumno@prueba.test', p_detalle: 'op 123' }], 'lo guarda (mail en minúsculas)');
+    t.ok(x.st.avisos.includes('pedido:GZ-ABCDEF12'), 'avisa a los socios');
+    const mailUsuario = x.st.bodies.find(b => b[0] === 'POST /emails' && JSON.stringify(b[1].to) === '["alumno@prueba.test"]');
+    t.ok(!!mailUsuario && /GZ-ABCDEF12/.test(mailUsuario[1].subject), 'le manda el código por mail a la cuenta');
+    t.ok(!x.st.mp.some(m => /preapproval|refunds/.test(m)), 'no cancela ni devuelve nada solo');
+    x = await mpSim({ pedido: { ok: true, codigo: 'GZ-00000001', cuenta: false } });
+    r = await x.publico({ tipo: 'baja', servicio: 'coach', email: 'cualquiera@prueba.test' });
+    t.ok(r.status === 200 && !x.st.bodies.some(b => b[0] === 'POST /emails' && JSON.stringify(b[1].to) === '["cualquiera@prueba.test"]'), 'mail que no es de una cuenta: no se le manda nada');
+    x = await mpSim({ pedido: { ok: false, codigo: 'muchos' } });
+    r = await x.publico({ tipo: 'baja', servicio: 'iaplus', email: 'a@prueba.test' });
+    t.eq(r.status, 429, 'muchos pedidos con el mismo mail: 429');
   }
 
   // ---------- 3) compras-apple ----------

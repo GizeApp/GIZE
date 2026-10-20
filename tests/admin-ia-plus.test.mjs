@@ -20,12 +20,15 @@ const LISTA = [
 
 export default async function ({ base, t }){
   let plus = { activa: false, gratis_semana: 3, precio_ars: 3900, precio_confirmado: false }, lista = LISTA.slice();
+  let pedidos = [{ id: 7, codigo: 'GZ-1A2B3C4D', tipo: 'arrepentimiento', servicio: 'iaplus', email: 'eva@prueba.test', detalle: 'op 123', cuenta: true, created_at: D(-0.1), atendido_at: null }];
   const rpcs = [];
   const { p, errs, preguntas, close } = await newPage({ user: ADMIN, viewport: { width: 1280, height: 900 }, handlers: {
     '/is_app_admin': (r, J) => J(true), '/admin_overview': (r, J) => J({ pending: 0, versions: [], users: 0 }),
     '/admin_contact_unread': (r, J) => J(0), '/admin_reports_pending': (r, J) => J(0), '/admin_requests_pending': (r, J) => J(0),
     '/admin_ia_estado': (r, J) => J(ESTADO(plus)),
     '/admin_ia_plus_lista': (r, J) => J(lista),
+    '/admin_pedidos_baja': (r, J) => J(pedidos),
+    '/admin_pedido_baja_atendido': (r, J, i) => { const b = JSON.parse(i.body || '{}'); rpcs.push(['atendido', b]); pedidos = pedidos.map(x => x.id === b.p_id ? Object.assign({}, x, { atendido_at: D(0) }) : x); return J(pedidos); },
     '/admin_ia_config': (r, J, i) => {
       const b = JSON.parse(i.body || '{}').p || {}; rpcs.push(['config', b]);
       const n = Object.assign({}, plus, b.plus || {});
@@ -50,6 +53,8 @@ export default async function ({ base, t }){
   let h = await blk();
   t.ok(!h.includes('La IA de Comida está apagada'), 'IA prendida: sin el aviso');
   t.has(h, 'Dani dani@prueba.test Se arrepintió Se arrepintió 2 veces', 'quien se arrepintió dos veces, marcado');
+  t.has(h, 'Pedidos de baja y arrepentimiento sin sesión · 1 sin atender', 'los pedidos de gize.ar/baja: cuántos sin atender');
+  t.has(h, 'GZ-1A2B3C4D Arrepentimiento · IA Plus eva@prueba.test op 123', 'el pedido: código, qué, mail y detalle');
   t.has(h, 'Apagado: no hay límite semanal (como hasta ahora) y no se vende nada.', 'arranca apagado y dice qué pasa');
   t.eq(await p.getAttribute('[data-a="iaPlusOn"]', 'aria-checked'), 'false', 'el interruptor, apagado');
   t.has(h, 'Precio provisorio ($3.900): confirmalo con «Guardar precio» antes de prender IA Plus.', 'el precio provisorio, marcado');
@@ -83,6 +88,8 @@ export default async function ({ base, t }){
   t.ok(dar && dar[1].p_email === 'caro@prueba.test' && /^\d{4}-\d{2}-\d{2}$/.test(dar[1].p_hasta) && dar[1].p_nota === 'se le cortó el pago', 'da IA Plus a mano: mail, hasta y nota: ' + JSON.stringify(dar));
   t.has(await blk(), 'A mano: se le cortó el pago', 'aparece en la lista');
   if (SHOTS) { await p.evaluate(() => document.getElementById('iaPlusB').scrollIntoView({ block: 'start' })); await wait(300); await p.screenshot({ path: SHOTS + '/12-admin-ia-plus.png', fullPage: false }); }
+  await p.click('[data-a="pedidoAtendido"][data-id="7"]'); await wait(900);
+  t.ok(rpcs.some(x => x[0] === 'atendido' && x[1].p_id === 7) && !(await blk()).includes('sin atender'), 'marca el pedido como atendido');
   await p.click('[data-a="iaPlusQuitar"][data-id="u3"]'); await wait(1000);
   t.ok(rpcs.some(x => x[0] === 'quitar' && x[1].p_uid === 'u3'), 'saca el IA Plus dado a mano');
   t.ok(!(await blk()).includes('A mano: se le cortó'), 'y sale de la lista');

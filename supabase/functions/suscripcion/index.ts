@@ -34,6 +34,10 @@
 //         Después, 60 días sin poder volver a suscribirse por Mercado Pago (iaplus.ts).
 //     Mercado Pago avisa los cobros de IA Plus al mismo webhook: se reconocen por la referencia
 //     («iaplus|<cuenta>») y van a ia_plus, nunca a coach_billing.
+//   · Sin sesión (?pedido=1, la página gize.ar/baja/): { tipo: "arrepentimiento"|"baja",
+//       servicio: "iaplus"|"coach", email, detalle? } → { ok, codigo }. Botón de arrepentimiento y
+//       botón de baja sin registrarse: guarda el pedido (supabase/ia.sql → pedidos_baja), avisa a
+//       los socios y, si el mail es de una cuenta, le manda el código. No cancela nada solo.
 //   · Desde Mercado Pago (?webhook=1): el aviso de un cambio. No se confía en lo que dice
 //     el aviso: se vuelve a pedir la suscripción a la API de Mercado Pago con el token,
 //     así que un aviso falso no puede dar acceso.
@@ -452,6 +456,49 @@ async function plusDesdeLaApp(input: { action?: string; mp_email?: string }, use
   return json({ url: pa.init_point });
 }
 
+// ---- Botón de arrepentimiento y botón de baja, sin iniciar sesión (gize.ar/baja/) ----
+async function pedidoPublico(req: Request): Promise<Response> {
+  let b: Record<string, unknown> = {};
+  try { b = await req.json(); } catch { return json({ error: "Pedido inválido" }, 400); }
+  const tipo = String(b.tipo || ""), servicio = String(b.servicio || "");
+  const email = String(b.email || "").trim().toLowerCase(), detalle = String(b.detalle || "").trim().slice(0, 500);
+  const db = admin();
+  const { data, error } = await db.rpc("pedido_baja", { p_tipo: tipo, p_servicio: servicio, p_email: email, p_detalle: detalle || null });
+  if (error) { console.error("pedido_baja", error.code || ""); return json({ error: "No se pudo registrar el pedido. Escribinos a contacto@gize.ar." }, 500); }
+  if (!data || !data.ok) {
+    const muchos = !!data && data.codigo === "muchos";
+    return json({ error: muchos ? "Ya recibimos varios pedidos con ese mail. Si necesitás algo más, escribinos a contacto@gize.ar." : "Revisá el mail y lo que elegiste.", codigo: data && data.codigo }, muchos ? 429 : 400);
+  }
+  const que = tipo === "arrepentimiento" ? "Botón de arrepentimiento" : "Botón de baja";
+  const serv = servicio === "iaplus" ? "IA Plus" : "Plan de coach";
+  await avisar("pedido:" + data.codigo, que + " · " + serv + " · " + data.codigo, "#FF4D4D", [
+    ["Código", String(data.codigo)], ["Pedido", que], ["Suscripción", serv], ["Mail", email],
+    ["Cuenta de GIZE", data.cuenta ? "Sí" : "No se encontró"], ["Detalle", detalle || "—"], ["Fecha", fecha(null)],
+    ["Qué hacer", "Hacelo desde el panel o Mercado Pago y marcalo como atendido (panel → IA → IA Plus)"],
+  ]);
+  // Solo si el mail es de una cuenta de GIZE (para no mandarle mails a cualquiera).
+  if (data.cuenta) await mailPedido(email, que, serv, String(data.codigo), tipo === "arrepentimiento");
+  return json({ ok: true, codigo: data.codigo });
+}
+
+async function mailPedido(to: string, que: string, serv: string, codigo: string, arrep: boolean) {
+  const key = Deno.env.get("RESEND_API_KEY");
+  if (!key) return;
+  const html = '<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0B0D11">'
+    + '<h2 style="margin:0 0 12px;font-size:20px">Recibimos tu pedido</h2>'
+    + '<p style="font-size:15px">' + esc(que) + ' de ' + esc(serv) + '. Tu código de pedido es <b>' + esc(codigo) + '</b>.</p>'
+    + '<p style="font-size:15px">' + (arrep ? "Vamos a cancelar la suscripción y devolverte lo cobrado por el mismo medio de pago. Para los 10 días del arrepentimiento cuenta la fecha de hoy." : "Vamos a cancelar la renovación: no se te cobra más y la seguís usando hasta el final del período pago.")
+    + ' Te escribimos cuando esté hecho.</p>'
+    + '<p style="font-size:13px;color:#6B7280">Si no lo pediste vos, respondé este mail.</p></div>';
+  try {
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST", headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: "GIZE <soporte@gize.ar>", to: [to], reply_to: "contacto@gize.ar", subject: "GIZE · " + que + " · " + codigo, html }),
+    });
+    if (!r.ok) console.error("pedido: mail", r.status);
+  } catch (e) { console.error("pedido: mail", (e as Error).message); }
+}
+
 async function cancelarMP(id: string) {
   try { await mp("/preapproval/" + encodeURIComponent(id), { method: "PUT", body: JSON.stringify({ status: "cancelled" }) }); }
   catch (e) { console.error("no se pudo cancelar", id, (e as Error).message); }
@@ -541,6 +588,7 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   if (url.searchParams.get("webhook")) return webhook(req, url);
+  if (url.searchParams.get("pedido")) return pedidoPublico(req);
 
   // Pedido de la app: el coach logueado.
   const asUser = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {

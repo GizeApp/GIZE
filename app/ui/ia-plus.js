@@ -34,6 +34,12 @@ export function plusInfo(){
 }
 // ¿Rige el límite semanal para esta persona? (IA Plus prendido y sin IA Plus)
 export const plusLimiteSemanal = () => { const p = plusInfo(); return !!(p && p.activa && p.estado === "gratis"); };
+// ¿Se puede usar la IA de Comida ahora? Con la IA apagada, sin la foto ni el texto, pausada o sin
+// crédito este mes, IA Plus no se ofrece: sería cobrar por algo que no se puede usar.
+export function plusIAUsable(){
+  const e = State.cloudUser && IA.uid === State.cloudUser.id && IA.estado;
+  return !!(e && e.activa && e.funciones && (e.funciones.plato || e.funciones.texto) && !["pausada", "tope_mes"].includes(e.estado));
+}
 
 // Dónde se puede comprar: "web" (Mercado Pago), "apple" (iPhone con el plugin), "android" o
 // "ios-sin" (iPhone con una versión sin el plugin de compras): en esos dos, no se vende.
@@ -63,7 +69,7 @@ function precioApple(){
 // La oferta: debajo del aviso del límite semanal (hoja de Comida) y en Ajustes → Mi IA Plus.
 export function plusOfertaHtml(){
   const p = plusInfo();
-  if (!p || !p.activa || p.estado !== "gratis") return "";
+  if (!p || !p.activa || p.estado !== "gratis" || !plusIAUsable()) return "";
   const canal = plusCanal();
   if (canal === "android" || canal === "ios-sin") {
     return `<div class="plus-box plus-no" data-plus-canal="${canal}"><p>${canal === "android" ? "IA Plus todavía no está disponible en la app de Android; podés seguir cargando a mano." : "IA Plus todavía no está disponible en esta versión de la app; podés seguir cargando a mano."}</p></div>`;
@@ -83,7 +89,11 @@ export function plusOfertaHtml(){
         <a href="${TERMINOS()}" target="_blank" rel="noopener">Términos de uso</a><a href="${PRIVACIDAD()}" target="_blank" rel="noopener">Política de privacidad</a></div>
     </div>`;
   }
-  // Web: Mercado Pago, en pesos.
+  // Web: Mercado Pago, en pesos. Recién arrepentido: hasta cuándo no se puede volver a suscribir.
+  if (p.espera_hasta && Date.parse(p.espera_hasta) > Date.now()) {
+    return `<div class="plus-box" data-plus-canal="web">${cab}<p>Usaste el botón de arrepentimiento hace poco: vas a poder volver a suscribirte a IA Plus desde el ${dia(p.espera_hasta)}.</p>
+      <div class="plus-links"><a href="${TERMINOS()}" target="_blank" rel="noopener">Términos de IA Plus</a></div></div>`;
+  }
   const precio = pesos(p.precio_ars);
   const mail = (State.cloudUser && State.cloudUser.email) || "";
   return `<div class="plus-box" data-plus-canal="web">${cab}
@@ -98,9 +108,11 @@ export function plusOfertaHtml(){
 
 // Ajustes → Mi IA Plus. Solo con IA Plus prendido en el panel o si la persona tiene uno vigente
 // (para que lo pueda cancelar o administrar aunque el dueño lo apague).
+// Con la IA de Comida apagada o pausada, solo para quien compró (para cancelar o administrar).
 export function plusAjustesHtml(){
   const p = plusInfo();
   if (!p || (!p.activa && !p.fuente)) return "";
+  if (!p.fuente && !plusIAUsable()) return "";
   const canal = plusCanal();
   let estado = "", botones = "";
   if (p.estado === "incluido") {
@@ -181,7 +193,9 @@ async function arrepentirse(btn){
     const r = await State.sb.functions.invoke("suscripcion", { body: { action: "iaplus_arrepentimiento" } });
     if (r.error) { alert((await errDe(r)).error); return; }
     await refrescar();
-    alert(r.data && r.data.devuelto ? "Listo: cancelamos IA Plus y pedimos la devolución del pago a Mercado Pago. Puede tardar unos días en verse."
+    // En las apps no se nombra Mercado Pago (reglas de las tiendas).
+    alert(r.data && r.data.devuelto ? (plusCanal() === "web" ? "Listo: cancelamos IA Plus y pedimos la devolución del pago a Mercado Pago. Puede tardar unos días en verse."
+        : "Listo: cancelamos IA Plus y pedimos la devolución del pago por el mismo medio con el que pagaste. Puede tardar unos días en verse.")
       : "Listo: cancelamos IA Plus. La devolución la hacemos a mano en los próximos días; si tenés dudas, escribinos a contacto@gize.ar.");
   });
 }

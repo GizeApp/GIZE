@@ -173,6 +173,26 @@ alter table public.ia_plus add column if not exists mp_pago_pa text;
 alter table public.ia_plus add column if not exists ultimo_arrepentido_at timestamptz;
 alter table public.ia_plus add column if not exists arrepentimientos int not null default 0;
 create index if not exists ia_plus_pago on public.ia_plus(mp_pago_id);
+
+-- ---------- Botón de arrepentimiento y botón de baja, sin iniciar sesión ----------
+-- La página gize.ar/baja/ (enlazada desde el pie de la página de inicio, sin registrarse: Res.
+-- 424/2020 y la del botón de baja) manda el pedido a la función «suscripcion» (?pedido=1), que lo
+-- guarda acá con un código, se lo muestra a la persona y avisa a los socios. No cancela nada solo
+-- (cualquiera puede escribir un mail): los socios lo hacen y lo marcan como atendido en el panel.
+-- Vale para IA Plus y para los planes de coach pagados en la web. La fecha del pedido es la que
+-- cuenta para los 10 días del arrepentimiento.
+create table if not exists public.pedidos_baja (
+  id          bigserial primary key,
+  codigo      text not null unique,
+  tipo        text not null check (tipo in ('arrepentimiento', 'baja')),
+  servicio    text not null check (servicio in ('iaplus', 'coach')),
+  email       text not null check (char_length(email) <= 320),
+  detalle     text check (detalle is null or char_length(detalle) <= 500),
+  user_id     uuid references auth.users(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  atendido_at timestamptz
+);
+create index if not exists pedidos_baja_email on public.pedidos_baja(lower(email), created_at);
 create index if not exists ia_plus_mp on public.ia_plus(mp_preapproval_id);
 create index if not exists ia_plus_apple on public.ia_plus(apple_original_tx);
 
@@ -183,12 +203,16 @@ alter table public.ia_llamadas enable row level security;
 alter table public.ia_permisos enable row level security;
 alter table public.ia_reportes enable row level security;
 alter table public.ia_plus enable row level security;
+alter table public.pedidos_baja enable row level security;
 revoke all on public.ia_config from anon, authenticated;
 revoke all on public.ia_ciclos from anon, authenticated;
 revoke all on public.ia_llamadas from anon, authenticated;
 revoke all on public.ia_permisos from anon, authenticated;
 revoke all on public.ia_reportes from anon, authenticated;
 revoke all on public.ia_plus from anon, authenticated;
+revoke all on public.pedidos_baja from anon, authenticated;
+grant select, insert, update on public.pedidos_baja to service_role;
+grant usage on sequence public.pedidos_baja_id_seq to service_role;
 grant select, insert, update, delete on public.ia_plus to service_role;
 -- Cada uno puede ver su permiso (se escribe solo con ia_permiso()).
 grant select on public.ia_permisos to authenticated;
@@ -834,6 +858,56 @@ begin
 end $$;
 revoke all on function public.admin_ia_reintentar() from public, anon;
 grant execute on function public.admin_ia_reintentar() to authenticated;
+
+-- ---------- botón de arrepentimiento y de baja (página sin sesión) ----------
+-- Guarda el pedido y devuelve { ok, codigo, cuenta (si el mail es de una cuenta de GIZE) } o
+-- { ok: false, codigo: 'muchos' | 'invalido' }. Hasta 3 pedidos por mail por día y 60 por hora en
+-- total (para que no se use para mandar mails a cualquiera). Solo la service role (la función).
+create or replace function public.pedido_baja(p_tipo text, p_servicio text, p_email text, p_detalle text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_mail text := lower(trim(coalesce(p_email, ''))); v_uid uuid; v_cod text;
+begin
+  if p_tipo not in ('arrepentimiento', 'baja') or p_servicio not in ('iaplus', 'coach')
+     or v_mail !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' or char_length(v_mail) > 320 or char_length(coalesce(p_detalle, '')) > 500 then
+    return jsonb_build_object('ok', false, 'codigo', 'invalido');
+  end if;
+  if (select count(*) from public.pedidos_baja where lower(email) = v_mail and created_at > now() - interval '1 day') >= 3
+     or (select count(*) from public.pedidos_baja where created_at > now() - interval '1 hour') >= 60 then
+    return jsonb_build_object('ok', false, 'codigo', 'muchos');
+  end if;
+  select u.id into v_uid from auth.users u where lower(u.email) = v_mail limit 1;
+  v_cod := 'GZ-' || upper(substr(md5(random()::text || clock_timestamp()::text || v_mail), 1, 8));
+  insert into public.pedidos_baja (codigo, tipo, servicio, email, detalle, user_id)
+  values (v_cod, p_tipo, p_servicio, v_mail, nullif(trim(coalesce(p_detalle, '')), ''), v_uid);
+  return jsonb_build_object('ok', true, 'codigo', v_cod, 'cuenta', v_uid is not null);
+end $$;
+revoke all on function public.pedido_baja(text, text, text, text) from public, anon, authenticated;
+grant execute on function public.pedido_baja(text, text, text, text) to service_role;
+
+-- Panel: los pedidos sin atender (y los atendidos de los últimos 30 días) y marcar uno atendido.
+create or replace function public.admin_pedidos_baja()
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.admin_assert();
+  return coalesce((select jsonb_agg(to_jsonb(y) order by y.created_at desc) from (
+    select b.id, b.codigo, b.tipo, b.servicio, b.email, b.detalle, b.user_id is not null as cuenta, b.created_at, b.atendido_at
+      from public.pedidos_baja b
+     where b.atendido_at is null or b.created_at > now() - interval '30 days'
+     order by b.created_at desc limit 200) y), '[]'::jsonb);
+end $$;
+revoke all on function public.admin_pedidos_baja() from public, anon;
+grant execute on function public.admin_pedidos_baja() to authenticated;
+
+create or replace function public.admin_pedido_baja_atendido(p_id bigint)
+returns jsonb language plpgsql security definer set search_path = public as $$
+begin
+  perform public.admin_assert();
+  update public.pedidos_baja set atendido_at = now() where id = p_id and atendido_at is null;
+  perform public.admin_log('pedido_baja_atendido', p_id::text, null);
+  return public.admin_pedidos_baja();
+end $$;
+revoke all on function public.admin_pedido_baja_atendido(bigint) from public, anon;
+grant execute on function public.admin_pedido_baja_atendido(bigint) to authenticated;
 
 -- ---------- panel: IA Plus ----------
 -- Las personas con IA Plus vigente o que lo tuvieron en los últimos 60 días (para soporte), con su

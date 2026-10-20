@@ -736,7 +736,7 @@ function plateBody(P){
   const otra = foto ? `<button class="ctrl ghost" data-action="plate-again">Sacar otra foto</button>` : `<button class="ctrl ghost" data-action="plate-again">Escribir de nuevo</button>`;
   const manual = `<button class="ctrl ghost" data-action="plate-manual">Buscar alimento</button><button class="ctrl ghost" data-action="plate-scan">Escanear código</button>`;
   if (P.status === "error") return `${photo}
-      <div class="pl8-err" role="alert">${esc(P.msg || "")}</div>${P.err && P.err.codigo === "tope_semana" ? plusOfertaHtml() : ""}
+      <div class="pl8-err" role="alert">${esc(P.msg || "")}</div>${P.err && (P.err.codigo === "tope_semana" || (P.err.codigo === "ahorro" && plusLimiteSemanal())) ? plusOfertaHtml() : ""}
       <div class="pl8-btns">${P.reintento ? `<button class="ctrl primary" data-action="plate-retry">Probar de nuevo</button>` : ""}${manual}</div>`;
   if (P.status === "vacio") return `${photo}
       <div class="pl8-err" role="alert">${foto ? "No vimos comida en la foto. Probá con el plato entero, de arriba y con buena luz." : "No encontramos comida en lo que escribiste. Probá contarlo de otra forma."}</div>

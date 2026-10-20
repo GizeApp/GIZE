@@ -1441,9 +1441,9 @@ function diaPolitica(iso){
 async function loadIA(){
   const lead = "Lo que gasta la IA con los créditos de API del plan Max. La IA solo completa: vos revisás y publicás.";
   page("IA", lead, '<div class="empty">Cargando…</div>');
-  const [est, fnEst, plus] = await Promise.all([rpc("admin_ia_estado").catch(e => ({ error: e })), iaInvoke({ modo: "estado" }), rpc("admin_ia_plus_lista").catch(() => null)]);
+  const [est, fnEst, plus, ped] = await Promise.all([rpc("admin_ia_estado").catch(e => ({ error: e })), iaInvoke({ modo: "estado" }), rpc("admin_ia_plus_lista").catch(() => null), rpc("admin_pedidos_baja").catch(() => null)]);
   if (S.view !== "ia") return;
-  S.iaPlus = plus;
+  S.iaPlus = plus; S.pedidosBaja = ped;
   if (est && est.error){
     const falta = /admin_ia_estado|schema cache|does not exist/i.test(errMsg(est.error));
     return page("IA", lead, `<div class="card calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/ia.sql</b> (antes, <b>supabase/pedidos-productos.sql</b>)." : esc(errMsg(est.error))}</div>`);
@@ -1577,7 +1577,15 @@ function iaPlusBlock(){
     <div class="search"><input class="in" id="iaPlusMail" type="email" placeholder="mail@ejemplo.com"><input class="in" id="iaPlusHasta" type="date" min="${isoDay(new Date())}" value="${isoDay(new Date(Date.now() + 30 * 864e5))}" aria-label="Hasta"></div>
     <div class="search"><input class="in" id="iaPlusNota" maxlength="200" placeholder="Nota (opcional), ej: se le cortó el pago"><button class="btn blue" data-a="iaPlusDar">Dar IA Plus</button></div>
     <div class="muted small">Lo pagado con Mercado Pago o con Apple no se toca desde acá: se cancela por el mismo medio.</div>`;
-  return block("iaPlusB", "IA Plus", sw + precio + gratis + sandbox + kpis + tabla + dar);
+  // Botón de arrepentimiento y de baja sin sesión (gize.ar/baja/): los pedidos, para hacerlos a mano.
+  const ped = S.pedidosBaja, sinAtender = (ped || []).filter(x => !x.atendido_at).length;
+  const pfilas = (ped || []).map(x => `<tr><td>${fmtDT(x.created_at)}<div class="muted small">${esc(x.codigo)}</div></td><td>${x.tipo === "arrepentimiento" ? "Arrepentimiento" : "Baja"} · ${x.servicio === "iaplus" ? "IA Plus" : "Plan de coach"}</td>
+    <td>${esc(x.email)}${x.cuenta ? "" : '<div class="small ia-warn">Sin cuenta con ese mail</div>'}${x.detalle ? `<div class="muted small">${esc(x.detalle)}</div>` : ""}</td>
+    <td>${x.atendido_at ? '<span class="muted small">Atendido</span>' : `<button class="btn sm" data-a="pedidoAtendido" data-id="${esc(x.id)}">Atendido</button>`}</td></tr>`).join("");
+  const pedidos = `<div class="lbl">Pedidos de baja y arrepentimiento sin sesión${sinAtender ? ` · <b class="ia-warn">${n0(sinAtender)} sin atender</b>` : ""}</div>` + (ped == null ? '<div class="calm">No se pudo traer la lista.</div>'
+    : pfilas ? `<div class="tscroll"><table class="table"><thead><tr><th>Cuándo</th><th>Qué</th><th>Mail</th><th></th></tr></thead><tbody>${pfilas}</tbody></table></div><div class="muted small">Hacelo desde la lista de arriba o desde Mercado Pago (arrepentimiento: cancelar y devolver el cobro) y marcalo como atendido. Para el arrepentimiento vale la fecha del pedido.</div>`
+    : '<div class="calm">Ninguno.</div>');
+  return block("iaPlusB", "IA Plus", sw + precio + gratis + sandbox + kpis + tabla + pedidos + dar);
 }
 async function iaPlusGuardar(btn, plus, ok){
   btn.disabled = true;
@@ -1814,6 +1822,11 @@ document.addEventListener("click", async e => {
       const v = document.getElementById("iaPlusSandbox").value.split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
       if (v.length > 20 || v.some(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) return toast("Revisá los mails (hasta 20, separados por coma).");
       iaPlusGuardar(b, { sandbox: v }, "Guardado ✓"); return;
+    }
+    if (a === "pedidoAtendido"){
+      b.disabled = true;
+      try { S.pedidosBaja = await rpc("admin_pedido_baja_atendido", { p_id: Number(b.dataset.id) }); toast("Listo ✓"); } catch (e) { b.disabled = false; return toast(errMsg(e)); }
+      paintIA(); return;
     }
     if (a === "iaPlusDar"){
       const mail = document.getElementById("iaPlusMail").value.trim(), hasta = document.getElementById("iaPlusHasta").value, nota = document.getElementById("iaPlusNota").value.trim();

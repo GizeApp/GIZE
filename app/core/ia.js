@@ -123,7 +123,7 @@ export function iaMensaje(e, modo){
     case "sin_sesion": return "Iniciá sesión para usar la IA.";
     case "sin_conexion": return "Sin conexión. La IA necesita internet; podés cargarlo a mano.";
     case "pausada": return "La IA está pausada por ahora. Cargalo a mano.";
-    case "ahorro": return "Por este mes, la foto y el texto con IA quedan para alumnos con coach. Buscalo o escaneá el código.";
+    case "ahorro": return "Por este mes, la foto y el texto con IA quedan para alumnos con coach" + (IA.estado && IA.estado.plus && IA.estado.plus.activa ? " y para quien tiene IA Plus" : "") + ". Buscalo o escaneá el código.";
     case "ritmo": return "Por hoy la IA llegó a su límite. Mañana vuelve. Mientras, cargalo a mano.";
     // IA Plus prendido (ui/ia-plus.js): se terminaron los usos gratis de la semana.
     case "tope_semana": { const n = e.tope || (IA.estado && IA.estado.plus && IA.estado.plus.gratis_semana); return "Usaste tus " + (n ? n + " " : "") + "usos gratis de IA de esta semana (foto o texto). Se renuevan el lunes. Mientras, buscalo o escaneá el código."; }

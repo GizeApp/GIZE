@@ -169,6 +169,14 @@ iPhone con Apple, en **su propio grupo**, así un coach puede tener su plan y ad
    suscripciones → tildar «IA Plus mensual»). Los avisos al servidor usan la misma dirección de la
    sección 4: no hay que cambiar nada.
 
+5. **Compras de prueba (Sandbox):** a diferencia de los planes de coach, IA Plus lo puede comprar
+   cualquier cuenta, así que una compra de Sandbox (TestFlight o la revisión de Apple, que no
+   cobran) solo activa IA Plus en las cuentas de la lista del panel: gize.ar/admin → IA → IA Plus
+   → «Compras de prueba de Apple». Antes de mandar a revisión, poné ahí el mail de la cuenta demo
+   que usa Apple (tiene que ser un alumno sin coach con plan, si no IA Plus ya viene incluido y no
+   se ofrece) y los de quienes prueben con TestFlight. Las demás cuentas reciben «Las compras de
+   prueba de Apple no activan IA Plus en esta cuenta».
+
 La guía completa para prenderlo (también Mercado Pago en la web y el panel) se arma con cada
 entrega; lo de la base está en `supabase/ia.sql` (tabla `ia_plus`).
 

@@ -220,8 +220,11 @@ export function renderConfig() {
   // Mi IA Plus (ui/ia-plus.js): solo con IA Plus prendido en el panel o con uno vigente.
   const plusSection = logged ? plusAjustesHtml() : "";
 
+  // Botón de arrepentimiento y botón de baja (suscripciones contratadas en la web): solo en la web,
+  // sin iniciar sesión (gize.ar/baja/). En las apps no: ahí no se vende nada por fuera de la tienda.
   const legalSection = '<div class="card cfg-card">' +
       cfgLinkRow(fileTextSvg, "Política de privacidad", LINKS.privacy) +
+      (appNativa() ? "" : cfgLinkRow(fileTextSvg, "Botón de arrepentimiento", "https://gize.ar/baja/?tipo=arrepentimiento") + cfgLinkRow(fileTextSvg, "Botón de baja", "https://gize.ar/baja/?tipo=baja")) +
     '</div>';
 
   const contactSection = '<div class="card cfg-card">' +

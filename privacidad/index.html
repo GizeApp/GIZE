@@ -30,6 +30,9 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
 /* Abierta desde la app (?app=1): sin la barra de arriba, que lleva a la página de inicio (tiene
    los precios y el botón para contratar, y las apps de las tiendas no pueden llevar ahí). */
 .en-app .top{display:none}
+.en-app .solo-web{display:none}
+.solo-app{display:none}
+.en-app .solo-app{display:inline}
 </style>
 <script>if (/[?&]app=1(&|$)/.test(location.search)) document.documentElement.className += " en-app";</script>
 </head>
@@ -57,7 +60,7 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
     <li><b>Uso de la app:</b> cuándo la abriste por última vez, con qué versión y desde dónde (web, Android o iPhone), para darte soporte y saber qué versiones siguen en uso.</li>
     <li><b>Errores de la app:</b> si algo falla en la app, el mensaje técnico del error, en qué parte pasó, la versión y desde dónde (web, Android o iPhone), asociados a tu cuenta, para poder arreglarlo. Se borran solos a los 90 días o al eliminar tu cuenta.</li>
     <li><b>Plan de coach comprado en la app de iPhone:</b> el pago lo procesa Apple, con tu cuenta de Apple: GIZE no recibe tu tarjeta ni tus datos de pago. Guardamos solo el número de la transacción de Apple, qué plan es, hasta cuándo está pago, si se renueva solo y si Apple lo reembolsó, para darte el plan que pagaste.</li>
-    <li><b>IA Plus:</b> si lo contratás en la web, el pago lo procesa Mercado Pago: GIZE no recibe tu tarjeta. Guardamos el número de la suscripción, su estado, desde y hasta cuándo está paga y el número del último cobro (para devolverlo si usás el botón de arrepentimiento). En la app de iPhone lo procesa Apple, como el plan de coach.</li>
+    <li><b>IA Plus:</b> <span class="solo-web">si lo contratás en la web, el pago lo procesa Mercado Pago: GIZE no recibe tu tarjeta. Guardamos el número de la suscripción, su estado, desde y hasta cuándo está paga y el número del último cobro (para devolverlo si usás el botón de arrepentimiento). En la app de iPhone lo procesa Apple, como el plan de coach.</span><span class="solo-app">en la app de iPhone el pago lo procesa Apple, como el plan de coach: GIZE no recibe tu tarjeta. Guardamos el número de la suscripción, su estado y hasta cuándo está paga.</span></li>
     <li><b>Mensajes a GIZE:</b> si nos escribís a contacto@gize.ar, tu mail, tu nombre y lo que nos mandaste, para poder responderte.</li>
     <li><b>Reportes:</b> si reportás un mensaje del chat o a alguien de un grupo de pasos, qué reportaste, el motivo y lo que escribas, para que el equipo de GIZE lo revise. A la otra persona no le avisamos.</li>
     <li><b>Funciones con IA:</b> cuándo se usaron y para qué (para los topes de cada día) y, cuando estén en tu app, si aceptaste usarlas, cuándo y qué versión del aviso viste. Ver «Funciones con inteligencia artificial».</li>
@@ -118,7 +121,7 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
     <li><b>Open Food Facts:</b> cuando buscás un producto de marca o escaneás su código de barras, la app le pide los datos directo desde tu celular. Recibe lo que buscaste o el código, pero no tu cuenta.</li>
     <li><b>OpenFreeMap:</b> da el fondo del mapa de tus salidas en la web (calles y lugares, con datos de OpenStreetMap; en las apps no hay mapas). Cuando ves un mapa, la app le pide directo desde tu celular las partes del mapa que se ven (durante una salida, las de la zona por donde vas, a medida que avanzás), así que recibe esas zonas y tu dirección IP, pero no tu cuenta ni los puntos de tu recorrido.</li>
     <li><b>Google:</b> si entrás con tu cuenta de Google, para iniciar sesión. También la letra de nuestros mails viene de Google Fonts.</li>
-    <li><b>Mercado Pago:</b> si sos coach y tenías una suscripción de GIZE con Mercado Pago, o si contratás IA Plus en la web, para cobrarla y administrarla.</li>
+    <li><b>Mercado Pago:</b> si sos coach y tenías una suscripción de GIZE con Mercado Pago<span class="solo-web">, o si contratás IA Plus en la web</span>, para cobrarla y administrarla.</li>
     <li><b>Apple:</b> si comprás un plan de coach o IA Plus en la app de iPhone, Apple procesa el pago y nos avisa la compra, sus renovaciones y cancelaciones (con el número de la transacción, el plan y las fechas).</li>
     <li><b>Anthropic:</b> si se usan las funciones con IA, recibe la foto o el texto de cada consulta o, en el resumen para tu coach, tus números de la semana, para dar el resultado (ver «Funciones con inteligencia artificial»).</li>
   </ul>

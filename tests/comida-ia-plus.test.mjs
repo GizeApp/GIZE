@@ -13,8 +13,15 @@
 //   y de arrepentimiento), cancelado, incluido con el plan del coach, con Apple («Administrar
 //   suscripción» en el iPhone). Con IA Plus apagado no aparece nada.
 // - La vuelta de Mercado Pago (?pago=iaplus): espera el cobro y avisa.
+// - Arreglos de la revisión: con la IA de Comida apagada o pausada no se vende IA Plus (ni en la
+//   web ni en el iPhone; quien lo compró igual lo ve para cancelarlo); recién arrepentido, no se
+//   ofrece suscribirse hasta pasados los 60 días; en las apps el arrepentimiento de una suscripción
+//   de Mercado Pago no nombra Mercado Pago; en modo ahorro el aviso dice que IA Plus también sigue
+//   y ofrece IA Plus; la política de privacidad desde la app no habla de Mercado Pago para IA Plus;
+//   el botón de arrepentimiento y el de baja sin sesión (gize.ar/baja/, enlazados desde la página
+//   de inicio y Ajustes en la web, no en las apps); contraste de la oferta en Oscuro y Claro.
 // Capturas con SHOTS=<carpeta>.
-import { newPage, wait, ALUMNO, perfil } from './lib.mjs';
+import { newPage, wait, ALUMNO, perfil, contraste } from './lib.mjs';
 import { ESTADO_ON } from './comida-ia-comun.mjs';
 
 const SHOTS = process.env.SHOTS;
@@ -67,6 +74,9 @@ async function pagina(o = {}){
 const abrirComida = async (p, base, q = '') => { await p.goto(base + '/app/' + q); await wait(2500); await p.click('#nav-comida'); await wait(500); };
 const abrirFoto = async p => { await p.click('[data-action="search-open"]'); await wait(700); await p.click('[data-action="ia-plato"]'); await wait(900); };
 const abrirAjustes = async (p, base, q = '') => { await p.goto(base + '/app/' + q); await wait(2500); await p.click('#nav-config'); await wait(1500); };
+const CLARO = "localStorage.setItem('gize_tema','luz');";
+// La IA de Comida apagada (con IA Plus prendido en el panel): lo que dice ia_mi_estado.
+const IA_APAGADA = plus => ({ activa: false, funciones: { plato: false, texto: false }, permiso_comida: 'ok', aviso_version: 1, plus: Object.assign({}, PLUS0, { usados_semana: 0, quedan_semana: 3 }, plus) });
 
 export default async function ({ base, t }){
   // ---------- Web: el límite semanal con la oferta ----------
@@ -244,6 +254,128 @@ export default async function ({ base, t }){
     t.ok(!/Mercado Pago|\$\d/.test(m), 'términos (desde la app): nada de Mercado Pago ni precios en pesos');
     t.eq(errs, [], 'términos: errores');
     await close();
+  }
+
+  // ---------- Revisión: la IA de Comida apagada o pausada: no se vende ----------
+  for (const [que, init] of [['web', undefined], ['iPhone', IOS]]){
+    const { p, errs, close } = await pagina({ estado: IA_APAGADA(), init });
+    await abrirAjustes(p, base); await wait(600);
+    t.ok(!(await p.$('[data-plus="mp"], [data-plus="apple"], [data-plus="restaurar"]')) && !(await p.$('#cfgPlus')), que + ', IA apagada: ni oferta ni «Mi IA Plus»');
+    t.eq(errs, [], que + ', IA apagada: errores');
+    await close();
+  }
+  {
+    const { p, errs, close } = await pagina({ estado: estado({ usados_semana: 0, quedan_semana: 3 }, { estado: 'pausada' }) });
+    await abrirAjustes(p, base);
+    t.ok(!(await p.$('[data-plus="mp"]')), 'IA pausada: no se vende');
+    t.eq(errs, [], 'IA pausada: errores');
+    await close();
+  }
+  {
+    const { p, errs, close } = await pagina({ estado: IA_APAGADA(PLUS_MP) });
+    await abrirAjustes(p, base);
+    t.ok(!!(await p.$('#cfgPlus [data-plus="baja"]')), 'IA apagada con IA Plus comprado: igual lo puede cancelar');
+    t.eq(errs, [], 'IA apagada con IA Plus: errores');
+    await close();
+  }
+  // Recién arrepentido: no se ofrece suscribirse.
+  {
+    const { p, errs, close } = await pagina({ estado: estado({ usados_semana: 0, quedan_semana: 3, espera_hasta: D(50) }, { quedan: { plato: 3, texto: 3 } }) });
+    await abrirAjustes(p, base);
+    t.has(await txt(p, '#cfgPlus'), 'Usaste el botón de arrepentimiento hace poco: vas a poder volver a suscribirte a IA Plus desde el', 'recién arrepentido: hasta cuándo');
+    t.ok(!(await p.$('#cfgPlus [data-plus="mp"]')), 'recién arrepentido: sin el botón de suscribirse');
+    t.eq(errs, [], 'recién arrepentido: errores');
+    await close();
+  }
+  // Modo ahorro con IA Plus prendido: el aviso y la oferta.
+  {
+    const { p, errs, S, close } = await pagina({ estado: estado({ usados_semana: 0, quedan_semana: 3 }, { estado: 'ahorro', quedan: { plato: 3, texto: 3 } }) });
+    await abrirComida(p, base); await abrirFoto(p);
+    t.has(await txt(p, '#sheetHost .pl8-err'), 'quedan para alumnos con coach y para quien tiene IA Plus', 'ahorro: dice que con IA Plus sigue');
+    t.ok(!!(await p.$('#sheetHost [data-plus="mp"]')) && S.llamadas.length === 0, 'ahorro: ofrece IA Plus y no llama a la IA');
+    t.eq(errs, [], 'ahorro: errores');
+    await close();
+  }
+  // iPhone con IA Plus de Mercado Pago (lo compró en la web): el arrepentimiento no nombra Mercado Pago.
+  {
+    const { p, errs, avisos, S, close } = await pagina({ estado: estado(PLUS_MP), init: IOS,
+      suscripcion: (b, S) => { if (b.action === 'iaplus_arrepentimiento') { S.estado = estado({ usados_semana: 5 }); return [200, { ok: true, devuelto: true }]; } return [400, { error: 'x' }]; } });
+    await abrirAjustes(p, base);
+    const a = await txt(p, '#cfgPlus');
+    t.ok(!PROHIBIDO.test(a), 'iPhone con IA Plus de la web, Ajustes: sin Mercado Pago ni pesos: ' + (a.match(PROHIBIDO) || [''])[0]);
+    await p.click('#cfgPlus [data-plus="arrepentir"]'); await wait(1800);
+    const dicho = avisos.map(x => x.texto).join(' ');
+    t.ok(S.suscripcion.some(b => b.action === 'iaplus_arrepentimiento') && /por el mismo medio con el que pagaste/.test(dicho) && !PROHIBIDO.test(dicho), 'iPhone: el arrepentimiento avisa sin nombrar Mercado Pago: ' + dicho);
+    t.eq(errs, [], 'iPhone arrepentimiento: errores');
+    await close();
+  }
+  // Privacidad desde la app: nada de Mercado Pago para IA Plus.
+  {
+    const { p, errs, close } = await newPage();
+    const main = () => p.evaluate(() => document.querySelector('main').innerText.replace(/\s+/g, ' '));
+    await p.goto(base + '/privacidad/?app=1'); await wait(300);
+    let m = await main();
+    t.ok(!/IA Plus[^.]*Mercado Pago|IA Plus en la web/.test(m) && /en la app de iPhone el pago lo procesa Apple/.test(m), 'privacidad (desde la app): IA Plus sin Mercado Pago');
+    await p.goto(base + '/privacidad/'); await wait(300);
+    m = await main();
+    t.ok(/IA Plus: si lo contratás en la web, el pago lo procesa Mercado Pago/.test(m) && /o si contratás IA Plus en la web/.test(m), 'privacidad (web): con Mercado Pago');
+    t.eq(errs, [], 'privacidad: errores');
+    await close();
+  }
+  // Botón de arrepentimiento y de baja sin sesión.
+  {
+    const { p, errs, close } = await newPage();
+    let pedido = null;
+    await p.route(/functions\/v1\/suscripcion\?pedido=1/, async r => { pedido = JSON.parse(r.request().postData() || '{}'); await r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ ok: true, codigo: 'GZ-1A2B3C4D' }) }); });
+    await p.goto(base + '/'); await wait(500);
+    const pie = await p.evaluate(() => [...document.querySelectorAll('footer a')].map(a => a.innerText + ' ' + a.getAttribute('href')));
+    t.ok(pie.includes('Botón de arrepentimiento baja/?tipo=arrepentimiento') && pie.includes('Botón de baja baja/?tipo=baja'), 'inicio: el botón de arrepentimiento y el de baja en el pie: ' + pie.join(' | '));
+    await p.click('footer a[href="baja/?tipo=arrepentimiento"]'); await wait(600);
+    t.ok(await p.isChecked('input[name="tipo"][value="arrepentimiento"]'), '/baja/: viene elegido «Arrepentirme»');
+    await p.click('#enviar'); await wait(300);
+    t.has(await txt(p, '#res'), 'Poné el mail de tu cuenta de GIZE', '/baja/: sin mail no manda');
+    await p.fill('#email', 'alumno@prueba.test'); await p.fill('#detalle', 'op 123');
+    await p.click('#enviar'); await wait(800);
+    t.eq(pedido, { tipo: 'arrepentimiento', servicio: 'iaplus', email: 'alumno@prueba.test', detalle: 'op 123' }, '/baja/: manda el pedido sin sesión');
+    t.has(await txt(p, '#res'), 'Recibimos tu pedido. Tu código es GZ-1A2B3C4D', '/baja/: contesta con el código');
+    const c = await contraste(p, 'main');
+    t.ok(c.n > 5 && !c.malos.length, '/baja/: contraste (mín ' + c.min + ') ' + c.malos.join(', '));
+    if (SHOTS) await p.screenshot({ path: SHOTS + '/14-web-boton-de-arrepentimiento.png', fullPage: true });
+    t.eq(errs, [], '/baja/: errores');
+    await close();
+  }
+  for (const [que, init, hay] of [['web', undefined, true], ['iPhone', IOS, false]]){
+    const { p, errs, close } = await pagina({ estado: estado({ usados_semana: 0, quedan_semana: 3 }), init });
+    await abrirAjustes(p, base);
+    const links = await p.evaluate(() => [...document.querySelectorAll('a.cfg-link-row')].map(a => a.getAttribute('href')).filter(h => /\/baja\//.test(h)));
+    t.eq(links.length, hay ? 2 : 0, que + ', Ajustes: los botones de arrepentimiento y de baja ' + (hay ? 'están' : 'no están'));
+    t.eq(errs, [], que + ', Ajustes links: errores');
+    await close();
+  }
+
+  // ---------- Contraste de la oferta, Oscuro y Claro (con capturas en los dos) ----------
+  for (const [tema, tinit, pre] of [['Oscuro', '', ''], ['Claro', CLARO, 'claro-']]){
+    for (const [que, init, n] of [['web', '', '01-web-limite-semanal'], ['iPhone', IOS, '03-iphone-limite-semanal'], ['Android', ANDROID, '05-android-limite-semanal']]){
+      const { p, errs, close } = await pagina({ estado: LIMITE, init: tinit + (init || '') });
+      await abrirComida(p, base); await abrirFoto(p); await wait(600);
+      const c = await contraste(p, '#sheetHost .plus-box');
+      t.ok(c.n >= 1 && !c.malos.length, tema + ', ' + que + ': contraste de la oferta (mín ' + c.min + ') ' + c.malos.join(', '));
+      if (pre) await shot(p, pre + n);
+      t.eq(errs, [], tema + ', ' + que + ': errores');
+      await close();
+    }
+    if (!pre) continue;
+    for (const [n, est, init] of [['06-ajustes-gratis', estado({ usados_semana: 1, quedan_semana: 2 }, { quedan: { plato: 2, texto: 2 } })], ['07-ajustes-plus-mercado-pago', estado(PLUS_MP)],
+      ['09-ajustes-incluido', estado({ estado: 'incluido', por: 'alumno' })], ['10-iphone-ajustes-plus', estado({ estado: 'plus', fuente: 'apple', hasta: D(20), renueva: true }), IOS]]){
+      const { p, errs, close } = await pagina({ estado: est, init: CLARO + (init || '') });
+      await abrirAjustes(p, base);
+      await p.evaluate(() => document.getElementById('cfgPlus').scrollIntoView({ block: 'center' })); await wait(300);
+      const c = await contraste(p, '#cfgPlus');
+      t.ok(c.n >= 1 && !c.malos.length, 'Claro, ' + n + ': contraste (mín ' + c.min + ') ' + c.malos.join(', '));
+      await shot(p, pre + n);
+      t.eq(errs, [], 'Claro, ' + n + ': errores');
+      await close();
+    }
   }
 
   // ---------- Vuelta de Mercado Pago ----------
