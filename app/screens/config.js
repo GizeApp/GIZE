@@ -376,7 +376,9 @@ document.body.addEventListener("click", async function (e) {
           appleAviso = "Ojo: tu suscripción de Apple no se cancela al eliminar la cuenta y Apple te la sigue cobrando. Cancelala antes desde los Ajustes de tu cuenta de Apple (Ajustes → tu nombre → Suscripciones).\n\n";
       } catch (err) {}
     }
-    // IA Plus con Apple que se renueva: tampoco se cancela al borrar la cuenta.
+    // IA Plus con Apple que se renueva: tampoco se cancela al borrar la cuenta. Se pregunta el estado
+    // de nuevo (si no, con IA Plus de Mercado Pago sin leer, no se cancelaba).
+    try { await iaEstado(true); } catch (err) {}
     const pl = plusInfo();
     if (!appleAviso && pl && pl.fuente === "apple" && pl.renueva)
       appleAviso = "Ojo: tu suscripción de IA Plus de Apple no se cancela al eliminar la cuenta y Apple te la sigue cobrando. Cancelala antes desde los Ajustes de tu cuenta de Apple (Ajustes → tu nombre → Suscripciones).\n\n";

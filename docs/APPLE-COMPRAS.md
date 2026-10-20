@@ -150,6 +150,28 @@ pago ni cortesía** (por ejemplo, una cuenta de coach nueva, en la prueba): si n
 y rechaza la app porque «no encuentra las compras». En las **Notas** poné: «Los planes de coach
 están en Panel de coach → Ver planes (o Configuración → Ver mi plan)».
 
+## 7. IA Plus (otro grupo de suscripciones)
+
+IA Plus (la foto del plato y «Contame qué comiste» sin el límite semanal gratis) se vende en el
+iPhone con Apple, en **su propio grupo**, así un coach puede tener su plan y además IA Plus:
+
+1. Monetización → Suscripciones → **+** al lado de «Grupos de suscripciones»: nombre de referencia
+   **GIZE IA Plus**; en Localización, Español (México), nombre visible **GIZE IA Plus**.
+2. Dentro del grupo, **+**: nombre de referencia **IA Plus mensual**, ID del producto exactamente
+   **`ar.com.gize.app.iaplus.mensual`**, duración 1 mes, precio US$2,99 (el más cercano a US$3),
+   localización Español (México): nombre visible **IA Plus**, descripción **Foto del plato y texto
+   con IA sin límite semanal**.
+3. Información para la revisión: captura de la oferta en el iPhone (Comida → Agregar → Foto, con
+   los usos gratis de la semana terminados, o Ajustes → Mi IA Plus) y en Notas: «Suscripción
+   mensual opcional que saca el límite semanal de las funciones con IA de Comida. Se compra en
+   Ajustes → Mi IA Plus (o en Comida → Agregar → Foto, cuando se terminan los usos gratis)».
+4. Se manda a revisión con la versión de la app que trae IA Plus (Compras dentro de la app y
+   suscripciones → tildar «IA Plus mensual»). Los avisos al servidor usan la misma dirección de la
+   sección 4: no hay que cambiar nada.
+
+La guía completa para prenderlo (también Mercado Pago en la web y el panel) se arma con cada
+entrega; lo de la base está en `supabase/ia.sql` (tabla `ia_plus`).
+
 ---
 
 ### Qué guarda GIZE de cada compra
