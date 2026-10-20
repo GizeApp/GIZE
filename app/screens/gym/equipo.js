@@ -70,8 +70,8 @@ function detalle(p){
     '<div class="cv-cname"><div class="co-client-name">' + esc(p.nombre || "Sin nombre") + '</div><div class="gy-fino">' + esc(rolNombre(p.rol)) + ' · desde el ' + fecha(p.joined_at) + '</div></div></div>' +
     '<div class="gy-ficha"><div class="gy-ficha-col">' +
     '<section class="cv-card gy-sec"><h2 class="gy-h">Sus socios</h2>' + (socios.length ? '<ul class="gy-ul">' + socios.map(s => '<li><button class="cv-link" data-gym="abrir" data-id="' + esc(s.id) + '">' + esc(s.nombre) + '</button></li>').join("") + '</ul>' +
-      (otros.length || true ? '<div class="gy-acc"><label class="gy-f gy-f-in"><span>Pasar todos a</span><select class="gy-sel" data-gym-in="pasar-a"><option value="">Elegí…</option><option value="-">Sin profe</option>' +
-        otros.map(o => '<option value="' + esc(o.user_id) + '">' + esc(o.nombre) + '</option>').join("") + '</select></label>' + btn2('data-gym="eq-pasar" data-id="' + esc(p.user_id) + '"', "Pasar") + '</div>' : '')
+      ('<div class="gy-acc"><label class="gy-f gy-f-in"><span>Pasar todos a</span><select class="gy-sel" data-gym-in="pasar-a"><option value="">Elegí…</option><option value="-">Sin profe</option>' +
+        otros.map(o => '<option value="' + esc(o.user_id) + '">' + esc(o.nombre) + '</option>').join("") + '</select></label>' + btn2('data-gym="eq-pasar" data-id="' + esc(p.user_id) + '"', "Pasar") + '</div>')
       : '<p class="gy-fino">' + (p.rol === "recepcion" ? "La recepción no tiene socios asignados." : "No tiene socios asignados.") + '</p>') + '</section></div>' +
     '<div class="gy-ficha-col"><section class="cv-card gy-sec"><h2 class="gy-h">En el gimnasio</h2>' +
       (puedeTocar && roles.length ? '<div class="gy-acc"><label class="gy-f gy-f-in"><span>Rol</span><select class="gy-sel" data-gym-in="rol-nuevo"><option value="">' + esc(rolNombre(p.rol)) + '</option>' +
