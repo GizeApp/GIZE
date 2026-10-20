@@ -65,6 +65,7 @@ const INTERNAS = ['gym_tick()', 'gym_diaria()', 'release_lapsed_gyms()', 'gym_re
   'gym_version_ok(text, text)', 'gym_hoy()', 'gym_token()', 'gym_hash(text)', 'gym_norm(text)', 'gym_codigo_nuevo()', 'gym_settings(uuid)', 'gym_mi_staff()',
   'gym_exigir(text[])', 'gym_exigir_altas()', 'gym_exigir_recepcion()', 'gym_tope_profes(uuid)', 'gym_profes_usados(uuid)', 'gym_plan_estado(uuid)',
   'gym_semaforo(uuid)', 'gym_json(uuid)', 'gym_crear_motivo(uuid)', 'gym_fotos_cupo_libre(text)', 'gym_fotos_cupo_alta()', 'gym_foto_valida(uuid, uuid, text)',
+  'gym_foto_ve_ficha(uuid)', 'gym_fotos_huerfanas()', 'coach_messages_gym()',
   'gym_invitacion_estado(uuid, uuid)', 'gym_socio_puede(uuid, uuid)', 'gym_ficha_datos(jsonb, boolean)', 'profiles_gym_baja()'];
 const APP = ['mi_gimnasio()', 'gym_versiones()', 'gym_crear(text, text, text, text)', 'gym_config(jsonb)', 'gym_codigo_rotar()', 'gym_cerrar(text)',
   'gym_exportar(text)', 'gym_invitar(text)', 'gym_invitacion_revocar(uuid)', 'gym_invitaciones()', 'gym_invitacion_info(text)', 'gym_aceptar_invitacion(text)',
@@ -75,7 +76,7 @@ const APP = ['mi_gimnasio()', 'gym_versiones()', 'gym_crear(text, text, text, te
   'gym_asignar_profe(uuid[], uuid)', 'gym_dejar_socio(uuid)', 'gym_pausar(uuid, date)', 'gym_reactivar(uuid)', 'gym_baja(uuid, text)',
   'gym_socios_resumen()', 'gym_foto_staff(uuid, text)', 'gym_foto_resolver(uuid, boolean, text)', 'buscar_socio(text)', 'gym_ingreso_manual(uuid, uuid)',
   'gym_ingresos(date)', 'gym_registro_lectura(uuid, date)', 'gym_cardio_lectura(uuid)', 'gym_socios_compartidos()', 'gym_ve_avatar(text)',
-  'gym_foto_carpeta(text, text, boolean)', 'gym_fotos_cupo_ok()', 'gym_mi_fila_oculta()'];
+  'gym_foto_carpeta(text, text, boolean)', 'gym_foto_ver(text)', 'gym_fotos_cupo_ok()', 'gym_mi_fila_oculta()'];
 
 export default async function ({ t: t0 }){
   const t = conCanon(t0);

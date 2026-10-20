@@ -75,7 +75,7 @@ fijada por digest en `.github/postgres-pruebas/Dockerfile`; sin secrets.
 | `gimnasios-plan` | Etapa 1. El plan del gimnasio: estado en `mi_gimnasio`, qué anda en los días 0–5, 5–10 y desde el 10, `release_lapsed_gyms`, restaurar con `gym_tick` después de pagar por MP, Apple o el admin, sobre el cupo solo se frenan las altas, y liberar, restaurar y un `join_coach` a la vez. |
 | `gimnasios-borrar` | Etapa 1. Borrar la cuenta de la dueña (cierre y purga a los 90 días), del profe por defecto, de otro profe, de la recepción, del encargado y de un socio; el borrado no falla aunque falle el trigger. |
 | `gimnasios-chat` | Etapa 1. El chat dentro de un gimnasio: el profe que deja de atender no lee ni escucha; el socio conserva todo; nadie más lee chats ajenos; `coach_client_ok` y el `gym_id` de cada mensaje. |
-| `gimnasios-foto` | Etapa 1. La foto del gimnasio (la saca o la aprueba el gimnasio, el socio solo propone): bucket `gym-fotos`, quién sube y ve, tope por día, proponer, aprobar, rechazar, sacarla el gimnasio; la de perfil no la reemplaza. |
+| `gimnasios-foto` | Etapa 1. La foto del gimnasio (la saca o la aprueba el gimnasio, el socio solo propone): bucket `gym-fotos`, quién sube y ve (el profe, solo sus asignados; los pedidos, quien aprueba), tope por día, proponer, aprobar, rechazar, sacarla el gimnasio, la foto de un pedido unido a una ficha cargada («es la ficha de…» y el link `#unirme`), las fotos que ya no usa nadie; la de perfil no la reemplaza. |
 | `gimnasios-lectura` | Etapa 1. Lo que lee la administración (11 tablas, cuándo deja de leer, leer no es editar), registro diario sin `steps` y salidas sin `track`, las fotos de perfil entre el gimnasio y sus socios, y la fila de `coach_billing` que no ve el profe con la app vieja. |
 
 ## Dónde la base de pruebas puede no ser producción
@@ -135,8 +135,14 @@ que está en producción (o se vuelve a correr el archivo del repo, si lo correc
 - **Restaurar al pagar** no es un trigger en `coach_billing` (el pago escribe esa fila antes que los
   perfiles, al revés que todo lo demás): lo hace `gym_tick` cada minuto, en su propia transacción.
 - **Lo que queda para las partes siguientes:** `rapid-worker` y `avisos-coach` con
-  `coach_client_ok` y el `gym_id` de cada mensaje (P4; la base ya lo prueba en `gimnasios-chat`); la
-  prueba de punta a punta del `400` de `join_coach` con PostgREST y las funciones de admin (P5).
+  `coach_client_ok` (P4; el `gym_id` de cada mensaje ya lo pone la base con el trigger
+  `coach_messages_gym`, probado con `chat_guardar` en `gimnasios-chat`); la prueba de punta a punta del
+  `400` de `join_coach` con PostgREST y las funciones de admin (P5); y **la tarea que borra las fotos
+  de `gym-fotos` que ya no usa ninguna ficha** (pedidos rechazados o cancelados, propuestas
+  reemplazadas o rechazadas, gimnasios purgados a los 90 días): desde SQL no se borran archivos de
+  Storage, así que `gym_fotos_huerfanas()` (solo el service role, `gimnasios-foto`) las lista y una
+  función del service role tiene que borrarlas con la API de Storage (por ejemplo, desde
+  `gym_diaria` vía `net.http_post`, como las demás tareas).
 
 ## Lo que la etapa 0 deja anotado para la etapa 1
 

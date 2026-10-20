@@ -17,9 +17,12 @@
 --     apunta un pedido que llegó por el link sin DNI). gym_invites: revoked_at.
 --   · Bucket privado gym-fotos (300 KB, jpg o webp), ruta {gimnasio}/{ficha}/{uuid}.jpg. Sube el
 --     socio a la carpeta de su ficha (vigente o pedido) y el dueño, la administración y (con el
---     interruptor de altas) la recepción a cualquier ficha de su gimnasio. Ven: el socio la suya y
---     el equipo (recepción incluida) las de fichas que no están en baja. Sin cambiar ni borrar desde
---     la app; tope de 5 subidas por día para el socio (300 para el equipo).
+--     interruptor de altas) la recepción a cualquier ficha de su gimnasio. Ven (fichas que no están
+--     en baja): el socio la suya; el dueño y la administración, todas; la recepción, todas (los
+--     pedidos, solo con «altas»); el profe, las de sus asignados (todas menos los pedidos si abre la
+--     recepción). Sin cambiar ni borrar desde la app; tope de 5 subidas por día para el socio (300
+--     para el equipo). Las fotos que ya no usa ninguna ficha las lista gym_fotos_huerfanas() para
+--     borrarlas por la API de Storage.
 --   · gym_versiones(): las versiones vigentes de la hoja, de «compartir» y del contrato de encargo
 --     ('2026-10-borrador' hasta la revisión legal). Las funciones que reciben una versión rechazan
 --     otra («Actualizá la página…»).
@@ -87,6 +90,8 @@ alter table public.gym_members drop constraint if exists gym_members_dni_intento
 alter table public.gym_members add constraint gym_members_dni_intentos_check check (dni_intentos between 0 and 5);
 create index if not exists gym_members_foto_pend_idx on public.gym_members(gym_id) where foto_pend_path is not null;
 create index if not exists gym_members_unir_idx on public.gym_members(unir_sugerida) where unir_sugerida is not null;
+create index if not exists gym_members_foto_path_idx on public.gym_members(foto_path) where foto_path is not null;
+create index if not exists gym_members_foto_pend_path_idx on public.gym_members(foto_pend_path) where foto_pend_path is not null;
 alter table public.gym_invites add column if not exists revoked_at timestamptz;
 create index if not exists gyms_lapsed_idx on public.gyms(id) where lapsed_at is not null and closed_at is null;
 create index if not exists gyms_purge_idx on public.gyms(purge_after) where purge_after is not null;
@@ -426,9 +431,37 @@ values ('gym-fotos', 'gym-fotos', false, 307200, array['image/jpeg', 'image/webp
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
--- ¿Puedo subir (subir = true) o ver la carpeta {g}/{f}? El socio, la de su ficha que no está en
--- baja (vigente o pedido). Subir: dueño y administración (y la recepción con «altas») a cualquier
--- ficha de su gimnasio que no esté en baja. Ver: todo el equipo, las fichas que no están en baja.
+-- ¿Puedo ver la foto del gimnasio de esta ficha? (no en baja) El socio, la suya (vigente o pedido).
+-- Dueño y administración, todas. La recepción, las de las fichas (las de los pedidos, solo si aprueba:
+-- «altas»). El profe, las de sus asignados (activos o pausados), y todas menos los pedidos si el
+-- gimnasio le abre la recepción. Spec §1.2: el profe ve lo suyo; la recepción, nombre, foto y semáforo.
+create or replace function public.gym_foto_ve_ficha(fid uuid)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare me uuid := auth.uid(); m record; s record; st jsonb;
+begin
+  select x.gym_id, x.member_id, x.trainer_id, x.status into m from public.gym_members x where x.id = fid;
+  if me is null or m.gym_id is null or m.status = 'baja' then return false; end if;
+  if m.member_id = me then return true; end if;
+  select * into s from public.gym_mi_staff();
+  if s.g is distinct from m.gym_id then return false; end if;
+  if s.rol in ('owner', 'admin') then return true; end if;
+  st := public.gym_settings(s.g);
+  if s.rol = 'recepcion' or (s.rol = 'profe' and coalesce((st->>'profes_recepcion')::boolean, false)) then
+    if m.status <> 'pendiente' then return true; end if;
+    return s.rol = 'recepcion' and coalesce((st->>'recepcion_altas')::boolean, false);
+  end if;
+  return s.rol = 'profe' and m.trainer_id = me and m.status in ('activo', 'pausado');
+end $$;
+revoke all on function public.gym_foto_ve_ficha(uuid) from public, anon, authenticated;
+
+-- ¿Puedo subir (subir = true) o ver la carpeta {g}/{f}? Subir: el socio, a la de su ficha que no
+-- está en baja (vigente o pedido); dueño y administración (y la recepción con «altas») a cualquier
+-- ficha de su gimnasio que no esté en baja. Ver: gym_foto_ve_ficha.
 create or replace function public.gym_foto_carpeta(g text, f text, subir boolean)
 returns boolean
 language plpgsql
@@ -442,14 +475,38 @@ begin
   if not exists (select 1 from public.gym_members m where m.id = f::uuid and m.gym_id = g::uuid and m.status <> 'baja') then
     return false;
   end if;
+  if not coalesce(subir, false) then return public.gym_foto_ve_ficha(f::uuid); end if;
   if exists (select 1 from public.gym_members m where m.id = f::uuid and m.member_id = me) then return true; end if;
   select * into s from public.gym_mi_staff();
   if s.g is distinct from g::uuid then return false; end if;
-  if not subir then return true; end if;
   return s.rol in ('owner', 'admin') or (s.rol = 'recepcion' and coalesce((public.gym_settings(s.g)->>'recepcion_altas')::boolean, false));
 end $$;
 revoke all on function public.gym_foto_carpeta(text, text, boolean) from public, anon;
 grant execute on function public.gym_foto_carpeta(text, text, boolean) to authenticated;
+
+-- Ver una foto del bucket (la política de abajo): la de la carpeta de su ficha; y si esa ficha ya no
+-- existe (un pedido que el gimnasio unió a una ficha cargada con «es la ficha de…»), la de la ficha
+-- del mismo gimnasio que la usa como foto (aprobada o propuesta).
+create or replace function public.gym_foto_ver(name text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare g text := split_part(coalesce(name, ''), '/', 1); f text := split_part(coalesce(name, ''), '/', 2); fid uuid;
+        uu text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+begin
+  if auth.uid() is null or g !~ uu or f !~ uu then return false; end if;
+  if exists (select 1 from public.gym_members m where m.id = f::uuid) then return public.gym_foto_carpeta(g, f, false); end if;
+  select m.id into fid from public.gym_members m where m.foto_path = gym_foto_ver.name and m.gym_id = g::uuid limit 1;
+  if fid is null then
+    select m.id into fid from public.gym_members m where m.foto_pend_path = gym_foto_ver.name and m.gym_id = g::uuid limit 1;
+  end if;
+  return fid is not null and public.gym_foto_ve_ficha(fid);
+end $$;
+revoke all on function public.gym_foto_ver(text) from public, anon;
+grant execute on function public.gym_foto_ver(text) to authenticated;
 
 -- Tope de subidas por día (las últimas 24 horas, de quien sube): socio 5, equipo 300.
 create or replace function public.gym_fotos_cupo_libre(p_owner text)
@@ -491,8 +548,7 @@ create policy "gym-fotos: subir" on storage.objects
 drop policy if exists "gym-fotos: ver" on storage.objects;
 create policy "gym-fotos: ver" on storage.objects
   for select to authenticated
-  using (bucket_id = 'gym-fotos'
-         and public.gym_foto_carpeta((storage.foldername(name))[1], (storage.foldername(name))[2], false));
+  using (bucket_id = 'gym-fotos' and public.gym_foto_ver(name));
 
 -- El mismo tope en cada alta (con un link firmado de subida, Storage no vuelve a mirar la política;
 -- ver topes-archivos.sql), de a una por cuenta.
@@ -530,6 +586,27 @@ begin
      and exists (select 1 from storage.objects o where o.bucket_id = 'gym-fotos' and o.name = path);
 end $$;
 revoke all on function public.gym_foto_valida(uuid, uuid, text) from public, anon, authenticated;
+
+-- Las fotos del bucket que ya no usa ninguna ficha (de un pedido rechazado o cancelado, una propuesta
+-- reemplazada o rechazada, un gimnasio purgado a los 90 días), subidas hace más de 2 días: hasta 500
+-- por vez. Desde SQL no se borran archivos de Storage: las borra con la API de Storage una tarea del
+-- service role (pendiente, con las funciones de la etapa 1).
+create or replace function public.gym_fotos_huerfanas()
+returns setof text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select o.name from storage.objects o
+   where o.bucket_id = 'gym-fotos' and o.created_at < now() - interval '2 days'
+     and not exists (select 1 from public.gym_members m where m.foto_path = o.name)
+     and not exists (select 1 from public.gym_members m where m.foto_pend_path = o.name)
+   order by o.created_at
+   limit 500;
+$$;
+revoke all on function public.gym_fotos_huerfanas() from public, anon, authenticated;
+grant execute on function public.gym_fotos_huerfanas() to service_role;
 
 
 -- ===== Arranque =====
@@ -1201,7 +1278,7 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare me uuid := auth.uid(); f record; pid uuid; n int; gj jsonb; sh boolean := coalesce(share_admin, false);
+declare me uuid := auth.uid(); f record; pid uuid; n int; gj jsonb; sh boolean := coalesce(share_admin, false); ped_path text; ped_at timestamptz;
 begin
   perform public.gym_version_ok('hoja', hoja_version);
   if sh then perform public.gym_version_ok('compartir', compartir_version); end if;
@@ -1225,11 +1302,18 @@ begin
       perform public.gym_auditar(f.gym_id, 'unirse_dni_mal', f.id, me, jsonb_build_object('intento', n));
       return jsonb_build_object('estado', case when n >= 5 then 'bloqueado' else 'dni_mal' end, 'gym', gj, 'quedan', greatest(5 - n, 0));
     end if;
-    if pid is not null then delete from public.gym_members where id = pid; end if;
+    -- El pedido que tenía se reemplaza por la ficha; la foto que había propuesto pasa a la ficha (si
+    -- no tenía otra propuesta), y se ve igual (gym_foto_ver).
+    if pid is not null then
+      select m.foto_pend_path, m.foto_pend_at into ped_path, ped_at from public.gym_members m where m.id = pid;
+      delete from public.gym_members where id = pid;
+    end if;
     update public.gym_members
        set member_id = me, terms_at = now(), terms_version = hoja_version, share_admin = sh,
            share_admin_at = case when sh then now() end, share_admin_version = case when sh then compartir_version end,
-           invite_token_hash = null, invite_expires_at = null, dni_intentos = 0, requested_at = coalesce(requested_at, now())
+           invite_token_hash = null, invite_expires_at = null, dni_intentos = 0, requested_at = coalesce(requested_at, now()),
+           foto_pend_path = coalesce(foto_pend_path, ped_path),
+           foto_pend_at = case when foto_pend_path is null and ped_path is not null then ped_at else foto_pend_at end
      where id = f.id;
     perform public.gym_auditar(f.gym_id, 'unirse_link', f.id, me, jsonb_build_object('compartir', sh));
     perform public.gym_alerta_staff(f.gym_id, 'socio_se_unio', f.id::text, jsonb_build_object('ficha', f.id));
@@ -1886,6 +1970,12 @@ declare g uuid := public.gym_exigir_altas(); f record;
 begin
   select m.id, m.member_id, m.foto_path, m.foto_pend_path into f from public.gym_members m where m.id = ficha and m.gym_id = g for update;
   if f.id is null or f.foto_pend_path is null then raise exception 'No hay ninguna foto para aprobar.' using errcode = 'P0001'; end if;
+  -- La propuesta puede venir de la carpeta de un pedido unido a esta ficha: basta con que sea de este
+  -- gimnasio y esté subida.
+  if coalesce(aprobar, false) and not (split_part(f.foto_pend_path, '/', 1) = g::text
+     and exists (select 1 from storage.objects o where o.bucket_id = 'gym-fotos' and o.name = f.foto_pend_path)) then
+    raise exception 'No encontramos la foto: pedile que mande otra.' using errcode = 'P0001';
+  end if;
   if coalesce(aprobar, false) then
     update public.gym_members set foto_path = foto_pend_path, foto_ok_at = now(), foto_ok_by = auth.uid(), foto_pend_path = null,
            foto_pend_at = null, foto_rechazo = null where id = f.id;
@@ -2180,14 +2270,17 @@ notify pgrst, 'reload schema';
 --   public.gym_invitacion_estado(uuid, uuid), public.gym_invitaciones(), public.gym_invitacion_revocar(uuid),
 --   public.gym_invitar(text), public.gym_exportar(text), public.gym_cerrar(text), public.gym_codigo_rotar(),
 --   public.gym_config(jsonb), public.gym_crear(text, text, text, text), public.mi_gimnasio(),
---   public.gym_foto_valida(uuid, uuid, text), public.gym_fotos_cupo_alta(), public.gym_fotos_cupo_ok(),
---   public.gym_fotos_cupo_libre(text), public.gym_foto_carpeta(text, text, boolean), public.gym_crear_motivo(uuid),
+--   public.gym_fotos_huerfanas(), public.gym_foto_valida(uuid, uuid, text), public.gym_fotos_cupo_alta(), public.gym_fotos_cupo_ok(),
+--   public.gym_fotos_cupo_libre(text), public.gym_foto_ver(text), public.gym_foto_carpeta(text, text, boolean),
+--   public.gym_foto_ve_ficha(uuid), public.gym_crear_motivo(uuid),
 --   public.gym_json(uuid), public.gym_semaforo(uuid), public.gym_plan_estado(uuid), public.gym_profes_usados(uuid),
 --   public.gym_tope_profes(uuid), public.gym_exigir_recepcion(), public.gym_exigir_altas(), public.gym_exigir(text[]),
 --   public.gym_mi_staff(), public.gym_settings(uuid), public.gym_codigo_nuevo(), public.gym_norm(text), public.gym_hash(text),
 --   public.gym_token(), public.gym_hoy(), public.gym_version_ok(text, text), public.gym_versiones();
 -- drop index if exists public.gyms_purge_idx;
 -- drop index if exists public.gyms_lapsed_idx;
+-- drop index if exists public.gym_members_foto_pend_path_idx;
+-- drop index if exists public.gym_members_foto_path_idx;
 -- drop index if exists public.gym_members_unir_idx;
 -- drop index if exists public.gym_members_foto_pend_idx;
 -- alter table public.gym_invites drop column if exists revoked_at;
