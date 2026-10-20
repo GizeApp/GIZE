@@ -32,9 +32,27 @@ export default async function ({ base: url, t }){
     await p.click('.ss-x[data-action="search-close"]'); await wait(400);
     await p.click('#nav-config'); await wait(900);
     t.ok(!(await p.$('[data-action="cfg-ia-toggle"]')), nombre + ': Ajustes no muestra «Funciones con IA»');
+    // Si falla (la base todavía sin ia.sql), no se vuelve a preguntar en cada redibujo.
+    for (let i = 0; i < 3; i++) { await p.click('#nav-comida'); await wait(300); await abrirBuscador(p); await p.click('.ss-x[data-action="search-close"]'); await wait(400); await p.click('#nav-config'); await wait(300); }
+    t.eq(S.nEstado, 1, nombre + ': ia_mi_estado se pregunta una sola vez usando Comida y Ajustes');
     t.eq(S.llamadas.length, 0, nombre + ': no se llama a la función');
     t.eq(errs, [], nombre + ': errores de la página');
     await close();
+  }
+
+  // ---------- el estado llega mientras se escribe en el buscador ----------
+  for (const [nombre, est] of [['apagada', { activa: false, funciones: { plato: false, texto: false }, permiso_comida: null, aviso_version: 1 }], ['prendida', ESTADO_ON]]){
+    const pg = await pagina({ estado: est, estadoTarde: 2500 });
+    await pg.p.goto(url + '/app/'); await wait(2500);
+    await pg.p.click('#nav-comida'); await wait(300);
+    await pg.p.click('[data-action="search-open"]'); await wait(500);
+    await pg.p.keyboard.type('pol', { delay: 60 }); await wait(2600);
+    await pg.p.keyboard.type('lo', { delay: 60 }); await wait(300);
+    t.eq(await pg.p.evaluate(() => [document.activeElement && document.activeElement.id, document.getElementById('foodSearch').value]), ['foodSearch', 'pollo'],
+      nombre + ': al llegar el estado, el buscador sigue con el foco y lo escrito');
+    t.eq(!!(await pg.p.$('#sheetHost [data-action="ia-plato"]')), nombre === 'prendida', nombre + ': «Foto» ' + (nombre === 'prendida' ? 'aparece' : 'no aparece'));
+    t.eq(pg.errs, [], nombre + ' (estado tarde): errores de la página');
+    await pg.close();
   }
 
   // ---------- prendida: el permiso ----------
@@ -109,6 +127,9 @@ export default async function ({ base: url, t }){
   t.eq(((await saved(p)) || {}).diary || [], [], 'nada se anota antes de «Agregar»');
   t.eq(S.posts.length, 0, 'nada sube a la nube antes de «Agregar»');
 
+  // Más de 5000 g: el campo queda en 5000 (lo mismo que se anotaría).
+  await p.fill('#sheetHost input[data-action="plate-grams"][data-i="0"]', '6000'); await wait(300);
+  t.eq(await p.inputValue('#sheetHost input[data-action="plate-grams"][data-i="0"]'), '5000', 'más de 5000 g: el campo queda en 5000');
   // Gramos: escribir y − / +.
   await p.fill('#sheetHost input[data-action="plate-grams"][data-i="0"]', '200'); await wait(300);
   fs = await filas();
@@ -158,8 +179,11 @@ export default async function ({ base: url, t }){
   t.ok(await p.$eval('.diary-item .ia-chip', e => /IA/.test(e.textContent)).catch(() => false), 'en el diario: el chip «IA»');
   await shot(p, '10-diario');
 
-  // La segunda vez no pregunta el permiso.
+  t.has(await txt(p, '#iaToast'), 'agregados a la cena.', 'el aviso: «agregados a la cena»');
+  // La segunda vez no pregunta el permiso, y el buscador vuelve a la comida según la hora.
   await abrirBuscador(p);
+  const ahora = await p.evaluate(() => { const h = new Date().getHours(); return h < 11 ? 'desayuno' : h < 16 ? 'almuerzo' : h < 20 ? 'merienda' : 'cena'; });
+  t.eq(await p.$$eval('#sheetHost [data-action="search-meal"].on', bs => bs.map(b => b.dataset.meal)), [ahora], 'después del plato, el buscador no queda con la comida elegida');
   await p.click('[data-action="ia-plato"]'); await wait(700);
   t.ok(!(await visible(p, '#iaPermHost .ia-perm')) && await visible(p, '#sheetHost .plate-sheet'), 'aceptado: no vuelve a preguntar');
   t.eq(S.permisos.length, 1, 'el permiso se guardó una sola vez');
@@ -185,9 +209,9 @@ export default async function ({ base: url, t }){
   t.eq(ft, [['Empanada de carne al horno', '180', 'g'], ['Gaseosa cola', '237', 'ml']], '«2 empanadas» pasa a gramos con la unidad del alimento (2 × 90 g); la gaseosa en ml');
   t.has(await txt(pt.p, '#sheetHost .plate-sheet'), '«2 empanadas de carne y una coca chica»', 'se ve lo que escribió');
   await shot(pt.p, '12-texto-revision');
-  await pt.p.click('#pl8Go'); await wait(1000);
+  await pt.p.dblclick('#pl8Go'); await wait(1000);
   const dt = ((await saved(pt.p)) || {}).diary || [];
-  t.eq(dt.map(e => [e.grams, e.unit, e.fuente]), [[180, 'g', 'ia'], [237, 'ml', 'ia']], 'el texto se anota como «ia» (sin tocar)');
+  t.eq(dt.map(e => [e.grams, e.unit, e.fuente]), [[180, 'g', 'ia'], [237, 'ml', 'ia']], 'el texto se anota como «ia» (sin tocar), una sola vez aunque toque dos veces');
   t.eq(pt.errs, [], 'texto: errores de la página');
   await pt.close();
 

@@ -9,7 +9,7 @@
 // - Ajustes: con el permiso, el interruptor prendido; apagarlo guarda que no y desde ahí el botón
 //   lleva a Ajustes (no se vuelve a preguntar solo); prenderlo muestra el aviso otra vez;
 // - las apariencias y GIZE básico: la hoja se ve (capturas con SHOTS=<carpeta>).
-import { wait } from './lib.mjs';
+import { wait, contraste } from './lib.mjs';
 import { ESTADO_ON, PLATO, pagina, abrirComida, abrirBuscador, fotoJpeg } from './comida-ia-comun.mjs';
 
 const SHOTS = process.env.SHOTS;
@@ -39,6 +39,8 @@ export default async function ({ base, t }){
   // ---------- lo que ya se sabe por el estado: sin llamar ----------
   for (const [nombre, est, texto] of [
     ['límite del día', { quedan: { plato: 0, texto: 4 } }, 'Llegaste al límite de hoy (8 fotos de plato con IA). Mañana se renueva. Mientras, buscalo o escaneá el código.'],
+    ['límite del día (fotos y textos)', { quedan: { plato: 0, texto: 0 }, usados: { plato: 8, texto: 15, total: 23 } }, 'Llegaste al límite de hoy (8 fotos de plato con IA).'],
+    ['límite del día (total)', { quedan: { plato: 0, texto: 0 }, tope: { plato: 8, texto: 15, total: 20 }, usados: { plato: 5, texto: 15, total: 20 } }, 'Llegaste al límite de hoy (20 fotos de plato con IA).'],
     ['límite de la persona', { estado: 'tope_persona', vuelve: '2026-11-10T12:00:00Z' }, 'Llegaste a tu límite personal de este mes con IA. Vuelve el 10 de noviembre. Mientras, buscalo o escaneá el código.'],
     ['límite del mes', { estado: 'tope_mes', vuelve: '2026-11-10T12:00:00Z' }, 'La IA de GIZE llegó a su límite de este mes: cargalo a mano. Vuelve el 10 de noviembre.'],
     ['pausada', { estado: 'pausada' }, 'La IA está pausada por ahora. Cargalo a mano.'],
@@ -96,6 +98,34 @@ export default async function ({ base, t }){
     await close();
   }
 
+  // ---------- teclado y otro día ----------
+  {
+    const { p, errs, close } = await pagina({ estado: OK });
+    await abrirComida(p, base);
+    await p.click('[data-action="day-prev"]'); await wait(800);
+    await abrirBuscador(p);
+    await p.click('[data-action="ia-plato"]'); await wait(800);
+    t.eq(await p.evaluate(() => document.activeElement && document.activeElement.id), 'pl8T', 'al abrir, el foco va a la hoja');
+    const vistos = [];
+    for (let i = 0; i < 6; i++) { await p.keyboard.press('Tab'); vistos.push(await p.evaluate(() => { const a = document.activeElement; return (a.closest('#sheetHost .plate-sheet') ? 'hoja:' : 'fuera:') + a.textContent.replace(/\s+/g, ' ').trim(); })); }
+    t.ok(vistos.every(v => v.startsWith('hoja:')), 'Tab no sale de la hoja: ' + vistos.join(' | '));
+    t.ok(vistos.some(v => /Sacar foto/.test(v)) && vistos.some(v => /Elegir de la galería/.test(v)), 'Tab llega a «Sacar foto» y «Elegir de la galería»');
+    await p.focus('#sheetHost label[data-pick]');
+    // Playwright tarda un momento en empezar a atajar el selector: primero se espera, después Enter.
+    const elegir = p.waitForEvent('filechooser', { timeout: 5000 }).catch(() => null); await wait(300);
+    await p.keyboard.press('Enter'); const fc = await elegir;
+    t.ok(!!fc, 'Enter en «Sacar foto» abre el selector');
+    if (fc) await fc.setFiles(await fotoJpeg(p)); await wait(1500);
+    t.has(await txt(p, '#sheetHost .plate-sheet .sheet-title'), 'Para ayer', 'mirando ayer: la hoja dice para qué día');
+    t.has(await txt(p, '#pl8Go'), ' de ayer · ', 'y el botón también');
+    await p.click('#pl8Go'); await wait(1200);
+    t.has(await txt(p, '#iaToast'), 'agregados', 'agregado');
+    t.has(await txt(p, '#iaToast'), ' de ayer.', 'el aviso dice el día');
+    t.eq((((await p.evaluate(() => JSON.parse(localStorage.getItem('rutina_jero_v1')))) || {}).diary || []).length, 0, 'no va a hoy');
+    t.eq(errs, [], 'teclado: errores de la página');
+    await close();
+  }
+
   // ---------- Ajustes ----------
   {
     const { p, errs, S, close, preguntas } = await pagina({ estado: OK });
@@ -144,6 +174,8 @@ export default async function ({ base, t }){
     t.eq((await pg.p.$$('#sheetHost .pl8-row')).length, 3, tema + (extra ? ' básico' : '') + ': la hoja con las filas');
     const cmp = await pg.p.evaluate(() => { const a = getComputedStyle(document.querySelector('#sheetHost .pl8-name')).color, b = getComputedStyle(document.querySelector('#sheetHost .pl8-row')).backgroundColor; return a !== b; });
     t.ok(cmp, tema + ': el texto no tiene el color del fondo');
+    const k = await contraste(pg.p, '#sheetHost .plate-sheet');
+    t.eq(k.malos, [], tema + (extra ? ' básico' : '') + ': contraste de la hoja ≥ 4,5 (mín. ' + k.min + ')');
     await shot(pg.p, '29-tema-' + tema + (extra ? '-basico' : ''));
     t.eq(pg.errs, [], tema + ': errores de la página');
     await pg.close();

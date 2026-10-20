@@ -10,13 +10,14 @@ export const PLATO = { ok: true, hay_comida: true, nota: 'Supuse que el puré ll
   { nombre: 'Salsa criolla', gramos: 40, kcal: 32, p: 0.4, c: 3, f: 2, cantidad: null, unidad: null, dudoso: false, base: null },
 ] };
 
-// Una página con la IA simulada. o: { estado, funcion(body) → [status, json] }
+// Una página con la IA simulada. o: { estado, funcion(body) → [status, json], sinEstado (ia_mi_estado da 404),
+// estadoTarde (ms que tarda ia_mi_estado) }. S.nEstado: cuántas veces se preguntó el estado.
 export async function pagina(o = {}){
   const S = { estado: Object.assign({}, o.estado || ESTADO_ON), permisos: [], reportes: [], llamadas: [], posts: [] };
   const pg = await newPage({ user: ALUMNO, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {}, diary: [], calTarget: 2000 },
     handlers: Object.assign({
       '/profiles': perfil('client'),
-      '/rpc/ia_mi_estado': (r, J) => o.sinEstado ? J({ message: 'no existe' }, 404) : J(S.estado),
+      '/rpc/ia_mi_estado': (r, J) => { S.nEstado = (S.nEstado || 0) + 1; return o.sinEstado ? J({ message: 'no existe' }, 404) : o.estadoTarde ? new Promise(ok => setTimeout(() => ok(J(S.estado)), o.estadoTarde)) : J(S.estado); },
       '/rpc/ia_permiso': (r, J, i) => { const b = JSON.parse(i.body || '{}'); S.permisos.push(b); S.estado = Object.assign({}, S.estado, { permiso_comida: b.p_acepta ? 'ok' : 'no' }); return J(S.estado); },
       '/rpc/ia_reportar': (r, J, i) => { S.reportes.push(JSON.parse(i.body || '{}')); return J(null); },
       '/functions/v1/ia': (r, J, i) => {
