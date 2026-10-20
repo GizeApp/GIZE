@@ -20,7 +20,7 @@ import { GS, rpc, info, gym, yo, esDueno, enApp, pedirFotos, copiar, plural, pri
 import { marcoGym, hojaMas, cabeza, btn, btn2, vacio } from './marco.js';
 import { renderInicio, marcarRecepcion } from './inicio.js';
 import { renderSocios, ventanaSumar, profesDelEquipo } from './socios.js';
-import { fotosDeSolicitudes } from './solicitudes.js';
+import { fotosDeSolicitudes, solElegido } from './solicitudes.js';
 import { renderFicha, fotosDeFicha, sinCambiarProfe } from './ficha.js';
 import { renderEquipo, renderAceptar, ventanaInvitar, ventanaQuitar } from './equipo.js';
 import { renderConfig, ventanaQr } from './config.js';
@@ -307,7 +307,7 @@ async function subirFoto(fichaId, file){
 }
 
 const aprobar = ocupado("sol", async (id, unir) => {
-  const f = GS.solForm[id] || {};
+  const o = (GS.solicitudes || []).find(x => x.id === id), f = o ? solElegido(o) : {};
   const r = await rpc("gym_aprobar", { ficha: id, profe: f.profe || null, unir_a_ficha: unir || null, foto_ok: !!f.foto });
   if (r.error){ alert(r.msg); return; }
   GS.solicitudes = (GS.solicitudes || []).filter(s => s.id !== id); delete GS.solForm[id];

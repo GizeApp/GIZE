@@ -21,7 +21,7 @@ export function profeTxt(s){
   return '<span class="gy-ambar">Sin profe</span>';
 }
 export const aptoVencido = s => !!(s.apto_medico_vence && s.apto_medico_vence < hoyAR());
-const norm = t => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+export const norm = t => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 // ¿Puede ver «Último entreno»? Solo si compartió o es su socio asignado (lo decide el servidor: si no, viene null).
 const entreno = s => s.ultimo_entreno ? cuando(s.ultimo_entreno) : '<span class="gy-mut">—</span>';
 
@@ -30,6 +30,8 @@ export function filtrar(lista){
   return lista.filter(s => {
     if (GS.tab === "bajas" ? s.estado !== "baja" : s.estado === "baja") return false;
     if (q && !(norm(s.nombre).includes(q) || norm(s.email).includes(q) || (qd.length >= 3 && (String(s.dni || "").includes(qd) || String(s.phone || "").replace(/\D/g, "").includes(qd))))) return false;
+    // En Bajas no se ven los filtros (ni «Sacar los filtros»): ahí solo cuenta lo buscado.
+    if (GS.tab === "bajas") return true;
     if (f.profe && (f.profe === "-" ? !!(s.profe || s.coach_externo) : !(s.profe && s.profe.id === f.profe))) return false;
     if (f.estado && s.estado !== f.estado) return false;
     if (f.sinProfe && (s.profe || s.coach_externo || s.sin_app || s.estado === "baja")) return false;

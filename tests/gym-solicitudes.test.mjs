@@ -49,6 +49,25 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'sin errores');
   await pg.close();
 
+  // El equipo llega después que las solicitudes: mientras, sin [Socio nuevo]; cuando llega, el profe por
+  // defecto queda elegido (antes quedaba «Sin profe» y se aprobaba sin profe).
+  {
+    const pe = await entrar(base, DUENA, { rpc: { gym_equipo: (b, st) => ({ demora: 6000, valor: st.equipo }) } }), q = pe.p;
+    await q.evaluate(() => document.querySelector('#coachHost [data-gym="socios-tab"][data-v="solicitudes"]').click()); await wait(700);
+    t.ok(await q.isDisabled('#coachHost [data-gym="sol-nuevo"][data-id="' + F.A6 + '"]'), 'sin el equipo todavía: [Socio nuevo] espera');
+    await wait(6500);
+    t.eq(await q.$eval('#coachHost select[data-gym-sol="profe"][data-id="' + F.A6 + '"]', s => s.value), PROFE.id, 'cuando llega el equipo, el profe por defecto elegido');
+    await q.click('#coachHost [data-gym="sol-nuevo"][data-id="' + F.A6 + '"]'); await wait(800);
+    t.eq(rpcs(pe.st, 'gym_aprobar'), [{ ficha: F.A6, profe: PROFE.id, unir_a_ficha: null, foto_ok: false }], 'y se aprueba con ese profe');
+    // El buscador de arriba también busca en Solicitudes (nombre o mail).
+    await q.fill('#coachHost [data-gym-in="q"]', 'elena'); await wait(400);
+    let tx = await hostTxt(q);
+    t.ok(tx.includes('Elena Paz') && !tx.includes('Tomás Ríos'), 'Solicitudes: el buscador filtra por nombre');
+    await q.fill('#coachHost [data-gym-in="q"]', 'nadie'); await wait(400);
+    t.has(await hostTxt(q), 'Ningún pedido con esa búsqueda.', 'Solicitudes: sin resultados, lo dice');
+    t.eq(pe.errs, [], 'sin errores');
+    await pe.close();
+  }
   // Sin pedidos.
   const pv = await entrar(base, DUENA, { rpc: { gym_solicitudes: () => [] } });
   await pv.p.click('#coachHost [data-gym="ir"][data-v="socios"]'); await wait(500);

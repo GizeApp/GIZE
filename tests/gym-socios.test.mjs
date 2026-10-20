@@ -38,7 +38,16 @@ export default async function ({ base, t }){
   // Bajas
   await p.click('#coachHost [data-gym="socios-tab"][data-v="bajas"]'); await wait(300);
   t.eq(await nombres(p), ['Ana Torres'], 'pestaña Bajas');
+  // Los filtros de Socios no se ven en Bajas, así que ahí no cuentan (antes: «Bajas 1» y «No hay bajas.»).
   await p.click('#coachHost [data-gym="socios-tab"][data-v="socios"]'); await wait(300);
+  await filtro('sinProfe'); await p.selectOption('#coachHost [data-gym-in="estado"]', 'activo'); await wait(250);
+  await p.click('#coachHost [data-gym="socios-tab"][data-v="bajas"]'); await wait(300);
+  t.eq(await nombres(p), ['Ana Torres'], 'Bajas con filtros de Socios puestos: igual se ven las bajas');
+  await p.fill('#coachHost [data-gym-in="q"]', 'zzz'); await wait(250);
+  t.eq(await nombres(p), [], 'en Bajas sí cuenta el buscador');
+  await p.fill('#coachHost [data-gym-in="q"]', ''); await wait(250);
+  await p.click('#coachHost [data-gym="socios-tab"][data-v="socios"]'); await wait(300);
+  await filtro('sinProfe'); await p.selectOption('#coachHost [data-gym-in="estado"]', ''); await wait(250);
   // En grupo: asignar profe (las saltadas dicen por qué)
   for (const id of [F.A1, F.A5, F.A7]) await p.check('#coachHost [data-gym="elegir"][data-id="' + id + '"]');
   await wait(200);

@@ -4,18 +4,31 @@
 import { esc } from '../../core/utils.js';
 import { GS, gym, fotoHtml, fotoUrl, fecha } from './estado.js';
 import { btn, btn2, vacio, cargando } from './marco.js';
-import { profesDelEquipo } from './socios.js';
+import { profesDelEquipo, norm } from './socios.js';
 
 const VIA = { codigo: "Con el código del gimnasio", ficha: "Con el link de su ficha", csv: "Importado", conversion: "Era alumno del dueño" };
 const viaTxt = s => s.unir_sugerida ? VIA.ficha : (VIA[s.via] || VIA.codigo);
 
+// Lo elegido para cada pedido: GS.solForm guarda solo lo que se tocó; lo demás sale en el momento (el
+// profe por defecto, si ya llegó el equipo, y «Aprobar la foto» marcado si propuso una). Así, si el
+// equipo llega después que las solicitudes, el profe por defecto aparece igual.
+export function solElegido(s){
+  const f = GS.solForm[s.id] || {}, def = gym().default_trainer_id || "";
+  return { profe: f.profe !== undefined ? f.profe : (profesDelEquipo().some(p => p.user_id === def) ? def : ""), foto: f.foto !== undefined ? f.foto : !!s.foto_pend_path };
+}
+
 export function renderSolicitudes(){
-  const L = GS.solicitudes;
-  if (L === null) return GS.solicitudesError ? vacio(esc(GS.solicitudesError), btn2('data-gym="reintentar"', "Reintentar")) : cargando("Cargando las solicitudes…");
-  if (!L.length) return vacio("No hay pedidos para sumarse. Cuando alguien ponga el código del gimnasio, aparece acá.");
-  const profes = profesDelEquipo(), def = gym().default_trainer_id || "";
+  const L0 = GS.solicitudes;
+  if (L0 === null) return GS.solicitudesError ? vacio(esc(GS.solicitudesError), btn2('data-gym="reintentar"', "Reintentar")) : cargando("Cargando las solicitudes…");
+  if (!L0.length) return vacio("No hay pedidos para sumarse. Cuando alguien ponga el código del gimnasio, aparece acá.");
+  // El buscador de arriba (nombre o mail).
+  const q = norm(GS.filtros.q).trim();
+  const L = q ? L0.filter(s => norm(s.nombre).includes(q) || norm(s.email).includes(q)) : L0;
+  if (!L.length) return vacio("Ningún pedido con esa búsqueda.");
+  // Sin el equipo todavía no se sabe a quién se puede asignar: se espera (el botón, también).
+  const profes = profesDelEquipo(), sinEquipo = GS.equipo === null;
   return '<div class="gy-sols">' + L.map(s => {
-    const f = GS.solForm[s.id] || (GS.solForm[s.id] = { profe: profes.some(p => p.user_id === def) ? def : "", foto: !!s.foto_pend_path });
+    const f = solElegido(s);
     const foto = s.foto_pend_path ? '<div class="gy-sol-foto">' + fotoHtml(s.foto_pend_path, s.nombre, "gy-av-l") +
       '<label class="gy-check"><input type="checkbox" data-gym-sol="foto" data-id="' + esc(s.id) + '"' + (f.foto ? ' checked' : '') + '> Aprobar la foto</label></div>'
       : '<div class="gy-sol-foto">' + fotoHtml(null, s.nombre, "gy-av-l") + '<span class="gy-fino">Sin foto propuesta</span></div>';
@@ -28,9 +41,9 @@ export function renderSolicitudes(){
         (!s.terms ? '<div class="gy-fino gy-ambar">Todavía no aceptó lo que ve el gimnasio (entró con una versión vieja de la app).</div>' : '') +
         (s.share_admin ? '<div class="gy-fino">Compartió sus registros con la administración.</div>' : '') +
         coinc +
-        '<div class="gy-sol-acc"><label class="gy-f gy-f-in"><span>Profe</span><select class="gy-sel" data-gym-sol="profe" data-id="' + esc(s.id) + '">' +
-          '<option value="">Sin profe</option>' + profes.map(p => '<option value="' + esc(p.user_id) + '"' + (f.profe === p.user_id ? ' selected' : '') + '>' + esc(p.nombre || "Profe") + '</option>').join("") + '</select></label>' +
-          btn('data-gym="sol-nuevo" data-id="' + esc(s.id) + '"' + (GS.busy ? ' disabled' : ''), GS.busy === s.id ? "Aprobando…" : "Socio nuevo") +
+        '<div class="gy-sol-acc"><label class="gy-f gy-f-in"><span>Profe</span><select class="gy-sel" data-gym-sol="profe" data-id="' + esc(s.id) + '"' + (sinEquipo ? ' disabled' : '') + '>' +
+          (sinEquipo ? '<option value="">Cargando los profes…</option>' : '<option value="">Sin profe</option>' + profes.map(p => '<option value="' + esc(p.user_id) + '"' + (f.profe === p.user_id ? ' selected' : '') + '>' + esc(p.nombre || "Profe") + '</option>').join("")) + '</select></label>' +
+          btn('data-gym="sol-nuevo" data-id="' + esc(s.id) + '"' + (GS.busy || sinEquipo ? ' disabled' : ''), GS.busy === s.id ? "Aprobando…" : "Socio nuevo") +
           '<button class="cv-link gy-peligro" data-gym="sol-rechazar" data-id="' + esc(s.id) + '"' + (GS.busy ? ' disabled' : '') + '>Rechazar</button></div>' +
       '</div></article>';
   }).join("") + '</div>';
