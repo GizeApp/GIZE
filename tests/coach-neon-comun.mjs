@@ -2,7 +2,9 @@
 // panel del coach, css/screens/coach/neon.css): el coach de prueba con sus clientes y su rutina, cómo
 // abrir el panel en cada apariencia y moverse por las vistas, y cómo leer el filete, el resplandor,
 // las cajas, los estilos, el contraste y lo pintado en la captura. No es una prueba (no termina en
-// .test.mjs): la importan las dos.
+// .test.mjs): la importan las dos, y las del neón de la app del alumno (tests/neon-app*.test.mjs), que
+// le pasan su hoja (css/ui/neon-app.css) y su zona a hoja(), seMueve(), sinCambios(), contrasteIgual()
+// y recortan().
 import { newPage, wait, configCoach } from './lib.mjs';
 
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
@@ -78,7 +80,7 @@ async function go(p, vista){
 
 // ---------- Lo que se lee de cada cosa ----------
 const HOJA = 'link[href$="screens/coach/neon.css"]';
-const hoja = (p, on) => p.evaluate(([h, on]) => { document.querySelector(h).sheet.disabled = !on; }, [HOJA, on]).then(() => wait(150));
+const hoja = (p, on, h = HOJA) => p.evaluate(([h, on]) => { document.querySelector(h).sheet.disabled = !on; }, [h, on]).then(() => wait(150));
 // El primero que se ve de cada selector: su ::after (el filete), su ::before (el resplandor) y sus bordes.
 const LEER = sel => {
   const e = [...document.querySelectorAll(sel)].find(x => x.getClientRects().length);
@@ -122,9 +124,9 @@ const CAJAS = () => {
   }
   return out;
 };
-async function seMueve(p){
-  const con = await p.evaluate(CAJAS); await hoja(p, false);
-  const sin = await p.evaluate(CAJAS); await hoja(p, true);
+async function seMueve(p, h = HOJA){
+  const con = await p.evaluate(CAJAS); await hoja(p, false, h);
+  const sin = await p.evaluate(CAJAS); await hoja(p, true, h);
   const otra = await p.evaluate(CAJAS);
   return Object.keys(con).filter(k => con[k] === otra[k] && con[k] !== sin[k]).map(k => k + ': ' + sin[k] + ' → ' + con[k]);
 }
@@ -139,17 +141,18 @@ const ESTILOS = () => {
   }
   return out;
 };
-async function sinCambios(p){
-  const con = await p.evaluate(ESTILOS); await hoja(p, false);
-  const sin = await p.evaluate(ESTILOS); await hoja(p, true);
+async function sinCambios(p, h = HOJA){
+  const con = await p.evaluate(ESTILOS); await hoja(p, false, h);
+  const sin = await p.evaluate(ESTILOS); await hoja(p, true, h);
   const otra = await p.evaluate(ESTILOS);
   return Object.keys(con).filter(k => con[k] === otra[k] && con[k] !== sin[k]);
 }
 
 // ---------- Contraste contra el fondo real (como tests/coach-vidrio.test.mjs) ----------
 const VENTANAS = '#coachHost, #applyMount, #coachSheetHost, #planSheetHost';
-const SIN_TEXTO = `:is(${VENTANAS}) *, :is(${VENTANAS}) *::before, :is(${VENTANAS}) *::after, :is(${VENTANAS}) *::placeholder {
+const sinTexto = z => `:is(${z}) *, :is(${z}) *::before, :is(${z}) *::after, :is(${z}) *::placeholder {
   color: transparent !important; -webkit-text-fill-color: transparent !important; text-shadow: none !important; caret-color: transparent !important; }`;
+const SIN_TEXTO = sinTexto(VENTANAS);
 const TEXTOS = sels => {
   const out = [], W = innerWidth, H = innerHeight;
   for (const [n, sel] of sels) for (const el of document.querySelectorAll(sel)) {
@@ -187,17 +190,18 @@ const MEDIR = async ({ png, items }) => {
     return { n: it.n, t: it.t, cr: Math.round(cr * 100) / 100 };
   });
 };
-async function medir(p, items){
-  const st = await p.addStyleTag({ content: SIN_TEXTO }); await wait(150);
+async function medir(p, items, zona = VENTANAS){
+  const st = await p.addStyleTag({ content: sinTexto(zona) }); await wait(150);
   const png = (await p.screenshot({ animations: 'disabled', caret: 'hide' })).toString('base64');
   await st.evaluate(e => e.remove());
   return p.evaluate(MEDIR, { png, items });
 }
-// El contraste de cada texto con la hoja prendida no es menor que con la hoja apagada.
-async function contrasteIgual(t, p, donde, sels){
+// El contraste de cada texto con la hoja prendida no es menor que con la hoja apagada (la del panel,
+// o la que se pase en h; zona: dónde se borran los textos para medir el fondo).
+async function contrasteIgual(t, p, donde, sels, { h = HOJA, zona = VENTANAS } = {}){
   const items = await p.evaluate(TEXTOS, sels);
-  const con = await medir(p, items); await hoja(p, false);
-  const sin = await medir(p, items); await hoja(p, true);
+  const con = await medir(p, items, zona); await hoja(p, false, h);
+  const sin = await medir(p, items, zona); await hoja(p, true, h);
   for (const [n] of sels){
     const idx = items.map((it, i) => it.n === n ? i : -1).filter(i => i >= 0);
     if (!idx.length) { t.ok(false, donde + ': no se vio «' + n + '»'); continue; }
@@ -250,15 +254,15 @@ const croma = q => Math.max(...q) - Math.min(...q);
 // Lo que esta hoja suma con el filete sobre el borde (::after con máscara corrido hacia afuera) o con el
 // resplandor de afuera (::before con sombra de color que no es inset): con la hoja prendida y no
 // apagada. Ninguno puede recortar lo de adentro (overflow), o el filete y el resplandor se cortan.
-const RECORTE = () => [...document.querySelectorAll('#coachHost *, #applyMount *')].map((e, i) => {
+const RECORTE = zona => [...document.querySelectorAll(zona)].map((e, i) => {
   if (!e.getClientRects().length) return null;
   const a = getComputedStyle(e, '::after'), b = getComputedStyle(e, '::before'), s = getComputedStyle(e);
   const filete = a.content !== 'none' && /linear-gradient\(1(55|60)deg/.test(a.backgroundImage) && (a.maskImage || a.webkitMaskImage) !== 'none' && parseFloat(a.top) < 0;
   const brillo = b.content !== 'none' && b.boxShadow !== 'none' && !/inset/.test(b.boxShadow);
   return filete || brillo ? i + ' ' + e.tagName.toLowerCase() + '.' + String(e.className).trim().split(/\s+/).join('.') + ' → ' + s.overflowX + '/' + s.overflowY : null;
 }).filter(Boolean);
-async function recortan(p){
-  const con = await p.evaluate(RECORTE); await hoja(p, false); const sin = await p.evaluate(RECORTE); await hoja(p, true);
+async function recortan(p, { h = HOJA, zona = '#coachHost *, #applyMount *' } = {}){
+  const con = await p.evaluate(RECORTE, zona); await hoja(p, false, h); const sin = await p.evaluate(RECORTE, zona); await hoja(p, true, h);
   const nuevos = con.filter(x => !sin.includes(x));
   return { n: nuevos.length, malos: nuevos.filter(x => !/→ visible\/visible$/.test(x)) };
 }
