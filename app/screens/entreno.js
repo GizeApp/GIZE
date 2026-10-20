@@ -264,8 +264,10 @@ export function renderGymCard(){
     : confirmar("Confirmá tu lugar en " + nom, "Te sumaste con una versión anterior de la app: falta que veas qué ve el gimnasio.", true);
   const pn = f.profe && String(f.profe.name || "").trim().split(/\s+/)[0];
   const quien = f.coach_externo ? "Coach externo" : pn ? "Profe: " + esc(pn) : "Sin profe";
-  const pausa = f.status === "pausado" ? ' · <span class="gym-card-pausa">Pausado' + (f.paused_until ? " hasta el " + esc(String(f.paused_until).slice(8, 10) + "/" + String(f.paused_until).slice(5, 7)) : "") + '</span>' : "";
-  return `<button type="button" class="gym-card" data-gys="ajustes" aria-label="${nom}, ${quien}. Abrir Tu gimnasio en Ajustes">
+  const pausaTxt = f.status === "pausado" ? "Pausado" + (f.paused_until ? " hasta el " + esc(String(f.paused_until).slice(8, 10) + "/" + String(f.paused_until).slice(5, 7)) : "") : "";
+  const pausa = pausaTxt ? ' · <span class="gym-card-pausa">' + pausaTxt + '</span>' : "";
+  // El aria-label reemplaza el texto del botón: lleva también la pausa, si no el lector no la dice.
+  return `<button type="button" class="gym-card" data-gys="ajustes" aria-label="${nom}, ${quien}${pausaTxt ? ", " + pausaTxt.toLowerCase() : ""}. Abrir Tu gimnasio en Ajustes">
       <span class="gym-card-ic">${gymIco}</span><span class="gym-card-t"><b>${nom}</b> · ${quien}${pausa}</span><span class="gym-card-chev" aria-hidden="true">${chevronRightSvg}</span>
     </button>`;
 }

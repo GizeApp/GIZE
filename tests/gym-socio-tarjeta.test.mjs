@@ -31,13 +31,15 @@ export default async function ({ base, t }){
 
   // ---- Variantes: sin profe, coach externo, pausado ----
   const casos = [
-    ['sin profe', { profe: null }, 'Gimnasio Fuerza · Sin profe'],
-    ['coach externo', { profe: null, coach_externo: true }, 'Gimnasio Fuerza · Coach externo'],
-    ['pausado', { status: 'pausado', paused_until: '2026-11-10' }, 'Gimnasio Fuerza · Profe: Lucía · Pausado hasta el 10/11'],
+    ['sin profe', { profe: null }, 'Gimnasio Fuerza · Sin profe', 'Gimnasio Fuerza, Sin profe. Abrir Tu gimnasio en Ajustes'],
+    ['coach externo', { profe: null, coach_externo: true }, 'Gimnasio Fuerza · Coach externo', 'Gimnasio Fuerza, Coach externo. Abrir Tu gimnasio en Ajustes'],
+    ['pausado', { status: 'pausado', paused_until: '2026-11-10' }, 'Gimnasio Fuerza · Profe: Lucía · Pausado hasta el 10/11', 'Gimnasio Fuerza, Profe: Lucía, pausado hasta el 10/11. Abrir Tu gimnasio en Ajustes'],
   ];
-  for (const [n, extra, esperado] of casos){
+  for (const [n, extra, esperado, aria] of casos){
     const pg = await entrarSocio(base, { gym: miGimnasioSocio(extra), perfil: n === 'coach externo' ? { coach_id: '33333333-3333-3333-3333-333333333333' } : {} });
     t.eq(await tarjetaTxt(pg.p), esperado, n + ': «' + esperado + '»');
+    // El aria-label reemplaza el texto: tiene que decir lo mismo (la pausa también).
+    t.eq(await pg.p.$eval('#view .gym-card', b => b.getAttribute('aria-label')), aria, n + ': el lector de pantalla dice «' + aria + '»');
     t.eq(pg.errs, [], n + ': sin errores');
     await pg.close();
   }
