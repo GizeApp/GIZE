@@ -173,7 +173,7 @@ function planCards(b){
     return '<div class="pl-card' + (hi ? " best" : "") + (mine ? " chosen" : "") + (current ? " current" : "") + '">' +
       (mine ? '<div class="pl-tag">El que elegiste</div>' : hi ? '<div class="pl-tag">Más elegido</div>' : '') +
       (p.gym ? '<div class="pl-name">' + esc(p.name) + '</div>' : '') +
-      '<div class="pl-max">Hasta <b>' + p.max + '</b> ' + (p.gym ? 'alumnos' : 'clientes') + '</div>' +
+      '<div class="pl-max">Hasta <b>' + p.max + '</b> ' + (B.gym ? 'socios' : p.gym ? 'alumnos' : 'clientes') + '</div>' +
       '<div class="pl-price">' + money(p.price) + '<span>/mes</span></div>' +
       (current && b.renews ? '<button class="pl-choose" disabled>Tu plan actual</button>'
         : tooSmall ? '<button class="pl-choose" disabled>Tenés ' + usados + (B.gym ? ' socios' : ' clientes') + '</button>'
@@ -191,7 +191,7 @@ function planCards(b){
   return '<div class="pl-cards">' + cards + '</div>' + mailBox +
     '<div class="pl-fine"><b>Con tarjeta</b> (Mercado Pago): se cobra y se renueva sola cada mes, y la cancelás cuando quieras.</div>' +
     '<div class="pl-fine"><b>Por transferencia:</b> lo arreglás por WhatsApp con el equipo de GIZE y te habilitamos el plan apenas se acredita. Se renueva a mano cada mes; si un mes no seguís, no se cobra nada más.</div>' +
-    '<div class="pl-fine">¿Más de 500 alumnos? <a class="pl-link" href="' + esc(waCustom()) + '" target="_blank" rel="noopener">Hablemos</a> y armamos un plan a medida.</div>';
+    '<div class="pl-fine">¿Más de 500 ' + (B.gym ? 'socios' : 'alumnos') + '? <a class="pl-link" href="' + esc(waCustom()) + '" target="_blank" rel="noopener">Hablemos</a> y armamos un plan a medida.</div>';
 }
 
 function statusLine(b){

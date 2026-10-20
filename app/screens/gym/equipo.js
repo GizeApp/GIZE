@@ -15,7 +15,7 @@ import { profesDelEquipo } from './socios.js';
 const TABS = [["profe", "Profes"], ["admin", "Administración"], ["recepcion", "Recepción"]];
 export const linkEquipo = (token, rol) => APP_URL + "#equipo=" + token + "&rol=" + rol;
 // En las apps, sin hablar de lo que cuesta o no (nada del plan de GIZE).
-const puede = r => enApp() ? ROLES[r].puede.replace(" Entra sin cargo con su cuenta de coach.", " Entra con su cuenta de coach.") : ROLES[r].puede;
+const puede = r => enApp() ? ROLES[r].puede.replace(" Entra sin cargo con su cuenta de coach.", " Entra con su cuenta de coach.").replace(" No ve el plan de GIZE ni puede cerrar el gimnasio.", " No puede cerrar el gimnasio.") : ROLES[r].puede;
 const enTab = (p, tab) => tab === "admin" ? (p.rol === "admin" || p.rol === "owner") : p.rol === tab;
 
 export function topeTxt(){

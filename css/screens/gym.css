@@ -22,12 +22,12 @@
 .gy-fino { font-size:var(--text-meta); line-height:1.45; color:var(--txt-2); margin:6px 0 0; }
 .gy-p { font-size:var(--text-body); line-height:1.5; color:var(--txt); margin:0 0 12px; }
 .gy-h { font-family:var(--gize-font); font-size:17px; font-weight:700; color:var(--txt); margin:0 0 10px; }
-.gy-ambar { color:var(--gize-warning); font-weight:600; }
-.gy-rojo { color:var(--gize-danger); font-weight:600; }
-.gy-peligro { color:var(--gize-danger); }
+.gy-ambar { color:color-mix(in srgb, var(--gize-warning) 72%, var(--txt)); font-weight:600; }
+.gy-rojo { color:color-mix(in srgb, var(--gize-danger) 78%, var(--txt)); font-weight:600; }
+.gy-peligro { color:color-mix(in srgb, var(--gize-danger) 78%, var(--txt)); }
 .gy-n { display:inline-block; min-width:20px; padding:0 6px; border-radius:999px; font-size:12px; line-height:20px; text-align:center; background:color-mix(in srgb, var(--txt) 12%, transparent); color:var(--txt); }
 .gy-tag { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-style:normal; font-weight:600; border:1px solid var(--gize-border); color:var(--txt-2); }
-.gy-tag-ambar { border-color:color-mix(in srgb, var(--gize-warning) 60%, transparent); color:var(--gize-warning); }
+.gy-tag-ambar { border-color:color-mix(in srgb, var(--gize-warning) 60%, transparent); color:color-mix(in srgb, var(--gize-warning) 72%, var(--txt)); }
 .gy-acc { display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; margin-top:14px; }
 .gy-btn2 { margin:0; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
 .gy-btn-peligro { background:var(--gize-danger) !important; color:#fff !important; border-color:transparent !important; }
@@ -75,9 +75,9 @@ a.gize-btn.cv-btn { text-decoration:none; }
 .gy-row > .gy-td[data-l] { grid-column:2; display:flex; justify-content:space-between; gap:12px; }
 .gy-row > .gy-td[data-l]::before { content:attr(data-l); color:var(--txt-3); }
 .gy-estado { display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:700; }
-.gy-estado.activo { color:var(--gize-success); background:color-mix(in srgb, var(--gize-success) 12%, transparent); }
-.gy-estado.pausado { color:var(--gize-warning); background:color-mix(in srgb, var(--gize-warning) 12%, transparent); }
-.gy-estado.baja { color:var(--gize-danger); background:color-mix(in srgb, var(--gize-danger) 12%, transparent); }
+.gy-estado.activo { color:color-mix(in srgb, var(--gize-success) 65%, var(--txt)); background:color-mix(in srgb, var(--gize-success) 12%, transparent); }
+.gy-estado.pausado { color:color-mix(in srgb, var(--gize-warning) 70%, var(--txt)); background:color-mix(in srgb, var(--gize-warning) 12%, transparent); }
+.gy-estado.baja { color:color-mix(in srgb, var(--gize-danger) 75%, var(--txt)); background:color-mix(in srgb, var(--gize-danger) 12%, transparent); }
 .gy-pie { margin:10px 4px 0; font-size:var(--text-meta); color:var(--txt-3); }
 .gy-row-eq { grid-template-columns:minmax(0,1fr); grid-template-areas:"socio"; }
 .gy-row-eq > .gy-td[data-l] { grid-column:1; }
@@ -199,7 +199,8 @@ a.gize-btn.cv-btn { text-decoration:none; }
   .gy-nav .gy-solo-cel { display:none; }
   .gy-nav-sec { display:block; margin:16px 14px 4px; font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--txt-3); }
   .gy-nav-sep { display:block; height:1px; margin:12px 14px; background:var(--gize-border); }
-  .gy-nav-n { display:inline-block; margin-left:auto; min-width:22px; padding:0 7px; border-radius:999px; font-size:12px; font-style:normal; line-height:22px; text-align:center; background:var(--gize-blue); color:#04121a; }
+  .gy-nav-n { display:inline-block; margin-left:auto; min-width:22px; padding:0 7px; border-radius:999px; font-size:12px; font-style:normal; line-height:20px; text-align:center; color:var(--txt);
+      background:color-mix(in srgb, var(--gize-blue) 16%, transparent); border:1px solid color-mix(in srgb, var(--gize-blue) 70%, transparent); }
   .gy-nav .cv-nav-i .cv-pip { display:none; }
   .gy-brand { flex-direction:column; align-items:flex-start; }
   .gy-brand-n { padding-left:2px; max-width:200px; }
