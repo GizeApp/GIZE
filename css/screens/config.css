@@ -279,13 +279,14 @@ html:has(#gymSocioHost .sheet:not(.closing)), html:has(#gymSocioHost .sheet:not(
 .gys-check b { font-weight:600; }
 .gys-check:focus-within { outline:2px solid var(--blue); outline-offset:2px; }
 .gys-err { margin:10px 0 0; }
-.gys-link { display:block; margin:12px auto 0; text-align:center; font-size:var(--text-meta); color:var(--blue-2, var(--blue)); }
+.gys-link { display:block; margin:12px auto 0; text-align:center; font-size:var(--text-meta); color:var(--txt); text-decoration:underline; text-underline-offset:2px; }
 .gys-dni { display:block; margin:6px 0 4px; }
 .gys-dni input { width:100%; font-size:22px; letter-spacing:.3em; text-align:center; }
 .gys-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 .gys-foto { margin-top:6px; padding-top:6px; border-top:1px solid var(--border); }
 .gys-foto-btn { width:100%; margin-top:2px; }
-.gys-sheet .ctrl.gys-peligro { background:var(--gize-danger); color:#fff; border:1px solid var(--gize-danger); }
+/* Rojo un poco más oscuro que el de siempre: el texto blanco se lee (AA). */
+.gys-sheet .ctrl.gys-peligro { background:color-mix(in srgb, var(--gize-danger) 76%, #000); color:#fff; border:1px solid color-mix(in srgb, var(--gize-danger) 76%, #000); }
 .gys-sheet .ctrl:disabled { opacity:.5; cursor:default; }
 .gys-sheet .sheet-btns { margin-top:14px; }
 /* El input de la foto del gimnasio, escondido a la vista pero alcanzable con el teclado (el <label> es el botón). */

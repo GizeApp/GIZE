@@ -409,5 +409,5 @@ body:not(#_) .var-pick.on { border-color:var(--gize-text); }
 .gym-card-conf p { margin:8px 0 10px; color:var(--txt-2); line-height:1.45; }
 .gym-card-btns { display:flex; flex-wrap:wrap; gap:8px; }
 .gym-card-btns button { flex:1 1 140px; min-height:40px; padding:9px 12px; border-radius:var(--r-btn); font:600 var(--text-meta) var(--gize-font); cursor:pointer; }
-.gym-card-go { background:var(--blue); color:var(--gize-text); border:1px solid var(--blue); }
+.gym-card-go { background:var(--txt); color:var(--gize-bg); border:1px solid var(--txt); }
 .gym-card-sec { background:var(--card); color:var(--txt); border:1px solid var(--border); }
