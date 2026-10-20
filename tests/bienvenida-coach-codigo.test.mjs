@@ -159,7 +159,7 @@ export default async function ({ base, t }){
   {
     const pg = await pagina(base, { gym: true }), p = pg.p;
     await p.click('[data-onb="dskip"]'); await wait(250);
-    await p.fill('#onbCode', 'FUERZA22'); await p.press('#onbCode', 'Enter'); await wait(1200);
+    await p.fill('#onbCode', 'FUERZA22'); await p.focus('[data-onb="next"]'); await p.keyboard.press('Enter'); await wait(1200);
     t.ok(await p.$('#gymSocioHost .gys-sheet'), 'f: el código de un gimnasio abre la hoja');
     await p.keyboard.press('Escape'); await wait(700);
     t.eq([await p.$('#gymSocioHost .gys-sheet'), await p.evaluate(() => document.activeElement && document.activeElement.id)], [null, 'onbCode'],
