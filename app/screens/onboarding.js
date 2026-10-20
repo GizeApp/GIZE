@@ -1,3 +1,4 @@
+import { quiereGym } from '../core/gimnasio.js';
 import { auIcoTicket, checkSvg, chevronLeftSvg } from '../core/icons.js';
 
 import { State, state } from '../core/state.js';
@@ -134,6 +135,8 @@ function borrarBorrador(){ try{ if(State.cloudUser) localStorage.removeItem(draf
 export function maybeShowOnboarding(){
   const u=State.cloudUser, p=State.cloudProfile;
   if(!u || !p || !u.created_at) return;
+  // Del equipo de un gimnasio (o entró con un link del gimnasio): primero lo del gimnasio (core/gimnasio.js).
+  if(quiereGym()) return;
   if(Date.now()-Date.parse(u.created_at) > NEW_ACCOUNT_MS){ borrarBorrador(); return; }
   try{ if(localStorage.getItem(seenKey())) return; }catch(e){ return; }
   // Ya está abierta (afterLogin corrió dos veces, p. ej. al volver de Apple o Google): no se

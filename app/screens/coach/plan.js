@@ -84,7 +84,7 @@ function waCustom(){
 
 // billing: la fila de coach_billing. null + missing = todavía no se corrió el SQL (no se
 // bloquea nada en ese caso, así la app sigue andando mientras se configura).
-const B = { row: null, missing: false, loaded: false, busy: false, open: false, confirming: false, mpEmail: null, mailOpen: false };
+const B = { row: null, missing: false, loaded: false, busy: false, open: false, confirming: false, mpEmail: null, mailOpen: false, gym: null };
 // Compras con Apple (app de iPhone): cargando/sin los precios, y la compra recién hecha.
 const A = { cargando: false, fallo: false, exito: false, iniciado: false };
 
@@ -161,10 +161,13 @@ function planCards(b){
   // Con la suscripción de Apple vigente, en la web no se ofrece pagar otro plan (se pagaría dos
   // veces): se cambia o se cancela desde el iPhone (statusLine lo dice).
   if(b.apple) return '';
-  const chosen = b.paid ? null : chosenPlan();
-  const cards = PLANS.map(p => {
+  const chosen = b.paid || B.gym ? null : chosenPlan();
+  // Dueño de un gimnasio (Plan de GIZE del panel del gimnasio, app/screens/gym/plan.js): solo los
+  // planes de gimnasio (p100, p250 y p500), y el cupo que cuenta es el del servidor (seats_used).
+  const usados = B.gym ? B.gym.usados : b.count;
+  const cards = PLANS.filter(p => !B.gym || p.gym).map(p => {
     const current = b.paid && b.plan && b.plan.id === p.id;
-    const tooSmall = b.count > p.max;
+    const tooSmall = usados > p.max;
     // El que eligió en la página de inicio va destacado (en lugar del "Más elegido").
     const mine = chosen === p.id, hi = chosen ? mine : p.best;
     return '<div class="pl-card' + (hi ? " best" : "") + (mine ? " chosen" : "") + (current ? " current" : "") + '">' +
@@ -173,7 +176,7 @@ function planCards(b){
       '<div class="pl-max">Hasta <b>' + p.max + '</b> ' + (p.gym ? 'alumnos' : 'clientes') + '</div>' +
       '<div class="pl-price">' + money(p.price) + '<span>/mes</span></div>' +
       (current && b.renews ? '<button class="pl-choose" disabled>Tu plan actual</button>'
-        : tooSmall ? '<button class="pl-choose" disabled>Tenés ' + b.count + ' clientes</button>'
+        : tooSmall ? '<button class="pl-choose" disabled>Tenés ' + usados + (B.gym ? ' socios' : ' clientes') + '</button>'
         : '<button class="pl-choose" data-plan="choose" data-id="' + p.id + '"' + (B.busy ? ' disabled' : '') + '>' +
             (B.busy === p.id ? 'Abriendo Mercado Pago…' : current ? 'Renovar con tarjeta' : 'Pagar con tarjeta') + '</button>' +
           '<a class="pl-alt" href="' + esc(waLink(p, current)) + '" target="_blank" rel="noopener">o por transferencia</a>') +
@@ -523,7 +526,8 @@ export async function checkPaymentReturn(){
   else alert("Mercado Pago todavía no confirmó el cobro. Tu plan se activa solo apenas se acredite: podés seguir usando la app.");
 }
 
-export function openPlan(){ if(SIN_PLANES) return; B.open = true; A.exito = false; renderPlanSheet(); if(IAP && !productosApple()) cargarPlanesApple(); }
+// gym: { usados } para el dueño de un gimnasio (solo los planes de gimnasio); sin eso, como siempre.
+export function openPlan(gym){ if(SIN_PLANES) return; B.gym = gym && typeof gym === "object" && !(gym instanceof Event) ? gym : null; B.open = true; A.exito = false; renderPlanSheet(); if(IAP && !productosApple()) cargarPlanesApple(); }
 
 document.body.addEventListener("click", e => {
   const b = e.target.closest("[data-plan]"); if(!b || b.disabled) return;

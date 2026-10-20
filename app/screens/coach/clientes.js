@@ -148,8 +148,14 @@ export function coachExerciseLog(sessions,name){ const out=[]; (sessions||[]).sl
 
 // keep: vuelve a leer al mismo alumno (después de guardar o borrar una rutina programada) sin
 // perder lo que el coach tenía sin guardar del plan, la ficha y el bloque.
-export async function openClient(id, keep){
+// lectura: la ficha en modo lectura del panel del gimnasio (app/screens/gym/ficha.js), para el dueño
+// o la administración que miran a un socio que compartió sus registros y no es suyo: { nombre,
+// avatar, profe }. No aplica las rutinas programadas (apply_due_routines es del coach), no lee el
+// chat, y el registro diario y las salidas salen de gym_registro_lectura / gym_cardio_lectura (sin
+// los pasos ni el recorrido). Lo que se muestra no se puede editar (index.js).
+export async function openClient(id, keep, lectura){
   const d0=CoachState.coachData, forms=(keep && d0 && d0.id===id) ? { p:clientPlanDirty()?CoachState.coachPlanForm:null, i:CoachState.coachInfoForm, b:CoachState.coachBlockForm } : {};
+  CoachState.coachLectura=lectura||null;
   CoachState.coachSel=id; CoachState.coachData={loading:true}; CoachState.coachDailySel=null; CoachState.coachCkSel=null; CoachState.coachSessSel=null; CoachState.coachCal={}; CoachState.coachSalidaSel=null; CoachState.notifDraft=""; CoachState.notifSending=false; CoachState.coachDayFilter=null; CoachState.coachEditDay=0; renderCoach();
   try{
     // Todas las lecturas del cliente salen juntas (antes iban de a una).
@@ -159,8 +165,10 @@ export async function openClient(id, keep){
       fetchAll(()=>sb.from("body_weights").select("*").eq("client_id",id).order("measured_on")),
       // "*" y no una lista de columnas: trae rpe/pump/joint_pain si existen sin romper la consulta si no.
       fetchAll(()=>sb.from("sessions").select("*, session_entries(exercise_name,set_order,kg,reps,secs)").eq("client_id",id).order("created_at").order("id")),
-      sb.rpc("apply_due_routines",{p_client:id}).then(()=>0, ()=>0).then(()=>sb.from("routines").select("days").eq("client_id",id).maybeSingle()),
-      fetchAll(()=>sb.from("daily_logs").select("*").eq("client_id",id).order("log_date",{ascending:false})),
+      lectura ? sb.from("routines").select("days").eq("client_id",id).maybeSingle()
+        : sb.rpc("apply_due_routines",{p_client:id}).then(()=>0, ()=>0).then(()=>sb.from("routines").select("days").eq("client_id",id).maybeSingle()),
+      lectura ? Promise.resolve(sb.rpc("gym_registro_lectura",{socio:id})).then(r=>r, e=>({data:null, error:e}))
+        : fetchAll(()=>sb.from("daily_logs").select("*").eq("client_id",id).order("log_date",{ascending:false})),
       fetchAll(()=>sb.from("checkins").select("*").eq("client_id",id).order("week_start",{ascending:false})),
       sb.from("client_info").select("*").eq("client_id",id).maybeSingle(),
       sb.from("blocks").select("*").eq("client_id",id).eq("active",true).order("start_date",{ascending:false}).limit(1),
@@ -169,7 +177,8 @@ export async function openClient(id, keep){
       sb.from("routine_schedule").select("id, starts_on, name, days").eq("client_id",id).is("applied_at",null).order("starts_on"),
       // Sus últimas salidas de Cardio a pie / en bici (supabase/cardio-a-pie.sql), sin el
       // recorrido: ese se pide al abrir una (ver salidas.js). Sin la tabla, la sección lo avisa.
-      Promise.resolve(sb.from("cardio_outings").select(SALIDA_COLS).eq("client_id",id).order("started_at",{ascending:false}).order("id").limit(SALIDAS_MAX)).catch(e=>({data:null, error:e}))
+      lectura ? Promise.resolve(sb.rpc("gym_cardio_lectura",{socio:id})).catch(e=>({data:null, error:e}))
+        : Promise.resolve(sb.from("cardio_outings").select(SALIDA_COLS).eq("client_id",id).order("started_at",{ascending:false}).order("id").limit(SALIDAS_MAX)).catch(e=>({data:null, error:e}))
     ]);
     // Supabase no lanza cuando una lectura falla (sin señal, por ejemplo): devuelve {data:null,
     // error}. Si falla cualquiera de estas, la ficha no se arma: vacía parecía real y al guardar
@@ -189,7 +198,7 @@ export async function openClient(id, keep){
     // Cambios sin guardar de una vez anterior en este dispositivo (ver persistRoutineDraft):
     // si la rutina guardada no cambió desde entonces se recuperan solos; si cambió, se pregunta.
     let routineOrig, restored=false;
-    const dr=readRoutineDraft(id), saved=JSON.stringify(routine);
+    const dr=lectura ? null : readRoutineDraft(id), saved=JSON.stringify(routine);
     if(dr && Array.isArray(dr.days) && JSON.stringify(dr.days)!==saved){
       const c0=CoachState.coachClients.find(x=>x.id===id);
       if(dr.base===saved || await confirmar("Hay cambios en la rutina de "+((c0&&c0.full_name)||"este cliente")+" que no se guardaron, pero la rutina guardada cambió desde entonces. ¿Recuperar tus cambios? (Si cancelás, se descartan.)")){
@@ -199,15 +208,15 @@ export async function openClient(id, keep){
     // Si mientras cargaba el coach abrió otro cliente, esto ya no va: si no, los datos de
     // este quedarían mostrados (y guardados) como si fueran del otro.
     if(CoachState.coachSel!==id) return;
-    const c=CoachState.coachClients.find(x=>x.id===id);
-    CoachState.coachData={id:id, info:(ci.data||{}), block:((bl.data&&bl.data[0])||null), name:(c&&c.full_name)||"Cliente", avatar:(c&&c.avatar_path)||null, weights:weights, sessions:sessions, routine:routine, routineOrig:routineOrig, draftRestored:restored, loadEx:null, daily:(dl.data||[]), checkins:(ck.data||[]), plan:(np.data||null), schedule:(sc&&!sc.error&&sc.data)||[],
+    const c=lectura ? { full_name: lectura.nombre, avatar_path: lectura.avatar } : CoachState.coachClients.find(x=>x.id===id);
+    CoachState.coachData={id:id, lectura:lectura||null, info:(ci.data||{}), block:((bl.data&&bl.data[0])||null), name:(c&&c.full_name)||"Cliente", avatar:(c&&c.avatar_path)||null, weights:weights, sessions:sessions, routine:routine, routineOrig:routineOrig, draftRestored:restored, loadEx:null, daily:(dl.data||[]), checkins:(ck.data||[]), plan:(np.data||null), schedule:(sc&&!sc.error&&sc.data)||[],
       salidas:(so && !so.error && Array.isArray(so.data)) ? so.data.map(salidaFromRow) : [], salidasError:(so && so.error) ? (salidaNoTable(so.error) ? "tabla" : "error") : ""};
     if(restored) CoachState.coachClientTab="rutina";
     CoachState.coachPlanForm=forms.p||null; CoachState.coachInfoForm=forms.i||null; CoachState.coachBlockForm=forms.b||null; CoachState.coachWeekSel=null;
     // Notificaciones: si el cliente las tiene activadas y los últimos mensajes. Aparte,
     // para no demorar la ficha; se redibuja cuando llega.
     const dRef=CoachState.coachData;
-    loadClientNotify(id).then(n=>{ if(CoachState.coachData===dRef){ dRef.notify=n; renderCoach(); } }).catch(()=>{});
+    if(!lectura) loadClientNotify(id).then(n=>{ if(CoachState.coachData===dRef){ dRef.notify=n; renderCoach(); } }).catch(()=>{});
     // Su disciplina (Ajustes del alumno, client_prefs.disciplines): se ve en la ficha y ordena el
     // buscador de ejercicios al armarle la rutina. Aparte: sin la columna, la ficha carga igual.
     Promise.resolve(State.sb.from("client_prefs").select("disciplines").eq("client_id",id).maybeSingle())

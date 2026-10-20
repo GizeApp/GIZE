@@ -52,8 +52,16 @@ const unreadAll = () => CoachState.coachClients.reduce((n,c)=>n+(unreadFor(c.id)
 
 const NAV = [["home","Inicio",I.home],["clients","Clientes",I.users],["tpls","Rutinas",I.dumbbell],["meals","Planes<span class=\"cv-more\"> alimenticios</span>",I.fork]];
 
+// El panel del gimnasio (app/screens/gym/marco.js) usa este mismo marco con otra lista de opciones y
+// su marca: mientras el dueño o la administración están en su panel, lo que dibuja el panel de coach
+// adentro (sus rutinas, sus planes, la ficha de un socio) sale con el marco del gimnasio. Para un
+// coach sin gimnasio no se llama nunca: el marco de siempre.
+let otroMarco = null;
+export function usarMarco(f){ otroMarco = typeof f === "function" ? f : null; }
+
 // El marco de siempre: barra lateral + contenido. active = la opción marcada.
 export function coachShell(active, inner){
+  if(otroMarco) return otroMarco(active, inner);
   return '<div class="cv-shell">'+
     '<aside class="cv-side">'+
       '<div class="co-brand cv-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="cv-sr">Panel de coach</span></div>'+

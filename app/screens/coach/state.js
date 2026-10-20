@@ -7,6 +7,8 @@ export const CoachState = {
   coachClientsLoaded: false,
 
   coachSel: null,
+  // La ficha abierta en modo lectura desde el panel del gimnasio ({ nombre, avatar, profe }; ver openClient).
+  coachLectura: null,
 
   coachData: null,
 

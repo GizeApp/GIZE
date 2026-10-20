@@ -98,6 +98,7 @@ import { signedAudioUrl, togglePlay } from './ui/grabar.js';
 import { dropExMedia } from './core/videos.js';
 import { clearVariant, dropExpiredVariants, setVariant, todayEx, todayExs, variantOf } from './core/variantes.js';
 import { appIOS, joinMsgTienda } from './core/tienda.js';
+import { alRedibujar, pintarGym } from './core/gimnasio.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
 const autoKg = new Set();
@@ -123,6 +124,9 @@ export function renderApp(){
   terminarDespliegue(); // un ejercicio abriéndose o cerrándose queda ya como termina (ui/desplegar.js)
   queueMicrotask(scheduleTick); // después de dibujar: ¿hay un reloj a la vista que actualizar?
   queueMicrotask(syncSalida);   // y los recorridos de Cardio (mapa) a su lugar, o afuera
+  // El panel del gimnasio (dueño, administración o recepción, también con una cuenta común, o un link
+  // del gimnasio: core/gimnasio.js) va en lugar de la app. Sin gimnasio, nada cambia.
+  if(pintarGym(true)){ const v=document.getElementById("view"); if(v) v.innerHTML=""; return; }
   // Una cuenta de coach ve solo su panel: si algo pedía la pantalla del cliente, quedaba
   // dibujada debajo del panel (que es transparente) y se veían las dos encimadas.
   if(State.cloudProfile && State.cloudProfile.role==="coach"){ const v=document.getElementById("view"); if(v) v.innerHTML=""; renderCoach(); return; }
@@ -1292,7 +1296,7 @@ document.body.addEventListener("click", async e => {
   }
   if((a==="back"||a==="refresh") && clientUnsaved()){ if(!await confirmar("Tenés cambios sin guardar en "+clientUnsaved()+". ¿Salir igual y perderlos?")) return; if(routineDirty()){ dropRoutineDraft(CoachState.coachData.id); CoachState.coachData.routineOrig=JSON.stringify(CoachState.coachData.routine||[]); } }
   if(a==="back"){ CoachState.coachSel=null; CoachState.coachData=null; renderCoach(); refreshCoachClients(); return; }
-  if(a==="refresh"){ if(CoachState.coachSel) openClient(CoachState.coachSel); return; }
+  if(a==="refresh"){ if(CoachState.coachSel) openClient(CoachState.coachSel, false, CoachState.coachLectura); return; }
   // Preguntas sin guardar: se avisa antes de irse de la sección (o de la pantalla).
   if((a==="settings-sec" || a==="settings-back" || /^(view-(home|clients|tpls|meals)|open-settings|q-open)$/.test(a)) && CoachState.coachView==="settings" && qDirty()){
     if(!await confirmar("Tenés cambios sin guardar en las preguntas. ¿Salir igual y perderlos?")) return;
@@ -1877,6 +1881,8 @@ if (coachRoutineDue() && applyCoachRoutine()) save();
 // Al splash (app/splash.js): la app arrancó, llegaron todos sus módulos. Si no avisa, el splash
 // recarga una vez o muestra «Reintentar» en vez de dejar la pantalla vacía.
 if (window.coreArranco) window.coreArranco();
+// La respuesta de mi_gimnasio() que llega tarde y cambia el rol (core/gimnasio.js): se redibuja.
+alRedibujar(()=>{ if(!State.cloudUser) return; if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach(); else renderApp(); });
 cloudBoot();
 
 initTabScroll(); // días de Entreno: ruedita y arrastre con el mouse

@@ -35,6 +35,24 @@ import { renderCoachSalidas, salidasTileText } from './salidas.js';
 import { syncRouteViews } from '../../ui/mapa.js';
 import { clientPlanDirty, mealEditHead, renderMealPicker, snapMealEdit } from './planes.js';
 import { coachShell, secIcon, renderClientsView, renderHomeView, renderMealsView, renderTplsView } from './panel.js';
+import { pintarGym } from '../../core/gimnasio.js';
+
+// Ficha en modo lectura (el dueño o la administración del gimnasio miran a un socio que compartió sus
+// registros y no es suyo; ver openClient): se ve todo lo que el socio compartió, pero no se edita. Solo
+// quedan los botones que navegan (volver, pestañas, secciones, abrir un ejercicio o una semana,
+// el calendario); los campos quedan deshabilitados. Además, ningún otro data-coach llega a main.js.
+const LECTURA_OK = /^(back|refresh|client-tab|sec-open|sec-close|plsec-open|plsec-close|edit-day|rt-toggle|wk-open|wk-close|ex|dayfilter|ea-play|cal-.+)$/;
+const enLectura = () => !!(CoachState.coachSel && CoachState.coachLectura);
+function soloLectura(host){
+  const main=host.querySelector(".cv-main"); if(!main) return;
+  main.querySelectorAll("[data-coach]").forEach(el=>{ if(!LECTURA_OK.test(el.dataset.coach)) el.remove(); });
+  main.querySelectorAll("input, textarea, select").forEach(el=>{ if(!(el.dataset.coach && LECTURA_OK.test(el.dataset.coach))) el.disabled=true; });
+}
+document.addEventListener("click", e=>{
+  if(!enLectura()) return;
+  const b=e.target.closest && e.target.closest("#coachHost .cv-main [data-coach]");
+  if(b && !LECTURA_OK.test(b.dataset.coach)){ e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
 
 // Título de sección con la ruedita que abre el editor de preguntas en esa pestaña.
 function secHead(title, kind){
@@ -91,6 +109,8 @@ document.addEventListener("visibilitychange", () => { if(document.visibilityStat
 window.addEventListener("pagehide", persistRoutineDraft);
 
 export function renderCoach(){
+  // El panel del gimnasio (dueño y administración) dibuja en su lugar; sin gimnasio, como siempre.
+  if(pintarGym()) return;
   const host=document.getElementById("coachHost"); if(!host) return;
   queueMicrotask(syncRouteViews); // después de dibujar: el recorrido de una salida abierta a su lugar (o afuera)
   snapEdits(); snapMealEdit(); persistRoutineDraft();
@@ -179,16 +199,19 @@ export function renderCoach(){
         // donde se arman las semanas y las rutinas de descarga.
         const ORDER={ ficha:["chat","ficha","habitos"], stats:["bloque","peso","hist","volumen","salidas","daily","checkin"] };
         const cur=SECS.find(x=>x[0]===CoachState.coachSec && x[2]);
-        const shown=(ORDER[tab]||ORDER.ficha).map(id=>SECS.find(x=>x[0]===id));
+        const shown=(ORDER[tab]||ORDER.ficha).filter(id=>!(d.lectura && id==="chat")).map(id=>SECS.find(x=>x[0]===id));
         if(cur){
           panel='<div class="form-head co-sec-head"><button class="form-back" data-coach="sec-close" aria-label="Volver">‹</button><div class="form-title">'+cur[1]+'</div></div>'+
             '<div class="co-panel co-sec-body">'+cur[2]()+'</div>';
         } else {
-          panel='<div class="ptiles co-ptiles">'+shown.map(x=>'<button class="ptile" data-coach="sec-open" data-v="'+x[0]+'"><span class="ptile-t">'+secIcon(x[0])+x[1]+'</span><span class="ptile-s">'+esc(x[3]())+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+(tab==="stats"?'':'<button class="logout-btn cfg-danger co-remove-client" data-coach="remove-client">Desvincular alumno</button>');
+          panel='<div class="ptiles co-ptiles">'+shown.map(x=>'<button class="ptile" data-coach="sec-open" data-v="'+x[0]+'"><span class="ptile-t">'+secIcon(x[0])+x[1]+'</span><span class="ptile-s">'+esc(x[3]())+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+(tab==="stats"||d.lectura?'':'<button class="logout-btn cfg-danger co-remove-client" data-coach="remove-client">Desvincular alumno</button>');
         }
       }
-      body=tabs+panel;
+      // Modo lectura: quién lo edita (el chat y los botones de editar no están).
+      const lec=d.lectura ? '<div class="co-unsaved gy-lectura" role="note"><b>Solo lectura.</b> '+(d.lectura.profe ? 'Lo edita su profe, '+esc(String(d.lectura.profe).split(" ")[0])+'.' : 'No tiene profe asignado en el gimnasio.')+' Ves lo que compartió con la administración.</div>' : '';
+      body=lec+tabs+panel;
     }
     host.innerHTML=coachShell("clients", '<div class="co-head cv-chead"><button class="co-back cv-back" data-coach="back" aria-label="Volver" title="Volver">‹</button>'+avatarHtml(CoachState.coachData&&CoachState.coachData.avatar, coachInitials(CoachState.coachData&&CoachState.coachData.name), 'co-avatar co-avatar-client')+'<div class="cv-cname"><div class="co-client-name">'+esc((CoachState.coachData&&CoachState.coachData.name)||"Cliente")+'</div>'+(disciplinasLabel(CoachState.coachData&&CoachState.coachData.disciplines)?'<div class="co-client-disc">'+esc(disciplinasLabel(CoachState.coachData.disciplines))+'</div>':'')+'</div><button class="co-back cv-refresh" data-coach="refresh" aria-label="Actualizar" title="Actualizar">'+resetSvg+'<span>Actualizar</span></button></div>'+body);
+    if(enLectura()) soloLectura(host);
   }
 }

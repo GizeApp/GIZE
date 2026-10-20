@@ -40,6 +40,9 @@ import { TRACK_KEY, pruneTracks } from './salidas.js';
 
 import { deleteShareFile } from '../ui/compartir.js';
 
+// Gimnasios (core/gimnasio.js): mi_gimnasio() al entrar y los links #gimnasio / #equipo=.
+import { GYM_CACHE, cargarPanelGym, consultarGym, ingresoParaLink, quiereGym } from './gimnasio.js';
+
 export const SB_URL = "https://wegptuzhsrwppbknqstf.supabase.co";
 
 export const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlZ3B0dXpoc3J3cHBia25xc3RmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDkxODgsImV4cCI6MjA5ODU4NTE4OH0.pWBes8juiNcCrFG377w_Ga9IQ4EE37p5AJwUpYs2k8Q";
@@ -301,7 +304,7 @@ function accountKeys(keepNew){
   let drafts=[]; try{ drafts=Object.keys(localStorage).filter(k=>/^gize_(rt|onb)_draft_/.test(k)); }catch(e){}
   let inv=null; try{ inv=JSON.parse(localStorage.getItem("gize_grupo_pend")||"null"); }catch(e){}
   const fresh=!!(inv && inv.t && (inv.t>=performance.timeOrigin || Date.now()-inv.t<15*60000));
-  return [TRACK_KEY].concat(keepNew && fresh ? [] : ["gize_grupo_pend"], runKeys(), drafts);
+  return [TRACK_KEY, GYM_CACHE].concat(keepNew && fresh ? [] : ["gize_grupo_pend"], runKeys(), drafts);
 }
 // Al cerrar sesión o borrar la cuenta: lo que quedó de esa cuenta en el dispositivo además de
 // los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso,
@@ -1009,6 +1012,8 @@ export async function afterLogin(sessionUser, stale){
   // vez en este celular, o después de «Salir») no se adivina si es coach: se espera solo al perfil,
   // que se aplica apenas llega (ver loadCloud), y después lo mismo que con el rol recordado.
   const lectura=loadCloud();
+  // Gimnasio (core/gimnasio.js): en paralelo con el perfil. Sin gimnasio no cambia nada.
+  const gymQ=consultarGym(_staleBoot);
   const conRol=()=>!!(State.cloudProfile || cachedProfile()) || _perfilOk;
   if(!conRol()){
     await Promise.race([lectura, perfilLeido()]);
@@ -1024,6 +1029,12 @@ export async function afterLogin(sessionUser, stale){
   const leyo=await conTope(lectura.then(()=>true), resta(), false);
   if(!leyo) lectura.then(()=>{ if(!State.cloudReady || !State.cloudUser) return; if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach(); else renderApp(); });
   if(!State.cloudProfile) State.cloudProfile=cachedProfile(); // sin conexión: el último perfil conocido
+  // Primer ingreso en este dispositivo (sin la copia de mi_gimnasio): se espera la respuesta como
+  // mucho lo que queda del tope (y nunca más de 4 s). Con la copia se entra con ella y, si la
+  // respuesta cambia algo, se redibuja cuando llega. Solo el equipo del gimnasio (o un link del
+  // gimnasio) carga el panel del gimnasio.
+  if(gymQ && gymQ.primera) await conTope(gymQ.lista, Math.min(4000, resta()), null);
+  if(quiereGym()) await conTope(cargarPanelGym(), Math.min(4000, resta()), false);
   // Registro con Google (o Apple) eligiendo "Soy coach": la cuenta nace como cliente (ver login-google.sql).
   const gi=takeGoogleIntent();
   // Entró con Google o Apple desde "Ingresar" (no desde "Crear cuenta") y la cuenta se creó recién:
@@ -2312,6 +2323,9 @@ export async function cloudBoot(){
       if(h==="#registro"||h==="#registro-coach"){
         try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){}
         showLogin(isOnline()?"":offlineMsg,"up",h==="#registro-coach"&&!appIOS()?{role:"coach"}:{});
+      } else if(ingresoParaLink()){
+        // Link del gimnasio (#gimnasio, #equipo=) sin sesión: se explica para qué hay que entrar (core/gimnasio.js).
+        const g=ingresoParaLink(); showLogin(isOnline()?g.msg:offlineMsg, g.modo, g.vals);
       } else showLogin(isOnline()?"":offlineMsg,"in"); // sin señal, que se sepa por qué no va a poder entrar
     }
   }catch(e){ console.error("cloudBoot",e); showLogin(offlineMsg,"in"); }
