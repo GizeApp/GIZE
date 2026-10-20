@@ -23,6 +23,14 @@
 //   · Desde la app (con la sesión del coach):
 //       { action: "checkout", plan: "p10"|"p25"|"p50"|"p100"|"p250"|"p500", mp_email? } → { url } para pagar
 //       { action: "cancel" } → cancela la renovación (sigue activo hasta paid_until)
+//   · IA Plus (cualquier cuenta, no solo coaches; supabase/ia.sql → ia_plus, iaplus.ts):
+//       { action: "iaplus_checkout", mp_email? } → { url } para pagar (solo con IA Plus prendido en
+//         el panel y el precio en pesos confirmado: ia_config.plus.precio_ars)
+//       { action: "iaplus_cancel" } → botón de baja: cancela la renovación (sigue hasta mp_hasta)
+//       { action: "iaplus_arrepentimiento" } → botón de arrepentimiento (10 días corridos desde
+//         el primer cobro): cancela, devuelve el cobro y corta IA Plus ahora → { ok, devuelto }
+//     Mercado Pago avisa los cobros de IA Plus al mismo webhook: se reconocen por la referencia
+//     («iaplus|<cuenta>») y van a ia_plus, nunca a coach_billing.
 //   · Desde Mercado Pago (?webhook=1): el aviso de un cambio. No se confía en lo que dice
 //     el aviso: se vuelve a pedir la suscripción a la API de Mercado Pago con el token,
 //     así que un aviso falso no puede dar acceso.
@@ -37,6 +45,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { alCobrar, avisaSocios, esPedida, pedidaCancelada, pedidaVencida } from "./reglas.ts";
+import { NOMBRE_PLUS, plusAlCobrar, plusAlDevolver, puedeArrepentirse, refPlus, uidDeRef } from "./iaplus.ts";
 
 const PLANES: Record<string, { max: number; price: number; name: string }> = {
   p10: { max: 10, price: 14900, name: "GIZE Coach · hasta 10 clientes" },
@@ -121,9 +130,11 @@ async function avisar(clave: string, asunto: string, color: string, filas: [stri
   }
 }
 
-// Trae la suscripción de Mercado Pago y actualiza coach_billing.
-async function syncPreapproval(id: string) {
+// Trae la suscripción de Mercado Pago y actualiza coach_billing (o ia_plus, si es de IA Plus).
+async function syncPreapproval(id: string): Promise<{ coachId: string; plan: string; plus?: boolean } | null> {
   const pa = await mp("/preapproval/" + encodeURIComponent(id));
+  const plusUid = uidDeRef(pa.external_reference);
+  if (plusUid) return syncPlus(id, pa, plusUid);
   const [coachId, plan] = String(pa.external_reference || "").split("|");
   if (!coachId || !PLANES[plan]) { console.error("preapproval sin referencia GIZE", id); return null; }
   const db = admin();
@@ -198,6 +209,194 @@ async function syncPreapproval(id: string) {
   return { coachId, plan };
 }
 
+// ---- IA Plus (supabase/ia.sql → ia_plus) ----
+const nombrePlan = (plan: string) => (PLANES[plan] && PLANES[plan].name) || NOMBRE_PLUS;
+
+// La suscripción de IA Plus `id` de la cuenta uid, según Mercado Pago. Como el plan de coach: solo
+// cuentan la vigente y la que pidió; IA Plus cubre recién con un cobro hecho; cancelada o pausada,
+// sigue hasta mp_hasta.
+async function syncPlus(id: string, pa: any, uid: string) {
+  const db = admin();
+  const ref = { coachId: uid, plan: "iaplus", plus: true };
+  const { data: prof } = await db.from("profiles").select("id").eq("id", uid).maybeSingle();
+  if (!prof) {
+    // La cuenta ya no existe (la borró): que Mercado Pago no le siga cobrando.
+    console.error("iaplus: cuenta que ya no existe");
+    if (pa.status === "authorized" || pa.status === "paused") await cancelarMP(id);
+    return null;
+  }
+  const { data: cur, error } = await db.from("ia_plus").select("*").eq("user_id", uid).maybeSingle();
+  if (error) throw new Error("ia_plus: " + error.message);
+  const estados: Record<string, [string, string]> = {
+    authorized: ["IA Plus nueva", "#25E8C8"], cancelled: ["IA Plus cancelada", "#FF4D4D"], paused: ["IA Plus pausada", "#FFB020"],
+  };
+  const est = estados[String(pa.status)];
+  if (est && cur && avisaSocios(cur, id, String(pa.status))) {
+    const c = await coachInfo(uid);
+    await avisar("pa:" + id + ":" + pa.status, est[0], est[1], [
+      ["Cuenta", c.name], ["Mail", c.email], ["Plan", NOMBRE_PLUS],
+      ["Monto mensual", pesos(pa.auto_recurring && pa.auto_recurring.transaction_amount)],
+      ["Fecha", fecha(pa.last_modified || pa.date_created)], ["Suscripción MP", id],
+    ]);
+  }
+  const ahora = new Date().toISOString();
+  if (pa.status === "authorized") {
+    if (!cur || !esPedida(cur, id)) {
+      console.error("iaplus: suscripción que ya no es la pedida, se cancela", id);
+      await cancelarMP(id);
+      return ref;
+    }
+    const last = pa.summarized && pa.summarized.last_charged_date;
+    const cobros = Number((pa.summarized && pa.summarized.charged_quantity) || 0);
+    if (!last || cobros < 1) return ref;
+    const r = plusAlCobrar(cur, id, new Date(last));
+    if (!r) return ref;
+    if (r.cancelar) await cancelarMP(r.cancelar);
+    const { error: ue } = await db.from("ia_plus").update(r.update).eq("user_id", uid);
+    if (ue) throw new Error("ia_plus: " + ue.message);
+  } else if (cur && id === cur.mp_preapproval_id) {
+    await db.from("ia_plus").update({ mp_status: pa.status, updated_at: ahora }).eq("user_id", uid);
+  } else if (cur && pa.status === "cancelled" && id === cur.mp_pending_id) {
+    await db.from("ia_plus").update({ mp_pending_id: null, updated_at: ahora }).eq("user_id", uid).eq("mp_pending_id", id);
+  }
+  return ref;
+}
+
+// Un cobro mensual de IA Plus: el aprobado queda anotado (es el que se devuelve con el botón de
+// arrepentimiento); uno devuelto o desconocido por la tarjeta corta IA Plus si era el último.
+async function pagoPlus(ap: any, uid: string) {
+  const pid = String((ap.payment && ap.payment.id) || ""), st = String((ap.payment && ap.payment.status) || "");
+  if (!pid) return;
+  const db = admin();
+  if (st === "approved") {
+    await db.from("ia_plus").update({ mp_pago_id: pid, updated_at: new Date().toISOString() }).eq("user_id", uid).eq("mp_preapproval_id", String(ap.preapproval_id || ""));
+  } else if (st === "refunded" || st === "charged_back") {
+    const { data: cur } = await db.from("ia_plus").select("*").eq("user_id", uid).maybeSingle();
+    const up = plusAlDevolver(cur, pid);
+    if (up) await db.from("ia_plus").update(up).eq("user_id", uid);
+  }
+}
+
+// Lo que pide la app para IA Plus (cualquier cuenta con sesión).
+async function plusDesdeLaApp(input: { action?: string; mp_email?: string }, user: { id: string; email?: string }, db: any): Promise<Response> {
+  const uid = String(user.id).toLowerCase();
+  const { data: cfgRow, error: ce } = await db.from("ia_config").select("plus").eq("id", 1).maybeSingle();
+  if (ce) { console.error("iaplus: config", ce.code || ""); return json({ error: "Falta preparar IA Plus (supabase/ia.sql)." }, 500); }
+  const cfg = (cfgRow && cfgRow.plus) || {};
+  const { data: cur, error: pe } = await db.from("ia_plus").select("*").eq("user_id", uid).maybeSingle();
+  if (pe) { console.error("iaplus: fila", pe.code || ""); return json({ error: "No se pudo leer tu IA Plus. Probá de nuevo." }, 500); }
+  const ahora = Date.now();
+  const vigente = (v: unknown) => !!v && Date.parse(String(v)) > ahora;
+
+  if (input.action === "iaplus_cancel") {
+    if (!cur || !cur.mp_preapproval_id || !vigente(cur.mp_hasta) || cur.mp_status === "cancelled") return json({ error: "No tenés una suscripción de IA Plus que se renueve." }, 400);
+    try { await mp("/preapproval/" + encodeURIComponent(cur.mp_preapproval_id), { method: "PUT", body: JSON.stringify({ status: "cancelled" }) }); }
+    catch (e) { console.error("iaplus: cancelar", (e as Error).message); return json({ error: "Mercado Pago no respondió. Probá de nuevo en un rato." }, 502); }
+    if (cur.mp_pending_id && cur.mp_pending_id !== cur.mp_preapproval_id) await cancelarMP(cur.mp_pending_id);
+    await db.from("ia_plus").update({ mp_status: "cancelled", mp_pending_id: null, updated_at: new Date().toISOString() }).eq("user_id", uid);
+    return json({ ok: true, hasta: cur.mp_hasta });
+  }
+
+  if (input.action === "iaplus_arrepentimiento") {
+    if (!puedeArrepentirse(cur, ahora)) return json({ error: "El botón de arrepentimiento vale durante los 10 días corridos desde que se cobró tu suscripción. Podés cancelarla igual: sigue hasta el final del mes pago." }, 400);
+    try { await mp("/preapproval/" + encodeURIComponent(cur.mp_preapproval_id), { method: "PUT", body: JSON.stringify({ status: "cancelled" }) }); }
+    catch (e) { console.error("iaplus: arrepentimiento, cancelar", (e as Error).message); return json({ error: "Mercado Pago no respondió. Probá de nuevo en un rato." }, 502); }
+    let devuelto = false;
+    if (cur.mp_pago_id) {
+      try {
+        await mp("/v1/payments/" + encodeURIComponent(cur.mp_pago_id) + "/refunds", { method: "POST", body: "{}", headers: { "X-Idempotency-Key": "iaplus-arrepentimiento-" + cur.mp_pago_id } });
+        devuelto = true;
+      } catch (e) { console.error("iaplus: arrepentimiento, devolver", (e as Error).message); }
+    }
+    const t = new Date().toISOString();
+    await db.from("ia_plus").update({ mp_status: "cancelled", mp_hasta: t, arrepentido_at: t, mp_pending_id: null, updated_at: t }).eq("user_id", uid);
+    const c = await coachInfo(uid);
+    // A los socios: si la devolución no salió sola, la tienen que hacer a mano desde Mercado Pago.
+    await avisar("arrep:" + cur.mp_preapproval_id, devuelto ? "IA Plus: arrepentimiento (devuelto)" : "IA Plus: arrepentimiento · DEVOLVER A MANO", devuelto ? "#FFB020" : "#FF4D4D", [
+      ["Cuenta", c.name], ["Mail", c.email], ["Suscripción MP", String(cur.mp_preapproval_id)], ["Cobro MP", String(cur.mp_pago_id || "no se encontró")],
+      ["Devolución", devuelto ? "Pedida a Mercado Pago" : "No salió: hacela desde Mercado Pago → Actividad"], ["Fecha", fecha(t)],
+    ]);
+    return json({ ok: true, devuelto });
+  }
+
+  if (input.action !== "iaplus_checkout") return json({ error: "Acción desconocida" }, 400);
+  if (cfg.activa !== true) return json({ error: "IA Plus todavía no está disponible." }, 403);
+  const precio = Number(cfg.precio_ars);
+  if (cfg.precio_confirmado !== true || !Number.isFinite(precio) || precio < 100) return json({ error: "IA Plus todavía no está disponible." }, 403);
+  const { data: incluido } = await db.rpc("ia_plus_incluido", { p_uid: uid });
+  if (incluido === true) return json({ error: "Ya tenés IA Plus incluido con el plan de tu coach.", codigo: "incluido" }, 400);
+  if (cur && vigente(cur.apple_vence)) return json({ error: "Ya tenés IA Plus con tu cuenta de Apple.", codigo: "ya" }, 400);
+  if (cur && vigente(cur.mp_hasta) && cur.mp_status === "authorized") return json({ error: "Ya tenés IA Plus.", codigo: "ya" }, 400);
+
+  const email = String(input.mp_email || user.email || "").trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "Poné el mail de tu cuenta de Mercado Pago" }, 400);
+  const appUrl = Deno.env.get("APP_URL") || "https://gize.ar/app/";
+
+  // Tope por hora, en la misma tabla que los checkouts de los coaches (mp_checkouts, por cuenta).
+  const hora = new Date(ahora - 3600_000).toISOString();
+  await db.from("mp_checkouts").delete().eq("coach_id", uid).lt("created_at", hora);
+  const frenar = async (reuso: boolean, max: number) => {
+    const { data: mio, error: ie } = await db.from("mp_checkouts").insert({ coach_id: uid, reuso }).select("id").maybeSingle();
+    const { count: intentos, error: ne } = ie ? { count: 0, error: ie } : await db.from("mp_checkouts").select("id", { count: "exact", head: true }).eq("coach_id", uid).eq("reuso", reuso).gte("created_at", hora);
+    if (ne) { console.error("mp_checkouts", ne.code, ne.message); return json({ error: "No se pudo preparar el pago. Probá de nuevo en un rato." }, 503); }
+    if ((intentos || 0) <= max) return null;
+    if (mio) await db.from("mp_checkouts").delete().eq("id", mio.id);
+    return json({ error: "Probaste muchas veces seguidas. Esperá un rato y volvé a intentar." }, 429);
+  };
+
+  // Un link sin pagar con el mismo mail y el mismo precio: se reusa.
+  if (cur && cur.mp_pending_id && cur.mp_pending_id !== cur.mp_preapproval_id) {
+    const frenado = await frenar(true, REUSOS_POR_HORA);
+    if (frenado) return frenado;
+    try {
+      const prev = await mp("/preapproval/" + encodeURIComponent(cur.mp_pending_id));
+      if (prev.status === "pending" && prev.init_point && prev.external_reference === refPlus(uid) &&
+          String(prev.payer_email || "").trim().toLowerCase() === email &&
+          Number(prev.auto_recurring && prev.auto_recurring.transaction_amount) === precio) return json({ url: prev.init_point });
+    } catch (e) { console.error("iaplus: pendiente", (e as Error).message); }
+  }
+  const frenado = await frenar(false, CHECKOUTS_POR_HORA);
+  if (frenado) return frenado;
+
+  let pa;
+  try {
+    pa = await mp("/preapproval", {
+      method: "POST",
+      body: JSON.stringify({
+        reason: NOMBRE_PLUS,
+        external_reference: refPlus(uid),
+        payer_email: email,
+        back_url: appUrl + "?pago=iaplus",
+        status: "pending",
+        auto_recurring: { frequency: 1, frequency_type: "months", transaction_amount: precio, currency_id: "ARS" },
+      }),
+    });
+  } catch (e) {
+    const msg = (e as Error).message;
+    console.error("iaplus: checkout", msg);
+    return json({ error: "Mercado Pago rechazó el pedido. Revisá que el mail sea el de tu cuenta de Mercado Pago." }, 502);
+  }
+  // Se guarda solo si el pendiente sigue siendo el que se leyó: con dos checkouts a la vez, el
+  // segundo da de baja el suyo.
+  let saved: unknown[] | null = null, se: { message: string } | null = null;
+  if (!cur) {
+    const r = await db.from("ia_plus").insert({ user_id: uid, mp_pending_id: pa.id }).select("user_id");
+    saved = r.data; se = r.error && r.error.code !== "23505" ? r.error : null;
+  } else {
+    let q = db.from("ia_plus").update({ mp_pending_id: pa.id, updated_at: new Date().toISOString() }).eq("user_id", uid);
+    q = cur.mp_pending_id ? q.eq("mp_pending_id", cur.mp_pending_id) : q.is("mp_pending_id", null);
+    const r = await q.select("user_id");
+    saved = r.data; se = r.error;
+  }
+  if (se || !saved || !saved.length) {
+    if (se) console.error("iaplus: guardar", se.message);
+    await cancelarMP(pa.id);
+    return json({ error: "Ya se estaba preparando otro pago. Probá de nuevo." }, 409);
+  }
+  if (cur && cur.mp_pending_id && cur.mp_pending_id !== cur.mp_preapproval_id) await cancelarMP(cur.mp_pending_id);
+  return json({ url: pa.init_point });
+}
+
 async function cancelarMP(id: string) {
   try { await mp("/preapproval/" + encodeURIComponent(id), { method: "PUT", body: JSON.stringify({ status: "cancelled" }) }); }
   catch (e) { console.error("no se pudo cancelar", id, (e as Error).message); }
@@ -250,6 +449,7 @@ async function webhook(req: Request, url: URL) {
       // Aviso de un cobro mensual: se busca a qué suscripción pertenece.
       const ap = await mp("/authorized_payments/" + encodeURIComponent(id));
       const ref = ap.preapproval_id ? await syncPreapproval(String(ap.preapproval_id)) : null;
+      if (ref && ref.plus) await pagoPlus(ap, ref.coachId);
       // Aviso a los socios de cada cobro, aprobado o rechazado (una vez por cobro y estado).
       const pst = String((ap.payment && ap.payment.status) || "");
       if (ref && (pst === "approved" || pst === "rejected")) {
@@ -257,7 +457,7 @@ async function webhook(req: Request, url: URL) {
         const ok = pst === "approved";
         await avisar("ap:" + ap.id + ":" + pst, (ok ? "Cobro recibido " : "Cobro rechazado ") + pesos(ap.transaction_amount),
           ok ? "#2FA0FF" : "#FF4D4D", [
-            ["Coach", c.name], ["Mail", c.email], ["Plan", PLANES[ref.plan].name],
+            [ref.plus ? "Cuenta" : "Coach", c.name], ["Mail", c.email], ["Plan", nombrePlan(ref.plan)],
             ["Monto", pesos(ap.transaction_amount) + " " + (ap.currency_id || "ARS")],
             ["Estado", ok ? "Aprobado" : "Rechazado" + (ap.payment.status_detail ? " (" + ap.payment.status_detail + ")" : "")],
             ["Fecha", fecha(ap.debit_date || ap.date_created)], ["Cobro MP", String(ap.id)],
@@ -293,6 +493,11 @@ Deno.serve(async (req) => {
   try { input = await req.json(); } catch { return json({ error: "Pedido inválido" }, 400); }
 
   const db = admin();
+  // IA Plus: para cualquier cuenta (no solo coaches).
+  if (input && typeof input.action === "string" && input.action.startsWith("iaplus_")) {
+    try { return await plusDesdeLaApp(input, u.user, db); }
+    catch (e) { console.error("iaplus", (e as Error).message); return json({ error: "No se pudo completar. Probá de nuevo en un rato." }, 500); }
+  }
   const { data: prof } = await db.from("profiles").select("role").eq("id", coachId).maybeSingle();
   if (!prof || prof.role !== "coach") return json({ error: "Solo las cuentas de coach tienen plan" }, 403);
   const { data: bill } = await db.from("coach_billing").select("*").eq("coach_id", coachId).maybeSingle();

@@ -5,7 +5,7 @@
 // ren: los de la renovación (JWSRenewalInfoDecodedPayload), que llegan solo en los avisos de Apple.
 // Las fechas de Apple vienen en milisegundos.
 
-import { PRODUCTOS_APPLE } from "./planes.ts";
+import { IA_PLUS_APPLE, PRODUCTOS_APPLE } from "./planes.ts";
 
 export const BUNDLE_ID = "ar.com.gize.app";
 // Producción y Sandbox: la revisión de Apple (App Review) y TestFlight compran en Sandbox, contra
@@ -20,7 +20,7 @@ export function revisarTx(tx: any): string {
   if (!tx || typeof tx !== "object") return "sin datos";
   if (tx.bundleId !== BUNDLE_ID) return "es de otra app";
   if (!ENTORNOS.includes(tx.environment)) return "entorno desconocido";
-  if (!PRODUCTOS_APPLE[tx.productId]) return "producto desconocido";
+  if (!PRODUCTOS_APPLE[tx.productId] && tx.productId !== IA_PLUS_APPLE) return "producto desconocido";
   if (!tx.originalTransactionId || !tx.transactionId) return "sin número de transacción";
   if (!Number.isFinite(Number(tx.expiresDate)) || !Number(tx.expiresDate)) return "sin vencimiento";
   return "";
@@ -42,8 +42,11 @@ export type Estado = {
   firmado: number;          // cuándo lo firmó Apple: lo más nuevo gana
 };
 
+// ¿Es la suscripción de IA Plus? (si no, es un plan de coach)
+export const esPlus = (tx: any) => !!tx && tx.productId === IA_PLUS_APPLE;
+
 export function estadoDe(tx: any, ren: any, ahora: number): Estado {
-  const prod = PRODUCTOS_APPLE[tx.productId];
+  const prod = PRODUCTOS_APPLE[tx.productId] || { plan: "iaplus", max: 0 };
   const vence = Number(tx.expiresDate);
   const revocada = tx.revocationDate != null;
   // Período de gracia (si está activado en App Store Connect): Apple sigue dando el plan mientras
@@ -106,6 +109,26 @@ export function liberar(cur: any, otx: string, ahora: number): Record<string, un
   const up: Record<string, unknown> = { apple_original_tx: null, apple_vence: null, apple_renueva: false, updated_at: iso(ahora) };
   if (cur.plan !== "cortesia" && pagoDeApple(cur) && ms(cur.paid_until) > ahora) up.paid_until = iso(ahora);
   return up;
+}
+
+// Qué cambia en ia_plus (IA Plus comprado con Apple) con el estado de una suscripción de Apple. Solo
+// las columnas apple_*: lo de Mercado Pago y lo dado a mano no se tocan (gana lo que llegue más
+// lejos, ver ia_plus_hasta en supabase/ia.sql). Una suscripción vieja que vence no pisa la vigente.
+// Vencida o reembolsada, apple_vence queda en la fecha en que dejó de cubrir (en un reembolso, la
+// del reembolso). Aplicar dos veces lo mismo da lo mismo.
+export function cambiosPlus(cur: any, est: Estado, ahora: number): Record<string, unknown> {
+  if (cur && !est.activa && cur.apple_original_tx && cur.apple_original_tx !== est.otx) return {};
+  const misma = !!cur && cur.apple_original_tx === est.otx;
+  return {
+    apple_original_tx: est.otx, apple_vence: iso(est.hasta),
+    apple_renueva: est.renueva === null ? (misma ? !!cur.apple_renueva : true) : est.renueva,
+    updated_at: iso(ahora),
+  };
+}
+// La suscripción de IA Plus pasó a otra cuenta de GIZE: la anterior la deja de tener.
+export function liberarPlus(cur: any, otx: string, ahora: number): Record<string, unknown> {
+  if (!cur || cur.apple_original_tx !== otx) return {};
+  return { apple_original_tx: null, apple_vence: null, apple_renueva: false, updated_at: iso(ahora) };
 }
 
 // La fila de public.apple_subs.

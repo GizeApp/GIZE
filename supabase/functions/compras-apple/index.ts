@@ -1,6 +1,8 @@
 // Supabase Edge Function "compras-apple": las suscripciones de los planes de coach que se compran
 // dentro de la app de iPhone con Apple (In-App Purchase, StoreKit 2). Mantiene al día
 // public.apple_subs y public.coach_billing (ver supabase/compras-apple.sql).
+// También IA Plus (producto ar.com.gize.app.iaplus.mensual, de cualquier cuenta, no solo coaches):
+// esa suscripción va a public.ia_plus (supabase/ia.sql), nunca a coach_billing.
 //
 // Cómo publicarla: con la tarea "funciones" de .github/workflows/supabase.yml (no desde el panel
 // de Supabase). Va sin "Verify JWT", como las demás: los avisos de Apple llegan sin sesión de
@@ -27,7 +29,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { RAIZ_APPLE_G3, RAIZ_APPLE_G3_SHA256 } from "./raiz-apple.ts";
 import { JWSInvalido, pemADer, sha256Hex, verificarJWS } from "./jws.ts";
-import { AVISOS, BUNDLE_ID, ENTORNOS, cambiosBilling, cuentaDe, estadoDe, filaSub, liberar, revisarTx } from "./reglas.ts";
+import { AVISOS, BUNDLE_ID, ENTORNOS, cambiosBilling, cambiosPlus, cuentaDe, esPlus, estadoDe, filaSub, liberar, liberarPlus, revisarTx } from "./reglas.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -70,17 +72,7 @@ async function aplicar(db: any, uid: string, tx: any, ren: any): Promise<{ vieja
     if (be) throw new Error("coach_billing: " + be.message);
     if (!cur) throw new Error("la cuenta no tiene coach_billing");
 
-    const fila = filaSub(est, uid, ahora);
-    if (sub) {
-      let q = db.from("apple_subs").update(fila).eq("original_transaction_id", est.otx);
-      q = sub.signed_at ? q.eq("signed_at", sub.signed_at) : q.is("signed_at", null);
-      const { data: hecho, error } = await q.select("original_transaction_id");
-      if (error) throw new Error("apple_subs: " + error.message);
-      if (!hecho || !hecho.length) continue;
-    } else {
-      const { error } = await db.from("apple_subs").insert(fila);
-      if (error) { if (error.code === "23505") continue; throw new Error("apple_subs: " + error.message); }
-    }
+    if (!(await guardarSub(db, est, uid, sub, ahora))) continue;
 
     // Venía de otra cuenta de GIZE: esa la deja de tener.
     if (sub && sub.user_id && sub.user_id !== uid) {
@@ -103,8 +95,61 @@ async function aplicar(db: any, uid: string, tx: any, ren: any): Promise<{ vieja
   throw new Error("la fila cambió muchas veces seguidas");
 }
 
-// Una compra que manda la app. Devuelve null si quedó guardada o el error para el coach.
-async function compraDeLaApp(db: any, uid: string, jws: unknown): Promise<{ error: string; codigo: string } | null> {
+// Escribe la fila de apple_subs (condicional: si otro pedido la cambió en el medio, false y se
+// vuelve a leer).
+async function guardarSub(db: any, est: ReturnType<typeof estadoDe>, uid: string, sub: any, ahora: number): Promise<boolean> {
+  const fila = filaSub(est, uid, ahora);
+  if (sub) {
+    let q = db.from("apple_subs").update(fila).eq("original_transaction_id", est.otx);
+    q = sub.signed_at ? q.eq("signed_at", sub.signed_at) : q.is("signed_at", null);
+    const { data: hecho, error } = await q.select("original_transaction_id");
+    if (error) throw new Error("apple_subs: " + error.message);
+    return !!(hecho && hecho.length);
+  }
+  const { error } = await db.from("apple_subs").insert(fila);
+  if (error) { if (error.code === "23505") return false; throw new Error("apple_subs: " + error.message); }
+  return true;
+}
+
+// Lo mismo que aplicar, para IA Plus: apple_subs y después ia_plus (la crea si no está).
+async function aplicarPlus(db: any, uid: string, tx: any, ren: any): Promise<{ vieja?: boolean }> {
+  for (let intento = 0; intento < 4; intento++) {
+    const ahora = Date.now();
+    const est = estadoDe(tx, ren, ahora);
+    const { data: sub, error: se } = await db.from("apple_subs").select("*").eq("original_transaction_id", est.otx).maybeSingle();
+    if (se) throw new Error("apple_subs: " + se.message);
+    if (sub && sub.signed_at && Date.parse(sub.signed_at) > est.firmado) return { vieja: true };
+    const { data: cur, error: pe } = await db.from("ia_plus").select("*").eq("user_id", uid).maybeSingle();
+    if (pe) throw new Error("ia_plus: " + pe.message);
+    if (!cur) {
+      const { error } = await db.from("ia_plus").insert({ user_id: uid });
+      if (error && error.code !== "23505") throw new Error("ia_plus: " + error.message);
+      continue;
+    }
+    if (!(await guardarSub(db, est, uid, sub, ahora))) continue;
+    // Venía de otra cuenta de GIZE: esa la deja de tener.
+    if (sub && sub.user_id && sub.user_id !== uid) {
+      const { data: otra } = await db.from("ia_plus").select("*").eq("user_id", sub.user_id).maybeSingle();
+      const lib = liberarPlus(otra, est.otx, ahora);
+      if (Object.keys(lib).length) {
+        const { error } = await db.from("ia_plus").update(lib).eq("user_id", sub.user_id).eq("apple_original_tx", est.otx);
+        if (error) throw new Error("ia_plus: " + error.message);
+      }
+    }
+    const cambios = cambiosPlus(cur, est, ahora);
+    if (!Object.keys(cambios).length) return {};
+    let q = db.from("ia_plus").update(cambios).eq("user_id", uid);
+    q = cur.updated_at ? q.eq("updated_at", cur.updated_at) : q;
+    const { data: hecho, error } = await q.select("user_id");
+    if (error) throw new Error("ia_plus: " + error.message);
+    if (hecho && hecho.length) return {};
+  }
+  throw new Error("la fila cambió muchas veces seguidas");
+}
+
+// Una compra que manda la app. Devuelve null si quedó guardada o el error para la persona. IA Plus
+// lo puede comprar cualquier cuenta; los planes, solo los coaches.
+async function compraDeLaApp(db: any, uid: string, jws: unknown, coach: boolean): Promise<{ error: string; codigo: string } | null> {
   let tx: any;
   try { tx = await verificarJWS(jws, await raiz()); }
   catch (e) {
@@ -113,10 +158,13 @@ async function compraDeLaApp(db: any, uid: string, jws: unknown): Promise<{ erro
   }
   const m = revisarTx(tx);
   if (m) { console.error("compras-apple: compra rechazada:", m); return { error: "Esa compra no es de un plan de GIZE.", codigo: "invalida" }; }
+  const plus = esPlus(tx);
+  if (!plus && !coach) return { error: "Solo las cuentas de coach tienen plan", codigo: "solo-coach" };
   if (cuentaDe(tx) !== uid) return { error: "Esa suscripción de Apple es de otra cuenta de GIZE.", codigo: "otra-cuenta" };
   if (tx.revocationDate != null) return { error: "Apple devolvió el pago de esa suscripción.", codigo: "revocada" };
   if (Number(tx.expiresDate) <= Date.now()) return { error: "Esa suscripción ya venció.", codigo: "vencida" };
-  await aplicar(db, uid, tx, null);
+  if (plus) await aplicarPlus(db, uid, tx, null);
+  else await aplicar(db, uid, tx, null);
   return null;
 }
 
@@ -129,7 +177,7 @@ async function desdeLaApp(req: Request, body: any): Promise<Response> {
   const uid = String(u.user.id).toLowerCase();
   const db = admin();
   const { data: prof } = await db.from("profiles").select("role").eq("id", uid).maybeSingle();
-  if (!prof || prof.role !== "coach") return json({ error: "Solo las cuentas de coach tienen plan" }, 403);
+  const coach = !!prof && prof.role === "coach";
 
   const varios = Array.isArray(body.jws);
   const lista = varios ? body.jws : [body.jws];
@@ -137,7 +185,7 @@ async function desdeLaApp(req: Request, body: any): Promise<Response> {
   const resultados: Record<string, unknown>[] = [];
   try {
     for (const jws of lista) {
-      const err = await compraDeLaApp(db, uid, jws);
+      const err = await compraDeLaApp(db, uid, jws, coach);
       resultados.push(err ? { ok: false, ...err } : { ok: true });
     }
   } catch (e) {
@@ -146,7 +194,7 @@ async function desdeLaApp(req: Request, body: any): Promise<Response> {
   }
   if (varios) return json({ resultados });
   const r = resultados[0];
-  return r.ok ? json({ ok: true }) : json({ error: r.error, codigo: r.codigo }, 400);
+  return r.ok ? json({ ok: true }) : json({ error: r.error, codigo: r.codigo }, r.codigo === "solo-coach" ? 403 : 400);
 }
 
 // Aviso de App Store Server Notifications V2.
@@ -179,8 +227,13 @@ async function avisoDeApple(signedPayload: unknown): Promise<Response> {
       uid = sub && sub.user_id ? String(sub.user_id) : null;
     }
     if (!uid) { console.error("compras-apple: aviso", tipo, "sin cuenta de GIZE"); return json({ ok: true, ignorado: "sin cuenta" }); }
-    // La cuenta se borró, o no es de coach: no hay plan que actualizar.
+    // La cuenta se borró, o no es de coach: no hay plan que actualizar. IA Plus, de cualquier cuenta.
     const { data: prof } = await db.from("profiles").select("role").eq("id", uid).maybeSingle();
+    if (esPlus(tx)) {
+      if (!prof) return json({ ok: true, ignorado: "sin cuenta" });
+      await aplicarPlus(db, uid, tx, ren);
+      return json({ ok: true });
+    }
     if (!prof || prof.role !== "coach") return json({ ok: true, ignorado: "sin coach" });
     await aplicar(db, uid, tx, ren);
     return json({ ok: true });
