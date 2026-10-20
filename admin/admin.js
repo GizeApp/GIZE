@@ -1422,7 +1422,7 @@ const IA_COD = { refusal: "la IA no quiso leerla", max_tokens: "respuesta cortad
   clave_rechazada: "clave rechazada", limite_uso: "mucha demanda (límite por minuto)", sobrecarga: "mucha demanda (API saturada)", tiempo: "tardó demasiado",
   red: "sin conexión con la API", creditos: "sin créditos", vencida: "quedó sin cerrar" };
 const iaCod = k => IA_COD[k] || (/^api_\d+$/.test(String(k)) ? "error de la API (" + String(k).slice(4) + ")" : String(k || "error"));
-const IA_FRENO = { tope_mes: "corte del mes", ahorro: "modo ahorro", ritmo: "ritmo del día", tope_dia: "tope del día", tope_persona: "tope de la persona", pausada: "pausada" };
+const IA_FRENO = { tope_mes: "corte del mes", ahorro: "modo ahorro", ritmo: "ritmo del día", tope_dia: "tope del día", tope_persona: "tope de la persona", pausada: "pausada", tope_semana: "usos gratis de la semana (IA Plus)" };
 // «Leer pedidos desde»: se elige el día en que se publicó la política. Si es hoy, se leen los
 // pedidos que lleguen desde ahora (la política ya está publicada); si es otro día, desde las 00:00
 // (Argentina) del día siguiente: no se sabe a qué hora se publicó, así que nunca se lee uno de antes.
@@ -1441,8 +1441,9 @@ function diaPolitica(iso){
 async function loadIA(){
   const lead = "Lo que gasta la IA con los créditos de API del plan Max. La IA solo completa: vos revisás y publicás.";
   page("IA", lead, '<div class="empty">Cargando…</div>');
-  const [est, fnEst] = await Promise.all([rpc("admin_ia_estado").catch(e => ({ error: e })), iaInvoke({ modo: "estado" })]);
+  const [est, fnEst, plus] = await Promise.all([rpc("admin_ia_estado").catch(e => ({ error: e })), iaInvoke({ modo: "estado" }), rpc("admin_ia_plus_lista").catch(() => null)]);
   if (S.view !== "ia") return;
+  S.iaPlus = plus;
   if (est && est.error){
     const falta = /admin_ia_estado|schema cache|does not exist/i.test(errMsg(est.error));
     return page("IA", lead, `<div class="card calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/ia.sql</b> (antes, <b>supabase/pedidos-productos.sql</b>)." : esc(errMsg(est.error))}</div>`);
@@ -1533,10 +1534,51 @@ function paintIA(foco){
     block("iaCicloB", "Ciclo", ciclo + ancla) +
     block("iaFunB", "Funciones", funs + modelo + desde) +
     block("iaUsoB", "Uso del ciclo", uso) +
+    iaPlusBlock() +
     panel("iaTopesB", "Topes", `<div class="sec-s">Por persona y por día (y en dólares por ciclo). Arriba de esto, la guardia corta igual.</div>${topes}${umbr}
       <div class="row-btns"><button class="btn blue" data-a="iaTopes">Guardar topes</button></div>`, { open: false }) +
     panel("iaUltB", "Últimas llamadas", ult ? `<div class="tscroll"><table class="table"><thead><tr><th>Cuándo</th><th>Qué</th><th>Modelo</th><th>Cómo salió</th><th>Costo</th><th>Tardó</th></tr></thead><tbody>${ult}</tbody></table></div>` : '<div class="calm">Todavía no hubo ninguna.</div>', { open: false, sum: (ia.ultimas || []).length ? n0(ia.ultimas.length) : "ninguna" }));
   if (foco){ const el = document.querySelector(foco); if (el) try { el.focus({ preventScroll: true }); } catch (e) {} }
+}
+// IA Plus (supabase/ia.sql → ia_plus, app/ui/ia-plus.js): el interruptor, el precio de la web en
+// pesos (provisorio hasta que se guarde), los usos gratis por semana, cuántos lo tienen y, para
+// soporte, darlo o sacarlo a mano. Apagado: no hay límite semanal y no se vende nada.
+function iaPlusBlock(){
+  const ia = S.ia, pl = ia.plus || {}, r = ia.plus_resumen || {}, lista = S.iaPlus;
+  if (!ia.plus) return block("iaPlusB", "IA Plus", '<div class="calm">Falta preparar la base: correr de nuevo <b>supabase/ia.sql</b> con el workflow «Supabase» (tarea sql).</div>');
+  const frenos = num(((ia.ciclo && ia.ciclo.frenos) || {}).tope_semana);
+  const sw = `<div class="ia-master"><div><b>IA Plus</b><small>${pl.activa ? "Prendido: la foto del plato y «Contame qué comiste» son gratis hasta " + n0(pl.gratis_semana) + " usos por semana; con IA Plus, sin límite semanal (con los topes de cada día). Se vende en la web con Mercado Pago y en el iPhone con Apple; en Android, no." : "Apagado: no hay límite semanal (como hasta ahora) y no se vende nada."}</small></div>
+    <button class="tgl" role="switch" aria-checked="${pl.activa ? "true" : "false"}" aria-label="IA Plus" data-a="iaPlusOn"></button></div>`;
+  const precio = `<label class="lbl" for="iaPlusPrecio">Precio por mes en la web (pesos, con Mercado Pago)</label>
+    <div class="search"><input class="in" id="iaPlusPrecio" inputmode="numeric" value="${esc(pl.precio_ars || "")}"><button class="btn" data-a="iaPlusPrecio">Guardar precio</button></div>
+    ${pl.precio_confirmado ? '<div class="muted small">Lo nuevo vale para las suscripciones que se hagan desde ahora; las que ya están siguen con su precio.</div>' : '<div class="small ia-warn">Precio provisorio (' + money(pl.precio_ars) + '): confirmalo con «Guardar precio» antes de prender IA Plus.</div>'}
+    <div class="muted small">En el iPhone el precio lo pone Apple (App Store Connect, el más cercano a US$2,99).</div>`;
+  const gratis = `<label class="lbl" for="iaPlusGratis">Usos gratis por semana (foto y texto juntos; la semana arranca el lunes)</label>
+    <div class="search"><input class="in" id="iaPlusGratis" inputmode="numeric" value="${esc(pl.gratis_semana != null ? pl.gratis_semana : 3)}"><button class="btn" data-a="iaPlusGratis">Guardar</button></div>`;
+  const kpis = `<div class="grid kpis"><div class="kpi"><b>${n0(r.activos)}</b><span>Con IA Plus</span><small>${n0(r.mp)} Mercado Pago · ${n0(r.apple)} Apple · ${n0(r.manual)} a mano</small></div>
+    <div class="kpi"><b>${n0(r.renuevan)}</b><span>Se renuevan</span><small>${n0(r.arrepentidos)} arrepentimiento${num(r.arrepentidos) === 1 ? "" : "s"}</small></div>
+    <div class="kpi"><b>${n0(frenos)}</b><span>Llegaron al límite semanal</span><small>en este ciclo</small></div></div>`;
+  const de = x => [x.mp_hasta && new Date(x.mp_hasta) > new Date() ? "Mercado Pago" + (x.mp_status === "authorized" ? "" : " (cancelada)") : "",
+    x.apple_vence && new Date(x.apple_vence) > new Date() ? "Apple" + (x.apple_renueva ? "" : " (no se renueva)") : "",
+    x.manual_hasta && new Date(x.manual_hasta) > new Date() ? "A mano" + (x.manual_nota ? ": " + x.manual_nota : "") : ""].filter(Boolean).join(" · ") || (x.arrepentido_at ? "Se arrepintió" : x.pagando ? "Pagando con Mercado Pago (sin cobrar)" : "Vencido");
+  const filas = (lista || []).map(x => `<tr><td>${esc(x.nombre || "—")}<div class="muted small">${esc(x.email || "")}</div></td><td>${esc(de(x))}</td><td>${x.hasta ? fmtDU(x.hasta) : "—"}</td>
+    <td>${x.manual_hasta && new Date(x.manual_hasta) > new Date() ? `<button class="btn sm" data-a="iaPlusQuitar" data-id="${esc(x.user_id)}">Sacar</button>` : ""}</td></tr>`).join("");
+  const tabla = lista == null ? '<div class="calm">No se pudo traer la lista.</div>' : filas ? `<div class="tscroll"><table class="table"><thead><tr><th>Cuenta</th><th>De dónde</th><th>Hasta</th><th></th></tr></thead><tbody>${filas}</tbody></table></div>` : '<div class="calm">Todavía nadie tiene IA Plus.</div>';
+  const dar = `<label class="lbl" for="iaPlusMail">Dar IA Plus a mano (soporte): mail de la cuenta, hasta qué día y una nota</label>
+    <div class="search"><input class="in" id="iaPlusMail" type="email" placeholder="mail@ejemplo.com"><input class="in" id="iaPlusHasta" type="date" min="${isoDay(new Date())}" value="${isoDay(new Date(Date.now() + 30 * 864e5))}" aria-label="Hasta"></div>
+    <div class="search"><input class="in" id="iaPlusNota" maxlength="200" placeholder="Nota (opcional), ej: se le cortó el pago"><button class="btn blue" data-a="iaPlusDar">Dar IA Plus</button></div>
+    <div class="muted small">Lo pagado con Mercado Pago o con Apple no se toca desde acá: se cancela por el mismo medio.</div>`;
+  return block("iaPlusB", "IA Plus", sw + precio + gratis + kpis + tabla + dar);
+}
+async function iaPlusGuardar(btn, plus, ok){
+  btn.disabled = true;
+  try { S.ia = await rpc("admin_ia_config", { p: { plus } }); toast(ok); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  paintIA(iaFoco(btn));
+}
+async function iaPlusLista(btn, fn, args, ok){
+  btn.disabled = true;
+  try { S.iaPlus = await rpc(fn, args); S.ia = await rpc("admin_ia_estado"); toast(ok); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  paintIA(iaFoco(btn));
 }
 // El selector del control que se tocó, para devolverle el foco después de dibujar la página.
 const iaFoco = b => b && b.dataset.a ? `[data-a="${b.dataset.a}"]` + (b.dataset.k ? `[data-k="${b.dataset.k}"]` : "") : null;
@@ -1751,6 +1793,20 @@ document.addEventListener("click", async e => {
     if (a === "iaAncla"){ iaAncla(b); return; }
     if (a === "iaRetry"){ b.disabled = true; S.ia = await rpc("admin_ia_reintentar"); toast("Listo: la IA vuelve a andar."); paintIA('[data-a="iaOn"]'); return; }
     if (a === "iaTopes"){ iaTopes(b); return; }
+    if (a === "iaPlusOn"){
+      const on = b.getAttribute("aria-checked") !== "true", pl = (S.ia && S.ia.plus) || {};
+      if (on && !await confirmar(`¿Prender IA Plus? Desde ahora, la foto del plato y «Contame qué comiste» son gratis hasta ${n0(pl.gratis_semana)} usos por semana, y se ofrece IA Plus: en la web por ${money(pl.precio_ars)} al mes con Mercado Pago y en el iPhone con Apple (si el producto ya está aprobado en App Store Connect).`, { titulo: "Prender IA Plus", ok: "Prender" })) return;
+      iaPlusGuardar(b, { activa: on }, on ? "IA Plus prendido" : "IA Plus apagado"); return;
+    }
+    if (a === "iaPlusPrecio"){ const v = parseInt(String(document.getElementById("iaPlusPrecio").value).replace(/[^0-9]/g, ""), 10); if (!(v >= 100)) return toast("Poné el precio en pesos, sin centavos."); iaPlusGuardar(b, { precio_ars: v }, "Precio guardado ✓"); return; }
+    if (a === "iaPlusGratis"){ const v = parseInt(document.getElementById("iaPlusGratis").value, 10); if (!(v >= 0 && v <= 100)) return toast("De 0 a 100."); iaPlusGuardar(b, { gratis_semana: v }, "Guardado ✓"); return; }
+    if (a === "iaPlusDar"){
+      const mail = document.getElementById("iaPlusMail").value.trim(), hasta = document.getElementById("iaPlusHasta").value, nota = document.getElementById("iaPlusNota").value.trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return toast("Poné el mail de la cuenta.");
+      if (!hasta) return toast("Elegí hasta qué día.");
+      iaPlusLista(b, "admin_ia_plus_dar", { p_email: mail, p_hasta: hasta, p_nota: nota || null }, "IA Plus dado ✓"); return;
+    }
+    if (a === "iaPlusQuitar"){ if (!await confirmar("¿Sacarle el IA Plus dado a mano? Lo pagado con Mercado Pago o Apple sigue.", { titulo: "Sacar IA Plus", ok: "Sacar" })) return; iaPlusLista(b, "admin_ia_plus_quitar", { p_uid: b.dataset.id }, "Listo ✓"); return; }
     if (a === "psave"){ saveProd(b); return; }
     if (a === "pdel"){ deleteProd(b); return; }
     if (a === "pfind"){ const q = document.getElementById("pQ"); S.prodQ = q ? q.value.trim() : ""; loadProductos(); return; }

@@ -818,7 +818,7 @@ begin
   perform public.admin_assert();
   return coalesce((select jsonb_agg(to_jsonb(y) order by y.hasta desc nulls last) from (
     select x.user_id, u.email, p.full_name as nombre, greatest(x.mp_hasta, x.apple_vence, x.manual_hasta) as hasta,
-           x.mp_hasta, x.mp_status, x.mp_desde, x.apple_vence, x.apple_renueva, x.manual_hasta, x.manual_nota, x.arrepentido_at, x.created_at
+           x.mp_hasta, x.mp_status, x.mp_desde, x.mp_pending_id is not null as pagando, x.apple_vence, x.apple_renueva, x.manual_hasta, x.manual_nota, x.arrepentido_at, x.created_at
       from public.ia_plus x
       left join auth.users u on u.id = x.user_id
       left join public.profiles p on p.id = x.user_id
