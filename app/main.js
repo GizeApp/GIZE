@@ -54,7 +54,7 @@ import { mealAction, mealDirty, nutritionRow } from './screens/coach/planes.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, alComida, plateDia, paintSearchIA, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, foodByName, lastResults, offResults, paintPlate, paintPlateNums, plateItemVals, previewStr, rememberCookState, renderComida, renderPlateSheet, renderResults, selectedFoodValues } from './screens/comida.js';
-import { IA, iaEstado, iaMensaje, iaPedir, iaPermiso, iaReportar, iaSinReintento, iaVisible, photoB64 } from './core/ia.js';
+import { IA, iaDisponible, iaEstado, iaMensaje, iaPedir, iaPermiso, iaReportar, iaSinReintento, iaVisible, photoB64 } from './core/ia.js';
 import { iaToast, pedirPermisoIA } from './ui/ia-permiso.js';
 import { FOODS } from './core/data.js';
 import { cookVariant } from './core/foods.js';
@@ -2109,15 +2109,16 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 // El estado de la IA, sin apuro (vale 5 minutos): si cambia lo que se ve respecto de lo que ya
 // está dibujado, se ponen los botones en el buscador sin redibujarlo (no se pierde lo que se está
 // escribiendo). Apagada, no cambia nada.
-const iaVis = () => iaVisible("plato") + "|" + iaVisible("texto");
+const iaVis = () => iaVisible("plato") + "|" + iaVisible("texto") + "|" + iaDisponible("plato");
+const iaPintarBuscador = () => { if (State.view === "comida" && ComidaState.searchOpen && !ComidaState.selectedFood && !ComidaState.editEntry && !paintSearchIA()) renderApp(); };
 function iaRefrescar(){
   if (!State.cloudUser) return;
   const antes = iaVis();
-  iaEstado().then(() => {
-    if (iaVis() === antes) return;
-    if (State.view === "comida" && ComidaState.searchOpen && !ComidaState.selectedFood && !ComidaState.editEntry && !paintSearchIA()) renderApp();
-  });
+  iaEstado().then(() => { if (iaVis() !== antes) iaPintarBuscador(); });
 }
+// Sin aceptar el aviso, la conexión decide si al lado del buscador va «Foto» solo o también el
+// escáner: si cambia con el buscador abierto, se acomoda la barra (sin redibujar la hoja).
+window.addEventListener("online", iaPintarBuscador); window.addEventListener("offline", iaPintarBuscador);
 const plateGramsNum = it => Math.round((parseFloat(String(it.g).replace(",", ".")) || 0) * 10) / 10;
 const plateR1 = v => Math.round(v * 10) / 10;
 // Un alimento de la base (o propio, o de marca) para una fila de la hoja: con crudo/cocido va cocido

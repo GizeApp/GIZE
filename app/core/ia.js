@@ -59,6 +59,14 @@ export function iaAlguna(){
   return !!(e && ((e.activa && e.funciones && (e.funciones.plato || e.funciones.texto)) || e.permiso_comida === "ok"));
 }
 export const iaPermiso = () => (mio() && IA.estado && IA.estado.permiso_comida) || null;
+// ¿Se puede usar de verdad? Además de prendida en el panel, que la persona no la haya apagado en
+// Ajustes y, si todavía no aceptó el aviso, que haya conexión (sin internet no se puede guardar el
+// permiso). Si no, el buscador muestra el escáner de códigos para que la barra no quede vacía.
+export function iaDisponible(f){
+  if (!iaVisible(f)) return false;
+  const pm = iaPermiso();
+  return pm !== "no" && !(pm !== "ok" && navigator.onLine === false);
+}
 export const avisoVersion = () => (mio() && IA.estado && IA.estado.aviso_version) || 1;
 
 // Aceptar o apagar (ia_permiso). Devuelve el estado nuevo o tira un Error con el mensaje.

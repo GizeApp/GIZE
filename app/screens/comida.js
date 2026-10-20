@@ -19,7 +19,7 @@ import { foodUnit } from '../core/foodunits.js';
 
 import { planSections } from './checkin.js';
 
-import { IA, iaVisible } from '../core/ia.js';
+import { IA, iaDisponible, iaVisible } from '../core/ia.js';
 
 // Nombre sin la aclaración de la unidad, que ya muestra la hoja del alimento:
 // "Pan lactal blanco (1 rebanada ≈ 25 g)" → "Pan lactal blanco". Las demás aclaraciones
@@ -415,6 +415,11 @@ export function renderSearchSheet(){
   // Eligiendo un alimento para la hoja del plato (cambiar una fila o agregar uno que falta).
   const swap = ComidaState.plateSwap != null && ComidaState.plate;
   const foto = !swap && iaVisible("plato"), texto = !swap && iaVisible("texto");
+  // Al lado del buscador queda solo «Foto» (IA). El escáner de códigos sale únicamente si la IA no
+  // se puede usar (apagada en el panel o en Ajustes, o sin aceptar el aviso y sin conexión), para
+  // que la barra no quede sin nada. Igual se puede escanear desde los avisos de la IA (límite,
+  // sin conexión, pausada) y desde «Pedir un producto».
+  const scan = !swap && !iaDisponible("plato");
   const tit = swap ? (ComidaState.plateSwap >= 0 ? "Cambiar por…" : "Agregar al plato") : "Agregar" + (vd===today() ? "" : " a "+esc(dayLabel(vd).toLowerCase()));
   return `
     <div class="sheet-bg" data-action="search-close"></div>
@@ -424,7 +429,7 @@ export function renderSearchSheet(){
       <div class="food-search-row">
         <div class="cal-search search-wrap"><span class="search-ic">${searchSvg}</span><input id="foodSearch" type="text" placeholder="Buscar alimento o marca…" value="${esc(ComidaState.foodQuery)}" data-action="food-search" autocomplete="off" enterkeyhint="search"></div>
         ${foto ? `<button class="ia-foto-btn" data-action="ia-plato" aria-label="Registrar con una foto (IA)">${cameraSvg}<span aria-hidden="true">Foto</span><span class="ia-mini" aria-hidden="true">IA</span></button>` : ""}
-        ${swap ? "" : `<button class="scan-btn" data-action="scan-open" title="Escanear código de barras" aria-label="Escanear código de barras (beta)">${barcodeSvg}<span class="scan-beta" aria-hidden="true">BETA</span></button>`}
+        ${scan ? `<button class="scan-btn" data-action="scan-open" title="Escanear código de barras" aria-label="Escanear código de barras (beta)">${barcodeSvg}<span class="scan-beta" aria-hidden="true">BETA</span></button>` : ""}
       </div>
       ${texto ? `<button class="ia-texto-btn" data-action="ia-texto"><span aria-hidden="true">✍️</span> Contame qué comiste <span class="ia-tag" aria-hidden="true">IA</span></button>` : ""}
       <div id="foodResults" class="ss-results">${renderResults(ComidaState.foodQuery)}</div>
@@ -635,18 +640,19 @@ export function renderPlanScreen(){
     <div class="mc-wrap plan-body">${body || '<div class="cal-hint">Tu coach todavía no cargó el detalle del plan.</div>'}</div>`;
 }
 
-// Cuando llega el estado de la IA con el buscador abierto: pone o saca «Foto» y «Contame qué
-// comiste» y rehace los resultados, sin redibujar la hoja (el campo de búsqueda no pierde el foco
-// ni lo que se está escribiendo).
+// Cuando llega el estado de la IA (o cambia la conexión) con el buscador abierto: pone o saca
+// «Foto», el escáner y «Contame qué comiste» y rehace los resultados, sin redibujar la hoja (el
+// campo de búsqueda no pierde el foco ni lo que se está escribiendo).
 export function paintSearchIA(){
   const card = document.querySelector("#sheetHost .search-sheet");
   if (!card) return false;
   const tmp = document.createElement("div"); tmp.innerHTML = renderSearchSheet();
   const nuevo = tmp.querySelector(".search-sheet"); if (!nuevo) return false;
   const row = card.querySelector(".food-search-row"), res = card.querySelector("#foodResults");
-  card.querySelectorAll(".ia-foto-btn, .ia-texto-btn").forEach(b => b.remove());
-  const f = nuevo.querySelector(".ia-foto-btn"), t = nuevo.querySelector(".ia-texto-btn");
-  if (f && row) row.insertBefore(f, row.querySelector(".scan-btn"));
+  card.querySelectorAll(".ia-foto-btn, .ia-texto-btn, .food-search-row .scan-btn").forEach(b => b.remove());
+  const f = nuevo.querySelector(".ia-foto-btn"), s = nuevo.querySelector(".food-search-row .scan-btn"), t = nuevo.querySelector(".ia-texto-btn");
+  if (f && row) row.appendChild(f);
+  if (s && row) row.appendChild(s);
   if (t && res) card.insertBefore(t, res);
   if (res) res.innerHTML = renderResults(ComidaState.foodQuery);
   return true;

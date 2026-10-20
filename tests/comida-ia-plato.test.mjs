@@ -1,6 +1,7 @@
 // IA en Comida: la foto del plato y «Contame qué comiste», con Supabase y la función «ia»
 // simulados. Revisa:
 // - apagada (o sin poder preguntar el estado): no aparece nada nuevo, ni en Comida ni en Ajustes;
+// - prendida: al lado del buscador queda solo «Foto» (el escáner sale solo con la IA apagada);
 // - el permiso: sale antes de abrir la cámara; con «Ahora no» no se guarda ni se llama a nada y
 //   vuelve a preguntar la próxima vez; al aceptar se guarda con la versión del aviso y no se vuelve
 //   a preguntar;
@@ -51,6 +52,7 @@ export default async function ({ base: url, t }){
     t.eq(await pg.p.evaluate(() => [document.activeElement && document.activeElement.id, document.getElementById('foodSearch').value]), ['foodSearch', 'pollo'],
       nombre + ': al llegar el estado, el buscador sigue con el foco y lo escrito');
     t.eq(!!(await pg.p.$('#sheetHost [data-action="ia-plato"]')), nombre === 'prendida', nombre + ': «Foto» ' + (nombre === 'prendida' ? 'aparece' : 'no aparece'));
+    t.eq(!!(await pg.p.$('#sheetHost .search-sheet [data-action="scan-open"]')), nombre === 'apagada', nombre + ': el escáner ' + (nombre === 'apagada' ? 'queda en la barra' : 'se va de la barra'));
     t.eq(pg.errs, [], nombre + ' (estado tarde): errores de la página');
     await pg.close();
   }
@@ -58,7 +60,8 @@ export default async function ({ base: url, t }){
   // ---------- prendida: el permiso ----------
   const { p, errs, S, close, preguntas } = await pagina();
   await abrirComida(p, url); await abrirBuscador(p);
-  t.ok(await visible(p, '[data-action="ia-plato"]'), 'prendida: «Foto» al lado del escáner');
+  t.ok(await visible(p, '[data-action="ia-plato"]'), 'prendida: «Foto» al lado del buscador');
+  t.ok(!(await p.$('#sheetHost .search-sheet [data-action="scan-open"]')), 'prendida: sin el escáner en la barra (queda solo «Foto»)');
   t.eq(await p.getAttribute('[data-action="ia-plato"]', 'aria-label'), 'Registrar con una foto (IA)', '«Foto» con su aria-label');
   t.has(await txt(p, '[data-action="ia-plato"]'), 'Foto', '«Foto» con la etiqueta visible');
   t.ok(await visible(p, '[data-action="ia-texto"]'), 'prendida: «Contame qué comiste»');
