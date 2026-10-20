@@ -986,8 +986,13 @@ export async function afterLogin(sessionUser, stale){
   // reintentos de la librería con la pantalla vacía: se saltean y salen cuando se renueva
   // el token (watchAuth → flushOutbox + retryCloud).
   // Con tope: con la red colgada (o la sesión tomada por otro pedido de la librería) no volvía nunca.
+  // Solo si es la misma cuenta de la sesión: todo lo que sigue (de quién son los datos del celular,
+  // liveSession, el rol) va por la sesión guardada. Una respuesta de otra cuenta (no es la de este
+  // token) dejaba a State.cloudUser distinto de la sesión: loadCloud() nunca leía nada y, sin el rol
+  // recordado (otra cuenta recién entrada en este celular), el splash quedaba para siempre con
+  // «No se pudo abrir tu cuenta».
   let gu=null;
-  if(!_staleBoot){ try { gu=await conTope(State.sb.auth.getUser(), Math.min(4000, resta()), null); if(gu && gu.data.user) State.cloudUser=gu.data.user; } catch(e){} }
+  if(!_staleBoot){ try { gu=await conTope(State.sb.auth.getUser(), Math.min(4000, resta()), null); const u=gu && gu.data && gu.data.user; if(u && (!State.cloudUser || u.id===State.cloudUser.id)) State.cloudUser=u; } catch(e){} }
   // Sesión cerrada desde otro dispositivo con el token todavía vigente: el servidor dice que
   // no existe y la librería la borra. Seguir cargaría la cuenta sin sesión: se pide ingresar.
   if(gu && gu.error && gu.error.name==="AuthSessionMissingError"){ sessionLost(); return; }
