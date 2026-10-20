@@ -56,8 +56,8 @@ export function pedirPermisoIA({ desdeAjustes = false } = {}){
     abierta = { listo, volver: document.activeElement, guardando: false, desdeAjustes };
     host().innerHTML = '<div class="sheet-bg" data-ia="no"></div>' +
       '<div class="sheet ia-perm" role="dialog" aria-modal="true" aria-labelledby="iaPermT" aria-describedby="iaPermD">' +
-        '<div class="ia-perm-hero" aria-hidden="true">' + sparkleSvg + '</div>' +
-        '<div class="sheet-title" id="iaPermT">' + esc(PERMISO_TITULO) + '</div>' +
+        '<div class="ia-perm-h"><span class="ia-perm-hero" aria-hidden="true">' + sparkleSvg + '</span>' +
+        '<div class="sheet-title" id="iaPermT">' + esc(PERMISO_TITULO) + '</div></div>' +
         '<div class="ia-perm-txt" id="iaPermD"><p>' + esc(PERMISO_INTRO) + '</p><ul>' + PERMISO_PUNTOS.map((p, i) => '<li><span class="ia-perm-ic" aria-hidden="true">' + (PUNTOS_IC[i] || shieldSvg) + '</span><span>' + esc(p) + '</span></li>').join("") + '</ul>' +
         '<p class="ia-perm-cierre">' + esc(PERMISO_CIERRE) + '</p></div>' +
         '<div class="ia-perm-err" role="alert" hidden></div>' +

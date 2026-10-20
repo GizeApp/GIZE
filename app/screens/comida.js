@@ -4,7 +4,7 @@ import { cookVariant } from '../core/foods.js';
 
 const barcodeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8v8M10 8v8M13 8v8M16 8v8"/></svg>';
 
-import { alertSvg, cameraSvg, checkSvg, chevronRightSvg, clockSvg, dropletSvg, flameSvg, imageSvg, infoSvg, messageSvg, minusSvg, plusSvg, resetSvg, searchSvg, sparkleSvg, swapSvg, wifiOffSvg, xSvg } from '../core/icons.js';
+import { alertSvg, cameraSvg, checkSvg, chevronRightSvg, clockSvg, dropletSvg, flameSvg, imageSvg, infoSvg, messageSvg, minusSvg, plateHeroSvg, plusSvg, resetSvg, scanSvg, searchSvg, sparkleSvg, swapSvg, wifiOffSvg, xSvg } from '../core/icons.js';
 
 import { state } from '../core/state.js';
 
@@ -281,7 +281,7 @@ function ssEmpty(svg, tit, sub){
 function foodRow(f, action, i){
   return `<div class="food-row" data-action="${action}" data-idx="${i}">
     <span class="food-emo food-ic" aria-hidden="true">${foodIcon(f.name, f.cat)}</span>
-    <div class="food-name">${esc(shortName(f.name))}${f.cook?'<span class="food-cook">crudo / cocido</span>':''}${f.src==="OFF"||f.src==="GIZE"?`<span class="food-cook${f.verified?' ok':''}">${f.verified?checkSvg+'verificado':'marca'}</span>`:''}</div>
+    <div class="food-name">${esc(shortName(f.name))}${f.cook?'<span class="food-cook">crudo / cocido</span>':''}${f.src==="OFF"||f.src==="GIZE"?`<span class="food-cook${f.verified?' ok':''}">${f.verified?'<span aria-hidden="true">'+checkSvg+'</span>verificado':'marca'}</span>`:''}</div>
     <div class="food-kcal">${f.kcal} kcal<span>por 100 ${f.unit==="ml"?"ml":"g"}${f.cook?" "+f.cook.base:""}</span></div>
   </div>`;
 }
@@ -731,7 +731,7 @@ export function plateQuedan(){
 // «Revisá» si la IA dudó), los gramos con − / + y «Cambiar», y abajo las calorías y los macros.
 function plateRow(it, i){
   const nm = esc(shortName(it.name));
-  const src = it.base ? `<span class="pl8-b pl8-b-db">${checkSvg}Base GIZE</span>` : `<span class="pl8-b pl8-b-ia">${sparkleSvg}Estimado con IA</span>`;
+  const src = it.base ? `<span class="pl8-b pl8-b-db"><span aria-hidden="true">${checkSvg}</span>Base GIZE</span>` : `<span class="pl8-b pl8-b-ia">${sparkleSvg}Estimado con IA</span>`;
   return `<div class="pl8-row${it.dudoso ? " dudoso" : ""}" data-i="${i}">
       <div class="pl8-top">
         <span class="pl8-ic" aria-hidden="true">${foodIcon(it.name)}</span>
@@ -762,8 +762,8 @@ const plateAlert = (svg, msg) => `<div class="pl8-err" role="alert"><span class=
 
 function plateBody(P){
   if (P.status === "elegir") return `
-      <div class="pl8-hero" aria-hidden="true"><span class="pl8-hero-c"></span><span class="pl8-hero-ic">${cameraSvg}</span><span class="pl8-hero-sp">${sparkleSvg}</span></div>
-      <p class="pl8-hint"><b>Sacale una foto a tu plato.</b> Sacá la foto de arriba, con todo el plato a la vista y buena luz. La IA estima qué hay y cuánto; después lo revisás.</p>
+      <div class="pl8-hero" aria-hidden="true"><span class="pl8-hero-c"></span><span class="pl8-hero-ic">${plateHeroSvg}</span></div>
+      <p class="pl8-hint"><b>Sacale una foto a tu plato.</b> De arriba, con todo el plato a la vista y buena luz. La IA estima qué hay y cuánto; después lo revisás.</p>
       <div class="pl8-pick">
         <label class="pl8-op pl8-op-cam" tabindex="0" role="button" data-pick="1"><span class="pl8-op-ic">${cameraSvg}</span><span class="pl8-op-t"><b>Sacar foto</b><small>Con la cámara, ahora</small></span><span class="pl8-op-go">${chevronRightSvg}</span><input type="file" accept="image/*" capture="environment" data-action="plate-file" tabindex="-1" hidden></label>
         <label class="pl8-op" tabindex="0" role="button" data-pick="1"><span class="pl8-op-ic">${imageSvg}</span><span class="pl8-op-t"><b>Elegir de la galería</b><small>Una foto que ya tenés</small></span><span class="pl8-op-go">${chevronRightSvg}</span><input type="file" accept="image/*" data-action="plate-file" tabindex="-1" hidden></label>
@@ -772,13 +772,13 @@ function plateBody(P){
   // Mientras la IA lee: la foto con el marco y una línea que la recorre (quieta con movimiento
   // reducido, en liviano y en básico), y debajo el lugar de la lista que va a llegar.
   if (P.status === "cargando") return `<div class="pl8-scan">${photo}<span class="pl8-scan-l" aria-hidden="true"></span></div>
-      <div class="pl8-wait" role="status" aria-live="polite"><span class="pl8-spin" aria-hidden="true">${sparkleSvg}</span><span id="pl8Wait">${P.cargando ? "Buscando en la base de GIZE…" : "Leyendo tu plato…"}</span></div>
+      <div class="pl8-wait" role="status" aria-live="polite"><span class="pl8-spin" aria-hidden="true">${scanSvg}</span><span id="pl8Wait">${P.cargando ? "Buscando en la base de GIZE…" : "Leyendo tu plato…"}</span></div>
       <div class="pl8-skel" aria-hidden="true">${'<div class="pl8-sk"><i></i><span><b></b><b></b></span></div>'.repeat(3)}</div>`;
-  const otra = `<button class="ctrl ghost" data-action="plate-again">${cameraSvg}<span>Sacar otra foto</span></button>`;
-  const manual = `<button class="ctrl ghost" data-action="plate-manual">${searchSvg}<span>Buscar alimento</span></button><button class="ctrl ghost" data-action="plate-scan">${barcodeSvg}<span>Escanear código</span></button>`;
+  const otra = `<button class="ctrl primary pl8-main" data-action="plate-again">${cameraSvg}<span>Sacar otra foto</span></button>`;
+  const manual = `<div class="pl8-btns2"><button class="ctrl ghost" data-action="plate-manual">${searchSvg}<span>Buscar alimento</span></button><button class="ctrl ghost" data-action="plate-scan">${barcodeSvg}<span>Escanear código</span></button></div>`;
   if (P.status === "error") return `${photo}
       ${plateAlert(plateAlertIc(P.err), esc(P.msg || ""))}
-      <div class="pl8-btns">${P.reintento ? `<button class="ctrl primary" data-action="plate-retry">${resetSvg}<span>Probar de nuevo</span></button>` : ""}${manual}</div>`;
+      <div class="pl8-btns">${P.reintento ? `<button class="ctrl primary pl8-main" data-action="plate-retry">${resetSvg}<span>Probar de nuevo</span></button>` : ""}${manual}</div>`;
   if (P.status === "vacio") return `${photo}
       ${plateAlert(alertSvg, "No vimos comida en la foto. Probá con el plato entero, de arriba y con buena luz.")}
       <div class="pl8-btns">${otra}${manual}</div>`;
@@ -790,8 +790,8 @@ function plateBody(P){
         <button class="pl8-add" data-action="plate-addfood">${plusSvg}<span>Agregar algo que falta</span></button>
         <button class="pl8-add" data-action="plate-oil">${dropletSvg}<span>¿Tenía aceite o manteca? +1 cda</span></button>
       </div>
-      ${P.nota ? `<div class="pl8-nota"><span class="pl8-nota-ic" aria-hidden="true">${sparkleSvg}</span><span>${esc(P.nota)}</span></div>` : ""}
-      <div class="pl8-redo"><input class="form-input" type="text" maxlength="200" placeholder="¿Qué es? (opcional, ej: milanesa con puré)" aria-label="Aclaración para recalcular" value="${esc(P.aclara || "")}" data-action="plate-aclara"><button class="ctrl ghost" data-action="plate-redo">${resetSvg}<span>Recalcular</span></button></div>
+      ${P.nota ? `<div class="pl8-nota"><span class="pl8-nota-ic" aria-hidden="true">${infoSvg}</span><span>${esc(P.nota)}</span></div>` : ""}
+      <div class="pl8-redo"><input class="form-input" type="text" maxlength="200" placeholder="¿Qué es? Ej: milanesa con puré" aria-label="Aclaración para recalcular" value="${esc(P.aclara || "")}" data-action="plate-aclara"><button class="ctrl ghost" data-action="plate-redo">${resetSvg}<span>Recalcular</span></button></div>
       <p class="pl8-fine">${infoSvg}<span>${PLATE_FINE}</span></p>
       <button class="pl8-link" data-action="plate-report">${messageSvg}<span>¿Está mal? Avisanos</span></button>`;
 }

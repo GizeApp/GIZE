@@ -92,3 +92,5 @@ export const dropletSvg = ic('<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5
 export const messageSvg = ic('<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>');
 export const scanSvg = ic('<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>');
 export const toggleSvg = ic('<rect x="2" y="6" width="20" height="12" rx="6"/><circle cx="16" cy="12" r="2"/>');
+// El plato con el tenedor y el cuchillo, para el visor de «Foto del plato» (más ancho que los otros).
+export const plateHeroSvg = '<svg viewBox="0 0 48 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="14" r="11"/><circle cx="24" cy="14" r="7"/><path d="M5 3v6a2 2 0 0 0 2 2 2 2 0 0 0 2-2V3M7 3v22"/><path d="M43 25V3c-2 1-3.5 3.5-3.5 7v4.5H43"/></svg>';
