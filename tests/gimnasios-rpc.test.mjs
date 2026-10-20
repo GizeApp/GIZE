@@ -23,6 +23,7 @@ const CASOS = [
   ['gym_invitar profe', rpc('gym_invitar', 'profe'), { ok: ['dA', 'aA', 'dB'] }, 'invitar'],
   ['gym_invitar admin', rpc('gym_invitar', 'admin'), { ok: ['dA', 'dB'], P0001: ['aA'] }, 'invitar'],
   ['gym_invitaciones', rpc('gym_invitaciones'), { ok: ['dA', 'aA', 'dB'] }, null],
+  ['gym_equipo', rpc('gym_equipo'), { ok: ['dA', 'aA', 'dB'] }, null],
   ['gym_invitacion_revocar', rpc('gym_invitacion_revocar', NUEVO), { P0001: ['dA', 'aA', 'dB'] }, null],
   ['gym_invitacion_info', rpc('gym_invitacion_info', 'no-existe'), { ok: PERSONAS.filter(p => p !== 'anon') }, null],
   ['gym_aceptar_invitacion', rpc('gym_aceptar_invitacion', 'no-existe'), { P0001: PERSONAS.filter(p => p !== 'anon') }, null],
@@ -66,9 +67,9 @@ const INTERNAS = ['gym_tick()', 'gym_diaria()', 'release_lapsed_gyms()', 'gym_re
   'gym_exigir(text[])', 'gym_exigir_altas()', 'gym_exigir_recepcion()', 'gym_tope_profes(uuid)', 'gym_profes_usados(uuid)', 'gym_plan_estado(uuid)',
   'gym_semaforo(uuid)', 'gym_json(uuid)', 'gym_crear_motivo(uuid)', 'gym_fotos_cupo_libre(text)', 'gym_fotos_cupo_alta()', 'gym_foto_valida(uuid, uuid, text)',
   'gym_foto_ve_ficha(uuid)', 'gym_fotos_huerfanas()', 'coach_messages_gym()',
-  'gym_invitacion_estado(uuid, uuid)', 'gym_socio_puede(uuid, uuid)', 'gym_ficha_datos(jsonb, boolean)', 'profiles_gym_baja()'];
+  'gym_invitacion_estado(uuid, uuid)', 'gym_socio_puede(uuid, uuid)', 'gym_app_vieja(text, text)', 'gym_ficha_datos(jsonb, boolean)', 'profiles_gym_baja()'];
 const APP = ['mi_gimnasio()', 'gym_versiones()', 'gym_crear(text, text, text, text)', 'gym_config(jsonb)', 'gym_codigo_rotar()', 'gym_cerrar(text)',
-  'gym_exportar(text)', 'gym_invitar(text)', 'gym_invitacion_revocar(uuid)', 'gym_invitaciones()', 'gym_invitacion_info(text)', 'gym_aceptar_invitacion(text)',
+  'gym_exportar(text)', 'gym_invitar(text)', 'gym_invitacion_revocar(uuid)', 'gym_invitaciones()', 'gym_equipo()', 'gym_invitacion_info(text)', 'gym_aceptar_invitacion(text)',
   'gym_cambiar_rol(uuid, text)', 'gym_quitar_staff(uuid, uuid)', 'gym_codigo_info(text)', 'gym_unirse(text, text, boolean, text)', 'gym_cancelar_solicitud()',
   'gym_unirse_token_info(text)', 'gym_unirse_token(text, text, text, boolean, text)', 'gym_confirmar_hoja(text, boolean, text)',
   'gym_compartir_admin(boolean, text)', 'gym_salir(boolean)', 'gym_foto_proponer(text)', 'gym_solicitudes()', 'gym_aprobar(uuid, uuid, uuid, boolean)',
@@ -146,6 +147,20 @@ export default async function ({ t: t0 }){
   t.eq([de('pA1').mis_fichas.map(nom).sort(), de('pA1').mis_socios.map(nom).sort(), de('dA').mis_socios.map(nom)], [['A1', 'A2'], ['A1', 'A2'], ['A7']], 'mis_fichas y mis_socios del profe (y de la dueña como profe)');
   t.eq([de('A1').ficha.profe.name, de('A1').ficha.coach_externo, de('A1').ficha.foto, de('A7').ficha.terms_at, de('A6').solicitud.gym, de('dA').codigo],
     ['Martina Profe', false, 'falta', null, 'Gimnasio Fuerza', 'FUERZA22'], 'la ficha del socio (profe, coach externo, foto), la solicitud y el código del gimnasio para el equipo');
+
+  // gym_equipo (panel del dueño, Profes): rol, socios asignados y la versión de la app (vieja según
+  // app_config «version»: la misma que el cartel de actualizar). gym_socios_resumen marca lo mismo.
+  x = await V([['postgres', `update public.app_config set value = jsonb_set(value, '{android,ultima}', '11') where key = 'version'`],
+    ['postgres', `update public.profiles set app_platform = 'android', app_version = '1.0.5 (10)' where id in ('${P.pA1}', '${P.A1}')`],
+    ['postgres', `update public.profiles set app_platform = 'android', app_version = '1.0.6 (11)' where id = '${P.pA2}'`],
+    ['postgres', `update public.profiles set app_platform = 'web', app_version = 'web' where id = '${P.A2}'`],
+    ['dA', rpc('gym_equipo')], ['dA', rpc('gym_socios_resumen')]]);
+  const eq = Object.fromEntries(x[4].map(r => [nom(r.user_id), [r.rol, r.socios, r.app_vieja]]));
+  t.eq(eq, { dA: ['owner', 1, false], aA: ['admin', 0, false], pA1: ['profe', 2, true], pA2: ['profe', 0, false], rA: ['recepcion', 0, false] },
+    'gym_equipo: cada uno con su rol, sus socios asignados y si usa una versión vieja de la app (1.0.5 (10) con «ultima» 11)');
+  t.ok(x[4].every(r => !('email' in r) && 'last_seen_at' in r && 'nombre' in r), 'gym_equipo no trae mails');
+  const vieja = Object.fromEntries(x[5].filter(r => r.member_id).map(r => [nom(r.member_id), r.app_vieja]));
+  t.eq([vieja.A1, vieja.A2], [true, false], 'gym_socios_resumen marca al socio con la app vieja (la web nunca)');
 
   // ===== Recepción: buscar, semáforo e ingreso manual =====
   const busca = (w, qq) => [w, rpc('buscar_socio', qq)];

@@ -389,6 +389,25 @@ begin
 end $$;
 revoke all on function public.gym_json(uuid) from public, anon, authenticated;
 
+-- ¿Usa una versión vieja de la app de la tienda? (la que el admin marcó como «ultima» en app_config
+-- «version», como el cartel de actualizar: app/ui/actualizar.js). La web siempre está al día.
+create or replace function public.gym_app_vieja(plataforma text, version text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare build int; ultima int;
+begin
+  if plataforma not in ('android', 'ios') or version is null then return false; end if;
+  build := (regexp_match(version, '\((\d{1,9})\)'))[1]::int;
+  select (c.value->plataforma->>'ultima')::int into ultima from public.app_config c where c.key = 'version';
+  return build is not null and coalesce(ultima, 0) > 0 and build < ultima;
+exception when others then return false;
+end $$;
+revoke all on function public.gym_app_vieja(text, text) from public, anon, authenticated;
+
 -- ¿Puede esta cuenta crear un gimnasio? null = sí; si no, el texto de por qué no.
 create or replace function public.gym_crear_motivo(me uuid)
 returns text
@@ -944,6 +963,28 @@ begin
 end $$;
 revoke all on function public.gym_invitaciones() from public, anon;
 grant execute on function public.gym_invitaciones() to authenticated;
+
+-- El equipo (dueño y administración): cada persona con su rol, cuántos socios tiene asignados, la
+-- última vez que abrió GIZE y si usa una versión vieja de la app. Sin mails ni datos de salud.
+create or replace function public.gym_equipo()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare g uuid := public.gym_exigir(array['owner', 'admin']);
+begin
+  return coalesce((select jsonb_agg(jsonb_build_object('user_id', s.user_id, 'nombre', p.full_name, 'avatar_path', p.avatar_path,
+      'rol', s.role, 'coach', p.role = 'coach', 'joined_at', s.joined_at, 'last_seen_at', p.last_seen_at,
+      'app_platform', p.app_platform, 'app_version', p.app_version, 'app_vieja', public.gym_app_vieja(p.app_platform, p.app_version),
+      'socios', (select count(*) from public.gym_members m where m.gym_id = g and m.trainer_id = s.user_id and m.status in ('activo', 'pausado')))
+      order by case s.role when 'owner' then 0 when 'admin' then 1 when 'profe' then 2 else 3 end, p.full_name)
+    from public.gym_staff s join public.profiles p on p.id = s.user_id
+   where s.gym_id = g and s.left_at is null), '[]'::jsonb);
+end $$;
+revoke all on function public.gym_equipo() from public, anon;
+grant execute on function public.gym_equipo() to authenticated;
 
 -- Qué pasa si esta cuenta acepta esa invitación (sin cambiar nada).
 create or replace function public.gym_invitacion_estado(iid uuid, me uuid)
@@ -1992,6 +2033,7 @@ begin
       'profe', case when m.trainer_id is not null then jsonb_build_object('id', t.id, 'name', t.full_name) end,
       'coach_externo', m.member_id is not null and p.coach_id is not null and m.trainer_id is null and m.status in ('activo', 'pausado'),
       'share_admin', m.share_admin and m.terms_at is not null, 'dni', m.dni, 'phone', m.phone, 'email', m.email,
+      'app_vieja', public.gym_app_vieja(p.app_platform, p.app_version),
       'apto_medico_vence', m.apto_medico_vence, 'joined_at', m.joined_at, 'left_at', m.left_at, 'source', m.source,
       'ultimo_ingreso', (select max(e.at) from public.gym_entries e where e.gym_member_id = m.id),
       'ultimo_entreno', case when m.member_id = any(comp) or (m.trainer_id = me and m.status in ('activo', 'pausado'))
@@ -2332,12 +2374,12 @@ notify pgrst, 'reload schema';
 --   public.gym_unirse_token_info(text), public.gym_cancelar_solicitud(), public.gym_unirse(text, text, boolean, text),
 --   public.gym_socio_puede(uuid, uuid), public.gym_codigo_info(text), public.gym_staff_profe(), public.gym_quitar_staff(uuid, uuid),
 --   public.gym_cambiar_rol(uuid, text), public.gym_aceptar_invitacion(text), public.gym_invitacion_info(text),
---   public.gym_invitacion_estado(uuid, uuid), public.gym_invitaciones(), public.gym_invitacion_revocar(uuid),
+--   public.gym_invitacion_estado(uuid, uuid), public.gym_equipo(), public.gym_invitaciones(), public.gym_invitacion_revocar(uuid),
 --   public.gym_invitar(text), public.gym_exportar(text), public.gym_cerrar(text), public.gym_codigo_rotar(),
 --   public.gym_config(jsonb), public.gym_crear(text, text, text, text), public.mi_gimnasio(),
 --   public.gym_fotos_huerfanas(), public.gym_foto_valida(uuid, uuid, text), public.gym_fotos_cupo_alta(), public.gym_fotos_cupo_ok(),
 --   public.gym_fotos_cupo_libre(text), public.gym_foto_ver(text), public.gym_foto_carpeta(text, text, boolean),
---   public.gym_foto_ve_ficha(uuid), public.gym_crear_motivo(uuid),
+--   public.gym_foto_ve_ficha(uuid), public.gym_crear_motivo(uuid), public.gym_app_vieja(text, text),
 --   public.gym_json(uuid), public.gym_semaforo(uuid), public.gym_plan_estado(uuid), public.gym_profes_usados(uuid),
 --   public.gym_tope_profes(uuid), public.gym_exigir_recepcion(), public.gym_exigir_altas(), public.gym_exigir(text[]),
 --   public.gym_mi_staff(), public.gym_settings(uuid), public.gym_codigo_nuevo(), public.gym_norm(text), public.gym_hash(text),
