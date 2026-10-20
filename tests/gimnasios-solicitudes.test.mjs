@@ -191,6 +191,23 @@ export default async function ({ t: t0 }){
   x = await V([['dA', rpc('gym_ficha_crear', { nombre: 'Otra Persona', email: 'n3@ejemplo.test' })], ['N3', unirse()], ['dA', rpc('gym_solicitudes')]]);
   t.eq(x[2].find(s => s.member_id === P.N3).coincidencias.map(c => c.motivo), ['mail'], 'y por mail (aunque no esté verificado: la decide el gimnasio)');
 
+  // ===== «Es la ficha de…» desde la recepción: solo la del link o la del mail verificado =====
+  // Los ids los anota un paso de postgres (la recepción no lee gym_members).
+  const unirA = sql => ['postgres', `select to_jsonb(set_config('prueba.unir', (${sql})::text, true))`];
+  const unir = quien => [quien, `select to_jsonb(public.gym_aprobar(${pedido}, null, current_setting('prueba.unir')::uuid, false))`];
+  const leeA4 = ['N', `select jsonb_build_array((select count(*) from public.gym_members where dni is not null and member_id = '${P.N}'), (select count(*) from public.gym_entries where gym_member_id = '${F.A4}'))`];
+  x = await V([['N', unirse()], marca('N'), unirA(`'${F.A4}'`), unir('rA'), leeA4, unir('aA'), leeA4]);
+  t.eq([x[3].error, x[4], x[5].ok, x[6]], ['42501', [0, 0], true, [1, 1]],
+    'la recepción no une un pedido sin coincidencias a cualquier ficha (vería su DNI, su mail y sus ingresos); la administración sí');
+  x = await V([['N2', usar(tokSin, null)], marca('N2'), unirA(`'${sinDni.id}'`), unir('rA'), ['postgres', ficha('N2')]]);
+  t.eq([x[3].ok, x[4].id], [true, sinDni.id], 'la recepción une a la ficha del link (unir_sugerida)');
+  x = await V([['dA', rpc('gym_ficha_crear', { nombre: 'Nora Vidal', email: 'n@ejemplo.test' })], ['dA', rpc('gym_ficha_crear', { nombre: 'Nora V.', email: 'N@ejemplo.test' })],
+    ['N', unirse()], marca('N'), unirA(`select id from public.gym_members where full_name = 'Nora V.'`), unir('rA'), ['postgres', ficha('N')]]);
+  t.eq([x[2].estado, x[5].ok, x[6].status], ['pendiente', true, 'activo'], 'con dos fichas con su mail verificado queda pedido, y la recepción lo une a una de ellas');
+  x = await V([['dA', rpc('gym_ficha_crear', { nombre: 'Otra Persona', email: 'n3@ejemplo.test' })], ['N3', unirse()], marca('N3'),
+    unirA(`select id from public.gym_members where email = 'n3@ejemplo.test' and member_id is null`), unir('rA'), unir('dA')]);
+  t.eq([x[4].error, x[5].ok], ['42501', true], 'con el mail sin verificar, la recepción no la une (la dueña sí, después de mirarla)');
+
   // ===== Dos aprobaciones a la vez por el último lugar =====
   for (const w of ['N', 'N2']) t.eq((await HACER(w, unirse())).estado, 'pendiente', w + ' pide sumarse (queda)');
   const ids = await J(`select jsonb_agg(id order by member_id) from public.gym_members where member_id in ('${P.N}', '${P.N2}');`);

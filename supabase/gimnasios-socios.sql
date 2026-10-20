@@ -1403,8 +1403,8 @@ revoke all on function public.gym_solicitudes() from public, anon;
 grant execute on function public.gym_solicitudes() to authenticated;
 
 -- Aprobar una solicitud como socio nuevo (con profe, o null = sin profe; cupo exacto) o como «es la
--- ficha de…» (unir_a_ficha: la ficha sin app pasa a ser de esa cuenta; no ocupa otro lugar). Con
--- foto_ok, la foto que propuso queda aprobada.
+-- ficha de…» (unir_a_ficha: la ficha sin app pasa a ser de esa cuenta; no ocupa otro lugar; la
+-- recepción, solo la del link o la del mail verificado). Con foto_ok, la foto que propuso queda aprobada.
 create or replace function public.gym_aprobar(ficha uuid, profe uuid, unir_a_ficha uuid, foto_ok boolean)
 returns jsonb
 language plpgsql
@@ -1428,6 +1428,14 @@ begin
     select m.* into t from public.gym_members m where m.id = unir_a_ficha and m.gym_id = g for update;
     if t.id is null or t.member_id is not null or t.status not in ('activo', 'pausado') then
       raise exception 'Esa ficha ya tiene cuenta o no está activa.' using errcode = 'P0001';
+    end if;
+    -- La recepción solo une a la ficha del link (unir_sugerida) o a la del mail verificado de la
+    -- cuenta: unir por el nombre o a mano (y ver así el DNI, el mail y los ingresos de esa ficha) queda
+    -- para el dueño y la administración.
+    if (select x.rol from public.gym_mi_staff() x) = 'recepcion' and unir_a_ficha is distinct from f.unir_sugerida
+       and not exists (select 1 from auth.users u where u.id = f.member_id and u.email_confirmed_at is not null
+                          and coalesce(u.email, '') <> '' and lower(u.email) = lower(t.email)) then
+      raise exception 'Esa ficha no coincide por el link ni por el mail: que la una la administración.' using errcode = '42501';
     end if;
     select p.coach_id into c from public.profiles p where p.id = f.member_id;
     if c is null and profe is not null then
