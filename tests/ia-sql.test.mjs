@@ -488,4 +488,24 @@ do $$ begin
   perform public.ia_limpiar();
   assert (select count(*) from public.ia_reportes where funcion = 'plato') = 0 and (select count(*) from public.ia_reportes) = 19, 'a los 180 días se borra (quedan los otros)';
 end $$;`],
+['el admin: lo que lee en el panel no le gasta los usos de la app (ni su US$ 0,50)', `
+reset role;
+update public.ia_ciclos set estado = 'normal', cortado_por = null, vuelve = null, gastado = 10, reservado = 0 where inicio <= now() and fin > now();
+delete from public.ia_llamadas where user_id = '${ADMIN_ID}';
+update public.ia_config set funciones = funciones || '{"plato": true, "texto": true}';
+set role service_role;
+do $$ declare j jsonb; begin
+  for i in 1..25 loop
+    j := ${RES()}; assert (j->>'ok')::boolean, 'lectura ' || i || ' ' || j::text;
+    perform public.ia_cerrar((j->>'llamada_id')::bigint, 'ok', null, 0.03);
+  end loop;
+  assert public.ia_rol('${ADMIN_ID}') = 'alumno', 'en la app, el admin usa los topes de alumno';
+  j := ${RES(ADMIN_ID, 'alumno', 'plato', '0.006')}; assert (j->>'ok')::boolean, 'después de 25 lecturas (US$ 0,75) puede sacar la foto del plato ' || j::text;
+end $$;
+set role authenticated; set request.jwt.claim.sub = '${ADMIN_ID}';
+do $$ declare e jsonb := public.ia_mi_estado(); begin
+  assert e ->> 'estado' = 'normal', 'no llegó a su tope del ciclo ' || e::text;
+  assert (e #>> '{quedan,plato}')::int = 7 and (e #>> '{quedan,texto}')::int = 15, 'le quedan 7 fotos y 15 textos ' || e::text;
+  assert (e #>> '{usados,plato}')::int = 1 and (e #>> '{usados,texto}')::int = 0 and (e #>> '{usados,total}')::int = 1, 'usados: solo lo de la app ' || e::text;
+end $$;`],
 ];

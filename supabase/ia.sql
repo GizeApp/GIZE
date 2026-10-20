@@ -326,21 +326,22 @@ begin
   end if;
 
   -- 7) Tope del día de la persona, por función y en total. Cuenta todo lo que pudo costar algo:
-  --    no cuentan solo los errores explícitos de la API (cerrados con usd = 0).
+  --    no cuentan solo los errores explícitos de la API (cerrados con usd = 0). Solo las llamadas
+  --    con el mismo rol: lo que el admin lee en el panel no le gasta los usos de la app.
   v_tope_f := coalesce((v_cfg.topes -> p_rol ->> p_funcion)::numeric, 0);
   v_tope_t := coalesce((v_cfg.topes -> p_rol ->> 'total')::numeric, 0);
   select count(*) filter (where l.funcion = p_funcion), count(*) into v_n_f, v_n_t
     from public.ia_llamadas l
-   where l.user_id = p_uid and l.creada >= v_hoy0
+   where l.user_id = p_uid and l.rol = p_rol and l.creada >= v_hoy0
      and (l.estado in ('ok', 'vacia', 'reservada', 'vencida') or (l.estado = 'error' and (l.usd is null or l.usd > 0)));
   if v_n_f >= v_tope_f or v_n_t >= v_tope_t then
     perform public.ia_frenada(v_c.id, 'tope_dia');
     return jsonb_build_object('ok', false, 'codigo', 'tope_dia', 'vuelve', v_manana, 'tope', case when v_n_f >= v_tope_f then v_tope_f else v_tope_t end);
   end if;
 
-  -- 8) Tope del ciclo de la persona.
+  -- 8) Tope del ciclo de la persona (también solo con el mismo rol).
   v_usd_ciclo := coalesce((v_cfg.topes -> p_rol ->> 'usd_ciclo')::numeric, 0);
-  select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = p_uid;
+  select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = p_uid and l.rol = p_rol;
   if v_mio + p_max_usd > v_usd_ciclo then
     perform public.ia_frenada(v_c.id, 'tope_persona');
     return jsonb_build_object('ok', false, 'codigo', 'tope_persona', 'vuelve', v_c.fin);
@@ -620,7 +621,7 @@ grant execute on function public.admin_ia_reintentar() to authenticated;
 -- Lo que la app necesita saber para mostrar (o no) los botones de la IA, sin montos:
 --   { activa, funciones: { plato, texto }, permiso_comida ('ok' | 'no' | 'viejo' | null),
 --     aviso_version, estado ('normal' | 'ahorro' | 'pausada' | 'tope_mes' | 'tope_persona'),
---     vuelve, quedan: { plato, texto }, tope: { plato, texto, total } }
+--     vuelve, quedan: { plato, texto }, tope: { plato, texto, total }, usados: { plato, texto, total } }
 -- Una función está prendida para la app solo con el interruptor general, la de la función y la
 -- fecha de los créditos cargada (sin eso la función nunca llama a la IA): si no, la app no
 -- muestra nada nuevo. «quedan»: cuántos usos le quedan hoy a la persona (por función y en total).
@@ -653,24 +654,25 @@ begin
         and not exists (select 1 from public.profiles p where p.id = v_uid and p.coach_id is not null and public.coach_pago(p.coach_id)) then
     v_estado := 'ahorro'; v_vuelve := v_fin;
   end if;
-  -- Lo de hoy de la persona: cuenta lo mismo que ia_reservar.
+  -- Lo de hoy de la persona: cuenta lo mismo que ia_reservar (solo con el rol de la app).
   v_hoy0 := public.ia_hoy();
   select count(*) filter (where l.funcion = 'plato'), count(*) filter (where l.funcion = 'texto'), count(*) into v_np, v_nt, v_n
     from public.ia_llamadas l
-   where l.user_id = v_uid and l.creada >= v_hoy0
+   where l.user_id = v_uid and l.rol = v_rol and l.creada >= v_hoy0
      and (l.estado in ('ok', 'vacia', 'reservada', 'vencida') or (l.estado = 'error' and (l.usd is null or l.usd > 0)));
   v_tp := coalesce((v_cfg.topes -> v_rol ->> 'plato')::numeric, 0);
   v_tt := coalesce((v_cfg.topes -> v_rol ->> 'texto')::numeric, 0);
   v_tot := coalesce((v_cfg.topes -> v_rol ->> 'total')::numeric, 0);
   if v_estado = 'normal' and v_c.id is not null then
-    select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = v_uid;
+    select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = v_uid and l.rol = v_rol;
     if v_mio >= coalesce((v_cfg.topes -> v_rol ->> 'usd_ciclo')::numeric, 0) then v_estado := 'tope_persona'; v_vuelve := v_fin; end if;
   end if;
   return jsonb_build_object('activa', true, 'funciones', jsonb_build_object('plato', v_plato, 'texto', v_texto),
     'permiso_comida', public.ia_permiso_estado(v_uid), 'aviso_version', coalesce(v_cfg.aviso_version, 1),
     'estado', v_estado, 'vuelve', v_vuelve, 'manana', v_hoy0 + interval '1 day',
     'quedan', jsonb_build_object('plato', greatest(0, least(v_tp - v_np, v_tot - v_n)), 'texto', greatest(0, least(v_tt - v_nt, v_tot - v_n))),
-    'tope', jsonb_build_object('plato', v_tp, 'texto', v_tt, 'total', v_tot));
+    'tope', jsonb_build_object('plato', v_tp, 'texto', v_tt, 'total', v_tot),
+    'usados', jsonb_build_object('plato', v_np, 'texto', v_nt, 'total', v_n));
 end $$;
 revoke all on function public.ia_mi_estado() from public, anon;
 grant execute on function public.ia_mi_estado() to authenticated;
