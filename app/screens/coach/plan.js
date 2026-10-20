@@ -105,15 +105,16 @@ export async function loadBilling(){
 
 // count: los vínculos que cuenta el plan. Desde la etapa 0 de gimnasios los cuenta la base
 // (coach_billing.seats_used: los alumnos propios; los socios que un profe atiende en un gimnasio van
-// por el plan del gimnasio). Sin esa columna (la base todavía no la tiene), la lista de clientes, como
-// antes. profe: es profe de un gimnasio (screens/coach/gimnasio.js): nunca ve la pantalla de pago por el
+// por el plan del gimnasio). Al profe de un gimnasio se le toma ese número; al coach sin gimnasio, la
+// lista de clientes, como siempre: se actualiza en el momento al bloquear o soltar a un alumno, sin
+// esperar a releer el plan (con seats_used quedaba «Llegaste al máximo» hasta la próxima recarga). profe: es profe de un gimnasio (screens/coach/gimnasio.js): nunca ve la pantalla de pago por el
 // gimnasio, y la tira del plan y la prueba solo aparecen si tiene algo propio (propio: alumnos propios o
 // un plan propio pagado o de cortesía). Sin la fila (la base no se la muestra a un profe sin nada
 // propio, gimnasios-vinculo.sql), como siempre: activo y sin tope.
 export function billing(){
   const r = B.row, now = Date.now(), profe = esProfeGym();
   const lista = profe ? propios().length : CoachState.coachClients.length;
-  const count = r && typeof r.seats_used === "number" ? r.seats_used : lista;
+  const count = profe && r && typeof r.seats_used === "number" ? r.seats_used : lista;
   if(!r) return { known: false, active: true, count, max: Infinity, atCap: false, profe, propio: false };
   const trialEnd = new Date(r.trial_ends_at).getTime();
   const paidUntil = r.paid_until ? new Date(r.paid_until).getTime() : 0;

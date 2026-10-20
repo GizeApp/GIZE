@@ -49,6 +49,8 @@ import { ensureEditor, qDirty } from './screens/coach/preguntas.js';
 import { abrirSolo, coachPlanObj, cpApply, loadTpls, moveEx, refreshBlockWeeks, removeEx, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody, mealStudioAction, mealStudioInput } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
+import { esProfeGym } from './screens/coach/gimnasio.js';
+import { loadBilling } from './screens/coach/plan.js';
 import { calState } from './screens/coach/calendario.js';
 import { mealAction, mealDirty, nutritionRow } from './screens/coach/planes.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
@@ -2082,6 +2084,8 @@ window.addEventListener("gize:bloqueo", e=>{
     CoachState.coachClients=CoachState.coachClients.filter(c=>c.id!==d.target);
     if(CoachState.coachSel===d.target){ CoachState.coachSel=null; CoachState.coachData=null; }
     renderCoach();
+    // El cupo del profe de un gimnasio lo cuenta la base (seats_used): se relee para no dejar el tope.
+    if(esProfeGym()) loadBilling().then(()=>renderCoach()).catch(()=>{});
   } else loadCloud().then(()=>renderApp()).catch(()=>{});
 });
 // Tocar el aviso de un mensaje: el service worker avisa (app abierta) o abre ?chat=<alumno>.
