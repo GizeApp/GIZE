@@ -377,8 +377,10 @@ html.lite .scan-btn { animation: none; }
    Solo aparece con la función prendida en el panel. Colores de las variables de cada apariencia;
    sin sombras ni animaciones propias salvo el giro de «Analizando…» (quieto en básico y con
    movimiento reducido). */
-.ia-tag { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 10px; font-weight: 800; letter-spacing: .06em; vertical-align: 2px;
-  color: #fff; background: linear-gradient(90deg, var(--gize-r2), var(--gize-r3)); }
+/* Texto de la apariencia sobre un tinte suave del color de la marca: se lee igual en todas
+   (blanco sobre el degradé quedaba por debajo de 4,5:1). */
+.ia-tag { display: inline-block; padding: 0 6px; border-radius: 6px; font-size: 10px; font-weight: 800; letter-spacing: .06em; vertical-align: 2px; line-height: 1.5;
+  color: var(--txt); background: color-mix(in srgb, var(--gize-r2) 16%, transparent); border: 1px solid color-mix(in srgb, var(--gize-r2) 60%, var(--border)); }
 .ia-mini { display: inline-block; padding: 0 4px; border-radius: 4px; font-size: 9px; font-weight: 800; letter-spacing: .05em; line-height: 1.5;
   color: var(--txt); border: 1px solid color-mix(in srgb, var(--gize-r2) 60%, var(--border)); }
 .ia-chip { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .03em;
@@ -407,6 +409,9 @@ html.lite .scan-btn { animation: none; }
 .pl8-hint, .pl8-fine, .pl8-nota, .pl8-cnt, .pl8-quedan { margin: 0; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
 .pl8-quedan { color: var(--gize-warning, #FFB547); }
 .pl8-pick { margin: 4px 0 0; }
+.pl8-pick .cf-photo-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.plate-sheet .sheet-title:focus { outline: none; }
+.pl8-dia { display: block; margin-top: 2px; font-size: var(--text-meta); font-weight: 700; color: var(--txt-2); }
 .pl8-lbl { font-size: var(--text-meta); font-weight: 600; color: var(--txt-2); }
 .pl8-txt { display: block; width: 100%; min-height: 96px; resize: none; font: 16px/1.4 var(--gize-font); }
 .plate-sheet.ok .pl8-photo { max-height: 96px; }
@@ -426,7 +431,8 @@ html.basico .pl8-spin { border-top-color: var(--blue); }
 .pl8-row { padding: 8px 10px 10px; border: 1px solid var(--border); border-radius: var(--r-box); background: var(--card-2); }
 .pl8-top { display: flex; align-items: center; gap: 6px; }
 .pl8-name { flex: 1; min-width: 0; font-weight: 600; color: var(--txt); overflow-wrap: anywhere; line-height: 1.3; }
-.pl8-chg { flex: none; min-height: 44px; padding: 0 10px; border: none; background: none; color: var(--blue-2, var(--blue)); font: 600 var(--text-meta) var(--gize-font); cursor: pointer; }
+.pl8-chg { flex: none; min-height: 44px; padding: 0 10px; border: none; background: none; color: var(--txt); font: 600 var(--text-meta) var(--gize-font); cursor: pointer;
+  text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--gize-r2) 70%, var(--txt)); text-underline-offset: 3px; }
 .pl8-x { flex: none; width: 44px; height: 44px; margin-right: -8px; display: grid; place-items: center; border: none; background: none; color: var(--txt-3); cursor: pointer; }
 .pl8-x svg { width: 18px; height: 18px; }
 .pl8-src { margin: -6px 0 6px; font-size: 12px; color: var(--txt-2); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
@@ -445,8 +451,8 @@ html.basico .pl8-spin { border-top-color: var(--blue); }
 .pl8-redo { display: flex; gap: 8px; }
 .pl8-redo .form-input { flex: 1; min-width: 0; }
 .pl8-redo .ctrl { flex: none; width: auto; max-width: none; min-height: 44px; padding: 10px 14px; font-size: var(--text-meta); }
-.pl8-link { align-self: flex-start; min-height: 44px; padding: 0 2px; border: none; background: none; color: var(--blue-2, var(--blue)); font: 600 var(--text-meta) var(--gize-font);
-  text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.pl8-link { align-self: flex-start; min-height: 44px; padding: 0 2px; border: none; background: none; color: var(--txt); font: 600 var(--text-meta) var(--gize-font);
+  text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--gize-r2) 70%, var(--txt)); text-underline-offset: 3px; cursor: pointer; }
 .pl8-again { align-self: center; }
 .pl8-tot { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; color: var(--txt-2); font-variant-numeric: tabular-nums; font-size: var(--text-meta); }
 .pl8-tot b { color: var(--txt); font-size: 18px; }

@@ -8,8 +8,10 @@ import { State } from './state.js';
 // Lo último que dijo ia_mi_estado(): { activa, funciones: { plato, texto }, permiso_comida,
 // aviso_version, estado, vuelve, quedan: { plato, texto }, tope }. null: no se sabe (sin sesión,
 // sin internet, la base sin ia.sql): la app no muestra nada.
-export const IA = { estado: null, at: 0, uid: null, pidiendo: null };
-const VIGENCIA = 5 * 60_000;
+// fallo: la última vez no se pudo preguntar (sin internet, la base sin ia.sql): se vuelve a probar
+// recién al minuto, para no mandar un pedido que falla en cada redibujo de Comida o Ajustes.
+export const IA = { estado: null, at: 0, uid: null, pidiendo: null, fallo: false };
+const VIGENCIA = 5 * 60_000, REINTENTO = 60_000;
 
 const mio = () => !!(State.cloudUser && IA.uid === State.cloudUser.id);
 
@@ -17,23 +19,32 @@ const mio = () => !!(State.cloudUser && IA.uid === State.cloudUser.id);
 // Devuelve el estado o null; nunca falla.
 export async function iaEstado(forzar){
   if (!State.cloudUser || !State.sb) { IA.estado = null; IA.uid = null; return null; }
-  if (!forzar && mio() && IA.estado && Date.now() - IA.at < VIGENCIA) return IA.estado;
+  if (!forzar && mio() && IA.at && Date.now() - IA.at < (IA.fallo ? REINTENTO : VIGENCIA)) return IA.estado;
+  // Sin conexión ni se pregunta (sin forzar): queda lo que había.
+  if (!forzar && navigator.onLine === false) return mio() ? IA.estado : null;
   if (IA.pidiendo) return IA.pidiendo;
   const uid = State.cloudUser.id;
+  // No se pudo: se recuerda (para esperar el minuto) y queda lo que había de esta cuenta.
+  const fallido = () => {
+    if (!State.cloudUser || State.cloudUser.id !== uid) return null;
+    if (!mio()) IA.estado = null;
+    IA.uid = uid; IA.at = Date.now(); IA.fallo = true;
+    return IA.estado;
+  };
   IA.pidiendo = (async () => {
     try {
       const r = await State.sb.rpc("ia_mi_estado");
-      if (r.error || !r.data || typeof r.data !== "object") { if (!mio()) IA.estado = null; return mio() ? IA.estado : null; }
+      if (r.error || !r.data || typeof r.data !== "object") return fallido();
       if (!State.cloudUser || State.cloudUser.id !== uid) return null;
-      IA.estado = r.data; IA.at = Date.now(); IA.uid = uid;
+      IA.estado = r.data; IA.at = Date.now(); IA.uid = uid; IA.fallo = false;
       return IA.estado;
-    } catch (e) { return mio() ? IA.estado : null; }
+    } catch (e) { return fallido(); }
     finally { IA.pidiendo = null; }
   })();
   return IA.pidiendo;
 }
 // Para cuando cambia la cuenta: nada de lo de la otra.
-export function iaOlvidar(){ IA.estado = null; IA.at = 0; IA.uid = null; }
+export function iaOlvidar(){ IA.estado = null; IA.at = 0; IA.uid = null; IA.fallo = false; }
 
 // ¿Se muestra el botón de esa función ("plato" | "texto")? Con sesión y prendida en el panel. Si la
 // persona la apagó en Ajustes, el botón sigue y lleva a Ajustes (no se le vuelve a preguntar sola).
@@ -55,7 +66,7 @@ export async function iaGuardarPermiso(acepta){
   if (!State.cloudUser || !State.sb) throw new Error("Iniciá sesión para usar la IA.");
   const r = await State.sb.rpc("ia_permiso", acepta ? { p_tipo: "comida", p_acepta: true, p_version: avisoVersion() } : { p_tipo: "comida", p_acepta: false });
   if (r.error) throw new Error(/aviso cambió/.test(r.error.message || "") ? r.error.message : "No se pudo guardar. Revisá la conexión y probá de nuevo.");
-  if (r.data && typeof r.data === "object") { IA.estado = r.data; IA.at = Date.now(); IA.uid = State.cloudUser.id; }
+  if (r.data && typeof r.data === "object") { IA.estado = r.data; IA.at = Date.now(); IA.uid = State.cloudUser.id; IA.fallo = false; }
   return IA.estado;
 }
 

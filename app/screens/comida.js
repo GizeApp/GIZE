@@ -635,6 +635,23 @@ export function renderPlanScreen(){
     <div class="mc-wrap plan-body">${body || '<div class="cal-hint">Tu coach todavía no cargó el detalle del plan.</div>'}</div>`;
 }
 
+// Cuando llega el estado de la IA con el buscador abierto: pone o saca «Foto» y «Contame qué
+// comiste» y rehace los resultados, sin redibujar la hoja (el campo de búsqueda no pierde el foco
+// ni lo que se está escribiendo).
+export function paintSearchIA(){
+  const card = document.querySelector("#sheetHost .search-sheet");
+  if (!card) return false;
+  const tmp = document.createElement("div"); tmp.innerHTML = renderSearchSheet();
+  const nuevo = tmp.querySelector(".search-sheet"); if (!nuevo) return false;
+  const row = card.querySelector(".food-search-row"), res = card.querySelector("#foodResults");
+  card.querySelectorAll(".ia-foto-btn, .ia-texto-btn").forEach(b => b.remove());
+  const f = nuevo.querySelector(".ia-foto-btn"), t = nuevo.querySelector(".ia-texto-btn");
+  if (f && row) row.insertBefore(f, row.querySelector(".scan-btn"));
+  if (t && res) card.insertBefore(t, res);
+  if (res) res.innerHTML = renderResults(ComidaState.foodQuery);
+  return true;
+}
+
 // ---- Foto del plato y «Contame qué comiste» (IA) ----
 // La hoja de revisión: la IA propone, la persona corrige (gramos, alimento, quitar, agregar) y
 // recién al tocar «Agregar» se anota. Cada fila guarda sus valores cada 100 g (de la base de GIZE
@@ -657,9 +674,17 @@ export function plateTotals(P){
 }
 export function plateTotalsText(P){ const t = plateTotals(P); return `<b>${kNum(t.kcal)} kcal</b><span>P ${r1p(t.p)} · C ${r1p(t.c)} · G ${r1p(t.f)}</span>`; }
 export function plateRowText(it){ const v = plateItemVals(it); return `${kNum(v.kcal)} kcal · P ${r1p(v.p)} · C ${r1p(v.c)} · G ${r1p(v.f)}`; }
+// «al almuerzo», «a la cena»… y, si se está viendo otro día, «de ayer» / «del mié 14 oct».
+export const alComida = m => m === "desayuno" ? "al desayuno" : m === "almuerzo" ? "al almuerzo" : m === "merienda" ? "a la merienda" : "a la cena";
+export function plateDia(){
+  const vd = ComidaState.viewDate;
+  if (!vd || vd >= today()) return "";
+  const l = dayLabel(vd);
+  return (l === dayShort(vd) ? " del " : " de ") + l.toLowerCase();
+}
 export function plateAddLabel(P){
   const t = plateTotals(P);
-  return t.n ? `Agregar ${P.meal === "desayuno" ? "al desayuno" : P.meal === "almuerzo" ? "al almuerzo" : P.meal === "merienda" ? "a la merienda" : "a la cena"} · ${kNum(t.kcal)} kcal` : "Agregar";
+  return t.n ? `Agregar ${alComida(P.meal)}${plateDia()} · ${kNum(t.kcal)} kcal` : "Agregar";
 }
 // «Te quedan 3 fotos con IA hoy»: solo con 3 o menos.
 export function plateQuedan(modo){
@@ -692,8 +717,8 @@ function plateBody(P){
   if (P.status === "elegir") return `
       <p class="pl8-hint">Sacá la foto de arriba, con todo el plato a la vista y buena luz. La IA estima qué hay y cuánto; después lo revisás.</p>
       <div class="cf-photo-btns pl8-pick">
-        <label class="cf-photo-btn">📷 Sacar foto<input type="file" accept="image/*" capture="environment" data-action="plate-file" hidden></label>
-        <label class="cf-photo-btn">🖼️ Elegir de la galería<input type="file" accept="image/*" data-action="plate-file" hidden></label>
+        <label class="cf-photo-btn" tabindex="0" role="button" data-pick="1"><span aria-hidden="true">📷</span> Sacar foto<input type="file" accept="image/*" capture="environment" data-action="plate-file" tabindex="-1" hidden></label>
+        <label class="cf-photo-btn" tabindex="0" role="button" data-pick="1"><span aria-hidden="true">🖼️</span> Elegir de la galería<input type="file" accept="image/*" data-action="plate-file" tabindex="-1" hidden></label>
       </div>${plateQuedan("plato")}`;
   if (P.status === "escribir") return `
       <label class="pl8-lbl" for="pl8Txt">Contá qué comiste y cuánto</label>
@@ -740,7 +765,7 @@ export function renderPlateSheet(){
   return `
     <div class="sheet-bg" data-action="plate-cancel"></div>
     <div class="sheet plate-sheet${ok ? " ok" : ""}" role="dialog" aria-modal="true" aria-labelledby="pl8T">
-      <div class="ss-head"><span class="sheet-title" id="pl8T">${foto ? "Foto del plato" : "Contame qué comiste"} <span class="ia-tag">IA</span></span><button class="ss-x" data-action="plate-cancel" aria-label="Cerrar">${xSvg}</button></div>
+      <div class="ss-head"><span class="sheet-title" id="pl8T" tabindex="-1">${foto ? "Foto del plato" : "Contame qué comiste"} <span class="ia-tag" aria-label="con IA">IA</span>${plateDia() ? `<span class="pl8-dia">Para ${plateDia().replace(/^ de /, "").replace(/^ del /, "el ")}</span>` : ""}</span><button class="ss-x" data-action="plate-cancel" aria-label="Cerrar">${xSvg}</button></div>
       <div class="pl8-body">${plateBody(P)}</div>
       ${foot}
     </div>`;

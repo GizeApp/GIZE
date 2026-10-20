@@ -53,7 +53,7 @@ import { calState } from './screens/coach/calendario.js';
 import { mealAction, mealDirty, nutritionRow } from './screens/coach/planes.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
-import { ComidaState, mealNow, mealName, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, foodByName, lastResults, offResults, paintPlate, paintPlateNums, plateItemVals, previewStr, rememberCookState, renderComida, renderPlateSheet, renderResults, selectedFoodValues } from './screens/comida.js';
+import { ComidaState, mealNow, alComida, plateDia, paintSearchIA, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, foodByName, lastResults, offResults, paintPlate, paintPlateNums, plateItemVals, previewStr, rememberCookState, renderComida, renderPlateSheet, renderResults, selectedFoodValues } from './screens/comida.js';
 import { IA, iaEstado, iaMensaje, iaPedir, iaPermiso, iaReportar, iaSinReintento, iaVisible, photoB64 } from './core/ia.js';
 import { iaToast, pedirPermisoIA } from './ui/ia-permiso.js';
 import { FOODS } from './core/data.js';
@@ -371,7 +371,8 @@ document.body.addEventListener("input", async e => {
   if (a === "daily-kg" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":t.dataset.k] = t.value; return; }
   // Lo mismo en el check-in semanal: al volver de otra app se redibuja y se perdía lo escrito.
   if (a === "ci-set") { checkinFormInit()[t.dataset.k] = t.value; return; }
-  if (a === "plate-grams") { const P=ComidaState.plate, it=P&&P.items[+t.dataset.i]; if(it){ it.g=t.value; if(!it.manual && plateGramsNum(it)!==it.g0) it.editado=true; paintPlateNums(+t.dataset.i); } return; }
+  // Más de 5000 g no se anota: el campo muestra lo mismo que se va a anotar.
+  if (a === "plate-grams") { const P=ComidaState.plate, it=P&&P.items[+t.dataset.i]; if(it){ if((parseFloat(String(t.value).replace(",","."))||0) > 5000) t.value="5000"; it.g=t.value; if(!it.manual && plateGramsNum(it)!==it.g0) it.editado=true; paintPlateNums(+t.dataset.i); } return; }
   if (a === "plate-text") { if(ComidaState.plate){ ComidaState.plate.texto=t.value; const c=document.getElementById("pl8Cnt"); if(c) c.textContent=t.value.length; } return; }
   if (a === "plate-aclara") { if(ComidaState.plate) ComidaState.plate.aclara=t.value; return; }
   if (a === "food-search") { ComidaState.foodQuery = t.value; scheduleOffSearch(t.value); const r=document.getElementById("foodResults"); if(r) r.innerHTML = renderResults(ComidaState.foodQuery); return; }
@@ -2105,15 +2106,16 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 // (core/ia.js). Antes del primer uso, el permiso (ui/ia-permiso.js), antes de abrir la cámara o
 // mandar el texto. La IA propone, la persona revisa en la hoja (screens/comida.js →
 // renderPlateSheet) y nada se anota sin tocar «Agregar».
-let _iaVis = "";
-// El estado de la IA, sin apuro (vale 5 minutos): si cambia lo que se ve, se redibuja el buscador.
+// El estado de la IA, sin apuro (vale 5 minutos): si cambia lo que se ve respecto de lo que ya
+// está dibujado, se ponen los botones en el buscador sin redibujarlo (no se pierde lo que se está
+// escribiendo). Apagada, no cambia nada.
+const iaVis = () => iaVisible("plato") + "|" + iaVisible("texto");
 function iaRefrescar(){
   if (!State.cloudUser) return;
+  const antes = iaVis();
   iaEstado().then(() => {
-    const v = iaVisible("plato") + "|" + iaVisible("texto");
-    if (v === _iaVis) return;
-    _iaVis = v;
-    if (State.view === "comida" && ComidaState.searchOpen && !ComidaState.selectedFood && !ComidaState.editEntry) renderApp();
+    if (iaVis() === antes) return;
+    if (State.view === "comida" && ComidaState.searchOpen && !ComidaState.selectedFood && !ComidaState.editEntry && !paintSearchIA()) renderApp();
   });
 }
 const plateGramsNum = it => Math.round((parseFloat(String(it.g).replace(",", ".")) || 0) * 10) / 10;
@@ -2151,11 +2153,35 @@ function plateItems(res, modo){
     return it;
   }).filter(it => it.g > 0);
 }
+// Al cerrar la hoja, el buscador vuelve a arrancar como siempre (la comida según la hora, sin lo
+// buscado), igual que después de agregar un alimento.
 function plateCerrar(){
   const P = ComidaState.plate;
-  closeSheet(() => { if (P && P.photoUrl) URL.revokeObjectURL(P.photoUrl); ComidaState.plate = null; ComidaState.plateSwap = null; renderApp(); });
+  closeSheet(() => { if (P && P.photoUrl) URL.revokeObjectURL(P.photoUrl); ComidaState.plate = null; ComidaState.plateSwap = null; ComidaState.meal = null; ComidaState.foodQuery = ""; ComidaState.off = null; renderApp(); });
 }
-const platePaint = () => { if (!paintPlate()) renderApp(); };
+const plateFoco = () => { const h = document.getElementById("pl8T"); if (h) try { h.focus({ preventScroll: true }); } catch (e) {} };
+// Si el foco estaba en lo que se redibujó, vuelve al título de la hoja (no se va al fondo).
+const platePaint = () => {
+  const c = document.querySelector("#sheetHost .plate-sheet"), tenia = !!(c && c.contains(document.activeElement));
+  if (!paintPlate()) { renderApp(); return; }
+  if (tenia && !c.contains(document.activeElement)) plateFoco();
+};
+// Teclado en la hoja del plato (es modal): Enter o Espacio en «Sacar foto» / «Elegir de la
+// galería» abren el selector, y Tab da la vuelta adentro de la hoja.
+document.addEventListener("keydown", e => {
+  if (State.view !== "comida" || !ComidaState.plate || ComidaState.searchOpen) return;
+  const card = document.querySelector("#sheetHost .plate-sheet:not(.closing)");
+  if (!card || document.querySelector("#iaPermHost .sheet:not(.closing), [role=alertdialog]")) return;
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches(".plate-sheet label[data-pick]")) {
+    e.preventDefault(); const i = e.target.querySelector("input"); if (i) i.click(); return;
+  }
+  if (e.key !== "Tab") return;
+  const l = [...card.querySelectorAll('button:not([disabled]), input:not([type=file]), textarea, label[data-pick], a[href]')].filter(x => x.getClientRects().length);
+  if (!l.length) return;
+  const i = l.indexOf(document.activeElement);
+  if (i < 0) { e.preventDefault(); l[e.shiftKey ? l.length - 1 : 0].focus(); return; }
+  if (e.shiftKey ? i === 0 : i === l.length - 1) { e.preventDefault(); l[e.shiftKey ? l.length - 1 : 0].focus(); }
+});
 // Con el estado de hoy se sabe antes de llamar si no va a poder (pausada, límites, sin conexión):
 // se avisa en la hoja y se ofrece cargarlo a mano.
 function plateFreno(modo){
@@ -2163,12 +2189,16 @@ function plateFreno(modo){
   const e = IA.estado;
   if (!e) return null;
   if (["pausada", "ahorro", "tope_mes", "tope_persona"].includes(e.estado)) return { codigo: e.estado, vuelve: e.vuelve };
-  if (e.quedan && e.quedan[modo] === 0) return { codigo: "tope_dia", tope: e.tope ? (e.quedan.plato === 0 && e.quedan.texto === 0 ? e.tope.total : e.tope[modo]) : null };
+  // El número del aviso, como en ia_reservar: el de la función si esa se acabó; si no, el del día.
+  if (e.quedan && e.quedan[modo] === 0) {
+    const t = e.tope, u = e.usados;
+    return { codigo: "tope_dia", tope: !t ? null : (u && u[modo] != null && u[modo] < t[modo]) ? t.total : t[modo] };
+  }
   return null;
 }
 async function plateEmpezar(modo, texto0){
   const meal = ComidaState.meal || mealNow();
-  const abrir = P => { ComidaState.searchOpen = false; ComidaState.plateSwap = null; ComidaState.plate = P; SheetState.sheetGen++; renderApp(); };
+  const abrir = P => { ComidaState.searchOpen = false; ComidaState.plateSwap = null; ComidaState.plate = P; SheetState.sheetGen++; renderApp(); if (P.status !== "escribir") requestAnimationFrame(plateFoco); };
   // Sin conexión no se pregunta nada ni se llama.
   if (navigator.onLine === false) { const err = { codigo: "sin_conexion" }; abrir({ modo, meal, status: "error", err, msg: iaMensaje(err, modo), reintento: false, items: [] }); return; }
   await iaEstado(true);
@@ -2257,7 +2287,7 @@ async function plateClick(a, el){
   if (a === "plate-step") {
     const it = P.items[i]; if (!it) return;
     const paso = it.paso > 0 ? it.paso : 10, g = plateGramsNum(it);
-    const n = Math.max(0, Math.round((g + (+el.dataset.d) * paso) * 10) / 10);
+    const n = Math.min(5000, Math.max(0, Math.round((g + (+el.dataset.d) * paso) * 10) / 10));
     it.g = roundG(n); if (!it.manual && plateGramsNum(it) !== it.g0) it.editado = true;
     const inp = document.querySelector('#sheetHost [data-action="plate-grams"][data-i="' + i + '"]'); if (inp) inp.value = String(it.g);
     paintPlateNums(i); return;
@@ -2281,9 +2311,12 @@ async function plateClick(a, el){
     return;
   }
   if (a === "plate-add") {
+    // Un doble toque no anota el plato dos veces: la hoja tarda un poco en cerrarse.
+    if (P.agregado) return;
     const lista = P.items.map(it => ({ it, v: plateItemVals(it) })).filter(x => x.v.g > 0);
     if (!lista.length) { alert("Agregá al menos un alimento con gramos."); return; }
-    const meal = P.meal || mealNow();
+    P.agregado = true; el.disabled = true;
+    const meal = P.meal || mealNow(), dia = plateDia();
     lista.forEach(({ it, v }) => {
       const e = { id: newId(), meal, name: it.name, grams: roundG(v.g), kcal: v.kcal, p: v.p, c: v.c, f: v.f, unit: it.unit || "g",
         base: { kcal: Math.round(it.b.kcal), p: plateR1(it.b.p), c: plateR1(it.b.c), f: plateR1(it.b.f), unit: it.unit || "g" } };
@@ -2291,7 +2324,7 @@ async function plateClick(a, el){
       curDiary().push(e);
     });
     commitDiary();
-    iaToast("Listo: " + lista.length + (lista.length === 1 ? " alimento agregado" : " alimentos agregados") + " a " + mealName(meal).toLowerCase() + ".");
+    iaToast("Listo: " + lista.length + (lista.length === 1 ? " alimento agregado " : " alimentos agregados ") + alComida(meal) + dia + ".");
     plateCerrar();
     return;
   }
