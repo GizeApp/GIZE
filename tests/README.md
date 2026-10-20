@@ -35,3 +35,8 @@ Las funciones de Supabase (`supabase/functions/*/index.ts`, escritas para Deno) 
 Node con `tests/funcion.mjs`: los paquetes `npm:` (supabase-js, web-push, jose), `Deno.serve`,
 `Deno.env` y `fetch` son simulados, así que tampoco salen a internet. Así se prueba lo que la
 función hace (qué guarda, qué manda y en qué orden) y no solo cómo está escrita.
+
+`ia-sql.test.mjs` además corre `supabase/pedidos-productos.sql` y `supabase/ia.sql` en un Postgres
+de verdad si la máquina tiene uno instalado (en GitHub, el de ubuntu-24.04; con lo mínimo de
+Supabase simulado, en una carpeta temporal que borra al terminar): así prueba la guardia de gasto
+de la IA (ciclos, reservas a la vez, cortes y topes). Si no hay Postgres, esa parte se saltea.

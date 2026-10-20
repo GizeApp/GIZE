@@ -16,11 +16,11 @@ let ingresoAca = new URLSearchParams(location.search).has("code");
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: "pkce", detectSessionInUrl: true } });
 
 const $root = document.getElementById("root");
-const S = { user: null, view: "resumen", overview: null, goals: null, tasks: null, users: null, q: "", coaches: null, fin: null, finTab: "numeros", dolar: null, prodTab: "pedidos", reqKind: "pendientes", reqs: null, prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false, repTab: "nuevo", reps: null, repPend: 0 };
+const S = { user: null, view: "resumen", overview: null, goals: null, tasks: null, users: null, q: "", coaches: null, fin: null, finTab: "numeros", dolar: null, prodTab: "pedidos", reqKind: "pendientes", reqs: null, prods: null, urls: {}, audit: null, backups: null, config: null, msgTab: "nuevos", msgs: null, unread: 0, drafts: {}, sending: false, repTab: "nuevo", reps: null, repPend: 0, ia: null, iaFn: null, iaHome: null, reqForm: {}, iaLeyendo: new Set() };
 // Menú plano en dos tramos: lo de todos los días y, abajo, «Más». La clave "resumen" es la de
 // siempre (los links #resumen siguen andando) aunque ahora se llame Objetivos.
 const NAV_MAIN = [["resumen", "Objetivos"], ["usuarios", "Usuarios"], ["finanzas", "Finanzas"], ["seguridad", "Seguridad"]];
-const NAV_MORE = [["contacto", "Mensajes"], ["reportes", "Reportes"], ["productos", "Productos"], ["avisos", "Avisos"], ["estadisticas", "Estadísticas"]];
+const NAV_MORE = [["contacto", "Mensajes"], ["reportes", "Reportes"], ["productos", "Productos"], ["avisos", "Avisos"], ["ia", "IA"], ["estadisticas", "Estadísticas"]];
 // «Coaches y pagos» no tiene botón propio: es una pestaña de Usuarios (la clave "coaches" y el
 // link #coaches siguen andando; en el menú queda marcado Usuarios).
 const SECTIONS = NAV_MAIN.concat(NAV_MORE, [["coaches", "Coaches y pagos"]]);
@@ -45,7 +45,14 @@ function ago(d){
   if (s < 86400 * 45) return "hace " + Math.round(s / 86400) + " días";
   return fmtD(d);
 }
-function toast(msg){ const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+// El aviso de abajo. Se anuncia por una zona fija (aria-live): un elemento recién agregado no
+// siempre lo leen los lectores de pantalla.
+function toast(msg){
+  const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; t.setAttribute("aria-hidden", "true"); document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+  let v = document.getElementById("toastVivo");
+  if (!v){ v = document.createElement("div"); v.id = "toastVivo"; v.className = "sr-only"; v.setAttribute("role", "status"); v.setAttribute("aria-live", "polite"); document.body.appendChild(v); }
+  v.textContent = ""; setTimeout(() => { v.textContent = msg; }, 50);
+}
 async function rpc(fn, args){ const r = await sb.rpc(fn, args || {}); if (r.error) throw r.error; return r.data; }
 async function fn(body){
   const r = await sb.functions.invoke("admin", { body });
@@ -136,7 +143,7 @@ function shell(){
 function go(view){
   S.view = view; history.replaceState(null, "", "#" + view);
   document.querySelectorAll(".nav").forEach(b => b.classList.toggle("on", b.dataset.go === (NAV_OF[view] || view)));
-  ({ resumen: loadResumen, estadisticas: loadEstadisticas, contacto: loadContacto, reportes: loadReportes, usuarios: loadUsuarios, coaches: loadCoaches, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad })[view]();
+  ({ resumen: loadResumen, estadisticas: loadEstadisticas, contacto: loadContacto, reportes: loadReportes, usuarios: loadUsuarios, coaches: loadCoaches, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad, ia: loadIA })[view]();
 }
 const main = () => document.getElementById("main");
 // Si la página tiene paneles, arriba a la derecha van «Abrir todo» y «Plegar todo».
@@ -211,16 +218,16 @@ async function loadResumen(){
   try { S.overview = await rpc("admin_overview"); } catch (e) { return page("Objetivos", "", `<div class="empty">${esc(errMsg(e))}</div>`); }
   const o = S.overview || {};
   // Lo que falta: con que falle uno, el resto se muestra igual.
-  const [reqs, coaches, unread, goals, tasks, reps] = await Promise.all([
+  const [reqs, coaches, unread, goals, tasks, reps, ia] = await Promise.all([
     rpc("admin_requests_pending").catch(() => 0), rpc("admin_coaches").catch(() => null),
     rpc("admin_contact_unread").catch(() => S.unread), rpc("admin_goals").catch(e => ({ error: e })), rpc("admin_tasks").catch(e => ({ error: e })),
-    rpc("admin_reports_pending").catch(() => S.repPend)]);
+    rpc("admin_reports_pending").catch(() => S.repPend), rpc("admin_ia_estado").catch(() => null)]);
   if (S.view !== "resumen") return;
   if (coaches) S.coaches = coaches;
   setPend(num(o.pending) + num(reqs)); setUnread(num(unread)); setRep(reps);
-  S.goals = goals; S.tasks = tasks; S.reqsPend = num(reqs);
+  S.goals = goals; S.tasks = tasks; S.reqsPend = num(reqs); S.iaHome = ia;
   page("Objetivos", "Lo que hay que atender, las metas y las tareas.",
-    block("hTodoB", "Para atender", '<div id="hTodo"></div>', { flush: true }) +
+    block("hTodoB", "Para atender", '<div id="hTodo"></div>', { flush: true }) + iaHomeBlock() +
     block("hGoalsB", "Objetivos", '<div id="hGoals"></div>', { act: '<button class="btn sm" data-a="gNew">+ Nuevo</button>' }) +
     block("hTasksB", "Tareas", '<div id="hTasks"></div>'));
   paintTodo(); paintGoals(); paintTasks();
@@ -263,7 +270,7 @@ function paintTodo(){
     [S.repPend, "reportes", S.repPend === 1 ? "reporte sin revisar" : "reportes sin revisar", "chat y grupos de pasos: revisalos dentro de las 24 horas"],
     [prods, "productos", "producto" + (prods === 1 ? "" : "s") + " para revisar", "pedidos de la gente, cargados sin verificar y reportados"],
     [soon, "coaches", soon === 1 ? "coach vence en los próximos 7 días" : "coaches vencen en los próximos 7 días", "pago o prueba: conviene escribirles"],
-    [num(o.overdue), "coaches", num(o.overdue) === 1 ? "coach sin pagar" : "coaches sin pagar", "prueba vencida y sin pago al día"]].filter(r => r[0] > 0);
+    [num(o.overdue), "coaches", num(o.overdue) === 1 ? "coach sin pagar" : "coaches sin pagar", "prueba vencida y sin pago al día"]].concat(iaTodo()).filter(r => r[0] > 0);
   box.innerHTML = rows.length ? `<div class="list">${rows.map(([n, go, l, sub]) => `<button class="li" ${go === "tareas" ? 'data-a="toTasks"' : `data-go="${go}"`}><b>${n0(n)}</b><span>${l}<small>${sub}</small></span><i aria-hidden="true">›</i></button>`).join("")}</div>`
     : '<div class="calm pad">Todo al día: no hay nada pendiente.</div>';
   const n = rows.reduce((s, r) => s + r[0], 0);
@@ -1127,37 +1134,62 @@ async function loadPedidos(){
     <div id="pList" class="empty">Cargando…</div>`);
   if (S.prodAdding) paintAdd();
   const box = document.getElementById("pList");
-  try { S.reqs = await rpc("admin_requests", { kind: pend ? "pendientes" : "resueltos" }); } catch (e) { box.textContent = errMsg(e); return; }
+  // Con los pedidos, el estado de la IA (supabase/ia.sql): si no está, no hay «Leer con IA».
+  let reqs;
+  try { [reqs, S.ia] = await Promise.all([rpc("admin_requests", { kind: pend ? "pendientes" : "resueltos" }), pend ? rpc("admin_ia_estado").catch(() => null) : S.ia]); }
+  catch (e) { box.textContent = errMsg(e); return; }
+  S.reqs = reqs;
   paintReqs();
+  // Con la IA prendida, los nombres de los modelos (para «Hecho con …» en los pedidos ya leídos).
+  if (pend && S.ia && S.ia.activa && !(S.iaFn && S.iaFn.ok)){ const f = await iaInvoke({ modo: "estado" }); if (f && f.ok){ S.iaFn = f; iaNotas(); } }
   const paths = [].concat(...S.reqs.map(r => [r.label_path, r.front_path])).filter(x => x && !S.urls[x]);
-  if (paths.length){ try { const r = await sb.storage.from("productos").createSignedUrls(paths, 3600); (r.data || []).forEach(x => { if (x.signedUrl) S.urls[x.path] = x.signedUrl; }); } catch (e) {} paintReqs(); }
+  // Las fotos se ponen en su lugar, sin rehacer las tarjetas (no se pierde el foco de lo que se está escribiendo).
+  if (paths.length){ try { const r = await sb.storage.from("productos").createSignedUrls(paths, 3600); (r.data || []).forEach(x => { if (x.signedUrl) S.urls[x.path] = x.signedUrl; }); } catch (e) {} paintFotos(); }
   try { pendTotal(await rpc("admin_overview")); } catch (e) {}
 }
+const fotoReq = (path, alt) => !path ? "" : S.urls[path] ? `<button class="prod-ph" data-a="zoom" data-url="${esc(S.urls[path])}"><img src="${esc(S.urls[path])}" alt="${alt}"></button>` : `<div class="prod-ph none" data-ph="${esc(path)}" data-alt="${alt}">Cargando foto…</div>`;
+function paintFotos(){
+  document.querySelectorAll("#pList .prod-ph.none[data-ph]").forEach(d => { if (S.urls[d.dataset.ph]) d.outerHTML = fotoReq(d.dataset.ph, d.dataset.alt); });
+}
+// Lo que el administrador escribió en cada pedido (por id), para que no se pierda si la lista se
+// vuelve a dibujar (al publicar o rechazar otro, al volver a Pedidos) ni lo pise la IA.
+const reqDraft = id => (S.reqForm[id] = S.reqForm[id] || {});
 function paintReqs(){
   const box = document.getElementById("pList"); if (!box || S.prodTab !== "pedidos") return;
   const pend = S.reqKind !== "resueltos";
   if (!S.reqs.length){ box.className = "empty"; box.textContent = pend ? "No hay pedidos para cargar." : "Todavía no hay pedidos resueltos."; return; }
   box.className = "grid";
-  const ph = (path, alt) => !path ? "" : S.urls[path] ? `<button class="prod-ph" data-a="zoom" data-url="${esc(S.urls[path])}"><img src="${esc(S.urls[path])}" alt="${alt}"></button>` : `<div class="prod-ph none">Cargando foto…</div>`;
-  const inp = (k, v, l, w, im) => `<label class="${w || ""}">${l}<input data-k="${k}" value="${esc(v == null ? "" : v)}"${im ? ` inputmode="${im}"` : ""}></label>`;
+  const ph = fotoReq;
+  let d = {};
+  const inp = (k, v, l, w, im) => { if (k in d) v = d[k]; return `<label class="${w || ""}">${l}<input data-k="${k}" value="${esc(v == null ? "" : v)}"${im ? ` inputmode="${im}"` : ""}></label>`; };
   box.innerHTML = S.reqs.map(r => {
+    d = pend ? (S.reqForm[r.id] || {}) : {};
     const who = `<span class="muted small">· pidió ${esc(r.user_name || r.user_email || "una cuenta borrada")} · ${fmtD(r.created_at)}</span>`;
     const phs = `<div class="rq-phs">${ph(r.label_path, "Tabla nutricional")}${ph(r.front_path, "Frente del paquete")}</div>`;
     if (!pend) return `<div class="card"><div class="prod">${phs}<div>
       <b>${esc(r.name)}</b>${r.brand ? " · " + esc(r.brand) : ""} ${who}
       <div style="margin-top:6px">${r.status === "cargado" ? '<span class="ptag ok">✓ Publicado</span>' : '<span class="ptag off">Rechazado</span>'} <span class="muted small">${fmtD(r.done_at)}</span></div>
       ${r.note ? `<div class="muted small" style="margin-top:4px">Motivo: ${esc(r.note)}</div>` : ""}</div></div></div>`;
+    const ia = iaPedido(r), leyendo = S.iaLeyendo.has(String(r.id));
+    // La nota de la IA va debajo de los campos y el estado («Leyendo…», los errores), debajo de los
+    // botones: así, mientras lee o cuando termina, ni el formulario ni los botones se corren.
     return `<div class="card" data-req="${esc(r.id)}"><div class="prod">${phs}<div>
       <b>${esc(r.name)}</b>${r.brand ? " · " + esc(r.brand) : ""} ${who}
       ${r.existing_id ? `<div class="small" style="color:var(--warn);margin-top:4px">Ya hay un producto con este código: «${esc(r.existing_name)}». Al publicar se corrige ese y queda verificado.</div>` : ""}
       <div class="muted small" style="margin-top:4px">Valores cada 100 g (o 100 ml si es líquido), como en la tabla. Si la tabla es por porción, dividí por la porción y multiplicá por 100.</div>
       <div class="pgrid">${inp("name", r.name, "Nombre", "wide")}${inp("brand", r.brand, "Marca", "wide")}${inp("kcal", "", "Kcal", "", "decimal")}${inp("protein", "", "Proteína", "", "decimal")}${inp("carbs", "", "Carbos", "", "decimal")}${inp("fat", "", "Grasas", "", "decimal")}
         ${inp("code", r.code, "Código de barras (opcional)", "wide", "numeric")}${inp("portion", "", "Porción (opcional)", "", "decimal")}
-        <label>Unidad<select data-k="unit"><option value="g">g (sólido)</option><option value="ml">ml (líquido)</option></select></label></div>
-      <div class="row-btns"><button class="btn bad" data-a="rqReject">Rechazar</button><button class="btn pri" data-a="rqPublish">Publicar producto</button></div>
+        <label>Unidad<select data-k="unit"><option value="g">g (sólido)</option><option value="ml"${d.unit === "ml" ? " selected" : ""}>ml (líquido)</option></select></label></div>
+      ${ia === "vieja" ? '<div class="ia-note muted small">Este pedido llegó antes del cambio de la política: cargalo a mano.</div>' : '<div class="ia-note" tabindex="-1" hidden></div>'}
+      <div class="row-btns">${ia === "leer" ? iaBoton(leyendo) : r.ai_at ? IA_HECHO : ""}<button class="btn bad" data-a="rqReject">Rechazar</button><button class="btn pri" data-a="rqPublish">Publicar producto</button></div>
+      <div class="ia-st small${leyendo ? " muted" : ""}" role="status" aria-live="polite">${leyendo ? "Leyendo la tabla con IA…" : ""}</div>
     </div></div></div>`;
   }).join("");
+  // Lo que ya leyó la IA (en esta sesión o antes) completa la tarjeta, sin pisar lo que haya
+  // escrito el administrador.
+  if (pend) S.reqs.forEach(r => { if (r.ai_at) iaFill(reqCard(r.id), r); });
 }
+const reqCard = id => document.querySelector(`#pList [data-req="${CSS.escape(String(id))}"]`);
 async function publishReq(btn){
   const c = btn.closest("[data-req]"), r = S.reqs.find(x => String(x.id) === c.dataset.req); if (!r) return;
   const row = prodValues(c); if (!row) return;
@@ -1171,7 +1203,7 @@ async function publishReq(btn){
   btn.disabled = true;
   try { await rpc("admin_request_publish", Object.assign({ rid: r.id, p_code: code || null, p_unit: c.querySelector('[data-k="unit"]').value, p_portion: portion || null }, row)); }
   catch (e) { btn.disabled = false; return toast(errMsg(e)); }
-  S.reqs = S.reqs.filter(x => x.id !== r.id); paintReqs(); toast("Publicado ✓ Le avisamos a quien lo pidió.");
+  S.reqs = S.reqs.filter(x => x.id !== r.id); delete S.reqForm[r.id]; paintReqs(); toast("Publicado ✓ Le avisamos a quien lo pidió.");
   try { pendTotal(await rpc("admin_overview")); } catch (e) {}
 }
 async function rejectReq(btn){
@@ -1180,7 +1212,7 @@ async function rejectReq(btn){
   if (why === null) return;
   btn.disabled = true;
   try { await rpc("admin_request_reject", { rid: r.id, p_note: why.trim() }); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
-  S.reqs = S.reqs.filter(x => x.id !== r.id); paintReqs(); toast("Pedido rechazado");
+  S.reqs = S.reqs.filter(x => x.id !== r.id); delete S.reqForm[r.id]; paintReqs(); toast("Pedido rechazado");
   try { pendTotal(await rpc("admin_overview")); } catch (e) {}
 }
 
@@ -1207,6 +1239,324 @@ async function addProd(btn){
   catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   S.prodAdding = false; toast("Producto agregado ✓");
   S.prodTab = "todos"; S.prodQ = row.p_name; loadProductos();
+}
+
+// ---------- IA ----------
+// «Leer con IA» en Pedidos y la página IA (supabase/ia.sql y la función «ia»). La IA solo completa
+// el formulario: el administrador mira la foto, corrige y publica como siempre. Arranca apagada.
+const IA_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" opacity=".7"/></svg>';
+// Montos en dólares: los de menos de un dólar con hasta 4 decimales (una tabla cuesta centésimas de centavo).
+const usd = v => "US$ " + (Number(v) || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: Number(v) > 0 && Number(v) < 1 ? 4 : 2 });
+// Fechas de los ciclos y de los cortes del mes: son las 00:00 UTC de ese día (las de la Console);
+// en hora de Argentina caerían el día anterior.
+const fmtDU = d => d ? new Date(d).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "2-digit", timeZone: "UTC" }) : "—";
+const IA_NOMBRE = { kcal: "calorías", proteinas: "proteínas", carbohidratos: "carbos", grasas: "grasas", porcion: "porción", protein: "proteína", carbs: "carbos", fat: "grasas", portion: "porción", unit: "unidad" };
+// ¿Qué va en la tarjeta de un pedido? "leer" (botón), "vieja" (llegó antes del cambio de la
+// política) o nada (IA apagada, ya leído, sin la base de la IA o sin la fecha de la política: eso
+// lo avisa la página IA).
+function iaPedido(r){
+  const ia = S.ia;
+  if (!ia || !ia.activa || !ia.funciones || !ia.funciones.etiqueta_admin || r.ai_at) return "";
+  const desde = ia.pedidos_desde ? Date.parse(ia.pedidos_desde) : NaN;
+  if (!desde) return "";
+  return Date.parse(r.created_at) >= desde ? "leer" : "vieja";
+}
+// El botón, y lo que queda en su lugar cuando ya se leyó (del mismo ancho: «Rechazar» no se corre
+// abajo del dedo). Mientras lee no se deshabilita (así no pierde el foco): un segundo toque no hace nada.
+const iaBoton = leyendo => `<button class="btn ia-btn" data-a="rqIA"${leyendo ? ' aria-disabled="true" aria-busy="true"' : ""}>${IA_ICON}${leyendo ? "Leyendo…" : "Leer con IA"}</button>`;
+const IA_HECHO = `<span class="btn ia-btn ia-hecho">${IA_ICON}Leído</span>`;
+// Completa el formulario con lo que leyó la IA y lo marca («Leído con IA», y los dudosos aparte).
+// Nunca pisa lo que escribió el administrador: esos campos quedan como están. Con nuevo = true
+// (recién leído) los que no tocó la IA por eso se anotan para avisarlo en la nota.
+function iaFill(c, r, nuevo){
+  if (!c) return;
+  const note = c.querySelector(".ia-note"); if (!note) return;
+  const d = reqDraft(c.dataset.req), saltados = [];
+  if (r.ai_encontrada !== false){
+    const dud = r.ai_dudosos || [];
+    const marcar = (el, campo) => { const l = el.closest("label"); if (!l) return; l.classList.add("ia"); l.title = "Leído con IA"; if (campo && dud.includes(campo)) { l.classList.add("dudoso"); l.title = "Leído con IA: no se leía bien, revisalo"; } };
+    const set = (k, v, campo) => {
+      const i = c.querySelector(`[data-k="${k}"]`); if (!i || v == null) return;
+      const val = k === "unit" ? (v === "ml" ? "ml" : "g") : String(v);
+      // Lo que escribió (o borró) el administrador queda; al leer recién, un campo vacío sí se completa.
+      if (k in d && (!nuevo || String(d[k]).trim() !== "")){ if (nuevo && (k === "unit" ? d[k] !== val : num(d[k]) !== num(val))) saltados.push(k); return; }
+      delete d[k]; i.value = val; marcar(i, campo);
+    };
+    if (!r.ai_por_porcion){ set("kcal", r.ai_kcal, "kcal"); set("protein", r.ai_protein, "proteinas"); set("carbs", r.ai_carbs, "carbohidratos"); set("fat", r.ai_fat, "grasas"); }
+    set("portion", r.ai_portion, "porcion");
+    set("unit", r.ai_unit);
+  }
+  if (nuevo) d._saltados = saltados;
+  iaNota(c, r);
+}
+// La nota debajo de los campos: qué hizo la IA y qué conviene mirar.
+function iaNota(c, r){
+  const note = c && c.querySelector(".ia-note"); if (!note) return;
+  note.hidden = false; note.className = "ia-note";
+  const chip = '<span class="chip-ia">' + IA_ICON + 'Leído con IA · revisalo</span>';
+  if (r.ai_encontrada === false){
+    note.innerHTML = chip + ' <span class="t-warn small">No se ve una tabla legible en la foto. Cargala a mano o rechazá el pedido.</span>';
+    return;
+  }
+  const dud = r.ai_dudosos || [], saltados = reqDraft(c.dataset.req)._saltados || [];
+  const nombre = r.ai_modelo_nombre || ((S.iaFn && S.iaFn.modelos || []).find(m => m.id === r.ai_modelo) || {}).nombre;
+  const n1 = v => v == null ? "—" : String(v).replace(".", ",");
+  const lineas = []; // [texto, clase]
+  const u100 = r.ai_unit === "ml" ? "ml" : "g";
+  if (saltados.length) lineas.push(["No cambié lo que ya habías cargado: " + saltados.map(k => k === "kcal" ? "kcal" : IA_NOMBRE[k] || k).join(", ") + ". Comparalo con la foto.", "ia-warn"]);
+  if (r.ai_por_porcion) lineas.push([`La tabla es por porción (kcal ${n1(r.ai_kcal)}, P ${n1(r.ai_protein)}, C ${n1(r.ai_carbs)}, G ${n1(r.ai_fat)}) y no dice el tamaño: completá la porción y pasalo a cada 100.`, "ia-warn"]);
+  else if (r.ai_columna === "porcion" && r.ai_portion) lineas.push([`La tabla era por porción (${n1(r.ai_portion)} ${u100}): GIZE la pasó a cada 100 ${u100}.`, "muted"]);
+  if (!r.ai_por_porcion && r.ai_kcal != null){
+    const calc = Math.round(num(r.ai_protein) * 4 + num(r.ai_carbs) * 4 + num(r.ai_fat) * 9);
+    lineas.push(r.ai_revisar ? ["Las calorías no cierran con los macros: revisá" + (calc ? " (darían " + calc + ")." : "."), "ia-warn"] : ["✓ Las calorías cierran con los macros (darían " + calc + ").", "t-ok"]);
+  }
+  if (dud.length) lineas.push(["No se leía bien: " + dud.map(x => IA_NOMBRE[x] || x).join(", ") + ". Miralo en la foto.", "ia-warn"]);
+  note.innerHTML = chip + ' <span class="muted small">' + (nombre ? "Hecho con " + esc(nombre) + ". " : "") + 'Mirá la foto antes de publicar.</span>' +
+    lineas.map(([txt, cls]) => `<div class="ia-line small ${cls}">${esc(txt)}</div>`).join("");
+}
+// Cuando llegan los nombres de los modelos, las notas de los pedidos ya leídos los suman.
+function iaNotas(){ (S.reqs || []).forEach(r => { if (r.ai_at) iaNota(reqCard(r.id), r); }); }
+// Llama a la función «ia» y devuelve siempre { ok, codigo, mensaje, motivo, vuelve, … }.
+async function iaInvoke(body){
+  let r;
+  try { r = await sb.functions.invoke("ia", { body }); } catch (e) { return { ok: false, codigo: "red" }; }
+  if (r.error){
+    const ctx = r.error.context; let j = null;
+    try { j = ctx && typeof ctx.json === "function" ? await ctx.json() : null; } catch (e) {}
+    if (j && j.codigo) return j;
+    if (ctx && ctx.status === 404) return { ok: false, codigo: "sin_funcion" };
+    return { ok: false, codigo: r.error.name === "FunctionsFetchError" ? "red" : "error", mensaje: j && (j.mensaje || j.error) };
+  }
+  return r.data && typeof r.data === "object" ? r.data : { ok: false, codigo: "error" };
+}
+const IA_MSG = {
+  sin_sesion: "Iniciá sesión de nuevo para usar la IA.",
+  no_habilitado: "Este pedido llegó antes del cambio de la política: cargalo a mano.",
+  persona_sin_ia: "Esta persona desactivó la IA: cargalo a mano.",
+  ritmo: "Por hoy la IA llegó a su límite. Mañana vuelve. Mientras, cargalo a mano.",
+  tope_dia: "Llegaste al límite de tablas con IA de hoy. Mañana se renueva.",
+  ocupada: "La IA está con mucha demanda. Probá en un minuto.",
+  foto_invalida: "La foto no es válida o es muy grande. Cargalo a mano.",
+  no_se_pudo: "No se pudo analizar esta foto. Cargalo a mano.",
+  error: "La IA está tardando más de lo normal o falló. Probá de nuevo en un rato.",
+  red: "Sin conexión. Revisá internet y probá de nuevo.",
+  sin_funcion: "La función «ia» todavía no está publicada en Supabase (workflow «Supabase» → tarea funciones).",
+};
+const IA_PAUSA = {
+  sin_clave: "Falta la clave de la IA (ANTHROPIC_API_KEY). Cargala en GitHub y corré la tarea «secrets» del workflow «Supabase».",
+  apagada: "La IA está apagada. Se prende en IA.",
+  sin_ciclo: "Falta la fecha en que vencen los créditos: cargala en IA.",
+  creditos: "La IA está pausada: se terminaron los créditos. Vuelve sola cuando lleguen los nuevos.",
+  clave_rechazada: "La API rechazó la clave de la IA: revisala en la Console de Anthropic.",
+  sin_base: "Falta preparar la base: correr supabase/ia.sql con el workflow «Supabase».",
+  admin: "La IA está pausada desde el panel.",
+};
+function iaMsg(r){
+  r = r || {};
+  const v = r.vuelve ? fmtDU(r.vuelve) : "";
+  if (r.codigo === "pausada") return IA_PAUSA[r.motivo] || r.mensaje || "La IA está pausada por ahora. Cargalo a mano.";
+  if (r.codigo === "tope_mes") return "La IA de GIZE llegó a su límite de este mes: cargalo a mano." + (v ? " Vuelve el " + v + "." : "");
+  if (r.codigo === "tope_persona") return "Llegaste al tope de IA de tu cuenta en este ciclo." + (v ? " Vuelve el " + v + "." : "");
+  // «error» y «no_habilitado» cubren varios casos: el texto de la función dice cuál (pedido ya
+  // resuelto, que ya no existe, la foto que no se pudo bajar, solo para administradores…).
+  if (r.codigo === "error") return r.mensaje || IA_MSG.error;
+  if (r.codigo === "no_habilitado" && r.motivo === "solo_admin") return r.mensaje || "Por ahora la lectura con IA es solo para el equipo de GIZE.";
+  return IA_MSG[r.codigo] || r.mensaje || IA_MSG.error;
+}
+async function leerIA(btn){
+  const c0 = btn.closest("[data-req]"), id = c0 && c0.dataset.req;
+  const r0 = id && S.reqs.find(x => String(x.id) === id); if (!r0) return;
+  if (S.iaLeyendo.has(id)) return; // ya está leyendo: un segundo toque no hace otra llamada (que se paga)
+  S.iaLeyendo.add(id);
+  btn.setAttribute("aria-disabled", "true"); btn.setAttribute("aria-busy", "true"); btn.innerHTML = IA_ICON + "Leyendo…";
+  const st0 = c0.querySelector(".ia-st"); if (st0){ st0.className = "ia-st small muted"; st0.textContent = "Leyendo la tabla con IA…"; }
+  const res = await iaInvoke({ modo: "etiqueta", pedido: r0.id });
+  S.iaLeyendo.delete(id);
+  // Mientras leía, la lista se pudo volver a dibujar (se publicó o rechazó otro, llegaron las fotos,
+  // se volvió a entrar a Pedidos): la tarjeta y el pedido se buscan de nuevo por id.
+  const c = reqCard(id), r = (S.reqs || []).find(x => String(x.id) === id);
+  const b = c && c.querySelector('[data-a="rqIA"]'), st = c && c.querySelector(".ia-st");
+  const conFoco = b && b === document.activeElement;
+  if (!res || res.ok !== true){
+    // El error queda solo en la tarjeta (se anuncia: aria-live), al lado del botón, que vuelve a andar.
+    const m = iaMsg(res);
+    if (b){ b.removeAttribute("aria-disabled"); b.removeAttribute("aria-busy"); b.innerHTML = IA_ICON + "Leer con IA"; }
+    if (st){ st.className = "ia-st small t-warn"; st.textContent = m; } else if (r) toast(m);
+    return;
+  }
+  const ai = { ai_at: new Date().toISOString(), ai_encontrada: res.encontrada !== false, ai_kcal: res.kcal ?? null, ai_protein: res.p ?? null, ai_carbs: res.c ?? null,
+    ai_fat: res.f ?? null, ai_unit: res.unidad || null, ai_portion: res.porcion ?? null, ai_por_porcion: !!res.por_porcion, ai_revisar: !!res.revisar,
+    ai_dudosos: res.dudosos || [], ai_modelo: res.modelo || null, ai_modelo_nombre: res.modelo_nombre || null, ai_columna: res.columna || null };
+  Object.assign(r0, ai); if (r && r !== r0) Object.assign(r, ai);
+  if (!c){ if (r) toast("«" + r.name + "» quedó leído con IA: lo ves en Pedidos."); return; }
+  if (b) b.outerHTML = IA_HECHO;
+  if (st){ st.className = "ia-st small"; st.textContent = ""; }
+  iaFill(c, r || r0, true);
+  // El foco pasa a la nota (dice qué completó y qué mirar), salvo que ya esté en otro lado.
+  const note = c.querySelector(".ia-note");
+  if (note && (conFoco || document.activeElement === document.body)) note.focus({ preventScroll: true });
+  toast(res.encontrada === false ? "No se ve una tabla legible en la foto." : "Listo: revisá los valores con la foto.");
+}
+// Inicio → «Para atender»: la IA cortada, pasada del aviso o con la clave rechazada.
+function iaTodo(){
+  const ia = S.iaHome, c = ia && ia.ciclo;
+  if (!ia || !ia.activa) return [];
+  if (ia.clave_rechazada) return [[1, "ia", "IA: la API rechazó la clave", "revisala en la Console y cargala de nuevo en GitHub"]];
+  if (c && c.estado === "cortado") return [[1, "ia", "IA cortada", c.cortado_por === "tope" ? "llegó al corte del ciclo" + (c.vuelve ? ": vuelve el " + fmtDU(c.vuelve) : "") : "pausada" + (c.vuelve ? " hasta el " + (c.cortado_por === "creditos" ? fmtDT(c.vuelve) : fmtDU(c.vuelve)) : "")]];
+  if (c && c.aviso_at) return [[1, "ia", "IA: pasó los " + usd(c.aviso) + " del ciclo", usd(c.gastado) + " de " + usd(c.credito) + (c.estado === "ahorro" ? " · en modo ahorro" : "")]];
+  return [];
+}
+// Inicio: lo que va gastando la IA en el ciclo (solo si ya tiene ciclo, o sea, si se configuró).
+function iaHomeBlock(){
+  const ia = S.iaHome, c = ia && ia.ciclo;
+  if (!c) return "";
+  const usos = Object.values(ia.por_funcion || {}).reduce((s, x) => s + num(x.usos), 0);
+  const est = !ia.activa ? '<span class="pill">Apagada</span>' : c.estado === "cortado" ? '<span class="pill bad">Cortada</span>' : c.estado === "ahorro" ? '<span class="pill warn">Modo ahorro</span>' : '<span class="pill ok">Normal</span>';
+  return block("hIaB", "IA del ciclo", `<div class="ia-home"><div><b>${usd(c.gastado)}</b> <span class="muted">de ${usd(c.credito)} · ${n0(usos)} uso${usos === 1 ? "" : "s"} · corta a los ${usd(c.tope)}</span></div>
+    <div class="ia-bar sm" role="img" aria-label="${esc(usd(c.gastado) + " de " + usd(c.credito))}"><i style="width:${Math.min(100, num(c.gastado) / (num(c.credito) || 200) * 100).toFixed(1)}%"></i></div>
+    <div class="small">${est} <span class="muted">Del ${fmtDU(c.inicio)} al ${fmtDU(c.fin)}</span></div></div>`, { act: '<button class="btn sm" data-go="ia">Ver IA</button>' });
+}
+
+// Textos de los códigos que quedan en cada llamada (ia_llamadas.codigo) y de las frenadas de la guardia.
+const IA_COD = { refusal: "la IA no quiso leerla", max_tokens: "respuesta cortada", json: "respuesta inválida", limite_console: "límite de la Console",
+  clave_rechazada: "clave rechazada", limite_uso: "mucha demanda (límite por minuto)", sobrecarga: "mucha demanda (API saturada)", tiempo: "tardó demasiado",
+  red: "sin conexión con la API", creditos: "sin créditos", vencida: "quedó sin cerrar" };
+const iaCod = k => IA_COD[k] || (/^api_\d+$/.test(String(k)) ? "error de la API (" + String(k).slice(4) + ")" : String(k || "error"));
+const IA_FRENO = { tope_mes: "corte del mes", ahorro: "modo ahorro", ritmo: "ritmo del día", tope_dia: "tope del día", tope_persona: "tope de la persona", pausada: "pausada" };
+// «Leer pedidos desde»: se elige el día en que se publicó la política. Si es hoy, se leen los
+// pedidos que lleguen desde ahora (la política ya está publicada); si es otro día, desde las 00:00
+// (Argentina) del día siguiente: no se sabe a qué hora se publicó, así que nunca se lee uno de antes.
+function desdePolitica(dia){
+  if (dia === isoDay(new Date())) return new Date().toISOString();
+  const [y, m, d] = dia.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10) + "T00:00:00-03:00";
+}
+// Y al revés, para mostrar el día elegido: las 00:00 justas son «el día anterior».
+function diaPolitica(iso){
+  const t = Date.parse(iso); if (!t) return "";
+  const ar = new Date(t - 3 * 3600e3).toISOString();
+  return ar.slice(11, 16) === "00:00" ? new Date(t - 3 * 3600e3 - 864e5).toISOString().slice(0, 10) : ar.slice(0, 10);
+}
+
+async function loadIA(){
+  const lead = "Lo que gasta la IA con los créditos de API del plan Max. La IA solo completa: vos revisás y publicás.";
+  page("IA", lead, '<div class="empty">Cargando…</div>');
+  const [est, fnEst] = await Promise.all([rpc("admin_ia_estado").catch(e => ({ error: e })), iaInvoke({ modo: "estado" })]);
+  if (S.view !== "ia") return;
+  if (est && est.error){
+    const falta = /admin_ia_estado|schema cache|does not exist/i.test(errMsg(est.error));
+    return page("IA", lead, `<div class="card calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/ia.sql</b> (antes, <b>supabase/pedidos-productos.sql</b>)." : esc(errMsg(est.error))}</div>`);
+  }
+  S.ia = est; S.iaFn = fnEst;
+  paintIA();
+}
+// foco: el control que se acaba de usar (la página se vuelve a dibujar entera y el foco vuelve ahí).
+function paintIA(foco){
+  if (S.view !== "ia" || !S.ia) return;
+  const ia = S.ia, c = ia.ciclo, f = S.iaFn || {}, fun = ia.funciones || {};
+  const ok = (bien, txt, sub) => `<li class="${bien ? "ok" : "no"}"><span aria-hidden="true">${bien ? "✓" : "!"}</span><div>${txt}${sub ? `<small>${sub}</small>` : ""}</div></li>`;
+  const clave = f.ok ? (f.clave ? ok(true, "La clave está cargada en Supabase.") : ok(false, "Falta la clave de la IA.", "GitHub → Settings → Environments → production → ANTHROPIC_API_KEY, y después Actions → Supabase → tarea «secrets»."))
+    : ok(false, f.codigo === "sin_funcion" ? "La función «ia» todavía no está publicada." : "No se pudo preguntar a la función «ia».", f.codigo === "sin_funcion" ? "Actions → Supabase → tarea «funciones»." : iaMsg(f));
+  const lista = `<ul class="ia-checks">${clave}
+    ${ia.clave_rechazada ? ok(false, "La API rechazó la clave (" + fmtDT(ia.clave_rechazada) + ").", "Creá otra en la Console (workspace «gize-produccion») y cargala de nuevo.") : ""}
+    ${ok(!!ia.ancla, ia.ancla && c ? "Ciclo de los créditos: del " + fmtDU(c.inicio) + " al " + fmtDU(c.fin) + "." : "Falta la fecha en que vencen los créditos.", ia.ancla ? "" : "Está en la Console de Anthropic → Billing → «Promotional credits». Cargala en Ciclo.")}
+    ${ok(!!ia.pedidos_desde, ia.pedidos_desde ? "Se leen los pedidos que llegaron desde el " + fmtDT(ia.pedidos_desde) + "." : "Falta la fecha de la política de privacidad.", ia.pedidos_desde ? "" : "Hasta cargarla, no se lee ningún pedido. El día que se publique la política, avisalo en Avisos y después cargá ese día en Funciones.")}</ul>`;
+  const listo = ia.activa && fun.etiqueta_admin && f.clave && ia.ancla && ia.pedidos_desde;
+  const master = `<div class="ia-master"><div><b>IA activada</b><small>${ia.activa ? (listo ? "Anda: aparece «Leer con IA» en Pedidos. Apagala y nadie llama a la IA." : "Prendida, pero falta algo de la lista de abajo.") : "Apagada: no se llama nunca a la IA y todo se carga a mano."}</small></div>
+    <button class="tgl" role="switch" aria-checked="${ia.activa ? "true" : "false"}" aria-label="IA activada" data-a="iaOn"></button></div>`;
+  // Ciclo.
+  let ciclo = '<div class="calm">Cargá la fecha en que vencen los créditos para empezar a contar.</div>';
+  if (c){
+    const pct = v => Math.min(100, Math.max(0, num(v) / num(c.credito) * 100)).toFixed(1) + "%";
+    const est = c.estado === "cortado" ? `<span class="pill bad">Cortada${c.cortado_por === "tope" ? " por el corte del ciclo" : c.cortado_por === "creditos" ? ": sin créditos" : c.cortado_por === "limite_console" ? " por el límite de la Console" : ""}</span>${c.vuelve ? ` <span class="muted small">Vuelve el ${c.cortado_por === "creditos" ? fmtDT(c.vuelve) : fmtDU(c.vuelve)}</span>` : ""}`
+      : c.estado === "ahorro" ? '<span class="pill warn">Modo ahorro</span> <span class="muted small">La tabla sigue para todos.</span>' : '<span class="pill ok">Normal</span>';
+    const usos = Object.values(ia.por_funcion || {}).reduce((s, x) => s + num(x.usos), 0);
+    const marcas = [["aviso", c.aviso, "aviso"], ["ahorro", c.ahorro, "ahorro"], ["tope", c.tope, "corte"]];
+    ciclo = `<div class="ia-big"><b>${usd(c.gastado)}</b><span class="muted"> de ${usd(c.credito)} · ${n0(usos)} uso${usos === 1 ? "" : "s"}</span></div>
+      <div class="ia-bar" role="img" aria-label="${esc(usd(c.gastado) + " de " + usd(c.credito))}"><i style="width:${pct(c.gastado)}"></i>
+        ${marcas.map(([k, v, l]) => `<span class="mk ${k}" style="left:${pct(v)}"><em>${n0(v)}<span class="mk-l"> · ${l}</span></em></span>`).join("")}</div>
+      <div class="ia-ley muted small">${marcas.map(([k, v, l]) => `${n0(v)}: ${l}`).join(" · ")}</div>
+      <div class="ia-est">${est}</div>
+      <div class="muted small">Del ${fmtDU(c.inicio)} al ${fmtDU(c.fin)} · Tope de hoy: ${usd(c.limite_hoy)} (hoy van ${usd(c.hoy)}) · Proyección al fin del ciclo: ${usd(c.proyeccion)}</div>
+      ${c.estado === "cortado" && num(c.gastado) < num(c.tope) ? '<div class="row-btns"><button class="btn" data-a="iaRetry">Volver a probar</button></div>' : ""}`;
+  }
+  const fecha = d => d ? new Date(d).toISOString().slice(0, 10) : "";
+  const ancla = `<label class="lbl" for="iaAncla">Vencimiento de los créditos («Promotional credits» en la Console)</label>
+    <div class="search"><input class="in" id="iaAncla" type="date" aria-label="Vencimiento de los créditos" value="${esc(fecha(ia.ancla))}"><button class="btn" data-a="iaAncla">Guardar fecha</button></div>`;
+  // Funciones.
+  const FUN = [["etiqueta_admin", "Leer tablas en Pedidos (este panel)", ""], ["etiqueta_usuario", "Tabla en «Pedir un producto» (app)", "Todavía no está en la app"], ["plato", "Foto del plato (app)", "Todavía no está en la app"],
+    ["texto", "«Contame qué comiste» (app)", "Todavía no está en la app"], ["rutina", "Armar rutina (coach)", "Todavía no está en la app"], ["resumen", "Resumen de la semana (coach)", "Todavía no está en la app"]];
+  const funs = `<div class="ia-funs">${FUN.map(([k, l, nota]) => `<div class="ia-fun${nota ? " off" : ""}"><div>${l}${nota ? `<small>${nota}</small>` : ""}</div>
+      <button class="tgl sm" role="switch" aria-checked="${fun[k] ? "true" : "false"}" aria-label="${esc(l)}" data-a="iaFn" data-k="${k}"${nota ? " disabled" : ""}></button></div>`).join("")}</div>`;
+  // Modelo para las tablas: solo los que sirven para leer tablas, con lo que cuesta cada una.
+  const elegido = (ia.modelos || {}).etiqueta || "";
+  const mods = (f.modelos || []).filter(m => m.tabla !== false);
+  const def = mods.find(m => m.defecto), alt = mods.filter(m => !m.defecto).sort((a, b) => num(b.usd_tabla) - num(a.usd_tabla))[0];
+  const cuesta = m => m.usd_tabla ? " · unos " + usd(m.usd_tabla) + " por tabla" : "";
+  const modelos = mods.map(m => `<option value="${esc(m.defecto ? "" : m.id)}"${(m.defecto ? !elegido || elegido === m.id : elegido === m.id) ? " selected" : ""}>${esc(m.nombre)}${m.defecto ? " (el de siempre)" : ""}${cuesta(m)}</option>`).join("");
+  const veces = def && alt && num(def.usd_tabla) > 0 && num(alt.usd_tabla) > 0 ? Math.round(num(alt.usd_tabla) / num(def.usd_tabla)) : 0;
+  const modelo = modelos ? `<label class="lbl" for="iaModelo">Modelo para leer tablas</label>
+    <div class="search"><select class="in" id="iaModelo">${modelos}</select><button class="btn" data-a="iaModelo">Guardar</button></div>
+    ${alt ? `<div class="muted small">Si lee mal las tablas, probá con ${esc(alt.nombre)}${veces > 1 ? ": cuesta unas " + veces + " veces más por tabla (igual son centavos)" : ""}.</div>` : ""}` : "";
+  const desde = `<label class="lbl" for="iaDesde">Día en que se publicó la política de privacidad</label>
+    <div class="search"><input class="in" id="iaDesde" type="date" aria-label="Día en que se publicó la política de privacidad" value="${esc(diaPolitica(ia.pedidos_desde))}"><button class="btn" data-a="iaDesde">Guardar fecha</button></div>
+    <div class="muted small">Si es hoy, se leen los pedidos que lleguen desde ahora; si es otro día, desde el día siguiente (así nunca se lee uno de antes). Ese día, avisá el cambio en la app desde <a href="#avisos" data-go="avisos">Avisos</a> (ej: «Actualizamos la política de privacidad: sumamos las funciones con IA»).</div>`;
+  // Uso.
+  const NOMF = { etiqueta: "Tablas", plato: "Platos", texto: "Textos", rutina: "Rutinas", resumen: "Resúmenes" };
+  const seg = ms => (num(ms) / 1000).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " s";
+  const pf = Object.entries(ia.por_funcion || {});
+  const tb = ia.tablas || {}, pub = num(tb.publicadas), campos = tb.campos || {};
+  const pc = (a, b) => b ? Math.round(num(a) / b * 100) + " %" : "—";
+  const CAMPOS = [["kcal", "kcal"], ["protein", "proteína"], ["carbs", "carbos"], ["fat", "grasas"], ["portion", "porción"], ["unit", "unidad"]];
+  const frenos = Object.entries((c && c.frenos) || {}).filter(([, n]) => num(n) > 0);
+  const uso = `<div class="grid kpis">${pf.length ? pf.map(([k, x]) => `<div class="kpi"><b>${n0(x.usos)}</b><span>${esc(NOMF[k] || k)}</span><small>${usd(x.usd)}${x.p50 != null ? " · tarda " + seg(x.p50) + (x.p95 != null ? " (95 %: " + seg(x.p95) + ")" : "") : ""}</small></div>`).join("") : '<div class="kpi"><b>0</b><span>Usos en el ciclo</span></div>'}
+      <div class="kpi"><b>${pc(tb.kcal_bien, pub)}</b><span>Tablas sin corregir las calorías</span><small>${n0(pub)} publicada${pub === 1 ? "" : "s"} de ${n0(tb.leidas)} leída${num(tb.leidas) === 1 ? "" : "s"}${num(tb.sin_tabla) ? " · " + n0(tb.sin_tabla) + " sin tabla legible" : ""}</small></div>
+      <div class="kpi"><b>${pc(tb.sin_corregir, pub)}</b><span>Tablas sin corregir nada</span><small>La meta: 9 de cada 10 y 8 de cada 10, con al menos 30.</small></div></div>
+    ${pub ? `<div class="muted small">Corregido por campo (de ${n0(pub)} publicada${pub === 1 ? "" : "s"}): ${CAMPOS.map(([k, l]) => l + " " + pc(campos[k], pub)).join(" · ")}</div>` : ""}
+    ${num(tb.con_tabla) ? `<div class="muted small">Calorías que no cerraban con los macros: ${pc(tb.revisar, num(tb.con_tabla))} de las tablas leídas.</div>` : ""}
+    ${frenos.length ? `<div class="muted small">Frenadas por la guardia: ${frenos.map(([k, n]) => esc(IA_FRENO[k] || k) + " " + n0(n)).join(" · ")}</div>` : ""}
+    ${Object.keys(ia.errores || {}).length ? `<div class="muted small">Errores del ciclo: ${Object.entries(ia.errores).map(([k, n]) => esc(iaCod(k)) + " " + n0(n)).join(" · ")}</div>` : ""}`;
+  // Topes y umbrales.
+  const ROL = { alumno: "Alumno", coach: "Coach", admin: "Administrador" };
+  const topes = Object.entries(ia.topes || {}).map(([rol, t]) => `<div class="ia-topes"><b>${ROL[rol] || esc(rol)}</b>${Object.entries(t).map(([k, v]) =>
+    `<label>${k === "usd_ciclo" ? "US$ por ciclo" : k === "total" ? "Total por día" : esc((NOMF[k] || k)) + " por día"}<input class="in" inputmode="decimal" data-tope="${esc(rol)}.${esc(k)}" value="${esc(v)}"></label>`).join("")}</div>`).join("");
+  const umbr = c ? `<div class="ia-topes"><b>Este ciclo (US$)</b>${[["aviso", "Aviso"], ["ahorro", "Ahorro"], ["tope", "Corte"], ["credito", "Crédito"]].map(([k, l]) => `<label>${l}<input class="in" inputmode="decimal" data-umbral="${k}" value="${esc(num(c[k]))}"></label>`).join("")}</div>` : "";
+  // Últimas llamadas.
+  const ult = (ia.ultimas || []).map(l => `<tr><td class="muted">${fmtDT(l.creada)}</td><td>${esc(NOMF[l.funcion] || l.funcion)}</td><td class="muted">${esc(((f.modelos || []).find(m => m.id === l.modelo) || {}).nombre || l.modelo)}</td>
+    <td>${l.estado === "ok" ? '<span class="pill ok">ok</span>' : l.estado === "vacia" ? '<span class="pill">sin tabla</span>' : l.estado === "reservada" ? '<span class="pill blue">en curso</span>' : `<span class="pill warn">${esc(iaCod(l.codigo || l.estado))}</span>`}</td>
+    <td>${l.usd == null ? (l.estado === "reservada" ? "—" : usd(l.max_usd) + " (reserva)") : usd(l.usd)}</td><td class="muted">${l.ms ? seg(l.ms) : ""}</td></tr>`).join("");
+  page("IA", "Lo que gasta la IA con los créditos de API del plan Max. La IA solo completa: vos revisás y publicás.",
+    block("iaEstB", "Estado", master + lista) +
+    block("iaCicloB", "Ciclo", ciclo + ancla) +
+    block("iaFunB", "Funciones", funs + modelo + desde) +
+    block("iaUsoB", "Uso del ciclo", uso) +
+    panel("iaTopesB", "Topes", `<div class="sec-s">Por persona y por día (y en dólares por ciclo). Arriba de esto, la guardia corta igual.</div>${topes}${umbr}
+      <div class="row-btns"><button class="btn blue" data-a="iaTopes">Guardar topes</button></div>`, { open: false }) +
+    panel("iaUltB", "Últimas llamadas", ult ? `<div class="tscroll"><table class="table"><thead><tr><th>Cuándo</th><th>Qué</th><th>Modelo</th><th>Cómo salió</th><th>Costo</th><th>Tardó</th></tr></thead><tbody>${ult}</tbody></table></div>` : '<div class="calm">Todavía no hubo ninguna.</div>', { open: false, sum: (ia.ultimas || []).length ? n0(ia.ultimas.length) : "ninguna" }));
+  if (foco){ const el = document.querySelector(foco); if (el) try { el.focus({ preventScroll: true }); } catch (e) {} }
+}
+// El selector del control que se tocó, para devolverle el foco después de dibujar la página.
+const iaFoco = b => b && b.dataset.a ? `[data-a="${b.dataset.a}"]` + (b.dataset.k ? `[data-k="${b.dataset.k}"]` : "") : null;
+async function iaGuardar(btn, cambios, ok){
+  if (cambios.activa === true && !await confirmar("¿Prender la IA? Con «Leer tablas en Pedidos» prendido, aparece «Leer con IA» en cada pedido nuevo. Cada lectura gasta centavos de los créditos.", { titulo: "Prender la IA", ok: "Prender" })) return;
+  btn.disabled = true;
+  try { S.ia = await rpc("admin_ia_config", { p: cambios }); toast(ok); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  paintIA(iaFoco(btn));
+}
+async function iaAncla(btn){
+  const v = document.getElementById("iaAncla").value;
+  if (!v) return toast("Elegí la fecha en que vencen los créditos.");
+  btn.disabled = true;
+  try { S.ia = await rpc("admin_ia_ciclo", { p_fin: v }); toast("Fecha guardada ✓"); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  paintIA(iaFoco(btn));
+}
+async function iaTopes(btn){
+  const topes = {}, umbrales = {};
+  for (const i of document.querySelectorAll("[data-tope]")){ const [rol, k] = i.dataset.tope.split("."); const v = parseFloat(String(i.value).replace(",", ".")); if (!Number.isFinite(v) || v < 0) return toast("Revisá los topes: tienen que ser números."); (topes[rol] = topes[rol] || {})[k] = v; }
+  for (const i of document.querySelectorAll("[data-umbral]")){ const v = parseFloat(String(i.value).replace(",", ".")); if (!Number.isFinite(v) || v <= 0) return toast("Revisá los montos del ciclo."); umbrales[i.dataset.umbral] = v; }
+  btn.disabled = true;
+  try { S.ia = await rpc("admin_ia_config", { p: Object.assign({ topes }, Object.keys(umbrales).length ? { umbrales } : {}) }); toast("Topes guardados ✓"); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  paintIA(iaFoco(btn));
 }
 
 // ---------- Avisos ----------
@@ -1292,6 +1642,12 @@ async function loadSeguridad(){
 // ---------- acciones ----------
 document.addEventListener("input", e => {
   const mr = e.target.closest && e.target.closest(".msg-reply"); if (mr) S.drafts[mr.closest("[data-msg]").dataset.msg] = e.target.value;
+  // Pedidos: lo que escribe el administrador queda guardado (y deja de estar marcado «Leído con IA»).
+  const rq = e.target.dataset && e.target.dataset.k && e.target.closest("#pList [data-req]");
+  if (rq){
+    reqDraft(rq.dataset.req)[e.target.dataset.k] = e.target.value;
+    const l = e.target.closest("label"); if (l && l.classList.contains("ia")){ l.classList.remove("ia", "dudoso"); l.removeAttribute("title"); }
+  }
   if (e.target.id === "avTitle") document.getElementById("pvT").textContent = e.target.value || "Título";
   if (e.target.id === "avBody") document.getElementById("pvB").textContent = e.target.value || "Mensaje";
   // Pago manual: al elegir otro plan, «Alumnos máximos» pasa al tope de ese plan.
@@ -1379,6 +1735,14 @@ document.addEventListener("click", async e => {
     if (a === "rqKind"){ S.reqKind = b.dataset.v; loadPedidos(); return; }
     if (a === "rqPublish"){ publishReq(b); return; }
     if (a === "rqReject"){ rejectReq(b); return; }
+    if (a === "rqIA"){ leerIA(b); return; }
+    if (a === "iaOn"){ iaGuardar(b, { activa: b.getAttribute("aria-checked") !== "true" }, b.getAttribute("aria-checked") === "true" ? "IA apagada" : "IA prendida"); return; }
+    if (a === "iaFn"){ iaGuardar(b, { funciones: { [b.dataset.k]: b.getAttribute("aria-checked") !== "true" } }, "Guardado ✓"); return; }
+    if (a === "iaModelo"){ const v = document.getElementById("iaModelo").value; iaGuardar(b, { modelos: { etiqueta: v || null } }, "Modelo guardado ✓"); return; }
+    if (a === "iaDesde"){ const v = document.getElementById("iaDesde").value; if (!v) return toast("Elegí la fecha."); iaGuardar(b, { pedidos_desde: desdePolitica(v) }, "Fecha guardada ✓"); return; }
+    if (a === "iaAncla"){ iaAncla(b); return; }
+    if (a === "iaRetry"){ b.disabled = true; S.ia = await rpc("admin_ia_reintentar"); toast("Listo: la IA vuelve a andar."); paintIA('[data-a="iaOn"]'); return; }
+    if (a === "iaTopes"){ iaTopes(b); return; }
     if (a === "psave"){ saveProd(b); return; }
     if (a === "pdel"){ deleteProd(b); return; }
     if (a === "pfind"){ const q = document.getElementById("pQ"); S.prodQ = q ? q.value.trim() : ""; loadProductos(); return; }
@@ -1429,7 +1793,11 @@ function dayFirst(inp){
   const txt = document.createElement("input");
   txt.type = "text"; txt.className = inp.className; txt.id = (inp.id || "fecha") + "Txt";
   txt.inputMode = "numeric"; txt.autocomplete = "off"; txt.placeholder = "dd/mm/aaaa"; txt.value = isoToDmy(inp.value);
-  txt.setAttribute("aria-label", inp.getAttribute("aria-label") || "Fecha (día/mes/año)");
+  // La etiqueta del campo pasa al que se ve (el nativo queda oculto); sin etiqueta, un nombre genérico.
+  const lbls = inp.id ? document.querySelectorAll(`label[for="${CSS.escape(inp.id)}"]`) : [];
+  lbls.forEach(l => { l.htmlFor = txt.id; });
+  if (inp.getAttribute("aria-label")) txt.setAttribute("aria-label", inp.getAttribute("aria-label"));
+  else if (!lbls.length && !inp.closest("label")) txt.setAttribute("aria-label", "Fecha (día/mes/año)");
   const btn = document.createElement("button");
   btn.type = "button"; btn.className = "dfield-cal"; btn.title = "Elegir en el calendario"; btn.setAttribute("aria-label", "Elegir en el calendario"); btn.innerHTML = CAL_SVG;
   wrap.append(txt, btn, inp);
