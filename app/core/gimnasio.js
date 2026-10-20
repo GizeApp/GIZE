@@ -8,9 +8,9 @@
 // señal; se borra al salir (accountKeys en core/supabase.js).
 //
 // Quién abre qué (SPEC §2.1): dueño y administración → panel del gimnasio (app/screens/gym/, se carga
-// con import() solo para ellos); recepción → la recepción (la llena la parte 4; mientras, un cartel);
-// profe, socio, pedido pendiente y sin gimnasio → como hoy (lo del profe y lo del socio llegan en las
-// partes 3 y 4).
+// con import() solo para ellos); recepción → la recepción (app/screens/gym/recepcion.js); profe →
+// el panel de coach de hoy con lo del gimnasio (app/screens/coach/gimnasio.js); socio y pedido pendiente
+// → la app de siempre con lo del socio (parte 3); sin gimnasio → como hoy.
 //
 // Links: gize.ar/gimnasio → /app/#gimnasio (crear un gimnasio, solo en la web y con el interruptor
 // del servidor prendido; o abrir el panel si ya es del equipo), gize.ar/app/#equipo=<token>
