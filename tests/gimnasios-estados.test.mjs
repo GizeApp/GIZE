@@ -145,6 +145,10 @@ export default async function ({ t: t0 }){
     equipo: 0, codigo: 0, gym: { cerrado: true, motivo: 'dueño', purga: false, dueno: 'dA' }, inv: [] },
     'gym_cerrar: todas las fichas en baja; sin coach los que atendía el equipo; el coach de afuera, los alumnos propios de la dueña y del profe no cambian; el equipo deja el gimnasio; el código se anula; sin purga (registros 24 meses)');
   t.eq([x[4], x[5], x[6], x[7]], [true, null, null, false], 'la dueña vuelve a ser coach común con su plan; nadie tiene gimnasio; el código ya no sirve');
+  x = await V([['dA', rpc('gym_cerrar', 'Gimnasio Fuerza')], ['dA', rpc('gym_exportar', 'ingresos')], ['dA', rpc('gym_exportar', 'socios')], ['aA', rpc('gym_exportar', 'ingresos')],
+    ['postgres', `update public.gyms set closed_at = now() - interval '25 months' where id = '${G.A}'`], ['dA', rpc('gym_exportar', 'ingresos')]]);
+  t.eq([x[1].length, x[2].length, x[3].error, x[5].error], [3, 7, '42501', '42501'],
+    'después de cerrar, la dueña sigue exportando ingresos y socios (24 meses, §9 P22); la administración, que ya no es del equipo, no; pasados los 24 meses, tampoco');
 
   // ===== Equipo: invitar, aceptar, cambiar el rol, quitar =====
   const inv = (rol, quien2 = 'dA') => [quien2, rpc('gym_invitar', rol)];

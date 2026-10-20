@@ -831,15 +831,26 @@ revoke all on function public.gym_cerrar(text) from public, anon;
 grant execute on function public.gym_cerrar(text) to authenticated;
 
 -- Exportar (dueño y administración; anda con el plan vencido y liberado): 'socios', 'ingresos' o
--- 'equipo'. Filas para el CSV, sin registros de salud.
+-- 'equipo'. Filas para el CSV, sin registros de salud. El dueño exporta «siempre» (§1.2): también
+-- después de cerrar su gimnasio, mientras se guardan los ingresos (24 meses, §9 P22); sin equipo
+-- abierto, exporta el último gimnasio que cerró él.
 create or replace function public.gym_exportar(tipo text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
-declare g uuid := public.gym_exigir(array['owner', 'admin']); r jsonb;
+declare yo record; g uuid; r jsonb;
 begin
+  select * into yo from public.gym_mi_staff();
+  if yo.g is not null and yo.rol in ('owner', 'admin') then
+    g := yo.g;
+  elsif yo.g is null and auth.uid() is not null then
+    select x.id into g from public.gyms x
+     where x.owner_id = auth.uid() and x.close_reason = 'dueño' and x.closed_at > now() - interval '24 months'
+     order by x.closed_at desc limit 1;
+  end if;
+  if g is null then raise exception 'No tenés permiso para hacer esto en el gimnasio.' using errcode = '42501'; end if;
   if tipo = 'socios' then
     select coalesce(jsonb_agg(jsonb_build_object('nombre', coalesce(nullif(m.full_name, ''), p.full_name), 'dni', m.dni, 'telefono', m.phone,
              'email', m.email, 'nacimiento', m.birthdate, 'estado', m.status, 'profe', t.full_name, 'alta', m.joined_at::date,
