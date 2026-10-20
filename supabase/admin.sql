@@ -5,6 +5,10 @@
 -- Todo lo del panel pasa por funciones que primero chequean que quien llama sea administrador
 -- (admin_assert) y cada acción que cambia algo queda anotada en admin_audit. Lo que necesita
 -- secretos de afuera (Mercado Pago, avisos push, borrar cuentas) va por la función «admin».
+-- OJO: las versiones vigentes de admin_set_role y admin_unlink están en gimnasios-vinculo.sql (no
+-- pasan a alumno al dueño ni a un profe de un gimnasio, ni desvinculan a un socio que atiende un
+-- profe del gimnasio): si volvés a correr este archivo, corré después gimnasios.sql y
+-- gimnasios-vinculo.sql.
 
 -- 0) Chequeo y registro de acciones
 create or replace function public.admin_assert()

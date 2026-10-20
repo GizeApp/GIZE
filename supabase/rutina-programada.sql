@@ -1,6 +1,9 @@
 -- Rutina programada: el coach deja lista una rutina nueva para que empiece sola en una fecha
 -- (ej.: 4 semanas de un bloque y desde el lunes 27 otra rutina), sin cambiársela al alumno en
 -- el momento. Correr con el workflow "Supabase" → tarea sql → supabase/rutina-programada.sql.
+-- OJO: la versión vigente de routine_schedule_on_coach_change está en gimnasios-vinculo.sql (no
+-- borra las programadas cuando un gimnasio cambia el profe de un socio): si volvés a correr este
+-- archivo, corré después gimnasios.sql y gimnasios-vinculo.sql.
 --
 -- La rutina vigente sigue en public.routines. Cuando llega la fecha, apply_due_routines() la
 -- reemplaza por la programada (la llama la app del alumno al entrar y el panel del coach al

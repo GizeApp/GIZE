@@ -455,9 +455,9 @@ export default async function ({ t }){
   let b = await BORRAR('dA');
   t.eq(b[1], true, 'caso 14: la dueña borra su cuenta (no falla)');
   t.eq([nn(b[2].gym), b[2].staff.map(nom).sort(), nn(b[2].fichas), nn(b[2].coaches), b[2].inv],
-    [canon({ owner: null, cerrado: false, profe: 'pA1' }), ['aA', 'pA1', 'rA'], { A1: ['A1', 'activo', 'pA1'], A2: ['A2', 'activo', 'pA1'], A7: ['A7', 'activo', null] },
-      { A1: 'pA1', A2: 'pA1', A7: null, D1: null, P1: 'pA1' }, []],
-    'sin dueña: el gimnasio queda sin dueño (cerrarlo es de la etapa 1), A7 y D1 sin coach, A7 sin profe en la ficha');
+    [canon({ owner: null, cerrado: true, profe: null }), ['aA', 'pA1', 'rA'], { A1: ['A1', 'baja', null], A2: ['A2', 'baja', null], A7: ['A7', 'baja', null] },
+      { A1: null, A2: null, A7: null, D1: null, P1: 'pA1' }, []],
+    'sin dueña (etapa 1): el gimnasio se cierra (sin dueño), todas las fichas en baja, los socios que atendía el equipo (A1, A2, A7) y D1 sin coach; P1 sigue con pA1');
   b = await BORRAR('pA1');
   t.eq([b[1], nn(b[2].gym), b[2].staff.map(nom).sort(), nn(b[2].fichas), nn(b[2].coaches), b[2].inv],
     [true, canon({ owner: 'dA', cerrado: false, profe: null }), ['aA', 'dA', 'rA'], { A1: ['A1', 'activo', null], A2: ['A2', 'activo', null], A7: ['A7', 'activo', 'dA'] },

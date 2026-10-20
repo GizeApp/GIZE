@@ -7,6 +7,8 @@
 -- coach-alumnos.sql, bloqueos.sql, gimnasios.sql y gimnasios-vinculo.sql. Con gimnasios-vinculo.sql
 -- aplicado, este archivo falla entero sin cambiar nada (join_coach cambió de tipo): primero el
 -- bloque «Para volver atrás» de ese.
+-- La política de lectura de coach_billing vigente también está en gimnasios-vinculo.sql (la fila
+-- del profe de un gimnasio sin vínculos propios no la ve él, por las apps viejas).
 --
 --   Prueba           14 días, hasta 10 clientes, gratis
 --   Plan 10          hasta 10 clientes, $14.900 por mes

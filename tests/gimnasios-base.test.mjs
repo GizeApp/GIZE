@@ -46,8 +46,14 @@ const VIGENTES = [['join_coach', 'bloqueos.sql'], ['pasos_unirse', 'bloqueos.sql
   ['is_my_client', 'suscripciones.sql'], ['hay_avisos_vence', 'compras-apple.sql'], ['tomar_avisos_vence', 'compras-apple.sql'],
   ['push_subscriptions_validate', 'push-nativo.sql'], ['routine_days_ok', 'ejercicio-audio.sql'],
   ['delete_own_account', 'pagos-seguros.sql'], ['my_invite_code', 'endurecer-base.sql'], ['admin_overview', 'precios-2026-10.sql'],
-  ['release_lapsed_clients', 'coach-vencido.sql']];
-const CANONICAS = ['coach_active', 'is_my_client', 'join_coach', 'release_lapsed_clients'];
+  ['release_lapsed_clients', 'coach-vencido.sql'], ['routine_schedule_on_coach_change', 'rutina-programada.sql'], ['admin_set_role', 'admin.sql'],
+  ['admin_unlink', 'admin.sql']];
+const CANONICAS = ['coach_active', 'is_my_client', 'join_coach', 'release_lapsed_clients', 'routine_schedule_on_coach_change', 'admin_set_role', 'admin_unlink'];
+// Lo que suma gimnasios-vinculo.sql (etapas 0 y 1) y las políticas de hoy que cambia (etapa 1).
+const FN_VINCULO = ['coach_client_ok', 'profiles_gym_sync', 'gym_alerta', 'gym_alerta_staff', 'gym_auditar', 'gym_cupo_ok', 'gym_profe_no_puede',
+  'gym_aprobar_interno', 'gym_pedir', 'gym_cerrar_interno', 'gym_cerrar_por_baja', 'profiles_gym_baja', 'gym_mi_fila_oculta'];
+const POLITICAS_VINCULO = ['pol:coach_billing.billing: el coach ve la suya', 'pol:coach_messages.mensajes: el coach ve los suyos',
+  'pol:storage.objects.chat-audio: escuchar en mi conversación'];
 
 // Personas de b) (uuids y mails de prueba).
 const U = { K: 'b1000000-0000-4000-8000-000000000001', M: 'b1000000-0000-4000-8000-000000000002',
@@ -166,13 +172,13 @@ export default async function ({ t }){
   const hV = await huella(v);
   const dV = diferencias(hG, hV);
   t.eq(dV.faltan, [], 'gimnasios-vinculo.sql no borra nada');
-  t.eq(dV.cambian, [...CANONICAS.map(f => Object.keys(hG).find(k => k.startsWith('fn:' + f + '('))), 'fnacl:coach_active(cid uuid)'].sort(),
-    'gimnasios-vinculo.sql solo cambia las cuatro canónicas y el permiso de coach_active (no los demás permisos ni los dueños)');
+  t.eq(dV.cambian, [...CANONICAS.map(f => Object.keys(hG).find(k => k.startsWith('fn:' + f + '('))), 'fnacl:coach_active(cid uuid)', ...POLITICAS_VINCULO].sort(),
+    'gimnasios-vinculo.sql solo cambia las canónicas (las cuatro de la etapa 0, routine_schedule_on_coach_change, admin_set_role y admin_unlink), el permiso de coach_active y las tres políticas de la etapa 1 (no los demás permisos ni los dueños)');
   t.eq([hG['fnacl:coach_active(cid uuid)'], hV['fnacl:coach_active(cid uuid)']], ['anon=false authenticated=true service_role=true', 'anon=false authenticated=false service_role=true'],
     'coach_active: hoy la puede llamar cualquiera con sesión; con gimnasios-vinculo.sql, solo el service role');
-  t.eq(dV.nuevas, ['fn:coach_client_ok(coach uuid, client uuid)', 'fn:profiles_gym_sync()', 'fnacl:coach_client_ok(coach uuid, client uuid)',
-    'fnacl:profiles_gym_sync()', 'fndueno:coach_client_ok(coach uuid, client uuid)', 'fndueno:profiles_gym_sync()', 'trg:profiles.profiles_gym_sync'],
-    'y suma coach_client_ok y profiles_gym_sync');
+  t.eq(dV.nuevas.filter(k => !(/^(fn|fnacl|fndueno):(\w+)\(/.test(k) && FN_VINCULO.includes(k.match(/^\w+:(\w+)\(/)[1]))), ['trg:profiles.profiles_gym_baja', 'trg:profiles.profiles_gym_sync'],
+    'y suma sus funciones y los dos triggers de profiles (nada más)');
+  t.eq(FN_VINCULO.filter(f => !['fn', 'fnacl', 'fndueno'].every(x => dV.nuevas.some(k => k.startsWith(x + ':' + f + '(')))), [], 'cada función nueva de gimnasios-vinculo.sql: ' + FN_VINCULO.join(', '));
   t.eq(hV['fnacl:coach_client_ok(coach uuid, client uuid)'], 'anon=false authenticated=false service_role=true', 'coach_client_ok: solo el service role');
   await v.archivo('supabase/gimnasios-vinculo.sql');
   await v.archivo('supabase/gimnasios.sql');

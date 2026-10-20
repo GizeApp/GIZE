@@ -47,8 +47,12 @@ export default async ({ t }) => {
   t.ok(/NO CAMBIA NINGÚN COMPORTAMIENTO/.test(g.split('\n').slice(0, 15).join('\n')) && cabeza(g, 8).includes('Después va supabase/gimnasios-vinculo.sql'), 'gimnasios.sql: dice que no cambia nada y qué va después');
   t.ok(cabeza(v, 4).includes('Correr con el workflow "Supabase" → tarea sql → supabase/gimnasios-vinculo.sql, después de supabase/gimnasios.sql. Se puede correr varias veces.'),
     'gimnasios-vinculo.sql: cómo correrlo, después de qué y que se puede volver a correr');
-  t.ok(/OJO: canónico\. Acá están las versiones vigentes de coach_active, is_my_client, join_coach, release_lapsed_clients, coach_client_ok y profiles_gym_sync/.test(cabeza(v, 6)),
-    'gimnasios-vinculo.sql: es el canónico de las seis');
+  t.ok(/OJO: canónico\. Acá están las versiones vigentes de coach_active, is_my_client, join_coach, release_lapsed_clients, coach_client_ok y profiles_gym_sync, y desde la etapa 1 también de routine_schedule_on_coach_change, admin_set_role, admin_unlink y de las políticas «billing: el coach ve la suya» \(coach_billing\), «mensajes: el coach ve los suyos» \(coach_messages\) y «chat-audio: escuchar en mi conversación» \(storage\)/.test(cabeza(v, 13)),
+    'gimnasios-vinculo.sql: es el canónico de las nueve funciones y las tres políticas');
+  // Las notas «OJO» de la etapa 1: los archivos con las políticas y funciones que reemplaza.
+  for (const [f, n, que] of [['rutina-programada.sql', 8, 'routine_schedule_on_coach_change'], ['chat.sql', 12, 'escuchar audios'],
+    ['notificaciones.sql', 10, 'mensajes: el coach ve los suyos'], ['suscripciones.sql', 14, 'lectura de coach_billing'], ['admin.sql', 14, 'admin_set_role y admin_unlink']])
+    t.ok(cabeza(read('supabase/' + f), n).includes(que) && /gimnasios-vinculo\.sql/.test(cabeza(read('supabase/' + f), n)), f + ': la nota «OJO» de ' + que + ' manda a gimnasios-vinculo.sql');
   t.ok(/SIN GIMNASIOS TODO SIGUE IGUAL/.test(v.split('\n').slice(0, 20).join('\n')), 'gimnasios-vinculo.sql: dice que sin gimnasios todo sigue igual');
   // Las notas «OJO» de los archivos con versiones viejas.
   for (const [f, n] of [['base.sql', 20], ['endurecer-base.sql', 10], ['suscripciones.sql', 12], ['cupo-plan.sql', 12], ['coach-alumnos.sql', 12], ['bloqueos.sql', 22], ['coach-vencido.sql', 8]]){
@@ -87,12 +91,15 @@ export default async ({ t }) => {
 
   // Funciones: security definer con search_path fijo; las internas sin permiso para la app.
   const fns = [...(gc + vc).matchAll(/create or replace function public\.(\w+)\(([^\n]*)\)\s*returns[\s\S]*?\nas \$\$/g)];
-  t.eq(fns.length, 26, 'funciones: ' + fns.map(m => m[1]).join(', '));
+  t.eq(fns.length, 40, 'funciones: ' + fns.map(m => m[1]).join(', '));
   for (const [txt, name] of fns) t.ok(/security definer\s+set search_path = public/.test(txt), name + ': security definer con search_path fijo');
   const INTERNAS = { 'gym_role(uuid, uuid)': g, 'vinculo_gym(uuid)': g, 'gym_de_dueno(uuid)': g, 'gym_active(uuid)': g, 'gym_operativo(uuid)': g,
     'recount_seats(uuid)': g, 'seats_drift()': g, 'gym_recontar(uuid[])': g, 'gym_cupo_profiles()': g, 'gym_cupo_members()': g, 'gym_cupo_staff()': g,
     'gym_cupo_gyms()': g, 'coach_billing_cupo()': g, 'gym_codes_unico()': g, 'gym_profe_ficha(uuid, uuid, text)': g, 'gym_members_profe()': g,
-    'gym_members_pedido_sin_cuenta()': g, 'coach_client_ok(uuid, uuid)': v, 'profiles_gym_sync()': v };
+    'gym_members_pedido_sin_cuenta()': g, 'coach_client_ok(uuid, uuid)': v, 'profiles_gym_sync()': v,
+    'gym_alerta(uuid, text, text, text, text, jsonb)': v, 'gym_alerta_staff(uuid, text, text, jsonb)': v, 'gym_auditar(uuid, text, uuid, uuid, jsonb)': v,
+    'gym_cupo_ok(uuid, uuid[])': v, 'gym_profe_no_puede(uuid, uuid, uuid)': v, 'gym_aprobar_interno(uuid, uuid)': v,
+    'gym_pedir(uuid, uuid, text, text, boolean, text)': v, 'gym_cerrar_interno(uuid, text)': v, 'gym_cerrar_por_baja(uuid)': v, 'profiles_gym_baja()': v };
   for (const [sig, s] of Object.entries(INTERNAS)) t.ok(sinComentarios(s).includes('revoke all on function public.' + sig + ' from public, anon, authenticated;'), sig + ': interna (sin permiso para la app)');
   for (const sig of ['gym_mi_rol(uuid)', 'gym_soy_socio(uuid)', 'gym_reads_member(uuid)'])
     t.ok(gc.includes('revoke all on function public.' + sig + ' from public, anon;') && gc.includes('grant execute on function public.' + sig + ' to authenticated;'), sig + ': solo con sesión');
@@ -107,6 +114,14 @@ export default async ({ t }) => {
     'volver atrás devuelve el permiso de hoy de coach_active');
   t.ok(vc.includes('revoke execute on function public.join_coach(text) from public, anon;') && vc.includes('grant  execute on function public.join_coach(text) to authenticated;'), 'join_coach: los permisos de hoy');
   t.ok(vc.includes('revoke execute on function public.release_lapsed_clients() from public, anon, authenticated;'), 'release_lapsed_clients: interna, como hoy');
+  t.ok(vc.includes('revoke execute on function public.routine_schedule_on_coach_change() from public, anon, authenticated;'), 'routine_schedule_on_coach_change: interna, como hoy');
+  t.ok(vc.includes('revoke all on function public.gym_mi_fila_oculta() from public, anon;') && vc.includes('grant execute on function public.gym_mi_fila_oculta() to authenticated;'),
+    'gym_mi_fila_oculta: con sesión (la usa la política de coach_billing) y responde solo sobre quien llama');
+  t.ok(!/grant[^;]*admin_(set_role|unlink)|revoke[^;]*admin_(set_role|unlink)/.test(vc), 'admin_set_role y admin_unlink: create or replace, conservan los permisos que tenían');
+  const polV = [...vc.matchAll(/create policy[\s\S]*?;/g)].map(m => m[0]).join('\n');
+  t.ok(!/auth\.uid\(\)/.test(polV.replace(/\(select auth\.uid\(\)\)/g, '')) && /\(select auth\.uid\(\)\)/.test(polV), 'las políticas de gimnasios-vinculo.sql usan (select auth.uid())');
+  const borrado = sentencia(v, 'profiles_gym_baja');
+  t.ok(/exception when others then/.test(borrado) && /return old;\s*end \$\$;$/.test(borrado), 'el before delete de profiles nunca hace fallar el borrado');
 
   // Orden de los archivos: gimnasios-vinculo.sql sin gimnasios.sql, y volver atrás gimnasios.sql con
   // gimnasios-vinculo.sql todavía aplicado, se frenan antes de cambiar nada (lo prueba en Postgres

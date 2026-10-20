@@ -2,6 +2,9 @@
 -- Correr UNA vez en Supabase → SQL Editor. Se puede volver a correr sin problema.
 -- Además hay que publicar la función supabase/functions/notificar-cliente (ver el
 -- comentario al principio de ese archivo).
+-- OJO: la versión vigente de la política «mensajes: el coach ve los suyos» está en
+-- gimnasios-vinculo.sql (el profe que deja de atender a un socio de su gimnasio no lee esos
+-- mensajes): si volvés a correr este archivo, corré después gimnasios.sql y gimnasios-vinculo.sql.
 
 -- 1) Dispositivos donde cada usuario activó las notificaciones (uno por celular/navegador).
 create table if not exists public.push_subscriptions (
