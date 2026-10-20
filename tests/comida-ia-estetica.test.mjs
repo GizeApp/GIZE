@@ -6,10 +6,14 @@
 // - en «Oscuro»: «Sacar foto» y «Elegir de la galería» llevan el filete (el ::after con máscara y el
 //   degradé de la marca), «Sacar foto» y la comida elegida el resplandor quieto por dentro, y
 //   «Agregar» el filete de los principales y el resplandor de la marca por fuera;
-// - lo que se toca mide 44 px o más y no hay scroll horizontal;
+// - lo que se toca mide 44 px o más (la comida del pie de la revisión se dibuja a 36 px y se toca en 44)
+//   y no hay scroll horizontal; los textos de los resultados llegan a 4,5:1 (Oscuro y sin neón);
+// - el visor de «Foto del plato» es adorno (bajo, sin un botón redondo que parezca la cámara);
+// - en un celular chico (360×640) el pie fijo de la revisión no pasa de 200 px y el total no cambia de
+//   alto al pasar de 1.000 kcal; en 375×667 el permiso entra entero («Ahora no» a la vista);
 // - en «Claro» también el filete; en GIZE básico, nada de filete ni resplandor; con movimiento reducido
 //   la línea que recorre la foto queda quieta.
-import { wait } from './lib.mjs';
+import { wait, contraste } from './lib.mjs';
 import { ESTADO_ON, pagina, abrirComida, abrirBuscador, fotoJpeg } from './comida-ia-comun.mjs';
 
 const OK = Object.assign({}, ESTADO_ON, { permiso_comida: 'ok' });
@@ -44,6 +48,7 @@ export default async function ({ base, t }){
     t.eq(await chicos(p, '#sheetHost .search-sheet .meal-chip, #sheetHost .ia-foto-btn, #sheetHost .search-sheet .cal-create'), 0, 'Agregar: la comida, «Foto» y crear miden 44 px o más');
     await p.fill('#foodSearch', 'pollo'); await wait(700);
     t.ok((await p.$$('#foodResults .food-row .food-ic svg')).length > 3, 'resultados: cada uno con el ícono del alimento');
+    t.eq((await contraste(p, '#sheetHost .search-sheet')).malos, [], 'resultados: los textos llegan a 4,5:1');
     t.eq(await emojis(p, '#sheetHost .search-sheet'), [], 'resultados: sin emojis');
     await p.fill('#foodSearch', 'zzzz inexistente'); await wait(900);
     t.has(await p.textContent('#foodResults'), 'Sin resultados', 'sin resultados: el aviso');
@@ -57,7 +62,10 @@ export default async function ({ base, t }){
     await p.click('#iaPermHost [data-ia="si"]'); await wait(800);
     // Elegir la foto.
     t.eq(await emojis(p, '#sheetHost .plate-sheet'), [], 'Foto del plato: sin emojis');
-    t.ok(await p.$('#sheetHost .pl8-hero svg'), 'Foto del plato: el visor con la cámara');
+    t.ok(await p.$('#sheetHost .pl8-hero svg'), 'Foto del plato: el visor con su dibujo');
+    const hero = await p.evaluate(() => { const h = document.querySelector('#sheetHost .pl8-hero'); return { alto: h.getBoundingClientRect().height, redondo: !!h.querySelector('.pl8-hero-sp') ||
+      [...h.querySelectorAll('*')].some(e => getComputedStyle(e).borderRadius === '50%' && e.getBoundingClientRect().width > 40) }; });
+    t.ok(hero.alto <= 100 && !hero.redondo, 'el visor es adorno: bajo y sin un botón redondo que parezca la cámara: ' + JSON.stringify(hero));
     const cam = await neon(p, '#sheetHost .pl8-op-cam'), gal = await neon(p, '#sheetHost .pl8-op:not(.pl8-op-cam)');
     t.ok(cam && cam.filete && cam.brillo, '«Sacar foto»: el filete y el resplandor: ' + (cam && cam.sombra));
     t.ok(gal && gal.filete, '«Elegir de la galería»: el filete');
@@ -85,7 +93,18 @@ export default async function ({ base, t }){
     const go = await neon(p, '#pl8Go');
     t.ok(go && go.brillo && !go.adentro && /gradient/.test(go.fondo), '«Agregar»: el filete de los principales y el resplandor: ' + (go && go.sombra));
     t.eq(await p.evaluate(() => getComputedStyle(document.getElementById('pl8Go')).backgroundColor), 'rgba(0, 0, 0, 0)', '«Agregar»: relleno blanco con el degradé (sin color de fondo encima)');
-    t.eq(await chicos(p, '#sheetHost .pl8-x, #sheetHost .pl8-step, #sheetHost .pl8-chg, #sheetHost .pl8-add, #sheetHost .pl8-foot .meal-chip, #pl8Go'), 0, 'revisión: lo que se toca mide 44 px o más');
+    t.eq(await chicos(p, '#sheetHost .pl8-x, #sheetHost .pl8-step, #sheetHost .pl8-chg, #sheetHost .pl8-add, #pl8Go'), 0, 'revisión: lo que se toca mide 44 px o más');
+    // La comida del pie: se dibuja a 36 px y se toca en 44 (3,5 px arriba y abajo de la ficha siguen siendo la ficha).
+    t.eq(await p.$$eval('#sheetHost .pl8-foot .meal-chip', cs => cs.filter(c => { const r = c.getBoundingClientRect(), x = r.left + r.width / 2;
+      return r.height < 35 || ![r.top - 3.5, r.bottom + 3.5].every(y => c.contains(document.elementFromPoint(x, y))); }).length), 0, 'revisión: la comida del pie se toca en 44 px');
+    // Celular chico: el pie fijo deja lugar para revisar y el total no salta al cambiar los gramos.
+    await p.setViewportSize({ width: 360, height: 640 }); await wait(300);
+    t.ok(await p.evaluate(() => document.querySelector('#sheetHost .pl8-foot').getBoundingClientRect().height) <= 200, '360×640: el pie de la revisión mide 200 px o menos');
+    const altoTot = () => p.evaluate(() => document.getElementById('pl8Tot').getBoundingClientRect().height);
+    const tot0 = await altoTot();
+    for (let k = 0; k < 6; k++) { await p.click('#sheetHost .pl8-row[data-i="0"] [data-d="1"]'); await wait(60); }
+    t.has(await p.textContent('#pl8Tot'), '.', '360×640: el total pasó de 1.000 kcal');
+    t.eq(await altoTot(), tot0, '360×640: el total no cambia de alto');
     t.ok(await sinScroll(p), 'revisión: sin scroll horizontal');
     await close();
     t.eq(errs, [], 'revisión: errores de la página');
@@ -100,6 +119,22 @@ export default async function ({ base, t }){
     t.eq(await emojis(p, '#sheetHost .plate-sheet'), [], nombre + ': sin emojis');
     t.eq(await chicos(p, '#sheetHost .pl8-btns .ctrl'), 0, nombre + ': los botones miden 44 px o más');
     t.eq(errs, [], nombre + ': errores de la página');
+    await close();
+  }
+  // ---------- Sin neón: los resultados; 375×667: el permiso entra entero ----------
+  {
+    const { p, errs, close } = await pagina({ estado: ESTADO_ON });
+    await p.addInitScript("try { localStorage.setItem('gize_neon','0') } catch (e) {}");
+    await p.setViewportSize({ width: 375, height: 667 });
+    await abrirComida(p, base); await abrirBuscador(p);
+    await p.fill('#foodSearch', 'pollo'); await wait(700);
+    t.eq((await contraste(p, '#sheetHost .search-sheet')).malos, [], 'sin neón: los resultados llegan a 4,5:1');
+    await p.fill('#foodSearch', ''); await wait(300);
+    await p.click('#sheetHost [data-action="ia-plato"]'); await wait(700);
+    t.ok(await p.evaluate(() => { const b = document.querySelector('#iaPermHost [data-ia="no"].ctrl, #iaPermHost button[data-ia="no"]'); return !!b && b.getBoundingClientRect().bottom <= innerHeight; }),
+      '375×667: «Ahora no» se ve sin desplazar');
+    t.eq((await contraste(p, '#iaPermHost .ia-perm')).malos, [], 'el permiso: los textos llegan a 4,5:1');
+    t.eq(errs, [], 'sin neón: errores de la página');
     await close();
   }
   // ---------- «Claro», GIZE básico y movimiento reducido ----------

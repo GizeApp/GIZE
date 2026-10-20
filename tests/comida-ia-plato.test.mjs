@@ -121,8 +121,13 @@ export default async function ({ base: url, t }){
   t.has(await txt(p, '#sheetHost .plate-sheet'), 'Supuse que el puré lleva manteca.', 'la nota de la IA');
   const desc = await p.evaluate(() => { const b = document.querySelector('#sheetHost .pl8-chg'); const id = b.getAttribute('aria-describedby'); return !!document.getElementById(id) && document.getElementById(id).textContent; });
   t.ok(/Base GIZE/.test(desc || ''), '«Cambiar» lee el origen con aria-describedby');
-  const chicos = await p.$$eval('#sheetHost .pl8-x, #sheetHost .pl8-step, #sheetHost .pl8-chg, #sheetHost .ss-x, #sheetHost .pl8-foot .meal-chip', bs => bs.map(b => b.getBoundingClientRect()).filter(r => r.width < 44 - 0.5 || r.height < 44 - 0.5).length);
+  const chicos = await p.$$eval('#sheetHost .pl8-x, #sheetHost .pl8-step, #sheetHost .pl8-chg, #sheetHost .ss-x', bs => bs.map(b => b.getBoundingClientRect()).filter(r => r.width < 44 - 0.5 || r.height < 44 - 0.5).length);
   t.eq(chicos, 0, 'los controles de la hoja miden al menos 44 × 44');
+  // La comida del pie se dibuja a 36 px (el pie fijo deja más lugar para revisar) y se toca en 44:
+  // 3,5 px arriba y abajo de cada ficha siguen siendo la ficha.
+  const chips = await p.$$eval('#sheetHost .pl8-foot .meal-chip', cs => cs.filter(c => { const r = c.getBoundingClientRect(), x = r.left + r.width / 2;
+    return r.width < 44 - 0.5 || ![r.top - 3.5, r.bottom + 3.5].every(y => c.contains(document.elementFromPoint(x, y))); }).length);
+  t.eq(chips, 0, 'la comida del pie se toca en 44 × 44');
   t.ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'la hoja no hace scroll horizontal');
   await shot(p, '07-revision');
 
