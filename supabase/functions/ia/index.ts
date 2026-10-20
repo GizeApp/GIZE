@@ -1,23 +1,31 @@
-// Supabase Edge Function «ia»: lee con la IA de Anthropic la foto de la tabla nutricional de un
-// pedido de producto (gize.ar/admin → Productos → Pedidos → «Leer con IA») y devuelve los valores
-// cada 100 g o ml para que el administrador los revise y publique como siempre. La IA nunca
-// publica ni anota nada sola.
+// Supabase Edge Function «ia»: la IA de Anthropic en GIZE. La IA nunca publica ni anota nada sola:
+// devuelve valores para que una persona los revise.
 //
 // Recibe, con el token del usuario logueado (supabase.functions.invoke):
 //   { modo: "etiqueta", pedido: <id de product_requests> }  (también acepta modo "tabla")
+//     Panel (gize.ar/admin → Productos → Pedidos → «Leer con IA»), solo administradores: lee la
+//     foto de la tabla nutricional del pedido y devuelve los valores cada 100 g o ml
 //     → { ok: true, encontrada, unidad, columna, porcion, por_porcion, kcal, p, c, f, revisar,
 //         dudosos, modelo, modelo_nombre } y guarda lo leído en product_requests.ai_*.
+//   { modo: "plato", imagen: <JPEG en base64, 1024 px>, texto?: <aclaración, hasta 200> }
+//   { modo: "texto", texto: <lo que comió, hasta 300> }
+//     App (Comida → «Foto del plato» y «Contame qué comiste»), cualquier persona con sesión que
+//     aceptó el aviso (supabase/ia.sql → ia_permiso):
+//     → { ok: true, hay_comida, nota, items: [{ nombre, gramos, kcal, p, c, f, cantidad, unidad,
+//         dudoso, base: { id, nombre, cocido, kcal, p, c, f, unit } | null }], modelo_nombre }.
+//         Con «base», los valores cada 100 g salen de la base de GIZE; sin ella, son la
+//         estimación de la IA. La app los muestra para revisar y no anota nada sin «Agregar».
 //   { modo: "estado" } → { ok: true, clave, modelos }: si está cargada la clave y qué modelos se
 //     pueden elegir, con lo que cuesta una tabla con cada uno (para el panel). No llama a la API.
-// Si algo no deja: { ok: false, codigo, mensaje, motivo?, vuelve? } (los códigos, en
-// supabase/ia.sql). Por ahora es solo para administradores (public.is_app_admin): las etapas que
-// siguen suman a quien mandó el pedido, la foto del plato, el texto y lo del coach.
+// Si algo no deja: { ok: false, codigo, mensaje, motivo?, vuelve?, tope? } (los códigos, en
+// supabase/ia.sql; la app traduce por código).
 //
 // La guardia de gasto está en la base (supabase/ia.sql): antes de llamar, ia_reservar controla el
 // interruptor, el ciclo de los créditos, el ritmo del día y los topes, y aparta lo máximo que
 // podría costar; después, ia_cerrar anota lo que costó de verdad («usage» de la respuesta). Si la
 // API no contesta, se cobra la reserva entera. Sin la clave o con el interruptor apagado no se
-// llama nunca, y tampoco se manda nada de la persona: solo la foto de la tabla.
+// llama nunca. Nunca se manda nada de la persona: solo la foto (de la tabla o del plato) o lo que
+// escribió, y nunca su nombre, su mail ni su id.
 // En los registros (console.error) van solo códigos: nunca la clave, ni datos de la persona, ni
 // la foto, ni lo que contestó la IA.
 //
@@ -27,10 +35,19 @@
 // Va sin «Verify JWT» (como las demás) y valida la sesión con auth.getUser().
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { costo, MODELOS, modeloDe, reserva, type Modelo, type Uso } from "./precios.ts";
+import { costo, ENTRADA_TOPE, MODELOS, modeloDe, reserva, type Modelo, type Uso } from "./precios.ts";
 import { costoTablaTipica, ENTRADA_MAX_ETIQUETA, entradaEtiqueta, etiquetaPost, FOTO_MAX, LADO_MAX, MAX_TOKENS_ETIQUETA, pedidoEtiqueta, TIEMPO_ETIQUETA } from "./modos.ts";
 import { jpegTamano } from "./jpeg.ts";
 import { clasificarError, llamar } from "./api.ts";
+import { B64_MAX_PLATO, baseTexto, comidaPost, ENTRADA_MAX, entradaComida, LADO_MAX_PLATO, MAX_TOKENS, pedidoComida, TEXTO_MAX, TIEMPO_COMIDA, type Base } from "./comida.ts";
+// La base de alimentos de la app (app/core/foods*.js): el workflow «Supabase» la copia acá antes de
+// publicar (no se sube al repo: supabase/functions/ia/.gitignore). Es la misma lista que ve la persona.
+import { cookVariant, FOODS } from "./foods.js";
+
+type SupabaseClient = ReturnType<typeof createClient>;
+const BASE: Base = { foods: FOODS, cocido: cookVariant };
+let baseTxt = "";
+const laBase = () => baseTxt || (baseTxt = baseTexto(BASE));
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -61,8 +78,9 @@ const MENSAJE: Record<string, string> = {
   no_se_pudo: "No se pudo analizar esta foto.",
   error: "La IA está tardando más de lo normal o falló. Probá de nuevo en un rato.",
 };
-const no = (codigo: string, extra: { mensaje?: string; motivo?: string; vuelve?: string | null } = {}, status?: number) =>
-  json({ ok: false, codigo, mensaje: extra.mensaje || MENSAJE[codigo] || MENSAJE.error, ...(extra.motivo ? { motivo: extra.motivo } : {}), ...(extra.vuelve ? { vuelve: extra.vuelve } : {}) },
+const no = (codigo: string, extra: { mensaje?: string; motivo?: string; vuelve?: string | null; tope?: number } = {}, status?: number) =>
+  json({ ok: false, codigo, mensaje: extra.mensaje || MENSAJE[codigo] || MENSAJE.error, ...(extra.motivo ? { motivo: extra.motivo } : {}), ...(extra.vuelve ? { vuelve: extra.vuelve } : {}),
+    ...(typeof extra.tope === "number" ? { tope: extra.tope } : {}) },
     status || HTTP[codigo] || 502);
 const log = (...a: unknown[]) => console.error("ia", ...a);
 
@@ -70,6 +88,56 @@ function base64(b: Uint8Array): string {
   let s = "";
   for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
   return btoa(s);
+}
+
+// Llama a la API con una reserva ya hecha y la cierra con lo que costó. Devuelve la respuesta del
+// modelo (el JSON con el esquema) y cerrar(estado) para anotar si sirvió; o, si algo falló, la
+// respuesta para la app o el panel, con la llamada ya cerrada.
+type Cerrar = (estado: "ok" | "vacia") => Promise<void>;
+async function usarIA(db: SupabaseClient, o: { llamada: number; ciclo: number; modelo: Modelo; body: unknown; tope: number; clave: string }):
+  Promise<Response | { out: Record<string, unknown>; cerrar: Cerrar }> {
+  const cerrar = async (estado: "ok" | "vacia" | "error", codigo: string | null, usd: number | null, uso: Uso | null, ms: number) => {
+    const x = await db.rpc("ia_cerrar", {
+      p_id: o.llamada, p_estado: estado, p_codigo: codigo, p_usd: usd,
+      p_in: uso ? uso.input_tokens ?? null : null, p_out: uso ? uso.output_tokens ?? null : null,
+      p_cw: uso ? uso.cache_creation_input_tokens ?? null : null, p_cr: uso ? uso.cache_read_input_tokens ?? null : null, p_ms: ms,
+    });
+    // Si no se pudo cerrar, la base la cierra sola a los 10 minutos cobrando la reserva entera.
+    if (x.error) log("cerrar", x.error.code || "");
+  };
+
+  const res = await llamar(o.body, o.clave, o.tope);
+  // Sin respuesta (tiempo o red): no se sabe cuánto costó, se cobra la reserva (usd = null).
+  if (res.tipo === "tiempo" || res.tipo === "red") {
+    log("sin respuesta", res.tipo);
+    await cerrar("error", res.tipo, null, null, res.ms);
+    return no("error");
+  }
+  if (res.tipo === "http") {
+    const e = clasificarError(res.status, res.error);
+    log("api", res.status, (res.error && res.error.type) || "", e.registro);
+    if (e.cortar) {
+      const x = await db.rpc("ia_cortar", { p_ciclo: o.ciclo, p_motivo: e.cortar.motivo, p_vuelve: e.cortar.vuelve.toISOString() });
+      if (x.error) log("cortar", x.error.code || "");
+    }
+    await cerrar("error", e.registro, 0, null, res.ms);
+    return no(e.codigo, { motivo: e.motivo, vuelve: e.codigo === "tope_mes" && e.cortar ? e.cortar.vuelve.toISOString() : null });
+  }
+
+  const m = res.json as { stop_reason?: string; usage?: Uso; content?: unknown };
+  // Sin «usage» no se sabe cuánto costó: se cobra la reserva.
+  const usd = m.usage && typeof m.usage === "object" ? costo(m.usage, o.modelo) : null;
+  const uso = m.usage && typeof m.usage === "object" ? m.usage : null;
+  if (m.stop_reason === "refusal") { log("rechazo"); await cerrar("error", "refusal", usd, uso, res.ms); return no("no_se_pudo"); }
+  if (m.stop_reason === "max_tokens") { log("cortada"); await cerrar("error", "max_tokens", usd, uso, res.ms); return no("error"); }
+  // La respuesta puede empezar con bloques de razonamiento: se toman solo los de texto.
+  const txt = (Array.isArray(m.content) ? m.content : [])
+    .filter((b): b is { type: string; text: string } => !!b && (b as { type?: string }).type === "text" && typeof (b as { text?: unknown }).text === "string")
+    .map((b) => b.text).join("");
+  let out: Record<string, unknown> | null = null;
+  try { out = JSON.parse(txt); } catch { out = null; }
+  if (!out || typeof out !== "object" || Array.isArray(out)) { log("json inválido"); await cerrar("error", "json", usd, uso, res.ms); return no("error"); }
+  return { out, cerrar: (estado) => cerrar(estado, null, usd, uso, res.ms) };
 }
 
 Deno.serve(async (req) => {
@@ -84,9 +152,11 @@ Deno.serve(async (req) => {
   if (!u || !u.user) return no("sin_sesion");
   const me = u.user.id;
 
-  let input: { modo?: unknown; pedido?: unknown } | null = null;
+  let input: { modo?: unknown; pedido?: unknown; imagen?: unknown; texto?: unknown } | null = null;
   try { input = await req.json(); } catch { return no("error", { mensaje: "Pedido inválido." }, 400); }
-  const modo = input && input.modo === "tabla" ? "etiqueta" : String((input && input.modo) || "");
+  if (!input || typeof input !== "object") return no("error", { mensaje: "Pedido inválido." }, 400);
+  const modo = input.modo === "tabla" ? "etiqueta" : String(input.modo || "");
+  if (modo === "plato" || modo === "texto") return comida(modo, input, me, url);
   if (modo !== "etiqueta" && modo !== "estado") return no("error", { mensaje: "Modo desconocido." }, 400);
 
   // Por ahora, solo administradores (las etapas que siguen suman a quien mandó el pedido).
@@ -148,52 +218,12 @@ Deno.serve(async (req) => {
   if (rs.error || !rs.data) { log("reservar", (rs.error && rs.error.code) || "sin respuesta"); return no("error", { mensaje: "No se pudo reservar el uso de la IA. Probá de nuevo." }, 500); }
   const res0 = rs.data as { ok: boolean; codigo?: string; motivo?: string; vuelve?: string; llamada_id?: number; ciclo_id?: number };
   if (!res0.ok) return no(res0.codigo || "error", { motivo: res0.motivo, vuelve: res0.vuelve || null });
-  const llamada = res0.llamada_id, ciclo = res0.ciclo_id;
 
-  const cerrar = async (estado: "ok" | "vacia" | "error", codigo: string | null, usd: number | null, uso: Uso | null, ms: number) => {
-    const x = await db.rpc("ia_cerrar", {
-      p_id: llamada, p_estado: estado, p_codigo: codigo, p_usd: usd,
-      p_in: uso ? uso.input_tokens ?? null : null, p_out: uso ? uso.output_tokens ?? null : null,
-      p_cw: uso ? uso.cache_creation_input_tokens ?? null : null, p_cr: uso ? uso.cache_read_input_tokens ?? null : null, p_ms: ms,
-    });
-    // Si no se pudo cerrar, la base la cierra sola a los 10 minutos cobrando la reserva entera.
-    if (x.error) log("cerrar", x.error.code || "");
-  };
-
-  const res = await llamar(pedidoEtiqueta(modelo, base64(bytes)), clave, TIEMPO_ETIQUETA);
-  // Sin respuesta (tiempo o red): no se sabe cuánto costó, se cobra la reserva (usd = null).
-  if (res.tipo === "tiempo" || res.tipo === "red") {
-    log("sin respuesta", res.tipo);
-    await cerrar("error", res.tipo, null, null, res.ms);
-    return no("error");
-  }
-  if (res.tipo === "http") {
-    const e = clasificarError(res.status, res.error);
-    log("api", res.status, (res.error && res.error.type) || "", e.registro);
-    if (e.cortar) {
-      const x = await db.rpc("ia_cortar", { p_ciclo: ciclo, p_motivo: e.cortar.motivo, p_vuelve: e.cortar.vuelve.toISOString() });
-      if (x.error) log("cortar", x.error.code || "");
-    }
-    await cerrar("error", e.registro, 0, null, res.ms);
-    return no(e.codigo, { motivo: e.motivo, vuelve: e.codigo === "tope_mes" && e.cortar ? e.cortar.vuelve.toISOString() : null });
-  }
-
-  const m = res.json as { stop_reason?: string; usage?: Uso; content?: unknown };
-  // Sin «usage» no se sabe cuánto costó: se cobra la reserva.
-  const usd = m.usage && typeof m.usage === "object" ? costo(m.usage, modelo) : null;
-  const uso = m.usage && typeof m.usage === "object" ? m.usage : null;
-  if (m.stop_reason === "refusal") { log("rechazo"); await cerrar("error", "refusal", usd, uso, res.ms); return no("no_se_pudo"); }
-  if (m.stop_reason === "max_tokens") { log("cortada"); await cerrar("error", "max_tokens", usd, uso, res.ms); return no("error"); }
-  // La respuesta puede empezar con bloques de razonamiento: se toman solo los de texto.
-  const txt = (Array.isArray(m.content) ? m.content : [])
-    .filter((b): b is { type: string; text: string } => !!b && (b as { type?: string }).type === "text" && typeof (b as { text?: unknown }).text === "string")
-    .map((b) => b.text).join("");
-  let out: Record<string, unknown> | null = null;
-  try { out = JSON.parse(txt); } catch { out = null; }
-  if (!out || typeof out !== "object") { log("json inválido"); await cerrar("error", "json", usd, uso, res.ms); return no("error"); }
-
+  const r1 = await usarIA(db, { llamada: res0.llamada_id!, ciclo: res0.ciclo_id!, modelo, body: pedidoEtiqueta(modelo, base64(bytes)), tope: TIEMPO_ETIQUETA, clave });
+  if (r1 instanceof Response) return r1;
+  const { out, cerrar } = r1;
   const et = etiquetaPost(out);
-  await cerrar(et.encontrada ? "ok" : "vacia", null, usd, uso, res.ms);
+  await cerrar(et.encontrada ? "ok" : "vacia");
   // Lo leído queda en el pedido: el panel lo muestra si se vuelve a abrir y, al publicar, se
   // anota si el administrador lo corrigió (admin_request_publish).
   const ai = et.encontrada
@@ -205,3 +235,55 @@ Deno.serve(async (req) => {
   if (up.error) log("guardar", up.error.code || "");
   return json({ ok: true, ...et, modelo, modelo_nombre: MODELOS[modelo].nombre });
 });
+
+// ---------- foto del plato y «Contame qué comiste» (la app) ----------
+// Para cualquier persona con sesión que haya aceptado el aviso (ia_permiso_estado = 'ok'), con la
+// función prendida en el panel. Topes de la persona: los de su rol (ia_rol: «coach» con plan, si
+// no «alumno»). No se guarda la foto ni el texto: van a la API y se olvidan.
+async function comida(modo: "plato" | "texto", input: { imagen?: unknown; texto?: unknown }, me: string, url: string): Promise<Response> {
+  const texto = typeof input.texto === "string" ? input.texto.replace(/\s+/g, " ").trim().slice(0, TEXTO_MAX[modo]) : "";
+  let imagen = "", tam: { ancho: number; alto: number } | null = null;
+  if (modo === "plato") {
+    imagen = typeof input.imagen === "string" ? input.imagen : "";
+    // Solo un JPEG en base64 (empieza con /9j/), de hasta ~1 MB y 1024 px: lo que manda la app.
+    if (!imagen || imagen.length > B64_MAX_PLATO || !imagen.startsWith("/9j/") || !/^[A-Za-z0-9+/]+={0,2}$/.test(imagen)) return no("foto_invalida");
+    let cab: Uint8Array;
+    try { const b = atob(imagen.slice(0, 65536 - (Math.min(imagen.length, 65536) % 4))); cab = Uint8Array.from(b, (ch) => ch.charCodeAt(0)); } catch { return no("foto_invalida"); }
+    tam = jpegTamano(cab);
+    if (!tam || Math.max(tam.ancho, tam.alto) > LADO_MAX_PLATO) return no("foto_invalida");
+  } else if (texto.length < 2) return no("error", { mensaje: "Contá qué comiste." }, 400);
+
+  const clave = Deno.env.get("ANTHROPIC_API_KEY") || "";
+  if (!clave) return no("pausada", { motivo: "sin_clave" });
+  const db = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  // El interruptor (también lo mira ia_reservar; acá se mira antes de todo lo demás).
+  const cfg = await db.from("ia_config").select("activa,funciones,modelos").eq("id", 1).maybeSingle();
+  if (cfg.error || !cfg.data) { log("config", (cfg.error && cfg.error.code) || "sin fila"); return no("pausada", { motivo: "sin_base" }); }
+  const c = cfg.data as { activa: boolean; funciones: Record<string, unknown> | null; modelos: Record<string, unknown> | null };
+  if (c.activa !== true || !c.funciones || c.funciones[modo] !== true) return no("pausada", { motivo: "apagada" });
+
+  // El permiso de la persona (el aviso vigente, aceptado y no apagado en Ajustes).
+  const pm = await db.rpc("ia_permiso_estado", { p_uid: me });
+  if (pm.error) { log("permiso", pm.error.code || ""); return no("error", { mensaje: "No se pudo comprobar el permiso. Probá de nuevo." }, 500); }
+  if (pm.data !== "ok") return no("sin_permiso", { motivo: pm.data === "no" ? "apagada" : pm.data === "viejo" ? "aviso_nuevo" : "sin_preguntar" });
+  const rl = await db.rpc("ia_rol", { p_uid: me });
+  if (rl.error) { log("rol", rl.error.code || ""); return no("error", { mensaje: "No se pudo comprobar tu cuenta. Probá de nuevo." }, 500); }
+  const rol = rl.data === "coach" ? "coach" : "alumno";
+
+  const modelo = modeloDe(c.modelos && c.modelos[modo]);
+  const base = laBase();
+  const entrada = entradaComida(modo, base, texto, tam, modelo);
+  if (entrada > ENTRADA_MAX[modo] || entrada > ENTRADA_TOPE) { log("entrada", modo, entrada); return no(modo === "plato" ? "foto_invalida" : "error"); }
+
+  const rs = await db.rpc("ia_reservar", { p_uid: me, p_rol: rol, p_funcion: modo, p_modelo: modelo, p_max_usd: reserva(modelo, entrada, MAX_TOKENS[modo]), p_pedido: null });
+  if (rs.error || !rs.data) { log("reservar", (rs.error && rs.error.code) || "sin respuesta"); return no("error", { mensaje: "No se pudo reservar el uso de la IA. Probá de nuevo." }, 500); }
+  const r0 = rs.data as { ok: boolean; codigo?: string; motivo?: string; vuelve?: string; tope?: number; llamada_id?: number; ciclo_id?: number };
+  if (!r0.ok) return no(r0.codigo || "error", { motivo: r0.motivo, vuelve: r0.vuelve || null, tope: r0.tope });
+
+  const r = await usarIA(db, { llamada: r0.llamada_id!, ciclo: r0.ciclo_id!, modelo, body: pedidoComida(modo, modelo, base, texto, modo === "plato" ? imagen : null), tope: TIEMPO_COMIDA, clave });
+  if (r instanceof Response) return r;
+  const res = comidaPost(r.out, BASE);
+  await r.cerrar(res.hay_comida ? "ok" : "vacia");
+  return json({ ok: true, ...res, modelo_nombre: MODELOS[modelo].nombre });
+}

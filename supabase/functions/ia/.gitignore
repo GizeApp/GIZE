@@ -1,0 +1,6 @@
+# La base de alimentos de la app (app/core/foods*.js): el workflow «Supabase» la copia acá antes de
+# publicar la función. No se sube: la fuente es app/core.
+foods.js
+foods-extra.js
+foods-ar.js
+foods-gen.js
