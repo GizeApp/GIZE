@@ -106,7 +106,8 @@ export default async function ({ base, t }){
   }
   for (const [estado, texto] of [['vencida', 'La invitación venció o la anularon: pedile otra al gimnasio.'], ['usada', 'Esa invitación ya se usó'],
     ['tope', 'El gimnasio llegó al tope de profes. Escribinos para sumar más profes.'], ['es_alumno', 'Para ser profe primero desvinculate de tu coach.'],
-    ['ya_staff', 'Ya sos del equipo de un gimnasio.'], ['necesita_coach', 'Para ser profe necesitás una cuenta de coach.']]){
+    ['ya_staff', 'Ya sos del equipo de un gimnasio.'], ['necesita_coach', 'Para ser profe necesitás una cuenta de coach.'],
+    ['recepcion_coach', 'Con tu cuenta de coach tenés alumnos: para la recepción usá otra cuenta (otro mail)']]){
     const quien = estado === 'es_alumno' || estado === 'necesita_coach' ? ALUMNO : COACH;
     const pg = await entrar(base, quien, { url: '/app/#equipo=' + TOK, gym: null, rol: quien === ALUMNO ? 'client' : 'coach', rpc: { gym_invitacion_info: INFO(estado) } });
     const txt = await hostTxt(pg.p);

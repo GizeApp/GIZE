@@ -1003,6 +1003,9 @@ begin
   if exists (select 1 from public.gym_staff s where s.user_id = me and s.left_at is null) then return 'ya_staff'; end if;
   if exists (select 1 from public.gym_members m where m.member_id = me and m.status <> 'baja') then return 'es_socio'; end if;
   if p.coach_id is not null then return 'es_alumno'; end if;
+  -- La recepción reemplaza al panel de coach: un coach con alumnos propios se quedaba sin llegar a
+  -- ellos ni al chat. La recepción va con otra cuenta (otro mail).
+  if i.role = 'recepcion' and p.role = 'coach' and exists (select 1 from public.profiles c where c.coach_id = me) then return 'recepcion_coach'; end if;
   if i.role = 'profe' and coalesce(p.role, 'client') <> 'coach' then return 'necesita_coach'; end if;
   if (i.role = 'profe' or (i.role = 'admin' and p.role = 'coach'))
      and public.gym_profes_usados(i.gym_id) >= public.gym_tope_profes(i.gym_id) then
@@ -1056,6 +1059,7 @@ begin
       when 'es_alumno' then case when i.role = 'profe' then 'Para ser profe primero desvinculate de tu coach.'
                                  else 'Para sumarte al equipo del gimnasio primero desvinculate de tu coach en Ajustes.' end
       when 'necesita_coach' then 'Para ser profe necesitás una cuenta de coach.'
+      when 'recepcion_coach' then 'Con tu cuenta de coach tenés alumnos: para la recepción usá otra cuenta (otro mail), así seguís atendiéndolos con esta.'
       when 'tope' then 'El gimnasio llegó al tope de profes. Escribinos para sumar más profes.'
       else 'No se pudo aceptar la invitación.' end using errcode = 'P0001';
   end if;
@@ -1095,6 +1099,10 @@ begin
   if rol = 'profe' and not coach then raise exception 'Para ser profe necesita una cuenta de coach.' using errcode = 'P0001'; end if;
   if rol = 'recepcion' and exists (select 1 from public.gym_members m where m.gym_id = s.g and m.trainer_id = usuario and m.status in ('activo', 'pausado')) then
     raise exception 'Primero pasá sus socios a otro profe.' using errcode = 'P0001';
+  end if;
+  -- Con alumnos propios (de afuera del gimnasio) perdería el panel de coach: la recepción, con otra cuenta.
+  if rol = 'recepcion' and exists (select 1 from public.profiles c where c.coach_id = usuario) then
+    raise exception 'Tiene alumnos propios con su cuenta de coach: para la recepción, que entre con otra cuenta (otro mail).' using errcode = 'P0001';
   end if;
   antes := r = 'profe' or (r = 'admin' and coach);
   despues := rol = 'profe' or (rol = 'admin' and coach);

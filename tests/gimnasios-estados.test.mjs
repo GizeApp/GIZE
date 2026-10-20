@@ -178,6 +178,11 @@ export default async function ({ t: t0 }){
   t.eq([x[1].estado, x[2].msg, x[3].plan.profes_usados, x[3].plan.profes_tope, x[5].estado], ['tope', 'El gimnasio llegó al tope de profes. Escribinos para sumar más profes.', 8, 8, 'ok'],
     'con 8 de 8 profes: «Escribinos para sumar más profes»; con un profe extra del admin, entra');
   const tokR = (await db.json(`select prueba.hacer('${P.dA}', 'select to_jsonb(public.gym_invitar(''recepcion''))');`)).ok.token;
+  // Un coach con alumnos propios no entra a la recepción con esa cuenta (la recepción reemplaza al panel
+  // de coach y se quedaba sin llegar a sus alumnos ni al chat); un coach sin alumnos, sí.
+  x = await V([['C', rpc('gym_invitacion_info', tokR)], ['C', rpc('gym_aceptar_invitacion', tokR)], ['K', rpc('gym_invitacion_info', tokR)]]);
+  t.eq([x[0].estado, x[1].msg, x[2].estado], ['recepcion_coach', 'Con tu cuenta de coach tenés alumnos: para la recepción usá otra cuenta (otro mail), así seguís atendiéndolos con esta.', 'ok'],
+    'invitación a la recepción: un coach con alumnos propios, no (que use otra cuenta); un coach sin alumnos, sí');
   x = await V([['postgres', seis], ['N', rpc('gym_aceptar_invitacion', tokR)], ['N', rpc('mi_gimnasio')], ['N', `select public.join_coach('${CODIGO.C}')::jsonb`], ['N', rpc('gym_unirse', 'FUERZA22', VER, false, null)]]);
   t.eq([x[1].role, x[2].rol, x[3].msg, x[4].msg], ['recepcion', 'recepcion', 'Las cuentas del equipo de un gimnasio no se pueden vincular con un código.',
     'Las cuentas del equipo de un gimnasio no se pueden vincular con un código.'], 'la recepción (cuenta común) entra aunque esté el tope de profes; después no se vincula ni pide sumarse');
@@ -188,6 +193,9 @@ export default async function ({ t: t0 }){
     'Para ser profe necesita una cuenta de coach.', 'Al dueño no se le cambia el rol.', { ok: true, role: 'admin' }, 'pA1',
     'La administración no puede cambiar el rol de otra persona de la administración.'],
     'gym_cambiar_rol: a recepción solo sin socios; profe solo con cuenta de coach; nunca el dueño; profe ↔ administración conserva sus socios; la administración no toca a otra');
+  x = await V([['dA', rpc('gym_asignar_profe', [F.A1, F.A2], P.pA2)], ['dA', rpc('gym_cambiar_rol', P.pA1, 'recepcion')]]);
+  t.eq([x[0].ok.length, x[1].msg], [2, 'Tiene alumnos propios con su cuenta de coach: para la recepción, que entre con otra cuenta (otro mail).'],
+    'gym_cambiar_rol a recepción de un profe sin socios del gimnasio pero con alumnos propios: no (perdería el panel de coach)');
   // Quitar con reasignación (la trampa C20, cerrada).
   x = await V([['postgres', `update public.gyms set default_trainer_id = '${P.pA1}' where id = '${G.A}'`],
     ['postgres', `insert into public.user_blocks (blocker, blocked) values ('${P.A2}', '${P.pA2}')`],

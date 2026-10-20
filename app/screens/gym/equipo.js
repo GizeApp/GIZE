@@ -122,6 +122,7 @@ const ESTADO = {
   ya_staff: "Ya sos del equipo de un gimnasio. En GIZE, cada persona es del equipo de un solo gimnasio.",
   es_socio: "Sos socio de un gimnasio: para sumarte al equipo, primero salí desde Ajustes → Tu gimnasio.",
   tope: "El gimnasio llegó al tope de profes. Escribinos para sumar más profes.",
+  recepcion_coach: "Con tu cuenta de coach tenés alumnos: para la recepción usá otra cuenta (otro mail), así seguís atendiéndolos con esta.",
 };
 export function renderAceptar(){
   const a = GS.aceptar || {};
