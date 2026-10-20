@@ -202,8 +202,9 @@ export function renderResults(q){
   const rows = items.slice(0,60).map(it=>foodRow(it.f, it.act, it.i)).join("");
   const o = ComidaState.off || {};
   const loading = o.q && o.q.length >= 3 && o.status === "loading" ? '<div class="cal-hint">Buscando productos de marca…</div>' : '';
-  if (!rows) return loading || (nq.length < 3 || (o.status && o.status !== "loading") ? '<div class="cal-hint">Sin resultados. Probá crear el alimento 👇</div>' +
-    (iaVisible("texto") && ComidaState.plateSwap == null ? '<button class="ia-nores" data-action="ia-texto" data-q="1"><span class="ia-tag" aria-hidden="true">IA</span> ¿No está? Contalo con tus palabras</button>' : '') : '');
+  // Sin resultados (aunque falten los de marca): con la IA prendida, contarlo con sus palabras.
+  const ia = !rows && iaVisible("texto") && ComidaState.plateSwap == null ? '<button class="ia-nores" data-action="ia-texto" data-q="1"><span class="ia-tag" aria-hidden="true">IA</span> ¿No está? Contalo con tus palabras</button>' : '';
+  if (!rows) return (loading || (nq.length < 3 || (o.status && o.status !== "loading") ? '<div class="cal-hint">Sin resultados. Probá crear el alimento 👇</div>' : '')) + ia;
   return rows + loading;
 }
 

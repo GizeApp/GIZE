@@ -399,6 +399,7 @@ html.lite .scan-btn { animation: none; }
 /* La hoja: lo de arriba se desplaza y abajo quedan fijos la comida, los totales y «Agregar». */
 .plate-sheet { display: flex; flex-direction: column; height: auto; max-height: min(92dvh, calc(100dvh - var(--kb, 0px) - env(safe-area-inset-top, 0px) - 12px)); overflow: hidden; }
 .plate-sheet .ss-head { flex-direction: row; padding: 0; flex: none; }
+.plate-sheet .ss-x { width: 44px; height: 44px; }
 .pl8-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 10px; padding-bottom: 6px; }
 .pl8-foot { flex: none; display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
 .pl8-foot .meal-chips { margin: 0; }
@@ -408,6 +409,7 @@ html.lite .scan-btn { animation: none; }
 .pl8-pick { margin: 4px 0 0; }
 .pl8-lbl { font-size: var(--text-meta); font-weight: 600; color: var(--txt-2); }
 .pl8-txt { display: block; width: 100%; min-height: 96px; resize: none; font: 16px/1.4 var(--gize-font); }
+.plate-sheet.ok .pl8-photo { max-height: 96px; }
 .pl8-photo { width: 100%; max-height: 180px; object-fit: cover; border-radius: var(--r-box); border: 1px solid var(--border); flex: none; }
 .pl8-dijo { padding: 10px 12px; border-left: 3px solid color-mix(in srgb, var(--gize-r2) 60%, var(--border)); border-radius: 0 10px 10px 0; background: var(--card-2);
   color: var(--txt-2); font-size: var(--text-meta); line-height: 1.45; overflow-wrap: anywhere; }

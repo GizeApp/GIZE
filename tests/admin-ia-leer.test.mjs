@@ -277,7 +277,17 @@ export default async function ({ base, t }){
   t.eq(await ia.evaluate(() => document.activeElement && document.activeElement.dataset.a), 'iaOn', 'el foco vuelve al interruptor después de guardar');
   await ia.click('[data-a="iaFn"][data-k="etiqueta_admin"]'); await wait(600);
   t.eq(a.rpcs.filter(r => r[0] === 'config')[1], ['config', { p: { funciones: { etiqueta_admin: true } } }], 'prende «Leer tablas en Pedidos»');
-  t.ok(await ia.$eval('[data-a="iaFn"][data-k="plato"]', b => b.disabled), 'lo que todavía no está en la app no se puede prender');
+  for (const k of ['etiqueta_usuario', 'rutina', 'resumen'])
+    t.ok(await ia.$eval(`[data-a="iaFn"][data-k="${k}"]`, b => b.disabled), 'lo que todavía no está en la app no se puede prender (' + k + ')');
+  // La foto del plato y «Contame qué comiste» (app) ya se pueden prender, con confirmación.
+  for (const [k, nombre] of [['plato', 'Foto del plato'], ['texto', 'Contame qué comiste']]){
+    t.ok(!(await ia.$eval(`[data-a="iaFn"][data-k="${k}"]`, b => b.disabled)), '«' + nombre + '» se puede prender');
+    await ia.click(`[data-a="iaFn"][data-k="${k}"]`); await wait(700);
+    t.ok(a.dialogs.some(d => d.includes('¿Prender «' + nombre + '» en la app?')), '«' + nombre + '»: pide confirmar');
+    t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { funciones: { [k]: true } } }], 'prende «' + nombre + '»');
+  }
+  t.has(await text(ia, '#main'), 'Aparece en Comida → Agregar', 'dice dónde aparece en la app');
+  if (process.env.SHOTS) { await ia.$eval('.ia-funs', e => e.scrollIntoView({ block: 'center' })); await wait(200); await ia.screenshot({ path: process.env.SHOTS + '/30-panel-funciones.png' }); }
   await ia.fill('#iaAnclaTxt', '10/11/2026'); await ia.click('[data-a="iaAncla"]'); await wait(600);
   t.eq((a.rpcs.find(r => r[0] === 'ciclo') || [])[1], { p_fin: '2026-11-10' }, 'guarda la fecha en que vencen los créditos');
   // La fecha de la política: un día pasado → desde las 00:00 del día siguiente; hoy → desde ahora.

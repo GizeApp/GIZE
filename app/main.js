@@ -2271,7 +2271,6 @@ async function plateClick(a, el){
   if (a === "plate-oil") {
     const f = FOODS.find(x => x.name === "Aceite de girasol"); if (!f) return;
     const it = plateDeAlimento(f, 10); it.manual = true; it.g0 = 10; P.items.push(it); platePaint();
-    iaToast("Sumamos 1 cucharada de aceite (10 g).");
     return;
   }
   if (a === "plate-report") {
