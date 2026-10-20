@@ -6,8 +6,9 @@
 // app/screens/coach/clientes.js: filtrada por client_id y ordenada por created_at, id), y el resto de
 // la ficha (registros, ficha, bloque, nutrición, rutina, programadas, salidas).
 // Quién mira: un coach independiente C (100 alumnos) a su alumna C1; el profe pA1 del gimnasio A (100
-// fichas) a su socia A1; la dueña dA, como profe, a A7; y la dueña a A1, que compartió (en la etapa 0
-// da 0 filas: la política de lectura de la dueña llega en la etapa 1; se mide igual, de referencia).
+// fichas) a su socia A1; la dueña dA, como profe, a A7; y la dueña a A1, que compartió (la lectura de
+// la administración, gimnasios-lectura.sql: lee sus 500 entrenos y tiene que tardar a lo sumo el doble
+// que el profe con las funciones de hoy). Todas se miden con las políticas de la etapa 1 aplicadas.
 // Cada consulta, la mejor de 3 vueltas, con JIT apagado (si no, el costo de la consulta sin índice
 // pasa el umbral del JIT y casi todo lo que se mide es compilar con LLVM, igual con las de hoy y con
 // las nuevas). Se mide dos veces: con el esquema del repo y con un índice en
@@ -116,7 +117,7 @@ export default async function ({ t }){
   await db.sql(MEDIR + ['coach_active', 'is_my_client'].map(fn => `insert into prueba.textos values ('${fn}', $t$${sentencia(atras, fn)}$t$);`).join('\n'), { una: true });
 
   const CASOS = [['C', 'C1', 'coach independiente → su alumna', 500], ['pA1', 'A1', 'profe del gimnasio → su socia', 500],
-    ['dA', 'A7', 'dueña como profe → su socio', 500], ['dA', 'A1', 'dueña → socia que compartió (etapa 1)', 0]];
+    ['dA', 'A7', 'dueña como profe → su socio', 500], ['dA', 'A1', 'dueña → socia que compartió', 500]];
   // Los nodos del plan: [tipo, tabla, índice], recorriendo los Plans de cada nodo.
   const nodos = (n, acc = []) => { if (!n) return acc; acc.push([n['Node Type'], n['Relation Name'] || null, n['Index Name'] || null]); (n.Plans || []).forEach(x => nodos(x, acc)); return acc; };
   const medir = async variante => {
@@ -140,6 +141,12 @@ export default async function ({ t }){
         t.ok(n.ms < 2000, que2 + ': menos de 2 s con las nuevas (' + n.ms + ' ms; hoy ' + v.ms + ' ms)');
         t.ok(n.ms <= Math.max(2 * v.ms, v.ms + 50), que2 + ': la nueva no es más lenta que el doble de la de hoy (hoy ' + v.ms + ' ms, nueva ' + n.ms + ' ms)');
       }
+    }
+    const de = (que, nombre) => filas.find(f => f[0] === que && f[1] === nombre);
+    for (const nombre of ['entrenos', 'resto']){
+      const [, , profeHoy] = de('profe del gimnasio → su socia', nombre) || [], [, , , duena] = de('dueña → socia que compartió', nombre) || [];
+      if (profeHoy !== undefined && duena !== undefined) t.ok(duena <= Math.max(2 * profeHoy, profeHoy + 50),
+        'la dueña leyendo a la socia que compartió (' + nombre + ', ' + variante + ') no tarda más que el doble que el profe con las funciones de hoy (' + duena + ' ms; profe hoy ' + profeHoy + ' ms)');
     }
     console.log('    ' + variante + ' (sin JIT; la mejor de 3):\n' + filas.map(([que, nombre, v, n]) => '      ' + (que + ' (' + nombre + ')').padEnd(58) + ' hoy '
       + String(v).padStart(7) + ' ms   nueva ' + String(n).padStart(7) + ' ms' + (v >= 1 ? '   ×' + (v / Math.max(n, 0.1)).toFixed(1) : '')).join('\n'));

@@ -21,6 +21,13 @@
 //     la cuenta) y después de cada una: seats_drift() vacío y seats_used = el count(*) de hoy. Al final,
 //     coach_active e is_my_client (de cada coach con todos) otra vez, sobre el estado que quedó.
 // Si una semilla da distinto, la prueba dice cuál (para repetirla) y qué dio cada versión.
+// Etapa 1 (CONTRA_SIN, abajo): además, con los cuatro archivos de los gimnasios aplicados, cada persona
+// sin gimnasio lee lo mismo que en la base de hoy (gize_sin), con los mismos datos al azar en las dos:
+// las 13 tablas del coach, profiles, coach_messages, coach_billing y los buckets avatars y chat-audio,
+// como cada coach, alumno, un admin de GIZE y sin sesión; y las operaciones de hoy (desvincularse en
+// Ajustes, el coach saca a un alumno, bloquear, vincularse, admin_unlink, admin_set_role, liberar por
+// plan vencido, borrar la cuenta de un alumno y de un coach) dan lo mismo y dejan el mismo estado
+// (perfiles, rutinas programadas, bloqueos, mensajes, cuentas). GIZE_SEMILLAS_SIN (30 por defecto).
 import { conPg, leer, volverAtras } from './pg.mjs';
 
 // La sentencia entera (create … $$;) de la última definición de public.<nombre> que empieza una línea.
@@ -280,6 +287,96 @@ begin
 end $f$;
 `;
 
+// La semilla para comparar contra gize_sin: corre igual en las dos bases (solo usa lo de hoy) y
+// devuelve lo que vio cada persona y lo que dio cada operación. Deshace todo.
+const CONTRA_SIN = `
+create schema if not exists igual;
+create or replace function igual.semilla(s int) returns jsonb language plpgsql as $f$
+declare nc int; nk int; i int; c uuid[] := '{}'; k uuid[] := '{}'; adm uuid := md5('adm:' || s)::uuid; r jsonb; lect jsonb := '{}'; ops jsonb := '[]';
+  quien uuid; otro uuid; op int; res jsonb; tb text; q text;
+  ofs interval[] := array[interval '1 hour', interval '-1 hour', interval '10 days', interval '-3 days -23 hours', interval '-4 days -1 hour', interval '-30 days'];
+  consultas text[] := array[${['body_weights', 'checkins', 'client_prefs', 'daily_logs', 'food_entries', 'sessions', 'session_entries', 'client_info', 'blocks',
+    'nutrition', 'routines', 'routine_schedule', 'cardio_outings', 'profiles', 'coach_messages', 'coach_billing'].map(tb => `'select to_jsonb(count(*)) from public.${tb}'`).join(', ')},
+    'select to_jsonb(count(*)) from storage.objects where bucket_id = ''avatars''', 'select to_jsonb(count(*)) from storage.objects where bucket_id = ''chat-audio'''];
+begin
+  perform setseed(sin(s));
+  begin
+    nc := 3 + floor(random() * 3)::int;
+    nk := 8 + floor(random() * 8)::int;
+    for i in 1..nc loop c := c || md5('scoach:' || s || ':' || i)::uuid; end loop;
+    for i in 1..nk loop k := k || md5('salumno:' || s || ':' || i)::uuid; end loop;
+    insert into auth.users (id, email, raw_user_meta_data)
+    select u, 'scoach' || o || '@ejemplo.test', jsonb_build_object('full_name', 'Coach ' || o, 'role', 'coach') from unnest(c) with ordinality x(u, o);
+    insert into auth.users (id, email, raw_user_meta_data)
+    select u, 'salumno' || o || '@ejemplo.test', jsonb_build_object('full_name', 'Alumno ' || o) from unnest(k) with ordinality x(u, o);
+    insert into auth.users (id, email, raw_user_meta_data) values (adm, 'sadmin@ejemplo.test', '{"full_name":"Admin"}');
+    insert into public.app_admins (user_id) values (adm);
+    update public.profiles p set invite_code = 'SC' || lpad(x.o::text, 6, '0') from unnest(c) with ordinality x(u, o) where p.id = x.u;
+    update public.coach_billing b set
+      plan = (array['trial', 'p10', 'p25', 'p100', 'cortesia'])[1 + floor(random() * 5)::int],
+      max_clients = 1 + floor(random() * 8)::int,
+      trial_ends_at = now() + ofs[1 + floor(random() * 6)::int],
+      paid_until = case when random() < 0.4 then null else now() + ofs[1 + floor(random() * 6)::int] end,
+      mp_preapproval_id = case when random() < 0.15 then 'preaprobacion-de-prueba' end,
+      mp_status = case when random() < 0.5 then 'authorized' else 'cancelled' end
+     where b.coach_id = any(c);
+    update public.profiles p set coach_id = case when random() < 0.2 then null else c[1 + floor(random() * nc)::int] end where p.id = any(k);
+    update public.profiles p set coach_id = c[1] where p.id = c[2] and random() < 0.5;
+    -- Los mensajes antes de los bloqueos (con un bloqueo no se pueden mandar).
+    insert into public.coach_messages (coach_id, client_id, body, sender) select coach_id, id, 'Hola', 'coach' from public.profiles where id = any(k) and coach_id is not null;
+    insert into public.user_blocks (blocker, blocked)
+    select a, b from (select k[1 + floor(random() * nk)::int] as a, c[1 + floor(random() * nc)::int] as b from generate_series(1, 3)) x where random() < 0.6 on conflict do nothing;
+    insert into public.sessions (id, client_id, performed_on, day_name) select md5('ssesion:' || u)::uuid, u, current_date, 'A' from unnest(k) u;
+    insert into public.session_entries (session_id, client_id, exercise_name, set_order, kg, reps) select md5('ssesion:' || u)::uuid, u, 'Sentadilla', 1, 50, 10 from unnest(k) u;
+    insert into public.body_weights (client_id, measured_on, kg) select u, current_date, 70 from unnest(k) u;
+    insert into public.daily_logs (client_id, log_date, steps) select u, current_date, 5000 from unnest(k) u;
+    insert into public.checkins (client_id, week_start) select u, current_date from unnest(k) u;
+    insert into public.food_entries (client_id, log_date, name) select u, current_date, 'Avena' from unnest(k) u;
+    insert into public.client_info (client_id, objective) select u, 'Fuerza' from unnest(k) u;
+    insert into public.blocks (client_id, name) select u, 'Bloque' from unnest(k) u;
+    insert into public.nutrition (client_id, kcal) select u, 2000 from unnest(k) u;
+    insert into public.client_prefs (client_id) select u from unnest(k) u;
+    insert into public.routines (client_id, days) select u, '[]' from unnest(k) u;
+    insert into public.routine_schedule (client_id, starts_on, created_by) select id, current_date + 7, coach_id from public.profiles where id = any(k) and coach_id is not null;
+    insert into public.cardio_outings (id, client_id, mode, performed_on, started_at, duration_s) select md5('ssalida:' || u)::uuid, u, 'pie', current_date, now(), 600 from unnest(k) u;
+    insert into storage.objects (bucket_id, name, owner_id) select 'avatars', u || '/perfil.jpg', u::text from unnest(c || k) u;
+    insert into storage.objects (bucket_id, name, owner_id) select 'chat-audio', coach_id || '/' || id || '/audio-de-prueba.webm', coach_id::text
+      from public.profiles where id = any(k) and coach_id is not null;
+    -- Lo que ve cada uno.
+    foreach quien in array c || k[1:5] || adm || array[null::uuid] loop
+      for i in 1..array_length(consultas, 1) loop
+        lect := lect || jsonb_build_object(coalesce(quien::text, 'anon') || ':' || i, prueba.probar(coalesce(quien::text, 'anon'), consultas[i]));
+      end loop;
+    end loop;
+    -- Las operaciones de hoy; después de cada una, el estado.
+    for i in 1..14 loop
+      op := floor(random() * 9)::int;
+      quien := k[1 + floor(random() * nk)::int];
+      otro := c[1 + floor(random() * nc)::int];
+      res := case op
+        when 0 then prueba.hacer(quien::text, format('select to_jsonb(public.join_coach(%L))', (select invite_code from public.profiles where id = otro)))
+        when 1 then prueba.hacer(otro::text, format('select to_jsonb(public.coach_remove_client(%L))', coalesce((select id from public.profiles where coach_id = otro order by id limit 1), quien)))
+        when 2 then prueba.hacer(quien::text, 'select public.block_user(''chat'')')
+        when 3 then prueba.hacer(quien::text, 'with x as (update public.profiles set coach_id = null where id = auth.uid() returning 1) select to_jsonb(count(*)) from x')
+        when 4 then prueba.hacer(adm::text, format('select to_jsonb(true) from (select public.admin_unlink(%L)) x', quien))
+        when 5 then prueba.hacer(adm::text, format('select to_jsonb(true) from (select public.admin_set_role(%L, %L)) x', (c || k)[1 + floor(random() * (nc + nk))::int], (array['client', 'coach'])[1 + floor(random() * 2)::int]))
+        when 6 then prueba.hacer('postgres', 'select to_jsonb(public.release_lapsed_clients())')
+        when 7 then prueba.hacer(quien::text, 'select to_jsonb(true) from (select public.delete_own_account()) x')
+        else prueba.hacer(otro::text, 'select to_jsonb(true) from (select public.delete_own_account()) x')
+      end;
+      ops := ops || jsonb_build_object('op', op, 'res', res,
+        'perfiles', (select jsonb_agg(jsonb_build_array(id, coach_id, role, coach_left_at is not null) order by id) from public.profiles),
+        'programadas', (select count(*) from public.routine_schedule), 'bloqueos', (select count(*) from public.user_blocks),
+        'mensajes', (select count(*) from public.coach_messages), 'cuentas', (select count(*) from auth.users), 'filas_plan', (select count(*) from public.coach_billing));
+    end loop;
+    r := jsonb_build_object('lect', lect, 'ops', ops);
+    raise exception using errcode = 'GZ998';
+  exception when sqlstate 'GZ998' then null;
+  end;
+  return r;
+end $f$;
+`;
+
 export default async function ({ t }){
   const h = await conPg(t);
   if (!h) return;
@@ -323,4 +420,29 @@ export default async function ({ t }){
   t.ok(vistos.filas_vistas > 0, 'personas que leen registros por las políticas');
   for (let op = 0; op < 8; op++) t.ok(vistos['op' + op + ':ok'] > 0, 'la operación ' + op + ' anduvo alguna vez (después de cada una, el cupo al día)');
   await db.borrar();
+
+  // ===== Etapa 1: con los cuatro archivos de los gimnasios, contra la base de hoy =====
+  const sin = await h.nueva('gize_sin'), con = await h.nueva('gize_con');
+  await sin.sql(CONTRA_SIN, { una: true });
+  await con.sql(CONTRA_SIN, { una: true });
+  const NS = Number(process.env.GIZE_SEMILLAS_SIN) || 30;
+  const distintas = [];
+  let lecturas = 0, operaciones = {}, t1 = Date.now();
+  for (let sd = desde; sd < desde + NS; sd++){
+    const [a, b] = await Promise.all([sin.json(`select igual.semilla(${sd});`), con.json(`select igual.semilla(${sd});`)]);
+    if (JSON.stringify(a) !== JSON.stringify(b)){
+      const dl = Object.keys(a.lect).filter(k => JSON.stringify(a.lect[k]) !== JSON.stringify(b.lect[k])).slice(0, 3).map(k => k + ' sin=' + JSON.stringify(a.lect[k]) + ' con=' + JSON.stringify(b.lect[k]));
+      const io = a.ops.findIndex((o, i) => JSON.stringify(o) !== JSON.stringify(b.ops[i]));
+      distintas.push({ semilla: sd, lecturas: dl, op: io < 0 ? null : { sin: a.ops[io], con: b.ops[io] } });
+      if (distintas.length >= 2) break;
+    }
+    lecturas += Object.values(a.lect).filter(v => v.ok > 0).length;
+    for (const o of a.ops) { const k = 'op' + o.op + (o.res.error ? ':error' : ':ok'); operaciones[k] = (operaciones[k] || 0) + 1; }
+  }
+  console.log('    contra gize_sin: ' + NS + ' semillas en ' + ((Date.now() - t1) / 1000).toFixed(1) + ' s: ' + JSON.stringify(operaciones));
+  t.eq(distintas.map(d => d.semilla), [], 'sin gimnasios, con los cuatro archivos aplicados, cada persona lee lo mismo que en la base de hoy (13 tablas, perfiles, mensajes, coach_billing, avatars y chat-audio) y las operaciones de hoy dan lo mismo'
+    + (distintas.length ? ': ' + JSON.stringify(distintas[0]).slice(0, 2000) : ''));
+  t.ok(lecturas > NS * 20, 'lecturas con filas: ' + lecturas);
+  for (let op = 0; op < 9; op++) t.ok(operaciones['op' + op + ':ok'] > 0, 'contra gize_sin, la operación ' + op + ' anduvo alguna vez');
+  await sin.borrar(); await con.borrar();
 }

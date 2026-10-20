@@ -774,8 +774,11 @@ revoke all on function public.gym_mi_fila_oculta() from public, anon;
 grant execute on function public.gym_mi_fila_oculta() to authenticated;
 
 drop policy if exists "billing: el coach ve la suya" on public.coach_billing;
+-- «to authenticated»: la de hoy no dice rol (vale para anon, que no ve nada porque no tiene
+-- auth.uid()); anon no puede llamar a gym_mi_fila_oculta, así que sin esto leer coach_billing sin sesión
+-- daba error en vez de vacío.
 create policy "billing: el coach ve la suya" on public.coach_billing
-  for select using (coach_id = (select auth.uid()) and not public.gym_mi_fila_oculta());
+  for select to authenticated using (coach_id = (select auth.uid()) and not public.gym_mi_fila_oculta());
 
 
 -- ===== Etapa 1: el chat dentro de un gimnasio =====
