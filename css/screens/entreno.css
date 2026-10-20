@@ -400,7 +400,7 @@ body:not(#_) .var-pick.on { border-color:var(--gize-text); }
 .gym-card-ic svg { width:17px; height:17px; }
 .gym-card-t { flex:1; min-width:0; color:var(--txt-2); overflow-wrap:anywhere; line-height:1.35; }
 .gym-card-t b { color:var(--txt); font-weight:700; }
-.gym-card-pausa { color:var(--gize-warning, #f5a524); font-weight:600; }
+.gym-card-pausa { color:color-mix(in srgb, var(--gize-warning) 72%, var(--txt)); font-weight:600; }
 .gym-card-chev { flex:none; display:flex; color:var(--txt-3); }
 .gym-card-chev svg { width:16px; height:16px; }
 .gym-card-conf { display:block; cursor:default; border-color:var(--blue); border-left-width:3px; }

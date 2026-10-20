@@ -246,7 +246,7 @@ body.adm-open { overflow: hidden; }
 .cfg-gym-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:var(--text-body); }
 .cfg-gym-k { color:var(--txt-2); min-width:56px; }
 .cfg-gym-v { flex:1; min-width:0; font-weight:600; color:var(--txt); overflow-wrap:anywhere; }
-.cfg-gym-sin { color:var(--gize-warning, #f5a524); }
+.cfg-gym-sin { color:color-mix(in srgb, var(--gize-warning) 72%, var(--txt)); }
 .cfg-gym-btn { flex:none; padding:8px 12px; border-radius:var(--r-btn); border:1px solid var(--border); background:var(--card-2); color:var(--txt);
   font:600 var(--text-meta) var(--gize-font); cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .cfg-gym-btn:focus-visible, .cfg-gym-go:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
