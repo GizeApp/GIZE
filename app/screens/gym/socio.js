@@ -134,6 +134,9 @@ function cuerpo(){
       '<div class="sheet-btns">' + btnH("cancel", "Cancelar") + '</div>';
     case "vencido": return '<div class="sheet-title" id="gysT">Link del gimnasio</div><p class="gys-p" role="alert">' + esc(S.texto || LINK_MUERTO) + '</p>' +
       '<div class="sheet-btns">' + btnH("cancel", "Entendido", "primary") + '</div>';
+    // Sin conexión al abrir el link: el token ya salió de la dirección, así que se reintenta desde acá.
+    case "sinred": return '<div class="sheet-title" id="gysT">Link del gimnasio</div><p class="gys-p" role="alert">' + esc(NO_SALIO) + '</p>' +
+      '<div class="sheet-btns">' + btnH("cancel", "Cancelar") + btnH("reintentar", "Reintentar", "primary") + '</div>';
     case "dni": return dniHtml();
     case "enviado": return enviadoHtml();
     case "listo": return listoHtml();
@@ -240,7 +243,8 @@ export async function abrirUnirme(token){
   const p = abrir({ modo: "cargando", accion: "token", token });
   const r = await rpc("gym_unirse_token_info", { token });
   if (!S || S.token !== token) return p;
-  if (r.error){ S.modo = "vencido"; S.texto = r.msg; pintar(); enfocar(); return p; }
+  // Un texto del servidor (P0001) es definitivo; sin conexión (o cualquier otro error) se puede reintentar.
+  if (r.error){ if (r.error.code === "P0001"){ S.modo = "vencido"; S.texto = r.msg; } else S.modo = "sinred"; pintar(); enfocar(); return p; }
   const d = r.data || {};
   if (d.estado !== "ok"){ S.modo = "vencido"; pintar(); enfocar(); return p; }
   S.gym = d.gym || {}; S.pideDni = !!d.pide_dni;
@@ -388,6 +392,7 @@ document.addEventListener("click", e => {
   if (a === "cancel") return cancelar();
   if (a === "ok") return enviar();
   if (a === "seguir") return seguirDni();
+  if (a === "reintentar") return S.token && abrirUnirme(S.token);
   if (a === "salir-si") return salirSi();
   if (a === "cancelar-pedido") return cancelarPedido(true);
 });

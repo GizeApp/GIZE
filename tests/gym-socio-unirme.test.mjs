@@ -108,6 +108,23 @@ export default async function ({ base, t }){
     await pg.close();
   }
 
+  // ---- Sin conexión al abrir el link: el token ya salió de la dirección, así que la hoja ofrece
+  // [Reintentar] (con el mismo token) en vez de dejarlo sin forma de seguir ----
+  {
+    let n = 0;
+    const pg = await conLink(base, { vp: M, rpc: { gym_unirse_token_info: () => ++n === 1 ? { error: 'PGRST000', msg: 'sin conexión', status: 503 } : { estado: 'ok', gym: GYM, pide_dni: true } } }), p = pg.p;
+    const txt = await hojaTxt(p);
+    t.has(txt, 'No se pudo: revisá tu conexión y probá de nuevo.', 'sin conexión: lo dice');
+    t.ok(await p.$('#gymSocioHost [data-gys-h="reintentar"]'), 'sin conexión: [Reintentar]');
+    t.eq(await p.evaluate(() => location.hash), '', 'sin conexión: el token ya no está en la dirección');
+    await captura(p, 'P3-unirme-sin-conexion');
+    await p.click('#gymSocioHost [data-gys-h="reintentar"]'); await wait(800);
+    t.eq(rpcs(pg.st, 'gym_unirse_token_info'), [{ token: TOKEN }, { token: TOKEN }], '[Reintentar] vuelve a preguntar con el mismo token');
+    t.has(await hojaTxt(p), 'los últimos 3 números de tu DNI', 'y sigue: pide los últimos 3 del DNI');
+    t.eq(pg.errs, [], 'sin conexión: sin errores');
+    await pg.close();
+  }
+
   // ---- Un coach abre el link: aviso, no se suma ----
   {
     const { handlers, st } = handlersGym(COACH, { rol: 'coach', nombre: 'Coach Prueba', gym: null });
