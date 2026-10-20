@@ -331,7 +331,7 @@ async function compartir(b){
   if (r.error){ alert(r.msg); return; }
   f.share_admin = !!(r.data && "share_admin" in r.data ? r.data.share_admin : on);
   renderApp();
-  releerGym();
+  releerGym().then(() => renderApp()); // la copia guardada, al día
 }
 
 // ---- La foto del gimnasio: el socio la propone (gym-fotos/{gimnasio}/{ficha}/…) ----
