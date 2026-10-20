@@ -14,6 +14,8 @@ import { profesDelEquipo } from './socios.js';
 
 const TABS = [["profe", "Profes"], ["admin", "Administración"], ["recepcion", "Recepción"]];
 export const linkEquipo = (token, rol) => APP_URL + "#equipo=" + token + "&rol=" + rol;
+// En las apps, sin hablar de lo que cuesta o no (nada del plan de GIZE).
+const puede = r => enApp() ? ROLES[r].puede.replace(" Entra sin cargo con su cuenta de coach.", " Entra con su cuenta de coach.") : ROLES[r].puede;
 const enTab = (p, tab) => tab === "admin" ? (p.rol === "admin" || p.rol === "owner") : p.rol === tab;
 
 export function topeTxt(){
@@ -52,7 +54,7 @@ export function renderEquipo(){
   }).join("") + '</div>';
   const filas = L.filter(p => enTab(p, tab)).map(persona).concat(inv.filter(i => i.role === tab).map(invitacion));
   const sinNadie = tab === "profe" && !L.some(p => p.rol === "profe") && !inv.some(i => i.role === "profe");
-  const cuerpo = sinNadie ? vacio("Sumá a tus profes: entran sin cargo. Cada uno ve a sus socios y vos ves lo que tus socios compartan.", btn('data-gym="invitar" data-v="profe"', "Invitar profe"))
+  const cuerpo = sinNadie ? vacio((enApp() ? "Sumá a tus profes." : "Sumá a tus profes: entran sin cargo.") + " Cada uno ve a sus socios y vos ves lo que tus socios compartan.", btn('data-gym="invitar" data-v="profe"', "Invitar profe"))
     : filas.length ? '<div class="cv-card gy-tabla gy-tabla-eq">' + filas.join("") + '</div>' : vacio("Nadie en " + (tab === "admin" ? "la administración" : "la recepción") + " todavía.", btn2('data-gym="invitar" data-v="' + tab + '"', "Invitar"));
   return head + tabs + cuerpo;
 }
@@ -92,7 +94,7 @@ export function ventanaInvitar(m){
       (rol !== "recepcion" ? '<p class="gy-fino">' + (appNativa() ? "Si todavía no tiene cuenta de coach, la crea desde gize.ar en la compu." : "Si todavía no tiene cuenta, la crea al abrir el link (como coach).") + '</p>' : '<p class="gy-fino">Si todavía no tiene cuenta, la crea al abrir el link.</p>');
   }
   return '<div class="gy-modal-h"><h2>Invitar al equipo</h2><button class="gy-x" data-gym="cerrar" aria-label="Cerrar">✕</button></div>' +
-    '<div class="gy-radios" role="radiogroup" aria-label="Rol">' + roles.map(r => '<label class="gy-radio' + (r === rol ? ' on' : '') + '"><input type="radio" name="gyRol" value="' + r + '" data-gym-in="inv-rol"' + (r === rol ? ' checked' : '') + '><b>' + ROLES[r].nombre + '</b><span>' + ROLES[r].puede + '</span></label>').join("") + '</div>' +
+    '<div class="gy-radios" role="radiogroup" aria-label="Rol">' + roles.map(r => '<label class="gy-radio' + (r === rol ? ' on' : '') + '"><input type="radio" name="gyRol" value="' + r + '" data-gym-in="inv-rol"' + (r === rol ? ' checked' : '') + '><b>' + ROLES[r].nombre + '</b><span>' + puede(r) + '</span></label>').join("") + '</div>' +
     (topeTxt() && rol !== "recepcion" ? '<p class="gy-fino">' + esc(topeTxt()) + '.</p>' : '') +
     '<div class="gy-acc">' + btn('data-gym="inv-crear"' + (GS.busy ? ' disabled' : ''), GS.busy === "invitar" ? "Creando el link…" : "Crear link de invitación") + '</div>';
 }
@@ -129,7 +131,7 @@ export function renderAceptar(){
   const titulo = g.name ? '<h1 class="gy-solo-t">' + esc(g.name) + (g.city ? ' <span class="gy-mut">(' + esc(g.city) + ')</span>' : '') + ' te invitó como ' + esc(r.corto) + '</h1>' : '<h1 class="gy-solo-t">Invitación al equipo de un gimnasio</h1>';
   const salir = '<button class="cv-link" data-gym="aceptar-no">Ahora no</button>';
   let cuerpo;
-  if (i.estado === "ok") cuerpo = '<p class="gy-p">' + esc(r.puede) + '</p><div class="gy-acc">' + btn('data-gym="aceptar-si"' + (GS.busy ? ' disabled' : ''), GS.busy === "aceptar" ? "Aceptando…" : "Aceptar") + salir + '</div>';
+  if (i.estado === "ok") cuerpo = '<p class="gy-p">' + esc(ROLES[i.role] ? puede(i.role) : "") + '</p><div class="gy-acc">' + btn('data-gym="aceptar-si"' + (GS.busy ? ' disabled' : ''), GS.busy === "aceptar" ? "Aceptando…" : "Aceptar") + salir + '</div>';
   else if (i.estado === "es_alumno") cuerpo = '<p class="gy-p">' + (i.role === "profe" ? "Para ser profe primero desvinculate de tu coach." : "Para sumarte al equipo del gimnasio primero desvinculate de tu coach en Ajustes.") + '</p><div class="gy-acc">' + salir + '</div>';
   else if (i.estado === "necesita_coach") cuerpo = '<p class="gy-p">Para ser profe necesitás una cuenta de coach.' +
     (appNativa() ? ' Creala desde gize.ar en la compu y después abrí este link de nuevo.' : ' Salí y creá una cuenta de coach con tu mail de trabajo, y después abrí este link de nuevo.') + '</p><div class="gy-acc">' + btn2('data-auth="logout"', "Salir") + salir + '</div>';

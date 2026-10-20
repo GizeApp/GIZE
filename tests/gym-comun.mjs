@@ -121,9 +121,9 @@ export function handlersGym(user, o = {}){
       const d = s ? { id: s.id, gym_id: G, member_id: s.member_id, full_name: s.nombre, dni: s.dni, phone: s.phone, email: s.email, birthdate: null, status: s.estado, apto_medico_vence: s.apto_medico_vence,
         foto_path: s.foto_path, foto_pend_path: s.foto_pendiente ? G + '/' + s.id + '/' + ID('99') + '.jpg' : null, foto_pend_at: s.foto_pendiente ? dias(-1) : null, foto_rechazo: null } : null;
       return J(i.one ? d : (d ? [d] : [])); },
-    '/gym_member_notes': (rt, J, i) => J(i.one ? { body: 'Prefiere entrenar a la tarde', updated_at: dias(-5) } : []),
+    '/gym_member_notes': (rt, J, i) => { const n = { body: 'Prefiere entrenar a la tarde', updated_at: dias(-5) }; return J(i.one ? n : [n]); },
     '/gym_entries': (rt, J, i) => J([{ at: dias(0), method: 'manual', result: 'ok' }, { at: dias(-2), method: 'manual', result: 'ok' }]),
-    '/gyms': (rt, J, i) => J(i.one ? { dpa_version: '2026-10-borrador', dpa_at: dias(-300) } : []),
+    '/gyms': (rt, J, i) => { const g = { dpa_version: '2026-10-borrador', dpa_at: dias(-300) }; return J(i.one ? g : [g]); },
   };
   for (const k of Object.keys(fns)) handlers['/rpc/' + k] = (rt, J, i) => {
     let body = {}; try { body = JSON.parse(i.body || '{}'); } catch (e) {}

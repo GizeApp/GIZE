@@ -288,7 +288,7 @@ const aprobar = ocupado("sol", async (id, unir) => {
   const f = GS.solForm[id] || {};
   const r = await rpc("gym_aprobar", { ficha: id, profe: f.profe || null, unir_a_ficha: unir || null, foto_ok: !!f.foto });
   if (r.error){ alert(r.msg); return; }
-  GS.solicitudes = (GS.solicitudes || []).filter(s => s.id !== id);
+  GS.solicitudes = (GS.solicitudes || []).filter(s => s.id !== id); delete GS.solForm[id];
   despues();
 });
 

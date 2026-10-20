@@ -4,7 +4,7 @@
 // nadie del gimnasio lee los chats); el contrato de encargo; la marca (próximamente); exportar; y la
 // zona de cuidado, solo para el dueño (pedir cambio de dueño y cerrar el gimnasio).
 import { esc } from '../../core/utils.js';
-import { GS, info, gym, esDueno, fecha, plural } from './estado.js';
+import { GS, info, gym, esDueno, enApp, fecha } from './estado.js';
 import { cabeza, btn, btn2 } from './marco.js';
 import { PRIVACIDAD } from './textos.js';
 import { profesDelEquipo, linkCodigo } from './socios.js';
@@ -44,7 +44,7 @@ export function renderConfig(){
     '<section class="cv-card gy-sec"><h2 class="gy-h">Contrato de encargo</h2><p class="gy-p">' + (dpa.dpa_version ? 'Versión ' + esc(dpa.dpa_version) + ', aceptada el ' + fecha(dpa.dpa_at) + '.' : 'El que se aceptó al crear el gimnasio.') + '</p>' +
       '<p class="gy-fino">GIZE guarda los datos de tus socios por encargo del gimnasio y solo para prestar el servicio.</p></section>' +
     '<section class="cv-card gy-sec"><h2 class="gy-h">Marca</h2><p class="gy-p">Próximamente: tu logo y tus colores en la app de tus socios.</p></section>' +
-    '<section class="cv-card gy-sec"><h2 class="gy-h">Exportar</h2><p class="gy-fino">Socios, ingresos y equipo en CSV (se abre con Excel o Google Sheets). Anda siempre, aunque venza el plan.</p>' +
+    '<section class="cv-card gy-sec"><h2 class="gy-h">Exportar</h2><p class="gy-fino">Socios, ingresos y equipo en CSV (se abre con Excel o Google Sheets). Anda siempre' + (enApp() ? '.' : ', aunque venza el plan.') + '</p>' +
       '<div class="gy-acc">' + btn2('data-gym="exportar" data-v="todo"', "Exportar todo") + btn2('data-gym="exportar" data-v="socios"', "Socios") + btn2('data-gym="exportar" data-v="ingresos"', "Ingresos") + btn2('data-gym="exportar" data-v="equipo"', "Equipo") + '</div></section>' +
     (esDueno() ? '<section class="cv-card gy-sec gy-cuidado"><h2 class="gy-h">Zona de cuidado</h2>' +
       '<div class="gy-kv"><span>Cambio de dueño</span><div><p class="gy-fino">Lo hace el equipo de GIZE.</p><a class="co-copy-btn cv-sec-btn gy-btn2" href="' + esc("https://wa.me/" + WA_GIZE + "?text=" + encodeURIComponent("Hola! Quiero pasar el gimnasio " + (g.name || "") + " a otra persona.")) + '" target="_blank" rel="noopener">Pedir cambio de dueño</a></div></div>' +
