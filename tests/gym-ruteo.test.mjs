@@ -7,7 +7,7 @@
 // de alguien que ya es del equipo abre su panel.
 import fs from 'node:fs';
 import { wait } from './lib.mjs';
-import { entrar, miGimnasio, DUENA, ADMIN_G, PROFE, RECEP, ALUMNO, hostTxt, D } from './gym-comun.mjs';
+import { entrar, miGimnasio, DUENA, ADMIN_G, PROFE, RECEP, ALUMNO, S, hostTxt, ir, D, M } from './gym-comun.mjs';
 
 const enPanel = p => p.evaluate(() => ({ gym: !!document.querySelector('#coachHost .gy-shell'), coach: !!document.querySelector('#coachHost .cv-shell:not(.gy-shell)'),
   app: getComputedStyle(document.getElementById('coachHost')).display === 'none' && !!document.getElementById('nav-entreno'), solo: !!document.querySelector('#coachHost .gy-solo') }));
@@ -30,12 +30,35 @@ export default async function ({ base, t }){
     t.eq(pg.errs, [], 'dueña: sin errores');
     await pg.close();
   }
+  // Dueña con una alumna propia de antes (online, de afuera del gimnasio): «Como profe → Mis alumnos»
+  // abre la lista de Clientes de hoy adentro del marco, con su ficha (y el chat); en el celular, en «Más».
+  for (const vp of [D, M]){
+    const VALERIA = { id: '44444444-4444-4444-4444-444444444444', full_name: 'Valeria Online', role: 'client', coach_id: DUENA.id };
+    const pg = await entrar(base, DUENA, { vp, alumnos: [VALERIA, { id: S.A7, full_name: 'Pedro Álvarez', role: 'client', coach_id: DUENA.id }] });
+    const n = vp === D ? 'compu' : 'celular';
+    if (vp === M){ await pg.p.click('#coachHost [data-gym="mas"]'); await wait(400); }
+    const b = vp === D ? '#coachHost [data-coach="view-clients"][data-gy-coach]' : '#gymModal [data-coach="view-clients"][data-gy-coach]';
+    t.ok(!!(await pg.p.$(b)), n + ': «Mis alumnos» en el marco del gimnasio');
+    await pg.p.click(b); await wait(900);
+    let txt = await hostTxt(pg.p);
+    t.ok((await enPanel(pg.p)).gym && txt.includes('Valeria Online'), n + ': «Mis alumnos» muestra a su alumna propia adentro del marco: ' + txt.slice(0, 200));
+    if (vp === D) t.ok(await pg.p.evaluate(() => /Mis alumnos/.test((document.querySelector('#coachHost .gy-nav [aria-current="page"]') || {}).innerText || '')), 'compu: «Mis alumnos» marcada');
+    await pg.p.click('#coachHost [data-coach="open"][data-id="' + VALERIA.id + '"]'); await wait(1500);
+    txt = await hostTxt(pg.p);
+    t.ok((await enPanel(pg.p)).gym && txt.includes('Valeria Online') && !!(await pg.p.$('#coachHost [data-coach="back"]')), n + ': abre su ficha (con el chat) adentro del marco');
+    await pg.p.click('#coachHost [data-coach="back"]'); await wait(900);
+    t.has(await hostTxt(pg.p), 'Valeria Online', n + ': «Volver» va a «Mis alumnos»');
+    await ir(pg.p, 'socios');
+    if (vp === D) t.has(await hostTxt(pg.p), 'Martina Sosa', n + ': y de ahí a Socios');
+    t.eq(pg.errs, [], n + ': sin errores');
+    await pg.close();
+  }
   // Administración con una cuenta común (no de coach): el panel, sin «Como profe» ni «Mi cuenta».
   {
     const pg = await entrar(base, ADMIN_G, { gym: miGimnasio('admin'), rol: 'client', nombre: 'Diego Admin' });
     const v = await enPanel(pg.p), txt = await hostTxt(pg.p);
     t.ok(v.gym && !v.app, 'administración (cuenta común): abre el panel del gimnasio, no la app del alumno');
-    t.ok(!/como profe|mi cuenta/i.test(txt), 'sin «Como profe» ni «Mi cuenta» (no es coach)');
+    t.ok(!/como profe|mi cuenta|mis alumnos/i.test(txt), 'sin «Como profe», «Mis alumnos» ni «Mi cuenta» (no es coach)');
     // La app redibuja seguido (renderApp): el panel sigue.
     await pg.p.evaluate(async () => { const m = await import('/app/main.js'); m.renderApp(); m.renderApp(); });
     await wait(300);

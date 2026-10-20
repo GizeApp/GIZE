@@ -56,7 +56,7 @@ function modo(){
   return null;
 }
 // ¿Hay algo del panel de coach abierto adentro del marco?
-const coachAdentro = () => !!(CoachState.coachSel || CoachState.coachTplEdit || CoachState.coachMealEdit || ["tpls", "meals", "settings"].includes(CoachState.coachView));
+const coachAdentro = () => !!(CoachState.coachSel || CoachState.coachTplEdit || CoachState.coachMealEdit || ["clients", "tpls", "meals", "settings"].includes(CoachState.coachView));
 function soltarCoach(){
   CoachState.coachSel = null; CoachState.coachData = null; CoachState.coachLectura = null; CoachState.coachTplEdit = null; CoachState.coachMealEdit = null;
   CoachState.coachView = "home";
@@ -318,6 +318,7 @@ async function alTocarAntes(e){
   const c = e.target.closest && e.target.closest("[data-gy-coach]");
   if (c && esPanelGym()){
     if (GS.view !== "coach"){ GS.vuelta = GS.view === "ficha" ? "socios" : GS.view; GS.view = "coach"; }
+    else if (GS.vuelta === "ficha") GS.vuelta = "socios"; // de la ficha de entrenamiento de un socio a otra opción
     CoachState.coachSel = null; CoachState.coachData = null; CoachState.coachLectura = null; CoachState.coachTplEdit = null; CoachState.coachMealEdit = null;
     if (GS.modal) cerrarModal();
     return;
@@ -421,6 +422,8 @@ async function alTocar(e){
   }
   if (a === "entreno" && s && s.member_id){
     GS.vuelta = "ficha"; GS.view = "coach";
+    // Al volver de la ficha de entrenamiento, a la ficha del socio (no a «Mis alumnos»).
+    CoachState.coachView = "home"; CoachState.coachTplEdit = null; CoachState.coachMealEdit = null;
     CoachState.coachClientTab = "ficha"; CoachState.coachSec = null; CoachState.coachPlanSec = null;
     if (b.dataset.m === "lectura") openClient(s.member_id, false, { nombre: s.nombre, avatar: s.avatar_path || null, profe: s.profe ? s.profe.name : null });
     else openClient(s.member_id);

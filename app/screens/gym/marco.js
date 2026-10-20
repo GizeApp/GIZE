@@ -1,10 +1,14 @@
 // El marco del panel del gimnasio: el mismo de coachShell (app/screens/coach/panel.js: barra lateral en
 // la compu, píldora abajo en el celular) con otras opciones y la marca del gimnasio. En el celular la
 // píldora tiene Inicio, Socios, Asistencia y «Más» (el resto, en una hoja).
-// Las opciones «Como profe» (Rutinas y Planes alimenticios) y «Mi cuenta» abren las pantallas de hoy
-// del panel de coach (data-coach), adentro de este mismo marco; solo con cuenta de coach.
+// Las opciones «Como profe» (Mis alumnos, Rutinas y Planes alimenticios) y «Mi cuenta» abren las
+// pantallas de hoy del panel de coach (data-coach), adentro de este mismo marco; solo con cuenta de
+// coach. «Mis alumnos» es la lista de Clientes de hoy (sus alumnos propios, de afuera del gimnasio, y
+// los socios que atiende como profe), con su ficha y el chat: sin esto, la dueña o la administración
+// con alumnos propios no tenía cómo llegar a ellos.
 import { esc } from '../../core/utils.js';
 import { gearSvg } from '../../core/icons.js';
+import { CoachState } from '../coach/state.js';
 import { GS, info, gym, soyCoach, enApp } from './estado.js';
 
 const ico = d => '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
@@ -19,6 +23,7 @@ export const I = {
   star: ico('<path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/>'),
   more: ico('<circle cx="5.5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18.5" cy="12" r="1.4"/>'),
   user: ico('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/>'),
+  alumnos: ico('<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="11" r="2.2"/><path d="M5.8 16.2c.6-1.6 1.8-2.4 3.2-2.4s2.6.8 3.2 2.4M14.5 10h3.5M14.5 13.5h3.5"/>'),
 };
 
 // [clave, texto, ícono, atributos, en la píldora del celular]
@@ -30,7 +35,9 @@ function opciones(){
     ["profes", "Profes", I.team, 'data-gym="ir" data-v="profes"', false],
     ["asistencia", "Asistencia", I.check, 'data-gym="ir" data-v="asistencia"', true],
   ];
-  if (coach) L.push(["-", "Como profe"],
+  if (coach) L.push(["-", "Como profe"]);
+  if (coach && CoachState.coachClients.length) L.push(["alumnos", "Mis alumnos", I.alumnos, 'data-coach="view-clients" data-gy-coach="1"', false]);
+  if (coach) L.push(
     ["tpls", "Rutinas", I.dumbbell, 'data-coach="view-tpls" data-gy-coach="1"', false],
     ["meals", "Planes<span class=\"cv-more\"> alimenticios</span>", I.fork, 'data-coach="view-meals" data-gy-coach="1"', false]);
   L.push(["-", ""],
@@ -41,10 +48,11 @@ function opciones(){
   return L;
 }
 // Lo que dibuja el panel de coach adentro del marco (coachShell): su opción marcada.
-const DE_COACH = { home: "inicio", clients: "socios", tpls: "tpls", meals: "meals", settings: "cuenta" };
+// La ficha de entrenamiento abierta desde la ficha de un socio va con Socios; desde «Mis alumnos», con esa.
+const DE_COACH = { home: "inicio", tpls: "tpls", meals: "meals", settings: "cuenta" };
 
 export function marcoGym(active, inner){
-  const on = DE_COACH[active] || active;
+  const on = active === "clients" ? (GS.vuelta === "ficha" ? "socios" : "alumnos") : DE_COACH[active] || active;
   const ops = opciones(), g = gym();
   const boton = o => {
     if (o[0] === "-") return o[1] ? '<div class="gy-nav-sec" aria-hidden="true">' + esc(o[1]) + '</div>' : '<div class="gy-nav-sep" aria-hidden="true"></div>';
