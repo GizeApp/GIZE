@@ -17,12 +17,15 @@ const ALUMNO = '11111111-1111-1111-1111-111111111111', COACH = '33333333-3333-33
 const AVISO = 'No se pueden mandar mensajes en esta conversación.';
 const BLOQUEO = { code: 'P0001', message: AVISO };
 
-async function mandar({ base, de = ALUMNO }){
+async function mandar({ base, de = ALUMNO, gym = null }){
   const orden = [];
   const db = supabaseSimulado(q => {
     if (q.tabla === 'profiles' && q.columnas === 'id, coach_id, full_name') return { data: { id: ALUMNO, coach_id: COACH, full_name: 'Ana' } };
     if (q.tabla === 'profiles') return { data: { full_name: 'Coach Prueba' } };
     if (q.tabla === 'coach_active') return { data: true };
+    // Gimnasios (etapa 1): rapid-worker pregunta coach_client_ok y el gimnasio de la conversación.
+    if (q.tabla === 'coach_client_ok') return { data: true };
+    if (q.tabla === 'vinculo_gym') return { data: gym };
     if (q.tabla === 'coach_messages' && q.accion === 'select') return { count: 0 };
     if (q.tabla === 'push_subscriptions' && q.accion === 'select') return { data: [{ id: 's1', endpoint: 'https://fcm.googleapis.com/fcm/send/x', p256dh: 'p', auth: 'a' }] };
     if (q.tabla === 'chat_guardar'){ orden.push('guardar'); return base === 'sin funcion' ? { error: { code: 'PGRST202', message: 'no existe chat_guardar' } } : { error: BLOQUEO }; }
@@ -52,4 +55,9 @@ export default async function ({ t }){
   x = await mandar({ base: 'sin funcion' });
   t.eq([x.status, x.res.error], [403, AVISO], 'sin chat_guardar (guarda directo): el mismo aviso');
   t.eq(x.orden, ['guardar', 'insert'], 'sin chat_guardar: intenta guardar directo y no avisa');
+  // Dentro de un gimnasio (el profe con su socio), un bloqueo corta igual y con el mismo aviso.
+  for (const de of [ALUMNO, COACH]){
+    x = await mandar({ base: 'ok', de, gym: 'a0000000-0000-4000-8000-00000000aaaa' });
+    t.eq([x.status, x.res.error, x.orden], [403, AVISO, ['guardar']], (de === ALUMNO ? 'socio → profe' : 'profe → socio') + ' del gimnasio con un bloqueo: el mismo aviso, sin aviso al celular');
+  }
 }

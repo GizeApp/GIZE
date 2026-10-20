@@ -53,13 +53,19 @@ export default async function ({ t }){
   // El alumno le escribe a su coach (que tiene un navegador con los avisos prendidos).
   // base: cómo contesta la base. antes: mensajes del último minuto al empezar.
   const ALUMNO = '11111111-1111-1111-1111-111111111111', COACH = '33333333-3333-3333-3333-333333333333';
-  const mandar = async ({ base = 'ok', antes = 0, despues = antes + 1, clientId = ALUMNO, body = 'Hola' } = {}) => {
-    const orden = [], hechos = { guardar: null, insert: 0, borrados: [], delivered: null };
+  // ok: lo que contesta coach_client_ok (true, false o 'sin' = la función todavía no está en la base);
+  // activo: coach_active; gym: lo que contesta vinculo_gym; de: quién escribe.
+  const GYM = 'a0000000-0000-4000-8000-00000000aaaa';
+  const mandar = async ({ base = 'ok', antes = 0, despues = antes + 1, clientId = ALUMNO, body = 'Hola', ok = true, activo = true, gym = null, de = ALUMNO } = {}) => {
+    const orden = [], hechos = { guardar: null, insert: 0, insertado: null, borrados: [], delivered: null, rpcs: [] };
     let conteos = 0;
     const db = supabaseSimulado(q => {
       if (q.tabla === 'profiles' && q.columnas === 'id, coach_id, full_name')
         return { data: String(q.filtros[0][2]).toLowerCase() === ALUMNO ? { id: ALUMNO, coach_id: COACH, full_name: 'Ana' } : null };
-      if (q.tabla === 'coach_active') return { data: true };
+      if (q.accion === 'rpc') hechos.rpcs.push([q.tabla, q.valores]);
+      if (q.tabla === 'coach_active') return { data: activo };
+      if (q.tabla === 'coach_client_ok') return ok === 'sin' ? { error: { code: 'PGRST202', message: 'no existe coach_client_ok' } } : { data: ok };
+      if (q.tabla === 'vinculo_gym') return ok === 'sin' ? { error: { code: 'PGRST202', message: 'no existe vinculo_gym' } } : { data: gym };
       if (q.tabla === 'coach_messages' && q.accion === 'select'){
         conteos++; if (base === 'no cuenta') return { error: { code: '57014', message: 'tardó demasiado' } };
         return { count: conteos === 1 ? antes : despues };
@@ -72,11 +78,11 @@ export default async function ({ t }){
         if (base === 'tope') return { data: null };
         return { data: { id: 'm1', created_at: '2026-10-09T12:00:00Z' } };
       }
-      if (q.tabla === 'coach_messages' && q.accion === 'insert'){ orden.push('guardar'); hechos.insert++; return { data: { id: 'm2', created_at: '2026-10-09T12:00:00Z' } }; }
+      if (q.tabla === 'coach_messages' && q.accion === 'insert'){ orden.push('guardar'); hechos.insert++; hechos.insertado = q.valores; return { data: { id: 'm2', created_at: '2026-10-09T12:00:00Z' } }; }
       if (q.tabla === 'coach_messages' && q.accion === 'delete'){ hechos.borrados.push(q.filtros[0][2]); return { data: null }; }
       if (q.tabla === 'coach_messages' && q.accion === 'update'){ hechos.delivered = q.valores.delivered; return { data: null }; }
       return { data: null };
-    }, { user: { id: ALUMNO } });
+    }, { user: { id: de } });
     const fn = await funcion('notificar-cliente', {
       env: { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'srv', VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv' },
       npm: { '@supabase/supabase-js': { createClient: () => db }, 'web-push': { default: { setVapidDetails(){}, sendNotification: async () => { orden.push('aviso'); return { statusCode: 201 }; } } } },
@@ -104,4 +110,30 @@ export default async function ({ t }){
   t.ok(x.status === 200 && x.insert === 1 && x.borrados.length === 0 && x.orden.join() === 'guardar,guardar,aviso', 'sin chat_guardar: guarda directo y avisa');
   x = await mandar({ base: 'sin funcion', antes: 29, despues: 31 });
   t.ok(x.status === 429 && x.borrados.join() === 'm2' && !x.orden.includes('aviso'), 'sin chat_guardar: el que se pasa de 30 se borra, 429 y sin aviso');
+
+  // ---- Gimnasios (etapa 1): coach_client_ok decide por la relación y el mensaje lleva el gimnasio ----
+  x = await mandar();
+  t.eq(x.rpcs.filter(r => r[0] !== 'chat_guardar'), [['coach_client_ok', { coach: COACH, client: ALUMNO }], ['vinculo_gym', { p: ALUMNO }]],
+    'pregunta coach_client_ok (coach y alumno como están en la base) y el gimnasio de la conversación; no coach_active');
+  x = await mandar({ ok: false, activo: true });
+  t.ok(x.status === 402 && x.orden.length === 0 && x.res.error === 'Tu coach tiene el plan de GIZE vencido: por ahora no le llegan mensajes.',
+    'alumno propio con el plan del coach vencido: como hoy (402, sin guardar ni avisar): ' + JSON.stringify(x.res));
+  x = await mandar({ ok: false, activo: true, gym: GYM });
+  t.ok(x.status === 402 && x.orden.length === 0 && x.res.error === 'El acceso de GIZE de tu gimnasio está pausado: por ahora no le llegan mensajes a tu profe.',
+    'socio del gimnasio con el acceso de los profes pausado: 402 aunque el plan propio del profe esté al día, sin nombrar planes: ' + JSON.stringify(x.res));
+  x = await mandar({ ok: false, gym: GYM, de: COACH });
+  t.ok(x.status === 402 && x.res.error === 'El acceso del gimnasio está pausado. Hablá con la administración.', 'el profe que escribe con el acceso pausado: el mismo cartel que en el panel');
+  t.ok(!/renov|pag|\$/i.test(x.res.error), 'el texto no manda a renovar ni a pagar (lo ven las apps)');
+  x = await mandar({ ok: true, activo: false, gym: GYM });
+  t.ok(x.status === 200 && x.res.saved === true, 'socio del gimnasio con el plan propio del profe vencido: el mensaje sale (manda el plan del gimnasio)');
+  x = await mandar({ base: 'sin funcion', gym: GYM });
+  t.ok(x.status === 200 && x.insertado && x.insertado.gym_id === GYM, 'sin chat_guardar: el guardado de respaldo lleva el gimnasio (gym_id)');
+  x = await mandar({ base: 'sin funcion' });
+  t.ok(x.status === 200 && x.insertado && !('gym_id' in x.insertado), 'sin gimnasio: el guardado de respaldo queda como hoy (sin gym_id)');
+  // Mientras gimnasios-vinculo.sql no esté en la base: coach_active, como antes.
+  x = await mandar({ ok: 'sin', activo: false });
+  t.ok(x.status === 402 && x.rpcs.some(r => r[0] === 'coach_active' && r[1].cid === COACH) && !x.rpcs.some(r => r[0] === 'vinculo_gym'),
+    'sin coach_client_ok en la base: coach_active como antes (y no pregunta el gimnasio)');
+  x = await mandar({ ok: 'sin', activo: true });
+  t.ok(x.status === 200 && x.res.saved === true, 'sin coach_client_ok y con el plan al día: se manda como hoy');
 }

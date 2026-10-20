@@ -157,4 +157,42 @@ export default async function ({ t }){
   t.eq(await corrida(503), { sent: 0, liberados: [1] }, 'avisos-coach: con 503, se libera');
   t.eq(await corrida(400), { sent: 0, liberados: [] }, 'avisos-coach: con 400, no se libera');
   t.eq(await corrida('claves'), { sent: 0, liberados: [] }, 'avisos-coach: con las claves mal armadas no se libera (antes se reintentaba cada minuto durante una hora)');
+
+  // ---- Gimnasios (etapa 1): cada alumno según coach_client_ok ----
+  // El coach c1 tiene dos check-ins: de k1 (socia del gimnasio) y de k2 (alumno propio). ok: lo que
+  // contesta coach_client_ok por alumno ('sin' = la función todavía no está en la base); activo: coach_active.
+  const gym = async ({ ok, activo = true }) => {
+    const ahora = new Date().toISOString(), rpcs = [], cuerpos = [];
+    const db = supabaseSimulado(q => {
+      if (q.accion === 'rpc') rpcs.push([q.tabla, q.valores]);
+      if (q.tabla === 'coach_alerts' && q.accion === 'update'){
+        if (q.valores.sent_at === null) return { data: null };
+        return { data: [{ id: 1, coach_id: 'c1', client_id: 'k1', kind: 'checkin', key: 'a', days: null, created_at: ahora },
+          { id: 2, coach_id: 'c1', client_id: 'k2', kind: 'checkin', key: 'b', days: null, created_at: ahora }] };
+      }
+      if (q.tabla === 'push_subscriptions' && q.accion === 'select') return { data: [{ id: 's1', user_id: 'c1', endpoint: 'https://fcm.googleapis.com/fcm/send/x', p256dh: 'P'.repeat(87), auth: 'A'.repeat(22) }] };
+      if (q.tabla === 'profiles') return { data: [{ id: 'k1', full_name: 'Martina Sosa', coach_id: 'c1' }, { id: 'k2', full_name: 'Tomás Herrera', coach_id: 'c1' }] };
+      if (q.tabla === 'coach_client_ok') return ok === 'sin' ? { error: { code: 'PGRST202', message: 'no existe' } } : { data: ok[q.valores.client] };
+      if (q.tabla === 'coach_active') return { data: activo };
+      return { data: null };
+    });
+    const wp = { setVapidDetails(){}, generateRequestDetails: () => ({}), sendNotification: async (sub, payload) => { cuerpos.push(JSON.parse(payload).body); return { statusCode: 201 }; } };
+    const fn = await funcion('avisos-coach', { env: { VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv', SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'srv' },
+      npm: { '@supabase/supabase-js': { createClient: () => db }, 'web-push': { default: wp } } });
+    const r = await (await fn.call(new Request('https://x.supabase.co/functions/v1/avisos-coach', { method: 'POST' }))).json();
+    return { sent: r.sent, cuerpos, rpcs: rpcs.map(x => x[0] + (x[1].client ? ':' + x[1].client : '')).sort() };
+  };
+  let g = await gym({ ok: { k1: true, k2: true } });
+  t.eq([g.sent, g.cuerpos, g.rpcs], [1, ['Martina y Tomás mandaron su check-in semanal.'], ['coach_client_ok:k1', 'coach_client_ok:k2']],
+    'avisos-coach: pregunta coach_client_ok por cada alumno (no coach_active) y, con los dos al día, avisa de los dos');
+  g = await gym({ ok: { k1: false, k2: true } });
+  t.eq([g.sent, g.cuerpos], [1, ['Tomás mandó su check-in semanal.']], 'avisos-coach: con el acceso del gimnasio pausado, sin el aviso de la socia; el del alumno propio sale igual');
+  g = await gym({ ok: { k1: true, k2: false } });
+  t.eq([g.sent, g.cuerpos], [1, ['Martina mandó su check-in semanal.']], 'avisos-coach: con el plan propio del profe vencido, solo el de la socia del gimnasio (manda el plan del gimnasio)');
+  g = await gym({ ok: { k1: false, k2: false } });
+  t.eq([g.sent, g.cuerpos], [0, []], 'avisos-coach: ninguno al día, ningún aviso');
+  g = await gym({ ok: 'sin', activo: false });
+  t.eq([g.sent, g.rpcs.includes('coach_active')], [0, true], 'avisos-coach: sin coach_client_ok en la base, coach_active como antes (vencido: nada)');
+  g = await gym({ ok: 'sin', activo: true });
+  t.eq(g.sent, 1, 'avisos-coach: sin coach_client_ok y con el plan al día, como hoy');
 }

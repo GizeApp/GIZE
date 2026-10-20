@@ -12,7 +12,7 @@
 // - El gym_id de cada mensaje lo pone la base (trigger coach_messages_gym), también lo que guarda
 //   chat_guardar; chat_unread y chat_mark_read siguen la misma regla que la política del coach.
 import { conPg } from './pg.mjs';
-import { P, F, G, DATOS, ayudas, rpc, nom, conCanon } from './gimnasios-comun.mjs';
+import { P, F, G, DATOS, ayudas, rpc, nom, conCanon, VENCE } from './gimnasios-comun.mjs';
 
 const AUDIO = `${P.pA1}/${P.A1}/audio-de-prueba-01.webm`, AUDIO_P1 = `${P.pA1}/${P.P1}/audio-de-prueba-02.webm`, AUDIO_C = `${P.C}/${P.C1}/audio-de-prueba-03.webm`;
 const mensajes = `select coalesce(jsonb_agg(coach_id::text || '→' || client_id::text), '[]') from public.coach_messages`;
@@ -97,5 +97,22 @@ export default async function ({ t: t0 }){
   t.eq([x[9], x[10]], [0, []], 'pA1 no puede marcar como visto lo de A1 (A1 no ve «Visto»), y el profe nuevo no tiene esos sin leer');
   t.eq(x[11], ['Bien', 'Mensaje nuevo por rapid-worker'], 'A1 sigue viendo todo lo que mandó');
   t.eq(await J('select prueba.invariantes();'), [], 'invariantes');
+
+  // ===== Lo que pregunta rapid-worker (y avisos-coach) con el service role, según el plan =====
+  // coach_client_ok decide el corte y vinculo_gym da el gym_id del mensaje (y el texto del 402).
+  const vg = s => ['servicio', `select to_jsonb(public.vinculo_gym('${P[s]}'))`];
+  const rw = [ok('pA1', 'A2'), ok('pA1', 'P1'), ok('C', 'C1'), vg('A2'), vg('P1'), vg('C1')];
+  x = await V(rw);
+  t.eq([x.slice(0, 3), x.slice(3).map(nom)], [[true, true, true], ['A', null, null]],
+    'rapid-worker: plan del gimnasio al día, el profe le escribe a su socio y a su alumno propio; el gym_id sale solo para el socio');
+  x = await V([['postgres', VENCE('dA', '3 days')], ...rw]);
+  t.eq(x.slice(1, 4), [true, true, true], 'rapid-worker: gimnasio en gracia (3 días), el chat sigue');
+  x = await V([['postgres', VENCE('dA', '6 days')], ...rw]);
+  t.eq([x.slice(1, 4), nom(x[4])], [[false, true, true], 'A'],
+    'rapid-worker: con el acceso de los profes pausado (6 días), se corta el chat del profe con su socio (402 con el texto del gimnasio), no con su alumno propio ni el de un coach independiente');
+  x = await V([['postgres', VENCE('pA1', '10 days')], ...rw]);
+  t.eq(x.slice(1, 4), [true, false, true], 'rapid-worker: con el plan propio del profe vencido, sigue con su socio (manda el gimnasio) y se corta con su alumno propio');
+  x = await V([['postgres', `select prueba.hacer('${P.pA1}', $q$select to_jsonb(public.gym_dejar_socio('${F.A2}'))$q$)`], ok('pA1', 'A2'), vg('A2')]);
+  t.eq([x[1], x[2]], [false, null], 'rapid-worker: el profe que dejó al socio ya no le escribe y el socio ya no tiene gimnasio en la conversación');
   await db.borrar();
 }

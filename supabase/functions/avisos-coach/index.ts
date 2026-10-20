@@ -226,9 +226,28 @@ Deno.serve(async (req) => {
   const porCoach = async (coachId: string): Promise<{ sent: number; retry: number[] }> => {
     const mine = (subs || []).filter((s) => s.user_id === coachId) as Sub[];
     if (!mine.length) return { sent: 0, retry: [] }; // el coach no activó los avisos en ningún dispositivo
-    const { data: active } = await db.rpc("coach_active", { cid: coachId });
-    if (active === false) return { sent: 0, retry: [] };
-    const list = alerts.filter((a) => a.coach_id === coachId && stillMine(a));
+    // Gimnasios (etapa 1, supabase/gimnasios-vinculo.sql): cada alumno según la relación
+    // (coach_client_ok). Un socio que el profe atiende en el gimnasio va con el plan del gimnasio (con
+    // el acceso de los profes pausado, sin avisos de ese socio); un alumno propio o de un coach de
+    // afuera, con el plan del coach, como hoy. Mientras ese SQL no esté en la base (la función no
+    // existe), coach_active para todos, como antes.
+    const mios = alerts.filter((a) => a.coach_id === coachId && stillMine(a));
+    const clientes = [...new Set(mios.map((a) => a.client_id))];
+    const okDe: Record<string, boolean> = {};
+    const r0 = clientes.length ? await db.rpc("coach_client_ok", { coach: coachId, client: clientes[0] }) : { data: true, error: null };
+    if (r0.error && (r0.error.code === "PGRST202" || r0.error.code === "42883")) {
+      const { data: active } = await db.rpc("coach_active", { cid: coachId });
+      if (active === false) return { sent: 0, retry: [] };
+      clientes.forEach((c) => { okDe[c] = true; });
+    } else {
+      okDe[clientes[0]] = r0.data !== false;
+      await Promise.all(clientes.slice(1).map(async (c) => {
+        const { data } = await db.rpc("coach_client_ok", { coach: coachId, client: c });
+        okDe[c] = data !== false;
+      }));
+    }
+    const list = mios.filter((a) => okDe[a.client_id]);
+    if (!list.length) return { sent: 0, retry: [] };
     const msgs: Msg[] = [];
 
     const ci = list.filter((a) => a.kind === "checkin"), checkins = ci.map((a) => nameOf(a.client_id));

@@ -140,13 +140,28 @@ Deno.serve(async (req) => {
     if (!ok || audioSecs < 1 || audioSecs > 180) return json({ error: "Audio inválido" }, 400);
   }
 
-  // Con el plan del coach vencido no hay mensajes (ver supabase/suscripciones.sql). Si la
-  // función coach_active todavía no existe (falta ese SQL), no se bloquea. El texto no manda a
-  // renovar: lo ven también las apps de Android e iPhone (Google y Apple no dejan mandar a pagar
-  // por fuera de sus tiendas). En la web, renovar está en Mi plan.
-  const { data: active, error: actErr } = await admin.rpc("coach_active", { cid: coachId });
-  if (!actErr && active === false) {
-    return json({ error: fromClient ? "Tu coach tiene el plan de GIZE vencido: por ahora no le llegan mensajes." : "Tu plan de GIZE está vencido: por ahora no podés mandar mensajes." }, 402);
+  // Con el plan del coach vencido no hay mensajes (ver supabase/suscripciones.sql). Gimnasios (etapa 1,
+  // supabase/gimnasios-vinculo.sql): coach_client_ok decide por la relación. Si el profe atiende al
+  // socio dentro de un gimnasio, manda el plan del gimnasio (con el acceso de los profes pausado, no
+  // hay mensajes); si es un alumno propio o un coach de afuera, el plan del coach, como hoy. Mientras
+  // no esté ese SQL en la base (la función no existe), coach_active como antes; si tampoco está, no se
+  // bloquea. El texto no manda a renovar: lo ven también las apps de Android e iPhone (Google y Apple
+  // no dejan mandar a pagar por fuera de sus tiendas). En la web, renovar está en Mi plan.
+  // El gimnasio de la conversación (vinculo_gym) va en el mensaje: el profe que deja de atender al
+  // socio deja de leer lo que se mandaron en el gimnasio. chat_guardar no lo recibe: lo pone la base
+  // (trigger coach_messages_gym); acá se usa para el texto y para el guardado de respaldo de abajo.
+  let ok = await admin.rpc("coach_client_ok", { coach: coachId, client: cid });
+  const conGimnasios = !(ok.error && (ok.error.code === "PGRST202" || ok.error.code === "42883"));
+  if (!conGimnasios) ok = await admin.rpc("coach_active", { cid: coachId });
+  let gymId: string | null = null;
+  if (conGimnasios) {
+    const vg = await admin.rpc("vinculo_gym", { p: cid });
+    if (!vg.error && typeof vg.data === "string") gymId = vg.data;
+  }
+  if (!ok.error && ok.data === false) {
+    return json({ error: gymId
+      ? (fromClient ? "El acceso de GIZE de tu gimnasio está pausado: por ahora no le llegan mensajes a tu profe." : "El acceso del gimnasio está pausado. Hablá con la administración.")
+      : (fromClient ? "Tu coach tiene el plan de GIZE vencido: por ahora no le llegan mensajes." : "Tu plan de GIZE está vencido: por ahora no podés mandar mensajes.") }, 402);
   }
 
   // Freno a mensajes en ráfaga (30 por minuto por conversación y lado). Si no se puede contar,
@@ -198,6 +213,7 @@ Deno.serve(async (req) => {
     ({ data: saved, error: saveErr } = await admin.from("coach_messages").insert({
       coach_id: coachId, client_id: cid, sender, body, delivered: 0,
       ...(audioPath ? { audio_path: audioPath, audio_secs: audioSecs } : {}),
+      ...(gymId ? { gym_id: gymId } : {}),
     }).select("id, created_at").maybeSingle());
     const after = saved ? await recent() : 0;
     if (saved && (after === null || after > 30)) {
