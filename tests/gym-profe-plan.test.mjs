@@ -9,10 +9,14 @@
 //   las apps, sin nombrar el plan ni mandar a pagar).
 // - Gracia y pausa del gimnasio: el mismo texto en la web, Android e iPhone, en Clientes y en la ficha
 //   del socio, sin planes, precios ni «renovar».
-// - Un coach sin gimnasio: la pantalla del plan vencido de siempre, y su tira cuenta seats_used si la
-//   base lo trae (igual a su lista).
+// - Primer ingreso en el dispositivo con el plan propio vencido: mientras mi_gimnasio no contesta (tarda
+//   más que el tope del arranque, o falla y se reintenta), «Cargando…» y nunca la pantalla de pago; si
+//   falla también al reintentar, la de siempre.
+// - Bloquear a un alumno: el profe relee su cupo (seats_used); el coach sin gimnasio cuenta su lista,
+//   como siempre, y el código vuelve en el momento.
+// - Un coach sin gimnasio: la pantalla del plan vencido de siempre, y su tira cuenta su lista.
 import { wait, newPage, configCoach } from './lib.mjs';
-import { entrarProfe, miGimnasioProfe, alumnosProfe, COACH, S, M, D, IOS, ANDROID, hostTxt, rpcs, captura } from './gym-comun.mjs';
+import { entrar, entrarProfe, miGimnasioProfe, alumnosProfe, COACH, PROFE, S, M, D, IOS, ANDROID, hostTxt, rpcs, captura } from './gym-comun.mjs';
 
 const dias = n => new Date(Date.now() + n * 864e5).toISOString();
 const AR = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'numeric' });
@@ -111,6 +115,61 @@ export default async function ({ base, t }){
       await pg.close();
     }
     t.eq(new Set(vistos).size, 1, estado + ': el mismo cartel en la web, Android e iPhone');
+  }
+
+  // ===== Primer ingreso: sin la pantalla de pago mientras no se sabe si es profe =====
+  {
+    const vencido = { plan: 'p10', max_clients: 10, trial_ends_at: dias(-300), paid_until: dias(-12), seats_used: 1 };
+    // mi_gimnasio tarda 6 s (más que el tope de 4 s del arranque).
+    let pg = await entrarProfe(base, { vp: D, espera: 4800, billing: vencido, rpc: { mi_gimnasio: () => ({ demora: 6000, valor: miGimnasioProfe() }) } });
+    let h = await hostTxt(pg.p);
+    t.ok(/Cargando/.test(h) && !PROHIBIDO.test(h) && !/Tu plan venció/.test(h), 'mi_gimnasio tarda: «Cargando…», sin la pantalla de pago: ' + h.slice(0, 120));
+    await wait(4000); await clientes(pg.p);
+    h = await hostTxt(pg.p);
+    t.ok(/Código de Gimnasio Fuerza/.test(h) && /Martina Sosa/.test(h) && !/Tu plan venció/.test(h), 'cuando contesta: el panel con sus socios');
+    t.eq(pg.errs, [], 'tarda: sin errores');
+    await pg.close();
+    // Falla una vez y el reintento contesta.
+    let n = 0;
+    pg = await entrarProfe(base, { vp: D, espera: 1500, billing: vencido, rpc: { mi_gimnasio: () => n++ ? miGimnasioProfe() : { error: '500', status: 500, msg: 'boom' } } });
+    h = await hostTxt(pg.p);
+    t.ok(!PROHIBIDO.test(h) && !/Tu plan venció/.test(h), 'mi_gimnasio falla: sin la pantalla de pago mientras se reintenta: ' + h.slice(0, 120));
+    await wait(3500); await clientes(pg.p);
+    h = await hostTxt(pg.p);
+    t.ok(n === 2 && /Código de Gimnasio Fuerza/.test(h) && !/Tu plan venció/.test(h), 'se reintenta una vez y el profe llega a sus socios (' + n + ' pedidos)');
+    await pg.close();
+    // Falla también al reintentar: la pantalla de siempre (no se sabe que es profe).
+    pg = await entrarProfe(base, { vp: D, espera: 5000, billing: vencido, rpc: { mi_gimnasio: () => ({ error: '500', status: 500, msg: 'boom' }) } });
+    t.has(await hostTxt(pg.p), 'Tu plan venció', 'falla dos veces: la pantalla del plan vencido de siempre');
+    await pg.close();
+  }
+
+  // ===== Bloquear a un alumno: el cupo al día =====
+  {
+    // Coach sin gimnasio, 10/10: bloquea a uno y el código vuelve en el momento (cuenta su lista).
+    const alumnos = Array.from({ length: 10 }, (_, i) => ({ id: 'a0000000-0000-4000-8000-0000000' + String(60000 + i), full_name: 'Alumno ' + (i + 1), role: 'client', coach_id: COACH.id }));
+    const pg = await entrar(base, COACH, { gym: null, nombre: 'Coach Uno', alumnos, rpc: { my_invite_code: () => 'COACH234' },
+      billing: { plan: 'p10', max_clients: 10, trial_ends_at: dias(-300), paid_until: dias(30), seats_used: 10 } });
+    await clientes(pg.p);
+    t.ok(/Llegaste al máximo/.test(await hostTxt(pg.p)), 'coach sin gimnasio con 10/10: «Llegaste al máximo»');
+    await pg.p.evaluate(id => window.dispatchEvent(new CustomEvent('gize:bloqueo', { detail: { desvinculado: true, target: id } })), alumnos[0].id);
+    await wait(600);
+    const h = await hostTxt(pg.p);
+    t.ok(!/Llegaste al máximo/.test(h) && /Invitar cliente/.test(h) && /9\/10/.test(h), 'bloquea a uno: 9/10 y el código vuelve en el momento');
+    await pg.close();
+  }
+  {
+    // Profe con un alumno propio y el plan propio lleno (seats_used 10): al bloquearlo, relee el cupo.
+    let lecturas = 0;
+    const fila = (r, J, i) => { lecturas++; const b = { coach_id: PROFE.id, plan: 'p10', max_clients: 10, trial_ends_at: dias(-300), paid_until: dias(30), seats_used: lecturas > 1 ? 9 : 10 }; return J(i.one ? b : [b]); };
+    const pg = await entrarProfe(base, { vp: D, handlers: { '/coach_billing': fila } });
+    await clientes(pg.p);
+    t.ok(/Llegaste al máximo/.test(await hostTxt(pg.p)), 'profe con su plan propio lleno: «Llegaste al máximo»');
+    const antes = lecturas;
+    await pg.p.evaluate(id => window.dispatchEvent(new CustomEvent('gize:bloqueo', { detail: { desvinculado: true, target: id } })), alumnosProfe()[2].id);
+    await wait(900);
+    t.ok(lecturas > antes && !/Llegaste al máximo/.test(await hostTxt(pg.p)), 'profe: al bloquear a un alumno propio relee el cupo (seats_used) y vuelve el código');
+    await pg.close();
   }
 
   // ===== Un coach sin gimnasio: como hoy =====

@@ -35,7 +35,7 @@ import { renderCoachSalidas, salidasTileText } from './salidas.js';
 import { syncRouteViews } from '../../ui/mapa.js';
 import { clientPlanDirty, mealEditHead, renderMealPicker, snapMealEdit } from './planes.js';
 import { coachShell, pageHead, secIcon, renderClientsView, renderHomeView, renderMealsView, renderTplsView } from './panel.js';
-import { pintarGym, sinPlanGym } from '../../core/gimnasio.js';
+import { gymPorSaber, pintarGym, sinPlanGym } from '../../core/gimnasio.js';
 import { accesoGym, cargarFichaGym, cartelGym, conTarjetaGym, cssGym, enGym, esProfeGym, esSocioGym, focoRec, inviteGym, notaPropios, puedeRecepcion, seccionGym, tileGym, vistaRecepcion, volverFocoRec } from './gimnasio.js';
 
 // Ficha en modo lectura (el dueño o la administración del gimnasio miran a un socio que compartió sus
@@ -140,7 +140,9 @@ export function renderCoach(){
   const gymPlan=sinPlanGym();
   // El profe de un gimnasio nunca ve la pantalla de pago: el panel sigue por sus socios del gimnasio (con
   // el plan propio vencido, un cartel sobre sus alumnos propios: notaPropios).
-  if(!billing().active && gymPlan===null && !esProfeGym()){ host.innerHTML=renderPaywall(); return; }
+  // Si mi_gimnasio todavía no contestó (primer ingreso en este dispositivo y el servidor lento), no se
+  // sabe si es profe: «Cargando…» y se redibuja cuando conteste (core/gimnasio.js: gymPorSaber).
+  if(!billing().active && gymPlan===null && !esProfeGym()){ host.innerHTML=gymPorSaber() ? '<div class="cal-hint" role="status">Cargando…</div>' : renderPaywall(); return; }
   if(gymPlan){ host.innerHTML=gymPlan; return; }
   if(!CoachState.coachSel && !CoachState.coachTplEdit && !CoachState.coachMealEdit){
     // Las cuatro pantallas de arriba (Inicio, Clientes, Rutinas, Planes alimenticios): ver panel.js.

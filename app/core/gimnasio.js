@@ -29,12 +29,16 @@ import { appIOS, appNativa } from './tienda.js';
 
 export const GYM_CACHE = "gize_gym_v1";
 const CREAR_KEY = "gize_gym_crear", EQUIPO_KEY = "gize_gym_equipo", CODIGO_KEY = "gize_gym_codigo", UNIRME_KEY = "gize_gym_unirme";
-const TOPE_MS = 4000;
+const TOPE_MS = 4000, REINTENTO_MS = 2000;
 // info: lo último que dijo mi_gimnasio() para esta cuenta (o la copia guardada). leido: ya contestó
 // (o se cortó) en esta sesión. ui: el panel del gimnasio, cuando se cargó (app/screens/gym/index.js).
 // espera: afterLogin todavía espera la respuesta para dibujar (primer ingreso en este dispositivo); si
-// llega después, aunque sea antes del tope de 4 s, se redibuja (gymSinEspera).
-export const Gym = { info: null, uid: null, leido: false, ui: null, cargando: null, espera: false };
+// llega después, aunque sea antes del tope de 4 s, se redibuja (gymSinEspera). sabido: mi_gimnasio
+// contestó en esta sesión (o falló también al reintentar, o se entró sin señal). Mientras no se sabe,
+// al coach sin plan vigente no se le muestra la pantalla de pago (puede ser profe de un gimnasio, que
+// nunca la ve: SPEC §3.1): «Cargando…» y se redibuja al saberlo (gymPorSaber, esperaPago). reintento:
+// el pedido falló y se reintenta recién si hace falta saberlo.
+export const Gym = { info: null, uid: null, leido: false, ui: null, cargando: null, espera: false, sabido: false, esperaPago: false, reintento: null };
 
 // ---- Links ----
 // soloSocio: con la app ya abierta (cambió el hash), solo los del socio.
@@ -122,25 +126,49 @@ export const quiereGym = () => esPanelGym() || linkCrear() || !!linkEquipo();
 // sinRed: la sesión no está confirmada (se entra sin señal): solo la copia guardada.
 export function consultarGym(sinRed){
   const uid = State.cloudUser && State.cloudUser.id;
-  Gym.uid = uid || null; Gym.leido = false;
+  Gym.uid = uid || null; Gym.leido = false; Gym.sabido = false; Gym.esperaPago = false; Gym.reintento = null;
   const c = uid ? guardada(uid) : null;
   Gym.info = c ? c.info : null;
   Gym.espera = true;
-  if (!uid || !State.sb || sinRed) { Gym.leido = true; return { primera: false, lista: Promise.resolve(null) }; }
+  if (!uid || !State.sb || sinRed) { Gym.leido = true; Gym.sabido = true; return { primera: false, lista: Promise.resolve(null) }; }
   let t;
   const tope = new Promise(ok => { t = setTimeout(() => ok({ tarde: true }), TOPE_MS); });
-  const pedido = Promise.resolve(State.sb.rpc("mi_gimnasio")).then(r => r, e => ({ error: e }));
-  const lista = Promise.race([pedido.finally(() => clearTimeout(t)), tope]).then(r => {
-    // A tiempo: si afterLogin ya no la esperaba (había copia guardada, o se le acabó el tope del
-    // arranque) y cambió el rol o el gimnasio, se redibuja: la copia decía dueña y la sacaron del
-    // equipo (si no, quedaba la pantalla en blanco), o decía «sin gimnasio» y ahora es del equipo.
-    if (r && !r.tarde && !r.error && State.cloudUser && State.cloudUser.id === uid){ if (aplicar(uid, r.data) && !Gym.espera) redibujar(); return r.data || null; }
-    // Tarde: si llega después, se aplica igual (y se redibuja si cambió algo).
-    if (r && r.tarde) pedido.then(x => { if (x && !x.error && State.cloudUser && State.cloudUser.id === uid && aplicar(uid, x.data)) redibujar(); });
+  const pedir = () => Promise.resolve(State.sb.rpc("mi_gimnasio")).then(r => r, e => ({ error: e }));
+  // La respuesta se aplica en cuanto llega, a tiempo o tarde (listo). Un error (el servidor ocupado,
+  // un corte) se reintenta una vez a los 2 s, y solo si hace falta: el panel de coach con el plan
+  // vencido (gymPorSaber). A los demás no se les pide nada de más. Sin la función en la base
+  // (PGRST202) no hay nada que reintentar.
+  const reintento = () => setTimeout(() => { if (Gym.uid === uid) pedir().then(x => listo(uid, x)); }, REINTENTO_MS);
+  const primero = pedir().then(r => {
+    if (!r || !r.error || r.error.code === "PGRST202") listo(uid, r);
+    else if (Gym.esperaPago) reintento();
+    else Gym.reintento = reintento;
+    return r;
+  });
+  const lista = Promise.race([primero.finally(() => clearTimeout(t)), tope]).then(r => {
     Gym.leido = true;
-    return null;
+    return r && !r.tarde && !r.error ? Gym.info : null;
   });
   return { primera: !c, lista };
+}
+// Llegó la respuesta (o falló el reintento). Si afterLogin ya no la esperaba (había copia guardada, o se
+// le acabó el tope del arranque) y cambió el rol o el gimnasio, se redibuja: la copia decía dueña y la
+// sacaron del equipo (si no, quedaba la pantalla en blanco), o decía «sin gimnasio» y ahora es del
+// equipo. También si el panel de coach esperaba saberlo para mostrar (o no) la pantalla de pago.
+function listo(uid, r){
+  if (Gym.uid !== uid || !State.cloudUser || State.cloudUser.id !== uid) return;
+  const cambio = !!(r && !r.error && aplicar(uid, r.data));
+  Gym.sabido = true;
+  const pago = Gym.esperaPago; Gym.esperaPago = false;
+  if ((cambio || pago) && !Gym.espera) redibujar();
+}
+// El panel de coach, con el plan de coach vencido: ¿todavía no se sabe si es profe de un gimnasio? Si
+// es así, queda anotado para redibujar cuando se sepa.
+export function gymPorSaber(){
+  if (Gym.sabido) return false;
+  Gym.esperaPago = true;
+  if (Gym.reintento){ const f = Gym.reintento; Gym.reintento = null; f(); }
+  return true;
 }
 // afterLogin ya no espera la respuesta: lo que cambie de acá en adelante se redibuja cuando llegue.
 export function gymSinEspera(){ Gym.espera = false; }
@@ -159,7 +187,7 @@ function aplicar(uid, data){
 export async function releerGym(){
   if (!State.sb || !State.cloudUser) return Gym.info;
   const uid = State.cloudUser.id;
-  try { const r = await State.sb.rpc("mi_gimnasio"); if (!r.error && State.cloudUser && State.cloudUser.id === uid) aplicar(uid, r.data); } catch (e) {}
+  try { const r = await State.sb.rpc("mi_gimnasio"); if (!r.error && State.cloudUser && State.cloudUser.id === uid){ aplicar(uid, r.data); Gym.sabido = true; } } catch (e) {}
   return Gym.info;
 }
 
