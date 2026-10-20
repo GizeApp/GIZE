@@ -41,10 +41,11 @@ const gymFicha = () => (rolGym() === "socio" && Gym.info && Gym.info.ficha) || n
 const profeDelGym = () => { const f = gymFicha(); return !!(f && f.profe && !f.coach_externo); };
 function ddmm(d){ const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ""); return m ? m[3] + "/" + m[2] : ""; }
 function gymFotoHtml(f){
-  const path = f.foto === "pendiente" ? f.foto_pend_path : f.foto_path;
+  // La que usa el gimnasio (aprobada); si todavía no hay, la que propuso. Proponer otra no la cambia.
+  const path = f.foto_path || (f.foto === "pendiente" ? f.foto_pend_path : null);
   const url = path ? fotoSocio(path) : "";
   const estado = f.foto === "ok" ? "La aprobó el gimnasio."
-    : f.foto === "pendiente" ? "Esperando que el gimnasio la apruebe."
+    : f.foto === "pendiente" ? (f.foto_path ? "Mandaste otra: esperando que el gimnasio la apruebe. Mientras, sigue esta." : "Esperando que el gimnasio la apruebe.")
     : f.foto === "rechazada" ? "El gimnasio no la aprobó" + (f.foto_rechazo ? ": " + f.foto_rechazo : ".")
     : "Todavía no tenés foto del gimnasio.";
   const boton = f.foto === "ok" ? "Pedir cambio de foto" : f.foto === "pendiente" ? "Mandar otra" : "Mandar una foto";
