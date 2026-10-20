@@ -21,7 +21,7 @@ import { State } from './state.js';
 import { appIOS, appNativa } from './tienda.js';
 
 export const GYM_CACHE = "gize_gym_v1";
-const CREAR_KEY = "gize_gym_crear", EQUIPO_KEY = "gize_gym_equipo";
+const CREAR_KEY = "gize_gym_crear", EQUIPO_KEY = "gize_gym_equipo", CODIGO_KEY = "gize_gym_codigo";
 const TOPE_MS = 4000;
 // info: lo último que dijo mi_gimnasio() para esta cuenta (o la copia guardada). leido: ya contestó
 // (o se cortó) en esta sesión. ui: el panel del gimnasio, cuando se cargó (app/screens/gym/index.js).
@@ -34,14 +34,22 @@ export const Gym = { info: null, uid: null, leido: false, ui: null, cargando: nu
     let m;
     if (h === "#gimnasio") sessionStorage.setItem(CREAR_KEY, "1");
     else if ((m = /^#equipo=([0-9a-f]{64})(?:&rol=(admin|profe|recepcion))?$/i.exec(h))) sessionStorage.setItem(EQUIPO_KEY, JSON.stringify({ t: m[1].toLowerCase(), rol: m[2] || null }));
+    // El link del código del gimnasio (Socios → Sumar socio, el QR del mostrador). Pedir sumarse con la
+    // hoja es de la app del socio (parte 3); mientras, se le dice dónde poner el código.
+    else if ((m = /^#codigo=([ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8})$/i.exec(h))) sessionStorage.setItem(CODIGO_KEY, m[1].toUpperCase());
     else return;
     history.replaceState(history.state, "", location.pathname + location.search);
   } catch (e) {}
 })();
 export function linkCrear(){ try { return sessionStorage.getItem(CREAR_KEY) === "1"; } catch (e) { return false; } }
 export function linkEquipo(){ try { return JSON.parse(sessionStorage.getItem(EQUIPO_KEY) || "null"); } catch (e) { return null; } }
+export function linkCodigo(){ try { return sessionStorage.getItem(CODIGO_KEY) || ""; } catch (e) { return ""; } }
 export function olvidarLinks(cual){
-  try { if (!cual || cual === "crear") sessionStorage.removeItem(CREAR_KEY); if (!cual || cual === "equipo") sessionStorage.removeItem(EQUIPO_KEY); } catch (e) {}
+  try {
+    if (!cual || cual === "crear") sessionStorage.removeItem(CREAR_KEY);
+    if (!cual || cual === "equipo") sessionStorage.removeItem(EQUIPO_KEY);
+    if (!cual || cual === "codigo") sessionStorage.removeItem(CODIGO_KEY);
+  } catch (e) {}
 }
 // Sin sesión, con un link del gimnasio: la pantalla de ingreso explica para qué es (cloudBoot). En las
 // apps no se ofrece crear una cuenta de coach (core/tienda.js): se ingresa con la que ya tiene.
@@ -53,7 +61,17 @@ export function ingresoParaLink(){
     return { msg: "Te invitaron al equipo de un gimnasio. Creá tu cuenta o ingresá para aceptar.", modo: "up", vals: coach && !appIOS() ? { role: "coach" } : {} };
   }
   if (linkCrear()) return { msg: appNativa() ? "El gimnasio se crea desde gize.ar en la compu." : "Para crear tu gimnasio, ingresá con tu cuenta de coach.", modo: "in", vals: {} };
+  if (linkCodigo()) return { msg: "Para sumarte al gimnasio, creá tu cuenta o ingresá. Tu código es " + linkCodigo() + ".", modo: "up", vals: {} };
   return null;
+}
+// Entró con el link del código del gimnasio: se le dice dónde ponerlo (una vez). Al staff y a los
+// coaches no (no se suman como socios).
+export function avisarCodigo(){
+  const c = linkCodigo(); if (!c) return;
+  olvidarLinks("codigo");
+  const p = State.cloudProfile;
+  if (!p || p.role === "coach" || rolGym()) return;
+  setTimeout(() => alert("Para sumarte al gimnasio, poné el código " + c + " en Ajustes, en la caja del código de tu coach."), 700);
 }
 
 // ---- mi_gimnasio() ----
@@ -127,8 +145,8 @@ export async function redibujar(){
 // rutinas, la ficha de un socio), lo dibuja renderCoach: desde renderCoach se sigue (false); desde
 // renderApp (app: una cuenta común de la administración) se llama a renderCoach y listo (true).
 export function pintarGym(app){
-  if (!(Gym.ui && quiereGym())) return false;
-  const r = Gym.ui.pintar();
+  if (!Gym.ui) return false;
+  const r = Gym.ui.pintar(); // sin nada del gimnasio, false (y limpia lo que haya dibujado antes)
   if (r === "coach"){ if (app) Gym.ui.coach(); return !!app; }
   return !!r;
 }

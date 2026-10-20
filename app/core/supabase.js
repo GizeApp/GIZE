@@ -41,7 +41,7 @@ import { TRACK_KEY, pruneTracks } from './salidas.js';
 import { deleteShareFile } from '../ui/compartir.js';
 
 // Gimnasios (core/gimnasio.js): mi_gimnasio() al entrar y los links #gimnasio / #equipo=.
-import { GYM_CACHE, cargarPanelGym, consultarGym, ingresoParaLink, quiereGym } from './gimnasio.js';
+import { GYM_CACHE, avisarCodigo, cargarPanelGym, consultarGym, ingresoParaLink, quiereGym } from './gimnasio.js';
 
 export const SB_URL = "https://wegptuzhsrwppbknqstf.supabase.co";
 
@@ -1091,6 +1091,7 @@ export async function afterLogin(sessionUser, stale){
   }
   else { renderApp(); syncPush(); } // sin await: no demora la entrada
   maybeShowOnboarding(); // cuenta nueva: bienvenida (una sola vez), encima de la app
+  avisarCodigo(); // entró con el link del código de un gimnasio (core/gimnasio.js)
   window.dispatchEvent(new Event("gize:login")); // chat: botón, globitos y aviso tocado (main.js)
 }
 

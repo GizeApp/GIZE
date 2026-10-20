@@ -3,6 +3,7 @@
 // renderApp por monkey-patching para no tocar el original; con módulos reales
 // ya no hace falta el parche: main.js llama a renderConfig() directamente
 // cuando State.view === "config".
+import { Gym, rolGym } from '../core/gimnasio.js';
 import { State } from '../core/state.js';
 import { KEY, save } from '../core/storage.js';
 import { appleCodeForDelete, clearAccountLeftovers, forgetStoredSession, loadCloud, deleteMyStorageFiles, deleteMyAccount, PROFILE_KEY } from '../core/supabase.js';
@@ -330,8 +331,18 @@ document.body.addEventListener("click", async function (e) {
           appleAviso = "Ojo: tu suscripción de Apple no se cancela al eliminar la cuenta y Apple te la sigue cobrando. Cancelala antes desde los Ajustes de tu cuenta de Apple (Ajustes → tu nombre → Suscripciones).\n\n";
       } catch (err) {}
     }
+    // Dueño de un gimnasio (core/gimnasio.js): se cierra el gimnasio. Antes se le ofrece exportar todo en
+    // CSV (socios, ingresos y equipo). El borrado no se frena (Apple 5.1.1(v)).
+    let gymAviso = "";
+    if (rolGym() === "owner") {
+      const n = (Gym.info && Gym.info.gym && Gym.info.gym.name) || "tu gimnasio";
+      gymAviso = "Se cierra el gimnasio «" + n + "»: sus socios conservan sus cuentas y quedan sin profe del gimnasio. Si el gimnasio sigue, pedile a GIZE que lo pase a otra persona antes de eliminar tu cuenta.\n\n";
+      if (await confirmar(gymAviso + "¿Querés exportar todo antes (socios, ingresos y equipo en CSV)?", { titulo: "Se cierra el gimnasio", ok: "Exportar todo", cancelar: "Seguir sin exportar" })) {
+        try { const { exportarTodo } = await import("./gym/csv.js"); const err = await exportarTodo(); if (err) alert("No se pudo exportar: " + err); } catch (err) { alert("No se pudo exportar. Probá de nuevo."); }
+      }
+    }
     if (!await confirmar(isCoach
-      ? appleAviso + "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se da de baja tu cuenta de coach. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
+      ? gymAviso + appleAviso + "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se da de baja tu cuenta de coach. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
       : "¿Seguro que querés eliminar tu cuenta? Se va a borrar tu rutina, tus registros, tus salidas de Cardio (con sus recorridos) y tu vínculo con tu coach de forma permanente. Esta acción no se puede deshacer.")) return;
     const typed = await pedir('Para confirmar, escribí ELIMINAR (en mayúsculas):', "", { titulo: "Eliminar cuenta", ok: "Eliminar" });
     if (typed !== "ELIMINAR") { if (typed !== null) alert("No coincide, no se eliminó nada."); return; }
