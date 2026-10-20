@@ -32,6 +32,7 @@ export default async function ({ base, t }){
     let m = await modalTxt(p);
     t.ok(/Profe/.test(m) && /Administración/.test(m) && /Recepción/.test(m), 'la dueña puede invitar a los tres roles');
     t.has(m, 'Va a ver solo a los socios que le asignes', 'con lo que va a poder hacer, en lenguaje simple');
+    t.has(m, 'Ve el estado del plan de GIZE pero no lo cambia', 'la administración ve el estado del plan (como en su panel), no lo cambia');
     await p.click('#gymModal [data-gym="inv-crear"]'); await wait(700);
     t.eq(rpcs(pg.st, 'gym_invitar'), [{ rol: 'profe' }], 'gym_invitar con el rol');
     m = await modalTxt(p);
@@ -56,12 +57,20 @@ export default async function ({ base, t }){
     await p.click('#coachHost [data-gym="eq-abrir"][data-id="' + PROFE.id + '"]'); await wait(500);
     txt = await hostTxt(p);
     t.ok(/Sus socios/.test(txt) && /Martina Sosa/.test(txt) && /Juan Pérez/.test(txt), 'el detalle: sus socios');
-    await p.selectOption('#coachHost [data-gym-in="pasar-a"]', ID('b2')); await p.click('#coachHost [data-gym="eq-pasar"]'); await wait(400);
+    // Lo elegido sigue elegido después de un redibujo (la app redibuja seguido: volver a la pestaña,
+    // las fotos, los socios): antes se veía la opción de siempre y el botón usaba la elegida.
+    const redibujar = () => p.evaluate(async () => (await import('/app/screens/coach/index.js')).renderCoach()).then(() => wait(300));
+    await p.selectOption('#coachHost [data-gym-in="pasar-a"]', ID('b2')); await redibujar();
+    t.eq(await p.$eval('#coachHost [data-gym-in="pasar-a"]', s => s.value), ID('b2'), '«Pasar todos a»: lo elegido sigue elegido después de un redibujo');
+    await p.click('#coachHost [data-gym="eq-pasar"]'); await wait(400);
     t.has(await modalTxt(p), 'Asignar profe a 2 socios', '«Pasar todos a…» abre la asignación con sus socios');
     await p.click('#gymModal [data-gym="asignar-ok"]'); await wait(600);
     t.eq(rpcs(pg.st, 'gym_asignar_profe').slice(-1)[0], { fichas: ['a0000000-0000-4000-8000-000000000f11', 'a0000000-0000-4000-8000-000000000f12'], profe: ID('b2') }, 'pasar todos: gym_asignar_profe con sus fichas');
     await p.click('#gymModal .gy-x'); await wait(300);
-    await p.selectOption('#coachHost [data-gym-in="rol-nuevo"]', 'admin'); await p.click('#coachHost [data-gym="eq-rol"]'); await wait(600);
+    await p.selectOption('#coachHost [data-gym-in="rol-nuevo"]', 'admin'); await redibujar();
+    t.eq(await p.$eval('#coachHost [data-gym-in="rol-nuevo"]', s => s.value), 'admin', '«Rol»: lo elegido sigue elegido después de un redibujo');
+    await p.click('#coachHost [data-gym="eq-rol"]'); await wait(600);
+    t.ok(pg.dialogs.some(d => d.includes('¿Pasar a Lucía Profe de Profe a Administración?')), 'la confirmación dice el rol nuevo: ' + pg.dialogs.slice(-1)[0]);
     t.eq(rpcs(pg.st, 'gym_cambiar_rol'), [{ usuario: PROFE.id, rol: 'admin' }], 'Cambiar rol: gym_cambiar_rol');
     await p.click('#coachHost [data-gym="eq-quitar"]'); await wait(400);
     t.has(await modalTxt(p), 'Tiene 2 socios asignados. Elegí a quién pasan (es obligatorio)', 'Quitar: pide a quién pasan sus socios');

@@ -26,7 +26,7 @@ import { renderEquipo, renderAceptar, ventanaInvitar, ventanaQuitar } from './eq
 import { renderConfig, ventanaQr } from './config.js';
 import { renderPlan, cambiarPlan, tituloPlan } from './plan.js';
 import { renderCrear } from './crear.js';
-import { VERSIONES } from './textos.js';
+import { VERSIONES, rolNombre } from './textos.js';
 import { exportar, exportarTodo, aCsv, descargar } from './csv.js';
 import { pintarQrs } from './qr.js';
 
@@ -468,7 +468,7 @@ async function alTocar(e){
   // Equipo
   if (a === "eq-tab"){ GS.equipoTab = b.dataset.v; repintar(); return; }
   if (a === "eq-abrir"){ GS.equipoSel = id; GS.pasarA = ""; GS.rolNuevo = ""; if (GS.socios === null) cargarSocios(); repintar(); return; }
-  if (a === "eq-cerrar"){ GS.equipoSel = null; repintar(); return; }
+  if (a === "eq-cerrar"){ GS.equipoSel = null; GS.pasarA = ""; GS.rolNuevo = ""; repintar(); return; }
   if (a === "invitar") return abrir({ tipo: "invitar", rol: b.dataset.v && (b.dataset.v !== "admin" || esDueno()) ? b.dataset.v : (GS.equipoTab !== "admin" || esDueno() ? GS.equipoTab : "profe") });
   if (a === "inv-crear" && GS.modal){
     const m = GS.modal;
@@ -502,7 +502,7 @@ async function alTocar(e){
   if (a === "eq-rol"){
     if (!GS.rolNuevo) return alert("Elegí el rol nuevo.");
     const p = (GS.equipo || []).find(x => x.user_id === id);
-    if (!await confirmar("¿Cambiar el rol de " + (p && p.nombre || "esta persona") + "?", { ok: "Cambiar" })) return;
+    if (!await confirmar("¿Pasar a " + (p && p.nombre || "esta persona") + (p ? " de " + rolNombre(p.rol) : "") + " a " + rolNombre(GS.rolNuevo) + "?", { ok: "Cambiar el rol" })) return;
     const r = await rpc("gym_cambiar_rol", { usuario: id, rol: GS.rolNuevo });
     if (r.error) return alert(r.msg);
     GS.rolNuevo = ""; cargarEquipo(); releerGym().then(repintar); return;

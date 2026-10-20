@@ -15,7 +15,7 @@ import { profesDelEquipo } from './socios.js';
 const TABS = [["profe", "Profes"], ["admin", "Administración"], ["recepcion", "Recepción"]];
 export const linkEquipo = (token, rol) => APP_URL + "#equipo=" + token + "&rol=" + rol;
 // En las apps, sin hablar de lo que cuesta o no (nada del plan de GIZE).
-const puede = r => enApp() ? ROLES[r].puede.replace(" Entra sin cargo con su cuenta de coach.", " Entra con su cuenta de coach.").replace(" No ve el plan de GIZE ni puede cerrar el gimnasio.", " No puede cerrar el gimnasio.") : ROLES[r].puede;
+const puede = r => enApp() ? ROLES[r].puede.replace(" Entra sin cargo con su cuenta de coach.", " Entra con su cuenta de coach.").replace(" Ve el estado del plan de GIZE pero no lo cambia, y no puede cerrar el gimnasio.", " No puede cerrar el gimnasio.") : ROLES[r].puede;
 const enTab = (p, tab) => tab === "admin" ? (p.rol === "admin" || p.rol === "owner") : p.rol === tab;
 
 export function topeTxt(){
@@ -59,6 +59,9 @@ export function renderEquipo(){
   return head + tabs + cuerpo;
 }
 
+// Lo elegido en «Pasar todos a» y en «Rol» (GS.pasarA, GS.rolNuevo) sigue elegido en cada redibujo:
+// si no, se veía la opción de siempre y el botón usaba la elegida antes.
+const sel = si => si ? ' selected' : '';
 function detalle(p){
   if (!p) return vacio("Esa persona ya no está en el equipo.", '<button class="cv-link" data-gym="eq-cerrar">Volver</button>');
   const socios = (GS.socios || []).filter(s => s.profe && s.profe.id === p.user_id && (s.estado === "activo" || s.estado === "pausado"));
@@ -70,12 +73,12 @@ function detalle(p){
     '<div class="cv-cname"><div class="co-client-name">' + esc(p.nombre || "Sin nombre") + '</div><div class="gy-fino">' + esc(rolNombre(p.rol)) + ' · desde el ' + fecha(p.joined_at) + '</div></div></div>' +
     '<div class="gy-ficha"><div class="gy-ficha-col">' +
     '<section class="cv-card gy-sec"><h2 class="gy-h">Sus socios</h2>' + (socios.length ? '<ul class="gy-ul">' + socios.map(s => '<li><button class="cv-link" data-gym="abrir" data-id="' + esc(s.id) + '">' + esc(s.nombre) + '</button></li>').join("") + '</ul>' +
-      ('<div class="gy-acc"><label class="gy-f gy-f-in"><span>Pasar todos a</span><select class="gy-sel" data-gym-in="pasar-a"><option value="">Elegí…</option><option value="-">Sin profe</option>' +
-        otros.map(o => '<option value="' + esc(o.user_id) + '">' + esc(o.nombre) + '</option>').join("") + '</select></label>' + btn2('data-gym="eq-pasar" data-id="' + esc(p.user_id) + '"', "Pasar") + '</div>')
+      ('<div class="gy-acc"><label class="gy-f gy-f-in"><span>Pasar todos a</span><select class="gy-sel" data-gym-in="pasar-a"><option value="">Elegí…</option><option value="-"' + sel(GS.pasarA === "-") + '>Sin profe</option>' +
+        otros.map(o => '<option value="' + esc(o.user_id) + '"' + sel(GS.pasarA === o.user_id) + '>' + esc(o.nombre) + '</option>').join("") + '</select></label>' + btn2('data-gym="eq-pasar" data-id="' + esc(p.user_id) + '"', "Pasar") + '</div>')
       : '<p class="gy-fino">' + (p.rol === "recepcion" ? "La recepción no tiene socios asignados." : "No tiene socios asignados.") + '</p>') + '</section></div>' +
     '<div class="gy-ficha-col"><section class="cv-card gy-sec"><h2 class="gy-h">En el gimnasio</h2>' +
       (puedeTocar && roles.length ? '<div class="gy-acc"><label class="gy-f gy-f-in"><span>Rol</span><select class="gy-sel" data-gym-in="rol-nuevo"><option value="">' + esc(rolNombre(p.rol)) + '</option>' +
-        roles.map(r => '<option value="' + r + '">' + esc(rolNombre(r)) + '</option>').join("") + '</select></label>' + btn2('data-gym="eq-rol" data-id="' + esc(p.user_id) + '"', "Cambiar rol") + '</div>' : '') +
+        roles.map(r => '<option value="' + r + '"' + sel(GS.rolNuevo === r) + '>' + esc(rolNombre(r)) + '</option>').join("") + '</select></label>' + btn2('data-gym="eq-rol" data-id="' + esc(p.user_id) + '"', "Cambiar rol") + '</div>' : '') +
       (puedeTocar ? '<div class="gy-acc"><button class="cv-link gy-peligro" data-gym="eq-quitar" data-id="' + esc(p.user_id) + '">' + (yoMismo ? "Dejar el gimnasio" : "Quitar del gimnasio") + '</button></div>' : '<p class="gy-fino">' + (dueno ? "Al dueño no se le cambia el rol ni se lo quita." : "La administración no cambia a otra persona de la administración.") + '</p>') +
     '</section></div></div>';
 }
