@@ -188,7 +188,7 @@ export default async ({ t }) => {
 
   // La lista de la base de pruebas.
   const lista = read('tests/pg/orden.txt').split('\n').map(l => l.replace(/#.*/, '').trim()).filter(Boolean);
-  const fuera = ['cuentas-demo.sql', 'auditoria.sql', 'estado.sql', 'seguridad-chequeo.sql', 'esquema-huella.sql', 'gimnasios.sql', 'gimnasios-vinculo.sql'];
+  const fuera = ['cuentas-demo.sql', 'auditoria.sql', 'estado.sql', 'seguridad-chequeo.sql', 'esquema-huella.sql', 'gimnasios.sql', 'gimnasios-vinculo.sql', 'gimnasios-lectura.sql', 'gimnasios-socios.sql'];
   const todos = fs.readdirSync(path.join(ROOT, 'supabase')).filter(f => f.endsWith('.sql'));
   t.eq(todos.filter(f => !lista.includes(f) && !fuera.includes(f)), [], 'tests/pg/orden.txt nombra todos los supabase/*.sql (o los deja afuera a propósito)');
   t.eq(lista.filter(f => !todos.includes(f)), [], 'y todos los que nombra existen');

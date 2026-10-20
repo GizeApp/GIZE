@@ -77,3 +77,5 @@ ia.sql                        # IA de Pedidos: tablas, guardia de gasto y cron (
 # Hasta acá, la base de hoy («gize_sin»). Con los gimnasios («gize_con»), además:
 #   gimnasios.sql               tablas, funciones de permiso y triggers del cupo (no cambia nada)
 #   gimnasios-vinculo.sql       versiones canónicas de coach_active, is_my_client, join_coach…
+#   gimnasios-lectura.sql       la administración lee lo que el socio compartió (políticas y 2 funciones)
+#   gimnasios-socios.sql        fichas, equipo, solicitudes, foto, recepción y estados (las RPC de la etapa 1)

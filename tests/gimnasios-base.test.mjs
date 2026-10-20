@@ -26,7 +26,7 @@
 //    SIGHUP o, si murió con kill -9, en la corrida siguiente.
 import fs from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
-import { conPg, leer, orden, simuladas, cuerpo, volverAtras, huella, diferencias, limpiarViejos } from './pg.mjs';
+import { conPg, leer, orden, simuladas, cuerpo, volverAtras, huella, diferencias, limpiarViejos, GIMNASIOS } from './pg.mjs';
 
 const NUEVAS_TABLAS = ['gyms', 'gym_staff', 'gym_invites', 'gym_codes', 'gym_members', 'gym_member_notes', 'gym_audit',
   'gym_alerts', 'gym_bajas', 'gym_entries', 'gym_turnos'];
@@ -52,6 +52,13 @@ const CANONICAS = ['coach_active', 'is_my_client', 'join_coach', 'release_lapsed
 // Lo que suma gimnasios-vinculo.sql (etapas 0 y 1) y las políticas de hoy que cambia (etapa 1).
 const FN_VINCULO = ['coach_client_ok', 'profiles_gym_sync', 'gym_alerta', 'gym_alerta_staff', 'gym_auditar', 'gym_cupo_ok', 'gym_profe_no_puede',
   'gym_aprobar_interno', 'gym_pedir', 'gym_cerrar_interno', 'gym_cerrar_por_baja', 'profiles_gym_baja', 'gym_mi_fila_oculta'];
+// gimnasios-lectura.sql y gimnasios-socios.sql: lo que pueden sumar (solo sumar).
+const FN_LECTURA = ['gym_socios_compartidos', 'gym_registro_lectura', 'gym_cardio_lectura', 'gym_ve_avatar'];
+const esDeLectura = k => /^pol:[a-z_]+\.gimnasio lee lo que el socio compartió$/.test(k) || k === 'pol:storage.objects.avatar: el gimnasio ve a sus socios y el socio a sus profes'
+  || FN_LECTURA.some(f => new RegExp('^(fn|fnacl|fndueno):' + f + '\\(').test(k));
+const esDeSocios = k => /^(fn|fnacl|fndueno):(gym_\w+|mi_gimnasio|buscar_socio|release_lapsed_gyms)\(/.test(k)
+  || /^(col|con|idx):(gym_members|gym_invites|gyms)\./.test(k) || /^cron:gize-gym-(tick|diaria)$/.test(k) || k === 'bucket:gym-fotos'
+  || /^pol:storage\.objects\.gym-fotos: (subir|ver)$/.test(k) || k === 'trg:storage.objects.gym_fotos_cupo_alta';
 const POLITICAS_VINCULO = ['pol:coach_billing.billing: el coach ve la suya', 'pol:coach_messages.mensajes: el coach ve los suyos',
   'pol:storage.objects.chat-audio: escuchar en mi conversación'];
 
@@ -106,7 +113,7 @@ export default async function ({ t }){
   // ===== a) La base =====
   const archivos = orden();
   t.ok(archivos.length >= 64 && archivos.every(f => leer('supabase/' + f)), 'tests/pg/orden.txt nombra los archivos de supabase/ que existen (' + archivos.length + ')');
-  const fuera = ['cuentas-demo.sql', 'auditoria.sql', 'estado.sql', 'seguridad-chequeo.sql', 'esquema-huella.sql', 'gimnasios.sql', 'gimnasios-vinculo.sql'];
+  const fuera = ['cuentas-demo.sql', 'auditoria.sql', 'estado.sql', 'seguridad-chequeo.sql', 'esquema-huella.sql', 'gimnasios.sql', 'gimnasios-vinculo.sql', 'gimnasios-lectura.sql', 'gimnasios-socios.sql'];
   const todos = (await import('node:fs')).readdirSync(new URL('../supabase/', import.meta.url)).filter(f => f.endsWith('.sql'));
   t.eq(todos.filter(f => !archivos.includes(f) && !fuera.includes(f)), [], 'todo supabase/*.sql está en tests/pg/orden.txt (o afuera a propósito)');
   const sim = archivos.flatMap(f => simuladas(leer('supabase/' + f)).map(s => f + ': ' + s));
@@ -183,13 +190,42 @@ export default async function ({ t }){
   await v.archivo('supabase/gimnasios-vinculo.sql');
   await v.archivo('supabase/gimnasios.sql');
   t.eq(diferencias(hV, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'los dos corridos otra vez (en cualquier orden): la misma huella');
+  // gimnasios-lectura.sql y gimnasios-socios.sql (etapa 1) solo suman.
+  await v.archivo('supabase/gimnasios-lectura.sql');
+  const hL = await huella(v), dL = diferencias(hV, hL);
+  t.eq([dL.faltan, dL.cambian], [[], []], 'gimnasios-lectura.sql no borra ni cambia nada: solo suma políticas y funciones');
+  t.eq(dL.nuevas.filter(k => !esDeLectura(k)), [], 'lo nuevo de gimnasios-lectura.sql: las 11 políticas «gimnasio lee lo que el socio compartió», la de avatars y sus 4 funciones');
+  t.eq(dL.nuevas.filter(k => k.startsWith('pol:') && k.endsWith('.gimnasio lee lo que el socio compartió')).length, 11, 'once políticas de lectura');
+  await v.archivo('supabase/gimnasios-socios.sql');
+  const hT = await huella(v), dS = diferencias(hL, hT);
+  t.eq([dS.faltan, dS.cambian], [[], []], 'gimnasios-socios.sql no borra ni cambia nada de lo que ya existía');
+  t.eq(dS.nuevas.filter(k => !esDeSocios(k)), [], 'lo nuevo de gimnasios-socios.sql: columnas de las tablas de gimnasios, el bucket gym-fotos con sus políticas y su tope, funciones y las dos tareas');
+  t.ok(['cron:gize-gym-tick', 'cron:gize-gym-diaria', 'bucket:gym-fotos', 'pol:storage.objects.gym-fotos: subir', 'pol:storage.objects.gym-fotos: ver'].every(k => k in hT), 'las dos tareas y el bucket con sus políticas');
+  t.ok(/^\* \* \* \* \* /.test(hT['cron:gize-gym-tick']) && /^10 6 \* \* \* /.test(hT['cron:gize-gym-diaria']), 'tareas: cada minuto y 06:10 UTC (03:10 de Argentina): ' + hT['cron:gize-gym-tick'] + ' | ' + hT['cron:gize-gym-diaria']);
+  t.eq(diferencias(hT, await huella(h.base('gize_con'))), { nuevas: [], faltan: [], cambian: [] },
+    'la base de pruebas con gimnasios (gize_con) es exactamente gize_sin más los cuatro archivos');
+  for (const f of [...GIMNASIOS].reverse()) await v.archivo(f);
+  for (const f of GIMNASIOS) await v.archivo(f);
+  t.eq(diferencias(hT, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'los cuatro corridos otra vez (también al revés): la misma huella');
   // Un archivo viejo que define join_coach con boolean ya no pisa la canónica: falla entero.
   const viejo = await v.intentar(leer('supabase/bloqueos.sql'), { una: true });
   t.ok(!viejo.ok && viejo.code === '42P13', 'con gimnasios-vinculo.sql, volver a correr bloqueos.sql falla entero (cambió el tipo de join_coach): ' + viejo.code + ' ' + viejo.msg);
-  t.eq(diferencias(hV, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
-  // Volver atrás: el bloque de gimnasios-vinculo.sql y después el de gimnasios.sql.
+  t.eq(diferencias(hT, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
+  // Volver atrás: socios, lectura, vínculo y gimnasios, en ese orden.
   const atrasV = volverAtras(leer('supabase/gimnasios-vinculo.sql')), atrasG = volverAtras(leer('supabase/gimnasios.sql'));
-  t.ok(atrasV.includes('drop function if exists public.join_coach(text);') && atrasG.includes('drop column if exists seats_used'), 'los dos archivos traen su bloque para volver atrás');
+  const atrasL = volverAtras(leer('supabase/gimnasios-lectura.sql')), atrasS = volverAtras(leer('supabase/gimnasios-socios.sql'));
+  t.ok(atrasV.includes('drop function if exists public.join_coach(text);') && atrasG.includes('drop column if exists seats_used')
+    && atrasL.includes('drop function if exists public.gym_socios_compartidos();') && atrasS.includes("cron.unschedule('gize-gym-tick')"),
+    'los cuatro archivos traen su bloque para volver atrás');
+  const rL0 = await v.intentar(atrasL, { una: true });
+  t.ok(!rL0.ok && /Primero el bloque «Para volver atrás» de supabase\/gimnasios-socios\.sql/.test(rL0.msg), 'volver atrás gimnasios-lectura.sql con gimnasios-socios.sql aplicado: se frena: ' + (rL0.msg || 'corrió'));
+  t.eq(diferencias(hT, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
+  const rS = await v.intentar(atrasS, { una: true });
+  t.ok(rS.ok, 'volver atrás gimnasios-socios.sql anda' + (rS.ok ? '' : ': ' + rS.msg));
+  t.eq(diferencias(hL, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y deja la huella de gimnasios-lectura.sql');
+  const rL = await v.intentar(atrasL, { una: true });
+  t.ok(rL.ok, 'volver atrás gimnasios-lectura.sql anda' + (rL.ok ? '' : ': ' + rL.msg));
+  t.eq(diferencias(hV, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y deja la huella de gimnasios-vinculo.sql');
   const r1 = await v.intentar(atrasV, { una: true });
   t.ok(r1.ok, 'volver atrás gimnasios-vinculo.sql anda' + (r1.ok ? '' : ': ' + r1.msg));
   t.eq(diferencias(hG, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y deja la huella de gimnasios.sql solo');
@@ -199,17 +235,29 @@ export default async function ({ t }){
   // Con el bloque de volver atrás corrido, bloqueos.sql vuelve a correr (y después, los gimnasios).
   const otraVez = await v.intentar(leer('supabase/bloqueos.sql'), { una: true });
   t.ok(otraVez.ok, 'después de volver atrás, bloqueos.sql corre de nuevo' + (otraVez.ok ? '' : ': ' + otraVez.msg));
-  await v.archivo('supabase/gimnasios.sql');
-  await v.archivo('supabase/gimnasios-vinculo.sql');
-  t.eq(diferencias(hV, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y los gimnasios otra vez dejan la misma huella');
+  for (const f of GIMNASIOS) await v.archivo(f);
+  t.eq(diferencias(hT, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y los gimnasios otra vez dejan la misma huella');
   await v.borrar();
 
   // ===== d) El orden de los archivos =====
   const solo = await h.nueva('gize_sin');
   const r3 = await solo.intentar(leer('supabase/gimnasios-vinculo.sql'), { una: true });
   t.ok(!r3.ok && /Primero correr supabase\/gimnasios\.sql/.test(r3.msg), 'gimnasios-vinculo.sql sin gimnasios.sql: falla entero con «Primero correr supabase/gimnasios.sql»: ' + (r3.msg || 'corrió'));
+  for (const f of ['supabase/gimnasios-lectura.sql', 'supabase/gimnasios-socios.sql']){
+    const r = await solo.intentar(leer(f), { una: true });
+    t.ok(!r.ok && /Primero correr supabase\/gimnasios\.sql/.test(r.msg), f + ' sin los anteriores: falla entero: ' + (r.msg || 'corrió'));
+  }
   t.eq(diferencias(hSin, await huella(solo)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada (la base de hoy sigue igual)');
   await solo.archivo('supabase/gimnasios.sql');
+  for (const f of ['supabase/gimnasios-lectura.sql', 'supabase/gimnasios-socios.sql']){
+    const r = await solo.intentar(leer(f), { una: true });
+    t.ok(!r.ok && /Primero correr supabase\/gimnasios\.sql/.test(r.msg), f + ' sin gimnasios-vinculo.sql: falla entero: ' + (r.msg || 'corrió'));
+  }
+  await solo.archivo('supabase/gimnasios-vinculo.sql');
+  const r3s = await solo.intentar(leer('supabase/gimnasios-socios.sql'), { una: true });
+  t.ok(!r3s.ok && /gimnasios-lectura\.sql/.test(r3s.msg), 'gimnasios-socios.sql sin gimnasios-lectura.sql: falla entero: ' + (r3s.msg || 'corrió'));
+  t.eq(diferencias(hV, await huella(solo)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
+  await solo.intentar(atrasV, { una: true });
   await solo.intentar(atrasG, { una: true });
   const r4 = await solo.intentar(leer('supabase/gimnasios-vinculo.sql'), { una: true });
   t.ok(!r4.ok && /Primero correr supabase\/gimnasios\.sql/.test(r4.msg), 'tampoco después de volver atrás gimnasios.sql: ' + (r4.msg || 'corrió'));
@@ -218,7 +266,7 @@ export default async function ({ t }){
   const r5 = await mal.intentar(atrasG, { una: true });
   t.ok(!r5.ok && /Primero el bloque «Para volver atrás» de supabase\/gimnasios-vinculo\.sql/.test(r5.msg) && /coach_active/.test(r5.msg) && /profiles_gym_sync/.test(r5.msg),
     'volver atrás gimnasios.sql con gimnasios-vinculo.sql todavía aplicado: se frena y dice qué funciones usan los gimnasios: ' + (r5.msg || 'corrió'));
-  t.eq(diferencias(hV, await huella(mal)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
+  t.eq(diferencias(hT, await huella(mal)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
   // Volver a correr pasos-grupos.sql con los gimnasios aplicados, siguiendo su nota «OJO».
   const PASOS = ['pasos_unirse', 'pasos_ranking', 'pasos_campeon', 'pasos_mis_grupos'];
   const deBloqueos = Object.fromEntries(PASOS.map(f => [f, cuerpo(leer('supabase/bloqueos.sql'), f)]));
@@ -232,12 +280,14 @@ export default async function ({ t }){
   t.eq(await pasos(mal), [], 'después de pasos-grupos.sql, ninguna filtra los bloqueos');
   const sinOrden = await mal.intentar(leer('supabase/bloqueos.sql'), { una: true });
   t.eq(sinOrden.code, '42P13', 'bloqueos.sql solo, con gimnasios-vinculo.sql aplicado: falla entero (por eso la nota)');
-  t.ok((await mal.intentar(atrasV, { una: true })).ok, 'la nota, paso 1: volver atrás gimnasios-vinculo.sql');
+  t.ok((await mal.intentar(atrasV, { una: true })).ok, 'la nota, paso 1: volver atrás gimnasios-vinculo.sql (con gimnasios-lectura.sql y gimnasios-socios.sql aplicados)');
   await mal.archivo('supabase/bloqueos.sql');
   await mal.archivo('supabase/gimnasios.sql');
   await mal.archivo('supabase/gimnasios-vinculo.sql');
   t.eq(await pasos(mal), PASOS, 'siguiendo la nota (volver atrás, bloqueos.sql, gimnasios.sql y gimnasios-vinculo.sql), las de pasos vuelven a filtrar los bloqueos');
-  t.eq(diferencias(hV, await huella(mal)), { nuevas: [], faltan: [], cambian: [] }, 'y la base queda igual que con los gimnasios recién aplicados');
+  t.eq(diferencias(hT, await huella(mal)), { nuevas: [], faltan: [], cambian: [] }, 'y la base queda igual que con los gimnasios recién aplicados (lectura y socios siguen)');
+  const anda = await mal.json(`select prueba.probar('servicio', 'select to_jsonb(public.gym_tick())');`);
+  t.eq(anda, { ok: 0, status: null }, 'y las funciones de gimnasios-socios.sql siguen andando (gym_tick)');
   await mal.borrar();
 
   // ===== e) Lo que la huella tiene que ver =====

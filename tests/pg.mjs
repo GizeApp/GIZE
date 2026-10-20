@@ -21,7 +21,8 @@
 // Arma una vez por proceso (tests/run.mjs importa todas las pruebas en el mismo) dos bases plantilla:
 //   gize_sin: Supabase simulado + esquema base inferido + los supabase/*.sql de tests/pg/orden.txt
 //             (la base de hoy);
-//   gize_con: gize_sin + supabase/gimnasios.sql + supabase/gimnasios-vinculo.sql.
+//   gize_con: gize_sin + los archivos de los gimnasios (GIMNASIOS, abajo: gimnasios.sql,
+//             gimnasios-vinculo.sql, gimnasios-lectura.sql y gimnasios-socios.sql).
 // Las dos traen además las ayudas de tests/pg/ayudas.sql (esquema «prueba»). Cada prueba trabaja en
 // una copia nueva: «await h.nueva('gize_con')».
 import fs from 'node:fs';
@@ -171,6 +172,9 @@ class Base {
   async borrar(){ await this.h.admin.sql(`drop database if exists "${this.nombre}" with (force);`); }
 }
 
+// Los archivos de los gimnasios, en orden (la base «gize_con» = «gize_sin» + estos).
+export const GIMNASIOS = ['supabase/gimnasios.sql', 'supabase/gimnasios-vinculo.sql', 'supabase/gimnasios-lectura.sql', 'supabase/gimnasios-socios.sql'];
+
 let n = 0;
 async function armar(){
   if (process.env.GIZE_PG_SALTEAR === '1') return { saltear: 'GIZE_PG_SALTEAR=1' };
@@ -200,7 +204,7 @@ async function armar(){
   const sin = new Base(h, 'gize_sin');
   await sin.archivos(['tests/pg/supabase-simulado.sql', 'tests/pg/esquema-base.sql', ...orden().map(f => 'supabase/' + f), 'tests/pg/ayudas.sql']);
   await h.admin.sql('create database gize_con template gize_sin;');
-  await new Base(h, 'gize_con').archivos(['supabase/gimnasios.sql', 'supabase/gimnasios-vinculo.sql']);
+  await new Base(h, 'gize_con').archivos(GIMNASIOS);
   h.armado = ((Date.now() - t0) / 1000).toFixed(1) + ' s';
   return h;
 }

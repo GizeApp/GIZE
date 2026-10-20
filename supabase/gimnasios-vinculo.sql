@@ -811,8 +811,10 @@ notify pgrst, 'reload schema';
 -- controla que sigan iguales), las políticas y funciones de la etapa 1 como estaban (copia textual de
 -- suscripciones.sql, notificaciones.sql, chat.sql, rutina-programada.sql y admin.sql) y saca lo que
 -- agregó (coach_client_ok, profiles_gym_sync, el trigger del borrado y las internas). Antes, los
--- bloques de gimnasios-socios.sql y gimnasios-lectura.sql (en ese orden). Después se puede volver
--- atrás gimnasios.sql (el bloque del final de ese archivo).
+-- bloques de gimnasios-socios.sql y gimnasios-lectura.sql (en ese orden), salvo para volver a correr
+-- un archivo viejo (las notas «OJO»): ahí se corre solo este bloque, ese archivo, gimnasios.sql y este
+-- otra vez, y gimnasios-lectura.sql y gimnasios-socios.sql (que usan funciones de acá) siguen andando
+-- cuando este vuelve. Después se puede volver atrás gimnasios.sql (el bloque del final de ese archivo).
 --
 -- -- De cupo-plan.sql:
 -- create or replace function public.coach_active(cid uuid)

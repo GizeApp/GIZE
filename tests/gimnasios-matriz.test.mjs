@@ -279,17 +279,22 @@ export default async function ({ t }){
           (select count(*) from u1) + (select count(*) from u2) + (select count(*) from u3), (select count(*) from d1) + (select count(*) from d2))$f$, d))))->1->'ok'))
     from unnest(array[${LECTORES.map(l => `'${P[l]}'`).join(', ')}]) l, unnest(array[${DUENOS.map(d => `'${P[d]}'`).join(', ')}]) d;`);
   const tabla = r => Object.fromEntries(LECTORES.map(l => [l, DUENOS.filter(d => { const v = r[P[l] + ' ' + P[d]]; return v && v[0] > 0; })]));
-  const BASE_IMC = { dA: ['A7', 'D1'], aA: [], pA1: ['A1', 'A2', 'P1'], rA: [], dB: ['B1'], C: ['C1'], A1: ['A1'], N: [] };
+  const BASE_IMC = { dA: ['A1', 'A7', 'D1'], aA: ['A1'], pA1: ['A1', 'A2', 'P1'], rA: [], dB: ['B1'], C: ['C1'], A1: ['A1'], N: [] };
   const r0 = await imc();
-  t.eq(tabla(r0), BASE_IMC, 'is_my_client: quién lee los registros de quién (la dueña lee a A7 y D1, no a A1 aunque compartió: eso llega en la etapa 1)');
-  const completos = Object.entries(r0).filter(([k, v]) => { const [l, d] = k.split(' '); return l !== d && v[0] > 0; });
+  t.eq(tabla(r0), BASE_IMC, 'quién lee los registros de quién: is_my_client (la dueña a A7 y D1) y, desde la etapa 1, la administración a A1, que compartió (gimnasios-lectura.sql)');
+  const compartidos = [P.dA + ' ' + P.A1, P.aA + ' ' + P.A1];
+  t.eq(compartidos.map(k => r0[k]), [[11, 0, 0], [11, 0, 0]],
+    'la dueña y el encargado leen a A1 en 11 tablas (sin daily_logs ni cardio_outings: van por función) y no cambian ni borran nada');
+  const completos = Object.entries(r0).filter(([k, v]) => { const [l, d] = k.split(' '); return l !== d && v[0] > 0 && !compartidos.includes(k); });
   t.eq(completos.filter(([, v]) => JSON.stringify(v) !== '[13,3,2]').map(([k, v]) => k.split(' ').map(nom).join('→') + ' ' + JSON.stringify(v)), [],
     'donde lee, lee las 13 tablas, cambia ficha, plan de nutrición y rutina, y borra bloque y rutina programada');
   t.eq(Object.entries(r0).filter(([k, v]) => { const [l, d] = k.split(' '); return l !== d && (v[0] === 0) && (v[1] > 0 || v[2] > 0); }).map(([k]) => k), [],
     'donde no lee, tampoco cambia ni borra');
-  t.eq(tabla(await imc(VENCE('dA', '5 days 1 hour'))), Object.assign({}, BASE_IMC, { dA: [], pA1: ['P1'] }), 'gimnasio vencido hace 5 días y 1 hora: pA1 deja de leer a A1 y A2 (sigue con P1, su plan); la dueña deja de leer a A7 y D1');
+  t.eq(tabla(await imc(VENCE('dA', '5 days 1 hour'))), Object.assign({}, BASE_IMC, { dA: [], aA: [], pA1: ['P1'] }), 'gimnasio vencido hace 5 días y 1 hora: pA1 deja de leer a A1 y A2 (sigue con P1, su plan); la dueña deja de leer a A7, D1 y A1, y el encargado a A1');
   t.eq(tabla(await imc(VENCE('dA', '4 days 23 hours'))), BASE_IMC, 'vencido hace 4 días y 23 horas: igual que al día');
   t.eq(tabla(await imc(VENCE('pA1', '1 hour'))), Object.assign({}, BASE_IMC, { pA1: ['A1', 'A2'] }), 'plan propio de pA1 vencido: deja de leer a P1 y sigue con A1 y A2 (plan del gimnasio)');
+  t.eq(tabla(await imc(`update public.gym_members set share_admin = false where id = '${F.A1}'`)), Object.assign({}, BASE_IMC, { dA: ['A7', 'D1'], aA: [] }),
+    'A1 apaga «compartir»: en la consulta siguiente la dueña y el encargado dejan de leerla (su profe sigue)');
   t.eq(tabla(await imc(`update public.coach_billing set max_clients = 3 where coach_id = '${P.dA}'`)), BASE_IMC, 'gimnasio sobre el cupo: todo sigue igual');
   const chat = await J(`select jsonb_object_agg(l, prueba.probar(l, 'select coalesce(jsonb_agg(jsonb_build_array(coach_id, client_id)), ''[]'') from public.coach_messages')->'ok')
     from unnest(array['${P.dA}', '${P.rA}', '${P.aA}', '${P.pA1}']) l;`);
@@ -298,7 +303,7 @@ export default async function ({ t }){
   t.eq(chat[P.pA1].length, 2, 'pA1 lee la suya con A1');
   t.eq(await PROBAR('rA', 'select to_jsonb(count(*)) from public.sessions'), 0, 'caso 3: la recepción no lee ninguna sesión');
   t.eq(await PROBAR('dA', `select to_jsonb(array[(select count(*) from public.daily_logs where client_id = '${P.A1}'), (select count(*) from public.cardio_outings where client_id = '${P.A1}')])`),
-    [0, 0], 'caso 6 (lo de la etapa 0): la dueña no recibe ni registros diarios (pasos) ni salidas (recorrido) de A1');
+    [0, 0], 'caso 6: la dueña no lee directo ni registros diarios (pasos) ni salidas (recorrido) de A1: van por gym_registro_lectura y gym_cardio_lectura (gimnasios-lectura)');
 
   // ===== d) join_coach, fila por fila =====
   const jc = (quien, codigo) => `select public.join_coach('${codigo}')::jsonb`;
