@@ -58,4 +58,4 @@ SHARD=2/6 PW=… node tests/run.mjs                                         # un
 
 - Un tema por commit, título corto en castellano que diga qué cambia para la persona que usa la
   app, y en el cuerpo el porqué.
-- No incluyas nombres de modelos de IA en commits ni en comentarios.
+- No incluyas nombres de modelos de IA en los comentarios ni en el texto de los commits (la línea final de coautoría que agrega cada herramienta, como «Co-Authored-By», sí va).
