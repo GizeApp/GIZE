@@ -4,9 +4,10 @@
 -- la de mensajes ("rapid-worker") es la que guarda y avisa en los dos sentidos.
 -- OJO: la versión vigente de la política de subir audios (ruta exacta y tope por día) está en
 -- topes-archivos.sql: si volvés a correr este archivo, corré después topes-archivos.sql.
--- OJO: la versión vigente de la política de escuchar audios (el alumno escucha todos los suyos,
--- también los de un profe de su gimnasio que ya no lo atiende) está en gimnasios-vinculo.sql: si
--- volvés a correr este archivo, corré después gimnasios.sql y gimnasios-vinculo.sql.
+-- OJO: las versiones vigentes de la política de escuchar audios (el alumno escucha todos los suyos,
+-- también los de un profe de su gimnasio que ya no lo atiende), de chat_unread y de chat_mark_read
+-- (el profe no cuenta ni marca como visto lo de un socio del gimnasio que ya no atiende) están en
+-- gimnasios-vinculo.sql: si volvés a correr este archivo, corré después gimnasios.sql y gimnasios-vinculo.sql.
 --
 -- Usa la misma tabla de los mensajes del coach (coach_messages): lo que ya se mandó queda
 -- como el principio de la conversación.

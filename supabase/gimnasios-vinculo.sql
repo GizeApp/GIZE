@@ -4,9 +4,9 @@
 -- nada (lo primero del archivo lo controla).
 -- OJO: canónico. Acá están las versiones vigentes de coach_active, is_my_client, join_coach,
 -- release_lapsed_clients, coach_client_ok y profiles_gym_sync, y desde la etapa 1 también de
--- routine_schedule_on_coach_change, admin_set_role, admin_unlink y de las políticas «billing: el
--- coach ve la suya» (coach_billing), «mensajes: el coach ve los suyos» (coach_messages) y
--- «chat-audio: escuchar en mi conversación» (storage). Las versiones viejas están en base.sql,
+-- routine_schedule_on_coach_change, admin_set_role, admin_unlink, chat_unread, chat_mark_read y de
+-- las políticas «billing: el coach ve la suya» (coach_billing), «mensajes: el coach ve los suyos»
+-- (coach_messages) y «chat-audio: escuchar en mi conversación» (storage). Las versiones viejas están en base.sql,
 -- endurecer-base.sql, suscripciones.sql, cupo-plan.sql, coach-alumnos.sql, bloqueos.sql,
 -- coach-vencido.sql, rutina-programada.sql, admin.sql, notificaciones.sql y chat.sql: si se vuelve a
 -- correr cualquiera de esos, correr después gimnasios.sql, este, gimnasios-lectura.sql y
@@ -77,7 +77,9 @@
 --     desvinculan a un socio que atiende un profe de su gimnasio.
 --   · coach_billing: la fila del profe sin vínculos propios y solo de prueba no la ve él (apps viejas).
 --   · Chat: el profe que deja de atender a un socio no lee lo que se mandaron en el gimnasio
---     (coach_messages.gym_id), y el socio escucha todos sus audios aunque cambie de profe.
+--     (coach_messages.gym_id, que pone un trigger al guardar cada mensaje), ni lo cuenta como sin leer
+--     ni lo marca como visto (chat_unread y chat_mark_read), y el socio escucha todos sus audios aunque
+--     cambie de profe.
 
 
 -- ===== Antes que nada: ¿está gimnasios.sql? =====
@@ -783,8 +785,8 @@ create policy "billing: el coach ve la suya" on public.coach_billing
 
 -- ===== Etapa 1: el chat dentro de un gimnasio =====
 
--- El coach lee sus mensajes, salvo los que se mandaron dentro de un gimnasio (gym_id, lo guarda
--- rapid-worker) con un socio que ya no atiende: el profe que deja de atender a un socio del
+-- El coach lee sus mensajes, salvo los que se mandaron dentro de un gimnasio (gym_id, lo pone el
+-- trigger coach_messages_gym de abajo) con un socio que ya no atiende: el profe que deja de atender a un socio del
 -- gimnasio deja de leer esa conversación. Entre un coach independiente y sus alumnos no cambia nada
 -- (gym_id null). El socio sigue viendo todo (la política del cliente no cambia).
 drop policy if exists "mensajes: el coach ve los suyos" on public.coach_messages;
@@ -803,6 +805,59 @@ create policy "chat-audio: escuchar en mi conversación" on storage.objects
   using (bucket_id = 'chat-audio'
          and (public.chat_folder_mine((storage.foldername(name))[1], (storage.foldername(name))[2])
               or (storage.foldername(name))[2] = (select auth.uid())::text));
+
+-- El gimnasio de cada mensaje lo pone la base, no quien guarda (chat_guardar de rapid-worker o
+-- cualquier otro insert): si el coach del mensaje es el coach actual del socio y lo atiende dentro
+-- de un gimnasio (vinculo_gym), ese gimnasio. Sin gimnasios queda null, como hoy.
+create or replace function public.coach_messages_gym()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.gym_id is null then
+    new.gym_id := (select public.vinculo_gym(p.id) from public.profiles p where p.id = new.client_id and p.coach_id = new.coach_id);
+  end if;
+  return new;
+end $$;
+revoke all on function public.coach_messages_gym() from public, anon, authenticated;
+drop trigger if exists coach_messages_gym on public.coach_messages;
+create trigger coach_messages_gym before insert on public.coach_messages
+  for each row execute function public.coach_messages_gym();
+
+-- Los sin leer y marcar como leído (de chat.sql), con la misma regla que la política de arriba del
+-- lado del coach: lo que se mandó dentro de un gimnasio con un socio que ya no atiende no cuenta como
+-- sin leer ni lo puede marcar como visto. Del lado del alumno, como hoy.
+create or replace function public.chat_mark_read(p_client uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.coach_messages m set read_at = now()
+   where m.client_id = p_client and m.read_at is null
+     and ((m.sender = 'client' and m.coach_id = auth.uid()
+           and (m.gym_id is null or exists (select 1 from public.profiles p where p.id = m.client_id and p.coach_id = auth.uid())))
+       or (m.sender = 'coach' and m.client_id = auth.uid()));
+$$;
+
+create or replace function public.chat_unread()
+returns table (client_id uuid, n int)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select m.client_id, count(*)::int
+    from public.coach_messages m
+   where m.read_at is null
+     and ((m.sender = 'client' and m.coach_id = auth.uid()
+           and (m.gym_id is null or exists (select 1 from public.profiles p where p.id = m.client_id and p.coach_id = auth.uid())))
+       or (m.sender = 'coach' and m.client_id = auth.uid()
+           and m.coach_id = (select p.coach_id from public.profiles p where p.id = auth.uid())))
+   group by m.client_id;
+$$;
 
 notify pgrst, 'reload schema';
 
@@ -944,6 +999,34 @@ notify pgrst, 'reload schema';
 --   using (bucket_id = 'chat-audio'
 --          and public.chat_folder_mine((storage.foldername(name))[1], (storage.foldername(name))[2]));
 --
+-- create or replace function public.chat_mark_read(p_client uuid)
+-- returns void
+-- language sql
+-- security definer
+-- set search_path = public
+-- as $$
+--   update public.coach_messages set read_at = now()
+--    where client_id = p_client and read_at is null
+--      and ((sender = 'client' and coach_id = auth.uid())
+--        or (sender = 'coach' and client_id = auth.uid()));
+-- $$;
+--
+-- create or replace function public.chat_unread()
+-- returns table (client_id uuid, n int)
+-- language sql
+-- security definer
+-- set search_path = public
+-- stable
+-- as $$
+--   select m.client_id, count(*)::int
+--     from public.coach_messages m
+--    where m.read_at is null
+--      and ((m.sender = 'client' and m.coach_id = auth.uid())
+--        or (m.sender = 'coach' and m.client_id = auth.uid()
+--            and m.coach_id = (select p.coach_id from public.profiles p where p.id = auth.uid())))
+--    group by m.client_id;
+-- $$;
+--
 -- -- De rutina-programada.sql:
 -- create or replace function public.routine_schedule_on_coach_change()
 -- returns trigger language plpgsql security definer set search_path = public as $$
@@ -982,6 +1065,8 @@ notify pgrst, 'reload schema';
 -- grant execute on function public.admin_unlink(uuid) to authenticated;
 --
 -- -- Lo nuevo de la etapa 1:
+-- drop trigger if exists coach_messages_gym on public.coach_messages;
+-- drop function if exists public.coach_messages_gym();
 -- drop trigger if exists profiles_gym_baja on public.profiles;
 -- drop function if exists public.profiles_gym_baja();
 -- drop function if exists public.gym_mi_fila_oculta();

@@ -9,6 +9,8 @@
 //   que dejó de atenderlo ya no; nadie más.
 // - coach_client_ok (lo que van a usar rapid-worker y avisos-coach, P4): sí con el profe que atiende,
 //   no con el que dejó de atender; con un coach de afuera, como hoy.
+// - El gym_id de cada mensaje lo pone la base (trigger coach_messages_gym), también lo que guarda
+//   chat_guardar; chat_unread y chat_mark_read siguen la misma regla que la política del coach.
 import { conPg } from './pg.mjs';
 import { P, F, G, DATOS, ayudas, rpc, nom, conCanon } from './gimnasios-comun.mjs';
 
@@ -71,6 +73,29 @@ export default async function ({ t: t0 }){
     ['pA2', mensajes], ['pA1', mensajes], ['A1', mensajes]]);
   t.eq([nom(x[1]), nombres(x[2]), nombres(x[3]), nombres(x[4])], ['A', ['pA2→A1'], ['pA1→P1'], ['pA1→A1', 'pA2→A1']],
     'el mensaje del profe nuevo lleva el gimnasio; él lo lee, el anterior no; el socio, los dos');
+
+  // ===== Lo que guarda rapid-worker (chat_guardar): el gimnasio de cada mensaje lo pone la base =====
+  const guardar = (c, s, quien, body) => ['servicio', `select to_jsonb(count(*)) from public.chat_guardar('${P[c]}', '${P[s]}', '${quien}', '${body}')`];
+  const sinLeer = `select coalesce(jsonb_agg(jsonb_build_array(client_id, n) order by n desc, client_id), '[]') from public.chat_unread()`;
+  x = await V([guardar('pA1', 'A1', 'client', 'Mensaje nuevo por rapid-worker'), guardar('pA1', 'P1', 'client', 'De un alumno propio'),
+    guardar('C', 'C1', 'client', 'De una alumna independiente'),
+    ['postgres', `select jsonb_agg(jsonb_build_array(client_id, gym_id) order by body) from public.coach_messages
+                   where body in ('Mensaje nuevo por rapid-worker', 'De un alumno propio', 'De una alumna independiente')`],
+    ['pA1', sinLeer],
+    ['postgres', `select prueba.hacer('${P.dA}', $q$select to_jsonb(public.gym_asignar_profe(array['${F.A1}']::uuid[], '${P.pA2}'))$q$)`],
+    ['pA1', `select coalesce(jsonb_agg(body order by body), '[]') from public.coach_messages where client_id = '${P.A1}'`],
+    ['pA1', sinLeer],
+    ['pA1', `select to_jsonb(true) from (select public.chat_mark_read('${P.A1}')) x`],
+    ['postgres', `select to_jsonb(count(*)) from public.coach_messages where client_id = '${P.A1}' and sender = 'client' and read_at is not null`],
+    ['pA2', sinLeer], ['A1', `select coalesce(jsonb_agg(body order by body), '[]') from public.coach_messages where sender = 'client'`]]);
+  t.eq(x.slice(0, 3), [1, 1, 1], 'chat_guardar guarda los tres mensajes');
+  t.eq(x[3].map(([c, g]) => [nom(c), nom(g)]).sort(), [['A1', 'A'], ['C1', null], ['P1', null]],
+    'el mensaje del socio con su profe del gimnasio lleva el gimnasio (lo pone la base); con un alumno propio o un coach independiente, vacío (como hoy)');
+  t.eq(x[4].map(([c, n]) => [nom(c), n]), [['A1', 2], ['P1', 1]], 'pA1 tiene sin leer los de A1 y el de P1');
+  t.eq([x[6], x[7].map(([c, n]) => [nom(c), n])], [[], [['P1', 1]]],
+    'cuando pasan a A1 a otro profe, pA1 no lee lo que A1 mandó por rapid-worker y ya no lo cuenta como sin leer (sigue con P1)');
+  t.eq([x[9], x[10]], [0, []], 'pA1 no puede marcar como visto lo de A1 (A1 no ve «Visto»), y el profe nuevo no tiene esos sin leer');
+  t.eq(x[11], ['Bien', 'Mensaje nuevo por rapid-worker'], 'A1 sigue viendo todo lo que mandó');
   t.eq(await J('select prueba.invariantes();'), [], 'invariantes');
   await db.borrar();
 }
