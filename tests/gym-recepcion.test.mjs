@@ -12,7 +12,7 @@
 //   sin altas. Con la recepción pausada (plan vencido hace más de 10 días), el texto del servidor.
 // Celular y compu, Oscuro y Claro (capturas en GYM_CAPTURAS).
 import { wait, contraste } from './lib.mjs';
-import { entrar, entrarProfe, miGimnasio, miGimnasioProfe, DUENA, RECEP, F, G, ID, M, D, busqueda, solicitudes, recTxt, buscarRec, hostTxt, modalTxt, rpcs, storageGym,
+import { entrar, entrarProfe, miGimnasio, miGimnasioProfe, DUENA, RECEP, PROFE, F, G, ID, M, D, busqueda, solicitudes, recTxt, buscarRec, hostTxt, modalTxt, rpcs, storageGym,
   captura, sinScrollHorizontal } from './gym-comun.mjs';
 
 const recepcion = (extra = {}) => miGimnasio('recepcion', Object.assign({ plan: undefined, contadores: undefined, mis_fichas: undefined, mis_socios: undefined }, extra));
@@ -128,6 +128,7 @@ export default async function ({ base, t }){
     const p = pg.p;
     await p.click('.gy-rec-altas [data-gym="sumar"]'); await wait(500);
     t.has(await modalTxt(p), 'Cargar socio', 'Cargar ficha abre la ventana para cargar la ficha');
+    t.ok(/El profe se lo asigna la administración cuando empiece a usar la app/.test(await modalTxt(p)) && !/se lo asignás/.test(await modalTxt(p)), 'la recepción no asigna profes: lo dice así');
     await captura(p, 'recepcion-cargar-ficha-cel');
     await p.click('#gymModal .gy-x'); await wait(300);
     await p.click('.gy-rec-altas [data-gym="rec-tab"][data-v="solicitudes"]'); await wait(700);
@@ -135,10 +136,15 @@ export default async function ({ base, t }){
     t.ok(/Tomás Ríos/.test(h) && /Elena Paz/.test(h), 'la pestaña Solicitudes lista los pedidos: ' + h.slice(0, 200));
     t.eq(rpcs(pg.st, 'gym_equipo').length, 0, 'la recepción no pide el equipo (no lo puede leer)');
     const btnOk = await p.$eval('[data-gym="sol-nuevo"][data-id="' + F.A6 + '"]', b => !b.disabled).catch(() => false);
-    t.ok(btnOk, 'puede aprobar (sin profe: lo asigna la administración)');
+    t.ok(btnOk, 'puede aprobar');
+    // El profe por defecto del gimnasio (SPEC §2.8) queda elegido; «Sin profe», si lo cambia.
+    const ops = await p.$$eval('select[data-gym-sol="profe"][data-id="' + F.A6 + '"] option', l => l.map(o => [o.textContent, o.value, o.selected]));
+    t.eq(ops, [['Profe por defecto del gimnasio', PROFE.id, true], ['Sin profe', '', false]], 'el profe por defecto del gimnasio queda elegido, o «Sin profe»');
     await captura(p, 'recepcion-solicitudes-cel');
     await p.click('[data-gym="sol-nuevo"][data-id="' + F.A6 + '"]'); await wait(600);
-    t.eq(rpcs(pg.st, 'gym_aprobar').map(b => [b.ficha, b.profe]), [[F.A6, null]], 'aprueba sin profe');
+    await p.selectOption('select[data-gym-sol="profe"][data-id="' + ID('f19') + '"]', ''); await wait(200);
+    await p.click('[data-gym="sol-nuevo"][data-id="' + ID('f19') + '"]'); await wait(600);
+    t.eq(rpcs(pg.st, 'gym_aprobar').map(b => [b.ficha, b.profe]), [[F.A6, PROFE.id], [ID('f19'), null]], 'aprueba con el profe por defecto, o sin profe si lo eligió');
     t.eq(pg.st.rpcs.map(x => x[0]).filter(n => ['gym_socios_resumen', 'gym_equipo', 'gym_invitaciones'].includes(n)), [], 'después no pide la lista de socios ni el equipo (no son de la recepción): ' + pg.st.rpcs.map(x => x[0]).join(', '));
     await p.click('[data-gym="rec-tab"][data-v="recepcion"]'); await wait(300);
     t.ok(!!await p.$('input[data-rec-q]'), 'vuelve a la recepción');

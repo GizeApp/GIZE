@@ -411,8 +411,9 @@ async function alTocar(e){
   if (a === "rec-tab"){
     GS.recTab = b.dataset.v;
     if (GS.recTab === "solicitudes"){
-      // La recepción no lee el equipo (gym_equipo es del dueño y la administración): aprueba sin profe y
-      // la administración se lo asigna después (Inicio: «socios sin profe»).
+      // La recepción no lee el equipo (gym_equipo es del dueño y la administración): aprueba con el profe
+      // por defecto del gimnasio o sin profe, y la administración se lo asigna después (Inicio: «socios
+      // sin profe»).
       if (GS.equipo === null) GS.equipo = [];
       cargarSolicitudes();
     }

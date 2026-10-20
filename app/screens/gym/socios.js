@@ -3,6 +3,7 @@
 // Bajas, filtros, buscador, acciones en grupo (asignar profe, pausar, exportar) y «Sumar socio»
 // (compartir el código, cargar una ficha y mandarle el link).
 import { esc } from '../../core/utils.js';
+import { rolGym } from '../../core/gimnasio.js';
 import { GS, gym, info, yo, soyCoach, fotoHtml, cuando, fecha, diasDesde, hoyAR, plural, APP_URL } from './estado.js';
 import { cabeza, btn, btn2, vacio, cargando } from './marco.js';
 import { renderSolicitudes } from './solicitudes.js';
@@ -132,7 +133,8 @@ export function ventanaSumar(m){
       '<div class="gy-form">' + campo("nombre", "Nombre y apellido", "text", ' autocomplete="off" required') + campo("dni", "DNI (opcional)", "text", ' inputmode="numeric"') +
       campo("telefono", "Teléfono", "tel") + campo("email", "Mail", "email") + campo("alta", "Fecha de alta", "date", ' max="' + hoyAR() + '"') +
       campo("apto_medico_vence", "Apto médico: vence el", "date") + '</div>' +
-      '<p class="gy-fino">El profe se lo asignás cuando empiece a usar la app. La foto la sacás en el paso que sigue.</p>' +
+      // La recepción no asigna profes (no lee el equipo): lo hace la administración.
+      '<p class="gy-fino">' + (rolGym() === "recepcion" ? "El profe se lo asigna la administración" : "El profe se lo asignás") + ' cuando empiece a usar la app. La foto la sacás en el paso que sigue.</p>' +
       '<div class="gy-acc">' + btn('data-gym="ficha-crear"' + (GS.busy ? ' disabled' : ''), GS.busy === "ficha" ? "Guardando…" : "Cargar socio") + '</div>';
   }
   return '<div class="gy-modal-h"><h2>Sumar socio</h2><button class="gy-x" data-gym="cerrar" aria-label="Cerrar">✕</button></div>' + tabs + cuerpo;

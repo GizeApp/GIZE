@@ -1,7 +1,10 @@
 // Socios → Solicitudes (SPEC §2.3): quién pidió sumarse, cómo entró, si coincide con una ficha ya
 // cargada («¿Es Juan Pérez, DNI …123?») y la foto que propuso. [Socio nuevo] (con profe o sin profe, y
 // «Aprobar la foto») · [Es la ficha de…] (une el pedido con esa ficha) · [Rechazar].
+// La recepción (con «La recepción aprueba solicitudes y carga fichas») no lee el equipo: elige entre el
+// profe por defecto del gimnasio (SPEC §2.8; el servidor lo valida con gym_profe_no_puede) y «Sin profe».
 import { esc } from '../../core/utils.js';
+import { rolGym } from '../../core/gimnasio.js';
 import { GS, gym, fotoHtml, fotoUrl, fecha } from './estado.js';
 import { btn, btn2, vacio, cargando } from './marco.js';
 import { profesDelEquipo, norm } from './socios.js';
@@ -12,9 +15,20 @@ const viaTxt = s => s.unir_sugerida ? VIA.ficha : (VIA[s.via] || VIA.codigo);
 // Lo elegido para cada pedido: GS.solForm guarda solo lo que se tocó; lo demás sale en el momento (el
 // profe por defecto, si ya llegó el equipo, y «Aprobar la foto» marcado si propuso una). Así, si el
 // equipo llega después que las solicitudes, el profe por defecto aparece igual.
+const esRecepcion = () => rolGym() === "recepcion";
 export function solElegido(s){
   const f = GS.solForm[s.id] || {}, def = gym().default_trainer_id || "";
-  return { profe: f.profe !== undefined ? f.profe : (profesDelEquipo().some(p => p.user_id === def) ? def : ""), foto: f.foto !== undefined ? f.foto : !!s.foto_pend_path };
+  const porDefecto = esRecepcion() || profesDelEquipo().some(p => p.user_id === def) ? def : "";
+  return { profe: f.profe !== undefined ? f.profe : porDefecto, foto: f.foto !== undefined ? f.foto : !!s.foto_pend_path };
+}
+// Las opciones del profe: el equipo (dueño y administración) o, para la recepción, el profe por defecto.
+function opcionesProfe(f, profes){
+  const op = (v, txt) => '<option value="' + esc(v) + '"' + (f.profe === v ? ' selected' : '') + '>' + esc(txt) + '</option>';
+  if (esRecepcion()){
+    const def = gym().default_trainer_id || "";
+    return (def ? op(def, "Profe por defecto del gimnasio") : "") + op("", "Sin profe");
+  }
+  return op("", "Sin profe") + profes.map(p => op(p.user_id, p.nombre || "Profe")).join("");
 }
 
 export function renderSolicitudes(){
@@ -42,7 +56,7 @@ export function renderSolicitudes(){
         (s.share_admin ? '<div class="gy-fino">Compartió sus registros con la administración.</div>' : '') +
         coinc +
         '<div class="gy-sol-acc"><label class="gy-f gy-f-in"><span>Profe</span><select class="gy-sel" data-gym-sol="profe" data-id="' + esc(s.id) + '"' + (sinEquipo ? ' disabled' : '') + '>' +
-          (sinEquipo ? '<option value="">Cargando los profes…</option>' : '<option value="">Sin profe</option>' + profes.map(p => '<option value="' + esc(p.user_id) + '"' + (f.profe === p.user_id ? ' selected' : '') + '>' + esc(p.nombre || "Profe") + '</option>').join("")) + '</select></label>' +
+          (sinEquipo ? '<option value="">Cargando los profes…</option>' : opcionesProfe(f, profes)) + '</select></label>' +
           btn('data-gym="sol-nuevo" data-id="' + esc(s.id) + '"' + (GS.busy || sinEquipo ? ' disabled' : ''), GS.busy === s.id ? "Aprobando…" : "Socio nuevo") +
           '<button class="cv-link gy-peligro" data-gym="sol-rechazar" data-id="' + esc(s.id) + '"' + (GS.busy ? ' disabled' : '') + '>Rechazar</button></div>' +
       '</div></article>';
