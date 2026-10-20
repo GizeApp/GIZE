@@ -20,6 +20,7 @@ import { foodUnit } from '../core/foodunits.js';
 import { planSections } from './checkin.js';
 
 import { IA, iaVisible } from '../core/ia.js';
+import { plusLimiteSemanal, plusOfertaHtml } from '../ui/ia-plus.js';
 
 // Nombre sin la aclaración de la unidad, que ya muestra la hoja del alimento:
 // "Pan lactal blanco (1 rebanada ≈ 25 g)" → "Pan lactal blanco". Las demás aclaraciones
@@ -686,10 +687,14 @@ export function plateAddLabel(P){
   const t = plateTotals(P);
   return t.n ? `Agregar ${alComida(P.meal)}${plateDia()} · ${kNum(t.kcal)} kcal` : "Agregar";
 }
-// «Te quedan 3 fotos con IA hoy»: solo con 3 o menos.
+// «Te quedan 3 fotos con IA hoy»: solo con 3 o menos. Con el límite semanal de IA Plus (foto y texto
+// juntos), lo que queda de la semana.
 export function plateQuedan(modo){
   const q = IA.estado && IA.estado.quedan ? IA.estado.quedan[modo] : null;
   if (q == null || q > 3) return "";
+  const p = IA.estado.plus;
+  if (plusLimiteSemanal() && p && Number(p.quedan_semana) === q)
+    return `<div class="pl8-quedan">${q ? "Te " + (q === 1 ? "queda 1 uso gratis" : "quedan " + q + " usos gratis") + " de IA esta semana" : "Esta semana ya usaste tus usos gratis de IA"}</div>`;
   const que = modo === "texto" ? (q === 1 ? "texto" : "textos") : (q === 1 ? "foto" : "fotos");
   return `<div class="pl8-quedan">${q ? "Te " + (q === 1 ? "queda " : "quedan ") + q + " " + que + " con IA hoy" : "Hoy ya no te quedan " + (modo === "texto" ? "textos" : "fotos") + " con IA"}</div>`;
 }
@@ -731,7 +736,7 @@ function plateBody(P){
   const otra = foto ? `<button class="ctrl ghost" data-action="plate-again">Sacar otra foto</button>` : `<button class="ctrl ghost" data-action="plate-again">Escribir de nuevo</button>`;
   const manual = `<button class="ctrl ghost" data-action="plate-manual">Buscar alimento</button><button class="ctrl ghost" data-action="plate-scan">Escanear código</button>`;
   if (P.status === "error") return `${photo}
-      <div class="pl8-err" role="alert">${esc(P.msg || "")}</div>
+      <div class="pl8-err" role="alert">${esc(P.msg || "")}</div>${P.err && P.err.codigo === "tope_semana" ? plusOfertaHtml() : ""}
       <div class="pl8-btns">${P.reintento ? `<button class="ctrl primary" data-action="plate-retry">Probar de nuevo</button>` : ""}${manual}</div>`;
   if (P.status === "vacio") return `${photo}
       <div class="pl8-err" role="alert">${foto ? "No vimos comida en la foto. Probá con el plato entero, de arriba y con buena luz." : "No encontramos comida en lo que escribiste. Probá contarlo de otra forma."}</div>

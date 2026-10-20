@@ -506,7 +506,7 @@ function rerender(){ renderPlanSheet(); renderCoach(); }
 export async function checkPaymentReturn(){
   if(IS_NATIVE) return;
   const u = new URL(location.href);
-  if(!u.searchParams.has("pago")) return;
+  if(!u.searchParams.has("pago") || u.searchParams.get("pago") === "iaplus") return; // IA Plus: ui/ia-plus.js
   u.searchParams.delete("pago"); u.searchParams.delete("preapproval_id");
   history.replaceState(null, "", u.pathname + (u.search || "") + u.hash);
   B.confirming = true; renderCoach();

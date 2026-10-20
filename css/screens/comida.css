@@ -483,3 +483,25 @@ html:has(#iaPermHost .sheet:not(.closing)), html:has(#iaPermHost .sheet:not(.clo
 .ia-toast.show { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .ia-toast { transition: none; } }
 .cfg-ia-link { color: var(--blue-2, var(--blue)); }
+
+/* ---- IA Plus (app/ui/ia-plus.js): la oferta debajo del límite semanal y Ajustes → Mi IA Plus ----
+   Solo con IA Plus prendido en el panel. Mismos colores de la apariencia que la hoja del plato. */
+.plus-box { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-box); background: var(--card-2);
+  border: 1px solid color-mix(in srgb, var(--gize-r2) 55%, var(--border)); color: var(--txt); }
+.plus-box p { margin: 0; line-height: 1.45; font-size: var(--text-body); }
+.plus-box.plus-no { border-style: dashed; }
+.plus-t { font-weight: 800; font-size: var(--text-body); display: flex; align-items: center; gap: 6px; }
+.plus-lbl { font-size: var(--text-meta); font-weight: 600; color: var(--txt-2); }
+.plus-box .form-input { font-size: 16px; }
+.plus-go { margin: 2px 0 0; min-height: 48px; }
+.plus-go:disabled { opacity: .55; }
+.plus-prod { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--r-btn); border: 1px solid var(--border); background: var(--card); }
+.plus-prod span { font-size: var(--text-meta); color: var(--txt-2); }
+.plus-fine { margin: 0; font-size: var(--text-meta) !important; color: var(--txt-2); line-height: 1.45; }
+.plus-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: var(--text-meta); }
+.plus-links a { color: var(--txt); text-decoration: underline; text-underline-offset: 3px; min-height: 44px; display: inline-flex; align-items: center; }
+.plus-links .pl8-link { min-height: 44px; padding: 0; }
+.plus-card .plus-estado { margin: 4px 0 8px; line-height: 1.45; font-size: var(--text-body); color: var(--txt); }
+.plus-card .plus-btns { margin-bottom: 8px; }
+.plus-card .plus-box { margin-top: 4px; }
+:is(.plus-go, .plus-links a, .plus-links .pl8-link, .plus-btns .ctrl):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
