@@ -23,7 +23,7 @@ export default async function ({ base, t }){
     const { p, errs, S, close } = await pagina({ estado: ESTADO_ON });
     await abrirComida(p, base); await abrirBuscador(p);
     await p.context().setOffline(true);
-    await p.click('[data-action="ia-plato"]'); await wait(700);
+    await p.click('#sheetHost [data-action="ia-plato"]'); await wait(700);
     t.has(await txt(p, '#sheetHost .plate-sheet'), 'Sin conexión. La IA necesita internet; podés cargarlo a mano.', 'sin conexión: el aviso');
     t.ok(!(await p.isVisible('#iaPermHost .ia-perm').catch(() => false)), 'sin conexión: no pregunta el permiso');
     t.ok(!!(await p.$('#sheetHost [data-action="plate-manual"]')) && !!(await p.$('#sheetHost [data-action="plate-scan"]')) && !(await p.$('#sheetHost [data-action="plate-retry"]')), 'sin conexión: buscar o escanear, sin «Probar de nuevo»');
@@ -48,7 +48,7 @@ export default async function ({ base, t }){
   ]){
     const { p, errs, S, close } = await pagina({ estado: Object.assign({}, OK, est) });
     await abrirComida(p, base); await abrirBuscador(p);
-    await p.click('[data-action="ia-plato"]'); await wait(800);
+    await p.click('#sheetHost [data-action="ia-plato"]'); await wait(800);
     t.has(await txt(p, '#sheetHost .plate-sheet'), texto, nombre + ': el aviso');
     t.ok(!(await p.$('#sheetHost [data-action="plate-retry"]')) && !!(await p.$('#sheetHost [data-action="plate-manual"]')), nombre + ': sin «Probar de nuevo», con buscar o escanear');
     t.eq(S.llamadas.length, 0, nombre + ': no llama a la IA');
@@ -71,7 +71,7 @@ export default async function ({ base, t }){
     let n = 0;
     const { p, errs, S, close } = await pagina({ estado: Object.assign({}, OK, { quedan: { plato: 3, texto: 15 } }), funcion: () => (++n === 1 ? [status, Object.assign({ ok: false, codigo, mensaje: 'x' }, extra)] : [200, PLATO]) });
     await abrirComida(p, base); await abrirBuscador(p);
-    await p.click('[data-action="ia-plato"]'); await wait(700);
+    await p.click('#sheetHost [data-action="ia-plato"]'); await wait(700);
     if (codigo === 'tope_dia') { t.has(await txt(p, '#sheetHost .plate-sheet'), 'Te quedan 3 fotos con IA hoy', 'con 3 o menos: «Te quedan 3 fotos con IA hoy»'); await shot(p, '24-quedan-3'); }
     await p.setInputFiles('#sheetHost input[data-action="plate-file"]:not([capture])', await fotoJpeg(p)); await wait(1500);
     t.has(await txt(p, '#sheetHost .pl8-err'), texto, codigo + ': el texto');
@@ -89,7 +89,7 @@ export default async function ({ base, t }){
   {
     const { p, errs, close } = await pagina({ estado: OK, funcion: () => [200, { ok: true, hay_comida: false, nota: '', items: [] }] });
     await abrirComida(p, base); await abrirBuscador(p);
-    await p.click('[data-action="ia-plato"]'); await wait(700);
+    await p.click('#sheetHost [data-action="ia-plato"]'); await wait(700);
     await p.setInputFiles('#sheetHost input[data-action="plate-file"]:not([capture])', await fotoJpeg(p)); await wait(1500);
     t.has(await txt(p, '#sheetHost .pl8-err'), 'No vimos comida en la foto. Probá con el plato entero, de arriba y con buena luz.', 'sin comida: el aviso');
     t.ok(!!(await p.$('#sheetHost [data-action="plate-again"]')), 'sin comida: «Sacar otra foto»');
@@ -104,7 +104,7 @@ export default async function ({ base, t }){
     await abrirComida(p, base);
     await p.click('[data-action="day-prev"]'); await wait(800);
     await abrirBuscador(p);
-    await p.click('[data-action="ia-plato"]'); await wait(800);
+    await p.click('#sheetHost [data-action="ia-plato"]'); await wait(800);
     t.eq(await p.evaluate(() => document.activeElement && document.activeElement.id), 'pl8T', 'al abrir, el foco va a la hoja');
     const vistos = [];
     for (let i = 0; i < 6; i++) { await p.keyboard.press('Tab'); vistos.push(await p.evaluate(() => { const a = document.activeElement; return (a.closest('#sheetHost .plate-sheet') ? 'hoja:' : 'fuera:') + a.textContent.replace(/\s+/g, ' ').trim(); })); }
@@ -146,7 +146,7 @@ export default async function ({ base, t }){
     // Con la IA apagada en Ajustes, el botón lleva a Ajustes y no pregunta el permiso.
     await p.click('#nav-comida'); await wait(500); await abrirBuscador(p);
     p.contestar = q => /Apagaste las funciones con IA/.test(q.texto) ? true : true;
-    await p.click('[data-action="ia-plato"]'); await wait(900);
+    await p.click('#sheetHost [data-action="ia-plato"]'); await wait(900);
     t.ok(preguntas.some(q => /Apagaste las funciones con IA/.test(q.texto) && q.ok === 'Ir a Ajustes'), 'apagada en Ajustes: el botón ofrece ir a Ajustes');
     t.ok(!(await p.isVisible('#iaPermHost .ia-perm').catch(() => false)), 'apagada en Ajustes: no vuelve a preguntar sola');
     t.ok(await p.isVisible(sw), '«Ir a Ajustes» lleva a Ajustes');
@@ -169,7 +169,7 @@ export default async function ({ base, t }){
     await abrirComida(pg.p, base);
     if (extra) await pg.p.evaluate(() => document.documentElement.classList.add('lite', 'basico'));
     await abrirBuscador(pg.p);
-    await pg.p.click('[data-action="ia-plato"]'); await wait(700);
+    await pg.p.click('#sheetHost [data-action="ia-plato"]'); await wait(700);
     await pg.p.setInputFiles('#sheetHost input[data-action="plate-file"]:not([capture])', await fotoJpeg(pg.p)); await wait(1500);
     t.eq((await pg.p.$$('#sheetHost .pl8-row')).length, 3, tema + (extra ? ' básico' : '') + ': la hoja con las filas');
     const cmp = await pg.p.evaluate(() => { const a = getComputedStyle(document.querySelector('#sheetHost .pl8-name')).color, b = getComputedStyle(document.querySelector('#sheetHost .pl8-row')).backgroundColor; return a !== b; });

@@ -386,7 +386,8 @@ html.lite .scan-btn { animation: none; }
 .ia-chip { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .03em;
   color: var(--txt-2); border: 1px solid color-mix(in srgb, var(--gize-r2) 55%, var(--border)); vertical-align: 1px; }
 .diary-name .ia-chip { display: inline-block; }
-/* «Foto» al lado del escáner, y «Contame qué comiste» abajo del buscador. */
+/* «Foto» al lado del buscador (en su lugar, el escáner si la IA no se puede usar), y «Contame qué
+   comiste» abajo del buscador. */
 .ia-foto-btn { flex-shrink: 0; min-width: 48px; min-height: 44px; padding: 4px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   border-radius: var(--r-btn); border: 1px solid color-mix(in srgb, var(--gize-r2) 55%, var(--border)); background: var(--card-2); color: var(--txt);
   font: 600 11px/1.1 var(--gize-font); cursor: pointer; position: relative; -webkit-tap-highlight-color: transparent; }

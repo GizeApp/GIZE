@@ -399,12 +399,30 @@ export function renderRequestForm(){
     <button class="form-save rq-send" data-action="rq-send"${r.sending ? ' disabled' : ''}>${r.sending ? 'Enviando…' : 'Enviar pedido'}</button>`;
 }
 
-// Barra de arriba: abre la ventana de búsqueda (no se escribe acá). El escáner, al lado.
+// Los botones de al lado del buscador: «Foto» (IA) y el escáner de códigos.
+const fotoBtn = () => `<button class="ia-foto-btn" data-action="ia-plato" aria-label="Registrar con una foto (IA)">${cameraSvg}<span aria-hidden="true">Foto</span><span class="ia-mini" aria-hidden="true">IA</span></button>`;
+const scanBtn = () => `<button class="scan-btn" data-action="scan-open" title="Escanear código de barras" aria-label="Escanear código de barras (beta)">${barcodeSvg}<span class="scan-beta" aria-hidden="true">BETA</span></button>`;
+// Barra de arriba: abre la ventana de búsqueda (no se escribe acá). Al lado, «Foto» (IA) si la IA
+// se puede usar; si no (apagada en el panel o en Ajustes, o sin aceptar el aviso y sin conexión),
+// el escáner de códigos, como siempre.
+const barBtn = () => iaDisponible("plato") ? fotoBtn() : scanBtn();
 function searchBar(vd){
-  return `<div class="food-search-row">
+  return `<div class="food-search-row comida-barra">
       <button class="cal-search search-wrap search-open" data-action="search-open"><span class="search-ic">${searchSvg}</span><span class="search-ph">${vd===today() ? "Buscar alimento o marca…" : "Agregar a "+esc(dayLabel(vd).toLowerCase())+"…"}</span></button>
-      <button class="scan-btn" data-action="scan-open" title="Escanear código de barras" aria-label="Escanear código de barras (beta)">${barcodeSvg}<span class="scan-beta" aria-hidden="true">BETA</span></button>
+      ${barBtn()}
     </div>`;
+}
+// Cuando llega el estado de la IA (o cambia la conexión): cambia el botón de al lado de la barra de
+// arriba sin redibujar la pantalla. Si el foco estaba en ese botón, queda en el nuevo.
+export function paintBarraIA(){
+  const row = document.querySelector("#view .comida-barra"); if (!row) return;
+  const viejo = row.querySelector(".ia-foto-btn, .scan-btn");
+  const quiere = iaDisponible("plato") ? "ia-plato" : "scan-open";
+  if (viejo && viejo.dataset.action === quiere) return;
+  const tmp = document.createElement("div"); tmp.innerHTML = barBtn();
+  const nuevo = tmp.firstElementChild, foco = viejo && document.activeElement === viejo;
+  if (viejo) viejo.replaceWith(nuevo); else row.appendChild(nuevo);
+  if (foco) try { nuevo.focus({ preventScroll: true }); } catch (e) {}
 }
 
 // Ventana de búsqueda (como Fitia): comida elegida arriba, buscador con el teclado listo,
@@ -428,8 +446,8 @@ export function renderSearchSheet(){
       ${swap ? "" : mealChips(ComidaState.meal || mealNow(), "search-meal")}
       <div class="food-search-row">
         <div class="cal-search search-wrap"><span class="search-ic">${searchSvg}</span><input id="foodSearch" type="text" placeholder="Buscar alimento o marca…" value="${esc(ComidaState.foodQuery)}" data-action="food-search" autocomplete="off" enterkeyhint="search"></div>
-        ${foto ? `<button class="ia-foto-btn" data-action="ia-plato" aria-label="Registrar con una foto (IA)">${cameraSvg}<span aria-hidden="true">Foto</span><span class="ia-mini" aria-hidden="true">IA</span></button>` : ""}
-        ${scan ? `<button class="scan-btn" data-action="scan-open" title="Escanear código de barras" aria-label="Escanear código de barras (beta)">${barcodeSvg}<span class="scan-beta" aria-hidden="true">BETA</span></button>` : ""}
+        ${foto ? fotoBtn() : ""}
+        ${scan ? scanBtn() : ""}
       </div>
       ${texto ? `<button class="ia-texto-btn" data-action="ia-texto"><span aria-hidden="true">✍️</span> Contame qué comiste <span class="ia-tag" aria-hidden="true">IA</span></button>` : ""}
       <div id="foodResults" class="ss-results">${renderResults(ComidaState.foodQuery)}</div>

@@ -60,17 +60,17 @@ export default async function ({ base: url, t }){
   // ---------- prendida: el permiso ----------
   const { p, errs, S, close, preguntas } = await pagina();
   await abrirComida(p, url); await abrirBuscador(p);
-  t.ok(await visible(p, '[data-action="ia-plato"]'), 'prendida: «Foto» al lado del buscador');
+  t.ok(await visible(p, '#sheetHost [data-action="ia-plato"]'), 'prendida: «Foto» al lado del buscador');
   t.ok(!(await p.$('#sheetHost .search-sheet [data-action="scan-open"]')), 'prendida: sin el escáner en la barra (queda solo «Foto»)');
-  t.eq(await p.getAttribute('[data-action="ia-plato"]', 'aria-label'), 'Registrar con una foto (IA)', '«Foto» con su aria-label');
-  t.has(await txt(p, '[data-action="ia-plato"]'), 'Foto', '«Foto» con la etiqueta visible');
+  t.eq(await p.getAttribute('#sheetHost [data-action="ia-plato"]', 'aria-label'), 'Registrar con una foto (IA)', '«Foto» con su aria-label');
+  t.has(await txt(p, '#sheetHost [data-action="ia-plato"]'), 'Foto', '«Foto» con la etiqueta visible');
   t.ok(await visible(p, '[data-action="ia-texto"]'), 'prendida: «Contame qué comiste»');
   await shot(p, '02-buscador-con-ia');
-  const caja = await p.evaluate(() => { const b = document.querySelector('[data-action="ia-plato"]').getBoundingClientRect(); return [b.width, b.height]; });
+  const caja = await p.evaluate(() => { const b = document.querySelector('#sheetHost [data-action="ia-plato"]').getBoundingClientRect(); return [b.width, b.height]; });
   t.ok(caja[0] >= 44 && caja[1] >= 44, '«Foto» se toca bien (≥ 44 × 44): ' + caja);
   t.ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'sin scroll horizontal (390 px)');
 
-  await p.click('[data-action="ia-plato"]'); await wait(600);
+  await p.click('#sheetHost [data-action="ia-plato"]'); await wait(600);
   t.ok(await visible(p, '#iaPermHost .ia-perm'), 'antes de la cámara sale el permiso');
   const hoja = await txt(p, '#iaPermHost .ia-perm');
   for (const f of ['Usar IA en Comida', 'Anthropic', 'Estados Unidos', 'no tu nombre, tu mail', '30 días', 'GIZE no guarda la foto del plato', 'Ajustes → Funciones con IA', 'Aceptar y usar IA', 'Ahora no', 'Política de privacidad'])
@@ -83,7 +83,7 @@ export default async function ({ base: url, t }){
   t.eq([S.permisos.length, S.llamadas.length], [0, 0], '«Ahora no»: no guarda nada ni llama a la IA');
   await shot(p, '04-ahora-no');
 
-  await p.click('[data-action="ia-plato"]'); await wait(600);
+  await p.click('#sheetHost [data-action="ia-plato"]'); await wait(600);
   t.ok(await visible(p, '#iaPermHost .ia-perm'), 'después de «Ahora no» vuelve a preguntar');
   await p.click('#iaPermHost [data-ia="si"]'); await wait(800);
   t.eq(S.permisos, [{ p_tipo: 'comida', p_acepta: true, p_version: 1 }], 'aceptar guarda el permiso con la versión del aviso');
@@ -187,7 +187,7 @@ export default async function ({ base: url, t }){
   await abrirBuscador(p);
   const ahora = await p.evaluate(() => { const h = new Date().getHours(); return h < 11 ? 'desayuno' : h < 16 ? 'almuerzo' : h < 20 ? 'merienda' : 'cena'; });
   t.eq(await p.$$eval('#sheetHost [data-action="search-meal"].on', bs => bs.map(b => b.dataset.meal)), [ahora], 'después del plato, el buscador no queda con la comida elegida');
-  await p.click('[data-action="ia-plato"]'); await wait(700);
+  await p.click('#sheetHost [data-action="ia-plato"]'); await wait(700);
   t.ok(!(await visible(p, '#iaPermHost .ia-perm')) && await visible(p, '#sheetHost .plate-sheet'), 'aceptado: no vuelve a preguntar');
   t.eq(S.permisos.length, 1, 'el permiso se guardó una sola vez');
   await p.click('#sheetHost .ss-x[data-action="plate-cancel"]'); await wait(500);
