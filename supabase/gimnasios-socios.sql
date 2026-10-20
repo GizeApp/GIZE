@@ -663,7 +663,9 @@ begin
                        where x.gym_id = s.g and x.status in ('activo', 'pausado') and x.trainer_id is null and p.coach_id is null),
         'falta_confirmacion', (select count(*) from public.gym_members x
                                 where x.gym_id = s.g and x.status in ('activo', 'pausado') and x.member_id is not null and x.terms_at is null),
-        'fotos_pendientes', (select count(*) from public.gym_members x where x.gym_id = s.g and x.status <> 'baja' and x.foto_pend_path is not null),
+        -- Las fotos de los pedidos se aprueban desde Solicitudes (ya cuentan en 'solicitudes'): acá solo las
+        -- de los socios, las que se ven en Socios con «Foto para aprobar».
+        'fotos_pendientes', (select count(*) from public.gym_members x where x.gym_id = s.g and x.status not in ('baja', 'pendiente') and x.foto_pend_path is not null),
         'ingresos_hoy', (select count(*) from public.gym_entries e
                           where e.gym_id = s.g and e.at >= (hoy::timestamp at time zone 'America/Argentina/Buenos_Aires')),
         'invitaciones', (select count(*) from public.gym_invites i

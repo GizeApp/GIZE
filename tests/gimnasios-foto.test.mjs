@@ -91,6 +91,11 @@ export default async function ({ t: t0 }){
   t.eq([x[10], x[11], x[12].ficha.foto, x[12].ficha.foto_rechazo], [{ foto: 'rechazada' }, { ok: p1, pend: null, rechazo: 'Se ve muy oscura', por: P.dA }, 'ok', 'Se ve muy oscura'],
     'la recepción (con «altas») la rechaza con un motivo: queda la anterior y el socio ve el motivo');
   t.eq(x[13], ['foto_propuesta', 'foto_aprobada', 'foto_propuesta', 'foto_rechazada'], 'cada paso queda en la auditoría');
+  // La foto de un pedido (A6, pendiente) se aprueba desde Solicitudes: cuenta como solicitud, no como
+  // «foto para aprobar» (Socios no muestra los pedidos y «Revisar» abría una lista vacía).
+  x = await V([['A6', rpc('gym_foto_proponer', ruta(F.A6, 903))], ['dA', rpc('mi_gimnasio')], ['A1', rpc('gym_foto_proponer', p2)], ['dA', rpc('mi_gimnasio')]]);
+  t.eq([x[0], x[1].contadores.solicitudes, x[1].contadores.fotos_pendientes, x[3].contadores.fotos_pendientes], [{ foto: 'pendiente' }, 1, 0, 1],
+    'mi_gimnasio: la foto de un pedido no cuenta en fotos_pendientes (sí la de un socio)');
   x = await V([['A1', rpc('gym_foto_proponer', ruta(F.A2, 901))], ['A1', rpc('gym_foto_proponer', ruta(F.A1, 777))], ['A2', rpc('gym_foto_proponer', p1)], ['pA1', rpc('gym_foto_resolver', F.A1, true, null)]]);
   t.eq([x[0].msg, x[1].msg, x[2].msg, x[3].error], ['No encontramos la foto: probá de nuevo.', 'No encontramos la foto: probá de nuevo.', 'No encontramos la foto: probá de nuevo.', '42501'],
     'no se propone la foto de otra ficha ni una que no se subió; el profe no resuelve');
