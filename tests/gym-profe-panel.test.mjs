@@ -13,7 +13,7 @@
 // - Un coach sin gimnasio: nada de esto (ni el chip, ni grupos, ni gym_ficha_profe, ni el CSS del
 //   gimnasio).
 // Celular y compu, Oscuro y Claro (capturas en GYM_CAPTURAS).
-import { wait, newPage } from './lib.mjs';
+import { wait, newPage, contraste } from './lib.mjs';
 import { entrarProfe, miGimnasioProfe, alumnosProfe, fichaProfe, PROFE, PROPIO, COACH, S, F, M, D, hostTxt, rpcs, captura, sinScrollHorizontal } from './gym-comun.mjs';
 
 const clientes = async p => { await p.click('[data-coach="view-clients"]'); await wait(600); };
@@ -36,6 +36,8 @@ export default async function ({ base, t }){
     t.ok(/FUERZA22/.test(h) && /LUCIA234/.test(h), donde + ': los dos códigos');
     t.has(h, 'Invitar socio', donde + ': el botón de arriba invita al gimnasio');
     if (vp === M) t.ok(await sinScrollHorizontal(p), donde + ': sin scroll horizontal');
+    let c = await contraste(p, '#coachHost');
+    t.ok(c.min >= 4.5, donde + ': Clientes con contraste de 4,5:1 o más (mínimo ' + c.min + ': ' + c.malos.slice(0, 4).join(' | ') + ')');
     await captura(p, 'profe-clientes-' + (vp === M ? 'cel' : 'compu') + '-' + tema);
     // Ficha de un socio: la tarjeta Gimnasio.
     await abrir(p, S.A1);
@@ -51,6 +53,8 @@ export default async function ({ base, t }){
       donde + ': estado, apto, alta y últimos ingresos: ' + f.slice(0, 500));
     t.ok(!/\$|monto|DNI|teléfono|@/i.test(f.replace(/datos de contacto/, '')), donde + ': sin montos ni datos de contacto');
     t.eq(await p.$eval('#coachHost .cv-gymcard .gy-sem', e => e.className), 'gy-sem verde', donde + ': el semáforo en verde');
+    c = await contraste(p, '#coachHost');
+    t.ok(c.min >= 4.5, donde + ': la tarjeta con contraste de 4,5:1 o más (mínimo ' + c.min + ': ' + c.malos.slice(0, 4).join(' | ') + ')');
     await captura(p, 'profe-tarjeta-gimnasio-' + (vp === M ? 'cel' : 'compu') + '-' + tema);
     // Alumno propio: como hoy.
     await p.click('[data-coach="back"]'); await wait(500);

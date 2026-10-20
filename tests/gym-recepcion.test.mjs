@@ -11,7 +11,7 @@
 // - El dueño la abre desde «Recepción» (con altas); el profe, desde su panel, solo con el interruptor y
 //   sin altas. Con la recepción pausada (plan vencido hace más de 10 días), el texto del servidor.
 // Celular y compu, Oscuro y Claro (capturas en GYM_CAPTURAS).
-import { wait } from './lib.mjs';
+import { wait, contraste } from './lib.mjs';
 import { entrar, entrarProfe, miGimnasio, miGimnasioProfe, DUENA, RECEP, F, G, ID, M, D, busqueda, solicitudes, recTxt, buscarRec, hostTxt, modalTxt, rpcs, storageGym,
   captura, sinScrollHorizontal } from './gym-comun.mjs';
 
@@ -70,6 +70,8 @@ export default async function ({ base, t }){
     t.eq(ids[1], ids[2], donde + ': el reintento usa el mismo id (si el primero llegó, el servidor no anota otro)');
     t.ok(ids[0] !== ids[1] && /^[0-9a-f-]{36}$/.test(ids[1]), donde + ': cada ingreso nuevo, su propio id');
     t.has(await recTxt(p), 'pero está pausado', donde + ': registrado, avisa que está pausado (no se frena a nadie)');
+    const c = await contraste(p, '#coachHost');
+    t.ok(c.min >= 4.5, donde + ': todo el texto con contraste de 4,5:1 o más (mínimo ' + c.min + ': ' + c.malos.slice(0, 4).join(' | ') + ')');
     if (tema === 'oscuro') await captura(p, 'recepcion-pausado-' + (vp === M ? 'cel' : 'compu'));
     // Repetido.
     await p.click('[data-rec="elegir"][data-id="' + F.A1 + '"]'); await wait(200);

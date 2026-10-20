@@ -6,7 +6,7 @@
 //   lista de hoy se vuelve a leer.
 // - [Exportar CSV]: separado por punto y coma, con BOM, una fila por ingreso.
 // Celular y compu, Oscuro y Claro (capturas en GYM_CAPTURAS).
-import { wait } from './lib.mjs';
+import { wait, contraste } from './lib.mjs';
 import { entrar, DUENA, ADMIN_G, miGimnasio, F, M, D, ir, hostTxt, modalTxt, rpcs, ingresosHoy, busqueda, buscarRec, captura, sinScrollHorizontal } from './gym-comun.mjs';
 
 const hoyAR = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -30,6 +30,8 @@ export default async function ({ base, t }){
     t.ok(!/\$|monto|cuota/i.test(h), donde + ': sin montos');
     t.ok(/Abrir recepción/.test(h) && /Ingreso manual/.test(h) && /Exportar CSV/.test(h), donde + ': las tres acciones');
     if (vp === M) t.ok(await sinScrollHorizontal(p), donde + ': sin scroll horizontal');
+    const c = await contraste(p, '#coachHost .cv-main');
+    t.ok(c.min >= 4.5, donde + ': todo el texto con contraste de 4,5:1 o más (mínimo ' + c.min + ': ' + c.malos.slice(0, 4).join(' | ') + ')');
     await captura(p, 'asistencia-' + (vp === M ? 'cel' : 'compu') + '-' + tema);
     // Exportar CSV.
     const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#coachHost [data-gym="asis-csv"]')]);
