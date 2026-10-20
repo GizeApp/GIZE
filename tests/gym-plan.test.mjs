@@ -4,7 +4,7 @@
 // administración ve el estado sin comprar. En las apps de Android y de iPhone, una pantalla neutra: sin
 // precios, nombres de planes, prueba ni pagos.
 import { wait } from './lib.mjs';
-import { entrar, miGimnasio, DUENA, ADMIN_G, hostTxt, ir, IOS, ANDROID } from './gym-comun.mjs';
+import { entrar, miGimnasio, DUENA, ADMIN_G, F, hostTxt, ir, IOS, ANDROID } from './gym-comun.mjs';
 
 const dias = n => new Date(Date.now() + n * 864e5).toISOString();
 const PROHIBIDO = /\$|pagar|prueba|gratis|precio|mercado ?pago|transferencia|suscrip|gimnasio chico|gimnasio grande|p100|p250|p500|tarjeta|contrat/i;
@@ -35,6 +35,40 @@ export default async function ({ base, t }){
     await ir(pg.p, 'plan');
     t.has(await hostTxt(pg.p), 'Todo sigue andando hasta el', 'gracia: hasta cuándo anda todo');
     await pg.close();
+  }
+  // El plan del gimnasio es la fila de coach_billing de la dueña: vencido (en gracia, o la prueba que
+  // terminó), «Como profe», «Mi cuenta» y la ficha de entrenamiento de un socio siguen andando adentro
+  // del marco, sin la pantalla de planes de coach. Pasada la gracia, un cartel del gimnasio que lleva al
+  // plan (en las apps, sin precios ni planes). En la web, en el celular de Android y en el de iPhone.
+  for (const [nombre, init] of [['web', ''], ['Android', ANDROID], ['iPhone', IOS]]){
+    for (const [estado, billing] of [['gracia', { paid_until: dias(-2) }], ['gracia', { plan: 'trial', trial_ends_at: dias(-3), paid_until: null }], ['operativo', { paid_until: dias(-7) }]]){
+      const n = nombre + ' (' + estado + (billing.plan ? ', prueba terminada' : '') + ')';
+      const g = miGimnasio('owner', { plan: { estado, vence: dias(estado === 'gracia' ? -2 : -7), pausa_profes_el: dias(estado === 'gracia' ? 3 : -2), libera_el: dias(3), plan: billing.plan || 'p250',
+        seats_used: 182, max: 250, sobre_cupo: false, profes_usados: 3, profes_tope: 15 } });
+      const pg = await entrar(base, DUENA, { gym: g, init, billing }), p = pg.p;
+      const pantalla = async (sel, que) => {
+        await p.click(sel); await wait(1200);
+        const txt = await hostTxt(p);
+        t.ok(!!(await p.$('#coachHost .gy-shell .gy-nav')), n + ', ' + que + ': con el marco del gimnasio');
+        t.ok(!/Pagar con tarjeta|Hasta 10 clientes|no está activa|Terminó tu prueba|Tu plan venció/i.test(txt), n + ', ' + que + ': sin la pantalla de planes de coach: ' + txt.slice(0, 160));
+        if (nombre !== 'web') t.ok(!PROHIBIDO.test(txt.replace(/\S+@\S+/g, '')), n + ', ' + que + ': sin precios ni pagos: ' + (txt.match(PROHIBIDO) || [''])[0]);
+        return txt;
+      };
+      let txt = await pantalla('#coachHost [data-coach="view-tpls"][data-gy-coach]', 'Rutinas');
+      if (estado === 'gracia') t.ok(/Crear rutina/.test(txt), n + ': Rutinas anda (los primeros 5 días todo sigue)');
+      else {
+        t.has(txt, nombre === 'web' ? 'El plan de GIZE del gimnasio venció' : 'El acceso de GIZE del gimnasio está pausado', n + ': Rutinas, el cartel del gimnasio');
+        await p.click('#coachHost .cv-wrap [data-gym="ir"][data-v="plan"]'); await wait(700);
+        t.has(await hostTxt(p), nombre === 'web' ? 'Plan de GIZE' : 'Acceso a GIZE', n + ': y lleva al plan del gimnasio');
+      }
+      txt = await pantalla('#coachHost [data-coach="open-settings"][data-gy-coach]', 'Mi cuenta');
+      t.ok(/Perfil/.test(txt) && !(await p.$('#coachHost [data-coach="settings-sec"][data-k="plan"]')), n + ': «Mi cuenta» anda, sin «Mi plan» de coach (el plan está en el panel)');
+      await ir(p, 'socios'); await p.click('#coachHost .gy-row[data-id="' + F.A7 + '"]'); await wait(900);
+      txt = await pantalla('#coachHost [data-gym="entreno"]', 'la ficha de entrenamiento');
+      if (estado === 'gracia') t.has(txt, 'Pedro Álvarez', n + ': la ficha de entrenamiento de su socio anda');
+      t.eq(pg.errs, [], n + ': sin errores');
+      await pg.close();
+    }
   }
   // La administración: el estado, sin comprar.
   {

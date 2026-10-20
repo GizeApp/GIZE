@@ -35,7 +35,7 @@ import { renderCoachSalidas, salidasTileText } from './salidas.js';
 import { syncRouteViews } from '../../ui/mapa.js';
 import { clientPlanDirty, mealEditHead, renderMealPicker, snapMealEdit } from './planes.js';
 import { coachShell, secIcon, renderClientsView, renderHomeView, renderMealsView, renderTplsView } from './panel.js';
-import { pintarGym } from '../../core/gimnasio.js';
+import { pintarGym, sinPlanGym } from '../../core/gimnasio.js';
 
 // Ficha en modo lectura (el dueño o la administración del gimnasio miran a un socio que compartió sus
 // registros y no es suyo; ver openClient): se ve todo lo que el socio compartió, pero no se edita. Solo
@@ -127,10 +127,14 @@ export function renderCoach(){
   lucesCoach(); // las luces del fondo («Oscuro»): se mueven muy despacio (app/ui/background.js)
   // Sin prueba ni plan vigente: solo la pantalla de planes (la base igual no le deja
   // leer los datos de los clientes, ver supabase/suscripciones.sql).
-  if(!billing().active){ host.innerHTML=renderPaywall(); return; }
+  // Adentro del panel del gimnasio (dueño o administración) manda el plan del gimnasio: core/gimnasio.js.
+  const gymPlan=sinPlanGym();
+  if(!billing().active && gymPlan===null){ host.innerHTML=renderPaywall(); return; }
+  if(gymPlan){ host.innerHTML=gymPlan; return; }
   if(!CoachState.coachSel && !CoachState.coachTplEdit && !CoachState.coachMealEdit){
     // Las cuatro pantallas de arriba (Inicio, Clientes, Rutinas, Planes alimenticios): ver panel.js.
-    const v=CoachState.coachView, banner=renderPlanBanner();
+    // En el panel del gimnasio, sin el cartel del plan de coach (el plan está en «Plan de GIZE»).
+    const v=CoachState.coachView, banner=gymPlan===null ? renderPlanBanner() : "";
     host.innerHTML=coachShell(v, v==="settings" ? renderSettingsView() : v==="meals" ? renderMealsView(banner) : v==="tpls" ? renderTplsView(banner) : v==="home" ? renderHomeView(banner) : renderClientsView(inviteBox(), banner));
   } else if(CoachState.coachTplEdit){
     const rt=CoachState.coachTplEdit.days||[];

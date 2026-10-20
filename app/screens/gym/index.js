@@ -16,7 +16,7 @@ import { CoachState } from '../coach/state.js';
 import { usarMarco } from '../coach/panel.js';
 import { renderCoach, clientUnsaved, tplDirty } from '../coach/index.js';
 import { openClient } from '../coach/clientes.js';
-import { GS, rpc, gym, yo, esDueno, pedirFotos, copiar, plural, primerNombre, hoyAR, APP_URL, fecha } from './estado.js';
+import { GS, rpc, info, gym, yo, esDueno, enApp, pedirFotos, copiar, plural, primerNombre, hoyAR, APP_URL, fecha } from './estado.js';
 import { marcoGym, hojaMas, cabeza, btn, btn2, vacio } from './marco.js';
 import { renderInicio, marcarRecepcion } from './inicio.js';
 import { renderSocios, ventanaSumar, profesDelEquipo } from './socios.js';
@@ -24,7 +24,7 @@ import { fotosDeSolicitudes } from './solicitudes.js';
 import { renderFicha, fotosDeFicha, sinCambiarProfe } from './ficha.js';
 import { renderEquipo, renderAceptar, ventanaInvitar, ventanaQuitar } from './equipo.js';
 import { renderConfig, ventanaQr } from './config.js';
-import { renderPlan, cambiarPlan } from './plan.js';
+import { renderPlan, cambiarPlan, tituloPlan } from './plan.js';
 import { renderCrear } from './crear.js';
 import { VERSIONES } from './textos.js';
 import { exportar, exportarTodo, aCsv, descargar } from './csv.js';
@@ -45,7 +45,7 @@ export function iniciarGym(){
   document.body.addEventListener("input", alEscribir);
   document.body.addEventListener("change", alCambiar);
   document.addEventListener("keydown", alTeclado);
-  Gym.ui = { pintar, coach: renderCoach };
+  Gym.ui = { pintar, coach: renderCoach, sinPlan };
 }
 
 // ---- Qué se dibuja ----
@@ -110,6 +110,20 @@ function vista(){
     case "recepcion": return cabeza("Recepción") + vacio("La recepción se abre acá: buscar socios por nombre o DNI, ver su foto y registrar el ingreso. Llega en la próxima actualización.");
     default: return renderInicio();
   }
+}
+// Lo del panel de coach adentro del marco, con el plan del gimnasio vencido (core/gimnasio.js
+// sinPlanGym): activo o en gracia, sigue (""); si no, un cartel que lleva al plan (en las apps, sin
+// hablar de planes ni pagos).
+function sinPlan(){
+  const pl = info().plan || {};
+  if (!pl.estado || pl.estado === "activo" || pl.estado === "gracia") return "";
+  // «Mi cuenta» sigue (perfil, avisos, cerrar sesión, eliminar la cuenta).
+  if (CoachState.coachView === "settings" && !CoachState.coachSel && !CoachState.coachTplEdit && !CoachState.coachMealEdit) return "";
+  const t = enApp() ? "El acceso de GIZE del gimnasio está pausado: tus rutinas, tus planes y las fichas de entrenamiento vuelven cuando esté activo de nuevo."
+    : "El plan de GIZE del gimnasio venció: tus rutinas, tus planes y las fichas de entrenamiento vuelven cuando se renueve.";
+  return marcoGym(CoachState.coachSel ? "clients" : CoachState.coachView,
+    cabeza(tituloPlan()) + '<div class="cv-card gy-vacio"><p>' + esc(t) + '</p>' + (esDueno() ? "" : '<p class="gy-fino">El plan lo maneja el dueño del gimnasio.</p>') +
+    '<div class="gy-acc">' + btn('data-gym="ir" data-v="plan"', enApp() ? "Ver el acceso" : "Ver el plan") + '</div></div>');
 }
 function renderRecepcionSola(){
   return '<div class="gy-solo"><div class="co-brand cv-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"></div><div class="cv-card gy-solo-card">' +

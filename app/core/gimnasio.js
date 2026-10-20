@@ -158,3 +158,14 @@ export function pintarGym(app){
   if (r === "coach"){ if (app) Gym.ui.coach(); return !!app; }
   return !!r;
 }
+// La pantalla de planes de coach (renderCoach, sin plan vigente) adentro del panel del gimnasio. El plan
+// de la dueña es el del gimnasio (coach_active: con 5 días de gracia, gimnasios-vinculo.sql): mientras
+// está activo o en gracia, «Como profe», «Mi cuenta» y la ficha de entrenamiento de un socio siguen
+// andando, y si venció, una pantalla del gimnasio que lleva al Plan de GIZE (sin los planes de coach ni
+// precios, y sin perder el marco). null: no está en el panel del gimnasio (la pantalla de siempre);
+// "": sigue; si no, lo que se dibuja.
+export function sinPlanGym(){
+  return enMarcoGym() ? Gym.ui.sinPlan() : null;
+}
+// Dueño o administración con el panel del gimnasio cargado: lo del panel de coach va adentro de su marco.
+export const enMarcoGym = () => !!Gym.ui && ["owner", "admin"].includes(rolGym());

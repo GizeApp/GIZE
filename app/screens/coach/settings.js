@@ -23,6 +23,7 @@ import { neonSwitchHtml } from '../../ui/neon.js';
 
 import { appNativa } from '../../core/tienda.js';
 import { comprasApple } from '../../core/compras-apple.js';
+import { enMarcoGym } from '../../core/gimnasio.js';
 
 import { alRepintar, renderQuestionsEditor } from './preguntas.js';
 
@@ -42,7 +43,8 @@ const IC = {
 // Secciones del menú: [clave, título, ícono, resumen corto].
 function secciones(){
   const l = [["perfil", "Perfil", IC.user, "Foto y nombre"], ["apariencia", "Apariencia", IC.palette, "Tema y neón"], ["avisos", "Avisos", IC.bell, pushOnHere() ? "Activados" : "Apagados"]];
-  if(!appNativa() || comprasApple()) l.push(["plan", "Mi plan", IC.card, "Plan y clientes"]);
+  // En el panel del gimnasio el plan es el del gimnasio: está en «Plan de GIZE» (sin los planes de coach).
+  if((!appNativa() || comprasApple()) && !enMarcoGym()) l.push(["plan", "Mi plan", IC.card, "Plan y clientes"]);
   l.push(["preguntas", "Preguntas", IC.help, "Registro y check-in"], ["privacidad", "Privacidad", IC.shield, "Bloqueos y políticas"], ["cuenta", "Cuenta", IC.out, "Sesión y baja"]);
   return l;
 }
