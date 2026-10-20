@@ -16,8 +16,8 @@ export const PRODUCTOS_APPLE: Record<string, { plan: string; max: number }> = {
   "ar.com.gize.app.coach.p500": { plan: "p500", max: 500 },
 };
 
-// IA Plus (supabase/ia.sql → ia_plus): la suscripción mensual que deja usar la foto del plato y
-// «Contame qué comiste» sin el límite semanal. Va en otro grupo de suscripciones de App Store
+// IA Plus (supabase/ia.sql → ia_plus): la suscripción mensual que deja usar la foto del plato sin
+// el límite semanal (hasta 10 fotos por día). Va en otro grupo de suscripciones de App Store
 // Connect («GIZE IA Plus»), así que se puede tener junto con un plan de coach. La misma constante
 // está en app/core/compras-apple.js (tests/ia-plus-funciones.test.mjs controla que sean iguales).
 export const IA_PLUS_APPLE = "ar.com.gize.app.iaplus.mensual";

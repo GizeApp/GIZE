@@ -1,6 +1,7 @@
-// IA Plus: la suscripción mensual que deja usar la foto del plato y «Contame qué comiste» sin el
-// límite semanal gratis (supabase/ia.sql → ia_plus, ia_reservar). Todo arranca apagado: sin el
-// interruptor del panel (gize.ar/admin → IA → IA Plus) la app no muestra nada de esto.
+// IA Plus: la suscripción mensual que deja usar la foto del plato sin el límite semanal gratis
+// (3 fotos por semana), hasta 10 fotos por día (supabase/ia.sql → ia_plus, ia_reservar). Todo
+// arranca apagado: sin el interruptor del panel (gize.ar/admin → IA → IA Plus) la app no muestra
+// nada de esto.
 // Dónde se vende (lo decidió el dueño):
 //   · Web (gize.ar/app): con Mercado Pago, en pesos (función suscripcion, acción iaplus_checkout),
 //     con el botón de baja y el de arrepentimiento (Argentina) en Ajustes → Mi IA Plus.
@@ -34,11 +35,11 @@ export function plusInfo(){
 }
 // ¿Rige el límite semanal para esta persona? (IA Plus prendido y sin IA Plus)
 export const plusLimiteSemanal = () => { const p = plusInfo(); return !!(p && p.activa && p.estado === "gratis"); };
-// ¿Se puede usar la IA de Comida ahora? Con la IA apagada, sin la foto ni el texto, pausada o sin
+// ¿Se puede usar la IA de Comida ahora? Con la IA apagada, sin la foto del plato, pausada o sin
 // crédito este mes, IA Plus no se ofrece: sería cobrar por algo que no se puede usar.
 export function plusIAUsable(){
   const e = State.cloudUser && IA.uid === State.cloudUser.id && IA.estado;
-  return !!(e && e.activa && e.funciones && (e.funciones.plato || e.funciones.texto) && !["pausada", "tope_mes"].includes(e.estado));
+  return !!(e && e.activa && e.funciones && e.funciones.plato && !["pausada", "tope_mes"].includes(e.estado));
 }
 
 // Dónde se puede comprar: "web" (Mercado Pago), "apple" (iPhone con el plugin), "android" o
@@ -50,12 +51,9 @@ export function plusCanal(){
   return "web";
 }
 
-// Los topes del día que siguen con IA Plus (los del rol de alumno, que configura el panel).
-function topesDia(){
-  const t = IA.estado && IA.estado.tope;
-  return { plato: (t && t.plato) || 8, texto: (t && t.texto) || 15 };
-}
-const queIncluye = () => { const t = topesDia(); return "hasta " + t.plato + " fotos y " + t.texto + " textos por día"; };
+// Lo que incluye IA Plus: las fotos por día de quien lo tiene (topes.plus del panel, 10). Nunca
+// «ilimitado»: hay un máximo por día y otro por mes.
+const queIncluye = () => { const p = plusInfo(); return "hasta " + ((p && Number(p.plato_dia)) || 10) + " fotos por día"; };
 
 let cargandoPrecio = false, falloPrecio = false;
 function precioApple(){
@@ -121,7 +119,7 @@ export function plusAjustesHtml(){
     estado = "<b>Activo</b> · " + (p.renueva ? "se renueva el " + dia(p.hasta) : "hasta el " + dia(p.hasta) + " (no se renueva)") + ". Sin límite semanal: " + queIncluye() + ".";
   } else {
     const q = Number(p.quedan_semana) || 0;
-    estado = "Gratis: " + (Number(p.gratis_semana) || 0) + " usos de IA por semana (foto o texto). " + (q ? "Te " + (q === 1 ? "queda " : "quedan ") + q + " esta semana" : "Esta semana ya los usaste") + "; se renuevan el lunes.";
+    estado = "Gratis: " + (Number(p.gratis_semana) || 0) + " fotos con IA por semana. " + (q ? "Te " + (q === 1 ? "queda " : "quedan ") + q + " esta semana" : "Esta semana ya las usaste") + "; se renuevan el lunes.";
   }
   // Lo comprado, con sus botones (aunque esté incluido: si se renueva, se paga de más).
   if (p.fuente === "mp") {
@@ -178,7 +176,7 @@ async function pagarMP(btn){
 
 async function darDeBaja(btn){
   const p = plusInfo(); if (!p) return;
-  if (!await confirmar("¿Cancelar IA Plus? No se te cobra más. Lo seguís usando hasta el " + dia(p.hasta) + " y después vuelven los usos gratis de cada semana.", { titulo: "Cancelar suscripción", ok: "Cancelar suscripción", cancelar: "Volver" })) return;
+  if (!await confirmar("¿Cancelar IA Plus? No se te cobra más. Lo seguís usando hasta el " + dia(p.hasta) + " y después vuelven las fotos gratis de cada semana.", { titulo: "Cancelar suscripción", ok: "Cancelar suscripción", cancelar: "Volver" })) return;
   await conBoton(btn, "Cancelando…", async () => {
     const r = await State.sb.functions.invoke("suscripcion", { body: { action: "iaplus_cancel" } });
     if (r.error) { alert((await errDe(r)).error); return; }

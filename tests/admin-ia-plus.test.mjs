@@ -1,13 +1,15 @@
 // Panel → IA → IA Plus (admin/admin.js, supabase/ia.sql): el interruptor (arranca apagado), el
-// precio de la web en pesos (provisorio hasta guardarlo: sin eso no se prende), los usos gratis por
-// semana, cuántos lo tienen (Mercado Pago, Apple, a mano) y, para soporte, darlo y sacarlo a mano.
+// precio de la web en pesos (provisorio hasta guardarlo: sin eso no se prende), las fotos gratis por
+// semana (solo fotos), los topes de quien lo tiene (10 fotos por día y US$1,50 por ciclo, en Topes),
+// cuántos lo tienen (Mercado Pago, Apple, a mano) y, para soporte, darlo y sacarlo a mano.
 import { newPage, wait, ADMIN } from './lib.mjs';
 
 const SHOTS = process.env.SHOTS;
 const D = n => new Date(Date.now() + n * 864e5).toISOString();
-let IA_ON = true;
-const ESTADO = plus => ({ activa: IA_ON, funciones: { etiqueta_admin: true, etiqueta_usuario: false, plato: true, texto: true, rutina: false, resumen: false },
-  modelos: {}, topes: { alumno: { etiqueta: 10, plato: 8, texto: 15, total: 25, usd_ciclo: 0.5 } }, ancla: '2026-11-10T00:00:00Z', pedidos_desde: '2026-10-19T03:00:00Z', aviso_version: 1,
+let IA_ON = true, PLATO = true;
+// «texto» puede seguir prendido en la base (de antes de sacar «Contame qué comiste»): no cuenta.
+const ESTADO = plus => ({ activa: IA_ON, funciones: { etiqueta_admin: true, etiqueta_usuario: false, plato: PLATO, texto: true, rutina: false, resumen: false },
+  modelos: {}, topes: { alumno: { etiqueta: 10, plato: 8, texto: 15, total: 25, usd_ciclo: 0.5 }, plus: { plato: 10, usd_ciclo: 1.5 } }, ancla: '2026-11-10T00:00:00Z', pedidos_desde: '2026-10-19T03:00:00Z', aviso_version: 1,
   ciclo: { id: 1, inicio: '2026-10-10T00:00:00Z', fin: '2026-11-10T00:00:00Z', credito: 200, aviso: 100, ahorro: 150, tope: 180, gastado: 1.2, reservado: 0, estado: 'normal',
     hoy: 0.1, limite_hoy: 12, proyeccion: 3, frenos: { tope_semana: 7 } },
   por_funcion: {}, errores: {}, tablas: {}, clave_rechazada: null, ultimas: [],
@@ -48,9 +50,20 @@ export default async function ({ base, t }){
   t.has(await blk(), 'La IA de Comida está apagada', 'IA apagada: lo avisa');
   await p.click('[data-a="iaPlusOn"]'); await wait(800);
   t.ok((await toast()).includes('Antes de prender IA Plus, prendé la IA') && !rpcs.length, 'IA apagada: no deja prender IA Plus');
-  IA_ON = true;
+  // Con la IA prendida pero sin la foto del plato (aunque el viejo texto siga prendido): tampoco.
+  IA_ON = true; PLATO = false;
+  await p.reload(); await wait(1800);
+  t.has(await blk(), 'La IA de Comida está apagada (o sin la foto del plato)', 'sin la foto del plato: lo avisa');
+  await p.click('[data-a="iaPlusOn"]'); await wait(800);
+  t.ok((await toast()).includes('Antes de prender IA Plus, prendé la IA y la foto del plato.') && !rpcs.length, 'sin la foto del plato: no deja prender IA Plus');
+  PLATO = true;
   await p.reload(); await wait(1800);
   let h = await blk();
+  t.ok(!/Contame|texto/i.test(h), 'IA Plus no habla de «Contame qué comiste» ni de textos');
+  // Los topes de IA Plus, en Topes: su propia fila (fotos por día y US$ por ciclo).
+  const tp = await p.evaluate(() => [...document.querySelectorAll('#iaTopesB .ia-topes')].map(x => x.textContent.replace(/\s+/g, ' ')).find(x => x.includes('Con IA Plus')) || '');
+  t.has(tp, 'Con IA Plus (o incluido)Platos por díaUS$ por ciclo', 'Topes: la fila de IA Plus');
+  t.eq([await p.inputValue('[data-tope="plus.plato"]'), await p.inputValue('[data-tope="plus.usd_ciclo"]')], ['10', '1.5'], 'Topes de IA Plus: 10 fotos por día y US$1,50 por ciclo');
   t.ok(!h.includes('La IA de Comida está apagada'), 'IA prendida: sin el aviso');
   t.has(h, 'Dani dani@prueba.test Se arrepintió Se arrepintió 2 veces', 'quien se arrepintió dos veces, marcado');
   t.has(h, 'Pedidos de baja y arrepentimiento sin sesión · 1 sin atender', 'los pedidos de gize.ar/baja: cuántos sin atender');
@@ -65,7 +78,7 @@ export default async function ({ base, t }){
   t.has(h, 'Beto beto@prueba.test Apple', 'la lista: Apple');
   // Prender sin confirmar el precio: no.
   await p.click('[data-a="iaPlusOn"]'); await wait(1200);
-  t.ok(preguntas.some(q => /¿Prender IA Plus\?/.test(q.texto) && /\$3\.900 al mes/.test(q.texto)), 'antes de prender, pregunta (con el precio)');
+  t.ok(preguntas.some(q => /¿Prender IA Plus\?/.test(q.texto) && /\$3\.900 al mes/.test(q.texto) && /gratis hasta 3 fotos por semana/.test(q.texto) && /hasta 10 fotos por día/.test(q.texto)), 'antes de prender, pregunta (con el precio, las fotos gratis y las 10 por día)');
   t.has(await toast(), 'confirmá el precio en pesos', 'sin el precio confirmado no se prende');
   t.eq(await p.getAttribute('[data-a="iaPlusOn"]', 'aria-checked'), 'false', 'sigue apagado');
   // Guardar el precio y prender.
@@ -74,9 +87,12 @@ export default async function ({ base, t }){
   t.ok(!(await blk()).includes('Precio provisorio'), 'con el precio guardado, ya no es provisorio');
   await p.click('[data-a="iaPlusOn"]'); await wait(1000);
   t.eq(await p.getAttribute('[data-a="iaPlusOn"]', 'aria-checked'), 'true', 'prendido');
-  t.has(await blk(), 'Prendido: la foto del plato y «Contame qué comiste» son gratis hasta 3 usos por semana', 'prendido: qué pasa');
+  h = await blk();
+  t.has(h, 'Prendido: la foto del plato es gratis hasta 3 fotos por semana; con IA Plus, sin límite semanal: hasta 10 fotos por día y US$ 1,50 por persona por ciclo.', 'prendido: qué pasa');
+  t.has(h, 'Fotos gratis por semana (solo fotos del plato; la semana arranca el lunes a las 00:00)', 'las fotos gratis por semana');
+  t.ok(!/ilimitad/i.test(h), 'nunca «ilimitado»');
   await p.fill('#iaPlusGratis', '5'); await p.click('[data-a="iaPlusGratis"]'); await wait(900);
-  t.ok(rpcs.some(x => x[0] === 'config' && x[1].plus && x[1].plus.gratis_semana === 5), 'cambia los usos gratis por semana');
+  t.ok(rpcs.some(x => x[0] === 'config' && x[1].plus && x[1].plus.gratis_semana === 5), 'cambia las fotos gratis por semana');
   // Compras de prueba de Apple: la lista de cuentas.
   await p.fill('#iaPlusSandbox', 'no es mail'); await p.click('[data-a="iaPlusSandbox"]'); await wait(600);
   t.ok(!rpcs.some(x => x[0] === 'config' && x[1].plus && x[1].plus.sandbox), 'compras de prueba: un mail inválido no se guarda');
@@ -87,7 +103,8 @@ export default async function ({ base, t }){
   const dar = rpcs.find(x => x[0] === 'dar');
   t.ok(dar && dar[1].p_email === 'caro@prueba.test' && /^\d{4}-\d{2}-\d{2}$/.test(dar[1].p_hasta) && dar[1].p_nota === 'se le cortó el pago', 'da IA Plus a mano: mail, hasta y nota: ' + JSON.stringify(dar));
   t.has(await blk(), 'A mano: se le cortó el pago', 'aparece en la lista');
-  if (SHOTS) { await p.evaluate(() => document.getElementById('iaPlusB').scrollIntoView({ block: 'start' })); await wait(300); await p.screenshot({ path: SHOTS + '/12-admin-ia-plus.png', fullPage: false }); }
+  if (SHOTS) { await p.evaluate(() => document.getElementById('iaPlusB').scrollIntoView({ block: 'start' })); await wait(300); await p.screenshot({ path: SHOTS + '/12-admin-ia-plus.png', fullPage: false });
+    await p.evaluate(() => { const d = document.getElementById('iaTopesB'); d.open = true; d.scrollIntoView({ block: 'start' }); }); await wait(300); await p.screenshot({ path: SHOTS + '/16-admin-topes.png', fullPage: false }); }
   await p.click('[data-a="pedidoAtendido"][data-id="7"]'); await wait(900);
   t.ok(rpcs.some(x => x[0] === 'atendido' && x[1].p_id === 7) && !(await blk()).includes('sin atender'), 'marca el pedido como atendido');
   await p.click('[data-a="iaPlusQuitar"][data-id="u3"]'); await wait(1000);

@@ -152,19 +152,20 @@ están en Panel de coach → Ver planes (o Configuración → Ver mi plan)».
 
 ## 7. IA Plus (otro grupo de suscripciones)
 
-IA Plus (la foto del plato y «Contame qué comiste» sin el límite semanal gratis) se vende en el
-iPhone con Apple, en **su propio grupo**, así un coach puede tener su plan y además IA Plus:
+IA Plus (la foto del plato sin el límite semanal gratis de 3 fotos, hasta 10 fotos por día) se
+vende en el iPhone con Apple, en **su propio grupo**, así un coach puede tener su plan y además IA Plus:
 
 1. Monetización → Suscripciones → **+** al lado de «Grupos de suscripciones»: nombre de referencia
    **GIZE IA Plus**; en Localización, Español (México), nombre visible **GIZE IA Plus**.
 2. Dentro del grupo, **+**: nombre de referencia **IA Plus mensual**, ID del producto exactamente
    **`ar.com.gize.app.iaplus.mensual`**, duración 1 mes, precio US$2,99 (el más cercano a US$3),
-   localización Español (México): nombre visible **IA Plus**, descripción **Foto del plato y texto
-   con IA sin límite semanal**.
+   localización Español (México): nombre visible **IA Plus**, descripción **Hasta 10 fotos del
+   plato por día con IA**.
 3. Información para la revisión: captura de la oferta en el iPhone (Comida → Agregar → Foto, con
-   los usos gratis de la semana terminados, o Ajustes → Mi IA Plus) y en Notas: «Suscripción
-   mensual opcional que saca el límite semanal de las funciones con IA de Comida. Se compra en
-   Ajustes → Mi IA Plus (o en Comida → Agregar → Foto, cuando se terminan los usos gratis)».
+   las fotos gratis de la semana terminadas, o Ajustes → Mi IA Plus) y en Notas: «Suscripción
+   mensual opcional que saca el límite semanal (3 fotos gratis por semana) de la foto del plato
+   con IA: hasta 10 fotos por día. Se compra en Ajustes → Mi IA Plus (o en Comida → Agregar →
+   Foto, cuando se terminan las fotos gratis)».
 4. Se manda a revisión con la versión de la app que trae IA Plus (Compras dentro de la app y
    suscripciones → tildar «IA Plus mensual»). Los avisos al servidor usan la misma dirección de la
    sección 4: no hay que cambiar nada.

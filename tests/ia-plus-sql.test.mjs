@@ -1,15 +1,20 @@
-// IA Plus en la base (supabase/ia.sql): el límite semanal gratis de la foto del plato y «Contame qué
-// comiste», que controla ia_reservar (la app no lo puede saltear), y quién no lo tiene.
+// IA Plus en la base (supabase/ia.sql): el límite semanal gratis de la foto del plato (solo fotos),
+// que controla ia_reservar (la app no lo puede saltear), quién no lo tiene y los topes de quien lo
+// tiene (hasta 10 fotos por día y US$1,50 por ciclo).
 // 1) Leído: arranca apagado; ia_plus sin acceso desde la app; las funciones nuevas con sus permisos.
 // 2) De verdad, en un Postgres (como ia-sql.test.mjs; si la máquina no tiene, se saltea):
 //    - con IA Plus apagado no hay límite semanal (como antes);
 //    - no se prende sin confirmar el precio en pesos;
-//    - prendido: 3 usos gratis por semana (foto y texto juntos), el 4.º da tope_semana con el lunes
-//      que viene; los errores explícitos de la API (usd 0) no cuentan; lo de la semana pasada no
-//      cuenta; la semana arranca el lunes 00:00 de Buenos Aires;
+//    - prendido: 3 fotos gratis por semana, la 4.ª da tope_semana con el lunes que viene; solo
+//      cuentan las fotos (un texto viejo no); los errores explícitos de la API (usd 0) no cuentan;
+//      lo de la semana pasada no cuenta; la semana arranca el lunes 00:00 de Buenos Aires;
 //    - sin límite: alumno de coach con plan pago o de cortesía (la prueba no cuenta), coach con plan,
 //      IA Plus comprado y vigente (Mercado Pago, Apple o a mano); vencido, vuelve el límite;
 //    - en modo ahorro, quien pagó IA Plus sigue;
+//    - topes de IA Plus (topes.plus): con IA Plus, hasta 10 fotos por día y US$1,50 por ciclo; el
+//      gratis sigue con US$0,50; el coach sigue con sus US$5; con el interruptor apagado, el
+//      incluido vuelve a los topes de siempre (8 fotos) y el que lo pagó sigue con 10; el panel los
+//      cambia;
 //    - dos pedidos a la vez con un solo uso gratis: pasa uno;
 //    - ia_mi_estado: estado tope_semana, «quedan» y lo de plus (estado, fuente, renueva,
 //      arrepentimiento), también con la IA apagada;
@@ -40,10 +45,15 @@ export default async ({ t }) => {
 
   // ---------- 1) Leído ----------
   const def = JSON.parse((code.match(/add column if not exists plus jsonb not null default '([^']+)'/) || [])[1] || '{}');
-  t.eq(def, { activa: false, gratis_semana: 3, precio_ars: 3900, precio_confirmado: false }, 'IA Plus arranca apagado, 3 gratis por semana y el precio sin confirmar');
+  t.eq(def, { activa: false, gratis_semana: 3, precio_ars: 3900, precio_confirmado: false }, 'IA Plus arranca apagado, 3 fotos gratis por semana y el precio sin confirmar');
+  const topes = JSON.parse((code.match(/topes\s+jsonb not null default '([^']+)'/) || [])[1] || '{}');
+  t.eq(topes.plus, { plato: 10, usd_ciclo: 1.5 }, 'topes de IA Plus: 10 fotos por día y US$1,50 por ciclo');
+  t.eq([topes.alumno.plato, topes.alumno.usd_ciclo], [8, 0.5], 'el gratis sigue con 8 fotos y US$0,50');
+  t.ok(code.includes(`update public.ia_config set topes = topes || '{"plus":{"plato":10,"usd_ciclo":1.5}}' where id = 1 and not (topes ? 'plus');`), 'en una base que ya tenía la configuración, se suman los topes de IA Plus una sola vez');
+  t.ok(/l\.funcion = 'plato' and l\.creada >= public\.ia_semana\(\)/.test(fn(code, 'ia_semana_usos')), 'la semana cuenta solo fotos');
   t.ok(code.includes('create table if not exists public.ia_plus (') && code.includes('alter table public.ia_plus enable row level security;') && code.includes('revoke all on public.ia_plus from anon, authenticated;'), 'ia_plus: RLS y sin acceso desde la app');
   t.ok(!/create policy [^;]* on public\.ia_plus/.test(code), 'ia_plus: sin políticas (la app lo lee con ia_mi_estado)');
-  for (const sig of ['ia_plus_hasta(uuid)', 'ia_plus_incluido(uuid)', 'ia_plus_tiene(uuid)', 'ia_plus_info(uuid)']){
+  for (const sig of ['ia_plus_hasta(uuid)', 'ia_plus_incluido(uuid)', 'ia_plus_tiene(uuid)', 'ia_plus_rige(uuid)', 'ia_plus_info(uuid)']){
     const e = sig.replace(/[()]/g, '\\$&');
     t.ok(new RegExp('revoke all on function public\\.' + e + ' from public, anon, authenticated;').test(code) && code.includes('grant execute on function public.' + sig + ' to service_role;'), sig + ': solo la service role');
   }
@@ -87,15 +97,15 @@ export default async ({ t }) => {
       r = psql(texto);
       t.ok(r.status === 0, nombre + ': ' + errores(r));
     }
-    // Dos pedidos a la vez cuando queda un solo uso gratis: el primero se queda adentro de su
+    // Dos pedidos a la vez cuando queda una sola foto gratis: el primero se queda adentro de su
     // transacción un segundo; el otro espera (el ciclo está bloqueado) y ve que ya no queda.
     psql(`delete from public.ia_llamadas; delete from public.ia_plus; update public.coach_billing set paid_until = null, plan = 'trial';
       insert into public.ia_llamadas (ciclo_id, user_id, rol, funcion, modelo, estado, max_usd, usd) select id, '${OTRO_ID}', 'alumno', 'plato', 'm-x', 'ok', 0.001, 0.001 from public.ia_ciclos cross join generate_series(1, 2);`);
-    const reservar = `set role service_role; select public.ia_reservar('${OTRO_ID}', 'alumno', 'texto', 'modelo-x', 0.005, null)->>'codigo';`;
+    const reservar = `set role service_role; select public.ia_reservar('${OTRO_ID}', 'alumno', 'plato', 'modelo-x', 0.005, null)->>'codigo';`;
     const [a, b] = await Promise.all([psqlAsync('begin; ' + reservar + ' select pg_sleep(1); commit;'), new Promise(ok => setTimeout(() => psqlAsync(reservar).then(ok), 200))]);
     const cods = [a.out, b.out].map(o => (o.match(/^(\S*)$/m) || [])[1]);
     t.ok(a.code === 0 && b.code === 0, 'dos a la vez: corren: ' + JSON.stringify([a.out, b.out]));
-    t.eq(cods.sort(), ['', 'tope_semana'], 'dos a la vez con un solo uso gratis: pasa uno y el otro da tope_semana');
+    t.eq(cods.sort(), ['', 'tope_semana'], 'dos a la vez con una sola foto gratis: pasa uno y el otro da tope_semana');
   } finally {
     correr('pg_ctl', ['-D', datos, '-m', 'immediate', 'stop']);
     fs.rmSync(dir, { recursive: true, force: true });
@@ -112,19 +122,19 @@ do $$ declare s timestamptz := public.ia_semana(); begin
   assert extract(isodow from s at time zone 'America/Argentina/Buenos_Aires') = 1 and (s at time zone 'America/Argentina/Buenos_Aires')::time = '00:00', 'lunes 00:00 ' || s;
   assert s <= now() and now() < s + interval '7 days', 'esta semana ' || s;
 end $$;`],
-  ['preparar: IA prendida (plato y texto) con ciclo', `
+  ['preparar: IA prendida (solo la foto del plato) con ciclo', `
 ${COMO(ADMIN_ID)}
-select public.admin_ia_config('{"activa": true, "funciones": {"plato": true, "texto": true}}');
+select public.admin_ia_config('{"activa": true, "funciones": {"plato": true}}');
 select public.admin_ia_ciclo((current_date + 20));
 reset role;
 insert into public.coach_billing (coach_id, plan, max_clients, trial_ends_at, paid_until) values ('${COACH_ID}', 'trial', 10, now() + interval '5 days', null) on conflict (coach_id) do nothing;`],
   ['con IA Plus apagado no hay límite semanal (como antes)', `
 do $$ declare j jsonb; e jsonb; begin
-  ${USO(OTRO_ID)} ${USO(OTRO_ID, 'texto')} ${USO(OTRO_ID)} ${USO(OTRO_ID)} ${USO(OTRO_ID, 'texto')}
+  ${USO(OTRO_ID)} ${USO(OTRO_ID)} ${USO(OTRO_ID)} ${USO(OTRO_ID)} ${USO(OTRO_ID)}
   perform set_config('request.jwt.claim.sub', '${OTRO_ID}', true);
   e := public.ia_mi_estado();
   assert e ->> 'estado' = 'normal' and (e #>> '{plus,activa}')::boolean = false and e #>> '{plus,estado}' = 'gratis', 'apagado ' || e::text;
-  assert (e #>> '{quedan,plato}')::int = 5, 'quedan sin límite semanal ' || e::text;
+  assert (e #>> '{quedan,plato}')::int = 3 and (e #>> '{tope,plato}')::int = 8, 'quedan sin límite semanal (de las 8 de siempre) ' || e::text;
 end $$;
 delete from public.ia_llamadas;`],
   ['no se prende sin el precio confirmado; con el precio, sí', `
@@ -147,17 +157,20 @@ do $$ begin assert (select plus -> 'sandbox' from public.ia_config) = '["revisio
 do $$ declare p jsonb := (select plus from public.ia_config); begin
   assert (p ->> 'activa')::boolean and (p ->> 'precio_ars')::int = 4500 and (p ->> 'precio_confirmado')::boolean and (p ->> 'gratis_semana')::int = 3, 'config ' || p::text;
 end $$;`],
-  ['prendido: 3 gratis por semana (foto y texto juntos), el 4.º no', `
+  ['prendido: 3 fotos gratis por semana (solo fotos), la 4.ª no', `
+-- Un texto de antes (cuando estaba «Contame qué comiste») no cuenta: solo fotos.
+insert into public.ia_llamadas (ciclo_id, user_id, rol, funcion, modelo, estado, max_usd, usd) select id, '${OTRO_ID}', 'alumno', 'texto', 'm-x', 'ok', 0.001, 0.001 from public.ia_ciclos;
 do $$ declare j jsonb; e jsonb; begin
-  ${USO(OTRO_ID)} ${USO(OTRO_ID, 'texto')}
+  ${USO(OTRO_ID)} ${USO(OTRO_ID)}
   -- Un error explícito de la API (usd 0) no cuenta.
   j := ${RES(OTRO_ID)}; perform public.ia_cerrar((j->>'llamada_id')::bigint, 'error', 'api_529', 0);
   perform set_config('request.jwt.claim.sub', '${OTRO_ID}', true);
   e := public.ia_mi_estado();
-  assert (e #>> '{plus,usados_semana}')::int = 2 and (e #>> '{plus,quedan_semana}')::int = 1 and (e #>> '{quedan,plato}')::int = 1 and (e #>> '{quedan,texto}')::int = 1, 'queda 1 ' || e::text;
+  assert (e #>> '{plus,usados_semana}')::int = 2 and (e #>> '{plus,quedan_semana}')::int = 1 and (e #>> '{quedan,plato}')::int = 1, 'queda 1 ' || e::text;
+  assert (e #>> '{plus,plato_dia}')::int = 10 and (e #>> '{tope,plato}')::int = 8, 'la oferta dice 10 por día; el gratis sigue con 8 ' || e::text;
   ${USO(OTRO_ID)}
-  j := ${RES(OTRO_ID, 'alumno', 'texto')};
-  assert j ->> 'codigo' = 'tope_semana' and (j ->> 'tope')::int = 3 and (j ->> 'vuelve')::timestamptz = public.ia_semana() + interval '7 days', 'el 4.º ' || j::text;
+  j := ${RES(OTRO_ID)};
+  assert j ->> 'codigo' = 'tope_semana' and (j ->> 'tope')::int = 3 and (j ->> 'vuelve')::timestamptz = public.ia_semana() + interval '7 days', 'la 4.ª ' || j::text;
   assert (select (frenos ->> 'tope_semana')::int from public.ia_ciclos) = 1, 'cuenta la frenada';
   e := public.ia_mi_estado();
   assert e ->> 'estado' = 'tope_semana' and (e ->> 'vuelve')::timestamptz = public.ia_semana() + interval '7 days' and (e #>> '{quedan,plato}')::int = 0 and e #>> '{plus,estado}' = 'gratis', 'estado ' || e::text;
@@ -176,9 +189,9 @@ do $$ declare j jsonb; e jsonb; begin
   perform set_config('request.jwt.claim.sub', '${ALUMNO_ID}', true);
   e := public.ia_mi_estado();
   assert e ->> 'estado' = 'normal' and e #>> '{plus,estado}' = 'incluido' and e #>> '{plus,por}' = 'alumno', 'incluido ' || e::text;
-  assert (e #>> '{quedan,plato}')::int = 4, 'quedan: los del día ' || e::text;
+  assert (e #>> '{quedan,plato}')::int = 6 and (e #>> '{tope,plato}')::int = 10, 'quedan: los del día, de las 10 de IA Plus ' || e::text;
   update public.coach_billing set paid_until = null, plan = 'cortesia' where coach_id = '${COACH_ID}';
-  ${USO(ALUMNO_ID, 'texto')}
+  ${USO(ALUMNO_ID)}
   -- El coach con plan usa la IA con su rol (coach): incluido.
   perform set_config('request.jwt.claim.sub', '${COACH_ID}', true);
   e := public.ia_mi_estado();
@@ -202,7 +215,7 @@ do $$ declare j jsonb; e jsonb; begin
   j := ${RES(ALUMNO_ID)}; assert j ->> 'codigo' = 'tope_semana', 'vencido: vuelve el límite ' || j::text;
   -- Apple vigente (aunque lo de Mercado Pago venció): gana lo que llega más lejos.
   update public.ia_plus set apple_original_tx = '2000', apple_vence = now() + interval '3 days', apple_renueva = true where user_id = '${ALUMNO_ID}';
-  ${USO(ALUMNO_ID, 'texto')}
+  ${USO(ALUMNO_ID)}
   e := public.ia_mi_estado();
   assert e #>> '{plus,fuente}' = 'apple' and (e #>> '{plus,renueva}')::boolean, 'apple ' || e::text;
   update public.ia_plus set apple_vence = now() - interval '1 minute', apple_renueva = false where user_id = '${ALUMNO_ID}';
@@ -219,6 +232,67 @@ do $$ declare j jsonb; e jsonb; begin
   e := public.ia_mi_estado(); assert e ->> 'estado' = 'ahorro', 'gratis en ahorro ' || e::text;
 end $$;
 update public.ia_ciclos set estado = 'normal';`],
+  ['topes de IA Plus: 10 fotos por día y US$1,50 por ciclo; el gratis sigue con US$0,50 y el coach con US$5', `
+delete from public.ia_llamadas;
+do $$ declare j jsonb; e jsonb; begin
+  -- ALUMNO tiene IA Plus comprado (Mercado Pago, vigente): 10 fotos por día; la 11.ª no.
+  for i in 1..10 loop ${USO(ALUMNO_ID)} end loop;
+  j := ${RES(ALUMNO_ID)};
+  assert j ->> 'codigo' = 'tope_dia' and (j ->> 'tope')::int = 10, 'la 11.ª ' || j::text;
+  perform set_config('request.jwt.claim.sub', '${ALUMNO_ID}', true);
+  e := public.ia_mi_estado();
+  assert (e #>> '{tope,plato}')::int = 10 and (e #>> '{quedan,plato}')::int = 0, 'mi estado: 10 por día ' || e::text;
+end $$;
+-- Plata del ciclo: con IA Plus, US$1,50 (con US$1,20 gastados sigue; con US$1,50, no).
+delete from public.ia_llamadas;
+insert into public.ia_llamadas (ciclo_id, user_id, rol, funcion, modelo, estado, max_usd, usd, creada)
+  select id, u, 'alumno', 'etiqueta', 'm-x', 'ok', x, x, now() - interval '2 days' from public.ia_ciclos, (values ('${ALUMNO_ID}'::uuid, 1.2), ('${OTRO_ID}'::uuid, 0.6)) v(u, x);
+insert into public.ia_llamadas (ciclo_id, user_id, rol, funcion, modelo, estado, max_usd, usd, creada)
+  select id, '${COACH_ID}', 'coach', 'rutina', 'm-x', 'ok', 2, 2, now() - interval '2 days' from public.ia_ciclos;
+update public.coach_billing set paid_until = now() + interval '20 days' where coach_id = '${COACH_ID}';
+do $$ declare j jsonb; e jsonb; begin
+  j := ${RES(ALUMNO_ID)}; assert (j ->> 'ok')::boolean, 'IA Plus con US$1,20: sigue ' || j::text;
+  perform public.ia_cerrar((j->>'llamada_id')::bigint, 'ok', null, 0.001);
+  j := ${RES(OTRO_ID)}; assert j ->> 'codigo' = 'tope_persona', 'gratis con US$0,60: no (US$0,50) ' || j::text;
+  j := ${RES(COACH_ID, 'coach')}; assert (j ->> 'ok')::boolean, 'coach con US$2: sigue (US$5) ' || j::text;
+  perform public.ia_cerrar((j->>'llamada_id')::bigint, 'ok', null, 0.001);
+  perform set_config('request.jwt.claim.sub', '${COACH_ID}', true);
+  e := public.ia_mi_estado(); assert (e #>> '{tope,plato}')::int = 10 and e ->> 'estado' = 'normal', 'coach: 10 por día ' || e::text;
+  update public.ia_llamadas set usd = 1.499 where user_id = '${ALUMNO_ID}' and funcion = 'etiqueta';
+  j := ${RES(ALUMNO_ID)}; assert j ->> 'codigo' = 'tope_persona', 'IA Plus con US$1,50: no ' || j::text;
+  perform set_config('request.jwt.claim.sub', '${ALUMNO_ID}', true);
+  e := public.ia_mi_estado(); assert e ->> 'estado' = 'tope_persona', 'mi estado: tope_persona ' || e::text;
+end $$;
+-- Con el interruptor apagado: el incluido (alumno de coach con plan) vuelve a 8; el que lo pagó, 10.
+delete from public.ia_llamadas;
+update public.ia_plus set mp_hasta = now() - interval '1 minute' where user_id = '${ALUMNO_ID}';
+do $$ declare j jsonb; e jsonb; begin
+  perform set_config('request.jwt.claim.sub', '${ALUMNO_ID}', true);
+  e := public.ia_mi_estado(); assert (e #>> '{tope,plato}')::int = 10 and e #>> '{plus,estado}' = 'incluido', 'incluido, prendido: 10 ' || e::text;
+  update public.ia_config set plus = plus || '{"activa": false}';
+  e := public.ia_mi_estado(); assert (e #>> '{tope,plato}')::int = 8, 'incluido, apagado: 8 ' || e::text;
+  for i in 1..8 loop ${USO(ALUMNO_ID)} end loop;
+  j := ${RES(ALUMNO_ID)}; assert j ->> 'codigo' = 'tope_dia' and (j ->> 'tope')::int = 8, 'incluido, apagado: la 9.ª no ' || j::text;
+  update public.ia_plus set mp_hasta = now() + interval '10 days' where user_id = '${ALUMNO_ID}';
+  e := public.ia_mi_estado(); assert (e #>> '{tope,plato}')::int = 10, 'pagado, apagado: sigue con 10 ' || e::text;
+  j := ${RES(ALUMNO_ID)}; assert (j ->> 'ok')::boolean, 'pagado, apagado: la 9.ª sí ' || j::text;
+  update public.ia_config set plus = plus || '{"activa": true}';
+end $$;
+delete from public.ia_llamadas;
+update public.coach_billing set paid_until = null, plan = 'trial', trial_ends_at = now() + interval '5 days' where coach_id = '${COACH_ID}';
+-- El panel los cambia (y no acepta topes inventados).
+${COMO(ADMIN_ID)}
+do $$ begin
+  begin perform public.admin_ia_config('{"topes": {"plus": {"rutina": 3}}}'); raise exception 'tope inventado'; exception when sqlstate '22023' then null; end;
+  begin perform public.admin_ia_config('{"topes": {"plus": {"plato": 10.5}}}'); raise exception 'fotos con coma'; exception when sqlstate '22023' then null; end;
+end $$;
+select public.admin_ia_config('{"topes": {"plus": {"plato": 12, "usd_ciclo": 2}}}');
+reset role;
+do $$ begin assert (select topes -> 'plus' from public.ia_config) = '{"plato": 12, "usd_ciclo": 2}'::jsonb, 'topes de IA Plus cambiados'; end $$;
+${COMO(OTRO_ID)}
+do $$ declare e jsonb := public.ia_mi_estado(); begin assert (e #>> '{plus,plato_dia}')::int = 12, 'la oferta sigue al panel ' || e::text; end $$;
+reset role;
+update public.ia_config set topes = jsonb_set(topes, '{plus}', '{"plato": 10, "usd_ciclo": 1.5}');`],
   ['panel: dar y sacar IA Plus a mano, lista y resumen', `
 ${COMO(ADMIN_ID)}
 do $$ declare l jsonb; e jsonb; begin
@@ -261,11 +335,12 @@ select public.admin_ia_config('{"activa": false}');
 do $$ begin
   begin perform public.admin_ia_config('{"plus": {"activa": true}}'); raise exception 'prendió IA Plus con la IA apagada'; exception when sqlstate '22023' then null; end;
 end $$;
-select public.admin_ia_config('{"activa": true, "funciones": {"plato": false, "texto": false}}');
+-- Sin la foto del plato no se prende (aunque el viejo «texto» siga prendido en la base).
+select public.admin_ia_config('{"activa": true, "funciones": {"plato": false, "texto": true}}');
 do $$ begin
-  begin perform public.admin_ia_config('{"plus": {"activa": true}}'); raise exception 'prendió IA Plus sin foto ni texto'; exception when sqlstate '22023' then null; end;
+  begin perform public.admin_ia_config('{"plus": {"activa": true}}'); raise exception 'prendió IA Plus sin la foto del plato'; exception when sqlstate '22023' then null; end;
 end $$;
-select public.admin_ia_config('{"funciones": {"plato": true, "texto": true}, "plus": {"activa": true}}');
+select public.admin_ia_config('{"funciones": {"plato": true, "texto": false}, "plus": {"activa": true}}');
 select public.admin_ia_config('{"activa": false}');
 reset role;
 do $$ begin assert (select (plus ->> 'activa')::boolean and not activa from public.ia_config), 'apagar la IA con IA Plus prendido'; end $$;

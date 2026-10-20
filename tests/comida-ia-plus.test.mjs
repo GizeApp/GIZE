@@ -1,17 +1,18 @@
 // IA Plus en la app (app/ui/ia-plus.js), con Supabase, las funciones y el plugin de Apple simulados:
-// - Web: con los usos gratis de la semana terminados, la hoja del plato dice el límite y ofrece IA
-//   Plus en pesos (el precio del panel), con «hasta 8 fotos y 15 textos por día», el mail de Mercado
-//   Pago, la baja y el arrepentimiento, Términos y Privacidad; no llama a la IA. «Suscribirme» pide
-//   el link a la función suscripcion y va a Mercado Pago. «Te queda 1 uso gratis de IA esta semana».
-//   Si la función contesta tope_semana, la misma oferta.
+// - Web: con las 3 fotos gratis de la semana usadas, la hoja del plato dice el límite y ofrece IA
+//   Plus en pesos (el precio del panel), con «hasta 10 fotos por día» (nunca «ilimitado» ni textos),
+//   el mail de Mercado Pago, la baja y el arrepentimiento, Términos y Privacidad; no llama a la IA.
+//   «Suscribirme» pide el link a la función suscripcion y va a Mercado Pago. «Te queda 1 foto gratis
+//   con IA esta semana». Si la función contesta tope_semana, la misma oferta.
 // - iPhone (con el plugin de compras): el precio de Apple, «Suscribirme», «Restaurar compras»,
 //   Términos de uso y Política de privacidad; nunca pesos, Mercado Pago ni links a la web. Comprar
 //   manda lo que firmó Apple a compras-apple, lo finaliza y la hoja sigue con la foto.
 // - Android: el límite y «IA Plus todavía no está disponible en la app de Android; podés seguir
 //   cargando a mano», sin precio ni links.
-// - Ajustes → Mi IA Plus: gratis (cuántos quedan), activo con Mercado Pago (se renueva, botón de baja
-//   y de arrepentimiento), cancelado, incluido con el plan del coach, con Apple («Administrar
-//   suscripción» en el iPhone). Con IA Plus apagado no aparece nada.
+// - Ajustes → Mi IA Plus: gratis (cuántas fotos quedan), activo con Mercado Pago (se renueva, botón
+//   de baja y de arrepentimiento), cancelado, incluido con el plan del coach (y en Comida, el alumno
+//   de un coach con plan no ve límite ni oferta), con Apple («Administrar suscripción» en el iPhone).
+//   Con IA Plus apagado no aparece nada.
 // - La vuelta de Mercado Pago (?pago=iaplus): espera el cobro y avisa.
 // - Arreglos de la revisión: con la IA de Comida apagada o pausada no se vende IA Plus (ni en la
 //   web ni en el iPhone; quien lo compró igual lo ve para cancelarlo); recién arrepentido, no se
@@ -35,9 +36,9 @@ const txt = (p, sel) => p.evaluate(s => [...document.querySelectorAll(s)].map(e 
 const D = n => new Date(Date.now() + n * 864e5).toISOString();
 const LUNES = (() => { const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); d.setHours(3, 0, 0, 0); return d.toISOString(); })();
 const PLUS0 = { activa: true, estado: 'gratis', por: null, fuente: null, hasta: null, renueva: false, mp_status: null, arrepentir_hasta: null,
-  gratis_semana: 3, usados_semana: 3, quedan_semana: 0, semana_vuelve: LUNES, precio_ars: 4500 };
+  gratis_semana: 3, usados_semana: 3, quedan_semana: 0, semana_vuelve: LUNES, plato_dia: 10, precio_ars: 4500 };
 const estado = (plus, o = {}) => Object.assign({}, ESTADO_ON, { permiso_comida: 'ok' }, o, { plus: Object.assign({}, PLUS0, plus) });
-const LIMITE = estado({}, { estado: 'tope_semana', vuelve: LUNES, quedan: { plato: 0, texto: 0 } });
+const LIMITE = estado({}, { estado: 'tope_semana', vuelve: LUNES, quedan: { plato: 0 } });
 const PLUS_MP = { estado: 'plus', fuente: 'mp', hasta: D(28), renueva: true, mp_status: 'authorized', arrepentir_hasta: D(8), usados_semana: 5, quedan_semana: 0 };
 // Lo que no puede aparecer en las apps.
 const PROHIBIDO = /mercado|\$\s?\d{1,3}\.\d{3}|gize\.ar\/app|tarjeta/i;
@@ -72,7 +73,7 @@ async function pagina(o = {}){
   return Object.assign(pg, { S });
 }
 const abrirComida = async (p, base, q = '') => { await p.goto(base + '/app/' + q); await wait(2500); await p.click('#nav-comida'); await wait(500); };
-const abrirFoto = async p => { await p.click('[data-action="search-open"]'); await wait(700); await p.click('[data-action="ia-plato"]'); await wait(900); };
+const abrirFoto = async p => { await p.click('[data-action="search-open"]'); await wait(700); await p.click('#sheetHost [data-action="ia-plato"]'); await wait(900); };
 const abrirAjustes = async (p, base, q = '') => { await p.goto(base + '/app/' + q); await wait(2500); await p.click('#nav-config'); await wait(1500); };
 const CLARO = "localStorage.setItem('gize_tema','luz');";
 // La IA de Comida apagada (con IA Plus prendido en el panel): lo que dice ia_mi_estado.
@@ -84,8 +85,9 @@ export default async function ({ base, t }){
     const { p, errs, S, close } = await pagina({ estado: LIMITE, suscripcion: () => [200, { url: 'https://mp.test/checkout' }] });
     await abrirComida(p, base); await abrirFoto(p);
     const h = await txt(p, '#sheetHost .plate-sheet');
-    t.has(h, 'Usaste tus 3 usos gratis de IA de esta semana (foto o texto). Se renuevan el lunes.', 'web: el aviso del límite semanal');
-    t.has(h, 'Seguí usando la IA sin límite semanal por $4.500 al mes: hasta 8 fotos y 15 textos por día.', 'web: la oferta con el precio del panel y lo que incluye (no «sin límite» a secas)');
+    t.has(h, 'Usaste tus 3 fotos gratis con IA de esta semana. Se renuevan el lunes.', 'web: el aviso del límite semanal (solo fotos)');
+    t.has(h, 'Seguí usando la IA sin límite semanal por $4.500 al mes: hasta 10 fotos por día.', 'web: la oferta con el precio del panel y lo que incluye (no «sin límite» a secas)');
+    t.ok(!/texto|Contame|ilimitad/i.test(h), 'web: ni textos, ni «Contame qué comiste», ni «ilimitado»');
     t.has(h, 'botón de baja', 'web: dice cómo se cancela');
     t.has(h, 'podés arrepentirte y te devolvemos el pago', 'web: el arrepentimiento');
     t.eq(await p.inputValue('#plusMail'), ALUMNO.email, 'web: el mail de la cuenta, para cambiarlo por el de Mercado Pago');
@@ -106,21 +108,21 @@ export default async function ({ base, t }){
   }
   // Te queda 1 uso; la función contesta tope_semana: la misma oferta.
   {
-    const { p, errs, S, close } = await pagina({ estado: estado({ usados_semana: 2, quedan_semana: 1 }, { quedan: { plato: 1, texto: 1 } }),
+    const { p, errs, S, close } = await pagina({ estado: estado({ usados_semana: 2, quedan_semana: 1 }, { quedan: { plato: 1 } }),
       ia: () => [{ ok: false, codigo: 'tope_semana', tope: 3, vuelve: LUNES }, 429] });
     await abrirComida(p, base); await abrirFoto(p);
-    t.has(await txt(p, '#sheetHost .plate-sheet'), 'Te queda 1 uso gratis de IA esta semana', 'web: «Te queda 1 uso gratis de IA esta semana»');
+    t.has(await txt(p, '#sheetHost .plate-sheet'), 'Te queda 1 foto gratis con IA esta semana', 'web: «Te queda 1 foto gratis con IA esta semana»');
     await shot(p, '02-web-queda-1');
     await p.setInputFiles('#sheetHost input[data-action="plate-file"]:not([capture])', { name: 'plato.jpg', mimeType: 'image/jpeg', buffer: await p.screenshot({ type: 'jpeg', quality: 60 }) });
     await wait(1800);
-    t.has(await txt(p, '#sheetHost .pl8-err'), 'Usaste tus 3 usos gratis de IA de esta semana', 'web: la función dice tope_semana: el aviso');
+    t.has(await txt(p, '#sheetHost .pl8-err'), 'Usaste tus 3 fotos gratis con IA de esta semana', 'web: la función dice tope_semana: el aviso');
     t.ok(!!(await p.$('#sheetHost [data-plus="mp"]')), 'web: y la oferta');
     t.eq(errs, [], 'tope_semana de la función: errores de la página');
     await close();
   }
   // IA Plus apagado: ni oferta ni Mi IA Plus (como antes).
   {
-    const { p, errs, close } = await pagina({ estado: estado({ activa: false }, { estado: 'tope_dia', quedan: { plato: 0, texto: 3 } }) });
+    const { p, errs, close } = await pagina({ estado: estado({ activa: false }, { estado: 'tope_dia', quedan: { plato: 0 } }) });
     await abrirComida(p, base); await abrirFoto(p);
     t.ok(!(await p.$('#sheetHost .plus-box')), 'apagado: sin oferta');
     await p.click('#sheetHost [data-action="plate-cancel"]').catch(() => {}); await wait(600);
@@ -136,7 +138,8 @@ export default async function ({ base, t }){
       apple: (b, S) => { S.estado = estado({ estado: 'plus', fuente: 'apple', hasta: D(30), renueva: true }); return [200, { ok: true }]; } });
     await abrirComida(p, base); await abrirFoto(p); await wait(600);
     const h = await txt(p, '#sheetHost .plate-sheet');
-    t.has(h, 'Usaste tus 3 usos gratis de IA de esta semana', 'iPhone: el aviso del límite');
+    t.has(h, 'Usaste tus 3 fotos gratis con IA de esta semana', 'iPhone: el aviso del límite');
+    t.has(h, 'Seguí usando la IA sin límite semanal: hasta 10 fotos por día.', 'iPhone: lo que incluye');
     t.has(h, 'IA Plus Suscripción mensual · US$ 2,99 por mes', 'iPhone: el precio que pone Apple, mensual');
     t.has(h, 'Se renueva sola cada mes al mismo precio, salvo que la canceles al menos 24 horas antes', 'iPhone: que se renueva y cómo se cancela');
     t.ok(!PROHIBIDO.test(h), 'iPhone: ni pesos, ni Mercado Pago, ni links a la web: ' + (h.match(PROHIBIDO) || [''])[0]);
@@ -168,7 +171,7 @@ export default async function ({ base, t }){
     await p.click('#sheetHost [data-action="plate-cancel"]').catch(() => {}); await wait(600);
     await p.click('#nav-config'); await wait(1500);
     const a = await txt(p, '#cfgPlus');
-    t.has(a, 'Gratis: 3 usos de IA por semana', 'Android, Ajustes: los usos gratis');
+    t.has(a, 'Gratis: 3 fotos con IA por semana', 'Android, Ajustes: las fotos gratis');
     t.ok(!PROHIBIDO.test(a) && !/US\$/.test(a), 'Android, Ajustes: sin precio');
     await shot(p, '13-android-ajustes');
     t.eq(S.suscripcion.length + S.apple.length, 0, 'Android: no pide nada');
@@ -178,11 +181,13 @@ export default async function ({ base, t }){
 
   // ---------- Ajustes → Mi IA Plus ----------
   {
-    const { p, errs, close } = await pagina({ estado: estado({ usados_semana: 1, quedan_semana: 2 }, { quedan: { plato: 2, texto: 2 } }) });
+    const { p, errs, close } = await pagina({ estado: estado({ usados_semana: 1, quedan_semana: 2 }, { quedan: { plato: 2 } }) });
     await abrirAjustes(p, base);
     const a = await txt(p, '#cfgPlus');
     t.has(a, 'Mi IA Plus', 'Ajustes: la tarjeta');
-    t.has(a, 'Gratis: 3 usos de IA por semana (foto o texto). Te quedan 2 esta semana; se renuevan el lunes.', 'Ajustes gratis: cuántos quedan');
+    t.has(a, 'Gratis: 3 fotos con IA por semana. Te quedan 2 esta semana; se renuevan el lunes.', 'Ajustes gratis: cuántas quedan');
+    t.has(a, 'hasta 10 fotos por día', 'Ajustes gratis: la oferta dice lo que incluye');
+    t.ok(!/texto|Contame|ilimitad/i.test(a), 'Ajustes gratis: ni textos, ni «Contame qué comiste», ni «ilimitado»');
     t.ok(!!(await p.$('#cfgPlus [data-plus="mp"]')), 'Ajustes gratis (web): la oferta');
     await shot(p, '06-ajustes-gratis');
     t.eq(errs, [], 'Ajustes gratis: errores');
@@ -198,7 +203,7 @@ export default async function ({ base, t }){
     await abrirAjustes(p, base);
     let a = await txt(p, '#cfgPlus');
     t.has(a, 'Activo · se renueva el', 'Ajustes con Mercado Pago: activo y cuándo se renueva');
-    t.has(a, 'hasta 8 fotos y 15 textos por día', 'Ajustes: lo que incluye');
+    t.has(a, 'Sin límite semanal: hasta 10 fotos por día.', 'Ajustes: lo que incluye');
     t.has(a, 'Podés arrepentirte hasta el', 'Ajustes: hasta cuándo puede arrepentirse');
     t.ok(!!(await p.$('#cfgPlus [data-plus="baja"]')) && !!(await p.$('#cfgPlus [data-plus="arrepentir"]')), 'Ajustes: botón de baja y botón de arrepentimiento');
     await shot(p, '07-ajustes-plus-mercado-pago');
@@ -212,7 +217,7 @@ export default async function ({ base, t }){
     t.ok(preguntas.some(q => /te devolvemos lo que pagaste/.test(q.texto) && q.ok === 'Arrepentirme'), 'arrepentimiento: pregunta antes');
     t.ok(S.suscripcion.some(b => b.action === 'iaplus_arrepentimiento'), 'arrepentimiento: lo pide');
     t.ok(avisos.some(x => /pedimos la devolución del pago/.test(x.texto)), 'arrepentimiento: avisa la devolución');
-    t.has(await txt(p, '#cfgPlus'), 'Gratis: 3 usos de IA por semana', 'arrepentimiento: vuelve a gratis');
+    t.has(await txt(p, '#cfgPlus'), 'Gratis: 3 fotos con IA por semana', 'arrepentimiento: vuelve a gratis');
     t.eq(errs, [], 'Ajustes Mercado Pago: errores');
     await close();
   }
@@ -220,10 +225,22 @@ export default async function ({ base, t }){
     const { p, errs, close } = await pagina({ estado: estado({ estado: 'incluido', por: 'alumno' }), perfil: { coach_id: '33333333-3333-3333-3333-333333333333' } });
     await abrirAjustes(p, base);
     const a = await txt(p, '#cfgPlus');
-    t.has(a, 'Incluido con el plan de tu coach: usás la IA sin límite semanal (hasta 8 fotos y 15 textos por día).', 'Ajustes: incluido con el plan del coach');
+    t.has(a, 'Incluido con el plan de tu coach: usás la IA sin límite semanal (hasta 10 fotos por día).', 'Ajustes: incluido con el plan del coach');
     t.ok(!(await p.$('#cfgPlus [data-plus]')), 'incluido: no ofrece nada');
     await shot(p, '09-ajustes-incluido');
     t.eq(errs, [], 'incluido: errores');
+    await close();
+  }
+  // Alumno de un coach con plan, en Comida: la foto sin límite semanal ni oferta.
+  {
+    const { p, errs, close } = await pagina({ estado: estado({ estado: 'incluido', por: 'alumno', usados_semana: 7, quedan_semana: 0 }, { quedan: { plato: 10 }, tope: { plato: 10, texto: 15, total: 25 } }),
+      perfil: { coach_id: '33333333-3333-3333-3333-333333333333' } });
+    await abrirComida(p, base); await abrirFoto(p);
+    const h = await txt(p, '#sheetHost .plate-sheet');
+    t.ok(!(await p.$('#sheetHost .plus-box')) && !/IA Plus|gratis|semana/i.test(h), 'alumno de coach con plan: sin límite semanal ni oferta: ' + h);
+    t.ok(!!(await p.$('#sheetHost [data-pick]')), 'alumno de coach con plan: puede sacar la foto');
+    await shot(p, '15-alumno-coach-comida');
+    t.eq(errs, [], 'alumno de coach en Comida: errores');
     await close();
   }
   {
@@ -245,7 +262,8 @@ export default async function ({ base, t }){
     const main = () => p.evaluate(() => document.querySelector('main').innerText.replace(/\s+/g, ' '));
     await p.goto(base + '/terminos/'); await wait(300);
     let m = await main();
-    for (const f of ['IA Plus es una suscripción mensual que saca ese límite semanal', 'no es un uso ilimitado', 'Botón de baja:', 'Ajustes → Mi IA Plus → Cancelar suscripción',
+    t.ok(!/Contame/.test(m), 'términos: sin «Contame qué comiste»');
+    for (const f of ['se puede usar gratis una cantidad de fotos por semana', 'IA Plus es una suscripción mensual que saca ese límite semanal', 'un máximo de fotos por día', 'no es un uso ilimitado', 'Botón de baja:', 'Ajustes → Mi IA Plus → Cancelar suscripción',
       'Botón de arrepentimiento:', '10 días corridos', 'Ley 24.240', 'te devolvemos todo lo cobrado', 'con Mercado Pago'])
       t.has(m, f, 'términos (web): ' + f);
     await p.goto(base + '/terminos/?app=1'); await wait(300);
@@ -280,7 +298,7 @@ export default async function ({ base, t }){
   }
   // Recién arrepentido: no se ofrece suscribirse.
   {
-    const { p, errs, close } = await pagina({ estado: estado({ usados_semana: 0, quedan_semana: 3, espera_hasta: D(50) }, { quedan: { plato: 3, texto: 3 } }) });
+    const { p, errs, close } = await pagina({ estado: estado({ usados_semana: 0, quedan_semana: 3, espera_hasta: D(50) }, { quedan: { plato: 3 } }) });
     await abrirAjustes(p, base);
     t.has(await txt(p, '#cfgPlus'), 'Usaste el botón de arrepentimiento hace poco: vas a poder volver a suscribirte a IA Plus desde el', 'recién arrepentido: hasta cuándo');
     t.ok(!(await p.$('#cfgPlus [data-plus="mp"]')), 'recién arrepentido: sin el botón de suscribirse');
@@ -289,9 +307,9 @@ export default async function ({ base, t }){
   }
   // Modo ahorro con IA Plus prendido: el aviso y la oferta.
   {
-    const { p, errs, S, close } = await pagina({ estado: estado({ usados_semana: 0, quedan_semana: 3 }, { estado: 'ahorro', quedan: { plato: 3, texto: 3 } }) });
+    const { p, errs, S, close } = await pagina({ estado: estado({ usados_semana: 0, quedan_semana: 3 }, { estado: 'ahorro', quedan: { plato: 3 } }) });
     await abrirComida(p, base); await abrirFoto(p);
-    t.has(await txt(p, '#sheetHost .pl8-err'), 'quedan para alumnos con coach y para quien tiene IA Plus', 'ahorro: dice que con IA Plus sigue');
+    t.has(await txt(p, '#sheetHost .pl8-err'), 'queda para alumnos con coach y para quien tiene IA Plus', 'ahorro: dice que con IA Plus sigue');
     t.ok(!!(await p.$('#sheetHost [data-plus="mp"]')) && S.llamadas.length === 0, 'ahorro: ofrece IA Plus y no llama a la IA');
     t.eq(errs, [], 'ahorro: errores');
     await close();
@@ -365,7 +383,7 @@ export default async function ({ base, t }){
       await close();
     }
     if (!pre) continue;
-    for (const [n, est, init] of [['06-ajustes-gratis', estado({ usados_semana: 1, quedan_semana: 2 }, { quedan: { plato: 2, texto: 2 } })], ['07-ajustes-plus-mercado-pago', estado(PLUS_MP)],
+    for (const [n, est, init] of [['06-ajustes-gratis', estado({ usados_semana: 1, quedan_semana: 2 }, { quedan: { plato: 2 } })], ['07-ajustes-plus-mercado-pago', estado(PLUS_MP)],
       ['09-ajustes-incluido', estado({ estado: 'incluido', por: 'alumno' })], ['10-iphone-ajustes-plus', estado({ estado: 'plus', fuente: 'apple', hasta: D(20), renueva: true }), IOS]]){
       const { p, errs, close } = await pagina({ estado: est, init: CLARO + (init || '') });
       await abrirAjustes(p, base);

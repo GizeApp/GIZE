@@ -16,10 +16,10 @@
 -- ancla (con ancla el 31/01, los fines son 28/02, 31/03, 30/04…). Umbrales de cada ciclo: aviso en
 -- el panel a los US$100, modo ahorro a los US$150 y corte a los US$180 (de US$200).
 -- Códigos que devuelve ia_reservar (y la función, con el mismo nombre): pausada (motivo: apagada,
--- sin_ciclo, creditos, admin), tope_mes, ahorro, tope_semana (IA Plus prendido: se terminaron los
--- usos gratis de la semana), ritmo, tope_dia, tope_persona, error.
+-- sin_ciclo, creditos, admin), tope_mes, ahorro, tope_semana (IA Plus prendido: se terminaron las
+-- fotos gratis de la semana), ritmo, tope_dia, tope_persona, error.
 --
--- La app (foto del plato y «Contame qué comiste») pregunta ia_mi_estado() para saber si muestra
+-- La app (foto del plato) pregunta ia_mi_estado() para saber si muestra
 -- los botones, guarda el permiso con ia_permiso() y los avisos de «¿Está mal?» con ia_reportar().
 --
 -- Correr con el workflow "Supabase" → tarea sql → supabase/ia.sql, después de
@@ -27,10 +27,11 @@
 -- de los pedidos); food_entries es de supabase/base.sql. Se puede correr varias veces. Usa
 -- pg_cron (como descanso.sql).
 --
--- IA Plus (también ARRANCA APAGADO, ia_config.plus.activa): con el interruptor prendido, la foto y el
--- texto son gratis hasta 3 usos por semana; IA Plus (Mercado Pago en la web, Apple en el iPhone, o
--- incluido con el plan del coach) los deja sin límite semanal, con los topes de siempre (tabla
--- ia_plus y «IA Plus» más abajo). Lo escriben las funciones «suscripcion» y «compras-apple».
+-- IA Plus (también ARRANCA APAGADO, ia_config.plus.activa): con el interruptor prendido, la foto del
+-- plato es gratis hasta 3 fotos por semana; IA Plus (Mercado Pago en la web, Apple en el iPhone, o
+-- incluido con el plan del coach) la deja sin límite semanal, con sus propios topes: hasta 10 fotos
+-- por día y US$1,50 por persona por ciclo (ia_config.topes.plus; tabla ia_plus y «IA Plus» más
+-- abajo). Lo escriben las funciones «suscripcion» y «compras-apple».
 
 -- ---------- configuración (una sola fila) ----------
 create table if not exists public.ia_config (
@@ -40,7 +41,7 @@ create table if not exists public.ia_config (
   -- Modelo elegido para cada función. Vacío: el de la función (supabase/functions/ia/precios.ts,
   -- que es la única lista de modelos; uno que no esté ahí no se usa).
   modelos       jsonb not null default '{}',
-  topes         jsonb not null default '{"alumno":{"etiqueta":10,"plato":8,"texto":15,"total":25,"usd_ciclo":0.5},"coach":{"etiqueta":10,"plato":8,"texto":15,"rutina":15,"resumen":3,"total":40,"usd_ciclo":5},"admin":{"etiqueta":300,"total":300,"usd_ciclo":10}}',
+  topes         jsonb not null default '{"alumno":{"etiqueta":10,"plato":8,"texto":15,"total":25,"usd_ciclo":0.5},"coach":{"etiqueta":10,"plato":8,"texto":15,"rutina":15,"resumen":3,"total":40,"usd_ciclo":5},"admin":{"etiqueta":300,"total":300,"usd_ciclo":10},"plus":{"plato":10,"usd_ciclo":1.5}}',
   ancla         timestamptz,            -- un vencimiento de los créditos, a las 00:00 UTC
   pedidos_desde timestamptz,            -- desde cuándo se leen pedidos con IA (cambio de la política)
   aviso_version int not null default 1, -- versión del aviso de permiso de la app
@@ -48,12 +49,17 @@ create table if not exists public.ia_config (
 );
 alter table public.ia_config alter column activa set default false;
 insert into public.ia_config (id) values (1) on conflict (id) do nothing;
--- IA Plus (foto del plato y «Contame qué comiste» sin el límite semanal, ver «IA Plus» más abajo):
+-- IA Plus (foto del plato sin el límite semanal, ver «IA Plus» más abajo):
 -- activa (el interruptor del panel; ARRANCA APAGADO y, apagado, no hay límite semanal: como hasta
--- ahora), gratis_semana (usos gratis por semana, foto y texto juntos), precio_ars (el precio de la
+-- ahora), gratis_semana (fotos gratis por semana), precio_ars (el precio de la
 -- web con Mercado Pago; 3900 es provisorio hasta que el dueño lo confirme en el panel) y
 -- precio_confirmado (pasa a true cuando se guarda un precio desde el panel).
 alter table public.ia_config add column if not exists plus jsonb not null default '{"activa":false,"gratis_semana":3,"precio_ars":3900,"precio_confirmado":false}';
+-- Los topes de quien tiene IA Plus (comprado o incluido): fotos del plato por día y US$ por ciclo.
+-- Valen el mayor entre estos y los de su rol (un coach sigue con sus US$5). Se cambian en el panel
+-- (IA → Topes → Con IA Plus). En una base que ya tenía la configuración, se suman una sola vez.
+alter table public.ia_config alter column topes set default '{"alumno":{"etiqueta":10,"plato":8,"texto":15,"total":25,"usd_ciclo":0.5},"coach":{"etiqueta":10,"plato":8,"texto":15,"rutina":15,"resumen":3,"total":40,"usd_ciclo":5},"admin":{"etiqueta":300,"total":300,"usd_ciclo":10},"plus":{"plato":10,"usd_ciclo":1.5}}';
+update public.ia_config set topes = topes || '{"plus":{"plato":10,"usd_ciclo":1.5}}' where id = 1 and not (topes ? 'plus');
 
 -- ---------- ciclos de los créditos ----------
 create table if not exists public.ia_ciclos (
@@ -309,13 +315,14 @@ revoke all on function public.ia_permiso_estado(uuid) from public, anon, authent
 grant execute on function public.ia_permiso_estado(uuid) to service_role;
 
 -- ---------- IA Plus ----------
--- Con el interruptor de IA Plus prendido (ia_config.plus.activa), la foto del plato y «Contame qué
--- comiste» son gratis hasta gratis_semana usos por semana (los dos juntos). La semana es la del
--- calendario: arranca el lunes a las 00:00 de Buenos Aires. Quien tiene IA Plus (lo pagó con
--- Mercado Pago o con Apple, o se lo dio soporte) o lo tiene incluido (coach con plan pago o de
--- cortesía, y sus alumnos; la prueba gratis no cuenta, como coach_pago) no tiene límite semanal:
--- sigue con los topes de cada día y del ciclo de siempre. Lo controla ia_reservar, en la base, así
--- que la app no lo puede saltear. Con el interruptor apagado no hay límite semanal (como antes).
+-- Con el interruptor de IA Plus prendido (ia_config.plus.activa), la foto del plato es gratis
+-- hasta gratis_semana fotos por semana. La semana es la del calendario: arranca el lunes a las
+-- 00:00 de Buenos Aires. Quien tiene IA Plus (lo pagó con Mercado Pago o con Apple, o se lo dio
+-- soporte) o lo tiene incluido (coach con plan pago o de cortesía, y sus alumnos; la prueba gratis
+-- no cuenta, como coach_pago) no tiene límite semanal y usa los topes de IA Plus (topes.plus: hasta
+-- 10 fotos por día y US$1,50 por ciclo), además del resto de los topes de cada día. Lo controla
+-- ia_reservar, en la base, así que la app no lo puede saltear. Con el interruptor apagado no hay
+-- límite semanal y rigen los topes de siempre (salvo para quien lo pagó y lo sigue teniendo).
 
 -- El lunes de esta semana a las 00:00 de Buenos Aires.
 create or replace function public.ia_semana()
@@ -350,12 +357,22 @@ $$;
 revoke all on function public.ia_plus_tiene(uuid) from public, anon, authenticated;
 grant execute on function public.ia_plus_tiene(uuid) to service_role;
 
--- Cuántos usos de foto y texto lleva la persona desde el lunes (cuenta lo mismo que el tope del
--- día: todo lo que pudo costar algo, con los topes de alumno).
+-- ¿Rigen los topes de IA Plus (topes.plus)? Con el interruptor prendido, para quien lo tiene
+-- (comprado o incluido). Apagado, solo para quien lo compró y lo sigue teniendo (lo está pagando).
+create or replace function public.ia_plus_rige(p_uid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select (coalesce((select (c.plus ->> 'activa')::boolean from public.ia_config c where c.id = 1), false) and public.ia_plus_tiene(p_uid))
+      or coalesce(public.ia_plus_hasta(p_uid) > now(), false);
+$$;
+revoke all on function public.ia_plus_rige(uuid) from public, anon, authenticated;
+grant execute on function public.ia_plus_rige(uuid) to service_role;
+
+-- Cuántas fotos del plato lleva la persona desde el lunes (cuenta lo mismo que el tope del día:
+-- todo lo que pudo costar algo, con los topes de alumno). Solo fotos.
 create or replace function public.ia_semana_usos(p_uid uuid)
 returns int language sql stable security definer set search_path = public as $$
   select count(*)::int from public.ia_llamadas l
-   where l.user_id = p_uid and l.rol = 'alumno' and l.funcion in ('plato', 'texto') and l.creada >= public.ia_semana()
+   where l.user_id = p_uid and l.rol = 'alumno' and l.funcion = 'plato' and l.creada >= public.ia_semana()
      and (l.estado in ('ok', 'vacia', 'reservada', 'vencida') or (l.estado = 'error' and (l.usd is null or l.usd > 0)));
 $$;
 revoke all on function public.ia_semana_usos(uuid) from public, anon, authenticated;
@@ -364,8 +381,8 @@ revoke all on function public.ia_semana_usos(uuid) from public, anon, authentica
 --   { activa (el interruptor), estado ('gratis' | 'plus' | 'incluido'), por ('coach' | 'alumno',
 --     si está incluido), fuente ('mp' | 'apple' | 'manual', si lo compró y está vigente), hasta,
 --     renueva, mp_status, arrepentir_hasta (hasta cuándo puede usar el botón de arrepentimiento),
---     gratis_semana, usados_semana, quedan_semana, semana_vuelve (el lunes que viene), precio_ars,
---     espera_hasta (se arrepintió hace poco: hasta cuándo no puede volver a suscribirse por Mercado
+--     gratis_semana, usados_semana, quedan_semana (fotos), semana_vuelve (el lunes que viene),
+--     plato_dia (las fotos por día con IA Plus, para la oferta), precio_ars, espera_hasta (se arrepintió hace poco: hasta cuándo no puede volver a suscribirse por Mercado
 --     Pago) }
 create or replace function public.ia_plus_info(p_uid uuid)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
@@ -402,6 +419,7 @@ begin
     'mp_status', case when v_x.mp_preapproval_id is not null then v_x.mp_status end, 'arrepentir_hasta', v_arr,
     'gratis_semana', v_gratis, 'usados_semana', v_usados, 'quedan_semana', greatest(0, v_gratis - v_usados),
     'semana_vuelve', public.ia_semana() + interval '7 days', 'precio_ars', coalesce((v_cfg ->> 'precio_ars')::int, 3900),
+    'plato_dia', coalesce((select (c.topes #>> '{plus,plato}')::int from public.ia_config c where c.id = 1), 10),
     'espera_hasta', v_espera);
 end $$;
 revoke all on function public.ia_plus_info(uuid) from public, anon, authenticated;
@@ -428,15 +446,16 @@ grant execute on function public.ia_cortar(bigint, text, timestamptz) to service
 
 -- ---------- reservar antes de llamar ----------
 -- Controles, en orden: interruptor y función prendida → ciclo (sin ancla, pausada) → corte →
--- tope del ciclo → modo ahorro → usos gratis de la semana (con IA Plus prendido) → ritmo del día →
--- tope del día de la persona (por función y en total) → tope del ciclo de la persona. Si pasa todo, anota la llamada como «reservada» y suma
+-- tope del ciclo → modo ahorro → fotos gratis de la semana (con IA Plus prendido) → ritmo del día →
+-- tope del día de la persona (por función y en total) → tope del ciclo de la persona. Con IA Plus
+-- (ia_plus_rige), las fotos por día y los US$ del ciclo son los mayores entre su rol y topes.plus. Si pasa todo, anota la llamada como «reservada» y suma
 -- max_usd a lo reservado del ciclo. Devuelve { ok, codigo, motivo, vuelve, llamada_id, ciclo_id, ahorro }.
 create or replace function public.ia_reservar(p_uid uuid, p_rol text, p_funcion text, p_modelo text, p_max_usd numeric, p_pedido bigint default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_cfg public.ia_config; v_c public.ia_ciclos; v_bandera text; v_hoy0 timestamptz; v_manana timestamptz;
   v_hoy numeric; v_limite numeric; v_dias numeric; v_tope_f numeric; v_tope_t numeric; v_n_f int; v_n_t int;
-  v_mio numeric; v_usd_ciclo numeric; v_id bigint; v_ahorro boolean := false; v_gratis int; v_sem int;
+  v_mio numeric; v_usd_ciclo numeric; v_id bigint; v_ahorro boolean := false; v_gratis int; v_sem int; v_plus boolean := false;
 begin
   if p_uid is null or p_rol is null or p_rol not in ('alumno', 'coach', 'admin')
      or p_funcion is null or p_funcion not in ('etiqueta', 'plato', 'texto', 'rutina', 'resumen')
@@ -495,10 +514,10 @@ begin
     v_ahorro := p_funcion = 'rutina';
   end if;
 
-  -- 5b) IA Plus prendido: plato y texto gratis hasta gratis_semana por semana (desde el lunes 00:00
-  --     de Buenos Aires), salvo quien tiene IA Plus (comprado o incluido). Va acá, en la base y
-  --     con el ciclo bloqueado (dos pedidos a la vez no pasan los dos el último uso gratis).
-  if p_funcion in ('plato', 'texto') and p_rol = 'alumno' and coalesce((v_cfg.plus ->> 'activa')::boolean, false)
+  -- 5b) IA Plus prendido: la foto del plato es gratis hasta gratis_semana fotos por semana (desde el
+  --     lunes 00:00 de Buenos Aires), salvo quien tiene IA Plus (comprado o incluido). Va acá, en la
+  --     base y con el ciclo bloqueado (dos pedidos a la vez no pasan los dos la última foto gratis).
+  if p_funcion = 'plato' and p_rol = 'alumno' and coalesce((v_cfg.plus ->> 'activa')::boolean, false)
      and not public.ia_plus_tiene(p_uid) then
     v_gratis := coalesce((v_cfg.plus ->> 'gratis_semana')::int, 3);
     v_sem := public.ia_semana_usos(p_uid);
@@ -522,7 +541,10 @@ begin
   -- 7) Tope del día de la persona, por función y en total. Cuenta todo lo que pudo costar algo:
   --    no cuentan solo los errores explícitos de la API (cerrados con usd = 0). Solo las llamadas
   --    con el mismo rol: lo que el admin lee en el panel no le gasta los usos de la app.
+  --    Con IA Plus, las fotos del plato por día son las de topes.plus si son más.
+  v_plus := p_rol in ('alumno', 'coach') and public.ia_plus_rige(p_uid);
   v_tope_f := coalesce((v_cfg.topes -> p_rol ->> p_funcion)::numeric, 0);
+  if v_plus and p_funcion = 'plato' then v_tope_f := greatest(v_tope_f, coalesce((v_cfg.topes #>> '{plus,plato}')::numeric, 0)); end if;
   v_tope_t := coalesce((v_cfg.topes -> p_rol ->> 'total')::numeric, 0);
   select count(*) filter (where l.funcion = p_funcion), count(*) into v_n_f, v_n_t
     from public.ia_llamadas l
@@ -533,8 +555,10 @@ begin
     return jsonb_build_object('ok', false, 'codigo', 'tope_dia', 'vuelve', v_manana, 'tope', case when v_n_f >= v_tope_f then v_tope_f else v_tope_t end);
   end if;
 
-  -- 8) Tope del ciclo de la persona (también solo con el mismo rol).
+  -- 8) Tope del ciclo de la persona (también solo con el mismo rol). Con IA Plus, el de topes.plus
+  --    si es más (un coach sigue con el suyo, que es mayor).
   v_usd_ciclo := coalesce((v_cfg.topes -> p_rol ->> 'usd_ciclo')::numeric, 0);
+  if v_plus then v_usd_ciclo := greatest(v_usd_ciclo, coalesce((v_cfg.topes #>> '{plus,usd_ciclo}')::numeric, 0)); end if;
   select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = p_uid and l.rol = p_rol;
   if v_mio + p_max_usd > v_usd_ciclo then
     perform public.ia_frenada(v_c.id, 'tope_persona');
@@ -758,7 +782,7 @@ begin
         if jsonb_typeof(v_v) <> 'boolean' then raise exception 'IA Plus: sí o no.' using errcode = '22023'; end if;
       elsif v_k = 'gratis_semana' then
         if jsonb_typeof(v_v) <> 'number' or (v_v #>> '{}')::numeric < 0 or (v_v #>> '{}')::numeric > 100 or (v_v #>> '{}')::numeric <> floor((v_v #>> '{}')::numeric) then
-          raise exception 'Revisá los usos gratis por semana (de 0 a 100).' using errcode = '22023';
+          raise exception 'Revisá las fotos gratis por semana (de 0 a 100).' using errcode = '22023';
         end if;
       elsif v_k = 'precio_ars' then
         if jsonb_typeof(v_v) <> 'number' or (v_v #>> '{}')::numeric < 100 or (v_v #>> '{}')::numeric > 1000000 or (v_v #>> '{}')::numeric <> floor((v_v #>> '{}')::numeric) then
@@ -783,8 +807,8 @@ begin
     end if;
     -- No se vende IA Plus con la IA de Comida apagada (sería cobrar por algo que no se puede usar).
     if (p -> 'plus' ->> 'activa')::boolean and not (coalesce(v_cfg.activa, false)
-        and (coalesce(v_cfg.funciones -> 'plato', 'false'::jsonb) = 'true'::jsonb or coalesce(v_cfg.funciones -> 'texto', 'false'::jsonb) = 'true'::jsonb)) then
-      raise exception 'Antes de prender IA Plus, prendé la IA y la foto del plato o «Contame qué comiste».' using errcode = '22023';
+        and coalesce(v_cfg.funciones -> 'plato', 'false'::jsonb) = 'true'::jsonb) then
+      raise exception 'Antes de prender IA Plus, prendé la IA y la foto del plato.' using errcode = '22023';
     end if;
   end if;
   update public.ia_config
@@ -964,14 +988,15 @@ end $$;
 revoke all on function public.admin_ia_plus_quitar(uuid) from public, anon;
 grant execute on function public.admin_ia_plus_quitar(uuid) to authenticated;
 
--- ---------- la app: foto del plato y «Contame qué comiste» ----------
+-- ---------- la app: foto del plato ----------
 -- Lo que la app necesita saber para mostrar (o no) los botones de la IA, sin montos:
 --   { activa, funciones: { plato, texto }, permiso_comida ('ok' | 'no' | 'viejo' | null),
 --     aviso_version, estado ('normal' | 'ahorro' | 'pausada' | 'tope_mes' | 'tope_persona'),
 --     vuelve, quedan: { plato, texto }, tope: { plato, texto, total }, usados: { plato, texto, total },
 --     plus: ia_plus_info() }
--- Con IA Plus prendido y sin IA Plus, «quedan» también mira los usos gratis de la semana y, si no
--- queda ninguno, estado = 'tope_semana' (vuelve: el lunes que viene).
+-- Con IA Plus prendido y sin IA Plus, «quedan» también mira las fotos gratis de la semana y, si no
+-- queda ninguna, estado = 'tope_semana' (vuelve: el lunes que viene). Con IA Plus (ia_plus_rige),
+-- el tope de fotos por día y el de US$ del ciclo son los de topes.plus si son más (como ia_reservar).
 -- Una función está prendida para la app solo con el interruptor general, la de la función y la
 -- fecha de los créditos cargada (sin eso la función nunca llama a la IA): si no, la app no
 -- muestra nada nuevo. «quedan»: cuántos usos le quedan hoy a la persona (por función y en total).
@@ -980,7 +1005,7 @@ returns jsonb language plpgsql stable security definer set search_path = public 
 declare
   v_uid uuid := auth.uid(); v_cfg public.ia_config; v_c public.ia_ciclos; v_ini timestamptz; v_fin timestamptz;
   v_on boolean; v_plato boolean; v_texto boolean; v_rol text; v_hoy0 timestamptz; v_estado text := 'normal'; v_vuelve timestamptz;
-  v_np int; v_nt int; v_n int; v_tp numeric; v_tt numeric; v_tot numeric; v_mio numeric; v_plus jsonb; v_qs int;
+  v_np int; v_nt int; v_n int; v_tp numeric; v_tt numeric; v_tot numeric; v_mio numeric; v_plus jsonb; v_qs int; v_usd numeric;
 begin
   if v_uid is null then return jsonb_build_object('activa', false, 'funciones', jsonb_build_object('plato', false, 'texto', false)); end if;
   v_plus := public.ia_plus_info(v_uid);
@@ -993,6 +1018,7 @@ begin
       'permiso_comida', public.ia_permiso_estado(v_uid), 'aviso_version', coalesce(v_cfg.aviso_version, 1), 'plus', v_plus);
   end if;
   v_rol := public.ia_rol(v_uid);
+  v_usd := coalesce((v_cfg.topes -> v_rol ->> 'usd_ciclo')::numeric, 0);
   -- El ciclo de ahora (sin crearlo: esto solo mira).
   select x.inicio, x.fin into v_ini, v_fin from public.ia_ciclo_de(v_cfg.ancla, now()) x;
   select * into v_c from public.ia_ciclos where inicio = v_ini;
@@ -1013,13 +1039,17 @@ begin
    where l.user_id = v_uid and l.rol = v_rol and l.creada >= v_hoy0
      and (l.estado in ('ok', 'vacia', 'reservada', 'vencida') or (l.estado = 'error' and (l.usd is null or l.usd > 0)));
   v_tp := coalesce((v_cfg.topes -> v_rol ->> 'plato')::numeric, 0);
+  if public.ia_plus_rige(v_uid) then
+    v_tp := greatest(v_tp, coalesce((v_cfg.topes #>> '{plus,plato}')::numeric, 0));
+    v_usd := greatest(v_usd, coalesce((v_cfg.topes #>> '{plus,usd_ciclo}')::numeric, 0));
+  end if;
   v_tt := coalesce((v_cfg.topes -> v_rol ->> 'texto')::numeric, 0);
   v_tot := coalesce((v_cfg.topes -> v_rol ->> 'total')::numeric, 0);
   if v_estado = 'normal' and v_c.id is not null then
     select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = v_uid and l.rol = v_rol;
-    if v_mio >= coalesce((v_cfg.topes -> v_rol ->> 'usd_ciclo')::numeric, 0) then v_estado := 'tope_persona'; v_vuelve := v_fin; end if;
+    if v_mio >= v_usd then v_estado := 'tope_persona'; v_vuelve := v_fin; end if;
   end if;
-  -- Usos gratis de la semana (IA Plus prendido y sin IA Plus): lo mismo que mira ia_reservar.
+  -- Fotos gratis de la semana (IA Plus prendido y sin IA Plus): lo mismo que mira ia_reservar.
   if (v_plus ->> 'activa')::boolean and v_plus ->> 'estado' = 'gratis' and v_rol = 'alumno' then
     v_qs := (v_plus ->> 'quedan_semana')::int;
     if v_qs <= 0 and v_estado = 'normal' then v_estado := 'tope_semana'; v_vuelve := (v_plus ->> 'semana_vuelve')::timestamptz; end if;

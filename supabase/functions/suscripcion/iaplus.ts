@@ -1,5 +1,5 @@
 // Reglas de IA Plus con Mercado Pago (función suscripcion): la suscripción mensual que deja usar la
-// foto del plato y «Contame qué comiste» sin el límite semanal (supabase/ia.sql, tabla ia_plus).
+// foto del plato sin el límite semanal, hasta 10 fotos por día (supabase/ia.sql, tabla ia_plus).
 // Están aparte de index.ts para poder probarlas sin Deno (tests/ia-plus-funciones.test.mjs).
 // cur: la fila de ia_plus de la persona (o null si nunca pidió IA Plus). Las columnas de Mercado
 // Pago se llaman como las de coach_billing (mp_preapproval_id, mp_pending_id), así que esPedida y

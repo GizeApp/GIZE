@@ -164,6 +164,7 @@ export default async ({ t }) => {
     h = await correr({ reservar: () => Object.assign({ ok: false, codigo, vuelve }, extra) });
     t.ok(h.status === status && h.json.codigo === codigo && h.json.vuelve === vuelve && !h.fetches.length, codigo + ': ' + status + ', con «vuelve» y sin llamar');
     if (extra.tope) t.eq(h.json.tope, 8, 'tope_dia: dice cuál es el tope');
+    if (codigo === 'tope_semana') t.eq(h.json.mensaje, 'Usaste tus fotos gratis con IA de esta semana. Se renuevan el lunes.', 'tope_semana: habla de fotos (IA Plus es solo fotos)');
   }
   h = await correr({ api: () => http(200, respuesta('', { stop_reason: 'refusal', content: [] })) });
   t.ok(h.status === 422 && h.json.codigo === 'no_se_pudo' && h.rpcs.ia_cerrar[0].p_codigo === 'refusal' && h.rpcs.ia_cerrar[0].p_usd > 0, 'rechazo del modelo: 422 no_se_pudo y el costo anotado (cuenta para el tope)');
