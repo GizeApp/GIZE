@@ -59,7 +59,7 @@ const esDeLectura = k => /^pol:[a-z_]+\.gimnasio lee lo que el socio compartió$
   || FN_LECTURA.some(f => new RegExp('^(fn|fnacl|fndueno):' + f + '\\(').test(k));
 const esDeSocios = k => /^(fn|fnacl|fndueno):(gym_\w+|mi_gimnasio|buscar_socio|release_lapsed_gyms)\(/.test(k)
   || /^(col|con|idx):(gym_members|gym_invites|gyms)\./.test(k) || /^cron:gize-gym-(tick|diaria)$/.test(k) || k === 'bucket:gym-fotos'
-  || /^pol:storage\.objects\.gym-fotos: (subir|ver)$/.test(k) || k === 'trg:storage.objects.gym_fotos_cupo_alta';
+  || /^pol:storage\.objects\.gym-fotos: (subir|ver)$/.test(k) || k === 'trg:storage.objects.gym_fotos_cupo_alta' || k === 'trg:gym_staff.gym_staff_profe';
 const POLITICAS_VINCULO = ['pol:coach_billing.billing: el coach ve la suya', 'pol:coach_messages.mensajes: el coach ve los suyos',
   'pol:storage.objects.chat-audio: escuchar en mi conversación'];
 

@@ -443,12 +443,14 @@ export default async function ({ t }){
     ['postgres', 'select prueba.invariantes()']]);
   t.eq([c10[2], c10[3]], [[0, false, 1], []], 'caso 10: el profe que se fue (y cuyos socios quedaron sin profe) no ve fichas ni registros; solo su fila del equipo');
   // La trampa C20: si se va sin que le reasignen los socios, el vínculo pasa a ser propio y los sigue leyendo con su plan
-  // (lo evita gym_quitar_staff en la etapa 1, que reasigna en la misma operación). Queda a la vista en I2.
+  // (lo evita gym_quitar_staff en la etapa 1, que reasigna en la misma operación). Desde la etapa 1, el trigger
+  // gym_staff_profe le saca el profe a la ficha (I2 en orden) y el panel lo muestra como «coach de afuera».
   const c20 = await V([['postgres', `update public.gym_staff set left_at = now() where user_id = '${P.pA1}'`],
     ['pA1', `select to_jsonb(public.is_my_client('${P.A1}'))`], ['postgres', 'select prueba.invariantes()'],
-    ['postgres', `select to_jsonb(seats_used) from public.coach_billing where coach_id = '${P.pA1}'`]]);
-  t.eq(c20[1], true, 'trampa C20: el profe que se fue sin reasignar sigue leyendo a A1 con su plan propio (requisito de la etapa 1)');
-  t.ok(c20[2].some(v => v.startsWith('I2')), 'y el invariante I2 lo marca: ' + JSON.stringify(c20[2]));
+    ['postgres', `select to_jsonb(seats_used) from public.coach_billing where coach_id = '${P.pA1}'`],
+    ['postgres', `select to_jsonb(trainer_id) from public.gym_members where id = '${F.A1}'`]]);
+  t.eq(c20[1], true, 'trampa C20: el profe que se fue sin reasignar sigue leyendo a A1 con su plan propio (por eso gym_quitar_staff reasigna)');
+  t.eq([c20[2], c20[4]], [[], null], 'y la ficha queda sin profe (gym_staff_profe): I2 en orden y, para el dueño, un socio con coach de afuera');
   t.eq([c20[2].filter(v => !v.startsWith('I2')), c20[3]], [[], 3], 'al irse se recalculó su cupo (I1): A1 y A2 pasan a contar como alumnos propios, con P1');
   // Etapa 1: gym_quitar_staff la cierra (reasigna en la misma operación).
   const c20b = await V([['dA', `select to_jsonb(public.gym_quitar_staff('${P.pA1}', null))`],

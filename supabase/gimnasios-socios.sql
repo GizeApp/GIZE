@@ -1001,7 +1001,8 @@ begin
       when 'usada' then 'Esa invitación ya se usó: pedile otra al gimnasio.'
       when 'ya_staff' then 'Ya sos del equipo de un gimnasio.'
       when 'es_socio' then 'Sos socio de un gimnasio: para sumarte al equipo, primero salí desde Ajustes.'
-      when 'es_alumno' then 'Para ser profe primero desvinculate de tu coach.'
+      when 'es_alumno' then case when i.role = 'profe' then 'Para ser profe primero desvinculate de tu coach.'
+                                 else 'Para sumarte al equipo del gimnasio primero desvinculate de tu coach en Ajustes.' end
       when 'necesita_coach' then 'Para ser profe necesitás una cuenta de coach.'
       when 'tope' then 'El gimnasio llegó al tope de profes. Escribinos para sumar más profes.'
       else 'No se pudo aceptar la invitación.' end using errcode = 'P0001';
@@ -1049,6 +1050,14 @@ begin
     raise exception 'El gimnasio llegó al tope de profes. Escribinos para sumar más profes.' using errcode = 'P0001';
   end if;
   update public.gym_staff set role = rol where gym_id = s.g and user_id = usuario;
+  -- Si ya no puede atender (recepción, o administración sin cuenta de coach), deja de ser el profe
+  -- por defecto (si no, los socios nuevos entraban sin profe sin que nadie lo viera).
+  if public.gym_profe_no_puede(s.g, usuario, null) is not null then
+    update public.gyms set default_trainer_id = null where id = s.g and default_trainer_id = usuario;
+    if found then
+      perform public.gym_auditar(s.g, 'config', null, usuario, jsonb_build_object('default_trainer_id', null, 'por', 'cambiar_rol'));
+    end if;
+  end if;
   perform public.gym_auditar(s.g, 'cambiar_rol', null, usuario, jsonb_build_object('antes', r, 'despues', rol));
   return jsonb_build_object('ok', true, 'role', rol);
 end $$;
@@ -1056,7 +1065,9 @@ revoke all on function public.gym_cambiar_rol(uuid, text) from public, anon;
 grant execute on function public.gym_cambiar_rol(uuid, text) to authenticated;
 
 -- Quitar a alguien del equipo, pasando sus socios a otro profe (reasignar_a) o dejándolos sin profe,
--- en la misma operación (sin esto, el vínculo pasaba a ser propio del que se fue: la trampa C20).
+-- en la misma operación (sin esto, el vínculo pasaba a ser propio del que se fue: la trampa C20). Los
+-- que no aceptaron la hoja o tienen un bloqueo con el profe nuevo quedan sin profe (sin_profe; de esos,
+-- falta_confirmacion los que no aceptaron la hoja, para que el panel lo explique).
 -- Masiva: gize.gym_bulk; con profe nuevo, las rutinas programadas pasan a él (gize.gym_keep_routines);
 -- sin profe, se borran como hoy. Al dueño no se lo quita; la administración no quita a otra (sí se
 -- puede ir ella).
@@ -1066,7 +1077,7 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare s record; r text; dueno uuid; socios uuid[]; pasan uuid[]; quedan uuid[]; bulk text := current_setting('gize.gym_bulk', true);
+declare s record; r text; dueno uuid; socios uuid[]; sin_hoja uuid[]; pasan uuid[]; quedan uuid[]; nh int := 0; bulk text := current_setting('gize.gym_bulk', true);
         keep text := current_setting('gize.gym_keep_routines', true); u uuid; hoy text := public.gym_hoy()::text;
 begin
   perform public.gym_exigir(array['owner', 'admin']);
@@ -1086,12 +1097,20 @@ begin
     end if;
   end if;
   select x.owner_id into dueno from public.gyms x where x.id = s.g;
-  select coalesce(array_agg(m.member_id order by m.member_id), '{}') into socios from public.gym_members m
+  select coalesce(array_agg(m.member_id order by m.member_id), '{}'),
+         coalesce(array_agg(m.member_id order by m.member_id) filter (where m.terms_at is null), '{}') into socios, sin_hoja
+    from public.gym_members m
    where m.gym_id = s.g and m.trainer_id = usuario and m.status in ('activo', 'pausado') and m.member_id is not null;
   perform 1 from public.profiles where id = any(socios) order by id for update;
   pasan := '{}'; quedan := '{}';
+  -- Como gym_asignar_profe: quien no aceptó la hoja («Falta confirmación») o tiene un bloqueo con el
+  -- profe nuevo no pasa a otro profe: queda sin profe.
   foreach u in array socios loop
-    if reasignar_a is not null and not public.bloqueo_entre(u, reasignar_a) then pasan := pasan || u; else quedan := quedan || u; end if;
+    if reasignar_a is not null and not (u = any(sin_hoja)) and not public.bloqueo_entre(u, reasignar_a) then pasan := pasan || u;
+    else
+      quedan := quedan || u;
+      if reasignar_a is not null and u = any(sin_hoja) then nh := nh + 1; end if;
+    end if;
   end loop;
   perform set_config('gize.gym_bulk', 'on', true);
   if cardinality(pasan) > 0 then
@@ -1111,13 +1130,47 @@ begin
   if cardinality(pasan) > 0 then
     perform public.gym_alerta(s.g, 'u:' || reasignar_a, 'socios_asignados', 'quitar:' || usuario || ':' || hoy, 'push', jsonb_build_object('n', cardinality(pasan)));
   end if;
-  perform public.gym_alerta_staff(s.g, 'profe_quitado', usuario || ':' || hoy, jsonb_build_object('reasignados', cardinality(pasan), 'sin_profe', cardinality(quedan)));
+  perform public.gym_alerta_staff(s.g, 'profe_quitado', usuario || ':' || hoy,
+    jsonb_build_object('reasignados', cardinality(pasan), 'sin_profe', cardinality(quedan), 'falta_confirmacion', nh));
   perform public.gym_auditar(s.g, 'quitar_staff', null, usuario,
-    jsonb_build_object('rol', r, 'a', reasignar_a, 'reasignados', cardinality(pasan), 'sin_profe', cardinality(quedan)));
-  return jsonb_build_object('ok', true, 'reasignados', cardinality(pasan), 'sin_profe', cardinality(quedan));
+    jsonb_build_object('rol', r, 'a', reasignar_a, 'reasignados', cardinality(pasan), 'sin_profe', cardinality(quedan), 'falta_confirmacion', nh));
+  return jsonb_build_object('ok', true, 'reasignados', cardinality(pasan), 'sin_profe', cardinality(quedan), 'falta_confirmacion', nh);
 end $$;
 revoke all on function public.gym_quitar_staff(uuid, uuid) from public, anon;
 grant execute on function public.gym_quitar_staff(uuid, uuid) to authenticated;
+
+-- Cuando alguien entra al equipo, cambia de rol o se va (también sin gym_quitar_staff: el borrado de
+-- la cuenta, cerrar el gimnasio), el profe de las fichas de sus alumnos en ese gimnasio vuelve a salir
+-- de gym_profe_ficha: el coach que entra como profe pasa a ser el profe en el gimnasio de los socios
+-- que ya atendía (§1.4, T = C; si no, quedaban como «coach de afuera» y gym_quitar_staff no los veía:
+-- la trampa C20). Bloquea las fichas sin tocar los perfiles (el orden de siempre: nadie bloquea una
+-- ficha y después un perfil).
+create or replace function public.gym_staff_profe()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare g uuid; us uuid[];
+begin
+  if tg_op = 'DELETE' then g := old.gym_id; us := array[old.user_id];
+  elsif tg_op = 'UPDATE' then g := new.gym_id; us := array[new.user_id, old.user_id];
+    if old.gym_id is distinct from new.gym_id then
+      update public.gym_members m set trainer_id = m.trainer_id
+       where m.gym_id = old.gym_id and m.status in ('activo', 'pausado') and m.trainer_id = old.user_id;
+    end if;
+  else g := new.gym_id; us := array[new.user_id];
+  end if;
+  update public.gym_members m set trainer_id = m.trainer_id
+   where m.gym_id = g and m.status in ('activo', 'pausado') and m.member_id is not null
+     and (m.trainer_id = any(us) or exists (select 1 from public.profiles p where p.id = m.member_id and p.coach_id = any(us)))
+     and m.trainer_id is distinct from public.gym_profe_ficha(m.gym_id, m.member_id, m.status);
+  return null;
+end $$;
+revoke all on function public.gym_staff_profe() from public, anon, authenticated;
+drop trigger if exists gym_staff_profe on public.gym_staff;
+create trigger gym_staff_profe after insert or update of role, left_at, user_id, gym_id or delete on public.gym_staff
+  for each row execute function public.gym_staff_profe();
 
 
 -- ===== Socio: pedir sumarse =====
@@ -2253,6 +2306,7 @@ notify pgrst, 'reload schema';
 -- drop policy if exists "gym-fotos: subir" on storage.objects;
 -- drop policy if exists "gym-fotos: ver" on storage.objects;
 -- drop trigger if exists gym_fotos_cupo_alta on storage.objects;
+-- drop trigger if exists gym_staff_profe on public.gym_staff;
 -- delete from storage.buckets where id = 'gym-fotos';
 -- delete from public.app_config where key = 'gimnasios';
 -- drop function if exists public.gym_diaria(), public.gym_tick(), public.gym_restaurar(uuid), public.release_lapsed_gyms(),
@@ -2265,7 +2319,7 @@ notify pgrst, 'reload schema';
 --   public.gym_foto_proponer(text), public.gym_salir(boolean), public.gym_compartir_admin(boolean, text),
 --   public.gym_confirmar_hoja(text, boolean, text), public.gym_unirse_token(text, text, text, boolean, text),
 --   public.gym_unirse_token_info(text), public.gym_cancelar_solicitud(), public.gym_unirse(text, text, boolean, text),
---   public.gym_socio_puede(uuid, uuid), public.gym_codigo_info(text), public.gym_quitar_staff(uuid, uuid),
+--   public.gym_socio_puede(uuid, uuid), public.gym_codigo_info(text), public.gym_staff_profe(), public.gym_quitar_staff(uuid, uuid),
 --   public.gym_cambiar_rol(uuid, text), public.gym_aceptar_invitacion(text), public.gym_invitacion_info(text),
 --   public.gym_invitacion_estado(uuid, uuid), public.gym_invitaciones(), public.gym_invitacion_revocar(uuid),
 --   public.gym_invitar(text), public.gym_exportar(text), public.gym_cerrar(text), public.gym_codigo_rotar(),

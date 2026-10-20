@@ -191,17 +191,50 @@ export default async function ({ t: t0 }){
     ['pA1', `select jsonb_build_array(public.is_my_client('${P.A1}'), public.is_my_client('${P.P1}'), (select count(*) from public.gym_members))`],
     ['postgres', cupos], ['postgres', alertas('profe_quitado')], ['postgres', alertas('socios_asignados')], ['postgres', `select to_jsonb(default_trainer_id) from public.gyms where id = '${G.A}'`],
     ['postgres', 'select prueba.invariantes()']]);
-  t.eq([x[2], est(x[3]), est(x[4]), nom(x[5].coach), x[6]], [{ ok: true, reasignados: 1, sin_profe: 1 }, { coach: 'pA2', status: 'activo', trainer: 'pA2', restore: null, inv: [] },
+  t.eq([x[2], est(x[3]), est(x[4]), nom(x[5].coach), x[6]], [{ ok: true, reasignados: 1, sin_profe: 1, falta_confirmacion: 0 }, { coach: 'pA2', status: 'activo', trainer: 'pA2', restore: null, inv: [] },
     { coach: null, status: 'activo', trainer: null, restore: null, inv: [] }, 'pA1', ['pA2']],
     'gym_quitar_staff con reasignación: A1 pasa a pA2 (con sus programadas); A2 (bloqueó a pA2) queda sin profe; P1, alumno propio de pA1, no cambia');
   t.eq([x[7], x[8], quien(x[9]), quien(x[10]), x[11], x[12]], [[false, true, 0], BASE, ['aA', 'dA'], ['pA2'], null, []],
     'pA1 deja de ver a A1 (y no ve fichas), sigue con P1; ningún cupo cambia; un resumen a la administración y uno a pA2; sin profe por defecto; I2 en orden (la trampa C20, cerrada)');
   x = await V([['dA', rpc('gym_quitar_staff', P.pA1, null)], ['postgres', ESTADO('A1')], ['postgres', programadas('A1')], ['postgres', 'select prueba.invariantes()']]);
-  t.eq([x[0], est(x[1]).coach, x[2], x[3]], [{ ok: true, reasignados: 0, sin_profe: 2 }, null, [], []], 'sin profe: sus socios quedan sin profe y las programadas se borran como hoy');
+  t.eq([x[0], est(x[1]).coach, x[2], x[3]], [{ ok: true, reasignados: 0, sin_profe: 2, falta_confirmacion: 0 }, null, [], []], 'sin profe: sus socios quedan sin profe y las programadas se borran como hoy');
   x = await V([['dA', rpc('gym_quitar_staff', P.pA1, P.pA1)], ['dA', rpc('gym_quitar_staff', P.pA1, P.rA)], ['dA', rpc('gym_quitar_staff', P.dA, null)],
     ['aA', rpc('gym_quitar_staff', P.aA, null)], ['aA', rpc('mi_gimnasio')]]);
   t.eq([x[0].msg, x[1].msg, x[2].msg, x[3].ok, x[4]], ['Elegí un profe del gimnasio para pasarle sus socios.', 'Elegí un profe del gimnasio para pasarle sus socios.',
     'Al dueño no se lo puede quitar del gimnasio.', true, null], 'reasignar al mismo o a alguien que no es profe: no; al dueño no se lo quita; la administración se puede ir sola');
+  // Quitar con reasignación: quien no aceptó la hoja no pasa a otro profe (como gym_asignar_profe).
+  x = await V([['postgres', `update public.gym_members set terms_at = null, terms_version = null where id = '${F.A2}'`],
+    ['dA', rpc('gym_asignar_profe', [F.A2], P.pA2)], ['dA', rpc('gym_quitar_staff', P.pA1, P.pA2)], ['postgres', ESTADO('A1')], ['postgres', ESTADO('A2')]]);
+  t.eq([x[1].saltadas.map(z => z.motivo), x[2], est(x[3]).coach, est(x[4])], [['falta_confirmacion'], { ok: true, reasignados: 1, sin_profe: 1, falta_confirmacion: 1 }, 'pA2',
+    { coach: null, status: 'activo', trainer: null, restore: null, inv: [] }],
+    'gym_quitar_staff: el socio con «Falta confirmación» queda sin profe (no pasa a un profe que no aceptó) y se cuenta aparte para el panel');
+
+  // Un coach que entra al equipo: los socios que ya atendía pasan a ser suyos en el gimnasio (T = C).
+  const inK = (await db.json(`select prueba.hacer('${P.dA}', 'select to_jsonb(public.gym_invitar(''profe''))');`)).ok.token;
+  const resumenA3 = ['dA', `select (select x from jsonb_array_elements(public.gym_socios_resumen()) x where x->>'id' = '${F.A3}')`];
+  x = await V([['A3', `select public.join_coach('${CODIGO.K}')::jsonb`], ['postgres', ESTADO('A3')], ['K', rpc('gym_aceptar_invitacion', inK)], ['postgres', ESTADO('A3')],
+    ['postgres', cupos + ` or coach_id = '${P.K}'`], resumenA3, ['K', rpc('mi_gimnasio')],
+    ['dA', rpc('gym_quitar_staff', P.K, P.pA2)], ['postgres', ESTADO('A3')], ['postgres', 'select prueba.invariantes()']]);
+  t.eq([x[0], est(x[1]).trainer, est(x[3]), x[4].K, x[5].coach_externo, nom(x[5].profe.id), x[6].mis_fichas.length],
+    [true, null, { coach: 'K', status: 'activo', trainer: 'K', restore: null, inv: [] }, 0, false, 'K', 1],
+    'A3 con un coach de afuera (K); K entra como profe: la ficha pasa a tenerlo de profe (I2 en orden), deja de ocupar su cupo propio y el panel ya no lo muestra como coach de afuera');
+  t.eq([x[7], est(x[8]), x[9]], [{ ok: true, reasignados: 1, sin_profe: 0, falta_confirmacion: 0 }, { coach: 'pA2', status: 'activo', trainer: 'pA2', restore: null, inv: [] }, []],
+    'y cuando lo quitan, gym_quitar_staff lo ve y lo reasigna (la trampa C20, también para quien ya era su coach)');
+  x = await V([['A3', `select public.join_coach('${CODIGO.K}')::jsonb`], ['postgres', `insert into public.gym_staff (gym_id, user_id, role) values ('${G.A}', '${P.K}', 'recepcion')`],
+    ['postgres', ESTADO('A3')], ['dA', rpc('gym_cambiar_rol', P.K, 'profe')], ['postgres', ESTADO('A3')]]);
+  t.eq([est(x[2]).trainer, x[3].role, est(x[4])], [null, 'profe', { coach: 'K', status: 'activo', trainer: 'K', restore: null, inv: [] }],
+    'lo mismo si alguien de la recepción con cuenta de coach pasa a profe (gym_cambiar_rol)');
+
+  // Cambiar a recepción al profe por defecto: deja de serlo.
+  x = await V([['dA', rpc('gym_config', { default_trainer_id: P.pA2, settings: { aprobar_solas: true } })], ['dA', rpc('gym_cambiar_rol', P.pA2, 'recepcion')],
+    ['dA', rpc('mi_gimnasio')], ['postgres', `select to_jsonb(count(*)) from public.gym_audit where action = 'config' and target_user = '${P.pA2}'`]]);
+  t.eq([x[1].role, x[2].gym.default_trainer_id, x[3]], ['recepcion', null, 1], 'gym_cambiar_rol a recepción del profe por defecto: deja de ser el profe por defecto (queda en la auditoría)');
+
+  // Invitación a la recepción o la administración de alguien que es alumno de un coach.
+  const tokA = (await db.json(`select prueba.hacer('${P.dA}', 'select to_jsonb(public.gym_invitar(''admin''))');`)).ok.token;
+  x = await V([['C1', rpc('gym_aceptar_invitacion', tok)], ['C1', rpc('gym_aceptar_invitacion', tokR)], ['C1', rpc('gym_aceptar_invitacion', tokA)]]);
+  t.eq(x.map(z => z.msg), ['Para ser profe primero desvinculate de tu coach.', 'Para sumarte al equipo del gimnasio primero desvinculate de tu coach en Ajustes.',
+    'Para sumarte al equipo del gimnasio primero desvinculate de tu coach en Ajustes.'], 'alumna de un coach invitada: como profe, «Para ser profe…»; a la recepción o la administración, un texto que no habla de ser profe');
   t.eq(await INV(), [], 'invariantes al final (todo se deshizo)');
   await db.borrar();
 }
