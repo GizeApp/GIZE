@@ -32,6 +32,8 @@ import { renderCoach } from './index.js';
 
 import { appIOS, appNativa } from '../../core/tienda.js';
 
+import { esProfeGym, propios } from './gimnasio.js';
+
 import { administrarApple, cargarProductosApple, comprarApple, comprasApple, escucharApple, finalizarApple, productosApple, restaurarApple, vigentesApple } from '../../core/compras-apple.js';
 
 // Precios: los mismos que plan_price (supabase/admin.sql), el panel de admin y la landing.
@@ -101,10 +103,18 @@ export async function loadBilling(){
   if(IAP) iniciarApple();
 }
 
+// count: los vínculos que cuenta el plan. Desde la etapa 0 de gimnasios los cuenta la base
+// (coach_billing.seats_used: los alumnos propios; los socios que un profe atiende en un gimnasio van
+// por el plan del gimnasio). Sin esa columna (la base todavía no la tiene), la lista de clientes, como
+// antes. profe: es profe de un gimnasio (screens/coach/gimnasio.js): nunca ve la pantalla de pago por el
+// gimnasio, y la tira del plan y la prueba solo aparecen si tiene algo propio (propio: alumnos propios o
+// un plan propio pagado o de cortesía). Sin la fila (la base no se la muestra a un profe sin nada
+// propio, gimnasios-vinculo.sql), como siempre: activo y sin tope.
 export function billing(){
-  const r = B.row, now = Date.now();
-  const count = CoachState.coachClients.length;
-  if(!r) return { known: false, active: true, count, max: Infinity, atCap: false };
+  const r = B.row, now = Date.now(), profe = esProfeGym();
+  const lista = profe ? propios().length : CoachState.coachClients.length;
+  const count = r && typeof r.seats_used === "number" ? r.seats_used : lista;
+  if(!r) return { known: false, active: true, count, max: Infinity, atCap: false, profe, propio: false };
   const trialEnd = new Date(r.trial_ends_at).getTime();
   const paidUntil = r.paid_until ? new Date(r.paid_until).getTime() : 0;
   const comp = r.plan === "cortesia";
@@ -119,7 +129,7 @@ export function billing(){
   // pagoDeApple en supabase/functions/compras-apple/reglas.ts); si va más allá, lo pagó por la web.
   const apple = paid && !!r.apple_original_tx && !!r.apple_vence && paidUntil <= new Date(r.apple_vence).getTime();
   return {
-    known: true, active, trial, paid, comp, count, max, overCap,
+    known: true, active, trial, paid, comp, count, max, overCap, profe, propio: !profe || count > 0 || paid || comp,
     atCap: count >= max,
     daysLeft: trialEnd > now ? Math.max(1, Math.ceil((trialEnd - now) / 864e5)) : 0,
     // Pagó antes de que termine la prueba: el plan arranca cuando la prueba termina.
@@ -139,7 +149,7 @@ function ymd(iso){ return AR_DAY.format(new Date(new Date(iso).getTime() - 1)); 
 
 // Tira debajo del código de invitación. En las apps sin compras de Apple no va (nombra el plan).
 export function renderPlanBanner(){
-  const b = billing(); if(!b.known || SIN_PLANES) return "";
+  const b = billing(); if(!b.known || SIN_PLANES || !b.propio) return "";
   if(IAP) return bannerApple(b);
   let txt, cls = "";
   if(b.comp) txt = "Plan cortesía · " + b.count + "/" + b.max + " clientes";
@@ -470,6 +480,7 @@ async function unlinkClient(id){
     const r = await State.sb.rpc("coach_remove_client", { client: id });
     if(r.error) throw r.error;
     CoachState.coachClients = CoachState.coachClients.filter(x => x.id !== id);
+    await loadBilling(); // el cupo usado (seats_used) lo cuenta la base
   }catch(e){ alert("No se pudo desvincular: " + ((e && e.message) || e)); }
   B.busy = false; rerender();
 }

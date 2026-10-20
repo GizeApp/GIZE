@@ -34,8 +34,9 @@ import { comprasApple } from '../../core/compras-apple.js';
 import { renderCoachSalidas, salidasTileText } from './salidas.js';
 import { syncRouteViews } from '../../ui/mapa.js';
 import { clientPlanDirty, mealEditHead, renderMealPicker, snapMealEdit } from './planes.js';
-import { coachShell, secIcon, renderClientsView, renderHomeView, renderMealsView, renderTplsView } from './panel.js';
+import { coachShell, pageHead, secIcon, renderClientsView, renderHomeView, renderMealsView, renderTplsView } from './panel.js';
 import { pintarGym, sinPlanGym } from '../../core/gimnasio.js';
+import { accesoGym, cargarFichaGym, cartelGym, conTarjetaGym, cssGym, enGym, esProfeGym, esSocioGym, focoRec, inviteGym, notaPropios, puedeRecepcion, seccionGym, tileGym, vistaRecepcion, volverFocoRec } from './gimnasio.js';
 
 // Ficha en modo lectura (el dueño o la administración del gimnasio miran a un socio que compartió sus
 // registros y no es suyo; ver openClient): se ve todo lo que el socio compartió, pero no se edita. Solo
@@ -65,11 +66,18 @@ function secHead(title, kind){
 // máximo. En la de iPhone, con los planes de Apple (core/compras-apple.js), es el de la web.
 // Código viejo (6 caracteres, de antes de supabase/endurecer-base.sql): sigue sirviendo, pero es
 // más fácil de adivinar; se le sugiere cambiarlo (supabase/coach-alumnos.sql).
+// Profe de un gimnasio (screens/coach/gimnasio.js): primero el código del gimnasio; el personal, solo
+// si tiene alumnos propios o un plan propio (billing().propio), y en las apps sin «Ver planes».
 const IS_NATIVE_APP = appNativa() && !comprasApple();
 function inviteBox(){
+  if(esProfeGym()) return inviteGym(billing().propio ? cajaPersonal(true) : "");
+  return cajaPersonal(false);
+}
+function cajaPersonal(profe){
   const b=billing(), viejo=!!CoachState.coachInvite && String(CoachState.coachInvite).length<8;
-  if(b.known && b.atCap && IS_NATIVE_APP) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de alumnos de tu cuenta.</b><div class="co-invite-sub">Nadie más se puede vincular con tu código.</div></div>';
+  if(b.known && b.atCap && (IS_NATIVE_APP || (profe && appNativa()))) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de alumnos de tu cuenta.</b><div class="co-invite-sub">Nadie más se puede vincular con tu código.</div></div>';
   if(b.known && b.atCap) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de tu plan</b> ('+b.count+'/'+b.max+' clientes)<div class="co-invite-sub">Para sumar más clientes pasate a un plan más grande.</div><button class="co-copy-btn" data-plan="open">Ver planes</button></div>';
+  if(profe) return '<div class="co-invite">Tu código personal<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Para tus alumnos propios, de afuera del gimnasio.'+(viejo?' Es un código del formato anterior, más fácil de adivinar: te conviene cambiarlo.':'')+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div></div>';
   return '<div class="co-invite">Tu código de invitación<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Compartíselo a tus clientes para que se vinculen a vos.'+(viejo?' Es un código del formato anterior, más corto y fácil de adivinar: te conviene cambiarlo. Sirve hasta que lo cambies.':'')+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div></div>';
 }
 
@@ -112,6 +120,7 @@ export function renderCoach(){
   // El panel del gimnasio (dueño y administración) dibuja en su lugar; sin gimnasio, como siempre.
   if(pintarGym()) return;
   const host=document.getElementById("coachHost"); if(!host) return;
+  if(enGym()) cssGym();
   queueMicrotask(syncRouteViews); // después de dibujar: el recorrido de una salida abierta a su lugar (o afuera)
   snapEdits(); snapMealEdit(); persistRoutineDraft();
   if(!CoachState.coachSel && CoachState.coachApplyPicker){ CoachState.coachApplyPicker=null; renderApplyPicker(); }
@@ -129,13 +138,20 @@ export function renderCoach(){
   // leer los datos de los clientes, ver supabase/suscripciones.sql).
   // Adentro del panel del gimnasio (dueño o administración) manda el plan del gimnasio: core/gimnasio.js.
   const gymPlan=sinPlanGym();
-  if(!billing().active && gymPlan===null){ host.innerHTML=renderPaywall(); return; }
+  // El profe de un gimnasio nunca ve la pantalla de pago: el panel sigue por sus socios del gimnasio (con
+  // el plan propio vencido, un cartel sobre sus alumnos propios: notaPropios).
+  if(!billing().active && gymPlan===null && !esProfeGym()){ host.innerHTML=renderPaywall(); return; }
   if(gymPlan){ host.innerHTML=gymPlan; return; }
   if(!CoachState.coachSel && !CoachState.coachTplEdit && !CoachState.coachMealEdit){
     // Las cuatro pantallas de arriba (Inicio, Clientes, Rutinas, Planes alimenticios): ver panel.js.
     // En el panel del gimnasio, sin el cartel del plan de coach (el plan está en «Plan de GIZE»).
-    const v=CoachState.coachView, banner=gymPlan===null ? renderPlanBanner() : "";
-    host.innerHTML=coachShell(v, v==="settings" ? renderSettingsView() : v==="meals" ? renderMealsView(banner) : v==="tpls" ? renderTplsView(banner) : v==="home" ? renderHomeView(banner) : renderClientsView(inviteBox(), banner));
+    // El profe de un gimnasio: los carteles del gimnasio (gracia o pausa) y, con el plan propio vencido,
+    // el de sus alumnos propios. «Recepción», si el gimnasio la abre para los profes.
+    if(CoachState.coachView==="gym-recepcion" && !puedeRecepcion()) CoachState.coachView="clients";
+    const v=CoachState.coachView, banner=gymPlan===null ? cartelGym()+renderPlanBanner()+notaPropios(billing().active) : "";
+    const foco=focoRec();
+    host.innerHTML=coachShell(v, v==="settings" ? renderSettingsView() : v==="gym-recepcion" ? vistaRecepcion(pageHead) : v==="meals" ? renderMealsView(banner) : v==="tpls" ? renderTplsView(banner) : v==="home" ? renderHomeView(banner) : renderClientsView(inviteBox(), banner));
+    volverFocoRec(foco);
   } else if(CoachState.coachTplEdit){
     const rt=CoachState.coachTplEdit.days||[];
     let ed="";
@@ -161,7 +177,7 @@ export function renderCoach(){
   } else {
     const d=CoachState.coachData; let body="";
     if(!d||d.loading){ body='<div class="cal-hint">Cargando…</div>'; }
-    else if(d.error){ body='<div class="cal-hint">No se pudo cargar. Reintentá.</div>'; }
+    else if(d.error){ body=CoachState.coachSel && accesoGym()==="pausado" && esSocioGym(CoachState.coachSel) ? cartelGym() : '<div class="cal-hint">No se pudo cargar. Reintentá.</div>'; }
     else {
       const wchart=d.weights.length ? renderWChart(d.weights,false,"med") : '<div class="cal-hint">Sin registros de peso.</div>';
       // Peso día a día: gráfico a la izquierda, registros a la derecha (antes iban uno debajo del otro).
@@ -188,6 +204,8 @@ export function renderCoach(){
         // Ficha en secciones, como Progreso del alumno: un menú de tarjetas y cada una abre su parte.
         const SECS=[
           // El chat se abre encima (app/ui/chat.js), no como sección: ver "sec-open" en main.js.
+          // Socio del gimnasio que atiende (screens/coach/gimnasio.js): estado, semáforo, apto y últimos ingresos.
+          ["gimnasio","Gimnasio", ()=>seccionGym(d), ()=>tileGym(d)],
           ["chat","Chat con "+esc(String(d.name||"el cliente").split(" ")[0]), null, ()=>{ const n=unreadFor(d.id); if(n) return n+(n===1?" mensaje nuevo":" mensajes nuevos"); if(d.notify&&d.notify.devices===0) return "Mensajes y audios · no tiene los avisos activados"; return "Mensajes y audios"; }],
           ["ficha","Ficha del cliente", ()=>renderCoachInfo(d), ()=>d.info&&Object.keys(d.info).length?"Datos y objetivos":"Sin completar"],
           ["habitos","Hábitos diarios", ()=>renderCoachHabits(d), ()=>{ const h=d.plan&&d.plan.plan&&d.plan.plan.habits; const n=Array.isArray(h)?h.length:0; return n?n+(n===1?" hábito":" hábitos"):"Sin cargar"; }],
@@ -201,14 +219,15 @@ export function renderCoach(){
         ];
         // Ficha: lo del alumno. Estadísticas: lo que fue registrando y el bloque (mesociclo), desde
         // donde se arman las semanas y las rutinas de descarga.
-        const ORDER={ ficha:["chat","ficha","habitos"], stats:["bloque","peso","hist","volumen","salidas","daily","checkin"] };
+        const gymF=conTarjetaGym(d); if(gymF) cargarFichaGym(d);
+        const ORDER={ ficha:gymF?["chat","gimnasio","ficha","habitos"]:["chat","ficha","habitos"], stats:["bloque","peso","hist","volumen","salidas","daily","checkin"] };
         const cur=SECS.find(x=>x[0]===CoachState.coachSec && x[2]);
         const shown=(ORDER[tab]||ORDER.ficha).filter(id=>!(d.lectura && id==="chat")).map(id=>SECS.find(x=>x[0]===id));
         if(cur){
           panel='<div class="form-head co-sec-head"><button class="form-back" data-coach="sec-close" aria-label="Volver">‹</button><div class="form-title">'+cur[1]+'</div></div>'+
             '<div class="co-panel co-sec-body">'+cur[2]()+'</div>';
         } else {
-          panel='<div class="ptiles co-ptiles">'+shown.map(x=>'<button class="ptile" data-coach="sec-open" data-v="'+x[0]+'"><span class="ptile-t">'+secIcon(x[0])+x[1]+'</span><span class="ptile-s">'+esc(x[3]())+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+(tab==="stats"||d.lectura?'':'<button class="logout-btn cfg-danger co-remove-client" data-coach="remove-client">Desvincular alumno</button>');
+          panel='<div class="ptiles co-ptiles">'+shown.map(x=>'<button class="ptile" data-coach="sec-open" data-v="'+x[0]+'"><span class="ptile-t">'+secIcon(x[0])+x[1]+'</span><span class="ptile-s">'+esc(x[3]())+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+(tab==="stats"||d.lectura?'':gymF?'<button class="logout-btn cfg-danger co-remove-client" data-coach="gym-dejar">Dejar de ser su profe</button>':'<button class="logout-btn cfg-danger co-remove-client" data-coach="remove-client">Desvincular alumno</button>');
         }
       }
       // Modo lectura: quién lo edita (el chat y los botones de editar no están).

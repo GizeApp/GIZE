@@ -13,6 +13,7 @@ import { unreadFor } from '../../ui/chat.js';
 import { coachInitials } from './clientes.js';
 import { CoachState } from './state.js';
 import { missingHint } from './planes.js';
+import { botonRecepcion, chipGym, esProfeGym, grupos, nombreGym } from './gimnasio.js';
 
 const ico = d => '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';
 const I = {
@@ -44,9 +45,10 @@ const S = {
   clock: sm('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
   route: sm('<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/>'),
   bars: sm('<path d="M5 20V11M12 20V4M19 20v-7"/>'),
+  gym: sm('<path d="M3 20h18M5 20V9l7-5 7 5v11M9.5 20v-5h5v5"/>'),
 };
 // Ícono de cada sección de la ficha del alumno (menú de tarjetas de index.js).
-const SEC_IC = { chat:S.chat, ficha:S.user, bloque:S.layers, daily:S.sun, checkin:S.check, hist:S.clock, salidas:S.route, volumen:S.bars, peso:S.scale, habitos:S.check };
+const SEC_IC = { gimnasio:S.gym, chat:S.chat, ficha:S.user, bloque:S.layers, daily:S.sun, checkin:S.check, hist:S.clock, salidas:S.route, volumen:S.bars, peso:S.scale, habitos:S.check };
 export const secIcon = k => SEC_IC[k] || "";
 const unreadAll = () => CoachState.coachClients.reduce((n,c)=>n+(unreadFor(c.id)||0), 0);
 
@@ -64,9 +66,10 @@ export function coachShell(active, inner){
   if(otroMarco) return otroMarco(active, inner);
   return '<div class="cv-shell">'+
     '<aside class="cv-side">'+
-      '<div class="co-brand cv-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="cv-sr">Panel de coach</span></div>'+
+      '<div class="co-brand cv-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="cv-sr">Panel de coach</span>'+chipGym()+'</div>'+
       '<nav class="cv-nav" aria-label="Panel de coach">'+NAV.map(n=>'<button class="cv-nav-i'+(n[0]===active?' on':'')+'" data-coach="view-'+n[0]+'"'+(n[0]===active?' aria-current="page"':'')+(n[0]==="clients"&&unreadAll()?' title="Tenés mensajes sin leer"':'')+'>'+n[2]+(n[0]==="clients"&&unreadAll()?'<i class="cv-pip" aria-hidden="true"></i>':'')+'<span>'+n[1]+'</span></button>').join("")+'</nav>'+
       '<div class="cv-util">'+
+        botonRecepcion(active)+
         '<button class="cv-util-i co-q-btn" data-coach="q-open" title="Preguntas del registro diario y del check-in">'+I.help+'<span>Preguntas</span></button>'+
         '<button class="cv-util-i'+(active==="settings"?' on':'')+'" data-coach="open-settings" title="Configuración"'+(active==="settings"?' aria-current="page"':'')+'>'+gearSvg+'<span>Configuración</span></button>'+
         '<button class="cv-util-i cv-out" data-auth="logout"><span>Salir</span></button>'+
@@ -159,18 +162,22 @@ export function renderClientsView(inviteHtml, bannerHtml){
   const first=!CoachState.coachSearch && !CoachState.coachClients.length;
   const head=pageHead("Clientes",
     (first?'':'<label class="cv-find">'+S.search+'<input class="co-search cv-search" placeholder="Buscar…" aria-label="Buscar cliente" data-coach="coach-search" value="'+esc(CoachState.coachSearch||"")+'"></label>')+
-    (CoachState.coachInvite && !/co-invite-full/.test(inviteHtml) ? mainBtn('data-coach="copy-invite"',"Invitar cliente",S.userPlus) : ''));
+    // El profe de un gimnasio: «Invitar socio» copia el código del gimnasio (el que va primero).
+    (/data-coach="copy-gym-code"/.test(inviteHtml) ? mainBtn('data-coach="copy-gym-code"',"Invitar socio",S.userPlus)
+      : CoachState.coachInvite && /data-coach="copy-invite"/.test(inviteHtml) ? mainBtn('data-coach="copy-invite"',"Invitar cliente",S.userPlus) : ''));
   const assign=CoachState.coachAssign ? '<div class="co-unsaved cv-assign">Elegí el cliente al que le querés asignar una rutina.<button class="cv-link" data-coach="assign-cancel">Cancelar</button></div>' : '';
   if(first && clientesCargando()) return head+inviteHtml+bannerHtml+CARGANDO_CLIENTES;
   // El onboarding es un bloque ancho de pasos: reemplaza a la lista entera (sin buscador).
   if(first){
     const step=(n,t)=>'<div class="co-item co-onboard-step"><div class="co-onboard-n">'+n+'</div><div class="co-onboard-txt">'+t+'</div></div>';
+    if(esProfeGym()) return head+inviteHtml+bannerHtml+'<div class="co-onboard"><div class="co-onboard-lead">Todavía no tenés socios asignados</div>'+
+      step(1,'Cuando '+esc(nombreGym())+' te asigne socios, van a aparecer acá')+step(2,'Si alguien quiere sumarse, pasale el <b>código del gimnasio</b> de arriba')+step(3,'El gimnasio aprueba el pedido y le asigna profe')+'</div>';
     return head+inviteHtml+bannerHtml+'<div class="co-onboard"><div class="co-onboard-lead">Todavía no tenés clientes vinculados</div>'+
       step(1,'Copiá tu <b>código de invitación</b> de arriba')+step(2,'Pasáselo a tu cliente por donde le quede más cómodo')+step(3,'Se vincula solo — va a aparecer acá apenas lo haga')+'</div>';
   }
   const peek=peekedId(filtered);
   if(peek) queueMicrotask(()=>loadPeek(peek));
-  const rows=filtered.map(c=>{
+  const fila=c=>{
     const st=stats(c.id)||{}, days=daysSince(st.lastSess), t=tone(days), un=unreadFor(c.id);
     const pct=days===null?0:Math.max(6,Math.round((1-Math.min(days,14)/14)*100));
     return '<div class="co-trow cv-row'+(c.id===peek?' on':'')+'" data-coach="open" data-id="'+esc(c.id)+'" data-peek="'+esc(c.id)+'" tabindex="0">'+
@@ -180,7 +187,10 @@ export function renderClientsView(inviteHtml, bannerHtml){
         '<div class="co-td cv-prog" title="Entrenos hechos y qué tan reciente fue el último"><span class="cv-prog-n">'+(st.nSess?st.nSess:'–')+'</span><span class="cv-bar"><i class="'+t+'" style="width:'+pct+'%"></i></span></div>'+
         '<div class="co-td co-td-actions"><span class="co-arrow">›</span></div>'+
       '</div>';
-  }).join("");
+  };
+  // En un gimnasio, con socios y alumnos propios: dos grupos (screens/coach/gimnasio.js).
+  const gr=grupos(filtered);
+  const rows=gr ? gr.map(g=>'<div class="cv-grp" role="heading" aria-level="2">'+esc(g.t)+'<span class="cv-grp-n">'+g.list.length+'</span></div>'+g.list.map(fila).join("")).join("") : filtered.map(fila).join("");
   const list=filtered.length ? '<div class="co-table cv-table">'+rows+'</div>' : '<div class="cal-hint">Sin resultados.</div>';
   const side=(filtered.length && peek) ? '<aside class="cv-card cv-peek" id="cvPeek" aria-label="Vista rápida del cliente">'+renderPeek(peek)+'</aside>' : '';
   return head+assign+inviteHtml+bannerHtml+'<div class="cv-split'+(side?' has-peek':'')+'">'+list+side+'</div>';

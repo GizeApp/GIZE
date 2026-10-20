@@ -29,9 +29,14 @@ import { CoachState } from './state.js';
 
 import { loadBilling } from './plan.js';
 
+import { refrescarGym } from './gimnasio.js';
+
 import { renderWChart } from '../progreso.js';
 
 export async function loadCoachClients(){
+  // Al volver a leer la lista, el profe de un gimnasio vuelve a preguntar qué socios atiende
+  // (mi_gimnasio().mis_socios: los dos grupos de Clientes). La primera vez ya vino con el arranque.
+  if(CoachState.coachClientsLoaded) refrescarGym();
   try{
     // Lista de clientes y código de invitación salen juntos.
     const icP=Promise.resolve(State.sb.rpc("my_invite_code")).catch(e=>({data:null, error:e}));

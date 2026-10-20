@@ -248,6 +248,19 @@ a.gize-btn.cv-btn { text-decoration:none; }
 .gy-row-ing .gy-td-socio b { color:var(--txt); font-size:var(--text-body); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .gy-ing-h { font-variant-numeric:tabular-nums; font-weight:700; color:var(--txt-2); min-width:44px; }
 
+/* El profe de un gimnasio en su panel de coach (app/screens/coach/gimnasio.js) */
+.cv-gymchip { display:inline-flex; align-items:center; gap:6px; max-width:100%; min-width:0; margin-left:10px; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700;
+    color:var(--txt); background:color-mix(in srgb, var(--gize-blue) 14%, transparent); border:1px solid color-mix(in srgb, var(--gize-blue) 55%, transparent); }
+.cv-gymchip span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cv-gymchip svg { flex:none; }
+.cv-grp { display:flex; align-items:center; gap:8px; padding:14px 14px 6px; font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--txt-2); }
+.cv-grp-n { display:inline-block; min-width:20px; padding:0 6px; border-radius:999px; font-size:11px; line-height:18px; text-align:center; letter-spacing:0; background:color-mix(in srgb, var(--txt) 10%, transparent); color:var(--txt); }
+.cv-gyminv + .co-invite { margin-top:10px; }
+.cv-gymcartel { margin-bottom:12px; }
+.cv-gymcard { padding:6px 16px 14px; }
+.cv-gym-ing { margin:0; padding-left:18px; }
+.cv-gym-rec-sub { margin:-4px 0 12px; }
+
 /* ---------- Compu ---------- */
 @media (min-width: 900px){
   .gy-nav .gy-solo-compu { display:flex; }
@@ -258,6 +271,8 @@ a.gize-btn.cv-btn { text-decoration:none; }
       background:color-mix(in srgb, var(--gize-blue) 16%, transparent); border:1px solid color-mix(in srgb, var(--gize-blue) 70%, transparent); }
   .gy-nav .cv-nav-i .cv-pip { display:none; }
   .gy-brand { flex-direction:column; align-items:flex-start; }
+  .cv-brand:has(.cv-gymchip) { flex-wrap:wrap; }
+  .cv-brand .cv-gymchip { margin:12px 0 0; }
   .gy-brand-n { padding-left:2px; max-width:200px; }
   .gy-wrap { padding-left:40px; padding-right:40px; }
   .gy-head .cv-head-actions { width:auto; flex-wrap:nowrap; }
