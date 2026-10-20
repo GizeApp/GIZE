@@ -41,7 +41,14 @@ export default async ({ t }) => {
   t.ok(/<li><b>Anthropic:<\/b>/.test(html), 'Anthropic en la lista de empresas');
   t.has(txt, 'recibe la foto o el texto de cada consulta o, en el resumen para tu coach, tus números de la semana', 'la lista de empresas dice qué recibe Anthropic, también en el resumen');
   t.has(txt, 'Estos proveedores están obligados por contrato a proteger tus datos', 'la frase de los proveedores');
-  t.has(txt, 'tu permiso para usar las funciones con IA. No conservamos', '«Qué se borra» incluye el permiso de la IA');
+  t.has(txt, 'tu permiso para usar las funciones con IA y tus avisos de «¿Está mal?». No conservamos', '«Qué se borra» incluye el permiso de la IA y los avisos de «¿Está mal?»');
+  t.has(ia, 'Si tocás «¿Está mal? Avisanos», guardamos lo que estimó la IA y tu comentario (nunca la foto)', 'dice qué guarda «¿Está mal?» (sin la foto)');
+  t.has(ia, 'se borra a los 180 días', 'y cuánto tiempo (ia_limpiar)');
+  // La hoja del permiso de la app (app/ui/ia-permiso.js) promete lo mismo que la política.
+  const hoja = fs.readFileSync(path.join(ROOT, 'app/ui/ia-permiso.js'), 'utf8');
+  for (const frase of ['Anthropic, la empresa que hace la IA Claude, en Estados Unidos', 'no tu nombre, tu mail ni otros datos de tu cuenta', 'no los usa para entrenar su IA',
+    'los borra dentro de los 30 días', 'GIZE no guarda la foto del plato', 'No es consejo médico ni nutricional', 'Ajustes → Funciones con IA', 'Aceptar y usar IA', 'privacidad/?app=1#ia'])
+    t.has(hoja, frase, 'la hoja del permiso dice: ' + frase);
   t.has(txt, 'El registro de cuándo se usó la IA (la fecha, la función y lo que costó) queda sin tu cuenta', 'y dice que el registro de uso queda sin la cuenta (ia_llamadas: on delete set null)');
   t.ok(!/tu uso de las funciones con IA\. No conservamos/.test(txt), 'no dice que el uso se borra');
   t.has(txt, 'atiende las denuncias y reclamos', 'el derecho a reclamar ante la AAIP');

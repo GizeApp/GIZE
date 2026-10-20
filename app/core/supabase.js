@@ -1242,7 +1242,7 @@ export async function loadCloud(){
       state.diaryDate=state.waterDate=state.stepsDate=state.habitsDate=today();
       state.water=todayRow.water_ml||0;
       state.steps=todayRow.steps||0;
-      state.diary=(fe.data||[]).map(r=>({id:r.id, meal:r.meal||undefined, name:r.name, grams:Number(r.grams)||0, kcal:r.kcal||0, p:Number(r.protein)||0, c:Number(r.carbs)||0, f:Number(r.fat)||0, unit:r.unit||"g", base:r.base||undefined}));
+      state.diary=(fe.data||[]).map(r=>({id:r.id, meal:r.meal||undefined, name:r.name, grams:Number(r.grams)||0, kcal:r.kcal||0, p:Number(r.protein)||0, c:Number(r.carbs)||0, f:Number(r.fat)||0, unit:r.unit||"g", base:r.base||undefined, fuente:r.fuente||undefined}));
       applyHabitsDone(todayRow.habits_done);
       _lastDay=JSON.stringify(daySnapshot());
     }
@@ -1485,7 +1485,7 @@ export async function refreshToday(rolled){
     }
     state.water=row.water_ml||0;
     state.steps=Math.max(state.steps||0, row.steps||0);
-    state.diary=(fe.data||[]).map(r=>({id:r.id, meal:r.meal||undefined, name:r.name, grams:Number(r.grams)||0, kcal:r.kcal||0, p:Number(r.protein)||0, c:Number(r.carbs)||0, f:Number(r.fat)||0, unit:r.unit||"g", base:r.base||undefined}));
+    state.diary=(fe.data||[]).map(r=>({id:r.id, meal:r.meal||undefined, name:r.name, grams:Number(r.grams)||0, kcal:r.kcal||0, p:Number(r.protein)||0, c:Number(r.carbs)||0, f:Number(r.fat)||0, unit:r.unit||"g", base:r.base||undefined, fuente:r.fuente||undefined}));
     applyHabitsDone(row.habits_done);
     const now=JSON.stringify(daySnapshot());
     _lastDay=now;
@@ -1757,14 +1757,14 @@ async function sendItem(it){
     // celular desde la web o desde un dispositivo que no los cuenta.
     sbOk(await sb.from("daily_logs").upsert({client_id:uid, log_date:p.dt, water_ml:p.water, habits_done:p.habits},{onConflict:"client_id,log_date"}));
     if(p.foods.length){
-      sbOk(await sb.from("food_entries").upsert(p.foods.map((f,i)=>({id:f.id, client_id:uid, log_date:p.dt, pos:i, meal:f.meal||null, name:f.name, grams:f.grams, unit:f.unit, kcal:f.kcal, protein:f.p, carbs:f.c, fat:f.f, base:f.base})),{onConflict:"id"}));
+      sbOk(await sb.from("food_entries").upsert(p.foods.map((f,i)=>({id:f.id, client_id:uid, log_date:p.dt, pos:i, meal:f.meal||null, name:f.name, grams:f.grams, unit:f.unit, kcal:f.kcal, protein:f.p, carbs:f.c, fat:f.f, base:f.base, ...(f.fuente ? {fuente:f.fuente} : {})})),{onConflict:"id"}));
     }
     await deleteFoods(uid, p);
   } else if(it.k==="foods"){
     // Comidas de un día anterior, cargadas o borradas desde Comida (el agua, los pasos y los
     // hábitos de ese día no se tocan). Mismo reemplazo que el día de hoy.
     if(p.foods.length){
-      sbOk(await sb.from("food_entries").upsert(p.foods.map((f,i)=>({id:f.id, client_id:uid, log_date:p.dt, pos:i, meal:f.meal||null, name:f.name, grams:f.grams, unit:f.unit, kcal:f.kcal, protein:f.p, carbs:f.c, fat:f.f, base:f.base})),{onConflict:"id"}));
+      sbOk(await sb.from("food_entries").upsert(p.foods.map((f,i)=>({id:f.id, client_id:uid, log_date:p.dt, pos:i, meal:f.meal||null, name:f.name, grams:f.grams, unit:f.unit, kcal:f.kcal, protein:f.p, carbs:f.c, fat:f.f, base:f.base, ...(f.fuente ? {fuente:f.fuente} : {})})),{onConflict:"id"}));
     }
     await deleteFoods(uid, p);
   } else if(it.k==="steps"){

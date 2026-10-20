@@ -19,6 +19,8 @@ import { deleteShareFile } from '../ui/compartir.js';
 import { temaOptionsHtml } from '../ui/tema.js';
 import { neonSwitchHtml } from '../ui/neon.js';
 import { appNativa } from '../core/tienda.js';
+import { iaAlguna, iaEstado, iaGuardarPermiso, iaPermiso } from '../core/ia.js';
+import { iaToast, pedirPermisoIA } from '../ui/ia-permiso.js';
 import { bellSvg, fileTextSvg, instagramSvg, globeSvg, auIcoMail, whatsappSvg, chevronRightSvg, pencilSvg, checkSvg } from '../core/icons.js';
 
 const cameraSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
@@ -27,6 +29,17 @@ const sparkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 // Personas bloqueadas: un círculo tachado.
 const blockSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>';
 const zapSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
+
+// El estado de la IA para Ajustes: si cambió lo que se ve, se redibuja (una vez por pedido).
+let _iaCfg = "";
+function iaConfigRefrescar() {
+  iaEstado().then(() => {
+    const v = iaAlguna() + "|" + iaPermiso();
+    if (v === _iaCfg) return;
+    _iaCfg = v;
+    if (State.view === "config") renderApp();
+  });
+}
 
 function cfgRoleLabel(p) { return (p && p.role === "coach") ? "Coach" : "Cliente"; }
 
@@ -187,6 +200,22 @@ export function renderConfig() {
       '</button>' +
     '</div>';
 
+  // Funciones con IA (la foto del plato y «Contame qué comiste»): solo si alguna está prendida en el
+  // panel, o si la persona ya la había aceptado (para que la pueda apagar). Apagarla guarda que no
+  // quiere (ia_permiso) y desde ahí no se manda nada; prenderla vuelve a mostrar el aviso.
+  if (logged) iaConfigRefrescar();
+  const iaOn = iaPermiso() === "ok";
+  const iaSection = !logged || !iaAlguna() ? "" : '<div class="card cfg-card">' +
+      '<div class="cfg-notif-row">' +
+        '<span class="cfg-notif-ic">' + sparkSvg + '</span>' +
+        '<div class="cfg-notif-txt">' +
+          '<div class="cfg-notif-label" id="cfgIaLbl">Funciones con IA</div>' +
+          '<div class="cfg-notif-desc" id="cfgIaDesc">Envía a Anthropic (EE. UU.) la foto o el texto de cada consulta. Apagado: no se manda nada. <a class="cfg-ia-link" href="' + LINKS.privacy + '#ia" target="_blank" rel="noopener">Política de privacidad</a></div>' +
+        '</div>' +
+        '<button class="cfg-switch' + (iaOn ? ' on' : '') + '" data-action="cfg-ia-toggle" role="switch" aria-checked="' + iaOn + '" aria-labelledby="cfgIaLbl" aria-describedby="cfgIaDesc"><span class="cfg-switch-knob"></span></button>' +
+      '</div>' +
+    '</div>';
+
   const legalSection = '<div class="card cfg-card">' +
       cfgLinkRow(fileTextSvg, "Política de privacidad", LINKS.privacy) +
     '</div>';
@@ -210,7 +239,7 @@ export function renderConfig() {
 
   checkAdmin(renderApp); // solo las cuentas administradoras ven «Revisar productos»
   return '<div class="hb-head"><div class="hb-title">Configuración</div><div class="title-accent"></div></div>' +
-    account + adminEntry() + coachSection + notifSection + temaSection + neonSection + liteSection + blockSection + legalSection + contactSection + dangerSection + about;
+    account + adminEntry() + coachSection + notifSection + temaSection + neonSection + liteSection + iaSection + blockSection + legalSection + contactSection + dangerSection + about;
 }
 
 document.body.addEventListener("keydown", function (e) {
@@ -304,6 +333,19 @@ document.body.addEventListener("click", async function (e) {
       if (err) alert(err);
     }
     notifBtn.disabled = false;
+    renderApp();
+    return;
+  }
+
+  const iaBtn = e.target.closest('[data-action="cfg-ia-toggle"]');
+  if (iaBtn) {
+    if (iaBtn.disabled) return;
+    iaBtn.disabled = true;
+    try {
+      if (iaPermiso() === "ok") { await iaGuardarPermiso(false); iaToast("Listo: las funciones con IA quedaron apagadas. No se manda nada."); }
+      else if (await pedirPermisoIA({ desdeAjustes: true })) iaToast("Listo: las funciones con IA quedaron prendidas.");
+    } catch (err) { alert((err && err.message) || "No se pudo guardar. Probá de nuevo."); }
+    iaBtn.disabled = false;
     renderApp();
     return;
   }

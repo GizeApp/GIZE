@@ -2,6 +2,7 @@ import { FOODS, RC } from '../core/data.js';
 
 import { cookVariant } from '../core/foods.js';
 
+const cameraSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
 const barcodeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8v8M10 8v8M13 8v8M16 8v8"/></svg>';
 
 import { flameSvg, searchSvg, xSvg } from '../core/icons.js';
@@ -17,6 +18,8 @@ import { foodEmoji } from '../core/foodemoji.js';
 import { foodUnit } from '../core/foodunits.js';
 
 import { planSections } from './checkin.js';
+
+import { IA, iaVisible } from '../core/ia.js';
 
 // Nombre sin la aclaración de la unidad, que ya muestra la hoja del alimento:
 // "Pan lactal blanco (1 rebanada ≈ 25 g)" → "Pan lactal blanco". Las demás aclaraciones
@@ -77,6 +80,12 @@ export const ComidaState = {
   calForm: {sex:"m",age:"",height:"",weight:"",activity:"mod",goal:"mantener"},
 
   foodForm: {name:"",kcal:"",p:"",c:"",f:"",unit:"g"},
+
+  // Foto del plato o «Contame qué comiste» (IA): la hoja de revisión, ver renderPlateSheet.
+  plate: null,
+  // Con la hoja del plato abierta, el buscador elige un alimento para ella: el índice de la fila
+  // que se cambia, o -1 para agregar uno que falta (null: el buscador de siempre).
+  plateSwap: null,
 
 };
 
@@ -193,7 +202,8 @@ export function renderResults(q){
   const rows = items.slice(0,60).map(it=>foodRow(it.f, it.act, it.i)).join("");
   const o = ComidaState.off || {};
   const loading = o.q && o.q.length >= 3 && o.status === "loading" ? '<div class="cal-hint">Buscando productos de marca…</div>' : '';
-  if (!rows) return loading || (nq.length < 3 || (o.status && o.status !== "loading") ? '<div class="cal-hint">Sin resultados. Probá crear el alimento 👇</div>' : '');
+  if (!rows) return loading || (nq.length < 3 || (o.status && o.status !== "loading") ? '<div class="cal-hint">Sin resultados. Probá crear el alimento 👇</div>' +
+    (iaVisible("texto") && ComidaState.plateSwap == null ? '<button class="ia-nores" data-action="ia-texto" data-q="1"><span class="ia-tag" aria-hidden="true">IA</span> ¿No está? Contalo con tus palabras</button>' : '') : '');
   return rows + loading;
 }
 
@@ -401,18 +411,24 @@ function searchBar(vd){
 // del alimento; al cancelarla se vuelve acá con lo buscado.
 export function renderSearchSheet(){
   const vd = (ComidaState.viewDate && ComidaState.viewDate < today()) ? ComidaState.viewDate : today();
+  // Eligiendo un alimento para la hoja del plato (cambiar una fila o agregar uno que falta).
+  const swap = ComidaState.plateSwap != null && ComidaState.plate;
+  const foto = !swap && iaVisible("plato"), texto = !swap && iaVisible("texto");
+  const tit = swap ? (ComidaState.plateSwap >= 0 ? "Cambiar por…" : "Agregar al plato") : "Agregar" + (vd===today() ? "" : " a "+esc(dayLabel(vd).toLowerCase()));
   return `
     <div class="sheet-bg" data-action="search-close"></div>
-    <div class="sheet search-sheet" role="dialog" aria-label="Buscar alimento">
-      <div class="ss-head"><span class="sheet-title">Agregar${vd===today() ? "" : " a "+esc(dayLabel(vd).toLowerCase())}</span><button class="ss-x" data-action="search-close" aria-label="Cerrar">${xSvg}</button></div>
-      ${mealChips(ComidaState.meal || mealNow(), "search-meal")}
+    <div class="sheet search-sheet" role="dialog" aria-label="${swap ? "Elegir alimento" : "Buscar alimento"}">
+      <div class="ss-head"><span class="sheet-title">${tit}</span><button class="ss-x" data-action="search-close" aria-label="${swap ? "Volver al plato" : "Cerrar"}">${xSvg}</button></div>
+      ${swap ? "" : mealChips(ComidaState.meal || mealNow(), "search-meal")}
       <div class="food-search-row">
         <div class="cal-search search-wrap"><span class="search-ic">${searchSvg}</span><input id="foodSearch" type="text" placeholder="Buscar alimento o marca…" value="${esc(ComidaState.foodQuery)}" data-action="food-search" autocomplete="off" enterkeyhint="search"></div>
-        <button class="scan-btn" data-action="scan-open" title="Escanear código de barras" aria-label="Escanear código de barras (beta)">${barcodeSvg}<span class="scan-beta" aria-hidden="true">BETA</span></button>
+        ${foto ? `<button class="ia-foto-btn" data-action="ia-plato" aria-label="Registrar con una foto (IA)">${cameraSvg}<span aria-hidden="true">Foto</span><span class="ia-mini" aria-hidden="true">IA</span></button>` : ""}
+        ${swap ? "" : `<button class="scan-btn" data-action="scan-open" title="Escanear código de barras" aria-label="Escanear código de barras (beta)">${barcodeSvg}<span class="scan-beta" aria-hidden="true">BETA</span></button>`}
       </div>
+      ${texto ? `<button class="ia-texto-btn" data-action="ia-texto"><span aria-hidden="true">✍️</span> Contame qué comiste <span class="ia-tag" aria-hidden="true">IA</span></button>` : ""}
       <div id="foodResults" class="ss-results">${renderResults(ComidaState.foodQuery)}</div>
-      <button class="cal-create" data-action="food-create-open">+ Crear alimento propio</button>
-      <button class="cal-create rq-open" data-action="rq-open">¿No encontrás un producto? Pedí que lo agreguemos</button>
+      ${swap ? "" : `<button class="cal-create" data-action="food-create-open">+ Crear alimento propio</button>
+      <button class="cal-create rq-open" data-action="rq-open">¿No encontrás un producto? Pedí que lo agreguemos</button>`}
     </div>`;
 }
 
@@ -462,7 +478,7 @@ export function renderComida(){
   const item = e=>`
     <div class="diary-item" data-action="diary-edit" data-id="${esc(e.id)}">
       <span class="food-emo" aria-hidden="true">${foodEmoji(e.name)}</span>
-      <div class="diary-name">${esc(shortName(e.name))}<span>${e.grams} ${e.unit==="ml"?"ml":"g"} · P ${r1(e.p)} · C ${r1(e.c)} · G ${r1(e.f)}</span></div>
+      <div class="diary-name">${esc(shortName(e.name))}${e.fuente==="ia"||e.fuente==="ia-editado" ? `<span class="ia-chip" title="${e.fuente==="ia"?"Estimado con IA":"Estimado con IA y editado"}">IA${e.fuente==="ia-editado"?" · editado":""}</span>` : ""}<span>${e.grams} ${e.unit==="ml"?"ml":"g"} · P ${r1(e.p)} · C ${r1(e.c)} · G ${r1(e.f)}</span></div>
       <div class="diary-kcal">${e.kcal} kcal</div>
       <button class="diary-rm" data-action="diary-remove" data-id="${esc(e.id)}" title="Quitar">${xSvg}</button>
     </div>`;
@@ -616,4 +632,135 @@ export function renderPlanScreen(){
     </div>
     ${tabs.length > 1 ? `<div class="plan-tabs" role="tablist">${tabs.map(t => `<button role="tab" aria-selected="${t[0]===tab}" class="plan-tab${t[0]===tab?' on':''}" data-action="plan-tab" data-v="${t[0]}">${t[1]}</button>`).join("")}</div>` : ''}
     <div class="mc-wrap plan-body">${body || '<div class="cal-hint">Tu coach todavía no cargó el detalle del plan.</div>'}</div>`;
+}
+
+// ---- Foto del plato y «Contame qué comiste» (IA) ----
+// La hoja de revisión: la IA propone, la persona corrige (gramos, alimento, quitar, agregar) y
+// recién al tocar «Agregar» se anota. Cada fila guarda sus valores cada 100 g (de la base de GIZE
+// o de la estimación de la IA): al cambiar los gramos se recalcula todo en el lugar.
+// ComidaState.plate = { modo: "plato" | "texto", status: "elegir" | "escribir" | "cargando" |
+//   "error" | "vacio" | "ok", meal, photoUrl, b64, texto (lo que escribió o la aclaración), err,
+//   cargando (0: analizando, 1: buscando en la base), items: [{ name, g, b: {kcal,p,c,f}, unit,
+//   base (de la base de GIZE), dudoso, paso (gramos del − / +), editado }], nota, raw }
+export const PLATE_FINE = "Estimado con IA. Puede equivocarse: revisá los alimentos y los gramos antes de agregar. Las fotos suelen quedarse cortas con el aceite y las salsas.";
+const r1p = v => (Math.round(v * 10) / 10).toLocaleString("es-AR");
+export const plateGrams = it => Math.max(0, Math.min(5000, parseFloat(String(it.g).replace(",", ".")) || 0));
+export function plateItemVals(it){
+  const g = plateGrams(it), k = g / 100;
+  return { g, kcal: Math.round(it.b.kcal * k), p: Math.round(it.b.p * k * 10) / 10, c: Math.round(it.b.c * k * 10) / 10, f: Math.round(it.b.f * k * 10) / 10 };
+}
+export function plateTotals(P){
+  const t = { kcal: 0, p: 0, c: 0, f: 0, n: 0 };
+  (P.items || []).forEach(it => { const v = plateItemVals(it); if (!(v.g > 0)) return; t.n++; t.kcal += v.kcal; t.p += v.p; t.c += v.c; t.f += v.f; });
+  return t;
+}
+export function plateTotalsText(P){ const t = plateTotals(P); return `<b>${kNum(t.kcal)} kcal</b><span>P ${r1p(t.p)} · C ${r1p(t.c)} · G ${r1p(t.f)}</span>`; }
+export function plateRowText(it){ const v = plateItemVals(it); return `${kNum(v.kcal)} kcal · P ${r1p(v.p)} · C ${r1p(v.c)} · G ${r1p(v.f)}`; }
+export function plateAddLabel(P){
+  const t = plateTotals(P);
+  return t.n ? `Agregar ${P.meal === "desayuno" ? "al desayuno" : P.meal === "almuerzo" ? "al almuerzo" : P.meal === "merienda" ? "a la merienda" : "a la cena"} · ${kNum(t.kcal)} kcal` : "Agregar";
+}
+// «Te quedan 3 fotos con IA hoy»: solo con 3 o menos.
+export function plateQuedan(modo){
+  const q = IA.estado && IA.estado.quedan ? IA.estado.quedan[modo] : null;
+  if (q == null || q > 3) return "";
+  const que = modo === "texto" ? (q === 1 ? "texto" : "textos") : (q === 1 ? "foto" : "fotos");
+  return `<div class="pl8-quedan">${q ? "Te " + (q === 1 ? "queda " : "quedan ") + q + " " + que + " con IA hoy" : "Hoy ya no te quedan " + (modo === "texto" ? "textos" : "fotos") + " con IA"}</div>`;
+}
+
+function plateRow(it, i){
+  const nm = esc(shortName(it.name));
+  return `<div class="pl8-row" data-i="${i}">
+      <div class="pl8-top">
+        <span class="pl8-name">${nm}</span>
+        <button class="pl8-chg" data-action="plate-change" data-i="${i}" aria-label="Cambiar ${nm}" aria-describedby="pl8o${i}">Cambiar</button>
+        <button class="pl8-x" data-action="plate-remove" data-i="${i}" aria-label="Quitar ${nm}">${xSvg}</button>
+      </div>
+      <div class="pl8-src${it.base ? " db" : ""}" id="pl8o${i}">${it.base ? '<span aria-hidden="true">✓</span> Base GIZE' : '<span class="ia-mini" aria-hidden="true">IA</span> Estimado con IA'}${it.dudoso ? ' · <b class="pl8-rev">Revisá</b>' : ""}</div>
+      <div class="pl8-mid">
+        <button class="pl8-step" data-action="plate-step" data-d="-1" data-i="${i}" aria-label="Menos ${nm}">−</button>
+        <label class="pl8-g"><input type="text" inputmode="decimal" value="${esc(String(it.g))}" data-action="plate-grams" data-i="${i}" aria-label="Gramos de ${nm}"><span>${it.unit === "ml" ? "ml" : "g"}</span></label>
+        <button class="pl8-step" data-action="plate-step" data-d="1" data-i="${i}" aria-label="Más ${nm}">+</button>
+        <span class="pl8-vals" id="pl8v${i}">${plateRowText(it)}</span>
+      </div>
+    </div>`;
+}
+
+function plateBody(P){
+  const foto = P.modo === "plato";
+  if (P.status === "elegir") return `
+      <p class="pl8-hint">Sacá la foto de arriba, con todo el plato a la vista y buena luz. La IA estima qué hay y cuánto; después lo revisás.</p>
+      <div class="cf-photo-btns pl8-pick">
+        <label class="cf-photo-btn">📷 Sacar foto<input type="file" accept="image/*" capture="environment" data-action="plate-file" hidden></label>
+        <label class="cf-photo-btn">🖼️ Elegir de la galería<input type="file" accept="image/*" data-action="plate-file" hidden></label>
+      </div>${plateQuedan("plato")}`;
+  if (P.status === "escribir") return `
+      <label class="pl8-lbl" for="pl8Txt">Contá qué comiste y cuánto</label>
+      <textarea id="pl8Txt" class="form-input pl8-txt" rows="3" maxlength="300" data-action="plate-text" placeholder="Ej: 2 empanadas de carne y una coca chica">${esc(P.texto || "")}</textarea>
+      <div class="pl8-cnt"><span id="pl8Cnt">${(P.texto || "").length}</span>/300 · Podés dictarlo con el micrófono del teclado.</div>
+      <button class="form-save" data-action="plate-text-go">Calcular con IA</button>${plateQuedan("texto")}`;
+  const photo = foto && P.photoUrl ? `<img class="pl8-photo" src="${esc(P.photoUrl)}" alt="Foto del plato">` : (!foto && P.texto ? `<div class="pl8-dijo">«${esc(P.texto)}»</div>` : "");
+  if (P.status === "cargando") return `${photo}
+      <div class="pl8-wait" role="status" aria-live="polite"><span class="pl8-spin" aria-hidden="true"></span><span id="pl8Wait">${P.cargando ? "Buscando en la base de GIZE…" : foto ? "Analizando la foto…" : "Leyendo lo que comiste…"}</span></div>`;
+  const otra = foto ? `<button class="ctrl ghost" data-action="plate-again">Sacar otra foto</button>` : `<button class="ctrl ghost" data-action="plate-again">Escribir de nuevo</button>`;
+  const manual = `<button class="ctrl ghost" data-action="plate-manual">Buscar alimento</button><button class="ctrl ghost" data-action="plate-scan">Escanear código</button>`;
+  if (P.status === "error") return `${photo}
+      <div class="pl8-err" role="alert">${esc(P.msg || "")}</div>
+      <div class="pl8-btns">${P.reintento ? `<button class="ctrl primary" data-action="plate-retry">Probar de nuevo</button>` : ""}${manual}</div>`;
+  if (P.status === "vacio") return `${photo}
+      <div class="pl8-err" role="alert">${foto ? "No vimos comida en la foto. Probá con el plato entero, de arriba y con buena luz." : "No encontramos comida en lo que escribiste. Probá contarlo de otra forma."}</div>
+      <div class="pl8-btns">${otra}${manual}</div>`;
+  // ok: la lista para revisar
+  const rows = (P.items || []).map(plateRow).join("");
+  return `${photo}
+      <div class="pl8-list">${rows || '<div class="pl8-empty">No quedó ningún alimento. Agregá uno o sacá otra foto.</div>'}</div>
+      <div class="pl8-more">
+        <button class="pl8-add" data-action="plate-addfood">+ Agregar algo que falta</button>
+        <button class="pl8-add" data-action="plate-oil">¿Tenía aceite o manteca? +1 cda</button>
+      </div>
+      ${P.nota ? `<div class="pl8-nota">${esc(P.nota)}</div>` : ""}
+      ${foto ? `<div class="pl8-redo"><input class="form-input" type="text" maxlength="200" placeholder="¿Qué es? (opcional, ej: milanesa con puré)" aria-label="Aclaración para recalcular" value="${esc(P.aclara || "")}" data-action="plate-aclara"><button class="ctrl ghost" data-action="plate-redo">Recalcular</button></div>`
+        : `<button class="pl8-link" data-action="plate-again">Cambiar lo que escribí</button>`}
+      <p class="pl8-fine">${PLATE_FINE}</p>
+      <button class="pl8-link" data-action="plate-report">¿Está mal? Avisanos</button>`;
+}
+
+export function renderPlateSheet(){
+  const P = ComidaState.plate; if (!P) return "";
+  const foto = P.modo === "plato", ok = P.status === "ok";
+  const t = ok ? plateTotals(P) : null;
+  const foot = ok ? `<div class="pl8-foot">
+      ${mealChips(P.meal || mealNow(), "plate-meal")}
+      <div class="pl8-tot" id="pl8Tot" aria-live="polite">${plateTotalsText(P)}</div>
+      <div class="pl8-need" id="pl8Need"${t.n ? " hidden" : ""}>Agregá al menos un alimento con gramos.</div>
+      <button class="form-save pl8-go" id="pl8Go" data-action="plate-add"${t.n ? "" : " disabled"}>${plateAddLabel(P)}</button>
+      ${foto ? `<button class="pl8-link pl8-again" data-action="plate-again">Sacar otra foto</button>` : ""}
+    </div>` : "";
+  return `
+    <div class="sheet-bg" data-action="plate-cancel"></div>
+    <div class="sheet plate-sheet${ok ? " ok" : ""}" role="dialog" aria-modal="true" aria-labelledby="pl8T">
+      <div class="ss-head"><span class="sheet-title" id="pl8T">${foto ? "Foto del plato" : "Contame qué comiste"} <span class="ia-tag">IA</span></span><button class="ss-x" data-action="plate-cancel" aria-label="Cerrar">${xSvg}</button></div>
+      <div class="pl8-body">${plateBody(P)}</div>
+      ${foot}
+    </div>`;
+}
+// Redibuja solo el contenido de la hoja (sin volver a animarla ni perder el lugar).
+export function paintPlate(){
+  const card = document.querySelector("#sheetHost .plate-sheet");
+  if (!card || !ComidaState.plate) return false;
+  const tmp = document.createElement("div"); tmp.innerHTML = renderPlateSheet();
+  const nuevo = tmp.querySelector(".plate-sheet");
+  const body = card.querySelector(".pl8-body"), sc = body ? body.scrollTop : 0;
+  card.className = nuevo.className; card.innerHTML = nuevo.innerHTML;
+  const b2 = card.querySelector(".pl8-body"); if (b2) b2.scrollTop = sc;
+  return true;
+}
+// Solo los números (al escribir los gramos): sin tocar el campo que se está escribiendo.
+export function paintPlateNums(i){
+  const P = ComidaState.plate; if (!P) return;
+  const it = P.items[i], v = document.getElementById("pl8v" + i); if (it && v) v.textContent = plateRowText(it);
+  const tt = document.getElementById("pl8Tot"); if (tt) tt.innerHTML = plateTotalsText(P);
+  const t = plateTotals(P), go = document.getElementById("pl8Go"), need = document.getElementById("pl8Need");
+  if (go) { go.disabled = !t.n; go.textContent = plateAddLabel(P); }
+  if (need) need.hidden = !!t.n;
 }
