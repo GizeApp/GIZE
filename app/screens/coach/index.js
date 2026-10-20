@@ -232,7 +232,9 @@ export function renderCoach(){
       }
       // Modo lectura: quién lo edita (el chat y los botones de editar no están).
       const lec=d.lectura ? '<div class="co-unsaved gy-lectura" role="note"><b>Solo lectura.</b> '+(d.lectura.profe ? 'Lo edita su profe, '+esc(String(d.lectura.profe).split(" ")[0])+'.' : 'No tiene profe asignado en el gimnasio.')+' Ves lo que compartió con la administración.</div>' : '';
-      body=lec+tabs+panel;
+      // Socio del gimnasio con el plan del gimnasio en gracia o con el acceso pausado: el mismo cartel que en Clientes.
+      const gymAviso=accesoGym()!=="activo" && esSocioGym(d.id) ? cartelGym() : "";
+      body=lec+gymAviso+tabs+panel;
     }
     host.innerHTML=coachShell("clients", '<div class="co-head cv-chead"><button class="co-back cv-back" data-coach="back" aria-label="Volver" title="Volver">‹</button>'+avatarHtml(CoachState.coachData&&CoachState.coachData.avatar, coachInitials(CoachState.coachData&&CoachState.coachData.name), 'co-avatar co-avatar-client')+'<div class="cv-cname"><div class="co-client-name">'+esc((CoachState.coachData&&CoachState.coachData.name)||"Cliente")+'</div>'+(disciplinasLabel(CoachState.coachData&&CoachState.coachData.disciplines)?'<div class="co-client-disc">'+esc(disciplinasLabel(CoachState.coachData.disciplines))+'</div>':'')+'</div><button class="co-back cv-refresh" data-coach="refresh" aria-label="Actualizar" title="Actualizar">'+resetSvg+'<span>Actualizar</span></button></div>'+body);
     if(enLectura()) soloLectura(host);

@@ -71,7 +71,8 @@ export default async function ({ base, t }){
     const pg = await entrar(base, PROFE, { gym: miGimnasio('profe', { plan: { estado: 'activo', vence: null, pausa_profes_el: null }, contadores: undefined }), nombre: 'Lucía Profe' });
     const v = await enPanel(pg.p);
     t.ok(v.coach && !v.gym, 'profe: el panel de coach de siempre');
-    t.ok(!(await pg.p.evaluate(() => !!document.querySelector('link[data-gym-css]'))), 'profe: no carga el panel del gimnasio');
+    // Los estilos del gimnasio sí (el chip, los grupos y la tarjeta del profe, parte 4); el panel, no.
+    t.ok(!(await pg.p.evaluate(async () => !!(await import('/app/core/gimnasio.js')).Gym.ui)), 'profe: no carga el panel del gimnasio');
     await pg.close();
   }
   // Recepción: la recepción (por ahora, un cartel con «Cerrar sesión»).
