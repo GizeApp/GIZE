@@ -19,7 +19,7 @@ const NATIVE = () => {
 const PLAN = { client_id: ALUMNO.id, kcal: 2000, protein: 150, carbs: 200, fat: 60 };
 
 // unido: arranca vinculado. kcal: el plan del coach trae calorías. join: la respuesta de join_coach.
-async function pagina(base, { unido = false, kcal = false, join = () => true, native = false } = {}){
+async function pagina(base, { unido = false, kcal = false, join = () => true, native = false, gym = false } = {}){
   const NUEVO = Object.assign({}, ALUMNO, { created_at: new Date().toISOString() });
   const st = { unido, pesos: [] };
   const pg = await newPage({ user: NUEVO, init: native ? NATIVE : undefined, handlers: {
@@ -28,6 +28,7 @@ async function pagina(base, { unido = false, kcal = false, join = () => true, na
     '/rpc/my_coach_name': (r, J) => J(st.unido ? 'Coach Ana' : null),
     '/nutrition': (r, J, i) => i.m === 'GET' ? J(st.unido && kcal ? (i.one ? PLAN : [PLAN]) : (i.one ? null : [])) : undefined,
     '/body_weights': (r, J, i) => { if (i.m !== 'GET') st.pesos.push(JSON.parse(i.body)); return undefined; },
+    ...(gym ? { '/rpc/gym_codigo_info': (r, J) => J({ tipo: 'gym', gym: { name: 'Gimnasio Fuerza', city: 'Rosario' } }), '/rpc/mi_gimnasio': (r, J) => J(null) } : {}),
   } });
   if (native) await pg.p.route(u => !u.href.startsWith(base) && !/supabase\.co/.test(u.href), r => r.abort());
   await pg.p.goto(base + '/app/'); await wait(2500);
@@ -151,6 +152,20 @@ export default async function ({ base, t }){
     t.ok(pg.calls.includes('POST /rest/v1/rpc/join_coach'), 'e: Enter en el campo vincula');
     t.has(await text(p, '#authHost'), 'Código inválido', 'e: y avisa la respuesta');
     t.eq(pg.errs, [], 'e: errores de la página');
+    await pg.close();
+  }
+  // f) El código de un gimnasio abre la hoja; con Escape se cierra sin pedir y el foco vuelve al campo
+  // del código (el botón estaba en «Vinculando…» al abrirse la hoja: sin esto quedaba en el body).
+  {
+    const pg = await pagina(base, { gym: true }), p = pg.p;
+    await p.click('[data-onb="dskip"]'); await wait(250);
+    await p.fill('#onbCode', 'FUERZA22'); await p.press('#onbCode', 'Enter'); await wait(1200);
+    t.ok(await p.$('#gymSocioHost .gys-sheet'), 'f: el código de un gimnasio abre la hoja');
+    await p.keyboard.press('Escape'); await wait(700);
+    t.eq([await p.$('#gymSocioHost .gys-sheet'), await p.evaluate(() => document.activeElement && document.activeElement.id)], [null, 'onbCode'],
+      'f: Escape cierra la hoja y el foco vuelve al campo del código');
+    t.eq(await onbPaso(p), { n: '2/11', titulo: '¿Tenés un código de tu coach?' }, 'f: sigue en el paso del código');
+    t.eq(pg.errs, [], 'f: errores de la página');
     await pg.close();
   }
 }

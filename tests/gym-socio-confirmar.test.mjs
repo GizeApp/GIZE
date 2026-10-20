@@ -46,6 +46,14 @@ export default async function ({ base, t }){
       const d = await tarjeta(p);
       t.ok(d && !d.conf && d.txt === 'Gimnasio Fuerza · Profe: Carla', 'después: la tarjeta de siempre «Gimnasio Fuerza · Profe: Carla» (' + (d && d.txt) + ')');
     }
+    if (vp === D && tema === 'oscuro'){
+      // Con el teclado: Enter en «Entendido» y en «Confirmar»; renderApp reemplaza la tarjeta y el foco
+      // va a la tarjeta nueva (no al principio de la página).
+      await p.focus('#view .gym-card [data-gys="confirmar"]'); await p.keyboard.press('Enter'); await wait(700);
+      await p.focus('#gymSocioHost [data-gys-h="ok"]'); await p.keyboard.press('Enter'); await wait(1500);
+      t.eq(await p.evaluate(() => { const a = document.activeElement; return a && a.matches('#view .gym-card') ? a.innerText.replace(/\s+/g, ' ').trim() : a && a.tagName; }), 'Gimnasio Fuerza · Profe: Carla',
+        'con el teclado: después de confirmar, el foco queda en la tarjeta nueva');
+    }
     t.eq(pg.errs, [], donde + ': sin errores');
     await pg.close();
   }

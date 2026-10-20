@@ -65,6 +65,25 @@ async function alDia(perfil){
   await releerGym();
   if (perfil) await perfilAlDia();
   renderApp();
+  focoEstable();
+}
+
+// Adónde va el foco cuando lo que lo tenía ya no está: lo reemplazó renderApp (confirmar desde la
+// tarjeta, salir, «Compartir») o era un botón que se deshabilitó antes de abrir la hoja («Vinculando…»
+// en la bienvenida). Sin esto, el teclado y el lector de pantalla vuelven al principio de la página.
+// Solo actúa si el foco quedó en el body y no hay una hoja abierta.
+const FOCO_ESTABLE = ['#onbCode', '#onbTit', '#view .gym-card[data-gys]', '#gymCardT', '#cfgGym [data-gys="compartir"]', '#cfgGym .cfg-sub', '#joinCode'];
+function focoEstable(sels = FOCO_ESTABLE){
+  const a = document.activeElement;
+  if (a && a !== document.body && a.isConnected) return;
+  if (document.querySelector("#gymSocioHost .gys-sheet:not(.closing)")) return;
+  for (const sel of sels){
+    const el = document.querySelector(sel);
+    if (!el || el.disabled) continue;
+    if (!/^(BUTTON|INPUT|A|SELECT|TEXTAREA)$/.test(el.tagName) && !el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
+    try { el.focus({ preventScroll: true }); } catch (e) {}
+    return;
+  }
 }
 
 // ---- La hoja ----
@@ -107,7 +126,12 @@ function cerrar(){
   S = null;
   document.removeEventListener("keydown", alTeclado, true);
   const h = document.getElementById("gymSocioHost");
-  const listo = () => { if (h) h.innerHTML = ""; if (volver && volver.isConnected) try { volver.focus({ preventScroll: true }); } catch (e) {} volver = null; };
+  const listo = () => {
+    if (h) h.innerHTML = "";
+    if (volver && volver.isConnected && volver !== document.body && !volver.disabled) try { volver.focus({ preventScroll: true }); } catch (e) {}
+    volver = null;
+    focoEstable();
+  };
   const card = h && h.querySelector(".sheet"), bg = h && h.querySelector(".sheet-bg");
   if (!card || matchMedia("(prefers-reduced-motion: reduce)").matches) listo();
   else { card.classList.add("closing"); if (bg) bg.classList.add("closing"); const n = ++cierre; setTimeout(() => { if (n === cierre && !S) listo(); }, 220); }
@@ -341,8 +365,10 @@ async function compartir(b){
   if (b) b.disabled = false;
   if (r.error){ alert(r.msg); return; }
   f.share_admin = !!(r.data && "share_admin" in r.data ? r.data.share_admin : on);
-  renderApp();
-  releerGym().then(() => renderApp()); // la copia guardada, al día
+  // renderApp reemplaza el interruptor: el foco vuelve a él (si no, queda en el body).
+  const SW = ['#cfgGym [data-gys="compartir"]'];
+  renderApp(); focoEstable(SW);
+  releerGym().then(() => { renderApp(); focoEstable(SW); }); // la copia guardada, al día
 }
 
 // ---- La foto del gimnasio: el socio la propone (gym-fotos/{gimnasio}/{ficha}/…) ----

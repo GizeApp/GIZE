@@ -44,6 +44,10 @@ export default async function ({ base, t }){
     await p.click('#cfgGym [data-gys="compartir"]'); await wait(700);
     t.eq(rpcs(pg.st, 'gym_compartir_admin')[1], { encendido: false, compartir_version: null }, 'apagar: gym_compartir_admin(false)');
     t.eq(await sw(p), ['false', false], 'apagar: queda apagado al instante');
+    // Con el teclado: Espacio en el interruptor lo cambia y el foco sigue en él (renderApp lo reemplaza).
+    await p.focus('#cfgGym [data-gys="compartir"]'); await p.keyboard.press('Space'); await wait(900);
+    t.eq([await sw(p), await p.evaluate(() => { const a = document.activeElement; return a && a.dataset ? a.dataset.gys || a.tagName : null; })], [['true', true], 'compartir'],
+      'con el teclado: Espacio lo prende y el foco sigue en el interruptor');
     t.eq(pg.errs, [], 'compartir: sin errores');
     await pg.close();
   }
