@@ -88,6 +88,39 @@ export default async function ({ base, t }){
     await pg.close();
   }
 
+  // ===== Enter no anota, los avisos viejos no vuelven, «ayer» y la región viva =====
+  {
+    const ayer = new Date(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date(Date.now() - 864e5)) + 'T23:30:00-03:00').toISOString();
+    let repetido = false;
+    const pg = await entrar(base, RECEP, { gym: conAltas(false), rol: 'client', nombre: 'Rocío Recepción', vp: M, touch: true,
+      rpc: { buscar_socio: b => busqueda().filter(s => s.nombre.toLowerCase().includes(String(b.q).toLowerCase())),
+        gym_ingreso_manual: b => repetido ? { id: b.id, result: 'ok', repetido: true, at: ayer } : { id: b.id, result: 'ok', repetido: false, at: new Date().toISOString() } } });
+    const p = pg.p;
+    const vivo = () => p.$eval('[data-rec-vivo]', e => e.textContent).catch(() => null);
+    // La tecla «Buscar» del teclado (Enter) con un solo resultado: no anota, lleva al botón.
+    t.eq(await p.$eval('input[data-rec-q]', i => i.getAttribute('enterkeyhint')), 'search', 'el teclado del celular dice «Buscar»');
+    await buscarRec(p, 'marta torres');
+    t.eq(await vivo(), '1 socio encontrado.', 'la región viva dice cuántos encontró');
+    t.ok(await p.$eval('[data-rec-vivo]', e => !e.closest('.gy-rec-res') && e.getAttribute('aria-live') === 'polite'), 'la región viva está fuera de lo que se redibuja');
+    await p.focus('input[data-rec-q]'); await p.keyboard.press('Enter'); await wait(600);
+    t.eq(rpcs(pg.st, 'gym_ingreso_manual').length, 0, 'Enter con un solo resultado (de baja) no anota el ingreso');
+    t.ok(await p.evaluate(() => document.activeElement && document.activeElement.dataset.rec === 'ingreso'), 'Enter lleva al botón [Registrar ingreso]');
+    // Con el botón, sí (un toque explícito).
+    await p.keyboard.press('Enter'); await wait(600);
+    t.eq(rpcs(pg.st, 'gym_ingreso_manual').length, 1, 'Enter sobre el botón: se anota');
+    t.ok(/^Marta Torres: Ingreso registrado a las \d\d:\d\d\.$/.test(await vivo()), 'la región viva dice cómo salió el ingreso: ' + await vivo());
+    // Busca a otra y vuelve a ella: el «Ingreso registrado» de antes no aparece.
+    await buscarRec(p, 'martina'); await buscarRec(p, 'marta torres');
+    t.ok(!/Ingreso registrado/.test(await recTxt(p)), 'otra búsqueda: el aviso del ingreso anterior no vuelve: ' + (await recTxt(p)).slice(-120));
+    // Repetido de ayer a las 23:30 (las horas pasan la medianoche): no dice «hoy».
+    repetido = true;
+    await p.click('.gy-rec-res [data-rec="ingreso"]'); await wait(600);
+    const r = await recTxt(p);
+    t.ok(/Ya entró ayer a las 23:30\. Se anota un ingreso cada 3 horas: no se anotó otro\./.test(r) && !/Ya entró hoy/.test(r), 'repetido del día anterior: «Ya entró ayer a las 23:30»: ' + r.slice(-140));
+    t.eq(pg.errs, [], 'Enter y avisos: sin errores');
+    await pg.close();
+  }
+
   // ===== Cargar ficha y Solicitudes desde la recepción (con altas) =====
   {
     const pg = await entrar(base, RECEP, { gym: conAltas(true), rol: 'client', nombre: 'Rocío Recepción', vp: M, touch: true,

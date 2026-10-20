@@ -19,14 +19,19 @@
 //
 // Lo que cambia mientras se busca o se registra se redibuja solo adentro de la recepción (.gy-rec-res):
 // el buscador no pierde el foco ni lo escrito. El resto (otra pantalla, la ventana) lo redibuja quien
-// la muestra (alRepintar).
+// la muestra (alRepintar). Lo que encontró y cómo salió el ingreso se anuncia en una región viva que
+// está siempre (.gy-rec-vivo, fuera de lo que se redibuja): así el lector de pantalla lo dice.
+//
+// El ingreso se anota solo con [Registrar ingreso]: la tecla Enter (la «Buscar» del teclado del
+// celular) busca, y con un solo resultado lleva al botón, para mirar la foto y el semáforo antes.
 import { esc } from '../../core/utils.js';
-import { rpc, info, fotoHtml, pedirFotos, horaAR, cuando, plural } from './estado.js';
+import { rpc, info, fotoHtml, pedirFotos, horaAR, diaAR, hoyAR, cuando, plural } from './estado.js';
 import { marcarRecepcion } from './inicio.js';
 
 // q: lo escrito; lista: lo que contestó buscar_socio (null = todavía nada); sel: la ficha elegida;
 // pend: por ficha, el id del ingreso que todavía no confirmó el servidor (un reintento usa el mismo);
-// hecho: por ficha, lo que contestó el último registro; busy: la ficha que se está registrando.
+// hecho: por ficha, lo que contestó el último registro (se olvida con cada búsqueda nueva: si vuelve
+// horas después no aparece un «Ingreso registrado» viejo); busy: la ficha que se está registrando.
 export const RS = { q: "", lista: null, error: "", buscando: false, sel: null, pend: {}, hecho: {}, errIng: {}, busy: "", seq: 0 };
 let repintarFuera = () => {};
 // Quien muestra la recepción avisa cómo redibujarse entera (cuando hace falta: llegó una foto).
@@ -59,6 +64,7 @@ export function semaforo(s, grande){
 export function renderRecepcion(o = {}){
   return '<section class="gy-rec' + (o.compacto ? ' gy-rec-compacto' : '') + '" aria-label="Recepción">' +
     '<label class="cv-find gy-rec-buscar">' + lupa + '<input class="co-search cv-search gy-rec-q" type="search" data-rec-q="1" placeholder="Nombre o DNI del socio" aria-label="Buscar socio por nombre o DNI" autocomplete="off" autocapitalize="words" enterkeyhint="search" value="' + esc(RS.q) + '"></label>' +
+    '<p class="cv-sr gy-rec-vivo" aria-live="polite" aria-atomic="true" data-rec-vivo="1"></p>' +
     '<div class="gy-rec-res" data-altas="' + (o.altas && !o.compacto ? "1" : "") + '">' + resultados(!!(o.altas && !o.compacto)) + '</div>' +
     (o.altas && !o.compacto ? '<div class="gy-acc gy-rec-altas">' +
       '<button class="co-copy-btn cv-sec-btn gy-btn2" data-gym="sumar" data-v="ficha">Cargar ficha</button>' +
@@ -73,7 +79,7 @@ function resultados(altas){
   else if (!buscable(t)) estado = '<p class="gy-fino gy-rec-hint">Escribí al menos 2 letras o 3 números del DNI.</p>';
   else if (RS.error) estado = '<div class="gy-cartel bad" role="alert"><span>' + esc(RS.error) + '</span><button class="cv-link" data-rec="reintentar">Reintentar</button></div>';
   else if (RS.lista === null || (RS.buscando && !RS.lista.length)) estado = '<p class="gy-fino gy-rec-hint" aria-busy="true">Buscando…</p>';
-  else if (!RS.lista.length) estado = '<p class="gy-fino gy-rec-hint" role="status">Nadie con «' + esc(t) + '». Probá con el DNI' + (altas ? ' o cargá la ficha.' : '.') + '</p>';
+  else if (!RS.lista.length) estado = '<p class="gy-fino gy-rec-hint">Nadie con «' + esc(t) + '». Probá con el DNI' + (altas ? ' o cargá la ficha.' : '.') + '</p>';
   if (estado) return estado;
   const sel = RS.lista.find(s => s.id === RS.sel) || (RS.lista.length === 1 ? RS.lista[0] : null);
   const lista = '<ul class="gy-rec-lista" aria-label="' + plural(RS.lista.length, "socio encontrado", "socios encontrados") + '">' + RS.lista.map(s =>
@@ -82,20 +88,24 @@ function resultados(altas){
   return '<div class="gy-rec-cols">' + lista + (sel ? detalle(sel, altas) : '<div class="cv-card gy-rec-ficha gy-rec-vacia"><p class="gy-fino">Tocá un socio para ver su foto y registrar el ingreso.</p></div>') + '</div>';
 }
 
+// Lo que contestó el registro, en palabras (la ficha y la región viva dicen lo mismo). Si el que ya
+// había fue otro día (las N horas pasan la medianoche), no dice «hoy».
+function textoIngreso(h){
+  const a = horaAR(h.at);
+  if (h.repetido){
+    const d = diaAR(h.at), dia = !d || d === hoyAR() ? "hoy a las " : "ayer a las ";
+    return "Ya entró " + dia + a + ". Se anota un ingreso cada " + plural(horas(), "hora", "horas") + ": no se anotó otro.";
+  }
+  return { ok: "Ingreso registrado a las " + a + ".", pausado: "Ingreso registrado a las " + a + ", pero está pausado.", baja: "Ingreso registrado a las " + a + ", pero está de baja.",
+    visita: "Ingreso registrado a las " + a + " (visita).", rechazado: "Ingreso registrado a las " + a + ", pero todavía no es socio." }[h.result] || "Ingreso registrado a las " + a + ".";
+}
+
 function detalle(s, altas){
   const h = RS.hecho[s.id], err = RS.errIng[s.id], busy = RS.busy === s.id;
   const foto = s.foto_path ? fotoHtml(s.foto_path, s.nombre, "gy-av-rec")
     : '<div class="gy-rec-sinfoto">' + fotoHtml(null, s.nombre, "gy-av-rec") + (altas ? '<span class="gy-fino">Sin foto: sacale una.</span>' : '<span class="gy-fino">Sin foto del gimnasio.</span>') + '</div>';
   let res = "";
-  if (h){
-    const a = horaAR(h.at);
-    if (h.repetido) res = '<div class="gy-cartel warn" role="status"><span>Ya entró hoy a las ' + esc(a) + '. Se anota un ingreso cada ' + plural(horas(), "hora", "horas") + ': no se anotó otro.</span></div>';
-    else {
-      const txt = { ok: "Ingreso registrado a las " + a + ".", pausado: "Ingreso registrado a las " + a + ", pero está pausado.", baja: "Ingreso registrado a las " + a + ", pero está de baja.",
-        visita: "Ingreso registrado a las " + a + " (visita).", rechazado: "Ingreso registrado a las " + a + ", pero todavía no es socio." }[h.result] || "Ingreso registrado a las " + a + ".";
-      res = '<div class="' + (h.result === "ok" ? "gy-ok" : "gy-cartel warn") + '" role="status"><span>' + esc(txt) + '</span></div>';
-    }
-  }
+  if (h) res = '<div class="' + (!h.repetido && h.result === "ok" ? "gy-ok" : "gy-cartel warn") + '"><span>' + esc(textoIngreso(h)) + '</span></div>';
   if (err) res = '<div class="gy-cartel bad" role="alert"><span>' + esc(err) + '</span></div>';
   return '<article class="cv-card gy-rec-ficha" aria-label="' + esc(s.nombre || "Socio") + '">' +
     '<div class="gy-rec-foto">' + foto + '</div>' +
@@ -111,6 +121,13 @@ function detalle(s, altas){
 // Redibuja solo los resultados (el buscador queda como está).
 function pintar(){
   document.querySelectorAll(".gy-rec-res").forEach(el => { el.innerHTML = resultados(el.dataset.altas === "1"); });
+}
+// La región viva: se vacía y se escribe un momento después, así se anuncia aunque repita el texto.
+let relojVivo = null;
+function anunciar(txt){
+  clearTimeout(relojVivo);
+  document.querySelectorAll("[data-rec-vivo]").forEach(el => { el.textContent = ""; });
+  relojVivo = setTimeout(() => document.querySelectorAll("[data-rec-vivo]").forEach(el => { el.textContent = txt; }), 120);
 }
 
 // ---- Buscar ----
@@ -134,7 +151,10 @@ async function buscar(){
   marcarRecepcion();
   RS.lista = Array.isArray(r.data) ? r.data : [];
   if (!RS.lista.some(s => s.id === RS.sel)) RS.sel = RS.lista.length === 1 ? RS.lista[0].id : null;
+  // Búsqueda nueva: sin los avisos de ingresos anteriores (pend queda: un reintento no duplica).
+  RS.hecho = {}; RS.errIng = {};
   pintar();
+  anunciar(RS.lista.length ? plural(RS.lista.length, "socio encontrado", "socios encontrados") + "." : "Nadie con «" + q + "».");
   pedirFotos(RS.lista.map(s => s.foto_path)).then(ok => { if (ok && n === RS.seq) pintar(); });
 }
 
@@ -151,11 +171,13 @@ async function registrar(id){
     // El id queda guardado: si el ingreso llegó al servidor y se cortó la respuesta, el reintento no
     // anota otro.
     RS.errIng[id] = r.msg;
+    anunciar(r.msg);
   } else {
     delete RS.pend[id];
     RS.hecho[id] = r.data || {};
     if (r.data && !r.data.repetido) s.ultimo_ingreso = r.data.at || new Date().toISOString();
     marcarRecepcion();
+    anunciar((s.nombre ? s.nombre + ": " : "") + textoIngreso(RS.hecho[id]));
     try { alIngreso(r.data); } catch (e) {}
   }
   pintar();
@@ -182,10 +204,16 @@ document.addEventListener("input", e => {
 document.addEventListener("keydown", e => {
   const t = e.target;
   if (e.key === "Enter" && t && t.matches && t.matches("input[data-rec-q]")){
-    e.preventDefault(); clearTimeout(reloj);
-    // Enter con un solo resultado elegido: registra (el mostrador apurado).
+    e.preventDefault();
+    // Enter (la «Buscar» del teclado) nunca anota el ingreso: con un solo resultado ya buscado, lleva al
+    // botón [Registrar ingreso] de su ficha; si no, busca.
     const s = (RS.lista || []).find(x => x.id === RS.sel);
-    if (s && !RS.buscando && RS.lista.length === 1) registrar(s.id); else buscar();
+    if (s && !RS.buscando && RS.lista.length === 1){
+      const b = document.querySelector('.gy-rec-res [data-rec="ingreso"][data-id="' + s.id + '"]');
+      if (b){ b.focus({ preventScroll: true }); b.scrollIntoView({ block: "nearest" }); }
+      return;
+    }
+    clearTimeout(reloj); buscar();
   }
 });
 document.addEventListener("click", e => {

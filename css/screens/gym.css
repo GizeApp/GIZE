@@ -215,6 +215,7 @@ a.gize-btn.cv-btn { text-decoration:none; }
 
 /* Recepción */
 .gy-rec { display:grid; gap:12px; min-width:0; }
+.gy-rec-vivo { position:absolute; width:1px; height:1px; margin:-1px; padding:0; border:0; overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; }
 .gy-rec-buscar { display:block; width:100%; box-sizing:border-box; }
 .gy-rec-buscar .cv-ic { left:14px; color:var(--txt-2); }
 .gy-rec-buscar .gy-rec-q { width:100%; min-height:48px; margin:0; font-size:17px; padding-left:40px; box-sizing:border-box; }
