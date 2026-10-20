@@ -146,6 +146,44 @@ export default async function ({ t: t0 }){
   t.eq([de('A1').ficha.profe.name, de('A1').ficha.coach_externo, de('A1').ficha.foto, de('A7').ficha.terms_at, de('A6').solicitud.gym, de('dA').codigo],
     ['Martina Profe', false, 'falta', null, 'Gimnasio Fuerza', 'FUERZA22'], 'la ficha del socio (profe, coach externo, foto), la solicitud y el código del gimnasio para el equipo');
 
+  // ===== Recepción: buscar, semáforo e ingreso manual =====
+  const busca = (w, qq) => [w, rpc('buscar_socio', qq)];
+  x = await V([busca('rA', 'MARTINA'), busca('rA', 'lucia gomez'), busca('rA', '999'), busca('rA', '30.111'), busca('rA', 'a'), busca('rA', '12'), busca('rA', 'Raul')]);
+  t.eq([x[0].map(r => nom(r.id)), x[1].map(r => nom(r.id)), x[2].map(r => nom(r.id)), x[3].map(r => nom(r.id)), x[4].msg, x[5].msg, x[6].map(r => nom(r.id))],
+    [['A1'], ['A3'], ['A4'], ['A1'], 'Escribí al menos 2 letras o 3 números del DNI.', 'Escribí al menos 2 letras o 3 números del DNI.', ['A4']],
+    'buscar_socio: por nombre sin mayúsculas ni acentos, por DNI (3 números o más); menos que eso, P0001');
+  t.eq(Object.keys(x[0][0]).sort(), ['apto_vencido', 'estado', 'foto_path', 'id', 'motivo', 'nombre', 'semaforo', 'ultimo_ingreso'], 'devuelve solo nombre, foto del gimnasio, estado y semáforo (sin DNI, mail, teléfono, montos ni registros)');
+  x = await V([['postgres', `update public.gym_members set status = 'pausado', paused_until = current_date + 5, apto_medico_vence = current_date - 1 where id = '${F.A2}'`],
+    ['postgres', `update public.gym_members set status = 'baja', left_at = now() where id = '${F.A3}'`],
+    busca('rA', 'Juan'), busca('rA', 'Lucía'), busca('rA', 'Sofía'), busca('rA', 'Martina'), busca('rA', 'Pedro')]);
+  const sem = r => r[0] && [r[0].semaforo, r[0].motivo, r[0].apto_vencido];
+  t.eq([sem(x[2]), sem(x[3]), sem(x[4]), sem(x[5]), sem(x[6])], [['ambar', 'Pausado hasta el ' + x[2][0].motivo.slice(-5), true], ['rojo', 'De baja', false],
+    ['ambar', 'Pidió sumarse', false], ['verde', 'Activo', false], ['gris', 'No es socio', false]],
+    'semáforo (sin cuotas en la etapa 1): activo verde, pausado o pidió sumarse ámbar, de baja rojo, visita gris; el apto médico vencido suma la marca');
+  const ING = 'b0000000-0000-4000-8000-0000000000f1', ING2 = 'b0000000-0000-4000-8000-0000000000f2';
+  x = await V([['rA', rpc('gym_ingreso_manual', ING, F.A1)], ['rA', rpc('gym_ingreso_manual', ING, F.A1)], ['rA', rpc('gym_ingreso_manual', ING2, F.A1)],
+    ['postgres', `select to_jsonb(count(*)) from public.gym_entries where gym_member_id = '${F.A1}' and at > now() - interval '1 hour'`],
+    ['rA', rpc('gym_ingreso_manual', ING2, F.A2)], ['dA', rpc('mi_gimnasio')]]);
+  t.eq([x[0].result, x[0].repetido, x[1].id, x[1].repetido, x[2].repetido, x[2].id, x[3], x[4].result],
+    ['ok', false, ING, false, true, ING, 1, 'ok'],
+    'gym_ingreso_manual: registra; el mismo id otra vez devuelve lo mismo sin duplicar; otro toque dentro de las 3 horas dice «repetido» (con el ingreso que ya estaba); otro socio entra normal');
+  t.eq(x[5].contadores.ingresos_hoy, 2, 'el contador del día de la dueña (A1 y A2)');
+  x = await V([['postgres', `update public.gym_members set status = 'pausado', paused_until = current_date + 5 where id = '${F.A2}'`],
+    ['postgres', `update public.gym_members set status = 'baja', left_at = now() where id = '${F.A3}'`],
+    ['rA', rpc('gym_ingreso_manual', ING, F.A2)], ['rA', rpc('gym_ingreso_manual', ING2, F.A3)], ['rA', rpc('gym_ingreso_manual', 'b0000000-0000-4000-8000-0000000000f3', F.A6)]]);
+  t.eq(x.slice(2).map(r => r.result), ['pausado', 'baja', 'rechazado'], 'el resultado según el estado (no se frena a nadie: la recepción decide)');
+  x = await V([['postgres', `update public.gyms set settings = '{"ingreso_horas": 1}' where id = '${G.A}'`],
+    ['postgres', `insert into public.gym_entries (gym_id, gym_member_id, method, result, at) values ('${G.A}', '${F.A1}', 'manual', 'ok', now() - interval '90 minutes')`],
+    ['rA', rpc('gym_ingreso_manual', ING, F.A1)], ['pA1', rpc('gym_ingreso_manual', ING2, F.A2)],
+    ['postgres', `update public.gyms set settings = '{"profes_recepcion": true}' where id = '${G.A}'`], ['pA1', rpc('gym_ingreso_manual', ING2, F.A2)], ['pA1', rpc('buscar_socio', 'Juan')]]);
+  t.eq([x[2].repetido, x[3].error, x[5].result, x[6].length], [false, '42501', 'ok', 1], 'con «un ingreso cada 1 hora», a la hora y media registra otro; el profe usa la recepción solo con el interruptor');
+  const aLaVez = (id, antes) => db.json(`select pg_sleep(${antes}); begin; set local role authenticated;
+    select set_config('request.jwt.claims', '{"sub":"${P.rA}","role":"authenticated"}', true);
+    select public.gym_ingreso_manual('${id}', '${F.A2}')::jsonb; select pg_sleep(0.3); commit;`).catch(e => ({ error: e.code, msg: e.msg }));
+  const dos = await Promise.all([aLaVez(ING, 0), aLaVez(ING2, 0.1)]);
+  t.eq([dos.map(r => r.repetido).sort(), await J(`select to_jsonb(count(*)) from public.gym_entries where gym_member_id = '${F.A2}' and at > now() - interval '1 hour'`)],
+    [[false, true], 1], 'dos toques a la vez (ids distintos): queda un solo ingreso y el otro dice «repetido»: ' + JSON.stringify(dos));
+
   // ===== gym_crear con el interruptor prendido =====
   const conAlta = `update public.app_config set value = '{"alta": true}' where key = 'gimnasios'`;
   const kP100 = `update public.coach_billing set plan = 'p100', max_clients = 100 where coach_id = '${P.K}'`;
