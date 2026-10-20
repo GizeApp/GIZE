@@ -5,7 +5,7 @@
 // no las llama la app; y los permisos escritos (sin depender de los permisos por defecto).
 // Cada llamada se deshace: todas salen del mismo estado.
 import { conPg } from './pg.mjs';
-import { P, F, G, VER, DATOS, ayudas, rpc, nom, VENCE, canon } from './gimnasios-comun.mjs';
+import { P, F, G, VER, DATOS, ayudas, rpc, nom, VENCE, canon , conCanon } from './gimnasios-comun.mjs';
 
 const PERSONAS = ['dA', 'aA', 'pA1', 'rA', 'A1', 'A6', 'A7', 'dB', 'C', 'N', 'anon'];
 const NUEVO = 'b0000000-0000-4000-8000-0000000000e1';
@@ -77,7 +77,8 @@ const APP = ['mi_gimnasio()', 'gym_versiones()', 'gym_crear(text, text, text, te
   'gym_ingresos(date)', 'gym_registro_lectura(uuid, date)', 'gym_cardio_lectura(uuid)', 'gym_socios_compartidos()', 'gym_ve_avatar(text)',
   'gym_foto_carpeta(text, text, boolean)', 'gym_fotos_cupo_ok()', 'gym_mi_fila_oculta()'];
 
-export default async function ({ t }){
+export default async function ({ t: t0 }){
+  const t = conCanon(t0);
   const h = await conPg(t);
   if (!h) return;
   const db = await h.nueva('gize_con');

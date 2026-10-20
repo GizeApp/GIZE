@@ -26,6 +26,8 @@ for (const [k, v] of Object.entries(G)) NOMBRE[v] = k;
 export const nom = v => v === null || v === undefined ? v : (NOMBRE[v] || v);
 export const noms = a => Array.isArray(a) ? a.map(nom).sort() : a;
 export const q = s => s.replace(/'/g, "''");
+// t con eq que no mira el orden de las claves (jsonb las ordena a su manera).
+export const conCanon = t => Object.assign({}, t, { eq: (a, b, m) => t.eq(canon(a), canon(b), m) });
 export const canon = v => Array.isArray(v) ? v.map(canon) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canon(v[k])])) : v;
 const CLIENTES = ['A1', 'A2', 'A3', 'A5', 'A6', 'A7', 'D1', 'P1', 'B1', 'C1', 'N', 'N2', 'N3'];
 const NOMBRES = { A1: 'Martina Sosa', A2: 'Juan Pérez', A3: 'Lucía Gómez', A5: 'Pedro Díaz', A6: 'Sofía Romero', A7: 'Diego Ruiz',

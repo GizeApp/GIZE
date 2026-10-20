@@ -163,7 +163,7 @@ begin
 end $$;
 revoke all on function public.gym_hash(text) from public, anon, authenticated;
 
--- Para buscar por nombre sin que importen las mayúsculas ni los acentos.
+-- Para buscar por nombre sin que importen las mayúsculas, los acentos ni los espacios de más.
 create or replace function public.gym_norm(t text)
 returns text
 language plpgsql
@@ -172,7 +172,7 @@ security definer
 set search_path = public
 as $$
 begin
-  return lower(translate(coalesce(t, ''), 'ÁÉÍÓÚÜÑáéíóúüñ', 'AEIOUUNaeiouun'));
+  return btrim(regexp_replace(lower(translate(coalesce(t, ''), 'ÁÉÍÓÚÜÑáéíóúüñ', 'AEIOUUNaeiouun')), '\s+', ' ', 'g'));
 end $$;
 revoke all on function public.gym_norm(text) from public, anon, authenticated;
 
