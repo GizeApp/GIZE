@@ -23,6 +23,7 @@ export default async function ({ base, t }){
     t.ok(/Gimnasio chico/i.test(hoja) && /Hasta 100 socios/.test(hoja) && /Hasta 250 socios/.test(hoja) && /Hasta 500 socios/.test(hoja), 'Cambiar de plan: los planes de gimnasio');
     t.ok(!/Hasta 10 clientes|Hasta 25 clientes|Hasta 50 clientes/.test(hoja), 'sin los planes de coach (10, 25, 50)');
     t.has(hoja, 'Más de 500', '«Más de 500: a medida»');
+    t.ok(/\(250 socios\)/.test(hoja) && !/alumnos/i.test(hoja), 'el estado del plan dice «socios», no «alumnos»: ' + (hoja.match(/Plan [^·]*·/) || [''])[0]);
     t.ok(/\$59\.900/.test(hoja) && /Pagar con tarjeta|Renovar con tarjeta/.test(hoja), 'en la web, con precios y Mercado Pago como hoy');
     await p.click('#planSheetHost .cp-x'); await wait(200);
     t.eq(pg.errs, [], 'sin errores');

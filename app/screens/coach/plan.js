@@ -151,7 +151,8 @@ export function renderPlanBanner(){
 }
 
 const planCorto = b => b.plan && b.plan.gym ? "Plan " + b.plan.name : b.max >= 100 ? "Plan Gimnasio" : "Plan " + b.max + " clientes";
-const planLargo = b => b.plan && b.plan.gym ? 'Plan ' + b.plan.name + ' (' + b.max + ' alumnos)' : 'Plan de ' + b.max + ' clientes';
+// Abierto desde el panel del gimnasio (B.gym), «socios» como en el resto del panel.
+const planLargo = b => b.plan && b.plan.gym ? 'Plan ' + b.plan.name + ' (' + b.max + (B.gym ? ' socios)' : ' alumnos)') : 'Plan de ' + b.max + ' clientes';
 
 function planCards(b){
   // En las apps sin compras de Apple no se habla de pagos ni de dónde se paga (reglas de Apple y
