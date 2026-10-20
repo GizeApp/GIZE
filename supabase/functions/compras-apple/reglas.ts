@@ -45,6 +45,16 @@ export type Estado = {
 // ¿Es la suscripción de IA Plus? (si no, es un plan de coach)
 export const esPlus = (tx: any) => !!tx && tx.productId === IA_PLUS_APPLE;
 
+// IA Plus comprado en Sandbox (TestFlight o la revisión de Apple, sin cobrar): solo para las
+// cuentas de la lista (panel → IA → IA Plus, ia_config.plus.sandbox: mails; por ejemplo, la cuenta
+// demo de la revisión). IA Plus lo puede comprar cualquiera, así que sin esto cualquier tester de
+// TestFlight tendría IA Plus gratis, con gasto de IA de verdad. Los planes de coach no cambian.
+export function sandboxPlusOk(tx: any, mail: string | null, lista: unknown): boolean {
+  if (!tx || tx.environment !== "Sandbox") return true;
+  const m = String(mail || "").trim().toLowerCase();
+  return !!m && Array.isArray(lista) && lista.some((x) => String(x || "").trim().toLowerCase() === m);
+}
+
 export function estadoDe(tx: any, ren: any, ahora: number): Estado {
   const prod = PRODUCTOS_APPLE[tx.productId] || { plan: "iaplus", max: 0 };
   const vence = Number(tx.expiresDate);

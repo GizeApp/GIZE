@@ -1543,32 +1543,41 @@ function paintIA(foco){
 // IA Plus (supabase/ia.sql → ia_plus, app/ui/ia-plus.js): el interruptor, el precio de la web en
 // pesos (provisorio hasta que se guarde), los usos gratis por semana, cuántos lo tienen y, para
 // soporte, darlo o sacarlo a mano. Apagado: no hay límite semanal y no se vende nada.
+// ¿Está prendida la IA de Comida? (sin eso, IA Plus no se prende ni se ofrece)
+const iaComidaOn = ia => !!(ia && ia.activa && ia.funciones && (ia.funciones.plato || ia.funciones.texto));
 function iaPlusBlock(){
   const ia = S.ia, pl = ia.plus || {}, r = ia.plus_resumen || {}, lista = S.iaPlus;
   if (!ia.plus) return block("iaPlusB", "IA Plus", '<div class="calm">Falta preparar la base: correr de nuevo <b>supabase/ia.sql</b> con el workflow «Supabase» (tarea sql).</div>');
   const frenos = num(((ia.ciclo && ia.ciclo.frenos) || {}).tope_semana);
   const sw = `<div class="ia-master"><div><b>IA Plus</b><small>${pl.activa ? "Prendido: la foto del plato y «Contame qué comiste» son gratis hasta " + n0(pl.gratis_semana) + " usos por semana; con IA Plus, sin límite semanal (con los topes de cada día). Se vende en la web con Mercado Pago y en el iPhone con Apple; en Android, no." : "Apagado: no hay límite semanal (como hasta ahora) y no se vende nada."}</small></div>
-    <button class="tgl" role="switch" aria-checked="${pl.activa ? "true" : "false"}" aria-label="IA Plus" data-a="iaPlusOn"></button></div>`;
+    <button class="tgl" role="switch" aria-checked="${pl.activa ? "true" : "false"}" aria-label="IA Plus" data-a="iaPlusOn"></button></div>
+    ${iaComidaOn(ia) ? "" : `<div class="small ia-warn">La IA de Comida está apagada (o sin la foto del plato y «Contame qué comiste»): ${pl.activa ? "la app no ofrece IA Plus hasta que la prendas; quien ya lo tiene lo puede cancelar en Ajustes." : "IA Plus no se puede prender hasta que la prendas."}</div>`}`;
   const precio = `<label class="lbl" for="iaPlusPrecio">Precio por mes en la web (pesos, con Mercado Pago)</label>
     <div class="search"><input class="in" id="iaPlusPrecio" inputmode="numeric" value="${esc(pl.precio_ars || "")}"><button class="btn" data-a="iaPlusPrecio">Guardar precio</button></div>
     ${pl.precio_confirmado ? '<div class="muted small">Lo nuevo vale para las suscripciones que se hagan desde ahora; las que ya están siguen con su precio.</div>' : '<div class="small ia-warn">Precio provisorio (' + money(pl.precio_ars) + '): confirmalo con «Guardar precio» antes de prender IA Plus.</div>'}
     <div class="muted small">En el iPhone el precio lo pone Apple (App Store Connect, el más cercano a US$2,99).</div>`;
   const gratis = `<label class="lbl" for="iaPlusGratis">Usos gratis por semana (foto y texto juntos; la semana arranca el lunes)</label>
     <div class="search"><input class="in" id="iaPlusGratis" inputmode="numeric" value="${esc(pl.gratis_semana != null ? pl.gratis_semana : 3)}"><button class="btn" data-a="iaPlusGratis">Guardar</button></div>`;
+  // Compras de prueba de Apple (Sandbox): IA Plus solo para estas cuentas (si no, cualquier tester de
+  // TestFlight lo tendría gratis). Va la cuenta demo de la revisión de Apple.
+  const sandbox = `<label class="lbl" for="iaPlusSandbox">Compras de prueba de Apple (TestFlight y la revisión de Apple): solo estas cuentas reciben IA Plus. Mails separados por coma.</label>
+    <div class="search"><input class="in" id="iaPlusSandbox" type="text" autocomplete="off" value="${esc((Array.isArray(pl.sandbox) ? pl.sandbox : []).join(", "))}" placeholder="cuenta-demo@ejemplo.com"><button class="btn" data-a="iaPlusSandbox">Guardar</button></div>`;
   const kpis = `<div class="grid kpis"><div class="kpi"><b>${n0(r.activos)}</b><span>Con IA Plus</span><small>${n0(r.mp)} Mercado Pago · ${n0(r.apple)} Apple · ${n0(r.manual)} a mano</small></div>
     <div class="kpi"><b>${n0(r.renuevan)}</b><span>Se renuevan</span><small>${n0(r.arrepentidos)} arrepentimiento${num(r.arrepentidos) === 1 ? "" : "s"}</small></div>
     <div class="kpi"><b>${n0(frenos)}</b><span>Llegaron al límite semanal</span><small>en este ciclo</small></div></div>`;
   const de = x => [x.mp_hasta && new Date(x.mp_hasta) > new Date() ? "Mercado Pago" + (x.mp_status === "authorized" ? "" : " (cancelada)") : "",
     x.apple_vence && new Date(x.apple_vence) > new Date() ? "Apple" + (x.apple_renueva ? "" : " (no se renueva)") : "",
     x.manual_hasta && new Date(x.manual_hasta) > new Date() ? "A mano" + (x.manual_nota ? ": " + x.manual_nota : "") : ""].filter(Boolean).join(" · ") || (x.arrepentido_at ? "Se arrepintió" : x.pagando ? "Pagando con Mercado Pago (sin cobrar)" : "Vencido");
-  const filas = (lista || []).map(x => `<tr><td>${esc(x.nombre || "—")}<div class="muted small">${esc(x.email || "")}</div></td><td>${esc(de(x))}</td><td>${x.hasta ? fmtDU(x.hasta) : "—"}</td>
+  // Quien se arrepintió más de una vez (se ve siempre en la lista): para revisar a mano.
+  const arrep = x => num(x.arrepentimientos) >= 2 ? `<div class="small ia-warn">Se arrepintió ${n0(x.arrepentimientos)} veces</div>` : "";
+  const filas = (lista || []).map(x => `<tr><td>${esc(x.nombre || "—")}<div class="muted small">${esc(x.email || "")}</div></td><td>${esc(de(x))}${arrep(x)}</td><td>${x.hasta ? fmtDU(x.hasta) : "—"}</td>
     <td>${x.manual_hasta && new Date(x.manual_hasta) > new Date() ? `<button class="btn sm" data-a="iaPlusQuitar" data-id="${esc(x.user_id)}">Sacar</button>` : ""}</td></tr>`).join("");
   const tabla = lista == null ? '<div class="calm">No se pudo traer la lista.</div>' : filas ? `<div class="tscroll"><table class="table"><thead><tr><th>Cuenta</th><th>De dónde</th><th>Hasta</th><th></th></tr></thead><tbody>${filas}</tbody></table></div>` : '<div class="calm">Todavía nadie tiene IA Plus.</div>';
   const dar = `<label class="lbl" for="iaPlusMail">Dar IA Plus a mano (soporte): mail de la cuenta, hasta qué día y una nota</label>
     <div class="search"><input class="in" id="iaPlusMail" type="email" placeholder="mail@ejemplo.com"><input class="in" id="iaPlusHasta" type="date" min="${isoDay(new Date())}" value="${isoDay(new Date(Date.now() + 30 * 864e5))}" aria-label="Hasta"></div>
     <div class="search"><input class="in" id="iaPlusNota" maxlength="200" placeholder="Nota (opcional), ej: se le cortó el pago"><button class="btn blue" data-a="iaPlusDar">Dar IA Plus</button></div>
     <div class="muted small">Lo pagado con Mercado Pago o con Apple no se toca desde acá: se cancela por el mismo medio.</div>`;
-  return block("iaPlusB", "IA Plus", sw + precio + gratis + kpis + tabla + dar);
+  return block("iaPlusB", "IA Plus", sw + precio + gratis + sandbox + kpis + tabla + dar);
 }
 async function iaPlusGuardar(btn, plus, ok){
   btn.disabled = true;
@@ -1795,11 +1804,17 @@ document.addEventListener("click", async e => {
     if (a === "iaTopes"){ iaTopes(b); return; }
     if (a === "iaPlusOn"){
       const on = b.getAttribute("aria-checked") !== "true", pl = (S.ia && S.ia.plus) || {};
+      if (on && !iaComidaOn(S.ia)) return toast("Antes de prender IA Plus, prendé la IA y la foto del plato o «Contame qué comiste».");
       if (on && !await confirmar(`¿Prender IA Plus? Desde ahora, la foto del plato y «Contame qué comiste» son gratis hasta ${n0(pl.gratis_semana)} usos por semana, y se ofrece IA Plus: en la web por ${money(pl.precio_ars)} al mes con Mercado Pago y en el iPhone con Apple (si el producto ya está aprobado en App Store Connect).`, { titulo: "Prender IA Plus", ok: "Prender" })) return;
       iaPlusGuardar(b, { activa: on }, on ? "IA Plus prendido" : "IA Plus apagado"); return;
     }
     if (a === "iaPlusPrecio"){ const v = parseInt(String(document.getElementById("iaPlusPrecio").value).replace(/[^0-9]/g, ""), 10); if (!(v >= 100)) return toast("Poné el precio en pesos, sin centavos."); iaPlusGuardar(b, { precio_ars: v }, "Precio guardado ✓"); return; }
     if (a === "iaPlusGratis"){ const v = parseInt(document.getElementById("iaPlusGratis").value, 10); if (!(v >= 0 && v <= 100)) return toast("De 0 a 100."); iaPlusGuardar(b, { gratis_semana: v }, "Guardado ✓"); return; }
+    if (a === "iaPlusSandbox"){
+      const v = document.getElementById("iaPlusSandbox").value.split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
+      if (v.length > 20 || v.some(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) return toast("Revisá los mails (hasta 20, separados por coma).");
+      iaPlusGuardar(b, { sandbox: v }, "Guardado ✓"); return;
+    }
     if (a === "iaPlusDar"){
       const mail = document.getElementById("iaPlusMail").value.trim(), hasta = document.getElementById("iaPlusHasta").value, nota = document.getElementById("iaPlusNota").value.trim();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return toast("Poné el mail de la cuenta.");

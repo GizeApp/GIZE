@@ -5,7 +5,8 @@ import { newPage, wait, ADMIN } from './lib.mjs';
 
 const SHOTS = process.env.SHOTS;
 const D = n => new Date(Date.now() + n * 864e5).toISOString();
-const ESTADO = plus => ({ activa: true, funciones: { etiqueta_admin: true, etiqueta_usuario: false, plato: true, texto: true, rutina: false, resumen: false },
+let IA_ON = true;
+const ESTADO = plus => ({ activa: IA_ON, funciones: { etiqueta_admin: true, etiqueta_usuario: false, plato: true, texto: true, rutina: false, resumen: false },
   modelos: {}, topes: { alumno: { etiqueta: 10, plato: 8, texto: 15, total: 25, usd_ciclo: 0.5 } }, ancla: '2026-11-10T00:00:00Z', pedidos_desde: '2026-10-19T03:00:00Z', aviso_version: 1,
   ciclo: { id: 1, inicio: '2026-10-10T00:00:00Z', fin: '2026-11-10T00:00:00Z', credito: 200, aviso: 100, ahorro: 150, tope: 180, gastado: 1.2, reservado: 0, estado: 'normal',
     hoy: 0.1, limite_hoy: 12, proyeccion: 3, frenos: { tope_semana: 7 } },
@@ -14,6 +15,7 @@ const ESTADO = plus => ({ activa: true, funciones: { etiqueta_admin: true, etiqu
 const LISTA = [
   { user_id: 'u1', email: 'ana@prueba.test', nombre: 'Ana', hasta: D(20), mp_hasta: D(20), mp_status: 'authorized', apple_vence: null, manual_hasta: null },
   { user_id: 'u2', email: 'beto@prueba.test', nombre: 'Beto', hasta: D(9), mp_hasta: null, apple_vence: D(9), apple_renueva: true, manual_hasta: null },
+  { user_id: 'u4', email: 'dani@prueba.test', nombre: 'Dani', hasta: D(-40), mp_hasta: D(-40), mp_status: 'cancelled', apple_vence: null, manual_hasta: null, arrepentido_at: D(-40), arrepentimientos: 2 },
 ];
 
 export default async function ({ base, t }){
@@ -37,8 +39,17 @@ export default async function ({ base, t }){
   } });
   const blk = () => p.evaluate(() => { const b = document.getElementById('iaPlusB'); return b ? b.innerText.replace(/\s+/g, ' ') : ''; });
   const toast = () => p.evaluate(() => (document.getElementById('toastVivo') || {}).textContent || '');
+  // Con la IA de Comida apagada: avisa y no deja prender IA Plus.
+  IA_ON = false;
   await p.goto(base + '/admin/#ia'); await wait(1800);
+  t.has(await blk(), 'La IA de Comida está apagada', 'IA apagada: lo avisa');
+  await p.click('[data-a="iaPlusOn"]'); await wait(800);
+  t.ok((await toast()).includes('Antes de prender IA Plus, prendé la IA') && !rpcs.length, 'IA apagada: no deja prender IA Plus');
+  IA_ON = true;
+  await p.reload(); await wait(1800);
   let h = await blk();
+  t.ok(!h.includes('La IA de Comida está apagada'), 'IA prendida: sin el aviso');
+  t.has(h, 'Dani dani@prueba.test Se arrepintió Se arrepintió 2 veces', 'quien se arrepintió dos veces, marcado');
   t.has(h, 'Apagado: no hay límite semanal (como hasta ahora) y no se vende nada.', 'arranca apagado y dice qué pasa');
   t.eq(await p.getAttribute('[data-a="iaPlusOn"]', 'aria-checked'), 'false', 'el interruptor, apagado');
   t.has(h, 'Precio provisorio ($3.900): confirmalo con «Guardar precio» antes de prender IA Plus.', 'el precio provisorio, marcado');
@@ -61,6 +72,11 @@ export default async function ({ base, t }){
   t.has(await blk(), 'Prendido: la foto del plato y «Contame qué comiste» son gratis hasta 3 usos por semana', 'prendido: qué pasa');
   await p.fill('#iaPlusGratis', '5'); await p.click('[data-a="iaPlusGratis"]'); await wait(900);
   t.ok(rpcs.some(x => x[0] === 'config' && x[1].plus && x[1].plus.gratis_semana === 5), 'cambia los usos gratis por semana');
+  // Compras de prueba de Apple: la lista de cuentas.
+  await p.fill('#iaPlusSandbox', 'no es mail'); await p.click('[data-a="iaPlusSandbox"]'); await wait(600);
+  t.ok(!rpcs.some(x => x[0] === 'config' && x[1].plus && x[1].plus.sandbox), 'compras de prueba: un mail inválido no se guarda');
+  await p.fill('#iaPlusSandbox', 'Revision@Prueba.test, otra@prueba.test'); await p.click('[data-a="iaPlusSandbox"]'); await wait(900);
+  t.ok(rpcs.some(x => x[0] === 'config' && x[1].plus && JSON.stringify(x[1].plus.sandbox) === '["revision@prueba.test","otra@prueba.test"]'), 'compras de prueba de Apple: guarda la lista de cuentas');
   // Soporte: dar y sacar a mano.
   await p.fill('#iaPlusMail', 'caro@prueba.test'); await p.fill('#iaPlusNota', 'se le cortó el pago'); await p.click('[data-a="iaPlusDar"]'); await wait(1000);
   const dar = rpcs.find(x => x[0] === 'dar');

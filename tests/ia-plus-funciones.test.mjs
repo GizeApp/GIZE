@@ -10,10 +10,16 @@
 //   webhook (con la referencia «iaplus|<cuenta>») escribe ia_plus y nunca coach_billing, también dos
 //   veces; el cobro aprobado queda anotado y uno devuelto corta; otra autorizada que no es la
 //   pedida se da de baja; botón de baja y botón de arrepentimiento (cancela, devuelve con clave de
-//   idempotencia y corta ahora; fuera de los 10 días, no).
+//   idempotencia y corta ahora; fuera de los 10 días, no). Arreglos de la revisión: después de
+//   arrepentirse no se puede volver a suscribir por 60 días (si no: suscribirse, usar, devolver y
+//   de nuevo, sin pagar nunca); el arrepentimiento devuelve el cobro de la suscripción vigente,
+//   nunca uno de una anterior (y si no lo encuentra, avisa para devolverlo a mano); después del
+//   botón de baja, el arrepentimiento anda aunque Mercado Pago no acepte cancelar de nuevo; una
+//   devolución desde Mercado Pago o un contracargo (avisos «payment» y «chargebacks») cortan.
 // - compras-apple (iPhone): el producto de IA Plus lo compra un alumno (va a ia_plus, no a
 //   coach_billing), un plan de coach no; los avisos de Apple: renovación, período de gracia,
-//   vencimiento y reembolso; la app y la función usan el mismo id de producto.
+//   vencimiento y reembolso; la app y la función usan el mismo id de producto. IA Plus en Sandbox
+//   (TestFlight), solo para las cuentas de la lista del panel (ia_config.plus.sandbox).
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -48,6 +54,13 @@ export default async function ({ t }){
     const c = R.plusAlCobrar({ ...cur, arrepentido_at: '2026-10-06T00:00:00Z', mp_pending_id: 'B' }, 'B', new Date('2026-10-20T00:00:00Z'), ahora);
     t.ok(c.update.mp_desde === '2026-10-20T00:00:00.000Z' && c.update.arrepentido_at === null && c.cancelar === 'A', 'una suscripción nueva es un contrato nuevo y la anterior se da de baja');
     t.ok(R.plusAlDevolver({ mp_pago_id: '9', mp_hasta: '2026-11-08T00:00:00Z' }, '9', Date.parse('2026-10-10T00:00:00Z')).mp_hasta === '2026-10-10T00:00:00.000Z', 'cobro devuelto: corta ahora');
+    const d = R.plusAlCobrar({ mp_preapproval_id: 'A', mp_pago_id: '9', mp_pago_pa: 'A', mp_pending_id: 'B' }, 'B', cobro, ahora);
+    t.ok(d.update.mp_pago_id === null && d.update.mp_pago_pa === null, 'suscripción nueva: el cobro anotado de la anterior se olvida');
+    const e = R.plusAlCobrar({ mp_preapproval_id: 'A', mp_pago_id: '10', mp_pago_pa: 'B', mp_pending_id: 'B' }, 'B', cobro, ahora);
+    t.ok(!('mp_pago_id' in e.update), 'suscripción nueva cuyo cobro llegó antes: queda anotado');
+    t.eq([R.pagoDeLaVigente({ mp_preapproval_id: 'B', mp_pago_id: '9', mp_pago_pa: 'A' }), R.pagoDeLaVigente({ mp_preapproval_id: 'B', mp_pago_id: '10', mp_pago_pa: 'B' })], [null, '10'], 'el cobro que se devuelve es solo el de la vigente');
+    const arr = Date.parse('2026-10-06T00:00:00Z');
+    t.ok(R.esperaTrasArrepentirse({ ultimo_arrepentido_at: iso(arr) }, arr + 59 * DIA) === arr + 60 * DIA && R.esperaTrasArrepentirse({ ultimo_arrepentido_at: iso(arr) }, arr + 61 * DIA) === 0, 'después de arrepentirse: 60 días sin volver a suscribirse');
     t.eq(R.plusAlDevolver({ mp_pago_id: '9', mp_hasta: '2026-11-08T00:00:00Z' }, '8', Date.now()), null, 'un cobro viejo devuelto no corta');
   }
 
@@ -86,8 +99,13 @@ export default async function ({ t }){
         return new Response(JSON.stringify(subs[id]), { status: 201 });
       }
       if (m === 'POST' && /\/refunds$/.test(u.pathname)) return o.devolucionFalla ? new Response('{"message":"no"}', { status: 400 }) : new Response('{"id":1}', { status: 201 });
+      if (o.rutas){ const x = o.rutas(m, u); if (x) return new Response(JSON.stringify(x), { status: x.falla ? 500 : 200 }); }
       const id = decodeURIComponent(u.pathname.split('/').pop());
-      if (m === 'PUT' && subs[id]) subs[id].status = 'cancelled';
+      if (m === 'PUT' && subs[id]){
+        // Como Mercado Pago (puede pasar): no deja modificar una suscripción ya cancelada.
+        if (o.rechazaCancelada && subs[id].status === 'cancelled') return new Response('{"message":"cannot modify a cancelled preapproval"}', { status: 400 });
+        subs[id].status = 'cancelled';
+      }
       return new Response(JSON.stringify(subs[id] || {}), { status: subs[id] ? 200 : 404 });
     };
     const fn = await funcion('suscripcion', { fetch, env: Object.assign({ RESEND_API_KEY: 're', AVISOS_PAGOS: 'socios@prueba.test' }, ENV), npm: { '@supabase/supabase-js': { createClient: () => db } } });
@@ -130,7 +148,7 @@ export default async function ({ t }){
     // El cobro aprobado queda anotado; uno devuelto corta.
     x.subs.AP1 = { id: 'AP1', preapproval_id: 'P1', transaction_amount: 4500, currency_id: 'ARS', payment: { id: 991, status: 'approved' } };
     await x.hook('subscription_authorized_payment', 'AP1');
-    t.eq(x.st.plus.mp_pago_id, '991', 'cobro aprobado: queda anotado (es el que se devuelve con el arrepentimiento)');
+    t.eq([x.st.plus.mp_pago_id, x.st.plus.mp_pago_pa], ['991', 'P1'], 'cobro aprobado: queda anotado con su suscripción (es el que se devuelve con el arrepentimiento)');
     x.subs.AP1.payment.status = 'refunded';
     await x.hook('subscription_authorized_payment', 'AP1');
     t.ok(Date.parse(x.st.plus.mp_hasta) <= Date.now() + 1000, 'cobro devuelto desde Mercado Pago: IA Plus se corta');
@@ -152,7 +170,7 @@ export default async function ({ t }){
     t.eq(r.status, 400, 'ya cancelada: no hay nada que dar de baja');
 
     // Botón de arrepentimiento.
-    const reciente = { mp_preapproval_id: 'P1', mp_status: 'authorized', mp_desde: iso(Date.now() - 3 * DIA), mp_hasta: iso(Date.now() + 28 * DIA), mp_pago_id: '991' };
+    const reciente = { mp_preapproval_id: 'P1', mp_status: 'authorized', mp_desde: iso(Date.now() - 3 * DIA), mp_hasta: iso(Date.now() + 28 * DIA), mp_pago_id: '991', mp_pago_pa: 'P1' };
     x = await mpSim({ fila: reciente, subs: { P1: cobrada('P1') } });
     r = await x.app({ action: 'iaplus_arrepentimiento' });
     const dev = x.st.bodies.find(b => b[0] === 'POST /v1/payments/991/refunds');
@@ -167,6 +185,75 @@ export default async function ({ t }){
     x = await mpSim({ fila: { ...reciente, mp_desde: iso(Date.now() - 11 * DIA) }, subs: { P1: cobrada('P1') } });
     r = await x.app({ action: 'iaplus_arrepentimiento' });
     t.ok(r.status === 400 && !x.st.mp.length, 'pasados los 10 días: no (puede cancelar igual)');
+
+    // Suscribirse, usar, arrepentirse y volver a suscribirse: los 60 días de espera cortan la vuelta.
+    x = await mpSim();
+    r = await x.app({ action: 'iaplus_checkout', mp_email: MAIL });
+    x.subs.P1 = cobrada('P1', { summarized: { last_charged_date: new Date().toISOString(), charged_quantity: 1 } });
+    await x.hook('subscription_preapproval', 'P1');
+    x.subs.AP1 = { id: 'AP1', preapproval_id: 'P1', transaction_amount: 4500, payment: { id: 901, status: 'approved' } };
+    await x.hook('subscription_authorized_payment', 'AP1');
+    r = await x.app({ action: 'iaplus_arrepentimiento' });
+    t.ok(r.status === 200 && r.devuelto === true && x.st.plus.arrepentimientos === 1 && !!x.st.plus.ultimo_arrepentido_at, 'arrepentimiento: queda contado');
+    const antes = x.st.mp.filter(m => m === 'POST /preapproval').length;
+    r = await x.app({ action: 'iaplus_checkout', mp_email: MAIL });
+    t.ok(r.status === 400 && r.codigo === 'espera' && /Vas a poder volver a suscribirte a IA Plus desde el/.test(r.error) && x.st.mp.filter(m => m === 'POST /preapproval').length === antes,
+      'recién arrepentido: no se puede volver a suscribir (' + r.error + ')');
+    x = await mpSim({ fila: { mp_preapproval_id: 'P1', mp_status: 'cancelled', mp_hasta: iso(Date.now() - 61 * DIA), ultimo_arrepentido_at: iso(Date.now() - 61 * DIA), arrepentimientos: 1 } });
+    r = await x.app({ action: 'iaplus_checkout', mp_email: MAIL });
+    t.eq(r.status, 200, 'pasados los 60 días, sí');
+
+    // Se vuelve a suscribir (P2) y el aviso del cobro llega antes de que Mercado Pago lo muestre en
+    // la suscripción: el cobro queda anotado con P2 y el arrepentimiento devuelve ese, no el de P1.
+    const viejo = { mp_preapproval_id: 'P1', mp_status: 'cancelled', mp_desde: iso(Date.now() - 90 * DIA), mp_hasta: iso(Date.now() - 20 * DIA), mp_pago_id: '991', mp_pago_pa: 'P1', mp_pending_id: 'P2' };
+    x = await mpSim({ fila: viejo, subs: { P2: cobrada('P2', { summarized: { charged_quantity: 0 } }) } });
+    x.subs.AP2 = { id: 'AP2', preapproval_id: 'P2', transaction_amount: 4500, payment: { id: 992, status: 'approved' } };
+    await x.hook('subscription_authorized_payment', 'AP2');
+    x.subs.P2 = cobrada('P2', { summarized: { last_charged_date: new Date().toISOString(), charged_quantity: 1 } });
+    await x.hook('subscription_preapproval', 'P2');
+    t.eq([x.st.plus.mp_preapproval_id, x.st.plus.mp_pago_id, x.st.plus.mp_pago_pa], ['P2', '992', 'P2'], 'el cobro que llegó antes queda con su suscripción');
+    r = await x.app({ action: 'iaplus_arrepentimiento' });
+    t.eq(x.st.mp.filter(m => /refunds/.test(m)), ['POST /v1/payments/992/refunds'], 'arrepentimiento: devuelve el cobro de la vigente, no el de la anterior');
+    // Sin el aviso del cobro: no devuelve el de la anterior; lo busca en Mercado Pago.
+    x = await mpSim({ fila: viejo, subs: { P2: cobrada('P2', { summarized: { last_charged_date: new Date().toISOString(), charged_quantity: 1 } }) },
+      rutas: (m, u) => u.pathname === '/authorized_payments/search' && u.searchParams.get('preapproval_id') === 'P2'
+        ? { results: [{ id: 'AP9', preapproval_id: 'P2', payment: { id: 993, status: 'approved' } }, { id: 'AP8', preapproval_id: 'P1', payment: { id: 991, status: 'approved' } }] } : null });
+    await x.hook('subscription_preapproval', 'P2');
+    t.eq([x.st.plus.mp_preapproval_id, x.st.plus.mp_pago_id], ['P2', null], 'suscripción nueva sin su cobro: el de la anterior se olvida');
+    r = await x.app({ action: 'iaplus_arrepentimiento' });
+    t.ok(r.devuelto === true && x.st.mp.filter(m => /refunds/.test(m)).join() === 'POST /v1/payments/993/refunds', 'sin el cobro anotado: lo busca en Mercado Pago y devuelve el de esta suscripción');
+    x = await mpSim({ fila: viejo, subs: { P2: cobrada('P2', { summarized: { last_charged_date: new Date().toISOString(), charged_quantity: 1 } }) } });
+    await x.hook('subscription_preapproval', 'P2');
+    r = await x.app({ action: 'iaplus_arrepentimiento' });
+    t.ok(r.status === 200 && r.devuelto === false && !x.st.mp.some(m => /refunds/.test(m)) && x.st.avisos.includes('arrep:P2'), 'si no lo encuentra: no devuelve otro y avisa a los socios para hacerlo a mano');
+
+    // Botón de baja y después arrepentimiento, con Mercado Pago que no deja cancelar de nuevo.
+    x = await mpSim({ fila: reciente, subs: { P1: cobrada('P1') }, rechazaCancelada: true });
+    r = await x.app({ action: 'iaplus_cancel' });
+    const r2 = await x.app({ action: 'iaplus_arrepentimiento' });
+    t.ok(r.status === 200 && r2.status === 200 && r2.devuelto === true && x.st.mp.includes('POST /v1/payments/991/refunds') && !!x.st.plus.arrepentido_at,
+      'baja y después arrepentimiento (dentro de los 10 días): devuelve igual (' + r2.status + ' ' + (r2.error || '') + ')');
+    // Si Mercado Pago rechaza la cancelación y la suscripción sigue activa: 502, no devuelve.
+    x = await mpSim({ fila: reciente, subs: { P1: cobrada('P1') }, rutas: (m, u) => m === 'PUT' ? { falla: true } : null });
+    x.subs.P1.status = 'authorized';
+    r = await x.app({ action: 'iaplus_arrepentimiento' });
+    t.ok(r.status === 502 && !x.st.mp.some(m => /refunds/.test(m)) && !x.st.plus.arrepentido_at, 'Mercado Pago no cancela y sigue activa: avisa que pruebe de nuevo y no devuelve');
+
+    // Devolución desde Mercado Pago (aviso «payment») o contracargo («chargebacks»): corta.
+    const pago = st => (m, u) => u.pathname === '/v1/payments/991' ? { id: 991, status: st } : u.pathname === '/v1/chargebacks/CB1' ? { id: 'CB1', payments: [991] } : null;
+    const conPlus = { mp_preapproval_id: 'P1', mp_status: 'authorized', mp_desde: iso(Date.now() - 20 * DIA), mp_hasta: iso(Date.now() + 10 * DIA), mp_pago_id: '991', mp_pago_pa: 'P1' };
+    x = await mpSim({ fila: conPlus, rutas: pago('refunded') });
+    t.eq(await x.hook('payment', '991'), 200, 'aviso «payment»: 200');
+    t.ok(Date.parse(x.st.plus.mp_hasta) <= Date.now() + 1000, 'devuelto desde Mercado Pago (aviso «payment»): IA Plus se corta');
+    x = await mpSim({ fila: conPlus, rutas: pago('charged_back') });
+    await x.hook('topic_chargebacks_wh', 'CB1');
+    t.ok(Date.parse(x.st.plus.mp_hasta) <= Date.now() + 1000, 'contracargo de la tarjeta (aviso «chargebacks»): IA Plus se corta');
+    x = await mpSim({ fila: conPlus, rutas: pago('approved') });
+    await x.hook('payment', '991');
+    t.ok(Date.parse(x.st.plus.mp_hasta) > Date.now() + 9 * DIA, 'un aviso «payment» de un pago aprobado no cambia nada');
+    x = await mpSim({ fila: conPlus, rutas: pago('refunded') });
+    await x.hook('payment', '555');
+    t.ok(Date.parse(x.st.plus.mp_hasta) > Date.now() + 9 * DIA && !x.st.mp.includes('GET /v1/payments/555'), 'un pago que no es de IA Plus: ni se consulta');
   }
 
   // ---------- 3) compras-apple ----------
@@ -183,6 +270,8 @@ export default async function ({ t }){
     const db = supabaseSimulado(q => {
       if (q.tabla === 'profiles') return { data: { role: o.rol || 'client' } };
       if (q.tabla === 'coach_billing'){ st.billing.push(q); return { data: null }; }
+      // Las compras de prueba (Sandbox) valen solo para las cuentas de la lista del panel; la simulada es usuario@prueba.test.
+      if (q.tabla === 'ia_config') return { data: o.sandbox === null ? { plus: { activa: true } } : { plus: { activa: true, sandbox: o.sandbox || ['revision@prueba.test', 'Usuario@Prueba.test'] } } };
       if (q.tabla === 'apple_subs'){
         const hay = st.subs.filter(r => cumple(r, q.filtros));
         if (q.accion === 'select') return { data: hay[0] ? { ...hay[0] } : null };
@@ -238,5 +327,19 @@ export default async function ({ t }){
     x = await apple({ rol: 'client' });
     r = await x.aviso(aviso(ca, 'SUBSCRIBED', tx({ expiresDate: vence }), ren()));
     t.ok(r.status === 200 && x.st.plus && x.st.plus.apple_vence === iso(vence), 'aviso de una compra nueva de un alumno: IA Plus (antes se ignoraba todo lo que no era de coach)');
+
+    // Sandbox (TestFlight): solo las cuentas de la lista.
+    for (const [que, sb] of [['sin la lista', null], ['con una lista sin esa cuenta', ['revision@prueba.test']]]){
+      x = await apple({ sandbox: sb });
+      r = await x.app(firmar(ca, tx({ expiresDate: vence })));
+      t.ok(r.status === 400 && r.body.codigo === 'sandbox' && !(x.st.plus && x.st.plus.apple_vence), 'IA Plus de Sandbox ' + que + ': no se activa');
+      r = await x.aviso(aviso(ca, 'SUBSCRIBED', tx({ expiresDate: vence }), ren()));
+      t.ok(r.status === 200 && r.body.ignorado === 'sandbox' && !(x.st.plus && x.st.plus.apple_vence), 'aviso de Sandbox ' + que + ': se ignora');
+    }
+    x = await apple({ sandbox: null });
+    r = await x.app(firmar(ca, tx({ expiresDate: vence, environment: 'Production' })));
+    t.ok(r.status === 200 && x.st.plus && x.st.plus.apple_vence === iso(vence), 'IA Plus de Producción: vale para cualquiera, sin la lista');
+    r = await x.app(firmar(ca, txCoach({ appAccountToken: UID })));
+    t.eq(r.body.codigo, 'solo-coach', 'los planes de coach no cambian');
   }
 }

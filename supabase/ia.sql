@@ -142,7 +142,11 @@ alter table public.food_entries add column if not exists fuente text check (fuen
 --   mp_*: la suscripción de Mercado Pago vigente (mp_preapproval_id), la que pidió y todavía no
 --     cobró (mp_pending_id), su estado, desde cuándo cobra (mp_desde, para el botón de
 --     arrepentimiento), hasta cuándo cubre (mp_hasta, con 3 días de margen como el plan de coach)
---     y el último cobro aprobado (mp_pago_id, el que se devuelve con el arrepentimiento).
+--     y el último cobro aprobado (mp_pago_id, el que se devuelve con el arrepentimiento, y de qué
+--     suscripción es: mp_pago_pa).
+--   arrepentido_at: se arrepintió de la suscripción vigente (se borra con una nueva);
+--     ultimo_arrepentido_at y arrepentimientos no se borran nunca: con un arrepentimiento en los
+--     últimos 60 días no se puede volver a suscribir por Mercado Pago (función suscripcion).
 --   apple_*: la suscripción de Apple (original_transaction_id, ver apple_subs de compras-apple.sql),
 --     hasta cuándo cubre (vencimiento, período de gracia o fecha del reembolso) y si se renueva.
 --   manual_*: IA Plus dado a mano por soporte, hasta una fecha.
@@ -165,6 +169,10 @@ create table if not exists public.ia_plus (
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
+alter table public.ia_plus add column if not exists mp_pago_pa text;
+alter table public.ia_plus add column if not exists ultimo_arrepentido_at timestamptz;
+alter table public.ia_plus add column if not exists arrepentimientos int not null default 0;
+create index if not exists ia_plus_pago on public.ia_plus(mp_pago_id);
 create index if not exists ia_plus_mp on public.ia_plus(mp_preapproval_id);
 create index if not exists ia_plus_apple on public.ia_plus(apple_original_tx);
 
@@ -332,12 +340,14 @@ revoke all on function public.ia_semana_usos(uuid) from public, anon, authentica
 --   { activa (el interruptor), estado ('gratis' | 'plus' | 'incluido'), por ('coach' | 'alumno',
 --     si está incluido), fuente ('mp' | 'apple' | 'manual', si lo compró y está vigente), hasta,
 --     renueva, mp_status, arrepentir_hasta (hasta cuándo puede usar el botón de arrepentimiento),
---     gratis_semana, usados_semana, quedan_semana, semana_vuelve (el lunes que viene), precio_ars }
+--     gratis_semana, usados_semana, quedan_semana, semana_vuelve (el lunes que viene), precio_ars,
+--     espera_hasta (se arrepintió hace poco: hasta cuándo no puede volver a suscribirse por Mercado
+--     Pago) }
 create or replace function public.ia_plus_info(p_uid uuid)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare
   v_cfg jsonb; v_x public.ia_plus; v_estado text; v_por text; v_fuente text; v_hasta timestamptz; v_renueva boolean := false;
-  v_gratis int; v_usados int; v_arr timestamptz;
+  v_gratis int; v_usados int; v_arr timestamptz; v_espera timestamptz;
 begin
   select coalesce(c.plus, '{}'::jsonb) into v_cfg from public.ia_config c where c.id = 1;
   v_cfg := coalesce(v_cfg, '{}'::jsonb);
@@ -359,13 +369,16 @@ begin
      and v_x.mp_hasta > now() and now() < v_x.mp_desde + interval '10 days' then
     v_arr := v_x.mp_desde + interval '10 days';
   end if;
+  v_espera := greatest(v_x.ultimo_arrepentido_at, v_x.arrepentido_at) + interval '60 days';
+  if v_espera <= now() then v_espera := null; end if;
   v_gratis := coalesce((v_cfg ->> 'gratis_semana')::int, 3);
   v_usados := public.ia_semana_usos(p_uid);
   return jsonb_build_object('activa', coalesce((v_cfg ->> 'activa')::boolean, false), 'estado', v_estado, 'por', v_por,
     'fuente', v_fuente, 'hasta', v_hasta, 'renueva', v_renueva,
     'mp_status', case when v_x.mp_preapproval_id is not null then v_x.mp_status end, 'arrepentir_hasta', v_arr,
     'gratis_semana', v_gratis, 'usados_semana', v_usados, 'quedan_semana', greatest(0, v_gratis - v_usados),
-    'semana_vuelve', public.ia_semana() + interval '7 days', 'precio_ars', coalesce((v_cfg ->> 'precio_ars')::int, 3900));
+    'semana_vuelve', public.ia_semana() + interval '7 days', 'precio_ars', coalesce((v_cfg ->> 'precio_ars')::int, 3900),
+    'espera_hasta', v_espera);
 end $$;
 revoke all on function public.ia_plus_info(uuid) from public, anon, authenticated;
 grant execute on function public.ia_plus_info(uuid) to service_role;
@@ -653,7 +666,7 @@ begin
         'apple', count(*) filter (where x.apple_vence > now()),
         'manual', count(*) filter (where x.manual_hasta > now()),
         'renuevan', count(*) filter (where (x.mp_hasta > now() and x.mp_status = 'authorized') or (x.apple_vence > now() and x.apple_renueva)),
-        'arrepentidos', count(*) filter (where x.arrepentido_at is not null))
+        'arrepentidos', count(*) filter (where coalesce(x.ultimo_arrepentido_at, x.arrepentido_at) is not null))
       from public.ia_plus x),
     'clave_rechazada', (select max(l.creada) from public.ia_llamadas l where l.codigo = 'clave_rechazada'
         and not exists (select 1 from public.ia_llamadas k where k.estado in ('ok', 'vacia') and k.creada > l.creada)),
@@ -665,7 +678,7 @@ grant execute on function public.admin_ia_estado() to authenticated;
 
 -- Cambiar la configuración: { activa, funciones: {…}, modelos: {…}, topes: {rol: {…}},
 -- pedidos_desde, umbrales: {aviso, ahorro, tope, credito}, plus: {activa, gratis_semana,
--- precio_ars} } (solo lo que venga). IA Plus no se prende sin el precio en pesos confirmado. Las claves de
+-- precio_ars, sandbox (mails)} } (solo lo que venga). IA Plus no se prende sin el precio en pesos confirmado. Las claves de
 -- funciones y topes tienen que existir; los números, positivos. El modelo solo se controla que
 -- tenga forma de id: la función usa uno de su lista o el de siempre.
 create or replace function public.admin_ia_config(p jsonb)
@@ -728,6 +741,14 @@ begin
           raise exception 'Revisá el precio de IA Plus (en pesos, sin centavos).' using errcode = '22023';
         end if;
         v_cfg.plus := jsonb_set(v_cfg.plus, '{precio_confirmado}', 'true'::jsonb);
+      elsif v_k = 'sandbox' then
+        -- Las cuentas (mails) a las que una compra de prueba de Apple (Sandbox: TestFlight o la
+        -- revisión de Apple) les da IA Plus. Las demás no lo reciben (función compras-apple).
+        if jsonb_typeof(v_v) <> 'array' or jsonb_array_length(v_v) > 20
+           or exists (select 1 from jsonb_array_elements(v_v) m where jsonb_typeof(m) <> 'string' or trim(m #>> '{}') !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' or length(m #>> '{}') > 200) then
+          raise exception 'Revisá los mails de las compras de prueba de Apple (hasta 20).' using errcode = '22023';
+        end if;
+        v_v := coalesce((select jsonb_agg(distinct lower(trim(m #>> '{}'))) from jsonb_array_elements(v_v) m), '[]'::jsonb);
       else
         raise exception 'IA Plus: dato desconocido: %', v_k using errcode = '22023';
       end if;
@@ -735,6 +756,11 @@ begin
     end loop;
     if (v_cfg.plus ->> 'activa')::boolean and coalesce((v_cfg.plus ->> 'precio_confirmado')::boolean, false) is not true then
       raise exception 'Antes de prender IA Plus, confirmá el precio en pesos (Guardar precio).' using errcode = '22023';
+    end if;
+    -- No se vende IA Plus con la IA de Comida apagada (sería cobrar por algo que no se puede usar).
+    if (p -> 'plus' ->> 'activa')::boolean and not (coalesce(v_cfg.activa, false)
+        and (coalesce(v_cfg.funciones -> 'plato', 'false'::jsonb) = 'true'::jsonb or coalesce(v_cfg.funciones -> 'texto', 'false'::jsonb) = 'true'::jsonb)) then
+      raise exception 'Antes de prender IA Plus, prendé la IA y la foto del plato o «Contame qué comiste».' using errcode = '22023';
     end if;
   end if;
   update public.ia_config
@@ -811,18 +837,20 @@ grant execute on function public.admin_ia_reintentar() to authenticated;
 
 -- ---------- panel: IA Plus ----------
 -- Las personas con IA Plus vigente o que lo tuvieron en los últimos 60 días (para soporte), con su
--- mail, de dónde viene y hasta cuándo.
+-- mail, de dónde viene y hasta cuándo. También quien se arrepintió dos veces o más (siempre).
 create or replace function public.admin_ia_plus_lista()
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 begin
   perform public.admin_assert();
   return coalesce((select jsonb_agg(to_jsonb(y) order by y.hasta desc nulls last) from (
     select x.user_id, u.email, p.full_name as nombre, greatest(x.mp_hasta, x.apple_vence, x.manual_hasta) as hasta,
-           x.mp_hasta, x.mp_status, x.mp_desde, x.mp_pending_id is not null as pagando, x.apple_vence, x.apple_renueva, x.manual_hasta, x.manual_nota, x.arrepentido_at, x.created_at
+           x.mp_hasta, x.mp_status, x.mp_desde, x.mp_pending_id is not null as pagando, x.apple_vence, x.apple_renueva, x.manual_hasta, x.manual_nota, x.arrepentido_at,
+           x.ultimo_arrepentido_at, x.arrepentimientos, x.created_at
       from public.ia_plus x
       left join auth.users u on u.id = x.user_id
       left join public.profiles p on p.id = x.user_id
      where greatest(x.mp_hasta, x.apple_vence, x.manual_hasta) > now() - interval '60 days' or x.mp_pending_id is not null
+        or x.arrepentimientos >= 2
      order by greatest(x.mp_hasta, x.apple_vence, x.manual_hasta) desc nulls last
      limit 300) y), '[]'::jsonb);
 end $$;

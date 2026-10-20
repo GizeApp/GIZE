@@ -13,7 +13,9 @@
 //    - dos pedidos a la vez con un solo uso gratis: pasa uno;
 //    - ia_mi_estado: estado tope_semana, «quedan» y lo de plus (estado, fuente, renueva,
 //      arrepentimiento), también con la IA apagada;
-//    - panel: dar y sacar IA Plus a mano por mail, lista y resumen; desde la app no se puede.
+//    - panel: dar y sacar IA Plus a mano por mail, lista y resumen; desde la app no se puede;
+//    - no se prende IA Plus con la IA de Comida apagada; después de arrepentirse, 60 días de espera
+//      (espera_hasta) y quien se arrepintió dos veces queda en la lista del panel.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -133,7 +135,13 @@ do $$ begin
 end $$;
 select public.admin_ia_config('{"plus": {"precio_ars": 4500}}');
 select public.admin_ia_config('{"plus": {"activa": true}}');
+do $$ begin
+  begin perform public.admin_ia_config('{"plus": {"sandbox": ["no-es-mail"]}}'); raise exception 'sandbox sin mail'; exception when sqlstate '22023' then null; end;
+  begin perform public.admin_ia_config('{"plus": {"sandbox": "a@b.c"}}'); raise exception 'sandbox sin lista'; exception when sqlstate '22023' then null; end;
+end $$;
+select public.admin_ia_config('{"plus": {"sandbox": ["Revision@Prueba.test ", "revision@prueba.test"]}}');
 reset role;
+do $$ begin assert (select plus -> 'sandbox' from public.ia_config) = '["revision@prueba.test"]'::jsonb, 'sandbox: en minúsculas y sin repetir'; end $$;
 do $$ declare p jsonb := (select plus from public.ia_config); begin
   assert (p ->> 'activa')::boolean and (p ->> 'precio_ars')::int = 4500 and (p ->> 'precio_confirmado')::boolean and (p ->> 'gratis_semana')::int = 3, 'config ' || p::text;
 end $$;`],
@@ -244,4 +252,36 @@ do $$ declare e jsonb := public.ia_mi_estado(); begin
 end $$;
 reset role;
 update public.ia_config set activa = true;`],
+  ['no se prende IA Plus con la IA de Comida apagada (apagar la IA con IA Plus prendido, sí)', `
+${COMO(ADMIN_ID)}
+select public.admin_ia_config('{"plus": {"activa": false}}');
+select public.admin_ia_config('{"activa": false}');
+do $$ begin
+  begin perform public.admin_ia_config('{"plus": {"activa": true}}'); raise exception 'prendió IA Plus con la IA apagada'; exception when sqlstate '22023' then null; end;
+end $$;
+select public.admin_ia_config('{"activa": true, "funciones": {"plato": false, "texto": false}}');
+do $$ begin
+  begin perform public.admin_ia_config('{"plus": {"activa": true}}'); raise exception 'prendió IA Plus sin foto ni texto'; exception when sqlstate '22023' then null; end;
+end $$;
+select public.admin_ia_config('{"funciones": {"plato": true, "texto": true}, "plus": {"activa": true}}');
+select public.admin_ia_config('{"activa": false}');
+reset role;
+do $$ begin assert (select (plus ->> 'activa')::boolean and not activa from public.ia_config), 'apagar la IA con IA Plus prendido'; end $$;
+update public.ia_config set activa = true;`],
+  ['arrepentido hace poco: hasta cuándo no se puede volver a suscribir; quien se arrepintió 2 veces queda en la lista', `
+update public.ia_plus set mp_hasta = now() - interval '200 days', ultimo_arrepentido_at = now() - interval '200 days', arrepentimientos = 2 where user_id = '${ALUMNO_ID}';
+${COMO(ALUMNO_ID)}
+do $$ declare e jsonb := public.ia_mi_estado(); begin assert e #> '{plus,espera_hasta}' = 'null'::jsonb, 'hace 200 días: sin espera ' || e::text; end $$;
+reset role;
+update public.ia_plus set ultimo_arrepentido_at = now() - interval '5 days' where user_id = '${ALUMNO_ID}';
+${COMO(ALUMNO_ID)}
+do $$ declare e jsonb := public.ia_mi_estado(); begin
+  assert abs(extract(epoch from (e #>> '{plus,espera_hasta}')::timestamptz - (now() + interval '55 days'))) < 60, 'espera 60 días ' || e::text;
+end $$;
+reset role;
+${COMO(ADMIN_ID)}
+do $$ declare l jsonb := public.admin_ia_plus_lista(); begin
+  assert exists (select 1 from jsonb_array_elements(l) x where x ->> 'user_id' = '${ALUMNO_ID}' and (x ->> 'arrepentimientos')::int = 2), 'en la lista ' || l::text;
+end $$;
+reset role;`],
 ];

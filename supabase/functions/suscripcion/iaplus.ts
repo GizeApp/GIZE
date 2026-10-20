@@ -11,6 +11,10 @@ export const MARGEN_DIAS = 3;
 // Botón de arrepentimiento (Argentina, Ley 24.240 art. 34 y Res. 424/2020 de la Secretaría de
 // Comercio): 10 días corridos desde la contratación, con la devolución completa.
 export const ARREPENTIMIENTO_DIAS = 10;
+// Después de usar el botón de arrepentimiento, no se puede volver a suscribir por Mercado Pago
+// durante estos días (el derecho a arrepentirse sigue intacto en cada contrato; esto solo corta el
+// «me suscribo, uso 10 días, me devuelven todo y me vuelvo a suscribir» sin pagar nunca).
+export const ESPERA_ARREPENTIDO_DIAS = 60;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const DIA = 864e5;
@@ -28,7 +32,8 @@ export function uidDeRef(ref: unknown): string | null {
 
 type Plus = {
   mp_preapproval_id?: string | null; mp_pending_id?: string | null; mp_status?: string | null;
-  mp_desde?: string | null; mp_hasta?: string | null; mp_pago_id?: string | null; arrepentido_at?: string | null;
+  mp_desde?: string | null; mp_hasta?: string | null; mp_pago_id?: string | null; mp_pago_pa?: string | null;
+  arrepentido_at?: string | null; ultimo_arrepentido_at?: string | null;
 } | null;
 
 // Qué se guarda cuando Mercado Pago cobró la suscripción `id` (la vigente o la pedida) y cuál se da
@@ -46,6 +51,8 @@ export function plusAlCobrar(cur: Plus, id: string, ultimoCobro: Date, now = new
   // arrepentimiento (y se puede volver a usar aunque se haya usado con una anterior).
   if (nueva || !(cur && cur.mp_desde)) update.mp_desde = ultimoCobro.toISOString();
   if (nueva) update.arrepentido_at = null;
+  // El cobro anotado es de otra suscripción (la anterior): no es el que se devuelve con esta.
+  if (nueva && cur && cur.mp_pago_id && cur.mp_pago_pa !== id) { update.mp_pago_id = null; update.mp_pago_pa = null; }
   if (cur && id === cur.mp_pending_id) update.mp_pending_id = null;
   const cancelar = cur && cur.mp_preapproval_id && cur.mp_preapproval_id !== id ? cur.mp_preapproval_id : null;
   return { update, cancelar };
@@ -56,6 +63,19 @@ export function plusAlCobrar(cur: Plus, id: string, ultimoCobro: Date, now = new
 export function puedeArrepentirse(cur: Plus, now = Date.now()): boolean {
   return !!cur && !!cur.mp_preapproval_id && !!cur.mp_desde && !cur.arrepentido_at
     && now < ms(cur.mp_desde) + ARREPENTIMIENTO_DIAS * DIA && ms(cur.mp_hasta) > now;
+}
+
+// El cobro aprobado de la suscripción vigente (el que se devuelve con el arrepentimiento), o null si
+// el anotado es de otra suscripción o no hay ninguno.
+export function pagoDeLaVigente(cur: Plus): string | null {
+  return cur && cur.mp_pago_id && cur.mp_preapproval_id && cur.mp_pago_pa === cur.mp_preapproval_id ? String(cur.mp_pago_id) : null;
+}
+
+// Hasta cuándo no se puede volver a suscribir por Mercado Pago después de arrepentirse (ms), o 0.
+export function esperaTrasArrepentirse(cur: Plus, now = Date.now()): number {
+  const ult = Math.max(ms(cur && cur.ultimo_arrepentido_at), ms(cur && cur.arrepentido_at));
+  const hasta = ult ? ult + ESPERA_ARREPENTIDO_DIAS * DIA : 0;
+  return hasta > now ? hasta : 0;
 }
 
 // Un cobro devuelto (desde Mercado Pago) o desconocido por la tarjeta: si es el último que se cobró

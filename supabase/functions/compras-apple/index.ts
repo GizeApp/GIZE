@@ -24,12 +24,15 @@
 // que ser de esta app (ar.com.gize.app), de uno de los productos de planes.ts y, desde la app, de
 // esta cuenta (appAccountToken = el id del usuario, lo pone la app al comprar).
 // Producción y Sandbox valen las dos: la revisión de Apple y TestFlight compran en Sandbox.
+// IA Plus en Sandbox, solo para las cuentas de la lista del panel (IA → IA Plus → «Compras de
+// prueba de Apple»: ia_config.plus.sandbox, por ejemplo la cuenta demo de la revisión): sin eso,
+// cualquier tester de TestFlight lo tendría gratis (reglas.ts → sandboxPlusOk).
 // En los registros no van mails, nombres ni el JWS entero.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { RAIZ_APPLE_G3, RAIZ_APPLE_G3_SHA256 } from "./raiz-apple.ts";
 import { JWSInvalido, pemADer, sha256Hex, verificarJWS } from "./jws.ts";
-import { AVISOS, BUNDLE_ID, ENTORNOS, cambiosBilling, cambiosPlus, cuentaDe, esPlus, estadoDe, filaSub, liberar, liberarPlus, revisarTx } from "./reglas.ts";
+import { AVISOS, BUNDLE_ID, ENTORNOS, cambiosBilling, cambiosPlus, cuentaDe, esPlus, estadoDe, filaSub, liberar, liberarPlus, revisarTx, sandboxPlusOk } from "./reglas.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -147,6 +150,17 @@ async function aplicarPlus(db: any, uid: string, tx: any, ren: any): Promise<{ v
   throw new Error("la fila cambió muchas veces seguidas");
 }
 
+// ¿Esta compra de IA Plus vale para esta cuenta? (en Sandbox, solo las de la lista del panel)
+async function plusPermitido(db: any, uid: string, tx: any): Promise<boolean> {
+  if (tx.environment !== "Sandbox") return true;
+  const { data: cfg, error } = await db.from("ia_config").select("plus").eq("id", 1).maybeSingle();
+  if (error) throw new Error("ia_config: " + error.message);
+  const lista = cfg && cfg.plus && Array.isArray(cfg.plus.sandbox) ? cfg.plus.sandbox : [];
+  if (!lista.length) return false;
+  const { data: u } = await db.auth.admin.getUserById(uid);
+  return sandboxPlusOk(tx, (u && u.user && u.user.email) || null, lista);
+}
+
 // Una compra que manda la app. Devuelve null si quedó guardada o el error para la persona. IA Plus
 // lo puede comprar cualquier cuenta; los planes, solo los coaches.
 async function compraDeLaApp(db: any, uid: string, jws: unknown, coach: boolean): Promise<{ error: string; codigo: string } | null> {
@@ -163,6 +177,10 @@ async function compraDeLaApp(db: any, uid: string, jws: unknown, coach: boolean)
   if (cuentaDe(tx) !== uid) return { error: "Esa suscripción de Apple es de otra cuenta de GIZE.", codigo: "otra-cuenta" };
   if (tx.revocationDate != null) return { error: "Apple devolvió el pago de esa suscripción.", codigo: "revocada" };
   if (Number(tx.expiresDate) <= Date.now()) return { error: "Esa suscripción ya venció.", codigo: "vencida" };
+  if (plus && !(await plusPermitido(db, uid, tx))) {
+    console.error("compras-apple: IA Plus de Sandbox de una cuenta que no está en la lista del panel");
+    return { error: "Las compras de prueba de Apple no activan IA Plus en esta cuenta.", codigo: "sandbox" };
+  }
   if (plus) await aplicarPlus(db, uid, tx, null);
   else await aplicar(db, uid, tx, null);
   return null;
@@ -231,6 +249,7 @@ async function avisoDeApple(signedPayload: unknown): Promise<Response> {
     const { data: prof } = await db.from("profiles").select("role").eq("id", uid).maybeSingle();
     if (esPlus(tx)) {
       if (!prof) return json({ ok: true, ignorado: "sin cuenta" });
+      if (!(await plusPermitido(db, uid, tx))) return json({ ok: true, ignorado: "sandbox" });
       await aplicarPlus(db, uid, tx, ren);
       return json({ ok: true });
     }

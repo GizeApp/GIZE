@@ -17,7 +17,9 @@
 //                         lo que no verifique. Si no está, no se valida (como hasta ahora).
 //   3. Mercado Pago → Tus integraciones → la app → Webhooks → Modo productivo:
 //        URL: https://wegptuzhsrwppbknqstf.supabase.co/functions/v1/suscripcion?webhook=1
-//        Eventos: "Planes y suscripciones" (suscripciones y pagos recurrentes).
+//        Eventos: "Planes y suscripciones" (suscripciones y pagos recurrentes), "Pagos" y
+//        "Contracargos" (para IA Plus: una devolución hecha desde Mercado Pago o un contracargo de
+//        la tarjeta llegan por ahí y cortan IA Plus).
 //
 // Qué recibe:
 //   · Desde la app (con la sesión del coach):
@@ -28,7 +30,8 @@
 //         el panel y el precio en pesos confirmado: ia_config.plus.precio_ars)
 //       { action: "iaplus_cancel" } → botón de baja: cancela la renovación (sigue hasta mp_hasta)
 //       { action: "iaplus_arrepentimiento" } → botón de arrepentimiento (10 días corridos desde
-//         el primer cobro): cancela, devuelve el cobro y corta IA Plus ahora → { ok, devuelto }
+//         el primer cobro): cancela, devuelve el cobro y corta IA Plus ahora → { ok, devuelto }.
+//         Después, 60 días sin poder volver a suscribirse por Mercado Pago (iaplus.ts).
 //     Mercado Pago avisa los cobros de IA Plus al mismo webhook: se reconocen por la referencia
 //     («iaplus|<cuenta>») y van a ia_plus, nunca a coach_billing.
 //   · Desde Mercado Pago (?webhook=1): el aviso de un cambio. No se confía en lo que dice
@@ -45,7 +48,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { alCobrar, avisaSocios, esPedida, pedidaCancelada, pedidaVencida } from "./reglas.ts";
-import { NOMBRE_PLUS, plusAlCobrar, plusAlDevolver, puedeArrepentirse, refPlus, uidDeRef } from "./iaplus.ts";
+import { NOMBRE_PLUS, esperaTrasArrepentirse, pagoDeLaVigente, plusAlCobrar, plusAlDevolver, puedeArrepentirse, refPlus, uidDeRef } from "./iaplus.ts";
 
 const PLANES: Record<string, { max: number; price: number; name: string }> = {
   p10: { max: 10, price: 14900, name: "GIZE Coach · hasta 10 clientes" },
@@ -268,13 +271,46 @@ async function pagoPlus(ap: any, uid: string) {
   const pid = String((ap.payment && ap.payment.id) || ""), st = String((ap.payment && ap.payment.status) || "");
   if (!pid) return;
   const db = admin();
+  const pa = String(ap.preapproval_id || "");
+  const { data: cur } = await db.from("ia_plus").select("*").eq("user_id", uid).maybeSingle();
+  if (!cur) return;
   if (st === "approved") {
-    await db.from("ia_plus").update({ mp_pago_id: pid, updated_at: new Date().toISOString() }).eq("user_id", uid).eq("mp_preapproval_id", String(ap.preapproval_id || ""));
+    // Se anota con su suscripción: la vigente o la pedida (el aviso del cobro puede llegar antes de
+    // que la pedida pase a ser la vigente). El arrepentimiento devuelve solo el de la vigente.
+    const col = pa && pa === cur.mp_preapproval_id ? "mp_preapproval_id" : pa && pa === cur.mp_pending_id ? "mp_pending_id" : "";
+    if (col) await db.from("ia_plus").update({ mp_pago_id: pid, mp_pago_pa: pa, updated_at: new Date().toISOString() }).eq("user_id", uid).eq(col, pa);
   } else if (st === "refunded" || st === "charged_back") {
-    const { data: cur } = await db.from("ia_plus").select("*").eq("user_id", uid).maybeSingle();
     const up = plusAlDevolver(cur, pid);
     if (up) await db.from("ia_plus").update(up).eq("user_id", uid);
   }
+}
+
+// Un pago devuelto desde Mercado Pago (Actividad → Devolver) o con contracargo de la tarjeta: llega
+// como aviso «payment» o «chargebacks», no como uno del cobro mensual. Si es el cobro anotado de
+// alguien con IA Plus, se corta ahora. Lo de los planes de coach no se toca acá.
+async function devolucionPlus(pagoId: string) {
+  if (!/^\d{1,20}$/.test(pagoId)) return;
+  const db = admin();
+  const { data: cur, error } = await db.from("ia_plus").select("*").eq("mp_pago_id", pagoId).maybeSingle();
+  if (error) throw new Error("ia_plus: " + error.message);
+  if (!cur) return;
+  const pay = await mp("/v1/payments/" + encodeURIComponent(pagoId));
+  const st = String(pay.status || "");
+  if (st !== "refunded" && st !== "charged_back") return;
+  const up = plusAlDevolver(cur, pagoId);
+  if (up) await db.from("ia_plus").update(up).eq("user_id", cur.user_id).eq("mp_pago_id", pagoId);
+}
+
+// El cobro aprobado de la suscripción `pa` según Mercado Pago (para el arrepentimiento, si el
+// anotado no es de esa suscripción). null si no se encuentra.
+async function buscarPagoPlus(pa: string): Promise<string | null> {
+  try {
+    const r = await mp("/authorized_payments/search?preapproval_id=" + encodeURIComponent(pa));
+    const lista = (Array.isArray(r.results) ? r.results : []).filter((x: any) =>
+      String(x.preapproval_id || "") === pa && x.payment && x.payment.id && String(x.payment.status) === "approved");
+    lista.sort((a: any, b: any) => Date.parse(b.debit_date || b.date_created || 0) - Date.parse(a.debit_date || a.date_created || 0));
+    return lista.length ? String(lista[0].payment.id) : null;
+  } catch (e) { console.error("iaplus: buscar el cobro", (e as Error).message); return null; }
 }
 
 // Lo que pide la app para IA Plus (cualquier cuenta con sesión).
@@ -299,21 +335,35 @@ async function plusDesdeLaApp(input: { action?: string; mp_email?: string }, use
 
   if (input.action === "iaplus_arrepentimiento") {
     if (!puedeArrepentirse(cur, ahora)) return json({ error: "El botón de arrepentimiento vale durante los 10 días corridos desde que se cobró tu suscripción. Podés cancelarla igual: sigue hasta el final del mes pago." }, 400);
-    try { await mp("/preapproval/" + encodeURIComponent(cur.mp_preapproval_id), { method: "PUT", body: JSON.stringify({ status: "cancelled" }) }); }
-    catch (e) { console.error("iaplus: arrepentimiento, cancelar", (e as Error).message); return json({ error: "Mercado Pago no respondió. Probá de nuevo en un rato." }, 502); }
+    // Si ya la canceló (botón de baja), no se vuelve a cancelar. Si Mercado Pago no acepta la
+    // cancelación, se relee: si ya está cancelada, se sigue igual con la devolución.
+    if (cur.mp_status !== "cancelled") {
+      try { await mp("/preapproval/" + encodeURIComponent(cur.mp_preapproval_id), { method: "PUT", body: JSON.stringify({ status: "cancelled" }) }); }
+      catch (e) {
+        console.error("iaplus: arrepentimiento, cancelar", (e as Error).message);
+        let est = "";
+        try { est = String((await mp("/preapproval/" + encodeURIComponent(cur.mp_preapproval_id))).status || ""); } catch { /* sin respuesta */ }
+        if (est !== "cancelled") return json({ error: "Mercado Pago no respondió. Probá de nuevo en un rato." }, 502);
+      }
+    }
+    // Se devuelve el cobro de ESTA suscripción: el anotado si es de ella; si no, se le pregunta a
+    // Mercado Pago. Si no aparece, los socios lo devuelven a mano.
+    const pago = pagoDeLaVigente(cur) || await buscarPagoPlus(String(cur.mp_preapproval_id));
     let devuelto = false;
-    if (cur.mp_pago_id) {
+    if (pago) {
       try {
-        await mp("/v1/payments/" + encodeURIComponent(cur.mp_pago_id) + "/refunds", { method: "POST", body: "{}", headers: { "X-Idempotency-Key": "iaplus-arrepentimiento-" + cur.mp_pago_id } });
+        await mp("/v1/payments/" + encodeURIComponent(pago) + "/refunds", { method: "POST", body: "{}", headers: { "X-Idempotency-Key": "iaplus-arrepentimiento-" + pago } });
         devuelto = true;
       } catch (e) { console.error("iaplus: arrepentimiento, devolver", (e as Error).message); }
     }
     const t = new Date().toISOString();
-    await db.from("ia_plus").update({ mp_status: "cancelled", mp_hasta: t, arrepentido_at: t, mp_pending_id: null, updated_at: t }).eq("user_id", uid);
+    await db.from("ia_plus").update({ mp_status: "cancelled", mp_hasta: t, arrepentido_at: t, ultimo_arrepentido_at: t,
+      arrepentimientos: (Number(cur.arrepentimientos) || 0) + 1, mp_pending_id: null, updated_at: t }).eq("user_id", uid);
     const c = await coachInfo(uid);
     // A los socios: si la devolución no salió sola, la tienen que hacer a mano desde Mercado Pago.
     await avisar("arrep:" + cur.mp_preapproval_id, devuelto ? "IA Plus: arrepentimiento (devuelto)" : "IA Plus: arrepentimiento · DEVOLVER A MANO", devuelto ? "#FFB020" : "#FF4D4D", [
-      ["Cuenta", c.name], ["Mail", c.email], ["Suscripción MP", String(cur.mp_preapproval_id)], ["Cobro MP", String(cur.mp_pago_id || "no se encontró")],
+      ["Cuenta", c.name], ["Mail", c.email], ["Suscripción MP", String(cur.mp_preapproval_id)], ["Cobro MP", pago || "no se encontró"],
+      ["Arrepentimientos de la cuenta", String((Number(cur.arrepentimientos) || 0) + 1)],
       ["Devolución", devuelto ? "Pedida a Mercado Pago" : "No salió: hacela desde Mercado Pago → Actividad"], ["Fecha", fecha(t)],
     ]);
     return json({ ok: true, devuelto });
@@ -327,6 +377,11 @@ async function plusDesdeLaApp(input: { action?: string; mp_email?: string }, use
   if (incluido === true) return json({ error: "Ya tenés IA Plus incluido con el plan de tu coach.", codigo: "incluido" }, 400);
   if (cur && vigente(cur.apple_vence)) return json({ error: "Ya tenés IA Plus con tu cuenta de Apple.", codigo: "ya" }, 400);
   if (cur && vigente(cur.mp_hasta) && cur.mp_status === "authorized") return json({ error: "Ya tenés IA Plus.", codigo: "ya" }, 400);
+  const espera = esperaTrasArrepentirse(cur, ahora);
+  if (espera) {
+    const dia = new Date(espera).toLocaleDateString("es-AR", { day: "numeric", month: "long", timeZone: "America/Argentina/Buenos_Aires" });
+    return json({ error: "Usaste el botón de arrepentimiento hace poco. Vas a poder volver a suscribirte a IA Plus desde el " + dia + ".", codigo: "espera" }, 400);
+  }
 
   const email = String(input.mp_email || user.email || "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "Poné el mail de tu cuenta de Mercado Pago" }, 400);
@@ -465,6 +520,12 @@ async function webhook(req: Request, url: URL) {
       }
     } else if (type.includes("preapproval")) {
       await syncPreapproval(id);
+    } else if (type === "payment" || type === "payments") {
+      await devolucionPlus(id);
+    } else if (type.includes("chargeback")) {
+      // El contracargo dice qué pagos discute; se mira cada uno.
+      const cb = await mp("/v1/chargebacks/" + encodeURIComponent(id));
+      for (const pid of (Array.isArray(cb.payments) ? cb.payments : [])) await devolucionPlus(String(pid));
     }
   } catch (e) {
     console.error("webhook", type, id, (e as Error).message);
