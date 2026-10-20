@@ -33,7 +33,7 @@
 --     gym_unirse, gym_cancelar_solicitud, gym_unirse_token_info, gym_unirse_token,
 --     gym_confirmar_hoja, gym_compartir_admin, gym_salir, gym_foto_proponer); staff (gym_solicitudes,
 --     gym_aprobar, gym_rechazar, gym_ficha_crear, gym_ficha_editar, gym_ficha_link,
---     gym_nota_guardar, gym_asignar_profe, gym_dejar_socio, gym_pausar, gym_reactivar, gym_baja,
+--     gym_nota_guardar, gym_asignar_profe, gym_dejar_socio, gym_ficha_profe, gym_pausar, gym_reactivar, gym_baja,
 --     gym_socios_resumen, gym_foto_staff, gym_foto_resolver); recepción (buscar_socio,
 --     gym_ingreso_manual, gym_ingresos).
 --   · Internas (sin permiso para la app): gym_tick, gym_diaria, release_lapsed_gyms, gym_restaurar y
@@ -675,7 +675,10 @@ begin
         'aptos_vencidos', (select count(*) from public.gym_members x
                             where x.gym_id = s.g and x.status in ('activo', 'pausado') and x.apto_medico_vence < hoy)));
     elsif s.rol = 'profe' then
-      r := r || jsonb_build_object('plan', jsonb_build_object('estado', pl->'estado', 'vence', pl->'vence', 'pausa_profes_el', pl->'pausa_profes_el'));
+      -- El profe: el estado y las fechas (los carteles de gracia y de pausa) y si el gimnasio llegó al
+      -- cupo (la caja del código: «El gimnasio no puede sumar socios en este momento»), sin números.
+      r := r || jsonb_build_object('plan', jsonb_build_object('estado', pl->'estado', 'vence', pl->'vence', 'pausa_profes_el', pl->'pausa_profes_el',
+        'cupo_lleno', (pl->>'seats_used')::int >= (pl->>'max')::int));
     end if;
     if s.rol in ('owner', 'admin', 'profe') then
       r := r || jsonb_build_object(
@@ -1940,6 +1943,39 @@ end $$;
 revoke all on function public.gym_dejar_socio(uuid) from public, anon;
 grant execute on function public.gym_dejar_socio(uuid) to authenticated;
 
+-- La tarjeta «Gimnasio» de la ficha del socio en el panel del profe (parte 4): el estado de la ficha,
+-- el semáforo con su motivo (sin montos: en la etapa 2 sale de la cuota, con la misma forma), el apto
+-- médico y los últimos 5 ingresos. Solo para quien lo atiende (trainer_id: el profe, o la dueña o la
+-- administración como profe); otro del equipo recibe null. Con el acceso de los profes pausado (plan
+-- vencido hace más de 5 días), P0001: el profe tampoco ve el resto de la ficha.
+create or replace function public.gym_ficha_profe(socio uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare me uuid := auth.uid(); s record; m record;
+begin
+  select * into s from public.gym_mi_staff();
+  if s.g is null or s.rol not in ('owner', 'admin', 'profe') then
+    raise exception 'No tenés permiso para hacer esto en el gimnasio.' using errcode = '42501';
+  end if;
+  select x.id, x.status, x.paused_until, x.apto_medico_vence, x.joined_at into m from public.gym_members x
+   where x.gym_id = s.g and x.member_id = socio and x.trainer_id = me and x.status in ('activo', 'pausado');
+  if m.id is null then return null; end if;
+  if not public.gym_active(s.g) then
+    raise exception 'El acceso del gimnasio está pausado. Hablá con la administración.' using errcode = 'P0001';
+  end if;
+  return jsonb_build_object('ficha', m.id, 'estado', m.status, 'paused_until', m.paused_until, 'apto_medico_vence', m.apto_medico_vence,
+           'alta', m.joined_at,
+           'ingresos', coalesce((select jsonb_agg(jsonb_build_object('at', e.at, 'resultado', e.result) order by e.at desc)
+                                   from (select y.at, y.result from public.gym_entries y where y.gym_member_id = m.id order by y.at desc limit 5) e), '[]'::jsonb))
+         || public.gym_semaforo(m.id);
+end $$;
+revoke all on function public.gym_ficha_profe(uuid) from public, anon;
+grant execute on function public.gym_ficha_profe(uuid) to authenticated;
+
 -- Pausar una ficha activa hasta una fecha (sigue contando; vuelve sola, gym_diaria).
 create or replace function public.gym_pausar(ficha uuid, hasta date)
 returns jsonb
@@ -2387,7 +2423,7 @@ notify pgrst, 'reload schema';
 -- drop function if exists public.gym_diaria(), public.gym_tick(), public.gym_restaurar(uuid), public.release_lapsed_gyms(),
 --   public.gym_ingresos(date), public.gym_ingreso_manual(uuid, uuid), public.buscar_socio(text),
 --   public.gym_foto_resolver(uuid, boolean, text, text), public.gym_foto_staff(uuid, text), public.gym_socios_resumen(),
---   public.gym_baja(uuid, text), public.gym_reactivar(uuid), public.gym_pausar(uuid, date), public.gym_dejar_socio(uuid),
+--   public.gym_baja(uuid, text), public.gym_reactivar(uuid), public.gym_pausar(uuid, date), public.gym_ficha_profe(uuid), public.gym_dejar_socio(uuid),
 --   public.gym_asignar_profe(uuid[], uuid), public.gym_nota_guardar(uuid, text), public.gym_ficha_link(uuid),
 --   public.gym_ficha_editar(uuid, jsonb), public.gym_ficha_crear(jsonb), public.gym_ficha_datos(jsonb, boolean),
 --   public.gym_rechazar(uuid, text), public.gym_aprobar(uuid, uuid, uuid, boolean, text), public.gym_solicitudes(),

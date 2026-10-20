@@ -38,6 +38,7 @@ const CASOS = [
   ['gym_nota_guardar', rpc('gym_nota_guardar', F.A2, 'Prefiere la tarde'), { ok: ['dA', 'aA', 'pA1'] }, 'nota'],
   ['gym_asignar_profe', rpc('gym_asignar_profe', [F.A3], P.pA2), { ok: ['dA', 'aA', 'dB'] }, null],
   ['gym_dejar_socio', rpc('gym_dejar_socio', F.A1), { ok: ['pA1'], P0001: PERSONAS.filter(p => !['pA1', 'anon'].includes(p)) }, 'dejar_socio'],
+  ['gym_ficha_profe', rpc('gym_ficha_profe', P.A1), { ok: ['dA', 'aA', 'pA1', 'dB'] }, null],
   ['gym_pausar', `select to_jsonb(public.gym_pausar('${F.A2}', ${EN_30}::date))`, { ok: ['dA', 'aA'], P0001: ['dB'] }, 'pausar'],
   ['gym_reactivar', rpc('gym_reactivar', F.A2), { P0001: ['dA', 'aA', 'dB'] }, null],
   ['gym_baja', rpc('gym_baja', F.A2, 'Se mudó'), { ok: ['dA', 'aA'], P0001: ['dB'] }, 'baja'],
@@ -74,7 +75,7 @@ const APP = ['mi_gimnasio()', 'gym_versiones()', 'gym_crear(text, text, text, te
   'gym_unirse_token_info(text)', 'gym_unirse_token(text, text, text, boolean, text)', 'gym_confirmar_hoja(text, boolean, text)',
   'gym_compartir_admin(boolean, text)', 'gym_salir(boolean)', 'gym_foto_proponer(text)', 'gym_solicitudes()', 'gym_aprobar(uuid, uuid, uuid, boolean, text)',
   'gym_rechazar(uuid, text)', 'gym_ficha_crear(jsonb)', 'gym_ficha_editar(uuid, jsonb)', 'gym_ficha_link(uuid)', 'gym_nota_guardar(uuid, text)',
-  'gym_asignar_profe(uuid[], uuid)', 'gym_dejar_socio(uuid)', 'gym_pausar(uuid, date)', 'gym_reactivar(uuid)', 'gym_baja(uuid, text)',
+  'gym_asignar_profe(uuid[], uuid)', 'gym_dejar_socio(uuid)', 'gym_ficha_profe(uuid)', 'gym_pausar(uuid, date)', 'gym_reactivar(uuid)', 'gym_baja(uuid, text)',
   'gym_socios_resumen()', 'gym_foto_staff(uuid, text)', 'gym_foto_resolver(uuid, boolean, text, text)', 'buscar_socio(text)', 'gym_ingreso_manual(uuid, uuid)',
   'gym_ingresos(date)', 'gym_registro_lectura(uuid, date)', 'gym_cardio_lectura(uuid)', 'gym_socios_compartidos()', 'gym_ve_avatar(text)',
   'gym_foto_carpeta(text, text, boolean)', 'gym_foto_ver(text)', 'gym_fotos_cupo_ok()', 'gym_mi_fila_oculta()'];
@@ -140,7 +141,8 @@ export default async function ({ t: t0 }){
     ['owner', 'admin', 'profe', 'recepcion', 'socio', 'pendiente', 'socio', null, null, null], 'mi_gimnasio: el rol de cada uno; null para quien no tiene nada que ver (y con el interruptor apagado, también para un coach)');
   t.ok(de('dA').plan && de('dA').plan.max === 100 && de('dA').plan.seats_used === 6 && de('dA').plan.estado === 'activo' && de('dA').plan.profes_tope === 8 && de('dA').plan.profes_usados === 2,
     'dueña: plan completo (6 de 100, activo, 2 de 8 profes): ' + JSON.stringify(de('dA').plan));
-  t.eq(Object.keys(de('pA1').plan).sort(), ['estado', 'pausa_profes_el', 'vence'], 'profe: solo estado y fechas del plan');
+  t.eq(Object.keys(de('pA1').plan).sort(), ['cupo_lleno', 'estado', 'pausa_profes_el', 'vence'], 'profe: solo estado y fechas del plan, y si el gimnasio llegó al cupo (sin números)');
+  t.eq(de('pA1').plan.cupo_lleno, false, 'profe: el gimnasio todavía tiene lugar (6 de 100)');
   t.ok(!('plan' in de('rA')) && !('contadores' in de('rA')) && !('plan' in de('A1')), 'la recepción y el socio no reciben el plan');
   t.eq(canon(de('dA').contadores), canon({ solicitudes: 1, sin_profe: 1, falta_confirmacion: 1, fotos_pendientes: 0, ingresos_hoy: 0, invitaciones: 0, aptos_vencidos: 0 }),
     'contadores de la dueña: 1 solicitud (A6), 1 sin profe (A3), 1 sin confirmar (A7)');
@@ -149,6 +151,24 @@ export default async function ({ t: t0 }){
     ['Martina Profe', false, 'falta', null, 'Gimnasio Fuerza', 'FUERZA22'], 'la ficha del socio (profe, coach externo, foto), la solicitud y el código del gimnasio para el equipo');
   t.eq([de('A7').ficha.origen, de('A1').ficha.origen, de('A1').ficha.foto_path, de('A1').ficha.foto_pend_path, de('A6').solicitud.foto, de('A6').solicitud.terms],
     ['conversion', 'codigo', null, null, 'falta', true], 'la app del socio: de dónde viene la ficha (cuenta convertida o no), las rutas de su foto y la foto del pedido');
+
+  // gym_ficha_profe (la tarjeta «Gimnasio» de la ficha en el panel del profe): solo de quien lo atiende,
+  // con el semáforo de la etapa 1 y los últimos ingresos; null para el resto del equipo; con el acceso
+  // de los profes pausado, P0001. cupo_lleno del profe cuando el gimnasio llega al cupo.
+  x = await V([['pA1', rpc('gym_ficha_profe', P.A1)], ['pA2', rpc('gym_ficha_profe', P.A1)], ['dA', rpc('gym_ficha_profe', P.A1)], ['dA', rpc('gym_ficha_profe', P.A7)],
+    ['pA1', rpc('gym_ficha_profe', P.P1)], ['dB', rpc('gym_ficha_profe', P.A1)]]);
+  t.eq([nom(x[0].ficha), x[0].estado, x[0].semaforo, x[0].motivo, x[0].apto_vencido, x[0].ingresos.length, Object.keys(x[0].ingresos[0]).sort()],
+    ['A1', 'activo', 'verde', 'Activo', false, 1, ['at', 'resultado']], 'gym_ficha_profe: el profe ve estado, semáforo y últimos ingresos de su socio');
+  t.ok(!('dni' in x[0]) && !('email' in x[0]) && !('notas' in x[0]) && !('monto' in x[0]), 'sin DNI, mail, notas ni montos');
+  t.eq([x[1], x[2], nom(x[3].ficha), x[4], x[5]], [null, null, 'A7', null, null], 'otro profe, la dueña con un socio ajeno, un alumno propio y otro gimnasio: null; la dueña con su socio, sí');
+  x = await V([['postgres', `update public.gym_members set status = 'pausado', paused_until = current_date + 5, apto_medico_vence = current_date - 1 where id = '${F.A1}'`],
+    ['pA1', rpc('gym_ficha_profe', P.A1)]]);
+  t.eq([x[1].semaforo, x[1].apto_vencido, /^Pausado hasta el /.test(x[1].motivo)], ['ambar', true, true], 'pausado y con el apto vencido: ámbar con la marca');
+  x = await V([['postgres', VENCE('dA', '6 days')], ['pA1', rpc('gym_ficha_profe', P.A1)], ['pA1', rpc('mi_gimnasio')]]);
+  t.eq([x[1], x[2].plan.estado], [{ error: 'P0001', msg: 'El acceso del gimnasio está pausado. Hablá con la administración.' }, 'operativo'],
+    'con el plan del gimnasio vencido hace 6 días, el profe no ve la tarjeta (acceso pausado)');
+  x = await V([['postgres', `update public.coach_billing set max_clients = 6 where coach_id = '${P.dA}'`], ['pA1', rpc('mi_gimnasio')]]);
+  t.eq(x[1].plan.cupo_lleno, true, 'con 6 de 6, el profe sabe que el gimnasio llegó al cupo');
 
   // gym_equipo (panel del dueño, Profes): rol, socios asignados y la versión de la app (vieja según
   // app_config «version»: la misma que el cartel de actualizar). gym_socios_resumen marca lo mismo.
