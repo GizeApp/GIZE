@@ -1,6 +1,7 @@
-// IA en Comida: la foto del plato y «Contame qué comiste», con Supabase y la función «ia»
-// simulados. Revisa:
+// IA en Comida: la foto del plato, con Supabase y la función «ia» simulados. Solo fotos:
+// «Contame qué comiste» se sacó. Revisa:
 // - apagada (o sin poder preguntar el estado): no aparece nada nuevo, ni en Comida ni en Ajustes;
+// - prendida: al lado del buscador queda solo «Foto» (el escáner sale solo con la IA apagada);
 // - el permiso: sale antes de abrir la cámara; con «Ahora no» no se guarda ni se llama a nada y
 //   vuelve a preguntar la próxima vez; al aceptar se guarda con la versión del aviso y no se vuelve
 //   a preguntar;
@@ -8,8 +9,8 @@
 //   «Estimado con IA» y «Revisá»; editar los gramos (escribiendo y con − / +) recalcula en vivo;
 //   ✕ quita; «+1 cda» suma aceite; «Cambiar» reemplaza por un alimento de la base; la comida
 //   elegida; nada se anota hasta «Agregar» y lo anotado lleva fuente ia / ia-editado;
-// - el texto: «2 empanadas» pasa a gramos con la unidad del alimento; la búsqueda sin resultados
-//   lleva al texto con lo escrito;
+// - solo fotos: aunque el panel todavía tenga prendido «texto», no hay «Contame qué comiste» ni
+//   «¿No está? Contalo con tus palabras»; doble toque en «Agregar» anota una sola vez;
 // - «¿Está mal? Avisanos» manda lo que estimó la IA, sin la foto.
 // Con SHOTS=<carpeta> guarda capturas de cada paso.
 import { wait, ALUMNO, saved } from './lib.mjs';
@@ -51,6 +52,7 @@ export default async function ({ base: url, t }){
     t.eq(await pg.p.evaluate(() => [document.activeElement && document.activeElement.id, document.getElementById('foodSearch').value]), ['foodSearch', 'pollo'],
       nombre + ': al llegar el estado, el buscador sigue con el foco y lo escrito');
     t.eq(!!(await pg.p.$('#sheetHost [data-action="ia-plato"]')), nombre === 'prendida', nombre + ': «Foto» ' + (nombre === 'prendida' ? 'aparece' : 'no aparece'));
+    t.eq(!!(await pg.p.$('#sheetHost .search-sheet [data-action="scan-open"]')), nombre === 'apagada', nombre + ': el escáner ' + (nombre === 'apagada' ? 'queda en la barra' : 'se va de la barra'));
     t.eq(pg.errs, [], nombre + ' (estado tarde): errores de la página');
     await pg.close();
   }
@@ -58,16 +60,17 @@ export default async function ({ base: url, t }){
   // ---------- prendida: el permiso ----------
   const { p, errs, S, close, preguntas } = await pagina();
   await abrirComida(p, url); await abrirBuscador(p);
-  t.ok(await visible(p, '[data-action="ia-plato"]'), 'prendida: «Foto» al lado del escáner');
-  t.eq(await p.getAttribute('[data-action="ia-plato"]', 'aria-label'), 'Registrar con una foto (IA)', '«Foto» con su aria-label');
-  t.has(await txt(p, '[data-action="ia-plato"]'), 'Foto', '«Foto» con la etiqueta visible');
-  t.ok(await visible(p, '[data-action="ia-texto"]'), 'prendida: «Contame qué comiste»');
+  t.ok(await visible(p, '#sheetHost [data-action="ia-plato"]'), 'prendida: «Foto» al lado del buscador');
+  t.ok(!(await p.$('#sheetHost .search-sheet [data-action="scan-open"]')), 'prendida: sin el escáner en la barra (queda solo «Foto»)');
+  t.eq(await p.getAttribute('#sheetHost [data-action="ia-plato"]', 'aria-label'), 'Registrar con una foto (IA)', '«Foto» con su aria-label');
+  t.has(await txt(p, '#sheetHost [data-action="ia-plato"]'), 'Foto', '«Foto» con la etiqueta visible');
+  t.ok(!(await p.$('[data-action="ia-texto"]')) && !(await txt(p, '#sheetHost .search-sheet')).includes('Contame'), 'prendida: sin «Contame qué comiste» (solo fotos)');
   await shot(p, '02-buscador-con-ia');
-  const caja = await p.evaluate(() => { const b = document.querySelector('[data-action="ia-plato"]').getBoundingClientRect(); return [b.width, b.height]; });
+  const caja = await p.evaluate(() => { const b = document.querySelector('#sheetHost [data-action="ia-plato"]').getBoundingClientRect(); return [b.width, b.height]; });
   t.ok(caja[0] >= 44 && caja[1] >= 44, '«Foto» se toca bien (≥ 44 × 44): ' + caja);
   t.ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'sin scroll horizontal (390 px)');
 
-  await p.click('[data-action="ia-plato"]'); await wait(600);
+  await p.click('#sheetHost [data-action="ia-plato"]'); await wait(600);
   t.ok(await visible(p, '#iaPermHost .ia-perm'), 'antes de la cámara sale el permiso');
   const hoja = await txt(p, '#iaPermHost .ia-perm');
   for (const f of ['Usar IA en Comida', 'Anthropic', 'Estados Unidos', 'no tu nombre, tu mail', '30 días', 'GIZE no guarda la foto del plato', 'Ajustes → Funciones con IA', 'Aceptar y usar IA', 'Ahora no', 'Política de privacidad'])
@@ -80,7 +83,7 @@ export default async function ({ base: url, t }){
   t.eq([S.permisos.length, S.llamadas.length], [0, 0], '«Ahora no»: no guarda nada ni llama a la IA');
   await shot(p, '04-ahora-no');
 
-  await p.click('[data-action="ia-plato"]'); await wait(600);
+  await p.click('#sheetHost [data-action="ia-plato"]'); await wait(600);
   t.ok(await visible(p, '#iaPermHost .ia-perm'), 'después de «Ahora no» vuelve a preguntar');
   await p.click('#iaPermHost [data-ia="si"]'); await wait(800);
   t.eq(S.permisos, [{ p_tipo: 'comida', p_acepta: true, p_version: 1 }], 'aceptar guarda el permiso con la versión del aviso');
@@ -184,35 +187,33 @@ export default async function ({ base: url, t }){
   await abrirBuscador(p);
   const ahora = await p.evaluate(() => { const h = new Date().getHours(); return h < 11 ? 'desayuno' : h < 16 ? 'almuerzo' : h < 20 ? 'merienda' : 'cena'; });
   t.eq(await p.$$eval('#sheetHost [data-action="search-meal"].on', bs => bs.map(b => b.dataset.meal)), [ahora], 'después del plato, el buscador no queda con la comida elegida');
-  await p.click('[data-action="ia-plato"]'); await wait(700);
+  await p.click('#sheetHost [data-action="ia-plato"]'); await wait(700);
   t.ok(!(await visible(p, '#iaPermHost .ia-perm')) && await visible(p, '#sheetHost .plate-sheet'), 'aceptado: no vuelve a preguntar');
   t.eq(S.permisos.length, 1, 'el permiso se guardó una sola vez');
   await p.click('#sheetHost .ss-x[data-action="plate-cancel"]'); await wait(500);
 
-  // ---------- texto ----------
-  S.llamadas.length = 0;
-  const textoResp = { ok: true, hay_comida: true, nota: '', items: [
-    { nombre: 'Empanada de carne', gramos: 150, kcal: 345, p: 12, c: 33, f: 18, cantidad: 2, unidad: 'unidades', dudoso: false, base: base(1091, 'Empanada de carne al horno (1 u. ≈ 90 g)', 230, 8, 22, 12) },
-    { nombre: 'Coca chica', gramos: 237, kcal: 100, p: 0, c: 25, f: 0, cantidad: 1, unidad: 'botella', dudoso: true, base: base(914, 'Gaseosa cola', 42, 0, 10.5, 0, 'ml') }] };
-  await p.evaluate(() => {});
-  const pt = await pagina({ estado: Object.assign({}, ESTADO_ON, { permiso_comida: 'ok' }), funcion: () => [200, textoResp] });
-  await abrirComida(pt.p, url); await abrirBuscador(pt.p);
+  // ---------- solo fotos: sin «Contame qué comiste» ----------
+  // El panel puede tener todavía «texto» prendido (ESTADO_ON lo trae): la app no lo muestra.
+  const pt = await pagina({ estado: Object.assign({}, ESTADO_ON, { permiso_comida: 'ok' }) });
+  await abrirComida(pt.p, url);
+  t.ok(!(await pt.p.$('[data-action="ia-texto"]')), 'solo fotos: la pantalla de Comida sin «Contame qué comiste»');
+  await abrirBuscador(pt.p);
   await pt.p.fill('#foodSearch', 'empanada de algo raro que no existe'); await wait(600);
-  t.ok(await visible(pt.p, '.ia-nores'), 'búsqueda sin resultados: «¿No está? Contalo con tus palabras»');
-  await pt.p.click('.ia-nores'); await wait(700);
-  t.eq(await pt.p.inputValue('#pl8Txt'), 'empanada de algo raro que no existe', 'el texto arranca con lo buscado');
-  await pt.p.fill('#pl8Txt', '2 empanadas de carne y una coca chica'); await wait(200);
-  await shot(pt.p, '11-texto');
-  await pt.p.click('[data-action="plate-text-go"]'); await wait(1500);
-  t.eq(pt.S.llamadas.map(b => [b.modo, b.texto, 'imagen' in b]), [['texto', '2 empanadas de carne y una coca chica', false]], 'el texto va solo, sin foto');
-  const ft = await pt.p.$$eval('#sheetHost .pl8-row', rs => rs.map(r => [r.querySelector('.pl8-name').textContent, r.querySelector('input').value, r.querySelector('.pl8-g span').textContent]));
-  t.eq(ft, [['Empanada de carne al horno', '180', 'g'], ['Gaseosa cola', '237', 'ml']], '«2 empanadas» pasa a gramos con la unidad del alimento (2 × 90 g); la gaseosa en ml');
-  t.has(await txt(pt.p, '#sheetHost .plate-sheet'), '«2 empanadas de carne y una coca chica»', 'se ve lo que escribió');
-  await shot(pt.p, '12-texto-revision');
+  t.ok(!(await pt.p.$('.ia-nores')) && !(await pt.p.$('[data-action="ia-texto"]')), 'solo fotos: la búsqueda sin resultados no ofrece contarlo con palabras');
+  const ss = await txt(pt.p, '#sheetHost .search-sheet');
+  t.ok(!/Contame|Contalo|con tus palabras/.test(ss), 'solo fotos: sin resultados, nada de texto con IA: ' + ss.slice(0, 160));
+  await shot(pt.p, '11-sin-texto');
+  // La foto sigue de punta a punta, y el doble toque en «Agregar» anota una sola vez.
+  await pt.p.fill('#foodSearch', ''); await wait(300);
+  await pt.p.click('#sheetHost [data-action="ia-plato"]'); await wait(700);
+  t.ok(!(await txt(pt.p, '#sheetHost .plate-sheet')).includes('Contá qué comiste'), 'solo fotos: la hoja es la de la foto');
+  await pt.p.setInputFiles('#sheetHost input[data-action="plate-file"]:not([capture])', await fotoJpeg(pt.p)); await wait(1500);
+  t.eq(pt.S.llamadas.map(b => b.modo), ['plato'], 'solo fotos: la app llama solo en modo plato');
+  t.eq((await pt.p.$$('#sheetHost .pl8-row')).length, 3, 'solo fotos: la hoja con las filas');
   await pt.p.dblclick('#pl8Go'); await wait(1000);
   const dt = ((await saved(pt.p)) || {}).diary || [];
-  t.eq(dt.map(e => [e.grams, e.unit, e.fuente]), [[180, 'g', 'ia'], [237, 'ml', 'ia']], 'el texto se anota como «ia» (sin tocar), una sola vez aunque toque dos veces');
-  t.eq(pt.errs, [], 'texto: errores de la página');
+  t.eq(dt.map(e => [e.grams, e.fuente]), [[150, 'ia'], [200, 'ia'], [40, 'ia']], 'la foto se anota como «ia» (sin tocar), una sola vez aunque toque dos veces');
+  t.eq(pt.errs, [], 'solo fotos: errores de la página');
   await pt.close();
 
   t.eq(errs, [], 'errores de la página');

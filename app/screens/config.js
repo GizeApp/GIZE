@@ -200,7 +200,7 @@ export function renderConfig() {
       '</button>' +
     '</div>';
 
-  // Funciones con IA (la foto del plato y «Contame qué comiste»): solo si alguna está prendida en el
+  // Funciones con IA (la foto del plato): solo si está prendida en el
   // panel, o si la persona ya la había aceptado (para que la pueda apagar). Apagarla guarda que no
   // quiere (ia_permiso) y desde ahí no se manda nada; prenderla vuelve a mostrar el aviso.
   if (logged) iaConfigRefrescar();
