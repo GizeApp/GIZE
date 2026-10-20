@@ -24,7 +24,7 @@ export const PRIVACIDAD = [
 // Lo que puede hacer cada rol, para la vista previa al invitar.
 export const ROLES = {
   profe: { nombre: "Profe", corto: "profe", puede: "Va a ver solo a los socios que le asignes: les arma la rutina, ve sus entrenos y les escribe por el chat. Entra sin cargo con su cuenta de coach." },
-  admin: { nombre: "Administración", corto: "administración", puede: "Va a manejar el día a día igual que vos: socios, solicitudes, profes y configuración. No ve el plan de GIZE ni puede cerrar el gimnasio." },
+  admin: { nombre: "Administración", corto: "administración", puede: "Va a manejar el día a día igual que vos: socios, solicitudes, profes y configuración. Ve el estado del plan de GIZE pero no lo cambia, y no puede cerrar el gimnasio." },
   recepcion: { nombre: "Recepción", corto: "recepción", puede: "Va a buscar socios por nombre o DNI, ver su foto y si están activos, y registrar el ingreso. No ve entrenos, comidas, notas ni chats." },
 };
 export const rolNombre = r => r === "owner" ? "Dueño" : (ROLES[r] ? ROLES[r].nombre : r);
