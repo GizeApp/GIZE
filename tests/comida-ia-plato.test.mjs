@@ -96,7 +96,7 @@ export default async function ({ base: url, t }){
   S.demora = espera;
   await p.route(/functions\/v1\/ia/, async r => { await espera; await r.fallback(); });
   await p.setInputFiles('#sheetHost input[data-action="plate-file"]:not([capture])', await fotoJpeg(p)); await wait(900);
-  t.has(await txt(p, '#sheetHost .pl8-wait'), 'Analizando la foto…', 'mientras tanto: «Analizando la foto…»');
+  t.has(await txt(p, '#sheetHost .pl8-wait'), 'Leyendo tu plato…', 'mientras tanto: «Leyendo tu plato…»');
   t.ok(!!(await p.$('#sheetHost .pl8-photo')), 'se ve la foto');
   await shot(p, '06-analizando');
   await wait(2200);
