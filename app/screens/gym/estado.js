@@ -23,6 +23,8 @@ export const GS = {
   busy: "",
   versiones: null,
   aceptar: null,                       // #equipo=: { token, info, cargando, error }
+  ingresos: null, ingresosError: "",   // Asistencia: los ingresos de hoy (gym_ingresos)
+  recTab: "recepcion",                 // la cuenta de recepción: Recepción · Solicitudes
   crear: { nombre: "", ciudad: "", provincia: "", acepto: false, busy: false },
 };
 

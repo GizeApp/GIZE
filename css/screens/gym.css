@@ -200,6 +200,54 @@ a.gize-btn.cv-btn { text-decoration:none; }
 .gy-imprimir { text-align:center; color:var(--txt); }
 .gy-imprimir h3 { margin:4px 0; font-size:22px; }
 
+/* Semáforo (recepción, asistencia y la tarjeta «Gimnasio» del profe): color y motivo, sin montos. */
+.gy-sem { display:inline-flex; align-items:center; gap:6px; padding:2px 10px 2px 8px; border-radius:999px; font-size:12px; font-weight:700; line-height:20px;
+    color:var(--txt); background:color-mix(in srgb, var(--txt) 8%, transparent); }
+.gy-sem i { width:9px; height:9px; border-radius:50%; flex:none; background:var(--txt-3); }
+.gy-sem.verde { color:color-mix(in srgb, var(--gize-success) 62%, var(--txt)); background:color-mix(in srgb, var(--gize-success) 13%, transparent); }
+.gy-sem.verde i { background:var(--gize-success); }
+.gy-sem.ambar { color:color-mix(in srgb, var(--gize-warning) 68%, var(--txt)); background:color-mix(in srgb, var(--gize-warning) 14%, transparent); }
+.gy-sem.ambar i { background:var(--gize-warning); }
+.gy-sem.rojo { color:color-mix(in srgb, var(--gize-danger) 72%, var(--txt)); background:color-mix(in srgb, var(--gize-danger) 13%, transparent); }
+.gy-sem.rojo i { background:var(--gize-danger); }
+.gy-sem-l { font-size:15px; line-height:26px; padding:3px 14px 3px 11px; }
+.gy-sem-l i { width:12px; height:12px; }
+
+/* Recepción */
+.gy-rec { display:grid; gap:12px; min-width:0; }
+.gy-rec-buscar { display:block; width:100%; box-sizing:border-box; }
+.gy-rec-buscar .cv-ic { left:14px; color:var(--txt-2); }
+.gy-rec-buscar .gy-rec-q { width:100%; min-height:48px; margin:0; font-size:17px; padding-left:40px; box-sizing:border-box; }
+.gy-rec-hint { margin:4px 2px; }
+.gy-rec-cols { display:grid; gap:12px; min-width:0; }
+.gy-rec-lista { list-style:none; margin:0; padding:0; display:grid; gap:6px; min-width:0; }
+.gy-rec-i { display:flex; align-items:center; gap:12px; width:100%; min-height:56px; padding:8px 12px; border-radius:16px; border:1px solid var(--gize-border); background:var(--gize-surface);
+    color:var(--txt); font:inherit; text-align:left; cursor:pointer; box-sizing:border-box; }
+.gy-rec-i.on { border-color:color-mix(in srgb, var(--gize-blue) 70%, transparent); background:color-mix(in srgb, var(--gize-blue) 10%, var(--gize-surface)); }
+.gy-rec-i:focus-visible { outline:2px solid var(--gize-blue); outline-offset:2px; }
+.gy-rec-i-t { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; min-width:0; }
+.gy-rec-i-t b { flex:1 1 100%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--text-body); }
+.gy-rec-ficha { display:grid; gap:14px; justify-items:center; text-align:center; padding:18px 16px; min-width:0; }
+.gy-rec-vacia { align-content:center; min-height:120px; }
+.gy-av-rec { width:min(200px, 52vw); height:min(200px, 52vw); font-size:56px; border-radius:28px; }
+.gy-rec-sinfoto { display:flex; flex-direction:column; align-items:center; gap:8px; }
+.gy-rec-n { margin:0 0 8px; font-family:var(--gize-font); font-size:24px; line-height:1.2; color:var(--txt); overflow-wrap:anywhere; }
+.gy-rec-sem { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; }
+.gy-rec-acc { display:grid; gap:10px; width:100%; max-width:360px; }
+.gy-rec-acc .gy-cartel, .gy-rec-acc .gy-ok { margin:0; text-align:left; }
+.gy-rec-ing { width:100%; min-height:52px; font-size:17px; }
+.gy-rec-altas { margin-top:4px; }
+.gy-rec-compacto .gy-av-rec { width:120px; height:120px; font-size:36px; border-radius:22px; }
+.gy-solo-rec { align-items:stretch; }
+.gy-solo-top { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; max-width:1080px; margin:0 auto; }
+.gy-solo-ancho { width:100%; max-width:1080px; margin:0 auto; min-width:0; }
+
+/* Asistencia */
+.gy-row-ing { cursor:default; }
+.gy-row-ing .gy-td-socio { gap:12px; }
+.gy-row-ing .gy-td-socio b { color:var(--txt); font-size:var(--text-body); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.gy-ing-h { font-variant-numeric:tabular-nums; font-weight:700; color:var(--txt-2); min-width:44px; }
+
 /* ---------- Compu ---------- */
 @media (min-width: 900px){
   .gy-nav .gy-solo-compu { display:flex; }
@@ -227,6 +275,10 @@ a.gize-btn.cv-btn { text-decoration:none; }
   .gy-ficha { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; align-items:start; }
   .gy-form { grid-template-columns:1fr 1fr; }
   .gy-sec { padding:20px 22px 22px; }
+  .gy-rec-cols { grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); align-items:start; }
+  .gy-rec-compacto .gy-rec-cols { grid-template-columns:minmax(0,1fr); }
+  .gy-rec-ficha { position:sticky; top:16px; padding:24px 22px; }
+  .gy-row-ing { grid-template-columns:minmax(0,2.4fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.4fr); }
   .gy-modal { left:50%; right:auto; top:50%; bottom:auto; width:min(560px, calc(100vw - 48px)); transform:translate(-50%,-50%); border-radius:22px; max-height:86vh; }
   .gy-sheet { display:none; }
 }

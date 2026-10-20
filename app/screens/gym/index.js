@@ -21,7 +21,7 @@ import { GS, rpc, info, gym, yo, esDueno, enApp, pedirFotos, copiar, plural, pri
 import { marcoGym, hojaMas, cabeza, btn, btn2, vacio } from './marco.js';
 import { renderInicio } from './inicio.js';
 import { renderSocios, ventanaSumar, profesDelEquipo } from './socios.js';
-import { fotosDeSolicitudes, solElegido } from './solicitudes.js';
+import { fotosDeSolicitudes, solElegido, renderSolicitudes } from './solicitudes.js';
 import { renderFicha, fotosDeFicha, sinCambiarProfe } from './ficha.js';
 import { renderEquipo, renderAceptar, ventanaInvitar, ventanaQuitar } from './equipo.js';
 import { renderConfig, ventanaQr } from './config.js';
@@ -30,6 +30,8 @@ import { renderCrear } from './crear.js';
 import { VERSIONES, rolNombre } from './textos.js';
 import { exportar, exportarTodo, aCsv, descargar } from './csv.js';
 import { pintarQrs } from './qr.js';
+import { renderRecepcion, alRepintar, alRegistrar, fotoNueva, limpiar as limpiarRecepcion } from './recepcion.js';
+import { renderAsistencia, exportarIngresos, ventanaIngreso } from './asistencia.js';
 
 let iniciado = false, dibujado = false, primeraCarga = false;
 
@@ -47,6 +49,10 @@ export function iniciarGym(){
   document.body.addEventListener("change", alCambiar);
   document.addEventListener("keydown", alTeclado);
   Gym.ui = { pintar, coach: renderCoach, sinPlan };
+  // La recepción (recepcion.js) se redibuja sola mientras se busca; cuando llega una foto o se registra
+  // un ingreso, la pantalla que la muestra (y Asistencia, con la lista del día).
+  alRepintar(() => { repintar(); pintarModal(); });
+  alRegistrar(() => { if (GS.view === "asistencia" || (GS.modal && GS.modal.tipo === "ingreso")) cargarIngresos(); if (rolGym() !== "recepcion") releerGym().then(repintar); });
 }
 
 // ---- Qué se dibuja ----
@@ -107,8 +113,8 @@ function vista(){
     case "profes": return renderEquipo();
     case "config": return renderConfig();
     case "plan": return renderPlan();
-    case "asistencia": return cabeza("Asistencia", btn2('data-gym="ir" data-v="recepcion"', "Abrir recepción")) + vacio("Cuando registres ingresos en la recepción, los vas a ver acá.");
-    case "recepcion": return cabeza("Recepción") + vacio("La recepción se abre acá: buscar socios por nombre o DNI, ver su foto y registrar el ingreso. Llega en la próxima actualización.");
+    case "asistencia": return renderAsistencia();
+    case "recepcion": return cabeza("Recepción", btn2('data-gym="ir" data-v="asistencia"', "Ingresos de hoy"), "Buscá por nombre o DNI, mirá la foto y registrá el ingreso.") + renderRecepcion({ altas: true });
     default: return renderInicio();
   }
 }
@@ -126,16 +132,23 @@ function sinPlan(){
     cabeza(tituloPlan()) + '<div class="cv-card gy-vacio"><p>' + esc(t) + '</p>' + (esDueno() ? "" : '<p class="gy-fino">El plan lo maneja el dueño del gimnasio.</p>') +
     '<div class="gy-acc">' + btn('data-gym="ir" data-v="plan"', enApp() ? "Ver el acceso" : "Ver el plan") + '</div></div>');
 }
+// La cuenta de recepción entra directo acá (SPEC §2.10): la recepción básica y, si el gimnasio la deja
+// aprobar y cargar fichas, la pestaña Solicitudes. Se sale cerrando la sesión.
+const altasRecepcion = () => !!(info().settings || {}).recepcion_altas;
 function renderRecepcionSola(){
-  return '<div class="gy-solo"><div class="co-brand cv-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"></div><div class="cv-card gy-solo-card">' +
-    '<h1 class="gy-solo-t">Recepción de ' + esc(gym().name || "tu gimnasio") + '</h1><p class="gy-p">La recepción se abre acá: buscar socios por nombre o DNI, ver su foto y registrar el ingreso. Llega en la próxima actualización.</p>' +
-    '<div class="gy-acc">' + btn2('data-auth="logout"', "Cerrar sesión") + '</div></div></div>';
+  const altas = altasRecepcion(), tab = altas && GS.recTab === "solicitudes" ? "solicitudes" : "recepcion";
+  const tabs = altas ? '<div class="cv-pills gy-tabs" role="tablist">' + [["recepcion", "Recepción"], ["solicitudes", "Solicitudes"]].map(t =>
+    '<button class="cv-pill' + (tab === t[0] ? ' on' : '') + '" role="tab" aria-selected="' + (tab === t[0]) + '" data-gym="rec-tab" data-v="' + t[0] + '">' + t[1] + '</button>').join("") + '</div>' : '';
+  return '<div class="gy-solo gy-solo-rec"><div class="gy-solo-top"><div class="co-brand cv-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"></div>' +
+    btn2('data-auth="logout"', "Cerrar sesión") + '</div>' +
+    '<div class="gy-solo-ancho"><h1 class="gy-solo-t">Recepción de ' + esc(gym().name || "tu gimnasio") + '</h1>' + tabs +
+    (tab === "solicitudes" ? renderSolicitudes() : renderRecepcion({ altas, solicitudes: "rec-tab" })) + '</div></div>';
 }
 
 // El foco y lo escrito sobreviven a un redibujo (la app redibuja seguido).
 function guardarFoco(){
   const a = document.activeElement; if (!a || !a.closest || !a.closest("#coachHost, #gymModal")) return null;
-  const k = ["data-gym-in", "data-gym-f", "data-gym-ff", "data-gym-cfg", "data-gym-cr", "data-gym-nota", "data-gym-sol"].find(x => a.hasAttribute(x));
+  const k = ["data-gym-in", "data-gym-f", "data-gym-ff", "data-gym-cfg", "data-gym-cr", "data-gym-nota", "data-gym-sol", "data-rec-q"].find(x => a.hasAttribute(x));
   if (!k) return null;
   return { sel: "[" + k + '="' + a.getAttribute(k) + '"]' + (a.dataset.id ? '[data-id="' + a.dataset.id + '"]' : ""), ini: a.selectionStart, fin: a.selectionEnd };
 }
@@ -155,7 +168,8 @@ function pintarModal(){
   const foco = guardarFoco();
   if (m.tipo === "mas"){ h.className = "gy-capa"; h.innerHTML = hojaMas(); return; }
   const cuerpo = m.tipo === "sumar" ? ventanaSumar(m) : m.tipo === "invitar" ? ventanaInvitar(m) : m.tipo === "quitar" ? ventanaQuitar(m) : m.tipo === "qr" ? ventanaQr()
-    : m.tipo === "asignar" ? ventanaAsignar(m) : m.tipo === "pausar" ? ventanaPausar(m) : m.tipo === "link" ? ventanaLink(m) : "";
+    : m.tipo === "asignar" ? ventanaAsignar(m) : m.tipo === "pausar" ? ventanaPausar(m) : m.tipo === "link" ? ventanaLink(m)
+    : m.tipo === "ingreso" ? ventanaIngreso(renderRecepcion({ compacto: true })) : "";
   h.className = "gy-capa";
   h.innerHTML = '<div class="gy-modal-bg" data-gym="cerrar"></div><div class="gy-modal" role="dialog" aria-modal="true">' + cuerpo + '</div>';
   // El nombre de la ventana para los lectores de pantalla: su título.
@@ -254,6 +268,12 @@ async function cargarFicha(id){
   pedirFotos(fotosDeFicha()).then(ok => { if (ok) repintar(); });
   repintar();
 }
+async function cargarIngresos(){
+  const r = await rpc("gym_ingresos", { desde: hoyAR() });
+  if (r.error){ if (GS.ingresos === null) GS.ingresosError = r.msg; }
+  else { GS.ingresos = Array.isArray(r.data) ? r.data : []; GS.ingresosError = ""; }
+  repintar();
+}
 async function cargarDpa(){
   const r = await Promise.resolve(State.sb.from("gyms").select("dpa_version, dpa_at").eq("id", gym().id).maybeSingle()).catch(() => null);
   if (r && !r.error && r.data){ GS.dpa = r.data; repintar(); }
@@ -272,11 +292,16 @@ function cargarVista(){
   else if (v === "profes"){ cargarEquipo(); if (GS.socios === null) cargarSocios(); }
   else if (v === "config"){ if (GS.equipo === null) cargarEquipo(); cargarDpa(); releerGym().then(repintar); }
   else if (v === "plan"){ releerGym().then(repintar); }
-  // La recepción de ahora es un cartel («llega en la próxima actualización»): abrirla no tacha «Probá la
-  // recepción»; lo tacha el primer uso de verdad (marcarRecepcion, parte 4) o un ingreso registrado.
+  else if (v === "asistencia"){ cargarIngresos(); }
+  // Abrir la recepción no tacha «Probá la recepción» (Inicio): lo tacha el primer uso de verdad, buscar o
+  // registrar un ingreso (marcarRecepcion, recepcion.js).
 }
 // Después de cambiar algo: las listas y los contadores.
-function despues(){ releerGym().then(repintar); cargarSocios(); if (GS.tab === "solicitudes" || GS.solicitudes) cargarSolicitudes(); }
+function despues(){
+  // La recepción no lee la lista de socios ni los contadores: solo sus solicitudes.
+  if (rolGym() === "recepcion"){ if (GS.solicitudes) cargarSolicitudes(); return; }
+  releerGym().then(repintar); cargarSocios(); if (GS.tab === "solicitudes" || GS.solicitudes) cargarSolicitudes();
+}
 
 async function ir(v){
   if (GS.view === "coach" && coachAdentro()){
@@ -320,6 +345,7 @@ async function subirFoto(fichaId, file){
   if (up.error){ alert("No se pudo subir la foto. Revisá tu conexión y probá de nuevo."); return; }
   const r = await rpc("gym_foto_staff", { ficha: fichaId, path });
   if (r.error){ alert(r.msg); return; }
+  fotoNueva(fichaId, path);
   if (GS.ficha && GS.ficha.id === fichaId) cargarFicha(fichaId);
   despues();
 }
@@ -374,7 +400,20 @@ async function alTocar(e){
   if (a === "ir") return ir(b.dataset.v);
   if (a === "mas") return abrir({ tipo: "mas" });
   if (a === "cerrar"){ if (GS.modal && GS.modal.tipo === "asignar" && GS.modal.resultado) GS.sel.clear(); return cerrarModal(), repintar(); }
-  if (a === "reintentar"){ cargarVista(); if (GS.view === "ficha" && GS.ficha) cargarFicha(GS.ficha.id); return; }
+  if (a === "reintentar"){ if (rolGym() === "recepcion"){ cargarSolicitudes(); return; } cargarVista(); if (GS.view === "ficha" && GS.ficha) cargarFicha(GS.ficha.id); return; }
+  // Asistencia y recepción
+  if (a === "ingreso-manual"){ limpiarRecepcion(); abrir({ tipo: "ingreso" }); return; }
+  if (a === "asis-csv"){ exportarIngresos(); return; }
+  if (a === "rec-tab"){
+    GS.recTab = b.dataset.v;
+    if (GS.recTab === "solicitudes"){
+      // La recepción no lee el equipo (gym_equipo es del dueño y la administración): aprueba sin profe y
+      // la administración se lo asigna después (Inicio: «socios sin profe»).
+      if (GS.equipo === null) GS.equipo = [];
+      cargarSolicitudes();
+    }
+    repintar(); return;
+  }
   if (a === "copiar"){ if (await copiar(b.dataset.v || "")) marcarCopiado(b); else alert("No se pudo copiar: " + (b.dataset.v || "")); return; }
   // Socios
   if (a === "socios-tab"){ GS.tab = b.dataset.v; GS.sel.clear(); if (GS.view !== "socios") return ir("socios"); if (GS.tab === "solicitudes") cargarSolicitudes(); repintar(); return; }
