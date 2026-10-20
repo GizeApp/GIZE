@@ -402,7 +402,11 @@ async function alTocar(e){
   if (a === "cerrar"){ if (GS.modal && GS.modal.tipo === "asignar" && GS.modal.resultado) GS.sel.clear(); return cerrarModal(), repintar(); }
   if (a === "reintentar"){ if (rolGym() === "recepcion"){ cargarSolicitudes(); return; } cargarVista(); if (GS.view === "ficha" && GS.ficha) cargarFicha(GS.ficha.id); return; }
   // Asistencia y recepción
-  if (a === "ingreso-manual"){ limpiarRecepcion(); abrir({ tipo: "ingreso" }); return; }
+  if (a === "ingreso-manual"){
+    limpiarRecepcion(); abrir({ tipo: "ingreso" });
+    const i = document.querySelector("#gymModal input[data-rec-q]"); if (i) i.focus({ preventScroll: true }); // a escribir el nombre
+    return;
+  }
   if (a === "asis-csv"){ exportarIngresos(); return; }
   if (a === "rec-tab"){
     GS.recTab = b.dataset.v;
@@ -427,7 +431,7 @@ async function alTocar(e){
   if (a === "grupo-asignar") return accionGrupo("asignar");
   if (a === "grupo-pausar") return accionGrupo("pausar");
   if (a === "grupo-exportar") return accionGrupo("exportar");
-  if (a === "sumar"){ if (!GS.socios) cargarSocios(); return abrir({ tipo: "sumar", tab: b.dataset.v || "codigo", datos: {} }); }
+  if (a === "sumar"){ if (!GS.socios && rolGym() !== "recepcion") cargarSocios(); return abrir({ tipo: "sumar", tab: b.dataset.v || "codigo", datos: {} }); }
   if (a === "sumar-tab"){ GS.modal.tab = b.dataset.v; return pintarModal(); }
   if (a === "sumar-otra"){ GS.modal = { tipo: "sumar", tab: "ficha", datos: {} }; return pintarModal(); }
   if (a === "ficha-crear") return crearFicha();

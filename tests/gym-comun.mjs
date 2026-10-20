@@ -193,7 +193,51 @@ export function storageGym(subidas = []){
       if (i.m === 'POST' && i.path.includes('/object/gym-fotos/')){ subidas.push(i.path.replace(/^.*\/object\/gym-fotos\//, '')); return J({ Key: 'gym-fotos/x', Id: 'x' }); }
       return undefined;
     },
+    // Varios links de una vez (createSignedUrls: las listas del panel y la recepción).
+    '/object/sign/gym-fotos': (r, J, i) => { let b = {}; try { b = JSON.parse(i.body || '{}'); } catch (e) {}
+      return J((b.paths || []).map(path => ({ path, signedURL: '/object/sign/gym-fotos/foto?token=t', error: null }))); },
     // Una imagen que se vea en las capturas (el ícono de la app).
     '/object/sign/gym-fotos/foto': (r, J, i) => import('node:fs').then(fs => r.fulfill({ status: 200, contentType: 'image/png', body: fs.readFileSync(new URL('../icon-192.png', import.meta.url)) })),
   };
 }
+
+// ---- El profe y la recepción (parte 4) ----
+// Lucía Profe (PROFE), profe de Gimnasio Fuerza: atiende a Martina Sosa y a Juan Pérez (socios) y tiene
+// un alumno propio, Tomás Herrera. extra pisa campos de mi_gimnasio (plan, settings, mis_socios…).
+export const PROPIO = { id: ID('99'), full_name: 'Tomás Herrera' };
+export function miGimnasioProfe(extra = {}){
+  return miGimnasio('profe', Object.assign({ plan: { estado: 'activo', vence: dias(30), pausa_profes_el: dias(35), cupo_lleno: false }, contadores: undefined,
+    mis_fichas: [F.A1, F.A2], mis_socios: [S.A1, S.A2] }, extra));
+}
+export const alumnosProfe = (conPropio = true) => [{ id: S.A1, full_name: 'Martina Sosa', role: 'client', coach_id: PROFE.id }, { id: S.A2, full_name: 'Juan Pérez', role: 'client', coach_id: PROFE.id }]
+  .concat(conPropio ? [Object.assign({ role: 'client', coach_id: PROFE.id }, PROPIO)] : []);
+// La tarjeta «Gimnasio» de Martina (gym_ficha_profe).
+export const fichaProfe = (extra = {}) => Object.assign({ ficha: F.A1, estado: 'activo', paused_until: null, semaforo: 'verde', motivo: 'Activo', apto_vencido: false,
+  apto_medico_vence: '2027-02-10', alta: dias(-200), ingresos: [{ at: dias(0), resultado: 'ok' }, { at: dias(-2), resultado: 'pausado' }] }, extra);
+// Entra como la profe. o: lo de entrar (gym, billing, alumnos, rpc, init, vp, tema…). billing: null = la
+// base no le muestra la fila (profe sin nada propio).
+export function entrarProfe(base, o = {}){
+  const handlers = Object.assign({}, o.billing === null ? { '/coach_billing': (r, J, i) => J(i.one ? null : []) } : {}, o.handlers || {});
+  return entrar(base, PROFE, Object.assign({ nombre: 'Lucía Profe', alumnos: alumnosProfe(), gym: miGimnasioProfe() }, o, {
+    rpc: Object.assign({ gym_ficha_profe: () => fichaProfe(), my_invite_code: () => 'LUCIA234' }, o.rpc || {}),
+    billing: o.billing === null ? undefined : (o.billing || { plan: 'p10', max_clients: 10, trial_ends_at: dias(-300), paid_until: dias(30), seats_used: 1 }), handlers }));
+}
+// Lo que contesta buscar_socio (forma de la etapa 1).
+export function busqueda(){
+  return [
+    { id: F.A1, nombre: 'Martina Sosa', foto_path: G + '/' + F.A1 + '/' + ID('77') + '.jpg', estado: 'activo', semaforo: 'verde', motivo: 'Activo', apto_vencido: false, ultimo_ingreso: dias(-1) },
+    { id: F.A2, nombre: 'Martín Pérez', foto_path: null, estado: 'pausado', semaforo: 'ambar', motivo: 'Pausado hasta el 12/11', apto_vencido: true, ultimo_ingreso: null },
+    { id: ID('f18'), nombre: 'Marta Torres', foto_path: null, estado: 'baja', semaforo: 'rojo', motivo: 'De baja', apto_vencido: false, ultimo_ingreso: dias(-45) },
+  ];
+}
+// gym_ingresos de hoy.
+export function ingresosHoy(){
+  const h = (hh, mm) => { const d = new Date(); d.setHours(hh, mm, 0, 0); return d.toISOString(); };
+  return [
+    { id: ID('e21'), at: h(9, 5), ficha: F.A1, nombre: 'Martina Sosa', metodo: 'manual', resultado: 'ok', por: 'Rocío Recepción' },
+    { id: ID('e22'), at: h(8, 40), ficha: F.A2, nombre: 'Juan Pérez', metodo: 'manual', resultado: 'pausado', por: 'Carla Dueña' },
+    { id: ID('e23'), at: h(7, 15), ficha: F.A4, nombre: 'Raúl Díaz', metodo: 'manual', resultado: 'ok', por: 'Rocío Recepción' },
+  ];
+}
+export const recTxt = p => p.evaluate(() => { const e = document.querySelector('.gy-rec'); return e ? e.innerText.replace(/\s+/g, ' ').trim() : ''; });
+export async function buscarRec(p, q){ await p.fill('input[data-rec-q]', q); await wait(800); }
