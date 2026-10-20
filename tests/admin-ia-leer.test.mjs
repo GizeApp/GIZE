@@ -13,7 +13,8 @@
 //   Si se vuelve a dibujar mientras lee, la lectura completa la tarjeta nueva y no se puede tocar
 //   otra vez (no hay dos llamadas pagas).
 // - La página IA: el interruptor (arranca apagado), la fecha de los créditos, la de la política, la
-//   función de Pedidos y el aviso de que falta la clave.
+//   función de Pedidos, la foto del plato (sin «Contame qué comiste»: solo fotos) y el aviso de que
+//   falta la clave.
 // - Inicio: si la IA está cortada, aparece en «Para atender».
 import { newPage, wait, text, ADMIN } from './lib.mjs';
 
@@ -279,14 +280,15 @@ export default async function ({ base, t }){
   t.eq(a.rpcs.filter(r => r[0] === 'config')[1], ['config', { p: { funciones: { etiqueta_admin: true } } }], 'prende «Leer tablas en Pedidos»');
   for (const k of ['etiqueta_usuario', 'rutina', 'resumen'])
     t.ok(await ia.$eval(`[data-a="iaFn"][data-k="${k}"]`, b => b.disabled), 'lo que todavía no está en la app no se puede prender (' + k + ')');
-  // La foto del plato y «Contame qué comiste» (app) ya se pueden prender, con confirmación.
-  for (const [k, nombre] of [['plato', 'Foto del plato'], ['texto', 'Contame qué comiste']]){
-    t.ok(!(await ia.$eval(`[data-a="iaFn"][data-k="${k}"]`, b => b.disabled)), '«' + nombre + '» se puede prender');
-    await ia.click(`[data-a="iaFn"][data-k="${k}"]`); await wait(700);
-    t.ok(a.dialogs.some(d => d.includes('¿Prender «' + nombre + '» en la app?')), '«' + nombre + '»: pide confirmar');
-    t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { funciones: { [k]: true } } }], 'prende «' + nombre + '»');
-  }
-  t.has(await text(ia, '#main'), 'Aparece en Comida → Agregar', 'dice dónde aparece en la app');
+  // La foto del plato (app) ya se puede prender, con confirmación.
+  t.ok(!(await ia.$eval('[data-a="iaFn"][data-k="plato"]', b => b.disabled)), '«Foto del plato» se puede prender');
+  await ia.click('[data-a="iaFn"][data-k="plato"]'); await wait(700);
+  t.ok(a.dialogs.some(d => d.includes('¿Prender «Foto del plato» en la app?')), '«Foto del plato»: pide confirmar');
+  t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { funciones: { plato: true } } }], 'prende «Foto del plato»');
+  t.has(await text(ia, '#main'), 'Aparece en Comida, al lado del buscador', 'dice dónde aparece en la app');
+  // «Contame qué comiste» se sacó (solo fotos): ya no hay interruptor.
+  t.ok(!(await ia.$('[data-a="iaFn"][data-k="texto"]')), 'sin el interruptor de «Contame qué comiste»');
+  t.ok(!(await text(ia, '.ia-funs')).includes('«Contame qué comiste» (app)'), 'la lista de funciones no lo nombra como función');
   if (process.env.SHOTS) { await ia.$eval('.ia-funs', e => e.scrollIntoView({ block: 'center' })); await wait(200); await ia.screenshot({ path: process.env.SHOTS + '/30-panel-funciones.png' }); }
   await ia.fill('#iaAnclaTxt', '10/11/2026'); await ia.click('[data-a="iaAncla"]'); await wait(600);
   t.eq((a.rpcs.find(r => r[0] === 'ciclo') || [])[1], { p_fin: '2026-11-10' }, 'guarda la fecha en que vencen los créditos');

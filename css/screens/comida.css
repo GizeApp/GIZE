@@ -373,7 +373,7 @@ html.lite .scan-btn { animation: none; }
 .kcal-left.eq .kl-t { color:var(--gize-success); }
 @media (max-width: 360px){ .kl-n { font-size:36px; } }
 
-/* ---- IA: foto del plato y «Contame qué comiste» (app/screens/comida.js → renderPlateSheet) ----
+/* ---- IA: foto del plato (app/screens/comida.js → renderPlateSheet) ----
    Solo aparece con la función prendida en el panel. Colores de las variables de cada apariencia;
    sin sombras ni animaciones propias salvo el giro de «Analizando…» (quieto en básico y con
    movimiento reducido). */
@@ -386,18 +386,13 @@ html.lite .scan-btn { animation: none; }
 .ia-chip { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .03em;
   color: var(--txt-2); border: 1px solid color-mix(in srgb, var(--gize-r2) 55%, var(--border)); vertical-align: 1px; }
 .diary-name .ia-chip { display: inline-block; }
-/* «Foto» al lado del buscador (en su lugar, el escáner si la IA no se puede usar), y «Contame qué
-   comiste» abajo del buscador. */
+/* «Foto» al lado del buscador (en su lugar, el escáner si la IA no se puede usar). */
 .ia-foto-btn { flex-shrink: 0; min-width: 48px; min-height: 44px; padding: 4px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   border-radius: var(--r-btn); border: 1px solid color-mix(in srgb, var(--gize-r2) 55%, var(--border)); background: var(--card-2); color: var(--txt);
   font: 600 11px/1.1 var(--gize-font); cursor: pointer; position: relative; -webkit-tap-highlight-color: transparent; }
 .ia-foto-btn svg { width: 20px; height: 20px; }
 .ia-foto-btn .ia-mini { position: absolute; top: -7px; right: -6px; background: var(--card); }
-.ia-texto-btn, .ia-nores { width: 100%; min-height: 44px; margin: 0 0 10px; padding: 10px 12px; display: flex; align-items: center; justify-content: center; gap: 8px;
-  border-radius: var(--r-box); border: 1px dashed color-mix(in srgb, var(--gize-r2) 55%, var(--border)); background: transparent; color: var(--txt);
-  font: 600 var(--text-body) var(--gize-font); cursor: pointer; flex: none; -webkit-tap-highlight-color: transparent; }
-.ia-nores { margin: 10px 0 0; }
-:is(.ia-foto-btn, .ia-texto-btn, .ia-nores, .pl8-chg, .pl8-x, .pl8-step, .pl8-add, .pl8-link, .pl8-redo .ctrl, .pl8-btns .ctrl):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+:is(.ia-foto-btn, .pl8-chg, .pl8-x, .pl8-step, .pl8-add, .pl8-link, .pl8-redo .ctrl, .pl8-btns .ctrl):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
 /* La hoja: lo de arriba se desplaza y abajo quedan fijos la comida, los totales y «Agregar». */
 .plate-sheet { display: flex; flex-direction: column; height: auto; max-height: min(92dvh, calc(100dvh - var(--kb, 0px) - env(safe-area-inset-top, 0px) - 12px)); overflow: hidden; }
@@ -407,18 +402,14 @@ html.lite .scan-btn { animation: none; }
 .pl8-foot { flex: none; display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
 .pl8-foot .meal-chips { margin: 0; }
 .pl8-foot .meal-chip { min-height: 44px; }
-.pl8-hint, .pl8-fine, .pl8-nota, .pl8-cnt, .pl8-quedan { margin: 0; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
+.pl8-hint, .pl8-fine, .pl8-nota, .pl8-quedan { margin: 0; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
 .pl8-quedan { color: var(--gize-warning, #FFB547); }
 .pl8-pick { margin: 4px 0 0; }
 .pl8-pick .cf-photo-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .plate-sheet .sheet-title:focus { outline: none; }
 .pl8-dia { display: block; margin-top: 2px; font-size: var(--text-meta); font-weight: 700; color: var(--txt-2); }
-.pl8-lbl { font-size: var(--text-meta); font-weight: 600; color: var(--txt-2); }
-.pl8-txt { display: block; width: 100%; min-height: 96px; resize: none; font: 16px/1.4 var(--gize-font); }
 .plate-sheet.ok .pl8-photo { max-height: 96px; }
 .pl8-photo { width: 100%; max-height: 180px; object-fit: cover; border-radius: var(--r-box); border: 1px solid var(--border); flex: none; }
-.pl8-dijo { padding: 10px 12px; border-left: 3px solid color-mix(in srgb, var(--gize-r2) 60%, var(--border)); border-radius: 0 10px 10px 0; background: var(--card-2);
-  color: var(--txt-2); font-size: var(--text-meta); line-height: 1.45; overflow-wrap: anywhere; }
 .pl8-wait { display: flex; align-items: center; gap: 10px; padding: 14px 2px; color: var(--txt-2); }
 .pl8-spin { width: 18px; height: 18px; flex: none; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--blue); animation: pl8-giro .8s linear infinite; }
 @keyframes pl8-giro { to { transform: rotate(360deg); } }

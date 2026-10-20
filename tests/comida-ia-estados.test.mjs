@@ -44,7 +44,7 @@ export default async function ({ base, t }){
     ['límite de la persona', { estado: 'tope_persona', vuelve: '2026-11-10T12:00:00Z' }, 'Llegaste a tu límite personal de este mes con IA. Vuelve el 10 de noviembre. Mientras, buscalo o escaneá el código.'],
     ['límite del mes', { estado: 'tope_mes', vuelve: '2026-11-10T12:00:00Z' }, 'La IA de GIZE llegó a su límite de este mes: cargalo a mano. Vuelve el 10 de noviembre.'],
     ['pausada', { estado: 'pausada' }, 'La IA está pausada por ahora. Cargalo a mano.'],
-    ['ahorro', { estado: 'ahorro' }, 'Por este mes, la foto y el texto con IA quedan para alumnos con coach. Buscalo o escaneá el código.'],
+    ['ahorro', { estado: 'ahorro' }, 'Por este mes, la foto del plato con IA queda para alumnos con coach. Buscalo o escaneá el código.'],
   ]){
     const { p, errs, S, close } = await pagina({ estado: Object.assign({}, OK, est) });
     await abrirComida(p, base); await abrirBuscador(p);
