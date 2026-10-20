@@ -25,8 +25,9 @@ En este orden, cada archivo en una sola transacción (como la tarea sql del work
 4. `ayudas.sql`: el esquema `prueba`, solo de la base de pruebas: correr SQL como cada persona (su
    rol y su `auth.uid()`, como PostgREST), con o sin deshacer, y los invariantes de los gimnasios.
 
-Eso es la base de hoy, `gize_sin`. Con `supabase/gimnasios.sql` y `supabase/gimnasios-vinculo.sql`
-encima, `gize_con`. Las dos se arman una vez por proceso (menos de 2 segundos) y cada prueba
+Eso es la base de hoy, `gize_sin`. Con los archivos de los gimnasios encima (`GIMNASIOS` en
+`tests/pg.mjs`: `gimnasios.sql`, `gimnasios-vinculo.sql` y, desde la etapa 1, `gimnasios-lectura.sql` y
+`gimnasios-socios.sql`), `gize_con`. Las dos se arman una vez por proceso (menos de 2 segundos) y cada prueba
 trabaja en una copia nueva.
 
 ## Correrla
@@ -53,6 +54,7 @@ carpeta anota el proceso de la prueba en `prueba.pid`).
 | `GIZE_PG_OBLIGATORIO=1` | Si no hay Postgres, falla en vez de saltearse (lo usa GitHub). |
 | `GIZE_PG_SALTEAR=1` | Se saltean siempre. |
 | `GIZE_SEMILLAS`, `GIZE_SEMILLA` | Cuántas semillas al azar corre `gimnasios-igual` (200) y desde cuál: para repetir una que falló, `GIZE_SEMILLA=n GIZE_SEMILLAS=1`. |
+| `GIZE_SEMILLAS_SIN` | Cuántas corre la comparación contra `gize_sin` de `gimnasios-igual` (30). |
 
 En GitHub corren en **Base de pruebas** (`.github/workflows/base-de-pruebas.yml`): con cada push a
 cualquier rama que cambie `supabase/`, estas pruebas o el workflow; con la imagen `postgres:16`
@@ -63,10 +65,18 @@ fijada por digest en `.github/postgres-pruebas/Dockerfile`; sin secrets.
 | Archivo | Qué prueba |
 |---|---|
 | `gimnasios-base` | Que la base se arma; que cada función que una nota «OJO» declara vigente quedó con el cuerpo de ese archivo (si el orden estuviera mal, lo dice); que `gimnasios.sql` no cambia nada de lo que ya existía (huella del esquema igual, y las operaciones de hoy dan lo mismo); que los dos archivos se pueden volver a correr; que volver atrás deja exactamente la huella de la base de hoy; que correrlos en el orden equivocado falla sin cambiar nada; que la nota de `pasos-grupos.sql` deja los filtros de bloqueos; qué ve la huella (triggers con funciones de otros esquemas, permisos por defecto, ajustes del servidor); y que el cluster local no lo alcanza otro usuario y se limpia con `SIGHUP` o en la corrida siguiente. |
-| `gimnasios-igual` | «Sin gimnasios todo sigue igual»: las cuatro funciones canónicas contra las de hoy (que salen del bloque comentado de `gimnasios-vinculo.sql`), con 200 semillas de datos al azar; y después de cada operación, `seats_used` igual al recuento. |
+| `gimnasios-igual` | «Sin gimnasios todo sigue igual»: las cuatro funciones canónicas contra las de hoy (que salen del bloque comentado de `gimnasios-vinculo.sql`), con 200 semillas de datos al azar; y después de cada operación, `seats_used` igual al recuento. Desde la etapa 1, además, con los cuatro archivos aplicados contra `gize_sin` con los mismos datos (30 semillas, `GIZE_SEMILLAS_SIN`): lo que lee cada persona (13 tablas, perfiles, mensajes, `coach_billing`, `avatars` y `chat-audio`) y las operaciones de hoy. |
 | `gimnasios-matriz` | La matriz de personas de la spec: qué lee, escribe y borra cada una en cada tabla nueva y en las de hoy, cada función, `join_coach` fila por fila, los casos obligatorios de la etapa 0, la ficha en baja, la solicitud de quien borra su cuenta, los invariantes después de cada operación y la concurrencia (el último lugar, dos desvínculos a la vez, un vínculo y un desvínculo a la vez, y el cron de planes vencidos con un desvínculo: sin deadlock y con el cupo exacto). |
 | `gimnasios-rendimiento` | `EXPLAIN ANALYZE` (sin JIT) de la ficha de un alumno con 500 entrenos, con las funciones de hoy y las nuevas, con el esquema del repo y con un índice en `session_entries(session_id)`; y que `sessions` se lea por su índice. |
-| `gimnasios-sql` | Sin Postgres: cabeceras, permisos, que se pueda volver a correr, los mensajes de `join_coach`, sin mails ni uuids. |
+| `gimnasios-sql` | Sin Postgres: cabeceras, permisos, que se pueda volver a correr, los mensajes de `join_coach`, sin mails ni uuids; desde la etapa 1 también de `gimnasios-lectura.sql` y `gimnasios-socios.sql` (guardas de orden, `revoke` y `grant` escritos, volver atrás que borra cada función, el bucket sin `update` ni `delete`, las tareas en UTC, las versiones en un solo lugar, ningún texto de error que nombre el plan). |
+| `gimnasios-rpc` | Etapa 1. Cada RPC con cada persona de la matriz: quién puede, quién recibe `42501` y quién `P0001`, que lo hecho queda en `gym_audit` y los invariantes después; la forma de `mi_gimnasio` por rol; `gym_crear` con el interruptor; `gym_config` y su lista blanca; exportar con el plan vencido; la recepción (buscar, semáforo, ingreso que no se duplica, dos toques a la vez); las internas sin permiso para la app (también sin los permisos por defecto). |
+| `gimnasios-solicitudes` | Etapa 1. Cómo entra un socio: el código y la hoja con su versión, cancelar, la app vieja, la unión por mail verificado, «aprobar solas», el tope de 30 pedidos, el link `#unirme` con DNI (5 intentos, una vez, 7 días) y sin DNI, aprobar, «es la ficha de…», rechazar y dos aprobaciones a la vez por el último lugar. |
+| `gimnasios-estados` | Etapa 1. Cada fila de §6.13 que no es del plan ni de borrar la cuenta (aprobar, códigos personales, asignar profe con las rutinas programadas, dejar, desvincularse, bloquear, pausar y la vuelta, salir con y sin «seguir con mi profe», baja y reactivar, cerrar el gimnasio) y el equipo (invitar, aceptar con cada estado y el tope de profes, cambiar el rol, quitar con reasignación). |
+| `gimnasios-plan` | Etapa 1. El plan del gimnasio: estado en `mi_gimnasio`, qué anda en los días 0–5, 5–10 y desde el 10, `release_lapsed_gyms`, restaurar con `gym_tick` después de pagar por MP, Apple o el admin, sobre el cupo solo se frenan las altas, y liberar, restaurar y un `join_coach` a la vez. |
+| `gimnasios-borrar` | Etapa 1. Borrar la cuenta de la dueña (cierre y purga a los 90 días), del profe por defecto, de otro profe, de la recepción, del encargado y de un socio; el borrado no falla aunque falle el trigger. |
+| `gimnasios-chat` | Etapa 1. El chat dentro de un gimnasio: el profe que deja de atender no lee ni escucha; el socio conserva todo; nadie más lee chats ajenos; `coach_client_ok` y el `gym_id` de cada mensaje. |
+| `gimnasios-foto` | Etapa 1. La foto del gimnasio (la saca o la aprueba el gimnasio, el socio solo propone): bucket `gym-fotos`, quién sube y ve, tope por día, proponer, aprobar, rechazar, sacarla el gimnasio; la de perfil no la reemplaza. |
+| `gimnasios-lectura` | Etapa 1. Lo que lee la administración (11 tablas, cuándo deja de leer, leer no es editar), registro diario sin `steps` y salidas sin `track`, las fotos de perfil entre el gimnasio y sus socios, y la fila de `coach_billing` que no ve el profe con la app vieja. |
 
 ## Dónde la base de pruebas puede no ser producción
 
@@ -109,6 +119,25 @@ Ninguna de estas formas imprime datos de nadie: la huella es estructura, hashes 
 Si aparece una diferencia en D1, se corrige `esquema-base.sql`; en D2 o D3, se copia al repo lo
 que está en producción (o se vuelve a correr el archivo del repo, si lo correcto es el repo).
 
+## Etapa 1 (parte P1: base de datos y permisos)
+
+- **Archivos:** `gimnasios-vinculo.sql` suma lo que faltaba del paso 2 de §6.7 (política de
+  `coach_billing` para las apps viejas, políticas del chat, `routine_schedule_on_coach_change` con
+  `gize.gym_keep_routines`, el `before delete` de `profiles`, las guardas de `admin_set_role` y
+  `admin_unlink`, los avisos de `profiles_gym_sync`) y las internas que usan `join_coach` y el borrado
+  (`gym_pedir`, `gym_aprobar_interno`, `gym_cupo_ok`, `gym_cerrar_interno`…). `gimnasios-lectura.sql`:
+  las 11 políticas de lectura de la administración, `gym_registro_lectura` y `gym_cardio_lectura`, y
+  `avatars`. `gimnasios-socios.sql`: columnas, el bucket `gym-fotos`, `gym_versiones()`, todas las RPC
+  de la etapa 1 y las tareas `gize-gym-tick` y `gize-gym-diaria`.
+- **Personas:** las pruebas de la etapa 1 usan `tests/gimnasios-comun.mjs` (la matriz de la etapa 0
+  con un segundo profe, un coach sin gimnasio y cuentas nuevas; nombres inventados) en vez de ayudas
+  en `ayudas.sql`; el reloj no se simula: se corren las fechas de `coach_billing` y de las fichas.
+- **Restaurar al pagar** no es un trigger en `coach_billing` (el pago escribe esa fila antes que los
+  perfiles, al revés que todo lo demás): lo hace `gym_tick` cada minuto, en su propia transacción.
+- **Lo que queda para las partes siguientes:** `rapid-worker` y `avisos-coach` con
+  `coach_client_ok` y el `gym_id` de cada mensaje (P4; la base ya lo prueba en `gimnasios-chat`); la
+  prueba de punta a punta del `400` de `join_coach` con PostgREST y las funciones de admin (P5).
+
 ## Lo que la etapa 0 deja anotado para la etapa 1
 
 - **`join_coach` con el código de un gimnasio** guarda la solicitud y responde `400` con el cuerpo de
@@ -117,10 +146,12 @@ que está en producción (o se vuelve a correr el archivo del repo, si lo correc
   Si no se confirma: responder `P0001` sin guardar la solicitud y mandar a `gize.ar/app`.
 - **La trampa C20**: si un profe deja el gimnasio sin que le reasignen los socios, el vínculo pasa a
   ser propio y los sigue leyendo con su plan. Lo evita `gym_quitar_staff`, que tiene que reasignar
-  en la misma operación; `gimnasios-matriz` lo deja a la vista (invariante I2).
-- **Antes del primer gimnasio**: `rapid-worker` y `avisos-coach` con `coach_client_ok`,
+  en la misma operación; `gimnasios-matriz` lo deja a la vista (invariante I2). Cerrada en la etapa 1:
+  `gym_quitar_staff` reasigna (o deja sin profe) en la misma transacción (`gimnasios-matriz`,
+  `gimnasios-estados`).
+- **Antes del primer gimnasio**: `rapid-worker` y `avisos-coach` con `coach_client_ok` (P4),
   `release_lapsed_gyms` y el `before delete` de `profiles` (cerrar el gimnasio del dueño que borra
-  su cuenta).
+  su cuenta). Los dos últimos, hechos en la etapa 1 (P1).
 - **Cupo y bloqueos de filas**: los triggers del cupo actualizan la fila de `coach_billing` del coach
   anterior y del nuevo, siempre al final: primero se bloquean las filas de `profiles` (y de las
   tablas de gimnasios) y recién después las de `coach_billing`, en orden de `coach_id`, y se cuenta
@@ -129,7 +160,7 @@ que está en producción (o se vuelve a correr el archivo del repo, si lo correc
   `coach_billing` antes de soltar a los alumnos. Las RPC nuevas que cambien vínculos tienen que
   respetar ese orden. Ojo con la restauración al pagar (§6.13): el pago escribe `coach_billing`
   antes que los perfiles, al revés que todo lo demás; `gym_restaurar` tiene que soltar esa fila o
-  hacerse en otra transacción.
+  hacerse en otra transacción. Resuelto en la etapa 1: sin trigger, lo hace `gym_tick`.
 - **El profe de la ficha** (`trainer_id`) ya no lo escribe nadie a mano: sale de `gym_profe_ficha`
   en cada escritura de la ficha y en cada cambio de coach. Las RPC de la etapa 1 cambian el coach
   (`profiles.coach_id`) o el estado y la ficha se alinea sola. La trampa C20 sigue (cuando un profe
