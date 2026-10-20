@@ -74,3 +74,21 @@ export const shoeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 export const bikeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="16.5" r="3.5"/><circle cx="18.5" cy="16.5" r="3.5"/><path d="M5.5 16.5H11L9 9Z"/><path d="M9 9h7l2.5 7.5M11 16.5 16 9"/><path d="M8.7 7.6h2.6M16 9l-.8-2.5h2.3"/></svg>';
 // Corazón con pulso (genérico, propio): el botón para conectar Salud de Apple / Health Connect.
 export const heartPulseSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s-8-4.7-8-10.6A4.4 4.4 0 0 1 12 7.3a4.4 4.4 0 0 1 8 2.6c0 5.9-8 10.6-8 10.6Z"/><path d="M5.2 13H8.4l1.5-2.6 2.6 5 1.6-2.4h4.7"/></svg>';
+
+// Comida: agregar un alimento y la foto del plato con IA (en lugar de los emojis 📷 🖼️ 👇 ✓).
+const ic = d => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+export const cameraSvg = ic('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>');
+export const imageSvg = ic('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>');
+// La chispa de la IA (el mismo dibujo en el botón «Foto», la etiqueta «IA» y lo estimado).
+export const sparkleSvg = ic('<path d="M9.94 15.5a2 2 0 0 0-1.44-1.44l-6.13-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.13a.5.5 0 0 1 .96 0l1.58 6.13a2 2 0 0 0 1.44 1.44l6.13 1.58a.5.5 0 0 1 0 .96l-6.13 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.13a.5.5 0 0 1-.96 0z"/><path d="M20 3v4M22 5h-4M4 17v2M5 18H3"/>');
+export const alertSvg = ic('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/>');
+export const plusSvg = ic('<path d="M12 5v14M5 12h14"/>');
+export const minusSvg = ic('<path d="M5 12h14"/>');
+export const clockSvg = ic('<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>');
+export const infoSvg = ic('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>');
+export const wifiOffSvg = ic('<path d="M12 20h.01M8.5 16.43a5 5 0 0 1 7 0M5 12.86a10 10 0 0 1 5.17-2.69M19 12.86a10 10 0 0 0-2-1.52M2 8.82a15 15 0 0 1 4.18-2.64M22 8.82a15 15 0 0 0-11.29-3.76M2 2l20 20"/>');
+export const shieldSvg = ic('<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>');
+export const dropletSvg = ic('<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>');
+export const messageSvg = ic('<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>');
+export const scanSvg = ic('<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>');
+export const toggleSvg = ic('<rect x="2" y="6" width="20" height="12" rx="6"/><circle cx="16" cy="12" r="2"/>');
