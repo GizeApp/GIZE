@@ -89,7 +89,15 @@ function pintar(){
   if (m === "aceptar" && !GS.aceptar) cargarAceptar();
   return true;
 }
-const repintar = () => { if (dibujado || modo()) { if (pintar() === "coach") renderCoach(); } };
+// Si el panel estaba dibujado y ya no corresponde (mi_gimnasio dice que la sacaron del equipo o que
+// el gimnasio cerró), pintar() lo limpia y acá se vuelve a la app de siempre (renderCoach o
+// renderApp, por core/gimnasio.js): si no, quedaba la pantalla en blanco hasta recargar.
+const repintar = () => {
+  if (!dibujado && !modo()) return;
+  const antes = dibujado, r = pintar();
+  if (r === "coach") renderCoach();
+  else if (!r && antes && !dibujado) redibujar();
+};
 
 function vista(){
   switch (GS.view){

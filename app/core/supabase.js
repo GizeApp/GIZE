@@ -41,7 +41,7 @@ import { TRACK_KEY, pruneTracks } from './salidas.js';
 import { deleteShareFile } from '../ui/compartir.js';
 
 // Gimnasios (core/gimnasio.js): mi_gimnasio() al entrar y los links #gimnasio / #equipo=.
-import { GYM_CACHE, avisarCodigo, cargarPanelGym, consultarGym, ingresoParaLink, quiereGym } from './gimnasio.js';
+import { GYM_CACHE, avisarCodigo, cargarPanelGym, consultarGym, gymSinEspera, ingresoParaLink, quiereGym } from './gimnasio.js';
 
 export const SB_URL = "https://wegptuzhsrwppbknqstf.supabase.co";
 
@@ -1034,6 +1034,7 @@ export async function afterLogin(sessionUser, stale){
   // respuesta cambia algo, se redibuja cuando llega. Solo el equipo del gimnasio (o un link del
   // gimnasio) carga el panel del gimnasio.
   if(gymQ && gymQ.primera) await conTope(gymQ.lista, Math.min(4000, resta()), null);
+  gymSinEspera();
   if(quiereGym()) await conTope(cargarPanelGym(), Math.min(4000, resta()), false);
   // Registro con Google (o Apple) eligiendo "Soy coach": la cuenta nace como cliente (ver login-google.sql).
   const gi=takeGoogleIntent();

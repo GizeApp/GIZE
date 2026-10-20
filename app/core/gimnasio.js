@@ -25,7 +25,9 @@ const CREAR_KEY = "gize_gym_crear", EQUIPO_KEY = "gize_gym_equipo", CODIGO_KEY =
 const TOPE_MS = 4000;
 // info: lo último que dijo mi_gimnasio() para esta cuenta (o la copia guardada). leido: ya contestó
 // (o se cortó) en esta sesión. ui: el panel del gimnasio, cuando se cargó (app/screens/gym/index.js).
-export const Gym = { info: null, uid: null, leido: false, ui: null, cargando: null };
+// espera: afterLogin todavía espera la respuesta para dibujar (primer ingreso en este dispositivo); si
+// llega después, aunque sea antes del tope de 4 s, se redibuja (gymSinEspera).
+export const Gym = { info: null, uid: null, leido: false, ui: null, cargando: null, espera: false };
 
 // ---- Links ----
 (function leerLink(){
@@ -96,12 +98,16 @@ export function consultarGym(sinRed){
   Gym.uid = uid || null; Gym.leido = false;
   const c = uid ? guardada(uid) : null;
   Gym.info = c ? c.info : null;
+  Gym.espera = true;
   if (!uid || !State.sb || sinRed) { Gym.leido = true; return { primera: false, lista: Promise.resolve(null) }; }
   let t;
   const tope = new Promise(ok => { t = setTimeout(() => ok({ tarde: true }), TOPE_MS); });
   const pedido = Promise.resolve(State.sb.rpc("mi_gimnasio")).then(r => r, e => ({ error: e }));
   const lista = Promise.race([pedido.finally(() => clearTimeout(t)), tope]).then(r => {
-    if (r && !r.tarde && !r.error && State.cloudUser && State.cloudUser.id === uid){ aplicar(uid, r.data); return r.data || null; }
+    // A tiempo: si afterLogin ya no la esperaba (había copia guardada, o se le acabó el tope del
+    // arranque) y cambió el rol o el gimnasio, se redibuja: la copia decía dueña y la sacaron del
+    // equipo (si no, quedaba la pantalla en blanco), o decía «sin gimnasio» y ahora es del equipo.
+    if (r && !r.tarde && !r.error && State.cloudUser && State.cloudUser.id === uid){ if (aplicar(uid, r.data) && !Gym.espera) redibujar(); return r.data || null; }
     // Tarde: si llega después, se aplica igual (y se redibuja si cambió algo).
     if (r && r.tarde) pedido.then(x => { if (x && !x.error && State.cloudUser && State.cloudUser.id === uid && aplicar(uid, x.data)) redibujar(); });
     Gym.leido = true;
@@ -109,6 +115,8 @@ export function consultarGym(sinRed){
   });
   return { primera: !c, lista };
 }
+// afterLogin ya no espera la respuesta: lo que cambie de acá en adelante se redibuja cuando llegue.
+export function gymSinEspera(){ Gym.espera = false; }
 // Guarda la respuesta. Devuelve true si cambió el rol o el gimnasio (hay que redibujar).
 function aplicar(uid, data){
   const antes = JSON.stringify([rolGym(), Gym.info && Gym.info.gym && Gym.info.gym.id]);

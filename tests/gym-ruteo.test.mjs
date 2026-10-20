@@ -97,6 +97,29 @@ export default async function ({ base, t }){
     t.ok(antes.coach && !antes.gym && despues.gym, 'mi_gimnasio tarde: primero el panel de coach y, cuando llega, el del gimnasio: ' + JSON.stringify([antes, despues]));
     await pg.close();
   }
+  // La respuesta llega a tiempo (1,5 s, antes del tope de 4 s) pero después de entrar con la copia:
+  // también se redibuja. Copia «dueña» o «administración» y ya no es del equipo (la sacaron desde otro
+  // dispositivo): la app de siempre, no la pantalla en blanco. Copia «sin gimnasio» y ahora es dueña:
+  // el panel aparece solo.
+  for (const [quien, user, rol, gymRol] of [['dueña (coach)', DUENA, 'coach', 'owner'], ['administración (cuenta común)', ADMIN_G, 'client', 'admin']]){
+    const copia = `localStorage.setItem('gize_gym_v1', JSON.stringify({ uid: '${user.id}', info: ${JSON.stringify(miGimnasio(gymRol))}, t: 1 }));`;
+    const pg = await entrar(base, user, { init: copia, rol, nombre: 'Diego Admin', espera: 800, rpc: { mi_gimnasio: () => ({ demora: 1500, valor: null }) } });
+    await wait(4500);
+    const v = await enPanel(pg.p);
+    const algo = await pg.p.evaluate(() => (document.getElementById('coachHost').innerText + document.getElementById('view').innerText).trim().length);
+    t.ok(!v.gym && (rol === 'coach' ? v.coach : v.app) && algo > 20, quien + ' que ya no es del equipo (respuesta en 1,5 s): la app de siempre, no la pantalla en blanco: ' + JSON.stringify(v));
+    t.eq(pg.errs, [], quien + ': sin errores');
+    await pg.close();
+  }
+  {
+    const copia = `localStorage.setItem('gize_gym_v1', JSON.stringify({ uid: '${DUENA.id}', info: null, t: 1 }));`;
+    const pg = await entrar(base, DUENA, { init: copia, espera: 800, rpc: { mi_gimnasio: () => ({ demora: 1500, valor: miGimnasio() }) } });
+    const antes = await enPanel(pg.p);
+    await wait(4000);
+    const despues = await enPanel(pg.p);
+    t.ok(!antes.gym && despues.gym, 'copia «sin gimnasio» y mi_gimnasio dice dueña en 1,5 s: el panel del gimnasio aparece solo: ' + JSON.stringify([antes, despues]));
+    await pg.close();
+  }
   // gize.ar/gimnasio → /app/#gimnasio; la dueña con #gimnasio entra a su panel (y el # se va).
   {
     const html = fs.readFileSync(new URL('../gimnasio/index.html', import.meta.url), 'utf8');
