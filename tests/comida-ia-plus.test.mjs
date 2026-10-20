@@ -160,6 +160,7 @@ export default async function ({ base, t }){
     const a = await txt(p, '#cfgPlus');
     t.has(a, 'Gratis: 3 usos de IA por semana', 'Android, Ajustes: los usos gratis');
     t.ok(!PROHIBIDO.test(a) && !/US\$/.test(a), 'Android, Ajustes: sin precio');
+    await shot(p, '13-android-ajustes');
     t.eq(S.suscripcion.length + S.apple.length, 0, 'Android: no pide nada');
     t.eq(errs, [], 'Android: errores de la página');
     await close();
