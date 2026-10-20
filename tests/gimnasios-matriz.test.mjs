@@ -26,6 +26,9 @@
 //    dueña), dos pedidos a la vez con el código del gimnasio de la misma persona, dos alumnos que se
 //    desvinculan a la vez (y un join_coach con un desvínculo): el cupo queda exacto; y el cron de los
 //    planes vencidos con un alumno que se desvincula a la misma hora no se trancan.
+// Etapa 1 (con los cuatro archivos): la administración lee a quien compartió, la dueña que borra su
+// cuenta cierra el gimnasio, la trampa C20 la cierra gym_quitar_staff, y gym_quitar_staff con un
+// desvínculo a la vez no se tranca. Cada RPC con cada persona: gimnasios-rpc.
 import { conPg } from './pg.mjs';
 
 const ID = n => 'a0000000-0000-4000-8000-' + n.padStart(12, '0');
@@ -447,6 +450,12 @@ export default async function ({ t }){
   t.eq(c20[1], true, 'trampa C20: el profe que se fue sin reasignar sigue leyendo a A1 con su plan propio (requisito de la etapa 1)');
   t.ok(c20[2].some(v => v.startsWith('I2')), 'y el invariante I2 lo marca: ' + JSON.stringify(c20[2]));
   t.eq([c20[2].filter(v => !v.startsWith('I2')), c20[3]], [[], 3], 'al irse se recalculó su cupo (I1): A1 y A2 pasan a contar como alumnos propios, con P1');
+  // Etapa 1: gym_quitar_staff la cierra (reasigna en la misma operación).
+  const c20b = await V([['dA', `select to_jsonb(public.gym_quitar_staff('${P.pA1}', null))`],
+    ['pA1', `select jsonb_build_array(public.is_my_client('${P.A1}'), public.is_my_client('${P.A2}'), public.is_my_client('${P.P1}'), (select count(*) from public.gym_members))`],
+    ['postgres', 'select prueba.invariantes()'], ['postgres', `select to_jsonb(seats_used) from public.coach_billing where coach_id = '${P.pA1}'`]]);
+  t.eq([c20b[0].sin_profe, c20b[1], c20b[2], c20b[3]], [2, [false, false, true, 0], [], 1],
+    'etapa 1: con gym_quitar_staff, A1 y A2 quedan sin profe en la misma operación: el profe que se fue no los lee, I2 en orden y su cupo vuelve a 1 (P1)');
 
   // Caso 14 (a medias): borrar la cuenta de cada uno no falla y el estado queda coherente.
   const BORRAR = async quien => (await V([['postgres', `update public.gyms set default_trainer_id = '${P.pA1}' where id = '${G.A}'`],
@@ -610,5 +619,17 @@ export default async function ({ t }){
     'el cron (release_lapsed_clients) y el alumno que se desvincula terminan los dos, sin deadlock: ' + JSON.stringify(tres));
   t.eq(await J(`select to_jsonb(count(*)) from public.profiles where coach_id = '${V2}';`), 0, 'los tres quedan sin el coach vencido');
   t.eq(await INV(), [], 'invariantes (seats_drift vacío) después del cron y el desvínculo a la vez');
+
+  // f) Etapa 1: gym_quitar_staff (bloquea los perfiles de sus socios) contra un socio que se desvincula
+  //    en Ajustes a la misma hora y otro que se suma con el código del profe: sin deadlock, cupo exacto.
+  const quitar = db.json(`begin; set local role authenticated;
+    select set_config('request.jwt.claims', '{"sub":"${P.dA}","role":"authenticated"}', true);
+    select public.gym_quitar_staff('${P.pA1}', '${P.dA}')::jsonb; select pg_sleep(0.6); commit; select to_jsonb(true);`).catch(e => ({ error: e.code, msg: e.msg }));
+  const cuatro = await Promise.all([quitar, salir(P.A2, 0.2, 0),
+    db.json(`select pg_sleep(0.3); begin; update public.profiles set full_name = full_name where id = '${P.A1}'; select pg_sleep(0.1); commit; select to_jsonb(true);`).catch(e => ({ error: e.code, msg: e.msg }))]);
+  t.ok(cuatro.every(r => r === true), 'gym_quitar_staff, un socio que se desvincula y otro perfil tocado a la vez: terminan todos, sin deadlock: ' + JSON.stringify(cuatro));
+  t.eq(await J(`select jsonb_build_array((select coach_id from public.profiles where id = '${P.A2}'), (select coach_id = '${P.dA}' from public.profiles where id = '${P.A1}'),
+      (select count(*) from public.gym_staff where user_id = '${P.pA1}' and left_at is null), prueba.invariantes());`), [null, true, 0, []],
+    'A2 quedó sin profe, A1 pasó a la dueña, pA1 dejó el equipo y el cupo quedó exacto');
   await db.borrar();
 }

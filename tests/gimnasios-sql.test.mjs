@@ -186,6 +186,64 @@ export default async ({ t }) => {
   t.ok(/^\s*with\b/i.test(huella) && /select jsonb_object_agg\(k, v\) as huella from kv;\s*$/.test(huella), 'esquema-huella.sql: una sola consulta que devuelve un JSON');
   t.ok(!/\b(insert|update|delete|create|alter|drop|grant|revoke|truncate|set_config|nextval)\b/i.test(huella.replace(/'[^']*'/g, '')), 'esquema-huella.sql solo lee');
 
+  // ===== Etapa 1: gimnasios-lectura.sql y gimnasios-socios.sql =====
+  const l = read('supabase/gimnasios-lectura.sql'), so = read('supabase/gimnasios-socios.sql');
+  t.ok(!!l && !!so, 'existen gimnasios-lectura.sql y gimnasios-socios.sql');
+  const lc = sinComentarios(l.slice(0, l.indexOf('-- ===== Para volver atrás ====='))), sc = sinComentarios(so.slice(0, so.indexOf('-- ===== Para volver atrás =====')));
+  const [lAtras, sAtras] = [l, so].map(x => x.slice(x.indexOf('-- ===== Para volver atrás =====')).split('\n').filter(z => z.startsWith('-- ')).map(z => z.slice(3)).join('\n'));
+  t.ok(cabeza(l, 5).includes('Correr con el workflow "Supabase" → tarea sql → supabase/gimnasios-lectura.sql, después de supabase/gimnasios.sql y supabase/gimnasios-vinculo.sql. Se puede correr varias veces.'),
+    'gimnasios-lectura.sql: cómo correrlo, después de qué y que se puede volver a correr');
+  t.ok(cabeza(so, 6).includes('Correr con el workflow "Supabase" → tarea sql → supabase/gimnasios-socios.sql, después de supabase/gimnasios.sql, supabase/gimnasios-vinculo.sql y supabase/gimnasios-lectura.sql. Se puede correr varias veces.'),
+    'gimnasios-socios.sql: cómo correrlo, después de qué y que se puede volver a correr');
+  for (const [f, x] of [['gimnasios-lectura.sql', l], ['gimnasios-socios.sql', so]])
+    t.ok(/SIN GIMNASIOS TODO SIGUE IGUAL/.test(x.split('\n').slice(0, 15).join('\n')), f + ': dice que sin gimnasios todo sigue igual');
+  for (const [f, xc] of [['gimnasios-lectura.sql', lc], ['gimnasios-socios.sql', sc]]){
+    const g1 = xc.indexOf("raise exception 'Primero correr supabase/gimnasios.sql");
+    t.ok(g1 > 0 && g1 < xc.indexOf('create or replace function'), f + ': lo primero controla que estén los archivos anteriores');
+    t.ok(/notify pgrst, 'reload schema';\s*$/.test(xc.trim() + '\n'), f + ': termina con notify pgrst');
+    t.ok(!/drop table|drop column/i.test(xc), f + ': ningún drop table ni drop column (fuera del bloque para volver atrás)');
+    t.ok(!/grant [^;]*\bto\b[^;]*\b(anon|public)\b/i.test(xc) && !/grant (insert|update|delete|all)/i.test(xc), f + ': ningún grant para anon o public, ni de escritura');
+    const fx = [...xc.matchAll(/create or replace function public\.(\w+)\(([^\n]*)\)\s*returns[\s\S]*?\nas \$\$/g)];
+    t.ok(fx.length > 0 && fx.every(m => /security definer\s+set search_path = public/.test(m[0])), f + ': todas las funciones security definer con search_path fijo (' + fx.length + ')');
+    // Cada función tiene su revoke escrito (de public y anon, como mínimo), y las que llama la app, su grant.
+    for (const m of fx){
+      const sig = m[1];
+      t.ok(new RegExp('revoke (all|execute) on function public\\.' + sig + '\\([^)]*\\) from public, anon').test(xc), f + ': ' + sig + ' tiene su revoke (de public y anon)');
+    }
+    // Volver atrás: borra cada función que crea.
+    const atrasX = f === 'gimnasios-lectura.sql' ? lAtras : sAtras;
+    t.eq(fx.map(m => m[1]).filter(n => !new RegExp('public\\.' + n + '\\(').test(atrasX)), [], f + ': el bloque para volver atrás borra cada función que crea');
+    for (const m of xc.matchAll(/create policy "([^"]+)" on (\S+)/g)){
+      const drop = m[2] === 'public.%I' ? 'drop policy if exists "' + m[1] + '" on public.%I' : 'drop policy if exists "' + m[1] + '" on ' + m[2] + ';';
+      t.ok(xc.includes(drop), f + ': política «' + m[1] + '» se borra antes de crearla');
+    }
+    t.ok(!/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}/.test(f === 'gimnasios-lectura.sql' ? l : so), f + ': sin mails');
+    t.ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(f === 'gimnasios-lectura.sql' ? l : so), f + ': sin uuids');
+  }
+  t.ok(/create policy "gimnasio lee lo que el socio compartió" on public\.%I for select to authenticated/.test(lc) && /\(select public\.gym_socios_compartidos\(\)\)::uuid\[\]/.test(lc),
+    'lectura: las políticas son for select (las «for all» no se tocan) y piden la lista una vez por consulta');
+  t.ok(/to_jsonb\(d\) - 'steps'/.test(lc) && /to_jsonb\(c\) - 'track'/.test(lc), 'gym_registro_lectura sin steps y gym_cardio_lectura sin track');
+  // Columnas, bucket y tareas.
+  t.ok([...sc.matchAll(/add column if not exists (\w+)/g)].length === 9, 'socios: 9 columnas nuevas, todas «if not exists»');
+  const addsS = [...sc.matchAll(/add constraint (\w+)/g)].map(m => m[1]);
+  t.ok(addsS.length >= 2 && addsS.every(c => sc.includes('drop constraint if exists ' + c + ';')), 'cada check se borra antes de crearlo');
+  t.ok([...sc.matchAll(/create (unique )?index (\S+)/g)].every(m => m[2] === 'if'), 'índices «if not exists»');
+  t.ok(/values \('gym-fotos', 'gym-fotos', false, 307200, array\['image\/jpeg', 'image\/webp'\]\)/.test(sc), 'bucket gym-fotos privado, 300 KB, jpg o webp');
+  t.ok(!/create policy "[^"]+" on storage\.objects\s+for (update|delete)/.test(sc), 'gym-fotos: sin update ni delete desde la app');
+  t.ok(/cron\.schedule\('gize-gym-tick', '\* \* \* \* \*'/.test(sc) && /cron\.schedule\('gize-gym-diaria', '10 6 \* \* \*'/.test(sc)
+    && sc.includes("select cron.unschedule('gize-gym-tick') where exists") && sc.includes("select cron.unschedule('gize-gym-diaria') where exists"),
+    'las dos tareas, en UTC, y se pueden volver a programar');
+  t.ok(!/create trigger[^;]*coach_billing/i.test(sc + lc + vc), 'restaurar al pagar no es un trigger en coach_billing (lo hace gym_tick)');
+  t.ok((sc.match(/'2026-10-borrador'/g) || []).length === 3 && /function public\.gym_versiones\(\)\s*returns jsonb/.test(sc), 'las versiones de la hoja, «compartir» y el contrato salen de un solo lugar (gym_versiones)');
+  t.ok(sc.includes("insert into public.app_config (key, value) values ('gimnasios', '{\"alta\": false}') on conflict (key) do nothing;"), 'crear gimnasios, apagado por defecto (y no pisa lo que haya)');
+  // Los textos para la persona no nombran el plan ni mandan a pagar (los filtros de las tiendas).
+  const textos = [...(sc + vc).matchAll(/raise exception '([^']+)'/g)].map(m => m[1]).filter(m => !/^(Primero|Faltan) /.test(m) && !viejos.has(m));
+  t.ok(textos.length > 40, 'textos de error: ' + textos.length);
+  for (const m of textos){
+    t.ok(!/renov|renuev|ampl[ií]|eleg[ií] un plan|pag[aá]r|precio|\$/i.test(m), 'no manda a renovar, ampliar ni pagar: ' + m);
+  }
+  t.ok(!textos.some(m => /\bplan\b/i.test(m)), 'ningún texto de error nombra «el plan»: ' + textos.filter(m => /\bplan\b/i.test(m)).join(' | '));
+
   // La lista de la base de pruebas.
   const lista = read('tests/pg/orden.txt').split('\n').map(l => l.replace(/#.*/, '').trim()).filter(Boolean);
   const fuera = ['cuentas-demo.sql', 'auditoria.sql', 'estado.sql', 'seguridad-chequeo.sql', 'esquema-huella.sql', 'gimnasios.sql', 'gimnasios-vinculo.sql', 'gimnasios-lectura.sql', 'gimnasios-socios.sql'];
