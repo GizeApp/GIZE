@@ -221,6 +221,8 @@ export function renderCoach(){
         ];
         // Ficha: lo del alumno. Estadísticas: lo que fue registrando y el bloque (mesociclo), desde
         // donde se arman las semanas y las rutinas de descarga.
+        // Socio del gimnasio: «Dejar de ser su profe» en vez de «Desvincular alumno»; con el acceso de los profes
+        // pausado, ninguno (gym_ficha_profe no da la ficha: el botón fallaba siempre).
         const gymF=conTarjetaGym(d); if(gymF) cargarFichaGym(d);
         const ORDER={ ficha:gymF?["chat","gimnasio","ficha","habitos"]:["chat","ficha","habitos"], stats:["bloque","peso","hist","volumen","salidas","daily","checkin"] };
         const cur=SECS.find(x=>x[0]===CoachState.coachSec && x[2]);
@@ -229,7 +231,7 @@ export function renderCoach(){
           panel='<div class="form-head co-sec-head"><button class="form-back" data-coach="sec-close" aria-label="Volver">‹</button><div class="form-title">'+cur[1]+'</div></div>'+
             '<div class="co-panel co-sec-body">'+cur[2]()+'</div>';
         } else {
-          panel='<div class="ptiles co-ptiles">'+shown.map(x=>'<button class="ptile" data-coach="sec-open" data-v="'+x[0]+'"><span class="ptile-t">'+secIcon(x[0])+x[1]+'</span><span class="ptile-s">'+esc(x[3]())+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+(tab==="stats"||d.lectura?'':gymF?'<button class="logout-btn cfg-danger co-remove-client" data-coach="gym-dejar">Dejar de ser su profe</button>':'<button class="logout-btn cfg-danger co-remove-client" data-coach="remove-client">Desvincular alumno</button>');
+          panel='<div class="ptiles co-ptiles">'+shown.map(x=>'<button class="ptile" data-coach="sec-open" data-v="'+x[0]+'"><span class="ptile-t">'+secIcon(x[0])+x[1]+'</span><span class="ptile-s">'+esc(x[3]())+'</span><span class="ptile-go" aria-hidden="true">›</span></button>').join("")+'</div>'+(tab==="stats"||d.lectura?'':gymF?(accesoGym()==="pausado"?'':'<button class="logout-btn cfg-danger co-remove-client" data-coach="gym-dejar">Dejar de ser su profe</button>'):'<button class="logout-btn cfg-danger co-remove-client" data-coach="remove-client">Desvincular alumno</button>');
         }
       }
       // Modo lectura: quién lo edita (el chat y los botones de editar no están).

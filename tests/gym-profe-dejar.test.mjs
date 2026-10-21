@@ -5,8 +5,10 @@
 //   pide si todavía no llegó), lo saca de la lista y de los socios que atiende, vuelve a Clientes y avisa.
 // - Si el servidor no deja (ya no es su profe), su texto y el socio sigue.
 // - Un alumno propio sigue con «Desvincular alumno» (coach_remove_client), como hoy.
+// - Con el acceso de los profes pausado (el servidor no da la ficha), ni «Dejar de ser su profe» ni
+//   «Desvincular alumno» en la ficha del socio; el alumno propio, igual que siempre.
 import { wait } from './lib.mjs';
-import { entrarProfe, fichaProfe, S, F, PROPIO, M, D, hostTxt, rpcs, captura } from './gym-comun.mjs';
+import { entrarProfe, fichaProfe, miGimnasioProfe, S, F, PROPIO, M, D, hostTxt, rpcs, captura } from './gym-comun.mjs';
 
 const clientes = async p => { await p.click('[data-coach="view-clients"]'); await wait(600); };
 const abrir = async (p, id) => { await p.evaluate(id => document.querySelector('#coachHost [data-coach="open"][data-id="' + id + '"]').click(), id); await wait(1200); };
@@ -60,6 +62,21 @@ export default async function ({ base, t }){
     t.ok(!!await p.$('[data-coach="gym-dejar"]:not([disabled])'), 'y la ficha sigue abierta, con el botón para reintentar');
     await clientes(p);
     t.ok((await filas(p)).includes(S.A1), 'el socio sigue en la lista');
+    await pg.close();
+  }
+
+  // Acceso de los profes pausado: sin el botón que fallaba siempre.
+  {
+    const PAUSA = 'El acceso del gimnasio está pausado. Hablá con la administración.';
+    const gym = miGimnasioProfe({ plan: { estado: 'operativo', vence: new Date(Date.now() - 8 * 864e5).toISOString(), pausa_profes_el: new Date(Date.now() - 3 * 864e5).toISOString(), cupo_lleno: false } });
+    const pg = await entrarProfe(base, { vp: D, gym, rpc: { gym_ficha_profe: () => ({ error: 'P0001', msg: PAUSA }) } });
+    const p = pg.p;
+    await clientes(p); await abrir(p, S.A1);
+    t.has(await hostTxt(p), PAUSA, 'pausado: la ficha dice que el acceso está pausado');
+    t.ok(!await p.$('[data-coach="gym-dejar"]') && !await p.$('[data-coach="remove-client"]'), 'pausado: ni «Dejar de ser su profe» ni «Desvincular alumno» en la ficha del socio');
+    await clientes(p); await abrir(p, PROPIO.id);
+    t.ok(!!await p.$('[data-coach="remove-client"]'), 'pausado: el alumno propio sigue con «Desvincular alumno»');
+    t.eq(pg.errs, [], 'pausado: sin errores');
     await pg.close();
   }
 
