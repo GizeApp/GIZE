@@ -21,11 +21,11 @@ const S = { user: null, view: "resumen", overview: null, goals: null, tasks: nul
 // siempre (los links #resumen siguen andando) aunque ahora se llame Objetivos.
 const NAV_MAIN = [["resumen", "Objetivos"], ["usuarios", "Usuarios"], ["finanzas", "Finanzas"], ["seguridad", "Seguridad"]];
 const NAV_MORE = [["contacto", "Mensajes"], ["reportes", "Reportes"], ["productos", "Productos"], ["avisos", "Avisos"], ["ia", "IA"], ["estadisticas", "Estadísticas"]];
-// «Coaches y pagos» no tiene botón propio: es una pestaña de Usuarios (la clave "coaches" y el
-// link #coaches siguen andando; en el menú queda marcado Usuarios).
-const SECTIONS = NAV_MAIN.concat(NAV_MORE, [["coaches", "Coaches y pagos"]]);
-const NAV_OF = { coaches: "usuarios" };
-const userTabs = on => `<div class="tabs">${[["usuarios", "Todos los usuarios"], ["coaches", "Coaches y pagos"]].map(([k, l]) => `<button class="${on === k ? "on" : ""}" data-go="${k}">${l}</button>`).join("")}</div>`;
+// «Coaches y pagos» y «Gimnasios» no tienen botón propio: son pestañas de Usuarios (las claves
+// "coaches" y "gimnasios" y sus links siguen andando; en el menú queda marcado Usuarios).
+const SECTIONS = NAV_MAIN.concat(NAV_MORE, [["coaches", "Coaches y pagos"], ["gimnasios", "Gimnasios"]]);
+const NAV_OF = { coaches: "usuarios", gimnasios: "usuarios" };
+const userTabs = on => `<div class="tabs">${[["usuarios", "Todos los usuarios"], ["coaches", "Coaches y pagos"], ["gimnasios", "Gimnasios"]].map(([k, l]) => `<button class="${on === k ? "on" : ""}" data-go="${k}">${l}</button>`).join("")}</div>`;
 
 // ---------- utilidades ----------
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -143,7 +143,7 @@ function shell(){
 function go(view){
   S.view = view; history.replaceState(null, "", "#" + view);
   document.querySelectorAll(".nav").forEach(b => b.classList.toggle("on", b.dataset.go === (NAV_OF[view] || view)));
-  ({ resumen: loadResumen, estadisticas: loadEstadisticas, contacto: loadContacto, reportes: loadReportes, usuarios: loadUsuarios, coaches: loadCoaches, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad, ia: loadIA })[view]();
+  ({ resumen: loadResumen, estadisticas: loadEstadisticas, contacto: loadContacto, reportes: loadReportes, usuarios: loadUsuarios, coaches: loadCoaches, gimnasios: loadGimnasios, finanzas: loadFinanzas, productos: loadProductos, avisos: loadAvisos, seguridad: loadSeguridad, ia: loadIA })[view]();
 }
 const main = () => document.getElementById("main");
 // Si la página tiene paneles, arriba a la derecha van «Abrir todo» y «Plegar todo».
@@ -247,6 +247,7 @@ async function loadEstadisticas(){
         ${k(n0(o.active7), "Activos en 7 días", n0(o.sessions7) + " entrenos en la semana")}
         ${k(n0(o.paid), "Coaches pagando", n0(o.coaches) + " coaches · " + n0(o.trial) + " en prueba · " + n0(o.courtesy) + " de cortesía")}
         ${k(money(o.mrr), "Ingreso mensual", n0(o.linked) + " de " + n0(o.clients) + " alumnos con coach")}
+        ${o.gyms != null ? k(n0(o.gyms), "Gimnasios", n0(o.gym_socios) + " socios · " + n0(o.gym_profes) + " profes") : ""}
       </div>`) +
     block("hChartsB", "Gráficos", `<div class="grid two">
         <div class="card"><div class="sec-t">Usuarios nuevos por semana</div><div class="sec-s">Últimas 12 semanas</div>${columns(o.signups || [], "usuarios nuevos")}</div>
@@ -561,6 +562,8 @@ function closeDrawer(){ document.querySelectorAll(".drawer, .drawer-bg").forEach
 
 // ---------- Coaches y pagos ----------
 function coachState(c){
+  // Profe de un gimnasio sin alumnos propios: no paga nada (los socios van con el plan del gimnasio).
+  if (c.sin_cargo) return '<span class="pill blue">Sin cargo (gimnasio)</span>';
   if (c.plan === "cortesia") return '<span class="pill blue">Cortesía</span>';
   if (c.paid_until && new Date(c.paid_until) > new Date() && c.plan !== "trial") return `<span class="pill ok">Pagado hasta ${lastDay(c.paid_until)}</span>`;
   if (c.trial_ends_at && new Date(c.trial_ends_at) > new Date()) return `<span class="pill warn">Prueba hasta ${lastDay(c.trial_ends_at)}</span>`;
@@ -578,8 +581,9 @@ async function loadCoaches(){
   const cnt = st => S.coaches.filter(c => coachState(c).includes(st)).length;
   setSum("cListB", S.coaches.length + (S.coaches.length === 1 ? " coach · " : " coaches · ") + cnt("Pagado") + " pagando · " + cnt("Prueba") + " en prueba" + (cnt("Sin pagar") ? ` · <span class="t-bad">${cnt("Sin pagar")} sin pagar</span>` : ""));
   box.className = "tscroll";
-  box.innerHTML = `<table class="table"><thead><tr><th>Coach</th><th>Plan</th><th>Alumnos</th><th>Estado</th><th>Mercado Pago</th><th>Paga</th></tr></thead><tbody>${S.coaches.map(c => `
+  box.innerHTML = `<table class="table"><thead><tr><th>Coach</th><th>Gimnasio</th><th>Plan</th><th>Alumnos</th><th>Estado</th><th>Mercado Pago</th><th>Paga</th></tr></thead><tbody>${S.coaches.map(c => `
     <tr class="row" data-coach="${esc(c.id)}"><td><b>${esc(c.full_name || "Sin nombre")}</b><div class="muted small">${esc(c.email)}</div></td>
+      <td class="muted small">${esc(c.gimnasio || "—")}</td>
       <td>${esc(planTxt(c.plan))}${c.pending_plan ? `<div class="muted small">eligió ${esc(planTxt(c.pending_plan))}</div>` : ""}</td>
       <td>${n0(c.clients)} <span class="muted">/ ${n0(c.max_clients)}</span></td><td>${coachState(c)}</td>
       <td class="muted small">${c.has_mp ? esc(mpTxt(c.mp_status)) : "—"}</td>
@@ -592,7 +596,7 @@ async function loadCoaches(){
 const AR_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" });
 const diaAR = ms => Date.parse(AR_DAY.format(new Date(ms)));
 function venceDe(c){
-  if (c.plan === "cortesia") return null;
+  if (c.plan === "cortesia" || c.sin_cargo) return null;
   const now = Date.now(), paid = c.paid_until ? new Date(c.paid_until).getTime() : 0, trial = c.trial_ends_at ? new Date(c.trial_ends_at).getTime() : 0;
   const t = Math.max(paid, trial); if (!t) return null;
   return { t, que: paid >= trial ? "pago" : "prueba", dias: Math.round((diaAR(t - 1) - diaAR(now)) / 864e5), vencido: t <= now };
@@ -635,7 +639,10 @@ async function openCoach(id){
       <div class="fact"><span>Plan</span><b>${esc(planTxt(c.plan))}</b></div><div class="fact"><span>Estado</span><b>${coachState(c)}</b></div>
       <div class="fact"><span>Alumnos</span><b>${n0(c.clients)} de ${n0(c.max_clients)}</b></div><div class="fact"><span>Pago al día hasta</span><b>${lastDay(c.paid_until)}</b></div>
       <div class="fact"><span>Prueba hasta</span><b>${lastDay(c.trial_ends_at)}</b></div><div class="fact"><span>Mercado Pago</span><b>${c.has_mp ? esc(mpTxt(c.mp_status)) : "Sin suscripción"}</b></div>
+      ${c.gimnasio ? `<div class="fact"><span>Gimnasio</span><b>${esc(c.gimnasio)}</b></div>` : ""}
     </div>
+    <div class="row-btns" style="margin:-6px 0 6px">${c.gym_id ? `<button class="btn" data-a="toGym" data-id="${esc(c.gym_id)}">Ver el gimnasio</button>`
+      : `<button class="btn" data-a="gConv" data-id="${esc(c.id)}">Convertir en gimnasio</button>`}</div>
     ${panel("drPago", "Pago manual", `<div class="sec-s">Cuando te paga (transferencia, efectivo, link), cargá el plan y hasta cuándo queda habilitado. Los meses se cuentan desde que termina lo que ya tiene: si está en la prueba gratis, el plan arranca cuando la prueba termina (no pierde días); si ya estaba al día, desde su vencimiento.</div>
     <label class="lbl">Plan</label>
     <select class="in" id="pmPlan">${Object.keys(PLAN_MAX).map(p => `<option value="${p}"${(c.plan === p || (!PLAN_MAX[c.plan] && p === "p25")) ? " selected" : ""}>${esc(planTxt(p))} · ${money(PLAN_PRICE[p])}/mes</option>`).join("")}</select>
@@ -658,6 +665,188 @@ async function openCoach(id){
     box.innerHTML = (r.subscription ? `<div class="muted" style="margin-bottom:8px">Suscripción ${esc(mpTxt(r.subscription.status))} · ${money(r.subscription.amount)} por mes${r.subscription.next ? " · próximo cobro " + fmtD(r.subscription.next) : ""}</div>` : "") +
       ((r.payments || []).length ? `<table class="table"><tbody>${r.payments.map(p => `<tr><td>${fmtD(p.date)}</td><td>${money(p.amount)}</td><td>${st(p.status)}</td></tr>`).join("")}</tbody></table>` : "Todavía no hay cobros.");
   } catch (e) { box.textContent = "No se pudieron traer los cobros: " + errMsg(e); }
+}
+
+// ---------- Gimnasios ----------
+// Pestaña de Usuarios (supabase/gimnasios-admin.sql). Cada gimnasio con sus marcas (sobre el cupo, plan
+// menor a 100, sin uso a los 30 días, diferencia en el recuento del cupo, cerrado por la baja del
+// dueño), el detalle con el equipo y contadores (sin datos de socios) y las acciones del admin: convertir
+// una cuenta de coach (eligiendo qué alumnos pasan), transferir, cerrar, subir el tope de profes y
+// exportar la auditoría. Los pagos son los de siempre, sobre la fila del dueño (Coaches y pagos).
+// Arriba, el interruptor para crear gimnasios desde gize.ar/gimnasio (app_config «gimnasios»).
+const GYM_ESTADO = { activo: ["ok", "Al día"], gracia: ["warn", "En gracia"], operativo: ["warn", "Profes pausados"], liberado: ["bad", "Socios liberados"], cerrado: ["", "Cerrado"] };
+const GYM_MARCAS = [["sobre_cupo", "bad", "Sobre el cupo"], ["plan_menor_100", "warn", "Plan menor a 100"], ["sin_uso_30", "warn", "Sin uso a los 30 días"],
+  ["diferencia_cupo", "bad", "Diferencia en el cupo"], ["cerrado_por_baja", "bad", "Cerrado por la baja del dueño"]];
+const GYM_ROL = { owner: "Dueño", admin: "Administración", profe: "Profe", recepcion: "Recepción" };
+const gymMarcas = g => GYM_MARCAS.filter(([k]) => g.marcas && g.marcas[k])
+  .map(([k, c, l]) => `<span class="pill ${c}">${l}${k === "cerrado_por_baja" && g.dias_para_borrar != null ? " · se borra en " + n0(g.dias_para_borrar) + " días" : ""}</span>`).join(" ");
+const gymEstado = g => { const [c, l] = GYM_ESTADO[g.estado] || ["", g.estado || "—"]; return `<span class="pill ${c}">${l}</span>`; };
+const gymPago = g => g.apple ? "Apple" + (g.apple_renueva ? " (se renueva)" : "") : g.mp ? "Mercado Pago (" + mpTxt(g.mp) + ")" : g.plan === "cortesia" ? "Cortesía" : g.plan ? "Manual" : "—";
+// Las acciones sobre un gimnasio vuelven a pedir la lista (y el detalle, si está abierto).
+async function afterGym(id){
+  S.coaches = null;
+  if (S.view === "gimnasios") await loadGimnasios();
+  if (id && document.querySelector('.drawer [data-gym-detalle="' + id + '"]')) openGym(id);
+}
+
+async function loadGimnasios(){
+  page("Gimnasios", "Tocá un gimnasio para ver el equipo y las acciones. Los datos de los socios no se ven desde acá.",
+    userTabs("gimnasios") + '<div id="gAlta"></div>' +
+    block("gListB", "Gimnasios", '<div id="gList" class="empty">Cargando…</div>', { act: '<button class="btn sm" data-a="gConv">Convertir una cuenta de coach</button>' }));
+  const box = document.getElementById("gList");
+  try { S.gyms = await rpc("admin_gyms"); } catch (e) { box.textContent = errMsg(e); return; }
+  if (S.view !== "gimnasios") return;
+  paintGymAlta(); paintGyms();
+}
+function paintGymAlta(){
+  const box = document.getElementById("gAlta"); if (!box || !S.gyms) return;
+  const on = !!S.gyms.alta;
+  box.innerHTML = block("gAltaB", "Crear gimnasios", `<div class="ia-master"><div><b>Crear un gimnasio desde gize.ar/gimnasio</b><small>${on
+      ? "Prendido: un coach con la prueba en curso, cortesía o el plan de 100 o más lo puede crear (solo desde la web)."
+      : "Apagado: nadie puede crear un gimnasio. Convertir una cuenta desde acá anda igual."}</small></div>
+    <button class="tgl" role="switch" aria-checked="${on ? "true" : "false"}" aria-label="Crear gimnasios desde gize.ar/gimnasio" data-a="gAlta"></button></div>`,
+    { sum: on ? '<span class="t-ok">prendido</span>' : "apagado" });
+}
+function paintGyms(){
+  const box = document.getElementById("gList"); if (!box || !S.gyms) return;
+  const gs = S.gyms.gyms || [];
+  const abiertos = gs.filter(g => g.estado !== "cerrado"), conMarcas = abiertos.filter(g => GYM_MARCAS.some(([k]) => g.marcas && g.marcas[k])).length;
+  setSum("gListB", n0(abiertos.length) + (abiertos.length === 1 ? " gimnasio" : " gimnasios") + (conMarcas ? ` · <span class="t-bad">${n0(conMarcas)} con marcas</span>` : "")
+    + (gs.length - abiertos.length ? " · " + n0(gs.length - abiertos.length) + " cerrado" + (gs.length - abiertos.length === 1 ? "" : "s") : ""));
+  if (!gs.length){ box.className = "empty"; box.textContent = "Todavía no hay gimnasios. Se crean desde gize.ar/gimnasio (con el interruptor prendido) o convirtiendo una cuenta de coach."; return; }
+  box.className = "tscroll";
+  box.innerHTML = `<table class="table"><thead><tr><th>Gimnasio</th><th>Dueño</th><th>Plan</th><th>Socios</th><th>Profes</th><th>Recepción</th><th>Estado</th><th>Vence</th><th>Pago</th><th>Creado</th><th>Último uso</th></tr></thead><tbody>${gs.map(g => `
+    <tr class="row${g.estado === "cerrado" ? " dim" : ""}" data-gym="${esc(g.id)}"><td><b>${esc(g.nombre)}</b>${g.ciudad ? `<div class="muted small">${esc(g.ciudad)}</div>` : ""}${gymMarcas(g) ? `<div class="gym-marcas">${gymMarcas(g)}</div>` : ""}</td>
+      <td>${g.dueno ? esc(g.dueno.nombre || "Sin nombre") + `<div class="muted small">${esc(g.dueno.email || "")}</div>` : '<span class="muted">Sin dueño</span>'}</td>
+      <td>${esc(planTxt(g.plan))}</td><td>${n0(g.seats_used)} <span class="muted">/ ${n0(g.max)}</span></td>
+      <td>${n0(g.profes_usados)} <span class="muted">/ ${n0(g.profes_tope)}</span></td><td>${n0(g.recepcion)}</td>
+      <td>${gymEstado(g)}</td><td class="muted">${g.estado === "cerrado" ? "—" : g.plan === "cortesia" ? "No vence" : lastDay(g.vence)}</td>
+      <td class="muted small">${esc(gymPago(g))}</td><td class="muted">${fmtD(g.creado)}</td><td class="muted">${ago(g.ultimo_uso)}</td></tr>`).join("")}</tbody></table>`;
+}
+
+let gymReq = 0;
+async function openGym(id){
+  const req = ++gymReq;
+  drawer('<div class="empty">Cargando…</div>');
+  const dr = document.querySelector(".drawer"), vigente = () => req === gymReq && dr.isConnected;
+  let d; try { d = await rpc("admin_gym_detail", { gym: id }); } catch (e) { if (vigente()) drawer(`<div class="empty">${esc(errMsg(e))}</div>`); return; }
+  if (!vigente()) return;
+  S.gymDetalle = d;
+  const f = (l, v) => `<div class="fact"><span>${l}</span><b>${v}</b></div>`, c = d.contadores || {}, cerrado = d.estado === "cerrado";
+  const equipo = (d.equipo || []).filter(e => !e.hasta), ex = (d.equipo || []).filter(e => e.hasta);
+  const candidatos = equipo.filter(e => e.rol !== "owner" && e.cuenta_coach);
+  drawer(`<div data-gym-detalle="${esc(d.id)}"><div class="h1 sm">${esc(d.nombre)}</div><div class="muted">${esc([d.ciudad, d.provincia].filter(Boolean).join(", ") || "Sin ciudad")}${d.codigo ? " · código " + esc(d.codigo) : ""}</div>
+    ${gymMarcas(d) ? `<div class="gym-marcas" style="margin-top:10px">${gymMarcas(d)}</div>` : ""}
+    <div class="facts">
+      ${f("Dueño", d.dueno ? esc(d.dueno.nombre || "Sin nombre") + `<div class="muted small">${esc(d.dueno.email || "")}</div>` : "Sin dueño")}${f("Estado", gymEstado(d))}
+      ${f("Plan", esc(planTxt(d.plan)))}${f("Socios", n0(d.seats_used) + " de " + n0(d.max))}
+      ${f("Profes sin cargo", n0(d.profes_usados) + " de " + n0(d.profes_tope) + (d.profes_extra ? " (+" + n0(d.profes_extra) + " del admin)" : ""))}${f("Vence", cerrado ? "—" : d.plan === "cortesia" ? "No vence" : lastDay(d.vence))}
+      ${f("Pago", esc(gymPago(d)))}${f("Contrato de encargo", esc(d.contrato && d.contrato.version === "conversion" ? "Conversión (se firma por fuera)" : (d.contrato && d.contrato.version) || "—"))}
+      ${f("Creado", fmtD(d.creado))}${f(cerrado ? "Cerrado" : "Último ingreso al local", cerrado ? fmtD(d.cerrado) + (d.dias_para_borrar != null ? " · se borra en " + n0(d.dias_para_borrar) + " días" : "") : ago(d.ultima_entrada))}
+    </div>
+    <div class="sec-t">Socios (solo cantidades)</div>
+    <div class="gym-cont">${[["Activos", c.activos], ["Pausados", c.pausados], ["Pidieron sumarse", c.pendientes], ["Visitas", c.visitas], ["Sin app", c.sin_app], ["Sin profe", c.sin_profe],
+      ["Con coach de afuera", c.coach_externo], ["Falta confirmación", c.falta_confirmacion], ["Comparten registros", c.comparten], ["Ingresos hoy", c.ingresos_hoy], ["Ingresos en 30 días", c.ingresos_30], ["De baja", c.bajas]]
+      .map(([l, v]) => `<div><b>${n0(v)}</b><span>${l}</span></div>`).join("")}</div>
+    <div class="sec-t" style="margin-top:18px">Equipo</div>
+    <div class="list-mini">${equipo.length ? equipo.map(e => `<div class="gym-eq"><span><b>${esc(e.nombre || "Sin nombre")}</b> <span class="pill">${esc(GYM_ROL[e.rol] || e.rol)}</span>${e.socios ? ` <span class="muted small">${n0(e.socios)} socio${e.socios === 1 ? "" : "s"}</span>` : ""}</span><span class="muted small">${esc(e.email || "")} · ${esc(platformTxt(e.plataforma, e.version))}</span></div>`).join("") : "Nadie (gimnasio cerrado)."}</div>
+    ${ex.length ? `<div class="muted small" style="margin-top:6px">Ya no están: ${ex.map(e => esc((e.nombre || "Sin nombre") + " (" + (GYM_ROL[e.rol] || e.rol) + ")")).join(", ")}</div>` : ""}
+    <div class="sec-t" style="margin-top:18px">Acciones</div>
+    <div class="row-btns">
+      ${d.dueno ? `<button class="btn blue" data-a="toCoach" data-id="${esc(d.dueno.id)}">Pagos del dueño</button>` : ""}
+      <button class="btn" data-a="gAud" data-id="${esc(d.id)}">Exportar la auditoría</button>
+      ${cerrado ? "" : `<button class="btn bad" data-a="gCerrar" data-id="${esc(d.id)}">Cerrar el gimnasio</button>`}
+    </div>
+    ${cerrado ? "" : panel("drGymProfes", "Tope de profes sin cargo", `<div class="sec-s">El plan trae ${n0(d.profes_tope - d.profes_extra)} (8, 15 o 30 según el tamaño). Si el gimnasio tiene más profes de verdad, sumale los que hagan falta (sin cargo).</div>
+      <label class="lbl" for="gExtra">Profes extra</label><div class="search" style="margin:0"><input class="in" id="gExtra" type="number" min="0" max="100" value="${n0(d.profes_extra)}"><button class="btn blue" data-a="gExtra" data-id="${esc(d.id)}">Guardar</button></div>`,
+      { open: false, sum: n0(d.profes_usados) + " de " + n0(d.profes_tope) })}
+    ${!cerrado || (d.marcas && d.marcas.cerrado_por_baja) ? panel("drGymTr", "Transferir a otra persona", `<div class="sec-s">El gimnasio pasa a otra cuenta de coach${cerrado ? " y se vuelve a abrir con un código nuevo (las fichas quedan de baja: se reactivan desde el panel)" : ": la fila del plan pasa al dueño nuevo y los socios que atendía el dueño anterior (y aceptaron la hoja) pasan a él"}. Una suscripción de Mercado Pago o de Apple no se puede pasar: el dueño nuevo se suscribe otra vez o el pago queda manual.</div>
+      <label class="lbl" for="gTrA">Dueño nuevo</label><select class="in" id="gTrA">${candidatos.map(e => `<option value="${esc(e.user_id)}">${esc((e.nombre || "Sin nombre") + " · " + (GYM_ROL[e.rol] || e.rol) + " del gimnasio")}</option>`).join("")}
+        ${(S.coaches || []).filter(x => !x.gym_id && (!d.dueno || x.id !== d.dueno.id)).map(x => `<option value="${esc(x.id)}">${esc((x.full_name || "Sin nombre") + " · " + x.email)}</option>`).join("")}</select>
+      <div class="row-btns"><button class="btn blue" data-a="gTr" data-id="${esc(d.id)}">Transferir</button></div>`, { open: false }) : ""}</div>`);
+  // La lista de coaches (para elegir el dueño nuevo) puede no estar cargada todavía.
+  if (!S.coaches && (!cerrado || (d.marcas && d.marcas.cerrado_por_baja))){
+    try { S.coaches = await rpc("admin_coaches"); } catch (e) { return; }
+    if (vigente() && document.getElementById("gTrA")) openGym(id);
+  }
+}
+
+// Convertir una cuenta de coach en gimnasio (§1.5): se elige la cuenta, qué alumnos pasan a ser
+// socios y el nombre. Los que no se eligen siguen como alumnos propios.
+async function openConvertir(coachId){
+  if (!S.coaches){ drawer('<div class="empty">Cargando…</div>'); try { S.coaches = await rpc("admin_coaches"); } catch (e) { drawer(`<div class="empty">${esc(errMsg(e))}</div>`); return; } }
+  const libres = (S.coaches || []).filter(c => !c.gym_id).sort((a, b) => (PLAN_MAX[b.plan] || 0) - (PLAN_MAX[a.plan] || 0) || (a.full_name || "").localeCompare(b.full_name || "", "es"));
+  const id = coachId || (libres[0] && libres[0].id);
+  if (!id){ drawer('<div class="h1 sm">Convertir en gimnasio</div><div class="empty">No hay cuentas de coach para convertir.</div>'); return; }
+  const c = (S.coaches || []).find(x => x.id === id);
+  drawer(`<div class="h1 sm">Convertir en gimnasio</div><div class="lead" style="margin-bottom:8px">Se crea el gimnasio con su código y esta cuenta pasa a ser la dueña. Los alumnos que elijas pasan a ser socios con ella como profe: no pierden nada (rutina, chat, rutinas programadas), quedan en «Falta confirmación» hasta que acepten la hoja y nadie más ve sus datos. El plan sigue igual (mismo vencimiento, suscripción y cupo). Los que no elijas siguen como alumnos propios.</div>
+    <label class="lbl" for="gcCoach">Cuenta de coach</label><select class="in" id="gcCoach">${libres.map(x => `<option value="${esc(x.id)}"${x.id === id ? " selected" : ""}>${esc((x.full_name || "Sin nombre") + " · " + planTxt(x.plan) + " · " + n0(x.clients) + " alumno" + (x.clients === 1 ? "" : "s"))}</option>`).join("")}</select>
+    <label class="lbl" for="gcNombre">Nombre del gimnasio</label><input class="in" id="gcNombre" maxlength="80" value="${esc("Gimnasio de " + ((c && c.full_name) || "").trim())}">
+    <div class="lbl">Alumnos que pasan al gimnasio</div><div id="gcAl" class="empty">Cargando…</div>
+    <div class="row-btns"><button class="btn blue" data-a="gConvOk">Convertir</button></div>`);
+  const box = document.getElementById("gcAl"), dr = document.querySelector(".drawer");
+  let u; try { u = await rpc("admin_user_detail", { uid: id }); } catch (e) { if (box) box.textContent = errMsg(e); return; }
+  if (!dr.isConnected || !document.getElementById("gcAl") || document.getElementById("gcCoach").value !== id) return;
+  const al = (u && u.clients) || [];
+  box.className = "gc-al";
+  box.innerHTML = al.length ? `<label class="gc-todos"><input type="checkbox" id="gcTodos" checked> <b>Todos (${n0(al.length)})</b></label>` + al.map(a => `<label><input type="checkbox" data-gc="${esc(a.id)}" checked> ${esc(a.name || "Sin nombre")}</label>`).join("")
+    : '<div class="muted small">No tiene alumnos: se crea el gimnasio sin socios.</div>';
+}
+async function convertir(btn){
+  const coach = document.getElementById("gcCoach").value, nombre = document.getElementById("gcNombre").value.trim();
+  const alumnos = [...document.querySelectorAll("#gcAl [data-gc]")].filter(i => i.checked).map(i => i.dataset.gc), total = document.querySelectorAll("#gcAl [data-gc]").length;
+  const c = (S.coaches || []).find(x => x.id === coach);
+  if (nombre.length < 2) return toast("Escribí el nombre del gimnasio.");
+  if (!await confirmar("¿Convertir la cuenta de " + ((c && c.full_name) || "este coach") + " en «" + nombre + "»?\n\n" + (alumnos.length === 1 ? "1 alumno pasa" : alumnos.length + " alumnos pasan") + " al gimnasio" + (total - alumnos.length ? " y " + (total - alumnos.length) + " sigue" + (total - alumnos.length === 1 ? "" : "n") + " como alumno" + (total - alumnos.length === 1 ? "" : "s") + " propio" + (total - alumnos.length === 1 ? "" : "s") : "") + ". El plan no cambia.", { titulo: "Convertir en gimnasio", ok: "Convertir" })) return;
+  btn.disabled = true;
+  try {
+    const r = await rpc("admin_gym_convertir", { coach, alumnos, nombre });
+    toast("Listo: " + r.nombre + " con " + r.fichas + (r.fichas === 1 ? " socio" : " socios") + " (código " + r.code + ")");
+    closeDrawer(); S.coaches = null;
+    if (S.view === "gimnasios") loadGimnasios(); else go("gimnasios");
+  } catch (e) { btn.disabled = false; toast(errMsg(e)); }
+}
+async function transferir(btn){
+  const d = S.gymDetalle, nuevo = document.getElementById("gTrA").value;
+  if (!d || !nuevo) return toast("Elegí el dueño nuevo.");
+  const sel = document.getElementById("gTrA"), quien = sel.options[sel.selectedIndex].text.split(" · ")[0];
+  const sus = [d.mp && d.mp !== "cancelled" ? "la suscripción de Mercado Pago" : "", d.apple_renueva ? "la suscripción de Apple" : ""].filter(Boolean).join(" y ");
+  const msg = "¿Pasar «" + d.nombre + "» a " + quien + "?" + (d.estado === "cerrado" ? "\n\nEl gimnasio se vuelve a abrir con un código nuevo. El plan es el que tenga " + quien + "."
+    : "\n\nLa fila del plan pasa a " + quien + " (mismo plan y vencimiento)." + (sus ? "\n\nOjo: " + sus + " de " + ((d.dueno && d.dueno.nombre) || "el dueño anterior") + " no pasa. Cancelala (o pedile que la cancele desde Plan de GIZE): " + quien + " se suscribe otra vez o el pago queda manual hasta el próximo vencimiento." : ""));
+  if (!await confirmar(msg, { titulo: "Transferir el gimnasio", ok: "Transferir" })) return;
+  btn.disabled = true;
+  try {
+    const r = await rpc("admin_gym_transferir", { gym: d.id, nuevo_dueno: nuevo });
+    const avisos = [r.mp_no_pasa ? "la suscripción de Mercado Pago no pasó: cancelala" : "", r.apple_no_pasa ? "la suscripción de Apple no pasó" : "", r.sin_plan_anterior ? "cargale el plan en Coaches y pagos" : ""].filter(Boolean);
+    toast("Transferido" + (r.pasan ? ": " + r.pasan + (r.pasan === 1 ? " socio pasa" : " socios pasan") + " al dueño nuevo" : "") + (avisos.length ? ". Ojo: " + avisos.join("; ") : ""));
+    await afterGym(d.id);
+  } catch (e) { btn.disabled = false; toast(errMsg(e)); }
+}
+async function cerrarGym(btn){
+  const d = S.gymDetalle; if (!d) return;
+  const t = await pedir("Se cierra «" + d.nombre + "»: todas las fichas pasan a baja, los socios que atendía el equipo quedan sin profe y el equipo deja el gimnasio. Sus alumnos propios no cambian.\n\nEscribí el nombre del gimnasio para confirmar:", "", { titulo: "Cerrar el gimnasio", ok: "Cerrar" });
+  if (t === null) return;
+  if (t.trim() !== d.nombre) return toast("El nombre no coincide: no se cerró.");
+  btn.disabled = true;
+  try { const r = await rpc("admin_gym_cerrar", { gym: d.id }); toast("Gimnasio cerrado" + (r.sin_coach ? " · " + r.sin_coach + (r.sin_coach === 1 ? " socio quedó" : " socios quedaron") + " sin profe" : "")); await afterGym(d.id); }
+  catch (e) { btn.disabled = false; toast(errMsg(e)); }
+}
+// La auditoría del gimnasio en CSV (para mandársela al dueño si la pide).
+const csvCelda = v => { const s = v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+async function exportarAuditoria(btn){
+  const d = S.gymDetalle; if (!d) return;
+  btn.disabled = true;
+  try {
+    const rows = await rpc("admin_gym_auditoria", { gym: d.id });
+    const csv = "﻿" + [["Fecha", "Quién", "Acción", "Ficha", "Sobre", "Datos"]].concat((rows || []).map(r => [new Date(r.fecha).toLocaleString("es-AR"), r.quien, r.accion, r.ficha, r.sobre, r.datos]))
+      .map(l => l.map(csvCelda).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = "auditoria-" + d.nombre.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + isoDay(new Date()) + ".csv";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast("Auditoría exportada (" + n0((rows || []).length) + " filas)");
+  } catch (e) { toast(errMsg(e)); }
+  btn.disabled = false;
 }
 
 // ---------- Finanzas ----------
@@ -1624,14 +1813,16 @@ async function loadSeguridad(){
   const box = document.getElementById("aud");
   try { S.audit = await rpc("admin_audit_list", { lim: 100 }); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.audit.length){ box.textContent = "Todavía no hay acciones registradas."; return; }
-  const what = a => ({ rol: "Cambió el rol a " + ((a.detail || {}).role === "coach" ? "coach" : "alumno"), desvincular: "Desvinculó de su coach", admin_si: "Hizo administrador", admin_no: "Quitó administrador",
+  const what = a => a.action === "config" && a.target === "gimnasios" ? "Cambió «Crear gimnasios» a " + ((a.detail || {}).alta ? "prendido" : "apagado") : ({ rol: "Cambió el rol a " + ((a.detail || {}).role === "coach" ? "coach" : "alumno"), desvincular: "Desvinculó de su coach", admin_si: "Hizo administrador", admin_no: "Quitó administrador",
     plan: ({ cortesia: "Dio cortesía", trial: "Extendió la prueba", sin_cortesia: "Quitó la cortesía", pago_manual: "Cargó un pago", prueba_hasta: "Cambió la prueba", cortar_pago: "Cortó el pago" }[(a.detail || {}).mode] || "Cambió el plan"), config: "Cambió el cartel de actualización",
     aviso: "Mandó una notificación a " + (a.target || ""), eliminar: "Eliminó la cuenta",
     contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", reporte_revisado: "Marcó un reporte como revisado", pedido_publicado: "Publicó un producto pedido", pedido_rechazado: "Rechazó un pedido de producto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto", producto_nuevo: "Agregó un producto", producto_borrar: "Borró un producto",
     fin_gasto_nuevo: "Agregó un gasto", fin_gasto: "Cambió un gasto", fin_gasto_borrar: "Borró un gasto", fin_ajustes: "Cambió los ajustes de finanzas",
     fin_pendiente_nuevo: "Agregó un pendiente", fin_pendiente_hecho: "Marcó un pendiente como hecho", fin_pendiente_deshacer: "Volvió a abrir un pendiente", fin_pendiente_borrar: "Borró un pendiente",
     objetivo_nuevo: "Agregó un objetivo", objetivo: "Cambió un objetivo", objetivo_borrar: "Borró un objetivo",
-    tarea_nueva: "Agregó una tarea", tarea: "Cambió una tarea", tarea_hecha: "Marcó una tarea como hecha", tarea_deshacer: "Volvió a abrir una tarea", tarea_borrar: "Borró una tarea" }[a.action] || a.action);
+    tarea_nueva: "Agregó una tarea", tarea: "Cambió una tarea", tarea_hecha: "Marcó una tarea como hecha", tarea_deshacer: "Volvió a abrir una tarea", tarea_borrar: "Borró una tarea",
+    gym_convertir: "Convirtió una cuenta en gimnasio", gym_transferir: "Transfirió un gimnasio", gym_cerrar: "Cerró un gimnasio", gym_profes_extra: "Cambió el tope de profes de un gimnasio",
+    gym_auditoria: "Exportó la auditoría de un gimnasio", seats_drift: "Diferencia en el cupo (tarea diaria)" }[a.action] || a.action);
   const goalTxt = d => d ? (d.label || (METRICS[d.metric] || [d.metric])[0]) + (d.target != null ? " · meta " + (METRICS[d.metric] || [, n0])[1](d.target) : "") : "";
   const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : (a.target_name || "");
   setSum("sAudB", "última: " + esc(what(S.audit[0])).toLowerCase() + " · " + ago(S.audit[0].created_at));
@@ -1654,6 +1845,13 @@ document.addEventListener("input", e => {
   if (e.target.id === "pmPlan"){ const m = document.getElementById("pmMax"); if (m && PLAN_MAX[e.target.value]) m.value = PLAN_MAX[e.target.value]; }
   if (e.target.dataset && e.target.dataset.fs && S.fin) finField(e.target);
 });
+// Convertir en gimnasio: otra cuenta vuelve a cargar sus alumnos; «Todos» marca o desmarca a todos.
+document.addEventListener("change", e => {
+  if (e.target.id === "gcCoach") openConvertir(e.target.value);
+  if (e.target.id === "gcTodos") document.querySelectorAll("#gcAl [data-gc]").forEach(i => { i.checked = e.target.checked; });
+  if (e.target.dataset && e.target.dataset.gc){ const t = document.getElementById("gcTodos"), all = [...document.querySelectorAll("#gcAl [data-gc]")];
+    if (t){ t.checked = all.every(i => i.checked); t.indeterminate = !t.checked && all.some(i => i.checked); } }
+});
 document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.id === "uQ"){ S.q = e.target.value.trim(); searchUsers(); }
   if (e.key === "Enter" && e.target.id === "pQ"){ S.prodQ = e.target.value.trim(); loadProductos(); }
@@ -1665,6 +1863,7 @@ document.addEventListener("click", async e => {
   const g = e.target.closest("[data-go]"); if (g){ closeDrawer(); go(g.dataset.go); return; }
   const tr = e.target.closest("tr[data-user]"); if (tr){ openUser(tr.dataset.user); return; }
   const tc = e.target.closest("[data-coach]"); if (tc){ openCoach(tc.dataset.coach); return; }
+  const tgym = e.target.closest("tr[data-gym]"); if (tgym){ openGym(tgym.dataset.gym); return; }
   const tf = e.target.closest("tr[data-cost]"); if (tf){ openCost(Number(tf.dataset.cost)); return; }
   const tg = e.target.closest("[data-goal]"); if (tg){ openGoal(tg.dataset.goal); return; }
   const tt = e.target.closest("[data-task]"); if (tt){ openTask(tt.dataset.task); return; }
@@ -1729,6 +1928,24 @@ document.addEventListener("click", async e => {
       if (dr && !dr.isConnected) return; // cerró la ficha mientras se traían los coaches
       openCoach(id); return;
     }
+    if (a === "gConv"){ openConvertir(b.dataset.id || null); return; }
+    if (a === "gConvOk"){ convertir(b); return; }
+    if (a === "toGym"){ if (S.view !== "gimnasios") go("gimnasios"); openGym(b.dataset.id); return; }
+    if (a === "gAlta"){
+      const on = b.getAttribute("aria-checked") !== "true";
+      if (!await confirmar(on ? "¿Prender «Crear gimnasios»? Desde ahora un coach con la prueba en curso, cortesía o el plan de 100 o más puede crear su gimnasio en gize.ar/gimnasio (solo desde la web)."
+        : "¿Apagar «Crear gimnasios»? Nadie más va a poder crear un gimnasio. Los que ya existen siguen andando.", { titulo: "Crear gimnasios", ok: on ? "Prender" : "Apagar" })) return;
+      b.disabled = true; await rpc("admin_set_config", { p_key: "gimnasios", p_value: { alta: on } });
+      if (S.gyms) S.gyms.alta = on; paintGymAlta(); toast(on ? "Crear gimnasios: prendido" : "Crear gimnasios: apagado"); return;
+    }
+    if (a === "gExtra"){
+      const n = parseInt(document.getElementById("gExtra").value, 10);
+      if (!(n >= 0 && n <= 100)) return toast("Entre 0 y 100 profes extra.");
+      b.disabled = true; const r = await rpc("admin_gym_profes_extra", { gym: b.dataset.id, n }); toast("Tope de profes: " + r.profes_tope); await afterGym(b.dataset.id); return;
+    }
+    if (a === "gTr"){ transferir(b); return; }
+    if (a === "gCerrar"){ cerrarGym(b); return; }
+    if (a === "gAud"){ exportarAuditoria(b); return; }
     if (a === "ufilt"){ S.uFilter = b.dataset.v; paintUsers(); return; }
     if (a === "usort"){ const k = b.dataset.k, so = S.uSort; S.uSort = { k, dir: so && so.k === k && so.dir === "asc" ? "desc" : "asc" }; paintUsers(); return; }
     if (a === "ptab"){ S.prodTab = b.dataset.v; loadProductos(); return; }

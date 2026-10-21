@@ -1,6 +1,8 @@
 // Panel de administración: «Coaches y pagos» es una pestaña de Usuarios. En el menú queda marcado
-// Usuarios; las dos pestañas se cambian de una a otra; y desde la ficha de un coach en Usuarios
+// Usuarios; las pestañas se cambian de una a otra; y desde la ficha de un coach en Usuarios
 // el botón «Plan y pagos» abre la ficha de pago. Al guardar un pago desde ahí se queda en Usuarios.
+// Gimnasios (etapa 1): la tercera pestaña, «Gimnasios», también marca Usuarios; un coach sin
+// gimnasio (como hoy) se ve igual que siempre, con «—» en la columna Gimnasio.
 import { newPage, wait, text, ADMIN } from './lib.mjs';
 
 const NOW = Date.now();
@@ -12,7 +14,7 @@ const users = [{ id: 'c1', email: 'c1@prueba.test', full_name: 'Coach Uno', role
 export default async function ({ base, t }){
   const rpcs = [];
   const { p, errs, close } = await newPage({ user: ADMIN, viewport: { width: 1300, height: 900 }, handlers: {
-    '/is_app_admin': (r, J) => J(true), '/admin_contact_unread': (r, J) => J(0), '/admin_users': (r, J) => J(users), '/admin_coaches': (r, J) => J([coach]),
+    '/is_app_admin': (r, J) => J(true), '/admin_contact_unread': (r, J) => J(0), '/admin_users': (r, J) => J(users), '/admin_coaches': (r, J) => J([coach]), '/admin_gyms': (r, J) => J({ alta: false, gyms: [] }),
     '/admin_user_detail': (r, J, i) => J(JSON.parse(i.body).uid === 'c1' ? Object.assign({}, users[0], { provider: 'email', clients: [{ name: 'Ana' }], sessions: 0, food_days: 0 }) : Object.assign({}, users[1], { provider: 'email', coach: { name: 'Coach Uno' }, sessions: 0, food_days: 0 })),
     '/admin_set_paid': (r, J, i) => (rpcs.push('admin_set_paid'), J(null)) } });
   await p.goto(base + '/admin/#usuarios'); await wait(1500);
@@ -23,6 +25,12 @@ export default async function ({ base, t }){
   t.has(await text(p, '.nav.on'), 'Usuarios', 'estando en Coaches y pagos, el menú sigue marcando Usuarios');
   t.has(await text(p, '#cList'), 'Coach Uno', 'la pestaña muestra la lista de coaches');
   t.eq(await p.$$eval('#main details', ds => ds.length), 0, 'sin paneles plegables en Coaches y pagos');
+  t.has(await text(p, `tr[data-coach="c1"]`), '—', 'sin gimnasio: «—» en la columna Gimnasio');
+  t.has(await text(p, `tr[data-coach="c1"]`), 'Pagado hasta', 'y su estado de siempre');
+  await p.click('.tabs [data-go="gimnasios"]'); await wait(800);
+  t.has(await text(p, '.tabs button.on'), 'Gimnasios', 'la pestaña Gimnasios queda marcada');
+  t.has(await text(p, '.nav.on'), 'Usuarios', 'estando en Gimnasios, el menú sigue marcando Usuarios');
+  t.has(await text(p, '#gList'), 'Todavía no hay gimnasios', 'sin gimnasios, lo dice');
   await p.click('.tabs [data-go="usuarios"]'); await wait(800);
   // Ficha de un alumno: sin «Plan y pagos». Ficha de un coach: con el botón.
   await p.click('tr[data-user="a1"]'); await wait(400);
