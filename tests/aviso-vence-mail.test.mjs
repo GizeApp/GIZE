@@ -46,6 +46,13 @@ export default async function ({ t }){
   t.has(g1.text, 'Hoy tiene 1 socio.', 'un socio');
   t.ok(!g1.html.includes('<Norte>') && g1.html.includes('&lt;Norte&gt;'), 'el nombre del gimnasio va escapado en el HTML');
   t.has(g1.html, 'Ir a Plan de GIZE', 'el botón del dueño');
+  // «dias» es el escalón; el texto dice los días que faltan de verdad (faltan).
+  const g5 = m.mailVence({ vence: '2026-10-26T03:00:00Z', prueba: false, clientes: 1, gimnasio: 'Gimnasio Fuerza', socios: 1, dias: 7, faltan: 5 });
+  t.eq(g5.subject, 'El plan de GIZE de Gimnasio Fuerza vence en 5 días', 'entra a la ventana con 5 días: «en 5 días», no «en 7 días»');
+  t.has(g5.text, 'vence en 5 días (cubre hasta el domingo 25 de octubre)', 'y el cuerpo igual');
+  t.eq([m.mailVence({ vence: '2026-10-07T03:00:00Z', prueba: false, clientes: 1, gimnasio: 'G', socios: 1, dias: 3, faltan: 1 }).subject,
+    m.mailVence({ vence: '2026-10-07T03:00:00Z', prueba: true, clientes: 1, gimnasio: 'G', socios: 1, dias: 1, faltan: 0 }).subject],
+    ['El plan de GIZE de G vence mañana', 'La prueba gratis de GIZE de G termina hoy'], 'faltan 1: «mañana»; faltan 0: «hoy»');
   t.eq(m.mailVence({ nombre: 'Juan Pérez', vence: '2026-10-07T03:00:00Z', prueba: false, clientes: 12, gimnasio: null, socios: null, dias: 1 }).text, pago.text,
     'un coach con las columnas nuevas (sin gimnasio): el mismo mail de siempre');
 
@@ -68,11 +75,11 @@ export default async function ({ t }){
     const r = await fn.call(new Request('https://x.supabase.co/functions/v1/vence-plan', { method: 'POST' }));
     return { res: await r.json(), enviados, soltados };
   };
-  let x = await correr([{ coach_id: ID(1), vence: '2026-10-07T03:00:00Z', prueba: false, clientes: 6, gym_id: ID(90), gimnasio: 'Gimnasio Fuerza', socios: 5, dias: 7, copia: [ID(2), ID(3), ID(1)] },
+  let x = await correr([{ coach_id: ID(1), vence: '2026-10-07T03:00:00Z', prueba: false, clientes: 6, gym_id: ID(90), gimnasio: 'Gimnasio Fuerza', socios: 5, dias: 7, copia: [ID(2), ID(3), ID(1)], faltan: 4 },
     { coach_id: ID(4), vence: '2026-10-07T03:00:00Z', prueba: false, clientes: 2, gym_id: null, gimnasio: null, socios: null, dias: 1, copia: null }]);
   t.eq(x.res, { ok: true, enviados: 2, fallidos: 0 }, 'la función manda los dos');
-  t.eq([x.enviados[0].to, x.enviados[0].cc, x.enviados[0].subject], [['cuenta-01@prueba.test'], ['cuenta-02@prueba.test', 'cuenta-03@prueba.test'], 'El plan de GIZE de Gimnasio Fuerza vence en 7 días'],
-    'al dueño, con la administración del gimnasio en copia (sin repetir al dueño)');
+  t.eq([x.enviados[0].to, x.enviados[0].cc, x.enviados[0].subject], [['cuenta-01@prueba.test'], ['cuenta-02@prueba.test', 'cuenta-03@prueba.test'], 'El plan de GIZE de Gimnasio Fuerza vence en 4 días'],
+    'al dueño (con los días que faltan de verdad), con la administración del gimnasio en copia (sin repetir al dueño)');
   t.ok(!('cc' in x.enviados[1]) && x.enviados[1].subject === 'Tu plan de GIZE vence mañana', 'al coach, como siempre y sin copia');
   x = await correr([{ coach_id: ID(5), vence: '2026-10-07T03:00:00Z', prueba: true, clientes: 0 }]);
   t.ok(x.res.enviados === 1 && x.enviados[0].subject === 'Tu prueba gratis de GIZE termina mañana' && !('cc' in x.enviados[0]), 'con el SQL de antes (cuatro columnas) anda igual');

@@ -4,10 +4,12 @@
 // Gimnasios (supabase/gimnasios-admin.sql): al dueño le llega a 7, 3 y 1 día (dias), con el nombre del
 // gimnasio y sus socios, y qué pasa si no se renueva (5 días con todo andando, después los profes
 // dejan de ver a los socios y a los 10 días los socios quedan sin profe). La administración del
-// gimnasio lo recibe en copia (index.ts).
+// gimnasio lo recibe en copia (index.ts). «dias» es el escalón del aviso (7, 3 o 1); el texto usa
+// «faltan», los días que faltan de verdad (en días de Argentina): un plan que entra a la ventana con
+// 5 días dice «en 5 días», no «en 7 días».
 
 export type AvisoVence = { nombre?: string | null; vence: string; prueba: boolean; clientes: number;
-  gimnasio?: string | null; socios?: number | null; dias?: number | null };
+  gimnasio?: string | null; socios?: number | null; dias?: number | null; faltan?: number | null };
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 
@@ -24,8 +26,10 @@ export function diaVence(iso: string): string {
 
 // El mail para el dueño de un gimnasio.
 function mailGimnasio(a: AvisoVence): { subject: string; parrafos: string[]; boton: string; pie: string } {
-  const g = String(a.gimnasio || "").trim(), dias = a.dias === 3 || a.dias === 7 ? a.dias : 1;
-  const cuando = dias === 1 ? "mañana" : "en " + dias + " días";
+  const g = String(a.gimnasio || "").trim();
+  // Sin «faltan» (SQL de antes), el escalón.
+  const n = Number.isInteger(a.faltan) && (a.faltan as number) >= 0 ? a.faltan as number : (a.dias === 3 || a.dias === 7 ? a.dias : 1);
+  const cuando = n === 0 ? "hoy" : n === 1 ? "mañana" : "en " + n + " días";
   const que = a.prueba ? "La prueba gratis de GIZE de " + g : "El plan de GIZE de " + g;
   const subject = que + (a.prueba ? " termina " : " vence ") + cuando;
   const socios = Number(a.socios) || 0;

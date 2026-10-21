@@ -55,7 +55,9 @@ const CANONICAS = ['coach_active', 'is_my_client', 'join_coach', 'release_lapsed
 const CANONICAS_ADMIN = ['admin_coaches', 'admin_set_config', 'admin_overview', 'hay_avisos_vence', 'tomar_avisos_vence', 'soltar_aviso_vence'];
 const FN_ADMIN = ['gym_profe_sin_cargo', 'admin_gym_fila', 'admin_gyms', 'admin_gym_detail', 'admin_gym_convertir', 'admin_gym_transferir', 'admin_gym_cerrar',
   'admin_gym_profes_extra', 'admin_gym_auditoria'];
-const esDeAdmin = k => FN_ADMIN.some(f => new RegExp('^(fn|fnacl|fndueno):' + f + '\\(').test(k)) || /^(col|con):gyms\.(aviso_vence_para|aviso_vence_dias|gyms_aviso_vence_dias_check)$/.test(k);
+// Más la tabla gym_avisos_vence (el aviso de vencimiento al dueño; con RLS y sin permisos para la app).
+const esDeAdmin = k => FN_ADMIN.some(f => new RegExp('^(fn|fnacl|fndueno):' + f + '\\(').test(k))
+  || /^(tabla|tblacl):gym_avisos_vence$|^(col|con|idx|pol|trg|colacl):gym_avisos_vence\./.test(k);
 // Lo que suma gimnasios-vinculo.sql (etapas 0 y 1) y las políticas de hoy que cambia (etapa 1).
 const FN_VINCULO = ['coach_client_ok', 'profiles_gym_sync', 'coach_messages_gym', 'gym_alerta', 'gym_alerta_staff', 'gym_auditar', 'gym_cupo_ok', 'gym_profe_no_puede',
   'gym_aprobar_interno', 'gym_pedir', 'gym_cerrar_interno', 'gym_cerrar_por_baja', 'profiles_gym_baja', 'gym_mi_fila_oculta'];
@@ -215,7 +217,8 @@ export default async function ({ t }){
   t.eq(dA.faltan, [], 'gimnasios-admin.sql no borra nada');
   t.eq(dA.cambian.filter(k => !CANONICAS_ADMIN.some(f => k.startsWith('fn:' + f + '('))), [],
     'gimnasios-admin.sql solo cambia sus canónicas (admin_coaches, admin_set_config, admin_overview, hay_avisos_vence, tomar_avisos_vence y soltar_aviso_vence), con los mismos permisos: ' + dA.cambian.join(', '));
-  t.eq(dA.nuevas.filter(k => !esDeAdmin(k)), [], 'lo nuevo de gimnasios-admin.sql: sus funciones y las dos columnas de gyms con su check');
+  t.eq(dA.nuevas.filter(k => !esDeAdmin(k)), [], 'lo nuevo de gimnasios-admin.sql: sus funciones y la tabla gym_avisos_vence');
+  t.eq(hA['tabla:gym_avisos_vence'], 'kind=r rls=t force=f', 'gym_avisos_vence con RLS (permisos: ' + hA['tblacl:gym_avisos_vence'] + ')');
   t.eq(diferencias(hA, await huella(h.base('gize_con'))), { nuevas: [], faltan: [], cambian: [] },
     'la base de pruebas con gimnasios (gize_con) es exactamente gize_sin más los cinco archivos');
   for (const f of [...GIMNASIOS].reverse()) await v.archivo(f);

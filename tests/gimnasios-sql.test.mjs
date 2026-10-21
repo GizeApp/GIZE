@@ -280,7 +280,9 @@ export default async ({ t }) => {
     const hoy = sentencia(read('supabase/' + f), fn);
     t.ok(hoy && sentencia(aAtras, fn) === hoy, 'gimnasios-admin.sql, volver atrás: la ' + fn + ' de hoy (' + f + '), tal cual');
   }
-  t.ok(aAtras.includes('alter table public.gyms drop column if exists aviso_vence_dias, drop column if exists aviso_vence_para;'), 'volver atrás saca las dos columnas');
+  t.ok(aAtras.includes('drop table if exists public.gym_avisos_vence;'), 'volver atrás saca la tabla gym_avisos_vence');
+  t.ok(/revoke all on table public\.gym_avisos_vence from public, anon, authenticated;/.test(ad) && /alter table public\.gym_avisos_vence enable row level security;/.test(ad),
+    'gym_avisos_vence: con RLS y sin permisos para la app (el vencimiento del plan del dueño no lo ve el gimnasio)');
   t.ok(!/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}/.test(ad) && !/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(ad), 'gimnasios-admin.sql: sin mails ni uuids');
   t.ok(/'gimnasios'/.test(sentencia(ad, 'admin_set_config')) && /\{"alta": true\} o \{"alta": false\}/.test(ad), 'admin_set_config: la clave «gimnasios» solo con {"alta": true|false}');
   t.ok(/'dias', 'copia'|dias integer, copia uuid\[\]/.test(ad) && /interval '7 days'/.test(sentencia(ad, 'tomar_avisos_vence')) && /then 1\s+when public\.coach_vence\(b\) <= now\(\) \+ interval '3 days' then 3 else 7/.test(sentencia(ad, 'tomar_avisos_vence')),

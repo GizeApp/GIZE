@@ -9,10 +9,13 @@
 //   interruptor de alta; y lo que no se puede (alumnos ajenos, un profe de otro gimnasio).
 // - Transferir: los socios que aceptaron la hoja pasan al dueño nuevo con sus rutinas programadas; los
 //   que no, a baja y siguen con su coach; el plan pasa a la fila del dueño nuevo; avisa que la
-//   suscripción de Mercado Pago o Apple no pasa; reabre uno cerrado por la baja del dueño.
+//   suscripción de Mercado Pago o Apple no pasa; reabre uno cerrado por la baja del dueño; anula las
+//   invitaciones pendientes (ni la dueña anterior ni el equipo de antes del cierre vuelven a entrar).
 // - Cerrar, tope de profes, auditoría, marcas, el interruptor de alta (admin_set_config) y las
 //   canónicas con gimnasios: admin_coaches («Dueño de X», «Profe de X, sin cargo»), admin_overview y
-//   tomar_avisos_vence (dueños a 7, 3 y 1 día, una vez; profes sin cargo afuera; dos a la vez no repiten).
+//   tomar_avisos_vence (dueños a 7, 3 y 1 día, una vez, con los días que faltan de verdad; profes sin
+//   cargo afuera; dos a la vez no repiten; el aviso no lo lee nadie del gimnasio).
+// - La lista no recuenta el cupo de todos los coaches por cada gimnasio (con miles de coaches, rápida).
 import { conPg, lit } from './pg.mjs';
 import { P, F, G, DATOS, ayudas, rpc, nom, canon, conCanon } from './gimnasios-comun.mjs';
 
@@ -78,6 +81,7 @@ export default async function ({ t: t0 }){
   const texto = JSON.stringify([lista, dA, x[2]]);
   t.eq(NO.filter(s => texto.includes(s)), [], 'ni la lista ni el detalle traen datos de socios (nombres, DNI, mails, notas)');
   t.eq(x[3], { error: 'P0001', msg: 'Ese gimnasio no existe.' }, 'detalle de un id que no es un gimnasio');
+  t.eq([dA.transferir_bajas, x[2].transferir_bajas], [1, 0], 'el detalle dice cuántos pasan a baja si se transfiere (A7, de la dueña y sin la hoja)');
 
   // ===== Marcas =====
   x = await V([['postgres', `update public.coach_billing set max_clients = 5 where coach_id = '${P.dA}'`],
@@ -128,6 +132,12 @@ export default async function ({ t: t0 }){
   t.eq(x.slice(0, 4), [{ error: 'P0001', msg: 'Estos no son alumnos de esa cuenta o ya están en un gimnasio: Martina Sosa, Valeria Ríos.' },
     { error: 'P0001', msg: 'Esa cuenta ya es del equipo de un gimnasio.' }, { error: 'P0001', msg: 'Esa cuenta no es de coach.' },
     { error: 'P0001', msg: 'El nombre del gimnasio tiene que tener entre 2 y 80 letras.' }], 'convertir: lo que no se puede (alumnos ajenos o de otro gimnasio, un profe, un alumno, un nombre corto)');
+  x.push(await V([['postgres', `update public.coach_billing set plan = 'trial', max_clients = 10, paid_until = null, trial_ends_at = now() + interval '7 days' where coach_id = '${P.K}'`],
+    ZZ(rpc('admin_gym_convertir', P.K, [], null)), ['postgres', `select to_jsonb(max_clients) from public.coach_billing where coach_id = '${P.K}'`], ZZ(rpc('admin_gyms'))]));
+  t.eq([x[6][2], x[6][3].gyms.find(g => g.dueno && g.dueno.id === P.K).marcas.plan_menor_100], [100, false], 'en la prueba, el tope pasa de 10 a 100 como en gym_crear (§7.2) y no queda marcado «plan menor a 100»');
+  x.push(await V([['postgres', `update public.coach_billing set plan = 'p25', max_clients = 25, paid_until = now() + interval '20 days' where coach_id = '${P.K}'`],
+    ZZ(rpc('admin_gym_convertir', P.K, [], null)), ['postgres', `select to_jsonb(max_clients) from public.coach_billing where coach_id = '${P.K}'`], ZZ(rpc('admin_gyms'))]));
+  t.eq([x[7][2], x[7][3].gyms.find(g => g.dueno && g.dueno.id === P.K).marcas.plan_menor_100], [25, true], 'con un plan pago menor a 100, el tope no cambia y queda marcado «plan menor a 100»');
   t.eq([x[4].fichas, x[5]], [0, 'Gimnasio de Karina Coach'], 'sin alumnos elegidos anda igual, y sin nombre se llama «Gimnasio de …» (con el interruptor de alta apagado)');
 
   // ===== Transferir =====
@@ -160,6 +170,20 @@ export default async function ({ t: t0 }){
   t.eq(x.slice(1), [{ error: 'P0001', msg: 'El dueño nuevo tiene una suscripción propia que se renueva sola (Mercado Pago o Apple): primero tiene que cancelarla.' },
     { error: 'P0001', msg: 'El dueño nuevo tiene que tener una cuenta de coach.' }, { error: 'P0001', msg: 'Esa persona ya es del equipo de otro gimnasio.' },
     { error: 'P0001', msg: 'Elegí otra persona como dueña.' }], 'transferir: lo que no se puede');
+  // Las invitaciones pendientes se anulan: la dueña anterior no vuelve con una que dejó guardada.
+  const invitar = (rol, k) => `select to_jsonb(set_config('prueba.${k}', (public.gym_invitar('${rol}'))->>'token', false) <> '')`;
+  const aceptar = k => `select to_jsonb(public.gym_aceptar_invitacion(current_setting('prueba.${k}')))`;
+  const ANULADA = { error: 'P0001', msg: 'La invitación venció o la anularon: pedile otra al gimnasio.' };
+  x = await V([['dA', invitar('admin', 'tok1')], ['aA', invitar('recepcion', 'tok2')], ZZ(rpc('admin_gym_transferir', G.A, P.pA2)),
+    ['dA', aceptar('tok1')], ['dA', `select to_jsonb(public.gym_mi_rol('${G.A}'))`], ['N', aceptar('tok2')],
+    ['postgres', `select jsonb_build_array((select count(*) from public.gym_invites where gym_id = '${G.A}' and accepted_at is null and revoked_at is null),
+      (select data->>'invitaciones_anuladas' from public.gym_audit where gym_id = '${G.A}' and action = 'transferir'))`]]);
+  t.eq([x[0], x[1], x[2].invitaciones_anuladas, x[3], x[4], x[5], x[6]], [true, true, 2, ANULADA, null, ANULADA, [0, '2']],
+    'transferir anula las invitaciones pendientes: la dueña anterior no vuelve como administración con la suya (queda en gym_audit)');
+  // Y al reabrir uno cerrado: la invitación de antes del cierre no revive.
+  x = await V([['aA', invitar('recepcion', 'tok3')], ['postgres', `delete from auth.users where id = '${P.dA}'`], ZZ(rpc('admin_gym_transferir', G.A, P.K)),
+    ['aA', aceptar('tok3')], ['aA', `select to_jsonb(public.gym_mi_rol('${G.A}'))`]]);
+  t.eq([x[2].reabre, x[2].invitaciones_anuladas, x[3], x[4]], [true, 1, ANULADA, null], 'al reabrir, la invitación de antes del cierre sigue anulada');
   // Cerrado por la baja de la cuenta de la dueña: se reabre con el dueño nuevo.
   x = await V([['postgres', `delete from auth.users where id = '${P.dA}'`], ZZ(rpc('admin_gym_transferir', G.A, P.pA2)),
     ['postgres', `select jsonb_build_object('gym', (select jsonb_build_array(owner_id, closed_at, purge_after, close_reason) from public.gyms where id = '${G.A}'),
@@ -205,7 +229,7 @@ export default async function ({ t: t0 }){
   t.eq(x[3].overdue - x[1].overdue, 1, 'prueba vencida: cuenta el coach K y no el profe sin cargo');
 
   // ===== Mail de vencimiento =====
-  const tomar = `select coalesce(jsonb_agg(jsonb_build_array(coach_id, clientes, gimnasio, socios, dias, copia, prueba) order by coach_id), '[]') from public.tomar_avisos_vence()`;
+  const tomar = `select coalesce(jsonb_agg(jsonb_build_array(coach_id, clientes, gimnasio, socios, dias, copia, prueba, faltan) order by coach_id), '[]') from public.tomar_avisos_vence()`;
   const vence = (q, en) => ['postgres', `update public.coach_billing set trial_ends_at = now() - interval '60 days', paid_until = now() + interval '${en}' where coach_id = '${P[q]}'`];
   const lee = r => r.map(a => [nom(a[0]), a[1], a[2], a[3], a[4], (a[5] || []).map(nom), a[6]]);
   x = await V([vence('dA', '6 days'), vence('pA1', '12 hours'), vence('K', '12 hours'),
@@ -216,15 +240,48 @@ export default async function ({ t: t0 }){
   t.eq([x[4], lee(x[5]), x[6], x[7]], [true, [['pA1', 1, null, null, 1, [], false], ['dA', 6, 'Gimnasio Fuerza', 5, 7, ['aA'], false], ['K', 0, null, null, 1, [], false]].sort((a, b) => P[a[0]] < P[b[0]] ? -1 : 1), [], false],
     'a 6 días: la dueña (7 días, con su gimnasio, 5 socios y la administración en copia), el profe con alumnos propios y el coach a 12 horas; el profe sin cargo no; la segunda vez, nada');
   t.eq([lee(x[9]), x[10]], [[['dA', 6, 'Gimnasio Fuerza', 5, 3, ['aA'], false]], []], 'a 60 horas: el de 3 días, una vez');
+  const faltan = r => r.find(a => a[0] === P.dA)[7];
+  t.ok(faltan(x[5]) === 6 && [2, 3].includes(faltan(x[9])) && [0, 1].includes(faltan(x[12])),
+    'faltan: los días que faltan de verdad (6 con el escalón de 7; 2 o 3 a 60 horas; 0 o 1 a 20 horas): ' + [faltan(x[5]), faltan(x[9]), faltan(x[12])]);
   t.eq([lee(x[12]), lee(x[14]), x[15]], [[['dA', 6, 'Gimnasio Fuerza', 5, 1, ['aA'], false]], [['dA', 6, 'Gimnasio Fuerza', 5, 1, ['aA'], false]], []],
     'a 20 horas: el de 1 día; si el mail no salió (soltar_aviso_vence) se vuelve a tomar, y después nada');
   x = await V([vence('dA', '2 days'), ['postgres', `update public.coach_billing set mp_preapproval_id = 'preaprobacion-de-prueba', mp_status = 'authorized' where coach_id = '${P.dA}'`], ['postgres', tomar],
     ['postgres', `update public.coach_billing set mp_status = 'cancelled', plan = 'cortesia' where coach_id = '${P.dA}'`], ['postgres', tomar]]);
   t.eq([x[2], x[4]], [[], []], 'la dueña con la suscripción de Mercado Pago activa o con cortesía: sin mail');
+  // El aviso (el vencimiento del plan de la dueña) no lo lee nadie del gimnasio: ni socios, ni visitas,
+  // ni la recepción, ni los profes, ni la administración; y gyms no tiene esas columnas.
+  const leeAviso = `select to_jsonb(count(*)) from public.gym_avisos_vence`;
+  x = await V([vence('dA', '5 days'), ['postgres', tomar], ...['A1', 'A5', 'rA', 'pA1', 'aA', 'dA', 'anon'].map(q => [q, leeAviso]),
+    ['A1', `select to_jsonb(array(select k from jsonb_object_keys((select to_jsonb(g) from public.gyms g where g.id = '${G.A}')) k where k like 'aviso%'))`],
+    ['postgres', `select to_jsonb(count(*)) from public.gym_avisos_vence where gym_id = '${G.A}'`]]);
+  t.eq([lee(x[1]).map(a => a.slice(2, 5)), x[1][0][7]], [[['Gimnasio Fuerza', 5, 7]], 5], 'a 5 días: el escalón de 7 y faltan 5 (el mail dice «en 5 días»)');
+  t.eq(x.slice(2, 9).map(r => r && r.error), Array(7).fill('42501'), 'gym_avisos_vence: sin permiso para nadie de la app');
+  t.eq([x[9], x[10]], [[], 1], 'gyms (que lee todo el gimnasio) no trae el aviso; queda en su tabla aparte');
   // Dos a la vez: cada aviso sale una sola vez.
   await db.sql(`update public.coach_billing set trial_ends_at = now() - interval '60 days', paid_until = now() + interval '2 days' where coach_id = '${P.dA}';`);
   const aLaVez = () => db.json(`begin; select coalesce(jsonb_agg(coach_id), '[]') from public.tomar_avisos_vence(); select pg_sleep(0.3); commit;`).catch(e => ({ error: e.code, msg: e.msg }));
   const dos = await Promise.all([aLaVez(), aLaVez()]);
   t.eq(dos.flat().map(nom), ['dA'], 'dos llamadas a la vez: el aviso de la dueña sale una sola vez: ' + JSON.stringify(dos));
   await db.borrar();
+
+  // ===== La lista con muchos coaches =====
+  // Cada fila recontaba el cupo de todos los coaches (seats_drift): gimnasios × coaches. Ahora solo el
+  // dueño y el equipo de cada gimnasio.
+  const big = await h.nueva('gize_con');
+  await big.json(DATOS);
+  await big.sql(ADMIN_Z + `
+insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data)
+  select md5('c' || i)::uuid, 'c' || i || '@ejemplo.test', now(), '{"full_name":"Coach Prueba","role":"coach"}' from generate_series(1, 2000) i;
+insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data)
+  select md5('k' || i)::uuid, 'k' || i || '@ejemplo.test', now(), '{"full_name":"Alumno Prueba"}' from generate_series(1, 6000) i;
+update public.profiles p set coach_id = md5('c' || ((i % 2000) + 1))::uuid from generate_series(1, 6000) i where p.id = md5('k' || i)::uuid;
+insert into public.gyms (name, owner_id, dpa_version, dpa_at) select 'Gimnasio ' || i, md5('c' || i)::uuid, 'x', now() from generate_series(1, 20) i;
+insert into public.gym_staff (gym_id, user_id, role) select g.id, g.owner_id, 'owner' from public.gyms g where g.name ~ '^Gimnasio [0-9]+$';
+select public.gym_recontar(array(select coach_id from public.coach_billing));
+analyze;`);
+  const t1 = Date.now();
+  const res = await big.json(`select jsonb_build_object('r', prueba.probar('${Z}', 'select to_jsonb(jsonb_array_length(public.admin_gyms()->''gyms''))'))`);
+  const ms = Date.now() - t1;
+  t.ok(res.r.ok === 22 && ms < 1500, 'admin_gyms con 2000 coaches y 22 gimnasios: ' + ms + ' ms (antes, unos 2 s y creciendo con cada gimnasio): ' + JSON.stringify(res));
+  await big.borrar();
 }

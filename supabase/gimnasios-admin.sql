@@ -18,8 +18,9 @@
 -- cambiar nada (tomar_avisos_vence cambió de tipo): primero el bloque «Para volver atrás» de acá.
 --
 -- Qué suma:
---   · gyms.aviso_vence_para y gyms.aviso_vence_dias: qué vencimiento y con cuántos días (7, 3 o 1) se
---     le avisó al dueño, así cada aviso sale una sola vez.
+--   · gym_avisos_vence (gym_id, para, dias): qué vencimiento y con cuántos días (7, 3 o 1) se le avisó
+--     al dueño, así cada aviso sale una sola vez. Tabla aparte, con RLS y sin permisos para la app: el
+--     vencimiento del plan del dueño no lo ven los socios, la recepción ni los profes (gyms sí la leen).
 --   · admin_gyms(): {alta (el interruptor app_config.gimnasios), gyms: [...]}: cada gimnasio abierto (y
 --     los cerrados de los últimos 90 días) con dueño, plan, cupo, profes, recepción, estado del plan,
 --     vencimiento, Mercado Pago o Apple, creado, último uso y marcas: sobre el cupo, plan menor a 100,
@@ -65,12 +66,20 @@ do $$ begin
 end $$;
 
 
--- ===== Columnas nuevas =====
+-- ===== Tabla nueva =====
 
-alter table public.gyms add column if not exists aviso_vence_para timestamptz;   -- el vencimiento que se le avisó al dueño
-alter table public.gyms add column if not exists aviso_vence_dias smallint;      -- con cuántos días (7, 3 o 1)
-alter table public.gyms drop constraint if exists gyms_aviso_vence_dias_check;
-alter table public.gyms add constraint gyms_aviso_vence_dias_check check (aviso_vence_dias in (1, 3, 7));
+-- El aviso de vencimiento que se le mandó al dueño de cada gimnasio. No va en gyms: esa tabla la lee
+-- todo el gimnasio (socios, visitas, recepción) y esto es del plan entre el dueño y GIZE. Solo la
+-- tocan tomar_avisos_vence, soltar_aviso_vence y admin_gym_transferir (security definer).
+create table if not exists public.gym_avisos_vence (
+  gym_id uuid primary key references public.gyms(id) on delete cascade,
+  para   timestamptz not null,   -- el vencimiento que se le avisó al dueño
+  dias   smallint not null       -- con cuántos días (7, 3 o 1)
+);
+alter table public.gym_avisos_vence drop constraint if exists gym_avisos_vence_dias_check;
+alter table public.gym_avisos_vence add constraint gym_avisos_vence_dias_check check (dias in (1, 3, 7));
+alter table public.gym_avisos_vence enable row level security;
+revoke all on table public.gym_avisos_vence from public, anon, authenticated;
 
 
 -- ===== Ayudas (internas) =====
@@ -108,8 +117,11 @@ begin
   select u.email::text, p.full_name into mail, nom from auth.users u left join public.profiles p on p.id = u.id where u.id = x.owner_id;
   select max(e.at) into ultima from public.gym_entries e where e.gym_id = g;
   select max(p.last_seen_at) into uso from public.gym_staff s join public.profiles p on p.id = s.user_id where s.gym_id = g and s.left_at is null;
-  drift := exists (select 1 from public.seats_drift() d
-                    where d.coach_id = x.owner_id or d.coach_id in (select s.user_id from public.gym_staff s where s.gym_id = g and s.left_at is null));
+  -- Como seats_drift() pero solo con el dueño y el equipo (seats_drift recuenta a todos los coaches y,
+  -- por cada fila de la lista, era gimnasios × coaches).
+  drift := exists (select 1 from public.coach_billing bd
+                    where (bd.coach_id = x.owner_id or bd.coach_id in (select s.user_id from public.gym_staff s where s.gym_id = g and s.left_at is null))
+                      and bd.seats_used is distinct from public.recount_seats(bd.coach_id));
   vence := case when b.plan = 'cortesia' or b.coach_id is null then null else greatest(b.trial_ends_at, coalesce(b.paid_until, '-infinity')) end;
   pl := case when x.closed_at is null then public.gym_plan_estado(g) end;
   return jsonb_build_object(
@@ -199,6 +211,9 @@ begin
         'ingresos_30', (select count(*) from public.gym_entries e where e.gym_id = gym and e.at > now() - interval '30 days'),
         'invitaciones', (select count(*) from public.gym_invites i where i.gym_id = gym and i.accepted_at is null and i.revoked_at is null and i.expires_at > now()),
         'avisos_pendientes', (select count(*) from public.gym_alerts a where a.gym_id = gym and a.sent_at is null)),
+    -- Si se transfiere: los socios del dueño que no aceptaron la hoja pasan a baja (ver admin_gym_transferir).
+    'transferir_bajas', (select count(*) from public.gym_members m join public.profiles p on p.id = m.member_id join public.gyms x on x.id = m.gym_id
+                          where m.gym_id = gym and x.closed_at is null and m.status in ('activo', 'pausado') and m.terms_at is null and p.coach_id = x.owner_id),
     'settings', public.gym_settings(gym),
     'contrato', (select jsonb_build_object('version', x.dpa_version, 'aceptado', x.dpa_at) from public.gyms x where x.id = gym));
 end $$;
@@ -256,6 +271,9 @@ begin
     from public.profiles p where p.id = any(al);
   get diagnostics k = row_count;
   perform set_config('gize.gym_bulk', coalesce(bulk, ''), true);
+  -- Como gym_crear: en la prueba, el tope pasa de 10 a 100 (§7.2). coach_billing al final.
+  update public.coach_billing set max_clients = greatest(coalesce(max_clients, 10), 100)
+   where coach_id = coach and plan = 'trial' and trial_ends_at > now();
   perform public.gym_recontar(array[coach]);
   select count(*)::int into propios from public.profiles p where p.coach_id = coach and public.vinculo_gym(p.id) is null;
   perform public.gym_auditar(g, 'conversion', null, coach, jsonb_build_object('fichas', k, 'propios', propios));
@@ -277,6 +295,7 @@ grant execute on function public.admin_gym_convertir(uuid, uuid[], text) to auth
 --   programadas); con un bloqueo entre los dos, quedan sin profe. Los que no la aceptaron («Falta
 --   confirmación», cuentas convertidas) no se pasan a otro profe (§1.5): su ficha pasa a baja y siguen
 --   con su coach como alumnos propios, como antes de la conversión. Sus alumnos propios no cambian.
+-- · Las invitaciones pendientes se anulan (el dueño nuevo invita de nuevo).
 -- · El dueño anterior deja el equipo. Un gimnasio cerrado por la baja de la cuenta del dueño (dentro de
 --   los 90 días) se vuelve a abrir con un código nuevo; las fichas quedan en baja (se reactivan desde
 --   el panel) y el plan es el que tenga el dueño nuevo (sin_plan_anterior).
@@ -287,7 +306,7 @@ security definer
 set search_path = public
 as $$
 declare x record; viejo uuid; ob record; nb record; reabre boolean; socios uuid[] := '{}'; sin_hoja uuid[] := '{}'; pasan uuid[] := '{}';
-        quedan uuid[] := '{}'; u uuid; cod text; hoy text := public.gym_hoy()::text;
+        quedan uuid[] := '{}'; u uuid; cod text; hoy text := public.gym_hoy()::text; anuladas int;
         bulk text := current_setting('gize.gym_bulk', true); keep text := current_setting('gize.gym_keep_routines', true);
 begin
   perform public.admin_assert();
@@ -325,6 +344,10 @@ begin
   end if;
   select b.* into ob from public.coach_billing b where b.coach_id = viejo;
   perform 1 from public.gyms where id = gym for update;
+  -- Las invitaciones pendientes se anulan todas (las dejó el equipo de antes: con una, el dueño
+  -- anterior, o el equipo de antes del cierre, volvería a entrar). El dueño nuevo invita de nuevo.
+  update public.gym_invites set revoked_at = now() where gym_id = gym and accepted_at is null and revoked_at is null;
+  get diagnostics anuladas = row_count;
   perform set_config('gize.gym_bulk', 'on', true);
   if viejo is not null then
     foreach u in array socios loop
@@ -353,9 +376,10 @@ begin
   end if;
   update public.gyms
      set owner_id = nuevo_dueno, closed_at = null, close_reason = null, purge_after = null,
-         lapsed_at = case when reabre then null else lapsed_at end, aviso_vence_para = null, aviso_vence_dias = null,
+         lapsed_at = case when reabre then null else lapsed_at end,
          default_trainer_id = case when default_trainer_id = viejo then null else default_trainer_id end
    where id = gym;
+  delete from public.gym_avisos_vence where gym_id = gym;
   if not exists (select 1 from public.gym_codes k where k.gym_id = gym and k.kind = 'gym' and k.revoked_at is null) then
     cod := public.gym_codigo_nuevo();
     insert into public.gym_codes (code, gym_id) values (cod, gym);
@@ -375,10 +399,10 @@ begin
     perform public.gym_alerta(gym, 'u:' || u, 'profe_asignado', u || ':' || nuevo_dueno || ':' || hoy, 'push', jsonb_build_object('profe', nuevo_dueno));
   end loop;
   perform public.gym_auditar(gym, 'transferir', null, nuevo_dueno, jsonb_build_object('antes', viejo, 'reabre', reabre,
-    'pasan', cardinality(pasan), 'sin_profe', cardinality(quedan), 'bajas_sin_hoja', cardinality(sin_hoja)));
-  perform public.admin_log('gym_transferir', gym::text, jsonb_build_object('antes', viejo, 'nuevo', nuevo_dueno, 'reabre', reabre));
+    'pasan', cardinality(pasan), 'sin_profe', cardinality(quedan), 'bajas_sin_hoja', cardinality(sin_hoja), 'invitaciones_anuladas', anuladas));
+  perform public.admin_log('gym_transferir', gym::text, jsonb_build_object('antes', viejo, 'nuevo', nuevo_dueno, 'reabre', reabre, 'invitaciones_anuladas', anuladas));
   return jsonb_build_object('ok', true, 'reabre', reabre, 'pasan', cardinality(pasan), 'sin_profe', cardinality(quedan),
-    'bajas_sin_hoja', cardinality(sin_hoja), 'code', cod,
+    'bajas_sin_hoja', cardinality(sin_hoja), 'invitaciones_anuladas', anuladas, 'code', cod,
     'mp_no_pasa', ob.coach_id is not null and ob.mp_preapproval_id is not null and coalesce(ob.mp_status, '') in ('authorized', 'paused', 'pending'),
     'apple_no_pasa', ob.coach_id is not null and (coalesce(ob.apple_renueva, false) or (ob.apple_original_tx is not null and coalesce(ob.apple_vence, '-infinity') > now())),
     'sin_plan_anterior', ob.coach_id is null);
@@ -579,10 +603,12 @@ grant execute on function public.admin_set_config(text, jsonb) to authenticated;
 -- cortesía, la suscripción de Mercado Pago activa ni la de Apple que se renueva sola. Además, fuera:
 -- los dueños de un gimnasio abierto (van abajo) y los profes sin cargo (sin vínculos propios: su plan
 -- no cubre a nadie). clientes = recount_seats (sus vínculos propios; sin gimnasios, el count(*) de hoy).
--- Dueños: a 7, 3 y 1 día, una vez por vencimiento y anticipación (gyms.aviso_vence_para y
--- aviso_vence_dias), con el gimnasio, sus socios (fichas activas y pausadas) y la administración del
--- gimnasio en copia. Dos llamadas a la vez no repiten (cada fila se marca al tomarla).
--- Columnas nuevas: gym_id, gimnasio, socios, dias (1 para los coaches) y copia (cuentas en copia).
+-- Dueños: a 7, 3 y 1 día, una vez por vencimiento y anticipación (gym_avisos_vence), con el
+-- gimnasio, sus socios (fichas activas y pausadas) y la administración del gimnasio en copia. Dos
+-- llamadas a la vez no repiten (cada fila se marca al tomarla).
+-- Columnas nuevas: gym_id, gimnasio, socios, dias (el escalón del aviso: 7, 3 o 1; 1 para los
+-- coaches; solo para no repetir), copia (cuentas en copia) y faltan (los días que faltan de verdad,
+-- en días de Argentina: 0 es hoy, 1 mañana; con esto se escribe el mail).
 create or replace function public.hay_avisos_vence()
 returns boolean
 language plpgsql
@@ -599,10 +625,11 @@ begin
        and public.gym_de_dueno(b.coach_id) is null and not public.gym_profe_sin_cargo(b.coach_id))
   or exists (
     select 1 from public.gyms x join public.coach_billing b on b.coach_id = x.owner_id
+      left join public.gym_avisos_vence a on a.gym_id = x.id
      where x.closed_at is null and b.plan <> 'cortesia' and coalesce(b.mp_status, '') <> 'authorized' and not b.apple_renueva
        and public.coach_vence(b) > now() and public.coach_vence(b) <= now() + interval '7 days'
-       and (x.aviso_vence_para is distinct from public.coach_vence(b)
-            or coalesce(x.aviso_vence_dias, 99) > (case when public.coach_vence(b) <= now() + interval '1 day' then 1
+       and (a.para is distinct from public.coach_vence(b)
+            or coalesce(a.dias, 99) > (case when public.coach_vence(b) <= now() + interval '1 day' then 1
                                                         when public.coach_vence(b) <= now() + interval '3 days' then 3 else 7 end)));
 end $$;
 revoke all on function public.hay_avisos_vence() from public, anon, authenticated;
@@ -610,7 +637,7 @@ revoke all on function public.hay_avisos_vence() from public, anon, authenticate
 drop function if exists public.tomar_avisos_vence();
 create or replace function public.tomar_avisos_vence()
 returns table (coach_id uuid, vence timestamptz, prueba boolean, clientes integer,
-  gym_id uuid, gimnasio text, socios integer, dias integer, copia uuid[])
+  gym_id uuid, gimnasio text, socios integer, dias integer, copia uuid[], faltan integer)
 language plpgsql
 security definer
 set search_path = public
@@ -624,7 +651,9 @@ begin
      and b.aviso_vence_para is distinct from public.coach_vence(b)
      and public.gym_de_dueno(b.coach_id) is null and not public.gym_profe_sin_cargo(b.coach_id)
   returning b.coach_id, b.aviso_vence_para, (b.paid_until is null or b.trial_ends_at >= b.paid_until),
-            public.recount_seats(b.coach_id), null::uuid, null::text, null::integer, 1, null::uuid[];
+            public.recount_seats(b.coach_id), null::uuid, null::text, null::integer, 1, null::uuid[],
+            ((b.aviso_vence_para at time zone 'America/Argentina/Buenos_Aires')::date - public.gym_hoy())::int;
+  -- Dos a la vez: la segunda espera en el on conflict y su where ya ve el aviso de la primera.
   return query
   with d as (
     select x.id as g, b.coach_id as c, public.coach_vence(b) as v, (b.paid_until is null or b.trial_ends_at >= b.paid_until) as pr,
@@ -634,17 +663,19 @@ begin
      where x.closed_at is null and b.plan <> 'cortesia' and coalesce(b.mp_status, '') <> 'authorized' and not b.apple_renueva
        and public.coach_vence(b) > now() and public.coach_vence(b) <= now() + interval '7 days'
   ), t as (
-    update public.gyms y set aviso_vence_para = d.v, aviso_vence_dias = d.nivel
-      from d
-     where y.id = d.g and y.closed_at is null
-       and (y.aviso_vence_para is distinct from d.v or coalesce(y.aviso_vence_dias, 99) > d.nivel)
-    returning y.id as g, y.name as nom, d.c, d.v, d.pr, d.nivel
+    insert into public.gym_avisos_vence as a (gym_id, para, dias)
+    select d.g, d.v, d.nivel from d
+     where not exists (select 1 from public.gym_avisos_vence y where y.gym_id = d.g and y.para is not distinct from d.v and y.dias <= d.nivel)
+    on conflict on constraint gym_avisos_vence_pkey do update set para = excluded.para, dias = excluded.dias
+     where a.para is distinct from excluded.para or a.dias > excluded.dias
+    returning a.gym_id as g, a.para as v, a.dias as nivel
   )
-  select t.c, t.v, t.pr, public.recount_seats(t.c), t.g, t.nom,
-         (select count(*)::int from public.gym_members m where m.gym_id = t.g and m.status in ('activo', 'pausado')), t.nivel,
+  select d.c, t.v, d.pr, public.recount_seats(d.c), t.g, x.name,
+         (select count(*)::int from public.gym_members m where m.gym_id = t.g and m.status in ('activo', 'pausado')), t.nivel::int,
          coalesce((select array_agg(s.user_id order by s.user_id) from public.gym_staff s
-                    where s.gym_id = t.g and s.left_at is null and s.role = 'admin'), '{}'::uuid[])
-    from t;
+                    where s.gym_id = t.g and s.left_at is null and s.role = 'admin'), '{}'::uuid[]),
+         ((t.v at time zone 'America/Argentina/Buenos_Aires')::date - public.gym_hoy())::int
+    from t join d on d.g = t.g join public.gyms x on x.id = t.g;
 end $$;
 revoke all on function public.tomar_avisos_vence() from public, anon, authenticated;
 grant execute on function public.tomar_avisos_vence() to service_role;
@@ -658,7 +689,7 @@ set search_path = public
 as $$
 begin
   update public.coach_billing set aviso_vence_para = null where coach_id = cid;
-  update public.gyms set aviso_vence_para = null where owner_id = cid and closed_at is null;
+  delete from public.gym_avisos_vence a using public.gyms x where x.id = a.gym_id and x.owner_id = cid and x.closed_at is null;
 end $$;
 revoke all on function public.soltar_aviso_vence(uuid) from public, anon, authenticated;
 grant execute on function public.soltar_aviso_vence(uuid) to service_role;
@@ -668,7 +699,7 @@ notify pgrst, 'reload schema';
 
 -- ===== Para volver atrás =====
 -- Correr esto sin los «-- » (antes que el bloque de gimnasios-socios.sql). Saca las funciones del
--- admin de gimnasios y las dos columnas, y vuelve a poner, tal cual, las versiones de hoy de
+-- admin de gimnasios y la tabla gym_avisos_vence, y vuelve a poner, tal cual, las versiones de hoy de
 -- admin_coaches y admin_set_config (admin.sql), admin_overview (precios-2026-10.sql),
 -- hay_avisos_vence y tomar_avisos_vence (compras-apple.sql) y soltar_aviso_vence
 -- (aviso-vencimiento.sql). Antes, volver a publicar la función vence-plan de hoy.
@@ -781,6 +812,5 @@ notify pgrst, 'reload schema';
 -- revoke execute on function public.soltar_aviso_vence(uuid) from public, anon, authenticated;
 -- grant execute on function public.soltar_aviso_vence(uuid) to service_role;
 -- drop function if exists public.gym_profe_sin_cargo(uuid);
--- alter table public.gyms drop constraint if exists gyms_aviso_vence_dias_check;
--- alter table public.gyms drop column if exists aviso_vence_dias, drop column if exists aviso_vence_para;
+-- drop table if exists public.gym_avisos_vence;
 -- notify pgrst, 'reload schema';

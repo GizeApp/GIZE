@@ -31,7 +31,7 @@ function cronOk(req: Request): boolean {
 }
 
 type Aviso = { coach_id: string; vence: string; prueba: boolean; clientes: number;
-  gym_id?: string | null; gimnasio?: string | null; socios?: number | null; dias?: number | null; copia?: string[] | null };
+  gym_id?: string | null; gimnasio?: string | null; socios?: number | null; dias?: number | null; copia?: string[] | null; faltan?: number | null };
 
 // El mail de una cuenta (sin mail, null).
 async function mailDe(db: ReturnType<typeof createClient>, id: string): Promise<string | null> {
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       if (!to) { fallidos++; continue; } // sin mail no hay a quién avisar (queda marcado)
       const { data: pr } = await db.from("profiles").select("full_name").eq("id", a.coach_id).maybeSingle();
       const m = mailVence({ nombre: pr && pr.full_name, vence: a.vence, prueba: !!a.prueba, clientes: a.clientes || 0,
-        gimnasio: a.gimnasio || null, socios: a.socios ?? null, dias: a.dias ?? null });
+        gimnasio: a.gimnasio || null, socios: a.socios ?? null, dias: a.dias ?? null, faltan: a.faltan ?? null });
       // La administración del gimnasio, en copia (sin repetir al dueño).
       const cc: string[] = [];
       if (a.gimnasio) for (const id of a.copia || []) { const c = await mailDe(db, id); if (c && c !== to && !cc.includes(c)) cc.push(c); }
