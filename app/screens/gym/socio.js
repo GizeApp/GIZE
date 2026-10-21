@@ -347,7 +347,7 @@ async function salirSi(){
 
 async function cancelarPedido(desdeHoja){
   const nom = nombreGym();
-  if (!await window.confirmar("¿Cancelar el pedido a " + nom + "? Si después querés sumarte, vas a tener que pedirlo de nuevo.", { titulo: "Cancelar el pedido", ok: "Cancelar el pedido", cancelar: "Volver" })) return;
+  if (!await confirmar("¿Cancelar el pedido a " + nom + "? Si después querés sumarte, vas a tener que pedirlo de nuevo.", { titulo: "Cancelar el pedido", ok: "Cancelar el pedido", cancelar: "Volver" })) return;
   if (desdeHoja && S){ S.ocupado = true; pintar(); }
   const r = await rpc("gym_cancelar_solicitud", {});
   if (desdeHoja && S) S.ocupado = false;

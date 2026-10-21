@@ -249,19 +249,19 @@ export function renderGymCard(){
   const gi = Gym.info, rol = rolGym();
   if (!gi || !gi.gym || (rol !== "socio" && rol !== "pendiente")) return "";
   const nom = esc(gi.gym.name || "");
-  const confirmar = (titulo, texto, otro) => `<div class="gym-card gym-card-conf" role="region" aria-labelledby="gymCardT">
+  const tarjetaConf = (titulo, texto, otro) => `<div class="gym-card gym-card-conf" role="region" aria-labelledby="gymCardT">
       <div class="gym-card-top"><span class="gym-card-ic">${gymIco}</span><b id="gymCardT">${titulo}</b></div>
       <p>${texto}</p>
       <div class="gym-card-btns"><button type="button" class="gym-card-go" data-gys="confirmar">${otro ? "Ver y confirmar" : "Entendido"}</button><button type="button" class="gym-card-sec" data-gys="salir">${rol === "pendiente" ? "Cancelar el pedido" : "Salir del gimnasio"}</button></div>
     </div>`;
   if (rol === "pendiente"){
     const sol = gi.solicitud || {};
-    return sol.terms ? "" : confirmar("Confirmá tu pedido a " + nom, "Pediste sumarte con una versión anterior de la app. Antes de que te acepten, mirá qué ve el gimnasio.", true);
+    return sol.terms ? "" : tarjetaConf("Confirmá tu pedido a " + nom, "Pediste sumarte con una versión anterior de la app. Antes de que te acepten, mirá qué ve el gimnasio.", true);
   }
   const f = gi.ficha || {};
   if (!f.terms_at) return f.origen === "conversion"
-    ? confirmar("Tu coach ahora es " + nom, "Esto es lo que ve el gimnasio y lo que podés compartir con la administración. Tocá «Entendido» para verlo.", false)
-    : confirmar("Confirmá tu lugar en " + nom, "Te sumaste con una versión anterior de la app: falta que veas qué ve el gimnasio.", true);
+    ? tarjetaConf("Tu coach ahora es " + nom, "Esto es lo que ve el gimnasio y lo que podés compartir con la administración. Tocá «Entendido» para verlo.", false)
+    : tarjetaConf("Confirmá tu lugar en " + nom, "Te sumaste con una versión anterior de la app: falta que veas qué ve el gimnasio.", true);
   const pn = f.profe && String(f.profe.name || "").trim().split(/\s+/)[0];
   const quien = f.coach_externo ? "Coach externo" : pn ? "Profe: " + esc(pn) : "Sin profe";
   const pausaTxt = f.status === "pausado" ? "Pausado" + (f.paused_until ? " hasta el " + esc(String(f.paused_until).slice(8, 10) + "/" + String(f.paused_until).slice(5, 7)) : "") : "";
