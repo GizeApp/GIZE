@@ -4,10 +4,12 @@
 //   cupo, cerrado por la baja del dueño con los días para borrarlo) y el interruptor «Crear gimnasios»
 //   (app_config «gimnasios», que pregunta antes).
 // - El detalle: equipo y contadores, sin datos de socios; subir el tope de profes; transferir (avisa
-//   que la suscripción de Mercado Pago no pasa); exportar la auditoría en CSV; cerrar escribiendo el
-//   nombre (con otro nombre no cierra).
+//   que la suscripción de Mercado Pago no pasa y cuántos socios sin la hoja salen del gimnasio, antes
+//   y en el aviso de después); exportar la auditoría en CSV (punto y coma, acciones en castellano,
+//   datos sin ids y sin fórmulas); cerrar escribiendo el nombre (con otro nombre no cierra).
 // - Convertir una cuenta de coach eligiendo qué alumnos pasan (los demás siguen como alumnos propios),
-//   desde la pestaña y desde la ficha del coach en «Coaches y pagos».
+//   desde la pestaña y desde la ficha del coach en «Coaches y pagos». «Convertir» queda apagado
+//   mientras carga la lista de alumnos y si falla (con «Reintentar»); avisa el plan menor a 100.
 // - Celular: la tabla scrollea adentro y la página no se va de costado. Contraste AA.
 // Con GYM_CAPTURAS=<carpeta> guarda capturas de cada pantalla (el panel de admin es solo oscuro).
 import { newPage, wait, text, contraste, ADMIN } from './lib.mjs';
@@ -39,7 +41,7 @@ export const DETALLE = id => Object.assign({}, GYMS.gyms.find(g => g.id === id),
   equipo: id === IDS.GA ? EQUIPO : id === IDS.GS ? [{ user_id: IDS.pA1, nombre: 'Martina Profe', email: 'martina@prueba.test', rol: 'profe', desde: D(-200), hasta: D(-3), cuenta_coach: true, socios: 0 }] : [],
   contadores: id === IDS.GA ? { activos: 170, pausados: 12, pendientes: 4, visitas: 3, bajas: 20, sin_app: 15, sin_profe: 7, coach_externo: 2, falta_confirmacion: 9, comparten: 64, conversion: 30, ingresos_hoy: 41, ingresos_30: 1830, invitaciones: 1, avisos_pendientes: 5 }
     : { activos: 0, pausados: 0, pendientes: 0, visitas: 0, bajas: 61, sin_app: 0, sin_profe: 0, coach_externo: 0, falta_confirmacion: 0, comparten: 0, conversion: 0, ingresos_hoy: 0, ingresos_30: 0, invitaciones: 0, avisos_pendientes: 0 },
-  settings: { profes_extra: 0 }, contrato: { version: '2026-10-borrador', aceptado: D(-120) } });
+  transferir_bajas: id === IDS.GA ? 9 : 0, settings: { profes_extra: 0 }, contrato: { version: '2026-10-borrador', aceptado: D(-120) } });
 const coach = (o) => Object.assign({ mp_status: null, has_mp: false, pending_plan: null, active: true, price: 0, gym_id: null, gym_rol: null, gimnasio: null, sin_cargo: false, trial_ends_at: D(-60) }, o);
 export const COACHES = [
   coach({ id: IDS.dA, full_name: 'Laura Fuerza', email: 'laura@prueba.test', plan: 'p250', max_clients: 250, clients: 182, paid_until: D(18), mp_status: 'authorized', has_mp: true, price: 119900, gym_id: IDS.GA, gym_rol: 'owner', gimnasio: 'Dueño de Gimnasio Fuerza' }),
@@ -49,7 +51,9 @@ export const COACHES = [
   coach({ id: IDS.C, full_name: 'Carlos Online', email: 'carlos@prueba.test', plan: 'p25', max_clients: 25, clients: 14, paid_until: D(3), price: 24900 })];
 const ALUMNOS_K = [{ id: IDS.K1, name: 'Ana Torres' }, { id: IDS.K2, name: 'Bruno Castro' }, { id: IDS.K3, name: 'Elena Paz' }];
 export const AUDITORIA = [{ fecha: D(-1), quien: 'Laura Fuerza', accion: 'codigo_rotar', ficha: null, sobre: null, datos: { antes: 'FUERZA11', nuevo: 'FUERZA22' } },
-  { fecha: D(-2), quien: 'Rocío Recepción', accion: 'ingreso_manual', ficha: 'Juan Pérez', sobre: null, datos: { result: 'ok' } }];
+  { fecha: D(-2), quien: 'Rocío Recepción', accion: 'ingreso_manual', ficha: 'Juan Pérez', sobre: null, datos: { result: 'ok' } },
+  { fecha: D(-3), quien: 'Rocío Recepción', accion: 'ficha_alta', ficha: '=1+1', sobre: '@SUMA(A1)', datos: { ficha: id(70), origen: 'recepcion' } },
+  { fecha: D(-4), quien: 'Rocío Recepción', accion: 'ficha_alta', ficha: '=HYPERLINK("https://ejemplo.test/x","Ver")', sobre: null, datos: null }];
 
 // Los manejadores de la base simulada (los usan esta prueba y las capturas).
 export function handlers(rpcs){
@@ -74,6 +78,11 @@ export default async function ({ base, t }){
   // Abre la ficha de un gimnasio (si hay otra abierta, primero la cierra).
   const abrir = async gid => { if (await p.$('.drawer')) { await p.click('.drawer [data-a="closeDrawer"]'); await wait(200); } await p.click(`tr[data-gym="${gid}"]`); await wait(700); };
   await p.goto(base + '/admin/#gimnasios'); await wait(1500);
+  // Los avisos (toast) se van solos: se anotan al aparecer.
+  const toasts = [];
+  await p.exposeFunction('anotarToast', s => toasts.push(s));
+  await p.evaluate(() => new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => n.classList && n.classList.contains('toast') && window.anotarToast(n.textContent))))
+    .observe(document.body, { childList: true }));
   t.has(await text(p, '.tabs button.on'), 'Gimnasios', 'la pestaña Gimnasios queda marcada');
   t.has(await text(p, '.nav.on'), 'Usuarios', 'el menú marca Usuarios');
   t.eq(await p.$$eval('.tabs button', bs => bs.map(b => b.textContent)), ['Todos los usuarios', 'Coaches y pagos', 'Gimnasios'], 'al lado de «Coaches y pagos»');
@@ -116,8 +125,15 @@ export default async function ({ base, t }){
   const [baja] = await Promise.all([p.waitForEvent('download'), p.click('.drawer [data-a="gAud"]')]);
   const csv = await (await import('node:fs')).promises.readFile(await baja.path(), 'utf8');
   t.ok(/^auditoria-gimnasio-fuerza-\d{4}-\d{2}-\d{2}\.csv$/.test(baja.suggestedFilename()), 'el CSV se llama auditoria-gimnasio-fuerza-<fecha>.csv: ' + baja.suggestedFilename());
-  t.has(csv, 'Fecha,Quién,Acción,Ficha,Sobre,Datos', 'con sus columnas');
-  t.has(csv, 'codigo_rotar', 'y las filas');
+  const lineas = csv.replace(/^\ufeff/, '').split('\r\n');
+  t.ok(csv.startsWith('\ufeff'), 'con BOM (las tildes bien en Excel)');
+  t.eq(lineas[0], 'Fecha;Quién;Acción;Ficha;Sobre;Datos', 'punto y coma, como el CSV del panel del gimnasio (Excel en castellano lo abre en columnas)');
+  t.has(lineas[1], ';Laura Fuerza;Cambió el código del gimnasio;;;antes: FUERZA11 · nuevo: FUERZA22', 'la acción en castellano y los datos legibles');
+  t.ok(!/codigo_rotar|ingreso_manual|ficha_alta|\{"/.test(csv), 'sin los códigos internos ni JSON');
+  t.ok(!/[0-9a-f]{8}-[0-9a-f]{4}-/.test(csv), 'sin ids');
+  t.has(lineas[3], ";Cargó un socio;'=1+1;'@SUMA(A1);origen: recepcion", 'un nombre que empieza con = o @ va con un apóstrofo (no es una fórmula)');
+  t.has(lineas[4], `;"'=HYPERLINK(""https://ejemplo.test/x"",""Ver"")";`, 'tampoco un HYPERLINK');
+  t.eq(lineas.length, 5, 'una línea por fila (y la de títulos)');
 
   // Transferir: avisa que la suscripción de Mercado Pago no pasa.
   await p.click('#drGymTr > summary'); await wait(200);
@@ -131,7 +147,11 @@ export default async function ({ base, t }){
   const pTr = preguntas[preguntas.length - 1];
   t.has(pTr.texto, '¿Pasar «Gimnasio Fuerza» a Lucas Profe?', 'pregunta a quién');
   t.has(pTr.texto, 'la suscripción de Mercado Pago de Laura Fuerza no pasa', 'y avisa que la suscripción de Mercado Pago no pasa');
+  t.has(pTr.texto, 'pedile que la cancele desde Mi plan', 'la dueña anterior la cancela desde Mi plan (Plan de GIZE ya no es suyo)');
+  t.has(pTr.texto, '9 socios que todavía no aceptaron la hoja salen del gimnasio y siguen con Laura Fuerza como alumnos propios', 'avisa cuántos socios sin la hoja salen del gimnasio');
+  t.has(pTr.texto, 'Las invitaciones pendientes se anulan', 'y que se anulan las invitaciones');
   t.ok(rpcs.includes(`admin_gym_transferir {"gym":"${IDS.GA}","nuevo_dueno":"${IDS.pA2}"}`), 'transfiere');
+  t.has(toasts.join(' | '), 'Transferido: 12 socios pasan al dueño nuevo; 3 sin la hoja salieron del gimnasio (siguen con Laura Fuerza)', 'el aviso de después dice las bajas: ' + toasts.join(' | '));
 
   // Cerrar: con otro nombre no cierra; con el nombre exacto, sí.
   await abrir(IDS.GA);
@@ -195,6 +215,34 @@ export default async function ({ base, t }){
   await captura(p, 'admin-estadisticas-gimnasios-compu');
   t.eq(errs, [], 'errores de la página');
   await close();
+
+  // Convertir con la lista de alumnos lenta o con error: «Convertir» queda apagado (si no, se
+  // convertía con cero alumnos y no hay cómo pasarlos después).
+  let modoAl = 'lento', soltar = null;
+  const rpc2 = [], h2 = handlers(rpc2), alOk = h2['/admin_user_detail'];
+  h2['/admin_user_detail'] = (r, J, i) => modoAl === 'lento' ? new Promise(res => { soltar = () => res(alOk(r, J, i)); })
+    : modoAl === 'falla' ? J({ message: 'Error de prueba' }, 500) : alOk(r, J, i);
+  const v = await newPage({ user: ADMIN, viewport: { width: 1440, height: 900 }, handlers: h2 });
+  await v.p.goto(base + '/admin/#gimnasios'); await wait(1500);
+  await v.p.click('#gListB [data-a="gConv"]'); await wait(500);
+  const apagado = () => v.p.$eval('.drawer [data-a="gConvOk"]', b => b.disabled);
+  t.eq([await text(v.p, '#gcAl'), await apagado()], ['Cargando…', true], 'mientras carga la lista de alumnos: «Convertir» apagado');
+  await v.p.click('.drawer [data-a="gConvOk"]', { force: true }); await wait(300);
+  t.ok(!rpc2.some(r => r.startsWith('admin_gym_convertir')), 'tocarlo igual no convierte');
+  soltar(); await wait(600);
+  t.eq([await v.p.$$eval('#gcAl [data-gc]', is => is.length), await apagado()], [3, false], 'con la lista: se prende');
+  modoAl = 'falla';
+  await v.p.selectOption('#gcCoach', IDS.C); await wait(800);
+  t.has(await text(v.p, '#gcAl'), 'No se pudieron traer los alumnos', 'si falla, lo dice');
+  t.eq([await apagado(), !!(await v.p.$('#gcAl [data-a="gConvRe"]'))], [true, true], 'con «Convertir» apagado y «Reintentar»');
+  await v.p.click('.drawer [data-a="gConvOk"]', { force: true }); await wait(300);
+  t.ok(!rpc2.some(r => r.startsWith('admin_gym_convertir')), 'y no convierte con cero alumnos');
+  t.has(await text(v.p, '#gcPlan'), 'queda marcado como plan menor a 100', 'avisa que con el plan de 25 el gimnasio queda marcado «plan menor a 100»');
+  modoAl = 'ok';
+  await v.p.click('#gcAl [data-a="gConvRe"]'); await wait(800);
+  t.eq([await v.p.$$eval('#gcAl [data-gc]', is => is.length), await apagado()], [3, false], '«Reintentar» trae la lista y prende «Convertir»');
+  t.eq(v.errs.filter(e => !/500|Error de prueba/.test(e)), [], 'errores de la página (lista lenta o con error)');
+  await v.close();
 
   // Celular: la tabla scrollea adentro, la página no se va de costado; contraste AA.
   const cel = await newPage({ user: ADMIN, viewport: { width: 390, height: 844 }, touch: true, handlers: handlers([]) });

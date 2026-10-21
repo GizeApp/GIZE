@@ -779,25 +779,34 @@ async function openConvertir(coachId){
   const id = coachId || (libres[0] && libres[0].id);
   if (!id){ drawer('<div class="h1 sm">Convertir en gimnasio</div><div class="empty">No hay cuentas de coach para convertir.</div>'); return; }
   const c = (S.coaches || []).find(x => x.id === id);
-  drawer(`<div class="h1 sm">Convertir en gimnasio</div><div class="lead" style="margin-bottom:8px">Se crea el gimnasio con su código y esta cuenta pasa a ser la dueña. Los alumnos que elijas pasan a ser socios con ella como profe: no pierden nada (rutina, chat, rutinas programadas), quedan en «Falta confirmación» hasta que acepten la hoja y nadie más ve sus datos. El plan sigue igual (mismo vencimiento, suscripción y cupo). Los que no elijas siguen como alumnos propios.</div>
+  drawer(`<div class="h1 sm">Convertir en gimnasio</div><div class="lead" style="margin-bottom:8px">Se crea el gimnasio con su código y esta cuenta pasa a ser la dueña. Los alumnos que elijas pasan a ser socios con ella como profe: no pierden nada (rutina, chat, rutinas programadas), quedan en «Falta confirmación» hasta que acepten la hoja y nadie más ve sus datos. El plan sigue igual (mismo vencimiento, suscripción y cupo; en la prueba, el cupo pasa a 100). Los que no elijas siguen como alumnos propios.</div>
+    ${c && PLAN_MAX[c.plan] && PLAN_MAX[c.plan] < 100 ? `<div class="sec-s t-warn" id="gcPlan">Tiene el ${esc(planTxt(c.plan))}: el gimnasio queda marcado como plan menor a 100${Number(c.clients) > PLAN_MAX[c.plan] ? " y sobre el cupo" : ""}. Cargale el plan de gimnasio en Coaches y pagos.</div>` : ""}
     <label class="lbl" for="gcCoach">Cuenta de coach</label><select class="in" id="gcCoach">${libres.map(x => `<option value="${esc(x.id)}"${x.id === id ? " selected" : ""}>${esc((x.full_name || "Sin nombre") + " · " + planTxt(x.plan) + " · " + n0(x.clients) + " alumno" + (x.clients === 1 ? "" : "s"))}</option>`).join("")}</select>
     <label class="lbl" for="gcNombre">Nombre del gimnasio</label><input class="in" id="gcNombre" maxlength="80" value="${esc("Gimnasio de " + ((c && c.full_name) || "").trim())}">
     <div class="lbl">Alumnos que pasan al gimnasio</div><div id="gcAl" class="empty">Cargando…</div>
-    <div class="row-btns"><button class="btn blue" data-a="gConvOk">Convertir</button></div>`);
+    <div class="row-btns"><button class="btn blue" data-a="gConvOk" disabled>Convertir</button></div>`);
+  // «Convertir» queda apagado hasta tener la lista de alumnos: sin ella se convertiría con cero socios
+  // y no hay cómo pasarlos después (una cuenta ya convertida no se vuelve a convertir).
   const box = document.getElementById("gcAl"), dr = document.querySelector(".drawer");
-  let u; try { u = await rpc("admin_user_detail", { uid: id }); } catch (e) { if (box) box.textContent = errMsg(e); return; }
-  if (!dr.isConnected || !document.getElementById("gcAl") || document.getElementById("gcCoach").value !== id) return;
+  const vigente = () => dr.isConnected && document.getElementById("gcAl") === box && document.getElementById("gcCoach").value === id;
+  let u; try { u = await rpc("admin_user_detail", { uid: id }); } catch (e) {
+    if (vigente()) box.innerHTML = `<div>No se pudieron traer los alumnos (${esc(errMsg(e))}).</div><div class="row-btns"><button class="btn sm" data-a="gConvRe">Reintentar</button></div>`;
+    return;
+  }
+  if (!vigente()) return;
   const al = (u && u.clients) || [];
-  box.className = "gc-al";
+  box.className = "gc-al"; box.dataset.listo = "1";
+  const ok = document.querySelector('.drawer [data-a="gConvOk"]'); if (ok) ok.disabled = false;
   box.innerHTML = al.length ? `<label class="gc-todos"><input type="checkbox" id="gcTodos" checked> <b>Todos (${n0(al.length)})</b></label>` + al.map(a => `<label><input type="checkbox" data-gc="${esc(a.id)}" checked> ${esc(a.name || "Sin nombre")}</label>`).join("")
     : '<div class="muted small">No tiene alumnos: se crea el gimnasio sin socios.</div>';
 }
 async function convertir(btn){
+  if (!(document.getElementById("gcAl") || {}).dataset || !document.getElementById("gcAl").dataset.listo) return toast("Esperá a que cargue la lista de alumnos.");
   const coach = document.getElementById("gcCoach").value, nombre = document.getElementById("gcNombre").value.trim();
   const alumnos = [...document.querySelectorAll("#gcAl [data-gc]")].filter(i => i.checked).map(i => i.dataset.gc), total = document.querySelectorAll("#gcAl [data-gc]").length;
   const c = (S.coaches || []).find(x => x.id === coach);
   if (nombre.length < 2) return toast("Escribí el nombre del gimnasio.");
-  if (!await confirmar("¿Convertir la cuenta de " + ((c && c.full_name) || "este coach") + " en «" + nombre + "»?\n\n" + (alumnos.length === 1 ? "1 alumno pasa" : alumnos.length + " alumnos pasan") + " al gimnasio" + (total - alumnos.length ? " y " + (total - alumnos.length) + " sigue" + (total - alumnos.length === 1 ? "" : "n") + " como alumno" + (total - alumnos.length === 1 ? "" : "s") + " propio" + (total - alumnos.length === 1 ? "" : "s") : "") + ". El plan no cambia.", { titulo: "Convertir en gimnasio", ok: "Convertir" })) return;
+  if (!await confirmar("¿Convertir la cuenta de " + ((c && c.full_name) || "este coach") + " en «" + nombre + "»?\n\n" + (alumnos.length === 1 ? "1 alumno pasa" : alumnos.length + " alumnos pasan") + " al gimnasio" + (total - alumnos.length ? " y " + (total - alumnos.length) + " sigue" + (total - alumnos.length === 1 ? "" : "n") + " como alumno" + (total - alumnos.length === 1 ? "" : "s") + " propio" + (total - alumnos.length === 1 ? "" : "s") : "") + ". " + (c && c.plan === "trial" ? "En la prueba, el cupo pasa a 100." : c && PLAN_MAX[c.plan] < 100 ? "El plan no cambia: queda marcado como plan menor a 100 (cargale el plan de gimnasio en Coaches y pagos)." : "El plan no cambia."), { titulo: "Convertir en gimnasio", ok: "Convertir" })) return;
   btn.disabled = true;
   try {
     const r = await rpc("admin_gym_convertir", { coach, alumnos, nombre });
@@ -811,14 +820,20 @@ async function transferir(btn){
   if (!d || !nuevo) return toast("Elegí el dueño nuevo.");
   const sel = document.getElementById("gTrA"), quien = sel.options[sel.selectedIndex].text.split(" · ")[0];
   const sus = [d.mp && d.mp !== "cancelled" ? "la suscripción de Mercado Pago" : "", d.apple_renueva ? "la suscripción de Apple" : ""].filter(Boolean).join(" y ");
+  const antes = (d.dueno && d.dueno.nombre) || "el dueño anterior", bajas = Number(d.transferir_bajas) || 0;
   const msg = "¿Pasar «" + d.nombre + "» a " + quien + "?" + (d.estado === "cerrado" ? "\n\nEl gimnasio se vuelve a abrir con un código nuevo. El plan es el que tenga " + quien + "."
-    : "\n\nLa fila del plan pasa a " + quien + " (mismo plan y vencimiento)." + (sus ? "\n\nOjo: " + sus + " de " + ((d.dueno && d.dueno.nombre) || "el dueño anterior") + " no pasa. Cancelala (o pedile que la cancele desde Plan de GIZE): " + quien + " se suscribe otra vez o el pago queda manual hasta el próximo vencimiento." : ""));
+    : "\n\nLa fila del plan pasa a " + quien + " (mismo plan y vencimiento)."
+      + (bajas ? "\n\nOjo: " + (bajas === 1 ? "1 socio que todavía no aceptó la hoja sale" : bajas + " socios que todavía no aceptaron la hoja salen") + " del gimnasio y sigue" + (bajas === 1 ? "" : "n") + " con " + antes + " como alumno" + (bajas === 1 ? "" : "s") + " propio" + (bajas === 1 ? "" : "s") + "." : "")
+      + (sus ? "\n\nOjo: " + sus + " de " + antes + " no pasa. Cancelala (o pedile que la cancele desde Mi plan): " + quien + " se suscribe otra vez o el pago queda manual hasta el próximo vencimiento." : ""))
+    + "\n\nLas invitaciones pendientes se anulan: " + quien + " invita de nuevo al que haga falta.";
   if (!await confirmar(msg, { titulo: "Transferir el gimnasio", ok: "Transferir" })) return;
   btn.disabled = true;
   try {
     const r = await rpc("admin_gym_transferir", { gym: d.id, nuevo_dueno: nuevo });
     const avisos = [r.mp_no_pasa ? "la suscripción de Mercado Pago no pasó: cancelala" : "", r.apple_no_pasa ? "la suscripción de Apple no pasó" : "", r.sin_plan_anterior ? "cargale el plan en Coaches y pagos" : ""].filter(Boolean);
-    toast("Transferido" + (r.pasan ? ": " + r.pasan + (r.pasan === 1 ? " socio pasa" : " socios pasan") + " al dueño nuevo" : "") + (avisos.length ? ". Ojo: " + avisos.join("; ") : ""));
+    const partes = [r.pasan ? r.pasan + (r.pasan === 1 ? " socio pasa" : " socios pasan") + " al dueño nuevo" : "",
+      r.bajas_sin_hoja ? r.bajas_sin_hoja + (r.bajas_sin_hoja === 1 ? " sin la hoja salió del gimnasio (sigue" : " sin la hoja salieron del gimnasio (siguen") + " con " + antes + ")" : ""].filter(Boolean);
+    toast("Transferido" + (partes.length ? ": " + partes.join("; ") : "") + (avisos.length ? ". Ojo: " + avisos.join("; ") : ""));
     await afterGym(d.id);
   } catch (e) { btn.disabled = false; toast(errMsg(e)); }
 }
@@ -831,15 +846,47 @@ async function cerrarGym(btn){
   try { const r = await rpc("admin_gym_cerrar", { gym: d.id }); toast("Gimnasio cerrado" + (r.sin_coach ? " · " + r.sin_coach + (r.sin_coach === 1 ? " socio quedó" : " socios quedaron") + " sin profe" : "")); await afterGym(d.id); }
   catch (e) { btn.disabled = false; toast(errMsg(e)); }
 }
-// La auditoría del gimnasio en CSV (para mandársela al dueño si la pide).
-const csvCelda = v => { const s = v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+// La auditoría del gimnasio en CSV (para mandársela al dueño si la pide). Como el CSV del panel del
+// gimnasio (app/screens/gym/csv.js): punto y coma, BOM y \r\n para Excel en castellano, y sin fórmulas
+// (un valor que empieza con = + - @ va con un apóstrofo adelante: los nombres los escriben la
+// recepción y los socios). Las acciones en castellano y los datos legibles, sin ids.
+const csvCelda = v => {
+  let s = v == null ? "" : typeof v === "boolean" ? (v ? "sí" : "no") : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+};
+const GYM_AUD = { gym_crear: "Creó el gimnasio", conversion: "Convirtió la cuenta en gimnasio", transferir: "Pasó el gimnasio a otro dueño", cerrar: "Cerró el gimnasio",
+  config: "Cambió la configuración", codigo_rotar: "Cambió el código del gimnasio", link_unirme: "Generó un link para sumarse", exportar: "Exportó datos",
+  profes_extra: "Cambió el tope de profes (GIZE)", invitar: "Invitó al equipo", invitacion_revocar: "Anuló una invitación", equipo_alta: "Se sumó al equipo",
+  cambiar_rol: "Cambió el rol", quitar_staff: "Sacó a alguien del equipo", baja_cuenta_equipo: "Borró su cuenta (equipo)",
+  solicitud: "Pidió sumarse", solicitud_cancelada: "Canceló el pedido", aprobada_sola: "Se sumó (aprobado solo)", union_por_mail: "Se sumó por el mail",
+  unirse_link: "Se sumó con el link", unirse_link_sin_dni: "Se sumó con el link (sin DNI)", unirse_dni_mal: "DNI equivocado al sumarse",
+  aprobar: "Aprobó un pedido", rechazar: "Rechazó un pedido", ficha_alta: "Cargó un socio", ficha_editar: "Editó un socio", nota: "Nota sobre un socio",
+  asignar_profe: "Asignó profe", pausar: "Pausó a un socio", reactivar: "Reactivó a un socio", baja: "Dio de baja a un socio", dejar_socio: "Dejó de atender a un socio",
+  salir: "El socio salió del gimnasio", compartir: "Cambió qué comparte", confirmar_hoja: "Aceptó la hoja", foto_propuesta: "Mandó una foto nueva",
+  foto_staff: "Cargó o aprobó la foto", ingreso_manual: "Anotó un ingreso", liberar: "Plan vencido: socios sin profe", restaurar: "Plan al día: socios con profe otra vez" };
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const audDatos = v => {
+  const partes = [];
+  const ir = (o, pre) => {
+    for (const [k, x] of Object.entries(o || {})){
+      if (x == null || x === "" || (typeof x === "string" && UUID_RE.test(x))) continue;
+      const kk = pre + k.replace(/_/g, " ");
+      if (Array.isArray(x)){ const l = x.filter(y => y != null && !(typeof y === "string" && UUID_RE.test(y))).map(y => typeof y === "object" ? JSON.stringify(y) : String(y)); if (l.length) partes.push(kk + ": " + l.join(", ")); }
+      else if (typeof x === "object") ir(x, kk + " › ");
+      else partes.push(kk + ": " + (typeof x === "boolean" ? (x ? "sí" : "no") : x));
+    }
+  };
+  if (v && typeof v === "object") ir(v, ""); else if (v != null) partes.push(String(v));
+  return partes.join(" · ");
+};
 async function exportarAuditoria(btn){
   const d = S.gymDetalle; if (!d) return;
   btn.disabled = true;
   try {
     const rows = await rpc("admin_gym_auditoria", { gym: d.id });
-    const csv = "﻿" + [["Fecha", "Quién", "Acción", "Ficha", "Sobre", "Datos"]].concat((rows || []).map(r => [new Date(r.fecha).toLocaleString("es-AR"), r.quien, r.accion, r.ficha, r.sobre, r.datos]))
-      .map(l => l.map(csvCelda).join(",")).join("\n");
+    const csv = "\ufeff" + [["Fecha", "Quién", "Acción", "Ficha", "Sobre", "Datos"]].concat((rows || []).map(r => [new Date(r.fecha).toLocaleString("es-AR"), r.quien,
+      GYM_AUD[r.accion] || r.accion, r.ficha, r.sobre, audDatos(r.datos)])).map(l => l.map(csvCelda).join(";")).join("\r\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     a.download = "auditoria-" + d.nombre.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + isoDay(new Date()) + ".csv";
@@ -1930,6 +1977,7 @@ document.addEventListener("click", async e => {
     }
     if (a === "gConv"){ openConvertir(b.dataset.id || null); return; }
     if (a === "gConvOk"){ convertir(b); return; }
+    if (a === "gConvRe"){ const sel = document.getElementById("gcCoach"); if (sel) openConvertir(sel.value); return; }
     if (a === "toGym"){ if (S.view !== "gimnasios") go("gimnasios"); openGym(b.dataset.id); return; }
     if (a === "gAlta"){
       const on = b.getAttribute("aria-checked") !== "true";
