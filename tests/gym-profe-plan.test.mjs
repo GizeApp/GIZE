@@ -47,6 +47,7 @@ export default async function ({ base, t }){
     if (caso.startsWith('plan propio vencido')){
       t.has(h, 'Tu plan de coach venció: tus alumnos propios vuelven cuando lo renueves. Tus socios del gimnasio siguen igual.', caso + ': el cartel sobre sus alumnos propios');
       t.ok(!!await p.$('.cv-gymcartel [data-plan="open"]'), caso + ': con «Mi plan» (en la web)');
+      t.ok(!await p.$('#coachHost .pl-banner') && !/Sin plan vigente/.test(h) && (await p.$$('#coachHost [data-plan="open"]')).length === 1, caso + ': un solo cartel con «Mi plan» (sin la tira «Sin plan vigente» encima)');
       await captura(p, 'profe-plan-propio-vencido-compu');
     }
     t.eq(pg.errs, [], caso + ': sin errores');
