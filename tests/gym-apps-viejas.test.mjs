@@ -21,7 +21,7 @@ import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { newPage, wait } from './lib.mjs';
-import { handlersGym, PROFE, DUENA, ALUMNO, S, ID, IOS } from './gym-comun.mjs';
+import { handlersGym, PROFE, DUENA, ALUMNO, S, ID, IOS, captura } from './gym-comun.mjs';
 import { pg } from './pg.mjs';
 import { P, DATOS, canon } from './gimnasios-comun.mjs';
 
@@ -84,6 +84,7 @@ export default async function ({ t }){
         t.ok(!(await pg.p.$('.pl-wall')), donde + ': profe sin fila → sin la pantalla de pago');
         t.ok(!(await pg.p.$('.pl-banner')), donde + ': y sin la tira del plan');
         t.has(host, 'Martina Sosa 1', donde + ': ve a sus 15 socios como clientes');
+        await captura(pg.p, 'app-vieja-profe-sin-fila-' + (init ? 'iphone' : 'web') + '-cel');
         t.ok(!/\$|precio|Ver planes|Pagar/i.test(host), donde + ': nada de precios ni planes');
         t.eq(pg.errs, [], 'errores de la página (profe, ' + donde + ')');
         await pg.close();
@@ -92,6 +93,7 @@ export default async function ({ t }){
       {
         const pg = await entrar(PROFE, { nombre: 'Lucía Profe', alumnos: SOCIOS, billing: { plan: 'trial', max_clients: 10, trial_ends_at: dias(5), paid_until: null, seats_used: 0 } });
         t.ok(!!(await pg.p.$('.pl-wall')), 'control: con la fila de prueba a la vista, la app vieja le mostraría la pantalla de pago');
+        await captura(pg.p, 'app-vieja-profe-control-con-fila-cel');
         await pg.close();
       }
       // b) Socio que pone el código del gimnasio: el 400 con el P0001 «Listo…», tal cual.
@@ -99,10 +101,12 @@ export default async function ({ t }){
         const pedidos = [];
         const pg = await entrar(ALUMNO, { rol: 'client', nombre: 'Nora Vidal', handlers: {
           '/rpc/join_coach': (r, J, i) => { pedidos.push(JSON.parse(i.body)); return J({ code: 'P0001', message: LISTO, details: null, hint: null }, 400); } } },
-          { init, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} } });
+          { init, tocarAvisos: false, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} } });
         await pg.p.click('#nav-config'); await wait(500);
         await pg.p.fill('#joinCode', 'FUERZA22');
         await pg.p.click('[data-auth="join"]'); await wait(900);
+        await captura(pg.p, 'app-vieja-socio-codigo-gimnasio-' + (init ? 'iphone' : 'web') + '-cel');
+        if (await pg.p.$('.av-btn')) await pg.p.click('.av-btn');
         t.eq(pedidos, [{ code: 'FUERZA22' }], donde + ': la app vieja manda el código del gimnasio a join_coach');
         t.eq(pg.dialogs[pg.dialogs.length - 1], LISTO, donde + ': y muestra «Listo: le pediste a Gimnasio Fuerza que te sume…» tal cual');
         t.eq(pg.errs, [], 'errores de la página (socio, ' + donde + ')');

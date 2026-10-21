@@ -715,13 +715,13 @@ function paintGyms(){
     + (gs.length - abiertos.length ? " · " + n0(gs.length - abiertos.length) + " cerrado" + (gs.length - abiertos.length === 1 ? "" : "s") : ""));
   if (!gs.length){ box.className = "empty"; box.textContent = "Todavía no hay gimnasios. Se crean desde gize.ar/gimnasio (con el interruptor prendido) o convirtiendo una cuenta de coach."; return; }
   box.className = "tscroll";
-  box.innerHTML = `<table class="table"><thead><tr><th>Gimnasio</th><th>Dueño</th><th>Plan</th><th>Socios</th><th>Profes</th><th>Recepción</th><th>Estado</th><th>Vence</th><th>Pago</th><th>Creado</th><th>Último uso</th></tr></thead><tbody>${gs.map(g => `
+  box.innerHTML = `<table class="table"><thead><tr><th>Gimnasio</th><th>Dueño</th><th>Plan</th><th>Socios</th><th>Profes</th><th>Recepción</th><th>Estado</th><th>Vence</th><th>Pago</th><th>Actividad</th></tr></thead><tbody>${gs.map(g => `
     <tr class="row${g.estado === "cerrado" ? " dim" : ""}" data-gym="${esc(g.id)}"><td><b>${esc(g.nombre)}</b>${g.ciudad ? `<div class="muted small">${esc(g.ciudad)}</div>` : ""}${gymMarcas(g) ? `<div class="gym-marcas">${gymMarcas(g)}</div>` : ""}</td>
       <td>${g.dueno ? esc(g.dueno.nombre || "Sin nombre") + `<div class="muted small">${esc(g.dueno.email || "")}</div>` : '<span class="muted">Sin dueño</span>'}</td>
       <td>${esc(planTxt(g.plan))}</td><td>${n0(g.seats_used)} <span class="muted">/ ${n0(g.max)}</span></td>
       <td>${n0(g.profes_usados)} <span class="muted">/ ${n0(g.profes_tope)}</span></td><td>${n0(g.recepcion)}</td>
-      <td>${gymEstado(g)}</td><td class="muted">${g.estado === "cerrado" ? "—" : g.plan === "cortesia" ? "No vence" : lastDay(g.vence)}</td>
-      <td class="muted small">${esc(gymPago(g))}</td><td class="muted">${fmtD(g.creado)}</td><td class="muted">${ago(g.ultimo_uso)}</td></tr>`).join("")}</tbody></table>`;
+      <td>${gymEstado(g)}</td><td class="muted nw">${g.estado === "cerrado" ? "—" : g.plan === "cortesia" ? "No vence" : lastDay(g.vence)}</td>
+      <td class="muted small">${esc(gymPago(g))}</td><td class="muted small nw">Creado ${fmtD(g.creado)}<div>Uso: ${ago(g.ultimo_uso)}</div></td></tr>`).join("")}</tbody></table>`;
 }
 
 let gymReq = 0;

@@ -9,7 +9,9 @@
 // - Convertir una cuenta de coach eligiendo qué alumnos pasan (los demás siguen como alumnos propios),
 //   desde la pestaña y desde la ficha del coach en «Coaches y pagos».
 // - Celular: la tabla scrollea adentro y la página no se va de costado. Contraste AA.
+// Con GYM_CAPTURAS=<carpeta> guarda capturas de cada pantalla (el panel de admin es solo oscuro).
 import { newPage, wait, text, contraste, ADMIN } from './lib.mjs';
+import { captura } from './gym-comun.mjs';
 
 const NOW = Date.now();
 const D = n => new Date(NOW + n * 864e5).toISOString();
@@ -79,6 +81,7 @@ export default async function ({ base, t }){
   for (const s of ['Gimnasio Fuerza', 'Laura Fuerza', 'Gimnasio (250)', '182 / 250', '6 / 15', 'Al día', 'Mercado Pago (activa)', 'Gimnasio Norte', 'En gracia', 'Sobre el cupo', 'Plan menor a 100',
     'Sin uso a los 30 días', 'Diferencia en el cupo', 'Gimnasio Sur', 'Sin dueño', 'Cerrado por la baja del dueño · se borra en 87 días'])
     t.has(lista, s, 'la lista muestra «' + s + '»');
+  await captura(p, 'admin-gimnasios-lista-compu');
   t.has(await text(p, '#gListB .pnl-s'), '2 gimnasios · 1 con marcas · 1 cerrado', 'el resumen de la lista');
   t.eq(await p.getAttribute('[data-a="gAlta"]', 'aria-checked'), 'false', '«Crear gimnasios» arranca apagado');
   t.has(await text(p, '#gAlta'), 'Convertir una cuenta desde acá anda igual', 'y dice que la conversión no depende del interruptor');
@@ -91,6 +94,7 @@ export default async function ({ base, t }){
   await p.click('[data-a="gAlta"]'); await wait(500);
   t.ok(rpcs.includes('admin_set_config {"p_key":"gimnasios","p_value":{"alta":true}}'), 'prende «Crear gimnasios»: ' + rpcs.join(' | '));
   t.eq(await p.getAttribute('[data-a="gAlta"]', 'aria-checked'), 'true', 'el interruptor queda prendido');
+  await captura(p, 'admin-gimnasios-alta-prendido-compu');
   t.has(preguntas.map(q => q.texto).join('\n'), 'gize.ar/gimnasio', 'la pregunta dice dónde se crea');
 
   // El detalle: equipo y contadores, sin datos de socios.
@@ -100,6 +104,7 @@ export default async function ({ base, t }){
     'Martina Profe', '80 socios', 'Rocío Recepción', 'Recepción', 'Pagos del dueño', 'Exportar la auditoría', 'Cerrar el gimnasio'])
     t.has(dr, s, 'el detalle muestra «' + s + '»');
   t.ok(!/Juan Pérez|DNI/.test(dr), 'el detalle no muestra datos de socios');
+  await captura(p, 'admin-gimnasios-detalle-compu');
   t.eq(await p.$$eval('.drawer details', ds => ds.map(d => d.open)), [false, false], 'tope de profes y transferir arrancan plegados');
 
   // Tope de profes.
@@ -120,6 +125,8 @@ export default async function ({ base, t }){
   t.eq(opciones, ['Martina Profe · Profe del gimnasio', 'Lucas Profe · Profe del gimnasio', 'Karina Coach · karina@prueba.test', 'Carlos Online · carlos@prueba.test'],
     'el dueño nuevo: los profes del gimnasio con cuenta de coach y los coaches sin gimnasio');
   await p.selectOption('#gTrA', IDS.pA2);
+  await p.evaluate(() => document.getElementById('drGymTr').scrollIntoView());
+  await captura(p, 'admin-gimnasios-transferir-compu');
   await p.click('[data-a="gTr"]'); await wait(700);
   const pTr = preguntas[preguntas.length - 1];
   t.has(pTr.texto, '¿Pasar «Gimnasio Fuerza» a Lucas Profe?', 'pregunta a quién');
@@ -138,6 +145,7 @@ export default async function ({ base, t }){
   // El cerrado por la baja del dueño: sin cerrar, con transferir y los días para borrarlo.
   await abrir(IDS.GS);
   t.has(await text(p, '.drawer'), 'se borra en 87 días', 'el cerrado dice cuándo se borra');
+  await captura(p, 'admin-gimnasios-cerrado-por-baja-compu');
   t.ok(!(await p.$('.drawer [data-a="gCerrar"]')) && !!(await p.$('#drGymTr')), 'sin «Cerrar» y con «Transferir» (para que alguien se haga cargo)');
   await p.click('.drawer [data-a="closeDrawer"]');
 
@@ -149,6 +157,7 @@ export default async function ({ base, t }){
   await p.uncheck(`#gcAl [data-gc="${IDS.K3}"]`);
   t.eq(await p.$eval('#gcTodos', i => [i.checked, i.indeterminate]), [false, true], '«Todos» queda a medias');
   await p.fill('#gcNombre', 'Gimnasio Karina');
+  await captura(p, 'admin-gimnasios-convertir-compu');
   await p.click('[data-a="gConvOk"]'); await wait(800);
   t.has(preguntas[preguntas.length - 1].texto, '2 alumnos pasan al gimnasio y 1 sigue como alumno propio. El plan no cambia.', 'pregunta cuántos pasan y cuántos siguen como alumnos propios');
   t.ok(rpcs.includes(`admin_gym_convertir {"coach":"${IDS.K}","alumnos":["${IDS.K1}","${IDS.K2}"],"nombre":"Gimnasio Karina"}`), 'convierte con los elegidos: ' + rpcs.filter(r => r.startsWith('admin_gym_convertir')).join(''));
@@ -162,13 +171,16 @@ export default async function ({ base, t }){
   t.has(cl, 'Sin cargo (gimnasio)', 'su estado no es «Sin pagar»');
   t.ok(!/Sin pagar/.test(await text(p, '#cListB .pnl-s')), 'y no cuenta como «sin pagar» en el resumen');
   t.ok(!(await text(p, '#cSoon')).includes('Lucas Profe'), 'ni en «Vencen pronto»');
+  await captura(p, 'admin-coaches-columna-gimnasio-compu');
   await p.click(`tr[data-coach="${IDS.dA}"]`); await wait(400);
   t.has(await text(p, '.drawer'), 'Dueño de Gimnasio Fuerza', 'la ficha del dueño dice su gimnasio');
   t.ok(!!(await p.$('.drawer [data-a="toGym"]')), 'y lleva al gimnasio');
+  await captura(p, 'admin-coach-duena-compu');
   await p.click('.drawer [data-a="closeDrawer"]');
   await p.click(`tr[data-coach="${IDS.C}"]`); await wait(400);
   await p.click('.drawer [data-a="gConv"]'); await wait(800);
   t.eq(await p.inputValue('#gcCoach'), IDS.C, 'desde la ficha de un coach, convierte esa cuenta');
+  await wait(400); await captura(p, 'admin-convertir-desde-coach-compu');
   await p.click('.drawer [data-a="closeDrawer"]');
 
   // Registro de acciones.
@@ -180,6 +192,7 @@ export default async function ({ base, t }){
   await p.click('[data-go="estadisticas"]'); await wait(1000);
   t.has(await text(p, '#hNumB'), 'Gimnasios', 'Estadísticas suma los gimnasios');
   t.has(await text(p, '#hNumB'), '243 socios · 15 profes', 'con sus socios y profes');
+  await captura(p, 'admin-estadisticas-gimnasios-compu');
   t.eq(errs, [], 'errores de la página');
   await close();
 
@@ -188,11 +201,16 @@ export default async function ({ base, t }){
   await cel.p.goto(base + '/admin/#gimnasios'); await wait(1500);
   t.eq(await cel.p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'en el celular la página no se va de costado');
   t.ok(await cel.p.$eval('#gList', e => e.scrollWidth > e.clientWidth), 'la tabla scrollea adentro de su tarjeta');
+  await captura(cel.p, 'admin-gimnasios-lista-cel');
   const k = await contraste(cel.p, '#main');
   t.eq(k.malos, [], 'contraste AA en la pestaña (mínimo ' + k.min + ')');
   await cel.p.click(`tr[data-gym="${IDS.GA}"]`); await wait(700);
+  await captura(cel.p, 'admin-gimnasios-detalle-cel');
   const k2 = await contraste(cel.p, '.drawer');
   t.eq(k2.malos, [], 'contraste AA en el detalle (mínimo ' + k2.min + ')');
+  await cel.p.click('.drawer [data-a="closeDrawer"]'); await cel.p.click('#gListB [data-a="gConv"]'); await wait(900);
+  await captura(cel.p, 'admin-gimnasios-convertir-cel');
+  t.eq(await cel.p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'convertir en el celular: sin irse de costado');
   t.eq(cel.errs, [], 'errores de la página (celular)');
   await cel.close();
 }
