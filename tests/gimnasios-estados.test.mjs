@@ -14,6 +14,9 @@ const cupos = `select jsonb_object_agg(prueba.n(coach_id), seats_used) from publ
 const alertas = tipo => `select coalesce(jsonb_agg(substr(recipient, 3) order by recipient), '[]') from public.gym_alerts where kind = '${tipo}'`;
 const programadas = who => `select coalesce(jsonb_agg(prueba.n(created_by)), '[]') from public.routine_schedule where client_id = '${P[who]}' and applied_at is null`;
 
+// El día de hoy en Argentina (gym_hoy): Postgres corre en UTC y de 21 a 24 h current_date ya es mañana.
+const HOY = "(now() at time zone 'America/Argentina/Buenos_Aires')::date";
+
 export default async function ({ t: t0 }){
   const t = conCanon(t0);
   const h = await conPg(t);
@@ -82,9 +85,9 @@ export default async function ({ t: t0 }){
     ['pA1', `select to_jsonb(public.is_my_client('${P.A2}'))`], ['dA', rpc('gym_reactivar', F.A2)], ['postgres', ESTADO('A2')]]);
   t.eq([est(x[1]), x[2], x[3], est(x[5])], [{ coach: 'pA1', status: 'pausado', trainer: 'pA1', restore: null, inv: [] }, BASE, true,
     { coach: 'pA1', status: 'activo', trainer: 'pA1', restore: null, inv: [] }], 'pausar: sigue contando y con su profe; reactivar la vuelve a activa');
-  for (const [hasta, que] of [['current_date', 'hoy'], ['current_date + 400', 'más de un año']])
+  for (const [hasta, que] of [[HOY, 'hoy'], [HOY + ' + 400', 'más de un año']])
     t.eq((await V([['dA', `select to_jsonb(public.gym_pausar('${F.A2}', ${hasta}))`]]))[0].msg, 'Elegí hasta cuándo (dentro del próximo año).', 'pausar hasta ' + que + ': no');
-  x = await V([['dA', `select to_jsonb(public.gym_pausar('${F.A2}', current_date + 30))`], ['postgres', `update public.gym_members set paused_until = current_date - 1 where id = '${F.A2}'`],
+  x = await V([['dA', `select to_jsonb(public.gym_pausar('${F.A2}', current_date + 30))`], ['postgres', `update public.gym_members set paused_until = ${HOY} - 1 where id = '${F.A2}'`],
     ['postgres', 'select public.gym_diaria()'], ['postgres', ESTADO('A2')]]);
   t.eq([x[2].pausas, est(x[3])], [1, { coach: 'pA1', status: 'activo', trainer: 'pA1', restore: null, inv: [] }], 'la tarea diaria vuelve a activa la pausa que terminó');
 

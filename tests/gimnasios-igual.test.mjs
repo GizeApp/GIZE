@@ -28,6 +28,8 @@
 // Ajustes, el coach saca a un alumno, bloquear, vincularse, admin_unlink, admin_set_role, liberar por
 // plan vencido, borrar la cuenta de un alumno y de un coach) dan lo mismo y dejan el mismo estado
 // (perfiles, rutinas programadas, bloqueos, mensajes, cuentas). GIZE_SEMILLAS_SIN (30 por defecto).
+// Etapa 1, parte 5: con gimnasios-admin.sql también admin_coaches, admin_overview, hay_avisos_vence,
+// tomar_avisos_vence y soltar_aviso_vence dan lo mismo que las de hoy en las columnas y claves de hoy.
 import { conPg, leer, volverAtras } from './pg.mjs';
 
 // La sentencia entera (create … $$;) de la última definición de public.<nombre> que empieza una línea.
@@ -348,6 +350,16 @@ begin
         lect := lect || jsonb_build_object(coalesce(quien::text, 'anon') || ':' || i, prueba.probar(coalesce(quien::text, 'anon'), consultas[i]));
       end loop;
     end loop;
+    -- Las canónicas de gimnasios-admin.sql (etapa 1, parte 5), en las columnas y claves de hoy: Coaches y
+    -- pagos y el Resumen como el admin de GIZE, y el mail de vencimiento como el service role (las
+    -- fechas como «ya pasó o no»: las dos bases arman los datos con un now() apenas distinto).
+    lect := lect || jsonb_build_object(
+      'admin_coaches', prueba.probar(adm::text, 'select coalesce(jsonb_agg(jsonb_build_array(id, full_name, email, plan, max_clients, clients, trial_ends_at > now(),
+          paid_until > now(), mp_status, has_mp, pending_plan, active, price) order by id), ''[]'') from public.admin_coaches()'),
+      'admin_overview', prueba.probar(adm::text, 'select public.admin_overview() - ''gyms'' - ''gym_socios'' - ''gym_profes'''),
+      'hay_avisos_vence', prueba.probar('postgres', 'select to_jsonb(public.hay_avisos_vence())'),
+      'tomar_avisos_vence', prueba.probar('servicio', 'select coalesce(jsonb_agg(jsonb_build_array(coach_id, vence > now(), prueba, clientes) order by coach_id), ''[]'') from public.tomar_avisos_vence()'),
+      'soltar_aviso_vence', prueba.probar('servicio', format('select to_jsonb(true) from (select public.soltar_aviso_vence(%L)) x', c[1])));
     -- Las operaciones de hoy; después de cada una, el estado.
     for i in 1..14 loop
       op := floor(random() * 9)::int;
@@ -427,7 +439,7 @@ export default async function ({ t }){
   await con.sql(CONTRA_SIN, { una: true });
   const NS = Number(process.env.GIZE_SEMILLAS_SIN) || 30;
   const distintas = [];
-  let lecturas = 0, operaciones = {}, t1 = Date.now();
+  let lecturas = 0, avisos = 0, coachesAdmin = 0, operaciones = {}, t1 = Date.now();
   for (let sd = desde; sd < desde + NS; sd++){
     const [a, b] = await Promise.all([sin.json(`select igual.semilla(${sd});`), con.json(`select igual.semilla(${sd});`)]);
     if (JSON.stringify(a) !== JSON.stringify(b)){
@@ -437,12 +449,15 @@ export default async function ({ t }){
       if (distintas.length >= 2) break;
     }
     lecturas += Object.values(a.lect).filter(v => v.ok > 0).length;
+    avisos += (a.lect.tomar_avisos_vence.ok || []).length;
+    coachesAdmin += (a.lect.admin_coaches.ok || []).length;
     for (const o of a.ops) { const k = 'op' + o.op + (o.res.error ? ':error' : ':ok'); operaciones[k] = (operaciones[k] || 0) + 1; }
   }
   console.log('    contra gize_sin: ' + NS + ' semillas en ' + ((Date.now() - t1) / 1000).toFixed(1) + ' s: ' + JSON.stringify(operaciones));
-  t.eq(distintas.map(d => d.semilla), [], 'sin gimnasios, con los cuatro archivos aplicados, cada persona lee lo mismo que en la base de hoy (13 tablas, perfiles, mensajes, coach_billing, avatars y chat-audio) y las operaciones de hoy dan lo mismo'
+  t.eq(distintas.map(d => d.semilla), [], 'sin gimnasios, con los cinco archivos aplicados, cada persona lee lo mismo que en la base de hoy (13 tablas, perfiles, mensajes, coach_billing, avatars y chat-audio), el admin ve lo mismo en Coaches y pagos y el Resumen, el mail de vencimiento toma a los mismos y las operaciones de hoy dan lo mismo'
     + (distintas.length ? ': ' + JSON.stringify(distintas[0]).slice(0, 2000) : ''));
   t.ok(lecturas > NS * 20, 'lecturas con filas: ' + lecturas);
+  t.ok(avisos > 0 && coachesAdmin > 0, 'el admin ve coaches (' + coachesAdmin + ') y hubo avisos de vencimiento para tomar (' + avisos + ')');
   for (let op = 0; op < 9; op++) t.ok(operaciones['op' + op + ':ok'] > 0, 'contra gize_sin, la operación ' + op + ' anduvo alguna vez');
   await sin.borrar(); await con.borrar();
 }

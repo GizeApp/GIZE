@@ -10,6 +10,8 @@ import { P, F, G, VER, DATOS, ayudas, rpc, nom, VENCE, canon , conCanon } from '
 const PERSONAS = ['dA', 'aA', 'pA1', 'rA', 'A1', 'A6', 'A7', 'dB', 'C', 'N', 'anon'];
 const NUEVO = 'b0000000-0000-4000-8000-0000000000e1';
 const EN_30 = `(current_date + 30)::text`;
+// El día de hoy en Argentina (gym_hoy): Postgres corre en UTC y de 21 a 24 h current_date ya es mañana.
+const HOY = "(now() at time zone 'America/Argentina/Buenos_Aires')::date";
 
 // [nombre, sql, {ok: [...], P0001: [...]}, acción en gym_audit (o null)]. El resto: 42501.
 const CASOS = [
@@ -161,7 +163,7 @@ export default async function ({ t: t0 }){
     ['A1', 'activo', 'verde', 'Activo', false, 1, ['at', 'resultado']], 'gym_ficha_profe: el profe ve estado, semáforo y últimos ingresos de su socio');
   t.ok(!('dni' in x[0]) && !('email' in x[0]) && !('notas' in x[0]) && !('monto' in x[0]), 'sin DNI, mail, notas ni montos');
   t.eq([x[1], x[2], nom(x[3].ficha), x[4], x[5]], [null, null, 'A7', null, null], 'otro profe, la dueña con un socio ajeno, un alumno propio y otro gimnasio: null; la dueña con su socio, sí');
-  x = await V([['postgres', `update public.gym_members set status = 'pausado', paused_until = current_date + 5, apto_medico_vence = current_date - 1 where id = '${F.A1}'`],
+  x = await V([['postgres', `update public.gym_members set status = 'pausado', paused_until = current_date + 5, apto_medico_vence = ${HOY} - 1 where id = '${F.A1}'`],
     ['pA1', rpc('gym_ficha_profe', P.A1)]]);
   t.eq([x[1].semaforo, x[1].apto_vencido, /^Pausado hasta el /.test(x[1].motivo)], ['ambar', true, true], 'pausado y con el apto vencido: ámbar con la marca');
   x = await V([['postgres', VENCE('dA', '6 days')], ['pA1', rpc('gym_ficha_profe', P.A1)], ['pA1', rpc('mi_gimnasio')]]);
@@ -191,7 +193,7 @@ export default async function ({ t: t0 }){
     [['A1'], ['A3'], ['A4'], ['A1'], 'Escribí al menos 2 letras o 3 números del DNI.', 'Escribí al menos 2 letras o 3 números del DNI.', ['A4']],
     'buscar_socio: por nombre sin mayúsculas ni acentos, por DNI (3 números o más); menos que eso, P0001');
   t.eq(Object.keys(x[0][0]).sort(), ['apto_vencido', 'estado', 'foto_path', 'id', 'motivo', 'nombre', 'semaforo', 'ultimo_ingreso'], 'devuelve solo nombre, foto del gimnasio, estado y semáforo (sin DNI, mail, teléfono, montos ni registros)');
-  x = await V([['postgres', `update public.gym_members set status = 'pausado', paused_until = current_date + 5, apto_medico_vence = current_date - 1 where id = '${F.A2}'`],
+  x = await V([['postgres', `update public.gym_members set status = 'pausado', paused_until = current_date + 5, apto_medico_vence = ${HOY} - 1 where id = '${F.A2}'`],
     ['postgres', `update public.gym_members set status = 'baja', left_at = now() where id = '${F.A3}'`],
     busca('rA', 'Juan'), busca('rA', 'Lucía'), busca('rA', 'Sofía'), busca('rA', 'Martina'), busca('rA', 'Pedro')]);
   const sem = r => r[0] && [r[0].semaforo, r[0].motivo, r[0].apto_vencido];

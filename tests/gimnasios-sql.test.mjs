@@ -12,6 +12,8 @@
 //   pagar (los filtros de las apps, core/tienda.js y tests/bloquear-vincular.test.mjs).
 // - El bloque «Para volver atrás» de gimnasios-vinculo.sql es copia textual de las versiones de hoy.
 // - Sin mails ni uuids (el repo es público y gize.ar sirve supabase/); la huella del esquema solo lee.
+// - Etapa 1, parte 5: gimnasios-admin.sql con su cabecera, guarda, permisos, admin_assert y admin_log,
+//   y el bloque para volver atrás con las seis funciones de hoy tal cual.
 // - tests/pg/orden.txt nombra todos los supabase/*.sql (o los deja afuera a propósito).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -246,9 +248,49 @@ export default async ({ t }) => {
   }
   t.ok(!textos.some(m => /\bplan\b/i.test(m)), 'ningún texto de error nombra «el plan»: ' + textos.filter(m => /\bplan\b/i.test(m)).join(' | '));
 
+  // ===== Etapa 1, parte 5: gimnasios-admin.sql =====
+  const ad = read('supabase/gimnasios-admin.sql');
+  t.ok(!!ad, 'existe gimnasios-admin.sql');
+  const ac = sinComentarios(ad.slice(0, ad.indexOf('-- ===== Para volver atrás ====='))), aAtras = ad.slice(ad.indexOf('-- ===== Para volver atrás =====')).split('\n').filter(z => z.startsWith('-- ')).map(z => z.slice(3)).join('\n');
+  t.ok(cabeza(ad, 6).includes('Correr con el workflow "Supabase" → tarea sql → supabase/gimnasios-admin.sql, después de supabase/gimnasios.sql, supabase/gimnasios-vinculo.sql, supabase/gimnasios-lectura.sql y supabase/gimnasios-socios.sql. Se puede correr varias veces.'),
+    'gimnasios-admin.sql: cómo correrlo, después de qué y que se puede volver a correr');
+  t.ok(/SIN GIMNASIOS TODO SIGUE IGUAL/.test(ad.split('\n').slice(0, 15).join('\n')) && /ANTES: publicar la función vence-plan nueva/.test(cabeza(ad, 10)),
+    'gimnasios-admin.sql: dice que sin gimnasios todo sigue igual y que antes va la función vence-plan');
+  t.ok(/OJO: canónico\. Acá están las versiones vigentes de admin_coaches y admin_set_config \(antes en admin\.sql\), admin_overview \(antes en precios-2026-10\.sql\), hay_avisos_vence y tomar_avisos_vence \(antes en compras-apple\.sql\) y soltar_aviso_vence \(antes en aviso-vencimiento\.sql\)/.test(cabeza(ad, 22)),
+    'gimnasios-admin.sql: es el canónico de las seis funciones');
+  for (const [f, n, que] of [['admin.sql', 16, 'admin_coaches'], ['precios-2026-10.sql', 6, 'admin_overview'], ['compras-apple.sql', 10, 'tomar_avisos_vence'], ['aviso-vencimiento.sql', 20, 'soltar_aviso_vence']])
+    t.ok(cabeza(read('supabase/' + f), n).includes(que) && /gimnasios-admin\.sql/.test(cabeza(read('supabase/' + f), n)), f + ': la nota «OJO» de ' + que + ' manda a gimnasios-admin.sql');
+  const g5 = ac.indexOf("raise exception 'Primero correr supabase/gimnasios.sql");
+  t.ok(g5 > 0 && g5 < ac.indexOf('create or replace function'), 'gimnasios-admin.sql: lo primero controla que estén los archivos anteriores');
+  t.ok(/notify pgrst, 'reload schema';\s*$/.test(ac.trim() + '\n'), 'gimnasios-admin.sql: termina con notify pgrst');
+  t.ok(!/drop table|drop column/i.test(ac), 'gimnasios-admin.sql: ningún drop table ni drop column (fuera del bloque para volver atrás)');
+  t.ok(!/grant [^;]*\bto\b[^;]*\b(anon|public)\b/i.test(ac) && !/grant (insert|update|delete|all)/i.test(ac), 'gimnasios-admin.sql: ningún grant para anon o public, ni de escritura');
+  const fa = [...ac.matchAll(/create or replace function public\.(\w+)\(([^\n]*)\)\s*returns[\s\S]*?\nas \$\$/g)];
+  t.ok(fa.length >= 15 && fa.every(m => /security definer\s+set search_path = public/.test(m[0])), 'gimnasios-admin.sql: todas las funciones security definer con search_path fijo (' + fa.length + ')');
+  for (const m of fa) t.ok(new RegExp('revoke (all|execute) on function public\\.' + m[1] + '\\([^)]*\\) from public, anon').test(ac), 'gimnasios-admin.sql: ' + m[1] + ' tiene su revoke (de public y anon)');
+  t.ok(fa.filter(m => /^admin_/.test(m[1])).every(m => m[0].includes('perform public.admin_assert();') || ac.slice(ac.indexOf(m[0])).split('end $$;')[0].includes('perform public.admin_assert();') || m[1] === 'admin_gym_fila'),
+    'cada admin_* llama a admin_assert (salvo la ayuda interna admin_gym_fila)');
+  const conLog = ['admin_gym_convertir', 'admin_gym_transferir', 'admin_gym_cerrar', 'admin_gym_profes_extra', 'admin_gym_auditoria', 'admin_set_config'];
+  for (const fn of conLog) t.ok(sentencia(ad, fn).includes('perform public.admin_log('), fn + ': queda en admin_audit (admin_log)');
+  for (const fn of ['admin_gym_convertir', 'admin_gym_transferir', 'admin_gym_profes_extra']) t.ok(sentencia(ad, fn).includes('perform public.gym_auditar('), fn + ': queda en gym_audit');
+  const nuevasA = fa.map(m => m[1]).filter(n => !['admin_coaches', 'admin_set_config', 'admin_overview', 'hay_avisos_vence', 'tomar_avisos_vence', 'soltar_aviso_vence'].includes(n));
+  t.eq(nuevasA.filter(n => !new RegExp('public\\.' + n + '\\(').test(aAtras)), [], 'gimnasios-admin.sql: el bloque para volver atrás borra cada función nueva');
+  for (const [fn, f] of [['admin_coaches', 'admin.sql'], ['admin_set_config', 'admin.sql'], ['admin_overview', 'precios-2026-10.sql'], ['hay_avisos_vence', 'compras-apple.sql'],
+    ['tomar_avisos_vence', 'compras-apple.sql'], ['soltar_aviso_vence', 'aviso-vencimiento.sql']]){
+    const hoy = sentencia(read('supabase/' + f), fn);
+    t.ok(hoy && sentencia(aAtras, fn) === hoy, 'gimnasios-admin.sql, volver atrás: la ' + fn + ' de hoy (' + f + '), tal cual');
+  }
+  t.ok(aAtras.includes('alter table public.gyms drop column if exists aviso_vence_dias, drop column if exists aviso_vence_para;'), 'volver atrás saca las dos columnas');
+  t.ok(!/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}/.test(ad) && !/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(ad), 'gimnasios-admin.sql: sin mails ni uuids');
+  t.ok(/'gimnasios'/.test(sentencia(ad, 'admin_set_config')) && /\{"alta": true\} o \{"alta": false\}/.test(ad), 'admin_set_config: la clave «gimnasios» solo con {"alta": true|false}');
+  t.ok(/'dias', 'copia'|dias integer, copia uuid\[\]/.test(ad) && /interval '7 days'/.test(sentencia(ad, 'tomar_avisos_vence')) && /then 1\s+when public\.coach_vence\(b\) <= now\(\) \+ interval '3 days' then 3 else 7/.test(sentencia(ad, 'tomar_avisos_vence')),
+    'tomar_avisos_vence: dueños a 7, 3 y 1 día, con la copia a la administración');
+  t.ok(/admin_gym_fila\(uuid\) from public, anon, authenticated/.test(ac) && /gym_profe_sin_cargo\(uuid\) from public, anon, authenticated/.test(ac), 'las ayudas internas sin permiso para la app');
+  t.ok(!/create trigger/i.test(ac), 'gimnasios-admin.sql no suma triggers');
+
   // La lista de la base de pruebas.
   const lista = read('tests/pg/orden.txt').split('\n').map(l => l.replace(/#.*/, '').trim()).filter(Boolean);
-  const fuera = ['cuentas-demo.sql', 'auditoria.sql', 'estado.sql', 'seguridad-chequeo.sql', 'esquema-huella.sql', 'gimnasios.sql', 'gimnasios-vinculo.sql', 'gimnasios-lectura.sql', 'gimnasios-socios.sql'];
+  const fuera = ['cuentas-demo.sql', 'auditoria.sql', 'estado.sql', 'seguridad-chequeo.sql', 'esquema-huella.sql', 'gimnasios.sql', 'gimnasios-vinculo.sql', 'gimnasios-lectura.sql', 'gimnasios-socios.sql', 'gimnasios-admin.sql'];
   const todos = fs.readdirSync(path.join(ROOT, 'supabase')).filter(f => f.endsWith('.sql'));
   t.eq(todos.filter(f => !lista.includes(f) && !fuera.includes(f)), [], 'tests/pg/orden.txt nombra todos los supabase/*.sql (o los deja afuera a propósito)');
   t.eq(lista.filter(f => !todos.includes(f)), [], 'y todos los que nombra existen');
