@@ -26,8 +26,8 @@ En este orden, cada archivo en una sola transacción (como la tarea sql del work
    rol y su `auth.uid()`, como PostgREST), con o sin deshacer, y los invariantes de los gimnasios.
 
 Eso es la base de hoy, `gize_sin`. Con los archivos de los gimnasios encima (`GIMNASIOS` en
-`tests/pg.mjs`: `gimnasios.sql`, `gimnasios-vinculo.sql` y, desde la etapa 1, `gimnasios-lectura.sql` y
-`gimnasios-socios.sql`), `gize_con`. Las dos se arman una vez por proceso (menos de 2 segundos) y cada prueba
+`tests/pg.mjs`: `gimnasios.sql`, `gimnasios-vinculo.sql` y, desde la etapa 1, `gimnasios-lectura.sql`,
+`gimnasios-socios.sql` y `gimnasios-admin.sql`), `gize_con`. Las dos se arman una vez por proceso (menos de 2 segundos) y cada prueba
 trabaja en una copia nueva.
 
 ## Correrla
@@ -65,7 +65,7 @@ fijada por digest en `.github/postgres-pruebas/Dockerfile`; sin secrets.
 | Archivo | Qué prueba |
 |---|---|
 | `gimnasios-base` | Que la base se arma; que cada función que una nota «OJO» declara vigente quedó con el cuerpo de ese archivo (si el orden estuviera mal, lo dice); que `gimnasios.sql` no cambia nada de lo que ya existía (huella del esquema igual, y las operaciones de hoy dan lo mismo); que los dos archivos se pueden volver a correr; que volver atrás deja exactamente la huella de la base de hoy; que correrlos en el orden equivocado falla sin cambiar nada; que la nota de `pasos-grupos.sql` deja los filtros de bloqueos; qué ve la huella (triggers con funciones de otros esquemas, permisos por defecto, ajustes del servidor); y que el cluster local no lo alcanza otro usuario y se limpia con `SIGHUP` o en la corrida siguiente. |
-| `gimnasios-igual` | «Sin gimnasios todo sigue igual»: las cuatro funciones canónicas contra las de hoy (que salen del bloque comentado de `gimnasios-vinculo.sql`), con 200 semillas de datos al azar; y después de cada operación, `seats_used` igual al recuento. Desde la etapa 1, además, con los cuatro archivos aplicados contra `gize_sin` con los mismos datos (30 semillas, `GIZE_SEMILLAS_SIN`): lo que lee cada persona (13 tablas, perfiles, mensajes, `coach_billing`, `avatars` y `chat-audio`) y las operaciones de hoy. |
+| `gimnasios-igual` | «Sin gimnasios todo sigue igual»: las cuatro funciones canónicas contra las de hoy (que salen del bloque comentado de `gimnasios-vinculo.sql`), con 200 semillas de datos al azar; y después de cada operación, `seats_used` igual al recuento. Desde la etapa 1, además, con los archivos de los gimnasios aplicados contra `gize_sin` con los mismos datos (30 semillas, `GIZE_SEMILLAS_SIN`): lo que lee cada persona (13 tablas, perfiles, mensajes, `coach_billing`, `avatars` y `chat-audio`), desde la parte 5 también `admin_coaches`, `admin_overview` y el mail de vencimiento (`hay_avisos_vence`, `tomar_avisos_vence`, `soltar_aviso_vence`) en las columnas y claves de hoy, y las operaciones de hoy. |
 | `gimnasios-matriz` | La matriz de personas de la spec: qué lee, escribe y borra cada una en cada tabla nueva y en las de hoy, cada función, `join_coach` fila por fila, los casos obligatorios de la etapa 0, la ficha en baja, la solicitud de quien borra su cuenta, los invariantes después de cada operación y la concurrencia (el último lugar, dos desvínculos a la vez, un vínculo y un desvínculo a la vez, y el cron de planes vencidos con un desvínculo: sin deadlock y con el cupo exacto). |
 | `gimnasios-rendimiento` | `EXPLAIN ANALYZE` (sin JIT) de la ficha de un alumno con 500 entrenos, con las funciones de hoy y las nuevas, con el esquema del repo y con un índice en `session_entries(session_id)`; y que `sessions` se lea por su índice. |
 | `gimnasios-sql` | Sin Postgres: cabeceras, permisos, que se pueda volver a correr, los mensajes de `join_coach`, sin mails ni uuids; desde la etapa 1 también de `gimnasios-lectura.sql` y `gimnasios-socios.sql` (guardas de orden, `revoke` y `grant` escritos, volver atrás que borra cada función, el bucket sin `update` ni `delete`, las tareas en UTC, las versiones en un solo lugar, ningún texto de error que nombre el plan). |
@@ -76,6 +76,7 @@ fijada por digest en `.github/postgres-pruebas/Dockerfile`; sin secrets.
 | `gimnasios-borrar` | Etapa 1. Borrar la cuenta de la dueña (cierre y purga a los 90 días), del profe por defecto, de otro profe, de la recepción, del encargado y de un socio; el borrado no falla aunque falle el trigger. |
 | `gimnasios-chat` | Etapa 1. El chat dentro de un gimnasio: el profe que deja de atender no lee ni escucha; el socio conserva todo; nadie más lee chats ajenos; `coach_client_ok` y el `gym_id` de cada mensaje; lo que pregunta `rapid-worker` (y `avisos-coach`) con el service role según el plan del gimnasio y el propio del profe (gracia, acceso pausado, plan propio vencido, el profe que dejó al socio). |
 | `gimnasios-foto` | Etapa 1. La foto del gimnasio (la saca o la aprueba el gimnasio, el socio solo propone): bucket `gym-fotos`, quién sube y ve (el profe, solo sus asignados; los pedidos, quien aprueba), tope por día, proponer, aprobar, rechazar, sacarla el gimnasio, la foto de un pedido unido a una ficha cargada («es la ficha de…» y el link `#unirme`), las fotos que ya no usa nadie; la de perfil no la reemplaza. |
+| `gimnasios-admin` | Etapa 1 (parte 5). El admin de GIZE (`gimnasios-admin.sql`): cada `admin_gym*` solo la llama el admin (cada persona de la matriz, 42501; anon, sin permiso) y queda en `admin_audit` y `gym_audit`; la lista y el detalle sin datos de socios; las marcas; convertir (fichas activas con el dueño como profe, sin la hoja, `coach_id`, rutinas programadas y chat intactos, misma fila del plan, los no elegidos siguen como alumnos propios); transferir (los socios con la hoja pasan al dueño nuevo con sus rutinas programadas, los que no la aceptaron a baja con su coach, el plan a la fila nueva, el aviso de la suscripción de Mercado Pago, reabrir uno cerrado por la baja del dueño); cerrar; el tope de profes; la auditoría; el interruptor de alta; `admin_coaches` y `admin_overview` con gimnasios; y el mail de vencimiento (dueños a 7, 3 y 1 día una sola vez, con la copia a la administración; el profe sin alumnos propios afuera; dos llamadas a la vez no repiten). |
 | `gimnasios-lectura` | Etapa 1. Lo que lee la administración (11 tablas, cuándo deja de leer, leer no es editar), registro diario sin `steps` y salidas sin `track`, las fotos de perfil entre el gimnasio y sus socios, y la fila de `coach_billing` que no ve el profe con la app vieja. |
 
 ## Dónde la base de pruebas puede no ser producción
@@ -137,7 +138,7 @@ que está en producción (o se vuelve a correr el archivo del repo, si lo correc
 - **Lo que queda para las partes siguientes:** `rapid-worker` y `avisos-coach` con
   `coach_client_ok` (P4; el `gym_id` de cada mensaje ya lo pone la base con el trigger
   `coach_messages_gym`, probado con `chat_guardar` en `gimnasios-chat`); la prueba de punta a punta del
-  `400` de `join_coach` con PostgREST y las funciones de admin (P5); y **la tarea que borra las fotos
+  `400` de `join_coach` con PostgREST y las funciones de admin (P5, hechas: ver abajo); y **la tarea que borra las fotos
   de `gym-fotos` que ya no usa ninguna ficha** (pedidos rechazados o cancelados, propuestas
   reemplazadas o rechazadas, gimnasios purgados a los 90 días): desde SQL no se borran archivos de
   Storage, así que `gym_fotos_huerfanas()` (solo el service role, `gimnasios-foto`) las lista y una
@@ -147,9 +148,13 @@ que está en producción (o se vuelve a correr el archivo del repo, si lo correc
 ## Lo que la etapa 0 deja anotado para la etapa 1
 
 - **`join_coach` con el código de un gimnasio** guarda la solicitud y responde `400` con el cuerpo de
-  un `P0001`, sin `raise` (`response.status`). En SQL está probado; falta probar de punta a punta
-  con PostgREST que la transacción se confirma con ese status y que supabase-js arma el `error`.
-  Si no se confirma: responder `P0001` sin guardar la solicitud y mandar a `gize.ar/app`.
+  un `P0001`, sin `raise` (`response.status`). Probado de punta a punta en la etapa 1 (parte 5,
+  `tests/gym-apps-viejas.test.mjs`) con PostgREST 12.2.3 local: la transacción se confirma con ese
+  status (la solicitud queda guardada) y supabase-js arma el `error` con el código y el texto. Esa parte
+  de la prueba corre solo con `POSTGREST=<ruta del binario>` (o `postgrest` en el PATH): en GitHub se
+  saltea. **Antes de aplicar, verificar con la versión de PostgREST de producción** (Supabase → Settings
+  → API): si alguna versión deshiciera la transacción con un status 4xx, responder `P0001` sin guardar
+  la solicitud y mandar a `gize.ar/app`.
 - **La trampa C20**: si un profe deja el gimnasio sin que le reasignen los socios, el vínculo pasa a
   ser propio y los sigue leyendo con su plan. Lo evita `gym_quitar_staff`, que tiene que reasignar
   en la misma operación; `gimnasios-matriz` lo deja a la vista (invariante I2). Cerrada en la etapa 1:
@@ -182,3 +187,20 @@ ese índice es recorrer `session_entries` por cada entreno, con o sin RLS. La pr
 tablas y no exige un número fijo: exige que las nuevas no sean más lentas que el doble de las de hoy,
 menos de 2 s, las mismas filas, y que `sessions` se lea por su índice. Los tiempos de producción
 dependen de sus índices (D10) y de sus ajustes (D13).
+
+## Etapa 1 (parte 5: admin, conversión y avisos)
+
+- **`gimnasios-admin.sql`** (va después de los otros cuatro; volver atrás, antes que el de
+  `gimnasios-socios.sql`, que se frena si no): `admin_gyms`, `admin_gym_detail`, `admin_gym_convertir`,
+  `admin_gym_transferir`, `admin_gym_cerrar`, `admin_gym_profes_extra` y `admin_gym_auditoria`, todas con
+  `admin_assert` y `admin_log`; y las canónicas `admin_coaches`, `admin_overview`, `admin_set_config`,
+  `hay_avisos_vence`, `tomar_avisos_vence` y `soltar_aviso_vence` (notas «OJO» en `admin.sql`,
+  `precios-2026-10.sql`, `compras-apple.sql` y `aviso-vencimiento.sql`). Su bloque para volver atrás trae
+  las seis de hoy tal cual (`gimnasios-sql` lo compara y `gimnasios-base`, que la huella vuelve a ser la
+  de `gimnasios-socios.sql`).
+- **Antes de aplicarlo, publicar `vence-plan`**: la función nueva lee las columnas nuevas de
+  `tomar_avisos_vence` y con el SQL de antes anda igual; la vieja, con el SQL nuevo, le mandaría «vence
+  mañana» a un dueño 7 días antes.
+- **El día de Argentina en las pruebas:** Postgres corre en UTC; de 21 a 24 h `current_date` ya es
+  mañana para `gym_hoy()`. Las pruebas que comparan con `gym_hoy` usan
+  `(now() at time zone 'America/Argentina/Buenos_Aires')::date`.
