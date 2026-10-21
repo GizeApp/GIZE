@@ -1,5 +1,7 @@
 -- Precios nuevos de GIZE (octubre 2026) y dos planes de gimnasio más.
 -- Pegar entero en Supabase → SQL Editor → Run. Se puede correr varias veces.
+-- OJO: la versión vigente de admin_overview (que además cuenta los gimnasios) está en
+-- gimnasios-admin.sql: si volvés a correr este archivo, corré después gimnasios-admin.sql.
 --
 --   p10   Hasta 10 clientes                    $14.900 por mes  (antes $9.300)
 --   p25   Hasta 25 clientes                    $24.900 por mes  (antes $15.000)

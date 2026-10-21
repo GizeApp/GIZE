@@ -9,6 +9,9 @@
 -- pasan a alumno al dueño ni a un profe de un gimnasio, ni desvinculan a un socio que atiende un
 -- profe del gimnasio): si volvés a correr este archivo, corré después gimnasios.sql y
 -- gimnasios-vinculo.sql.
+-- OJO: las versiones vigentes de admin_coaches (con la columna Gimnasio y «Alumnos» = seats_used) y
+-- admin_set_config (con la clave «gimnasios») están en gimnasios-admin.sql: si volvés a correr este
+-- archivo, corré después también gimnasios-admin.sql.
 
 -- 0) Chequeo y registro de acciones
 create or replace function public.admin_assert()

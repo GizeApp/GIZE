@@ -3,6 +3,10 @@
 -- Correr con el workflow "Supabase" → tarea sql → supabase/compras-apple.sql, ANTES de publicar
 -- la función y la app (después de suscripciones.sql, pagos-seguros.sql y aviso-vencimiento.sql).
 -- Se puede correr varias veces.
+-- OJO: la versión vigente de hay_avisos_vence y tomar_avisos_vence (que además avisa a los dueños de
+-- un gimnasio a 7, 3 y 1 día y no al profe sin alumnos propios) está en gimnasios-admin.sql. Con ese
+-- archivo aplicado, este falla entero sin cambiar nada (tomar_avisos_vence cambió de tipo): primero el
+-- bloque «Para volver atrás» de gimnasios-admin.sql, después este y después gimnasios-admin.sql.
 --
 --   1) apple_subs: una fila por suscripción de Apple (original_transaction_id), con la cuenta de
 --      GIZE que la compró, el producto, hasta cuándo cubre, si es de Sandbox (pruebas de Apple y

@@ -11,7 +11,9 @@
 -- No se avisa: la cortesía (no vence) ni la suscripción de Mercado Pago activa (se renueva sola).
 -- OJO: la versión vigente de hay_avisos_vence y tomar_avisos_vence (que además no avisa al plan de
 -- Apple que se renueva solo) está en compras-apple.sql. Si corrés este archivo, corré después
--- compras-apple.sql.
+-- compras-apple.sql. Y desde los gimnasios, la vigente de las dos y de soltar_aviso_vence está en
+-- gimnasios-admin.sql: con ese archivo aplicado, este falla entero sin cambiar nada (tomar_avisos_vence
+-- cambió de tipo); primero el bloque «Para volver atrás» de gimnasios-admin.sql.
 
 alter table public.coach_billing add column if not exists aviso_vence_para timestamptz;
 

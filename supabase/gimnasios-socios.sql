@@ -55,7 +55,8 @@
 -- perfiles (al revés que todo lo demás). Lo hace gym_tick cada minuto, en su propia transacción y
 -- con el orden de siempre; cubre Mercado Pago, Apple y el pago manual igual (hasta 1 minuto de demora).
 --
--- Para volver atrás: el bloque comentado del final (después, el de gimnasios-lectura.sql).
+-- Para volver atrás: el bloque comentado del final (antes, el de gimnasios-admin.sql; después, el de
+-- gimnasios-lectura.sql).
 
 
 -- ===== Antes que nada: ¿están los archivos anteriores? =====
@@ -2408,10 +2409,16 @@ notify pgrst, 'reload schema';
 
 
 -- ===== Para volver atrás =====
--- Correr esto sin los «-- » (después, el bloque de gimnasios-lectura.sql). Saca las tareas, las
--- funciones, las políticas y el bucket gym-fotos (con sus archivos: borrarlos antes desde Storage, o
--- el borrado del bucket falla) y las columnas nuevas.
+-- Correr esto sin los «-- » (antes, el bloque de gimnasios-admin.sql: si no, se frena sin cambiar
+-- nada; después, el de gimnasios-lectura.sql). Saca las tareas, las funciones, las políticas y el
+-- bucket gym-fotos (con sus archivos: borrarlos antes desde Storage, o el borrado del bucket falla) y
+-- las columnas nuevas.
 --
+-- do $$ begin
+--   if to_regprocedure('public.admin_gyms()') is not null then
+--     raise exception 'Primero el bloque «Para volver atrás» de supabase/gimnasios-admin.sql (usa gym_plan_estado, gym_settings y gym_tope_profes).';
+--   end if;
+-- end $$;
 -- select cron.unschedule('gize-gym-tick') where exists (select 1 from cron.job where jobname = 'gize-gym-tick');
 -- select cron.unschedule('gize-gym-diaria') where exists (select 1 from cron.job where jobname = 'gize-gym-diaria');
 -- drop policy if exists "gym-fotos: subir" on storage.objects;

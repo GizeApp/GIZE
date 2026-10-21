@@ -47,9 +47,15 @@ const VIGENTES = [['join_coach', 'bloqueos.sql'], ['pasos_unirse', 'bloqueos.sql
   ['push_subscriptions_validate', 'push-nativo.sql'], ['routine_days_ok', 'ejercicio-audio.sql'],
   ['delete_own_account', 'pagos-seguros.sql'], ['my_invite_code', 'endurecer-base.sql'], ['admin_overview', 'precios-2026-10.sql'],
   ['release_lapsed_clients', 'coach-vencido.sql'], ['routine_schedule_on_coach_change', 'rutina-programada.sql'], ['admin_set_role', 'admin.sql'],
-  ['admin_unlink', 'admin.sql'], ['chat_unread', 'chat.sql'], ['chat_mark_read', 'chat.sql']];
+  ['admin_unlink', 'admin.sql'], ['chat_unread', 'chat.sql'], ['chat_mark_read', 'chat.sql'], ['admin_coaches', 'admin.sql'], ['admin_set_config', 'admin.sql'],
+  ['soltar_aviso_vence', 'aviso-vencimiento.sql']];
 const CANONICAS = ['coach_active', 'is_my_client', 'join_coach', 'release_lapsed_clients', 'routine_schedule_on_coach_change', 'admin_set_role', 'admin_unlink',
   'chat_unread', 'chat_mark_read'];
+// Las canónicas de gimnasios-admin.sql (etapa 1, parte 5): el admin de GIZE y el mail de vencimiento.
+const CANONICAS_ADMIN = ['admin_coaches', 'admin_set_config', 'admin_overview', 'hay_avisos_vence', 'tomar_avisos_vence', 'soltar_aviso_vence'];
+const FN_ADMIN = ['gym_profe_sin_cargo', 'admin_gym_fila', 'admin_gyms', 'admin_gym_detail', 'admin_gym_convertir', 'admin_gym_transferir', 'admin_gym_cerrar',
+  'admin_gym_profes_extra', 'admin_gym_auditoria'];
+const esDeAdmin = k => FN_ADMIN.some(f => new RegExp('^(fn|fnacl|fndueno):' + f + '\\(').test(k)) || /^(col|con):gyms\.(aviso_vence_para|aviso_vence_dias|gyms_aviso_vence_dias_check)$/.test(k);
 // Lo que suma gimnasios-vinculo.sql (etapas 0 y 1) y las políticas de hoy que cambia (etapa 1).
 const FN_VINCULO = ['coach_client_ok', 'profiles_gym_sync', 'coach_messages_gym', 'gym_alerta', 'gym_alerta_staff', 'gym_auditar', 'gym_cupo_ok', 'gym_profe_no_puede',
   'gym_aprobar_interno', 'gym_pedir', 'gym_cerrar_interno', 'gym_cerrar_por_baja', 'profiles_gym_baja', 'gym_mi_fila_oculta'];
@@ -114,7 +120,7 @@ export default async function ({ t }){
   // ===== a) La base =====
   const archivos = orden();
   t.ok(archivos.length >= 64 && archivos.every(f => leer('supabase/' + f)), 'tests/pg/orden.txt nombra los archivos de supabase/ que existen (' + archivos.length + ')');
-  const fuera = ['cuentas-demo.sql', 'auditoria.sql', 'estado.sql', 'seguridad-chequeo.sql', 'esquema-huella.sql', 'gimnasios.sql', 'gimnasios-vinculo.sql', 'gimnasios-lectura.sql', 'gimnasios-socios.sql'];
+  const fuera = ['cuentas-demo.sql', 'auditoria.sql', 'estado.sql', 'seguridad-chequeo.sql', 'esquema-huella.sql', 'gimnasios.sql', 'gimnasios-vinculo.sql', 'gimnasios-lectura.sql', 'gimnasios-socios.sql', 'gimnasios-admin.sql'];
   const todos = (await import('node:fs')).readdirSync(new URL('../supabase/', import.meta.url)).filter(f => f.endsWith('.sql'));
   t.eq(todos.filter(f => !archivos.includes(f) && !fuera.includes(f)), [], 'todo supabase/*.sql está en tests/pg/orden.txt (o afuera a propósito)');
   const sim = archivos.flatMap(f => simuladas(leer('supabase/' + f)).map(s => f + ': ' + s));
@@ -129,8 +135,8 @@ export default async function ({ t }){
     const cu = cuerpo(leer('supabase/' + f), fn);
     t.ok(cu !== null, f + ' define ' + fn);
     t.ok(enSin[fn] === cu, 'base de hoy: la vigente de ' + fn + ' es la de ' + f);
-    const vinc = cuerpo(leer('supabase/gimnasios-vinculo.sql'), fn);
-    t.ok(enCon[fn] === (CANONICAS.includes(fn) ? vinc : cu), 'con gimnasios: la vigente de ' + fn + ' es la de ' + (CANONICAS.includes(fn) ? 'gimnasios-vinculo.sql' : f));
+    const de = CANONICAS.includes(fn) ? 'gimnasios-vinculo.sql' : CANONICAS_ADMIN.includes(fn) ? 'gimnasios-admin.sql' : f;
+    t.ok(enCon[fn] === cuerpo(leer('supabase/' + de), fn), 'con gimnasios: la vigente de ' + fn + ' es la de ' + de);
   }
   const dup = await sin.json(`select coalesce(json_agg(proname), '[]') from (select proname from pg_proc where pronamespace = 'public'::regnamespace
     and proname = any(array[${nombres.map(x => "'" + x + "'").join(',')}]) group by proname having count(*) > 1) x;`);
@@ -203,24 +209,38 @@ export default async function ({ t }){
   t.eq(dS.nuevas.filter(k => !esDeSocios(k)), [], 'lo nuevo de gimnasios-socios.sql: columnas de las tablas de gimnasios, el bucket gym-fotos con sus políticas y su tope, funciones y las dos tareas');
   t.ok(['cron:gize-gym-tick', 'cron:gize-gym-diaria', 'bucket:gym-fotos', 'pol:storage.objects.gym-fotos: subir', 'pol:storage.objects.gym-fotos: ver'].every(k => k in hT), 'las dos tareas y el bucket con sus políticas');
   t.ok(/^\* \* \* \* \* /.test(hT['cron:gize-gym-tick']) && /^10 6 \* \* \* /.test(hT['cron:gize-gym-diaria']), 'tareas: cada minuto y 06:10 UTC (03:10 de Argentina): ' + hT['cron:gize-gym-tick'] + ' | ' + hT['cron:gize-gym-diaria']);
-  t.eq(diferencias(hT, await huella(h.base('gize_con'))), { nuevas: [], faltan: [], cambian: [] },
-    'la base de pruebas con gimnasios (gize_con) es exactamente gize_sin más los cuatro archivos');
+  // gimnasios-admin.sql (etapa 1, parte 5): solo cambia sus canónicas y suma lo suyo.
+  await v.archivo('supabase/gimnasios-admin.sql');
+  const hA = await huella(v), dA = diferencias(hT, hA);
+  t.eq(dA.faltan, [], 'gimnasios-admin.sql no borra nada');
+  t.eq(dA.cambian.filter(k => !CANONICAS_ADMIN.some(f => k.startsWith('fn:' + f + '('))), [],
+    'gimnasios-admin.sql solo cambia sus canónicas (admin_coaches, admin_set_config, admin_overview, hay_avisos_vence, tomar_avisos_vence y soltar_aviso_vence), con los mismos permisos: ' + dA.cambian.join(', '));
+  t.eq(dA.nuevas.filter(k => !esDeAdmin(k)), [], 'lo nuevo de gimnasios-admin.sql: sus funciones y las dos columnas de gyms con su check');
+  t.eq(diferencias(hA, await huella(h.base('gize_con'))), { nuevas: [], faltan: [], cambian: [] },
+    'la base de pruebas con gimnasios (gize_con) es exactamente gize_sin más los cinco archivos');
   for (const f of [...GIMNASIOS].reverse()) await v.archivo(f);
   for (const f of GIMNASIOS) await v.archivo(f);
-  t.eq(diferencias(hT, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'los cuatro corridos otra vez (también al revés): la misma huella');
+  t.eq(diferencias(hA, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'los cinco corridos otra vez (también al revés): la misma huella');
   // Un archivo viejo que define join_coach con boolean ya no pisa la canónica: falla entero.
   const viejo = await v.intentar(leer('supabase/bloqueos.sql'), { una: true });
   t.ok(!viejo.ok && viejo.code === '42P13', 'con gimnasios-vinculo.sql, volver a correr bloqueos.sql falla entero (cambió el tipo de join_coach): ' + viejo.code + ' ' + viejo.msg);
-  t.eq(diferencias(hT, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
-  // Volver atrás: socios, lectura, vínculo y gimnasios, en ese orden.
+  t.eq(diferencias(hA, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
+  // Volver atrás: admin, socios, lectura, vínculo y gimnasios, en ese orden.
   const atrasV = volverAtras(leer('supabase/gimnasios-vinculo.sql')), atrasG = volverAtras(leer('supabase/gimnasios.sql'));
   const atrasL = volverAtras(leer('supabase/gimnasios-lectura.sql')), atrasS = volverAtras(leer('supabase/gimnasios-socios.sql'));
+  const atrasA = volverAtras(leer('supabase/gimnasios-admin.sql'));
   t.ok(atrasV.includes('drop function if exists public.join_coach(text);') && atrasG.includes('drop column if exists seats_used')
-    && atrasL.includes('drop function if exists public.gym_socios_compartidos();') && atrasS.includes("cron.unschedule('gize-gym-tick')"),
-    'los cuatro archivos traen su bloque para volver atrás');
+    && atrasL.includes('drop function if exists public.gym_socios_compartidos();') && atrasS.includes("cron.unschedule('gize-gym-tick')")
+    && atrasA.includes('drop function if exists public.tomar_avisos_vence();'),
+    'los cinco archivos traen su bloque para volver atrás');
   const rL0 = await v.intentar(atrasL, { una: true });
   t.ok(!rL0.ok && /Primero el bloque «Para volver atrás» de supabase\/gimnasios-socios\.sql/.test(rL0.msg), 'volver atrás gimnasios-lectura.sql con gimnasios-socios.sql aplicado: se frena: ' + (rL0.msg || 'corrió'));
-  t.eq(diferencias(hT, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
+  const rS0 = await v.intentar(atrasS, { una: true });
+  t.ok(!rS0.ok && /Primero el bloque «Para volver atrás» de supabase\/gimnasios-admin\.sql/.test(rS0.msg), 'volver atrás gimnasios-socios.sql con gimnasios-admin.sql aplicado: se frena: ' + (rS0.msg || 'corrió'));
+  t.eq(diferencias(hA, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
+  const rA = await v.intentar(atrasA, { una: true });
+  t.ok(rA.ok, 'volver atrás gimnasios-admin.sql anda' + (rA.ok ? '' : ': ' + rA.msg));
+  t.eq(diferencias(hT, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y deja la huella de gimnasios-socios.sql (las canónicas de hoy, tal cual)');
   const rS = await v.intentar(atrasS, { una: true });
   t.ok(rS.ok, 'volver atrás gimnasios-socios.sql anda' + (rS.ok ? '' : ': ' + rS.msg));
   t.eq(diferencias(hL, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y deja la huella de gimnasios-lectura.sql');
@@ -237,14 +257,14 @@ export default async function ({ t }){
   const otraVez = await v.intentar(leer('supabase/bloqueos.sql'), { una: true });
   t.ok(otraVez.ok, 'después de volver atrás, bloqueos.sql corre de nuevo' + (otraVez.ok ? '' : ': ' + otraVez.msg));
   for (const f of GIMNASIOS) await v.archivo(f);
-  t.eq(diferencias(hT, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y los gimnasios otra vez dejan la misma huella');
+  t.eq(diferencias(hA, await huella(v)), { nuevas: [], faltan: [], cambian: [] }, 'y los gimnasios otra vez dejan la misma huella');
   await v.borrar();
 
   // ===== d) El orden de los archivos =====
   const solo = await h.nueva('gize_sin');
   const r3 = await solo.intentar(leer('supabase/gimnasios-vinculo.sql'), { una: true });
   t.ok(!r3.ok && /Primero correr supabase\/gimnasios\.sql/.test(r3.msg), 'gimnasios-vinculo.sql sin gimnasios.sql: falla entero con «Primero correr supabase/gimnasios.sql»: ' + (r3.msg || 'corrió'));
-  for (const f of ['supabase/gimnasios-lectura.sql', 'supabase/gimnasios-socios.sql']){
+  for (const f of ['supabase/gimnasios-lectura.sql', 'supabase/gimnasios-socios.sql', 'supabase/gimnasios-admin.sql']){
     const r = await solo.intentar(leer(f), { una: true });
     t.ok(!r.ok && /Primero correr supabase\/gimnasios\.sql/.test(r.msg), f + ' sin los anteriores: falla entero: ' + (r.msg || 'corrió'));
   }
@@ -257,6 +277,11 @@ export default async function ({ t }){
   await solo.archivo('supabase/gimnasios-vinculo.sql');
   const r3s = await solo.intentar(leer('supabase/gimnasios-socios.sql'), { una: true });
   t.ok(!r3s.ok && /gimnasios-lectura\.sql/.test(r3s.msg), 'gimnasios-socios.sql sin gimnasios-lectura.sql: falla entero: ' + (r3s.msg || 'corrió'));
+  await solo.archivo('supabase/gimnasios-lectura.sql');
+  const r3a = await solo.intentar(leer('supabase/gimnasios-admin.sql'), { una: true });
+  t.ok(!r3a.ok && /gimnasios-socios\.sql/.test(r3a.msg), 'gimnasios-admin.sql sin gimnasios-socios.sql: falla entero: ' + (r3a.msg || 'corrió'));
+  t.eq(diferencias(hL, await huella(solo)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
+  await solo.intentar(atrasL, { una: true });
   t.eq(diferencias(hV, await huella(solo)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
   await solo.intentar(atrasV, { una: true });
   await solo.intentar(atrasG, { una: true });
@@ -267,7 +292,7 @@ export default async function ({ t }){
   const r5 = await mal.intentar(atrasG, { una: true });
   t.ok(!r5.ok && /Primero el bloque «Para volver atrás» de supabase\/gimnasios-vinculo\.sql/.test(r5.msg) && /coach_active/.test(r5.msg) && /profiles_gym_sync/.test(r5.msg),
     'volver atrás gimnasios.sql con gimnasios-vinculo.sql todavía aplicado: se frena y dice qué funciones usan los gimnasios: ' + (r5.msg || 'corrió'));
-  t.eq(diferencias(hT, await huella(mal)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
+  t.eq(diferencias(hA, await huella(mal)), { nuevas: [], faltan: [], cambian: [] }, 'y no cambió nada');
   // Volver a correr pasos-grupos.sql con los gimnasios aplicados, siguiendo su nota «OJO».
   const PASOS = ['pasos_unirse', 'pasos_ranking', 'pasos_campeon', 'pasos_mis_grupos'];
   const deBloqueos = Object.fromEntries(PASOS.map(f => [f, cuerpo(leer('supabase/bloqueos.sql'), f)]));
@@ -286,7 +311,7 @@ export default async function ({ t }){
   await mal.archivo('supabase/gimnasios.sql');
   await mal.archivo('supabase/gimnasios-vinculo.sql');
   t.eq(await pasos(mal), PASOS, 'siguiendo la nota (volver atrás, bloqueos.sql, gimnasios.sql y gimnasios-vinculo.sql), las de pasos vuelven a filtrar los bloqueos');
-  t.eq(diferencias(hT, await huella(mal)), { nuevas: [], faltan: [], cambian: [] }, 'y la base queda igual que con los gimnasios recién aplicados (lectura y socios siguen)');
+  t.eq(diferencias(hA, await huella(mal)), { nuevas: [], faltan: [], cambian: [] }, 'y la base queda igual que con los gimnasios recién aplicados (lectura, socios y admin siguen)');
   const anda = await mal.json(`select prueba.probar('servicio', 'select to_jsonb(public.gym_tick())');`);
   t.eq(anda, { ok: 0, status: null }, 'y las funciones de gimnasios-socios.sql siguen andando (gym_tick)');
   await mal.borrar();
