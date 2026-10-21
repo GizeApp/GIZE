@@ -130,7 +130,7 @@ export default async function ({ base: url, t }){
   t.has(await txt(p, '#pl8Tot'), '707 kcal', 'los totales');
   t.has(await txt(p, '#pl8Go'), 'Agregar', 'el botón «Agregar»');
   t.has(await txt(p, '#sheetHost .plate-sheet'), 'Estimado con IA. Puede equivocarse', 'el texto chico de la estimación');
-  t.has(await txt(p, '#sheetHost .plate-sheet'), 'Supuse que el puré lleva manteca.', 'la nota de la IA');
+  t.ok(!(await txt(p, '#sheetHost .plate-sheet')).includes('Supuse'), 'la nota de la IA no se muestra (pedido del dueño)');
   t.eq(await p.$$eval('#sheetHost .pl8-chg', bs => bs.filter(b => b.hasAttribute('aria-describedby')).length), 0, '«Cambiar» ya no apunta a un origen');
   const chicos = await p.$$eval('#sheetHost .pl8-x, #sheetHost .pl8-step, #sheetHost .pl8-chg, #sheetHost .ss-x', bs => bs.map(b => b.getBoundingClientRect()).filter(r => r.width < 44 - 0.5 || r.height < 44 - 0.5).length);
   t.eq(chicos, 0, 'los controles de la hoja miden al menos 44 × 44');

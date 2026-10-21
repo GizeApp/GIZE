@@ -787,7 +787,6 @@ function plateBody(P){
   const rows = (P.items || []).map(plateRow).join("");
   return `${photo}
       <div class="pl8-list">${rows || '<div class="pl8-empty">No quedó ningún alimento. Sacá otra foto o cargalo a mano desde el buscador.</div>'}</div>
-      ${P.nota ? `<div class="pl8-nota"><span class="pl8-nota-ic" aria-hidden="true">${infoSvg}</span><span>${esc(P.nota)}</span></div>` : ""}
       <p class="pl8-fine">${infoSvg}<span>${PLATE_FINE}</span></p>
       <button class="pl8-link" data-action="plate-report">${messageSvg}<span>¿Está mal? Avisanos</span></button>`;
 }

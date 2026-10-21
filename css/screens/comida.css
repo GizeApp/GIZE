@@ -463,7 +463,7 @@ html.basico:not(#_) body:not(#_) .search-sheet .cal-create { border-color: var(-
    ::before, que sale de la ficha (por eso acá sin overflow: las cuatro entran enteras). */
 .sheet .pl8-foot .meal-chip { position: relative; min-height: 36px; padding-top: 5px; padding-bottom: 5px; overflow: visible; }
 .pl8-foot .meal-chip::before { content: ""; position: absolute; top: -5px; bottom: -5px; left: -1px; right: -1px; }
-.pl8-hint, .pl8-fine, .pl8-nota, .pl8-quedan { margin: 0; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
+.pl8-hint, .pl8-fine, .pl8-quedan { margin: 0; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
 .pl8-hint { text-align: center; padding: 0 6px; }
 .pl8-hint b { display: block; margin-bottom: 3px; font: 700 16px var(--gize-font); color: var(--txt); }
 .plate-sheet .sheet-title:focus { outline: none; }
@@ -584,8 +584,6 @@ html.tema-luz .pl8-err-ic { color: #8A5A00; }
 .pl8-m::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--gize-r2); }
 .pl8-m-c::before { background: var(--gize-r1); }
 .pl8-m-f::before { background: var(--gize-warning, #FFB020); }
-.pl8-nota { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 14px; color: var(--txt); background: linear-gradient(135deg, var(--ia-tint), var(--ia-tint-2)); border: 1px solid var(--ia-line); }
-.pl8-nota-ic { flex: none; display: grid; color: var(--ia-ink); padding-top: 1px; }
 .pl8-nota-ic svg { width: 17px; height: 17px; }
 .pl8-fine { display: flex; align-items: flex-start; gap: 8px; }
 .pl8-fine svg { width: 15px; height: 15px; flex: none; margin-top: 2px; color: var(--txt-2); }
