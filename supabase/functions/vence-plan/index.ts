@@ -2,6 +2,10 @@
 // los que les faltan 24 horas o menos (ver supabase/aviso-vencimiento.sql). La llama pg_cron
 // una vez por hora, solo si hay alguno. Va sin "Verify JWT" (la llama la base, sin sesión).
 // Llamarla de más no hace nada: cada vencimiento se avisa una sola vez (se marca al tomarlo).
+// Gimnasios (supabase/gimnasios-admin.sql, que va DESPUÉS de publicar esta versión): al dueño de un
+// gimnasio le llega a 7, 3 y 1 día, con el nombre del gimnasio y sus socios, y la administración del
+// gimnasio lo recibe en copia (copia: sus cuentas). Al profe sin alumnos propios no le llega nada (lo
+// deja afuera tomar_avisos_vence). Con el SQL de antes (cuatro columnas) anda igual que siempre.
 //
 // Secrets: RESEND_API_KEY (el mismo de los avisos de pagos). Sin él no se manda nada y quedan
 // para la hora siguiente. CRON_SECRET (opcional): igual que en avisos-coach, si está se exige
@@ -26,7 +30,14 @@ function cronOk(req: Request): boolean {
   return sameSecret(req.headers.get("x-cron-secret") || "", want);
 }
 
-type Aviso = { coach_id: string; vence: string; prueba: boolean; clientes: number };
+type Aviso = { coach_id: string; vence: string; prueba: boolean; clientes: number;
+  gym_id?: string | null; gimnasio?: string | null; socios?: number | null; dias?: number | null; copia?: string[] | null };
+
+// El mail de una cuenta (sin mail, null).
+async function mailDe(db: ReturnType<typeof createClient>, id: string): Promise<string | null> {
+  try { const { data: u } = await db.auth.admin.getUserById(id); return (u && u.user && u.user.email) || null; }
+  catch { return null; }
+}
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "método" }, 405);
@@ -41,15 +52,18 @@ Deno.serve(async (req) => {
   let enviados = 0, fallidos = 0;
   for (const a of (data || []) as Aviso[]) {
     try {
-      const { data: u } = await db.auth.admin.getUserById(a.coach_id);
-      const to = u && u.user && u.user.email;
+      const to = await mailDe(db, a.coach_id);
       if (!to) { fallidos++; continue; } // sin mail no hay a quién avisar (queda marcado)
       const { data: pr } = await db.from("profiles").select("full_name").eq("id", a.coach_id).maybeSingle();
-      const m = mailVence({ nombre: pr && pr.full_name, vence: a.vence, prueba: !!a.prueba, clientes: a.clientes || 0 });
+      const m = mailVence({ nombre: pr && pr.full_name, vence: a.vence, prueba: !!a.prueba, clientes: a.clientes || 0,
+        gimnasio: a.gimnasio || null, socios: a.socios ?? null, dias: a.dias ?? null });
+      // La administración del gimnasio, en copia (sin repetir al dueño).
+      const cc: string[] = [];
+      if (a.gimnasio) for (const id of a.copia || []) { const c = await mailDe(db, id); if (c && c !== to && !cc.includes(c)) cc.push(c); }
       const r = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: "GIZE <soporte@gize.ar>", to: [to], subject: m.subject, html: m.html, text: m.text }),
+        body: JSON.stringify({ from: "GIZE <soporte@gize.ar>", to: [to], ...(cc.length ? { cc } : {}), subject: m.subject, html: m.html, text: m.text }),
       });
       if (!r.ok) throw new Error("Resend " + r.status);
       enviados++;
