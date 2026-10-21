@@ -584,7 +584,6 @@ html.tema-luz .pl8-err-ic { color: #8A5A00; }
 .pl8-m::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--gize-r2); }
 .pl8-m-c::before { background: var(--gize-r1); }
 .pl8-m-f::before { background: var(--gize-warning, #FFB020); }
-.pl8-nota-ic svg { width: 17px; height: 17px; }
 .pl8-fine { display: flex; align-items: flex-start; gap: 8px; }
 .pl8-fine svg { width: 15px; height: 15px; flex: none; margin-top: 2px; color: var(--txt-2); }
 .pl8-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 2px; border: none; background: none; color: var(--txt); font: 600 var(--text-meta) var(--gize-font);
