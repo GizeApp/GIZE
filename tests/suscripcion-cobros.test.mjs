@@ -13,6 +13,10 @@
 //   cuenta (antes cada toque frenado alargaba la espera). Reusar el link sin pagar igual lo
 //   consulta en Mercado Pago: tiene su tope aparte, de 30 por hora (antes no tenía ninguno).
 //   El checkout se prueba corriendo la función (tests/funcion.mjs) con Mercado Pago simulado.
+// - Gimnasios: el checkout cuenta el cupo exacto con recount_seats (para el dueño, los socios del
+//   gimnasio; para un profe, sus alumnos propios) y no deja pasar a un plan menor que lo usado; al
+//   dueño de un gimnasio solo le ofrece p100, p250 y p500; external_reference sigue siendo «dueño|plan».
+//   Sin esas funciones en la base, el count(*) de siempre.
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -148,12 +152,16 @@ export default async function ({ t }){
   // ---- Checkout de verdad: la función con Supabase y Mercado Pago simulados ----
   // tabla: 'ok' | 'sin-tabla' | 'sin-columna' | 'falla' (no se puede contar).
   const COACH = 'c0ac4000-0000-4000-8000-000000000001', MAIL = 'coach@prueba.test';
-  const checkout = async ({ tabla = 'ok', pendiente = null } = {}) => {
+  // cupo: lo que devuelve recount_seats (undefined = la base no la tiene); gimnasio: el de gym_de_dueno;
+  // perfiles: el count(*) de perfiles con este coach.
+  const checkout = async ({ tabla = 'ok', pendiente = null, cupo, gimnasio = null, perfiles = 0 } = {}) => {
     const bill = { coach_id: COACH, plan: 'trial', mp_preapproval_id: null, mp_status: null, mp_pending_id: null, pending_plan: null };
     const intentos = [], mp = [];
     let n = 0, creadas = 0;
     const db = supabaseSimulado(q => {
-      if (q.tabla === 'profiles') return q.count ? { count: 0 } : { data: { role: 'coach' } };
+      if (q.tabla === 'profiles') return q.count ? { count: perfiles } : { data: { role: 'coach' } };
+      if (q.accion === 'rpc' && q.tabla === 'recount_seats') return cupo === undefined ? { error: { code: 'PGRST202', message: 'no existe recount_seats' } } : { data: cupo };
+      if (q.accion === 'rpc' && q.tabla === 'gym_de_dueno') return gimnasio === undefined ? { error: { code: 'PGRST202', message: 'no existe gym_de_dueno' } } : { data: gimnasio };
       if (q.tabla === 'coach_billing'){
         if (q.accion === 'select') return { data: Object.assign({}, bill) };
         if (q.accion === 'update'){ if (!cumple(bill, q.filtros)) return { data: [] }; Object.assign(bill, q.valores); return { data: [{ coach_id: COACH }] }; }
@@ -235,6 +243,27 @@ export default async function ({ t }){
     const a = await x.pagar('p25'), b = await x.pagar('p50');
     t.ok(a.status === 200 && a.url === 'https://mp.test/P0' && b.status === 200 && b.url === 'https://mp.test/P1', tabla + ': reusa y crea igual: ' + JSON.stringify([a, b]));
   }
+
+  {
+    // Cupo exacto y planes de gimnasio.
+    const pagar = async (o, plan) => { const x = await checkout(o); const r = await x.pagar(plan); return { r, mp: x.mp, bill: x.bill }; };
+    let y = await pagar({ cupo: 30, perfiles: 3 }, 'p25');
+    t.eq([y.r.status, y.r.error, y.mp.length], [400, 'Tenés 30 clientes: elegí un plan de más de 25.', 0], 'el cupo sale de recount_seats (no del count de perfiles)');
+    y = await pagar({ cupo: 25, perfiles: 40 }, 'p25');
+    t.ok(y.r.status === 200 && /^https:\/\/mp\.test\//.test(y.r.url), 'con el cupo justo (25 de 25), sí');
+    y = await pagar({ perfiles: 12 }, 'p10');
+    t.eq([y.r.status, y.r.error], [400, 'Tenés 12 clientes: elegí un plan de más de 10.'], 'sin recount_seats en la base, el count(*) de siempre');
+    y = await pagar({ cupo: 40, gimnasio: 'a0000000-0000-4000-8000-00000000aaaa' }, 'p50');
+    t.eq([y.r.status, y.r.error, y.mp.length], [400, 'Para un gimnasio, elegí el plan de 100, 250 o 500 socios.', 0], 'al dueño de un gimnasio no se le venden los planes de coach');
+    y = await pagar({ cupo: 182, gimnasio: 'a0000000-0000-4000-8000-00000000aaaa' }, 'p100');
+    t.eq([y.r.status, y.r.error], [400, 'El gimnasio tiene 182 socios: elegí un plan de más de 100.'], 'el dueño no baja a un plan menor que sus socios');
+    y = await pagar({ cupo: 182, gimnasio: 'a0000000-0000-4000-8000-00000000aaaa' }, 'p250');
+    const alta = y.mp.find(x => x === 'POST /preapproval');
+    t.ok(y.r.status === 200 && alta && y.bill.pending_plan === 'p250', 'el dueño pasa al plan de 250');
+  }
+  const src2 = fs.readFileSync(path.join(ROOT, DIR, 'index.ts'), 'utf8');
+  t.ok(/external_reference: coachId \+ "\|" \+ plan/.test(src2), 'external_reference sigue siendo «coach|plan» (el dueño, para un gimnasio)');
+  t.ok(/const PLANES_GIMNASIO = \["p100", "p250", "p500"\];/.test(src2), 'los planes del dueño: 100, 250 y 500');
 
   // La tabla del tope.
   const sql = fs.readFileSync(path.join(ROOT, 'supabase/pagos-seguros.sql'), 'utf8');

@@ -22,6 +22,7 @@
 // Qué recibe:
 //   · Desde la app (con la sesión del coach):
 //       { action: "checkout", plan: "p10"|"p25"|"p50"|"p100"|"p250"|"p500", mp_email? } → { url } para pagar
+//       (con el cupo exacto, recount_seats; al dueño de un gimnasio, solo p100, p250 y p500)
 //       { action: "cancel" } → cancela la renovación (sigue activo hasta paid_until)
 //   · Desde Mercado Pago (?webhook=1): el aviso de un cambio. No se confía en lo que dice
 //     el aviso: se vuelve a pedir la suscripción a la API de Mercado Pago con el token,
@@ -46,6 +47,8 @@ const PLANES: Record<string, { max: number; price: number; name: string }> = {
   p250: { max: 250, price: 119900, name: "GIZE Gimnasio · hasta 250 alumnos" },
   p500: { max: 500, price: 199900, name: "GIZE Gimnasio grande · hasta 500 alumnos" },
 };
+// Los planes que se le ofrecen al dueño de un gimnasio (§7.1: el modo gimnasio arranca en 100).
+const PLANES_GIMNASIO = ["p100", "p250", "p500"];
 // Días de margen después de cada cobro, por si Mercado Pago reintenta un pago rechazado.
 const MARGEN_DIAS = 3;
 // Checkouts por hora por coach: cada uno crea una suscripción en Mercado Pago con la cuenta de
@@ -77,6 +80,15 @@ async function mp(path: string, init: RequestInit = {}) {
 const admin = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
 function addMonth(d: Date) { const x = new Date(d); x.setMonth(x.getMonth() + 1); return x; }
+
+// El cupo usado del plan, exacto (recount_seats). Si la base todavía no tiene la función, la cuenta
+// de siempre: los perfiles con este coach.
+async function cupoUsado(db: ReturnType<typeof admin>, coachId: string): Promise<number> {
+  const r = await db.rpc("recount_seats", { cid: coachId });
+  if (!r.error && typeof r.data === "number") return r.data;
+  const { count } = await db.from("profiles").select("id", { count: "exact", head: true }).eq("coach_id", coachId);
+  return count || 0;
+}
 
 // ---- Avisos de pagos por mail ----
 const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -309,8 +321,16 @@ Deno.serve(async (req) => {
     const plan = String(input.plan || "");
     const p = PLANES[plan];
     if (!p) return json({ error: "Plan inválido" }, 400);
-    const { count } = await db.from("profiles").select("id", { count: "exact", head: true }).eq("coach_id", coachId);
-    if ((count || 0) > p.max) return json({ error: "Tenés " + count + " clientes: elegí un plan de más de " + p.max + "." }, 400);
+    // Cupo exacto (supabase/gimnasios.sql: recount_seats cuenta los vínculos propios y, para el dueño
+    // de un gimnasio, también sus socios): no se puede pasar a un plan menor que lo que ya se usa. Sin
+    // esa función en la base (antes de los gimnasios), el count(*) de siempre.
+    const usados = await cupoUsado(db, coachId);
+    // Un gimnasio arranca en el plan de 100 (los de 10, 25 y 50 son planes de coach). external_reference
+    // sigue siendo «dueño|plan»: el plan del gimnasio es la fila del dueño.
+    const gym = await db.rpc("gym_de_dueno", { cid: coachId });
+    const esDueno = !gym.error && typeof gym.data === "string" && gym.data !== "";
+    if (esDueno && !PLANES_GIMNASIO.includes(plan)) return json({ error: "Para un gimnasio, elegí el plan de 100, 250 o 500 socios." }, 400);
+    if (usados > p.max) return json({ error: (esDueno ? "El gimnasio tiene " + usados + " socios" : "Tenés " + usados + " clientes") + ": elegí un plan de más de " + p.max + "." }, 400);
     if (bill.plan === plan && bill.mp_status === "authorized") return json({ error: "Ya tenés ese plan" }, 400);
 
     const email = String(input.mp_email || u.user.email || "").trim().toLowerCase();
