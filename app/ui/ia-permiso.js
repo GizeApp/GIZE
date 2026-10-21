@@ -8,6 +8,7 @@
 //   pedirPermisoIA() → true (aceptó, o ya había aceptado) / false (no aceptó, o la había apagado).
 import { State } from '../core/state.js';
 import { iaGuardarPermiso, iaPermiso } from '../core/ia.js';
+import { alertSvg, clockSvg, imageSvg, shieldSvg, sparkleSvg, toggleSvg } from '../core/icons.js';
 
 const POLITICA = "https://gize.ar/privacidad/?app=1#ia";
 
@@ -23,6 +24,10 @@ export const PERMISO_PUNTOS = [
   "Es opcional: si no aceptás, podés cargar todo a mano o con el código de barras. Podés desactivarlo cuando quieras en Ajustes → Funciones con IA.",
 ];
 export const PERMISO_CIERRE = "Al tocar «Aceptar y usar IA» aceptás que tu foto y tu texto se envíen a Anthropic, en EE. UU., para esto.";
+
+// El ícono de cada punto (en el mismo orden que PERMISO_PUNTOS): lo que se manda, cuánto lo guardan,
+// la foto del plato, que son estimados y que es opcional.
+const PUNTOS_IC = [shieldSvg, clockSvg, imageSvg, alertSvg, toggleSvg];
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 let abierta = null; // { listo, volver, guardando }
@@ -51,8 +56,9 @@ export function pedirPermisoIA({ desdeAjustes = false } = {}){
     abierta = { listo, volver: document.activeElement, guardando: false, desdeAjustes };
     host().innerHTML = '<div class="sheet-bg" data-ia="no"></div>' +
       '<div class="sheet ia-perm" role="dialog" aria-modal="true" aria-labelledby="iaPermT" aria-describedby="iaPermD">' +
-        '<div class="sheet-title" id="iaPermT"><span class="ia-tag" aria-hidden="true">IA</span> ' + esc(PERMISO_TITULO) + '</div>' +
-        '<div class="ia-perm-txt" id="iaPermD"><p>' + esc(PERMISO_INTRO) + '</p><ul>' + PERMISO_PUNTOS.map(p => '<li>' + esc(p) + '</li>').join("") + '</ul>' +
+        '<div class="ia-perm-h"><span class="ia-perm-hero" aria-hidden="true">' + sparkleSvg + '</span>' +
+        '<div class="sheet-title" id="iaPermT">' + esc(PERMISO_TITULO) + '</div></div>' +
+        '<div class="ia-perm-txt" id="iaPermD"><p>' + esc(PERMISO_INTRO) + '</p><ul>' + PERMISO_PUNTOS.map((p, i) => '<li><span class="ia-perm-ic" aria-hidden="true">' + (PUNTOS_IC[i] || shieldSvg) + '</span><span>' + esc(p) + '</span></li>').join("") + '</ul>' +
         '<p class="ia-perm-cierre">' + esc(PERMISO_CIERRE) + '</p></div>' +
         '<div class="ia-perm-err" role="alert" hidden></div>' +
         '<div class="ia-perm-btns"><button type="button" class="ctrl primary" data-ia="si">Aceptar y usar IA</button>' +
