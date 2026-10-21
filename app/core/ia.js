@@ -96,13 +96,15 @@ export async function photoB64(file, max = 1024){
 // Error con el código de la función (supabase/functions/ia → no()): .codigo, .vuelve, .tope.
 const fallo = (codigo, extra) => Object.assign(new Error(codigo), { codigo }, extra || {});
 
-// Llama a la función. modo "plato" ({ imagen, texto?: la aclaración }). Devuelve la
+// Llama a la función. modo "plato" ({ imagen }): solo la foto. La aclaración escrita («¿Qué es?»)
+// se sacó y nunca se manda texto (así lo dicen el permiso y la política). Devuelve la
 // respuesta ({ ok, hay_comida, nota, items }) o tira un fallo con .codigo. Sin conexión, no llama.
 export async function iaPedir(modo, body){
   if (navigator.onLine === false) throw fallo("sin_conexion");
   if (!State.cloudUser || !State.sb) throw fallo("sin_sesion");
+  const pedido = Object.assign({ modo }, body); delete pedido.texto;
   let r;
-  try { r = await State.sb.functions.invoke("ia", { body: Object.assign({ modo }, body) }); }
+  try { r = await State.sb.functions.invoke("ia", { body: pedido }); }
   catch (e) { throw fallo(navigator.onLine === false ? "sin_conexion" : "error"); }
   if (r.error) {
     const ctx = r.error.context; let j = null;

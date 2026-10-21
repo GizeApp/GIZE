@@ -88,12 +88,12 @@ export default async function ({ base, t }){
     await p.setInputFiles('#sheetHost input[data-action="plate-file"]:not([capture])', await fotoJpeg(p)); await wait(1500);
     t.eq((await p.$$('#sheetHost .pl8-row .pl8-ic svg')).length, 3, 'revisión: cada alimento con su ícono');
     t.eq(await emojis(p, '#sheetHost .plate-sheet'), [], 'revisión: sin emojis');
-    t.eq((await p.$$('#sheetHost .pl8-row .pl8-b')).length, 4, 'revisión: el origen como etiqueta (tres y un «Revisá»)');
+    t.eq((await p.$$('#sheetHost .pl8-row :is(.pl8-src, .pl8-b, .pl8-rev)')).length, 0, 'revisión: sin etiquetas de origen ni «Revisá» (solo gramos y números)');
     t.eq((await p.$$('#sheetHost .pl8-vals .pl8-m')).length, 9, 'revisión: los macros en fichas');
     const go = await neon(p, '#pl8Go');
     t.ok(go && go.brillo && !go.adentro && /gradient/.test(go.fondo), '«Agregar»: el filete de los principales y el resplandor: ' + (go && go.sombra));
     t.eq(await p.evaluate(() => getComputedStyle(document.getElementById('pl8Go')).backgroundColor), 'rgba(0, 0, 0, 0)', '«Agregar»: relleno blanco con el degradé (sin color de fondo encima)');
-    t.eq(await chicos(p, '#sheetHost .pl8-x, #sheetHost .pl8-step, #sheetHost .pl8-chg, #sheetHost .pl8-add, #pl8Go'), 0, 'revisión: lo que se toca mide 44 px o más');
+    t.eq(await chicos(p, '#sheetHost .pl8-x, #sheetHost .pl8-step, #sheetHost .pl8-chg, #pl8Go'), 0, 'revisión: lo que se toca mide 44 px o más');
     // La comida del pie: se dibuja a 36 px y se toca en 44 (3,5 px arriba y abajo de la ficha siguen siendo la ficha).
     t.eq(await p.$$eval('#sheetHost .pl8-foot .meal-chip', cs => cs.filter(c => { const r = c.getBoundingClientRect(), x = r.left + r.width / 2;
       return r.height < 35 || ![r.top - 3.5, r.bottom + 3.5].every(y => c.contains(document.elementFromPoint(x, y))); }).length), 0, 'revisión: la comida del pie se toca en 44 px');

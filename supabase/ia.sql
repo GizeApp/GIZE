@@ -42,6 +42,10 @@ create table if not exists public.ia_config (
 );
 alter table public.ia_config alter column activa set default false;
 insert into public.ia_config (id) values (1) on conflict (id) do nothing;
+-- Versión 2 del aviso (app/ui/ia-permiso.js): la app ya no manda texto, solo la foto (se sacó la
+-- aclaración «¿Qué es?»). Quien aceptó la versión 1 lo vuelve a ver una vez. Solo sube, nunca baja:
+-- se puede correr de nuevo sin volver a preguntar.
+update public.ia_config set aviso_version = 2 where id = 1 and aviso_version < 2;
 
 -- ---------- ciclos de los créditos ----------
 create table if not exists public.ia_ciclos (
