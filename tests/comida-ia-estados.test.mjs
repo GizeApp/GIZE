@@ -134,7 +134,8 @@ export default async function ({ base, t }){
     const sw = '[data-action="cfg-ia-toggle"]';
     t.ok(await p.isVisible(sw), 'Ajustes: «Funciones con IA»');
     t.eq(await p.getAttribute(sw, 'aria-checked'), 'true', 'Ajustes: prendido (aceptó)');
-    t.has(await txt(p, '#cfgIaDesc'), 'Envía a Anthropic (EE. UU.) la foto o el texto de cada consulta. Apagado: no se manda nada.', 'Ajustes: qué hace');
+    t.has(await txt(p, '#cfgIaDesc'), 'Envía a Anthropic (EE. UU.) la foto de cada consulta. Apagado: no se manda nada.', 'Ajustes: qué hace (solo la foto)');
+    t.ok(!/texto/.test(await txt(p, '#cfgIaDesc')), 'Ajustes: ya no dice que se manda texto');
     t.ok(/privacidad\/\?app=1#ia$/.test(await p.getAttribute('#cfgIaDesc a', 'href')), 'Ajustes: con el enlace a la política');
     await p.$eval(sw, b => b.scrollIntoView({ block: 'center' })); await wait(200);
     await shot(p, '27-ajustes-on');

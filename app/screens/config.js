@@ -281,7 +281,7 @@ export function renderConfig() {
         '<span class="cfg-notif-ic">' + sparkSvg + '</span>' +
         '<div class="cfg-notif-txt">' +
           '<div class="cfg-notif-label" id="cfgIaLbl">Funciones con IA</div>' +
-          '<div class="cfg-notif-desc" id="cfgIaDesc">Envía a Anthropic (EE. UU.) la foto o el texto de cada consulta. Apagado: no se manda nada. <a class="cfg-ia-link" href="' + LINKS.privacy + '#ia" target="_blank" rel="noopener">Política de privacidad</a></div>' +
+          '<div class="cfg-notif-desc" id="cfgIaDesc">Envía a Anthropic (EE. UU.) la foto de cada consulta. Apagado: no se manda nada. <a class="cfg-ia-link" href="' + LINKS.privacy + '#ia" target="_blank" rel="noopener">Política de privacidad</a></div>' +
         '</div>' +
         '<button class="cfg-switch' + (iaOn ? ' on' : '') + '" data-action="cfg-ia-toggle" role="switch" aria-checked="' + iaOn + '" aria-labelledby="cfgIaLbl" aria-describedby="cfgIaDesc"><span class="cfg-switch-knob"></span></button>' +
       '</div>' +

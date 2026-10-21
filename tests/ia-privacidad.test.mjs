@@ -41,16 +41,25 @@ export default async ({ t }) => {
   t.ok(!/las ve solo el equipo de GIZE/.test(txt), 'las fotos de productos ya no dicen que las ve solo el equipo de GIZE');
   t.has(txt, 'la foto de la tabla se envía a Anthropic para leerla', '«Cámara y fotos» dice que la tabla puede ir a Anthropic');
   t.ok(/<li><b>Anthropic:<\/b>/.test(html), 'Anthropic en la lista de empresas');
-  t.has(txt, 'recibe la foto o el texto de cada consulta o, en el resumen para tu coach, tus números de la semana', 'la lista de empresas dice qué recibe Anthropic, también en el resumen');
+  t.has(txt, 'recibe la foto de cada consulta o, en el resumen para tu coach, tus números de la semana', 'la lista de empresas dice qué recibe Anthropic, también en el resumen');
+  // Solo la foto: la aclaración escrita («¿Qué es?») se sacó de la app.
+  t.has(ia, 'solo la foto que elegís y, para calcular un plato, la lista de alimentos de GIZE', 'en la comida se envía solo la foto');
+  t.has(ia, 'GIZE no guarda la foto del plato; la foto de un producto', 'qué no guarda GIZE, sin texto');
+  for (const viejo of ['o lo que escribís', 'ni lo que escribas', 'la foto o el texto de cada consulta'])
+    t.ok(!txt.includes(viejo), 'la política ya no dice «' + viejo + '»');
   t.has(txt, 'Estos proveedores están obligados por contrato a proteger tus datos', 'la frase de los proveedores');
   t.has(txt, 'tu permiso para usar las funciones con IA y tus avisos de «¿Está mal?». No conservamos', '«Qué se borra» incluye el permiso de la IA y los avisos de «¿Está mal?»');
   t.has(ia, 'Si tocás «¿Está mal? Avisanos», guardamos lo que estimó la IA y tu comentario (nunca la foto)', 'dice qué guarda «¿Está mal?» (sin la foto)');
   t.has(ia, 'se borra a los 180 días', 'y cuánto tiempo (ia_limpiar)');
   // La hoja del permiso de la app (app/ui/ia-permiso.js) promete lo mismo que la política.
   const hoja = fs.readFileSync(path.join(ROOT, 'app/ui/ia-permiso.js'), 'utf8');
-  for (const frase of ['Anthropic, la empresa que hace la IA Claude, en Estados Unidos', 'no tu nombre, tu mail ni otros datos de tu cuenta', 'no los usa para entrenar su IA',
-    'los borra dentro de los 30 días', 'GIZE no guarda la foto del plato', 'No es consejo médico ni nutricional', 'Ajustes → Funciones con IA', 'Aceptar y usar IA', 'privacidad/?app=1#ia'])
+  for (const frase of ['Anthropic, la empresa que hace la IA Claude, en Estados Unidos', 'no tu nombre, tu mail ni otros datos de tu cuenta', 'no la usa para entrenar su IA',
+    'la borra dentro de los 30 días', 'Solo se manda la foto: no tu nombre', 'aceptás que tu foto se envíe a Anthropic', 'GIZE no guarda la foto del plato', 'No es consejo médico ni nutricional', 'Ajustes → Funciones con IA', 'Aceptar y usar IA', 'privacidad/?app=1#ia'])
     t.has(hoja, frase, 'la hoja del permiso dice: ' + frase);
+  const textos = (hoja.match(/export const PERMISO_[A-Z]+ = [\s\S]*?;\n/g) || []).join('\n');
+  t.ok(textos.length > 200 && !/lo que escribas|tu texto/.test(textos), 'la hoja del permiso ya no dice que se manda texto');
+  const ajustes = fs.readFileSync(path.join(ROOT, 'app/screens/config.js'), 'utf8');
+  t.ok(ajustes.includes('Envía a Anthropic (EE. UU.) la foto de cada consulta.') && !ajustes.includes('la foto o el texto'), 'Ajustes → Funciones con IA: solo la foto');
   t.has(txt, 'El registro de cuándo se usó la IA (la fecha, la función y lo que costó) queda sin tu cuenta', 'y dice que el registro de uso queda sin la cuenta (ia_llamadas: on delete set null)');
   t.ok(!/tu uso de las funciones con IA\. No conservamos/.test(txt), 'no dice que el uso se borra');
   t.has(txt, 'atiende las denuncias y reclamos', 'el derecho a reclamar ante la AAIP');

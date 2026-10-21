@@ -425,7 +425,7 @@ html.tema-luz body {
 .ia-spark svg { width: 12px; height: 12px; stroke-width: 2.2; }
 html.tema-luz .ia-spark { box-shadow: 0 0 0 2px rgba(255,255,255,.9); }
 .ia-foto-btn:active { transform: scale(.97); }
-:is(.ia-foto-btn, .pl8-chg, .pl8-x, .pl8-step, .pl8-add, .pl8-link, .pl8-redo .ctrl, .pl8-btns .ctrl, .pl8-op):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+:is(.ia-foto-btn, .pl8-chg, .pl8-x, .pl8-step, .pl8-link, .pl8-btns .ctrl, .pl8-op):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
 /* El buscador vacío o sin resultados: el ícono en su círculo, un título y una línea de ayuda. */
 .ss-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 30px 16px 18px; text-align: center; }
@@ -463,7 +463,7 @@ html.basico:not(#_) body:not(#_) .search-sheet .cal-create { border-color: var(-
    ::before, que sale de la ficha (por eso acá sin overflow: las cuatro entran enteras). */
 .sheet .pl8-foot .meal-chip { position: relative; min-height: 36px; padding-top: 5px; padding-bottom: 5px; overflow: visible; }
 .pl8-foot .meal-chip::before { content: ""; position: absolute; top: -5px; bottom: -5px; left: -1px; right: -1px; }
-.pl8-hint, .pl8-fine, .pl8-nota, .pl8-quedan { margin: 0; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
+.pl8-hint, .pl8-fine, .pl8-quedan { margin: 0; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
 .pl8-hint { text-align: center; padding: 0 6px; }
 .pl8-hint b { display: block; margin-bottom: 3px; font: 700 16px var(--gize-font); color: var(--txt); }
 .plate-sheet .sheet-title:focus { outline: none; }
@@ -546,30 +546,19 @@ html.tema-luz .pl8-err-ic { color: #8A5A00; }
 .pl8-btns2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .pl8-btns .ctrl { width: 100%; max-width: none; margin: 0; min-height: 48px; padding: 12px 10px; font-size: var(--text-body); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .pl8-btns2 .ctrl { border-radius: var(--r-btn); font-size: var(--text-meta); min-width: 0; }
-.pl8-btns .ctrl svg, .pl8-redo .ctrl svg { width: 18px; height: 18px; flex: none; }
+.pl8-btns .ctrl svg { width: 18px; height: 18px; flex: none; }
 
 /* Revisar: cada alimento en su tarjeta. */
 .pl8-list { display: flex; flex-direction: column; gap: 10px; }
 .pl8-empty { padding: 10px 2px; color: var(--txt-2); font-size: var(--text-meta); }
 .pl8-row { padding: 12px 12px 12px 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--card-2); }
-.pl8-row.dudoso { border-color: color-mix(in srgb, var(--gize-warning, #FFB020) 38%, var(--border)); }
 .pl8-top { display: flex; align-items: flex-start; gap: 12px; }
 .pl8-ic { flex: none; width: 40px; height: 40px; margin-top: 2px; border-radius: 12px; display: grid; place-items: center; color: var(--ia-ink);
   background: linear-gradient(145deg, var(--ia-tint), var(--ia-tint-2)); border: 1px solid var(--ia-line); }
 .pl8-ic svg { width: 21px; height: 21px; }
-.pl8-head { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding-top: 1px; }
+.pl8-head { flex: 1; min-width: 0; display: flex; flex-direction: column; align-self: center; padding-top: 2px; }
 .pl8-name { font: 600 15.5px/1.3 var(--gize-font); color: var(--txt); overflow-wrap: anywhere; }
-.pl8-src { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .pl8-sep { display: none; }
-.pl8-b { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px 0 6px; border-radius: 999px; font: 700 11.5px var(--gize-font); color: var(--txt);
-  background: var(--ia-tint); border: 1px solid var(--ia-line); white-space: nowrap; }
-.pl8-b svg { width: 12px; height: 12px; flex: none; color: var(--ia-ink); stroke-width: 2.4; }
-.pl8-b-db { background: color-mix(in srgb, var(--gize-success, #3DDC97) 13%, transparent); border-color: color-mix(in srgb, var(--gize-success, #3DDC97) 40%, transparent); }
-.pl8-b-db svg { color: var(--gize-success, #3DDC97); stroke-width: 3; }
-.pl8-rev { background: color-mix(in srgb, var(--gize-warning, #FFB020) 14%, transparent); border-color: color-mix(in srgb, var(--gize-warning, #FFB020) 45%, transparent); }
-.pl8-rev svg { color: var(--gize-warning, #FFB020); }
-html.tema-luz .pl8-b-db svg { color: #0E7A4C; }
-html.tema-luz .pl8-rev svg { color: #8A5A00; }
 .pl8-x { flex: none; width: 44px; height: 44px; margin: -8px -8px 0 0; display: grid; place-items: center; border: none; background: none; color: var(--txt-2); cursor: pointer; border-radius: 50%; }
 .pl8-x svg { width: 18px; height: 18px; }
 .pl8-mid { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
@@ -595,19 +584,6 @@ html.tema-luz .pl8-rev svg { color: #8A5A00; }
 .pl8-m::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--gize-r2); }
 .pl8-m-c::before { background: var(--gize-r1); }
 .pl8-m-f::before { background: var(--gize-warning, #FFB020); }
-.pl8-more { display: flex; flex-wrap: wrap; gap: 8px; }
-.pl8-add { flex: 1 1 150px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; padding: 8px 10px; border-radius: 14px;
-  border: 1px dashed var(--border); border-color: var(--nn-guion-a, var(--border)) var(--nn-guion-b, var(--border)) var(--nn-guion-b, var(--border)) var(--nn-guion-a, var(--border));
-  background: transparent; color: var(--txt); font: 600 var(--text-meta) var(--gize-font); cursor: pointer; }
-.pl8-add svg { width: 16px; height: 16px; flex: none; color: var(--ia-ink); }
-html.basico .pl8-add { border-color: var(--border); }
-.pl8-nota { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 14px; color: var(--txt); background: linear-gradient(135deg, var(--ia-tint), var(--ia-tint-2)); border: 1px solid var(--ia-line); }
-.pl8-nota-ic { flex: none; display: grid; color: var(--ia-ink); padding-top: 1px; }
-.pl8-nota-ic svg { width: 17px; height: 17px; }
-.pl8-redo { display: flex; gap: 8px; }
-.pl8-redo .form-input { flex: 1; min-width: 0; }
-.pl8-redo .ctrl { flex: none; width: auto; max-width: none; min-height: 44px; padding: 10px 14px; font-size: var(--text-meta); display: inline-flex; align-items: center; gap: 6px; }
-.pl8-redo .ctrl svg { width: 16px; height: 16px; }
 .pl8-fine { display: flex; align-items: flex-start; gap: 8px; }
 .pl8-fine svg { width: 15px; height: 15px; flex: none; margin-top: 2px; color: var(--txt-2); }
 .pl8-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 2px; border: none; background: none; color: var(--txt); font: 600 var(--text-meta) var(--gize-font);

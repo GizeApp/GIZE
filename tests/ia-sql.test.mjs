@@ -44,6 +44,8 @@ export default async ({ t }) => {
   t.ok(Object.keys(funs).length === 6 && Object.values(funs).every(v => v === false), 'cada función arranca en false: ' + JSON.stringify(funs));
   t.ok(/insert into public\.ia_config \(id\) values \(1\) on conflict \(id\) do nothing;/.test(code), 'la fila de la configuración se crea una vez y no se pisa');
   t.ok(!/drop table/i.test(code) && !/truncate/i.test(code), 'no borra tablas ni datos (se puede volver a correr)');
+  // El aviso cambió (solo la foto, sin texto): versión 2, que solo sube (correrlo de nuevo no vuelve a preguntar).
+  t.ok(/update public\.ia_config set aviso_version = 2 where id = 1 and aviso_version < 2;/.test(code), 'el aviso pasa a la versión 2 (solo la foto) y nunca baja');
 
   // Tablas: RLS y permisos.
   for (const tb of ['ia_config', 'ia_ciclos', 'ia_llamadas', 'ia_permisos', 'ia_reportes']){
@@ -169,6 +171,7 @@ async function conPostgres(t, sql, ped){
       r = psql(sql); t.ok(r.status === 0, 'ia.sql corre (vez ' + vez + '): ' + (r.stderr || '').split('\n').filter(l => /ERROR/.test(l)).join(' '));
     }
     t.eq(psql("select count(*) from cron.job where jobname like 'gize-ia-%';").stdout.trim(), '2', 'dos trabajos de pg_cron, sin duplicar');
+    t.eq(psql('select aviso_version from public.ia_config;').stdout.trim(), '2', 'después de correrlo: el aviso en la versión 2');
     for (const [nombre, texto] of ESCENARIOS){
       r = psql(texto);
       t.ok(r.status === 0, nombre + ': ' + (r.stderr || '').split('\n').filter(l => /ERROR|CONTEXT/.test(l)).join(' ').slice(0, 400));
