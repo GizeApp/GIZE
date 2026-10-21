@@ -1720,9 +1720,11 @@ function paintIA(foco){
   const ancla = `<label class="lbl" for="iaAncla">Vencimiento de los créditos («Promotional credits» en la Console)</label>
     <div class="search"><input class="in" id="iaAncla" type="date" aria-label="Vencimiento de los créditos" value="${esc(fecha(ia.ancla))}"><button class="btn" data-a="iaAncla">Guardar fecha</button></div>`;
   // Funciones.
-  const FUN = [["etiqueta_admin", "Leer tablas en Pedidos (este panel)", ""], ["etiqueta_usuario", "Tabla en «Pedir un producto» (app)", "Todavía no está en la app"], ["plato", "Foto del plato (app)", "Todavía no está en la app"],
-    ["texto", "«Contame qué comiste» (app)", "Todavía no está en la app"], ["rutina", "Armar rutina (coach)", "Todavía no está en la app"], ["resumen", "Resumen de la semana (coach)", "Todavía no está en la app"]];
-  const funs = `<div class="ia-funs">${FUN.map(([k, l, nota]) => `<div class="ia-fun${nota ? " off" : ""}"><div>${l}${nota ? `<small>${nota}</small>` : ""}</div>
+  // [clave, nombre, nota (si todavía no se puede prender), ayuda]
+  const FUN = [["etiqueta_admin", "Leer tablas en Pedidos (este panel)", ""], ["etiqueta_usuario", "Tabla en «Pedir un producto» (app)", "Todavía no está en la app"],
+    ["plato", "Foto del plato (app)", "", "Aparece en Comida, al lado del buscador (web; en las apps, con la versión nueva). Cada foto sale menos de un centavo. «Contame qué comiste» se sacó: solo fotos."],
+    ["rutina", "Armar rutina (coach)", "Todavía no está en la app"], ["resumen", "Resumen de la semana (coach)", "Todavía no está en la app"]];
+  const funs = `<div class="ia-funs">${FUN.map(([k, l, nota, ayuda]) => `<div class="ia-fun${nota ? " off" : ""}"><div>${l}${nota ? `<small>${nota}</small>` : ayuda ? `<small>${ayuda}</small>` : ""}</div>
       <button class="tgl sm" role="switch" aria-checked="${fun[k] ? "true" : "false"}" aria-label="${esc(l)}" data-a="iaFn" data-k="${k}"${nota ? " disabled" : ""}></button></div>`).join("")}</div>`;
   // Modelo para las tablas: solo los que sirven para leer tablas, con lo que cuesta cada una.
   const elegido = (ia.modelos || {}).etiqueta || "";
@@ -2002,7 +2004,12 @@ document.addEventListener("click", async e => {
     if (a === "rqReject"){ rejectReq(b); return; }
     if (a === "rqIA"){ leerIA(b); return; }
     if (a === "iaOn"){ iaGuardar(b, { activa: b.getAttribute("aria-checked") !== "true" }, b.getAttribute("aria-checked") === "true" ? "IA apagada" : "IA prendida"); return; }
-    if (a === "iaFn"){ iaGuardar(b, { funciones: { [b.dataset.k]: b.getAttribute("aria-checked") !== "true" } }, "Guardado ✓"); return; }
+    if (a === "iaFn"){
+      const k = b.dataset.k, on = b.getAttribute("aria-checked") !== "true";
+      // Las de la app: las ve cualquiera que acepte el aviso. Se avisa antes de prenderlas.
+      if (on && k === "plato" && !await confirmar(`¿Prender «Foto del plato» en la app? Le aparece en Comida a cada persona con sesión; antes del primer uso acepta el aviso. Cada uso gasta menos de un centavo de los créditos, con los topes por persona de abajo.`, { titulo: "Prender en la app", ok: "Prender" })) return;
+      iaGuardar(b, { funciones: { [k]: on } }, "Guardado ✓"); return;
+    }
     if (a === "iaModelo"){ const v = document.getElementById("iaModelo").value; iaGuardar(b, { modelos: { etiqueta: v || null } }, "Modelo guardado ✓"); return; }
     if (a === "iaDesde"){ const v = document.getElementById("iaDesde").value; if (!v) return toast("Elegí la fecha."); iaGuardar(b, { pedidos_desde: desdePolitica(v) }, "Fecha guardada ✓"); return; }
     if (a === "iaAncla"){ iaAncla(b); return; }

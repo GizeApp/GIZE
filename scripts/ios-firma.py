@@ -3,26 +3,38 @@
 
 Por qué existe: la firma «en la nube» de Xcode dejaba la app sin sello de tiempo y App Store
 Connect la rechazaba (error 90035 «Invalid Signature»). Acá se firma como siempre se firmó para
-la App Store, con un certificado de distribución propio, pero de usar y tirar:
+la App Store, con un certificado de distribución propio creado en cada ejecución:
 
   python3 scripts/ios-firma.py crear   → certificado + perfil de App Store, instalados en la Mac
-  python3 scripts/ios-firma.py borrar  → revoca el certificado, borra el perfil y revoca los certificados
-                                         de desarrollo que Xcode creó en esta ejecución (al final, siempre)
+  python3 scripts/ios-firma.py borrar  → al final, siempre: revoca los certificados de desarrollo que
+                                         Xcode creó en esta ejecución y, SOLO si no se llegó a subir
+                                         nada, también el de distribución y su perfil
 
-La clave privada se genera en la Mac en cada ejecución y nunca sale de ahí. Revocar el
-certificado después no afecta a las versiones ya subidas (Apple las vuelve a firmar al
-distribuirlas). Usa la clave de la API de App Store Connect (rol Admin) y no imprime datos de
-la cuenta.
+El certificado de distribución NO se revoca después de subir: Apple revisa la firma de la versión
+recién en la revisión de la App Store, y si el certificado ya está revocado la rechaza con el mismo
+90035 «Invalid Signature» (pasó con 1.0.0 (59): se subió, se procesó en TestFlight y la rechazaron
+en la revisión). El workflow deja $RUNNER_TEMP/ios-firma-subida justo antes de mandar la versión;
+sin ese archivo (falló antes de subir) el certificado no firmó nada que tenga Apple y se revoca.
+
+Apple pone un tope a los certificados de distribución de la cuenta (2 o 3). Si «crear» choca con el
+tope, revoca el más viejo de los que creó CI (los que cuelgan de un perfil «GIZE App Store CI
+<ejecución>») y borra sus perfiles, de a uno, siempre dejando el más nuevo de CI (firmó la última
+versión, que puede estar en revisión). Los certificados que no creó CI no se tocan nunca.
+
+La clave privada se genera en la Mac en cada ejecución y nunca sale de ahí. Usa la clave de la API
+de App Store Connect (rol Admin) y no imprime datos de la cuenta (solo cantidades).
 
 Variables de entorno: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH (el .p8), BUNDLE_ID, RUN_ID,
 RUNNER_TEMP, GITHUB_ENV.
 """
-import base64, json, os, subprocess, sys, time, urllib.request, urllib.error
+import base64, json, os, re, subprocess, sys, time, urllib.request, urllib.error
 
 API = "https://api.appstoreconnect.apple.com/v1"
 TMP = os.environ["RUNNER_TEMP"]
 STATE = os.path.join(TMP, "ios-firma.json")
 KEYCHAIN = os.path.join(TMP, "firma.keychain-db")
+# Lo crea el workflow justo antes de subir la versión a App Store Connect (ver «borrar»).
+SUBIDA = os.path.join(TMP, "ios-firma-subida")
 
 
 def b64url(b):
@@ -52,7 +64,7 @@ def token():
     return msg + "." + b64url(firma_cruda(der))
 
 
-def api(method, path, body=None):
+def api(method, path, body=None, tolerar=None):
     req = urllib.request.Request(API + path, method=method, data=json.dumps(body).encode() if body else None,
                                  headers={"Authorization": "Bearer " + token(), "Content-Type": "application/json"})
     try:
@@ -60,6 +72,8 @@ def api(method, path, body=None):
             raw = r.read()
             return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as e:
+        if e.code == tolerar:
+            return None
         # Solo el código y el detalle del error de Apple (no trae datos de la cuenta).
         try:
             errs = json.loads(e.read()).get("errors", [])
@@ -79,12 +93,59 @@ def sh(*args, **kw):
 
 
 DEV_TYPES = ("DEVELOPMENT", "IOS_DEVELOPMENT")
+DIST_TYPES = ("DISTRIBUTION", "IOS_DISTRIBUTION")
+PERFIL_CI = "GIZE App Store CI "
 
 
 def dev_certs():
     # Certificados de desarrollo de la cuenta (solo los ids).
     data = api("GET", "/certificates?limit=200&fields[certificates]=certificateType")["data"]
     return [c["id"] for c in data if c["attributes"].get("certificateType") in DEV_TYPES]
+
+
+def certs_ci():
+    # Certificados de distribución que creó CI, del más viejo al más nuevo: [(id, [perfiles])].
+    # Se reconocen por el perfil que les arma «crear» («GIZE App Store CI <ejecución>», con ese
+    # único certificado). Un certificado sin un perfil así no es de CI y no se toca.
+    certs = api("GET", "/certificates?limit=200&fields[certificates]=certificateType,expirationDate")["data"]
+    dist = {c["id"]: c["attributes"].get("expirationDate") or "" for c in certs
+            if c["attributes"].get("certificateType") in DIST_TYPES}
+    perfiles = api("GET", "/profiles?filter[profileType]=IOS_APP_STORE&limit=200"
+                          "&fields[profiles]=name,certificates&include=certificates")["data"]
+    ci = {}
+    for p in perfiles:
+        ligados = ((p.get("relationships") or {}).get("certificates") or {}).get("data") or []
+        m = re.fullmatch(re.escape(PERFIL_CI) + r"(\d+)", p["attributes"].get("name") or "")
+        if m and len(ligados) == 1 and ligados[0]["id"] in dist:
+            run = int(m.group(1))
+            prev = ci.get(ligados[0]["id"], (run, []))
+            ci[ligados[0]["id"]] = (max(prev[0], run), prev[1] + [p["id"]])
+    # Apple les pone vencimiento a un año de creados: el que vence antes es el más viejo.
+    return [(c, ci[c][1]) for c in sorted(ci, key=lambda c: (dist[c], ci[c][0]))]
+
+
+def pedir_certificado(csr_txt):
+    body = {"data": {"type": "certificates", "attributes": {"certificateType": "DISTRIBUTION", "csrContent": csr_txt}}}
+    revocados = 0
+    while True:
+        cert = api("POST", "/certificates", body, tolerar=409)
+        if cert:
+            break
+        # Apple no deja crear otro (tope de certificados de distribución de la cuenta): se revoca el
+        # más viejo de CI y se prueba de nuevo. Nunca el más nuevo de CI (firmó la última versión,
+        # que puede estar en revisión: revocarlo la invalida) ni uno que no sea de CI.
+        ci = certs_ci()
+        if len(ci) < 2:
+            sys.exit("Apple no deja crear otro certificado de distribución (tope de la cuenta) y no queda "
+                     "ninguno viejo de CI para revocar: hay que revocar uno a mano en developer.apple.com")
+        viejo, perfiles = ci[0]
+        for p in perfiles:
+            api("DELETE", "/profiles/" + p)
+        api("DELETE", "/certificates/" + viejo)
+        revocados += 1
+    if revocados:
+        print(f"Tope de certificados de distribución: se revocaron {revocados} viejo(s) de CI (y sus perfiles).")
+    return cert["data"]
 
 
 def crear():
@@ -98,8 +159,7 @@ def crear():
        "-subj", "/CN=GIZE CI/O=GIZE/C=AR", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with open(csr) as f:
         csr_txt = f.read()
-    cert = api("POST", "/certificates", {"data": {"type": "certificates", "attributes": {
-        "certificateType": "DISTRIBUTION", "csrContent": csr_txt}}})["data"]
+    cert = pedir_certificado(csr_txt)
     state = {"cert": cert["id"], "dev_before": dev_certs()}
     with open(STATE, "w") as f:
         json.dump(state, f)
@@ -159,10 +219,19 @@ def borrar():
         return
     with open(STATE) as f:
         state = json.load(f)
-    if state.get("profile"):
-        api("DELETE", "/profiles/" + state["profile"])
-    if state.get("cert"):
-        api("DELETE", "/certificates/" + state["cert"])
+    if os.path.exists(SUBIDA):
+        # La versión ya salió para Apple firmada con este certificado: revocarlo hace que la
+        # rechacen en la revisión (90035 «Invalid Signature»). Queda, con su perfil; el próximo
+        # «crear» revoca los viejos de CI si se llega al tope.
+        if state.get("cert"):
+            print("Se subió la versión: el certificado de distribución y su perfil quedan (revocarlos invalida la versión en revisión).")
+    else:
+        # Falló antes de subir: el certificado no firmó nada que tenga Apple.
+        if state.get("profile"):
+            api("DELETE", "/profiles/" + state["profile"])
+        if state.get("cert"):
+            api("DELETE", "/certificates/" + state["cert"])
+            print("No se subió nada: certificado de distribución revocado y perfil borrado.")
     # Certificados de desarrollo que creó Xcode durante esta ejecución (no los que ya estaban).
     if "dev_before" in state:
         nuevos = [c for c in dev_certs() if c not in set(state["dev_before"])]
@@ -171,7 +240,6 @@ def borrar():
         if nuevos:
             print(f"Certificados de desarrollo de esta ejecución revocados: {len(nuevos)}.")
     subprocess.run(["security", "delete-keychain", KEYCHAIN], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    print("Certificado revocado y perfil borrado.")
 
 
 if __name__ == "__main__":

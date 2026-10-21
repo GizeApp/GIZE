@@ -372,3 +372,106 @@ html.lite .scan-btn { animation: none; }
 .kcal-left.up .kl-t, .kcal-left.up .kl-n { color:var(--gize-warning); }
 .kcal-left.eq .kl-t { color:var(--gize-success); }
 @media (max-width: 360px){ .kl-n { font-size:36px; } }
+
+/* ---- IA: foto del plato (app/screens/comida.js → renderPlateSheet) ----
+   Solo aparece con la función prendida en el panel. Colores de las variables de cada apariencia;
+   sin sombras ni animaciones propias salvo el giro de «Analizando…» (quieto en básico y con
+   movimiento reducido). */
+/* Texto de la apariencia sobre un tinte suave del color de la marca: se lee igual en todas
+   (blanco sobre el degradé quedaba por debajo de 4,5:1). */
+.ia-tag { display: inline-block; padding: 0 6px; border-radius: 6px; font-size: 10px; font-weight: 800; letter-spacing: .06em; vertical-align: 2px; line-height: 1.5;
+  color: var(--txt); background: color-mix(in srgb, var(--gize-r2) 16%, transparent); border: 1px solid color-mix(in srgb, var(--gize-r2) 60%, var(--border)); }
+.ia-mini { display: inline-block; padding: 0 4px; border-radius: 4px; font-size: 9px; font-weight: 800; letter-spacing: .05em; line-height: 1.5;
+  color: var(--txt); border: 1px solid color-mix(in srgb, var(--gize-r2) 60%, var(--border)); }
+.ia-chip { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .03em;
+  color: var(--txt-2); border: 1px solid color-mix(in srgb, var(--gize-r2) 55%, var(--border)); vertical-align: 1px; }
+.diary-name .ia-chip { display: inline-block; }
+/* «Foto» al lado del buscador (en su lugar, el escáner si la IA no se puede usar). */
+.ia-foto-btn { flex-shrink: 0; min-width: 48px; min-height: 44px; padding: 4px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  border-radius: var(--r-btn); border: 1px solid color-mix(in srgb, var(--gize-r2) 55%, var(--border)); background: var(--card-2); color: var(--txt);
+  font: 600 11px/1.1 var(--gize-font); cursor: pointer; position: relative; -webkit-tap-highlight-color: transparent; }
+.ia-foto-btn svg { width: 20px; height: 20px; }
+.ia-foto-btn .ia-mini { position: absolute; top: -7px; right: -6px; background: var(--card); }
+:is(.ia-foto-btn, .pl8-chg, .pl8-x, .pl8-step, .pl8-add, .pl8-link, .pl8-redo .ctrl, .pl8-btns .ctrl):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* La hoja: lo de arriba se desplaza y abajo quedan fijos la comida, los totales y «Agregar». */
+.plate-sheet { display: flex; flex-direction: column; height: auto; max-height: min(92dvh, calc(100dvh - var(--kb, 0px) - env(safe-area-inset-top, 0px) - 12px)); overflow: hidden; }
+.plate-sheet .ss-head { flex-direction: row; padding: 0; flex: none; }
+.plate-sheet .ss-x { width: 44px; height: 44px; }
+.pl8-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 10px; padding-bottom: 6px; }
+.pl8-foot { flex: none; display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+.pl8-foot .meal-chips { margin: 0; }
+.pl8-foot .meal-chip { min-height: 44px; }
+.pl8-hint, .pl8-fine, .pl8-nota, .pl8-quedan { margin: 0; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
+.pl8-quedan { color: var(--gize-warning, #FFB547); }
+.pl8-pick { margin: 4px 0 0; }
+.pl8-pick .cf-photo-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.plate-sheet .sheet-title:focus { outline: none; }
+.pl8-dia { display: block; margin-top: 2px; font-size: var(--text-meta); font-weight: 700; color: var(--txt-2); }
+.plate-sheet.ok .pl8-photo { max-height: 96px; }
+.pl8-photo { width: 100%; max-height: 180px; object-fit: cover; border-radius: var(--r-box); border: 1px solid var(--border); flex: none; }
+.pl8-wait { display: flex; align-items: center; gap: 10px; padding: 14px 2px; color: var(--txt-2); }
+.pl8-spin { width: 18px; height: 18px; flex: none; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--blue); animation: pl8-giro .8s linear infinite; }
+@keyframes pl8-giro { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pl8-spin { animation: none; border-top-color: var(--blue); } }
+html.basico .pl8-spin { border-top-color: var(--blue); }
+.pl8-err { padding: 10px 12px; border-radius: var(--r-btn); background: var(--gize-danger-bg, rgba(255,90,90,.1)); color: var(--txt); line-height: 1.45; font-size: var(--text-body); }
+.pl8-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.pl8-btns .ctrl { flex: 1 1 140px; max-width: none; min-height: 44px; padding: 12px; font-size: var(--text-body); }
+.pl8-list { display: flex; flex-direction: column; gap: 8px; }
+.pl8-empty { padding: 10px 2px; color: var(--txt-2); font-size: var(--text-meta); }
+.pl8-row { padding: 8px 10px 10px; border: 1px solid var(--border); border-radius: var(--r-box); background: var(--card-2); }
+.pl8-top { display: flex; align-items: center; gap: 6px; }
+.pl8-name { flex: 1; min-width: 0; font-weight: 600; color: var(--txt); overflow-wrap: anywhere; line-height: 1.3; }
+.pl8-chg { flex: none; min-height: 44px; padding: 0 10px; border: none; background: none; color: var(--txt); font: 600 var(--text-meta) var(--gize-font); cursor: pointer;
+  text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--gize-r2) 70%, var(--txt)); text-underline-offset: 3px; }
+.pl8-x { flex: none; width: 44px; height: 44px; margin-right: -8px; display: grid; place-items: center; border: none; background: none; color: var(--txt-3); cursor: pointer; }
+.pl8-x svg { width: 18px; height: 18px; }
+.pl8-src { margin: -6px 0 6px; font-size: 12px; color: var(--txt-2); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.pl8-src.db { color: var(--gize-success, #3DDC97); }
+.pl8-rev { color: var(--gize-warning, #FFB547); font-weight: 700; }
+.pl8-mid { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pl8-step { width: 44px; height: 44px; flex: none; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--txt); font-size: 20px; line-height: 1; cursor: pointer; }
+.pl8-g { display: flex; align-items: center; gap: 4px; color: var(--txt-2); font-size: var(--text-meta); }
+.pl8-g input { width: 64px; height: 44px; padding: 0 8px; border-radius: var(--r-btn); border: 1px solid var(--border); background: var(--card); color: var(--txt);
+  font: 700 16px var(--gize-font); text-align: right; font-variant-numeric: tabular-nums; }
+.pl8-g input:focus { outline: none; border-color: var(--blue); box-shadow: var(--focus-ring); }
+.pl8-vals { flex: 1 1 100%; font-size: 12px; color: var(--txt-2); font-variant-numeric: tabular-nums; }
+.pl8-more { display: flex; flex-wrap: wrap; gap: 8px; }
+.pl8-add { flex: 1 1 150px; min-height: 44px; padding: 8px 10px; border-radius: var(--r-box); border: 1px dashed var(--border); background: transparent; color: var(--txt);
+  font: 600 var(--text-meta) var(--gize-font); cursor: pointer; }
+.pl8-redo { display: flex; gap: 8px; }
+.pl8-redo .form-input { flex: 1; min-width: 0; }
+.pl8-redo .ctrl { flex: none; width: auto; max-width: none; min-height: 44px; padding: 10px 14px; font-size: var(--text-meta); }
+.pl8-link { align-self: flex-start; min-height: 44px; padding: 0 2px; border: none; background: none; color: var(--txt); font: 600 var(--text-meta) var(--gize-font);
+  text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--gize-r2) 70%, var(--txt)); text-underline-offset: 3px; cursor: pointer; }
+.pl8-again { align-self: center; }
+.pl8-tot { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; color: var(--txt-2); font-variant-numeric: tabular-nums; font-size: var(--text-meta); }
+.pl8-tot b { color: var(--txt); font-size: 18px; }
+.pl8-need { font-size: var(--text-meta); color: var(--gize-warning, #FFB547); }
+.pl8-go { margin-top: 0; }
+.pl8-go:disabled { opacity: .45; cursor: default; box-shadow: none; }
+
+/* El permiso («Usar IA en Comida», app/ui/ia-permiso.js): encima de todo, como «Reportar». */
+#iaPermHost .sheet-bg { z-index: 440; }
+#iaPermHost .sheet { z-index: 441; }
+html:has(#iaPermHost .sheet:not(.closing)), html:has(#iaPermHost .sheet:not(.closing)) body { overflow: hidden; }
+.ia-perm .sheet-title { margin-bottom: 10px; }
+.ia-perm-txt { font-size: var(--text-meta); color: var(--txt-2); line-height: 1.5; }
+.ia-perm-txt p { margin: 0 0 8px; color: var(--txt); }
+.ia-perm-txt ul { margin: 0 0 8px; padding-left: 18px; }
+.ia-perm-txt li { margin-bottom: 5px; }
+.ia-perm-txt .ia-perm-cierre { color: var(--txt-2); }
+.ia-perm-err { margin: 6px 0; padding: 10px 12px; border-radius: var(--r-btn); background: var(--gize-danger-bg, rgba(255,90,90,.1)); color: var(--gize-danger); font-size: var(--text-meta); }
+.ia-perm-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.ia-perm-btns .ctrl { max-width: none; width: 100%; min-height: 48px; }
+.ia-perm-btns .ctrl:disabled { opacity: .6; }
+.ia-perm-link { display: inline-block; margin-top: 10px; padding: 10px 2px; color: var(--blue-2, var(--blue)); font-size: var(--text-meta); }
+.ia-perm :is(.ctrl, .ia-perm-link):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+/* Aviso chico abajo («Sin problema…», «Listo: …»). */
+.ia-toast { position: fixed; left: 16px; right: 16px; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 460; max-width: 480px; margin: 0 auto;
+  padding: 12px 14px; border-radius: var(--r-box); background: var(--card); color: var(--txt); border: 1px solid var(--border); font-size: var(--text-meta); line-height: 1.4;
+  opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .2s, transform .2s; }
+.ia-toast.show { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .ia-toast { transition: none; } }
+.cfg-ia-link { color: var(--blue-2, var(--blue)); }

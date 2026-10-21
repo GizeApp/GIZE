@@ -115,6 +115,9 @@ jobs:
         run: |
           desde=$(( $(date -u +%s) - 120 ))
           cp -r supabase/functions/notificar-cliente supabase/functions/rapid-worker
+          # «ia» usa la base de alimentos de la app para el plato y el texto (la misma lista que ve la
+          # persona). No está en el repo dentro de la función (supabase/functions/ia/.gitignore).
+          cp app/core/foods.js app/core/foods-extra.js app/core/foods-ar.js app/core/foods-gen.js supabase/functions/ia/
           fns=""; mal=""
           for fn in rapid-worker suscripcion compras-apple descanso avisos-coach admin contacto borrar-audios productos-off vence-plan ia; do
             fns="$fns $fn"

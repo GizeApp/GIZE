@@ -18,9 +18,13 @@
 -- Códigos que devuelve ia_reservar (y la función, con el mismo nombre): pausada (motivo: apagada,
 -- sin_ciclo, creditos, admin), tope_mes, ahorro, ritmo, tope_dia, tope_persona, error.
 --
+-- La app (foto del plato y «Contame qué comiste») pregunta ia_mi_estado() para saber si muestra
+-- los botones, guarda el permiso con ia_permiso() y los avisos de «¿Está mal?» con ia_reportar().
+--
 -- Correr con el workflow "Supabase" → tarea sql → supabase/ia.sql, después de
 -- supabase/admin.sql, supabase/cupo-plan.sql y supabase/pedidos-productos.sql (las columnas ai_*
--- de los pedidos). Se puede correr varias veces. Usa pg_cron (como descanso.sql).
+-- de los pedidos); food_entries es de supabase/base.sql. Se puede correr varias veces. Usa
+-- pg_cron (como descanso.sql).
 
 -- ---------- configuración (una sola fila) ----------
 create table if not exists public.ia_config (
@@ -99,16 +103,37 @@ create table if not exists public.ia_permisos (
   updated_at   timestamptz not null default now()
 );
 
+-- ---------- «¿Está mal? Avisanos» (foto del plato y «Contame qué comiste») ----------
+-- Lo que estimó la IA y el comentario de la persona, sin la foto. Se escribe solo con
+-- ia_reportar(); lo lee el equipo de GIZE. Se borra a los 180 días (ia_limpiar) o con la cuenta.
+create table if not exists public.ia_reportes (
+  id         bigint generated always as identity primary key,
+  user_id    uuid references auth.users(id) on delete cascade,
+  funcion    text not null check (funcion in ('plato', 'texto')),
+  respuesta  jsonb not null,
+  comentario text check (comentario is null or char_length(comentario) <= 300),
+  creada     timestamptz not null default now()
+);
+create index if not exists ia_reportes_creada on public.ia_reportes(creada);
+create index if not exists ia_reportes_user on public.ia_reportes(user_id, creada);
+
+-- Lo anotado en el diario con la foto del plato o con «Contame qué comiste»: «ia» tal como lo
+-- estimó, «ia-editado» si la persona cambió los gramos o el alimento. Lo escribe la app con
+-- las políticas de siempre de food_entries.
+alter table public.food_entries add column if not exists fuente text check (fuente is null or fuente in ('ia', 'ia-editado'));
+
 -- ---------- RLS: nada se lee ni se escribe directo desde la app ----------
 alter table public.ia_config enable row level security;
 alter table public.ia_ciclos enable row level security;
 alter table public.ia_llamadas enable row level security;
 alter table public.ia_permisos enable row level security;
+alter table public.ia_reportes enable row level security;
 revoke all on public.ia_config from anon, authenticated;
 revoke all on public.ia_ciclos from anon, authenticated;
 revoke all on public.ia_llamadas from anon, authenticated;
 revoke all on public.ia_permisos from anon, authenticated;
--- Cada uno puede ver su permiso (se escribe solo con la función de la etapa 2).
+revoke all on public.ia_reportes from anon, authenticated;
+-- Cada uno puede ver su permiso (se escribe solo con ia_permiso()).
 grant select on public.ia_permisos to authenticated;
 drop policy if exists "ia_permisos: el mío" on public.ia_permisos;
 create policy "ia_permisos: el mío" on public.ia_permisos for select to authenticated using (user_id = auth.uid());
@@ -175,6 +200,32 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 revoke all on function public.coach_pago(uuid) from public, anon, authenticated;
 grant execute on function public.coach_pago(uuid) to service_role;
+
+-- Con qué topes usa la IA de la app cada persona: «coach» si es coach con plan pago o de
+-- cortesía; si no, «alumno» (también quien no tiene coach).
+create or replace function public.ia_rol(p_uid uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case when exists (select 1 from public.profiles p where p.id = p_uid and p.role = 'coach') and public.coach_pago(p_uid)
+              then 'coach' else 'alumno' end;
+$$;
+revoke all on function public.ia_rol(uuid) from public, anon, authenticated;
+grant execute on function public.ia_rol(uuid) to service_role;
+
+-- El permiso de la persona para la IA de Comida: 'ok' (aceptó el aviso que está vigente), 'no'
+-- (lo apagó en Ajustes después de aceptarlo, o nunca lo aceptó y lo apagó), 'viejo' (aceptó un
+-- aviso anterior: hay que volver a preguntar) o null (nunca se le preguntó).
+create or replace function public.ia_permiso_estado(p_uid uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case
+    when p.user_id is null then null
+    when p.comida_no_at is not null and (p.comida_ok_at is null or p.comida_no_at >= p.comida_ok_at) then 'no'
+    when p.comida_ok_at is null then null
+    when p.version < coalesce((select c.aviso_version from public.ia_config c where c.id = 1), 1) then 'viejo'
+    else 'ok' end
+  from (select 1) x left join public.ia_permisos p on p.user_id = p_uid;
+$$;
+revoke all on function public.ia_permiso_estado(uuid) from public, anon, authenticated;
+grant execute on function public.ia_permiso_estado(uuid) to service_role;
 
 -- ---------- cortar un ciclo ----------
 -- Pasa ESE ciclo (el de la llamada que falló, aunque ya haya empezado otro) a cortado, con su
@@ -275,21 +326,22 @@ begin
   end if;
 
   -- 7) Tope del día de la persona, por función y en total. Cuenta todo lo que pudo costar algo:
-  --    no cuentan solo los errores explícitos de la API (cerrados con usd = 0).
+  --    no cuentan solo los errores explícitos de la API (cerrados con usd = 0). Solo las llamadas
+  --    con el mismo rol: lo que el admin lee en el panel no le gasta los usos de la app.
   v_tope_f := coalesce((v_cfg.topes -> p_rol ->> p_funcion)::numeric, 0);
   v_tope_t := coalesce((v_cfg.topes -> p_rol ->> 'total')::numeric, 0);
   select count(*) filter (where l.funcion = p_funcion), count(*) into v_n_f, v_n_t
     from public.ia_llamadas l
-   where l.user_id = p_uid and l.creada >= v_hoy0
+   where l.user_id = p_uid and l.rol = p_rol and l.creada >= v_hoy0
      and (l.estado in ('ok', 'vacia', 'reservada', 'vencida') or (l.estado = 'error' and (l.usd is null or l.usd > 0)));
   if v_n_f >= v_tope_f or v_n_t >= v_tope_t then
     perform public.ia_frenada(v_c.id, 'tope_dia');
     return jsonb_build_object('ok', false, 'codigo', 'tope_dia', 'vuelve', v_manana, 'tope', case when v_n_f >= v_tope_f then v_tope_f else v_tope_t end);
   end if;
 
-  -- 8) Tope del ciclo de la persona.
+  -- 8) Tope del ciclo de la persona (también solo con el mismo rol).
   v_usd_ciclo := coalesce((v_cfg.topes -> p_rol ->> 'usd_ciclo')::numeric, 0);
-  select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = p_uid;
+  select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = p_uid and l.rol = p_rol;
   if v_mio + p_max_usd > v_usd_ciclo then
     perform public.ia_frenada(v_c.id, 'tope_persona');
     return jsonb_build_object('ok', false, 'codigo', 'tope_persona', 'vuelve', v_c.fin);
@@ -353,13 +405,15 @@ end $$;
 revoke all on function public.ia_vencer() from public, anon, authenticated;
 grant execute on function public.ia_vencer() to service_role;
 
--- A los 90 días, cada uso deja de estar asociado a la persona (quedan los números del ciclo).
+-- A los 90 días, cada uso deja de estar asociado a la persona (quedan los números del ciclo). Los
+-- avisos de «¿Está mal?» se borran a los 180 días.
 create or replace function public.ia_limpiar()
 returns int language plpgsql security definer set search_path = public as $$
 declare v_n int;
 begin
   update public.ia_llamadas set user_id = null where user_id is not null and creada < now() - interval '90 days';
   get diagnostics v_n = row_count;
+  delete from public.ia_reportes where creada < now() - interval '180 days';
   return v_n;
 end $$;
 revoke all on function public.ia_limpiar() from public, anon, authenticated;
@@ -562,5 +616,109 @@ begin
 end $$;
 revoke all on function public.admin_ia_reintentar() from public, anon;
 grant execute on function public.admin_ia_reintentar() to authenticated;
+
+-- ---------- la app: foto del plato y «Contame qué comiste» ----------
+-- Lo que la app necesita saber para mostrar (o no) los botones de la IA, sin montos:
+--   { activa, funciones: { plato, texto }, permiso_comida ('ok' | 'no' | 'viejo' | null),
+--     aviso_version, estado ('normal' | 'ahorro' | 'pausada' | 'tope_mes' | 'tope_persona'),
+--     vuelve, quedan: { plato, texto }, tope: { plato, texto, total }, usados: { plato, texto, total } }
+-- Una función está prendida para la app solo con el interruptor general, la de la función y la
+-- fecha de los créditos cargada (sin eso la función nunca llama a la IA): si no, la app no
+-- muestra nada nuevo. «quedan»: cuántos usos le quedan hoy a la persona (por función y en total).
+create or replace function public.ia_mi_estado()
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid(); v_cfg public.ia_config; v_c public.ia_ciclos; v_ini timestamptz; v_fin timestamptz;
+  v_on boolean; v_plato boolean; v_texto boolean; v_rol text; v_hoy0 timestamptz; v_estado text := 'normal'; v_vuelve timestamptz;
+  v_np int; v_nt int; v_n int; v_tp numeric; v_tt numeric; v_tot numeric; v_mio numeric;
+begin
+  if v_uid is null then return jsonb_build_object('activa', false, 'funciones', jsonb_build_object('plato', false, 'texto', false)); end if;
+  select * into v_cfg from public.ia_config where id = 1;
+  v_on := coalesce(v_cfg.activa, false) and v_cfg.ancla is not null;
+  v_plato := v_on and coalesce(v_cfg.funciones -> 'plato', 'false'::jsonb) = 'true'::jsonb;
+  v_texto := v_on and coalesce(v_cfg.funciones -> 'texto', 'false'::jsonb) = 'true'::jsonb;
+  if not (v_plato or v_texto) then
+    return jsonb_build_object('activa', false, 'funciones', jsonb_build_object('plato', false, 'texto', false),
+      'permiso_comida', public.ia_permiso_estado(v_uid), 'aviso_version', coalesce(v_cfg.aviso_version, 1));
+  end if;
+  v_rol := public.ia_rol(v_uid);
+  -- El ciclo de ahora (sin crearlo: esto solo mira).
+  select x.inicio, x.fin into v_ini, v_fin from public.ia_ciclo_de(v_cfg.ancla, now()) x;
+  select * into v_c from public.ia_ciclos where inicio = v_ini;
+  if v_c.estado = 'cortado' then
+    if v_c.cortado_por in ('creditos', 'limite_console') and now() >= coalesce(v_c.vuelve, '-infinity'::timestamptz) then v_estado := 'normal';
+    elsif v_c.cortado_por in ('creditos', 'admin') then v_estado := 'pausada';
+    else v_estado := 'tope_mes'; v_vuelve := coalesce(v_c.vuelve, v_c.fin);
+    end if;
+  elsif (v_c.estado = 'ahorro' or v_c.gastado + v_c.reservado >= v_c.ahorro) and v_rol = 'alumno'
+        and not exists (select 1 from public.profiles p where p.id = v_uid and p.coach_id is not null and public.coach_pago(p.coach_id)) then
+    v_estado := 'ahorro'; v_vuelve := v_fin;
+  end if;
+  -- Lo de hoy de la persona: cuenta lo mismo que ia_reservar (solo con el rol de la app).
+  v_hoy0 := public.ia_hoy();
+  select count(*) filter (where l.funcion = 'plato'), count(*) filter (where l.funcion = 'texto'), count(*) into v_np, v_nt, v_n
+    from public.ia_llamadas l
+   where l.user_id = v_uid and l.rol = v_rol and l.creada >= v_hoy0
+     and (l.estado in ('ok', 'vacia', 'reservada', 'vencida') or (l.estado = 'error' and (l.usd is null or l.usd > 0)));
+  v_tp := coalesce((v_cfg.topes -> v_rol ->> 'plato')::numeric, 0);
+  v_tt := coalesce((v_cfg.topes -> v_rol ->> 'texto')::numeric, 0);
+  v_tot := coalesce((v_cfg.topes -> v_rol ->> 'total')::numeric, 0);
+  if v_estado = 'normal' and v_c.id is not null then
+    select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = v_uid and l.rol = v_rol;
+    if v_mio >= coalesce((v_cfg.topes -> v_rol ->> 'usd_ciclo')::numeric, 0) then v_estado := 'tope_persona'; v_vuelve := v_fin; end if;
+  end if;
+  return jsonb_build_object('activa', true, 'funciones', jsonb_build_object('plato', v_plato, 'texto', v_texto),
+    'permiso_comida', public.ia_permiso_estado(v_uid), 'aviso_version', coalesce(v_cfg.aviso_version, 1),
+    'estado', v_estado, 'vuelve', v_vuelve, 'manana', v_hoy0 + interval '1 day',
+    'quedan', jsonb_build_object('plato', greatest(0, least(v_tp - v_np, v_tot - v_n)), 'texto', greatest(0, least(v_tt - v_nt, v_tot - v_n))),
+    'tope', jsonb_build_object('plato', v_tp, 'texto', v_tt, 'total', v_tot),
+    'usados', jsonb_build_object('plato', v_np, 'texto', v_nt, 'total', v_n));
+end $$;
+revoke all on function public.ia_mi_estado() from public, anon;
+grant execute on function public.ia_mi_estado() to authenticated;
+
+-- Aceptar o apagar la IA de Comida (la hoja del permiso y Ajustes → Funciones con IA). Para
+-- aceptar hay que haber visto el aviso vigente (p_version = ia_config.aviso_version): si el texto
+-- cambió, la app lo vuelve a mostrar. Guarda cuándo (la hora de verdad, no la de la transacción:
+-- apagar y volver a prender seguido tiene que quedar en orden) y qué versión. Devuelve ia_mi_estado().
+create or replace function public.ia_permiso(p_tipo text, p_acepta boolean, p_version int default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_uid uuid := auth.uid(); v_ver int; v_ahora timestamptz := clock_timestamp();
+begin
+  if v_uid is null then raise exception 'Iniciá sesión para usar la IA.' using errcode = '42501'; end if;
+  if p_tipo is null or p_tipo <> 'comida' or p_acepta is null then raise exception 'Pedido inválido.' using errcode = '22023'; end if;
+  select coalesce(aviso_version, 1) into v_ver from public.ia_config where id = 1;
+  v_ver := coalesce(v_ver, 1);
+  if p_acepta and coalesce(p_version, 0) <> v_ver then raise exception 'El aviso cambió: volvé a leerlo.' using errcode = '22023'; end if;
+  insert into public.ia_permisos (user_id, comida_ok_at, comida_no_at, version, updated_at)
+  values (v_uid, case when p_acepta then v_ahora end, case when not p_acepta then v_ahora end, case when p_acepta then v_ver else 0 end, v_ahora)
+  on conflict (user_id) do update
+     set comida_ok_at = case when p_acepta then v_ahora else ia_permisos.comida_ok_at end,
+         comida_no_at = case when p_acepta then ia_permisos.comida_no_at else v_ahora end,
+         version = case when p_acepta then v_ver else ia_permisos.version end,
+         updated_at = v_ahora;
+  return public.ia_mi_estado();
+end $$;
+revoke all on function public.ia_permiso(text, boolean, int) from public, anon;
+grant execute on function public.ia_permiso(text, boolean, int) to authenticated;
+
+-- «¿Está mal? Avisanos»: guarda lo que estimó la IA (la lista de alimentos, sin la foto) y un
+-- comentario opcional. Hasta 20 por día por persona.
+create or replace function public.ia_reportar(p_funcion text, p_respuesta jsonb, p_comentario text default null)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_uid uuid := auth.uid(); v_com text := nullif(btrim(coalesce(p_comentario, '')), '');
+begin
+  if v_uid is null then raise exception 'Iniciá sesión.' using errcode = '42501'; end if;
+  if p_funcion is null or p_funcion not in ('plato', 'texto') or p_respuesta is null or jsonb_typeof(p_respuesta) <> 'object'
+     or length(p_respuesta::text) > 20000 or char_length(coalesce(v_com, '')) > 300 then
+    raise exception 'Pedido inválido.' using errcode = '22023';
+  end if;
+  if (select count(*) from public.ia_reportes r where r.user_id = v_uid and r.creada >= public.ia_hoy()) >= 20 then
+    raise exception 'Ya mandaste muchos avisos hoy. Gracias: mañana podés mandar más.' using errcode = '54000';
+  end if;
+  insert into public.ia_reportes (user_id, funcion, respuesta, comentario) values (v_uid, p_funcion, p_respuesta, v_com);
+end $$;
+revoke all on function public.ia_reportar(text, jsonb, text) from public, anon;
+grant execute on function public.ia_reportar(text, jsonb, text) to authenticated;
 
 notify pgrst, 'reload schema';

@@ -55,7 +55,12 @@ import { calState } from './screens/coach/calendario.js';
 import { mealAction, mealDirty, nutritionRow } from './screens/coach/planes.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
-import { ComidaState, mealNow, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, lastResults, offResults, previewStr, rememberCookState, renderComida, renderResults, selectedFoodValues } from './screens/comida.js';
+import { ComidaState, mealNow, alComida, plateDia, paintBarraIA, paintSearchIA, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, foodByName, lastResults, offResults, paintPlate, paintPlateNums, plateItemVals, previewStr, rememberCookState, renderComida, renderPlateSheet, renderResults, selectedFoodValues } from './screens/comida.js';
+import { IA, iaDisponible, iaEstado, iaMensaje, iaPedir, iaPermiso, iaReportar, iaSinReintento, iaVisible, photoB64 } from './core/ia.js';
+import { iaToast, pedirPermisoIA } from './ui/ia-permiso.js';
+import { FOODS } from './core/data.js';
+import { cookVariant } from './core/foods.js';
+import { foodUnit } from './core/foodunits.js';
 
 import { EntrenoState, REST_DEFAULT, day, expandedOverride, exGroupIds, liveCounting, renderEntreno, dayNameCls, renderExList, renderExSheet, renderVarSheet, effectiveRest, restKey, wkElapsedText, wkFresh, wkStarted, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
@@ -164,11 +169,11 @@ export function renderApp(){
   if (State.view==="entreno") parchar(v, renderEntreno());
   else v.innerHTML = State.view==="habitos" ? renderHabitos() : State.view==="cardio" ? renderCardio() : State.view==="comida" ? renderComida() : renderProgreso();
   if(State.view==="entreno") restoreTabScroll();
-  if (State.view==="comida") animateCalRing();
+  if (State.view==="comida") { animateCalRing(); iaRefrescar(); }
   initScrollReveal();
   setupExerciseFocus();
   renderRestBar();
-  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : (State.view==="entreno" && EntrenoState.varSheet) ? renderVarSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : (State.view==="habitos" && HabitosState.edit) ? renderHabitAlarmSheet(alarmsSupported()) : "");
+  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : (State.view==="entreno" && EntrenoState.varSheet) ? renderVarSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="comida" && ComidaState.plate) ? renderPlateSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : (State.view==="habitos" && HabitosState.edit) ? renderHabitAlarmSheet(alarmsSupported()) : "");
   syncHabitAlarms(); // avisos de los hábitos (solo reprograma si cambiaron)
   if (State.view==="habitos" && HabitosState.pendingFocusHabit) { const i=document.getElementById("habitInput"); if(i) i.focus(); HabitosState.pendingFocusHabit=false; }
   if (State.view==="entreno") v.querySelectorAll("textarea.day-name").forEach(fitDayName);
@@ -372,6 +377,9 @@ document.body.addEventListener("input", async e => {
   if (a === "daily-kg" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":t.dataset.k] = t.value; return; }
   // Lo mismo en el check-in semanal: al volver de otra app se redibuja y se perdía lo escrito.
   if (a === "ci-set") { checkinFormInit()[t.dataset.k] = t.value; return; }
+  // Más de 5000 g no se anota: el campo muestra lo mismo que se va a anotar.
+  if (a === "plate-grams") { const P=ComidaState.plate, it=P&&P.items[+t.dataset.i]; if(it){ if((parseFloat(String(t.value).replace(",","."))||0) > 5000) t.value="5000"; it.g=t.value; if(!it.manual && plateGramsNum(it)!==it.g0) it.editado=true; paintPlateNums(+t.dataset.i); } return; }
+  if (a === "plate-aclara") { if(ComidaState.plate) ComidaState.plate.aclara=t.value; return; }
   if (a === "food-search") { ComidaState.foodQuery = t.value; scheduleOffSearch(t.value); const r=document.getElementById("foodResults"); if(r) r.innerHTML = renderResults(ComidaState.foodQuery); return; }
   if (a === "ex-search") { EntrenoState.exQuery = t.value; const l=document.getElementById("exList"); if(l) l.innerHTML = renderExList(); return; }
   if (a === "portion-grams") { const base = ComidaState.selectedFood ? selectedFoodValues() : (ComidaState.editEntry ? entryBase(ComidaState.editEntry) : null); if(base){ const pv=document.getElementById("portionPreview"); if(pv) pv.textContent = previewStr(base, t.value); const pu=document.getElementById("portionUnits"); const uf=sheetUnitFood(); if(pu && uf) pu.textContent = unitsLabel(t.value, cookPortion(uf.food, uf.cook), base.unit, uf.food); } ComidaState.sheetGrams = t.value; return; }
@@ -442,6 +450,7 @@ document.body.addEventListener("keydown", async e => {
 
 document.body.addEventListener("change", async e => {
   const t=e.target, a=t.dataset.action; if(!a) return;
+  if (a === "plate-file") { const file=t.files&&t.files[0]; t.value=""; if(file) plateFoto(file); return; }
   if (a === "wdate-field") { ProgresoState.weightForm.date = t.value; return; }
   if (a === "daily-kg" || a === "daily-text") { dailyFormInit(); CheckinState.dailyForm[a==="daily-kg"?"kg":t.dataset.k] = t.value; return; }
   if (a === "ci-set") { checkinFormInit()[t.dataset.k] = t.value; return; }
@@ -495,6 +504,9 @@ document.body.addEventListener("click", async e => {
   checkDaily();
   const a = el.dataset.action;
   if (routineLocked() && ["addday","delday","removeex","addset","removeset","ex-add-open","ex-swap","ex-insert","ex-choose","ex-custom","load-default-routine","open-routines"].indexOf(a)>=0) return;
+
+  // Foto del plato (IA)
+  if (a === "ia-plato" || a.startsWith("plate-")) { await plateClick(a, el); return; }
 
   // Racha
   if (a === "streak-open") { openStreak(); return; }
@@ -622,6 +634,7 @@ document.body.addEventListener("click", async e => {
     reportShared(f.gid, why).then(ok=>alert(ok?"Gracias, lo vamos a revisar.":"No se pudo enviar el reporte. Probá de nuevo más tarde."));
     return;
   }
+  if ((a === "off-pick" || a === "food-pick") && ComidaState.plateSwap != null && ComidaState.plate) { plateUsar((a === "off-pick" ? offResults : lastResults)[parseInt(el.dataset.idx)]); return; }
   if (a === "off-pick") { SheetState.sheetGen++; ComidaState.selectedFood = offResults[parseInt(el.dataset.idx)]; ComidaState.cookState = null; ComidaState.sheetGrams = null; rememberSearch(ComidaState.selectedFood); renderApp(); return; }
   if (a === "scan-open") { openScanner(onScannedCode); return; }
   if (a === "scan-close") { closeScanner(); return; }
@@ -675,7 +688,11 @@ document.body.addEventListener("click", async e => {
     setTimeout(()=>{ const inp=document.getElementById("foodSearch"); if(inp){ inp.focus(); try{ inp.setSelectionRange(inp.value.length, inp.value.length); }catch(e){} } }, 60);
     return;
   }
-  if (a === "search-close") { closeSheet(()=>{ ComidaState.searchOpen=false; ComidaState.meal=null; renderApp(); }); return; }
+  if (a === "search-close") {
+    // Eligiendo un alimento para la hoja del plato: se vuelve a ella.
+    if (ComidaState.plateSwap != null && ComidaState.plate) { closeSheet(()=>{ ComidaState.searchOpen=false; ComidaState.plateSwap=null; ComidaState.foodQuery=""; ComidaState.off=null; renderApp(); }); return; }
+    closeSheet(()=>{ ComidaState.searchOpen=false; ComidaState.meal=null; renderApp(); }); return;
+  }
   if (a === "water-toggle") { ComidaState.waterOpen=!ComidaState.waterOpen; renderApp(); return; }
   if (a === "portion-add") {
     const g = num((document.getElementById("portionGrams")||{}).value); if(!(g>0)){ return; }
@@ -694,6 +711,7 @@ document.body.addEventListener("click", async e => {
     const g = num((document.getElementById("portionGrams")||{}).value); if(!(g>0)){ return; }
     const e = ComidaState.editEntry; if(!e){ return; } const base=entryBase(e); const fc=g/100;
     if(ComidaState.sheetMeal) e.meal=ComidaState.sheetMeal;
+    if(e.fuente==="ia" && roundG(g)!==e.grams) e.fuente="ia-editado"; // lo anotado con IA, corregido
     e.grams=roundG(g); e.kcal=Math.round(base.kcal*fc); e.p=+(base.p*fc).toFixed(1); e.c=+(base.c*fc).toFixed(1); e.f=+(base.f*fc).toFixed(1); e.unit=base.unit||"g"; e.base=base;
     commitDiary(); closeSheet(()=>{ ComidaState.editEntry=null; ComidaState.sheetMeal=null; renderApp(); }); return;
   }
@@ -2112,3 +2130,225 @@ function retryRequest(init){ State.view="comida"; ComidaState.searchOpen=false; 
 window.addEventListener("gize:login", maybeCheckRequests);
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") maybeCheckRequests(); });
 
+
+// ---------- Foto del plato (IA) ----------
+// «Contame qué comiste» (contarlo con palabras) se sacó: GIZE es solo fotos.
+// Arranca apagado: los botones salen solo si ia_mi_estado() dice que la función está prendida
+// (core/ia.js). Antes del primer uso, el permiso (ui/ia-permiso.js), antes de abrir la cámara.
+// La IA propone, la persona revisa en la hoja (screens/comida.js →
+// renderPlateSheet) y nada se anota sin tocar «Agregar».
+// El estado de la IA, sin apuro (vale 5 minutos): si cambia lo que se ve respecto de lo que ya
+// está dibujado, se ponen los botones en la barra de arriba y en el buscador sin redibujarlos (no
+// se pierde lo que se está escribiendo). Apagada, no cambia nada.
+const iaVis = () => iaVisible("plato") + "|" + iaDisponible("plato");
+const iaPintarBuscador = () => {
+  if (State.view !== "comida") return;
+  paintBarraIA();
+  if (ComidaState.searchOpen && !ComidaState.selectedFood && !ComidaState.editEntry && !paintSearchIA()) renderApp();
+};
+function iaRefrescar(){
+  if (!State.cloudUser) return;
+  const antes = iaVis();
+  iaEstado().then(() => { if (iaVis() !== antes) iaPintarBuscador(); });
+}
+// Sin aceptar el aviso, la conexión decide si al lado del buscador va «Foto» o el escáner: si
+// cambia, se acomodan la barra de arriba y la del buscador abierto (sin redibujar nada).
+window.addEventListener("online", iaPintarBuscador); window.addEventListener("offline", iaPintarBuscador);
+const plateGramsNum = it => Math.round((parseFloat(String(it.g).replace(",", ".")) || 0) * 10) / 10;
+const plateR1 = v => Math.round(v * 10) / 10;
+// Un alimento de la base (o propio, o de marca) para una fila de la hoja: con crudo/cocido va cocido
+// (como se come); g: los gramos (si no, una unidad del alimento).
+function plateDeAlimento(f, g){
+  const st = f.cook ? "cocido" : null, v = cookVariant(f, st), u = foodUnit(f);
+  const paso = u.natural ? cookPortion(f, st) : 10;
+  return { name: f.name + (f.cook ? " (cocido)" : ""), g: g != null ? g : roundG(cookPortion(f, st)), b: { kcal: v.kcal, p: v.p, c: v.c, f: v.f }, unit: f.unit === "ml" ? "ml" : "g", base: true, dudoso: false, paso: paso > 0 ? paso : 10 };
+}
+// La respuesta de la función → las filas. Con la base, los valores cada 100 g son los de GIZE; si
+// no, los de la estimación.
+function plateItems(res){
+  return (res.items || []).map(x => {
+    const g0 = Math.max(0, Number(x.gramos) || 0);
+    let it;
+    const f = x.base ? ((FOODS[x.base.id] && FOODS[x.base.id].name === x.base.nombre) ? FOODS[x.base.id] : foodByName(x.base.nombre)) : null;
+    if (x.base) {
+      it = { name: x.base.nombre + (x.base.cocido ? " (cocido)" : ""), g: roundG(g0), b: { kcal: +x.base.kcal || 0, p: +x.base.p || 0, c: +x.base.c || 0, f: +x.base.f || 0 },
+             unit: x.base.unit === "ml" ? "ml" : "g", base: true, dudoso: !!x.dudoso, paso: 10 };
+      if (f && foodUnit(f).natural) it.paso = cookPortion(f, x.base.cocido ? "cocido" : null) || 10;
+    } else {
+      const k = g0 > 0 ? 100 / g0 : 0;
+      it = { name: x.nombre || "Alimento", g: roundG(g0), b: { kcal: (+x.kcal || 0) * k, p: (+x.p || 0) * k, c: (+x.c || 0) * k, f: (+x.f || 0) * k }, unit: "g", base: false, dudoso: !!x.dudoso, paso: 10 };
+    }
+    it.g0 = plateGramsNum(it); it.editado = false;
+    return it;
+  }).filter(it => it.g > 0);
+}
+// Al cerrar la hoja, el buscador vuelve a arrancar como siempre (la comida según la hora, sin lo
+// buscado), igual que después de agregar un alimento.
+function plateCerrar(){
+  const P = ComidaState.plate;
+  closeSheet(() => { if (P && P.photoUrl) URL.revokeObjectURL(P.photoUrl); ComidaState.plate = null; ComidaState.plateSwap = null; ComidaState.meal = null; ComidaState.foodQuery = ""; ComidaState.off = null; renderApp(); });
+}
+const plateFoco = () => { const h = document.getElementById("pl8T"); if (h) try { h.focus({ preventScroll: true }); } catch (e) {} };
+// Si el foco estaba en lo que se redibujó, vuelve al título de la hoja (no se va al fondo).
+const platePaint = () => {
+  const c = document.querySelector("#sheetHost .plate-sheet"), tenia = !!(c && c.contains(document.activeElement));
+  if (!paintPlate()) { renderApp(); return; }
+  if (tenia && !c.contains(document.activeElement)) plateFoco();
+};
+// Teclado en la hoja del plato (es modal): Enter o Espacio en «Sacar foto» / «Elegir de la
+// galería» abren el selector, y Tab da la vuelta adentro de la hoja.
+document.addEventListener("keydown", e => {
+  if (State.view !== "comida" || !ComidaState.plate || ComidaState.searchOpen) return;
+  const card = document.querySelector("#sheetHost .plate-sheet:not(.closing)");
+  if (!card || document.querySelector("#iaPermHost .sheet:not(.closing), [role=alertdialog]")) return;
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches(".plate-sheet label[data-pick]")) {
+    e.preventDefault(); const i = e.target.querySelector("input"); if (i) i.click(); return;
+  }
+  if (e.key !== "Tab") return;
+  const l = [...card.querySelectorAll('button:not([disabled]), input:not([type=file]), textarea, label[data-pick], a[href]')].filter(x => x.getClientRects().length);
+  if (!l.length) return;
+  const i = l.indexOf(document.activeElement);
+  if (i < 0) { e.preventDefault(); l[e.shiftKey ? l.length - 1 : 0].focus(); return; }
+  if (e.shiftKey ? i === 0 : i === l.length - 1) { e.preventDefault(); l[e.shiftKey ? l.length - 1 : 0].focus(); }
+});
+// Con el estado de hoy se sabe antes de llamar si no va a poder (pausada, límites, sin conexión):
+// se avisa en la hoja y se ofrece cargarlo a mano.
+function plateFreno(modo){
+  if (navigator.onLine === false) return { codigo: "sin_conexion" };
+  const e = IA.estado;
+  if (!e) return null;
+  if (["pausada", "ahorro", "tope_mes", "tope_persona"].includes(e.estado)) return { codigo: e.estado, vuelve: e.vuelve };
+  // El número del aviso, como en ia_reservar: el de la función si esa se acabó; si no, el del día.
+  if (e.quedan && e.quedan[modo] === 0) {
+    const t = e.tope, u = e.usados;
+    return { codigo: "tope_dia", tope: !t ? null : (u && u[modo] != null && u[modo] < t[modo]) ? t.total : t[modo] };
+  }
+  return null;
+}
+async function plateEmpezar(){
+  const modo = "plato", meal = ComidaState.meal || mealNow();
+  const abrir = P => { ComidaState.searchOpen = false; ComidaState.plateSwap = null; ComidaState.plate = P; SheetState.sheetGen++; renderApp(); requestAnimationFrame(plateFoco); };
+  // Sin conexión no se pregunta nada ni se llama.
+  if (navigator.onLine === false) { const err = { codigo: "sin_conexion" }; abrir({ modo, meal, status: "error", err, msg: iaMensaje(err), reintento: false, items: [] }); return; }
+  await iaEstado(true);
+  if (!iaVisible(modo)) { abrir({ modo, meal, status: "error", err: { codigo: "pausada" }, msg: iaMensaje({ codigo: "pausada" }), reintento: false, items: [] }); return; }
+  // La apagó en Ajustes: no se le vuelve a preguntar sola; el botón lleva a Ajustes.
+  if (iaPermiso() === "no") {
+    if (await confirmar("Apagaste las funciones con IA. Si las querés usar, prendelas en Ajustes → Funciones con IA.", { titulo: "Funciones con IA", ok: "Ir a Ajustes" })) {
+      ComidaState.searchOpen = false; ComidaState.plateSwap = null; State.view = "config"; renderApp(); window.scrollTo(0, 0);
+    }
+    return;
+  }
+  if (!await pedirPermisoIA()) return;
+  const freno = plateFreno(modo);
+  if (freno) { abrir({ modo, meal, status: "error", err: freno, msg: iaMensaje(freno), reintento: false, items: [] }); return; }
+  abrir({ modo, meal, status: "elegir", items: [] });
+}
+async function plateFoto(file){
+  const P = ComidaState.plate; if (!P) return;
+  if (P.photoUrl) URL.revokeObjectURL(P.photoUrl);
+  P.photoUrl = URL.createObjectURL(file); P.status = "cargando"; P.cargando = 0; P.aclara = ""; platePaint();
+  try { P.b64 = await photoB64(file, 1024); }
+  catch (e) { if (ComidaState.plate !== P) return; P.status = "error"; P.err = null; P.msg = "No se pudo abrir la foto. Probá con otra."; P.reintento = false; platePaint(); return; }
+  plateCorrer(P);
+}
+async function plateCorrer(P){
+  P.status = "cargando"; P.cargando = 0; platePaint();
+  const reloj = setTimeout(() => { if (ComidaState.plate === P && P.status === "cargando") { P.cargando = 1; const w = document.getElementById("pl8Wait"); if (w) w.textContent = "Buscando en la base de GIZE…"; } }, 2500);
+  try {
+    const res = await iaPedir("plato", { imagen: P.b64, texto: (P.aclara || "").trim() });
+    if (ComidaState.plate !== P) return;
+    P.raw = { hay_comida: !!res.hay_comida, nota: res.nota || "", items: res.items || [] };
+    P.items = plateItems(res); P.nota = res.nota || "";
+    P.status = res.hay_comida && P.items.length ? "ok" : "vacio";
+  } catch (e) {
+    if (ComidaState.plate !== P) return;
+    // Sin el permiso (lo apagó en otro dispositivo, o cambió el aviso): se vuelve a pedir al reintentar.
+    if (e.codigo === "sin_permiso") { if (IA.estado) IA.estado.permiso_comida = e.motivo === "apagada" ? "no" : null; P.status = "error"; P.err = e; P.msg = "Para usar la IA, primero tenés que aceptar el aviso."; P.reintento = e.motivo !== "apagada"; }
+    else { P.status = "error"; P.err = e; P.msg = iaMensaje(e); P.reintento = !iaSinReintento(e.codigo); }
+  } finally { clearTimeout(reloj); }
+  if (ComidaState.plate !== P) return;
+  platePaint();
+  iaEstado(true).then(() => { if (ComidaState.plate === P && P.status === "ok") { /* «te quedan» se ve en la próxima */ } });
+}
+// Un alimento elegido en el buscador para la hoja del plato: cambia esa fila o se agrega.
+function plateUsar(f){
+  const P = ComidaState.plate; if (!P || !f) return;
+  const i = ComidaState.plateSwap;
+  if (i != null && i >= 0 && P.items[i]) {
+    const viejo = P.items[i], it = plateDeAlimento(f, viejo.g);
+    it.g0 = viejo.g0; it.editado = !viejo.manual; it.manual = !!viejo.manual;
+    P.items[i] = it;
+  } else {
+    const it = plateDeAlimento(f); it.manual = true; it.g0 = plateGramsNum(it);
+    P.items.push(it);
+  }
+  rememberSearch(f);
+  closeSheet(() => { ComidaState.searchOpen = false; ComidaState.plateSwap = null; ComidaState.foodQuery = ""; ComidaState.off = null; renderApp(); });
+}
+async function plateClick(a, el){
+  if (a === "ia-plato") { await plateEmpezar(); return; }
+  const P = ComidaState.plate; if (!P) return;
+  // Los campos (el de la foto, los gramos, la aclaración) se manejan en «change» / «input».
+  if (["plate-file", "plate-grams", "plate-aclara"].includes(a)) return;
+  const i = +el.dataset.i;
+  if (a === "plate-cancel") {
+    if (P.status === "ok" && P.items.length && !await confirmar("¿Cerrar sin agregar? No se anota nada de lo que calculó la IA.", { titulo: "Cerrar", ok: "Cerrar sin agregar" })) return;
+    plateCerrar(); return;
+  }
+  if (a === "plate-meal") { P.meal = el.dataset.meal; el.parentElement.querySelectorAll(".meal-chip").forEach(b => { const on = b === el; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); }); paintPlateNums(-1); return; }
+  if (a === "plate-retry") {
+    if (P.err && P.err.codigo === "sin_permiso" && !await pedirPermisoIA()) return;
+    if (!P.b64) { P.status = "elegir"; platePaint(); return; }
+    plateCorrer(P); return;
+  }
+  if (a === "plate-again") { if (P.photoUrl) URL.revokeObjectURL(P.photoUrl); P.photoUrl = null; P.b64 = null; P.items = []; P.status = "elegir"; platePaint(); return; }
+  if (a === "plate-redo") { if (!P.b64) return; plateCorrer(P); return; }
+  if (a === "plate-manual") { const meal = P.meal; closeSheet(() => { if (P.photoUrl) URL.revokeObjectURL(P.photoUrl); ComidaState.plate = null; ComidaState.plateSwap = null; ComidaState.meal = meal; ComidaState.searchOpen = true; SheetState.sheetGen++; renderApp(); setTimeout(() => { const inp = document.getElementById("foodSearch"); if (inp) inp.focus(); }, 60); }); return; }
+  if (a === "plate-scan") { closeSheet(() => { if (P.photoUrl) URL.revokeObjectURL(P.photoUrl); ComidaState.plate = null; ComidaState.plateSwap = null; renderApp(); openScanner(onScannedCode); }); return; }
+  if (a === "plate-remove") { if (P.items[i]) { P.items.splice(i, 1); platePaint(); const b = document.querySelector('#sheetHost [data-action="plate-addfood"]'); if (b) try { b.focus({ preventScroll: true }); } catch (e) {} } return; }
+  if (a === "plate-step") {
+    const it = P.items[i]; if (!it) return;
+    const paso = it.paso > 0 ? it.paso : 10, g = plateGramsNum(it);
+    const n = Math.min(5000, Math.max(0, Math.round((g + (+el.dataset.d) * paso) * 10) / 10));
+    it.g = roundG(n); if (!it.manual && plateGramsNum(it) !== it.g0) it.editado = true;
+    const inp = document.querySelector('#sheetHost [data-action="plate-grams"][data-i="' + i + '"]'); if (inp) inp.value = String(it.g);
+    paintPlateNums(i); return;
+  }
+  if (a === "plate-change" || a === "plate-addfood") {
+    ComidaState.plateSwap = a === "plate-change" ? i : -1; ComidaState.foodQuery = ""; ComidaState.off = null;
+    ComidaState.searchOpen = true; SheetState.sheetGen++; renderApp();
+    setTimeout(() => { const inp = document.getElementById("foodSearch"); if (inp) inp.focus(); }, 60);
+    return;
+  }
+  if (a === "plate-oil") {
+    const f = FOODS.find(x => x.name === "Aceite de girasol"); if (!f) return;
+    const it = plateDeAlimento(f, 10); it.manual = true; it.g0 = 10; P.items.push(it); platePaint();
+    return;
+  }
+  if (a === "plate-report") {
+    const com = await pedir("¿Qué está mal? Contanos (opcional). Mandamos lo que calculó la IA, sin la foto.", "", { titulo: "¿Está mal?", ok: "Enviar", placeholder: "Ej: era pollo, no carne" });
+    if (com === null) return;
+    try { await iaReportar(P.modo, Object.assign({}, P.raw || {}, { revisado: P.items.map(it => ({ nombre: it.name, gramos: plateGramsNum(it), base: !!it.base })) }), String(com).slice(0, 300)); alert("Gracias, lo vamos a revisar."); }
+    catch (e) { alert(e.message || "No se pudo enviar. Probá de nuevo."); }
+    return;
+  }
+  if (a === "plate-add") {
+    // Un doble toque no anota el plato dos veces: la hoja tarda un poco en cerrarse.
+    if (P.agregado) return;
+    const lista = P.items.map(it => ({ it, v: plateItemVals(it) })).filter(x => x.v.g > 0);
+    if (!lista.length) { alert("Agregá al menos un alimento con gramos."); return; }
+    P.agregado = true; el.disabled = true;
+    const meal = P.meal || mealNow(), dia = plateDia();
+    lista.forEach(({ it, v }) => {
+      const e = { id: newId(), meal, name: it.name, grams: roundG(v.g), kcal: v.kcal, p: v.p, c: v.c, f: v.f, unit: it.unit || "g",
+        base: { kcal: Math.round(it.b.kcal), p: plateR1(it.b.p), c: plateR1(it.b.c), f: plateR1(it.b.f), unit: it.unit || "g" } };
+      if (!it.manual) e.fuente = it.editado ? "ia-editado" : "ia";
+      curDiary().push(e);
+    });
+    commitDiary();
+    iaToast("Listo: " + lista.length + (lista.length === 1 ? " alimento agregado " : " alimentos agregados ") + alComida(meal) + dia + ".");
+    plateCerrar();
+    return;
+  }
+}

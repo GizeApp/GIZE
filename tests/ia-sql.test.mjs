@@ -46,27 +46,37 @@ export default async ({ t }) => {
   t.ok(!/drop table/i.test(code) && !/truncate/i.test(code), 'no borra tablas ni datos (se puede volver a correr)');
 
   // Tablas: RLS y permisos.
-  for (const tb of ['ia_config', 'ia_ciclos', 'ia_llamadas', 'ia_permisos']){
+  for (const tb of ['ia_config', 'ia_ciclos', 'ia_llamadas', 'ia_permisos', 'ia_reportes']){
     t.ok(code.includes('create table if not exists public.' + tb + ' ('), tb + ': create if not exists');
     t.ok(code.includes('alter table public.' + tb + ' enable row level security;'), tb + ': RLS prendido');
     t.ok(code.includes('revoke all on public.' + tb + ' from anon, authenticated;'), tb + ': sin permisos para anon ni authenticated');
   }
   const pols = [...code.matchAll(/create policy "[^"]+" on public\.(\w+)/g)].map(m => m[1]);
-  t.eq(pols, ['ia_permisos'], 'la única política es la de ia_permisos (sin políticas en ia_config, ia_ciclos ni ia_llamadas)');
+  t.eq(pols, ['ia_permisos'], 'la única política es la de ia_permisos (sin políticas en ia_config, ia_ciclos, ia_llamadas ni ia_reportes)');
   t.ok(/create policy "ia_permisos: el mío" on public\.ia_permisos for select to authenticated using \(user_id = auth\.uid\(\)\);/.test(code), 'ia_permisos: cada uno ve solo el suyo');
   t.ok(/grant select on public\.ia_permisos to authenticated;/.test(code) && !/grant (insert|update|delete|all)[^;]*on (table )?public\.ia_/i.test(code), 'ia_permisos: solo lectura desde la app; nada más se da');
   t.ok(!/grant [^;]*\bto\b[^;]*\b(anon|public)\b/i.test(code), 'ningún grant para anon ni public');
   t.ok(/user_id\s+uuid references auth\.users\(id\) on delete set null/.test(code), 'ia_llamadas: al borrar la cuenta queda sin la persona');
 
   // Funciones de la guardia: solo la service role.
-  for (const sig of ['ia_reservar(uuid, text, text, text, numeric, bigint)', 'ia_cerrar(bigint, text, text, numeric, int, int, int, int, int)', 'ia_cortar(bigint, text, timestamptz)', 'ia_vencer()', 'ia_limpiar()', 'coach_pago(uuid)']){
+  for (const sig of ['ia_reservar(uuid, text, text, text, numeric, bigint)', 'ia_cerrar(bigint, text, text, numeric, int, int, int, int, int)', 'ia_cortar(bigint, text, timestamptz)', 'ia_vencer()', 'ia_limpiar()', 'coach_pago(uuid)', 'ia_rol(uuid)', 'ia_permiso_estado(uuid)']){
     const e = sig.replace(/[()]/g, '\\$&');
     t.ok(new RegExp('revoke all on function public\\.' + e + ' from public, anon, authenticated;').test(code), sig + ': nada para public, anon ni authenticated');
     t.ok(new RegExp('grant execute on function public\\.' + e + ' to service_role;').test(code), sig + ': solo la service role');
   }
   for (const sig of ['ia_ciclo_de(timestamptz, timestamptz)', 'ia_ciclo_tomar()', 'ia_hoy()', 'ia_frenada(bigint, text)'])
     t.ok(code.includes('revoke all on function public.' + sig + ' from public, anon, authenticated;') && !code.includes('grant execute on function public.' + sig), sig + ': uso interno');
-  for (const name of ['ia_ciclo_tomar', 'ia_frenada', 'ia_reservar', 'ia_cerrar', 'ia_cortar', 'ia_vencer', 'ia_limpiar', 'coach_pago', 'admin_ia_estado', 'admin_ia_config', 'admin_ia_ciclo', 'admin_ia_reintentar'])
+  // La app: lo que puede llamar con su sesión (y nada para anon ni public).
+  for (const sig of ['ia_mi_estado()', 'ia_permiso(text, boolean, int)', 'ia_reportar(text, jsonb, text)']){
+    const e = sig.replace(/[()]/g, '\\$&');
+    t.ok(new RegExp('revoke all on function public\\.' + e + ' from public, anon;').test(code) && code.includes('grant execute on function public.' + sig + ' to authenticated;'), sig + ': solo con sesión');
+  }
+  t.ok(/v_uid uuid := auth\.uid\(\)/.test(fn(code, 'ia_permiso')) && /v_uid uuid := auth\.uid\(\)/.test(fn(code, 'ia_reportar')) && /v_uid uuid := auth\.uid\(\)/.test(fn(code, 'ia_mi_estado')), 'la app solo toca lo suyo (auth.uid())');
+  t.ok(!/usd|gastado|credito/.test(fn(code, 'ia_mi_estado').split('return jsonb_build_object(\'activa\', true')[1] || 'usd'), 'ia_mi_estado no devuelve montos');
+  t.ok(/add column if not exists fuente text check \(fuente is null or fuente in \('ia', 'ia-editado'\)\)/.test(code), 'food_entries.fuente: ia o ia-editado');
+  t.ok(/user_id\s+uuid references auth\.users\(id\) on delete cascade,\s+funcion\s+text not null check \(funcion in \('plato', 'texto'\)\)/.test(code), 'ia_reportes: se borra con la cuenta');
+  t.ok(/delete from public\.ia_reportes where creada < now\(\) - interval '180 days'/.test(fn(code, 'ia_limpiar')), 'ia_reportes: se borra a los 180 días');
+  for (const name of ['ia_ciclo_tomar', 'ia_frenada', 'ia_reservar', 'ia_cerrar', 'ia_cortar', 'ia_vencer', 'ia_limpiar', 'coach_pago', 'admin_ia_estado', 'admin_ia_config', 'admin_ia_ciclo', 'admin_ia_reintentar', 'ia_rol', 'ia_permiso_estado', 'ia_mi_estado', 'ia_permiso', 'ia_reportar'])
     t.ok(/security definer set search_path = public/.test(fn(code, name)), name + ': security definer con search_path fijo');
   // Panel: primero, que sea administrador.
   for (const name of ['admin_ia_estado', 'admin_ia_config', 'admin_ia_ciclo', 'admin_ia_reintentar']){
@@ -203,6 +213,7 @@ create table public.admin_audit (id bigserial, admin_id uuid, action text, targe
 create function public.admin_log(p_action text, p_target text, p_detail jsonb default null) returns void language plpgsql security definer set search_path = public as $$
 begin perform public.admin_assert(); insert into public.admin_audit(admin_id, action, target, detail) values (auth.uid(), p_action, p_target, p_detail); end $$;
 create table public.coach_billing (coach_id uuid primary key, plan text, max_clients int default 10, trial_ends_at timestamptz, paid_until timestamptz);
+create table public.food_entries (id text primary key, client_id uuid references auth.users(id), name text);
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
@@ -391,5 +402,110 @@ set role authenticated; set request.jwt.claim.sub = '${ADMIN_ID}';
 do $$ declare e jsonb := public.admin_ia_estado(); begin
   assert (e #>> '{ciclo,frenos,tope_dia}')::int = 2, 'frenadas por el tope del día ' || (e #> '{ciclo,frenos}')::text;
   assert (e #>> '{por_funcion,etiqueta,p50}')::numeric between 1000 and 4000 and (e #>> '{por_funcion,etiqueta,p95}')::numeric >= (e #>> '{por_funcion,etiqueta,p50}')::numeric, 'mediana y 95 % ' || (e #> '{por_funcion}')::text;
+end $$;`],
+['la app: estado, permiso (con la versión del aviso), topes de la persona y avisos', `
+reset role;
+update public.ia_ciclos set estado = 'normal', cortado_por = null, vuelve = null, gastado = 10, reservado = 0 where inicio <= now() and fin > now();
+delete from public.ia_llamadas where user_id in ('${ALUMNO_ID}', '${OTRO_ID}');
+update public.ia_config set funciones = funciones || '{"plato": false, "texto": false}', aviso_version = 1;
+set role anon;
+do $$ begin
+  begin perform public.ia_mi_estado(); raise exception 'anon leyó el estado'; exception when insufficient_privilege then null; end;
+  begin perform public.ia_permiso('comida', true, 1); raise exception 'anon aceptó'; exception when insufficient_privilege then null; end;
+end $$;
+set role authenticated; set request.jwt.claim.sub = '${ALUMNO_ID}';
+do $$ declare e jsonb := public.ia_mi_estado(); begin
+  assert (e ->> 'activa')::boolean = false and (e #>> '{funciones,plato}')::boolean = false, 'apagada para la app ' || e::text;
+  assert e ->> 'permiso_comida' is null, 'nunca se le preguntó ' || e::text;
+  begin perform public.ia_rol('${ALUMNO_ID}'); raise exception 'la app vio el rol'; exception when insufficient_privilege then null; end;
+  begin perform public.ia_permiso_estado('${OTRO_ID}'); raise exception 'la app vio el permiso de otro'; exception when insufficient_privilege then null; end;
+  begin perform 1 from public.ia_reportes; raise exception 'leyó ia_reportes'; exception when insufficient_privilege then null; end;
+end $$;
+reset role; update public.ia_config set funciones = funciones || '{"plato": true, "texto": true}';
+set role authenticated; set request.jwt.claim.sub = '${ALUMNO_ID}';
+do $$ declare e jsonb; begin
+  e := public.ia_mi_estado();
+  assert (e ->> 'activa')::boolean and (e #>> '{funciones,plato}')::boolean and (e #>> '{funciones,texto}')::boolean, 'prendida ' || e::text;
+  assert e ->> 'estado' = 'normal' and (e #>> '{quedan,plato}')::int = 8 and (e #>> '{quedan,texto}')::int = 15 and (e #>> '{tope,total}')::int = 25, 'topes del alumno ' || e::text;
+  begin perform public.ia_permiso('comida', true, 2); raise exception 'aceptó otra versión'; exception when sqlstate '22023' then null; end;
+  begin perform public.ia_permiso('coach', true, 1); raise exception 'tipo inventado'; exception when sqlstate '22023' then null; end;
+  e := public.ia_permiso('comida', true, 1); assert e ->> 'permiso_comida' = 'ok', 'aceptó ' || e::text;
+  assert (select count(*) from public.ia_permisos where user_id = '${ALUMNO_ID}' and comida_ok_at is not null and version = 1) = 1, 'guardó cuándo y qué versión';
+  e := public.ia_permiso('comida', false); assert e ->> 'permiso_comida' = 'no', 'apagó en Ajustes ' || e::text;
+  e := public.ia_permiso('comida', true, 1); assert e ->> 'permiso_comida' = 'ok', 'volvió a aceptar ' || e::text;
+end $$;
+reset role; update public.ia_config set aviso_version = 2;
+set role authenticated; set request.jwt.claim.sub = '${ALUMNO_ID}';
+do $$ begin assert public.ia_mi_estado() ->> 'permiso_comida' = 'viejo', 'aviso nuevo: hay que volver a preguntar'; end $$;
+reset role; update public.ia_config set aviso_version = 1;
+set role service_role;
+do $$ declare j jsonb; begin
+  assert public.ia_permiso_estado('${ALUMNO_ID}') = 'ok' and public.ia_permiso_estado('${OTRO_ID}') is null, 'el permiso, para la función';
+  assert public.ia_rol('${ALUMNO_ID}') = 'alumno' and public.ia_rol('${COACH_ID}') = 'coach' and public.ia_rol('${OTRO_ID}') = 'alumno', 'los roles (coach con plan)';
+  j := ${RES(ALUMNO_ID, 'alumno', 'plato', '0.006')}; assert (j->>'ok')::boolean, 'plato ' || j::text;
+  perform public.ia_cerrar((j->>'llamada_id')::bigint, 'ok', null, 0.0008);
+end $$;
+set role authenticated; set request.jwt.claim.sub = '${ALUMNO_ID}';
+do $$ declare e jsonb := public.ia_mi_estado(); begin
+  assert (e #>> '{quedan,plato}')::int = 7 and (e #>> '{quedan,texto}')::int = 15, 'le quedan 7 fotos y 15 textos ' || e::text;
+end $$;
+reset role; update public.ia_config set topes = jsonb_set(topes, '{alumno,plato}', '1');
+set role service_role;
+do $$ declare j jsonb; begin j := ${RES(ALUMNO_ID, 'alumno', 'plato', '0.006')}; assert j->>'codigo' = 'tope_dia' and (j->>'tope')::int = 1, 'tope del día del alumno ' || j::text; end $$;
+set role authenticated; set request.jwt.claim.sub = '${ALUMNO_ID}';
+do $$ begin assert (public.ia_mi_estado() #>> '{quedan,plato}')::int = 0, 'no le quedan fotos'; end $$;
+reset role; update public.ia_config set topes = jsonb_set(jsonb_set(topes, '{alumno,plato}', '8'), '{alumno,usd_ciclo}', '0.0008');
+set role authenticated; set request.jwt.claim.sub = '${ALUMNO_ID}';
+do $$ begin assert public.ia_mi_estado() ->> 'estado' = 'tope_persona', 'llegó a su tope del ciclo'; end $$;
+reset role; update public.ia_config set topes = jsonb_set(topes, '{alumno,usd_ciclo}', '0.5');
+update public.ia_ciclos set gastado = 151 where inicio <= now() and fin > now();
+set role authenticated; set request.jwt.claim.sub = '${OTRO_ID}';
+do $$ begin assert public.ia_mi_estado() ->> 'estado' = 'ahorro', 'ahorro: sin coach con plan'; end $$;
+set request.jwt.claim.sub = '${ALUMNO_ID}';
+do $$ begin assert public.ia_mi_estado() ->> 'estado' = 'normal', 'ahorro: el alumno de un coach con plan sigue'; end $$;
+reset role; update public.ia_ciclos set estado = 'cortado', cortado_por = 'tope', vuelve = fin where inicio <= now() and fin > now();
+set role authenticated; set request.jwt.claim.sub = '${ALUMNO_ID}';
+do $$ declare e jsonb := public.ia_mi_estado(); begin assert e ->> 'estado' = 'tope_mes' and e ->> 'vuelve' is not null, 'tope del mes ' || e::text; end $$;
+reset role; update public.ia_ciclos set estado = 'cortado', cortado_por = 'creditos', vuelve = now() + interval '20 minutes' where inicio <= now() and fin > now();
+set role authenticated; set request.jwt.claim.sub = '${ALUMNO_ID}';
+do $$ begin assert public.ia_mi_estado() ->> 'estado' = 'pausada', 'sin créditos: pausada'; end $$;
+reset role; update public.ia_ciclos set estado = 'normal', cortado_por = null, vuelve = null, gastado = 10 where inicio <= now() and fin > now();
+set role authenticated; set request.jwt.claim.sub = '${ALUMNO_ID}';
+do $$ begin
+  perform public.ia_reportar('plato', '{"items": [{"nombre": "Milanesa", "gramos": 150}]}', '  la milanesa era de pollo  ');
+  begin perform public.ia_reportar('plato', '{}', repeat('x', 301)); raise exception 'comentario largo'; exception when sqlstate '22023' then null; end;
+  begin perform public.ia_reportar('rutina', '{}'); raise exception 'función inventada'; exception when sqlstate '22023' then null; end;
+  begin perform public.ia_reportar('plato', '[1]'); raise exception 'respuesta que no es un objeto'; exception when sqlstate '22023' then null; end;
+  for i in 1..19 loop perform public.ia_reportar('texto', '{}'); end loop;
+  begin perform public.ia_reportar('texto', '{}'); raise exception 'pasó los 20 por día'; exception when sqlstate '54000' then null; end;
+  insert into public.food_entries (id, client_id, name, fuente) values ('e1', '${ALUMNO_ID}', 'Milanesa', 'ia'), ('e2', '${ALUMNO_ID}', 'Arroz', 'ia-editado');
+  begin insert into public.food_entries (id, client_id, name, fuente) values ('e3', '${ALUMNO_ID}', 'X', 'magia'); raise exception 'fuente inventada'; exception when check_violation then null; end;
+end $$;
+reset role;
+do $$ begin
+  assert (select comentario from public.ia_reportes where funcion = 'plato') = 'la milanesa era de pollo', 'guarda el comentario recortado';
+  update public.ia_reportes set creada = now() - interval '181 days' where funcion = 'plato';
+  perform public.ia_limpiar();
+  assert (select count(*) from public.ia_reportes where funcion = 'plato') = 0 and (select count(*) from public.ia_reportes) = 19, 'a los 180 días se borra (quedan los otros)';
+end $$;`],
+['el admin: lo que lee en el panel no le gasta los usos de la app (ni su US$ 0,50)', `
+reset role;
+update public.ia_ciclos set estado = 'normal', cortado_por = null, vuelve = null, gastado = 10, reservado = 0 where inicio <= now() and fin > now();
+delete from public.ia_llamadas where user_id = '${ADMIN_ID}';
+update public.ia_config set funciones = funciones || '{"plato": true, "texto": true}';
+set role service_role;
+do $$ declare j jsonb; begin
+  for i in 1..25 loop
+    j := ${RES()}; assert (j->>'ok')::boolean, 'lectura ' || i || ' ' || j::text;
+    perform public.ia_cerrar((j->>'llamada_id')::bigint, 'ok', null, 0.03);
+  end loop;
+  assert public.ia_rol('${ADMIN_ID}') = 'alumno', 'en la app, el admin usa los topes de alumno';
+  j := ${RES(ADMIN_ID, 'alumno', 'plato', '0.006')}; assert (j->>'ok')::boolean, 'después de 25 lecturas (US$ 0,75) puede sacar la foto del plato ' || j::text;
+end $$;
+set role authenticated; set request.jwt.claim.sub = '${ADMIN_ID}';
+do $$ declare e jsonb := public.ia_mi_estado(); begin
+  assert e ->> 'estado' = 'normal', 'no llegó a su tope del ciclo ' || e::text;
+  assert (e #>> '{quedan,plato}')::int = 7 and (e #>> '{quedan,texto}')::int = 15, 'le quedan 7 fotos y 15 textos ' || e::text;
+  assert (e #>> '{usados,plato}')::int = 1 and (e #>> '{usados,texto}')::int = 0 and (e #>> '{usados,total}')::int = 1, 'usados: solo lo de la app ' || e::text;
 end $$;`],
 ];
