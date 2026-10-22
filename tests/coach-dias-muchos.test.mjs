@@ -8,7 +8,7 @@ import { newPage, wait } from './lib.mjs';
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
 const A1 = '44444444-4444-4444-4444-444444444444';
 const NOMBRES = ['Empuje (pecho y hombros)', 'Tracción (espalda y bíceps)', 'Piernas cuádriceps', 'Empuje B (hombros)', 'Tracción B', 'Piernas isquios y glúteos', 'Brazos y core'];
-const rutina = () => NOMBRES.map((name, k) => ({ id: 'd' + k, name, subtitle: '', dias: [(k + 1) % 7],
+const rutina = () => NOMBRES.map((name, k) => ({ id: 'd' + k, name, subtitle: '',
   exercises: [{ id: 'x' + k, name: 'Press banca plano con barra', sets: [{ id: 'x' + k + 's0', kg: '', reps: '', target: '8' }] }] }));
 
 export default async function ({ base, t }){
