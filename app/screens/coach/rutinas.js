@@ -26,7 +26,7 @@ import { blockWeek, deloadRoutineOf, deloadWeeks, weekPlanOf, weekRange } from '
 import { parseRest } from '../../ui/restbar.js';
 
 import { closeSheet } from '../../ui/sheet.js';
-import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto } from '../../core/diasemana.js';
+import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto, ordenSemana } from '../../core/diasemana.js';
 import { clientPlanActions, clientPlanDirty, mealEditFoot } from './planes.js';
 
 export function rtDays(){ return CoachState.coachTplEdit ? CoachState.coachTplEdit.days : (CoachState.coachData?CoachState.coachData.routine:null); }
@@ -930,7 +930,7 @@ function dayDragOver(s){
 }
 document.addEventListener('pointerdown', e=>{
   if(dayDrag || dragSt || (e.pointerType==='mouse' && e.button!==0)) return;
-  const tab=e.target.closest && e.target.closest('.co-daytabs .co-daytab[data-coach="edit-day"]'); if(!tab) return;
+  const tab=e.target.closest && e.target.closest('.co-daytabs:not(.co-daytabs-auto) .co-daytab[data-coach="edit-day"]'); if(!tab) return;
   const tabs=dayTabs(); if(tabs.length<2) return;
   const s=dayDrag={ tab, from:tabs.indexOf(tab), x:e.clientX, y:e.clientY, x0:e.clientX, y0:e.clientY, id:e.pointerId, mouse:e.pointerType==='mouse', active:false, to:null };
   if(!s.mouse) s.timer=setTimeout(()=>{ if(dayDrag===s) dayDragStart(s); }, HOLD_MS);
@@ -974,8 +974,12 @@ export function renderCoachRoutine(d){
   if(!rt.length) return '<div class="co-sec">Rutina y progreso</div><div class="cal-hint">El cliente todav\u00eda no tiene rutina.</div><button class="co-add-day" data-coach="day-add">+ Agregar d\u00eda</button>';
   if(CoachState.coachEditDay>=rt.length) CoachState.coachEditDay=0;
   // Cada pestaña con sus días de la semana abajo, chiquito (core/diasemana.js).
-  // Con dos días o más se pueden arrastrar para cambiarlos de lugar (ver «Días: arrastrar»).
-  const tabs=rt.map((x,i)=>{ const dt=diasTexto(x); return '<button class="co-daytab'+(i===CoachState.coachEditDay?' on':'')+'" data-coach="edit-day" data-i="'+i+'"'+(rt.length>1?' title="Arrastralo para cambiarlo de lugar"':'')+'>'+esc(x.name||('D\u00eda '+(i+1)))+(dt?'<small class="co-daytab-dias">'+esc(dt)+'</small>':'')+'</button>'; }).join("");
+  // Con dos días o más (y sin días de la semana) se pueden arrastrar para cambiarlos de lugar (ver
+  // «Días: arrastrar»).
+  // Con días de la semana asignados, las pestañas van solas de lunes a domingo (core/diasemana.js →
+  // ordenSemana) y no se arrastran: el orden lo dan los días. Sin días, se arrastran como siempre.
+  const auto=rt.some(x=>diasDe(x).length), mover=rt.length>1 && !auto;
+  const tabs=ordenSemana(rt).map(i=>{ const x=rt[i], dt=diasTexto(x); return '<button class="co-daytab'+(i===CoachState.coachEditDay?' on':'')+'" data-coach="edit-day" data-i="'+i+'"'+(mover?' title="Arrastralo para cambiarlo de lugar"':'')+'>'+esc(x.name||('D\u00eda '+(i+1)))+(dt?'<small class="co-daytab-dias">'+esc(dt)+'</small>':'')+'</button>'; }).join("");
   const day=rt[CoachState.coachEditDay];
   const totalSets=(day.exercises||[]).reduce((n,x)=>n+((x.sets||[]).length),0);
   const totalEx=(day.exercises||[]).length;
@@ -999,14 +1003,14 @@ export function renderCoachRoutine(d){
   const dotsOn=diasDe(day);
   const dayMenu='<details class="co-day-menu"><summary aria-label="Más opciones del día" title="Más opciones">•••</summary><div class="co-day-pop">'+
       '<button class="co-day-mv" data-coach="day-dup">'+copySvg+'<span>Duplicar este día</span></button>'+
-      (rt.length>1 ? '<button class="co-day-mv" data-coach="day-left"'+(CoachState.coachEditDay===0?' disabled':'')+'>'+chevronLeftSvg+'<span>Mover antes</span></button>'+
-        '<button class="co-day-mv" data-coach="day-right"'+(CoachState.coachEditDay===rt.length-1?' disabled':'')+'>'+chevronRightSvg+'<span>Mover después</span></button>'+
-        '<button class="co-day-mv danger" data-coach="day-del">'+trashSvg+'<span>Borrar día</span></button>' : '')+
+      (mover ? '<button class="co-day-mv" data-coach="day-left"'+(CoachState.coachEditDay===0?' disabled':'')+'>'+chevronLeftSvg+'<span>Mover antes</span></button>'+
+        '<button class="co-day-mv" data-coach="day-right"'+(CoachState.coachEditDay===rt.length-1?' disabled':'')+'>'+chevronRightSvg+'<span>Mover después</span></button>' : '')+
+      (rt.length>1 ? '<button class="co-day-mv danger" data-coach="day-del">'+trashSvg+'<span>Borrar día</span></button>' : '')+
     '</div></details>';
   const sugOff=rt.some(x=>x.noSug);
   const sugToggle='<span class="co-sug-mini" title="'+(sugOff?'Apagada: el cliente solo ve el peso que vos propongas.':'GIZE le recomienda subir 2,5 kg cuando la vez pasada se pasó del rango de reps, salvo donde cargues tu peso propuesto.')+'"><span>Sugerencia de peso</span><button type="button" class="co-sug-tg'+(sugOff?'':' on')+'" data-coach="rt-nosug-all" role="switch" aria-checked="'+(!sugOff)+'" aria-label="Sugerencia automática de peso"><span></span></button></span>';
   return coachDatalist()+
-    '<div class="co-daytabs">'+tabs+'<button class="co-daytab add" data-coach="day-add" aria-label="Agregar día">+</button></div>'+
+    '<div class="co-daytabs'+(auto?' co-daytabs-auto':'')+'">'+tabs+'<button class="co-daytab add" data-coach="day-add" aria-label="Agregar día">+</button></div>'+
     '<div class="co-day-bar">'+
       // Días de la semana de este día (puede ser más de uno): Entreno arranca en el día que toca hoy.
       '<div class="co-day-row">'+
