@@ -661,6 +661,12 @@ body.co-drag-on .co-exc-collapsed:not(.co-drop-target):not(.co-dragging) { opaci
   background:linear-gradient(135deg, var(--gize-r1), var(--gize-r2)); color:var(--gize-text); font:800 11px var(--gize-font); letter-spacing:.04em; box-shadow:0 4px 14px rgba(0,0,0,.45); }
 .co-exc-collapsed.co-drop-target { overflow:visible; }
 .co-drag-ghost { opacity:.88; transition:box-shadow .15s, border-color .15s; }
+/* Arrastrando al borde de una tarjeta: dónde queda el ejercicio (cambiar de lugar). */
+.co-drop-line { position:fixed; z-index:701; height:4px; border-radius:4px; pointer-events:none; background:var(--gize-blue);
+  box-shadow:0 0 14px color-mix(in srgb, var(--gize-blue) 80%, transparent); }
+.co-drop-line[hidden] { display:none; }
+.co-drop-line span { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  padding:3px 12px; border-radius:999px; font-size:12px; font-weight:700; color:#fff; background:var(--gize-blue); }
 .co-drag-ghost.co-over { border-color:var(--gize-r2); box-shadow:0 22px 46px rgba(0,0,0,.55), 0 0 0 2px var(--gize-r2); }
 
 /* Al unir: la superserie late una vez y la tarjeta que llegó "aterriza" */

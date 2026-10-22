@@ -773,7 +773,8 @@ export function removeEx(arr, i){
   return arr.splice(i,1)[0];
 }
 
-// ---- Superserie arrastrando (prueba): mantener apretada una tarjeta cerrada y soltarla sobre otra ----
+// ---- Arrastrar una tarjeta cerrada (mantenerla apretada): soltarla en el medio de otra arma una
+// superserie; en su borde de arriba o de abajo, la cambia de lugar (una línea marca dónde queda) ----
 // Se saca el ejercicio de su lugar y se lo pone justo después del de destino, unidos (ex.ss = "va
 // con el siguiente"). Si el destino ya estaba en una superserie, el arrastrado se suma a esa cadena.
 export function ssDropOnto(arr, from, to){
@@ -786,17 +787,48 @@ export function ssDropOnto(arr, from, to){
   arr.splice(j+1,0,x);
   return true;
 }
+// Cambiar de lugar arrastrando: el ejercicio va a la posición «to» (contada en el arreglo de antes,
+// 0 … largo). Si queda entre dos de una superserie se suma a ella; si no, queda suelto. Si salía de
+// una superserie, la de arriba queda bien cerrada (igual que ssDropOnto).
+export function exMoveTo(arr, from, to){
+  if(!Array.isArray(arr) || !arr[from] || !(to>=0 && to<=arr.length) || to===from || to===from+1) return false;
+  if(from>0 && arr[from-1].ss){ if(arr[from].ss) arr[from-1].ss=true; else delete arr[from-1].ss; }
+  const [x]=arr.splice(from,1), j=to>from ? to-1 : to;
+  if(j>0 && arr[j-1].ss) x.ss=true; else delete x.ss;
+  arr.splice(j,0,x);
+  return true;
+}
+// Qué hace soltar sobre una tarjeta cerrada: en el medio, superserie; en el borde de arriba o de
+// abajo, cambiar de lugar (antes o después de esa).
+const BORDE=0.28;
+function dropLine(s, tc, antes){
+  if(!s.line){ s.line=document.createElement('div'); s.line.className='co-drop-line'; s.line.innerHTML='<span></span>'; document.body.appendChild(s.line); }
+  const r=tc.getBoundingClientRect();
+  s.line.style.left=(r.left+10)+'px'; s.line.style.width=Math.max(40, r.width-20)+'px'; s.line.style.top=((antes?r.top:r.bottom)-2)+'px';
+  s.line.firstChild.textContent=antes ? 'Mover antes de '+((tc.querySelector('.co-exc-ctext')||{}).textContent||'').trim() : 'Mover después de '+((tc.querySelector('.co-exc-ctext')||{}).textContent||'').trim();
+  s.line.hidden=false;
+}
 const HOLD_MS=450, MOVE_TOL=8;
 let dragSt=null, dragGuard=false;
 function dragEnd(commit){
   const s=dragSt; if(!s) return; dragSt=null;
   clearTimeout(s.timer); clearInterval(s.scroll);
   if(s.ghost) s.ghost.remove();
+  if(s.line) s.line.remove();
   document.querySelectorAll('.co-dragging,.co-drop-target').forEach(n=>n.classList.remove('co-dragging','co-drop-target'));
   document.body.classList.remove('co-drag-on');
   if(!s.active) return;
   dragGuard=true; setTimeout(()=>{ dragGuard=false; }, 350);
-  if(commit && s.target!=null){
+  if(commit && s.ins!=null){
+    const day=(rtDays()||[])[CoachState.coachEditDay];
+    const mid=day && day.exercises[s.from] ? day.exercises[s.from].id : null;
+    if(day && exMoveTo(day.exercises, s.from, s.ins)){
+      renderCoach();
+      const el=mid && document.querySelector('.co-exc[data-id="'+(window.CSS&&CSS.escape?CSS.escape(mid):mid)+'"]');
+      if(el){ el.classList.add('co-ss-landed'); setTimeout(()=>el.classList.remove('co-ss-landed'), 900); }
+    }
+  }
+  else if(commit && s.target!=null){
     const day=(rtDays()||[])[CoachState.coachEditDay];
     const mid=day && day.exercises[s.from] ? day.exercises[s.from].id : null;
     if(day && ssDropOnto(day.exercises, s.from, s.target)){
@@ -821,7 +853,7 @@ function dragStart(s){
 document.addEventListener('pointerdown', e=>{
   if(dragSt || (e.pointerType==='mouse' && e.button!==0)) return;
   const card=e.target.closest && e.target.closest('.co-exc-collapsed'); if(!card || e.target.closest('button,input,a')) return;
-  const s=dragSt={ card, name:((card.querySelector('.co-exc-ctext')||{}).textContent||'').trim(), from:+card.dataset.i, x:e.clientX, y:e.clientY, x0:e.clientX, y0:e.clientY, id:e.pointerId, active:false, target:null };
+  const s=dragSt={ card, name:((card.querySelector('.co-exc-ctext')||{}).textContent||'').trim(), from:+card.dataset.i, x:e.clientX, y:e.clientY, x0:e.clientX, y0:e.clientY, id:e.pointerId, active:false, target:null, ins:null };
   s.timer=setTimeout(()=>{ if(dragSt===s) dragStart(s); }, HOLD_MS);
 }, true);
 document.addEventListener('pointermove', e=>{
@@ -831,7 +863,13 @@ document.addEventListener('pointermove', e=>{
   s.ghost.style.left=(s.x-s.dx)+'px'; s.ghost.style.top=(s.y-s.dy)+'px';
   const el=document.elementFromPoint(s.x, s.y), tc=el && el.closest ? el.closest('.co-exc-collapsed') : null;
   document.querySelectorAll('.co-drop-target').forEach(n=>{ if(n!==tc) n.classList.remove('co-drop-target'); });
-  if(tc && tc!==s.card){ tc.classList.add('co-drop-target'); tc.dataset.join='Unir con '+s.name+' → '+((tc.querySelector('.co-exc-ctext')||{}).textContent||'').trim(); s.target=+tc.dataset.i; } else s.target=null;
+  s.target=null; s.ins=null;
+  if(tc && tc!==s.card){
+    const r=tc.getBoundingClientRect(), y=(s.y-r.top)/r.height, ti=+tc.dataset.i;
+    if(y>BORDE && y<1-BORDE){ tc.classList.add('co-drop-target'); tc.dataset.join='Unir con '+s.name+' → '+((tc.querySelector('.co-exc-ctext')||{}).textContent||'').trim(); s.target=ti; }
+    else { tc.classList.remove('co-drop-target'); const antes=y<=BORDE, to=antes?ti:ti+1; if(to!==s.from && to!==s.from+1){ s.ins=to; dropLine(s, tc, antes); } }
+  }
+  if(s.line && s.ins==null) s.line.hidden=true;
   s.ghost.classList.toggle('co-over', s.target!=null);
 }, true);
 document.addEventListener('pointerup', e=>{ if(dragSt && e.pointerId===dragSt.id) dragEnd(true); }, true);
