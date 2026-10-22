@@ -13,7 +13,7 @@ import { checkSetPR, forgetPR, playPR, suspiciousKg, PR_HOLD_MS } from './ui/fes
 import { auIcoEye, auIcoEyeOff, checkSvg } from './core/icons.js';
 
 import { State, elegirDiaDeHoy, state } from './core/state.js';
-import { toggleDia } from './core/diasemana.js';
+import { ordenSemana, toggleDia } from './core/diasemana.js';
 import { EX_CATS } from './core/data.js';
 import { defaultExCat } from './core/disciplinas.js';
 // Salida de Cardio a pie / en bici: se importa temprano para que, si quedó una en curso (la app se
@@ -840,7 +840,7 @@ document.body.addEventListener("click", async e => {
   // Días
   if (a === "open-routines") { openRoutinePicker(); return; }
   if (a === "addday") { const nd={id:uid(),name:"Nuevo",subtitle:"",exercises:[]}; state.days.push(nd); State.activeId=nd.id; State.dayPickedOn=today(); HabitosState.pendingFocusDay=true; save(); renderApp(); return; }
-  if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(await confirmar("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); State.activeId=state.days[0].id; State.dayPickedOn=today(); save(); renderApp(); } return; }
+  if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(await confirmar("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); State.activeId=state.days[ordenSemana(state.days)[0]].id; State.dayPickedOn=today(); save(); renderApp(); } return; }
   // Días de la semana del día abierto (core/diasemana.js): se abren los 7 botones debajo del
   // nombre, cada toque guarda (y sube con la rutina) y «Listo» los vuelve a cerrar.
   if (a === "dias-open") { if(!routineLocked()){ EntrenoState.diasOpen = day().id; renderApp(); } return; }
@@ -851,7 +851,8 @@ document.body.addEventListener("click", async e => {
   // Cambiar de día: en el acto (antes esperaba 130 ms para dejar ver el ripple del chip); el ripple
   // sigue en el chip nuevo y lo de abajo entra deslizándose hacia el lado del día elegido.
   if (a === "tab") {
-    const ix = id => state.days.findIndex(x => x.id === id), dir = Math.sign(ix(el.dataset.day) - ix(State.activeId));
+    // El lado según el orden en pantalla (de lunes a domingo, core/diasemana.js → ordenSemana).
+    const ord = ordenSemana(state.days), ix = id => ord.indexOf(state.days.findIndex(x => x.id === id)), dir = Math.sign(ix(el.dataset.day) - ix(State.activeId));
     State.activeId = el.dataset.day; State.dayPickedOn = today(); EntrenoState.diasOpen = null; renderApp();
     const nb = document.querySelector('#view .tab.active'); if (nb) tabRipple(nb, e.clientX, e.clientY);
     entrarDia(dir); return;
