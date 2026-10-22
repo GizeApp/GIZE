@@ -30,6 +30,7 @@ import { CoachState } from './state.js';
 import { loadBilling } from './plan.js';
 
 import { renderWChart } from '../progreso.js';
+import { cargarPresets } from './presets.js';
 
 export async function loadCoachClients(){
   try{
@@ -71,6 +72,7 @@ export async function loadCoachClients(){
     await billP;
   }catch(e){ console.error("coachClients",e); }
   loadCoachStats(); loadTpls(); loadMealTpls();
+  cargarPresets().then(()=>{ if(CoachState.coachSel||CoachState.coachTplEdit) renderCoach(); });
 }
 
 export async function loadCoachStats(){

@@ -28,6 +28,7 @@ import { parseRest } from '../../ui/restbar.js';
 import { closeSheet } from '../../ui/sheet.js';
 import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto, ordenSemana } from '../../core/diasemana.js';
 import { clientPlanActions, clientPlanDirty, mealEditFoot } from './planes.js';
+import { aplicar, hayPresets, igualQue, presetDe } from './presets.js';
 
 export function rtDays(){ return CoachState.coachTplEdit ? CoachState.coachTplEdit.days : (CoachState.coachData?CoachState.coachData.routine:null); }
 
@@ -601,12 +602,14 @@ function exerciseCard(d, day, ex, i, rt){
   const down='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>';
   const plus='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
   const linked=!!ex.ss, isLast=i===(day.exercises||[]).length-1;
+  const pre=hayPresets() && presetDe(ex.name), preBtn=presetBtn(ex, i);
   // Subir, bajar, cambiar, duplicar, insertar, superserie y quitar: en el menú "⋯" de la cabecera.
   // «Quitar ejercicio» va último, separado y en rojo; el menú no se recorta (ver «Menús ⋯» más abajo).
   const menu='<details class="co-day-menu co-exc-menu2"><summary aria-label="Más opciones del ejercicio" title="Más opciones">•••</summary><div class="co-day-pop" role="menu">'+
       act("rt-up", up, "Subir")+act("rt-down", down, "Bajar")+act("rt-swap", swapSvg, "Cambiar ejercicio")+
       act("rt-dup", copySvg, "Duplicar")+act("rt-ins", plus, "Insertar uno antes")+
       (isLast ? '' : act("rt-ss", linkSvg, linked?"Separar de la superserie":"Unir con el siguiente (superserie)"))+
+      (pre ? act("rt-preset-save", saveSvg, "Actualizar mi configuración")+act("rt-preset-del", xSvg, "Borrar mi configuración") : '')+
       '<hr class="co-pop-sep">'+act("rt-del", trashSvg, "Quitar ejercicio", " danger")+
     '</div></details>';
 
@@ -662,7 +665,7 @@ function exerciseCard(d, day, ex, i, rt){
       '<div class="co-exc-body">'+
         '<div class="co-exc-main">'+
           '<div class="co-sets-panel">'+setsTbl+
-            '<div class="co-sets-foot"><button class="co-set-add" data-coach="rt-setadd" data-i="'+i+'">+ Serie</button>'+lastLine+'</div>'+sugBtn+
+            '<div class="co-sets-foot"><button class="co-set-add" data-coach="rt-setadd" data-i="'+i+'">+ Serie</button>'+preBtn+lastLine+'</div>'+sugBtn+
           '</div>'+
         '</div>'+
         // «Más opciones»: cómo se mide, descanso, RIR, objetivo, comentario, video, audio y progreso.
@@ -688,6 +691,23 @@ function exerciseCard(d, day, ex, i, rt){
         '</div>'+
       '</div>'+
     '</div>';
+}
+
+// Mi configuración de un ejercicio (presets.js): guardarla de un toque, volver a ella si para este
+// cliente se cambió, o la marca de que ya está así. Al escribir reps, descanso o RIR no se redibuja
+// la tarjeta (se perdería el foco): pintarPreset cambia solo este botón.
+export function presetBtn(ex, i){
+  if(!hayPresets() || !(ex.name||"").trim()) return '';
+  const pre=presetDe(ex.name);
+  if(!pre) return '<button type="button" class="co-preset" data-coach="rt-preset-save" data-i="'+i+'" title="Series, reps, descanso y RIR: al agregar este ejercicio a otra rutina arranca así">'+saveSvg+'<span>Guardar como mi configuración</span></button>';
+  if(igualQue(ex, pre)) return '<span class="co-preset ok" title="Está como tu configuración guardada">'+checkSvg+'<span>Mi configuración</span></span>';
+  return '<button type="button" class="co-preset" data-coach="rt-preset-use" data-i="'+i+'" title="Volver a tus series, reps, descanso y RIR guardados para este ejercicio">'+saveSvg+'<span>Usar mi configuración</span></button>';
+}
+export function pintarPreset(i){
+  const day=(rtDays()||[])[CoachState.coachEditDay], ex=day && day.exercises[i]; if(!ex) return;
+  const el=document.querySelector('.co-exc-open[data-id="'+(window.CSS&&CSS.escape?CSS.escape(ex.id):ex.id)+'"] .co-sets-foot .co-preset'); if(!el) return;
+  const t=document.createElement('template'); t.innerHTML=presetBtn(ex, i);
+  if(t.content.firstChild) el.replaceWith(t.content.firstChild);
 }
 
 // Casilleros abiertos del ejercicio (nota, video, voz): sobreviven a volver a dibujar el editor.
@@ -1089,6 +1109,8 @@ export function cpApply(name, cat){
     day.exercises.splice(k,0,ex);
   }
   else { ex=mkEx(name,3,mm); day.exercises.push(ex); }
+  // Si el coach tiene guardada su configuración de este ejercicio, arranca con esa (presets.js).
+  if(ex) aplicar(ex, presetDe(name));
   // el ejercicio recién agregado/cambiado arranca expandido para que el coach lo complete
   // de una — es el único abierto: el resto del día queda colapsado (abrirSolo).
   if(ex) abrirSolo(ex.id);
