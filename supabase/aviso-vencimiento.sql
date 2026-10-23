@@ -17,7 +17,7 @@ alter table public.coach_billing add column if not exists aviso_vence_para times
 
 -- Vencimiento: lo que termine más tarde entre la prueba y lo pagado.
 create or replace function public.coach_vence(b public.coach_billing)
-returns timestamptz language sql immutable as $$
+returns timestamptz language sql immutable set search_path = public as $$
   select greatest(b.trial_ends_at, coalesce(b.paid_until, '-infinity'));
 $$;
 
