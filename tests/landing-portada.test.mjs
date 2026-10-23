@@ -34,6 +34,15 @@ export default async function ({ base, t }){
       const d = await p.evaluate(() => ({ h2: document.querySelector('#como h2').getBoundingClientRect().top, bar: document.querySelector('header .wrap').getBoundingClientRect().bottom }));
       t.ok(d.h2 > d.bar, 'compu: al ir a «Cómo funciona», el título queda debajo de la barra flotante: ' + JSON.stringify(d));
     }
+    // «Para vos y tu coach»: al scrollear la sección cambia la función marcada y la pantalla del celular.
+    const paso = async k => { await p.evaluate(k => { const s = document.getElementById('funciones'), span = s.offsetHeight - innerHeight; scrollTo({ top: s.offsetTop + span * (k + .5) / 5, behavior: 'instant' }); }, k); await wait(800);
+      return p.evaluate(() => ({ li: [...document.querySelectorAll('#funciones .show-list li')].findIndex(e => e.classList.contains('on')),
+        img: [...document.querySelectorAll('#funciones .show-cel img')].findIndex(e => e.classList.contains('on')),
+        b: document.querySelector('#funciones .show-list li.on b').textContent, ancho: document.documentElement.scrollWidth })); };
+    const p0 = await paso(0), p2 = await paso(2), p4 = await paso(4);
+    t.eq([p0.li, p0.img, p2.li, p2.img, p4.li, p4.img], [0, 0, 2, 2, 4, 4], nom + ': al scrollear cambia la función y su pantalla');
+    t.eq([p0.b, p2.b, p4.b], ['Tu rutina, serie por serie', 'Tu coach, siempre cerca', 'Pasos y competencia con amigos'], nom + ': los títulos de las funciones');
+    t.ok(p4.ancho <= r.vw, nom + ': la sección de funciones tampoco hace scroll de costado');
     t.eq(errs, [], nom + ': errores de la página');
     await close();
   }
