@@ -7,6 +7,11 @@
 --
 -- Las fotos van al bucket privado «productos» (productos-revision.sql), en la carpeta del
 -- usuario: las ve él y los administradores.
+--
+-- Lectura con IA (supabase/ia.sql y la función «ia»): en el panel, «Leer con IA» completa los
+-- valores desde la foto de la tabla y lo leído queda en las columnas ai_* del pedido. Al publicar
+-- se anota si el administrador lo corrigió (ai_corregido y qué campos, ai_corregidos), para medir
+-- qué tan bien lee. Desde la app no se pueden cargar: las escribe solo la función.
 
 create table if not exists public.product_requests (
   id          bigint generated always as identity primary key,
@@ -25,6 +30,27 @@ create table if not exists public.product_requests (
 );
 create index if not exists product_requests_pending_idx on public.product_requests(created_at) where status = 'pendiente';
 create index if not exists product_requests_user_idx on public.product_requests(user_id);
+
+-- Lo que leyó la IA de la foto de la tabla (cada 100 g o ml; si la tabla era solo por porción y no
+-- decía el tamaño, por porción: ai_por_porcion). ai_columna: de qué columna salieron los valores
+-- («100» o «porcion»: si era por porción con el tamaño, la función ya los pasó a cada 100 y el
+-- panel lo avisa, porque no coinciden con los números de la foto).
+alter table public.product_requests
+  add column if not exists ai_encontrada  boolean,
+  add column if not exists ai_kcal        numeric,
+  add column if not exists ai_protein     numeric,
+  add column if not exists ai_carbs       numeric,
+  add column if not exists ai_fat         numeric,
+  add column if not exists ai_unit        text,
+  add column if not exists ai_portion     numeric,
+  add column if not exists ai_por_porcion boolean,
+  add column if not exists ai_revisar     boolean,
+  add column if not exists ai_dudosos     text[],
+  add column if not exists ai_modelo      text,
+  add column if not exists ai_at          timestamptz,
+  add column if not exists ai_corregido   boolean,
+  add column if not exists ai_corregidos  text[],
+  add column if not exists ai_columna     text;
 
 alter table public.product_requests enable row level security;
 revoke all on public.product_requests from anon, authenticated;
@@ -51,6 +77,10 @@ begin
   if auth.uid() is not null then
     new.user_id := auth.uid(); new.status := 'pendiente'; new.note := null; new.product_id := null;
     new.seen := false; new.created_at := now(); new.done_at := null;
+    -- Lo de la IA lo escribe solo la función «ia».
+    new.ai_encontrada := null; new.ai_kcal := null; new.ai_protein := null; new.ai_carbs := null; new.ai_fat := null;
+    new.ai_unit := null; new.ai_portion := null; new.ai_por_porcion := null; new.ai_revisar := null; new.ai_dudosos := null;
+    new.ai_modelo := null; new.ai_at := null; new.ai_corregido := null; new.ai_corregidos := null; new.ai_columna := null;
     if (select count(*) from public.product_requests where user_id = auth.uid() and created_at > now() - interval '1 day') >= 15 then
       raise exception 'Llegaste al límite de pedidos por hoy. Probá mañana.' using errcode = '22023';
     end if;
@@ -76,16 +106,23 @@ $$;
 revoke execute on function public.product_request_seen(bigint) from public, anon;
 grant execute on function public.product_request_seen(bigint) to authenticated;
 
--- Panel: pedidos pendientes (o los últimos resueltos), con quién lo mandó.
+-- Panel: pedidos pendientes (o los últimos resueltos), con quién lo mandó y lo que leyó la IA.
+-- Cambió lo que devuelve (las columnas ai_*): con otro tipo de retorno, create or replace no
+-- alcanza, así que primero se borra (y se vuelven a dar los permisos de abajo).
+drop function if exists public.admin_requests(text);
 create or replace function public.admin_requests(kind text)
 returns table (id bigint, code text, name text, brand text, label_path text, front_path text, status text, note text,
-  created_at timestamptz, done_at timestamptz, user_email text, user_name text, existing_id uuid, existing_name text)
+  created_at timestamptz, done_at timestamptz, user_email text, user_name text, existing_id uuid, existing_name text,
+  ai_encontrada boolean, ai_kcal numeric, ai_protein numeric, ai_carbs numeric, ai_fat numeric, ai_unit text, ai_portion numeric,
+  ai_por_porcion boolean, ai_revisar boolean, ai_dudosos text[], ai_modelo text, ai_at timestamptz, ai_corregido boolean, ai_columna text)
 language plpgsql stable security definer set search_path = public as $$
 begin
   perform public.admin_assert();
   return query
     select r.id, r.code, r.name, r.brand, r.label_path, r.front_path, r.status, r.note, r.created_at, r.done_at,
-           u.email::text, p.full_name, e.id, e.name
+           u.email::text, p.full_name, e.id, e.name,
+           r.ai_encontrada, r.ai_kcal, r.ai_protein, r.ai_carbs, r.ai_fat, r.ai_unit, r.ai_portion,
+           r.ai_por_porcion, r.ai_revisar, r.ai_dudosos, r.ai_modelo, r.ai_at, r.ai_corregido, r.ai_columna
       from public.product_requests r
       left join auth.users u on u.id = r.user_id
       left join public.profiles p on p.id = r.user_id
@@ -106,13 +143,22 @@ end $$;
 revoke execute on function public.admin_requests_pending() from public, anon;
 grant execute on function public.admin_requests_pending() to authenticated;
 
+-- ¿Dos valores son distintos? Más del 1 % (con un mínimo de 0,1, por el redondeo a un decimal), o
+-- uno vacío y el otro no.
+create or replace function public.ia_distinto(a numeric, b numeric)
+returns boolean language sql immutable set search_path = public as $$
+  select case when a is null and b is null then false when a is null or b is null then true
+              else abs(a - b) > greatest(0.1, 0.01 * greatest(abs(a), abs(b))) end;
+$$;
+revoke all on function public.ia_distinto(numeric, numeric) from public, anon, authenticated;
+
 -- Publicar un pedido con los valores que cargó el administrador (cada 100 g o 100 ml).
 -- Queda de GIZE y verificado, con la foto de la tabla del pedido. Si ya hay un producto con
 -- ese código de barras, se corrige ese (y queda verificado) en vez de crear otro.
 create or replace function public.admin_request_publish(rid bigint, p_code text, p_name text, p_brand text, p_kcal numeric,
   p_protein numeric, p_carbs numeric, p_fat numeric, p_unit text, p_portion numeric)
 returns uuid language plpgsql security definer set search_path = public as $$
-declare r public.product_requests; pid uuid; c text := nullif(regexp_replace(coalesce(p_code, ''), '\s', '', 'g'), '');
+declare r public.product_requests; pid uuid; c text := nullif(regexp_replace(coalesce(p_code, ''), '\s', '', 'g'), ''); corr text[];
 begin
   perform public.admin_assert();
   select * into r from public.product_requests where id = rid for update;
@@ -140,6 +186,19 @@ begin
     returning id into pid;
   end if;
   update public.product_requests set status = 'cargado', product_id = pid, name = p_name, done_at = now() where id = rid;
+  -- Si se leyó con IA: qué campos corrigió el administrador (más del 1 %, con un mínimo de 0,1, o
+  -- la unidad). Con eso el panel mide qué tan bien lee. Un macro que la IA dejó vacío (la tabla
+  -- dice «no aporta») y se publicó en 0 no es una corrección: el panel lo publica así (vacío = 0).
+  if r.ai_at is not null and r.ai_encontrada is true then
+    corr := array_remove(array[
+      case when public.ia_distinto(r.ai_kcal, p_kcal) then 'kcal' end,
+      case when public.ia_distinto(coalesce(r.ai_protein, 0), coalesce(p_protein, 0)) then 'protein' end,
+      case when public.ia_distinto(coalesce(r.ai_carbs, 0), coalesce(p_carbs, 0)) then 'carbs' end,
+      case when public.ia_distinto(coalesce(r.ai_fat, 0), coalesce(p_fat, 0)) then 'fat' end,
+      case when public.ia_distinto(r.ai_portion, p_portion) then 'portion' end,
+      case when coalesce(r.ai_unit, 'g') <> case when p_unit = 'ml' then 'ml' else 'g' end then 'unit' end], null);
+    update public.product_requests set ai_corregido = cardinality(corr) > 0, ai_corregidos = corr where id = rid;
+  end if;
   perform public.admin_log('pedido_publicado', pid::text, jsonb_build_object('pedido', rid, 'name', p_name));
   return pid;
 end $$;

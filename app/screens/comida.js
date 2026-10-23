@@ -4,7 +4,7 @@ import { cookVariant } from '../core/foods.js';
 
 const barcodeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8v8M10 8v8M13 8v8M16 8v8"/></svg>';
 
-import { flameSvg, searchSvg, xSvg } from '../core/icons.js';
+import { alertSvg, cameraSvg, checkSvg, chevronRightSvg, clockSvg, flameSvg, imageSvg, infoSvg, messageSvg, minusSvg, plateHeroSvg, plusSvg, resetSvg, scanSvg, searchSvg, sparkleSvg, swapSvg, wifiOffSvg, xSvg } from '../core/icons.js';
 
 import { state } from '../core/state.js';
 
@@ -14,9 +14,13 @@ import { addDays, dayLabel, dayShort, pastDay } from './comida-historial.js';
 
 import { foodEmoji } from '../core/foodemoji.js';
 
+import { foodIcon } from '../core/foodicon.js';
+
 import { foodUnit } from '../core/foodunits.js';
 
 import { planSections } from './checkin.js';
+
+import { IA, iaDisponible, iaVisible } from '../core/ia.js';
 
 // Nombre sin la aclaración de la unidad, que ya muestra la hoja del alimento:
 // "Pan lactal blanco (1 rebanada ≈ 25 g)" → "Pan lactal blanco". Las demás aclaraciones
@@ -77,6 +81,12 @@ export const ComidaState = {
   calForm: {sex:"m",age:"",height:"",weight:"",activity:"mod",goal:"mantener"},
 
   foodForm: {name:"",kcal:"",p:"",c:"",f:"",unit:"g"},
+
+  // Foto del plato (IA): la hoja de revisión, ver renderPlateSheet.
+  plate: null,
+  // Con la hoja del plato abierta, el buscador elige un alimento para ella: el índice de la fila
+  // que se cambia, o -1 para agregar uno que falta (null: el buscador de siempre).
+  plateSwap: null,
 
 };
 
@@ -193,7 +203,7 @@ export function renderResults(q){
   const rows = items.slice(0,60).map(it=>foodRow(it.f, it.act, it.i)).join("");
   const o = ComidaState.off || {};
   const loading = o.q && o.q.length >= 3 && o.status === "loading" ? '<div class="cal-hint">Buscando productos de marca…</div>' : '';
-  if (!rows) return loading || (nq.length < 3 || (o.status && o.status !== "loading") ? '<div class="cal-hint">Sin resultados. Probá crear el alimento 👇</div>' : '');
+  if (!rows) return loading || (nq.length < 3 || (o.status && o.status !== "loading") ? ssEmpty(searchSvg, "Sin resultados", "Probá con otra palabra o creá el alimento abajo.") : '');
   return rows + loading;
 }
 
@@ -257,16 +267,21 @@ function renderRecents(){
   const searched = (state.recentSearch || []).slice(0, 5).map(f => (state.recentFoods || []).find(r => same(r, f)) || f);
   const recent = (state.recentFoods || []).filter(f => !searched.some(s => same(s, f))).slice(0, 10);
   lastResults = searched.concat(recent);
-  if (!lastResults.length) return '<div class="cal-hint">Escribí para buscar un alimento</div>';
+  if (!lastResults.length) return ssEmpty(searchSvg, "Escribí para buscar un alimento", iaDisponible("plato") ? "O tocá «Foto» y la IA arma el plato por vos." : "Lo que elijas queda acá para la próxima.");
   let i = 0;
   const block = (title, list) => list.length ? '<div class="rs-head">' + title + '</div>' + list.map(f => foodRow(f, "food-pick", i++)).join("") : "";
   return block("Búsquedas recientes", searched) + block("Comidas recientes", recent);
 }
 
+// El buscador vacío o sin resultados: un ícono en su círculo, el título y una línea de ayuda.
+function ssEmpty(svg, tit, sub){
+  return `<div class="cal-hint ss-empty"><span class="ss-empty-ic" aria-hidden="true">${svg}</span><b>${tit}</b><span>${sub}</span></div>`;
+}
+// Cada resultado lleva el ícono de línea de su grupo (core/foodicon.js), no el emoji.
 function foodRow(f, action, i){
   return `<div class="food-row" data-action="${action}" data-idx="${i}">
-    <span class="food-emo" aria-hidden="true">${foodEmoji(f.name, f.cat)}</span>
-    <div class="food-name">${esc(shortName(f.name))}${f.cook?'<span class="food-cook">crudo / cocido</span>':''}${f.src==="OFF"||f.src==="GIZE"?`<span class="food-cook${f.verified?' ok':''}">${f.verified?'✓ verificado':'marca'}</span>`:''}</div>
+    <span class="food-emo food-ic" aria-hidden="true">${foodIcon(f.name, f.cat)}</span>
+    <div class="food-name">${esc(shortName(f.name))}${f.cook?'<span class="food-cook">crudo / cocido</span>':''}${f.src==="OFF"||f.src==="GIZE"?`<span class="food-cook${f.verified?' ok':''}">${f.verified?'<span aria-hidden="true">'+checkSvg+'</span>verificado':'marca'}</span>`:''}</div>
     <div class="food-kcal">${f.kcal} kcal<span>por 100 ${f.unit==="ml"?"ml":"g"}${f.cook?" "+f.cook.base:""}</span></div>
   </div>`;
 }
@@ -373,8 +388,8 @@ export function renderRequestForm(){
     <div class="form-group"><label class="form-label">${label}${req ? '' : ' <span class="form-opt">(opcional)</span>'}</label>
       ${r[k+"Url"] ? `<div class="cf-photo has"><img src="${esc(r[k+"Url"])}" alt="${label}"></div>` : ''}
       <div class="cf-photo-btns">
-        <label class="cf-photo-btn">📷 ${r[k+"Url"] ? 'Sacar otra' : 'Sacar foto'}<input type="file" accept="image/*" capture="environment" data-action="rq-photo" data-k="${k}" hidden></label>
-        <label class="cf-photo-btn">🖼️ Elegir de la galería<input type="file" accept="image/*" data-action="rq-photo" data-k="${k}" hidden></label>
+        <label class="cf-photo-btn">${cameraSvg}<span>${r[k+"Url"] ? 'Sacar otra' : 'Sacar foto'}</span><input type="file" accept="image/*" capture="environment" data-action="rq-photo" data-k="${k}" hidden></label>
+        <label class="cf-photo-btn">${imageSvg}<span>Elegir de la galería</span><input type="file" accept="image/*" data-action="rq-photo" data-k="${k}" hidden></label>
       </div>
       <div class="cf-photo-h">${hint}</div></div>`;
   return `
@@ -388,12 +403,30 @@ export function renderRequestForm(){
     <button class="form-save rq-send" data-action="rq-send"${r.sending ? ' disabled' : ''}>${r.sending ? 'Enviando…' : 'Enviar pedido'}</button>`;
 }
 
-// Barra de arriba: abre la ventana de búsqueda (no se escribe acá). El escáner, al lado.
+// Los botones de al lado del buscador: «Foto» (IA) y el escáner de códigos.
+const fotoBtn = () => `<button class="ia-foto-btn" data-action="ia-plato" aria-label="Registrar con una foto (IA)">${cameraSvg}<span aria-hidden="true">Foto</span><span class="ia-spark" aria-hidden="true">${sparkleSvg}</span></button>`;
+const scanBtn = () => `<button class="scan-btn" data-action="scan-open" title="Escanear código de barras" aria-label="Escanear código de barras (beta)">${barcodeSvg}<span class="scan-beta" aria-hidden="true">BETA</span></button>`;
+// Barra de arriba: abre la ventana de búsqueda (no se escribe acá). Al lado, «Foto» (IA) si la IA
+// se puede usar; si no (apagada en el panel o en Ajustes, o sin aceptar el aviso y sin conexión),
+// el escáner de códigos, como siempre.
+const barBtn = () => iaDisponible("plato") ? fotoBtn() : scanBtn();
 function searchBar(vd){
-  return `<div class="food-search-row">
+  return `<div class="food-search-row comida-barra">
       <button class="cal-search search-wrap search-open" data-action="search-open"><span class="search-ic">${searchSvg}</span><span class="search-ph">${vd===today() ? "Buscar alimento o marca…" : "Agregar a "+esc(dayLabel(vd).toLowerCase())+"…"}</span></button>
-      <button class="scan-btn" data-action="scan-open" title="Escanear código de barras" aria-label="Escanear código de barras (beta)">${barcodeSvg}<span class="scan-beta" aria-hidden="true">BETA</span></button>
+      ${barBtn()}
     </div>`;
+}
+// Cuando llega el estado de la IA (o cambia la conexión): cambia el botón de al lado de la barra de
+// arriba sin redibujar la pantalla. Si el foco estaba en ese botón, queda en el nuevo.
+export function paintBarraIA(){
+  const row = document.querySelector("#view .comida-barra"); if (!row) return;
+  const viejo = row.querySelector(".ia-foto-btn, .scan-btn");
+  const quiere = iaDisponible("plato") ? "ia-plato" : "scan-open";
+  if (viejo && viejo.dataset.action === quiere) return;
+  const tmp = document.createElement("div"); tmp.innerHTML = barBtn();
+  const nuevo = tmp.firstElementChild, foco = viejo && document.activeElement === viejo;
+  if (viejo) viejo.replaceWith(nuevo); else row.appendChild(nuevo);
+  if (foco) try { nuevo.focus({ preventScroll: true }); } catch (e) {}
 }
 
 // Ventana de búsqueda (como Fitia): comida elegida arriba, buscador con el teclado listo,
@@ -401,18 +434,28 @@ function searchBar(vd){
 // del alimento; al cancelarla se vuelve acá con lo buscado.
 export function renderSearchSheet(){
   const vd = (ComidaState.viewDate && ComidaState.viewDate < today()) ? ComidaState.viewDate : today();
+  // Eligiendo un alimento para la hoja del plato (cambiar una fila).
+  const swap = ComidaState.plateSwap != null && ComidaState.plate;
+  const foto = !swap && iaVisible("plato");
+  // Al lado del buscador queda solo «Foto» (IA). El escáner de códigos sale únicamente si la IA no
+  // se puede usar (apagada en el panel o en Ajustes, o sin aceptar el aviso y sin conexión), para
+  // que la barra no quede sin nada. Igual se puede escanear desde los avisos de la IA (límite,
+  // sin conexión, pausada) y desde «Pedir un producto».
+  const scan = !swap && !iaDisponible("plato");
+  const tit = swap ? "Cambiar por…" : "Agregar" + (vd===today() ? "" : " a "+esc(dayLabel(vd).toLowerCase()));
   return `
     <div class="sheet-bg" data-action="search-close"></div>
-    <div class="sheet search-sheet" role="dialog" aria-label="Buscar alimento">
-      <div class="ss-head"><span class="sheet-title">Agregar${vd===today() ? "" : " a "+esc(dayLabel(vd).toLowerCase())}</span><button class="ss-x" data-action="search-close" aria-label="Cerrar">${xSvg}</button></div>
-      ${mealChips(ComidaState.meal || mealNow(), "search-meal")}
+    <div class="sheet search-sheet" role="dialog" aria-label="${swap ? "Elegir alimento" : "Buscar alimento"}">
+      <div class="ss-head"><span class="sheet-title">${tit}</span><button class="ss-x" data-action="search-close" aria-label="${swap ? "Volver al plato" : "Cerrar"}">${xSvg}</button></div>
+      ${swap ? "" : mealChips(ComidaState.meal || mealNow(), "search-meal")}
       <div class="food-search-row">
         <div class="cal-search search-wrap"><span class="search-ic">${searchSvg}</span><input id="foodSearch" type="text" placeholder="Buscar alimento o marca…" value="${esc(ComidaState.foodQuery)}" data-action="food-search" autocomplete="off" enterkeyhint="search"></div>
-        <button class="scan-btn" data-action="scan-open" title="Escanear código de barras" aria-label="Escanear código de barras (beta)">${barcodeSvg}<span class="scan-beta" aria-hidden="true">BETA</span></button>
+        ${foto ? fotoBtn() : ""}
+        ${scan ? scanBtn() : ""}
       </div>
       <div id="foodResults" class="ss-results">${renderResults(ComidaState.foodQuery)}</div>
-      <button class="cal-create" data-action="food-create-open">+ Crear alimento propio</button>
-      <button class="cal-create rq-open" data-action="rq-open">¿No encontrás un producto? Pedí que lo agreguemos</button>
+      ${swap ? "" : `<button class="cal-create" data-action="food-create-open">${plusSvg}<span>Crear alimento propio</span></button>
+      <button class="cal-create rq-open" data-action="rq-open">${messageSvg}<span>¿No encontrás un producto? Pedí que lo agreguemos</span></button>`}
     </div>`;
 }
 
@@ -462,7 +505,7 @@ export function renderComida(){
   const item = e=>`
     <div class="diary-item" data-action="diary-edit" data-id="${esc(e.id)}">
       <span class="food-emo" aria-hidden="true">${foodEmoji(e.name)}</span>
-      <div class="diary-name">${esc(shortName(e.name))}<span>${e.grams} ${e.unit==="ml"?"ml":"g"} · P ${r1(e.p)} · C ${r1(e.c)} · G ${r1(e.f)}</span></div>
+      <div class="diary-name">${esc(shortName(e.name))}${e.fuente==="ia"||e.fuente==="ia-editado" ? `<span class="ia-chip" title="${e.fuente==="ia"?"Estimado con IA":"Estimado con IA y editado"}">IA${e.fuente==="ia-editado"?" · editado":""}</span>` : ""}<span>${e.grams} ${e.unit==="ml"?"ml":"g"} · P ${r1(e.p)} · C ${r1(e.c)} · G ${r1(e.f)}</span></div>
       <div class="diary-kcal">${e.kcal} kcal</div>
       <button class="diary-rm" data-action="diary-remove" data-id="${esc(e.id)}" title="Quitar">${xSvg}</button>
     </div>`;
@@ -616,4 +659,174 @@ export function renderPlanScreen(){
     </div>
     ${tabs.length > 1 ? `<div class="plan-tabs" role="tablist">${tabs.map(t => `<button role="tab" aria-selected="${t[0]===tab}" class="plan-tab${t[0]===tab?' on':''}" data-action="plan-tab" data-v="${t[0]}">${t[1]}</button>`).join("")}</div>` : ''}
     <div class="mc-wrap plan-body">${body || '<div class="cal-hint">Tu coach todavía no cargó el detalle del plan.</div>'}</div>`;
+}
+
+// Cuando llega el estado de la IA (o cambia la conexión) con el buscador abierto: pone o saca
+// «Foto» y el escáner y rehace los resultados, sin redibujar la hoja (el campo de búsqueda no
+// pierde el foco ni lo que se está escribiendo).
+export function paintSearchIA(){
+  const card = document.querySelector("#sheetHost .search-sheet");
+  if (!card) return false;
+  const tmp = document.createElement("div"); tmp.innerHTML = renderSearchSheet();
+  const nuevo = tmp.querySelector(".search-sheet"); if (!nuevo) return false;
+  const row = card.querySelector(".food-search-row"), res = card.querySelector("#foodResults");
+  card.querySelectorAll(".ia-foto-btn, .food-search-row .scan-btn").forEach(b => b.remove());
+  const f = nuevo.querySelector(".ia-foto-btn"), s = nuevo.querySelector(".food-search-row .scan-btn");
+  if (f && row) row.appendChild(f);
+  if (s && row) row.appendChild(s);
+  if (res) res.innerHTML = renderResults(ComidaState.foodQuery);
+  return true;
+}
+
+// ---- Foto del plato (IA) ----
+// «Contame qué comiste» (contarlo con palabras) se sacó: GIZE es solo fotos.
+// La hoja de revisión: la IA propone, la persona corrige (gramos, alimento, quitar) y recién al
+// tocar «Agregar» se anota. Solo va lo que la IA vio en la foto (pedido del dueño): sin sumar
+// aceite ni «algo que falta» acá; lo demás se agrega a mano después, desde el buscador. Cada fila
+// guarda sus valores cada 100 g (de la base de GIZE o de la estimación de la IA): al cambiar los
+// gramos se recalcula todo en el lugar.
+// ComidaState.plate = { modo: "plato", status: "elegir" | "cargando" | "error" | "vacio" | "ok",
+//   meal, photoUrl, b64, err, cargando (0: analizando, 1: buscando en la base),
+//   items: [{ name, g, b: {kcal,p,c,f}, unit, base (de la base de GIZE), paso (gramos del − / +),
+//   editado }], nota, raw }
+export const PLATE_FINE = "Estimado con IA. Puede equivocarse: revisá los alimentos y los gramos antes de agregar. Las fotos suelen quedarse cortas con el aceite y las salsas.";
+const r1p = v => (Math.round(v * 10) / 10).toLocaleString("es-AR");
+export const plateGrams = it => Math.max(0, Math.min(5000, parseFloat(String(it.g).replace(",", ".")) || 0));
+export function plateItemVals(it){
+  const g = plateGrams(it), k = g / 100;
+  return { g, kcal: Math.round(it.b.kcal * k), p: Math.round(it.b.p * k * 10) / 10, c: Math.round(it.b.c * k * 10) / 10, f: Math.round(it.b.f * k * 10) / 10 };
+}
+export function plateTotals(P){
+  const t = { kcal: 0, p: 0, c: 0, f: 0, n: 0 };
+  (P.items || []).forEach(it => { const v = plateItemVals(it); if (!(v.g > 0)) return; t.n++; t.kcal += v.kcal; t.p += v.p; t.c += v.c; t.f += v.f; });
+  return t;
+}
+// Los macros en fichas (P, C, G). Entre ficha y ficha va « · » escondido: el texto (lo que lee un
+// lector de pantalla al copiar, y las pruebas) sigue siendo «465 kcal · P 31,5 · C 18 · G 30».
+const macroChips = v => ["p", "c", "f"].map(k => `<span class="pl8-sep"> · </span><span class="pl8-m pl8-m-${k}"><i>${k === "f" ? "G" : k.toUpperCase()}</i> ${r1p(v[k])}</span>`).join("");
+export function plateTotalsText(P){
+  const t = plateTotals(P);
+  return `<span class="pl8-tot-k"><small>Total</small><b>${kNum(t.kcal)} kcal</b></span><span class="pl8-tot-m">${macroChips(t).replace('<span class="pl8-sep"> · </span>', "")}</span>`;
+}
+export function plateRowText(it){ const v = plateItemVals(it); return `${kNum(v.kcal)} kcal · P ${r1p(v.p)} · C ${r1p(v.c)} · G ${r1p(v.f)}`; }
+export function plateRowHtml(it){ const v = plateItemVals(it); return `<b class="pl8-k">${kNum(v.kcal)} kcal</b>${macroChips(v)}`; }
+// «al almuerzo», «a la cena»… y, si se está viendo otro día, «de ayer» / «del mié 14 oct».
+export const alComida = m => m === "desayuno" ? "al desayuno" : m === "almuerzo" ? "al almuerzo" : m === "merienda" ? "a la merienda" : "a la cena";
+export function plateDia(){
+  const vd = ComidaState.viewDate;
+  if (!vd || vd >= today()) return "";
+  const l = dayLabel(vd);
+  return (l === dayShort(vd) ? " del " : " de ") + l.toLowerCase();
+}
+export function plateAddLabel(P){
+  const t = plateTotals(P);
+  return t.n ? `Agregar ${alComida(P.meal)}${plateDia()} · ${kNum(t.kcal)} kcal` : "Agregar";
+}
+// «Te quedan 3 fotos con IA hoy»: solo con 3 o menos.
+export function plateQuedan(){
+  const q = IA.estado && IA.estado.quedan ? IA.estado.quedan.plato : null;
+  if (q == null || q > 3) return "";
+  return `<div class="pl8-quedan">${clockSvg}<span>${q ? "Te " + (q === 1 ? "queda " : "quedan ") + q + " " + (q === 1 ? "foto" : "fotos") + " con IA hoy" : "Hoy ya no te quedan fotos con IA"}</span></div>`;
+}
+
+// Cada alimento: su ícono y el nombre, los gramos con − / + y «Cambiar», y abajo las calorías y
+// los macros. Sin etiquetas de origen («Base GIZE», «Estimado con IA», «Revisá»): pedido del
+// dueño, solo los gramos y los números (el aviso general de la estimación queda abajo de la lista).
+function plateRow(it, i){
+  const nm = esc(shortName(it.name));
+  return `<div class="pl8-row" data-i="${i}">
+      <div class="pl8-top">
+        <span class="pl8-ic" aria-hidden="true">${foodIcon(it.name)}</span>
+        <div class="pl8-head">
+          <span class="pl8-name">${nm}</span>
+        </div>
+        <button class="pl8-x" data-action="plate-remove" data-i="${i}" aria-label="Quitar ${nm}">${xSvg}</button>
+      </div>
+      <div class="pl8-mid">
+        <div class="pl8-stepper">
+          <button class="pl8-step" data-action="plate-step" data-d="-1" data-i="${i}" aria-label="Menos ${nm}">${minusSvg}</button>
+          <label class="pl8-g"><input type="text" inputmode="decimal" value="${esc(String(it.g))}" data-action="plate-grams" data-i="${i}" aria-label="Gramos de ${nm}"><span>${it.unit === "ml" ? "ml" : "g"}</span></label>
+          <button class="pl8-step" data-action="plate-step" data-d="1" data-i="${i}" aria-label="Más ${nm}">${plusSvg}</button>
+        </div>
+        <button class="pl8-chg" data-action="plate-change" data-i="${i}" aria-label="Cambiar ${nm}">${swapSvg}<span>Cambiar</span></button>
+      </div>
+      <div class="pl8-vals" id="pl8v${i}">${plateRowHtml(it)}</div>
+    </div>`;
+}
+
+// El ícono del aviso según lo que pasó: sin conexión, un límite o una pausa (vuelve más tarde) o un error.
+const plateAlertIc = e => {
+  const c = e && e.codigo;
+  return c === "sin_conexion" ? wifiOffSvg : ["pausada", "ahorro", "ritmo", "tope_dia", "tope_persona", "tope_mes"].includes(c) ? clockSvg : alertSvg;
+};
+const plateAlert = (svg, msg) => `<div class="pl8-err" role="alert"><span class="pl8-err-ic" aria-hidden="true">${svg}</span><span class="pl8-err-t">${msg}</span></div>`;
+
+function plateBody(P){
+  if (P.status === "elegir") return `
+      <div class="pl8-hero" aria-hidden="true"><span class="pl8-hero-c"></span><span class="pl8-hero-ic">${plateHeroSvg}</span></div>
+      <p class="pl8-hint"><b>Sacale una foto a tu plato.</b> De arriba, con todo el plato a la vista y buena luz. La IA estima qué hay y cuánto; después lo revisás.</p>
+      <div class="pl8-pick">
+        <label class="pl8-op pl8-op-cam" tabindex="0" role="button" data-pick="1"><span class="pl8-op-ic">${cameraSvg}</span><span class="pl8-op-t"><b>Sacar foto</b><small>Con la cámara, ahora</small></span><span class="pl8-op-go">${chevronRightSvg}</span><input type="file" accept="image/*" capture="environment" data-action="plate-file" tabindex="-1" hidden></label>
+        <label class="pl8-op" tabindex="0" role="button" data-pick="1"><span class="pl8-op-ic">${imageSvg}</span><span class="pl8-op-t"><b>Elegir de la galería</b><small>Una foto que ya tenés</small></span><span class="pl8-op-go">${chevronRightSvg}</span><input type="file" accept="image/*" data-action="plate-file" tabindex="-1" hidden></label>
+      </div>${plateQuedan()}`;
+  const photo = P.photoUrl ? `<img class="pl8-photo" src="${esc(P.photoUrl)}" alt="Foto del plato">` : "";
+  // Mientras la IA lee: la foto con el marco y una línea que la recorre (quieta con movimiento
+  // reducido, en liviano y en básico), y debajo el lugar de la lista que va a llegar.
+  if (P.status === "cargando") return `<div class="pl8-scan">${photo}<span class="pl8-scan-l" aria-hidden="true"></span></div>
+      <div class="pl8-wait" role="status" aria-live="polite"><span class="pl8-spin" aria-hidden="true">${scanSvg}</span><span id="pl8Wait">${P.cargando ? "Buscando en la base de GIZE…" : "Leyendo tu plato…"}</span></div>
+      <div class="pl8-skel" aria-hidden="true">${'<div class="pl8-sk"><i></i><span><b></b><b></b></span></div>'.repeat(3)}</div>`;
+  const otra = `<button class="ctrl primary pl8-main" data-action="plate-again">${cameraSvg}<span>Sacar otra foto</span></button>`;
+  const manual = `<div class="pl8-btns2"><button class="ctrl ghost" data-action="plate-manual">${searchSvg}<span>Buscar alimento</span></button><button class="ctrl ghost" data-action="plate-scan">${barcodeSvg}<span>Escanear código</span></button></div>`;
+  if (P.status === "error") return `${photo}
+      ${plateAlert(plateAlertIc(P.err), esc(P.msg || ""))}
+      <div class="pl8-btns">${P.reintento ? `<button class="ctrl primary pl8-main" data-action="plate-retry">${resetSvg}<span>Probar de nuevo</span></button>` : ""}${manual}</div>`;
+  if (P.status === "vacio") return `${photo}
+      ${plateAlert(alertSvg, "No vimos comida en la foto. Probá con el plato entero, de arriba y con buena luz.")}
+      <div class="pl8-btns">${otra}${manual}</div>`;
+  // ok: la lista para revisar
+  const rows = (P.items || []).map(plateRow).join("");
+  return `${photo}
+      <div class="pl8-list">${rows || '<div class="pl8-empty">No quedó ningún alimento. Sacá otra foto o cargalo a mano desde el buscador.</div>'}</div>
+      <p class="pl8-fine">${infoSvg}<span>${PLATE_FINE}</span></p>
+      <button class="pl8-link" data-action="plate-report">${messageSvg}<span>¿Está mal? Avisanos</span></button>`;
+}
+
+export function renderPlateSheet(){
+  const P = ComidaState.plate; if (!P) return "";
+  const ok = P.status === "ok";
+  const t = ok ? plateTotals(P) : null;
+  const foot = ok ? `<div class="pl8-foot">
+      ${mealChips(P.meal || mealNow(), "plate-meal")}
+      <div class="pl8-tot" id="pl8Tot" aria-live="polite">${plateTotalsText(P)}</div>
+      <div class="pl8-need" id="pl8Need"${t.n ? " hidden" : ""}>Agregá al menos un alimento con gramos.</div>
+      <button class="form-save pl8-go" id="pl8Go" data-action="plate-add"${t.n ? "" : " disabled"}>${plateAddLabel(P)}</button>
+      <button class="pl8-link pl8-again" data-action="plate-again">Sacar otra foto</button>
+    </div>` : "";
+  return `
+    <div class="sheet-bg" data-action="plate-cancel"></div>
+    <div class="sheet plate-sheet${ok ? " ok" : ""}" role="dialog" aria-modal="true" aria-labelledby="pl8T">
+      <div class="ss-head"><span class="sheet-title" id="pl8T" tabindex="-1">Foto del plato <span class="ia-tag" aria-label="con IA">${sparkleSvg}IA</span>${plateDia() ? `<span class="pl8-dia">Para ${plateDia().replace(/^ de /, "").replace(/^ del /, "el ")}</span>` : ""}</span><button class="ss-x" data-action="plate-cancel" aria-label="Cerrar">${xSvg}</button></div>
+      <div class="pl8-body">${plateBody(P)}</div>
+      ${foot}
+    </div>`;
+}
+// Redibuja solo el contenido de la hoja (sin volver a animarla ni perder el lugar).
+export function paintPlate(){
+  const card = document.querySelector("#sheetHost .plate-sheet");
+  if (!card || !ComidaState.plate) return false;
+  const tmp = document.createElement("div"); tmp.innerHTML = renderPlateSheet();
+  const nuevo = tmp.querySelector(".plate-sheet");
+  const body = card.querySelector(".pl8-body"), sc = body ? body.scrollTop : 0;
+  card.className = nuevo.className; card.innerHTML = nuevo.innerHTML;
+  const b2 = card.querySelector(".pl8-body"); if (b2) b2.scrollTop = sc;
+  return true;
+}
+// Solo los números (al escribir los gramos): sin tocar el campo que se está escribiendo.
+export function paintPlateNums(i){
+  const P = ComidaState.plate; if (!P) return;
+  const it = P.items[i], v = document.getElementById("pl8v" + i); if (it && v) v.innerHTML = plateRowHtml(it);
+  const tt = document.getElementById("pl8Tot"); if (tt) tt.innerHTML = plateTotalsText(P);
+  const t = plateTotals(P), go = document.getElementById("pl8Go"), need = document.getElementById("pl8Need");
+  if (go) { go.disabled = !t.n; go.textContent = plateAddLabel(P); }
+  if (need) need.hidden = !!t.n;
 }

@@ -21,6 +21,12 @@ import { pushOnHere } from '../core/push.js';
 const NOTIF_ID = 4101;
 const CHANNEL = "descanso_fin";
 let channelDone = false;
+// Cada descanso nuevo, y cada cancelación, lo sube. La pregunta de «Alarmas y recordatorios» es un
+// cartel propio (confirmar, ui/avisos.js) que no frena la app como el confirm() nativo: mientras se
+// lee, el descanso puede terminar, saltearse o cambiar por otro. Lo que llega a programarse después
+// de contestar es de un descanso viejo y no se programa (si no, sonaba un «¡Descanso terminado!» de
+// un descanso que ya no estaba, o pisaba la hora del nuevo).
+let restSeq = 0;
 
 function cap(){ try { return window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() ? window.Capacitor : null; } catch (e) { return null; } }
 function platform(){ try { return window.Capacitor.getPlatform(); } catch (e) { return "web"; } }
@@ -41,7 +47,7 @@ async function askExact(LN){
   } catch (e) {}
 }
 
-async function nativeSchedule(C, endAt){
+async function nativeSchedule(C, endAt, seq){
   const LN = C.Plugins.LocalNotifications; if (!LN) return;
   let p = await LN.checkPermissions();
   if (p.display === "prompt" || p.display === "prompt-with-rationale") p = await LN.requestPermissions();
@@ -51,6 +57,7 @@ async function nativeSchedule(C, endAt){
     try { await LN.createChannel({ id: CHANNEL, name: "Fin del descanso", description: "Suena cuando termina el descanso entre series.", importance: 5, visibility: 1, vibration: true }); } catch (e) {}
     channelDone = true;
   }
+  if (seq !== restSeq || endAt <= Date.now()) return; // terminó, se salteó o empezó otro mientras tanto
   await LN.cancel({ notifications: [{ id: NOTIF_ID }] }).catch(() => {});
   await LN.schedule({ notifications: [{
     id: NOTIF_ID,
@@ -74,7 +81,7 @@ async function nativeCancel(C){
 // Llamar al empezar un descanso (endAt = hora de fin en ms).
 export function scheduleRestAlert(endAt){
   const C = cap();
-  if (C) { nativeSchedule(C, endAt).catch(e => console.error("rest notif", e)); return; }
+  if (C) { nativeSchedule(C, endAt, ++restSeq).catch(e => console.error("rest notif", e)); return; }
   if (!State.sb || !State.cloudUser || !pushOnHere()) return;
   // Solo a este dispositivo: el usuario puede tener varios registrados (otro celular, la
   // compu, o el registro del dominio viejo) y el aviso le llegaba repetido.
@@ -95,7 +102,7 @@ async function webEndpoint(){
 // Llamar al saltear el descanso, o al terminar con la app a la vista (no hace falta avisar).
 export function cancelRestAlert(){
   const C = cap();
-  if (C) { nativeCancel(C).catch(() => {}); return; }
+  if (C) { restSeq++; nativeCancel(C).catch(() => {}); return; }
   if (!State.sb || !State.cloudUser || !pushOnHere()) return;
   Promise.resolve(State.sb.rpc("cancel_rest_alarm")).catch(() => {});
 }

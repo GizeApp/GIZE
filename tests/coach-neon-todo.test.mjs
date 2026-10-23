@@ -147,7 +147,7 @@ export default async function ({ base, t }){
     // El contraste de los textos no baja.
     await go(p, 'editor'); await p.mouse.move(1436, 896); await wait(250);
     await contrasteIgual(t, p, 'Oscuro, editor', [['días', '.co-daytab'], ['«Se repite»', '.hd-day'], ['«+ Programar una rutina nueva»', '.co-sched-new'],
-      ['ayuda de los días', '.co-day-hint'], ['pestañas de la ficha', '.cv-ctab'], ['barra lateral', '.cv-side .cv-nav-i, .cv-side .cv-util-i']]);
+      ['pestañas de la ficha', '.cv-ctab'], ['barra lateral', '.cv-side .cv-nav-i, .cv-side .cv-util-i']]);
     await go(p, 'clientes'); await p.mouse.move(1436, 896); await wait(250);
     await contrasteIgual(t, p, 'Oscuro, clientes', [['panel lateral', '.cv-peek-rt small, .cv-tile span, .cv-tile b'], ['«Copiar código»', '.co-copy-btn']]);
     await go(p, 'menu'); await p.mouse.move(1436, 896); await wait(250);

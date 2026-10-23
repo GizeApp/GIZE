@@ -32,6 +32,17 @@ export function diasTexto(day){
   return d.map(n => DIA_CORTO[n]).join(" · ");
 }
 
+// En qué orden se muestran las pestañas de los días: por el primer día de la semana que tienen, de
+// lunes a domingo (Espalda del lunes antes que Pecho del martes, aunque se haya cargado después).
+// Los que no tienen día asignado van al final, en el orden en que están. Devuelve las posiciones en
+// la rutina (no la cambia: así no queda como «cambio sin guardar»). Sin días asignados, el orden de
+// siempre.
+export function ordenSemana(days){
+  const L = Array.isArray(days) ? days : [];
+  const clave = d => { const v = diasDe(d); return v.length ? SEMANA.indexOf(v[0]) : 7; };
+  return L.map((d, i) => ({ i, k: clave(d) })).sort((a, b) => a.k - b.k || a.i - b.i).map(x => x.i);
+}
+
 // Pone o saca un día de la semana. Sin ninguno, el campo se borra (queda como antes).
 export function toggleDia(day, n){
   n = Number(n);

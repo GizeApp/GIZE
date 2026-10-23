@@ -15,9 +15,9 @@
 
 .food-name { font-size: var(--text-body); color: var(--txt); }
 
-.food-kcal { font-size: var(--text-body); color: var(--blue-2); font-variant-numeric: tabular-nums; font-family: var(--gize-font); display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
+.food-kcal { font-size: var(--text-body); font-weight: 700; color: var(--txt); font-variant-numeric: tabular-nums; font-family: var(--gize-font); display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
 
-.food-kcal span { font-size: 10px; color: var(--txt-3); }
+.food-kcal span { font-size: 11px; font-weight: 400; color: var(--txt-2); }
 
 .cal-create { margin: 10px 0 20px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: var(--text-body);
     color: var(--blue-2); background: transparent; cursor: pointer; border: 1px dashed var(--border); border-radius: var(--r-box); padding: 11px; }
@@ -372,3 +372,312 @@ html.lite .scan-btn { animation: none; }
 .kcal-left.up .kl-t, .kcal-left.up .kl-n { color:var(--gize-warning); }
 .kcal-left.eq .kl-t { color:var(--gize-success); }
 @media (max-width: 360px){ .kl-n { font-size:36px; } }
+
+/* ---- IA: «Agregar» y la foto del plato (app/screens/comida.js → renderSearchSheet, renderPlateSheet;
+   el permiso, app/ui/ia-permiso.js) ----
+   Pedido del dueño: «se ve muy croto, muy simple, muy hecho con IA… son emojis muy simples, no hay
+   neón». Va con el lenguaje del resto de la app (css/ui/neon-app.css): íconos de línea propios
+   (app/core/icons.js y app/core/foodicon.js, sin emojis), el filete degradé violeta→azul a 155° en lo
+   principal y lo elegido (el ::after con máscara, como el día elegido de Entreno) y un resplandor
+   quieto solo ahí. Los colores salen de los tokens de cada apariencia (--gize-r1 / --gize-r2 y los
+   --nn-* de neon-app.css): en «Azul» y «Rosa», su gama; en «Claro», la línea blanca del vidrio debajo
+   del filete; sin neón, gris y blanco. Liviano y la app de Android: líneas lisas, sin máscaras ni
+   resplandor. GIZE básico: plano. Movimiento reducido: nada se mueve (la línea que recorre la foto y el
+   brillo de la espera quedan quietos). Los textos van siempre con --txt / --txt-2 (≥ 4,5:1); el color
+   de la marca queda en los íconos, los bordes y los fondos suaves. */
+body {
+  --ia-ink: color-mix(in srgb, var(--gize-r2) 58%, #fff);       /* los íconos con el color de la marca */
+  --ia-ink-2: color-mix(in srgb, var(--gize-r1) 58%, #fff);
+  --ia-tint: color-mix(in srgb, var(--gize-r2) 15%, transparent);
+  --ia-tint-2: color-mix(in srgb, var(--gize-r1) 11%, transparent);
+  --ia-line: color-mix(in srgb, var(--gize-r2) 40%, var(--gize-border));
+  --ia-grad: linear-gradient(135deg, var(--gize-r2), var(--gize-r1));
+}
+/* Sin neón (oscuras): la marca queda gris clara; lo que va sobre el degradé, con el ícono oscuro. */
+html.sin-neon:not(.tema-luz) body { --ia-on-grad: #0B0D11; }
+html.tema-luz body {
+  --ia-ink: color-mix(in srgb, var(--gize-r2) 72%, #0B0D11);
+  --ia-ink-2: color-mix(in srgb, var(--gize-r1) 62%, #0B0D11);
+  --ia-tint: color-mix(in srgb, var(--gize-r2) 13%, rgba(255,255,255,.5));
+  --ia-tint-2: color-mix(in srgb, var(--gize-r1) 10%, rgba(255,255,255,.4));
+  --ia-line: color-mix(in srgb, var(--gize-r2) 32%, rgba(255,255,255,.7));
+  --ia-grad: linear-gradient(135deg, color-mix(in srgb, var(--gize-r2) 82%, #0B0D11), color-mix(in srgb, var(--gize-r1) 70%, #0B0D11));
+}
+
+/* «IA»: la chispa y la palabra en una pastilla con el tinte de la marca (texto de la apariencia). */
+.ia-tag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px 1px 5px; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: .06em;
+  vertical-align: 3px; line-height: 1.5; color: var(--txt); background: linear-gradient(90deg, var(--ia-tint), var(--ia-tint-2)); border: 1px solid var(--ia-line); }
+.ia-tag svg { width: 11px; height: 11px; color: var(--ia-ink); stroke-width: 2.2; }
+.ia-mini { display: inline-block; padding: 0 4px; border-radius: 4px; font-size: 9px; font-weight: 800; letter-spacing: .05em; line-height: 1.5;
+  color: var(--txt); border: 1px solid var(--ia-line); }
+.ia-chip { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .03em;
+  color: var(--txt-2); border: 1px solid color-mix(in srgb, var(--gize-r2) 55%, var(--border)); vertical-align: 1px; }
+.diary-name .ia-chip { display: inline-block; }
+
+/* «Foto» al lado del buscador (en su lugar, el escáner si la IA no se puede usar): una caja con el
+   filete y un resplandor por dentro, la cámara y la chispa arriba a la derecha. */
+.ia-foto-btn { flex-shrink: 0; min-width: 54px; min-height: 46px; padding: 4px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border-radius: 16px; border: 1px solid var(--ia-line); color: var(--txt); font: 700 11px/1.1 var(--gize-font); letter-spacing: .02em; cursor: pointer;
+  background: radial-gradient(120% 90% at 30% 15%, var(--ia-tint), transparent 70%), var(--card-2); position: relative; -webkit-tap-highlight-color: transparent; }
+.ia-foto-btn svg { width: 21px; height: 21px; }
+.ia-spark { position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: var(--ia-on-grad, #fff);
+  background: var(--ia-grad); box-shadow: 0 0 0 2px var(--gize-bg, #0B0D11); pointer-events: none; }
+.ia-spark svg { width: 12px; height: 12px; stroke-width: 2.2; }
+html.tema-luz .ia-spark { box-shadow: 0 0 0 2px rgba(255,255,255,.9); }
+.ia-foto-btn:active { transform: scale(.97); }
+:is(.ia-foto-btn, .pl8-chg, .pl8-x, .pl8-step, .pl8-link, .pl8-btns .ctrl, .pl8-op):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* El buscador vacío o sin resultados: el ícono en su círculo, un título y una línea de ayuda. */
+.ss-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 30px 16px 18px; text-align: center; }
+.ss-empty-ic { width: 56px; height: 56px; margin-bottom: 8px; border-radius: 50%; display: grid; place-items: center; color: var(--ia-ink);
+  background: radial-gradient(circle at 35% 30%, var(--ia-tint), var(--ia-tint-2)); border: 1px solid var(--ia-line); }
+.ss-empty-ic svg { width: 24px; height: 24px; }
+.ss-empty b { font: 700 15px var(--gize-font); color: var(--txt); }
+.ss-empty span:last-child { max-width: 270px; font-size: var(--text-meta); line-height: 1.45; color: var(--txt-2); }
+/* Cada resultado: el ícono del alimento en una caja neutra (todas las filas iguales no suman color). */
+.food-ic { width: 34px; height: 34px; border-radius: 10px; color: var(--txt-2); font-size: 0;
+  background: color-mix(in srgb, var(--txt) 6%, transparent); border: 1px solid var(--border); }
+.food-ic svg { width: 18px; height: 18px; }
+.food-name .food-cook { font-size: 11px; }
+.food-cook svg { width: 10px; height: 10px; margin-right: 3px; vertical-align: -1px; stroke-width: 3; }
+/* «Crear alimento propio» y «¿No encontrás…?»: punteado de neón (dos tonos de la marca), como «+ Serie». */
+/* (con html y body:not(#_) adelante: le gana a la familia de css/ui/botones-rediseno.css y theme.css) */
+html:not(#_) body:not(#_) .search-sheet .cal-create { min-height: 46px; color: var(--txt); font-weight: 600; background: transparent;
+  border-color: var(--nn-guion-a, var(--border)) var(--nn-guion-b, var(--border)) var(--nn-guion-b, var(--border)) var(--nn-guion-a, var(--border)); }
+html:not(#_) body:not(#_) .search-sheet .cal-create.rq-open { color: var(--txt-2); font-weight: 500; }
+html.basico:not(#_) body:not(#_) .search-sheet .cal-create { border-color: var(--border); }
+.search-sheet .cal-create svg { width: 18px; height: 18px; flex: none; color: var(--ia-ink); }
+/* La comida, en las hojas: botones de 44 px; la elegida con el tinte y el filete (abajo). */
+.sheet .meal-chip { min-height: 44px; }
+.sheet .meal-chip.on { position: relative; color: var(--txt); background: linear-gradient(135deg, var(--ia-tint), var(--ia-tint-2)); }
+.cf-photo-btn svg { width: 18px; height: 18px; flex: none; color: var(--ia-ink); }
+
+/* ---- La hoja: lo de arriba se desplaza y abajo quedan fijos la comida, los totales y «Agregar». ---- */
+.plate-sheet { display: flex; flex-direction: column; height: auto; max-height: min(92dvh, calc(100dvh - var(--kb, 0px) - env(safe-area-inset-top, 0px) - 12px)); overflow: hidden; }
+.plate-sheet .ss-head { flex-direction: row; padding: 0; flex: none; }
+.plate-sheet .ss-x { width: 44px; height: 44px; }
+.pl8-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 12px; padding: 2px 0 8px; }
+.pl8-foot { flex: none; display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid var(--border); }
+.pl8-foot .meal-chips { margin: 0; }
+/* En el pie la comida se dibuja a 36 px y se toca en 44: la zona extra (4 px arriba y abajo) la da el
+   ::before, que sale de la ficha (por eso acá sin overflow: las cuatro entran enteras). */
+.sheet .pl8-foot .meal-chip { position: relative; min-height: 36px; padding-top: 5px; padding-bottom: 5px; overflow: visible; }
+.pl8-foot .meal-chip::before { content: ""; position: absolute; top: -5px; bottom: -5px; left: -1px; right: -1px; }
+.pl8-hint, .pl8-fine, .pl8-quedan { margin: 0; font-size: var(--text-meta); color: var(--txt-2); line-height: 1.45; }
+.pl8-hint { text-align: center; padding: 0 6px; }
+.pl8-hint b { display: block; margin-bottom: 3px; font: 700 16px var(--gize-font); color: var(--txt); }
+.plate-sheet .sheet-title:focus { outline: none; }
+.pl8-dia { display: block; margin-top: 2px; font-size: var(--text-meta); font-weight: 700; color: var(--txt-2); }
+
+/* Elegir: el visor (un plato dibujado entre las esquinas de la marca; es adorno, no se toca) y las dos opciones grandes. */
+.pl8-hero { position: relative; flex: none; height: 96px; border-radius: 22px; border: 1px solid var(--ia-line); overflow: hidden;
+  background: radial-gradient(60% 75% at 50% 50%, var(--ia-tint), transparent 72%), radial-gradient(40% 60% at 70% 70%, var(--ia-tint-2), transparent 70%), var(--card-2); }
+.pl8-hero-c { position: absolute; top: 12px; bottom: 12px; left: calc(50% - 64px); width: 128px; --a: color-mix(in srgb, var(--gize-r2) 75%, #fff); --b: color-mix(in srgb, var(--gize-r1) 75%, #fff);
+  background: linear-gradient(var(--a), var(--a)) left top / 22px 2px no-repeat, linear-gradient(var(--a), var(--a)) left top / 2px 22px no-repeat,
+    linear-gradient(var(--a), var(--a)) right top / 22px 2px no-repeat, linear-gradient(var(--a), var(--a)) right top / 2px 22px no-repeat,
+    linear-gradient(var(--b), var(--b)) left bottom / 22px 2px no-repeat, linear-gradient(var(--b), var(--b)) left bottom / 2px 22px no-repeat,
+    linear-gradient(var(--b), var(--b)) right bottom / 22px 2px no-repeat, linear-gradient(var(--b), var(--b)) right bottom / 2px 22px no-repeat; }
+html.tema-luz .pl8-hero-c { --a: color-mix(in srgb, var(--gize-r2) 80%, #0B0D11); --b: color-mix(in srgb, var(--gize-r1) 70%, #0B0D11); }
+.pl8-hero-ic { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ia-ink); }
+.pl8-hero-ic svg { width: 82px; height: 48px; opacity: .9; }
+.pl8-pick { display: flex; flex-direction: column; gap: 10px; margin: 2px 0 0; }
+.pl8-op { position: relative; display: flex; align-items: center; gap: 14px; min-height: 70px; padding: 12px 14px; border-radius: 18px; border: 1px solid var(--border);
+  background: var(--card-2); color: var(--txt); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .12s; }
+.pl8-op:active { transform: scale(.985); }
+.pl8-op-ic { flex: none; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; color: var(--ia-ink);
+  background: linear-gradient(145deg, var(--ia-tint), var(--ia-tint-2)); border: 1px solid var(--ia-line); }
+.pl8-op-cam .pl8-op-ic { color: var(--ia-on-grad, #fff); background: var(--ia-grad); border-color: transparent; }
+.pl8-op-ic svg { width: 23px; height: 23px; }
+.pl8-op-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.pl8-op-t b { font: 700 16px var(--gize-font); color: var(--txt); }
+.pl8-op-t small { font-size: var(--text-meta); color: var(--txt-2); }
+.pl8-op-go { flex: none; color: var(--txt-2); display: grid; }
+.pl8-op-go svg { width: 18px; height: 18px; }
+.pl8-op-cam { background: linear-gradient(135deg, var(--ia-tint), var(--ia-tint-2)), var(--card-2); }
+.pl8-quedan { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--txt); font-weight: 600; }
+.pl8-quedan svg { width: 15px; height: 15px; color: var(--gize-warning, #FFB547); flex: none; }
+
+/* Mientras la IA lee: la foto en su marco con una línea que la recorre, «Leyendo tu plato…» con el
+   visor, y el lugar de la lista (tres filas grises que brillan apenas). */
+.pl8-scan { position: relative; flex: none; border-radius: 18px; overflow: hidden; }
+.pl8-scan .pl8-photo { display: block; border: 0; border-radius: 0; }
+/* La caja cubre la foto y la línea es su borde de arriba: el % de translateY es del alto de la caja (= la foto). */
+.pl8-scan-l { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; transform: translateY(4%); will-change: transform;
+  animation: pl8-barre 2.2s ease-in-out infinite alternate; }
+.pl8-scan-l::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--nn-raya, var(--ia-grad));
+  box-shadow: 0 0 12px 2px color-mix(in srgb, var(--gize-r2) 55%, transparent); }
+@keyframes pl8-barre { from { transform: translateY(4%); } to { transform: translateY(94%); } }
+.pl8-wait { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 4px 2px 0; color: var(--txt); font: 600 15px var(--gize-font); }
+.pl8-spin { width: 20px; height: 20px; flex: none; display: grid; place-items: center; color: var(--ia-ink); animation: pl8-late 1.4s ease-in-out infinite; }
+.pl8-spin svg { width: 20px; height: 20px; }
+@keyframes pl8-late { 50% { opacity: .45; transform: scale(.86); } }
+.pl8-skel { display: flex; flex-direction: column; gap: 8px; }
+.pl8-sk { display: flex; align-items: center; gap: 12px; height: 64px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--card-2); }
+.pl8-sk i, .pl8-sk b { display: block; border-radius: 8px; background: linear-gradient(90deg, var(--ia-tint-2) 0%, var(--ia-tint) 50%, var(--ia-tint-2) 100%) 0 0 / 200% 100%;
+  animation: pl8-brilla 1.6s linear infinite; }
+.pl8-sk i { width: 40px; height: 40px; border-radius: 12px; flex: none; }
+.pl8-sk span { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.pl8-sk b { height: 10px; width: 62%; }
+.pl8-sk b + b { width: 40%; opacity: .7; }
+.pl8-sk:nth-child(2) b:first-child { width: 48%; }
+.pl8-sk:nth-child(3) { opacity: .6; }
+@keyframes pl8-brilla { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .pl8-scan-l { animation: none; transform: translateY(50%); }
+  :is(.pl8-spin, .pl8-sk i, .pl8-sk b) { animation: none; }
+  .pl8-op { transition: none; }
+}
+html:is(.lite, .basico) .pl8-scan-l { animation: none; transform: translateY(50%); }
+html:is(.lite, .basico) :is(.pl8-spin, .pl8-sk i, .pl8-sk b) { animation: none; }
+
+/* Las fotos: con el borde redondeado de las tarjetas. */
+.pl8-photo { width: 100%; max-height: 180px; object-fit: cover; border-radius: 18px; border: 1px solid var(--border); flex: none; }
+.plate-sheet.ok .pl8-photo { max-height: 96px; }
+
+/* Avisos (límite, sin conexión, error, sin comida): el ícono en su círculo ámbar y el texto. */
+.pl8-err { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: 16px; color: var(--txt); line-height: 1.45; font-size: var(--text-body);
+  background: var(--gize-warning-bg, rgba(255,176,32,.12)); border: 1px solid color-mix(in srgb, var(--gize-warning, #FFB020) 32%, transparent); }
+.pl8-err-ic { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--gize-warning, #FFB020);
+  background: color-mix(in srgb, var(--gize-warning, #FFB020) 16%, transparent); }
+html.tema-luz .pl8-err-ic { color: #8A5A00; }
+.pl8-err-ic svg { width: 19px; height: 19px; }
+.pl8-err-t { padding-top: 7px; }
+.pl8-btns { display: flex; flex-direction: column; gap: 8px; }
+.pl8-btns2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pl8-btns .ctrl { width: 100%; max-width: none; margin: 0; min-height: 48px; padding: 12px 10px; font-size: var(--text-body); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.pl8-btns2 .ctrl { border-radius: var(--r-btn); font-size: var(--text-meta); min-width: 0; }
+.pl8-btns .ctrl svg { width: 18px; height: 18px; flex: none; }
+
+/* Revisar: cada alimento en su tarjeta. */
+.pl8-list { display: flex; flex-direction: column; gap: 10px; }
+.pl8-empty { padding: 10px 2px; color: var(--txt-2); font-size: var(--text-meta); }
+.pl8-row { padding: 12px 12px 12px 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--card-2); }
+.pl8-top { display: flex; align-items: flex-start; gap: 12px; }
+.pl8-ic { flex: none; width: 40px; height: 40px; margin-top: 2px; border-radius: 12px; display: grid; place-items: center; color: var(--ia-ink);
+  background: linear-gradient(145deg, var(--ia-tint), var(--ia-tint-2)); border: 1px solid var(--ia-line); }
+.pl8-ic svg { width: 21px; height: 21px; }
+.pl8-head { flex: 1; min-width: 0; display: flex; flex-direction: column; align-self: center; padding-top: 2px; }
+.pl8-name { font: 600 15.5px/1.3 var(--gize-font); color: var(--txt); overflow-wrap: anywhere; }
+.pl8-sep { display: none; }
+.pl8-x { flex: none; width: 44px; height: 44px; margin: -8px -8px 0 0; display: grid; place-items: center; border: none; background: none; color: var(--txt-2); cursor: pointer; border-radius: 50%; }
+.pl8-x svg { width: 18px; height: 18px; }
+.pl8-mid { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.pl8-stepper { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; background: var(--card); }
+.pl8-stepper:focus-within { border-color: var(--blue); box-shadow: var(--focus-ring); }
+.pl8-step { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: none; border-radius: 999px; background: transparent; color: var(--txt); cursor: pointer; }
+.pl8-step svg { width: 18px; height: 18px; stroke-width: 2.4; }
+.pl8-step:active { background: var(--ia-tint); }
+.pl8-g { display: flex; align-items: baseline; gap: 3px; color: var(--txt-2); font-size: var(--text-meta); }
+.pl8-g input { width: 52px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--txt); font: 700 17px var(--gize-font); text-align: right; font-variant-numeric: tabular-nums; }
+.pl8-g input:focus { outline: none; }
+.pl8-chg { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border);
+  background: transparent; color: var(--txt); font: 600 var(--text-meta) var(--gize-font); cursor: pointer; }
+.pl8-chg svg { width: 16px; height: 16px; color: var(--ia-ink); }
+/* Celulares angostos: «Cambiar» queda solo con el ícono (el nombre lo dice el aria-label) y entra en la fila del − / +. */
+@media (max-width: 359px) { .pl8-chg { width: 44px; padding: 0; justify-content: center; } .pl8-chg span { display: none; } }
+/* Las calorías y los macros: fichas chicas con un punto de color (P violeta, C azul, G ámbar). */
+.pl8-vals { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+.pl8-k { margin-right: 2px; font: 700 14px var(--gize-font); color: var(--txt); }
+.pl8-m { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 7px; border-radius: 999px; font: 600 12px var(--gize-font); color: var(--txt-2);
+  background: color-mix(in srgb, var(--txt) 6%, transparent); }
+.pl8-m i { font-style: normal; font-weight: 800; color: var(--txt); }
+.pl8-m::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--gize-r2); }
+.pl8-m-c::before { background: var(--gize-r1); }
+.pl8-m-f::before { background: var(--gize-warning, #FFB020); }
+.pl8-fine { display: flex; align-items: flex-start; gap: 8px; }
+.pl8-fine svg { width: 15px; height: 15px; flex: none; margin-top: 2px; color: var(--txt-2); }
+.pl8-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 2px; border: none; background: none; color: var(--txt); font: 600 var(--text-meta) var(--gize-font);
+  text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--gize-r2) 70%, var(--txt)); text-underline-offset: 3px; cursor: pointer; }
+.pl8-link svg { width: 15px; height: 15px; flex: none; color: var(--ia-ink); }
+.pl8-again { align-self: center; }
+/* El total: una barra de una sola línea, «Total» y las calorías a la izquierda y los macros a la derecha.
+   Nada se parte en dos renglones: el pie no cambia de alto mientras se tocan los gramos. */
+.pl8-tot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px 6px 12px; border-radius: 14px; border: 1px solid var(--border);
+  background: var(--card-2); color: var(--txt-2); font-variant-numeric: tabular-nums; min-width: 0; }
+.pl8-tot-k { display: flex; align-items: baseline; gap: 6px; line-height: 1.2; white-space: nowrap; flex: none; }
+.pl8-tot-k small { font: 700 11px var(--gize-font); letter-spacing: .08em; text-transform: uppercase; color: var(--txt-2); }
+.pl8-tot-k b { font: 800 18px var(--gize-font); color: var(--txt); white-space: nowrap; }
+.pl8-tot-m { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: 4px; min-width: 0; }
+.pl8-tot .pl8-m { white-space: nowrap; padding: 2px 7px 2px 6px; }
+@media (max-width: 374px) { .pl8-tot-k small { display: none; } .pl8-tot .pl8-m { padding: 2px 5px; gap: 3px; font-size: 11.5px; } .pl8-tot-m { gap: 3px; } }
+/* Pantallas bajas: la foto más chica en la revisión, así entra una tarjeta entera. */
+@media (max-height: 700px) { .plate-sheet.ok .pl8-photo { max-height: 72px; } }
+.pl8-need { font-size: var(--text-meta); color: var(--txt); display: flex; align-items: center; gap: 6px; }
+.pl8-need::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--gize-warning, #FFB020); flex: none; }
+.pl8-need[hidden] { display: none; }
+.pl8-go { margin-top: 0; }
+.pl8-go:disabled { opacity: .45; cursor: default; box-shadow: none; }
+
+/* ---- El neón: el filete en el ::after (como el día elegido de Entreno, css/ui/neon-app.css) ----
+   Con filete claro y resplandor quieto: «Sacar foto» y la comida elegida (por dentro: están en una
+   lista que se desplaza o en una fila). Con el filete tenue: «Elegir de la galería», el visor, la foto
+   mientras se lee y «Foto» (en «Claro», el claro: si no, no se ve sobre el vidrio). El borde queda transparente y el ::after lo tapa (inset -1px: misma caja). */
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.pl8-op, .pl8-hero, .pl8-scan, .ia-foto-btn, .sheet .meal-chip.on) {
+  border-color: transparent;
+}
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.pl8-op, .pl8-hero, .pl8-scan, .ia-foto-btn, .sheet .meal-chip.on)::after {
+  content: ""; display: block; position: absolute; top: -1px; right: -1px; bottom: -1px; left: -1px; border-radius: inherit; padding: var(--nn-w, 1.5px); pointer-events: none;
+  background: var(--nn-f, var(--nn-filete-hi));
+  -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  -webkit-mask-composite: xor; mask: linear-gradient(#000, #000) content-box exclude, linear-gradient(#000, #000);
+}
+/* La foto mientras se lee va recortada (overflow): el filete, adentro. */
+html:not(#_):not(#__) body:not(.silk-coach):not(#_) .pl8-scan::after { top: 0; right: 0; bottom: 0; left: 0; z-index: 1; }
+html:not(#_):not(#__) body:not(.silk-coach):not(#_) .pl8-hero::after { top: 0; right: 0; bottom: 0; left: 0; }
+html:not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.pl8-op-cam, .sheet .meal-chip.on, .pl8-scan)::after { --nn-f: var(--nn-filete-on); }
+html:not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.pl8-op-cam, .sheet .meal-chip.on) { box-shadow: var(--nn-brillo-in); }
+/* «Claro» con neón: como sus tarjetas, el filete va encima de la línea blanca del vidrio. */
+html.tema-luz:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.pl8-op, .pl8-hero, .pl8-scan, .ia-foto-btn, .sheet .meal-chip.on)::after {
+  background: var(--nn-f, var(--nn-filete-hi)), linear-gradient(var(--frz-line), var(--frz-line));
+}
+html.tema-luz:not(#_):not(#__) body:not(.silk-coach):not(#_) .ia-foto-btn::after { --nn-f: var(--nn-filete-on); }
+/* Liviano y la app de Android: líneas lisas (lo elegido, con el tono de la marca; sin neón, el de siempre). */
+html:is(.lite, .android-app):not(.sin-neon):not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.pl8-op-cam, .sheet .meal-chip.on) { border-color: var(--nn-linea-on); }
+html:is(.lite, .android-app):not(.sin-neon):not(.basico):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.pl8-op:not(.pl8-op-cam), .pl8-hero, .ia-foto-btn) { border-color: var(--nn-borde-l); }
+/* Los botones chicos de la tarjeta («Cambiar», el − / +): los cantos de color, como los secundarios. */
+html:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) :is(.pl8-chg, .pl8-stepper) {
+  border-color: transparent; background-clip: padding-box; box-shadow: var(--nn-cantos);
+}
+html:not(.sin-neon):not(.basico):not(.lite):not(.android-app):not(#_):not(#__) body:not(.silk-coach):not(#_) .pl8-stepper:focus-within { box-shadow: var(--focus-ring), var(--nn-cantos-hi); }
+/* «Agregar al almuerzo»: el principal, relleno (blanco; negro en «Claro»), con el filete de los
+   principales en el borde y el resplandor quieto de lo elegido. */
+html:not(.basico):not(#_):not(#__):not(#___) body:not(#_) .plate-sheet .form-save.pl8-go:not(:disabled) {
+  border: 2px solid transparent; background: linear-gradient(#fff, #fff) padding-box, var(--gize-rgb-ring) border-box; box-shadow: var(--nn-brillo);
+}
+html.tema-luz:not(.basico):not(#_):not(#__):not(#___) body:not(#_) .plate-sheet .form-save.pl8-go:not(:disabled) {
+  background: linear-gradient(#0B0D11, #0B0D11) padding-box, var(--nn-filete-on, var(--gize-rgb-ring)) border-box; box-shadow: var(--nn-brillo), 0 10px 24px -12px rgba(11,13,17,.55);
+}
+/* Colores forzados: sin las cajas vacías del filete. */
+@media (forced-colors: active) {
+  html:not(#_):not(#__):not(#___) body:not(#_) :is(.pl8-op, .pl8-hero, .pl8-scan, .ia-foto-btn, .sheet .meal-chip.on)::after { content: none; }
+}
+
+/* El permiso («Usar IA en Comida», app/ui/ia-permiso.js): encima de todo, como «Reportar». */
+#iaPermHost .sheet-bg { z-index: 440; }
+#iaPermHost .sheet { z-index: 441; }
+html:has(#iaPermHost .sheet:not(.closing)), html:has(#iaPermHost .sheet:not(.closing)) body { overflow: hidden; }
+.ia-perm-h { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ia-perm-hero { flex: none; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; color: var(--ia-on-grad, #fff); background: var(--ia-grad); }
+.ia-perm-hero svg { width: 17px; height: 17px; stroke-width: 2.2; }
+.ia-perm .sheet-title { margin: 0; }
+.ia-perm-txt { font-size: var(--text-meta); color: var(--txt-2); line-height: 1.5; }
+.ia-perm-txt p { margin: 0 0 10px; color: var(--txt); }
+.ia-perm-txt ul { margin: 0 0 10px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.ia-perm-txt li { display: flex; align-items: flex-start; gap: 10px; }
+.ia-perm-ic { flex: none; width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; color: var(--ia-ink); background: var(--ia-tint); border: 1px solid var(--ia-line); }
+.ia-perm-ic svg { width: 14px; height: 14px; }
+.ia-perm-txt li > span:last-child { padding-top: 2px; }
+.ia-perm-txt .ia-perm-cierre { color: var(--txt-2); }
+.ia-perm-err { margin: 6px 0; padding: 10px 12px; border-radius: var(--r-btn); background: var(--gize-danger-bg, rgba(255,90,90,.1)); color: var(--gize-danger); font-size: var(--text-meta); }
+.ia-perm-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.ia-perm-btns .ctrl { max-width: none; width: 100%; min-height: 48px; }
+.ia-perm-btns .ctrl:disabled { opacity: .6; }
+.ia-perm-link { display: inline-block; margin-top: 4px; padding: 10px 2px; color: var(--txt); font-size: var(--text-meta); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--gize-r2) 70%, var(--txt)); text-underline-offset: 3px; }
+.ia-perm :is(.ctrl, .ia-perm-link):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+/* Aviso chico abajo («Sin problema…», «Listo: …»). */
+.ia-toast { position: fixed; left: 16px; right: 16px; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 460; max-width: 480px; margin: 0 auto;
+  padding: 12px 14px; border-radius: var(--r-box); background: var(--card); color: var(--txt); border: 1px solid var(--border); font-size: var(--text-meta); line-height: 1.4;
+  opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .2s, transform .2s; }
+.ia-toast.show { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .ia-toast { transition: none; } }
+.cfg-ia-link { color: var(--blue-2, var(--blue)); }

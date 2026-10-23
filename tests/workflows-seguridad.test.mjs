@@ -228,11 +228,13 @@ case "$1 $2" in
 esac`;
   const ahora = Date.now(), DIA = 864e5;
   // cambios: { slug: fecha | null (no está) | { status, updated_at } }; extra: más filas de la lista.
-  const publicar = (cambios = {}, env = {}, extra = []) => {
+  // La base de alimentos de la app, que «ia» necesita (el paso la copia a la función).
+  const BASE_APP = Object.fromEntries(['foods.js', 'foods-extra.js', 'foods-ar.js', 'foods-gen.js'].map(f => ['app/core/' + f, '// ' + f]));
+  const publicar = (cambios = {}, env = {}, extra = [], sinBase = false) => {
     const fechas = Object.assign(Object.fromEntries(FNS.map(n => [n, ahora])), cambios);
     const lista = Object.entries(fechas).filter(([, v]) => v !== null)
       .map(([slug, v], i) => Object.assign({ id: 'id' + i, slug, name: slug, status: 'ACTIVE', version: 7, updated_at: ahora }, typeof v === 'object' ? v : { updated_at: v })).concat(extra);
-    const r = correr(fun, { archivos: { 'supabase/functions/notificar-cliente/index.ts': '// chat', '.lista.json': JSON.stringify(lista) }, programas: { supabase },
+    const r = correr(fun, { archivos: Object.assign({ 'supabase/functions/notificar-cliente/index.ts': '// chat', 'supabase/functions/ia/index.ts': '// ia', '.lista.json': JSON.stringify(lista) }, sinBase ? {} : BASE_APP), programas: { supabase },
       env: d => Object.assign({ PROJECT_REF: 'proyecto', LISTA: path.join(d, '.lista.json') }, env) });
     r.deploys = r.log.split('\n').filter(l => l.startsWith('functions deploy ')).map(l => l.split(' ')[2]);
     return r;
@@ -255,6 +257,9 @@ esac`;
   t.eq(borrada.code, 0, 'una que no sale del repo pero ya se borró (REMOVED) no lo hace fallar: ' + borrada.out.trim().split('\n').pop());
   const copia = publicar({}, {}, [{ id: 'vieja', slug: 'admin', name: 'admin', status: 'REMOVED', version: 2, updated_at: ahora - 90 * DIA }]);
   t.eq(copia.code, 0, 'ni una copia borrada de una del repo: ' + copia.out.trim().split('\n').pop());
+  t.ok(['foods.js', 'foods-extra.js', 'foods-ar.js', 'foods-gen.js'].every(f => fs.existsSync(path.join(ok.dir, 'supabase/functions/ia', f))), 'copia la base de alimentos de la app a la función «ia» antes de publicar');
+  const sinBase = publicar({}, {}, [], true);
+  t.ok(sinBase.code !== 0 && !sinBase.deploys.length, 'si falta la base de alimentos no publica nada: ' + sinBase.out.trim().split('\n').pop());
   const frenada = publicar({ descanso: { status: 'THROTTLED' } });
   t.ok(frenada.code !== 0 && /descanso: está frenada por Supabase/.test(frenada.out), 'si una está frenada falla y lo dice en castellano: ' + frenada.out.trim());
   // Cada carpeta de supabase/functions sale de esta tarea (notificar-cliente como rapid-worker), y
@@ -270,7 +275,7 @@ esac`;
   const sec = paso(leer('.github/workflows/supabase.yml'), 'Cargar secrets de las funciones');
   t.ok(sec, 'existe el paso «Cargar secrets de las funciones»');
   if (sec){
-    const NOMBRES = ['MP_ACCESS_TOKEN', 'APNS_KEY_P8', 'APNS_KEY_ID', 'APPLE_TEAM_ID', 'SIWA_KEY_P8', 'SIWA_KEY_ID', 'RESEND_API_KEY', 'RESEND_FULL_KEY', 'RESEND_WEBHOOK_SECRET', 'AVISOS_PAGOS'];
+    const NOMBRES = ['MP_ACCESS_TOKEN', 'APNS_KEY_P8', 'APNS_KEY_ID', 'APPLE_TEAM_ID', 'SIWA_KEY_P8', 'SIWA_KEY_ID', 'RESEND_API_KEY', 'RESEND_FULL_KEY', 'RESEND_WEBHOOK_SECRET', 'AVISOS_PAGOS', 'ANTHROPIC_API_KEY'];
     const cargar = env => {
       const r = correr(sec, { programas: { supabase: 'echo "$*" >> "$LOG"' }, env: Object.assign({ PROJECT_REF: 'proyecto' }, Object.fromEntries(NOMBRES.map(n => [n, ''])), env) });
       r.set = r.log.split('\n').find(l => l.startsWith('secrets set ')) || '';
@@ -288,6 +293,14 @@ esac`;
     t.ok(mp.code === 0 && mp.set.includes('MP_ACCESS_TOKEN=mp-prueba') && !/APPLE|APNS|SIWA/.test(mp.set), 'sin claves de Apple carga lo demás: ' + mp.set);
     const nada = cargar({});
     t.ok(nada.code !== 0 && nada.out.includes('Settings → Environments → production'), 'sin secrets avisa que van en el Environment «production»: ' + nada.out.trim());
+    // La clave de la IA (función «ia»): se carga si está en GitHub; si no está, no se carga vacía
+    // (pisaría la de Supabase) y lo demás sale igual. Nunca se imprime.
+    const ia = cargar({ MP_ACCESS_TOKEN: 'mp-prueba', ANTHROPIC_API_KEY: 'clave-ia-de-prueba' });
+    t.ok(ia.code === 0 && ia.set.includes('ANTHROPIC_API_KEY=clave-ia-de-prueba'), 'con ANTHROPIC_API_KEY la carga: ' + ia.set.replace(/=\S+/g, '=…'));
+    t.ok(!ia.out.includes('clave-ia-de-prueba'), 'la clave de la IA no aparece en lo que imprime el paso');
+    t.ok(!mp.set.includes('ANTHROPIC_API_KEY'), 'sin ANTHROPIC_API_KEY no se carga nada vacío: ' + mp.set);
+    const wf = leer('.github/workflows/supabase.yml');
+    t.ok(/\n {10}ANTHROPIC_API_KEY: \$\{\{ secrets\.ANTHROPIC_API_KEY \}\}\n/.test(wf) && !/echo[^\n]*ANTHROPIC_API_KEY/.test(sec), 'ANTHROPIC_API_KEY sale del Environment y no se imprime');
   }
 
   // 7) En GitHub, esta prueba corre también cuando cambia lo que revisa (workflows, Dockerfile,

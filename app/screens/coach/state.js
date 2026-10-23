@@ -2,6 +2,10 @@ export const CoachState = {
 
   coachClients: [],
 
+  // La base ya contestó la lista de clientes (loadCoachClients). Hasta entonces (red lenta o sin
+  // señal) el panel ya se ve (ver afterLogin) y dice «Cargando…» en vez de «no tenés clientes».
+  coachClientsLoaded: false,
+
   coachSel: null,
 
   coachData: null,
@@ -124,6 +128,9 @@ export const CoachState = {
   // ids de ejercicios expandidos en el editor de rutina — por defecto todo colapsado
   // para no tener una interfaz gigante con muchos ejercicios (ver renderCoachRoutine()).
   coachExpandedEx: new Set(),
+  // Mi configuración de cada ejercicio (presets.js): Map clave → {nombre, sets, timed, rest, rir};
+  // null si no se pudo cargar (sin la tabla, los botones no aparecen).
+  exPresets: null,
 
   // menú de acciones (subir/bajar/insertar/cambiar) abierto en la card de ejercicio, por id
   coachExMenu: null,

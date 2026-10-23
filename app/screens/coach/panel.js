@@ -99,6 +99,10 @@ function buckets(){
   };
 }
 
+// La lista de clientes todavía no llegó (arranque con la red lenta, ver afterLogin).
+const clientesCargando = () => !CoachState.coachClientsLoaded && !CoachState.coachClients.length;
+const CARGANDO_CLIENTES = '<div class="cv-card cv-hello"><b>Cargando tus clientes…</b><span>Si no tenés conexión, aparecen apenas vuelva.</span></div>';
+
 // ---------- Inicio ----------
 export function renderHomeView(extra){
   const ready=statsReady(), B=buckets();
@@ -108,7 +112,7 @@ export function renderHomeView(extra){
   const att=B.attention.map(r=>person(r, r.days===null?"Sin entrenos":r.days+" días", tone(r.days)));
   const tod=B.today.map(r=>person(r, "Hoy", ""));
   const noClients=!CoachState.coachClients.length;
-  const body = noClients
+  const body = clientesCargando() ? CARGANDO_CLIENTES : noClients
     ? '<div class="cv-card cv-hello"><b>Todavía no tenés clientes vinculados</b><span>Compartí tu código de invitación desde «Clientes»: van a aparecer acá apenas se vinculen.</span><button class="gize-btn cv-btn" data-coach="view-clients">Ir a Clientes</button></div>'
     : '<div class="cv-stats">'+stat("ok","Activos esta semana",B.week.length)+stat("ok","Entrenaron hoy",B.today.length)+stat("warn","Sin actividad",B.idle.length)+'</div>'+
       '<div class="cv-cols">'+list("Necesitan atención",ready?att:[],ready?"Todos al día":"Cargando…")+list("Entrenaron hoy",ready?tod:[],ready?"Todavía nadie entrenó hoy":"Cargando…")+'</div>';
@@ -149,6 +153,7 @@ export function renderClientsView(inviteHtml, bannerHtml){
     (first?'':'<label class="cv-find">'+S.search+'<input class="co-search cv-search" placeholder="Buscar…" aria-label="Buscar cliente" data-coach="coach-search" value="'+esc(CoachState.coachSearch||"")+'"></label>')+
     (CoachState.coachInvite && !/co-invite-full/.test(inviteHtml) ? mainBtn('data-coach="copy-invite"',"Invitar cliente",S.userPlus) : ''));
   const assign=CoachState.coachAssign ? '<div class="co-unsaved cv-assign">Elegí el cliente al que le querés asignar una rutina.<button class="cv-link" data-coach="assign-cancel">Cancelar</button></div>' : '';
+  if(first && clientesCargando()) return head+inviteHtml+bannerHtml+CARGANDO_CLIENTES;
   // El onboarding es un bloque ancho de pasos: reemplaza a la lista entera (sin buscador).
   if(first){
     const step=(n,t)=>'<div class="co-item co-onboard-step"><div class="co-onboard-n">'+n+'</div><div class="co-onboard-txt">'+t+'</div></div>';

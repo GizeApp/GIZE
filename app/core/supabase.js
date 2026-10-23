@@ -819,11 +819,39 @@ function stillStored(){
 // devuelve vacío, y un alumno con coach quedaba con las listas vacías como si fueran de la
 // nube. Se corta acá, como un corte de red (sin "code": la cola lo reintenta, loadCloud
 // conserva lo local). /auth/ va siempre con la clave: es el que renueva la sesión.
+//
+// Además, con tope: un pedido que no contesta nunca (la red colgada de un iPhone que vuelve de segundo
+// plano, un wifi sin internet) trababa todo. La renovación del token tiene tomada la sesión de
+// supabase-js y cada consulta espera detrás: el coach quedaba con «Cargando tus clientes…» aunque
+// volviera la red. Si en TOPE_AUTH / TOPE_BASE ms no llegó la respuesta (los encabezados: lo que
+// tarde después en bajar el contenido no cuenta), se corta como un corte de red: la librería suelta
+// la sesión y reintenta. En /auth/ solo lo que se hace con la sesión tomada (renovar el token, leer
+// el usuario, salir): crear la cuenta o pedir un mail pueden tardar de verdad, igual que una subida
+// de archivos (storage) o una lectura con IA (funciones), que no llevan tope.
+const TOPE_AUTH=12000, TOPE_BASE=20000;
 function noAnonFetch(url, opts){
-  const h=new Headers(opts && opts.headers);
-  if(State.cloudUser && h.get("Authorization")==="Bearer "+SB_KEY && !/\/auth\/v1\//.test(String((url && url.url) || url)))
+  const h=new Headers(opts && opts.headers), u=String((url && url.url) || url), m=String((opts && opts.method) || "GET").toUpperCase();
+  const auth=/\/auth\/v1\//.test(u);
+  if(State.cloudUser && h.get("Authorization")==="Bearer "+SB_KEY && !auth)
     return Promise.reject(new TypeError("Sin sesión con tu cuenta: no se manda como anónimo"));
-  return fetch(url, opts);
+  const conSesion=/\/auth\/v1\/(token|logout)\b/.test(u) || (m==="GET" && /\/auth\/v1\/user\b/.test(u));
+  const ms=auth ? (conSesion ? TOPE_AUTH : 0) : (/\/rest\/v1\//.test(u) ? TOPE_BASE : 0);
+  return ms ? conCorte(url, opts, ms) : fetch(url, opts);
+}
+// Si la renovación del token falla por la red, supabase-js no la vuelve a intentar por 60 s
+// (lastRefreshFailure, en la versión de vendor/): con la red de vuelta antes, todo seguía saliendo
+// sin sesión y el coach seguía con «Cargando tus clientes…». Los reintentos de la app (la cuenta,
+// la lista de clientes) la despiertan: se borra esa marca y la próxima consulta renueva el token.
+export function despertarSesion(){ try{ const a=State.sb && State.sb.auth; if(a && a.lastRefreshFailure) a.lastRefreshFailure=null; }catch(e){} }
+// fetch con tope (ver noAnonFetch). Respeta la señal de quien pide (si la corta, es un AbortError
+// como siempre); el tope, en cambio, falla como la red (TypeError), que supabase-js reintenta.
+function conCorte(url, opts, ms){
+  const ctl=typeof AbortController==="function" ? new AbortController() : null, suya=opts && opts.signal;
+  if(ctl && suya){ if(suya.aborted) ctl.abort(suya.reason); else suya.addEventListener("abort", ()=>ctl.abort(suya.reason), {once:true}); }
+  return new Promise((ok, mal)=>{
+    const t=setTimeout(()=>{ mal(new TypeError("La red no contestó a tiempo")); if(ctl) ctl.abort(); }, ms);
+    fetch(url, ctl ? Object.assign({}, opts, {signal:ctl.signal}) : opts).then(r=>{ clearTimeout(t); ok(r); }, e=>{ clearTimeout(t); mal(e); });
+  });
 }
 // La app abrió con la sesión guardada en el celular sin que la librería la pudiera renovar
 // (ver cloudBoot, afterLogin(user, true)). afterLogin() se saltea lo que necesita red y se
@@ -864,7 +892,8 @@ function reloadSbScript(){
 
 // El perfil se guarda también en el dispositivo: si la app abre sin internet, loadCloud()
 // no lo puede leer y un coach terminaba viendo la app de cliente. Se guarda junto con el
-// id de usuario para no usarle el perfil de otra cuenta; el logout lo borra.
+// id de usuario para no usarle el perfil de otra cuenta; el logout lo borra. Es el rol
+// recordado: con él afterLogin() entra al panel (o a la app) sin esperar a la red lenta.
 export const PROFILE_KEY = "core_profile_v1";
 function saveCachedProfile(p){ try{ if(p) localStorage.setItem(PROFILE_KEY, JSON.stringify({uid:State.cloudUser.id, profile:p})); }catch(e){} }
 function cachedProfile(){
@@ -892,7 +921,28 @@ async function touchMe(){
   }catch(e){}
 }
 
+// Tope del ingreso para lo que necesita la red. Con la red colgada (un iPhone que vuelve de segundo
+// plano, un wifi sin internet) una consulta puede no contestar nunca, y sin señal supabase-js
+// reintenta cada lectura ~7 s: antes cada paso se esperaba sin límite y el splash se iba igual, así
+// que se veía la app a medio armar (a un coach, la barra del alumno) o quedaba trabada. Ahora los
+// pasos comparten ARRANQUE_MS (cada uno espera lo que queda, nunca menos de 0,8 s); lo que no llegó
+// sigue de fondo y, cuando llega, se redibuja.
+const ARRANQUE_MS = 6000;
+// Espera pr como mucho ms; si no llegó, sigue con «fuera» (pr sigue corriendo igual).
+function conTope(pr, ms, fuera){
+  let t; const tope=new Promise(ok=>{ t=setTimeout(()=>ok(fuera), ms); });
+  return Promise.race([Promise.resolve(pr).finally(()=>clearTimeout(t)), tope]);
+}
+
+// El perfil (el rol) se aplica apenas llega (ver loadCloud) y avisa a quien lo espera.
+// _perfilOk: la base ya contestó el perfil en esta sesión (aunque la cuenta no tenga fila).
+let _perfilOk=false, _perfilEsperas=[];
+function avisarPerfil(){ const l=_perfilEsperas; _perfilEsperas=[]; l.forEach(f=>f()); }
+const perfilLeido=()=>new Promise(ok=>_perfilEsperas.push(ok));
+
 export async function afterLogin(sessionUser, stale){
+  const fin=Date.now()+ARRANQUE_MS, resta=()=>Math.max(800, fin-Date.now());
+  _perfilOk=false;
   clearAuthExpect(); // ya entró: un link ajeno que llegue después no se acepta sin preguntar
   clearRecoveryPending(); // entró de verdad (con la contraseña nueva o con otro ingreso)
   // getUser() revalida el token pegándole a la red. Si no hay conexión esa llamada
@@ -917,6 +967,9 @@ export async function afterLogin(sessionUser, stale){
   // había subido a la cuenta: ahora solo se borra cuando de verdad entra otra persona.
   // Celulares con la versión anterior (sin ownerUid): el dueño es el del último perfil guardado.
   let owner=state.ownerUid;
+  // La rutina o los entrenos de esta misma cuenta en el celular: es un alumno (el panel del coach no
+  // los usa). Sin el rol recordado y sin poder leerlo, con eso alcanza para abrir su app sin señal.
+  const alumnoLocal=!!State.cloudUser && owner===State.cloudUser.id && ((state.sessions||[]).length>0 || (state.days||[]).some(d=>d && (d.exercises||[]).length>0));
   if(!owner){ try{ owner=(JSON.parse(localStorage.getItem(PROFILE_KEY)||"null")||{}).uid||null; }catch(e){} }
   if(State.cloudUser && owner && owner!==State.cloudUser.id){
     // También lo de Cardio de la otra cuenta: la salida en curso (y su GPS), los recorridos
@@ -932,19 +985,44 @@ export async function afterLogin(sessionUser, stale){
   // Sin sesión viva (_staleBoot) getUser() y el envío de la cola esperarían los ~30 s de
   // reintentos de la librería con la pantalla vacía: se saltean y salen cuando se renueva
   // el token (watchAuth → flushOutbox + retryCloud).
+  // Con tope: con la red colgada (o la sesión tomada por otro pedido de la librería) no volvía nunca.
+  // Solo si es la misma cuenta de la sesión: todo lo que sigue (de quién son los datos del celular,
+  // liveSession, el rol) va por la sesión guardada. Una respuesta de otra cuenta (no es la de este
+  // token) dejaba a State.cloudUser distinto de la sesión: loadCloud() nunca leía nada y, sin el rol
+  // recordado (otra cuenta recién entrada en este celular), el splash quedaba para siempre con
+  // «No se pudo abrir tu cuenta».
   let gu=null;
-  if(!_staleBoot){ try { gu=await State.sb.auth.getUser(); if(gu.data.user) State.cloudUser=gu.data.user; } catch(e){} }
+  if(!_staleBoot){ try { gu=await conTope(State.sb.auth.getUser(), Math.min(4000, resta()), null); const u=gu && gu.data && gu.data.user; if(u && (!State.cloudUser || u.id===State.cloudUser.id)) State.cloudUser=u; } catch(e){} }
   // Sesión cerrada desde otro dispositivo con el token todavía vigente: el servidor dice que
   // no existe y la librería la borra. Seguir cargaría la cuenta sin sesión: se pide ingresar.
   if(gu && gu.error && gu.error.name==="AuthSessionMissingError"){ sessionLost(); return; }
   rescueFailed();
   // Primero se envía lo que quedó pendiente de otra sesión (sin conexión, app cerrada):
   // loadCloud() reemplaza entrenos/registros locales por los de la nube.
-  if(!_staleBoot){ try { await flushOutbox(); } catch(e){ console.error("flushOutbox",e); } }
+  // Si tarda, sigue de fondo: loadCloud() vuelve a poner encima lo que todavía no salió (pend0).
+  if(!_staleBoot){ try { await conTope(flushOutbox(), Math.min(4000, resta())); } catch(e){ console.error("flushOutbox",e); } }
   // El nombre del coach no depende de loadCloud(): se pide en paralelo en vez de después.
   let coachNameP=_staleBoot ? Promise.resolve({data:null}) : Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null}));
   _inLogin=true; // lo salteado lo completa afterLogin mismo (ver abajo), no staleCatchUp()
-  await loadCloud();
+  // Con el rol ya conocido (el perfil guardado en este celular) la lectura se espera solo lo que
+  // queda del tope: se entra con lo local y, cuando llega, se redibuja. Sin rol conocido (primera
+  // vez en este celular, o después de «Salir») no se adivina si es coach: se espera solo al perfil,
+  // que se aplica apenas llega (ver loadCloud), y después lo mismo que con el rol recordado.
+  const lectura=loadCloud();
+  const conRol=()=>!!(State.cloudProfile || cachedProfile()) || _perfilOk;
+  if(!conRol()){
+    await Promise.race([lectura, perfilLeido()]);
+    if(!conRol() && !alumnoLocal){
+      // No se pudo leer (sin señal, la base con error, la sesión sin renovar): antes seguía como
+      // alumno y un coach veía la app del alumno. Ahora el splash se queda con «Reintentar» y, si el
+      // perfil llega solo (los reintentos de fondo: scheduleCloudRetry, 'online', la renovación del
+      // token), se sigue por el rol. Un alumno con lo suyo en el celular sigue como siempre.
+      if(window.coreTrabado) window.coreTrabado();
+      while(!conRol()) await perfilLeido();
+    }
+  }
+  const leyo=await conTope(lectura.then(()=>true), resta(), false);
+  if(!leyo) lectura.then(()=>{ if(!State.cloudReady || !State.cloudUser) return; if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach(); else renderApp(); });
   if(!State.cloudProfile) State.cloudProfile=cachedProfile(); // sin conexión: el último perfil conocido
   // Registro con Google (o Apple) eligiendo "Soy coach": la cuenta nace como cliente (ver login-google.sql).
   const gi=takeGoogleIntent();
@@ -965,17 +1043,17 @@ export async function afterLogin(sessionUser, stale){
   }catch(e){}
   if(gi && gi.role==="coach" && !appIOS() && Date.now()-gi.t < 15*60*1000 && State.cloudProfile && State.cloudProfile.role!=="coach"){
     try{
-      const rc=await State.sb.rpc("become_coach_new_account");
-      if(rc.data===true){ try{ localStorage.removeItem("jfit_pending_code"); }catch(e){} await loadCloud(); }
+      const rc=await conTope(State.sb.rpc("become_coach_new_account"), 8000, {data:null});
+      if(rc.data===true){ try{ localStorage.removeItem("jfit_pending_code"); }catch(e){} await conTope(loadCloud(), 8000); }
     }catch(e){ console.error("become coach",e); }
   }
   try{
     // takePendingCode lo saca del dispositivo pase lo que pase (y si venció no lo usa).
     const pc=takePendingCode();
     if(pc && State.cloudProfile && State.cloudProfile.role!=="coach" && !State.cloudProfile.coach_id){
-      const r2=await State.sb.rpc("join_coach",{code:pc});
+      const r2=await conTope(State.sb.rpc("join_coach",{code:pc}), 8000, {data:null});
       if(r2.error && r2.error.code==="P0001" && r2.error.message){ const m=joinMsgTienda(r2.error.message); setTimeout(()=>alert(m+" Podés poner el código después en Configuración."), 600); }
-      if(r2.data===true){ coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null})); const pr=await State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle(); if(pr.data) State.cloudProfile=pr.data; await loadCloud(); }
+      if(r2.data===true){ coachNameP=Promise.resolve(State.sb.rpc("my_coach_name")).catch(()=>({data:null})); const pr=await conTope(State.sb.from("profiles").select("*").eq("id",State.cloudUser.id).maybeSingle(), 8000, {data:null}); if(pr.data) State.cloudProfile=pr.data; await conTope(loadCloud(), 8000); }
     }
   }catch(e){ console.error("pending code",e); }
   _inLogin=false;
@@ -984,10 +1062,22 @@ export async function afterLogin(sessionUser, stale){
   hideLogin();
   try{
     if(State.cloudProfile && State.cloudProfile.role==="coach"){ State.brandName=State.cloudProfile.full_name||""; }
-    else { const cn=await coachNameP; State.brandName=cn.data||""; }
+    else {
+      const cn=await conTope(coachNameP, resta(), null);
+      if(cn) State.brandName=cn.data||"";
+      else coachNameP.then(r=>{ if(r && r.data){ State.brandName=r.data; applyBrand(); } }); // llega tarde
+    }
   }catch(e){ State.brandName=""; }
   applyBrand();
-  if (State.cloudProfile && State.cloudProfile.role==="coach"){ if(!_staleBoot) await Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]); renderCoach(); checkPaymentReturn(); syncPush(); }
+  if (State.cloudProfile && State.cloudProfile.role==="coach"){
+    // Los alumnos también con tope: si no llegan, el panel dice «Cargando…» (no «no tenés clientes»)
+    // y se redibuja cuando llegan.
+    if(!_staleBoot){
+      const datos=Promise.all([loadCoachClients(), loadCoachQuestions().catch(()=>{})]);
+      if(!await conTope(datos.then(()=>true), resta(), false)) datos.then(()=>renderCoach());
+    }
+    renderCoach(); checkPaymentReturn(); syncPush();
+  }
   else { renderApp(); syncPush(); } // sin await: no demora la entrada
   maybeShowOnboarding(); // cuenta nueva: bienvenida (una sola vez), encima de la app
   window.dispatchEvent(new Event("gize:login")); // chat: botón, globitos y aviso tocado (main.js)
@@ -997,7 +1087,7 @@ export async function loadCloud(){
   if(!State.sb||!State.cloudUser) return;
   // Sin sesión viva no se lee: las consultas saldrían como anónimo (ver noAnonFetch) y fallarían
   // igual. Se reintenta más tarde; lo local queda como está y el pie avisa que no hay conexión.
-  if(!await liveSession(State.cloudUser.id, _staleBoot ? 300 : 3000)){ scheduleCloudRetry(); return; }
+  if(!await liveSession(State.cloudUser.id, _staleBoot ? 300 : 3000)){ scheduleCloudRetry(); avisarPerfil(); return; }
   State.cloudLoading=true;
   // Mientras se lee, syncExtras no encola nada: lo que se cargue en ese rato (agua, comidas,
   // hábitos, preferencias, pesos) se compara con cómo estaba al empezar y no se pisa con lo de
@@ -1015,6 +1105,13 @@ export async function loadCloud(){
     const uid=State.cloudUser.id, sb=State.sb;
     // Una sola vez (una consulta de supabase-js sale de nuevo cada vez que se la espera).
     const prof=Promise.resolve(sb.from("profiles").select("*").eq("id",uid).maybeSingle());
+    // El rol, apenas llega, sin esperar a las demás lecturas: afterLogin() entra por él (una lectura
+    // colgada que el rol no necesita, como las comidas, dejaba a un coach en el splash).
+    prof.then(r=>{
+      if(!r || r.error || !State.cloudUser || State.cloudUser.id!==uid) return;
+      _perfilOk=true;
+      if(r.data){ State.cloudProfile=r.data; saveCachedProfile(r.data); }
+    }, ()=>{}).then(avisarPerfil);
     const [pr0, rt0, ws, ss, dl, ck, ci, bl, np, fe, cp, cq, fw, so] = await Promise.all([
       prof,
       // Si el coach dejó programada una rutina que ya empezó, se aplica antes de leerla
@@ -1145,7 +1242,7 @@ export async function loadCloud(){
       state.diaryDate=state.waterDate=state.stepsDate=state.habitsDate=today();
       state.water=todayRow.water_ml||0;
       state.steps=todayRow.steps||0;
-      state.diary=(fe.data||[]).map(r=>({id:r.id, meal:r.meal||undefined, name:r.name, grams:Number(r.grams)||0, kcal:r.kcal||0, p:Number(r.protein)||0, c:Number(r.carbs)||0, f:Number(r.fat)||0, unit:r.unit||"g", base:r.base||undefined}));
+      state.diary=(fe.data||[]).map(r=>({id:r.id, meal:r.meal||undefined, name:r.name, grams:Number(r.grams)||0, kcal:r.kcal||0, p:Number(r.protein)||0, c:Number(r.carbs)||0, f:Number(r.fat)||0, unit:r.unit||"g", base:r.base||undefined, fuente:r.fuente||undefined}));
       applyHabitsDone(todayRow.habits_done);
       _lastDay=JSON.stringify(daySnapshot());
     }
@@ -1235,6 +1332,7 @@ function scheduleCloudRetry(){
 }
 async function retryCloud(){
   if(State.cloudReady || State.cloudLoading || !State.sb || !State.cloudUser) return;
+  despertarSesion();
   await loadCloud();
   if(State.cloudReady){ if(State.cloudProfile && State.cloudProfile.role==="coach") renderCoach(); else renderApp(); }
 }
@@ -1387,7 +1485,7 @@ export async function refreshToday(rolled){
     }
     state.water=row.water_ml||0;
     state.steps=Math.max(state.steps||0, row.steps||0);
-    state.diary=(fe.data||[]).map(r=>({id:r.id, meal:r.meal||undefined, name:r.name, grams:Number(r.grams)||0, kcal:r.kcal||0, p:Number(r.protein)||0, c:Number(r.carbs)||0, f:Number(r.fat)||0, unit:r.unit||"g", base:r.base||undefined}));
+    state.diary=(fe.data||[]).map(r=>({id:r.id, meal:r.meal||undefined, name:r.name, grams:Number(r.grams)||0, kcal:r.kcal||0, p:Number(r.protein)||0, c:Number(r.carbs)||0, f:Number(r.fat)||0, unit:r.unit||"g", base:r.base||undefined, fuente:r.fuente||undefined}));
     applyHabitsDone(row.habits_done);
     const now=JSON.stringify(daySnapshot());
     _lastDay=now;
@@ -1659,14 +1757,14 @@ async function sendItem(it){
     // celular desde la web o desde un dispositivo que no los cuenta.
     sbOk(await sb.from("daily_logs").upsert({client_id:uid, log_date:p.dt, water_ml:p.water, habits_done:p.habits},{onConflict:"client_id,log_date"}));
     if(p.foods.length){
-      sbOk(await sb.from("food_entries").upsert(p.foods.map((f,i)=>({id:f.id, client_id:uid, log_date:p.dt, pos:i, meal:f.meal||null, name:f.name, grams:f.grams, unit:f.unit, kcal:f.kcal, protein:f.p, carbs:f.c, fat:f.f, base:f.base})),{onConflict:"id"}));
+      sbOk(await sb.from("food_entries").upsert(p.foods.map((f,i)=>({id:f.id, client_id:uid, log_date:p.dt, pos:i, meal:f.meal||null, name:f.name, grams:f.grams, unit:f.unit, kcal:f.kcal, protein:f.p, carbs:f.c, fat:f.f, base:f.base, ...(f.fuente ? {fuente:f.fuente} : {})})),{onConflict:"id"}));
     }
     await deleteFoods(uid, p);
   } else if(it.k==="foods"){
     // Comidas de un día anterior, cargadas o borradas desde Comida (el agua, los pasos y los
     // hábitos de ese día no se tocan). Mismo reemplazo que el día de hoy.
     if(p.foods.length){
-      sbOk(await sb.from("food_entries").upsert(p.foods.map((f,i)=>({id:f.id, client_id:uid, log_date:p.dt, pos:i, meal:f.meal||null, name:f.name, grams:f.grams, unit:f.unit, kcal:f.kcal, protein:f.p, carbs:f.c, fat:f.f, base:f.base})),{onConflict:"id"}));
+      sbOk(await sb.from("food_entries").upsert(p.foods.map((f,i)=>({id:f.id, client_id:uid, log_date:p.dt, pos:i, meal:f.meal||null, name:f.name, grams:f.grams, unit:f.unit, kcal:f.kcal, protein:f.p, carbs:f.c, fat:f.f, base:f.base, ...(f.fuente ? {fuente:f.fuente} : {})})),{onConflict:"id"}));
     }
     await deleteFoods(uid, p);
   } else if(it.k==="steps"){

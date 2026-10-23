@@ -11,6 +11,12 @@ let ancla = Math.max(0, window.scrollY), pedido = false;
 
 export function expandNav(){ if (nav) nav.classList.remove("compacta"); ancla = Math.max(0, window.scrollY); }
 
+// Un scroll que pone la app y no el dedo (ui/desplegar.js deja quieto el ejercicio tocado cuando
+// algo de más arriba cambia de alto, por ejemplo la portada al tildar la primera serie): corre el
+// punto de partida lo mismo, así no cuenta como deslizamiento y la barra no se achica ni se agranda
+// sola. Lo que el dedo ya venía moviendo se conserva.
+export function scrollDeLaApp(dy){ ancla += dy; }
+
 function mirar(){
   pedido = false;
   const y = Math.max(0, window.scrollY), fin = document.documentElement.scrollHeight - window.innerHeight;
