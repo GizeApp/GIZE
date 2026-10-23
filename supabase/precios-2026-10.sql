@@ -29,7 +29,7 @@ alter table public.coach_billing add constraint coach_billing_plan_check
   check (plan in ('trial','p10','p25','p50','p100','p250','p500','cortesia'));
 
 -- 2) Precio mensual de cada plan
-create or replace function public.plan_price(p text) returns numeric language sql immutable as $$
+create or replace function public.plan_price(p text) returns numeric language sql immutable set search_path = public as $$
   select case p when 'p10' then 14900 when 'p25' then 24900 when 'p50' then 37900 when 'p100' then 59900
                 when 'p250' then 119900 when 'p500' then 199900 else 0 end::numeric;
 $$;

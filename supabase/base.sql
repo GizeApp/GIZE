@@ -75,6 +75,7 @@ end $$;
 create or replace function public.profiles_guard_sensitive()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   if current_user in ('authenticated','anon') then

@@ -1,0 +1,32 @@
+# Chequeo automático de seguridad. Corre en cada PR, en cada push a main, una vez por semana
+# y a mano (Actions → "Seguridad" → Run workflow). Verifica las invariantes que dejó la
+# auditoría de octubre 2026 (ver scripts/chequeo-seguridad.py): funciones SECURITY DEFINER con
+# search_path, cero secretos commiteados, nada de RLS abierta, acciones pineadas a SHA, sin
+# pull_request_target y CSP en los puntos de entrada. Si alguien reintroduce un agujero, este
+# check sale en rojo solo, sin que nadie tenga que acordarse de revisarlo.
+#
+# Es estático y de solo lectura: no toca la base, no necesita secrets. Por eso puede correr
+# sobre PRs de forks sin riesgo (token de solo lectura, sin secretos).
+name: Seguridad
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chequeo:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # python3 ya viene en el runner; el script no tiene dependencias.
+      - name: Correr el chequeo de seguridad
+        run: python3 scripts/chequeo-seguridad.py

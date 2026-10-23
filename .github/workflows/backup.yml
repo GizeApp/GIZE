@@ -24,8 +24,10 @@
 #      Después de subir la copia se prueba en la base de prueba, abierta igual que Supabase,
 #      que con ese .sql ninguna función, tabla ni columna queda más abierta que en la original;
 #      si no, la ejecución sale en rojo (la copia ya quedó subida).
-#   El archivo queda 21 días en la ejecución (Artifacts → backup-base): alcanza para tener
-#   las últimas 3 copias semanales sin dejar meses de copias a disposición.
+#   5. Las copias cifradas van a un bucket PRIVADO de Supabase Storage ("backups"), que se
+#      guarda 90 días. Si falta SUPABASE_SERVICE_ROLE_KEY o la subida falla, van al Artifact
+#      (backup-base, 21 días) como antes: nunca se pierde una copia, pero el Artifact de un repo
+#      público lo puede bajar cualquiera con cuenta de GitHub (cifrado: sin la contraseña no sirve).
 #
 # Corre solo desde main y en el Environment "backup". Crearlo (hace falta ser admin del repo):
 # Settings → Environments → New environment → "backup"; en «Deployment branches and tags» elegir
@@ -39,9 +41,14 @@
 #                     contraseña de la base en lugar de [YOUR-PASSWORD].
 #   BACKUP_PASSWORD   una contraseña larga para cifrar las copias. Guardala aparte (gestor de
 #                     contraseñas): sin ella no se puede abrir ninguna copia.
+#   SUPABASE_SERVICE_ROLE_KEY  (recomendado) Supabase → Project Settings → API Keys → la clave
+#                     "service_role" (o una "secret" sb_secret_…). Con ella las copias van al bucket
+#                     privado "backups" (lo crea privado si no existe). Sin ella, al Artifact.
 #
 # Restaurar una copia de verdad (en una emergencia), con pg_restore 18 o más nuevo (la versión de
 # .github/postgres/Dockerfile: uno más viejo no lee la copia):
+#   Bajar backup-… y permisos-… del bucket (Supabase → Storage → backups → Download) o, si esa
+#   semana fue al Artifact, de la ejecución (Artifacts → backup-base).
 #   gpg -d backup-AAAA-MM-DD.dump.gpg > backup.dump
 #   gpg -d permisos-AAAA-MM-DD.sql.gpg > permisos.sql
 #   pg_restore --clean --if-exists --no-owner -d "URI de la base" backup.dump
@@ -212,7 +219,55 @@ jobs:
           rm -f out/backup.dump out/filas.txt out/antes.txt
           ls out/*.gpg
 
+      # Destino preferido: un bucket PRIVADO de Supabase Storage ("backups"), no un Artifact (el
+      # repo es público y los Artifacts los baja cualquiera con cuenta de GitHub; cifrados, pero
+      # igual). Si falta SUPABASE_SERVICE_ROLE_KEY o la subida falla, la copia NO se pierde: va al
+      # Artifact como antes (paso siguiente) y queda un aviso en la ejecución.
+      - name: Guardar en el bucket privado
+        id: privado
+        env:
+          SUPABASE_URL: https://wegptuzhsrwppbknqstf.supabase.co
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BUCKET: backups
+          KEEP_DAYS: "90"
+        run: |
+          echo "subido=false" >> "$GITHUB_OUTPUT"
+          if [ -z "$SERVICE_KEY" ]; then
+            echo "::warning::Falta SUPABASE_SERVICE_ROLE_KEY en el Environment \"backup\": la copia va al Artifact (público, cifrado). Cargala para que vaya al bucket privado."
+            exit 0
+          fi
+          echo "::add-mask::$SERVICE_KEY"
+          AUTH=(-H "Authorization: Bearer $SERVICE_KEY" -H "apikey: $SERVICE_KEY")
+          # Bucket privado si no existe (si ya está, Supabase responde 4xx y se ignora).
+          curl -sS -o /dev/null -X POST "$SUPABASE_URL/storage/v1/bucket" "${AUTH[@]}" \
+            -H "Content-Type: application/json" -d "{\"id\":\"$BUCKET\",\"name\":\"$BUCKET\",\"public\":false}" || true
+          for p in out/*.gpg; do
+            f=$(basename "$p")
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$SUPABASE_URL/storage/v1/object/$BUCKET/$f" "${AUTH[@]}" \
+              -H "x-upsert: true" -H "Content-Type: application/octet-stream" --data-binary @"$p") || code=000
+            if [ "$code" != "200" ]; then
+              echo "::warning::No se pudo subir $f al bucket (HTTP $code): la copia va al Artifact."
+              exit 0
+            fi
+          done
+          echo "subido=true" >> "$GITHUB_OUTPUT"
+          echo "Copia guardada en el bucket privado '$BUCKET'."
+          # Retención (best-effort, nunca frena el backup): borra las copias de más de KEEP_DAYS
+          # días. La fecha sale del nombre (backup-AAAA-MM-DD… / permisos-AAAA-MM-DD…).
+          {
+            curl -sS -X POST "$SUPABASE_URL/storage/v1/object/list/$BUCKET" "${AUTH[@]}" \
+              -H "Content-Type: application/json" -d '{"limit":1000,"prefix":""}' > "$RUNNER_TEMP/lista.json"
+            corte=$(date -u -d "-$KEEP_DAYS days" +%Y-%m-%d)
+            for n in $(jq -r '.[].name' "$RUNNER_TEMP/lista.json" 2>/dev/null); do
+              d=$(echo "$n" | sed -nE 's/^(backup|permisos)-([0-9]{4}-[0-9]{2}-[0-9]{2})\..*\.gpg$/\2/p')
+              [ -n "$d" ] || continue
+              [[ "$d" < "$corte" ]] || continue
+              curl -sS -o /dev/null -X DELETE "$SUPABASE_URL/storage/v1/object/$BUCKET/$n" "${AUTH[@]}" && echo "Borrada copia vieja: $n"
+            done
+          } || echo "::warning::No se pudo aplicar la retención de copias viejas (se ignora)."
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: steps.privado.outputs.subido != 'true'
         with:
           name: backup-base
           path: out/*.gpg
