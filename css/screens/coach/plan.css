@@ -36,6 +36,16 @@ a.pl-choose { display:block; text-align:center; text-decoration:none; }
 .pl-mail-line { margin-top:14px; }
 .pl-link { background:none; border:0; padding:0; color:var(--blue); font:inherit; cursor:pointer; text-decoration:underline; }
 .pl-fine { font-size:12.5px; color:var(--txt-2); margin-top:6px; line-height:1.45; }
+
+/* Código de fundador (solo en la web) */
+.pl-old { font-size:15px; font-weight:500; color:var(--txt-2); margin-right:4px; }
+.pl-cod-line { margin-top:14px; }
+.pl-cod { margin:14px 0 0; }
+.pl-cod-row { display:flex; gap:8px; align-items:stretch; }
+.pl-cod-row .co-note { flex:1; min-width:0; text-transform:uppercase; }
+.pl-cod-btn { margin-top:0; flex:none; padding:0 16px; }
+.pl-cod-err { color:#FF4D4D; }
+.pl-cod-ok { margin:14px 0 0; }
 .pl-cancel { display:block; margin:14px auto 0; background:none; border:0; color:var(--txt-2); text-decoration:underline; font:inherit; font-size:13px; cursor:pointer; }
 .cp-ccard.pl-sheet { width:min(720px, calc(100vw - 32px)); max-width:none; }
 

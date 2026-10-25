@@ -6,6 +6,12 @@
 //     habilita desde gize.ar/admin (supabase/cobro-manual.sql). Se renueva a mano cada mes.
 // Los límites los hace cumplir la base, no la app.
 //
+// Código de fundador (solo en la web, supabase/codigo-fundador.sql): «¿Tenés un código?» debajo de
+// los planes. La base lo revisa (codigo_fundador_ver) y acá se muestran los precios con el
+// descuento; al pagar, la función suscripcion vuelve a pedirle el descuento a la base y crea la
+// suscripción con ese precio (lo que se ve acá es solo para mostrar). El que ya lo usó lo tiene
+// para siempre (codigo_fundador_mio). En las apps de iPhone y Android no aparece.
+//
 // En la app de Android (core/tienda.js appNativa) no se habla de la prueba gratis, de planes, de
 // precios ni de pagos: Google no permite mandar a pagar por fuera de su sistema. No hay tira, ni
 // «Mi plan», ni prueba, ni planes. Si la cuenta no está activa, una pantalla neutra con «Cerrar
@@ -73,7 +79,7 @@ const WA = "5493413490705";
 function waLink(p, renew){
   const mail = (State.cloudUser && State.cloudUser.email) || "";
   const txt = "Hola! Quiero " + (renew ? "renovar" : "contratar") + " GIZE para coaches, el plan " + (p.gym ? p.name + " (hasta " + p.max + " alumnos)" : "de hasta " + p.max + " clientes") +
-    " (" + money(p.price) + "/mes)." + (mail ? " Mi cuenta es " + mail + "." : "");
+    " (" + money(precioDe(p)) + "/mes" + (COD.pct ? ", con el código de fundador" + (COD.codigo ? " " + COD.codigo : "") + " (" + COD.pct + "% menos)" : "") + ")." + (mail ? " Mi cuenta es " + mail + "." : "");
   return "https://wa.me/" + WA + "?text=" + encodeURIComponent(txt);
 }
 // Más de 500 alumnos: plan a medida.
@@ -85,6 +91,9 @@ function waCustom(){
 // billing: la fila de coach_billing. null + missing = todavía no se corrió el SQL (no se
 // bloquea nada en ese caso, así la app sigue andando mientras se configura).
 const B = { row: null, missing: false, loaded: false, busy: false, open: false, confirming: false, mpEmail: null, mailOpen: false };
+// Código de fundador: pct es el descuento que se muestra; codigo, el que probó y todavía no usó
+// (va al pagar); mio, el que ya tiene para siempre; de, la cuenta para la que se leyó.
+const COD = { open: false, texto: "", pct: 0, codigo: null, mio: false, error: "", probando: false, de: null };
 // Compras con Apple (app de iPhone): cargando/sin los precios, y la compra recién hecha.
 const A = { cargando: false, fallo: false, exito: false, iniciado: false };
 
@@ -99,7 +108,23 @@ export async function loadBilling(){
   }catch(e){ B.missing = true; }
   B.loaded = true;
   if(IAP) iniciarApple();
+  else if(!IS_NATIVE) cargarDescuento();
 }
+
+// El descuento que ya tiene el coach (una vez por cuenta). Sin el SQL o sin señal, sin descuento.
+async function cargarDescuento(){
+  const id = State.cloudUser && State.cloudUser.id;
+  if(!id || COD.de === id) return;
+  Object.assign(COD, { open: false, texto: "", pct: 0, codigo: null, mio: false, error: "", probando: false, de: id });
+  try{
+    const r = await State.sb.rpc("codigo_fundador_mio");
+    const n = Number(r && r.data);
+    if(!r.error && n > 0 && COD.de === id){ COD.pct = n; COD.mio = true; rerender(); }
+  }catch(e){}
+}
+// Precio con el descuento: la misma cuenta que conDescuento en supabase/functions/suscripcion/reglas.ts.
+const conDescuento = (precio, pct) => pct >= 1 && pct <= 90 ? Math.round(precio * (100 - Math.floor(pct)) / 100) : precio;
+const precioDe = p => conDescuento(p.price, COD.pct);
 
 export function billing(){
   const r = B.row, now = Date.now();
@@ -171,7 +196,7 @@ function planCards(b){
       (mine ? '<div class="pl-tag">El que elegiste</div>' : hi ? '<div class="pl-tag">Más elegido</div>' : '') +
       (p.gym ? '<div class="pl-name">' + esc(p.name) + '</div>' : '') +
       '<div class="pl-max">Hasta <b>' + p.max + '</b> ' + (p.gym ? 'alumnos' : 'clientes') + '</div>' +
-      '<div class="pl-price">' + money(p.price) + '<span>/mes</span></div>' +
+      '<div class="pl-price">' + (COD.pct ? '<s class="pl-old">' + money(p.price) + '</s> ' : '') + money(precioDe(p)) + '<span>/mes</span></div>' +
       (current && b.renews ? '<button class="pl-choose" disabled>Tu plan actual</button>'
         : tooSmall ? '<button class="pl-choose" disabled>Tenés ' + b.count + ' clientes</button>'
         : '<button class="pl-choose" data-plan="choose" data-id="' + p.id + '"' + (B.busy ? ' disabled' : '') + '>' +
@@ -185,10 +210,39 @@ function planCards(b){
       '<input class="co-note" type="email" data-plan="mail" value="' + esc(mail) + '" placeholder="tu-mail@ejemplo.com" autocomplete="email">' +
       '<div class="pl-fine">Tiene que ser el mail con el que entrás a Mercado Pago para pagar.</div></div>'
     : '<div class="pl-fine pl-mail-line">Con tarjeta pagás con la cuenta de Mercado Pago de <b>' + esc(mail) + '</b> · <button class="pl-link" data-plan="mail-edit">¿Otro mail?</button></div>';
-  return '<div class="pl-cards">' + cards + '</div>' + mailBox +
+  return '<div class="pl-cards">' + cards + '</div>' + codigoBox() + mailBox +
     '<div class="pl-fine"><b>Con tarjeta</b> (Mercado Pago): se cobra y se renueva sola cada mes, y la cancelás cuando quieras.</div>' +
     '<div class="pl-fine"><b>Por transferencia:</b> lo arreglás por WhatsApp con el equipo de GIZE y te habilitamos el plan apenas se acredita. Se renueva a mano cada mes; si un mes no seguís, no se cobra nada más.</div>' +
     '<div class="pl-fine">¿Más de 500 alumnos? <a class="pl-link" href="' + esc(waCustom()) + '" target="_blank" rel="noopener">Hablemos</a> y armamos un plan a medida.</div>';
+}
+
+// «¿Tenés un código?» (solo en la web: planCards no llega acá en las apps).
+function codigoBox(){
+  if(COD.pct) return '<div class="pl-status ok pl-cod-ok">Código de fundador' + (COD.codigo ? ' <b>' + esc(COD.codigo) + '</b>' : '') + ': <b>' + COD.pct + '% menos para siempre</b>, también en cada renovación.</div>';
+  if(!COD.open) return '<div class="pl-fine pl-cod-line"><button class="pl-link" data-plan="codigo-abrir">¿Tenés un código?</button></div>';
+  return '<div class="cs-field pl-cod"><label>Código de fundador</label>' +
+    '<div class="pl-cod-row"><input class="co-note" type="text" data-plan="codigo" value="' + esc(COD.texto) + '" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false">' +
+    '<button class="pl-choose pl-cod-btn" data-plan="codigo-aplicar"' + (COD.probando ? ' disabled' : '') + '>' + (COD.probando ? 'Revisando…' : 'Aplicar') + '</button></div>' +
+    (COD.error ? '<div class="pl-fine pl-cod-err">' + esc(COD.error) + '</div>' : '') + '</div>';
+}
+
+// Revisa el código en la base (no ocupa lugar: eso pasa al pagar).
+async function aplicarCodigo(){
+  const input = document.querySelector('[data-plan="codigo"]');
+  const c = ((input ? input.value : COD.texto) || "").trim().toUpperCase();
+  COD.texto = c;
+  if(!c){ COD.error = "Escribí el código."; rerender(); return; }
+  if(!State.sb || COD.probando) return;
+  COD.probando = true; COD.error = ""; rerender();
+  let err = "";
+  try{
+    const r = await State.sb.rpc("codigo_fundador_ver", { p_codigo: c });
+    const d = r && r.data;
+    if(r.error) err = "No se pudo revisar el código. Probá de nuevo en un rato.";
+    else if(d && d.ok && Number(d.porcentaje) > 0){ COD.pct = Number(d.porcentaje); COD.mio = !!d.ya; COD.codigo = d.ya ? null : c; }
+    else err = (d && d.error) || "Ese código no existe o ya no está vigente.";
+  }catch(e){ err = "No se pudo revisar el código. Probá de nuevo en un rato."; }
+  COD.probando = false; COD.error = err; rerender();
 }
 
 function statusLine(b){
@@ -479,7 +533,10 @@ async function choose(plan){
   B.mpEmail = mail; B.busy = plan; rerender();
   let err = "";
   try{
-    const r = await State.sb.functions.invoke("suscripcion", { body: { action: "checkout", plan, mp_email: mail } });
+    // El código va solo si lo acaba de aplicar: el precio lo decide el servidor, no la app.
+    const body = { action: "checkout", plan, mp_email: mail };
+    if(COD.codigo) body.codigo = COD.codigo;
+    const r = await State.sb.functions.invoke("suscripcion", { body });
     if(r.error){
       try{ const j = await r.error.context.json(); err = j && j.error; }catch(e){}
       err = err || (r.error.name === "FunctionsFetchError" ? "No se pudo conectar con el sistema de pagos." : r.error.message);
@@ -535,10 +592,18 @@ document.body.addEventListener("click", e => {
   if(a === "apple-restore"){ if(IAP) restaurarPlanesApple(); return; }
   if(a === "apple-manage"){ if(IAP) administrarPlanApple(); return; }
   if(a === "apple-retry"){ if(IAP){ A.fallo = false; cargarPlanesApple(); } return; }
+  if(a === "codigo-abrir"){ if(IS_NATIVE) return; COD.open = true; rerender(); const i = document.querySelector('[data-plan="codigo"]'); if(i) i.focus(); return; }
+  if(a === "codigo-aplicar"){ if(!IS_NATIVE) aplicarCodigo(); return; }
   if(a === "mail-edit"){ B.mailOpen = true; renderPlanSheet(); const i = document.querySelector('[data-plan="mail"]'); if(i) i.focus(); return; }
   if(a === "unlink"){ unlinkClient(b.dataset.id); return; }
 });
 
 document.body.addEventListener("input", e => {
   const i = e.target.closest && e.target.closest('[data-plan="mail"]'); if(i) B.mpEmail = i.value;
+  const c = e.target.closest && e.target.closest('[data-plan="codigo"]'); if(c){ COD.texto = c.value; if(COD.error){ COD.error = ""; const er = document.querySelector('.pl-cod-err'); if(er) er.remove(); } }
+});
+
+// Enter en el código: aplicar.
+document.body.addEventListener("keydown", e => {
+  if(e.key === "Enter" && e.target.closest && e.target.closest('[data-plan="codigo"]') && !IS_NATIVE){ e.preventDefault(); aplicarCodigo(); }
 });
