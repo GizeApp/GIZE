@@ -570,7 +570,9 @@ const mpTxt = s => ({ authorized: "activa", paused: "pausada", cancelled: "cance
 const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: "Hasta 50", p100: "Gimnasio chico (100)", p250: "Gimnasio (250)", p500: "Gimnasio grande (500)", cortesia: "Cortesía" }[p] || p || "—");
 async function loadCoaches(){
   page("Coaches y pagos", "Tocá un coach para cargar un pago, darle cortesía o más días de prueba.",
-    userTabs("coaches") + '<div id="cSoon"></div>' + block("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>'));
+    userTabs("coaches") + '<div id="cSoon"></div>' + block("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>') +
+    block("cCodB", "Códigos de fundador", '<div id="cCod" class="empty">Cargando…</div>'));
+  loadCodigos();
   const box = document.getElementById("cList");
   try { S.coaches = await rpc("admin_coaches"); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.coaches.length){ box.textContent = "Todavía no hay coaches."; return; }
@@ -585,6 +587,35 @@ async function loadCoaches(){
       <td class="muted small">${c.has_mp ? esc(mpTxt(c.mp_status)) : "—"}</td>
       <td>${c.price ? money(c.price) : "—"}</td></tr>`).join("")}</tbody></table>`;
 }
+// Códigos de fundador (supabase/codigo-fundador.sql): un descuento para siempre en el plan de los
+// primeros N coaches que lo usen al pagar con tarjeta en la web. Acá se crean, se cambian o se
+// apagan, y se ve cuántos lo usaron y quiénes. El código no está escrito en ningún lado más que
+// en la base.
+async function loadCodigos(){
+  const box = document.getElementById("cCod"); if (!box) return;
+  try { S.codigos = await rpc("admin_codigos_fundador"); }
+  catch (e) {
+    S.codigos = null;
+    const falta = /admin_codigos_fundador|schema cache/i.test(errMsg(e));
+    box.innerHTML = falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/codigo-fundador.sql</b>." : esc(errMsg(e));
+    return;
+  }
+  const list = S.codigos || [];
+  setSum("cCodB", list.length ? list.map(k => esc(k.codigo) + " " + n0(k.usados) + "/" + n0(k.cupo)).join(" · ") : "");
+  box.className = "";
+  box.innerHTML = (list.length ? `<div class="tscroll"><table class="table"><thead><tr><th>Código</th><th>Descuento</th><th>Usados</th><th>Estado</th><th></th></tr></thead><tbody>${list.map(k => `
+    <tr><td><b>${esc(k.codigo)}</b></td><td>${n0(k.porcentaje)}%</td><td>${n0(k.usados)} <span class="muted">de ${n0(k.cupo)}</span></td>
+      <td>${k.activo ? (k.usados >= k.cupo ? '<span class="pill warn">Sin lugares</span>' : '<span class="pill ok">Vigente</span>') : '<span class="pill">Apagado</span>'}</td>
+      <td><button class="btn sm" data-a="codEdit" data-v="${esc(k.codigo)}">Cambiar</button> <button class="btn sm" data-a="codOnOff" data-v="${esc(k.codigo)}">${k.activo ? "Apagar" : "Prender"}</button></td></tr>
+    ${(k.coaches || []).length ? `<tr><td colspan="5" class="small">${k.coaches.map(c => `<div>${esc(c.nombre || "Sin nombre")} <span class="muted">${esc(c.email || "")} · ${fmtD(c.fecha)}</span></div>`).join("")}</td></tr>` : ""}`).join("")}</tbody></table></div>`
+    : '<div class="muted" style="margin-bottom:8px">Todavía no hay códigos.</div>') +
+    `<div class="sec-s">Nuevo código (o el mismo para cambiarlo). Los que ya lo usaron conservan su descuento aunque lo cambies o lo apagues.</div>
+    <label class="lbl">Código</label><input class="in" id="codCod" maxlength="32" placeholder="Letras, números o guiones" autocomplete="off" style="text-transform:uppercase">
+    <label class="lbl">Descuento (%)</label><input class="in" id="codPct" type="number" min="1" max="90" value="30">
+    <label class="lbl">Cupo (coaches)</label><input class="in" id="codCupo" type="number" min="1" max="10000" value="20">
+    <div class="search" style="margin:8px 0 0"><button class="btn blue" data-a="codSave">Guardar código</button></div>`;
+}
+
 // Vencimientos: a quién escribirle. Pago o prueba que vence en los próximos 7 días, y los
 // que ya vencieron hace menos de 30 días (los de hace más, ya se sabe).
 // Los días se cuentan en el calendario de Argentina, desde hoy hasta el último día cubierto
@@ -1688,6 +1719,22 @@ document.addEventListener("click", async e => {
       b.disabled = true; await fn({ action: "eliminar", user_id: b.dataset.id }); toast("Cuenta eliminada"); closeDrawer(); searchUsers(); return;
     }
     if (a === "pmMeses"){ const c = (S.coaches || []).find(x => x.id === b.dataset.id); const u = document.getElementById("pmUntil"); if (c && u){ u.value = hastaMeses(c, parseInt(b.dataset.m, 10) || 1); u.dispatchEvent(new Event("change")); } return; }
+    if (a === "codEdit"){ const k = (S.codigos || []).find(x => x.codigo === b.dataset.v); if (!k) return; document.getElementById("codCod").value = k.codigo; document.getElementById("codPct").value = k.porcentaje; document.getElementById("codCupo").value = k.cupo; document.getElementById("codCod").focus(); return; }
+    if (a === "codSave"){
+      const cod = document.getElementById("codCod").value.trim().toUpperCase(), pct = parseInt(document.getElementById("codPct").value, 10), cupo = parseInt(document.getElementById("codCupo").value, 10);
+      if (!/^[A-Z0-9-]{4,32}$/.test(cod)){ toast("El código va de 4 a 32 letras, números o guiones."); return; }
+      if (!(pct >= 1 && pct <= 90) || !(cupo >= 1 && cupo <= 10000)){ toast("Revisá el descuento (1 a 90%) y el cupo."); return; }
+      const ya = (S.codigos || []).find(x => x.codigo === cod);
+      if (!await confirmar((ya ? "¿Cambiar el código " : "¿Crear el código ") + cod + "? " + pct + "% menos para siempre, para los primeros " + cupo + " coaches que lo usen al pagar con tarjeta en la web.")) return;
+      await rpc("admin_codigo_fundador_guardar", { p_codigo: cod, p_porcentaje: pct, p_cupo: cupo, p_activo: ya ? ya.activo : true });
+      toast("Código guardado"); loadCodigos(); return;
+    }
+    if (a === "codOnOff"){
+      const k = (S.codigos || []).find(x => x.codigo === b.dataset.v); if (!k) return;
+      if (k.activo && !await confirmar("¿Apagar el código " + k.codigo + "? Nadie más lo va a poder usar; los que ya lo usaron siguen con su descuento.")) return;
+      await rpc("admin_codigo_fundador_guardar", { p_codigo: k.codigo, p_porcentaje: k.porcentaje, p_cupo: k.cupo, p_activo: !k.activo });
+      toast(k.activo ? "Código apagado" : "Código prendido"); loadCodigos(); return;
+    }
     if (a === "pmSave"){
       const plan = document.getElementById("pmPlan").value, max = parseInt(document.getElementById("pmMax").value, 10) || PLAN_MAX[plan], until = document.getElementById("pmUntil").value;
       if (!until){ toast("Elegí hasta qué fecha pagó."); return; }
