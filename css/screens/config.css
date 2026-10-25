@@ -260,6 +260,12 @@ body.adm-open { overflow: hidden; }
 .cfg-gym-foto-txt { flex:1 1 160px; min-width:0; }
 .cfg-gym-mal { color:var(--gize-danger); }
 .cfg-gym-foto-acc { flex:none; }
+/* Tu cuota (etapa 2): el estado, la fecha y (solo en la web) la cuota y los últimos pagos. */
+.cfg-gym-cuota-box { display:flex; flex-direction:column; gap:4px; padding-top:10px; border-top:1px solid var(--border); }
+.cfg-gym-cuota { flex:0 1 auto; }
+.cfg-gym-ambar { color:color-mix(in srgb, var(--gize-warning) 72%, var(--txt)); }
+.cfg-gym-pagos-t { margin-top:6px; }
+.cfg-gym-pagos { margin:0; padding-left:18px; display:flex; flex-direction:column; gap:3px; font-size:var(--text-meta); color:var(--txt); }
 
 /* La hoja del socio (app/screens/gym/socio.js, #gymSocioHost): la hoja de abajo de siempre (.sheet de
    components.css), encima de todo (también de la bienvenida y del panel), como «Bloquear». */

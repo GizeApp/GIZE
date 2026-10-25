@@ -239,6 +239,29 @@ export function fotoSocio(path){
   return "";
 }
 
+// La cuota del socio (etapa 2: gym_mi_cuota, supabase/gimnasios-cuotas.sql) para Ajustes → Tu gimnasio.
+// Se pide al dibujar, como mucho una vez por minuto, y se redibuja cuando llega. undefined: todavía no
+// contestó; null: sin cuota, sin señal o una base sin las cuotas (no se muestra nada).
+let _cuota = { uid: null, v: undefined, t: 0, pidiendo: false };
+export function cuotaSocio(){
+  const uid = State.cloudUser && State.cloudUser.id;
+  if (!uid || !State.sb || rolGym() !== "socio") return null;
+  if (_cuota.uid !== uid) _cuota = { uid, v: undefined, t: 0, pidiendo: false };
+  const c = _cuota;
+  if (!c.pidiendo && Date.now() - c.t > 60e3){
+    c.pidiendo = true;
+    const antes = JSON.stringify(c.v === undefined ? "?" : c.v);
+    Promise.resolve(State.sb.rpc("gym_mi_cuota")).then(r => {
+      if (!r.error) c.v = r.data && typeof r.data === "object" ? r.data : null;
+      else if (c.v === undefined) c.v = null;
+    }, () => { if (c.v === undefined) c.v = null; }).then(() => {
+      c.pidiendo = false; c.t = Date.now();
+      if (_cuota === c && JSON.stringify(c.v) !== antes && _redibujar) _redibujar();
+    });
+  }
+  return c.v;
+}
+
 // El módulo del panel (carga diferida). Devuelve true si quedó listo.
 export function cargarPanelGym(){
   if (Gym.ui) return Promise.resolve(true);

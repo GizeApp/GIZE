@@ -109,6 +109,11 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
   <p><b>Resumen para tu coach (cuando esté disponible):</b> si tenés coach, aparte podés permitir que la IA lo ayude con tus registros. En ese caso se envían a Anthropic tus números de la semana (entrenos, comidas, peso y respuestas del check-in), sin tu nombre ni tu mail. Tus pasos no se envían. Tu coach revisa el resumen antes de mandarte algo y lo podés apagar cuando quieras en Ajustes.</p>
   <p>Como el resto de GIZE, estas funciones son para mayores de 18 años.</p>
 
+  <h2 id="gimnasios">Gimnasios: tu cuota y tus pagos</h2>
+  <p>Si sos socio de un gimnasio que usa GIZE, el gimnasio puede anotar en tu ficha qué cuota tenés, hasta cuándo está paga y los pagos que le hiciste en el gimnasio: la fecha, el monto, si fue en efectivo, por transferencia u otro medio, qué período cubre, quién del gimnasio lo cargó y una nota. GIZE no cobra las cuotas ni guarda datos de tarjetas ni de cuentas bancarias: solo guarda lo que anota el gimnasio, por encargo suyo. El gimnasio es el responsable de esos datos.</p>
+  <p><b>Quién lo ve:</b> el dueño y la administración del gimnasio, y la recepción si el gimnasio la deja registrar pagos. Tu profe (y la recepción, si no registra pagos) ve solo si tu cuota está al día, nunca los montos. Vos ves tu cuota y tus pagos en <b>Ajustes → Tu gimnasio</b> (en las apps de Android y iPhone, si está al día y hasta cuándo).</p>
+  <p><b>Cuánto tiempo:</b> mientras el gimnasio tenga tu ficha en GIZE. Un pago cargado por error no se borra: se anula y queda marcado. Si eliminás tu cuenta, la ficha y sus pagos siguen siendo parte del registro del gimnasio, sin tu cuenta; se borran cuando se borran los datos del gimnasio. Para corregir o borrar algo, pedíselo a tu gimnasio o escribinos.</p>
+
   <h2>Dónde se guardan</h2>
   <p>Los datos se guardan en <b>Supabase</b> (base de datos y archivos), con conexión cifrada y reglas que impiden que un usuario lea los datos de otro. Las notificaciones pasan por los servicios de push del navegador, en Android por <b>Firebase Cloud Messaging</b> de Google y en iPhone por <b>Apple Push Notification service</b>, que solo reciben el texto del mensaje y el identificador del dispositivo.</p>
   <p>Además usamos estos servicios, que reciben solo lo necesario para hacer su parte:</p>

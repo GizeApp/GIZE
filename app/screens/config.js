@@ -3,7 +3,7 @@
 // renderApp por monkey-patching para no tocar el original; con módulos reales
 // ya no hace falta el parche: main.js llama a renderConfig() directamente
 // cuando State.view === "config".
-import { Gym, rolGym, esSocioGym, fotoSocio, releerGym } from '../core/gimnasio.js';
+import { Gym, rolGym, esSocioGym, fotoSocio, releerGym, cuotaSocio } from '../core/gimnasio.js';
 import { State } from '../core/state.js';
 import { KEY, save } from '../core/storage.js';
 import { appleCodeForDelete, clearAccountLeftovers, forgetStoredSession, loadCloud, deleteMyStorageFiles, deleteMyAccount, PROFILE_KEY } from '../core/supabase.js';
@@ -72,6 +72,27 @@ function gymFotoHtml(f){
       '<label class="cfg-gym-btn cfg-gym-foto-acc">' + boton + '<input type="file" accept="image/*" data-gys-foto class="gys-foto-in"></label>' +
     '</div>';
 }
+// Tu cuota (etapa 2): lo que anotó el gimnasio (gym_mi_cuota). En la web, la cuota con su monto y tus
+// últimos pagos; en las apps de Android y iPhone, solo si está al día y la fecha (nada de precios ni
+// pagos adentro de la app de una tienda). Sin cuota, nada. Nunca un link ni un botón para pagar.
+const CUOTA_EST = { al_dia: ["Al día", ""], por_vencer: ["Por vencer", "cfg-gym-ambar"], vencida: ["Vencida", "cfg-gym-mal"], sin_pagos: ["Sin pagos cargados", "cfg-gym-ambar"] };
+const CUOTA_POR = { 1: "por mes", 2: "cada 2 meses", 3: "cada 3 meses", 6: "cada 6 meses", 12: "por año" };
+const CUOTA_MEDIO = { efectivo: "efectivo", transferencia: "transferencia", otro: "otro medio" };
+const pesos = n => { try { return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(n) || 0); } catch (e) { return "$ " + n; } };
+function gymCuotaHtml(){
+  const q = cuotaSocio();
+  if (!q || !CUOTA_EST[q.estado]) return "";
+  const [txt, cls] = CUOTA_EST[q.estado];
+  const cuando = q.vence ? (q.estado === "vencida" ? "Venció el " : "Paga hasta el ") + ddmm(q.vence) + "/" + String(q.vence).slice(2, 4) + "." : "";
+  let h = '<div class="cfg-gym-row"><span class="cfg-gym-k">Cuota</span><span class="cfg-gym-v cfg-gym-cuota ' + cls + '">' + txt + '</span></div>' +
+    (cuando ? '<div class="cfg-notif-desc">' + cuando + '</div>' : '');
+  if (appNativa()) return '<div class="cfg-gym-cuota-box">' + h + '</div>';
+  const c = q.cuota, pagos = (q.pagos || []).slice(0, 5);
+  if (c) h += '<div class="cfg-notif-desc">' + esc(c.name || "") + ' · ' + pesos(c.amount) + ' ' + (CUOTA_POR[c.months] || "") + '</div>';
+  if (pagos.length) h += '<div class="cfg-notif-label cfg-gym-pagos-t">Tus pagos</div><ul class="cfg-gym-pagos">' +
+    pagos.map(p => '<li>' + ddmm(p.fecha) + "/" + String(p.fecha).slice(2, 4) + ' · ' + pesos(p.monto) + ' · ' + esc(CUOTA_MEDIO[p.medio] || "") + '</li>').join("") + '</ul>';
+  return '<div class="cfg-gym-cuota-box">' + h + '<div class="cfg-notif-desc">Lo anota el gimnasio cuando le pagás.</div></div>';
+}
 function gymSection(){
   const gi = Gym.info, rol = rolGym();
   if (!gi || !gi.gym || !esSocioGym()) return "";
@@ -98,7 +119,7 @@ function gymSection(){
   return '<div class="card cfg-card cfg-gym" id="cfgGym">' + cab +
     '<div class="cfg-gym-name">' + nom + (g.city ? '<span class="cfg-gym-city"> · ' + esc(g.city) + '</span>' : '') + '</div>' +
     (f.status === "pausado" ? '<div class="cfg-notif-desc">Tu ficha está pausada' + (f.paused_until ? ' hasta el ' + ddmm(f.paused_until) : '') + '.</div>' : '') +
-    quien +
+    quien + gymCuotaHtml() +
     (confirmado
       ? '<div class="cfg-notif-row">' +
           '<div class="cfg-notif-txt"><div class="cfg-notif-label" id="cfgGymShare">Compartir mis registros con la administración</div>' +
