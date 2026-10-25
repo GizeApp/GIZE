@@ -242,8 +242,8 @@ Deno.serve(async (req) => {
 
 // ---------- foto del plato (la app) ----------
 // Para cualquier persona con sesión que haya aceptado el aviso (ia_permiso_estado = 'ok'), con la
-// función prendida en el panel. Topes de la persona: los de su rol (ia_rol: «coach» con plan, si
-// no «alumno»). No se guarda la foto ni la aclaración: van a la API y se olvidan.
+// función prendida en el panel. Topes de la persona: los de su rol (ia_rol: «coach» con plan o
+// profe de un gimnasio con el plan al día, «coach por gimnasio»; si no «alumno»). No se guarda la foto ni la aclaración: van a la API y se olvidan.
 async function comida(input: { imagen?: unknown; texto?: unknown }, me: string, url: string): Promise<Response> {
   const modo = "plato";
   const texto = typeof input.texto === "string" ? input.texto.replace(/\s+/g, " ").trim().slice(0, TEXTO_MAX_PLATO) : "";

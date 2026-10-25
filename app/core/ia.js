@@ -124,6 +124,15 @@ export async function iaReportar(funcion, respuesta, comentario){
   if (r.error) throw new Error(r.error.code === "54000" ? r.error.message : "No se pudo enviar. Probá de nuevo.");
 }
 
+// ¿Usa la IA con los límites de coach por ser profe de un gimnasio (sin plan de coach propio)?
+// Lo dice ia_mi_estado() (por_gimnasio, ver ia_rol_origen en supabase/ia.sql): se le aclara en
+// Ajustes y en el aviso del límite de hoy, para que sepa de dónde sale.
+export function iaPorGimnasio(){
+  const e = mio() && IA.estado;
+  return !!(e && e.por_gimnasio === true);
+}
+export const IA_POR_GIMNASIO = "Tus límites de IA son los de coach, por tu gimnasio.";
+
 // ---------- textos (§7.1) ----------
 const fecha = iso => { try { return new Date(iso).toLocaleDateString("es-AR", { day: "numeric", month: "long" }); } catch (e) { return ""; } };
 // El texto de cada código para la persona.
@@ -135,8 +144,8 @@ export function iaMensaje(e){
     case "pausada": return "La IA está pausada por ahora. Cargalo a mano.";
     case "ahorro": return "Por este mes, la foto del plato con IA queda para alumnos con coach. Buscalo o escaneá el código.";
     case "ritmo": return "Por hoy la IA llegó a su límite. Mañana vuelve. Mientras, cargalo a mano.";
-    case "tope_dia": return "Llegaste al límite de hoy (" + (e.tope ? e.tope + " " : "") + "fotos de plato con IA). Mañana se renueva. Mientras, buscalo o escaneá el código.";
-    case "tope_persona": return "Llegaste a tu límite personal de este mes con IA." + (e.vuelve ? " Vuelve el " + fecha(e.vuelve) + "." : "") + " Mientras, buscalo o escaneá el código.";
+    case "tope_dia": return "Llegaste al límite de hoy (" + (e.tope ? e.tope + " " : "") + "fotos de plato con IA). Mañana se renueva. Mientras, buscalo o escaneá el código." + (iaPorGimnasio() ? " " + IA_POR_GIMNASIO : "");
+    case "tope_persona": return "Llegaste a tu límite personal de este mes con IA." + (e.vuelve ? " Vuelve el " + fecha(e.vuelve) + "." : "") + " Mientras, buscalo o escaneá el código." + (iaPorGimnasio() ? " " + IA_POR_GIMNASIO : "");
     case "tope_mes": return "La IA de GIZE llegó a su límite de este mes: cargalo a mano." + (e.vuelve ? " Vuelve el " + fecha(e.vuelve) + "." : "");
     case "ocupada": return "La IA está con mucha demanda. Probá en un minuto.";
     case "foto_invalida": return "La foto no es válida o es muy grande. Probá con otra.";

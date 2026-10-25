@@ -91,6 +91,9 @@ create table if not exists public.ia_llamadas (
   creada      timestamptz not null default now(),
   cerrada     timestamptz
 );
+-- De dónde salió el rol «coach» de esa llamada (para el panel): 'plan' (su plan de coach) o
+-- 'gimnasio' (profe de un gimnasio, sin plan propio: ver ia_rol_origen). null en el resto.
+alter table public.ia_llamadas add column if not exists origen text check (origen is null or origen in ('plan', 'gimnasio'));
 create index if not exists ia_llamadas_user on public.ia_llamadas(user_id, creada);
 create index if not exists ia_llamadas_ciclo on public.ia_llamadas(ciclo_id, creada);
 create index if not exists ia_llamadas_abiertas on public.ia_llamadas(creada) where estado = 'reservada';
@@ -205,12 +208,40 @@ $$;
 revoke all on function public.coach_pago(uuid) from public, anon, authenticated;
 grant execute on function public.coach_pago(uuid) to service_role;
 
+-- Por qué una persona usa la IA de la app con los topes de coach (decisión del dueño):
+--   'plan'      es coach y tiene su plan pago o de cortesía (coach_pago);
+--   'gimnasio'  no tiene plan propio, pero es profe de un gimnasio abierto cuyo plan (el del dueño)
+--               está pago o es de cortesía. Cuenta como coach «por gimnasio»: el panel de la IA lo
+--               muestra así y la app le avisa que sus límites son por su gimnasio. La prueba gratis
+--               del gimnasio no cuenta, igual que la de un coach. Solo el rol «profe» (no la
+--               administración ni la recepción).
+--   null        ninguna de las dos: usa los topes de alumno.
+-- Sin las tablas de gimnasios (antes de supabase/gimnasios.sql) solo mira el plan: plpgsql no
+-- busca gym_staff hasta que llega a esa línea (por eso el control va en un if aparte).
+create or replace function public.ia_rol_origen(p_uid uuid)
+returns text language plpgsql stable security definer set search_path = public as $$
+begin
+  if exists (select 1 from public.profiles p where p.id = p_uid and p.role = 'coach') and public.coach_pago(p_uid) then
+    return 'plan';
+  end if;
+  if to_regclass('public.gym_staff') is null or to_regclass('public.gyms') is null then
+    return null;
+  end if;
+  if exists (select 1 from public.gym_staff s join public.gyms g on g.id = s.gym_id and g.closed_at is null
+              where s.user_id = p_uid and s.left_at is null and s.role = 'profe' and public.coach_pago(g.owner_id)) then
+    return 'gimnasio';
+  end if;
+  return null;
+end $$;
+revoke all on function public.ia_rol_origen(uuid) from public, anon, authenticated;
+grant execute on function public.ia_rol_origen(uuid) to service_role;
+
 -- Con qué topes usa la IA de la app cada persona: «coach» si es coach con plan pago o de
--- cortesía; si no, «alumno» (también quien no tiene coach).
+-- cortesía, o profe de un gimnasio con el plan al día («coach por gimnasio», ver ia_rol_origen);
+-- si no, «alumno» (también quien no tiene coach).
 create or replace function public.ia_rol(p_uid uuid)
 returns text language sql stable security definer set search_path = public as $$
-  select case when exists (select 1 from public.profiles p where p.id = p_uid and p.role = 'coach') and public.coach_pago(p_uid)
-              then 'coach' else 'alumno' end;
+  select case when public.ia_rol_origen(p_uid) is not null then 'coach' else 'alumno' end;
 $$;
 revoke all on function public.ia_rol(uuid) from public, anon, authenticated;
 grant execute on function public.ia_rol(uuid) to service_role;
@@ -352,8 +383,9 @@ begin
   end if;
 
   -- 9) Se reserva.
-  insert into public.ia_llamadas (ciclo_id, user_id, rol, funcion, modelo, max_usd, pedido_id)
-  values (v_c.id, p_uid, p_rol, p_funcion, p_modelo, p_max_usd, p_pedido) returning id into v_id;
+  insert into public.ia_llamadas (ciclo_id, user_id, rol, funcion, modelo, max_usd, pedido_id, origen)
+  values (v_c.id, p_uid, p_rol, p_funcion, p_modelo, p_max_usd, p_pedido, case when p_rol = 'coach' then public.ia_rol_origen(p_uid) end)
+  returning id into v_id;
   update public.ia_ciclos set reservado = reservado + p_max_usd where id = v_c.id;
   return jsonb_build_object('ok', true, 'llamada_id', v_id, 'ciclo_id', v_c.id, 'ahorro', v_ahorro);
 end $$;
@@ -495,7 +527,7 @@ begin
     'clave_rechazada', (select max(l.creada) from public.ia_llamadas l where l.codigo = 'clave_rechazada'
         and not exists (select 1 from public.ia_llamadas k where k.estado in ('ok', 'vacia') and k.creada > l.creada)),
     'ultimas', coalesce((select jsonb_agg(to_jsonb(x) order by x.creada desc)
-        from (select l.creada, l.rol, l.funcion, l.modelo, l.estado, l.codigo, l.usd, l.max_usd, l.ms from public.ia_llamadas l order by l.id desc limit 50) x), '[]'::jsonb));
+        from (select l.creada, l.rol, l.origen, l.funcion, l.modelo, l.estado, l.codigo, l.usd, l.max_usd, l.ms from public.ia_llamadas l order by l.id desc limit 50) x), '[]'::jsonb));
 end $$;
 revoke all on function public.admin_ia_estado() from public, anon;
 grant execute on function public.admin_ia_estado() to authenticated;
@@ -625,7 +657,8 @@ grant execute on function public.admin_ia_reintentar() to authenticated;
 -- Lo que la app necesita saber para mostrar (o no) los botones de la IA, sin montos:
 --   { activa, funciones: { plato, texto }, permiso_comida ('ok' | 'no' | 'viejo' | null),
 --     aviso_version, estado ('normal' | 'ahorro' | 'pausada' | 'tope_mes' | 'tope_persona'),
---     vuelve, quedan: { plato, texto }, tope: { plato, texto, total }, usados: { plato, texto, total } }
+--     vuelve, quedan: { plato, texto }, tope: { plato, texto, total }, usados: { plato, texto, total },
+--     por_gimnasio (true: usa los topes de coach por ser profe de un gimnasio, ver ia_rol_origen) }
 -- Una función está prendida para la app solo con el interruptor general, la de la función y la
 -- fecha de los créditos cargada (sin eso la función nunca llama a la IA): si no, la app no
 -- muestra nada nuevo. «quedan»: cuántos usos le quedan hoy a la persona (por función y en total).
@@ -633,7 +666,7 @@ create or replace function public.ia_mi_estado()
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare
   v_uid uuid := auth.uid(); v_cfg public.ia_config; v_c public.ia_ciclos; v_ini timestamptz; v_fin timestamptz;
-  v_on boolean; v_plato boolean; v_texto boolean; v_rol text; v_hoy0 timestamptz; v_estado text := 'normal'; v_vuelve timestamptz;
+  v_on boolean; v_plato boolean; v_texto boolean; v_rol text; v_origen text; v_hoy0 timestamptz; v_estado text := 'normal'; v_vuelve timestamptz;
   v_np int; v_nt int; v_n int; v_tp numeric; v_tt numeric; v_tot numeric; v_mio numeric;
 begin
   if v_uid is null then return jsonb_build_object('activa', false, 'funciones', jsonb_build_object('plato', false, 'texto', false)); end if;
@@ -645,7 +678,8 @@ begin
     return jsonb_build_object('activa', false, 'funciones', jsonb_build_object('plato', false, 'texto', false),
       'permiso_comida', public.ia_permiso_estado(v_uid), 'aviso_version', coalesce(v_cfg.aviso_version, 1));
   end if;
-  v_rol := public.ia_rol(v_uid);
+  v_origen := public.ia_rol_origen(v_uid);
+  v_rol := case when v_origen is not null then 'coach' else 'alumno' end;   -- lo mismo que ia_rol
   -- El ciclo de ahora (sin crearlo: esto solo mira).
   select x.inicio, x.fin into v_ini, v_fin from public.ia_ciclo_de(v_cfg.ancla, now()) x;
   select * into v_c from public.ia_ciclos where inicio = v_ini;
@@ -676,7 +710,8 @@ begin
     'estado', v_estado, 'vuelve', v_vuelve, 'manana', v_hoy0 + interval '1 day',
     'quedan', jsonb_build_object('plato', greatest(0, least(v_tp - v_np, v_tot - v_n)), 'texto', greatest(0, least(v_tt - v_nt, v_tot - v_n))),
     'tope', jsonb_build_object('plato', v_tp, 'texto', v_tt, 'total', v_tot),
-    'usados', jsonb_build_object('plato', v_np, 'texto', v_nt, 'total', v_n));
+    'usados', jsonb_build_object('plato', v_np, 'texto', v_nt, 'total', v_n),
+    'por_gimnasio', v_origen = 'gimnasio');
 end $$;
 revoke all on function public.ia_mi_estado() from public, anon;
 grant execute on function public.ia_mi_estado() to authenticated;

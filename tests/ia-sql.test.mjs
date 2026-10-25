@@ -61,7 +61,7 @@ export default async ({ t }) => {
   t.ok(/user_id\s+uuid references auth\.users\(id\) on delete set null/.test(code), 'ia_llamadas: al borrar la cuenta queda sin la persona');
 
   // Funciones de la guardia: solo la service role.
-  for (const sig of ['ia_reservar(uuid, text, text, text, numeric, bigint)', 'ia_cerrar(bigint, text, text, numeric, int, int, int, int, int)', 'ia_cortar(bigint, text, timestamptz)', 'ia_vencer()', 'ia_limpiar()', 'coach_pago(uuid)', 'ia_rol(uuid)', 'ia_permiso_estado(uuid)']){
+  for (const sig of ['ia_reservar(uuid, text, text, text, numeric, bigint)', 'ia_cerrar(bigint, text, text, numeric, int, int, int, int, int)', 'ia_cortar(bigint, text, timestamptz)', 'ia_vencer()', 'ia_limpiar()', 'coach_pago(uuid)', 'ia_rol_origen(uuid)', 'ia_rol(uuid)', 'ia_permiso_estado(uuid)']){
     const e = sig.replace(/[()]/g, '\\$&');
     t.ok(new RegExp('revoke all on function public\\.' + e + ' from public, anon, authenticated;').test(code), sig + ': nada para public, anon ni authenticated');
     t.ok(new RegExp('grant execute on function public\\.' + e + ' to service_role;').test(code), sig + ': solo la service role');
@@ -78,7 +78,7 @@ export default async ({ t }) => {
   t.ok(/add column if not exists fuente text check \(fuente is null or fuente in \('ia', 'ia-editado'\)\)/.test(code), 'food_entries.fuente: ia o ia-editado');
   t.ok(/user_id\s+uuid references auth\.users\(id\) on delete cascade,\s+funcion\s+text not null check \(funcion in \('plato', 'texto'\)\)/.test(code), 'ia_reportes: se borra con la cuenta');
   t.ok(/delete from public\.ia_reportes where creada < now\(\) - interval '180 days'/.test(fn(code, 'ia_limpiar')), 'ia_reportes: se borra a los 180 días');
-  for (const name of ['ia_ciclo_tomar', 'ia_frenada', 'ia_reservar', 'ia_cerrar', 'ia_cortar', 'ia_vencer', 'ia_limpiar', 'coach_pago', 'admin_ia_estado', 'admin_ia_config', 'admin_ia_ciclo', 'admin_ia_reintentar', 'ia_rol', 'ia_permiso_estado', 'ia_mi_estado', 'ia_permiso', 'ia_reportar'])
+  for (const name of ['ia_ciclo_tomar', 'ia_frenada', 'ia_reservar', 'ia_cerrar', 'ia_cortar', 'ia_vencer', 'ia_limpiar', 'coach_pago', 'admin_ia_estado', 'admin_ia_config', 'admin_ia_ciclo', 'admin_ia_reintentar', 'ia_rol_origen', 'ia_rol', 'ia_permiso_estado', 'ia_mi_estado', 'ia_permiso', 'ia_reportar'])
     t.ok(/security definer set search_path = public/.test(fn(code, name)), name + ': security definer con search_path fijo');
   // Panel: primero, que sea administrador.
   for (const name of ['admin_ia_estado', 'admin_ia_config', 'admin_ia_ciclo', 'admin_ia_reintentar']){
