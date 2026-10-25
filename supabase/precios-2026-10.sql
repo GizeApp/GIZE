@@ -1,5 +1,7 @@
 -- Precios nuevos de GIZE (octubre 2026) y dos planes de gimnasio más.
 -- Pegar entero en Supabase → SQL Editor → Run. Se puede correr varias veces.
+-- Si ya corriste supabase/cuentas-prueba.sql, después de este corré ese otra vez (si no, el panel
+-- vuelve a contar las cuentas de prueba).
 --
 --   p10   Hasta 10 clientes                    $14.900 por mes  (antes $9.300)
 --   p25   Hasta 25 clientes                    $24.900 por mes  (antes $15.000)

@@ -10,6 +10,9 @@
 --   __DEMO_COACHIOS__ coach para la revisión de Apple: sin plan (la prueba ya terminó), así en el
 --                     iPhone ve los planes de Apple y los puede comprar con Sandbox. Cada vez que
 --                     se corre vuelve a quedar sin plan (se borra lo que haya comprado).
+--
+-- Las tres quedan marcadas como cuentas de prueba (supabase/cuentas-prueba.sql), así el panel no
+-- las cuenta como coaches ni usuarios reales. Si ese archivo todavía no se corrió, no se marcan.
 
 do $$
 declare
@@ -64,6 +67,11 @@ begin
   on conflict (coach_id) do update set plan = 'cortesia', max_clients = 50, updated_at = now();
 
   update public.profiles set coach_id = coach where id = client;
+
+  -- Cuentas de prueba: el panel no las cuenta (si ya se corrió cuentas-prueba.sql).
+  if to_regclass('public.test_accounts') is not null then
+    insert into public.test_accounts (user_id) values (coach), (client), (coachios) on conflict (user_id) do nothing;
+  end if;
 
   -- Coach de la revisión de Apple: sin plan, con la prueba terminada y sin nada comprado.
   delete from public.apple_subs where user_id = coachios;
