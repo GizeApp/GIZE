@@ -17,6 +17,9 @@
 // - Etapa 2: gimnasios-cuotas.sql con su cabecera, la nota «OJO» (y la de gimnasios-socios.sql), guarda,
 //   tablas con RLS y solo lectura, permisos, gym_audit, textos de error y el bloque para volver atrás con
 //   el semáforo y el ingreso de la etapa 1 tal cual.
+// - Etapa 3: gimnasios-clases.sql con su cabecera, guarda, tablas con RLS y solo lectura, permisos,
+//   gym_audit en lo que hace el equipo, el bloqueo de la fecha antes de contar lugares, textos de error y
+//   el bloque para volver atrás (y el de gimnasios-cuotas.sql se frena si las clases siguen).
 // - tests/pg/orden.txt nombra todos los supabase/*.sql (o los deja afuera a propósito).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -337,9 +340,53 @@ export default async ({ t }) => {
   t.ok(!textosC.some(m => /\bplan\b|renov|renuev|precio|\$/i.test(m)), 'ningún texto de error nombra el plan de GIZE ni manda a renovar: ' + textosC.filter(m => /\bplan\b|renov|precio/i.test(m)).join(' | '));
   t.ok(!/mercado ?pago|preapproval|mp_/i.test(cc), 'sin cobro online: nada de Mercado Pago');
 
+  // ===== Etapa 3: gimnasios-clases.sql =====
+  const cl = read('supabase/gimnasios-clases.sql');
+  t.ok(!!cl, 'existe gimnasios-clases.sql');
+  const kc = sinComentarios(cl.slice(0, cl.indexOf('-- ===== Para volver atrás ====='))), kAtras = cl.slice(cl.indexOf('-- ===== Para volver atrás =====')).split('\n').filter(z => z.startsWith('-- ')).map(z => z.slice(3)).join('\n');
+  t.ok(cabeza(cl, 6).includes('Correr con el workflow "Supabase" → tarea sql → supabase/gimnasios-clases.sql, después de supabase/gimnasios.sql, supabase/gimnasios-vinculo.sql, supabase/gimnasios-lectura.sql, supabase/gimnasios-socios.sql, supabase/gimnasios-admin.sql y supabase/gimnasios-cuotas.sql. Se puede correr varias veces.'),
+    'gimnasios-clases.sql: cómo correrlo, después de qué y que se puede volver a correr');
+  t.ok(/SIN CLASES TODO SIGUE IGUAL/.test(cabeza(cl, 10)) && /SIN CARRERAS EN EL CUPO/.test(cl.slice(0, 4000)), 'gimnasios-clases.sql: dice que sin clases todo sigue igual y cómo evita las carreras en el cupo');
+  const g7 = kc.indexOf("raise exception 'Primero correr supabase/gimnasios.sql");
+  t.ok(g7 > 0 && g7 < kc.indexOf('create or replace function'), 'gimnasios-clases.sql: lo primero controla que estén los archivos anteriores');
+  t.ok(/notify pgrst, 'reload schema';\s*$/.test(kc.trim() + '\n'), 'gimnasios-clases.sql: termina con notify pgrst');
+  t.ok(!/drop table|drop column/i.test(kc), 'gimnasios-clases.sql: ningún drop table ni drop column (fuera del bloque para volver atrás)');
+  t.ok(!/grant [^;]*\bto\b[^;]*\b(anon|public)\b/i.test(kc) && !/grant (insert|update|delete|all)/i.test(kc), 'gimnasios-clases.sql: ningún grant para anon o public, ni de escritura');
+  for (const tb of ['gym_classes', 'gym_class_dates', 'gym_bookings']){
+    t.ok(kc.includes('create table if not exists public.' + tb + ' (') && kc.includes('alter table public.' + tb + ' enable row level security;')
+      && kc.includes('revoke all on public.' + tb + ' from anon, authenticated;') && kc.includes('grant select on public.' + tb + ' to authenticated;'),
+      tb + ': if not exists, con RLS, sin permisos salvo select');
+  }
+  t.ok([...kc.matchAll(/create policy "[^"]+" on public\.(\w+)\s+for (\w+)/g)].every(m => m[2] === 'select'), 'clases: solo políticas de lectura');
+  const addsK = [...kc.matchAll(/add constraint (\w+)/g)].map(m => m[1]);
+  t.ok(addsK.length >= 8 && addsK.every(c => kc.includes('drop constraint if exists ' + c + ';')), 'clases: cada constraint se borra antes de crearla (' + addsK.length + ')');
+  t.ok([...kc.matchAll(/create (unique )?index (\S+)/g)].every(m => m[2] === 'if'), 'clases: índices «if not exists»');
+  t.ok(kc.includes('drop trigger if exists gym_members_clases_baja on public.gym_members;'), 'clases: el trigger se borra antes de crearlo');
+  const fk = [...kc.matchAll(/create or replace function public\.(\w+)\(([^\n]*)\)\s*returns[\s\S]*?\nas \$\$/g)];
+  t.ok(fk.length >= 25 && fk.every(m => /security definer\s+set search_path = public/.test(m[0])), 'gimnasios-clases.sql: todas las funciones security definer con search_path fijo (' + fk.length + ')');
+  for (const m of fk) t.ok(new RegExp('revoke (all|execute) on function public\\.' + m[1] + '\\([^)]*\\) from public, anon').test(kc), 'gimnasios-clases.sql: ' + m[1] + ' tiene su revoke (de public y anon)');
+  t.eq(fk.map(m => m[1]).filter(n => !new RegExp('public\\.' + n + '\\(').test(kAtras)), [], 'gimnasios-clases.sql: el bloque para volver atrás borra cada función');
+  t.ok(['drop table if exists public.gym_bookings;', 'drop table if exists public.gym_class_dates;', 'drop table if exists public.gym_classes;',
+    "cron.unschedule('gize-gym-clases')", 'drop trigger if exists gym_members_clases_baja'].every(x => kAtras.includes(x)), 'volver atrás saca las tablas, la tarea y el trigger');
+  for (const fn of ['gym_clase_guardar', 'gym_clase_archivar', 'gym_clase_cancelar', 'gym_clases_config', 'gym_clase_presente', 'gym_clase_anotar', 'gym_clase_quitar'])
+    t.ok(sentencia(cl, fn).includes('perform public.gym_auditar('), fn + ': queda en gym_audit');
+  // Lo que cuenta lugares bloquea antes la fecha: gym_clase_fecha (for update) o el select de la fecha «for update».
+  for (const fn of ['gym_reservar', 'gym_clase_anotar', 'gym_clase_cancelar'])
+    t.ok(sentencia(cl, fn).includes('public.gym_clase_fecha('), fn + ': bloquea la fecha (gym_clase_fecha) antes de contar');
+  for (const fn of ['gym_reserva_cancelar', 'gym_clase_quitar'])
+    t.ok(/from public\.gym_class_dates x where x\.id = b\.date_id for update;/.test(sentencia(cl, fn)), fn + ': bloquea la fecha antes de soltar el lugar');
+  t.ok((sentencia(cl, 'gym_clase_fecha').match(/for update/g) || []).length === 2, 'gym_clase_fecha deja la fecha bloqueada');
+  t.ok(/gym_clases_cfg\(uuid\) from public, anon, authenticated/.test(kc) && /gym_clase_promover\(uuid\) from public, anon, authenticated/.test(kc)
+    && /gym_clase_fecha\(uuid, uuid, date\) from public, anon, authenticated/.test(kc) && /gym_clases_limpiar\(\) from public, anon, authenticated/.test(kc), 'las ayudas internas sin permiso para la app');
+  t.ok(!/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}/.test(cl) && !/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(cl), 'gimnasios-clases.sql: sin mails ni uuids');
+  const textosK = [...kc.matchAll(/raise exception '([^']+)'/g)].map(m => m[1]).filter(m => !/^(Primero|Faltan) /.test(m));
+  t.ok(textosK.length > 25, 'clases: textos de error: ' + textosK.length);
+  t.ok(!textosK.some(m => /\bplan\b|renov|renuev|precio|\$|pag[aá]/i.test(m)), 'ningún texto de error nombra el plan de GIZE, precios ni pagos: ' + textosK.filter(m => /\bplan\b|renov|precio|pag/i.test(m)).join(' | '));
+  t.ok(/Primero el bloque «Para volver atrás» de supabase\/gimnasios-clases\.sql/.test(cAtras), 'gimnasios-cuotas.sql, volver atrás: se frena si las clases siguen');
+
   // La lista de la base de pruebas.
   const lista = read('tests/pg/orden.txt').split('\n').map(l => l.replace(/#.*/, '').trim()).filter(Boolean);
-  const fuera = ['cuentas-demo.sql', 'auditoria.sql', 'estado.sql', 'seguridad-chequeo.sql', 'esquema-huella.sql', 'gimnasios-control.sql', 'gimnasios.sql', 'gimnasios-vinculo.sql', 'gimnasios-lectura.sql', 'gimnasios-socios.sql', 'gimnasios-admin.sql', 'gimnasios-cuotas.sql'];
+  const fuera = ['cuentas-demo.sql', 'auditoria.sql', 'estado.sql', 'seguridad-chequeo.sql', 'esquema-huella.sql', 'gimnasios-control.sql', 'gimnasios.sql', 'gimnasios-vinculo.sql', 'gimnasios-lectura.sql', 'gimnasios-socios.sql', 'gimnasios-admin.sql', 'gimnasios-cuotas.sql', 'gimnasios-clases.sql'];
   const todos = fs.readdirSync(path.join(ROOT, 'supabase')).filter(f => f.endsWith('.sql'));
   t.eq(todos.filter(f => !lista.includes(f) && !fuera.includes(f)), [], 'tests/pg/orden.txt nombra todos los supabase/*.sql (o los deja afuera a propósito)');
   t.eq(lista.filter(f => !todos.includes(f)), [], 'y todos los que nombra existen');

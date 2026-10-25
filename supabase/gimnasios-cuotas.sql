@@ -41,8 +41,8 @@
 -- vencido el plan, como la recepción); leer y exportar, siempre.
 -- Cada cambio queda en gym_audit (la persona real; montos sí, datos de salud nunca).
 --
--- Para volver atrás: el bloque comentado del final (antes que el de gimnasios-admin.sql y el de
--- gimnasios-socios.sql).
+-- Para volver atrás: el bloque comentado del final (después del de gimnasios-clases.sql y antes que
+-- el de gimnasios-admin.sql y el de gimnasios-socios.sql).
 
 
 -- ===== Antes que nada: ¿están los archivos anteriores? =====
@@ -608,12 +608,18 @@ notify pgrst, 'reload schema';
 
 
 -- ===== Para volver atrás =====
--- Correr esto sin los «-- » (antes que el bloque de gimnasios-admin.sql y el de gimnasios-socios.sql).
+-- Correr esto sin los «-- » (después del bloque de gimnasios-clases.sql: si no, se frena sin cambiar
+-- nada; antes que el de gimnasios-admin.sql y el de gimnasios-socios.sql).
 -- Vuelven gym_semaforo y gym_ingreso_manual de la etapa 1 (copia textual de gimnasios-socios.sql) y se
 -- borran las funciones, los pagos, los tipos de cuota, la columna fee_due, la clave foránea de
 -- fee_type_id (la columna queda, como en la etapa 0) y el interruptor cuota_bloquea. Exportá los pagos
 -- antes: se borran.
 --
+-- do $$ begin
+--   if to_regclass('public.gym_bookings') is not null then
+--     raise exception 'Primero el bloque «Para volver atrás» de supabase/gimnasios-clases.sql (usa gym_cuota_estado).';
+--   end if;
+-- end $$;
 -- create or replace function public.gym_semaforo(fid uuid)
 -- returns jsonb
 -- language plpgsql

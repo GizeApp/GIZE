@@ -82,3 +82,5 @@ permisos-sin-sesion.sql       # sin sesión no se llaman 9 funciones (después d
 #   gimnasios-lectura.sql       la administración lee lo que el socio compartió (políticas y 2 funciones)
 #   gimnasios-socios.sql        fichas, equipo, solicitudes, foto, recepción y estados (las RPC de la etapa 1)
 #   gimnasios-admin.sql         el admin de GIZE (pestaña Gimnasios, convertir, transferir) y los avisos de vencimiento
+#   gimnasios-cuotas.sql        las cuotas y los pagos (etapa 2)
+#   gimnasios-clases.sql        las clases, las reservas, la lista de espera y el presente (etapa 3)
