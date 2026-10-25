@@ -45,7 +45,7 @@ export default async ({ t }) => {
 
   // ---------- 1) Leído ----------
   const def = JSON.parse((code.match(/add column if not exists plus jsonb not null default '([^']+)'/) || [])[1] || '{}');
-  t.eq(def, { activa: false, gratis_semana: 3, precio_ars: 3900, precio_confirmado: false }, 'IA Plus arranca apagado, 3 fotos gratis por semana y el precio sin confirmar');
+  t.eq(def, { activa: false, gratis_semana: 3, precio_ars: 3900, precio_confirmado: true }, 'IA Plus arranca apagado, 3 fotos gratis por semana y el precio de la web en $3.900 (lo decidió el dueño)');
   const topes = JSON.parse((code.match(/topes\s+jsonb not null default '([^']+)'/) || [])[1] || '{}');
   t.eq(topes.plus, { plato: 10, usd_ciclo: 1.5 }, 'topes de IA Plus: 10 fotos por día y US$1,50 por ciclo');
   t.eq([topes.alumno.plato, topes.alumno.usd_ciclo], [8, 0.5], 'el gratis sigue con 8 fotos y US$0,50');
@@ -92,7 +92,11 @@ export default async ({ t }) => {
     for (const vez of [1, 2]){
       r = psql(ped); t.ok(r.status === 0, 'pedidos-productos.sql corre (vez ' + vez + '): ' + errores(r));
       r = psql(sql); t.ok(r.status === 0, 'ia.sql corre (vez ' + vez + '): ' + errores(r));
+      // Como quedó una base con la versión anterior (los $3.900 sin confirmar): al correrlo de nuevo, se confirma.
+      if (vez === 1) psql(`update public.ia_config set plus = plus || '{"precio_confirmado": false}';`);
     }
+    r = psql(`select plus ->> 'precio_ars', plus ->> 'precio_confirmado', plus ->> 'activa' from public.ia_config;`);
+    t.eq((r.stdout || '').trim(), '3900|true|false', 'IA Plus: $3.900 confirmado y apagado (también en una base que lo tenía sin confirmar)');
     for (const [nombre, texto] of ESCENARIOS){
       r = psql(texto);
       t.ok(r.status === 0, nombre + ': ' + errores(r));
@@ -138,6 +142,7 @@ do $$ declare j jsonb; e jsonb; begin
 end $$;
 delete from public.ia_llamadas;`],
   ['no se prende sin el precio confirmado; con el precio, sí', `
+update public.ia_config set plus = plus || '{"precio_confirmado": false}';
 ${COMO(ADMIN_ID)}
 do $$ begin
   begin perform public.admin_ia_config('{"plus": {"activa": true}}'); raise exception 'prendió sin precio'; exception when sqlstate '22023' then null; end;

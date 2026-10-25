@@ -51,10 +51,14 @@ alter table public.ia_config alter column activa set default false;
 insert into public.ia_config (id) values (1) on conflict (id) do nothing;
 -- IA Plus (foto del plato sin el límite semanal, ver «IA Plus» más abajo):
 -- activa (el interruptor del panel; ARRANCA APAGADO y, apagado, no hay límite semanal: como hasta
--- ahora), gratis_semana (fotos gratis por semana), precio_ars (el precio de la
--- web con Mercado Pago; 3900 es provisorio hasta que el dueño lo confirme en el panel) y
--- precio_confirmado (pasa a true cuando se guarda un precio desde el panel).
-alter table public.ia_config add column if not exists plus jsonb not null default '{"activa":false,"gratis_semana":3,"precio_ars":3900,"precio_confirmado":false}';
+-- ahora), gratis_semana (fotos gratis por semana), precio_ars (el precio por mes de la web con
+-- Mercado Pago: $3.900, lo decidió el dueño; se cambia en el panel) y precio_confirmado (sin
+-- precio confirmado no se prende; se confirma solo al guardar un precio desde el panel).
+alter table public.ia_config add column if not exists plus jsonb not null default '{"activa":false,"gratis_semana":3,"precio_ars":3900,"precio_confirmado":true}';
+-- En una base donde ya estaba con los $3.900 sin confirmar (versión anterior de este archivo), queda
+-- confirmado: es el precio que eligió el dueño. Un precio guardado desde el panel no se toca.
+update public.ia_config set plus = jsonb_set(plus, '{precio_confirmado}', 'true'::jsonb)
+ where id = 1 and (plus ->> 'precio_ars')::numeric = 3900 and coalesce((plus ->> 'precio_confirmado')::boolean, false) is not true;
 -- Los topes de quien tiene IA Plus (comprado o incluido): fotos del plato por día y US$ por ciclo.
 -- Valen el mayor entre estos y los de su rol (un coach sigue con sus US$5). Se cambian en el panel
 -- (IA → Topes → Con IA Plus). En una base que ya tenía la configuración, se suman una sola vez.

@@ -1541,7 +1541,7 @@ function paintIA(foco){
   if (foco){ const el = document.querySelector(foco); if (el) try { el.focus({ preventScroll: true }); } catch (e) {} }
 }
 // IA Plus (supabase/ia.sql → ia_plus, app/ui/ia-plus.js): el interruptor, el precio de la web en
-// pesos (provisorio hasta que se guarde), las fotos gratis por semana, cuántos lo tienen y, para
+// pesos ($3.900 de entrada; sin precio confirmado no se prende), las fotos gratis por semana, cuántos lo tienen y, para
 // soporte, darlo o sacarlo a mano. Apagado: no hay límite semanal y no se vende nada.
 // ¿Está prendida la IA de Comida? (sin eso, IA Plus no se prende ni se ofrece)
 const iaComidaOn = ia => !!(ia && ia.activa && ia.funciones && ia.funciones.plato);
