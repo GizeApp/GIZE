@@ -30,7 +30,7 @@ import { timerText } from '../ui/settimer.js';
 
 import { focusFor, revealCls } from '../ui/scrollfocus.js';
 
-import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto, hoyDow } from '../core/diasemana.js';
+import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto, hoyDow, ordenSemana } from '../core/diasemana.js';
 
 export const EntrenoState = {
 
@@ -276,7 +276,8 @@ export function dayNameCls(name){ const n = String(name || '').length; return n 
 
 export function renderEntreno(){
   const d = day();
-  const tabs = state.days.map(x =>
+  // De lunes a domingo según los días de la semana de cada uno (core/diasemana.js → ordenSemana).
+  const tabs = ordenSemana(state.days).map(i => state.days[i]).map(x =>
     `<button class="tab${x.id===State.activeId?' active':''}" data-action="tab" data-day="${esc(x.id)}">${esc(x.name)}</button>`
   ).join("") + (routineLocked() ? "" : `<button class="tab tab-add" data-action="addday" title="Agregar día">+</button>`);
   // Un solo ejercicio roto no debe tumbar toda la vista de Entreno: v.innerHTML= es una

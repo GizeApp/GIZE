@@ -32,6 +32,7 @@ import { loadBilling } from './plan.js';
 import { refrescarGym } from './gimnasio.js';
 
 import { renderWChart } from '../progreso.js';
+import { cargarPresets } from './presets.js';
 
 export async function loadCoachClients(){
   // Al volver a leer la lista, el profe de un gimnasio vuelve a preguntar qué socios atiende
@@ -76,6 +77,7 @@ export async function loadCoachClients(){
     await billP;
   }catch(e){ console.error("coachClients",e); }
   loadCoachStats(); loadTpls(); loadMealTpls();
+  cargarPresets().then(()=>{ if(CoachState.coachSel||CoachState.coachTplEdit) renderCoach(); });
 }
 
 export async function loadCoachStats(){
