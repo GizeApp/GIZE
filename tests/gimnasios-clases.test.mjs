@@ -302,6 +302,11 @@ export default async function ({ t: t0 }){
   t.eq([x[10].map(c => c.nombre), x[11].find(c => c.id === CY).archivada], [['Spinning'], true], 'la recepción no ve las archivadas; el dueño sí, marcadas');
   t.eq([x[12].msg, x[13].msg], ['Esa clase está cancelada: La clase dejó de darse.', 'Esa clase está archivada.'], 'archivada: no se reserva ni se cambia');
 
+  // Borrar la cuenta: la ficha queda sin app y suelta lo que venía (la espera avanza).
+  x = await V([['A1', reservar(CS, D.d2)], ['A2', reservar(CS, D.d2)], ['A3', reservar(CS, D.d2)],
+    ['A2', 'select to_jsonb(true) from (select public.delete_own_account()) x'], ['postgres', estados(CS, D.d2)]]);
+  t.eq([x[3], x[4]], [true, { A1: 'confirmada', 'Juan Pérez': 'cancelada', A3: 'confirmada' }], 'A2 borra su cuenta: suelta su lugar y pasa A3');
+
   // ===== Leer las tablas directo =====
   const cuentaT = (w, tb) => [w, `select to_jsonb(count(*)) from public.${tb}`];
   x = await V([['A1', reservar(CS, D.d2)],

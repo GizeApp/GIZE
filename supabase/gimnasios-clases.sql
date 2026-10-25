@@ -5,8 +5,8 @@
 -- Sin esos archivos falla entero, sin cambiar nada (lo primero del archivo lo controla).
 --
 -- SIN CLASES TODO SIGUE IGUAL: no cambia ninguna función de antes. Suma tablas, funciones, un trigger
--- en gym_members (al pasar a baja, suelta sus reservas) y una tarea diaria que sale enseguida si no
--- hay clases viejas.
+-- en gym_members (al pasar a baja o al borrar la cuenta, suelta sus reservas) y una tarea diaria que
+-- sale enseguida si no hay clases viejas.
 --
 -- Qué suma:
 --   · gym_classes: la grilla semanal (nombre, profe, día de la semana, hora, duración, cupo, sala
@@ -17,8 +17,8 @@
 --     cancela. Cancelar una fecha no toca la grilla.
 --   · gym_bookings: las reservas (confirmada, en espera o cancelada), una por socio y fecha. La lista
 --     de espera va por orden de llegada; cuando se libera un lugar (alguien cancela, el gimnasio le
---     saca la reserva, sube el cupo o el socio pasa a baja) el primero pasa a confirmada solo y se le
---     anota un aviso (gym_alerts, «clase_lugar»). El presente: lo marca el profe de la clase o la
+--     saca la reserva, sube el cupo, el socio pasa a baja o borra su cuenta) el primero pasa a
+--     confirmada solo y se le anota un aviso (gym_alerts, «clase_lugar»). El presente: lo marca el profe de la clase o la
 --     recepción (presente o ausente) y, si nadie lo marcó, sale del ingreso: cuenta un ingreso al
 --     gimnasio desde 90 minutos antes de que empiece hasta que termina.
 --   · SIN CARRERAS EN EL CUPO: reservar, cancelar y pasar de la espera bloquean primero la fila de la
@@ -870,8 +870,8 @@ grant execute on function public.gym_reserva_cancelar(uuid) to authenticated;
 
 -- ===== Baja y limpieza =====
 
--- Una ficha que pasa a baja (salió del gimnasio, la dieron de baja) suelta sus reservas que no
--- empezaron, y la espera de esas clases avanza.
+-- Una ficha que pasa a baja (salió del gimnasio, la dieron de baja) o que se queda sin cuenta (la
+-- persona borró su cuenta) suelta sus reservas que no empezaron, y la espera de esas clases avanza.
 create or replace function public.gym_members_clases_baja()
 returns trigger
 language plpgsql
@@ -891,8 +891,8 @@ begin
 end $$;
 revoke all on function public.gym_members_clases_baja() from public, anon, authenticated;
 drop trigger if exists gym_members_clases_baja on public.gym_members;
-create trigger gym_members_clases_baja after update of status on public.gym_members
-  for each row when (new.status = 'baja' and old.status is distinct from 'baja')
+create trigger gym_members_clases_baja after update of status, member_id on public.gym_members
+  for each row when ((new.status = 'baja' and old.status is distinct from 'baja') or (old.member_id is not null and new.member_id is null))
   execute function public.gym_members_clases_baja();
 
 -- Las fechas de hace más de 12 meses se borran con sus reservas y su presente (tarea diaria).
