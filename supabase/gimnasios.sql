@@ -871,7 +871,9 @@ notify pgrst, 'reload schema';
 --      and p.proname not in ('gym_mi_rol', 'gym_soy_socio', 'gym_role', 'vinculo_gym', 'gym_de_dueno', 'gym_active',
 --                            'gym_operativo', 'gym_reads_member', 'recount_seats', 'seats_drift', 'gym_recontar',
 --                            'gym_cupo_profiles', 'gym_cupo_members', 'gym_cupo_staff', 'gym_cupo_gyms', 'coach_billing_cupo',
---                            'gym_codes_unico', 'gym_profe_ficha', 'gym_members_profe', 'gym_members_pedido_sin_cuenta')
+--                            'gym_codes_unico', 'gym_profe_ficha', 'gym_members_profe', 'gym_members_pedido_sin_cuenta',
+--                            -- ia.sql: sin las tablas de gimnasios sigue andando (mira to_regclass antes).
+--                            'ia_rol_origen')
 --      and p.prosrc ~ '\m(gym_[a-z_]+|gyms|vinculo_gym|recount_seats|seats_drift|seats_used)\M';
 --   if f is not null then
 --     raise exception 'Primero el bloque «Para volver atrás» de supabase/gimnasios-vinculo.sql: todavía usan los gimnasios %', f;
