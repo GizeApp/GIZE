@@ -55,8 +55,11 @@
 -- perfiles (al revés que todo lo demás). Lo hace gym_tick cada minuto, en su propia transacción y
 -- con el orden de siempre; cubre Mercado Pago, Apple y el pago manual igual (hasta 1 minuto de demora).
 --
--- Para volver atrás: el bloque comentado del final (antes, el de gimnasios-admin.sql; después, el de
--- gimnasios-lectura.sql).
+-- OJO: las versiones vigentes de gym_semaforo y gym_ingreso_manual están en gimnasios-cuotas.sql
+-- (etapa 2: el semáforo y el ingreso con la cuota). Si volvés a correr este archivo, corré después ese.
+--
+-- Para volver atrás: el bloque comentado del final (antes, el de gimnasios-cuotas.sql y el de
+-- gimnasios-admin.sql; después, el de gimnasios-lectura.sql).
 
 
 -- ===== Antes que nada: ¿están los archivos anteriores? =====
@@ -354,7 +357,7 @@ end $$;
 revoke all on function public.gym_plan_estado(uuid) from public, anon, authenticated;
 
 -- Semáforo de la etapa 1 (sin cuotas): sale del estado de la ficha. La etapa 2 lo llena con la cuota
--- sin cambiar la forma ({semaforo, motivo, apto_vencido}).
+-- sin cambiar la forma ({semaforo, motivo, apto_vencido}). OJO: la vigente está en gimnasios-cuotas.sql.
 create or replace function public.gym_semaforo(fid uuid)
 returns jsonb
 language plpgsql
@@ -2198,6 +2201,7 @@ grant execute on function public.buscar_socio(text) to authenticated;
 
 -- Registrar un ingreso a mano. id lo genera la app: un reintento con el mismo id devuelve lo mismo y
 -- no duplica. Si ya entró en las últimas ingreso_horas (3 por defecto), no anota otro: repetido.
+-- OJO: la vigente (con la cuota vencida) está en gimnasios-cuotas.sql.
 create or replace function public.gym_ingreso_manual(id uuid, ficha uuid)
 returns jsonb
 language plpgsql
@@ -2409,12 +2413,15 @@ notify pgrst, 'reload schema';
 
 
 -- ===== Para volver atrás =====
--- Correr esto sin los «-- » (antes, el bloque de gimnasios-admin.sql: si no, se frena sin cambiar
--- nada; después, el de gimnasios-lectura.sql). Saca las tareas, las funciones, las políticas y el
+-- Correr esto sin los «-- » (antes, el bloque de gimnasios-cuotas.sql y el de gimnasios-admin.sql: si
+-- no, se frena sin cambiar nada; después, el de gimnasios-lectura.sql). Saca las tareas, las funciones, las políticas y el
 -- bucket gym-fotos (con sus archivos: borrarlos antes desde Storage, o el borrado del bucket falla) y
 -- las columnas nuevas.
 --
 -- do $$ begin
+--   if to_regclass('public.gym_payments') is not null then
+--     raise exception 'Primero el bloque «Para volver atrás» de supabase/gimnasios-cuotas.sql (usa gym_exigir, gym_settings y gym_hoy).';
+--   end if;
 --   if to_regprocedure('public.admin_gyms()') is not null then
 --     raise exception 'Primero el bloque «Para volver atrás» de supabase/gimnasios-admin.sql (usa gym_plan_estado, gym_settings y gym_tope_profes).';
 --   end if;

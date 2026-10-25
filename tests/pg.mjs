@@ -22,7 +22,8 @@
 //   gize_sin: Supabase simulado + esquema base inferido + los supabase/*.sql de tests/pg/orden.txt
 //             (la base de hoy);
 //   gize_con: gize_sin + los archivos de los gimnasios (GIMNASIOS, abajo: gimnasios.sql,
-//             gimnasios-vinculo.sql, gimnasios-lectura.sql, gimnasios-socios.sql y gimnasios-admin.sql).
+//             gimnasios-vinculo.sql, gimnasios-lectura.sql, gimnasios-socios.sql, gimnasios-admin.sql y,
+//             desde la etapa 2, gimnasios-cuotas.sql).
 // Las dos traen además las ayudas de tests/pg/ayudas.sql (esquema «prueba»). Cada prueba trabaja en
 // una copia nueva: «await h.nueva('gize_con')».
 import fs from 'node:fs';
@@ -174,7 +175,7 @@ class Base {
 
 // Los archivos de los gimnasios, en orden (la base «gize_con» = «gize_sin» + estos).
 export const GIMNASIOS = ['supabase/gimnasios.sql', 'supabase/gimnasios-vinculo.sql', 'supabase/gimnasios-lectura.sql', 'supabase/gimnasios-socios.sql',
-  'supabase/gimnasios-admin.sql'];
+  'supabase/gimnasios-admin.sql', 'supabase/gimnasios-cuotas.sql'];
 
 let n = 0;
 async function armar(){
