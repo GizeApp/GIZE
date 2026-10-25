@@ -52,3 +52,12 @@ export const PEDIDA_DIAS = 7;
 export function pedidaVencida(status: string, creada: string, now = Date.now()): boolean {
   return status === "cancelled" || (status === "pending" && now - Date.parse(creada) > PEDIDA_DIAS * 864e5);
 }
+
+// Precio con el descuento del código de fundador (supabase/codigo-fundador.sql), en pesos enteros.
+// Lo mismo calcula la app para mostrarlo (app/screens/coach/plan.js), pero el que vale es este: el
+// porcentaje lo da la base, no la app. Fuera de 1 a 90, sin descuento.
+export function conDescuento(precio: number, pct: number): number {
+  const d = Number(pct);
+  if (!(d >= 1 && d <= 90)) return precio;
+  return Math.round(precio * (100 - Math.floor(d)) / 100);
+}

@@ -21,7 +21,12 @@
 //
 // Qué recibe:
 //   · Desde la app (con la sesión del coach):
-//       { action: "checkout", plan: "p10"|"p25"|"p50"|"p100"|"p250"|"p500", mp_email? } → { url } para pagar
+//       { action: "checkout", plan: "p10"|"p25"|"p50"|"p100"|"p250"|"p500", mp_email?, codigo? } → { url } para pagar
+//         codigo: el código de fundador (supabase/codigo-fundador.sql). El descuento lo decide la
+//         base (codigo_fundador_usar), nunca la app: valida el código, ocupa el lugar sin carreras
+//         y, si el coach ya tiene uno, se le aplica siempre (también sin mandar el código). El
+//         precio con descuento queda en la suscripción de Mercado Pago, así que las renovaciones
+//         lo mantienen.
 //       { action: "cancel" } → cancela la renovación (sigue activo hasta paid_until)
 //   · Desde Mercado Pago (?webhook=1): el aviso de un cambio. No se confía en lo que dice
 //     el aviso: se vuelve a pedir la suscripción a la API de Mercado Pago con el token,
@@ -37,6 +42,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { alCobrar, avisaSocios, esPedida, pedidaCancelada, pedidaVencida } from "./reglas.ts";
+import { conDescuento } from "./reglas.ts";
 
 const PLANES: Record<string, { max: number; price: number; name: string }> = {
   p10: { max: 10, price: 14900, name: "GIZE Coach · hasta 10 clientes" },
@@ -289,7 +295,7 @@ Deno.serve(async (req) => {
   if (!u || !u.user) return json({ error: "Sesión vencida. Volvé a iniciar sesión." }, 401);
   const coachId = u.user.id;
 
-  let input: { action?: string; plan?: string; mp_email?: string };
+  let input: { action?: string; plan?: string; mp_email?: string; codigo?: string };
   try { input = await req.json(); } catch { return json({ error: "Pedido inválido" }, 400); }
 
   const db = admin();
@@ -316,6 +322,23 @@ Deno.serve(async (req) => {
     const email = String(input.mp_email || u.user.email || "").trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "Poné el mail de tu cuenta de Mercado Pago" }, 400);
     const appUrl = Deno.env.get("APP_URL") || "https://gize.ar/app/";
+
+    // Código de fundador: el descuento lo dice la base (ocupa el lugar si es un código nuevo). Sin
+    // la función (falta correr supabase/codigo-fundador.sql) y sin código, se sigue sin descuento.
+    const codigo = String(input.codigo || "").trim().slice(0, 64);
+    const { data: cod, error: ce } = await db.rpc("codigo_fundador_usar", { p_coach: coachId, p_codigo: codigo || null });
+    let pct = 0;
+    if (ce) {
+      console.error("codigo_fundador_usar", ce.code, ce.message);
+      const falta = ["42883", "PGRST202"].includes(String(ce.code));
+      if (codigo || !falta) return json({ error: "No se pudo revisar el código. Probá de nuevo en un rato." }, 503);
+    } else if (cod && cod.ok === false) {
+      return json({ error: String(cod.error || "Ese código no sirve.") }, 400);
+    } else {
+      pct = Number((cod && cod.porcentaje) || 0);
+      if (codigo && !(pct > 0)) return json({ error: "No se pudo revisar el código. Probá de nuevo en un rato." }, 503);
+    }
+    const precio = conDescuento(p.price, pct);
 
     // Tope por hora (supabase/pagos-seguros.sql, tabla mp_checkouts). Se anota el intento y
     // después se cuenta: si se mandan varios a la vez, igual pasan como mucho los del tope. El
@@ -345,8 +368,10 @@ Deno.serve(async (req) => {
       if (frenado) return frenado;
       try {
         const prev = await mp("/preapproval/" + encodeURIComponent(bill.mp_pending_id));
+        // Y con el mismo precio: si ahora tiene un código de fundador, el link viejo no lo tiene.
         if (prev.status === "pending" && prev.init_point && prev.external_reference === coachId + "|" + plan &&
-            String(prev.payer_email || "").trim().toLowerCase() === email) return json({ url: prev.init_point });
+            String(prev.payer_email || "").trim().toLowerCase() === email &&
+            Number(prev.auto_recurring && prev.auto_recurring.transaction_amount) === precio) return json({ url: prev.init_point });
       } catch (e) { console.error("checkout: pendiente", (e as Error).message); }
     }
 
@@ -358,12 +383,12 @@ Deno.serve(async (req) => {
       pa = await mp("/preapproval", {
         method: "POST",
         body: JSON.stringify({
-          reason: p.name,
+          reason: p.name + (pct > 0 ? " · precio de fundador (" + pct + "% menos)" : ""),
           external_reference: coachId + "|" + plan,
           payer_email: email,
           back_url: appUrl + "?pago=mp",
           status: "pending",
-          auto_recurring: { frequency: 1, frequency_type: "months", transaction_amount: p.price, currency_id: "ARS" },
+          auto_recurring: { frequency: 1, frequency_type: "months", transaction_amount: precio, currency_id: "ARS" },
         }),
       });
     } catch (e) {
