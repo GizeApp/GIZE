@@ -157,6 +157,43 @@
   var dChart=document.getElementById('dChart');
   if(dChart){ var tog=function(){ dChart.classList.toggle('up'); }; dChart.addEventListener('click',tog); dChart.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); tog(); } }); }
 
+  // =============== 4) Portada y «Para vos y tu coach» con el scroll ===============
+  // Portada: al bajar, los celulares de los costados se abren (--s de 0 a 1 en el hero).
+  // Funciones: la sección es alta y su interior queda fijo; según cuánto se scrolleó toca una
+  // función: se marca su texto y el celular gira (un cuarto de vuelta y vuelve) para mostrar su
+  // pantalla; mientras tanto se inclina apenas con el scroll. Con «reducir movimiento» no gira.
+  (function(){
+    var top=document.getElementById('top'), sh=document.getElementById('funciones');
+    var cel=sh&&sh.querySelector('.show-cel'), imgs=cel?[].slice.call(cel.querySelectorAll('img')):[];
+    var lis=sh?[].slice.call(sh.querySelectorAll('.show-list li')):[], dots=sh?[].slice.call(sh.querySelectorAll('.show-dots i')):[];
+    var n=imgs.length, cur=0, tk=false, flipT=0;
+    if(sh) sh.classList.add('js');
+    function pon(i){
+      if(i===cur) return; cur=i;
+      lis.forEach(function(li,k){ li.classList.toggle('on',k===i); });
+      dots.forEach(function(d,k){ d.classList.toggle('on',k===i); });
+      var cambia=function(){ imgs.forEach(function(im,k){ im.classList.toggle('on',k===i); }); };
+      if(reduce){ cambia(); return; }
+      clearTimeout(flipT); cel.classList.add('gira');
+      flipT=setTimeout(function(){ cambia(); cel.classList.remove('gira'); },280);
+    }
+    function upd(){
+      tk=false; var vh=innerHeight;
+      if(top){ var r=top.getBoundingClientRect(), s=Math.min(1,Math.max(0,-r.top/(r.height*.6))); top.style.setProperty('--s',reduce?'0':s.toFixed(3)); }
+      if(sh&&n){
+        var b=sh.getBoundingClientRect(), span=b.height-vh; if(span<=0) return;
+        var p=Math.min(.9999,Math.max(0,-b.top/span)), f=p*n, i=Math.floor(f), t=f-i;
+        pon(i);
+        if(!reduce){ cel.style.setProperty('--gy',((t-.5)*-24).toFixed(2)+'deg'); cel.style.setProperty('--gx',(4+Math.sin(p*Math.PI)*4).toFixed(2)+'deg'); }
+      }
+    }
+    // Tocar una función lleva al tramo del scroll donde se muestra.
+    lis.forEach(function(li,k){ li.addEventListener('click',function(){ var b=sh.getBoundingClientRect(), span=b.height-innerHeight;
+      scrollTo({top:scrollY+b.top+span*(k+.5)/n,behavior:reduce?'auto':'smooth'}); }); });
+    addEventListener('scroll',function(){ if(!tk){ tk=true; requestAnimationFrame(upd); } },{passive:true});
+    addEventListener('resize',upd); upd();
+  })();
+
   // =============== 3) Brillo que sigue al mouse en las tarjetas (solo con mouse) ===============
   if(matchMedia('(hover:hover)').matches) document.addEventListener('pointermove',function(e){ var c=e.target.closest&&e.target.closest('.spot'); if(!c) return;
     var r=c.getBoundingClientRect(); c.style.setProperty('--mx',(e.clientX-r.left)+'px'); c.style.setProperty('--my',(e.clientY-r.top)+'px'); },{passive:true});

@@ -125,6 +125,13 @@ body:not(#_) .co-sets-panel .co-target:focus { border-color:var(--gize-blue); ou
 body:not(#_) .co-sets-panel .co-set-rm { width:36px; height:36px; display:grid; place-items:center; padding:0; color:var(--txt-3); font-size:14px; }
 .co-sets-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:4px; }
 body:not(#_) .co-sets-panel .co-set-add { width:auto; min-height:34px; margin:0; padding:0 16px; border-radius:12px; border:1px dashed var(--gize-border); background:none; color:var(--gize-blue); font-size:14px; font-weight:600; }
+/* Mi configuración del ejercicio (screens/coach/presets.js): guardarla, volver a ella, o la marca
+   de que ya está así. Chico, al lado de «+ Serie». */
+body:not(#_) .co-preset { display:inline-flex; align-items:center; gap:6px; min-height:34px; margin:0; padding:0 12px; border-radius:12px;
+  border:1px solid color-mix(in srgb, var(--gize-blue) 40%, var(--gize-border)); background:none; color:var(--txt-2); font-size:13px; font-weight:600; cursor:pointer; }
+body:not(#_) .co-preset svg { width:14px; height:14px; flex:none; }
+body:not(#_) button.co-preset:hover { color:var(--gize-text); border-color:var(--gize-blue); }
+body:not(#_) .co-preset.ok { border-color:transparent; color:var(--gize-blue); cursor:default; padding:0 4px; }
 body:not(#_) .co-sets-foot .co-last-line { margin:0; justify-content:flex-end; font-size:12.5px; color:var(--txt-2); }
 body:not(#_) .co-sets-foot .co-last-line i { background:none; border:0; padding:0; border-radius:0; color:var(--txt-2); }
 body:not(#_) .co-sets-foot .co-last-line i::before { content:"·"; margin-right:6px; color:var(--txt-3); }

@@ -5,6 +5,8 @@
 // - Queda como cambio sin guardar (el aviso de siempre) y «Guardar rutina» manda el orden nuevo.
 // - El día que se estaba viendo sigue elegido; soltar no cuenta como tocar otra pestaña.
 // - Igual en una de «Mis rutinas» y en la rutina de descarga (mismo editor).
+// Se arrastran los días sin días de la semana: con días asignados el orden es solo de lunes a domingo
+// y no se arrastran (tests/dias-orden-semana.test.mjs).
 import { newPage, wait } from './lib.mjs';
 
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
@@ -12,9 +14,9 @@ const A1 = '44444444-4444-4444-4444-444444444444';
 const AUDIO = COACH.id + '/ex/abcdefgh12.webm';
 const ex = (id, name, extra) => Object.assign({ id, name, sets: [{ id: id + 's0', kg: '', reps: '', target: '8-10' }] }, extra || {});
 const rutina = () => [
-  { id: 'd0', name: 'Pierna', subtitle: '', dias: [1, 4], note: 'Entrar en calor', exercises: [ex('e0', 'Sentadilla libre', { audio: AUDIO, audioSecs: 20 }), ex('e1', 'Prensa 45°')] },
-  { id: 'd1', name: 'Torso', subtitle: '', dias: [2, 5], exercises: [ex('f0', 'Press banca plano con barra', { note: 'Codos a 45°' })] },
-  { id: 'd2', name: 'Brazos', subtitle: '', dias: [3], exercises: [ex('g0', 'Curl con barra')] },
+  { id: 'd0', name: 'Pierna', subtitle: '', note: 'Entrar en calor', exercises: [ex('e0', 'Sentadilla libre', { audio: AUDIO, audioSecs: 20 }), ex('e1', 'Prensa 45°')] },
+  { id: 'd1', name: 'Torso', subtitle: '', exercises: [ex('f0', 'Press banca plano con barra', { note: 'Codos a 45°' })] },
+  { id: 'd2', name: 'Brazos', subtitle: '', exercises: [ex('g0', 'Curl con barra')] },
 ];
 const monday = () => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 7); return d.toISOString().slice(0, 10); };
 
@@ -70,7 +72,7 @@ export default async function ({ base, t }){
     await arrastrarMouse(p, 'Brazos', 'Pierna', 'antes');
     t.eq(await pestanas(p), ['Brazos', 'Pierna', 'Torso'], 'arrastrando con el mouse, Brazos pasa a ser el primero');
     t.eq(await elegido(p), 'Pierna', 'el día que se estaba viendo (Pierna) sigue elegido');
-    t.eq(huella(await dias(p)), antes, 'cada día conserva sus ejercicios, nota, audio y días de la semana');
+    t.eq(huella(await dias(p)), antes, 'cada día conserva sus ejercicios, nota y audio');
     t.ok(await p.$('.co-unsaved'), 'queda como cambio sin guardar');
     t.eq(await p.$$('.co-drag-ghost'), [], 'al soltar no queda la pestaña fantasma');
     await arrastrarMouse(p, 'Pierna', 'Torso', 'despues');
@@ -86,7 +88,7 @@ export default async function ({ base, t }){
     await p.click('[data-coach="save-routine"]'); await wait(800);
     const w = writes[writes.length - 1];
     t.eq(w && w.days.map(d => d.name), ['Torso', 'Brazos', 'Pierna'], '«Guardar rutina» manda el orden nuevo');
-    t.eq(w && w.days.find(d => d.name === 'Pierna').dias, [1, 4], 'con los días de la semana de cada día');
+    t.eq(w && w.days.find(d => d.name === 'Pierna').note, 'Entrar en calor', 'con lo de cada día');
     t.ok(!(await p.$('.co-unsaved')), 'guardada, ya no hay cambios sin guardar');
     t.ok(dialogs.every(d => /Rutina guardada/.test(d)), 'sin preguntas en el medio: ' + JSON.stringify(dialogs));
 

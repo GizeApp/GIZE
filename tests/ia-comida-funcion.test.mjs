@@ -33,13 +33,15 @@ const http = (status, body) => new Response(JSON.stringify(body), { status, head
 const USO = { input_tokens: 1200, output_tokens: 300, cache_creation_input_tokens: 0, cache_read_input_tokens: 15000 };
 const respuesta = (out, extra = {}) => ({ id: 'msg_1', type: 'message', role: 'assistant', model: 'x',
   content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: typeof out === 'string' ? out : JSON.stringify(out) }], stop_reason: 'end_turn', usage: USO, ...extra });
-const item = (o) => Object.assign({ id_base: -1, nombre: 'Algo', cantidad: null, unidad: null, gramos: 100, kcal: 100, proteinas: 1, carbohidratos: 1, grasas: 1, dudoso: false }, o);
-const PLATO = { hay_comida: true, nota: '', items: [
-  item({ id_base: idx('Milanesa de carne frita'), nombre: 'Milanesa', gramos: 150, kcal: 450, proteinas: 30, carbohidratos: 20, grasas: 25 }),
-  item({ id_base: idx('Arroz blanco'), nombre: 'Arroz blanco', gramos: 200, kcal: 260, proteinas: 5, carbohidratos: 56, grasas: 0.6 }),
-  item({ id_base: idx('Puré de papa (con leche y manteca)'), nombre: 'Puré', gramos: 100, kcal: 900, proteinas: 1, carbohidratos: 1, grasas: 1, dudoso: true }),
+const item = (o) => Object.assign({ id_base: -1, nombre_base: '', nombre: 'Algo', cantidad: null, unidad: null, gramos: 100, kcal: 100, proteinas: 1, carbohidratos: 1, grasas: 1, dudoso: false }, o);
+// Un alimento de la BASE como lo contesta la IA: el número y el nombre copiado.
+const deBase = (n, o) => item(Object.assign({ id_base: idx(n), nombre_base: n }, o));
+const PLATO = { descripcion: 'Milanesa con arroz y puré', hay_comida: true, nota: '', items: [
+  deBase('Milanesa de carne frita', { nombre: 'Milanesa', gramos: 150, kcal: 450, proteinas: 30, carbohidratos: 20, grasas: 25 }),
+  deBase('Arroz blanco', { nombre: 'Arroz blanco', gramos: 200, kcal: 260, proteinas: 5, carbohidratos: 56, grasas: 0.6 }),
+  deBase('Puré de papa (con leche y manteca)', { nombre: 'Puré', gramos: 100, kcal: 900, proteinas: 1, carbohidratos: 1, grasas: 1, dudoso: true }),
   item({ id_base: -1, nombre: 'Salsa rara', gramos: 30, kcal: 60, proteinas: 0, carbohidratos: 3, grasas: 5 }),
-  item({ id_base: 99999, nombre: 'Inventado', gramos: 50, kcal: 80 }),
+  item({ id_base: 99999, nombre_base: 'Inventado', nombre: 'Inventado', gramos: 50, kcal: 80 }),
   item({ nombre: 'Nada', gramos: 0, kcal: 0 }),
 ] };
 
@@ -138,6 +140,32 @@ export default async ({ t }) => {
   t.ok(inv && inv.base === null, 'plato: un número que no existe en la base no se usa');
   t.ok(h.json.hay_comida === true && h.json.modelo_nombre, 'plato: hay comida y el nombre del modelo');
   t.ok(!h.logs.join(' ').includes(FOTO.slice(0, 40)) && !h.logs.join(' ').includes('milanesa') && !h.logs.join(' ').includes(CLAVE), 'plato: en los registros no quedan la foto, el texto ni la clave');
+
+  // Elegir de la BASE: el número, el nombre copiado y lo que la IA ve tienen que coincidir. El caso real:
+  // tostada, café con leche y jugo de naranja; salió «Submarino» y «Frutillas con crema».
+  const FR = 'Frutillas con crema (1 porción ≈ 200 g)', TQ = 'Tostadas con queso blanco y mermelada (2 u. ≈ 80 g) (1 porción ≈ 80 g)';
+  const caso = (nombre, o) => item(Object.assign({ nombre, gramos: 200, kcal: 110, proteinas: 6, carbohidratos: 10, grasas: 5 }, o));
+  h = await correr({ out: { descripcion: 'Tostada, café con leche y jugo', hay_comida: true, nota: '', items: [
+    caso('Café con leche', { id_base: idx('Submarino'), nombre_base: 'Café con leche' }),
+    caso('Café con leche', { id_base: idx('Submarino'), nombre_base: 'Submarino' }),
+    caso('Jugo de naranja', { id_base: idx(FR), nombre_base: FR, kcal: 90 }),
+    caso('Jugo de naranja', { id_base: idx('Jugo de naranja exprimido'), nombre_base: 'jugo de naranja exprimido', kcal: 90 }),
+    caso('Tostadas con queso crema y mermelada', { id_base: idx(TQ), nombre_base: 'Tostadas con queso blanco y mermelada', gramos: 80, kcal: 200 }),
+    caso('Café', { id_base: idx('Café con leche'), nombre_base: 'Café cortado de la casa' }),
+    caso('Café con leche', { id_base: idx('Café con leche'), nombre_base: '' }),
+  ] } });
+  const nb = (h.json.items || []).map(x => x.base && x.base.nombre);
+  t.eq(nb[0], 'Café con leche', 'BASE: si el número se corrió pero el nombre copiado está bien, se usa el del nombre');
+  t.eq(nb[1], null, 'BASE: «Submarino» para lo que la IA ve como café con leche no se usa: queda la estimación');
+  t.eq(nb[2], null, 'BASE: «Frutillas con crema» para un jugo de naranja no se usa');
+  t.eq(nb[3], 'Jugo de naranja exprimido', 'BASE: el nombre copiado vale sin mayúsculas ni tildes');
+  t.eq(nb[4], TQ, 'BASE: el nombre copiado vale sin lo de entre paréntesis, y «tostadas» = «tostada»');
+  t.eq(nb[5], null, 'BASE: un nombre que no está en la base no se usa, aunque el número sí');
+  t.eq(nb[6], null, 'BASE: sin el nombre copiado no se usa el número solo');
+  t.ok((h.json.items || [])[1] && h.json.items[1].nombre === 'Café con leche' && h.json.items[1].kcal === 110, 'BASE: lo descartado queda con el nombre y la estimación de la IA');
+  t.ok(C.COMIDA.required[0] === 'descripcion' && C.COMIDA.properties.items.items.required.slice(0, 3).join() === 'nombre,id_base,nombre_base',
+    'esquema: primero describe la foto; en cada alimento, primero lo que ve y después el número y el nombre de la BASE');
+  t.has(C.PROMPT_PLATO, 'las bebidas también cuentan', 'instrucciones: las bebidas son un alimento más');
 
   // Máximo 12 y «no hay comida».
   h = await correr({ out: { hay_comida: true, nota: '', items: Array.from({ length: 20 }, (_, i) => item({ nombre: 'A' + i })) } });

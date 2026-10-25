@@ -4,7 +4,7 @@ import { KEY } from './storage.js';
 
 import { today, uid } from './utils.js';
 
-import { diaDeHoy } from './diasemana.js';
+import { diaDeHoy, ordenSemana } from './diasemana.js';
 
 export const State = {
 
@@ -151,7 +151,7 @@ export function ensureDays(){
   if (!Array.isArray(state.days) || !state.days.length) state.days = [{ id: uid(), name: "Día 1", subtitle: "", exercises: [] }];
   if (!state.days.find(d => d.id === State.activeId)) {
     const enCurso = training() && state.days.find(d => d.id === state.wkStart.day);
-    State.activeId = (enCurso || (!training() && diaDeHoy(state.days)) || state.days[0]).id;
+    State.activeId = (enCurso || (!training() && diaDeHoy(state.days)) || state.days[ordenSemana(state.days)[0]]).id;
   }
 }
 

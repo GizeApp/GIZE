@@ -60,6 +60,10 @@ alter table public.ia_config add column if not exists plus jsonb not null defaul
 -- (IA → Topes → Con IA Plus). En una base que ya tenía la configuración, se suman una sola vez.
 alter table public.ia_config alter column topes set default '{"alumno":{"etiqueta":10,"plato":8,"texto":15,"total":25,"usd_ciclo":0.5},"coach":{"etiqueta":10,"plato":8,"texto":15,"rutina":15,"resumen":3,"total":40,"usd_ciclo":5},"admin":{"etiqueta":300,"total":300,"usd_ciclo":10},"plus":{"plato":10,"usd_ciclo":1.5}}';
 update public.ia_config set topes = topes || '{"plus":{"plato":10,"usd_ciclo":1.5}}' where id = 1 and not (topes ? 'plus');
+-- Versión 2 del aviso (app/ui/ia-permiso.js): la app ya no manda texto, solo la foto (se sacó la
+-- aclaración «¿Qué es?»). Quien aceptó la versión 1 lo vuelve a ver una vez. Solo sube, nunca baja:
+-- se puede correr de nuevo sin volver a preguntar.
+update public.ia_config set aviso_version = 2 where id = 1 and aviso_version < 2;
 
 -- ---------- ciclos de los créditos ----------
 create table if not exists public.ia_ciclos (

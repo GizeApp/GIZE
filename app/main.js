@@ -13,7 +13,7 @@ import { checkSetPR, forgetPR, playPR, suspiciousKg, PR_HOLD_MS } from './ui/fes
 import { auIcoEye, auIcoEyeOff, checkSvg } from './core/icons.js';
 
 import { State, elegirDiaDeHoy, state } from './core/state.js';
-import { toggleDia } from './core/diasemana.js';
+import { ordenSemana, toggleDia } from './core/diasemana.js';
 import { EX_CATS } from './core/data.js';
 import { defaultExCat } from './core/disciplinas.js';
 // Salida de Cardio a pie / en bici: se importa temprano para que, si quedó una en curso (la app se
@@ -46,7 +46,7 @@ import { renderCoachSettings } from './screens/coach/settings.js';
 // Registra los eventos del editor de preguntas del coach (efecto al importarlo).
 import { ensureEditor, qDirty } from './screens/coach/preguntas.js';
 
-import { abrirSolo, coachPlanObj, cpApply, loadTpls, moveEx, refreshBlockWeeks, removeEx, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody, mealStudioAction, mealStudioInput } from './screens/coach/rutinas.js';
+import { abrirSolo, coachPlanObj, cpApply, pintarPreset, loadTpls, moveEx, refreshBlockWeeks, removeEx, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody, mealStudioAction, mealStudioInput } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
 import { calState } from './screens/coach/calendario.js';
@@ -104,6 +104,7 @@ import { signedAudioUrl, togglePlay } from './ui/grabar.js';
 import { dropExMedia } from './core/videos.js';
 import { clearVariant, dropExpiredVariants, setVariant, todayEx, todayExs, variantOf } from './core/variantes.js';
 import { appIOS, joinMsgTienda } from './core/tienda.js';
+import { aplicar as aplicarPreset, borrarPreset, guardarPreset, presetDe } from './screens/coach/presets.js';
 
 // Series cuyo peso se completó solo copiando el de la serie de arriba (ver input "kg").
 const autoKg = new Set();
@@ -373,8 +374,7 @@ document.body.addEventListener("input", async e => {
   // Lo mismo en el check-in semanal: al volver de otra app se redibuja y se perdía lo escrito.
   if (a === "ci-set") { checkinFormInit()[t.dataset.k] = t.value; return; }
   // Más de 5000 g no se anota: el campo muestra lo mismo que se va a anotar.
-  if (a === "plate-grams") { const P=ComidaState.plate, it=P&&P.items[+t.dataset.i]; if(it){ if((parseFloat(String(t.value).replace(",","."))||0) > 5000) t.value="5000"; it.g=t.value; if(!it.manual && plateGramsNum(it)!==it.g0) it.editado=true; paintPlateNums(+t.dataset.i); } return; }
-  if (a === "plate-aclara") { if(ComidaState.plate) ComidaState.plate.aclara=t.value; return; }
+  if (a === "plate-grams") { const P=ComidaState.plate, it=P&&P.items[+t.dataset.i]; if(it){ if((parseFloat(String(t.value).replace(",","."))||0) > 5000) t.value="5000"; it.g=t.value; if(plateGramsNum(it)!==it.g0) it.editado=true; paintPlateNums(+t.dataset.i); } return; }
   if (a === "food-search") { ComidaState.foodQuery = t.value; scheduleOffSearch(t.value); const r=document.getElementById("foodResults"); if(r) r.innerHTML = renderResults(ComidaState.foodQuery); return; }
   if (a === "ex-search") { EntrenoState.exQuery = t.value; const l=document.getElementById("exList"); if(l) l.innerHTML = renderExList(); return; }
   if (a === "portion-grams") { const base = ComidaState.selectedFood ? selectedFoodValues() : (ComidaState.editEntry ? entryBase(ComidaState.editEntry) : null); if(base){ const pv=document.getElementById("portionPreview"); if(pv) pv.textContent = previewStr(base, t.value); const pu=document.getElementById("portionUnits"); const uf=sheetUnitFood(); if(pu && uf) pu.textContent = unitsLabel(t.value, cookPortion(uf.food, uf.cook), base.unit, uf.food); } ComidaState.sheetGrams = t.value; return; }
@@ -842,7 +842,7 @@ document.body.addEventListener("click", async e => {
   // Días
   if (a === "open-routines") { openRoutinePicker(); return; }
   if (a === "addday") { const nd={id:uid(),name:"Nuevo",subtitle:"",exercises:[]}; state.days.push(nd); State.activeId=nd.id; State.dayPickedOn=today(); HabitosState.pendingFocusDay=true; save(); renderApp(); return; }
-  if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(await confirmar("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); State.activeId=state.days[0].id; State.dayPickedOn=today(); save(); renderApp(); } return; }
+  if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(await confirmar("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); State.activeId=state.days[ordenSemana(state.days)[0]].id; State.dayPickedOn=today(); save(); renderApp(); } return; }
   // Días de la semana del día abierto (core/diasemana.js): se abren los 7 botones debajo del
   // nombre, cada toque guarda (y sube con la rutina) y «Listo» los vuelve a cerrar.
   if (a === "dias-open") { if(!routineLocked()){ EntrenoState.diasOpen = day().id; renderApp(); } return; }
@@ -853,7 +853,8 @@ document.body.addEventListener("click", async e => {
   // Cambiar de día: en el acto (antes esperaba 130 ms para dejar ver el ripple del chip); el ripple
   // sigue en el chip nuevo y lo de abajo entra deslizándose hacia el lado del día elegido.
   if (a === "tab") {
-    const ix = id => state.days.findIndex(x => x.id === id), dir = Math.sign(ix(el.dataset.day) - ix(State.activeId));
+    // El lado según el orden en pantalla (de lunes a domingo, core/diasemana.js → ordenSemana).
+    const ord = ordenSemana(state.days), ix = id => ord.indexOf(state.days.findIndex(x => x.id === id)), dir = Math.sign(ix(el.dataset.day) - ix(State.activeId));
     State.activeId = el.dataset.day; State.dayPickedOn = today(); EntrenoState.diasOpen = null; renderApp();
     const nb = document.querySelector('#view .tab.active'); if (nb) tabRipple(nb, e.clientX, e.clientY);
     entrarDia(dir); return;
@@ -1587,6 +1588,17 @@ document.body.addEventListener("click", async e => {
     const n=(d.exercises||[]).length;
     if(n && !await confirmar("¿Borrar el día «"+(d.name||"sin nombre")+"» con sus "+n+" ejercicio"+(n===1?"":"s")+"?")) return;
     D.splice(CoachState.coachEditDay,1); CoachState.coachEditDay=0; renderCoach(); return; }
+  // Mi configuración del ejercicio (screens/coach/presets.js): guardar / volver a ella / borrarla.
+  if(a==="rt-preset-save"||a==="rt-preset-use"||a==="rt-preset-del"){
+    const day=(rtDays()||[])[CoachState.coachEditDay], ex=day&&day.exercises[+b.dataset.i]; if(!ex) return;
+    if(a==="rt-preset-use"){ aplicarPreset(ex, presetDe(ex.name)); renderCoach(); return; }
+    b.disabled=true;
+    try{
+      if(a==="rt-preset-save") await guardarPreset(ex);
+      else { if(!await confirmar("¿Borrar tu configuración de «"+ex.name+"»? Lo que ya está en las rutinas no cambia.", { ok: "Borrar", peligro: true })) { b.disabled=false; return; } await borrarPreset(ex.name); }
+    }catch(err){ alert("No se pudo: "+((err&&err.message)||err)); }
+    renderCoach(); return;
+  }
   if(a==="rt-setadd"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex) ex.sets.push(mkSet()); renderCoach(); return; }
   if(a==="rt-setdel"){ const day=(rtDays()||[])[CoachState.coachEditDay]; const ex=day.exercises[+b.dataset.i]; if(ex && ex.sets.length>1) ex.sets.splice(+b.dataset.j,1); renderCoach(); return; }
   if(a==="rt-nosug-all"){ const rt=rtDays()||[]; const off=rt.some(x=>x.noSug); rt.forEach(x=>{ if(off) delete x.noSug; else x.noSug=true; (x.exercises||[]).forEach(e=>delete e.noSug); }); renderCoach(); return; }
@@ -1750,11 +1762,11 @@ document.body.addEventListener("input", async e => {
   if(a==="rt-name"){ if(day.exercises[+el.dataset.i]) day.exercises[+el.dataset.i].name=el.value; }
   // El nombre del día también en su pestaña, mientras se escribe (antes seguía el viejo hasta redibujar).
   else if(a==="day-name"){ day.name=el.value; const tb=document.querySelector('#coachHost .co-daytab.on[data-coach="edit-day"]'); if(tb && tb.firstChild && tb.firstChild.nodeType===3) tb.firstChild.textContent=el.value||("Día "+(CoachState.coachEditDay+1)); }
-  else if(a==="rt-target"){ const ex=day.exercises[+el.dataset.i]; const st=ex&&ex.sets[+el.dataset.j]; if(st){ const v=el.value.trim(); if(v) st.target=v; else delete st.target; } }
+  else if(a==="rt-target"){ const ex=day.exercises[+el.dataset.i]; const st=ex&&ex.sets[+el.dataset.j]; if(st){ const v=el.value.trim(); if(v) st.target=v; else delete st.target; pintarPreset(+el.dataset.i); } }
   else if(a==="rt-targetkg"){ const ex=day.exercises[+el.dataset.i]; const st=ex&&ex.sets[+el.dataset.j]; if(st) st.targetKg=el.value; }
   else if(a==="rt-note"){ const ex=day.exercises[+el.dataset.i]; if(ex){ const v=el.value.trim(); if(v) ex.note=v; else delete ex.note; } }
   else if(a==="day-note"){ const v=el.value.trim(); if(v) day.note=v; else delete day.note; }
-  else if(a==="rt-rir"||a==="rt-rest"||a==="rt-goal"||a==="rt-video"){ const ex=day.exercises[+el.dataset.i]; if(ex){ const k=(a==="rt-video")?"video":a.slice(3); let v=el.value.trim(); if(k==="video"&&v&&!/^https:\/\//i.test(v)) v="https://"+v.replace(/^[a-z][a-z0-9+.-]*:(\/\/)?/i,""); if(v) ex[k]=v; else delete ex[k]; if(k==="video"){ if(v) ex.videoFor=ex.name; else delete ex.videoFor; } } }
+  else if(a==="rt-rir"||a==="rt-rest"||a==="rt-goal"||a==="rt-video"){ const ex=day.exercises[+el.dataset.i]; if(ex){ const k=(a==="rt-video")?"video":a.slice(3); let v=el.value.trim(); if(k==="video"&&v&&!/^https:\/\//i.test(v)) v="https://"+v.replace(/^[a-z][a-z0-9+.-]*:(\/\/)?/i,""); if(v) ex[k]=v; else delete ex[k]; if(k==="video"){ if(v) ex.videoFor=ex.name; else delete ex.videoFor; } if(a==="rt-rir"||a==="rt-rest") pintarPreset(+el.dataset.i); } }
   else if(a.indexOf("info-")===0){ CoachState.coachInfoForm = CoachState.coachInfoForm || Object.assign({}, CoachState.coachData.info||{}); CoachState.coachInfoForm[a.slice(5)] = el.value; return; }
   else if(a.indexOf("blk-")===0){
     blockForm()[a.slice(4)] = el.value;
@@ -2106,7 +2118,8 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 // Arranca apagado: los botones salen solo si ia_mi_estado() dice que la función está prendida
 // (core/ia.js). Antes del primer uso, el permiso (ui/ia-permiso.js), antes de abrir la cámara.
 // La IA propone, la persona revisa en la hoja (screens/comida.js →
-// renderPlateSheet) y nada se anota sin tocar «Agregar».
+// renderPlateSheet) y nada se anota sin tocar «Agregar». Solo se manda la foto: la aclaración
+// («¿Qué es?») y «Recalcular» se sacaron (pedido del dueño).
 // El estado de la IA, sin apuro (vale 5 minutos): si cambia lo que se ve respecto de lo que ya
 // está dibujado, se ponen los botones en la barra de arriba y en el buscador sin redibujarlos (no
 // se pierde lo que se está escribiendo). Apagada, no cambia nada.
@@ -2131,7 +2144,7 @@ const plateR1 = v => Math.round(v * 10) / 10;
 function plateDeAlimento(f, g){
   const st = f.cook ? "cocido" : null, v = cookVariant(f, st), u = foodUnit(f);
   const paso = u.natural ? cookPortion(f, st) : 10;
-  return { name: f.name + (f.cook ? " (cocido)" : ""), g: g != null ? g : roundG(cookPortion(f, st)), b: { kcal: v.kcal, p: v.p, c: v.c, f: v.f }, unit: f.unit === "ml" ? "ml" : "g", base: true, dudoso: false, paso: paso > 0 ? paso : 10 };
+  return { name: f.name + (f.cook ? " (cocido)" : ""), g: g != null ? g : roundG(cookPortion(f, st)), b: { kcal: v.kcal, p: v.p, c: v.c, f: v.f }, unit: f.unit === "ml" ? "ml" : "g", base: true, paso: paso > 0 ? paso : 10 };
 }
 // La respuesta de la función → las filas. Con la base, los valores cada 100 g son los de GIZE; si
 // no, los de la estimación.
@@ -2142,11 +2155,11 @@ function plateItems(res){
     const f = x.base ? ((FOODS[x.base.id] && FOODS[x.base.id].name === x.base.nombre) ? FOODS[x.base.id] : foodByName(x.base.nombre)) : null;
     if (x.base) {
       it = { name: x.base.nombre + (x.base.cocido ? " (cocido)" : ""), g: roundG(g0), b: { kcal: +x.base.kcal || 0, p: +x.base.p || 0, c: +x.base.c || 0, f: +x.base.f || 0 },
-             unit: x.base.unit === "ml" ? "ml" : "g", base: true, dudoso: !!x.dudoso, paso: 10 };
+             unit: x.base.unit === "ml" ? "ml" : "g", base: true, paso: 10 };
       if (f && foodUnit(f).natural) it.paso = cookPortion(f, x.base.cocido ? "cocido" : null) || 10;
     } else {
       const k = g0 > 0 ? 100 / g0 : 0;
-      it = { name: x.nombre || "Alimento", g: roundG(g0), b: { kcal: (+x.kcal || 0) * k, p: (+x.p || 0) * k, c: (+x.c || 0) * k, f: (+x.f || 0) * k }, unit: "g", base: false, dudoso: !!x.dudoso, paso: 10 };
+      it = { name: x.nombre || "Alimento", g: roundG(g0), b: { kcal: (+x.kcal || 0) * k, p: (+x.p || 0) * k, c: (+x.c || 0) * k, f: (+x.f || 0) * k }, unit: "g", base: false, paso: 10 };
     }
     it.g0 = plateGramsNum(it); it.editado = false;
     return it;
@@ -2229,7 +2242,7 @@ async function plateEmpezar(){
 async function plateFoto(file){
   const P = ComidaState.plate; if (!P) return;
   if (P.photoUrl) URL.revokeObjectURL(P.photoUrl);
-  P.photoUrl = URL.createObjectURL(file); P.status = "cargando"; P.cargando = 0; P.aclara = ""; platePaint();
+  P.photoUrl = URL.createObjectURL(file); P.status = "cargando"; P.cargando = 0; platePaint();
   try { P.b64 = await photoB64(file, 1024); }
   catch (e) { if (ComidaState.plate !== P) return; P.status = "error"; P.err = null; P.msg = "No se pudo abrir la foto. Probá con otra."; P.reintento = false; platePaint(); return; }
   plateCorrer(P);
@@ -2238,7 +2251,7 @@ async function plateCorrer(P){
   P.status = "cargando"; P.cargando = 0; platePaint();
   const reloj = setTimeout(() => { if (ComidaState.plate === P && P.status === "cargando") { P.cargando = 1; const w = document.getElementById("pl8Wait"); if (w) w.textContent = "Buscando en la base de GIZE…"; } }, 2500);
   try {
-    const res = await iaPedir("plato", { imagen: P.b64, texto: (P.aclara || "").trim() });
+    const res = await iaPedir("plato", { imagen: P.b64 });
     if (ComidaState.plate !== P) return;
     P.raw = { hay_comida: !!res.hay_comida, nota: res.nota || "", items: res.items || [] };
     P.items = plateItems(res); P.nota = res.nota || "";
@@ -2253,17 +2266,14 @@ async function plateCorrer(P){
   platePaint();
   iaEstado(true).then(() => { if (ComidaState.plate === P && P.status === "ok") { /* «te quedan» se ve en la próxima */ } });
 }
-// Un alimento elegido en el buscador para la hoja del plato: cambia esa fila o se agrega.
+// Un alimento elegido en el buscador para la hoja del plato: cambia esa fila (con los mismos gramos).
 function plateUsar(f){
   const P = ComidaState.plate; if (!P || !f) return;
   const i = ComidaState.plateSwap;
   if (i != null && i >= 0 && P.items[i]) {
     const viejo = P.items[i], it = plateDeAlimento(f, viejo.g);
-    it.g0 = viejo.g0; it.editado = !viejo.manual; it.manual = !!viejo.manual;
+    it.g0 = viejo.g0; it.editado = true;
     P.items[i] = it;
-  } else {
-    const it = plateDeAlimento(f); it.manual = true; it.g0 = plateGramsNum(it);
-    P.items.push(it);
   }
   rememberSearch(f);
   closeSheet(() => { ComidaState.searchOpen = false; ComidaState.plateSwap = null; ComidaState.foodQuery = ""; ComidaState.off = null; renderApp(); });
@@ -2271,8 +2281,8 @@ function plateUsar(f){
 async function plateClick(a, el){
   if (a === "ia-plato") { await plateEmpezar(); return; }
   const P = ComidaState.plate; if (!P) return;
-  // Los campos (el de la foto, los gramos, la aclaración) se manejan en «change» / «input».
-  if (["plate-file", "plate-grams", "plate-aclara"].includes(a)) return;
+  // Los campos (el de la foto, los gramos) se manejan en «change» / «input».
+  if (["plate-file", "plate-grams"].includes(a)) return;
   const i = +el.dataset.i;
   if (a === "plate-cancel") {
     if (P.status === "ok" && P.items.length && !await confirmar("¿Cerrar sin agregar? No se anota nada de lo que calculó la IA.", { titulo: "Cerrar", ok: "Cerrar sin agregar" })) return;
@@ -2285,27 +2295,22 @@ async function plateClick(a, el){
     plateCorrer(P); return;
   }
   if (a === "plate-again") { if (P.photoUrl) URL.revokeObjectURL(P.photoUrl); P.photoUrl = null; P.b64 = null; P.items = []; P.status = "elegir"; platePaint(); return; }
-  if (a === "plate-redo") { if (!P.b64) return; plateCorrer(P); return; }
   if (a === "plate-manual") { const meal = P.meal; closeSheet(() => { if (P.photoUrl) URL.revokeObjectURL(P.photoUrl); ComidaState.plate = null; ComidaState.plateSwap = null; ComidaState.meal = meal; ComidaState.searchOpen = true; SheetState.sheetGen++; renderApp(); setTimeout(() => { const inp = document.getElementById("foodSearch"); if (inp) inp.focus(); }, 60); }); return; }
   if (a === "plate-scan") { closeSheet(() => { if (P.photoUrl) URL.revokeObjectURL(P.photoUrl); ComidaState.plate = null; ComidaState.plateSwap = null; renderApp(); openScanner(onScannedCode); }); return; }
-  if (a === "plate-remove") { if (P.items[i]) { P.items.splice(i, 1); platePaint(); const b = document.querySelector('#sheetHost [data-action="plate-addfood"]'); if (b) try { b.focus({ preventScroll: true }); } catch (e) {} } return; }
+  // Sin la fila (y su ✕), el foco vuelve al título de la hoja (platePaint).
+  if (a === "plate-remove") { if (P.items[i]) { P.items.splice(i, 1); platePaint(); } return; }
   if (a === "plate-step") {
     const it = P.items[i]; if (!it) return;
     const paso = it.paso > 0 ? it.paso : 10, g = plateGramsNum(it);
     const n = Math.min(5000, Math.max(0, Math.round((g + (+el.dataset.d) * paso) * 10) / 10));
-    it.g = roundG(n); if (!it.manual && plateGramsNum(it) !== it.g0) it.editado = true;
+    it.g = roundG(n); if (plateGramsNum(it) !== it.g0) it.editado = true;
     const inp = document.querySelector('#sheetHost [data-action="plate-grams"][data-i="' + i + '"]'); if (inp) inp.value = String(it.g);
     paintPlateNums(i); return;
   }
-  if (a === "plate-change" || a === "plate-addfood") {
-    ComidaState.plateSwap = a === "plate-change" ? i : -1; ComidaState.foodQuery = ""; ComidaState.off = null;
+  if (a === "plate-change") {
+    ComidaState.plateSwap = i; ComidaState.foodQuery = ""; ComidaState.off = null;
     ComidaState.searchOpen = true; SheetState.sheetGen++; renderApp();
     setTimeout(() => { const inp = document.getElementById("foodSearch"); if (inp) inp.focus(); }, 60);
-    return;
-  }
-  if (a === "plate-oil") {
-    const f = FOODS.find(x => x.name === "Aceite de girasol"); if (!f) return;
-    const it = plateDeAlimento(f, 10); it.manual = true; it.g0 = 10; P.items.push(it); platePaint();
     return;
   }
   if (a === "plate-report") {
@@ -2325,7 +2330,7 @@ async function plateClick(a, el){
     lista.forEach(({ it, v }) => {
       const e = { id: newId(), meal, name: it.name, grams: roundG(v.g), kcal: v.kcal, p: v.p, c: v.c, f: v.f, unit: it.unit || "g",
         base: { kcal: Math.round(it.b.kcal), p: plateR1(it.b.p), c: plateR1(it.b.c), f: plateR1(it.b.f), unit: it.unit || "g" } };
-      if (!it.manual) e.fuente = it.editado ? "ia-editado" : "ia";
+      e.fuente = it.editado ? "ia-editado" : "ia";
       curDiary().push(e);
     });
     commitDiary();
