@@ -1,5 +1,6 @@
-// Ficha del socio (SPEC §2.3, sin cuotas): datos editables, notas internas, Gimnasio (profe con
-// [Cambiar], pausar, dar de baja, reactivar), Foto del gimnasio (aprobar, rechazar, sacar), Asistencia
+// Ficha del socio (SPEC §2.3): datos editables, notas internas, Gimnasio (profe con [Cambiar], pausar,
+// dar de baja, reactivar), Cuota (etapa 2: app/screens/gym/cuotas.js), Foto del gimnasio (aprobar,
+// rechazar, sacar), Asistencia
 // (ingresos del último mes en el calendario de siempre) y Entrenamiento en sus tres modos:
 //   · su socio asignado: la ficha de coach de siempre, editable (con el chat);
 //   · compartió con la administración: la misma ficha en modo lectura («Lo edita su profe…»);
@@ -10,6 +11,7 @@ import { renderCoachCalendar } from '../coach/calendario.js';
 import { GS, yo, soyCoach, fotoHtml, fotoUrl, fecha, cuando, hoyAR, diaAR, horaAR, primerNombre } from './estado.js';
 import { btn, btn2, cargando, vacio } from './marco.js';
 import { estadoTxt, profeTxt, aptoVencido } from './socios.js';
+import { seccionCuota } from './cuotas.js';
 
 // Por qué no se puede cambiar el profe (y no aparece [Cambiar]).
 export function sinCambiarProfe(s){
@@ -101,7 +103,7 @@ export function renderFicha(){
     (marcas.length ? '<span class="gy-marcas">' + marcas.map(m => '<i>' + m + '</i>').join("") + '</span>' : '') + '</div></div>';
   if (f.error) return head + vacio(esc(f.error), btn2('data-gym="reintentar"', "Reintentar"));
   return head + '<div class="gy-ficha">' +
-    '<div class="gy-ficha-col">' + gimnasio(s) + entrenamiento(s) + foto(s, f.datos) + '</div>' +
+    '<div class="gy-ficha-col">' + gimnasio(s) + seccionCuota(f, s) + entrenamiento(s) + foto(s, f.datos) + '</div>' +
     '<div class="gy-ficha-col">' + (f.datos ? datos(f) : '<section class="cv-card gy-sec"><p class="gy-fino">Cargando…</p></section>') + nota(f) + asistencia(f) + '</div>' +
   '</div>';
 }

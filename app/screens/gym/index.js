@@ -17,7 +17,7 @@ import { CoachState } from '../coach/state.js';
 import { usarMarco } from '../coach/panel.js';
 import { renderCoach, clientUnsaved, tplDirty } from '../coach/index.js';
 import { openClient } from '../coach/clientes.js';
-import { GS, rpc, info, gym, yo, esDueno, enApp, pedirFotos, copiar, plural, primerNombre, hoyAR, APP_URL, fecha } from './estado.js';
+import { GS, rpc, info, gym, yo, esDueno, enApp, pedirFotos, copiar, plural, primerNombre, hoyAR, APP_URL, fecha, puedeCobrar, manejaCuotas } from './estado.js';
 import { marcoGym, hojaMas, cabeza, btn, btn2, vacio } from './marco.js';
 import { renderInicio } from './inicio.js';
 import { renderSocios, ventanaSumar, profesDelEquipo } from './socios.js';
@@ -30,7 +30,8 @@ import { renderCrear } from './crear.js';
 import { VERSIONES, rolNombre } from './textos.js';
 import { exportar, exportarTodo, aCsv, descargar } from './csv.js';
 import { pintarQrs } from './qr.js';
-import { renderRecepcion, alRepintar, alRegistrar, fotoNueva, limpiar as limpiarRecepcion } from './recepcion.js';
+import { renderRecepcion, alRepintar, alRegistrar, fotoNueva, limpiar as limpiarRecepcion, refrescar as refrescarRecepcion, RS } from './recepcion.js';
+import { renderCuotas, ventanaPago, ventanaTipo, nuevoPago, csvPagos } from './cuotas.js';
 import { renderAsistencia, exportarIngresos, ventanaIngreso } from './asistencia.js';
 
 let iniciado = false, dibujado = false, primeraCarga = false;
@@ -114,6 +115,7 @@ function vista(){
     case "config": return renderConfig();
     case "plan": return renderPlan();
     case "asistencia": return renderAsistencia();
+    case "cuotas": return renderCuotas();
     case "recepcion": return cabeza("Recepción", btn2('data-gym="ir" data-v="asistencia"', "Ingresos de hoy"), "Buscá por nombre o DNI, mirá la foto y registrá el ingreso.") + renderRecepcion({ altas: true });
     default: return renderInicio();
   }
@@ -148,7 +150,7 @@ function renderRecepcionSola(){
 // El foco y lo escrito sobreviven a un redibujo (la app redibuja seguido).
 function guardarFoco(){
   const a = document.activeElement; if (!a || !a.closest || !a.closest("#coachHost, #gymModal")) return null;
-  const k = ["data-gym-in", "data-gym-f", "data-gym-ff", "data-gym-cfg", "data-gym-cr", "data-gym-nota", "data-gym-sol", "data-rec-q"].find(x => a.hasAttribute(x));
+  const k = ["data-gym-in", "data-gym-f", "data-gym-ff", "data-gym-cfg", "data-gym-cr", "data-gym-nota", "data-gym-sol", "data-rec-q", "data-gym-pg", "data-gym-tp"].find(x => a.hasAttribute(x));
   if (!k) return null;
   return { sel: "[" + k + '="' + a.getAttribute(k) + '"]' + (a.dataset.id ? '[data-id="' + a.dataset.id + '"]' : ""), ini: a.selectionStart, fin: a.selectionEnd };
 }
@@ -169,7 +171,7 @@ function pintarModal(){
   if (m.tipo === "mas"){ h.className = "gy-capa"; h.innerHTML = hojaMas(); return; }
   const cuerpo = m.tipo === "sumar" ? ventanaSumar(m) : m.tipo === "invitar" ? ventanaInvitar(m) : m.tipo === "quitar" ? ventanaQuitar(m) : m.tipo === "qr" ? ventanaQr()
     : m.tipo === "asignar" ? ventanaAsignar(m) : m.tipo === "pausar" ? ventanaPausar(m) : m.tipo === "link" ? ventanaLink(m)
-    : m.tipo === "ingreso" ? ventanaIngreso(renderRecepcion({ compacto: true })) : "";
+    : m.tipo === "ingreso" ? ventanaIngreso(renderRecepcion({ compacto: true })) : m.tipo === "pago" ? ventanaPago(m) : m.tipo === "tipo" ? ventanaTipo(m) : "";
   h.className = "gy-capa";
   h.innerHTML = '<div class="gy-modal-bg" data-gym="cerrar"></div><div class="gy-modal" role="dialog" aria-modal="true">' + cuerpo + '</div>';
   // El nombre de la ventana para los lectores de pantalla: su título.
@@ -252,6 +254,7 @@ async function cargarEquipo(){
 async function cargarFicha(id){
   const f = GS.ficha = { id, datos: null, nota: null, ingresos: null, cal: { m: null, d: null } };
   repintar();
+  cargarCuotaFicha(f);
   const desde = new Date(Date.now() - 31 * 864e5).toISOString();
   const sb = State.sb;
   const seguro = q => Promise.resolve(q).then(r => r, e => ({ error: e }));
@@ -268,6 +271,59 @@ async function cargarFicha(id){
   pedirFotos(fotosDeFicha()).then(ok => { if (ok) repintar(); });
   repintar();
 }
+// Cuotas (etapa 2): el resumen y los tipos de la pantalla Cuotas; la cuota y los pagos de la ficha.
+async function cargarTipos(){
+  const r = await rpc("gym_cuotas_tipos");
+  if (!r.error) GS.tipos = Array.isArray(r.data) ? r.data : [];
+  repintar(); pintarModal();
+}
+async function cargarCuotas(){
+  const [r] = await Promise.all([rpc("gym_cuotas_resumen"), cargarTipos()]);
+  if (r.error){ if (GS.cuotas === null) GS.cuotasError = r.msg; }
+  else if (r.data && typeof r.data === "object"){ GS.cuotas = r.data; GS.cuotasError = ""; pedirFotos((r.data.socios || []).map(s => s.foto_path)).then(ok => { if (ok) repintar(); }); }
+  repintar();
+}
+async function cargarCuotaFicha(f){
+  if (!puedeCobrar()) return;
+  if (GS.tipos === null && manejaCuotas()) cargarTipos();
+  const r = await rpc("gym_pagos_ficha", { ficha: f.id });
+  if (GS.ficha !== f) return;
+  f.cuota = r.error ? { error: r.msg } : (r.data && typeof r.data === "object" ? r.data : { error: "No se pudo leer la cuota." });
+  repintar();
+}
+// Después de un pago o un cambio de cuota: lo que esté a la vista.
+function despuesCuota(){
+  if (GS.ficha) cargarCuotaFicha(GS.ficha);
+  if (manejaCuotas()){ if (GS.view === "cuotas" || GS.view === "inicio") cargarCuotas(); else GS.cuotas = null; }
+  refrescarRecepcion();
+}
+// La ventana «Registrar pago»: lee la cuota y los pagos del socio (lo que va a cubrir sale de ahí).
+async function abrirPago(id){
+  const nombre = ((GS.cuotas && GS.cuotas.socios) || []).concat(GS.socios || [], (RS && RS.lista) || []).map(x => x.id === id ? x.nombre : "").find(Boolean) || "";
+  const m = nuevoPago(id, nombre);
+  abrir(m);
+  const r = await rpc("gym_pagos_ficha", { ficha: id });
+  if (GS.modal !== m) return;
+  if (r.error) m.error = r.msg; else m.datos = r.data && typeof r.data === "object" ? r.data : {};
+  pintarModal();
+  const i = document.querySelector('#gymModal [data-gym-pg="monto"]'); if (i) i.focus({ preventScroll: true });
+}
+const registrarPago = () => ocupado("pago", async () => {
+  const m = GS.modal; if (!m || m.tipo !== "pago") return;
+  const r = await rpc("gym_pago_registrar", { id: m.pid, ficha: m.id, monto: Number(m.monto), medio: m.medio, fecha: m.fecha || null,
+    hasta: m.hastaTocado ? (m.hasta || null) : null, nota: (m.nota || "").trim() || null });
+  if (r.error){ alert(r.msg); return; }
+  m.hecho = r.data || {};
+  despuesCuota();
+})();
+async function exportarPagos(b){
+  b.disabled = true;
+  const r = await rpc("gym_pagos_mes", { mes: null });
+  b.disabled = false;
+  if (r.error) return alert(r.msg);
+  descargar("pagos-" + hoyAR().slice(0, 7) + ".csv", aCsv(csvPagos(Array.isArray(r.data) ? r.data : []), ["fecha", "socio", "monto", "medio", "cuota", "cubre_desde", "cubre_hasta", "nota", "cargo", "anulado"]));
+}
+
 async function cargarIngresos(){
   const r = await rpc("gym_ingresos", { desde: hoyAR() });
   if (r.error){ if (GS.ingresos === null) GS.ingresosError = r.msg; }
@@ -287,7 +343,8 @@ async function cargarAceptar(){
 }
 function cargarVista(){
   const v = GS.view;
-  if (v === "inicio"){ releerGym().then(repintar); cargarSocios(); cargarEquipo(); }
+  if (v === "inicio"){ releerGym().then(repintar); cargarSocios(); cargarEquipo(); cargarCuotas(); }
+  else if (v === "cuotas"){ cargarCuotas(); }
   else if (v === "socios"){ cargarSocios(); if (GS.equipo === null) cargarEquipo(); if (GS.tab === "solicitudes") cargarSolicitudes(); else releerGym().then(repintar); }
   else if (v === "profes"){ cargarEquipo(); if (GS.socios === null) cargarSocios(); }
   else if (v === "config"){ if (GS.equipo === null) cargarEquipo(); cargarDpa(); releerGym().then(repintar); }
@@ -420,6 +477,36 @@ async function alTocar(e){
     repintar(); return;
   }
   if (a === "copiar"){ if (await copiar(b.dataset.v || "")) marcarCopiado(b); else alert("No se pudo copiar: " + (b.dataset.v || "")); return; }
+  // Cuotas (etapa 2)
+  if (a === "cuotas-tab"){ GS.cuotasTab = b.dataset.v; if (GS.view !== "cuotas") return ir("cuotas"); repintar(); return; }
+  if (a === "cuota-pago") return abrirPago(id);
+  if (a === "pago-ok") return registrarPago();
+  if (a === "cuotas-csv") return exportarPagos(b);
+  if (a === "tipo-nuevo") return abrir({ tipo: "tipo", id: null, nombre: "", monto: "", meses: 1 });
+  if (a === "tipo-editar"){ const c = (GS.tipos || []).find(x => x.id === id); if (c) abrir({ tipo: "tipo", id: c.id, nombre: c.name, monto: String(c.amount), meses: c.months }); return; }
+  if (a === "tipo-ok" && GS.modal){
+    const m = GS.modal;
+    await ocupado("tipo", async () => {
+      const r = await rpc("gym_cuota_tipo_guardar", { id: m.id || null, nombre: String(m.nombre || "").trim(), monto: Number(m.monto), meses: Number(m.meses) });
+      if (r.error) return alert(r.msg);
+      cerrarModal(); cargarCuotas(); if (GS.ficha) cargarCuotaFicha(GS.ficha);
+    })();
+    return;
+  }
+  if (a === "tipo-archivar"){
+    const c = (GS.tipos || []).find(x => x.id === id), archivar = !!b.dataset.v;
+    if (archivar && !await confirmar("¿Archivar «" + (c ? c.name : "la cuota") + "»? No se asigna más; los socios que la tienen la conservan.", { ok: "Archivar" })) return;
+    const r = await rpc("gym_cuota_tipo_archivar", { id, archivar });
+    if (r.error) return alert(r.msg);
+    cargarCuotas(); return;
+  }
+  if (a === "pago-anular" && GS.ficha){
+    const mot = await pedir("¿Anular este pago? Queda en el historial, tachado, y si era el último la cuota vuelve a vencer cuando vencía antes.\n\nMotivo (opcional):", "", { titulo: "Anular el pago", ok: "Anular", peligro: true });
+    if (mot === null) return;
+    const r = await rpc("gym_pago_anular", { id, motivo: mot || null });
+    if (r.error) return alert(r.msg);
+    despuesCuota(); return;
+  }
   // Socios
   if (a === "socios-tab"){ GS.tab = b.dataset.v; GS.sel.clear(); if (GS.view !== "socios") return ir("socios"); if (GS.tab === "solicitudes") cargarSolicitudes(); repintar(); return; }
   if (a === "filtro"){
@@ -657,6 +744,20 @@ function alEscribir(e){
   if (t.dataset.gymNota && GS.ficha){ GS.ficha.notaForm = t.value; const g = document.querySelector('[data-gym="nota-guardar"]'); if (g) g.disabled = false; return; }
   if (t.dataset.gymCfg){ (GS.cfg || (GS.cfg = {}))[t.dataset.gymCfg] = t.value; const g = document.querySelector('[data-gym="cfg-guardar"]'); if (g) g.disabled = false; return; }
   if (t.dataset.gymCr){ GS.crear[t.dataset.gymCr] = t.type === "checkbox" ? t.checked : t.value; const g = document.querySelector('[data-gym="crear-si"]'); if (g) g.disabled = !(GS.crear.acepto && GS.crear.nombre.trim().length >= 2); return; }
+  if (t.dataset.gymPg && GS.modal && GS.modal.tipo === "pago"){
+    const m = GS.modal, k = t.dataset.gymPg;
+    if (k === "medio") return;
+    m[k] = t.value;
+    if (k === "monto") m.montoTocado = true;
+    if (k === "hasta") m.hastaTocado = true;
+    const g = document.querySelector('#gymModal [data-gym="pago-ok"]'); if (g) g.disabled = !(Number(m.monto) > 0 && m.hasta && m.fecha) || !!GS.busy;
+    return;
+  }
+  if (t.dataset.gymTp && GS.modal && GS.modal.tipo === "tipo"){
+    const m = GS.modal; m[t.dataset.gymTp] = t.value;
+    const g = document.querySelector('#gymModal [data-gym="tipo-ok"]'); if (g) g.disabled = !(String(m.nombre || "").trim().length >= 2 && m.monto !== "" && Number(m.monto) >= 0) || !!GS.busy;
+    return;
+  }
   if (t.dataset.gymIn === "pausa-hasta" && GS.modal){ GS.modal.hasta = t.value; const g = document.querySelector('[data-gym="pausar-ok"]'); if (g) g.disabled = !t.value; return; }
 }
 
@@ -681,6 +782,28 @@ async function alCambiar(e){
   if (t.dataset.gym === "cfg-set"){
     const k = t.dataset.k, v = t.checked;
     const r = await rpc("gym_config", { patch: { settings: { [k]: v } } });
+    if (r.error){ t.checked = !v; return alert(r.msg); }
+    Object.assign(Gym.info, { gym: r.data.gym, settings: r.data.settings }); repintar(); return;
+  }
+  // Cuotas: el medio de pago, la fecha (cambia lo que cubre), cada cuánto, la cuota de la ficha y «No dejar entrar».
+  if (t.dataset.gymPg && GS.modal && GS.modal.tipo === "pago"){
+    const k = t.dataset.gymPg;
+    if (k === "medio") GS.modal.medio = t.value; else if (k === "fecha") GS.modal.fecha = t.value; else return;
+    pintarModal(); return;
+  }
+  if (t.dataset.gymTp === "meses" && GS.modal){ GS.modal.meses = Number(t.value); return; }
+  if (t.dataset.gym === "cuota-asignar" && GS.ficha){
+    const f = GS.ficha;
+    await ocupado("cuota", async () => {
+      const r = await rpc("gym_cuota_asignar", { fichas: [f.id], tipo: t.value || null, vence: null });
+      if (r.error) alert(r.msg);
+      despuesCuota();
+    })();
+    return;
+  }
+  if (t.dataset.gym === "cfg-bloquea"){
+    const v = t.checked;
+    const r = await rpc("gym_cuotas_bloquear", { bloquear: v });
     if (r.error){ t.checked = !v; return alert(r.msg); }
     Object.assign(Gym.info, { gym: r.data.gym, settings: r.data.settings }); repintar(); return;
   }

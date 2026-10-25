@@ -132,7 +132,7 @@ export function tileGym(d){
   const u = f.ingresos && f.ingresos[0];
   return [f.motivo || "—", f.apto_vencido ? "apto médico vencido" : "", u ? "último ingreso " + cuando(u.at).toLowerCase() : "sin ingresos"].filter(Boolean).join(" · ");
 }
-const RES = { ok: "", pausado: " · estaba pausado", baja: " · estaba de baja", visita: " · visita", rechazado: " · todavía no era socio" };
+const RES = { ok: "", cuota_vencida: " · con la cuota vencida", pausado: " · estaba pausado", baja: " · estaba de baja", visita: " · visita", rechazado: " · todavía no era socio" };
 export function seccionGym(d){
   const f = d.gymF;
   if (!f || f.cargando) return '<div class="cal-hint">Cargando…</div>';
@@ -146,7 +146,7 @@ export function seccionGym(d){
     '<div class="gy-kv"><span>Apto médico</span><div>' + apto + '</div></div>' +
     '<div class="gy-kv"><span>Socio desde</span><div>' + esc(fechaLarga(f.alta)) + '</div></div>' +
     '<div class="gy-kv"><span>Últimos ingresos</span><div>' + ing + '</div></div>' +
-    '<p class="gy-fino">Lo carga el gimnasio. La cuota y los datos de contacto los ve la administración.</p></div>';
+    '<p class="gy-fino">Lo carga el gimnasio. Ves si la cuota está al día; los pagos y los datos de contacto los ve la administración.</p></div>';
 }
 
 // ---- La recepción, para el profe (carga diferida) ----

@@ -23,6 +23,7 @@ export const I = {
   star: ico('<path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/>'),
   more: ico('<circle cx="5.5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18.5" cy="12" r="1.4"/>'),
   user: ico('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/>'),
+  cash: ico('<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/>'),
   alumnos: ico('<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="11" r="2.2"/><path d="M5.8 16.2c.6-1.6 1.8-2.4 3.2-2.4s2.6.8 3.2 2.4M14.5 10h3.5M14.5 13.5h3.5"/>'),
 };
 
@@ -34,6 +35,8 @@ function opciones(){
     ["socios", "Socios", I.users, 'data-gym="ir" data-v="socios"', true, (c.solicitudes || 0) + (c.fotos_pendientes || 0)],
     ["profes", "Profes", I.team, 'data-gym="ir" data-v="profes"', false],
     ["asistencia", "Asistencia", I.check, 'data-gym="ir" data-v="asistencia"', true],
+    // Cuotas (etapa 2): lo que le pagan al gimnasio en el mostrador; en el celular, en «Más».
+    ["cuotas", "Cuotas", I.cash, 'data-gym="ir" data-v="cuotas"', false],
   ];
   if (coach) L.push(["-", "Como profe"]);
   if (coach && CoachState.coachClients.length) L.push(["alumnos", "Mis alumnos", I.alumnos, 'data-coach="view-clients" data-gy-coach="1"', false]);

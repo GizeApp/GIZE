@@ -27,7 +27,9 @@ export default async function ({ base, t }){
     t.ok(/09:05/.test(h) && /Martina Sosa/.test(h) && /Manual/.test(h) && /Rocío Recepción/.test(h), donde + ': hora, socio, «Manual» y quién lo registró');
     t.ok(/Activo/.test(h) && /Pausado/.test(h), donde + ': el estado al entrar');
     t.eq(await p.$$eval('.gy-tabla-ing .gy-sem', l => l.map(e => e.className.replace('gy-sem', '').trim())), ['verde', 'ambar', 'verde'], donde + ': con su color');
-    t.ok(!/\$|monto|cuota/i.test(h), donde + ': sin montos');
+    // Desde la etapa 2 el menú de la compu tiene «Cuotas»: se mira solo la pantalla, no el menú.
+    const pantalla = await p.$eval('#coachHost .cv-main', e => e.innerText);
+    t.ok(!/\$|monto|cuota/i.test(pantalla), donde + ': sin montos');
     t.ok(/Abrir recepción/.test(h) && /Ingreso manual/.test(h) && /Exportar CSV/.test(h), donde + ': las tres acciones');
     if (vp === M) t.ok(await sinScrollHorizontal(p), donde + ': sin scroll horizontal');
     const c = await contraste(p, '#coachHost .cv-main');

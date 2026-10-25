@@ -1,6 +1,7 @@
-// Configuración del gimnasio (SPEC §2.8, etapa 1): datos; código (copiar, link, QR para imprimir,
-// cambiar); profe por defecto y «Aprobar solas»; los interruptores del equipo que actúan en la etapa 1
-// (los de cobro y montos aparecen con las cuotas); un ingreso cada N horas; privacidad (texto fijo:
+// Configuración del gimnasio (SPEC §2.8): datos; código (copiar, link, QR para imprimir, cambiar);
+// profe por defecto y «Aprobar solas»; los interruptores del equipo (con «La recepción registra pagos»
+// desde la etapa 2; los profes nunca ven montos); el ingreso: uno cada N horas y, con las cuotas, «No
+// dejar entrar con la cuota vencida» (gym_cuotas_bloquear); privacidad (texto fijo:
 // nadie del gimnasio lee los chats); el contrato de encargo; la marca (próximamente); exportar; y la
 // zona de cuidado, solo para el dueño (pedir cambio de dueño y cerrar el gimnasio).
 import { esc } from '../../core/utils.js';
@@ -14,6 +15,7 @@ const TOGGLES = [
   ["aprobar_solas", "Aprobar solas las solicitudes", "Quien pone el código del gimnasio entra directo, con el profe por defecto. Apagado: las revisás en Socios → Solicitudes."],
   ["recepcion_altas", "La recepción aprueba solicitudes y carga fichas", "También puede sacar la foto del gimnasio."],
   ["profes_recepcion", "Los profes pueden abrir la recepción", "Para que un profe registre ingresos cuando no hay nadie en el mostrador."],
+  ["recepcion_cobra", "La recepción registra pagos", "Anota los pagos de las cuotas y ve el historial de cada socio. Apagado: solo ve si la cuota está al día."],
 ];
 
 export function renderConfig(){
@@ -37,7 +39,9 @@ export function renderConfig(){
       sw(TOGGLES[0]) + '</section>' +
     '<section class="cv-card gy-sec"><h2 class="gy-h">Equipo</h2>' + TOGGLES.slice(1).map(sw).join("") + '</section>' +
     '<section class="cv-card gy-sec"><h2 class="gy-h">Ingreso</h2><label class="gy-f gy-f-in"><span>Un ingreso cada</span><span class="gy-horas"><input class="co-note" type="number" min="1" max="24" step="1" inputmode="numeric" data-gym="cfg-horas" value="' + esc(String(st.ingreso_horas || 3)) + '"> horas</span></label>' +
-      '<p class="gy-fino">Si se registra otro ingreso del mismo socio antes, la recepción ve que ya entró.</p></section>' +
+      '<p class="gy-fino">Si se registra otro ingreso del mismo socio antes, la recepción ve que ya entró.</p>' +
+      '<label class="gy-sw"><span class="gy-sw-t"><b>No dejar entrar con la cuota vencida</b><span>La recepción no puede registrar el ingreso hasta que pague. Apagado: lo registra y ve el aviso de la cuota vencida.</span></span>' +
+        '<input type="checkbox" role="switch" data-gym="cfg-bloquea"' + (st.cuota_bloquea ? ' checked' : '') + (GS.busy ? ' disabled' : '') + '><i aria-hidden="true"></i></label></section>' +
   '</div><div class="gy-ficha-col">' +
     '<section class="cv-card gy-sec"><h2 class="gy-h">Privacidad</h2><dl class="gy-dl">' + PRIVACIDAD.map(([a, b]) => '<dt>' + a + '</dt><dd>' + b + '</dd>').join("") + '</dl>' +
       '<p class="gy-fino">La administración ve los registros solo de quien los compartió. <a class="cv-link" href="https://gize.ar/privacidad/" target="_blank" rel="noopener">Política de privacidad</a></p></section>' +

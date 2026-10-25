@@ -1,7 +1,8 @@
 // Gimnasios, etapa 1: Configuración del gimnasio (SPEC §2.8) y lo que pasa al borrar la cuenta de la
 // dueña (§1.6). Datos (gym_config solo con lo que cambió), código (copiar, link, QR para imprimir,
 // cambiar con gym_codigo_rotar), profe por defecto, los tres interruptores de la etapa 1 (aprobar solas,
-// la recepción aprueba y carga fichas, los profes abren la recepción; no los de cobro ni montos), un
+// la recepción aprueba y carga fichas, los profes abren la recepción) y, desde la etapa 2, «La recepción
+// registra pagos» (ninguno para que los profes vean montos: nunca los ven), un
 // ingreso cada N horas, privacidad (sin opción de leer chats), contrato de encargo, marca próximamente,
 // exportar (CSV), y la zona de cuidado solo para la dueña (cambio de dueño por WhatsApp, cerrar
 // escribiendo el nombre). Al eliminar su cuenta, la dueña ve que se cierra el gimnasio y puede exportar.
@@ -18,7 +19,9 @@ export default async function ({ base, t }){
       'La recepción aprueba solicitudes y carga fichas', 'Los profes pueden abrir la recepción', 'Un ingreso cada', 'Privacidad', 'Lee el chat de un profe con su socio. No hay ninguna opción para hacerlo.',
       'Contrato de encargo', 'Versión 2026-10-borrador', 'Próximamente: tu logo y tus colores', 'Exportar todo', 'Zona de cuidado', 'Pedir cambio de dueño', 'Cerrar el gimnasio'])
       t.has(txt, s, 'Configuración: «' + s + '»');
-    t.ok(!/registra pagos|montos/i.test(txt), 'sin los interruptores de cobro y montos (llegan con las cuotas)');
+    // Etapa 2 (cuotas): llegó «La recepción registra pagos»; el de montos para los profes no existe (los profes nunca ven montos).
+    t.has(txt, 'La recepción registra pagos', 'con las cuotas, el interruptor de cobro de la recepción');
+    t.ok(!/montos/i.test(txt), 'sin un interruptor de montos para los profes');
     // Datos: solo lo que cambió
     t.ok(await p.isDisabled('#coachHost [data-gym="cfg-guardar"]'), 'sin cambios, «Guardar cambios» apagado');
     await p.fill('#coachHost [data-gym-cfg="city"]', 'Funes'); await p.fill('#coachHost [data-gym-cfg="whatsapp"]', '+54 341 555-1111'); await wait(100);

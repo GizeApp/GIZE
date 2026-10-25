@@ -26,6 +26,9 @@ export const GS = {
   ingresos: null, ingresosError: "",   // Asistencia: los ingresos de hoy (gym_ingresos)
   recTab: "recepcion",                 // la cuenta de recepción: Recepción · Solicitudes
   crear: { nombre: "", ciudad: "", provincia: "", acepto: false, busy: false },
+  // Cuotas (etapa 2): el resumen (gym_cuotas_resumen), los tipos de cuota (gym_cuotas_tipos) y la
+  // pestaña elegida (vencida, por_vencer, sin_pagos, al_dia, sin_cuota o todos).
+  cuotas: null, cuotasError: "", tipos: null, cuotasTab: "vencida",
 };
 
 // Quien llama a la RPC ve el texto propio del servidor (P0001) tal cual; sin permiso, uno neutro.
@@ -48,6 +51,13 @@ export const esDueno = () => rolGym() === "owner";
 export const esAdmin = () => rolGym() === "admin";
 export const yo = () => (State.cloudUser && State.cloudUser.id) || "";
 export const soyCoach = () => !!(State.cloudProfile && State.cloudProfile.role === "coach");
+// Cuotas (etapa 2): cobrar y ver los pagos, dueño y administración, y la recepción si el gimnasio la deja
+// («La recepción registra pagos»). Los tipos de cuota, asignar y anular: dueño y administración.
+export const puedeCobrar = () => ["owner", "admin"].includes(rolGym()) || (rolGym() === "recepcion" && !!(info().settings || {}).recepcion_cobra);
+export const manejaCuotas = () => ["owner", "admin"].includes(rolGym());
+// Pesos argentinos: «$ 30.000» (con centavos solo si los hay).
+const PESOS = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+export const plata = n => PESOS.format(Number(n) || 0);
 // En las apps de las tiendas (iPhone y Android): nada de precios, planes, prueba ni pagos de GIZE.
 export const enApp = () => appNativa() || comprasApple();
 

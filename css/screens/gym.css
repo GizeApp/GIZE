@@ -243,6 +243,24 @@ a.gize-btn.cv-btn { text-decoration:none; }
 .gy-solo-top { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; max-width:1080px; margin:0 auto; }
 .gy-solo-ancho { width:100%; max-width:1080px; margin:0 auto; min-width:0; }
 
+/* Cuotas (etapa 2) */
+.gy-sec-h { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; margin:0 0 10px; }
+.gy-sec-h .gy-h { margin:0; }
+.gy-h3 { margin:16px 0 6px; font-size:var(--text-body); font-weight:700; color:var(--txt); }
+.gy-tipos, .gy-pagos { list-style:none; margin:0; padding:0; }
+.gy-tipos li, .gy-pagos li { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px; padding:10px 0; border-top:1px solid var(--gize-border); }
+.gy-tipos li:first-child, .gy-pagos li:first-child { border-top:0; }
+.gy-tipo-t, .gy-pago-t { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1 1 200px; }
+.gy-tipo-t b, .gy-pago-t b { font-size:var(--text-body); color:var(--txt); }
+.gy-tipo-t span, .gy-pago-t span { font-size:var(--text-meta); color:var(--txt-2); }
+.gy-tipo-arch .gy-tipo-t b { color:var(--txt-2); }
+.gy-pago-anulado .gy-pago-t b { color:var(--txt-2); }
+.gy-tabla-cuotas { margin:0 0 6px; }
+.gy-medios { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.gy-medios .gy-radio { flex:1 1 auto; grid-template-areas:"in t"; align-items:center; padding:10px 12px; }
+.gy-medios .gy-radio input { color:var(--txt); }
+.gy-f-nota { margin-top:4px; }
+
 /* Asistencia */
 .gy-row-ing { cursor:default; }
 .gy-row-ing .gy-td-socio { gap:12px; }
@@ -295,6 +313,8 @@ a.gize-btn.cv-btn { text-decoration:none; }
   .gy-rec-compacto .gy-rec-cols { grid-template-columns:minmax(0,1fr); }
   .gy-rec-ficha { position:sticky; top:16px; padding:24px 22px; }
   .gy-row-ing { grid-template-columns:minmax(0,2.4fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.4fr); }
+  .gy-row-cuota { grid-template-columns:minmax(0,2.2fr) minmax(0,2fr) minmax(0,.9fr) minmax(0,1fr) minmax(0,1.2fr); }
+  .gy-form-pago { grid-template-columns:1fr 1fr 1fr; }
   .gy-modal { left:50%; right:auto; top:50%; bottom:auto; width:min(560px, calc(100vw - 48px)); transform:translate(-50%,-50%); border-radius:22px; max-height:86vh; }
   .gy-sheet { display:none; }
 }

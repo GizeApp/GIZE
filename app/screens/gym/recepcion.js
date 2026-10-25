@@ -9,9 +9,12 @@
 // ingreso (gym_ingreso_manual). El id del ingreso lo genera la app y se guarda hasta que el servidor
 // contesta: tocar dos veces o reintentar sin señal no anota dos; si ya entró en las últimas N horas
 // (ingreso_horas del gimnasio), el servidor no anota otro y acá se dice. No muestra montos, entrenos,
-// comidas, chats ni notas. El semáforo de la etapa 1 sale del estado de la ficha; la etapa 2 lo llena
-// con la cuota sin cambiar la forma del dato ({semaforo, motivo, apto_vencido}). Nada frena el ingreso:
-// la recepción decide (P12).
+// comidas, chats ni notas. El semáforo sale del estado de la ficha y, desde la etapa 2, de la cuota
+// («Cuota vencida el 20/10»), con la misma forma del dato ({semaforo, motivo, apto_vencido}). Con la
+// cuota vencida el ingreso se registra igual y avisa; solo si el gimnasio eligió «No dejar entrar con la
+// cuota vencida», el servidor no lo anota (bloqueado) y acá se dice. Quien puede cobrar (dueño,
+// administración y la recepción con «registra pagos») tiene [Registrar pago] en la ficha (la ventana es
+// del panel: app/screens/gym/cuotas.js); nunca se muestran montos acá.
 //
 // Con permiso de altas (dueño y administración siempre; la recepción con «La recepción aprueba
 // solicitudes y carga fichas»): [Cargar ficha], [Solicitudes] y [Sacar foto] a quien no tiene; esos
@@ -25,7 +28,7 @@
 // El ingreso se anota solo con [Registrar ingreso]: la tecla Enter (la «Buscar» del teclado del
 // celular) busca, y con un solo resultado lleva al botón, para mirar la foto y el semáforo antes.
 import { esc } from '../../core/utils.js';
-import { rpc, info, fotoHtml, pedirFotos, horaAR, diaAR, hoyAR, cuando, plural } from './estado.js';
+import { rpc, info, fotoHtml, pedirFotos, horaAR, diaAR, hoyAR, cuando, plural, fecha, puedeCobrar } from './estado.js';
 import { marcarRecepcion } from './inicio.js';
 
 // q: lo escrito; lista: lo que contestó buscar_socio (null = todavía nada); sel: la ficha elegida;
@@ -65,14 +68,14 @@ export function renderRecepcion(o = {}){
   return '<section class="gy-rec' + (o.compacto ? ' gy-rec-compacto' : '') + '" aria-label="Recepción">' +
     '<label class="cv-find gy-rec-buscar">' + lupa + '<input class="co-search cv-search gy-rec-q" type="search" data-rec-q="1" placeholder="Nombre o DNI del socio" aria-label="Buscar socio por nombre o DNI" autocomplete="off" autocapitalize="words" enterkeyhint="search" value="' + esc(RS.q) + '"></label>' +
     '<p class="cv-sr gy-rec-vivo" aria-live="polite" aria-atomic="true" data-rec-vivo="1"></p>' +
-    '<div class="gy-rec-res" data-altas="' + (o.altas && !o.compacto ? "1" : "") + '">' + resultados(!!(o.altas && !o.compacto)) + '</div>' +
+    '<div class="gy-rec-res" data-altas="' + (o.altas && !o.compacto ? "1" : "") + '" data-cobra="' + (!o.compacto && puedeCobrar() ? "1" : "") + '">' + resultados(!!(o.altas && !o.compacto), !o.compacto && puedeCobrar()) + '</div>' +
     (o.altas && !o.compacto ? '<div class="gy-acc gy-rec-altas">' +
       '<button class="co-copy-btn cv-sec-btn gy-btn2" data-gym="sumar" data-v="ficha">Cargar ficha</button>' +
       '<button class="co-copy-btn cv-sec-btn gy-btn2" data-gym="' + (o.solicitudes || "socios-tab") + '" data-v="solicitudes">Solicitudes</button></div>' : '') +
   '</section>';
 }
 
-function resultados(altas){
+function resultados(altas, cobrar){
   const t = RS.q.trim();
   let estado = "";
   if (!t) estado = '<p class="gy-fino gy-rec-hint">Escribí el nombre o al menos 3 números del DNI.</p>';
@@ -85,27 +88,30 @@ function resultados(altas){
   const lista = '<ul class="gy-rec-lista" aria-label="' + plural(RS.lista.length, "socio encontrado", "socios encontrados") + '">' + RS.lista.map(s =>
     '<li><button class="gy-rec-i' + (sel && sel.id === s.id ? ' on' : '') + '" data-rec="elegir" data-id="' + esc(s.id) + '"' + (sel && sel.id === s.id ? ' aria-current="true"' : '') + '>' +
       fotoHtml(s.foto_path, s.nombre) + '<span class="gy-rec-i-t"><b>' + esc(s.nombre || "Sin nombre") + '</b>' + semaforo(s) + '</span></button></li>').join("") + '</ul>';
-  return '<div class="gy-rec-cols">' + lista + (sel ? detalle(sel, altas) : '<div class="cv-card gy-rec-ficha gy-rec-vacia"><p class="gy-fino">Tocá un socio para ver su foto y registrar el ingreso.</p></div>') + '</div>';
+  return '<div class="gy-rec-cols">' + lista + (sel ? detalle(sel, altas, cobrar) : '<div class="cv-card gy-rec-ficha gy-rec-vacia"><p class="gy-fino">Tocá un socio para ver su foto y registrar el ingreso.</p></div>') + '</div>';
 }
 
 // Lo que contestó el registro, en palabras (la ficha y la región viva dicen lo mismo). Si el que ya
 // había fue otro día (las N horas pasan la medianoche), no dice «hoy».
 function textoIngreso(h){
   const a = horaAR(h.at);
+  if (h.bloqueado) return "No se registró el ingreso: la cuota venció el " + fecha(h.vence) + ". Primero tiene que pagar.";
   if (h.repetido){
     const d = diaAR(h.at), dia = !d || d === hoyAR() ? "hoy a las " : "ayer a las ";
     return "Ya entró " + dia + a + ". Se anota un ingreso cada " + plural(horas(), "hora", "horas") + ": no se anotó otro.";
   }
-  return { ok: "Ingreso registrado a las " + a + ".", pausado: "Ingreso registrado a las " + a + ", pero está pausado.", baja: "Ingreso registrado a las " + a + ", pero está de baja.",
+  return { ok: "Ingreso registrado a las " + a + ".", cuota_vencida: "Ingreso registrado a las " + a + ", pero la cuota está vencida.", pausado: "Ingreso registrado a las " + a + ", pero está pausado.", baja: "Ingreso registrado a las " + a + ", pero está de baja.",
     visita: "Ingreso registrado a las " + a + " (visita).", rechazado: "Ingreso registrado a las " + a + ", pero todavía no es socio." }[h.result] || "Ingreso registrado a las " + a + ".";
 }
 
-function detalle(s, altas){
+function detalle(s, altas, cobrar){
   const h = RS.hecho[s.id], err = RS.errIng[s.id], busy = RS.busy === s.id;
   const foto = s.foto_path ? fotoHtml(s.foto_path, s.nombre, "gy-av-rec")
     : '<div class="gy-rec-sinfoto">' + fotoHtml(null, s.nombre, "gy-av-rec") + (altas ? '<span class="gy-fino">Sin foto: sacale una.</span>' : '<span class="gy-fino">Sin foto del gimnasio.</span>') + '</div>';
   let res = "";
-  if (h) res = '<div class="' + (!h.repetido && h.result === "ok" ? "gy-ok" : "gy-cartel warn") + '"><span>' + esc(textoIngreso(h)) + '</span></div>';
+  if (h) res = '<div class="' + (!h.repetido && h.result === "ok" ? "gy-ok" : h.bloqueado ? "gy-cartel bad" : "gy-cartel warn") + '"><span>' + esc(textoIngreso(h)) + '</span></div>';
+  // Cobrar la cuota (la ventana es del panel). No en la ventana compacta (ya es una ventana).
+  const cobra = cobrar && ["activo", "pausado", "visita"].includes(s.estado);
   if (err) res = '<div class="gy-cartel bad" role="alert"><span>' + esc(err) + '</span></div>';
   return '<article class="cv-card gy-rec-ficha" aria-label="' + esc(s.nombre || "Socio") + '">' +
     '<div class="gy-rec-foto">' + foto + '</div>' +
@@ -114,13 +120,14 @@ function detalle(s, altas){
       '<p class="gy-fino">Último ingreso: ' + (s.ultimo_ingreso ? esc(cuando(s.ultimo_ingreso)) : "nunca") + '</p></div>' +
     '<div class="gy-rec-acc">' + res +
       '<button class="gize-btn cv-btn gy-rec-ing" data-rec="ingreso" data-id="' + esc(s.id) + '"' + (busy ? ' disabled aria-busy="true"' : '') + '>' + (busy ? "Registrando…" : (RS.pend[s.id] ? "Reintentar el ingreso" : "Registrar ingreso")) + '</button>' +
+      (cobra ? '<button class="co-copy-btn cv-sec-btn gy-btn2" data-gym="cuota-pago" data-id="' + esc(s.id) + '">Registrar pago</button>' : '') +
       (altas && !s.foto_path ? '<label class="co-copy-btn cv-sec-btn gy-btn2 gy-foto-btn">Sacar foto<input class="gy-foto-in" type="file" accept="image/*" capture="user" data-gym-foto="' + esc(s.id) + '"></label>' : '') +
     '</div></article>';
 }
 
 // Redibuja solo los resultados (el buscador queda como está).
 function pintar(){
-  document.querySelectorAll(".gy-rec-res").forEach(el => { el.innerHTML = resultados(el.dataset.altas === "1"); });
+  document.querySelectorAll(".gy-rec-res").forEach(el => { el.innerHTML = resultados(el.dataset.altas === "1", el.dataset.cobra === "1"); });
 }
 // La región viva: se vacía y se escribe un momento después, así se anuncia aunque repita el texto.
 let relojVivo = null;
@@ -175,7 +182,7 @@ async function registrar(id){
   } else {
     delete RS.pend[id];
     RS.hecho[id] = r.data || {};
-    if (r.data && !r.data.repetido) s.ultimo_ingreso = r.data.at || new Date().toISOString();
+    if (r.data && !r.data.repetido && !r.data.bloqueado) s.ultimo_ingreso = r.data.at || new Date().toISOString();
     marcarRecepcion();
     anunciar((s.nombre ? s.nombre + ": " : "") + textoIngreso(RS.hecho[id]));
     try { alIngreso(r.data); } catch (e) {}
@@ -190,6 +197,8 @@ export function fotoNueva(fichaId, path){
   s.foto_path = path;
   pedirFotos([path]).then(() => { pintar(); repintarFuera(); });
 }
+// Después de un pago: se vuelve a buscar lo mismo, así el semáforo dice cómo quedó la cuota.
+export function refrescar(){ if (RS.lista && buscable(RS.q)){ clearTimeout(reloj); buscar(); } }
 // Empezar de cero (otra cuenta, cerrar la ventana del ingreso manual).
 export function limpiar(){ RS.q = ""; RS.lista = null; RS.error = ""; RS.sel = null; RS.hecho = {}; RS.errIng = {}; }
 

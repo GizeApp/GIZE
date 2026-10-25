@@ -7,8 +7,8 @@ import { GS, horaAR, hoyAR, plural } from './estado.js';
 import { cabeza, btn, btn2, vacio, cargando } from './marco.js';
 import { aCsv, descargar } from './csv.js';
 
-// Cómo estaba al entrar (gym_entries.result): en la etapa 2 suma la cuota, con la misma forma.
-export const RESULTADO = { ok: ["verde", "Activo"], pausado: ["ambar", "Pausado"], baja: ["rojo", "De baja"], visita: ["gris", "Visita"], rechazado: ["ambar", "Pidió sumarse"] };
+// Cómo estaba al entrar (gym_entries.result), con la cuota vencida desde la etapa 2. Sin montos.
+export const RESULTADO = { ok: ["verde", "Activo"], cuota_vencida: ["rojo", "Cuota vencida"], pausado: ["ambar", "Pausado"], baja: ["rojo", "De baja"], visita: ["gris", "Visita"], rechazado: ["ambar", "Pidió sumarse"] };
 const METODO = { manual: "Manual", pase: "Pase", offline: "Sin conexión" };
 
 export function renderAsistencia(){

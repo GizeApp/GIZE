@@ -1,4 +1,5 @@
-// Inicio del panel del gimnasio (SPEC §2.2, sin cuotas ni clases): qué hay que hacer hoy. Conteos y
+// Inicio del panel del gimnasio (SPEC §2.2, sin clases): qué hay que hacer hoy (con las cuotas vencidas
+// desde la etapa 2, de gym_cuotas_resumen). Conteos y
 // listas para operar, sin gráficos. Los carteles del plan van solo en la web (en las apps, nada de
 // planes ni vencimientos de GIZE). Sin nada cargado, la lista de los primeros pasos que se tachan sola.
 import { esc } from '../../core/utils.js';
@@ -47,6 +48,8 @@ export function renderInicio(){
   item(c.falta_confirmacion, plural(c.falta_confirmacion, "socio no confirmó", "socios no confirmaron") + " lo que ve el gimnasio", "Ver", 'data-gym="filtro" data-k="faltaConf"');
   item(c.fotos_pendientes, plural(c.fotos_pendientes, "foto para aprobar", "fotos para aprobar"), "Revisar", 'data-gym="filtro" data-k="fotoPend"');
   item(c.invitaciones, plural(c.invitaciones, "invitación sin aceptar", "invitaciones sin aceptar"), "Ver", 'data-gym="ir" data-v="profes"');
+  const cu = GS.cuotas && GS.cuotas.conteo;
+  item(cu && cu.vencida, plural((cu && cu.vencida) || 0, "cuota vencida", "cuotas vencidas"), "Ver", 'data-gym="cuotas-tab" data-v="vencida"');
   item(c.aptos_vencidos, plural(c.aptos_vencidos, "apto médico vencido", "aptos médicos vencidos"), "Ver", 'data-gym="filtro" data-k="aptoVencido"');
   item(viejos + profesViejos, [viejos ? plural(viejos, "socio", "socios") : "", profesViejos ? plural(profesViejos, "persona del equipo", "personas del equipo") : ""].filter(Boolean).join(" y ") + " con una versión vieja de la app", "Ver", 'data-gym="filtro" data-k="appVieja"');
   const todo = '<section class="gy-col"><h2 class="cv-h2">Para hacer</h2><div class="cv-card cv-list">' + (L.length ? L.join("") : '<div class="cv-empty">Nada pendiente por hoy.</div>') + '</div></section>';
