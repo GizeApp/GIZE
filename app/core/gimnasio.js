@@ -262,6 +262,36 @@ export function cuotaSocio(){
   return c.v;
 }
 
+// Las clases del socio (etapa 3: gym_mis_clases, supabase/gimnasios-clases.sql) para Ajustes → Tu
+// gimnasio: si el gimnasio tiene clases y sus próximas reservas. Como la cuota: se pide al dibujar,
+// como mucho una vez por minuto. undefined: todavía no contestó; null: sin clases, sin señal o una base
+// sin las clases. La hoja de las clases (screens/gym/socio.js) la deja al día con lo que lee (clasesAlDia).
+let _clases = { uid: null, v: undefined, t: 0, pidiendo: false };
+export function clasesSocio(){
+  const uid = State.cloudUser && State.cloudUser.id;
+  if (!uid || !State.sb || rolGym() !== "socio") return null;
+  if (_clases.uid !== uid) _clases = { uid, v: undefined, t: 0, pidiendo: false };
+  const c = _clases;
+  if (!c.pidiendo && Date.now() - c.t > 60e3){
+    c.pidiendo = true;
+    const antes = JSON.stringify(c.v === undefined ? "?" : c.v);
+    Promise.resolve(State.sb.rpc("gym_mis_clases")).then(r => {
+      if (!r.error) c.v = r.data && typeof r.data === "object" ? r.data : null;
+      else if (c.v === undefined) c.v = null;
+    }, () => { if (c.v === undefined) c.v = null; }).then(() => {
+      c.pidiendo = false; c.t = Date.now();
+      if (_clases === c && JSON.stringify(c.v) !== antes && _redibujar) _redibujar();
+    });
+  }
+  return c.v;
+}
+export function clasesAlDia(v){
+  const uid = State.cloudUser && State.cloudUser.id;
+  if (!uid) return;
+  _clases = { uid, v: v && typeof v === "object" ? v : null, t: Date.now(), pidiendo: false };
+  if (_redibujar) _redibujar();
+}
+
 // El módulo del panel (carga diferida). Devuelve true si quedó listo.
 export function cargarPanelGym(){
   if (Gym.ui) return Promise.resolve(true);

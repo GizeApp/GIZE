@@ -267,6 +267,10 @@ body.adm-open { overflow: hidden; }
 .cfg-gym-pagos-t { margin-top:6px; }
 .cfg-gym-pagos { margin:0; padding-left:18px; display:flex; flex-direction:column; gap:3px; font-size:var(--text-meta); color:var(--txt); }
 
+/* Tus clases (etapa 3): las próximas reservas, debajo de «Clases». */
+.cfg-gym-clases { margin:0 0 4px; padding-left:18px; display:flex; flex-direction:column; gap:3px; font-size:var(--text-meta); color:var(--txt); }
+.cfg-gym-ok { color:color-mix(in srgb, var(--gize-success) 70%, var(--txt)); font-weight:600; }
+
 /* La hoja del socio (app/screens/gym/socio.js, #gymSocioHost): la hoja de abajo de siempre (.sheet de
    components.css), encima de todo (también de la bienvenida y del panel), como «Bloquear». */
 #gymSocioHost .sheet-bg { z-index:640; }
@@ -299,3 +303,15 @@ html:has(#gymSocioHost .sheet:not(.closing)), html:has(#gymSocioHost .sheet:not(
 .gys-foto-in { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 .cfg-gym-foto-acc, .gys-foto-btn { position:relative; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
 .cfg-gym-foto-acc:has(.gys-foto-in:focus-visible), .gys-foto-btn:has(.gys-foto-in:focus-visible) { outline:2px solid var(--blue); outline-offset:2px; }
+
+/* Las clases en la hoja del socio (etapa 3). */
+.gys-cls { list-style:none; margin:0; padding:0; }
+.gys-cl { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; padding:10px 2px; border-top:1px solid var(--border); }
+.gys-cls .gys-cl:first-child { border-top:0; }
+.gys-cl-t { flex:1 1 180px; min-width:0; display:flex; flex-direction:column; gap:2px; font-size:var(--text-body); color:var(--txt); }
+.gys-cl-t b { font-weight:600; overflow-wrap:anywhere; }
+.gys-cl .ctrl { flex:none; min-width:120px; }
+.gys-cl-cancelada .gys-cl-t b { text-decoration:line-through; color:var(--txt-2); }
+.gys-cl-mal { color:color-mix(in srgb, var(--gize-danger) 78%, var(--txt)); font-size:var(--text-meta); font-weight:600; }
+.gys-cl-ambar { color:color-mix(in srgb, var(--gize-warning) 72%, var(--txt)); font-size:var(--text-meta); font-weight:600; }
+.gys-cl-aviso { padding:10px 12px; border-radius:var(--r-box); border:1px solid color-mix(in srgb, var(--gize-warning) 55%, transparent); background:color-mix(in srgb, var(--gize-warning) 10%, transparent); }

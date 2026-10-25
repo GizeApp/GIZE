@@ -14,12 +14,14 @@
 //   listo     ya es socio (aprobó solo, su mail coincidía con una ficha o el link de su ficha).
 //   salir     «Salir del gimnasio», con «Seguir con mi profe como alumno propio» si corresponde.
 //   vencido   el link ya no sirve.
+//   clases    las clases de los próximos días (etapa 3: gym_mis_clases): reservar, anotarse en la
+//             lista de espera y cancelar. Nunca se ve quién más reservó; sin precios.
 // Las reglas (un gimnasio por persona, coach externo, el equipo no se suma, el tope de pedidos…) son
 // del servidor: sus textos (P0001) se muestran tal cual. La app no muestra precios ni planes de GIZE
 // en ningún lado de acá (iPhone y Android).
 import { State } from '../../core/state.js';
 import { esc } from '../../core/utils.js';
-import { Gym, releerGym, rolGym, codigoInfo } from '../../core/gimnasio.js';
+import { Gym, releerGym, rolGym, codigoInfo, clasesAlDia } from '../../core/gimnasio.js';
 import { applyBrand, loadCloud } from '../../core/supabase.js';
 import { joinMsgTienda } from '../../core/tienda.js';
 import { cropAvatar } from '../../ui/recorte.js';
@@ -165,6 +167,7 @@ function cuerpo(){
     case "enviado": return enviadoHtml();
     case "listo": return listoHtml();
     case "salir": return salirHtml();
+    case "clases": return clasesHtml();
     default: return hojaHtml();
   }
 }
@@ -245,6 +248,99 @@ function salirHtml(){
     errHtml() +
     '<div class="sheet-btns">' + btnH("cancel", "Cancelar", "ghost", S.ocupado ? " disabled" : "") +
       btnH("salir-si", S.ocupado ? "Saliendo…" : "Salir del gimnasio", "gys-peligro", S.ocupado ? " disabled" : "") + '</div>';
+}
+
+// ---- Las clases (etapa 3) ----
+const DIA_LARGO = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+const hoyAr = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+function nombreDia(f){
+  const h = hoyAr(), m = new Date(h + "T12:00:00Z"); m.setUTCDate(m.getUTCDate() + 1);
+  if (f === h) return "Hoy";
+  if (f === m.toISOString().slice(0, 10)) return "Mañana";
+  return DIA_LARGO[new Date(f + "T12:00:00Z").getUTCDay()] + " " + f.slice(8, 10) + "/" + f.slice(5, 7);
+}
+const yaPaso = iso => !!iso && new Date(iso).getTime() <= Date.now();
+const horasTxt = n => n === 1 ? "1 hora" : n + " horas";
+function claseHtml(c, d){
+  const id = esc(c.clase), f = esc(c.fecha), oc = S.ocupado ? " disabled" : "";
+  const datos = [c.profe ? esc(c.profe) : "", c.sala ? esc(c.sala) : "", "hasta las " + esc(c.fin)].filter(Boolean).join(" · ");
+  let est = "", btn = "";
+  if (c.cancelada) est = '<span class="gys-cl-mal">Cancelada' + (c.motivo ? ': ' + esc(c.motivo) : '') + '</span>';
+  else if (c.estado === "confirmada"){
+    est = '<span class="gys-ok">' + (c.promovida ? "¡Tenés lugar! Saliste de la lista de espera" : "Reservaste tu lugar") + '</span>';
+    if (!c.empezo && !yaPaso(c.cancela_hasta)) btn = btnH("cancelar-reserva", "Cancelar", "ghost", ' data-id="' + esc(c.reserva) + '"' + oc);
+    else if (!c.empezo) est += '<span class="gys-fino">Ya no se puede cancelar desde la app: avisá en el gimnasio.</span>';
+  } else if (c.estado === "espera"){
+    est = '<span class="gys-cl-ambar">En lista de espera: sos ' + (c.posicion === 1 ? "la primera persona" : "el número " + c.posicion) + '</span>';
+    if (!c.empezo) btn = btnH("cancelar-reserva", "Salir de la espera", "ghost", ' data-id="' + esc(c.reserva) + '"' + oc);
+  } else {
+    est = c.libres > 0 ? '<span class="gys-fino">' + (c.libres === 1 ? "Queda 1 lugar" : "Quedan " + c.libres + " lugares") + '</span>'
+      : '<span class="gys-fino">Llena' + (c.espera ? " · " + c.espera + " en espera" : "") + '</span>';
+    const puede = d.ficha_estado !== "pausado" && !d.cuota_vencida;
+    if (c.empezo || yaPaso(c.cierra)) est += '<span class="gys-fino">' + (c.empezo ? "Ya empezó." : "Las reservas ya cerraron.") + '</span>';
+    else if (puede) btn = btnH("reservar", c.libres > 0 ? "Reservar" : "Anotarme en la espera", c.libres > 0 ? "primary" : "ghost", ' data-id="' + id + '" data-f="' + f + '"' + oc);
+  }
+  return '<li class="gys-cl' + (c.cancelada ? ' gys-cl-cancelada' : '') + '"><div class="gys-cl-t"><b>' + esc(c.hora) + ' · ' + esc(c.nombre) + '</b><span class="gys-fino">' + datos + '</span>' + est + '</div>' + btn + '</li>';
+}
+function clasesHtml(){
+  const d = S.datos, titulo = '<div class="sheet-title" id="gysT">Clases de ' + esc(nombreGym()) + '</div>';
+  const vivo = '<p class="gys-sr" role="status" aria-live="polite">' + esc(S.aviso || "") + '</p>';
+  if (!d) return titulo + vivo + (S.error ? '<div class="gys-err rep-err" role="alert">' + esc(S.error) + '</div><div class="sheet-btns">' + btnH("cancel", "Cerrar") + btnH("clases-reintentar", "Reintentar", "primary") + '</div>'
+    : '<p class="gys-p" aria-busy="true">Cargando…</p><div class="sheet-btns">' + btnH("cancel", "Cerrar") + '</div>');
+  const cfg = d.cfg || {}, L = d.clases || [];
+  const avisos = (d.ficha_estado === "pausado" ? '<p class="gys-p gys-cl-aviso">Tu lugar en el gimnasio está pausado: podés mirar las clases y, cuando vuelvas, reservar.</p>' : '') +
+    (d.cuota_vencida ? '<p class="gys-p gys-cl-aviso">Tu cuota está vencida: para reservar, hablá con el gimnasio.</p>' : '');
+  const dias = [];
+  L.forEach(c => { const u = dias[dias.length - 1]; if (u && u[0] === c.fecha) u[1].push(c); else dias.push([c.fecha, [c]]); });
+  const lista = dias.length ? dias.map(([f, cs]) => '<div class="gys-sec">' + esc(nombreDia(f)) + '</div><ul class="gys-cls">' + cs.map(c => claseHtml(c, d)).join("") + '</ul>').join("")
+    : '<p class="gys-p">No hay clases en los próximos ' + (cfg.dias || 7) + ' días.</p>';
+  const reglas = "Se reserva hasta " + (cfg.dias || 7) + " días para adelante" + (cfg.reservar_horas ? " y hasta " + horasTxt(cfg.reservar_horas) + " antes" : "") +
+    ". Con lugar, cancelás hasta " + horasTxt(cfg.cancelar_horas === undefined ? 2 : cfg.cancelar_horas) + " antes. Si alguien cancela, el primero de la espera pasa solo y le llega un aviso.";
+  return titulo + vivo + (S.ok ? '<p class="gys-p gys-ok" role="status">' + esc(S.ok) + '</p>' : '') + errHtml() + avisos + lista +
+    '<p class="gys-p gys-fino">' + esc(reglas) + '</p><div class="sheet-btns">' + btnH("cancel", "Cerrar", "primary") + '</div>';
+}
+async function cargarClasesSocio(){
+  const r = await rpc("gym_mis_clases", {});
+  if (!S || S.modo !== "clases") return;
+  if (r.error){ if (!S.datos) S.error = r.msg; }
+  else { S.datos = r.data && typeof r.data === "object" ? r.data : { clases: [] }; clasesAlDia(r.data); }
+  pintar();
+}
+export function abrirClases(){
+  const p = abrir({ modo: "clases", datos: null, ok: "", aviso: "" });
+  cargarClasesSocio();
+  return p;
+}
+async function reservar(clase, fecha){
+  if (!S || S.ocupado) return;
+  const c = ((S.datos || {}).clases || []).find(x => x.clase === clase && x.fecha === fecha);
+  S.ocupado = true; S.error = ""; S.ok = ""; pintar();
+  const r = await rpc("gym_reservar", { clase, dia: fecha });
+  if (!S) return;
+  S.ocupado = false;
+  if (r.error){ S.error = r.msg; S.aviso = r.msg; pintar(); return; }
+  const d = r.data || {}, que = c ? c.nombre + " (" + nombreDia(fecha).toLowerCase() + " a las " + c.hora + ")" : "la clase";
+  S.ok = d.estado === "espera" ? "Te anotaste en la lista de espera de " + que + ": sos el número " + d.posicion + ". Si se libera un lugar, te avisamos."
+    : "Listo: reservaste tu lugar en " + que + ".";
+  S.aviso = S.ok;
+  await cargarClasesSocio();
+  const t = document.querySelector("#gymSocioHost .gys-ok"); if (t){ t.setAttribute("tabindex", "-1"); try { t.focus({ preventScroll: true }); } catch (e) {} }
+}
+async function cancelarReserva(id){
+  if (!S || S.ocupado) return;
+  const c = ((S.datos || {}).clases || []).find(x => x.reserva === id);
+  const espera = c && c.estado === "espera";
+  if (!await confirmar(espera ? "¿Salir de la lista de espera de " + (c ? c.nombre : "la clase") + "?" : "¿Cancelar tu lugar en " + (c ? c.nombre + " (" + nombreDia(c.fecha).toLowerCase() + " a las " + c.hora + ")" : "la clase") + "? Se lo damos a quien espera.",
+    { titulo: espera ? "Salir de la espera" : "Cancelar la reserva", ok: espera ? "Salir de la espera" : "Cancelar la reserva", cancelar: "Volver" })) return;
+  if (!S) return;
+  S.ocupado = true; S.error = ""; S.ok = ""; pintar();
+  const r = await rpc("gym_reserva_cancelar", { reserva: id });
+  if (!S) return;
+  S.ocupado = false;
+  if (r.error){ S.error = r.msg; S.aviso = r.msg; pintar(); return; }
+  S.ok = espera ? "Saliste de la lista de espera." : "Listo: cancelaste tu reserva.";
+  S.aviso = S.ok;
+  await cargarClasesSocio();
 }
 
 // ---- Abrir ----
@@ -408,6 +504,7 @@ export function accion(a, b){
   if (a === "salir") return rolGym() === "pendiente" ? cancelarPedido(false) : abrirSalir();
   if (a === "cancelar-pedido") return cancelarPedido(false);
   if (a === "compartir") return compartir(b);
+  if (a === "clases") return abrirClases();
 }
 
 // Los toques de adentro de la hoja.
@@ -421,6 +518,9 @@ document.addEventListener("click", e => {
   if (a === "reintentar") return S.token && abrirUnirme(S.token);
   if (a === "salir-si") return salirSi();
   if (a === "cancelar-pedido") return cancelarPedido(true);
+  if (a === "reservar") return reservar(t.dataset.id, t.dataset.f);
+  if (a === "cancelar-reserva") return cancelarReserva(t.dataset.id);
+  if (a === "clases-reintentar"){ S.error = ""; pintar(); return cargarClasesSocio(); }
 });
 document.addEventListener("change", e => {
   const i = e.target;

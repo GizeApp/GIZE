@@ -3,7 +3,7 @@
 // renderApp por monkey-patching para no tocar el original; con módulos reales
 // ya no hace falta el parche: main.js llama a renderConfig() directamente
 // cuando State.view === "config".
-import { Gym, rolGym, esSocioGym, fotoSocio, releerGym, cuotaSocio } from '../core/gimnasio.js';
+import { Gym, rolGym, esSocioGym, fotoSocio, releerGym, cuotaSocio, clasesSocio } from '../core/gimnasio.js';
 import { State } from '../core/state.js';
 import { KEY, save } from '../core/storage.js';
 import { appleCodeForDelete, clearAccountLeftovers, forgetStoredSession, loadCloud, deleteMyStorageFiles, deleteMyAccount, PROFILE_KEY } from '../core/supabase.js';
@@ -93,6 +93,21 @@ function gymCuotaHtml(){
     pagos.map(p => '<li>' + ddmm(p.fecha) + "/" + String(p.fecha).slice(2, 4) + ' · ' + pesos(p.monto) + ' · ' + esc(CUOTA_MEDIO[p.medio] || "") + '</li>').join("") + '</ul>';
   return '<div class="cfg-gym-cuota-box">' + h + '<div class="cfg-notif-desc">Lo anota el gimnasio cuando le pagás.</div></div>';
 }
+// Tus clases (etapa 3): si el gimnasio tiene clases, «Clases» abre la hoja para reservar (screens/gym/
+// socio.js) y abajo van tus próximas reservas. Sin clases, nada. Sin precios: en las apps es igual.
+const calSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>';
+const DIA_CORTO = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+function gymClasesHtml(){
+  const q = clasesSocio();
+  if (!q || !Array.isArray(q.clases) || !q.clases.length) return "";
+  const mias = q.clases.filter(c => c.reserva).slice(0, 4);
+  const dia = f => DIA_CORTO[new Date(f + "T12:00:00Z").getUTCDay()] + " " + ddmm(f);
+  const estado = c => c.cancelada ? '<span class="cfg-gym-mal">la canceló el gimnasio</span>'
+    : c.estado === "espera" ? '<span class="cfg-gym-ambar">en espera (' + c.posicion + '°)</span>'
+    : c.promovida ? '<span class="cfg-gym-ok">¡tenés lugar! Saliste de la espera</span>' : 'reservada';
+  return '<button type="button" class="cfg-link-row" data-gys="clases"><span class="cfg-link-ic">' + calSvg + '</span><span class="cfg-link-label">Clases</span><span class="cfg-link-chev">' + chevronRightSvg + '</span></button>' +
+    (mias.length ? '<ul class="cfg-gym-clases" aria-label="Tus próximas clases">' + mias.map(c => '<li><b>' + esc(c.nombre) + '</b> · ' + dia(c.fecha) + ' ' + esc(c.hora) + ' · ' + estado(c) + '</li>').join("") + '</ul>' : '');
+}
 function gymSection(){
   const gi = Gym.info, rol = rolGym();
   if (!gi || !gi.gym || !esSocioGym()) return "";
@@ -119,7 +134,7 @@ function gymSection(){
   return '<div class="card cfg-card cfg-gym" id="cfgGym">' + cab +
     '<div class="cfg-gym-name">' + nom + (g.city ? '<span class="cfg-gym-city"> · ' + esc(g.city) + '</span>' : '') + '</div>' +
     (f.status === "pausado" ? '<div class="cfg-notif-desc">Tu ficha está pausada' + (f.paused_until ? ' hasta el ' + ddmm(f.paused_until) : '') + '.</div>' : '') +
-    quien + gymCuotaHtml() +
+    quien + gymCuotaHtml() + gymClasesHtml() +
     (confirmado
       ? '<div class="cfg-notif-row">' +
           '<div class="cfg-notif-txt"><div class="cfg-notif-label" id="cfgGymShare">Compartir mis registros con la administración</div>' +
