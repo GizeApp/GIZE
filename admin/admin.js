@@ -262,7 +262,7 @@ async function loadEstadisticas(){
 function paintTodo(){
   const box = document.getElementById("hTodo"); if (!box) return;
   const o = S.overview || {}, prods = num(o.pending) + (S.reqsPend || 0);
-  const soon = (S.coaches || []).map(venceDe).filter(v => v && !v.vencido && v.dias <= 7).length;
+  const soon = (S.coaches || []).filter(c => !c.is_test).map(venceDe).filter(v => v && !v.vencido && v.dias <= 7).length;
   const open = taskList().filter(t => !t.done && t.due_date), late = open.filter(t => dueDays(t.due_date) < 0).length, today = open.filter(t => dueDays(t.due_date) === 0).length;
   const rows = [
     [late + today, "tareas", (late + today === 1 ? "tarea " : "tareas ") + (late && today ? "vencidas o para hoy" : late ? (late === 1 ? "vencida" : "vencidas") : "para hoy"), "están más abajo, en Tareas"],
@@ -487,7 +487,8 @@ const INACTIVE_MS = 14 * 864e5;
 const lastSeenT = u => { const d = u.last_seen_at || u.last_sign_in_at; return d ? Date.parse(d) : null; };
 const isInactive = u => { const t = lastSeenT(u); return t == null || Date.now() - t > INACTIVE_MS; };
 const UFILTERS = [["todos", "Todos", () => true], ["alumnos", "Alumnos", u => u.role !== "coach"], ["coaches", "Coaches", u => u.role === "coach"],
-  ["sincoach", "Alumnos sin coach", u => u.role !== "coach" && !u.coach_name], ["inactivos", "Sin actividad (14+ días)", isInactive], ["admins", "Admins", u => !!u.is_admin]];
+  ["sincoach", "Alumnos sin coach", u => u.role !== "coach" && !u.coach_name], ["inactivos", "Sin actividad (14+ días)", isInactive], ["admins", "Admins", u => !!u.is_admin],
+  ["prueba", "De prueba", u => !!u.is_test]];
 function paintUsers(){
   const box = document.getElementById("uList"); if (!box || !S.users) return;
   const so = S.uSort || null, col = so && USER_COLS.find(c => c[0] === so.k);
@@ -502,17 +503,25 @@ function paintUsers(){
       if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
       return (typeof x === "string" ? x.localeCompare(y, "es") : x - y) * dir; });
   }
+  pruebaAlFinal(list);
   const th = ([k, l]) => { const on = so && so.k === k, arrow = on ? (so.dir === "desc" ? " ▼" : " ▲") : "";
     return `<th aria-sort="${on ? (so.dir === "desc" ? "descending" : "ascending") : "none"}"><button class="th-sort${on ? " on" : ""}" data-a="usort" data-k="${k}">${l}<span class="th-arr">${arrow || " ↕"}</span></button></th>`; };
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr>${USER_COLS.map(th).join("")}</tr></thead><tbody>${list.map(u => `
-    <tr class="row" data-user="${esc(u.id)}"><td><b>${esc(u.full_name || "Sin nombre")}</b>${u.is_admin ? ' <span class="pill blue">admin</span>' : ""}<div class="muted small">${esc(u.email)}</div></td>
+    <tr class="row${u.is_test ? " is-test" : ""}" data-user="${esc(u.id)}"><td><b>${esc(u.full_name || "Sin nombre")}</b>${u.is_admin ? ' <span class="pill blue">admin</span>' : ""}${u.is_test ? ' <span class="pill">Prueba</span>' : ""}<div class="muted small">${esc(u.email)}</div></td>
       <td>${u.role === "coach" ? '<span class="pill ok">Coach</span>' : '<span class="pill">Alumno</span>'}</td>
       <td class="muted">${esc(u.coach_name || "—")}</td><td class="muted">${fmtD(u.created_at)}</td>
       <td class="${isInactive(u) ? "t-warn" : "muted"}">${ago(u.last_seen_at || u.last_sign_in_at)}</td><td class="muted small">${esc(platformTxt(u.app_platform, u.app_version))}</td></tr>`).join("")}</tbody></table>` +
     // admin_users trae 60 como mucho (las cuentas más nuevas).
     (list.length !== S.users.length ? `<div class="muted small" style="padding:10px">Mostrando ${list.length} de ${S.users.length}.</div>` : "") +
     (S.users.length >= 60 ? `<div class="muted small" style="padding:10px">Se muestran las 60 cuentas más nuevas${S.q ? " que coinciden" : ""}: buscá por nombre o mail para ver otras.</div>` : "");
+}
+// Cuentas de prueba (las propias, las demo y las de la revisión de Apple, supabase/cuentas-prueba.sql):
+// van al final de las listas, en gris, y no se cuentan en los totales.
+const pruebaAlFinal = list => { const r = list.filter(x => !x.is_test).concat(list.filter(x => x.is_test)); list.splice(0, list.length, ...r); return list; };
+function pruebaSw(id, on){
+  return `<div class="ia-master test-sw"><div><b>Cuenta de prueba</b><small>${on ? "No se cuenta en el resumen ni en los totales de coaches y usuarios." : "Marcala si es tuya, una demo o de la revisión de Apple: deja de contarse como real."}</small></div>
+    <button class="tgl" role="switch" aria-checked="${on ? "true" : "false"}" aria-label="Cuenta de prueba" data-a="testAcc" data-id="${esc(id)}"></button></div>`;
 }
 const platformTxt = (p, v) => !p ? "—" : (p === "android" ? "Android " : p === "ios" ? "iPhone " : "Web ") + (p === "web" ? "" : (v || ""));
 
@@ -544,7 +553,7 @@ async function openUser(id){
       ${d.coach ? `<button class="btn" data-a="unlink" data-id="${esc(d.id)}">Desvincular de su coach</button>` : ""}
       ${d.is_admin ? `<button class="btn" data-a="admin" data-id="${esc(d.id)}" data-v="0">Quitar administrador</button>` : `<button class="btn" data-a="admin" data-id="${esc(d.id)}" data-v="1">Hacer administrador</button>`}
       <button class="btn bad" data-a="delete" data-id="${esc(d.id)}" data-name="${esc(d.full_name || d.email)}">Eliminar cuenta</button>
-    </div>`);
+    </div>${pruebaSw(d.id, !!d.is_test)}`);
 }
 // Cambió un coach (pago, cortesía, prueba): si se está en Coaches y pagos se redibuja; desde Usuarios
 // se descarta la lista guardada (la próxima vez se vuelve a pedir) y se refresca la tabla.
@@ -570,21 +579,56 @@ const mpTxt = s => ({ authorized: "activa", paused: "pausada", cancelled: "cance
 const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: "Hasta 50", p100: "Gimnasio chico (100)", p250: "Gimnasio (250)", p500: "Gimnasio grande (500)", cortesia: "Cortesía" }[p] || p || "—");
 async function loadCoaches(){
   page("Coaches y pagos", "Tocá un coach para cargar un pago, darle cortesía o más días de prueba.",
-    userTabs("coaches") + '<div id="cSoon"></div>' + block("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>'));
+    userTabs("coaches") + '<div id="cSoon"></div>' + block("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>') +
+    block("cCodB", "Códigos de fundador", '<div id="cCod" class="empty">Cargando…</div>'));
+  loadCodigos();
   const box = document.getElementById("cList");
   try { S.coaches = await rpc("admin_coaches"); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.coaches.length){ box.textContent = "Todavía no hay coaches."; return; }
+  pruebaAlFinal(S.coaches);
   paintSoon();
-  const cnt = st => S.coaches.filter(c => coachState(c).includes(st)).length;
-  setSum("cListB", S.coaches.length + (S.coaches.length === 1 ? " coach · " : " coaches · ") + cnt("Pagado") + " pagando · " + cnt("Prueba") + " en prueba" + (cnt("Sin pagar") ? ` · <span class="t-bad">${cnt("Sin pagar")} sin pagar</span>` : ""));
+  // Los totales son de los coaches reales: las cuentas de prueba se cuentan aparte.
+  const reales = S.coaches.filter(c => !c.is_test), test = S.coaches.length - reales.length;
+  const cnt = st => reales.filter(c => coachState(c).includes(st)).length;
+  setSum("cListB", reales.length + (reales.length === 1 ? " coach · " : " coaches · ") + cnt("Pagado") + " pagando · " + cnt("Prueba") + " en prueba" + (cnt("Sin pagar") ? ` · <span class="t-bad">${cnt("Sin pagar")} sin pagar</span>` : "") +
+    (test ? ` · <span class="muted">${test} de prueba</span>` : ""));
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Coach</th><th>Plan</th><th>Alumnos</th><th>Estado</th><th>Mercado Pago</th><th>Paga</th></tr></thead><tbody>${S.coaches.map(c => `
-    <tr class="row" data-coach="${esc(c.id)}"><td><b>${esc(c.full_name || "Sin nombre")}</b><div class="muted small">${esc(c.email)}</div></td>
+    <tr class="row${c.is_test ? " is-test" : ""}" data-coach="${esc(c.id)}"><td><b>${esc(c.full_name || "Sin nombre")}</b>${c.is_test ? ' <span class="pill">Prueba</span>' : ""}<div class="muted small">${esc(c.email)}</div></td>
       <td>${esc(planTxt(c.plan))}${c.pending_plan ? `<div class="muted small">eligió ${esc(planTxt(c.pending_plan))}</div>` : ""}</td>
       <td>${n0(c.clients)} <span class="muted">/ ${n0(c.max_clients)}</span></td><td>${coachState(c)}</td>
       <td class="muted small">${c.has_mp ? esc(mpTxt(c.mp_status)) : "—"}</td>
       <td>${c.price ? money(c.price) : "—"}</td></tr>`).join("")}</tbody></table>`;
 }
+// Códigos de fundador (supabase/codigo-fundador.sql): un descuento para siempre en el plan de los
+// primeros N coaches que lo usen al pagar con tarjeta en la web. Acá se crean, se cambian o se
+// apagan, y se ve cuántos lo usaron y quiénes. El código no está escrito en ningún lado más que
+// en la base.
+async function loadCodigos(){
+  const box = document.getElementById("cCod"); if (!box) return;
+  try { S.codigos = await rpc("admin_codigos_fundador"); }
+  catch (e) {
+    S.codigos = null;
+    const falta = /admin_codigos_fundador|schema cache/i.test(errMsg(e));
+    box.innerHTML = falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/codigo-fundador.sql</b>." : esc(errMsg(e));
+    return;
+  }
+  const list = S.codigos || [];
+  setSum("cCodB", list.length ? list.map(k => esc(k.codigo) + " " + n0(k.usados) + "/" + n0(k.cupo)).join(" · ") : "");
+  box.className = "";
+  box.innerHTML = (list.length ? `<div class="tscroll"><table class="table"><thead><tr><th>Código</th><th>Descuento</th><th>Usados</th><th>Estado</th><th></th></tr></thead><tbody>${list.map(k => `
+    <tr><td><b>${esc(k.codigo)}</b></td><td>${n0(k.porcentaje)}%</td><td>${n0(k.usados)} <span class="muted">de ${n0(k.cupo)}</span></td>
+      <td>${k.activo ? (k.usados >= k.cupo ? '<span class="pill warn">Sin lugares</span>' : '<span class="pill ok">Vigente</span>') : '<span class="pill">Apagado</span>'}</td>
+      <td><button class="btn sm" data-a="codEdit" data-v="${esc(k.codigo)}">Cambiar</button> <button class="btn sm" data-a="codOnOff" data-v="${esc(k.codigo)}">${k.activo ? "Apagar" : "Prender"}</button></td></tr>
+    ${(k.coaches || []).length ? `<tr><td colspan="5" class="small">${k.coaches.map(c => `<div>${esc(c.nombre || "Sin nombre")} <span class="muted">${esc(c.email || "")} · ${fmtD(c.fecha)}</span></div>`).join("")}</td></tr>` : ""}`).join("")}</tbody></table></div>`
+    : '<div class="muted" style="margin-bottom:8px">Todavía no hay códigos.</div>') +
+    `<div class="sec-s">Nuevo código (o el mismo para cambiarlo). Los que ya lo usaron conservan su descuento aunque lo cambies o lo apagues.</div>
+    <label class="lbl">Código</label><input class="in" id="codCod" maxlength="32" placeholder="Letras, números o guiones" autocomplete="off" style="text-transform:uppercase">
+    <label class="lbl">Descuento (%)</label><input class="in" id="codPct" type="number" min="1" max="90" value="30">
+    <label class="lbl">Cupo (coaches)</label><input class="in" id="codCupo" type="number" min="1" max="10000" value="20">
+    <div class="search" style="margin:8px 0 0"><button class="btn blue" data-a="codSave">Guardar código</button></div>`;
+}
+
 // Vencimientos: a quién escribirle. Pago o prueba que vence en los próximos 7 días, y los
 // que ya vencieron hace menos de 30 días (los de hace más, ya se sabe).
 // Los días se cuentan en el calendario de Argentina, desde hoy hasta el último día cubierto
@@ -604,7 +648,7 @@ function venceTxt(v){
 }
 function paintSoon(){
   const box = document.getElementById("cSoon"); if (!box) return;
-  const list = (S.coaches || []).map(c => ({ c, v: venceDe(c) })).filter(x => x.v && x.v.dias <= 7 && x.v.dias > -30).sort((a, b) => a.v.t - b.v.t);
+  const list = (S.coaches || []).filter(c => !c.is_test).map(c => ({ c, v: venceDe(c) })).filter(x => x.v && x.v.dias <= 7 && x.v.dias > -30).sort((a, b) => a.v.t - b.v.t);
   if (!list.length){ box.innerHTML = ""; return; }
   const late = list.filter(x => x.v.vencido).length;
   box.innerHTML = block("cSoonB", "Vencen pronto", `<div class="list-mini">${list.map(({ c, v }) => `
@@ -649,7 +693,7 @@ async function openCoach(id){
     ${c.plan === "cortesia" ? `<button class="btn" data-a="plan" data-id="${esc(c.id)}" data-mode="sin_cortesia">Quitar la cortesía</button>` :
       `<label class="lbl">Cortesía: gratis, con tope de alumnos</label><div class="search"><input class="in" id="ctMax" type="number" min="1" value="${Math.max(10, c.max_clients || 10)}"><button class="btn blue" data-a="plan" data-id="${esc(c.id)}" data-mode="cortesia">Dar cortesía</button></div>`}
     ${c.plan === "cortesia" ? "" : `<label class="lbl">Prueba gratis hasta</label><input class="in" id="trUntil" type="date" min="${isoDay(new Date())}" value="${c.trial_ends_at && new Date(c.trial_ends_at) > new Date() ? isoDay(new Date(new Date(c.trial_ends_at).getTime() - 1)) : isoDay(new Date(Date.now() + 14 * 864e5))}">
-    <label class="lbl">Alumnos máximos en la prueba</label><div class="search" style="margin:0"><input class="in" id="trMax" type="number" min="1" max="1000" value="${Number(c.max_clients) || 10}"><button class="btn blue" data-a="trSave" data-id="${esc(c.id)}">Guardar prueba</button></div>`}`, { open: false, sum: c.plan === "cortesia" ? "tiene cortesía" : "" })}`);
+    <label class="lbl">Alumnos máximos en la prueba</label><div class="search" style="margin:0"><input class="in" id="trMax" type="number" min="1" max="1000" value="${Number(c.max_clients) || 10}"><button class="btn blue" data-a="trSave" data-id="${esc(c.id)}">Guardar prueba</button></div>`}`, { open: false, sum: c.plan === "cortesia" ? "tiene cortesía" : "" })}${pruebaSw(c.id, !!c.is_test)}`);
   if (!c.has_mp) return;
   const box = document.getElementById("pays");
   try {
@@ -1743,12 +1787,38 @@ document.addEventListener("click", async e => {
     if (a === "role"){ if (!await confirmar(b.dataset.v === "coach" ? "¿Pasar esta cuenta a coach?" : "¿Pasar esta cuenta a alumno?")) return; await rpc("admin_set_role", { uid: b.dataset.id, p_role: b.dataset.v }); toast("Rol cambiado"); openUser(b.dataset.id); searchUsers(); return; }
     if (a === "unlink"){ if (!await confirmar("¿Desvincular a este alumno de su coach?")) return; await rpc("admin_unlink", { uid: b.dataset.id }); toast("Desvinculado"); openUser(b.dataset.id); searchUsers(); return; }
     if (a === "admin"){ const on = b.dataset.v === "1"; if (!await confirmar(on ? "¿Hacer administrador a esta cuenta? Va a poder ver y cambiar todo el panel." : "¿Quitarle el acceso al panel?")) return; await rpc("admin_set_admin", { uid: b.dataset.id, on_off: on }); toast(on ? "Ahora es administrador" : "Ya no es administrador"); openUser(b.dataset.id); searchUsers(); return; }
+    if (a === "testAcc"){
+      const on = b.getAttribute("aria-checked") !== "true", id = b.dataset.id;
+      b.disabled = true;
+      try { await rpc("admin_set_test", { uid: id, on_off: on }); } finally { b.disabled = false; }
+      toast(on ? "Marcada como cuenta de prueba" : "Ya no es cuenta de prueba");
+      const sw = b.closest(".test-sw"); if (sw && sw.isConnected) sw.outerHTML = pruebaSw(id, on);
+      [S.coaches, S.users].forEach(l => (l || []).forEach(x => { if (x.id === id) x.is_test = on; }));
+      if (S.view === "coaches") loadCoaches(); else if (S.view === "usuarios") paintUsers();
+      return;
+    }
     if (a === "delete"){
       const t = await pedir("Vas a eliminar la cuenta de " + b.dataset.name + " y TODOS sus datos. No se puede deshacer.\n\nSi tiene una suscripción en Mercado Pago, se cancela.\n\nEscribí ELIMINAR para confirmar:", "", { titulo: "Eliminar cuenta", ok: "Eliminar" });
       if (t !== "ELIMINAR") return;
       b.disabled = true; await fn({ action: "eliminar", user_id: b.dataset.id }); toast("Cuenta eliminada"); closeDrawer(); searchUsers(); return;
     }
     if (a === "pmMeses"){ const c = (S.coaches || []).find(x => x.id === b.dataset.id); const u = document.getElementById("pmUntil"); if (c && u){ u.value = hastaMeses(c, parseInt(b.dataset.m, 10) || 1); u.dispatchEvent(new Event("change")); } return; }
+    if (a === "codEdit"){ const k = (S.codigos || []).find(x => x.codigo === b.dataset.v); if (!k) return; document.getElementById("codCod").value = k.codigo; document.getElementById("codPct").value = k.porcentaje; document.getElementById("codCupo").value = k.cupo; document.getElementById("codCod").focus(); return; }
+    if (a === "codSave"){
+      const cod = document.getElementById("codCod").value.trim().toUpperCase(), pct = parseInt(document.getElementById("codPct").value, 10), cupo = parseInt(document.getElementById("codCupo").value, 10);
+      if (!/^[A-Z0-9-]{4,32}$/.test(cod)){ toast("El código va de 4 a 32 letras, números o guiones."); return; }
+      if (!(pct >= 1 && pct <= 90) || !(cupo >= 1 && cupo <= 10000)){ toast("Revisá el descuento (1 a 90%) y el cupo."); return; }
+      const ya = (S.codigos || []).find(x => x.codigo === cod);
+      if (!await confirmar((ya ? "¿Cambiar el código " : "¿Crear el código ") + cod + "? " + pct + "% menos para siempre, para los primeros " + cupo + " coaches que lo usen al pagar con tarjeta en la web.")) return;
+      await rpc("admin_codigo_fundador_guardar", { p_codigo: cod, p_porcentaje: pct, p_cupo: cupo, p_activo: ya ? ya.activo : true });
+      toast("Código guardado"); loadCodigos(); return;
+    }
+    if (a === "codOnOff"){
+      const k = (S.codigos || []).find(x => x.codigo === b.dataset.v); if (!k) return;
+      if (k.activo && !await confirmar("¿Apagar el código " + k.codigo + "? Nadie más lo va a poder usar; los que ya lo usaron siguen con su descuento.")) return;
+      await rpc("admin_codigo_fundador_guardar", { p_codigo: k.codigo, p_porcentaje: k.porcentaje, p_cupo: k.cupo, p_activo: !k.activo });
+      toast(k.activo ? "Código apagado" : "Código prendido"); loadCodigos(); return;
+    }
     if (a === "pmSave"){
       const plan = document.getElementById("pmPlan").value, max = parseInt(document.getElementById("pmMax").value, 10) || PLAN_MAX[plan], until = document.getElementById("pmUntil").value;
       if (!until){ toast("Elegí hasta qué fecha pagó."); return; }
