@@ -4,6 +4,8 @@
 --
 -- Correr con el workflow "Supabase" → tarea sql → supabase/finanzas.sql, después de
 -- supabase/admin.sql (usa admin_assert, admin_log y plan_price). Se puede correr varias veces.
+-- Si ya corriste supabase/cuentas-prueba.sql, después de este corré ese otra vez (si no, el panel
+-- vuelve a contar las cuentas de prueba).
 --
 -- Los montos no van en este archivo (el repo es público): se cargan desde el panel.
 
