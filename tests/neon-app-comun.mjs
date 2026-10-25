@@ -11,13 +11,15 @@ const ymd = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina
 const lunes = () => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d); };
 const COACH_ID = '33333333-3333-3333-3333-333333333333';
 const series = (k, n) => Array.from({ length: n }, (_, j) => ({ id: k + 's' + j, kg: '', reps: '', target: j ? '8-10' : '10-12' }));
-const hoy = (new Date().getDay() + 6) % 7 + 1; // 1 = lunes
+// Hoy como lo cuenta la app (Date.getDay(), 0 = domingo, en la hora de Argentina). Antes iba de 1 a 7
+// y el domingo quedaba en 7, un día que la app no reconoce: ese día el «de hoy» no tenía día de la semana.
+const hoy = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })).getDay();
 // Cuatro días (como en el video del dueño): el de hoy primero, con su nota del coach.
 const DIAS = [
   { id: 'd1', name: 'Torso', dias: [hoy], note: 'Día pesado: priorizá técnica en los básicos.', exercises: [
     { id: 'a1', name: 'Vuelos laterales sentado', sets: series('a1', 3) }, { id: 'a2', name: 'Jalón unilateral en estocada', sets: series('a2', 3) },
     { id: 'a3', name: 'Remo neutro abierto en polea baja', sets: series('a3', 2) }, { id: 'a4', name: 'Press inclinado con mancuernas', sets: series('a4', 3) }] },
-  { id: 'd2', name: 'Piernas', dias: [(hoy % 7) + 1], exercises: [{ id: 'b1', name: 'Sentadilla en Smith', sets: series('b1', 3) }] },
+  { id: 'd2', name: 'Piernas', dias: [(hoy + 1) % 7], exercises: [{ id: 'b1', name: 'Sentadilla en Smith', sets: series('b1', 3) }] },
   { id: 'd3', name: 'Pecho/Espalda/Hombro', exercises: [{ id: 'c1', name: 'Press plano en Smith', sets: series('c1', 3) }] },
   { id: 'd4', name: 'Hombro', exercises: [{ id: 'e1', name: 'Vuelos laterales con mancuernas', sets: series('e1', 4) }] },
 ];
