@@ -16,8 +16,8 @@ export const CONTRATO_RESUMEN = [
 // Qué ve cada rol (Configuración → Privacidad), en lenguaje simple (SPEC §1.2).
 export const PRIVACIDAD = [
   ["Dueño y administración", "Los datos de socio (nombre, contacto, apto médico), los ingresos y los socios que tiene cada profe. Los entrenos, comidas, peso, registro diario y check-ins solo de quien los compartió con la administración, sin los pasos ni los recorridos."],
-  ["Profes", "Lo de sus socios asignados, como cualquier coach de GIZE: rutina, entrenos, comidas, peso, registro diario, check-ins y el chat con cada uno."],
-  ["Recepción", "Nombre, foto del gimnasio y si el socio está activo, para registrar el ingreso."],
+  ["Profes", "Lo de sus socios asignados, como cualquier coach de GIZE: rutina, entrenos, comidas, peso, registro diario, check-ins y el chat con cada uno. De sus clases, quién reservó y el presente."],
+  ["Recepción", "Nombre, foto del gimnasio y si el socio está activo, para registrar el ingreso. Las listas de las clases, para anotar y tomar el presente."],
   ["Nadie del gimnasio", "Lee el chat de un profe con su socio. No hay ninguna opción para hacerlo."],
 ];
 
@@ -25,7 +25,7 @@ export const PRIVACIDAD = [
 export const ROLES = {
   profe: { nombre: "Profe", corto: "profe", puede: "Va a ver solo a los socios que le asignes: les arma la rutina, ve sus entrenos y les escribe por el chat. Entra sin cargo con su cuenta de coach." },
   admin: { nombre: "Administración", corto: "administración", puede: "Va a manejar el día a día igual que vos: socios, solicitudes, profes y configuración. Ve el estado del plan de GIZE pero no lo cambia, y no puede cerrar el gimnasio." },
-  recepcion: { nombre: "Recepción", corto: "recepción", puede: "Va a buscar socios por nombre o DNI, ver su foto y si están activos, y registrar el ingreso. No ve entrenos, comidas, notas ni chats." },
+  recepcion: { nombre: "Recepción", corto: "recepción", puede: "Va a buscar socios por nombre o DNI, ver su foto y si están activos, registrar el ingreso y manejar las listas de las clases. No ve entrenos, comidas, notas ni chats." },
 };
 export const rolNombre = r => r === "owner" ? "Dueño" : (ROLES[r] ? ROLES[r].nombre : r);
 

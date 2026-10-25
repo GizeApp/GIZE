@@ -36,7 +36,7 @@ import { syncRouteViews } from '../../ui/mapa.js';
 import { clientPlanDirty, mealEditHead, renderMealPicker, snapMealEdit } from './planes.js';
 import { coachShell, pageHead, secIcon, renderClientsView, renderHomeView, renderMealsView, renderTplsView } from './panel.js';
 import { gymPorSaber, pintarGym, sinPlanGym } from '../../core/gimnasio.js';
-import { accesoGym, cargarFichaGym, cartelGym, conTarjetaGym, cssGym, enGym, esProfeGym, esSocioGym, focoRec, inviteGym, notaPropios, puedeRecepcion, seccionGym, tileGym, vistaRecepcion, volverFocoRec } from './gimnasio.js';
+import { accesoGym, cargarFichaGym, cartelGym, conTarjetaGym, cssGym, enGym, esProfeGym, esSocioGym, focoRec, inviteGym, notaPropios, puedeRecepcion, seccionGym, tileGym, vistaClases, vistaRecepcion, volverFocoRec } from './gimnasio.js';
 
 // Ficha en modo lectura (el dueño o la administración del gimnasio miran a un socio que compartió sus
 // registros y no es suyo; ver openClient): se ve todo lo que el socio compartió, pero no se edita. Solo
@@ -150,12 +150,13 @@ export function renderCoach(){
     // El profe de un gimnasio: los carteles del gimnasio (gracia o pausa) y, con el plan propio vencido,
     // el de sus alumnos propios. «Recepción», si el gimnasio la abre para los profes.
     if(CoachState.coachView==="gym-recepcion" && !puedeRecepcion()) CoachState.coachView="clients";
+    if(CoachState.coachView==="gym-clases" && !esProfeGym()) CoachState.coachView="clients";
     // Con el cartel de los alumnos propios (que en la web ya trae «Mi plan»), sin la tira del plan
     // encima diciendo lo mismo con otras palabras.
     const nota=gymPlan===null ? notaPropios(billing().active) : "";
     const v=CoachState.coachView, banner=gymPlan===null ? cartelGym()+(nota && !appNativa() ? "" : renderPlanBanner())+nota : "";
     const foco=focoRec();
-    host.innerHTML=coachShell(v, v==="settings" ? renderSettingsView() : v==="gym-recepcion" ? vistaRecepcion(pageHead) : v==="meals" ? renderMealsView(banner) : v==="tpls" ? renderTplsView(banner) : v==="home" ? renderHomeView(banner) : renderClientsView(inviteBox(), banner));
+    host.innerHTML=coachShell(v, v==="settings" ? renderSettingsView() : v==="gym-recepcion" ? vistaRecepcion(pageHead) : v==="gym-clases" ? vistaClases(pageHead) : v==="meals" ? renderMealsView(banner) : v==="tpls" ? renderTplsView(banner) : v==="home" ? renderHomeView(banner) : renderClientsView(inviteBox(), banner));
     volverFocoRec(foco);
   } else if(CoachState.coachTplEdit){
     const rt=CoachState.coachTplEdit.days||[];

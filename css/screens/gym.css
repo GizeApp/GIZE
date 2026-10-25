@@ -281,7 +281,39 @@ a.gize-btn.cv-btn { text-decoration:none; }
 .cv-gym-rec-sub { margin:-4px 0 12px; }
 
 /* ---------- Compu ---------- */
+/* ---------- Clases (etapa 3: app/screens/gym/clases.js) ---------- */
+.gy-tag-rojo { border-color:color-mix(in srgb, var(--gize-danger) 60%, transparent); color:color-mix(in srgb, var(--gize-danger) 78%, var(--txt)); }
+.gy-cl-nav { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:0 0 14px; }
+.gy-cl-nav .gy-btn2 { min-width:44px; }
+.gy-cl-rango { font-size:var(--text-body); color:var(--txt); }
+.gy-cl-nueva { margin-left:auto; }
+.gy-cl-semana { display:grid; gap:12px; }
+.gy-cl-dia { margin:0; }
+.gy-cl-lista, .gy-cl-als { list-style:none; margin:0; padding:0; }
+.gy-cl-i { width:100%; display:grid; grid-template-columns:52px minmax(0,1fr); gap:4px 12px; align-items:center; padding:10px 8px; margin:0;
+    border:0; border-top:1px solid var(--gize-border); background:none; color:var(--txt); font:inherit; text-align:left; cursor:pointer; border-radius:10px; }
+.gy-cl-lista li:first-child .gy-cl-i { border-top:0; }
+.gy-cl-i:hover { background:color-mix(in srgb, var(--txt) 5%, transparent); }
+.gy-cl-hora { font-weight:700; font-size:var(--text-body); font-variant-numeric:tabular-nums; }
+.gy-cl-t { display:flex; flex-direction:column; min-width:0; }
+.gy-cl-t b { font-size:var(--text-body); overflow-wrap:anywhere; }
+.gy-cl-t span { font-size:var(--text-meta); color:var(--txt-2); }
+.gy-cl-n { grid-column:2; display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:var(--text-meta); color:var(--txt-2); }
+.gy-cl-cancelada .gy-cl-t b { text-decoration:line-through; color:var(--txt-2); }
+.gy-cl-cab .gy-cartel { margin:12px 0 0; }
+.gy-cl-cuenta { margin:10px 0 0; }
+.gy-cl-al { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:10px 0; border-top:1px solid var(--gize-border); }
+.gy-cl-als li:first-child { border-top:0; }
+.gy-cl-al-t { flex:1 1 160px; min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; }
+.gy-cl-al-t b { font-size:var(--text-body); color:var(--txt); flex:1 0 100%; overflow-wrap:anywhere; }
+.gy-cl-pos { flex:none; width:24px; text-align:center; font-weight:700; color:var(--txt-2); }
+.gy-cl-pres { display:inline-flex; gap:6px; }
+.gy-cl-form { margin-bottom:14px; }
+
 @media (min-width: 900px){
+  .gy-cl-semana { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
+  .gy-cl-i { grid-template-columns:56px minmax(0,1fr) auto; }
+  .gy-cl-n { grid-column:auto; justify-content:flex-end; }
   .gy-nav .gy-solo-compu { display:flex; }
   .gy-nav .gy-solo-cel { display:none; }
   .gy-nav-sec { display:block; margin:16px 14px 4px; font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--txt-3); }

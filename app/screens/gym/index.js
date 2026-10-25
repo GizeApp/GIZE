@@ -33,6 +33,7 @@ import { pintarQrs } from './qr.js';
 import { renderRecepcion, alRepintar, alRegistrar, fotoNueva, limpiar as limpiarRecepcion, refrescar as refrescarRecepcion, RS } from './recepcion.js';
 import { renderCuotas, ventanaPago, ventanaTipo, nuevoPago, csvPagos } from './cuotas.js';
 import { renderAsistencia, exportarIngresos, ventanaIngreso } from './asistencia.js';
+import { renderClases, cargarClases, alRepintar as alRepintarClases } from './clases.js';
 
 let iniciado = false, dibujado = false, primeraCarga = false;
 
@@ -53,6 +54,8 @@ export function iniciarGym(){
   // La recepción (recepcion.js) se redibuja sola mientras se busca; cuando llega una foto o se registra
   // un ingreso, la pantalla que la muestra (y Asistencia, con la lista del día).
   alRepintar(() => { repintar(); pintarModal(); });
+  // Las clases (clases.js) se redibujan cuando llega la semana, la lista o algo que cambió.
+  alRepintarClases(() => repintar());
   alRegistrar(() => { if (GS.view === "asistencia" || (GS.modal && GS.modal.tipo === "ingreso")) cargarIngresos(); if (rolGym() !== "recepcion") releerGym().then(repintar); });
 }
 
@@ -116,6 +119,7 @@ function vista(){
     case "plan": return renderPlan();
     case "asistencia": return renderAsistencia();
     case "cuotas": return renderCuotas();
+    case "clases": return cabeza("Clases", "", "La grilla de la semana, las reservas de los socios y el presente.") + renderClases(opcionesClases());
     case "recepcion": return cabeza("Recepción", btn2('data-gym="ir" data-v="asistencia"', "Ingresos de hoy"), "Buscá por nombre o DNI, mirá la foto y registrá el ingreso.") + renderRecepcion({ altas: true });
     default: return renderInicio();
   }
@@ -134,23 +138,26 @@ function sinPlan(){
     cabeza(tituloPlan()) + '<div class="cv-card gy-vacio"><p>' + esc(t) + '</p>' + (esDueno() ? "" : '<p class="gy-fino">El plan lo maneja el dueño del gimnasio.</p>') +
     '<div class="gy-acc">' + btn('data-gym="ir" data-v="plan"', enApp() ? "Ver el acceso" : "Ver el plan") + '</div></div>');
 }
-// La cuenta de recepción entra directo acá (SPEC §2.10): la recepción básica y, si el gimnasio la deja
-// aprobar y cargar fichas, la pestaña Solicitudes. Se sale cerrando la sesión.
+// Clases (etapa 3): el dueño y la administración editan la grilla; los dos y la recepción anotan,
+// sacan y marcan el presente.
+const opcionesClases = () => ({ editar: ["owner", "admin"].includes(rolGym()), anotar: true });
+// La cuenta de recepción entra directo acá (SPEC §2.10): la recepción básica, las clases (etapa 3) y,
+// si el gimnasio la deja aprobar y cargar fichas, la pestaña Solicitudes. Se sale cerrando la sesión.
 const altasRecepcion = () => !!(info().settings || {}).recepcion_altas;
 function renderRecepcionSola(){
-  const altas = altasRecepcion(), tab = altas && GS.recTab === "solicitudes" ? "solicitudes" : "recepcion";
-  const tabs = altas ? '<div class="cv-pills gy-tabs" role="tablist">' + [["recepcion", "Recepción"], ["solicitudes", "Solicitudes"]].map(t =>
-    '<button class="cv-pill' + (tab === t[0] ? ' on' : '') + '" role="tab" aria-selected="' + (tab === t[0]) + '" data-gym="rec-tab" data-v="' + t[0] + '">' + t[1] + '</button>').join("") + '</div>' : '';
+  const altas = altasRecepcion(), tab = altas && GS.recTab === "solicitudes" ? "solicitudes" : GS.recTab === "clases" ? "clases" : "recepcion";
+  const tabs = '<div class="cv-pills gy-tabs" role="tablist">' + [["recepcion", "Recepción"], ["clases", "Clases"]].concat(altas ? [["solicitudes", "Solicitudes"]] : []).map(t =>
+    '<button class="cv-pill' + (tab === t[0] ? ' on' : '') + '" role="tab" aria-selected="' + (tab === t[0]) + '" data-gym="rec-tab" data-v="' + t[0] + '">' + t[1] + '</button>').join("") + '</div>';
   return '<div class="gy-solo gy-solo-rec"><div class="gy-solo-top"><div class="co-brand cv-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"></div>' +
     btn2('data-auth="logout"', "Cerrar sesión") + '</div>' +
     '<div class="gy-solo-ancho"><h1 class="gy-solo-t">Recepción de ' + esc(gym().name || "tu gimnasio") + '</h1>' + tabs +
-    (tab === "solicitudes" ? renderSolicitudes() : renderRecepcion({ altas, solicitudes: "rec-tab" })) + '</div></div>';
+    (tab === "solicitudes" ? renderSolicitudes() : tab === "clases" ? renderClases(opcionesClases()) : renderRecepcion({ altas, solicitudes: "rec-tab" })) + '</div></div>';
 }
 
 // El foco y lo escrito sobreviven a un redibujo (la app redibuja seguido).
 function guardarFoco(){
   const a = document.activeElement; if (!a || !a.closest || !a.closest("#coachHost, #gymModal")) return null;
-  const k = ["data-gym-in", "data-gym-f", "data-gym-ff", "data-gym-cfg", "data-gym-cr", "data-gym-nota", "data-gym-sol", "data-rec-q", "data-gym-pg", "data-gym-tp"].find(x => a.hasAttribute(x));
+  const k = ["data-gym-in", "data-gym-f", "data-gym-ff", "data-gym-cfg", "data-gym-cr", "data-gym-nota", "data-gym-sol", "data-rec-q", "data-gym-pg", "data-gym-tp", "data-gyc-f", "data-gyc-q", "data-gyc-cfg"].find(x => a.hasAttribute(x));
   if (!k) return null;
   return { sel: "[" + k + '="' + a.getAttribute(k) + '"]' + (a.dataset.id ? '[data-id="' + a.dataset.id + '"]' : ""), ini: a.selectionStart, fin: a.selectionEnd };
 }
@@ -350,6 +357,7 @@ function cargarVista(){
   else if (v === "config"){ if (GS.equipo === null) cargarEquipo(); cargarDpa(); releerGym().then(repintar); }
   else if (v === "plan"){ releerGym().then(repintar); }
   else if (v === "asistencia"){ cargarIngresos(); }
+  else if (v === "clases"){ cargarClases(opcionesClases()); }
   // Abrir la recepción no tacha «Probá la recepción» (Inicio): lo tacha el primer uso de verdad, buscar o
   // registrar un ingreso (marcarRecepcion, recepcion.js).
 }
@@ -474,6 +482,7 @@ async function alTocar(e){
       if (GS.equipo === null) GS.equipo = [];
       cargarSolicitudes();
     }
+    if (GS.recTab === "clases") cargarClases(opcionesClases());
     repintar(); return;
   }
   if (a === "copiar"){ if (await copiar(b.dataset.v || "")) marcarCopiado(b); else alert("No se pudo copiar: " + (b.dataset.v || "")); return; }

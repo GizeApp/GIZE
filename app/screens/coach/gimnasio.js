@@ -11,7 +11,9 @@
 //   · los carteles de gracia y de pausa del gimnasio, con el mismo texto en la web, Android e iPhone
 //     (sin planes ni precios);
 //   · «Recepción», si el gimnasio prendió «Los profes pueden abrir la recepción» (la recepción se carga
-//     con import() recién al abrirla: app/screens/gym/recepcion.js).
+//     con import() recién al abrirla: app/screens/gym/recepcion.js);
+//   · «Clases» (etapa 3): sus clases de la semana con la lista y el presente (app/screens/gym/clases.js,
+//     también con import() recién al abrirla).
 // La dueña y la administración con cuenta de coach («Como profe → Mis alumnos» del panel del gimnasio)
 // también ven los dos grupos y la tarjeta de sus socios asignados. Para un coach que no está en un
 // gimnasio (Gym.info null) nada de esto se dibuja ni se pide: todo devuelve "" o null.
@@ -72,6 +74,14 @@ export function botonRecepcion(active){
   if (!puedeRecepcion()) return "";
   const on = active === "gym-recepcion";
   return '<button class="cv-util-i' + (on ? ' on' : '') + '" data-coach="gym-recepcion"' + (on ? ' aria-current="page"' : '') + ' title="Recepción de ' + esc(nombreGym()) + '">' + icoRec + '<span>Recepción</span></button>';
+}
+
+// «Clases» en la barra: el profe ve las clases que tiene asignadas (si no tiene, lo dice la pantalla).
+const icoClases = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4M8 13.5h2M14 13.5h2M8 17h2"/></svg>';
+export function botonClases(active){
+  if (!esProfeGym()) return "";
+  const on = active === "gym-clases";
+  return '<button class="cv-util-i' + (on ? ' on' : '') + '" data-coach="gym-clases"' + (on ? ' aria-current="page"' : '') + ' title="Tus clases en ' + esc(nombreGym()) + '">' + icoClases + '<span>Clases</span></button>';
 }
 
 // ---- Carteles del gimnasio (iguales en todas las plataformas: sin planes, precios ni «renovar») ----
@@ -162,6 +172,21 @@ export function vistaRecepcion(pageHead){
   if (!rec){ cargarRecepcion().then(m => { if (m) renderCoach(); }); return head + '<div class="cal-hint">Cargando…</div>'; }
   return head + '<p class="gy-fino cv-gym-rec-sub">Buscá por nombre o DNI, mirá la foto y registrá el ingreso en ' + esc(nombreGym()) + '.</p>' + rec.renderRecepcion({ altas: false });
 }
+// ---- Las clases, para el profe (carga diferida) ----
+let cla = null, cargandoCla = null;
+function cargarClasesProfe(){
+  if (cla) return Promise.resolve(cla);
+  if (!cargandoCla) cargandoCla = import("../gym/clases.js").then(m => { cla = m; m.alRepintar(() => { if (CoachState.coachView === "gym-clases") renderCoach(); }); return m; },
+    e => { console.error("clases", e); cargandoCla = null; return null; });
+  return cargandoCla;
+}
+export function vistaClases(pageHead){
+  const head = pageHead("Clases");
+  if (!esProfeGym()) return head;
+  if (!cla){ cargarClasesProfe().then(m => { if (m){ m.cargarClases({ profe: true }); renderCoach(); } }); return head + '<div class="cal-hint">Cargando…</div>'; }
+  return head + '<p class="gy-fino cv-gym-rec-sub">Tus clases en ' + esc(nombreGym()) + ': quién reservó, quién espera y el presente.</p>' + cla.renderClases({ profe: true });
+}
+
 // El buscador de la recepción no pierde el foco cuando el panel se redibuja.
 export function focoRec(){
   const a = document.activeElement;
@@ -209,7 +234,7 @@ async function dejar(b){
 }
 try {
   document.addEventListener("click", async e => {
-    const b = e.target.closest && e.target.closest('[data-coach="copy-gym-code"], [data-coach="gym-dejar"], [data-coach="gym-recepcion"]');
+    const b = e.target.closest && e.target.closest('[data-coach="copy-gym-code"], [data-coach="gym-dejar"], [data-coach="gym-recepcion"], [data-coach="gym-clases"]');
     if (!b || b.disabled || !enGym()) return;
     const a = b.dataset.coach;
     if (a === "copy-gym-code"){
@@ -220,6 +245,16 @@ try {
       return;
     }
     if (a === "gym-dejar") return dejar(b);
+    if (a === "gym-clases"){
+      if (!esProfeGym()) return;
+      const sin = (CoachState.coachSel && clientUnsaved()) || (tplDirty() && "la rutina") || "";
+      if (sin && !await confirmar("Tenés cambios sin guardar en " + sin + ". ¿Salir igual y perderlos?")) return;
+      CoachState.coachView = "gym-clases"; CoachState.coachSel = null; CoachState.coachData = null; CoachState.coachTplEdit = null; CoachState.coachMealEdit = null;
+      renderCoach();
+      const m = await cargarClasesProfe();
+      if (m){ m.cargarClases({ profe: true }); renderCoach(); }
+      return;
+    }
     if (a === "gym-recepcion"){
       if (!puedeRecepcion()) return;
       const sin = (CoachState.coachSel && clientUnsaved()) || (tplDirty() && "la rutina") || "";

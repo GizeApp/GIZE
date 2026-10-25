@@ -13,7 +13,7 @@ import { unreadFor } from '../../ui/chat.js';
 import { coachInitials } from './clientes.js';
 import { CoachState } from './state.js';
 import { missingHint } from './planes.js';
-import { botonRecepcion, chipGym, esProfeGym, grupos, nombreGym } from './gimnasio.js';
+import { botonClases, botonRecepcion, chipGym, esProfeGym, grupos, nombreGym } from './gimnasio.js';
 
 const ico = d => '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';
 const I = {
@@ -69,7 +69,7 @@ export function coachShell(active, inner){
       '<div class="co-brand cv-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="cv-sr">Panel de coach</span>'+chipGym()+'</div>'+
       '<nav class="cv-nav" aria-label="Panel de coach">'+NAV.map(n=>'<button class="cv-nav-i'+(n[0]===active?' on':'')+'" data-coach="view-'+n[0]+'"'+(n[0]===active?' aria-current="page"':'')+(n[0]==="clients"&&unreadAll()?' title="Tenés mensajes sin leer"':'')+'>'+n[2]+(n[0]==="clients"&&unreadAll()?'<i class="cv-pip" aria-hidden="true"></i>':'')+'<span>'+n[1]+'</span></button>').join("")+'</nav>'+
       '<div class="cv-util">'+
-        botonRecepcion(active)+
+        botonClases(active)+botonRecepcion(active)+
         '<button class="cv-util-i co-q-btn" data-coach="q-open" title="Preguntas del registro diario y del check-in">'+I.help+'<span>Preguntas</span></button>'+
         '<button class="cv-util-i'+(active==="settings"?' on':'')+'" data-coach="open-settings" title="Configuración"'+(active==="settings"?' aria-current="page"':'')+'>'+gearSvg+'<span>Configuración</span></button>'+
         '<button class="cv-util-i cv-out" data-auth="logout"><span>Salir</span></button>'+
