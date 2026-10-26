@@ -217,7 +217,7 @@ export default async function ({ base, t }){
       gym_reserva_cancelar: () => ({ ok: true, estado: 'cancelada', promovidos: 1 }) } }), p = pg.p;
     await p.click('#nav-config'); await wait(900);
     let txt = await gymCfgTxt(p);
-    t.ok(/Clases/.test(txt) && /Pilates · \w+ /.test(txt) && /¡tenés lugar! Saliste de la espera/.test(txt) && /Funcional/.test(txt) && /en espera \(2°\)/.test(txt),
+    t.ok(/Clases/.test(txt) && /Pilates · [^\s·]+ /.test(txt) && /¡tenés lugar! Saliste de la espera/.test(txt) && /Funcional/.test(txt) && /en espera \(2°\)/.test(txt),
       plat + ': Ajustes muestra «Clases» y las próximas reservas: ' + txt);
     await p.click('#cfgGym [data-gys="clases"]'); await wait(900);
     let hj = await hojaTxt(p);
