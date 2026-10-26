@@ -28,6 +28,9 @@ export async function pagina(o = {}){
       },
       '/food_entries': (r, J, i) => { if (i.m === 'POST') { S.posts.push(JSON.parse(i.body || '[]')); return J([], 201); } return undefined; },
     }, o.handlers || {}) });
+  // Open Food Facts también, sin productos de marca: si no, la búsqueda va a la red de verdad y,
+  // con la red lenta, «Buscando productos de marca…» sigue a la vista cuando la prueba ya mira.
+  await pg.p.route(/openfoodfacts\.org/, r => r.fulfill({ status: 200, contentType: 'application/json', body: '{"products":[]}' }));
   Object.assign(pg, { S });
   return pg;
 }
