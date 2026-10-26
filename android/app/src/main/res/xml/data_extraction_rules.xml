@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ (targetSdk 31 o más): allowBackup="false" ya apaga el backup en la nube y el de
+     adb, pero NO la transferencia a un teléfono nuevo (cable o Wi-Fi al configurarlo). Sin estas
+     reglas, esa transferencia copiaba el almacenamiento del WebView: la sesión de Supabase
+     (refresh token) y los datos de entreno y salud guardados en el teléfono. Así no se copia
+     nada: en el teléfono nuevo se vuelve a iniciar sesión y los datos bajan de la cuenta. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
+    </device-transfer>
+</data-extraction-rules>

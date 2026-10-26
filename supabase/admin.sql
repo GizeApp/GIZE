@@ -52,7 +52,7 @@ grant execute on function public.touch_me(text, text) to authenticated;
 
 -- Precio mensual de cada plan (igual que en la función suscripcion, app/screens/coach/plan.js,
 -- admin/admin.js y la landing). Cambiados en supabase/precios-2026-10.sql.
-create or replace function public.plan_price(p text) returns numeric language sql immutable as $$
+create or replace function public.plan_price(p text) returns numeric language sql immutable set search_path = public as $$
   select case p when 'p10' then 14900 when 'p25' then 24900 when 'p50' then 37900 when 'p100' then 59900
                 when 'p250' then 119900 when 'p500' then 199900 else 0 end::numeric;
 $$;
