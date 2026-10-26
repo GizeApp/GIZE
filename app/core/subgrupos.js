@@ -1,7 +1,8 @@
 // Volumen semanal por subgrupo: pecho, espalda y hombros se separan según el ejercicio
 // (pecho superior / medio / bajo; espalda alta / dorsales / espalda baja; hombro frontal /
 // lateral / posterior). Algunos ejercicios suman a dos grupos (las hiperextensiones, a espalda
-// baja y a isquios). El resto de los grupos queda como está.
+// baja y a isquios). Lo elegido desde Trapecio suma a trapecio (encogimientos, remo al mentón, Y). El
+// resto de los grupos queda como está.
 import { exMuscle } from './utils.js';
 
 export const SUB_LABELS = {
