@@ -50,6 +50,9 @@ export default async function ({ base, t }){
     t.ok((await p.$$('#foodResults .food-row .food-ic svg')).length > 3, 'resultados: cada uno con el ícono del alimento');
     t.eq((await contraste(p, '#sheetHost .search-sheet')).malos, [], 'resultados: los textos llegan a 4,5:1');
     t.eq(await emojis(p, '#sheetHost .search-sheet'), [], 'resultados: sin emojis');
+    // Open Food Facts se simula (sin resultados): si no, la prueba depende de que ese sitio conteste
+    // rápido, y cuando está caído o lento queda «Buscando productos de marca…».
+    await p.route(/world\.openfoodfacts\.org/, r => r.fulfill({ status: 200, contentType: 'application/json', body: '{"products":[]}' }));
     await p.fill('#foodSearch', 'zzzz inexistente'); await wait(900);
     t.has(await p.textContent('#foodResults'), 'Sin resultados', 'sin resultados: el aviso');
     t.eq(await emojis(p, '#sheetHost .search-sheet'), [], 'sin resultados: sin emojis');
