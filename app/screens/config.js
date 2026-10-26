@@ -22,6 +22,7 @@ import { neonSwitchHtml } from '../ui/neon.js';
 import { appNativa } from '../core/tienda.js';
 import { IA_POR_GIMNASIO, iaAlguna, iaEstado, iaGuardarPermiso, iaPermiso, iaPorGimnasio } from '../core/ia.js';
 import { iaToast, pedirPermisoIA } from '../ui/ia-permiso.js';
+import { plusAjustesHtml, plusInfo } from '../ui/ia-plus.js';
 import { bellSvg, fileTextSvg, instagramSvg, globeSvg, auIcoMail, whatsappSvg, chevronRightSvg, pencilSvg, checkSvg } from '../core/icons.js';
 
 const cameraSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
@@ -35,7 +36,7 @@ const zapSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 let _iaCfg = "";
 function iaConfigRefrescar() {
   iaEstado().then(() => {
-    const v = iaAlguna() + "|" + iaPermiso();
+    const v = iaAlguna() + "|" + iaPermiso() + "|" + JSON.stringify(plusInfo());
     if (v === _iaCfg) return;
     _iaCfg = v;
     if (State.view === "config") renderApp();
@@ -323,8 +324,14 @@ export function renderConfig() {
       '</div>' +
     '</div>';
 
+  // Mi IA Plus (ui/ia-plus.js): solo con IA Plus prendido en el panel o con uno vigente.
+  const plusSection = logged ? plusAjustesHtml() : "";
+
+  // Botón de arrepentimiento y botón de baja (suscripciones contratadas en la web): solo en la web,
+  // sin iniciar sesión (gize.ar/baja/). En las apps no: ahí no se vende nada por fuera de la tienda.
   const legalSection = '<div class="card cfg-card">' +
       cfgLinkRow(fileTextSvg, "Política de privacidad", LINKS.privacy) +
+      (appNativa() ? "" : cfgLinkRow(fileTextSvg, "Botón de arrepentimiento", "https://gize.ar/baja/?tipo=arrepentimiento") + cfgLinkRow(fileTextSvg, "Botón de baja", "https://gize.ar/baja/?tipo=baja")) +
     '</div>';
 
   const contactSection = '<div class="card cfg-card">' +
@@ -346,7 +353,7 @@ export function renderConfig() {
 
   checkAdmin(renderApp); // solo las cuentas administradoras ven «Revisar productos»
   return '<div class="hb-head"><div class="hb-title">Configuración</div><div class="title-accent"></div></div>' +
-    account + adminEntry() + coachSection + gymSection() + notifSection + temaSection + neonSection + liteSection + iaSection + blockSection + legalSection + contactSection + dangerSection + about;
+    account + adminEntry() + coachSection + gymSection() + notifSection + temaSection + neonSection + liteSection + iaSection + plusSection + blockSection + legalSection + contactSection + dangerSection + about;
 }
 
 document.body.addEventListener("keydown", function (e) {
@@ -485,6 +492,12 @@ document.body.addEventListener("click", async function (e) {
           appleAviso = "Ojo: tu suscripción de Apple no se cancela al eliminar la cuenta y Apple te la sigue cobrando. Cancelala antes desde los Ajustes de tu cuenta de Apple (Ajustes → tu nombre → Suscripciones).\n\n";
       } catch (err) {}
     }
+    // IA Plus con Apple que se renueva: tampoco se cancela al borrar la cuenta. Se pregunta el estado
+    // de nuevo (si no, con IA Plus de Mercado Pago sin leer, no se cancelaba).
+    try { await iaEstado(true); } catch (err) {}
+    const pl = plusInfo();
+    if (!appleAviso && pl && pl.fuente === "apple" && pl.renueva)
+      appleAviso = "Ojo: tu suscripción de IA Plus de Apple no se cancela al eliminar la cuenta y Apple te la sigue cobrando. Cancelala antes desde los Ajustes de tu cuenta de Apple (Ajustes → tu nombre → Suscripciones).\n\n";
     // Dueño de un gimnasio (core/gimnasio.js): se cierra el gimnasio. Antes se le ofrece exportar todo en
     // CSV (socios, ingresos y equipo). El borrado no se frena (Apple 5.1.1(v)).
     let gymAviso = "";
@@ -497,7 +510,7 @@ document.body.addEventListener("click", async function (e) {
     }
     if (!await confirmar(isCoach
       ? gymAviso + appleAviso + "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se da de baja tu cuenta de coach. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
-      : "¿Seguro que querés eliminar tu cuenta? Se va a borrar tu rutina, tus registros, tus salidas de Cardio (con sus recorridos) y tu vínculo con tu coach de forma permanente. Esta acción no se puede deshacer.")) return;
+      : appleAviso + "¿Seguro que querés eliminar tu cuenta? Se va a borrar tu rutina, tus registros, tus salidas de Cardio (con sus recorridos) y tu vínculo con tu coach de forma permanente. Esta acción no se puede deshacer.")) return;
     const typed = await pedir('Para confirmar, escribí ELIMINAR (en mayúsculas):', "", { titulo: "Eliminar cuenta", ok: "Eliminar" });
     if (typed !== "ELIMINAR") { if (typed !== null) alert("No coincide, no se eliminó nada."); return; }
     const prevHtml = delAccBtn.innerHTML;
@@ -511,6 +524,11 @@ document.body.addEventListener("click", async function (e) {
           const rc = await State.sb.functions.invoke("suscripcion", { body: { action: "cancel" } });
           if (rc.error || (rc.data && rc.data.error)) throw new Error(appNativa() ? "no se pudo dar de baja tu cuenta de coach. Probá de nuevo o escribinos a contacto@gize.ar" : "no se pudo cancelar tu suscripción en Mercado Pago. Probá de nuevo o escribinos a contacto@gize.ar");
         }
+      }
+      // IA Plus con Mercado Pago que se renueva: se cancela antes, así no le sigue cobrando.
+      if (pl && pl.fuente === "mp" && pl.renueva) {
+        const rp = await State.sb.functions.invoke("suscripcion", { body: { action: "iaplus_cancel" } });
+        if (rp.error || (rp.data && rp.data.error)) throw new Error("no se pudo cancelar tu suscripción de IA Plus. Probá de nuevo o escribinos a contacto@gize.ar");
       }
       // Primero las fotos (perfil y productos): la función de abajo no puede borrar archivos
       // de Storage. Si esto falla se corta acá, con la cuenta intacta, para poder reintentar

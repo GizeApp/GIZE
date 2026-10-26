@@ -187,11 +187,12 @@ export default async ({ t }) => {
   // ---------- topes, guardia y errores ----------
   h = await correr({ rol: 'coach' });
   t.eq(h.rpcs.ia_reservar[0].p_rol, 'coach', 'coach con plan: reserva con los topes de coach');
-  for (const [codigo, status, extra] of [['tope_dia', 429, { tope: 8 }], ['tope_persona', 429, {}], ['ritmo', 503, {}], ['ahorro', 503, {}], ['tope_mes', 503, { motivo: 'tope' }], ['pausada', 503, { motivo: 'sin_ciclo' }]]){
+  for (const [codigo, status, extra] of [['tope_dia', 429, { tope: 8 }], ['tope_semana', 429, {}], ['tope_persona', 429, {}], ['ritmo', 503, {}], ['ahorro', 503, {}], ['tope_mes', 503, { motivo: 'tope' }], ['pausada', 503, { motivo: 'sin_ciclo' }]]){
     const vuelve = '2026-10-21T03:00:00.000Z';
     h = await correr({ reservar: () => Object.assign({ ok: false, codigo, vuelve }, extra) });
     t.ok(h.status === status && h.json.codigo === codigo && h.json.vuelve === vuelve && !h.fetches.length, codigo + ': ' + status + ', con «vuelve» y sin llamar');
     if (extra.tope) t.eq(h.json.tope, 8, 'tope_dia: dice cuál es el tope');
+    if (codigo === 'tope_semana') t.eq(h.json.mensaje, 'Usaste tus fotos gratis con IA de esta semana. Se renuevan el lunes.', 'tope_semana: habla de fotos (IA Plus es solo fotos)');
   }
   h = await correr({ api: () => http(200, respuesta('', { stop_reason: 'refusal', content: [] })) });
   t.ok(h.status === 422 && h.json.codigo === 'no_se_pudo' && h.rpcs.ia_cerrar[0].p_codigo === 'refusal' && h.rpcs.ia_cerrar[0].p_usd > 0, 'rechazo del modelo: 422 no_se_pudo y el costo anotado (cuenta para el tope)');

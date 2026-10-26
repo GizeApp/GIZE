@@ -133,7 +133,7 @@ as $$
   select string_agg(etiqueta, ' · ' order by primero) from (
     select m.etiqueta, min(x.i) as primero
       from jsonb_array_elements(case when jsonb_typeof(d->'exercises') = 'array' then d->'exercises' else '[]'::jsonb end) with ordinality as x(e, i)
-      join (values ('pecho', 'Pecho'), ('espalda', 'Espalda'), ('hombros', 'Hombros'), ('biceps', 'Bíceps'), ('triceps', 'Tríceps'),
+      join (values ('pecho', 'Pecho'), ('espalda', 'Espalda'), ('hombros', 'Hombros'), ('trapecio', 'Trapecio'), ('biceps', 'Bíceps'), ('triceps', 'Tríceps'),
                  ('cuadriceps', 'Cuádriceps'), ('isquios', 'Isquios'), ('gluteos', 'Glúteos'), ('aductores', 'Aductores'),
                  ('gemelos', 'Gemelos'), ('abs', 'Abdominales'), ('antebrazo', 'Antebrazo'), ('cuello', 'Cuello'),
                  ('olimpicos', 'Halterofilia'), ('crossfit', 'CrossFit'), ('running', 'Running')) as m(mus, etiqueta)

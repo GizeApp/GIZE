@@ -132,7 +132,7 @@ export default async ({ t }) => {
 };
 
 // Busca los programas de Postgres. Si corre como root (initdb no lo deja), usa el usuario postgres.
-function postgres(){
+export function postgres(){
   const dirs = [];
   try { for (const v of fs.readdirSync('/usr/lib/postgresql').sort().reverse()) dirs.push('/usr/lib/postgresql/' + v + '/bin'); } catch (e) {}
   const bin = dirs.find(d => ['initdb', 'pg_ctl', 'postgres'].every(p => fs.existsSync(path.join(d, p))));
@@ -189,10 +189,10 @@ async function conPostgres(t, sql, ped){
   }
 }
 
-const ADMIN_ID = '22222222-2222-2222-2222-222222222222', ALUMNO_ID = '11111111-1111-1111-1111-111111111111', COACH_ID = '33333333-3333-3333-3333-333333333333', OTRO_ID = '44444444-4444-4444-4444-444444444444';
+export const ADMIN_ID = '22222222-2222-2222-2222-222222222222', ALUMNO_ID = '11111111-1111-1111-1111-111111111111', COACH_ID = '33333333-3333-3333-3333-333333333333', OTRO_ID = '44444444-4444-4444-4444-444444444444';
 
 // Lo mínimo de Supabase para correr pedidos-productos.sql e ia.sql.
-const STUBS = `
+export const STUBS = `
 create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
 create schema auth; create schema storage; create schema cron;
 create table auth.users (id uuid primary key, email text);

@@ -61,7 +61,7 @@ const json = (data: unknown, status = 200) =>
 // HTTP y texto de cada código (los textos del panel; la app traduce por código).
 const HTTP: Record<string, number> = {
   sin_sesion: 401, sin_permiso: 403, persona_sin_ia: 403, no_habilitado: 403, pausada: 503, ahorro: 503, ritmo: 503,
-  tope_dia: 429, tope_persona: 429, tope_mes: 503, ocupada: 503, foto_invalida: 400, no_se_pudo: 422, no_disponible: 400, error: 502,
+  tope_semana: 429, tope_dia: 429, tope_persona: 429, tope_mes: 503, ocupada: 503, foto_invalida: 400, no_se_pudo: 422, no_disponible: 400, error: 502,
 };
 const MENSAJE: Record<string, string> = {
   sin_sesion: "Iniciá sesión para usar la IA.",
@@ -71,6 +71,7 @@ const MENSAJE: Record<string, string> = {
   pausada: "La IA está pausada por ahora. Cargalo a mano.",
   ahorro: "Por este mes, la IA queda para alumnos con coach.",
   ritmo: "Por hoy la IA llegó a su límite. Mañana vuelve. Mientras, cargalo a mano.",
+  tope_semana: "Usaste tus fotos gratis con IA de esta semana. Se renuevan el lunes.",
   tope_dia: "Llegaste al límite de hoy con IA. Mañana se renueva.",
   tope_persona: "Llegaste a tu límite personal de este mes con IA.",
   tope_mes: "La IA de GIZE llegó a su límite de este mes: cargalo a mano.",

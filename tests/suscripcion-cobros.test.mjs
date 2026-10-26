@@ -180,13 +180,13 @@ export default async function ({ t }){
     }, { user: { id: COACH, email: MAIL } });
     // Mercado Pago simulado: cada suscripción creada queda «pending» con su link.
     const subs = {};
-    if (pendiente) { subs.P0 = { id: 'P0', status: 'pending', init_point: 'https://mp.test/P0', external_reference: COACH + '|' + pendiente, payer_email: MAIL }; Object.assign(bill, { mp_pending_id: 'P0', pending_plan: pendiente }); }
+    if (pendiente) { subs.P0 = { id: 'P0', status: 'pending', init_point: 'https://mp.test/P0', external_reference: COACH + '|' + pendiente, payer_email: MAIL, auto_recurring: { transaction_amount: { p25: 24900, p50: 37900 }[pendiente] } }; Object.assign(bill, { mp_pending_id: 'P0', pending_plan: pendiente }); }
     const fetch = async (url, init = {}) => {
       const m = (init.method || 'GET'), u = new URL(String(url));
       mp.push(m + ' ' + u.pathname);
       if (m === 'POST' && u.pathname === '/preapproval'){
         const b = JSON.parse(init.body), id = 'P' + (++creadas);
-        subs[id] = { id, status: 'pending', init_point: 'https://mp.test/' + id, external_reference: b.external_reference, payer_email: b.payer_email };
+        subs[id] = { id, status: 'pending', init_point: 'https://mp.test/' + id, external_reference: b.external_reference, payer_email: b.payer_email, auto_recurring: b.auto_recurring };
         return new Response(JSON.stringify(subs[id]), { status: 201 });
       }
       const id = decodeURIComponent(u.pathname.split('/').pop());

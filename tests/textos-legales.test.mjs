@@ -94,7 +94,8 @@ export default async function ({ base, t }){
     t.has(term, f, 'los términos dicen: ' + f);
   t.ok(!/Mercado Pago|transferencia|\$\d/.test(term), 'los términos no mandan a pagar por fuera de Apple');
   await pg.p.goto(base + '/terminos/'); await wait(300);
-  t.eq(await topLinks(), ['../', '../app/', '../privacidad/'], 'entrando directo, la barra de arriba sigue');
+  // En la web, además, el link a gize.ar/baja/ (botón de arrepentimiento y de baja sin sesión, IA Plus).
+  t.eq(await topLinks(), ['../', '../app/', '../privacidad/', '../baja/'], 'entrando directo, la barra de arriba sigue');
   t.eq(pg.errs, [], 'errores de la página (términos)');
   await pg.close();
 

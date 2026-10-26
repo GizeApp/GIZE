@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Botón de arrepentimiento y de baja · GIZE</title>
+<meta name="description" content="Cancelá una suscripción de GIZE contratada en la web (IA Plus o un plan de coach) o arrepentite dentro de los 10 días, sin iniciar sesión.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="../icon-192.png">
+<link rel="stylesheet" href="../brand/fonts/outfit.css">
+<style>
+/* Misma paleta y armado que los términos (terminos/index.html). Página pública, sin sesión: el botón
+   de arrepentimiento (Res. 424/2020) y el de baja tienen que estar a mano desde la página de inicio,
+   sin registrarse. El pedido va a la función «suscripcion» (?pedido=1), que lo guarda con un código
+   (supabase/ia.sql → pedidos_baja) y avisa a los socios. */
+:root{color-scheme:dark;--bg:#000;--surface:#0B0D11;--border:#1C2029;--text:#FFFFFF;--text-2:#8F98A6;--el:#2FA0FF;--ok:#25E8C8;--err:#FF6B6B}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Outfit',system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.6}
+a{color:var(--el)}
+.wrap{width:min(760px,100%);margin-inline:auto;padding:40px 16px 64px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:40px}
+.brand{color:var(--text);text-decoration:none;font-weight:700;letter-spacing:.14em;font-size:20px}
+.top a:not(.brand){color:var(--text-2);text-decoration:none;font-size:15px}
+h1{font-size:clamp(30px,6vw,42px);line-height:1.1;margin:0 0 12px}
+h2{font-size:21px;margin:32px 0 8px}
+p,li{color:#D5DAE1;font-size:16.5px}
+b{color:var(--text)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px 18px;margin-top:12px}
+fieldset{border:0;margin:0 0 16px;padding:0}
+legend{font-weight:600;margin-bottom:8px;font-size:16.5px}
+.op{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;cursor:pointer}
+.op input{margin-top:5px;accent-color:var(--el);width:18px;height:18px;flex:none}
+.op span{color:#D5DAE1}
+.op:has(input:checked){border-color:var(--el)}
+label.lbl{display:block;font-weight:600;margin:14px 0 6px}
+input[type=email],input[type=text],select,textarea{width:100%;font:inherit;font-size:16px;color:var(--text);background:#000;border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,.op:focus-within{outline:2px solid var(--el);outline-offset:2px}
+textarea{min-height:84px;resize:vertical}
+.fine{color:var(--text-2);font-size:14.5px}
+button{font:inherit;font-weight:700;font-size:17px;color:#000;background:var(--el);border:0;border-radius:999px;padding:14px 22px;margin-top:18px;width:100%;cursor:pointer;min-height:48px}
+button[disabled]{opacity:.6;cursor:default}
+.res{margin-top:16px;padding:14px 16px;border-radius:12px;border:1px solid var(--border)}
+.res.ok{border-color:var(--ok)}
+.res.err{border-color:var(--err);color:#FFD5D5}
+.cod{font-size:26px;font-weight:700;letter-spacing:.08em;color:var(--text)}
+footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color:var(--text-2);font-size:14px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="top"><a class="brand" href="../">GIZE</a><a href="../app/">Abrir la app</a></div>
+
+  <h1>Botón de arrepentimiento y botón de baja</h1>
+  <p>Para cancelar una suscripción de GIZE que contrataste en la web (IA Plus o un plan de coach), o para arrepentirte de la contratación, sin iniciar sesión.</p>
+  <div class="card">
+    <p style="margin:0"><b>¿Tenés la sesión iniciada en gize.ar?</b> Lo hacés al instante en la <a href="../app/">app web</a>: <b>Ajustes → Mi IA Plus</b> (IA Plus) o <b>Configuración → Ver mi plan</b> (plan de coach).</p>
+  </div>
+  <p class="fine">Si lo compraste en la app de iPhone, la suscripción es de Apple: se cancela desde los Ajustes de tu cuenta de Apple, y la devolución se pide a Apple.</p>
+
+  <h2>Tu pedido</h2>
+  <form id="pedido" novalidate>
+    <fieldset>
+      <legend>¿Qué querés hacer?</legend>
+      <label class="op"><input type="radio" name="tipo" value="arrepentimiento"><span><b>Arrepentirme.</b> Revocar la contratación dentro de los 10 días corridos desde el primer cobro, sin dar motivos: se cancela y te devolvemos todo lo cobrado por el mismo medio de pago (Ley 24.240, art. 34).</span></label>
+      <label class="op"><input type="radio" name="tipo" value="baja"><span><b>Darme de baja.</b> Cancelar la renovación: no se te cobra más y la seguís usando hasta el final del período ya pagado.</span></label>
+    </fieldset>
+    <label class="lbl" for="servicio">¿Qué suscripción?</label>
+    <select id="servicio" name="servicio">
+      <option value="iaplus">IA Plus</option>
+      <option value="coach">Plan de coach</option>
+    </select>
+    <label class="lbl" for="email">Mail de tu cuenta de GIZE</label>
+    <input id="email" name="email" type="email" autocomplete="email" inputmode="email" required>
+    <label class="lbl" for="detalle">Algo más (opcional)</label>
+    <textarea id="detalle" name="detalle" maxlength="500" placeholder="Por ejemplo, el mail de tu cuenta de Mercado Pago o el número de la operación"></textarea>
+    <button type="submit" id="enviar">Enviar pedido</button>
+    <p class="fine">Te mostramos un código de pedido acá mismo y, si el mail es de una cuenta de GIZE, también te lo mandamos por mail. Para el arrepentimiento cuenta la fecha de este pedido. Si tenés dudas, escribinos a <a href="mailto:contacto@gize.ar">contacto@gize.ar</a>.</p>
+    <div id="res" class="res" role="status" aria-live="polite" hidden></div>
+  </form>
+
+  <p class="fine">Más detalle en los <a href="../terminos/#iaplus">Términos de uso</a> y la <a href="../privacidad/">Política de privacidad</a>.</p>
+  <footer>© 2026 GIZE · Rosario, Argentina</footer>
+</main>
+<script>
+(() => {
+  const URL_FN = "https://wegptuzhsrwppbknqstf.supabase.co/functions/v1/suscripcion?pedido=1";
+  const f = document.getElementById("pedido"), res = document.getElementById("res"), btn = document.getElementById("enviar");
+  // ?tipo=arrepentimiento | baja (los links del pie de la página de inicio) y ?servicio=coach.
+  const q = new URLSearchParams(location.search);
+  const t = f.querySelector('input[name="tipo"][value="' + (q.get("tipo") === "baja" ? "baja" : q.get("tipo") === "arrepentimiento" ? "arrepentimiento" : "") + '"]');
+  if (t) t.checked = true;
+  if (q.get("servicio") === "coach") f.servicio.value = "coach";
+  const decir = (ok, html) => { res.hidden = false; res.className = "res " + (ok ? "ok" : "err"); res.innerHTML = html; };
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  f.addEventListener("submit", async e => {
+    e.preventDefault();
+    const tipo = (f.querySelector('input[name="tipo"]:checked') || {}).value;
+    const email = f.email.value.trim();
+    if (!tipo) { decir(false, "Elegí si querés arrepentirte o darte de baja."); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { decir(false, "Poné el mail de tu cuenta de GIZE."); f.email.focus(); return; }
+    btn.disabled = true; btn.textContent = "Enviando…";
+    try {
+      const r = await fetch(URL_FN, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipo, servicio: f.servicio.value, email, detalle: f.detalle.value.trim() }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.codigo) {
+        decir(true, "<b>Recibimos tu pedido.</b> Tu código es<div class=\"cod\">" + esc(j.codigo) + "</div>Guardalo. " + (tipo === "arrepentimiento" ? "Vamos a cancelar la suscripción y devolverte lo cobrado por el mismo medio de pago." : "Vamos a cancelar la renovación: no se te cobra más.") + " Te escribimos cuando esté hecho.");
+        f.querySelectorAll("input,select,textarea").forEach(x => { x.disabled = true; });
+        btn.hidden = true;
+        return;
+      }
+      decir(false, esc(j.error || "No se pudo enviar. Probá de nuevo o escribinos a contacto@gize.ar."));
+    } catch (err) {
+      decir(false, "No se pudo enviar (¿sin conexión?). Probá de nuevo o escribinos a <a href=\"mailto:contacto@gize.ar\">contacto@gize.ar</a>.");
+    }
+    btn.disabled = false; btn.textContent = "Enviar pedido";
+  });
+})();
+</script>
+</body>
+</html>

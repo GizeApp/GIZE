@@ -6,8 +6,8 @@
 import { State } from './state.js';
 
 // Lo último que dijo ia_mi_estado(): { activa, funciones: { plato, … }, permiso_comida,
-// aviso_version, estado, vuelve, quedan: { plato, … }, tope }. Lo de «texto» que todavía venga de
-// la base no se usa. null: no se sabe (sin sesión,
+// aviso_version, estado, vuelve, quedan: { plato, … }, tope, plus (IA Plus, ui/ia-plus.js) }. Lo de
+// «texto» que todavía venga de la base no se usa. null: no se sabe (sin sesión,
 // sin internet, la base sin ia.sql): la app no muestra nada.
 // fallo: la última vez no se pudo preguntar (sin internet, la base sin ia.sql): se vuelve a probar
 // recién al minuto, para no mandar un pedido que falla en cada redibujo de Comida o Ajustes.
@@ -142,8 +142,10 @@ export function iaMensaje(e){
     case "sin_sesion": return "Iniciá sesión para usar la IA.";
     case "sin_conexion": return "Sin conexión. La IA necesita internet; podés cargarlo a mano.";
     case "pausada": return "La IA está pausada por ahora. Cargalo a mano.";
-    case "ahorro": return "Por este mes, la foto del plato con IA queda para alumnos con coach. Buscalo o escaneá el código.";
+    case "ahorro": return "Por este mes, la foto del plato con IA queda para alumnos con coach" + (IA.estado && IA.estado.plus && IA.estado.plus.activa ? " y para quien tiene IA Plus" : "") + ". Buscalo o escaneá el código.";
     case "ritmo": return "Por hoy la IA llegó a su límite. Mañana vuelve. Mientras, cargalo a mano.";
+    // IA Plus prendido (ui/ia-plus.js): se terminaron las fotos gratis de la semana.
+    case "tope_semana": { const n = e.tope || (IA.estado && IA.estado.plus && IA.estado.plus.gratis_semana); return "Usaste tus " + (n ? n + " " : "") + "fotos gratis con IA de esta semana. Se renuevan el lunes. Mientras, buscalo o escaneá el código."; }
     case "tope_dia": return "Llegaste al límite de hoy (" + (e.tope ? e.tope + " " : "") + "fotos de plato con IA). Mañana se renueva. Mientras, buscalo o escaneá el código." + (iaPorGimnasio() ? " " + IA_POR_GIMNASIO : "");
     case "tope_persona": return "Llegaste a tu límite personal de este mes con IA." + (e.vuelve ? " Vuelve el " + fecha(e.vuelve) + "." : "") + " Mientras, buscalo o escaneá el código." + (iaPorGimnasio() ? " " + IA_POR_GIMNASIO : "");
     case "tope_mes": return "La IA de GIZE llegó a su límite de este mes: cargalo a mano." + (e.vuelve ? " Vuelve el " + fecha(e.vuelve) + "." : "");
@@ -154,4 +156,4 @@ export function iaMensaje(e){
   }
 }
 // Los códigos con los que no tiene sentido «Probar de nuevo» ahora (se ofrece buscar o escanear).
-export const iaSinReintento = c => ["pausada", "ahorro", "ritmo", "tope_dia", "tope_persona", "tope_mes", "sin_sesion"].includes(c);
+export const iaSinReintento = c => ["pausada", "ahorro", "ritmo", "tope_semana", "tope_dia", "tope_persona", "tope_mes", "sin_sesion"].includes(c);

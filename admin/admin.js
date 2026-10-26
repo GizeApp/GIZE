@@ -263,7 +263,7 @@ async function loadEstadisticas(){
 function paintTodo(){
   const box = document.getElementById("hTodo"); if (!box) return;
   const o = S.overview || {}, prods = num(o.pending) + (S.reqsPend || 0);
-  const soon = (S.coaches || []).map(venceDe).filter(v => v && !v.vencido && v.dias <= 7).length;
+  const soon = (S.coaches || []).filter(c => !c.is_test).map(venceDe).filter(v => v && !v.vencido && v.dias <= 7).length;
   const open = taskList().filter(t => !t.done && t.due_date), late = open.filter(t => dueDays(t.due_date) < 0).length, today = open.filter(t => dueDays(t.due_date) === 0).length;
   const rows = [
     [late + today, "tareas", (late + today === 1 ? "tarea " : "tareas ") + (late && today ? "vencidas o para hoy" : late ? (late === 1 ? "vencida" : "vencidas") : "para hoy"), "están más abajo, en Tareas"],
@@ -488,7 +488,8 @@ const INACTIVE_MS = 14 * 864e5;
 const lastSeenT = u => { const d = u.last_seen_at || u.last_sign_in_at; return d ? Date.parse(d) : null; };
 const isInactive = u => { const t = lastSeenT(u); return t == null || Date.now() - t > INACTIVE_MS; };
 const UFILTERS = [["todos", "Todos", () => true], ["alumnos", "Alumnos", u => u.role !== "coach"], ["coaches", "Coaches", u => u.role === "coach"],
-  ["sincoach", "Alumnos sin coach", u => u.role !== "coach" && !u.coach_name], ["inactivos", "Sin actividad (14+ días)", isInactive], ["admins", "Admins", u => !!u.is_admin]];
+  ["sincoach", "Alumnos sin coach", u => u.role !== "coach" && !u.coach_name], ["inactivos", "Sin actividad (14+ días)", isInactive], ["admins", "Admins", u => !!u.is_admin],
+  ["prueba", "De prueba", u => !!u.is_test]];
 function paintUsers(){
   const box = document.getElementById("uList"); if (!box || !S.users) return;
   const so = S.uSort || null, col = so && USER_COLS.find(c => c[0] === so.k);
@@ -503,17 +504,25 @@ function paintUsers(){
       if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
       return (typeof x === "string" ? x.localeCompare(y, "es") : x - y) * dir; });
   }
+  pruebaAlFinal(list);
   const th = ([k, l]) => { const on = so && so.k === k, arrow = on ? (so.dir === "desc" ? " ▼" : " ▲") : "";
     return `<th aria-sort="${on ? (so.dir === "desc" ? "descending" : "ascending") : "none"}"><button class="th-sort${on ? " on" : ""}" data-a="usort" data-k="${k}">${l}<span class="th-arr">${arrow || " ↕"}</span></button></th>`; };
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr>${USER_COLS.map(th).join("")}</tr></thead><tbody>${list.map(u => `
-    <tr class="row" data-user="${esc(u.id)}"><td><b>${esc(u.full_name || "Sin nombre")}</b>${u.is_admin ? ' <span class="pill blue">admin</span>' : ""}<div class="muted small">${esc(u.email)}</div></td>
+    <tr class="row${u.is_test ? " is-test" : ""}" data-user="${esc(u.id)}"><td><b>${esc(u.full_name || "Sin nombre")}</b>${u.is_admin ? ' <span class="pill blue">admin</span>' : ""}${u.is_test ? ' <span class="pill">Prueba</span>' : ""}<div class="muted small">${esc(u.email)}</div></td>
       <td>${u.role === "coach" ? '<span class="pill ok">Coach</span>' : '<span class="pill">Alumno</span>'}</td>
       <td class="muted">${esc(u.coach_name || "—")}</td><td class="muted">${fmtD(u.created_at)}</td>
       <td class="${isInactive(u) ? "t-warn" : "muted"}">${ago(u.last_seen_at || u.last_sign_in_at)}</td><td class="muted small">${esc(platformTxt(u.app_platform, u.app_version))}</td></tr>`).join("")}</tbody></table>` +
     // admin_users trae 60 como mucho (las cuentas más nuevas).
     (list.length !== S.users.length ? `<div class="muted small" style="padding:10px">Mostrando ${list.length} de ${S.users.length}.</div>` : "") +
     (S.users.length >= 60 ? `<div class="muted small" style="padding:10px">Se muestran las 60 cuentas más nuevas${S.q ? " que coinciden" : ""}: buscá por nombre o mail para ver otras.</div>` : "");
+}
+// Cuentas de prueba (las propias, las demo y las de la revisión de Apple, supabase/cuentas-prueba.sql):
+// van al final de las listas, en gris, y no se cuentan en los totales.
+const pruebaAlFinal = list => { const r = list.filter(x => !x.is_test).concat(list.filter(x => x.is_test)); list.splice(0, list.length, ...r); return list; };
+function pruebaSw(id, on){
+  return `<div class="ia-master test-sw"><div><b>Cuenta de prueba</b><small>${on ? "No se cuenta en el resumen ni en los totales de coaches y usuarios." : "Marcala si es tuya, una demo o de la revisión de Apple: deja de contarse como real."}</small></div>
+    <button class="tgl" role="switch" aria-checked="${on ? "true" : "false"}" aria-label="Cuenta de prueba" data-a="testAcc" data-id="${esc(id)}"></button></div>`;
 }
 const platformTxt = (p, v) => !p ? "—" : (p === "android" ? "Android " : p === "ios" ? "iPhone " : "Web ") + (p === "web" ? "" : (v || ""));
 
@@ -545,7 +554,7 @@ async function openUser(id){
       ${d.coach ? `<button class="btn" data-a="unlink" data-id="${esc(d.id)}">Desvincular de su coach</button>` : ""}
       ${d.is_admin ? `<button class="btn" data-a="admin" data-id="${esc(d.id)}" data-v="0">Quitar administrador</button>` : `<button class="btn" data-a="admin" data-id="${esc(d.id)}" data-v="1">Hacer administrador</button>`}
       <button class="btn bad" data-a="delete" data-id="${esc(d.id)}" data-name="${esc(d.full_name || d.email)}">Eliminar cuenta</button>
-    </div>`);
+    </div>${pruebaSw(d.id, !!d.is_test)}`);
 }
 // Cambió un coach (pago, cortesía, prueba): si se está en Coaches y pagos se redibuja; desde Usuarios
 // se descarta la lista guardada (la próxima vez se vuelve a pedir) y se refresca la tabla.
@@ -573,22 +582,57 @@ const mpTxt = s => ({ authorized: "activa", paused: "pausada", cancelled: "cance
 const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: "Hasta 50", p100: "Gimnasio chico (100)", p250: "Gimnasio (250)", p500: "Gimnasio grande (500)", cortesia: "Cortesía" }[p] || p || "—");
 async function loadCoaches(){
   page("Coaches y pagos", "Tocá un coach para cargar un pago, darle cortesía o más días de prueba.",
-    userTabs("coaches") + '<div id="cSoon"></div>' + block("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>'));
+    userTabs("coaches") + '<div id="cSoon"></div>' + block("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>') +
+    block("cCodB", "Códigos de fundador", '<div id="cCod" class="empty">Cargando…</div>'));
+  loadCodigos();
   const box = document.getElementById("cList");
   try { S.coaches = await rpc("admin_coaches"); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.coaches.length){ box.textContent = "Todavía no hay coaches."; return; }
+  pruebaAlFinal(S.coaches);
   paintSoon();
-  const cnt = st => S.coaches.filter(c => coachState(c).includes(st)).length;
-  setSum("cListB", S.coaches.length + (S.coaches.length === 1 ? " coach · " : " coaches · ") + cnt("Pagado") + " pagando · " + cnt("Prueba") + " en prueba" + (cnt("Sin pagar") ? ` · <span class="t-bad">${cnt("Sin pagar")} sin pagar</span>` : ""));
+  // Los totales son de los coaches reales: las cuentas de prueba se cuentan aparte.
+  const reales = S.coaches.filter(c => !c.is_test), test = S.coaches.length - reales.length;
+  const cnt = st => reales.filter(c => coachState(c).includes(st)).length;
+  setSum("cListB", reales.length + (reales.length === 1 ? " coach · " : " coaches · ") + cnt("Pagado") + " pagando · " + cnt("Prueba") + " en prueba" + (cnt("Sin pagar") ? ` · <span class="t-bad">${cnt("Sin pagar")} sin pagar</span>` : "") +
+    (test ? ` · <span class="muted">${test} de prueba</span>` : ""));
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Coach</th><th>Gimnasio</th><th>Plan</th><th>Alumnos</th><th>Estado</th><th>Mercado Pago</th><th>Paga</th></tr></thead><tbody>${S.coaches.map(c => `
-    <tr class="row" data-coach="${esc(c.id)}"><td><b>${esc(c.full_name || "Sin nombre")}</b><div class="muted small">${esc(c.email)}</div></td>
+    <tr class="row${c.is_test ? " is-test" : ""}" data-coach="${esc(c.id)}"><td><b>${esc(c.full_name || "Sin nombre")}</b>${c.is_test ? ' <span class="pill">Prueba</span>' : ""}<div class="muted small">${esc(c.email)}</div></td>
       <td class="muted small">${esc(c.gimnasio || "—")}</td>
       <td>${esc(planTxt(c.plan))}${c.pending_plan ? `<div class="muted small">eligió ${esc(planTxt(c.pending_plan))}</div>` : ""}</td>
       <td>${n0(c.clients)} <span class="muted">/ ${n0(c.max_clients)}</span></td><td>${coachState(c)}</td>
       <td class="muted small">${c.has_mp ? esc(mpTxt(c.mp_status)) : "—"}</td>
       <td>${c.price ? money(c.price) : "—"}</td></tr>`).join("")}</tbody></table>`;
 }
+// Códigos de fundador (supabase/codigo-fundador.sql): un descuento para siempre en el plan de los
+// primeros N coaches que lo usen al pagar con tarjeta en la web. Acá se crean, se cambian o se
+// apagan, y se ve cuántos lo usaron y quiénes. El código no está escrito en ningún lado más que
+// en la base.
+async function loadCodigos(){
+  const box = document.getElementById("cCod"); if (!box) return;
+  try { S.codigos = await rpc("admin_codigos_fundador"); }
+  catch (e) {
+    S.codigos = null;
+    const falta = /admin_codigos_fundador|schema cache/i.test(errMsg(e));
+    box.innerHTML = falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/codigo-fundador.sql</b>." : esc(errMsg(e));
+    return;
+  }
+  const list = S.codigos || [];
+  setSum("cCodB", list.length ? list.map(k => esc(k.codigo) + " " + n0(k.usados) + "/" + n0(k.cupo)).join(" · ") : "");
+  box.className = "";
+  box.innerHTML = (list.length ? `<div class="tscroll"><table class="table"><thead><tr><th>Código</th><th>Descuento</th><th>Usados</th><th>Estado</th><th></th></tr></thead><tbody>${list.map(k => `
+    <tr><td><b>${esc(k.codigo)}</b></td><td>${n0(k.porcentaje)}%</td><td>${n0(k.usados)} <span class="muted">de ${n0(k.cupo)}</span></td>
+      <td>${k.activo ? (k.usados >= k.cupo ? '<span class="pill warn">Sin lugares</span>' : '<span class="pill ok">Vigente</span>') : '<span class="pill">Apagado</span>'}</td>
+      <td><button class="btn sm" data-a="codEdit" data-v="${esc(k.codigo)}">Cambiar</button> <button class="btn sm" data-a="codOnOff" data-v="${esc(k.codigo)}">${k.activo ? "Apagar" : "Prender"}</button></td></tr>
+    ${(k.coaches || []).length ? `<tr><td colspan="5" class="small">${k.coaches.map(c => `<div>${esc(c.nombre || "Sin nombre")} <span class="muted">${esc(c.email || "")} · ${fmtD(c.fecha)}</span></div>`).join("")}</td></tr>` : ""}`).join("")}</tbody></table></div>`
+    : '<div class="muted" style="margin-bottom:8px">Todavía no hay códigos.</div>') +
+    `<div class="sec-s">Nuevo código (o el mismo para cambiarlo). Los que ya lo usaron conservan su descuento aunque lo cambies o lo apagues.</div>
+    <label class="lbl">Código</label><input class="in" id="codCod" maxlength="32" placeholder="Letras, números o guiones" autocomplete="off" style="text-transform:uppercase">
+    <label class="lbl">Descuento (%)</label><input class="in" id="codPct" type="number" min="1" max="90" value="30">
+    <label class="lbl">Cupo (coaches)</label><input class="in" id="codCupo" type="number" min="1" max="10000" value="20">
+    <div class="search" style="margin:8px 0 0"><button class="btn blue" data-a="codSave">Guardar código</button></div>`;
+}
+
 // Vencimientos: a quién escribirle. Pago o prueba que vence en los próximos 7 días, y los
 // que ya vencieron hace menos de 30 días (los de hace más, ya se sabe).
 // Los días se cuentan en el calendario de Argentina, desde hoy hasta el último día cubierto
@@ -608,7 +652,7 @@ function venceTxt(v){
 }
 function paintSoon(){
   const box = document.getElementById("cSoon"); if (!box) return;
-  const list = (S.coaches || []).map(c => ({ c, v: venceDe(c) })).filter(x => x.v && x.v.dias <= 7 && x.v.dias > -30).sort((a, b) => a.v.t - b.v.t);
+  const list = (S.coaches || []).filter(c => !c.is_test).map(c => ({ c, v: venceDe(c) })).filter(x => x.v && x.v.dias <= 7 && x.v.dias > -30).sort((a, b) => a.v.t - b.v.t);
   if (!list.length){ box.innerHTML = ""; return; }
   const late = list.filter(x => x.v.vencido).length;
   box.innerHTML = block("cSoonB", "Vencen pronto", `<div class="list-mini">${list.map(({ c, v }) => `
@@ -656,7 +700,7 @@ async function openCoach(id){
     ${c.plan === "cortesia" ? `<button class="btn" data-a="plan" data-id="${esc(c.id)}" data-mode="sin_cortesia">Quitar la cortesía</button>` :
       `<label class="lbl">Cortesía: gratis, con tope de alumnos</label><div class="search"><input class="in" id="ctMax" type="number" min="1" value="${Math.max(10, c.max_clients || 10)}"><button class="btn blue" data-a="plan" data-id="${esc(c.id)}" data-mode="cortesia">Dar cortesía</button></div>`}
     ${c.plan === "cortesia" ? "" : `<label class="lbl">Prueba gratis hasta</label><input class="in" id="trUntil" type="date" min="${isoDay(new Date())}" value="${c.trial_ends_at && new Date(c.trial_ends_at) > new Date() ? isoDay(new Date(new Date(c.trial_ends_at).getTime() - 1)) : isoDay(new Date(Date.now() + 14 * 864e5))}">
-    <label class="lbl">Alumnos máximos en la prueba</label><div class="search" style="margin:0"><input class="in" id="trMax" type="number" min="1" max="1000" value="${Number(c.max_clients) || 10}"><button class="btn blue" data-a="trSave" data-id="${esc(c.id)}">Guardar prueba</button></div>`}`, { open: false, sum: c.plan === "cortesia" ? "tiene cortesía" : "" })}`);
+    <label class="lbl">Alumnos máximos en la prueba</label><div class="search" style="margin:0"><input class="in" id="trMax" type="number" min="1" max="1000" value="${Number(c.max_clients) || 10}"><button class="btn blue" data-a="trSave" data-id="${esc(c.id)}">Guardar prueba</button></div>`}`, { open: false, sum: c.plan === "cortesia" ? "tiene cortesía" : "" })}${pruebaSw(c.id, !!c.is_test)}`);
   if (!c.has_mp) return;
   const box = document.getElementById("pays");
   try {
@@ -1658,7 +1702,7 @@ const IA_COD = { refusal: "la IA no quiso leerla", max_tokens: "respuesta cortad
   clave_rechazada: "clave rechazada", limite_uso: "mucha demanda (límite por minuto)", sobrecarga: "mucha demanda (API saturada)", tiempo: "tardó demasiado",
   red: "sin conexión con la API", creditos: "sin créditos", vencida: "quedó sin cerrar" };
 const iaCod = k => IA_COD[k] || (/^api_\d+$/.test(String(k)) ? "error de la API (" + String(k).slice(4) + ")" : String(k || "error"));
-const IA_FRENO = { tope_mes: "corte del mes", ahorro: "modo ahorro", ritmo: "ritmo del día", tope_dia: "tope del día", tope_persona: "tope de la persona", pausada: "pausada" };
+const IA_FRENO = { tope_mes: "corte del mes", ahorro: "modo ahorro", ritmo: "ritmo del día", tope_dia: "tope del día", tope_persona: "tope de la persona", pausada: "pausada", tope_semana: "fotos gratis de la semana (IA Plus)" };
 // «Leer pedidos desde»: se elige el día en que se publicó la política. Si es hoy, se leen los
 // pedidos que lleguen desde ahora (la política ya está publicada); si es otro día, desde las 00:00
 // (Argentina) del día siguiente: no se sabe a qué hora se publicó, así que nunca se lee uno de antes.
@@ -1677,8 +1721,9 @@ function diaPolitica(iso){
 async function loadIA(){
   const lead = "Lo que gasta la IA con los créditos de API del plan Max. La IA solo completa: vos revisás y publicás.";
   page("IA", lead, '<div class="empty">Cargando…</div>');
-  const [est, fnEst] = await Promise.all([rpc("admin_ia_estado").catch(e => ({ error: e })), iaInvoke({ modo: "estado" })]);
+  const [est, fnEst, plus, ped] = await Promise.all([rpc("admin_ia_estado").catch(e => ({ error: e })), iaInvoke({ modo: "estado" }), rpc("admin_ia_plus_lista").catch(() => null), rpc("admin_pedidos_baja").catch(() => null)]);
   if (S.view !== "ia") return;
+  S.iaPlus = plus; S.pedidosBaja = ped;
   if (est && est.error){
     const falta = /admin_ia_estado|schema cache|does not exist/i.test(errMsg(est.error));
     return page("IA", lead, `<div class="card calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/ia.sql</b> (antes, <b>supabase/pedidos-productos.sql</b>)." : esc(errMsg(est.error))}</div>`);
@@ -1755,7 +1800,8 @@ function paintIA(foco){
     ${frenos.length ? `<div class="muted small">Frenadas por la guardia: ${frenos.map(([k, n]) => esc(IA_FRENO[k] || k) + " " + n0(n)).join(" · ")}</div>` : ""}
     ${Object.keys(ia.errores || {}).length ? `<div class="muted small">Errores del ciclo: ${Object.entries(ia.errores).map(([k, n]) => esc(iaCod(k)) + " " + n0(n)).join(" · ")}</div>` : ""}`;
   // Topes y umbrales.
-  const ROL = { alumno: "Alumno", coach: "Coach", admin: "Administrador" };
+  // «Con IA Plus»: los topes de quien lo tiene (comprado o incluido); valen si son más que los de su rol.
+  const ROL = { alumno: "Alumno", coach: "Coach", admin: "Administrador", plus: "Con IA Plus (o incluido)" };
   // Los de coach los usan también los profes de un gimnasio sin plan propio (ia_rol_origen en
   // supabase/ia.sql): se aclara acá y en cada llamada sale «Coach (por gimnasio)».
   const ROL_NOTA = { coach: "Coach con plan al día, o profe de un gimnasio con el plan al día (coach por gimnasio)." };
@@ -1772,10 +1818,69 @@ function paintIA(foco){
     block("iaCicloB", "Ciclo", ciclo + ancla) +
     block("iaFunB", "Funciones", funs + modelo + desde) +
     block("iaUsoB", "Uso del ciclo", uso) +
+    iaPlusBlock() +
     panel("iaTopesB", "Topes", `<div class="sec-s">Por persona y por día (y en dólares por ciclo). Arriba de esto, la guardia corta igual.</div>${topes}${umbr}
       <div class="row-btns"><button class="btn blue" data-a="iaTopes">Guardar topes</button></div>`, { open: false }) +
     panel("iaUltB", "Últimas llamadas", ult ? `<div class="tscroll"><table class="table"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Modelo</th><th>Cómo salió</th><th>Costo</th><th>Tardó</th></tr></thead><tbody>${ult}</tbody></table></div>` : '<div class="calm">Todavía no hubo ninguna.</div>', { open: false, sum: (ia.ultimas || []).length ? n0(ia.ultimas.length) : "ninguna" }));
   if (foco){ const el = document.querySelector(foco); if (el) try { el.focus({ preventScroll: true }); } catch (e) {} }
+}
+// IA Plus (supabase/ia.sql → ia_plus, app/ui/ia-plus.js): el interruptor, el precio de la web en
+// pesos ($3.900 de entrada; sin precio confirmado no se prende), las fotos gratis por semana, cuántos lo tienen y, para
+// soporte, darlo o sacarlo a mano. Apagado: no hay límite semanal y no se vende nada.
+// ¿Está prendida la IA de Comida? (sin eso, IA Plus no se prende ni se ofrece)
+const iaComidaOn = ia => !!(ia && ia.activa && ia.funciones && ia.funciones.plato);
+function iaPlusBlock(){
+  const ia = S.ia, pl = ia.plus || {}, r = ia.plus_resumen || {}, lista = S.iaPlus;
+  if (!ia.plus) return block("iaPlusB", "IA Plus", '<div class="calm">Falta preparar la base: correr de nuevo <b>supabase/ia.sql</b> con el workflow «Supabase» (tarea sql).</div>');
+  const frenos = num(((ia.ciclo && ia.ciclo.frenos) || {}).tope_semana);
+  const tp = (ia.topes && ia.topes.plus) || {};
+  const sw = `<div class="ia-master"><div><b>IA Plus</b><small>${pl.activa ? "Prendido: la foto del plato es gratis hasta " + n0(pl.gratis_semana) + " fotos por semana; con IA Plus, sin límite semanal: hasta " + n0(tp.plato != null ? tp.plato : 10) + " fotos por día y " + usd(tp.usd_ciclo != null ? tp.usd_ciclo : 1.5) + " por persona por ciclo. Se vende en la web con Mercado Pago y en el iPhone con Apple; en Android, no." : "Apagado: no hay límite semanal (como hasta ahora) y no se vende nada."}</small></div>
+    <button class="tgl" role="switch" aria-checked="${pl.activa ? "true" : "false"}" aria-label="IA Plus" data-a="iaPlusOn"></button></div>
+    ${iaComidaOn(ia) ? "" : `<div class="small ia-warn">La IA de Comida está apagada (o sin la foto del plato): ${pl.activa ? "la app no ofrece IA Plus hasta que la prendas; quien ya lo tiene lo puede cancelar en Ajustes." : "IA Plus no se puede prender hasta que la prendas."}</div>`}`;
+  const precio = `<label class="lbl" for="iaPlusPrecio">Precio por mes en la web (pesos, con Mercado Pago)</label>
+    <div class="search"><input class="in" id="iaPlusPrecio" inputmode="numeric" value="${esc(pl.precio_ars || "")}"><button class="btn" data-a="iaPlusPrecio">Guardar precio</button></div>
+    ${pl.precio_confirmado ? '<div class="muted small">Lo nuevo vale para las suscripciones que se hagan desde ahora; las que ya están siguen con su precio.</div>' : '<div class="small ia-warn">Precio provisorio (' + money(pl.precio_ars) + '): confirmalo con «Guardar precio» antes de prender IA Plus.</div>'}
+    <div class="muted small">En el iPhone el precio lo pone Apple (App Store Connect, el más cercano a US$2,99).</div>`;
+  const gratis = `<label class="lbl" for="iaPlusGratis">Fotos gratis por semana (solo fotos del plato; la semana arranca el lunes a las 00:00)</label>
+    <div class="search"><input class="in" id="iaPlusGratis" inputmode="numeric" value="${esc(pl.gratis_semana != null ? pl.gratis_semana : 3)}"><button class="btn" data-a="iaPlusGratis">Guardar</button></div>`;
+  // Compras de prueba de Apple (Sandbox): IA Plus solo para estas cuentas (si no, cualquier tester de
+  // TestFlight lo tendría gratis). Va la cuenta demo de la revisión de Apple.
+  const sandbox = `<label class="lbl" for="iaPlusSandbox">Compras de prueba de Apple (TestFlight y la revisión de Apple): solo estas cuentas reciben IA Plus. Mails separados por coma.</label>
+    <div class="search"><input class="in" id="iaPlusSandbox" type="text" autocomplete="off" value="${esc((Array.isArray(pl.sandbox) ? pl.sandbox : []).join(", "))}" placeholder="cuenta-demo@ejemplo.com"><button class="btn" data-a="iaPlusSandbox">Guardar</button></div>`;
+  const kpis = `<div class="grid kpis"><div class="kpi"><b>${n0(r.activos)}</b><span>Con IA Plus</span><small>${n0(r.mp)} Mercado Pago · ${n0(r.apple)} Apple · ${n0(r.manual)} a mano</small></div>
+    <div class="kpi"><b>${n0(r.renuevan)}</b><span>Se renuevan</span><small>${n0(r.arrepentidos)} arrepentimiento${num(r.arrepentidos) === 1 ? "" : "s"}</small></div>
+    <div class="kpi"><b>${n0(frenos)}</b><span>Llegaron al límite semanal</span><small>en este ciclo</small></div></div>`;
+  const de = x => [x.mp_hasta && new Date(x.mp_hasta) > new Date() ? "Mercado Pago" + (x.mp_status === "authorized" ? "" : " (cancelada)") : "",
+    x.apple_vence && new Date(x.apple_vence) > new Date() ? "Apple" + (x.apple_renueva ? "" : " (no se renueva)") : "",
+    x.manual_hasta && new Date(x.manual_hasta) > new Date() ? "A mano" + (x.manual_nota ? ": " + x.manual_nota : "") : ""].filter(Boolean).join(" · ") || (x.arrepentido_at ? "Se arrepintió" : x.pagando ? "Pagando con Mercado Pago (sin cobrar)" : "Vencido");
+  // Quien se arrepintió más de una vez (se ve siempre en la lista): para revisar a mano.
+  const arrep = x => num(x.arrepentimientos) >= 2 ? `<div class="small ia-warn">Se arrepintió ${n0(x.arrepentimientos)} veces</div>` : "";
+  const filas = (lista || []).map(x => `<tr><td>${esc(x.nombre || "—")}<div class="muted small">${esc(x.email || "")}</div></td><td>${esc(de(x))}${arrep(x)}</td><td>${x.hasta ? fmtDU(x.hasta) : "—"}</td>
+    <td>${x.manual_hasta && new Date(x.manual_hasta) > new Date() ? `<button class="btn sm" data-a="iaPlusQuitar" data-id="${esc(x.user_id)}">Sacar</button>` : ""}</td></tr>`).join("");
+  const tabla = lista == null ? '<div class="calm">No se pudo traer la lista.</div>' : filas ? `<div class="tscroll"><table class="table"><thead><tr><th>Cuenta</th><th>De dónde</th><th>Hasta</th><th></th></tr></thead><tbody>${filas}</tbody></table></div>` : '<div class="calm">Todavía nadie tiene IA Plus.</div>';
+  const dar = `<label class="lbl" for="iaPlusMail">Dar IA Plus a mano (soporte): mail de la cuenta, hasta qué día y una nota</label>
+    <div class="search"><input class="in" id="iaPlusMail" type="email" placeholder="mail@ejemplo.com"><input class="in" id="iaPlusHasta" type="date" min="${isoDay(new Date())}" value="${isoDay(new Date(Date.now() + 30 * 864e5))}" aria-label="Hasta"></div>
+    <div class="search"><input class="in" id="iaPlusNota" maxlength="200" placeholder="Nota (opcional), ej: se le cortó el pago"><button class="btn blue" data-a="iaPlusDar">Dar IA Plus</button></div>
+    <div class="muted small">Lo pagado con Mercado Pago o con Apple no se toca desde acá: se cancela por el mismo medio.</div>`;
+  // Botón de arrepentimiento y de baja sin sesión (gize.ar/baja/): los pedidos, para hacerlos a mano.
+  const ped = S.pedidosBaja, sinAtender = (ped || []).filter(x => !x.atendido_at).length;
+  const pfilas = (ped || []).map(x => `<tr><td>${fmtDT(x.created_at)}<div class="muted small">${esc(x.codigo)}</div></td><td>${x.tipo === "arrepentimiento" ? "Arrepentimiento" : "Baja"} · ${x.servicio === "iaplus" ? "IA Plus" : "Plan de coach"}</td>
+    <td>${esc(x.email)}${x.cuenta ? "" : '<div class="small ia-warn">Sin cuenta con ese mail</div>'}${x.detalle ? `<div class="muted small">${esc(x.detalle)}</div>` : ""}</td>
+    <td>${x.atendido_at ? '<span class="muted small">Atendido</span>' : `<button class="btn sm" data-a="pedidoAtendido" data-id="${esc(x.id)}">Atendido</button>`}</td></tr>`).join("");
+  const pedidos = `<div class="lbl">Pedidos de baja y arrepentimiento sin sesión${sinAtender ? ` · <b class="ia-warn">${n0(sinAtender)} sin atender</b>` : ""}</div>` + (ped == null ? '<div class="calm">No se pudo traer la lista.</div>'
+    : pfilas ? `<div class="tscroll"><table class="table"><thead><tr><th>Cuándo</th><th>Qué</th><th>Mail</th><th></th></tr></thead><tbody>${pfilas}</tbody></table></div><div class="muted small">Hacelo desde la lista de arriba o desde Mercado Pago (arrepentimiento: cancelar y devolver el cobro) y marcalo como atendido. Para el arrepentimiento vale la fecha del pedido.</div>`
+    : '<div class="calm">Ninguno.</div>');
+  return block("iaPlusB", "IA Plus", sw + precio + gratis + sandbox + kpis + tabla + pedidos + dar);
+}
+async function iaPlusGuardar(btn, plus, ok){
+  btn.disabled = true;
+  try { S.ia = await rpc("admin_ia_config", { p: { plus } }); toast(ok); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  paintIA(iaFoco(btn));
+}
+async function iaPlusLista(btn, fn, args, ok){
+  btn.disabled = true;
+  try { S.iaPlus = await rpc(fn, args); S.ia = await rpc("admin_ia_estado"); toast(ok); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  paintIA(iaFoco(btn));
 }
 // El selector del control que se tocó, para devolverle el foco después de dibujar la página.
 const iaFoco = b => b && b.dataset.a ? `[data-a="${b.dataset.a}"]` + (b.dataset.k ? `[data-k="${b.dataset.k}"]` : "") : null;
@@ -1932,12 +2037,38 @@ document.addEventListener("click", async e => {
     if (a === "role"){ if (!await confirmar(b.dataset.v === "coach" ? "¿Pasar esta cuenta a coach?" : "¿Pasar esta cuenta a alumno?")) return; await rpc("admin_set_role", { uid: b.dataset.id, p_role: b.dataset.v }); toast("Rol cambiado"); openUser(b.dataset.id); searchUsers(); return; }
     if (a === "unlink"){ if (!await confirmar("¿Desvincular a este alumno de su coach?")) return; await rpc("admin_unlink", { uid: b.dataset.id }); toast("Desvinculado"); openUser(b.dataset.id); searchUsers(); return; }
     if (a === "admin"){ const on = b.dataset.v === "1"; if (!await confirmar(on ? "¿Hacer administrador a esta cuenta? Va a poder ver y cambiar todo el panel." : "¿Quitarle el acceso al panel?")) return; await rpc("admin_set_admin", { uid: b.dataset.id, on_off: on }); toast(on ? "Ahora es administrador" : "Ya no es administrador"); openUser(b.dataset.id); searchUsers(); return; }
+    if (a === "testAcc"){
+      const on = b.getAttribute("aria-checked") !== "true", id = b.dataset.id;
+      b.disabled = true;
+      try { await rpc("admin_set_test", { uid: id, on_off: on }); } finally { b.disabled = false; }
+      toast(on ? "Marcada como cuenta de prueba" : "Ya no es cuenta de prueba");
+      const sw = b.closest(".test-sw"); if (sw && sw.isConnected) sw.outerHTML = pruebaSw(id, on);
+      [S.coaches, S.users].forEach(l => (l || []).forEach(x => { if (x.id === id) x.is_test = on; }));
+      if (S.view === "coaches") loadCoaches(); else if (S.view === "usuarios") paintUsers();
+      return;
+    }
     if (a === "delete"){
       const t = await pedir("Vas a eliminar la cuenta de " + b.dataset.name + " y TODOS sus datos. No se puede deshacer.\n\nSi tiene una suscripción en Mercado Pago, se cancela.\n\nEscribí ELIMINAR para confirmar:", "", { titulo: "Eliminar cuenta", ok: "Eliminar" });
       if (t !== "ELIMINAR") return;
       b.disabled = true; await fn({ action: "eliminar", user_id: b.dataset.id }); toast("Cuenta eliminada"); closeDrawer(); searchUsers(); return;
     }
     if (a === "pmMeses"){ const c = (S.coaches || []).find(x => x.id === b.dataset.id); const u = document.getElementById("pmUntil"); if (c && u){ u.value = hastaMeses(c, parseInt(b.dataset.m, 10) || 1); u.dispatchEvent(new Event("change")); } return; }
+    if (a === "codEdit"){ const k = (S.codigos || []).find(x => x.codigo === b.dataset.v); if (!k) return; document.getElementById("codCod").value = k.codigo; document.getElementById("codPct").value = k.porcentaje; document.getElementById("codCupo").value = k.cupo; document.getElementById("codCod").focus(); return; }
+    if (a === "codSave"){
+      const cod = document.getElementById("codCod").value.trim().toUpperCase(), pct = parseInt(document.getElementById("codPct").value, 10), cupo = parseInt(document.getElementById("codCupo").value, 10);
+      if (!/^[A-Z0-9-]{4,32}$/.test(cod)){ toast("El código va de 4 a 32 letras, números o guiones."); return; }
+      if (!(pct >= 1 && pct <= 90) || !(cupo >= 1 && cupo <= 10000)){ toast("Revisá el descuento (1 a 90%) y el cupo."); return; }
+      const ya = (S.codigos || []).find(x => x.codigo === cod);
+      if (!await confirmar((ya ? "¿Cambiar el código " : "¿Crear el código ") + cod + "? " + pct + "% menos para siempre, para los primeros " + cupo + " coaches que lo usen al pagar con tarjeta en la web.")) return;
+      await rpc("admin_codigo_fundador_guardar", { p_codigo: cod, p_porcentaje: pct, p_cupo: cupo, p_activo: ya ? ya.activo : true });
+      toast("Código guardado"); loadCodigos(); return;
+    }
+    if (a === "codOnOff"){
+      const k = (S.codigos || []).find(x => x.codigo === b.dataset.v); if (!k) return;
+      if (k.activo && !await confirmar("¿Apagar el código " + k.codigo + "? Nadie más lo va a poder usar; los que ya lo usaron siguen con su descuento.")) return;
+      await rpc("admin_codigo_fundador_guardar", { p_codigo: k.codigo, p_porcentaje: k.porcentaje, p_cupo: k.cupo, p_activo: !k.activo });
+      toast(k.activo ? "Código apagado" : "Código prendido"); loadCodigos(); return;
+    }
     if (a === "pmSave"){
       const plan = document.getElementById("pmPlan").value, max = parseInt(document.getElementById("pmMax").value, 10) || PLAN_MAX[plan], until = document.getElementById("pmUntil").value;
       if (!until){ toast("Elegí hasta qué fecha pagó."); return; }
@@ -2019,6 +2150,31 @@ document.addEventListener("click", async e => {
     if (a === "iaAncla"){ iaAncla(b); return; }
     if (a === "iaRetry"){ b.disabled = true; S.ia = await rpc("admin_ia_reintentar"); toast("Listo: la IA vuelve a andar."); paintIA('[data-a="iaOn"]'); return; }
     if (a === "iaTopes"){ iaTopes(b); return; }
+    if (a === "iaPlusOn"){
+      const on = b.getAttribute("aria-checked") !== "true", pl = (S.ia && S.ia.plus) || {};
+      if (on && !iaComidaOn(S.ia)) return toast("Antes de prender IA Plus, prendé la IA y la foto del plato.");
+      if (on && !await confirmar(`¿Prender IA Plus? Desde ahora, la foto del plato es gratis hasta ${n0(pl.gratis_semana)} fotos por semana, y se ofrece IA Plus (hasta ${n0(((S.ia.topes || {}).plus || {}).plato || 10)} fotos por día): en la web por ${money(pl.precio_ars)} al mes con Mercado Pago y en el iPhone con Apple (si el producto ya está aprobado en App Store Connect).`, { titulo: "Prender IA Plus", ok: "Prender" })) return;
+      iaPlusGuardar(b, { activa: on }, on ? "IA Plus prendido" : "IA Plus apagado"); return;
+    }
+    if (a === "iaPlusPrecio"){ const v = parseInt(String(document.getElementById("iaPlusPrecio").value).replace(/[^0-9]/g, ""), 10); if (!(v >= 100)) return toast("Poné el precio en pesos, sin centavos."); iaPlusGuardar(b, { precio_ars: v }, "Precio guardado ✓"); return; }
+    if (a === "iaPlusGratis"){ const v = parseInt(document.getElementById("iaPlusGratis").value, 10); if (!(v >= 0 && v <= 100)) return toast("De 0 a 100."); iaPlusGuardar(b, { gratis_semana: v }, "Guardado ✓"); return; }
+    if (a === "iaPlusSandbox"){
+      const v = document.getElementById("iaPlusSandbox").value.split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
+      if (v.length > 20 || v.some(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) return toast("Revisá los mails (hasta 20, separados por coma).");
+      iaPlusGuardar(b, { sandbox: v }, "Guardado ✓"); return;
+    }
+    if (a === "pedidoAtendido"){
+      b.disabled = true;
+      try { S.pedidosBaja = await rpc("admin_pedido_baja_atendido", { p_id: Number(b.dataset.id) }); toast("Listo ✓"); } catch (e) { b.disabled = false; return toast(errMsg(e)); }
+      paintIA(); return;
+    }
+    if (a === "iaPlusDar"){
+      const mail = document.getElementById("iaPlusMail").value.trim(), hasta = document.getElementById("iaPlusHasta").value, nota = document.getElementById("iaPlusNota").value.trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return toast("Poné el mail de la cuenta.");
+      if (!hasta) return toast("Elegí hasta qué día.");
+      iaPlusLista(b, "admin_ia_plus_dar", { p_email: mail, p_hasta: hasta, p_nota: nota || null }, "IA Plus dado ✓"); return;
+    }
+    if (a === "iaPlusQuitar"){ if (!await confirmar("¿Sacarle el IA Plus dado a mano? Lo pagado con Mercado Pago o Apple sigue.", { titulo: "Sacar IA Plus", ok: "Sacar" })) return; iaPlusLista(b, "admin_ia_plus_quitar", { p_uid: b.dataset.id }, "Listo ✓"); return; }
     if (a === "psave"){ saveProd(b); return; }
     if (a === "pdel"){ deleteProd(b); return; }
     if (a === "pfind"){ const q = document.getElementById("pQ"); S.prodQ = q ? q.value.trim() : ""; loadProductos(); return; }

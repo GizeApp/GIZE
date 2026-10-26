@@ -57,6 +57,7 @@ import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, alComida, plateDia, paintBarraIA, paintSearchIA, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, foodByName, lastResults, offResults, paintPlate, paintPlateNums, plateItemVals, previewStr, rememberCookState, renderComida, renderPlateSheet, renderResults, selectedFoodValues } from './screens/comida.js';
 import { IA, iaDisponible, iaEstado, iaMensaje, iaPedir, iaPermiso, iaReportar, iaSinReintento, iaVisible, photoB64 } from './core/ia.js';
+import { plusLimiteSemanal } from './ui/ia-plus.js';
 import { iaToast, pedirPermisoIA } from './ui/ia-permiso.js';
 import { FOODS } from './core/data.js';
 import { cookVariant } from './core/foods.js';
@@ -2231,6 +2232,8 @@ function plateFreno(modo){
   const e = IA.estado;
   if (!e) return null;
   if (["pausada", "ahorro", "tope_mes", "tope_persona"].includes(e.estado)) return { codigo: e.estado, vuelve: e.vuelve };
+  // IA Plus prendido y sin usos gratis esta semana: el aviso con la oferta (ui/ia-plus.js).
+  if (e.estado === "tope_semana") return { codigo: "tope_semana", vuelve: e.vuelve, tope: e.plus && e.plus.gratis_semana };
   // El número del aviso, como en ia_reservar: el de la función si esa se acabó; si no, el del día.
   if (e.quedan && e.quedan[modo] === 0) {
     const t = e.tope, u = e.usados;
@@ -2238,6 +2241,16 @@ function plateFreno(modo){
   }
   return null;
 }
+// IA Plus cambió (se compró, se canceló, volvió de Mercado Pago): Ajustes se redibuja y la hoja
+// del plato que mostraba el límite semanal sigue con la foto.
+window.addEventListener("gize:iaplus", () => {
+  const P = ComidaState.plate;
+  if (P && P.status === "error" && P.err && P.err.codigo === "tope_semana" && !plusLimiteSemanal() && iaVisible("plato")) {
+    P.err = null; P.msg = ""; P.status = "elegir"; platePaint(); return;
+  }
+  if (P && P.status === "error") { platePaint(); return; }
+  if (State.view === "config") renderApp();
+});
 async function plateEmpezar(){
   const modo = "plato", meal = ComidaState.meal || mealNow();
   const abrir = P => { ComidaState.searchOpen = false; ComidaState.plateSwap = null; ComidaState.plate = P; SheetState.sheetGen++; renderApp(); requestAnimationFrame(plateFoco); };

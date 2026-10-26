@@ -21,6 +21,7 @@ import { foodUnit } from '../core/foodunits.js';
 import { planSections } from './checkin.js';
 
 import { IA, iaDisponible, iaVisible } from '../core/ia.js';
+import { plusLimiteSemanal, plusOfertaHtml } from '../ui/ia-plus.js';
 
 // Nombre sin la aclaración de la unidad, que ya muestra la hoja del alimento:
 // "Pan lactal blanco (1 rebanada ≈ 25 g)" → "Pan lactal blanco". Las demás aclaraciones
@@ -722,10 +723,14 @@ export function plateAddLabel(P){
   const t = plateTotals(P);
   return t.n ? `Agregar ${alComida(P.meal)}${plateDia()} · ${kNum(t.kcal)} kcal` : "Agregar";
 }
-// «Te quedan 3 fotos con IA hoy»: solo con 3 o menos.
+// «Te quedan 3 fotos con IA hoy»: solo con 3 o menos. Con el límite semanal de IA Plus, lo que
+// queda de la semana.
 export function plateQuedan(){
   const q = IA.estado && IA.estado.quedan ? IA.estado.quedan.plato : null;
   if (q == null || q > 3) return "";
+  const p = IA.estado.plus;
+  if (plusLimiteSemanal() && p && Number(p.quedan_semana) === q)
+    return `<div class="pl8-quedan">${clockSvg}<span>${q ? "Te " + (q === 1 ? "queda 1 foto gratis" : "quedan " + q + " fotos gratis") + " con IA esta semana" : "Esta semana ya usaste tus fotos gratis con IA"}</span></div>`;
   return `<div class="pl8-quedan">${clockSvg}<span>${q ? "Te " + (q === 1 ? "queda " : "quedan ") + q + " " + (q === 1 ? "foto" : "fotos") + " con IA hoy" : "Hoy ya no te quedan fotos con IA"}</span></div>`;
 }
 
@@ -757,7 +762,7 @@ function plateRow(it, i){
 // El ícono del aviso según lo que pasó: sin conexión, un límite o una pausa (vuelve más tarde) o un error.
 const plateAlertIc = e => {
   const c = e && e.codigo;
-  return c === "sin_conexion" ? wifiOffSvg : ["pausada", "ahorro", "ritmo", "tope_dia", "tope_persona", "tope_mes"].includes(c) ? clockSvg : alertSvg;
+  return c === "sin_conexion" ? wifiOffSvg : ["pausada", "ahorro", "ritmo", "tope_semana", "tope_dia", "tope_persona", "tope_mes"].includes(c) ? clockSvg : alertSvg;
 };
 const plateAlert = (svg, msg) => `<div class="pl8-err" role="alert"><span class="pl8-err-ic" aria-hidden="true">${svg}</span><span class="pl8-err-t">${msg}</span></div>`;
 
@@ -778,7 +783,7 @@ function plateBody(P){
   const otra = `<button class="ctrl primary pl8-main" data-action="plate-again">${cameraSvg}<span>Sacar otra foto</span></button>`;
   const manual = `<div class="pl8-btns2"><button class="ctrl ghost" data-action="plate-manual">${searchSvg}<span>Buscar alimento</span></button><button class="ctrl ghost" data-action="plate-scan">${barcodeSvg}<span>Escanear código</span></button></div>`;
   if (P.status === "error") return `${photo}
-      ${plateAlert(plateAlertIc(P.err), esc(P.msg || ""))}
+      ${plateAlert(plateAlertIc(P.err), esc(P.msg || ""))}${P.err && (P.err.codigo === "tope_semana" || (P.err.codigo === "ahorro" && plusLimiteSemanal())) ? plusOfertaHtml() : ""}
       <div class="pl8-btns">${P.reintento ? `<button class="ctrl primary pl8-main" data-action="plate-retry">${resetSvg}<span>Probar de nuevo</span></button>` : ""}${manual}</div>`;
   if (P.status === "vacio") return `${photo}
       ${plateAlert(alertSvg, "No vimos comida en la foto. Probá con el plato entero, de arriba y con buena luz.")}

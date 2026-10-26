@@ -1,6 +1,8 @@
 -- Panel de administrador de GIZE (gize.ar/admin). Correr con el workflow "Supabase" → tarea
 -- sql → supabase/admin.sql, después de supabase/productos-revision.sql (que crea app_admins e
 -- is_app_admin). Se puede correr varias veces.
+-- Si ya corriste supabase/cuentas-prueba.sql, después de este corré ese otra vez (si no, el panel
+-- vuelve a contar las cuentas de prueba).
 --
 -- Todo lo del panel pasa por funciones que primero chequean que quien llama sea administrador
 -- (admin_assert) y cada acción que cambia algo queda anotada en admin_audit. Lo que necesita
