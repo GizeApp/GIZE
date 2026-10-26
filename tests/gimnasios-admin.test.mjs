@@ -227,6 +227,13 @@ export default async function ({ t: t0 }){
     'admin_coaches: la columna Gimnasio, «sin cargo» para el profe sin alumnos propios y «Alumnos» = el cupo usado');
   t.eq([x[1].gyms, x[1].gym_socios, x[1].gym_profes], [2, 6, 2], 'admin_overview: gimnasios, socios (activos y pausados) y profes en gimnasios');
   t.eq(x[3].overdue - x[1].overdue, 1, 'prueba vencida: cuenta el coach K y no el profe sin cargo');
+  // Las cuentas de prueba (cuentas-prueba.sql) siguen afuera con los gimnasios: el coach C marcado no
+  // cuenta en el Resumen, sale con is_test en Coaches y pagos y va al final de la lista.
+  x = await V([ZZ(rpc('admin_overview')), ['postgres', `insert into public.test_accounts (user_id) values ('${P.C}')`],
+    ZZ(rpc('admin_overview')), ZZ(`select jsonb_agg(jsonb_build_array(id, is_test)) from public.admin_coaches()`),
+    ['postgres', `delete from public.test_accounts where user_id = '${P.C}'`]]);
+  t.eq([x[0].coaches - x[2].coaches, x[0].users - x[2].users], [1, 1], 'admin_overview con gimnasios: no cuenta la cuenta de prueba');
+  t.eq([x[3].filter(r => r[1]).map(r => nom(r[0])), nom(x[3][x[3].length - 1][0])], [['C'], 'C'], 'admin_coaches con gimnasios: is_test y la de prueba al final');
 
   // ===== Mail de vencimiento =====
   const tomar = `select coalesce(jsonb_agg(jsonb_build_array(coach_id, clientes, gimnasio, socios, dias, copia, prueba, faltan) order by coach_id), '[]') from public.tomar_avisos_vence()`;

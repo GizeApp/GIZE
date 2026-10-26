@@ -47,9 +47,9 @@ const VIGENTES = [['join_coach', 'bloqueos.sql'], ['pasos_unirse', 'bloqueos.sql
   ['pasos_campeon', 'bloqueos.sql'], ['pasos_mis_grupos', 'bloqueos.sql'], ['coach_active', 'cupo-plan.sql'],
   ['is_my_client', 'suscripciones.sql'], ['hay_avisos_vence', 'compras-apple.sql'], ['tomar_avisos_vence', 'compras-apple.sql'],
   ['push_subscriptions_validate', 'push-nativo.sql'], ['routine_days_ok', 'ejercicio-audio.sql'],
-  ['delete_own_account', 'pagos-seguros.sql'], ['my_invite_code', 'endurecer-base.sql'], ['admin_overview', 'precios-2026-10.sql'],
+  ['delete_own_account', 'pagos-seguros.sql'], ['my_invite_code', 'endurecer-base.sql'], ['admin_overview', 'cuentas-prueba.sql'],
   ['release_lapsed_clients', 'coach-vencido.sql'], ['routine_schedule_on_coach_change', 'rutina-programada.sql'], ['admin_set_role', 'admin.sql'],
-  ['admin_unlink', 'admin.sql'], ['chat_unread', 'chat.sql'], ['chat_mark_read', 'chat.sql'], ['admin_coaches', 'admin.sql'], ['admin_set_config', 'admin.sql'],
+  ['admin_unlink', 'admin.sql'], ['chat_unread', 'chat.sql'], ['chat_mark_read', 'chat.sql'], ['admin_coaches', 'cuentas-prueba.sql'], ['admin_set_config', 'admin.sql'],
   ['soltar_aviso_vence', 'aviso-vencimiento.sql']];
 const CANONICAS = ['coach_active', 'is_my_client', 'join_coach', 'release_lapsed_clients', 'routine_schedule_on_coach_change', 'admin_set_role', 'admin_unlink',
   'chat_unread', 'chat_mark_read'];

@@ -68,6 +68,16 @@ end $$;
 
 -- ===== Tabla nueva =====
 
+-- Las cuentas de prueba (la misma tabla de cuentas-prueba.sql; se crea acá por si este archivo corre
+-- antes). Coaches y pagos y el Resumen de abajo las marcan y no las cuentan, como en ese archivo.
+create table if not exists public.test_accounts (
+  user_id    uuid primary key references auth.users(id) on delete cascade,
+  marked_at  timestamptz not null default now(),
+  marked_by  uuid references auth.users(id) on delete set null
+);
+alter table public.test_accounts enable row level security;
+revoke all on public.test_accounts from anon, authenticated;
+
 -- El aviso de vencimiento que se le mandó al dueño de cada gimnasio. No va en gyms: esa tabla la lee
 -- todo el gimnasio (socios, visitas, recepción) y esto es del plan entre el dueño y GIZE. Solo la
 -- tocan tomar_avisos_vence, soltar_aviso_vence y admin_gym_transferir (security definer).
@@ -482,12 +492,13 @@ grant execute on function public.admin_gym_auditoria(uuid) to authenticated;
 -- La de admin.sql con el gimnasio de cada coach: gym_id, gym_rol, gimnasio («Dueño de X», «Profe de X»,
 -- «Profe de X, sin cargo»…) y sin_cargo (profe sin vínculos propios: no paga nada). «Alumnos»
 -- (clients) es seats_used: el cupo usado de su plan (para un dueño, los socios del gimnasio más sus
--- alumnos propios). Sin gimnasios, las columnas de hoy dan lo mismo.
+-- alumnos propios). is_test: cuenta de prueba (cuentas-prueba.sql), van al final. Sin gimnasios, las
+-- columnas de hoy dan lo mismo.
 drop function if exists public.admin_coaches();
 create or replace function public.admin_coaches()
 returns table (id uuid, full_name text, email text, plan text, max_clients int, clients bigint, trial_ends_at timestamptz,
   paid_until timestamptz, mp_status text, has_mp boolean, pending_plan text, active boolean, price numeric,
-  gym_id uuid, gym_rol text, gimnasio text, sin_cargo boolean)
+  gym_id uuid, gym_rol text, gimnasio text, sin_cargo boolean, is_test boolean)
 language plpgsql
 stable
 security definer
@@ -503,14 +514,16 @@ begin
            case when s.g is null then null
                 else (case s.r when 'owner' then 'Dueño de ' when 'admin' then 'Administración de ' when 'profe' then 'Profe de ' else 'Recepción de ' end)
                      || s.nom || (case when s.sc then ', sin cargo' else '' end) end,
-           coalesce(s.sc, false)
+           coalesce(s.sc, false),
+           exists (select 1 from public.test_accounts t where t.user_id = p.id)
       from public.profiles p join auth.users u on u.id = p.id left join public.coach_billing b on b.coach_id = p.id
       left join lateral (select st.gym_id as g, st.role as r, gy.name as nom,
                                 (st.role in ('admin', 'profe') and public.recount_seats(p.id) = 0) as sc
                            from public.gym_staff st join public.gyms gy on gy.id = st.gym_id and gy.closed_at is null
                           where st.user_id = p.id and st.left_at is null limit 1) s on true
      where p.role = 'coach'
-     order by public.coach_active(p.id) desc, coalesce(b.seats_used::bigint, (select count(*) from public.profiles x where x.coach_id = p.id)) desc
+     order by exists (select 1 from public.test_accounts t where t.user_id = p.id),
+              public.coach_active(p.id) desc, coalesce(b.seats_used::bigint, (select count(*) from public.profiles x where x.coach_id = p.id)) desc
      limit 300;
 end $$;
 revoke all on function public.admin_coaches() from public, anon;
@@ -518,8 +531,9 @@ grant execute on function public.admin_coaches() to authenticated;
 
 -- La de precios-2026-10.sql con los gimnasios: gyms (abiertos), gym_socios (fichas activas y pausadas
 -- de los abiertos) y gym_profes (profes y administración con cuenta de coach: los que cuentan en el
--- tope). «overdue» (prueba vencida y sin pago) deja afuera a los profes sin cargo. Sin gimnasios, las
--- claves de hoy dan lo mismo y las nuevas, 0.
+-- tope). «overdue» (prueba vencida y sin pago) deja afuera a los profes sin cargo. Como en
+-- cuentas-prueba.sql, no cuenta las cuentas de prueba. Sin gimnasios, las claves de hoy dan lo mismo y
+-- las nuevas, 0.
 create or replace function public.admin_overview()
 returns jsonb
 language plpgsql
@@ -535,35 +549,43 @@ begin
     union select client_id from public.food_entries where log_date >= current_date - 7
     union select client_id from public.daily_logs where log_date >= current_date - 7
     union select id from public.profiles where last_seen_at > now() - interval '7 days'
+  ), us as (
+    select * from auth.users u where not exists (select 1 from public.test_accounts t where t.user_id = u.id)
+  ), pr as (
+    select * from public.profiles p where not exists (select 1 from public.test_accounts t where t.user_id = p.id)
+  ), cb as (
+    select * from public.coach_billing b where not exists (select 1 from public.test_accounts t where t.user_id = b.coach_id)
+  ), se as (
+    select * from public.sessions s where not exists (select 1 from public.test_accounts t where t.user_id = s.client_id)
   ), paid as (
-    select * from public.coach_billing where plan in ('p10','p25','p50','p100','p250','p500') and coalesce(paid_until, '-infinity') > now()
+    select * from cb where plan in ('p10','p25','p50','p100','p250','p500') and coalesce(paid_until, '-infinity') > now()
   )
   select jsonb_build_object(
-    'users',     (select count(*) from auth.users),
-    'coaches',   (select count(*) from public.profiles where role = 'coach'),
-    'clients',   (select count(*) from public.profiles where coalesce(role, 'client') = 'client'),
-    'linked',    (select count(*) from public.profiles where coalesce(role, 'client') = 'client' and coach_id is not null),
-    'new7',      (select count(*) from auth.users where created_at > now() - interval '7 days'),
-    'new30',     (select count(*) from auth.users where created_at > now() - interval '30 days'),
-    'active7',   (select count(distinct uid) from act),
-    'sessions7', (select count(*) from public.sessions where created_at > now() - interval '7 days'),
+    'users',     (select count(*) from us),
+    'coaches',   (select count(*) from pr where role = 'coach'),
+    'clients',   (select count(*) from pr where coalesce(role, 'client') = 'client'),
+    'linked',    (select count(*) from pr where coalesce(role, 'client') = 'client' and coach_id is not null),
+    'new7',      (select count(*) from us where created_at > now() - interval '7 days'),
+    'new30',     (select count(*) from us where created_at > now() - interval '30 days'),
+    'active7',   (select count(distinct uid) from act where not exists (select 1 from public.test_accounts t where t.user_id = act.uid)),
+    'sessions7', (select count(*) from se where created_at > now() - interval '7 days'),
     'paid',      (select count(*) from paid),
     'mrr',       (select coalesce(sum(public.plan_price(plan)), 0) from paid),
-    'trial',     (select count(*) from public.coach_billing where plan = 'trial' and trial_ends_at > now()),
-    'courtesy',  (select count(*) from public.coach_billing where plan = 'cortesia'),
-    'overdue',   (select count(*) from public.coach_billing b where b.plan not in ('cortesia') and b.trial_ends_at <= now() and coalesce(b.paid_until, '-infinity') <= now()
+    'trial',     (select count(*) from cb where plan = 'trial' and trial_ends_at > now()),
+    'courtesy',  (select count(*) from cb where plan = 'cortesia'),
+    'overdue',   (select count(*) from cb b where b.plan not in ('cortesia') and b.trial_ends_at <= now() and coalesce(b.paid_until, '-infinity') <= now()
                     and not public.gym_profe_sin_cargo(b.coach_id)),
     'products',  (select count(*) from public.products where not hidden),
     'pending',   (select count(*) from public.products where not hidden and ((source = 'user' and not verified) or reports > 0)),
     'signups',   (select coalesce(jsonb_agg(jsonb_build_object('w', w, 'n', n) order by w), '[]') from (
-                    select to_char(g.w, 'YYYY-MM-DD') as w, (select count(*) from auth.users u where u.created_at >= g.w and u.created_at < g.w + interval '7 days') as n
+                    select to_char(g.w, 'YYYY-MM-DD') as w, (select count(*) from us u where u.created_at >= g.w and u.created_at < g.w + interval '7 days') as n
                       from generate_series(date_trunc('week', now()) - interval '11 weeks', date_trunc('week', now()), interval '1 week') g(w)) s),
     'training',  (select coalesce(jsonb_agg(jsonb_build_object('w', w, 'n', n) order by w), '[]') from (
-                    select to_char(g.w, 'YYYY-MM-DD') as w, (select count(*) from public.sessions s where s.created_at >= g.w and s.created_at < g.w + interval '7 days') as n
+                    select to_char(g.w, 'YYYY-MM-DD') as w, (select count(*) from se s where s.created_at >= g.w and s.created_at < g.w + interval '7 days') as n
                       from generate_series(date_trunc('week', now()) - interval '11 weeks', date_trunc('week', now()), interval '1 week') g(w)) s),
     'versions',  (select coalesce(jsonb_agg(jsonb_build_object('platform', app_platform, 'version', app_version, 'n', n) order by n desc), '[]') from (
                     select coalesce(app_platform, '?') as app_platform, coalesce(app_version, '?') as app_version, count(*) as n
-                      from public.profiles where last_seen_at > now() - interval '30 days' group by 1, 2) v),
+                      from pr where last_seen_at > now() - interval '30 days' group by 1, 2) v),
     'gyms',       (select count(*) from public.gyms where closed_at is null),
     'gym_socios', (select count(*) from public.gym_members m join public.gyms x on x.id = m.gym_id and x.closed_at is null where m.status in ('activo', 'pausado')),
     'gym_profes', (select coalesce(sum(public.gym_profes_usados(x.id)), 0) from public.gyms x where x.closed_at is null)
@@ -700,7 +722,7 @@ notify pgrst, 'reload schema';
 -- ===== Para volver atrás =====
 -- Correr esto sin los «-- » (antes que el bloque de gimnasios-socios.sql). Saca las funciones del
 -- admin de gimnasios y la tabla gym_avisos_vence, y vuelve a poner, tal cual, las versiones de hoy de
--- admin_coaches y admin_set_config (admin.sql), admin_overview (precios-2026-10.sql),
+-- admin_coaches y admin_overview (cuentas-prueba.sql), admin_set_config (admin.sql),
 -- hay_avisos_vence y tomar_avisos_vence (compras-apple.sql) y soltar_aviso_vence
 -- (aviso-vencimiento.sql). Antes, volver a publicar la función vence-plan de hoy.
 --
@@ -710,17 +732,19 @@ notify pgrst, 'reload schema';
 -- drop function if exists public.admin_coaches();
 -- create or replace function public.admin_coaches()
 -- returns table (id uuid, full_name text, email text, plan text, max_clients int, clients bigint, trial_ends_at timestamptz,
---   paid_until timestamptz, mp_status text, has_mp boolean, pending_plan text, active boolean, price numeric)
+--   paid_until timestamptz, mp_status text, has_mp boolean, pending_plan text, active boolean, price numeric, is_test boolean)
 -- language plpgsql stable security definer set search_path = public, auth as $$
 -- begin
 --   perform public.admin_assert();
 --   return query
 --     select p.id, p.full_name, u.email::text, b.plan, b.max_clients,
 --            (select count(*) from public.profiles x where x.coach_id = p.id), b.trial_ends_at, b.paid_until, b.mp_status,
---            b.mp_preapproval_id is not null, b.pending_plan, public.coach_active(p.id), public.plan_price(b.plan)
+--            b.mp_preapproval_id is not null, b.pending_plan, public.coach_active(p.id), public.plan_price(b.plan),
+--            exists (select 1 from public.test_accounts t where t.user_id = p.id)
 --       from public.profiles p join auth.users u on u.id = p.id left join public.coach_billing b on b.coach_id = p.id
 --      where p.role = 'coach'
---      order by public.coach_active(p.id) desc, (select count(*) from public.profiles x where x.coach_id = p.id) desc
+--      order by exists (select 1 from public.test_accounts t where t.user_id = p.id),
+--               public.coach_active(p.id) desc, (select count(*) from public.profiles x where x.coach_id = p.id) desc
 --      limit 300;
 -- end $$;
 -- revoke execute on function public.admin_coaches() from public, anon;
@@ -746,34 +770,42 @@ notify pgrst, 'reload schema';
 --     union select client_id from public.food_entries where log_date >= current_date - 7
 --     union select client_id from public.daily_logs where log_date >= current_date - 7
 --     union select id from public.profiles where last_seen_at > now() - interval '7 days'
+--   ), us as (
+--     select * from auth.users u where not exists (select 1 from public.test_accounts t where t.user_id = u.id)
+--   ), pr as (
+--     select * from public.profiles p where not exists (select 1 from public.test_accounts t where t.user_id = p.id)
+--   ), cb as (
+--     select * from public.coach_billing b where not exists (select 1 from public.test_accounts t where t.user_id = b.coach_id)
+--   ), se as (
+--     select * from public.sessions s where not exists (select 1 from public.test_accounts t where t.user_id = s.client_id)
 --   ), paid as (
---     select * from public.coach_billing where plan in ('p10','p25','p50','p100','p250','p500') and coalesce(paid_until, '-infinity') > now()
+--     select * from cb where plan in ('p10','p25','p50','p100','p250','p500') and coalesce(paid_until, '-infinity') > now()
 --   )
 --   select jsonb_build_object(
---     'users',     (select count(*) from auth.users),
---     'coaches',   (select count(*) from public.profiles where role = 'coach'),
---     'clients',   (select count(*) from public.profiles where coalesce(role, 'client') = 'client'),
---     'linked',    (select count(*) from public.profiles where coalesce(role, 'client') = 'client' and coach_id is not null),
---     'new7',      (select count(*) from auth.users where created_at > now() - interval '7 days'),
---     'new30',     (select count(*) from auth.users where created_at > now() - interval '30 days'),
---     'active7',   (select count(distinct uid) from act),
---     'sessions7', (select count(*) from public.sessions where created_at > now() - interval '7 days'),
+--     'users',     (select count(*) from us),
+--     'coaches',   (select count(*) from pr where role = 'coach'),
+--     'clients',   (select count(*) from pr where coalesce(role, 'client') = 'client'),
+--     'linked',    (select count(*) from pr where coalesce(role, 'client') = 'client' and coach_id is not null),
+--     'new7',      (select count(*) from us where created_at > now() - interval '7 days'),
+--     'new30',     (select count(*) from us where created_at > now() - interval '30 days'),
+--     'active7',   (select count(distinct uid) from act where not exists (select 1 from public.test_accounts t where t.user_id = act.uid)),
+--     'sessions7', (select count(*) from se where created_at > now() - interval '7 days'),
 --     'paid',      (select count(*) from paid),
 --     'mrr',       (select coalesce(sum(public.plan_price(plan)), 0) from paid),
---     'trial',     (select count(*) from public.coach_billing where plan = 'trial' and trial_ends_at > now()),
---     'courtesy',  (select count(*) from public.coach_billing where plan = 'cortesia'),
---     'overdue',   (select count(*) from public.coach_billing where plan not in ('cortesia') and trial_ends_at <= now() and coalesce(paid_until, '-infinity') <= now()),
+--     'trial',     (select count(*) from cb where plan = 'trial' and trial_ends_at > now()),
+--     'courtesy',  (select count(*) from cb where plan = 'cortesia'),
+--     'overdue',   (select count(*) from cb where plan not in ('cortesia') and trial_ends_at <= now() and coalesce(paid_until, '-infinity') <= now()),
 --     'products',  (select count(*) from public.products where not hidden),
 --     'pending',   (select count(*) from public.products where not hidden and ((source = 'user' and not verified) or reports > 0)),
 --     'signups',   (select coalesce(jsonb_agg(jsonb_build_object('w', w, 'n', n) order by w), '[]') from (
---                     select to_char(g.w, 'YYYY-MM-DD') as w, (select count(*) from auth.users u where u.created_at >= g.w and u.created_at < g.w + interval '7 days') as n
+--                     select to_char(g.w, 'YYYY-MM-DD') as w, (select count(*) from us u where u.created_at >= g.w and u.created_at < g.w + interval '7 days') as n
 --                       from generate_series(date_trunc('week', now()) - interval '11 weeks', date_trunc('week', now()), interval '1 week') g(w)) s),
 --     'training',  (select coalesce(jsonb_agg(jsonb_build_object('w', w, 'n', n) order by w), '[]') from (
---                     select to_char(g.w, 'YYYY-MM-DD') as w, (select count(*) from public.sessions s where s.created_at >= g.w and s.created_at < g.w + interval '7 days') as n
+--                     select to_char(g.w, 'YYYY-MM-DD') as w, (select count(*) from se s where s.created_at >= g.w and s.created_at < g.w + interval '7 days') as n
 --                       from generate_series(date_trunc('week', now()) - interval '11 weeks', date_trunc('week', now()), interval '1 week') g(w)) s),
 --     'versions',  (select coalesce(jsonb_agg(jsonb_build_object('platform', app_platform, 'version', app_version, 'n', n) order by n desc), '[]') from (
 --                     select coalesce(app_platform, '?') as app_platform, coalesce(app_version, '?') as app_version, count(*) as n
---                       from public.profiles where last_seen_at > now() - interval '30 days' group by 1, 2) v)
+--                       from pr where last_seen_at > now() - interval '30 days' group by 1, 2) v)
 --   ) into out;
 --   return out;
 -- end $$;

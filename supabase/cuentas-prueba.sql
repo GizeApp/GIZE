@@ -6,6 +6,8 @@
 --
 -- Si después volvés a correr alguno de esos tres, corré este otra vez: si no, el panel vuelve a
 -- contar las cuentas de prueba.
+-- OJO: con los gimnasios, las versiones vigentes de admin_overview y admin_coaches están en
+-- gimnasios-admin.sql (también sin las cuentas de prueba): si volvés a correr este, corré después ese.
 --
 -- Qué hace:
 --   1) La tabla test_accounts: qué cuentas son de prueba. Solo la tocan las funciones del panel

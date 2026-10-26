@@ -20,6 +20,9 @@ async function armar({ codigo = { ok: true, porcentaje: 0 }, pendiente = null } 
   const bill = { coach_id: COACH, plan: 'trial', mp_preapproval_id: null, mp_status: null, mp_pending_id: null, pending_plan: null };
   const rpcs = [], mp = [], creadas = [];
   const db = supabaseSimulado(q => {
+    // Con los gimnasios, el pago también pregunta el cupo exacto y si es dueño de un gimnasio
+    // (recount_seats y gym_de_dueno): sin datos, como un coach sin gimnasio.
+    if (q.accion === 'rpc' && q.tabla !== 'codigo_fundador_usar') return { data: null };
     if (q.accion === 'rpc'){ rpcs.push([q.tabla, q.valores]); return typeof codigo === 'function' ? codigo(q.valores) : { data: codigo }; }
     if (q.tabla === 'profiles') return q.count ? { count: 0 } : { data: { role: 'coach' } };
     if (q.tabla === 'coach_billing'){

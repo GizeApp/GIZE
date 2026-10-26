@@ -281,7 +281,7 @@ export default async ({ t }) => {
   for (const fn of ['admin_gym_convertir', 'admin_gym_transferir', 'admin_gym_profes_extra']) t.ok(sentencia(ad, fn).includes('perform public.gym_auditar('), fn + ': queda en gym_audit');
   const nuevasA = fa.map(m => m[1]).filter(n => !['admin_coaches', 'admin_set_config', 'admin_overview', 'hay_avisos_vence', 'tomar_avisos_vence', 'soltar_aviso_vence'].includes(n));
   t.eq(nuevasA.filter(n => !new RegExp('public\\.' + n + '\\(').test(aAtras)), [], 'gimnasios-admin.sql: el bloque para volver atrás borra cada función nueva');
-  for (const [fn, f] of [['admin_coaches', 'admin.sql'], ['admin_set_config', 'admin.sql'], ['admin_overview', 'precios-2026-10.sql'], ['hay_avisos_vence', 'compras-apple.sql'],
+  for (const [fn, f] of [['admin_coaches', 'cuentas-prueba.sql'], ['admin_set_config', 'admin.sql'], ['admin_overview', 'cuentas-prueba.sql'], ['hay_avisos_vence', 'compras-apple.sql'],
     ['tomar_avisos_vence', 'compras-apple.sql'], ['soltar_aviso_vence', 'aviso-vencimiento.sql']]){
     const hoy = sentencia(read('supabase/' + f), fn);
     t.ok(hoy && sentencia(aAtras, fn) === hoy, 'gimnasios-admin.sql, volver atrás: la ' + fn + ' de hoy (' + f + '), tal cual');
