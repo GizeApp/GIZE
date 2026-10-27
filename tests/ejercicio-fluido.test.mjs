@@ -44,9 +44,19 @@ const empezar = (p, id) => p.evaluate(id => {
   };
   requestAnimationFrame(loop);
 }, id);
-const parar = async p => { await wait(650); const r = await p.evaluate(() => { window.__on = false; return { f: window.__f, top0: window.__top0 }; }); r.f.top0 = r.top0; return r.f; };
+const parar = async p => { await wait(900); const r = await p.evaluate(() => { window.__on = false; return { f: window.__f, top0: window.__top0 }; }); r.f.top0 = r.top0; return r.f; };
 // Cuánto se movió el ejercicio tocado desde el toque (en los cuadros de después), y los top de esos cuadros.
 const movida = f => { const l = f.filter(x => x.tras && x.top != null); return f.top0 == null || !l.length ? NaN : Math.max(...l.map(x => Math.abs(x.top - f.top0))); };
+// Lo mismo, pero solo mientras crece (antes de llegar a su alto final hf): después la pantalla puede
+// bajar a propósito para mostrarlo entero (acomodar, en app/ui/desplegar.js).
+const movidaCreciendo = (f, hf) => movida(Object.assign(f.filter(x => !x.tras || x.h < hf - 0.5), { top0: f.top0 }));
+// Después de abrirlo: la card entera arriba de la barra de abajo (o su cabecera arriba, si no entra),
+// (o la pantalla llegó al final), y llegó ahí de a poco: siempre para arriba (2 px de margen por el
+// redondeo del scroll) y sin saltos de más de 40 px por cuadro.
+const aLaVista = p => p.evaluate(() => { const c = document.querySelector('#view .card[data-ex-id]'), nav = document.querySelector('.navbar');
+  const r = c.getBoundingClientRect(), abajo = Math.min(innerHeight, nav ? nav.getBoundingClientRect().top : innerHeight) - 12;
+  return r.bottom <= abajo + 1 || Math.abs(r.top - 16) <= 1 || scrollY >= document.documentElement.scrollHeight - innerHeight - 1; });
+const suave = f => { const l = f.filter(x => x.tras && x.top != null).map(x => x.top); return l.every((y, k) => !k || (y <= l[k - 1] + 2 && l[k - 1] - y <= 40)); };
 const tops = f => Math.round(f.top0) + ' → ' + f.filter(x => x.tras && x.top != null).map(x => Math.round(x.top)).filter((x, k, l) => !k || x !== l[k - 1]).join(' ');
 // Después de abrir la app: sin la pantalla de inicio (app/splash.js dura 3 s; a los 2,5 s todavía
 // tapaba la lista y un toque del dedo le caía a ella, o p.tap esperaba a que se fuera y lo que se
@@ -114,7 +124,8 @@ export default async function ({ base, t }){
     t.ok(f.every(x => x.ejercicios === 6), 'abrir: la lista entera sigue en pantalla en todos los cuadros');
     t.ok(sinPop(f), 'abrir: la portada del día no se mueve ni se apaga');
     t.ok(intermedios(f, h0, h1) >= 2, 'abrir: crece de a poco (' + intermedios(f, h0, h1) + ' cuadros intermedios entre ' + Math.round(h0) + ' y ' + Math.round(h1) + ' px)');
-    t.ok(movida(f) <= 1, 'abrir: la fila tocada no se mueve (' + tops(f) + ')');
+    t.ok(movidaCreciendo(f, h1) <= 1, 'abrir: mientras crece, la fila tocada no se mueve (' + tops(f) + ')');
+    t.ok(await aLaVista(p) && suave(f), 'abrir: después baja de a poco hasta mostrarla entera (' + tops(f) + ')');
     t.eq(await p.evaluate(() => [!!document.querySelector('#view .day-head').__marca, !!document.querySelector('#view .ex-collapsed[data-ex="e2"]').__marca]), [true, true],
       'abrir: la portada y los otros ejercicios son los mismos nodos (no se redibujó todo)');
     t.eq(await p.$$eval('#view .ex-anim, #view .card[style]', l => l.map(n => n.outerHTML.slice(0, 160))), [], 'al terminar no queda nada de la animación');
@@ -224,8 +235,10 @@ export default async function ({ base, t }){
     await dedo(p, '#view .ex-collapsed[data-ex="e5"]');
     const f = await parar(p);
     t.ok(!(await p.$('#view .card[data-ex-id="e1"]')) && await p.$('#view .card[data-ex-id="e5"]'), 'se abrió el 5 y se cerró el 1');
-    const mov = movida(f);
+    const h5 = await p.$eval('#view .card[data-ex-id="e5"]', n => n.getBoundingClientRect().height);
+    const mov = movidaCreciendo(f, h5);
     t.ok(mov <= 2, 'el ejercicio tocado no salta aunque el de arriba se achique (se movió ' + mov.toFixed(1) + ' px; antes ~200): ' + tops(f));
+    t.ok(await aLaVista(p) && suave(f), 'y después baja de a poco hasta mostrarlo entero (' + tops(f) + ')');
     t.ok(f.every(x => x.hay && x.op > 0.95), 'y se ve en todos los cuadros');
     // Tildar la primera serie cambia «Iniciar entrenamiento» por el reloj (la portada crece): el
     // ejercicio tampoco se corre.
@@ -257,6 +270,25 @@ export default async function ({ base, t }){
       if (await p.$('#view .card[data-ex-id="' + tocar + '"] [data-action="ex-collapse"]')){ await p.tap('#view .card[data-ex-id="' + tocar + '"] [data-action="ex-collapse"]'); await wait(500); }
     }
     t.eq(errs, [], 'ancla: errores de la página');
+    await close();
+  }
+
+  // ---- El de abajo de todo (pedido del 27/10): al abrir el sexto, la pantalla baja suave a mostrarlo ----
+  {
+    const { p, errs, close } = await newPage({ user: ALUMNO, state: st0(), handlers, touch: true, viewport: { width: 390, height: 700 }, init: () => { try { localStorage.setItem('gize_lite', '0'); } catch (e) {} } });
+    await p.goto(base + '/app/'); await wait(2500); await asentar(p);
+    // La fila del 6 queda abajo de la pantalla, arriba de la barra.
+    await p.evaluate(() => { const r = document.querySelector('#view .ex-collapsed[data-ex="e6"]').getBoundingClientRect(), nav = document.querySelector('.navbar');
+      scrollBy(0, r.bottom - (nav ? nav.getBoundingClientRect().top : innerHeight) + 24); });
+    await wait(400);
+    await empezar(p, 'e6');
+    await dedo(p, '#view .ex-collapsed[data-ex="e6"]');
+    const f = await parar(p);
+    const h6 = await p.$eval('#view .card[data-ex-id="e6"]', n => n.getBoundingClientRect().height);
+    t.ok(movidaCreciendo(f, h6) <= 1, 'el sexto: mientras crece no salta (' + tops(f) + ')');
+    t.ok(await aLaVista(p), 'el sexto: termina entero a la vista (' + tops(f) + ')');
+    t.ok(suave(f) && f.top0 - f.filter(x => x.top != null).slice(-1)[0].top > 100, 'el sexto: subió de a poco, más de 100 px (' + tops(f) + ')');
+    t.eq(errs, [], 'el sexto: errores de la página');
     await close();
   }
 
