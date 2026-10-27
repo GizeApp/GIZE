@@ -25,6 +25,9 @@
 .gy-ambar { color:color-mix(in srgb, var(--gize-warning) 72%, var(--txt)); font-weight:600; }
 .gy-rojo { color:color-mix(in srgb, var(--gize-danger) 78%, var(--txt)); font-weight:600; }
 .gy-peligro { color:color-mix(in srgb, var(--gize-danger) 78%, var(--txt)); }
+.gy-btn-anular { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:0 16px; border-radius:999px; font:inherit; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;
+  color:color-mix(in srgb, var(--gize-danger) 85%, var(--txt)); background:color-mix(in srgb, var(--gize-danger) 10%, transparent); border:1px solid color-mix(in srgb, var(--gize-danger) 45%, transparent); transition:background .15s, border-color .15s; }
+.gy-btn-anular:hover, .gy-btn-anular:focus-visible { background:color-mix(in srgb, var(--gize-danger) 20%, transparent); border-color:color-mix(in srgb, var(--gize-danger) 70%, transparent); outline:none; }
 .gy-n { display:inline-block; min-width:20px; padding:0 6px; border-radius:999px; font-size:12px; line-height:20px; text-align:center; background:color-mix(in srgb, var(--txt) 12%, transparent); color:var(--txt); }
 .gy-tag { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-style:normal; font-weight:600; border:1px solid var(--gize-border); color:var(--txt-2); }
 .gy-tag-ambar { border-color:color-mix(in srgb, var(--gize-warning) 60%, transparent); color:color-mix(in srgb, var(--gize-warning) 72%, var(--txt)); }
@@ -50,6 +53,10 @@ a.gize-btn.cv-btn { text-decoration:none; }
 
 /* Pestañas y filtros */
 .gy-tabs { margin:0 0 12px; flex-wrap:wrap; }
+.gy-filtros-bar { display:flex; align-items:center; gap:12px; margin:0 0 12px; }
+.gy-filtros-bar .gy-buscar { flex:1 1 220px; max-width:380px; }
+.gy-filtros-bar .cv-search { width:100%; }
+.gy-filtros-btn { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:0 16px; font-size:15px; }
 .gy-filtros { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
 .gy-sel { min-height:38px; max-width:100%; padding:0 10px; border-radius:var(--r-box); border:1px solid var(--gize-border); background:var(--gize-surface); color:var(--txt); font:inherit; font-size:var(--text-meta); }
 .gy-chip { min-height:36px; padding:0 13px; border-radius:999px; border:1px solid var(--gize-border); background:var(--gize-surface); color:var(--txt-2); font:inherit; font-size:var(--text-meta); font-weight:600; cursor:pointer; }
@@ -88,14 +95,17 @@ a.gize-btn.cv-btn { text-decoration:none; }
 .gy-stat { padding:14px; border-radius:18px; text-align:left; }
 .gy-stat .cv-stat-n { font-size:28px; margin-top:6px; white-space:nowrap; }
 .gy-stat .cv-stat-n small { font-size:13px; font-weight:600; color:var(--txt-2); }
-.gy-stat-s { margin-top:4px; font-size:12px; color:var(--txt-2); }
+.gy-stat-s { margin-top:6px; font-size:15px; color:var(--txt-2); }
 .gy-cols { display:grid; gap:18px; }
 .gy-todo { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 16px; border-top:1px solid var(--gize-border); }
 .gy-todo:first-child { border-top:0; }
 .gy-todo .cv-li-n { white-space:normal; }
 .gy-pasos { padding:16px 18px; margin:0 0 18px; }
 .gy-pasos ol { margin:0; padding-left:22px; display:grid; gap:6px; }
-.gy-paso { background:none; border:0; padding:4px 0; color:var(--txt); font:inherit; font-size:var(--text-body); text-align:left; cursor:pointer; }
+.gy-pasos li { margin:0 -10px; }
+.gy-paso { display:block; width:100%; background:none; border:0; border-radius:10px; padding:6px 10px; color:var(--txt); font:inherit; font-size:var(--text-body); text-align:left; cursor:pointer; transition:background .15s; }
+.gy-paso:hover, .gy-paso:focus-visible { background:color-mix(in srgb, var(--txt) 7%, transparent); outline:none; }
+.gy-paso:active { background:color-mix(in srgb, var(--txt) 11%, transparent); }
 .gy-pasos li.hecho .gy-paso { color:var(--txt-3); }
 
 /* Ficha y Configuración: dos columnas en la compu */
@@ -107,6 +117,11 @@ a.gize-btn.cv-btn { text-decoration:none; }
 .gy-f { display:flex; flex-direction:column; gap:5px; min-width:0; }
 .gy-f > span { font-size:var(--text-meta); color:var(--txt-2); font-weight:600; }
 .gy-f .co-note { margin:0; width:100%; box-sizing:border-box; }
+/* Lo que se escribe tiene que leerse bien: letra grande y clara sobre un fondo apenas más claro. */
+html:not(#_) body:not(#_) .gy-f > span { font-size:14px; color:var(--txt); font-weight:600; }
+html:not(#_) body:not(#_) .gy-f .co-note { height:46px; padding:0 14px; font-size:16px; font-weight:500; color:var(--txt); caret-color:var(--txt);
+  background:color-mix(in srgb, var(--txt) 9%, var(--gize-surface)); border:1px solid color-mix(in srgb, var(--txt) 28%, transparent); }
+html:not(#_) body:not(#_) .gy-f .co-note:focus { border-color:var(--gize-blue); }
 .gy-f-in { display:inline-flex; }
 .gy-f-row { display:flex; align-items:flex-end; gap:8px; }
 .gy-f-row .gy-f { flex:1; }
@@ -185,6 +200,12 @@ a.gize-btn.cv-btn { text-decoration:none; }
     background:var(--frz-glass-solid, var(--gize-surface)); border:1px solid var(--gize-border); box-shadow:0 20px 60px rgba(0,0,0,.45); color:var(--txt); }
 .gy-modal-h, .gy-sheet-h { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
 .gy-modal-h h2 { margin:0; font-family:var(--gize-font); font-size:20px; color:var(--txt); }
+/* Carteles: hay lugar de sobra, así que el texto va más grande que en el resto del panel. */
+.gy-modal .gy-p { font-size:17px; line-height:1.5; }
+.gy-modal .gy-fino { font-size:15px; margin-top:10px; }
+.gy-modal .gy-url { font-size:15px; padding:12px 14px; }
+.gy-modal .cv-sec-btn, .gy-modal .gy-btn2 { font-size:16px; }
+@media (min-width:900px){ .gy-modal-h h2 { font-size:24px; } }
 .gy-x { width:36px; height:36px; flex:none; border-radius:50%; border:1px solid var(--gize-border); background:none; color:var(--txt); font:inherit; cursor:pointer; }
 .gy-radios { display:grid; gap:8px; }
 .gy-radio { display:grid; grid-template-columns:auto minmax(0,1fr); grid-template-areas:"in t" ". s"; gap:2px 10px; padding:12px 14px; border-radius:var(--r-box); border:1px solid var(--gize-border); cursor:pointer; }
@@ -237,7 +258,15 @@ a.gize-btn.cv-btn { text-decoration:none; }
 .gy-rec-acc { display:grid; gap:10px; width:100%; max-width:360px; }
 .gy-rec-acc .gy-cartel, .gy-rec-acc .gy-ok { margin:0; text-align:left; }
 .gy-rec-ing { width:100%; min-height:52px; font-size:17px; }
-.gy-rec-altas { margin-top:4px; }
+/* Ingresos de hoy en la recepción: la tabla de Asistencia, mientras no hay resultados en pantalla. */
+.gy-rec:has(.gy-rec-cols) .gy-hoy, .gy-rec-compacto .gy-hoy { display:none; }
+.gy-hoy-h { display:flex; align-items:center; gap:12px; margin:6px 0 10px; }
+.gy-hoy-h .gy-h { margin:0; }
+.gy-hoy-vacio { margin:4px 0; color:var(--txt-2); }
+.gy-rec-top { display:flex; flex-wrap:wrap; align-items:center; gap:10px 12px; }
+.gy-rec-top .gy-rec-buscar { flex:1 1 280px; width:auto; }
+.gy-rec-altas { display:flex; flex-wrap:wrap; gap:8px; }
+.gy-rec-altas .gy-btn2 { min-height:48px; padding:0 18px; font-size:15px; }
 .gy-rec-compacto .gy-av-rec { width:120px; height:120px; font-size:36px; border-radius:22px; }
 .gy-solo-rec { align-items:stretch; }
 .gy-solo-top { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; max-width:1080px; margin:0 auto; }
@@ -251,8 +280,8 @@ a.gize-btn.cv-btn { text-decoration:none; }
 .gy-tipos li, .gy-pagos li { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px; padding:10px 0; border-top:1px solid var(--gize-border); }
 .gy-tipos li:first-child, .gy-pagos li:first-child { border-top:0; }
 .gy-tipo-t, .gy-pago-t { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1 1 200px; }
-.gy-tipo-t b, .gy-pago-t b { font-size:var(--text-body); color:var(--txt); }
-.gy-tipo-t span, .gy-pago-t span { font-size:var(--text-meta); color:var(--txt-2); }
+.gy-tipo-t b, .gy-pago-t b { font-size:17px; color:var(--txt); }
+.gy-tipo-t span, .gy-pago-t span { font-size:15px; color:var(--txt-2); }
 .gy-tipo-arch .gy-tipo-t b { color:var(--txt-2); }
 .gy-pago-anulado .gy-pago-t b { color:var(--txt-2); }
 .gy-tabla-cuotas { margin:0 0 6px; }
@@ -344,6 +373,20 @@ a.gize-btn.cv-btn { text-decoration:none; }
   .gy-rec-cols { grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); align-items:start; }
   .gy-rec-compacto .gy-rec-cols { grid-template-columns:minmax(0,1fr); }
   .gy-rec-ficha { position:sticky; top:16px; padding:24px 22px; }
+  .gy-rec-cols { grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); gap:18px; }
+  .gy-rec-i { min-height:68px; padding:10px 14px; }
+  .gy-rec-i-t b { font-size:18px; }
+  .gy-rec:not(.gy-rec-compacto) .gy-rec-buscar .gy-rec-q { min-height:54px; font-size:19px; }
+  .gy-rec:not(.gy-rec-compacto) .gy-rec-ficha { grid-template-columns:auto minmax(0,1fr); grid-template-areas:"foto dato" "foto acc"; justify-items:start; align-items:start; text-align:left; column-gap:28px; row-gap:18px; }
+  .gy-rec:not(.gy-rec-compacto) .gy-rec-foto { grid-area:foto; }
+  .gy-rec:not(.gy-rec-compacto) .gy-rec-dato { grid-area:dato; }
+  .gy-rec:not(.gy-rec-compacto) .gy-rec-acc { grid-area:acc; max-width:none; grid-template-columns:1fr 1fr; }
+  .gy-rec:not(.gy-rec-compacto) .gy-rec-acc > :is(.gy-ing, .gy-ok, .gy-cartel, .gy-rec-ing) { grid-column:1 / -1; }
+  .gy-rec:not(.gy-rec-compacto) .gy-rec-sem { justify-content:flex-start; }
+  .gy-rec:not(.gy-rec-compacto) .gy-rec-n { font-size:32px; }
+  .gy-rec:not(.gy-rec-compacto) .gy-rec-dato .gy-fino { font-size:15px; }
+  .gy-rec:not(.gy-rec-compacto) .gy-rec-acc .gy-btn2 { min-height:48px; font-size:16px; }
+  .gy-rec:not(.gy-rec-compacto) .gy-av-rec { width:170px; height:170px; font-size:52px; }
   .gy-row-ing { grid-template-columns:minmax(0,2.4fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.4fr); }
   .gy-row-cuota { grid-template-columns:minmax(0,2.2fr) minmax(0,2fr) minmax(0,.9fr) minmax(0,1fr) minmax(0,1.2fr); }
   .gy-form-pago { grid-template-columns:1fr 1fr 1fr; }

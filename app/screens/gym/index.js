@@ -32,7 +32,7 @@ import { exportar, exportarTodo, aCsv, descargar } from './csv.js';
 import { pintarQrs } from './qr.js';
 import { renderRecepcion, alRepintar, alRegistrar, fotoNueva, limpiar as limpiarRecepcion, refrescar as refrescarRecepcion, RS } from './recepcion.js';
 import { renderCuotas, ventanaPago, ventanaTipo, nuevoPago, csvPagos } from './cuotas.js';
-import { renderAsistencia, exportarIngresos, ventanaIngreso } from './asistencia.js';
+import { renderAsistencia, exportarIngresos, ventanaIngreso, panelHoy } from './asistencia.js';
 import { renderClases, cargarClases, alRepintar as alRepintarClases } from './clases.js';
 
 let iniciado = false, dibujado = false, primeraCarga = false;
@@ -56,7 +56,7 @@ export function iniciarGym(){
   alRepintar(() => { repintar(); pintarModal(); });
   // Las clases (clases.js) se redibujan cuando llega la semana, la lista o algo que cambió.
   alRepintarClases(() => repintar());
-  alRegistrar(() => { if (GS.view === "asistencia" || (GS.modal && GS.modal.tipo === "ingreso")) cargarIngresos(); if (rolGym() !== "recepcion") releerGym().then(repintar); });
+  alRegistrar(() => { if (GS.view === "asistencia" || GS.view === "recepcion" || (GS.modal && GS.modal.tipo === "ingreso")) cargarIngresos(); if (rolGym() !== "recepcion") releerGym().then(repintar); });
 }
 
 // ---- Qué se dibuja ----
@@ -120,7 +120,7 @@ function vista(){
     case "asistencia": return renderAsistencia();
     case "cuotas": return renderCuotas();
     case "clases": return cabeza("Clases", "", "La grilla de la semana, las reservas de los socios y el presente.") + renderClases(opcionesClases());
-    case "recepcion": return cabeza("Recepción", btn2('data-gym="ir" data-v="asistencia"', "Ingresos de hoy"), "Buscá por nombre o DNI, mirá la foto y registrá el ingreso.") + renderRecepcion({ altas: true });
+    case "recepcion": return cabeza("Recepción", btn2('data-gym="ir" data-v="asistencia"', "Ingresos de hoy"), "Buscá por nombre o DNI, mirá la foto y registrá el ingreso.") + renderRecepcion({ altas: true, extra: panelHoy() });
     default: return renderInicio();
   }
 }
@@ -335,6 +335,9 @@ async function cargarIngresos(){
   const r = await rpc("gym_ingresos", { desde: hoyAR() });
   if (r.error){ if (GS.ingresos === null) GS.ingresosError = r.msg; }
   else { GS.ingresos = Array.isArray(r.data) ? r.data : []; GS.ingresosError = ""; }
+  // En la recepción solo se cambia el panel de hoy: repintar todo le sacaría el foco al buscador.
+  const hoy = GS.view === "recepcion" && document.querySelector(".gy-hoy, .gy-hoy-sin");
+  if (hoy){ hoy.outerHTML = panelHoy(); return; }
   repintar();
 }
 async function cargarDpa(){
@@ -356,7 +359,11 @@ function cargarVista(){
   else if (v === "profes"){ cargarEquipo(); if (GS.socios === null) cargarSocios(); }
   else if (v === "config"){ if (GS.equipo === null) cargarEquipo(); cargarDpa(); releerGym().then(repintar); }
   else if (v === "plan"){ releerGym().then(repintar); }
-  else if (v === "asistencia"){ cargarIngresos(); }
+  else if (v === "asistencia" || v === "recepcion"){
+    cargarIngresos();
+    // Recepción: el cursor ya está en el buscador (en el celular no, para no abrir el teclado solo).
+    if (v === "recepcion" && matchMedia("(min-width:900px)").matches) setTimeout(() => { const i = document.querySelector("#coachHost input[data-rec-q]"); if (i && !i.value) i.focus({ preventScroll: true }); }, 60);
+  }
   else if (v === "clases"){ cargarClases(opcionesClases()); }
   // Abrir la recepción no tacha «Probá la recepción» (Inicio): lo tacha el primer uso de verdad, buscar o
   // registrar un ingreso (marcarRecepcion, recepcion.js).
@@ -523,6 +530,7 @@ async function alTocar(e){
     if (GS.view !== "socios"){ GS.filtros = Object.assign({}, GS.filtros, { profe: "", estado: "", sinProfe: false, externo: false, noViene: false, faltaConf: false, sinApp: false, fotoPend: false, aptoVencido: false, appVieja: false, mios: false, q: "" }); GS.filtros[k] = true; GS.tab = "socios"; return ir("socios"); }
     GS.filtros[k] = !GS.filtros[k]; repintar(); return;
   }
+  if (a === "filtros-toggle"){ GS.filtrosAbierto = !GS.filtrosAbierto; repintar(); return; }
   if (a === "filtros-limpiar"){ GS.filtros = { q: "", profe: "", estado: "" }; repintar(); return; }
   if (a === "grupo-limpiar"){ GS.sel.clear(); repintar(); return; }
   if (a === "grupo-asignar") return accionGrupo("asignar");
