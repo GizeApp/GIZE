@@ -7,7 +7,7 @@
 //     foto de la tabla nutricional del pedido y devuelve los valores cada 100 g o ml
 //     → { ok: true, encontrada, unidad, columna, porcion, por_porcion, kcal, p, c, f, revisar,
 //         dudosos, modelo, modelo_nombre } y guarda lo leído en product_requests.ai_*.
-//   { modo: "plato", imagen: <JPEG en base64, 1024 px>, texto?: <aclaración, hasta 200> }
+//   { modo: "plato", imagen: <JPEG en base64, 1568 px>, texto?: <aclaración, hasta 200> }
 //     App (Comida → «Foto del plato»), cualquier persona con sesión que aceptó el aviso
 //     (supabase/ia.sql → ia_permiso):
 //     → { ok: true, hay_comida, nota, items: [{ nombre, gramos, kcal, p, c, f, cantidad, unidad,
@@ -249,7 +249,7 @@ async function comida(input: { imagen?: unknown; texto?: unknown }, me: string, 
   const modo = "plato";
   const texto = typeof input.texto === "string" ? input.texto.replace(/\s+/g, " ").trim().slice(0, TEXTO_MAX_PLATO) : "";
   const imagen = typeof input.imagen === "string" ? input.imagen : "";
-  // Solo un JPEG en base64 (empieza con /9j/), de hasta ~1 MB y 1024 px: lo que manda la app.
+  // Solo un JPEG en base64 (empieza con /9j/), de hasta ~1,8 MB y 1568 px: lo que manda la app.
   if (!imagen || imagen.length > B64_MAX_PLATO || !imagen.startsWith("/9j/") || !/^[A-Za-z0-9+/]+={0,2}$/.test(imagen)) return no("foto_invalida");
   let cab: Uint8Array;
   try { const b = atob(imagen.slice(0, 65536 - (Math.min(imagen.length, 65536) % 4))); cab = Uint8Array.from(b, (ch) => ch.charCodeAt(0)); } catch { return no("foto_invalida"); }

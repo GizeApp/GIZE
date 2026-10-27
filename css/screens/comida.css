@@ -425,7 +425,7 @@ html.tema-luz body {
 .ia-spark svg { width: 12px; height: 12px; stroke-width: 2.2; }
 html.tema-luz .ia-spark { box-shadow: 0 0 0 2px rgba(255,255,255,.9); }
 .ia-foto-btn:active { transform: scale(.97); }
-:is(.ia-foto-btn, .pl8-chg, .pl8-x, .pl8-step, .pl8-link, .pl8-btns .ctrl, .pl8-op):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+:is(.ia-foto-btn, .pl8-chg, .pl8-alt, .pl8-x, .pl8-step, .pl8-link, .pl8-btns .ctrl, .pl8-op):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
 /* El buscador vacío o sin resultados: el ícono en su círculo, un título y una línea de ayuda. */
 .ss-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 30px 16px 18px; text-align: center; }
@@ -558,6 +558,9 @@ html.tema-luz .pl8-err-ic { color: #8A5A00; }
 .pl8-ic svg { width: 21px; height: 21px; }
 .pl8-head { flex: 1; min-width: 0; display: flex; flex-direction: column; align-self: center; padding-top: 2px; }
 .pl8-name { font: 600 15.5px/1.3 var(--gize-font); color: var(--txt); overflow-wrap: anywhere; }
+/* «¿O era …?»: la otra opción cuando la IA dudó; un toque la cambia */
+.pl8-alt { align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; margin: -6px 0 -10px; padding: 0 2px;
+  border: 0; background: none; color: var(--ia-ink); font: 600 13.5px/1.2 var(--gize-font); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .pl8-sep { display: none; }
 .pl8-x { flex: none; width: 44px; height: 44px; margin: -8px -8px 0 0; display: grid; place-items: center; border: none; background: none; color: var(--txt-2); cursor: pointer; border-radius: 50%; }
 .pl8-x svg { width: 18px; height: 18px; }

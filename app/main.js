@@ -2179,20 +2179,27 @@ function plateDeAlimento(f, g){
 }
 // La respuesta de la función → las filas. Con la base, los valores cada 100 g son los de GIZE; si
 // no, los de la estimación.
+// Una fila con los valores de un alimento de la base que mandó la función (x.base o x.alternativa).
+function plateDeBase(bx, g0){
+  const f = (FOODS[bx.id] && FOODS[bx.id].name === bx.nombre) ? FOODS[bx.id] : foodByName(bx.nombre);
+  const it = { name: bx.nombre + (bx.cocido ? " (cocido)" : ""), g: roundG(g0), b: { kcal: +bx.kcal || 0, p: +bx.p || 0, c: +bx.c || 0, f: +bx.f || 0 },
+               unit: bx.unit === "ml" ? "ml" : "g", base: true, paso: 10 };
+  if (f && foodUnit(f).natural) it.paso = cookPortion(f, bx.cocido ? "cocido" : null) || 10;
+  return it;
+}
 function plateItems(res){
   return (res.items || []).map(x => {
     const g0 = Math.max(0, Number(x.gramos) || 0);
     let it;
-    const f = x.base ? ((FOODS[x.base.id] && FOODS[x.base.id].name === x.base.nombre) ? FOODS[x.base.id] : foodByName(x.base.nombre)) : null;
     if (x.base) {
-      it = { name: x.base.nombre + (x.base.cocido ? " (cocido)" : ""), g: roundG(g0), b: { kcal: +x.base.kcal || 0, p: +x.base.p || 0, c: +x.base.c || 0, f: +x.base.f || 0 },
-             unit: x.base.unit === "ml" ? "ml" : "g", base: true, paso: 10 };
-      if (f && foodUnit(f).natural) it.paso = cookPortion(f, x.base.cocido ? "cocido" : null) || 10;
+      it = plateDeBase(x.base, g0);
     } else {
       const k = g0 > 0 ? 100 / g0 : 0;
       it = { name: x.nombre || "Alimento", g: roundG(g0), b: { kcal: (+x.kcal || 0) * k, p: (+x.p || 0) * k, c: (+x.c || 0) * k, f: (+x.f || 0) * k }, unit: "g", base: false, paso: 10 };
     }
     it.g0 = plateGramsNum(it); it.editado = false;
+    // Si la IA dudó entre dos que se parecen (cappuccino o café con leche): «¿O era …?» los cambia.
+    if (x.alternativa && x.alternativa.nombre) it.alt = x.alternativa;
     return it;
   }).filter(it => it.g > 0);
 }
@@ -2274,7 +2281,7 @@ async function plateFoto(file){
   const P = ComidaState.plate; if (!P) return;
   if (P.photoUrl) URL.revokeObjectURL(P.photoUrl);
   P.photoUrl = URL.createObjectURL(file); P.status = "cargando"; P.cargando = 0; platePaint();
-  try { P.b64 = await photoB64(file, 1024); }
+  try { P.b64 = await photoB64(file, 1568); }
   catch (e) { if (ComidaState.plate !== P) return; P.status = "error"; P.err = null; P.msg = "No se pudo abrir la foto. Probá con otra."; P.reintento = false; platePaint(); return; }
   plateCorrer(P);
 }
@@ -2337,6 +2344,14 @@ async function plateClick(a, el){
     it.g = roundG(n); if (plateGramsNum(it) !== it.g0) it.editado = true;
     const inp = document.querySelector('#sheetHost [data-action="plate-grams"][data-i="' + i + '"]'); if (inp) inp.value = String(it.g);
     paintPlateNums(i); return;
+  }
+  // «¿O era …?»: pasa a la otra opción con los mismos gramos, y la de antes queda para volver.
+  if (a === "plate-alt") {
+    const it = P.items[i]; if (!it || !(it.alt || it.altItem)) return;
+    const g = plateGramsNum(it), antes = Object.assign({}, it, { alt: null, altItem: null });
+    const nuevo = it.alt ? plateDeBase(it.alt, g) : Object.assign({}, it.altItem);
+    Object.assign(nuevo, { g: roundG(g), g0: it.g0, editado: true, alt: null, altItem: antes });
+    P.items[i] = nuevo; platePaint(); return;
   }
   if (a === "plate-change") {
     ComidaState.plateSwap = i; ComidaState.foodQuery = ""; ComidaState.off = null;

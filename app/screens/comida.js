@@ -737,13 +737,19 @@ export function plateQuedan(){
 // Cada alimento: su ícono y el nombre, los gramos con − / + y «Cambiar», y abajo las calorías y
 // los macros. Sin etiquetas de origen («Base GIZE», «Estimado con IA», «Revisá»): pedido del
 // dueño, solo los gramos y los números (el aviso general de la estimación queda abajo de la lista).
+// «¿O era café con leche?»: cuando la IA dudó entre dos que se parecen, un toque los cambia (y vuelve).
+export const plateAltNombre = it => it.alt ? it.alt.nombre + (it.alt.cocido ? " (cocido)" : "") : it.altItem ? it.altItem.name : "";
+function plateAltBtn(it, i){
+  const n = plateAltNombre(it);
+  return n ? `<button class="pl8-alt" data-action="plate-alt" data-i="${i}">¿O era ${esc(shortName(n).toLowerCase())}?</button>` : "";
+}
 function plateRow(it, i){
   const nm = esc(shortName(it.name));
   return `<div class="pl8-row" data-i="${i}">
       <div class="pl8-top">
         <span class="pl8-ic" aria-hidden="true">${foodIcon(it.name)}</span>
         <div class="pl8-head">
-          <span class="pl8-name">${nm}</span>
+          <span class="pl8-name">${nm}</span>${plateAltBtn(it, i)}
         </div>
         <button class="pl8-x" data-action="plate-remove" data-i="${i}" aria-label="Quitar ${nm}">${xSvg}</button>
       </div>

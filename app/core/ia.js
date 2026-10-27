@@ -81,7 +81,7 @@ export async function iaGuardarPermiso(acepta){
 
 // Foto → JPEG en base64 (sin el "data:…,"), con el lado más largo en max px. El canvas no copia
 // los datos de la foto (EXIF, GPS): solo viaja la imagen.
-export async function photoB64(file, max = 1024){
+export async function photoB64(file, max = 1568){
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("foto")); i.src = url; });

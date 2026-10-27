@@ -111,7 +111,7 @@ export default async function ({ base: url, t }){
   t.eq(Object.keys(ll).sort(), ['imagen', 'modo'], 'solo la foto: ningún texto ni aclaración');
   t.ok(!JSON.stringify(ll).includes(ALUMNO.id) && !JSON.stringify(ll).includes(ALUMNO.email), 'no manda el id ni el mail');
   const tam = await p.evaluate(async b64 => { const i = new Image(); i.src = 'data:image/jpeg;base64,' + b64; await i.decode(); return Math.max(i.naturalWidth, i.naturalHeight); }, ll.imagen || '');
-  t.ok(tam > 0 && tam <= 1024, 'la foto va achicada a 1024 px como mucho (' + tam + ')');
+  t.ok(tam > 0 && tam <= 1568, 'la foto va achicada a 1568 px como mucho (' + tam + ')');
 
   const filas = async () => p.$$eval('#sheetHost .pl8-row', rs => rs.map(r => ({ n: r.querySelector('.pl8-name').textContent, txt: r.textContent.replace(/\s+/g, ' ').trim(),
     g: r.querySelector('input').value, v: r.querySelector('.pl8-vals').textContent })));

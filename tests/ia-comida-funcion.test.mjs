@@ -4,7 +4,7 @@
 // - quién puede: sin sesión 401; sin el permiso vigente 403 sin_permiso (nunca preguntado, apagado
 //   en Ajustes o un aviso viejo), sin reservar ni llamar; con la función o el interruptor apagados,
 //   «pausada» sin llamar; sin la clave, sin tocar la base;
-// - la foto: solo JPEG de hasta 1024 px (la que manda la app); 2000 × 2000 o un PNG no se mandan;
+// - la foto: solo JPEG de hasta 1568 px (la que manda la app); 2000 × 2000 o un PNG no se mandan;
 // - el pedido: la BASE de GIZE primero con caché de 1 hora, el esquema y el esfuerzo, max_tokens,
 //   sin nada que cobre aparte, sin datos de la persona; el modelo que no acepta esfuerzo va sin él;
 // - la respuesta: valores de la base cuando el alimento está (crudo → cocido), la estimación si no
@@ -28,12 +28,12 @@ function jpeg(ancho, alto){
     0xFF, 0xC0, 0x00, 0x11, 0x08, alto >> 8, alto & 255, ancho >> 8, ancho & 255, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1,
     0xFF, 0xDA, 0x00, 0x08, 1, 1, 0, 0, 0x3F, 0, 0x12, 0x34, 0xFF, 0xD9]);
 }
-const FOTO = jpeg(1024, 768).toString('base64');
+const FOTO = jpeg(1568, 1176).toString('base64');
 const http = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const USO = { input_tokens: 1200, output_tokens: 300, cache_creation_input_tokens: 0, cache_read_input_tokens: 15000 };
 const respuesta = (out, extra = {}) => ({ id: 'msg_1', type: 'message', role: 'assistant', model: 'x',
   content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: typeof out === 'string' ? out : JSON.stringify(out) }], stop_reason: 'end_turn', usage: USO, ...extra });
-const item = (o) => Object.assign({ id_base: -1, nombre_base: '', nombre: 'Algo', cantidad: null, unidad: null, gramos: 100, kcal: 100, proteinas: 1, carbohidratos: 1, grasas: 1, dudoso: false }, o);
+const item = (o) => Object.assign({ id_base: -1, nombre_base: '', nombre: 'Algo', cantidad: null, unidad: null, gramos: 100, kcal: 100, proteinas: 1, carbohidratos: 1, grasas: 1, dudoso: false, alternativa: { nombre: '', id_base: -1, nombre_base: '' } }, o);
 // Un alimento de la BASE como lo contesta la IA: el número y el nombre copiado.
 const deBase = (n, o) => item(Object.assign({ id_base: idx(n), nombre_base: n }, o));
 const PLATO = { descripcion: 'Milanesa con arroz y puré', hay_comida: true, nota: '', items: [
@@ -106,8 +106,8 @@ export default async ({ t }) => {
   t.ok(!!b, 'plato: llama a la API');
   if (b){
     t.ok(P.esModelo(b.model) && P.MODELOS[b.model].defecto, 'plato: el modelo de siempre, de la lista');
-    t.eq(b.max_tokens, 2000, 'plato: max_tokens 2000');
-    t.eq(b.output_config.effort, 'low', 'plato: esfuerzo bajo');
+    t.eq(b.max_tokens, 4000, 'plato: max_tokens 4000 (con lugar para pensar)');
+    t.eq(b.output_config.effort, 'medium', 'plato: esfuerzo medio (piensa un poco antes de contestar)');
     t.eq(b.output_config.format, { type: 'json_schema', schema: C.COMIDA }, 'plato: salida con el esquema COMIDA');
     t.ok(Array.isArray(b.system) && b.system.length === 2 && b.system[0].text.startsWith('BASE (número;nombre):\n0;') && b.system[1].text === C.PROMPT_PLATO, 'plato: primero la BASE, después las instrucciones');
     t.eq(b.system[0].cache_control, { type: 'ephemeral', ttl: '1h' }, 'plato: la BASE con caché de 1 hora');
@@ -163,6 +163,22 @@ export default async ({ t }) => {
   t.eq(nb[5], null, 'BASE: un nombre que no está en la base no se usa, aunque el número sí');
   t.eq(nb[6], null, 'BASE: sin el nombre copiado no se usa el número solo');
   t.ok((h.json.items || [])[1] && h.json.items[1].nombre === 'Café con leche' && h.json.items[1].kcal === 110, 'BASE: lo descartado queda con el nombre y la estimación de la IA');
+
+  // «¿O era …?»: cuando duda entre dos que se parecen, la otra opción de la BASE (con los mismos
+  // controles que la primera); sin alternativa, repetida o que no coincide, no va.
+  const alt = (n, o) => ({ nombre: n, id_base: idx(n), nombre_base: n, ...o });
+  h = await correr({ out: { descripcion: 'Taza de café con espuma', hay_comida: true, nota: '', items: [
+    deBase('Capuchino', { nombre: 'Capuchino', gramos: 250, kcal: 120, dudoso: true, alternativa: alt('Café con leche', { nombre: 'Café con leche' }) }),
+    deBase('Capuchino', { nombre: 'Capuchino', gramos: 250, kcal: 120 }),
+    deBase('Capuchino', { nombre: 'Capuchino', gramos: 250, kcal: 120, dudoso: true, alternativa: alt('Capuchino') }),
+    deBase('Capuchino', { nombre: 'Capuchino', gramos: 250, kcal: 120, dudoso: true, alternativa: alt('Submarino', { nombre: 'Café con leche' }) }),
+    deBase('Capuchino', { nombre: 'Capuchino', gramos: 250, kcal: 120, dudoso: true, alternativa: alt('Café con leche', { id_base: idx('Submarino'), nombre: 'Café con leche' }) }),
+  ] } });
+  const al = (h.json.items || []).map(x => x.alternativa && x.alternativa.nombre);
+  t.eq(al[0], 'Café con leche', 'alternativa: capuchino o café con leche, la otra de la BASE');
+  t.ok(h.json.items[0].alternativa && h.json.items[0].alternativa.kcal > 0, 'alternativa: con sus valores de la BASE');
+  t.eq([al[1], al[2], al[3]], [null, null, null], 'alternativa: sin alternativa, la misma que la primera o una que no coincide con lo que dice, no va');
+  t.eq(al[4], 'Café con leche', 'alternativa: si el número se corrió, vale el nombre copiado');
   t.ok(C.COMIDA.required[0] === 'descripcion' && C.COMIDA.properties.items.items.required.slice(0, 3).join() === 'nombre,id_base,nombre_base',
     'esquema: primero describe la foto; en cada alimento, primero lo que ve y después el número y el nombre de la BASE');
   t.has(C.PROMPT_PLATO, 'las bebidas también cuentan', 'instrucciones: las bebidas son un alimento más');
@@ -182,7 +198,9 @@ export default async ({ t }) => {
   t.has(h.json.mensaje || '', 'foto del plato', 'texto: el mensaje lleva a la foto del plato');
   h = await correr({ user: null, body: { modo: 'texto', texto: 'dos empanadas' } });
   t.ok(h.status === 401 && h.json.codigo === 'sin_sesion' && !h.fetches.length, 'texto sin sesión: 401 como siempre');
-  t.ok(!('PROMPT_TEXTO' in C) && C.MAX_TOKENS_PLATO === 2000 && C.TEXTO_MAX_PLATO === 200, 'comida.ts: sin las instrucciones del texto; solo los topes del plato');
+  for (const s of ['cappuccino tiene una capa alta de espuma', 'el café con leche es de color parejo', 'el cortado es poco', 'el submarino', 'Milanesa frita', 'Puré de papa', 'poné el más probable y el otro en alternativa'])
+    t.has(C.PROMPT_PLATO, s, 'instrucciones: pista para lo que se confunde («' + s + '»)');
+  t.ok(!('PROMPT_TEXTO' in C) && C.MAX_TOKENS_PLATO === 4000 && C.TEXTO_MAX_PLATO === 200, 'comida.ts: sin las instrucciones del texto; solo los topes del plato');
 
   // ---------- topes, guardia y errores ----------
   h = await correr({ rol: 'coach' });
@@ -217,6 +235,6 @@ export default async ({ t }) => {
 
   // ---------- cuentas ----------
   const base = C.baseTexto({ foods: FOODS, cocido: cookVariant });
-  const ep = C.entradaComida(base, 'x'.repeat(C.TEXTO_MAX_PLATO), { ancho: 1024, alto: 1024 }, P.modeloDefecto());
+  const ep = C.entradaComida(base, 'x'.repeat(C.TEXTO_MAX_PLATO), { ancho: 1568, alto: 1568 }, P.modeloDefecto());
   t.ok(ep < C.ENTRADA_MAX_PLATO && ep > base.length / 2, 'la entrada máxima del plato (con la aclaración más larga) entra en su tope (' + ep + ' de ' + C.ENTRADA_MAX_PLATO + ')');
 };
