@@ -83,6 +83,14 @@
 .cp-copt:hover { border-color:var(--green); color:var(--green); }
 
 .cp-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+/* Elegir o cambiar ejercicio: alto fijo (pedido del dueño, 27/10: crecía y se achicaba con cada
+   letra que se buscaba y, como está centrada, saltaba arriba y abajo). Arriba quedan fijos el título
+   y el buscador; los grupos, los ejercicios y «nombre propio» se deslizan adentro. Con el teclado
+   abierto en el celular, ocupa lo que se ve arriba del teclado (--vvh, ui/keyboard.js). */
+html body .cp-modal { height:min(680px, 86dvh); display:flex; flex-direction:column; overflow:hidden; }
+.cp-modal > .cp-head, .cp-modal > .search-wrap { flex:none; }
+.cp-body { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; margin-top:12px; padding-bottom:2px; }
+html.kb-open body .cp-modal { top:calc(var(--vvtop, 0px) + 12px); transform:translate(-50%, 0); height:calc(var(--vvh, 60dvh) - 24px); }
 
 .cp-title { font-size:18px; font-weight:800; color:var(--txt); }
 

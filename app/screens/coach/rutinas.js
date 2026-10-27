@@ -1079,10 +1079,12 @@ export function coachPickerMarkup(){
     inner='<div class="cp-bar"><button class="cp-back" data-cp="cats">\u2039 Grupos</button><span class="cp-catname">'+esc(lb)+'</span></div>'+
       '<div class="cp-exs">'+(EX_DB[CoachState.coachPCat]||[]).map(n=>'<button class="cp-ex" data-cp="choose" data-name="'+esc(n)+'" data-cat="'+esc(CoachState.coachPCat)+'">'+esc(n)+'</button>').join("")+'</div>';
   }
+  // La cabecera y el buscador quedan fijos arriba; lo de abajo se desliza adentro (.cp-body). La
+  // ventana tiene alto fijo: antes crecía y se achicaba con cada letra (y, centrada, saltaba).
   return '<div class="cp-head"><div class="cp-title">'+(CoachState.coachPicker.mode==="swap"?"Cambiar ejercicio":"Elegir ejercicio")+'</div><button class="cp-x" data-cp="cancel">\u2715</button></div>'+
     '<div class="search-wrap"><span class="search-ic">'+searchSvg+'</span><input class="cp-search" placeholder="Buscar ejercicio en toda la base..." value="'+esc(CoachState.coachPQ)+'" data-cp="search"></div>'+
-    inner+
-    '<button class="cp-custom" data-cp="custom">\u270e '+(CoachState.coachPicker.mode==="swap"?"Escribir nombre propio":"Agregar con nombre propio")+'</button>';
+    '<div class="cp-body">'+inner+
+    '<button class="cp-custom" data-cp="custom">\u270e '+(CoachState.coachPicker.mode==="swap"?"Escribir nombre propio":"Agregar con nombre propio")+'</button></div>';
 }
 
 export function renderCoachPicker(){

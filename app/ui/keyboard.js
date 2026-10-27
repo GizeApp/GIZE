@@ -17,7 +17,15 @@
     const el = document.activeElement;
     return !!el && (el.isContentEditable || (el.matches && el.matches("textarea, input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=submit],[type=reset],[type=file],[type=color])")));
   }
+  let lastVh = -1, lastVt = -1;
   function update() {
+    // El alto que de verdad se ve (sin el teclado). Con el teclado abierto el iPhone además corre la
+    // vista para mostrar el campo (vv.offsetTop): la ventana de búsqueda medía «pantalla − teclado»,
+    // quedaba más alta que lo visible y su parte de arriba (el buscador) se escondía arriba
+    // (pedido del dueño, 27/10). Con --vvh mide justo lo que se ve.
+    const vh = Math.round(vv.height), vt = Math.max(0, Math.round(vv.offsetTop));
+    if (vh !== lastVh) { lastVh = vh; root.style.setProperty("--vvh", vh + "px"); }
+    if (vt !== lastVt) { lastVt = vt; root.style.setProperty("--vvtop", vt + "px"); }
     if (window.innerWidth !== baseW) { baseW = window.innerWidth; baseH = window.innerHeight; } // giró el celular
     else if (window.innerHeight > baseH) baseH = window.innerHeight;
     const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));

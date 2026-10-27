@@ -94,7 +94,8 @@ function reenfocar(id){
 // adentro (menos la cabecera) apareciendo o yéndose de a poco y la flechita girando, desde como se
 // ven ahora. Si algo de más arriba que el ejercicio tocado cambia de alto, se compensa con el
 // scroll sumando lo que cambió (sin medir la pantalla en cada cuadro). alFin() deja la pantalla
-// como queda; lo que sigue en pantalla se limpia; luego() corre al final de todo.
+// como queda; lo que sigue en pantalla se limpia; luego(suelto) corre al final de todo (suelto: la
+// persona movió la pantalla mientras tanto).
 function animar(items, ancla, top0, alFin, luego){
   const a = ancla();
   items.forEach(it => {
@@ -138,7 +139,7 @@ function animar(items, ancla, top0, alFin, luego){
       if (it.quieto){ it.el.inert = false; it.el.removeAttribute('aria-hidden'); }
     });
     if (!suelto) fijar(ancla, top0);
-    if (luego) luego();
+    if (luego) luego(suelto);
   };
   const cuadro = now => {
     if (compensa && !suelto) movio();
@@ -160,6 +161,45 @@ function animar(items, ancla, top0, alFin, luego){
   actual = { fin };
   cuadro(t0); // el primer cuadro ya sale con los altos de antes: nada salta antes de animar
   fijar(ancla, top0); objetivo = esperado = window.scrollY;
+}
+
+// Al abrir un ejercicio que quedó abajo (el sexto, con los de arriba cerrados), su card crecía
+// fuera de la pantalla y había que bajar a buscarla. Pedido del dueño (27/10): que quede a la vista,
+// «súper sutil, súper fino». Si la card abierta no entra entera arriba de la barra de abajo, la
+// pantalla baja lo justo para mostrarla (o hasta dejar su cabecera arriba, si es más alta que la
+// pantalla), arrancando y frenando suave. Nunca sube; el dedo manda: si la persona mueve la pantalla,
+// se deja ahí. Con «reducir movimiento» o el modo liviano, de una vez.
+const ARRIBA = 16; // px libres arriba de la card
+// Dura según cuánto baja: 300 ms para un poco, hasta 600 ms para una pantalla (sin apuro).
+const acomodoMs = dy => Math.min(600, Math.max(300, 300 + dy * 0.6));
+// Arranca y frena suave (sin el tirón del principio de la curva de abrir).
+const curvaSuave = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+let acomodo = 0;
+function acomodar(n){
+  cancelAnimationFrame(acomodo);
+  if (!n || !n.isConnected) return;
+  const r = n.getBoundingClientRect(), nav = document.querySelector('.navbar');
+  const abajo = Math.min(window.innerHeight, nav ? nav.getBoundingClientRect().top : window.innerHeight) - 12;
+  const sobra = r.bottom - abajo;
+  if (sobra <= 0.5) return;
+  const dy = Math.min(sobra, r.top - ARRIBA);
+  if (dy <= 0.5) return;
+  const y0 = window.scrollY;
+  if (sinMovimiento()){ scrollA(y0 + dy); return; }
+  let esperado = y0, suelto = false;
+  const soltar = () => { suelto = true; };
+  const OPC = { passive: true, capture: true };
+  window.addEventListener('wheel', soltar, OPC);
+  window.addEventListener('touchstart', soltar, OPC);
+  const listo = () => { window.removeEventListener('wheel', soltar, OPC); window.removeEventListener('touchstart', soltar, OPC); };
+  const t0 = performance.now(), ms = acomodoMs(dy);
+  const cuadro = now => {
+    if (suelto || Math.abs(window.scrollY - esperado) > 1){ listo(); return; }
+    const p = Math.min(1, (now - t0) / ms);
+    esperado = scrollA(y0 + dy * curvaSuave(p));
+    if (p < 1) acomodo = requestAnimationFrame(cuadro); else listo();
+  };
+  acomodo = requestAnimationFrame(cuadro);
 }
 
 // La card mientras se achica: sin toques ni lector de pantalla.
@@ -190,7 +230,8 @@ export function desplegar(anclaId, aplicar){
     const d = despues.get(anclaId); return d && d.n;
   };
   const foco = conFoco ? () => reenfocar(anclaId) : null;
-  if (!items.length || sinMovimiento()){ fijar(ancla, top0); if (foco) foco(); return; }
+  const abrio = items.some(x => x.id === anclaId && x.abre);
+  if (!items.length || sinMovimiento()){ fijar(ancla, top0); if (foco) foco(); if (abrio) acomodar(ancla()); return; }
   // La card que se cierra vuelve a su lugar mientras se achica, sin data-ex-id (para el resto de la
   // app ese ejercicio ya está cerrado), y al final deja su lugar a la fila.
   items.forEach(it => {
@@ -198,7 +239,8 @@ export function desplegar(anclaId, aplicar){
     it.nuevo.replaceWith(it.el); quieta(it);
     it.el.removeAttribute('data-ex-id'); it.el.dataset.exCerrando = it.id;
   });
-  animar(items, ancla, top0, () => items.forEach(it => { if (!it.abre && it.viejo.isConnected) it.viejo.replaceWith(it.nuevo); }), foco);
+  animar(items, ancla, top0, () => items.forEach(it => { if (!it.abre && it.viejo.isConnected) it.viejo.replaceWith(it.nuevo); }),
+    suelto => { if (foco) foco(); if (abrio && !suelto) acomodar(ancla()); });
   if (foco) foco(); // el que se abre ya está; el que se cierra, al final
 }
 
