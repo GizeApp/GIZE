@@ -431,7 +431,9 @@ export function paintBarraIA(){
 }
 
 // Ventana de búsqueda (como Fitia): comida elegida arriba, buscador con el teclado listo,
-// resultados que se desplazan y "Crear alimento propio". Tocar un resultado abre la hoja
+// resultados que se desplazan y, al final de la lista, "Crear alimento propio" y "Pedí que lo
+// agreguemos". Antes esos dos iban fijos abajo y, con el teclado abierto en el celular, dejaban
+// lugar para un solo resultado (pedido del dueño, 27/10): ahora se desplazan con la lista. Tocar un resultado abre la hoja
 // del alimento; al cancelarla se vuelve acá con lo buscado.
 export function renderSearchSheet(){
   const vd = (ComidaState.viewDate && ComidaState.viewDate < today()) ? ComidaState.viewDate : today();
@@ -454,9 +456,11 @@ export function renderSearchSheet(){
         ${foto ? fotoBtn() : ""}
         ${scan ? scanBtn() : ""}
       </div>
-      <div id="foodResults" class="ss-results">${renderResults(ComidaState.foodQuery)}</div>
-      ${swap ? "" : `<button class="cal-create" data-action="food-create-open">${plusSvg}<span>Crear alimento propio</span></button>
-      <button class="cal-create rq-open" data-action="rq-open">${messageSvg}<span>¿No encontrás un producto? Pedí que lo agreguemos</span></button>`}
+      <div class="ss-scroll">
+        <div id="foodResults" class="ss-results">${renderResults(ComidaState.foodQuery)}</div>
+        ${swap ? "" : `<button class="cal-create" data-action="food-create-open">${plusSvg}<span>Crear alimento propio</span></button>
+        <button class="cal-create rq-open" data-action="rq-open">${messageSvg}<span>¿No encontrás un producto? Pedí que lo agreguemos</span></button>`}
+      </div>
     </div>`;
 }
 
