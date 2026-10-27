@@ -34,6 +34,28 @@ export function renderAsistencia(){
     '<p class="gy-pie">Ingresos manuales de la recepción. El estado es el de la ficha al entrar.</p>';
 }
 
+// Los ingresos de hoy, en la recepción (misma tabla que Asistencia; se redibuja solo al registrar).
+const filaIng = e => {
+  const r = RESULTADO[e.resultado] || ["gris", e.resultado || "—"];
+  return '<div class="gy-row gy-row-eq gy-row-ing" role="row">' +
+    '<div class="gy-td gy-td-socio" role="cell"><span class="gy-ing-h">' + esc(horaAR(e.at)) + '</span><b>' + esc(e.nombre || "Sin nombre") + '</b></div>' +
+    '<div class="gy-td" role="cell" data-l="Cómo">' + esc(METODO[e.metodo] || e.metodo || "Manual") + '</div>' +
+    '<div class="gy-td" role="cell" data-l="Estado"><span class="gy-sem ' + r[0] + '"><i aria-hidden="true"></i>' + esc(r[1]) + '</span></div>' +
+    '<div class="gy-td" role="cell" data-l="Registró">' + esc(e.por || "—") + '</div></div>';
+};
+export function panelHoy(){
+  const L = GS.ingresos;
+  if (L === null && GS.ingresosError) return '<section class="gy-hoy-sin" aria-hidden="true"></section>';
+  const cab = '<div class="gy-hoy-h"><h2 class="gy-h">Ingresos de hoy</h2>' + (L ? '<span class="gy-n">' + L.length + '</span>' : '') + '</div>';
+  let cuerpo;
+  if (L === null) cuerpo = '<p class="gy-fino" aria-busy="true">Cargando…</p>';
+  else if (!L.length) cuerpo = '<div class="cv-card gy-vacio"><p class="gy-hoy-vacio">Todavía no entró nadie hoy. Los ingresos que registres aparecen acá.</p></div>';
+  else cuerpo = '<div class="cv-card gy-tabla gy-tabla-ing" role="table" aria-label="Ingresos de hoy">' +
+    '<div class="gy-row gy-row-eq gy-row-ing gy-th" role="row"><div role="columnheader">Hora y socio</div><div role="columnheader">Cómo</div><div role="columnheader">Estado</div><div role="columnheader">Registró</div></div>' +
+    L.map(filaIng).join("") + '</div>';
+  return '<section class="gy-hoy" aria-label="Ingresos de hoy">' + cab + cuerpo + '</section>';
+}
+
 // Exportar los de hoy (separado por punto y coma, como el resto de los CSV del panel).
 export function exportarIngresos(){
   const L = (GS.ingresos || []).map(e => ({ fecha: hoyAR(), hora: horaAR(e.at), socio: e.nombre || "", metodo: METODO[e.metodo] || e.metodo || "",

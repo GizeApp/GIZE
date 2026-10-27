@@ -38,7 +38,7 @@ function persona(p){
 function invitacion(i){
   const puede = !(i.role === "admin" && !esDueno());
   return '<div class="gy-row gy-row-eq gy-inv"><div class="gy-td gy-td-socio"><span class="gy-av" aria-hidden="true">?</span><div class="gy-socio-t"><b>Invitación de ' + esc(ROLES[i.role] ? ROLES[i.role].corto : i.role) + '</b><span class="gy-fino">Enviada el ' + fecha(i.created_at) + ' · vence el ' + fecha(i.expires_at) + '</span></div></div>' +
-    '<div class="gy-td gy-td-acc">' + (puede ? btn2('data-gym="inv-nuevo" data-id="' + esc(i.id) + '" data-rol="' + esc(i.role) + '"', "Copiar link nuevo") + '<button class="cv-link gy-peligro" data-gym="inv-anular" data-id="' + esc(i.id) + '">Anular</button>' : '') + '</div>' +
+    '<div class="gy-td gy-td-acc">' + (puede ? btn2('data-gym="inv-nuevo" data-id="' + esc(i.id) + '" data-rol="' + esc(i.role) + '"', "Copiar link nuevo") + '<button class="gy-btn-anular" data-gym="inv-anular" data-id="' + esc(i.id) + '">Anular</button>' : '') + '</div>' +
     '<div class="gy-td" data-l="Estado"><span class="gy-estado pausado">Invitación enviada</span></div></div>';
 }
 

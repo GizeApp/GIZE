@@ -134,6 +134,7 @@ export default async function ({ base, t }){
     t.eq(rpcs(pg.st, 'gym_clase_guardar'), [{ id: null, datos: { nombre: 'Pilates', profe: PROFE.id, hora: '08:30', duracion: 45, cupo: 12, sala: 'Sala 2', dia: 3, desde: hoyAR() } }],
       'gym_clase_guardar con todo (el nombre sin espacios)');
     t.ok(!await p.$('#coachHost .gy-cl-form'), 'y se cierra');
+    await p.click('#coachHost [data-gyc="parte"][data-v="grilla"]'); await wait(300);
     await p.click('#coachHost [data-gyc="editar"][data-id="' + CY + '"]'); await wait(400);
     t.ok(await p.$eval('#coachHost [data-gyc-f="dia"]', s => s.disabled) && await p.$eval('#coachHost [data-gyc-f="nombre"]', i => i.value) === 'Yoga', 'cambiar: con sus datos y sin cambiar el día');
     await p.fill('#coachHost [data-gyc-f="cupo"]', '14'); await p.click('#coachHost [data-gyc="guardar"]'); await wait(600);
@@ -143,6 +144,7 @@ export default async function ({ base, t }){
     t.eq(rpcs(pg.st, 'gym_clase_archivar'), [{ id: CS }], 'gym_clase_archivar');
     t.ok(pg.dialogs.some(d => /2 personas tenían reserva/.test(d)), 'y dice a cuántos les llegó un aviso');
     // Cómo se reserva.
+    await p.click('#coachHost [data-gyc="parte"][data-v="reservas"]'); await wait(300);
     await p.fill('#coachHost [data-gyc-cfg="clases_cancelar_horas"]', '4'); await p.press('#coachHost [data-gyc-cfg="clases_cancelar_horas"]', 'Tab'); await wait(600);
     t.eq(rpcs(pg.st, 'gym_clases_config'), [{ patch: { clases_cancelar_horas: 4 } }], '«Se puede cancelar hasta»: gym_clases_config');
     await p.click('#coachHost label.gy-sw:has([data-gyc-cfg="clases_cuota_bloquea"])'); await wait(600);

@@ -65,14 +65,15 @@ export function semaforo(s, grande){
 // La recepción entera. o: { altas: puede cargar fichas, aprobar y sacar fotos; compacto: en una ventana
 // (sin los botones de altas); titulo: el h2 de arriba, si lo lleva }.
 export function renderRecepcion(o = {}){
+  const extra = o.extra || "";
+  const altas = o.altas && !o.compacto ? '<div class="gy-rec-altas">' +
+      '<button class="co-copy-btn cv-sec-btn gy-btn2" data-gym="sumar" data-v="ficha">Cargar ficha</button>' +
+      '<button class="co-copy-btn cv-sec-btn gy-btn2" data-gym="' + (o.solicitudes || "socios-tab") + '" data-v="solicitudes">Solicitudes</button></div>' : '';
   return '<section class="gy-rec' + (o.compacto ? ' gy-rec-compacto' : '') + '" aria-label="Recepción">' +
-    '<label class="cv-find gy-rec-buscar">' + lupa + '<input class="co-search cv-search gy-rec-q" type="search" data-rec-q="1" placeholder="Nombre o DNI del socio" aria-label="Buscar socio por nombre o DNI" autocomplete="off" autocapitalize="words" enterkeyhint="search" value="' + esc(RS.q) + '"></label>' +
+    '<div class="gy-rec-top"><label class="cv-find gy-rec-buscar">' + lupa + '<input class="co-search cv-search gy-rec-q" type="search" data-rec-q="1" placeholder="Nombre o DNI del socio" aria-label="Buscar socio por nombre o DNI" autocomplete="off" autocapitalize="words" enterkeyhint="search" value="' + esc(RS.q) + '"></label>' + altas + '</div>' +
     '<p class="cv-sr gy-rec-vivo" aria-live="polite" aria-atomic="true" data-rec-vivo="1"></p>' +
     '<div class="gy-rec-res" data-altas="' + (o.altas && !o.compacto ? "1" : "") + '" data-cobra="' + (!o.compacto && puedeCobrar() ? "1" : "") + '">' + resultados(!!(o.altas && !o.compacto), !o.compacto && puedeCobrar()) + '</div>' +
-    (o.altas && !o.compacto ? '<div class="gy-acc gy-rec-altas">' +
-      '<button class="co-copy-btn cv-sec-btn gy-btn2" data-gym="sumar" data-v="ficha">Cargar ficha</button>' +
-      '<button class="co-copy-btn cv-sec-btn gy-btn2" data-gym="' + (o.solicitudes || "socios-tab") + '" data-v="solicitudes">Solicitudes</button></div>' : '') +
-  '</section>';
+  extra + '</section>';
 }
 
 function resultados(altas, cobrar){

@@ -17,7 +17,7 @@ export const DIAS = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "
 // desde: el primer día de la semana a la vista; semana: gym_clases_semana; sel: la clase abierta
 // ({ clase, fecha }); lista: gym_clase_alumnos; grilla: gym_clases (dueño y administración); form: la
 // clase que se está creando o cambiando; q y res: buscar a quién anotar; busy: lo que se está guardando.
-export const KS = { desde: null, semana: null, error: "", sel: null, lista: null, listaError: "", grilla: null, form: null, q: "", res: null, busy: "", seq: 0 };
+export const KS = { desde: null, semana: null, error: "", sel: null, lista: null, listaError: "", grilla: null, form: null, q: "", res: null, busy: "", seq: 0, parte: "semana" };
 // o: { editar (dueño y administración), anotar (y la recepción), profe }. La última con la que se dibujó.
 let O = {};
 let repintarFuera = () => {};
@@ -77,6 +77,10 @@ export function renderClases(o){
     '<button class="co-copy-btn cv-sec-btn gy-btn2" data-gyc="semana" data-v="7" aria-label="Semana siguiente">›</button>' +
     (d !== hoyAR() ? '<button class="cv-link" data-gyc="semana" data-v="0">Hoy</button>' : '') +
     (O.editar ? '<button class="gize-btn cv-btn gy-cl-nueva" data-gyc="nueva">Nueva clase</button>' : '') + '</div>';
+  // Dueño y administración: tres partes, cada una en su sección.
+  const parte = O.editar ? KS.parte : "semana";
+  const partes = O.editar ? '<div class="cv-pills gy-tabs" role="tablist" aria-label="Clases">' + [["semana", "La semana"], ["grilla", "La grilla"], ["reservas", "Cómo se reserva"]].map(t =>
+    '<button class="cv-pill' + (parte === t[0] ? ' on' : '') + '" role="tab" aria-selected="' + (parte === t[0]) + '" data-gyc="parte" data-v="' + t[0] + '">' + t[1] + '</button>').join("") + '</div>' : '';
   let cuerpo;
   if (!KS.semana) cuerpo = KS.error ? '<div class="cv-card gy-vacio"><p>' + esc(KS.error) + '</p><button class="co-copy-btn cv-sec-btn gy-btn2" data-gyc="reintentar">Reintentar</button></div>'
     : '<div class="cv-card gy-vacio" aria-busy="true"><p>Cargando las clases…</p></div>';
@@ -90,8 +94,11 @@ export function renderClases(o){
         esc(diaLargo(f)) + (f === hoyAR() ? ' <span class="gy-tag">Hoy</span>' : '') + '</h2><ul class="gy-cl-lista">' + cs.map(item).join("") + '</ul></section>').join("") + '</div>';
     }
   }
-  return (KS.form ? formulario() : '') + nav + cuerpo + (O.editar ? grilla() + reservas() : '') +
-    '<p class="gy-pie">Las reservas las hacen los socios desde su app. Si alguien cancela, el primero de la lista de espera pasa solo y le llega un aviso.</p>';
+  const pie = '<p class="gy-pie">Las reservas las hacen los socios desde su app. Si alguien cancela, el primero de la lista de espera pasa solo y le llega un aviso.</p>';
+  const nuevaClase = O.editar && parte === "grilla" ? '<div class="gy-cl-nav"><button class="gize-btn cv-btn gy-cl-nueva" data-gyc="nueva">Nueva clase</button></div>' : '';
+  if (parte === "grilla") return (KS.form ? formulario() : '') + partes + nuevaClase + grilla();
+  if (parte === "reservas") return partes + reservas() + pie;
+  return (KS.form ? formulario() : '') + partes + nav + cuerpo + pie;
 }
 function lugares(c){
   const t = c.confirmadas + " de " + c.cupo + (c.espera ? " · " + plural(c.espera, "en espera", "en espera") : "");
@@ -244,6 +251,7 @@ document.addEventListener("click", async e => {
   const b = e.target.closest && e.target.closest("[data-gyc]");
   if (!b || b.disabled) return;
   const a = b.dataset.gyc, id = b.dataset.id;
+  if (a === "parte"){ KS.parte = b.dataset.v; repintar(); return; }
   if (a === "semana"){ const n = Number(b.dataset.v); KS.desde = n ? masDias(desde(), n) : null; KS.semana = null; repintar(); cargarSemana(); return; }
   if (a === "reintentar"){ KS.error = ""; cargarClases(); return; }
   if (a === "abrir"){ KS.sel = { clase: id, fecha: b.dataset.f }; KS.lista = null; KS.listaError = ""; KS.q = ""; KS.res = null; repintar(); cargarLista(); try { (document.getElementById("coachHost") || window).scrollTo(0, 0); } catch (er) {} return; }

@@ -86,7 +86,7 @@ export function renderCuotas(){
       F.map(fila).join("") + '</div>'
     : vacio(VACIO[tab] || "");
   return cabeza("Cuotas", acc, sub) + stats + pills + lista +
-    '<p class="gy-pie">Los activos cuentan en los totales; los pausados y las visitas se ven en «Todos». Por cobrar: la cuota de quien venció, vence este mes o no tiene pagos.</p>' + tipos();
+    tipos();
 }
 
 // ---- La sección «Cuota» de la ficha ----
