@@ -309,6 +309,7 @@ async function abrirPago(id){
   const nombre = ((GS.cuotas && GS.cuotas.socios) || []).concat(GS.socios || [], (RS && RS.lista) || []).map(x => x.id === id ? x.nombre : "").find(Boolean) || "";
   const m = nuevoPago(id, nombre);
   abrir(m);
+  if (GS.tipos === null && manejaCuotas()) Promise.resolve(cargarTipos()).then(() => { if (GS.modal === m && m.datos) pintarModal(); });
   const r = await rpc("gym_pagos_ficha", { ficha: id });
   if (GS.modal !== m) return;
   if (r.error) m.error = r.msg; else m.datos = r.data && typeof r.data === "object" ? r.data : {};
@@ -317,6 +318,12 @@ async function abrirPago(id){
 }
 const registrarPago = () => ocupado("pago", async () => {
   const m = GS.modal; if (!m || m.tipo !== "pago") return;
+  // Sin cuota y eligió una: primero se la asigna (queda con el vencimiento que ya tenía) y después va el pago.
+  if (m.cuotaId && !(m.datos && m.datos.cuota)){
+    const a = await rpc("gym_cuota_asignar", { fichas: [m.id], tipo: m.cuotaId, vence: null });
+    if (a.error){ alert(a.msg); return; }
+    m.datos = Object.assign({}, m.datos, { cuota: (GS.tipos || []).find(x => x.id === m.cuotaId) });
+  }
   const r = await rpc("gym_pago_registrar", { id: m.pid, ficha: m.id, monto: Number(m.monto), medio: m.medio, fecha: m.fecha || null,
     hasta: m.hastaTocado ? (m.hasta || null) : null, nota: (m.nota || "").trim() || null });
   if (r.error){ alert(r.msg); return; }
@@ -494,7 +501,8 @@ async function alTocar(e){
   }
   if (a === "copiar"){ if (await copiar(b.dataset.v || "")) marcarCopiado(b); else alert("No se pudo copiar: " + (b.dataset.v || "")); return; }
   // Cuotas (etapa 2)
-  if (a === "cuotas-tab"){ GS.cuotasTab = b.dataset.v; if (GS.view !== "cuotas") return ir("cuotas"); repintar(); return; }
+  if (a === "cuotas-parte"){ GS.cuotasParte = b.dataset.v; repintar(); return; }
+  if (a === "cuotas-tab"){ GS.cuotasParte = "estados"; GS.cuotasTab = b.dataset.v; if (GS.view !== "cuotas") return ir("cuotas"); repintar(); return; }
   if (a === "cuota-pago") return abrirPago(id);
   if (a === "pago-ok") return registrarPago();
   if (a === "cuotas-csv") return exportarPagos(b);
@@ -805,7 +813,9 @@ async function alCambiar(e){
   // Cuotas: el medio de pago, la fecha (cambia lo que cubre), cada cuánto, la cuota de la ficha y «No dejar entrar».
   if (t.dataset.gymPg && GS.modal && GS.modal.tipo === "pago"){
     const k = t.dataset.gymPg;
-    if (k === "medio") GS.modal.medio = t.value; else if (k === "fecha") GS.modal.fecha = t.value; else return;
+    if (k === "medio") GS.modal.medio = t.value; else if (k === "fecha") GS.modal.fecha = t.value;
+    else if (k === "cuotaId"){ const m = GS.modal; m.cuotaId = t.value; m.monto = ""; m.montoTocado = false; m.hasta = ""; m.hastaTocado = false; }
+    else return;
     pintarModal(); return;
   }
   if (t.dataset.gymTp === "meses" && GS.modal){ GS.modal.meses = Number(t.value); return; }

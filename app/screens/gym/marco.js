@@ -32,9 +32,11 @@ export const I = {
 function opciones(){
   const c = info().contadores || {}, coach = soyCoach();
   const L = [
+    ["-", "Gimnasio"],
     ["inicio", "Inicio", I.home, 'data-gym="ir" data-v="inicio"', true],
     ["socios", "Socios", I.users, 'data-gym="ir" data-v="socios"', true, (c.solicitudes || 0) + (c.fotos_pendientes || 0)],
     ["profes", "Profes", I.team, 'data-gym="ir" data-v="profes"', false],
+    ["recepcion", "Recepción", I.desk, 'data-gym="ir" data-v="recepcion"', false],
     ["asistencia", "Asistencia", I.check, 'data-gym="ir" data-v="asistencia"', true],
     // Cuotas (etapa 2): lo que le pagan al gimnasio en el mostrador; en el celular, en «Más».
     ["cuotas", "Cuotas", I.cash, 'data-gym="ir" data-v="cuotas"', false],
@@ -46,8 +48,7 @@ function opciones(){
   if (coach) L.push(
     ["tpls", "Rutinas", I.dumbbell, 'data-coach="view-tpls" data-gy-coach="1"', false],
     ["meals", "Planes<span class=\"cv-more\"> alimenticios</span>", I.fork, 'data-coach="view-meals" data-gy-coach="1"', false]);
-  L.push(["-", ""],
-    ["recepcion", "Recepción", I.desk, 'data-gym="ir" data-v="recepcion"', false],
+  L.push(["-", "Más"],
     ["config", "Configuración", gearSvg, 'data-gym="ir" data-v="config"', false],
     // En las apps, sin nombrar el plan (pantalla neutra: app/screens/gym/plan.js).
     ["plan", enApp() ? "Acceso a GIZE" : "Plan de GIZE", I.star, 'data-gym="ir" data-v="plan"', false]);

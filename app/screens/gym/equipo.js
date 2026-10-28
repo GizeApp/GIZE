@@ -44,7 +44,8 @@ function invitacion(i){
 
 export function renderEquipo(){
   const L = GS.equipo, tab = GS.equipoTab;
-  const head = cabeza("Profes", btn('data-gym="invitar"', "Invitar"), esc(topeTxt()));
+  const head = cabeza("Profes", "", esc(topeTxt()));
+  const mas = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
   if (L === null) return head + (GS.equipoError ? vacio(esc(GS.equipoError), btn2('data-gym="reintentar"', "Reintentar")) : cargando("Cargando el equipo…"));
   if (GS.equipoSel) return head + detalle(L.find(p => p.user_id === GS.equipoSel));
   const inv = GS.invitaciones || [];
@@ -54,9 +55,11 @@ export function renderEquipo(){
   }).join("") + '</div>';
   const filas = L.filter(p => enTab(p, tab)).map(persona).concat(inv.filter(i => i.role === tab).map(invitacion));
   const sinNadie = tab === "profe" && !L.some(p => p.rol === "profe") && !inv.some(i => i.role === "profe");
-  const cuerpo = sinNadie ? vacio((enApp() ? "Sumá a tus profes." : "Sumá a tus profes: entran sin cargo.") + " Cada uno ve a sus socios y vos ves lo que tus socios compartan.", btn('data-gym="invitar" data-v="profe"', "Invitar profe"))
+  const cuerpo = sinNadie ? vacio((enApp() ? "Sumá a tus profes." : "Sumá a tus profes: entran sin cargo.") + " Cada uno ve a sus socios y vos ves lo que tus socios compartan.", btn('data-gym="invitar" data-v="profe"', mas + "Invitar profe", "gize-btn cv-btn gy-sumar"))
     : filas.length ? '<div class="cv-card gy-tabla gy-tabla-eq">' + filas.join("") + '</div>' : vacio("Nadie en " + (tab === "admin" ? "la administración" : "la recepción") + " todavía.", btn2('data-gym="invitar" data-v="' + tab + '"', "Invitar"));
-  return head + tabs + cuerpo;
+  // «Invitar» va en la fila de las pestañas, a la derecha y bien a la vista (con la lista vacía ya está en el cartel).
+  const barra = '<div class="gy-filtros-bar">' + tabs + (sinNadie ? '' : btn('data-gym="invitar" data-v="' + tab + '"', mas + "Invitar", "gize-btn cv-btn gy-sumar")) + '</div>';
+  return head + barra + cuerpo;
 }
 
 // Lo elegido en «Pasar todos a» y en «Rol» (GS.pasarA, GS.rolNuevo) sigue elegido en cada redibujo:

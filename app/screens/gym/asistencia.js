@@ -13,11 +13,13 @@ const METODO = { manual: "Manual", pase: "Pase", offline: "Sin conexión" };
 
 export function renderAsistencia(){
   const L = GS.ingresos;
-  const acc = btn('data-gym="ir" data-v="recepcion"', "Abrir recepción") + btn2('data-gym="ingreso-manual"', "Ingreso manual") +
-    btn2('data-gym="asis-csv"' + (L && L.length ? '' : ' disabled'), "Exportar CSV");
+  // Las acciones van en una fila propia, a la derecha del contenido y más a la vista que en el título.
+  const acc = '';
+  const barra = '<div class="gy-filtros-bar gy-asis-barra">' + btn2('data-gym="asis-csv"' + (L && L.length ? '' : ' disabled'), "Exportar CSV") +
+    btn('data-gym="ingreso-manual"', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Ingreso manual', "gize-btn cv-btn gy-sumar") + '</div>';
   const sub = L ? (L.length ? plural(L.length, "ingreso hoy", "ingresos hoy") : "Hoy") : "Hoy";
-  if (L === null) return cabeza("Asistencia", acc, sub) + (GS.ingresosError ? vacio(esc(GS.ingresosError), btn2('data-gym="reintentar"', "Reintentar")) : cargando("Cargando los ingresos de hoy…"));
-  if (!L.length) return cabeza("Asistencia", acc, sub) + vacio("Cuando registres ingresos en la recepción, los vas a ver acá.");
+  if (L === null) return cabeza("Asistencia", acc, sub) + barra + (GS.ingresosError ? vacio(esc(GS.ingresosError), btn2('data-gym="reintentar"', "Reintentar")) : cargando("Cargando los ingresos de hoy…"));
+  if (!L.length) return cabeza("Asistencia", acc, sub) + barra + vacio("Cuando registres ingresos en la recepción, los vas a ver acá.");
   const filas = L.map(e => {
     const r = RESULTADO[e.resultado] || ["gris", e.resultado || "—"];
     return '<div class="gy-row gy-row-eq gy-row-ing" role="row">' +
@@ -27,7 +29,7 @@ export function renderAsistencia(){
       '<div class="gy-td" role="cell" data-l="Registró">' + esc(e.por || "—") + '</div>' +
     '</div>';
   }).join("");
-  return cabeza("Asistencia", acc, sub) +
+  return cabeza("Asistencia", acc, sub) + barra +
     '<div class="cv-card gy-tabla gy-tabla-ing" role="table" aria-label="Ingresos de hoy">' +
       '<div class="gy-row gy-row-eq gy-row-ing gy-th" role="row"><div role="columnheader">Hora y socio</div><div role="columnheader">Cómo</div><div role="columnheader">Estado</div><div role="columnheader">Registró</div></div>' +
       filas + '</div>' +

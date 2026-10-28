@@ -61,8 +61,11 @@ export function renderInicio(){
   ];
   const primer = pasos.every(p => p[0]) || GS.socios === null ? "" : '<section class="cv-card gy-pasos"><h2 class="cv-h2">Para arrancar</h2><ol>' +
     pasos.map(p => '<li class="' + (p[0] ? "hecho" : "") + '"><button class="gy-paso" ' + p[2] + '>' + (p[0] ? '<s>' + p[1] + '</s>' : p[1]) + '</button></li>').join("") + '</ol></section>';
-  return cabeza("Inicio", btn('data-gym="sumar"', "Sumar socio") + btn2('data-gym="ir" data-v="recepcion"', "Abrir recepción"), esc(gym().name || "") + " · " + hoyLargo()) +
-    cartelesPlan() + primer + stats + '<div class="gy-cols">' + todo + '</div>';
+  // El acceso a la recepción: lo que más se usa en el día, bien a la vista.
+  const recep = '<section class="cv-card gy-recep-cta"><div><h2 class="cv-h2">Recepción</h2><p>Buscá al socio y registrá su ingreso.</p></div>' +
+    btn('data-gym="ir" data-v="recepcion"', "Abrir recepción", "gize-btn cv-btn gy-recep-btn") + '</section>';
+  return cabeza("Inicio", "", esc(gym().name || "") + " · " + hoyLargo()) +
+    cartelesPlan() + recep + primer + stats + '<div class="gy-cols">' + todo + '</div>';
 }
 const PROBADA = "gize_gym_recepcion_vista";
 export function recepcionProbada(){ try { return localStorage.getItem(PROBADA) === "1"; } catch (e) { return false; } }

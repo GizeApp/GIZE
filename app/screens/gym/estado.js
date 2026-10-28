@@ -28,7 +28,7 @@ export const GS = {
   crear: { nombre: "", ciudad: "", provincia: "", acepto: false, busy: false },
   // Cuotas (etapa 2): el resumen (gym_cuotas_resumen), los tipos de cuota (gym_cuotas_tipos) y la
   // pestaña elegida (vencida, por_vencer, sin_pagos, al_dia, sin_cuota o todos).
-  cuotas: null, cuotasError: "", tipos: null, cuotasTab: "vencida",
+  cuotas: null, cuotasError: "", tipos: null, cuotasTab: "vencida", cuotasParte: "estados",
 };
 
 // Quien llama a la RPC ve el texto propio del servidor (P0001) tal cual; sin permiso, uno neutro.

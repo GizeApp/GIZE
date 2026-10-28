@@ -77,15 +77,17 @@ export function renderSocios(){
   const nBajas = (L || []).filter(s => s.estado === "baja").length, nSoc = (L || []).filter(s => s.estado !== "baja").length;
   const tabs = '<div class="cv-pills gy-tabs" role="tablist">' + [["socios", "Socios", nSoc], ["solicitudes", "Solicitudes", nSol], ["bajas", "Bajas", nBajas]].map(t =>
     '<button class="cv-pill' + (GS.tab === t[0] ? ' on' : '') + '" role="tab" aria-selected="' + (GS.tab === t[0]) + '" data-gym="socios-tab" data-v="' + t[0] + '">' + t[1] + (t[2] ? ' <span class="gy-n">' + t[2] + '</span>' : '') + '</button>').join("") + '</div>';
-  const head = cabeza("Socios", btn('data-gym="sumar"', "Sumar socio"));
+  const head = cabeza("Socios", "");
+  // «Sumar socio» va en la fila del buscador, a la derecha y bien a la vista.
+  const sumar = btn('data-gym="sumar"', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Sumar socio', "gize-btn cv-btn gy-sumar");
   const buscar = '<label class="cv-find gy-buscar"><input class="co-search cv-search" type="search" placeholder="Buscar por nombre, DNI, mail o teléfono" aria-label="Buscar socio" data-gym-in="q" value="' + esc(GS.filtros.q) + '"></label>';
-  if (GS.tab === "solicitudes") return head + tabs + '<div class="gy-filtros-bar">' + buscar + '</div>' + renderSolicitudes();
+  if (GS.tab === "solicitudes") return head + tabs + '<div class="gy-filtros-bar">' + buscar + sumar + '</div>' + renderSolicitudes();
   if (L === null) return head + tabs + (GS.sociosError ? vacio(esc(GS.sociosError), btn2('data-gym="reintentar"', "Reintentar")) : cargando("Cargando los socios…"));
   const f = GS.filtros, profes = profesDelEquipo();
   const chips = CHIPS.concat(soyCoach() ? [["mios", "Mis socios"]] : []);
   const nAct = chips.filter(([k]) => f[k]).length + (f.profe ? 1 : 0) + (f.estado ? 1 : 0), abierto = !!GS.filtrosAbierto;
-  const filtros = GS.tab === "bajas" ? '<div class="gy-filtros-bar">' + buscar + '</div>' : '<div class="gy-filtros-bar">' + buscar + '<button class="gy-chip gy-filtros-btn' + (abierto || nAct ? ' on' : '') + '" data-gym="filtros-toggle" aria-expanded="' + abierto + '"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtros' + (nAct ? ' <span class="gy-n">' + nAct + '</span>' : '') + '</button>' +
-    (nAct ? '<button class="cv-link" data-gym="filtros-limpiar">Sacar los filtros</button>' : '') + '</div>' + (!abierto ? "" : '<div class="gy-filtros">' +
+  const filtros = GS.tab === "bajas" ? '<div class="gy-filtros-bar">' + buscar + sumar + '</div>' : '<div class="gy-filtros-bar">' + buscar + '<button class="gy-chip gy-filtros-btn' + (abierto || nAct ? ' on' : '') + '" data-gym="filtros-toggle" aria-expanded="' + abierto + '"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtros' + (nAct ? ' <span class="gy-n">' + nAct + '</span>' : '') + '</button>' +
+    (nAct ? '<button class="cv-link" data-gym="filtros-limpiar">Sacar los filtros</button>' : '') + sumar + '</div>' + (!abierto ? "" : '<div class="gy-filtros">' +
     '<select class="gy-sel" data-gym-in="profe" aria-label="Profe"><option value="">Todos los profes</option><option value="-"' + (f.profe === "-" ? " selected" : "") + '>Sin profe</option>' +
       profes.map(p => '<option value="' + esc(p.user_id) + '"' + (f.profe === p.user_id ? " selected" : "") + '>' + esc(p.nombre || "Profe") + '</option>').join("") + '</select>' +
     '<select class="gy-sel" data-gym-in="estado" aria-label="Estado"><option value="">Activos y pausados</option><option value="activo"' + (f.estado === "activo" ? " selected" : "") + '>Activos</option><option value="pausado"' + (f.estado === "pausado" ? " selected" : "") + '>Pausados</option></select>' +
