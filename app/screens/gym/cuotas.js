@@ -65,19 +65,23 @@ function tipos(){
 }
 export function renderCuotas(){
   const R = GS.cuotas;
-  const acc = btn2('data-gym="cuotas-csv"', "Pagos del mes (CSV)");
+  const parte = GS.cuotasParte || "estados";
   const sub = "Lo que te pagan en el gimnasio. GIZE no cobra: acá lo anotás.";
-  if (!R) return cabeza("Cuotas", acc, sub) + (GS.cuotasError ? vacio(esc(GS.cuotasError), btn2('data-gym="reintentar"', "Reintentar")) : cargando("Cargando las cuotas…"));
+  if (!R) return cabeza("Cuotas", "", sub) + (GS.cuotasError ? vacio(esc(GS.cuotasError), btn2('data-gym="reintentar"', "Reintentar")) : cargando("Cargando las cuotas…"));
   const c = R.conteo || {}, L = Array.isArray(R.socios) ? R.socios : [];
-  const stats = '<div class="cv-stats gy-stats">' +
+  // Dos secciones: «Estados» (quién está al día, quién vence) e «Ingresos y cuotas» (la plata y los tipos de cuota).
+  const partes = '<div class="cv-pills gy-tabs" role="tablist" aria-label="Cuotas">' + [["estados", "Estados"], ["ingresos", "Ingresos y cuotas"]].map(t =>
+    '<button class="cv-pill' + (parte === t[0] ? ' on' : '') + '" role="tab" aria-selected="' + (parte === t[0]) + '" data-gym="cuotas-parte" data-v="' + t[0] + '">' + t[1] + '</button>').join("") + '</div>';
+  const stats = '<div class="cv-stats gy-stats gy-stats-2">' +
     stat("Cobrado este mes", plata(R.cobrado), plural(R.pagos_mes || 0, "pago", "pagos")) +
     stat("Por cobrar", plata(R.por_cobrar), plural(R.socios_por_cobrar || 0, "socio", "socios") + " este mes") +
-    stat("Vencidas", c.vencida || 0, c.por_vencer ? '<span class="gy-ambar">' + plural(c.por_vencer, "vence", "vencen") + ' en 7 días</span>' : "Ninguna por vencer", 'data-gym="cuotas-tab" data-v="vencida"') +
   '</div>';
+  const csv = '<div class="gy-filtros-bar gy-asis-barra">' + btn2('data-gym="cuotas-csv"', "Pagos del mes (CSV)") + '</div>';
   const n = { vencida: c.vencida, por_vencer: c.por_vencer, sin_pagos: c.sin_pagos, al_dia: c.al_dia, sin_cuota: c.sin_cuota, todos: L.length };
   const tab = GS.cuotasTab;
-  const pills = '<div class="cv-pills gy-tabs" role="tablist" aria-label="Estado de la cuota">' + TABS.map(t =>
-    '<button class="cv-pill' + (tab === t[0] ? ' on' : '') + '" role="tab" aria-selected="' + (tab === t[0]) + '" data-gym="cuotas-tab" data-v="' + t[0] + '">' + t[1] + (n[t[0]] ? ' <span class="gy-n">' + n[t[0]] + '</span>' : '') + '</button>').join("") + '</div>';
+  // Filtros de la lista (no navegación): chips chicos, con su rótulo, distintos de las pestañas de arriba.
+  const pills = '<div class="gy-filtros-bar gy-est" role="group" aria-label="Estado de la cuota"><span class="gy-est-l">Mostrar</span>' + TABS.map(t =>
+    '<button class="gy-chip' + (tab === t[0] ? ' on' : '') + '" aria-pressed="' + (tab === t[0]) + '" data-gym="cuotas-tab" data-v="' + t[0] + '">' + t[1] + (n[t[0]] ? ' <span class="gy-n">' + n[t[0]] + '</span>' : '') + '</button>').join("") + '</div>';
   const F = L.filter(s => enTab(s, tab));
   const VACIO = { vencida: "Nadie con la cuota vencida.", por_vencer: "Ninguna cuota vence en los próximos 7 días.", sin_pagos: "Nadie con cuota y sin pagos cargados.",
     al_dia: "Nadie al día todavía.", sin_cuota: "Todos los socios activos tienen cuota.", todos: "Todavía no hay socios." };
@@ -85,8 +89,8 @@ export function renderCuotas(){
       '<div class="gy-row gy-row-eq gy-row-cuota gy-th" role="row"><div role="columnheader">Socio</div><div role="columnheader">Cuota</div><div role="columnheader">Vence</div><div role="columnheader">Estado</div><div role="columnheader"><span class="cv-sr">Acción</span></div></div>' +
       F.map(fila).join("") + '</div>'
     : vacio(VACIO[tab] || "");
-  return cabeza("Cuotas", acc, sub) + stats + pills + lista +
-    tipos();
+  if (parte === "ingresos") return cabeza("Cuotas", "", sub) + partes + stats + csv + tipos();
+  return cabeza("Cuotas", "", sub) + partes + pills + lista;
 }
 
 // ---- La sección «Cuota» de la ficha ----
@@ -120,8 +124,10 @@ export function seccionCuota(f, s){
 //      monto, medio, fecha, hasta, hastaTocado, nota, hecho }.
 export function nuevoPago(id, nombre){ return { tipo: "pago", id, nombre: nombre || "", datos: null, pid: uuid(), monto: "", medio: "efectivo", fecha: hoyAR(), hasta: "", hastaTocado: false, nota: "" }; }
 // Lo que va a cubrir, como lo calcula el servidor (gym_pago_registrar).
+// La cuota del pago: la que ya tiene el socio o, si no tiene, la que se eligió en la ventana (m.cuotaId).
+const cuotaDe = m => (m.datos || {}).cuota || (GS.tipos || []).find(x => x.id === m.cuotaId && !x.archivada) || null;
 export function cubreHasta(m){
-  const d = m.datos || {}, c = d.cuota, dia = m.fecha || hoyAR();
+  const d = m.datos || {}, c = cuotaDe(m), dia = m.fecha || hoyAR();
   if (!c) return "";
   const desde = d.vence && d.vence >= dia ? d.vence : dia;
   return masMeses(desde, c.months);
@@ -132,13 +138,18 @@ export function ventanaPago(m){
     '<div class="gy-acc">' + btn('data-gym="cerrar"', "Listo") + '</div>';
   if (m.error) return h + vacio(esc(m.error));
   if (!m.datos) return h + '<p class="gy-fino" aria-busy="true">Cargando…</p>';
-  const d = m.datos, c = d.cuota;
+  const d = m.datos, c = cuotaDe(m), activas = (GS.tipos || []).filter(x => !x.archivada);
   if (!m.monto && c && !m.montoTocado) m.monto = String(c.amount);
   if (!m.hastaTocado) m.hasta = cubreHasta(m);
   const listo = Number(m.monto) > 0 && !!m.hasta && !!m.fecha;
   return h +
     '<p class="gy-p"><b>' + esc(m.nombre || "Socio") + '</b><br><span class="gy-fino">' + cuotaTxt(c) + (d.vence ? ' · vence el ' + fecha(d.vence) : c ? ' · sin pagos' : '') + '</span></p>' +
-    (!c ? '<p class="gy-fino">No tiene cuota asignada: elegí hasta cuándo cubre este pago.</p>' : '') +
+    // Sin cuota asignada: se puede elegir una acá (queda asignada al registrar el pago) o, si no, indicar hasta cuándo cubre.
+    (!d.cuota ? (activas.length
+      ? '<label class="gy-f"><span>Cuota del socio</span><select class="gy-sel" data-gym-pg="cuotaId"><option value="">Sin cuota (elijo hasta cuándo cubre)</option>' +
+        activas.map(x => '<option value="' + esc(x.id) + '"' + (m.cuotaId === x.id ? ' selected' : '') + '>' + esc(x.name) + ' · ' + plata(x.amount) + ' ' + (POR[x.months] || "") + '</option>').join("") + '</select></label>' +
+        (!c ? '<p class="gy-fino">Si elegís una cuota, queda asignada al socio y el pago la deja al día.</p>' : '')
+      : '<p class="gy-fino">No tiene cuota asignada: elegí hasta cuándo cubre este pago.</p>') : '') +
     '<div class="gy-form gy-form-pago">' +
       '<label class="gy-f"><span>Monto (en pesos)</span><input class="co-note" type="number" min="1" step="0.01" inputmode="decimal" data-gym-pg="monto" value="' + esc(m.monto) + '"></label>' +
       '<label class="gy-f"><span>Fecha del pago</span><input class="co-note" type="date" data-gym-pg="fecha" max="' + hoyAR() + '" value="' + esc(m.fecha) + '"></label>' +
