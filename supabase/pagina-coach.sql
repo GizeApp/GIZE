@@ -19,7 +19,10 @@
 --     activa (coach_active), o si quien la mira bloqueó al coach o el coach lo bloqueó.
 --   · coach_pagina_foto_ok(ruta): la usa la política de la foto (abajo). El bucket avatars sigue
 --     privado: sin sesión solo se puede pedir el link firmado de la foto de perfil de un coach con la
---     página visible y la foto prendida. Ninguna otra.
+--     página visible y la foto prendida. Ninguna otra. Storage usa la misma política para listar:
+--     sin sesión, la lista del bucket muestra esas mismas fotos (la carpeta es el id del coach),
+--     aunque sin el nombre ni el link. O sea que, mientras la página se ve con la foto prendida, esa
+--     foto es pública (la política de privacidad lo tiene que decir así).
 --   · coach_pagina_mia(): la página del coach que llama, para el panel.
 --   · coach_pagina_guardar(alias, activa, con_foto): crearla o cambiarla. Un null deja lo que había.
 --   · admin_coach_paginas() y admin_coach_pagina(coach, acción): el panel de GIZE (pausar, reanudar o

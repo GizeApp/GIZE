@@ -48,6 +48,7 @@ export default async ({ t: t0 }) => {
   t.has(plano, 'después de supabase/foto-perfil.sql, supabase/endurecer-base.sql, supabase/cupo-plan.sql, supabase/bloqueos.sql y supabase/admin.sql',
     'encabezado: de qué depende');
   t.has(plano, 'Public Can Execute SECURITY DEFINER Function', 'encabezado: avisa que el chequeo de Supabase va a marcar las dos funciones sin sesión (a propósito)');
+  t.has(plano, 'Storage usa la misma política para listar', 'encabezado: avisa que sin sesión también se listan esas fotos (para la política de privacidad)');
   t.ok(/raise exception 'Primero correr supabase\/foto-perfil\.sql, endurecer-base\.sql, cupo-plan\.sql, bloqueos\.sql y admin\.sql\.'/.test(code),
     'se frena sin cambiar nada si faltan los archivos de los que depende');
   for (const tb of ['coach_paginas', 'coach_alias_viejos']){
