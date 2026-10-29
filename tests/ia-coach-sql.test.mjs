@@ -171,6 +171,12 @@ export default async function ({ t: t0 }){
   t.eq([r[10] && r[10].estado, !!(r[10] && r[10].vuelve)], ['tope_persona', true], 'prueba: llegó a sus US$ del ciclo');
   t.eq([r[12] && r[12].estado, !!(r[12] && r[12].vuelve), r[13] && r[13].estado], ['ahorro', true, 'normal'], 'modo ahorro: el coach en prueba espera al ciclo que viene; el coach con plan sigue');
   t.eq([r[15] && r[15].estado, !!(r[15] && r[15].vuelve), r[17] && r[17].estado, r[19] && r[19].estado], ['tope_mes', true, 'pausada', 'pausada'], 'ciclo cortado: tope del mes, sin créditos o por el admin');
+  // El corte por los créditos ya pasó su hora y el gasto está arriba del ahorro: la próxima reserva
+  // deja el ciclo en ahorro, así que el coach en prueba ya lo ve así (y ia_reservar lo frena).
+  r = await V([['postgres', PRENDER], ['servicio', res(U.CP, 'coach', 'planilla')],
+    ['postgres', `update public.ia_ciclos set estado = 'cortado', cortado_por = 'creditos', vuelve = now() - interval '1 minute', gastado = 150 where inicio <= now() and fin > now()`],
+    est('CT'), est('CP'), ['servicio', res(U.CT, 'prueba', 'planilla')]]);
+  t.eq([r[3] && r[3].estado, !!(r[3] && r[3].vuelve), r[4] && r[4].estado, cod(r[5])], ['ahorro', true, 'normal', 'ahorro'], 'corte por créditos que ya pasó, con el gasto arriba del ahorro: el coach en prueba lo ve en ahorro, como lo frena ia_reservar');
 
   // El permiso «Usar IA en tus rutinas»: con la versión del aviso, apagar y prender en orden, el aviso
   // nuevo, y que no toca el de Comida (ni al revés).

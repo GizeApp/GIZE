@@ -1254,7 +1254,10 @@ begin
     elsif v_c.cortado_por in ('creditos', 'admin') then v_estado := 'pausada';
     else v_estado := 'tope_mes'; v_vuelve := coalesce(v_c.vuelve, v_c.fin);
     end if;
-  elsif v_rol = 'prueba' and (v_c.estado = 'ahorro' or v_c.gastado + v_c.reservado >= v_c.ahorro) then
+  end if;
+  -- Modo ahorro (también con el corte por créditos que ya pasó su hora: la próxima reserva deja el
+  -- ciclo en ahorro, como en ia_reservar).
+  if v_estado = 'normal' and v_rol = 'prueba' and (v_c.estado = 'ahorro' or v_c.gastado + v_c.reservado >= v_c.ahorro) then
     v_estado := 'ahorro'; v_vuelve := v_fin;
   end if;
   -- Lo de hoy de la persona con su rol (como ia_reservar: cuenta todo lo que pudo costar algo).
