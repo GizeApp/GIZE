@@ -10,7 +10,7 @@
 //   cuenta de coach, ya es del equipo); sin sesión, la pantalla de ingreso (en la web, «Soy coach» ya
 //   elegido para profe o administración; en el iPhone, no se ofrece crear una cuenta de coach).
 import { newPage, wait } from './lib.mjs';
-import { entrar, miGimnasio, DUENA, ADMIN_G, PROFE, COACH, ALUMNO, ID, TOKEN, hostTxt, modalTxt, rpcs, ir, IOS } from './gym-comun.mjs';
+import { entrar, miGimnasio, DUENA, ADMIN_G, PROFE, COACH, ALUMNO, ID, TOKEN, hostTxt, modalTxt, rpcs, ir, aLaVista, IOS } from './gym-comun.mjs';
 
 const TOK = 'cd'.repeat(32);
 
@@ -27,9 +27,11 @@ export default async function ({ base, t }){
     await p.click('#coachHost [data-gym="eq-tab"][data-v="recepcion"]'); await wait(300);
     t.has(await hostTxt(p), 'Rocío Recepción', 'pestaña Recepción');
     await p.click('#coachHost [data-gym="eq-tab"][data-v="profe"]'); await wait(300);
+    // «Invitar» va en la fila de las pestañas (ya no en el título), a la vista y sin nada encima.
+    t.eq(await aLaVista(p, '#coachHost .gy-filtros-bar [data-gym="invitar"]'), 'a la vista', '«Invitar» a la vista, en la fila de las pestañas');
     // La ventana con el teclado: tiene nombre, Tab no se va al panel de atrás y al cerrarla con Escape el
     // foco vuelve a «Invitar».
-    await p.focus('#coachHost .gy-head [data-gym="invitar"]'); await p.keyboard.press('Enter'); await wait(400);
+    await p.focus('#coachHost .gy-filtros-bar [data-gym="invitar"]'); await p.keyboard.press('Enter'); await wait(400);
     t.eq(await p.evaluate(() => { const m = document.querySelector('#gymModal .gy-modal'), id = m && m.getAttribute('aria-labelledby'); return id && document.getElementById(id) ? document.getElementById(id).textContent : null; }),
       'Invitar al equipo', 'la ventana tiene nombre (su título)');
     let adentro = true;
@@ -38,7 +40,7 @@ export default async function ({ base, t }){
     await p.keyboard.press('Escape'); await wait(300);
     t.ok(await p.evaluate(() => document.activeElement && document.activeElement.matches('#coachHost [data-gym="invitar"]')), 'Escape: el foco vuelve a «Invitar»');
     // Invitar a un profe
-    await p.click('#coachHost .gy-head [data-gym="invitar"]'); await wait(400);
+    await p.click('#coachHost .gy-filtros-bar [data-gym="invitar"]'); await wait(400);
     let m = await modalTxt(p);
     t.ok(/Profe/.test(m) && /Administración/.test(m) && /Recepción/.test(m), 'la dueña puede invitar a los tres roles');
     t.has(m, 'Va a ver solo a los socios que le asignes', 'con lo que va a poder hacer, en lenguaje simple');
@@ -98,7 +100,7 @@ export default async function ({ base, t }){
   {
     const pg = await entrar(base, ADMIN_G, { gym: miGimnasio('admin'), rol: 'client' }), p = pg.p;
     await ir(p, 'profes');
-    await p.click('#coachHost .gy-head [data-gym="invitar"]'); await wait(400);
+    await p.click('#coachHost .gy-filtros-bar [data-gym="invitar"]'); await wait(400);
     t.ok(!(await p.$('#gymModal input[value="admin"]')), 'administración: no puede invitar a otra administración');
     await p.click('#gymModal .gy-x'); await wait(200);
     await p.click('#coachHost [data-gym="eq-tab"][data-v="admin"]'); await wait(300);

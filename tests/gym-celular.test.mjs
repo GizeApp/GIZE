@@ -4,7 +4,7 @@
 // la barra lateral con todas las opciones y Socios como tabla. Todo el texto se lee (contraste 4,5:1 o
 // más, como pide WCAG AA) en las dos apariencias.
 import { wait, contraste } from './lib.mjs';
-import { entrar, DUENA, F, M, D, captura } from './gym-comun.mjs';
+import { entrar, DUENA, F, M, D, captura, aLaVista } from './gym-comun.mjs';
 
 const VISTAS = ['inicio', 'socios', 'ficha', 'profes', 'asistencia', 'recepcion', 'config', 'plan'];
 
@@ -35,8 +35,12 @@ export default async function ({ base, t }){
       await p.evaluate(() => document.querySelector('#coachHost [data-gym="ir"][data-v="socios"]').click()); await wait(700);
       const tabla = await p.evaluate(() => { const th = document.querySelector('#coachHost .gy-th'); const fila = document.querySelector('#coachHost .gy-row[data-id]'); return { th: th && getComputedStyle(th).display !== 'none', cols: fila && getComputedStyle(fila).gridTemplateColumns.split(' ').length }; });
       t.ok(cel ? !tabla.th && tabla.cols === 2 : tabla.th && tabla.cols === 7, donde + ': Socios como ' + (cel ? 'tarjetas' : 'tabla') + ' (' + JSON.stringify(tabla) + ')');
-      // La ventana de Sumar socio: abajo en el celular, al medio en la compu.
-      await p.evaluate(() => document.querySelector('#coachHost .gy-head [data-gym="sumar"]').click()); await wait(700);
+      // La ventana de Sumar socio: abajo en el celular, al medio en la compu. «Sumar socio» va en la fila del
+      // buscador (ya no en el título), a la vista y sin nada encima: se toca de verdad.
+      const sumar = '#coachHost .gy-filtros-bar [data-gym="sumar"]';
+      t.eq(await aLaVista(p, sumar), 'a la vista', donde + ': «Sumar socio» a la vista');
+      if (cel) await p.tap(sumar); else await p.click(sumar);
+      await wait(700);
       const box = await p.$eval('#gymModal .gy-modal', e => { const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, h: innerHeight, left: r.left, w: r.width }; });
       t.ok(cel ? Math.abs(box.bottom - box.h) < 2 : box.top > 20 && box.bottom < box.h - 20, donde + ': la ventana ' + (cel ? 'sale de abajo' : 'va al medio') + ' (' + JSON.stringify(box) + ')');
       const cm = await contraste(p, '#gymModal');
