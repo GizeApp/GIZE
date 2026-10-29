@@ -4,9 +4,10 @@
 //    topes iguales en el create table y en el alter (una base nueva y una vieja quedan iguales).
 // 2) En Postgres de verdad (tests/pg.mjs; sin Postgres se saltea):
 //    - ia_rol_coach: coach con plan pago o de cortesía → 'coach'; en su prueba gratis → 'prueba'
-//      (sobre el cupo de la prueba o vencido, null); alumno o cuenta sin coach → null; la app no la
-//      puede llamar. Con gimnasios: el profe de un gimnasio con el plan al día → 'coach'; si el
-//      gimnasio está en la prueba, la dueña y el profe (con su propia prueba) → 'prueba'; la
+//      (sobre el cupo de la prueba o vencido, null); alumno, cuenta sin coach o quien dejó de ser
+//      coach → null; la app no la puede llamar. Con gimnasios: el profe de un gimnasio con el plan
+//      al día → 'coach'; si el gimnasio está en la prueba, la dueña y el profe (con su propia
+//      prueba) → 'prueba'; en los días de gracia después de la prueba, la dueña → null; la
 //      administración y la recepción → null. Las fotos de comida del coach en prueba siguen como
 //      'alumno' (ia_rol).
 //    - ia_reservar con 'planilla' y 'prueba': los topes de entrada (prueba 15/5/20 y US$1; coach
@@ -15,8 +16,9 @@
 //      le pasa planillas y rutinas al modelo barato).
 //    - Los checks de ia_llamadas aceptan 'prueba' y 'planilla' y rechazan lo inventado.
 //    - admin_ia_config acepta modelos.planilla y los topes de 'prueba'.
-//    - ia_coach_estado (lo que ve el panel del coach, sin montos) y el permiso «Usar IA en tus
-//      rutinas» (ia_permiso_rutinas), que no toca el de Comida.
+//    - ia_coach_estado (lo que ve el panel del coach, sin montos; cuenta solo lo del mismo rol y,
+//      con IA Plus, los US$ del ciclo de IA Plus si son más, como ia_reservar) y el permiso «Usar IA
+//      en tus rutinas» (ia_permiso_rutinas), que no toca el de Comida (ni uno ya aceptado).
 //    - «¿Está mal? Avisanos» con planillas y rutinas (ia_reportar e ia_reportes).
 //    - Correr ia.sql sobre una base vieja (checks con otro nombre, sin planillas ni 'prueba', el
 //      total del coach en 40): cambia los checks buscándolos por la columna, suma lo nuevo sin
@@ -105,6 +107,10 @@ export default async function ({ t: t0 }){
   t.eq(r[QUIENES.length], 'alumno', 'las fotos de comida del coach en prueba siguen como alumno (ia_rol)');
   r = await V([[U.CT, rolc(U.CT)], ['anon', rolc(U.CT)]]);
   t.eq(r.map(x => x && x.error), ['42501', '42501'], 'ia_rol_coach: la app (ni sin sesión) no la puede llamar');
+  // Quien dejó de ser coach (el admin le cambió el rol) conserva su fila de coach_billing con la
+  // prueba vigente: eso no lo hace coach en prueba.
+  r = await V([['postgres', `update public.profiles set role = 'client' where id = '${U.CT}'`], ['servicio', `select to_jsonb(public.coach_active('${U.CT}'))`], ['servicio', rolc(U.CT)]]);
+  t.eq([r[1], r[2]], [true, null], 'ia_rol_coach: quien ya no es coach no usa la IA del coach aunque le quede la prueba');
 
   // La guardia con planillas y con el rol «prueba».
   r = await V([['postgres', PRENDER],
@@ -177,6 +183,20 @@ export default async function ({ t: t0 }){
     ['postgres', `update public.ia_ciclos set estado = 'cortado', cortado_por = 'creditos', vuelve = now() - interval '1 minute', gastado = 150 where inicio <= now() and fin > now()`],
     est('CT'), est('CP'), ['servicio', res(U.CT, 'prueba', 'planilla')]]);
   t.eq([r[3] && r[3].estado, !!(r[3] && r[3].vuelve), r[4] && r[4].estado, cod(r[5])], ['ahorro', true, 'normal', 'ahorro'], 'corte por créditos que ya pasó, con el gasto arriba del ahorro: el coach en prueba lo ve en ahorro, como lo frena ia_reservar');
+  // Solo cuenta lo del mismo rol: con 3 en total, al coach en prueba le queda 1 de cada una (la foto
+  // del plato, que va como alumno, no le resta) y con US$0,025 por ciclo todavía puede (la foto
+  // tampoco suma). ia_reservar cuenta igual: la que sigue pasa.
+  r = await V([['postgres', PRENDER],
+    ['servicio', res(U.CT, 'prueba', 'planilla')], ['servicio', res(U.CT, 'prueba', 'rutina')], ['servicio', res(U.CT, 'alumno', 'plato')],
+    ['postgres', `update public.ia_config set topes = jsonb_set(jsonb_set(topes, '{prueba,total}', '3'), '{prueba,usd_ciclo}', '0.025') where id = 1`], est('CT'),
+    ['servicio', res(U.CT, 'prueba', 'planilla', 0.004)]]);
+  t.eq([r[5] && r[5].quedan, r[5] && r[5].estado], [{ planilla: 1, rutina: 1 }, 'normal'], 'prueba: el total del día y los US$ del ciclo cuentan solo lo de su rol (la foto del plato no)');
+  t.eq(cod(r[6]), 'ok', 'prueba: ia_reservar cuenta lo mismo que ia_coach_estado');
+  // El coach con IA Plus (incluido con su plan, con el interruptor prendido): los US$ del ciclo de IA
+  // Plus si son más que los de coach, como en ia_reservar.
+  r = await V([['postgres', PRENDER + `; update public.ia_config set plus = plus || '{"activa": true}', topes = jsonb_set(topes, '{coach,usd_ciclo}', '0.01') where id = 1`],
+    ['servicio', res(U.CP, 'coach', 'planilla')], est('CP'), ['servicio', res(U.CP, 'coach', 'planilla')]]);
+  t.eq([cod(r[1]), r[2] && r[2].estado, cod(r[3])], ['ok', 'normal', 'ok'], 'coach con IA Plus: los US$ del ciclo de IA Plus si son más (estado y reserva iguales)');
 
   // El permiso «Usar IA en tus rutinas»: con la versión del aviso, apagar y prender en orden, el aviso
   // nuevo, y que no toca el de Comida (ni al revés).
@@ -198,6 +218,10 @@ export default async function ({ t: t0 }){
   t.eq([r[13], r[14] && r[14].permiso_rutinas, r[14] && r[14].aviso_version], [{ rutinas: 'viejo', comida: 'no' }, 'viejo', 2], 'aviso nuevo: hay que volver a preguntar');
   t.eq(r[15] && r[15].error, '42501', 'la app no puede preguntar el permiso con la service role');
   t.eq(r[16] && r[16].permiso_rutinas, 'no', 'cualquiera con sesión guarda el suyo');
+  // Con el permiso de Comida ya aceptado, aceptar y apagar el de rutinas no lo toca.
+  r = await V([[U.CT, `select public.ia_permiso('comida', true, 2)`], [U.CT, 'select public.ia_permiso_rutinas(true, 1)'], ['servicio', PERM],
+    [U.CT, 'select public.ia_permiso_rutinas(false)'], ['servicio', PERM]]);
+  t.eq([r[2], r[4]], [{ rutinas: 'ok', comida: 'ok' }, { rutinas: 'no', comida: 'ok' }], 'el de rutinas no toca un permiso de Comida que ya estaba');
 
   // «¿Está mal? Avisanos» con planillas y rutinas (sin la planilla: la rutina que armó).
   const RUT = `'{"nombre": "Fuerza", "dias": [{"nombre": "Día 1", "ejercicios": [{"fila": 12, "nombre": "Press banca"}]}]}'::jsonb`;
@@ -265,6 +289,11 @@ update public.ia_config set funciones = funciones - 'planilla',
   t.eq(r, ['coach', 'coach', 'coach', null, null, null, 'coach'], 'con gimnasios: la dueña y los profes con el plan al día → coach; administración, recepción y socios → null');
   r = await G.V([['postgres', `update public.coach_billing set paid_until = null, trial_ends_at = now() + interval '10 days' where coach_id = '${P.dA}'`]].concat(QG.map(k => ['servicio', rolc(P[k])])));
   t.eq(r.slice(1), ['prueba', 'coach', 'prueba', null, null, null, 'coach'], 'gimnasio en la prueba: la dueña y el profe sin plan propio (con su prueba) → prueba; el profe con plan → coach');
+  // La prueba de la dueña venció hace 2 días: el gimnasio sigue andando unos días más (gym_active,
+  // por eso coach_active da sí), pero eso ya no es la prueba.
+  r = await G.V([['postgres', `update public.coach_billing set paid_until = null, trial_ends_at = now() - interval '2 days' where coach_id = '${P.dA}'`],
+    ['servicio', `select to_jsonb(public.coach_active('${P.dA}'))`], ['servicio', rolc(P.dA)]]);
+  t.eq([r[1], r[2]], [true, null], 'gimnasio en los días de gracia después de la prueba: la dueña no usa la IA del coach');
   r = await G.V([['postgres', PRENDER], ['pA2', 'select public.ia_coach_estado()'], ['pA1', 'select public.ia_coach_estado()'], ['aA', 'select public.ia_coach_estado()']]);
   t.eq([r[1] && r[1].rol, r[1] && r[1].por_gimnasio, r[1] && r[1].tope && r[1].tope.planilla], ['coach', true, 30], 'ia_coach_estado del profe de un gimnasio al día: coach, por gimnasio');
   t.eq([r[2] && r[2].rol, r[2] && r[2].por_gimnasio, r[3] && r[3].activa, r[3] && r[3].motivo], ['coach', false, false, 'no_coach'], 'el profe con plan propio no es por gimnasio; la administración no tiene nada');
