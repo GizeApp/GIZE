@@ -2,6 +2,8 @@
 # request, en cada cambio a main y a mano desde Actions → "Pruebas" → Run workflow.
 # También corren con cambios en .github/, scripts/ y supabase/: hay pruebas que revisan los
 # workflows, los scripts y las funciones.
+# Y con las páginas públicas (landing, política, términos, baja, gimnasio, coaches, la página
+# de cada coach y el resumen): sus pruebas tienen que correr aunque el cambio no toque tests/.
 # Supabase está simulado dentro del navegador: no usa secretos ni datos reales, y los
 # registros solo muestran datos de prueba.
 # Las pruebas se reparten en 6 partes que corren en paralelo (una sola tardaba más de 35
@@ -11,9 +13,9 @@ name: Pruebas
 on:
   push:
     branches: [main]
-    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/**", "scripts/**", "supabase/**"]
+    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/**", "scripts/**", "supabase/**", "landing.js", "landing-inicio.js", "landing/**", "assets/**", "privacidad/**", "terminos/**", "baja/**", "gimnasio/**", "coaches/**", "pagina-coach/**", "resumen/**", "404.html", "manifest.json", "install.js"]
   pull_request:
-    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/**", "scripts/**", "supabase/**"]
+    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/**", "scripts/**", "supabase/**", "landing.js", "landing-inicio.js", "landing/**", "assets/**", "privacidad/**", "terminos/**", "baja/**", "gimnasio/**", "coaches/**", "pagina-coach/**", "resumen/**", "404.html", "manifest.json", "install.js"]
   workflow_dispatch:
 
 # El token de GitHub de la ejecución solo puede leer el repo.
