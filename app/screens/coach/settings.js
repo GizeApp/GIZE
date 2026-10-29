@@ -29,6 +29,10 @@ import { enMarcoGym } from '../../core/gimnasio.js';
 
 import { alRepintar, renderQuestionsEditor } from './preguntas.js';
 
+import { iaCoachAlguna, iaCoachEstado, iaGuardarPermisoRutinas, iaRutinasPermiso } from '../../core/ia-coach.js';
+import { iaToast } from '../../ui/ia-permiso.js';
+import { pedirPermisoRutinas } from '../../ui/ia-permiso-rutinas.js';
+
 const ic = d => '<svg class="cs-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
 const IC = {
   user: ic('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/>'),
@@ -39,6 +43,7 @@ const IC = {
   shield: ic('<path d="M12 3l8 3v5.5c0 4.5-3.2 8-8 9.5-4.8-1.5-8-5-8-9.5V6z"/><path d="M9 12l2 2 4-4"/>'),
   out: ic('<path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/>'),
   mail: ic('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 7l8.5 6 8.5-6"/>'),
+  spark: ic('<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>'),
   go: ic('<path d="M9 6l6 6-6 6"/>')
 };
 
@@ -93,10 +98,41 @@ function secPlan(){
 
 const secPreguntas = renderQuestionsEditor;
 
+// «Usar IA en tus rutinas» (el permiso de «Pasar mis planillas» y «Armar con IA», ui/ia-permiso-rutinas.js):
+// solo si alguna está prendida para el coach o si ya lo había aceptado (para que lo pueda apagar).
+// Apagarlo guarda que no quiere (ia_permiso_rutinas) y desde ahí no se manda nada; prenderlo vuelve a
+// mostrar el aviso. El estado se pregunta al abrir Privacidad y, si cambió lo que se ve, se redibuja.
+const iaVisto = () => iaCoachAlguna() + "|" + iaRutinasPermiso();
+function secIA(){
+  const antes = iaVisto();
+  iaCoachEstado().then(() => { if (iaVisto() !== antes && CoachState.coachView === "settings" && CoachState.coachSetSec === "privacidad") renderCoachSettings(); });
+  if (!iaCoachAlguna()) return "";
+  const on = iaRutinasPermiso() === "ok";
+  return card("Funciones con IA", "Son opcionales: antes de mandar algo a la IA te pedimos permiso.",
+    '<div class="cs-row"><span class="cs-row-ic">' + IC.spark + '</span><div class="cs-row-t"><b id="csIaRutLbl">Usar IA en tus rutinas</b>' +
+      '<span id="csIaRutDesc">Para «Pasar mis planillas» y «Armar con IA»: envía a Anthropic (EE. UU.) el pedido que escribís y los ejercicios de tus planillas, sin datos tuyos ni de tus alumnos. Apagado: no se manda nada. ' +
+      '<a class="cfg-ia-link" href="https://gize.ar/privacidad/?app=1#ia-coach" target="_blank" rel="noopener">Política de privacidad</a></span></div>' +
+    '<div class="cs-row-c"><button type="button" class="cfg-switch' + (on ? ' on' : '') + '" data-iar-toggle role="switch" aria-checked="' + on + '" aria-labelledby="csIaRutLbl" aria-describedby="csIaRutDesc"><span class="cfg-switch-knob"></span></button></div></div>');
+}
+
+// Prender o apagar «Usar IA en tus rutinas» desde Privacidad.
+document.addEventListener("click", async e => {
+  const b = e.target.closest && e.target.closest("[data-iar-toggle]");
+  if (!b || b.disabled) return;
+  b.disabled = true;
+  try {
+    if (iaRutinasPermiso() === "ok") { await iaGuardarPermisoRutinas(false); iaToast("Listo: la IA en tus rutinas quedó apagada. No se manda nada."); }
+    else if (await pedirPermisoRutinas({ desdeAjustes: true })) iaToast("Listo: la IA en tus rutinas quedó prendida.");
+  } catch (err) { alert((err && err.message) || "No se pudo guardar. Probá de nuevo."); }
+  b.disabled = false;
+  renderCoachSettings();
+});
+
 function secPrivacidad(){
   // La lista de bloqueados es una hoja de ui/bloquear.js (la abre cualquier botón con data-bloqueados).
   return card("Bloqueos", "Personas que bloqueaste desde el chat.",
       '<button class="cs-link" data-bloqueados><span class="cs-row-ic">' + IC.shield + '</span><span class="cs-row-t"><b>Personas bloqueadas</b></span>' + IC.go + '</button>') +
+    secIA() +
     card("Privacidad", "Cómo cuida GIZE tus datos y los de tus clientes.",
       '<a class="cs-link" href="https://gize.ar/privacidad/?app=1" target="_blank" rel="noopener"><span class="cs-row-ic">' + IC.shield + '</span><span class="cs-row-t"><b>Política de privacidad</b></span>' + IC.go + '</a>') +
     (adminEntry() ? card("Administración de GIZE", "", adminEntry()) : "");

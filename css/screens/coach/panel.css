@@ -258,6 +258,11 @@ html.sin-neon body:not(#_) .cv-table .co-trow.on { border-left-color:rgba(255,25
 .cs-link > .cs-ic { color:var(--txt-3); }
 .cs-pill { padding:9px 18px; border-radius:999px; font:inherit; font-size:var(--text-body); font-weight:700; cursor:pointer; color:#04121a; background:var(--gize-blue); border:0; }
 .cs-pill.on { color:var(--txt); background:none; border:1px solid var(--gize-border); }
+/* «Usar IA en tus rutinas» (app/ui/ia-permiso-rutinas.js): la hoja del permiso, encima de todo como
+   la de Comida (.ia-perm, css/screens/comida.css), y su interruptor en Privacidad. */
+#iaRutHost .sheet-bg { z-index:440; }
+#iaRutHost .sheet { z-index:441; }
+html:has(#iaRutHost .sheet:not(.closing)), html:has(#iaRutHost .sheet:not(.closing)) body { overflow:hidden; }
 .cs-out { margin:0; width:100%; }
 .cs-card .cs-tema { margin-top:0; }
 @media (min-width: 820px) {
