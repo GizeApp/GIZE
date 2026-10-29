@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src https://wegptuzhsrwppbknqstf.supabase.co; base-uri 'none'; form-action 'none'">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Resumen de los lunes · GIZE</title>
+<meta name="description" content="Dejar de recibir el resumen de los lunes de GIZE, sin iniciar sesión.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="../icon-192.png">
+<link rel="stylesheet" href="../brand/fonts/outfit.css">
+<style>
+/* Misma paleta y armado que baja/index.html. Página pública, sin sesión: el link «Dejar de recibirlo»
+   del resumen de los lunes (función resumen-semanal) trae ?t=<token>. Abrirla no da de baja a nadie
+   (los antivirus del correo abren los links): hace falta tocar el botón. Sin indexar y sin mandar el
+   link a otras páginas (referrer). */
+:root{color-scheme:dark;--bg:#000;--surface:#0B0D11;--border:#1C2029;--text:#FFFFFF;--text-2:#8F98A6;--el:#2FA0FF;--ok:#25E8C8;--err:#FF6B6B}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Outfit',system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.6}
+a{color:var(--el)}
+.wrap{width:min(760px,100%);margin-inline:auto;padding:40px 16px 64px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:40px}
+.brand{color:var(--text);text-decoration:none;font-weight:700;letter-spacing:.14em;font-size:20px}
+.top a:not(.brand){color:var(--text-2);text-decoration:none;font-size:15px}
+h1{font-size:clamp(30px,6vw,42px);line-height:1.1;margin:0 0 12px}
+p,li{color:#D5DAE1;font-size:16.5px}
+b{color:var(--text)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px 18px;margin-top:12px}
+.fine{color:var(--text-2);font-size:14.5px}
+button{font:inherit;font-weight:700;font-size:17px;color:#000;background:var(--el);border:0;border-radius:999px;padding:14px 22px;margin-top:18px;width:100%;cursor:pointer;min-height:48px}
+button.sec{color:var(--text);background:transparent;border:1px solid var(--border)}
+button[disabled]{opacity:.6;cursor:default}
+button:focus-visible{outline:2px solid var(--el);outline-offset:2px}
+.res{margin-top:16px;padding:14px 16px;border-radius:12px;border:1px solid var(--border)}
+.res.ok{border-color:var(--ok)}
+.res.err{border-color:var(--err);color:#FFD5D5}
+footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color:var(--text-2);font-size:14px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="top"><a class="brand" href="../">GIZE</a><a href="../app/">Abrir la app</a></div>
+
+  <h1>Resumen de los lunes</h1>
+  <p>Los lunes te mandamos por mail (y como aviso, si los activaste) cómo les fue a tus alumnos en la semana: quién entrenó, a quién conviene escribirle y sus récords.</p>
+
+  <section id="conToken" hidden>
+    <div class="card">
+      <p style="margin:0" id="pregunta"><b>¿No lo querés recibir más?</b> Tocá el botón y deja de llegarte, por mail y como aviso. Lo podés volver a prender cuando quieras.</p>
+      <button type="button" id="boton">No me lo mandes más</button>
+      <div id="res" class="res" role="status" aria-live="polite" hidden></div>
+    </div>
+  </section>
+
+  <section id="sinToken">
+    <div class="card">
+      <p style="margin:0">Para dejar de recibirlo, entrá a GIZE y apagalo en <b>Configuración → Avisos</b>, o tocá <b>Dejar de recibirlo</b> al pie del mail.</p>
+    </div>
+  </section>
+
+  <p class="fine">El resumen lleva el nombre de pila de tus alumnos y cómo les fue en la semana. Más detalle en la <a href="../privacidad/">Política de privacidad</a>.</p>
+  <footer>© 2026 GIZE · Rosario, Argentina</footer>
+</main>
+<script src="resumen.js"></script>
+</body>
+</html>
