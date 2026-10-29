@@ -116,7 +116,10 @@ async function tanda(req: Request): Promise<Response> {
     const ids = { p_coach: f.coach_id, p_semana: f.semana };
     let mail = false;
     try {
-      const { data: u } = await db.auth.admin.getUserById(f.coach_id);
+      const { data: u, error: ue } = await db.auth.admin.getUserById(f.coach_id);
+      // Si no se pudo leer su cuenta (una falla de Auth), se reintenta en la tanda siguiente: si no,
+      // ese lunes le llegaba solo el aviso y quedaba anotado como enviado, sin el mail.
+      if (ue) throw new Error("no se pudo leer la cuenta (" + (ue.status || "sin respuesta") + ")");
       const to = u && u.user && u.user.email;
       if (to) {
         const m = mailResumen({ nombre: f.nombre, r: f.datos, baja: PAGINA + "?t=" + f.token });

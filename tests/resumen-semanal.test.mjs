@@ -130,7 +130,7 @@ export default async function ({ base: web, t }){
   const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'srv', SUPABASE_ANON_KEY: 'anon', RESEND_API_KEY: 'clave',
     VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv', FCM_SERVICE_ACCOUNT: JSON.stringify({ project_id: 'gize', client_email: 'fcm@gize.test', private_key: 'k' }),
     APNS_KEY_P8: 'p8', APNS_KEY_ID: 'KID', APPLE_TEAM_ID: 'TEAM' };
-  const montar = async ({ filas = [fila(COACH)], env = {}, resend = () => 200, web = () => 201, apple = () => 200, user = null, admin = false, sinMail = [], demora = 0 } = {}) => {
+  const montar = async ({ filas = [fila(COACH)], env = {}, resend = () => 200, web = () => 201, apple = () => 200, user = null, admin = false, sinMail = [], sinCuenta = [], demora = 0 } = {}) => {
     const orden = [], rpcs = [], mails = [], borrados = [], pushes = [];
     let vuelo = 0, maxVuelo = 0;
     const db = supabaseSimulado(q => {
@@ -145,7 +145,8 @@ export default async function ({ base: web, t }){
       return { data: null };
     }, { user });
     const getUserById = db.auth.admin.getUserById;
-    db.auth.admin.getUserById = async (id) => sinMail.includes(id) ? { data: { user: { id, email: null } } } : getUserById(id);
+    db.auth.admin.getUserById = async (id) => sinCuenta.includes(id) ? { data: { user: null }, error: { status: 503, message: 'Auth no contesta' } }
+      : sinMail.includes(id) ? { data: { user: { id, email: null } } } : getUserById(id);
     const wp = { setVapidDetails(){}, generateRequestDetails(){ return {}; }, sendNotification: async (sub, payload) => {
       orden.push('web'); pushes.push(['web', JSON.parse(payload)]);
       const st = web(); if (st >= 300) throw Object.assign(new Error('respuesta ' + st), { statusCode: st });
@@ -219,6 +220,13 @@ export default async function ({ base: web, t }){
   f = await montar({ sinMail: [COACH] });
   r = await f.pedir();
   t.eq([f.mails.length, f.rpcs.find(x => x[0] === 'resumen_semanal_listo')[1].p_mail], [0, false], 'sin mail: no le escribe a nadie y queda anotado sin mail');
+  // No se pudo leer su cuenta (falla de Auth): se reintenta todo junto en la tanda siguiente, sin aviso
+  // (antes salía solo el aviso y quedaba como enviado, sin el mail de esa semana).
+  f = await montar({ sinCuenta: [COACH] });
+  r = await f.pedir();
+  t.eq(f.rpcs.map(x => x[0]), ['tomar_resumenes_semanales', 'soltar_resumen_semanal'], 'sin poder leer la cuenta: lo suelta para reintentar');
+  t.eq([f.mails.length, f.pushes.length, r.body.fallidos], [0, 0, 1], 'sin poder leer la cuenta: ni mail ni aviso todavía');
+  sinRastros(f);
   // Dispositivos que ya no existen: se borran.
   f = await montar({ apple: () => 410, web: () => 410 });
   r = await f.pedir();
