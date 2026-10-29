@@ -1,8 +1,10 @@
 // Gimnasios, etapa 2: las cuotas en las pantallas (app/screens/gym/cuotas.js y lo que tocan). Sin cobro
 // online: el gimnasio anota lo que le pagan.
-// - Cuotas (dueña): cobrado y por cobrar del mes, vencidas, las pestañas por estado, [Registrar pago] con
-//   el monto de su cuota y hasta cuándo cubre (como el servidor), el medio, un solo pago con dos toques,
-//   «Listo» y la lista que se vuelve a leer; tipos de cuota (crear y archivar); los pagos del mes en CSV.
+// - Cuotas (dueña), en dos secciones: «Estados» (de entrada: vencidas y los filtros por estado) e «Ingresos
+//   y cuotas» (cobrado y por cobrar del mes, los tipos de cuota para crear y archivar, y los pagos del mes
+//   en CSV). [Registrar pago] con el monto de su cuota y hasta cuándo cubre (como el servidor), el medio,
+//   un solo pago con dos toques, «Listo» y la lista que se vuelve a leer. A quien no tiene cuota se le
+//   puede elegir una en la misma ventana: queda asignada (gym_cuota_asignar) antes del pago.
 // - La ficha del socio: su cuota (cambiarla: gym_cuota_asignar), cuándo vence, el historial con quién
 //   cargó cada pago y anular (con motivo).
 // - Configuración: «La recepción registra pagos» (gym_config) y «No dejar entrar con la cuota vencida»
@@ -60,20 +62,35 @@ export default async function ({ base, t }){
     await ir(p, 'cuotas'); await wait(400);
     let h = await hostTxt(p);
     t.ok(/Cuotas/.test(h) && /GIZE no cobra/.test(h), donde + ': la pantalla dice que GIZE no cobra');
-    t.ok(/Cobrado este mes/.test(h) && /\$\s?150\.000/.test(h) && /5 pagos/.test(h), donde + ': lo cobrado en el mes: ' + h.slice(0, 200));
-    t.ok(/Por cobrar/.test(h) && /\$\s?90\.000/.test(h) && /3 socios este mes/.test(h), donde + ': lo que falta cobrar');
+    // Dos secciones; arranca en «Estados».
+    const partes = () => p.$$eval('#coachHost [data-gym="cuotas-parte"]', l => l.map(b => [b.textContent.trim(), b.getAttribute('aria-selected')]));
+    t.eq(await partes(), [['Estados', 'true'], ['Ingresos y cuotas', 'false']], donde + ': las dos secciones, arranca en «Estados»');
     t.ok(/Juan Pérez/.test(h) && !/Martina Sosa/.test(h.split('Tipos de cuota')[0]), donde + ': arranca en «Vencidas»: Juan, no Martina');
     t.has(h, ddmm(ymd(-3)), donde + ': con el vencimiento');
     await p.click('#coachHost [data-gym="cuotas-tab"][data-v="todos"]'); await wait(200);
     h = await hostTxt(p);
     t.ok(['Martina Sosa', 'Juan Pérez', 'Lucía Gómez', 'Raúl Díaz', 'Sofía Ruiz'].every(n => h.includes(n)), donde + ': «Todos»: los cinco');
     t.ok(/Al día/.test(h) && /Vencida/.test(h) && /Por vencer/.test(h) && /Sin pagos/.test(h) && /Sin cuota/.test(h), donde + ': cada uno con su estado');
-    t.ok(/Musculación/.test(h) && /Trimestral/.test(h) && /archivada/.test(h), donde + ': los tipos de cuota, con la archivada');
     t.eq(await p.$$eval('.gy-tabla-cuotas .gy-sem', l => l.map(e => e.className.replace('gy-sem', '').trim())), ['verde', 'rojo', 'ambar', 'ambar'], donde + ': con su color');
     if (vp === M) t.ok(await sinScrollHorizontal(p), donde + ': sin scroll de costado');
-    const c = await contraste(p, '#coachHost .cv-main');
+    let c = await contraste(p, '#coachHost .cv-main');
     t.ok(c.min >= 4.5, donde + ': todo el texto con contraste de 4,5:1 o más (mínimo ' + c.min + ': ' + c.malos.slice(0, 4).join(' | ') + ')');
     await captura(p, 'cuotas-' + (vp === M ? 'cel' : 'compu') + '-' + tema);
+    // «Ingresos y cuotas»: lo cobrado, lo que falta cobrar, los tipos de cuota y el CSV de los pagos del mes.
+    await p.click('#coachHost [data-gym="cuotas-parte"][data-v="ingresos"]'); await wait(300);
+    t.eq(await partes(), [['Estados', 'false'], ['Ingresos y cuotas', 'true']], donde + ': «Ingresos y cuotas» elegida');
+    h = await hostTxt(p);
+    t.ok(/Cobrado este mes/.test(h) && /\$\s?150\.000/.test(h) && /5 pagos/.test(h), donde + ': lo cobrado en el mes: ' + h.slice(0, 200));
+    t.ok(/Por cobrar/.test(h) && /\$\s?90\.000/.test(h) && /3 socios este mes/.test(h), donde + ': lo que falta cobrar');
+    t.ok(/Musculación/.test(h) && /Trimestral/.test(h) && /archivada/.test(h), donde + ': los tipos de cuota, con la archivada');
+    t.ok(await p.isVisible('#coachHost [data-gym="cuotas-csv"]') && await p.isVisible('#coachHost [data-gym="tipo-nuevo"]'), donde + ': «Pagos del mes (CSV)» y «Nueva cuota» a la vista');
+    if (vp === M) t.ok(await sinScrollHorizontal(p), donde + ': «Ingresos y cuotas» sin scroll de costado');
+    c = await contraste(p, '#coachHost .cv-main');
+    t.ok(c.min >= 4.5, donde + ': «Ingresos y cuotas» con contraste de 4,5:1 o más (mínimo ' + c.min + ': ' + c.malos.slice(0, 4).join(' | ') + ')');
+    await captura(p, 'cuotas-ingresos-' + (vp === M ? 'cel' : 'compu') + '-' + tema);
+    // De vuelta en «Estados», sigue en «Todos».
+    await p.click('#coachHost [data-gym="cuotas-parte"][data-v="estados"]'); await wait(300);
+    t.eq(await p.$eval('#coachHost [data-gym="cuotas-tab"][data-v="todos"]', b => b.getAttribute('aria-pressed')), 'true', donde + ': de vuelta en «Estados», sigue en «Todos»');
     // Registrar un pago (Juan, vencida): el monto de su cuota y hasta cuándo cubre, como el servidor.
     await p.click('#coachHost [data-gym="cuota-pago"][data-id="' + F.A2 + '"]'); await wait(600);
     let m = await modalTxt(p);
@@ -103,6 +120,7 @@ export default async function ({ base, t }){
   {
     const pg = await entrar(base, DUENA, { rpc: RPC() }), p = pg.p;
     await ir(p, 'cuotas'); await wait(400);
+    await p.click('#coachHost [data-gym="cuotas-parte"][data-v="ingresos"]'); await wait(300);
     await p.click('#coachHost [data-gym="tipo-nuevo"]'); await wait(300);
     t.ok(await p.isDisabled('#gymModal [data-gym="tipo-ok"]'), 'nueva cuota: sin nombre ni monto, «Guardar» apagado');
     await p.fill('#gymModal [data-gym-tp="nombre"]', '  Pase libre '); await p.fill('#gymModal [data-gym-tp="monto"]', '45000');
@@ -117,6 +135,7 @@ export default async function ({ base, t }){
     await p.click('#coachHost [data-gym="tipo-archivar"][data-id="' + CT + '"]'); await wait(500);
     t.eq(rpcs(pg.st, 'gym_cuota_tipo_archivar')[1], { id: CT, archivar: false }, '«Volver a usar» una archivada');
     // «Cubre hasta» a mano y una nota.
+    await p.click('#coachHost [data-gym="cuotas-parte"][data-v="estados"]'); await wait(300);
     await p.click('#coachHost [data-gym="cuotas-tab"][data-v="al_dia"]'); await wait(200);
     await p.click('#coachHost [data-gym="cuota-pago"][data-id="' + F.A1 + '"]'); await wait(600);
     t.eq(await p.$eval('#gymModal [data-gym-pg="hasta"]', i => i.value), masMes(ymd(20)), 'al día: cubre un mes desde el vencimiento');
@@ -125,13 +144,15 @@ export default async function ({ base, t }){
     t.eq(Object.assign({}, rpcs(pg.st, 'gym_pago_registrar')[0], { id: 'x' }), { id: 'x', ficha: F.A1, monto: 55000, medio: 'efectivo', fecha: hoyAR(), hasta: ymd(60), nota: 'Pagó dos meses' },
       '«cubre hasta» a mano, otro monto y la nota');
     await p.click('#gymModal .gy-x'); await wait(200);
-    // CSV de los pagos del mes.
+    // CSV de los pagos del mes (en «Ingresos y cuotas»).
+    await p.click('#coachHost [data-gym="cuotas-parte"][data-v="ingresos"]'); await wait(300);
     const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 5000 }).catch(() => null), p.click('#coachHost [data-gym="cuotas-csv"]')]);
     const csv = dl ? fs.readFileSync(await dl.path(), 'utf8').replace(/^﻿/, '').split('\r\n') : [];
     t.ok(dl && /^pagos-\d{4}-\d{2}\.csv$/.test(dl.suggestedFilename()), 'los pagos del mes en CSV: ' + (dl && dl.suggestedFilename()));
     t.eq(csv[0], 'fecha;socio;monto;medio;cuota;cubre_desde;cubre_hasta;nota;cargo;anulado', 'con encabezado');
     t.ok(/^\d{4}-\d{2}-\d{2};Martina Sosa;30000;Efectivo;Musculación;.*;'=1\+1;Carla Dueña;no$/.test(csv[1] || ''), 'una fila por pago (sin fórmulas): ' + csv[1]);
     // La ficha: su cuota, el historial y anular.
+    await p.click('#coachHost [data-gym="cuotas-parte"][data-v="estados"]'); await wait(300);
     await p.evaluate(() => { const b = document.querySelector('#coachHost .gy-row-cuota[data-id]'); b.click(); }); await wait(900);
     let h = await hostTxt(p);
     t.ok(/Cuota/.test(h) && /Pagos/.test(h) && /Rocío Recepción/.test(h) && /Anulado: Repetido/.test(h), 'la ficha: cuota, pagos con quién los cargó y los anulados con el motivo');
@@ -158,6 +179,47 @@ export default async function ({ base, t }){
     await ir(p, 'inicio'); await wait(600);
     t.has(await hostTxt(p), '1 cuota vencida', 'Inicio: «1 cuota vencida» en Para hacer');
     t.eq(pg.errs, [], 'sin errores');
+    await pg.close();
+  }
+
+  // ===== Registrar pago a quien no tiene cuota: se elige ahí mismo y queda asignada =====
+  for (const [vp, tema] of [[D, 'oscuro'], [M, 'claro']]){
+    const donde = 'sin cuota, ' + (vp === M ? 'celular' : 'compu') + ', ' + tema;
+    // En la compu la primera asignación falla: el pago no se registra hasta que la cuota quede asignada.
+    let falla = vp === D;
+    const pg = await entrar(base, DUENA, { vp, tema, touch: vp === M, rpc: Object.assign(RPC(), {
+      gym_pagos_ficha: b => b.ficha === F.A5 ? { ficha: F.A5, cuota: null, vence: null, estado: null, pagos: [] } : pagosDe(b.ficha),
+      gym_cuota_asignar: b => falla ? (falla = false, { error: 'P0001', msg: 'Esa cuota no está (o está archivada).' }) : { ok: b.fichas.length } }) }), p = pg.p;
+    await ir(p, 'cuotas'); await wait(400);
+    await p.click('#coachHost [data-gym="cuotas-tab"][data-v="sin_cuota"]'); await wait(200);
+    await p.click('#coachHost [data-gym="cuota-pago"][data-id="' + F.A5 + '"]'); await wait(700);
+    const sel = '#gymModal [data-gym-pg="cuotaId"]', val = k => p.$eval('#gymModal [data-gym-pg="' + k + '"]', i => i.value);
+    t.has(await modalTxt(p), 'Sofía Ruiz', donde + ': la ventana con el socio');
+    t.eq(await p.$$eval(sel + ' option', l => l.map(o => o.value)), ['', CM], donde + ': para elegir, solo las cuotas en uso (la archivada no)');
+    t.ok(/Musculación/.test(await p.$eval(sel + ' option[value="' + CM + '"]', o => o.textContent)), donde + ': con su nombre');
+    t.eq([await val('monto'), await val('hasta')], ['', ''], donde + ': sin elegir, ni monto ni «cubre hasta»');
+    t.ok(await p.isDisabled('#gymModal [data-gym="pago-ok"]'), donde + ': sin cuota ni «cubre hasta», no se registra');
+    await p.selectOption(sel, CM); await wait(300);
+    t.eq([await val('monto'), await val('hasta')], ['30000', masMes(ymd(0))], donde + ': al elegirla, el monto de la cuota y cubre un mes desde hoy');
+    t.ok(!await p.isDisabled('#gymModal [data-gym="pago-ok"]'), donde + ': y ya se puede registrar');
+    await p.selectOption(sel, ''); await wait(300);
+    t.eq([await val('monto'), await val('hasta')], ['', ''], donde + ': volver a «Sin cuota» borra el monto y «cubre hasta»');
+    await p.selectOption(sel, CM); await wait(300);
+    const cm = await contraste(p, '#gymModal .gy-modal');
+    t.ok(cm.min >= 4.5, donde + ': la ventana con contraste de 4,5:1 o más (mínimo ' + cm.min + ': ' + cm.malos.slice(0, 4).join(' | ') + ')');
+    if (vp === D){
+      await p.click('#gymModal [data-gym="pago-ok"]'); await wait(800);
+      t.ok(pg.dialogs.includes('Esa cuota no está (o está archivada).'), donde + ': si no se puede asignar, lo dice');
+      t.eq(rpcs(pg.st, 'gym_pago_registrar').length, 0, donde + ': y no registra el pago');
+    }
+    await p.click('#gymModal [data-gym="pago-ok"]'); await wait(900);
+    const orden = pg.st.rpcs.map(x => x[0]).filter(n => n === 'gym_cuota_asignar' || n === 'gym_pago_registrar');
+    t.eq(orden, (vp === D ? ['gym_cuota_asignar'] : []).concat(['gym_cuota_asignar', 'gym_pago_registrar']), donde + ': primero asigna la cuota y después registra el pago');
+    t.eq(rpcs(pg.st, 'gym_cuota_asignar').pop(), { fichas: [F.A5], tipo: CM, vence: null }, donde + ': gym_cuota_asignar con la cuota elegida (sin tocar el vencimiento)');
+    t.eq(Object.assign({}, rpcs(pg.st, 'gym_pago_registrar')[0], { id: 'x' }), { id: 'x', ficha: F.A5, monto: 30000, medio: 'efectivo', fecha: hoyAR(), hasta: null, nota: null },
+      donde + ': gym_pago_registrar con el monto de la cuota (lo que cubre lo calcula el servidor)');
+    t.ok(/Listo: pago de Sofía Ruiz registrado/.test(await modalTxt(p)), donde + ': listo');
+    t.eq(pg.errs, [], donde + ': sin errores');
     await pg.close();
   }
 

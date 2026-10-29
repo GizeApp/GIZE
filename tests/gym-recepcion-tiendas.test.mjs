@@ -1,10 +1,10 @@
 // Gimnasios, etapa 1 (parte 4): App Store y Google Play en la recepción, Asistencia y el panel del profe
 // (plan, «Reglas para todas las partes» 3). Con la app de iPhone y la de Android simuladas se recorre:
 // la recepción de la cuenta de recepción (buscar, la ficha, el ingreso, Solicitudes y Cargar ficha), la
-// del dueño, Asistencia con el ingreso manual, y el panel del profe (Clientes, la ficha y la tarjeta
-// Gimnasio, la recepción del profe, con el gimnasio en gracia y con su plan propio vencido). En ninguna
-// aparece «$», precios, planes de GIZE, «prueba», Mercado Pago, transferencia ni links de pago, ni se abre
-// la hoja de planes.
+// del dueño (entrando por la tarjeta de Inicio), Asistencia con el ingreso manual, y el panel del profe
+// (Clientes, la ficha y la tarjeta Gimnasio, la recepción del profe, con el gimnasio en gracia y con su
+// plan propio vencido). En ninguna aparece «$», precios, planes de GIZE, «prueba», Mercado Pago,
+// transferencia ni links de pago, ni se abre la hoja de planes.
 import { wait } from './lib.mjs';
 import { entrar, entrarProfe, miGimnasio, miGimnasioProfe, DUENA, RECEP, F, S, M, IOS, ANDROID, busqueda, ingresosHoy, buscarRec } from './gym-comun.mjs';
 
@@ -53,7 +53,9 @@ export default async function ({ base, t }){
       await p.click('#coachHost [data-gym="ingreso-manual"]'); await wait(400);
       await buscarRec(p, 'mart'); await p.click('#gymModal [data-rec="elegir"][data-id="' + F.A1 + '"]'); await wait(200); await mirar(p, 'Ingreso manual');
       await p.click('#gymModal .gy-x'); await wait(300);
-      await p.click('#coachHost .gy-head [data-gym="ir"][data-v="recepcion"]'); await wait(500); await mirar(p, 'Recepción del dueño');
+      // [Abrir recepción] ya no está en Asistencia: va en la tarjeta de Inicio.
+      await p.evaluate(() => document.querySelector('#coachHost [data-gym="ir"][data-v="inicio"]').click()); await wait(600); await mirar(p, 'Inicio del dueño');
+      await p.click('#coachHost .gy-recep-cta [data-gym="ir"][data-v="recepcion"]'); await wait(500); await mirar(p, 'Recepción del dueño');
       await buscarRec(p, 'mart'); await mirar(p, 'Recepción del dueño: resultados');
       t.eq(pg.errs, [], nombre + ' · dueño: sin errores');
       await pg.close();
@@ -73,6 +75,6 @@ export default async function ({ base, t }){
       t.eq(pg.errs, [], nombre + ' · profe: sin errores');
       await pg.close();
     }
-    t.eq(vistas.length, 15, nombre + ': se recorrieron todas las pantallas');
+    t.eq(vistas.length, 16, nombre + ': se recorrieron todas las pantallas');
   }
 }

@@ -4,7 +4,7 @@
 // carteles del plan van solo en la web (gracia, prueba, sobre cupo); en las apps no. Sin nada cargado,
 // la lista de los primeros pasos, que se tachan solos.
 import { wait } from './lib.mjs';
-import { entrar, miGimnasio, DUENA, ADMIN_G, hostTxt, IOS, ANDROID } from './gym-comun.mjs';
+import { entrar, miGimnasio, DUENA, ADMIN_G, hostTxt, aLaVista, IOS, ANDROID } from './gym-comun.mjs';
 
 const dias = n => new Date(Date.now() + n * 864e5).toISOString();
 
@@ -21,6 +21,9 @@ export default async function ({ base, t }){
     await p.click('#coachHost .gy-todo:has-text("sin profe") button'); await wait(700);
     let s = await hostTxt(p);
     t.ok(/Lucía Gómez/.test(s) && !/Martina Sosa/.test(s), '«Asignar» abre Socios filtrado por «Sin profe»');
+    // Los filtros van guardados en el botón «Filtros», que dice cuántos hay puestos; al abrirlo, el de «Sin profe» está marcado.
+    t.eq(await p.$eval('#coachHost [data-gym="filtros-toggle"]', b => [b.classList.contains('on'), (b.querySelector('.gy-n') || {}).textContent]), [true, '1'], 'con «Filtros» marcado y un filtro puesto');
+    await p.click('#coachHost [data-gym="filtros-toggle"]'); await wait(300);
     t.ok(await p.evaluate(() => document.querySelector('[data-gym="filtro"][data-k="sinProfe"]').classList.contains('on')), 'con el filtro marcado');
     await p.click('#coachHost [data-gym="ir"][data-v="inicio"]'); await wait(500);
     await p.click('#coachHost .gy-todo:has-text("pedidos para sumarse") button'); await wait(800);
@@ -29,9 +32,14 @@ export default async function ({ base, t }){
     await p.click('#coachHost .gy-todo:has-text("versión vieja") button'); await wait(700);
     s = await hostTxt(p);
     t.ok(/Juan Pérez/.test(s) && !/Martina Sosa/.test(s), '«Ver» de la versión vieja filtra los socios con la app vieja');
-    // «Sumar socio» abre la ventana con el código.
+    // «Abrir recepción» va en una tarjeta propia, a la vista apenas se abre Inicio, y lleva a la recepción.
     await p.click('#coachHost [data-gym="ir"][data-v="inicio"]'); await wait(500);
-    await p.click('#coachHost .gy-head [data-gym="sumar"]'); await wait(500);
+    t.eq(await aLaVista(p, '#coachHost .gy-recep-cta [data-gym="ir"][data-v="recepcion"]'), 'a la vista', '«Abrir recepción» a la vista en Inicio');
+    await p.click('#coachHost .gy-recep-cta [data-gym="ir"][data-v="recepcion"]'); await wait(500);
+    t.ok(!!await p.$('#coachHost input[data-rec-q]'), '«Abrir recepción» (la tarjeta de Inicio) va a la recepción');
+    // «Sumar socio» salió del título de Inicio: está en Socios, en la fila del buscador, y abre la ventana con el código.
+    await p.click('#coachHost [data-gym="ir"][data-v="socios"]'); await wait(500);
+    await p.click('#coachHost .gy-filtros-bar [data-gym="sumar"]'); await wait(500);
     t.ok(/FUERZA22/.test(await p.evaluate(() => document.getElementById('gymModal').innerText)), '«Sumar socio» abre la ventana con el código');
     t.eq(pg.errs, [], 'sin errores');
     await pg.close();

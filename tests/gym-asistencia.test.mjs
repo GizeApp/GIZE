@@ -2,12 +2,13 @@
 // - Los ingresos de hoy (gym_ingresos con la fecha de hoy en Argentina): hora, socio, «Manual», el estado
 //   al entrar con su color y quién lo registró. Sin montos.
 // - Vacía: «Cuando registres ingresos en la recepción, los vas a ver acá.» y Exportar deshabilitado.
-// - [Abrir recepción] va a la recepción; [Ingreso manual] abre la recepción en una ventana: registra y la
-//   lista de hoy se vuelve a leer.
+// - [Ingreso manual] y [Exportar CSV] en una fila propia, a la vista. [Ingreso manual] abre la recepción
+//   en una ventana: registra y la lista de hoy se vuelve a leer. [Abrir recepción] ya no está acá: va en
+//   la tarjeta de Inicio y lleva a la recepción.
 // - [Exportar CSV]: separado por punto y coma, con BOM, una fila por ingreso.
 // Celular y compu, Oscuro y Claro (capturas en GYM_CAPTURAS).
 import { wait, contraste } from './lib.mjs';
-import { entrar, DUENA, ADMIN_G, miGimnasio, F, M, D, ir, hostTxt, modalTxt, rpcs, ingresosHoy, busqueda, buscarRec, captura, sinScrollHorizontal } from './gym-comun.mjs';
+import { entrar, DUENA, ADMIN_G, miGimnasio, F, M, D, ir, hostTxt, modalTxt, rpcs, ingresosHoy, busqueda, buscarRec, captura, sinScrollHorizontal, aLaVista } from './gym-comun.mjs';
 
 const hoyAR = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
@@ -30,7 +31,9 @@ export default async function ({ base, t }){
     // Desde la etapa 2 el menú de la compu tiene «Cuotas»: se mira solo la pantalla, no el menú.
     const pantalla = await p.$eval('#coachHost .cv-main', e => e.innerText);
     t.ok(!/\$|monto|cuota/i.test(pantalla), donde + ': sin montos');
-    t.ok(/Abrir recepción/.test(h) && /Ingreso manual/.test(h) && /Exportar CSV/.test(h), donde + ': las tres acciones');
+    t.ok(/Ingreso manual/.test(h) && /Exportar CSV/.test(h), donde + ': las dos acciones');
+    // En su fila, a la vista y sin nada encima (se tocan sin correr la pantalla).
+    t.eq([await aLaVista(p, '#coachHost .gy-asis-barra [data-gym="ingreso-manual"]'), await aLaVista(p, '#coachHost .gy-asis-barra [data-gym="asis-csv"]')], ['a la vista', 'a la vista'], donde + ': las dos acciones a la vista');
     if (vp === M) t.ok(await sinScrollHorizontal(p), donde + ': sin scroll horizontal');
     const c = await contraste(p, '#coachHost .cv-main');
     t.ok(c.min >= 4.5, donde + ': todo el texto con contraste de 4,5:1 o más (mínimo ' + c.min + ': ' + c.malos.slice(0, 4).join(' | ') + ')');
@@ -58,8 +61,10 @@ export default async function ({ base, t }){
     h = await hostTxt(p);
     t.ok(/4 ingresos hoy/.test(h), donde + ': al cerrar, la lista de hoy ya tiene el ingreso nuevo');
     t.ok(rpcs(pg.st, 'gym_ingresos').length >= 2, donde + ': volvió a leer los ingresos');
-    // Abrir recepción.
-    await p.click('#coachHost .gy-head [data-gym="ir"][data-v="recepcion"]'); await wait(500);
+    // Abrir recepción: salió de Asistencia y va en la tarjeta de Inicio (a la vista, en la compu y en el celular).
+    await ir(p, 'inicio'); await wait(300);
+    t.eq(await aLaVista(p, '#coachHost .gy-recep-cta [data-gym="ir"][data-v="recepcion"]'), 'a la vista', donde + ': [Abrir recepción] a la vista en Inicio');
+    await p.click('#coachHost .gy-recep-cta [data-gym="ir"][data-v="recepcion"]'); await wait(500);
     t.ok(!!await p.$('#coachHost input[data-rec-q]'), donde + ': [Abrir recepción] va a la recepción');
     t.eq(pg.errs, [], donde + ': sin errores');
     await pg.close();

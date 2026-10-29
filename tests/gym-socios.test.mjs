@@ -19,9 +19,17 @@ export default async function ({ base, t }){
   const fila = n => p.evaluate(n => { const r = [...document.querySelectorAll('#coachHost .gy-row')].find(x => x.innerText.includes(n)); return r ? r.innerText.replace(/\s+/g, ' ') : ''; }, n);
   t.has(await fila('Sofía Ruiz'), 'Coach externo', 'coach de afuera: «Coach externo», sin nombre');
   t.ok(!/Ayer.*Ayer/.test(await fila('Juan Pérez')) && /Hace 20 días —/.test(await fila('Juan Pérez')), 'último entreno «—» si el servidor no lo manda (no compartió ni es suyo)');
-  // Filtros
+  // Filtros: van guardados en el botón «Filtros», al lado del buscador; al abrirlo aparecen, y el botón
+  // dice cuántos hay puestos.
+  const btnFiltros = () => p.$eval('#coachHost [data-gym="filtros-toggle"]', b => [b.getAttribute('aria-expanded'), (b.querySelector('.gy-n') || {}).textContent || '']);
+  t.ok(!await p.$('#coachHost [data-gym="filtro"]'), 'los filtros, guardados en «Filtros»');
+  t.eq(await btnFiltros(), ['false', ''], '«Filtros» cerrado y sin filtros puestos');
+  await p.click('#coachHost .gy-filtros-bar [data-gym="filtros-toggle"]'); await wait(250);
+  t.eq((await btnFiltros())[0], 'true', '«Filtros» se abre');
   const filtro = async k => { await p.click('#coachHost [data-gym="filtro"][data-k="' + k + '"]'); await wait(250); };
-  await filtro('sinProfe'); t.eq(await nombres(p), ['Lucía Gómez'], 'filtro «Sin profe»'); await filtro('sinProfe');
+  await filtro('sinProfe'); t.eq(await nombres(p), ['Lucía Gómez'], 'filtro «Sin profe»');
+  t.eq(await btnFiltros(), ['true', '1'], '«Filtros» dice que hay uno puesto'); await filtro('sinProfe');
+  t.eq((await btnFiltros())[1], '', 'al sacarlo, ya no');
   await filtro('externo'); t.eq(await nombres(p), ['Sofía Ruiz'], 'filtro «Coach externo»'); await filtro('externo');
   await filtro('faltaConf'); t.eq(await nombres(p), ['Pedro Álvarez'], 'filtro «Falta confirmación»'); await filtro('faltaConf');
   await filtro('sinApp'); t.eq(await nombres(p), ['Raúl Díaz'], 'filtro «Sin app»'); await filtro('sinApp');
@@ -79,8 +87,8 @@ export default async function ({ base, t }){
   await p.click('#coachHost .gy-row:has-text("Martina Sosa") .gy-socio-t'); await wait(800);
   t.has(await hostTxt(p), 'Notas internas', 'tocar la fila abre la ficha');
   await ir(p, 'socios');
-  // Sumar socio: código, link y QR
-  await p.click('#coachHost .gy-head [data-gym="sumar"]'); await wait(900);
+  // Sumar socio (en la fila del buscador, ya no en el título): código, link y QR
+  await p.click('#coachHost .gy-filtros-bar [data-gym="sumar"]'); await wait(900);
   let mt = await modalTxt(p);
   t.has(mt, 'FUERZA22', 'Sumar socio: el código del gimnasio'); t.has(mt, 'https://gize.ar/app/#codigo=FUERZA22', 'su link');
   t.ok(await p.$('#gymModal .gy-qr svg'), 'y el QR del link');
@@ -100,7 +108,7 @@ export default async function ({ base, t }){
   t.ok(!(await p.$('#gymModal')), 'Escape cierra la ventana');
   // El P0001 del servidor tal cual (cupo lleno)
   pg.st.rpcs.length = 0;
-  await p.evaluate(() => { const b = document.querySelector('#coachHost .gy-head [data-gym="sumar"]'); b.click(); }); await wait(300);
+  await p.evaluate(() => { const b = document.querySelector('#coachHost .gy-filtros-bar [data-gym="sumar"]'); b.click(); }); await wait(300);
   await p.click('#gymModal [data-gym="sumar-tab"][data-v="ficha"]'); await wait(200);
   await p.route(/rpc\/gym_ficha_crear/, r => r.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ code: 'P0001', message: 'El gimnasio no puede sumar socios en este momento.' }) }));
   await p.fill('#gymModal [data-gym-f="nombre"]', 'Otra Persona'); await p.click('#gymModal [data-gym="ficha-crear"]'); await wait(700);

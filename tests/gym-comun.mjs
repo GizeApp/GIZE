@@ -150,6 +150,12 @@ export const hostTxt = p => p.evaluate(() => (document.getElementById('coachHost
 export const modalTxt = p => p.evaluate(() => { const m = document.getElementById('gymModal'); return m ? m.innerText.replace(/\s+/g, ' ').trim() : ''; });
 export const rpcs = (st, n) => st.rpcs.filter(x => x[0] === n).map(x => x[1]);
 export async function ir(p, v){ await p.evaluate(v => { const b = document.querySelector('#coachHost [data-gym="ir"][data-v="' + v + '"]'); if (b) b.click(); }, v); await wait(500); }
+// Un botón que una persona ve y toca sin correr la pantalla: está, entra entero en la pantalla y no tiene
+// nada encima (lo que hay en su centro es él). Devuelve 'a la vista' o qué le pasa.
+export const aLaVista = (p, sel) => p.evaluate(sel => { const b = document.querySelector(sel); if (!b) return 'no está';
+  const r = b.getBoundingClientRect(), x = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  if (!r.width || r.top < 0 || r.left < 0 || r.bottom > innerHeight || r.right > innerWidth) return 'fuera de la pantalla';
+  return x && b.contains(x) ? 'a la vista' : 'tapado'; }, sel);
 export const sinScrollHorizontal = p => p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1 && [...document.querySelectorAll('#coachHost *')].every(e => { const r = e.getBoundingClientRect(); return !r.width || r.right <= window.innerWidth + 1 || getComputedStyle(e).position === 'fixed' || e.closest('.gy-filtros, .cv-pills'); }));
 // Donde van las capturas de pantalla (fuera del repo).
 export const CAPTURAS = process.env.GYM_CAPTURAS || '';
