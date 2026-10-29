@@ -1,8 +1,9 @@
 // Textos legales y de cumplimiento: en las apps de Android y iPhone ningún link lleva a la
-// página de inicio (tiene los precios y el botón para contratar), el link legal dice lo que
-// abre (la política de privacidad, también para el coach), y los avisos de «Borrar datos de
-// este dispositivo» y de eliminar la cuenta de coach dicen la verdad. Además, ni la página
-// de inicio ni el mail de registro ni los permisos del iPhone prometen fotos de progreso.
+// página de inicio ni a la página para coaches (tienen los precios y el botón para contratar),
+// el link legal dice lo que abre (la política de privacidad, también para el coach), y los
+// avisos de «Borrar datos de este dispositivo» y de eliminar la cuenta de coach dicen la
+// verdad. Además, ni la página de inicio ni el mail de registro ni los permisos del iPhone
+// prometen fotos de progreso.
 // Los Términos de uso (gize.ar/terminos, los pide Apple para las suscripciones de la app de
 // iPhone) dicen cómo se renueva y se cancela la suscripción con Apple, y desde la app se abren sin
 // la barra que lleva a la página de inicio, igual que la política.
@@ -15,8 +16,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATE = { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {} };
 const NATIVE = () => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: {} }; };
 const links = p => p.evaluate(() => [...document.querySelectorAll('#view a, #coachHost .cs-body a')].map(a => ({ href: a.getAttribute('href'), txt: a.innerText.replace(/\s+/g, ' ').trim() })));
-// La página de inicio: gize.ar/ (con o sin ? o #). La política (gize.ar/privacidad/) no cuenta.
-const isLanding = h => /^https:\/\/gize\.ar\/?([?#].*)?$/.test(h || '');
+// La página de inicio: gize.ar/ (con o sin ? o #), y la página para coaches (gize.ar/coaches/), que
+// también tiene los precios y el botón para contratar. La política (gize.ar/privacidad/) no cuenta.
+const isLanding = h => /^https:\/\/gize\.ar\/?(coaches\/?)?([?#].*)?$/.test(h || '');
 
 export default async function ({ base, t }){
   // 1) App de iPhone: Configuración sin «Sitio web» y con la política de privacidad por su nombre.
