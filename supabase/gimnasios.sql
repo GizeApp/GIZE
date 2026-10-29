@@ -874,7 +874,9 @@ notify pgrst, 'reload schema';
 --                            'gym_codes_unico', 'gym_profe_ficha', 'gym_members_profe', 'gym_members_pedido_sin_cuenta',
 --                            -- ia.sql y resumen-semanal.sql: sin las tablas de gimnasios siguen andando (miran
 --                            -- to_regclass antes).
---                            'ia_rol_origen', 'resumen_semanal_ve')
+--                            'ia_rol_origen', 'resumen_semanal_ve',
+--                            -- cobros-coach.sql: lo mismo (mira to_regprocedure antes de usar vinculo_gym).
+--                            'cobro_de_gimnasio')
 --      and p.prosrc ~ '\m(gym_[a-z_]+|gyms|vinculo_gym|recount_seats|seats_drift|seats_used)\M';
 --   if f is not null then
 --     raise exception 'Primero el bloque «Para volver atrás» de supabase/gimnasios-vinculo.sql: todavía usan los gimnasios %', f;
