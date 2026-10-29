@@ -79,6 +79,7 @@ permisos-sin-sesion.sql       # sin sesión no se llaman 9 funciones (después d
 cuentas-prueba.sql            # cuentas de prueba en el admin (después de admin, finanzas y precios-2026-10)
 mails-prueba.sql              # mails de la prueba gratis (después de suscripciones y avisos-coach)
 codigo-fundador.sql           # códigos de fundador (después de admin y suscripciones)
+resumen-semanal.sql           # resumen de los lunes (después de avisos-coach, admin, cupo-plan y cuentas-prueba)
 # Hasta acá, la base de hoy («gize_sin»). Con los gimnasios («gize_con»), además:
 #   gimnasios.sql               tablas, funciones de permiso y triggers del cupo (no cambia nada)
 #   gimnasios-vinculo.sql       versiones canónicas de coach_active, is_my_client, join_coach…
