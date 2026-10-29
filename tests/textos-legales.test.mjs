@@ -21,6 +21,10 @@ const links = p => p.evaluate(() => [...document.querySelectorAll('#view a, #coa
 const isLanding = h => /^https:\/\/gize\.ar\/?(coaches\/?)?([?#].*)?$/.test(h || '');
 
 export default async function ({ base, t }){
+  // La guarda agarra la página de inicio y la de coaches (con o sin la barra, con ? o #), y no la política.
+  t.eq(['https://gize.ar/', 'https://gize.ar/?plan=p10', 'https://gize.ar/coaches/', 'https://gize.ar/coaches', 'https://gize.ar/coaches/#precios', 'https://gize.ar/privacidad/?app=1'].map(isLanding),
+    [true, true, true, true, true, false], 'la guarda reconoce la página de inicio y la página para coaches');
+
   // 1) App de iPhone: Configuración sin «Sitio web» y con la política de privacidad por su nombre.
   let pg = await newPage({ user: ALUMNO, state: STATE, init: NATIVE, handlers: { '/profiles': profile('client') } });
   await pg.p.goto(base + '/app/'); await wait(2500);
