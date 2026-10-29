@@ -47,7 +47,7 @@ export default async function ({ base, t }){
     t.eq(bad, [], path.relative(ROOT, f) + ': reglas anidadas');
   }
   // Lo mismo en lo que de verdad carga cada página (incluye los <style> del HTML).
-  for (const url of ['/app/', '/admin/', '/', '/privacidad/']){
+  for (const url of ['/app/', '/admin/', '/', '/privacidad/', '/coaches/']){
     const { p, errs, close } = await newPage({});
     await p.goto(base + url); await wait(1200);
     const bad = await p.evaluate(() => {

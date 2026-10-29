@@ -3,7 +3,7 @@
 import { newPage, wait } from './lib.mjs';
 
 export default async function ({ base, t }){
-  for (const path of ['/app/', '/admin/', '/', '/privacidad/']){
+  for (const path of ['/app/', '/admin/', '/', '/privacidad/', '/coaches/']){
     const { p, errs, close } = await newPage({});
     const google = [];
     await p.route(/fonts\.(googleapis|gstatic)\.com/, r => { google.push(r.request().url()); return r.abort(); });

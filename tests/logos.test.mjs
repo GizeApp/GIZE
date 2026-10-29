@@ -69,7 +69,7 @@ export default async function ({ base, t }){
     t.ok(s.includes('M81.53,62.74 A34,34 0 1 1 67,20.55') && (s.match(/<radialGradient/g) || []).length >= 8 && !/#2FA0FF/i.test(s), 'marca ' + n + ': la G con el orbe de degradés');
   }
   t.ok(fs.existsSync(L('gize-marca-negra.svg')) && /stroke="#0B0D11"/.test(fs.readFileSync(L('gize-marca-negra.svg'), 'utf8')), 'marca negra: la G casi negra');
-  const archivos = ['index.html', 'app/index.html', 'admin/index.html', 'admin/admin.js', 'privacidad/index.html', 'install.js', 'sw.js', 'manifest.json', 'landing.js',
+  const archivos = ['index.html', 'app/index.html', 'admin/index.html', 'admin/admin.js', 'privacidad/index.html', 'coaches/index.html', 'install.js', 'sw.js', 'manifest.json', 'landing.js',
     ...['app/screens', 'app/ui', 'app/screens/coach', 'css/ui', 'css/core', 'css/screens'].flatMap(d => fs.readdirSync(path.join(ROOT, d)).filter(f => /\.(js|css)$/.test(f)).map(f => d + '/' + f))];
   const faltan = [], viejos = [];
   for (const f of archivos){
@@ -93,7 +93,7 @@ export default async function ({ base, t }){
     t.eq(v, { teal: true, magenta: true, gBlanca: true, fondo: '0,0,0' }, f + ': el logo «Oscuro»');
   }
   // Favicon de cada página: el PNG del ícono nuevo.
-  for (const u of ['/', '/app/', '/admin/', '/privacidad/']){
+  for (const u of ['/', '/app/', '/admin/', '/privacidad/', '/coaches/']){
     await pg.p.goto(base + u, { waitUntil: 'domcontentloaded' });
     const href = await pg.p.evaluate(() => { const l = document.querySelector('link[rel="icon"]'); return l && l.href; });
     t.ok(/\/icon-192\.png$/.test(href || ''), u + ': favicon con el ícono nuevo: ' + href);
