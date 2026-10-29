@@ -278,7 +278,7 @@ export default async function ({ base, t }){
   t.eq(await ia.evaluate(() => document.activeElement && document.activeElement.dataset.a), 'iaOn', 'el foco vuelve al interruptor después de guardar');
   await ia.click('[data-a="iaFn"][data-k="etiqueta_admin"]'); await wait(600);
   t.eq(a.rpcs.filter(r => r[0] === 'config')[1], ['config', { p: { funciones: { etiqueta_admin: true } } }], 'prende «Leer tablas en Pedidos»');
-  for (const k of ['etiqueta_usuario', 'rutina', 'resumen'])
+  for (const k of ['etiqueta_usuario', 'planilla', 'rutina', 'resumen'])
     t.ok(await ia.$eval(`[data-a="iaFn"][data-k="${k}"]`, b => b.disabled), 'lo que todavía no está en la app no se puede prender (' + k + ')');
   // La foto del plato (app) ya se puede prender, con confirmación.
   t.ok(!(await ia.$eval('[data-a="iaFn"][data-k="plato"]', b => b.disabled)), '«Foto del plato» se puede prender');
@@ -321,6 +321,24 @@ export default async function ({ base, t }){
   t.has(pag2, 'Errores del ciclo: la IA no quiso leerla 1 · error de la API (500) 2 · mucha demanda (límite por minuto) 1', 'los errores, en castellano');
   t.has(pag2, 'respuesta cortada', 'las últimas llamadas, en castellano');
   t.ok(!/\brefusal\b|max_tokens|api_500/.test(pag2), 'sin códigos crudos en inglés');
+  await a.close();
+  // La IA del coach (base en supabase/ia.sql): el coach en su prueba gratis tiene topes propios
+  // («Coach en prueba») y las planillas tienen su nombre en Topes, en el uso y en las llamadas.
+  a = await abrir(base, { vista: 'ia', estado: ESTADO({ topes: { admin: { etiqueta: 300, total: 300, usd_ciclo: 10 },
+      coach: { planilla: 30, rutina: 15, total: 60, usd_ciclo: 5 }, prueba: { planilla: 15, rutina: 5, total: 20, usd_ciclo: 1 } },
+    por_funcion: { planilla: { usos: 3, usd: 0.01 } },
+    ultimas: [{ creada: NUEVO, rol: 'prueba', origen: null, funcion: 'planilla', modelo: 'm1', estado: 'ok', codigo: null, usd: 0.003, max_usd: 0.015, ms: 9000 },
+      { creada: NUEVO, rol: 'coach', origen: 'plan', funcion: 'rutina', modelo: 'm1', estado: 'ok', codigo: null, usd: 0.003, max_usd: 0.009, ms: 8000 }] }) });
+  await a.p.$$eval('#iaTopesB, #iaUltB', ds => ds.forEach(d => { d.open = true; })); await wait(300);
+  const tps = await text(a.p, '#iaTopesB');
+  t.has(tps, 'Coach en prueba', 'Topes: el coach en prueba con su nombre');
+  t.has(tps, 'Coach en su prueba gratis, sin plan pago: solo planillas y rutinas', 'Topes: qué es el coach en prueba');
+  t.has(tps, 'Planillas por día', 'Topes: las planillas por día con su nombre');
+  t.eq(await a.p.inputValue('[data-tope="prueba.planilla"]'), '15', 'Topes: las planillas del coach en prueba se pueden cambiar');
+  t.has(await text(a.p, '#iaUsoB'), 'Planillas', 'Uso del ciclo: las planillas con su nombre');
+  t.eq(await a.p.$$eval('#iaUltB tbody tr', trs => trs.map(tr => [tr.children[1].textContent, tr.children[2].textContent])), [['Coach en prueba', 'Planillas'], ['Coach', 'Rutinas']], 'Últimas llamadas: el coach en prueba y las planillas con su nombre');
+  t.ok(!(await a.p.$$eval('#iaTopesB b, #iaTopesB label, #iaUltB tbody td', es => es.map(e => e.textContent.trim()))).some(x => /^(prueba|planilla)\b/.test(x)), 'sin claves crudas');
+  t.eq(a.errs, [], 'errores de la página (IA del coach)');
   await a.close();
   // En el celular, las marcas de la barra no se pisan.
   a = await abrir(base, { vista: 'ia', viewport: { width: 390, height: 844 } });

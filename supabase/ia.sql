@@ -32,16 +32,21 @@
 -- incluido con el plan del coach) la deja sin límite semanal, con sus propios topes: hasta 10 fotos
 -- por día y US$1,50 por persona por ciclo (ia_config.topes.plus; tabla ia_plus y «IA Plus» más
 -- abajo). Lo escriben las funciones «suscripcion» y «compras-apple».
+--
+-- IA del coach («Pasar mis planillas» y «Armar con IA»; también ARRANCA APAGADA: funciones.planilla
+-- y funciones.rutina en false): usan la misma guardia, con el rol que da ia_rol_coach ('coach' con
+-- plan o profe de gimnasio, 'prueba' en la prueba gratis, con topes propios más chicos). La app
+-- pregunta ia_coach_estado() y guarda el permiso «Usar IA en tus rutinas» con ia_permiso_rutinas().
 
 -- ---------- configuración (una sola fila) ----------
 create table if not exists public.ia_config (
   id            int primary key default 1 check (id = 1),
   activa        boolean not null default false,
-  funciones     jsonb not null default '{"etiqueta_admin":false,"etiqueta_usuario":false,"plato":false,"texto":false,"rutina":false,"resumen":false}',
+  funciones     jsonb not null default '{"etiqueta_admin":false,"etiqueta_usuario":false,"plato":false,"texto":false,"rutina":false,"resumen":false,"planilla":false}',
   -- Modelo elegido para cada función. Vacío: el de la función (supabase/functions/ia/precios.ts,
   -- que es la única lista de modelos; uno que no esté ahí no se usa).
   modelos       jsonb not null default '{}',
-  topes         jsonb not null default '{"alumno":{"etiqueta":10,"plato":8,"texto":15,"total":25,"usd_ciclo":0.5},"coach":{"etiqueta":10,"plato":8,"texto":15,"rutina":15,"resumen":3,"total":40,"usd_ciclo":5},"admin":{"etiqueta":300,"total":300,"usd_ciclo":10},"plus":{"plato":10,"usd_ciclo":1.5}}',
+  topes         jsonb not null default '{"alumno":{"etiqueta":10,"plato":8,"texto":15,"total":25,"usd_ciclo":0.5},"coach":{"etiqueta":10,"plato":8,"texto":15,"rutina":15,"resumen":3,"planilla":30,"total":60,"usd_ciclo":5},"prueba":{"planilla":15,"rutina":5,"total":20,"usd_ciclo":1},"admin":{"etiqueta":300,"total":300,"usd_ciclo":10},"plus":{"plato":10,"usd_ciclo":1.5}}',
   ancla         timestamptz,            -- un vencimiento de los créditos, a las 00:00 UTC
   pedidos_desde timestamptz,            -- desde cuándo se leen pedidos con IA (cambio de la política)
   aviso_version int not null default 1, -- versión del aviso de permiso de la app
@@ -62,8 +67,25 @@ update public.ia_config set plus = jsonb_set(plus, '{precio_confirmado}', 'true'
 -- Los topes de quien tiene IA Plus (comprado o incluido): fotos del plato por día y US$ por ciclo.
 -- Valen el mayor entre estos y los de su rol (un coach sigue con sus US$5). Se cambian en el panel
 -- (IA → Topes → Con IA Plus). En una base que ya tenía la configuración, se suman una sola vez.
-alter table public.ia_config alter column topes set default '{"alumno":{"etiqueta":10,"plato":8,"texto":15,"total":25,"usd_ciclo":0.5},"coach":{"etiqueta":10,"plato":8,"texto":15,"rutina":15,"resumen":3,"total":40,"usd_ciclo":5},"admin":{"etiqueta":300,"total":300,"usd_ciclo":10},"plus":{"plato":10,"usd_ciclo":1.5}}';
+alter table public.ia_config alter column topes set default '{"alumno":{"etiqueta":10,"plato":8,"texto":15,"total":25,"usd_ciclo":0.5},"coach":{"etiqueta":10,"plato":8,"texto":15,"rutina":15,"resumen":3,"planilla":30,"total":60,"usd_ciclo":5},"prueba":{"planilla":15,"rutina":5,"total":20,"usd_ciclo":1},"admin":{"etiqueta":300,"total":300,"usd_ciclo":10},"plus":{"plato":10,"usd_ciclo":1.5}}';
 update public.ia_config set topes = topes || '{"plus":{"plato":10,"usd_ciclo":1.5}}' where id = 1 and not (topes ? 'plus');
+-- IA del coach: la función «planilla» (pasar las planillas del coach a rutinas de GIZE, ARRANCA
+-- APAGADA), las planillas por día del coach y el rol «prueba» (coach en su prueba gratis: 15
+-- planillas y 5 rutinas por día, 20 en total y US$1 por ciclo). En una base que ya tenía la
+-- configuración se suman una sola vez y no pisan lo que el dueño cambió en el panel. El total por
+-- día del coach pasa de 40 a 60 solo si seguía en 40, y solo esa vez (cuando todavía no tenía
+-- planillas): si después el dueño lo vuelve a 40, correr esto de nuevo no lo cambia.
+alter table public.ia_config alter column funciones set default '{"etiqueta_admin":false,"etiqueta_usuario":false,"plato":false,"texto":false,"rutina":false,"resumen":false,"planilla":false}';
+update public.ia_config set funciones = funciones || '{"planilla":false}' where id = 1 and not (funciones ? 'planilla');
+update public.ia_config
+   set topes = jsonb_set(topes, '{coach}', (topes -> 'coach') || '{"planilla":30}'::jsonb
+                 || case when (topes #>> '{coach,total}')::numeric = 40 then '{"total":60}'::jsonb else '{}'::jsonb end)
+ where id = 1 and jsonb_typeof(topes -> 'coach') = 'object' and not (topes -> 'coach' ? 'planilla');
+update public.ia_config set topes = jsonb_set(topes, '{coach,rutina}', '15') where id = 1 and jsonb_typeof(topes -> 'coach') = 'object' and not (topes -> 'coach' ? 'rutina');
+update public.ia_config set topes = topes || '{"prueba":{"planilla":15,"rutina":5,"total":20,"usd_ciclo":1}}' where id = 1 and not (topes ? 'prueba');
+-- Versión del aviso «Usar IA en tus rutinas» (el permiso de la IA del coach, uno solo para las
+-- planillas y «Armar con IA»; aparte del de Comida, que es aviso_version). La 1 ya explica las dos.
+alter table public.ia_config add column if not exists aviso_rutinas_version int not null default 1;
 -- Versión 2 del aviso (app/ui/ia-permiso.js): la app ya no manda texto, solo la foto (se sacó la
 -- aclaración «¿Qué es?»). Quien aceptó la versión 1 lo vuelve a ver una vez. Solo sube, nunca baja:
 -- se puede correr de nuevo sin volver a preguntar.
@@ -97,8 +119,8 @@ create table if not exists public.ia_llamadas (
   id          bigint generated always as identity primary key,
   ciclo_id    bigint not null references public.ia_ciclos(id),
   user_id     uuid references auth.users(id) on delete set null,
-  rol         text not null check (rol in ('alumno', 'coach', 'admin')),
-  funcion     text not null check (funcion in ('etiqueta', 'plato', 'texto', 'rutina', 'resumen')),
+  rol         text not null check (rol in ('alumno', 'coach', 'admin', 'prueba')),
+  funcion     text not null check (funcion in ('etiqueta', 'plato', 'texto', 'rutina', 'resumen', 'planilla')),
   modelo      text not null,
   estado      text not null default 'reservada' check (estado in ('reservada', 'ok', 'vacia', 'error', 'vencida')),
   codigo      text,
@@ -131,20 +153,56 @@ create table if not exists public.ia_permisos (
   version      int not null default 1,
   updated_at   timestamptz not null default now()
 );
+-- El permiso del coach «Usar IA en tus rutinas» (planillas y «Armar con IA»): cuándo lo aceptó,
+-- cuándo lo apagó y qué versión del aviso aceptó (0: ninguna). Columnas propias: coach_ok_at y
+-- coach_no_at quedan para el permiso del alumno del «Resumen para tu coach» (la política).
+alter table public.ia_permisos add column if not exists rutinas_ok_at timestamptz;
+alter table public.ia_permisos add column if not exists rutinas_no_at timestamptz;
+alter table public.ia_permisos add column if not exists rutinas_version int not null default 0;
 
--- ---------- «¿Está mal? Avisanos» (foto del plato y «Contame qué comiste») ----------
--- Lo que estimó la IA y el comentario de la persona, sin la foto. Se escribe solo con
--- ia_reportar(); lo lee el equipo de GIZE. Se borra a los 180 días (ia_limpiar) o con la cuenta.
+-- ---------- «¿Está mal? Avisanos» (foto del plato, «Contame qué comiste», planillas y rutinas) ----------
+-- Lo que estimó la IA (o la rutina que armó para el coach) y el comentario de la persona, sin la
+-- foto ni la planilla. Se escribe solo con ia_reportar(); lo lee el equipo de GIZE. Se borra a los
+-- 180 días (ia_limpiar) o con la cuenta.
 create table if not exists public.ia_reportes (
   id         bigint generated always as identity primary key,
   user_id    uuid references auth.users(id) on delete cascade,
-  funcion    text not null check (funcion in ('plato', 'texto')),
+  funcion    text not null check (funcion in ('plato', 'texto', 'planilla', 'rutina')),
   respuesta  jsonb not null,
   comentario text check (comentario is null or char_length(comentario) <= 300),
   creada     timestamptz not null default now()
 );
 create index if not exists ia_reportes_creada on public.ia_reportes(creada);
 create index if not exists ia_reportes_user on public.ia_reportes(user_id, creada);
+
+-- Las listas de los checks de ia_llamadas (rol y función) y de ia_reportes (función). En una base
+-- que ya tenía las tablas, el create table de arriba no las cambia: cada check se busca por la
+-- columna que controla (en pg_constraint, no por su nombre, que en la base de verdad puede ser
+-- otro) y, si no tiene la lista de ahora, se cambia por uno con la lista nueva. Si ya la tiene no
+-- se toca (correrlo de nuevo no vuelve a revisar la tabla).
+do $$
+declare v_x record; v_sobran text[]; v_esta boolean; v_n text;
+begin
+  for v_x in select * from (values
+      ('ia_llamadas', 'rol', array['alumno', 'coach', 'admin', 'prueba']),
+      ('ia_llamadas', 'funcion', array['etiqueta', 'plato', 'texto', 'rutina', 'resumen', 'planilla']),
+      ('ia_reportes', 'funcion', array['plato', 'texto', 'planilla', 'rutina'])) x(tabla, col, lista) loop
+    select coalesce(array_agg(k.conname) filter (where not k.igual), '{}'), coalesce(bool_or(k.igual), false) into v_sobran, v_esta
+      from (select c.conname, (y.vals @> v_x.lista and y.vals <@ v_x.lista) as igual
+              from pg_constraint c
+              join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+              cross join lateral (select array(select m[1] from regexp_matches(pg_get_constraintdef(c.oid), '''([^'']*)''', 'g') m) as vals) y
+             where c.conrelid = format('public.%I', v_x.tabla)::regclass and c.contype = 'c'
+               and cardinality(c.conkey) = 1 and a.attname = v_x.col) k;
+    foreach v_n in array v_sobran loop
+      execute format('alter table public.%I drop constraint %I', v_x.tabla, v_n);
+    end loop;
+    if not v_esta then
+      execute format('alter table public.%I add constraint %I check (%I in (%s))', v_x.tabla, v_x.tabla || '_' || v_x.col || '_check', v_x.col,
+                     (select string_agg(quote_literal(v), ', ') from unnest(v_x.lista) v));
+    end if;
+  end loop;
+end $$;
 
 -- Lo anotado en el diario con la foto del plato o con «Contame qué comiste»: «ia» tal como lo
 -- estimó, «ia-editado» si la persona cambió los gramos o el alimento. Lo escribe la app con
@@ -337,6 +395,31 @@ $$;
 revoke all on function public.ia_rol(uuid) from public, anon, authenticated;
 grant execute on function public.ia_rol(uuid) to service_role;
 
+-- Con qué topes usa cada persona la IA del coach («Pasar mis planillas» y «Armar con IA»):
+--   'coach'   lo mismo que ia_rol: coach con plan pago o de cortesía, o profe de un gimnasio con
+--             el plan al día (ia_rol_origen);
+--   'prueba'  coach en su prueba gratis (sin plan pago): topes propios, más chicos (topes.prueba),
+--             y con el ciclo en modo ahorro no la usa;
+--   null      no la puede usar: no es coach, o es coach sin plan ni prueba (también si pasó el cupo
+--             de alumnos de la prueba, como en coach_active).
+-- Las fotos de comida del coach siguen con ia_rol (en la prueba, 'alumno'): no se mezclan.
+-- La prueba se mira con coach_active (la vigente es la de gimnasios-vinculo.sql; sin gimnasios, la
+-- de cupo-plan.sql), que solo puede llamar la service role: esta también.
+create or replace function public.ia_rol_coach(p_uid uuid)
+returns text language plpgsql stable security definer set search_path = public as $$
+begin
+  if p_uid is null then return null; end if;
+  if public.ia_rol_origen(p_uid) is not null then return 'coach'; end if;
+  if exists (select 1 from public.profiles p join public.coach_billing b on b.coach_id = p.id
+              where p.id = p_uid and p.role = 'coach' and b.trial_ends_at > now())
+     and public.coach_active(p_uid) then
+    return 'prueba';
+  end if;
+  return null;
+end $$;
+revoke all on function public.ia_rol_coach(uuid) from public, anon, authenticated;
+grant execute on function public.ia_rol_coach(uuid) to service_role;
+
 -- El permiso de la persona para la IA de Comida: 'ok' (aceptó el aviso que está vigente), 'no'
 -- (lo apagó en Ajustes después de aceptarlo, o nunca lo aceptó y lo apagó), 'viejo' (aceptó un
 -- aviso anterior: hay que volver a preguntar) o null (nunca se le preguntó).
@@ -352,6 +435,21 @@ returns text language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.ia_permiso_estado(uuid) from public, anon, authenticated;
 grant execute on function public.ia_permiso_estado(uuid) to service_role;
+
+-- Lo mismo para el permiso del coach «Usar IA en tus rutinas» (ia_permiso_rutinas), con su propia
+-- versión del aviso (ia_config.aviso_rutinas_version): 'ok', 'no', 'viejo' o null.
+create or replace function public.ia_permiso_rutinas_estado(p_uid uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case
+    when p.user_id is null then null
+    when p.rutinas_no_at is not null and (p.rutinas_ok_at is null or p.rutinas_no_at >= p.rutinas_ok_at) then 'no'
+    when p.rutinas_ok_at is null then null
+    when p.rutinas_version < coalesce((select c.aviso_rutinas_version from public.ia_config c where c.id = 1), 1) then 'viejo'
+    else 'ok' end
+  from (select 1) x left join public.ia_permisos p on p.user_id = p_uid;
+$$;
+revoke all on function public.ia_permiso_rutinas_estado(uuid) from public, anon, authenticated;
+grant execute on function public.ia_permiso_rutinas_estado(uuid) to service_role;
 
 -- ---------- IA Plus ----------
 -- Con el interruptor de IA Plus prendido (ia_config.plus.activa), la foto del plato es gratis
@@ -489,6 +587,7 @@ grant execute on function public.ia_cortar(bigint, text, timestamptz) to service
 -- tope del día de la persona (por función y en total) → tope del ciclo de la persona. Con IA Plus
 -- (ia_plus_rige), las fotos por día y los US$ del ciclo son los mayores entre su rol y topes.plus. Si pasa todo, anota la llamada como «reservada» y suma
 -- max_usd a lo reservado del ciclo. Devuelve { ok, codigo, motivo, vuelve, llamada_id, ciclo_id, ahorro }.
+-- El rol «prueba» (coach en su prueba gratis, ver ia_rol_coach) solo reserva planillas y rutinas.
 create or replace function public.ia_reservar(p_uid uuid, p_rol text, p_funcion text, p_modelo text, p_max_usd numeric, p_pedido bigint default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
@@ -496,8 +595,9 @@ declare
   v_hoy numeric; v_limite numeric; v_dias numeric; v_tope_f numeric; v_tope_t numeric; v_n_f int; v_n_t int;
   v_mio numeric; v_usd_ciclo numeric; v_id bigint; v_ahorro boolean := false; v_gratis int; v_sem int; v_plus boolean := false;
 begin
-  if p_uid is null or p_rol is null or p_rol not in ('alumno', 'coach', 'admin')
-     or p_funcion is null or p_funcion not in ('etiqueta', 'plato', 'texto', 'rutina', 'resumen')
+  if p_uid is null or p_rol is null or p_rol not in ('alumno', 'coach', 'admin', 'prueba')
+     or p_funcion is null or p_funcion not in ('etiqueta', 'plato', 'texto', 'rutina', 'resumen', 'planilla')
+     or (p_rol = 'prueba' and p_funcion not in ('planilla', 'rutina'))
      or p_max_usd is null or p_max_usd <= 0 or p_max_usd > 1 or coalesce(p_modelo, '') !~ '^[a-z0-9][a-z0-9.-]{2,59}$' then
     return jsonb_build_object('ok', false, 'codigo', 'error', 'motivo', 'pedido');
   end if;
@@ -539,18 +639,21 @@ begin
   end if;
 
   -- 5) Modo ahorro: plato y texto solo para alumnos de coach con plan (y coaches) y para quien
-  --    pagó IA Plus; la rutina pasa al modelo barato (lo elige la función); la tabla sigue para todos.
+  --    pagó IA Plus; el coach en su prueba (rol «prueba») no usa la IA del coach; las planillas y
+  --    las rutinas del coach con plan pasan al modelo barato (lo elige la función); la tabla sigue
+  --    para todos.
   if v_c.estado = 'normal' and v_c.gastado + v_c.reservado >= v_c.ahorro then
     update public.ia_ciclos set estado = 'ahorro', ahorro_at = coalesce(ahorro_at, now()) where id = v_c.id returning * into v_c;
   end if;
   if v_c.estado = 'ahorro' then
-    if p_funcion in ('plato', 'texto') and p_rol = 'alumno'
-       and not exists (select 1 from public.profiles p where p.id = p_uid and p.coach_id is not null and public.coach_pago(p.coach_id))
-       and not coalesce(public.ia_plus_hasta(p_uid) > now(), false) then
+    if p_rol = 'prueba'
+       or (p_funcion in ('plato', 'texto') and p_rol = 'alumno'
+           and not exists (select 1 from public.profiles p where p.id = p_uid and p.coach_id is not null and public.coach_pago(p.coach_id))
+           and not coalesce(public.ia_plus_hasta(p_uid) > now(), false)) then
       perform public.ia_frenada(v_c.id, 'ahorro');
       return jsonb_build_object('ok', false, 'codigo', 'ahorro', 'vuelve', v_c.fin);
     end if;
-    v_ahorro := p_funcion = 'rutina';
+    v_ahorro := p_funcion in ('rutina', 'planilla');
   end if;
 
   -- 5b) IA Plus prendido: la foto del plato es gratis hasta gratis_semana fotos por semana (desde el
@@ -792,7 +895,7 @@ begin
   if p ? 'modelos' then
     if jsonb_typeof(p -> 'modelos') <> 'object' then raise exception 'modelos: inválido.' using errcode = '22023'; end if;
     for v_k, v_v in select * from jsonb_each(p -> 'modelos') loop
-      if v_k not in ('etiqueta', 'plato', 'texto', 'rutina', 'resumen') then raise exception 'Función desconocida: %', v_k using errcode = '22023'; end if;
+      if v_k not in ('etiqueta', 'plato', 'texto', 'rutina', 'resumen', 'planilla') then raise exception 'Función desconocida: %', v_k using errcode = '22023'; end if;
       if v_v = 'null'::jsonb or v_v = '""'::jsonb then v_cfg.modelos := v_cfg.modelos - v_k;
       elsif jsonb_typeof(v_v) <> 'string' or (v_v #>> '{}') !~ '^[a-z0-9][a-z0-9.-]{2,59}$' then raise exception 'Modelo inválido.' using errcode = '22023';
       else v_cfg.modelos := jsonb_set(v_cfg.modelos, array[v_k], v_v);
@@ -1107,6 +1210,80 @@ end $$;
 revoke all on function public.ia_mi_estado() from public, anon;
 grant execute on function public.ia_mi_estado() to authenticated;
 
+-- ---------- la app: IA del coach («Pasar mis planillas» y «Armar con IA») ----------
+-- Lo que el panel del coach necesita para mostrar (o no) las funciones, sin montos:
+--   { activa, funciones: { planilla, rutina }, rol ('coach' | 'prueba' | null), motivo (si rol es
+--     null: 'sin_plan' si es coach, 'no_coach' si no), por_gimnasio, permiso_rutinas ('ok' | 'no'
+--     | 'viejo' | null), aviso_version (la del aviso «Usar IA en tus rutinas»), estado ('normal' |
+--     'pausada' | 'tope_mes' | 'tope_persona' | 'ahorro'), vuelve, manana,
+--     quedan: { planilla, rutina }, tope: { planilla, rutina, total } }
+-- Una función anda para la persona solo con el interruptor general, la de la función, la fecha
+-- de los créditos cargada y un rol (ia_rol_coach): si no, activa y funciones van en false (la app
+-- no muestra nada nuevo) y no se cuenta nada más. «ahorro» es solo para el coach en prueba (al coach
+-- con plan el modo ahorro le pasa la IA al modelo barato y sigue). Cuenta lo mismo que
+-- ia_reservar: solo las llamadas de hoy con el mismo rol y el tope de US$ del ciclo de ese rol.
+create or replace function public.ia_coach_estado()
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid(); v_cfg public.ia_config; v_c public.ia_ciclos; v_ini timestamptz; v_fin timestamptz;
+  v_on boolean; v_pl boolean; v_ru boolean; v_rol text; v_origen text; v_hoy0 timestamptz; v_estado text := 'normal'; v_vuelve timestamptz;
+  v_npl int; v_nru int; v_n int; v_tpl numeric; v_tru numeric; v_tot numeric; v_mio numeric; v_usd numeric; v_permiso text; v_aviso int;
+begin
+  if v_uid is null then
+    return jsonb_build_object('activa', false, 'funciones', jsonb_build_object('planilla', false, 'rutina', false), 'rol', null);
+  end if;
+  select * into v_cfg from public.ia_config where id = 1;
+  v_permiso := public.ia_permiso_rutinas_estado(v_uid);
+  v_aviso := coalesce(v_cfg.aviso_rutinas_version, 1);
+  v_rol := public.ia_rol_coach(v_uid);
+  v_on := coalesce(v_cfg.activa, false) and v_cfg.ancla is not null and v_rol is not null;
+  v_pl := v_on and coalesce(v_cfg.funciones -> 'planilla', 'false'::jsonb) = 'true'::jsonb;
+  v_ru := v_on and coalesce(v_cfg.funciones -> 'rutina', 'false'::jsonb) = 'true'::jsonb;
+  if not (v_pl or v_ru) then
+    return jsonb_build_object('activa', false, 'funciones', jsonb_build_object('planilla', false, 'rutina', false), 'rol', v_rol,
+      'motivo', case when v_rol is not null then null
+                     when exists (select 1 from public.profiles p where p.id = v_uid and p.role = 'coach') then 'sin_plan' else 'no_coach' end,
+      'permiso_rutinas', v_permiso, 'aviso_version', v_aviso);
+  end if;
+  v_origen := public.ia_rol_origen(v_uid);
+  -- El ciclo de ahora (sin crearlo: esto solo mira).
+  select x.inicio, x.fin into v_ini, v_fin from public.ia_ciclo_de(v_cfg.ancla, now()) x;
+  select * into v_c from public.ia_ciclos where inicio = v_ini;
+  if v_c.estado = 'cortado' then
+    if v_c.cortado_por in ('creditos', 'limite_console') and now() >= coalesce(v_c.vuelve, '-infinity'::timestamptz) then v_estado := 'normal';
+    elsif v_c.cortado_por in ('creditos', 'admin') then v_estado := 'pausada';
+    else v_estado := 'tope_mes'; v_vuelve := coalesce(v_c.vuelve, v_c.fin);
+    end if;
+  end if;
+  -- Modo ahorro (también con el corte por créditos que ya pasó su hora: la próxima reserva deja el
+  -- ciclo en ahorro, como en ia_reservar).
+  if v_estado = 'normal' and v_rol = 'prueba' and (v_c.estado = 'ahorro' or v_c.gastado + v_c.reservado >= v_c.ahorro) then
+    v_estado := 'ahorro'; v_vuelve := v_fin;
+  end if;
+  -- Lo de hoy de la persona con su rol (como ia_reservar: cuenta todo lo que pudo costar algo).
+  v_hoy0 := public.ia_hoy();
+  select count(*) filter (where l.funcion = 'planilla'), count(*) filter (where l.funcion = 'rutina'), count(*) into v_npl, v_nru, v_n
+    from public.ia_llamadas l
+   where l.user_id = v_uid and l.rol = v_rol and l.creada >= v_hoy0
+     and (l.estado in ('ok', 'vacia', 'reservada', 'vencida') or (l.estado = 'error' and (l.usd is null or l.usd > 0)));
+  v_tpl := coalesce((v_cfg.topes -> v_rol ->> 'planilla')::numeric, 0);
+  v_tru := coalesce((v_cfg.topes -> v_rol ->> 'rutina')::numeric, 0);
+  v_tot := coalesce((v_cfg.topes -> v_rol ->> 'total')::numeric, 0);
+  v_usd := coalesce((v_cfg.topes -> v_rol ->> 'usd_ciclo')::numeric, 0);
+  if v_rol = 'coach' and public.ia_plus_rige(v_uid) then v_usd := greatest(v_usd, coalesce((v_cfg.topes #>> '{plus,usd_ciclo}')::numeric, 0)); end if;
+  if v_estado = 'normal' and v_c.id is not null then
+    select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = v_uid and l.rol = v_rol;
+    if v_mio >= v_usd then v_estado := 'tope_persona'; v_vuelve := v_fin; end if;
+  end if;
+  return jsonb_build_object('activa', true, 'funciones', jsonb_build_object('planilla', v_pl, 'rutina', v_ru),
+    'rol', v_rol, 'por_gimnasio', v_origen = 'gimnasio', 'permiso_rutinas', v_permiso, 'aviso_version', v_aviso,
+    'estado', v_estado, 'vuelve', v_vuelve, 'manana', v_hoy0 + interval '1 day',
+    'quedan', jsonb_build_object('planilla', greatest(0, least(v_tpl - v_npl, v_tot - v_n)), 'rutina', greatest(0, least(v_tru - v_nru, v_tot - v_n))),
+    'tope', jsonb_build_object('planilla', v_tpl, 'rutina', v_tru, 'total', v_tot));
+end $$;
+revoke all on function public.ia_coach_estado() from public, anon;
+grant execute on function public.ia_coach_estado() to authenticated;
+
 -- Aceptar o apagar la IA de Comida (la hoja del permiso y Ajustes → Funciones con IA). Para
 -- aceptar hay que haber visto el aviso vigente (p_version = ia_config.aviso_version): si el texto
 -- cambió, la app lo vuelve a mostrar. Guarda cuándo (la hora de verdad, no la de la transacción:
@@ -1132,15 +1309,43 @@ end $$;
 revoke all on function public.ia_permiso(text, boolean, int) from public, anon;
 grant execute on function public.ia_permiso(text, boolean, int) to authenticated;
 
--- «¿Está mal? Avisanos»: guarda lo que estimó la IA (la lista de alimentos, sin la foto) y un
--- comentario opcional. Hasta 20 por día por persona.
+-- Aceptar o apagar el permiso del coach «Usar IA en tus rutinas» (la hoja del permiso y
+-- Configuración → Privacidad), uno solo para las planillas y «Armar con IA». Igual que el de
+-- Comida, pero con sus columnas y su versión (p_version = ia_config.aviso_rutinas_version); no toca
+-- el permiso de Comida. Devuelve ia_coach_estado().
+create or replace function public.ia_permiso_rutinas(p_acepta boolean, p_version int default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_uid uuid := auth.uid(); v_ver int; v_ahora timestamptz := clock_timestamp();
+begin
+  if v_uid is null then raise exception 'Iniciá sesión para usar la IA.' using errcode = '42501'; end if;
+  if p_acepta is null then raise exception 'Pedido inválido.' using errcode = '22023'; end if;
+  select coalesce(aviso_rutinas_version, 1) into v_ver from public.ia_config where id = 1;
+  v_ver := coalesce(v_ver, 1);
+  if p_acepta and coalesce(p_version, 0) <> v_ver then raise exception 'El aviso cambió: volvé a leerlo.' using errcode = '22023'; end if;
+  insert into public.ia_permisos (user_id, rutinas_ok_at, rutinas_no_at, rutinas_version, updated_at)
+  values (v_uid, case when p_acepta then v_ahora end, case when not p_acepta then v_ahora end, case when p_acepta then v_ver else 0 end, v_ahora)
+  on conflict (user_id) do update
+     set rutinas_ok_at = case when p_acepta then v_ahora else ia_permisos.rutinas_ok_at end,
+         rutinas_no_at = case when p_acepta then ia_permisos.rutinas_no_at else v_ahora end,
+         rutinas_version = case when p_acepta then v_ver else ia_permisos.rutinas_version end,
+         updated_at = v_ahora;
+  return public.ia_coach_estado();
+end $$;
+revoke all on function public.ia_permiso_rutinas(boolean, int) from public, anon;
+grant execute on function public.ia_permiso_rutinas(boolean, int) to authenticated;
+
+-- «¿Está mal? Avisanos»: guarda lo que estimó la IA (la lista de alimentos, sin la foto; o la
+-- rutina que armó con una planilla o con el pedido del coach, sin la planilla) y un comentario
+-- opcional. Hasta 20 por día por persona. La respuesta, hasta 20.000 caracteres; la de una rutina,
+-- hasta 60.000 (una planilla puede traer muchos ejercicios).
 create or replace function public.ia_reportar(p_funcion text, p_respuesta jsonb, p_comentario text default null)
 returns void language plpgsql security definer set search_path = public as $$
 declare v_uid uuid := auth.uid(); v_com text := nullif(btrim(coalesce(p_comentario, '')), '');
 begin
   if v_uid is null then raise exception 'Iniciá sesión.' using errcode = '42501'; end if;
-  if p_funcion is null or p_funcion not in ('plato', 'texto') or p_respuesta is null or jsonb_typeof(p_respuesta) <> 'object'
-     or length(p_respuesta::text) > 20000 or char_length(coalesce(v_com, '')) > 300 then
+  if p_funcion is null or p_funcion not in ('plato', 'texto', 'planilla', 'rutina') or p_respuesta is null or jsonb_typeof(p_respuesta) <> 'object'
+     or length(p_respuesta::text) > (case when p_funcion in ('planilla', 'rutina') then 60000 else 20000 end)
+     or char_length(coalesce(v_com, '')) > 300 then
     raise exception 'Pedido inválido.' using errcode = '22023';
   end if;
   if (select count(*) from public.ia_reportes r where r.user_id = v_uid and r.creada >= public.ia_hoy()) >= 20 then
