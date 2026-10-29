@@ -59,12 +59,21 @@ export default async function ({ t: t0 }){
   const t = conCanon(t0);
   // ---------- 1) Leído ----------
   const sql = leer('supabase/ia.sql'), code = sinComentarios(sql);
-  for (const sig of ['ia_rol_coach(uuid)']){
+  for (const sig of ['ia_rol_coach(uuid)', 'ia_permiso_rutinas_estado(uuid)']){
     const e = sig.replace(/[()]/g, '\\$&');
     t.ok(new RegExp('revoke all on function public\\.' + e + ' from public, anon, authenticated;').test(code) && code.includes('grant execute on function public.' + sig + ' to service_role;'), sig + ': solo la service role');
   }
-  for (const name of ['ia_rol_coach'])
+  for (const sig of ['ia_coach_estado()', 'ia_permiso_rutinas(boolean, int)']){
+    const e = sig.replace(/[()]/g, '\\$&');
+    t.ok(new RegExp('revoke all on function public\\.' + e + ' from public, anon;').test(code) && code.includes('grant execute on function public.' + sig + ' to authenticated;') && !code.includes('grant execute on function public.' + sig + ' to anon'), sig + ': solo con sesión');
+  }
+  for (const name of ['ia_rol_coach', 'ia_permiso_rutinas_estado', 'ia_coach_estado', 'ia_permiso_rutinas'])
     t.ok(/security definer set search_path = public/.test(fn(code, name)), name + ': security definer con search_path fijo');
+  t.ok(/v_uid uuid := auth\.uid\(\)/.test(fn(code, 'ia_coach_estado')) && /v_uid uuid := auth\.uid\(\)/.test(fn(code, 'ia_permiso_rutinas')), 'la app solo toca lo suyo (auth.uid())');
+  t.ok(!/usd|gastado|credito/.test(fn(code, 'ia_coach_estado').split("return jsonb_build_object('activa', true")[1] || 'usd'), 'ia_coach_estado no devuelve montos');
+  t.ok(/add column if not exists aviso_rutinas_version int not null default 1;/.test(code), 'el aviso «Usar IA en tus rutinas» arranca en la versión 1');
+  t.ok(['rutinas_ok_at timestamptz', 'rutinas_no_at timestamptz', 'rutinas_version int not null default 0'].every(c => code.includes('alter table public.ia_permisos add column if not exists ' + c + ';')), 'ia_permisos: columnas propias del permiso del coach');
+  t.ok(!/coach_(ok|no)_at/.test(fn(code, 'ia_permiso_rutinas') + fn(code, 'ia_permiso_rutinas_estado') + fn(code, 'ia_coach_estado')), 'no usa coach_ok_at ni coach_no_at (son del permiso del alumno para el resumen)');
   const defs = re => [...code.matchAll(re)].map(m => JSON.parse(m[1]));
   const funs = defs(/funciones\s+(?:jsonb not null default|set default) '([^']+)'/g), topes = defs(/topes\s+(?:jsonb not null default|set default) '([^']+)'/g);
   t.ok(funs.length === 2 && JSON.stringify(funs[0]) === JSON.stringify(funs[1]), 'funciones: el default del create table y el del alter son iguales');
@@ -122,6 +131,64 @@ export default async function ({ t: t0 }){
   t.eq([r[17] && r[17].ok, r[17] && r[17].ahorro, r[18] && r[18].ahorro, r[19] && r[19].ok, r[19] && r[19].ahorro], [true, true, true, true, false], 'ahorro: al coach con plan, planillas y rutinas al modelo barato; la foto del plato sigue igual');
   t.eq([r[20] && r[20].error, r[21] && r[21].error], ['23514', '23514'], 'ia_llamadas: una función o un rol inventados no entran');
 
+  // ia_coach_estado: apagada (como arranca), para cada persona y sin sesión.
+  const est = k => [U[k], 'select public.ia_coach_estado()'];
+  r = await V([est('CP'), est('CT'), est('CV'), est('AL'), ['anon', 'select public.ia_coach_estado()']]);
+  t.eq(r[0], { activa: false, funciones: { planilla: false, rutina: false }, rol: 'coach', motivo: null, permiso_rutinas: null, aviso_version: 1 }, 'apagada: nada para el coach (y el permiso, para Configuración)');
+  t.eq([r[1] && r[1].rol, r[1] && r[1].activa], ['prueba', false], 'apagada: el coach en prueba tampoco');
+  t.eq([r[2] && r[2].rol, r[2] && r[2].motivo, r[3] && r[3].rol, r[3] && r[3].motivo], [null, 'sin_plan', null, 'no_coach'], 'sin rol: coach sin plan ni prueba (sin_plan) y alumna (no_coach)');
+  t.eq(r[4] && r[4].error, '42501', 'sin sesión no se puede preguntar');
+  r = await V([['postgres', PRENDER], est('CP'), est('CT'), est('CV'), est('AL'),
+    ['postgres', `update public.ia_config set funciones = funciones || '{"planilla": false}' where id = 1`], est('CP'),
+    ['postgres', `update public.ia_config set ancla = null where id = 1`], est('CP')]);
+  t.eq(r[1], { activa: true, funciones: { planilla: true, rutina: true }, rol: 'coach', por_gimnasio: false, permiso_rutinas: null, aviso_version: 1, estado: 'normal', vuelve: null,
+    manana: r[1] && r[1].manana, quedan: { planilla: 30, rutina: 15 }, tope: { planilla: 30, rutina: 15, total: 60 } }, 'prendida: el coach con plan, con sus topes (y sin montos)');
+  t.ok(r[1] && Date.parse(r[1].manana) > Date.now() && Date.parse(r[1].manana) - Date.now() <= 864e5, 'manana: la medianoche que viene');
+  t.eq([r[2] && r[2].activa, r[2] && r[2].rol, r[2] && r[2].quedan, r[2] && r[2].tope], [true, 'prueba', { planilla: 15, rutina: 5 }, { planilla: 15, rutina: 5, total: 20 }], 'prendida: el coach en prueba, con los suyos');
+  t.eq([r[3] && r[3].activa, r[3] && r[3].funciones, r[3] && r[3].motivo, r[4] && r[4].activa, r[4] && r[4].motivo], [false, { planilla: false, rutina: false }, 'sin_plan', false, 'no_coach'], 'prendida: sin rol no hay nada');
+  t.eq(r[6] && r[6].funciones, { planilla: false, rutina: true }, 'cada función con su interruptor');
+  t.eq(r[8] && r[8].activa, false, 'sin la fecha de los créditos no anda');
+
+  // ia_coach_estado cuenta como ia_reservar: lo de hoy con el mismo rol (la foto de comida del coach
+  // en prueba va como alumno y no cuenta) y el total con todas las funciones de ese rol.
+  r = await V([['postgres', PRENDER],
+    ['servicio', res(U.CT, 'prueba', 'planilla')], ['servicio', res(U.CT, 'prueba', 'rutina')], ['servicio', res(U.CT, 'alumno', 'plato')], est('CT'),
+    ['servicio', res(U.CP, 'coach', 'planilla')], ['servicio', res(U.CP, 'coach', 'plato')],
+    ['postgres', `update public.ia_config set topes = jsonb_set(topes, '{coach,total}', '2') where id = 1`], est('CP'),
+    ['postgres', `update public.ia_config set topes = jsonb_set(topes, '{prueba,usd_ciclo}', '0.02') where id = 1`], est('CT'),
+    ['postgres', `update public.ia_config set topes = jsonb_set(jsonb_set(topes, '{prueba,usd_ciclo}', '1'), '{coach,total}', '60') where id = 1;
+                  update public.ia_ciclos set gastado = 150 where inicio <= now() and fin > now()`], est('CT'), est('CP'),
+    ['postgres', `update public.ia_ciclos set estado = 'cortado', cortado_por = 'tope', vuelve = fin where inicio <= now() and fin > now()`], est('CP'),
+    ['postgres', `update public.ia_ciclos set cortado_por = 'creditos', vuelve = now() + interval '20 minutes' where inicio <= now() and fin > now()`], est('CT'),
+    ['postgres', `update public.ia_ciclos set cortado_por = 'admin', vuelve = null where inicio <= now() and fin > now()`], est('CP')]);
+  t.ok([1, 2, 3, 5, 6].every(i => r[i] && r[i].ok === true), 'las reservas pasan: ' + JSON.stringify([1, 2, 3, 5, 6].map(i => r[i])));
+  t.eq([r[4] && r[4].quedan, r[4] && r[4].estado], [{ planilla: 14, rutina: 4 }, 'normal'], 'prueba: le quedan 14 planillas y 4 rutinas (la foto del plato no cuenta)');
+  t.eq(r[8] && r[8].quedan, { planilla: 0, rutina: 0 }, 'coach: el total del día cuenta también sus fotos de comida (como ia_reservar)');
+  t.eq([r[10] && r[10].estado, !!(r[10] && r[10].vuelve)], ['tope_persona', true], 'prueba: llegó a sus US$ del ciclo');
+  t.eq([r[12] && r[12].estado, !!(r[12] && r[12].vuelve), r[13] && r[13].estado], ['ahorro', true, 'normal'], 'modo ahorro: el coach en prueba espera al ciclo que viene; el coach con plan sigue');
+  t.eq([r[15] && r[15].estado, !!(r[15] && r[15].vuelve), r[17] && r[17].estado, r[19] && r[19].estado], ['tope_mes', true, 'pausada', 'pausada'], 'ciclo cortado: tope del mes, sin créditos o por el admin');
+
+  // El permiso «Usar IA en tus rutinas»: con la versión del aviso, apagar y prender en orden, el aviso
+  // nuevo, y que no toca el de Comida (ni al revés).
+  const PERM = `select jsonb_build_object('rutinas', public.ia_permiso_rutinas_estado('${U.CT}'), 'comida', public.ia_permiso_estado('${U.CT}'))`;
+  r = await V([[U.CT, 'select public.ia_permiso_rutinas(true, 2)'], [U.CT, 'select public.ia_permiso_rutinas(null)'], ['anon', 'select public.ia_permiso_rutinas(true, 1)'],
+    [U.CT, 'select public.ia_permiso_rutinas(true, 1)'], ['servicio', PERM],
+    ['postgres', `select to_jsonb(p) - 'user_id' - 'updated_at' - 'rutinas_ok_at' - 'comida_ok_at' || jsonb_build_object('ok', rutinas_ok_at is not null) from public.ia_permisos p where user_id = '${U.CT}'`],
+    [U.CT, 'select public.ia_permiso_rutinas(false)'], [U.CT, 'select public.ia_permiso_rutinas(true, 1)'],
+    [U.CT, `select public.ia_permiso('comida', true, 2)`], ['servicio', PERM],
+    [U.CT, `select public.ia_permiso('comida', false)`], ['servicio', PERM],
+    ['postgres', `update public.ia_config set aviso_rutinas_version = 2 where id = 1`], ['servicio', PERM], [U.CT, 'select public.ia_coach_estado()'],
+    [U.CT, `select to_jsonb(public.ia_permiso_rutinas_estado('${U.CT}'))`], [U.AL, 'select public.ia_permiso_rutinas(false)']]);
+  t.eq([r[0] && r[0].error, r[1] && r[1].error, r[2] && r[2].error], ['22023', '22023', '42501'], 'permiso: con otra versión del aviso, sin respuesta o sin sesión, no se guarda');
+  t.eq(r[3] && r[3].permiso_rutinas, 'ok', 'aceptó (y devuelve ia_coach_estado)');
+  t.eq(r[4], { rutinas: 'ok', comida: null }, 'aceptar el de rutinas no toca el de Comida');
+  t.eq(r[5], { comida_no_at: null, coach_ok_at: null, coach_no_at: null, version: 1, rutinas_no_at: null, rutinas_version: 1, ok: true }, 'guardó cuándo y qué versión, en sus columnas');
+  t.eq([r[6] && r[6].permiso_rutinas, r[7] && r[7].permiso_rutinas], ['no', 'ok'], 'apagar y volver a prender queda en orden');
+  t.eq([r[8] && r[8].permiso_comida, r[9], r[11]], ['ok', { rutinas: 'ok', comida: 'ok' }, { rutinas: 'ok', comida: 'no' }], 'el de Comida no toca el de rutinas');
+  t.eq([r[13], r[14] && r[14].permiso_rutinas, r[14] && r[14].aviso_version], [{ rutinas: 'viejo', comida: 'no' }, 'viejo', 2], 'aviso nuevo: hay que volver a preguntar');
+  t.eq(r[15] && r[15].error, '42501', 'la app no puede preguntar el permiso con la service role');
+  t.eq(r[16] && r[16].permiso_rutinas, 'no', 'cualquiera con sesión guarda el suyo');
+
   // El panel: modelo de planillas y topes del coach en prueba.
   r = await V([[U.AD, `select public.admin_ia_config('{"modelos": {"planilla": "modelo-prueba"}, "topes": {"prueba": {"planilla": 10}}, "funciones": {"planilla": true}}')`],
     [U.AD, `select public.admin_ia_config('{"modelos": {"inventada": "modelo-prueba"}}')`],
@@ -171,5 +238,8 @@ update public.ia_config set funciones = funciones - 'planilla',
   t.eq(r, ['coach', 'coach', 'coach', null, null, null, 'coach'], 'con gimnasios: la dueña y los profes con el plan al día → coach; administración, recepción y socios → null');
   r = await G.V([['postgres', `update public.coach_billing set paid_until = null, trial_ends_at = now() + interval '10 days' where coach_id = '${P.dA}'`]].concat(QG.map(k => ['servicio', rolc(P[k])])));
   t.eq(r.slice(1), ['prueba', 'coach', 'prueba', null, null, null, 'coach'], 'gimnasio en la prueba: la dueña y el profe sin plan propio (con su prueba) → prueba; el profe con plan → coach');
+  r = await G.V([['postgres', PRENDER], ['pA2', 'select public.ia_coach_estado()'], ['pA1', 'select public.ia_coach_estado()'], ['aA', 'select public.ia_coach_estado()']]);
+  t.eq([r[1] && r[1].rol, r[1] && r[1].por_gimnasio, r[1] && r[1].tope && r[1].tope.planilla], ['coach', true, 30], 'ia_coach_estado del profe de un gimnasio al día: coach, por gimnasio');
+  t.eq([r[2] && r[2].rol, r[2] && r[2].por_gimnasio, r[3] && r[3].activa, r[3] && r[3].motivo], ['coach', false, false, 'no_coach'], 'el profe con plan propio no es por gimnasio; la administración no tiene nada');
   await g.borrar();
 }
