@@ -6,8 +6,23 @@
 | `supabase-2.117.1.js` | [@supabase/supabase-js](https://github.com/supabase/supabase-js) (build UMD, `dist/umd/supabase.js` del paquete de npm) | 2.117.1 | MIT (también las librerías que trae adentro) | Cliente de Supabase (login, base de datos, archivos). Va en la app y no desde un CDN: versión fija, sin depender de un tercero en cada arranque. Para actualizar: bajar el paquete de npm, copiar `dist/umd/supabase.js` con el nombre de la versión y cambiar `app/index.html`. |
 | `maplibre-gl-6.11.2/` | [maplibre-gl](https://github.com/maplibre/maplibre-gl-js) (build ESM de `dist/` del paquete de npm: `maplibre-gl.mjs`, `maplibre-gl-shared.mjs`, `maplibre-gl-worker.mjs` y `maplibre-gl.css`) | 6.11.2 | BSD-3-Clause (y las librerías que trae adentro) | El mapa de las salidas de Cardio, con el fondo de OpenFreeMap (sin clave). Se carga solo al mostrar un mapa (ver `app/ui/mapa.js`), nunca al abrir la app; con el modo liviano no se carga. Cambios al copiarlo: los `.mjs` quedan como `.js` (la app de iPhone decide el tipo de cada archivo por la extensión y `.mjs` puede no reconocerlo como JavaScript), con el `import "./maplibre-gl-shared.mjs"` cambiado a `.js`, y sin la línea `//# sourceMappingURL` (los `.map` no se copian). |
 | `qrcode-generator-1.4.4.js` | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (`qrcode.js` del paquete de npm, sin cambios salvo el comentario `/*! … */` del principio) | 1.4.4 | MIT | El QR del link para sumarse a un gimnasio (panel del gimnasio: Socios → Sumar socio y Configuración → Código). Se carga solo al dibujar un QR (ver `app/screens/gym/qr.js`); para el resto de la app no se pide. |
+| `xlsx-0.20.3.mini.min.js` | [SheetJS Community Edition](https://docs.sheetjs.com) (`xlsx`, build «mini»: `package/dist/xlsx.mini.min.js` del paquete de [cdn.sheetjs.com](https://cdn.sheetjs.com), sin cambios) | 0.20.3 | Apache-2.0 | Leer en el equipo del coach las planillas de «Pasar mis planillas» (.xlsx, .xlsm y .ods; el .csv se lee sin SheetJS). Se carga solo al leer una planilla (ver `app/core/planilla.js`), nunca al abrir la app. La app no le pasa .xls viejos, .xlsb ni Numbers (pide guardarlos como .xlsx). No usa `eval` ni `new Function`: anda con la CSP de la app. |
 
 Los avisos de licencia completos de estas librerías (y de las que vienen adentro de cada
 una) están en `LICENSES.txt`, que se publica con la web y entra en las apps. Al cambiar de
 versión una librería, copiar ahí el LICENSE del paquete nuevo de npm y volver a poner el
 comentario `/*! … */` del principio del `.js` con la versión nueva.
+
+SheetJS va distinto: **se baja del CDN oficial, nunca de npm**. En npm quedó la 0.18.5, con fallas
+conocidas (CVE-2023-30533 y CVE-2024-22363), y las versiones nuevas solo se publican en
+cdn.sheetjs.com. El archivo va tal cual viene, sin agregarle el comentario del principio, así se
+puede comparar con el del CDN. sha256 de `xlsx-0.20.3.mini.min.js`:
+`0cb353f830d7288385492c83d277b058ddeac664ca51cf1393aa1fd3e2b70939`. Para actualizarlo:
+
+1. Bajar `https://cdn.sheetjs.com/xlsx-<versión>/xlsx-<versión>.tgz` y, de adentro,
+   `package/dist/xlsx.mini.min.js` (tiene que ser igual a
+   `https://cdn.sheetjs.com/xlsx-<versión>/package/dist/xlsx.mini.min.js`).
+2. Guardarlo como `xlsx-<versión>.mini.min.js`, borrar el viejo y cambiar el nombre en
+   `app/core/planilla.js` y en `tests/planillas-lector.test.mjs`.
+3. Revisar que siga sin `eval` ni `new Function`, poner el sha256 nuevo acá y copiar el
+   `package/LICENSE` en `LICENSES.txt`.
