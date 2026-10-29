@@ -184,4 +184,15 @@ export default async function ({ base, t }){
     t.eq(pg.errs, [], nom + ': errores de la página');
     await pg.close();
   }
+
+  // 3) Celulares chicos (320 y 340 px): tampoco se mueve de costado. El celular girado de la derecha
+  //    en «Lo que ven tus alumnos» se pasaba del borde de la pantalla.
+  for (const w of [320, 340]){
+    pg = await newPage({ viewport: { width: w, height: 640 } });
+    await pg.p.goto(base + '/coaches/'); await wait(800);
+    const sw = await pg.p.evaluate(() => document.documentElement.scrollWidth);
+    t.ok(sw <= w, w + ' px: sin scroll de costado (' + sw + ' de ' + w + ')');
+    t.eq(pg.errs, [], w + ' px: errores de la página');
+    await pg.close();
+  }
 }

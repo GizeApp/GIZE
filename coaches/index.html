@@ -180,6 +180,10 @@ h2{font-size:clamp(28px,3.8vw,44px);font-weight:600;letter-spacing:-.02em;margin
 }
 
 /* ---------- lo que ven tus alumnos: tres celulares quietos ---------- */
+/* En celulares de menos de 360 px el de la derecha (girado) se pasaba del borde y la página se movía
+   de costado: se recorta en el borde de la pantalla. Con clip y no hidden, así no pasa a tener su
+   propio scroll y las entradas al scrollear (.reveal) siguen andando. */
+#alumnos{overflow-x:clip}
 .alu{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(24px,5vw,64px);align-items:center}
 @media (max-width:860px){ .alu{grid-template-columns:minmax(0,1fr)} }
 .alu .panel{margin-bottom:26px}
