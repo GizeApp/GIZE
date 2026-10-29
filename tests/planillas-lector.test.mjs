@@ -177,7 +177,8 @@ export default async function ({ base, t }){
         adivinar,
         tildadas: [m.tildadas(a1.hojas), m.tildadas(a2.hojas)], ultima: [m.ultimaSemana(a1.hojas), m.ultimaSemana(a2.hojas)],
         parece: a1.hojas.map(m.pareceRutina),
-        limpiar: ['60-65-70-75', '12-10-8-6', '4x8@70.5kg', '1000 800 600 400', '15-03-2026', '+54 9 351 456-7890', '(0351) 456-7890', 'CUIT 20-30123456-7', 'Su DNI es 30.123.456', 'Tel 1145678901', 'mail: a.b@c.com.ar']
+        limpiar: ['60-65-70-75', '12-10-8-6', '4x8@70.5kg', '1000 800 600 400', '15-03-2026', '+54 9 351 456-7890', '(0351) 456-7890', 'CUIT 20-30123456-7', 'Su DNI es 30.123.456', 'Tel 1145678901', 'mail: a.b@correo.prueba.test',
+          'WhatsApp 11 4567 8901 18hs', 'Cel 11-4567-8901 (2 veces)', 'Uruguay: +598 99 123 456', 'Del 15-03-2026 al 30-03-2026']
           .map(s => m.limpiar(s)),
         videos: ['javascript:alert(1)', 'http://youtube.com/watch?v=x', 'https://evil.test/youtube.com', 'www.instagram.com/p/abc/', 'https://u:p@m.youtube.com/shorts/x',
           'instagram.com/juan.perez', 'https://www.youtube.com/@canal', 'https://youtube.com.evil.test/watch?v=x'].map(m.linkVideo),
@@ -240,7 +241,9 @@ export default async function ({ base, t }){
     t.ok(todo.includes('60-65-70-75') && todo.includes('12-10-8-6'), 'texto: «60-65-70-75» y «12-10-8-6» quedan');
 
     // Limpieza suelta y links de video.
-    t.eq(r.limpiar, ['60-65-70-75', '12-10-8-6', '4x8@70.5kg', '1000 800 600 400', '15-03-2026', '[tel]', '[tel]', 'CUIT [doc]', 'Su DNI es [doc]', 'Tel [tel]', 'mail: [mail]'], 'limpiar: cargas, fechas, teléfonos, CUIT, DNI y mails');
+    t.eq(r.limpiar, ['60-65-70-75', '12-10-8-6', '4x8@70.5kg', '1000 800 600 400', '15-03-2026', '[tel]', '[tel]', 'CUIT [doc]', 'Su DNI es [doc]', 'Tel [tel]', 'mail: [mail]',
+      'WhatsApp [tel] 18hs', 'Cel [tel] (2 veces)', 'Uruguay: [tel]', 'Del 15-03-2026 al 30-03-2026'],
+      'limpiar: cargas, fechas, teléfonos (también con otros números atrás o con «+» y otro largo), CUIT, DNI y mails');
     t.eq(r.videos, [null, 'https://youtube.com/watch?v=x', null, 'https://www.instagram.com/p/abc/', 'https://m.youtube.com/shorts/x', null, null, null],
       'linkVideo: solo videos de YouTube e Instagram (no perfiles), siempre https y sin usuario');
     t.eq(r.extra.texto, ['3|Altura del banco: 3|Press inclinado|4|10', '4|Objetivo|Hipertrofia', '5|Nombre|Series|Reps', '6|Press de banca plano (barra)|4|8-10',

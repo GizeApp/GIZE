@@ -76,12 +76,13 @@ const RE_MAIL = /[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/gi;
 // CUIT/CUIL (20-12345678-9, 20-12.345.678-9) y DNI (12.345.678, 12345678).
 const RE_CUIT = /\b(?:2[0-7]|3[0-4])[-\s]?(?:\d{8}|\d{1,2}\.\d{3}\.\d{3})[-\s]?\d\b/g;
 const RE_DNI = /\b(?:\d{1,2}\.\d{3}\.\d{3}|\d{7,8})\b/g;
-// Teléfonos: 8 dígitos o más (con espacios, guiones, puntos o paréntesis) y que terminan en un
-// tramo de 4 seguidos, como «11 4567-8901» o «+54 9 351 456-7890». Así no se comen las cargas y
-// repeticiones («60-65-70-75», «12-10-8-6», «1000 800 600 400») ni las fechas («15-03-2026»,
-// «2025-2026»).
-const RE_TEL = /(?:\+\s?)?(?:\(\s?\d+\s?\)\s?)?\d[\d\s().-]{6,}\d/g;
-const esTelefono = m => m.replace(/\D/g, "").length >= 8 && /\d{4}$/.test(m)
+// Teléfonos: 8 dígitos o más (con espacios, guiones, puntos o paréntesis) que terminan en un
+// tramo de 4 seguidos, como «11 4567-8901» o «+54 9 351 456-7890», aunque atrás sigan otros
+// números («11 4567-8901 18hs»); o que empiezan con «+», como «+598 99 123 456». Así no se comen
+// las cargas y repeticiones («60-65-70-75», «12-10-8-6», «1000 800 600 400») ni las fechas
+// («15-03-2026», «2025-2026»).
+const RE_TEL = /\+\s?\d[\d\s().-]{6,}\d|(?:\(\s?\d+\s?\)\s?)?\d[\d\s().-]{2,}\d{4}(?!\d)/g;
+const esTelefono = m => m.replace(/\D/g, "").length >= 8
   && !/^(?:\d{1,2}[-.]\d{1,2}[-.]|(?:19|20)\d\d\s?-\s?)(?:19|20)\d\d$/.test(m.trim());
 
 // Etiquetas de datos personales o de salud. FUERTES: siempre son datos de la persona. DEBILES:
