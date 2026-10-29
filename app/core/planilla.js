@@ -14,12 +14,13 @@ import { EX_CATS, EX_DB, ES_MAP } from './data.js';
 // (en lo que va a la IA) y caracteres por hoja (todo el texto de la hoja).
 export const LIMITES = { mb: 5, hojas: 60, filas: 400, columnas: 40, celda: 120, hoja: 30000 };
 const LEER_FILAS = 600;  // renglones que se leen por hoja, contando los vacíos
+const MIRAR_FILAS = 1200; // hasta dónde se mira si la hoja sigue (para avisar que no entró entera)
 const LEER_CELDA = 500;  // lo que queda de cada celda en el equipo (a la IA van 120, ya limpias)
 const XLSX_JS = "vendor/xlsx-0.20.3.mini.min.js";
 
 // Sin fórmulas, HTML ni estilos: solo el texto como se ve (75 %, fechas). La fecha corta de Excel
 // (formato 14) va como acá, día/mes/año, y no como en Estados Unidos.
-const OPC = { type: "array", dense: true, sheetRows: LEER_FILAS, cellFormula: false, cellHTML: false, cellStyles: false,
+const OPC = { type: "array", dense: true, sheetRows: MIRAR_FILAS, cellFormula: false, cellHTML: false, cellStyles: false,
   cellNF: false, cellDates: false, dateNF: "dd/mm/yyyy", bookVBA: false, bookDeps: false, bookFiles: false, bookProps: false };
 
 let cargando = null;
@@ -232,7 +233,9 @@ export function textoHoja(hoja, { archivo = "", nombres = [] } = {}){
 
 // ---- Leer los archivos ----
 // La hoja con sus filas con texto ({ n: número de fila en la planilla, celdas }, hasta 400) y el
-// link de video de cada fila ({ n: link }), de un hipervínculo o escrito en la celda.
+// link de video de cada fila ({ n: link }), de un hipervínculo o escrito en la celda. cortada: la
+// hoja no entró entera (más de 400 filas con texto, o algo escrito después del renglón 600 o de
+// la columna 40).
 function armarHoja(nombre, oculta, grilla, links, cortada){
   const filas = [], videos = {};
   grilla.forEach((cs, R) => {
@@ -248,8 +251,10 @@ function armarHoja(nombre, oculta, grilla, links, cortada){
   return { nombre: String(nombre == null ? "" : nombre), oculta: !!oculta, filas, links: videos, cortada: !!cortada };
 }
 
+const conTexto = cel => !!cel && !!cel.t && cel.t !== "e" && cel.t !== "z" && String(cel.v == null ? "" : cel.v).trim() !== "";
 function hojaXLSX(X, nombre, ws, oculta){
   const data = (ws && ws["!data"]) || [], alto = Math.min(data.length, LEER_FILAS), grilla = [], links = {};
+  const cortada = data.some((fila, R) => fila && (R >= alto ? fila : fila.slice(LIMITES.columnas)).some(conTexto));
   for (let R = 0; R < alto; R++){
     const fila = data[R] || [], cs = [];
     for (let C = 0; C < Math.min(fila.length, LIMITES.columnas); C++){
@@ -274,7 +279,7 @@ function hojaXLSX(X, nombre, ws, oculta){
       if (!g[m.s.c]) g[m.s.c] = v;
     }
   }
-  return armarHoja(nombre, oculta, grilla, links, false);
+  return armarHoja(nombre, oculta, grilla, links, cortada);
 }
 
 // El .csv: UTF-8 y, si no es, Windows-1252 (el de Excel en castellano), o UTF-16 con su marca.
@@ -319,9 +324,10 @@ function partirCSV(txt, sep, max){
   return filas;
 }
 function hojaCSV(nombre, bytes){
-  const txt = decodificar(bytes), filas = partirCSV(txt, separador(txt), LEER_FILAS + 1);
+  const txt = decodificar(bytes), filas = partirCSV(txt, separador(txt), MIRAR_FILAS);
   const grilla = filas.slice(0, LEER_FILAS).map(f => f.slice(0, LIMITES.columnas).map(celdaTexto));
-  return armarHoja(nombre, false, grilla, {}, filas.length > LEER_FILAS);
+  const cortada = filas.some((f, R) => (R >= LEER_FILAS ? f : f.slice(LIMITES.columnas)).some(x => x.trim()));
+  return armarHoja(nombre, false, grilla, {}, cortada);
 }
 
 // ¿Es un Excel con contraseña? Adentro tiene «EncryptionInfo» (en UTF-16).

@@ -148,6 +148,15 @@ export default async function ({ base, t }){
       const muchas = Array.from({ length: 65 }, (_, i) => ['H' + i, [['Ejercicio', 'Series'], ['Curl', 3]]]);
       const [g1, g2, g3] = await m.leerArchivos([archivo(libro([['Larga', ancha]]), 'Larga.xlsx'), archivo(libro(muchas), 'Muchas.xlsx'), new File(['a,b\n1,2\n'], 'Otra.csv')]);
       const larga = m.textoHoja(g1.hojas[0], { archivo: g1.archivo });
+      // Hojas que no entran enteras: algo escrito después del renglón 600 o de la columna 40.
+      const separada = Array.from({ length: 900 }, (_, r) => r % 3 ? [] : ['Ej ' + r, 3, 10]);
+      const justa = Array.from({ length: 600 }, (_, r) => r % 3 ? [] : ['Ej ' + r, 3]);
+      const corte = await m.leerArchivos([
+        archivo(libro([['Separada', separada], ['Ancha', [Array.from({ length: 50 }, (_, c) => 'c' + c)]], ['Justa', justa]]), 'Corte.xlsx'),
+        new File(['Ejercicio;Series\n' + ';\n'.repeat(700) + 'Curl;3\n'], 'Sigue.csv'),
+        new File(['Ejercicio;Series\n' + ';\n'.repeat(700)], 'Vacios.csv'),
+        new File(['c,'.repeat(45) + 'c\n'], 'Ancho.csv'),
+      ]);
       // Más formas de datos personales (sin SheetJS: la hoja a mano).
       const extra = m.textoHoja({ nombre: 'Hoja1', filas: [
         { n: 1, celdas: ['Teléfono de contacto', '351 456 7890'] },
@@ -180,6 +189,7 @@ export default async function ({ base, t }){
         larga: { filas: g1.hojas[0].filas.length, cortada: g1.hojas[0].cortada, columnas: Math.max(...g1.hojas[0].filas.map(f => f.celdas.length)),
           largo: larga.texto.length, cortadaTexto: larga.cortada, celdaMax: Math.max(...larga.texto.split('\n').flatMap(l => l.split('|').map(c => c.length))) },
         muchas: [g2.hojas.length, g2.sobran || 0, g3.hojas.length, g3.sobran || 0],
+        corte: corte.flatMap(a => a.hojas.map(h => [h.nombre, h.filas.length, h.cortada])),
         adivinar,
         tildadas: [m.tildadas(a1.hojas), m.tildadas(a2.hojas)], ultima: [m.ultimaSemana(a1.hojas), m.ultimaSemana(a2.hojas)],
         parece: a1.hojas.map(m.pareceRutina),
@@ -262,6 +272,8 @@ export default async function ({ base, t }){
     t.eq([r.larga.filas, r.larga.cortada, r.larga.columnas], [400, true, 40], 'topes: 400 filas con texto y 40 columnas por hoja');
     t.ok(r.larga.largo <= 30000 && r.larga.cortadaTexto, 'topes: el texto de una hoja hasta 30.000 caracteres (' + r.larga.largo + ')');
     t.ok(r.larga.celdaMax <= 120, 'topes: hasta 120 caracteres por celda (' + r.larga.celdaMax + ')');
+    t.eq(r.corte, [['Separada', 200, true], ['Ancha', 1, true], ['Justa', 200, false], ['Sigue', 1, true], ['Vacios', 1, false], ['Ancho', 1, true]],
+      'topes: la hoja avisa que no entró entera si hay algo escrito después del renglón 600 o de la columna 40 (xlsx y csv), aunque tenga menos de 400 filas con texto');
     t.eq(r.muchas, [59, 6, 0, 1], 'topes: 60 hojas en total entre todos los archivos (la de «Larga» y 59 de «Muchas»; las que sobran se cuentan)');
 
     // Para elegir hojas y alumnos.
