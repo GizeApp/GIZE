@@ -10,6 +10,8 @@
 //   token de Google o Apple): antes send() se tragaba esos errores y el aviso se perdía.
 //   Una suscripción con claves mal armadas (web-push falla antes de mandar, sin statusCode) no
 //   es pasajera: antes se liberaba cada minuto durante una hora sin llegar nunca.
+// - _shared/push.ts (mandarAviso, el que usan las funciones nuevas como resumen-semanal): la misma
+//   send() de avisos-coach, con los mismos topes.
 // - La base no acepta direcciones de navegador con puerto (supabase/push-nativo.sql).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -65,6 +67,8 @@ export default async function ({ t }){
 
   const ac = rd('supabase/functions/avisos-coach/index.ts');
   envio(t, 'avisos-coach', ac);
+  // La copia para las funciones nuevas (el resumen de los lunes): los mismos topes.
+  envio(t, '_shared/push', rd('supabase/functions/_shared/push.ts'));
   const h = ac.slice(ac.indexOf('Deno.serve('));
   t.ok(!/for \(const coachId of coachIds\)/.test(h), 'avisos-coach: los coaches ya no van de a uno');
   t.ok(/await Promise\.allSettled\(coachIds\.map\(\(c\) => conTope\(porCoach\(c\), [\d_]+\)\)\)/.test(h), 'avisos-coach: todos los coaches a la vez, cada uno con tope');
