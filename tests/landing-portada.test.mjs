@@ -1,6 +1,6 @@
 // Página de inicio (gize.ar): la portada centrada y en movimiento (pedido del dueño, «como una página
-// de descarga pero movido»). Revisa: el link de Google Play a la app de verdad, que App Store diga
-// «Muy pronto» sin ser un link (la app de iPhone todavía no está aprobada), la cuenta y «Soy coach»
+// de descarga pero movido»). Revisa: los links de Google Play y de la App Store a la app de verdad
+// (la de iPhone se publicó el 27/10), sin «Muy pronto» ni «usala desde Safari», la cuenta y «Soy coach»
 // por la web, que el título termine de entrar y se lea, que con «reducir movimiento» se vea todo sin
 // animar, que en el celular no haya scroll de costado y que la barra flotante no tape las secciones.
 import { newPage, wait } from './lib.mjs';
@@ -10,17 +10,19 @@ export default async function ({ base, t }){
     const { p, errs, close } = await newPage({ viewport: vp, reducedMotion: reduced });
     await p.goto(base + '/'); await wait(2600);
     const r = await p.evaluate(() => {
-      const play = document.querySelector('.hero a.store'), apple = document.querySelector('.hero .store.pronto');
+      const play = document.querySelector('.hero a.store:not(.store-apple)'), apple = document.querySelector('.hero a.store.store-apple');
       const ws = [...document.querySelectorAll('.hero h1 .w')].map(e => +getComputedStyle(e).opacity);
       const fine = getComputedStyle(document.querySelector('.hero .fine')).opacity;
-      return { play: play && play.href, playTxt: play && play.textContent.replace(/\s+/g, ' ').trim(), appleTag: apple && apple.tagName, appleTxt: apple && apple.textContent.replace(/\s+/g, ' ').trim(),
+      return { play: play && play.href, playTxt: play && play.textContent.replace(/\s+/g, ' ').trim(), apple: apple && apple.href, appleTxt: apple && apple.textContent.replace(/\s+/g, ' ').trim(), appleNuevo: apple && apple.target,
+        pronto: /muy pronto|safari/i.test(document.querySelector('.hero').textContent),
         h1: document.querySelector('.hero h1').textContent.replace(/\s+/g, ' ').trim(), ws, fine,
         registro: !!document.querySelector('.hero a[href="app/#registro"]'), coach: !!document.querySelector('.hero a[href="#coach"]'),
         ancho: document.documentElement.scrollWidth, vw: innerWidth };
     });
     t.eq(r.play, 'https://play.google.com/store/apps/details?id=ar.com.gize.app', nom + ': Google Play lleva a la app');
     t.eq(r.playTxt, 'Descargala en Google Play', nom + ': el texto del botón de Google Play');
-    t.ok(r.appleTag === 'SPAN' && r.appleTxt === 'Muy pronto en App Store', nom + ': App Store dice «Muy pronto» y no es un link: ' + JSON.stringify([r.appleTag, r.appleTxt]));
+    t.eq([r.apple, r.appleTxt, r.appleNuevo], ['https://apps.apple.com/ar/app/id6818266033', 'Descargala en la App Store', '_blank'], nom + ': App Store lleva a la app de iPhone');
+    t.ok(!r.pronto, nom + ': ya no dice «Muy pronto» ni «usala desde Safari»');
     t.eq(r.h1, 'Entrená con tu coach desde el celular', nom + ': el título');
     t.ok(r.ws.length === 7 && r.ws.every(o => o === 1) && r.fine === '1', nom + ': el título y la ayuda terminan de entrar y se ven: ' + JSON.stringify([r.ws, r.fine]));
     t.ok(r.registro && r.coach, nom + ': «Creá tu cuenta» y «Soy coach» por la web');

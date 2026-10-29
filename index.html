@@ -136,8 +136,6 @@ header .wrap{display:flex;align-items:center;justify-content:space-between;gap:1
 .store:nth-child(2)::after{animation-delay:.6s}
 @keyframes brilla{0%,55%{transform:translateX(-120%)}85%,100%{transform:translateX(120%)}}
 a.store:hover{transform:translateY(-3px);border-color:var(--r1);box-shadow:0 14px 34px -10px rgba(47,160,255,.55)}
-.store.pronto{cursor:default;opacity:.78}
-.store.pronto small{color:var(--r2)}
 .hero .web{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:center;margin-top:26px;animation-delay:1.1s;color:var(--text-2);font-size:15px}
 .hero .web .btn{padding:12px 22px;font-size:15.5px}
 .hero .fine{margin:22px 0 0;font-size:13.5px;color:var(--text-2);max-width:46ch;line-height:1.6;animation-delay:1.2s}
@@ -414,13 +412,13 @@ footer a:hover{color:var(--text)}
         <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#25E8C8" d="M3.6 2.3 13.4 12 3.6 21.7c-.4-.2-.6-.6-.6-1.1V3.4c0-.5.2-.9.6-1.1Z"/><path fill="#2FA0FF" d="m16.6 8.8-3.2 3.2L3.6 2.3c.2-.1.5-.1.8 0l12.2 6.5Z"/><path fill="#FF3DAE" d="m16.6 15.2-12.2 6.5c-.3.1-.6.1-.8 0l9.8-9.7 3.2 3.2Z"/><path fill="#A65CFF" d="m20.3 10.8-3.7-2-3.2 3.2 3.2 3.2 3.7-2c.9-.5.9-1.9 0-2.4Z"/></svg>
         <span><small>Descargala en</small> <b>Google Play</b></span>
       </a>
-      <span class="store pronto" aria-label="App Store: muy pronto">
+      <a class="store store-apple" href="https://apps.apple.com/ar/app/id6818266033" target="_blank" rel="noopener" aria-label="Descargala en la App Store">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M16.4 12.6c0-2.4 2-3.6 2.1-3.6-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8s1.9.8 3.2.8c1.3 0 2.1-1.2 2.9-2.4.9-1.3 1.3-2.6 1.3-2.7 0 0-2.4-1-2.4-4.1ZM14 5.4c.6-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.4-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.6 2.8-1.3Z"/></svg>
-        <span><small>Muy pronto en</small> <b>App Store</b></span>
-      </span>
+        <span><small>Descargala en la</small> <b>App Store</b></span>
+      </a>
     </div>
     <div class="web"><span class="web-txt">¿Preferís la web?</span><a class="btn btn-rgb" href="app/#registro">Creá tu cuenta</a><a class="btn btn-ghost" href="#coach">Soy coach</a></div>
-    <p class="fine">Entrá con el mismo mail con el que te sumó tu coach. En iPhone, mientras tanto, usala desde Safari: se instala como una app.</p>
+    <p class="fine">Entrá con el mismo mail con el que te sumó tu coach.</p>
     <div class="hero-cels" aria-hidden="true">
       <div class="hero-escena"></div>
       <div class="cel cel-i"><img src="assets/landing/app-comida.webp" alt="" width="600" height="1304" loading="lazy" decoding="async"></div>
