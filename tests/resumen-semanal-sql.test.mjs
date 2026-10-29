@@ -5,7 +5,8 @@
 //    fijas (semana del lunes 19 de octubre de 2026, hoy martes 27): qué cuenta como entrenó, días sin
 //    entrenar, los nuevos sin empezar, los récords (con la regla del festejo), a quién le llega, una vez
 //    por semana, reintentos, dos tomas a la vez, la ventana, el tope del día, los permisos, la baja con
-//    el token, el interruptor del coach y el panel. Con los gimnasios: cada profe con los socios que ve.
+//    el token, el interruptor del coach, el panel y cuánto tarda una tanda con un gimnasio grande. Con
+//    los gimnasios: cada profe con los socios que ve.
 import { conPg, leer, lit } from './pg.mjs';
 import { P, DATOS, ayudas, VENCE, conCanon } from './gimnasios-comun.mjs';
 
@@ -140,6 +141,11 @@ export default async function ({ t: t0 }){
   const definidas = [...code.matchAll(/create or replace function public\.(\w+)\(/g)].map(m => m[1]);
   t.ok(definidas.every(n => /^(resumen_semanal_|hay_resumenes_semanales$|tomar_resumenes_semanales$|soltar_resumen_semanal$|admin_resumen_semanal)/.test(n)), 'solo define funciones nuevas: ' + definidas.join(', '));
   t.ok(!/coach_alerts|queue_inactivity_alerts/.test(code), 'no toca los avisos de inactividad');
+  // Los entrenos y el último entreno de cada alumno salen de una sola pasada por los entrenos de la
+  // tanda (group by), no de una consulta por alumno: con un gimnasio grande, eso tardaba de más.
+  const datosFn = fn(code, 'resumen_semanal_datos');
+  t.ok(/from se group by se\.client_id/.test(datosFn) && !/\(select [^()]*from se where se\.client_id = a\.alumno/.test(datosFn),
+    'resumen_semanal_datos: una sola pasada por los entrenos, no una por alumno');
   t.ok(/cron\.schedule\('gize-resumen-semanal', '\*\/5 12-15 \* \* 1-3'/.test(code), 'cron de lunes a miércoles, de 9 a 12:55 de Argentina, cada 5 minutos');
   t.ok(/\/functions\/v1\/resumen-semanal'/.test(code) && /'x-cron-secret', public\.cron_secret\(\)/.test(code), 'llama a la función con el secreto del cron');
   t.ok(/timeout_milliseconds := 60000/.test(code), 'con el tiempo máximo escrito (pg_net corta a los pocos segundos)');
@@ -298,6 +304,32 @@ export default async function ({ t: t0 }){
     t.eq(pan[2], [['resumen_semanal', { activo: true, tope_dia: 40 }]], 'queda en el registro de acciones');
     t.eq([pan[3] && pan[3].error, pan[4] && pan[4].error, pan[5] && pan[5].error], ['42501', '42501', '42501'], 'nadie más ve ni cambia el panel');
     t.eq(pan[6] && pan[6].error, 'P0001', 'un tope fuera de 0 a 5000 no se guarda');
+
+    // Cuánto tarda: un gimnasio (o un coach) con 400 alumnos de 150 entrenos cada uno, más 7 coaches
+    // de 20 alumnos, en una sola tanda. Con una consulta por alumno tardaba unos 8 s: la llamada de la
+    // función se cortaba por tiempo y, como la tanda no se anotaba, el cron volvía a trabarse con los
+    // mismos coaches cada 5 minutos y no le llegaba a nadie. Con una sola pasada, menos de 1 s.
+    await db.sql(`
+insert into auth.users (id, email, created_at, raw_user_meta_data)
+select ('c7000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid, 'g' || g || '@ejemplo.test', '2026-01-01', '{"full_name":"Coach Grande","role":"coach"}' from generate_series(1, 8) g;
+update public.coach_billing set plan = 'cortesia' where coach_id::text like 'c7000000-%';
+insert into auth.users (id, email, created_at, raw_user_meta_data)
+select ('c7100000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid, 'h' || g || '@ejemplo.test', '2026-01-01', '{"full_name":"Socio Prueba"}' from generate_series(1, 540) g;
+update public.profiles set coach_id = ('c7000000-0000-4000-8000-' || lpad((case when substr(id::text, 25)::int <= 400 then 1 else 2 + (substr(id::text, 25)::int - 401) / 20 end)::text, 12, '0'))::uuid
+ where id::text like 'c7100000-%';
+insert into public.sessions (id, client_id, performed_on, day_name)
+select gen_random_uuid(), p.id, date '2026-10-25' - s, 'A' from public.profiles p, generate_series(0, 149) s where p.id::text like 'c7100000-%';
+insert into public.session_entries (session_id, client_id, exercise_name, set_order, kg, reps)
+select s.id, s.client_id, 'Ej ' || e, 1, 20 + (s.performed_on - date '2026-01-01') % 60, 5 from public.sessions s, generate_series(1, 2) e
+ where s.client_id::text like 'c7100000-%';
+analyze;`);
+    const lento = await J(`set jit = off;
+create temp table _t0 as select clock_timestamp() as t0;
+create temp table _r as select x.coach_id, x.datos from public.resumen_semanal_datos(array(select ('c7000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid from generate_series(1, 8) g), '2026-10-19', '2026-10-27') x;
+select jsonb_build_object('ms', round(extract(epoch from clock_timestamp() - (select t0 from _t0)) * 1000), 'alumnos', (select sum((datos->>'alumnos')::int) from _r));`);
+    console.log('    resumen_semanal_datos con 540 alumnos y 81.000 entrenos: ' + lento.ms + ' ms');
+    t.eq(lento.alumnos, 540, 'la tanda grande trae a todos los alumnos');
+    t.ok(lento.ms < 3000, 'una tanda con un gimnasio de 400 socios tarda menos de 3 s: ' + lento.ms + ' ms');
   } finally {
     await db.borrar();
   }

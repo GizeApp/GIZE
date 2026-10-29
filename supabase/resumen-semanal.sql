@@ -178,12 +178,16 @@ language sql stable security definer set search_path = public as $$
     select s.id, s.client_id, s.performed_on
       from public.sessions s
      where s.client_id in (select a.alumno from al a) and s.performed_on <= p_hoy
+  ), ult as (
+    -- Los entrenos de la semana y el último entreno de cada alumno, en una sola pasada (con una
+    -- consulta por alumno, una tanda con un gimnasio grande tardaba segundos).
+    select se.client_id, count(*) filter (where se.performed_on between p_semana and p_semana + 6) as entrenos,
+           max(se.performed_on) as ultimo
+      from se group by se.client_id
   ), por as materialized (
-    select a.coach, a.alumno, a.nombre, a.alta,
-           (select count(*) from se where se.client_id = a.alumno and se.performed_on between p_semana and p_semana + 6) as entrenos,
-           p_hoy - (select max(se.performed_on) from se where se.client_id = a.alumno) as dias,
+    select a.coach, a.alumno, a.nombre, a.alta, coalesce(u.entrenos, 0) as entrenos, p_hoy - u.ultimo as dias,
            exists (select 1 from public.checkins c where c.client_id = a.alumno and c.week_start = p_semana) as checkin
-      from al a
+      from al a left join ult u on u.client_id = a.alumno
   ), marcas as materialized (
     select se.client_id as alumno, e.exercise_name as ej, e.kg, se.performed_on >= p_semana as de_la_semana
       from public.session_entries e
