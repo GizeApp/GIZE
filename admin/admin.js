@@ -1768,7 +1768,8 @@ function paintIA(foco){
   // [clave, nombre, nota (si todavía no se puede prender), ayuda]
   const FUN = [["etiqueta_admin", "Leer tablas en Pedidos (este panel)", ""], ["etiqueta_usuario", "Tabla en «Pedir un producto» (app)", "Todavía no está en la app"],
     ["plato", "Foto del plato (app)", "", "Aparece en Comida, al lado del buscador (web; en las apps, con la versión nueva). Cada foto sale menos de un centavo. «Contame qué comiste» se sacó: solo fotos."],
-    ["rutina", "Armar rutina (coach)", "Todavía no está en la app"], ["resumen", "Resumen de la semana (coach)", "Todavía no está en la app"]];
+    ["planilla", "Pasar planillas (coach)", "Todavía no está en la app"], ["rutina", "Armar rutina (coach)", "Todavía no está en la app"],
+    ["resumen", "Resumen de la semana (coach)", "Todavía no está en la app"]];
   const funs = `<div class="ia-funs">${FUN.map(([k, l, nota, ayuda]) => `<div class="ia-fun${nota ? " off" : ""}"><div>${l}${nota ? `<small>${nota}</small>` : ayuda ? `<small>${ayuda}</small>` : ""}</div>
       <button class="tgl sm" role="switch" aria-checked="${fun[k] ? "true" : "false"}" aria-label="${esc(l)}" data-a="iaFn" data-k="${k}"${nota ? " disabled" : ""}></button></div>`).join("")}</div>`;
   // Modelo para las tablas: solo los que sirven para leer tablas, con lo que cuesta cada una.
@@ -1785,7 +1786,7 @@ function paintIA(foco){
     <div class="search"><input class="in" id="iaDesde" type="date" aria-label="Día en que se publicó la política de privacidad" value="${esc(diaPolitica(ia.pedidos_desde))}"><button class="btn" data-a="iaDesde">Guardar fecha</button></div>
     <div class="muted small">Si es hoy, se leen los pedidos que lleguen desde ahora; si es otro día, desde el día siguiente (así nunca se lee uno de antes). Ese día, avisá el cambio en la app desde <a href="#avisos" data-go="avisos">Avisos</a> (ej: «Actualizamos la política de privacidad: sumamos las funciones con IA»).</div>`;
   // Uso.
-  const NOMF = { etiqueta: "Tablas", plato: "Platos", texto: "Textos", rutina: "Rutinas", resumen: "Resúmenes" };
+  const NOMF = { etiqueta: "Tablas", plato: "Platos", texto: "Textos", rutina: "Rutinas", resumen: "Resúmenes", planilla: "Planillas" };
   const seg = ms => (num(ms) / 1000).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " s";
   const pf = Object.entries(ia.por_funcion || {});
   const tb = ia.tablas || {}, pub = num(tb.publicadas), campos = tb.campos || {};
@@ -1801,10 +1802,13 @@ function paintIA(foco){
     ${Object.keys(ia.errores || {}).length ? `<div class="muted small">Errores del ciclo: ${Object.entries(ia.errores).map(([k, n]) => esc(iaCod(k)) + " " + n0(n)).join(" · ")}</div>` : ""}`;
   // Topes y umbrales.
   // «Con IA Plus»: los topes de quien lo tiene (comprado o incluido); valen si son más que los de su rol.
-  const ROL = { alumno: "Alumno", coach: "Coach", admin: "Administrador", plus: "Con IA Plus (o incluido)" };
+  const ROL = { alumno: "Alumno", coach: "Coach", prueba: "Coach en prueba", admin: "Administrador", plus: "Con IA Plus (o incluido)" };
   // Los de coach los usan también los profes de un gimnasio sin plan propio (ia_rol_origen en
   // supabase/ia.sql): se aclara acá y en cada llamada sale «Coach (por gimnasio)».
-  const ROL_NOTA = { coach: "Coach con plan al día, o profe de un gimnasio con el plan al día (coach por gimnasio)." };
+  // El coach en su prueba gratis usa la IA del coach (planillas y rutinas) con topes propios, más
+  // chicos (ia_rol_coach); sus fotos de comida siguen con los de alumno.
+  const ROL_NOTA = { coach: "Coach con plan al día, o profe de un gimnasio con el plan al día (coach por gimnasio).",
+    prueba: "Coach en su prueba gratis, sin plan pago: solo planillas y rutinas (sus fotos de comida van como alumno). En modo ahorro no las usa." };
   const topes = Object.entries(ia.topes || {}).map(([rol, t]) => `<div class="ia-topes"><b>${ROL[rol] || esc(rol)}</b>${ROL_NOTA[rol] ? `<span class="muted small">${ROL_NOTA[rol]}</span>` : ""}${Object.entries(t).map(([k, v]) =>
     `<label>${k === "usd_ciclo" ? "US$ por ciclo" : k === "total" ? "Total por día" : esc((NOMF[k] || k)) + " por día"}<input class="in" inputmode="decimal" data-tope="${esc(rol)}.${esc(k)}" value="${esc(v)}"></label>`).join("")}</div>`).join("");
   const umbr = c ? `<div class="ia-topes"><b>Este ciclo (US$)</b>${[["aviso", "Aviso"], ["ahorro", "Ahorro"], ["tope", "Corte"], ["credito", "Crédito"]].map(([k, l]) => `<label>${l}<input class="in" inputmode="decimal" data-umbral="${k}" value="${esc(num(c[k]))}"></label>`).join("")}</div>` : "";
