@@ -122,19 +122,28 @@ const esRutina = c => { const e = etiqueta(c); return !e.resto && RUTINA.has(e.l
 // - una fila de encabezados de datos («Nombre | Mail | Teléfono | Lesiones»): se saca y sus
 //   columnas quedan vacías en las filas que siguen pegadas (hasta un renglón vacío o el
 //   encabezado de una tabla de ejercicios);
+// - en el encabezado de una tabla de ejercicios, una columna de datos personales o de salud
+//   («Alumno | Ejercicio | Series | Reps» o «Ejercicio | Lesiones | Series»): queda vacía también
+//   en las filas que siguen pegadas. «Nombre» solo no, porque ahí es el del ejercicio (salvo que
+//   también haya «Apellido»);
 // - «Lesiones: rodilla» en una celda: se vacía la celda;
 // - «Edad | 34» o «Lesiones | rodilla | hombro»: se vacía desde la etiqueta hasta el final de la fila.
 // Devuelve las filas que quedan y cuántas se tocaron.
 function quitarPersonales(filas){
   const out = []; let cols = null, ant = -2, sacadas = 0;
   for (const f of filas){
-    const c = (f.celdas || []).slice();
-    if (f.n !== ant + 1 || c.filter(esRutina).length >= 2) cols = null;
+    const c = (f.celdas || []).slice(), tabla = c.filter(esRutina).length >= 2;
+    if (f.n !== ant + 1 || tabla) cols = null;
     ant = f.n;
     const llenas = [], labs = [];
     c.forEach((x, i) => { if (x) { llenas.push(i); if (esEtiqueta(x)) labs.push(i); } });
     if (labs.length >= 2 && labs.length * 2 >= llenas.length && llenas.every(i => labs.includes(i) || !/[\d@]/.test(c[i]))){
       cols = new Set(labs); sacadas++; continue;
+    }
+    if (tabla && labs.length){
+      const apellido = labs.some(i => /^apellido/.test(etiqueta(c[i]).lab));
+      const de = labs.filter(i => apellido || !/^nombres?$/.test(etiqueta(c[i]).lab));
+      if (de.length) cols = new Set(de);
     }
     let toco = false;
     for (let k = 0; k < c.length; k++){

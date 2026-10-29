@@ -161,6 +161,12 @@ export default async function ({ base, t }){
         { n: 10, celdas: ['Ana', 'Ruiz', 'Trimestral'] },
         { n: 12, celdas: ['Ejercicio', 'Notas'] },
         { n: 13, celdas: ['Remo con barra', 'mirá instagram.com/juan.perez'] },
+        { n: 15, celdas: ['Alumno', 'Ejercicio', 'Series', 'Reps'] },
+        { n: 16, celdas: ['Carlos', 'Sentadilla libre', '4', '10'] },
+        { n: 18, celdas: ['Ejercicio', 'Lesiones', 'Series', 'Reps'] },
+        { n: 19, celdas: ['Remo con barra', 'hernia de disco', '3', '10'] },
+        { n: 21, celdas: ['Nombre', 'Apellido', 'Ejercicio', 'Series', 'Reps'] },
+        { n: 22, celdas: ['Pedro', 'Gómez', 'Remo con barra', '3', '10'] },
       ] });
 
       const clientes = [{ id: 'a1', full_name: 'Juan Pérez' }, { id: 'a2', full_name: 'Juan Gómez' }, { id: 'a3', full_name: 'Martina López' }, { id: 'a4', full_name: 'Sofía Ramírez' }];
@@ -247,9 +253,10 @@ export default async function ({ base, t }){
     t.eq(r.videos, [null, 'https://youtube.com/watch?v=x', null, 'https://www.instagram.com/p/abc/', 'https://m.youtube.com/shorts/x', null, null, null],
       'linkVideo: solo videos de YouTube e Instagram (no perfiles), siempre https y sin usuario');
     t.eq(r.extra.texto, ['3|Altura del banco: 3|Press inclinado|4|10', '4|Objetivo|Hipertrofia', '5|Nombre|Series|Reps', '6|Press de banca plano (barra)|4|8-10',
-      '9|||Mensual', '10|||Trimestral', '12|Ejercicio|Notas', '13|Remo con barra|mirá [link]'].join('\n'),
-      'datos personales: «Teléfono de contacto», «Lesiones previas: …», «Edad» en el medio y una tabla de nombres; «Nombre» de los ejercicios y la altura del banco quedan');
-    t.eq(r.extra.sacadas, 6, 'datos personales: cuántas filas se tocaron');
+      '9|||Mensual', '10|||Trimestral', '12|Ejercicio|Notas', '13|Remo con barra|mirá [link]',
+      '15||Ejercicio|Series|Reps', '16||Sentadilla libre|4|10', '18|Ejercicio||Series|Reps', '19|Remo con barra||3|10', '21|||Ejercicio|Series|Reps', '22|||Remo con barra|3|10'].join('\n'),
+      'datos personales: «Teléfono de contacto», «Lesiones previas: …», «Edad» en el medio, una tabla de nombres y las columnas «Alumno», «Lesiones» y «Nombre | Apellido» en el encabezado de una tabla de ejercicios; «Nombre» de los ejercicios y la altura del banco quedan');
+    t.eq(r.extra.sacadas, 12, 'datos personales: cuántas filas se tocaron');
 
     // Topes.
     t.eq([r.larga.filas, r.larga.cortada, r.larga.columnas], [400, true, 40], 'topes: 400 filas con texto y 40 columnas por hoja');
