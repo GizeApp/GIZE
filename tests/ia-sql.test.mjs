@@ -41,7 +41,7 @@ export default async ({ t }) => {
   // Arranca apagada.
   t.ok(/activa\s+boolean not null default false/.test(code) && /alter column activa set default false/.test(code), 'ia_config.activa: default false');
   const funs = JSON.parse((code.match(/funciones\s+jsonb not null default '([^']+)'/) || [])[1] || '{}');
-  t.ok(Object.keys(funs).length === 6 && Object.values(funs).every(v => v === false), 'cada función arranca en false: ' + JSON.stringify(funs));
+  t.ok(Object.keys(funs).length === 7 && Object.values(funs).every(v => v === false), 'cada función arranca en false: ' + JSON.stringify(funs));
   t.ok(/insert into public\.ia_config \(id\) values \(1\) on conflict \(id\) do nothing;/.test(code), 'la fila de la configuración se crea una vez y no se pisa');
   t.ok(!/drop table/i.test(code) && !/truncate/i.test(code), 'no borra tablas ni datos (se puede volver a correr)');
   // El aviso cambió (solo la foto, sin texto): versión 2, que solo sube (correrlo de nuevo no vuelve a preguntar).

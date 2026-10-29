@@ -65,7 +65,7 @@ export default async function ({ t }){
     ['pA2', `select public.ia_mi_estado()`], ['pA1', `select public.ia_mi_estado()`]]);
   t.ok(x[1] && x[1].ok === true && x[2] && x[2].ok === true && x[3] && x[3].ok === true, 'las tres reservas pasan: ' + JSON.stringify(x.slice(1, 4)));
   t.eq(x[4], [[P.pA2, 'coach', 'gimnasio'], [P.pA1, 'coach', 'plan'], [P.A1, 'alumno', null]], 'cada llamada guarda de dónde salió su rol');
-  t.eq([x[5] && x[5].por_gimnasio, x[5] && x[5].tope && x[5].tope.total], [true, 40], 'ia_mi_estado del profe: por_gimnasio y los topes de coach');
+  t.eq([x[5] && x[5].por_gimnasio, x[5] && x[5].tope && x[5].tope.total], [true, 60], 'ia_mi_estado del profe: por_gimnasio y los topes de coach');
   t.eq(x[6] && x[6].por_gimnasio, false, 'ia_mi_estado de un coach con plan: no es por gimnasio');
   await db.borrar();
 }
