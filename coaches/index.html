@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<!-- CSP: la misma que la página de inicio. Esta página no tiene scripts. Por <meta> porque GitHub Pages no deja poner headers. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Escondida hasta que el dueño la apruebe: Google no la indexa y la página de inicio todavía no la enlaza. -->
+<meta name="robots" content="noindex">
+<title>GIZE para coaches · App para entrenadores personales</title>
+<meta name="description" content="Armá rutinas, seguí el progreso de tus alumnos y hablá con ellos desde una sola app. Probala 14 días gratis, sin tarjeta. Planes desde $14.900 por mes.">
+<meta name="theme-color" content="#000000">
+<link rel="canonical" href="https://gize.ar/coaches/">
+<!-- Vista previa al compartir el link (WhatsApp, Instagram, Facebook, X): imagen sin precios, para que no quede vieja. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GIZE">
+<meta property="og:locale" content="es_AR">
+<meta property="og:url" content="https://gize.ar/coaches/">
+<meta property="og:title" content="GIZE para coaches">
+<meta property="og:description" content="Armás la rutina una vez y cada alumno la sigue desde la app. Vos ves cómo le fue y le escribís sin salir de GIZE. Probala 14 días gratis, sin tarjeta.">
+<meta property="og:image" content="https://gize.ar/assets/landing/og-coaches.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="GIZE para coaches: el panel del coach con la lista de alumnos, en la compu">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="stylesheet" href="../brand/fonts/outfit.css">
+<style>
+/* Mismo look que la página de inicio (index.html): si cambiás algo de eso allá, cambialo acá.
+   Es una copia recortada (paleta, barra flotante, botones, auroras, secciones, tarjetas, pasos,
+   celulares, botones de las tiendas, precios y cierre). Lo propio de esta página: la compu con la
+   captura del panel (.compu), las capturas (.capturas), las preguntas (.faq), lo que incluye cada
+   plan (.inc) y la fila de planes grandes (.mas). Sin JavaScript: todo se mueve con CSS y con
+   «reducir movimiento» queda quieto. */
+:root{
+  color-scheme:dark;
+  --bg:#000; --surface:#0B0D11; --surface-2:#12151B; --border:#1C2029; --border-hi:#3A4250;
+  --text:#FFFFFF; --text-2:#8F98A6;
+  --el:#2FA0FF;
+  --r1:#2FA0FF; --r2:#A65CFF; --r3:#FF3DAE; --r4:#25E8C8;
+  --ring:conic-gradient(from var(--a),var(--r1),var(--r2),var(--r3),var(--r4),var(--r1));
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Outfit',system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+img,svg{max-width:100%}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--el);outline-offset:3px;border-radius:8px}
+.wrap{width:min(1120px,100%);margin-inline:auto;padding-inline:max(16px,4vw)}
+
+/* ---------- barra flotante ---------- */
+header{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 14px);z-index:20;pointer-events:none}
+header .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 12px 10px 22px;width:min(1120px,calc(100% - 24px));
+  border-radius:999px;border:1px solid rgba(255,255,255,.1);background:rgba(10,12,18,.62);backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);
+  box-shadow:0 12px 40px -16px rgba(0,0,0,.9);pointer-events:auto}
+.logo{display:inline-flex;align-items:center;text-decoration:none}
+.logo img{display:block;height:26px;width:auto}
+.nav{display:flex;gap:26px;align-items:center}
+.nav-links{display:flex;gap:26px}
+.nav-links a{color:var(--text-2);text-decoration:none;font-weight:500;white-space:nowrap}
+.nav-links a:hover{color:var(--text)}
+.nav .btns{display:flex;gap:8px}
+.btn.btn-sm{padding:9px 18px;font-size:15px}
+/* En el celular no entran los links: queda el logo, «Probar gratis» y «Entrar». */
+@media (max-width:900px){ .nav-links{display:none} }
+@media (max-width:420px){ header .wrap{padding-left:16px} .nav{gap:6px} .btn.btn-sm{padding:7px 11px;font-size:13px} .logo img{height:21px} }
+
+/* ---------- botones ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:16px 30px;border-radius:999px;font-weight:600;font-size:17px;text-decoration:none;border:1px solid transparent;transition:transform .15s ease,box-shadow .25s ease,border-color .15s;white-space:nowrap}
+.btn:active{transform:scale(.98)}
+/* Anillo RGB: gira el COLOR (--a), no la forma. */
+@property --a{syntax:'<angle>';inherits:false;initial-value:0deg}
+.btn-rgb{color:#000;border:2px solid transparent;
+  background:linear-gradient(#fff,#fff) padding-box,var(--ring) border-box;
+  animation:spin 5s linear infinite}
+.btn-rgb:hover{box-shadow:0 0 34px rgba(47,160,255,.45)}
+.btn-ghost{color:var(--text);border-color:var(--border-hi);background:rgba(255,255,255,.03)}
+.btn-ghost:hover{border-color:var(--text-2)}
+@keyframes spin{to{--a:360deg}}
+.cta{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+
+/* ---------- fondo: auroras que se mueven con CSS (solo transform) ---------- */
+.bg-aurora{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;background:#030304}
+.bg-aurora span{position:absolute;width:70vmax;height:70vmax;border-radius:50%;opacity:.22;will-change:transform;animation:au 26s ease-in-out infinite alternate}
+.bg-aurora span:nth-child(1){background:radial-gradient(closest-side,var(--r1),transparent);left:-20vmax;top:-10vmax}
+.bg-aurora span:nth-child(2){background:radial-gradient(closest-side,var(--r2),transparent);right:-25vmax;top:10vmax;animation-duration:32s;animation-delay:-8s}
+.bg-aurora span:nth-child(3){background:radial-gradient(closest-side,var(--r3),transparent);left:10vmax;bottom:-30vmax;animation-duration:29s;animation-delay:-15s;opacity:.16}
+.bg-aurora span:nth-child(4){background:radial-gradient(closest-side,var(--r4),transparent);right:0;bottom:-20vmax;animation-duration:35s;animation-delay:-4s;opacity:.14}
+@keyframes au{0%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(12vmax,8vmax,0) scale(1.15)}100%{transform:translate3d(-8vmax,-6vmax,0) scale(.92)}}
+
+/* ---------- portada: cartel, título que entra palabra por palabra, botones y la compu ---------- */
+.hero{position:relative;z-index:1;text-align:center;overflow:hidden;padding-block:130px 40px}
+.hero-copy{display:flex;flex-direction:column;align-items:center}
+/* Cartelito con el borde de neón que gira (el mismo anillo que el botón principal). */
+.pill{display:inline-flex;align-items:center;gap:9px;padding:8px 18px;border-radius:999px;font-size:14.5px;font-weight:600;color:var(--text);
+  border:1.5px solid transparent;background:linear-gradient(rgba(10,12,18,.9),rgba(10,12,18,.9)) padding-box,var(--ring) border-box;animation:spin 6s linear infinite;
+  box-shadow:0 0 26px -6px rgba(166,92,255,.6)}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--r1);box-shadow:0 0 10px var(--r1);animation:late 1.8s ease-in-out infinite}
+@keyframes late{50%{transform:scale(1.6);opacity:.55}}
+.hero h1{font-size:clamp(40px,6.6vw,88px);font-weight:700;line-height:1.03;margin:26px 0 0;letter-spacing:-.04em;text-wrap:balance}
+.hero h1 .w{display:inline-block;opacity:0;transform:translateY(.45em) rotate(2deg);filter:blur(8px);animation:entra .9s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:calc(.12s + var(--i) * .09s)}
+@keyframes entra{to{opacity:1;transform:none;filter:none}}
+/* «alumno» con el degradé de la marca corriendo. */
+.hero h1 .neon{background:linear-gradient(90deg,var(--r1),var(--r2),var(--r3),var(--r4),var(--r1));background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:entra .9s cubic-bezier(.2,.8,.2,1) forwards,corre 6s linear infinite;animation-delay:calc(.12s + var(--i) * .09s),0s;filter:blur(8px) drop-shadow(0 0 18px rgba(166,92,255,.45))}
+@keyframes corre{to{background-position:300% 0}}
+.hero .sub,.hero .cta,.hero .fine,.hero-vis{opacity:0;animation:sube .8s ease forwards}
+@keyframes sube{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.hero .sub{color:#C3C9D2;font-size:clamp(16px,1.7vw,20px);max-width:52ch;margin:22px 0 0;line-height:1.6;animation-delay:.75s}
+.hero .cta{margin-top:32px;animation-delay:.9s}
+.hero .fine{margin:18px 0 0;font-size:14.5px;color:var(--text-2);line-height:1.6;animation-delay:1s}
+.hero-vis{position:relative;width:min(980px,100%);margin:52px auto 0;padding-bottom:18px;animation-delay:1.15s}
+.hero-vis::before{content:"";position:absolute;left:50%;top:10%;width:90%;height:80%;transform:translateX(-50%);border-radius:50%;
+  background:radial-gradient(closest-side,rgba(166,92,255,.4),rgba(47,160,255,.16) 60%,transparent);filter:blur(10px);pointer-events:none}
+
+/* La compu con una captura del panel del coach (assets/landing/coach-*.webp, datos inventados). */
+.compu{position:relative;margin:0}
+.compu-pan{padding:clamp(5px,1vw,10px);border-radius:clamp(10px,1.6vw,18px) clamp(10px,1.6vw,18px) 6px 6px;background:linear-gradient(160deg,#2a2f3a,#0b0d11 40%,#1a1d25);
+  box-shadow:0 0 0 1px rgba(255,255,255,.08),0 40px 90px -30px rgba(0,0,0,.95),0 0 60px -20px rgba(120,120,255,.5)}
+.compu-pan img{display:block;width:100%;height:auto;aspect-ratio:1440/900;border-radius:clamp(6px,1vw,10px);background:#000}
+.compu-base{position:relative;height:clamp(8px,1.4vw,15px);margin:0 -5%;border-radius:0 0 16px 16px;background:linear-gradient(#3a4250,#12151b);box-shadow:0 18px 30px -12px rgba(0,0,0,.8)}
+.compu-base::before{content:"";position:absolute;left:50%;top:0;width:16%;height:40%;transform:translateX(-50%);border-radius:0 0 8px 8px;background:#0b0d11}
+
+/* ---------- celulares con la app del alumno (assets/landing/app-*.webp) ---------- */
+.cel{position:absolute;top:0;left:50%;width:clamp(200px,24vw,280px);aspect-ratio:440/956;padding:9px;border-radius:44px;background:linear-gradient(160deg,#2a2f3a,#0b0d11 40%,#1a1d25);
+  box-shadow:0 0 0 1px rgba(255,255,255,.08),0 30px 70px -20px rgba(0,0,0,.9),0 0 50px -18px rgba(120,120,255,.5)}
+.cel img{display:block;width:100%;height:100%;object-fit:cover;object-position:top;border-radius:36px;background:#000}
+.cel::after{content:"";position:absolute;top:18px;left:50%;width:28%;height:20px;transform:translateX(-50%);border-radius:999px;background:#000}
+/* En la portada, un celular encima de la compu, abajo a la derecha. */
+.cel.cel-sobre{top:auto;left:auto;right:-1%;bottom:-4%;width:clamp(96px,19%,200px);padding:clamp(4px,.7vw,8px);border-radius:clamp(18px,3vw,36px);transform:rotate(4deg);animation:flota 7s ease-in-out infinite}
+.cel.cel-sobre img{border-radius:clamp(14px,2.4vw,29px)}
+.cel.cel-sobre::after{top:clamp(8px,1.3vw,14px);height:clamp(8px,1.3vw,15px)}
+@keyframes flota{0%,100%{transform:rotate(4deg)}50%{transform:rotate(4deg) translateY(-12px)}}
+
+/* ---------- secciones ---------- */
+section{padding-block:clamp(64px,9vw,110px);scroll-margin-top:86px}
+/* Todo el contenido va por encima del fondo de auroras (que es fijo, z-index 0). */
+section,footer{position:relative;z-index:1}
+h2{font-size:clamp(28px,3.8vw,44px);font-weight:600;letter-spacing:-.02em;margin:0 0 14px;text-wrap:balance}
+.lead{color:var(--text-2);font-size:18px;max-width:60ch;line-height:1.6;margin:0 0 42px}
+.grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr))}
+.card{position:relative;background:rgba(11,13,17,.78);border:1px solid var(--border);border-radius:20px;padding:26px;overflow:hidden}
+.card h3{margin:6px 0 8px;font-size:20px;font-weight:600}
+.card p{margin:0;color:var(--text-2);line-height:1.6}
+.card::after{content:"";position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,var(--r1),var(--r2),var(--r3),var(--r4));opacity:.65}
+.two{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
+.panel{position:relative;background:rgba(11,13,17,.78);border:1px solid var(--border);border-radius:24px;padding:clamp(24px,4vw,34px)}
+.panel h3{font-size:24px;margin:0 0 6px}
+.panel ul{list-style:none;padding:0;margin:20px 0 0}
+.panel li{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);color:#C3C9D2;line-height:1.5}
+.panel li:last-child{border-bottom:0}
+.dot{width:8px;height:8px;border-radius:50%;margin-top:8px;flex:none;background:linear-gradient(135deg,var(--r1),var(--r3))}
+.x{width:8px;height:8px;margin-top:8px;flex:none;border-radius:2px;background:var(--border-hi)}
+.panel.antes h3{color:var(--text-2)}
+.panel.antes li{color:var(--text-2)}
+.panel.con{border-color:transparent;background:linear-gradient(rgba(11,13,17,.92),rgba(11,13,17,.92)) padding-box,linear-gradient(135deg,var(--r1),var(--r2),var(--r3)) border-box}
+
+/* ---------- capturas del panel ---------- */
+.capturas{display:grid;gap:28px 22px;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));margin:0 0 42px}
+.captura{margin:0}
+.captura figcaption{margin-top:16px;color:var(--text-2);font-size:15.5px;line-height:1.55;text-align:center}
+.captura figcaption b{color:var(--text);font-weight:600}
+
+/* ---------- cómo arrancás: línea de 3 pasos ----------
+   En compu, tres columnas unidas por una barra RGB; en el celular, una línea vertical a la izquierda. */
+.flow{list-style:none;margin:40px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;position:relative}
+.flow::before{content:"";position:absolute;left:calc(16.66% - 10px);right:calc(16.66% - 10px);top:21px;height:2px;background:linear-gradient(90deg,var(--r1),var(--r2),var(--r3),var(--r4));opacity:.7}
+.fstep{position:relative;display:flex;flex-direction:column;gap:14px}
+.fnum{position:relative;z-index:1;align-self:center;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font:700 16px 'Outfit',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:#fff;
+  border:2px solid transparent;background:linear-gradient(#07080b,#07080b) padding-box,conic-gradient(from 200deg,var(--r1),var(--r2),var(--r3),var(--r4),var(--r1)) border-box}
+.fcard{flex:1;background:rgba(11,13,17,.82);border:1px solid var(--border);border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:10px}
+.fcard h3{margin:0;font-size:21px;font-weight:600;letter-spacing:-.01em}
+.fcard p{margin:0;color:var(--text-2);line-height:1.55;font-size:15.5px}
+.fcard a{color:var(--el)}
+@media (max-width:860px){
+  .flow{grid-template-columns:minmax(0,1fr);gap:18px;padding-left:58px}
+  .flow::before{left:21px;right:auto;top:22px;bottom:22px;width:2px;height:auto;background:linear-gradient(var(--r1),var(--r2),var(--r3),var(--r4))}
+  .fnum{position:absolute;left:-58px;top:0;align-self:auto}
+}
+
+/* ---------- lo que ven tus alumnos: tres celulares quietos ---------- */
+.alu{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(24px,5vw,64px);align-items:center}
+@media (max-width:860px){ .alu{grid-template-columns:minmax(0,1fr)} }
+.alu .panel{margin-bottom:26px}
+.cels{position:relative;height:clamp(330px,40vw,500px)}
+.cels::before{content:"";position:absolute;left:50%;top:15%;width:90%;height:70%;transform:translateX(-50%);border-radius:50%;
+  background:radial-gradient(closest-side,rgba(166,92,255,.4),rgba(47,160,255,.15) 60%,transparent);filter:blur(10px);pointer-events:none}
+.cels .cel{width:clamp(130px,15vw,210px);padding:clamp(5px,.7vw,8px);border-radius:clamp(22px,2.6vw,36px)}
+.cels .cel img{border-radius:clamp(17px,2vw,29px)}
+.cels .cel::after{top:clamp(9px,1.1vw,14px);height:clamp(9px,1.1vw,15px)}
+.cels .c1{z-index:1;transform:translateX(-122%) translateY(36px) rotate(-8deg);filter:brightness(.8)}
+.cels .c2{z-index:2;transform:translateX(-50%)}
+.cels .c3{z-index:1;transform:translateX(22%) translateY(36px) rotate(8deg);filter:brightness(.8)}
+/* Botones de las tiendas: oscuros, con un brillo que los cruza y que se levantan al pasar. */
+.stores{display:flex;gap:14px;flex-wrap:wrap}
+.store{text-align:left;position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:12px;min-width:200px;padding:12px 22px 12px 18px;border-radius:16px;text-decoration:none;color:#fff;
+  background:#0B0D11;border:1px solid var(--border-hi);box-shadow:0 10px 30px -10px rgba(0,0,0,.8);transition:transform .2s ease,box-shadow .25s ease,border-color .2s}
+.store svg{width:28px;height:28px;flex:none}
+.store span{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15}
+.store small{white-space:nowrap;font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.store b{white-space:nowrap;font-size:20px;font-weight:700;letter-spacing:-.01em}
+.store::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.14) 50%,transparent 65%);transform:translateX(-120%);animation:brilla 4.5s ease-in-out infinite}
+.store:nth-child(2)::after{animation-delay:.6s}
+@keyframes brilla{0%,55%{transform:translateX(-120%)}85%,100%{transform:translateX(120%)}}
+a.store:hover{transform:translateY(-3px);border-color:var(--r1);box-shadow:0 14px 34px -10px rgba(47,160,255,.55)}
+.alu-fine{margin:18px 0 0;color:var(--text-2);font-size:15px;line-height:1.6}
+.alu-fine a{color:var(--el)}
+@media (max-width:520px){
+  .stores{flex-wrap:nowrap;gap:10px}
+  .store{min-width:0;flex:1 1 0;justify-content:center;gap:9px;padding:11px 10px}
+  .store svg{width:24px;height:24px}
+  .store small{font-size:9.5px;letter-spacing:.04em}
+  .store b{font-size:17px}
+}
+
+/* ---------- precios (mismos valores que app/screens/coach/plan.js y la página de inicio) ---------- */
+.prices{display:grid;gap:22px 18px;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;max-width:1080px;margin-inline:auto}
+@media (max-width:860px){.prices{grid-template-columns:minmax(0,1fr);max-width:520px}}
+.price{position:relative;display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:28px 24px}
+.price.best{border-color:transparent;background:linear-gradient(var(--surface),var(--surface)) padding-box,linear-gradient(90deg,var(--r1),var(--r2),var(--r3),var(--r4)) border-box}
+.price .badge{position:absolute;top:-12px;left:22px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;background:var(--el);color:#000;border-radius:999px;padding:4px 10px}
+.price h3{margin:0;font-size:19px;color:var(--text-2);font-weight:500}
+.price h3 b{color:var(--text);font-size:24px}
+.price .amt{font-size:40px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.price .amt small{font-size:16px;font-weight:500;color:var(--text-2);margin-left:4px}
+.price .por{margin:0 0 14px;color:var(--r4);font-size:15.5px;font-weight:500}
+.price .btn{margin-top:auto;justify-content:center;text-align:center}
+/* Planes de más de 50 alumnos: una fila compacta debajo. */
+.mas{max-width:1080px;margin:26px auto 0;background:rgba(11,13,17,.78);border:1px solid var(--border);border-radius:22px;padding:22px 24px}
+.mas h3{margin:0 0 16px;font-size:18px;font-weight:600}
+.mas-grid{display:grid;gap:12px;grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:860px){.mas-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:460px){.mas-grid{grid-template-columns:minmax(0,1fr)}}
+.mas-plan{display:flex;flex-direction:column;gap:4px;padding:14px 16px;border-radius:16px;border:1px solid var(--border);background:var(--surface-2);text-decoration:none;color:var(--text-2);font-size:15px;transition:border-color .2s}
+a.mas-plan:hover{border-color:var(--r1)}
+.mas-plan .pname{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--r4)}
+.mas-plan b{color:var(--text)}
+.mas-amt{color:var(--text);font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.mas-amt small{font-size:14px;font-weight:500;color:var(--text-2);margin-left:3px}
+.mas-go{margin-top:auto;padding-top:6px;color:var(--el);font-weight:600;font-size:14.5px}
+.mas-plan .btn{margin-top:auto;align-self:flex-start;padding:9px 18px;font-size:15px}
+/* Lo que incluye cualquier plan. */
+.inc{max-width:1080px;margin:26px auto 0;text-align:center}
+.inc h3{margin:0;font-size:20px;font-weight:600}
+.inc p{margin:6px 0 0;color:var(--text-2)}
+.inc ul{list-style:none;margin:18px 0 0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+.inc li{padding:8px 14px;border-radius:999px;border:1px solid var(--border);background:rgba(11,13,17,.78);color:#C3C9D2;font-size:15px}
+.inc li::before{content:"✓ ";color:var(--r4)}
+.price-note{max-width:760px;margin:22px auto 0;color:var(--text-2);font-size:15px;line-height:1.6;text-align:center}
+.price-note a{color:var(--el)}
+
+/* ---------- preguntas frecuentes: se abren sin JavaScript (<details>) ---------- */
+.faq{max-width:820px;margin-inline:auto;display:grid;gap:10px}
+.faq details{background:rgba(11,13,17,.78);border:1px solid var(--border);border-radius:18px;padding:0 20px}
+.faq details[open]{border-color:var(--border-hi)}
+.faq summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 0;font-size:17.5px;font-weight:600}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";flex:none;width:28px;height:28px;display:grid;place-items:center;border-radius:50%;border:1px solid var(--border-hi);color:var(--el);font-size:20px;font-weight:500;transition:transform .2s}
+.faq details[open] summary::after{transform:rotate(45deg)}
+.faq details p{margin:0 0 18px;color:#C3C9D2;line-height:1.65}
+.faq a{color:var(--el)}
+
+/* ---------- cierre ---------- */
+.final{position:relative;text-align:center;border-radius:28px;padding:clamp(48px,7vw,84px) clamp(18px,4vw,26px);border:1px solid var(--border);background:rgba(11,13,17,.78);overflow:hidden}
+.final::before{content:"";position:absolute;inset:-40%;background:
+  radial-gradient(closest-side at 30% 40%,rgba(47,160,255,.28),transparent),
+  radial-gradient(closest-side at 70% 60%,rgba(255,61,174,.22),transparent),
+  radial-gradient(closest-side at 50% 30%,rgba(166,92,255,.22),transparent);pointer-events:none}
+.final > *{position:relative}
+.final .lead{margin:14px auto 30px;text-align:center}
+.final .chico{margin:22px auto 0;max-width:60ch;color:var(--text-2);font-size:14.5px;line-height:1.6}
+.final .chico a{color:var(--el)}
+footer{border-top:1px solid var(--border);padding-block:34px;color:var(--text-2);font-size:15px}
+footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center}
+footer a{color:var(--text-2);text-decoration:none}
+footer a:hover{color:var(--text)}
+footer .logo img{height:20px}
+
+/* ---------- entradas al scrollear (solo donde el navegador lo soporta) ---------- */
+@supports (animation-timeline: view()){
+  @media (prefers-reduced-motion:no-preference){
+    .reveal{animation:rise-in linear both;animation-timeline:view();animation-range:entry 0% entry 70%}
+    @keyframes rise-in{from{opacity:0;transform:translateY(40px)}}
+  }
+}
+
+/* ---------- reducir movimiento: todo quieto y a la vista ---------- */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important} html{scroll-behavior:auto}
+  .hero h1 .w,.hero .sub,.hero .cta,.hero .fine,.hero-vis{opacity:1;transform:none;filter:none}
+  .hero h1 .neon{filter:drop-shadow(0 0 18px rgba(166,92,255,.45))}
+  .cel.cel-sobre{transform:rotate(4deg)}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-aurora" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+
+<header>
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="GIZE para coaches, volver arriba"><img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE" width="70" height="26"></a>
+    <nav class="nav" aria-label="Secciones">
+      <div class="nav-links">
+        <a href="#funciones">Funciones</a>
+        <a href="#precios">Precios</a>
+        <a href="#preguntas">Preguntas</a>
+        <a href="#llamada">Agendá una llamada</a>
+      </div>
+      <div class="btns">
+        <a class="btn btn-rgb btn-sm" href="../app/#registro-coach">Probar gratis</a>
+        <a class="btn btn-ghost btn-sm" href="../app/">Entrar</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main>
+<div class="hero" id="top">
+  <div class="wrap hero-copy">
+    <span class="pill"><i aria-hidden="true"></i>Para coaches y entrenadores</span>
+    <h1><span class="w" style="--i:0">Tu</span> <span class="w" style="--i:1">método,</span><br> <span class="w" style="--i:2">en</span> <span class="w" style="--i:3">el</span> <span class="w" style="--i:4">celular</span> <span class="w" style="--i:5">de</span> <span class="w" style="--i:6">cada</span> <span class="w neon" style="--i:7">alumno</span></h1>
+    <p class="sub">Armás la rutina una vez y cada alumno la sigue serie por serie desde la app. Vos ves lo que levantó, su peso y su check-in, y le escribís sin salir de GIZE. Chau planillas y capturas.</p>
+    <div class="cta">
+      <a class="btn btn-rgb" href="../app/#registro-coach">Probar 14 días gratis</a>
+      <a class="btn btn-ghost" href="mailto:contacto@gize.ar?subject=Quiero%20agendar%20una%20llamada%20(gize.ar%2Fcoaches)&amp;body=Hola!%20Soy%20coach%2C%20vi%20gize.ar%2Fcoaches%20y%20quiero%20agendar%20una%20llamada%20para%20conocer%20GIZE.%0A%0AMi%20nombre%3A%0ACu%C3%A1ntos%20alumnos%20tengo%3A%0AD%C3%ADas%20y%20horarios%20que%20me%20quedan%20bien%3A%0A%C2%BFPor%20Meet%20o%20por%20tel%C3%A9fono%3F%20(si%20es%20por%20tel%C3%A9fono%2C%20mi%20n%C3%BAmero)%3A%0A" data-llamada>Agendá una llamada</a>
+    </div>
+    <p class="fine">Sin tarjeta · hasta 10 alumnos en la prueba · gratis para tus alumnos</p>
+    <div class="hero-vis">
+      <figure class="compu">
+        <div class="compu-pan"><img src="../assets/landing/coach-panel.webp" alt="El panel del coach en la compu: la lista de clientes con su último entreno y la tarjeta de una alumna" width="1440" height="900" decoding="async"></div>
+        <div class="compu-base"></div>
+      </figure>
+      <div class="cel cel-sobre"><img src="../assets/landing/app-entreno.webp" alt="La app del alumno en el celular: el entreno del día con sus series" width="600" height="1304" loading="lazy" decoding="async"></div>
+    </div>
+  </div>
+</div>
+
+<section id="planillas">
+  <div class="wrap">
+    <h2 class="reveal">Chau planillas y capturas</h2>
+    <p class="lead reveal">Lo que hoy te lleva horas de WhatsApp, en GIZE pasa solo.</p>
+    <div class="two">
+      <div class="panel antes reveal">
+        <h3>Con planillas y WhatsApp</h3>
+        <ul>
+          <li><span class="x" aria-hidden="true"></span>Mandás la rutina en un PDF o una planilla y se pierde en el chat.</li>
+          <li><span class="x" aria-hidden="true"></span>Te enterás de cómo le fue cuando te manda una captura, si te la manda.</li>
+          <li><span class="x" aria-hidden="true"></span>Para saber quién dejó de entrenar, preguntás uno por uno.</li>
+          <li><span class="x" aria-hidden="true"></span>Cada cambio es una planilla nueva para reenviar.</li>
+        </ul>
+      </div>
+      <div class="panel con reveal">
+        <h3>Con GIZE</h3>
+        <ul>
+          <li><span class="dot" aria-hidden="true"></span>Abre la app y ya está el día que le toca.</li>
+          <li><span class="dot" aria-hidden="true"></span>Cada entreno que registra te llega solo, con cada serie y cada peso.</li>
+          <li><span class="dot" aria-hidden="true"></span>GIZE te avisa quién lleva 4 días sin entrenar.</li>
+          <li><span class="dot" aria-hidden="true"></span>Cambiás la rutina y la próxima vez que abre la app ya la tiene.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="funciones">
+  <div class="wrap">
+    <h2 class="reveal">Todo para entrenar a tus alumnos, en un solo lugar</h2>
+    <p class="lead reveal">El panel anda en la compu y en el celular. Tus alumnos usan la app, gratis.</p>
+    <div class="capturas">
+      <figure class="captura reveal">
+        <div class="compu-pan"><img src="../assets/landing/coach-rutina.webp" alt="El editor de rutinas del coach: un día de pierna con sus ejercicios, series, reps, descanso y RIR" width="1440" height="900" loading="lazy" decoding="async"></div>
+        <figcaption><b>El editor de rutinas.</b> Series, reps, descanso y RIR, con lo que levantó la vez pasada.</figcaption>
+      </figure>
+      <figure class="captura reveal">
+        <div class="compu-pan"><img src="../assets/landing/coach-seguimiento.webp" alt="Las estadísticas de una alumna: su peso semana a semana, con el gráfico y la tabla" width="1440" height="900" loading="lazy" decoding="async"></div>
+        <figcaption><b>El seguimiento de cada alumno.</b> Peso, entrenos, volumen por músculo y check-ins.</figcaption>
+      </figure>
+    </div>
+    <div class="grid">
+      <div class="card reveal"><h3>Rutinas en minutos</h3><p>Series, reps, RIR, descansos, superseries y ejercicios por tiempo. Guardala como plantilla y copiásela a otros alumnos.</p></div>
+      <div class="card reveal"><h3>Más de 260 ejercicios</h3><p>Casi todos con video de técnica. Sumale a cada uno tu nota, tu video o una explicación con tu voz.</p></div>
+      <div class="card reveal"><h3>Bloques y descargas</h3><p>Planificás el mesociclo, marcás las semanas de descarga y dejás programada la próxima rutina para el día en que arranca.</p></div>
+      <div class="card reveal"><h3>Seguimiento con datos</h3><p>Historial de entrenos, volumen semanal por músculo, peso y adherencia, sin pedir capturas.</p></div>
+      <div class="card reveal"><h3>Check-in a tu medida</h3><p>Armás las preguntas del registro diario y del check-in semanal, y ves las respuestas día por día.</p></div>
+      <div class="card reveal"><h3>Planes de comida</h3><p>Con opciones para que elija, guardados para usarlos de nuevo y aplicados a varios alumnos de una.</p></div>
+      <div class="card reveal"><h3>Chat con audios</h3><p>Mensajes y audios dentro de GIZE, sin perderte en WhatsApp. Le llegan al celular aunque tenga la app cerrada.</p></div>
+      <div class="card reveal"><h3>GIZE te avisa</h3><p>Cuando un alumno manda su check-in y cuando lleva 4 días sin entrenar, te llega un aviso.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="arrancar">
+  <div class="wrap">
+    <h2 class="reveal">Cómo arrancás</h2>
+    <p class="lead reveal" style="margin-bottom:0">Tres pasos y tus alumnos ya están entrenando con tu rutina.</p>
+    <ol class="flow">
+      <li class="fstep">
+        <span class="fnum" aria-hidden="true">1</span>
+        <div class="fcard">
+          <h3>Creás tu cuenta de coach</h3>
+          <p>En gize.ar, con tu mail. Tenés 14 días gratis con hasta 10 alumnos, sin cargar tarjeta.</p>
+        </div>
+      </li>
+      <li class="fstep">
+        <span class="fnum" aria-hidden="true">2</span>
+        <div class="fcard">
+          <h3>Cargás tus rutinas</h3>
+          <p>Las armás en el editor o arrancás de una rutina armada de GIZE y la ajustás a tu manera.</p>
+          <p>¿Tenés todo en planillas? <a href="mailto:contacto@gize.ar?subject=Quiero%20agendar%20una%20llamada%20(gize.ar%2Fcoaches)&amp;body=Hola!%20Soy%20coach%2C%20vi%20gize.ar%2Fcoaches%20y%20quiero%20agendar%20una%20llamada%20para%20conocer%20GIZE.%0A%0AMi%20nombre%3A%0ACu%C3%A1ntos%20alumnos%20tengo%3A%0AD%C3%ADas%20y%20horarios%20que%20me%20quedan%20bien%3A%0A%C2%BFPor%20Meet%20o%20por%20tel%C3%A9fono%3F%20(si%20es%20por%20tel%C3%A9fono%2C%20mi%20n%C3%BAmero)%3A%0A" data-llamada>Agendá una llamada</a> y te damos una mano.</p>
+        </div>
+      </li>
+      <li class="fstep">
+        <span class="fnum" aria-hidden="true">3</span>
+        <div class="fcard">
+          <h3>Sumás a tus alumnos</h3>
+          <p>Les pasás tu código de invitación: se bajan GIZE gratis, lo cargan y ya ven tu rutina.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="alumnos">
+  <div class="wrap alu">
+    <div>
+      <h2 class="reveal">Lo que ven tus alumnos</h2>
+      <p class="lead reveal" style="margin-bottom:26px">Para tus alumnos, GIZE es gratis. Se la bajan en Android o iPhone, o la usan desde la web.</p>
+      <div class="panel reveal">
+        <ul style="margin-top:0">
+          <li><span class="dot" aria-hidden="true"></span>Abren la app y ven el día que les toca, con tus notas y tus videos.</li>
+          <li><span class="dot" aria-hidden="true"></span>Registran cada serie en segundos y ven cuánto levantaron la vez pasada.</li>
+          <li><span class="dot" aria-hidden="true"></span>Cargan su comida buscando entre miles de alimentos o con el código de barras.</li>
+          <li><span class="dot" aria-hidden="true"></span>Te escriben y reciben tus mensajes y audios en el celular.</li>
+        </ul>
+      </div>
+      <div class="stores">
+        <a class="store" href="https://play.google.com/store/apps/details?id=ar.com.gize.app" target="_blank" rel="noopener" aria-label="Descargala en Google Play">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#25E8C8" d="M3.6 2.3 13.4 12 3.6 21.7c-.4-.2-.6-.6-.6-1.1V3.4c0-.5.2-.9.6-1.1Z"/><path fill="#2FA0FF" d="m16.6 8.8-3.2 3.2L3.6 2.3c.2-.1.5-.1.8 0l12.2 6.5Z"/><path fill="#FF3DAE" d="m16.6 15.2-12.2 6.5c-.3.1-.6.1-.8 0l9.8-9.7 3.2 3.2Z"/><path fill="#A65CFF" d="m20.3 10.8-3.7-2-3.2 3.2 3.2 3.2 3.7-2c.9-.5.9-1.9 0-2.4Z"/></svg>
+          <span><small>Descargala en</small> <b>Google Play</b></span>
+        </a>
+        <a class="store" href="https://apps.apple.com/ar/app/id6818266033" target="_blank" rel="noopener" aria-label="Descargala en App Store">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M16.4 12.6c0-2.4 2-3.6 2.1-3.6-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8s1.9.8 3.2.8c1.3 0 2.1-1.2 2.9-2.4.9-1.3 1.3-2.6 1.3-2.7 0 0-2.4-1-2.4-4.1ZM14 5.4c.6-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.4-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.6 2.8-1.3Z"/></svg>
+          <span><small>Descargala en</small> <b>App Store</b></span>
+        </a>
+      </div>
+      <p class="alu-fine">¿Entrenás con un coach? <a href="../">Conocé GIZE para alumnos</a>.</p>
+    </div>
+    <div class="cels" aria-hidden="true">
+      <div class="cel c1"><img src="../assets/landing/app-comida.webp" alt="" width="600" height="1304" loading="lazy" decoding="async"></div>
+      <div class="cel c2"><img src="../assets/landing/app-entreno.webp" alt="" width="600" height="1304" loading="lazy" decoding="async"></div>
+      <div class="cel c3"><img src="../assets/landing/app-chat.webp" alt="" width="600" height="1304" loading="lazy" decoding="async"></div>
+    </div>
+  </div>
+</section>
+
+<section id="precios">
+  <div class="wrap">
+    <h2 class="reveal">Precios</h2>
+    <p class="lead reveal">Probá GIZE 14 días gratis, sin tarjeta y con hasta 10 alumnos. Después elegís el plan según cuántos alumnos tengas. Para tus alumnos la app es gratis.</p>
+    <div class="prices">
+      <div class="price reveal" data-plan="p10"><h3>Hasta <b>10</b> alumnos</h3><div class="amt">$14.900<small>/mes</small></div><p class="por">$1.490 por alumno</p><a class="btn btn-ghost" href="../app/?plan=p10#registro-coach">Probar 14 días gratis</a></div>
+      <div class="price best reveal" data-plan="p25"><span class="badge">Más elegido</span><h3>Hasta <b>25</b> alumnos</h3><div class="amt">$24.900<small>/mes</small></div><p class="por">$996 por alumno</p><a class="btn btn-rgb" href="../app/?plan=p25#registro-coach">Probar 14 días gratis</a></div>
+      <div class="price reveal" data-plan="p50"><h3>Hasta <b>50</b> alumnos</h3><div class="amt">$37.900<small>/mes</small></div><p class="por">$758 por alumno</p><a class="btn btn-ghost" href="../app/?plan=p50#registro-coach">Probar 14 días gratis</a></div>
+    </div>
+    <div class="mas reveal">
+      <h3>¿Más de 50 alumnos? Planes para equipos y gimnasios</h3>
+      <div class="mas-grid">
+        <a class="mas-plan" data-plan="p100" href="../app/?plan=p100#registro-coach"><span class="pname">Gimnasio chico</span><span>Hasta <b>100</b> alumnos</span><span class="mas-amt">$59.900<small>/mes</small></span><span class="mas-go">Probar 14 días gratis ›</span></a>
+        <a class="mas-plan" data-plan="p250" href="../app/?plan=p250#registro-coach"><span class="pname">Gimnasio</span><span>Hasta <b>250</b> alumnos</span><span class="mas-amt">$119.900<small>/mes</small></span><span class="mas-go">Probar 14 días gratis ›</span></a>
+        <a class="mas-plan" data-plan="p500" href="../app/?plan=p500#registro-coach"><span class="pname">Gimnasio grande</span><span>Hasta <b>500</b> alumnos</span><span class="mas-amt">$199.900<small>/mes</small></span><span class="mas-go">Probar 14 días gratis ›</span></a>
+        <div class="mas-plan"><span class="pname">Más de 500 alumnos</span><span>Plan <b>a medida</b></span><a class="btn btn-ghost" href="https://wa.me/5493413490705?text=Hola!%20Quiero%20un%20plan%20a%20medida%20de%20GIZE%20para%20un%20gimnasio%20de%20m%C3%A1s%20de%20500%20alumnos." target="_blank" rel="noopener">Hablemos</a></div>
+      </div>
+    </div>
+    <div class="inc reveal">
+      <h3>Todos los planes incluyen todo</h3>
+      <p>Lo único que cambia es cuántos alumnos podés tener.</p>
+      <ul>
+        <li>Rutinas, plantillas y rutinas programadas</li>
+        <li>Más de 260 ejercicios, casi todos con video</li>
+        <li>Seguimiento, check-in y avisos</li>
+        <li>Chat con audios</li>
+        <li>Planes de comida</li>
+        <li>La app gratis para tus alumnos</li>
+      </ul>
+    </div>
+    <p class="price-note reveal">Precios en pesos argentinos, por mes. Para seguir después de la prueba pagás desde gize.ar, en <b>Mi plan</b>: con tarjeta por Mercado Pago (se renueva solo cada mes y lo cancelás cuando quieras) o por transferencia, arreglándolo por <a href="https://wa.me/5493413490705?text=Hola!%20Quiero%20contratar%20GIZE%20para%20coaches." target="_blank" rel="noopener">WhatsApp</a> con el equipo de GIZE.</p>
+    <p class="price-note reveal">¿Tenés un código de fundador? Lo cargás en Mi plan antes de pagar y el descuento te queda para siempre.</p>
+  </div>
+</section>
+
+<section id="preguntas">
+  <div class="wrap">
+    <h2 class="reveal" style="text-align:center">Preguntas frecuentes</h2>
+    <p class="lead reveal" style="margin-inline:auto;text-align:center">Lo que más nos preguntan los coaches antes de arrancar.</p>
+    <div class="faq">
+      <details>
+        <summary>¿Cómo es la prueba gratis?</summary>
+        <p>Son 14 días con todo, hasta 10 alumnos y sin tarjeta. Si no elegís un plan, no se te cobra nada.</p>
+      </details>
+      <details>
+        <summary>¿Mis alumnos tienen que pagar?</summary>
+        <p>No. Para tus alumnos la app es gratis: se la bajan en Android o iPhone, o la usan desde la web.</p>
+      </details>
+      <details>
+        <summary>¿Cómo se suman mis alumnos?</summary>
+        <p>En el panel, en «Clientes», copiás tu código de invitación y se lo pasás. Cada alumno crea su cuenta, carga el código y queda vinculado con vos.</p>
+      </details>
+      <details>
+        <summary>¿Lo puedo usar desde la compu?</summary>
+        <p>Sí. El panel de coach anda en gize.ar desde cualquier navegador, en la compu o en el celular. Tus alumnos usan la app en el celular o la web.</p>
+      </details>
+      <details>
+        <summary>Tengo todo en planillas, ¿lo tengo que cargar de nuevo?</summary>
+        <p>Cada rutina la armás una vez en el editor y después la copiás o la guardás como plantilla para otros alumnos. Si tenés muchas, <a href="mailto:contacto@gize.ar?subject=Quiero%20agendar%20una%20llamada%20(gize.ar%2Fcoaches)&amp;body=Hola!%20Soy%20coach%2C%20vi%20gize.ar%2Fcoaches%20y%20quiero%20agendar%20una%20llamada%20para%20conocer%20GIZE.%0A%0AMi%20nombre%3A%0ACu%C3%A1ntos%20alumnos%20tengo%3A%0AD%C3%ADas%20y%20horarios%20que%20me%20quedan%20bien%3A%0A%C2%BFPor%20Meet%20o%20por%20tel%C3%A9fono%3F%20(si%20es%20por%20tel%C3%A9fono%2C%20mi%20n%C3%BAmero)%3A%0A" data-llamada>agendá una llamada</a> y te damos una mano para pasar las primeras.</p>
+      </details>
+      <details>
+        <summary>¿Qué pasa si se me vence el plan?</summary>
+        <p>Tus datos quedan guardados. Tenés 4 días para renovar; después, tus alumnos siguen usando GIZE por su cuenta con todo lo que les armaste, y cuando vuelvas se vinculan de nuevo con tu código.</p>
+      </details>
+      <details>
+        <summary>¿Cómo pago?</summary>
+        <p>Desde gize.ar, en Mi plan: con tarjeta por Mercado Pago, que se renueva solo cada mes, o por transferencia, arreglándolo por WhatsApp con el equipo de GIZE. Los precios son en pesos argentinos.</p>
+      </details>
+      <details>
+        <summary>¿Puedo cancelar cuando quiera?</summary>
+        <p>Sí, desde Mi plan, y no se te vuelve a cobrar. Si contrataste en la web, dentro de los 10 días podés arrepentirte con el <a href="../baja/?tipo=arrepentimiento&amp;servicio=coach">Botón de arrepentimiento</a>, y también está el <a href="../baja/?tipo=baja&amp;servicio=coach">Botón de baja</a>, sin iniciar sesión.</p>
+      </details>
+      <details>
+        <summary>¿Puedo cambiar de plan?</summary>
+        <p>Sí, cuando quieras, desde Mi plan. Para pasarte a uno más chico tenés que tener esa cantidad de alumnos o menos.</p>
+      </details>
+      <details>
+        <summary>¿Qué es el código de fundador?</summary>
+        <p>Un descuento para los primeros coaches de GIZE. Si tenés un código de fundador, lo cargás en Mi plan antes de pagar y el descuento te queda para siempre, también en cada renovación.</p>
+      </details>
+      <details>
+        <summary>¿Me llegan avisos de mis alumnos?</summary>
+        <p>Sí, si prendés los avisos: te llega uno cuando un alumno manda su check-in y otro cuando lleva 4 días sin entrenar. Y a tus alumnos les llegan tus mensajes al celular.</p>
+      </details>
+      <details>
+        <summary>¿Sirve para gimnasios y equipos?</summary>
+        <p>Sí. Los planes de 100, 250 y 500 alumnos son para gimnasios y equipos de coaches, con todo lo de los planes para coaches. Si querés manejar también los socios, las cuotas y la recepción de tu gimnasio desde GIZE, escribinos y lo armamos juntos.</p>
+      </details>
+      <details>
+        <summary>¿Quién ve los datos de mis alumnos?</summary>
+        <p>Los datos de cada alumno los ven él y vos, que sos su coach. No vendemos datos ni los usamos para publicidad. Está todo en la <a href="../privacidad/">política de privacidad</a>.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section id="llamada">
+  <div class="wrap">
+    <div class="final reveal">
+      <h2>¿Lo vemos juntos?</h2>
+      <p class="lead">En 15 minutos te mostramos GIZE con tus rutinas, te contamos qué plan te conviene y te ayudamos a sumar a tus primeros alumnos.</p>
+      <div class="cta">
+        <a class="btn btn-rgb" href="mailto:contacto@gize.ar?subject=Quiero%20agendar%20una%20llamada%20(gize.ar%2Fcoaches)&amp;body=Hola!%20Soy%20coach%2C%20vi%20gize.ar%2Fcoaches%20y%20quiero%20agendar%20una%20llamada%20para%20conocer%20GIZE.%0A%0AMi%20nombre%3A%0ACu%C3%A1ntos%20alumnos%20tengo%3A%0AD%C3%ADas%20y%20horarios%20que%20me%20quedan%20bien%3A%0A%C2%BFPor%20Meet%20o%20por%20tel%C3%A9fono%3F%20(si%20es%20por%20tel%C3%A9fono%2C%20mi%20n%C3%BAmero)%3A%0A" data-llamada>Agendá una llamada</a>
+        <a class="btn btn-ghost" href="../app/#registro-coach">Probar 14 días gratis</a>
+      </div>
+      <p class="chico">Se abre un mail a contacto@gize.ar con el pedido ya escrito: completás tus datos y los días que te quedan bien, y te respondemos para arreglar el día y la hora. ¿No se abrió? Escribinos a <a href="mailto:contacto@gize.ar">contacto@gize.ar</a>.</p>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="logo" href="../" aria-label="GIZE, página de inicio"><img src="../brand/logo/gize-firma-horizontal.svg" alt="GIZE" width="54" height="20"></a>
+    <a href="../">Inicio</a>
+    <a href="../app/">Abrir la app</a>
+    <a href="../privacidad/">Privacidad</a>
+    <a href="../terminos/">Términos</a>
+    <a href="../baja/?tipo=arrepentimiento&amp;servicio=coach">Botón de arrepentimiento</a>
+    <a href="../baja/?tipo=baja&amp;servicio=coach">Botón de baja</a>
+    <span>© 2026 GIZE · Rosario, Argentina</span>
+  </div>
+</footer>
+</body>
+</html>
