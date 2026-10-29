@@ -76,7 +76,7 @@ export default async ({ t }) => {
   t.ok(/v_uid uuid := auth\.uid\(\)/.test(fn(code, 'ia_permiso')) && /v_uid uuid := auth\.uid\(\)/.test(fn(code, 'ia_reportar')) && /v_uid uuid := auth\.uid\(\)/.test(fn(code, 'ia_mi_estado')), 'la app solo toca lo suyo (auth.uid())');
   t.ok(!/usd|gastado|credito/.test(fn(code, 'ia_mi_estado').split('return jsonb_build_object(\'activa\', true')[1] || 'usd'), 'ia_mi_estado no devuelve montos');
   t.ok(/add column if not exists fuente text check \(fuente is null or fuente in \('ia', 'ia-editado'\)\)/.test(code), 'food_entries.fuente: ia o ia-editado');
-  t.ok(/user_id\s+uuid references auth\.users\(id\) on delete cascade,\s+funcion\s+text not null check \(funcion in \('plato', 'texto'\)\)/.test(code), 'ia_reportes: se borra con la cuenta');
+  t.ok(/user_id\s+uuid references auth\.users\(id\) on delete cascade,\s+funcion\s+text not null check \(funcion in \('plato', 'texto', 'planilla', 'rutina'\)\)/.test(code), 'ia_reportes: se borra con la cuenta');
   t.ok(/delete from public\.ia_reportes where creada < now\(\) - interval '180 days'/.test(fn(code, 'ia_limpiar')), 'ia_reportes: se borra a los 180 días');
   for (const name of ['ia_ciclo_tomar', 'ia_frenada', 'ia_reservar', 'ia_cerrar', 'ia_cortar', 'ia_vencer', 'ia_limpiar', 'coach_pago', 'admin_ia_estado', 'admin_ia_config', 'admin_ia_ciclo', 'admin_ia_reintentar', 'ia_rol_origen', 'ia_rol', 'ia_permiso_estado', 'ia_mi_estado', 'ia_permiso', 'ia_reportar'])
     t.ok(/security definer set search_path = public/.test(fn(code, name)), name + ': security definer con search_path fijo');
@@ -477,7 +477,7 @@ set role authenticated; set request.jwt.claim.sub = '${ALUMNO_ID}';
 do $$ begin
   perform public.ia_reportar('plato', '{"items": [{"nombre": "Milanesa", "gramos": 150}]}', '  la milanesa era de pollo  ');
   begin perform public.ia_reportar('plato', '{}', repeat('x', 301)); raise exception 'comentario largo'; exception when sqlstate '22023' then null; end;
-  begin perform public.ia_reportar('rutina', '{}'); raise exception 'función inventada'; exception when sqlstate '22023' then null; end;
+  begin perform public.ia_reportar('inventada', '{}'); raise exception 'función inventada'; exception when sqlstate '22023' then null; end;
   begin perform public.ia_reportar('plato', '[1]'); raise exception 'respuesta que no es un objeto'; exception when sqlstate '22023' then null; end;
   for i in 1..19 loop perform public.ia_reportar('texto', '{}'); end loop;
   begin perform public.ia_reportar('texto', '{}'); raise exception 'pasó los 20 por día'; exception when sqlstate '54000' then null; end;

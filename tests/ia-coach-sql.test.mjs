@@ -15,6 +15,9 @@
 //      le pasa planillas y rutinas al modelo barato).
 //    - Los checks de ia_llamadas aceptan 'prueba' y 'planilla' y rechazan lo inventado.
 //    - admin_ia_config acepta modelos.planilla y los topes de 'prueba'.
+//    - ia_coach_estado (lo que ve el panel del coach, sin montos) y el permiso «Usar IA en tus
+//      rutinas» (ia_permiso_rutinas), que no toca el de Comida.
+//    - «¿Está mal? Avisanos» con planillas y rutinas (ia_reportar e ia_reportes).
 //    - Correr ia.sql sobre una base vieja (checks con otro nombre, sin planillas ni 'prueba', el
 //      total del coach en 40): cambia los checks buscándolos por la columna, suma lo nuevo sin
 //      pisar lo que cambió el dueño y sube el total a 60 solo si seguía en 40 y solo una vez.
@@ -54,6 +57,7 @@ const PRENDER = `update public.ia_config set activa = true, ancla = date_trunc('
 const rolc = uid => `select to_jsonb(public.ia_rol_coach('${uid}'))`;
 const res = (uid, rol, fun, max = 0.01) => `select public.ia_reservar('${uid}', '${rol}', '${fun}', 'modelo-prueba', ${max})`;
 const cod = r => r && (r.ok === true ? 'ok' : r.codigo || r.error);
+const avisar = (fun, resp, com = null) => `select to_jsonb(count(*)) from (select public.ia_reportar('${fun}', ${resp}, ${com === null ? 'null' : "'" + com + "'"})) x`;
 
 export default async function ({ t: t0 }){
   const t = conCanon(t0);
@@ -189,6 +193,19 @@ export default async function ({ t: t0 }){
   t.eq(r[15] && r[15].error, '42501', 'la app no puede preguntar el permiso con la service role');
   t.eq(r[16] && r[16].permiso_rutinas, 'no', 'cualquiera con sesión guarda el suyo');
 
+  // «¿Está mal? Avisanos» con planillas y rutinas (sin la planilla: la rutina que armó).
+  const RUT = `'{"nombre": "Fuerza", "dias": [{"nombre": "Día 1", "ejercicios": [{"fila": 12, "nombre": "Press banca"}]}]}'::jsonb`;
+  r = await V([[U.CT, avisar('planilla', RUT, 'la fila 12 era press inclinado')], [U.CT, avisar('rutina', `'{}'::jsonb`)],
+    [U.CT, avisar('planilla', `jsonb_build_object('x', repeat('a', 30000))`)], [U.CT, avisar('plato', `jsonb_build_object('x', repeat('a', 30000))`)],
+    [U.CT, avisar('rutina', `jsonb_build_object('x', repeat('a', 60001))`)], [U.CT, avisar('inventada', `'{}'::jsonb`)],
+    ['postgres', `select jsonb_agg(jsonb_build_array(funcion, comentario) order by id) from public.ia_reportes where user_id = '${U.CT}'`],
+    ['postgres', `insert into public.ia_reportes (user_id, funcion, respuesta) values ('${U.CT}', 'inventada', '{}')`]]);
+  t.eq([r[0], r[1], r[2]], [1, 1, 1], 'ia_reportar: guarda planillas y rutinas (una rutina larga también)');
+  t.eq([r[3] && r[3].error, r[4] && r[4].error, r[5] && r[5].error], ['22023', '22023', '22023'], 'ia_reportar: la foto sigue hasta 20.000 caracteres, la rutina hasta 60.000 y lo inventado no entra');
+  t.eq(r[6] && r[6].map(x => x[0]), ['planilla', 'rutina', 'planilla'], 'ia_reportes: cada aviso con su función');
+  t.eq(r[6] && r[6][0][1], 'la fila 12 era press inclinado', 'ia_reportes: con el comentario');
+  t.eq(r[7] && r[7].error, '23514', 'ia_reportes: una función inventada no entra');
+
   // El panel: modelo de planillas y topes del coach en prueba.
   r = await V([[U.AD, `select public.admin_ia_config('{"modelos": {"planilla": "modelo-prueba"}, "topes": {"prueba": {"planilla": 10}}, "funciones": {"planilla": true}}')`],
     [U.AD, `select public.admin_ia_config('{"modelos": {"inventada": "modelo-prueba"}}')`],
@@ -200,11 +217,12 @@ export default async function ({ t: t0 }){
   // ===== Una base de antes (como la de verdad hoy) y correr ia.sql de nuevo =====
   const CHECKS = `select jsonb_object_agg(a.attname || ':' || c.conname, jsonb_build_array(c.oid::bigint, pg_get_constraintdef(c.oid)))
     from pg_constraint c join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
-   where c.conrelid = 'public.ia_llamadas'::regclass and c.contype = 'c'`;
+   where c.conrelid in ('public.ia_llamadas'::regclass, 'public.ia_reportes'::regclass) and c.contype = 'c'`;
   const ANTES = total => `
 alter table public.ia_llamadas drop constraint ia_llamadas_rol_check, drop constraint ia_llamadas_funcion_check;
 alter table public.ia_llamadas add constraint rol_de_antes check (rol in ('alumno', 'coach', 'admin')),
   add constraint ia_llamadas_funcion_check1 check (funcion in ('etiqueta', 'plato', 'texto', 'rutina', 'resumen'));
+alter table public.ia_reportes drop constraint ia_reportes_funcion_check, add constraint reportes_de_antes check (funcion in ('plato', 'texto'));
 update public.ia_config set funciones = funciones - 'planilla',
   topes = (topes - 'prueba') || jsonb_build_object('coach', ((topes -> 'coach') - 'planilla' - 'rutina') || jsonb_build_object('total', ${total}, 'plato', 12)) where id = 1;`;
   for (const total of [40, 50]){
@@ -214,9 +232,12 @@ update public.ia_config set funciones = funciones - 'planilla',
     await v.archivo('supabase/ia.sql');
     const c1 = await v.json(CHECKS), cfg = await v.json(`select jsonb_build_object('funciones', funciones, 'topes', topes) from public.ia_config`);
     const nombres = Object.keys(c1).sort();
-    t.eq(nombres, ['estado:ia_llamadas_estado_check', 'funcion:ia_llamadas_funcion_check', 'origen:ia_llamadas_origen_check', 'rol:ia_llamadas_rol_check'], 'base vieja (total ' + total + '): un check por columna, con los de antes reemplazados aunque tuvieran otro nombre');
+    t.eq(nombres, ['comentario:ia_reportes_comentario_check', 'estado:ia_llamadas_estado_check', 'funcion:ia_llamadas_funcion_check', 'funcion:ia_reportes_funcion_check', 'origen:ia_llamadas_origen_check', 'rol:ia_llamadas_rol_check'],
+      'base vieja (total ' + total + '): un check por columna, con los de antes reemplazados aunque tuvieran otro nombre');
     t.ok(/'prueba'/.test((c1['rol:ia_llamadas_rol_check'] || [])[1]) && /'planilla'/.test((c1['funcion:ia_llamadas_funcion_check'] || [])[1]), 'base vieja: los checks nuevos tienen prueba y planilla');
-    t.eq([(c1['estado:ia_llamadas_estado_check'] || [])[0], (c1['origen:ia_llamadas_origen_check'] || [])[0]], [(antes['estado:ia_llamadas_estado_check'] || [])[0], (antes['origen:ia_llamadas_origen_check'] || [])[0]], 'base vieja: los checks de las otras columnas no se tocan');
+    t.ok(/'planilla'.*'rutina'/.test((c1['funcion:ia_reportes_funcion_check'] || [])[1]), 'base vieja: ia_reportes acepta planillas y rutinas');
+    const otros = ['estado:ia_llamadas_estado_check', 'origen:ia_llamadas_origen_check', 'comentario:ia_reportes_comentario_check'];
+    t.eq(otros.map(k => (c1[k] || [])[0]), otros.map(k => (antes[k] || [])[0]), 'base vieja: los checks de las otras columnas no se tocan');
     const cc = cfg.topes.coach || {};
     t.eq([cfg.funciones.planilla, cc.planilla, cc.rutina, cc.plato, cc.total, cfg.topes.prueba],
       [false, 30, 15, 12, total === 40 ? 60 : 50, { planilla: 15, rutina: 5, total: 20, usd_ciclo: 1 }], 'base vieja (total ' + total + '): suma planillas y prueba, no pisa lo del dueño y el total pasa a 60 solo si estaba en 40');

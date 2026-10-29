@@ -160,13 +160,14 @@ alter table public.ia_permisos add column if not exists rutinas_ok_at timestampt
 alter table public.ia_permisos add column if not exists rutinas_no_at timestamptz;
 alter table public.ia_permisos add column if not exists rutinas_version int not null default 0;
 
--- ---------- «¿Está mal? Avisanos» (foto del plato y «Contame qué comiste») ----------
--- Lo que estimó la IA y el comentario de la persona, sin la foto. Se escribe solo con
--- ia_reportar(); lo lee el equipo de GIZE. Se borra a los 180 días (ia_limpiar) o con la cuenta.
+-- ---------- «¿Está mal? Avisanos» (foto del plato, «Contame qué comiste», planillas y rutinas) ----------
+-- Lo que estimó la IA (o la rutina que armó para el coach) y el comentario de la persona, sin la
+-- foto ni la planilla. Se escribe solo con ia_reportar(); lo lee el equipo de GIZE. Se borra a los
+-- 180 días (ia_limpiar) o con la cuenta.
 create table if not exists public.ia_reportes (
   id         bigint generated always as identity primary key,
   user_id    uuid references auth.users(id) on delete cascade,
-  funcion    text not null check (funcion in ('plato', 'texto')),
+  funcion    text not null check (funcion in ('plato', 'texto', 'planilla', 'rutina')),
   respuesta  jsonb not null,
   comentario text check (comentario is null or char_length(comentario) <= 300),
   creada     timestamptz not null default now()
@@ -174,17 +175,18 @@ create table if not exists public.ia_reportes (
 create index if not exists ia_reportes_creada on public.ia_reportes(creada);
 create index if not exists ia_reportes_user on public.ia_reportes(user_id, creada);
 
--- Las listas de los checks de ia_llamadas (rol y función). En una base que ya tenía la tabla, el
--- create table de arriba no las cambia: cada check se busca por la columna que controla (en
--- pg_constraint, no por su nombre, que en la base de verdad puede ser otro) y, si no tiene la
--- lista de ahora, se cambia por uno con la lista nueva. Si ya la tiene no se toca (correrlo de
--- nuevo no vuelve a revisar la tabla).
+-- Las listas de los checks de ia_llamadas (rol y función) y de ia_reportes (función). En una base
+-- que ya tenía las tablas, el create table de arriba no las cambia: cada check se busca por la
+-- columna que controla (en pg_constraint, no por su nombre, que en la base de verdad puede ser
+-- otro) y, si no tiene la lista de ahora, se cambia por uno con la lista nueva. Si ya la tiene no
+-- se toca (correrlo de nuevo no vuelve a revisar la tabla).
 do $$
 declare v_x record; v_sobran text[]; v_esta boolean; v_n text;
 begin
   for v_x in select * from (values
       ('ia_llamadas', 'rol', array['alumno', 'coach', 'admin', 'prueba']),
-      ('ia_llamadas', 'funcion', array['etiqueta', 'plato', 'texto', 'rutina', 'resumen', 'planilla'])) x(tabla, col, lista) loop
+      ('ia_llamadas', 'funcion', array['etiqueta', 'plato', 'texto', 'rutina', 'resumen', 'planilla']),
+      ('ia_reportes', 'funcion', array['plato', 'texto', 'planilla', 'rutina'])) x(tabla, col, lista) loop
     select coalesce(array_agg(k.conname) filter (where not k.igual), '{}'), coalesce(bool_or(k.igual), false) into v_sobran, v_esta
       from (select c.conname, (y.vals @> v_x.lista and y.vals <@ v_x.lista) as igual
               from pg_constraint c
@@ -1329,15 +1331,18 @@ end $$;
 revoke all on function public.ia_permiso_rutinas(boolean, int) from public, anon;
 grant execute on function public.ia_permiso_rutinas(boolean, int) to authenticated;
 
--- «¿Está mal? Avisanos»: guarda lo que estimó la IA (la lista de alimentos, sin la foto) y un
--- comentario opcional. Hasta 20 por día por persona.
+-- «¿Está mal? Avisanos»: guarda lo que estimó la IA (la lista de alimentos, sin la foto; o la
+-- rutina que armó con una planilla o con el pedido del coach, sin la planilla) y un comentario
+-- opcional. Hasta 20 por día por persona. La respuesta, hasta 20.000 caracteres; la de una rutina,
+-- hasta 60.000 (una planilla puede traer muchos ejercicios).
 create or replace function public.ia_reportar(p_funcion text, p_respuesta jsonb, p_comentario text default null)
 returns void language plpgsql security definer set search_path = public as $$
 declare v_uid uuid := auth.uid(); v_com text := nullif(btrim(coalesce(p_comentario, '')), '');
 begin
   if v_uid is null then raise exception 'Iniciá sesión.' using errcode = '42501'; end if;
-  if p_funcion is null or p_funcion not in ('plato', 'texto') or p_respuesta is null or jsonb_typeof(p_respuesta) <> 'object'
-     or length(p_respuesta::text) > 20000 or char_length(coalesce(v_com, '')) > 300 then
+  if p_funcion is null or p_funcion not in ('plato', 'texto', 'planilla', 'rutina') or p_respuesta is null or jsonb_typeof(p_respuesta) <> 'object'
+     or length(p_respuesta::text) > (case when p_funcion in ('planilla', 'rutina') then 60000 else 20000 end)
+     or char_length(coalesce(v_com, '')) > 300 then
     raise exception 'Pedido inválido.' using errcode = '22023';
   end if;
   if (select count(*) from public.ia_reportes r where r.user_id = v_uid and r.creada >= public.ia_hoy()) >= 20 then
