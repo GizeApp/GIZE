@@ -167,9 +167,17 @@ export default async function ({ t: t0 }){
       [false, 60, 1], 'arranca apagado, con tope de 60 y un solo trabajo de pg_cron');
     await db.sql(CARGA);
     const prender = `update public.resumen_semanal_config set activo = true where id = 1`;
+    // El trabajo de pg_cron, corrido de verdad (con la hora de la prueba en lugar de now()): lo que deja
+    // en la cola de pg_net (simulado, tests/pg/supabase-simulado.sql).
+    const comando = String(await J(`select to_jsonb(command) from cron.job where jobname = 'gize-resumen-semanal'`));
+    const correrCron = async () => {
+      await db.sql('delete from net.http_request_queue;\n' + comando.replace('public.hay_resumenes_semanales()', 'public.hay_resumenes_semanales(' + AHORA + ')'));
+      return J(`select coalesce(jsonb_agg(jsonb_build_array(url, headers->>'x-cron-secret', body, timeout_milliseconds)), '[]') from net.http_request_queue`);
+    };
 
     // Apagado: no hace nada.
     t.eq(await J(`select to_jsonb(public.hay_resumenes_semanales(${AHORA}))`), false, 'apagado: el cron no llama');
+    t.eq(await correrCron(), [], 'apagado: el trabajo de pg_cron no llama a la función');
     t.eq(await PROBAR('servicio', tomar()), [], 'apagado: no toma a nadie');
 
     // La ventana.
@@ -195,6 +203,8 @@ export default async function ({ t: t0 }){
     // Prendido: a quién le llega.
     await db.sql(prender);
     t.eq(await J(`select to_jsonb(public.hay_resumenes_semanales(${AHORA}))`), true, 'prendido y en la ventana: el cron llama');
+    t.eq(await correrCron(), [['https://wegptuzhsrwppbknqstf.supabase.co/functions/v1/resumen-semanal', 'secreto-de-prueba', {}, 60000]],
+      'prendido: el trabajo de pg_cron llama una vez a la función, con el secreto del cron y 60 s de tiempo máximo');
     t.eq(await J(`select to_jsonb(public.hay_resumenes_semanales('2026-10-29 12:00-03'))`), false, 'el jueves no');
     let r = await HACER('servicio', tomar());
     t.eq(r.map(x => x.coach), [C.uno, C.enPrueba, C.otro].sort(), 'le llega al coach con plan, al que está en la prueba gratis y a otro con plan; no a la cuenta de prueba, al que lo apagó, al vencido, al que no tiene alumnos ni al que no tiene novedades');
