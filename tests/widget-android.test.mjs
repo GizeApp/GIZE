@@ -132,6 +132,11 @@ export default async function ({ base, t }){
   t.ok(idsChico.length >= 8, 'el chico muestra pasos, racha y entreno');
   t.eq(idsChico.filter(n => !idsChi.has(n)), [], 'cada vista que se toca en el chico está en widget_gize_chico.xml');
   t.ok(['widget_pasos_pie', 'widget_racha_pie', 'widget_entreno_detalle'].every(n => idsMed.has(n) && !idsChi.has(n)), 'los textos de abajo van solo en el mediano');
+  // Los toques por parte van también en el chico: el toque único es solo del chico de iPhone
+  // (contrato-widget.md §4 y §5). Si no, «Conectá» en el chico llevaba a Entreno y no a Cardio →
+  // Pasos, donde se conectan.
+  for (const [zona, destino] of [['widget_pasos', 'pasos'], ['widget_racha', 'racha'], ['widget_entreno', 'entreno']])
+    t.ok(new RegExp('setOnClickPendingIntent\\(R\\.id\\.' + zona + ',[^;]*abrir\\(ctx, "' + destino + '"').test(enChico), 'en el chico también, tocar ' + zona.replace('widget_', '') + ' abre ' + destino);
 
   // ===== MainActivity y el plugin =====
   const iReg = main.indexOf('registerPlugin(WidgetPlugin.class);'), iSuper = main.indexOf('super.onCreate(');

@@ -186,14 +186,13 @@ public class GizeWidget extends AppWidgetProvider {
         mostrar(v, R.id.widget_entreno_nombre, nombre);
         if (!chico) mostrar(v, R.id.widget_entreno_detalle, detalle);
 
-        // Toques: el chico es uno solo (el entreno de hoy); el mediano, por parte (con el aviso,
-        // todo abre la app).
+        // Toques, en el chico y en el mediano: cada parte abre GIZE en su lugar (los pasos en
+        // Cardio, donde también se conectan) y el resto, el entreno de hoy. Con el aviso, todo
+        // abre la app. (El toque único es solo del chico de iPhone, que no deja más.)
         v.setOnClickPendingIntent(R.id.widget_raiz, abrir(ctx, "hoy", null, 1));
-        if (!chico) {
-            v.setOnClickPendingIntent(R.id.widget_pasos, abrir(ctx, "pasos", null, 2));
-            v.setOnClickPendingIntent(R.id.widget_racha, abrir(ctx, "racha", null, 3));
-            v.setOnClickPendingIntent(R.id.widget_entreno, soloAviso ? abrir(ctx, "hoy", null, 1) : abrir(ctx, "entreno", idDia, 4));
-        }
+        v.setOnClickPendingIntent(R.id.widget_pasos, abrir(ctx, "pasos", null, 2));
+        v.setOnClickPendingIntent(R.id.widget_racha, abrir(ctx, "racha", null, 3));
+        v.setOnClickPendingIntent(R.id.widget_entreno, soloAviso ? abrir(ctx, "hoy", null, 1) : abrir(ctx, "entreno", idDia, 4));
         return v;
     }
 

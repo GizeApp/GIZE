@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Widget «GIZE de hoy», chico (2×2): lo mismo que el mediano (widget_gize.xml), apretado y sin
-     los textos de abajo. Un solo toque, que abre el entreno de hoy. Los ids son los del mediano. -->
+     los textos de abajo. Cada parte abre GIZE en su lugar, como en el mediano. Los ids son los
+     del mediano. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_raiz"
     android:layout_width="match_parent"
