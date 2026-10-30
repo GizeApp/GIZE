@@ -6,6 +6,10 @@
 // gimnasio le llega a 7, 3 y 1 día, con el nombre del gimnasio y sus socios, y la administración del
 // gimnasio lo recibe en copia (copia: sus cuentas). Al profe sin alumnos propios no le llega nada (lo
 // deja afuera tomar_avisos_vence). Con el SQL de antes (cuatro columnas) anda igual que siempre.
+// Google Play (app de Android): al coach al que Google le renueva el plan solo (coach_billing:
+// google_renueva y google_vence hasta el vencimiento o después) no se le manda nada (queda marcado
+// igual y se cuenta en «omitidos»). El freno va acá y no en tomar_avisos_vence, que tiene dos
+// versiones vigentes (compras-apple.sql y gimnasios-admin.sql). Sin compras-google.sql, como antes.
 //
 // Secrets: RESEND_API_KEY (el mismo de los avisos de pagos). Sin él no se manda nada y quedan
 // para la hora siguiente. CRON_SECRET (opcional): igual que en avisos-coach, si está se exige
@@ -39,6 +43,16 @@ async function mailDe(db: ReturnType<typeof createClient>, id: string): Promise<
   catch { return null; }
 }
 
+// ¿Google Play le renueva el plan solo? Sí, si su suscripción de Google se renueva y cubre hasta el
+// vencimiento (o más). Si no se puede leer (por ejemplo, todavía sin compras-google.sql), no.
+async function renuevaGoogle(db: ReturnType<typeof createClient>, a: Aviso): Promise<boolean> {
+  try {
+    const { data: b, error } = await db.from("coach_billing").select("google_renueva, google_vence").eq("coach_id", a.coach_id).maybeSingle();
+    if (error || !b || b.google_renueva !== true || !b.google_vence) return false;
+    return Date.parse(String(b.google_vence)) >= Date.parse(String(a.vence));
+  } catch { return false; }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "método" }, 405);
   if (!cronOk(req)) return json({ error: "no autorizado" }, 401);
@@ -49,9 +63,10 @@ Deno.serve(async (req) => {
   const { data, error } = await db.rpc("tomar_avisos_vence");
   if (error) { console.error("tomar_avisos_vence", error.message); return json({ error: "base" }, 500); }
 
-  let enviados = 0, fallidos = 0;
+  let enviados = 0, fallidos = 0, omitidos = 0;
   for (const a of (data || []) as Aviso[]) {
     try {
+      if (await renuevaGoogle(db, a)) { omitidos++; continue; } // Google Play se lo renueva solo
       const to = await mailDe(db, a.coach_id);
       if (!to) { fallidos++; continue; } // sin mail no hay a quién avisar (queda marcado)
       const { data: pr } = await db.from("profiles").select("full_name").eq("id", a.coach_id).maybeSingle();
@@ -73,5 +88,5 @@ Deno.serve(async (req) => {
       await db.rpc("soltar_aviso_vence", { cid: a.coach_id });
     }
   }
-  return json({ ok: true, enviados, fallidos });
+  return json({ ok: true, enviados, fallidos, omitidos });
 });

@@ -3,6 +3,8 @@
 // Gimnasios (supabase/gimnasios-admin.sql): el dueño recibe el mail a 7, 3 y 1 día con el nombre del
 // gimnasio, sus socios y qué pasa si no se renueva, con la administración del gimnasio en copia; con
 // el SQL de antes (cuatro columnas) la función anda igual; si el mail no sale, se suelta para reintentar.
+// Google Play: al coach al que Google le renueva el plan solo (google_renueva y google_vence hasta el
+// vencimiento o después) no le llega el mail («omitidos»); a los demás, igual que siempre.
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -58,12 +60,13 @@ export default async function ({ t }){
 
   // La función de verdad, con la base y Resend simulados.
   const ID = n => 'c0ac4000-0000-4000-8000-' + String(n).padStart(12, '0');
-  const correr = async (filas, { falla = false } = {}) => {
+  const correr = async (filas, { falla = false, billing = {} } = {}) => {
     const enviados = [], soltados = [];
     const db = supabaseSimulado(q => {
       if (q.accion === 'rpc' && q.tabla === 'tomar_avisos_vence') return { data: filas };
       if (q.accion === 'rpc' && q.tabla === 'soltar_aviso_vence') { soltados.push(q.valores.cid); return { data: null }; }
       if (q.tabla === 'profiles') return { data: { full_name: 'Laura Fuerza' } };
+      if (q.tabla === 'coach_billing') { const f = q.filtros.find(x => x[0] === 'eq' && x[1] === 'coach_id'); return billing === 'sin-columnas' ? { error: { code: '42703', message: 'no existe la columna google_renueva' } } : { data: (f && billing[f[2]]) || null }; }
       return { data: null };
     });
     db.auth.admin.getUserById = async id => ({ data: { user: { id, email: 'cuenta-' + id.slice(-2) + '@prueba.test' } } });
@@ -77,7 +80,7 @@ export default async function ({ t }){
   };
   let x = await correr([{ coach_id: ID(1), vence: '2026-10-07T03:00:00Z', prueba: false, clientes: 6, gym_id: ID(90), gimnasio: 'Gimnasio Fuerza', socios: 5, dias: 7, copia: [ID(2), ID(3), ID(1)], faltan: 4 },
     { coach_id: ID(4), vence: '2026-10-07T03:00:00Z', prueba: false, clientes: 2, gym_id: null, gimnasio: null, socios: null, dias: 1, copia: null }]);
-  t.eq(x.res, { ok: true, enviados: 2, fallidos: 0 }, 'la función manda los dos');
+  t.eq(x.res, { ok: true, enviados: 2, fallidos: 0, omitidos: 0 }, 'la función manda los dos');
   t.eq([x.enviados[0].to, x.enviados[0].cc, x.enviados[0].subject], [['cuenta-01@prueba.test'], ['cuenta-02@prueba.test', 'cuenta-03@prueba.test'], 'El plan de GIZE de Gimnasio Fuerza vence en 4 días'],
     'al dueño (con los días que faltan de verdad), con la administración del gimnasio en copia (sin repetir al dueño)');
   t.ok(!('cc' in x.enviados[1]) && x.enviados[1].subject === 'Tu plan de GIZE vence mañana', 'al coach, como siempre y sin copia');
@@ -85,6 +88,17 @@ export default async function ({ t }){
   t.ok(x.res.enviados === 1 && x.enviados[0].subject === 'Tu prueba gratis de GIZE termina mañana' && !('cc' in x.enviados[0]), 'con el SQL de antes (cuatro columnas) anda igual');
   x = await correr([{ coach_id: ID(1), vence: '2026-10-07T03:00:00Z', prueba: false, clientes: 6, gimnasio: 'Gimnasio Fuerza', socios: 5, dias: 1, copia: [] }], { falla: true });
   t.eq([x.res.fallidos, x.soltados], [1, [ID(1)]], 'si el mail no sale, se suelta para reintentar');
+  // Google Play le renueva el plan solo: sin mail (queda marcado igual). Con google_vence antes del
+  // vencimiento, sin renovación o sin las columnas (todavía sin compras-google.sql), como siempre.
+  const vence = '2026-10-07T03:00:00Z', fila = n => ({ coach_id: ID(n), vence, prueba: false, clientes: 3 });
+  x = await correr([fila(6), fila(7), fila(8), fila(9)], { billing: {
+    [ID(6)]: { google_renueva: true, google_vence: vence }, [ID(7)]: { google_renueva: true, google_vence: '2026-11-07T03:00:00Z' },
+    [ID(8)]: { google_renueva: true, google_vence: '2026-10-06T03:00:00Z' }, [ID(9)]: { google_renueva: false, google_vence: '2026-11-07T03:00:00Z' } } });
+  t.eq(x.res, { ok: true, enviados: 2, fallidos: 0, omitidos: 2 }, 'Google Play renueva el plan de dos: a esos no les manda el mail');
+  t.eq(x.enviados.map(e => e.to[0]).sort(), ['cuenta-08@prueba.test', 'cuenta-09@prueba.test'], 'sí a quien Google cubre menos tiempo y a quien no se le renueva');
+  t.eq(x.soltados, [], 'los omitidos quedan marcados (no se sueltan para reintentar)');
+  x = await correr([fila(6)], { billing: 'sin-columnas' });
+  t.eq(x.res, { ok: true, enviados: 1, fallidos: 0, omitidos: 0 }, 'sin las columnas de Google (falta compras-google.sql): manda el mail como siempre');
 
   const adm = fs.readFileSync(path.join(ROOT, 'supabase/gimnasios-admin.sql'), 'utf8');
   const tomar = adm.slice(adm.indexOf('create or replace function public.tomar_avisos_vence()'), adm.indexOf('end $$;', adm.indexOf('create or replace function public.tomar_avisos_vence()')));
