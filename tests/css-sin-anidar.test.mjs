@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { newPage, wait } from './lib.mjs';
+import { newPage, wait, comoGitHub } from './lib.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SKIP = new Set(['node_modules', 'android', 'ios', '.git', 'tests']);
@@ -46,9 +46,11 @@ export default async function ({ base, t }){
     const bad = nested(fs.readFileSync(f, 'utf8'));
     t.eq(bad, [], path.relative(ROOT, f) + ': reglas anidadas');
   }
-  // Lo mismo en lo que de verdad carga cada página (incluye los <style> del HTML).
-  for (const url of ['/app/', '/admin/', '/', '/privacidad/', '/coaches/']){
+  // Lo mismo en lo que de verdad carga cada página (incluye los <style> del HTML; /c/toro es la página
+  // del coach, que GitHub Pages sirve con 404.html).
+  for (const url of ['/app/', '/admin/', '/', '/privacidad/', '/coaches/', '/c/toro']){
     const { p, errs, close } = await newPage({});
+    await comoGitHub(p, base);
     await p.goto(base + url); await wait(1200);
     const bad = await p.evaluate(() => {
       const out = [];

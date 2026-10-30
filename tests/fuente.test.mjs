@@ -1,10 +1,12 @@
 // La letra de GIZE (Outfit) viene del propio sitio, no de Google Fonts: se ve igual sin
-// internet en la app nativa y ninguna página le pide nada a Google.
-import { newPage, wait } from './lib.mjs';
+// internet en la app nativa y ninguna página le pide nada a Google. También la página pública del
+// coach (gize.ar/c/<alias>, que GitHub Pages sirve con 404.html).
+import { newPage, wait, comoGitHub } from './lib.mjs';
 
 export default async function ({ base, t }){
-  for (const path of ['/app/', '/admin/', '/', '/privacidad/', '/coaches/']){
+  for (const path of ['/app/', '/admin/', '/', '/privacidad/', '/coaches/', '/c/toro']){
     const { p, errs, close } = await newPage({});
+    await comoGitHub(p, base);
     const google = [];
     await p.route(/fonts\.(googleapis|gstatic)\.com/, r => { google.push(r.request().url()); return r.abort(); });
     await p.goto(base + path); await wait(1500);
