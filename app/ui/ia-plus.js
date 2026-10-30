@@ -9,8 +9,14 @@
 //     ar.com.gize.app.iaplus.mensual, core/compras-apple.js). Solo el precio que pone Apple,
 //     «Restaurar compras», «Administrar suscripción», Términos de uso y Política de privacidad.
 //     Nunca precios en pesos, Mercado Pago ni links a la web.
-//   · App de Android (y un iPhone sin el plugin): no se vende. Se muestra el límite y que IA Plus
-//     todavía no está disponible ahí, sin precio ni link a la web (política de Google Play).
+//   · App de Android con el plugin y el cobro de IA Plus prendido en el panel (rpc compras_google,
+//     core/compras-google.js): con Google Play (mismo producto). Solo el precio que pone Google,
+//     «Recuperar mi suscripción», «Administrar en Google Play», Términos de uso y Política de
+//     privacidad. Nunca precios en pesos, Mercado Pago ni links a la web.
+//   · App de Android con ese cobro apagado o sin el plugin (y un iPhone sin el plugin): no se vende.
+//     Se muestra el límite y que IA Plus todavía no está disponible ahí, sin precio ni link a la web.
+//   · En el iPhone nunca se nombra Google Play ni Android (regla 2.3.10 de Apple): a quien lo pagó con
+//     Google se le muestra un texto neutro.
 // Lo incluyen el plan pago (o de cortesía) del coach, para él y para sus alumnos.
 // Los botones llevan data-plus (no data-action): este módulo los atiende solo, en la hoja de Comida
 // y en Ajustes. Cuando IA Plus cambia, avisa con el evento «gize:iaplus» (main.js redibuja).
@@ -19,6 +25,7 @@ import { IA, iaEstado } from '../core/ia.js';
 import { appAndroid, appNativa } from '../core/plataforma.js';
 import { appIOS } from '../core/tienda.js';
 import { cargarPlusApple, comprarPlusApple, comprasApple, escucharApple, finalizarApple, productoPlusApple, restaurarApple, administrarApple } from '../core/compras-apple.js';
+import { administrarGoogle, cargarInterruptorGoogle, cargarPlusGoogle, comprarPlusGoogle, comprasGoogle, escucharGoogle, esPlusGoogle, pluginGoogle, PRODUCTO_IA_PLUS_GOOGLE, productoPlusGoogle, reconocerGoogle, restaurarGoogle, vigentesGoogle } from '../core/compras-google.js';
 import { iaToast } from './ia-permiso.js';
 
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -42,10 +49,11 @@ export function plusIAUsable(){
   return !!(e && e.activa && e.funciones && e.funciones.plato && !["pausada", "tope_mes"].includes(e.estado));
 }
 
-// Dónde se puede comprar: "web" (Mercado Pago), "apple" (iPhone con el plugin), "android" o
-// "ios-sin" (iPhone con una versión sin el plugin de compras): en esos dos, no se vende.
+// Dónde se puede comprar: "web" (Mercado Pago), "apple" (iPhone con el plugin), "google" (Android
+// con el plugin y el cobro de IA Plus prendido), "android" o "ios-sin" (iPhone con una versión sin
+// el plugin de compras): en esos dos, no se vende.
 export function plusCanal(){
-  if (appAndroid()) return "android";
+  if (appAndroid()) return comprasGoogle("plus") ? "google" : "android";
   if (appIOS()) return comprasApple() ? "apple" : "ios-sin";
   if (appNativa()) return "android";
   return "web";
@@ -55,12 +63,13 @@ export function plusCanal(){
 // «ilimitado»: hay un máximo por día y otro por mes.
 const queIncluye = () => { const p = plusInfo(); return "hasta " + ((p && Number(p.plato_dia)) || 10) + " fotos por día"; };
 
+// El precio que pone la tienda (Apple o Google Play), o null mientras se trae o si no se pudo.
 let cargandoPrecio = false, falloPrecio = false;
-function precioApple(){
-  const p = productoPlusApple();
+function precioTienda(canal){
+  const p = canal === "google" ? productoPlusGoogle() : productoPlusApple();
   if (p || cargandoPrecio || falloPrecio) return p;
   cargandoPrecio = true;
-  cargarPlusApple().then(x => { cargandoPrecio = false; falloPrecio = !x; cambio(); });
+  (canal === "google" ? cargarPlusGoogle() : cargarPlusApple()).then(x => { cargandoPrecio = false; falloPrecio = !x; cambio(); });
   return null;
 }
 
@@ -74,7 +83,7 @@ export function plusOfertaHtml(){
   }
   const cab = `<div class="plus-t"><span class="ia-tag" aria-hidden="true">IA</span> IA Plus</div>`;
   if (canal === "apple") {
-    const prod = precioApple();
+    const prod = precioTienda("apple");
     const precio = prod ? `<div class="plus-prod"><b>${esc(prod.nombre || "IA Plus")}</b><span>Suscripción mensual · ${esc(prod.precio)} por mes</span></div>`
       : falloPrecio ? `<div class="plus-prod"><span>No se pudo cargar el precio de Apple.</span><button type="button" class="pl8-link" data-plus="precio">Probar de nuevo</button></div>`
       : `<div class="plus-prod" role="status"><span>Cargando el precio de Apple…</span></div>`;
@@ -84,6 +93,20 @@ export function plusOfertaHtml(){
       <button type="button" class="form-save plus-go" data-plus="apple"${prod ? "" : " disabled"}>Suscribirme</button>
       <p class="plus-fine">Se cobra a tu cuenta de Apple al confirmar. Se renueva sola cada mes al mismo precio, salvo que la canceles al menos 24 horas antes de que termine el mes, desde los Ajustes de tu cuenta de Apple.</p>
       <div class="plus-links"><button type="button" class="pl8-link" data-plus="restaurar">Restaurar compras</button>
+        <a href="${TERMINOS()}" target="_blank" rel="noopener">Términos de uso</a><a href="${PRIVACIDAD()}" target="_blank" rel="noopener">Política de privacidad</a></div>
+    </div>`;
+  }
+  if (canal === "google") {
+    const prod = precioTienda("google");
+    const precio = prod ? `<div class="plus-prod"><b>${esc(prod.nombre || "IA Plus")}</b><span>Suscripción mensual · ${esc(prod.precio)} por mes</span></div>`
+      : falloPrecio ? `<div class="plus-prod"><span>No se pudo cargar el precio de Google Play.</span><button type="button" class="pl8-link" data-plus="precio">Probar de nuevo</button></div>`
+      : `<div class="plus-prod" role="status"><span>Cargando el precio de Google Play…</span></div>`;
+    return `<div class="plus-box" data-plus-canal="google">${cab}
+      <p>Seguí usando la IA sin límite semanal: ${queIncluye()}.</p>
+      ${precio}
+      <button type="button" class="form-save plus-go" data-plus="google"${prod ? "" : " disabled"}>Suscribirme</button>
+      <p class="plus-fine">Se cobra a tu cuenta de Google Play al confirmar. Se renueva sola cada mes hasta que la canceles desde Google Play (Pagos y suscripciones → Suscripciones).</p>
+      <div class="plus-links"><button type="button" class="pl8-link" data-plus="google-recuperar">Recuperar mi suscripción</button>
         <a href="${TERMINOS()}" target="_blank" rel="noopener">Términos de uso</a><a href="${PRIVACIDAD()}" target="_blank" rel="noopener">Política de privacidad</a></div>
     </div>`;
   }
@@ -131,6 +154,15 @@ export function plusAjustesHtml(){
     if (p.estado === "incluido" && p.renueva) estado += " Tenés además una suscripción de Apple que se renueva: cancelala para no pagar de más.";
     botones += canal === "apple" ? `<button type="button" class="ctrl ghost" data-plus="administrar">Administrar suscripción</button>`
       : `<span class="plus-fine">La suscripción es de Apple: la administrás desde los Ajustes de tu cuenta de Apple.</span>`;
+  } else if (p.fuente === "google") {
+    // En el iPhone no se nombra Google Play (regla 2.3.10 de Apple).
+    const ios = appIOS();
+    if (p.estado === "incluido" && p.renueva) estado += ios ? " Tenés además una suscripción que se renueva: cancelala para no pagar de más."
+      : " Tenés además una suscripción de Google Play que se renueva: cancelala para no pagar de más.";
+    botones += appAndroid() && pluginGoogle() ? `<button type="button" class="ctrl ghost" data-plus="google-administrar">Administrar en Google Play</button>`
+      : ios ? `<span class="plus-fine">La suscripción la administrás desde el dispositivo donde la compraste.</span>`
+      : appAndroid() ? `<span class="plus-fine">La suscripción es de Google Play: la administrás desde Google Play (Pagos y suscripciones → Suscripciones).</span>`
+      : `<span class="plus-fine">La suscripción es de Google Play: la cambiás o la cancelás desde tu Android, en Google Play.</span>`;
   } else if (p.fuente === "manual" && p.estado === "plus") {
     estado = "<b>Activo</b> · te lo dio el equipo de GIZE hasta el " + dia(p.hasta) + ". Sin límite semanal: " + queIncluye() + ".";
   }
@@ -250,6 +282,84 @@ async function administrar(btn){
   });
 }
 
+// ---- Google Play (app de Android) ----
+const PENDIENTE_GOOGLE = "Tu pago quedó pendiente en Google Play. Cuando se acredite, IA Plus se activa solo.";
+const OTRA_GOOGLE = "Tu suscripción de Google Play es de otra cuenta de GIZE. Entrá con esa cuenta para usarla.";
+// La compra que dio Google Play ({ token, producto }) o varias ({ compras: [...] }), a la función
+// compras-google. { ok, reconocer, resultados, error, codigo }
+async function enviarGoogle(body){
+  try {
+    const r = await State.sb.functions.invoke("compras-google", { body });
+    if (!r.error) return { ok: Array.isArray(body.compras) || !!(r.data && r.data.ok), reconocer: !!(r.data && r.data.reconocer), resultados: (r.data && r.data.resultados) || [] };
+    return Object.assign({ ok: false, resultados: [] }, await errDe(r));
+  } catch (e) { return { ok: false, resultados: [], error: "No se pudo conectar." }; }
+}
+// Varias juntas; las que el servidor guardó pero no pudo reconocer las reconoce la app (si nadie las
+// reconoce en 3 días, Google devuelve la plata).
+async function mandarGoogle(lista){
+  const env = await enviarGoogle({ compras: lista.map(c => ({ token: c.token, producto: c.producto })) });
+  for (let i = 0; i < lista.length; i++) {
+    const x = env.resultados[i];
+    if (x && x.ok && x.reconocer) { try { await reconocerGoogle(lista[i].token); } catch (e) {} }
+  }
+  return env;
+}
+
+async function comprarEnGoogle(btn){
+  if (!State.cloudUser || !comprasGoogle("plus")) return;
+  await conBoton(btn, "Abriendo…", async () => {
+    let r;
+    try { r = await comprarPlusGoogle(State.cloudUser.id); }
+    catch (e) { alert("No se pudo completar la compra: " + ((e && e.message) || e)); return; }
+    // Cerró la hoja de Google sin comprar: nada.
+    if (!r || r.estado === "cancelado") return;
+    // Google dice que ya la tiene esta cuenta de Google: se recupera.
+    if (r.estado === "ya" || !r.token) { await recuperarEnGoogle(); return; }
+    // La pendiente también va: queda anotada y se activa sola cuando Google cobre.
+    const env = await enviarGoogle({ token: r.token, producto: r.producto || PRODUCTO_IA_PLUS_GOOGLE });
+    if (env.ok && env.reconocer) { try { await reconocerGoogle(r.token); } catch (e) {} }
+    await iaEstado(true);
+    cambio();
+    if (r.estado === "pendiente" || env.codigo === "pendiente") { alert(PENDIENTE_GOOGLE); return; }
+    const p = plusInfo();
+    if (env.ok && p && p.estado !== "gratis") { iaToast("¡Listo! Ya tenés IA Plus."); return; }
+    alert(env.codigo === "otra-cuenta" ? "Esa suscripción de Google Play es de otra cuenta de GIZE. Entrá con esa cuenta para usarla."
+      : env.codigo === "prueba" ? env.error
+      : "Google Play confirmó tu compra, pero todavía no pudimos activar IA Plus. Se activa solo en unos minutos; si no, tocá «Recuperar mi suscripción».");
+  });
+}
+
+// «Recuperar mi suscripción»: Google Play vuelve a dar las compras y las de IA Plus van al servidor.
+async function recuperarEnGoogle(){
+  let lista = [];
+  try { const r = await restaurarGoogle(); lista = ((r && r.compras) || []).filter(esPlusGoogle); }
+  catch (e) { alert("No se pudo recuperar tu suscripción: " + ((e && e.message) || e)); return; }
+  const compradas = lista.filter(c => c.estado === "comprada");
+  const env = compradas.length ? await mandarGoogle(compradas) : { ok: true, resultados: [] };
+  await iaEstado(true); cambio();
+  const p = plusInfo();
+  alert(!env.ok ? "No se pudo recuperar tu suscripción: " + (env.error || "no se pudo conectar")
+    : p && p.estado !== "gratis" ? "Listo: recuperamos tu IA Plus."
+    : env.resultados.some(x => x && x.codigo === "otra-cuenta") ? OTRA_GOOGLE
+    : lista.some(c => c.estado === "pendiente") ? PENDIENTE_GOOGLE
+    : "No encontramos una suscripción de IA Plus vigente en tu cuenta de Google Play.");
+}
+
+// «Administrar en Google Play»: abre la suscripción en Play Store. Al volver a la app (pudo cancelar
+// la renovación o arreglar el pago), se vuelve a mirar.
+let volverDeGoogle = false;
+async function administrarEnGoogle(btn){
+  await conBoton(btn, null, async () => {
+    try { await administrarGoogle(PRODUCTO_IA_PLUS_GOOGLE); volverDeGoogle = true; }
+    catch (e) { alert("No se pudo abrir la suscripción. Podés manejarla desde Google Play (Pagos y suscripciones → Suscripciones)."); }
+  });
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !volverDeGoogle) return;
+  volverDeGoogle = false;
+  refrescar().catch(() => {});
+});
+
 document.addEventListener("click", e => {
   const btn = e.target.closest && e.target.closest("[data-plus]");
   if (!btn || btn.disabled || !State.sb || !State.cloudUser) return;
@@ -258,6 +368,9 @@ document.addEventListener("click", e => {
   else if (a === "apple") comprarApple(btn);
   else if (a === "restaurar") restaurar(btn);
   else if (a === "administrar") administrar(btn);
+  else if (a === "google") comprarEnGoogle(btn);
+  else if (a === "google-recuperar") conBoton(btn, "Recuperando…", recuperarEnGoogle);
+  else if (a === "google-administrar") administrarEnGoogle(btn);
   else if (a === "baja") darDeBaja(btn);
   else if (a === "arrepentir") arrepentirse(btn);
   else if (a === "precio") { falloPrecio = false; cambio(); }
@@ -273,6 +386,31 @@ function escuchar(){
     if (!ev || !ev.jws || !State.sb || !State.cloudUser) return;
     enviarApple(ev.jws).then(r => { if (r.ok && ev.transaccion) finalizarApple(ev.transaccion).catch(() => {}); return refrescar(); }, () => {});
   });
+}
+
+// Android: el interruptor del cobro de IA Plus con Google Play (si cambió, se redibuja). Prendido,
+// las compras que llegan solas (una pendiente que se acreditó) van al servidor, y las de IA Plus de
+// este celular que todavía nadie reconoció también. Apagado o sin el plugin, nada (como siempre).
+let escuchandoGoogle = false;
+async function arrancarGoogle(){
+  if (!pluginGoogle() || !State.sb || !State.cloudUser) return;
+  const antes = comprasGoogle("plus");
+  await cargarInterruptorGoogle(State.sb, State.cloudUser.id);
+  if (comprasGoogle("plus") !== antes) cambio();
+  if (!comprasGoogle("plus")) return;
+  if (!escuchandoGoogle) {
+    escuchandoGoogle = true;
+    escucharGoogle(ev => {
+      if (!esPlusGoogle(ev) || ev.estado !== "comprada" || !State.sb || !State.cloudUser) return;
+      enviarGoogle({ token: ev.token, producto: ev.producto }).then(r => {
+        if (r.ok && r.reconocer) return reconocerGoogle(ev.token).catch(() => {});
+      }).then(refrescar, () => {});
+    });
+  }
+  try {
+    const sin = (await vigentesGoogle()).filter(c => esPlusGoogle(c) && c.estado === "comprada" && !c.reconocida && !c.suspendida);
+    if (sin.length) { await mandarGoogle(sin); await refrescar(); }
+  } catch (e) {}
 }
 
 // Vuelta de Mercado Pago (?pago=iaplus): el aviso del cobro llega a la función en segundos; se
@@ -294,4 +432,4 @@ async function volvioDePago(){
   iaToast("Mercado Pago todavía no confirmó el pago. Cuando lo confirme, IA Plus se activa solo.");
 }
 
-window.addEventListener("gize:login", () => { escuchar(); volvioDePago(); });
+window.addEventListener("gize:login", () => { escuchar(); volvioDePago(); arrancarGoogle(); });

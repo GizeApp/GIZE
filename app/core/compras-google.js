@@ -21,7 +21,8 @@ export const PRODUCTOS_GOOGLE = {
   "ar.com.gize.app.coach.p500": { plan: "p500", max: 500 },
 };
 export const productoDelPlanGoogle = plan => Object.keys(PRODUCTOS_GOOGLE).find(k => PRODUCTOS_GOOGLE[k].plan === plan) || null;
-// IA Plus con Google Play (todavía no se vende en la app: lo suma ui/ia-plus.js más adelante).
+// IA Plus con Google Play (ui/ia-plus.js): la suscripción mensual de la IA de Comida. No va en
+// PRODUCTOS_GOOGLE: no es un plan de coach.
 export const PRODUCTO_IA_PLUS_GOOGLE = "ar.com.gize.app.iaplus.mensual";
 // El plan base de cada suscripción en Play Console (el mismo que PLAN_BASE del plugin).
 export const PLAN_BASE = "mensual";
@@ -92,6 +93,27 @@ export function cargarProductosGoogle(){
   return cargando;
 }
 
+// IA Plus con el precio que pone Google Play ({ id, nombre, descripcion, precio, periodo }) o null si
+// no se pudo traer (se vuelve a probar), y comprarlo (devuelve lo mismo que comprarGoogle).
+let plusGoogle = null, cargandoPlus = null;
+export const productoPlusGoogle = () => plusGoogle;
+export function cargarPlusGoogle(){
+  const P = pluginGoogle();
+  if (!P) return Promise.resolve(null);
+  if (plusGoogle) return Promise.resolve(plusGoogle);
+  if (!cargandoPlus) {
+    cargandoPlus = Promise.resolve().then(() => P.productos({ ids: [PRODUCTO_IA_PLUS_GOOGLE] })).then(r => {
+      const p = ((r && r.productos) || []).find(x => x && x.id === PRODUCTO_IA_PLUS_GOOGLE && x.precio);
+      plusGoogle = p || null;
+      return plusGoogle;
+    }, () => null).finally(() => { cargandoPlus = null; });
+  }
+  return cargandoPlus;
+}
+export const comprarPlusGoogle = cuenta => pluginGoogle().comprar({ id: PRODUCTO_IA_PLUS_GOOGLE, cuenta });
+// ¿Es una compra de IA Plus? (las de los planes las atiende screens/coach/plan.js)
+export const esPlusGoogle = c => !!(c && c.token && c.producto === PRODUCTO_IA_PLUS_GOOGLE);
+
 // Comprar: { estado: "ok" | "pendiente", token, producto } o { estado: "cancelado" | "ya" }.
 // cuenta: el id del usuario de GIZE (va en la compra como obfuscatedAccountId y el servidor lo
 // controla). reemplazo (cambiar de plan): { token, producto, modo: "subir" | "bajar" } de la
@@ -109,7 +131,7 @@ export const administrarGoogle = producto => pluginGoogle().administrar(producto
 // El aviso propio de Google cuando no pudo cobrar: { estado: "nada" | "actualizada", token }.
 export const avisosGoogle = () => pluginGoogle().avisos();
 // Compras que llegan solas (una pendiente que se acreditó, una renovación): un solo listener del
-// plugin que reparte a quien escuche (los planes y, más adelante, IA Plus), cada uno filtra por
+// plugin que reparte a quien escuche (los planes y IA Plus), cada uno filtra por
 // producto. fn({ token, producto, estado, reconocida, suspendida, renueva }).
 const oyentes = [];
 let escuchando = false;
