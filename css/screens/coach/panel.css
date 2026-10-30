@@ -270,6 +270,35 @@ html.sin-neon body:not(#_) .cv-table .co-trow.on { border-left-color:rgba(255,25
   .cs-card { padding:22px 24px 24px; }
 }
 
+/* «Mi página» (app/screens/coach/pagina.js): la vista previa, el campo del link, los interruptores
+   (la misma fila que «Neón», .cs-neon) y la línea debajo del código en Clientes. */
+.cpag-prev { display:flex; align-items:center; gap:14px; padding:14px; border-radius:16px; border:1px solid var(--gize-border); background:var(--gize-surface-2); }
+.cpag-prev-t { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.cpag-prev-t b { font-size:var(--text-emphasis); font-weight:700; color:var(--txt); overflow-wrap:anywhere; }
+.cpag-prev-t span { font-size:var(--text-meta); color:var(--txt-2); }
+.cpag-prev-t .cpag-cod { color:var(--txt); font-weight:700; letter-spacing:.08em; font-variant-numeric:tabular-nums; }
+.cpag-link { margin:12px 0 0; font-size:var(--text-body); color:var(--txt-2); overflow-wrap:anywhere; }
+.cpag-link b { color:var(--txt); font-weight:700; }
+.cpag-acts { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:14px; }
+.cpag-acts .cs-pill { display:inline-flex; align-items:center; gap:6px; }
+.cpag-acts .cs-pill svg { width:15px; height:15px; }
+.cpag-acts .cs-save { margin:0; }
+.cpag-ver { margin-top:12px; }
+.cpag-campo { display:flex; align-items:center; gap:6px; min-width:0; }
+.cpag-pre { flex:none; font-size:var(--text-body); color:var(--txt-2); }
+.cs-card .cpag-campo .co-note.cpag-in { flex:1; min-width:0; }
+.cpag-err { margin:6px 0 0; font-size:var(--text-meta); font-weight:600; color:var(--gize-danger); }
+.cpag-nota, .cpag-aviso { margin:8px 0 0; font-size:var(--text-meta); line-height:1.4; color:var(--txt-2); }
+.cpag-aviso { margin:12px 0 14px; }
+.cpag-estado { margin:0 0 12px; padding:10px 12px; border-radius:var(--r-btn); border:1px solid var(--gize-border); font-size:var(--text-meta); color:var(--txt); }
+.cpag-sw { margin-top:10px; }
+.co-invite .cpag-linea { margin-top:6px; }
+#coachPagHost .cp-bg { z-index:500; }
+.cpag-qr { display:flex; align-items:center; justify-content:center; min-height:220px; margin:4px 0; color:var(--txt-2); font-size:var(--text-meta); }
+.cpag-qr svg { display:block; border-radius:12px; }
+.cpag-qr-cod { margin:10px 0 0; text-align:center; font-size:var(--text-meta); color:var(--txt-2); }
+.cpag-qr-cod b { color:var(--txt); letter-spacing:.08em; }
+
 .cv-util-i.on { color:var(--txt); background:color-mix(in srgb, var(--txt) 9%, transparent); border-color:var(--gize-border); }
 
 /* Editor de preguntas dentro de Configuración (app/screens/coach/preguntas.js): cada pregunta es una

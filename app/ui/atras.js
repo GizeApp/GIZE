@@ -25,6 +25,7 @@ const CERRAR = [
   '[data-action="scan-close"]',                  // escáner con la cámara
   '#chatHost [data-chat="close"]',               // chat con el coach
   '#fbHost [data-action="fb-skip"]',             // «¡Entreno terminado!»
+  '#coachPagHost .cp-x[data-cpag="cerrar-qr"]',  // coach: el QR de «Mi página»
   '#applyMount [data-coach="ap-back"]',          // coach: aplicar / copiar rutina
   '#applyMount [data-coach$="-cancel"]',
   '#planSheetHost .cp-x[data-plan="close"]',     // coach: «Mi plan»

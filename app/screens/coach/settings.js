@@ -28,6 +28,7 @@ import { comprasApple } from '../../core/compras-apple.js';
 import { enMarcoGym } from '../../core/gimnasio.js';
 
 import { alRepintar, renderQuestionsEditor } from './preguntas.js';
+import { alRepintarPagina, paginaPosible, secPagina } from './pagina.js';
 
 const ic = d => '<svg class="cs-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
 const IC = {
@@ -39,6 +40,7 @@ const IC = {
   shield: ic('<path d="M12 3l8 3v5.5c0 4.5-3.2 8-8 9.5-4.8-1.5-8-5-8-9.5V6z"/><path d="M9 12l2 2 4-4"/>'),
   out: ic('<path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/>'),
   mail: ic('<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 7l8.5 6 8.5-6"/>'),
+  link: ic('<path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/>'),
   go: ic('<path d="M9 6l6 6-6 6"/>')
 };
 
@@ -49,6 +51,8 @@ function secciones(){
   // El profe de un gimnasio sin alumnos propios ni plan propio no tiene plan que mirar (el del gimnasio
   // lo maneja la administración): sin «Mi plan».
   if((!appNativa() || comprasApple()) && !enMarcoGym() && !(esProfeGym() && !billing().propio)) l.push(["plan", "Mi plan", IC.card, "Plan y clientes"]);
+  // «Mi página» (pagina.js): con el mismo criterio, y solo si la base ya tiene la función.
+  if(paginaPosible()) l.push(["pagina", "Mi página", IC.link, "Link para Instagram"]);
   l.push(["preguntas", "Preguntas", IC.help, "Registro y check-in"], ["privacidad", "Privacidad", IC.shield, "Bloqueos y políticas"], ["cuenta", "Cuenta", IC.out, "Sesión y baja"]);
   return l;
 }
@@ -107,7 +111,7 @@ function secCuenta(){
     card("Eliminar cuenta", "Se borra tu cuenta y no se puede deshacer.", '<button class="logout-btn cfg-danger cs-out" data-action="cfg-delete-account">Eliminar cuenta</button>');
 }
 
-const BODY = { perfil: secPerfil, apariencia: secApariencia, avisos: secAvisos, plan: secPlan, preguntas: secPreguntas, privacidad: secPrivacidad, cuenta: secCuenta };
+const BODY = { perfil: secPerfil, apariencia: secApariencia, avisos: secAvisos, plan: secPlan, pagina: secPagina, preguntas: secPreguntas, privacidad: secPrivacidad, cuenta: secCuenta };
 
 // En el celular el menú de secciones es una fila que se desliza: al redibujar volvía al principio y
 // la sección elegida («Privacidad», «Cuenta», o «Preguntas» desde el «?») quedaba afuera de la
@@ -146,3 +150,4 @@ export function renderCoachSettings(){
 }
 
 alRepintar(renderCoachSettings);
+alRepintarPagina(renderCoachSettings);

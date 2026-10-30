@@ -14,6 +14,11 @@ export const CoachState = {
 
   coachInvite: null,
 
+  // «Mi página» (pagina.js): undefined = todavía no se sabe, null = no tiene, false = la base no tiene
+  // la función (supabase/pagina-coach.sql sin correr), o { alias, activa, con_foto, pausada,
+  // cambia_desde, codigo, visible }.
+  pagina: undefined,
+
   coachDayFilter: null,
 
   coachEditDay: 0,
