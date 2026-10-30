@@ -1768,7 +1768,8 @@ function paintIA(foco){
   // [clave, nombre, nota (si todavía no se puede prender), ayuda]
   const FUN = [["etiqueta_admin", "Leer tablas en Pedidos (este panel)", ""], ["etiqueta_usuario", "Tabla en «Pedir un producto» (app)", "Todavía no está en la app"],
     ["plato", "Foto del plato (app)", "", "Aparece en Comida, al lado del buscador (web; en las apps, con la versión nueva). Cada foto sale menos de un centavo. «Contame qué comiste» se sacó: solo fotos."],
-    ["planilla", "Pasar planillas (coach)", "Todavía no está en la app"], ["rutina", "Armar rutina (coach)", "Todavía no está en la app"],
+    ["planilla", "Pasar planillas (coach)", "", "Para coaches con plan y en su prueba, cada uno con sus topes (abajo); antes del primer uso aceptan «Usar IA en tus rutinas». Cada hoja sale menos de un centavo con el modelo de siempre. Todavía no está el botón «Pasar mis planillas» en el panel del coach: si la prendés antes, el coach solo ve el permiso en Configuración → Privacidad."],
+    ["rutina", "Armar rutina (coach)", "Todavía no está en la app"],
     ["resumen", "Resumen de la semana (coach)", "Todavía no está en la app"]];
   const funs = `<div class="ia-funs">${FUN.map(([k, l, nota, ayuda]) => `<div class="ia-fun${nota ? " off" : ""}"><div>${l}${nota ? `<small>${nota}</small>` : ayuda ? `<small>${ayuda}</small>` : ""}</div>
       <button class="tgl sm" role="switch" aria-checked="${fun[k] ? "true" : "false"}" aria-label="${esc(l)}" data-a="iaFn" data-k="${k}"${nota ? " disabled" : ""}></button></div>`).join("")}</div>`;
@@ -1782,6 +1783,16 @@ function paintIA(foco){
   const modelo = modelos ? `<label class="lbl" for="iaModelo">Modelo para leer tablas</label>
     <div class="search"><select class="in" id="iaModelo">${modelos}</select><button class="btn" data-a="iaModelo">Guardar</button></div>
     ${alt ? `<div class="muted small">Si lee mal las tablas, probá con ${esc(alt.nombre)}${veces > 1 ? ": cuesta unas " + veces + " veces más por tabla (igual son centavos)" : ""}.</div>` : ""}` : "";
+  // Modelo para pasar planillas (modelos.planilla): los que sirven (el de siempre y el más capaz), con
+  // lo que sale una hoja. Con la función «ia» vieja (sin «planilla» en el modo estado) no aparece.
+  const elegidoPl = (ia.modelos || {}).planilla || "";
+  const modsPl = (f.modelos || []).filter(m => m.planilla === true);
+  const defPl = modsPl.find(m => m.defecto), altPl = modsPl.filter(m => !m.defecto).sort((a, b) => num(b.usd_planilla) - num(a.usd_planilla))[0];
+  const opcPl = modsPl.map(m => `<option value="${esc(m.defecto ? "" : m.id)}"${(m.defecto ? !elegidoPl || elegidoPl === m.id : elegidoPl === m.id) ? " selected" : ""}>${esc(m.nombre)}${m.defecto ? " (el de siempre)" : ""}${m.usd_planilla ? " · unos " + usd(m.usd_planilla) + " por hoja" : ""}</option>`).join("");
+  const vecesPl = defPl && altPl && num(defPl.usd_planilla) > 0 && num(altPl.usd_planilla) > 0 ? Math.round(num(altPl.usd_planilla) / num(defPl.usd_planilla)) : 0;
+  const modeloPl = opcPl ? `<label class="lbl" for="iaModeloPl">Modelo para pasar planillas</label>
+    <div class="search"><select class="in" id="iaModeloPl">${opcPl}</select><button class="btn" data-a="iaModeloPl">Guardar</button></div>
+    ${altPl ? `<div class="muted small">Si lee mal las planillas, probá con ${esc(altPl.nombre)}${vecesPl > 1 ? ": cuesta unas " + vecesPl + " veces más por hoja" : ""}.${defPl ? " En modo ahorro va siempre " + esc(defPl.nombre) + "." : ""}</div>` : ""}` : "";
   const desde = `<label class="lbl" for="iaDesde">Día en que se publicó la política de privacidad</label>
     <div class="search"><input class="in" id="iaDesde" type="date" aria-label="Día en que se publicó la política de privacidad" value="${esc(diaPolitica(ia.pedidos_desde))}"><button class="btn" data-a="iaDesde">Guardar fecha</button></div>
     <div class="muted small">Si es hoy, se leen los pedidos que lleguen desde ahora; si es otro día, desde el día siguiente (así nunca se lee uno de antes). Ese día, avisá el cambio en la app desde <a href="#avisos" data-go="avisos">Avisos</a> (ej: «Actualizamos la política de privacidad: sumamos las funciones con IA»).</div>`;
@@ -1815,12 +1826,12 @@ function paintIA(foco){
   // Últimas llamadas.
   const quien = l => l.rol === "coach" && l.origen === "gimnasio" ? "Coach (por gimnasio)" : ROL[l.rol] || l.rol || "";
   const ult = (ia.ultimas || []).map(l => `<tr><td class="muted">${fmtDT(l.creada)}</td><td>${esc(quien(l))}</td><td>${esc(NOMF[l.funcion] || l.funcion)}</td><td class="muted">${esc(((f.modelos || []).find(m => m.id === l.modelo) || {}).nombre || l.modelo)}</td>
-    <td>${l.estado === "ok" ? '<span class="pill ok">ok</span>' : l.estado === "vacia" ? '<span class="pill">sin tabla</span>' : l.estado === "reservada" ? '<span class="pill blue">en curso</span>' : `<span class="pill warn">${esc(iaCod(l.codigo || l.estado))}</span>`}</td>
+    <td>${l.estado === "ok" ? '<span class="pill ok">ok</span>' : l.estado === "vacia" ? `<span class="pill">${l.funcion === "planilla" ? "no era una rutina" : "sin tabla"}</span>` : l.estado === "reservada" ? '<span class="pill blue">en curso</span>' : `<span class="pill warn">${esc(iaCod(l.codigo || l.estado))}</span>`}</td>
     <td>${l.usd == null ? (l.estado === "reservada" ? "—" : usd(l.max_usd) + " (reserva)") : usd(l.usd)}</td><td class="muted">${l.ms ? seg(l.ms) : ""}</td></tr>`).join("");
   page("IA", "Lo que gasta la IA con los créditos de API del plan Max. La IA solo completa: vos revisás y publicás.",
     block("iaEstB", "Estado", master + lista) +
     block("iaCicloB", "Ciclo", ciclo + ancla) +
-    block("iaFunB", "Funciones", funs + modelo + desde) +
+    block("iaFunB", "Funciones", funs + modelo + modeloPl + desde) +
     block("iaUsoB", "Uso del ciclo", uso) +
     iaPlusBlock() +
     panel("iaTopesB", "Topes", `<div class="sec-s">Por persona y por día (y en dólares por ciclo). Arriba de esto, la guardia corta igual.</div>${topes}${umbr}
@@ -2280,11 +2291,14 @@ document.addEventListener("click", async e => {
     if (a === "iaOn"){ iaGuardar(b, { activa: b.getAttribute("aria-checked") !== "true" }, b.getAttribute("aria-checked") === "true" ? "IA apagada" : "IA prendida"); return; }
     if (a === "iaFn"){
       const k = b.dataset.k, on = b.getAttribute("aria-checked") !== "true";
-      // Las de la app: las ve cualquiera que acepte el aviso. Se avisa antes de prenderlas.
+      // Las de la app (la foto del plato y las planillas de los coaches): las ve cualquiera que pueda
+      // usarlas y acepte el aviso. Se avisa antes de prenderlas.
       if (on && k === "plato" && !await confirmar(`¿Prender «Foto del plato» en la app? Le aparece en Comida a cada persona con sesión; antes del primer uso acepta el aviso. Cada uso gasta menos de un centavo de los créditos, con los topes por persona de abajo.`, { titulo: "Prender en la app", ok: "Prender" })) return;
+      if (on && k === "planilla" && !await confirmar(`¿Prender «Pasar planillas» para coaches? La pueden usar los coaches con plan y los que están en su prueba, con los topes de abajo; antes del primer uso aceptan el aviso «Usar IA en tus rutinas». Cada hoja gasta menos de un centavo de los créditos con el modelo de siempre.`, { titulo: "Prender para coaches", ok: "Prender" })) return;
       iaGuardar(b, { funciones: { [k]: on } }, "Guardado ✓"); return;
     }
     if (a === "iaModelo"){ const v = document.getElementById("iaModelo").value; iaGuardar(b, { modelos: { etiqueta: v || null } }, "Modelo guardado ✓"); return; }
+    if (a === "iaModeloPl"){ const v = document.getElementById("iaModeloPl").value; iaGuardar(b, { modelos: { planilla: v || null } }, "Modelo guardado ✓"); return; }
     if (a === "iaDesde"){ const v = document.getElementById("iaDesde").value; if (!v) return toast("Elegí la fecha."); iaGuardar(b, { pedidos_desde: desdePolitica(v) }, "Fecha guardada ✓"); return; }
     if (a === "iaAncla"){ iaAncla(b); return; }
     if (a === "iaRetry"){ b.disabled = true; S.ia = await rpc("admin_ia_reintentar"); toast("Listo: la IA vuelve a andar."); paintIA('[data-a="iaOn"]'); return; }

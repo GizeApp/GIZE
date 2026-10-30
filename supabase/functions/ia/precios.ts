@@ -11,11 +11,12 @@
 // «disabled» y su mínimo es «between_tools», con el esfuerzo de fábrica). «esfuerzo»: si acepta
 // output_config.effort (el plato y el texto van con esfuerzo bajo; el que no lo acepta, sin él).
 // «defecto»: el que se usa si el panel no eligió otro. «tabla»: si se ofrece en el panel para leer
-// tablas (el más barato y el más capaz; el otro es el plan B del plato y el texto).
+// tablas (el más barato y el más capaz; el otro es el plan B del plato y el texto). «planilla»: lo
+// mismo para pasar las planillas de los coaches (el de siempre y el más capaz, por si lee mal).
 export const MODELOS = {
-  "claude-haiku-5-5": { nombre: "Haiku 5.5", defecto: true, tabla: true, in: 0.10, w5: 0.125, w1h: 0.20, rd: 0.01, out: 0.50, largo: 5, imgMax: 4784, sinPensar: "disabled", esfuerzo: true },
-  "claude-sonnet-5-5": { nombre: "Sonnet 5.5", defecto: false, tabla: true, in: 2.00, w5: 2.50, w1h: 4.00, rd: 0.10, out: 10.0, largo: 1, imgMax: 4784, sinPensar: "between_tools", esfuerzo: true },
-  "claude-haiku-4-5": { nombre: "Haiku 4.5", defecto: false, tabla: false, in: 1.00, w5: 1.25, w1h: 2.00, rd: 0.10, out: 5.00, largo: 1, imgMax: 1568, sinPensar: "disabled", esfuerzo: false },
+  "claude-haiku-5-5": { nombre: "Haiku 5.5", defecto: true, tabla: true, planilla: true, in: 0.10, w5: 0.125, w1h: 0.20, rd: 0.01, out: 0.50, largo: 5, imgMax: 4784, sinPensar: "disabled", esfuerzo: true },
+  "claude-sonnet-5-5": { nombre: "Sonnet 5.5", defecto: false, tabla: true, planilla: true, in: 2.00, w5: 2.50, w1h: 4.00, rd: 0.10, out: 10.0, largo: 1, imgMax: 4784, sinPensar: "between_tools", esfuerzo: true },
+  "claude-haiku-4-5": { nombre: "Haiku 4.5", defecto: false, tabla: false, planilla: false, in: 1.00, w5: 1.25, w1h: 2.00, rd: 0.10, out: 5.00, largo: 1, imgMax: 1568, sinPensar: "disabled", esfuerzo: false },
 } as const;
 
 export type Modelo = keyof typeof MODELOS;
