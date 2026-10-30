@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<!-- Vista previa al compartir: va primero porque algunos robots leen solo el principio. Es genérica (el robot no corre JS) y sin og:url (se sirve en muchas direcciones). -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GIZE">
+<meta property="og:locale" content="es_AR">
+<meta property="og:title" content="Entrená conmigo en GIZE">
+<meta property="og:description" content="Bajate GIZE y sumate con mi código: tu rutina, tu comida y tu progreso, con tu coach.">
+<meta property="og:image" content="https://gize.ar/icon-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta name="twitter:card" content="summary">
+<!-- CSP por <meta> (GitHub Pages no deja poner headers): solo este sitio y la base (Supabase), para la página del coach y su foto. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://wegptuzhsrwppbknqstf.supabase.co; connect-src https://wegptuzhsrwppbknqstf.supabase.co; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Ni los buscadores (noindex) ni las tiendas reciben de qué página viene la persona (referrer). -->
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>GIZE</title>
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/brand/fonts/outfit.css">
+<!-- Decide qué se ve antes de dibujar (pone data-estado en <html>) y después lo llena. -->
+<script src="/pagina-coach/pagina.js"></script>
+<style>
+/* GitHub Pages sirve este archivo (con estado 404) en toda dirección que no existe. Así anda la
+   página pública del coach, gize.ar/c/<alias> (y el plan B gize.ar/c/?a=<alias>), que arma
+   pagina-coach/pagina.js; en cualquier otra dirección es el «No encontramos esta página» de siempre.
+   Por eso todas las rutas son absolutas (/brand/…): se sirve en cualquier carpeta.
+   Paleta de la página de inicio (index.html) y de baja/index.html; los botones de las tiendas son los
+   de la portada (si cambian allá, cambialos acá). Sin JavaScript se ve un aviso con las tiendas. */
+:root{
+  color-scheme:dark;
+  --bg:#000; --surface:#0B0D11; --surface-2:#12151B; --border:#1C2029; --border-hi:#3A4250;
+  --text:#FFFFFF; --text-2:#8F98A6;
+  --el:#2FA0FF; --ok:#25E8C8;
+  --r1:#2FA0FF; --r2:#A65CFF; --r3:#FF3DAE; --r4:#25E8C8;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Outfit',system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;overflow-x:hidden}
+/* Un resplandor suave arriba, con los colores de la marca. */
+body::before{content:"";position:fixed;left:50%;top:-180px;width:min(720px,140vw);height:420px;transform:translateX(-50%);z-index:-1;pointer-events:none;
+  background:radial-gradient(closest-side,rgba(47,160,255,.22),transparent),radial-gradient(closest-side at 70% 60%,rgba(166,92,255,.16),transparent)}
+img,svg{max-width:100%}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--el);outline-offset:3px;border-radius:8px}
+.wrap{width:min(480px,100%);margin-inline:auto;min-height:100vh;min-height:100svh;display:flex;flex-direction:column;
+  padding:calc(env(safe-area-inset-top,0px) + 20px) 16px calc(env(safe-area-inset-bottom,0px) + 24px)}
+.top{display:flex;justify-content:center}
+.logo{display:inline-flex;text-decoration:none}
+.logo img{display:block;height:24px;width:auto}
+main{flex:1}
+
+/* ---------- estados: pagina.js pone data-estado en <html>; sin JS se ve .en-sinjs ---------- */
+.en{display:none}
+html:not([data-estado]) .en-sinjs,
+[data-estado="cargando"] .en-cargando,
+[data-estado="coach"] .en-coach,
+[data-estado="nodisp"] .en-nodisp,
+[data-estado="error"] .en-error,
+[data-estado="404"] .en-404{display:block}
+.estado{text-align:center;margin-top:44px}
+.estado h1{margin:0;font-size:clamp(26px,7.5vw,34px);line-height:1.15;letter-spacing:-.01em}
+.estado p{margin:10px auto 0;max-width:34ch;color:#C3C9D2;font-size:16.5px}
+.icono{width:64px;height:64px;margin:0 auto 18px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--surface);border:1px solid var(--border);color:var(--text-2)}
+.icono svg{width:28px;height:28px}
+.num{font-size:15px;letter-spacing:.24em;font-weight:700;color:var(--text-2)}
+
+/* Cargando: una rueda chica (quieta con «reducir movimiento»). */
+.rueda{display:block;width:34px;height:34px;margin:40px auto 0;border-radius:50%;border:3px solid var(--border-hi);border-top-color:var(--el);animation:gira .8s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+
+/* ---------- la página del coach ---------- */
+.perfil{text-align:center;margin-top:28px}
+.foto{width:116px;height:116px;margin:0 auto;border-radius:50%;padding:3px;background:conic-gradient(from 210deg,var(--r1),var(--r2),var(--r3),var(--r4),var(--r1))}
+.foto img,.foto .ini{display:block;width:100%;height:100%;border-radius:50%;border:3px solid var(--bg);background:var(--surface-2)}
+.foto img{object-fit:cover}
+.foto .ini{display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:700;letter-spacing:.02em}
+.perfil h1{margin:16px 0 0;font-size:clamp(28px,8vw,38px);line-height:1.1;letter-spacing:-.01em;overflow-wrap:anywhere}
+.perfil .lema{margin:6px 0 0;font-size:13px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;color:var(--text-2)}
+.codigo{margin-top:24px;padding:18px 16px 16px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:20px}
+.codigo .tit{margin:0;color:var(--text-2);font-size:14.5px}
+.cod{display:block;margin:4px 0 12px;font-size:clamp(34px,11vw,46px);line-height:1.2;font-weight:700;letter-spacing:.14em;font-variant-numeric:tabular-nums;
+  -webkit-user-select:all;user-select:all;overflow-wrap:anywhere}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:12px 22px;border-radius:999px;font:inherit;font-weight:600;font-size:16.5px;
+  text-decoration:none;cursor:pointer;color:#000;background:#fff;border:1px solid #fff;transition:transform .15s ease,box-shadow .25s ease}
+.btn:active{transform:scale(.98)}
+.btn:hover{box-shadow:0 0 28px rgba(47,160,255,.4)}
+.codigo .btn{width:100%}
+.aviso{margin:10px 0 0;color:var(--ok);font-size:15px}
+.aviso:empty{margin:0}
+.pasos{list-style:none;margin:22px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.pasos li{display:flex;flex-direction:column;align-items:center;gap:6px;color:#C3C9D2;font-size:14px;line-height:1.3}
+.pasos b{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border-hi);color:var(--text);font-size:14px}
+.ya{margin:20px 0 0;text-align:center;color:#C3C9D2;font-size:15px}
+.ya b{color:var(--text);font-weight:600}
+
+/* ---------- tiendas: las de la portada (index.html) ---------- */
+.tiendas{margin-top:22px}
+.stores{display:flex;gap:10px;justify-content:center}
+.store{position:relative;overflow:hidden;flex:1 1 0;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:11px 10px;border-radius:16px;text-decoration:none;color:#fff;text-align:left;
+  background:#0B0D11;border:1px solid var(--border-hi);box-shadow:0 10px 30px -10px rgba(0,0,0,.8);transition:transform .2s ease,box-shadow .25s ease,border-color .2s}
+.store svg{width:24px;height:24px;flex:none}
+.store span{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15}
+.store small{white-space:nowrap;font-size:9.5px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--text-2)}
+.store b{white-space:nowrap;font-size:17px;font-weight:700;letter-spacing:-.01em}
+.store::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.14) 50%,transparent 65%);transform:translateX(-120%);animation:brilla 4.5s ease-in-out infinite}
+.store:nth-child(2)::after{animation-delay:.6s}
+@keyframes brilla{0%,55%{transform:translateX(-120%)}85%,100%{transform:translateX(120%)}}
+a.store:hover{transform:translateY(-3px);border-color:var(--r1);box-shadow:0 14px 34px -10px rgba(47,160,255,.55)}
+/* En los celulares más angostos no entran las dos en una fila. */
+@media (max-width:360px){
+  .stores{flex-wrap:wrap}
+  .store{flex-basis:100%}
+}
+.web{margin:18px 0 0;text-align:center;font-size:15.5px}
+.web a{color:var(--el);text-underline-offset:3px}
+
+/* En la compu: el QR de esta página, para abrirla en el celular (lo dibuja pagina.js). */
+.qr{margin-top:28px;display:flex;align-items:center;gap:16px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:20px}
+.qr > div{flex:none}
+.qr svg{display:block;width:120px;height:120px;border-radius:8px}
+.qr p{margin:0;color:#C3C9D2;font-size:15px}
+
+.estado .btn{margin-top:22px}
+footer{margin-top:40px;display:flex;gap:6px 16px;flex-wrap:wrap;justify-content:center;color:var(--text-2);font-size:14px}
+footer a{color:var(--text-2);text-decoration:none}
+footer a:hover{color:var(--text)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><a class="logo" href="/" aria-label="GIZE, página de inicio"><img src="/brand/logo/gize-firma-horizontal.svg" alt="GIZE" width="65" height="24"></a></header>
+
+  <main>
+    <!-- Sin JavaScript. -->
+    <section class="en en-sinjs estado">
+      <h1>Entrená con tu coach en GIZE</h1>
+      <p>Bajate la app y sumate con el código de tu coach.</p>
+    </section>
+
+    <section class="en en-cargando estado" aria-busy="true">
+      <span class="rueda" aria-hidden="true"></span>
+      <p>Cargando…</p>
+    </section>
+
+    <!-- La página del coach: lo llena pagina.js, siempre con textContent. -->
+    <section class="en en-coach" aria-labelledby="nombre">
+      <div class="perfil">
+        <div class="foto"><img id="foto" alt="" width="110" height="110" decoding="async" hidden><span class="ini" id="ini" aria-hidden="true"></span></div>
+        <h1 id="nombre"></h1>
+        <p class="lema">Entrená conmigo en GIZE</p>
+      </div>
+      <div class="codigo">
+        <p class="tit">Mi código de invitación</p>
+        <b class="cod" id="cod"></b>
+        <button type="button" class="btn" id="copiar">Copiar código</button>
+        <p class="aviso" id="aviso" role="status" aria-live="polite"></p>
+      </div>
+      <ol class="pasos" aria-label="Cómo sumarte">
+        <li><b>1</b>Bajate GIZE</li>
+        <li><b>2</b>Creá tu cuenta</li>
+        <li><b>3</b>Poné el código de tu coach</li>
+      </ol>
+    </section>
+
+    <section class="en en-nodisp estado">
+      <div class="icono" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 4 8"/><path d="M8 12h4"/><path d="m2 2 20 20"/></svg></div>
+      <h1>Esta página no está disponible</h1>
+      <p>Pedile a tu coach su código para sumarte en GIZE.</p>
+    </section>
+
+    <section class="en en-error estado">
+      <h1>No pudimos abrir la página</h1>
+      <p>Revisá tu conexión y probá de nuevo.</p>
+      <button type="button" class="btn" id="reintentar">Reintentar</button>
+    </section>
+
+    <section class="en en-404 estado">
+      <p class="num" aria-hidden="true">404</p>
+      <h1>No encontramos esta página</h1>
+      <p>Puede que el link esté mal escrito o que la página ya no exista.</p>
+      <a class="btn" href="/">Ir a GIZE</a>
+    </section>
+
+    <!-- Las tiendas: también sin JavaScript. pagina.js pone primero la del celular. -->
+    <div class="en en-sinjs en-coach en-nodisp en-error tiendas">
+      <div class="stores" id="tiendas">
+        <a class="store" id="play" href="https://play.google.com/store/apps/details?id=ar.com.gize.app" target="_blank" rel="noopener" aria-label="Descargala en Google Play">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#25E8C8" d="M3.6 2.3 13.4 12 3.6 21.7c-.4-.2-.6-.6-.6-1.1V3.4c0-.5.2-.9.6-1.1Z"/><path fill="#2FA0FF" d="m16.6 8.8-3.2 3.2L3.6 2.3c.2-.1.5-.1.8 0l12.2 6.5Z"/><path fill="#FF3DAE" d="m16.6 15.2-12.2 6.5c-.3.1-.6.1-.8 0l9.8-9.7 3.2 3.2Z"/><path fill="#A65CFF" d="m20.3 10.8-3.7-2-3.2 3.2 3.2 3.2 3.7-2c.9-.5.9-1.9 0-2.4Z"/></svg>
+          <span><small>Descargala en</small> <b>Google Play</b></span>
+        </a>
+        <a class="store store-apple" id="appstore" href="https://apps.apple.com/ar/app/id6818266033" target="_blank" rel="noopener" aria-label="Descargala en la App Store">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M16.4 12.6c0-2.4 2-3.6 2.1-3.6-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8s1.9.8 3.2.8c1.3 0 2.1-1.2 2.9-2.4.9-1.3 1.3-2.6 1.3-2.7 0 0-2.4-1-2.4-4.1ZM14 5.4c.6-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.4-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.6 2.8-1.3Z"/></svg>
+          <span><small>Descargala en la</small> <b>App Store</b></span>
+        </a>
+      </div>
+    </div>
+
+    <p class="en en-coach ya">¿Ya tenés GIZE? Abrí la app y poné el código en <b>Ajustes → Código de tu coach o gimnasio</b>.</p>
+    <p class="en en-coach en-nodisp en-sinjs web"><a id="web" href="/app/">¿En la compu? Usá GIZE en la web</a></p>
+
+    <div class="en en-coach">
+      <div class="qr" id="qr" hidden>
+        <div id="qrDib"></div>
+        <p>¿La querés en el celular? Escaneá este código con la cámara y bajate GIZE desde ahí.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <a href="/">GIZE</a>
+    <a href="/privacidad/#pagina-coach">Privacidad</a>
+    <a href="/terminos/">Términos de uso</a>
+  </footer>
+</div>
+</body>
+</html>

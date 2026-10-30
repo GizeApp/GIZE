@@ -19,7 +19,10 @@ PW=/tmp/pw/node_modules/playwright/index.mjs node tests/run.mjs comida   # solo 
 
 Cada archivo `*.test.mjs` exporta una función `async ({ base, t })`: `base` es la dirección
 del servidor local y `t.ok` / `t.eq` / `t.has` anotan lo que falla. Las ayudas (servidor,
-navegador, Supabase simulado) están en `tests/lib.mjs`.
+navegador, Supabase simulado) están en `tests/lib.mjs`. El servidor local responde un 404 pelado
+a lo que no existe; GitHub Pages, en cambio, sirve `404.html`, y así anda la página pública del
+coach (`gize.ar/c/<alias>`). Para abrirla, `comoGitHub(p, base)` hace que la página `p` reciba lo
+mismo que en GitHub.
 
 Los avisos y las preguntas de la app ya no son `alert()`, `confirm()` ni `prompt()` nativos sino
 carteles propios (`app/ui/avisos.js`: `alert`, `confirmar` y `pedir`). `newPage` lee lo que dice

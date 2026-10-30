@@ -25,6 +25,20 @@ export function startServer(){
   return new Promise(ok => srv.listen(0, '127.0.0.1', () => ok({ srv, base: 'http://127.0.0.1:' + srv.address().port })));
 }
 
+// GitHub Pages responde con 404.html (y estado 404) toda dirección que no existe: así se sirve la
+// página pública del coach, gize.ar/c/<alias> (pagina-coach/pagina.js). El servidor de arriba responde
+// un 404 pelado; con esto, la página p hace lo mismo que GitHub.
+export async function comoGitHub(p, base){
+  const html = fs.readFileSync(path.join(ROOT, '404.html'));
+  await p.route(u => {
+    if (!u.href.startsWith(base + '/')) return false;
+    let f;
+    try { f = path.join(ROOT, decodeURIComponent(u.pathname)); } catch (e) { return true; }
+    if (fs.existsSync(f) && fs.statSync(f).isDirectory()) f = path.join(f, 'index.html');
+    return !fs.existsSync(f);
+  }, r => r.fulfill({ status: 404, contentType: 'text/html; charset=utf-8', body: html }));
+}
+
 let browser = null;
 export async function getBrowser(){ return browser || (browser = await chromium.launch()); }
 export async function closeBrowser(){ if (browser) await browser.close(); browser = null; }
