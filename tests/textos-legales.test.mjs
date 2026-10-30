@@ -8,6 +8,8 @@
 // Los Términos de uso (gize.ar/terminos, los pide Apple para las suscripciones de la app de
 // iPhone) dicen cómo se renueva y se cancela la suscripción con Apple, y desde la app se abren sin
 // la barra que lleva a la página de inicio, igual que la política.
+// La política dice que en la app de Android el pago lo procesa Google Play, qué se guarda de esas
+// compras y que al eliminar la cuenta se cancela su renovación.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -97,6 +99,15 @@ export default async function ({ base, t }){
   t.has(await text(pg.p, 'main'), 'Apple Push Notification service', 'la política nombra el servicio de avisos de iPhone');
   t.has(await text(pg.p, 'main'), 'Open Food Facts:', 'la política nombra a Open Food Facts como destinatario');
   t.has(await text(pg.p, 'main'), 'Plan de coach comprado en la app de iPhone: el pago lo procesa Apple', 'la política dice que en el iPhone el pago lo procesa Apple');
+  // Google Play (app de Android, función compras-google): quién procesa el pago, qué se guarda, que
+  // Google avisa la compra y sus cambios, y que eliminar la cuenta cancela la renovación.
+  const pol = await text(pg.p, 'main');
+  for (const [f, que] of [['Plan de coach comprado en la app de Android: el pago lo procesa Google Play', 'en Android el pago lo procesa Google Play'],
+    ['Guardamos solo el código de la compra y el número del pedido de Google Play, qué plan es, hasta cuándo está pago, si se renueva solo, si Google lo reembolsó y si fue una compra de prueba', 'qué se guarda de la compra de Google Play'],
+    ['en la app de iPhone el pago lo procesa Apple y en la de Android, Google Play', 'IA Plus en la app: Apple o Google Play'],
+    ['Google Play procesa el pago y nos avisa la compra, sus renovaciones, cancelaciones y reembolsos', 'Google Play como proveedor'],
+    ['al eliminar la cuenta cancelamos su renovación para que no se te cobre más', 'eliminar la cuenta cancela la suscripción de Google Play']])
+    t.has(pol, f, 'la política dice: ' + que);
   await pg.p.goto(base + '/privacidad/'); await wait(300);
   t.eq(await topLinks(), ['../', '../app/'], 'entrando directo, la barra de arriba sigue');
   t.eq(pg.errs, [], 'errores de la página (política)');

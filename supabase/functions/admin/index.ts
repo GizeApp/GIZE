@@ -4,16 +4,19 @@
 //   { action: "pagos", coach_id }            → cobros de Mercado Pago de la suscripción del coach
 //   { action: "aviso", target, title, body } → notificación a todos / coaches / alumnos
 //   { action: "eliminar", user_id }          → borra la cuenta (antes cancela su suscripción en MP
-//                                              y borra sus fotos de Storage)
+//                                              y la renovación de sus suscripciones de Google
+//                                              Play, y borra sus fotos de Storage)
 //   { action: "responder", message_id, text } → contesta un mensaje de contacto (ver
 //                                              supabase/contacto.sql) desde contacto@gize.ar
-// Usa los secrets de siempre: MP_ACCESS_TOKEN, VAPID, FCM_SERVICE_ACCOUNT, los de Apple y
-// RESEND_API_KEY (el mismo con el que salen los avisos de pagos).
+// Usa los secrets de siempre: MP_ACCESS_TOKEN, VAPID, FCM_SERVICE_ACCOUNT, los de Apple,
+// RESEND_API_KEY (el mismo con el que salen los avisos de pagos) y GOOGLE_PLAY_SA (la cuenta de
+// servicio de Google Play, ver _shared/google-play.ts).
 // Va sin "Verify JWT" (como las demás) y valida la sesión con auth.getUser().
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 import { importPKCS8, SignJWT } from "npm:jose@5";
+import { cancelarGoogleDe } from "../_shared/google-play.ts";
 import { deA } from "./tanda.ts";
 
 const CORS = {
@@ -286,6 +289,10 @@ Deno.serve(async (req) => {
       try { await mp("/preapproval/" + encodeURIComponent(bill.mp_preapproval_id), { method: "PUT", body: JSON.stringify({ status: "cancelled" }) }); }
       catch (e) { return json({ error: "No se pudo cancelar su suscripción en Mercado Pago: " + (e as Error).message }, 502); }
     }
+    // Google Play: también se cancela la renovación de sus suscripciones de la app de Android (si
+    // Google no contesta, no se borra nada y se puede reintentar).
+    try { await cancelarGoogleDe(db, uid); }
+    catch (e) { return json({ error: "No se pudo cancelar su suscripción de Google Play: " + (e as Error).message }, 502); }
     // Las fotos se borran ANTES que la cuenta: si algo falla, la cuenta sigue y se puede
     // reintentar; al revés, las fotos quedarían para siempre sin dueño.
     let archivos = 0;

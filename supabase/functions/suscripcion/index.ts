@@ -33,7 +33,8 @@
 //       { action: "cancel" } → cancela la renovación (sigue activo hasta paid_until)
 //   · IA Plus (cualquier cuenta, no solo coaches; supabase/ia.sql → ia_plus, iaplus.ts):
 //       { action: "iaplus_checkout", mp_email? } → { url } para pagar (solo con IA Plus prendido en
-//         el panel y el precio en pesos confirmado: ia_config.plus.precio_ars)
+//         el panel y el precio en pesos confirmado: ia_config.plus.precio_ars). No se vende a quien
+//         ya lo tiene: incluido con el plan del coach, con Apple, con Google Play o con Mercado Pago.
 //       { action: "iaplus_cancel" } → botón de baja: cancela la renovación (sigue hasta mp_hasta)
 //       { action: "iaplus_arrepentimiento" } → botón de arrepentimiento (10 días corridos desde
 //         el primer cobro): cancela, devuelve el cobro y corta IA Plus ahora → { ok, devuelto }.
@@ -398,6 +399,7 @@ async function plusDesdeLaApp(input: { action?: string; mp_email?: string }, use
   const { data: incluido } = await db.rpc("ia_plus_incluido", { p_uid: uid });
   if (incluido === true) return json({ error: "Ya tenés IA Plus incluido con el plan de tu coach.", codigo: "incluido" }, 400);
   if (cur && vigente(cur.apple_vence)) return json({ error: "Ya tenés IA Plus con tu cuenta de Apple.", codigo: "ya" }, 400);
+  if (cur && vigente(cur.google_vence)) return json({ error: "Ya tenés IA Plus con Google Play.", codigo: "ya" }, 400);
   if (cur && vigente(cur.mp_hasta) && cur.mp_status === "authorized") return json({ error: "Ya tenés IA Plus.", codigo: "ya" }, 400);
   const espera = esperaTrasArrepentirse(cur, ahora);
   if (espera) {
