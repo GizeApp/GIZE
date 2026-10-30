@@ -20,6 +20,7 @@ import { deleteShareFile } from '../ui/compartir.js';
 import { temaOptionsHtml } from '../ui/tema.js';
 import { neonSwitchHtml } from '../ui/neon.js';
 import { appNativa } from '../core/tienda.js';
+import { cuotaCoach } from '../core/cobros.js';
 import { IA_POR_GIMNASIO, iaAlguna, iaEstado, iaGuardarPermiso, iaPermiso, iaPorGimnasio } from '../core/ia.js';
 import { iaToast, pedirPermisoIA } from '../ui/ia-permiso.js';
 import { plusAjustesHtml, plusInfo } from '../ui/ia-plus.js';
@@ -94,6 +95,25 @@ function gymCuotaHtml(){
   if (pagos.length) h += '<div class="cfg-notif-label cfg-gym-pagos-t">Tus pagos</div><ul class="cfg-gym-pagos">' +
     pagos.map(p => '<li>' + ddmm(p.fecha) + "/" + String(p.fecha).slice(2, 4) + ' · ' + pesos(p.monto) + ' · ' + esc(CUOTA_MEDIO[p.medio] || "") + '</li>').join("") + '</ul>';
   return '<div class="cfg-gym-cuota-box">' + h + '<div class="cfg-notif-desc">Lo anota el gimnasio cuando le pagás.</div></div>';
+}
+// Tu cuota con tu coach (Cobros del coach, supabase/cobros-coach.sql): lo que anotó tu coach, debajo de
+// «Tu coach · Vinculado». Como la cuota del gimnasio: en la web, el monto y tus últimos pagos; en las
+// apps de Android y iPhone, solo si está al día y la fecha. Sin cuota, o con Cobros apagado en esta
+// plataforma (core/cobros.js), nada. Nunca un link ni un botón para pagar, y no bloquea nada.
+function coachCuotaHtml(){
+  const q = cuotaCoach(() => State.view === "config" && renderApp());
+  if (!q || !CUOTA_EST[q.estado]) return "";
+  const [txt, cls] = CUOTA_EST[q.estado];
+  const fecha = d => ddmm(d) + "/" + String(d).slice(2, 4);
+  const cuando = q.vence ? (q.estado === "vencida" ? "Venció el " : "Paga hasta el ") + fecha(q.vence) + "." : "";
+  let h = '<div class="cfg-gym-row"><span class="cfg-gym-k">Cuota</span><span class="cfg-gym-v cfg-gym-cuota ' + cls + '">' + txt + '</span></div>' +
+    (cuando ? '<div class="cfg-notif-desc">' + cuando + '</div>' : '');
+  if (appNativa()) return '<div class="cfg-gym-cuota-box" id="cfgCoachCuota">' + h + '</div>';
+  const c = q.cuota, pagos = (Array.isArray(q.pagos) ? q.pagos : []).slice(0, 5);
+  if (c && c.monto) h += '<div class="cfg-notif-desc">' + pesos(c.monto) + ' ' + (CUOTA_POR[c.meses] || "") + '</div>';
+  if (pagos.length) h += '<div class="cfg-notif-label cfg-gym-pagos-t">Tus pagos</div><ul class="cfg-gym-pagos">' +
+    pagos.map(p => '<li>' + fecha(p.fecha) + ' · ' + pesos(p.monto) + ' · ' + esc(CUOTA_MEDIO[p.medio] || "") + '</li>').join("") + '</ul>';
+  return '<div class="cfg-gym-cuota-box" id="cfgCoachCuota">' + h + '<div class="cfg-notif-desc">Lo anota tu coach cuando le pagás.</div></div>';
 }
 // Tus clases (etapa 3): si el gimnasio tiene clases, «Clases» abre la hoja para reservar (screens/gym/
 // socio.js) y abajo van tus próximas reservas. Sin clases, nada. Sin precios: en las apps es igual.
@@ -233,7 +253,7 @@ export function renderConfig() {
   const coachSection = !logged ? "" :
     linked && profeDelGym() ? "" :
     linked
-      ? '<div class="card cfg-card"><div class="cfg-row-simple"><span>Tu coach</span><button class="cfg-ok" data-action="cfg-unlink-coach" title="Desvincularte de tu coach">Vinculado' + checkSvg + '</button></div></div>'
+      ? '<div class="card cfg-card"><div class="cfg-row-simple"><span>Tu coach</span><button class="cfg-ok" data-action="cfg-unlink-coach" title="Desvincularte de tu coach">Vinculado' + checkSvg + '</button></div>' + coachCuotaHtml() + '</div>'
       : needsLink
         // Card normal (no .join-box) para que tenga el mismo espaciado que el resto; input y
         // botón en una fila así "Vincular" no queda como una pastilla gigante a todo el ancho.
