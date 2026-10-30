@@ -4,7 +4,7 @@
 //   sale de la dirección y la invitación queda guardada (gize_coach_pend). Un link con un alias que no
 //   puede ser no guarda nada.
 // - Alumno sin coach: la hoja «Entrená con …» (el nombre como texto, la foto, qué va a ver el coach);
-//   «Sumarme» llama a join_coach con el código de la página, relee el perfil y pone la marca del coach;
+//   «Sumarme» llama a join_coach con el código de la página, relee el perfil y muestra la marca del coach;
 //   «Ahora no» no llama nada. Se cierre como se cierre, la invitación se borra.
 // - Nunca se cambia de coach solo: con el mismo coach o con otro, avisa sin [Sumarme]. El coach que abre
 //   su link o el de otro, y la página que ya no se ve (la base sin la función o con las páginas apagadas
@@ -80,7 +80,9 @@ const hoja = p => text(p, '#coachInvHost .cinv-sheet');
 const abierta = p => p.isVisible('#coachInvHost .cinv-sheet:not(.closing)');
 const pend = p => p.evaluate(() => JSON.parse(localStorage.getItem('gize_coach_pend') || 'null'));
 const tocar = async (p, a) => { await p.click('#coachInvHost [data-cinv="' + a + '"]'); await wait(700); };
-const marca = p => p.evaluate(async () => (await import('/app/core/state.js')).State.brandName);
+// La marca del coach que se ve arriba de la app (applyBrand), no solo la guardada.
+const marca = p => p.evaluate(() => { const g = document.getElementById('brandTag'), n = document.getElementById('brandName');
+  return g && n && g.style.display !== 'none' ? n.textContent : ''; });
 
 export default async function ({ base, t }){
   // ---- Sin sesión: «Crear cuenta» con el mensaje; el link sale de la dirección y queda guardado ----
