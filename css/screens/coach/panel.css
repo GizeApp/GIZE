@@ -325,6 +325,12 @@ html:has(#iaRutHost .sheet:not(.closing)), html:has(#iaRutHost .sheet:not(.closi
 .cb-todos { padding:6px 0; }
 .cb-vence { margin-top:14px; }
 .cb-wa { text-decoration:none; }
+/* Celular: con cinco botones o más arriba (el profe de un gimnasio con Clases, Recepción y Cobros), más
+   juntos, así no le tapan el logo. */
+@media (max-width: 899px){
+  .cv-util:has(> :nth-child(5)) { gap:4px; }
+  .cv-util:has(> :nth-child(5)) .cv-util-i { padding:0 6px; }
+}
 
 /* Editor de preguntas dentro de Configuración (app/screens/coach/preguntas.js): cada pregunta es una
    tarjeta con el número, el texto y el tipo de respuesta, y los botones de subir / bajar / borrar. */

@@ -12,12 +12,14 @@
 //   (tocando la fila), su tarjeta y anular con el motivo. «Cobros del mes» y el CSV (BOM, «;» y columnas).
 //   Escape cierra la ventana y el foco vuelve al botón.
 // - Pasado un minuto se le vuelve a preguntar a la base; sin la base, recién a los 10 minutos.
-// - El profe de un gimnasio que solo tiene socios no ve el botón ni se le pregunta a la base.
+// - El profe de un gimnasio que solo tiene socios no ve el botón ni se le pregunta a la base. El que tiene un
+//   alumno propio lo ve, también en el celular de 320 px con Clases y Recepción, sin que los botones de
+//   arriba le tapen el logo.
 // Celular (320 y 390 px) y compu, Oscuro y Claro: sin scroll de costado, contraste de 4,5:1 y la ventana
 // opaca.
 import fs from 'node:fs';
 import { wait, contraste } from './lib.mjs';
-import { entrarProfe, alumnosProfe, ID, M, D, hostTxt, sinScrollHorizontal, rpcs } from './gym-comun.mjs';
+import { entrarProfe, alumnosProfe, miGimnasioProfe, PROPIO, ID, M, D, hostTxt, sinScrollHorizontal, rpcs } from './gym-comun.mjs';
 import { hoyAR, ymd, ddmm, masMeses, MESES, mesHoy, A, NOMBRES, resumen, rpcCobros, entrarCoach, modalTxt, recursosGym, opaca } from './cobros-coach-comun.mjs';
 
 const SIN_BASE = { error: 'PGRST202', msg: 'Could not find the function public.cobros_resumen without parameters in the schema cache', status: 404 };
@@ -254,6 +256,24 @@ export default async function ({ base, t }){
     t.eq(await pg.p.$$eval('[data-coach="cobros-ir"], .cb-tira', l => l.length), 0, 'profe solo con socios: sin «Cobros»');
     t.eq(rpcs(pg.st, 'cobros_resumen').length, 0, 'profe solo con socios: no se le pregunta a la base');
     t.eq(pg.errs, [], 'profe solo con socios: sin errores');
+    await pg.close();
+  }
+
+  // ===== El profe de un gimnasio con un alumno propio, en el celular: Cobros, sin tapar el logo =====
+  // Con Clases, Recepción y Cobros arriba, los botones van más juntos (css/screens/coach/panel.css).
+  for (const w of [320, 360]){
+    const al = [{ id: PROPIO.id, nombre: PROPIO.full_name, avatar_path: null, cuota: { monto: 30000, meses: 1 }, vence: null, estado: 'sin_pagos', ultimo_cobro: null }];
+    const pg = await entrarProfe(base, { vp: { width: w, height: 640 }, touch: true, gym: miGimnasioProfe({ settings: { profes_recepcion: true } }),
+      rpc: rpcCobros({ resumen: resumen({ alumnos: al, conteo: { al_dia: 0, por_vencer: 0, vencida: 0, sin_pagos: 1, sin_cuota: 0 } }) }) }), p = pg.p;
+    const b = await p.$('[data-onb="done"]'); if (b) { await b.click(); await wait(400); }
+    const q = 'profe con un alumno propio, celular ' + w;
+    t.ok(await p.isVisible('#coachHost [data-coach="cobros-ir"]') && await p.isVisible('#coachHost [data-coach="gym-recepcion"]'), q + ': «Cobros» junto a Clases y Recepción');
+    const [logo, util] = await p.evaluate(() => ['#coachHost .cv-brand .brand-logo', '#coachHost .cv-util'].map(s => { const r = document.querySelector(s).getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; }));
+    t.ok(util[0] >= logo[1], q + ': los botones de arriba no tapan el logo (logo hasta ' + logo[1] + ', botones desde ' + util[0] + ')');
+    t.ok(await sinScrollHorizontal(p), q + ': sin scroll de costado');
+    await irCobros(p);
+    t.eq(await p.$$eval('#coachHost .gy-row[data-coach="cobros-abrir"]', l => l.map(r => r.dataset.id)), [PROPIO.id], q + ': en Cobros, su alumno propio');
+    t.eq(pg.errs, [], q + ': sin errores');
     await pg.close();
   }
 }
