@@ -6,11 +6,13 @@
 //   el link entero, «Ver mi página», Compartir (hoja del navegador), Copiar link, el QR (sin el texto
 //   del link, se cierra con Escape y devuelve el foco), los interruptores (prendida, foto) y cambiar el
 //   link (y cuando no se puede, desde qué día). En Clientes, «Tu página para Instagram» con Compartir.
+//   Si un interruptor no se puede guardar, un solo aviso claro.
 // - Android e iPhone (Capacitor simulado): la sección y Clientes sin gize.ar, plan, prueba, gratis,
 //   WhatsApp ni $; sin «Ver mi página»; Compartir usa el plugin Share con https://gize.ar/c/<alias>; el
 //   «Atrás» de Android cierra el QR.
 // - Sin la sección (y sin pedirle nada a la base): el profe de un gimnasio sin alumnos propios, la
-//   dueña en el panel del gimnasio. Con la base sin la función (PGRST202), tampoco, y sin errores.
+//   dueña en el panel del gimnasio. Con la base sin la función (PGRST202), tampoco, sin errores y
+//   sin volver a preguntar.
 import { newPage, wait, configCoach, CONFIG_COACH } from './lib.mjs';
 import { entrar, entrarProfe, alumnosProfe, miGimnasio, DUENA, rpcs, hostTxt } from './gym-comun.mjs';
 
@@ -40,6 +42,7 @@ async function coach(base, o = {}){
     '/rpc/coach_pagina_mia': (r, J) => { st.mia++; return st.pag === 'sin' ? J({ code: 'PGRST202', message: 'Could not find the function public.coach_pagina_mia', details: null, hint: null }, 404) : J(st.pag); },
     '/rpc/coach_pagina_guardar': (r, J, i) => {
       const b = JSON.parse(i.body || '{}'); st.guardar.push(b);
+      if (st.falla) return J({ code: 'XX000', message: 'falló el servidor', details: null, hint: null }, 500);
       if (b.p_alias === 'admin') return J({ code: 'P0001', message: 'Ese link no se puede usar. Probá con otro.', details: null, hint: null }, 400);
       if (b.p_alias === 'ocupado') return J({ code: 'P0001', message: 'Ese link ya lo usa otro coach. Probá con otro.', details: null, hint: null }, 400);
       st.pag = Object.assign({}, st.pag || PAG, b.p_alias ? { alias: b.p_alias } : {}, b.p_activa != null ? { activa: b.p_activa, visible: b.p_activa } : {}, b.p_con_foto != null ? { con_foto: b.p_con_foto } : {});
@@ -147,6 +150,18 @@ export default async function ({ base, t }){
     t.eq(pg.errs, [], 'pausada: sin errores');
     await pg.close();
   }
+  // Si un interruptor no se puede guardar (sin señal, la base caída): un solo aviso, sin «No se pudo
+  // guardar: No se pudo guardar…», y el interruptor queda como estaba.
+  {
+    const pg = await coach(base, { pag: PAG }), p = pg.p;
+    await configCoach(p, 'pagina');
+    pg.st.falla = true;
+    await p.click(CONFIG_COACH + ' [data-cpag="foto"]'); await wait(600);
+    t.eq(pg.dialogs, ['No se pudo guardar. Revisá tu conexión y probá de nuevo.'], 'falla al guardar: un solo aviso, claro');
+    t.eq(await p.$eval(CONFIG_COACH + ' [data-cpag="foto"]', b => [b.getAttribute('aria-checked'), b.disabled]), ['true', false], 'falla al guardar: el interruptor queda como estaba y se puede volver a tocar');
+    t.eq(pg.errs, [], 'falla al guardar: sin errores');
+    await pg.close();
+  }
   // Con el cupo lleno, la tarjeta del código ya dice que nadie más se puede sumar: sin la línea.
   {
     const pg = await newPage({ user: COACH, init: COPIA, handlers: {
@@ -205,8 +220,16 @@ export default async function ({ base, t }){
     t.has(await txt(p, '#coachHost .co-invite'), 'K7XM2PQA', 'base sin la función: el código sigue como siempre');
     await configCoach(p);
     t.ok(!(await secs(p)).includes('pagina'), 'base sin la función: Configuración sin «Mi página»');
-    await p.evaluate(async () => { const m = await import('/app/screens/coach/pagina.js'); m.cargarPagina(); });
+    // Queda anotado que no está (false), no como una falla de red que se reintenta a los 15 s: ni
+    // un minuto después se vuelve a preguntar.
+    const sin = await p.evaluate(async () => {
+      const m = await import('/app/screens/coach/pagina.js'), { CoachState } = await import('/app/screens/coach/state.js');
+      const ahora = Date.now; Date.now = () => ahora() + 60000;
+      try { m.cargarPagina(); } finally { Date.now = ahora; }
+      return CoachState.pagina;
+    });
     await wait(300);
+    t.eq(sin, false, 'base sin la función: queda anotado que no está');
     t.eq(pg.st.mia, 1, 'base sin la función: no se vuelve a preguntar');
     t.eq(pg.errs, [], 'base sin la función: sin errores');
     await pg.close();

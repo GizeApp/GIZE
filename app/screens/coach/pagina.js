@@ -232,7 +232,8 @@ async function interruptor(b, cual){
   const err = await guardar(null, cual === "activa" ? !p.activa : null, cual === "foto" ? !p.con_foto : null);
   UI.ocupado = false;
   repintarConfig(); enfocar('[data-cpag="' + cual + '"]');
-  if (err) alert("No se pudo guardar: " + err);
+  // guardar() ya devuelve el aviso entero (el de la base o «No se pudo guardar. Revisá…»).
+  if (err) alert(err);
 }
 
 async function copiarTexto(txt){
