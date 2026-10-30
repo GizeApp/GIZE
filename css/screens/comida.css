@@ -711,3 +711,19 @@ html:has(#iaPermHost .sheet:not(.closing)), html:has(#iaPermHost .sheet:not(.clo
 .plus-card .plus-btns { margin-bottom: 8px; }
 .plus-card .plus-box { margin-top: 4px; }
 :is(.plus-go, .plus-links a, .plus-links .pl8-link, .plus-btns .ctrl):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* Fuentes y aviso de salud (ui/fuentes.js): el link que la abre y la hoja con las citas. */
+.fuentes-link { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 6px auto 4px; padding: 6px 10px; border: 0; background: none; color: var(--txt-2); font: inherit; font-size: var(--text-meta); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.fuentes-link svg { width: 15px; height: 15px; flex: none; }
+.fuentes-link.en-form { justify-content: flex-start; margin: -2px 0 10px; padding: 4px 0; }
+.fuentes-link.en-plato { justify-content: flex-start; margin: 2px 0 0; padding: 4px 0 4px 23px; }
+.fuentes-sheet { max-height: min(88dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 16px)); display: flex; flex-direction: column; }
+.fuentes-sheet .ss-head { flex-direction: row; padding: 0; }
+.fuentes-body { font-size: var(--text-meta); line-height: 1.5; color: var(--txt-2); }
+.fuentes-aviso { margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--card-2); color: var(--txt); }
+.fuentes-sec { margin: 0 0 14px; }
+.fuentes-sec h3 { margin: 0 0 4px; font-size: 15px; font-weight: 700; color: var(--txt); }
+.fuentes-sec p { margin: 0 0 6px; }
+.fuentes-sec ul { margin: 0; padding-left: 18px; }
+.fuentes-sec li { margin: 0 0 6px; }
+.fuentes-sec a { color: var(--blue); word-break: break-word; }

@@ -22,6 +22,7 @@ import { planSections } from './checkin.js';
 
 import { IA, iaDisponible, iaVisible } from '../core/ia.js';
 import { plusLimiteSemanal, plusOfertaHtml } from '../ui/ia-plus.js';
+import { fuentesBtn } from '../ui/fuentes.js';
 
 // Nombre sin la aclaración de la unidad, que ya muestra la hoja del alimento:
 // "Pan lactal blanco (1 rebanada ≈ 25 g)" → "Pan lactal blanco". Las demás aclaraciones
@@ -80,6 +81,9 @@ export const ComidaState = {
   foodQuery: "",
 
   calForm: {sex:"m",age:"",height:"",weight:"",activity:"mod",goal:"mantener"},
+
+  // Hoja «Fuentes y aviso de salud» (ui/fuentes.js) abierta.
+  fuentesOpen: false,
 
   foodForm: {name:"",kcal:"",p:"",c:"",f:"",unit:"g"},
 
@@ -314,6 +318,7 @@ export function renderCalForm(){
   return `
     <div class="form-head"><button class="form-back" data-action="cal-cancel">‹</button><div class="form-title">Tu meta diaria</div></div>
     <div class="form-sub">Calculamos tus calorías con la fórmula Mifflin-St Jeor.</div>
+    ${fuentesBtn("en-form")}
     <div class="form-group"><label class="form-label">Sexo</label><div class="seg">${sb("m","Hombre")}${sb("f","Mujer")}</div></div>
     <div class="form-row2">
       <div class="form-group"><label class="form-label">Edad</label><input class="form-input" type="text" inputmode="numeric" value="${esc(c.age)}" data-action="cal-field" data-field="age"></div>
@@ -485,6 +490,7 @@ export function renderComida(){
       <div class="cal-empty-title">Configurá tu meta</div>
       <div class="cal-empty-sub">Calculamos cuántas calorías necesitás según tu cuerpo y tu objetivo. Después registrás lo que comés y la app va sumando.</div>
       <button class="ctrl primary" style="max-width:240px;margin:0 auto" data-action="cal-open">Configurar meta</button>
+      ${fuentesBtn()}
     </div>${planCard}`;
   }
   const t = coachGoal() ? +state.coachPlan.kcal : state.calTarget, mt = macroTargets();
@@ -552,6 +558,7 @@ export function renderComida(){
     <button class="ctrl day-today" data-action="day-today">Volver a hoy</button>
     </div>` : `
     <button class="cal-edit" data-action="cal-open">Editar meta</button>
+    ${fuentesBtn()}
     ${searchBar(vd)}
     <div class="meals">${sections}</div>
     <div class="water-mini${ComidaState.waterOpen?' open':''}">
@@ -803,6 +810,7 @@ function plateBody(P){
   return `${photo}
       <div class="pl8-list">${rows || '<div class="pl8-empty">No quedó ningún alimento. Sacá otra foto o cargalo a mano desde el buscador.</div>'}</div>
       <p class="pl8-fine">${infoSvg}<span>${PLATE_FINE}</span></p>
+      ${fuentesBtn("en-plato")}
       <button class="pl8-link" data-action="plate-report">${messageSvg}<span>¿Está mal? Avisanos</span></button>`;
 }
 

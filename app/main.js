@@ -55,6 +55,7 @@ import { calState } from './screens/coach/calendario.js';
 import { mealAction, mealDirty, nutritionRow } from './screens/coach/planes.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
+import { renderFuentesSheet } from './ui/fuentes.js';
 import { ComidaState, mealNow, alComida, plateDia, paintBarraIA, paintSearchIA, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, foodByName, lastResults, offResults, paintPlate, paintPlateNums, plateItemVals, previewStr, rememberCookState, renderComida, renderPlateSheet, renderResults, selectedFoodValues } from './screens/comida.js';
 import { IA, iaDisponible, iaEstado, iaMensaje, iaPedir, iaPermiso, iaReportar, iaSinReintento, iaVisible, photoB64 } from './core/ia.js';
 import { plusLimiteSemanal } from './ui/ia-plus.js';
@@ -175,7 +176,7 @@ export function renderApp(){
   initScrollReveal();
   setupExerciseFocus();
   renderRestBar();
-  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : (State.view==="entreno" && EntrenoState.varSheet) ? renderVarSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="comida" && ComidaState.plate) ? renderPlateSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : (State.view==="habitos" && HabitosState.edit) ? renderHabitAlarmSheet(alarmsSupported()) : "");
+  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : (State.view==="entreno" && EntrenoState.varSheet) ? renderVarSheet() : ((State.view==="comida" && ComidaState.fuentesOpen) ? renderFuentesSheet() : (State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="comida" && ComidaState.plate) ? renderPlateSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : (State.view==="habitos" && HabitosState.edit) ? renderHabitAlarmSheet(alarmsSupported()) : "");
   syncHabitAlarms(); // avisos de los hábitos (solo reprograma si cambiaron)
   if (State.view==="habitos" && HabitosState.pendingFocusHabit) { const i=document.getElementById("habitInput"); if(i) i.focus(); HabitosState.pendingFocusHabit=false; }
   if (State.view==="entreno") v.querySelectorAll("textarea.day-name").forEach(fitDayName);
@@ -562,6 +563,8 @@ document.body.addEventListener("click", async e => {
   if (a === "psec-open") { ProgresoState.section=el.dataset.v; ProgresoState.wAll=false; renderApp(); window.scrollTo(0,0); return; }
   if (a === "psec-close") { ProgresoState.section=null; renderApp(); window.scrollTo(0,0); return; }
   if (a === "w-all") { ProgresoState.wAll=!ProgresoState.wAll; renderApp(); return; }
+  if (a === "fuentes-open") { ComidaState.fuentesOpen=true; renderApp(); return; }
+  if (a === "fuentes-close") { ComidaState.fuentesOpen=false; renderApp(); return; }
   if (a === "plan-open") { ComidaState.planOpen=true; renderApp(); window.scrollTo(0,0); return; }
   if (a === "plan-close") { ComidaState.planOpen=false; renderApp(); return; }
   if (a === "plan-tab") { ComidaState.planTab=el.dataset.v; renderApp(); return; }
