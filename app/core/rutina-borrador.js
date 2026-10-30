@@ -37,7 +37,8 @@ function ejercicio(e, propios, links){
   if (!dicho) return null;
   const name = exacto(dicho);
   if (!name && !propios) return null;
-  const grupo = typeof e.grupo === "string" ? e.grupo : "";
+  // Solo un grupo de la lista («__proto__» o «constructor» también están en cualquier objeto).
+  const grupo = typeof e.grupo === "string" && Object.prototype.hasOwnProperty.call(EX_DB, e.grupo) ? e.grupo : "";
   const series = (Array.isArray(e.series) && e.series.length ? e.series : [{}, {}, {}]).slice(0, TOPES.series);
   const ex = { id: uid(), name: name || dicho, sets: series.map(s => {
     const st = mkSet(tx(s && s.objetivo, 20)), kg = tx(s && s.kg, 10);
@@ -46,7 +47,7 @@ function ejercicio(e, propios, links){
   }) };
   // El grupo: el elegido si el ejercicio está ahí (Curl martillo: bíceps o antebrazo); uno propio,
   // el que dijo la IA si es de la lista de grupos.
-  const mus = name ? pickMuscle(name, grupo) : (EX_DB[grupo] ? grupo : "");
+  const mus = name ? pickMuscle(name, grupo) : grupo;
   if (mus && mus !== "otros") ex.mus = mus;
   const rest = tx(e.descanso, 20), rir = tx(e.rir, 10), note = tx(e.nota, 160), goal = tx(e.progresion, 120);
   if (rest) ex.rest = rest;

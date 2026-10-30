@@ -41,6 +41,12 @@ export default async ({ t }) => {
   const mus = de(borr([dia([ej({ nombre: 'Curl martillo', grupo: 'antebrazo' }), ej({ nombre: 'Curl martillo', grupo: 'biceps' }), ej({ nombre: 'Curl martillo', grupo: 'pecho' }),
     ej({ nombre: 'Curl martillo', grupo: '' }), ej({ nombre: 'Aductores', grupo: 'gluteos' })])]))[0].exercises.map(e => e.mus);
   t.eq(mus, ['antebrazo', 'biceps', 'biceps', 'biceps', 'aductores'], 'grupo con pickMuscle: el elegido si el ejercicio está ahí, si no el suyo');
+  // Un grupo que no es de la lista no rompe nada ni queda como grupo (tampoco los nombres que tiene
+  // cualquier objeto, como «__proto__» o «constructor»).
+  let raros = null;
+  try { raros = de(borr([dia(['__proto__', 'constructor', 'toString'].flatMap(g => [ej({ grupo: g }), ej({ nombre: 'Algo raro', grupo: g })]))]), { propios: true })[0].exercises.map(e => e.mus); }
+  catch (e) { raros = 'se rompe: ' + e.message; }
+  t.eq(raros, ['espalda', undefined, 'espalda', undefined, 'espalda', undefined], 'grupos que no son de la lista: el del ejercicio, o ninguno si es propio');
 
   // Series, descanso, RIR, nota, progresión.
   const e1 = de(borr([dia([ej({ series: [{ objetivo: '10', kg: '60' }, { objetivo: '8', kg: '65' }, { objetivo: '6', kg: '' }], descanso: "2'-3'", rir: '2-1', nota: 'Bajar lento', progresion: 'Sumar 2,5 kg por semana' })])]))[0].exercises[0];
