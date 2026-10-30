@@ -100,6 +100,9 @@ update public.ia_config set aviso_version = 2 where id = 1 and aviso_version < 2
 -- Comida por voz: la versión del aviso que ya dice que también se manda lo que la persona cuenta
 -- (la 3). Va aparte de aviso_version, que se queda en 2: las apps de antes mandan la versión que
 -- les da el servidor y, si fuera la 3, guardarían «aceptó la 3» después de mostrar el texto de la 2.
+-- Los dos números van en una sola cuenta (el aviso más nuevo explica la foto y la voz): si cambia
+-- el texto de cualquiera de los dos, el nuevo lleva un número más alto que los dos (de la 4 en
+-- adelante), nunca uno que ya se usó.
 -- La primera vez que se corre (cuando se agrega la columna) también apaga «texto»: en la base de
 -- verdad puede seguir prendido desde el viejo «Contame qué comiste» y el panel ya no tiene ese
 -- interruptor. Correrlo de nuevo no lo apaga (si el dueño ya prendió la voz, sigue prendida).
