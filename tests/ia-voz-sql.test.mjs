@@ -13,7 +13,8 @@
 //      sin preguntar), que la app no puede llamar; no toca el permiso del coach (ni al revés); si
 //      algún día el aviso de la foto pasa al de la voz, la voz pide el más nuevo;
 //    - ia_mi_estado trae permiso_texto y aviso_texto (también apagada);
-//    - el tope de la voz: 15 por día (la 16.ª no), también con IA Plus.
+//    - el tope de la voz: 15 por día (la 16.ª no), también con IA Plus; no cuenta en las fotos gratis
+//      de la semana y, sin fotos gratis, la voz sigue (quedan.texto e ia_reservar).
 import { conPg, leer } from './pg.mjs';
 import { ayudas, conCanon } from './gimnasios-comun.mjs';
 
@@ -114,6 +115,17 @@ export default async function ({ t: t0 }){
   t.eq(de(r[2], 'activa', 'funciones', 'permiso_texto', 'aviso_texto', 'estado', 'quedan', 'tope'), { activa: true, funciones: { plato: true, texto: true }, permiso_texto: null, aviso_texto: 3,
     estado: 'normal', quedan: { plato: 8, texto: 15 }, tope: { plato: 8, texto: 15, total: 25 } }, 'prendida: la voz con 15 por día');
   t.eq(r[4] && r[4].funciones, { plato: true, texto: false }, 'la voz con su interruptor');
+
+  // Sin fotos gratis en la semana (IA Plus prendido), la voz sigue: 15 por día y la 16.ª no; y no
+  // cuenta en la semana.
+  r = await V([['postgres', PRENDER + `; update public.ia_config set plus = plus || '{"activa": true}' where id = 1`],
+    ['servicio', varias(U.AL, 'plato', 4)], est(U.AL), ['servicio', varias(U.AL, 'texto', 15)], ['servicio', res(U.AL, 'texto')], est(U.AL)]);
+  t.eq(r[1], ['ok', 'ok', 'ok', 'tope_semana'], 'IA Plus prendido: 3 fotos gratis por semana');
+  t.eq(de(r[2], 'estado', 'quedan', 'plus.quedan_semana'), { estado: 'tope_semana', quedan: { plato: 0, texto: 15 }, 'plus.quedan_semana': 0 },
+    'sin fotos gratis: a la voz le quedan sus 15 de hoy');
+  t.eq([r[3] && r[3].every(x => x === 'ok'), cod(r[4]), r[4] && r[4].tope], [true, 'tope_dia', 15], 'la voz anda sin fotos gratis: 15 por día y la 16.ª no');
+  t.eq(de(r[5], 'quedan', 'usados', 'plus.usados_semana'), { quedan: { plato: 0, texto: 0 }, usados: { plato: 3, texto: 15, total: 18 }, 'plus.usados_semana': 3 },
+    'la voz no cuenta en las fotos gratis de la semana');
 
   // Con IA Plus comprado: más fotos por día, pero la voz sigue con 15.
   r = await V([['postgres', PRENDER + `; update public.ia_config set plus = plus || '{"activa": true}' where id = 1`], ['servicio', varias(U.PL, 'texto', 16)], est(U.PL)]);

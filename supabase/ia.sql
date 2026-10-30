@@ -1180,9 +1180,10 @@ grant execute on function public.admin_ia_plus_quitar(uuid) to authenticated;
 --     vuelve, quedan: { plato, texto }, tope: { plato, texto, total }, usados: { plato, texto, total },
 --     por_gimnasio (true: usa los topes de coach por ser profe de un gimnasio, ver ia_rol_origen),
 --     plus: ia_plus_info() }
--- Con IA Plus prendido y sin IA Plus, «quedan» también mira las fotos gratis de la semana y, si no
--- queda ninguna, estado = 'tope_semana' (vuelve: el lunes que viene). Con IA Plus (ia_plus_rige),
--- el tope de fotos por día y el de US$ del ciclo son los de topes.plus si son más (como ia_reservar).
+-- Con IA Plus prendido y sin IA Plus, «quedan.plato» también mira las fotos gratis de la semana y,
+-- si no queda ninguna, estado = 'tope_semana' (vuelve: el lunes que viene; es solo para la foto: la
+-- voz no tiene límite semanal). Con IA Plus (ia_plus_rige), el tope de fotos por día y el de US$ del
+-- ciclo son los de topes.plus si son más (como ia_reservar); el de la voz no cambia.
 -- Una función está prendida para la app solo con el interruptor general, la de la función y la
 -- fecha de los créditos cargada (sin eso la función nunca llama a la IA): si no, la app no
 -- muestra nada nuevo. «quedan»: cuántos usos le quedan hoy a la persona (por función y en total).
@@ -1238,7 +1239,8 @@ begin
     select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = v_uid and l.rol = v_rol;
     if v_mio >= v_usd then v_estado := 'tope_persona'; v_vuelve := v_fin; end if;
   end if;
-  -- Fotos gratis de la semana (IA Plus prendido y sin IA Plus): lo mismo que mira ia_reservar.
+  -- Fotos gratis de la semana (IA Plus prendido y sin IA Plus): lo mismo que mira ia_reservar. Solo
+  -- la foto: la voz no tiene límite semanal (sigue andando aunque se terminen las fotos).
   if (v_plus ->> 'activa')::boolean and v_plus ->> 'estado' = 'gratis' and v_rol = 'alumno' then
     v_qs := (v_plus ->> 'quedan_semana')::int;
     if v_qs <= 0 and v_estado = 'normal' then v_estado := 'tope_semana'; v_vuelve := (v_plus ->> 'semana_vuelve')::timestamptz; end if;
@@ -1247,7 +1249,7 @@ begin
     'permiso_comida', public.ia_permiso_estado(v_uid), 'aviso_version', coalesce(v_cfg.aviso_version, 1),
     'permiso_texto', public.ia_permiso_texto(v_uid), 'aviso_texto', v_avt,
     'estado', v_estado, 'vuelve', v_vuelve, 'manana', v_hoy0 + interval '1 day',
-    'quedan', jsonb_build_object('plato', greatest(0, least(v_tp - v_np, v_tot - v_n, coalesce(v_qs, v_tot))), 'texto', greatest(0, least(v_tt - v_nt, v_tot - v_n, coalesce(v_qs, v_tot)))),
+    'quedan', jsonb_build_object('plato', greatest(0, least(v_tp - v_np, v_tot - v_n, coalesce(v_qs, v_tot))), 'texto', greatest(0, least(v_tt - v_nt, v_tot - v_n))),
     'tope', jsonb_build_object('plato', v_tp, 'texto', v_tt, 'total', v_tot),
     'usados', jsonb_build_object('plato', v_np, 'texto', v_nt, 'total', v_n), 'plus', v_plus,
     'por_gimnasio', v_origen = 'gimnasio');
