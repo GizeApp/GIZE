@@ -14,8 +14,13 @@
 // - Una invitación de más de 7 días se ignora. Al cerrar sesión se borra; si entra otra cuenta en el
 //   dispositivo, la de un link recién abierto queda (es de quien entra) y una vieja se borra.
 // - Con la app abierta, abrir el link en la misma pestaña muestra la hoja ahí mismo.
+// - La política de privacidad dice que siempre se pregunta antes y qué queda en el dispositivo.
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { newPage, wait, text, ALUMNO, onbPaso } from './lib.mjs';
 
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COACH_ID = '33333333-3333-3333-3333-333333333333';
 const OTRO_COACH = '44444444-4444-4444-4444-444444444444';
 const FOTO = COACH_ID + '/1700000000000.jpg';
@@ -244,5 +249,15 @@ export default async function ({ base, t }){
     });
     t.eq(r, null, 'cerrar sesión: borra la invitación');
     await pg.close();
+  }
+
+  // ---- La política de privacidad ----
+  {
+    const html = fs.readFileSync(path.join(ROOT, 'privacidad/index.html'), 'utf8');
+    const i = html.indexOf('<h2 id="pagina-coach">'), j = html.indexOf('<h2', i + 5);
+    const sec = html.slice(i, j).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    for (const frase of ['Si abrís su link en GIZE, la app siempre te pregunta antes de sumarte',
+      'el nombre del link queda guardado solo en tu dispositivo, hasta 7 días o hasta que cierres sesión', 'en GIZE no queda anotado que lo abriste'])
+      t.has(sec, frase, 'la política dice: ' + frase);
   }
 }
