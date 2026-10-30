@@ -585,8 +585,9 @@ async function loadCoaches(){
     userTabs("coaches") + '<div id="cSoon"></div>' + block("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>') +
     block("cCodB", "Códigos de fundador", '<div id="cCod" class="empty">Cargando…</div>') +
     block("cCobB", "Cobros de los coaches", '<div id="cCob" class="empty">Cargando…</div>') +
-    block("cPagB", "Páginas de coaches", '<div id="cPag" class="empty">Cargando…</div>'));
-  loadCodigos(); loadCobrosAdmin(); loadPaginasCoach();
+    block("cPagB", "Páginas de coaches", '<div id="cPag" class="empty">Cargando…</div>') +
+    block("cGpB", "Cobro con Google Play", '<div id="cGp" class="empty">Cargando…</div>'));
+  loadCodigos(); loadCobrosAdmin(); loadPaginasCoach(); loadComprasGoogle();
   const box = document.getElementById("cList");
   try { S.coaches = await rpc("admin_coaches"); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.coaches.length){ box.textContent = "Todavía no hay coaches."; return; }
@@ -746,6 +747,115 @@ async function pagAccion(btn){
   try { await rpc("admin_coach_pagina", { p_coach: g.coach, p_accion: btn.dataset.v }); }
   catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   toast(acc.hecho); loadPaginasCoach();
+}
+
+// Cobro con Google Play (supabase/compras-google.sql y la función compras-google): en la app de
+// Android los planes de coach e IA Plus se venden con Google Play, cada uno con su interruptor de
+// tres estados (admin_compras_google, vale al instante y sin sacar otra versión): apagado, solo las
+// cuentas marcadas como de prueba o todos. Nace apagado. Para no prenderlo a ciegas se ve si la clave
+// de Google anda (compras-google { accion: "salud" }), el último aviso que mandó Google Play y el
+// último error de permisos (app_config «compras_google_estado»), cuántas suscripciones hay y las
+// compras de los últimos 60 días. Si Google no confirma una compra en 3 días, devuelve la plata.
+const GP_PROD = [
+  { k: "planes", nombre: "Planes de coach", en: "los planes de coach" },
+  { k: "plus", nombre: "IA Plus", en: "IA Plus" }];
+const GP_VAL = { apagado: "Apagado", prueba: "Solo cuentas de prueba", todos: "Todos" };
+const gpVal = (cfg, k) => GP_VAL[cfg && cfg[k]] ? cfg[k] : "apagado";
+const GP_ESTADO = { activa: "Activa", gracia: "En gracia (Google reintenta el cobro)", espera: "En espera (no se pudo cobrar)", pausada: "Pausada", cancelada: "Cancelada (no se renueva)",
+  vencida: "Vencida", pendiente: "Pago pendiente", pendiente_cancelada: "Pago pendiente cancelado" };
+const gpProducto = id => { const m = /^ar\.com\.gize\.app\.coach\.(p\d+)$/.exec(id || ""); return id === "ar.com.gize.app.iaplus.mensual" ? "IA Plus" : m ? planTxt(m[1]) : (id || "—"); };
+// «hoy 14:05», «ayer 9:30» o la fecha.
+function gpCuando(d){
+  if (!d) return "—";
+  const t = new Date(d), hh = t.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false }), dias = Math.round((diaAR(Date.now()) - diaAR(t.getTime())) / 864e5);
+  return dias === 0 ? "hoy " + hh : dias === 1 ? "ayer " + hh : fmtDT(d);
+}
+// Cómo quedó en el registro de acciones: «Planes de coach: Todos · IA Plus: Apagado».
+const gpLog = d => d && d.ahora ? GP_PROD.map(x => x.nombre + ": " + GP_VAL[gpVal(d.ahora, x.k)]).join(" · ") : "";
+// ¿Anda la clave? null mientras se pregunta.
+const gpClaveOk = () => !!(S.gpSalud && S.gpSalud.clave && S.gpSalud.acceso);
+async function loadComprasGoogle(){
+  let d = null, err = null;
+  S.gpSalud = null;
+  try { d = await rpc("admin_compras_google"); } catch (e) { err = e; }
+  if (S.view !== "coaches") return;
+  S.gplay = d && typeof d === "object" && !Array.isArray(d) ? d : null;
+  if (S.gplay){ paintComprasGoogle(); return gpSalud(); }
+  const box = document.getElementById("cGp"); if (!box) return;
+  const falta = err && (err.code === "PGRST202" || /admin_compras_google|schema cache|does not exist/i.test(errMsg(err)));
+  box.innerHTML = falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/compras-google.sql</b> (antes, de nuevo <b>supabase/ia.sql</b>). Nace apagado."
+    : esc(err ? errMsg(err) : "No se pudo leer cómo está el cobro con Google Play. Recargá la página.");
+}
+// La función le pregunta a Google si con la clave (secret GOOGLE_PLAY_SA) le da el acceso.
+async function gpSalud(){
+  let s;
+  try {
+    const r = await sb.functions.invoke("compras-google", { body: { accion: "salud" } });
+    if (r.error){
+      const ctx = r.error.context; let j = null;
+      try { j = ctx && typeof ctx.json === "function" ? await ctx.json() : null; } catch (e) {}
+      s = { error: j && j.error ? j.error : ctx && ctx.status === 404 ? "La función compras-google todavía no está publicada: en GitHub, Actions → Supabase → tarea «funciones»." : "No se pudo preguntar. Recargá la página." };
+    } else s = r.data && typeof r.data === "object" && "clave" in r.data ? { clave: !!r.data.clave, acceso: !!r.data.acceso } : { error: "La función no contestó cómo está la clave." };
+  } catch (e) { s = { error: "Sin conexión. Recargá la página." }; }
+  if (S.view !== "coaches") return;
+  S.gpSalud = s; paintComprasGoogle();
+}
+function gpSaludTxt(){
+  const s = S.gpSalud;
+  if (!s) return '<span class="muted">Revisando…</span>';
+  if (s.error) return `<span class="ia-warn">No se sabe.</span> <span class="muted small">${esc(s.error)}</span>`;
+  if (!s.clave) return '<span class="t-bad">falta</span> <span class="muted small">Cargá el JSON de la cuenta de servicio como secret <b>GOOGLE_PLAY_SA</b> en Supabase (Edge Functions → Secrets). Sin la clave no se puede confirmar ninguna compra.</span>';
+  if (!s.acceso) return '<span class="t-bad">está, pero Google no da el acceso</span> <span class="muted small">Revisá la cuenta de servicio en Play Console → Usuarios y permisos (los permisos pueden tardar hasta un día).</span>';
+  return '<span class="t-ok">anda</span>';
+}
+// foco: el selector que se acaba de tocar (la tarjeta se vuelve a dibujar y el foco vuelve ahí).
+function paintComprasGoogle(foco){
+  const box = document.getElementById("cGp"), d = S.gplay; if (!box || !d) return;
+  const cfg = d.config || {}, est = d.estado && typeof d.estado === "object" ? d.estado : {}, r = d.resumen || {}, lista = Array.isArray(d.lista) ? d.lista : [];
+  const ayuda = k => ({ apagado: "No se vende con Google Play: en Android se ve como hoy.", prueba: "Solo las cuentas marcadas como de prueba (Usuarios → la cuenta → Cuenta de prueba).",
+    todos: "Cualquiera en la app de Android." })[k];
+  const sels = `<div class="ia-funs">${GP_PROD.map(x => { const v = gpVal(cfg, x.k); return `<div class="ia-fun"><div>${x.nombre}<small>${ayuda(v)}</small></div>
+      <select class="in gp-sel" data-gp="${x.k}" aria-label="${x.nombre} con Google Play">${Object.keys(GP_VAL).map(o => `<option value="${o}"${o === v ? " selected" : ""}>${GP_VAL[o]}</option>`).join("")}</select></div>`; }).join("")}</div>`;
+  const aviso = est.aviso_at ? gpCuando(est.aviso_at) + (est.tipo === "prueba" ? " (mensaje de prueba)" : est.tipo === "anulada" ? " (compra anulada)" : "")
+    : '<span class="muted">todavía ninguno</span> <span class="muted small">Play Console → Monetización → Configuración de monetización → Notificaciones en tiempo real → «Enviar mensaje de prueba».</span>';
+  const error = est.error_at
+    ? `<div class="small ia-warn">Último error: ${est.error === "permiso" ? "Google no dio permiso para leer las compras" : esc(String(est.error || "sin detalle"))} (${gpCuando(est.error_at)}). Revisá la cuenta de servicio en Play Console → Usuarios y permisos.</div>` : "";
+  const salud = `<div class="gp-salud"><div>Clave de Google: ${gpSaludTxt()}</div><div>Último aviso de Google Play: ${aviso}</div>${error}</div>`;
+  const k = (n, l, s) => `<div class="kpi"><b>${n0(n)}</b><span>${l}</span><small>${s}</small></div>`;
+  const nums = `<div class="grid kpis">${k(r.activas, "Activas", "Planes e IA Plus que hoy cubren.")}${k(r.renuevan, "Se renuevan", "Google las cobra solas cada mes.")}${k(r.prueba, "De prueba", "Cuentas de licencias de Google: no pagan.")}</div>`;
+  const filas = lista.map(x => `<tr><td>${esc(x.nombre || "Sin nombre")}${x.prueba ? ' <span class="pill">Prueba</span>' : ""}<div class="muted small">${esc(x.email || "")}</div></td>
+      <td>${esc(gpProducto(x.producto))}</td>
+      <td>${esc(GP_ESTADO[x.estado] || x.estado || "—")}${x.revocada ? '<div class="small t-bad">Reembolsada o anulada</div>' : ""}${x.reemplazada ? '<div class="muted small">Reemplazada por otra</div>' : ""}${x.renueva && !x.revocada && !x.reemplazada ? '<div class="muted small">Se renueva</div>' : ""}${x.reconocida === false && x.estado !== "pendiente" ? '<div class="small ia-warn">Sin confirmar a Google</div>' : ""}</td>
+      <td>${x.hasta ? fmtD(x.hasta) : "—"}</td></tr>`).join("");
+  const tabla = `<div class="lbl">Compras de los últimos 60 días</div>` + (filas ? `<div class="tscroll"><table class="table"><thead><tr><th>Cuenta</th><th>Plan</th><th>Estado</th><th>Hasta</th></tr></thead><tbody>${filas}</tbody></table></div>`
+    : '<div class="calm">Todavía ninguna.</div>');
+  box.className = "";
+  box.innerHTML = `<div class="sec-s">En la app de Android, los planes de coach e IA Plus se venden con Google Play, cada uno por separado. Cada cambio vale al instante y sin sacar otra versión. El camino: «Solo cuentas de prueba» con tu cuenta marcada como de prueba (y su Gmail en los testers de licencias de Play Console), probar, publicar la versión en Producción y recién ahí «Todos». Los reembolsos se hacen desde Play Console: GIZE se entera solo y corta el plan.</div>`
+    + sels + salud + nums + tabla;
+  const on = GP_PROD.filter(x => gpVal(cfg, x.k) !== "apagado");
+  setSum("cGpB", (on.length ? on.map(x => x.nombre + ": " + (gpVal(cfg, x.k) === "todos" ? '<span class="t-ok">todos</span>' : "solo prueba")).join(" · ") : "apagado") + (num(r.activas) ? " · " + n0(r.activas) + (num(r.activas) === 1 ? " activa" : " activas") : ""));
+  if (foco){ const el = box.querySelector(foco); if (el) try { el.focus({ preventScroll: true }); } catch (e) {} }
+}
+// Cambiar el interruptor de planes o de IA Plus. Pasar a «Todos» pregunta antes (y avisa si la clave
+// no anda: sin ella las compras no se confirman y Google devuelve la plata a los 3 días).
+async function gpCambiar(sel){
+  const d = S.gplay, x = GP_PROD.find(y => y.k === sel.dataset.gp); if (!d || !x) return;
+  const antes = gpVal(d.config, x.k), v = sel.value;
+  if (!GP_VAL[v] || v === antes) return;
+  const sinClave = !gpClaveOk();
+  if (v === "todos"){
+    const msg = "¿Vender " + x.en + " con Google Play a todos en la app de Android? Se ve al instante, sin sacar otra versión."
+      + (sinClave ? "\n\nOjo: la clave de Google " + (S.gpSalud && S.gpSalud.clave === false ? "falta" : "no anda (o no se pudo revisar)") + ". Sin ella GIZE no puede confirmar las compras y Google devuelve la plata a los 3 días." : "")
+      + "\n\nAntes, fijate que la versión con Google Play esté publicada en Producción y que la hayas probado con «Solo cuentas de prueba».";
+    if (!await confirmar(msg, { titulo: "Cobro con Google Play", ok: "Prender para todos" })){ sel.value = antes; return; }
+  }
+  sel.disabled = true;
+  try {
+    const r = await rpc("admin_compras_google", { p: { [x.k]: v } });
+    if (r && typeof r === "object" && !Array.isArray(r)) S.gplay = r; else d.config = Object.assign({}, d.config, { [x.k]: v });
+    toast(x.nombre + " con Google Play: " + GP_VAL[v].toLowerCase() + (v !== "apagado" && sinClave ? " (ojo: la clave de Google no anda)" : ""));
+  } catch (e) { sel.disabled = false; sel.value = antes; return toast(errMsg(e)); }
+  paintComprasGoogle('[data-gp="' + x.k + '"]');
 }
 
 // Vencimientos: a quién escribirle. Pago o prueba que vence en los próximos 7 días, y los
@@ -1970,7 +2080,7 @@ function paintIA(foco){
   if (foco){ const el = document.querySelector(foco); if (el) try { el.focus({ preventScroll: true }); } catch (e) {} }
 }
 // IA Plus (supabase/ia.sql → ia_plus, app/ui/ia-plus.js): el interruptor, el precio de la web en
-// pesos ($3.900 de entrada; sin precio confirmado no se prende), las fotos gratis por semana, cuántos lo tienen y, para
+// pesos ($3.900 de entrada; sin precio confirmado no se prende), las fotos gratis por semana, cuántos lo tienen (Mercado Pago, Apple, Google Play o a mano) y, para
 // soporte, darlo o sacarlo a mano. Apagado: no hay límite semanal y no se vende nada.
 // ¿Está prendida la IA de Comida? (sin eso, IA Plus no se prende ni se ofrece)
 const iaComidaOn = ia => !!(ia && ia.activa && ia.funciones && ia.funciones.plato);
@@ -1979,24 +2089,26 @@ function iaPlusBlock(){
   if (!ia.plus) return block("iaPlusB", "IA Plus", '<div class="calm">Falta preparar la base: correr de nuevo <b>supabase/ia.sql</b> con el workflow «Supabase» (tarea sql).</div>');
   const frenos = num(((ia.ciclo && ia.ciclo.frenos) || {}).tope_semana);
   const tp = (ia.topes && ia.topes.plus) || {};
-  const sw = `<div class="ia-master"><div><b>IA Plus</b><small>${pl.activa ? "Prendido: la foto del plato es gratis hasta " + n0(pl.gratis_semana) + " fotos por semana; con IA Plus, sin límite semanal: hasta " + n0(tp.plato != null ? tp.plato : 10) + " fotos por día y " + usd(tp.usd_ciclo != null ? tp.usd_ciclo : 1.5) + " por persona por ciclo. Se vende en la web con Mercado Pago y en el iPhone con Apple; en Android, no." : "Apagado: no hay límite semanal (como hasta ahora) y no se vende nada."}</small></div>
+  const sw = `<div class="ia-master"><div><b>IA Plus</b><small>${pl.activa ? "Prendido: la foto del plato es gratis hasta " + n0(pl.gratis_semana) + " fotos por semana; con IA Plus, sin límite semanal: hasta " + n0(tp.plato != null ? tp.plato : 10) + " fotos por día y " + usd(tp.usd_ciclo != null ? tp.usd_ciclo : 1.5) + " por persona por ciclo. Se vende en la web con Mercado Pago, en el iPhone con Apple y en Android con Google Play (solo si su cobro está prendido en Coaches y pagos → Cobro con Google Play)." : "Apagado: no hay límite semanal (como hasta ahora) y no se vende nada."}</small></div>
     <button class="tgl" role="switch" aria-checked="${pl.activa ? "true" : "false"}" aria-label="IA Plus" data-a="iaPlusOn"></button></div>
     ${iaComidaOn(ia) ? "" : `<div class="small ia-warn">La IA de Comida está apagada (o sin la foto del plato): ${pl.activa ? "la app no ofrece IA Plus hasta que la prendas; quien ya lo tiene lo puede cancelar en Ajustes." : "IA Plus no se puede prender hasta que la prendas."}</div>`}`;
   const precio = `<label class="lbl" for="iaPlusPrecio">Precio por mes en la web (pesos, con Mercado Pago)</label>
     <div class="search"><input class="in" id="iaPlusPrecio" inputmode="numeric" value="${esc(pl.precio_ars || "")}"><button class="btn" data-a="iaPlusPrecio">Guardar precio</button></div>
     ${pl.precio_confirmado ? '<div class="muted small">Lo nuevo vale para las suscripciones que se hagan desde ahora; las que ya están siguen con su precio.</div>' : '<div class="small ia-warn">Precio provisorio (' + money(pl.precio_ars) + '): confirmalo con «Guardar precio» antes de prender IA Plus.</div>'}
-    <div class="muted small">En el iPhone el precio lo pone Apple (App Store Connect, el más cercano a US$2,99).</div>`;
+    <div class="muted small">En el iPhone el precio lo pone Apple (App Store Connect, el más cercano a US$2,99) y en Android, Google (Play Console, US$2,99).</div>`;
   const gratis = `<label class="lbl" for="iaPlusGratis">Fotos gratis por semana (solo fotos del plato; la semana arranca el lunes a las 00:00)</label>
     <div class="search"><input class="in" id="iaPlusGratis" inputmode="numeric" value="${esc(pl.gratis_semana != null ? pl.gratis_semana : 3)}"><button class="btn" data-a="iaPlusGratis">Guardar</button></div>`;
-  // Compras de prueba de Apple (Sandbox): IA Plus solo para estas cuentas (si no, cualquier tester de
-  // TestFlight lo tendría gratis). Va la cuenta demo de la revisión de Apple.
-  const sandbox = `<label class="lbl" for="iaPlusSandbox">Compras de prueba de Apple (TestFlight y la revisión de Apple): solo estas cuentas reciben IA Plus. Mails separados por coma.</label>
+  // Compras de prueba de Apple (Sandbox) y de Google Play (testers de licencias, que no pagan): IA Plus
+  // solo para estas cuentas (si no, cualquier tester de TestFlight o de Play Console lo tendría
+  // gratis). Va la cuenta demo de la revisión de Apple. La misma lista vale para las dos tiendas.
+  const sandbox = `<label class="lbl" for="iaPlusSandbox">Compras de prueba de Apple y Google Play (TestFlight, la revisión de Apple y los testers de licencias de Play Console): solo estas cuentas reciben IA Plus. Mails separados por coma.</label>
     <div class="search"><input class="in" id="iaPlusSandbox" type="text" autocomplete="off" value="${esc((Array.isArray(pl.sandbox) ? pl.sandbox : []).join(", "))}" placeholder="cuenta-demo@ejemplo.com"><button class="btn" data-a="iaPlusSandbox">Guardar</button></div>`;
-  const kpis = `<div class="grid kpis"><div class="kpi"><b>${n0(r.activos)}</b><span>Con IA Plus</span><small>${n0(r.mp)} Mercado Pago · ${n0(r.apple)} Apple · ${n0(r.manual)} a mano</small></div>
+  const kpis = `<div class="grid kpis"><div class="kpi"><b>${n0(r.activos)}</b><span>Con IA Plus</span><small>${n0(r.mp)} Mercado Pago · ${n0(r.apple)} Apple · ${n0(r.google)} Google Play · ${n0(r.manual)} a mano</small></div>
     <div class="kpi"><b>${n0(r.renuevan)}</b><span>Se renuevan</span><small>${n0(r.arrepentidos)} arrepentimiento${num(r.arrepentidos) === 1 ? "" : "s"}</small></div>
     <div class="kpi"><b>${n0(frenos)}</b><span>Llegaron al límite semanal</span><small>en este ciclo</small></div></div>`;
   const de = x => [x.mp_hasta && new Date(x.mp_hasta) > new Date() ? "Mercado Pago" + (x.mp_status === "authorized" ? "" : " (cancelada)") : "",
     x.apple_vence && new Date(x.apple_vence) > new Date() ? "Apple" + (x.apple_renueva ? "" : " (no se renueva)") : "",
+    x.google_vence && new Date(x.google_vence) > new Date() ? "Google Play" + (x.google_renueva ? "" : " (no se renueva)") : "",
     x.manual_hasta && new Date(x.manual_hasta) > new Date() ? "A mano" + (x.manual_nota ? ": " + x.manual_nota : "") : ""].filter(Boolean).join(" · ") || (x.arrepentido_at ? "Se arrepintió" : x.pagando ? "Pagando con Mercado Pago (sin cobrar)" : "Vencido");
   // Quien se arrepintió más de una vez (se ve siempre en la lista): para revisar a mano.
   const arrep = x => num(x.arrepentimientos) >= 2 ? `<div class="small ia-warn">Se arrepintió ${n0(x.arrepentimientos)} veces</div>` : "";
@@ -2006,7 +2118,7 @@ function iaPlusBlock(){
   const dar = `<label class="lbl" for="iaPlusMail">Dar IA Plus a mano (soporte): mail de la cuenta, hasta qué día y una nota</label>
     <div class="search"><input class="in" id="iaPlusMail" type="email" placeholder="mail@ejemplo.com"><input class="in" id="iaPlusHasta" type="date" min="${isoDay(new Date())}" value="${isoDay(new Date(Date.now() + 30 * 864e5))}" aria-label="Hasta"></div>
     <div class="search"><input class="in" id="iaPlusNota" maxlength="200" placeholder="Nota (opcional), ej: se le cortó el pago"><button class="btn blue" data-a="iaPlusDar">Dar IA Plus</button></div>
-    <div class="muted small">Lo pagado con Mercado Pago o con Apple no se toca desde acá: se cancela por el mismo medio.</div>`;
+    <div class="muted small">Lo pagado con Mercado Pago, con Apple o con Google Play no se toca desde acá: se cancela por el mismo medio (los reembolsos de Google Play, desde Play Console).</div>`;
   // Botón de arrepentimiento y de baja sin sesión (gize.ar/baja/): los pedidos, para hacerlos a mano.
   const ped = S.pedidosBaja, sinAtender = (ped || []).filter(x => !x.atendido_at).length;
   const pfilas = (ped || []).map(x => `<tr><td>${fmtDT(x.created_at)}<div class="muted small">${esc(x.codigo)}</div></td><td>${x.tipo === "arrepentimiento" ? "Arrepentimiento" : "Baja"} · ${x.servicio === "iaplus" ? "IA Plus" : "Plan de coach"}</td>
@@ -2261,9 +2373,9 @@ async function loadSeguridad(){
     objetivo_nuevo: "Agregó un objetivo", objetivo: "Cambió un objetivo", objetivo_borrar: "Borró un objetivo",
     tarea_nueva: "Agregó una tarea", tarea: "Cambió una tarea", tarea_hecha: "Marcó una tarea como hecha", tarea_deshacer: "Volvió a abrir una tarea", tarea_borrar: "Borró una tarea",
     gym_convertir: "Convirtió una cuenta en gimnasio", gym_transferir: "Transfirió un gimnasio", gym_cerrar: "Cerró un gimnasio", gym_profes_extra: "Cambió el tope de profes de un gimnasio",
-    gym_auditoria: "Exportó la auditoría de un gimnasio", seats_drift: "Diferencia en el cupo (tarea diaria)", resumen_semanal: "Cambió el resumen de los lunes", cobros: "Cambió Cobros de los coaches" }[a.action] || a.action);
+    gym_auditoria: "Exportó la auditoría de un gimnasio", seats_drift: "Diferencia en el cupo (tarea diaria)", resumen_semanal: "Cambió el resumen de los lunes", cobros: "Cambió Cobros de los coaches", compras_google: "Cambió el cobro con Google Play" }[a.action] || a.action);
   const goalTxt = d => d ? (d.label || (METRICS[d.metric] || [d.metric])[0]) + (d.target != null ? " · meta " + (METRICS[d.metric] || [, n0])[1](d.target) : "") : "";
-  const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : a.action === "resumen_semanal" ? resLog(a.detail) : a.action === "cobros" ? cobLog(a.detail) : a.action === "pagina_coach" ? (a.target_name ? a.target_name + " · " : "") + "gize.ar/c/" + ((a.detail || {}).alias || "") : (a.target_name || "");
+  const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : a.action === "resumen_semanal" ? resLog(a.detail) : a.action === "cobros" ? cobLog(a.detail) : a.action === "compras_google" ? gpLog(a.detail) : a.action === "pagina_coach" ? (a.target_name ? a.target_name + " · " : "") + "gize.ar/c/" + ((a.detail || {}).alias || "") : (a.target_name || "");
   setSum("sAudB", "última: " + esc(what(S.audit[0])).toLowerCase() + " · " + ago(S.audit[0].created_at));
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Sobre</th></tr></thead><tbody>${S.audit.map(a => `<tr><td class="muted">${fmtDT(a.created_at)}</td><td>${esc(a.admin_name || "—")}</td><td>${esc(what(a))}</td><td class="muted">${esc(extra(a) || "")}</td></tr>`).join("")}</tbody></table>`;
@@ -2285,7 +2397,9 @@ document.addEventListener("input", e => {
   if (e.target.dataset && e.target.dataset.fs && S.fin) finField(e.target);
 });
 // Convertir en gimnasio: otra cuenta vuelve a cargar sus alumnos; «Todos» marca o desmarca a todos.
+// Cobro con Google Play: cada selector cambia su interruptor.
 document.addEventListener("change", e => {
+  if (e.target.dataset && e.target.dataset.gp) gpCambiar(e.target);
   if (e.target.id === "gcCoach") openConvertir(e.target.value);
   if (e.target.id === "gcTodos") document.querySelectorAll("#gcAl [data-gc]").forEach(i => { i.checked = e.target.checked; });
   if (e.target.dataset && e.target.dataset.gc){ const t = document.getElementById("gcTodos"), all = [...document.querySelectorAll("#gcAl [data-gc]")];
@@ -2441,7 +2555,7 @@ document.addEventListener("click", async e => {
     if (a === "iaPlusOn"){
       const on = b.getAttribute("aria-checked") !== "true", pl = (S.ia && S.ia.plus) || {};
       if (on && !iaComidaOn(S.ia)) return toast("Antes de prender IA Plus, prendé la IA y la foto del plato.");
-      if (on && !await confirmar(`¿Prender IA Plus? Desde ahora, la foto del plato es gratis hasta ${n0(pl.gratis_semana)} fotos por semana, y se ofrece IA Plus (hasta ${n0(((S.ia.topes || {}).plus || {}).plato || 10)} fotos por día): en la web por ${money(pl.precio_ars)} al mes con Mercado Pago y en el iPhone con Apple (si el producto ya está aprobado en App Store Connect).`, { titulo: "Prender IA Plus", ok: "Prender" })) return;
+      if (on && !await confirmar(`¿Prender IA Plus? Desde ahora, la foto del plato es gratis hasta ${n0(pl.gratis_semana)} fotos por semana, y se ofrece IA Plus (hasta ${n0(((S.ia.topes || {}).plus || {}).plato || 10)} fotos por día): en la web por ${money(pl.precio_ars)} al mes con Mercado Pago, en el iPhone con Apple (si el producto ya está aprobado en App Store Connect) y en Android con Google Play (si su cobro está prendido en Coaches y pagos).`, { titulo: "Prender IA Plus", ok: "Prender" })) return;
       iaPlusGuardar(b, { activa: on }, on ? "IA Plus prendido" : "IA Plus apagado"); return;
     }
     if (a === "iaPlusPrecio"){ const v = parseInt(String(document.getElementById("iaPlusPrecio").value).replace(/[^0-9]/g, ""), 10); if (!(v >= 100)) return toast("Poné el precio en pesos, sin centavos."); iaPlusGuardar(b, { precio_ars: v }, "Precio guardado ✓"); return; }
@@ -2462,7 +2576,7 @@ document.addEventListener("click", async e => {
       if (!hasta) return toast("Elegí hasta qué día.");
       iaPlusLista(b, "admin_ia_plus_dar", { p_email: mail, p_hasta: hasta, p_nota: nota || null }, "IA Plus dado ✓"); return;
     }
-    if (a === "iaPlusQuitar"){ if (!await confirmar("¿Sacarle el IA Plus dado a mano? Lo pagado con Mercado Pago o Apple sigue.", { titulo: "Sacar IA Plus", ok: "Sacar" })) return; iaPlusLista(b, "admin_ia_plus_quitar", { p_uid: b.dataset.id }, "Listo ✓"); return; }
+    if (a === "iaPlusQuitar"){ if (!await confirmar("¿Sacarle el IA Plus dado a mano? Lo pagado con Mercado Pago, Apple o Google Play sigue.", { titulo: "Sacar IA Plus", ok: "Sacar" })) return; iaPlusLista(b, "admin_ia_plus_quitar", { p_uid: b.dataset.id }, "Listo ✓"); return; }
     if (a === "psave"){ saveProd(b); return; }
     if (a === "pdel"){ deleteProd(b); return; }
     if (a === "pfind"){ const q = document.getElementById("pQ"); S.prodQ = q ? q.value.trim() : ""; loadProductos(); return; }
