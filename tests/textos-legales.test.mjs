@@ -1,5 +1,6 @@
 // Textos legales y de cumplimiento: en las apps de Android y iPhone ningún link lleva a la
-// página de inicio ni a la página para coaches (tienen los precios y el botón para contratar),
+// página de inicio ni a la página para coaches (tienen los precios y el botón para contratar), y en
+// la de iPhone tampoco a la página pública de un coach (gize.ar/c/…: tiene el botón de Google Play),
 // el link legal dice lo que abre (la política de privacidad, también para el coach), y los
 // avisos de «Borrar datos de este dispositivo» y de eliminar la cuenta de coach dicen la
 // verdad. Además, ni la página de inicio ni el mail de registro ni los permisos del iPhone
@@ -19,11 +20,15 @@ const links = p => p.evaluate(() => [...document.querySelectorAll('#view a, #coa
 // La página de inicio: gize.ar/ (con o sin ? o #), y la página para coaches (gize.ar/coaches/), que
 // también tiene los precios y el botón para contratar. La política (gize.ar/privacidad/) no cuenta.
 const isLanding = h => /^https:\/\/gize\.ar\/?(coaches\/?)?([?#].*)?$/.test(h || '');
+// La página pública de un coach (gize.ar/c/<alias> o el plan B gize.ar/c/?a=<alias>, 404.html).
+const isPaginaCoach = h => /^https:\/\/gize\.ar\/c(\/|$)/.test(h || '');
 
 export default async function ({ base, t }){
   // La guarda agarra la página de inicio y la de coaches (con o sin la barra, con ? o #), y no la política.
   t.eq(['https://gize.ar/', 'https://gize.ar/?plan=p10', 'https://gize.ar/coaches/', 'https://gize.ar/coaches', 'https://gize.ar/coaches/#precios', 'https://gize.ar/privacidad/?app=1'].map(isLanding),
     [true, true, true, true, true, false], 'la guarda reconoce la página de inicio y la página para coaches');
+  t.eq(['https://gize.ar/c/toro', 'https://gize.ar/c/?a=toro', 'https://gize.ar/coaches/', 'https://gize.ar/privacidad/#pagina-coach'].map(isPaginaCoach),
+    [true, true, false, false], 'la guarda reconoce la página pública del coach');
 
   // 1) App de iPhone: Configuración sin «Sitio web» y con la política de privacidad por su nombre.
   let pg = await newPage({ user: ALUMNO, state: STATE, init: NATIVE, handlers: { '/profiles': profile('client') } });
@@ -61,14 +66,18 @@ export default async function ({ base, t }){
   pg = await newPage({ user: COACH, init: NATIVE, handlers: {
     '/profiles': (r, J, i) => { if (i.m !== 'GET') return undefined; const me = { id: COACH.id, role: 'coach', full_name: 'Coach Prueba' }; return J(i.one ? me : [me]); },
     '/coach_billing': (r, J, i) => { const b = { coach_id: COACH.id, plan: 'cortesia', max_clients: 10, trial_ends_at: '2099-01-01T00:00:00Z' }; return J(i.one ? b : [b]); },
+    // Con su página pública armada («Mi página»), para ver que en el iPhone no se abre.
+    '/rpc/coach_pagina_mia': (r, J) => J({ alias: 'toro', activa: true, con_foto: true, pausada: false, cambia_desde: null, codigo: 'K7XM2PQA', visible: true }),
   } });
   await pg.p.goto(base + '/app/'); await wait(3000);
   // Su Configuración es una pantalla con un menú de secciones: los links de todas.
-  ls = (await seccionesCoach(pg.p, links)).flatMap(s => s.v);
+  const secs = await seccionesCoach(pg.p, links);
+  ls = secs.flatMap(s => s.v);
   priv = ls.find(l => l.txt === 'Política de privacidad');
   t.ok(!!priv, 'coach: está el link «Política de privacidad»');
   t.has(priv && priv.href, 'gize.ar/privacidad/?app=1', 'coach: la política se abre sin la barra de la página de inicio');
   t.ok(!ls.some(l => isLanding(l.href)), 'coach en iPhone: ningún link a la página de inicio');
+  t.ok(secs.some(s => s.k === 'pagina') && !ls.some(l => isPaginaCoach(l.href)), 'coach en iPhone: ningún link a su página pública (tiene el botón de Google Play): ' + JSON.stringify(ls.filter(l => isPaginaCoach(l.href))));
   await configCoach(pg.p, 'cuenta');
   await pg.p.click(CONFIG_COACH + ' [data-action="cfg-delete-account"]'); await wait(800);
   const delMsg = pg.dialogs[0] || '';
