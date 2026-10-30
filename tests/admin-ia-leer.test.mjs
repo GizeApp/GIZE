@@ -13,8 +13,8 @@
 //   Si se vuelve a dibujar mientras lee, la lectura completa la tarjeta nueva y no se puede tocar
 //   otra vez (no hay dos llamadas pagas).
 // - La página IA: el interruptor (arranca apagado), la fecha de los créditos, la de la política, la
-//   función de Pedidos, la foto del plato (sin «Contame qué comiste»: solo fotos) y el aviso de que
-//   falta la clave.
+//   función de Pedidos, la foto del plato (sin «Contame qué comiste»: solo fotos), «Pasar planillas
+//   (coach)» con su modelo y el aviso de que falta la clave.
 // - Inicio: si la IA está cortada, aparece en «Para atender».
 import { newPage, wait, text, ADMIN } from './lib.mjs';
 
@@ -32,7 +32,10 @@ const ESTADO = (extra = {}) => Object.assign({ activa: true, funciones: { etique
   por_funcion: { etiqueta: { usos: 12, usd: 0.0123 } }, errores: {}, tablas: { leidas: 12, sin_tabla: 1, publicadas: 10, sin_corregir: 8, kcal_bien: 9 }, clave_rechazada: null, ultimas: [] }, extra);
 const LEIDO = { ok: true, encontrada: true, unidad: 'g', columna: 'porcion', porcion: 50, por_porcion: false, kcal: 438, p: 5.6, c: 60, f: 20, revisar: false, dudosos: ['carbohidratos'], modelo: 'm1', modelo_nombre: 'Modelo de prueba' };
 
-const FN_ESTADO = { ok: true, clave: true, modelos: [{ id: 'm1', nombre: 'Modelo de prueba', defecto: true, tabla: true, usd_tabla: 0.0005 }, { id: 'm2', nombre: 'Modelo capaz', defecto: false, tabla: true, usd_tabla: 0.0098 }, { id: 'm3', nombre: 'Modelo de platos', defecto: false, tabla: false, usd_tabla: 0.004 }] };
+const FN_ESTADO = { ok: true, clave: true, modelos: [{ id: 'm1', nombre: 'Modelo de prueba', defecto: true, tabla: true, usd_tabla: 0.0005, planilla: true, usd_planilla: 0.0027 },
+  { id: 'm2', nombre: 'Modelo capaz', defecto: false, tabla: true, usd_tabla: 0.0098, planilla: true, usd_planilla: 0.0536 }, { id: 'm3', nombre: 'Modelo de platos', defecto: false, tabla: false, usd_tabla: 0.004, planilla: false, usd_planilla: 0.027 }] };
+// La función «ia» de antes del modo «planilla» (todavía sin publicar la nueva): no dice qué modelos sirven para las planillas.
+const FN_VIEJA = Object.assign({}, FN_ESTADO, { modelos: FN_ESTADO.modelos.map(({ planilla, usd_planilla, ...m }) => m) });
 
 // Abre Pedidos con el estado de la IA y la respuesta de la función que se le pase (fnResp para
 // leer; fnEstado para el modo «estado», el de la clave y los modelos). firmaDelay: cuánto tardan
@@ -44,7 +47,8 @@ async function abrir(base, { estado = ESTADO(), fnResp = () => ({ body: LEIDO })
     '/admin_contact_unread': (r, J) => J(0), '/admin_reports_pending': (r, J) => J(0), '/admin_requests_pending': (r, J) => J(reqs.length),
     '/admin_requests': (r, J) => J(reqs),
     '/admin_ia_estado': (r, J) => estado instanceof Error ? J({ code: 'PGRST202', message: 'Could not find the function public.admin_ia_estado without parameters in the schema cache' }, 404) : J(estado),
-    '/admin_ia_config': (r, J, i) => { const b = JSON.parse(i.body || '{}'); rpcs.push(['config', b]); const p0 = b.p || {}; estado = Object.assign({}, estado, p0.activa !== undefined ? { activa: p0.activa } : {}, p0.funciones ? { funciones: Object.assign({}, estado.funciones, p0.funciones) } : {}, p0.pedidos_desde ? { pedidos_desde: p0.pedidos_desde } : {}); return J(estado); },
+    '/admin_ia_config': (r, J, i) => { const b = JSON.parse(i.body || '{}'); rpcs.push(['config', b]); const p0 = b.p || {}; estado = Object.assign({}, estado, p0.activa !== undefined ? { activa: p0.activa } : {}, p0.funciones ? { funciones: Object.assign({}, estado.funciones, p0.funciones) } : {}, p0.pedidos_desde ? { pedidos_desde: p0.pedidos_desde } : {},
+      p0.modelos ? { modelos: Object.fromEntries(Object.entries(Object.assign({}, estado.modelos, p0.modelos)).filter(([, v]) => v)) } : {}); return J(estado); },
     '/admin_ia_ciclo': (r, J, i) => { rpcs.push(['ciclo', JSON.parse(i.body || '{}')]); return J(estado); },
     '/admin_request_publish': (r, J, i) => { rpcs.push(['publicar', JSON.parse(i.body || '{}')]); return J('p-1'); },
     '/admin_request_reject': (r, J, i) => { rpcs.push(['rechazar', JSON.parse(i.body || '{}')]); return J(null); },
@@ -278,7 +282,9 @@ export default async function ({ base, t }){
   t.eq(await ia.evaluate(() => document.activeElement && document.activeElement.dataset.a), 'iaOn', 'el foco vuelve al interruptor después de guardar');
   await ia.click('[data-a="iaFn"][data-k="etiqueta_admin"]'); await wait(600);
   t.eq(a.rpcs.filter(r => r[0] === 'config')[1], ['config', { p: { funciones: { etiqueta_admin: true } } }], 'prende «Leer tablas en Pedidos»');
-  for (const k of ['etiqueta_usuario', 'planilla', 'rutina', 'resumen'])
+  // «Pasar planillas (coach)» ya se puede prender: la función «ia» tiene su modo (cambió a propósito;
+  // antes estaba deshabilitado). «Armar rutina» y el resumen siguen esperando su rama.
+  for (const k of ['etiqueta_usuario', 'rutina', 'resumen'])
     t.ok(await ia.$eval(`[data-a="iaFn"][data-k="${k}"]`, b => b.disabled), 'lo que todavía no está en la app no se puede prender (' + k + ')');
   // La foto del plato (app) ya se puede prender, con confirmación.
   t.ok(!(await ia.$eval('[data-a="iaFn"][data-k="plato"]', b => b.disabled)), '«Foto del plato» se puede prender');
@@ -286,6 +292,26 @@ export default async function ({ base, t }){
   t.ok(a.dialogs.some(d => d.includes('¿Prender «Foto del plato» en la app?')), '«Foto del plato»: pide confirmar');
   t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { funciones: { plato: true } } }], 'prende «Foto del plato»');
   t.has(await text(ia, '#main'), 'Aparece en Comida, al lado del buscador', 'dice dónde aparece en la app');
+  // «Pasar planillas (coach)»: se prende con confirmación y dice que el botón del coach todavía no está.
+  t.ok(!(await ia.$eval('[data-a="iaFn"][data-k="planilla"]', b => b.disabled)), '«Pasar planillas (coach)» se puede prender');
+  t.has(await text(ia, '.ia-funs'), 'Todavía no está el botón «Pasar mis planillas» en el panel del coach: si la prendés antes, el coach solo ve el permiso en Configuración → Privacidad.', '«Pasar planillas»: dice qué ve el coach mientras no está la pantalla');
+  const antesPl = a.rpcs.length;
+  ia.contestar = false;
+  await ia.click('[data-a="iaFn"][data-k="planilla"]'); await wait(700);
+  t.ok(a.dialogs.some(d => d.includes('¿Prender «Pasar planillas» para coaches?') && d.includes('«Usar IA en tus rutinas»')), '«Pasar planillas»: pide confirmar (y nombra el permiso del coach)');
+  t.eq([a.rpcs.length, await ia.$eval('[data-a="iaFn"][data-k="planilla"]', b => b.getAttribute('aria-checked'))], [antesPl, 'false'], '«Pasar planillas»: si no se confirma, no se guarda nada');
+  ia.contestar = true;
+  await ia.click('[data-a="iaFn"][data-k="planilla"]'); await wait(700);
+  t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { funciones: { planilla: true } } }], 'prende «Pasar planillas»');
+  t.eq(await ia.$eval('[data-a="iaFn"][data-k="planilla"]', b => b.getAttribute('aria-checked')), 'true', '«Pasar planillas»: queda prendido');
+  // El modelo de las planillas: el de siempre y el capaz (no el que no sirve), con lo que sale una hoja.
+  t.eq(await ia.$$eval('#iaModeloPl option', os => os.map(o => o.textContent)), ['Modelo de prueba (el de siempre) · unos US$ 0,0027 por hoja', 'Modelo capaz · unos US$ 0,0536 por hoja'], 'el modelo de las planillas: solo los que sirven, con lo que sale una hoja');
+  t.has(await text(ia, '#iaFunB'), 'Si lee mal las planillas, probá con Modelo capaz: cuesta unas 20 veces más por hoja. En modo ahorro va siempre Modelo de prueba.', 'la ayuda del modelo de las planillas');
+  await ia.selectOption('#iaModeloPl', 'm2'); await ia.click('[data-a="iaModeloPl"]'); await wait(600);
+  t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { modelos: { planilla: 'm2' } } }], 'guarda el modelo de las planillas (modelos.planilla)');
+  t.ok(await ia.inputValue('#iaModeloPl') === 'm2' && await ia.inputValue('#iaModelo') === '', 'queda elegido, y el de las tablas no cambia');
+  await ia.selectOption('#iaModeloPl', ''); await ia.click('[data-a="iaModeloPl"]'); await wait(600);
+  t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { modelos: { planilla: null } } }], 'volver al de siempre borra la elección');
   // «Contame qué comiste» se sacó (solo fotos): ya no hay interruptor.
   t.ok(!(await ia.$('[data-a="iaFn"][data-k="texto"]')), 'sin el interruptor de «Contame qué comiste»');
   t.ok(!(await text(ia, '.ia-funs')).includes('«Contame qué comiste» (app)'), 'la lista de funciones no lo nombra como función');
@@ -324,11 +350,12 @@ export default async function ({ base, t }){
   await a.close();
   // La IA del coach (base en supabase/ia.sql): el coach en su prueba gratis tiene topes propios
   // («Coach en prueba») y las planillas tienen su nombre en Topes, en el uso y en las llamadas.
-  a = await abrir(base, { vista: 'ia', estado: ESTADO({ topes: { admin: { etiqueta: 300, total: 300, usd_ciclo: 10 },
+  a = await abrir(base, { vista: 'ia', fnEstado: () => ({ body: FN_VIEJA }), estado: ESTADO({ topes: { admin: { etiqueta: 300, total: 300, usd_ciclo: 10 },
       coach: { planilla: 30, rutina: 15, total: 60, usd_ciclo: 5 }, prueba: { planilla: 15, rutina: 5, total: 20, usd_ciclo: 1 } },
     por_funcion: { planilla: { usos: 3, usd: 0.01 } },
     ultimas: [{ creada: NUEVO, rol: 'prueba', origen: null, funcion: 'planilla', modelo: 'm1', estado: 'ok', codigo: null, usd: 0.003, max_usd: 0.015, ms: 9000 },
-      { creada: NUEVO, rol: 'coach', origen: 'plan', funcion: 'rutina', modelo: 'm1', estado: 'ok', codigo: null, usd: 0.003, max_usd: 0.009, ms: 8000 }] }) });
+      { creada: NUEVO, rol: 'coach', origen: 'plan', funcion: 'rutina', modelo: 'm1', estado: 'ok', codigo: null, usd: 0.003, max_usd: 0.009, ms: 8000 },
+      { creada: NUEVO, rol: 'coach', origen: 'plan', funcion: 'planilla', modelo: 'm1', estado: 'vacia', codigo: null, usd: 0.001, max_usd: 0.015, ms: 5000 }] }) });
   await a.p.$$eval('#iaTopesB, #iaUltB', ds => ds.forEach(d => { d.open = true; })); await wait(300);
   const tps = await text(a.p, '#iaTopesB');
   t.has(tps, 'Coach en prueba', 'Topes: el coach en prueba con su nombre');
@@ -336,8 +363,10 @@ export default async function ({ base, t }){
   t.has(tps, 'Planillas por día', 'Topes: las planillas por día con su nombre');
   t.eq(await a.p.inputValue('[data-tope="prueba.planilla"]'), '15', 'Topes: las planillas del coach en prueba se pueden cambiar');
   t.has(await text(a.p, '#iaUsoB'), 'Planillas', 'Uso del ciclo: las planillas con su nombre');
-  t.eq(await a.p.$$eval('#iaUltB tbody tr', trs => trs.map(tr => [tr.children[1].textContent, tr.children[2].textContent])), [['Coach en prueba', 'Planillas'], ['Coach', 'Rutinas']], 'Últimas llamadas: el coach en prueba y las planillas con su nombre');
+  t.eq(await a.p.$$eval('#iaUltB tbody tr', trs => trs.map(tr => [tr.children[1].textContent, tr.children[2].textContent])), [['Coach en prueba', 'Planillas'], ['Coach', 'Rutinas'], ['Coach', 'Planillas']], 'Últimas llamadas: el coach en prueba y las planillas con su nombre');
+  t.eq(await a.p.$eval('#iaUltB tbody tr:nth-child(3)', tr => tr.children[4].textContent), 'no era una rutina', 'Últimas llamadas: una hoja que no era una rutina lo dice (no «sin tabla»)');
   t.ok(!(await a.p.$$eval('#iaTopesB b, #iaTopesB label, #iaUltB tbody td', es => es.map(e => e.textContent.trim()))).some(x => /^(prueba|planilla)\b/.test(x)), 'sin claves crudas');
+  t.ok(!(await a.p.$('#iaModeloPl')) && !!(await a.p.$('#iaModelo')), 'con la función «ia» de antes (sin el modo planilla publicado), sin el modelo de las planillas');
   t.eq(a.errs, [], 'errores de la página (IA del coach)');
   await a.close();
   // En el celular, las marcas de la barra no se pisan.
