@@ -24,9 +24,16 @@
 //         ejercicios: [{ nombre, grupo, propio, dudoso, series: [{ objetivo, kg }], timed, descanso,
 //         rir, nota, progresion, ss, fila }] }], modelo_nombre }: el borrador de rutina.ts, que la app
 //         pasa a días de GIZE (app/core/rutina-borrador.js) para que el coach lo revise. No guarda nada.
+//   { modo: "rutina", descripcion: <lo que escribió el coach, hasta 400 caracteres> }
+//     Panel del coach («Armar con IA»), los mismos coaches y el mismo permiso que las planillas, con
+//     su función prendida en el panel:
+//     → { ok: true, hay_rutina, nombre, nota, dias: [{ nombre, dias, nota, ejercicios: [{ nombre,
+//         grupo, propio, dudoso, series: [{ objetivo, kg }], timed, descanso, rir, nota, progresion,
+//         ss }] }], modelo_nombre }: el mismo borrador, solo con ejercicios de la lista de GIZE, hasta
+//         7 días y sin cargas (armar.ts). No guarda el pedido ni el borrador.
 //   { modo: "estado" } → { ok: true, clave, modelos }: si está cargada la clave y qué modelos se
-//     pueden elegir, con lo que cuesta una tabla y una hoja de planilla con cada uno (para el panel).
-//     No llama a la API.
+//     pueden elegir, con lo que cuesta una tabla, una hoja de planilla y una rutina con cada uno
+//     (para el panel). No llama a la API.
 // Si algo no deja: { ok: false, codigo, mensaje, motivo?, vuelve?, tope? } (los códigos, en
 // supabase/ia.sql; la app traduce por código).
 //
@@ -36,9 +43,10 @@
 // API no contesta, se cobra la reserva entera. Sin la clave o con el interruptor apagado no se
 // llama nunca. Nunca se manda nada de la persona: solo la foto (de la tabla o del plato) y, en el
 // plato, la aclaración que escribió si la puso; en las planillas, el texto de la hoja que eligió el
-// coach (sin datos personales) y la lista de ejercicios de GIZE. Nunca su nombre, su mail ni su id.
-// En los registros (console.error) van solo códigos: nunca la clave, ni datos de la persona, ni
-// la foto, ni la hoja, ni lo que contestó la IA.
+// coach (sin datos personales) y la lista de ejercicios de GIZE; en «Armar con IA», el pedido que
+// escribió el coach (sin mails, teléfonos, documentos ni links) y la misma lista. Nunca su nombre,
+// su mail ni su id. En los registros (console.error) van solo códigos: nunca la clave, ni datos de
+// la persona, ni la foto, ni la hoja, ni el pedido, ni lo que contestó la IA.
 //
 // Secret: ANTHROPIC_API_KEY (Console de Anthropic → workspace «gize-produccion» → API Keys). Va en
 // GitHub (Environment «production») y llega a Supabase con el workflow «Supabase» → tarea
@@ -56,10 +64,11 @@ import { B64_MAX_PLATO, baseTexto, comidaPost, ENTRADA_MAX_PLATO, entradaComida,
 import { cookVariant, FOODS } from "./foods.js";
 // La lista de ejercicios de la app (app/core/data.js), que el workflow también copia acá. Va por
 // parámetro a rutina.ts (así las pruebas la simulan desde acá). La usan las funciones del coach:
-// «Pasar mis planillas» (modo «planilla») y, cuando tenga su modo, «Armar con IA».
+// «Pasar mis planillas» (modo «planilla») y «Armar con IA» (modo «rutina»).
 import { ES_MAP, EX_CATS, EX_DB } from "./data.js";
 import { ejercicios, limpiarTexto, type Ejercicios } from "./rutina.ts";
 import { celdasCortas, costoHojaTipica, ENTRADA_MAX_PLANILLA, entradaPlanilla, filasConTexto, HOJA_MAX, HOJA_VACIA, MAX_TOKENS_PLANILLA, pedidoPlanilla, planillaPost, TIEMPO_PLANILLA } from "./planilla.ts";
+import { costoRutinaTipica, DESCRIPCION_MAX, ENTRADA_MAX_RUTINA, entradaRutina, letras, MAX_TOKENS_RUTINA, modeloRutina, pedidoLimpio, pedidoRutina, rutinaArmada, SIN_PEDIDO, TIEMPO_RUTINA } from "./armar.ts";
 
 type SupabaseClient = ReturnType<typeof createClient>;
 const BASE: Base = { foods: FOODS, cocido: cookVariant };
@@ -110,6 +119,11 @@ const MENSAJE_PLANILLA: Record<string, string> = {
   ritmo: "Por hoy la IA llegó a su límite. Mañana vuelve. Mientras, armá la rutina a mano.",
   tope_mes: "La IA de GIZE llegó a su límite de este mes: armá la rutina a mano.",
   no_se_pudo: "No se pudo leer esta hoja con IA. Probá de nuevo o cargala a mano.",
+};
+// Los de «Armar con IA»: los mismos, salvo el rechazo, que habla del pedido (como la app).
+const MENSAJE_RUTINA: Record<string, string> = {
+  ...MENSAJE_PLANILLA,
+  no_se_pudo: "No se pudo armar la rutina con ese pedido. Probá contarlo de otra forma o armá la rutina a mano.",
 };
 const no = (codigo: string, extra: { mensaje?: string; motivo?: string; vuelve?: string | null; tope?: number } = {}, status?: number) =>
   json({ ok: false, codigo, mensaje: extra.mensaje || MENSAJE[codigo] || MENSAJE.error, ...(extra.motivo ? { motivo: extra.motivo } : {}), ...(extra.vuelve ? { vuelve: extra.vuelve } : {}),
@@ -187,7 +201,7 @@ Deno.serve(async (req) => {
   if (!u || !u.user) return no("sin_sesion");
   const me = u.user.id;
 
-  let input: { modo?: unknown; pedido?: unknown; imagen?: unknown; texto?: unknown; hoja?: unknown } | null = null;
+  let input: { modo?: unknown; pedido?: unknown; imagen?: unknown; texto?: unknown; hoja?: unknown; descripcion?: unknown } | null = null;
   try { input = await req.json(); } catch { return no("error", { mensaje: "Pedido inválido." }, 400); }
   if (!input || typeof input !== "object") return no("error", { mensaje: "Pedido inválido." }, 400);
   const modo = input.modo === "tabla" ? "etiqueta" : String(input.modo || "");
@@ -195,6 +209,7 @@ Deno.serve(async (req) => {
   if (modo === "texto") return no("no_disponible");
   if (modo === "plato") return comida(input, me, url);
   if (modo === "planilla") return planilla(input, me, url);
+  if (modo === "rutina") return rutina(input, me, url);
   if (modo !== "etiqueta" && modo !== "estado") return no("error", { mensaje: "Modo desconocido." }, 400);
 
   // Por ahora, solo administradores (las etapas que siguen suman a quien mandó el pedido).
@@ -203,10 +218,11 @@ Deno.serve(async (req) => {
 
   const clave = Deno.env.get("ANTHROPIC_API_KEY") || "";
   if (modo === "estado") {
-    // Para cada modelo: si sirve para las tablas y para las planillas, y cuánto sale una tabla y una
-    // hoja típicas (el panel lo muestra).
+    // Para cada modelo: si sirve para las tablas, las planillas y las rutinas, y cuánto sale una
+    // tabla, una hoja y una rutina típicas (el panel lo muestra).
     return json({ ok: true, clave: !!clave, modelos: (Object.keys(MODELOS) as Modelo[]).map((id) => ({ id, nombre: MODELOS[id].nombre, defecto: MODELOS[id].defecto,
-      tabla: MODELOS[id].tabla, usd_tabla: costoTablaTipica(id), planilla: MODELOS[id].planilla, usd_planilla: costoHojaTipica(id, losEjercicios()) })) });
+      tabla: MODELOS[id].tabla, usd_tabla: costoTablaTipica(id), planilla: MODELOS[id].planilla, usd_planilla: costoHojaTipica(id, losEjercicios()),
+      rutina: MODELOS[id].rutina, usd_rutina: costoRutinaTipica(id, losEjercicios()) })) });
   }
   const pedido = Number(input && input.pedido);
   if (!Number.isSafeInteger(pedido) || pedido <= 0) return no("error", { mensaje: "Falta el pedido." }, 400);
@@ -385,6 +401,67 @@ async function planilla(input: { hoja?: unknown }, me: string, url: string): Pro
     textos: MENSAJE_PLANILLA, cortada: "hoja_grande" });
   if (r instanceof Response) return r;
   const res = planillaPost(r.out, ej);
+  await r.cerrar(res.hay_rutina ? "ok" : "vacia");
+  return json({ ok: true, ...res, modelo_nombre: MODELOS[modelo].nombre });
+}
+
+// ---------- «Armar con IA» (el panel del coach) ----------
+// Para los mismos coaches que las planillas (rol «coach» o «prueba», ia_rol_coach), con su función
+// prendida en el panel y el mismo permiso «Usar IA en tus rutinas». Llega el pedido que escribió el
+// coach («hipertrofia, 4 días, con mancuernas»); acá se limpia (mails, teléfonos, documentos y links)
+// y va a la API con la lista de ejercicios (armar.ts). No se guardan el pedido ni el borrador: van a
+// la API y se olvidan. Los textos que vuelven son neutros (MENSAJE_RUTINA).
+async function rutina(input: { descripcion?: unknown }, me: string, url: string): Promise<Response> {
+  const modo = "rutina";
+  const rt = (codigo: string, extra: { motivo?: string; vuelve?: string | null; tope?: number } = {}) => no(codigo, { ...extra, mensaje: MENSAJE_RUTINA[codigo] });
+  // Lo que manda la app: un texto de hasta 400 caracteres. Otra cosa no se lee.
+  if (typeof input.descripcion !== "string" || input.descripcion.length > DESCRIPCION_MAX) return no("error", { mensaje: "Pedido inválido." }, 400);
+
+  // Sin la clave no se toca nada: ni la base ni la API.
+  const clave = Deno.env.get("ANTHROPIC_API_KEY") || "";
+  if (!clave) return rt("pausada", { motivo: "sin_clave" });
+  const db = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  // El interruptor (también lo mira ia_reservar; acá se mira antes de todo lo demás).
+  const cfg = await db.from("ia_config").select("activa,funciones,modelos").eq("id", 1).maybeSingle();
+  if (cfg.error || !cfg.data) { log("config", (cfg.error && cfg.error.code) || "sin fila"); return rt("pausada", { motivo: "sin_base" }); }
+  const c = cfg.data as { activa: boolean; funciones: Record<string, unknown> | null; modelos: Record<string, unknown> | null };
+  if (c.activa !== true || !c.funciones || c.funciones[modo] !== true) return rt("pausada", { motivo: "apagada" });
+
+  // El permiso del coach (el aviso vigente, aceptado y no apagado en Configuración → Privacidad).
+  const pm = await db.rpc("ia_permiso_rutinas_estado", { p_uid: me });
+  if (pm.error) { log("permiso", pm.error.code || ""); return no("error", { mensaje: "No se pudo comprobar el permiso. Probá de nuevo." }, 500); }
+  if (pm.data !== "ok") return no("sin_permiso", { motivo: pm.data === "no" ? "apagada" : pm.data === "viejo" ? "aviso_nuevo" : "sin_preguntar" });
+  // Quién es: coach con plan o en su prueba. Si no, «sin_plan» para un coach (vencido o pasado del
+  // cupo) y «no_habilitado» para el resto; los dos con el mismo texto, sin decir por qué.
+  const rl = await db.rpc("ia_rol_coach", { p_uid: me });
+  if (rl.error) { log("rol", rl.error.code || ""); return no("error", { mensaje: "No se pudo comprobar tu cuenta. Probá de nuevo." }, 500); }
+  const rol = rl.data === "coach" || rl.data === "prueba" ? rl.data : null;
+  if (!rol) {
+    const pf = await db.from("profiles").select("role").eq("id", me).maybeSingle();
+    if (pf.error) { log("perfil", pf.error.code || ""); return no("error", { mensaje: "No se pudo comprobar tu cuenta. Probá de nuevo." }, 500); }
+    return rt(pf.data && (pf.data as { role?: unknown }).role === "coach" ? "sin_plan" : "no_habilitado");
+  }
+
+  // El pedido, limpio. Sin al menos 3 letras no hay un pedido: no se llama ni se cobra.
+  const descripcion = pedidoLimpio(input.descripcion);
+  if (letras(descripcion) < 3) return json({ ok: true, hay_rutina: false, nombre: "", nota: SIN_PEDIDO, dias: [] });
+  const ej = losEjercicios();
+  let modelo = modeloRutina(c.modelos && c.modelos[modo]);
+  const entrada = entradaRutina(ej, descripcion);
+  if (entrada > ENTRADA_MAX_RUTINA || entrada > ENTRADA_TOPE) { log("entrada", modo, entrada); return no("error"); }
+
+  const rs = await db.rpc("ia_reservar", { p_uid: me, p_rol: rol, p_funcion: modo, p_modelo: modelo, p_max_usd: reserva(modelo, entrada, MAX_TOKENS_RUTINA), p_pedido: null });
+  if (rs.error || !rs.data) { log("reservar", (rs.error && rs.error.code) || "sin respuesta"); return no("error", { mensaje: "No se pudo reservar el uso de la IA. Probá de nuevo." }, 500); }
+  const r0 = rs.data as { ok: boolean; codigo?: string; motivo?: string; vuelve?: string; tope?: number; llamada_id?: number; ciclo_id?: number; ahorro?: boolean };
+  if (!r0.ok) return rt(r0.codigo || "error", { motivo: r0.motivo, vuelve: r0.vuelve || null, tope: r0.tope });
+  // Modo ahorro (solo llega acá el coach con plan): el modelo de siempre, el barato, como en las
+  // planillas. La reserva ya quedó con el elegido (es más cara: alcanza).
+  if (r0.ahorro === true) modelo = modeloDefecto();
+
+  const r = await usarIA(db, { llamada: r0.llamada_id!, ciclo: r0.ciclo_id!, modelo, body: pedidoRutina(modelo, ej, descripcion), tope: TIEMPO_RUTINA, clave, textos: MENSAJE_RUTINA });
+  if (r instanceof Response) return r;
+  const res = rutinaArmada(r.out, ej);
   await r.cerrar(res.hay_rutina ? "ok" : "vacia");
   return json({ ok: true, ...res, modelo_nombre: MODELOS[modelo].nombre });
 }
