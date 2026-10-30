@@ -80,6 +80,12 @@ begin
   on conflict (coach_id) do update set plan = 'trial', max_clients = 10, trial_ends_at = now() - interval '1 day',
     paid_until = null, mp_preapproval_id = null, mp_status = null, pending_plan = null,
     apple_original_tx = null, apple_vence = null, apple_renueva = false, updated_at = now();
+  -- Lo mismo con Google Play, si ya se corrió supabase/compras-google.sql (google_renueva no
+  -- acepta null: queda en false).
+  if to_regclass('public.google_subs') is not null then
+    delete from public.google_subs where user_id = coachios;
+    update public.coach_billing set google_token = null, google_vence = null, google_renueva = false where coach_id = coachios;
+  end if;
 
   -- Datos para que la app no se vea vacía: 8 semanas de peso.
   insert into public.body_weights (client_id, measured_on, kg)

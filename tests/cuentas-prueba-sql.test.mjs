@@ -142,6 +142,20 @@ async function conPostgres(t, sql, demo){
     t.eq(psql("select string_agg(action, ',' order by id) from public.admin_audit;").stdout.trim(), 'prueba_si,prueba_si,prueba_no', 'cada cambio queda en el registro');
     como(ADMIN_ID, `select public.admin_set_test('${PROPIO_ID}', true);`);
     t.eq(psql(`delete from auth.users where id = '${PROPIO_ID}'; select count(*) from public.test_accounts;`).stdout.trim(), '3', 'al borrar una cuenta marcada se va su marca');
+
+    // Con supabase/compras-google.sql (lo mínimo: las columnas google_* y google_subs): el coach de la
+    // revisión también queda sin lo comprado con Google Play (google_renueva no acepta null).
+    r = psql(`alter table public.coach_billing add column google_token text, add column google_vence timestamptz, add column google_renueva boolean not null default false;
+      create table public.google_subs (purchase_token text primary key, user_id uuid not null references auth.users(id) on delete cascade);
+      insert into public.google_subs select 'compra-de-prueba', id from auth.users where email = 'coachios@demo.test';
+      update public.coach_billing b set plan = 'p25', paid_until = now() + interval '20 days', google_token = 'compra-de-prueba', google_vence = now() + interval '20 days', google_renueva = true
+        from auth.users u where u.id = b.coach_id and u.email = 'coachios@demo.test';`);
+    t.ok(r.status === 0, 'el coach de la revisión con un plan de Google Play: ' + err(r));
+    r = psql(demoSql);
+    t.ok(r.status === 0, 'cuentas-demo.sql corre con lo de Google Play: ' + err(r));
+    t.eq(psql(`select b.plan || ',' || coalesce(b.paid_until::text, '-') || ',' || coalesce(b.google_token, '-') || ',' || coalesce(b.google_vence::text, '-') || ',' || b.google_renueva
+        || ',' || (select count(*) from public.google_subs s where s.user_id = u.id) from public.coach_billing b join auth.users u on u.id = b.coach_id where u.email = 'coachios@demo.test';`).stdout.trim(),
+      'trial,-,-,-,false,0', 'el coach de la revisión vuelve a quedar sin plan y sin nada comprado con Google Play');
   } finally {
     correr('pg_ctl', ['-D', datos, '-m', 'immediate', 'stop']);
     fs.rmSync(dir, { recursive: true, force: true });

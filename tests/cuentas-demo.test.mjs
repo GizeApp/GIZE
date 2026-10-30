@@ -34,6 +34,10 @@ export default async ({ t }) => {
   const vaciadas = [...cuerpo.matchAll(/\b(\w+) = null\b/g)].map(m => m[1]);
   t.eq(vaciadas.filter(c => noNulas.has(c)), [], 'no vacía ninguna columna obligatoria de coach_billing');
   t.ok(/apple_renueva = false/.test(cuerpo), 'apple_renueva queda en false');
+  // Lo comprado con Google Play, igual (solo si ya está supabase/compras-google.sql).
+  const google = cuerpo.slice(cuerpo.indexOf("if to_regclass('public.google_subs') is not null then"));
+  t.ok(/^if to_regclass\('public\.google_subs'\) is not null then\s+delete from public\.google_subs where user_id = coachios;\s+update public\.coach_billing set google_token = null, google_vence = null, google_renueva = false where coach_id = coachios;\s+end if;/.test(google),
+    'borra lo comprado con Google Play por el coach de la revisión, con google_renueva en false (si ya está la tabla)');
   const wf = fs.readFileSync(path.join(ROOT, '.github/workflows/supabase.yml'), 'utf8');
   t.ok(/replace\("__DEMO_COACHIOS__", m\[1\]\+"\+coachios@"\+m\[2\]\)/.test(wf), 'el workflow arma el mail del coach de la revisión desde DEMO_EMAIL');
 };
