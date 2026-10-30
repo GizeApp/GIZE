@@ -194,6 +194,13 @@ export default async function ({ base, t }){
   t.ok(/if \(datos == null\) \{\s*respaldo = ctx\.getString\(R\.string\.widget_ingresa\);/.test(wj) && /if \(dia == null\) respaldo = ctx\.getString\(R\.string\.widget_abri\);/.test(wj), 'sin nada de la app: «Ingresá a GIZE»; sin el día: «Abrí GIZE para ver tu día»');
   t.ok(/Build\.VERSION\.SDK_INT >= Build\.VERSION_CODES\.S[\s\S]*?new SizeF\(110f, 110f\), armar\(ctx, dia, respaldo, true\)[\s\S]*?new SizeF\(ANCHO_MEDIANO, 110f\), armar\(ctx, dia, respaldo, false\)/.test(wj), 'Android 12 o más elige solo entre el chico y el mediano según el tamaño');
   t.ok(/OPTION_APPWIDGET_MIN_WIDTH/.test(wj) && /public void onAppWidgetOptionsChanged\(/.test(wj), 'Android 8 a 11 elige por el ancho y redibuja al cambiar el tamaño');
+  t.ok(/vista = armar\(ctx, dia, respaldo, ancho > 0 && ancho < ANCHO_MEDIANO\);/.test(wj), 'Android 8 a 11: más angosto que el mediano va el chico (sin ancho todavía, el mediano)');
+  // Lo que cambia según los datos: la llama, el verde de «Hecho hoy ✓» y el anillo.
+  t.ok(/racha\.optBoolean\("prendida", false\) \? R\.drawable\.widget_llama : R\.drawable\.widget_llama_apagada/.test(armar), 'la llama se ve prendida solo con racha.prendida (si no, la apagada)');
+  t.ok(/hecho = entreno\.optBoolean\("hecho", false\);/.test(armar) && /setTextColor\(R\.id\.widget_entreno_titulo, ctx\.getColor\(hecho \? R\.color\.widget_verde : R\.color\.widget_azul\)\)/.test(armar), 'el entreno hecho se pone verde y si no, azul (siempre se vuelve a poner)');
+  const colores = leer(RES + 'values/widget.xml');
+  t.ok(/<color name="widget_verde">#25E8C8<\/color>/.test(colores) && /<color name="widget_azul">#2FA0FF<\/color>/.test(colores) && /<color name="widget_violeta">#A65CFF<\/color>/.test(colores), 'verde, azul y violeta son los de la marca (brand/tokens.css)');
+  t.ok(/setProgressBar\(R\.id\.widget_anillo, 100, porcentaje\(pasos\.optDouble\("pct", 0\)\), false\)/.test(armar) && /Math\.max\(0, Math\.min\(100, Math\.round\(pct\)\)\)/.test(wj), 'el anillo se llena con pct, de 0 a 100');
   t.ok(/static final float ANCHO_MEDIANO = 250f;/.test(wj), 'el mediano desde 250 dp (el ancho con el que sale)');
 
   // ===== Contrato con la app =====
