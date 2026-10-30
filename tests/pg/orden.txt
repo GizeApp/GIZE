@@ -82,6 +82,7 @@ codigo-fundador.sql           # códigos de fundador (después de admin y suscri
 pagina-coach.sql              # página pública del coach, gize.ar/c/<alias> (después de foto-perfil, endurecer-base, cupo-plan, bloqueos y admin)
 resumen-semanal.sql           # resumen de los lunes (después de avisos-coach, admin, cupo-plan y cuentas-prueba)
 cobros-coach.sql              # cobros del coach a sus alumnos (después de suscripciones, cupo-plan, admin y foto-perfil; anda con y sin gimnasios)
+compras-google.sql            # cobro con Google Play, solo la base y apagado (después de suscripciones, admin, compras-apple, cuentas-prueba e ia)
 # Hasta acá, la base de hoy («gize_sin»). Con los gimnasios («gize_con»), además:
 #   gimnasios.sql               tablas, funciones de permiso y triggers del cupo (no cambia nada)
 #   gimnasios-vinculo.sql       versiones canónicas de coach_active, is_my_client, join_coach…

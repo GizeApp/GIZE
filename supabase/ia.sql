@@ -28,10 +28,12 @@
 -- pg_cron (como descanso.sql).
 --
 -- IA Plus (también ARRANCA APAGADO, ia_config.plus.activa): con el interruptor prendido, la foto del
--- plato es gratis hasta 3 fotos por semana; IA Plus (Mercado Pago en la web, Apple en el iPhone, o
--- incluido con el plan del coach) la deja sin límite semanal, con sus propios topes: hasta 10 fotos
--- por día y US$1,50 por persona por ciclo (ia_config.topes.plus; tabla ia_plus y «IA Plus» más
--- abajo). Lo escriben las funciones «suscripcion» y «compras-apple».
+-- plato es gratis hasta 3 fotos por semana; IA Plus (Mercado Pago en la web, Apple en el iPhone,
+-- Google Play en Android cuando se prenda su cobro, o incluido con el plan del coach) la deja sin
+-- límite semanal, con sus propios topes: hasta 10 fotos por día y US$1,50 por persona por ciclo
+-- (ia_config.topes.plus; tabla ia_plus y «IA Plus» más abajo). Lo escriben las funciones
+-- «suscripcion», «compras-apple» y «compras-google». Correr este archivo antes que
+-- supabase/compras-google.sql (usa las columnas google_* de ia_plus).
 --
 -- IA del coach («Pasar mis planillas» y «Armar con IA»; también ARRANCA APAGADA: funciones.planilla
 -- y funciones.rutina en false): usan la misma guardia, con el rol que da ia_rol_coach ('coach' con
@@ -240,7 +242,8 @@ alter table public.food_entries add column if not exists fuente text check (fuen
 -- Una fila por persona que alguna vez lo compró (o se lo dio el equipo de GIZE). Cada medio de
 -- pago tiene sus columnas y ninguno pisa al otro: lo vigente es lo que llegue más lejos
 -- (ia_plus_hasta). La escriben solo la función «suscripcion» (Mercado Pago, en la web), la función
--- «compras-apple» (App Store, en el iPhone) y el panel (admin_ia_plus_dar / _quitar).
+-- «compras-apple» (App Store, en el iPhone), la función «compras-google» (Google Play, en la app de
+-- Android) y el panel (admin_ia_plus_dar / _quitar).
 --   mp_*: la suscripción de Mercado Pago vigente (mp_preapproval_id), la que pidió y todavía no
 --     cobró (mp_pending_id), su estado, desde cuándo cobra (mp_desde, para el botón de
 --     arrepentimiento), hasta cuándo cubre (mp_hasta, con 3 días de margen como el plan de coach)
@@ -251,6 +254,8 @@ alter table public.food_entries add column if not exists fuente text check (fuen
 --     últimos 60 días no se puede volver a suscribir por Mercado Pago (función suscripcion).
 --   apple_*: la suscripción de Apple (original_transaction_id, ver apple_subs de compras-apple.sql),
 --     hasta cuándo cubre (vencimiento, período de gracia o fecha del reembolso) y si se renueva.
+--   google_*: la suscripción de Google Play (el código de la compra, ver google_subs de
+--     compras-google.sql), hasta cuándo cubre y si se renueva sola.
 --   manual_*: IA Plus dado a mano por soporte, hasta una fecha.
 -- Los alumnos de un coach con plan pago (o de cortesía) y los coaches con plan lo tienen incluido
 -- sin fila (ia_plus_info).
@@ -274,6 +279,11 @@ create table if not exists public.ia_plus (
 alter table public.ia_plus add column if not exists mp_pago_pa text;
 alter table public.ia_plus add column if not exists ultimo_arrepentido_at timestamptz;
 alter table public.ia_plus add column if not exists arrepentimientos int not null default 0;
+-- IA Plus comprado con Google Play (lo escribe la función «compras-google»). Van antes de las
+-- funciones de abajo, que las leen.
+alter table public.ia_plus add column if not exists google_token text;
+alter table public.ia_plus add column if not exists google_vence timestamptz;
+alter table public.ia_plus add column if not exists google_renueva boolean not null default false;
 create index if not exists ia_plus_pago on public.ia_plus(mp_pago_id);
 
 -- ---------- Botón de arrepentimiento y botón de baja, sin iniciar sesión ----------
@@ -297,6 +307,7 @@ create table if not exists public.pedidos_baja (
 create index if not exists pedidos_baja_email on public.pedidos_baja(lower(email), created_at);
 create index if not exists ia_plus_mp on public.ia_plus(mp_preapproval_id);
 create index if not exists ia_plus_apple on public.ia_plus(apple_original_tx);
+create index if not exists ia_plus_google on public.ia_plus(google_token);
 
 -- ---------- RLS: nada se lee ni se escribe directo desde la app ----------
 alter table public.ia_config enable row level security;
@@ -498,8 +509,8 @@ grant execute on function public.ia_permiso_rutinas_estado(uuid) to service_role
 -- ---------- IA Plus ----------
 -- Con el interruptor de IA Plus prendido (ia_config.plus.activa), la foto del plato es gratis
 -- hasta gratis_semana fotos por semana. La semana es la del calendario: arranca el lunes a las
--- 00:00 de Buenos Aires. Quien tiene IA Plus (lo pagó con Mercado Pago o con Apple, o se lo dio
--- soporte) o lo tiene incluido (coach con plan pago o de cortesía, y sus alumnos; la prueba gratis
+-- 00:00 de Buenos Aires. Quien tiene IA Plus (lo pagó con Mercado Pago, Apple o Google Play, o se lo
+-- dio soporte) o lo tiene incluido (coach con plan pago o de cortesía, y sus alumnos; la prueba gratis
 -- no cuenta, como coach_pago) no tiene límite semanal y usa los topes de IA Plus (topes.plus: hasta
 -- 10 fotos por día y US$1,50 por ciclo), además del resto de los topes de cada día. Lo controla
 -- ia_reservar, en la base, así que la app no lo puede saltear. Con el interruptor apagado no hay
@@ -513,10 +524,10 @@ $$;
 revoke all on function public.ia_semana() from public, anon, authenticated;
 
 -- Hasta cuándo tiene IA Plus comprado (o dado por soporte): lo que llegue más lejos de Mercado
--- Pago, Apple y lo manual. null si nunca lo tuvo.
+-- Pago, Apple, Google Play y lo manual. null si nunca lo tuvo.
 create or replace function public.ia_plus_hasta(p_uid uuid)
 returns timestamptz language sql stable security definer set search_path = public as $$
-  select greatest(x.mp_hasta, x.apple_vence, x.manual_hasta) from public.ia_plus x where x.user_id = p_uid;
+  select greatest(x.mp_hasta, x.apple_vence, x.google_vence, x.manual_hasta) from public.ia_plus x where x.user_id = p_uid;
 $$;
 revoke all on function public.ia_plus_hasta(uuid) from public, anon, authenticated;
 grant execute on function public.ia_plus_hasta(uuid) to service_role;
@@ -560,7 +571,8 @@ revoke all on function public.ia_semana_usos(uuid) from public, anon, authentica
 
 -- Lo que la app muestra de IA Plus (Ajustes → Mi IA Plus y el límite semanal), sin montos de la IA:
 --   { activa (el interruptor), estado ('gratis' | 'plus' | 'incluido'), por ('coach' | 'alumno',
---     si está incluido), fuente ('mp' | 'apple' | 'manual', si lo compró y está vigente), hasta,
+--     si está incluido), fuente ('mp' | 'apple' | 'google' | 'manual', si lo compró y está
+--     vigente: lo que llega más lejos), hasta,
 --     renueva, mp_status, arrepentir_hasta (hasta cuándo puede usar el botón de arrepentimiento),
 --     gratis_semana, usados_semana, quedan_semana (fotos), semana_vuelve (el lunes que viene),
 --     plato_dia (las fotos por día con IA Plus, para la oferta), precio_ars, espera_hasta (se arrepintió hace poco: hasta cuándo no puede volver a suscribirse por Mercado
@@ -577,10 +589,11 @@ begin
   if public.ia_rol(p_uid) = 'coach' then v_estado := 'incluido'; v_por := 'coach';
   elsif exists (select 1 from public.profiles p where p.id = p_uid and p.coach_id is not null and public.coach_pago(p.coach_id)) then v_estado := 'incluido'; v_por := 'alumno';
   end if;
-  v_hasta := greatest(v_x.mp_hasta, v_x.apple_vence, v_x.manual_hasta);
+  v_hasta := greatest(v_x.mp_hasta, v_x.apple_vence, v_x.google_vence, v_x.manual_hasta);
   if v_hasta is not null and v_hasta > now() then
-    v_fuente := case when v_hasta = v_x.apple_vence then 'apple' when v_hasta = v_x.mp_hasta then 'mp' else 'manual' end;
-    v_renueva := case v_fuente when 'mp' then coalesce(v_x.mp_status, '') = 'authorized' when 'apple' then coalesce(v_x.apple_renueva, false) else false end;
+    v_fuente := case when v_hasta = v_x.apple_vence then 'apple' when v_hasta = v_x.google_vence then 'google' when v_hasta = v_x.mp_hasta then 'mp' else 'manual' end;
+    v_renueva := case v_fuente when 'mp' then coalesce(v_x.mp_status, '') = 'authorized' when 'apple' then coalesce(v_x.apple_renueva, false)
+                               when 'google' then coalesce(v_x.google_renueva, false) else false end;
     v_estado := coalesce(v_estado, 'plus');
   else
     v_hasta := null;
@@ -896,11 +909,13 @@ begin
     -- IA Plus: la configuración y cuántos lo tienen vigente, por medio de pago.
     'plus', v_cfg.plus,
     'plus_resumen', (select jsonb_build_object(
-        'activos', count(*) filter (where greatest(x.mp_hasta, x.apple_vence, x.manual_hasta) > now()),
+        'activos', count(*) filter (where greatest(x.mp_hasta, x.apple_vence, x.google_vence, x.manual_hasta) > now()),
         'mp', count(*) filter (where x.mp_hasta > now()),
         'apple', count(*) filter (where x.apple_vence > now()),
+        'google', count(*) filter (where x.google_vence > now()),
         'manual', count(*) filter (where x.manual_hasta > now()),
-        'renuevan', count(*) filter (where (x.mp_hasta > now() and x.mp_status = 'authorized') or (x.apple_vence > now() and x.apple_renueva)),
+        'renuevan', count(*) filter (where (x.mp_hasta > now() and x.mp_status = 'authorized') or (x.apple_vence > now() and x.apple_renueva)
+                                        or (x.google_vence > now() and x.google_renueva)),
         'arrepentidos', count(*) filter (where coalesce(x.ultimo_arrepentido_at, x.arrepentido_at) is not null))
       from public.ia_plus x),
     'clave_rechazada', (select max(l.creada) from public.ia_llamadas l where l.codigo = 'clave_rechazada'
@@ -1128,22 +1143,23 @@ returns jsonb language plpgsql stable security definer set search_path = public 
 begin
   perform public.admin_assert();
   return coalesce((select jsonb_agg(to_jsonb(y) order by y.hasta desc nulls last) from (
-    select x.user_id, u.email, p.full_name as nombre, greatest(x.mp_hasta, x.apple_vence, x.manual_hasta) as hasta,
-           x.mp_hasta, x.mp_status, x.mp_desde, x.mp_pending_id is not null as pagando, x.apple_vence, x.apple_renueva, x.manual_hasta, x.manual_nota, x.arrepentido_at,
+    select x.user_id, u.email, p.full_name as nombre, greatest(x.mp_hasta, x.apple_vence, x.google_vence, x.manual_hasta) as hasta,
+           x.mp_hasta, x.mp_status, x.mp_desde, x.mp_pending_id is not null as pagando, x.apple_vence, x.apple_renueva,
+           x.google_vence, x.google_renueva, x.manual_hasta, x.manual_nota, x.arrepentido_at,
            x.ultimo_arrepentido_at, x.arrepentimientos, x.created_at
       from public.ia_plus x
       left join auth.users u on u.id = x.user_id
       left join public.profiles p on p.id = x.user_id
-     where greatest(x.mp_hasta, x.apple_vence, x.manual_hasta) > now() - interval '60 days' or x.mp_pending_id is not null
+     where greatest(x.mp_hasta, x.apple_vence, x.google_vence, x.manual_hasta) > now() - interval '60 days' or x.mp_pending_id is not null
         or x.arrepentimientos >= 2
-     order by greatest(x.mp_hasta, x.apple_vence, x.manual_hasta) desc nulls last
+     order by greatest(x.mp_hasta, x.apple_vence, x.google_vence, x.manual_hasta) desc nulls last
      limit 300) y), '[]'::jsonb);
 end $$;
 revoke all on function public.admin_ia_plus_lista() from public, anon;
 grant execute on function public.admin_ia_plus_lista() to authenticated;
 
 -- Soporte: dar IA Plus a mano a una cuenta (por su mail) hasta el final de un día (Buenos Aires).
--- No toca lo que haya pagado con Mercado Pago o con Apple.
+-- No toca lo que haya pagado con Mercado Pago, con Apple o con Google Play.
 create or replace function public.admin_ia_plus_dar(p_email text, p_hasta date, p_nota text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare v_uid uuid; v_hasta timestamptz; v_nota text := nullif(btrim(coalesce(p_nota, '')), '');
@@ -1162,8 +1178,8 @@ end $$;
 revoke all on function public.admin_ia_plus_dar(text, date, text) from public, anon;
 grant execute on function public.admin_ia_plus_dar(text, date, text) to authenticated;
 
--- Soporte: sacar el IA Plus dado a mano. Lo pagado con Mercado Pago o con Apple no se toca (se
--- cancela por el mismo medio).
+-- Soporte: sacar el IA Plus dado a mano. Lo pagado con Mercado Pago, con Apple o con Google Play no
+-- se toca (se cancela por el mismo medio).
 create or replace function public.admin_ia_plus_quitar(p_uid uuid)
 returns jsonb language plpgsql security definer set search_path = public as $$
 begin

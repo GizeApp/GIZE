@@ -9,7 +9,9 @@
 //      cuentan las fotos (un texto viejo no); los errores explícitos de la API (usd 0) no cuentan;
 //      lo de la semana pasada no cuenta; la semana arranca el lunes 00:00 de Buenos Aires;
 //    - sin límite: alumno de coach con plan pago o de cortesía (la prueba no cuenta), coach con plan,
-//      IA Plus comprado y vigente (Mercado Pago, Apple o a mano); vencido, vuelve el límite;
+//      IA Plus comprado y vigente (Mercado Pago, Apple, Google Play o a mano); vencido, vuelve el
+//      límite; con Google Play: fuente 'google', si se renueva, gana lo que llega más lejos y, con el
+//      interruptor apagado, sigue con los topes de IA Plus (como con Apple);
 //    - en modo ahorro, quien pagó IA Plus sigue;
 //    - topes de IA Plus (topes.plus): con IA Plus, hasta 10 fotos por día y US$1,50 por ciclo; el
 //      gratis sigue con US$0,50; el coach sigue con sus US$5; con el interruptor apagado, el
@@ -18,7 +20,8 @@
 //    - dos pedidos a la vez con un solo uso gratis: pasa uno;
 //    - ia_mi_estado: estado tope_semana, «quedan» y lo de plus (estado, fuente, renueva,
 //      arrepentimiento), también con la IA apagada;
-//    - panel: dar y sacar IA Plus a mano por mail, lista y resumen; desde la app no se puede;
+//    - panel: dar y sacar IA Plus a mano por mail, lista y resumen (también con Google Play); desde la
+//      app no se puede;
 //    - no se prende IA Plus con la IA de Comida apagada; después de arrepentirse, 60 días de espera
 //      (espera_hasta) y quien se arrepintió dos veces queda en la lista del panel;
 //    - botón de arrepentimiento y de baja sin sesión (pedido_baja): código, tope por mail, solo la
@@ -53,6 +56,15 @@ export default async ({ t }) => {
   t.ok(/l\.funcion = 'plato' and l\.creada >= public\.ia_semana\(\)/.test(fn(code, 'ia_semana_usos')), 'la semana cuenta solo fotos');
   t.ok(code.includes('create table if not exists public.ia_plus (') && code.includes('alter table public.ia_plus enable row level security;') && code.includes('revoke all on public.ia_plus from anon, authenticated;'), 'ia_plus: RLS y sin acceso desde la app');
   t.ok(!/create policy [^;]* on public\.ia_plus/.test(code), 'ia_plus: sin políticas (la app lo lee con ia_mi_estado)');
+  // IA Plus con Google Play (función compras-google): sus columnas, antes de las funciones (ia_plus_hasta es
+  // language sql y se valida al crearla), y lo cuentan las cuatro funciones como a Apple.
+  for (const c of ['google_token text', 'google_vence timestamptz', 'google_renueva boolean not null default false'])
+    t.ok(code.includes('alter table public.ia_plus add column if not exists ' + c + ';'), 'ia_plus: ' + c + ' (también en una base que ya la tenía)');
+  t.ok(code.indexOf('add column if not exists google_vence') > 0 && code.indexOf('add column if not exists google_vence') < code.indexOf('create or replace function public.ia_plus_hasta('),
+    'las columnas de Google van antes de ia_plus_hasta');
+  t.ok(code.includes('create index if not exists ia_plus_google on public.ia_plus(google_token);'), 'ia_plus: índice por la compra de Google');
+  for (const name of ['ia_plus_hasta', 'ia_plus_info', 'admin_ia_estado', 'admin_ia_plus_lista'])
+    t.ok(/greatest\((v_)?x\.mp_hasta, (v_)?x\.apple_vence, (v_)?x\.google_vence, (v_)?x\.manual_hasta\)/.test(fn(code, name)), name + ': cuenta lo pagado con Google Play');
   for (const sig of ['ia_plus_hasta(uuid)', 'ia_plus_incluido(uuid)', 'ia_plus_tiene(uuid)', 'ia_plus_rige(uuid)', 'ia_plus_info(uuid)']){
     const e = sig.replace(/[()]/g, '\\$&');
     t.ok(new RegExp('revoke all on function public\\.' + e + ' from public, anon, authenticated;').test(code) && code.includes('grant execute on function public.' + sig + ' to service_role;'), sig + ': solo la service role');
@@ -224,6 +236,33 @@ do $$ declare j jsonb; e jsonb; begin
   e := public.ia_mi_estado();
   assert e #>> '{plus,fuente}' = 'apple' and (e #>> '{plus,renueva}')::boolean, 'apple ' || e::text;
   update public.ia_plus set apple_vence = now() - interval '1 minute', apple_renueva = false where user_id = '${ALUMNO_ID}';
+  j := ${RES(ALUMNO_ID)}; assert j ->> 'codigo' = 'tope_semana', 'sin nada vigente: con límite ' || j::text;
+  -- Google Play vigente (lo compró en la app de Android): igual que Apple.
+  update public.ia_plus set google_token = 'token-de-prueba', google_vence = now() + interval '4 days', google_renueva = true where user_id = '${ALUMNO_ID}';
+  assert public.ia_plus_hasta('${ALUMNO_ID}') = (select google_vence from public.ia_plus where user_id = '${ALUMNO_ID}'), 'ia_plus_hasta: lo de Google';
+  ${USO(ALUMNO_ID)}
+  e := public.ia_mi_estado();
+  assert e #>> '{plus,estado}' = 'plus' and e #>> '{plus,fuente}' = 'google' and (e #>> '{plus,renueva}')::boolean, 'google ' || e::text;
+  assert (e #>> '{tope,plato}')::int = 10 and (e #>> '{plus,hasta}')::timestamptz > now() + interval '3 days', 'con los topes de IA Plus ' || e::text;
+  -- Con el interruptor de IA Plus apagado, quien lo pagó con Google sigue con los topes de IA Plus.
+  update public.ia_config set plus = plus || '{"activa": false}';
+  assert public.ia_plus_rige('${ALUMNO_ID}'), 'apagado: rige para quien lo pagó con Google Play';
+  update public.ia_config set plus = plus || '{"activa": true}';
+  -- Cancelada en Google Play: sigue hasta el final de lo pago, sin renovarse.
+  update public.ia_plus set google_renueva = false where user_id = '${ALUMNO_ID}';
+  e := public.ia_mi_estado();
+  assert e #>> '{plus,fuente}' = 'google' and not (e #>> '{plus,renueva}')::boolean, 'google cancelada ' || e::text;
+  -- Si lo de Apple llega más lejos, la fuente es Apple (y se renueva si Apple se renueva).
+  update public.ia_plus set apple_vence = now() + interval '6 days', apple_renueva = true where user_id = '${ALUMNO_ID}';
+  e := public.ia_mi_estado();
+  assert e #>> '{plus,fuente}' = 'apple' and (e #>> '{plus,renueva}')::boolean, 'gana lo que llega más lejos ' || e::text;
+  update public.ia_plus set apple_vence = now() - interval '1 minute', apple_renueva = false where user_id = '${ALUMNO_ID}';
+  -- Vencida (o suspendida: la función la deja en el pasado): vuelve el límite.
+  update public.ia_plus set google_vence = now() - interval '1 minute' where user_id = '${ALUMNO_ID}';
+  j := ${RES(ALUMNO_ID)}; assert j ->> 'codigo' = 'tope_semana', 'google vencida: vuelve el límite ' || j::text;
+  assert not public.ia_plus_rige('${ALUMNO_ID}'), 'google vencida: sin los topes de IA Plus';
+  e := public.ia_mi_estado();
+  assert e #>> '{plus,estado}' = 'gratis' and e #> '{plus,fuente}' = 'null'::jsonb, 'google vencida: gratis ' || e::text;
 end $$;`],
   ['modo ahorro: quien pagó IA Plus sigue; el gratis no', `
 update public.ia_ciclos set estado = 'ahorro';
@@ -317,6 +356,20 @@ reset role;
 ${COMO(OTRO_ID)}
 do $$ declare e jsonb := public.ia_mi_estado(); begin assert e #>> '{plus,estado}' = 'gratis' and (e #>> '{plus,usados_semana}')::int = 1, 'sin el manual: vuelve a ser gratis ' || e::text; end $$;
 reset role;`],
+  ['panel con Google Play: resumen y lista', `
+insert into public.ia_plus (user_id, google_token, google_vence, google_renueva) values ('${COACH_ID}', 'token-de-prueba-2', now() + interval '20 days', true);
+${COMO(ADMIN_ID)}
+do $$ declare e jsonb; l jsonb; x jsonb; begin
+  e := public.admin_ia_estado();
+  assert (e #>> '{plus_resumen,google}')::int = 1 and (e #>> '{plus_resumen,activos}')::int = 2 and (e #>> '{plus_resumen,mp}')::int = 1
+     and (e #>> '{plus_resumen,renuevan}')::int = 2, 'resumen con Google ' || (e -> 'plus_resumen')::text;
+  l := public.admin_ia_plus_lista();
+  select v into x from jsonb_array_elements(l) v where v ->> 'user_id' = '${COACH_ID}';
+  assert x is not null and (x ->> 'google_renueva')::boolean and (x ->> 'hasta')::timestamptz = (x ->> 'google_vence')::timestamptz, 'lista con Google ' || coalesce(x::text, l::text);
+  assert l -> 0 ->> 'user_id' = '${COACH_ID}', 'primero el que llega más lejos ' || l::text;
+end $$;
+reset role;
+delete from public.ia_plus where user_id = '${COACH_ID}';`],
   ['desde la app: no lee ia_plus ni toca el panel; con la IA apagada igual ve lo suyo', `
 ${COMO(OTRO_ID)}
 do $$ begin
