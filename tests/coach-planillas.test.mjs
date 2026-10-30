@@ -240,6 +240,16 @@ export default async function ({ base, t }){
   t.eq(pg.preguntas.length, nPreg, 'volver a la planilla no pregunta nada');
   t.eq(await p.evaluate(id => document.querySelector('#coachHost input[data-pp="nombre"][data-id="' + id + '"]').value, await idDe(p, 'Juan Pérez')), 'Juan · Torso', 'el nombre que se cambió en el editor queda');
   t.has(await tarjeta(p, 'Juan Pérez'), 'Lista: 1 día · 3 ejercicios', 'y la rutina sigue en la planilla');
+  // Salir del editor por la barra lateral cierra la pantalla, y lo que se cambió (también el nombre) queda.
+  await tocar(p, 'pl-editar', 'Juan Pérez', 700);
+  await p.fill('#coachHost [data-coach="tpl-name"]', 'Juan · Torso B');
+  await ir(p, 'tpls');
+  t.ok(!(await p.$('#coachHost .pp-title')) && !(await p.$('#coachHost [data-coach="tpl-name"]')), 'salir del editor por la barra: queda en Rutinas');
+  await p.click('#coachHost [data-coach="pl-open"]'); await wait(800);
+  await p.click('#coachHost [data-coach="pl-seguir"]'); await wait(500);
+  const nomJuan = '#coachHost input[data-pp="nombre"][data-id="' + await idDe(p, 'Juan Pérez') + '"]';
+  t.eq(await p.$eval(nomJuan, i => i.value), 'Juan · Torso B', 'salir del editor por la barra: el nombre que se cambió queda');
+  await p.fill(nomJuan, 'Juan · Torso'); await p.press(nomJuan, 'Tab'); await wait(300);
 
   // El borrador vuelve después de recargar, sin la planilla.
   const guardado = await p.evaluate(k => localStorage.getItem(k) || '', CLAVE);

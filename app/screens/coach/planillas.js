@@ -577,10 +577,13 @@ document.addEventListener("change", e => {
   if (k === "para"){ it.para = t.value || null; guardarBorrador(P); repintar(P); return; }
   if (k === "nombre"){ it.nombre = t.value.slice(0, 80); guardarBorrador(P); }
 });
+// El nombre de la tarjeta y el del editor con una rutina de la planilla abierta: así queda aunque se
+// salga del editor por la barra lateral, sin «‹ Volver a la planilla» (los días ya son los mismos).
 document.addEventListener("input", e => {
-  const t = e.target, P = CoachState.planillas;
-  if (!P || !t || !t.dataset || t.dataset.pp !== "nombre") return;
-  const it = P.items.find(x => x.id === t.dataset.id);
+  const t = e.target, P = CoachState.planillas, ed = CoachState.coachTplEdit;
+  if (!P || !t || !t.dataset) return;
+  const id = t.dataset.pp === "nombre" ? t.dataset.id : t.dataset.coach === "tpl-name" && ed && ed.planilla ? ed.planilla : null;
+  const it = id && P.items.find(x => x.id === id);
   if (it) it.nombre = t.value.slice(0, 80);
 });
 
