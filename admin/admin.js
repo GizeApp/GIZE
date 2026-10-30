@@ -1912,7 +1912,7 @@ async function iaTopes(btn){
 
 // ---------- Avisos ----------
 async function loadAvisos(){
-  page("Avisos", "Notificaciones a los usuarios y cartel de actualización de la app.", '<div class="empty">Cargando…</div>');
+  page("Avisos", "Notificaciones a los usuarios, cartel de actualización de la app y resumen de los lunes para coaches.", '<div class="empty">Cargando…</div>');
   try { const r = await sb.from("app_config").select("value").eq("key", "version").maybeSingle(); S.config = (r.data && r.data.value) || {}; } catch (e) { S.config = {}; }
   const vf = (pl, name) => { const c = S.config[pl] || {}; return `<div class="card"><div class="sec-t">${name}</div>
     <div class="vgrid"><label><span class="lbl">Última (número)</span><input class="in" data-v="${pl}.ultima" type="number" value="${esc(c.ultima || 0)}"></label>
@@ -1920,7 +1920,7 @@ async function loadAvisos(){
     <label><span class="lbl">Mínima obligatoria</span><input class="in" data-v="${pl}.minima" type="number" value="${esc(c.minima || 0)}"></label></div>
     <label><span class="lbl">Link de la tienda</span><input class="in" data-v="${pl}.tienda" value="${esc(c.tienda || "")}"></label></div>`; };
   const vtxt = pl => (S.config[pl] || {}).version || "—";
-  page("Avisos", "Notificaciones a los usuarios y cartel de actualización de la app.",
+  page("Avisos", "Notificaciones a los usuarios, cartel de actualización de la app y resumen de los lunes para coaches.",
     panel("avNotB", "Notificación a los usuarios", `<div class="sec-s">Les llega a quienes activaron los avisos en su celular o computadora.</div>
         <label class="lbl">A quién</label><div class="seg" id="avT">${[["todos", "Todos"], ["coaches", "Coaches"], ["alumnos", "Alumnos"]].map(([k, l], i) => `<button class="${i ? "" : "on"}" data-a="avT" data-v="${k}">${l}</button>`).join("")}</div>
         <label class="lbl">Título (hasta 60 letras)</label><input class="in" id="avTitle" maxlength="60" placeholder="Ej: Salió la versión 1.0.7">
@@ -1929,7 +1929,139 @@ async function loadAvisos(){
         <div class="row-btns"><button class="btn pri" data-a="avSend">Enviar notificación</button></div>`) +
     panel("avCfgB", "Cartel de actualización", `<div class="sec-s">Subí «Última» recién cuando la versión ya esté publicada en la tienda. «Mínima» obliga a actualizar (pantalla que no se puede cerrar).</div>
         <div class="grid two">${vf("android", "Android")}${vf("ios", "iPhone")}</div>
-        <div class="row-btns"><button class="btn blue" data-a="cfgSave">Guardar cartel</button></div>`, { open: false, sum: "Android " + esc(vtxt("android")) + " · iPhone " + esc(vtxt("ios")) }));
+        <div class="row-btns"><button class="btn blue" data-a="cfgSave">Guardar cartel</button></div>`, { open: false, sum: "Android " + esc(vtxt("android")) + " · iPhone " + esc(vtxt("ios")) }) +
+    panel("avResB", "Resumen de los lunes para coaches", '<div id="avRes"><div class="calm">Cargando…</div></div>'));
+  loadResLunes();
+}
+
+// Resumen de los lunes para los coaches (supabase/resumen-semanal.sql y la función resumen-semanal):
+// prenderlo y apagarlo, el tope de mails por día, los números de la última semana y una muestra
+// con datos inventados («Ver cómo queda» y «Mandármelo», a tu propio mail). Arranca apagado.
+async function loadResLunes(){
+  let d = null, err = null;
+  S.resMuestra = null;
+  try { d = await rpc("admin_resumen_semanal"); } catch (e) { err = e; }
+  if (S.view !== "avisos") return;
+  S.resLunes = d && typeof d === "object" ? d : null;
+  if (S.resLunes) return paintResLunes();
+  const box = document.getElementById("avRes"); if (!box) return;
+  const falta = err && (err.code === "PGRST202" || /schema cache|does not exist/i.test(errMsg(err)));
+  box.innerHTML = `<div class="calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>funciones</b> (publica la función resumen-semanal) y después tarea <b>sql</b>, archivo <b>supabase/resumen-semanal.sql</b>. Queda apagado hasta que lo prendas acá."
+    : esc(err ? errMsg(err) : "No se pudo leer cómo está el resumen. Recargá la página.")}</div>`;
+}
+// Lo que quedó en el registro de acciones (admin_resumen_semanal_config): «prendido · tope 60 por día».
+const resLog = d => d ? (d.activo ? "prendido" : "apagado") + (d.tope_dia != null ? " · tope " + n0(d.tope_dia) + " por día" : "") : "";
+// «19 de octubre», de un día AAAA-MM-DD (o de una fecha con hora: se toma el día que dice).
+const diaMes = iso => new Date(String(iso).slice(0, 10) + "T12:00:00Z").toLocaleDateString("es-AR", { day: "numeric", month: "long", timeZone: "UTC" });
+// Cuándo sale el próximo con el resumen prendido. El cron lo manda de lunes a miércoles, de 9 a
+// 12:55 (Argentina, UTC-3 todo el año), mientras falten coaches de la semana y haya lugar en el
+// tope del día; si no, el lunes que viene a las 9 (proximo_lunes, lo calcula la base).
+function resProximo(d){
+  const ar = new Date(Date.now() - 3 * 3600e3), dia = ar.getUTCDay(), min = ar.getUTCHours() * 60 + ar.getUTCMinutes();
+  if (d.en_ventana && num(d.pendientes) > 0){
+    if (min < 9 * 60) return "hoy a las 9";
+    if (min < 12 * 60 + 55 && num(d.cupo_hoy) > 0) return "hoy, en los próximos minutos";
+    if (dia === 1 || dia === 2) return "mañana a las 9";
+  }
+  return d.proximo_lunes ? "el lunes " + diaMes(d.proximo_lunes) + " a las 9" : "el lunes que viene a las 9";
+}
+// foco: el control que se acaba de usar (el panel se vuelve a dibujar y el foco vuelve ahí).
+function paintResLunes(foco){
+  const box = document.getElementById("avRes"), d = S.resLunes; if (!box || !d) return;
+  const on = !!d.activo, faltan = d.en_ventana && num(d.pendientes) > 0;
+  const sw = `<div class="ia-master"><div><b>Mandar el resumen los lunes</b><small>${on ? "Prendido: el próximo sale " + esc(resProximo(d)) + "."
+      : "Apagado: no le llega a nadie. Antes de prenderlo, mirá cómo queda y mandátelo."}</small></div>
+    <button class="tgl" role="switch" aria-checked="${on ? "true" : "false"}" aria-label="Resumen de los lunes para coaches" data-a="resOn"></button></div>`;
+  const tope = `<label class="lbl" for="resTope">Tope de mails por día</label>
+    <div class="search"><input class="in" id="resTope" inputmode="numeric" value="${esc(d.tope_dia != null ? d.tope_dia : 60)}"><button class="btn" data-a="resTope">Guardar tope</button></div>
+    <div class="muted small">Resend gratis manda 100 mails por día, contando los de confirmar la cuenta y cambiar la contraseña: dejalo en 60. Los que no entran salen al día siguiente, hasta el miércoles.${on ? " Hoy quedan " + n0(d.cupo_hoy) + "." : ""}</div>`;
+  const k = (n, l, s, cls) => `<div class="kpi${cls ? " " + cls : ""}"><b>${n0(n)}</b><span>${l}</span><small>${s}</small></div>`;
+  const nums = `<div class="lbl">Semana del lunes ${esc(diaMes(d.semana))} (la última que se resume)</div><div class="grid kpis">
+    ${k(d.candidatos, "Coaches con alumnos", "Sin las cuentas de prueba ni los que lo apagaron. Al que tiene el plan vencido no le llega." + (faltan ? " Esta semana faltan " + n0(d.pendientes) + "." : ""))}
+    ${k(d.enviados, "Enviados", n0(d.con_mail) + " con mail · " + n0(d.con_aviso) + " con aviso")}
+    ${k(d.sin_novedades, "Sin novedades", "No tenían nada para contar: no les llegó nada.")}
+    ${k(d.reintentar, "Por reintentar", "Resend falló por algo pasajero: sale en la tanda siguiente." + (num(d.en_curso) ? " Saliendo ahora: " + n0(d.en_curso) + "." : ""))}
+    ${k(d.fallidos, "Fallidos", "Después de 3 intentos.", num(d.fallidos) ? "bad" : "")}
+    ${k(d.apagados, "Lo apagaron", "Coaches que no lo quieren recibir (desde la app o el mail).")}</div>`;
+  const muestra = `<div class="row-btns"><button class="btn" data-a="resVer">Ver cómo queda</button><button class="btn" data-a="resMandar">Mandármelo</button></div>
+    <div class="muted small" style="margin-top:8px">Con datos inventados, nunca los de un coach de verdad. «Mandármelo» te lo manda a ${esc(S.user.email)}.</div><div id="resMuestra"></div>`;
+  box.innerHTML = `<div class="sec-s">Todos los lunes desde las 9 (Argentina), a cada coach con alumnos le llega un mail y, si activó los avisos, una notificación con su semana: quién entrenó, a quién escribirle y los récords. Sin IA. Cada coach lo apaga desde la app o desde el mismo mail.</div>`
+    + sw + tope + nums + muestra;
+  setSum("avResB", on ? '<span class="t-ok">prendido</span>' + (num(d.enviados) ? " · " + n0(d.enviados) + " enviados" : "") : "apagado");
+  paintResMuestra();
+  if (foco){ const el = box.querySelector(foco); if (el) try { el.focus({ preventScroll: true }); } catch (e) {} }
+}
+// La muestra va en un iframe sin scripts (sandbox) y sobre blanco, como se ve en el correo. Los
+// links se abren en otra pestaña.
+function paintResMuestra(){
+  const box = document.getElementById("resMuestra"), m = S.resMuestra; if (!box || !m) return;
+  box.innerHTML = `<div class="res-prev"><div class="small"><span class="muted">Asunto:</span> ${esc(m.subject || "")}</div>
+    <iframe class="res-mail" title="Cómo queda el mail del resumen" sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe></div>`;
+  box.querySelector("iframe").srcdoc = '<base target="_blank"><style>html,body{margin:0;background:#fff}</style>' + m.html;
+}
+// El tope escrito, o null (y avisa) si no es un número de 0 a 5000 (lo mismo que acepta la base).
+function resTopeVal(){
+  const i = document.getElementById("resTope"), v = i ? String(i.value).trim() : "";
+  const n = /^\d{1,4}$/.test(v) ? parseInt(v, 10) : NaN;
+  if (!(n >= 0 && n <= 5000)){ toast("El tope va de 0 a 5000 mails por día."); return null; }
+  return n;
+}
+// Prender (con el tope que está escrito) o apagar. Apagado, frena lo que falta mandar.
+async function resOnOff(btn){
+  const d = S.resLunes; if (!d) return;
+  const on = btn.getAttribute("aria-checked") !== "true", faltan = d.en_ventana && num(d.pendientes) > 0;
+  let tope = null;
+  if (on){
+    tope = resTopeVal(); if (tope == null) return;
+    if (!tope) return toast("Con el tope en 0 no sale ninguno: subilo antes de prenderlo.");
+  }
+  const llega = num(d.candidatos);
+  const msg = on ? "¿Prender el resumen de los lunes?\n\n" + (llega ? "Le llegaría a " + n0(llega) + (llega === 1 ? " coach" : " coaches") + " con alumnos" + (faltan && num(d.pendientes) !== llega ? " (esta semana faltan " + n0(d.pendientes) + ")" : "") + ". Al que no tiene nada para contar de su semana no le llega nada."
+      : "Por ahora ningún coach tiene alumnos: no le llegaría a nadie.") + "\n\nEl próximo sale " + resProximo(d) + ", con un tope de " + n0(tope) + " mails por día."
+    : "¿Apagar el resumen de los lunes? No le llega más a ningún coach hasta que lo vuelvas a prender." + (d.activo && faltan ? "\n\nFrena lo que falta mandar esta semana (" + n0(d.pendientes) + (num(d.pendientes) === 1 ? " coach)." : " coaches).") : "");
+  if (!await confirmar(msg, { titulo: "Resumen de los lunes", ok: on ? "Prender" : "Apagar" })) return;
+  btn.disabled = true;
+  try {
+    const r = await rpc("admin_resumen_semanal_config", { p_activo: on, p_tope: tope });
+    S.resLunes = r && typeof r === "object" ? r : Object.assign({}, d, { activo: on }, tope != null ? { tope_dia: tope } : {});
+    toast(on ? "Resumen de los lunes: prendido" : "Resumen de los lunes: apagado");
+  } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  paintResLunes('[data-a="resOn"]');
+}
+async function resTope(btn){
+  const d = S.resLunes, tope = resTopeVal(); if (!d || tope == null) return;
+  btn.disabled = true;
+  try {
+    const r = await rpc("admin_resumen_semanal_config", { p_activo: null, p_tope: tope });
+    S.resLunes = r && typeof r === "object" ? r : Object.assign({}, d, { tope_dia: tope });
+    toast("Tope guardado ✓");
+  } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  paintResLunes('[data-a="resTope"]');
+}
+// La función resumen-semanal arma el mail con datos inventados (solo para administradores) y, con
+// enviar, se lo manda al mail de quien lo pide. Nunca usa los datos de un coach.
+async function resInvoke(body){
+  let r;
+  try { r = await sb.functions.invoke("resumen-semanal", { body }); } catch (e) { throw new Error("Sin conexión. Probá de nuevo."); }
+  if (r.error){
+    const ctx = r.error.context; let j = null;
+    try { j = ctx && typeof ctx.json === "function" ? await ctx.json() : null; } catch (e) {}
+    if (j && j.error) throw new Error(j.error);
+    if (ctx && ctx.status === 404) throw new Error("La función resumen-semanal todavía no está publicada: en GitHub, Actions → Supabase → tarea «funciones».");
+    throw new Error(r.error.name === "FunctionsFetchError" ? "Sin conexión. Probá de nuevo." : errMsg(r.error));
+  }
+  if (!r.data || typeof r.data.html !== "string") throw new Error("La función no devolvió el mail.");
+  return r.data;
+}
+async function resMuestra(btn, enviar){
+  btn.disabled = true;
+  let m;
+  try { m = await resInvoke(enviar ? { action: "muestra", enviar: true } : { action: "muestra" }); }
+  catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  btn.disabled = false;
+  S.resMuestra = { subject: m.subject, html: m.html };
+  paintResMuestra();
+  if (enviar) toast("Listo: te lo mandamos a " + S.user.email);
 }
 async function sendAviso(btn){
   const target = (document.querySelector("#avT button.on") || {}).dataset.v, title = document.getElementById("avTitle").value.trim(), body = document.getElementById("avBody").value.trim();
@@ -1984,9 +2116,9 @@ async function loadSeguridad(){
     objetivo_nuevo: "Agregó un objetivo", objetivo: "Cambió un objetivo", objetivo_borrar: "Borró un objetivo",
     tarea_nueva: "Agregó una tarea", tarea: "Cambió una tarea", tarea_hecha: "Marcó una tarea como hecha", tarea_deshacer: "Volvió a abrir una tarea", tarea_borrar: "Borró una tarea",
     gym_convertir: "Convirtió una cuenta en gimnasio", gym_transferir: "Transfirió un gimnasio", gym_cerrar: "Cerró un gimnasio", gym_profes_extra: "Cambió el tope de profes de un gimnasio",
-    gym_auditoria: "Exportó la auditoría de un gimnasio", seats_drift: "Diferencia en el cupo (tarea diaria)" }[a.action] || a.action);
+    gym_auditoria: "Exportó la auditoría de un gimnasio", seats_drift: "Diferencia en el cupo (tarea diaria)", resumen_semanal: "Cambió el resumen de los lunes" }[a.action] || a.action);
   const goalTxt = d => d ? (d.label || (METRICS[d.metric] || [d.metric])[0]) + (d.target != null ? " · meta " + (METRICS[d.metric] || [, n0])[1](d.target) : "") : "";
-  const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : (a.target_name || "");
+  const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : a.action === "resumen_semanal" ? resLog(a.detail) : (a.target_name || "");
   setSum("sAudB", "última: " + esc(what(S.audit[0])).toLowerCase() + " · " + ago(S.audit[0].created_at));
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Sobre</th></tr></thead><tbody>${S.audit.map(a => `<tr><td class="muted">${fmtDT(a.created_at)}</td><td>${esc(a.admin_name || "—")}</td><td>${esc(what(a))}</td><td class="muted">${esc(extra(a) || "")}</td></tr>`).join("")}</tbody></table>`;
@@ -2188,6 +2320,10 @@ document.addEventListener("click", async e => {
     if (a === "zoom"){ const z = document.createElement("div"); z.className = "zoom"; z.setAttribute("role", "dialog"); z.setAttribute("aria-label", "Foto (tocá o Esc para cerrar)"); z.innerHTML = `<img src="${esc(b.dataset.url)}" alt="${esc((b.querySelector("img") || {}).alt || "")}">`; z.onclick = () => z.remove(); document.body.appendChild(z); return; }
     if (a === "avT"){ document.querySelectorAll("#avT button").forEach(x => x.classList.toggle("on", x === b)); return; }
     if (a === "avSend"){ sendAviso(b); return; }
+    if (a === "resOn"){ resOnOff(b); return; }
+    if (a === "resTope"){ resTope(b); return; }
+    if (a === "resVer"){ resMuestra(b, false); return; }
+    if (a === "resMandar"){ resMuestra(b, true); return; }
     if (a === "cfgSave"){ saveConfig(b); return; }
     if (a === "gNew"){ openGoal(null); return; }
     if (a === "tAdd"){ addTask(b); return; }
