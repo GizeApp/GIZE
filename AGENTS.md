@@ -36,6 +36,10 @@ Se publica en gize.ar con GitHub Pages desde `main`.
 - La IA de comida pide permiso una sola vez antes de mandar nada (`app/ui/ia-permiso.js`) y
   cumple lo que dice `privacidad/index.html`. Si cambiás qué se manda o qué se guarda, la
   política tiene que cambiar en el mismo cambio.
+- **Cobros del coach (iPhone y Android):** los montos que el coach cobra por su trabajo no son
+  precios de GIZE (sin links ni datos para pagar). En las apps se ven solo dentro de Cobros, y el
+  alumno ve solo el estado y la fecha de su cuota. Cobros nunca nombra el plan, la prueba ni los
+  precios de GIZE, ni Mercado Pago. Cada app tiene su interruptor en el admin y arranca apagada.
 
 ## Pruebas
 

@@ -8,6 +8,11 @@
 //   · con la cuenta vencida ve una pantalla neutra con «Cerrar sesión»;
 //   · al vincularse, el alumno no ve el plan de su coach en el mensaje de error.
 //   · en el chat, el alumno de un coach vencido no ve «plan vencido» al mandar un mensaje.
+//   · con Cobros prendido en la app (lo prende el dueño desde el admin; de fábrica está apagado), el
+//     panel, la tira de Inicio y su Configuración siguen sin pagos ni precios. Dentro de Cobros sí se
+//     ven los montos que el coach les cobra a sus alumnos (no son precios de GIZE: AGENTS.md, «Reglas
+//     de las tiendas»), pero nunca la prueba, el plan ni precios de GIZE, tarjetas, suscripciones,
+//     Mercado Pago ni links a gize.ar (PROHIBIDO_COBROS; cada ventana, en cobros-coach-tiendas).
 // En la app de Android (con Capacitor o solo con su puente), lo mismo que en el iPhone para el
 // coach que ya tiene cuenta: ni el panel, ni su Configuración, ni la bienvenida, ni la pantalla de la
 // cuenta vencida hablan de la prueba, el plan, pagos ni precios (la vencida dice, además, cuándo sus
@@ -15,6 +20,7 @@
 // En la web todo sigue como antes: «Soy coach», la prueba gratis, «Mi plan» y los precios.
 // Eliminar la cuenta de coach dice «se da de baja tu cuenta de coach» en todos lados.
 import { newPage, wait, ALUMNO, profile, configCoach, seccionesCoach, CONFIG_COACH } from './lib.mjs';
+import { resumen } from './cobros-coach-comun.mjs';
 
 const IOS = `(() => { window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: {} }; })();`;
 // La app de Android: con Capacitor, o solo con su puente (window.androidBridge).
@@ -24,14 +30,17 @@ const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba
 const D = n => new Date(Date.now() + n * 864e5).toISOString();
 // Lo que no se puede ver en las apps. «planes» (los planes alimenticios del coach) no cuenta.
 const PROHIBIDO = /prueba|gratis|\bplan\b|pago|precio|tarjeta|mercado|suscrip|contrat|\$|gize\.ar(?!\/privacidad)/i;
+// Dentro de Cobros (y solo ahí) se ven los montos que el coach les cobra a sus alumnos, con «$» y
+// «pagos»: no son precios de GIZE. Todo lo demás de PROHIBIDO sigue sin poder verse.
+const PROHIBIDO_COBROS = /prueba|gratis|\bplan\b|precio|tarjeta|mercado|suscrip|contrat|gize\.ar(?!\/privacidad)/i;
 
 const clientes = n => Array.from({ length: n }, (_, i) => ({ id: 'c' + i, role: 'client', full_name: 'Alumno ' + i, coach_id: COACH.id }));
-function coachPage(billingRow, { ios, init, n = 2, user = COACH } = {}){
-  return newPage({ user, init: ios ? IOS : init, handlers: {
+function coachPage(billingRow, { ios, init, n = 2, user = COACH, handlers } = {}){
+  return newPage({ user, init: ios ? IOS : init, handlers: Object.assign({
     '/profiles': (r, J, i) => { if (i.m !== 'GET') return undefined; if (/coach_id=eq/.test(i.url.search)) return J(clientes(n));
       const me = { id: COACH.id, role: 'coach', full_name: 'Coach Prueba' }; return J(i.one ? me : [me]); },
     '/coach_billing': (r, J, i) => { const b = Object.assign({ coach_id: COACH.id }, billingRow); return J(i.one ? b : [b]); },
-  } });
+  }, handlers) });
 }
 const txt = (p, sel) => p.evaluate(s => [...document.querySelectorAll(s)].map(e => e.innerText).join(' ').replace(/\s+/g, ' '), sel);
 // Su Configuración es una pantalla con un menú de secciones: el texto de todas (menú incluido) y
@@ -200,5 +209,28 @@ export default async function ({ base, t }){
     } else t.has(fallo, 'Tu coach tiene el plan de GIZE vencido', 'web chat: el aviso de siempre');
     t.eq(al.errs, [], 'errores (chat ' + quien + ')');
     await al.close();
+  }
+
+  // 5) Cobros prendido en la app: afuera de Cobros, la regla de siempre (PROHIBIDO); adentro, los
+  // montos del coach sí, pero nada de GIZE (PROHIBIDO_COBROS).
+  const alDia = { plan: 'p10', max_clients: 10, trial_ends_at: D(-40), paid_until: D(20) };
+  for (const [name, plat, init] of [['iPhone', 'ios', IOS], ['Android', 'android', ANDROID]]){
+    const interruptor = { web: true, android: plat === 'android', ios: plat === 'ios' };
+    pg = await coachPage(alDia, { init, user: viejo, handlers: { '/cobros_resumen': (r, J) => J(resumen({ interruptor })) } });
+    await pg.p.goto(base + '/app/'); await wait(3000);
+    await pg.p.click('#coachHost [data-coach="view-home"]'); await wait(400);
+    panel = await txt(pg.p, '#coachHost');
+    t.ok(/Cobros/.test(panel) && /1 vencida/.test(panel), name + ' con Cobros: se ve «Cobros» y la tira de Inicio: ' + panel);
+    t.ok(!PROHIBIDO.test(panel), name + ' con Cobros: el panel sigue sin prueba, plan, pagos ni precios: ' + panel.match(PROHIBIDO));
+    const { texto: aj } = await configEntera(pg.p);
+    t.ok(!PROHIBIDO.test(aj), name + ' con Cobros: Configuración sin plan ni pagos: ' + aj.match(PROHIBIDO));
+    await pg.p.click('#coachHost [data-coach="cobros-ir"]'); await wait(900);
+    await pg.p.click('#coachHost [data-coach="cobros-tab"][data-v="todos"]'); await wait(300);
+    const cobros = await txt(pg.p, '#coachHost .cv-main');
+    t.ok(/\$\s?\d/.test(cobros) && /Anotar cobro/.test(cobros), name + ' con Cobros: adentro se ven los montos del coach: ' + cobros.slice(0, 160));
+    t.ok(!PROHIBIDO_COBROS.test(cobros), name + ' con Cobros: adentro, nada de la prueba, el plan ni precios de GIZE: ' + cobros.match(PROHIBIDO_COBROS));
+    t.eq(await pg.p.$$eval('a[href*="gize.ar"], a[href*="mercadopago"], a[href*="checkout"]', l => l.map(a => a.getAttribute('href'))), [], name + ' con Cobros: sin links para pagar');
+    t.eq(pg.errs, [], 'errores (' + name + ' con Cobros)');
+    await pg.close();
   }
 }
