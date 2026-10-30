@@ -57,8 +57,11 @@ export default async ({ t }) => {
   t.ok(EJ.texto.length > 4000 && EJ.texto.length < 12000, 'la lista mide ' + EJ.texto.length + ' caracteres');
   t.eq(R.bloqueEjercicios(EJ), { type: 'text', text: EJ.texto, cache_control: { type: 'ephemeral', ttl: '1h' } }, 'el bloque de la lista va con caché de 1 hora');
   // Llega por parámetro: rutina.ts no importa data.js (las pruebas de la función solo simulan lo que
-  // importa index.ts).
-  t.ok(!/^\s*import\b[^;]*data\.js/m.test(leer('supabase/functions/ia/rutina.ts')), 'rutina.ts no importa data.js: la lista le llega por parámetro');
+  // importa index.ts) e index.ts sí, y se la pasa.
+  const rutinaTs = leer('supabase/functions/ia/rutina.ts'), indexTs = leer('supabase/functions/ia/index.ts');
+  t.ok(!/^\s*import\b[^;]*data\.js/m.test(rutinaTs), 'rutina.ts no importa data.js: la lista le llega por parámetro');
+  t.ok(/^import \{ ES_MAP, EX_CATS, EX_DB \} from "\.\/data\.js";$/m.test(indexTs), 'index.ts importa EX_DB, EX_CATS y ES_MAP de ./data.js');
+  t.ok(/ejercicios\(EX_DB, EX_CATS, ES_MAP\)/.test(indexTs), 'index.ts se las pasa a rutina.ts');
   const chica = R.ejercicios({ pecho: ['Press A', 'Press B'], biceps: ['Curl A', 'Press A'] }, [['pecho', 'Pecho'], ['biceps', 'Bíceps']], { 'Press viejo': 'Press B' });
   t.eq(chica.texto, 'EJERCICIOS (número;nombre;grupo):\n0;Press A;pecho,biceps\n1;Press B;pecho\n2;Curl A;biceps', 'arma la lista con lo que recibe');
   t.eq(chica.porClave.get('press viejo'), 1, 'y los alias con el ES_MAP que recibe');

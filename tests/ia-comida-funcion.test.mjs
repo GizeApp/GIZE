@@ -17,6 +17,7 @@ import { funcion, supabaseSimulado } from './funcion.mjs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { FOODS, cookVariant } from '../app/core/foods.js';
+import { EX_DB, EX_CATS, ES_MAP } from '../app/core/data.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mod = f => import(pathToFileURL(path.join(ROOT, 'supabase/functions/ia', f)).href);
@@ -62,7 +63,7 @@ async function correr(o = {}){
     return { data: null };
   });
   const fn = await funcion('ia', {
-    modulos: { './foods.js': { FOODS, cookVariant } },
+    modulos: { './foods.js': { FOODS, cookVariant }, './data.js': { EX_DB, EX_CATS, ES_MAP } },
     env: Object.assign({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'srv' }, o.clave === false ? {} : { ANTHROPIC_API_KEY: CLAVE }),
     npm: { '@supabase/supabase-js': { createClient: (url, key) => key === 'srv' ? db : asUser } },
     fetch: async (url, init) => { const b = JSON.parse(init.body); h.fetches.push({ url: String(url), body: b, headers: init.headers }); return o.api ? o.api(b) : http(200, respuesta(o.out || PLATO)); },

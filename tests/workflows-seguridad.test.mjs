@@ -229,13 +229,15 @@ case "$1 $2" in
 esac`;
   const ahora = Date.now(), DIA = 864e5;
   // cambios: { slug: fecha | null (no está) | { status, updated_at } }; extra: más filas de la lista.
-  // La base de alimentos de la app, que «ia» necesita (el paso la copia a la función).
-  const BASE_APP = Object.fromEntries(['foods.js', 'foods-extra.js', 'foods-ar.js', 'foods-gen.js'].map(f => ['app/core/' + f, '// ' + f]));
+  // La base de alimentos y la lista de ejercicios de la app, que «ia» necesita (el paso las copia a la función).
+  const DE_APP = ['foods.js', 'foods-extra.js', 'foods-ar.js', 'foods-gen.js', 'data.js'];
+  const BASE_APP = Object.fromEntries(DE_APP.map(f => ['app/core/' + f, '// ' + f]));
+  // sinBase: true (falta todo lo de la app) o el archivo que falta.
   const publicar = (cambios = {}, env = {}, extra = [], sinBase = false) => {
     const fechas = Object.assign(Object.fromEntries(FNS.map(n => [n, ahora])), cambios);
     const lista = Object.entries(fechas).filter(([, v]) => v !== null)
       .map(([slug, v], i) => Object.assign({ id: 'id' + i, slug, name: slug, status: 'ACTIVE', version: 7, updated_at: ahora }, typeof v === 'object' ? v : { updated_at: v })).concat(extra);
-    const r = correr(fun, { archivos: Object.assign({ 'supabase/functions/notificar-cliente/index.ts': '// chat', 'supabase/functions/ia/index.ts': '// ia', '.lista.json': JSON.stringify(lista) }, sinBase ? {} : BASE_APP), programas: { supabase },
+    const r = correr(fun, { archivos: Object.assign({ 'supabase/functions/notificar-cliente/index.ts': '// chat', 'supabase/functions/ia/index.ts': '// ia', '.lista.json': JSON.stringify(lista) }, sinBase === true ? {} : Object.fromEntries(Object.entries(BASE_APP).filter(([f]) => f !== 'app/core/' + sinBase))), programas: { supabase },
       env: d => Object.assign({ PROJECT_REF: 'proyecto', LISTA: path.join(d, '.lista.json') }, env) });
     r.deploys = r.log.split('\n').filter(l => l.startsWith('functions deploy ')).map(l => l.split(' ')[2]);
     return r;
@@ -259,8 +261,16 @@ esac`;
   const copia = publicar({}, {}, [{ id: 'vieja', slug: 'admin', name: 'admin', status: 'REMOVED', version: 2, updated_at: ahora - 90 * DIA }]);
   t.eq(copia.code, 0, 'ni una copia borrada de una del repo: ' + copia.out.trim().split('\n').pop());
   t.ok(['foods.js', 'foods-extra.js', 'foods-ar.js', 'foods-gen.js'].every(f => fs.existsSync(path.join(ok.dir, 'supabase/functions/ia', f))), 'copia la base de alimentos de la app a la función «ia» antes de publicar');
+  t.ok(fs.existsSync(path.join(ok.dir, 'supabase/functions/ia/data.js')), 'copia la lista de ejercicios de la app (data.js) a la función «ia» antes de publicar');
   const sinBase = publicar({}, {}, [], true);
   t.ok(sinBase.code !== 0 && !sinBase.deploys.length, 'si falta la base de alimentos no publica nada: ' + sinBase.out.trim().split('\n').pop());
+  const sinEjercicios = publicar({}, {}, [], 'data.js');
+  t.ok(sinEjercicios.code !== 0 && !sinEjercicios.deploys.length, 'si falta la lista de ejercicios no publica nada: ' + sinEjercicios.out.trim().split('\n').pop());
+  // Lo que se copia a «ia» no se sube desde ahí (la fuente es app/core): está en su .gitignore.
+  const copiados = ((fun.match(/^\s*cp ([^\n]+) supabase\/functions\/ia\/\s*$/m) || [])[1] || '').split(/\s+/).map(f => path.basename(f));
+  const ignorados = leer('supabase/functions/ia/.gitignore').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  t.eq(copiados, DE_APP, 'el paso copia a «ia» la base de alimentos y la lista de ejercicios de app/core');
+  t.eq(copiados.filter(f => !ignorados.includes(f)), [], 'todo lo que se copia a «ia» está en supabase/functions/ia/.gitignore');
   const frenada = publicar({ descanso: { status: 'THROTTLED' } });
   t.ok(frenada.code !== 0 && /descanso: está frenada por Supabase/.test(frenada.out), 'si una está frenada falla y lo dice en castellano: ' + frenada.out.trim());
   // Cada carpeta de supabase/functions sale de esta tarea (notificar-cliente como rapid-worker), y

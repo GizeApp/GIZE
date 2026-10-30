@@ -44,11 +44,18 @@ import { B64_MAX_PLATO, baseTexto, comidaPost, ENTRADA_MAX_PLATO, entradaComida,
 // La base de alimentos de la app (app/core/foods*.js): el workflow «Supabase» la copia acá antes de
 // publicar (no se sube al repo: supabase/functions/ia/.gitignore). Es la misma lista que ve la persona.
 import { cookVariant, FOODS } from "./foods.js";
+// La lista de ejercicios de la app (app/core/data.js), que el workflow también copia acá. Va por
+// parámetro a rutina.ts (así las pruebas la simulan desde acá). La van a usar las funciones del coach
+// («Pasar mis planillas» y «Armar con IA»), que todavía no tienen su modo en esta función.
+import { ES_MAP, EX_CATS, EX_DB } from "./data.js";
+import { ejercicios, type Ejercicios } from "./rutina.ts";
 
 type SupabaseClient = ReturnType<typeof createClient>;
 const BASE: Base = { foods: FOODS, cocido: cookVariant };
 let baseTxt = "";
 const laBase = () => baseTxt || (baseTxt = baseTexto(BASE));
+let ejs: Ejercicios | null = null;
+const losEjercicios = () => ejs || (ejs = ejercicios(EX_DB, EX_CATS, ES_MAP));
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
