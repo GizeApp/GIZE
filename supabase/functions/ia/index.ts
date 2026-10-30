@@ -14,8 +14,11 @@
 //         dudoso, base: { id, nombre, cocido, kcal, p, c, f, unit } | null }], modelo_nombre }.
 //         Con «base», los valores cada 100 g salen de la base de GIZE; sin ella, son la
 //         estimación de la IA. La app los muestra para revisar y no anota nada sin «Agregar».
-//   { modo: "texto" } («Contame qué comiste»): se sacó de GIZE (solo fotos). Contesta 400
-//     { ok: false, codigo: "no_disponible" } sin mirar nada más ni llamar a la API.
+//   { modo: "texto", texto: <lo que comió, de 2 a 400 caracteres> }
+//     App (Comida → «Voz»: lo que la persona cuenta, dictado con el micrófono del teclado o escrito),
+//     con la función «texto» prendida en el panel, la base nueva (ia_config.aviso_texto) y el aviso
+//     de la voz aceptado (supabase/ia.sql → ia_permiso_texto). Sin la base nueva contesta «pausada».
+//     → lo mismo que el plato. No se guarda lo que contó: va a la API y se olvida.
 //   { modo: "planilla", hoja: <el texto de una hoja, ya limpio por la app, hasta 30.000 caracteres y
 //     200 por celda> }
 //     Panel del coach («Pasar mis planillas»), coaches con plan o en su prueba que aceptaron «Usar IA
@@ -42,11 +45,11 @@
 // podría costar; después, ia_cerrar anota lo que costó de verdad («usage» de la respuesta). Si la
 // API no contesta, se cobra la reserva entera. Sin la clave o con el interruptor apagado no se
 // llama nunca. Nunca se manda nada de la persona: solo la foto (de la tabla o del plato) y, en el
-// plato, la aclaración que escribió si la puso; en las planillas, el texto de la hoja que eligió el
+// plato, la aclaración que escribió si la puso; en el texto, lo que contó; en las planillas, el texto de la hoja que eligió el
 // coach (sin datos personales) y la lista de ejercicios de GIZE; en «Armar con IA», el pedido que
 // escribió el coach (sin mails, teléfonos, documentos ni links) y la misma lista. Nunca su nombre,
 // su mail ni su id. En los registros (console.error) van solo códigos: nunca la clave, ni datos de
-// la persona, ni la foto, ni la hoja, ni el pedido, ni lo que contestó la IA.
+// la persona, ni la foto, ni lo que contó, ni la hoja, ni el pedido, ni lo que contestó la IA.
 //
 // Secret: ANTHROPIC_API_KEY (Console de Anthropic → workspace «gize-produccion» → API Keys). Va en
 // GitHub (Environment «production») y llega a Supabase con el workflow «Supabase» → tarea
@@ -58,7 +61,8 @@ import { costo, ENTRADA_TOPE, MODELOS, modeloDe, modeloDefecto, reserva, type Mo
 import { costoTablaTipica, ENTRADA_MAX_ETIQUETA, entradaEtiqueta, etiquetaPost, FOTO_MAX, LADO_MAX, MAX_TOKENS_ETIQUETA, pedidoEtiqueta, TIEMPO_ETIQUETA } from "./modos.ts";
 import { jpegTamano } from "./jpeg.ts";
 import { clasificarError, llamar } from "./api.ts";
-import { B64_MAX_PLATO, baseTexto, comidaPost, ENTRADA_MAX_PLATO, entradaComida, LADO_MAX_PLATO, MAX_TOKENS_PLATO, pedidoComida, TEXTO_MAX_PLATO, TIEMPO_COMIDA, type Base } from "./comida.ts";
+import { B64_MAX_PLATO, baseTexto, comidaPost, ENTRADA_MAX_PLATO, ENTRADA_MAX_TEXTO, entradaComida, LADO_MAX_PLATO, MAX_TOKENS_PLATO, MAX_TOKENS_TEXTO, pedidoComida, PROMPT_PLATO, PROMPT_TEXTO,
+  TEXTO_MAX_PLATO, TEXTO_MAX_TEXTO, TEXTO_MIN, TIEMPO_COMIDA, type Base } from "./comida.ts";
 // La base de alimentos de la app (app/core/foods*.js): el workflow «Supabase» la copia acá antes de
 // publicar (no se sube al repo: supabase/functions/ia/.gitignore). Es la misma lista que ve la persona.
 import { cookVariant, FOODS } from "./foods.js";
@@ -88,7 +92,7 @@ const json = (data: unknown, status = 200) =>
 // HTTP y texto de cada código (los textos del panel; la app traduce por código).
 const HTTP: Record<string, number> = {
   sin_sesion: 401, sin_permiso: 403, persona_sin_ia: 403, no_habilitado: 403, sin_plan: 403, pausada: 503, ahorro: 503, ritmo: 503,
-  tope_semana: 429, tope_dia: 429, tope_persona: 429, tope_mes: 503, ocupada: 503, foto_invalida: 400, hoja_grande: 400, no_se_pudo: 422, no_disponible: 400, error: 502,
+  tope_semana: 429, tope_dia: 429, tope_persona: 429, tope_mes: 503, ocupada: 503, foto_invalida: 400, hoja_grande: 400, no_se_pudo: 422, error: 502,
 };
 const MENSAJE: Record<string, string> = {
   sin_sesion: "Iniciá sesión para usar la IA.",
@@ -105,7 +109,6 @@ const MENSAJE: Record<string, string> = {
   ocupada: "La IA está con mucha demanda. Probá en un minuto.",
   foto_invalida: "La foto no es válida o es muy grande. Cargalo a mano.",
   no_se_pudo: "No se pudo analizar esta foto.",
-  no_disponible: "«Contame qué comiste» ya no está en GIZE: usá la foto del plato o cargalo a mano.",
   sin_plan: "Por ahora no podés usar esta función: armá la rutina a mano.",
   hoja_grande: "Esta hoja es muy grande para pasarla con IA. Partila en hojas más chicas y probá de nuevo.",
   error: "La IA está tardando más de lo normal o falló. Probá de nuevo en un rato.",
@@ -119,6 +122,10 @@ const MENSAJE_PLANILLA: Record<string, string> = {
   ritmo: "Por hoy la IA llegó a su límite. Mañana vuelve. Mientras, armá la rutina a mano.",
   tope_mes: "La IA de GIZE llegó a su límite de este mes: armá la rutina a mano.",
   no_se_pudo: "No se pudo leer esta hoja con IA. Probá de nuevo o cargala a mano.",
+};
+// Los de la voz (el modo «texto»), donde los de arriba hablan de la foto.
+const MENSAJE_TEXTO: Record<string, string> = {
+  no_se_pudo: "No se pudo entender lo que contaste. Probá contarlo de otra forma o cargalo a mano.",
 };
 // Los de «Armar con IA»: los mismos, salvo el rechazo, que habla del pedido (como la app).
 const MENSAJE_RUTINA: Record<string, string> = {
@@ -205,9 +212,7 @@ Deno.serve(async (req) => {
   try { input = await req.json(); } catch { return no("error", { mensaje: "Pedido inválido." }, 400); }
   if (!input || typeof input !== "object") return no("error", { mensaje: "Pedido inválido." }, 400);
   const modo = input.modo === "tabla" ? "etiqueta" : String(input.modo || "");
-  // «Contame qué comiste» se sacó (solo fotos): no se mira la base ni se llama a la API.
-  if (modo === "texto") return no("no_disponible");
-  if (modo === "plato") return comida(input, me, url);
+  if (modo === "plato" || modo === "texto") return comida(modo, input, me, url);
   if (modo === "planilla") return planilla(input, me, url);
   if (modo === "rutina") return rutina(input, me, url);
   if (modo !== "etiqueta" && modo !== "estado") return no("error", { mensaje: "Modo desconocido." }, 400);
@@ -291,33 +296,41 @@ Deno.serve(async (req) => {
   return json({ ok: true, ...et, modelo, modelo_nombre: MODELOS[modelo].nombre });
 });
 
-// ---------- foto del plato (la app) ----------
-// Para cualquier persona con sesión que haya aceptado el aviso (ia_permiso_estado = 'ok'), con la
-// función prendida en el panel. Topes de la persona: los de su rol (ia_rol: «coach» con plan o
-// profe de un gimnasio con el plan al día, «coach por gimnasio»; si no «alumno»). No se guarda la foto ni la aclaración: van a la API y se olvidan.
-async function comida(input: { imagen?: unknown; texto?: unknown }, me: string, url: string): Promise<Response> {
-  const modo = "plato";
-  const texto = typeof input.texto === "string" ? input.texto.replace(/\s+/g, " ").trim().slice(0, TEXTO_MAX_PLATO) : "";
-  const imagen = typeof input.imagen === "string" ? input.imagen : "";
-  // Solo un JPEG en base64 (empieza con /9j/), de hasta ~1,8 MB y 1568 px: lo que manda la app.
-  if (!imagen || imagen.length > B64_MAX_PLATO || !imagen.startsWith("/9j/") || !/^[A-Za-z0-9+/]+={0,2}$/.test(imagen)) return no("foto_invalida");
-  let cab: Uint8Array;
-  try { const b = atob(imagen.slice(0, 65536 - (Math.min(imagen.length, 65536) % 4))); cab = Uint8Array.from(b, (ch) => ch.charCodeAt(0)); } catch { return no("foto_invalida"); }
-  const tam = jpegTamano(cab);
-  if (!tam || Math.max(tam.ancho, tam.alto) > LADO_MAX_PLATO) return no("foto_invalida");
+// ---------- foto del plato y voz (la app) ----------
+// Para cualquier persona con sesión que haya aceptado el aviso (ia_permiso_estado = 'ok' en la foto,
+// ia_permiso_texto = 'ok' en la voz), con la función prendida en el panel. Topes de la persona: los de
+// su rol (ia_rol: «coach» con plan o profe de un gimnasio con el plan al día, «coach por gimnasio»;
+// si no «alumno»). No se guarda la foto, la aclaración ni lo que contó: van a la API y se olvidan.
+async function comida(modo: "plato" | "texto", input: { imagen?: unknown; texto?: unknown }, me: string, url: string): Promise<Response> {
+  const texto = typeof input.texto === "string" ? input.texto.replace(/\s+/g, " ").trim().slice(0, modo === "plato" ? TEXTO_MAX_PLATO : TEXTO_MAX_TEXTO) : "";
+  const textos = modo === "texto" ? MENSAJE_TEXTO : undefined;
+  let imagen = "", tam: { ancho: number; alto: number } | null = null;
+  if (modo === "plato") {
+    imagen = typeof input.imagen === "string" ? input.imagen : "";
+    // Solo un JPEG en base64 (empieza con /9j/), de hasta ~1,8 MB y 1568 px: lo que manda la app.
+    if (!imagen || imagen.length > B64_MAX_PLATO || !imagen.startsWith("/9j/") || !/^[A-Za-z0-9+/]+={0,2}$/.test(imagen)) return no("foto_invalida");
+    let cab: Uint8Array;
+    try { const b = atob(imagen.slice(0, 65536 - (Math.min(imagen.length, 65536) % 4))); cab = Uint8Array.from(b, (ch) => ch.charCodeAt(0)); } catch { return no("foto_invalida"); }
+    tam = jpegTamano(cab);
+    if (!tam || Math.max(tam.ancho, tam.alto) > LADO_MAX_PLATO) return no("foto_invalida");
+  } else if (texto.length < TEXTO_MIN) return no("error", { mensaje: "Contá qué comiste." }, 400);
 
   const clave = Deno.env.get("ANTHROPIC_API_KEY") || "";
   if (!clave) return no("pausada", { motivo: "sin_clave" });
   const db = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-  // El interruptor (también lo mira ia_reservar; acá se mira antes de todo lo demás).
-  const cfg = await db.from("ia_config").select("activa,funciones,modelos").eq("id", 1).maybeSingle();
+  // El interruptor (también lo mira ia_reservar; acá se mira antes de todo lo demás). La voz pide
+  // además la base nueva (ia_config.aviso_texto, supabase/ia.sql): sin ella contesta «pausada», así
+  // nunca anda con el aviso viejo, aunque «texto» haya quedado prendido de antes.
+  const cfg = await db.from("ia_config").select(modo === "texto" ? "activa,funciones,modelos,aviso_texto" : "activa,funciones,modelos").eq("id", 1).maybeSingle();
   if (cfg.error || !cfg.data) { log("config", (cfg.error && cfg.error.code) || "sin fila"); return no("pausada", { motivo: "sin_base" }); }
-  const c = cfg.data as { activa: boolean; funciones: Record<string, unknown> | null; modelos: Record<string, unknown> | null };
+  const c = cfg.data as { activa: boolean; funciones: Record<string, unknown> | null; modelos: Record<string, unknown> | null; aviso_texto?: unknown };
+  if (modo === "texto" && typeof c.aviso_texto !== "number") return no("pausada", { motivo: "sin_base" });
   if (c.activa !== true || !c.funciones || c.funciones[modo] !== true) return no("pausada", { motivo: "apagada" });
 
-  // El permiso de la persona (el aviso vigente, aceptado y no apagado en Ajustes).
-  const pm = await db.rpc("ia_permiso_estado", { p_uid: me });
+  // El permiso de la persona (el aviso vigente, aceptado y no apagado en Ajustes). En la voz, el
+  // aviso que ya dice que se manda lo que cuenta (quien aceptó solo el de la foto da «viejo»).
+  const pm = await db.rpc(modo === "texto" ? "ia_permiso_texto" : "ia_permiso_estado", { p_uid: me });
   if (pm.error) { log("permiso", pm.error.code || ""); return no("error", { mensaje: "No se pudo comprobar el permiso. Probá de nuevo." }, 500); }
   if (pm.data !== "ok") return no("sin_permiso", { motivo: pm.data === "no" ? "apagada" : pm.data === "viejo" ? "aviso_nuevo" : "sin_preguntar" });
   const rl = await db.rpc("ia_rol", { p_uid: me });
@@ -326,15 +339,16 @@ async function comida(input: { imagen?: unknown; texto?: unknown }, me: string, 
 
   const modelo = modeloDe(c.modelos && c.modelos[modo]);
   const base = laBase();
-  const entrada = entradaComida(base, texto, tam, modelo);
-  if (entrada > ENTRADA_MAX_PLATO || entrada > ENTRADA_TOPE) { log("entrada", modo, entrada); return no("foto_invalida"); }
+  const entrada = entradaComida(base, modo === "plato" ? PROMPT_PLATO : PROMPT_TEXTO, texto, tam, modelo);
+  if (entrada > (modo === "plato" ? ENTRADA_MAX_PLATO : ENTRADA_MAX_TEXTO) || entrada > ENTRADA_TOPE) { log("entrada", modo, entrada); return no(modo === "plato" ? "foto_invalida" : "error"); }
 
-  const rs = await db.rpc("ia_reservar", { p_uid: me, p_rol: rol, p_funcion: modo, p_modelo: modelo, p_max_usd: reserva(modelo, entrada, MAX_TOKENS_PLATO), p_pedido: null });
+  const maxTokens = modo === "plato" ? MAX_TOKENS_PLATO : MAX_TOKENS_TEXTO;
+  const rs = await db.rpc("ia_reservar", { p_uid: me, p_rol: rol, p_funcion: modo, p_modelo: modelo, p_max_usd: reserva(modelo, entrada, maxTokens), p_pedido: null });
   if (rs.error || !rs.data) { log("reservar", (rs.error && rs.error.code) || "sin respuesta"); return no("error", { mensaje: "No se pudo reservar el uso de la IA. Probá de nuevo." }, 500); }
   const r0 = rs.data as { ok: boolean; codigo?: string; motivo?: string; vuelve?: string; tope?: number; llamada_id?: number; ciclo_id?: number };
-  if (!r0.ok) return no(r0.codigo || "error", { motivo: r0.motivo, vuelve: r0.vuelve || null, tope: r0.tope });
+  if (!r0.ok) return no(r0.codigo || "error", { motivo: r0.motivo, vuelve: r0.vuelve || null, tope: r0.tope, mensaje: textos && textos[r0.codigo || ""] });
 
-  const r = await usarIA(db, { llamada: r0.llamada_id!, ciclo: r0.ciclo_id!, modelo, body: pedidoComida(modelo, base, texto, imagen), tope: TIEMPO_COMIDA, clave });
+  const r = await usarIA(db, { llamada: r0.llamada_id!, ciclo: r0.ciclo_id!, modelo, body: pedidoComida(modo, modelo, base, texto, modo === "plato" ? imagen : null), tope: TIEMPO_COMIDA, clave, textos });
   if (r instanceof Response) return r;
   const res = comidaPost(r.out, BASE);
   await r.cerrar(res.hay_comida ? "ok" : "vacia");

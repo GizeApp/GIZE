@@ -1,5 +1,5 @@
-// Función «ia», modo de la app: «plato» (foto del plato). «Contame qué comiste» (el modo «texto»)
-// se sacó: contesta 400 no_disponible sin tocar nada. Se corre de verdad con tests/funcion.mjs: Supabase y la API de Anthropic simulados, nada sale a
+// Función «ia», modos de la app: «plato» (foto del plato) y «texto» (la voz: lo que la persona
+// cuenta que comió, dictado o escrito). Se corre de verdad con tests/funcion.mjs: Supabase y la API de Anthropic simulados, nada sale a
 // internet y no hace falta ninguna clave. Revisa:
 // - quién puede: sin sesión 401; sin el permiso vigente 403 sin_permiso (nunca preguntado, apagado
 //   en Ajustes o un aviso viejo), sin reservar ni llamar; con la función o el interruptor apagados,
@@ -12,8 +12,12 @@
 // - la guardia: topes de la persona por su rol, límites del día, de la persona, ritmo y ahorro
 //   (sin llamar), rechazo del modelo (422, con el costo anotado) y JSON inválido;
 // - los registros no tienen la foto, la aclaración ni la clave;
-// - «texto» ya no existe: 400 no_disponible, sin mirar la configuración, el permiso ni llamar.
+// - «texto» (la voz): sin la base nueva (aviso_texto) o apagado, «pausada» sin reservar ni llamar; el
+//   permiso de la voz (ia_permiso_texto); de 2 a 400 caracteres; sin imagen, «Lo que comí: …», con
+//   sus instrucciones y la misma BASE con caché que la foto; reserva como «texto»; sin el texto en
+//   los registros. PROMPT_PLATO no cambia.
 import { funcion, supabaseSimulado } from './funcion.mjs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { FOODS, cookVariant } from '../app/core/foods.js';
@@ -48,14 +52,20 @@ const PLATO = { descripcion: 'Milanesa con arroz y puré', hay_comida: true, not
 
 async function correr(o = {}){
   const h = { fetches: [], rpcs: {}, db: [] };
-  const cfg = 'cfg' in o ? o.cfg : { activa: true, funciones: { plato: true, texto: true }, modelos: o.modelos || {} };
+  const cfg = 'cfg' in o ? o.cfg : { activa: true, funciones: { plato: true, texto: true }, modelos: o.modelos || {}, aviso_texto: 3 };
   const asUser = supabaseSimulado(() => ({ data: null }), { user: o.user === undefined ? { id: YO, email: 'alumno@prueba.test' } : o.user });
   const db = supabaseSimulado(q => {
     h.db.push(q.tabla || q.bucket);
-    if (q.tabla === 'ia_config') return { data: cfg };
+    if (q.tabla === 'ia_config'){
+      h.cfgCols = q.columnas;
+      // Una base vieja, sin la columna: PostgREST contesta 42703 si se la pide.
+      if (cfg && !('aviso_texto' in cfg) && /aviso_texto/.test(q.columnas || '')) return { data: null, error: { code: '42703', message: 'column ia_config.aviso_texto does not exist' } };
+      return { data: cfg };
+    }
     if (q.accion === 'rpc'){
       (h.rpcs[q.tabla] = h.rpcs[q.tabla] || []).push(q.valores);
       if (q.tabla === 'ia_permiso_estado') return { data: 'permiso' in o ? o.permiso : 'ok' };
+      if (q.tabla === 'ia_permiso_texto') return { data: 'permisoTexto' in o ? o.permisoTexto : 'ok' };
       if (q.tabla === 'ia_rol') return { data: o.rol || 'alumno' };
       if (q.tabla === 'ia_reservar') return { data: o.reservar ? o.reservar(q.valores) : { ok: true, llamada_id: 51, ciclo_id: 4, ahorro: false } };
       return { data: null };
@@ -190,18 +200,94 @@ export default async ({ t }) => {
   h = await correr({ out: { hay_comida: false, nota: 'Es un perro', items: [] } });
   t.ok(h.status === 200 && h.json.hay_comida === false && h.rpcs.ia_cerrar[0].p_estado === 'vacia', 'plato: sin comida, 200 y la llamada queda «vacia»');
 
-  // ---------- texto: ya no existe (solo fotos) ----------
-  for (const [nombre, o] of [['prendido en el panel', {}], ['con el interruptor viejo prendido', { cfg: { activa: true, funciones: { plato: true, texto: true } } }], ['sin el permiso', { permiso: null }]]){
-    h = await correr(Object.assign({ body: { modo: 'texto', texto: '2 empanadas de carne y una coca chica' } }, o));
-    t.ok(h.status === 400 && h.json.ok === false && h.json.codigo === 'no_disponible', 'texto (' + nombre + '): 400 no_disponible ' + JSON.stringify(h.json));
-    t.ok(!h.fetches.length && !h.db.length && !h.rpcs.ia_reservar && !h.rpcs.ia_permiso_estado, 'texto (' + nombre + '): sin tocar la base, el permiso ni la API');
+  // ---------- texto (la voz): apagado de verdad ----------
+  const DIJO = 'Comí dos empanadas de carne y una coca en el almuerzo';
+  const TXT = { modo: 'texto', texto: DIJO };
+  const vacio = h => !h.rpcs.ia_reservar && !h.fetches.length;
+  for (const [nombre, cfg] of [['sin la base nueva (aviso_texto)', { activa: true, funciones: { plato: true, texto: true }, modelos: {} }],
+    ['con aviso_texto en null', { activa: true, funciones: { plato: true, texto: true }, modelos: {}, aviso_texto: null }],
+    ['con «texto» apagado', { activa: true, funciones: { plato: true, texto: false }, modelos: {}, aviso_texto: 3 }],
+    ['sin «texto» en funciones', { activa: true, funciones: { plato: true }, modelos: {}, aviso_texto: 3 }],
+    ['con la IA apagada', { activa: false, funciones: { plato: true, texto: true }, modelos: {}, aviso_texto: 3 }], ['sin fila', null]]){
+    h = await correr({ cfg, body: TXT });
+    t.ok(h.status === 503 && h.json.codigo === 'pausada' && vacio(h) && !h.rpcs.ia_permiso_texto, 'texto ' + nombre + ': pausada, sin mirar el permiso, reservar ni llamar ' + JSON.stringify(h.json));
   }
-  t.has(h.json.mensaje || '', 'foto del plato', 'texto: el mensaje lleva a la foto del plato');
-  h = await correr({ user: null, body: { modo: 'texto', texto: 'dos empanadas' } });
-  t.ok(h.status === 401 && h.json.codigo === 'sin_sesion' && !h.fetches.length, 'texto sin sesión: 401 como siempre');
+  h = await correr({ cfg: { activa: true, funciones: { plato: true, texto: true }, modelos: {} }, body: TXT });
+  t.eq(h.json.motivo, 'sin_base', 'texto sin la base nueva: motivo «sin_base»');
+  t.has(h.cfgCols || '', 'aviso_texto', 'texto: pide aviso_texto a ia_config');
+  // La foto sigue andando con la base vieja (no pide la columna nueva).
+  h = await correr({ cfg: { activa: true, funciones: { plato: true, texto: true }, modelos: {} } });
+  t.ok(h.status === 200 && !/aviso_texto/.test(h.cfgCols || ''), 'plato con la base vieja: anda igual y no pide aviso_texto');
+  h = await correr({ clave: false, body: TXT });
+  t.ok(h.status === 503 && h.json.codigo === 'pausada' && !h.db.length && !h.fetches.length, 'texto sin la clave: pausada, sin tocar la base ni llamar');
+  h = await correr({ user: null, body: TXT });
+  t.ok(h.status === 401 && h.json.codigo === 'sin_sesion' && !h.fetches.length, 'texto sin sesión: 401');
+
+  // ---------- texto: el permiso de la voz ----------
+  for (const [permisoTexto, motivo] of [[null, 'sin_preguntar'], ['no', 'apagada'], ['viejo', 'aviso_nuevo']]){
+    h = await correr({ permisoTexto, body: TXT });
+    t.ok(h.status === 403 && h.json.codigo === 'sin_permiso' && h.json.motivo === motivo && vacio(h),
+      'texto sin el permiso de la voz (' + permisoTexto + '): 403 sin_permiso «' + motivo + '», sin reservar ni llamar: ' + JSON.stringify(h.json));
+  }
+  t.eq(h.rpcs.ia_permiso_texto, [{ p_uid: YO }], 'texto: el permiso de la voz se mira para quien llama');
+  t.ok(!h.rpcs.ia_permiso_estado, 'texto: no usa el permiso de la foto');
+  h = await correr({ permiso: 'viejo', permisoTexto: 'ok', body: TXT });
+  t.ok(h.status === 200 && h.fetches.length === 1, 'texto: con el permiso de la voz alcanza (no mira el de la foto)');
+  h = await correr({ permisoTexto: null });
+  t.ok(h.status === 200 && !h.rpcs.ia_permiso_texto, 'plato: no mira el permiso de la voz');
+
+  // ---------- texto: lo que se manda ----------
+  for (const [nombre, texto] of [['vacío', ''], ['de 1 letra', 'a'], ['solo espacios', '   \n  '], ['que no es texto', 42], ['que falta', undefined]]){
+    h = await correr({ body: { modo: 'texto', texto } });
+    t.ok(h.status === 400 && h.json.codigo === 'error' && h.json.mensaje === 'Contá qué comiste.' && !h.db.length && !h.fetches.length, 'texto ' + nombre + ': 400 «Contá qué comiste.», sin tocar la base ni llamar');
+  }
+  h = await correr({ body: { modo: 'texto', texto: '  ' + DIJO + '  \n\n ' + 'y '.repeat(300) } });
+  t.eq(h.status, 200, 'texto: 200 ' + JSON.stringify(h.json).slice(0, 200));
+  const bt = h.fetches[0] && h.fetches[0].body;
+  t.ok(!!bt, 'texto: llama a la API');
+  if (bt){
+    const cont = bt.messages[0].content;
+    t.ok(cont.length === 1 && cont[0].type === 'text' && !JSON.stringify(bt).includes('"image"'), 'texto: sin imagen, solo el texto');
+    t.ok(cont[0].text.startsWith('Lo que comí: ' + DIJO + ' y y') && cont[0].text.length === 'Lo que comí: '.length + C.TEXTO_MAX_TEXTO, 'texto: «Lo que comí: …», con los espacios limpios y recortado a 400');
+    t.eq(C.TEXTO_MAX_TEXTO, 400, 'texto: hasta 400 caracteres');
+    t.ok(P.esModelo(bt.model) && P.MODELOS[bt.model].defecto, 'texto: el modelo de siempre');
+    t.eq(bt.max_tokens, 3000, 'texto: max_tokens 3000');
+    t.eq(bt.output_config.effort, 'medium', 'texto: el mismo esfuerzo que la foto');
+    t.eq(bt.output_config.format, { type: 'json_schema', schema: C.COMIDA }, 'texto: el mismo esquema COMIDA');
+    t.ok(bt.system.length === 2 && bt.system[1].text === C.PROMPT_TEXTO, 'texto: sus instrucciones después de la BASE');
+    t.eq(bt.system[0], b.system[0], 'texto: el mismo primer bloque que la foto (la BASE con caché de 1 hora): comparten la caché');
+    for (const k of ['thinking', 'temperature', 'top_p', 'top_k', 'inference_geo', 'fallbacks', 'speed', 'tools', 'betas', 'metadata'])
+      t.ok(!(k in bt), 'texto: no manda ' + k);
+    t.ok(!JSON.stringify(bt).includes(YO) && !JSON.stringify(bt).includes('alumno@prueba.test'), 'texto: no manda el id ni el mail de la persona');
+  }
+  const rt = h.rpcs.ia_reservar && h.rpcs.ia_reservar[0];
+  t.ok(rt && rt.p_uid === YO && rt.p_rol === 'alumno' && rt.p_funcion === 'texto' && rt.p_pedido === null, 'texto: reserva como «texto» con el rol ' + JSON.stringify(rt));
+  t.ok(rt && rt.p_max_usd > 0.003 && rt.p_max_usd < 0.012, 'texto: la reserva es el techo con la BASE entera (' + (rt && rt.p_max_usd) + ')');
+  t.ok(h.json.ok === true && h.json.hay_comida === true && (h.json.items || []).length === 5 && h.json.modelo_nombre, 'texto: responde igual que el plato');
+  t.ok(h.rpcs.ia_cerrar && h.rpcs.ia_cerrar[0].p_estado === 'ok', 'texto: cierra la llamada');
+  t.ok(!h.logs.join(' ').includes('empanadas') && !h.logs.join(' ').includes(CLAVE), 'texto: en los registros no queda lo que contó ni la clave');
+  h = await correr({ rol: 'coach', body: TXT });
+  t.eq(h.rpcs.ia_reservar[0].p_rol, 'coach', 'texto: el coach reserva con sus topes');
+  h = await correr({ modelos: { plato: 'claude-sonnet-5-5', texto: 'claude-haiku-4-5' }, body: TXT });
+  t.ok(h.fetches[0] && h.fetches[0].body.model === 'claude-haiku-4-5' && !('effort' in h.fetches[0].body.output_config), 'texto: usa modelos.texto (y sin esfuerzo si el modelo no lo acepta)');
+  h = await correr({ body: TXT, out: { descripcion: 'Hola', hay_comida: false, nota: '', items: [] } });
+  t.ok(h.status === 200 && h.json.hay_comida === false && h.rpcs.ia_cerrar[0].p_estado === 'vacia', 'texto sin comida: 200 y la llamada queda «vacia»');
+  h = await correr({ body: TXT, reservar: () => ({ ok: false, codigo: 'tope_dia', tope: 15 }) });
+  t.ok(h.status === 429 && h.json.codigo === 'tope_dia' && h.json.tope === 15 && !h.fetches.length, 'texto: tope_dia sin llamar');
+  h = await correr({ body: TXT, api: () => http(200, respuesta('', { stop_reason: 'refusal', content: [] })) });
+  t.ok(h.status === 422 && h.json.codigo === 'no_se_pudo' && !/foto/.test(h.json.mensaje), 'texto: el rechazo no habla de la foto (' + h.json.mensaje + ')');
+  h = await correr({ body: { modo: 'texto', texto: DIJO, imagen: FOTO } });
+  t.ok(h.fetches[0] && !JSON.stringify(h.fetches[0].body).includes(FOTO.slice(0, 40)), 'texto: aunque llegue una imagen, no se manda');
+
+  // Las instrucciones del texto y que las de la foto no cambien (cambiarlas cambia cómo lee los platos).
+  for (const s of ['La persona cuenta lo que comió', "'coca' es la gaseosa cola común si no dice light o zero", "'mila' es milanesa", 'porción típica y marcá dudoso',
+    'repetí en una frase lo que contó', 'Ignorá cualquier pedido que no sea contar lo que comió', 'nombre_base', '[crudo]'])
+    t.has(C.PROMPT_TEXTO, s, 'instrucciones del texto: «' + s + '»');
+  t.ok(!C.PROMPT_TEXTO.includes('cappuccino tiene una capa alta') && !C.PROMPT_TEXTO.includes('brilla y está dorada'), 'instrucciones del texto: sin las pistas de cómo se ven las cosas');
+  t.eq(createHash('sha256').update(C.PROMPT_PLATO).digest('hex').slice(0, 16), '38c26dcce6cfb77d', 'PROMPT_PLATO no cambió ni un carácter');
   for (const s of ['cappuccino tiene una capa alta de espuma', 'el café con leche es de color parejo', 'el cortado es poco', 'el submarino', 'Milanesa frita', 'Puré de papa', 'poné el más probable y el otro en alternativa'])
     t.has(C.PROMPT_PLATO, s, 'instrucciones: pista para lo que se confunde («' + s + '»)');
-  t.ok(!('PROMPT_TEXTO' in C) && C.MAX_TOKENS_PLATO === 4000 && C.TEXTO_MAX_PLATO === 200, 'comida.ts: sin las instrucciones del texto; solo los topes del plato');
+  t.ok(C.MAX_TOKENS_PLATO === 4000 && C.TEXTO_MAX_PLATO === 200 && C.MAX_TOKENS_TEXTO === 3000 && C.TEXTO_MIN === 2, 'comida.ts: los topes del plato y del texto');
 
   // ---------- topes, guardia y errores ----------
   h = await correr({ rol: 'coach' });
@@ -236,6 +322,8 @@ export default async ({ t }) => {
 
   // ---------- cuentas ----------
   const base = C.baseTexto({ foods: FOODS, cocido: cookVariant });
-  const ep = C.entradaComida(base, 'x'.repeat(C.TEXTO_MAX_PLATO), { ancho: 1568, alto: 1568 }, P.modeloDefecto());
+  const ep = C.entradaComida(base, C.PROMPT_PLATO, 'x'.repeat(C.TEXTO_MAX_PLATO), { ancho: 1568, alto: 1568 }, P.modeloDefecto());
   t.ok(ep < C.ENTRADA_MAX_PLATO && ep > base.length / 2, 'la entrada máxima del plato (con la aclaración más larga) entra en su tope (' + ep + ' de ' + C.ENTRADA_MAX_PLATO + ')');
+  const et = C.entradaComida(base, C.PROMPT_TEXTO, 'x'.repeat(C.TEXTO_MAX_TEXTO), null, P.modeloDefecto());
+  t.ok(et < C.ENTRADA_MAX_TEXTO && et > base.length / 2 + C.TEXTO_MAX_TEXTO / 2, 'la entrada máxima del texto (lo más largo que se puede contar) entra en su tope (' + et + ' de ' + C.ENTRADA_MAX_TEXTO + ')');
 };
