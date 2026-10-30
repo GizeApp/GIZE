@@ -268,9 +268,22 @@ export default async function ({ base, t }){
   p = pg.p;
   await ir(p, 'tpls');
   t.has(await text(p, '#coachHost .ria-seguir'), '«Fuerza»', 'cerrar sesión: antes, el borrador está');
+  // Con el borrador abierto en el editor: al irse (pagehide) no tiene que volver a guardarse.
+  await p.click('#coachHost [data-coach="ria-seguir"]'); await wait(700);
+  t.ok(!!(await p.$('#coachHost .ria-banner')), 'cerrar sesión: el borrador abierto en el editor');
   await configCoach(p, 'cuenta');
   await p.click('[data-auth="logout"]'); await wait(3500);
   t.eq(await p.evaluate(k => localStorage.getItem(k), CLAVE), null, 'cerrar sesión: el borrador se borra y no vuelve al recargar');
+  await pg.close();
+
+  // ---- 5b) Un borrador de hace más de 7 días ya no aparece y se borra del equipo. ----
+  const VIEJO = Object.assign({}, BORRADOR, { ts: Date.now() - 8 * 864e5 });
+  pg = await pagina(base, { estado: Object.assign({}, PRENDIDA, { permiso_rutinas: 'ok' }),
+    init: `localStorage.setItem(${JSON.stringify(CLAVE)}, ${JSON.stringify(JSON.stringify(VIEJO))})` });
+  p = pg.p;
+  await ir(p, 'tpls');
+  t.ok(!(await p.$('#coachHost .ria-seguir')), 'de hace más de 7 días: no aparece «Seguir revisándola»');
+  t.eq(await p.evaluate(k => localStorage.getItem(k), CLAVE), null, 'de hace más de 7 días: se borra del equipo');
   await pg.close();
 
   // ---- 6) La política dice lo que hace «Armar con IA» con el pedido y el borrador. ----
