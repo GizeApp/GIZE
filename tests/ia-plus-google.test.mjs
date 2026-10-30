@@ -147,11 +147,12 @@ export default async function ({ base, t }){
   }
   // Las que llegan solas y las del celular que nadie reconoció van a la función.
   {
-    const vigentes = [{ token: 'TOK-SIN', producto: IA_PLUS, estado: 'comprada', reconocida: false }, { token: 'TOK-PLAN', producto: 'ar.com.gize.app.coach.p10', estado: 'comprada', reconocida: false }];
+    const vigentes = [{ token: 'TOK-SIN', producto: IA_PLUS, estado: 'comprada', reconocida: false }, { token: 'TOK-YA', producto: IA_PLUS, estado: 'comprada', reconocida: true },
+      { token: 'TOK-SUSP', producto: IA_PLUS, estado: 'comprada', reconocida: false, suspendida: true }, { token: 'TOK-PLAN', producto: 'ar.com.gize.app.coach.p10', estado: 'comprada', reconocida: false }];
     const pg = await pagina({ estado: estado({ usados_semana: 0, quedan_semana: 3 }), init: plugin('android', { vigentes }) });
     const { p, errs, S, close } = pg; p.__base = base;
     await p.goto(base + '/app/'); await wait(3000);
-    t.eq(S.google, [{ compras: [{ token: 'TOK-SIN', producto: IA_PLUS }] }], 'al entrar: la de IA Plus que nadie reconoció va al servidor (no la del plan)');
+    t.eq(S.google, [{ compras: [{ token: 'TOK-SIN', producto: IA_PLUS }] }], 'al entrar: la de IA Plus que nadie reconoció va al servidor (no la ya reconocida, la suspendida ni la del plan)');
     await p.evaluate(() => window.__llega({ token: 'TOK-LLEGA', producto: 'ar.com.gize.app.iaplus.mensual', estado: 'comprada', reconocida: false }));
     await p.evaluate(() => window.__llega({ token: 'TOK-ESPERA', producto: 'ar.com.gize.app.iaplus.mensual', estado: 'pendiente' }));
     await wait(1200);
