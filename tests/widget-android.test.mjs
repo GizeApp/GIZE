@@ -5,15 +5,18 @@
 // - res/xml/gize_widget_info.xml: 4×2 que se achica a 2×2, sin actualizarse solo (updatePeriodMillis
 //   0) y solo en la pantalla de inicio (no en la bloqueada).
 // - Layouts: solo vistas que admite un widget; cada recurso que nombran (y cada R.… del Java) existe;
-//   lo que toca el Java en el chico está en el chico.
+//   lo que toca el Java en el chico está en el chico; los textos entran (número de pasos en una
+//   línea que se achica sola, la hora de los pasos y el aviso del chico no se cortan).
 // - MainActivity registra WidgetPlugin antes de super.onCreate; el plugin se llama «GizeWidget» y
 //   tiene guardar, borrar, info y agregar, y guarda donde lee el widget.
-// - Los toques abren MainActivity (explícito) con gize://widget/{hoy,pasos,racha,entreno} y
-//   FLAG_IMMUTABLE; la alarma de la medianoche no es exacta ni despierta al celular.
+// - Los toques (en el chico y en el mediano) abren MainActivity (explícito) con
+//   gize://widget/{hoy,pasos,racha,entreno} y FLAG_IMMUTABLE; la alarma de la medianoche no es exacta
+//   ni despierta al celular.
 // - Contrato con la app: las claves que lee el Java son las del diseño ({v, dias, sinDatos} y cada
 //   día {pasos:{txt,pie,pct}, racha:{txt,pie,prendida}, entreno:{titulo,nombre,detalle,hecho,dia},
 //   aviso: null o {titulo,texto,pie}}) y, si ya está app/core/widgetdatos.js, las de su CLAVES_WIDGET
-//   y las de un JSON armado con él. Con aviso (coach, gimnasio, sin datos) se ve solo el aviso.
+//   y las de un JSON armado con él, y la app entiende cada enlace que arma el Java (leerEnlaceWidget).
+//   Con aviso (coach, gimnasio, sin datos) se ve solo el aviso.
 // - Textos: «GIZE de hoy» y nada de precios ni tiendas (reglas de AGENTS.md).
 // - El recorrido del emulador (scripts/android-recorrido.mjs) agrega el widget y lo fotografía.
 import fs from 'node:fs';
@@ -215,9 +218,14 @@ export default async function ({ base, t }){
 
   // Si la app ya arma los datos (rama widget-datos), tienen que coincidir con lo que ella manda.
   if (fs.existsSync(path.join(ROOT, 'app/core/widgetdatos.js'))){
+    // Los enlaces tal como los arma abrir() en el Java (el principio y el «?dia=» salen del código).
+    const prefijo = (wj.match(/String url = "([^"]+)" \+ destino;/) || [])[1] || '';
+    const conDia = (wj.match(/url \+= "([^"]+)" \+ idDia;/) || [])[1] || '';
+    const dJava = [...new Set(destinos.map(d => d.split(' ')[0]))];
+    const enlaces = [...dJava.map(d => prefijo + d), prefijo + 'entreno' + conDia + 'dA_1'];
     const { p, errs, close } = await newPage({});
     await p.goto(base + '/privacidad/');
-    const r = await p.evaluate(async todas => {
+    const r = await p.evaluate(async ({ todas, enlaces }) => {
       const m = await import('/app/core/widgetdatos.js');
       const juntar = (x, s = new Set()) => { if (typeof x === 'string') s.add(x); else if (x && typeof x === 'object') for (const [k, v] of Object.entries(x)){ if (!Array.isArray(x)) s.add(k); juntar(v, s); } return s; };
       const claves = [...juntar(m.CLAVES_WIDGET)];
@@ -231,12 +239,16 @@ export default async function ({ base, t }){
       const enJson = [];
       const recorrer = (x, dentroDeDias) => { if (!x || typeof x !== 'object') return; for (const [k, v] of Object.entries(x)){ if (!dentroDeDias) enJson.push(k); recorrer(v, k === 'dias' && !dentroDeDias); } };
       recorrer(json, false);
-      return { v: m.WIDGET_V, claves, enJson: [...new Set(enJson)], error, faltan: todas.filter(k => !claves.includes(k)) };
-    }, todas);
+      const leidos = typeof m.leerEnlaceWidget === 'function' ? enlaces.map(u => m.leerEnlaceWidget(u)) : null;
+      return { v: m.WIDGET_V, claves, enJson: [...new Set(enJson)], error, faltan: todas.filter(k => !claves.includes(k)), destinos: m.DESTINOS_WIDGET || null, leidos };
+    }, { todas, enlaces });
     t.eq(r.v, 1, 'WIDGET_V de la app es la versión que acepta el widget (GizeWidget.VERSION)');
     t.eq(r.faltan, [], 'cada clave que lee el widget está en CLAVES_WIDGET de app/core/widgetdatos.js');
     t.ok(!r.error, 'armarWidget arma los datos de un alumno' + (r.error ? ': ' + r.error : ''));
     t.eq(todas.filter(k => !r.enJson.includes(k)), [], 'y cada clave que lee el widget aparece en lo que arma la app');
+    // Cada toque del widget lo entiende la app (leerEnlaceWidget), con su destino y su día.
+    if (r.destinos) t.eq([...dJava].sort(), [...r.destinos].sort(), 'el widget abre justo los destinos de DESTINOS_WIDGET');
+    if (r.leidos) t.eq(r.leidos, [...dJava.map(d => ({ destino: d, dia: '' })), { destino: 'entreno', dia: 'dA_1' }], 'la app entiende cada enlace que arma el widget (' + enlaces.join(', ') + ')');
     t.eq(errs, [], 'sin errores de página');
     await close();
   }
