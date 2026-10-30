@@ -71,19 +71,23 @@ export default async function ({ base, t }){
     await pg.close();
   }
 
-  // ===== Cada estado, con su color =====
-  for (const [estado, rotulo, clase] of [['vencida', 'Vencida', 'cfg-gym-mal'], ['por_vencer', 'Por vencer', 'cfg-gym-ambar'], ['sin_pagos', 'Sin pagos cargados', 'cfg-gym-ambar']]){
-    const pg = await entrarAlumna(base, { vp: M, touch: true, cuota: miCuota(estado) }), p = pg.p;
+  // ===== Cada estado, con su color (que se lee con 4,5:1 en Oscuro y en Claro) =====
+  for (const tema of ['oscuro', 'claro']) for (const [estado, rotulo, clase] of [['vencida', 'Vencida', 'cfg-gym-mal'], ['por_vencer', 'Por vencer', 'cfg-gym-ambar'], ['sin_pagos', 'Sin pagos cargados', 'cfg-gym-ambar']]){
+    const donde = estado + ', ' + tema;
+    const pg = await entrarAlumna(base, { vp: M, touch: true, tema, cuota: miCuota(estado) }), p = pg.p;
     await ajustes(p);
     const txt = await cuotaTxt(p);
-    t.has(txt, 'Cuota ' + rotulo, estado + ': el estado');
-    if (estado === 'vencida') t.has(txt, 'Venció el ' + fecha(VENCE.vencida) + '.', estado + ': cuándo venció');
-    if (estado === 'por_vencer') t.has(txt, 'Paga hasta el ' + fecha(VENCE.por_vencer) + '.', estado + ': hasta cuándo');
-    if (estado === 'sin_pagos') t.ok(!/Paga hasta|Venció|Tus pagos/.test(txt) && /\$\s?25\.000 por mes/.test(txt), estado + ': sin fecha ni pagos, con el monto: ' + txt);
+    t.has(txt, 'Cuota ' + rotulo, donde + ': el estado');
+    if (estado === 'vencida') t.has(txt, 'Venció el ' + fecha(VENCE.vencida) + '.', donde + ': cuándo venció');
+    if (estado === 'por_vencer') t.has(txt, 'Paga hasta el ' + fecha(VENCE.por_vencer) + '.', donde + ': hasta cuándo');
+    if (estado === 'sin_pagos') t.ok(!/Paga hasta|Venció|Tus pagos/.test(txt) && /\$\s?25\.000 por mes/.test(txt), donde + ': sin fecha ni pagos, con el monto: ' + txt);
     const col = await p.evaluate(() => { const v = document.querySelector('#cfgCoachCuota .cfg-gym-cuota'), k = document.querySelector('#cfgCoachCuota .cfg-gym-k');
       return v && k ? [v.className, getComputedStyle(v).color !== getComputedStyle(k).color && getComputedStyle(v).color !== getComputedStyle(document.querySelector('#cfgCoachCuota .cfg-notif-desc')).color] : null; });
-    t.ok(!!col && col[0].includes(clase) && col[1], estado + ': se ve con su color (' + (col && col[0]) + ')');
-    t.eq(pg.errs, [], estado + ': sin errores');
+    t.ok(!!col && col[0].includes(clase) && col[1], donde + ': se ve con su color (' + (col && col[0]) + ')');
+    await p.evaluate(() => document.getElementById('cfgCoachCuota').scrollIntoView({ block: 'center' })); await wait(300);
+    const c = await contraste(p, '#cfgCoachCuota');
+    t.ok(c.n > 0 && c.min >= 4.5, donde + ': contraste de 4,5:1 o más (mínimo ' + c.min + ': ' + c.malos.slice(0, 3).join(' | ') + ')');
+    t.eq(pg.errs, [], donde + ': sin errores');
     await pg.close();
   }
 
