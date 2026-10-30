@@ -210,6 +210,37 @@ export default async function ({ base: url, t }){
     t.eq(errs, [], nombre + ': errores de la página');
     await close();
   }
+  // La comida según lo que contó, sin depender de la hora a la que corre la prueba: se nombra una que
+  // no es la de la hora (si se nombra una sola, se elige esa; si nombra dos, queda la de la hora).
+  {
+    const { p, errs, close } = await pagina({ estado: OK2, funcion: () => [200, VOZ] });
+    await abrirComida(p, url);
+    const ahora = await p.evaluate(() => { const h = new Date().getHours(); return h < 11 ? 'desayuno' : h < 16 ? 'almuerzo' : h < 20 ? 'merienda' : 'cena'; });
+    const en = { desayuno: 'en el desayuno', almuerzo: 'en el almuerzo', merienda: 'en la merienda', cena: 'en la cena' };
+    const otras = Object.keys(en).filter(m => m !== ahora);
+    for (const [dijo, quiere] of [[en[otras[0]] + ' comí 2 empanadas', otras[0]], [en[otras[1]] + ' y ' + en[otras[2]] + ' comí 2 empanadas', ahora]]){
+      await p.click('#view [data-action="ia-voz"]'); await wait(300);
+      await p.fill('#pl8Txt', dijo); await p.click('#sheetHost [data-action="plate-text-go"]'); await wait(1200);
+      t.eq(await p.$$eval('#sheetHost .pl8-foot [data-action="plate-meal"].on', bs => bs.map(b => b.dataset.meal)), [quiere], '«' + dijo + '» elige ' + quiere + ' (la hora da ' + ahora + ')');
+      // «¿Cerrar sin agregar?» se contesta solo (lib.mjs: p.contestar = true).
+      await p.click('#sheetHost .ss-x[data-action="plate-cancel"]'); await wait(900);
+      t.ok(!(await p.$('#sheetHost .plate-sheet')), '«' + dijo + '»: la hoja se cierra');
+    }
+    t.eq(errs, [], 'la comida según lo que contó: errores de la página');
+    await close();
+  }
+  // El límite de hoy que contesta la función (sin decir cuál): con el número del total dice «usos con
+  // IA»; con el de la voz, «comidas contadas».
+  for (const [nombre, tope, texto] of [['total', 25, 'Llegaste al límite de hoy (25 usos con IA).'], ['de la voz', 15, 'Llegaste al límite de hoy (15 comidas contadas con IA).']]){
+    const { p, errs, S, close } = await pagina({ estado: OK2, funcion: () => [429, { ok: false, codigo: 'tope_dia', mensaje: 'x', tope }] });
+    await abrirComida(p, url);
+    await p.click('#view [data-action="ia-voz"]'); await wait(300);
+    await p.fill('#pl8Txt', DIJO); await p.click('#sheetHost [data-action="plate-text-go"]'); await wait(1200);
+    t.has(await txt(p, '#sheetHost .plate-sheet'), texto, 'la función frena (' + nombre + '): el aviso');
+    t.eq(S.llamadas.length, 1, 'la función frena (' + nombre + '): una llamada');
+    t.eq(errs, [], 'la función frena (' + nombre + '): errores de la página');
+    await close();
+  }
   // «Te quedan N con IA hoy» con 3 o menos.
   {
     const { p, close } = await pagina({ estado: Object.assign({}, OK2, { quedan: { plato: 8, texto: 2 } }) });

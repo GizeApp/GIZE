@@ -2424,7 +2424,13 @@ async function plateCorrer(P){
       if (IA.estado) { const v = e.motivo === "apagada" ? "no" : null; if (P.modo === "texto") { IA.estado.permiso_texto = v; if (v) IA.estado.permiso_comida = v; } else IA.estado.permiso_comida = v; }
       P.status = "error"; P.err = e; P.msg = "Para usar la IA, primero tenés que aceptar el aviso."; P.reintento = e.motivo !== "apagada";
     }
-    else { P.status = "error"; P.err = e; P.msg = iaMensaje(e, P.modo); P.reintento = !iaSinReintento(e.codigo); }
+    else {
+      // El límite de hoy que manda la función no dice si es el de la función o el de todos los usos
+      // juntos: si el número es el del total (y no el de la función), es el total («usos con IA»).
+      const t = IA.estado && IA.estado.tope;
+      if (e.codigo === "tope_dia" && e.total == null && t && e.tope != null) e.total = e.tope === t.total && e.tope !== t[P.modo];
+      P.status = "error"; P.err = e; P.msg = iaMensaje(e, P.modo); P.reintento = !iaSinReintento(e.codigo);
+    }
   } finally { clearTimeout(reloj); }
   if (ComidaState.plate !== P) return;
   platePaint();
