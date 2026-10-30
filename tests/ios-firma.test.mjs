@@ -295,8 +295,12 @@ export default async function ({ t }){
 
   // 9) Falta el Bundle ID del widget (el dueño no hizo el paso 3): falla ANTES de crear el
   //    certificado, así no revoca uno viejo de CI por el tope para nada, y dice dónde está la guía.
+  //    Uno de Mac con el mismo identificador, u otro que solo empieza igual, no cuentan.
   const V1 = ci(301, '2026-12-01T00:00:00.000+0000'), V2 = ci(302, '2027-06-01T00:00:00.000+0000');
-  await escenario({ tope: 2, certs: [V1.cert, V2.cert], perfiles: [V1.perfil, V2.perfil], bundles: { [APP]: { id: 'BUNDLE-ID-SECRETO-APP', grupos: [GRUPO] } } }, async ({ cuenta, correr }) => {
+  const sinWidget = { [APP]: { id: 'BUNDLE-ID-SECRETO-APP', grupos: [GRUPO] },
+    [WIDGET]: { id: 'BUNDLE-ID-SECRETO-MAC', plataforma: 'MAC_OS', grupos: [GRUPO] },
+    [WIDGET + '.viejo']: { id: 'BUNDLE-ID-SECRETO-OTRO', grupos: [GRUPO] } };
+  await escenario({ tope: 2, certs: [V1.cert, V2.cert], perfiles: [V1.perfil, V2.perfil], bundles: sinWidget }, async ({ cuenta, correr }) => {
     const c = await correr('crear', W);
     t.ok(c.code !== 0, 'sin el Bundle ID del widget: crear falla');
     t.has(c.out, 'No está registrado el Bundle ID del widget', 'sin el Bundle ID del widget: lo dice');
