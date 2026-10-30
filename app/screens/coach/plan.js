@@ -642,7 +642,9 @@ async function revisarGoogle(todas){
   rerender();
   if(G.suspendida && !G.aviso){
     G.aviso = true;
-    try{ const a = await avisosGoogle(); if(a && a.estado === "actualizada"){ G.aviso = false; await revisarGoogle(true); } }catch(e){}
+    // Si lo arregló ahí mismo, se vuelve a mirar (sin volver a mostrar el aviso: si Google todavía la
+    // ve suspendida, el aviso se repetiría sin fin).
+    try{ const a = await avisosGoogle(); if(a && a.estado === "actualizada") await revisarGoogle(true); }catch(e){}
   }
 }
 

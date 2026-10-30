@@ -42,7 +42,7 @@ const plugin = (plataforma, o = {}) => `(() => {
     vigentes: async () => { window.__compras.push(['vigentes']); return ${plataforma === 'ios' ? "{ jws: [] }" : "{ compras: o.vigentes || [] }"}; },
     restaurar: async () => { window.__compras.push(['restaurar']); return { estado: 'ok', compras: o.restaurar || [] }; },
     administrar: async a => { window.__compras.push(['administrar', a && a.producto]); },
-    avisos: async () => { window.__compras.push(['avisos']); return { estado: 'nada' }; },
+    avisos: async () => { window.__compras.push(['avisos']); return { estado: o.avisos || 'nada', token: 'TOK-p25' }; },
     addListener: (ev, fn) => { window.__compras.push(['escucha', ev]); window.__llega = fn; },
   };
   window.Capacitor = { isNativePlatform: () => true, getPlatform: () => '${plataforma}', Plugins: { GizeCompras: P } };
@@ -253,6 +253,15 @@ export default async function ({ base, t }){
   t.eq(await pg.p.evaluate(() => document.querySelectorAll('#coachHost [data-plan="choose"]').length), 0, 'suspendida: no ofrece comprar otro plan');
   t.ok((await compras(pg.p)).some(x => x[0] === 'avisos'), 'suspendida: muestra el aviso propio de Google');
   t.eq(pg.errs, [], 'errores (suspendida)');
+  await pg.close();
+  // Lo arregló en el aviso de Google, pero Google todavía la ve suspendida: se vuelve a mirar una
+  // vez, sin repetir el aviso sin fin.
+  pg = await pagina(SUSPENDIDA, { init: plugin('android', { vigentes: [Object.assign({}, EN_CELULAR[0], { suspendida: true })], avisos: 'actualizada' }) });
+  await pg.p.goto(base + '/app/'); await wait(3000);
+  c = await compras(pg.p);
+  t.eq(c.filter(x => x[0] === 'avisos').length, 1, 'arreglado en el aviso: el aviso de Google se muestra una sola vez');
+  t.eq(c.filter(x => x[0] === 'vigentes').length, 2, 'arreglado en el aviso: vuelve a mirar las suscripciones');
+  t.eq(pg.errs, [], 'errores (arreglado en el aviso)');
   await pg.close();
 
   // 6c) Interruptor apagado, con una suscripción de Google vigente y más alumnos que el plan: no le
