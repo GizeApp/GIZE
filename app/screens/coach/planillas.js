@@ -118,7 +118,7 @@ const generica = s => /^(hoja|sheet|hoja de calculo|planilla|libro|tabla)\s*\d*$
 // al llegar, se vuelve a dibujar Rutinas o Inicio).
 export function botonPlanillas(){
   pedirEstado();
-  return iaCoachVisible("planilla") ? '<button class="co-copy-btn cv-sec-btn pp-ir" data-coach="pl-open">' + fileTextSvg + ' Pasar mis planillas</button>' : "";
+  return iaCoachVisible("planilla") ? '<button class="co-copy-btn cv-sec-btn pp-ir" data-coach="pp-open">' + fileTextSvg + ' Pasar mis planillas</button>' : "";
 }
 function pedirEstado(){
   const antes = iaCoachVisible("planilla");
@@ -129,7 +129,7 @@ function pedirEstado(){
   });
 }
 
-const volver = P => '<div class="co-head cv-head"><button class="co-back" data-coach="pl-back">‹ ' + (P.paso === "hojas" ? "Elegir otras planillas" : "Volver") + '</button></div>' +
+const volver = P => '<div class="co-head cv-head"><button class="co-back" data-coach="pp-back">‹ ' + (P.paso === "hojas" ? "Elegir otras planillas" : "Volver") + '</button></div>' +
   '<h1 class="cv-title pp-title">Pasar mis planillas</h1>';
 const privacidad = () => '<div class="pp-priv">' + shieldSvg + '<span>La planilla se lee en tu equipo. A la IA le mandamos solo los ejercicios, sin nombres de tus alumnos, mails, teléfonos ni links. ' +
   '<a href="' + POLITICA + '" target="_blank" rel="noopener">Política de privacidad</a></span></div>';
@@ -162,8 +162,8 @@ function pasoArchivos(P){
   const de = [...new Set(listas.map(x => x.archivo).filter(Boolean))];
   const seguir = P.items.length ? '<div class="cv-card pp-card pp-seguir" role="status"><b>' +
       (listas.length ? "Tenés " + plural(listas.length, "rutina", "rutinas") + " sin guardar" + (de.length ? " de " + esc(yLista(de)) : "") : "Tenés hojas que estabas pasando") + '</b>' +
-      '<div class="pp-acc"><button class="gize-btn cv-btn" data-coach="pl-seguir">Seguir con ' + (listas.length === 1 && !otras ? "esa rutina" : "esas rutinas") + '</button>' +
-      (listas.length && !enCurso(P) ? '<button class="co-copy-btn" data-coach="pl-descartar-todas">Descartarlas</button>' : '') + '</div></div>' : '';
+      '<div class="pp-acc"><button class="gize-btn cv-btn" data-coach="pp-seguir">Seguir con ' + (listas.length === 1 && !otras ? "esa rutina" : "esas rutinas") + '</button>' +
+      (listas.length && !enCurso(P) ? '<button class="co-copy-btn" data-coach="pp-descartar-todas">Descartarlas</button>' : '') + '</div></div>' : '';
   const q = quedan(), bl = bloqueo();
   return seguir +
     '<div class="cv-card pp-card">' +
@@ -190,7 +190,7 @@ function pasoHojas(P){
     return '<div class="pp-hoja' + (it.elegida ? ' on' : '') + '">' +
       '<label class="pp-hoja-sel"><input type="checkbox" data-pp="tilde" data-id="' + esc(it.id) + '"' + (it.elegida ? ' checked' : '') + (it.filas ? '' : ' disabled') + '>' +
         '<span class="pp-hoja-n"><b>' + esc(it.hoja || "Hoja") + '</b><small>' + esc(meta) + '</small></span></label>' +
-      (it.filas ? para(it) + '<button class="cv-link pp-ver" data-coach="pl-ver" data-id="' + esc(it.id) + '" aria-expanded="' + ver + '">' + (ver ? 'Ocultar lo que se manda' : 'Ver qué se manda') + '</button>' : '') +
+      (it.filas ? para(it) + '<button class="cv-link pp-ver" data-coach="pp-ver" data-id="' + esc(it.id) + '" aria-expanded="' + ver + '">' + (ver ? 'Ocultar lo que se manda' : 'Ver qué se manda') + '</button>' : '') +
       (ver ? '<pre class="pp-texto" tabindex="0" aria-label="Lo que se manda a la IA de «' + esc(it.hoja || "la hoja") + '»">' + esc(it.texto) + '</pre>' : '') +
     '</div>';
   };
@@ -202,7 +202,7 @@ function pasoHojas(P){
     (hojas.length ? '' : '<div class="cal-hint">No hay hojas para pasar en estas planillas.</div>') +
     privacidad() +
     (bl ? '<div class="pp-aviso" role="status">' + esc(bl) + '</div>' : pasa ? '<div class="pp-aviso" role="status">Elegiste ' + plural(n, "hoja", "hojas") + ' y hoy te quedan ' + q + ': destildá algunas.</div>' : '') +
-    '<div class="pp-acc pp-pie"><button class="gize-btn cv-btn" data-coach="pl-pasar"' + (!n || pasa || bl ? ' disabled' : '') + '>' + sparkleSvg + 'Pasar ' + plural(n, "hoja", "hojas") + ' con IA</button></div>';
+    '<div class="pp-acc pp-pie"><button class="gize-btn cv-btn" data-coach="pp-pasar"' + (!n || pasa || bl ? ' disabled' : '') + '>' + sparkleSvg + 'Pasar ' + plural(n, "hoja", "hojas") + ' con IA</button></div>';
 }
 
 // Paso 3 y 4: la cola y, a medida que llegan, las rutinas para revisar y guardar.
@@ -213,13 +213,13 @@ function pasoPasar(P){
   const fin = P.fin && P.fin.n ? finHtml(P.fin) : '';
   return fin +
     (P.frenada ? '<div class="pp-aviso" role="status">' + esc(iaCoachMensaje(P.frenada, "planilla")) + '</div>' : '') +
-    (andando ? '<div class="pp-progreso" role="status"><span>Pasando con IA: ' + hechas + ' de ' + l.length + '…</span><button class="cv-link" data-coach="pl-cancelar">Cancelar lo que falta</button></div>' : '') +
+    (andando ? '<div class="pp-progreso" role="status"><span>Pasando con IA: ' + hechas + ' de ' + l.length + '…</span><button class="cv-link" data-coach="pp-cancelar">Cancelar lo que falta</button></div>' : '') +
     (P.guardando ? '<div class="pp-progreso" role="status"><span>Guardando…</span></div>' : '') +
     l.map(it => tarjeta(P, it)).join("") +
     (!l.length && !fin ? '<div class="cal-hint">No hay rutinas para revisar.</div>' : '') +
     '<div class="pp-acc pp-pie">' +
-      (listas.length > 1 ? '<button class="gize-btn cv-btn" data-coach="pl-guardar-todas"' + (P.guardando ? ' disabled' : '') + '>Guardar todas (' + listas.length + ')</button>' : '') +
-      (andando ? '' : '<button class="co-copy-btn" data-coach="pl-otras">Pasar otras planillas</button>') +
+      (listas.length > 1 ? '<button class="gize-btn cv-btn" data-coach="pp-guardar-todas"' + (P.guardando ? ' disabled' : '') + '>Guardar todas (' + listas.length + ')</button>' : '') +
+      (andando ? '' : '<button class="co-copy-btn" data-coach="pp-otras">Pasar otras planillas</button>') +
     '</div>';
 }
 function finHtml(f){
@@ -229,7 +229,7 @@ function finHtml(f){
   const invitar = m && CoachState.coachInvite ? '<button class="co-copy-btn" data-coach="copy-invite">' + copySvg + ' Invitar a tus alumnos</button>' : '';
   return '<div class="cv-card pp-card pp-fin" role="status"><b>' + esc(txt) + '</b>' +
     (invitar ? '<span>Pasales tu código: cuando se vinculen, les aplicás la rutina desde su ficha.</span>' : '') +
-    '<div class="pp-acc">' + invitar + '<button class="co-copy-btn" data-coach="pl-back">Ver Mis rutinas</button></div></div>';
+    '<div class="pp-acc">' + invitar + '<button class="co-copy-btn" data-coach="pp-back">Ver Mis rutinas</button></div></div>';
 }
 const CHIP = { cola: "En cola", leyendo: "Leyendo…", no_rutina: "No parece una rutina", error: "No se pudo", cancelada: "Cancelada" };
 function tarjeta(P, it){
@@ -242,8 +242,8 @@ function tarjeta(P, it){
       (it.estado === "error" && it.error ? '<p class="pp-rt-msg">' + esc(it.error) + '</p>' : '') +
       (it.estado === "no_rutina" ? '<p class="pp-rt-msg">' + esc(it.nota || "La IA no encontró una rutina de entrenamiento en esta hoja.") + '</p>' : '') +
       (["cola", "leyendo"].includes(it.estado) ? '' : '<div class="pp-acc">' +
-        (reintentar && !P.frenada ? '<button class="co-copy-btn" data-coach="pl-reintentar" data-id="' + id + '">' + (it.estado === "cancelada" ? "Pasarla" : "Reintentar") + '</button>' : '') +
-        '<button class="co-copy-btn" data-coach="pl-quitar" data-id="' + id + '">Quitar</button></div>') +
+        (reintentar && !P.frenada ? '<button class="co-copy-btn" data-coach="pp-reintentar" data-id="' + id + '">' + (it.estado === "cancelada" ? "Pasarla" : "Reintentar") + '</button>' : '') +
+        '<button class="co-copy-btn" data-coach="pp-quitar" data-id="' + id + '">Quitar</button></div>') +
     '</article>';
   }
   const nd = (it.days || []).length, ne = contar(it.days), rev = vivos(it).length, pr = propios(it), ia = it.ia || {};
@@ -261,11 +261,11 @@ function tarjeta(P, it){
     (avisos.length ? '<ul class="pp-avisos">' + avisos.map(a => '<li>' + esc(a) + '</li>').join("") + '</ul>' : '') +
     para(it) +
     '<div class="pp-acc">' +
-      '<button class="gize-btn cv-btn" data-coach="pl-guardar" data-id="' + id + '"' + (P.guardando ? ' disabled' : '') + '>' + (cl ? 'Guardar y aplicar' : 'Guardar') + '</button>' +
-      '<button class="co-copy-btn" data-coach="pl-editar" data-id="' + id + '">Revisar y editar</button>' +
-      (ia.dias ? '<button class="co-copy-btn" data-coach="pl-leyo" data-id="' + id + '" aria-expanded="' + !!leyo + '">' + (leyo ? 'Ocultar cómo la leyó' : 'Ver cómo la leyó') + '</button>' : '') +
-      '<button class="co-copy-btn" data-coach="pl-descartar" data-id="' + id + '">Descartar</button>' +
-      (ia.dias ? '<button class="cv-link pp-mal" data-coach="pl-reportar" data-id="' + id + '">¿Está mal? Avisanos</button>' : '') +
+      '<button class="gize-btn cv-btn" data-coach="pp-guardar" data-id="' + id + '"' + (P.guardando ? ' disabled' : '') + '>' + (cl ? 'Guardar y aplicar' : 'Guardar') + '</button>' +
+      '<button class="co-copy-btn" data-coach="pp-editar" data-id="' + id + '">Revisar y editar</button>' +
+      (ia.dias ? '<button class="co-copy-btn" data-coach="pp-leyo" data-id="' + id + '" aria-expanded="' + !!leyo + '">' + (leyo ? 'Ocultar cómo la leyó' : 'Ver cómo la leyó') + '</button>' : '') +
+      '<button class="co-copy-btn" data-coach="pp-descartar" data-id="' + id + '">Descartar</button>' +
+      (ia.dias ? '<button class="cv-link pp-mal" data-coach="pp-reportar" data-id="' + id + '">¿Está mal? Avisanos</button>' : '') +
     '</div>' +
     (leyo ? comoLaLeyo(it) : '') +
   '</article>';
@@ -503,49 +503,50 @@ async function reportar(it){
   catch (e) { alert((e && e.message) || "No se pudo enviar. Probá de nuevo."); }
 }
 
-// ---------- Acciones (data-coach="pl-…", desde main.js) ----------
+// ---------- Acciones (data-coach="pp-…", desde main.js) ----------
+// «pp-» y no «pl-»: «pl-» es del plan alimenticio del alumno (pl-mealadd, pl-listadd…, en main.js).
 // También «‹ Volver», «Guardar rutina» y «Descartar» del editor con una rutina de la planilla abierta
 // (CoachState.coachTplEdit.planilla): Volver vuelve a la planilla con los cambios, Guardar la guarda
 // (y la aplica si tiene alumno) y Descartar la saca de la lista. Devuelve true si la manejó.
 export async function planillaAction(a, b){
   const e = CoachState.coachTplEdit;
   if (e && e.planilla && /^tpl-(back|save|del)$/.test(a)) return accionEditor(a, b, e);
-  if (a === "pl-open"){ abrir(); return true; }
+  if (a === "pp-open"){ abrir(); return true; }
   const P = CoachState.planillas;
   if (!P) return true;
   const it = b && b.dataset && b.dataset.id ? P.items.find(x => x.id === b.dataset.id) : null;
-  if (a === "pl-back"){
+  if (a === "pp-back"){
     if (P.paso === "hojas"){ volverArchivos(P); return true; }
     cerrarPlanillas(); CoachState.coachView = "tpls"; renderCoach(); window.scrollTo(0, 0); return true;
   }
-  if (a === "pl-otras"){ volverArchivos(P); return true; }
-  if (a === "pl-seguir"){ P.paso = "pasar"; repintar(P); window.scrollTo(0, 0); return true; }
-  if (a === "pl-descartar-todas"){
+  if (a === "pp-otras"){ volverArchivos(P); return true; }
+  if (a === "pp-seguir"){ P.paso = "pasar"; repintar(P); window.scrollTo(0, 0); return true; }
+  if (a === "pp-descartar-todas"){
     const n = P.items.filter(x => x.estado === "lista").length;
     if (!n || !await confirmar("¿Descartar " + (n === 1 ? "la rutina sin guardar" : "las " + n + " rutinas sin guardar") + "? No quedan en ningún lado.", { titulo: "Descartar", ok: "Descartar", peligro: true })) return true;
     P.items = P.items.filter(x => x.estado !== "lista");
     guardarBorrador(P); repintar(P); return true;
   }
-  if (a === "pl-ver"){ P.ver = P.ver === b.dataset.id ? null : b.dataset.id; repintar(P); return true; }
-  if (a === "pl-pasar"){ await pasar(P); return true; }
-  if (a === "pl-cancelar"){ P.items.forEach(x => { if (x.estado === "cola") x.estado = "cancelada"; }); repintar(P); return true; }
-  if (a === "pl-guardar-todas"){ await guardar(P, P.items.filter(x => x.estado === "lista")); return true; }
+  if (a === "pp-ver"){ P.ver = P.ver === b.dataset.id ? null : b.dataset.id; repintar(P); return true; }
+  if (a === "pp-pasar"){ await pasar(P); return true; }
+  if (a === "pp-cancelar"){ P.items.forEach(x => { if (x.estado === "cola") x.estado = "cancelada"; }); repintar(P); return true; }
+  if (a === "pp-guardar-todas"){ await guardar(P, P.items.filter(x => x.estado === "lista")); return true; }
   if (!it) return true;
-  if (a === "pl-reintentar"){ if (P.frenada) return true; it.estado = "cola"; it.error = null; repintar(P); correr(P); return true; }
-  if (a === "pl-quitar"){ P.items = P.items.filter(x => x !== it); repintar(P); return true; }
-  if (a === "pl-leyo"){ P.leyo[it.id] = !P.leyo[it.id]; repintar(P); return true; }
-  if (a === "pl-reportar"){ await reportar(it); return true; }
+  if (a === "pp-reintentar"){ if (P.frenada) return true; it.estado = "cola"; it.error = null; repintar(P); correr(P); return true; }
+  if (a === "pp-quitar"){ P.items = P.items.filter(x => x !== it); repintar(P); return true; }
+  if (a === "pp-leyo"){ P.leyo[it.id] = !P.leyo[it.id]; repintar(P); return true; }
+  if (a === "pp-reportar"){ await reportar(it); return true; }
   if (it.estado !== "lista") return true;
-  if (a === "pl-descartar"){
+  if (a === "pp-descartar"){
     if (!await confirmar("¿Descartar «" + (it.nombre || it.hoja || "esta rutina") + "»? No se guarda.", { titulo: "Descartar rutina", ok: "Descartar", peligro: true })) return true;
     P.items = P.items.filter(x => x !== it); guardarBorrador(P); repintar(P); return true;
   }
-  if (a === "pl-editar"){
+  if (a === "pp-editar"){
     CoachState.coachTplEdit = { planilla: it.id, id: null, name: it.nombre || "", days: it.days, revisar: (it.revisar || []).slice() };
     CoachState.coachEditDay = 0; CoachState.coachExpandedEx = new Set();
     renderCoach(); window.scrollTo(0, 0); return true;
   }
-  if (a === "pl-guardar"){ await guardar(P, [it]); return true; }
+  if (a === "pp-guardar"){ await guardar(P, [it]); return true; }
   return true;
 }
 async function accionEditor(a, b, e){

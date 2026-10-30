@@ -1423,9 +1423,10 @@ document.body.addEventListener("click", async e => {
   if(a==="view-clients"){ CoachState.coachView="clients"; renderCoach(); return; }
   // «Mis planes» y planes guardados (ver screens/coach/planes.js).
   if((a==="view-meals" || /^mpk?-/.test(a)) && await mealAction(a, b)) return;
-  // «Pasar mis planillas» (ver screens/coach/planillas.js) y una rutina suya abierta en el editor
+  // «Pasar mis planillas» (ver screens/coach/planillas.js: sus acciones son «pp-», porque «pl-» son las
+  // del plan alimenticio, más abajo) y una rutina suya abierta en el editor
   // (Volver vuelve a la planilla, Guardar la guarda y la aplica, Descartar la saca de la lista).
-  if((/^pl-/.test(a) || (CoachState.coachTplEdit && CoachState.coachTplEdit.planilla && /^tpl-(back|save|del)$/.test(a))) && await planillaAction(a, b)) return;
+  if((/^pp-/.test(a) || (CoachState.coachTplEdit && CoachState.coachTplEdit.planilla && /^tpl-(back|save|del)$/.test(a))) && await planillaAction(a, b)) return;
   if(a==="view-tpls"){ CoachState.coachView="tpls"; await Promise.all([loadTpls(), cargarCatalogo().then(l=>{ CoachState.coachCat=l; }, ()=>{})]); renderCoach(); return; }
   // Importar una rutina armada (las mismas que se ofrecen a quien entrena solo, ver
   // core/rutinas-ejemplo.js) como rutina nueva del coach, para editarla y guardarla.

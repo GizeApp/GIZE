@@ -144,7 +144,7 @@ export default async function ({ base, t }){
   t.has(vacia, 'Con IA', 'Rutinas vacía: la franja «Con IA»');
   t.has(vacia, '¿Tenés tus rutinas en Excel o Google Sheets? Pasalas a GIZE.', 'Rutinas vacía: con el llamado');
   await ir(p, 'home');
-  await p.click('#coachHost .pp-llamado [data-coach="pl-open"]'); await wait(700);
+  await p.click('#coachHost .pp-llamado [data-coach="pp-open"]'); await wait(700);
   t.has(await text(p, W), 'Pasar mis planillas', 'desde Inicio se abre «Pasar mis planillas»');
   t.ok(await p.isVisible('#coachHost .cv-nav-i.on[data-coach="view-tpls"]'), 'la pantalla va dentro de Rutinas');
   t.eq(pg.errs, [], 'errores de la página (sin clientes)');
@@ -165,7 +165,7 @@ export default async function ({ base, t }){
   t.has(franja, 'Con IA', 'prendida: la franja «Con IA» en Rutinas');
   t.has(franja, 'Pasar mis planillas', 'con «Pasar mis planillas»');
   t.ok(!franja.includes('¿Tenés tus rutinas'), 'con rutinas guardadas, sin el llamado');
-  await p.click('#coachHost [data-coach="pl-open"]'); await wait(800);
+  await p.click('#coachHost [data-coach="pp-open"]'); await wait(800);
   const paso1 = await text(p, W);
   for (const f of ['Pasar mis planillas', 'Elegir planillas', 'La planilla se lee en tu equipo. A la IA le mandamos solo los ejercicios, sin nombres de tus alumnos, mails, teléfonos ni links.',
     '¿Está en Google Sheets? Archivo → Descargar → Microsoft Excel (.xlsx).', '¿Es un .xls viejo? Abrilo y guardalo como .xlsx.', 'Hoy te quedan 30 hojas para pasar con IA.'])
@@ -177,8 +177,8 @@ export default async function ({ base, t }){
   t.eq(await hojas(p), [{ hoja: 'Juan Pérez', tilde: true, para: A1 }, { hoja: 'Dieta', tilde: false, para: '' }, { hoja: 'Martina', tilde: true, para: A2 }],
     'paso 2: tildadas las que parecen rutinas y el alumno adivinado por el nombre de la hoja');
   t.has(await text(p, W), 'Alumnos 2026.xlsx', 'paso 2: el nombre del archivo');
-  t.has(await text(p, '#coachHost [data-coach="pl-pasar"]'), 'Pasar 2 hojas con IA', 'paso 2: el botón dice cuántas');
-  await tocar(p, 'pl-ver', 'Juan Pérez');
+  t.has(await text(p, '#coachHost [data-coach="pp-pasar"]'), 'Pasar 2 hojas con IA', 'paso 2: el botón dice cuántas');
+  await tocar(p, 'pp-ver', 'Juan Pérez');
   const visto = await p.evaluate(() => document.querySelector('#coachHost .pp-texto').textContent);
   t.has(visto, 'Press banca', '«Ver qué se manda»: los ejercicios');
   t.has(visto, '60-65-70-75', '«Ver qué se manda»: las cargas quedan enteras');
@@ -188,15 +188,15 @@ export default async function ({ base, t }){
   // La dieta también va (para ver «no parece una rutina»).
   const idDieta = await idDe(p, 'Dieta');
   await p.click('#coachHost input[data-pp="tilde"][data-id="' + idDieta + '"]'); await wait(300);
-  t.has(await text(p, '#coachHost [data-coach="pl-pasar"]'), 'Pasar 3 hojas con IA', 'tildar otra suma una hoja');
+  t.has(await text(p, '#coachHost [data-coach="pp-pasar"]'), 'Pasar 3 hojas con IA', 'tildar otra suma una hoja');
 
   // El permiso: «Ahora no» no manda nada.
-  await p.click('#coachHost [data-coach="pl-pasar"]'); await wait(600);
+  await p.click('#coachHost [data-coach="pp-pasar"]'); await wait(600);
   t.ok(await hojaPermiso(p), 'antes de la primera hoja sale «Usar IA en tus rutinas»');
   await p.click('#iaRutHost button[data-iar="no"]'); await wait(600);
   t.eq(pg.S.llamadas, [], '«Ahora no»: no se llamó a la función');
-  t.ok(await p.$('#coachHost [data-coach="pl-pasar"]'), '«Ahora no»: sigue en el paso 2');
-  await p.click('#coachHost [data-coach="pl-pasar"]'); await wait(600);
+  t.ok(await p.$('#coachHost [data-coach="pp-pasar"]'), '«Ahora no»: sigue en el paso 2');
+  await p.click('#coachHost [data-coach="pp-pasar"]'); await wait(600);
   await p.click('#iaRutHost [data-iar="si"]'); await wait(2200);
   t.eq(pg.S.permisos, [{ p_acepta: true, p_version: 1 }], 'aceptar guarda el permiso una vez');
 
@@ -217,19 +217,19 @@ export default async function ({ base, t }){
   t.eq(await p.evaluate(id => document.querySelector('#coachHost select[data-pp="para"][data-id="' + id + '"]').value, await idDe(p, 'Juan Pérez')), A1, 'y sigue siendo para Juan');
   t.has(await tarjeta(p, 'Martina'), 'No se pudo', 'un error: «No se pudo»');
   t.has(await tarjeta(p, 'Martina'), 'La IA está tardando más de lo normal o falló', 'un error: con el texto de siempre');
-  await tocar(p, 'pl-reintentar', 'Martina', 1200);
+  await tocar(p, 'pp-reintentar', 'Martina', 1200);
   t.has(await tarjeta(p, 'Martina'), 'Lista: 1 día · 2 ejercicios', '«Reintentar» la vuelve a pasar');
   t.eq(pg.S.llamadas.length, 4, 'el reintento es una llamada más');
 
   // «Ver cómo la leyó»: fila por fila.
-  await tocar(p, 'pl-leyo', 'Juan Pérez');
+  await tocar(p, 'pp-leyo', 'Juan Pérez');
   const leyo = await text(p, '#coachHost .pp-leyo');
   for (const f of ['Fila 6', 'Press banca · 4 · 8-10', 'Press plano con mancuernas · 4 × 8-10 · desc. 2\'', 'Revisar', 'Sentadilla búlgara con salto', 'Nombre propio', 'Remo con barra · 4 × 10 · 60 / 65 / 70 / 75 kg'])
     t.has(leyo, f, '«Ver cómo la leyó»: ' + f);
 
   // El editor de siempre, con la marca «Revisar» y «‹ Volver a la planilla» sin perder cambios.
   const nPreg = pg.preguntas.length;
-  await tocar(p, 'pl-editar', 'Juan Pérez', 700);
+  await tocar(p, 'pp-editar', 'Juan Pérez', 700);
   t.has(await text(p, '#coachHost [data-coach="tpl-back"]'), 'Volver a la planilla', 'el editor vuelve a la planilla');
   t.has(await text(p, W), 'Al guardarla queda en Mis rutinas y se la aplicás a Juan Pérez.', 'el editor dice qué pasa al guardar');
   t.eq(await p.evaluate(() => [...document.querySelectorAll('#coachHost .co-exc')].filter(c => c.querySelector('.co-exc-rev')).map(c => (c.querySelector('.co-exc-ctext, .co-exc-name') || {}).textContent || c.querySelector('.co-exc-name').value)),
@@ -242,12 +242,12 @@ export default async function ({ base, t }){
   t.eq(await p.evaluate(id => document.querySelector('#coachHost input[data-pp="nombre"][data-id="' + id + '"]').value, await idDe(p, 'Juan Pérez')), 'Juan · Torso', 'el nombre que se cambió en el editor queda');
   t.has(await tarjeta(p, 'Juan Pérez'), 'Lista: 1 día · 3 ejercicios', 'y la rutina sigue en la planilla');
   // Salir del editor por la barra lateral cierra la pantalla, y lo que se cambió (también el nombre) queda.
-  await tocar(p, 'pl-editar', 'Juan Pérez', 700);
+  await tocar(p, 'pp-editar', 'Juan Pérez', 700);
   await p.fill('#coachHost [data-coach="tpl-name"]', 'Juan · Torso B');
   await ir(p, 'tpls');
   t.ok(!(await p.$('#coachHost .pp-title')) && !(await p.$('#coachHost [data-coach="tpl-name"]')), 'salir del editor por la barra: queda en Rutinas');
-  await p.click('#coachHost [data-coach="pl-open"]'); await wait(800);
-  await p.click('#coachHost [data-coach="pl-seguir"]'); await wait(500);
+  await p.click('#coachHost [data-coach="pp-open"]'); await wait(800);
+  await p.click('#coachHost [data-coach="pp-seguir"]'); await wait(500);
   const nomJuan = '#coachHost input[data-pp="nombre"][data-id="' + await idDe(p, 'Juan Pérez') + '"]';
   t.eq(await p.$eval(nomJuan, i => i.value), 'Juan · Torso B', 'salir del editor por la barra: el nombre que se cambió queda');
   await p.fill(nomJuan, 'Juan · Torso'); await p.press(nomJuan, 'Tab'); await wait(300);
@@ -260,16 +260,16 @@ export default async function ({ base, t }){
   t.has(guardado, 'Juan · Torso', 'el borrador tiene lo que se cambió');
   await p.reload(); await wait(2800);
   await ir(p, 'tpls');
-  await p.click('#coachHost [data-coach="pl-open"]'); await wait(800);
+  await p.click('#coachHost [data-coach="pp-open"]'); await wait(800);
   t.has(await text(p, '#coachHost .pp-seguir'), 'Tenés 2 rutinas sin guardar de Alumnos 2026.xlsx', 'al volver ofrece seguir con lo que no se guardó');
-  await p.click('#coachHost [data-coach="pl-seguir"]'); await wait(500);
+  await p.click('#coachHost [data-coach="pp-seguir"]'); await wait(500);
   t.has(await tarjeta(p, 'Juan Pérez'), 'Lista: 1 día · 3 ejercicios', 'la rutina de Juan volvió');
   t.has(await tarjeta(p, 'Martina'), 'Lista: 1 día · 2 ejercicios', 'la de Martina también');
   t.eq(await p.evaluate(() => [...document.querySelectorAll('#coachHost .pp-rt')].length), 2, 'solo las que estaban listas');
 
   // «¿Está mal? Avisanos»: la rutina que armó la IA y el comentario, nunca la planilla.
   p.dialogAnswer = 'Faltó el día 2';
-  await tocar(p, 'pl-reportar', 'Juan Pérez', 700);
+  await tocar(p, 'pp-reportar', 'Juan Pérez', 700);
   const rep = pg.S.reportes[0] || {};
   t.eq([rep.p_funcion, rep.p_comentario], ['planilla', 'Faltó el día 2'], '«¿Está mal?» manda ia_reportar con «planilla» y el comentario');
   const repTxt = JSON.stringify(rep.p_respuesta || {});
@@ -282,20 +282,20 @@ export default async function ({ base, t }){
   const idMartina = await idDe(p, 'Martina');
   await p.selectOption('#coachHost select[data-pp="para"][data-id="' + idMartina + '"]', A1); await wait(400);
   const nPregDup = pg.preguntas.length;
-  await p.click('#coachHost [data-coach="pl-guardar-todas"]'); await wait(800);
+  await p.click('#coachHost [data-coach="pp-guardar-todas"]'); await wait(800);
   t.has(pg.dialogs.join(' '), '«Juan · Torso» y «Martina» son para Juan Pérez. Cada alumno tiene una sola rutina: dejale una y en las otras elegí «Nadie todavía» (quedan en Mis rutinas).', 'dos para el mismo alumno: lo dice');
   t.eq([pg.S.inserts.length, pg.S.upserts.length, pg.preguntas.length - nPregDup], [0, 0, 0], 'dos para el mismo alumno: no guarda nada');
   await p.selectOption('#coachHost select[data-pp="para"][data-id="' + idMartina + '"]', A2); await wait(400);
 
   // Guardar todas: pregunta antes de reemplazar (solo nombra a Juan, que ya tenía rutina).
   p.contestar = false;
-  await p.click('#coachHost [data-coach="pl-guardar-todas"]'); await wait(800);
+  await p.click('#coachHost [data-coach="pp-guardar-todas"]'); await wait(800);
   const q = pg.preguntas[pg.preguntas.length - 1] || {};
   t.has(q.texto || '', 'Reemplaza la rutina de Juan Pérez.', 'antes de guardar pregunta, nombrando a quien ya tenía rutina');
   t.ok(!(q.texto || '').includes('Martina'), 'no nombra a quien no tenía rutina');
   t.eq([pg.S.inserts.length, pg.S.upserts.length], [0, 0], '«Cancelar»: no se guarda nada');
   p.contestar = true;
-  await p.click('#coachHost [data-coach="pl-guardar-todas"]'); await wait(1500);
+  await p.click('#coachHost [data-coach="pp-guardar-todas"]'); await wait(1500);
   t.eq(pg.S.inserts.map(x => [x.name, x.coach_id, x.days.length]), [['Juan · Torso', COACH.id, 1], ['Martina (2)', COACH.id, 1]], 'quedan en Mis rutinas (routine_templates), con el nombre sin repetir');
   t.eq(pg.S.inserts[0].days[0].exercises[2].sets.length, 5, 'con lo que se cambió en el editor');
   t.eq(pg.S.upserts.map(x => [x.client_id, x.updated_by]).sort(), [[A1, COACH.id], [A2, COACH.id]].sort(), 'y se aplican a los alumnos elegidos (routines, con updated_by)');
@@ -316,15 +316,15 @@ export default async function ({ base, t }){
       return [200, Object.assign({}, RUTINA_MARTINA, { dias: [{ nombre: 'Día 1', dias: [], nota: '', ejercicios: [ej(e, 2, [serie('8')])] }] })];
     } }); p = pg.p;
   await ir(p, 'tpls');
-  await p.click('#coachHost [data-coach="pl-open"]'); await wait(800);
+  await p.click('#coachHost [data-coach="pp-open"]'); await wait(800);
   const textos = [await text(p, W)];
   await subir(p, EJ.map((e, i) => ({ nombre: 'rutina-' + (i + 1) + '.csv', csv: 'Ejercicio;Series;Reps\n' + e + ';3;8\nNota;tranqui;\n' })));
   t.eq((await hojas(p)).map(h => h.tilde), [true, true, true, true, true, true], 'los .csv vienen tildados');
-  t.ok(await p.$eval('#coachHost [data-coach="pl-pasar"]', b => b.disabled), 'más hojas que las que quedan hoy: no deja pasar');
+  t.ok(await p.$eval('#coachHost [data-coach="pp-pasar"]', b => b.disabled), 'más hojas que las que quedan hoy: no deja pasar');
   t.has(await text(p, W), 'Elegiste 6 hojas y hoy te quedan 5: destildá algunas.', 'y dice por qué');
   textos.push(await text(p, W));
   await p.click('#coachHost input[data-pp="tilde"][data-id="' + await idDe(p, 'rutina-6') + '"]'); await wait(300);
-  await p.click('#coachHost [data-coach="pl-pasar"]'); await wait(2000);
+  await p.click('#coachHost [data-coach="pp-pasar"]'); await wait(2000);
   t.ok(!(await hojaPermiso(p)), 'con el permiso ya aceptado no se vuelve a preguntar');
   t.eq(pg.S.llamadas.map(b => EJ.find(x => b.hoja.includes(x))), ['Sentadilla libre', 'Peso muerto', 'Remo con barra', 'Dominadas'], 'el tope del día frena la cola: la quinta no se manda');
   t.eq(pg.S.maxEnCurso, 2, 'de a 2 a la vez');
@@ -337,7 +337,7 @@ export default async function ({ base, t }){
   t.has(await tarjeta(p, 'rutina-3'), 'Lista', 'lo que ya estaba en camino terminó');
   // Sin alumno («Nadie todavía»): queda solo en Mis rutinas, sin tocar la rutina de nadie ni preguntar.
   const nPreg4 = pg.preguntas.length;
-  await tocar(p, 'pl-guardar', 'rutina-1', 1200);
+  await tocar(p, 'pp-guardar', 'rutina-1', 1200);
   t.eq([pg.S.inserts.map(x => x.name), pg.S.upserts.length, pg.preguntas.length - nPreg4], [['rutina-1'], 0, 0], 'sin alumno: solo en Mis rutinas, sin aplicarla a nadie ni preguntar');
   textos.push(await text(p, W));
   t.has(textos[textos.length - 1], 'Guardaste 1 rutina en Mis rutinas.', 'y dice dónde quedó');
@@ -347,7 +347,7 @@ export default async function ({ base, t }){
   t.ok(!(await p.$('#coachHost .pp-title')) && !!(await p.$('#coachHost .pp-franja')), 'Android: «Atrás» vuelve a Rutinas');
   t.eq(await p.evaluate(() => window.__min), 0, 'Android: «Atrás» no saca de la app');
   // En el paso 2, «Atrás» vuelve a elegir archivos.
-  await p.click('#coachHost [data-coach="pl-open"]'); await wait(800);
+  await p.click('#coachHost [data-coach="pp-open"]'); await wait(800);
   await subir(p, [{ nombre: 'otra.csv', csv: 'Ejercicio;Series\nPlancha;3\nFondos;3\n' }]);
   t.ok(await p.$('#coachHost .pp-hoja'), 'Android: paso 2');
   await p.evaluate(() => (window.__ls.backButton || []).forEach(f => f({ canGoBack: false }))); await wait(600);
@@ -363,7 +363,7 @@ export default async function ({ base, t }){
     init: `(() => { if (sessionStorage.getItem('pl-sem')) return; sessionStorage.setItem('pl-sem', '1'); localStorage.setItem(${JSON.stringify(CLAVE)}, ${JSON.stringify(JSON.stringify(BORRADOR))}); })()` });
   p = pg.p;
   await ir(p, 'tpls');
-  await p.click('#coachHost [data-coach="pl-open"]'); await wait(800);
+  await p.click('#coachHost [data-coach="pp-open"]'); await wait(800);
   t.has(await text(p, '#coachHost .pp-seguir'), 'Tenés 1 rutina sin guardar de Juan Pérez.xlsx', 'cerrar sesión: antes, el borrador está');
   await configCoach(p, 'cuenta');
   await p.click('[data-auth="logout"]'); await wait(3500);
