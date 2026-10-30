@@ -14,4 +14,8 @@ ext {
     androidxJunitVersion = '1.2.1'
     androidxEspressoCoreVersion = '3.6.1'
     cordovaAndroidVersion = '10.1.1'
+    // Google Play Billing (GizeComprasPlugin.java). Play pide una versión vigente en cada versión
+    // nueva de la app: desde el 31/8/2026 ya no acepta la 7 y la 9 vale hasta el 31/8/2028
+    // (developer.android.com/google/play/billing/deprecation-faq). Pide minSdk 23 y AndroidX Core 1.9+.
+    billingVersion = '9.1.0'
 }
