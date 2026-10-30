@@ -75,6 +75,9 @@ export default async ({ t }) => {
   t.has(coach, 'cambia por «[alumno]» los nombres de las hojas, del archivo y de los alumnos vinculados', 'los nombres pasan a «[alumno]»');
   t.has(coach, 'Nunca se envían el nombre, el mail ni otros datos de la cuenta del coach o de sus alumnos', 'qué no se manda nunca');
   t.has(coach, 'GIZE no guarda la planilla ni el pedido', 'GIZE no guarda la planilla ni el pedido');
+  // Salvo lo que el coach mande con «¿Está mal? Avisanos» (que sí guarda el pedido): lo dice ahí mismo,
+  // como la hoja del permiso, y no solo más abajo en «Cuánto tiempo».
+  t.has(coach, 'guarda solo las rutinas que el coach decide guardar y lo que mande con «¿Está mal? Avisanos»', 'lo que no guarda GIZE dice también lo de «¿Está mal?», como la hoja');
   t.has(ia, '«¿Está mal? Avisanos» guarda la rutina que armó la IA, el comentario y, en «Armar con IA», el pedido (nunca la planilla)', 'qué guarda «¿Está mal?» en las funciones para coaches');
   // La hoja del permiso del coach (app/ui/ia-permiso-rutinas.js) promete lo mismo que la política, y
   // la fila de Configuración → Privacidad también.
