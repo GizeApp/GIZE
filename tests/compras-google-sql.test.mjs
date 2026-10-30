@@ -203,16 +203,18 @@ async function enLaBase(t, h){
     // ===== El resumen y la lista del panel =====
     const S = (tok, uid, prod, pedido, estado, vence, renueva, prueba, revocada, reemplazada, hace) => `('${tok}', '${uid}', 'ar.com.gize.app.${prod}', ${lit(pedido)},
       '${estado}', ${vence}, ${renueva}, ${prueba}, ${revocada}, true, ${reemplazada}, now(), now() - interval '${hace}')`;
+    // La reemplazada, la suspendida (en espera) y la reembolsada tienen fecha más adelante y se renuevan: el
+    // resumen las deja afuera por lo que son, no por la fecha. La de prueba vencida tampoco cuenta.
     const z = await V([
       ['servicio', `insert into public.google_subs (purchase_token, user_id, product_id, order_id, estado, expires_at, auto_renew, test, revoked, acknowledged, reemplazada, leido_at, updated_at) values
         ${S('tok-ad-1', U.AD, 'coach.p50', 'GPA.0004-0001', 'gracia', "now() + interval '2 days'", true, false, false, false, '30 minutes')},
         ${S('tok-c-2', U.C, 'coach.p25', 'GPA.0001-0002', 'activa', "now() + interval '20 days'", true, false, false, false, '1 hour')},
-        ${S('tok-c-1', U.C, 'coach.p10', 'GPA.0001-0001', 'vencida', "now() - interval '1 day'", false, false, false, true, '2 hours')},
+        ${S('tok-c-1', U.C, 'coach.p10', 'GPA.0001-0001', 'activa', "now() + interval '20 days'", true, false, false, true, '2 hours')},
         ${S('tok-t-1', U.T, 'coach.p10', 'GPA.0002-0001', 'cancelada', "now() + interval '5 days'", false, true, false, false, '3 hours')},
         ${S('tok-a-1', U.A, 'iaplus.mensual', 'GPA.0003-0001', 'activa', "now() + interval '10 days'", true, false, true, false, '4 hours')},
-        ${S('tok-a-4', U.A, 'iaplus.mensual', 'GPA.0003-0004', 'espera', "now() - interval '1 hour'", true, false, false, false, '5 hours')},
+        ${S('tok-a-4', U.A, 'iaplus.mensual', 'GPA.0003-0004', 'espera', "now() + interval '1 day'", true, false, false, false, '5 hours')},
         ${S('tok-a-2', U.A, 'iaplus.mensual', null, 'pendiente', 'null', 'null', false, false, false, '100 days')},
-        ${S('tok-a-3', U.A, 'iaplus.mensual', 'GPA.0003-0000', 'vencida', "now() - interval '90 days'", false, false, false, false, '90 days')}`],
+        ${S('tok-a-3', U.A, 'iaplus.mensual', 'GPA.0003-0000', 'vencida', "now() - interval '90 days'", false, true, false, false, '90 days')}`],
       ['servicio', `insert into public.app_config (key, value) values ('compras_google_estado', '{"aviso_at": "2026-10-30T14:05:00Z", "tipo": "prueba"}')`],
       [U.AD, ADM()],
       [U.C, `select coalesce(jsonb_agg(key order by key), '[]') from public.app_config`],
@@ -222,7 +224,7 @@ async function enLaBase(t, h){
     const p = z[2] || {};
     t.eq(p.estado, { aviso_at: '2026-10-30T14:05:00Z', tipo: 'prueba' }, 'el panel ve el último aviso de Google Play');
     t.eq(p.resumen, { activas: 3, renuevan: 2, prueba: 1 },
-      'resumen: activa, en gracia y cancelada todavía paga cuentan; la reembolsada, la reemplazada y la suspendida no; se renuevan las que siguen');
+      'resumen: activa, en gracia y cancelada todavía paga cuentan; la reembolsada, la reemplazada y la suspendida no (aunque digan una fecha más adelante); se renuevan las que siguen; de prueba, solo las vigentes');
     t.eq((p.lista || []).map(l => l.pedido || l.estado), ['GPA.0004-0001', 'GPA.0001-0002', 'GPA.0001-0001', 'GPA.0002-0001', 'GPA.0003-0001', 'GPA.0003-0004', 'pendiente'],
       'la lista: lo de los últimos 60 días y lo pendiente, de lo más reciente a lo más viejo');
     const l = (p.lista || []).find(i => i.pedido === 'GPA.0001-0002') || {};
