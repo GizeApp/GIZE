@@ -8,7 +8,7 @@ la App Store, con un certificado de distribución propio creado en cada ejecuci�
   python3 scripts/ios-firma.py crear   → certificado + perfil de App Store, instalados en la Mac
   python3 scripts/ios-firma.py borrar  → al final, siempre: revoca los certificados de desarrollo que
                                          Xcode creó en esta ejecución y, SOLO si no se llegó a subir
-                                         nada, también el de distribución y su perfil
+                                         nada, también el de distribución y su perfil (o sus perfiles)
 
 El certificado de distribución NO se revoca después de subir: Apple revisa la firma de la versión
 recién en la revisión de la App Store, y si el certificado ya está revocado la rechaza con el mismo
@@ -24,10 +24,19 @@ versión, que puede estar en revisión). Los certificados que no creó CI no se 
 La clave privada se genera en la Mac en cada ejecución y nunca sale de ahí. Usa la clave de la API
 de App Store Connect (rol Admin) y no imprime datos de la cuenta (solo cantidades).
 
+Widget «GIZE de hoy» (opcional): si el workflow pasa WIDGET_BUNDLE_ID (el Bundle ID del widget),
+«crear» arma un segundo perfil de App Store para el widget, con el MISMO certificado, llamado
+«GIZE App Store CI <ejecución> widget», y deja su nombre en IOS_WIDGET_PROFILE_NAME (la exportación
+es manual: cada parte de la app necesita su perfil). Antes de crear el certificado se fija que el
+Bundle ID del widget esté registrado, y después que los dos perfiles traigan el mismo App Group: si
+falta algo de lo que el dueño hace a mano en developer.apple.com, falla acá con un mensaje claro
+(guía: docs/WIDGET.md) y no recién en la exportación. Sin WIDGET_BUNDLE_ID todo sigue igual: un
+solo perfil.
+
 Variables de entorno: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH (el .p8), BUNDLE_ID, RUN_ID,
-RUNNER_TEMP, GITHUB_ENV.
+RUNNER_TEMP, GITHUB_ENV y, si hay widget, WIDGET_BUNDLE_ID.
 """
-import base64, json, os, re, subprocess, sys, time, urllib.request, urllib.error
+import base64, json, os, plistlib, re, subprocess, sys, time, urllib.request, urllib.error
 
 API = "https://api.appstoreconnect.apple.com/v1"
 TMP = os.environ["RUNNER_TEMP"]
@@ -106,7 +115,8 @@ def dev_certs():
 def certs_ci():
     # Certificados de distribución que creó CI, del más viejo al más nuevo: [(id, [perfiles])].
     # Se reconocen por el perfil que les arma «crear» («GIZE App Store CI <ejecución>», con ese
-    # único certificado). Un certificado sin un perfil así no es de CI y no se toca.
+    # único certificado). Un certificado sin un perfil así no es de CI y no se toca. El perfil del
+    # widget («… <ejecución> widget») cuelga del mismo certificado: al revocarlo se borran los dos.
     certs = api("GET", "/certificates?limit=200&fields[certificates]=certificateType,expirationDate")["data"]
     dist = {c["id"]: c["attributes"].get("expirationDate") or "" for c in certs
             if c["attributes"].get("certificateType") in DIST_TYPES}
@@ -115,7 +125,7 @@ def certs_ci():
     ci = {}
     for p in perfiles:
         ligados = ((p.get("relationships") or {}).get("certificates") or {}).get("data") or []
-        m = re.fullmatch(re.escape(PERFIL_CI) + r"(\d+)", p["attributes"].get("name") or "")
+        m = re.fullmatch(re.escape(PERFIL_CI) + r"(\d+)(?: widget)?", p["attributes"].get("name") or "")
         if m and len(ligados) == 1 and ligados[0]["id"] in dist:
             run = int(m.group(1))
             prev = ci.get(ligados[0]["id"], (run, []))
@@ -148,8 +158,75 @@ def pedir_certificado(csr_txt):
     return cert["data"]
 
 
+def bundle_widget(bid):
+    # El Bundle ID del widget, que registra el dueño a mano en developer.apple.com (docs/WIDGET.md).
+    # Sin filtrar por plataforma: un App ID nuevo puede figurar como UNIVERSAL y no como IOS.
+    found = api("GET", f"/bundleIds?filter[identifier]={bid}&limit=200")["data"]
+    found = [b for b in found if b["attributes"]["identifier"] == bid and b["attributes"].get("platform") != "MAC_OS"]
+    if not found:
+        sys.exit(f"No está registrado el Bundle ID del widget {bid} en developer.apple.com: "
+                 "seguí los pasos de docs/WIDGET.md")
+    return found[0]["id"]
+
+
+def pedir_perfil(bundle, name, cert_id):
+    # Perfil de App Store (no necesita iPhones registrados) para un bundle, con el certificado de esta ejecución.
+    return api("POST", "/profiles", {"data": {"type": "profiles", "attributes": {"name": name, "profileType": "IOS_APP_STORE"},
+        "relationships": {"bundleId": {"data": {"type": "bundleIds", "id": bundle}},
+                          "certificates": {"data": [{"type": "certificates", "id": cert_id}]}}}})["data"]
+
+
+def instalar_perfil(prof):
+    # Lo deja donde lo buscan Xcode y la exportación; devuelve el contenido del .mobileprovision.
+    content = base64.b64decode(prof["attributes"]["profileContent"])
+    uuid = prof["attributes"]["uuid"]
+    for d in ("~/Library/MobileDevice/Provisioning Profiles", "~/Library/Developer/Xcode/UserData/Provisioning Profiles"):
+        d = os.path.expanduser(d)
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, uuid + ".mobileprovision"), "wb") as f:
+            f.write(content)
+    return content
+
+
+def grupos(perfil):
+    # Los App Groups que trae un perfil. El .mobileprovision es un plist firmado por Apple y el
+    # XML va adentro tal cual. None si no se pudo leer.
+    i, j = perfil.find(b"<?xml"), perfil.find(b"</plist>")
+    if i < 0 or j < i:
+        return None
+    try:
+        ent = plistlib.loads(perfil[i:j + len(b"</plist>")]).get("Entitlements") or {}
+    except Exception:
+        return None
+    return set(ent.get("com.apple.security.application-groups") or [])
+
+
+def revisar_grupos(app, widget):
+    # La app y el widget comparten los datos por un App Group que el dueño asigna a mano a los dos
+    # App IDs (la clave de la API no puede). Si falta, la exportación falla igual, pero más tarde y
+    # con un error difícil de leer: acá se dice qué paso de docs/WIDGET.md falta. No se imprimen los
+    # nombres de los grupos.
+    ga, gw = grupos(app), grupos(widget)
+    if ga is None or gw is None:
+        print("No se pudo leer el App Group de los perfiles: sigue (si falta, avisa la exportación).")
+        return
+    falta = []
+    if not ga:
+        falta.append("el App ID de la app no tiene ningún App Group (paso 2)")
+    if not gw:
+        falta.append("el App ID del widget no tiene ningún App Group (paso 3)")
+    if ga and gw and not (ga & gw):
+        falta.append("la app y el widget tienen App Groups distintos (tiene que ser el mismo)")
+    if falta:
+        sys.exit("Falta configurar el App Group en developer.apple.com: " + "; ".join(falta) + ". Ver docs/WIDGET.md")
+
+
 def crear():
     run = os.environ.get("RUN_ID", str(int(time.time())))
+    # El Bundle ID del widget se busca antes de crear el certificado: si el dueño todavía no lo
+    # registró, se corta acá sin crear un certificado (ni revocar uno viejo de CI por el tope) para nada.
+    wbid = os.environ.get("WIDGET_BUNDLE_ID", "").strip()
+    wbundle = bundle_widget(wbid) if wbid else None
     # El archivo se arma con firma automática y Xcode crea un certificado de desarrollo nuevo en
     # cada Mac de GitHub que nunca se borraba: la cuenta llegaba al máximo de Apple y la firma
     # fallaba. Se anotan los que ya había para que «borrar» revoque solo los creados acá.
@@ -196,22 +273,27 @@ def crear():
     if not found:
         sys.exit(f"No está registrado el Bundle ID {bid} en developer.apple.com")
     name = f"GIZE App Store CI {run}"
-    prof = api("POST", "/profiles", {"data": {"type": "profiles", "attributes": {"name": name, "profileType": "IOS_APP_STORE"},
-        "relationships": {"bundleId": {"data": {"type": "bundleIds", "id": found[0]["id"]}},
-                          "certificates": {"data": [{"type": "certificates", "id": cert["id"]}]}}}})["data"]
+    prof = pedir_perfil(found[0]["id"], name, cert["id"])
     state["profile"] = prof["id"]
     with open(STATE, "w") as f:
         json.dump(state, f)
-    content = base64.b64decode(prof["attributes"]["profileContent"])
-    uuid = prof["attributes"]["uuid"]
-    for d in ("~/Library/MobileDevice/Provisioning Profiles", "~/Library/Developer/Xcode/UserData/Provisioning Profiles"):
-        d = os.path.expanduser(d)
-        os.makedirs(d, exist_ok=True)
-        with open(os.path.join(d, uuid + ".mobileprovision"), "wb") as f:
-            f.write(content)
+    content = instalar_perfil(prof)
+    env = f"IOS_PROFILE_NAME={name}\n"
+
+    # 4) Si hay widget, su perfil, con el mismo certificado. Se anota en el estado apenas se crea,
+    #    así «borrar» lo borra aunque algo falle después.
+    if wbundle:
+        wname = name + " widget"
+        wprof = pedir_perfil(wbundle, wname, cert["id"])
+        state["profile_widget"] = wprof["id"]
+        with open(STATE, "w") as f:
+            json.dump(state, f)
+        revisar_grupos(content, instalar_perfil(wprof))
+        env += f"IOS_WIDGET_PROFILE_NAME={wname}\n"
     with open(os.environ["GITHUB_ENV"], "a") as f:
-        f.write(f"IOS_PROFILE_NAME={name}\n")
-    print("Certificado de distribución y perfil de App Store listos.")
+        f.write(env)
+    print("Certificado de distribución y perfiles de App Store (app y widget) listos." if wbundle
+          else "Certificado de distribución y perfil de App Store listos.")
 
 
 def borrar():
@@ -219,19 +301,22 @@ def borrar():
         return
     with open(STATE) as f:
         state = json.load(f)
+    widget = bool(state.get("profile_widget"))
     if os.path.exists(SUBIDA):
         # La versión ya salió para Apple firmada con este certificado: revocarlo hace que la
-        # rechacen en la revisión (90035 «Invalid Signature»). Queda, con su perfil; el próximo
-        # «crear» revoca los viejos de CI si se llega al tope.
+        # rechacen en la revisión (90035 «Invalid Signature»). Queda, con su perfil (y el del
+        # widget); el próximo «crear» revoca los viejos de CI si se llega al tope.
         if state.get("cert"):
-            print("Se subió la versión: el certificado de distribución y su perfil quedan (revocarlos invalida la versión en revisión).")
+            print("Se subió la versión: el certificado de distribución y " + ("sus perfiles (app y widget)" if widget else "su perfil")
+                  + " quedan (revocarlos invalida la versión en revisión).")
     else:
         # Falló antes de subir: el certificado no firmó nada que tenga Apple.
-        if state.get("profile"):
-            api("DELETE", "/profiles/" + state["profile"])
+        for k in ("profile", "profile_widget"):
+            if state.get(k):
+                api("DELETE", "/profiles/" + state[k])
         if state.get("cert"):
             api("DELETE", "/certificates/" + state["cert"])
-            print("No se subió nada: certificado de distribución revocado y perfil borrado.")
+            print("No se subió nada: certificado de distribución revocado y " + ("perfiles borrados (app y widget)." if widget else "perfil borrado."))
     # Certificados de desarrollo que creó Xcode durante esta ejecución (no los que ya estaban).
     if "dev_before" in state:
         nuevos = [c for c in dev_certs() if c not in set(state["dev_before"])]

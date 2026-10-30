@@ -8,6 +8,10 @@
 //   viejos de CI (los de un perfil «GIZE App Store CI <ejecución>») con sus perfiles, siempre
 //   dejando el más nuevo de CI, y nunca uno que no sea de CI;
 // - en el log (público) no quedan ids ni nombres de la cuenta, solo cantidades.
+// Widget «GIZE de hoy»: con WIDGET_BUNDLE_ID arma un segundo perfil («… <ejecución> widget») con el
+// mismo certificado y lo deja en IOS_WIDGET_PROFILE_NAME; «borrar» y el tope tratan los dos perfiles
+// juntos; si falta el Bundle ID del widget o el App Group (pasos del dueño en developer.apple.com,
+// docs/WIDGET.md) falla con un mensaje claro. Sin la variable, todo exactamente como antes.
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -20,9 +24,24 @@ const SCRIPT = path.join(ROOT, 'scripts', 'ios-firma.py');
 const EQUIPO = 'Equipo Secreto De Prueba (TEAMSECRET)';
 const DIST = ['DISTRIBUTION', 'IOS_DISTRIBUTION'];
 
+// El .mobileprovision que devuelve Apple: un plist (con los App Groups del App ID) dentro de una
+// firma. «grupos» null: sin la clave; «ilegible»: sin plist adentro.
+function mobileprovision(identifier, grupos, ilegible){
+  if (ilegible) return Buffer.from('perfil');
+  const g = grupos ? '<key>com.apple.security.application-groups</key><array>' + grupos.map(x => '<string>' + x + '</string>').join('') + '</array>' : '';
+  const plist = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' +
+    '<plist version="1.0"><dict><key>TeamName</key><string>' + EQUIPO + '</string><key>Entitlements</key><dict>' + g +
+    '<key>application-identifier</key><string>TEAMSECRET.' + identifier + '</string></dict></dict></plist>';
+  return Buffer.concat([Buffer.from([0x30, 0x80, 0x06, 0x09]), Buffer.from(plist), Buffer.from([0xa0, 0x80, 0x00, 0x00])]);
+}
+
 // Cuenta simulada: certificados { id, tipo, vence }, perfiles { id, nombre, tipo, certs: [ids] }.
-function fakeAsc({ certs = [], perfiles = [], tope = 3 } = {}){
-  const cuenta = { certs: certs.map(c => ({ ...c })), perfiles: perfiles.map(p => ({ ...p })), borrados: [], creados: 0 };
+// «bundles»: los Bundle IDs registrados { identifier: { id, plataforma, grupos } }; sin «bundles»,
+// cualquiera está registrado (como antes del widget). Como Apple, filter[identifier] trae también
+// los que empiezan igual (ar.com.gize.app trae ar.com.gize.app.widget).
+function fakeAsc({ certs = [], perfiles = [], tope = 3, bundles = null, ilegible = false } = {}){
+  const cuenta = { certs: certs.map(c => ({ ...c })), perfiles: perfiles.map(p => ({ ...p })), borrados: [], creados: 0, pedidos: [] };
+  const porId = {};
   let n = 0;
   const srv = http.createServer((req, res) => {
     let body = '';
@@ -30,6 +49,7 @@ function fakeAsc({ certs = [], perfiles = [], tope = 3 } = {}){
     req.on('end', () => {
       const send = (st, o) => { res.writeHead(st, { 'Content-Type': 'application/json' }); res.end(o === undefined ? '' : JSON.stringify(o)); };
       const u = new URL(req.url, 'http://x'), p = u.pathname.replace(/^\/v1/, '');
+      cuenta.pedidos.push(req.method + ' ' + p + u.search);
       if (req.headers.authorization !== 'Bearer token-de-prueba') return send(401, { errors: [{ detail: 'sin permiso' }] });
       const certJson = c => ({ type: 'certificates', id: c.id, attributes: { certificateType: c.tipo, expirationDate: c.vence,
         name: (DIST.includes(c.tipo) ? 'Apple Distribution: ' : 'Apple Development: ') + EQUIPO, displayName: EQUIPO } });
@@ -42,13 +62,22 @@ function fakeAsc({ certs = [], perfiles = [], tope = 3 } = {}){
         cuenta.certs.push(c); cuenta.creados++;
         return send(201, { data: { ...certJson(c), attributes: { ...certJson(c).attributes, certificateContent: Buffer.from('cert').toString('base64') } } });
       }
-      if (req.method === 'GET' && p === '/bundleIds')
-        return send(200, { data: [{ type: 'bundleIds', id: 'BUNDLE-ID-SECRETO', attributes: { identifier: u.searchParams.get('filter[identifier]') } }] });
+      if (req.method === 'GET' && p === '/bundleIds'){
+        const ident = u.searchParams.get('filter[identifier]') || '', plat = u.searchParams.get('filter[platform]');
+        const lista = bundles ? Object.entries(bundles).map(([identifier, b]) => ({ identifier, plataforma: 'IOS', ...b }))
+          : [{ identifier: ident, id: 'BUNDLE-ID-SECRETO', plataforma: 'IOS', grupos: null }];
+        const vistos = lista.filter(b => b.identifier.startsWith(ident) && (!plat || b.plataforma === plat));
+        vistos.forEach(b => { porId[b.id] = b; });
+        return send(200, { data: vistos.map(b => ({ type: 'bundleIds', id: b.id, attributes: { identifier: b.identifier, platform: b.plataforma } })) });
+      }
       if (req.method === 'POST' && p === '/profiles'){
         const d = JSON.parse(body).data;
-        const pr = { id: 'PERFIL-NUEVO-' + (++n), nombre: d.attributes.name, tipo: d.attributes.profileType, certs: d.relationships.certificates.data.map(x => x.id) };
+        const b = porId[d.relationships.bundleId.data.id];
+        if (!b) return send(404, { errors: [{ detail: 'no existe el bundle' }] });
+        const pr = { id: 'PERFIL-NUEVO-' + (++n), nombre: d.attributes.name, tipo: d.attributes.profileType, certs: d.relationships.certificates.data.map(x => x.id), bundle: b.id };
         cuenta.perfiles.push(pr);
-        return send(201, { data: { type: 'profiles', id: pr.id, attributes: { name: pr.nombre, uuid: 'uuid-' + pr.id, profileContent: Buffer.from('perfil').toString('base64') } } });
+        const contenido = bundles ? mobileprovision(b.identifier, b.grupos, ilegible) : Buffer.from('perfil');
+        return send(201, { data: { type: 'profiles', id: pr.id, attributes: { name: pr.nombre, uuid: 'uuid-' + pr.id, profileContent: contenido.toString('base64') } } });
       }
       if (req.method === 'GET' && p === '/profiles'){
         const tipo = u.searchParams.get('filter[profileType]');
@@ -87,11 +116,11 @@ m.sh = sh
 m.subprocess = types.SimpleNamespace(run=lambda *a, **k: types.SimpleNamespace(stdout=""), DEVNULL=-3)
 getattr(m, sys.argv[3])()`;
 
-function correr(url, tmp, accion){
+function correr(url, tmp, accion, extra = {}){
   const env = Object.assign({}, process.env, { RUNNER_TEMP: tmp, HOME: tmp, GITHUB_ENV: path.join(tmp, 'github_env'),
     ASC_KEY_ID: 'KEYID12345', ASC_ISSUER_ID: 'emisor-de-prueba', ASC_KEY_PATH: path.join(tmp, 'AuthKey.p8'),
-    BUNDLE_ID: 'ar.com.gize.app', RUN_ID: '900', NO_PROXY: '127.0.0.1', no_proxy: '127.0.0.1' });
-  for (const k of ['HTTP_PROXY', 'http_proxy', 'HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy']) delete env[k];
+    BUNDLE_ID: 'ar.com.gize.app', RUN_ID: '900', NO_PROXY: '127.0.0.1', no_proxy: '127.0.0.1' }, extra);
+  for (const k of ['HTTP_PROXY', 'http_proxy', 'HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy', 'WIDGET_BUNDLE_ID']) if (!(k in extra)) delete env[k];
   return new Promise(ok => {
     const ch = spawn('python3', ['-I', '-B', '-c', PY, SCRIPT, url, accion], { env });
     let out = '';
@@ -104,7 +133,7 @@ function correr(url, tmp, accion){
 // Lo que no puede salir en el log público: ids y nombres de certificados, perfiles y la cuenta.
 function sinDatos(t, out, cuenta, extra, q){
   const ids = [...cuenta.certs.map(c => c.id), ...cuenta.perfiles.map(p => p.id), ...cuenta.borrados, ...extra];
-  const nombres = [EQUIPO, 'TEAMSECRET', 'BUNDLE-ID-SECRETO', 'GIZE App Store CI', 'KEYID12345', 'emisor-de-prueba'];
+  const nombres = [EQUIPO, 'TEAMSECRET', 'BUNDLE-ID-SECRETO', 'GIZE App Store CI', 'KEYID12345', 'emisor-de-prueba', 'group.'];
   const vistos = [...ids, ...nombres].filter(x => out.includes(x));
   t.eq(vistos, [], q + ': el log no tiene ids ni nombres de la cuenta');
 }
@@ -112,7 +141,7 @@ function sinDatos(t, out, cuenta, extra, q){
 async function escenario(cfg, pasos){
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gize-firma-'));
   const asc = await fakeAsc(cfg);
-  try { return await pasos({ ...asc, tmp, correr: accion => correr(asc.url, tmp, accion) }); }
+  try { return await pasos({ ...asc, tmp, correr: (accion, extra) => correr(asc.url, tmp, accion, extra) }); }
   finally { asc.srv.close(); fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 
@@ -130,6 +159,13 @@ export default async function ({ t }){
     t.eq(c.code, 0, 'crear anda: ' + c.out.trim());
     const dist = cuenta.certs.find(x => x.id.startsWith('CERT-NUEVO')), perfil = cuenta.perfiles[0];
     t.ok(dist && perfil && perfil.nombre === 'GIZE App Store CI 900' && perfil.certs[0] === dist.id, 'crear arma el certificado y el perfil «GIZE App Store CI <ejecución>»');
+    // Sin WIDGET_BUNDLE_ID (ios.yml todavía no la pasa) nada cambia: los mismos pedidos a Apple,
+    // un solo perfil y solo IOS_PROFILE_NAME.
+    t.eq(cuenta.pedidos, ['POST /certificates', 'GET /certificates?limit=200&fields[certificates]=certificateType',
+      'GET /bundleIds?filter[identifier]=ar.com.gize.app&filter[platform]=IOS&limit=5', 'POST /profiles'], 'sin widget: los mismos pedidos a Apple que antes');
+    t.eq(cuenta.perfiles.length, 1, 'sin widget: un solo perfil');
+    t.eq(fs.readFileSync(path.join(tmp, 'github_env'), 'utf8'), 'IOS_PROFILE_NAME=GIZE App Store CI 900\n', 'sin widget: GITHUB_ENV trae solo IOS_PROFILE_NAME');
+    t.has(c.out, 'Certificado de distribución y perfil de App Store listos.', 'sin widget: el mismo aviso de siempre');
     cuenta.certs.push({ id: 'CERT-DEV-XCODE', tipo: 'DEVELOPMENT', vence: VIEJO });
     fs.writeFileSync(path.join(tmp, 'ios-firma-subida'), '');
     const b = await correr('borrar');
@@ -193,8 +229,114 @@ export default async function ({ t }){
     sinDatos(t, c.out, cuenta, [], 'tope sin viejos de CI');
   });
 
-  // 6) El workflow marca la subida justo antes de altool (después de exportar y revisar la firma),
-  //    con el mismo archivo que mira el script, y el paso que limpia corre siempre.
+  // 6) Widget: dos perfiles con el mismo certificado (el del widget registrado como UNIVERSAL, como
+  //    puede quedar un App ID nuevo), GITHUB_ENV con los dos nombres y, si se subió, quedan los dos.
+  const APP = 'ar.com.gize.app', WIDGET = 'ar.com.gize.app.widget', GRUPO = 'group.ar.com.gize.app';
+  const W = { WIDGET_BUNDLE_ID: WIDGET };
+  const conGrupo = (app = [GRUPO], wid = [GRUPO], plataforma = 'UNIVERSAL') => ({
+    [APP]: { id: 'BUNDLE-ID-SECRETO-APP', grupos: app },
+    [WIDGET]: { id: 'BUNDLE-ID-SECRETO-WIDGET', plataforma, grupos: wid } });
+  const instalado = (tmp, pr) => fs.existsSync(path.join(tmp, 'Library/MobileDevice/Provisioning Profiles', 'uuid-' + pr.id + '.mobileprovision'))
+    && fs.existsSync(path.join(tmp, 'Library/Developer/Xcode/UserData/Provisioning Profiles', 'uuid-' + pr.id + '.mobileprovision'));
+  await escenario({ certs: [HUMANO, DEV_VIEJO], bundles: conGrupo() }, async ({ cuenta, tmp, correr }) => {
+    const c = await correr('crear', W);
+    t.eq(c.code, 0, 'widget: crear anda: ' + c.out.trim());
+    const dist = cuenta.certs.find(x => x.id.startsWith('CERT-NUEVO'));
+    const app = cuenta.perfiles.find(x => x.nombre === 'GIZE App Store CI 900'), wid = cuenta.perfiles.find(x => x.nombre === 'GIZE App Store CI 900 widget');
+    t.eq(cuenta.creados, 1, 'widget: un solo certificado nuevo');
+    t.ok(app && app.bundle === 'BUNDLE-ID-SECRETO-APP' && app.certs.length === 1 && app.certs[0] === (dist && dist.id), 'widget: el perfil de la app, con el certificado nuevo');
+    t.ok(wid && wid.bundle === 'BUNDLE-ID-SECRETO-WIDGET' && wid.tipo === 'IOS_APP_STORE' && wid.certs.length === 1 && wid.certs[0] === (dist && dist.id),
+      'widget: el perfil «GIZE App Store CI <ejecución> widget» es de App Store, del bundle del widget y con el MISMO certificado');
+    t.ok(app && wid && instalado(tmp, app) && instalado(tmp, wid), 'widget: los dos perfiles quedan instalados en la Mac');
+    t.eq(fs.readFileSync(path.join(tmp, 'github_env'), 'utf8'), 'IOS_PROFILE_NAME=GIZE App Store CI 900\nIOS_WIDGET_PROFILE_NAME=GIZE App Store CI 900 widget\n',
+      'widget: GITHUB_ENV trae IOS_PROFILE_NAME e IOS_WIDGET_PROFILE_NAME');
+    t.ok(!cuenta.pedidos.some(x => x.startsWith('GET /bundleIds?filter[identifier]=' + WIDGET) && x.includes('filter[platform]')), 'widget: su Bundle ID se busca sin filtrar por plataforma');
+    const iWidget = cuenta.pedidos.findIndex(x => x.includes(WIDGET));
+    t.ok(iWidget >= 0 && iWidget < cuenta.pedidos.indexOf('POST /certificates'), 'widget: su Bundle ID se busca antes de crear el certificado');
+    cuenta.certs.push({ id: 'CERT-DEV-XCODE', tipo: 'DEVELOPMENT', vence: VIEJO });
+    fs.writeFileSync(path.join(tmp, 'ios-firma-subida'), '');
+    const b = await correr('borrar');
+    t.eq(b.code, 0, 'widget: borrar con subida anda: ' + b.out.trim());
+    t.eq(quedan(cuenta, [dist && dist.id, app && app.id, wid && wid.id]), [dist && dist.id, app && app.id, wid && wid.id], 'widget: se subió, quedan el certificado y los dos perfiles');
+    t.ok(!cuenta.certs.some(x => x.id === 'CERT-DEV-XCODE'), 'widget: el de desarrollo de Xcode se revoca igual');
+    t.has(b.out, 'sus perfiles (app y widget) quedan', 'widget: el log dice que quedan los dos');
+    sinDatos(t, c.out + b.out, cuenta, ['CERT-DEV-XCODE'], 'widget con subida');
+  });
+
+  // 7) Widget sin subida: se borran los dos perfiles y se revoca el certificado.
+  await escenario({ certs: [HUMANO], bundles: conGrupo() }, async ({ cuenta, correr }) => {
+    const c = await correr('crear', W);
+    t.eq(c.code, 0, 'widget sin subida: crear anda: ' + c.out.trim());
+    const nuevos = [...cuenta.certs.filter(x => x.id.startsWith('CERT-NUEVO')), ...cuenta.perfiles].map(x => x.id);
+    const b = await correr('borrar');
+    t.eq(b.code, 0, 'widget sin subida: borrar anda: ' + b.out.trim());
+    t.eq(nuevos.length, 3, 'widget sin subida: había un certificado y dos perfiles');
+    t.eq(quedan(cuenta, nuevos), [], 'widget sin subida: se borran los dos perfiles y se revoca el certificado');
+    t.eq(quedan(cuenta, [HUMANO.id]), [HUMANO.id], 'widget sin subida: el que ya estaba no se toca');
+    t.has(b.out, 'perfiles borrados (app y widget)', 'widget sin subida: el log lo dice');
+    sinDatos(t, c.out + b.out, cuenta, [], 'widget sin subida');
+  });
+
+  // 8) Tope con perfiles de widget: al revocar el certificado viejo de CI se borran sus dos perfiles.
+  //    Perfiles con nombres parecidos que no armó CI no hacen pasar por CI a un certificado de una persona.
+  const ciW = (n, vence) => { const x = ci(n, vence); return { ...x, widget: { id: 'PERFIL-CI-' + n + '-W', nombre: 'GIZE App Store CI ' + n + ' widget', tipo: 'IOS_APP_STORE', certs: [x.cert.id] } }; };
+  const VW = ciW(710, '2026-12-01T00:00:00.000+0000'), NW = ciW(720, '2027-06-01T00:00:00.000+0000');
+  const parecidos = [{ id: 'PERFIL-PARECIDO-1', nombre: 'GIZE App Store CI widget', tipo: 'IOS_APP_STORE', certs: [HUMANO.id] },
+    { id: 'PERFIL-PARECIDO-2', nombre: 'GIZE App Store CI 12 widgets', tipo: 'IOS_APP_STORE', certs: [HUMANO.id] }];
+  await escenario({ tope: 3, certs: [HUMANO, VW.cert, NW.cert], perfiles: [...parecidos, VW.perfil, VW.widget, NW.perfil, NW.widget], bundles: conGrupo() }, async ({ cuenta, correr }) => {
+    const c = await correr('crear', W);
+    t.eq(c.code, 0, 'tope con widget: crear anda: ' + c.out.trim());
+    t.eq(cuenta.borrados.sort(), [VW.cert.id, VW.perfil.id, VW.widget.id].sort(), 'tope con widget: se revoca el viejo de CI y se borran su perfil y el de su widget');
+    const siguen = [HUMANO.id, ...parecidos.map(x => x.id), NW.cert.id, NW.perfil.id, NW.widget.id];
+    t.eq(quedan(cuenta, siguen), siguen, 'tope con widget: quedan el más nuevo de CI con sus dos perfiles y lo que no es de CI');
+    t.has(c.out, 'se revocaron 1 viejo(s) de CI', 'tope con widget: el log dice cuántos');
+    sinDatos(t, c.out, cuenta, [], 'tope con widget');
+  });
+
+  // 9) Falta el Bundle ID del widget (el dueño no hizo el paso 3): falla ANTES de crear el
+  //    certificado, así no revoca uno viejo de CI por el tope para nada, y dice dónde está la guía.
+  const V1 = ci(301, '2026-12-01T00:00:00.000+0000'), V2 = ci(302, '2027-06-01T00:00:00.000+0000');
+  await escenario({ tope: 2, certs: [V1.cert, V2.cert], perfiles: [V1.perfil, V2.perfil], bundles: { [APP]: { id: 'BUNDLE-ID-SECRETO-APP', grupos: [GRUPO] } } }, async ({ cuenta, correr }) => {
+    const c = await correr('crear', W);
+    t.ok(c.code !== 0, 'sin el Bundle ID del widget: crear falla');
+    t.has(c.out, 'No está registrado el Bundle ID del widget', 'sin el Bundle ID del widget: lo dice');
+    t.has(c.out, 'docs/WIDGET.md', 'sin el Bundle ID del widget: manda a la guía');
+    t.ok(cuenta.creados === 0 && cuenta.borrados.length === 0 && cuenta.perfiles.length === 2, 'sin el Bundle ID del widget: no crea certificado ni perfiles y no revoca nada');
+    const b = await correr('borrar');
+    t.ok(b.code === 0 && cuenta.borrados.length === 0, 'sin el Bundle ID del widget: borrar no tiene nada que hacer');
+    sinDatos(t, c.out + b.out, cuenta, [], 'sin el Bundle ID del widget');
+  });
+
+  // 10) Falta el App Group (pasos 2 o 3) o no es el mismo: falla antes de exportar, dice qué paso
+  //     falta (sin nombrar los grupos) y «borrar» limpia el certificado y los dos perfiles.
+  for (const [q, bundles, paso, no] of [
+    ['sin grupo en la app', conGrupo(null), 'paso 2', 'paso 3'],
+    ['sin grupo en el widget', conGrupo([GRUPO], []), 'paso 3', 'paso 2'],
+    ['grupos distintos', conGrupo([GRUPO], ['group.otro']), 'App Groups distintos', 'paso ']]){
+    await escenario({ certs: [HUMANO], bundles }, async ({ cuenta, tmp, correr }) => {
+      const c = await correr('crear', W);
+      t.ok(c.code !== 0, q + ': crear falla');
+      t.has(c.out, paso, q + ': dice qué falta');
+      t.ok(!c.out.includes(no), q + ': no nombra lo que está bien');
+      t.has(c.out, 'docs/WIDGET.md', q + ': manda a la guía');
+      t.ok(!fs.existsSync(path.join(tmp, 'github_env')), q + ': no deja los nombres de los perfiles para exportar');
+      const b = await correr('borrar');
+      t.eq(cuenta.certs.filter(x => x.id.startsWith('CERT-NUEVO')).length + cuenta.perfiles.length, 0, q + ': borrar revoca el certificado y borra los dos perfiles');
+      sinDatos(t, c.out + b.out, cuenta, ['group.otro'], q);
+    });
+  }
+
+  // 11) Si no se puede leer el perfil, no se frena la versión por eso (la exportación avisa si falta).
+  await escenario({ certs: [HUMANO], bundles: conGrupo(), ilegible: true }, async ({ cuenta, tmp, correr }) => {
+    const c = await correr('crear', W);
+    t.eq(c.code, 0, 'perfil ilegible: crear sigue: ' + c.out.trim());
+    t.has(c.out, 'No se pudo leer el App Group', 'perfil ilegible: lo avisa');
+    t.has(fs.readFileSync(path.join(tmp, 'github_env'), 'utf8'), 'IOS_WIDGET_PROFILE_NAME=', 'perfil ilegible: deja los dos nombres');
+    sinDatos(t, c.out, cuenta, [], 'perfil ilegible');
+  });
+
+  // 12) El workflow marca la subida justo antes de altool (después de exportar y revisar la firma),
+  //     con el mismo archivo que mira el script, y el paso que limpia corre siempre.
   const wf = fs.readFileSync(path.join(ROOT, '.github/workflows/ios.yml'), 'utf8');
   const py = fs.readFileSync(SCRIPT, 'utf8');
   const iExp = wf.indexOf('xcodebuild -exportArchive'), iVer = wf.lastIndexOf('codesign --verify'), iMarca = wf.indexOf('touch "$RUNNER_TEMP/ios-firma-subida"'),
