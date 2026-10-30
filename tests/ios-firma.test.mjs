@@ -344,4 +344,30 @@ export default async function ({ t }){
   t.ok(iExp > 0 && iVer > iExp && iMarca > iVer && iSube > iMarca && iBorrar > iSube, 'ios.yml deja la marca de subida justo antes de subir y limpia después');
   t.ok(/SUBIDA = os\.path\.join\(TMP, "ios-firma-subida"\)/.test(py), 'el script mira el mismo archivo que deja el workflow');
   t.ok(/- name: Limpiar la firma\n\s+if: always\(\)/.test(wf), 'el paso que limpia la firma corre siempre');
+
+  // 13) La guía del dueño (docs/WIDGET.md), a la que mandan los mensajes del script: los mismos
+  //     nombres que usan el script y el widget, cada paso que nombran los mensajes, y nada de la
+  //     cuenta (el repo es público: ni mails, ni Team ID, ni claves).
+  const guiaRuta = path.join(ROOT, 'docs/WIDGET.md');
+  const guia = fs.existsSync(guiaRuta) ? fs.readFileSync(guiaRuta, 'utf8') : '';
+  t.ok(guia, 'existe docs/WIDGET.md');
+  t.ok(py.includes('docs/WIDGET.md'), 'el script manda a la guía');
+  const paso = n => (guia.split(/^### /m).find(x => x.startsWith('Paso ' + n + '.')) || '');
+  t.ok(paso(1).includes('`' + GRUPO + '`') && /App Groups/.test(paso(1)), 'guía, paso 1: crear el App Group ' + GRUPO);
+  t.ok(paso(2).includes('`' + APP + '`') && paso(2).includes('`' + GRUPO + '`'), 'guía, paso 2: sumarle el grupo al App ID de la app');
+  t.ok(paso(3).includes('`' + WIDGET + '`') && paso(3).includes('`' + GRUPO + '`') && /Explicit/.test(paso(3)), 'guía, paso 3: el App ID del widget, con el grupo');
+  t.ok(guia.includes('GIZE App Store CI') && /\bwidget\*\*/.test(guia), 'la guía nombra los perfiles que arma el script (el de la app y el «… widget»)');
+  t.ok(/No los crees vos/i.test(guia) && /ninguno nuevo/i.test(guia), 'la guía dice que los perfiles no se crean a mano y que no hacen falta secrets nuevos');
+  for (const m of ['No está registrado el Bundle ID del widget', 'paso 2', 'paso 3', 'App Groups distintos'])
+    t.ok(py.includes(m) && guia.includes(m), 'la guía explica el mensaje «' + m + '» del script');
+  t.eq(guia.match(/[\w.+-]+@[\w-]+\.[\w.]+/g), null, 'la guía no tiene mails');
+  t.eq(guia.match(/\b(?=[A-Z0-9]{10}\b)[A-Z]*\d[A-Z0-9]*\b/g), null, 'la guía no tiene nada con forma de Team ID o Key ID');
+  t.ok(!/BEGIN PRIVATE KEY|AuthKey_[A-Z0-9]/.test(guia), 'la guía no tiene claves');
+  // Cuando ios.yml pase WIDGET_BUNDLE_ID (rama widget-iphone), que sea el de la guía y que la
+  // exportación use el perfil del widget que deja el script.
+  const wb = wf.match(/WIDGET_BUNDLE_ID:[ \t]*["']?([^"'\s]+)/);
+  if (wb){
+    t.eq(wb[1], WIDGET, 'ios.yml pasa el mismo Bundle ID del widget que la guía');
+    t.ok(/<key>ar\.com\.gize\.app\.widget<\/key>\s*<string>\$\{?IOS_WIDGET_PROFILE_NAME\}?<\/string>/.test(wf), 'ExportOptions usa el perfil del widget (IOS_WIDGET_PROFILE_NAME)');
+  }
 }
