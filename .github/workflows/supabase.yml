@@ -102,7 +102,8 @@ jobs:
       # La app llama a la función de mensajes "rapid-worker" (el nombre que le puso
       # Supabase al crearla desde el panel); el código es el de notificar-cliente.
       # Todas van sin "Verify JWT": suscripcion recibe los avisos de Mercado Pago sin
-      # sesión, compras-apple los avisos de Apple (verifica que los firmó Apple), contacto los
+      # sesión, compras-apple los avisos de Apple (verifica que los firmó Apple), compras-google los
+      # avisos de Google Play por Pub/Sub (verifica el token OIDC de Google), contacto los
       # mails que avisa Resend (valida la firma del webhook), y las que usa la app validan al
       # usuario por su cuenta con auth.getUser().
       # Si una no se puede publicar se sigue con las demás. Al final se mira en Supabase qué quedó:
@@ -120,7 +121,7 @@ jobs:
           # repo dentro de la función (supabase/functions/ia/.gitignore).
           cp app/core/foods.js app/core/foods-extra.js app/core/foods-ar.js app/core/foods-gen.js app/core/data.js supabase/functions/ia/
           fns=""; mal=""
-          for fn in rapid-worker suscripcion compras-apple descanso avisos-coach admin contacto borrar-audios productos-off vence-plan prueba-coach ia resumen-semanal; do
+          for fn in rapid-worker suscripcion compras-apple compras-google descanso avisos-coach admin contacto borrar-audios productos-off vence-plan prueba-coach ia resumen-semanal; do
             fns="$fns $fn"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt --use-api || mal="$mal $fn"
           done
