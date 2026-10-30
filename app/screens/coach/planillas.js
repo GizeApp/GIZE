@@ -66,8 +66,13 @@ function leerBorrador(uid){
     return { ts: d.ts, items };
   } catch (e) { return { ts: 0, items: [] }; }
 }
+// Solo para la cuenta que lo armó y con su sesión abierta: al cerrar sesión (o al borrar la cuenta, o
+// si entra otra) la app borra el borrador (core/supabase.js → accountKeys) y recarga, y al recargar se
+// dispara «pagehide» (alSalir, acá abajo): si se guardara ahí, volvía a quedar en el equipo.
+const deLaCuenta = P => !!(P && State.cloudUser && State.cloudUser.id === P.uid && !State.signingOut);
 // Las rutinas listas y sin guardar (sin la planilla). Si no entran, sin lo de «Ver cómo la leyó».
 function guardarBorrador(P){
+  if (!deLaCuenta(P)) return;
   const items = P.items.filter(x => x.estado === "lista").map(x => { const o = {}; GUARDA.forEach(k => { if (x[k] !== undefined) o[k] = x[k]; }); return o; });
   try {
     if (!items.length) { P.ts = 0; localStorage.removeItem(P.clave); return; }
@@ -81,7 +86,7 @@ const alSalir = () => { if (P0) guardarBorrador(P0); };
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") alSalir(); });
 window.addEventListener("pagehide", alSalir);
 // Con hojas en camino, recargar las pierde (y el uso igual cuenta): se pregunta.
-window.addEventListener("beforeunload", ev => { if (P0 && P0.items.some(x => x.estado === "cola" || x.estado === "leyendo")) { ev.preventDefault(); ev.returnValue = ""; } });
+window.addEventListener("beforeunload", ev => { if (P0 && !State.signingOut && P0.items.some(x => x.estado === "cola" || x.estado === "leyendo")) { ev.preventDefault(); ev.returnValue = ""; } });
 
 // ---------- Ayudas ----------
 const clientes = () => (CoachState.coachClients || []).filter(c => c && c.id);

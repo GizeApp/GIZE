@@ -18,11 +18,12 @@
 //     guarda nada. Inserta en routine_templates (con el nombre sin repetir) y hace upsert en routines
 //     con updated_by solo para los alumnos elegidos. Al final dice cuántas guardó y borra el borrador.
 //   · Android: el «Atrás» vuelve paso por paso y ningún texto habla de la prueba, el plan ni precios.
+//   · Cerrar sesión borra el borrador y no vuelve a quedar al recargar.
 //   · La política dice que lo que se pasó queda en el equipo hasta guardarlo (privacidad #ia-coach).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { newPage, wait, text } from './lib.mjs';
+import { newPage, wait, text, configCoach } from './lib.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@ejemplo.test', aud: 'authenticated', role: 'authenticated' };
@@ -332,7 +333,23 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores de la página (Android)');
   await pg.close();
 
-  // ---- 5) La política dice lo que hace la pantalla con lo que ya se pasó. ----
+  // ---- 5) Cerrar sesión borra lo que se pasó, y no vuelve: al recargar, la página se va
+  // («pagehide») y el borrador no se tiene que volver a guardar. ----
+  const BORRADOR = { ts: Date.now(), items: [{ id: 'b1', archivo: 'Juan Pérez.xlsx', hoja: 'Día 1', nombre: 'Día 1', para: A1,
+    days: [{ id: 'd1', name: 'Día 1', exercises: [{ id: 'e1', name: 'Sentadilla libre', sets: [{ id: 's1', target: '8', kg: '', reps: '', done: false }] }] }], revisar: [] }] };
+  pg = await pagina(base, { estado: Object.assign({}, PRENDIDA, { permiso_rutinas: 'ok' }),
+    init: `(() => { if (sessionStorage.getItem('pl-sem')) return; sessionStorage.setItem('pl-sem', '1'); localStorage.setItem(${JSON.stringify(CLAVE)}, ${JSON.stringify(JSON.stringify(BORRADOR))}); })()` });
+  p = pg.p;
+  await ir(p, 'tpls');
+  await p.click('#coachHost [data-coach="pl-open"]'); await wait(800);
+  t.has(await text(p, '#coachHost .pp-seguir'), 'Tenés 1 rutina sin guardar de Juan Pérez.xlsx', 'cerrar sesión: antes, el borrador está');
+  await configCoach(p, 'cuenta');
+  await p.click('[data-auth="logout"]'); await wait(3500);
+  t.eq(await p.evaluate(k => localStorage.getItem(k), CLAVE), null, 'cerrar sesión: el borrador se borra y no vuelve al recargar');
+  t.eq(pg.errs, [], 'errores de la página (cerrar sesión)');
+  await pg.close();
+
+  // ---- 6) La política dice lo que hace la pantalla con lo que ya se pasó. ----
   const pol = fs.readFileSync(path.join(ROOT, 'privacidad/index.html'), 'utf8');
   const coach = (pol.match(/<p id="ia-coach">[\s\S]*?<\/p>/) || [''])[0];
   t.has(coach, 'Mientras el coach las revisa, las rutinas que armó la IA quedan solo en su equipo, hasta 7 días o hasta que las guarde, las descarte o cierre sesión.', 'la política: el borrador queda solo en el equipo');
