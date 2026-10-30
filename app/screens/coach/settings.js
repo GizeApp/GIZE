@@ -13,7 +13,7 @@ import { avatarHtml, avatarUrl } from '../../core/avatar.js';
 import { coachInitials } from './clientes.js';
 
 import { CoachState } from './state.js';
-import { billing } from './plan.js';
+import { billing, conTienda } from './plan.js';
 import { esProfeGym } from './gimnasio.js';
 
 import { pushOnHere } from '../../core/push.js';
@@ -24,7 +24,6 @@ import { temaOptionsHtml } from '../../ui/tema.js';
 import { neonSwitchHtml } from '../../ui/neon.js';
 
 import { appNativa } from '../../core/tienda.js';
-import { comprasApple } from '../../core/compras-apple.js';
 import { enMarcoGym } from '../../core/gimnasio.js';
 
 import { alRepintar, renderQuestionsEditor } from './preguntas.js';
@@ -54,8 +53,9 @@ function secciones(){
   const l = [["perfil", "Perfil", IC.user, "Foto y nombre"], ["apariencia", "Apariencia", IC.palette, "Tema y neón"], ["avisos", "Avisos", IC.bell, pushOnHere() ? "Activados" : "Apagados"]];
   // En el panel del gimnasio el plan es el del gimnasio: está en «Plan de GIZE» (sin los planes de coach).
   // El profe de un gimnasio sin alumnos propios ni plan propio no tiene plan que mirar (el del gimnasio
-  // lo maneja la administración): sin «Mi plan».
-  if((!appNativa() || comprasApple()) && !enMarcoGym() && !(esProfeGym() && !billing().propio)) l.push(["plan", "Mi plan", IC.card, "Plan y clientes"]);
+  // lo maneja la administración): sin «Mi plan». En las apps, solo con su tienda (Apple, o Google Play
+  // prendido o con una suscripción de Google vigente: plan.js conTienda).
+  if((!appNativa() || conTienda()) && !enMarcoGym() && !(esProfeGym() && !billing().propio)) l.push(["plan", "Mi plan", IC.card, "Plan y clientes"]);
   // «Mi página» (pagina.js): con el mismo criterio, y solo si la base ya tiene la función.
   if(paginaPosible()) l.push(["pagina", "Mi página", IC.link, "Link para Instagram"]);
   l.push(["preguntas", "Preguntas", IC.help, "Registro y check-in"], ["privacidad", "Privacidad", IC.shield, "Bloqueos y políticas"], ["cuenta", "Cuenta", IC.out, "Sesión y baja"]);

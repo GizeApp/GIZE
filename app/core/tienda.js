@@ -3,9 +3,11 @@
 // alumnos y los coaches que ya tienen cuenta. En la de Android sí se puede crear.
 // En ninguna de las dos apps (appNativa) se habla de la prueba gratis ni de pagar por fuera de la
 // tienda (tampoco se dice dónde se contrata en la web): ni en el panel del coach
-// (screens/coach/plan.js), ni en la bienvenida, ni en los mensajes de abajo. En la de Android
-// tampoco de planes ni precios. En la de iPhone los planes de coach se compran con Apple
-// (core/compras-apple.js): ahí se ven con el precio de Apple. La web sigue como antes.
+// (screens/coach/plan.js), ni en la bienvenida, ni en los mensajes de abajo. En la de iPhone los
+// planes de coach se compran con Apple (core/compras-apple.js): ahí se ven con el precio de Apple.
+// En la de Android se compran con Google Play (core/compras-google.js) solo cuando el interruptor
+// del panel lo prende para la cuenta: ahí se ven con el precio de Google Play; apagado, Android no
+// habla de planes ni de precios. Nunca los precios de la web. La web sigue como antes.
 import { appAndroid } from './plataforma.js';
 
 export function appIOS(){
@@ -15,8 +17,8 @@ export function appIOS(){
   } catch (e) { return false; }
 }
 // Cualquiera de las apps de las tiendas (iPhone o Android, también con solo el puente de Android:
-// core/plataforma.js appAndroid). Ahí no se habla de la prueba gratis ni de planes (Google Play y
-// App Store).
+// core/plataforma.js appAndroid). Ahí no se habla de la prueba gratis ni de pagar por fuera de la
+// tienda (Google Play y App Store); los planes, solo con la tienda de cada una.
 export function appNativa(){
   try {
     const C = window.Capacitor;

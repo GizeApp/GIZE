@@ -1,7 +1,7 @@
 // Compras con Google Play en la app de Android: el plugin nativo GizeCompras
 // (android/app/src/main/java/ar/com/gize/app/GizeComprasPlugin.java). Sin emulador: se leen los
 // archivos, como widget-android y dialogos-android; lo compila el workflow «App Android» (android.yml).
-// Todavía no lo usa ningún JS (core/compras-google.js llega en otra rama): llega apagado.
+// Lo usa core/compras-google.js (planes de coach, screens/coach/plan.js), que llega apagado.
 // - Gradle: Google Play Billing de la 8 en adelante (Play ya no acepta la 7 desde el 31/8/2026), con la
 //   versión en variables.gradle y en las dependencias de la app.
 // - MainActivity registra GizeComprasPlugin antes de super.onCreate, sin sacar los otros plugins propios.

@@ -27,6 +27,14 @@
 // Si ya tiene un plan pagado por la web vigente (o cortesía), solo «Tu plan está activo»: no se
 // ofrece comprar (se pagaría dos veces). Un iPhone con una versión de la app sin el plugin de
 // compras sigue como Android (pantalla neutra).
+//
+// En la app de Android, con el cobro de Google Play prendido para la cuenta (interruptor del panel,
+// core/compras-google.js), es lo mismo que en el iPhone pero con Google Play: los planes con el
+// precio que pone Google, cómo se renueva y se cancela en Google Play, «Recuperar mi suscripción» y,
+// con la suscripción activa, «Administrar en Google Play». Apagado (o sin el plugin), como siempre.
+// Las dos tiendas comparten la pantalla (tienda(): T_APPLE o T_GOOGLE); los textos y las acciones
+// de Apple son los de siempre (data-plan apple-*; Google usa google-*). En el iPhone nunca se nombra
+// Google Play: a quien pagó con Google se le muestra «Tu plan está activo… al día hasta el…».
 
 import { State } from '../../core/state.js';
 
@@ -41,6 +49,8 @@ import { appIOS, appNativa } from '../../core/tienda.js';
 import { esProfeGym, propios } from './gimnasio.js';
 
 import { administrarApple, cargarProductosApple, comprarApple, comprasApple, escucharApple, finalizarApple, productosApple, restaurarApple, vigentesApple } from '../../core/compras-apple.js';
+
+import { administrarGoogle, avisosGoogle, cargarInterruptorGoogle, cargarProductosGoogle, comprarGoogle, comprasGoogle, escucharGoogle, pluginGoogle, PRODUCTOS_GOOGLE, productoDelPlanGoogle, productosGoogle, reconocerGoogle, restaurarGoogle, vigentesGoogle } from '../../core/compras-google.js';
 
 // Precios: los mismos que plan_price (supabase/admin.sql), el panel de admin y la landing.
 export const PLANS = [
@@ -73,8 +83,16 @@ const IS_NATIVE = appNativa();
 const IS_IOS = appIOS();
 // App de iPhone con las compras de Apple: planes con el precio de Apple.
 const IAP = comprasApple();
-// Apps sin compras de Apple (Android, o un iPhone sin el plugin): nada de planes.
-const SIN_PLANES = IS_NATIVE && !IAP;
+// App de Android con el cobro de Google Play: prendido para esta cuenta, o con una suscripción de
+// Google vigente (para poder administrarla aunque se apague). El interruptor llega después de abrir
+// (loadBilling), por eso es una función.
+const googlePlay = () => !IAP && !!pluginGoogle() && (comprasGoogle("planes") || !!billing().google);
+// La tienda de la app (Apple o Google Play), o null (web, o apps sin compras: nada de planes).
+const tienda = () => IAP ? T_APPLE : googlePlay() ? T_GOOGLE : null;
+// Apps sin compras (Android sin Google Play, o un iPhone sin el plugin): nada de planes.
+const sinPlanes = () => IS_NATIVE && !tienda();
+// ¿Esta app vende planes con su tienda? (coach/index.js y coach/settings.js)
+export const conTienda = () => !!tienda();
 const money = n => "$" + Number(n).toLocaleString("es-AR");
 // WhatsApp de GIZE (el mismo de Configuración → Contacto).
 const WA = "5493413490705";
@@ -96,11 +114,16 @@ const B = { row: null, missing: false, loaded: false, busy: false, open: false, 
 // Código de fundador: pct es el descuento que se muestra; codigo, el que probó y todavía no usó
 // (va al pagar); mio, el que ya tiene para siempre; de, la cuenta para la que se leyó.
 const COD = { open: false, texto: "", pct: 0, codigo: null, mio: false, error: "", probando: false, de: null };
-// Compras con Apple (app de iPhone): cargando/sin los precios, y la compra recién hecha.
+// Compras con la tienda (Apple o Google Play): cargando/sin los precios, y la compra recién hecha.
 const A = { cargando: false, fallo: false, exito: false, iniciado: false };
+// Google Play: las suscripciones de este celular (null: todavía no se leyeron) y si la del plan
+// está suspendida (Google no pudo cobrar).
+const G = { iniciado: false, vigentes: null, suspendida: false, aviso: false, volver: false };
 
 export async function loadBilling(){
   if(!State.sb || !State.cloudUser) return;
+  // Android con el plugin de Google Play: el interruptor se lee junto con el plan.
+  const inter = !IAP && pluginGoogle() ? cargarInterruptorGoogle(State.sb, State.cloudUser.id) : null;
   try{
     const r = await State.sb.from("coach_billing").select("*").eq("coach_id", State.cloudUser.id).maybeSingle();
     // Una lectura fallida (sin señal) no borra el plan ya leído de esta cuenta: sin él se perdía
@@ -108,8 +131,10 @@ export async function loadBilling(){
     if(r.error){ B.missing = true; if(!(B.row && B.row.coach_id === State.cloudUser.id)) B.row = null; }
     else { B.missing = !r.data; B.row = r.data || null; }
   }catch(e){ B.missing = true; }
+  if(inter) await inter;
   B.loaded = true;
   if(IAP) iniciarApple();
+  else if(googlePlay()) iniciarGoogle();
   else if(!IS_NATIVE) cargarDescuento();
 }
 
@@ -154,6 +179,8 @@ export function billing(){
   // Lo pagado viene de una suscripción de Apple si no va más allá de lo que cubre Apple (como
   // pagoDeApple en supabase/functions/compras-apple/reglas.ts); si va más allá, lo pagó por la web.
   const apple = paid && !!r.apple_original_tx && !!r.apple_vence && paidUntil <= new Date(r.apple_vence).getTime();
+  // Lo mismo con Google Play (cambiosBilling en supabase/functions/compras-google/reglas.ts).
+  const google = paid && !apple && !!r.google_token && !!r.google_vence && paidUntil <= new Date(r.google_vence).getTime();
   return {
     known: true, active, trial, paid, comp, count, max, overCap, profe, propio: !profe || count > 0 || paid || comp,
     atCap: count >= max,
@@ -165,6 +192,7 @@ export function billing(){
     renews: r.mp_status === "authorized",
     pending: r.pending_plan,
     apple, appleRenueva: apple && !!r.apple_renueva, appleVence: apple ? r.apple_vence : null,
+    google, googleRenueva: google && !!r.google_renueva, googleVence: google ? r.google_vence : null,
   };
 }
 
@@ -173,15 +201,15 @@ export function billing(){
 const AR_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" });
 function ymd(iso){ return AR_DAY.format(new Date(new Date(iso).getTime() - 1)); }
 
-// Tira debajo del código de invitación. En las apps sin compras de Apple no va (nombra el plan).
+// Tira debajo del código de invitación. En las apps sin compras no va (nombra el plan).
 export function renderPlanBanner(){
-  const b = billing(); if(!b.known || SIN_PLANES || !b.propio) return "";
-  if(IAP) return bannerApple(b);
+  const b = billing(); if(!b.known || sinPlanes() || !b.propio) return "";
+  const T = tienda(); if(T) return bannerTienda(b, T);
   let txt, cls = "";
   if(b.comp) txt = "Plan cortesía · " + b.count + "/" + b.max + " clientes";
   else if(b.trial){ txt = "Prueba gratis · te quedan <b>" + b.daysLeft + " día" + (b.daysLeft === 1 ? "" : "s") + "</b> · " + b.count + "/" + b.max + " clientes"; if(b.daysLeft <= 3) cls = " warn"; }
   else if(b.trialFirst) txt = "Prueba gratis · te quedan <b>" + b.daysLeft + " día" + (b.daysLeft === 1 ? "" : "s") + "</b> · después sigue tu plan · " + b.count + "/" + b.max + " clientes";
-  else if(b.paid) txt = planCorto(b) + " · " + b.count + "/" + b.max + (b.renews || b.appleRenueva ? "" : " · vence el " + fmtDate(ymd(b.until)));
+  else if(b.paid) txt = planCorto(b) + " · " + b.count + "/" + b.max + (b.renews || b.appleRenueva || b.googleRenueva ? "" : " · vence el " + fmtDate(ymd(b.until)));
   else { txt = "Sin plan vigente"; cls = " warn"; }
   return '<button class="pl-banner' + cls + (b.atCap ? " warn" : "") + '" data-plan="open"><span>' + txt + '</span><span class="pl-banner-go">' + (b.trial ? "Ver planes" : "Mi plan") + ' ›</span></button>';
 }
@@ -191,13 +219,13 @@ const planCorto = b => b.plan && b.plan.gym ? "Plan " + b.plan.name : b.max >= 1
 const planLargo = b => b.plan && b.plan.gym ? 'Plan ' + b.plan.name + ' (' + b.max + (B.gym ? ' socios)' : ' alumnos)') : 'Plan de ' + b.max + ' clientes';
 
 function planCards(b){
-  // En las apps sin compras de Apple no se habla de pagos ni de dónde se paga (reglas de Apple y
-  // Google). Ahí ni se llega (sin «Mi plan» ni la pantalla de la prueba vencida): por las dudas.
-  if(SIN_PLANES) return '';
-  if(IAP) return appleCards(b);
-  // Con la suscripción de Apple vigente, en la web no se ofrece pagar otro plan (se pagaría dos
-  // veces): se cambia o se cancela desde el iPhone (statusLine lo dice).
-  if(b.apple) return '';
+  // En las apps sin compras no se habla de pagos ni de dónde se paga (reglas de Apple y Google).
+  // Ahí ni se llega (sin «Mi plan» ni la pantalla de la prueba vencida): por las dudas.
+  if(sinPlanes()) return '';
+  const T = tienda(); if(T) return cardsTienda(b, T);
+  // Con la suscripción de Apple o de Google Play vigente, en la web no se ofrece pagar otro plan (se
+  // pagaría dos veces): se cambia o se cancela desde el celular (statusLine lo dice).
+  if(b.apple || b.google) return '';
   const chosen = b.paid || B.gym ? null : chosenPlan();
   // Dueño de un gimnasio (Plan de GIZE del panel del gimnasio, app/screens/gym/plan.js): solo los
   // planes de gimnasio (p100, p250 y p500), y el cupo que cuenta es el del servidor (seats_used).
@@ -262,10 +290,12 @@ async function aplicarCodigo(){
 
 function statusLine(b){
   if(!b.known) return "";
-  if(IAP) return appleStatus(b);
+  const T = tienda(); if(T) return statusTienda(b, T);
   if(b.comp) return '<div class="pl-status ok">Tenés un plan de cortesía, sin vencimiento.</div>';
   if(b.apple) return '<div class="pl-status ok">' + planLargo(b) + ' · suscripción de Apple ' + (b.appleRenueva ? 'que se renueva sola cada mes' : 'al día hasta el ' + fmtDate(ymd(b.until))) +
     '. La cambiás o la cancelás desde tu iPhone, en los Ajustes de tu cuenta de Apple.</div>';
+  if(b.google) return '<div class="pl-status ok">' + planLargo(b) + ' · suscripción de Google Play ' + (b.googleRenueva ? 'que se renueva sola cada mes' : 'al día hasta el ' + fmtDate(ymd(b.until))) +
+    '. La cambiás o la cancelás desde tu Android, en Google Play.</div>';
   if(b.trialFirst) return '<div class="pl-status ok">Tu plan de ' + b.max + ' clientes ya está pago. Primero termina tu prueba gratis (te quedan ' + b.daysLeft + ' día' + (b.daysLeft === 1 ? '' : 's') + ') y después arranca el plan, al día hasta el ' + fmtDate(ymd(b.until)) + '.</div>';
   if(b.paid) return '<div class="pl-status ok">' + planLargo(b) + ' · ' + (b.renews ? 'se renueva solo cada mes' : 'al día hasta el ' + fmtDate(ymd(b.until))) + '.</div>';
   const ch = PLANS.find(p => p.id === chosenPlan());
@@ -274,14 +304,14 @@ function statusLine(b){
   return '<div class="pl-status warn">Tu ' + (B.row && B.row.paid_until ? 'plan venció' : 'prueba gratis terminó') + '.</div>';
 }
 
-// Hoja "Mi plan" (desde la tira o desde Configuración). En las apps sin compras de Apple no se abre.
+// Hoja "Mi plan" (desde la tira o desde Configuración). En las apps sin compras no se abre.
 export function renderPlanSheet(){
   let host = document.getElementById("planSheetHost");
   if(!host){ host = document.createElement("div"); host.id = "planSheetHost"; document.body.appendChild(host); }
-  if(!B.open || SIN_PLANES){ host.innerHTML = ""; return; }
+  if(!B.open || sinPlanes()){ host.innerHTML = ""; return; }
   const b = billing();
-  // Cancelar la suscripción de Mercado Pago: solo en la web (en el iPhone no se nombra).
-  const cancel = (b.paid && b.renews && !IAP) ? '<button class="pl-cancel" data-plan="cancel">Cancelar la renovación</button>' : "";
+  // Cancelar la suscripción de Mercado Pago: solo en la web (en las apps no se nombra).
+  const cancel = (b.paid && b.renews && !tienda()) ? '<button class="pl-cancel" data-plan="cancel">Cancelar la renovación</button>' : "";
   host.innerHTML = '<div class="cp-bg" data-plan="close"></div><div class="cp-ccard pl-sheet">' +
     '<div class="cp-head"><div class="cp-title">Mi plan</div><button class="cp-x" data-plan="close">✕</button></div>' +
     statusLine(b) + planCards(b) + cancel +
@@ -296,8 +326,8 @@ function graceLine(b){
   const limit = end + GRACE_DAYS * 864e5;
   if(!(end > 0) || limit <= Date.now()) return "";
   const dia = fmtDate(ymd(new Date(limit).toISOString()));
-  // En las apps sin compras de Apple, sin mandar a renovar (se paga por fuera de Google).
-  return '<div class="pl-wall-s pl-wall-grace">' + (SIN_PLANES ? 'El ' + dia + ' tus clientes pasan a usar GIZE por su cuenta, con todo lo que les armaste.'
+  // En las apps sin compras, sin mandar a renovar (se paga por fuera de la tienda).
+  return '<div class="pl-wall-s pl-wall-grace">' + (sinPlanes() ? 'El ' + dia + ' tus clientes pasan a usar GIZE por su cuenta, con todo lo que les armaste.'
     : 'Tenés hasta el ' + dia + ' para renovar. Después, tus clientes pasan a usar GIZE por su cuenta, con todo lo que les armaste.') + '</div>';
 }
 
@@ -310,8 +340,8 @@ const WALL_DELETE = '<button class="logout-btn cfg-danger pl-wall-del" data-acti
 export function renderPaywall(){
   const b = billing();
   if(b.overCap) return renderOverCap(b);
-  if(SIN_PLANES) return renderInactiveApp(b);
-  if(IAP) return renderPaywallApple(b);
+  if(sinPlanes()) return renderInactiveApp(b);
+  const T = tienda(); if(T) return renderPaywallTienda(b, T);
   return '<div class="co-wrap pl-wall">' +
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
     '<div class="pl-wall-hero"><div class="pl-wall-t">' + (B.row && B.row.paid_until ? 'Tu plan venció' : 'Terminó tu prueba gratis') + '</div>' +
@@ -339,66 +369,96 @@ function renderInactiveApp(b){
 // En las apps, lo mismo sin nombrar el plan: «el máximo de alumnos de tu cuenta».
 function renderOverCap(b){
   const extra = b.count - b.max;
-  // ¿Se le ofrece un plan más grande? En la web sí; en el iPhone, con Apple, si no tiene un plan
-  // pagado por la web vigente; en las apps sin compras de Apple, no.
-  const ofrece = IAP ? !(b.comp || (b.paid && !b.apple)) : !IS_NATIVE;
+  // ¿Se le ofrece un plan más grande? En la web sí; en las apps con su tienda (Apple o Google Play),
+  // si vende (Google Play apagado con una suscripción vigente: solo administrarla) y no tiene un plan
+  // vigente pagado de otra forma; en las apps sin compras, no.
+  const T = tienda(), sin = sinPlanes();
+  const ofrece = T ? T.vende() && !planAjeno(b, T) : !IS_NATIVE;
   const list = CoachState.coachClients.map(c => '<div class="pl-oc-row"><span>' + esc(c.full_name || "Cliente") + '</span>' +
     '<button class="pl-link" data-plan="unlink" data-id="' + esc(c.id) + '"' + (B.busy ? ' disabled' : '') + '>Desvincular</button></div>').join("");
   return '<div class="co-wrap pl-wall">' +
     '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>' +
-    '<div class="pl-wall-hero"><div class="pl-wall-t">' + (SIN_PLANES ? 'Tenés más alumnos que el máximo de tu cuenta' : 'Tenés más clientes que tu plan') + '</div>' +
-    '<div class="pl-wall-s">' + (SIN_PLANES ? 'Tenés ' + b.count + ' alumnos y el máximo de tu cuenta es ' + b.max + '. ' : 'Tenés ' + b.count + ' clientes y tu plan es de ' + b.max + '. ') +
+    '<div class="pl-wall-hero"><div class="pl-wall-t">' + (sin ? 'Tenés más alumnos que el máximo de tu cuenta' : 'Tenés más clientes que tu plan') + '</div>' +
+    '<div class="pl-wall-s">' + (sin ? 'Tenés ' + b.count + ' alumnos y el máximo de tu cuenta es ' + b.max + '. ' : 'Tenés ' + b.count + ' clientes y tu plan es de ' + b.max + '. ') +
     (ofrece ? 'Contratá un plan más grande o desvinculá ' : 'Desvinculá ') + extra + ' cliente' + (extra === 1 ? '' : 's') + ' para volver a ver sus fichas. Sus rutinas y registros quedan guardados.</div></div>' +
-    (IAP ? appleStatus(b) : '') + planCards(b) +
+    (T ? statusTienda(b, T) : '') + planCards(b) +
     '<div class="pl-oc"><div class="pl-sub">Tus clientes</div>' + list + '</div>' + WALL_DELETE +
   '</div>';
 }
 
-// ---- App de iPhone: los planes con Apple (core/compras-apple.js) ----
+// ---- Apps con su tienda: los planes con Apple (iPhone, core/compras-apple.js) o con Google Play
+// (Android, core/compras-google.js) ----
 const HEAD_COACH = '<div class="co-head"><div class="co-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="co-brand-dash">-</span><span class="co-brand-tag">Panel de coach</span></div><div class="co-head-actions"><button class="co-logout" data-auth="logout">Salir</button></div></div>';
 // Lo que pide Apple debajo de los planes (regla 3.1.2). Los textos legales se abren sin la barra que
 // lleva a la página de inicio (?app=1).
 const APPLE_RENUEVA = 'Se renueva solo cada mes hasta que la canceles desde los Ajustes de tu cuenta de Apple';
 const APPLE_LEGAL = '<div class="pl-fine pl-legal"><a class="pl-link" href="https://gize.ar/terminos/?app=1" target="_blank" rel="noopener">Términos de uso</a> · ' +
   '<a class="pl-link" href="https://gize.ar/privacidad/?app=1" target="_blank" rel="noopener">Política de privacidad</a></div>';
-// Fecha (en hora de Argentina) en que vence o se renueva la suscripción de Apple.
+// Fecha (en hora de Argentina) en que vence o se renueva la suscripción de la tienda.
 const diaApple = iso => fmtDate(AR_DAY.format(new Date(iso)));
-// ¿Tiene un plan vigente que no es de Apple (pagado por la web, o cortesía)? Ahí no se ofrece
-// comprar: pagaría dos veces.
-const planNoApple = b => b.comp || (b.paid && !b.apple);
+// ¿Tiene un plan vigente que no es de esta tienda (pagado por la web, con la otra tienda, o
+// cortesía)? Ahí no se ofrece comprar: pagaría dos veces.
+const planAjeno = (b, T) => b.comp || (b.paid && !T.activo(b));
 
-function bannerApple(b){
+// Lo que cambia entre las dos tiendas: de dónde sale el plan, los precios, si vende, el pie (lo que
+// piden Apple y Google debajo de los planes) y los avisos propios.
+const T_APPLE = {
+  id: "apple", activo: b => b.apple, renueva: b => b.appleRenueva, vence: b => b.appleVence,
+  prods: productosApple, cargar: cargarProductosApple, vende: () => true, aviso: () => "",
+  pie: b => '<div class="pl-fine">El pago se cobra a tu cuenta de Apple al confirmar la suscripción. ' + APPLE_RENUEVA +
+      ' (al menos 24 horas antes de que termine el mes). Si cambiás de plan, Apple ajusta el cobro.</div>' + APPLE_LEGAL +
+    '<div class="pl-apple-acc">' + (b.apple ? '<button class="pl-choose pl-apple-manage" data-plan="apple-manage"' + (B.busy ? ' disabled' : '') + '>Administrar suscripción</button>' : '') +
+      '<button class="pl-cancel" data-plan="apple-restore"' + (B.busy ? ' disabled' : '') + '>' + (B.busy === "restaurar" ? 'Restaurando…' : 'Restaurar compras') + '</button></div>',
+};
+const OTRA_GOOGLE = "Tu suscripción es de otra cuenta de Google Play: para cambiarla, usá esa cuenta.";
+const T_GOOGLE = {
+  id: "google", activo: b => b.google, renueva: b => b.googleRenueva, vence: b => b.googleVence,
+  prods: productosGoogle, cargar: cargarProductosGoogle, vende: () => comprasGoogle("planes"),
+  // Google no pudo cobrar (la suscripción está suspendida): se arregla en Google Play.
+  aviso: () => G.suspendida ? '<div class="pl-status warn">Google Play no pudo cobrar tu plan. Actualizá el medio de pago en Google Play y se activa solo.</div>' : "",
+  pie: b => '<div class="pl-fine">El pago se cobra a tu cuenta de Google Play al confirmar la suscripción. Se renueva sola cada mes hasta que la canceles desde Google Play (Pagos y suscripciones → Suscripciones). Si cambiás de plan, Google ajusta el cobro.</div>' + APPLE_LEGAL +
+    '<div class="pl-apple-acc">' + (b.google || G.suspendida ? '<button class="pl-choose pl-apple-manage" data-plan="google-manage"' + (B.busy ? ' disabled' : '') + '>Administrar en Google Play</button>' : '') +
+      '<button class="pl-cancel" data-plan="google-restore"' + (B.busy ? ' disabled' : '') + '>' + (B.busy === "restaurar" ? 'Recuperando…' : 'Recuperar mi suscripción') + '</button></div>',
+};
+
+function bannerTienda(b, T){
   const n = b.count + "/" + b.max + " " + (b.plan && b.plan.gym ? "alumnos" : "clientes");
   // En la prueba, sin nombrarla: solo cuántos tiene.
   const txt = b.comp ? "Plan cortesía · " + n
-    : b.paid ? planCorto(b) + " · " + n + (b.apple ? (b.appleRenueva ? "" : " · vence el " + diaApple(b.appleVence)) : (b.renews ? "" : " · vence el " + fmtDate(ymd(b.until))))
+    : b.paid ? planCorto(b) + " · " + n + (T.activo(b) ? (T.renueva(b) ? "" : " · vence el " + diaApple(T.vence(b))) : (b.renews ? "" : " · vence el " + fmtDate(ymd(b.until))))
     : n;
   return '<button class="pl-banner' + (b.atCap ? " warn" : "") + '" data-plan="open"><span>' + txt + '</span><span class="pl-banner-go">' + (b.paid || b.comp ? "Mi plan" : "Ver planes") + ' ›</span></button>';
 }
 
-function appleStatus(b){
+function statusTienda(b, T){
   if(!b.known) return "";
   if(b.comp) return '<div class="pl-status ok"><b>Tu plan está activo.</b> Plan cortesía, sin vencimiento.</div>';
-  if(b.apple) return '<div class="pl-status ok"><b>' + (A.exito ? '¡Listo! ' : '') + 'Tu plan está activo.</b> ' + planLargo(b) + ' · ' +
-    (b.appleRenueva ? 'se renueva solo el ' : 'vence el ') + diaApple(b.appleVence) + '.</div>';
+  if(T.activo(b)) return '<div class="pl-status ok"><b>' + (A.exito ? '¡Listo! ' : '') + 'Tu plan está activo.</b> ' + planLargo(b) + ' · ' +
+    (T.renueva(b) ? 'se renueva solo el ' : 'vence el ') + diaApple(T.vence(b)) + '.</div>' + T.aviso();
   if(b.paid) return '<div class="pl-status ok"><b>Tu plan está activo.</b> ' + planLargo(b) + ', al día hasta el ' + fmtDate(ymd(b.until)) + '.</div>';
-  return "";
+  return T.aviso();
 }
 
-function appleCards(b){
-  if(planNoApple(b)) return "";
-  const prods = productosApple();
-  const pie = '<div class="pl-fine">El pago se cobra a tu cuenta de Apple al confirmar la suscripción. ' + APPLE_RENUEVA +
-      ' (al menos 24 horas antes de que termine el mes). Si cambiás de plan, Apple ajusta el cobro.</div>' + APPLE_LEGAL +
-    '<div class="pl-apple-acc">' + (b.apple ? '<button class="pl-choose pl-apple-manage" data-plan="apple-manage"' + (B.busy ? ' disabled' : '') + '>Administrar suscripción</button>' : '') +
-      '<button class="pl-cancel" data-plan="apple-restore"' + (B.busy ? ' disabled' : '') + '>' + (B.busy === "restaurar" ? 'Restaurando…' : 'Restaurar compras') + '</button></div>';
+function cardsTienda(b, T){
+  if(planAjeno(b, T)) return "";
+  const pie = T.pie(b);
+  // Google Play apagado para la cuenta, con una suscripción que ya tenía: solo administrarla.
+  if(!T.vende()) return pie;
+  // La suscripción de Google Play es de otra cuenta de Google (no está en este celular): no se
+  // puede cambiar de plan desde acá ni comprar otra (pagaría dos).
+  if(T === T_GOOGLE && b.google && G.vigentes && !G.vigentes.some(c => c.token === B.row.google_token))
+    return '<div class="pl-status warn">' + OTRA_GOOGLE + '</div>' + pie;
+  // Google no pudo cobrar su suscripción (suspendida): se arregla en Google Play y vuelve sola.
+  // Comprar otro plan acá la dejaría con dos suscripciones (pagaría dos cuando se recupere).
+  if(T === T_GOOGLE && G.suspendida) return pie;
+  const prods = T.prods();
   if(!prods){
-    if(!A.cargando && !A.fallo) cargarPlanesApple();
-    return '<div class="pl-status">' + (A.fallo ? 'No se pudieron cargar los planes. Revisá la conexión y <button class="pl-link" data-plan="apple-retry">probá de nuevo</button>.' : 'Cargando los planes…') + '</div>' + pie;
+    if(!A.cargando && !A.fallo) cargarPlanes(T);
+    return '<div class="pl-status">' + (A.fallo ? 'No se pudieron cargar los planes. Revisá la conexión y <button class="pl-link" data-plan="' + T.id + '-retry">probá de nuevo</button>.' : 'Cargando los planes…') + '</div>' + pie;
   }
   const cards = PLANS.map(p => {
     const pr = prods[p.id]; if(!pr) return "";
-    const current = b.apple && b.plan && b.plan.id === p.id;
+    const current = T.activo(b) && b.plan && b.plan.id === p.id;
     const tooSmall = b.count > p.max;
     return '<div class="pl-card' + (current ? ' current' : '') + '">' +
       '<div class="pl-name">' + esc(pr.nombre || (p.gym ? p.name : "Plan " + p.max + " clientes")) + '</div>' +
@@ -407,27 +467,27 @@ function appleCards(b){
       '<div class="pl-per">Suscripción mensual</div>' +
       (current ? '<button class="pl-choose" disabled>Tu plan actual</button>'
         : tooSmall ? '<button class="pl-choose" disabled>Tenés ' + b.count + ' clientes</button>'
-        : '<button class="pl-choose" data-plan="choose" data-id="' + p.id + '"' + (B.busy ? ' disabled' : '') + '>' + (B.busy === p.id ? 'Abriendo…' : b.apple ? 'Cambiar a este plan' : 'Suscribirme') + '</button>') +
+        : '<button class="pl-choose" data-plan="choose" data-id="' + p.id + '"' + (B.busy ? ' disabled' : '') + '>' + (B.busy === p.id ? 'Abriendo…' : T.activo(b) ? 'Cambiar a este plan' : 'Suscribirme') + '</button>') +
     '</div>';
   }).join("");
   return '<div class="pl-cards">' + cards + '</div>' + pie;
 }
 
-// Pantalla completa sin plan vigente, en el iPhone: los planes con Apple (sin nombrar la prueba).
-function renderPaywallApple(b){
+// Pantalla completa sin plan vigente, en las apps con su tienda: los planes (sin nombrar la prueba).
+function renderPaywallTienda(b, T){
   return '<div class="co-wrap pl-wall">' + HEAD_COACH +
     '<div class="pl-wall-hero"><div class="pl-wall-t">' + (B.row && B.row.paid_until ? 'Tu plan venció' : 'Elegí tu plan') + '</div>' +
     '<div class="pl-wall-s">' + (b.count === 1 ? 'Tu cliente, sus' : 'Tus ' + b.count + ' clientes,') + ' rutinas y registros están guardados. ' +
     'Elegí un plan para volver a verlos y seguir sumando clientes.</div>' +
     graceLine(b) + '</div>' +
-    appleStatus(b) + planCards(b) + WALL_DELETE +
+    statusTienda(b, T) + planCards(b) + WALL_DELETE +
   '</div>';
 }
 
-function cargarPlanesApple(){
+function cargarPlanes(T){
   if(A.cargando) return;
   A.cargando = true;
-  cargarProductosApple().then(p => { A.cargando = false; A.fallo = !p; rerender(); });
+  T.cargar().then(p => { A.cargando = false; A.fallo = !p; rerender(); });
 }
 
 // Manda a la función compras-apple lo que firmó Apple (un JWS, o varios al restaurar).
@@ -527,6 +587,143 @@ async function administrarPlanApple(){
   await sincronizarApple();
 }
 
+// ---- Google Play (app de Android) ----
+const PENDIENTE_GOOGLE = "Tu pago quedó pendiente en Google Play. Cuando se acredite, tu plan se activa solo.";
+const esPlanGoogle = c => !!(c && c.token && PRODUCTOS_GOOGLE[c.producto]);
+
+// Manda a la función compras-google la compra que dio Google Play ({ token, producto }) o varias
+// ({ compras: [...] }, al recuperarlas). { ok, reconocer, resultados, error?, codigo? }
+async function enviarGoogle(body){
+  try{
+    const r = await State.sb.functions.invoke("compras-google", { body });
+    if(!r.error) return { ok: Array.isArray(body.compras) || !!(r.data && r.data.ok), reconocer: !!(r.data && r.data.reconocer), resultados: (r.data && r.data.resultados) || [] };
+    let j = null; try{ j = await r.error.context.json(); }catch(e){}
+    return { ok: false, resultados: [], error: (j && j.error) || (r.error.name === "FunctionsFetchError" ? "No se pudo conectar." : r.error.message), codigo: j && j.codigo };
+  }catch(e){ return { ok: false, resultados: [], error: (e && e.message) || String(e) }; }
+}
+// Varias compras juntas; las que el servidor guardó pero no pudo reconocer las reconoce la app
+// (si nadie las reconoce en 3 días, Google devuelve la plata).
+async function mandarGoogle(lista){
+  const env = await enviarGoogle({ compras: lista.map(c => ({ token: c.token, producto: c.producto })) });
+  for(let i = 0; i < lista.length; i++){
+    const x = env.resultados[i];
+    if(x && x.ok && x.reconocer) { try{ await reconocerGoogle(lista[i].token); }catch(e){} }
+  }
+  return env;
+}
+
+// Una vez por sesión de coach: las compras que llegan solas (una pendiente que se acreditó, una
+// renovación) van al servidor, y se miran las suscripciones de este celular.
+function iniciarGoogle(){
+  if(G.iniciado || !State.cloudUser) return;
+  G.iniciado = true;
+  escucharGoogle(ev => {
+    if(!esPlanGoogle(ev) || ev.estado !== "comprada" || !State.sb || !State.cloudUser) return;
+    enviarGoogle({ token: ev.token, producto: ev.producto }).then(r => {
+      if(r.ok && r.reconocer) return reconocerGoogle(ev.token).catch(() => {});
+    }).then(() => loadBilling()).then(rerender, () => {});
+  });
+  if(comprasGoogle("planes")) cargarProductosGoogle();
+  revisarGoogle(false);
+}
+
+// Las suscripciones de planes de este celular: las que el servidor todavía no reconoció (o todas, o la
+// del plan si vence en menos de un día, por si Google ya la renovó y el aviso no llegó) van a la
+// función. Si la del plan está suspendida, el aviso propio de Google (una vez por sesión).
+async function revisarGoogle(todas){
+  let lista;
+  try{ lista = (await vigentesGoogle()).filter(esPlanGoogle); }catch(e){ return; }
+  G.vigentes = lista;
+  const r = B.row, mia = r && r.google_token;
+  const pronto = !!(r && r.google_vence && new Date(r.google_vence).getTime() - Date.now() < 864e5);
+  G.suspendida = lista.some(c => c.suspendida && (!mia || c.token === mia));
+  const mandar = lista.filter(c => c.estado === "comprada" && !c.suspendida && (todas || !c.reconocida || (c.token === mia && pronto)));
+  if(mandar.length){ await mandarGoogle(mandar); await loadBilling(); }
+  rerender();
+  if(G.suspendida && !G.aviso){
+    G.aviso = true;
+    // Si lo arregló ahí mismo, se vuelve a mirar (sin volver a mostrar el aviso: si Google todavía la
+    // ve suspendida, el aviso se repetiría sin fin).
+    try{ const a = await avisosGoogle(); if(a && a.estado === "actualizada") await revisarGoogle(true); }catch(e){}
+  }
+}
+
+async function comprarPlanGoogle(plan){
+  if(!State.sb || !State.cloudUser || B.busy || !comprasGoogle("planes") || G.suspendida) return;
+  const b = billing();
+  B.busy = plan; A.exito = false; rerender();
+  // Cambiar de plan: se reemplaza la suscripción que tiene, que tiene que estar en este celular (si
+  // es de otra cuenta de Google, no se puede: pagaría dos).
+  let reemplazo = null;
+  if(b.google){
+    try{ G.vigentes = (await vigentesGoogle()).filter(esPlanGoogle); }catch(e){}
+    const vieja = (G.vigentes || []).find(c => c.token === B.row.google_token);
+    if(!vieja){ B.busy = false; rerender(); alert(OTRA_GOOGLE); return; }
+    const nuevo = PLANS.find(p => p.id === plan);
+    reemplazo = { token: vieja.token, producto: vieja.producto, modo: nuevo && nuevo.max > b.max ? "subir" : "bajar" };
+  }
+  let r;
+  try{ r = await comprarGoogle(plan, State.cloudUser.id, reemplazo); }
+  catch(e){ B.busy = false; rerender(); alert("No se pudo completar la compra: " + ((e && e.message) || e)); return; }
+  // Cerró la hoja de Google sin comprar: nada.
+  if(!r || r.estado === "cancelado"){ B.busy = false; rerender(); return; }
+  // Google dice que esa suscripción ya es de esta cuenta de Google: se recupera.
+  if(r.estado === "ya" || !r.token){ B.busy = false; rerender(); await recuperarPlanesGoogle(); return; }
+  const producto = r.producto || productoDelPlanGoogle(plan);
+  G.vigentes = (G.vigentes || []).filter(c => !reemplazo || c.token !== reemplazo.token).concat([{ token: r.token, producto, estado: r.estado === "ok" ? "comprada" : "pendiente" }]);
+  // La pendiente también va: queda anotada y se activa sola cuando Google cobre.
+  const env = await enviarGoogle({ token: r.token, producto });
+  if(env.ok && env.reconocer) { try{ await reconocerGoogle(r.token); }catch(e){} }
+  await loadBilling();
+  B.busy = false;
+  const bl = billing();
+  if(r.estado === "pendiente" || env.codigo === "pendiente"){ rerender(); alert(PENDIENTE_GOOGLE); return; }
+  if(env.ok && bl.paid){
+    A.exito = true; rerender();
+    alert("¡Listo! Tu plan de " + bl.max + " " + (bl.plan && bl.plan.gym ? "alumnos" : "clientes") + " está activo.");
+  } else {
+    rerender();
+    alert(env.codigo === "otra-cuenta" ? "Esa suscripción de Google Play es de otra cuenta de GIZE. Entrá con esa cuenta para usarla."
+      : "Google Play confirmó tu compra, pero todavía no pudimos activar tu plan. Se activa solo en unos minutos; si no, tocá «Recuperar mi suscripción».");
+  }
+}
+
+async function recuperarPlanesGoogle(){
+  if(!State.sb || B.busy) return;
+  B.busy = "restaurar"; rerender();
+  let lista = null, err = "";
+  try{ const r = await restaurarGoogle(); lista = ((r && r.compras) || []).filter(esPlanGoogle); }
+  catch(e){ err = (e && e.message) || String(e); }
+  if(lista) G.vigentes = lista;
+  const compradas = (lista || []).filter(c => c.estado === "comprada");
+  let ok = 0, otra = 0;
+  if(compradas.length){
+    const env = await mandarGoogle(compradas);
+    if(!env.ok) err = env.error || "no se pudo conectar";
+    ok = env.resultados.filter(x => x && x.ok).length;
+    otra = env.resultados.filter(x => x && x.codigo === "otra-cuenta").length;
+  }
+  await loadBilling();
+  B.busy = false; rerender();
+  alert(err ? "No se pudo recuperar tu suscripción: " + err
+    : ok && billing().google ? "Listo: recuperamos tu suscripción de Google Play."
+    : otra ? "Tu suscripción de Google Play es de otra cuenta de GIZE. Entrá con esa cuenta para usarla."
+    : (lista || []).some(c => c.estado === "pendiente") ? PENDIENTE_GOOGLE
+    : "No encontramos una suscripción vigente en tu cuenta de Google Play.");
+}
+
+// «Administrar en Google Play»: abre la suscripción en Play Store. Al volver a la app (pudo cancelar
+// la renovación o arreglar el pago), se vuelve a mirar.
+async function administrarPlanGoogle(){
+  const r = B.row, b = billing();
+  const mia = r && r.google_token && (G.vigentes || []).find(c => c.token === r.google_token);
+  try{ await administrarGoogle((mia && mia.producto) || productoDelPlanGoogle(b.plan && b.plan.id)); G.volver = true; }
+  catch(e){ alert("No se pudo abrir Google Play. Podés manejar tu suscripción desde Play Store → Pagos y suscripciones → Suscripciones."); }
+}
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible" && G.volver){ G.volver = false; revisarGoogle(true); }
+});
+
 async function unlinkClient(id){
   const c = CoachState.coachClients.find(x => x.id === id); if(!c) return;
   if(!await confirmar("¿Desvincular a " + (c.full_name || "este cliente") + "? Deja de verte como coach; sus datos quedan en su cuenta.")) return;
@@ -597,7 +794,7 @@ export async function checkPaymentReturn(){
 }
 
 // gym: { usados } para el dueño de un gimnasio (solo los planes de gimnasio); sin eso, como siempre.
-export function openPlan(gym){ if(SIN_PLANES) return; B.gym = gym && typeof gym === "object" && !(gym instanceof Event) ? gym : null; B.open = true; A.exito = false; renderPlanSheet(); if(IAP && !productosApple()) cargarPlanesApple(); }
+export function openPlan(gym){ if(sinPlanes()) return; B.gym = gym && typeof gym === "object" && !(gym instanceof Event) ? gym : null; B.open = true; A.exito = false; renderPlanSheet(); const T = tienda(); if(T && T.vende() && !T.prods()) cargarPlanes(T); }
 
 document.body.addEventListener("click", e => {
   const b = e.target.closest("[data-plan]"); if(!b || b.disabled) return;
@@ -605,10 +802,13 @@ document.body.addEventListener("click", e => {
   if(a === "open"){ openPlan(); return; }
   if(a === "close"){ B.open = false; renderPlanSheet(); return; }
   if(a === "cancel"){ cancelRenewal(); return; }
-  if(a === "choose"){ if(IAP) comprarPlanApple(b.dataset.id); else if(!IS_NATIVE) choose(b.dataset.id); return; }
+  if(a === "choose"){ if(IAP) comprarPlanApple(b.dataset.id); else if(googlePlay()) comprarPlanGoogle(b.dataset.id); else if(!IS_NATIVE) choose(b.dataset.id); return; }
   if(a === "apple-restore"){ if(IAP) restaurarPlanesApple(); return; }
   if(a === "apple-manage"){ if(IAP) administrarPlanApple(); return; }
-  if(a === "apple-retry"){ if(IAP){ A.fallo = false; cargarPlanesApple(); } return; }
+  if(a === "apple-retry"){ if(IAP){ A.fallo = false; cargarPlanes(T_APPLE); } return; }
+  if(a === "google-restore"){ if(googlePlay()) recuperarPlanesGoogle(); return; }
+  if(a === "google-manage"){ if(googlePlay()) administrarPlanGoogle(); return; }
+  if(a === "google-retry"){ if(googlePlay()){ A.fallo = false; cargarPlanes(T_GOOGLE); } return; }
   if(a === "codigo-abrir"){ if(IS_NATIVE) return; COD.open = true; rerender(); const i = document.querySelector('[data-plan="codigo"]'); if(i) i.focus(); return; }
   if(a === "codigo-aplicar"){ if(!IS_NATIVE) aplicarCodigo(); return; }
   if(a === "mail-edit"){ B.mailOpen = true; renderPlanSheet(); const i = document.querySelector('[data-plan="mail"]'); if(i) i.focus(); return; }

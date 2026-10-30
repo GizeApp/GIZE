@@ -25,12 +25,11 @@ import { avatarHtml } from '../../core/avatar.js';
 
 import { unreadFor } from '../../ui/chat.js';
 
-import { billing, renderPaywall, renderPlanBanner } from './plan.js';
+import { billing, conTienda, renderPaywall, renderPlanBanner } from './plan.js';
 import { renderSettingsView } from './settings.js';
 import { lineaPagina } from './pagina.js';
 
 import { appNativa } from '../../core/tienda.js';
-import { comprasApple } from '../../core/compras-apple.js';
 
 import { renderCoachSalidas, salidasTileText } from './salidas.js';
 import { syncRouteViews } from '../../ui/mapa.js';
@@ -67,21 +66,23 @@ function secHead(title, kind){
 // Código para que se vinculen clientes. Con el cupo del plan lleno no se muestra: nadie más se
 // puede vincular (la base lo rechaza igual) y en su lugar se ofrece un plan más grande.
 // En la app de Android (core/tienda.js appNativa) el aviso no nombra el plan: solo que llegó al
-// máximo. En la de iPhone, con los planes de Apple (core/compras-apple.js), es el de la web.
+// máximo. En la de iPhone, con los planes de Apple (core/compras-apple.js), y en la de Android con
+// Google Play prendido (core/compras-google.js), es el de la web, con «Ver planes» de la tienda.
 // Código viejo (6 caracteres, de antes de supabase/endurecer-base.sql): sigue sirviendo, pero es
 // más fácil de adivinar; se le sugiere cambiarlo (supabase/coach-alumnos.sql).
 // Profe de un gimnasio (screens/coach/gimnasio.js): primero el código del gimnasio; el personal, solo
 // si tiene alumnos propios o un plan propio (billing().propio), y en las apps sin «Ver planes».
 // Debajo del código, la línea de «Mi página» (pagina.js: compartir el link o crearla). Con el cupo lleno
 // no, porque nadie más se puede sumar.
-const IS_NATIVE_APP = appNativa() && !comprasApple();
+// Una función: el interruptor de Google Play llega después de abrir (plan.js loadBilling).
+const sinTienda = () => appNativa() && !conTienda();
 function inviteBox(){
   if(esProfeGym()) return inviteGym(billing().propio ? cajaPersonal(true) : "");
   return cajaPersonal(false);
 }
 function cajaPersonal(profe){
   const b=billing(), viejo=!!CoachState.coachInvite && String(CoachState.coachInvite).length<8;
-  if(b.known && b.atCap && (IS_NATIVE_APP || (profe && appNativa()))) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de alumnos de tu cuenta.</b><div class="co-invite-sub">Nadie más se puede vincular con tu código.</div></div>';
+  if(b.known && b.atCap && (sinTienda() || (profe && appNativa()))) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de alumnos de tu cuenta.</b><div class="co-invite-sub">Nadie más se puede vincular con tu código.</div></div>';
   if(b.known && b.atCap) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de tu plan</b> ('+b.count+'/'+b.max+' clientes)<div class="co-invite-sub">Para sumar más clientes pasate a un plan más grande.</div><button class="co-copy-btn" data-plan="open">Ver planes</button></div>';
   if(profe) return '<div class="co-invite">Tu código personal<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Para tus alumnos propios, de afuera del gimnasio.'+(viejo?' Es un código del formato anterior, más fácil de adivinar: te conviene cambiarlo.':'')+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div>'+lineaPagina()+'</div>';
   return '<div class="co-invite">Tu código de invitación<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Compartíselo a tus clientes para que se vinculen a vos.'+(viejo?' Es un código del formato anterior, más corto y fácil de adivinar: te conviene cambiarlo. Sirve hasta que lo cambies.':'')+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div>'+lineaPagina()+'</div>';

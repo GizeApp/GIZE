@@ -31,8 +31,10 @@ Se publica en gize.ar con GitHub Pages desde `main`.
 
 - **iPhone:** nunca mostrar precios de la web, links de pago ni Mercado Pago. Las compras van
   con Apple (planes de coach y, cuando esté, IA Plus) y se muestran solo los precios de Apple.
-- **Android:** no se venden suscripciones dentro de la app hasta sumar el cobro de Google Play;
-  sin precios ni links a la web.
+- **Android:** nunca mostrar precios de la web, links de pago ni Mercado Pago. Las compras van
+  con Google Play (planes de coach y, cuando esté, IA Plus), solo con su interruptor del admin
+  prendido, y se muestran solo los precios de Google Play. Apagado, sin planes ni precios.
+- Google Play nunca aparece en la app de iPhone, y Apple nunca en la de Android.
 - La IA de comida pide permiso una sola vez antes de mandar nada (`app/ui/ia-permiso.js`) y
   cumple lo que dice `privacidad/index.html`. Si cambiás qué se manda o qué se guarda, la
   política tiene que cambiar en el mismo cambio.
