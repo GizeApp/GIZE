@@ -1,12 +1,13 @@
 // Cobros del coach en las apps de iPhone y Android (Capacitor simulado, como coach-iphone.test.mjs), en
-// el celular y en una tablet. Queda escrito qué se permite: los montos que cobra el coach sí (no son
-// precios de GIZE); nada del plan de GIZE, de suscripciones ni de pagar por fuera.
+// el celular y en una tablet. Queda escrito qué se permite (AGENTS.md, «Reglas de las tiendas»): los
+// montos que cobra el coach sí (no son precios de GIZE); nada del plan de GIZE, de precios, de
+// suscripciones ni de pagar por fuera.
 // - Con el interruptor de fábrica (web prendida, apps apagadas) o con solo la otra app prendida: no
 //   aparece nada de Cobros (ni el botón, ni la tira de Inicio, ni la tarjeta de la ficha) y no se pide
 //   nada del panel del gimnasio.
 // - Prendido en esa app: la pantalla Cobros, «Cargar cuotas», «Anotar cobro», «Cobros del mes» y la ficha
-//   sin palabras del plan ni de suscripciones (prueba, gratis, plan de GIZE, tu plan, suscrip, contrat,
-//   tarjeta, Mercado Pago), sin links a gize.ar, Mercado Pago ni a un checkout, y sin el CSV (se baja
+//   sin palabras del plan ni de suscripciones (prueba, gratis, plan, precio, suscrip, contrat, tarjeta,
+//   Mercado Pago), sin links a gize.ar, Mercado Pago ni a un checkout, y sin el CSV (se baja
 //   desde la web). La tira de Inicio, sin «$».
 // - El «Atrás» de Android cierra la ventana y se queda en Cobros.
 import { wait } from './lib.mjs';
@@ -19,7 +20,7 @@ const APP = plat => `(() => { window.__ls = {}; window.__min = 0;
     App: { getInfo: async () => ({ build: '999', version: 'x' }), getLaunchUrl: async () => null,
       addListener: (ev, cb) => { (window.__ls[ev] = window.__ls[ev] || []).push(cb); return Promise.resolve({ remove(){} }); },
       minimizeApp: async () => { window.__min++; }, exitApp: async () => { window.__min++; } } } }; })();`;
-const PROHIBIDO = /prueba|gratis|plan de gize|tu plan|suscrip|contrat|tarjeta|mercado ?pago/i;
+const PROHIBIDO = /prueba|gratis|\bplan\b|precio|suscrip|contrat|tarjeta|mercado ?pago/i;
 const LINKS = 'a[href*="gize.ar"], a[href*="mercadopago"], a[href*="checkout"], a[href*="mpago"]';
 const TABLET = { width: 1024, height: 1366 };
 const NOMBRE = { ios: 'iPhone', android: 'Android' };

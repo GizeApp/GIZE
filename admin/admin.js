@@ -583,8 +583,9 @@ const planTxt = p => ({ trial: "Prueba", p10: "Hasta 10", p25: "Hasta 25", p50: 
 async function loadCoaches(){
   page("Coaches y pagos", "Tocá un coach para cargar un pago, darle cortesía o más días de prueba.",
     userTabs("coaches") + '<div id="cSoon"></div>' + block("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>') +
-    block("cCodB", "Códigos de fundador", '<div id="cCod" class="empty">Cargando…</div>'));
-  loadCodigos();
+    block("cCodB", "Códigos de fundador", '<div id="cCod" class="empty">Cargando…</div>') +
+    block("cCobB", "Cobros de los coaches", '<div id="cCob" class="empty">Cargando…</div>'));
+  loadCodigos(); loadCobrosAdmin();
   const box = document.getElementById("cList");
   try { S.coaches = await rpc("admin_coaches"); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.coaches.length){ box.textContent = "Todavía no hay coaches."; return; }
@@ -631,6 +632,66 @@ async function loadCodigos(){
     <label class="lbl">Descuento (%)</label><input class="in" id="codPct" type="number" min="1" max="90" value="30">
     <label class="lbl">Cupo (coaches)</label><input class="in" id="codCupo" type="number" min="1" max="10000" value="20">
     <div class="search" style="margin:8px 0 0"><button class="btn blue" data-a="codSave">Guardar código</button></div>`;
+}
+
+// Cobros de los coaches (supabase/cobros-coach.sql): el coach anota lo que le pagan sus alumnos
+// (efectivo, transferencia u otro) y ve quién está al día. GIZE no cobra ni mueve plata. Acá se prende
+// o se apaga por separado en la web, en Android y en iPhone (admin_cobros: vale al instante y sin sacar
+// otra versión) y se ve cuántos lo usan, solo cantidades y sin montos (admin_cobros_estado). Nace con
+// la web prendida y las apps apagadas: en las apps se prende después de revisar las etiquetas de
+// privacidad de cada tienda (antes).
+const COB_PLAT = [
+  { k: "web", nombre: "Web", corto: "la web", en: "la web", antes: "" },
+  { k: "android", nombre: "Android", corto: "Android", en: "la app de Android", antes: "Play Console → Seguridad de los datos declare «Información financiera → Historial de compras»" },
+  { k: "ios", nombre: "iPhone", corto: "iPhone", en: "la app de iPhone", antes: "App Store Connect → App Privacy declare «Historial de compras»" }];
+const cobOn = (sw, k) => !!(sw && sw[k] === true);
+const cobLista = l => l.length < 2 ? l.join("") : l.slice(0, -1).join(", ") + " y " + l[l.length - 1];
+// Lo que quedó en el registro de acciones (admin_cobros): «Web prendido · Android apagado · iPhone apagado».
+const cobLog = d => d && d.ahora ? COB_PLAT.map(c => c.nombre + (cobOn(d.ahora, c.k) ? " prendido" : " apagado")).join(" · ") : "";
+async function loadCobrosAdmin(){
+  let d = null, err = null;
+  try { d = await rpc("admin_cobros_estado"); } catch (e) { err = e; }
+  if (S.view !== "coaches") return;
+  S.cobros = d && typeof d === "object" ? d : null;
+  if (S.cobros) return paintCobrosAdmin();
+  const box = document.getElementById("cCob"); if (!box) return;
+  const falta = err && (err.code === "PGRST202" || /admin_cobros_estado|schema cache|does not exist/i.test(errMsg(err)));
+  box.innerHTML = falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/cobros-coach.sql</b>. Nace prendido en la web y apagado en las apps."
+    : esc(err ? errMsg(err) : "No se pudo leer cómo está Cobros. Recargá la página.");
+}
+// foco: el interruptor que se acaba de tocar (la tarjeta se vuelve a dibujar y el foco vuelve ahí).
+function paintCobrosAdmin(foco){
+  const box = document.getElementById("cCob"), d = S.cobros; if (!box || !d) return;
+  const sw = d.interruptor || {};
+  const ayuda = c => cobOn(sw, c.k) ? (c.k === "web" ? "Prendido: los coaches lo ven en su panel y sus alumnos ven su cuota y sus pagos en Ajustes → Tu coach."
+      : "Prendido: los coaches ven en su panel los montos que cobran; sus alumnos, solo el estado y la fecha de su cuota (sin montos).")
+    : "Apagado: no aparece nada de Cobros." + (c.antes ? " Prendelo recién cuando " + c.antes + "." : " Lo anotado queda guardado.");
+  const sws = `<div class="ia-funs">${COB_PLAT.map(c => `<div class="ia-fun"><div>En ${c.en}<small>${ayuda(c)}</small></div>
+      <button class="tgl" role="switch" aria-checked="${cobOn(sw, c.k) ? "true" : "false"}" aria-label="Cobros en ${c.en}" data-a="cobOn" data-k="${c.k}"></button></div>`).join("")}</div>`;
+  const k = (n, l, s) => `<div class="kpi"><b>${n0(n)}</b><span>${l}</span><small>${s}</small></div>`;
+  const nums = `<div class="grid kpis">${k(d.coaches, "Coaches que lo usan", "Con al menos una cuota cargada.")}${k(d.alumnos, "Alumnos con cuota", "Los montos los ve solo su coach.")}${k(d.cobros_mes, "Cobros anotados este mes", "Sin los anulados.")}</div>`;
+  box.className = "";
+  box.innerHTML = `<div class="sec-s">Cada coach anota cuánto le paga cada alumno y los cobros que ya recibió (en efectivo, por transferencia u otro medio). GIZE no cobra ni mueve plata: no hay links ni datos para pagar. Cada interruptor vale al instante y sin sacar otra versión: si una tienda lo objeta, se apaga solo ahí.</div>`
+    + sws + nums;
+  const on = COB_PLAT.filter(c => cobOn(sw, c.k)).map(c => c.corto);
+  setSum("cCobB", (on.length ? '<span class="t-ok">prendido</span> en ' + cobLista(on) : "apagado") + (num(d.coaches) ? " · " + n0(d.coaches) + (num(d.coaches) === 1 ? " coach" : " coaches") : ""));
+  if (foco){ const el = box.querySelector(foco); if (el) try { el.focus({ preventScroll: true }); } catch (e) {} }
+}
+// Prender o apagar Cobros en una plataforma (pregunta antes). En las apps recuerda revisar la tienda.
+async function cobrosOnOff(btn){
+  const d = S.cobros, c = COB_PLAT.find(x => x.k === btn.dataset.k); if (!d || !c) return;
+  const on = btn.getAttribute("aria-checked") !== "true";
+  const msg = !on ? "¿Apagar Cobros en " + c.en + "? Deja de verse ahí al instante, para los coaches y para sus alumnos. Lo que anotaron queda guardado y se sigue viendo donde esté prendido."
+    : c.k === "web" ? "¿Prender Cobros en la web? Los coaches lo ven en su panel (anotan cuotas y cobros) y sus alumnos ven su cuota y sus pagos en Ajustes → Tu coach."
+    : "¿Prender Cobros en " + c.en + "? Los coaches lo ven en su panel, con los montos que cobran, y sus alumnos ven en Ajustes solo el estado y la fecha de su cuota (sin montos).\n\nAntes, fijate que " + c.antes + ". Si la tienda lo objeta, lo apagás acá y se va al instante, sin sacar otra versión.";
+  if (!await confirmar(msg, { titulo: "Cobros de los coaches", ok: on ? "Prender" : "Apagar" })) return;
+  btn.disabled = true;
+  try {
+    const r = await rpc("admin_cobros", { p: { [c.k]: on } });
+    d.interruptor = r && typeof r === "object" ? r : Object.assign({}, d.interruptor, { [c.k]: on });
+    toast("Cobros en " + c.en + ": " + (on ? "prendido" : "apagado"));
+  } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  paintCobrosAdmin('[data-a="cobOn"][data-k="' + c.k + '"]');
 }
 
 // Vencimientos: a quién escribirle. Pago o prueba que vence en los próximos 7 días, y los
@@ -2130,9 +2191,9 @@ async function loadSeguridad(){
     objetivo_nuevo: "Agregó un objetivo", objetivo: "Cambió un objetivo", objetivo_borrar: "Borró un objetivo",
     tarea_nueva: "Agregó una tarea", tarea: "Cambió una tarea", tarea_hecha: "Marcó una tarea como hecha", tarea_deshacer: "Volvió a abrir una tarea", tarea_borrar: "Borró una tarea",
     gym_convertir: "Convirtió una cuenta en gimnasio", gym_transferir: "Transfirió un gimnasio", gym_cerrar: "Cerró un gimnasio", gym_profes_extra: "Cambió el tope de profes de un gimnasio",
-    gym_auditoria: "Exportó la auditoría de un gimnasio", seats_drift: "Diferencia en el cupo (tarea diaria)", resumen_semanal: "Cambió el resumen de los lunes" }[a.action] || a.action);
+    gym_auditoria: "Exportó la auditoría de un gimnasio", seats_drift: "Diferencia en el cupo (tarea diaria)", resumen_semanal: "Cambió el resumen de los lunes", cobros: "Cambió Cobros de los coaches" }[a.action] || a.action);
   const goalTxt = d => d ? (d.label || (METRICS[d.metric] || [d.metric])[0]) + (d.target != null ? " · meta " + (METRICS[d.metric] || [, n0])[1](d.target) : "") : "";
-  const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : a.action === "resumen_semanal" ? resLog(a.detail) : (a.target_name || "");
+  const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : a.action === "resumen_semanal" ? resLog(a.detail) : a.action === "cobros" ? cobLog(a.detail) : (a.target_name || "");
   setSum("sAudB", "última: " + esc(what(S.audit[0])).toLowerCase() + " · " + ago(S.audit[0].created_at));
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Sobre</th></tr></thead><tbody>${S.audit.map(a => `<tr><td class="muted">${fmtDT(a.created_at)}</td><td>${esc(a.admin_name || "—")}</td><td>${esc(what(a))}</td><td class="muted">${esc(extra(a) || "")}</td></tr>`).join("")}</tbody></table>`;
@@ -2213,6 +2274,7 @@ document.addEventListener("click", async e => {
       await rpc("admin_codigo_fundador_guardar", { p_codigo: cod, p_porcentaje: pct, p_cupo: cupo, p_activo: ya ? ya.activo : true });
       toast("Código guardado"); loadCodigos(); return;
     }
+    if (a === "cobOn"){ cobrosOnOff(b); return; }
     if (a === "codOnOff"){
       const k = (S.codigos || []).find(x => x.codigo === b.dataset.v); if (!k) return;
       if (k.activo && !await confirmar("¿Apagar el código " + k.codigo + "? Nadie más lo va a poder usar; los que ya lo usaron siguen con su descuento.")) return;
