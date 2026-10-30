@@ -10,13 +10,17 @@
 //      el dueño la prende o cambia el tope, correrlo de nuevo no lo toca;
 //    - el permiso: ia_permiso acepta de la versión de la foto a la de la voz y guarda la que vio la
 //      app; ia_permiso_texto ('viejo' con la de la foto, 'ok' con la de la voz, 'no' apagado, null
-//      sin preguntar), que la app no puede llamar; no toca el permiso del coach (ni al revés); si
-//      algún día el aviso de la foto pasa al de la voz, la voz pide el más nuevo;
+//      sin preguntar), que la app no puede llamar; no toca el permiso del coach (ni al revés, y
+//      aceptar solo el del coach no cuenta para la foto ni la voz); si algún día el aviso de la foto
+//      pasa al de la voz, la voz pide el más nuevo;
 //    - ia_mi_estado trae permiso_texto y aviso_texto (también apagada);
-//    - el tope de la voz: 15 por día (la 16.ª no), también con IA Plus; no cuenta en las fotos gratis
-//      de la semana y, sin fotos gratis, la voz sigue (quedan.texto e ia_reservar);
+//    - el tope de la voz: 15 por día (la 16.ª no), también con IA Plus (aunque le dé más fotos por
+//      día que eso); no cuenta en las fotos gratis de la semana y, sin fotos gratis, la voz sigue
+//      (quedan.texto e ia_reservar);
 //    - modo ahorro después de un corte por créditos que ya pasó su hora: el alumno sin coach con plan
-//      ni IA Plus lo ve en ahorro (como lo frena ia_reservar); el alumno de un coach con plan sigue.
+//      ni IA Plus lo ve en ahorro (como lo frena ia_reservar); el alumno de un coach con plan, el que
+//      tiene IA Plus y el coach siguen; un corte que todavía no pasó su hora (o por el tope) se ve
+//      como corte, no como ahorro.
 import { conPg, leer } from './pg.mjs';
 import { ayudas, conCanon } from './gimnasios-comun.mjs';
 
@@ -96,12 +100,14 @@ export default async function ({ t: t0 }){
   t.eq([r[14], r[15], r[16]].map(x => x && x.error), ['42501', '42501', '42501'], 'la app (ni sin sesión) no pregunta ia_permiso_texto; sin sesión no se acepta');
 
   // El de Comida no toca el del coach («Usar IA en tus rutinas») ni al revés.
-  r = await V([[U.CP, 'select public.ia_permiso_rutinas(true, 1)'], [U.CP, `select public.ia_permiso('comida', true, 3)`], ['servicio', PERM(U.CP)], ['postgres', VERS(U.CP)],
+  r = await V([[U.CP, 'select public.ia_permiso_rutinas(true, 1)'], ['servicio', PERM(U.CP)],
+    [U.CP, `select public.ia_permiso('comida', true, 3)`], ['servicio', PERM(U.CP)], ['postgres', VERS(U.CP)],
     [U.CP, `select public.ia_permiso('comida', false)`], ['servicio', PERM(U.CP)],
     [U.CP, `select public.ia_permiso('comida', true, 3)`], [U.CP, 'select public.ia_permiso_rutinas(false)'], ['servicio', PERM(U.CP)], ['postgres', VERS(U.CP)]]);
-  t.eq([r[2], r[3]], [{ comida: 'ok', texto: 'ok', rutinas: 'ok' }, { version: 3, rutinas_version: 1 }], 'aceptar la 3 no toca el permiso del coach');
-  t.eq(r[5], { comida: 'no', texto: 'no', rutinas: 'ok' }, 'apagar la IA de Comida no apaga la del coach');
-  t.eq([r[8], r[9]], [{ comida: 'ok', texto: 'ok', rutinas: 'no' }, { version: 3, rutinas_version: 1 }], 'apagar la del coach no toca la foto ni la voz');
+  t.eq(r[1], { comida: null, texto: null, rutinas: 'ok' }, 'aceptar el del coach no cuenta como preguntado para la foto ni para la voz (su fila tiene la versión 0)');
+  t.eq([r[3], r[4]], [{ comida: 'ok', texto: 'ok', rutinas: 'ok' }, { version: 3, rutinas_version: 1 }], 'aceptar la 3 no toca el permiso del coach');
+  t.eq(r[6], { comida: 'no', texto: 'no', rutinas: 'ok' }, 'apagar la IA de Comida no apaga la del coach');
+  t.eq([r[9], r[10]], [{ comida: 'ok', texto: 'ok', rutinas: 'no' }, { version: 3, rutinas_version: 1 }], 'apagar la del coach no toca la foto ni la voz');
 
   // Si algún día el aviso de la foto pasa al de la voz, la voz pide el más nuevo (y no se acepta uno anterior).
   r = await V([[U.AL, `select public.ia_permiso('comida', true, 3)`], ['postgres', `update public.ia_config set aviso_version = 4 where id = 1`], ['servicio', PERM(U.AL)],
@@ -129,14 +135,18 @@ export default async function ({ t: t0 }){
   t.eq(de(r[5], 'quedan', 'usados', 'plus.usados_semana'), { quedan: { plato: 0, texto: 0 }, usados: { plato: 3, texto: 15, total: 18 }, 'plus.usados_semana': 3 },
     'la voz no cuenta en las fotos gratis de la semana');
 
-  // Con IA Plus comprado: más fotos por día, pero la voz sigue con 15.
-  r = await V([['postgres', PRENDER + `; update public.ia_config set plus = plus || '{"activa": true}' where id = 1`], ['servicio', varias(U.PL, 'texto', 16)], est(U.PL)]);
+  // Con IA Plus comprado: más fotos por día, pero la voz sigue con 15. Las fotos de IA Plus van en
+  // 20 (más que los 15 de la voz): con las 10 de siempre no se notaría si IA Plus le subiera el tope.
+  r = await V([['postgres', PRENDER + `; update public.ia_config set plus = plus || '{"activa": true}', topes = jsonb_set(topes, '{plus,plato}', '20') where id = 1`],
+    ['servicio', varias(U.PL, 'texto', 16)], est(U.PL)]);
   t.eq([r[1] && r[1].filter(x => x === 'ok').length, r[1] && r[1][15]], [15, 'tope_dia'], 'con IA Plus la voz sigue con 15 por día');
-  t.eq(de(r[2], 'tope', 'plus.estado'), { tope: { plato: 10, texto: 15, total: 25 }, 'plus.estado': 'plus' }, 'ia_mi_estado con IA Plus: 10 fotos y 15 con la voz');
+  t.eq(de(r[2], 'tope', 'quedan', 'plus.estado'), { tope: { plato: 20, texto: 15, total: 25 }, quedan: { plato: 10, texto: 0 }, 'plus.estado': 'plus' },
+    'ia_mi_estado con IA Plus: 20 fotos y 15 con la voz');
 
   // Modo ahorro después de un corte por créditos que ya pasó su hora: la próxima reserva deja el
   // ciclo en ahorro, así que el alumno sin coach con plan ni IA Plus ya lo ve así.
-  const CORTE = gastado => `update public.ia_ciclos set estado = 'cortado', cortado_por = 'creditos', vuelve = now() - interval '1 minute', gastado = ${gastado} where inicio <= now() and fin > now()`;
+  const CORTE = (gastado, por = 'creditos', vuelve = "now() - interval '1 minute'") =>
+    `update public.ia_ciclos set estado = 'cortado', cortado_por = '${por}', vuelve = ${vuelve}, gastado = ${gastado} where inicio <= now() and fin > now()`;
   r = await V([['postgres', PRENDER], ['servicio', res(U.AP, 'plato')],
     ['postgres', CORTE(10)], est(U.AL),
     ['postgres', CORTE(150)], est(U.AL), est(U.AP), est(U.PL), ['servicio', res(U.AL, 'texto')], ['servicio', res(U.AP, 'texto')], ['servicio', res(U.PL, 'plato')]]);
@@ -145,6 +155,12 @@ export default async function ({ t: t0 }){
   t.eq([r[5] && r[5].estado, !!(r[5] && r[5].vuelve), r[6] && r[6].estado, r[7] && r[7].estado], ['ahorro', true, 'normal', 'normal'],
     'corte por créditos que ya pasó, con el gasto arriba del ahorro: el alumno sin coach con plan ni IA Plus lo ve en ahorro; el de un coach con plan y el que tiene IA Plus siguen');
   t.eq([cod(r[8]), cod(r[9]), cod(r[10])], ['ahorro', 'ok', 'ok'], 'y ia_reservar lo frena igual (la voz también)');
+  r = await V([['postgres', PRENDER], ['servicio', res(U.AP, 'plato')], ['postgres', CORTE(150)], est(U.CP), ['servicio', res(U.CP, 'texto', 'coach')]]);
+  t.eq([r[3] && r[3].estado, cod(r[4])], ['normal', 'ok'], 'el coach no tiene modo ahorro en la foto ni en la voz');
+  // Si el corte todavía no pasó su hora (o es por el tope del ciclo), manda el corte, no el ahorro.
+  r = await V([['postgres', PRENDER], ['servicio', res(U.AP, 'plato')],
+    ['postgres', CORTE(150, 'creditos', "now() + interval '20 minutes'")], est(U.AL), ['postgres', CORTE(150, 'tope', 'null')], est(U.AL)]);
+  t.eq([r[3] && r[3].estado, r[5] && r[5].estado], ['pausada', 'tope_mes'], 'cortado por créditos antes de su hora o por el tope, con el gasto arriba del ahorro: se ve el corte');
   await db.borrar();
 
   // ===== Una base de antes (como la de verdad hoy) y correr ia.sql de nuevo =====
