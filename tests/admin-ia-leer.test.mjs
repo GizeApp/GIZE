@@ -14,7 +14,7 @@
 //   otra vez (no hay dos llamadas pagas).
 // - La página IA: el interruptor (arranca apagado), la fecha de los créditos, la de la política, la
 //   función de Pedidos, la foto del plato (sin «Contame qué comiste»: solo fotos), «Pasar planillas
-//   (coach)» con su modelo y el aviso de que falta la clave.
+//   (coach)» y «Armar rutina (coach)» con su modelo, y el aviso de que falta la clave.
 // - Inicio: si la IA está cortada, aparece en «Para atender».
 import { newPage, wait, text, ADMIN } from './lib.mjs';
 
@@ -32,10 +32,11 @@ const ESTADO = (extra = {}) => Object.assign({ activa: true, funciones: { etique
   por_funcion: { etiqueta: { usos: 12, usd: 0.0123 } }, errores: {}, tablas: { leidas: 12, sin_tabla: 1, publicadas: 10, sin_corregir: 8, kcal_bien: 9 }, clave_rechazada: null, ultimas: [] }, extra);
 const LEIDO = { ok: true, encontrada: true, unidad: 'g', columna: 'porcion', porcion: 50, por_porcion: false, kcal: 438, p: 5.6, c: 60, f: 20, revisar: false, dudosos: ['carbohidratos'], modelo: 'm1', modelo_nombre: 'Modelo de prueba' };
 
-const FN_ESTADO = { ok: true, clave: true, modelos: [{ id: 'm1', nombre: 'Modelo de prueba', defecto: true, tabla: true, usd_tabla: 0.0005, planilla: true, usd_planilla: 0.0027 },
-  { id: 'm2', nombre: 'Modelo capaz', defecto: false, tabla: true, usd_tabla: 0.0098, planilla: true, usd_planilla: 0.0536 }, { id: 'm3', nombre: 'Modelo de platos', defecto: false, tabla: false, usd_tabla: 0.004, planilla: false, usd_planilla: 0.027 }] };
-// La función «ia» de antes del modo «planilla» (todavía sin publicar la nueva): no dice qué modelos sirven para las planillas.
-const FN_VIEJA = Object.assign({}, FN_ESTADO, { modelos: FN_ESTADO.modelos.map(({ planilla, usd_planilla, ...m }) => m) });
+const FN_ESTADO = { ok: true, clave: true, modelos: [{ id: 'm1', nombre: 'Modelo de prueba', defecto: true, tabla: true, usd_tabla: 0.0005, planilla: true, usd_planilla: 0.0027, rutina: true, usd_rutina: 0.0031 },
+  { id: 'm2', nombre: 'Modelo capaz', defecto: false, tabla: true, usd_tabla: 0.0098, planilla: true, usd_planilla: 0.0536, rutina: true, usd_rutina: 0.0496 },
+  { id: 'm3', nombre: 'Modelo de platos', defecto: false, tabla: false, usd_tabla: 0.004, planilla: false, usd_planilla: 0.027, rutina: false, usd_rutina: 0.03 }] };
+// La función «ia» de antes de los modos «planilla» y «rutina» (todavía sin publicar la nueva): no dice qué modelos sirven para las planillas ni para las rutinas.
+const FN_VIEJA = Object.assign({}, FN_ESTADO, { modelos: FN_ESTADO.modelos.map(({ planilla, usd_planilla, rutina, usd_rutina, ...m }) => m) });
 
 // Abre Pedidos con el estado de la IA y la respuesta de la función que se le pase (fnResp para
 // leer; fnEstado para el modo «estado», el de la clave y los modelos). firmaDelay: cuánto tardan
@@ -282,9 +283,10 @@ export default async function ({ base, t }){
   t.eq(await ia.evaluate(() => document.activeElement && document.activeElement.dataset.a), 'iaOn', 'el foco vuelve al interruptor después de guardar');
   await ia.click('[data-a="iaFn"][data-k="etiqueta_admin"]'); await wait(600);
   t.eq(a.rpcs.filter(r => r[0] === 'config')[1], ['config', { p: { funciones: { etiqueta_admin: true } } }], 'prende «Leer tablas en Pedidos»');
-  // «Pasar planillas (coach)» ya se puede prender: la función «ia» tiene su modo (cambió a propósito;
-  // antes estaba deshabilitado). «Armar rutina» sigue esperando su rama.
-  for (const k of ['etiqueta_usuario', 'rutina'])
+  // «Pasar planillas (coach)» y «Armar rutina (coach)» ya se pueden prender: la función «ia» tiene
+  // sus modos y el panel del coach sus pantallas (cambió a propósito; antes «Armar rutina» estaba
+  // deshabilitado, con «Todavía no está en la app»).
+  for (const k of ['etiqueta_usuario'])
     t.ok(await ia.$eval(`[data-a="iaFn"][data-k="${k}"]`, b => b.disabled), 'lo que todavía no está en la app no se puede prender (' + k + ')');
   // El viejo «Resumen de la semana (coach)» con IA, que nunca salió, se sacó del panel para no
   // confundirlo con el «Resumen de los lunes» (cambió a propósito: antes estaba, deshabilitado).
@@ -318,6 +320,27 @@ export default async function ({ base, t }){
   t.ok(await ia.inputValue('#iaModeloPl') === 'm2' && await ia.inputValue('#iaModelo') === '', 'queda elegido, y el de las tablas no cambia');
   await ia.selectOption('#iaModeloPl', ''); await ia.click('[data-a="iaModeloPl"]'); await wait(600);
   t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { modelos: { planilla: null } } }], 'volver al de siempre borra la elección');
+  // «Armar rutina (coach)»: se prende con confirmación, dice dónde lo ve el coach y tiene su modelo
+  // (modelos.rutina), con lo que sale una rutina.
+  const fr = await text(ia, '.ia-funs');
+  t.ok(!(await ia.$eval('[data-a="iaFn"][data-k="rutina"]', b => b.disabled)), '«Armar rutina (coach)» se puede prender');
+  t.has(fr, 'Aparece en el panel del coach, en Rutinas → «Armar con IA», en una rutina vacía y en la rutina de cada alumno.', '«Armar rutina»: dice dónde lo ve el coach');
+  t.ok(!/Armar rutina \(coach\)Todavía no está en la app/.test(fr), '«Armar rutina»: ya no dice que falta en la app');
+  const antesRt = a.rpcs.length;
+  ia.contestar = false;
+  await ia.click('[data-a="iaFn"][data-k="rutina"]'); await wait(700);
+  t.ok(a.dialogs.some(d => d.includes('¿Prender «Armar rutina» para coaches?') && d.includes('«Usar IA en tus rutinas»')), '«Armar rutina»: pide confirmar (y nombra el permiso del coach)');
+  t.eq([a.rpcs.length, await ia.$eval('[data-a="iaFn"][data-k="rutina"]', b => b.getAttribute('aria-checked'))], [antesRt, 'false'], '«Armar rutina»: si no se confirma, no se guarda nada');
+  ia.contestar = true;
+  await ia.click('[data-a="iaFn"][data-k="rutina"]'); await wait(700);
+  t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { funciones: { rutina: true } } }], 'prende «Armar rutina»');
+  t.eq(await ia.$$eval('#iaModeloRt option', os => os.map(o => o.textContent)), ['Modelo de prueba (el de siempre) · unos US$ 0,0031 por rutina', 'Modelo capaz · unos US$ 0,0496 por rutina'], 'el modelo de las rutinas: solo los que sirven, con lo que sale una rutina');
+  t.has(await text(ia, '#iaFunB'), 'Si los borradores no convencen, probá con Modelo capaz: cuesta unas 16 veces más por rutina. En modo ahorro va siempre Modelo de prueba.', 'la ayuda del modelo de las rutinas');
+  await ia.selectOption('#iaModeloRt', 'm2'); await ia.click('[data-a="iaModeloRt"]'); await wait(600);
+  t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { modelos: { rutina: 'm2' } } }], 'guarda el modelo de las rutinas (modelos.rutina)');
+  t.ok(await ia.inputValue('#iaModeloRt') === 'm2' && await ia.inputValue('#iaModeloPl') === '', 'queda elegido, y el de las planillas no cambia');
+  await ia.selectOption('#iaModeloRt', ''); await ia.click('[data-a="iaModeloRt"]'); await wait(600);
+  t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { modelos: { rutina: null } } }], 'volver al de siempre borra la elección (rutinas)');
   // «Contame qué comiste» se sacó (solo fotos): ya no hay interruptor.
   t.ok(!(await ia.$('[data-a="iaFn"][data-k="texto"]')), 'sin el interruptor de «Contame qué comiste»');
   t.ok(!(await text(ia, '.ia-funs')).includes('«Contame qué comiste» (app)'), 'la lista de funciones no lo nombra como función');
@@ -379,6 +402,8 @@ export default async function ({ base, t }){
   const tg = (a.rpcs.filter(r => r[0] === 'config').pop() || [])[1];
   t.eq(tg && tg.p && tg.p.topes && tg.p.topes.coach, { planilla: 30, rutina: 15, total: 60, usd_ciclo: 5 }, 'Guardar topes: el coach sin el del viejo resumen');
   t.ok(!(await a.p.$('#iaModeloPl')) && !!(await a.p.$('#iaModelo')), 'con la función «ia» de antes (sin el modo planilla publicado), sin el modelo de las planillas');
+  t.ok(!(await a.p.$('#iaModeloRt')), 'ni el de las rutinas');
+  t.has(await text(a.p, '#iaTopesB'), '«Rutinas por día» son las de «Armar con IA» del panel del coach', 'Topes: la nota de las rutinas');
   t.eq(a.errs, [], 'errores de la página (IA del coach)');
   await a.close();
   // En el celular, las marcas de la barra no se pisan.
