@@ -9,13 +9,16 @@
 // - Con la cuenta ya borrada no hay sesión para reintentar: las rutas se anotan en
 //   audios_por_borrar y lo que no se llega a borrar (falla o la función se corta) lo borra un
 //   cron cada hora. Antes quedaban para siempre sin dueño.
+// - Coach con una suscripción de Google Play que se renueva: el aviso dice que se cancela (la cancela
+//   borrar-audios); en el iPhone no se nombra Google Play. Si Google no contesta (502, codigo
+//   «google»), se ve el motivo y la cuenta sigue.
 // - Se sacan de la cola de a 50: con 100 rutas el pedido pasaba de 8.000 caracteres.
 // - «Tu cuenta fue eliminada.» (un cartel propio, app/ui/avisos.js, que no frena la app como el
 //   alert() nativo) queda en pantalla hasta tocar «Entendido» y recién ahí la app se recarga.
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-import { newPage, wait, ALUMNO, profile } from './lib.mjs';
+import { newPage, wait, ALUMNO, profile, configCoach, CONFIG_COACH } from './lib.mjs';
 import { funcion, supabaseSimulado } from './funcion.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -34,7 +37,43 @@ async function run(base, fn, tocarAvisos = true){
   return r;
 }
 
+// Coach con un plan de Google Play que se renueva. init: el Capacitor simulado (iPhone).
+const COACH = { id: '33333333-3333-3333-3333-333333333333', email: 'coach@prueba.test', aud: 'authenticated', role: 'authenticated' };
+async function coach(base, fn, init){
+  const fila = { coach_id: COACH.id, plan: 'p25', max_clients: 25, trial_ends_at: new Date(Date.now() - 40 * 864e5).toISOString(),
+    paid_until: new Date(Date.now() + 20 * 864e5).toISOString(), google_token: 'TOK', google_vence: new Date(Date.now() + 20 * 864e5).toISOString(), google_renueva: true };
+  const r = await newPage({ user: COACH, init, handlers: {
+    '/profiles': (x, J, i) => { if (i.m !== 'GET') return undefined; const me = { id: COACH.id, role: 'coach', full_name: 'Coach Prueba' }; return J(i.one ? me : [me]); },
+    '/coach_billing': (x, J, i) => J(i.one ? fila : [fila]),
+    '/functions/v1/borrar-audios': fn } });
+  r.p.dialogAnswer = 'ELIMINAR';
+  await r.p.goto(base + '/app/'); await wait(3000);
+  await configCoach(r.p, 'cuenta');
+  await r.p.click(CONFIG_COACH + ' [data-action="cfg-delete-account"]'); await wait(1500);
+  r.rpc = r.calls.filter(c => c.endsWith('/rpc/delete_own_account')).length;
+  return r;
+}
+
 export default async function ({ base, t }){
+  {
+    // Coach con Google Play (en la web): el aviso dice que se cancela; si Google no contesta, no se borra.
+    const { preguntas, dialogs, errs, rpc, close } = await coach(base, (x, J) => J({ error: 'No se pudo cancelar tu suscripción de Google Play. Probá de nuevo en un rato.', codigo: 'google' }, 502));
+    const q = preguntas.find(x => x.tipo === 'confirmar');
+    t.has(q && q.texto, 'Se cancela tu suscripción de Google Play: no se te cobra más.', 'coach con Google Play: el aviso dice que se cancela la suscripción');
+    t.ok(dialogs.some(d => d.includes('No se pudo eliminar la cuenta') && d.includes('No se pudo cancelar tu suscripción de Google Play')), 'si Google no contesta, se ve el motivo: ' + JSON.stringify(dialogs));
+    t.ok(!dialogs.includes('Tu cuenta fue eliminada.') && rpc === 0, 'si Google no contesta, no se borra la cuenta');
+    t.eq(errs, [], 'coach con Google Play: errores de la página');
+    await close();
+  }
+  {
+    // En el iPhone no se nombra Google Play.
+    const IPHONE = `window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: {} };`;
+    const { preguntas, errs, close } = await coach(base, (x, J) => J({ removed: 0, deleted: true }), IPHONE);
+    const q = preguntas.find(x => x.tipo === 'confirmar');
+    t.ok(!!q && !/Google/.test(q.texto), 'coach con Google Play en el iPhone: el aviso no nombra Google Play: ' + (q && q.texto));
+    t.eq(errs, [], 'coach con Google Play en el iPhone: errores de la página');
+    await close();
+  }
   {
     const { dialogs, errs, fn, rpc, close } = await run(base, (x, J) => J({ removed: 2, deleted: true }));
     t.eq(fn, 1, 'función nueva: llama a borrar-audios');

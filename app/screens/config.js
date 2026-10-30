@@ -19,7 +19,7 @@ import { TRACK_KEY } from '../core/salidas.js';
 import { deleteShareFile } from '../ui/compartir.js';
 import { temaOptionsHtml } from '../ui/tema.js';
 import { neonSwitchHtml } from '../ui/neon.js';
-import { appNativa } from '../core/tienda.js';
+import { appIOS, appNativa } from '../core/tienda.js';
 import { cuotaCoach } from '../core/cobros.js';
 import { IA_POR_GIMNASIO, iaAlguna, iaEstado, iaGuardarPermiso, iaPermiso, iaPorGimnasio } from '../core/ia.js';
 import { iaToast, pedirPermisoIA } from '../ui/ia-permiso.js';
@@ -509,12 +509,18 @@ document.body.addEventListener("click", async function (e) {
     // Plan de coach con una suscripción de Apple que se renueva sola (app de iPhone,
     // supabase/compras-apple.sql): Apple la sigue cobrando aunque se borre la cuenta, y solo la
     // puede cancelar el coach desde su cuenta de Apple. Se le avisa antes.
-    let appleAviso = "";
+    // Con Google Play (app de Android) es al revés: la renovación la cancela GIZE al borrar la cuenta
+    // (función borrar-audios; si Google no contesta, no se borra nada). Se le avisa, salvo en el
+    // iPhone, donde no se nombra Google Play.
+    let appleAviso = "", googleAviso = "";
+    const AVISO_GOOGLE = "Se cancela tu suscripción de Google Play: no se te cobra más.\n\n";
     if (isCoach) {
       try {
         const ab = await State.sb.from("coach_billing").select("*").eq("coach_id", State.cloudUser.id).maybeSingle();
         if (ab.data && ab.data.apple_renueva && ab.data.apple_vence && new Date(ab.data.apple_vence).getTime() > Date.now())
           appleAviso = "Ojo: tu suscripción de Apple no se cancela al eliminar la cuenta y Apple te la sigue cobrando. Cancelala antes desde los Ajustes de tu cuenta de Apple (Ajustes → tu nombre → Suscripciones).\n\n";
+        if (ab.data && ab.data.google_renueva && ab.data.google_vence && new Date(ab.data.google_vence).getTime() > Date.now() && !appIOS())
+          googleAviso = AVISO_GOOGLE;
       } catch (err) {}
     }
     // IA Plus con Apple que se renueva: tampoco se cancela al borrar la cuenta. Se pregunta el estado
@@ -523,6 +529,7 @@ document.body.addEventListener("click", async function (e) {
     const pl = plusInfo();
     if (!appleAviso && pl && pl.fuente === "apple" && pl.renueva)
       appleAviso = "Ojo: tu suscripción de IA Plus de Apple no se cancela al eliminar la cuenta y Apple te la sigue cobrando. Cancelala antes desde los Ajustes de tu cuenta de Apple (Ajustes → tu nombre → Suscripciones).\n\n";
+    if (!googleAviso && pl && pl.fuente === "google" && pl.renueva && !appIOS()) googleAviso = AVISO_GOOGLE;
     // Dueño de un gimnasio (core/gimnasio.js): se cierra el gimnasio. Antes se le ofrece exportar todo en
     // CSV (socios, ingresos y equipo). El borrado no se frena (Apple 5.1.1(v)).
     let gymAviso = "";
@@ -534,8 +541,8 @@ document.body.addEventListener("click", async function (e) {
       }
     }
     if (!await confirmar(isCoach
-      ? gymAviso + appleAviso + "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se da de baja tu cuenta de coach. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
-      : appleAviso + "¿Seguro que querés eliminar tu cuenta? Se va a borrar tu rutina, tus registros, tus salidas de Cardio (con sus recorridos) y tu vínculo con tu coach de forma permanente. Esta acción no se puede deshacer.")) return;
+      ? gymAviso + appleAviso + googleAviso + "¿Seguro que querés eliminar tu cuenta de coach? Se borran tus rutinas guardadas, tus plantillas y tus datos de forma permanente, y se da de baja tu cuenta de coach. Tus alumnos quedan sin coach y conservan su rutina y sus registros, pero se borran el chat que tenían con vos y tus explicaciones de voz de los ejercicios. Esta acción no se puede deshacer."
+      : appleAviso + googleAviso + "¿Seguro que querés eliminar tu cuenta? Se va a borrar tu rutina, tus registros, tus salidas de Cardio (con sus recorridos) y tu vínculo con tu coach de forma permanente. Esta acción no se puede deshacer.")) return;
     const typed = await pedir('Para confirmar, escribí ELIMINAR (en mayúsculas):', "", { titulo: "Eliminar cuenta", ok: "Eliminar" });
     if (typed !== "ELIMINAR") { if (typed !== null) alert("No coincide, no se eliminó nada."); return; }
     const prevHtml = delAccBtn.innerHTML;
