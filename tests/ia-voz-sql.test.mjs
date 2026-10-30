@@ -14,7 +14,9 @@
 //      algún día el aviso de la foto pasa al de la voz, la voz pide el más nuevo;
 //    - ia_mi_estado trae permiso_texto y aviso_texto (también apagada);
 //    - el tope de la voz: 15 por día (la 16.ª no), también con IA Plus; no cuenta en las fotos gratis
-//      de la semana y, sin fotos gratis, la voz sigue (quedan.texto e ia_reservar).
+//      de la semana y, sin fotos gratis, la voz sigue (quedan.texto e ia_reservar);
+//    - modo ahorro después de un corte por créditos que ya pasó su hora: el alumno sin coach con plan
+//      ni IA Plus lo ve en ahorro (como lo frena ia_reservar); el alumno de un coach con plan sigue.
 import { conPg, leer } from './pg.mjs';
 import { ayudas, conCanon } from './gimnasios-comun.mjs';
 
@@ -132,6 +134,17 @@ export default async function ({ t: t0 }){
   t.eq([r[1] && r[1].filter(x => x === 'ok').length, r[1] && r[1][15]], [15, 'tope_dia'], 'con IA Plus la voz sigue con 15 por día');
   t.eq(de(r[2], 'tope', 'plus.estado'), { tope: { plato: 10, texto: 15, total: 25 }, 'plus.estado': 'plus' }, 'ia_mi_estado con IA Plus: 10 fotos y 15 con la voz');
 
+  // Modo ahorro después de un corte por créditos que ya pasó su hora: la próxima reserva deja el
+  // ciclo en ahorro, así que el alumno sin coach con plan ni IA Plus ya lo ve así.
+  const CORTE = gastado => `update public.ia_ciclos set estado = 'cortado', cortado_por = 'creditos', vuelve = now() - interval '1 minute', gastado = ${gastado} where inicio <= now() and fin > now()`;
+  r = await V([['postgres', PRENDER], ['servicio', res(U.AP, 'plato')],
+    ['postgres', CORTE(10)], est(U.AL),
+    ['postgres', CORTE(150)], est(U.AL), est(U.AP), est(U.PL), ['servicio', res(U.AL, 'texto')], ['servicio', res(U.AP, 'texto')], ['servicio', res(U.PL, 'plato')]]);
+  t.eq(cod(r[1]), 'ok', 'hay ciclo');
+  t.eq(r[3] && r[3].estado, 'normal', 'corte por créditos que ya pasó, con poco gasto: normal');
+  t.eq([r[5] && r[5].estado, !!(r[5] && r[5].vuelve), r[6] && r[6].estado, r[7] && r[7].estado], ['ahorro', true, 'normal', 'normal'],
+    'corte por créditos que ya pasó, con el gasto arriba del ahorro: el alumno sin coach con plan ni IA Plus lo ve en ahorro; el de un coach con plan y el que tiene IA Plus siguen');
+  t.eq([cod(r[8]), cod(r[9]), cod(r[10])], ['ahorro', 'ok', 'ok'], 'y ia_reservar lo frena igual (la voz también)');
   await db.borrar();
 
   // ===== Una base de antes (como la de verdad hoy) y correr ia.sql de nuevo =====

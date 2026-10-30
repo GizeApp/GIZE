@@ -1217,9 +1217,13 @@ begin
     elsif v_c.cortado_por in ('creditos', 'admin') then v_estado := 'pausada';
     else v_estado := 'tope_mes'; v_vuelve := coalesce(v_c.vuelve, v_c.fin);
     end if;
-  elsif (v_c.estado = 'ahorro' or v_c.gastado + v_c.reservado >= v_c.ahorro) and v_rol = 'alumno'
-        and not exists (select 1 from public.profiles p where p.id = v_uid and p.coach_id is not null and public.coach_pago(p.coach_id))
-        and v_plus ->> 'estado' = 'gratis' then
+  end if;
+  -- Modo ahorro: la foto y la voz, solo para alumnos de un coach con plan y para quien tiene IA Plus
+  -- (los coaches siguen). También con el corte por créditos (o de la Console) que ya pasó su hora:
+  -- la próxima reserva deja el ciclo en ahorro, como en ia_reservar.
+  if v_estado = 'normal' and (v_c.estado = 'ahorro' or v_c.gastado + v_c.reservado >= v_c.ahorro) and v_rol = 'alumno'
+     and not exists (select 1 from public.profiles p where p.id = v_uid and p.coach_id is not null and public.coach_pago(p.coach_id))
+     and v_plus ->> 'estado' = 'gratis' then
     v_estado := 'ahorro'; v_vuelve := v_fin;
   end if;
   -- Lo de hoy de la persona: cuenta lo mismo que ia_reservar (solo con el rol de la app).
