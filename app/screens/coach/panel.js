@@ -14,6 +14,7 @@ import { coachInitials } from './clientes.js';
 import { CoachState } from './state.js';
 import { missingHint } from './planes.js';
 import { botonClases, botonRecepcion, chipGym, esProfeGym, grupos, nombreGym } from './gimnasio.js';
+import { botonCobros } from './cobros.js';
 
 const ico = d => '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';
 const I = {
@@ -46,9 +47,11 @@ const S = {
   route: sm('<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/>'),
   bars: sm('<path d="M5 20V11M12 20V4M19 20v-7"/>'),
   gym: sm('<path d="M3 20h18M5 20V9l7-5 7 5v11M9.5 20v-5h5v5"/>'),
+  // El billete de Cuotas (gym/marco.js): la tarjeta «Cuota» de la ficha (cobros.js).
+  cash: sm('<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/>'),
 };
 // Ícono de cada sección de la ficha del alumno (menú de tarjetas de index.js).
-const SEC_IC = { gimnasio:S.gym, chat:S.chat, ficha:S.user, bloque:S.layers, daily:S.sun, checkin:S.check, hist:S.clock, salidas:S.route, volumen:S.bars, peso:S.scale, habitos:S.check };
+const SEC_IC = { gimnasio:S.gym, cuota:S.cash, chat:S.chat, ficha:S.user, bloque:S.layers, daily:S.sun, checkin:S.check, hist:S.clock, salidas:S.route, volumen:S.bars, peso:S.scale, habitos:S.check };
 export const secIcon = k => SEC_IC[k] || "";
 const unreadAll = () => CoachState.coachClients.reduce((n,c)=>n+(unreadFor(c.id)||0), 0);
 
@@ -69,7 +72,8 @@ export function coachShell(active, inner){
       '<div class="co-brand cv-brand"><img class="brand-logo" src="brand/logo/gize-firma-horizontal.svg" alt="GIZE"><span class="cv-sr">Panel de coach</span>'+chipGym()+'</div>'+
       '<nav class="cv-nav" aria-label="Panel de coach">'+NAV.map(n=>'<button class="cv-nav-i'+(n[0]===active?' on':'')+'" data-coach="view-'+n[0]+'"'+(n[0]===active?' aria-current="page"':'')+(n[0]==="clients"&&unreadAll()?' title="Tenés mensajes sin leer"':'')+'>'+n[2]+(n[0]==="clients"&&unreadAll()?'<i class="cv-pip" aria-hidden="true"></i>':'')+'<span>'+n[1]+'</span></button>').join("")+'</nav>'+
       '<div class="cv-util">'+
-        botonClases(active)+botonRecepcion(active)+
+        // «Cobros» (cobros.js): solo con Cobros a la vista en esta plataforma.
+        botonClases(active)+botonRecepcion(active)+botonCobros(active)+
         '<button class="cv-util-i co-q-btn" data-coach="q-open" title="Preguntas del registro diario y del check-in">'+I.help+'<span>Preguntas</span></button>'+
         '<button class="cv-util-i'+(active==="settings"?' on':'')+'" data-coach="open-settings" title="Configuración"'+(active==="settings"?' aria-current="page"':'')+'>'+gearSvg+'<span>Configuración</span></button>'+
         '<button class="cv-util-i cv-out" data-auth="logout"><span>Salir</span></button>'+
