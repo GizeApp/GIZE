@@ -102,10 +102,21 @@ export default async function ({ base, t }){
     t.ok(!!tj, caso + ': la tarjeta «Tu coach» sigue');
     t.ok(!await p.$('#cfgCoachCuota') && !/cuota|pag|\$/i.test(tj ? tj.t : ''), caso + ': no se ve nada de la cuota: ' + (tj && tj.t));
     t.eq(pg.errs, [], caso + ': sin errores');
-    // Sin la base no se vuelve a preguntar enseguida (ni al volver a Ajustes).
-    if (/sin la base/.test(caso)){
-      await p.click('#nav-entreno'); await wait(300); await ajustes(p);
+    // Sin la base no se vuelve a preguntar por 10 minutos (aunque vuelva a Ajustes) y después sí; sin
+    // cuota, pasado un minuto se vuelve a preguntar (así se ve lo que anote el coach). El reloj de la
+    // página se adelanta a mano.
+    if (/sin la base|sin cuota/.test(caso)){
+      const adelantar = ms => p.evaluate(ms => { const r = Date.now; Date.now = () => r() + ms; }, ms);
+      const volver = async () => { await p.click('#nav-entreno'); await wait(300); await ajustes(p); };
+      await volver();
       t.eq(rpcs(pg.st, 'cobro_mi_cuota').length, 1, caso + ': no se vuelve a preguntar enseguida');
+      await adelantar(2 * 60e3); await volver();
+      if (/sin la base/.test(caso)){
+        t.eq(rpcs(pg.st, 'cobro_mi_cuota').length, 1, caso + ': a los 2 minutos todavía no se vuelve a preguntar');
+        await adelantar(9 * 60e3); await volver();
+        t.eq(rpcs(pg.st, 'cobro_mi_cuota').length, 2, caso + ': pasados 10 minutos se vuelve a preguntar');
+      } else t.eq(rpcs(pg.st, 'cobro_mi_cuota').length, 2, caso + ': pasado un minuto se vuelve a preguntar');
+      t.eq(pg.errs, [], caso + ': sin errores al volver');
     }
     await pg.close();
   }
