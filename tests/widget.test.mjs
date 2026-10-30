@@ -145,11 +145,16 @@ export default async function ({ base, t }){
   t.ok(ps.txt === '4.321' && /^de 10\.000 · \d\d:\d\d$/.test(ps.pie) && ps.pct === 43, 'con Salud: los pasos de hoy, la meta y la hora de la lectura: ' + JSON.stringify(ps));
   // Borrado (por ejemplo, con el cartel de «Tu cuenta fue eliminada» todavía abierto): aunque la app se
   // dibuje o pase a segundo plano, no vuelve a mandar los datos de la cuenta que salió.
+  // Además, un cambio que se manda en el mismo momento en que se borra: el borrado llega último.
   await pausa(pg.p, 'resume');
-  await pg.p.evaluate(async () => (await import('/app/core/widget.js')).widgetBorrar());
+  await pg.p.evaluate(async () => {
+    const { state } = await import('/app/core/state.js'), w = await import('/app/core/widget.js');
+    state.days[0].name = 'Último cambio'; w.widgetEnviar(); w.widgetBorrar();
+  });
   await pg.p.click('#nav-habitos'); await wait(200); await pausa(pg.p, 'pause'); await wait(2600);
   L = await log(pg.p);
   const iS = L.map(x => x[0]).lastIndexOf('borrar');
+  t.ok(L.slice(0, Math.max(0, iS)).some(x => x[0] === 'guardar' && /Último cambio/.test(x[1])), 'lo mandado justo antes de borrar sale antes del borrado: ' + JSON.stringify(L.map(x => x[0])));
   t.ok(iS >= 0 && !L.slice(iS + 1).some(x => x[0] === 'guardar'), 'después de borrarlo no se manda más: ' + JSON.stringify(L.map(x => x[0])));
   t.eq(pg.errs, [], 'errores (Salud)');
   await pg.close();

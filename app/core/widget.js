@@ -76,7 +76,11 @@ export function widgetEnviar(){
   } catch (e) { console.warn("widget", e); return Promise.resolve(false); }
   if (datos === ultimo) return Promise.resolve(false);
   ultimo = datos;
-  return Promise.resolve().then(() => P.guardar({ datos })).then(r => {
+  // El pedido sale ya, no en la vuelta siguiente: si en el mismo momento se borra el widget, el
+  // borrado tiene que llegar después y no al revés (si no, quedaba la cuenta que salió).
+  let pedido;
+  try { pedido = Promise.resolve(P.guardar({ datos })); } catch (e) { pedido = Promise.reject(e); }
+  return pedido.then(r => {
     if (r && typeof r.instalados === "number") info = Object.assign({}, info, { instalados: r.instalados });
     return true;
   }, e => { if (ultimo === datos) ultimo = null; console.warn("widget", e); return false; });
