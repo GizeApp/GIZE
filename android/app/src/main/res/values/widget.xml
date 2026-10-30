@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Colores del widget «GIZE de hoy»: los de la marca (brand/tokens.css). -->
+<resources>
+    <color name="widget_fondo">#0B0D11</color>
+    <color name="widget_caja">#12151B</color>
+    <color name="widget_borde">#1C2029</color>
+    <color name="widget_texto">#FFFFFF</color>
+    <color name="widget_texto_2">#8F98A6</color>
+    <color name="widget_azul">#2FA0FF</color>
+    <color name="widget_violeta">#A65CFF</color>
+    <color name="widget_verde">#25E8C8</color>
+</resources>

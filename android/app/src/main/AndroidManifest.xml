@@ -52,6 +52,23 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- Widget «GIZE de hoy» (GizeWidget.java y res/xml/gize_widget_info.xml). Sin servicio y sin
+             permisos nuevos: lo redibuja la app al mandarle datos y, sin abrirla, la alarma de la
+             medianoche (la manda la app misma) o un cambio de hora o de zona horaria del celular. -->
+        <receiver
+            android:name=".GizeWidget"
+            android:exported="false"
+            android:label="@string/widget_nombre">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/gize_widget_info" />
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

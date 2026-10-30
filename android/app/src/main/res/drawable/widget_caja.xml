@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- La caja del entreno de hoy, adentro del widget (un poco más clara que el fondo). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_caja" />
+    <corners android:radius="14dp" />
+</shape>

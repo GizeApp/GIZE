@@ -14,8 +14,10 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Plugin propio de la app (no viene de npm): cuenta regresiva del descanso.
+        // Plugins propios de la app (no vienen de npm): cuenta regresiva del descanso y el widget
+        // «GIZE de hoy» de la pantalla de inicio.
         registerPlugin(RestTimerPlugin.class);
+        registerPlugin(WidgetPlugin.class);
         super.onCreate(savedInstanceState);
         // Con el "tamaño de fuente" del sistema agrandado, el WebView escalaba todo el texto de la
         // app (títulos gigantes, series y barra de abajo cortadas). La app ya usa tamaños pensados

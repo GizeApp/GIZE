@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget «GIZE de hoy» (GizeWidget.java): sale de 4×2 (mediano) y se puede achicar a 2×2
+     (chico). No se actualiza solo cada tanto (updatePeriodMillis 0, que gasta batería): lo redibuja
+     la app cada vez que manda datos nuevos y una alarma pasa al día siguiente a la medianoche. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_descripcion"
+    android:initialLayout="@layout/widget_gize"
+    android:minHeight="110dp"
+    android:minResizeHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minWidth="250dp"
+    android:previewLayout="@layout/widget_gize"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="4"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />
