@@ -4,7 +4,8 @@
 // nueva (pedidos_desde, en el panel, es esa fecha). Lo de los pasos automáticos no cambia: los
 // pasos nunca se mandan a la IA. Las funciones para coaches («Pasar mis planillas» y «Armar con
 // IA») tienen su párrafo (#ia-coach), su permiso (app/ui/ia-permiso-rutinas.js) y su línea en
-// los términos, y los tres dicen lo mismo.
+// los términos, y los tres dicen lo mismo. El viejo «Resumen para tu coach» con IA (que nunca salió)
+// se sacó, para no confundirlo con el «Resumen de los lunes», que no usa IA y tiene su línea aparte.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,10 +29,10 @@ export default async ({ t }) => {
   t.has(ia, '30 días', 'cuánto los guarda Anthropic');
   t.has(ia, 'Qué se envía en las funciones de comida', 'lo que no se manda vale para la comida');
   t.has(ia, 'Nunca tu nombre, tu mail, tu peso', 'qué no se manda');
-  t.has(ia, 'El resumen para tu coach es aparte y lleva otros datos', 'el resumen del coach es la excepción, y lo dice');
-  // El «nunca tu peso» no puede valer para todo: el resumen del coach sí lo manda.
-  const nunca = ia.indexOf('Nunca tu nombre, tu mail, tu peso'), resumen = ia.indexOf('Resumen para tu coach');
-  t.ok(nunca > 0 && resumen > nunca && /se envían a Anthropic tus números de la semana \(entrenos, comidas, peso/.test(ia.slice(resumen)), 'el resumen del coach dice que manda el peso');
+  // El viejo «Resumen para tu coach» con IA se sacó (cambió a propósito: antes la política lo
+  // prometía «cuando esté disponible»): ninguna función con IA manda tus números de la semana ni tu peso.
+  for (const viejo of ['Resumen para tu coach', 'resumen para tu coach', 'tus números de la semana', 'que la IA lo ayude con tus registros'])
+    t.ok(!txt.includes(viejo), 'la política ya no dice «' + viejo + '»');
   t.has(ia, 'nunca tus pasos', 'los pasos no se mandan');
   t.has(ia, 'No son un consejo médico ni nutricional', 'son estimaciones, no consejo médico');
   t.has(ia, 'mayores de 18 años', 'solo para mayores de 18');
@@ -43,7 +44,7 @@ export default async ({ t }) => {
   t.ok(!/las ve solo el equipo de GIZE/.test(txt), 'las fotos de productos ya no dicen que las ve solo el equipo de GIZE');
   t.has(txt, 'la foto de la tabla se envía a Anthropic para leerla', '«Cámara y fotos» dice que la tabla puede ir a Anthropic');
   t.ok(/<li><b>Anthropic:<\/b>/.test(html), 'Anthropic en la lista de empresas');
-  t.has(txt, 'recibe la foto de cada consulta, el texto de las planillas o el pedido que escribe el coach o, en el resumen para tu coach, tus números de la semana', 'la lista de empresas dice qué recibe Anthropic: la foto, lo de las funciones para coaches y el resumen');
+  t.has(txt, 'recibe la foto de cada consulta, el texto de las planillas o el pedido que escribe el coach, para dar el resultado', 'la lista de empresas dice qué recibe Anthropic: la foto y lo de las funciones para coaches');
   // Solo la foto: la aclaración escrita («¿Qué es?») se sacó de la app.
   t.has(ia, 'solo la foto que elegís y, para calcular un plato, la lista de alimentos de GIZE', 'en la comida se envía solo la foto');
   t.has(ia, 'GIZE no guarda la foto del plato; la foto de un producto', 'qué no guarda GIZE, sin texto');
