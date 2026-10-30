@@ -444,6 +444,16 @@ async function guardar(P, lista){
   if (!lista.length) return false;
   if (lista.some(x => !String(x.nombre || "").trim())){ alert("Ponele un nombre a " + (lista.length > 1 ? "cada rutina." : "la rutina.")); return false; }
   if (!State.sb || !State.cloudUser){ alert("Iniciá sesión para guardar."); return false; }
+  // Cada alumno tiene una sola rutina: si dos de las que se guardan juntas son para el mismo (pasa con
+  // un archivo con su nombre y una hoja por día), la segunda le reemplazaría la primera sin avisar.
+  const porAlumno = new Map();
+  lista.forEach(x => { const c = cliente(x.para); if (c) porAlumno.set(c.id, (porAlumno.get(c.id) || []).concat(x)); });
+  const repetidos = [...porAlumno].filter(([, l]) => l.length > 1);
+  if (repetidos.length){
+    alert(repetidos.map(([id, l]) => yLista(l.map(x => "«" + String(x.nombre).trim() + "»")) + " son para " + nombreDe(id)).join(". ") +
+      ". Cada alumno tiene una sola rutina: dejale una y en las otras elegí «Nadie todavía» (quedan en Mis rutinas).");
+    return false;
+  }
   P.guardando = true; repintar(P);
   try {
     const ids = [...new Set(lista.map(x => cliente(x.para)).filter(Boolean).map(c => c.id))];

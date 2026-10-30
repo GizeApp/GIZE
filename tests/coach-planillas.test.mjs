@@ -14,7 +14,8 @@
 //     «‹ Volver a la planilla» sin perder cambios (ni preguntar).
 //   · El borrador vuelve después de recargar (en el equipo, sin la planilla: ni mails ni teléfonos).
 //   · «¿Está mal? Avisanos» manda la rutina que armó la IA (ia_reportar con 'planilla'), sin la planilla.
-//   · Guardar: pregunta antes de reemplazar, nombrando solo a quien ya tenía rutina; con «Cancelar» no
+//   · Guardar: con dos rutinas para el mismo alumno no guarda ninguna (la segunda pisaría a la primera).
+//     Pregunta antes de reemplazar, nombrando solo a quien ya tenía rutina; con «Cancelar» no
 //     guarda nada. Inserta en routine_templates (con el nombre sin repetir) y hace upsert en routines
 //     con updated_by solo para los alumnos elegidos. Al final dice cuántas guardó y borra el borrador.
 //   · Android: el «Atrás» vuelve paso por paso y ningún texto habla de la prueba, el plan ni precios.
@@ -264,6 +265,16 @@ export default async function ({ base, t }){
   t.has(repTxt, 'Press plano con mancuernas', '«¿Está mal?» manda la rutina que armó la IA');
   t.ok(!/hoja|juan\.perez|4567|\|/.test(repTxt), '«¿Está mal?» no manda la planilla');
   t.has(pg.dialogs.join(' '), 'Gracias, lo vamos a revisar.', '«¿Está mal?»: avisa que llegó');
+
+  // Dos para el mismo alumno (pasa con un archivo con su nombre y una hoja por día): «Guardar todas» no
+  // guarda ninguna, porque la segunda le reemplazaría la primera sin avisar, y dice por qué.
+  const idMartina = await idDe(p, 'Martina');
+  await p.selectOption('#coachHost select[data-pp="para"][data-id="' + idMartina + '"]', A1); await wait(400);
+  const nPregDup = pg.preguntas.length;
+  await p.click('#coachHost [data-coach="pl-guardar-todas"]'); await wait(800);
+  t.has(pg.dialogs.join(' '), '«Juan · Torso» y «Martina» son para Juan Pérez. Cada alumno tiene una sola rutina: dejale una y en las otras elegí «Nadie todavía» (quedan en Mis rutinas).', 'dos para el mismo alumno: lo dice');
+  t.eq([pg.S.inserts.length, pg.S.upserts.length, pg.preguntas.length - nPregDup], [0, 0, 0], 'dos para el mismo alumno: no guarda nada');
+  await p.selectOption('#coachHost select[data-pp="para"][data-id="' + idMartina + '"]', A2); await wait(400);
 
   // Guardar todas: pregunta antes de reemplazar (solo nombra a Juan, que ya tenía rutina).
   p.contestar = false;
