@@ -11,6 +11,7 @@
 //   texto ya escrito (nombre y fecha, sin montos), igual que el link de WhatsApp. La ficha en «Cuota»
 //   (tocando la fila), su tarjeta y anular con el motivo. «Cobros del mes» y el CSV (BOM, «;» y columnas).
 //   Escape cierra la ventana y el foco vuelve al botón.
+// - Pasado un minuto se le vuelve a preguntar a la base; sin la base, recién a los 10 minutos.
 // - El profe de un gimnasio que solo tiene socios no ve el botón ni se le pregunta a la base.
 // Celular (320 y 390 px) y compu, Oscuro y Claro: sin scroll de costado, contraste de 4,5:1 y la ventana
 // opaca.
@@ -39,6 +40,14 @@ export default async function ({ base, t }){
     t.eq(await p.$$eval('#coachHost [data-coach="sec-open"]', l => l.map(b => b.dataset.v)), ['chat', 'ficha', 'habitos'], caso + ': la ficha sin la tarjeta «Cuota»');
     await p.click('#coachHost [data-coach="back"]'); await wait(400);
     t.eq(rpcs(pg.st, 'cobros_resumen').length, 1, caso + ': se le pregunta una sola vez a la base (no en cada pantalla)');
+    // Pasado un minuto se vuelve a preguntar; sin la base (la función no existe), recién a los 10 minutos.
+    const correr = ms => p.evaluate(async ms => { const c = (await import('/app/screens/coach/cobros.js')).CB; c.t -= ms; c.sinBase -= ms; }, ms);
+    const sinBase = res === SIN_BASE;
+    await correr(61e3); await p.click('#coachHost [data-coach="view-home"]'); await wait(400);
+    t.eq(rpcs(pg.st, 'cobros_resumen').length, sinBase ? 1 : 2, caso + (sinBase ? ': pasado un minuto, todavía no se vuelve a preguntar' : ': pasado un minuto, se vuelve a preguntar'));
+    await correr(540e3); await p.click('#coachHost [data-coach="view-clients"]'); await wait(400);
+    t.eq(rpcs(pg.st, 'cobros_resumen').length, sinBase ? 2 : 3, caso + ': pasados 10 minutos, se vuelve a preguntar');
+    await nada('Clientes, después de volver a preguntar');
     t.eq(rpcs(pg.st, 'cobros_alumno').length + rpcs(pg.st, 'cobros_mes').length, 0, caso + ': nada más de Cobros');
     t.eq(await recursosGym(p), [], caso + ': no se pide nada del panel del gimnasio (módulos ni estilos)');
     t.eq(pg.errs, [], caso + ': sin errores en la página');
