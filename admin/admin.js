@@ -1969,7 +1969,10 @@ function resProximo(d){
 function paintResLunes(foco){
   const box = document.getElementById("avRes"), d = S.resLunes; if (!box || !d) return;
   const on = !!d.activo, faltan = d.en_ventana && num(d.pendientes) > 0;
-  const sw = `<div class="ia-master"><div><b>Mandar el resumen los lunes</b><small>${on ? "Prendido: el próximo sale " + esc(resProximo(d)) + "."
+  // Prendido con el tope en 0 no sale ninguno (la base no toma a nadie): no promete un envío.
+  const tope0 = d.tope_dia != null && num(d.tope_dia) <= 0;
+  const sw = `<div class="ia-master"><div><b>Mandar el resumen los lunes</b><small>${on ? (tope0 ? "Prendido, pero con el tope en 0 no sale ninguno: subí el tope y guardalo."
+      : "Prendido: el próximo sale " + esc(resProximo(d)) + ".")
       : "Apagado: no le llega a nadie. Antes de prenderlo, mirá cómo queda y mandátelo."}</small></div>
     <button class="tgl" role="switch" aria-checked="${on ? "true" : "false"}" aria-label="Resumen de los lunes para coaches" data-a="resOn"></button></div>`;
   const tope = `<label class="lbl" for="resTope">Tope de mails por día</label>
@@ -2016,7 +2019,7 @@ async function resOnOff(btn){
     if (!tope) return toast("Con el tope en 0 no sale ninguno: subilo antes de prenderlo.");
   }
   const llega = num(d.candidatos);
-  const msg = on ? "¿Prender el resumen de los lunes?\n\n" + (llega ? "Le llegaría a " + n0(llega) + (llega === 1 ? " coach" : " coaches") + " con alumnos" + (faltan && num(d.pendientes) !== llega ? " (esta semana faltan " + n0(d.pendientes) + ")" : "") + ". Al que no tiene nada para contar de su semana no le llega nada."
+  const msg = on ? "¿Prender el resumen de los lunes?\n\n" + (llega ? "Le llegaría a " + n0(llega) + (llega === 1 ? " coach" : " coaches") + " con alumnos" + (faltan && num(d.pendientes) !== llega ? " (esta semana faltan " + n0(d.pendientes) + ")" : "") + ". Al que tiene el plan vencido, o no tiene nada para contar de su semana, no le llega nada."
       : "Por ahora ningún coach tiene alumnos: no le llegaría a nadie.") + "\n\nEl próximo sale " + resProximo(d) + ", con un tope de " + n0(tope) + " mails por día."
     : "¿Apagar el resumen de los lunes? No le llega más a ningún coach hasta que lo vuelvas a prender." + (d.activo && faltan ? "\n\nFrena lo que falta mandar esta semana (" + n0(d.pendientes) + (num(d.pendientes) === 1 ? " coach)." : " coaches).") : "");
   if (!await confirmar(msg, { titulo: "Resumen de los lunes", ok: on ? "Prender" : "Apagar" })) return;

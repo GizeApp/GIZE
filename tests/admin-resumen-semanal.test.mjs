@@ -77,6 +77,7 @@ export default async function ({ base, t }){
     await p.click('[data-a="resOn"]'); await wait(400);
     t.eq(cfgs, [], 'cancelar: no se prende');
     t.has(ultima(preguntas), 'Le llegaría a 14 coaches con alumnos', 'la pregunta dice a cuántos coaches les llegaría');
+    t.has(ultima(preguntas), 'Al que tiene el plan vencido', 'y aclara que es el máximo: al del plan vencido no le llega');
     t.has(ultima(preguntas), 'El próximo sale el lunes 26 de octubre a las 9, con un tope de 60 mails por día.', 'y cuándo sale el próximo, con el tope');
     t.eq(await llave(p), 'false', 'cancelar: sigue apagado');
 
@@ -162,6 +163,13 @@ export default async function ({ base, t }){
       await p.click('[data-go="avisos"]'); await wait(800);
       t.has(await text(p, '#avRes'), 'Prendido: el próximo sale ' + esperado + '.', msg);
     }
+    // Prendido pero con el tope en 0 (se guardó el tope solo): la base no toma a nadie, así que no
+    // promete un envío.
+    Object.assign(st, LUNES_ST, { activo: true, tope_dia: 0, cupo_hoy: 0 });
+    await p.clock.setFixedTime(LUNES);
+    await p.click('[data-go="avisos"]'); await wait(800);
+    t.has(await text(p, '#avRes'), 'Prendido, pero con el tope en 0 no sale ninguno', 'prendido con el tope en 0: avisa que no sale');
+    t.ok(!(await text(p, '#avRes')).includes('el próximo sale'), 'prendido con el tope en 0: no promete un envío');
     // Apagado y en la ventana: prender dice cuántos faltan y que sale ahora.
     Object.assign(st, LUNES_ST, { activo: false });
     await p.clock.setFixedTime(LUNES);
