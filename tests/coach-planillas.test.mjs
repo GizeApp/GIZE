@@ -42,9 +42,10 @@ const ANDROID = () => {
       minimizeApp: async () => { window.__min++; }, exitApp: async () => { window.__min++; } } } };
 };
 
-// Las hojas del Excel inventado. La de Juan tiene su mail y su teléfono (no tienen que viajar).
+// Las hojas del Excel inventado. La de Juan tiene su mail y su teléfono, y una nota con el nombre del
+// coach y el de otra alumna vinculada (nada de eso tiene que viajar).
 const JUAN = [['Rutina de Juan Pérez'], ['Mail: juan.perez@correo.test'], ['Celular', '11 4567-8901'], [], ['Ejercicio', 'Series', 'Reps', 'Descanso'],
-  ['Press banca', '4', '8-10', "2'"], ['Sentadilla búlgara con salto', '3', '12-10-8', '90 s'], ['Remo', '4', '60-65-70-75', "2'"]];
+  ['Press banca', '4', '8-10', "2'"], ['Sentadilla búlgara con salto', '3', '12-10-8', '90 s'], ['Remo', '4', '60-65-70-75', "2'", 'Lo controla Carla, como a Martina']];
 const DIETA = [['Desayuno', 'Avena con leche'], ['Almuerzo', 'Pollo con arroz']];
 const MARTINA = [['Día 1'], ['Ejercicio', 'Series', 'Reps'], ['Sentadilla libre', '4', '6'], ['Peso muerto', '3', '5']];
 const serie = (objetivo, kg = '') => ({ objetivo, kg });
@@ -182,7 +183,7 @@ export default async function ({ base, t }){
   t.has(visto, 'Press banca', '«Ver qué se manda»: los ejercicios');
   t.has(visto, '60-65-70-75', '«Ver qué se manda»: las cargas quedan enteras');
   t.has(visto, '[alumno]', '«Ver qué se manda»: el nombre cambiado por «[alumno]»');
-  for (const no of ['Juan', 'Pérez', 'juan.perez', 'correo.test', '4567', 'Carla', 'Alumnos 2026'])
+  for (const no of ['Juan', 'Pérez', 'juan.perez', 'correo.test', '4567', 'Carla', 'Martina', 'Alumnos 2026'])
     t.ok(!visto.includes(no), '«Ver qué se manda»: sin «' + no + '»');
   // La dieta también va (para ver «no parece una rutina»).
   const idDieta = await idDe(p, 'Dieta');
