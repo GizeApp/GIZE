@@ -574,6 +574,9 @@ function exerciseCard(d, day, ex, i, rt){
   const g=ssGroupOf(day.exercises||[], i), tag=g ? g.letter+(i-g.start+1) : '';
   const ord='<span class="co-exc-ord'+(g?' ss':'')+'">'+(tag||(i+1))+'</span>';
   const ssCls=g ? ' co-ss'+(i===g.start?' co-ss-first':'')+(i===g.end?' co-ss-last':'') : '';
+  // «Revisar»: en una rutina de «Pasar mis planillas» (planillas.js), lo que la IA no leyó segura.
+  // Es solo del borrador: no se guarda en la rutina.
+  const tpe=CoachState.coachTplEdit, rev=tpe && tpe.planilla && Array.isArray(tpe.revisar) && tpe.revisar.includes(ex.id) ? '<span class="co-exc-rev" title="La IA no estaba segura: revisalo">Revisar</span>' : '';
 
   if(!open){
     // Tarjeta compacta: número, nombre, puntitos (uno por serie) y contador de series con
@@ -589,7 +592,7 @@ function exerciseCard(d, day, ex, i, rt){
     const sum='<span class="co-exc-sum">'+nSets+' serie'+(nSets===1?'':'s')+(tg?'<span class="tg"> · '+esc(tg)+'</span>':'')+'</span>';
     return '<div class="co-exc co-exc-collapsed'+ssCls+'" data-coach="rt-toggle" data-i="'+i+'" data-id="'+esc(ex.id)+'">'+
         swatch+
-        '<div class="co-exc-head"><div class="co-exc-cname">'+ord+'<span class="co-exc-ctext">'+esc(ex.name||"Sin nombre")+'</span></div>'+sum+chevron+'</div>'+
+        '<div class="co-exc-head"><div class="co-exc-cname">'+ord+'<span class="co-exc-ctext">'+esc(ex.name||"Sin nombre")+'</span>'+rev+'</div>'+sum+chevron+'</div>'+
         '<div class="co-exc-cfoot">'+stepper+
           '<button class="co-exc-icon-btn" data-coach="rt-swap" data-i="'+i+'" title="Cambiar ejercicio" aria-label="Cambiar ejercicio">'+swapSvg+'</button>'+
         '</div>'+
@@ -659,7 +662,7 @@ function exerciseCard(d, day, ex, i, rt){
       '<div class="co-exc-head">'+
         ord+
         '<input class="co-exc-name" data-coach="rt-name" data-i="'+i+'" value="'+esc(ex.name||"")+'" list="exList" placeholder="Nombre del ejercicio" aria-label="Nombre del ejercicio">'+
-        menu+
+        rev+menu+
         chevron+
       '</div>'+
       '<div class="co-exc-body">'+

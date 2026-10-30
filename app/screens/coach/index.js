@@ -39,6 +39,7 @@ import { coachShell, pageHead, secIcon, renderClientsView, renderHomeView, rende
 import { gymPorSaber, pintarGym, sinPlanGym } from '../../core/gimnasio.js';
 import { accesoGym, cargarFichaGym, cartelGym, conTarjetaGym, cssGym, enGym, esProfeGym, esSocioGym, focoRec, inviteGym, notaPropios, puedeRecepcion, seccionGym, tileGym, vistaClases, vistaRecepcion, volverFocoRec } from './gimnasio.js';
 import { cobrosOn, conCobro, seccionCobro, tarjetaInicio, tileCobro, vistaCobros } from './cobros.js';
+import { avisoEditor, vistaPlanillas } from './planillas.js';
 
 // Ficha en modo lectura (el dueño o la administración del gimnasio miran a un socio que compartió sus
 // registros y no es suyo; ver openClient): se ve todo lo que el socio compartió, pero no se edita. Solo
@@ -88,7 +89,8 @@ function cajaPersonal(profe){
 // Cambios sin guardar: la primera vez que se dibuja una rutina (del cliente o en el editor) se
 // guarda cómo estaba, para avisar antes de salir y perderlos.
 const tplSnap = e => JSON.stringify([e.name || "", e.starts_on || "", e.days || []]);
-export function tplDirty(){ const e=CoachState.coachTplEdit; return !!(e && !e.deload && e.orig0!==undefined && tplSnap(e)!==e.orig0); }
+// Una rutina de «Pasar mis planillas» (planillas.js) no cuenta: sus cambios quedan en la planilla.
+export function tplDirty(){ const e=CoachState.coachTplEdit; return !!(e && !e.deload && !e.planilla && e.orig0!==undefined && tplSnap(e)!==e.orig0); }
 export function routineDirty(){ const d=CoachState.coachData; return !!(d && d.id && d.routineOrig!==undefined && JSON.stringify(d.routine||[])!==d.routineOrig); }
 function snapEdits(){
   const e=CoachState.coachTplEdit; if(e && !e.deload && e.orig0===undefined) e.orig0=tplSnap(e);
@@ -162,19 +164,21 @@ export function renderCoach(){
     const nota=gymPlan===null ? notaPropios(billing().active) : "";
     const v=CoachState.coachView, banner=gymPlan===null ? cartelGym()+(nota && !appNativa() ? "" : renderPlanBanner())+nota : "";
     const foco=focoRec();
-    host.innerHTML=coachShell(v, v==="settings" ? renderSettingsView() : v==="gym-recepcion" ? vistaRecepcion(pageHead) : v==="gym-clases" ? vistaClases(pageHead) : v==="cobros" ? vistaCobros(pageHead) : v==="meals" ? renderMealsView(banner) : v==="tpls" ? renderTplsView(banner) : v==="home" ? renderHomeView(banner+tarjetaInicio()) : renderClientsView(inviteBox(), banner));
+    host.innerHTML=coachShell(v, v==="settings" ? renderSettingsView() : v==="gym-recepcion" ? vistaRecepcion(pageHead) : v==="gym-clases" ? vistaClases(pageHead) : v==="cobros" ? vistaCobros(pageHead) : v==="meals" ? renderMealsView(banner) : v==="tpls" ? (CoachState.planillas ? vistaPlanillas() : renderTplsView(banner)) : v==="home" ? renderHomeView(banner+tarjetaInicio()) : renderClientsView(inviteBox(), banner));
     volverFocoRec(foco);
   } else if(CoachState.coachTplEdit){
     const rt=CoachState.coachTplEdit.days||[];
     let ed="";
     if(!rt.length){ ed='<div class="cal-hint">Esta rutina no tiene días todavía.</div><button class="co-add-day" data-coach="day-add">+ Agregar día</button>'; }
     else { ed=renderCoachRoutine({routine:rt, sessions:[]}); }
-    const sch=!!CoachState.coachTplEdit.sched, dle=!!CoachState.coachTplEdit.deload;
+    // pla: una rutina de «Pasar mis planillas» (planillas.js): Volver vuelve a la planilla y Borrar la descarta.
+    const sch=!!CoachState.coachTplEdit.sched, dle=!!CoachState.coachTplEdit.deload, pla=!!CoachState.coachTplEdit.planilla;
     const who=esc((CoachState.coachData&&CoachState.coachData.name)||"el alumno");
     const dlRange=dle ? weekRange(CoachState.coachBlockForm||(CoachState.coachData&&CoachState.coachData.block), CoachState.coachTplEdit.wk) : null;
     host.innerHTML=coachShell(CoachState.coachSel?"clients":"tpls",
-      '<div class="co-head"><button class="co-back" data-coach="tpl-back">‹ Volver</button>'+
-      '<button class="co-logout" data-coach="tpl-del">'+(dle?(CoachState.coachTplEdit.saved?'Borrar rutina de descarga':'Descartar'):sch?'Borrar programación':'Borrar rutina')+'</button></div>'+
+      '<div class="co-head"><button class="co-back" data-coach="tpl-back">‹ '+(pla?'Volver a la planilla':'Volver')+'</button>'+
+      '<button class="co-logout" data-coach="tpl-del">'+(dle?(CoachState.coachTplEdit.saved?'Borrar rutina de descarga':'Descartar'):pla?'Descartar':sch?'Borrar programación':'Borrar rutina')+'</button></div>'+
+      (pla ? avisoEditor() : '')+
       (dle ? '<div class="co-sched-edit-t">Rutina de descarga \u00b7 semana '+CoachState.coachTplEdit.wk+' de '+who+'</div>'+
         '<div class="co-sched-sub">'+(dlRange?'Del '+esc(fmtDate(dlRange[0]))+' al '+esc(fmtDate(dlRange[1]))+': ':'')+'esa semana la usa en lugar de su rutina de siempre, que vuelve sola el lunes siguiente con los pesos que tenía cargados.</div>' : '')+
       (sch ? '<div class="co-sched-edit-t">Rutina programada para '+esc((CoachState.coachData&&CoachState.coachData.name)||"el alumno")+'</div>'+

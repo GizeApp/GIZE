@@ -1,0 +1,94 @@
+/* css/screens/coach/planillas.css — «Pasar mis planillas» en el panel del coach (app/screens/coach/planillas.js):
+   la franja «Con IA» de Rutinas (y los llamados de Rutinas vacía e Inicio sin clientes), los pasos de la
+   pantalla y la marca «Revisar» del editor. Sin CSS anidado (css-sin-anidar). Colores solo con las
+   variables de la marca y de cada apariencia, sin brillos de color (coach-bateria-neon). */
+
+/* ---------- La franja «Con IA» ---------- */
+.pp-franja { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:12px 16px; margin:0 0 14px; border-radius:18px; }
+.pp-franja-t { display:inline-flex; align-items:center; gap:7px; font-size:var(--text-meta); font-weight:700; letter-spacing:.02em; color:var(--txt-2); }
+.pp-franja-t svg { width:16px; height:16px; flex:none; color:var(--gize-blue); }
+.pp-franja-s { flex:1 1 220px; min-width:0; font-size:var(--text-body); color:var(--txt); }
+.pp-franja-b { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
+.pp-llamado { margin-top:14px; }
+.pp-ir svg { width:var(--icon-sm); height:var(--icon-sm); flex:none; }
+
+/* ---------- La pantalla ---------- */
+.pp-title { margin:0 0 14px; }
+.pp-card { padding:18px; margin-bottom:14px; }
+.pp-lead { margin:0 0 14px; font-size:var(--text-body); line-height:1.45; color:var(--txt-2); }
+.pp-lead-solo { margin-bottom:12px; }
+.pp-elegir { position:relative; cursor:pointer; }
+.pp-elegir svg { width:18px; height:18px; flex:none; }
+.pp-elegir:focus-within { outline:2px solid var(--gize-blue); outline-offset:3px; }
+.pp-file { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); border:0; opacity:0; }
+.pp-leyendo { padding:10px 0; font-size:var(--text-body); font-weight:600; color:var(--txt); }
+.pp-ayuda { margin:14px 0 0; padding-left:18px; font-size:var(--text-meta); line-height:1.5; color:var(--txt-3); }
+.pp-errs { margin:14px 0 0; padding-left:18px; font-size:var(--text-meta); line-height:1.5; color:var(--gize-danger); }
+.pp-priv { display:flex; align-items:flex-start; gap:10px; margin:0 0 12px; padding:0 4px; font-size:var(--text-meta); line-height:1.45; color:var(--txt-2); }
+.pp-priv svg { width:16px; height:16px; flex:none; margin-top:1px; color:var(--txt-3); }
+.pp-priv a { color:var(--gize-blue); font-weight:600; }
+.pp-quedan { margin:0 0 12px; padding:0 4px; font-size:var(--text-meta); color:var(--txt-3); }
+.pp-aviso { margin:0 0 12px; padding:12px 14px; border:1px solid var(--gize-border); border-radius:14px; background:var(--gize-warning-bg); font-size:var(--text-meta); line-height:1.45; color:var(--txt); }
+.pp-acc { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:12px; }
+.pp-pie { margin:4px 0 18px; }
+.pp-acc .gize-btn.cv-btn { padding:10px 18px; }
+.pp-acc .gize-btn.cv-btn[disabled] { opacity:.45; cursor:default; }
+.pp-acc svg { width:16px; height:16px; flex:none; }
+
+/* Paso 2: las hojas de cada archivo */
+.pp-arch { padding:6px 0; margin-bottom:14px; overflow:hidden; }
+.pp-arch-t { display:flex; align-items:center; gap:8px; margin:0; padding:12px 18px 10px; font-family:var(--gize-font); font-size:16px; font-weight:700; color:var(--txt); overflow-wrap:anywhere; }
+.pp-arch-t svg { width:16px; height:16px; flex:none; color:var(--txt-3); }
+.pp-hoja { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:12px 18px; border-top:1px solid var(--gize-border); }
+.pp-hoja-sel { display:flex; align-items:center; gap:12px; flex:1 1 200px; min-width:0; cursor:pointer; }
+.pp-hoja-sel input { width:20px; height:20px; flex:none; margin:0; accent-color:var(--gize-blue); }
+.pp-hoja-n { display:flex; flex-direction:column; min-width:0; }
+.pp-hoja-n b { font-size:var(--text-body); color:var(--txt); overflow-wrap:anywhere; }
+.pp-hoja-n small { font-size:var(--text-meta); color:var(--txt-3); }
+.pp-hoja:not(.on) .pp-hoja-n b { color:var(--txt-2); }
+.pp-para { display:flex; align-items:center; gap:8px; min-width:0; font-size:var(--text-meta); color:var(--txt-3); }
+.pp-para .pp-sel { width:auto; max-width:240px; margin:0; }
+.pp-ver { font-size:var(--text-meta); }
+.pp-texto { flex:1 0 100%; max-height:260px; margin:4px 0 0; padding:10px 12px; overflow:auto; border:1px solid var(--gize-border); border-radius:12px; background:var(--card-2);
+    font-family:ui-monospace, Menlo, Consolas, monospace; font-size:12px; line-height:1.5; color:var(--txt-2); white-space:pre-wrap; overflow-wrap:anywhere; }
+
+/* Paso 3 y 4: la cola y las rutinas para revisar */
+.pp-progreso { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 14px; margin:0 0 12px; padding:0 4px; font-size:var(--text-body); font-weight:600; color:var(--txt); }
+.pp-progreso .cv-link { font-size:var(--text-meta); }
+.pp-rt { padding:16px 18px; margin-bottom:12px; }
+.pp-rt-h { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
+.pp-rt-t { flex:1 1 160px; min-width:0; font-size:var(--text-emphasis); color:var(--txt); overflow-wrap:anywhere; }
+.pp-nombre { flex:1 1 200px; min-width:0; margin:0; font-size:var(--text-body); font-weight:700; }
+.pp-chip { display:inline-flex; align-items:center; min-height:24px; padding:2px 10px; border:1px solid var(--gize-border); border-radius:999px; font-size:12px; font-weight:600; color:var(--txt-2); white-space:nowrap; }
+.pp-chip.ok { color:var(--gize-success); }
+.pp-error .pp-chip { color:var(--gize-danger); }
+.pp-frenada .pp-chip, .pp-no_rutina .pp-chip { color:var(--gize-warning); }
+.pp-rt-de { display:flex; align-items:center; gap:6px; margin-top:6px; font-size:var(--text-meta); color:var(--txt-3); overflow-wrap:anywhere; }
+.pp-rt-de svg { width:14px; height:14px; flex:none; }
+.pp-rt-msg { margin:10px 0 0; font-size:var(--text-meta); line-height:1.45; color:var(--txt-2); }
+.pp-avisos { margin:10px 0 0; padding-left:18px; font-size:var(--text-meta); line-height:1.5; color:var(--txt-2); }
+.pp-rt .pp-para { margin-top:12px; }
+.pp-mal { font-size:var(--text-meta); margin-left:auto; }
+.pp-fin { display:flex; flex-direction:column; gap:8px; }
+.pp-fin b { font-size:var(--text-emphasis); color:var(--txt); }
+.pp-fin span { font-size:var(--text-meta); color:var(--txt-2); }
+.pp-fin .pp-acc { margin-top:4px; }
+
+/* «Ver cómo la leyó»: lo que decía la fila y lo que quedó */
+.pp-leyo { margin-top:12px; border:1px solid var(--gize-border); border-radius:14px; overflow:hidden; }
+.pp-leyo-d { padding:8px 12px; background:var(--card-2); font-size:var(--text-meta); font-weight:700; color:var(--txt); }
+.pp-leyo-f { display:grid; grid-template-columns:minmax(0,1fr); gap:4px; padding:9px 12px; border-top:1px solid var(--gize-border); font-size:var(--text-meta); line-height:1.4; }
+.pp-leyo-o { color:var(--txt-3); overflow-wrap:anywhere; }
+.pp-leyo-o small { display:inline-block; margin-right:8px; font-weight:700; color:var(--txt-2); }
+.pp-leyo-a { display:flex; flex-wrap:wrap; align-items:center; gap:6px; color:var(--txt); overflow-wrap:anywhere; }
+.pp-propio { display:inline-flex; padding:1px 8px; border:1px solid var(--gize-border); border-radius:999px; font-size:11px; font-weight:600; color:var(--txt-2); }
+
+/* El editor con una rutina de la planilla: la marca «Revisar» (no se guarda en la rutina). Los
+   bordes, con el filete de siempre: el color va solo en el texto. */
+.co-exc-rev { display:inline-flex; align-items:center; flex:none; align-self:center; padding:1px 8px; border:1px solid var(--gize-border); border-radius:999px; background:var(--gize-warning-bg);
+    font-size:11px; font-weight:700; line-height:1.4; letter-spacing:.02em; color:var(--gize-warning); white-space:nowrap; }
+.pp-ed { margin-bottom:12px; }
+
+@media (min-width: 820px) {
+  .pp-leyo-f { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+}

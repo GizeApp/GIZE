@@ -49,7 +49,8 @@ const CERRAR = [
   '.form-back',                                  // «‹» de las secciones (Mi plan, meta, Progreso…)
   '[data-action="ci-close"]',                    // check-in semanal
   '[data-action="cfg-name-cancel"]',             // editar el nombre
-  '[data-coach="tpl-back"]',                     // coach: editor de rutina → ficha
+  '[data-coach="tpl-back"]',                     // coach: editor de rutina → ficha (o a «Pasar mis planillas»)
+  '[data-coach="pl-back"]',                      // coach: «Pasar mis planillas» → el paso anterior o Rutinas
   '[data-coach="mp-back"]',                      // coach: plan guardado → «Mis planes»
   '[data-coach="back"]',                         // coach: ficha del alumno → lista
 ];

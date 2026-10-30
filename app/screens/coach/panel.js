@@ -7,7 +7,7 @@ import { esc, fmtDate, mondayOf, num, today } from '../../core/utils.js';
 import { diasTexto } from '../../core/diasemana.js';
 import { ssGroups } from '../../core/superserie.js';
 import { CATALOGO, diasDeEntreno, rutinasDeDias } from '../../core/rutinas-ejemplo.js';
-import { downloadSvg, gearSvg } from '../../core/icons.js';
+import { downloadSvg, gearSvg, sparkleSvg } from '../../core/icons.js';
 import { State } from '../../core/state.js';
 import { unreadFor } from '../../ui/chat.js';
 import { coachInitials } from './clientes.js';
@@ -15,6 +15,7 @@ import { CoachState } from './state.js';
 import { missingHint } from './planes.js';
 import { botonClases, botonRecepcion, chipGym, esProfeGym, grupos, nombreGym } from './gimnasio.js';
 import { botonCobros } from './cobros.js';
+import { botonPlanillas } from './planillas.js';
 
 const ico = d => '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';
 const I = {
@@ -118,6 +119,16 @@ function buckets(){
 const clientesCargando = () => !CoachState.coachClientsLoaded && !CoachState.coachClients.length;
 const CARGANDO_CLIENTES = '<div class="cv-card cv-hello"><b>Cargando tus clientes…</b><span>Si no tenés conexión, aparecen apenas vuelva.</span></div>';
 
+// La franja «Con IA» (Rutinas, y el llamado de Rutinas vacía e Inicio sin clientes): «Pasar mis
+// planillas» (planillas.js), si la IA del coach la tiene prendida para él. Sin nada prendido no se ve.
+function franjaIA(llamado){
+  const b=botonPlanillas();
+  if(!b) return "";
+  return '<div class="cv-card pp-franja'+(llamado?' pp-llamado':'')+'" role="group" aria-label="Con IA"><span class="pp-franja-t">'+sparkleSvg+'Con IA</span>'+
+    (llamado?'<span class="pp-franja-s">¿Tenés tus rutinas en Excel o Google Sheets? Pasalas a GIZE.</span>':'')+
+    '<span class="pp-franja-b">'+b+'</span></div>';
+}
+
 // ---------- Inicio ----------
 export function renderHomeView(extra){
   const ready=statsReady(), B=buckets();
@@ -128,7 +139,7 @@ export function renderHomeView(extra){
   const tod=B.today.map(r=>person(r, "Hoy", ""));
   const noClients=!CoachState.coachClients.length;
   const body = clientesCargando() ? CARGANDO_CLIENTES : noClients
-    ? '<div class="cv-card cv-hello"><b>Todavía no tenés clientes vinculados</b><span>Compartí tu código de invitación desde «Clientes»: van a aparecer acá apenas se vinculen.</span><button class="gize-btn cv-btn" data-coach="view-clients">Ir a Clientes</button></div>'
+    ? '<div class="cv-card cv-hello"><b>Todavía no tenés clientes vinculados</b><span>Compartí tu código de invitación desde «Clientes»: van a aparecer acá apenas se vinculen.</span><button class="gize-btn cv-btn" data-coach="view-clients">Ir a Clientes</button></div>'+franjaIA(true)
     : '<div class="cv-stats">'+stat("ok","Activos esta semana",B.week.length)+stat("ok","Entrenaron hoy",B.today.length)+stat("warn","Sin actividad",B.idle.length)+'</div>'+
       '<div class="cv-cols">'+list("Necesitan atención",ready?att:[],ready?"Todos al día":"Cargando…")+list("Entrenaron hoy",ready?tod:[],ready?"Todavía nadie entrenó hoy":"Cargando…")+'</div>';
   return pageHead("Inicio", noClients?"":mainBtn('data-coach="home-assign"',"Asignar rutina",S.send))+(extra||"")+body;
@@ -274,11 +285,11 @@ export function renderTplsView(banner){
   const head=pageHead("Rutinas",
     '<button class="co-copy-btn cv-sec-btn" data-coach="tpl-seed-open" aria-expanded="'+!!CoachState.coachSeedOpen+'">'+downloadSvg+' Importar rutina armada</button>'+mainBtn('data-coach="tpl-new"',"Crear rutina",S.plus));
   if(!L.length){
-    return head+(banner||"")+seed+(CoachState.tplsError ? '<div class="cal-hint" style="color:var(--red)">No se pudieron cargar: <b>'+esc(CoachState.tplsError)+'</b><br><br>Si dice que la tabla no existe, falta correr el SQL de rutinas en Supabase.</div>' : '<div class="cal-hint">Todavía no creaste ninguna rutina. Creá una y después aplicásela a los clientes que quieras.</div>');
+    return head+(banner||"")+franjaIA(!CoachState.tplsError)+seed+(CoachState.tplsError ? '<div class="cal-hint" style="color:var(--red)">No se pudieron cargar: <b>'+esc(CoachState.tplsError)+'</b><br><br>Si dice que la tabla no existe, falta correr el SQL de rutinas en Supabase.</div>' : '<div class="cal-hint">Todavía no creaste ninguna rutina. Creá una y después aplicásela a los clientes que quieras.</div>');
   }
   const cards=L.map(t=>{ const nd=(t.days||[]).length;
     return '<button class="cv-card cv-tpl'+(sel&&t.id===sel.id?' on':'')+'" data-coach="tpl-pick" data-id="'+esc(t.id)+'"><b>'+esc(t.name||"Sin nombre")+'</b><span>'+S.calendar+nd+' día'+(nd===1?'':'s')+'</span></button>'; }).join("");
-  return head+(banner||"")+seed+'<div class="cv-tpls"><div class="cv-tpl-list">'+cards+'</div><section class="cv-card cv-detail">'+renderTplDetail(sel)+'</section></div>';
+  return head+(banner||"")+franjaIA(false)+seed+'<div class="cv-tpls"><div class="cv-tpl-list">'+cards+'</div><section class="cv-card cv-detail">'+renderTplDetail(sel)+'</section></div>';
 }
 
 // ---------- Planes alimenticios ----------

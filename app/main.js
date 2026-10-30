@@ -53,6 +53,7 @@ import { esProfeGym } from './screens/coach/gimnasio.js';
 import { loadBilling } from './screens/coach/plan.js';
 import { calState } from './screens/coach/calendario.js';
 import { mealAction, mealDirty, nutritionRow } from './screens/coach/planes.js';
+import { cerrarPlanillas, planillaAction } from './screens/coach/planillas.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, alComida, plateDia, paintBarraIA, paintSearchIA, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, foodByName, lastResults, offResults, paintPlate, paintPlateNums, plateItemVals, previewStr, rememberCookState, renderComida, renderPlateSheet, renderResults, selectedFoodValues } from './screens/comida.js';
@@ -1398,6 +1399,8 @@ document.body.addEventListener("click", async e => {
       CoachState.coachSel=null; CoachState.coachData=null; CoachState.coachTplEdit=null; CoachState.coachMealEdit=null; CoachState.coachEditDay=0; CoachState.coachPlanSec=null;
       refreshCoachClients();
     }
+    // «Pasar mis planillas» se cierra (lo que ya se pasó queda guardado en el equipo: planillas.js).
+    cerrarPlanillas();
   }
   if(a==="open-settings" || a==="q-open"){
     CoachState.coachNameForm=null; CoachState.coachView="settings"; CoachState.coachQEdit=null;
@@ -1420,6 +1423,9 @@ document.body.addEventListener("click", async e => {
   if(a==="view-clients"){ CoachState.coachView="clients"; renderCoach(); return; }
   // «Mis planes» y planes guardados (ver screens/coach/planes.js).
   if((a==="view-meals" || /^mpk?-/.test(a)) && await mealAction(a, b)) return;
+  // «Pasar mis planillas» (ver screens/coach/planillas.js) y una rutina suya abierta en el editor
+  // (Volver vuelve a la planilla, Guardar la guarda y la aplica, Descartar la saca de la lista).
+  if((/^pl-/.test(a) || (CoachState.coachTplEdit && CoachState.coachTplEdit.planilla && /^tpl-(back|save|del)$/.test(a))) && await planillaAction(a, b)) return;
   if(a==="view-tpls"){ CoachState.coachView="tpls"; await Promise.all([loadTpls(), cargarCatalogo().then(l=>{ CoachState.coachCat=l; }, ()=>{})]); renderCoach(); return; }
   // Importar una rutina armada (las mismas que se ofrecen a quien entrena solo, ver
   // core/rutinas-ejemplo.js) como rutina nueva del coach, para editarla y guardarla.

@@ -81,6 +81,9 @@ export const CoachState = {
 
   coachTplEdit: null,
 
+  // «Pasar mis planillas» (planillas.js): null = cerrada; abierta, se dibuja en lugar de Rutinas.
+  planillas: null,
+
   coachApplyPicker: null,
 
   // "Copiar a otro cliente": {loading?} mientras se copia; null = cerrado.
