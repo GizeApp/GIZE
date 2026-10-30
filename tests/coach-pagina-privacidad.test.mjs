@@ -3,7 +3,8 @@
 // quiere) su foto, así que la política lo dice en su propia sección, en «Qué datos guardamos» y en «Qué
 // se borra», con la fecha nueva. Lo que promete tiene que ser lo que hace la base: la foto queda
 // pública mientras la página se ve con la foto prendida (la política de storage la deja leer sin
-// sesión), el link anterior sigue 90 días, y la página y los links viejos se borran con la cuenta.
+// sesión) y su link lleva el id del coach, el link anterior sigue 90 días (salvo si se cambia en las
+// primeras 24 horas: ahí queda libre), y la página y los links viejos se borran con la cuenta.
 // Los términos dicen que el coach responde por el nombre y la foto, y que GIZE puede pausarla.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -35,6 +36,8 @@ export default async ({ t }) => {
     'Si apagás la foto o la página, deja de ser pública',
     'La apagás cuando quieras', 'deja de verse si tu cuenta de coach no está activa',
     'el anterior sigue llevando a tu página por 90 días y en ese tiempo nadie más lo puede usar',
+    'Si lo cambiás dentro de las primeras 24 horas desde que la creaste, el anterior queda libre enseguida y lo puede tomar otro coach',
+    'ese link lleva el número interno de tu cuenta, que no sirve para entrar a ella ni para ver nada más',
     'puede pausar tu página o liberar tu link', 'queda anotado quién lo hizo y cuándo',
     'Supabase, que recibe su dirección IP', 'En GIZE no queda anotado quién la visitó',
     'sumarte a un coach desde su página es lo mismo que con su código',
@@ -54,6 +57,12 @@ export default async ({ t }) => {
   t.ok(/coach_id\s+uuid primary key references public\.profiles\(id\) on delete cascade/.test(sql) && /coach_id uuid not null references public\.profiles\(id\) on delete cascade/.test(sql),
     'la página y los links viejos se borran con la cuenta');
   t.ok(/interval '90 days'/.test(sql), 'el link anterior queda 90 días');
+  // ...pero solo si se cambia pasadas las primeras 24 horas: antes, el anterior queda libre (no se
+  // guarda en coach_alias_viejos), así que la política no puede prometer que nadie más lo toma.
+  t.ok(/libre := pag\.coach_id is null or now\(\) < pag\.creada_at \+ interval '24 hours'/.test(sql) && /if a <> pag\.alias and not libre then\s+insert into public\.coach_alias_viejos/.test(sql),
+    'en las primeras 24 horas el link anterior queda libre');
+  // La foto se pide con un link firmado de su ruta, que empieza con el id del coach.
+  t.ok(/foto like pag\.coach_id::text \|\| '\/%'/.test(sql), 'la ruta de la foto lleva el id del coach');
   t.ok(/create policy "avatar: la de la página pública del coach" on storage\.objects\s+for select to anon, authenticated/.test(sql) && /g\.activa and g\.con_foto and g\.pausada_at is null/.test(sql),
     'la foto se puede leer sin sesión solo con la página prendida y la foto prendida');
   t.ok(/perform public\.admin_log\('pagina_coach'/.test(sql), 'pausar o liberar queda anotado');
