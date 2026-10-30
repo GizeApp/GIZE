@@ -14,6 +14,7 @@ const CERRAR = [
   '.sl-bg:not(.closing) .sl-x',                  // selector propio de los <select> (ui/selector.js)
   '.crp .crp-cancel',                            // acomodar la foto (también la del gimnasio, encima de la hoja del socio)
   '#gymSocioHost [data-gys-h="cancel"]',        // gimnasio: la hoja del socio (encima de todo, también de la bienvenida)
+  '#coachInvHost [data-cinv="no"]',              // «Entrená con …»: el link de un coach (encima de todo, también de la bienvenida)
   '#blockHost [data-blq="cancel"]',              // «Bloquear» y «Personas bloqueadas» (encima de todo)
   '#iaPermHost [data-ia="no"]',                  // «Usar IA en Comida» (el permiso, encima de todo)
   '#iaRutHost [data-iar="no"]',                  // coach: «Usar IA en tus rutinas» (el permiso, encima de todo)

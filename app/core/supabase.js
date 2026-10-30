@@ -43,6 +43,8 @@ import { deleteShareFile } from '../ui/compartir.js';
 
 // Gimnasios (core/gimnasio.js): mi_gimnasio() al entrar y los links #gimnasio / #equipo=.
 import { GYM_CACHE, cargarPanelGym, cargarSocio, codigoInfo, consultarGym, gymSinEspera, ingresoParaLink, linksSocio, quiereGym } from './gimnasio.js';
+// Link de un coach (#coach=<alias>, desde su página gize.ar/c/<alias>): la hoja «Entrená con …».
+import { COACH_PEND, hayInvitacionCoach, ingresoCoach, ofrecerCoach } from './invitacion-coach.js';
 
 export const SB_URL = "https://wegptuzhsrwppbknqstf.supabase.co";
 
@@ -295,24 +297,24 @@ function takePendingCode(){
 }
 // Lo de la cuenta que queda en el dispositivo fuera del estado y el perfil: los recorridos y la
 // salida de Cardio en curso, los borradores de rutina de los alumnos de un coach (coach/index.js),
-// el borrador de la bienvenida (screens/onboarding.js) y la invitación a un grupo de pasos sin
-// usar (core/grupos.js), que si no se usaba con la próxima cuenta que entrara en el dispositivo.
+// el borrador de la bienvenida (screens/onboarding.js), la invitación a un grupo de pasos sin
+// usar (core/grupos.js), que si no se usaba con la próxima cuenta que entrara en el dispositivo, y
+// la de un coach por su link (core/invitacion-coach.js), por lo mismo.
 // keepNew: al cambiar de cuenta o borrar una sesión no mantenida, la invitación de un link recién
 // abierto (en esta carga, o hace menos de 15 minutos por si el ingreso volvió a cargar la página)
 // queda: es de quien está entrando, y antes se perdía sin aviso. Igual se pregunta antes de
-// sumarse (screens/pasos.js).
+// sumarse (screens/pasos.js y ui/invitacion-coach.js).
 function accountKeys(keepNew){
   let drafts=[]; try{ drafts=Object.keys(localStorage).filter(k=>/^gize_(rt|onb)_draft_/.test(k)); }catch(e){}
-  let inv=null; try{ inv=JSON.parse(localStorage.getItem("gize_grupo_pend")||"null"); }catch(e){}
-  const fresh=!!(inv && inv.t && (inv.t>=performance.timeOrigin || Date.now()-inv.t<15*60000));
-  return [TRACK_KEY, GYM_CACHE].concat(keepNew && fresh ? [] : ["gize_grupo_pend"], runKeys(), drafts);
+  const fresh=k=>{ let inv=null; try{ inv=JSON.parse(localStorage.getItem(k)||"null"); }catch(e){} return !!(inv && inv.t && (inv.t>=performance.timeOrigin || Date.now()-inv.t<15*60000)); };
+  return [TRACK_KEY, GYM_CACHE].concat(["gize_grupo_pend", COACH_PEND].filter(k=>!(keepNew && fresh(k))), runKeys(), drafts);
 }
 // Al cerrar sesión o borrar la cuenta: lo que quedó de esa cuenta en el dispositivo además de
 // los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso,
 // avisos de los hábitos, la salida de Cardio en curso, el cronómetro y el temporizador de
 // Cardio, los recorridos guardados, la imagen de la última salida compartida, los borradores
-// de rutina del coach, la invitación a un grupo de pasos y lo que muestra el widget de la
-// pantalla de inicio, que vuelve a «Ingresá a GIZE»: core/widget.js).
+// de rutina del coach, la invitación a un grupo de pasos, la de un coach por su link y lo que
+// muestra el widget de la pantalla de inicio, que vuelve a «Ingresá a GIZE»: core/widget.js).
 export function clearAccountLeftovers(uid){
   clearHabitAlarms();
   widgetBorrar();
@@ -1101,7 +1103,10 @@ export async function afterLogin(sessionUser, stale){
     renderCoach(); checkPaymentReturn(); syncPush();
   }
   else { renderApp(); syncPush(); } // sin await: no demora la entrada
-  maybeShowOnboarding(); // cuenta nueva: bienvenida (una sola vez), encima de la app
+  // Entró con el link de un coach (#coach=, core/invitacion-coach.js): primero la hoja «Entrená con …»
+  // y, al cerrarla, la bienvenida (si se sumó, ya no pide el código). Sin invitación, como siempre.
+  if(hayInvitacionCoach()) ofrecerCoach().finally(maybeShowOnboarding);
+  else maybeShowOnboarding(); // cuenta nueva: bienvenida (una sola vez), encima de la app
   linksSocio(); // entró con un link del socio: el código del gimnasio o el de su ficha (core/gimnasio.js)
   window.dispatchEvent(new Event("gize:login")); // chat: botón, globitos y aviso tocado (main.js)
 }
@@ -2338,6 +2343,9 @@ export async function cloudBoot(){
       } else if(ingresoParaLink()){
         // Link del gimnasio (#gimnasio, #equipo=) sin sesión: se explica para qué hay que entrar (core/gimnasio.js).
         const g=ingresoParaLink(); showLogin(isOnline()?g.msg:offlineMsg, g.modo, g.vals);
+      } else if(ingresoCoach()){
+        // Link de un coach (#coach=) sin sesión: «Crear cuenta», con para qué (core/invitacion-coach.js).
+        const g=ingresoCoach(); showLogin(isOnline()?g.msg:offlineMsg, g.modo, g.vals);
       } else showLogin(isOnline()?"":offlineMsg,"in"); // sin señal, que se sepa por qué no va a poder entrar
     }
   }catch(e){ console.error("cloudBoot",e); showLogin(offlineMsg,"in"); }
