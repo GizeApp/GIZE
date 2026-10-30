@@ -847,4 +847,4 @@ body:not(#_) .co-exc.co-drop-target { background:color-mix(in srgb, var(--gize-r
 .ria-seguir-t svg { width:16px; height:16px; flex:none; color:var(--gize-blue); }
 .ria-seguir .ria-acc { margin-top:0; }
 .ria-ap { color:var(--txt); }
-.cp-title svg { width:18px; height:18px; margin-right:6px; vertical-align:-3px; color:var(--gize-blue); }
+.cp-title:not(.ria-title) svg { width:18px; height:18px; margin-right:6px; vertical-align:-3px; color:var(--gize-blue); }
