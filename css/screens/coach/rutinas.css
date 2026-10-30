@@ -810,3 +810,41 @@ body:not(#_) .co-exc.co-drop-target { background:color-mix(in srgb, var(--gize-r
   .opt-add-card { min-height:52px; }
   .cm-aporte .cm-sub { font-size:var(--text-body); color:var(--txt-2); }
 }
+
+/* ---------- «Armar con IA» (app/screens/coach/rutina-ia.js) ----------
+   La hoja del pedido (#riaMount, sobre .cp-ccard como «Aplicar»), los botones rápidos, el cartel del
+   borrador arriba del editor y de la rutina del alumno, y «Seguir revisándola» en Rutinas. Sin CSS
+   anidado y solo con las variables de la marca y de cada apariencia, sin brillos de color. */
+.ria-ir svg { width:var(--icon-sm); height:var(--icon-sm); flex:none; }
+.ria-title { display:flex; align-items:center; gap:8px; }
+.ria-title svg { width:18px; height:18px; flex:none; color:var(--gize-blue); }
+.ria-lbl { display:block; margin:12px 0 6px; font-size:var(--text-meta); font-weight:700; color:var(--txt-2); }
+.ria-txt { display:block; width:100%; min-height:84px; resize:vertical; font:inherit; line-height:1.4; }
+.ria-cuenta { margin:4px 2px 0; text-align:right; font-size:11px; color:var(--txt-3); }
+.ria-chips { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:8px 0 0; }
+.ria-chips-t { flex:0 0 64px; font-size:var(--text-meta); font-weight:600; color:var(--txt-3); }
+.ria-chip { padding:6px 11px; border-radius:999px; border:1px solid var(--border); background:transparent; color:var(--txt); font:inherit; font-size:var(--text-meta); cursor:pointer; }
+.ria-chip:hover { border-color:var(--gize-blue); }
+.ria-chip:focus-visible { outline:2px solid var(--gize-blue); outline-offset:2px; }
+.ria-chip:disabled { opacity:.5; cursor:default; }
+.ria-hint { margin:12px 0 0; font-size:var(--text-meta); line-height:1.45; color:var(--txt-2); }
+.ria-status { min-height:20px; margin:12px 0 10px; font-size:var(--text-meta); line-height:1.45; }
+.ria-armando { font-weight:600; color:var(--txt); }
+.ria-err { color:var(--txt); }
+.ria-quedan { color:var(--txt-3); }
+.ria-armar:disabled { opacity:.55; cursor:default; }
+.ria-vacia { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:10px; }
+.ria-vacia .co-add-day { margin-top:0; }
+.ria-banner { margin:0 0 14px; padding:12px 14px; max-width:860px; border-radius:var(--r-md); border:1px solid color-mix(in srgb, var(--gize-blue) 45%, transparent); background:color-mix(in srgb, var(--gize-blue) 8%, transparent); color:var(--txt); font-size:var(--text-meta); line-height:1.45; }
+.ria-banner p { margin:6px 0 0; }
+.ria-banner-t { display:flex; align-items:center; gap:7px; font-size:var(--text-body); }
+.ria-banner-t svg { width:16px; height:16px; flex:none; color:var(--gize-blue); }
+.ria-nota { color:var(--txt-2); }
+.ria-acc { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:10px; }
+.ria-mal { font-size:var(--text-meta); }
+.ria-seguir { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:12px 16px; margin:0 0 14px; border-radius:18px; }
+.ria-seguir-t { display:inline-flex; align-items:center; gap:7px; flex:1 1 240px; min-width:0; font-size:var(--text-body); }
+.ria-seguir-t svg { width:16px; height:16px; flex:none; color:var(--gize-blue); }
+.ria-seguir .ria-acc { margin-top:0; }
+.ria-ap { color:var(--txt); }
+.cp-title svg { width:18px; height:18px; margin-right:6px; vertical-align:-3px; color:var(--gize-blue); }

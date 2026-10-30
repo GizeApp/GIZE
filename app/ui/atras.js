@@ -29,6 +29,7 @@ const CERRAR = [
   '#fbHost [data-action="fb-skip"]',             // «¡Entreno terminado!»
   '#coachPagHost .cp-x[data-cpag="cerrar-qr"]',  // coach: el QR de «Mi página»
   '#cobrosModal .gy-x[data-coach="cobro-cerrar"]', // coach: «Anotar cobro» y «Cargar cuotas» (Cobros)
+  '#riaMount button[data-coach="ria-cancel"]',   // coach: «Armar con IA» (la hoja del pedido)
   '#applyMount [data-coach="ap-back"]',          // coach: aplicar / copiar rutina
   '#applyMount [data-coach$="-cancel"]',
   '#planSheetHost .cp-x[data-plan="close"]',     // coach: «Mi plan»

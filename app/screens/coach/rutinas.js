@@ -6,7 +6,7 @@ import { dropExMedia, libVideo } from '../../core/videos.js';
 import { EX_CATS, EX_DB } from '../../core/data.js';
 import { FOR_YOU, forYouList, orderedCats } from '../../core/disciplinas.js';
 
-import { checkSvg, chevronDownSvg, chevronLeftSvg, chevronRightSvg, copySvg, downloadSvg, gripSvg, saveSvg, searchSvg, swapSvg, trashSvg, xSvg } from '../../core/icons.js';
+import { checkSvg, chevronDownSvg, chevronLeftSvg, chevronRightSvg, copySvg, downloadSvg, gripSvg, saveSvg, searchSvg, sparkleSvg, swapSvg, trashSvg, xSvg } from '../../core/icons.js';
 
 import { State } from '../../core/state.js';
 
@@ -18,6 +18,7 @@ import { coachDatalist, coachLogFor, exChart, exSummary, exTable } from './clien
 import { kgText, suggest } from '../../core/progresion.js';
 
 import { renderCoach, routineDirty } from './index.js';
+import { botonArmarIA, cartelIA, opcionArmarIA } from './rutina-ia.js';
 
 import { CoachState } from './state.js';
 
@@ -424,7 +425,8 @@ function weekPanel(b, w, cur, d){
 
 export function applyPickerMarkup(){
   const st=CoachState.coachApplyPicker;
-  if(!st.tplId){
+  // Con un borrador de «Armar con IA» (rutina-ia.js) se va directo al paso 2 con ese borrador.
+  if(!st.tplId && !st.borrador){
     // paso 1: elegir plantilla
     let opts;
     if(st.loading){ opts='<div class="cal-hint">Cargando tus rutinas…</div>'; }
@@ -440,7 +442,7 @@ export function applyPickerMarkup(){
       '<button class="logout-btn" data-coach="ap-cancel">Cancelar</button>';
   }
   // paso 2: elegir días
-  const tpl=CoachState.coachTpls.find(t=>t.id===st.tplId); if(!tpl){ CoachState.coachApplyPicker=null; return null; }
+  const tpl=st.borrador||CoachState.coachTpls.find(t=>t.id===st.tplId); if(!tpl){ CoachState.coachApplyPicker=null; return null; }
   const days=(tpl.days||[]);
   const sel=st.days||{};
   const rows=days.map((d,i)=>{
@@ -452,13 +454,15 @@ export function applyPickerMarkup(){
       '<span class="ap-meta">'+(diasTexto(d)?esc(diasTexto(d))+' \u00b7 ':'')+nex+' ej.</span></div>';
   }).join("");
   const nSel=days.filter((d,i)=>sel[i]!==false).length;
-  return '<div class="cp-title">'+esc(tpl.name)+'</div>'+
+  const ia=st.borrador ? st.borrador.ia : null;
+  return '<div class="cp-title">'+(ia?sparkleSvg:'')+esc(tpl.name)+'</div>'+
+    (ia ? '<div class="cp-sub ria-ap">Borrador armado con IA: revisalo antes de guardar.'+(ia.nota?' Nota de la IA: '+esc(ia.nota):'')+'</div>' : '')+
     '<div class="cp-sub">Destildá los días que no quieras aplicar.</div>'+
     '<div class="ap-days">'+rows+'</div>'+
     '<div class="ap-mode"><label class="ap-radio'+(st.mode!=="add"?" on":"")+'" data-coach="ap-mode" data-m="replace">Reemplazar la rutina actual</label>'+
     '<label class="ap-radio'+(st.mode==="add"?" on":"")+'" data-coach="ap-mode" data-m="add">Agregar a la rutina actual</label></div>'+
     '<button class="co-save-rt" data-coach="ap-confirm">Aplicar '+nSel+' día'+(nSel===1?'':'s')+'</button>'+
-    '<button class="logout-btn" style="margin-top:8px" data-coach="ap-back">‹ Elegir otra rutina</button>';
+    '<button class="logout-btn" style="margin-top:8px" data-coach="ap-back">‹ '+(ia?'Pedir otro borrador':'Elegir otra rutina')+'</button>';
 }
 
 // "Copiar a otro cliente": elegir a qué alumno se le pasa la rutina que se está viendo.
@@ -574,9 +578,10 @@ function exerciseCard(d, day, ex, i, rt){
   const g=ssGroupOf(day.exercises||[], i), tag=g ? g.letter+(i-g.start+1) : '';
   const ord='<span class="co-exc-ord'+(g?' ss':'')+'">'+(tag||(i+1))+'</span>';
   const ssCls=g ? ' co-ss'+(i===g.start?' co-ss-first':'')+(i===g.end?' co-ss-last':'') : '';
-  // «Revisar»: en una rutina de «Pasar mis planillas» (planillas.js), lo que la IA no leyó segura.
+  // «Revisar»: en una rutina de «Pasar mis planillas» (planillas.js) o de «Armar con IA» (rutina-ia.js),
+  // lo que la IA no leyó o no eligió segura.
   // Es solo del borrador: no se guarda en la rutina.
-  const tpe=CoachState.coachTplEdit, rev=tpe && tpe.planilla && Array.isArray(tpe.revisar) && tpe.revisar.includes(ex.id) ? '<span class="co-exc-rev" title="La IA no estaba segura: revisalo">Revisar</span>' : '';
+  const tpe=CoachState.coachTplEdit, rev=tpe && (tpe.planilla || tpe.ia) && Array.isArray(tpe.revisar) && tpe.revisar.includes(ex.id) ? '<span class="co-exc-rev" title="La IA no estaba segura: revisalo">Revisar</span>' : '';
 
   if(!open){
     // Tarjeta compacta: número, nombre, puntitos (uno por serie) y contador de series con
@@ -994,7 +999,11 @@ export function renderCoachSchedule(d){
 
 export function renderCoachRoutine(d){
   const rt=d.routine||[];
-  if(!rt.length) return '<div class="co-sec">Rutina y progreso</div><div class="cal-hint">El cliente todav\u00eda no tiene rutina.</div><button class="co-add-day" data-coach="day-add">+ Agregar d\u00eda</button>';
+  if(!rt.length){
+    // «Armar con IA» (rutina-ia.js) al lado de «+ Agregar día», si anda para el coach.
+    const ria=botonArmarIA("alumno", "co-copy-btn");
+    return '<div class="co-sec">Rutina y progreso</div><div class="cal-hint">El cliente todav\u00eda no tiene rutina.</div>'+(ria?'<div class="ria-vacia"><button class="co-add-day" data-coach="day-add">+ Agregar d\u00eda</button>'+ria+'</div>':'<button class="co-add-day" data-coach="day-add">+ Agregar d\u00eda</button>');
+  }
   if(CoachState.coachEditDay>=rt.length) CoachState.coachEditDay=0;
   // Cada pestaña con sus días de la semana abajo, chiquito (core/diasemana.js).
   // Con dos días o más (y sin días de la semana) se pueden arrastrar para cambiarlos de lugar (ver
@@ -1053,12 +1062,13 @@ export function renderCoachRoutine(d){
       '<button class="co-rt-add-end" data-coach="rt-add"><span>+</span>Agregar ejercicio</button>'+
     '</div>'+
     (cards ? '' : '<div class="cal-hint">Día vacío. Sumá el primer ejercicio.</div>')+
-    (CoachState.coachTplEdit ? '' : (routineDirty() ? '<div class="co-unsaved">'+(CoachState.coachData.draftRestored ? 'Recuperamos los cambios que no se habían guardado. ' : 'Cambios sin guardar. ')+'Tocá <b>Guardar rutina</b> para que le lleguen al cliente.</div>' : '')+
+    (CoachState.coachTplEdit ? '' : cartelIA("alumno")+(routineDirty() ? '<div class="co-unsaved">'+(CoachState.coachData.draftRestored ? 'Recuperamos los cambios que no se habían guardado. ' : 'Cambios sin guardar. ')+'Tocá <b>Guardar rutina</b> para que le lleguen al cliente.</div>' : '')+
       // Pie fijo: «Más acciones» (aplicar una de mis rutinas, copiar a otro cliente, guardar como rutina) y Guardar.
       '<div class="co-savebar"><details class="co-day-menu co-more-actions"><summary>Más acciones</summary><div class="co-day-pop">'+
         "<button class='co-day-mv' data-coach='rt-apply'>"+downloadSvg+"<span>Aplicar una de mis rutinas</span></button>"+
         "<button class='co-day-mv' data-coach='rt-copy'>"+copySvg+"<span>Copiar a otro cliente</span></button>"+
         "<button class='co-day-mv' data-coach='rt-tosave'>"+saveSvg+"<span>Guardar como rutina</span></button>"+
+        opcionArmarIA()+
       '</div></details><button class="co-save-rt" data-coach="save-routine">Guardar rutina</button></div>');
 }
 

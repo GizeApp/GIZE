@@ -54,6 +54,8 @@ import { loadBilling } from './screens/coach/plan.js';
 import { calState } from './screens/coach/calendario.js';
 import { mealAction, mealDirty, nutritionRow } from './screens/coach/planes.js';
 import { cerrarPlanillas, planillaAction } from './screens/coach/planillas.js';
+import { abrirRutinaIA, borradorAplicado, rutinaIAAction } from './screens/coach/rutina-ia.js';
+import { iaCoachEstado } from './core/ia-coach.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
 import { ComidaState, mealNow, alComida, plateDia, paintBarraIA, paintSearchIA, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, foodByName, lastResults, offResults, paintPlate, paintPlateNums, plateItemVals, previewStr, rememberCookState, renderComida, renderPlateSheet, renderResults, selectedFoodValues } from './screens/comida.js';
@@ -1427,7 +1429,10 @@ document.body.addEventListener("click", async e => {
   // del plan alimenticio, más abajo) y una rutina suya abierta en el editor
   // (Volver vuelve a la planilla, Guardar la guarda y la aplica, Descartar la saca de la lista).
   if((/^pp-/.test(a) || (CoachState.coachTplEdit && CoachState.coachTplEdit.planilla && /^tpl-(back|save|del)$/.test(a))) && await planillaAction(a, b)) return;
-  if(a==="view-tpls"){ CoachState.coachView="tpls"; await Promise.all([loadTpls(), cargarCatalogo().then(l=>{ CoachState.coachCat=l; }, ()=>{})]); renderCoach(); return; }
+  // «Armar con IA» (ver screens/coach/rutina-ia.js: sus acciones son «ria-»).
+  if(/^ria-/.test(a) && await rutinaIAAction(a, b)) return;
+  // Rutinas: también si «Armar con IA» anda para el coach (así el botón no aparece después).
+  if(a==="view-tpls"){ CoachState.coachView="tpls"; await Promise.all([loadTpls(), cargarCatalogo().then(l=>{ CoachState.coachCat=l; }, ()=>{}), iaCoachEstado()]); renderCoach(); return; }
   // Importar una rutina armada (las mismas que se ofrecen a quien entrena solo, ver
   // core/rutinas-ejemplo.js) como rutina nueva del coach, para editarla y guardarla.
   if(a==="tpl-seed-open"){ CoachState.coachSeedOpen=!CoachState.coachSeedOpen; renderCoach(); return; }
@@ -1609,17 +1614,21 @@ document.body.addEventListener("click", async e => {
   }
   if(a==="rt-apply"){ await abrirAplicarRutina(); return; }
   if(a==="ap-cancel"){ closeSheet(()=>{ CoachState.coachApplyPicker=null; renderApplyPicker(); }, {host:"#applyMount", card:".cp-ccard", duration:150}); return; }
+  // Con un borrador de «Armar con IA»: vuelve a la hoja del pedido, con el mismo texto.
+  if(a==="ap-back" && CoachState.coachApplyPicker && CoachState.coachApplyPicker.borrador){ const tx=CoachState.coachApplyPicker.borrador.texto; CoachState.coachApplyPicker=null; renderApplyPicker(); await abrirRutinaIA("alumno", tx); return; }
   if(a==="ap-back"){ CoachState.coachApplyPicker={tplId:null, days:{}, mode:"replace"}; renderApplyPicker(); return; }
   if(a==="ap-tpl"){ CoachState.coachApplyPicker.tplId=b.dataset.id; CoachState.coachApplyPicker.days={}; renderApplyPicker(); return; }
   if(a==="ap-day"){ const i=+b.dataset.i; CoachState.coachApplyPicker.days[i]=(CoachState.coachApplyPicker.days[i]===false); renderApplyPicker(); return; }
   if(a==="ap-mode"){ CoachState.coachApplyPicker.mode=b.dataset.m; renderApplyPicker(); return; }
   if(a==="ap-confirm"){
-    const st=CoachState.coachApplyPicker; const tpl=CoachState.coachTpls.find(t=>t.id===st.tplId); if(!tpl) return;
+    const st=CoachState.coachApplyPicker; const tpl=st.borrador||CoachState.coachTpls.find(t=>t.id===st.tplId); if(!tpl) return;
     const picked=(tpl.days||[]).filter((d,i)=>st.days[i]!==false).map(d=>JSON.parse(JSON.stringify(d)));
     if(!picked.length){ alert("Elegí al menos un día."); return; }
     picked.forEach(d=>{ d.id=uid(); (d.exercises||[]).forEach(ex=>{ ex.id=uid(); (ex.sets||[]).forEach(s=>{ s.id=uid(); s.kg=""; s.reps=""; s.done=false; }); }); });
     if(st.mode==="add"){ CoachState.coachData.routine=(CoachState.coachData.routine||[]).concat(picked); }
     else { CoachState.coachData.routine=picked; }
+    // El borrador de la IA queda marcado (el cartel con «Pedir otra versión» y «¿Está mal?»).
+    if(st.borrador) borradorAplicado(st.borrador); else CoachState.coachData.ia=null;
     CoachState.coachEditDay=0;
     closeSheet(()=>{ CoachState.coachApplyPicker=null; renderApplyPicker(); renderCoach(); }, {host:"#applyMount", card:".cp-ccard", duration:150});
     alert("Rutina aplicada. Presioná “Guardar rutina” para sincronizar al cliente.");
@@ -1779,7 +1788,7 @@ document.body.addEventListener("click", async e => {
   if(a==="pl-swapdel"){ const p=coachPlanObj(CoachState.coachData); p.swaps.splice(+b.dataset.i,1); renderCoach(); return; }
   // Se guarda la rutina tal como estaba al tocar: lo que el coach cambie mientras se guarda
   // sigue marcado como "sin guardar" (antes se daba por guardado y se perdía).
-  if(a==="save-routine"){ const cd=CoachState.coachData; if(!cd||!cd.id||cd.id!==CoachState.coachSel||cd.savingRoutine) return; const sent=JSON.stringify(cd.routine||[]); cd.savingRoutine=true; b.disabled=true; b.textContent="Guardando..."; (async()=>{ try{ const r=await State.sb.from("routines").upsert({client_id:cd.id, days:JSON.parse(sent), updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}); if(r.error) throw r.error; if(CoachState.coachData===cd){ cd.routineOrig=sent; cd.draftRestored=false; } alert("Rutina guardada. El cliente la va a ver al abrir la app."); }catch(err){ alert("No se pudo guardar: "+((err&&err.message)||err)); } cd.savingRoutine=false; renderCoach(); })(); return; }
+  if(a==="save-routine"){ const cd=CoachState.coachData; if(!cd||!cd.id||cd.id!==CoachState.coachSel||cd.savingRoutine) return; const sent=JSON.stringify(cd.routine||[]); cd.savingRoutine=true; b.disabled=true; b.textContent="Guardando..."; (async()=>{ try{ const r=await State.sb.from("routines").upsert({client_id:cd.id, days:JSON.parse(sent), updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}); if(r.error) throw r.error; if(CoachState.coachData===cd){ cd.routineOrig=sent; cd.draftRestored=false; cd.ia=null; } alert("Rutina guardada. El cliente la va a ver al abrir la app."); }catch(err){ alert("No se pudo guardar: "+((err&&err.message)||err)); } cd.savingRoutine=false; renderCoach(); })(); return; }
 });
 
 document.body.addEventListener("change", async e => {

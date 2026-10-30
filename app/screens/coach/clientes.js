@@ -216,7 +216,7 @@ export async function openClient(id, keep, lectura){
     // este quedarían mostrados (y guardados) como si fueran del otro.
     if(CoachState.coachSel!==id) return;
     const c=lectura ? { full_name: lectura.nombre, avatar_path: lectura.avatar } : CoachState.coachClients.find(x=>x.id===id);
-    CoachState.coachData={id:id, lectura:lectura||null, info:(ci.data||{}), block:((bl.data&&bl.data[0])||null), name:(c&&c.full_name)||"Cliente", avatar:(c&&c.avatar_path)||null, weights:weights, sessions:sessions, routine:routine, routineOrig:routineOrig, draftRestored:restored, loadEx:null, daily:(dl.data||[]), checkins:(ck.data||[]), plan:(np.data||null), schedule:(sc&&!sc.error&&sc.data)||[],
+    CoachState.coachData={id:id, lectura:lectura||null, info:(ci.data||{}), block:((bl.data&&bl.data[0])||null), name:(c&&c.full_name)||"Cliente", avatar:(c&&c.avatar_path)||null, weights:weights, sessions:sessions, routine:routine, routineOrig:routineOrig, draftRestored:restored, ia:(restored && dr.ia && typeof dr.ia==="object") ? dr.ia : null, loadEx:null, daily:(dl.data||[]), checkins:(ck.data||[]), plan:(np.data||null), schedule:(sc&&!sc.error&&sc.data)||[],
       salidas:(so && !so.error && Array.isArray(so.data)) ? so.data.map(salidaFromRow) : [], salidasError:(so && so.error) ? (salidaNoTable(so.error) ? "tabla" : "error") : ""};
     if(restored) CoachState.coachClientTab="rutina";
     CoachState.coachPlanForm=forms.p||null; CoachState.coachInfoForm=forms.i||null; CoachState.coachBlockForm=forms.b||null; CoachState.coachWeekSel=null;

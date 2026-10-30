@@ -190,7 +190,7 @@ function comunes(){
 }
 // Las palabras de esos nombres que se tapan: de 3 letras o más, sin números y que no sean de
 // ejercicios ni de las de siempre.
-function privados(lista){
+export function privados(lista){
   const c = comunes(), out = new Set();
   for (const s of lista) for (const w of palabras(s)) if (w.length >= 3 && !/\d/.test(w) && !c.has(w)) out.add(w);
   return out;

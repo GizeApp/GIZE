@@ -84,6 +84,10 @@ export const CoachState = {
   // «Pasar mis planillas» (planillas.js): null = cerrada; abierta, se dibuja en lugar de Rutinas.
   planillas: null,
 
+  // «Armar con IA» (rutina-ia.js): la hoja para escribir el pedido (#riaMount). null = cerrada;
+  // abierta: { para: "tpl" | "alumno", cliente, texto, armando, msg, reintento }.
+  coachIA: null,
+
   coachApplyPicker: null,
 
   // "Copiar a otro cliente": {loading?} mientras se copia; null = cerrado.

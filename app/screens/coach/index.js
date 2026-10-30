@@ -40,6 +40,7 @@ import { gymPorSaber, pintarGym, sinPlanGym } from '../../core/gimnasio.js';
 import { accesoGym, cargarFichaGym, cartelGym, conTarjetaGym, cssGym, enGym, esProfeGym, esSocioGym, focoRec, inviteGym, notaPropios, puedeRecepcion, seccionGym, tileGym, vistaClases, vistaRecepcion, volverFocoRec } from './gimnasio.js';
 import { cobrosOn, conCobro, seccionCobro, tarjetaInicio, tileCobro, vistaCobros } from './cobros.js';
 import { avisoEditor, vistaPlanillas } from './planillas.js';
+import { botonArmarIA, cartelIA, guardarBorradorIA } from './rutina-ia.js';
 
 // Ficha en modo lectura (el dueño o la administración del gimnasio miran a un socio que compartió sus
 // registros y no es suyo; ver openClient): se ve todo lo que el socio compartió, pero no se edita. Solo
@@ -115,7 +116,8 @@ export function dropRoutineDraft(id){ try{ localStorage.removeItem(draftKey(id))
 export function persistRoutineDraft(){
   const d=CoachState.coachData; if(!d || !d.id || d.routineOrig===undefined) return;
   try{
-    if(routineDirty()) localStorage.setItem(draftKey(d.id), JSON.stringify({ days:d.routine, base:d.routineOrig, ts:Date.now() }));
+    // ia: el borrador de «Armar con IA» que se le aplicó (rutina-ia.js), para el cartel y «¿Está mal?».
+    if(routineDirty()) localStorage.setItem(draftKey(d.id), JSON.stringify(Object.assign({ days:d.routine, base:d.routineOrig, ts:Date.now() }, d.ia ? { ia:d.ia } : {})));
     else localStorage.removeItem(draftKey(d.id));
   }catch(e){}
 }
@@ -128,7 +130,7 @@ export function renderCoach(){
   const host=document.getElementById("coachHost"); if(!host) return;
   if(enGym()) cssGym();
   queueMicrotask(syncRouteViews); // después de dibujar: el recorrido de una salida abierta a su lugar (o afuera)
-  snapEdits(); snapMealEdit(); persistRoutineDraft();
+  snapEdits(); snapMealEdit(); persistRoutineDraft(); guardarBorradorIA();
   if(!CoachState.coachSel && CoachState.coachApplyPicker){ CoachState.coachApplyPicker=null; renderApplyPicker(); }
   if(!CoachState.coachSel && CoachState.coachMealPicker && CoachState.coachMealPicker.mode==="one"){ CoachState.coachMealPicker=null; renderMealPicker(); }
   if(!CoachState.coachSel && CoachState.coachCopyPicker){ CoachState.coachCopyPicker=null; renderCopyPicker(); }
@@ -169,16 +171,19 @@ export function renderCoach(){
   } else if(CoachState.coachTplEdit){
     const rt=CoachState.coachTplEdit.days||[];
     let ed="";
-    if(!rt.length){ ed='<div class="cal-hint">Esta rutina no tiene días todavía.</div><button class="co-add-day" data-coach="day-add">+ Agregar día</button>'; }
-    else { ed=renderCoachRoutine({routine:rt, sessions:[]}); }
     // pla: una rutina de «Pasar mis planillas» (planillas.js): Volver vuelve a la planilla y Borrar la descarta.
     const sch=!!CoachState.coachTplEdit.sched, dle=!!CoachState.coachTplEdit.deload, pla=!!CoachState.coachTplEdit.planilla;
+    // Una rutina vacía de «Mis rutinas»: también «Armar con IA» (rutina-ia.js), si anda para el coach.
+    const ria=!rt.length && !sch && !dle && !pla ? botonArmarIA("tpl", "co-copy-btn") : "";
+    if(!rt.length){ ed='<div class="cal-hint">Esta rutina no tiene días todavía.</div>'+(ria?'<div class="ria-vacia"><button class="co-add-day" data-coach="day-add">+ Agregar día</button>'+ria+'</div>':'<button class="co-add-day" data-coach="day-add">+ Agregar día</button>'); }
+    else { ed=renderCoachRoutine({routine:rt, sessions:[]}); }
     const who=esc((CoachState.coachData&&CoachState.coachData.name)||"el alumno");
     const dlRange=dle ? weekRange(CoachState.coachBlockForm||(CoachState.coachData&&CoachState.coachData.block), CoachState.coachTplEdit.wk) : null;
     host.innerHTML=coachShell(CoachState.coachSel?"clients":"tpls",
       '<div class="co-head"><button class="co-back" data-coach="tpl-back">‹ '+(pla?'Volver a la planilla':'Volver')+'</button>'+
       '<button class="co-logout" data-coach="tpl-del">'+(dle?(CoachState.coachTplEdit.saved?'Borrar rutina de descarga':'Descartar'):pla?'Descartar':sch?'Borrar programación':'Borrar rutina')+'</button></div>'+
       (pla ? avisoEditor() : '')+
+      (CoachState.coachTplEdit.ia && !sch && !dle && !pla ? cartelIA("tpl") : '')+
       (dle ? '<div class="co-sched-edit-t">Rutina de descarga \u00b7 semana '+CoachState.coachTplEdit.wk+' de '+who+'</div>'+
         '<div class="co-sched-sub">'+(dlRange?'Del '+esc(fmtDate(dlRange[0]))+' al '+esc(fmtDate(dlRange[1]))+': ':'')+'esa semana la usa en lugar de su rutina de siempre, que vuelve sola el lunes siguiente con los pesos que tenía cargados.</div>' : '')+
       (sch ? '<div class="co-sched-edit-t">Rutina programada para '+esc((CoachState.coachData&&CoachState.coachData.name)||"el alumno")+'</div>'+

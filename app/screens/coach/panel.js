@@ -16,6 +16,7 @@ import { missingHint } from './planes.js';
 import { botonClases, botonRecepcion, chipGym, esProfeGym, grupos, nombreGym } from './gimnasio.js';
 import { botonCobros } from './cobros.js';
 import { botonPlanillas } from './planillas.js';
+import { botonArmarIA, cartelSeguirIA } from './rutina-ia.js';
 
 const ico = d => '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';
 const I = {
@@ -120,12 +121,13 @@ const clientesCargando = () => !CoachState.coachClientsLoaded && !CoachState.coa
 const CARGANDO_CLIENTES = '<div class="cv-card cv-hello"><b>Cargando tus clientes…</b><span>Si no tenés conexión, aparecen apenas vuelva.</span></div>';
 
 // La franja «Con IA» (Rutinas, y el llamado de Rutinas vacía e Inicio sin clientes): «Pasar mis
-// planillas» (planillas.js), si la IA del coach la tiene prendida para él. Sin nada prendido no se ve.
-function franjaIA(llamado){
-  const b=botonPlanillas();
+// planillas» (planillas.js) y, en Rutinas, «Armar con IA» (rutina-ia.js), las que la IA del coach
+// tenga prendidas para él. Sin nada prendido no se ve.
+function franjaIA(llamado, rutinas){
+  const pl=botonPlanillas(), b=pl+(rutinas?botonArmarIA("tpl"):"");
   if(!b) return "";
   return '<div class="cv-card pp-franja'+(llamado?' pp-llamado':'')+'" role="group" aria-label="Con IA"><span class="pp-franja-t">'+sparkleSvg+'Con IA</span>'+
-    (llamado?'<span class="pp-franja-s">¿Tenés tus rutinas en Excel o Google Sheets? Pasalas a GIZE.</span>':'')+
+    (llamado?'<span class="pp-franja-s">'+(pl?'¿Tenés tus rutinas en Excel o Google Sheets? Pasalas a GIZE.':'Contá qué rutina querés y GIZE te arma un borrador para revisar.')+'</span>':'')+
     '<span class="pp-franja-b">'+b+'</span></div>';
 }
 
@@ -285,11 +287,11 @@ export function renderTplsView(banner){
   const head=pageHead("Rutinas",
     '<button class="co-copy-btn cv-sec-btn" data-coach="tpl-seed-open" aria-expanded="'+!!CoachState.coachSeedOpen+'">'+downloadSvg+' Importar rutina armada</button>'+mainBtn('data-coach="tpl-new"',"Crear rutina",S.plus));
   if(!L.length){
-    return head+(banner||"")+franjaIA(!CoachState.tplsError)+seed+(CoachState.tplsError ? '<div class="cal-hint" style="color:var(--red)">No se pudieron cargar: <b>'+esc(CoachState.tplsError)+'</b><br><br>Si dice que la tabla no existe, falta correr el SQL de rutinas en Supabase.</div>' : '<div class="cal-hint">Todavía no creaste ninguna rutina. Creá una y después aplicásela a los clientes que quieras.</div>');
+    return head+(banner||"")+cartelSeguirIA()+franjaIA(!CoachState.tplsError, true)+seed+(CoachState.tplsError ? '<div class="cal-hint" style="color:var(--red)">No se pudieron cargar: <b>'+esc(CoachState.tplsError)+'</b><br><br>Si dice que la tabla no existe, falta correr el SQL de rutinas en Supabase.</div>' : '<div class="cal-hint">Todavía no creaste ninguna rutina. Creá una y después aplicásela a los clientes que quieras.</div>');
   }
   const cards=L.map(t=>{ const nd=(t.days||[]).length;
     return '<button class="cv-card cv-tpl'+(sel&&t.id===sel.id?' on':'')+'" data-coach="tpl-pick" data-id="'+esc(t.id)+'"><b>'+esc(t.name||"Sin nombre")+'</b><span>'+S.calendar+nd+' día'+(nd===1?'':'s')+'</span></button>'; }).join("");
-  return head+(banner||"")+franjaIA(false)+seed+'<div class="cv-tpls"><div class="cv-tpl-list">'+cards+'</div><section class="cv-card cv-detail">'+renderTplDetail(sel)+'</section></div>';
+  return head+(banner||"")+cartelSeguirIA()+franjaIA(false, true)+seed+'<div class="cv-tpls"><div class="cv-tpl-list">'+cards+'</div><section class="cv-card cv-detail">'+renderTplDetail(sel)+'</section></div>';
 }
 
 // ---------- Planes alimenticios ----------
