@@ -373,5 +373,5 @@ export default async function ({ base, t }){
   // ---- 6) La política dice lo que hace la pantalla con lo que ya se pasó. ----
   const pol = fs.readFileSync(path.join(ROOT, 'privacidad/index.html'), 'utf8');
   const coach = (pol.match(/<p id="ia-coach">[\s\S]*?<\/p>/) || [''])[0];
-  t.has(coach, 'Mientras el coach las revisa, las rutinas que armó la IA quedan solo en su equipo, hasta 7 días o hasta que las guarde, las descarte o cierre sesión.', 'la política: el borrador queda solo en el equipo');
+  t.has(coach, 'Mientras el coach las revisa, las rutinas que armó la IA (con los renglones ya limpios de donde salió cada ejercicio, para mostrarle cómo la leyó) quedan solo en su equipo, hasta 7 días o hasta que las guarde, las descarte o cierre sesión.', 'la política: el borrador queda solo en el equipo');
 }
