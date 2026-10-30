@@ -3,14 +3,14 @@
 El widget muestra en la pantalla de inicio del celular los pasos de hoy, la racha y el entreno que
 le toca al alumno, sin abrir la app.
 
-- **Android:** no hay que hacer nada en ninguna web de Google. Solo publicar la versión nueva
+- **Android:** no hay que configurar nada nuevo en Google: solo publicar la versión nueva
   (sección 6).
 - **iPhone:** la app y el widget comparten los datos por un **App Group** (un lugar del celular que
   ven los dos). Apple no deja que la compilación automática lo arme sola: lo tenés que crear vos en
   **developer.apple.com**, una sola vez. Son **3 pasos** y no hace falta tocar código.
 
 Hasta que estén hechos los 3 pasos, la parte del widget de iPhone (la rama `widget-iphone`) **no se
-mergea**: si entra antes, cualquier versión de iPhone falla al exportarse.
+mergea**: si entra antes, cualquier versión de iPhone falla en la firma (y no se sube).
 
 ---
 
@@ -136,6 +136,7 @@ Android esperando versión, conviene sacarlas todas juntas.
 
 ### Qué guarda el widget
 
-Solo lo que ya muestra la app (pasos, racha y el entreno del día), guardado en el mismo celular. No
-sale a ningún lado, no lee nada por su cuenta y se borra al cerrar sesión, al eliminar la cuenta o
-cuando entra otra cuenta. Está en la Política de privacidad (gize.ar/privacidad).
+Solo lo que ya muestra la app (los pasos de hoy, la racha y el nombre del entreno de hoy y de los
+próximos días), guardado en el mismo celular. No sale a ningún lado, no lee nada por su cuenta y se
+borra al cerrar sesión, al eliminar la cuenta o cuando entra otra cuenta. Cualquiera que vea la
+pantalla del celular lo ve. Está en la Política de privacidad (gize.ar/privacidad).
