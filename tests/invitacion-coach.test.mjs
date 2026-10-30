@@ -7,7 +7,8 @@
 //   «Sumarme» llama a join_coach con el código de la página, relee el perfil y pone la marca del coach;
 //   «Ahora no» no llama nada. Se cierre como se cierre, la invitación se borra.
 // - Nunca se cambia de coach solo: con el mismo coach o con otro, avisa sin [Sumarme]. El coach que abre
-//   su link o el de otro, y la página que ya no se ve (o la base sin la función), también avisan.
+//   su link o el de otro, y la página que ya no se ve (la base sin la función o con las páginas apagadas
+//   sin el permiso de coach_pagina_ver), también avisan: eso no es un problema de señal.
 // - Sin señal, «Reintentar». Errores de join_coach en la app de Android: el texto sin el plan, y la hoja
 //   sigue abierta para volver a probar; mientras se suma, el «Atrás» no la cierra; después sí.
 // - Cuenta nueva: primero la hoja y, al cerrarla, la bienvenida, que ya no pide el código.
@@ -59,6 +60,8 @@ async function entrar(base, o = {}){
       const v = typeof o.ver === 'function' ? o.ver(st.ver.length) : o.ver === undefined ? PAG : o.ver;
       if (v === 'red') return r.abort();
       if (v === 'sin') return J({ code: 'PGRST202', message: 'Could not find the function public.coach_pagina_ver', details: null, hint: null }, 404);
+      // Las páginas apagadas en la base: sin el permiso de coach_pagina_ver (supabase/pagina-coach.sql).
+      if (v === 'apagadas') return J({ code: '42501', message: 'permission denied for function coach_pagina_ver', details: null, hint: null }, 403);
       return J(v);
     },
     '/rpc/join_coach': (r, J, i) => {
@@ -155,6 +158,7 @@ export default async function ({ base, t }){
     ['coach, el link de otro', { rol: 'coach', user: COACH }, 'Este link es para alumnos'],
     ['la página ya no se ve', { ver: null }, 'Esta invitación ya no está disponible Pedile a tu coach su código para sumarte en GIZE.'],
     ['la base sin la función', { ver: 'sin' }, 'Esta invitación ya no está disponible'],
+    ['las páginas apagadas en la base', { ver: 'apagadas' }, 'Esta invitación ya no está disponible Pedile a tu coach su código para sumarte en GIZE.'],
   ]){
     const pg = await entrar(base, o), p = pg.p;
     t.has(await hoja(p), frase, que + ': avisa');

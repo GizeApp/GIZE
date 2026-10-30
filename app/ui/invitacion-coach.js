@@ -25,8 +25,9 @@ import { circular } from './avisos.js';
 import { renderApp } from '../main.js';
 
 const NO_SALIO = "No se pudo: revisá tu conexión y probá de nuevo.";
-// La base todavía no tiene supabase/pagina-coach.sql (o se volvió atrás).
-const sinFuncion = e => /^(PGRST202|42883)$/.test(String((e && e.code) || ""));
+// La base todavía no tiene supabase/pagina-coach.sql (o se volvió atrás), o GIZE apagó las páginas
+// sacándole el permiso a coach_pagina_ver (42501, como dice ese archivo): no es la señal.
+const sinFuncion = e => /^(PGRST202|42883|42501)$/.test(String((e && e.code) || ""));
 const primerNombre = n => String(n || "").trim().split(/\s+/)[0] || "";
 const iniciales = n => { const p = String(n || "").trim().split(/\s+/).filter(Boolean); return p.length ? (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase() : ""; };
 // El socio con un profe del gimnasio: lo deja en Ajustes → Tu gimnasio, y eso lo explica join_coach.
