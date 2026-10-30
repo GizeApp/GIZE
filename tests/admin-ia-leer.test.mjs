@@ -283,9 +283,13 @@ export default async function ({ base, t }){
   await ia.click('[data-a="iaFn"][data-k="etiqueta_admin"]'); await wait(600);
   t.eq(a.rpcs.filter(r => r[0] === 'config')[1], ['config', { p: { funciones: { etiqueta_admin: true } } }], 'prende «Leer tablas en Pedidos»');
   // «Pasar planillas (coach)» ya se puede prender: la función «ia» tiene su modo (cambió a propósito;
-  // antes estaba deshabilitado). «Armar rutina» y el resumen siguen esperando su rama.
-  for (const k of ['etiqueta_usuario', 'rutina', 'resumen'])
+  // antes estaba deshabilitado). «Armar rutina» sigue esperando su rama.
+  for (const k of ['etiqueta_usuario', 'rutina'])
     t.ok(await ia.$eval(`[data-a="iaFn"][data-k="${k}"]`, b => b.disabled), 'lo que todavía no está en la app no se puede prender (' + k + ')');
+  // El viejo «Resumen de la semana (coach)» con IA, que nunca salió, se sacó del panel para no
+  // confundirlo con el «Resumen de los lunes» (cambió a propósito: antes estaba, deshabilitado).
+  t.ok(!(await ia.$('[data-a="iaFn"][data-k="resumen"]')), 'el viejo resumen con IA ya no tiene interruptor');
+  t.ok(!/Resumen de la semana/.test(await text(ia, '.ia-funs')), 'ni aparece en Funciones');
   // La foto del plato (app) ya se puede prender, con confirmación.
   t.ok(!(await ia.$eval('[data-a="iaFn"][data-k="plato"]', b => b.disabled)), '«Foto del plato» se puede prender');
   await ia.click('[data-a="iaFn"][data-k="plato"]'); await wait(700);
@@ -349,9 +353,10 @@ export default async function ({ base, t }){
   t.ok(!/\brefusal\b|max_tokens|api_500/.test(pag2), 'sin códigos crudos en inglés');
   await a.close();
   // La IA del coach (base en supabase/ia.sql): el coach en su prueba gratis tiene topes propios
-  // («Coach en prueba») y las planillas tienen su nombre en Topes, en el uso y en las llamadas.
+  // («Coach en prueba») y las planillas tienen su nombre en Topes, en el uso y en las llamadas. El
+  // coach trae además el tope «resumen», como en la base: era del viejo resumen con IA y no se muestra.
   a = await abrir(base, { vista: 'ia', fnEstado: () => ({ body: FN_VIEJA }), estado: ESTADO({ topes: { admin: { etiqueta: 300, total: 300, usd_ciclo: 10 },
-      coach: { planilla: 30, rutina: 15, total: 60, usd_ciclo: 5 }, prueba: { planilla: 15, rutina: 5, total: 20, usd_ciclo: 1 } },
+      coach: { planilla: 30, rutina: 15, resumen: 3, total: 60, usd_ciclo: 5 }, prueba: { planilla: 15, rutina: 5, total: 20, usd_ciclo: 1 } },
     por_funcion: { planilla: { usos: 3, usd: 0.01 } },
     ultimas: [{ creada: NUEVO, rol: 'prueba', origen: null, funcion: 'planilla', modelo: 'm1', estado: 'ok', codigo: null, usd: 0.003, max_usd: 0.015, ms: 9000 },
       { creada: NUEVO, rol: 'coach', origen: 'plan', funcion: 'rutina', modelo: 'm1', estado: 'ok', codigo: null, usd: 0.003, max_usd: 0.009, ms: 8000 },
@@ -365,7 +370,12 @@ export default async function ({ base, t }){
   t.has(await text(a.p, '#iaUsoB'), 'Planillas', 'Uso del ciclo: las planillas con su nombre');
   t.eq(await a.p.$$eval('#iaUltB tbody tr', trs => trs.map(tr => [tr.children[1].textContent, tr.children[2].textContent])), [['Coach en prueba', 'Planillas'], ['Coach', 'Rutinas'], ['Coach', 'Planillas']], 'Últimas llamadas: el coach en prueba y las planillas con su nombre');
   t.eq(await a.p.$eval('#iaUltB tbody tr:nth-child(3)', tr => tr.children[4].textContent), 'no era una rutina', 'Últimas llamadas: una hoja que no era una rutina lo dice (no «sin tabla»)');
-  t.ok(!(await a.p.$$eval('#iaTopesB b, #iaTopesB label, #iaUltB tbody td', es => es.map(e => e.textContent.trim()))).some(x => /^(prueba|planilla)\b/.test(x)), 'sin claves crudas');
+  t.ok(!(await a.p.$$eval('#iaTopesB b, #iaTopesB label, #iaUltB tbody td', es => es.map(e => e.textContent.trim()))).some(x => /^(prueba|planilla|resumen)\b/.test(x)), 'sin claves crudas');
+  t.ok(!(await a.p.$('[data-tope="coach.resumen"]')) && !/Resúmenes|resumen/i.test(tps), 'Topes: sin el del viejo resumen con IA');
+  // Guardar los topes no lo manda: la base deja el que tenía (admin_ia_config cambia solo lo que llega).
+  await a.p.click('[data-a="iaTopes"]'); await wait(600);
+  const tg = (a.rpcs.filter(r => r[0] === 'config').pop() || [])[1];
+  t.eq(tg && tg.p && tg.p.topes && tg.p.topes.coach, { planilla: 30, rutina: 15, total: 60, usd_ciclo: 5 }, 'Guardar topes: el coach sin el del viejo resumen');
   t.ok(!(await a.p.$('#iaModeloPl')) && !!(await a.p.$('#iaModelo')), 'con la función «ia» de antes (sin el modo planilla publicado), sin el modelo de las planillas');
   t.eq(a.errs, [], 'errores de la página (IA del coach)');
   await a.close();
