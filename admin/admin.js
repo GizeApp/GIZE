@@ -1946,9 +1946,13 @@ function diaPolitica(iso){
 async function loadIA(){
   const lead = "Lo que gasta la IA con los créditos de API del plan Max. La IA solo completa: vos revisás y publicás.";
   page("IA", lead, '<div class="empty">Cargando…</div>');
-  const [est, fnEst, plus, ped] = await Promise.all([rpc("admin_ia_estado").catch(e => ({ error: e })), iaInvoke({ modo: "estado" }), rpc("admin_ia_plus_lista").catch(() => null), rpc("admin_pedidos_baja").catch(() => null)]);
+  // ia_mi_estado (lo que ve la app, acá con la cuenta del administrador) dice si la base ya tiene la
+  // voz: con supabase/ia.sql nuevo trae aviso_texto; si no lo trae, «Comida por voz» no se puede
+  // prender (la app no la mostraría y la función contestaría «pausada»). Si no contesta, no se avisa.
+  const [est, fnEst, plus, ped, mio] = await Promise.all([rpc("admin_ia_estado").catch(e => ({ error: e })), iaInvoke({ modo: "estado" }), rpc("admin_ia_plus_lista").catch(() => null), rpc("admin_pedidos_baja").catch(() => null), rpc("ia_mi_estado").catch(() => null)]);
   if (S.view !== "ia") return;
   S.iaPlus = plus; S.pedidosBaja = ped;
+  S.iaSinVoz = !!(mio && typeof mio === "object" && !Array.isArray(mio) && !("aviso_texto" in mio));
   if (est && est.error){
     const falta = /admin_ia_estado|schema cache|does not exist/i.test(errMsg(est.error));
     return page("IA", lead, `<div class="card calm">${falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/ia.sql</b> (antes, <b>supabase/pedidos-productos.sql</b>)." : esc(errMsg(est.error))}</div>`);
@@ -1992,7 +1996,10 @@ function paintIA(foco){
   // Funciones.
   // [clave, nombre, nota (si todavía no se puede prender), ayuda]
   const FUN = [["etiqueta_admin", "Leer tablas en Pedidos (este panel)", ""], ["etiqueta_usuario", "Tabla en «Pedir un producto» (app)", "Todavía no está en la app"],
-    ["plato", "Foto del plato (app)", "", "Aparece en Comida, al lado del buscador (web; en las apps, con la versión nueva). Cada foto sale menos de un centavo. «Contame qué comiste» se sacó: solo fotos."],
+    ["plato", "Foto del plato (app)", "", "Aparece en Comida, al lado del buscador (web; en las apps, con la versión nueva). Cada foto sale menos de un centavo."],
+    // La voz (clave «texto»): la persona dice (con el micrófono del teclado) o escribe lo que comió.
+    // Sin la base nueva (ia.sql con aviso_texto) no se puede prender: lo dice en lugar de la ayuda.
+    ["texto", "Comida por voz (app)", S.iaSinVoz ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/ia.sql</b>." : "", "Aparece en Comida, en el botón «Voz» al lado de «Foto» (web; en las apps, con la versión nueva): la persona dice o escribe lo que comió y la IA arma el plato. Hasta 15 por día por persona (en Topes, «Voz por día»); no entra en el límite semanal de fotos ni en IA Plus. Cada uso sale menos de un centavo."],
     ["planilla", "Pasar planillas (coach)", "", "Para coaches con plan y en su prueba, cada uno con sus topes (abajo); antes del primer uso aceptan «Usar IA en tus rutinas». Cada hoja sale menos de un centavo con el modelo de siempre. Aparece en el panel del coach, en Rutinas → «Pasar mis planillas» (y en Inicio si todavía no tiene alumnos)."],
     ["rutina", "Armar rutina (coach)", "", "Para los mismos coaches y con el mismo permiso que las planillas, con sus topes (abajo). El coach escribe lo que quiere y la IA arma un borrador con ejercicios de GIZE, que él revisa y guarda. Cada rutina sale menos de un centavo con el modelo de siempre. Aparece en el panel del coach, en Rutinas → «Armar con IA», en una rutina vacía y en la rutina de cada alumno."]];
   const funs = `<div class="ia-funs">${FUN.map(([k, l, nota, ayuda]) => `<div class="ia-fun${nota ? " off" : ""}"><div>${l}${nota ? `<small>${nota}</small>` : ayuda ? `<small>${ayuda}</small>` : ""}</div>
@@ -2031,7 +2038,7 @@ function paintIA(foco){
     <div class="search"><input class="in" id="iaDesde" type="date" aria-label="Día en que se publicó la política de privacidad" value="${esc(diaPolitica(ia.pedidos_desde))}"><button class="btn" data-a="iaDesde">Guardar fecha</button></div>
     <div class="muted small">Si es hoy, se leen los pedidos que lleguen desde ahora; si es otro día, desde el día siguiente (así nunca se lee uno de antes). Ese día, avisá el cambio en la app desde <a href="#avisos" data-go="avisos">Avisos</a> (ej: «Actualizamos la política de privacidad: sumamos las funciones con IA»).</div>`;
   // Uso.
-  const NOMF = { etiqueta: "Tablas", plato: "Platos", texto: "Textos", rutina: "Rutinas", planilla: "Planillas" };
+  const NOMF = { etiqueta: "Tablas", plato: "Platos", texto: "Voz", rutina: "Rutinas", planilla: "Planillas" };
   const seg = ms => (num(ms) / 1000).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " s";
   const pf = Object.entries(ia.por_funcion || {});
   const tb = ia.tablas || {}, pub = num(tb.publicadas), campos = tb.campos || {};
@@ -2066,7 +2073,7 @@ function paintIA(foco){
   // Últimas llamadas.
   const quien = l => l.rol === "coach" && l.origen === "gimnasio" ? "Coach (por gimnasio)" : ROL[l.rol] || l.rol || "";
   const ult = (ia.ultimas || []).map(l => `<tr><td class="muted">${fmtDT(l.creada)}</td><td>${esc(quien(l))}</td><td>${esc(NOMF[l.funcion] || l.funcion)}</td><td class="muted">${esc(((f.modelos || []).find(m => m.id === l.modelo) || {}).nombre || l.modelo)}</td>
-    <td>${l.estado === "ok" ? '<span class="pill ok">ok</span>' : l.estado === "vacia" ? `<span class="pill">${l.funcion === "planilla" ? "no era una rutina" : l.funcion === "rutina" ? "no era un pedido de rutina" : "sin tabla"}</span>` : l.estado === "reservada" ? '<span class="pill blue">en curso</span>' : `<span class="pill warn">${esc(iaCod(l.codigo || l.estado))}</span>`}</td>
+    <td>${l.estado === "ok" ? '<span class="pill ok">ok</span>' : l.estado === "vacia" ? `<span class="pill">${l.funcion === "planilla" ? "no era una rutina" : l.funcion === "rutina" ? "no era un pedido de rutina" : l.funcion === "texto" ? "no era una comida" : "sin tabla"}</span>` : l.estado === "reservada" ? '<span class="pill blue">en curso</span>' : `<span class="pill warn">${esc(iaCod(l.codigo || l.estado))}</span>`}</td>
     <td>${l.usd == null ? (l.estado === "reservada" ? "—" : usd(l.max_usd) + " (reserva)") : usd(l.usd)}</td><td class="muted">${l.ms ? seg(l.ms) : ""}</td></tr>`).join("");
   page("IA", "Lo que gasta la IA con los créditos de API del plan Max. La IA solo completa: vos revisás y publicás.",
     block("iaEstB", "Estado", master + lista) +
@@ -2538,9 +2545,10 @@ document.addEventListener("click", async e => {
     if (a === "iaOn"){ iaGuardar(b, { activa: b.getAttribute("aria-checked") !== "true" }, b.getAttribute("aria-checked") === "true" ? "IA apagada" : "IA prendida"); return; }
     if (a === "iaFn"){
       const k = b.dataset.k, on = b.getAttribute("aria-checked") !== "true";
-      // Las de la app (la foto del plato, y las planillas y las rutinas de los coaches): las ve cualquiera que pueda
+      // Las de la app (la foto del plato, la voz, y las planillas y las rutinas de los coaches): las ve cualquiera que pueda
       // usarlas y acepte el aviso. Se avisa antes de prenderlas.
       if (on && k === "plato" && !await confirmar(`¿Prender «Foto del plato» en la app? Le aparece en Comida a cada persona con sesión; antes del primer uso acepta el aviso. Cada uso gasta menos de un centavo de los créditos, con los topes por persona de abajo.`, { titulo: "Prender en la app", ok: "Prender" })) return;
+      if (on && k === "texto" && !await confirmar(`¿Prender «Comida por voz» en la app? Le aparece «Voz» en Comida a cada persona con sesión; antes del primer uso acepta el aviso de la voz (lo que cuenta se manda a la IA; GIZE no graba su voz). Hasta 15 por día por persona, aparte del límite semanal de fotos y de IA Plus. Cada uso gasta menos de un centavo de los créditos.`, { titulo: "Prender en la app", ok: "Prender" })) return;
       if (on && k === "planilla" && !await confirmar(`¿Prender «Pasar planillas» para coaches? La pueden usar los coaches con plan y los que están en su prueba, con los topes de abajo; antes del primer uso aceptan el aviso «Usar IA en tus rutinas». Cada hoja gasta menos de un centavo de los créditos con el modelo de siempre.`, { titulo: "Prender para coaches", ok: "Prender" })) return;
       if (on && k === "rutina" && !await confirmar(`¿Prender «Armar rutina» para coaches? La pueden usar los coaches con plan y los que están en su prueba, con los topes de abajo; antes del primer uso aceptan el aviso «Usar IA en tus rutinas». Cada rutina gasta menos de un centavo de los créditos con el modelo de siempre.`, { titulo: "Prender para coaches", ok: "Prender" })) return;
       iaGuardar(b, { funciones: { [k]: on } }, "Guardado ✓"); return;

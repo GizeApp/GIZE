@@ -13,8 +13,9 @@
 //   Si se vuelve a dibujar mientras lee, la lectura completa la tarjeta nueva y no se puede tocar
 //   otra vez (no hay dos llamadas pagas).
 // - La página IA: el interruptor (arranca apagado), la fecha de los créditos, la de la política, la
-//   función de Pedidos, la foto del plato (sin «Contame qué comiste»: solo fotos), «Pasar planillas
-//   (coach)» y «Armar rutina (coach)» con su modelo, y el aviso de que falta la clave.
+//   función de Pedidos, la foto del plato, «Comida por voz (app)» (con confirmación; sin la base
+//   nueva, no se prende y dice qué correr), «Pasar planillas (coach)» y «Armar rutina (coach)» con
+//   su modelo, el aviso de que falta la clave y «Voz» en el uso, los topes y las llamadas.
 // - Inicio: si la IA está cortada, aparece en «Para atender».
 import { newPage, wait, text, ADMIN } from './lib.mjs';
 
@@ -41,12 +42,13 @@ const FN_VIEJA = Object.assign({}, FN_ESTADO, { modelos: FN_ESTADO.modelos.map((
 // Abre Pedidos con el estado de la IA y la respuesta de la función que se le pase (fnResp para
 // leer; fnEstado para el modo «estado», el de la clave y los modelos). firmaDelay: cuánto tardan
 // en llegar las direcciones de las fotos.
-async function abrir(base, { estado = ESTADO(), fnResp = () => ({ body: LEIDO }), fnEstado = () => ({ body: FN_ESTADO }), reqs = REQS(), vista = 'productos', viewport, firmaDelay = 0 } = {}){
+async function abrir(base, { estado = ESTADO(), mio = null, fnResp = () => ({ body: LEIDO }), fnEstado = () => ({ body: FN_ESTADO }), reqs = REQS(), vista = 'productos', viewport, firmaDelay = 0 } = {}){
   const fnBodies = [], rpcs = [];
   const { p, errs, dialogs, close } = await newPage({ user: ADMIN, viewport: viewport || { width: 1280, height: 900 }, handlers: {
     '/is_app_admin': (r, J) => J(true), '/admin_overview': (r, J) => J({ pending: 0, versions: [], users: 0 }),
     '/admin_contact_unread': (r, J) => J(0), '/admin_reports_pending': (r, J) => J(0), '/admin_requests_pending': (r, J) => J(reqs.length),
     '/admin_requests': (r, J) => J(reqs),
+    '/ia_mi_estado': (r, J) => J(mio),
     '/admin_ia_estado': (r, J) => estado instanceof Error ? J({ code: 'PGRST202', message: 'Could not find the function public.admin_ia_estado without parameters in the schema cache' }, 404) : J(estado),
     '/admin_ia_config': (r, J, i) => { const b = JSON.parse(i.body || '{}'); rpcs.push(['config', b]); const p0 = b.p || {}; estado = Object.assign({}, estado, p0.activa !== undefined ? { activa: p0.activa } : {}, p0.funciones ? { funciones: Object.assign({}, estado.funciones, p0.funciones) } : {}, p0.pedidos_desde ? { pedidos_desde: p0.pedidos_desde } : {},
       p0.modelos ? { modelos: Object.fromEntries(Object.entries(Object.assign({}, estado.modelos, p0.modelos)).filter(([, v]) => v)) } : {}); return J(estado); },
@@ -341,9 +343,24 @@ export default async function ({ base, t }){
   t.ok(await ia.inputValue('#iaModeloRt') === 'm2' && await ia.inputValue('#iaModeloPl') === '', 'queda elegido, y el de las planillas no cambia');
   await ia.selectOption('#iaModeloRt', ''); await ia.click('[data-a="iaModeloRt"]'); await wait(600);
   t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { modelos: { rutina: null } } }], 'volver al de siempre borra la elección (rutinas)');
-  // «Contame qué comiste» se sacó (solo fotos): ya no hay interruptor.
-  t.ok(!(await ia.$('[data-a="iaFn"][data-k="texto"]')), 'sin el interruptor de «Contame qué comiste»');
-  t.ok(!(await text(ia, '.ia-funs')).includes('«Contame qué comiste» (app)'), 'la lista de funciones no lo nombra como función');
+  // «Comida por voz (app)» (clave texto): cambió a propósito (antes no había interruptor: «Contame
+  // qué comiste» se había sacado y la foto decía «solo fotos»). Se prende con confirmación, que
+  // nombra el aviso de la voz, y dice dónde aparece y sus topes.
+  const funsTxt = await text(ia, '.ia-funs');
+  t.ok(!(await ia.$eval('[data-a="iaFn"][data-k="texto"]', b => b.disabled)), '«Comida por voz (app)» se puede prender');
+  t.eq(await ia.getAttribute('[data-a="iaFn"][data-k="texto"]', 'aria-label'), 'Comida por voz (app)', '«Comida por voz (app)»: el interruptor con su nombre');
+  t.has(funsTxt, 'Aparece en Comida, en el botón «Voz» al lado de «Foto»', 'la voz: dice dónde aparece en la app');
+  t.has(funsTxt, 'Hasta 15 por día por persona (en Topes, «Voz por día»); no entra en el límite semanal de fotos ni en IA Plus.', 'la voz: el tope y que no entra en el límite semanal ni en IA Plus');
+  t.ok(!funsTxt.includes('Contame qué comiste') && !funsTxt.includes('solo fotos'), 'ya no dice que «Contame qué comiste» se sacó');
+  const antesVz = a.rpcs.length;
+  a.dialogs.length = 0; ia.contestar = false;
+  await ia.click('[data-a="iaFn"][data-k="texto"]'); await wait(700);
+  t.ok(a.dialogs.some(d => d.includes('¿Prender «Comida por voz» en la app?') && d.includes('el aviso de la voz')), '«Comida por voz»: pide confirmar (y nombra el aviso de la voz)');
+  t.eq([a.rpcs.length, await ia.$eval('[data-a="iaFn"][data-k="texto"]', b => b.getAttribute('aria-checked'))], [antesVz, 'false'], '«Comida por voz»: si no se confirma, no se guarda nada');
+  ia.contestar = true;
+  await ia.click('[data-a="iaFn"][data-k="texto"]'); await wait(700);
+  t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { funciones: { texto: true } } }], 'prende «Comida por voz»');
+  t.eq(await ia.$eval('[data-a="iaFn"][data-k="texto"]', b => b.getAttribute('aria-checked')), 'true', '«Comida por voz»: queda prendido');
   if (process.env.SHOTS) { await ia.$eval('.ia-funs', e => e.scrollIntoView({ block: 'center' })); await wait(200); await ia.screenshot({ path: process.env.SHOTS + '/30-panel-funciones.png' }); }
   await ia.fill('#iaAnclaTxt', '10/11/2026'); await ia.click('[data-a="iaAncla"]'); await wait(600);
   t.eq((a.rpcs.find(r => r[0] === 'ciclo') || [])[1], { p_fin: '2026-11-10' }, 'guarda la fecha en que vencen los créditos');
@@ -405,6 +422,31 @@ export default async function ({ base, t }){
   t.ok(!(await a.p.$('#iaModeloRt')), 'ni el de las rutinas');
   t.has(await text(a.p, '#iaTopesB'), '«Rutinas por día» son las de «Armar con IA» del panel del coach', 'Topes: la nota de las rutinas');
   t.eq(a.errs, [], 'errores de la página (IA del coach)');
+  await a.close();
+  // La voz (clave «texto») se llama «Voz» en el uso del ciclo, en Topes («Voz por día») y en las
+  // últimas llamadas (antes decía «Textos», del viejo «Contame qué comiste»). Con la base nueva
+  // (ia_mi_estado trae aviso_texto) el interruptor se puede prender.
+  a = await abrir(base, { vista: 'ia', mio: { activa: false, funciones: { plato: false, texto: false }, aviso_version: 2, aviso_texto: 3 },
+    estado: ESTADO({ topes: { alumno: { plato: 5, texto: 15, total: 20, usd_ciclo: 1 } },
+      por_funcion: { texto: { usos: 4, usd: 0.008, p50: 3000 } },
+      ultimas: [{ creada: NUEVO, rol: 'alumno', origen: null, funcion: 'texto', modelo: 'm1', estado: 'ok', codigo: null, usd: 0.002, max_usd: 0.01, ms: 3000 },
+        { creada: NUEVO, rol: 'alumno', origen: null, funcion: 'texto', modelo: 'm1', estado: 'vacia', codigo: null, usd: 0.001, max_usd: 0.01, ms: 2000 }] }) });
+  await a.p.$$eval('#iaTopesB, #iaUltB', ds => ds.forEach(d => { d.open = true; })); await wait(300);
+  t.has(await text(a.p, '#iaUsoB'), 'Voz', 'Uso del ciclo: la voz con su nombre');
+  t.ok(!/Textos/.test(await text(a.p, '#main')), 'ya no dice «Textos» en ningún lado');
+  t.has(await text(a.p, '#iaTopesB'), 'Voz por día', 'Topes: «Voz por día»');
+  t.eq(await a.p.inputValue('[data-tope="alumno.texto"]'), '15', 'Topes: la voz por día se puede cambiar');
+  t.eq(await a.p.$$eval('#iaUltB tbody tr', trs => trs.map(tr => [tr.children[2].textContent, tr.children[4].textContent])), [['Voz', 'ok'], ['Voz', 'no era una comida']], 'Últimas llamadas: «Voz», y lo que no era una comida no dice «sin tabla»');
+  t.ok(!(await a.p.$eval('[data-a="iaFn"][data-k="texto"]', b => b.disabled)) && !(await text(a.p, '.ia-funs')).includes('Falta preparar la base'), 'con la base nueva, la voz se puede prender y no avisa nada');
+  t.eq(a.errs, [], 'errores de la página (voz)');
+  await a.close();
+  // Sin la base nueva (ia.sql viejo: ia_mi_estado sin aviso_texto) la voz no se puede prender (la app
+  // no la mostraría y la función contestaría «pausada») y dice qué correr.
+  a = await abrir(base, { vista: 'ia', mio: { activa: false, funciones: { plato: false, texto: false }, permiso_comida: null, aviso_version: 2 } });
+  t.ok(await a.p.$eval('[data-a="iaFn"][data-k="texto"]', b => b.disabled), 'sin la base nueva: la voz no se puede prender');
+  t.has(await text(a.p, '.ia-funs'), 'Falta preparar la base: en GitHub, Actions → Supabase → Run workflow → tarea sql, archivo supabase/ia.sql.', 'sin la base nueva: dice qué correr');
+  t.ok(!(await a.p.$eval('[data-a="iaFn"][data-k="plato"]', b => b.disabled)), 'sin la base nueva: la foto se sigue pudiendo prender');
+  t.eq(a.errs, [], 'errores de la página (voz sin base)');
   await a.close();
   // En el celular, las marcas de la barra no se pisan.
   a = await abrir(base, { vista: 'ia', viewport: { width: 390, height: 844 } });
