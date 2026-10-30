@@ -25,8 +25,8 @@
 --     foto es pública (la política de privacidad lo tiene que decir así).
 --   · coach_pagina_mia(): la página del coach que llama, para el panel.
 --   · coach_pagina_guardar(alias, activa, con_foto): crearla o cambiarla. Un null deja lo que había.
---   · admin_coach_paginas() y admin_coach_pagina(coach, acción): el panel de GIZE (pausar, reanudar o
---     liberar el link). Cada acción queda en admin_audit.
+--   · admin_coach_paginas() y admin_coach_pagina(coach, acción): el panel de GIZE (pausar, reanudar,
+--     sacarle la foto o liberar el link). Cada acción queda en admin_audit.
 --
 -- El link (alias): de 3 a 30 letras minúsculas o números; en el medio puede llevar punto, guion o
 -- guion bajo (nunca dos seguidos). Hay nombres reservados (admin, app, gize…). Se cambia libre en las
@@ -287,15 +287,16 @@ end $$;
 revoke all on function public.admin_coach_paginas() from public, anon;
 grant execute on function public.admin_coach_paginas() to authenticated;
 
--- Pausar o reanudar la página de un coach, o liberar su link (borra la página y sus links viejos:
--- el coach puede armar otra con otro nombre).
+-- Pausar o reanudar la página de un coach, sacarle la foto (queda sin foto; el coach la puede volver
+-- a prender desde su panel: si insiste, se pausa), o liberar su link (borra la página y sus links
+-- viejos: el coach puede armar otra con otro nombre).
 create or replace function public.admin_coach_pagina(p_coach uuid, p_accion text)
 returns void language plpgsql security definer set search_path = public as $$
 declare a text;
 begin
   perform public.admin_assert();
-  if p_accion is null or p_accion not in ('pausar', 'reanudar', 'liberar') then
-    raise exception 'La acción tiene que ser pausar, reanudar o liberar.' using errcode = 'P0001';
+  if p_accion is null or p_accion not in ('pausar', 'reanudar', 'sin_foto', 'liberar') then
+    raise exception 'La acción tiene que ser pausar, reanudar, sin_foto o liberar.' using errcode = 'P0001';
   end if;
   perform pg_advisory_xact_lock(hashtext('coach_pagina'), hashtext(coalesce(p_coach::text, '')));
   select alias into a from public.coach_paginas where coach_id = p_coach;
@@ -304,6 +305,8 @@ begin
     update public.coach_paginas set pausada_at = coalesce(pausada_at, now()) where coach_id = p_coach;
   elsif p_accion = 'reanudar' then
     update public.coach_paginas set pausada_at = null where coach_id = p_coach;
+  elsif p_accion = 'sin_foto' then
+    update public.coach_paginas set con_foto = false where coach_id = p_coach;
   else
     delete from public.coach_alias_viejos where coach_id = p_coach;
     delete from public.coach_paginas where coach_id = p_coach;

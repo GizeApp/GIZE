@@ -10,7 +10,7 @@
 //    las primeras 24 horas, después una vez por semana con la fecha en el mensaje, el link viejo 90
 //    días, volver al propio, el vencido se libera), lo que ve la página sin sesión y con sesión
 //    (apagada, pausada, cuenta de coach no activa, otro rol, bloqueo, sin foto, es_mi_coach, soy_yo),
-//    la foto en Storage (sin sesión, solo la de la página), el admin (pausar, reanudar, liberar, con
+//    la foto en Storage (sin sesión, solo la de la página), el admin (pausar, reanudar, sacar la foto, liberar, con
 //    admin_audit; los demás reciben 42501), borrar la cuenta, la tarea de pg_cron, que se puede correr
 //    dos veces y que volver atrás deja la base exactamente como antes.
 import { conPg, leer, orden, cuerpo, volverAtras, huella, diferencias, lit } from './pg.mjs';
@@ -345,7 +345,7 @@ async function conDatos(t, h, sql){
     // ===== El admin =====
     t.eq(await como(B, 'select public.admin_coach_paginas()'), { error: '42501', msg: 'Solo administradores.' }, 'la lista: solo el admin');
     t.eq(await admin(T, O, 'pausar'), { error: '42501', msg: 'Solo administradores.' }, 'pausar: solo el admin (ni un coach)');
-    t.eq(await admin(AD, T, 'borrar'), { error: 'P0001', msg: 'La acción tiene que ser pausar, reanudar o liberar.' }, 'una acción que no existe');
+    t.eq(await admin(AD, T, 'borrar'), { error: 'P0001', msg: 'La acción tiene que ser pausar, reanudar, sin_foto o liberar.' }, 'una acción que no existe');
     t.eq(await admin(AD, B, 'pausar'), { error: 'P0001', msg: 'Ese coach no tiene página.' }, 'quien no tiene página');
     await pg(`insert into public.coach_alias_viejos (alias, coach_id, hasta) values ('toro-viejo', '${T}', now() + interval '30 days');`);
     const lista = await como(AD, 'select public.admin_coach_paginas()');
@@ -353,13 +353,21 @@ async function conDatos(t, h, sql){
     t.eq([lt.alias, lt.nombre, lt.email, lt.activa, lt.pausada, lt.visible, (lt.viejos || []).map(v => v.alias)],
       ['toro.fit', 'Toro <b>Entrena</b>', 'toro@ejemplo.test', true, false, true, ['toro-viejo']], 'la lista: el link, el coach con su mail, si se ve y los links viejos');
     t.eq((lista || []).map(x => x.alias).sort(), ['pepe', 'toro-fit', 'toro.fit', 'vera'], 'todas las páginas');
+    // Sacarle la foto: la página se sigue viendo, sin foto, y Storage ya no la da sin sesión.
+    t.eq(await admin(AD, T, 'sin_foto'), 'ok', 'el admin le saca la foto');
+    m = await ver('anon', 'toro.fit');
+    t.eq([m && m.alias, m && m.foto], ['toro.fit', null], 'sin foto: la página se ve, sin la foto');
+    t.eq(await fotos('anon'), [], 'sin foto: Storage tampoco la da');
+    t.eq(((await como(AD, 'select public.admin_coach_paginas()')) || []).find(x => x.coach === T).con_foto, false, 'la lista del admin dice que está sin foto');
+    t.eq((await mia(T)).con_foto, false, 'el coach ve que quedó sin foto');
     t.eq(await admin(AD, T, 'liberar'), 'ok', 'liberar');
     t.eq(await J(`select jsonb_build_array((select count(*) from public.coach_paginas where coach_id = '${T}'), (select count(*) from public.coach_alias_viejos where coach_id = '${T}'))`),
       [0, 0], 'liberar borra la página y sus links viejos');
     t.eq(await ver('anon', 'toro.fit'), null, 'el link liberado ya no lleva a nada');
     t.eq(await mia(T), null, 'y el coach ya no tiene página');
     t.eq(await J(`select jsonb_agg(jsonb_build_array(action, target, detail->>'accion', detail->>'alias') order by id) from public.admin_audit`),
-      [['pagina_coach', T, 'pausar', 'toro.fit'], ['pagina_coach', T, 'reanudar', 'toro.fit'], ['pagina_coach', T, 'liberar', 'toro.fit']],
+      [['pagina_coach', T, 'pausar', 'toro.fit'], ['pagina_coach', T, 'reanudar', 'toro.fit'], ['pagina_coach', T, 'sin_foto', 'toro.fit'],
+       ['pagina_coach', T, 'liberar', 'toro.fit']],
       'cada acción queda en admin_audit');
     t.eq((await guardar(O, 'toro.fit')).alias, 'toro.fit', 'el link liberado lo puede tomar otro coach');
 
