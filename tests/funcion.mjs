@@ -91,7 +91,7 @@ export function supabaseSimulado(responder, { user = null } = {}){
       single(){ q.single = true; return b; },
       then(ok, no){ return resp(q).then(ok, no); },
     };
-    for (const op of ['eq', 'neq', 'is', 'in', 'lt', 'lte', 'gt', 'gte']) b[op] = (c, v) => { q.filtros.push([op, c, v]); return b; };
+    for (const op of ['eq', 'neq', 'is', 'in', 'lt', 'lte', 'gt', 'gte', 'like']) b[op] = (c, v) => { q.filtros.push([op, c, v]); return b; };
     b.not = (c, op, v) => { q.filtros.push(['not.' + op, c, v]); return b; };
     return b;
   };
@@ -104,7 +104,7 @@ export function supabaseSimulado(responder, { user = null } = {}){
   };
 }
 
-// ¿La fila cumple los filtros de la consulta? (eq, neq, is, in, lt, lte, gt, gte)
+// ¿La fila cumple los filtros de la consulta? (eq, neq, is, in, lt, lte, gt, gte, like)
 export function cumple(fila, filtros){
   return filtros.every(([op, c, v]) => {
     const x = fila[c];
@@ -116,6 +116,7 @@ export function cumple(fila, filtros){
     if (op === 'lte') return x <= v;
     if (op === 'gt') return x > v;
     if (op === 'gte') return x >= v;
+    if (op === 'like') return typeof x === 'string' && new RegExp('^' + v.split('%').map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/_/g, '.')).join('.*') + '$', 's').test(x);
     throw new Error('filtro sin simular: ' + op);
   });
 }
