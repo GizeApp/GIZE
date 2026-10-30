@@ -251,6 +251,35 @@ export async function recorrido({ p, dev, salida, sb }){
     revisar(!(await p.$('#blockHost .sheet')) && await visible('#view [data-bloqueados]') && appAdelante(), '«Atrás» cierra «Personas bloqueadas», queda Configuración y la app sigue abierta');
     await foto('14-atras-cerro-hoja', 'Después de «Atrás»: la hoja se cerró', TABS);
   });
+  // Widget «GIZE de hoy» (android/…/GizeWidget.java): se agrega desde la app (Android pregunta si
+  // ponerlo en la pantalla de inicio y se toca «Agregar»), se va a la pantalla de inicio y se saca
+  // la captura con el widget. Después se vuelve a abrir la app para seguir con el coach.
+  await paso('Widget', async () => {
+    const widget = accion => p.evaluate(async accion => {
+      const C = window.Capacitor;
+      const w = C && ((C.Plugins && C.Plugins.GizeWidget) || (typeof C.isPluginAvailable === 'function' && C.isPluginAvailable('GizeWidget') && C.registerPlugin && C.registerPlugin('GizeWidget')));
+      if (!w) throw new Error('la app no trae el plugin GizeWidget');
+      return accion === 'agregar' ? w.agregar() : w.info();
+    }, accion);
+    const antes = await widget('info');
+    revisar(antes.puedeAgregar, 'la pantalla de inicio deja agregar el widget desde la app (requestPinAppWidget)');
+    const r = antes.puedeAgregar ? await widget('agregar') : { pedido: false };
+    if (r.pedido){
+      await wait(2500);
+      await dev.captura(path.join(salida, '19-widget-agregar.png'));
+      filas.push({ nombre: '19-widget-agregar', titulo: 'Widget: Android pregunta si agregarlo (ventana de Android)', b: null });
+      const b = botonEnPantalla(dev.ui(), { textos: ['Add to home screen', 'Agregar a la pantalla principal', 'Agregar a la pantalla de inicio', 'Add automatically', 'Agregar automáticamente', 'Add', 'Agregar'] });
+      revisar(!!b, 'aparece el botón de Android para agregar el widget');
+      if (b) await dev.tocar(...b); else await dev.tecla(4);
+      await wait(2500);
+    } else revisar(false, 'la app no pudo pedir agregar el widget');
+    await dev.tecla(3); // la pantalla de inicio
+    await wait(3000);
+    await dev.captura(path.join(salida, '20-widget.png'));
+    filas.push({ nombre: '20-widget', titulo: 'Widget «GIZE de hoy» en la pantalla de inicio', b: null });
+    await dev.abrirApp(); await wait(2500);
+    revisar((await widget('info')).instalados > 0, 'el widget quedó en la pantalla de inicio');
+  });
 
   // ===== Coach =====
   await paso('Entrar como coach', async () => {

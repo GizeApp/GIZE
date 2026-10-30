@@ -15,6 +15,7 @@
 //   aviso: null o {titulo,texto,pie}}) y, si ya está app/core/widgetdatos.js, las de su CLAVES_WIDGET
 //   y las de un JSON armado con él. Con aviso (coach, gimnasio, sin datos) se ve solo el aviso.
 // - Textos: «GIZE de hoy» y nada de precios ni tiendas (reglas de AGENTS.md).
+// - El recorrido del emulador (scripts/android-recorrido.mjs) agrega el widget y lo fotografía.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -224,6 +225,8 @@ export default async function ({ base, t }){
   const textosWidget = Object.entries(res.textos).filter(([k]) => k.startsWith('widget_')).map(([, v]) => v).join(' | ');
   t.ok(textosWidget && !/\$|precio|mercado ?pago|\bplan\b|prueba gratis|suscrip|google play|app store/i.test(textosWidget), 'el widget no muestra precios, planes, pagos ni tiendas');
 
-  // ===== R8 =====
+  // ===== R8 y el recorrido en el emulador =====
   t.ok(/^-keep class ar\.com\.gize\.app\.\*\* \{ \*; \}$/m.test(leer('android/app/proguard-rules.pro')), 'R8 deja GizeWidget y WidgetPlugin (se buscan por el nombre)');
+  const rec2 = leer('scripts/android-recorrido.mjs');
+  t.ok(/await paso\('Widget'/.test(rec2) && /\.agregar\(\)/.test(rec2) && /'20-widget\.png'/.test(rec2), 'el recorrido del emulador agrega el widget y saca 20-widget.png');
 }
