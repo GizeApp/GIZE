@@ -584,8 +584,9 @@ async function loadCoaches(){
   page("Coaches y pagos", "Tocá un coach para cargar un pago, darle cortesía o más días de prueba.",
     userTabs("coaches") + '<div id="cSoon"></div>' + block("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>') +
     block("cCodB", "Códigos de fundador", '<div id="cCod" class="empty">Cargando…</div>') +
-    block("cCobB", "Cobros de los coaches", '<div id="cCob" class="empty">Cargando…</div>'));
-  loadCodigos(); loadCobrosAdmin();
+    block("cCobB", "Cobros de los coaches", '<div id="cCob" class="empty">Cargando…</div>') +
+    block("cPagB", "Páginas de coaches", '<div id="cPag" class="empty">Cargando…</div>'));
+  loadCodigos(); loadCobrosAdmin(); loadPaginasCoach();
   const box = document.getElementById("cList");
   try { S.coaches = await rpc("admin_coaches"); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.coaches.length){ box.textContent = "Todavía no hay coaches."; return; }
@@ -692,6 +693,59 @@ async function cobrosOnOff(btn){
     toast("Cobros en " + c.en + ": " + (on ? "prendido" : "apagado"));
   } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   paintCobrosAdmin('[data-a="cobOn"][data-k="' + c.k + '"]');
+}
+
+// Páginas de coaches (supabase/pagina-coach.sql): el link público de cada coach (gize.ar/c/<alias>) con
+// su nombre, su foto y su código de invitación. Acá se ven todas, si se ven hoy, si tienen foto y los
+// links viejos que todavía llevan a la misma página. Para moderar: pausarla (deja de verse, el coach ve
+// que está pausada y no la puede prender), sacarle la foto o liberar el link (se borra la página y el
+// nombre queda libre). Cada acción queda en el registro (admin_coach_pagina → admin_audit).
+const PAG_ACC = {
+  pausar: { ok: "Pausar", hecho: "Página pausada", msg: "Deja de verse al instante. El coach ve en su panel que está pausada y no la puede volver a prender: la reanudás vos." },
+  reanudar: { ok: "Reanudar", hecho: "Página reanudada", msg: "Se vuelve a ver (si el coach la tiene prendida y su cuenta está activa)." },
+  sin_foto: { ok: "Sacar foto", hecho: "Foto sacada", msg: "La página sigue, sin la foto. El coach la puede volver a poner desde su panel: si insiste, pausala." },
+  liberar: { ok: "Liberar", hecho: "Link liberado", msg: "Se borra la página y sus links viejos, y el nombre queda libre para cualquier coach. El coach puede armar otra con otro nombre. No se puede deshacer." } };
+function pagEstado(g){
+  if (g.pausada) return `<span class="pill bad">Pausada por GIZE</span>${g.pausada_at ? `<div class="muted small">desde ${fmtD(g.pausada_at)}</div>` : ""}`;
+  if (!g.activa) return '<span class="pill">Apagada por el coach</span>';
+  if (g.visible) return '<span class="pill ok">Se ve</span>';
+  return '<span class="pill warn">No se ve</span><div class="muted small">La cuenta de coach no está activa.</div>';
+}
+async function loadPaginasCoach(){
+  let l = null, err = null;
+  try { l = await rpc("admin_coach_paginas"); } catch (e) { err = e; }
+  if (S.view !== "coaches") return;
+  const box = document.getElementById("cPag"); if (!box) return;
+  if (err){
+    S.paginas = null;
+    const falta = err.code === "PGRST202" || /admin_coach_paginas|schema cache|does not exist/i.test(errMsg(err));
+    box.innerHTML = falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/pagina-coach.sql</b>." : esc(errMsg(err));
+    return;
+  }
+  S.paginas = Array.isArray(l) ? l : [];
+  const n = S.paginas.length, ven = S.paginas.filter(g => g.visible && !g.pausada).length, pau = S.paginas.filter(g => g.pausada).length;
+  setSum("cPagB", n ? n0(n) + (n === 1 ? " página · " : " páginas · ") + n0(ven) + " se " + (ven === 1 ? "ve" : "ven") + (pau ? ` · <span class="t-bad">${n0(pau)} ${pau === 1 ? "pausada" : "pausadas"}</span>` : "") : "");
+  if (!n){ box.className = "empty"; box.textContent = "Todavía ningún coach armó su página."; return; }
+  box.className = "tscroll";
+  box.innerHTML = `<table class="table"><thead><tr><th>Link</th><th>Coach</th><th>Foto</th><th>Estado</th><th></th></tr></thead><tbody>${S.paginas.map(g => `
+    <tr data-pag="${esc(g.coach)}"><td><a href="https://gize.ar/c/${encodeURIComponent(g.alias)}" target="_blank" rel="noopener noreferrer"><b>gize.ar/c/${esc(g.alias)}</b></a>
+        ${(g.viejos || []).length ? `<div class="muted small">Links viejos: ${g.viejos.map(v => esc(v.alias) + " (hasta " + fmtD(v.hasta) + ")").join(", ")}</div>` : ""}</td>
+      <td>${esc(g.nombre || "Sin nombre")}<div class="muted small">${esc(g.email || "")}</div></td>
+      <td>${g.con_foto ? "Con foto" : '<span class="muted">Sin foto</span>'}</td>
+      <td>${pagEstado(g)}</td>
+      <td><button class="btn sm" data-a="pagAcc" data-v="${g.pausada ? "reanudar" : "pausar"}" data-id="${esc(g.coach)}">${g.pausada ? "Reanudar" : "Pausar"}</button>
+        ${g.con_foto ? `<button class="btn sm" data-a="pagAcc" data-v="sin_foto" data-id="${esc(g.coach)}">Sacar foto</button>` : ""}
+        <button class="btn sm" data-a="pagAcc" data-v="liberar" data-id="${esc(g.coach)}">Liberar</button></td></tr>`).join("")}</tbody></table>`;
+}
+// Pausar, reanudar, sacar la foto o liberar (pregunta antes, salvo reanudar).
+async function pagAccion(btn){
+  const g = (S.paginas || []).find(x => x.coach === btn.dataset.id), acc = PAG_ACC[btn.dataset.v]; if (!g || !acc) return;
+  if (btn.dataset.v !== "reanudar" && !await confirmar("¿" + acc.ok + " gize.ar/c/" + g.alias + " (" + (g.nombre || "Sin nombre") + ")?\n\n" + acc.msg,
+    { titulo: "Páginas de coaches", ok: acc.ok })) return;
+  btn.disabled = true;
+  try { await rpc("admin_coach_pagina", { p_coach: g.coach, p_accion: btn.dataset.v }); }
+  catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  toast(acc.hecho); loadPaginasCoach();
 }
 
 // Vencimientos: a quién escribirle. Pago o prueba que vence en los próximos 7 días, y los
@@ -2197,7 +2251,8 @@ async function loadSeguridad(){
   const box = document.getElementById("aud");
   try { S.audit = await rpc("admin_audit_list", { lim: 100 }); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.audit.length){ box.textContent = "Todavía no hay acciones registradas."; return; }
-  const what = a => a.action === "config" && a.target === "gimnasios" ? "Cambió «Crear gimnasios» a " + ((a.detail || {}).alta ? "prendido" : "apagado") : ({ rol: "Cambió el rol a " + ((a.detail || {}).role === "coach" ? "coach" : "alumno"), desvincular: "Desvinculó de su coach", admin_si: "Hizo administrador", admin_no: "Quitó administrador",
+  const what = a => a.action === "config" && a.target === "gimnasios" ? "Cambió «Crear gimnasios» a " + ((a.detail || {}).alta ? "prendido" : "apagado")
+    : a.action === "pagina_coach" ? ({ pausar: "Pausó la página de un coach", reanudar: "Reanudó la página de un coach", sin_foto: "Le sacó la foto a la página de un coach", liberar: "Liberó el link de un coach" }[(a.detail || {}).accion] || "Cambió la página de un coach") : ({ rol: "Cambió el rol a " + ((a.detail || {}).role === "coach" ? "coach" : "alumno"), desvincular: "Desvinculó de su coach", admin_si: "Hizo administrador", admin_no: "Quitó administrador",
     plan: ({ cortesia: "Dio cortesía", trial: "Extendió la prueba", sin_cortesia: "Quitó la cortesía", pago_manual: "Cargó un pago", prueba_hasta: "Cambió la prueba", cortar_pago: "Cortó el pago" }[(a.detail || {}).mode] || "Cambió el plan"), config: "Cambió el cartel de actualización",
     aviso: "Mandó una notificación a " + (a.target || ""), eliminar: "Eliminó la cuenta",
     contacto_leido: "Marcó un mensaje como leído", contacto_no_leido: "Marcó un mensaje sin leer", contacto_respuesta: "Respondió un mensaje de contacto", reporte_revisado: "Marcó un reporte como revisado", pedido_publicado: "Publicó un producto pedido", pedido_rechazado: "Rechazó un pedido de producto", producto_verificar: "Verificó un producto", producto_ocultar: "Ocultó un producto", producto_mostrar: "Volvió a mostrar un producto", producto_nuevo: "Agregó un producto", producto_borrar: "Borró un producto",
@@ -2208,7 +2263,7 @@ async function loadSeguridad(){
     gym_convertir: "Convirtió una cuenta en gimnasio", gym_transferir: "Transfirió un gimnasio", gym_cerrar: "Cerró un gimnasio", gym_profes_extra: "Cambió el tope de profes de un gimnasio",
     gym_auditoria: "Exportó la auditoría de un gimnasio", seats_drift: "Diferencia en el cupo (tarea diaria)", resumen_semanal: "Cambió el resumen de los lunes", cobros: "Cambió Cobros de los coaches" }[a.action] || a.action);
   const goalTxt = d => d ? (d.label || (METRICS[d.metric] || [d.metric])[0]) + (d.target != null ? " · meta " + (METRICS[d.metric] || [, n0])[1](d.target) : "") : "";
-  const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : a.action === "resumen_semanal" ? resLog(a.detail) : a.action === "cobros" ? cobLog(a.detail) : (a.target_name || "");
+  const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : a.action === "resumen_semanal" ? resLog(a.detail) : a.action === "cobros" ? cobLog(a.detail) : a.action === "pagina_coach" ? (a.target_name ? a.target_name + " · " : "") + "gize.ar/c/" + ((a.detail || {}).alias || "") : (a.target_name || "");
   setSum("sAudB", "última: " + esc(what(S.audit[0])).toLowerCase() + " · " + ago(S.audit[0].created_at));
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Sobre</th></tr></thead><tbody>${S.audit.map(a => `<tr><td class="muted">${fmtDT(a.created_at)}</td><td>${esc(a.admin_name || "—")}</td><td>${esc(what(a))}</td><td class="muted">${esc(extra(a) || "")}</td></tr>`).join("")}</tbody></table>`;
@@ -2290,6 +2345,7 @@ document.addEventListener("click", async e => {
       toast("Código guardado"); loadCodigos(); return;
     }
     if (a === "cobOn"){ cobrosOnOff(b); return; }
+    if (a === "pagAcc"){ pagAccion(b); return; }
     if (a === "codOnOff"){
       const k = (S.codigos || []).find(x => x.codigo === b.dataset.v); if (!k) return;
       if (k.activo && !await confirmar("¿Apagar el código " + k.codigo + "? Nadie más lo va a poder usar; los que ya lo usaron siguen con su descuento.")) return;
