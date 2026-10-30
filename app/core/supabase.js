@@ -3,6 +3,7 @@ import { DAILY_COLUMNS } from './questions.js';
 
 import { isStandalone, pushDropHere, retryPushForget, syncPush } from './push.js';
 import { clearHabitAlarms } from '../ui/habitnotif.js';
+import { widgetBorrar } from './widget.js';
 import { resolveAvatars } from './avatar.js';
 
 import { loadCoachQuestions } from '../screens/coach/preguntas.js';
@@ -310,9 +311,11 @@ function accountKeys(keepNew){
 // los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso,
 // avisos de los hábitos, la salida de Cardio en curso, el cronómetro y el temporizador de
 // Cardio, los recorridos guardados, la imagen de la última salida compartida, los borradores
-// de rutina del coach y la invitación a un grupo de pasos).
+// de rutina del coach, la invitación a un grupo de pasos y lo que muestra el widget de la
+// pantalla de inicio, que vuelve a «Ingresá a GIZE»: core/widget.js).
 export function clearAccountLeftovers(uid){
   clearHabitAlarms();
+  widgetBorrar();
   deleteShareFile();
   try{
     [PENDING_CODE, GOOGLE_INTENT, AUTH_EXPECT, RECOVERY_REQ, RECOVERY_PENDING, "gize_auth_link_used", "gize_rest_timer", "gize_cardio_clock"].concat(accountKeys()).forEach(k=>localStorage.removeItem(k));
@@ -977,7 +980,8 @@ export async function afterLogin(sessionUser, stale){
   if(State.cloudUser && owner && owner!==State.cloudUser.id){
     // También lo de Cardio de la otra cuenta: la salida en curso (y su GPS), los recorridos
     // guardados y la imagen compartida. Si no, al recargar se retomaría su salida en esta cuenta.
-    stopForLogout(); deleteShareFile();
+    // Y el widget de la pantalla de inicio, que mostraba la otra cuenta (core/widget.js).
+    stopForLogout(); deleteShareFile(); widgetBorrar();
     try{ [KEY, PROFILE_KEY].concat(accountKeys(true)).forEach(k=>localStorage.removeItem(k)); }catch(e){}
     location.reload(); return;
   }
@@ -2232,7 +2236,7 @@ async function clearEndedSession(){
     else localStorage.removeItem(KEY);
     [PROFILE_KEY, "gize_rest_timer", "gize_cardio_clock"].concat(accountKeys(true)).forEach(k=>localStorage.removeItem(k));
   }catch(e){}
-  await Promise.race([Promise.all([clearHabitAlarms(), deleteShareFile(), pushDropHere()]).catch(()=>{}), new Promise(r=>setTimeout(r, 3000))]);
+  await Promise.race([Promise.all([clearHabitAlarms(), deleteShareFile(), pushDropHere(), widgetBorrar()]).catch(()=>{}), new Promise(r=>setTimeout(r, 3000))]);
   return true;
 }
 
