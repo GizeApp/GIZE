@@ -197,6 +197,18 @@ export default async ({ t }) => {
   t.ok(ejs.every(e => e.series.every(s => s.kg === '')), 'sin cargas aunque la IA haya puesto alguna: las pone el coach');
   t.ok(ejs[4].timed === true && ejs[0].timed === false, 'la plancha por tiempo');
   t.eq(h.json.dias.map(d => [d.nombre, d.dias, d.nota]), [['Torso A', [1], ''], ['Pierna A', [2], 'Sin saltos']], 'los días con sus días de la semana (lunes 1, martes 2)');
+  // Si la IA igual puso cargas que no son un número, en una lista o pegadas a las repeticiones, no
+  // quedan en ningún lado: ni en la serie, ni en la nota como «Carga: …», ni cambian cuántas series hay.
+  h = await correr({ out: { hay_rutina: true, nombre: 'X', nota: '', dias: [{ nombre: 'A', dias_semana: ['lunes'], nota: '', ejercicios: [
+    ej('Press plano con mancuernas', { series: [{ objetivo: '10', kg: '20 kg por mano' }, { objetivo: '10', kg: '20 kg por mano' }] }),
+    ej('Remo unilateral con mancuerna', { series: [{ objetivo: '8-12', kg: '60-70-80' }] }),
+    ej('Vuelos laterales con mancuernas', { series: [{ objetivo: '12@8 kg', kg: '' }, { objetivo: '12 @ 75 %', kg: '' }], nota: 'Bajá lento' }),
+  ] }] } });
+  t.eq((h.json.dias || []).flatMap(d => d.ejercicios).map(e => [e.series, e.nota]), [
+    [[{ objetivo: '10', kg: '' }, { objetivo: '10', kg: '' }], ''],
+    [[{ objetivo: '8-12', kg: '' }], ''],
+    [[{ objetivo: '12', kg: '' }, { objetivo: '12', kg: '' }], 'Bajá lento'],
+  ], 'cargas que la IA puso igual: no van en la serie ni en la nota y no cambian cuántas series hay');
 
   // Topes del modo: 7 días, 12 ejercicios por día, 8 series; nombres fuera de la lista afuera.
   const muchos = { hay_rutina: true, nombre: 'Todo', nota: '', dias: Array.from({ length: 9 }, (_, i) => ({ nombre: 'Día ' + (i + 1), dias_semana: ['domingo', 'miércoles', 'MIERCOLES'], nota: '',

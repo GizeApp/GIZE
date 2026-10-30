@@ -91,10 +91,15 @@ export function pedidoRutina(modelo: Modelo, ej: Ejercicios, descripcion: string
   };
 }
 
-// Lo que contestó la IA → el borrador (rutinaPost sin ejercicios propios y con los topes de este
-// modo). Las cargas se sacan aunque la IA haya puesto alguna: las pone el coach.
+// Sin cargas: las pone el coach. Si la IA igual puso alguna (en kg o pegada a las repeticiones:
+// «12@60»), se borra antes de leer la respuesta. Después es tarde: rutinaPost pasa a la nota del
+// ejercicio la carga que no es un número («Carga: 20 kg por mano») y arma una serie por cada carga
+// de una lista («60-70-80»).
+const sinCargas = (out: Record<string, unknown> | null) => out && JSON.parse(JSON.stringify(out),
+  (k, v) => k === "kg" ? "" : k === "objetivo" && typeof v === "string" ? v.split("@")[0] : v) as Record<string, unknown>;
+
+// Lo que contestó la IA → el borrador (rutinaPost sin ejercicios propios, sin cargas y con los
+// topes de este modo).
 export function rutinaArmada(out: Record<string, unknown> | null, ej: Ejercicios): Borrador {
-  const b = rutinaPost(out, ej, { topes: TOPES_RUTINA });
-  for (const d of b.dias) for (const e of d.ejercicios) for (const s of e.series) s.kg = "";
-  return b;
+  return rutinaPost(sinCargas(out), ej, { topes: TOPES_RUTINA });
 }
