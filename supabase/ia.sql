@@ -37,6 +37,13 @@
 -- y funciones.rutina en false): usan la misma guardia, con el rol que da ia_rol_coach ('coach' con
 -- plan o profe de gimnasio, 'prueba' en la prueba gratis, con topes propios más chicos). La app
 -- pregunta ia_coach_estado() y guarda el permiso «Usar IA en tus rutinas» con ia_permiso_rutinas().
+--
+-- Comida por voz (la persona dicta con el micrófono del teclado o escribe lo que comió; también
+-- ARRANCA APAGADA: funciones.texto en false): usa la misma guardia con la función «texto», hasta 15
+-- por día (topes.<rol>.texto) dentro del total del día, sin el límite semanal de las fotos ni IA
+-- Plus. Tiene su propio aviso (ia_config.aviso_texto, la versión 3, que ya dice que también se manda
+-- lo que la persona cuenta): quien aceptó el de la foto (la 2) la sigue usando sin que le pregunten
+-- y el aviso nuevo le sale la primera vez que usa la voz (ia_permiso_texto).
 
 -- ---------- configuración (una sola fila) ----------
 create table if not exists public.ia_config (
@@ -90,6 +97,26 @@ alter table public.ia_config add column if not exists aviso_rutinas_version int 
 -- aclaración «¿Qué es?»). Quien aceptó la versión 1 lo vuelve a ver una vez. Solo sube, nunca baja:
 -- se puede correr de nuevo sin volver a preguntar.
 update public.ia_config set aviso_version = 2 where id = 1 and aviso_version < 2;
+-- Comida por voz: la versión del aviso que ya dice que también se manda lo que la persona cuenta
+-- (la 3). Va aparte de aviso_version, que se queda en 2: las apps de antes mandan la versión que
+-- les da el servidor y, si fuera la 3, guardarían «aceptó la 3» después de mostrar el texto de la 2.
+-- Los dos números van en una sola cuenta (el aviso más nuevo explica la foto y la voz): si cambia
+-- el texto de cualquiera de los dos, el nuevo lleva un número más alto que los dos (de la 4 en
+-- adelante), nunca uno que ya se usó.
+-- La primera vez que se corre (cuando se agrega la columna) también apaga «texto»: en la base de
+-- verdad puede seguir prendido desde el viejo «Contame qué comiste» y el panel ya no tiene ese
+-- interruptor. Correrlo de nuevo no lo apaga (si el dueño ya prendió la voz, sigue prendida).
+do $$
+begin
+  if not exists (select 1 from pg_attribute where attrelid = 'public.ia_config'::regclass and attname = 'aviso_texto' and not attisdropped) then
+    alter table public.ia_config add column aviso_texto int not null default 3;
+    update public.ia_config set funciones = jsonb_set(funciones, '{texto}', 'false') where id = 1;
+  end if;
+end $$;
+-- El tope de la voz: 15 por día para alumnos y coaches, dentro del total del día. Ya venía en los
+-- topes de siempre; si a una base le falta, se suma una sola vez (no pisa lo que cambió el dueño).
+update public.ia_config set topes = jsonb_set(topes, '{alumno,texto}', '15') where id = 1 and jsonb_typeof(topes -> 'alumno') = 'object' and not (topes -> 'alumno' ? 'texto');
+update public.ia_config set topes = jsonb_set(topes, '{coach,texto}', '15') where id = 1 and jsonb_typeof(topes -> 'coach') = 'object' and not (topes -> 'coach' ? 'texto');
 
 -- ---------- ciclos de los créditos ----------
 create table if not exists public.ia_ciclos (
@@ -435,6 +462,23 @@ returns text language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.ia_permiso_estado(uuid) from public, anon, authenticated;
 grant execute on function public.ia_permiso_estado(uuid) to service_role;
+
+-- El permiso para la voz: es el mismo de Comida (el mismo interruptor apaga la foto y la voz), pero
+-- el aviso que aceptó tiene que ser el que ya dice que se manda lo que la persona cuenta
+-- (ia_config.aviso_texto; o el de la foto, si algún día es más nuevo): 'ok', 'no', 'viejo' (aceptó
+-- solo el de la foto: se le pregunta la primera vez que usa la voz) o null. La usa la función «ia».
+create or replace function public.ia_permiso_texto(p_uid uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case
+    when p.user_id is null then null
+    when p.comida_no_at is not null and (p.comida_ok_at is null or p.comida_no_at >= p.comida_ok_at) then 'no'
+    when p.comida_ok_at is null then null
+    when p.version < coalesce((select greatest(coalesce(c.aviso_version, 1), coalesce(c.aviso_texto, 3)) from public.ia_config c where c.id = 1), 3) then 'viejo'
+    else 'ok' end
+  from (select 1) x left join public.ia_permisos p on p.user_id = p_uid;
+$$;
+revoke all on function public.ia_permiso_texto(uuid) from public, anon, authenticated;
+grant execute on function public.ia_permiso_texto(uuid) to service_role;
 
 -- Lo mismo para el permiso del coach «Usar IA en tus rutinas» (ia_permiso_rutinas), con su propia
 -- versión del aviso (ia_config.aviso_rutinas_version): 'ok', 'no', 'viejo' o null.
@@ -1131,16 +1175,18 @@ end $$;
 revoke all on function public.admin_ia_plus_quitar(uuid) from public, anon;
 grant execute on function public.admin_ia_plus_quitar(uuid) to authenticated;
 
--- ---------- la app: foto del plato ----------
+-- ---------- la app: foto del plato y voz ----------
 -- Lo que la app necesita saber para mostrar (o no) los botones de la IA, sin montos:
 --   { activa, funciones: { plato, texto }, permiso_comida ('ok' | 'no' | 'viejo' | null),
---     aviso_version, estado ('normal' | 'ahorro' | 'pausada' | 'tope_mes' | 'tope_persona'),
+--     aviso_version, permiso_texto (el de la voz, ia_permiso_texto), aviso_texto (la versión del
+--     aviso que pide la voz), estado ('normal' | 'ahorro' | 'pausada' | 'tope_mes' | 'tope_persona'),
 --     vuelve, quedan: { plato, texto }, tope: { plato, texto, total }, usados: { plato, texto, total },
 --     por_gimnasio (true: usa los topes de coach por ser profe de un gimnasio, ver ia_rol_origen),
 --     plus: ia_plus_info() }
--- Con IA Plus prendido y sin IA Plus, «quedan» también mira las fotos gratis de la semana y, si no
--- queda ninguna, estado = 'tope_semana' (vuelve: el lunes que viene). Con IA Plus (ia_plus_rige),
--- el tope de fotos por día y el de US$ del ciclo son los de topes.plus si son más (como ia_reservar).
+-- Con IA Plus prendido y sin IA Plus, «quedan.plato» también mira las fotos gratis de la semana y,
+-- si no queda ninguna, estado = 'tope_semana' (vuelve: el lunes que viene; es solo para la foto: la
+-- voz no tiene límite semanal). Con IA Plus (ia_plus_rige), el tope de fotos por día y el de US$ del
+-- ciclo son los de topes.plus si son más (como ia_reservar); el de la voz no cambia.
 -- Una función está prendida para la app solo con el interruptor general, la de la función y la
 -- fecha de los créditos cargada (sin eso la función nunca llama a la IA): si no, la app no
 -- muestra nada nuevo. «quedan»: cuántos usos le quedan hoy a la persona (por función y en total).
@@ -1149,17 +1195,19 @@ returns jsonb language plpgsql stable security definer set search_path = public 
 declare
   v_uid uuid := auth.uid(); v_cfg public.ia_config; v_c public.ia_ciclos; v_ini timestamptz; v_fin timestamptz;
   v_on boolean; v_plato boolean; v_texto boolean; v_rol text; v_origen text; v_hoy0 timestamptz; v_estado text := 'normal'; v_vuelve timestamptz;
-  v_np int; v_nt int; v_n int; v_tp numeric; v_tt numeric; v_tot numeric; v_mio numeric; v_plus jsonb; v_qs int; v_usd numeric;
+  v_np int; v_nt int; v_n int; v_tp numeric; v_tt numeric; v_tot numeric; v_mio numeric; v_plus jsonb; v_qs int; v_usd numeric; v_avt int;
 begin
   if v_uid is null then return jsonb_build_object('activa', false, 'funciones', jsonb_build_object('plato', false, 'texto', false)); end if;
   v_plus := public.ia_plus_info(v_uid);
   select * into v_cfg from public.ia_config where id = 1;
+  v_avt := greatest(coalesce(v_cfg.aviso_version, 1), coalesce(v_cfg.aviso_texto, 3));   -- como ia_permiso_texto
   v_on := coalesce(v_cfg.activa, false) and v_cfg.ancla is not null;
   v_plato := v_on and coalesce(v_cfg.funciones -> 'plato', 'false'::jsonb) = 'true'::jsonb;
   v_texto := v_on and coalesce(v_cfg.funciones -> 'texto', 'false'::jsonb) = 'true'::jsonb;
   if not (v_plato or v_texto) then
     return jsonb_build_object('activa', false, 'funciones', jsonb_build_object('plato', false, 'texto', false),
-      'permiso_comida', public.ia_permiso_estado(v_uid), 'aviso_version', coalesce(v_cfg.aviso_version, 1), 'plus', v_plus);
+      'permiso_comida', public.ia_permiso_estado(v_uid), 'aviso_version', coalesce(v_cfg.aviso_version, 1),
+      'permiso_texto', public.ia_permiso_texto(v_uid), 'aviso_texto', v_avt, 'plus', v_plus);
   end if;
   v_origen := public.ia_rol_origen(v_uid);
   v_rol := case when v_origen is not null then 'coach' else 'alumno' end;   -- lo mismo que ia_rol
@@ -1172,9 +1220,13 @@ begin
     elsif v_c.cortado_por in ('creditos', 'admin') then v_estado := 'pausada';
     else v_estado := 'tope_mes'; v_vuelve := coalesce(v_c.vuelve, v_c.fin);
     end if;
-  elsif (v_c.estado = 'ahorro' or v_c.gastado + v_c.reservado >= v_c.ahorro) and v_rol = 'alumno'
-        and not exists (select 1 from public.profiles p where p.id = v_uid and p.coach_id is not null and public.coach_pago(p.coach_id))
-        and v_plus ->> 'estado' = 'gratis' then
+  end if;
+  -- Modo ahorro: la foto y la voz, solo para alumnos de un coach con plan y para quien tiene IA Plus
+  -- (los coaches siguen). También con el corte por créditos (o de la Console) que ya pasó su hora:
+  -- la próxima reserva deja el ciclo en ahorro, como en ia_reservar.
+  if v_estado = 'normal' and (v_c.estado = 'ahorro' or v_c.gastado + v_c.reservado >= v_c.ahorro) and v_rol = 'alumno'
+     and not exists (select 1 from public.profiles p where p.id = v_uid and p.coach_id is not null and public.coach_pago(p.coach_id))
+     and v_plus ->> 'estado' = 'gratis' then
     v_estado := 'ahorro'; v_vuelve := v_fin;
   end if;
   -- Lo de hoy de la persona: cuenta lo mismo que ia_reservar (solo con el rol de la app).
@@ -1194,15 +1246,17 @@ begin
     select coalesce(sum(coalesce(l.usd, l.max_usd)), 0) into v_mio from public.ia_llamadas l where l.ciclo_id = v_c.id and l.user_id = v_uid and l.rol = v_rol;
     if v_mio >= v_usd then v_estado := 'tope_persona'; v_vuelve := v_fin; end if;
   end if;
-  -- Fotos gratis de la semana (IA Plus prendido y sin IA Plus): lo mismo que mira ia_reservar.
+  -- Fotos gratis de la semana (IA Plus prendido y sin IA Plus): lo mismo que mira ia_reservar. Solo
+  -- la foto: la voz no tiene límite semanal (sigue andando aunque se terminen las fotos).
   if (v_plus ->> 'activa')::boolean and v_plus ->> 'estado' = 'gratis' and v_rol = 'alumno' then
     v_qs := (v_plus ->> 'quedan_semana')::int;
     if v_qs <= 0 and v_estado = 'normal' then v_estado := 'tope_semana'; v_vuelve := (v_plus ->> 'semana_vuelve')::timestamptz; end if;
   end if;
   return jsonb_build_object('activa', true, 'funciones', jsonb_build_object('plato', v_plato, 'texto', v_texto),
     'permiso_comida', public.ia_permiso_estado(v_uid), 'aviso_version', coalesce(v_cfg.aviso_version, 1),
+    'permiso_texto', public.ia_permiso_texto(v_uid), 'aviso_texto', v_avt,
     'estado', v_estado, 'vuelve', v_vuelve, 'manana', v_hoy0 + interval '1 day',
-    'quedan', jsonb_build_object('plato', greatest(0, least(v_tp - v_np, v_tot - v_n, coalesce(v_qs, v_tot))), 'texto', greatest(0, least(v_tt - v_nt, v_tot - v_n, coalesce(v_qs, v_tot)))),
+    'quedan', jsonb_build_object('plato', greatest(0, least(v_tp - v_np, v_tot - v_n, coalesce(v_qs, v_tot))), 'texto', greatest(0, least(v_tt - v_nt, v_tot - v_n))),
     'tope', jsonb_build_object('plato', v_tp, 'texto', v_tt, 'total', v_tot),
     'usados', jsonb_build_object('plato', v_np, 'texto', v_nt, 'total', v_n), 'plus', v_plus,
     'por_gimnasio', v_origen = 'gimnasio');
@@ -1284,25 +1338,30 @@ end $$;
 revoke all on function public.ia_coach_estado() from public, anon;
 grant execute on function public.ia_coach_estado() to authenticated;
 
--- Aceptar o apagar la IA de Comida (la hoja del permiso y Ajustes → Funciones con IA). Para
--- aceptar hay que haber visto el aviso vigente (p_version = ia_config.aviso_version): si el texto
--- cambió, la app lo vuelve a mostrar. Guarda cuándo (la hora de verdad, no la de la transacción:
--- apagar y volver a prender seguido tiene que quedar en orden) y qué versión. Devuelve ia_mi_estado().
+-- Aceptar o apagar la IA de Comida (la hoja del permiso y Ajustes → Funciones con IA; el mismo
+-- permiso vale para la foto y la voz). Para aceptar hay que haber visto un aviso vigente: una
+-- versión entre la de la foto (ia_config.aviso_version) y la de la voz (aviso_texto). La app de
+-- antes manda la de la foto (la que le da el servidor) y la de ahora, la de la voz, que ya dice que
+-- también se manda lo que la persona cuenta. Si el texto cambió, la app lo vuelve a mostrar. Guarda
+-- cuándo (la hora de verdad, no la de la transacción: apagar y volver a prender seguido tiene que
+-- quedar en orden) y la versión que vio. No toca el permiso del coach (ia_permiso_rutinas).
+-- Devuelve ia_mi_estado().
 create or replace function public.ia_permiso(p_tipo text, p_acepta boolean, p_version int default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare v_uid uuid := auth.uid(); v_ver int; v_ahora timestamptz := clock_timestamp();
+declare v_uid uuid := auth.uid(); v_ver int; v_texto int; v_ahora timestamptz := clock_timestamp();
 begin
   if v_uid is null then raise exception 'Iniciá sesión para usar la IA.' using errcode = '42501'; end if;
   if p_tipo is null or p_tipo <> 'comida' or p_acepta is null then raise exception 'Pedido inválido.' using errcode = '22023'; end if;
-  select coalesce(aviso_version, 1) into v_ver from public.ia_config where id = 1;
+  select coalesce(aviso_version, 1), aviso_texto into v_ver, v_texto from public.ia_config where id = 1;
   v_ver := coalesce(v_ver, 1);
-  if p_acepta and coalesce(p_version, 0) <> v_ver then raise exception 'El aviso cambió: volvé a leerlo.' using errcode = '22023'; end if;
+  v_texto := greatest(v_ver, coalesce(v_texto, 3));   -- como ia_permiso_texto
+  if p_acepta and (p_version is null or p_version < v_ver or p_version > v_texto) then raise exception 'El aviso cambió: volvé a leerlo.' using errcode = '22023'; end if;
   insert into public.ia_permisos (user_id, comida_ok_at, comida_no_at, version, updated_at)
-  values (v_uid, case when p_acepta then v_ahora end, case when not p_acepta then v_ahora end, case when p_acepta then v_ver else 0 end, v_ahora)
+  values (v_uid, case when p_acepta then v_ahora end, case when not p_acepta then v_ahora end, case when p_acepta then p_version else 0 end, v_ahora)
   on conflict (user_id) do update
      set comida_ok_at = case when p_acepta then v_ahora else ia_permisos.comida_ok_at end,
          comida_no_at = case when p_acepta then ia_permisos.comida_no_at else v_ahora end,
-         version = case when p_acepta then v_ver else ia_permisos.version end,
+         version = case when p_acepta then p_version else ia_permisos.version end,
          updated_at = v_ahora;
   return public.ia_mi_estado();
 end $$;
