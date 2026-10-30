@@ -67,6 +67,8 @@ function host(){
 export function chatOpenFor(){ return C ? C.clientId : null; }
 
 // role: "coach" (escribe a su alumno clientId) o "client" (escribe a su coach coachId).
+// draft (opcional): un texto ya escrito en la caja, que se revisa y se manda como cualquier mensaje
+// (el recordatorio de la cuota, screens/coach/cobros.js). No se manda solo.
 // Con el chat abierto la pantalla de atrás no se mueve. En el celular, overflow:hidden no
 // alcanza: el rebote del scroll y el teclado corrían la página de atrás y se veía la rutina
 // por abajo. Se fija el body donde estaba y el chat toma el alto visible (sin el teclado).
@@ -97,7 +99,7 @@ function unlockPage(){
 export async function openChat(o){
   if(C) closeChat(true);
   C = { clientId: o.clientId, coachId: o.coachId, name: o.name || "", role: o.role,
-        msgs: null, error: "", draft: "", sending: 0, rec: null, chan: null, poll: null };
+        msgs: null, error: "", draft: o.draft ? String(o.draft).slice(0, MAX_TXT) : "", sending: 0, rec: null, chan: null, poll: null };
   document.body.classList.add("chat-open");
   lockPage();
   history.pushState({ gizeChat: 1 }, "");
