@@ -7,7 +7,9 @@
 // prometen fotos de progreso.
 // Los Términos de uso (gize.ar/terminos, los pide Apple para las suscripciones de la app de
 // iPhone) dicen cómo se renueva y se cancela la suscripción con Apple, y desde la app se abren sin
-// la barra que lleva a la página de inicio, igual que la política.
+// la barra que lleva a la página de inicio, igual que la política. También la suscripción con Google
+// Play (app de Android): se renueva sola cada mes, se administra en Google Play y eliminar la cuenta
+// cancela la renovación.
 // La política dice que en la app de Android el pago lo procesa Google Play, qué se guarda de esas
 // compras y que al eliminar la cuenta se cancela su renovación.
 import fs from 'node:fs';
@@ -118,7 +120,11 @@ export default async function ({ base, t }){
   const term = await text(pg.p, 'main');
   for (const f of ['mayores de 18 años', 'se renueva sola cada mes', 'Ajustes de tu cuenta de Apple', 'Eliminar tu cuenta de GIZE no cancela la suscripción de Apple', 'licencia de uso estándar de Apple'])
     t.has(term, f, 'los términos dicen: ' + f);
-  t.ok(!/Mercado Pago|transferencia|\$\d/.test(term), 'los términos no mandan a pagar por fuera de Apple');
+  for (const f of ['Suscripción con Google Play (app de Android)', 'El pago se cobra a tu cuenta de Google Play', 'Pagos y suscripciones → Suscripciones',
+    'Mi plan → Administrar en Google Play', 'Eliminar tu cuenta de GIZE cancela la renovación de tu suscripción de Google Play', 'Condiciones del Servicio de Google Play'])
+    t.has(term, f, 'los términos dicen (Google Play): ' + f);
+  t.ok(/id="google"[\s\S]*se renueva sola cada mes/.test(await pg.p.content()), 'la sección de Google Play dice que se renueva sola cada mes');
+  t.ok(!/Mercado Pago|transferencia|\$\d/.test(term), 'los términos no mandan a pagar por fuera de Apple ni de Google Play');
   await pg.p.goto(base + '/terminos/'); await wait(300);
   // En la web, además, el link a gize.ar/baja/ (botón de arrepentimiento y de baja sin sesión, IA Plus).
   t.eq(await topLinks(), ['../', '../app/', '../privacidad/', '../baja/'], 'entrando directo, la barra de arriba sigue');
