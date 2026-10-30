@@ -10,16 +10,16 @@
     android:background="@drawable/widget_fondo"
     android:baselineAligned="false"
     android:orientation="horizontal"
-    android:padding="12dp">
+    android:padding="10dp">
 
     <LinearLayout
         android:id="@+id/widget_izq"
         android:layout_width="0dp"
         android:layout_height="match_parent"
-        android:layout_weight="1"
+        android:layout_weight="1.3"
         android:gravity="center_vertical"
         android:orientation="vertical"
-        android:paddingEnd="10dp">
+        android:paddingEnd="8dp">
 
         <LinearLayout
             android:id="@+id/widget_pasos"
@@ -39,17 +39,22 @@
                 android:progressDrawable="@drawable/widget_anillo" />
 
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:layout_marginStart="8dp"
                 android:orientation="vertical">
 
+                <!-- El número (o «Conectá») en una sola línea: la letra se achica sola si no entra. -->
                 <TextView
                     android:id="@+id/widget_pasos_txt"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:maxLines="2"
+                    android:layout_width="match_parent"
+                    android:layout_height="24dp"
+                    android:autoSizeMaxTextSize="18sp"
+                    android:autoSizeMinTextSize="11sp"
+                    android:autoSizeTextType="uniform"
+                    android:gravity="center_vertical"
+                    android:maxLines="1"
                     android:text="@string/widget_ej_pasos"
                     android:textColor="@color/widget_texto"
                     android:textSize="18sp"
@@ -60,7 +65,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
-                    android:maxLines="1"
+                    android:maxLines="2"
                     android:text="@string/widget_ej_pasos_pie"
                     android:textColor="@color/widget_texto_2"
                     android:textSize="11sp" />

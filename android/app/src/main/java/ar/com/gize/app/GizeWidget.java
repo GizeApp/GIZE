@@ -11,7 +11,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.SizeF;
-import android.util.TypedValue;
 import android.view.View;
 import android.widget.RemoteViews;
 
@@ -148,10 +147,9 @@ public class GizeWidget extends AppWidgetProvider {
         // Pasos de hoy: el número, el anillo contra la meta y abajo «de 10.000 · 14:32».
         v.setViewVisibility(R.id.widget_pasos, pasos == null ? View.GONE : View.VISIBLE);
         if (pasos != null) {
-            String txt = texto(pasos, "txt");
-            v.setTextViewText(R.id.widget_pasos_txt, txt);
-            // «Conectá» o un número largo no entran con la letra de siempre.
-            v.setTextViewTextSize(R.id.widget_pasos_txt, TypedValue.COMPLEX_UNIT_SP, chico ? (txt.length() > 5 ? 12 : 15) : (txt.length() > 6 ? 14 : 18));
+            // Va en una sola línea: si «Conectá» o un número largo no entran, el layout achica la
+            // letra solo (autoSizeTextType).
+            v.setTextViewText(R.id.widget_pasos_txt, texto(pasos, "txt"));
             v.setProgressBar(R.id.widget_anillo, 100, porcentaje(pasos.optDouble("pct", 0)), false);
             if (!chico) mostrar(v, R.id.widget_pasos_pie, texto(pasos, "pie"));
         }
@@ -184,6 +182,9 @@ public class GizeWidget extends AppWidgetProvider {
         mostrar(v, R.id.widget_entreno_titulo, titulo);
         v.setTextColor(R.id.widget_entreno_titulo, ctx.getColor(hecho ? R.color.widget_verde : R.color.widget_azul));
         mostrar(v, R.id.widget_entreno_nombre, nombre);
+        // En el chico el nombre del entreno va en una línea (con pasos y racha arriba no entra
+        // más), pero el aviso solo tiene lugar para dos: «Abrí GIZE para ver tu día».
+        if (chico) v.setInt(R.id.widget_entreno_nombre, "setMaxLines", soloAviso ? 2 : 1);
         if (!chico) mostrar(v, R.id.widget_entreno_detalle, detalle);
 
         // Toques, en el chico y en el mediano: cada parte abre GIZE en su lugar (los pasos en

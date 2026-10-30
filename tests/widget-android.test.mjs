@@ -101,6 +101,19 @@ export default async function ({ base, t }){
     t.eq(vistas.filter(v => !PERMITIDAS.includes(v)), [], nombre + ': solo vistas que admite un widget (' + PERMITIDAS.join(', ') + ')');
     t.ok(/android:id="@\+id\/widget_raiz"[\s\S]*?android:background="@drawable\/widget_fondo"/.test(x), nombre + ': con el fondo de la marca');
   }
+  // Que los textos entren (visto con layoutlib, el motor de la vista previa de Android Studio, en
+  // 4×2 de 250 a 340 dp y 2×2 de 110 a 150 dp): el número de pasos se partía en dos líneas
+  // («12.87» / «4»), en 4×2 se cortaban la hora de «de 10.000 · 14:32» y «días seguidos», y en el
+  // chico el aviso quedaba en «Tu panel de…».
+  const vista = (x, id) => (x.match(new RegExp('android:id="@\\+id/' + id + '"[^>]*/>')) || [''])[0];
+  for (const [nombre, x] of [['widget_gize', med], ['widget_gize_chico', chi]]){
+    const n = vista(x, 'widget_pasos_txt');
+    t.ok(/android:maxLines="1"/.test(n) && /android:autoSizeTextType="uniform"/.test(n) && /android:layout_height="\d+dp"/.test(n) && !/android:layout_width="wrap_content"/.test(n),
+      nombre + ': el número de pasos (o «Conectá») va en una sola línea y la letra se achica sola si no entra');
+  }
+  t.ok(/android:maxLines="2"/.test(vista(med, 'widget_pasos_pie')), 'widget_gize: si «de 10.000 · 14:32» no entra en una línea, la hora pasa abajo (no se corta)');
+  const peso = id => Number((med.match(new RegExp('android:id="@\\+id/' + id + '"[^>]*?android:layout_weight="([\\d.]+)"')) || [])[1] || 0);
+  t.ok(peso('widget_izq') > peso('widget_entreno') && peso('widget_entreno') > 0, 'widget_gize: la columna de pasos y racha es más ancha que la del entreno (ahí van «de 10.000 · 14:32» y «12 días seguidos»)');
   // Cada recurso que nombran los XML del widget existe.
   const refs = s => [...s.matchAll(/@(string|color|drawable|layout|xml)\/(\w+)/g)].map(m => [m[1], m[2]]);
   const widgetXml = [med, chi, info, rec, ...['widget_fondo', 'widget_caja', 'widget_anillo', 'widget_llama', 'widget_llama_apagada'].map(d => leer(RES + 'drawable/' + d + '.xml'))].join('\n');
@@ -135,6 +148,8 @@ export default async function ({ base, t }){
   // Los toques por parte van también en el chico: el toque único es solo del chico de iPhone
   // (contrato-widget.md §4 y §5). Si no, «Conectá» en el chico llevaba a Entreno y no a Cardio →
   // Pasos, donde se conectan.
+  t.ok(/if \(chico\) v\.setInt\(R\.id\.widget_entreno_nombre, "setMaxLines", soloAviso \? 2 : 1\);/.test(armar), 'en el chico el aviso («Abrí GIZE para ver tu día») tiene dos líneas y el nombre del entreno una');
+  t.ok(!/setTextViewTextSize\(R\.id\.widget_pasos_txt/.test(armar), 'el tamaño del número de pasos lo ajusta el layout (con autoSize, setTextViewTextSize no hace nada)');
   for (const [zona, destino] of [['widget_pasos', 'pasos'], ['widget_racha', 'racha'], ['widget_entreno', 'entreno']])
     t.ok(new RegExp('setOnClickPendingIntent\\(R\\.id\\.' + zona + ',[^;]*abrir\\(ctx, "' + destino + '"').test(enChico), 'en el chico también, tocar ' + zona.replace('widget_', '') + ' abre ' + destino);
 
