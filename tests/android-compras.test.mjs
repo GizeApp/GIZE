@@ -13,10 +13,13 @@
 //   nada de lo que se sacó en la 8 (SkuDetails, queryPurchaseHistory, enablePendingPurchases()).
 // - La compra lleva la cuenta de GIZE (obfuscatedAccountId) y la hoja de Google se abre desde el hilo de
 //   la pantalla. Se vende solo el plan base «mensual» sin ofertas. El plugin no se conecta a Google Play
-//   al arrancar, no reconoce compras por su cuenta (solo finalizar, cuando lo pide la app), no escribe
-//   registros y no le pasa a la app el JSON ni la firma de Google (el servidor lee la compra en Google).
+//   al arrancar (ni al abrir la app ni al volver a ella: arma y conecta la biblioteca en un solo lugar,
+//   que llaman solo los pedidos de la app), no reconoce compras por su cuenta (solo finalizar, cuando lo
+//   pide la app), no escribe registros y no le pasa a la app el JSON ni la firma de Google (el servidor
+//   lee la compra en Google). La compra abierta se contesta solo con una compra de su mismo producto.
 // - Lo que acepta: los IDs de GIZE (los de core/compras-apple.js, que son los mismos en Google Play)
 //   pasan; la cuenta es un UUID (un mail no); un token de Google pasa y uno con espacios o barras no.
+//   Cada pedido que trae un producto, una cuenta o un token lo controla antes de hacer nada.
 // - El manifiesto no saca el permiso com.android.vending.BILLING (lo suma la biblioteca).
 // - Cuando esté core/compras-google.js: su plan base es el mismo y cada método que le pide al plugin existe.
 import fs from 'node:fs';
@@ -31,8 +34,8 @@ const JAVA = 'android/app/src/main/java/ar/com/gize/app/';
 const METODOS = ['productos', 'comprar', 'vigentes', 'restaurar', 'finalizar', 'administrar', 'avisos'];
 
 // El cuerpo de un método del plugin: desde su firma hasta el método siguiente.
-function cuerpo(java, nombre){
-  const i = java.indexOf(' void ' + nombre + '(');
+function cuerpo(java, nombre, tipo = 'void'){
+  const i = java.indexOf(' ' + tipo + ' ' + nombre + '(');
   if (i < 0) return '';
   const fin = java.slice(i + 1).search(/\n {4}(@PluginMethod|@Override|private |public |protected |static )/);
   return fin < 0 ? java.slice(i) : java.slice(i, i + 1 + fin);
@@ -84,6 +87,19 @@ export default async function ({ t }){
   const viejo = pj.match(/querySkuDetailsAsync|SkuDetails|queryPurchaseHistory|enablePendingPurchases\(\)|setSubscriptionReplacementMode|ProrationMode|queryPurchasesAsync\(\s*(?:"|BillingClient\.)/g) || [];
   t.eq(viejo, [], 'nada de lo que se sacó o quedó en desuso en la 8 y la 8.1');
   t.ok(!/void load\(\)/.test(pj), 'no se conecta a Google Play al arrancar la app (recién con el primer pedido)');
+  // Ni al volver a la app ni al armarse el plugin: la biblioteca se arma y se conecta solo en
+  // conGooglePlay, y a conGooglePlay lo llaman solo los pedidos de la app.
+  t.ok(!/void handleOn(Start|Restart|Resume|Pause|Stop|NewIntent|ActivityResult|ConfigurationChanged)\(|\bGizeComprasPlugin\s*\(/.test(pj),
+    'no hace nada al abrir, volver o salir de la app (sin constructor propio ni handleOnStart/Resume…)');
+  const conectar = cuerpo(pj, 'conGooglePlay', 'boolean');
+  t.ok(/BillingClient\.newBuilder\(/.test(conectar) && /\.startConnection\(/.test(conectar), 'arma y conecta la biblioteca en conGooglePlay…');
+  t.eq((pj.match(/BillingClient\.newBuilder\(|\.startConnection\(/g) || []).length, 2, '…y en ningún otro lado');
+  const PEDIDOS = ['productos', 'comprar', 'leerCompras', 'finalizar', 'avisos'];
+  const enPedidos = PEDIDOS.map(m => (cuerpo(pj, m).match(/\bconGooglePlay\(/g) || []).length);
+  t.eq(enPedidos, [1, 1, 1, 1, 1], 'cada pedido que habla con Google Play pasa por conGooglePlay: ' + PEDIDOS.join(', '));
+  t.eq((pj.match(/\bconGooglePlay\(/g) || []).length, 1 + PEDIDOS.length, 'y nadie más llama a conGooglePlay');
+  t.ok(/leerCompras\(call, false\)/.test(cuerpo(pj, 'vigentes')) && /leerCompras\(call, true\)/.test(cuerpo(pj, 'restaurar'))
+    && (pj.match(/\bleerCompras\(/g) || []).length === 3, 'leerCompras lo llaman solo vigentes y restaurar');
 
   // Comprar y cambiar de plan.
   const comprar = cuerpo(pj, 'comprar');
@@ -101,6 +117,8 @@ export default async function ({ t }){
   t.ok(/\.setSubscriptionUpdateParams\(BillingFlowParams\.SubscriptionUpdateParams\.newBuilder\(\)\s*\.setOldPurchaseToken\(tokenViejo\)/.test(comprar), 'con el token de la suscripción que reemplaza');
   t.ok(/runOnUiThread\(\(\) -> \{\s*BillingResult \w+ = c\.launchBillingFlow\(actividad, params\);/.test(comprar), 'la hoja de Google se abre desde el hilo de la pantalla');
   t.ok(/compraEnCurso != null\)\s*\{\s*call\.reject\(/.test(comprar), 'una compra por vez');
+  t.ok(/if \(compraEnCurso != null && p\.getProducts\(\)\.contains\(productoEnCurso\)\)/.test(cuerpo(pj, 'onPurchasesUpdated')),
+    'la compra abierta se contesta solo con una compra de ese producto (otra va por el evento «compra»)');
   const contestar = cuerpo(pj, 'onPurchasesUpdated') + cuerpo(pj, 'terminarCompra');
   for (const [estado, que] of [['"ok" : "pendiente"', 'comprada o pendiente'], ['"cancelado" : "ya"', 'cancelada o que ya era suya']])
     t.ok(contestar.includes(estado), 'la compra se contesta como ' + que);
@@ -120,10 +138,19 @@ export default async function ({ t }){
     'administrar abre esa suscripción en Google Play (sku y package)');
   t.ok(/Intent\.ACTION_VIEW/.test(admin) && /catch \(ActivityNotFoundException/.test(admin), 'y si no se puede abrir, contesta con un error (no se cae)');
   t.ok(/addInAppMessageCategoryToShow\(InAppMessageParams\.InAppMessageCategoryId\.TRANSACTIONAL\)/.test(cuerpo(pj, 'avisos')), 'avisos muestra el aviso de Google para arreglar el pago');
+  t.ok(/runOnUiThread\(\(\) -> \{\s*BillingResult \w+ = c\.showInAppMessages\(actividad, params,/.test(cuerpo(pj, 'avisos')), 'y lo muestra desde el hilo de la pantalla');
 
   // ===== Lo que acepta =====
   const PRODUCTO = patron(pj, 'PRODUCTO'), CUENTA = patron(pj, 'CUENTA'), TOKEN = patron(pj, 'TOKEN');
   t.ok(PRODUCTO && CUENTA && TOKEN, 'el plugin valida el producto, la cuenta y el token');
+  // Y lo controla en cada pedido, antes de hablar con Google Play o abrir algo.
+  const rechaza = (metodo, cond) => new RegExp('if \\(' + cond.replace(/[()|]/g, '\\$&') + '\\) \\{\\s*call\\.reject\\(').test(cuerpo(pj, metodo));
+  t.ok(/if \(id instanceof String && valido\(PRODUCTO, \(String\) id\) && !ids\.contains\(id\)\)/.test(cuerpo(pj, 'productos'))
+    && /ids\.size\(\) < MAXIMO_IDS/.test(cuerpo(pj, 'productos')), 'productos: solo IDs válidos, sin repetir y con tope');
+  t.ok(rechaza('comprar', '!valido(PRODUCTO, id) || !valido(CUENTA, texto)'), 'comprar: rechaza un producto o una cuenta que no valen');
+  t.ok(rechaza('comprar', '!valido(TOKEN, viejoToken) || !valido(PRODUCTO, viejoProducto) || modo == 0'), 'comprar: y un cambio de plan sin token, producto o modo válidos');
+  t.ok(rechaza('finalizar', '!valido(TOKEN, token)'), 'finalizar: rechaza un token que no vale');
+  t.ok(rechaza('administrar', '!valido(PRODUCTO, producto)'), 'administrar: rechaza un producto que no es de GIZE');
   if (PRODUCTO && CUENTA && TOKEN){
     const apple = leer('app/core/compras-apple.js');
     const ids = [...apple.matchAll(/"(ar\.com\.gize\.app\.[\w.]+)"/g)].map(m => m[1]);
