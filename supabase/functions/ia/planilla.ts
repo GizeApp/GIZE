@@ -42,6 +42,12 @@ export const PROMPT_PLANILLA =
 export const TEXTO_PLANILLA = "Pasá esta hoja a una rutina de GIZE.\n\nHOJA:\n";
 // La hoja más larga que se manda: la misma que arma la app (LIMITES.hoja en app/core/planilla.js).
 export const HOJA_MAX = 30_000; // caracteres
+// La celda más larga que se acepta. La app manda hasta 120 caracteres por celda (LIMITES.celda) y
+// cambia los «|» de adentro por «/»: una celda más larga no la armó la app y el pedido no se lee. Así
+// la limpieza tarda poco con cualquier cosa que llegue: ninguna de sus reglas pasa por encima de un
+// «|», pero en una celda enorme (miles de números o puntos seguidos) tardaría segundos.
+export const CELDA_MAX = 200; // caracteres
+export const celdasCortas = (hoja: string) => hoja.split(/\r\n|\n|\r/).every((l) => l.split("|").every((c) => c.length <= CELDA_MAX));
 // Lo que contesta la IA por una rutina de 200 ejercicios (el tope de rutinaPost), con lugar para que
 // piense (esfuerzo medio). Si igual no entra, la hoja era demasiado grande: se pide partirla.
 export const MAX_TOKENS_PLANILLA = 16_000;

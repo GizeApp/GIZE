@@ -7,9 +7,10 @@
 //   sin_permiso; un coach sin plan ni prueba 403 sin_plan y quien no es coach 403 no_habilitado, los
 //   dos con el mismo texto neutro; el coach en prueba reserva como «prueba» y el de plan como
 //   «coach»; no pasa por «solo administradores»;
-// - la hoja: más larga que la de la app, 400 hoja_grande sin tocar nada; sin al menos 2 renglones con
-//   algo, «no es una rutina» sin reservar ni llamar; lo que arma la app (textoHoja) llega tal cual y lo
-//   que se le haya escapado (mails, teléfonos, documentos, links) no viaja;
+// - la hoja: más larga que la de la app, 400 hoja_grande sin tocar nada; con una celda más larga que
+//   las de la app, 400 sin tocar nada (y la peor hoja que se acepta se limpia rápido); sin al menos 2
+//   renglones con algo, «no es una rutina» sin reservar ni llamar; lo que arma la app (textoHoja) llega
+//   tal cual y lo que se le haya escapado (mails, teléfonos, documentos, links) no viaja;
 // - el pedido: la lista EJERCICIOS primero y las instrucciones, las dos con caché de 1 hora, el esquema
 //   con la fila, «varias» y «semanas», esfuerzo medio, max_tokens, sin nada que cobre aparte ni datos de
 //   la persona; la reserva cuenta la lista entera;
@@ -149,6 +150,21 @@ export default async ({ t }) => {
     h = await correr({ body });
     t.ok(h.status === 400 && h.json.codigo === 'error' && !h.db.length && !h.fetches.length, 'sin la hoja (' + JSON.stringify(body) + '): 400, sin tocar la base');
   }
+  // Una celda más larga que las de la app (que las corta en LIMITES.celda): no la armó la app, no se
+  // lee. Con una celda así de larga, la limpieza de la función tardaría segundos.
+  t.ok(LIMITES.celda <= PL.CELDA_MAX, 'las celdas de la app entran (' + LIMITES.celda + ' de ' + PL.CELDA_MAX + ' caracteres)');
+  for (const hoja of ['1|Press banca|' + '1-'.repeat(10000), '1|Press banca|4|10\n2|' + 'a.'.repeat(PL.CELDA_MAX / 2) + 'b']){
+    h = await correr({ hoja });
+    t.ok(h.status === 400 && h.json.codigo === 'error' && h.json.mensaje === 'Pedido inválido.' && !h.db.length && !h.fetches.length,
+      'una celda más larga que las de la app (' + hoja.length + ' caracteres): 400, sin tocar la base ni llamar');
+  }
+  // La peor hoja que sí entra (todas las celdas del largo máximo, con números y guiones seguidos) se
+  // limpia en un ratito: en Supabase la función tiene poco tiempo de procesador por pedido.
+  const peor = Array.from({ length: Math.floor(PL.HOJA_MAX / (PL.CELDA_MAX + 6)) }, (_, i) => (i + 1) + '|' + '1-'.repeat(PL.CELDA_MAX / 2)).join('\n');
+  const t0 = performance.now();
+  h = await correr({ hoja: peor });
+  const ms = performance.now() - t0;
+  t.ok(peor.length <= PL.HOJA_MAX && h.status === 200 && h.fetches.length === 1 && ms < 1500, 'la peor hoja que se acepta se limpia rápido (' + Math.round(ms) + ' ms, ' + h.status + ')');
   for (const hoja of ['', '1|Rutina de [alumno]', '1|[alumno]\n2|[tel] [mail]\n3|']){
     h = await correr({ hoja });
     t.ok(h.status === 200 && h.json.ok && h.json.hay_rutina === false && h.json.nota === PL.HOJA_VACIA && !h.rpcs.ia_reservar && !h.fetches.length,

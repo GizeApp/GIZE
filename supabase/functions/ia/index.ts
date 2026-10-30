@@ -16,7 +16,8 @@
 //         estimación de la IA. La app los muestra para revisar y no anota nada sin «Agregar».
 //   { modo: "texto" } («Contame qué comiste»): se sacó de GIZE (solo fotos). Contesta 400
 //     { ok: false, codigo: "no_disponible" } sin mirar nada más ni llamar a la API.
-//   { modo: "planilla", hoja: <el texto de una hoja, ya limpio por la app, hasta 30.000 caracteres> }
+//   { modo: "planilla", hoja: <el texto de una hoja, ya limpio por la app, hasta 30.000 caracteres y
+//     200 por celda> }
 //     Panel del coach («Pasar mis planillas»), coaches con plan o en su prueba que aceptaron «Usar IA
 //     en tus rutinas» (supabase/ia.sql → ia_permiso_rutinas), con la función prendida en el panel:
 //     → { ok: true, hay_rutina, nombre, nota, varias, semanas, dias: [{ nombre, dias, nota,
@@ -58,7 +59,7 @@ import { cookVariant, FOODS } from "./foods.js";
 // «Pasar mis planillas» (modo «planilla») y, cuando tenga su modo, «Armar con IA».
 import { ES_MAP, EX_CATS, EX_DB } from "./data.js";
 import { ejercicios, limpiarTexto, type Ejercicios } from "./rutina.ts";
-import { costoHojaTipica, ENTRADA_MAX_PLANILLA, entradaPlanilla, filasConTexto, HOJA_MAX, HOJA_VACIA, MAX_TOKENS_PLANILLA, pedidoPlanilla, planillaPost, TIEMPO_PLANILLA } from "./planilla.ts";
+import { celdasCortas, costoHojaTipica, ENTRADA_MAX_PLANILLA, entradaPlanilla, filasConTexto, HOJA_MAX, HOJA_VACIA, MAX_TOKENS_PLANILLA, pedidoPlanilla, planillaPost, TIEMPO_PLANILLA } from "./planilla.ts";
 
 type SupabaseClient = ReturnType<typeof createClient>;
 const BASE: Base = { foods: FOODS, cocido: cookVariant };
@@ -335,6 +336,7 @@ async function planilla(input: { hoja?: unknown }, me: string, url: string): Pro
   const pl = (codigo: string, extra: { motivo?: string; vuelve?: string | null; tope?: number } = {}) => no(codigo, { ...extra, mensaje: MENSAJE_PLANILLA[codigo] });
   if (typeof input.hoja !== "string") return no("error", { mensaje: "Pedido inválido." }, 400);
   if (input.hoja.length > HOJA_MAX) return no("hoja_grande");
+  if (!celdasCortas(input.hoja)) return no("error", { mensaje: "Pedido inválido." }, 400);
 
   // Sin la clave no se toca nada: ni la base ni la API.
   const clave = Deno.env.get("ANTHROPIC_API_KEY") || "";
