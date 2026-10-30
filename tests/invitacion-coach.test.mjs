@@ -4,11 +4,14 @@
 //   sale de la dirección y la invitación queda guardada (gize_coach_pend). Un link con un alias que no
 //   puede ser no guarda nada.
 // - Alumno sin coach: la hoja «Entrená con …» (el nombre como texto, la foto, qué va a ver el coach);
-//   «Sumarme» llama a join_coach con el código de la página, relee el perfil y muestra la marca del coach;
-//   «Ahora no» no llama nada. Se cierre como se cierre, la invitación se borra.
-// - Nunca se cambia de coach solo: con el mismo coach o con otro, avisa sin [Sumarme]. El coach que abre
-//   su link o el de otro, y la página que ya no se ve (la base sin la función o con las páginas apagadas
-//   sin el permiso de coach_pagina_ver), también avisan: eso no es un problema de señal.
+//   «Sumarme» llama a join_coach con el código de la página, relee el perfil y deja la app de abajo con
+//   el coach (la marca y el chat); «Ahora no» no llama nada. Se cierre como se cierre, la invitación se
+//   borra.
+// - Nunca se cambia de coach solo: con el mismo coach o con otro (también el coach de afuera de un socio
+//   del gimnasio), avisa sin [Sumarme]. El socio con un profe del gimnasio no es «otro coach»: le contesta
+//   join_coach (que lo manda a dejar a su profe). El coach que abre su link o el de otro, y la página que
+//   ya no se ve (la base sin la función o con las páginas apagadas sin el permiso de coach_pagina_ver),
+//   también avisan: eso no es un problema de señal.
 // - Sin señal, «Reintentar». Errores de join_coach en la app de Android: el texto sin el plan, y la hoja
 //   sigue abierta para volver a probar; mientras se suma, el «Atrás» no la cierra; después sí.
 // - Cuenta nueva: primero la hoja y, al cerrarla, la bienvenida, que ya no pide el código.
@@ -42,7 +45,8 @@ const P0001 = m => ({ error: { code: 'P0001', message: m, details: null, hint: n
 
 // Entra con la sesión iniciada. o.ver: lo que contesta coach_pagina_ver (un valor, 'sin' = la base no
 // tiene la función, 'red' = sin señal, o una función que decide); o.join: lo que contesta join_coach
-// (true, false, P0001(…) o una promesa); o.rol, o.coach (coach_id al entrar), o.user, o.init, o.hash, o.state.
+// (true, false, P0001(…) o una promesa); o.gym: lo que contesta mi_gimnasio (sin gimnasio, null);
+// o.rol, o.coach (coach_id al entrar), o.user, o.init, o.hash, o.state.
 async function entrar(base, o = {}){
   const st = { coach: o.coach || null, ver: [], joins: [], perfiles: 0, firmas: 0 };
   const rol = o.rol || 'client', yo = (o.user || ALUMNO).id;
@@ -70,6 +74,7 @@ async function entrar(base, o = {}){
       return Promise.resolve(v).then(x => { if (x === true) st.coach = COACH_ID; return x && x.error ? J(x.error, 400) : J(x); });
     },
     '/rpc/my_coach_name': (r, J) => J(st.coach === COACH_ID ? 'Toro Pérez' : st.coach ? 'Otro Coach' : null),
+    '/rpc/mi_gimnasio': (r, J) => J(o.gym || null),
     '/object/sign/avatars': (r, J, i) => { st.firmas++; return J(JSON.parse(i.body).paths.map(x => ({ path: x, signedURL: '/object/sign/avatars/' + x + '?token=t', error: null }))); },
   } });
   await pg.p.goto(base + '/app/' + (o.hash === undefined ? '#coach=toro' : o.hash));
@@ -83,6 +88,8 @@ const tocar = async (p, a) => { await p.click('#coachInvHost [data-cinv="' + a +
 // La marca del coach que se ve arriba de la app (applyBrand), no solo la guardada.
 const marca = p => p.evaluate(() => { const g = document.getElementById('brandTag'), n = document.getElementById('brandName');
   return g && n && g.style.display !== 'none' ? n.textContent : ''; });
+// El botón del chat con el coach de la app de abajo (renderApp lo muestra solo con coach).
+const chat = p => p.evaluate(() => { const b = document.getElementById('chatBtn'); return !!b && !b.hidden; });
 
 export default async function ({ base, t }){
   // ---- Sin sesión: «Crear cuenta» con el mensaje; el link sale de la dirección y queda guardado ----
@@ -120,6 +127,7 @@ export default async function ({ base, t }){
     for (let i = 0; i < 3; i++) await p.keyboard.press('Tab');
     t.ok(await p.evaluate(() => !!document.activeElement.closest('#coachInvHost')), 'alumno: Tab no se va de la hoja');
     t.eq(pg.st.joins, [], 'alumno: no se suma sin tocar');
+    t.ok(!(await chat(p)), 'alumno: sin coach, la app de abajo no tiene el chat');
     await p.click('#coachInvHost [data-cinv="si"]'); await wait(300);
     t.eq(await p.$$eval('#coachInvHost [data-cinv]', l => l.filter(b => b.tagName === 'BUTTON').map(b => [b.textContent, b.disabled])), [['Ahora no', true], ['Sumando…', true]], 'alumno: mientras se suma, nada más anda');
     await p.keyboard.press('Escape'); await wait(200);
@@ -129,6 +137,7 @@ export default async function ({ base, t }){
     t.ok(pg.st.perfiles >= 2, 'alumno: relee el perfil');
     t.has(await hoja(p), '¡Listo! Ya entrenás con Toro.', 'alumno: «¡Listo!»');
     t.eq(await marca(p), 'Toro Pérez', 'alumno: con la marca de su coach');
+    t.ok(await chat(p), 'alumno: la app de abajo ya queda con su coach (el chat)');
     t.ok(!!(await pend(p)), 'alumno: la invitación sigue hasta cerrar la hoja');
     await tocar(p, 'no');
     t.ok(!(await abierta(p)), 'alumno: «Seguir» cierra la hoja');
@@ -170,6 +179,29 @@ export default async function ({ base, t }){
     t.eq([pg.st.joins, await pend(p)], [[], null], que + ': no se suma y borra la invitación');
     t.eq(pg.errs, [], que + ': errores de la página');
     await pg.close();
+  }
+
+  // ---- Socio de un gimnasio: con un profe del gimnasio no es «otro coach» (le contesta join_coach,
+  //      que lo manda a dejar a su profe); con un coach de afuera, sí ----
+  {
+    const PROFE = '66666666-6666-6666-6666-666666666666';
+    const socio = ficha => ({ gym: { id: '77777777-7777-7777-7777-777777777777', name: 'Gimnasio Fuerza', city: 'Rosario' }, rol: 'socio', puede_crear: false,
+      ficha: Object.assign({ id: '88888888-8888-8888-8888-888888888888', status: 'activo', paused_until: null, terms_at: '2026-10-01T12:00:00Z', terms_version: '2026-10-borrador',
+        share_admin: false, profe: null, coach_externo: false, foto: 'falta', foto_rechazo: null, foto_path: null, foto_pend_path: null, origen: 'codigo' }, ficha) });
+    const MSG = 'Ya tenés profe en Gimnasio Fuerza. Para cambiar, primero dejá a tu profe en Ajustes → Tu gimnasio.';
+    const pg = await entrar(base, { coach: PROFE, gym: socio({ profe: { id: PROFE, name: 'Lucía Profe' } }), join: P0001(MSG) }), p = pg.p;
+    t.has(await hoja(p), 'Entrená con Toro', 'socio con profe del gimnasio: no le dice «otro coach»');
+    await tocar(p, 'si');
+    t.eq(pg.st.joins, [{ code: 'K7XM2PQA' }], 'socio con profe del gimnasio: decide join_coach');
+    t.eq(await text(p, '#coachInvHost [role="alert"]'), MSG, 'socio con profe del gimnasio: el mensaje de join_coach, tal cual');
+    t.eq(pg.st.coach, PROFE, 'socio con profe del gimnasio: sigue con su profe');
+    t.eq(pg.errs, [], 'socio con profe del gimnasio: errores de la página');
+    await pg.close();
+    const px = await entrar(base, { coach: OTRO_COACH, gym: socio({ coach_externo: true }) }), q = px.p;
+    t.has(await hoja(q), 'Ya entrenás con otro coach Para sumarte con Toro, primero desvinculate en Ajustes → Tu coach.', 'socio con un coach de afuera: avisa');
+    t.ok(!(await q.$('#coachInvHost [data-cinv="si"]')), 'socio con un coach de afuera: sin [Sumarme]');
+    t.eq(px.errs, [], 'socio con un coach de afuera: errores de la página');
+    await px.close();
   }
 
   // ---- Sin señal: «Reintentar» ----
