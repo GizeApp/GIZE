@@ -370,9 +370,10 @@ function renderInactiveApp(b){
 function renderOverCap(b){
   const extra = b.count - b.max;
   // ¿Se le ofrece un plan más grande? En la web sí; en las apps con su tienda (Apple o Google Play),
-  // si no tiene un plan vigente pagado de otra forma; en las apps sin compras, no.
+  // si vende (Google Play apagado con una suscripción vigente: solo administrarla) y no tiene un plan
+  // vigente pagado de otra forma; en las apps sin compras, no.
   const T = tienda(), sin = sinPlanes();
-  const ofrece = T ? !planAjeno(b, T) : !IS_NATIVE;
+  const ofrece = T ? T.vende() && !planAjeno(b, T) : !IS_NATIVE;
   const list = CoachState.coachClients.map(c => '<div class="pl-oc-row"><span>' + esc(c.full_name || "Cliente") + '</span>' +
     '<button class="pl-link" data-plan="unlink" data-id="' + esc(c.id) + '"' + (B.busy ? ' disabled' : '') + '>Desvincular</button></div>').join("");
   return '<div class="co-wrap pl-wall">' +

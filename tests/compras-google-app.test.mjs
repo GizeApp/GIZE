@@ -255,6 +255,17 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores (suspendida)');
   await pg.close();
 
+  // 6c) Interruptor apagado, con una suscripción de Google vigente y más alumnos que el plan: no le
+  // dice que contrate otro plan (no se vende), solo que desvincule; puede administrar la suya.
+  pg = await pagina(GOOGLE25, { init: plugin('android', { vigentes: EN_CELULAR }), inter: [200, { planes: false, plus: false }], n: 27 });
+  await pg.p.goto(base + '/app/'); await wait(3000);
+  muro = await txt(pg.p, '#coachHost');
+  t.has(muro, 'Desvinculá 2 clientes', 'apagado y con más alumnos: solo desvincular');
+  t.ok(!/Contratá|Suscribirme|Cambiar a este plan/.test(muro), 'apagado y con más alumnos: no ofrece otro plan: ' + muro);
+  t.has(muro, 'Administrar en Google Play', 'apagado y con más alumnos: puede administrar su suscripción');
+  t.eq(pg.errs, [], 'errores (apagado y con más alumnos)');
+  await pg.close();
+
   // 7) En la web, con el plan de Google: no ofrece pagar otro con Mercado Pago.
   pg = await pagina(GOOGLE25);
   await pg.p.goto(base + '/app/'); await wait(3000);
