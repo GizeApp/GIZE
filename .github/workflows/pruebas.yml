@@ -13,9 +13,9 @@ name: Pruebas
 on:
   push:
     branches: [main]
-    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/**", "scripts/**", "supabase/**", "landing.js", "landing-inicio.js", "landing/**", "assets/**", "privacidad/**", "terminos/**", "baja/**", "gimnasio/**", "coaches/**", "pagina-coach/**", "resumen/**", "404.html", "manifest.json", "install.js"]
+    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/**", "scripts/**", "supabase/**", "landing.js", "landing-inicio.js", "landing/**", "assets/**", "privacidad/**", "terminos/**", "baja/**", "confirmar/**", "gimnasio/**", "coaches/**", "pagina-coach/**", "resumen/**", "404.html", "manifest.json", "install.js"]
   pull_request:
-    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/**", "scripts/**", "supabase/**", "landing.js", "landing-inicio.js", "landing/**", "assets/**", "privacidad/**", "terminos/**", "baja/**", "gimnasio/**", "coaches/**", "pagina-coach/**", "resumen/**", "404.html", "manifest.json", "install.js"]
+    paths: ["index.html", "app/**", "admin/**", "css/**", "brand/**", "vendor/**", "sw.js", "tests/**", ".github/**", "scripts/**", "supabase/**", "landing.js", "landing-inicio.js", "landing/**", "assets/**", "privacidad/**", "terminos/**", "baja/**", "confirmar/**", "gimnasio/**", "coaches/**", "pagina-coach/**", "resumen/**", "404.html", "manifest.json", "install.js"]
   workflow_dispatch:
 
 # El token de GitHub de la ejecución solo puede leer el repo.

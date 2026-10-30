@@ -252,7 +252,7 @@ jobs:
       # Usa el permiso «Auth Config (read-write)» del token. Las versiones de la app anteriores al
       # paso del código no lo tienen: esos usuarios terminan en gize.ar/app (lo dice el mail). El log es PÚBLICO y la configuración de Auth trae claves de los proveedores de
       # ingreso: no se imprime la respuesta, solo el código HTTP y los dos datos del código.
-      - name: Publicar el mail de recuperar contraseña
+      - name: Publicar los mails de confirmar la cuenta y de recuperar la contraseña
         if: inputs.tarea == 'mails'
         run: |
           python3 -I - > "$RUNNER_TEMP/body.json" <<'PY'
@@ -260,7 +260,13 @@ jobs:
           html = open("supabase/mails/recuperar.html", encoding="utf-8").read()
           html = re.sub(r"<!--.*?-->\s*", "", html, flags=re.S)
           assert "#recuperar={{ .TokenHash }}" in html and "{{ .Token }}" in html, "Falta el botón o el código en la plantilla"
+          # Mail de confirmar la cuenta (supabase/mails/confirmacion.html): solo links de gize.ar.
+          conf = open("supabase/mails/confirmacion.html", encoding="utf-8").read()
+          conf = re.sub(r"<!--.*?-->\s*", "", conf, flags=re.S)
+          assert "gize.ar/confirmar/#t={{ .TokenHash }}" in conf and "ConfirmationURL" not in conf and "supabase.co" not in conf, "El mail de confirmación tiene que llevar solo links de gize.ar"
           print(json.dumps({
+              "mailer_subjects_confirmation": "Confirmá tu cuenta de GIZE",
+              "mailer_templates_confirmation_content": conf,
               "mailer_subjects_recovery": "Elegí una contraseña nueva para GIZE",
               "mailer_templates_recovery_content": html,
               "mailer_otp_length": 8,

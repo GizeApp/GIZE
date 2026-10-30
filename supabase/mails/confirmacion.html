@@ -4,8 +4,16 @@
   Dónde va: Supabase → Authentication → Emails → "Confirm signup".
     · Subject: Confirmá tu cuenta de GIZE
     · Body (pestaña Source): este archivo entero.
-  Supabase reemplaza {{ .ConfirmationURL }} por el link de confirmación y {{ .Data.role }}
-  por "coach" o "client".
+  Supabase reemplaza {{ .TokenHash }} (el token de un solo uso), {{ .RedirectTo }} (adónde
+  vuelve: gize://confirmado en la app, gize.ar/app en la web) y {{ .Data.role }} ("coach" o
+  "client").
+  · Todos los links van a gize.ar (gize.ar/confirmar/), nunca a {{ .ConfirmationURL }}: ese
+    link es de supabase.co, larguísimo y con el token a la vista, y un mail que sale de
+    gize.ar con links a otro dominio es lo que Gmail manda a spam (le pasó a un usuario el
+    30/10). La página confirmar/ arma el mismo link de Supabase y va ahí: el registro sigue
+    igual que antes (en la app vuelve por gize:// con PKCE). Como el paso lo hace con
+    JavaScript, el «revisor de links» de Gmail ya no gasta el token antes que la persona.
+  · Sin Google Fonts ni otros dominios: cada dominio de afuera suma puntos de spam.
 
   Por qué es claro y no negro: Gmail en el celular con modo oscuro invierte los colores de
   los mails oscuros (el fondo negro queda claro, el texto blanco queda oscuro y el logo queda
@@ -24,7 +32,6 @@
 <meta name="color-scheme" content="light dark">
 <meta name="supported-color-schemes" content="light dark">
 <title>Confirmá tu cuenta de GIZE</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   body{margin:0;padding:0;}
   a{color:#0072BB;}
@@ -93,7 +100,7 @@
           <td class="pad" align="center" style="padding:30px 40px 0;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
               <td align="center" bgcolor="#2FA0FF" style="background:#2FA0FF;border-radius:999px;">
-                <a href="{{ .ConfirmationURL }}" target="_blank"
+                <a href="https://gize.ar/confirmar/#t={{ .TokenHash }}&amp;r={{ .RedirectTo }}" target="_blank"
                    style="display:inline-block;padding:16px 44px;font-family:'Outfit',Arial,Helvetica,sans-serif;font-size:17px;font-weight:700;color:#04121F;text-decoration:none;border-radius:999px;">
                   Confirmar mi cuenta
                 </a>
@@ -129,8 +136,9 @@
         <!-- Link de respaldo -->
         <tr>
           <td class="pad t3" style="padding:26px 40px 36px;font-family:'Outfit',Arial,Helvetica,sans-serif;color:#8F98A6;font-size:12px;line-height:1.6;">
-            ¿El botón no funciona? Copiá este link en el navegador:<br>
-            <a class="lnk" href="{{ .ConfirmationURL }}" style="color:#0072BB;word-break:break-all;">{{ .ConfirmationURL }}</a>
+            ¿El botón no funciona? Tocá este link:
+            <a class="lnk" href="https://gize.ar/confirmar/#t={{ .TokenHash }}&amp;r={{ .RedirectTo }}" style="color:#0072BB;">gize.ar/confirmar</a>.
+            Si no creaste una cuenta en GIZE, ignorá este mail.
           </td>
         </tr>
       </table>

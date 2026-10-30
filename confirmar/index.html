@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Confirmar tu cuenta · GIZE</title>
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="../icon-192.png">
+<link rel="stylesheet" href="../brand/fonts/outfit.css">
+<style>
+/* Paso del botón del mail de confirmación (supabase/mails/confirmacion.html). El mail lleva
+   solo links de gize.ar (con links a supabase.co caía en spam): acá se arma el link de
+   confirmación de Supabase de siempre y se va ahí. El token viene después del #, así que no
+   le llega a ningún servidor (tampoco a GitHub Pages). */
+:root{color-scheme:dark;--bg:#000;--surface:#0B0D11;--border:#1C2029;--text:#FFFFFF;--text-2:#8F98A6;--el:#2FA0FF}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Outfit',system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.6}
+.wrap{width:min(520px,100%);margin-inline:auto;padding:64px 16px;text-align:center}
+.brand{color:var(--text);text-decoration:none;font-weight:700;letter-spacing:.14em;font-size:20px}
+h1{font-size:28px;line-height:1.2;margin:40px 0 12px}
+p{color:#D5DAE1;font-size:16.5px;margin:0 0 12px}
+.btn{display:inline-block;font-weight:700;font-size:17px;color:#000;background:var(--el);border-radius:999px;padding:14px 28px;margin-top:16px;text-decoration:none;min-height:48px}
+.btn:focus-visible{outline:2px solid var(--el);outline-offset:3px}
+[hidden]{display:none !important}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <a class="brand" href="/">GIZE</a>
+  <h1 id="tit">Confirmando tu cuenta…</h1>
+  <p id="txt">Un segundo, ya te llevamos.</p>
+  <a class="btn" id="seguir" href="/app/" hidden>Confirmar mi cuenta</a>
+  <noscript><p>Para confirmar tu cuenta hace falta tener JavaScript activado en el navegador.</p></noscript>
+</main>
+<script>
+(function(){
+  var API = "https://wegptuzhsrwppbknqstf.supabase.co/auth/v1/verify";
+  var h = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+  var t = (h.get("t") || "").trim(), r = (h.get("r") || "").trim();
+  // Solo a la app (gize://confirmado) o a gize.ar; cualquier otra cosa vuelve a la web.
+  if (!/^(gize:\/\/confirmado|https:\/\/gize\.ar\/)/.test(r)) r = "https://gize.ar/app/";
+  var btn = document.getElementById("seguir");
+  // El token es hexadecimal (con «pkce_» adelante si la cuenta se creó en la app).
+  if (!/^(pkce_)?[0-9a-f]{20,}$/i.test(t)) {
+    document.getElementById("tit").textContent = "Este link no está completo";
+    document.getElementById("txt").textContent = "Volvé al mail de GIZE y tocá el botón «Confirmar mi cuenta». Si no lo encontrás, entrá a GIZE con tu mail y tu contraseña para recibir otro.";
+    btn.textContent = "Ir a GIZE"; btn.hidden = false;
+    return;
+  }
+  var url = API + "?token=" + encodeURIComponent(t) + "&type=signup&redirect_to=" + encodeURIComponent(r);
+  // Se saca el token de la dirección (no queda en el historial) y se va al link de Supabase.
+  try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  btn.href = url;
+  setTimeout(function(){ btn.hidden = false; document.getElementById("txt").textContent = "Si no pasa nada, tocá el botón."; }, 2500);
+  location.replace(url);
+})();
+</script>
+</body>
+</html>
