@@ -14,10 +14,12 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Plugins propios de la app (no vienen de npm): cuenta regresiva del descanso y el widget
-        // «GIZE de hoy» de la pantalla de inicio.
+        // Plugins propios de la app (no vienen de npm): cuenta regresiva del descanso, el widget
+        // «GIZE de hoy» de la pantalla de inicio y las compras con Google Play (GizeCompras, llega
+        // apagado: no se conecta a Google Play hasta que la app lo use).
         registerPlugin(RestTimerPlugin.class);
         registerPlugin(WidgetPlugin.class);
+        registerPlugin(GizeComprasPlugin.class);
         super.onCreate(savedInstanceState);
         // Con el "tamaño de fuente" del sistema agrandado, el WebView escalaba todo el texto de la
         // app (títulos gigantes, series y barra de abajo cortadas). La app ya usa tamaños pensados
