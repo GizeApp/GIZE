@@ -6,7 +6,7 @@
 //   arrepentimiento vale 10 días corridos y un cobro devuelto corta IA Plus.
 // - suscripcion (Mercado Pago, web): el checkout de IA Plus lo puede pedir cualquier cuenta (no solo
 //   coaches), solo con IA Plus prendido y el precio confirmado, con el precio del panel en pesos;
-//   no se vende a quien ya lo tiene (incluido, Apple o Mercado Pago); reusa el link sin pagar; el
+//   no se vende a quien ya lo tiene (incluido, Apple, Google Play o Mercado Pago); reusa el link sin pagar; el
 //   webhook (con la referencia «iaplus|<cuenta>») escribe ia_plus y nunca coach_billing, también dos
 //   veces; el cobro aprobado queda anotado y uno devuelto corta; otra autorizada que no es la
 //   pedida se da de baja; botón de baja y botón de arrepentimiento (cancela, devuelve con clave de
@@ -137,6 +137,15 @@ export default async function ({ t }){
       r = await x.app({ action: 'iaplus_checkout', mp_email: MAIL });
       t.ok(r.status === status && !x.st.mp.includes('POST /preapproval'), que + ': no se vende (' + r.status + ' ' + r.error + ')');
     }
+    // IA Plus pagado con Google Play (app de Android, función compras-google): tampoco se vende por
+    // Mercado Pago (pagaría dos veces). Ya vencido, sí.
+    x = await mpSim({ fila: { google_token: 'compra-de-prueba_1', google_vence: iso(Date.now() + 5 * DIA), google_renueva: true } });
+    r = await x.app({ action: 'iaplus_checkout', mp_email: MAIL });
+    t.ok(r.status === 400 && r.error === 'Ya tenés IA Plus con Google Play.' && r.codigo === 'ya' && !x.st.mp.includes('POST /preapproval'),
+      'ya con Google Play: no se vende (' + r.status + ' ' + r.error + ')');
+    x = await mpSim({ fila: { google_token: 'compra-de-prueba_1', google_vence: iso(Date.now() - DIA), google_renueva: false } });
+    r = await x.app({ action: 'iaplus_checkout', mp_email: MAIL });
+    t.ok(r.status === 200 && r.url === 'https://mp.test/P1', 'con IA Plus de Google Play ya vencido, sí se vende');
 
     // Webhook: se cobra la pedida → ia_plus, nunca coach_billing; dos veces da lo mismo.
     x = await mpSim({ fila: { mp_pending_id: 'P1' }, subs: { P1: cobrada('P1') } });
