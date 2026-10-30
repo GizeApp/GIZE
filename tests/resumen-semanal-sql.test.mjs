@@ -271,6 +271,12 @@ export default async function ({ t: t0 }){
     // El coach lo apaga y lo prende (la app); el alumno no puede.
     t.eq(await PROBAR(C.uno, `select to_jsonb(public.resumen_semanal_estado())`), true, 'el coach: le llega');
     t.eq(await PROBAR(A.ana, `select to_jsonb(public.resumen_semanal_estado())`), null, 'un alumno: no es para él (null)');
+    // Apagado en el panel de GIZE: null para todos los coaches (la app no muestra la tarjeta, porque igual
+    // no llega), y lo que eligió cada uno sigue guardado para cuando se prenda.
+    const panel = await V([['postgres', `update public.resumen_semanal_config set activo = false where id = 1`],
+      [C.uno, `select to_jsonb(public.resumen_semanal_estado())`], [C.apagado, `select to_jsonb(public.resumen_semanal_estado())`],
+      ['postgres', `update public.resumen_semanal_config set activo = true where id = 1`], [C.apagado, `select to_jsonb(public.resumen_semanal_estado())`]]);
+    t.eq([panel[1], panel[2], panel[4]], [null, null, false], 'apagado en el panel: null (sin tarjeta); prendido otra vez, el que lo había apagado sigue apagado');
     const sw = await V([[C.uno, `select to_jsonb(public.resumen_semanal_cambiar(false))`], [C.uno, `select to_jsonb(public.resumen_semanal_estado())`],
       ['postgres', `select coalesce(jsonb_agg(x), '[]') from public.resumen_semanal_pendientes('2026-12-07') x`],
       [C.otro, `select to_jsonb(public.resumen_semanal_estado())`],
