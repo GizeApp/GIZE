@@ -20,13 +20,15 @@ export type Ejercicios = {
   lista: { nombre: string; grupos: string[] }[]; // el número de cada uno es su lugar en la lista
   texto: string; // el bloque EJERCICIOS que va a la IA
   porClave: Map<string, number>; // nombre o alias de ES_MAP (sin tildes ni mayúsculas) → número
+  directo: Map<string, number>; // lo mismo, para lo que dice la planilla o el pedido (ver eleccion)
   grupo: Map<string, string>; // clave o nombre de un grupo («biceps», «Bíceps») → su clave
 };
 
-const sinTildes = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-// Un nombre para comparar: sin tildes, mayúsculas, lo de entre paréntesis ni signos.
-// «Press de banca plano (barra)» → «press de banca plano»; «Prensa 45°» → «prensa 45».
-export const clave = (s: unknown) => sinTildes(String(s == null ? "" : s).replace(/\([^)]*\)/g, " ")).replace(/[^a-z0-9]+/g, " ").trim();
+const sinTildes = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+// Un nombre para comparar entero: sin tildes, mayúsculas ni signos. «Prensa 45°» → «prensa 45».
+const entera = (s: unknown) => sinTildes(String(s == null ? "" : s)).replace(/[^a-z0-9]+/g, " ").trim();
+// Y además sin lo de entre paréntesis: «Press de banca plano (barra)» → «press de banca plano».
+export const clave = (s: unknown) => entera(String(s == null ? "" : s).replace(/\([^)]*\)/g, " "));
 
 // La lista, armada una sola vez con EX_DB, EX_CATS y ES_MAP de app/core/data.js. Un nombre que está
 // en varios grupos va una vez, con sus grupos («Curl martillo;biceps,antebrazo»). Los que la app
@@ -47,10 +49,19 @@ export function ejercicios(exDb: Record<string, readonly string[]>, exCats: Read
     const i = porClave.get(clave(n));
     if (i !== undefined && !porClave.has(clave(alias))) porClave.set(clave(alias), i);
   }
+  // Para lo que dice la planilla, el paréntesis cuenta (suele ser el elemento): «Press de banca plano»
+  // y «Press de banca plano (barra)» son ese, pero «Press de banca plano (mancuernas)» no. Primero
+  // los nombres y alias enteros y después sin su paréntesis.
+  const nombres = [...lista.map((e, i) => [e.nombre, i] as const),
+    ...Object.entries(esMap).map(([alias, n]) => [alias, porClave.get(clave(n))] as const)];
+  const directo = new Map<string, number>();
+  for (const k of [entera, clave]) {
+    for (const [n, i] of nombres) if (i !== undefined && !directo.has(k(n))) directo.set(k(n), i);
+  }
   const grupo = new Map<string, string>();
   for (const [k, nombre] of exCats) { grupo.set(clave(k), k); grupo.set(clave(nombre), k); }
   const texto = "EJERCICIOS (número;nombre;grupo):\n" + lista.map((e, i) => i + ";" + e.nombre + ";" + e.grupos.join(",")).join("\n");
-  return { lista, texto, porClave, grupo };
+  return { lista, texto, porClave, directo, grupo };
 }
 
 // El bloque EJERCICIOS para «system»: primero y con caché de 1 hora, igual en los dos modos.
@@ -175,13 +186,14 @@ const palabras = (s: string) => new Set(clave(s).split(" ").filter((w) => w.leng
 
 // El ejercicio de la lista que corresponde, o null:
 // 1) si lo que dice la planilla o el pedido es un nombre de la lista o un alias de ES_MAP («Hip
-//    Thrust», «RDL»), ese, sin depender de la IA;
+//    Thrust», «RDL»), ese, sin depender de la IA (con su paréntesis, si tiene: «Hip thrust
+//    (máquina)» no es el alias «Hip Thrust» y lo elige la IA);
 // 2) si no, lo que eligió la IA: el número y el nombre copiado tienen que coincidir (con una lista
 //    larga el número se puede correr unos renglones); si no coinciden, vale el nombre copiado;
 // 3) y lo elegido tiene que compartir al menos una palabra con lo que decía: si no, queda para revisar.
 export function eleccion(ej: Ejercicios, numero: unknown, nombreLista: unknown, nombre: unknown): { i: number; dudoso: boolean } | null {
   const dice = typeof nombre === "string" ? nombre : "";
-  const directo = ej.porClave.get(clave(dice));
+  const directo = ej.directo.get(entera(dice));
   if (directo !== undefined) return { i: directo, dudoso: false };
   const nl = clave(nombreLista);
   if (!nl) return null;

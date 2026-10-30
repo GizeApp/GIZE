@@ -46,8 +46,9 @@ export default async ({ t }) => {
   t.eq(claves.length, new Set(claves).size, 'no hay dos nombres de la lista que sean iguales sin tildes, mayúsculas ni paréntesis');
   // Todo nombre de EX_DB se encuentra: los renombrados, por su alias.
   for (const n of unicos) {
-    const i = EJ.porClave.get(R.clave(n));
+    const i = EJ.porClave.get(R.clave(n)), d = R.eleccion(EJ, -1, '', n);
     t.ok(i !== undefined && (EJ.lista[i].nombre === n || EJ.lista[i].nombre === ES_MAP[n]), 'se encuentra ' + n);
+    t.eq(d && d.i, i, 'y escrito tal cual en la planilla, sin la IA: ' + n);
   }
   t.eq(EJ.lista[EJ.porClave.get(R.clave('Curl Bayesian'))].nombre, 'Curl en polea detrás del cuerpo', '«Curl Bayesian» va al nombre que usa la app');
   t.ok(num('Pullover en polea') >= 0, 'uno que la app renombra a un nombre que no está en la lista queda con el suyo («Pullover en polea»)');
@@ -109,6 +110,16 @@ export default async ({ t }) => {
   t.eq(R.eleccion(EJ, -1, '', 'RDL'), { i: num('Peso muerto rumano'), dudoso: false }, '«RDL»');
   t.eq(R.eleccion(EJ, -1, '', 'sentadilla búlgara'), { i: num('Sentadilla búlgara'), dudoso: false }, 'el nombre de la lista tal cual, aunque la IA no lo eligiera');
   t.eq(R.eleccion(EJ, -1, '', 'Prensa 45°'), { i: num('Prensa 45'), dudoso: false }, 'sin signos («Prensa 45°»)');
+  // Lo de entre paréntesis de la planilla suele ser el elemento: no se tira para buscar el nombre
+  // sin la IA («Press de banca plano (mancuernas)» no es «Press de banca plano (barra)»).
+  const pb = num('Press de banca plano (barra)');
+  t.eq([R.eleccion(EJ, -1, '', 'Press de banca plano'), R.eleccion(EJ, -1, '', 'press de banca plano (BARRA)')], [{ i: pb, dudoso: false }, { i: pb, dudoso: false }],
+    'el nombre de la lista con o sin su paréntesis');
+  t.eq(R.eleccion(EJ, pm, 'Press plano con mancuernas', 'Press de banca plano (mancuernas)'), { i: pm, dudoso: false }, 'con otro paréntesis vale lo que eligió la IA');
+  t.eq([R.eleccion(EJ, -1, '', 'Press de banca plano (Smith)'), R.eleccion(EJ, -1, '', 'Chest press (mancuernas)')], [null, null], 'y sin elección de la IA, ninguno');
+  t.eq(R.eleccion(EJ, num('Empuje de cadera en máquina'), 'Empuje de cadera en máquina', 'Hip thrust (máquina)').i, num('Empuje de cadera en máquina'), 'un alias con otro paréntesis tampoco gana («Hip thrust (máquina)»)');
+  t.eq([R.eleccion(EJ, -1, '', 'Peso muerto rumano (RDL)'), R.eleccion(EJ, -1, '', 'Chest Press (máquina)')].map(e => e && EJ.lista[e.i].nombre), ['Peso muerto rumano', 'Press de pecho en máquina'],
+    'los alias de la app con paréntesis, enteros');
 
   // ---------- rutinaPost ----------
   const x = o => Object.assign({ nombre: '', numero: -1, nombre_lista: '', grupo: '', series: [{ objetivo: '10', kg: '' }], descanso: '', rir: '', progresion: '', nota: '', ss: false, dudoso: false }, o);
