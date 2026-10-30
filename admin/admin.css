@@ -444,3 +444,6 @@ textarea.in { resize: vertical; min-height: 90px; line-height: 1.45; }
 /* Cuentas de prueba: en gris, al final de las listas */
 .table tr.is-test td { opacity: .5; }
 .test-sw { margin-top: 18px; }
+/* Cobro con Google Play: el selector de cada interruptor y cómo está la clave */
+.ia-fun select.gp-sel { width: auto; flex: 0 0 auto; max-width: 55%; }
+.gp-salud { margin: 12px 0; font-size: 14px; display: grid; gap: 6px; }
