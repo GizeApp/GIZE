@@ -404,10 +404,12 @@ grant execute on function public.resumen_semanal_baja(uuid, boolean) to service_
 
 -- ===== La app: el coach lo apaga o lo prende (Configuración → Avisos) =====
 
--- true = le llega; false = lo apagó; null = no es coach.
+-- true = le llega; false = lo apagó; null = no es coach o el resumen está apagado para todos (el dueño
+-- todavía no lo prendió en gize.ar/admin): ahí la app no muestra la tarjeta, porque igual no llega.
 create or replace function public.resumen_semanal_estado()
 returns boolean language sql stable security definer set search_path = public as $$
   select case when exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'coach')
+               and coalesce((select k.activo from public.resumen_semanal_config k where k.id = 1), false)
               then not exists (select 1 from public.resumen_semanal_coach c where c.coach_id = auth.uid() and c.apagado_at is not null)
          end;
 $$;

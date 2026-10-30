@@ -1326,6 +1326,18 @@ document.body.addEventListener("click", async e => {
     else { const err=await enablePush(); if(err) alert(err); }
     renderCoachSettings(); return;
   }
+  // «Resumen de los lunes» (Configuración → Avisos, settings.js): lo apaga o lo vuelve a prender.
+  if(a==="resumen-toggle"){
+    if(b.disabled) return;
+    b.disabled=true;
+    const on=CoachState.resumenLunes!==true;
+    try{
+      const r=await State.sb.rpc("resumen_semanal_cambiar",{p_on:on});
+      if(r.error) throw r.error;
+      CoachState.resumenLunes=typeof r.data==="boolean"?r.data:on;
+    }catch(err){ alert("No se pudo guardar. Revisá tu conexión y probá de nuevo."); }
+    renderCoachSettings(); return;
+  }
   if(a==="rotate-invite"){
     if(!await confirmar("¿Cambiar tu código de invitación?\n\nEl código actual deja de servir: nadie más se va a poder vincular con él. Tus clientes ya vinculados siguen igual.")) return;
     b.disabled=true;

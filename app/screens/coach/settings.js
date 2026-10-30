@@ -92,7 +92,38 @@ function secAvisos(){
   const on = pushOnHere();
   return card("Avisos en este dispositivo", "Te avisamos cuando un alumno manda su check-in semanal o lleva 4 días sin entrenar.",
     fila(IC.bell, on ? "Avisos activados" : "Avisos apagados", on ? "Este dispositivo recibe los avisos." : "Activalos para no perderte un check-in.",
-      '<button class="cs-pill cs-notif' + (on ? ' on' : '') + '" data-coach="notif-toggle">' + (on ? 'Apagar' : 'Activar') + '</button>'));
+      '<button class="cs-pill cs-notif' + (on ? ' on' : '') + '" data-coach="notif-toggle">' + (on ? 'Apagar' : 'Activar') + '</button>')) +
+    secResumen();
+}
+
+// «Resumen de los lunes» (supabase/resumen-semanal.sql): los lunes a la mañana le llega al coach un mail
+// (y el aviso, si los activó) con la semana de sus alumnos. Acá lo apaga o lo prende (data-coach=
+// "resumen-toggle", main.js). Se pregunta una vez al abrir Avisos (resumen_semanal_estado) y, si llega,
+// se redibuja. La tarjeta no aparece si la base no tiene la función o contesta null (el resumen apagado
+// en el panel de GIZE). Si no se pudo preguntar (sin señal), se vuelve a probar pasados 15 s.
+let resumenDe = null, resumenPidiendo = false, resumenFallo = 0;
+function cargarResumen(){
+  const u = State.cloudUser;
+  if (!State.sb || !u) return;
+  if (resumenDe !== u.id){ resumenDe = u.id; CoachState.resumenLunes = undefined; resumenFallo = 0; }
+  if (CoachState.resumenLunes !== undefined || resumenPidiendo || Date.now() - resumenFallo < 15000) return;
+  resumenPidiendo = true;
+  Promise.resolve(State.sb.rpc("resumen_semanal_estado")).then(r => {
+    if (resumenDe !== u.id) return;
+    if (r.error && !/^(PGRST202|42883)$/.test(String(r.error.code || ""))){ resumenFallo = Date.now(); return; }
+    CoachState.resumenLunes = !r.error && typeof r.data === "boolean" ? r.data : null;
+    if (CoachState.resumenLunes !== null && CoachState.coachView === "settings" && CoachState.coachSetSec === "avisos") renderCoachSettings();
+  }).catch(() => { resumenFallo = Date.now(); }).finally(() => { resumenPidiendo = false; });
+}
+
+function secResumen(){
+  cargarResumen();
+  const on = CoachState.resumenLunes;
+  if (on !== true && on !== false) return "";
+  const txt = on ? "Apagar" : "Prender";
+  return card("Resumen de los lunes", "Los lunes a la mañana te mandamos por mail cómo les fue a tus alumnos en la semana: quién entrenó, a quién conviene escribirle y sus récords.",
+    fila(IC.mail, on ? "Te llega los lunes" : "Resumen apagado", on ? "Por mail y, si tenés los avisos activados, también como aviso." : "No te llega ni el mail ni el aviso de los lunes.",
+      '<button class="cs-pill cs-notif' + (on ? ' on' : '') + '" data-coach="resumen-toggle" aria-label="' + txt + ' el resumen de los lunes">' + txt + '</button>'));
 }
 
 function secPlan(){
