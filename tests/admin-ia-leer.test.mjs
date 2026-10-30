@@ -292,9 +292,11 @@ export default async function ({ base, t }){
   t.ok(a.dialogs.some(d => d.includes('¿Prender «Foto del plato» en la app?')), '«Foto del plato»: pide confirmar');
   t.eq(a.rpcs.filter(r => r[0] === 'config').pop(), ['config', { p: { funciones: { plato: true } } }], 'prende «Foto del plato»');
   t.has(await text(ia, '#main'), 'Aparece en Comida, al lado del buscador', 'dice dónde aparece en la app');
-  // «Pasar planillas (coach)»: se prende con confirmación y dice que el botón del coach todavía no está.
+  // «Pasar planillas (coach)»: se prende con confirmación y dice dónde lo ve el coach (la pantalla ya
+  // está en el panel: cambió a propósito, antes decía que el botón todavía no estaba).
   t.ok(!(await ia.$eval('[data-a="iaFn"][data-k="planilla"]', b => b.disabled)), '«Pasar planillas (coach)» se puede prender');
-  t.has(await text(ia, '.ia-funs'), 'Todavía no está el botón «Pasar mis planillas» en el panel del coach: si la prendés antes, el coach solo ve el permiso en Configuración → Privacidad.', '«Pasar planillas»: dice qué ve el coach mientras no está la pantalla');
+  t.has(await text(ia, '.ia-funs'), 'Aparece en el panel del coach, en Rutinas → «Pasar mis planillas» (y en Inicio si todavía no tiene alumnos).', '«Pasar planillas»: dice dónde lo ve el coach');
+  t.ok(!(await text(ia, '.ia-funs')).includes('Todavía no está el botón «Pasar mis planillas»'), '«Pasar planillas»: ya no dice que falta la pantalla');
   const antesPl = a.rpcs.length;
   ia.contestar = false;
   await ia.click('[data-a="iaFn"][data-k="planilla"]'); await wait(700);

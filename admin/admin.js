@@ -1768,7 +1768,7 @@ function paintIA(foco){
   // [clave, nombre, nota (si todavía no se puede prender), ayuda]
   const FUN = [["etiqueta_admin", "Leer tablas en Pedidos (este panel)", ""], ["etiqueta_usuario", "Tabla en «Pedir un producto» (app)", "Todavía no está en la app"],
     ["plato", "Foto del plato (app)", "", "Aparece en Comida, al lado del buscador (web; en las apps, con la versión nueva). Cada foto sale menos de un centavo. «Contame qué comiste» se sacó: solo fotos."],
-    ["planilla", "Pasar planillas (coach)", "", "Para coaches con plan y en su prueba, cada uno con sus topes (abajo); antes del primer uso aceptan «Usar IA en tus rutinas». Cada hoja sale menos de un centavo con el modelo de siempre. Todavía no está el botón «Pasar mis planillas» en el panel del coach: si la prendés antes, el coach solo ve el permiso en Configuración → Privacidad."],
+    ["planilla", "Pasar planillas (coach)", "", "Para coaches con plan y en su prueba, cada uno con sus topes (abajo); antes del primer uso aceptan «Usar IA en tus rutinas». Cada hoja sale menos de un centavo con el modelo de siempre. Aparece en el panel del coach, en Rutinas → «Pasar mis planillas» (y en Inicio si todavía no tiene alumnos)."],
     ["rutina", "Armar rutina (coach)", "Todavía no está en la app"],
     ["resumen", "Resumen de la semana (coach)", "Todavía no está en la app"]];
   const funs = `<div class="ia-funs">${FUN.map(([k, l, nota, ayuda]) => `<div class="ia-fun${nota ? " off" : ""}"><div>${l}${nota ? `<small>${nota}</small>` : ayuda ? `<small>${ayuda}</small>` : ""}</div>
