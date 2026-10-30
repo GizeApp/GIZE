@@ -104,7 +104,10 @@ export type Estado = {
 export const esPlus = (sub: any) => { const i = itemVigente(sub); return !!i && i.productId === IA_PLUS_GOOGLE; };
 
 // leido: cuándo se leyó la compra de la API (también es el «ahora» con el que se decide si da el
-// plan). revocada: lo dice el aviso de Google (compra anulada o revocada) o ya estaba anotado.
+// plan). revocada: lo dice el aviso que se está atendiendo (compra anulada o revocada). Los demás
+// avisos y los pedidos de la app no la pasan: manda lo que diga la API, y Google pasa a vencida
+// (SUBSCRIPTION_STATE_EXPIRED) la compra que revoca. En google_subs, revoked no se borra (index.ts →
+// guardarSub).
 export function estadoDe(token: string, sub: any, leido: number, revocada = false): Estado {
   const item = itemVigente(sub) || {};
   const producto = String(item.productId || "");
