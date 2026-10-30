@@ -42,7 +42,8 @@ import java.util.regex.Pattern;
  * código: la app los separa por la plataforma. Lo que compra el coach lo verifica, lo guarda y lo
  * reconoce el servidor (supabase/functions/compras-google): este plugin no decide nada, no reconoce
  * nada por su cuenta y no manda nada a ningún lado. Sin paquetes de terceros.
- * Por ahora ningún JS lo usa (llega apagado): no se conecta a Google Play hasta el primer pedido.
+ * Lo usa app/core/compras-google.js (planes de coach), que llega apagado (interruptor del panel): no
+ * se conecta a Google Play hasta el primer pedido.
  *   productos({ ids })      → { productos: [{ id, nombre, descripcion, precio, periodo }] }
  *                              (precio: el texto que da Google, con su moneda; periodo: "P1M")
  *   comprar({ id, cuenta, reemplazo })
