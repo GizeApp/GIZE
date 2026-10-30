@@ -561,6 +561,14 @@ export default async function ({ t }){
     t.eq(r.body, { clave: true, acceso: false }, 'salud con una clave que Google no acepta: no anda (no usa el acceso guardado)');
   }
 
+  // ---- La guía del dueño (docs/GOOGLE-PLAY-COMPRAS.md) ----
+  const guia = leer('docs/GOOGLE-PLAY-COMPRAS.md');
+  t.ok(Object.keys(P.PRODUCTOS_GOOGLE).concat(P.IA_PLUS_GOOGLE).every(id => guia.includes('`' + id + '`')) && guia.includes('`' + P.PLAN_BASE + '`'),
+    'la guía de Play Console lista los IDs de las suscripciones y el plan base');
+  t.ok(guia.includes('`GOOGLE_PLAY_SA`') && guia.includes('https://wegptuzhsrwppbknqstf.supabase.co/functions/v1/compras-google') && /Habilitar autenticación/.test(guia),
+    'la guía dice con qué nombre va la clave en Supabase y a dónde manda los avisos Pub/Sub (con autenticación)');
+  t.ok(!/BEGIN [A-Z ]*PRIVATE KEY|"private_key"\s*:|AIza[0-9A-Za-z_-]{20,}/.test(guia + src + compartido), 'sin claves en la guía ni en el código');
+
   // ---- Publicación ----
   const wf = leer('.github/workflows/supabase.yml');
   t.ok(/for fn in [^\n]*\bcompras-google\b/.test(wf), 'el workflow publica compras-google');
