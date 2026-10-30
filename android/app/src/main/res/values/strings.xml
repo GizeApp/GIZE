@@ -4,4 +4,20 @@
     <string name="title_activity_main">GIZE</string>
     <string name="package_name">ar.com.gize.app</string>
     <string name="custom_url_scheme">ar.com.gize.app</string>
+
+    <!-- Widget «GIZE de hoy» (GizeWidget.java). Lo que muestra lo arma la app (app/core/widgetdatos.js);
+         acá van su nombre en la lista de widgets y lo que dice cuando todavía no tiene nada de la app. -->
+    <string name="widget_nombre">GIZE de hoy</string>
+    <string name="widget_descripcion">Tus pasos, tu racha y el entreno que te toca</string>
+    <string name="widget_ingresa">Ingresá a GIZE</string>
+    <string name="widget_abri">Abrí GIZE para ver tu día</string>
+    <string name="widget_racha">Racha</string>
+    <!-- Ejemplo de la vista previa (lista de widgets de Android 12 o más). -->
+    <string name="widget_ej_pasos">8.240</string>
+    <string name="widget_ej_pasos_pie">de 10.000</string>
+    <string name="widget_ej_racha">12</string>
+    <string name="widget_ej_racha_pie">días seguidos</string>
+    <string name="widget_ej_titulo">Hoy toca</string>
+    <string name="widget_ej_nombre">Día A</string>
+    <string name="widget_ej_detalle">6 ejercicios</string>
 </resources>

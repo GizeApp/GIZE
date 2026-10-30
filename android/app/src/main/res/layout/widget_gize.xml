@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget «GIZE de hoy», mediano (4×2). Solo vistas que admite un widget de Android (LinearLayout,
+     FrameLayout, TextView, ImageView y ProgressBar). Los textos de acá son el ejemplo de la vista
+     previa: los de verdad los pone GizeWidget.java con lo que armó la app. A la izquierda los pasos
+     y la racha, a la derecha el entreno de hoy; cada parte abre GIZE en su lugar. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_raiz"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_fondo"
+    android:baselineAligned="false"
+    android:orientation="horizontal"
+    android:padding="10dp">
+
+    <LinearLayout
+        android:id="@+id/widget_izq"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1.3"
+        android:gravity="center_vertical"
+        android:orientation="vertical"
+        android:paddingEnd="8dp">
+
+        <LinearLayout
+            android:id="@+id/widget_pasos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ProgressBar
+                android:id="@+id/widget_anillo"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:indeterminate="false"
+                android:max="100"
+                android:progress="82"
+                android:progressDrawable="@drawable/widget_anillo" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:orientation="vertical">
+
+                <!-- El número (o «Conectá») en una sola línea: la letra se achica sola si no entra. -->
+                <TextView
+                    android:id="@+id/widget_pasos_txt"
+                    android:layout_width="match_parent"
+                    android:layout_height="24dp"
+                    android:autoSizeMaxTextSize="18sp"
+                    android:autoSizeMinTextSize="11sp"
+                    android:autoSizeTextType="uniform"
+                    android:gravity="center_vertical"
+                    android:maxLines="1"
+                    android:text="@string/widget_ej_pasos"
+                    android:textColor="@color/widget_texto"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/widget_pasos_pie"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:text="@string/widget_ej_pasos_pie"
+                    android:textColor="@color/widget_texto_2"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_racha"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/widget_llama"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:contentDescription="@string/widget_racha"
+                android:src="@drawable/widget_llama" />
+
+            <TextView
+                android:id="@+id/widget_racha_txt"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:maxLines="1"
+                android:text="@string/widget_ej_racha"
+                android:textColor="@color/widget_violeta"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_racha_pie"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/widget_ej_racha_pie"
+                android:textColor="@color/widget_texto_2"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widget_entreno"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:background="@drawable/widget_caja"
+        android:gravity="center_vertical"
+        android:orientation="vertical"
+        android:padding="10dp">
+
+        <TextView
+            android:id="@+id/widget_entreno_titulo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/widget_ej_titulo"
+            android:textColor="@color/widget_azul"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_entreno_nombre"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="@string/widget_ej_nombre"
+            android:textColor="@color/widget_texto"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_entreno_detalle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/widget_ej_detalle"
+            android:textColor="@color/widget_texto_2"
+            android:textSize="12sp" />
+    </LinearLayout>
+</LinearLayout>

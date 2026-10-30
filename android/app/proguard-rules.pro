@@ -6,7 +6,9 @@
 # los paquetes de los plugins que lleva la app de Android: los de Capacitor (app, browser,
 # filesystem, local-notifications, push-notifications, share), Salud (Health Connect) y el login
 # social (en Android, solo Google). El de ubicación no va en Android (capacitor.config.json
-# android.includePlugins). El plugin propio (RestTimerPlugin) y las pantallas del manifiesto, también.
+# android.includePlugins). Los plugins propios (RestTimerPlugin y WidgetPlugin), el widget de la
+# pantalla de inicio (GizeWidget, que Android busca por el nombre del manifiesto) y las pantallas del
+# manifiesto, también.
 -keep class com.getcapacitor.** { *; }
 -keep class com.capacitorjs.plugins.** { *; }
 -keep class app.capgo.plugin.health.** { *; }

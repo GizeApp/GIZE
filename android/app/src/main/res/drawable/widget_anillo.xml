@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Anillo de los pasos de hoy contra la meta (la barra de progreso del widget). Abajo, el anillo
+     entero apagado; arriba, la parte hecha en azul, que arranca a las 12 (girado 270°) y crece
+     con el progreso (useLevel). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape
+            android:shape="ring"
+            android:innerRadiusRatio="2.75"
+            android:thicknessRatio="9"
+            android:useLevel="false">
+            <solid android:color="@color/widget_borde" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <rotate
+            android:fromDegrees="270"
+            android:toDegrees="270"
+            android:pivotX="50%"
+            android:pivotY="50%">
+            <shape
+                android:shape="ring"
+                android:innerRadiusRatio="2.75"
+                android:thicknessRatio="9"
+                android:useLevel="true">
+                <solid android:color="@color/widget_azul" />
+            </shape>
+        </rotate>
+    </item>
+</layer-list>
