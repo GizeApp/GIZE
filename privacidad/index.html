@@ -41,7 +41,7 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
   <div class="top"><a class="brand" href="../">GIZE</a><a href="../app/">Abrir la app</a></div>
 
   <h1>Política de privacidad</h1>
-  <p class="upd">Última actualización: 29 de octubre de 2026</p>
+  <p class="upd">Última actualización: 30 de octubre de 2026</p>
 
   <p>GIZE es una app para entrenar con tu coach: el coach arma tu rutina, vos registrás tus entrenamientos y ambos ven tu progreso. Esta política explica qué datos guarda la app, para qué los usa y cómo podés eliminarlos. Vale para la app web (gize.ar), la app de Android y la de iPhone.</p>
 
@@ -57,6 +57,7 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
     <li><b>Respuestas a tu coach:</b> lo que contestes en las preguntas que te haga (por ejemplo objetivos, lesiones o disponibilidad).</li>
     <li><b>Mensajes con tu coach:</b> los mensajes de texto y de voz del chat, y las explicaciones de voz que tu coach grabe en los ejercicios.</li>
     <li><b>Tu cuota con tu coach:</b> si tu coach usa Cobros, cuánto le pagás, hasta cuándo está paga y los pagos que te anotó (ver «Tu coach: tu cuota y tus pagos»).</li>
+    <li><b>Página del coach:</b> si sos coach y creás tu página pública, el nombre de tu link, si está prendida, si muestra tu foto, cuándo la creaste y cuándo cambiaste el link, y tus links anteriores por 90 días (ver «Página pública del coach»).</li>
     <li><b>Notificaciones:</b> si las activás, un identificador técnico de tu dispositivo para poder mandarte los mensajes de tu coach, el aviso de fin de descanso, los avisos de tus alumnos si sos coach (incluido el resumen de los lunes) y avisos de GIZE sobre la app.</li>
     <li><b>Uso de la app:</b> cuándo la abriste por última vez, con qué versión y desde dónde (web, Android o iPhone), para darte soporte y saber qué versiones siguen en uso.</li>
     <li><b>Errores de la app:</b> si algo falla en la app, el mensaje técnico del error, en qué parte pasó, la versión y desde dónde (web, Android o iPhone), asociados a tu cuenta, para poder arreglarlo. Se borran solos a los 90 días o al eliminar tu cuenta.</li>
@@ -132,6 +133,19 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
   <p><b>Quién lo ve:</b> solo tu coach. Vos ves tu cuota y tus pagos en <b>Ajustes → Tu coach</b> (en las apps de Android y iPhone, si está al día y hasta cuándo). Las notas que escribe tu coach no las ves; si las querés, pedíselas a tu coach o escribinos.</p>
   <p><b>Cuánto tiempo:</b> mientras tu coach tenga su cuenta. Un pago anotado por error no se borra: se anula y queda marcado. Si te desvinculás de tu coach, él conserva lo que ya anotó, pero no puede anotar nada nuevo. Si eliminás tu cuenta (o tu coach elimina la suya), se borran tu cuota y tus pagos. Para corregir algo, pedíselo a tu coach o escribinos.</p>
 
+  <h2 id="pagina-coach">Página pública del coach</h2>
+  <p>Si sos coach, podés armar en <b>Configuración → Mi página</b> una página pública con un link propio (gize.ar/c/ y el nombre que elijas) para poner en tu Instagram o mandar por mensaje. Es opcional: existe solo si la creás.</p>
+  <ul>
+    <li><b>Qué se publica:</b> tu nombre, tu código de invitación, el nombre de tu link y, si dejás prendido «Mostrar mi foto», tu foto de perfil. Nunca tu mail, tus alumnos ni otros datos de tu cuenta.</li>
+    <li><b>Quién la ve:</b> cualquiera que tenga el link, sin iniciar sesión. Les pedimos a los buscadores que no la muestren (noindex), pero cualquiera que tenga el link lo puede compartir.</li>
+    <li><b>Tu foto queda pública:</b> mientras la página está prendida y muestra tu foto, tu foto de perfil se puede ver sin iniciar sesión, aunque no se tenga el link. La página la muestra con un link que vence en una hora; ese link lleva el número interno de tu cuenta, que no sirve para entrar a ella ni para ver nada más. Si apagás la foto o la página, deja de ser pública.</li>
+    <li><b>La apagás cuando quieras</b> en Configuración → Mi página. También deja de verse si tu cuenta de coach no está activa. Si cambiás el link, el anterior sigue llevando a tu página por 90 días y en ese tiempo nadie más lo puede usar. Si lo cambiás dentro de las primeras 24 horas desde que la creaste, el anterior queda libre enseguida y lo puede tomar otro coach.</li>
+    <li><b>Qué guardamos:</b> el nombre de tu link, si está prendida, si muestra tu foto, cuándo la creaste y cuándo cambiaste el link, y tus links anteriores (por 90 días). El equipo de GIZE puede pausar tu página o liberar tu link si no cumple los Términos de uso; queda anotado quién lo hizo y cuándo.</li>
+    <li><b>Quien la visita:</b> su navegador le pide los datos de la página a Supabase, que recibe su dirección IP, como pasa con cualquier sitio. En GIZE no queda anotado quién la visitó. Si toca el botón para bajar la app de Android, Google recibe de qué página viene (el nombre del link, sin datos de la persona) para contar las instalaciones.</li>
+    <li><b>Si sos alumno:</b> sumarte a un coach desde su página es lo mismo que con su código: tu coach va a ver tus datos como dice esta política.</li>
+  </ul>
+  <p>Si eliminás tu cuenta, se borran tu página y tus links anteriores.</p>
+
   <h2>Dónde se guardan</h2>
   <p>Los datos se guardan en <b>Supabase</b> (base de datos y archivos), con conexión cifrada y reglas que impiden que un usuario lea los datos de otro. Las notificaciones pasan por los servicios de push del navegador, en Android por <b>Firebase Cloud Messaging</b> de Google y en iPhone por <b>Apple Push Notification service</b>, que solo reciben el texto del mensaje y el identificador del dispositivo.</p>
   <p>Además usamos estos servicios, que reciben solo lo necesario para hacer su parte:</p>
@@ -154,7 +168,7 @@ footer{border-top:1px solid var(--border);margin-top:48px;padding-top:20px;color
     <p style="margin:0">En la app: <b>Configuración → Eliminar cuenta</b>. Se borran al instante tu cuenta, tus rutinas, tus registros, tus salidas y sus recorridos, tus fotos y tu vínculo con tu coach.</p>
   </div>
   <p>Si ya no tenés acceso a la app, escribinos a <a href="mailto:contacto@gize.ar">contacto@gize.ar</a> desde el mail de tu cuenta. Para que nadie pueda borrar una cuenta ajena, antes te pedimos que confirmes que sos vos (por ejemplo, con un código que te mandamos a ese mail) y después la eliminamos dentro de los 30 días.</p>
-  <p><b>Qué se borra y qué se conserva:</b> se borran tu cuenta, tu perfil, tus rutinas y entrenos, tus registros diarios, comidas, peso y hábitos, tus check-ins, tus salidas y sus recorridos, tus fotos, tus mensajes con tu coach (de texto y de voz), los registros de errores de la app, el identificador de notificaciones de tu dispositivo, la cuota y los pagos que anotó tu coach y tu permiso para usar las funciones con IA y tus avisos de «¿Está mal?». No conservamos nada de eso en la app. Lo único que puede quedar por un tiempo son las copias de seguridad cifradas de la base de datos: se guardan hasta 21 días y después se borran solas, así que tus datos desaparecen también de ahí en ese plazo. Si pediste que agreguemos un producto a la base de alimentos, el producto cargado (nombre y valores nutricionales, sin tus datos) puede quedar para que lo usen todos. Si reportaste un mensaje o a alguien de un grupo, el reporte (el motivo y lo que escribiste) queda sin tu cuenta, para poder revisarlo; los reportes sobre vos se borran. El registro de cuándo se usó la IA (la fecha, la función y lo que costó) queda sin tu cuenta, para las cuentas del gasto.</p>
+  <p><b>Qué se borra y qué se conserva:</b> se borran tu cuenta, tu perfil, tus rutinas y entrenos, tus registros diarios, comidas, peso y hábitos, tus check-ins, tus salidas y sus recorridos, tus fotos, tu página pública de coach y sus links anteriores, tus mensajes con tu coach (de texto y de voz), los registros de errores de la app, el identificador de notificaciones de tu dispositivo, la cuota y los pagos que anotó tu coach y tu permiso para usar las funciones con IA y tus avisos de «¿Está mal?». No conservamos nada de eso en la app. Lo único que puede quedar por un tiempo son las copias de seguridad cifradas de la base de datos: se guardan hasta 21 días y después se borran solas, así que tus datos desaparecen también de ahí en ese plazo. Si pediste que agreguemos un producto a la base de alimentos, el producto cargado (nombre y valores nutricionales, sin tus datos) puede quedar para que lo usen todos. Si reportaste un mensaje o a alguien de un grupo, el reporte (el motivo y lo que escribiste) queda sin tu cuenta, para poder revisarlo; los reportes sobre vos se borran. El registro de cuándo se usó la IA (la fecha, la función y lo que costó) queda sin tu cuenta, para las cuentas del gasto.</p>
 
   <h2>Menores de edad</h2>
   <p>GIZE es para mayores de 18 años. Si sos menor de edad, no la uses.</p>

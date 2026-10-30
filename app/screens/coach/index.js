@@ -27,6 +27,7 @@ import { unreadFor } from '../../ui/chat.js';
 
 import { billing, renderPaywall, renderPlanBanner } from './plan.js';
 import { renderSettingsView } from './settings.js';
+import { lineaPagina } from './pagina.js';
 
 import { appNativa } from '../../core/tienda.js';
 import { comprasApple } from '../../core/compras-apple.js';
@@ -68,6 +69,8 @@ function secHead(title, kind){
 // más fácil de adivinar; se le sugiere cambiarlo (supabase/coach-alumnos.sql).
 // Profe de un gimnasio (screens/coach/gimnasio.js): primero el código del gimnasio; el personal, solo
 // si tiene alumnos propios o un plan propio (billing().propio), y en las apps sin «Ver planes».
+// Debajo del código, la línea de «Mi página» (pagina.js: compartir el link o crearla). Con el cupo lleno
+// no, porque nadie más se puede sumar.
 const IS_NATIVE_APP = appNativa() && !comprasApple();
 function inviteBox(){
   if(esProfeGym()) return inviteGym(billing().propio ? cajaPersonal(true) : "");
@@ -77,8 +80,8 @@ function cajaPersonal(profe){
   const b=billing(), viejo=!!CoachState.coachInvite && String(CoachState.coachInvite).length<8;
   if(b.known && b.atCap && (IS_NATIVE_APP || (profe && appNativa()))) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de alumnos de tu cuenta.</b><div class="co-invite-sub">Nadie más se puede vincular con tu código.</div></div>';
   if(b.known && b.atCap) return '<div class="co-invite co-invite-full"><b>Llegaste al máximo de tu plan</b> ('+b.count+'/'+b.max+' clientes)<div class="co-invite-sub">Para sumar más clientes pasate a un plan más grande.</div><button class="co-copy-btn" data-plan="open">Ver planes</button></div>';
-  if(profe) return '<div class="co-invite">Tu código personal<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Para tus alumnos propios, de afuera del gimnasio.'+(viejo?' Es un código del formato anterior, más fácil de adivinar: te conviene cambiarlo.':'')+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div></div>';
-  return '<div class="co-invite">Tu código de invitación<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Compartíselo a tus clientes para que se vinculen a vos.'+(viejo?' Es un código del formato anterior, más corto y fácil de adivinar: te conviene cambiarlo. Sirve hasta que lo cambies.':'')+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div></div>';
+  if(profe) return '<div class="co-invite">Tu código personal<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Para tus alumnos propios, de afuera del gimnasio.'+(viejo?' Es un código del formato anterior, más fácil de adivinar: te conviene cambiarlo.':'')+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div>'+lineaPagina()+'</div>';
+  return '<div class="co-invite">Tu código de invitación<br><span class="co-code">'+esc(CoachState.coachInvite||"—")+'</span>'+(CoachState.coachInvite?'<button class="co-copy-btn co-invite-copy" data-coach="copy-invite">'+copySvg+' Copiar código</button>':'')+'<div class="co-invite-sub">Compartíselo a tus clientes para que se vinculen a vos.'+(viejo?' Es un código del formato anterior, más corto y fácil de adivinar: te conviene cambiarlo. Sirve hasta que lo cambies.':'')+(CoachState.coachInvite?' <button class="co-invite-rotate" data-coach="rotate-invite">Cambiar código</button>':'')+'</div>'+lineaPagina()+'</div>';
 }
 
 // Cambios sin guardar: la primera vez que se dibuja una rutina (del cliente o en el editor) se
