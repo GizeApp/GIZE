@@ -48,12 +48,13 @@ export function pluginWidget(){
 export const widgetDisponible = () => !!pluginWidget();
 
 // Quién está adentro: null sin sesión (o con la sesión perdida, o sin saber todavía si es coach),
-// "coach", "gimnasio" (el panel del gimnasio) o "alumno".
+// "gimnasio" (el panel del gimnasio, que va en lugar del de coach si la dueña también es coach),
+// "coach" o "alumno".
 function modoActual(){
   if (!State.cloudUser || State.sessionLost) return null;
-  if (State.cloudProfile && State.cloudProfile.role === "coach") return "coach";
   if (!State.cloudProfile && !State.cloudReady) return null;
   if (esPanelGym()) return "gimnasio";
+  if (State.cloudProfile && State.cloudProfile.role === "coach") return "coach";
   return "alumno";
 }
 

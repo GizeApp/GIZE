@@ -6,7 +6,8 @@
 // · Con Salud conectada, los pasos leídos con la meta y la hora de la lectura.
 // · Borra el widget al cerrar sesión, al eliminar la cuenta y cuando entra otra cuenta, y después no
 //   manda nada más (no vuelve a aparecer la cuenta que salió).
-// · Un coach: solo «Tu panel de coach», sin nada de alumnos, y los toques no hacen nada.
+// · Un coach: solo «Tu panel de coach», sin nada de alumnos, y los toques no hacen nada. La dueña del
+//   gimnasio (que también es coach) ve el panel del gimnasio: «Tu panel del gimnasio».
 // · Los toques: gize://widget/entreno?dia=dB abre Entreno en ese día, pasos abre Cardio → Pasos y
 //   racha la ventana de la racha; un id raro u otro link no hacen nada; sin sesión, tampoco. El link
 //   con que se abrió la app se usa una sola vez por arranque (getLaunchUrl lo repite al recargar).
@@ -18,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { newPage, wait, text, ALUMNO, perfil } from './lib.mjs';
+import { DUENA, handlersGym } from './gym-comun.mjs';
 import { sumarDias } from '../app/core/pasosdia.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -197,6 +199,18 @@ export default async function ({ base, t }){
   await tocar(pg.p, 'gize://widget/racha'); await wait(500);
   t.ok(!(await rachaAbierta(pg.p)), 'coach: los toques del widget no hacen nada');
   t.eq(pg.errs, [], 'errores (coach)');
+  await pg.close();
+
+  // ---- 5b) La dueña del gimnasio, que también es coach: ve el panel del gimnasio (no el de coach) ----
+  pg = await abrir(base, { user: DUENA, state: ESTADO(), handlers: handlersGym(DUENA).handlers });
+  g = guardados(await log(pg.p));
+  w = g[g.length - 1] || {};
+  t.eq(w.sinDatos && w.sinDatos.aviso, { titulo: 'GIZE', texto: 'Tu panel del gimnasio', pie: 'Tocá para abrir' }, 'dueña del gimnasio: «Tu panel del gimnasio», como lo que ve');
+  t.eq(w.dias, {}, 'dueña del gimnasio: sin días');
+  t.ok(!g.some(x => /Martina|Pedro|Día A|Sentadilla/.test(JSON.stringify(x))), 'dueña del gimnasio: nada de los socios ni de la rutina');
+  await tocar(pg.p, 'gize://widget/racha'); await wait(500);
+  t.ok(!(await rachaAbierta(pg.p)), 'dueña del gimnasio: los toques del widget no hacen nada');
+  t.eq(pg.errs, [], 'errores (dueña del gimnasio)');
   await pg.close();
 
   // ---- 6) La app abierta por un toque en el widget: una sola vez por arranque ----
