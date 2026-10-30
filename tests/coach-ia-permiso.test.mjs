@@ -239,6 +239,12 @@ export default async function ({ base, t }){
   });
   t.eq(cuenta, [true, false, true, null], 'prendida: rutina sí, planilla no, la fila sí y sin permiso');
   t.eq(pg.S.nEstado, 2, 'dos pedidos seguidos preguntan una vez; forzar pregunta otra');
+  // Con la IA del coach apagada (activa: false) no se muestra ninguna, aunque una función venga en true.
+  pg.S.estado = Object.assign({}, PRENDIDA, { activa: false, funciones: { planilla: true, rutina: true } });
+  t.eq(await p.evaluate(async () => {
+    const c = await import('/app/core/ia-coach.js'); await c.iaCoachEstado(true);
+    return [c.iaCoachVisible('rutina'), c.iaCoachVisible('planilla'), c.iaCoachAlguna()];
+  }), [false, false, false], 'con activa en false no se muestra ninguna, aunque una función venga en true');
   await pg.close();
   pg = await newPage({ user: COACH, handlers: { '/rpc/ia_coach_estado': (r, J) => J({ message: 'no existe' }, 404) } }); p = pg.p;
   await p.goto(base + '/app/'); await wait(2500);
