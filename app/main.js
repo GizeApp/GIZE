@@ -100,7 +100,9 @@ import { initBackButton } from './ui/atras.js';
 import { initUpdateCheck } from './ui/actualizar.js';
 import { openRoutinePicker } from './screens/onboarding.js';
 import { initTabScroll, restoreTabScroll } from './ui/tabscroll.js';
-import { closeStreak, markVisit, openStreak, paintStreak } from './ui/racha.js';
+import { closeStreak, markVisit, openStreak, paintStreak, streakCount } from './ui/racha.js';
+// Widget «GIZE de hoy» en la pantalla de inicio del celular (solo en las apps que traen el plugin).
+import { initWidget, widgetBorrar, widgetMarcar } from './core/widget.js';
 import { ChatUnread, chatOpenFor, openChat, refreshUnread } from './ui/chat.js';
 import { signedAudioUrl, togglePlay } from './ui/grabar.js';
 import { dropExMedia } from './core/videos.js';
@@ -133,6 +135,7 @@ export function renderApp(){
   terminarDespliegue(); // un ejercicio abriéndose o cerrándose queda ya como termina (ui/desplegar.js)
   queueMicrotask(scheduleTick); // después de dibujar: ¿hay un reloj a la vista que actualizar?
   queueMicrotask(syncSalida);   // y los recorridos de Cardio (mapa) a su lugar, o afuera
+  queueMicrotask(widgetMarcar);  // y el widget de la pantalla de inicio, si cambió algo (core/widget.js)
   // El panel del gimnasio (dueño, administración o recepción, también con una cuenta común, o un link
   // del gimnasio: core/gimnasio.js) va en lugar de la app. Sin gimnasio, nada cambia.
   if(pintarGym(true)){ const v=document.getElementById("view"); if(v) v.innerHTML=""; return; }
@@ -494,11 +497,15 @@ document.body.addEventListener("mousemove", e => {
   t.style.setProperty("--gy", (e.clientY-r.top)+"px");
 });
 
+// Pasar a otra pestaña de abajo (Entreno, Hábitos, Cardio…), cerrando lo que había abierto en la
+// anterior. La usan la barra de abajo y los toques del widget (irDesdeWidget).
+function cambiarVista(v){ State.view = v; ComidaState.selectedFood=null; ComidaState.editEntry=null; ComidaState.calEditing=false; ComidaState.planOpen=false; ProgresoState.section=null; ComidaState.creatingFood=false; closeRequest(); HabitosState.edit=null; EntrenoState.exPicker=null; EntrenoState.varSheet=null; renderApp(); }
+
 document.body.addEventListener("click", async e => {
   const tabBtn = e.target.closest(".tab");
   if (tabBtn) tabRipple(tabBtn, e.clientX, e.clientY);
   const navBtn = e.target.closest("[data-view]");
-  if (navBtn) { State.view = navBtn.dataset.view; ComidaState.selectedFood=null; ComidaState.editEntry=null; ComidaState.calEditing=false; ComidaState.planOpen=false; ProgresoState.section=null; ComidaState.creatingFood=false; closeRequest(); HabitosState.edit=null; EntrenoState.exPicker=null; EntrenoState.varSheet=null; renderApp(); return; }
+  if (navBtn) { cambiarVista(navBtn.dataset.view); return; }
   const el = e.target.closest("[data-action]"); if(!el) return;
   // Si pasó la medianoche con la app abierta, primero se pasa al día nuevo: si no, lo que se
   // anota ahora (comida, agua, pasos) caía en el día anterior y el redibujo lo borraba.
@@ -1129,6 +1136,8 @@ document.body.addEventListener("click", async e=>{
     }
     State.signingOut=true; // el SIGNED_OUT que viene es este: no es una sesión perdida (core/supabase.js → watchAuth)
     try{ await pushLogout(); }catch(e){} // antes del signOut: borrar el dispositivo necesita la sesión
+    // El widget de la pantalla de inicio pasa a «Ingresá a GIZE» (core/widget.js), sin esperar más de 1,5 s.
+    await Promise.race([widgetBorrar(), new Promise(r=>setTimeout(r, 1500))]);
     const logoutUid=State.cloudUser&&State.cloudUser.id;
     // Sin señal, signOut reintenta renovar el token un buen rato: no se lo espera más de 5 s.
     try{ await Promise.race([State.sb.auth.signOut(), new Promise(r=>setTimeout(r, 5000))]); }catch(e){}
@@ -1942,6 +1951,23 @@ cloudBoot();
 initTabScroll(); // días de Entreno: ruedita y arrastre con el mouse
 initUpdateCheck(); // cartel de versión nueva en las apps de las tiendas
 initHabitAlarms(()=>{ State.view="habitos"; renderApp(); }); // tocar el aviso de un hábito abre Hábitos
+// Tocar el widget «GIZE de hoy» abre GIZE justo ahí (core/widget.js, solo con la sesión de un alumno):
+// los pasos en Cardio → Pasos, la llama en la ventana de la racha y el entreno en ese día (el que
+// mostraba el widget, si sigue en la rutina; si no, el de hoy).
+function irDesdeWidget(destino, dia){
+  if (destino === "racha"){ renderApp(); openStreak(); return; }
+  if (destino === "pasos"){
+    cambiarVista("cardio");
+    const sec = document.querySelector('#view .csec-pasos details.csec');
+    if (sec && !sec.open){ const s = sec.querySelector("summary.csec-sum"); if (s) s.click(); } // la abre y lo recuerda, como tocarla
+    if (sec) sec.scrollIntoView({ block: "start" });
+    return;
+  }
+  if (dia && state.days.some(d => d.id === dia)){ State.activeId = dia; State.dayPickedOn = today(); } // como elegirlo a mano
+  else elegirDiaDeHoy();
+  cambiarVista("entreno");
+}
+initWidget({ racha: streakCount, ir: irDesdeWidget });
 initBackButton(); // «Atrás» de Android: cierra la ventana abierta, vuelve o sale
 resumeRest(); // descanso que quedó corriendo al cerrar la app
 // En la app nativa (Capacitor) los archivos ya viajan dentro de la app: no hace falta el service worker.

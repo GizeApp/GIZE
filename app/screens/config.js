@@ -23,6 +23,7 @@ import { appNativa } from '../core/tienda.js';
 import { IA_POR_GIMNASIO, iaAlguna, iaEstado, iaGuardarPermiso, iaPermiso, iaPorGimnasio } from '../core/ia.js';
 import { iaToast, pedirPermisoIA } from '../ui/ia-permiso.js';
 import { plusAjustesHtml, plusInfo } from '../ui/ia-plus.js';
+import { widgetAjustesHtml, widgetBorrar } from '../core/widget.js';
 import { bellSvg, fileTextSvg, instagramSvg, globeSvg, auIcoMail, whatsappSvg, chevronRightSvg, pencilSvg, checkSvg } from '../core/icons.js';
 
 const cameraSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
@@ -327,6 +328,10 @@ export function renderConfig() {
   // Mi IA Plus (ui/ia-plus.js): solo con IA Plus prendido en el panel o con uno vigente.
   const plusSection = logged ? plusAjustesHtml() : "";
 
+  // Widget «GIZE de hoy» en la pantalla de inicio (core/widget.js): solo alumnos, en la app que trae
+  // el plugin. En Android se agrega desde acá; en iPhone dice cómo.
+  const widgetSection = logged ? widgetAjustesHtml() : "";
+
   // Botón de arrepentimiento y botón de baja (suscripciones contratadas en la web): solo en la web,
   // sin iniciar sesión (gize.ar/baja/). En las apps no: ahí no se vende nada por fuera de la tienda.
   const legalSection = '<div class="card cfg-card">' +
@@ -353,7 +358,7 @@ export function renderConfig() {
 
   checkAdmin(renderApp); // solo las cuentas administradoras ven «Revisar productos»
   return '<div class="hb-head"><div class="hb-title">Configuración</div><div class="title-accent"></div></div>' +
-    account + adminEntry() + coachSection + gymSection() + notifSection + temaSection + neonSection + liteSection + iaSection + plusSection + blockSection + legalSection + contactSection + dangerSection + about;
+    account + adminEntry() + coachSection + gymSection() + notifSection + widgetSection + temaSection + neonSection + liteSection + iaSection + plusSection + blockSection + legalSection + contactSection + dangerSection + about;
 }
 
 document.body.addEventListener("keydown", function (e) {
@@ -545,6 +550,8 @@ document.body.addEventListener("click", async function (e) {
       // entre acá no quede con las notificaciones prendidas sin haberlas activado. Va después
       // de borrar la cuenta: si eso falla, el celular no pierde sus notificaciones.
       try { await pushLogout(); } catch (err) {}
+      // El widget de la pantalla de inicio pasa a «Ingresá a GIZE» (core/widget.js), sin esperar más de 1,5 s.
+      await Promise.race([widgetBorrar(), new Promise(r => setTimeout(r, 1500))]);
       try { localStorage.removeItem(KEY); localStorage.removeItem(PROFILE_KEY); } catch (err) {}
       stopForLogout(); // deja de mirar el GPS y borra la salida en curso
       clearAccountLeftovers(State.cloudUser && State.cloudUser.id);
