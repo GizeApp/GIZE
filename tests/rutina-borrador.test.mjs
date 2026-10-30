@@ -83,9 +83,9 @@ export default async ({ t }) => {
   t.eq(de(borr([dia([ej({ nombre: 'Inventado' })])])), [], 'sin ningún ejercicio de la lista: ningún día');
 
   // Videos de la planilla, solo https.
-  const links = { 3: 'https://youtu.be/abc', 4: 'http://youtu.be/abc', 5: 'javascript:alert(1)', 6: 'https://x.test/a b' };
-  const vid = de(borr([dia([3, 4, 5, 6, 7].map(f => ej({ fila: f })).concat(ej()))]), { links })[0].exercises.map(e => e.video);
-  t.eq(vid, ['https://youtu.be/abc', undefined, undefined, undefined, undefined, undefined], 'video de la fila solo si es https');
+  const links = { 3: 'https://youtu.be/abc', 4: 'http://youtu.be/abc', 5: 'javascript:alert(1)', 6: 'https://x.test/a b', 8: 'https://youtu.be/' + 'a'.repeat(300) };
+  const vid = de(borr([dia([3, 4, 5, 6, 7, 8].map(f => ej({ fila: f })).concat(ej()))]), { links })[0].exercises.map(e => e.video);
+  t.eq(vid, ['https://youtu.be/abc', undefined, undefined, undefined, undefined, undefined, undefined], 'video de la fila solo si es https y de hasta 300 letras');
   t.ok(!('video' in de(borr([dia([ej({ fila: 3 })])]))[0].exercises[0]), 'sin links, sin video');
 
   // Lo que hay que revisar.

@@ -192,7 +192,7 @@ export default async ({ t }) => {
   t.eq([b.nombre.length, b.nota.length, b.dias[0].nombre.length, b.dias[0].nota.length, e0.descanso.length, e0.rir.length, e0.nota.length, e0.progresion.length],
     [60, 200, 60, 160, 20, 10, 160, 120], 'textos recortados');
   t.eq(R.rutinaPost(out([d([x({ nombre: 'y'.repeat(200) })])]), EJ, { propios: true }).dias[0].ejercicios[0].nombre.length, 60, 'nombre propio hasta 60');
-  t.eq(R.rutinaPost(out([d([deLista('Remo T', { fila: 12 }), deLista('Remo T', { fila: -3 }), deLista('Remo T', { fila: 'x' })])]), EJ).dias[0].ejercicios.map(e => e.fila), [12, undefined, undefined],
+  t.eq(R.rutinaPost(out([d([12, -3, 'x', 0, 100000, 100001].map(f => deLista('Remo T', { fila: f })))]), EJ).dias[0].ejercicios.map(e => e.fila), [12, undefined, undefined, undefined, 100000, undefined],
     'la fila de la planilla, si es un número de fila');
 
   // Topes: 14 días, 25 ejercicios por día, 200 en total (y los de cada modo).
@@ -201,6 +201,8 @@ export default async ({ t }) => {
   t.eq([b.dias.length, b.dias[0].ejercicios.length, b.dias.reduce((a, x) => a + x.ejercicios.length, 0)], [8, 25, 200], 'hasta 25 ejercicios por día y 200 en total');
   b = R.rutinaPost(out(Array.from({ length: 16 }, () => d(muchos(3)))), EJ);
   t.eq(b.dias.length, 14, 'hasta 14 días');
+  b = R.rutinaPost(out(Array.from({ length: 4 }, () => d(muchos(30)))), EJ, { topes: { total: 60 } });
+  t.eq(b.dias.map(x => x.ejercicios.length), [25, 25, 10], 'el total corta también a mitad de un día');
   b = R.rutinaPost(out(Array.from({ length: 9 }, () => d(muchos(15)))), EJ, { topes: { dias: 7, ejercicios: 12, series: 8 } });
   t.eq([b.dias.length, b.dias[0].ejercicios.length], [7, 12], 'cada modo puede pedir menos («Armar con IA»: 7 días y 12 por día)');
   t.ok(b.dias.every(x => x.ejercicios.every(e => !e.ss || e !== x.ejercicios[x.ejercicios.length - 1])), 'el último de un día recortado tampoco queda unido');
@@ -211,8 +213,8 @@ export default async ({ t }) => {
     'Su DNI es 30.123.456', 'Tel 1145678901', 'mail: a.b@correo.prueba.test', 'WhatsApp 11 4567 8901 18hs', 'Cel 11-4567-8901 (2 veces)', 'Uruguay: +598 99 123 456',
     'Del 15-03-2026 al 30-03-2026', 'Press 4x10 60kg descanso 90"', 'DNI 12345678 y CUIL 27-12345678-3'];
   t.eq(casos.map(R.limpiarTexto), casos.map(s => limpiar(s)), 'limpiarTexto saca lo mismo que la app');
-  t.eq(R.limpiarTexto('12|Press de banca|4|8-10|75%|2\'\n13|Llamar al 11 4567-8901|a.b@correo.prueba.test\r\n14|Ver https://youtu.be/abc y www.algo.test/x'),
-    '12|Press de banca|4|8-10|75%|2\'\n13|Llamar al [tel]|[mail]\n14|Ver [link] y [link]', 'renglón por renglón: quedan los renglones y los «|»; los links, «[link]»');
+  t.eq(R.limpiarTexto('12|Press de banca|4|8-10|75%|2\'\n13|Llamar al 11 4567-8901|a.b@correo.prueba.test\r\n14|Ver https://youtu.be/abc y www.algo.test/x\r15|Remo'),
+    '12|Press de banca|4|8-10|75%|2\'\n13|Llamar al [tel]|[mail]\n14|Ver [link] y [link]\n15|Remo', 'renglón por renglón: quedan los renglones y los «|»; los links, «[link]»');
   t.eq(R.limpiarTexto('hipertrofia,\u0000 4 días\u200b\t con  mancuernas'), 'hipertrofia, 4 días con mancuernas', 'sin caracteres raros ni espacios de más');
   t.eq(R.limpiarTexto(null), '', 'nada → vacío');
 };
