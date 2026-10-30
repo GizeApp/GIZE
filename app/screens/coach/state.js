@@ -19,6 +19,11 @@ export const CoachState = {
   // cambia_desde, codigo, visible }.
   pagina: undefined,
 
+  // «Resumen de los lunes» (Configuración → Avisos, settings.js): undefined = todavía no se preguntó,
+  // null = no está (la base sin supabase/resumen-semanal.sql o el resumen apagado en el panel de GIZE),
+  // true = le llega, false = lo apagó.
+  resumenLunes: undefined,
+
   coachDayFilter: null,
 
   coachEditDay: 0,
