@@ -8,6 +8,8 @@
 // - solo las que Google renueva (activa, en gracia, en espera o en pausa, sin reemplazar);
 // - si Google no contesta, o falta GOOGLE_PLAY_SA, 502 y no se borra nada (ni la cuenta, ni audios,
 //   ni fotos): se puede reintentar; 400 o 410 de Google (ya no hay nada que cancelar) es como listo;
+// - la app muestra el texto del error tal cual: desde la app de iPhone (origen capacitor://) no nombra
+//   a Google Play, la suscripción ni el plan (reglas de Apple); desde Android y la web, sí;
 // - sin google_subs (sin filas, o sin la tabla porque falta supabase/compras-google.sql), todo igual
 //   que antes y sin llamar a Google.
 import { funcion, supabaseSimulado, cumple } from './funcion.mjs';
@@ -22,7 +24,7 @@ const TODAS = [fila(T1, 'activa'), fila(T2, 'cancelada', { auto_renew: false }),
   fila('de-otra-cuenta_9', 'activa', { user_id: 'bbbbbbbb-0000-4000-8000-000000000002' })];
 
 // quien: 'app' (borrar-audios, la persona) o 'panel' (admin, un administrador borra a YO).
-async function correr(quien, { subs = TODAS, sinTabla = false, clave = true, google = 200 } = {}){
+async function correr(quien, { subs = TODAS, sinTabla = false, clave = true, google = 200, origen = null } = {}){
   const pasos = [], cancelados = [], cuerpos = [];
   const filas = subs.map(s => Object.assign({}, s));
   const db = supabaseSimulado(q => {
@@ -57,7 +59,7 @@ async function correr(quien, { subs = TODAS, sinTabla = false, clave = true, goo
     npm: { '@supabase/supabase-js': { createClient: () => db }, jose }, fetch,
   });
   const r = await fn.call(new Request('https://x.supabase.co/functions/v1/' + (quien === 'app' ? 'borrar-audios' : 'admin'), { method: 'POST',
-    headers: { Authorization: 'Bearer x', 'Content-Type': 'application/json' }, body: JSON.stringify(quien === 'app' ? {} : { action: 'eliminar', user_id: YO }) }));
+    headers: Object.assign({ Authorization: 'Bearer x', 'Content-Type': 'application/json' }, origen ? { Origin: origen } : {}), body: JSON.stringify(quien === 'app' ? {} : { action: 'eliminar', user_id: YO }) }));
   return { status: r.status, body: await r.json(), pasos, cancelados, cuerpos, filas, logs: fn.logs };
 }
 
@@ -78,7 +80,16 @@ export default async function ({ t }){
     x = await correr(quien, { google: 503 });
     t.ok(x.status === 502 && /Google Play/.test(x.body.error) && !x.pasos.includes('borrar cuenta') && !x.pasos.includes('borrar archivos'),
       nombre + ': si Google no deja cancelar, 502 y no se borra nada: ' + JSON.stringify(x.body) + ' ' + x.pasos.join(', '));
-    if (quien === 'app') t.eq(x.body.error, 'No se pudo cancelar tu suscripción de Google Play. Probá de nuevo en un rato.', 'borrar-audios: el mensaje para la persona');
+    if (quien === 'app'){
+      t.eq([x.body.error, x.body.codigo], ['No se pudo cancelar tu suscripción de Google Play. Probá de nuevo en un rato.', 'google'], 'borrar-audios: el mensaje para la persona');
+      x = await correr(quien, { google: 503, origen: 'https://localhost' });
+      t.ok(x.status === 502 && /Google Play/.test(x.body.error), 'borrar-audios desde la app de Android: dice que es Google Play: ' + x.body.error);
+      x = await correr(quien, { google: 503, origen: 'capacitor://localhost' });
+      t.ok(x.status === 502 && x.body.codigo === 'google' && !/google|suscrip|\bplan\b|pago|tienda/i.test(x.body.error) && !x.pasos.includes('borrar cuenta'),
+        'borrar-audios desde la app de iPhone: no se borra y el texto no nombra a Google Play, la suscripción ni el plan: ' + x.body.error);
+      x = await correr(quien, { clave: false, origen: 'capacitor://localhost' });
+      t.ok(x.status === 502 && !/google/i.test(x.body.error), 'borrar-audios desde el iPhone sin GOOGLE_PLAY_SA: tampoco nombra a Google Play');
+    }
     t.ok(!x.logs.join('\n').includes(T1), nombre + ': los registros no tienen el código de la compra');
     // Sin la clave y con una que se renueva: tampoco.
     x = await correr(quien, { clave: false });

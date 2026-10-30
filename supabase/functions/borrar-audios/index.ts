@@ -30,8 +30,8 @@
 // Suscripciones de Google Play (app de Android: plan de coach o IA Plus): antes de borrar se cancela
 // su renovación en Google (_shared/google-play.ts, con el secret GOOGLE_PLAY_SA), así Google no le
 // sigue cobrando a alguien que ya no tiene cuenta. Si Google no contesta, no se borra nada y se pide
-// reintentar (502), como con Mercado Pago. Sin suscripciones de Google (o sin la tabla google_subs),
-// todo sigue igual que antes.
+// reintentar (502), como con Mercado Pago; en la app de iPhone con un texto que no nombra a Google
+// Play. Sin suscripciones de Google (o sin la tabla google_subs), todo sigue igual que antes.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { decodeJwt, importPKCS8, SignJWT } from "npm:jose@5";
@@ -158,11 +158,14 @@ Deno.serve(async (req) => {
   }
 
   // Google Play: se cancela la renovación antes de borrar (después ya no se sabe cuáles eran sus
-  // suscripciones). Si no se puede, no se borra nada.
+  // suscripciones). Si no se puede, no se borra nada. La app muestra el texto tal cual: en la de
+  // iPhone (origen capacitor://, también en las versiones viejas) no puede nombrar a Google Play ni
+  // la suscripción (reglas de Apple), así que ahí va un texto neutro. codigo «google»: para la app.
   try { await cancelarGoogleDe(admin, me); }
   catch (e) {
     console.error("borrar-audios: google", (e as Error).message);
-    return json({ error: "No se pudo cancelar tu suscripción de Google Play. Probá de nuevo en un rato." }, 502);
+    const iphone = (req.headers.get("Origin") || "").startsWith("capacitor://");
+    return json({ error: iphone ? "Probá de nuevo en un rato." : "No se pudo cancelar tu suscripción de Google Play. Probá de nuevo en un rato.", codigo: "google" }, 502);
   }
 
   // Sign in with Apple: se revoca antes de borrar (después ya no se sabe su cuenta de Apple).
