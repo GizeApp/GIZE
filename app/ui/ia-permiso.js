@@ -1,14 +1,20 @@
 // «Usar IA en Comida»: el permiso, una sola vez, antes del primer uso de la foto del plato (y antes
-// de abrir la cámara o la galería, como pide Apple 5.1.2(i)). Solo se manda la foto: la aclaración
-// escrita («¿Qué es?») se sacó, y con ella «(y lo que escribas)» y «tu texto» (aviso versión 2).
-// El texto es el de la política de privacidad (privacidad/index.html#ia); si cambia, se sube
-// ia_config.aviso_version (supabase/ia.sql) y se vuelve a preguntar. También lo usa Ajustes →
-// Funciones con IA al prenderla.
+// de abrir la cámara o la galería, como pide Apple 5.1.2(i)) o de la voz (antes de mandar lo que
+// contó). Hay dos textos:
+// - el de la foto (aviso versión 2, ia_config.aviso_version): solo se manda la foto. Es el que se
+//   muestra mientras la voz no esté lista (la base sin aviso_texto o la voz apagada en el panel).
+// - el de la voz (versión 3, PERMISO_VERSION = ia_config.aviso_texto): también se manda lo que la
+//   persona cuenta, escrito o dictado con el teclado (GIZE no graba la voz). Quien aceptó el de la
+//   foto sigue usando la foto sin que le pregunten de nuevo; este le sale la primera vez que usa la voz.
+// El texto es el de la política de privacidad (privacidad/index.html#ia); si cambia, se sube la
+// versión en supabase/ia.sql y se vuelve a preguntar. También lo usa Ajustes → Funciones con IA al
+// prenderla.
 // Es una hoja propia (#iaPermHost), encima de todo, como «Reportar»: no depende de renderApp.
-//   pedirPermisoIA() → true (aceptó, o ya había aceptado) / false (no aceptó, o la había apagado).
+//   pedirPermisoIA({ texto }) → true (aceptó, o ya había aceptado) / false (no aceptó, o la había
+//   apagado). texto: para la voz (mira permiso_texto).
 import { State } from '../core/state.js';
-import { iaGuardarPermiso, iaPermiso } from '../core/ia.js';
-import { alertSvg, clockSvg, imageSvg, shieldSvg, sparkleSvg, toggleSvg } from '../core/icons.js';
+import { AVISO_VOZ, iaGuardarPermiso, iaPermiso, iaPermisoTexto, iaVozLista } from '../core/ia.js';
+import { alertSvg, clockSvg, imageSvg, micSvg, shieldSvg, sparkleSvg, toggleSvg } from '../core/icons.js';
 
 const POLITICA = "https://gize.ar/privacidad/?app=1#ia";
 
@@ -29,6 +35,20 @@ export const PERMISO_CIERRE = "Al tocar «Aceptar y usar IA» aceptás que tu fo
 // la foto del plato, que son estimados y que es opcional.
 const PUNTOS_IC = [shieldSvg, clockSvg, imageSvg, alertSvg, toggleSvg];
 
+// El de la voz (versión 3): lo mismo, con lo que contás. Un cambio acá va con un aviso_texto nuevo.
+export const PERMISO_VERSION = AVISO_VOZ;
+export const PERMISO_VOZ_INTRO = "Para leer la tabla nutricional, calcular tu plato o entender lo que comiste, GIZE manda la foto que elegís o lo que contás (escrito o dictado) a Anthropic, la empresa que hace la IA Claude, en Estados Unidos.";
+export const PERMISO_VOZ_PUNTOS = [
+  "Solo se manda la foto o tu texto: no tu nombre, tu mail ni otros datos de tu cuenta.",
+  "Si lo dictás, lo pasa a texto el teclado de tu celular: GIZE no graba tu voz.",
+  "Anthropic los usa solo para darte el resultado, no los usa para entrenar su IA y los borra dentro de los 30 días (salvo que deba guardarlos más para investigar un abuso o porque lo exija la ley).",
+  "GIZE no guarda la foto del plato ni lo que contás. La foto de un producto nuevo se guarda, como siempre, para que el equipo de GIZE lo revise.",
+  "Los valores son estimados y pueden tener errores: revisalos antes de guardar. No es consejo médico ni nutricional.",
+  "Es opcional: si no aceptás, podés cargar todo a mano o con el código de barras. Podés desactivarlo cuando quieras en Ajustes → Funciones con IA.",
+];
+export const PERMISO_VOZ_CIERRE = "Al tocar «Aceptar y usar IA» aceptás que tu foto o tu texto se envíen a Anthropic, en EE. UU., para esto.";
+const PUNTOS_VOZ_IC = [shieldSvg, micSvg, clockSvg, imageSvg, alertSvg, toggleSvg];
+
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 let abierta = null; // { listo, volver, guardando }
 
@@ -47,19 +67,24 @@ export function iaToast(msg){
 }
 
 // Muestra la hoja y espera la respuesta. Con el permiso vigente devuelve true sin mostrar nada.
-// desdeAjustes: lo prende la persona desde Ajustes (sin el aviso de «Ahora no»).
-export function pedirPermisoIA({ desdeAjustes = false } = {}){
-  if (iaPermiso() === "ok") return Promise.resolve(true);
+// desdeAjustes: lo prende la persona desde Ajustes (sin el aviso de «Ahora no»). texto: es para la
+// voz (hace falta haber aceptado el aviso de la voz). Con la voz lista se muestra (y se guarda) el
+// aviso de la voz, también para la foto: así no se le vuelve a preguntar cuando use la voz.
+export function pedirPermisoIA({ desdeAjustes = false, texto = false } = {}){
+  if ((texto ? iaPermisoTexto() : iaPermiso()) === "ok") return Promise.resolve(true);
   if (!State.cloudUser) return Promise.resolve(false);
   if (abierta) return Promise.resolve(false);
+  const voz = iaVozLista();
+  const intro = voz ? PERMISO_VOZ_INTRO : PERMISO_INTRO, puntos = voz ? PERMISO_VOZ_PUNTOS : PERMISO_PUNTOS;
+  const cierre = voz ? PERMISO_VOZ_CIERRE : PERMISO_CIERRE, iconos = voz ? PUNTOS_VOZ_IC : PUNTOS_IC;
   return new Promise(listo => {
-    abierta = { listo, volver: document.activeElement, guardando: false, desdeAjustes };
+    abierta = { listo, volver: document.activeElement, guardando: false, desdeAjustes, version: voz ? PERMISO_VERSION : null };
     host().innerHTML = '<div class="sheet-bg" data-ia="no"></div>' +
       '<div class="sheet ia-perm" role="dialog" aria-modal="true" aria-labelledby="iaPermT" aria-describedby="iaPermD">' +
         '<div class="ia-perm-h"><span class="ia-perm-hero" aria-hidden="true">' + sparkleSvg + '</span>' +
         '<div class="sheet-title" id="iaPermT">' + esc(PERMISO_TITULO) + '</div></div>' +
-        '<div class="ia-perm-txt" id="iaPermD"><p>' + esc(PERMISO_INTRO) + '</p><ul>' + PERMISO_PUNTOS.map((p, i) => '<li><span class="ia-perm-ic" aria-hidden="true">' + (PUNTOS_IC[i] || shieldSvg) + '</span><span>' + esc(p) + '</span></li>').join("") + '</ul>' +
-        '<p class="ia-perm-cierre">' + esc(PERMISO_CIERRE) + '</p></div>' +
+        '<div class="ia-perm-txt" id="iaPermD"><p>' + esc(intro) + '</p><ul>' + puntos.map((p, i) => '<li><span class="ia-perm-ic" aria-hidden="true">' + (iconos[i] || shieldSvg) + '</span><span>' + esc(p) + '</span></li>').join("") + '</ul>' +
+        '<p class="ia-perm-cierre">' + esc(cierre) + '</p></div>' +
         '<div class="ia-perm-err" role="alert" hidden></div>' +
         '<div class="ia-perm-btns"><button type="button" class="ctrl primary" data-ia="si">Aceptar y usar IA</button>' +
         '<button type="button" class="ctrl ghost" data-ia="no">Ahora no</button></div>' +
@@ -104,7 +129,7 @@ document.addEventListener("click", async e => {
   if (abierta.guardando) return;
   abierta.guardando = true; b.disabled = true; b.textContent = "Guardando…";
   const err = document.querySelector("#iaPermHost .ia-perm-err");
-  try { await iaGuardarPermiso(true); cerrar(true); }
+  try { await iaGuardarPermiso(true, abierta.version); cerrar(true); }
   catch (x) {
     if (!abierta) return;
     abierta.guardando = false; b.disabled = false; b.textContent = "Aceptar y usar IA";

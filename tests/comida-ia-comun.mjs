@@ -3,6 +3,9 @@
 import { newPage, wait, ALUMNO, perfil } from './lib.mjs';
 
 export const ESTADO_ON = { activa: true, funciones: { plato: true, texto: true }, permiso_comida: null, aviso_version: 1, estado: 'normal', vuelve: null, quedan: { plato: 8, texto: 15 }, tope: { plato: 8, texto: 15, total: 25 } };
+// La voz lista (comida-ia-voz): «texto» prendido y la base nueva (aviso_texto, el aviso de la voz).
+// ESTADO_ON no trae aviso_texto: las pruebas de la foto no ven «Voz».
+export const ESTADO_VOZ = Object.assign({}, ESTADO_ON, { aviso_version: 2, aviso_texto: 3, permiso_texto: null });
 export const base = (id, nombre, kcal, p, c, f, unit = 'g', cocido = false) => ({ id, nombre, cocido, kcal, p, c, f, unit });
 export const PLATO = { ok: true, hay_comida: true, nota: 'Supuse que el puré lleva manteca.', modelo_nombre: 'IA', items: [
   { nombre: 'Milanesa', gramos: 150, kcal: 465, p: 30, c: 20, f: 25, cantidad: 1, unidad: 'unidad', dudoso: false, base: base(101, 'Milanesa de carne frita', 310, 21, 12, 20) },
@@ -11,14 +14,18 @@ export const PLATO = { ok: true, hay_comida: true, nota: 'Supuse que el puré ll
 ] };
 
 // Una página con la IA simulada. o: { estado, funcion(body) → [status, json], sinEstado (ia_mi_estado da 404),
-// estadoTarde (ms que tarda ia_mi_estado) }. S.nEstado: cuántas veces se preguntó el estado.
+// estadoTarde (ms que tarda ia_mi_estado), touch (un celular: pantalla táctil) }. S.nEstado: cuántas veces se preguntó el estado.
 export async function pagina(o = {}){
   const S = { estado: Object.assign({}, o.estado || ESTADO_ON), permisos: [], reportes: [], llamadas: [], posts: [] };
-  const pg = await newPage({ user: ALUMNO, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {}, diary: [], calTarget: 2000 },
+  const pg = await newPage({ user: ALUMNO, touch: !!o.touch, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {}, diary: [], calTarget: 2000 },
     handlers: Object.assign({
       '/profiles': perfil('client'),
       '/rpc/ia_mi_estado': (r, J) => { S.nEstado = (S.nEstado || 0) + 1; return o.sinEstado ? J({ message: 'no existe' }, 404) : o.estadoTarde ? new Promise(ok => setTimeout(() => ok(J(S.estado)), o.estadoTarde)) : J(S.estado); },
-      '/rpc/ia_permiso': (r, J, i) => { const b = JSON.parse(i.body || '{}'); S.permisos.push(b); S.estado = Object.assign({}, S.estado, { permiso_comida: b.p_acepta ? 'ok' : 'no' }); return J(S.estado); },
+      '/rpc/ia_permiso': (r, J, i) => {
+        const b = JSON.parse(i.body || '{}'); S.permisos.push(b);
+        const voz = 'aviso_texto' in S.estado ? { permiso_texto: !b.p_acepta ? 'no' : b.p_version >= S.estado.aviso_texto ? 'ok' : 'viejo' } : {};
+        S.estado = Object.assign({}, S.estado, { permiso_comida: b.p_acepta ? 'ok' : 'no' }, voz); return J(S.estado);
+      },
       '/rpc/ia_reportar': (r, J, i) => { S.reportes.push(JSON.parse(i.body || '{}')); return J(null); },
       '/functions/v1/ia': (r, J, i) => {
         if (i.m !== 'POST') return J({});

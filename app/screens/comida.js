@@ -4,7 +4,7 @@ import { cookVariant } from '../core/foods.js';
 
 const barcodeSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8v8M10 8v8M13 8v8M16 8v8"/></svg>';
 
-import { alertSvg, cameraSvg, checkSvg, chevronRightSvg, clockSvg, flameSvg, imageSvg, infoSvg, messageSvg, minusSvg, plateHeroSvg, plusSvg, resetSvg, scanSvg, searchSvg, sparkleSvg, swapSvg, wifiOffSvg, xSvg } from '../core/icons.js';
+import { alertSvg, cameraSvg, checkSvg, chevronRightSvg, clockSvg, flameSvg, imageSvg, infoSvg, messageSvg, micSvg, minusSvg, plateHeroSvg, plusSvg, resetSvg, scanSvg, searchSvg, sparkleSvg, swapSvg, wifiOffSvg, xSvg } from '../core/icons.js';
 
 import { state } from '../core/state.js';
 
@@ -204,7 +204,9 @@ export function renderResults(q){
   const rows = items.slice(0,60).map(it=>foodRow(it.f, it.act, it.i)).join("");
   const o = ComidaState.off || {};
   const loading = o.q && o.q.length >= 3 && o.status === "loading" ? '<div class="cal-hint">Buscando productos de marca…</div>' : '';
-  if (!rows) return loading || (nq.length < 3 || (o.status && o.status !== "loading") ? ssEmpty(searchSvg, "Sin resultados", "Probá con otra palabra o creá el alimento abajo.") : '');
+  // Sin resultados, con la voz: «¿No está? Decilo con tu voz» (abre la hoja con lo buscado).
+  const voz = ComidaState.plateSwap == null && iaDisponible("texto") ? `<button class="ia-nores" data-action="ia-voz" data-q="1">${micSvg}<span>¿No está? Decilo con tu voz</span><span class="ia-tag" aria-hidden="true">IA</span></button>` : '';
+  if (!rows) return loading || (nq.length < 3 || (o.status && o.status !== "loading") ? ssEmpty(searchSvg, "Sin resultados", "Probá con otra palabra o creá el alimento abajo.") + voz : '');
   return rows + loading;
 }
 
@@ -268,7 +270,8 @@ function renderRecents(){
   const searched = (state.recentSearch || []).slice(0, 5).map(f => (state.recentFoods || []).find(r => same(r, f)) || f);
   const recent = (state.recentFoods || []).filter(f => !searched.some(s => same(s, f))).slice(0, 10);
   lastResults = searched.concat(recent);
-  if (!lastResults.length) return ssEmpty(searchSvg, "Escribí para buscar un alimento", iaDisponible("plato") ? "O tocá «Foto» y la IA arma el plato por vos." : "Lo que elijas queda acá para la próxima.");
+  const foto = iaDisponible("plato"), voz = iaDisponible("texto");
+  if (!lastResults.length) return ssEmpty(searchSvg, "Escribí para buscar un alimento", foto && voz ? "O tocá «Foto» o «Voz» y la IA lo arma por vos." : foto ? "O tocá «Foto» y la IA arma el plato por vos." : voz ? "O tocá «Voz», contá lo que comiste y la IA lo arma por vos." : "Lo que elijas queda acá para la próxima.");
   let i = 0;
   const block = (title, list) => list.length ? '<div class="rs-head">' + title + '</div>' + list.map(f => foodRow(f, "food-pick", i++)).join("") : "";
   return block("Búsquedas recientes", searched) + block("Comidas recientes", recent);
@@ -404,30 +407,37 @@ export function renderRequestForm(){
     <button class="form-save rq-send" data-action="rq-send"${r.sending ? ' disabled' : ''}>${r.sending ? 'Enviando…' : 'Enviar pedido'}</button>`;
 }
 
-// Los botones de al lado del buscador: «Foto» (IA) y el escáner de códigos.
+// Los botones de al lado del buscador: «Foto» y «Voz» (IA) y el escáner de códigos. «Voz» abre la
+// hoja «Contá qué comiste»: se dicta con el micrófono del teclado (o se escribe).
 const fotoBtn = () => `<button class="ia-foto-btn" data-action="ia-plato" aria-label="Registrar con una foto (IA)">${cameraSvg}<span aria-hidden="true">Foto</span><span class="ia-spark" aria-hidden="true">${sparkleSvg}</span></button>`;
+const vozBtn = () => `<button class="ia-foto-btn ia-voz-btn" data-action="ia-voz" aria-label="Contar lo que comiste, con tu voz o escrito (IA)">${micSvg}<span aria-hidden="true">Voz</span><span class="ia-spark" aria-hidden="true">${sparkleSvg}</span></button>`;
 const scanBtn = () => `<button class="scan-btn" data-action="scan-open" title="Escanear código de barras" aria-label="Escanear código de barras (beta)">${barcodeSvg}<span class="scan-beta" aria-hidden="true">BETA</span></button>`;
-// Barra de arriba: abre la ventana de búsqueda (no se escribe acá). Al lado, «Foto» (IA) si la IA
-// se puede usar; si no (apagada en el panel o en Ajustes, o sin aceptar el aviso y sin conexión),
-// el escáner de códigos, como siempre.
-const barBtn = () => iaDisponible("plato") ? fotoBtn() : scanBtn();
+// Barra de arriba: abre la ventana de búsqueda (no se escribe acá). Al lado, «Foto» y «Voz» (IA),
+// cada una si se puede usar; si no se puede usar ninguna (apagadas en el panel o en Ajustes, o sin
+// aceptar el aviso y sin conexión), el escáner de códigos, como siempre.
+const barBtns = () => {
+  const f = iaDisponible("plato"), v = iaDisponible("texto");
+  return (f ? fotoBtn() : "") + (v ? vozBtn() : "") + (f || v ? "" : scanBtn());
+};
 function searchBar(vd){
   return `<div class="food-search-row comida-barra">
       <button class="cal-search search-wrap search-open" data-action="search-open"><span class="search-ic">${searchSvg}</span><span class="search-ph">${vd===today() ? "Buscar alimento o marca…" : "Agregar a "+esc(dayLabel(vd).toLowerCase())+"…"}</span></button>
-      ${barBtn()}
+      ${barBtns()}
     </div>`;
 }
-// Cuando llega el estado de la IA (o cambia la conexión): cambia el botón de al lado de la barra de
-// arriba sin redibujar la pantalla. Si el foco estaba en ese botón, queda en el nuevo.
+// Cuando llega el estado de la IA (o cambia la conexión): cambian los botones de al lado de la barra
+// de arriba (de 0 a 2 de la IA, o el escáner) sin redibujar la pantalla. Si el foco estaba en uno
+// que sigue, queda en el nuevo; si no, en el primero.
 export function paintBarraIA(){
   const row = document.querySelector("#view .comida-barra"); if (!row) return;
-  const viejo = row.querySelector(".ia-foto-btn, .scan-btn");
-  const quiere = iaDisponible("plato") ? "ia-plato" : "scan-open";
-  if (viejo && viejo.dataset.action === quiere) return;
-  const tmp = document.createElement("div"); tmp.innerHTML = barBtn();
-  const nuevo = tmp.firstElementChild, foco = viejo && document.activeElement === viejo;
-  if (viejo) viejo.replaceWith(nuevo); else row.appendChild(nuevo);
-  if (foco) try { nuevo.focus({ preventScroll: true }); } catch (e) {}
+  const viejos = [...row.querySelectorAll(".ia-foto-btn, .scan-btn")];
+  const tmp = document.createElement("div"); tmp.innerHTML = barBtns();
+  const nuevos = [...tmp.children];
+  if (viejos.map(b => b.dataset.action).join() === nuevos.map(b => b.dataset.action).join()) return;
+  const foco = viejos.find(b => document.activeElement === b);
+  viejos.forEach(b => b.remove());
+  nuevos.forEach(b => row.appendChild(b));
+  if (foco) { const n = nuevos.find(b => b.dataset.action === foco.dataset.action) || nuevos[0]; if (n) try { n.focus({ preventScroll: true }); } catch (e) {} }
 }
 
 // Ventana de búsqueda (como Fitia): comida elegida arriba, buscador con el teclado listo,
@@ -439,12 +449,12 @@ export function renderSearchSheet(){
   const vd = (ComidaState.viewDate && ComidaState.viewDate < today()) ? ComidaState.viewDate : today();
   // Eligiendo un alimento para la hoja del plato (cambiar una fila).
   const swap = ComidaState.plateSwap != null && ComidaState.plate;
-  const foto = !swap && iaVisible("plato");
-  // Al lado del buscador queda solo «Foto» (IA). El escáner de códigos sale únicamente si la IA no
-  // se puede usar (apagada en el panel o en Ajustes, o sin aceptar el aviso y sin conexión), para
-  // que la barra no quede sin nada. Igual se puede escanear desde los avisos de la IA (límite,
-  // sin conexión, pausada) y desde «Pedir un producto».
-  const scan = !swap && !iaDisponible("plato");
+  const foto = !swap && iaVisible("plato"), voz = !swap && iaVisible("texto");
+  // Al lado del buscador quedan solo «Foto» y «Voz» (IA). El escáner de códigos sale únicamente si
+  // no se puede usar ninguna (apagadas en el panel o en Ajustes, o sin aceptar el aviso y sin
+  // conexión), para que la barra no quede sin nada. Igual se puede escanear desde los avisos de la
+  // IA (límite, sin conexión, pausada) y desde «Pedir un producto».
+  const scan = !swap && !iaDisponible("plato") && !iaDisponible("texto");
   const tit = swap ? "Cambiar por…" : "Agregar" + (vd===today() ? "" : " a "+esc(dayLabel(vd).toLowerCase()));
   return `
     <div class="sheet-bg" data-action="search-close"></div>
@@ -454,6 +464,7 @@ export function renderSearchSheet(){
       <div class="food-search-row">
         <div class="cal-search search-wrap"><span class="search-ic">${searchSvg}</span><input id="foodSearch" type="text" placeholder="Buscar alimento o marca…" value="${esc(ComidaState.foodQuery)}" data-action="food-search" autocomplete="off" enterkeyhint="search"></div>
         ${foto ? fotoBtn() : ""}
+        ${voz ? vozBtn() : ""}
         ${scan ? scanBtn() : ""}
       </div>
       <div class="ss-scroll">
@@ -667,7 +678,7 @@ export function renderPlanScreen(){
 }
 
 // Cuando llega el estado de la IA (o cambia la conexión) con el buscador abierto: pone o saca
-// «Foto» y el escáner y rehace los resultados, sin redibujar la hoja (el campo de búsqueda no
+// «Foto», «Voz» y el escáner y rehace los resultados, sin redibujar la hoja (el campo de búsqueda no
 // pierde el foco ni lo que se está escribiendo).
 export function paintSearchIA(){
   const card = document.querySelector("#sheetHost .search-sheet");
@@ -676,25 +687,28 @@ export function paintSearchIA(){
   const nuevo = tmp.querySelector(".search-sheet"); if (!nuevo) return false;
   const row = card.querySelector(".food-search-row"), res = card.querySelector("#foodResults");
   card.querySelectorAll(".ia-foto-btn, .food-search-row .scan-btn").forEach(b => b.remove());
-  const f = nuevo.querySelector(".ia-foto-btn"), s = nuevo.querySelector(".food-search-row .scan-btn");
-  if (f && row) row.appendChild(f);
-  if (s && row) row.appendChild(s);
+  if (row) nuevo.querySelectorAll(".ia-foto-btn, .food-search-row .scan-btn").forEach(b => row.appendChild(b));
   if (res) res.innerHTML = renderResults(ComidaState.foodQuery);
   return true;
 }
 
-// ---- Foto del plato (IA) ----
-// «Contame qué comiste» (contarlo con palabras) se sacó: GIZE es solo fotos.
+// ---- Foto del plato y voz (IA) ----
+// La voz («Contá qué comiste»): la persona dicta con el micrófono del teclado (o escribe) lo que
+// comió, y la IA arma la misma lista que con la foto. GIZE no graba nada: va solo el texto.
 // La hoja de revisión: la IA propone, la persona corrige (gramos, alimento, quitar) y recién al
 // tocar «Agregar» se anota. Solo va lo que la IA vio en la foto (pedido del dueño): sin sumar
 // aceite ni «algo que falta» acá; lo demás se agrega a mano después, desde el buscador. Cada fila
 // guarda sus valores cada 100 g (de la base de GIZE o de la estimación de la IA): al cambiar los
 // gramos se recalcula todo en el lugar.
-// ComidaState.plate = { modo: "plato", status: "elegir" | "cargando" | "error" | "vacio" | "ok",
-//   meal, photoUrl, b64, err, cargando (0: analizando, 1: buscando en la base),
+// ComidaState.plate = { modo: "plato" | "texto", status: "elegir" | "contar" | "cargando" | "error" |
+//   "vacio" | "ok", meal, photoUrl, b64, texto (lo que contó, en la voz), aviso (en «contar»: falta
+//   escribir o no hay conexión), err, cargando (0: analizando, 1: buscando en la base),
 //   items: [{ name, g, b: {kcal,p,c,f}, unit, base (de la base de GIZE), paso (gramos del − / +),
 //   editado }], nota, raw }
 export const PLATE_FINE = "Estimado con IA. Puede equivocarse: revisá los alimentos y los gramos antes de agregar. Las fotos suelen quedarse cortas con el aceite y las salsas.";
+export const PLATE_FINE_TEXTO = "Estimado con IA. Puede equivocarse: revisá los alimentos y los gramos antes de agregar.";
+// Lo más que se puede contar (lo mismo que acepta la función «ia»).
+export const TEXTO_MAX = 400;
 const r1p = v => (Math.round(v * 10) / 10).toLocaleString("es-AR");
 export const plateGrams = it => Math.max(0, Math.min(5000, parseFloat(String(it.g).replace(",", ".")) || 0));
 export function plateItemVals(it){
@@ -728,8 +742,13 @@ export function plateAddLabel(P){
   return t.n ? `Agregar ${alComida(P.meal)}${plateDia()} · ${kNum(t.kcal)} kcal` : "Agregar";
 }
 // «Te quedan 3 fotos con IA hoy»: solo con 3 o menos. Con el límite semanal de IA Plus, lo que
-// queda de la semana.
-export function plateQuedan(){
+// queda de la semana (solo la foto: la voz no tiene límite semanal).
+export function plateQuedan(modo){
+  if (modo === "texto") {
+    const q = IA.estado && IA.estado.quedan ? IA.estado.quedan.texto : null;
+    if (q == null || q > 3) return "";
+    return `<div class="pl8-quedan" id="pl8Quedan">${clockSvg}<span>${q ? "Te " + (q === 1 ? "queda " : "quedan ") + q + " con IA hoy" : "Hoy ya no te quedan usos con IA"}</span></div>`;
+  }
   const q = IA.estado && IA.estado.quedan ? IA.estado.quedan.plato : null;
   if (q == null || q > 3) return "";
   const p = IA.estado.plus;
@@ -776,33 +795,57 @@ const plateAlertIc = e => {
 };
 const plateAlert = (svg, msg) => `<div class="pl8-err" role="alert"><span class="pl8-err-ic" aria-hidden="true">${svg}</span><span class="pl8-err-t">${msg}</span></div>`;
 
+// ¿Se usa con el dedo (celular)? En la compu no hay micrófono del teclado: se pide que lo escriba.
+const conDedo = () => !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+// «Contalo con tu voz»: en la hoja de la foto y en el aviso del límite semanal de fotos.
+const vozLink = () => iaDisponible("texto") ? `<button class="pl8-link pl8-voz" data-action="ia-voz">${micSvg}<span>Contalo con tu voz</span></button>` : "";
+// Lo que contó, entre comillas (mientras espera, en la revisión y en los avisos).
+const plateDijo = P => P.modo === "texto" && P.texto ? `<p class="pl8-dijo">«${esc(String(P.texto).trim())}»</p>` : "";
+// La voz: el campo para dictar (con el micrófono del teclado) o escribir lo que comió.
+function plateContar(P){
+  const dedo = conDedo(), tx = P.texto || "";
+  return `
+      <div class="pl8-mic" aria-hidden="true">${micSvg}</div>
+      <p class="pl8-hint">${dedo ? "<b>Tocá el micrófono del teclado y decí lo que comiste.</b> Ej: dos empanadas de carne y una coca" : "<b>Escribí lo que comiste.</b> Ej: dos empanadas de carne y una coca"}</p>
+      <label class="pl8-lbl" for="pl8Txt">${dedo ? "Decilo o escribilo" : "Lo que comiste"}</label>
+      <textarea id="pl8Txt" class="form-input pl8-txt" rows="3" maxlength="${TEXTO_MAX}" enterkeyhint="send" data-action="plate-text" placeholder="Ej: dos empanadas de carne y una coca">${esc(tx)}</textarea>
+      <div class="pl8-cnt" aria-hidden="true"><span id="pl8Cnt">${tx.length}</span>/${TEXTO_MAX}</div>
+      ${P.aviso ? plateAlert(P.aviso === "sin_conexion" ? wifiOffSvg : alertSvg, P.aviso === "sin_conexion" ? "Sin conexión. La IA necesita internet; lo que escribiste queda acá." : "Contá qué comiste (por ejemplo: dos empanadas de carne y una coca).") : ""}
+      <button class="ctrl primary pl8-main" data-action="plate-text-go">${sparkleSvg}<span>Calcular con IA</span></button>
+      ${dedo ? `<details class="pl8-ayuda"><summary>¿No ves el micrófono?</summary><p>En el iPhone: Ajustes → General → Teclado → Activar dictado. En Android con Gboard: el micrófono está arriba a la derecha del teclado.</p></details>` : ""}
+      ${plateQuedan("texto")}`;
+}
+
 function plateBody(P){
+  if (P.status === "contar") return plateContar(P);
   if (P.status === "elegir") return `
       <div class="pl8-hero" aria-hidden="true"><span class="pl8-hero-c"></span><span class="pl8-hero-ic">${plateHeroSvg}</span></div>
       <p class="pl8-hint"><b>Sacale una foto a tu plato.</b> De arriba, con todo el plato a la vista y buena luz. La IA estima qué hay y cuánto; después lo revisás.</p>
       <div class="pl8-pick">
         <label class="pl8-op pl8-op-cam" tabindex="0" role="button" data-pick="1"><span class="pl8-op-ic">${cameraSvg}</span><span class="pl8-op-t"><b>Sacar foto</b><small>Con la cámara, ahora</small></span><span class="pl8-op-go">${chevronRightSvg}</span><input type="file" accept="image/*" capture="environment" data-action="plate-file" tabindex="-1" hidden></label>
         <label class="pl8-op" tabindex="0" role="button" data-pick="1"><span class="pl8-op-ic">${imageSvg}</span><span class="pl8-op-t"><b>Elegir de la galería</b><small>Una foto que ya tenés</small></span><span class="pl8-op-go">${chevronRightSvg}</span><input type="file" accept="image/*" data-action="plate-file" tabindex="-1" hidden></label>
-      </div>${plateQuedan()}`;
-  const photo = P.photoUrl ? `<img class="pl8-photo" src="${esc(P.photoUrl)}" alt="Foto del plato">` : "";
+      </div>${plateQuedan()}${vozLink()}`;
+  const texto = P.modo === "texto";
+  const photo = P.photoUrl ? `<img class="pl8-photo" src="${esc(P.photoUrl)}" alt="Foto del plato">` : plateDijo(P);
   // Mientras la IA lee: la foto con el marco y una línea que la recorre (quieta con movimiento
   // reducido, en liviano y en básico), y debajo el lugar de la lista que va a llegar.
-  if (P.status === "cargando") return `<div class="pl8-scan">${photo}<span class="pl8-scan-l" aria-hidden="true"></span></div>
-      <div class="pl8-wait" role="status" aria-live="polite"><span class="pl8-spin" aria-hidden="true">${scanSvg}</span><span id="pl8Wait">${P.cargando ? "Buscando en la base de GIZE…" : "Leyendo tu plato…"}</span></div>
+  if (P.status === "cargando") return `${texto ? photo : `<div class="pl8-scan">${photo}<span class="pl8-scan-l" aria-hidden="true"></span></div>`}
+      <div class="pl8-wait" role="status" aria-live="polite"><span class="pl8-spin" aria-hidden="true">${scanSvg}</span><span id="pl8Wait">${P.cargando ? "Buscando en la base de GIZE…" : texto ? "Leyendo lo que comiste…" : "Leyendo tu plato…"}</span></div>
       <div class="pl8-skel" aria-hidden="true">${'<div class="pl8-sk"><i></i><span><b></b><b></b></span></div>'.repeat(3)}</div>`;
-  const otra = `<button class="ctrl primary pl8-main" data-action="plate-again">${cameraSvg}<span>Sacar otra foto</span></button>`;
+  const otra = texto ? `<button class="ctrl primary pl8-main" data-action="plate-again">${micSvg}<span>Contar de nuevo</span></button>` : `<button class="ctrl primary pl8-main" data-action="plate-again">${cameraSvg}<span>Sacar otra foto</span></button>`;
   const manual = `<div class="pl8-btns2"><button class="ctrl ghost" data-action="plate-manual">${searchSvg}<span>Buscar alimento</span></button><button class="ctrl ghost" data-action="plate-scan">${barcodeSvg}<span>Escanear código</span></button></div>`;
   if (P.status === "error") return `${photo}
-      ${plateAlert(plateAlertIc(P.err), esc(P.msg || ""))}${P.err && (P.err.codigo === "tope_semana" || (P.err.codigo === "ahorro" && plusLimiteSemanal())) ? plusOfertaHtml() : ""}
-      <div class="pl8-btns">${P.reintento ? `<button class="ctrl primary pl8-main" data-action="plate-retry">${resetSvg}<span>Probar de nuevo</span></button>` : ""}${manual}</div>`;
+      ${plateAlert(plateAlertIc(P.err), esc(P.msg || ""))}${!texto && P.err && (P.err.codigo === "tope_semana" || (P.err.codigo === "ahorro" && plusLimiteSemanal())) ? plusOfertaHtml() : ""}
+      ${!texto && P.err && P.err.codigo === "tope_semana" ? vozLink() : ""}
+      <div class="pl8-btns">${P.reintento ? `<button class="ctrl primary pl8-main" data-action="plate-retry">${resetSvg}<span>Probar de nuevo</span></button>` : ""}${texto && P.texto ? `<button class="ctrl ghost" data-action="plate-again">${micSvg}<span>Contar de nuevo</span></button>` : ""}${manual}</div>`;
   if (P.status === "vacio") return `${photo}
-      ${plateAlert(alertSvg, "No vimos comida en la foto. Probá con el plato entero, de arriba y con buena luz.")}
+      ${plateAlert(alertSvg, texto ? "No encontramos comida en lo que contaste. Probá así: un plato de fideos con tuco y una manzana." : "No vimos comida en la foto. Probá con el plato entero, de arriba y con buena luz.")}
       <div class="pl8-btns">${otra}${manual}</div>`;
   // ok: la lista para revisar
   const rows = (P.items || []).map(plateRow).join("");
   return `${photo}
-      <div class="pl8-list">${rows || '<div class="pl8-empty">No quedó ningún alimento. Sacá otra foto o cargalo a mano desde el buscador.</div>'}</div>
-      <p class="pl8-fine">${infoSvg}<span>${PLATE_FINE}</span></p>
+      <div class="pl8-list">${rows || `<div class="pl8-empty">No quedó ningún alimento. ${texto ? "Contalo de nuevo" : "Sacá otra foto"} o cargalo a mano desde el buscador.</div>`}</div>
+      <p class="pl8-fine">${infoSvg}<span>${texto ? PLATE_FINE_TEXTO : PLATE_FINE}</span></p>
       <button class="pl8-link" data-action="plate-report">${messageSvg}<span>¿Está mal? Avisanos</span></button>`;
 }
 
@@ -815,12 +858,12 @@ export function renderPlateSheet(){
       <div class="pl8-tot" id="pl8Tot" aria-live="polite">${plateTotalsText(P)}</div>
       <div class="pl8-need" id="pl8Need"${t.n ? " hidden" : ""}>Agregá al menos un alimento con gramos.</div>
       <button class="form-save pl8-go" id="pl8Go" data-action="plate-add"${t.n ? "" : " disabled"}>${plateAddLabel(P)}</button>
-      <button class="pl8-link pl8-again" data-action="plate-again">Sacar otra foto</button>
+      <button class="pl8-link pl8-again" data-action="plate-again">${P.modo === "texto" ? "Contar de nuevo" : "Sacar otra foto"}</button>
     </div>` : "";
   return `
     <div class="sheet-bg" data-action="plate-cancel"></div>
     <div class="sheet plate-sheet${ok ? " ok" : ""}" role="dialog" aria-modal="true" aria-labelledby="pl8T">
-      <div class="ss-head"><span class="sheet-title" id="pl8T" tabindex="-1">Foto del plato <span class="ia-tag" aria-label="con IA">${sparkleSvg}IA</span>${plateDia() ? `<span class="pl8-dia">Para ${plateDia().replace(/^ de /, "").replace(/^ del /, "el ")}</span>` : ""}</span><button class="ss-x" data-action="plate-cancel" aria-label="Cerrar">${xSvg}</button></div>
+      <div class="ss-head"><span class="sheet-title" id="pl8T" tabindex="-1">${P.modo === "texto" ? "Contá qué comiste" : "Foto del plato"} <span class="ia-tag" aria-label="con IA">${sparkleSvg}IA</span>${plateDia() ? `<span class="pl8-dia">Para ${plateDia().replace(/^ de /, "").replace(/^ del /, "el ")}</span>` : ""}</span><button class="ss-x" data-action="plate-cancel" aria-label="Cerrar">${xSvg}</button></div>
       <div class="pl8-body">${plateBody(P)}</div>
       ${foot}
     </div>`;

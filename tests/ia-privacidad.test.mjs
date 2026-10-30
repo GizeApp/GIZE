@@ -6,6 +6,8 @@
 // IA») tienen su párrafo (#ia-coach), su permiso (app/ui/ia-permiso-rutinas.js) y su línea en
 // los términos, y los tres dicen lo mismo. El viejo «Resumen para tu coach» con IA (que nunca salió)
 // se sacó, para no confundirlo con el «Resumen de los lunes», que no usa IA y tiene su línea aparte.
+// La voz en Comida («Contá qué comiste»): se manda el texto (dictado con el teclado o escrito), nunca
+// el audio, y lo dicen igual la política, la hoja del permiso (aviso versión 3) y Ajustes.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,11 +46,17 @@ export default async ({ t }) => {
   t.ok(!/las ve solo el equipo de GIZE/.test(txt), 'las fotos de productos ya no dicen que las ve solo el equipo de GIZE');
   t.has(txt, 'la foto de la tabla se envía a Anthropic para leerla', '«Cámara y fotos» dice que la tabla puede ir a Anthropic');
   t.ok(/<li><b>Anthropic:<\/b>/.test(html), 'Anthropic en la lista de empresas');
-  t.has(txt, 'recibe la foto de cada consulta, el texto de las planillas o el pedido que escribe el coach, para dar el resultado', 'la lista de empresas dice qué recibe Anthropic: la foto y lo de las funciones para coaches');
-  // Solo la foto: la aclaración escrita («¿Qué es?») se sacó de la app.
-  t.has(ia, 'solo la foto que elegís y, para calcular un plato, la lista de alimentos de GIZE', 'en la comida se envía solo la foto');
-  t.has(ia, 'GIZE no guarda la foto del plato; la foto de un producto', 'qué no guarda GIZE, sin texto');
-  for (const viejo of ['o lo que escribís', 'ni lo que escribas', 'la foto o el texto de cada consulta'])
+  t.has(txt, 'recibe la foto o el texto de cada consulta, el texto de las planillas o el pedido que escribe el coach, para dar el resultado', 'la lista de empresas dice qué recibe Anthropic: la foto o el texto (la voz) y lo de las funciones para coaches');
+  // La voz (cambió a propósito: antes era «solo la foto»): va el texto de lo que contás, nunca el audio.
+  t.has(ia, 'solo la foto que elegís o el texto de lo que contás y, para calcular un plato o lo que comiste, la lista de alimentos de GIZE', 'en la comida se envía la foto o el texto de lo que contás');
+  t.has(ia, 'Si lo dictás, se envía solo el texto que escribió el teclado, nunca el audio', 'de la voz va solo el texto, nunca el audio');
+  t.has(ia, 'contar lo que comiste (escrito o dictado con el micrófono del teclado)', 'la lista nombra la voz');
+  t.has(ia, 'GIZE no guarda la foto del plato ni lo que contás; la foto de un producto', 'qué no guarda GIZE: ni la foto ni lo que contás');
+  t.has(ia, 'y, si lo contaste, también lo que contaste, para mejorarla', '«¿Está mal?» guarda también lo que contaste');
+  const micro = txt.slice(txt.indexOf(' Micrófono '), txt.indexOf('Pasos automáticos'));
+  t.has(micro, 'podés dictar lo que comiste con el micrófono del teclado de tu celular', '«Micrófono»: el dictado es del teclado');
+  t.has(micro, 'GIZE no graba tu voz ni usa el micrófono para esto, y recibe solo el texto', '«Micrófono»: GIZE no graba la voz y recibe solo el texto');
+  for (const viejo of ['o lo que escribís', 'ni lo que escribas'])
     t.ok(!txt.includes(viejo), 'la política ya no dice «' + viejo + '»');
   t.has(txt, 'Estos proveedores están obligados por contrato a proteger tus datos', 'la frase de los proveedores');
   t.has(txt, 'tu permiso para usar las funciones con IA y tus avisos de «¿Está mal?». No conservamos', '«Qué se borra» incluye el permiso de la IA y los avisos de «¿Está mal?»');
@@ -59,10 +67,17 @@ export default async ({ t }) => {
   for (const frase of ['Anthropic, la empresa que hace la IA Claude, en Estados Unidos', 'no tu nombre, tu mail ni otros datos de tu cuenta', 'no la usa para entrenar su IA',
     'la borra dentro de los 30 días', 'Solo se manda la foto: no tu nombre', 'aceptás que tu foto se envíe a Anthropic', 'GIZE no guarda la foto del plato', 'No es consejo médico ni nutricional', 'Ajustes → Funciones con IA', 'Aceptar y usar IA', 'privacidad/?app=1#ia'])
     t.has(hoja, frase, 'la hoja del permiso dice: ' + frase);
-  const textos = (hoja.match(/export const PERMISO_[A-Z]+ = [\s\S]*?;\n/g) || []).join('\n');
-  t.ok(textos.length > 200 && !/lo que escribas|tu texto/.test(textos), 'la hoja del permiso ya no dice que se manda texto');
+  // Dos textos: el de la foto (versión 2, mientras la voz no esté lista) no dice que se manda texto; el
+  // de la voz (versión 3) dice que va lo que contás y que GIZE no graba la voz.
+  const textos = (hoja.match(/export const PERMISO_(INTRO|PUNTOS|CIERRE) = [\s\S]*?;\n/g) || []).join('\n');
+  t.ok(textos.length > 200 && !/lo que escribas|tu texto|lo que contás/.test(textos), 'el aviso de la foto no dice que se manda texto');
+  const textosVoz = (hoja.match(/export const PERMISO_VOZ_[A-Z]+ = [\s\S]*?;\n/g) || []).join('\n');
+  for (const frase of ['la foto que elegís o lo que contás (escrito o dictado)', 'Solo se manda la foto o tu texto: no tu nombre', 'lo pasa a texto el teclado de tu celular: GIZE no graba tu voz',
+    'no los usa para entrenar su IA', 'los borra dentro de los 30 días', 'GIZE no guarda la foto del plato ni lo que contás', 'No es consejo médico ni nutricional', 'Ajustes → Funciones con IA', 'aceptás que tu foto o tu texto se envíen a Anthropic'])
+    t.has(textosVoz, frase, 'el aviso de la voz dice: ' + frase);
+  t.ok(/export const PERMISO_VERSION = AVISO_VOZ;/.test(hoja) && /export const AVISO_VOZ = 3;/.test(fs.readFileSync(path.join(ROOT, 'app/core/ia.js'), 'utf8')), 'el aviso de la voz es la versión 3');
   const ajustes = fs.readFileSync(path.join(ROOT, 'app/screens/config.js'), 'utf8');
-  t.ok(ajustes.includes('Envía a Anthropic (EE. UU.) la foto de cada consulta.') && !ajustes.includes('la foto o el texto'), 'Ajustes → Funciones con IA: solo la foto');
+  t.ok(ajustes.includes("Envía a Anthropic (EE. UU.) ' + (iaVozLista() ? 'la foto o lo que contás en cada consulta' : 'la foto de cada consulta') + '. Apagado: no se manda nada.") && !ajustes.includes('la foto o el texto'), 'Ajustes → Funciones con IA: la foto, o la foto o lo que contás con la voz lista');
   // Las funciones para coaches («Pasar mis planillas» y «Armar con IA»): qué se manda, qué se saca, que
   // GIZE no guarda la planilla ni el pedido, el permiso propio y dónde se apaga.
   t.ok(/<p id="ia-coach"><b>Qué se envía en las funciones para coaches<\/b>/.test(html), 'el párrafo de las funciones para coaches, con su ancla (#ia-coach)');

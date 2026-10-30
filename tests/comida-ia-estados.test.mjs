@@ -40,7 +40,8 @@ export default async function ({ base, t }){
   for (const [nombre, est, texto] of [
     ['límite del día', { quedan: { plato: 0, texto: 4 } }, 'Llegaste al límite de hoy (8 fotos de plato con IA). Mañana se renueva. Mientras, buscalo o escaneá el código.'],
     ['límite del día (fotos y textos)', { quedan: { plato: 0, texto: 0 }, usados: { plato: 8, texto: 15, total: 23 } }, 'Llegaste al límite de hoy (8 fotos de plato con IA).'],
-    ['límite del día (total)', { quedan: { plato: 0, texto: 0 }, tope: { plato: 8, texto: 15, total: 20 }, usados: { plato: 5, texto: 15, total: 20 } }, 'Llegaste al límite de hoy (20 fotos de plato con IA).'],
+    // El límite de todos los usos juntos (fotos, voz y lo del coach): dice «usos con IA», no «fotos».
+    ['límite del día (total)', { quedan: { plato: 0, texto: 0 }, tope: { plato: 8, texto: 15, total: 20 }, usados: { plato: 5, texto: 15, total: 20 } }, 'Llegaste al límite de hoy (20 usos con IA).'],
     ['límite de la persona', { estado: 'tope_persona', vuelve: '2026-11-10T12:00:00Z' }, 'Llegaste a tu límite personal de este mes con IA. Vuelve el 10 de noviembre. Mientras, buscalo o escaneá el código.'],
     ['límite del mes', { estado: 'tope_mes', vuelve: '2026-11-10T12:00:00Z' }, 'La IA de GIZE llegó a su límite de este mes: cargalo a mano. Vuelve el 10 de noviembre.'],
     ['pausada', { estado: 'pausada' }, 'La IA está pausada por ahora. Cargalo a mano.'],

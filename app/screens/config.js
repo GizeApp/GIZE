@@ -21,7 +21,7 @@ import { temaOptionsHtml } from '../ui/tema.js';
 import { neonSwitchHtml } from '../ui/neon.js';
 import { appIOS, appNativa } from '../core/tienda.js';
 import { cuotaCoach } from '../core/cobros.js';
-import { IA_POR_GIMNASIO, iaAlguna, iaEstado, iaGuardarPermiso, iaPermiso, iaPorGimnasio } from '../core/ia.js';
+import { IA_POR_GIMNASIO, iaAlguna, iaEstado, iaGuardarPermiso, iaPermiso, iaPorGimnasio, iaVozLista } from '../core/ia.js';
 import { iaToast, pedirPermisoIA } from '../ui/ia-permiso.js';
 import { plusAjustesHtml, plusInfo } from '../ui/ia-plus.js';
 import { widgetAjustesHtml, widgetBorrar } from '../core/widget.js';
@@ -38,7 +38,7 @@ const zapSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 let _iaCfg = "";
 function iaConfigRefrescar() {
   iaEstado().then(() => {
-    const v = iaAlguna() + "|" + iaPermiso() + "|" + JSON.stringify(plusInfo());
+    const v = iaAlguna() + "|" + iaPermiso() + "|" + iaVozLista() + "|" + JSON.stringify(plusInfo());
     if (v === _iaCfg) return;
     _iaCfg = v;
     if (State.view === "config") renderApp();
@@ -329,7 +329,8 @@ export function renderConfig() {
       '</button>' +
     '</div>';
 
-  // Funciones con IA (la foto del plato): solo si está prendida en el
+  // Funciones con IA (la foto del plato y la voz; el mismo interruptor apaga las dos; con la voz
+  // lista dice también «lo que contás»): solo si está prendida en el
   // panel, o si la persona ya la había aceptado (para que la pueda apagar). Apagarla guarda que no
   // quiere (ia_permiso) y desde ahí no se manda nada; prenderla vuelve a mostrar el aviso.
   if (logged) iaConfigRefrescar();
@@ -339,7 +340,7 @@ export function renderConfig() {
         '<span class="cfg-notif-ic">' + sparkSvg + '</span>' +
         '<div class="cfg-notif-txt">' +
           '<div class="cfg-notif-label" id="cfgIaLbl">Funciones con IA</div>' +
-          '<div class="cfg-notif-desc" id="cfgIaDesc">Envía a Anthropic (EE. UU.) la foto de cada consulta. Apagado: no se manda nada. ' + (iaPorGimnasio() ? IA_POR_GIMNASIO + ' ' : '') + '<a class="cfg-ia-link" href="' + LINKS.privacy + '#ia" target="_blank" rel="noopener">Política de privacidad</a></div>' +
+          '<div class="cfg-notif-desc" id="cfgIaDesc">Envía a Anthropic (EE. UU.) ' + (iaVozLista() ? 'la foto o lo que contás en cada consulta' : 'la foto de cada consulta') + '. Apagado: no se manda nada. ' + (iaPorGimnasio() ? IA_POR_GIMNASIO + ' ' : '') + '<a class="cfg-ia-link" href="' + LINKS.privacy + '#ia" target="_blank" rel="noopener">Política de privacidad</a></div>' +
         '</div>' +
         '<button class="cfg-switch' + (iaOn ? ' on' : '') + '" data-action="cfg-ia-toggle" role="switch" aria-checked="' + iaOn + '" aria-labelledby="cfgIaLbl" aria-describedby="cfgIaDesc"><span class="cfg-switch-knob"></span></button>' +
       '</div>' +

@@ -431,6 +431,15 @@ html.tema-luz body {
 html.tema-luz .ia-spark { box-shadow: 0 0 0 2px rgba(255,255,255,.9); }
 .ia-foto-btn:active { transform: scale(.97); }
 :is(.ia-foto-btn, .pl8-chg, .pl8-alt, .pl8-x, .pl8-step, .pl8-link, .pl8-btns .ctrl, .pl8-op):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+/* «Voz» al lado de «Foto»: el mismo botón (clase ia-foto-btn), con el micrófono. Con los dos, en
+   pantallas de 360 px o menos se achican para que el buscador no quede apretado (siguen de 44 px). */
+@media (max-width: 360px) { .comida-barra .ia-foto-btn, .search-sheet .food-search-row .ia-foto-btn { min-width: 44px; padding: 4px 5px; } }
+/* «¿No está? Decilo con tu voz» (la búsqueda sin resultados): punteado, como «Crear alimento propio». */
+.ia-nores { width: 100%; min-height: 44px; margin: 10px 0 0; padding: 10px 12px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  border-radius: var(--r-box); border: 1px dashed color-mix(in srgb, var(--gize-r2) 55%, var(--border)); background: transparent; color: var(--txt);
+  font: 600 var(--text-body) var(--gize-font); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ia-nores svg { width: 18px; height: 18px; flex: none; color: var(--ia-ink); }
+:is(.ia-nores, .pl8-txt, .pl8-ayuda summary):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
 /* El buscador vacío o sin resultados: el ícono en su círculo, un título y una línea de ayuda. */
 .ss-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 30px 16px 18px; text-align: center; }
@@ -501,6 +510,19 @@ html.tema-luz .pl8-hero-c { --a: color-mix(in srgb, var(--gize-r2) 80%, #0B0D11)
 .pl8-op-cam { background: linear-gradient(135deg, var(--ia-tint), var(--ia-tint-2)), var(--card-2); }
 .pl8-quedan { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--txt); font-weight: 600; }
 .pl8-quedan svg { width: 15px; height: 15px; color: var(--gize-warning, #FFB547); flex: none; }
+/* La voz («Contá qué comiste»): el micrófono arriba, el campo para dictar o escribir, cuántas letras
+   van y la ayuda del teclado. Lo que contó va entre comillas, con una raya al costado. */
+.pl8-mic { flex: none; align-self: center; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; color: var(--ia-on-grad, #fff); background: var(--ia-grad); }
+.pl8-mic svg { width: 30px; height: 30px; }
+.pl8-lbl { font-size: var(--text-meta); font-weight: 600; color: var(--txt-2); }
+.pl8-txt { display: block; width: 100%; min-height: 96px; resize: none; font: 16px/1.4 var(--gize-font); }
+.pl8-cnt { margin: -6px 0 0; text-align: right; font-size: var(--text-meta); color: var(--txt-2); }
+.pl8-ayuda { font-size: var(--text-meta); color: var(--txt-2); }
+.pl8-ayuda summary { min-height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--txt); font-weight: 600; }
+.pl8-ayuda p { margin: 0; text-align: center; line-height: 1.45; }
+.pl8-dijo { margin: 0; flex: none; padding: 10px 12px; border-left: 3px solid color-mix(in srgb, var(--gize-r2) 60%, var(--border)); border-radius: 0 10px 10px 0;
+  background: var(--card-2); color: var(--txt); font-style: italic; line-height: 1.45; overflow-wrap: anywhere; }
+.pl8-voz { align-self: center; }
 
 /* Mientras la IA lee: la foto en su marco con una línea que la recorre, «Leyendo tu plato…» con el
    visor, y el lugar de la lista (tres filas grises que brillan apenas). */

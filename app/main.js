@@ -58,8 +58,8 @@ import { abrirRutinaIA, borradorAplicado, rutinaIAAction } from './screens/coach
 import { iaCoachEstado } from './core/ia-coach.js';
 import { deloadRoutineOf, deloadWeeks } from './core/bloque.js';
 
-import { ComidaState, mealNow, alComida, plateDia, paintBarraIA, paintSearchIA, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, foodByName, lastResults, offResults, paintPlate, paintPlateNums, plateItemVals, previewStr, rememberCookState, renderComida, renderPlateSheet, renderResults, selectedFoodValues } from './screens/comida.js';
-import { IA, iaDisponible, iaEstado, iaMensaje, iaPedir, iaPermiso, iaReportar, iaSinReintento, iaVisible, photoB64 } from './core/ia.js';
+import { ComidaState, mealNow, alComida, plateDia, paintBarraIA, paintSearchIA, renderSearchSheet, animateCalRing, calcTarget, macroKcal, macroSumText, cookPortion, defaultCookState, entryBase, foodByName, lastResults, offResults, paintPlate, paintPlateNums, plateItemVals, plateQuedan, previewStr, rememberCookState, renderComida, renderPlateSheet, renderResults, selectedFoodValues } from './screens/comida.js';
+import { IA, iaDisponible, iaEstado, iaMensaje, iaPedir, iaPermiso, iaPermisoTexto, iaReportar, iaSinReintento, iaVisible, photoB64 } from './core/ia.js';
 import { plusLimiteSemanal } from './ui/ia-plus.js';
 import { iaToast, pedirPermisoIA } from './ui/ia-permiso.js';
 import { FOODS } from './core/data.js';
@@ -387,6 +387,8 @@ document.body.addEventListener("input", async e => {
   if (a === "ci-set") { checkinFormInit()[t.dataset.k] = t.value; return; }
   // Más de 5000 g no se anota: el campo muestra lo mismo que se va a anotar.
   if (a === "plate-grams") { const P=ComidaState.plate, it=P&&P.items[+t.dataset.i]; if(it){ if((parseFloat(String(t.value).replace(",","."))||0) > 5000) t.value="5000"; it.g=t.value; if(plateGramsNum(it)!==it.g0) it.editado=true; paintPlateNums(+t.dataset.i); } return; }
+  // La voz: lo que va contando (dictado con el teclado o escrito), sin redibujar el campo.
+  if (a === "plate-text") { const P=ComidaState.plate; if(P){ P.texto=t.value; const c=document.getElementById("pl8Cnt"); if(c) c.textContent=t.value.length; } return; }
   if (a === "food-search") { ComidaState.foodQuery = t.value; scheduleOffSearch(t.value); const r=document.getElementById("foodResults"); if(r) r.innerHTML = renderResults(ComidaState.foodQuery); return; }
   if (a === "ex-search") { EntrenoState.exQuery = t.value; const l=document.getElementById("exList"); if(l) l.innerHTML = renderExList(); return; }
   if (a === "portion-grams") { const base = ComidaState.selectedFood ? selectedFoodValues() : (ComidaState.editEntry ? entryBase(ComidaState.editEntry) : null); if(base){ const pv=document.getElementById("portionPreview"); if(pv) pv.textContent = previewStr(base, t.value); const pu=document.getElementById("portionUnits"); const uf=sheetUnitFood(); if(pu && uf) pu.textContent = unitsLabel(t.value, cookPortion(uf.food, uf.cook), base.unit, uf.food); } ComidaState.sheetGrams = t.value; return; }
@@ -516,8 +518,8 @@ document.body.addEventListener("click", async e => {
   const a = el.dataset.action;
   if (routineLocked() && ["addday","delday","removeex","addset","removeset","ex-add-open","ex-swap","ex-insert","ex-choose","ex-custom","load-default-routine","open-routines"].indexOf(a)>=0) return;
 
-  // Foto del plato (IA)
-  if (a === "ia-plato" || a.startsWith("plate-")) { await plateClick(a, el); return; }
+  // Foto del plato y voz (IA)
+  if (a === "ia-plato" || a === "ia-voz" || a.startsWith("plate-")) { await plateClick(a, el); return; }
 
   // Racha
   if (a === "streak-open") { openStreak(); return; }
@@ -2198,17 +2200,19 @@ window.addEventListener("gize:login", maybeCheckRequests);
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") maybeCheckRequests(); });
 
 
-// ---------- Foto del plato (IA) ----------
-// «Contame qué comiste» (contarlo con palabras) se sacó: GIZE es solo fotos.
+// ---------- Foto del plato y voz (IA) ----------
+// La voz («Contá qué comiste»): se dicta con el micrófono del teclado del celular (o se escribe) y
+// a la función va solo ese texto; GIZE no graba nada. No tiene el límite semanal de las fotos.
 // Arranca apagado: los botones salen solo si ia_mi_estado() dice que la función está prendida
-// (core/ia.js). Antes del primer uso, el permiso (ui/ia-permiso.js), antes de abrir la cámara.
-// La IA propone, la persona revisa en la hoja (screens/comida.js →
-// renderPlateSheet) y nada se anota sin tocar «Agregar». Solo se manda la foto: la aclaración
-// («¿Qué es?») y «Recalcular» se sacaron (pedido del dueño).
+// (core/ia.js; la voz, además, con la base nueva). Antes del primer uso, el permiso
+// (ui/ia-permiso.js): antes de abrir la cámara o de mandar lo que contó. La IA propone, la persona
+// revisa en la hoja (screens/comida.js → renderPlateSheet) y nada se anota sin tocar «Agregar».
+// Con la foto se manda solo la foto: la aclaración («¿Qué es?») y «Recalcular» se sacaron (pedido
+// del dueño).
 // El estado de la IA, sin apuro (vale 5 minutos): si cambia lo que se ve respecto de lo que ya
 // está dibujado, se ponen los botones en la barra de arriba y en el buscador sin redibujarlos (no
 // se pierde lo que se está escribiendo). Apagada, no cambia nada.
-const iaVis = () => iaVisible("plato") + "|" + iaDisponible("plato");
+const iaVis = () => iaVisible("plato") + "|" + iaDisponible("plato") + "|" + iaVisible("texto") + "|" + iaDisponible("texto");
 const iaPintarBuscador = () => {
   if (State.view !== "comida") return;
   paintBarraIA();
@@ -2241,12 +2245,19 @@ function plateDeBase(bx, g0){
   if (f && foodUnit(f).natural) it.paso = cookPortion(f, bx.cocido ? "cocido" : null) || 10;
   return it;
 }
-function plateItems(res){
+// En la voz, «2 empanadas» se pasa a gramos con la unidad del alimento de la base
+// (core/foodunits.js) cuando la unidad coincide: esa cuenta la hace la app, no la IA.
+function plateItems(res, modo){
+  const nrm = x => norm(String(x || "")).trim();
   return (res.items || []).map(x => {
     const g0 = Math.max(0, Number(x.gramos) || 0);
     let it;
     if (x.base) {
       it = plateDeBase(x.base, g0);
+      const f = (FOODS[x.base.id] && FOODS[x.base.id].name === x.base.nombre) ? FOODS[x.base.id] : foodByName(x.base.nombre);
+      const u = f ? foodUnit(f) : null, un = nrm(x.unidad);
+      if (modo === "texto" && f && u.natural && x.cantidad > 0 && un && (un === nrm(u.one) || un === nrm(u.many) || /^(unidad|unidades|u)$/.test(un)))
+        it.g = roundG(x.cantidad * cookPortion(f, x.base.cocido ? "cocido" : null));
     } else {
       const k = g0 > 0 ? 100 / g0 : 0;
       it = { name: x.nombre || "Alimento", g: roundG(g0), b: { kcal: (+x.kcal || 0) * k, p: (+x.p || 0) * k, c: (+x.c || 0) * k, f: (+x.f || 0) * k }, unit: "g", base: false, paso: 10 };
@@ -2279,6 +2290,8 @@ document.addEventListener("keydown", e => {
   if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches(".plate-sheet label[data-pick]")) {
     e.preventDefault(); const i = e.target.querySelector("input"); if (i) i.click(); return;
   }
+  // La voz: «Enviar» del teclado (Enter, sin Mayúscula) calcula; Mayúscula + Enter baja de renglón.
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.target.id === "pl8Txt") { e.preventDefault(); plateVozCalcular(ComidaState.plate); return; }
   if (e.key !== "Tab") return;
   const l = [...card.querySelectorAll('button:not([disabled]), input:not([type=file]), textarea, label[data-pick], a[href]')].filter(x => x.getClientRects().length);
   if (!l.length) return;
@@ -2293,12 +2306,14 @@ function plateFreno(modo){
   const e = IA.estado;
   if (!e) return null;
   if (["pausada", "ahorro", "tope_mes", "tope_persona"].includes(e.estado)) return { codigo: e.estado, vuelve: e.vuelve };
-  // IA Plus prendido y sin usos gratis esta semana: el aviso con la oferta (ui/ia-plus.js).
-  if (e.estado === "tope_semana") return { codigo: "tope_semana", vuelve: e.vuelve, tope: e.plus && e.plus.gratis_semana };
-  // El número del aviso, como en ia_reservar: el de la función si esa se acabó; si no, el del día.
+  // IA Plus prendido y sin usos gratis esta semana: el aviso con la oferta (ui/ia-plus.js). Solo
+  // frena la foto: la voz no tiene límite semanal (sigue con su quedan.texto).
+  if (e.estado === "tope_semana" && modo !== "texto") return { codigo: "tope_semana", vuelve: e.vuelve, tope: e.plus && e.plus.gratis_semana };
+  // El número del aviso, como en ia_reservar: el de la función si esa se acabó; si no, el del día
+  // (el de todos los usos con IA juntos: total).
   if (e.quedan && e.quedan[modo] === 0) {
-    const t = e.tope, u = e.usados;
-    return { codigo: "tope_dia", tope: !t ? null : (u && u[modo] != null && u[modo] < t[modo]) ? t.total : t[modo] };
+    const t = e.tope, u = e.usados, total = !!(t && u && u[modo] != null && u[modo] < t[modo]);
+    return { codigo: "tope_dia", tope: !t ? null : total ? t.total : t[modo], total };
   }
   return null;
 }
@@ -2331,6 +2346,58 @@ async function plateEmpezar(){
   if (freno) { abrir({ modo, meal, status: "error", err: freno, msg: iaMensaje(freno), reintento: false, items: [] }); return; }
   abrir({ modo, meal, status: "elegir", items: [] });
 }
+// La comida según lo que contó: «en el almuerzo» → Almuerzo. Si nombra dos comidas (o ninguna), no
+// adivina: queda la elegida (o la de la hora).
+function comidaDelTexto(tx){
+  const n = norm(String(tx || ""));
+  const hay = [["desayuno", /\bdesayun/], ["almuerzo", /\balmuerz|\balmorc/], ["merienda", /\bmerend|\bmerienda/], ["cena", /\bcena\b|\bcene\b|\bcenamos\b/]].filter(([, re]) => re.test(n)).map(([m]) => m);
+  return hay.length === 1 ? hay[0] : null;
+}
+const vozFoco = () => { const t = document.getElementById("pl8Txt"); if (t) try { t.focus({ preventScroll: true }); t.setSelectionRange(t.value.length, t.value.length); } catch (e) {} };
+// «Voz»: abre la hoja «Contá qué comiste» y pone el foco en el campo en el mismo toque, sin
+// esperar a la red (si no, el iPhone no abre el teclado). El estado de la IA se mira después.
+// texto0: lo que buscó (desde «¿No está? Decilo con tu voz»).
+async function plateEmpezarVoz(texto0){
+  // La apagó en Ajustes: no se le vuelve a preguntar sola; el botón lleva a Ajustes.
+  if (iaPermiso() === "no" || iaPermisoTexto() === "no") {
+    if (await confirmar("Apagaste las funciones con IA. Si las querés usar, prendelas en Ajustes → Funciones con IA.", { titulo: "Funciones con IA", ok: "Ir a Ajustes" })) {
+      ComidaState.searchOpen = false; ComidaState.plateSwap = null; ComidaState.plate = null; State.view = "config"; renderApp(); window.scrollTo(0, 0);
+    }
+    return;
+  }
+  const viejo = ComidaState.plate;
+  if (viejo && viejo.photoUrl) URL.revokeObjectURL(viejo.photoUrl);
+  const P = { modo: "texto", meal: (viejo && viejo.meal) || ComidaState.meal || mealNow(), status: "contar", texto: String(texto0 || "").slice(0, 400), items: [] };
+  ComidaState.searchOpen = false; ComidaState.plateSwap = null; ComidaState.plate = P; SheetState.sheetGen++; renderApp();
+  vozFoco();
+  await iaEstado(true);
+  if (ComidaState.plate !== P || P.status !== "contar") return;
+  if (!iaVisible("texto")) { P.status = "error"; P.err = { codigo: "pausada" }; P.msg = iaMensaje(P.err, "texto"); P.reintento = false; platePaint(); return; }
+  // «Te quedan…» al día, sin redibujar el campo (no se cierra el teclado).
+  const q = document.getElementById("pl8Quedan"), tmp = document.createElement("div");
+  tmp.innerHTML = plateQuedan("texto");
+  const nuevo = tmp.firstElementChild, txt = document.getElementById("pl8Txt");
+  if (q && nuevo) q.replaceWith(nuevo); else if (q) q.remove(); else if (nuevo && txt) txt.closest(".pl8-body").appendChild(nuevo);
+}
+// «Calcular con IA» (o «Enviar» en el teclado): de 2 letras para arriba, con conexión, con el aviso
+// de la voz aceptado y sin un límite que ya se sepa.
+let vozMandando = false;
+async function plateVozCalcular(P){
+  if (vozMandando || P.status !== "contar") return;
+  const tx = String(P.texto || "").replace(/\s+/g, " ").trim();
+  if (tx.length < 2) { P.aviso = "corto"; platePaint(); vozFoco(); return; }
+  if (navigator.onLine === false) { P.aviso = "sin_conexion"; platePaint(); return; }
+  P.aviso = null;
+  if (iaPermiso() === "no" || iaPermisoTexto() === "no") { await plateEmpezarVoz(P.texto); return; }
+  vozMandando = true;
+  let ok;
+  try { ok = await pedirPermisoIA({ texto: true }); } finally { vozMandando = false; }
+  // «Ahora no»: no se manda nada y lo escrito queda.
+  if (!ok || ComidaState.plate !== P) return;
+  const freno = plateFreno("texto");
+  if (freno) { P.status = "error"; P.err = freno; P.msg = iaMensaje(freno, "texto"); P.reintento = false; platePaint(); return; }
+  plateCorrer(P);
+}
 async function plateFoto(file){
   const P = ComidaState.plate; if (!P) return;
   if (P.photoUrl) URL.revokeObjectURL(P.photoUrl);
@@ -2343,16 +2410,21 @@ async function plateCorrer(P){
   P.status = "cargando"; P.cargando = 0; platePaint();
   const reloj = setTimeout(() => { if (ComidaState.plate === P && P.status === "cargando") { P.cargando = 1; const w = document.getElementById("pl8Wait"); if (w) w.textContent = "Buscando en la base de GIZE…"; } }, 2500);
   try {
-    const res = await iaPedir("plato", { imagen: P.b64 });
+    const texto = P.modo === "texto";
+    const res = await iaPedir(P.modo, texto ? { texto: String(P.texto || "").replace(/\s+/g, " ").trim().slice(0, 400) } : { imagen: P.b64 });
     if (ComidaState.plate !== P) return;
     P.raw = { hay_comida: !!res.hay_comida, nota: res.nota || "", items: res.items || [] };
-    P.items = plateItems(res); P.nota = res.nota || "";
+    P.items = plateItems(res, P.modo); P.nota = res.nota || "";
     P.status = res.hay_comida && P.items.length ? "ok" : "vacio";
+    if (texto) { const m = comidaDelTexto(P.texto); if (m) P.meal = m; }
   } catch (e) {
     if (ComidaState.plate !== P) return;
     // Sin el permiso (lo apagó en otro dispositivo, o cambió el aviso): se vuelve a pedir al reintentar.
-    if (e.codigo === "sin_permiso") { if (IA.estado) IA.estado.permiso_comida = e.motivo === "apagada" ? "no" : null; P.status = "error"; P.err = e; P.msg = "Para usar la IA, primero tenés que aceptar el aviso."; P.reintento = e.motivo !== "apagada"; }
-    else { P.status = "error"; P.err = e; P.msg = iaMensaje(e); P.reintento = !iaSinReintento(e.codigo); }
+    if (e.codigo === "sin_permiso") {
+      if (IA.estado) { const v = e.motivo === "apagada" ? "no" : null; if (P.modo === "texto") { IA.estado.permiso_texto = v; if (v) IA.estado.permiso_comida = v; } else IA.estado.permiso_comida = v; }
+      P.status = "error"; P.err = e; P.msg = "Para usar la IA, primero tenés que aceptar el aviso."; P.reintento = e.motivo !== "apagada";
+    }
+    else { P.status = "error"; P.err = e; P.msg = iaMensaje(e, P.modo); P.reintento = !iaSinReintento(e.codigo); }
   } finally { clearTimeout(reloj); }
   if (ComidaState.plate !== P) return;
   platePaint();
@@ -2372,20 +2444,25 @@ function plateUsar(f){
 }
 async function plateClick(a, el){
   if (a === "ia-plato") { await plateEmpezar(); return; }
+  if (a === "ia-voz") { await plateEmpezarVoz(el.dataset.q ? ComidaState.foodQuery : ""); return; }
   const P = ComidaState.plate; if (!P) return;
-  // Los campos (el de la foto, los gramos) se manejan en «change» / «input».
-  if (["plate-file", "plate-grams"].includes(a)) return;
+  // Los campos (el de la foto, los gramos, lo que cuenta) se manejan en «change» / «input».
+  if (["plate-file", "plate-grams", "plate-text"].includes(a)) return;
   const i = +el.dataset.i;
   if (a === "plate-cancel") {
     if (P.status === "ok" && P.items.length && !await confirmar("¿Cerrar sin agregar? No se anota nada de lo que calculó la IA.", { titulo: "Cerrar", ok: "Cerrar sin agregar" })) return;
     plateCerrar(); return;
   }
   if (a === "plate-meal") { P.meal = el.dataset.meal; el.parentElement.querySelectorAll(".meal-chip").forEach(b => { const on = b === el; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); }); paintPlateNums(-1); return; }
+  if (a === "plate-text-go") { await plateVozCalcular(P); return; }
   if (a === "plate-retry") {
-    if (P.err && P.err.codigo === "sin_permiso" && !await pedirPermisoIA()) return;
+    if (P.err && P.err.codigo === "sin_permiso" && !await pedirPermisoIA({ texto: P.modo === "texto" })) return;
+    if (P.modo === "texto") { if (!String(P.texto || "").trim()) { P.status = "contar"; platePaint(); vozFoco(); return; } plateCorrer(P); return; }
     if (!P.b64) { P.status = "elegir"; platePaint(); return; }
     plateCorrer(P); return;
   }
+  // «Contar de nuevo»: vuelve al campo con lo que dijo.
+  if (a === "plate-again" && P.modo === "texto") { P.items = []; P.err = null; P.aviso = null; P.status = "contar"; platePaint(); vozFoco(); return; }
   if (a === "plate-again") { if (P.photoUrl) URL.revokeObjectURL(P.photoUrl); P.photoUrl = null; P.b64 = null; P.items = []; P.status = "elegir"; platePaint(); return; }
   if (a === "plate-manual") { const meal = P.meal; closeSheet(() => { if (P.photoUrl) URL.revokeObjectURL(P.photoUrl); ComidaState.plate = null; ComidaState.plateSwap = null; ComidaState.meal = meal; ComidaState.searchOpen = true; SheetState.sheetGen++; renderApp(); setTimeout(() => { const inp = document.getElementById("foodSearch"); if (inp) inp.focus(); }, 60); }); return; }
   if (a === "plate-scan") { closeSheet(() => { if (P.photoUrl) URL.revokeObjectURL(P.photoUrl); ComidaState.plate = null; ComidaState.plateSwap = null; renderApp(); openScanner(onScannedCode); }); return; }
@@ -2414,9 +2491,12 @@ async function plateClick(a, el){
     return;
   }
   if (a === "plate-report") {
-    const com = await pedir("¿Qué está mal? Contanos (opcional). Mandamos lo que calculó la IA, sin la foto.", "", { titulo: "¿Está mal?", ok: "Enviar", placeholder: "Ej: era pollo, no carne" });
+    const texto = P.modo === "texto";
+    const com = await pedir(texto ? "¿Qué está mal? Contanos (opcional). Mandamos lo que calculó la IA y lo que contaste." : "¿Qué está mal? Contanos (opcional). Mandamos lo que calculó la IA, sin la foto.", "", { titulo: "¿Está mal?", ok: "Enviar", placeholder: "Ej: era pollo, no carne" });
     if (com === null) return;
-    try { await iaReportar(P.modo, Object.assign({}, P.raw || {}, { revisado: P.items.map(it => ({ nombre: it.name, gramos: plateGramsNum(it), base: !!it.base })) }), String(com).slice(0, 300)); alert("Gracias, lo vamos a revisar."); }
+    // En la voz va también lo que contó (hasta 400 letras): sin eso no se entiende el error.
+    const extra = texto ? { dijo: String(P.texto || "").trim().slice(0, 400) } : {};
+    try { await iaReportar(P.modo, Object.assign({}, P.raw || {}, extra, { revisado: P.items.map(it => ({ nombre: it.name, gramos: plateGramsNum(it), base: !!it.base })) }), String(com).slice(0, 300)); alert("Gracias, lo vamos a revisar."); }
     catch (e) { alert(e.message || "No se pudo enviar. Probá de nuevo."); }
     return;
   }
