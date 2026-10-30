@@ -242,6 +242,19 @@ export default async function ({ base, t }){
   t.eq(pg.errs, [], 'errores (prueba en Android)');
   await pg.close();
 
+  // 6b) Google no pudo cobrar (la suscripción quedó suspendida y el plan se cortó): lo explica, ofrece
+  // «Administrar en Google Play» y no deja comprar otro plan (quedaría pagando dos cuando se recupere).
+  const SUSPENDIDA = { plan: 'p25', max_clients: 25, trial_ends_at: D(-60), paid_until: D(-1), google_token: 'TOK-p25', google_vence: D(-1), google_renueva: true };
+  pg = await pagina(SUSPENDIDA, { init: plugin('android', { vigentes: [Object.assign({}, EN_CELULAR[0], { suspendida: true })] }) });
+  await pg.p.goto(base + '/app/'); await wait(3000);
+  muro = await txt(pg.p, '#coachHost');
+  t.has(muro, 'Google Play no pudo cobrar tu plan. Actualizá el medio de pago en Google Play y se activa solo.', 'suspendida: lo explica');
+  t.has(muro, 'Administrar en Google Play', 'suspendida: «Administrar en Google Play»');
+  t.eq(await pg.p.evaluate(() => document.querySelectorAll('#coachHost [data-plan="choose"]').length), 0, 'suspendida: no ofrece comprar otro plan');
+  t.ok((await compras(pg.p)).some(x => x[0] === 'avisos'), 'suspendida: muestra el aviso propio de Google');
+  t.eq(pg.errs, [], 'errores (suspendida)');
+  await pg.close();
+
   // 7) En la web, con el plan de Google: no ofrece pagar otro con Mercado Pago.
   pg = await pagina(GOOGLE25);
   await pg.p.goto(base + '/app/'); await wait(3000);

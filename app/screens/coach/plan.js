@@ -447,6 +447,9 @@ function cardsTienda(b, T){
   // puede cambiar de plan desde acá ni comprar otra (pagaría dos).
   if(T === T_GOOGLE && b.google && G.vigentes && !G.vigentes.some(c => c.token === B.row.google_token))
     return '<div class="pl-status warn">' + OTRA_GOOGLE + '</div>' + pie;
+  // Google no pudo cobrar su suscripción (suspendida): se arregla en Google Play y vuelve sola.
+  // Comprar otro plan acá la dejaría con dos suscripciones (pagaría dos cuando se recupere).
+  if(T === T_GOOGLE && G.suspendida) return pie;
   const prods = T.prods();
   if(!prods){
     if(!A.cargando && !A.fallo) cargarPlanes(T);
@@ -643,7 +646,7 @@ async function revisarGoogle(todas){
 }
 
 async function comprarPlanGoogle(plan){
-  if(!State.sb || !State.cloudUser || B.busy || !comprasGoogle("planes")) return;
+  if(!State.sb || !State.cloudUser || B.busy || !comprasGoogle("planes") || G.suspendida) return;
   const b = billing();
   B.busy = plan; A.exito = false; rerender();
   // Cambiar de plan: se reemplaza la suscripción que tiene, que tiene que estar en este celular (si
