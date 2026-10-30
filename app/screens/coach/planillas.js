@@ -176,7 +176,7 @@ function pasoArchivos(P){
       erroresArchivos(P) +
     '</div>' +
     privacidad() +
-    (bl ? '<div class="pp-aviso" role="status">' + esc(bl) + '</div>' : q !== null ? '<div class="pp-quedan">Hoy te quedan ' + plural(q, "hoja", "hojas") + ' para pasar con IA.</div>' : '');
+    (bl ? '<div class="pp-aviso" role="status">' + esc(bl) + '</div>' : q !== null ? '<div class="pp-quedan">Hoy te ' + (q === 1 ? 'queda ' : 'quedan ') + plural(q, "hoja", "hojas") + ' para pasar con IA.</div>' : '');
 }
 
 // Paso 2: las hojas de cada archivo, cuáles pasar y para quién.
@@ -201,7 +201,7 @@ function pasoHojas(P){
     porArchivo.map(g => '<section class="cv-card pp-arch"><h2 class="pp-arch-t">' + fileTextSvg + '<span>' + esc(g.archivo) + '</span></h2>' + g.l.map(fila).join("") + '</section>').join("") +
     (hojas.length ? '' : '<div class="cal-hint">No hay hojas para pasar en estas planillas.</div>') +
     privacidad() +
-    (bl ? '<div class="pp-aviso" role="status">' + esc(bl) + '</div>' : pasa ? '<div class="pp-aviso" role="status">Elegiste ' + plural(n, "hoja", "hojas") + ' y hoy te quedan ' + q + ': destildá algunas.</div>' : '') +
+    (bl ? '<div class="pp-aviso" role="status">' + esc(bl) + '</div>' : pasa ? '<div class="pp-aviso" role="status">Elegiste ' + plural(n, "hoja", "hojas") + ' y hoy te ' + (q === 1 ? 'queda ' : 'quedan ') + q + ': destildá algunas.</div>' : '') +
     '<div class="pp-acc pp-pie"><button class="gize-btn cv-btn" data-coach="pp-pasar"' + (!n || pasa || bl ? ' disabled' : '') + '>' + sparkleSvg + 'Pasar ' + plural(n, "hoja", "hojas") + ' con IA</button></div>';
 }
 

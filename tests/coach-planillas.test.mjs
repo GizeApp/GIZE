@@ -136,7 +136,8 @@ export default async function ({ base, t }){
   await pg.close();
 
   // ---- 2) Prendida, sin clientes y sin rutinas: el llamado en Inicio y en Rutinas vacía. ----
-  pg = await pagina(base, { clientes: [] }); p = pg.p;
+  // Le queda una sola hoja hoy: «te queda 1 hoja» (no «te quedan 1 hoja»).
+  pg = await pagina(base, { clientes: [], estado: Object.assign({}, PRENDIDA, { quedan: { planilla: 1, rutina: 15 } }) }); p = pg.p;
   await ir(p, 'home');
   t.has(await text(p, '#coachHost .pp-llamado'), '¿Tenés tus rutinas en Excel o Google Sheets? Pasalas a GIZE.', 'Inicio sin clientes: el llamado');
   await ir(p, 'tpls');
@@ -146,6 +147,7 @@ export default async function ({ base, t }){
   await ir(p, 'home');
   await p.click('#coachHost .pp-llamado [data-coach="pp-open"]'); await wait(700);
   t.has(await text(p, W), 'Pasar mis planillas', 'desde Inicio se abre «Pasar mis planillas»');
+  t.has(await text(p, W), 'Hoy te queda 1 hoja para pasar con IA.', 'con una sola hoja: «te queda» en singular');
   t.ok(await p.isVisible('#coachHost .cv-nav-i.on[data-coach="view-tpls"]'), 'la pantalla va dentro de Rutinas');
   t.eq(pg.errs, [], 'errores de la página (sin clientes)');
   await pg.close();
