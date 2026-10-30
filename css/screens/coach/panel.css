@@ -306,6 +306,26 @@ html:has(#iaRutHost .sheet:not(.closing)), html:has(#iaRutHost .sheet:not(.closi
 
 .cv-util-i.on { color:var(--txt); background:color-mix(in srgb, var(--txt) 9%, transparent); border-color:var(--gize-border); }
 
+/* Cobros (app/screens/coach/cobros.js): lo demás sale de css/screens/gym.css, que se carga al abrirlo.
+   Estas van acá porque la tira de Inicio se ve antes. */
+.cb-tira { margin:0 0 14px; }
+.cb-mes { display:flex; align-items:center; gap:12px; margin:0 0 14px; }
+.cb-mes b { flex:1; min-width:0; text-align:center; font-size:var(--text-emphasis); color:var(--txt); }
+.cb-mes-b:disabled { visibility:hidden; }
+.cb-total { margin:0 0 10px; }
+.cb-quienes { min-width:0; margin:14px 0 0; padding:0; border:0; }
+.cb-quienes legend { margin:0 0 6px; padding:0; font-size:14px; font-weight:600; color:var(--txt); }
+.cb-lista { list-style:none; max-height:38vh; overflow-y:auto; margin:6px 0 0; padding:0; border:1px solid var(--gize-border); border-radius:var(--r-box); }
+.cb-lista li { border-top:1px solid var(--gize-border); }
+.cb-lista li:first-child { border-top:0; }
+.cb-al { display:flex; align-items:center; gap:10px; min-width:0; padding:10px 12px; color:var(--txt); font-size:var(--text-body); cursor:pointer; }
+.cb-al input { flex:none; width:18px; height:18px; margin:0; accent-color:var(--gize-blue); }
+.cb-al span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cb-al small { flex:none; font-size:var(--text-meta); color:var(--txt-2); }
+.cb-todos { padding:6px 0; }
+.cb-vence { margin-top:14px; }
+.cb-wa { text-decoration:none; }
+
 /* Editor de preguntas dentro de Configuración (app/screens/coach/preguntas.js): cada pregunta es una
    tarjeta con el número, el texto y el tipo de respuesta, y los botones de subir / bajar / borrar. */
 .cs-body .cq-tabs { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:0 0 14px; padding:4px; border:1px solid var(--gize-border); border-radius:14px; background:var(--gize-surface-2); }

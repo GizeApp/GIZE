@@ -38,6 +38,7 @@ import { clientPlanDirty, mealEditHead, renderMealPicker, snapMealEdit } from '.
 import { coachShell, pageHead, secIcon, renderClientsView, renderHomeView, renderMealsView, renderTplsView } from './panel.js';
 import { gymPorSaber, pintarGym, sinPlanGym } from '../../core/gimnasio.js';
 import { accesoGym, cargarFichaGym, cartelGym, conTarjetaGym, cssGym, enGym, esProfeGym, esSocioGym, focoRec, inviteGym, notaPropios, puedeRecepcion, seccionGym, tileGym, vistaClases, vistaRecepcion, volverFocoRec } from './gimnasio.js';
+import { cobrosOn, conCobro, seccionCobro, tarjetaInicio, tileCobro, vistaCobros } from './cobros.js';
 
 // Ficha en modo lectura (el dueño o la administración del gimnasio miran a un socio que compartió sus
 // registros y no es suyo; ver openClient): se ve todo lo que el socio compartió, pero no se edita. Solo
@@ -154,12 +155,14 @@ export function renderCoach(){
     // el de sus alumnos propios. «Recepción», si el gimnasio la abre para los profes.
     if(CoachState.coachView==="gym-recepcion" && !puedeRecepcion()) CoachState.coachView="clients";
     if(CoachState.coachView==="gym-clases" && !esProfeGym()) CoachState.coachView="clients";
+    // «Cobros» (cobros.js): si dejó de verse (interruptor apagado, plan vencido), a Clientes.
+    if(CoachState.coachView==="cobros" && !cobrosOn()) CoachState.coachView="clients";
     // Con el cartel de los alumnos propios (que en la web ya trae «Mi plan»), sin la tira del plan
     // encima diciendo lo mismo con otras palabras.
     const nota=gymPlan===null ? notaPropios(billing().active) : "";
     const v=CoachState.coachView, banner=gymPlan===null ? cartelGym()+(nota && !appNativa() ? "" : renderPlanBanner())+nota : "";
     const foco=focoRec();
-    host.innerHTML=coachShell(v, v==="settings" ? renderSettingsView() : v==="gym-recepcion" ? vistaRecepcion(pageHead) : v==="gym-clases" ? vistaClases(pageHead) : v==="meals" ? renderMealsView(banner) : v==="tpls" ? renderTplsView(banner) : v==="home" ? renderHomeView(banner) : renderClientsView(inviteBox(), banner));
+    host.innerHTML=coachShell(v, v==="settings" ? renderSettingsView() : v==="gym-recepcion" ? vistaRecepcion(pageHead) : v==="gym-clases" ? vistaClases(pageHead) : v==="cobros" ? vistaCobros(pageHead) : v==="meals" ? renderMealsView(banner) : v==="tpls" ? renderTplsView(banner) : v==="home" ? renderHomeView(banner+tarjetaInicio()) : renderClientsView(inviteBox(), banner));
     volverFocoRec(foco);
   } else if(CoachState.coachTplEdit){
     const rt=CoachState.coachTplEdit.days||[];
@@ -211,10 +214,13 @@ export function renderCoach(){
         panel=renderCoachPlan(d);
       } else {
         // Ficha en secciones, como Progreso del alumno: un menú de tarjetas y cada una abre su parte.
+        // «Cuota» (cobros.js): lo que le paga un alumno propio, solo con Cobros a la vista.
+        const cobroF=conCobro(d);
         const SECS=[
           // El chat se abre encima (app/ui/chat.js), no como sección: ver "sec-open" en main.js.
           // Socio del gimnasio que atiende (screens/coach/gimnasio.js): estado, semáforo, apto y últimos ingresos.
           ["gimnasio","Gimnasio", ()=>seccionGym(d), ()=>tileGym(d)],
+          ...(cobroF ? [["cuota","Cuota", ()=>seccionCobro(d), ()=>tileCobro(d)]] : []),
           ["chat","Chat con "+esc(String(d.name||"el cliente").split(" ")[0]), null, ()=>{ const n=unreadFor(d.id); if(n) return n+(n===1?" mensaje nuevo":" mensajes nuevos"); if(d.notify&&d.notify.devices===0) return "Mensajes y audios · no tiene los avisos activados"; return "Mensajes y audios"; }],
           ["ficha","Ficha del cliente", ()=>renderCoachInfo(d), ()=>d.info&&Object.keys(d.info).length?"Datos y objetivos":"Sin completar"],
           ["habitos","Hábitos diarios", ()=>renderCoachHabits(d), ()=>{ const h=d.plan&&d.plan.plan&&d.plan.plan.habits; const n=Array.isArray(h)?h.length:0; return n?n+(n===1?" hábito":" hábitos"):"Sin cargar"; }],
@@ -231,7 +237,7 @@ export function renderCoach(){
         // Socio del gimnasio: «Dejar de ser su profe» en vez de «Desvincular alumno»; con el acceso de los profes
         // pausado, ninguno (gym_ficha_profe no da la ficha: el botón fallaba siempre).
         const gymF=conTarjetaGym(d); if(gymF) cargarFichaGym(d);
-        const ORDER={ ficha:gymF?["chat","gimnasio","ficha","habitos"]:["chat","ficha","habitos"], stats:["bloque","peso","hist","volumen","salidas","daily","checkin"] };
+        const ORDER={ ficha:gymF?["chat","gimnasio","ficha","habitos"]:cobroF?["chat","cuota","ficha","habitos"]:["chat","ficha","habitos"], stats:["bloque","peso","hist","volumen","salidas","daily","checkin"] };
         const cur=SECS.find(x=>x[0]===CoachState.coachSec && x[2]);
         const shown=(ORDER[tab]||ORDER.ficha).filter(id=>!(d.lectura && id==="chat")).map(id=>SECS.find(x=>x[0]===id));
         if(cur){
