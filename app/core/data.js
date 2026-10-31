@@ -99,8 +99,8 @@ export const ES_MAP = {
   "Press militar (barra)":"Press militar con barra","Encogimientos (shrugs)":"Encogimientos de hombros","Face Pull":"Jalón a la cara",
   "Jalón con brazos rectos en polea":"Pullover en polea","Jalón con brazos rectos y mancuerna":"Pullover con mancuerna",
   "Buenos días (good morning)":"Buenos días","Russian Twist":"Giro ruso","Mountain Climbers":"Escaladores","Toes to bar":"Puntas a la barra",
-  "Hollow hold":"Plancha","Dead bug":"Bicho muerto","V-ups":"Abdominales en V",
+  "Dead bug":"Bicho muerto","V-ups":"Abdominales en V",
   "Curl Reverse con barra":"Curl invertido con barra","Curl antebrazo + Reverse":"Curl de muñeca","Farmer Walk":"Caminata del granjero",
-  "Wrist roller (enrollador)":"Enrollador de muñeca","Dead hang (colgarse)":"Colgarse de la barra","Plate pinch":"Pinza con disco","Grippers de mano":"Pinza con disco",
+  "Wrist roller (enrollador)":"Enrollador de muñeca","Dead hang (colgarse)":"Colgarse de la barra","Plate pinch":"Pinza con disco",
   "Neck curl con arnés":"Flexión de cuello con arnés","Puente de cuello (lucha)":"Puente de cuello"
 };
