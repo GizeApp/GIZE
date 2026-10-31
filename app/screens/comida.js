@@ -22,6 +22,8 @@ import { planSections } from './checkin.js';
 
 import { IA, iaDisponible, iaVisible } from '../core/ia.js';
 import { plusLimiteSemanal, plusOfertaHtml } from '../ui/ia-plus.js';
+import { appAndroid } from '../core/plataforma.js';
+import { appIOS } from '../core/tienda.js';
 
 // Nombre sin la aclaración de la unidad, que ya muestra la hoja del alimento:
 // "Pan lactal blanco (1 rebanada ≈ 25 g)" → "Pan lactal blanco". Las demás aclaraciones
@@ -797,6 +799,14 @@ const plateAlert = (svg, msg) => `<div class="pl8-err" role="alert"><span class=
 
 // ¿Se usa con el dedo (celular)? En la compu no hay micrófono del teclado: se pide que lo escriba.
 const conDedo = () => !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+// La ayuda «¿No ves el micrófono?»: en cada app solo los pasos de ese celular; en la web, los dos.
+function ayudaMic(){
+  const iphone = "En el iPhone: Ajustes → General → Teclado → Activar dictado.";
+  const gboard = "En Android con Gboard: el micrófono está arriba a la derecha del teclado.";
+  if (appIOS()) return iphone;
+  if (appAndroid()) return gboard;
+  return iphone + " " + gboard;
+}
 // «Contalo con tu voz»: en la hoja de la foto y en el aviso del límite semanal de fotos.
 const vozLink = () => iaDisponible("texto") ? `<button class="pl8-link pl8-voz" data-action="ia-voz">${micSvg}<span>Contalo con tu voz</span></button>` : "";
 // Lo que contó, entre comillas (mientras espera, en la revisión y en los avisos).
@@ -812,7 +822,7 @@ function plateContar(P){
       <div class="pl8-cnt" aria-hidden="true"><span id="pl8Cnt">${tx.length}</span>/${TEXTO_MAX}</div>
       ${P.aviso ? plateAlert(P.aviso === "sin_conexion" ? wifiOffSvg : alertSvg, P.aviso === "sin_conexion" ? "Sin conexión. La IA necesita internet; lo que escribiste queda acá." : "Contá qué comiste (por ejemplo: dos empanadas de carne y una coca).") : ""}
       <button class="ctrl primary pl8-main" data-action="plate-text-go">${sparkleSvg}<span>Calcular con IA</span></button>
-      ${dedo ? `<details class="pl8-ayuda"><summary>¿No ves el micrófono?</summary><p>En el iPhone: Ajustes → General → Teclado → Activar dictado. En Android con Gboard: el micrófono está arriba a la derecha del teclado.</p></details>` : ""}
+      ${dedo ? `<details class="pl8-ayuda"><summary>¿No ves el micrófono?</summary><p>${ayudaMic()}</p></details>` : ""}
       ${plateQuedan("texto")}`;
 }
 
