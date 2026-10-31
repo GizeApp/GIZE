@@ -87,7 +87,7 @@ export const ES_MAP = {
   "Abdominales Bandera":"Bandera","Dragon flag":"Bandera","Crunches":"Encogimiento abdominal","Crunch":"Encogimiento abdominal",
   "Decline Crunches":"Encogimiento declinado","Crunch declinado":"Encogimiento declinado","Crunch en polea":"Encogimiento en polea",
   "Crunch invertido":"Encogimiento invertido","Crunch en máquina":"Encogimiento en máquina",
-  "T-Bar Row":"Remo en barra T","Horizontal Row":"Remo en máquina","Remo Unilateral":"Remo unilateral con mancuerna",
+  "T-Bar Row":"Remo T","Horizontal Row":"Remo en máquina","Remo Unilateral":"Remo unilateral con mancuerna",
   "Smith OHP":"Press de hombros en Smith","Press Smith Inclinado":"Press inclinado en Smith","Pecho Inclinado Smith":"Press inclinado en Smith",
   "Smith Squat":"Sentadilla en Smith","Hack Squat":"Sentadilla hack","Sissy squat":"Sentadilla sissy","Búlgaras":"Sentadilla búlgara",
   "Sentadilla goblet":"Sentadilla con mancuerna al pecho","Step Up":"Subida al cajón",
@@ -97,10 +97,10 @@ export const ES_MAP = {
   "Lower back hyperextension":"Hiperextensiones lumbares","Posterior":"Vuelos posteriores","Vuelos con Mancuernas":"Vuelos laterales con mancuernas",
   "Hip Thrust":"Empuje de cadera","Hip Thrust en máquina":"Empuje de cadera en máquina",
   "Press militar (barra)":"Press militar con barra","Encogimientos (shrugs)":"Encogimientos de hombros","Face Pull":"Jalón a la cara",
-  "Pullover en polea":"Jalón con brazos rectos en polea","Pullover con mancuerna":"Jalón con brazos rectos y mancuerna",
+  "Jalón con brazos rectos en polea":"Pullover en polea","Jalón con brazos rectos y mancuerna":"Pullover con mancuerna",
   "Buenos días (good morning)":"Buenos días","Russian Twist":"Giro ruso","Mountain Climbers":"Escaladores","Toes to bar":"Puntas a la barra",
-  "Hollow hold":"Plancha hueca","Dead bug":"Bicho muerto","V-ups":"Abdominales en V",
+  "Hollow hold":"Plancha","Dead bug":"Bicho muerto","V-ups":"Abdominales en V",
   "Curl Reverse con barra":"Curl invertido con barra","Curl antebrazo + Reverse":"Curl de muñeca","Farmer Walk":"Caminata del granjero",
-  "Wrist roller (enrollador)":"Enrollador de muñeca","Dead hang (colgarse)":"Colgarse de la barra","Plate pinch":"Pinza con disco","Grippers de mano":"Pinza de mano",
+  "Wrist roller (enrollador)":"Enrollador de muñeca","Dead hang (colgarse)":"Colgarse de la barra","Plate pinch":"Pinza con disco","Grippers de mano":"Pinza con disco",
   "Neck curl con arnés":"Flexión de cuello con arnés","Puente de cuello (lucha)":"Puente de cuello"
 };
