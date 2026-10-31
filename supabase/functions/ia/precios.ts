@@ -9,7 +9,7 @@
 // máximo que puede costar una imagen en tokens (una más grande se achica antes de leerla).
 // «sinPensar»: el valor de «thinking» que apaga el razonamiento en ese modelo (uno no acepta
 // «disabled» y su mínimo es «between_tools», con el esfuerzo de fábrica). «esfuerzo»: si acepta
-// output_config.effort (el plato y el texto van con esfuerzo bajo; el que no lo acepta, sin él).
+// output_config.effort (con ese, los pedidos van con esfuerzo medio; el que no lo acepta, sin él).
 // «defecto»: el que se usa si el panel no eligió otro. «tabla»: si se ofrece en el panel para leer
 // tablas (el más barato y el más capaz; el otro es el plan B del plato y el texto). «planilla»: lo
 // mismo para pasar las planillas de los coaches (el de siempre y el más capaz, por si lee mal).
