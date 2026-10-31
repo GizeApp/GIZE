@@ -102,7 +102,10 @@ export default async function ({ base, t }){
     await close();
   }
   {
-    const days = [{ id: 'd1', name: 'Día A', dias: [T1], exercises: [] }, { id: 'd2', name: 'Día B', dias: [T2], exercises: [] }];
+    // Dos días que no son hoy, en el orden de la semana (de lunes a domingo, como los muestra la app):
+    // con T + 1 y T + 2, el sábado quedaban domingo y lunes, y el lunes va primero.
+    const [A, B] = [1, 2, 3, 4, 5, 6, 0].filter(x => x !== T);
+    const days = [{ id: 'd1', name: 'Día A', dias: [A], exercises: [] }, { id: 'd2', name: 'Día B', dias: [B], exercises: [] }];
     const { p, errs, close } = await newPage({ user: ALUMNO, state: { days, sessions: [], weights: [], daily: {} }, handlers: { '/profiles': profile('client') } });
     await p.goto(base + '/app/'); await wait(2500);
     t.eq(await active(p), 'd1', 'ningún día tiene hoy: abre como siempre');
