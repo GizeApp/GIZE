@@ -299,15 +299,17 @@ function takePendingCode(){
 // salida de Cardio en curso, los borradores de rutina de los alumnos de un coach (coach/index.js),
 // el borrador de la bienvenida (screens/onboarding.js), la invitación a un grupo de pasos sin
 // usar (core/grupos.js), que si no se usaba con la próxima cuenta que entrara en el dispositivo, y
-// la de un coach por su link (core/invitacion-coach.js), por lo mismo.
+// la de un coach por su link (core/invitacion-coach.js), por lo mismo, y la marca del interruptor
+// de Google Play (core/compras-google.js).
 // keepNew: al cambiar de cuenta o borrar una sesión no mantenida, la invitación de un link recién
 // abierto (en esta carga, o hace menos de 15 minutos por si el ingreso volvió a cargar la página)
 // queda: es de quien está entrando, y antes se perdía sin aviso. Igual se pregunta antes de
 // sumarse (screens/pasos.js y ui/invitacion-coach.js).
 function accountKeys(keepNew){
   let drafts=[]; try{ drafts=Object.keys(localStorage).filter(k=>/^gize_(rt|onb)_draft_/.test(k)); }catch(e){}
+  let comprasGoogle=[]; try{ comprasGoogle=Object.keys(localStorage).filter(k=>/^gize_compras_google_/.test(k)); }catch(e){}
   const fresh=k=>{ let inv=null; try{ inv=JSON.parse(localStorage.getItem(k)||"null"); }catch(e){} return !!(inv && inv.t && (inv.t>=performance.timeOrigin || Date.now()-inv.t<15*60000)); };
-  return [TRACK_KEY, GYM_CACHE].concat(["gize_grupo_pend", COACH_PEND].filter(k=>!(keepNew && fresh(k))), runKeys(), drafts);
+  return [TRACK_KEY, GYM_CACHE].concat(["gize_grupo_pend", COACH_PEND].filter(k=>!(keepNew && fresh(k))), runKeys(), drafts, comprasGoogle);
 }
 // Al cerrar sesión o borrar la cuenta: lo que quedó de esa cuenta en el dispositivo además de
 // los datos (cola de envío propia, intentos de login, código de coach, alarma de descanso,
