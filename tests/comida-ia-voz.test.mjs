@@ -171,6 +171,46 @@ export default async function ({ base: url, t }){
   t.eq(errs, [], 'prendida: errores de la página');
   await close();
 
+  // ---------- la ayuda «¿No ves el micrófono?» según el celular ----------
+  {
+    const ayuda = p => p.evaluate(() => { const e = document.querySelector('#sheetHost .pl8-ayuda p'); return e ? e.textContent.replace(/\s+/g, ' ').trim() : ''; });
+    const abrirVoz = async p => { await abrirComida(p, url); await p.click('#view [data-action="ia-voz"]'); await wait(300); };
+    const IOS = `window.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios' };`;
+    const ANDROID = 'window.androidBridge = {};';
+    const IPHONE = 'En el iPhone: Ajustes → General → Teclado → Activar dictado.';
+    const GBOARD = 'En Android con Gboard: el micrófono está arriba a la derecha del teclado.';
+    // En la web, los dos pasos.
+    {
+      const { p, errs, close } = await pagina({ estado: OK2, touch: true });
+      await abrirVoz(p);
+      const a = await ayuda(p);
+      t.has(a, IPHONE, 'web: los pasos del iPhone');
+      t.has(a, GBOARD, 'web: y los de Android');
+      t.eq(errs, [], 'web: errores de la página');
+      await close();
+    }
+    // En el iPhone, solo el del iPhone.
+    {
+      const { p, errs, close } = await pagina({ estado: OK2, touch: true, init: IOS });
+      await abrirVoz(p);
+      const a = await ayuda(p);
+      t.has(a, 'Ajustes → General → Teclado → Activar dictado.', 'iPhone: los pasos del iPhone');
+      t.ok(!/Android|Gboard/.test(a), 'iPhone: sin Android ni Gboard: ' + a);
+      t.eq(errs, [], 'iPhone: errores de la página');
+      await close();
+    }
+    // En Android, solo el de Gboard.
+    {
+      const { p, errs, close } = await pagina({ estado: OK2, touch: true, init: ANDROID });
+      await abrirVoz(p);
+      const a = await ayuda(p);
+      t.has(a, 'el micrófono está arriba a la derecha del teclado.', 'Android: los pasos de Gboard');
+      t.ok(!/iPhone|Ajustes/.test(a), 'Android: sin el iPhone: ' + a);
+      t.eq(errs, [], 'Android: errores de la página');
+      await close();
+    }
+  }
+
   // ---------- la búsqueda sin resultados: «¿No está? Decilo con tu voz» ----------
   {
     const { p, errs, close } = await pagina({ estado: OK2 });

@@ -17,7 +17,7 @@ export const PLATO = { ok: true, hay_comida: true, nota: 'Supuse que el puré ll
 // estadoTarde (ms que tarda ia_mi_estado), touch (un celular: pantalla táctil) }. S.nEstado: cuántas veces se preguntó el estado.
 export async function pagina(o = {}){
   const S = { estado: Object.assign({}, o.estado || ESTADO_ON), permisos: [], reportes: [], llamadas: [], posts: [] };
-  const pg = await newPage({ user: ALUMNO, touch: !!o.touch, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {}, diary: [], calTarget: 2000 },
+  const pg = await newPage({ user: ALUMNO, touch: !!o.touch, init: o.init, state: { days: [{ id: 'd1', name: 'A', exercises: [] }], sessions: [], weights: [], daily: {}, diary: [], calTarget: 2000 },
     handlers: Object.assign({
       '/profiles': perfil('client'),
       '/rpc/ia_mi_estado': (r, J) => { S.nEstado = (S.nEstado || 0) + 1; return o.sinEstado ? J({ message: 'no existe' }, 404) : o.estadoTarde ? new Promise(ok => setTimeout(() => ok(J(S.estado)), o.estadoTarde)) : J(S.estado); },
