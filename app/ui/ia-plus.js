@@ -151,8 +151,12 @@ export function plusAjustesHtml(){
     else estado += p.estado === "incluido" ? "" : " Cancelaste la renovación.";
     if (p.arrepentir_hasta) botones += `<button type="button" class="ctrl ghost" data-plus="arrepentir">Botón de arrepentimiento</button>`;
   } else if (p.fuente === "apple") {
-    if (p.estado === "incluido" && p.renueva) estado += " Tenés además una suscripción de Apple que se renueva: cancelala para no pagar de más.";
+    // En Android no se nombra Apple (reglas de las tiendas): texto neutro, como el de Google en el iPhone.
+    const android = appAndroid();
+    if (p.estado === "incluido" && p.renueva) estado += android ? " Tenés además una suscripción que se renueva: cancelala para no pagar de más."
+      : " Tenés además una suscripción de Apple que se renueva: cancelala para no pagar de más.";
     botones += canal === "apple" ? `<button type="button" class="ctrl ghost" data-plus="administrar">Administrar suscripción</button>`
+      : android ? `<span class="plus-fine">La suscripción la administrás desde el dispositivo donde la contrataste.</span>`
       : `<span class="plus-fine">La suscripción es de Apple: la administrás desde los Ajustes de tu cuenta de Apple.</span>`;
   } else if (p.fuente === "google") {
     // En el iPhone no se nombra Google Play (regla 2.3.10 de Apple).

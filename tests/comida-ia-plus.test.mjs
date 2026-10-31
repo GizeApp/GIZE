@@ -255,6 +255,17 @@ export default async function ({ base, t }){
     t.eq(errs, [], 'iPhone Ajustes: errores');
     await close();
   }
+  // Android con IA Plus de Apple (lo contrató en el iPhone): sin nombrar Apple ni App Store.
+  for (const [que, plus] of [['activo', { estado: 'plus', fuente: 'apple', hasta: D(20), renueva: true }], ['incluido y se renueva', { estado: 'incluido', por: 'alumno', fuente: 'apple', hasta: D(20), renueva: true }]]) {
+    const { p, errs, close } = await pagina({ estado: estado(plus), init: ANDROID });
+    await abrirAjustes(p, base);
+    const a = await txt(p, '#cfgPlus');
+    t.ok(!/Apple|App Store/.test(a), 'Android (' + que + '): no nombra Apple ni App Store: ' + a);
+    t.has(a, 'La suscripción la administrás desde el dispositivo donde la contrataste.', 'Android (' + que + '): texto neutro');
+    if (plus.estado === 'incluido') t.has(a, 'Tenés además una suscripción que se renueva: cancelala para no pagar de más.', 'Android: aviso de pagar de más, neutro');
+    t.eq(errs, [], 'Android (' + que + '): errores');
+    await close();
+  }
 
   // ---------- Términos: IA Plus ----------
   {
