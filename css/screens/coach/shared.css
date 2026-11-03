@@ -249,3 +249,10 @@ body:not(#_) .plan-edit .ci-grid-2 > * { min-width: 0; }
 .cal-x-legend span { display:inline-flex; align-items:center; gap:6px; }
 .cal-x-legend i { width:8px; height:8px; border-radius:50%; background:transparent; border:1px solid var(--txt-3); }
 .cal-x-legend i.on { background:var(--cal-ok); border-color:var(--cal-ok); }
+
+/* iPhone con la web agregada al inicio: Safari agranda la página al tocar un campo con letra de
+   menos de 16 px y, en la app de inicio, la deja agrandada y corrible de costado (parece la vista
+   de computadora). En pantalla táctil, todos los campos del panel van en 16 px. */
+@media (hover:none){
+  body:not(#_) #coachHost :is(input, select, textarea) { font-size:16px; }
+}

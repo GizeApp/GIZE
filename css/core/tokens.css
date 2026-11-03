@@ -57,7 +57,9 @@ html, body { background: var(--bg); background-attachment: fixed; color: var(--t
 /* La letra no se agranda sola al girar el teléfono ni por el zoom de texto del navegador:
    el tamaño lo decide la app (en Android además se fija en MainActivity, setTextZoom). */
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-body { font-family: var(--gize-font); min-height: 100vh; overflow-x: hidden; }
+/* Sin zoom al tocar dos veces (en el iPhone agrandaba la página y la dejaba corrible de costado);
+   pellizcar para agrandar y el scroll siguen igual. */
+body { font-family: var(--gize-font); min-height: 100vh; overflow-x: hidden; touch-action: manipulation; }
 /* Botones y campos no heredan la fuente del body por defecto (el navegador les pone la
    del sistema: se veían en Arial). Los que usan la mono para datos la piden por clase. */
 button, input, select, textarea { font-family: inherit; }

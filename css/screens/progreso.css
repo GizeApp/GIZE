@@ -119,7 +119,7 @@
 .se-sheet .sheet-btns { margin-top: 18px; }
 
 /* Progreso: menú de secciones (renderProgreso) y cada sección en su pantalla */
-.ptiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ptiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); /* minmax(0,…): en celulares angostos (320 px) el texto no las ensancha */ gap: 10px; }
 .ptile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-height: 96px; padding: 14px 30px 14px 14px;
   border-radius: 14px; text-align: left; cursor: pointer; color: var(--gize-text); font-family: var(--gize-font);
   border: 1.5px solid transparent; background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box, var(--gize-rgb-ring) border-box;
