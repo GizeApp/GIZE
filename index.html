@@ -215,11 +215,27 @@ section{scroll-margin-top:86px}
 section,footer{position:relative;z-index:1}
 h2{font-size:clamp(26px,3.6vw,40px);font-weight:600;letter-spacing:-.02em;margin:0 0 14px;text-wrap:balance}
 .lead{color:var(--text-2);font-size:18px;max-width:60ch;line-height:1.6;margin:0 0 42px}
-.grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}
-.card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:26px;overflow:hidden}
-.card h3{margin:14px 0 8px;font-size:20px;font-weight:600}
-.card p{margin:0;color:var(--text-2);line-height:1.6}
-.card::after{content:"";position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,var(--r1),var(--r2),var(--r3),var(--r4));opacity:.65}
+/* Capturas de verdad (assets/landing, sacadas de la app y del panel) con un texto al lado, en vez de
+   tarjetas con ícono: se ve lo que hace la app, no una promesa. */
+.shots{display:grid;gap:clamp(36px,6vw,72px);margin-top:10px}
+.shot{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:clamp(22px,4vw,56px);align-items:center}
+.shot:nth-child(even) .shot-img{order:-1}
+.shot-img{border-radius:16px;border:1px solid var(--border);overflow:hidden;background:#07080b;box-shadow:0 30px 70px -40px rgba(0,0,0,.9)}
+.shot-img img{display:block;width:100%;height:auto}
+.shot-img.cel-shot{width:min(260px,70%);margin-inline:auto;border-radius:30px;padding:7px;background:linear-gradient(160deg,#2a2f3a,#0b0d11 40%,#1a1d25)}
+.shot-img.cel-shot img{border-radius:24px}
+.shot h3{font-size:clamp(22px,2.6vw,32px);font-weight:600;letter-spacing:-.02em;margin:0 0 10px}
+.shot p{margin:0;color:var(--text-2);line-height:1.6;font-size:17px}
+.shot-cap{display:block;margin-top:14px;font-size:13px;color:var(--text-2)}
+@media (max-width:760px){
+  .shot{grid-template-columns:minmax(0,1fr);gap:18px}
+  .shot .shot-img,.shot:nth-child(even) .shot-img{order:-1}
+  .shot p{font-size:16px}
+}
+/* Qué incluye: una lista, sin tarjetas ni íconos. */
+.incluye{list-style:none;margin:clamp(40px,6vw,64px) 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:0 36px}
+.incluye li{padding:14px 0;border-top:1px solid var(--border);color:var(--text-2);line-height:1.55;font-size:15.5px}
+.incluye b{display:block;color:var(--text);font-weight:600;font-size:17px;margin-bottom:2px}
 .num{font-variant-numeric:tabular-nums;font-size:13px;letter-spacing:.14em;color:var(--el);font-weight:600}
 .two{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:clamp(24px,4vw,34px)}
@@ -250,12 +266,13 @@ h2{font-size:clamp(26px,3.6vw,40px);font-weight:600;letter-spacing:-.02em;margin
 .notif-h{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--text-2)}
 .notif-t{font-weight:600;color:var(--text);font-size:15px;margin-top:2px}
 .notif-m{color:#D5DAE1;font-size:15px;line-height:1.4;margin-top:1px}
-.feat-list{display:grid;gap:12px}
-.feat{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:18px 20px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:start}
-.feat-ic{grid-row:span 2;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--surface-2);border:1px solid var(--border);color:var(--el)}
-.feat-ic svg{width:20px;height:20px}
-.feat h3{margin:0;font-size:17px;font-weight:600}
+/* Lo demás que se sumó: texto, uno debajo del otro, sin ícono. */
+.feat-list{display:grid;align-content:start}
+.feat{padding:16px 0;border-top:1px solid var(--border)}
+.feat:first-child{border-top:0;padding-top:4px}
+.feat h3{margin:0 0 4px;font-size:17px;font-weight:600}
 .feat p{margin:0;color:var(--text-2);line-height:1.5;font-size:15px}
+.lock-lbl{position:absolute;top:12px;right:14px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;color:var(--text-2)}
 
 
 /* ---------- cómo funciona: línea de 3 pasos con una pieza de la app en cada uno ----------
@@ -296,37 +313,9 @@ h2{font-size:clamp(26px,3.6vw,40px);font-weight:600;letter-spacing:-.02em;margin
 }
 @media (prefers-reduced-motion:reduce){ .d-chart i{transition:none} }
 
-/* ---------- franja de palabras que se mueve con el scroll ---------- */
-.marquee{position:relative;z-index:1;overflow:hidden;padding-block:clamp(30px,6vw,70px);display:grid;gap:4px;pointer-events:none;user-select:none}
-.mq-row{white-space:nowrap;font-size:clamp(56px,12vw,190px);font-weight:700;line-height:1;letter-spacing:-.03em;will-change:transform}
-.mq-row.out{color:transparent;-webkit-text-stroke:1.5px rgba(255,255,255,.4)}
-.mq-row.fill{background:linear-gradient(90deg,var(--r1),var(--r2),var(--r3),var(--r4),var(--r1));-webkit-background-clip:text;background-clip:text;color:transparent}
-
-/* ---------- tarjetas de vidrio con brillo que sigue al mouse ---------- */
-.card,.panel,.feat,.feature-main,.final{background:rgba(11,13,17,.78)}
-.panel,.feat{position:relative;overflow:hidden}
-.spot::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .3s;
-  background:radial-gradient(280px circle at var(--mx,50%) var(--my,50%),rgba(47,160,255,.16),rgba(166,92,255,.08) 40%,transparent 70%)}
-.spot:hover::before{opacity:1}
-.spot > *{position:relative}
-
-/* ---------- entradas con desenfoque al scrollear (solo donde el navegador lo soporta) ---------- */
-@supports (animation-timeline: view()){
-  @media (prefers-reduced-motion:no-preference){
-    .reveal{animation:blur-in linear both;animation-timeline:view();animation-range:entry 0% entry 70%}
-    @keyframes blur-in{from{opacity:0;transform:translateY(46px) scale(.97)}}
-  }
-}
-
-/* ---------- rendimiento en celular: nada de desenfoques animados ---------- */
-@media (pointer:coarse),(max-width:820px){
-}
-@supports (animation-timeline: view()){
-  @media (prefers-reduced-motion:no-preference) and ((pointer:coarse) or (max-width:820px)){
-    .reveal{animation-name:rise-in}
-    @keyframes rise-in{from{opacity:0;transform:translateY(40px)}}
-  }
-}
+/* ---------- paneles de vidrio (quietos: nada entra al scrollear ni brilla con el mouse) ---------- */
+.panel,.feature-main,.final{background:rgba(11,13,17,.78)}
+.panel{position:relative;overflow:hidden}
 
 /* ---------- cierre ---------- */
 .final .cta{justify-content:center}
@@ -341,7 +330,6 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
 footer a{color:var(--text-2);text-decoration:none}
 footer a:hover{color:var(--text)}
 @media (prefers-reduced-motion:reduce){
-  .mq-row{transform:none!important}
   *,*::before,*::after{animation:none!important;transition:none!important} html{scroll-behavior:auto}
 }
 
@@ -435,10 +423,10 @@ footer a:hover{color:var(--text)}
         <span class="eyebrow">Para vos y tu coach</span>
         <h2>Todo tu entrenamiento, en una app</h2>
         <ol class="show-list">
-          <li data-i="0" class="on"><b>Tu rutina, serie por serie</b><p>Abrís la app y ya está el día que te toca. Ves cuánto levantaste la vez pasada, el descanso corre solo y cada serie que marcás le llega a tu coach.</p></li>
-          <li data-i="1"><b>Tu comida, en segundos</b><p>Buscá entre miles de alimentos argentinos y de supermercado, o sacale una foto al plato. Ves calorías y macros del día de un vistazo.</p></li>
-          <li data-i="2"><b>Tu coach, siempre cerca</b><p>Mensajes y audios en la app, sin perderte en WhatsApp. Tu coach te deja notas, videos y explicaciones de voz en cada ejercicio.</p></li>
-          <li data-i="3"><b>Tu progreso a la vista</b><p>Peso, historial de entrenos y volumen por semana. Ves cómo avanzás y tu coach ajusta el plan con datos.</p></li>
+          <li data-i="0" class="on"><b>La rutina del día, serie por serie</b><p>Abrís la app y ya está el día que te toca. Ves cuánto levantaste la vez pasada, el descanso corre solo y cada serie que marcás le llega a tu coach.</p></li>
+          <li data-i="1"><b>Cargás lo que comés en segundos</b><p>Buscá entre miles de alimentos argentinos y de supermercado, o sacale una foto al plato. Ves calorías y macros del día de un vistazo.</p></li>
+          <li data-i="2"><b>Hablás con tu coach adentro de la app</b><p>Mensajes y audios en la app, sin perderte en WhatsApp. Tu coach te deja notas, videos y explicaciones de voz en cada ejercicio.</p></li>
+          <li data-i="3"><b>Ves cómo avanzás, con datos</b><p>Peso, historial de entrenos y volumen por semana. Ves cómo avanzás y tu coach ajusta el plan con datos.</p></li>
           <li data-i="4"><b>Pasos y competencia con amigos</b><p>Se conecta con Salud de Apple y Health Connect. Armá un grupo y peleá el campeón de la semana.</p></li>
         </ol>
         <div class="show-dots" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i><i></i></div>
@@ -501,42 +489,51 @@ footer a:hover{color:var(--text)}
   </div>
 </section>
 
-<div class="marquee" aria-hidden="true">
-  <div class="mq-row out" data-speed=".55">ENTRENÁ · REGISTRÁ · PROGRESÁ · ENTRENÁ · REGISTRÁ · PROGRESÁ ·</div>
-  <div class="mq-row fill" data-speed="-.45">COACH + ATLETA · MÉTODO · DATOS · COACH + ATLETA · MÉTODO · DATOS ·</div>
-</div>
-
 <section id="app">
   <div class="wrap">
-    <h2 class="reveal">Todo lo que entrenás, en un solo lugar</h2>
-    <p class="lead reveal">Sin planillas, sin capturas de pantalla, sin anotar en el teléfono y perderlo.</p>
-    <div class="grid">
-      <div class="card reveal spot"><h3>Rutina del coach</h3><p>Organizada por grupo muscular, con series, RIR, descansos y notas en cada ejercicio.</p></div>
-      <div class="card reveal spot"><h3>Registro de series</h3><p>Ves lo que levantaste la vez pasada y vas por más. Con cronómetro de descanso incluido.</p></div>
-      <div class="card reveal spot"><h3>Hábitos diarios</h3><p>Tu checklist del día: suplementos, pasos, agua. Lo que sostiene el resultado.</p></div>
-      <div class="card reveal spot"><h3>Cardio</h3><p>Lo que te pide tu coach, con cronómetro y temporizador.</p></div>
-      <div class="card reveal spot"><h3>Nutrición</h3><p>Macros, hidratación y el plan de comidas con opciones para elegir.</p></div>
-      <div class="card reveal spot"><h3>Progreso</h3><p>Volumen semanal por músculo, peso e historial de cada ejercicio.</p></div>
+    <h2>Así se ve, de los dos lados</h2>
+    <p class="lead">Capturas de la app y del panel, tal como están hoy. Sin planillas, sin capturas de pantalla, sin anotar en el teléfono y perderlo.</p>
+    <div class="shots">
+      <div class="shot">
+        <div><h3>El coach arma la rutina en la compu</h3><p>Un día de pierna con sus ejercicios, series, reps, descanso y RIR. Guarda plantillas y las reutiliza con cada cliente.</p><span class="shot-cap">El editor de rutinas del panel del coach.</span></div>
+        <div class="shot-img"><img src="assets/landing/coach-rutina.webp" alt="El editor de rutinas del coach: un día de pierna con sus ejercicios, series, reps, descanso y RIR" width="1440" height="900" loading="lazy" decoding="async"></div>
+      </div>
+      <div class="shot">
+        <div><h3>Vos la seguís desde el celular</h3><p>Abrís el día que toca, ves cuánto levantaste la vez pasada, el descanso corre solo y cada serie que marcás le llega a tu coach.</p><span class="shot-cap">La pantalla de Entreno de la app.</span></div>
+        <div class="shot-img cel-shot"><img src="assets/landing/app-entreno.webp" alt="La pantalla de Entreno de la app: el día de hoy con sus ejercicios y series para marcar" width="600" height="1304" loading="lazy" decoding="async"></div>
+      </div>
+      <div class="shot">
+        <div><h3>Y los dos ven el progreso</h3><p>Peso semana a semana, volumen por músculo e historial de cada ejercicio. El coach ajusta el plan con lo que pasó, no con lo que cree.</p><span class="shot-cap">Las estadísticas de una alumna, en el panel del coach.</span></div>
+        <div class="shot-img"><img src="assets/landing/coach-seguimiento.webp" alt="Las estadísticas de una alumna: su peso semana a semana, con el gráfico y la tabla" width="1440" height="900" loading="lazy" decoding="async"></div>
+      </div>
     </div>
+    <ul class="incluye">
+      <li><b>Rutina del coach</b>Organizada por grupo muscular, con series, RIR, descansos y notas en cada ejercicio.</li>
+      <li><b>Registro de series</b>Ves lo que levantaste la vez pasada y vas por más. Con cronómetro de descanso incluido.</li>
+      <li><b>Hábitos diarios</b>Tu checklist del día: suplementos, pasos, agua. Lo que sostiene el resultado.</li>
+      <li><b>Cardio</b>Lo que te pide tu coach, con cronómetro y temporizador.</li>
+      <li><b>Nutrición</b>Macros, hidratación y el plan de comidas con opciones para elegir.</li>
+      <li><b>Progreso</b>Volumen semanal por músculo, peso e historial de cada ejercicio.</li>
+    </ul>
   </div>
 </section>
 
 <section id="nuevo">
   <div class="wrap">
-    <h2 class="reveal">Lo nuevo en GIZE</h2>
-    <p class="lead reveal">Lo último que sumamos para que coach y atleta estén más cerca, todos los días.</p>
+    <h2>Lo nuevo en GIZE</h2>
+    <p class="lead">Lo último que sumamos para que coach y atleta estén más cerca, todos los días.</p>
     <div class="new">
-      <div class="feature-main reveal spot">
+      <div class="feature-main">
         <span class="tag">Mensajes del coach</span>
         <h3>Tu coach te escribe y te llega al celular</h3>
         <p>Como un mensaje de WhatsApp, aunque tengas la app cerrada. El coach ve si te llegó y tiene el historial de lo que te mandó.</p>
-        <div class="lock" aria-label="Ejemplo de notificación en el celular">
+        <div class="lock" aria-label="Ejemplo de notificación en el celular"><span class="lock-lbl">Ejemplo</span>
           <div class="lock-time">07:42</div>
-          <div class="lock-date">jueves 24 de septiembre</div>
+          <div class="lock-date">hoy</div>
           <div class="notif">
             <span class="notif-ic"><svg aria-hidden="true" style="color:#fff"><use href="#g-mono"/></svg></span>
             <div class="notif-b"><div class="notif-h"><span>GIZE</span><span>ahora</span></div>
-              <div class="notif-t">Martina · tu coach</div>
+              <div class="notif-t">Tu coach</div>
               <div class="notif-m">Hoy toca pierna. Subile 2,5 kg a la sentadilla, venís muy bien.</div></div>
           </div>
           <div class="notif">
@@ -548,23 +545,19 @@ footer a:hover{color:var(--text)}
         </div>
       </div>
       <div class="feat-list">
-        <div class="feat reveal spot">
-          <span class="feat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10.5 8v8M14 8v8M17 8v8"/></svg></span>
+        <div class="feat">
           <h3>Escaneá lo que comés</h3>
           <p>Apuntás al código de barras y se carga el producto. Más de 900 alimentos con nombres de acá, y peso crudo o cocido.</p>
         </div>
-        <div class="feat reveal spot">
-          <span class="feat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+        <div class="feat">
           <h3>Preguntas a tu medida</h3>
           <p>El coach arma las preguntas del registro diario y del check-in semanal, y ve las respuestas día por día.</p>
         </div>
-        <div class="feat reveal spot">
-          <span class="feat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg></span>
+        <div class="feat">
           <h3>Descanso a tu ritmo</h3>
           <p>Ajustás el descanso de cada ejercicio y el cronómetro sigue aunque salgas de la app.</p>
         </div>
-        <div class="feat reveal spot">
-          <span class="feat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+        <div class="feat">
           <h3>Entrenos por fecha</h3>
           <p>Tus entrenos pasados con cada serie y peso, ordenados para comparar semana a semana.</p>
         </div>
@@ -575,10 +568,10 @@ footer a:hover{color:var(--text)}
 
 <section id="coach">
   <div class="wrap">
-    <h2 class="reveal">Dos partes, un solo sistema</h2>
-    <p class="lead reveal">GIZE no es una app de ejercicios: es el vínculo entre un coach y su atleta.</p>
+    <h2>Dos partes, un solo sistema</h2>
+    <p class="lead">GIZE no es una app de ejercicios: es el vínculo entre un coach y su atleta.</p>
     <div class="two">
-      <div class="panel reveal spot">
+      <div class="panel">
         <h3>Si entrenás</h3>
         <ul>
           <li><span class="dot"></span>Sabés exactamente qué hacer hoy, sin preguntar.</li>
@@ -587,7 +580,7 @@ footer a:hover{color:var(--text)}
           <li><span class="dot"></span>Tu coach te responde con datos, no con suposiciones.</li>
         </ul>
       </div>
-      <div class="panel reveal spot">
+      <div class="panel">
         <h3>Si sos coach</h3>
         <ul>
           <li><span class="dot"></span>Todos tus clientes en un panel, vinculados con tu código.</li>
@@ -603,28 +596,28 @@ footer a:hover{color:var(--text)}
 
 <section id="precios">
   <div class="wrap">
-    <h2 class="reveal">Planes para coaches y gimnasios</h2>
-    <p class="lead reveal">Probá GIZE 14 días gratis, sin tarjeta. Después elegís el plan según cuántos clientes o alumnos tengas. Para tus clientes la app es gratis.</p>
+    <h2>Planes para coaches y gimnasios</h2>
+    <p class="lead">Probá GIZE 14 días gratis, sin tarjeta. Después elegís el plan según cuántos clientes o alumnos tengas. Para tus clientes la app es gratis.</p>
     <div class="prices">
-      <h3 class="price-group reveal">Para coaches</h3>
-      <div class="price reveal"><h3>Hasta <b>10</b> clientes</h3><div class="amt">$14.900<small>/mes</small></div><ul><li>✓ Rutinas, seguimiento y check-in</li><li>✓ Mensajes al celular del cliente</li><li>✓ Plantillas de rutinas ilimitadas</li></ul><a class="btn btn-ghost" href="app/?plan=p10#registro-coach">Probar 14 días gratis</a></div>
-      <div class="price reveal best"><span class="badge">Más elegido</span><h3>Hasta <b>25</b> clientes</h3><div class="amt">$24.900<small>/mes</small></div><ul><li>✓ Rutinas, seguimiento y check-in</li><li>✓ Mensajes al celular del cliente</li><li>✓ Plantillas de rutinas ilimitadas</li></ul><a class="btn btn-rgb" href="app/?plan=p25#registro-coach">Probar 14 días gratis</a></div>
-      <div class="price reveal"><h3>Hasta <b>50</b> clientes</h3><div class="amt">$37.900<small>/mes</small></div><ul><li>✓ Rutinas, seguimiento y check-in</li><li>✓ Mensajes al celular del cliente</li><li>✓ Plantillas de rutinas ilimitadas</li></ul><a class="btn btn-ghost" href="app/?plan=p50#registro-coach">Probar 14 días gratis</a></div>
-      <h3 class="price-group reveal">Para gimnasios</h3>
-      <div class="price reveal"><span class="pname">Gimnasio chico</span><h3>Hasta <b>100</b> alumnos</h3><div class="amt">$59.900<small>/mes</small></div><ul><li>✓ Todo lo de los planes para coaches</li><li>✓ Ideal para gimnasios y equipos</li><li>✓ $599 por alumno</li></ul><a class="btn btn-ghost" href="app/?plan=p100#registro-coach">Probar 14 días gratis</a></div>
-      <div class="price reveal"><span class="pname">Gimnasio</span><h3>Hasta <b>250</b> alumnos</h3><div class="amt">$119.900<small>/mes</small></div><ul><li>✓ Todo lo de los planes para coaches</li><li>✓ Ideal para gimnasios y equipos</li><li>✓ $480 por alumno</li></ul><a class="btn btn-ghost" href="app/?plan=p250#registro-coach">Probar 14 días gratis</a></div>
-      <div class="price reveal"><span class="pname">Gimnasio grande</span><h3>Hasta <b>500</b> alumnos</h3><div class="amt">$199.900<small>/mes</small></div><ul><li>✓ Todo lo de los planes para coaches</li><li>✓ Ideal para gimnasios y equipos</li><li>✓ $400 por alumno</li></ul><a class="btn btn-ghost" href="app/?plan=p500#registro-coach">Probar 14 días gratis</a></div>
-      <div class="price custom reveal"><div><span class="pname">Más de 500 alumnos</span><h3>Plan <b>a medida</b></h3><p>Para cadenas y gimnasios grandes: armamos el plan según cuántos alumnos tengas.</p></div><a class="btn btn-ghost" href="https://wa.me/5493413490705?text=Hola!%20Quiero%20un%20plan%20a%20medida%20de%20GIZE%20para%20un%20gimnasio%20de%20m%C3%A1s%20de%20500%20alumnos." target="_blank" rel="noopener">Hablemos</a></div>
+      <h3 class="price-group">Para coaches</h3>
+      <div class="price"><h3>Hasta <b>10</b> clientes</h3><div class="amt">$14.900<small>/mes</small></div><ul><li>✓ Rutinas, seguimiento y check-in</li><li>✓ Mensajes al celular del cliente</li><li>✓ Plantillas de rutinas ilimitadas</li></ul><a class="btn btn-ghost" href="app/?plan=p10#registro-coach">Probar 14 días gratis</a></div>
+      <div class="price best"><span class="badge">Más elegido</span><h3>Hasta <b>25</b> clientes</h3><div class="amt">$24.900<small>/mes</small></div><ul><li>✓ Rutinas, seguimiento y check-in</li><li>✓ Mensajes al celular del cliente</li><li>✓ Plantillas de rutinas ilimitadas</li></ul><a class="btn btn-rgb" href="app/?plan=p25#registro-coach">Probar 14 días gratis</a></div>
+      <div class="price"><h3>Hasta <b>50</b> clientes</h3><div class="amt">$37.900<small>/mes</small></div><ul><li>✓ Rutinas, seguimiento y check-in</li><li>✓ Mensajes al celular del cliente</li><li>✓ Plantillas de rutinas ilimitadas</li></ul><a class="btn btn-ghost" href="app/?plan=p50#registro-coach">Probar 14 días gratis</a></div>
+      <h3 class="price-group">Para gimnasios</h3>
+      <div class="price"><span class="pname">Gimnasio chico</span><h3>Hasta <b>100</b> alumnos</h3><div class="amt">$59.900<small>/mes</small></div><ul><li>✓ Todo lo de los planes para coaches</li><li>✓ Ideal para gimnasios y equipos</li><li>✓ $599 por alumno</li></ul><a class="btn btn-ghost" href="app/?plan=p100#registro-coach">Probar 14 días gratis</a></div>
+      <div class="price"><span class="pname">Gimnasio</span><h3>Hasta <b>250</b> alumnos</h3><div class="amt">$119.900<small>/mes</small></div><ul><li>✓ Todo lo de los planes para coaches</li><li>✓ Ideal para gimnasios y equipos</li><li>✓ $480 por alumno</li></ul><a class="btn btn-ghost" href="app/?plan=p250#registro-coach">Probar 14 días gratis</a></div>
+      <div class="price"><span class="pname">Gimnasio grande</span><h3>Hasta <b>500</b> alumnos</h3><div class="amt">$199.900<small>/mes</small></div><ul><li>✓ Todo lo de los planes para coaches</li><li>✓ Ideal para gimnasios y equipos</li><li>✓ $400 por alumno</li></ul><a class="btn btn-ghost" href="app/?plan=p500#registro-coach">Probar 14 días gratis</a></div>
+      <div class="price custom"><div><span class="pname">Más de 500 alumnos</span><h3>Plan <b>a medida</b></h3><p>Para cadenas y gimnasios grandes: armamos el plan según cuántos alumnos tengas.</p></div><a class="btn btn-ghost" href="https://wa.me/5493413490705?text=Hola!%20Quiero%20un%20plan%20a%20medida%20de%20GIZE%20para%20un%20gimnasio%20de%20m%C3%A1s%20de%20500%20alumnos." target="_blank" rel="noopener">Hablemos</a></div>
     </div>
-    <p class="price-note reveal">Precios en pesos argentinos, por mes. Empezás con 14 días gratis y, para seguir, pagás con tarjeta por Mercado Pago (se renueva solo cada mes y lo cancelás cuando quieras) o por transferencia, arreglándolo por <a href="https://wa.me/5493413490705?text=Hola!%20Quiero%20contratar%20GIZE%20para%20coaches." target="_blank" rel="noopener">WhatsApp</a> con el equipo de GIZE.</p>
+    <p class="price-note">Precios en pesos argentinos, por mes. Empezás con 14 días gratis y, para seguir, pagás con tarjeta por Mercado Pago (se renueva solo cada mes y lo cancelás cuando quieras) o por transferencia, arreglándolo por <a href="https://wa.me/5493413490705?text=Hola!%20Quiero%20contratar%20GIZE%20para%20coaches." target="_blank" rel="noopener">WhatsApp</a> con el equipo de GIZE.</p>
   </div>
 </section>
 
 <section id="final">
   <div class="wrap">
-    <div class="final reveal">
+    <div class="final">
       <span class="logo" role="img" aria-label="GIZE" style="font-size:clamp(34px,6vw,64px)"><svg class="mono" aria-hidden="true"><use href="#g-mono"/></svg><svg class="wm" aria-hidden="true"><use href="#g-wm"/></svg></span>
-      <h2 class="reveal" style="margin-top:26px">Empezá a entrenar con método</h2>
+      <h2 style="margin-top:26px">Empezá a entrenar con método</h2>
       <p class="lead" style="margin:14px auto 30px;text-align:center">Creá tu cuenta y sumá a tu coach, o invitá a tus clientes si el coach sos vos.</p>
       <div class="cta" style="margin-top:0">
         <a class="btn btn-rgb" href="app/#registro">Creá tu cuenta</a>

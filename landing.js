@@ -124,26 +124,6 @@
     document.addEventListener('visibilitychange',start); start();
   })();
 
-  // =============== 2) Scroll: franja de palabras ===============
-  // Solo trabaja cuando se scrollea (no en cada cuadro) y con posiciones medidas al
-  // cambiar el tamaño, sin pedirle al navegador que mida la página a cada rato.
-  var rows=[].slice.call(document.querySelectorAll('.mq-row'));
-  var geo=null, ticking=false;
-  function measure(){
-    var y=scrollY, R=function(el){ var r=el.getBoundingClientRect(); return {top:r.top+y,bottom:r.bottom+y,h:r.height}; };
-    geo={rows:rows.map(function(r){ return {top:R(r).top,w:r.scrollWidth}; })}; update();
-  }
-  function update(){
-    ticking=false; if(!geo||reduce) return;
-    var y=scrollY, vh=innerHeight;
-    rows.forEach(function(row,k){ var g=geo.rows[k], sp=+row.dataset.speed; if(Math.abs(g.top-y-vh*.5)>vh*1.5) return;
-      row.style.transform='translate3d('+((g.top-y-vh)*sp-(sp>0?0:g.w*.25))+'px,0,0)'; });
-  }
-  addEventListener('scroll',function(){ if(!ticking){ ticking=true; requestAnimationFrame(update); } },{passive:true});
-  var mt; addEventListener('resize',function(){ clearTimeout(mt); mt=setTimeout(measure,150); });
-  addEventListener('load',measure); if(document.fonts&&document.fonts.ready) document.fonts.ready.then(measure);
-  measure();
-
   // =============== Cómo funciona: piezas de la app que se pueden tocar ===============
   var dCopy=document.getElementById('dCopy'), dCode=document.getElementById('dCode');
   if(dCopy&&dCode) dCopy.addEventListener('click',function(){
@@ -157,7 +137,7 @@
   var dChart=document.getElementById('dChart');
   if(dChart){ var tog=function(){ dChart.classList.toggle('up'); }; dChart.addEventListener('click',tog); dChart.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); tog(); } }); }
 
-  // =============== 4) Portada y «Para vos y tu coach» con el scroll ===============
+  // =============== 2) Portada y «Para vos y tu coach» con el scroll ===============
   // Portada: al bajar, los celulares de los costados se abren (--s de 0 a 1 en el hero).
   // Funciones: la sección es alta y su interior queda fijo; según cuánto se scrolleó toca una
   // función: se marca su texto y el celular gira (un cuarto de vuelta y vuelve) para mostrar su
@@ -194,9 +174,6 @@
     addEventListener('resize',upd); upd();
   })();
 
-  // =============== 3) Brillo que sigue al mouse en las tarjetas (solo con mouse) ===============
-  if(matchMedia('(hover:hover)').matches) document.addEventListener('pointermove',function(e){ var c=e.target.closest&&e.target.closest('.spot'); if(!c) return;
-    var r=c.getBoundingClientRect(); c.style.setProperty('--mx',(e.clientX-r.left)+'px'); c.style.setProperty('--my',(e.clientY-r.top)+'px'); },{passive:true});
 })();
 
 // El service worker de la app (scope /GIZE/) también cubre la landing: así Chrome permite

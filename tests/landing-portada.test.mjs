@@ -43,7 +43,7 @@ export default async function ({ base, t }){
         b: document.querySelector('#funciones .show-list li.on b').textContent, ancho: document.documentElement.scrollWidth })); };
     const p0 = await paso(0), p2 = await paso(2), p4 = await paso(4);
     t.eq([p0.li, p0.img, p2.li, p2.img, p4.li, p4.img], [0, 0, 2, 2, 4, 4], nom + ': al scrollear cambia la función y su pantalla');
-    t.eq([p0.b, p2.b, p4.b], ['Tu rutina, serie por serie', 'Tu coach, siempre cerca', 'Pasos y competencia con amigos'], nom + ': los títulos de las funciones');
+    t.eq([p0.b, p2.b, p4.b], ['La rutina del día, serie por serie', 'Hablás con tu coach adentro de la app', 'Pasos y competencia con amigos'], nom + ': los títulos de las funciones');
     t.ok(p4.ancho <= r.vw, nom + ': la sección de funciones tampoco hace scroll de costado');
     t.eq(errs, [], nom + ': errores de la página');
     await close();
