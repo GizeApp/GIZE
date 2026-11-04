@@ -737,7 +737,11 @@ body:not(#_) .co-exc.co-drop-target { background:color-mix(in srgb, var(--gize-r
 .cm-del { display:block; margin:22px 0 0; background:none; border:0; padding:0; color:#ff5d5d; font:inherit; font-size:var(--text-meta); cursor:pointer; }
 .cm-empty { padding:30px 10px; text-align:center; color:var(--txt-2); }
 @media (max-width:760px){
-  .cm-wrap { grid-template-columns:1fr; }
+  /* minmax(0,…) y min-width:0: la tira de comidas (.cm-rail, más ancha que la pantalla) se desliza
+     adentro de su columna; con 1fr solo, la columna se estiraba al ancho de la tira y toda la
+     pantalla del celular se corría de costado. */
+  .cm-wrap { grid-template-columns:minmax(0,1fr); }
+  .cm-list { min-width:0; }
   .cm-detail { padding:16px; }
   .cm-macros { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .cm-head { flex-direction:column; align-items:stretch; }
@@ -793,7 +797,7 @@ body:not(#_) .co-exc.co-drop-target { background:color-mix(in srgb, var(--gize-r
 .cm-head { margin-bottom:8px; }
 .cm-sub-opts { margin:14px 0 10px; font-size:16px; font-weight:800; color:var(--txt); }
 .cm-sub-opts small { font-size:var(--text-meta); font-weight:500; }
-.opt-grid { grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; }
+.opt-grid { grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; }
 .opt-item { padding:12px; }
 .opt-body { min-height:150px; font-size:var(--text-emphasis); }
 .opt-add-card { min-height:150px; }
