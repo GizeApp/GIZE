@@ -2,7 +2,8 @@ import { cargarSocio, codigoInfo, quiereGym } from '../core/gimnasio.js';
 import { auIcoTicket, checkSvg, chevronLeftSvg } from '../core/icons.js';
 
 import { State, state } from '../core/state.js';
-import { diaDeHoy } from '../core/diasemana.js';
+import { DIA_CORTO, DIA_LARGO, SEMANA, diaDeHoy } from '../core/diasemana.js';
+import { MAX_DIAS, armarRutina, diasLimpios } from '../core/rutina-dias.js';
 
 import { dec, esc, today, uid } from '../core/utils.js';
 
@@ -110,6 +111,7 @@ let ruedas = [];     // ruedas de la pantalla actual (se desarman al cambiar de 
 let _cat = null;     // catálogo ya esperado (el de la base o, si no llegó a tiempo, el de la app)
 let filtroApp = null; // días por semana elegidos en «Ver rutinas armadas» en esta sesión
 let _mostradas = [];  // las rutinas de la lista que se ve (la tocada se busca acá aunque después llegue el catálogo)
+let diasMedida = [];  // días de la semana tocados para armar la rutina a medida (core/rutina-dias.js)
 
 const cp = () => state.calProfile || {};
 const conCoach = () => !!(State.cloudProfile && State.cloudProfile.coach_id);
@@ -406,16 +408,38 @@ function introRutinas(){
 const chip = (n, sel, lbl) => '<button type="button" class="onb-num onb-dias'+(n===sel?' on':'')+'" data-onb="dias" data-v="'+n+'" aria-pressed="'+(n===sel)+'">'+lbl+'</button>';
 const chipsDias = sel => '<p class="onb-label">¿Cuántos días por semana entrenás?</p>'+
   '<div class="onb-nums onb-nums-dias" role="group" aria-label="Días por semana">'+chip(0, sel, "Todas")+[1,2,3,4,5,6].map(n=>chip(n, sel, String(n))).join("")+'</div>';
+// La rutina a medida: la arma core/rutina-dias.js con los días tocados (de 1 a 5). Su id sale
+// de los días («dias-135»): si la bienvenida se reanuda con esa elegida, los días se recuperan del id.
+const esMedida = id => /^dias-\d+$/.test(String(id||""));
+function rutinaMedida(){
+  if(!diasMedida.length && modo==="wiz" && D && esMedida(D.ans.rutina)) diasMedida=diasLimpios(D.ans.rutina.slice(5).split("").map(Number));
+  return diasMedida.length && diasMedida.length<=MAX_DIAS ? armarRutina(diasMedida) : null;
+}
+const tarjeta = (r, sel, app) => {
+  const k=diasDeEntreno(r), on=!app && r.id===sel;
+  return '<button type="button" class="onb-routine'+(on?' on':'')+'" data-onb="pick" data-v="'+esc(r.id)+'"'+(app?'':' aria-pressed="'+on+'"')+'>'+
+    '<span class="onb-routine-txt"><b>'+esc(r.nombre)+'</b><small>'+k+' día'+(k===1?'':'s')+' por semana'+(r.desc?' · '+esc(r.desc):'')+'</small></span>'+(app?'':dot)+'</button>';
+};
+// Los siete días para tocar y, abajo, la rutina armada con esos días (o por qué no hay).
+function medidaHtml(sel, app){
+  const r=rutinaMedida(), n=diasMedida.length;
+  return '<div class="onb-medida"><p class="onb-label">O armala con los días que podés ir</p>'+
+    '<div class="onb-nums onb-nums-sem" role="group" aria-label="Días de la semana que entrenás">'+SEMANA.map(d=>{ const on=diasMedida.includes(d);
+      return '<button type="button" class="onb-num onb-sem'+(on?' on':'')+'" data-onb="sem" data-v="'+d+'" aria-label="'+DIA_LARGO[d]+'" aria-pressed="'+on+'">'+DIA_CORTO[d]+'</button>'; }).join("")+'</div>'+
+    (r ? tarjeta(r, sel, app) : '<p class="onb-text onb-medida-txt">'+(n>MAX_DIAS ? 'Hasta '+MAX_DIAS+' días por semana: con más, el cuerpo no llega a descansar.' : 'Tocá los días que vas a entrenar y te armamos la rutina: cada músculo dos veces por semana con dos días de descanso entre medio, y hombro hasta tres.')+'</p>')+
+    '</div>';
+}
 // sel: la elegida en la bienvenida; app: desde Entreno (ahí tocar una la elige al toque).
 function listaHtml(n, sel, app){
-  const all=rutinasTodas(), list=rutinasDeDias(all, n);
-  _mostradas=list;
-  if(!list.length) return '<p class="onb-text">'+(all.length && n ? 'Todavía no hay rutinas de '+n+' día'+(n===1?'':'s')+' para esta opción. Probá con otra cantidad de días.' : 'Todavía no hay rutinas para esta opción.')+'</p>';
-  return list.map(r=>{
-    const k=diasDeEntreno(r), on=!app && r.id===sel;
-    return '<button type="button" class="onb-routine'+(on?' on':'')+'" data-onb="pick" data-v="'+esc(r.id)+'"'+(app?'':' aria-pressed="'+on+'"')+'>'+
-      '<span class="onb-routine-txt"><b>'+esc(r.nombre)+'</b><small>'+k+' día'+(k===1?'':'s')+' por semana'+(r.desc?' · '+esc(r.desc):'')+'</small></span>'+(app?'':dot)+'</button>';
-  }).join("");
+  const all=rutinasTodas(), list=rutinasDeDias(all, n), medida=rutinaMedida();
+  _mostradas=medida ? list.concat([medida]) : list;
+  const vacio='<p class="onb-text">'+(all.length && n ? 'Todavía no hay rutinas de '+n+' día'+(n===1?'':'s')+' para esta opción. Probá con otra cantidad de días.' : 'Todavía no hay rutinas para esta opción.')+'</p>';
+  return (list.length ? list.map(r=>tarjeta(r, sel, app)).join("") : vacio)+medidaHtml(sel, app);
+}
+// Tocar un día de la semana lo prende o apaga; en la bienvenida, la rutina armada queda elegida.
+function tocarDia(v){
+  const d=+v; diasMedida=diasMedida.includes(d) ? diasMedida.filter(x=>x!==d) : diasLimpios(diasMedida.concat(d));
+  if(modo==="wiz" && D){ const r=rutinaMedida(); if(r) D.ans.rutina=r.id; else if(esMedida(D.ans.rutina)) D.ans.rutina=null; }
 }
 // Filtro de la lista: lo que tocó o, si no tocó nada, los días que le sugerimos por su experiencia.
 const filtroWiz = () => D.ans.filtro!=null ? D.ans.filtro : (SUGERIDOS[D.ans.nivel] || 0);
@@ -426,8 +450,8 @@ function pintarLista(){
   listaLista();
   if(modo==="app"){ box.innerHTML=listaHtml(filtroApp, null, true); return; }
   const n=filtroWiz();
-  // Si el filtro esconde la que había elegido, deja de estar elegida.
-  if(D.ans.rutina && !rutinasDeDias(rutinasTodas(), n).some(r=>r.id===D.ans.rutina)) D.ans.rutina=null;
+  // Si el filtro esconde la que había elegido, deja de estar elegida (la a medida no depende del filtro).
+  if(D.ans.rutina && !esMedida(D.ans.rutina) && !rutinasDeDias(rutinasTodas(), n).some(r=>r.id===D.ans.rutina)) D.ans.rutina=null;
   box.innerHTML=listaHtml(n, D.ans.rutina, false);
   refrescar();
 }
@@ -905,6 +929,7 @@ function alTocar(e){
     if(a==="sex"){ state.sex=v; save(); mark("sex", v); appLista({ sr:"Cargando rutinas…" }); return; }
     if(a==="sexagain"){ appSexo(); return; }
     if(a==="dias"){ filtroApp=+v||0; mark("dias", filtroApp); pintarLista(); return; }
+    if(a==="sem"){ tocarDia(v); pintarLista(); return; }
     if(a==="pick") appElegir(v);
     return;
   }
@@ -934,6 +959,7 @@ function alTocar(e){
   else if(a==="days"){ D.ans.dias=+v; D.flags.diasTocado=true; }
   else if(a==="arranque"){ D.ans.start=v; mark(a, v); cabeza(); guardarBorrador(); return; } // N cambia ahí mismo
   else if(a==="dias"){ D.ans.filtro=+v||0; mark(a, D.ans.filtro); pintarLista(); guardarBorrador(); return; }
+  else if(a==="sem"){ tocarDia(v); pintarLista(); guardarBorrador(); return; }
   else if(a==="pick"){ D.ans.rutina=v; mark(a, v); refrescar(); guardarBorrador(); return; }
   else return;
   mark(a, v); refrescar(); guardarBorrador();
