@@ -243,20 +243,18 @@ export default async function ({ t }){
     t.ok(x.rpcs.ia_cerrar[0].p_usd === 0 && x.rpcs.ia_cerrar[0].p_codigo === 'creditos', 'créditos agotados: no se cobra');
   }
   // Límites de la Console (organización y workspace): 400 con la fecha en que vuelve. La fecha del
-  // mensaje tiene que estar en el futuro (fechaDelMensaje la toma hasta 40 días adelante): se arma
-  // a 10 días de hoy y no fija (con «2026-11-01» escrita, la prueba empezó a fallar el 1/11/2026).
-  const hoy = new Date(), vuelve = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate() + 10));
-  const dia = vuelve.toISOString().slice(0, 10), iso = vuelve.toISOString();
-  for (const msg of ['You have reached your specified API usage limits. You will regain access on ' + dia + ' at 00:00 UTC.',
-    'You have reached your specified workspace API usage limits. You will regain access on ' + dia + ' at 00:00 UTC.']){
+  // mensaje tiene que ser futura (si ya pasó, la función la ignora): diez días desde hoy, a las 00:00 UTC.
+  const EN10 = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 10)), DIA = EN10.toISOString().slice(0, 10), VUELVE = EN10.toISOString();
+  for (const msg of ['You have reached your specified API usage limits. You will regain access on ' + DIA + ' at 00:00 UTC.',
+    'You have reached your specified workspace API usage limits. You will regain access on ' + DIA + ' at 00:00 UTC.']){
     x = await cortes(400, errorApi('invalid_request_error', msg));
     const cut = (x.rpcs.ia_cortar || [])[0] || {};
-    t.ok(x.status === 503 && x.res.codigo === 'tope_mes' && x.res.vuelve === iso, 'límite de la Console: tope_mes con la fecha del mensaje: ' + JSON.stringify(x.res));
-    t.ok(cut.p_motivo === 'limite_console' && cut.p_vuelve === iso && x.rpcs.ia_cerrar[0].p_usd === 0, 'límite de la Console: corta el ciclo hasta esa fecha y no cobra');
+    t.ok(x.status === 503 && x.res.codigo === 'tope_mes' && x.res.vuelve === VUELVE, 'límite de la Console: tope_mes con la fecha del mensaje: ' + JSON.stringify(x.res));
+    t.ok(cut.p_motivo === 'limite_console' && cut.p_vuelve === VUELVE && x.rpcs.ia_cerrar[0].p_usd === 0, 'límite de la Console: corta el ciclo hasta esa fecha y no cobra');
   }
   // Tope del nivel: 429 con enforced_spend_limit_reached, sin retry-after.
-  x = await cortes(429, errorApi('rate_limit_error', 'You have reached your API usage limits: your organization has crossed its monthly API usage threshold, set based on your organization\'s API tier. You will regain access on ' + dia + ' at 00:00 UTC.', { error_code: 'enforced_spend_limit_reached' }));
-  t.ok(x.res.codigo === 'tope_mes' && ((x.rpcs.ia_cortar || [])[0] || {}).p_motivo === 'limite_console' && x.res.vuelve === iso, 'tope del nivel (429 enforced_spend_limit_reached): tope_mes');
+  x = await cortes(429, errorApi('rate_limit_error', 'You have reached your API usage limits: your organization has crossed its monthly API usage threshold, set based on your organization\'s API tier. You will regain access on ' + DIA + ' at 00:00 UTC.', { error_code: 'enforced_spend_limit_reached' }));
+  t.ok(x.res.codigo === 'tope_mes' && ((x.rpcs.ia_cortar || [])[0] || {}).p_motivo === 'limite_console' && x.res.vuelve === VUELVE, 'tope del nivel (429 enforced_spend_limit_reached): tope_mes');
   x = await cortes(429, errorApi('rate_limit_error', 'Spend cap reached.', { error_code: 'enforced_spend_limit_reached' }));
   const primero = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1)).toISOString();
   t.ok(x.res.codigo === 'tope_mes' && x.res.vuelve === primero, 'sin fecha en el mensaje: vuelve el día 1 del mes que viene a las 00:00 UTC: ' + x.res.vuelve);
