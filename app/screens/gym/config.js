@@ -26,35 +26,43 @@ export function renderConfig(){
   const profes = profesDelEquipo();
   const cambios = Object.keys(form).length > 0;
   const dpa = GS.dpa || {};
-  return cabeza("Configuración", "", esc(g.name || "")) + '<div class="gy-ficha"><div class="gy-ficha-col">' +
-    '<section class="cv-card gy-sec"><h2 class="gy-h">Datos del gimnasio</h2><div class="gy-form">' +
-      campo("name", "Nombre", "text", ' maxlength="80"') + campo("address", "Dirección", "text", ' maxlength="160"') + campo("city", "Ciudad", "text", ' maxlength="80"') + campo("province", "Provincia", "text", ' maxlength="80"') +
-      campo("whatsapp", "WhatsApp del gimnasio", "tel") + campo("contact_email", "Mail de contacto", "email") +
-    '</div><div class="gy-acc">' + btn('data-gym="cfg-guardar"' + (cambios && !GS.busy ? '' : ' disabled'), GS.busy === "cfg" ? "Guardando…" : "Guardar cambios") + '</div></section>' +
-    '<section class="cv-card gy-sec"><h2 class="gy-h">Código del gimnasio</h2><p class="gy-fino">Tus socios lo ponen en la app para pedir sumarse.</p>' +
-      '<div class="gy-codigo"><span class="co-code">' + esc(code || "—") + '</span>' + btn2('data-gym="copiar" data-v="' + esc(code) + '"', "Copiar") + btn2('data-gym="copiar" data-v="' + esc(linkCodigo(code)) + '"', "Copiar link") + btn2('data-gym="qr-imprimir"', "QR para imprimir") + '</div>' +
-      '<div class="gy-acc"><button class="cv-link" data-gym="codigo-rotar">Cambiar código</button></div>' +
-      '<label class="gy-f gy-f-in"><span>Profe por defecto para las solicitudes</span><select class="gy-sel" data-gym="cfg-profe"><option value="">Sin profe</option>' +
-        profes.map(p => '<option value="' + esc(p.user_id) + '"' + (g.default_trainer_id === p.user_id ? ' selected' : '') + '>' + esc(p.nombre) + '</option>').join("") + '</select></label>' +
-      sw(TOGGLES[0]) + '</section>' +
-    '<section class="cv-card gy-sec"><h2 class="gy-h">Equipo</h2>' + TOGGLES.slice(1).map(sw).join("") + '</section>' +
-    '<section class="cv-card gy-sec"><h2 class="gy-h">Ingreso</h2><label class="gy-f gy-f-in"><span>Un ingreso cada</span><span class="gy-horas"><input class="co-note" type="number" min="1" max="24" step="1" inputmode="numeric" data-gym="cfg-horas" value="' + esc(String(st.ingreso_horas || 3)) + '"> horas</span></label>' +
-      '<p class="gy-fino">Si se registra otro ingreso del mismo socio antes, la recepción ve que ya entró.</p>' +
-      '<label class="gy-sw"><span class="gy-sw-t"><b>No dejar entrar con la cuota vencida</b><span>La recepción no puede registrar el ingreso hasta que pague. Apagado: lo registra y ve el aviso de la cuota vencida.</span></span>' +
-        '<input type="checkbox" role="switch" data-gym="cfg-bloquea"' + (st.cuota_bloquea ? ' checked' : '') + (GS.busy ? ' disabled' : '') + '><i aria-hidden="true"></i></label></section>' +
-  '</div><div class="gy-ficha-col">' +
-    '<section class="cv-card gy-sec"><h2 class="gy-h">Privacidad</h2><dl class="gy-dl">' + PRIVACIDAD.map(([a, b]) => '<dt>' + a + '</dt><dd>' + b + '</dd>').join("") + '</dl>' +
-      '<p class="gy-fino">La administración ve los registros solo de quien los compartió. <a class="cv-link" href="https://gize.ar/privacidad/" target="_blank" rel="noopener">Política de privacidad</a></p></section>' +
-    '<section class="cv-card gy-sec"><h2 class="gy-h">Contrato de encargo</h2><p class="gy-p">' + (dpa.dpa_version ? 'Versión ' + esc(dpa.dpa_version) + ', aceptada el ' + fecha(dpa.dpa_at) + '.' : 'El que se aceptó al crear el gimnasio.') + '</p>' +
-      '<p class="gy-fino">GIZE guarda los datos de tus socios por encargo del gimnasio y solo para prestar el servicio.</p></section>' +
-    '<section class="cv-card gy-sec"><h2 class="gy-h">Marca</h2><p class="gy-p">Próximamente: tu logo y tus colores en la app de tus socios.</p></section>' +
-    '<section class="cv-card gy-sec"><h2 class="gy-h">Exportar</h2><p class="gy-fino">Socios, ingresos y equipo en CSV (se abre con Excel o Google Sheets). Anda siempre' + (enApp() ? '.' : ', aunque venza el plan.') + '</p>' +
-      '<div class="gy-acc">' + btn2('data-gym="exportar" data-v="todo"', "Exportar todo") + btn2('data-gym="exportar" data-v="socios"', "Socios") + btn2('data-gym="exportar" data-v="ingresos"', "Ingresos") + btn2('data-gym="exportar" data-v="equipo"', "Equipo") + '</div></section>' +
-    (esDueno() ? '<section class="cv-card gy-sec gy-cuidado"><h2 class="gy-h">Zona de cuidado</h2>' +
-      '<div class="gy-kv"><span>Cambio de dueño</span><div><p class="gy-fino">Lo hace el equipo de GIZE.</p><a class="co-copy-btn cv-sec-btn gy-btn2" href="' + esc("https://wa.me/" + WA_GIZE + "?text=" + encodeURIComponent("Hola! Quiero pasar el gimnasio " + (g.name || "") + " a otra persona.")) + '" target="_blank" rel="noopener">Pedir cambio de dueño</a></div></div>' +
-      '<div class="gy-kv"><span>Cerrar el gimnasio</span><div><p class="gy-fino">Los socios conservan sus cuentas y quedan sin profe del gimnasio. Te pide escribir el nombre.</p><button class="gize-btn cv-btn gy-btn-peligro" data-gym="cerrar-gym">Cerrar el gimnasio</button></div></div></section>' : '') +
-    '<section class="cv-card gy-sec"><h2 class="gy-h">Tu cuenta</h2><div class="gy-acc"><button class="co-copy-btn cv-sec-btn gy-btn2" data-auth="logout">Cerrar sesión</button><button class="cv-link gy-peligro" data-action="cfg-delete-account">Eliminar mi cuenta</button></div></section>' +
-  '</div></div>';
+  const grupo = (t, sub, cuerpo) => '<section class="gy-cfg-g"><div class="gy-cfg-gh"><h2 class="cv-h2">' + t + '</h2>' + (sub ? '<p class="gy-fino">' + sub + '</p>' : "") + '</div>' + cuerpo + '</section>';
+  const fila = (label, ctl) => '<label class="gy-cfg-fila"><span>' + label + '</span>' + ctl + '</label>';
+  // Cinco grupos, de lo que más se toca a lo que casi nunca: el gimnasio, cómo se suman los socios, el equipo y el ingreso, privacidad y datos, y la cuenta.
+  return cabeza("Configuración", "", esc(g.name || "")) + '<div class="gy-cfg">' +
+    grupo("Tu gimnasio", "Lo que ven tus socios cuando buscan el gimnasio.",
+      '<section class="cv-card gy-sec"><h2 class="gy-h">Datos del gimnasio</h2><div class="gy-form">' +
+        campo("name", "Nombre", "text", ' maxlength="80"') + campo("address", "Dirección", "text", ' maxlength="160"') + campo("city", "Ciudad", "text", ' maxlength="80"') + campo("province", "Provincia", "text", ' maxlength="80"') +
+        campo("whatsapp", "WhatsApp del gimnasio", "tel") + campo("contact_email", "Mail de contacto", "email") +
+      '</div><div class="gy-acc">' + btn('data-gym="cfg-guardar"' + (cambios && !GS.busy ? '' : ' disabled'), GS.busy === "cfg" ? "Guardando…" : "Guardar cambios") + '</div></section>') +
+    grupo("Cómo se suman los socios", "",
+      '<section class="cv-card gy-sec"><h2 class="gy-h">Código del gimnasio</h2><p class="gy-fino">Tus socios lo ponen en la app para pedir sumarse.</p>' +
+        '<div class="gy-codigo"><span class="co-code">' + esc(code || "—") + '</span>' + btn2('data-gym="copiar" data-v="' + esc(code) + '"', "Copiar") + btn2('data-gym="copiar" data-v="' + esc(linkCodigo(code)) + '"', "Copiar link") + btn2('data-gym="qr-imprimir"', "QR para imprimir") + '</div>' +
+        '<div class="gy-acc"><button class="cv-link" data-gym="codigo-rotar">Cambiar código</button></div>' +
+        fila("Profe por defecto para las solicitudes", '<select class="gy-sel" data-gym="cfg-profe"><option value="">Sin profe</option>' +
+          profes.map(p => '<option value="' + esc(p.user_id) + '"' + (g.default_trainer_id === p.user_id ? ' selected' : '') + '>' + esc(p.nombre) + '</option>').join("") + '</select>') +
+        sw(TOGGLES[0]) + '</section>') +
+    grupo("Equipo e ingreso", "Qué puede hacer la recepción y los profes, y cada cuánto puede entrar un socio.",
+      '<section class="cv-card gy-sec"><h2 class="gy-h">Equipo</h2>' + TOGGLES.slice(1).map(sw).join("") + '</section>' +
+      '<section class="cv-card gy-sec"><h2 class="gy-h">Ingreso</h2>' +
+        fila("Un ingreso cada", '<span class="gy-horas"><input class="co-note" type="number" min="1" max="24" step="1" inputmode="numeric" data-gym="cfg-horas" value="' + esc(String(st.ingreso_horas || 3)) + '"> horas</span>') +
+        '<p class="gy-fino">Si se registra otro ingreso del mismo socio antes, la recepción ve que ya entró.</p>' +
+        '<label class="gy-sw"><span class="gy-sw-t"><b>No dejar entrar con la cuota vencida</b><span>La recepción no puede registrar el ingreso hasta que pague. Apagado: lo registra y ve el aviso de la cuota vencida.</span></span>' +
+          '<input type="checkbox" role="switch" data-gym="cfg-bloquea"' + (st.cuota_bloquea ? ' checked' : '') + (GS.busy ? ' disabled' : '') + '><i aria-hidden="true"></i></label></section>') +
+    grupo("Privacidad y datos", "",
+      '<section class="cv-card gy-sec"><h2 class="gy-h">Privacidad</h2><dl class="gy-dl">' + PRIVACIDAD.map(([a, b]) => '<dt>' + a + '</dt><dd>' + b + '</dd>').join("") + '</dl>' +
+        '<p class="gy-fino">La administración ve los registros solo de quien los compartió. <a class="cv-link" href="https://gize.ar/privacidad/" target="_blank" rel="noopener">Política de privacidad</a></p></section>' +
+      '<section class="cv-card gy-sec"><h2 class="gy-h">Contrato de encargo</h2><p class="gy-p">' + (dpa.dpa_version ? 'Versión ' + esc(dpa.dpa_version) + ', aceptada el ' + fecha(dpa.dpa_at) + '.' : 'El que se aceptó al crear el gimnasio.') + '</p>' +
+        '<p class="gy-fino">GIZE guarda los datos de tus socios por encargo del gimnasio y solo para prestar el servicio.</p></section>' +
+      '<section class="cv-card gy-sec"><h2 class="gy-h">Exportar</h2><p class="gy-fino">Socios, ingresos y equipo en CSV (se abre con Excel o Google Sheets). Anda siempre' + (enApp() ? '.' : ', aunque venza el plan.') + '</p>' +
+        '<div class="gy-acc">' + btn2('data-gym="exportar" data-v="todo"', "Exportar todo") + btn2('data-gym="exportar" data-v="socios"', "Socios") + btn2('data-gym="exportar" data-v="ingresos"', "Ingresos") + btn2('data-gym="exportar" data-v="equipo"', "Equipo") + '</div></section>' +
+      '<section class="cv-card gy-sec"><h2 class="gy-h">Marca</h2><p class="gy-p">Próximamente: tu logo y tus colores en la app de tus socios.</p></section>') +
+    grupo("Cuenta", "",
+      (esDueno() ? '<section class="cv-card gy-sec gy-cuidado"><h2 class="gy-h">Zona de cuidado</h2>' +
+        '<div class="gy-kv"><span>Cambio de dueño</span><div><p class="gy-fino">Lo hace el equipo de GIZE.</p><a class="co-copy-btn cv-sec-btn gy-btn2" href="' + esc("https://wa.me/" + WA_GIZE + "?text=" + encodeURIComponent("Hola! Quiero pasar el gimnasio " + (g.name || "") + " a otra persona.")) + '" target="_blank" rel="noopener">Pedir cambio de dueño</a></div></div>' +
+        '<div class="gy-kv"><span>Cerrar el gimnasio</span><div><p class="gy-fino">Los socios conservan sus cuentas y quedan sin profe del gimnasio. Te pide escribir el nombre.</p><button class="gize-btn cv-btn gy-btn-peligro" data-gym="cerrar-gym">Cerrar el gimnasio</button></div></div></section>' : '') +
+      '<section class="cv-card gy-sec"><h2 class="gy-h">Tu cuenta</h2><div class="gy-acc"><button class="co-copy-btn cv-sec-btn gy-btn2" data-auth="logout">Cerrar sesión</button><button class="cv-link gy-peligro" data-action="cfg-delete-account">Eliminar mi cuenta</button></div></section>') +
+  '</div>';
 }
 
 export function ventanaQr(){
