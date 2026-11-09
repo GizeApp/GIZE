@@ -197,8 +197,12 @@ export async function firmadoPor(c: Certificado, emisor: Certificado): Promise<b
 
 // Verifica un JWS del App Store contra la raíz `raiz` (DER) y devuelve sus datos. Si algo no
 // cierra, tira JWSInvalido.
+// El tope de largo es holgado a propósito: un aviso de Apple trae adentro la transacción y la
+// renovación, cada una con su propia cadena de certificados, y con los certificados de Apple pasa
+// los 18.000 caracteres. Con el tope de antes (16.000) se rechazaban todos los avisos de las
+// suscripciones (el aviso de prueba de Apple, que no trae la transacción, sí entraba).
 export async function verificarJWS(jws: unknown, raiz: Uint8Array): Promise<Record<string, any>> {
-  if (typeof jws !== "string" || jws.length > 16000) mal("no es un JWS");
+  if (typeof jws !== "string" || jws.length > 100000) mal("no es un JWS");
   const partes = (jws as string).split(".");
   if (partes.length !== 3) mal("no es un JWS");
   let cab: any, datos: any;

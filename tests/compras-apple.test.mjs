@@ -9,7 +9,8 @@
 //   no termina en la raíz, el certificado que no es de compras y la suscripción vencida. Mandarla
 //   dos veces da lo mismo.
 // - Los avisos de Apple (App Store Server Notifications V2): renovación, vencimiento, reembolso,
-//   cambio de la renovación automática, período de gracia, tipos desconocidos y firma mala.
+//   cambio de la renovación automática, período de gracia, tipos desconocidos y firma mala. Y uno
+//   del largo de los de verdad (certificados tan grandes como los de Apple).
 // - Un plan pagado por la web (Mercado Pago) no se pisa, y las columnas de Mercado Pago no se tocan.
 // - Los productos de la función y los de la app son los mismos.
 import crypto from 'node:crypto';
@@ -51,11 +52,14 @@ function oid(s){
 const nombre = cn => seq(tlv(0x31, seq(oid('2.5.4.3'), tlv(0x0c, Buffer.from(cn)))));
 const tiempo = d => tlv(0x18, Buffer.from(d.toISOString().replace(/[-:T]/g, '').slice(0, 14) + 'Z'));
 const OID_HOJA = '1.2.840.113635.100.6.11.1', OID_INTER = '1.2.840.113635.100.6.2.1';
-function certificado({ serie, sujeto, emisor, pub, firma, ca = false, oids = [], desde, hasta }){
+// relleno: bytes de una extensión de más (no crítica), para que el certificado tenga el largo de
+// uno de Apple.
+function certificado({ serie, sujeto, emisor, pub, firma, ca = false, oids = [], desde, hasta, relleno = 0 }){
   const alg = seq(oid('1.2.840.10045.4.3.3')); // ecdsa-with-SHA384
   const ext = [];
   if (ca) ext.push(seq(oid('2.5.29.19'), tlv(1, Buffer.from([0xff])), tlv(4, seq(tlv(1, Buffer.from([0xff]))))));
   for (const o of oids) ext.push(seq(oid(o), tlv(4, tlv(5, Buffer.alloc(0)))));
+  if (relleno) ext.push(seq(oid('2.25.1'), tlv(4, Buffer.alloc(relleno, 0x41))));
   const tbs = seq(tlv(0xa0, tlv(2, Buffer.from([2]))), tlv(2, Buffer.from([serie])), alg, nombre(emisor), seq(tiempo(desde), tiempo(hasta)),
     nombre(sujeto), pub.export({ type: 'spki', format: 'der' }), tlv(0xa3, seq(...ext)));
   return seq(tbs, alg, tlv(3, Buffer.concat([Buffer.from([0]), crypto.sign('sha384', tbs, firma)])));
@@ -63,14 +67,17 @@ function certificado({ serie, sujeto, emisor, pub, firma, ca = false, oids = [],
 export const DIA = 864e5;
 // de: otra autoridad cuya raíz se reusa (para probar un intermedio o una hoja distintos bajo la
 // raíz que acepta la función).
-export function autoridad({ oidHoja = true, oidInter = true, interCA = true, hojaHasta = null, nombreRaiz = 'Raiz de prueba', de = null } = {}){
+// largos: [hoja, intermedio, raíz] en bytes: cada certificado se rellena hasta tener al menos ese
+// largo (los de prueba salen más cortos que los de Apple).
+export function autoridad({ oidHoja = true, oidInter = true, interCA = true, hojaHasta = null, nombreRaiz = 'Raiz de prueba', de = null, largos = [0, 0, 0] } = {}){
   const kr = de ? de.claveRaiz : crypto.generateKeyPairSync('ec', { namedCurve: 'P-384' });
   const ki = crypto.generateKeyPairSync('ec', { namedCurve: 'P-384' });
   const kh = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
   const desde = new Date(Date.now() - 365 * DIA), hasta = new Date(Date.now() + 365 * DIA);
-  const raiz = de ? de.raiz : certificado({ serie: 1, sujeto: nombreRaiz, emisor: nombreRaiz, pub: kr.publicKey, firma: kr.privateKey, ca: true, desde, hasta });
-  const inter = certificado({ serie: 2, sujeto: 'Intermedio de prueba', emisor: nombreRaiz, pub: ki.publicKey, firma: kr.privateKey, ca: interCA, oids: oidInter ? [OID_INTER] : [], desde, hasta });
-  const hoja = certificado({ serie: 3, sujeto: 'Hoja de prueba', emisor: 'Intermedio de prueba', pub: kh.publicKey, firma: ki.privateKey, oids: oidHoja ? [OID_HOJA] : [], desde, hasta: hojaHasta || hasta });
+  const aMedida = (o, minimo) => { const c = certificado(o); return c.length < minimo ? certificado(Object.assign({ relleno: minimo - c.length }, o)) : c; };
+  const raiz = de ? de.raiz : aMedida({ serie: 1, sujeto: nombreRaiz, emisor: nombreRaiz, pub: kr.publicKey, firma: kr.privateKey, ca: true, desde, hasta }, largos[2]);
+  const inter = aMedida({ serie: 2, sujeto: 'Intermedio de prueba', emisor: nombreRaiz, pub: ki.publicKey, firma: kr.privateKey, ca: interCA, oids: oidInter ? [OID_INTER] : [], desde, hasta }, largos[1]);
+  const hoja = aMedida({ serie: 3, sujeto: 'Hoja de prueba', emisor: 'Intermedio de prueba', pub: kh.publicKey, firma: ki.privateKey, oids: oidHoja ? [OID_HOJA] : [], desde, hasta: hojaHasta || hasta }, largos[0]);
   return { raiz, inter, hoja, claveHoja: kh.privateKey, claveRaiz: kr, pubRaiz: kr.publicKey, pubInter: ki.publicKey,
     pem: '-----BEGIN CERTIFICATE-----\n' + raiz.toString('base64').replace(/(.{64})/g, '$1\n') + '\n-----END CERTIFICATE-----\n',
     huella: crypto.createHash('sha256').update(raiz).digest('hex') };
@@ -228,6 +235,7 @@ export default async function ({ t }){
     ['reembolsada', () => firmar(ca, tx({ revocationDate: ahora - 1000 })), 'revocada'],
     ['con otro algoritmo', () => firmar(ca, tx(), { alg: 'HS256' }), 'invalida'],
     ['que no es un JWS', () => 'hola', 'invalida'],
+    ['de más de 100.000 caracteres', () => firmar(ca, tx({ nota: 'x'.repeat(100000) })), 'invalida'],
   ];
   for (const [que, jws, codigo] of rechazos){
     // Las de «otra cadena» usan una raíz distinta de la que acepta la función (la de `ca`).
@@ -309,6 +317,30 @@ export default async function ({ t }){
     t.eq([r.status, b.paid_until], [200, iso(ahora + 6 * DIA)], 'DID_FAIL_TO_RENEW con período de gracia: sigue hasta que termina la gracia');
     r = await apple(aviso(ca, 'EXPIRED', Object.assign({}, vencida, { signedDate: ahora + 2000 }), ren({ autoRenewStatus: 0, signedDate: ahora + 2000 }), { subtype: 'VOLUNTARY' }));
     t.eq([r.status, b.paid_until, b.apple_renueva, b.plan], [200, iso(ahora - 1000), false, 'p25'], 'EXPIRED: queda vencido (pagado hasta que venció)');
+  }
+  {
+    // Un aviso del largo de los de verdad. La cadena de Apple es más larga que la de prueba (hoja
+    // 1077 bytes, intermedio WWDR G6 794, raíz G3 583), la transacción y la renovación de adentro
+    // traen cada una la suya, y Apple manda más campos que los mínimos de tx() y ren(). El aviso
+    // real que llegó el 8/11/2026 medía 19.030 caracteres.
+    const real = autoridad({ largos: [1077, 794, 583] });
+    t.ok(real.hoja.length >= 1077 && real.inter.length >= 794 && real.raiz.length >= 583, 'certificados de prueba del largo de los de Apple');
+    const e = escenario(real);
+    const { apple } = await montar(real, e);
+    const oferta = { offerType: 2, offerIdentifier: 'ar.com.gize.app.coach.p25.vuelta', offerDiscountType: 'PAY_AS_YOU_GO', offerPeriod: 'P1M' };
+    const renovada = tx(Object.assign({ transactionId: '2000000000000002', expiresDate: ahora + 60 * DIA, purchaseDate: ahora + 30 * DIA, signedDate: ahora + 1000,
+      environment: 'Production', webOrderLineItemId: '2000000098765432', subscriptionGroupIdentifier: '21456789', originalPurchaseDate: ahora - 60000, quantity: 1,
+      transactionReason: 'RENEWAL', storefront: 'ARG', storefrontId: '143505', price: 24990, currency: 'USD', appTransactionId: '704512345678901234' }, oferta));
+    const renueva = ren(Object.assign({ signedDate: ahora + 1000, environment: 'Production', appAccountToken: COACH, renewalPrice: 24990, currency: 'USD',
+      recentSubscriptionStartDate: ahora - 60000, renewalDate: ahora + 60 * DIA, appTransactionId: '704512345678901234', priceIncreaseStatus: 0,
+      eligibleWinBackOfferIds: ['ar.com.gize.app.coach.p25.vuelta'] }, oferta));
+    const sp = firmar(real, { notificationType: 'DID_RENEW', notificationUUID: crypto.randomUUID(), version: '2.0', signedDate: ahora + 1000,
+      data: { appAppleId: 6740000000, bundleId: 'ar.com.gize.app', bundleVersion: '12', environment: 'Production', status: 1,
+        signedTransactionInfo: firmar(real, renovada), signedRenewalInfo: firmar(real, renueva) } });
+    t.ok(sp.length > 19030, 'el aviso es más largo que el real que llegó el 8/11 (19.030 caracteres): ' + sp.length);
+    const r = await apple(sp);
+    const b = e.bill[COACH];
+    t.eq([r.status, b.plan, b.paid_until, b.apple_renueva], [200, 'p25', iso(ahora + 60 * DIA), true], 'un aviso de Apple de largo real se acepta y renueva el plan: ' + JSON.stringify(r.body));
   }
   {
     // Avisos que no cambian nada, o que no son de Apple.
