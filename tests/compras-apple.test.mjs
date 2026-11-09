@@ -9,8 +9,9 @@
 //   no termina en la raíz, el certificado que no es de compras y la suscripción vencida. Mandarla
 //   dos veces da lo mismo.
 // - Los avisos de Apple (App Store Server Notifications V2): renovación, vencimiento, reembolso,
-//   cambio de la renovación automática, período de gracia, tipos desconocidos y firma mala. Y uno
-//   del largo de los de verdad (certificados tan grandes como los de Apple).
+//   cambio de la renovación automática, período de gracia, tipos desconocidos y firma mala. Uno
+//   del largo de los de verdad (certificados tan grandes como los de Apple). Y si la base falla al
+//   leer, 500 para que Apple lo vuelva a mandar.
 // - Un plan pagado por la web (Mercado Pago) no se pisa, y las columnas de Mercado Pago no se tocan.
 // - Los productos de la función y los de la app son los mismos.
 import crypto from 'node:crypto';
@@ -104,7 +105,8 @@ export const ren = (o = {}) => Object.assign({ originalTransactionId: '200000000
 export const aviso = (ca, tipo, t, r, o = {}) => firmar(ca, Object.assign({ notificationType: tipo, notificationUUID: crypto.randomUUID(), version: '2.0', signedDate: ahora,
   data: { bundleId: 'ar.com.gize.app', environment: 'Sandbox', appAppleId: 1, status: 1, signedTransactionInfo: t && firmar(ca, t), signedRenewalInfo: r ? firmar(ca, r) : undefined } }, o));
 
-function escenario(ca, { billing = {}, usuario = COACH, roles = { [COACH]: 'coach', [OTRO]: 'coach', [ALUMNO]: 'client' }, subs = [] } = {}){
+// falla: tabla cuya lectura da error (como un corte de la base o un tope de tiempo).
+function escenario(ca, { billing = {}, usuario = COACH, roles = { [COACH]: 'coach', [OTRO]: 'coach', [ALUMNO]: 'client' }, subs = [], falla = null } = {}){
   const fila = (id, o) => Object.assign({ coach_id: id, plan: 'trial', max_clients: 10, trial_ends_at: iso(ahora - 3 * DIA), paid_until: null, pending_plan: null,
     mp_preapproval_id: null, mp_status: null, mp_pending_id: null, apple_original_tx: null, apple_vence: null, apple_renueva: false, updated_at: '2026-10-01T00:00:00.000001+00:00' }, o);
   const bill = { [COACH]: fila(COACH, billing[COACH] || billing), [OTRO]: fila(OTRO, billing[OTRO] || {}) };
@@ -112,6 +114,7 @@ function escenario(ca, { billing = {}, usuario = COACH, roles = { [COACH]: 'coac
   const escrituras = [];
   const id = (q, c) => (q.filtros.find(f => f[0] === 'eq' && f[1] === c) || [])[2];
   const db = supabaseSimulado(q => {
+    if (q.tabla === falla && q.accion === 'select') return { data: null, error: { message: 'canceling statement due to statement timeout' } };
     if (q.tabla === 'profiles'){ const r = roles[id(q, 'id')]; return { data: r ? { role: r } : null }; }
     if (q.tabla === 'coach_billing'){
       const f = bill[id(q, 'coach_id')];
@@ -371,6 +374,20 @@ export default async function ({ t }){
     const { apple } = await montar(ca, e);
     const r = await apple(aviso(ca, 'SUBSCRIBED', tx({ appAccountToken: undefined, signedDate: ahora }), ren(), { subtype: 'RESUBSCRIBE' }));
     t.eq([r.status, e.bill[COACH].plan, e.bill[COACH].paid_until], [200, 'p25', iso(ahora + 30 * DIA)], 'aviso sin appAccountToken: la cuenta sale de apple_subs');
+  }
+  {
+    // Si la base falla al leer, el aviso no se da por recibido: 500, y Apple lo vuelve a mandar.
+    // Con un 200 Apple no lo reintenta y la renovación, la baja o el reembolso se pierden.
+    for (const [que, falla, t0] of [
+      ['la cuenta', 'profiles', tx()],
+      ['la cuenta, en un aviso de IA Plus', 'profiles', tx({ productId: 'ar.com.gize.app.iaplus.mensual' })],
+      ['la suscripción, en un aviso sin appAccountToken', 'apple_subs', tx({ appAccountToken: undefined })],
+    ]){
+      const e = escenario(ca, { falla });
+      const { apple } = await montar(ca, e);
+      const r = await apple(aviso(ca, 'DID_RENEW', t0, ren({ productId: t0.productId, autoRenewProductId: t0.productId })));
+      t.ok(r.status === 500 && !e.escrituras.length, 'si falla la base al leer ' + que + ': 500 para que Apple lo reintente, sin escribir nada: ' + JSON.stringify(r));
+    }
   }
   {
     // La misma cuenta de Apple compra desde otra cuenta de GIZE: la suscripción pasa a la nueva.

@@ -240,20 +240,27 @@ async function avisoDeApple(signedPayload: unknown): Promise<Response> {
     if (ren && String(ren.originalTransactionId) !== String(tx.originalTransactionId)) ren = null;
     const db = admin();
     let uid = cuentaDe(tx);
+    // Si la base falla al leer, se corta con un error (500) y Apple vuelve a mandar el aviso. Con
+    // un 200 lo daría por recibido y la renovación, la baja o el reembolso se perderían.
     if (!uid) {
-      const { data: sub } = await db.from("apple_subs").select("user_id").eq("original_transaction_id", String(tx.originalTransactionId)).maybeSingle();
+      const { data: sub, error: se } = await db.from("apple_subs").select("user_id").eq("original_transaction_id", String(tx.originalTransactionId)).maybeSingle();
+      if (se) throw new Error("apple_subs: " + se.message);
       uid = sub && sub.user_id ? String(sub.user_id) : null;
     }
     if (!uid) { console.error("compras-apple: aviso", tipo, "sin cuenta de GIZE"); return json({ ok: true, ignorado: "sin cuenta" }); }
     // La cuenta se borró, o no es de coach: no hay plan que actualizar. IA Plus, de cualquier cuenta.
-    const { data: prof } = await db.from("profiles").select("role").eq("id", uid).maybeSingle();
+    const { data: prof, error: pe } = await db.from("profiles").select("role").eq("id", uid).maybeSingle();
+    if (pe) throw new Error("profiles: " + pe.message);
     if (esPlus(tx)) {
-      if (!prof) return json({ ok: true, ignorado: "sin cuenta" });
+      if (!prof) { console.error("compras-apple: aviso", tipo, "de IA Plus de una cuenta que ya no está"); return json({ ok: true, ignorado: "sin cuenta" }); }
       if (!(await plusPermitido(db, uid, tx))) return json({ ok: true, ignorado: "sandbox" });
       await aplicarPlus(db, uid, tx, ren);
       return json({ ok: true });
     }
-    if (!prof || prof.role !== "coach") return json({ ok: true, ignorado: "sin coach" });
+    if (!prof || prof.role !== "coach") {
+      console.error("compras-apple: aviso", tipo, prof ? "de una cuenta que no es de coach" : "de una cuenta que ya no está");
+      return json({ ok: true, ignorado: "sin coach" });
+    }
     await aplicar(db, uid, tx, ren);
     return json({ ok: true });
   } catch (e) {
