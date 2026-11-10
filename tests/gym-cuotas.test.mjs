@@ -139,6 +139,11 @@ export default async function ({ base, t }){
     await p.click('#coachHost [data-gym="cuotas-tab"][data-v="al_dia"]'); await wait(200);
     await p.click('#coachHost [data-gym="cuota-pago"][data-id="' + F.A1 + '"]'); await wait(600);
     t.eq(await p.$eval('#gymModal [data-gym-pg="hasta"]', i => i.value), masMes(ymd(20)), 'al día: cubre un mes desde el vencimiento');
+    // Con cuota, las fechas y la nota vienen cerradas: la línea resumen y los dos enlaces las abren.
+    t.ok(/Paga hoy y queda al día hasta el/.test(await modalTxt(p)), 'con cuota: una línea dice hasta cuándo queda al día');
+    t.ok(!await p.isVisible('#gymModal [data-gym-pg="hasta"]') && !await p.isVisible('#gymModal [data-gym-pg="nota"]'), 'con cuota: fechas y nota cerradas');
+    await p.click('#gymModal [data-gym="pago-fechas"]'); await p.click('#gymModal [data-gym="pago-nota"]'); await wait(100);
+    t.ok(await p.isVisible('#gymModal [data-gym-pg="hasta"]') && await p.isVisible('#gymModal [data-gym-pg="nota"]'), 'los enlaces abren las fechas y la nota');
     await p.fill('#gymModal [data-gym-pg="hasta"]', ymd(60)); await p.fill('#gymModal [data-gym-pg="nota"]', 'Pagó dos meses'); await p.fill('#gymModal [data-gym-pg="monto"]', '55000'); await wait(100);
     await p.click('#gymModal [data-gym="pago-ok"]'); await wait(700);
     t.eq(Object.assign({}, rpcs(pg.st, 'gym_pago_registrar')[0], { id: 'x' }), { id: 'x', ficha: F.A1, monto: 55000, medio: 'efectivo', fecha: hoyAR(), hasta: ymd(60), nota: 'Pagó dos meses' },
