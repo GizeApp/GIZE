@@ -505,6 +505,14 @@ async function alTocar(e){
   if (a === "cuotas-tab"){ GS.cuotasParte = "estados"; GS.cuotasTab = b.dataset.v; if (GS.view !== "cuotas") return ir("cuotas"); repintar(); return; }
   if (a === "cuota-pago") return abrirPago(id);
   if (a === "pago-ok") return registrarPago();
+  // «Cambiar fechas» y «+ Agregar una nota» abren lo que la ventana de pago tiene resumido.
+  if ((a === "pago-fechas" || a === "pago-nota") && GS.modal && GS.modal.tipo === "pago"){
+    const k = a === "pago-nota" ? "nota" : "hasta";
+    if (k === "nota") GS.modal.verNota = true; else GS.modal.verFechas = true;
+    pintarModal();
+    const i = document.querySelector('#gymModal [data-gym-pg="' + k + '"]'); if (i) i.focus({ preventScroll: true });
+    return;
+  }
   if (a === "cuotas-csv") return exportarPagos(b);
   if (a === "tipo-nuevo") return abrir({ tipo: "tipo", id: null, nombre: "", monto: "", meses: 1 });
   if (a === "tipo-editar"){ const c = (GS.tipos || []).find(x => x.id === id); if (c) abrir({ tipo: "tipo", id: c.id, nombre: c.name, monto: String(c.amount), meses: c.months }); return; }

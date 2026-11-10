@@ -5,7 +5,7 @@
 //   · su socio asignado: la ficha de coach de siempre, editable (con el chat);
 //   · compartió con la administración: la misma ficha en modo lectura («Lo edita su profe…»);
 //   · no compartió: «El socio no compartió sus registros con la administración».
-// En la compu es una pantalla con dos columnas; en el celular, una debajo de la otra.
+// Una sola columna, de arriba para abajo: Cuota, Datos, Gimnasio, Notas, Asistencia, Entrenamiento y Foto.
 import { esc } from '../../core/utils.js';
 import { renderCoachCalendar } from '../coach/calendario.js';
 import { GS, yo, soyCoach, fotoHtml, fotoUrl, fecha, cuando, hoyAR, diaAR, horaAR, primerNombre } from './estado.js';
@@ -29,9 +29,10 @@ function datos(f){
   const tel = v("telefono");
   return '<section class="cv-card gy-sec"><h2 class="gy-h">Datos</h2><div class="gy-form">' +
     campo("nombre", "Nombre y apellido") + campo("dni", "DNI", "text", ' inputmode="numeric"') +
-    '<div class="gy-f-row">' + campo("telefono", "Teléfono", "tel") + (tel ? '<a class="co-copy-btn cv-sec-btn gy-btn2 gy-wa" href="https://wa.me/' + esc(String(tel).replace(/\D/g, "")) + '" target="_blank" rel="noopener">WhatsApp</a>' : '') + '</div>' +
+    '<div class="gy-f-row">' + campo("telefono", "Teléfono", "tel", ' placeholder="Para mandarle el link por WhatsApp"') + (tel ? '<a class="co-copy-btn cv-sec-btn gy-btn2 gy-wa" href="https://wa.me/' + esc(String(tel).replace(/\D/g, "")) + '" target="_blank" rel="noopener">WhatsApp</a>' : '') + '</div>' +
     campo("email", "Mail", "email") + campo("nacimiento", "Fecha de nacimiento", "date", ' max="' + hoyAR() + '"') + campo("apto_medico_vence", "Apto médico: vence el", "date") +
-    '</div><div class="gy-acc">' + btn('data-gym="ficha-guardar"' + (f.form && Object.keys(f.form).length && !GS.busy ? '' : ' disabled'), GS.busy === "datos" ? "Guardando…" : "Guardar cambios") + '</div></section>';
+    '</div><div class="gy-acc">' + btn('data-gym="ficha-guardar"' + (f.form && Object.keys(f.form).length && !GS.busy ? '' : ' disabled'), GS.busy === "datos" ? "Guardando…" : "Guardar cambios") +
+    (f.form && Object.keys(f.form).length ? '' : '<span class="gy-fino">Se activa cuando cambiás algo.</span>') + '</div></section>';
 }
 
 function nota(f){
@@ -103,8 +104,7 @@ export function renderFicha(){
     (marcas.length ? '<span class="gy-marcas">' + marcas.map(m => '<i>' + m + '</i>').join("") + '</span>' : '') + '</div></div>';
   if (f.error) return head + vacio(esc(f.error), btn2('data-gym="reintentar"', "Reintentar"));
   return head + '<div class="gy-ficha">' +
-    '<div class="gy-ficha-col">' + gimnasio(s) + seccionCuota(f, s) + entrenamiento(s) + foto(s, f.datos) + '</div>' +
-    '<div class="gy-ficha-col">' + (f.datos ? datos(f) : '<section class="cv-card gy-sec"><p class="gy-fino">Cargando…</p></section>') + nota(f) + asistencia(f) + '</div>' +
+    '<div class="gy-ficha-col">' + seccionCuota(f, s) + (f.datos ? datos(f) : '<section class="cv-card gy-sec"><p class="gy-fino">Cargando…</p></section>') + gimnasio(s) + nota(f) + asistencia(f) + entrenamiento(s) + foto(s, f.datos) + '</div>' +
   '</div>';
 }
 export const fotosDeFicha = () => { const f = GS.ficha, d = f && f.datos; return d ? [d.foto_path, d.foto_pend_path].filter(p => p && !fotoUrl(p)) : []; };

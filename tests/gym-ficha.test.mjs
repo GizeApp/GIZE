@@ -7,7 +7,7 @@
 //     con el registro diario de gym_registro_lectura (sin pasos) y «Lo edita su profe, Lucía»;
 //   · no compartió: «El socio no compartió sus registros con la administración».
 import { wait } from './lib.mjs';
-import { entrar, DUENA, F, S, G, ID, TOKEN, hostTxt, modalTxt, rpcs, ir } from './gym-comun.mjs';
+import { entrar, DUENA, F, S, G, ID, TOKEN, hostTxt, modalTxt, rpcs, ir, captura } from './gym-comun.mjs';
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAQElEQVR42u3OMQ0AAAgDsPk3DRZ4SFoHzUcR0NLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0nqwAeKbAQHk/s0wAAAAAElFTkSuQmCC', 'base64');
 
@@ -25,6 +25,7 @@ export default async function ({ base, t }){
   t.ok(await p.$('#coachHost [data-gym="cambiar-profe"]'), 'con profe del gimnasio: [Cambiar]');
   t.ok(await p.$('#coachHost .gy-sec .cal-x .cal-x-day.on'), 'asistencia: los días con ingreso marcados en el calendario');
   // Datos: solo lo que cambió.
+  await captura(p, 'ficha-compu');
   t.ok(await p.isDisabled('#coachHost [data-gym="ficha-guardar"]'), 'sin cambios, «Guardar cambios» apagado');
   await p.fill('#coachHost [data-gym-ff="telefono"]', '341 555 9999'); await wait(100);
   await p.click('#coachHost [data-gym="ficha-guardar"]'); await wait(700);
