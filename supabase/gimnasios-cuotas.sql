@@ -459,7 +459,7 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare g uuid := public.gym_exigir_cuotas(); p record; m record; mot text := nullif(left(btrim(coalesce(motivo, '')), 200), '');
+declare g uuid := public.gym_exigir_cuotas(); p record; m record; q record; v date; n int := 0; mot text := nullif(left(btrim(coalesce(motivo, '')), 200), '');
 begin
   select x.* into p from public.gym_payments x where x.id = gym_pago_anular.id and x.gym_id = g;
   if p.id is null then raise exception 'No encontramos ese pago.' using errcode = 'P0001'; end if;
@@ -469,7 +469,17 @@ begin
   update public.gym_payments set voided_at = now(), voided_by = auth.uid(), void_reason = mot where gym_payments.id = p.id;
   if m.fee_due is not distinct from p.period_to
      and not exists (select 1 from public.gym_payments x where x.gym_member_id = m.id and x.voided_at is null and x.period_to = p.period_to) then
-    update public.gym_members set fee_due = p.prev_due where gym_members.id = m.id;
+    -- Vuelve al vencimiento de antes, pero si ese lo había puesto un pago que ya se anuló (se anularon
+    -- fuera de orden), sigue para atrás hasta uno que valga: así nunca queda al día por un pago anulado.
+    v := p.prev_due;
+    loop
+      exit when v is null or n >= 100;
+      exit when exists (select 1 from public.gym_payments x where x.gym_member_id = m.id and x.voided_at is null and x.period_to = v);
+      select x.* into q from public.gym_payments x where x.gym_member_id = m.id and x.voided_at is not null and x.period_to = v order by x.created_at desc limit 1;
+      exit when q.id is null;
+      v := q.prev_due; n := n + 1;
+    end loop;
+    update public.gym_members set fee_due = v where gym_members.id = m.id;
   end if;
   perform public.gym_auditar(g, 'pago_anulado', m.id, m.member_id, jsonb_build_object('pago', p.id, 'monto', p.amount, 'motivo', mot));
   return jsonb_build_object('ok', true, 'vence', (select x.fee_due from public.gym_members x where x.id = m.id));
