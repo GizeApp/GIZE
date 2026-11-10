@@ -319,14 +319,23 @@ async function abrirPago(id){
 const registrarPago = () => ocupado("pago", async () => {
   const m = GS.modal; if (!m || m.tipo !== "pago") return;
   // Sin cuota y eligió una: primero se la asigna (queda con el vencimiento que ya tenía) y después va el pago.
-  if (m.cuotaId && !(m.datos && m.datos.cuota)){
+  const asignada = !!(m.cuotaId && !(m.datos && m.datos.cuota));
+  if (asignada){
     const a = await rpc("gym_cuota_asignar", { fichas: [m.id], tipo: m.cuotaId, vence: null });
     if (a.error){ alert(a.msg); return; }
     m.datos = Object.assign({}, m.datos, { cuota: (GS.tipos || []).find(x => x.id === m.cuotaId) });
   }
   const r = await rpc("gym_pago_registrar", { id: m.pid, ficha: m.id, monto: Number(m.monto), medio: m.medio, fecha: m.fecha || null,
     hasta: m.hastaTocado ? (m.hasta || null) : null, nota: (m.nota || "").trim() || null });
-  if (r.error){ alert(r.msg); return; }
+  if (r.error){
+    // Si el servidor rechazó el pago, la cuota que se asignó recién se saca: no queda con una cuota que no se pagó.
+    // Si fue un corte de red no se saca (el pago pudo haber entrado): al reintentar, el mismo id no anota dos.
+    if (asignada && (r.error.code === "P0001" || r.error.code === "42501")){
+      const u = await rpc("gym_cuota_asignar", { fichas: [m.id], tipo: null, vence: null });
+      if (!u.error) m.datos = Object.assign({}, m.datos, { cuota: null });
+    }
+    alert(r.msg); return;
+  }
   m.hecho = r.data || {};
   despuesCuota();
 })();
