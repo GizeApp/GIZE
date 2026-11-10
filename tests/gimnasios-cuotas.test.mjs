@@ -161,6 +161,13 @@ export default async function ({ t: t0 }){
     'anulados los dos: sin pagos (siguen en el historial, tachados, con el motivo)');
   t.eq(x[11].pagos, [], 'el socio no ve los pagos anulados');
 
+  // Anular fuera de orden: el vencimiento no puede volver al fin de un pago que ya se anuló.
+  x = await V([['dA', pago(ID('e106'), F.A1, 30000)], ['dA', pago(ID('e107'), F.A1, 30000)], ['postgres', fichaDe(F.A1)],
+    ['dA', `select to_jsonb(public.gym_pago_anular('${ID('e106')}', 'Primero el viejo'))`], ['postgres', fichaDe(F.A1)],
+    ['dA', `select to_jsonb(public.gym_pago_anular('${ID('e107')}', null))`], ['postgres', fichaDe(F.A1)], ['dA', rpc('gym_pagos_ficha', F.A1)]]);
+  t.eq([x[2].vence, x[4].vence], [mas2m, mas2m], 'anular el pago viejo con uno nuevo encima: el vencimiento no cambia');
+  t.eq([x[6].vence, x[7].estado], [null, 'sin_pagos'], 'anular después el nuevo: no vuelve al fin del viejo anulado, queda sin pagos');
+
   // ===== Estado, semáforo y profe =====
   const busca = (w, q2) => [w, rpc('buscar_socio', q2)];
   const sem = r => r && r[0] && [r[0].semaforo, r[0].motivo];
