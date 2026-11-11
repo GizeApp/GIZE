@@ -127,7 +127,7 @@ revoke all on function public.tienda_ejercicios(jsonb) from public, anon, authen
 
 -- Una rutina como la ve la app (sin los días: esos van en tienda_detalle).
 create or replace function public.tienda_ficha(p_id uuid, yo uuid)
-returns jsonb language sql stable security definer set search_path = public as $
+returns jsonb language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'id', r.id, 'titulo', r.titulo, 'descripcion', r.descripcion, 'nivel', r.nivel, 'objetivo', r.objetivo,
     'autor', coalesce(nullif(btrim((select p.full_name from public.profiles p where p.id = r.autor_id)), ''), 'Usuario de GIZE'),
@@ -138,7 +138,7 @@ returns jsonb language sql stable security definer set search_path = public as $
     'agregue', exists (select 1 from public.tienda_agregadas a where a.rutina_id = r.id and a.user_id = yo),
     'reporte', exists (select 1 from public.tienda_reportes x where x.rutina_id = r.id and x.user_id = yo))
     from public.tienda_rutinas r where r.id = p_id
-$;
+$$;
 revoke all on function public.tienda_ficha(uuid, uuid) from public, anon, authenticated;
 
 
@@ -216,7 +216,7 @@ begin
     values (yo, btrim(p_titulo), btrim(coalesce(p_descripcion, '')), p_nivel, p_objetivo, limpios)
     returning * into r;
   return public.tienda_ficha(r.id, yo);
-end $;
+end $$;
 revoke all on function public.tienda_publicar(text, text, text, text, jsonb) from public, anon;
 grant execute on function public.tienda_publicar(text, text, text, text, jsonb) to authenticated;
 
