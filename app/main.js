@@ -69,6 +69,7 @@ import { foodUnit } from './core/foodunits.js';
 import { EntrenoState, REST_DEFAULT, day, expandedOverride, exGroupIds, liveCounting, renderEntreno, dayNameCls, renderExList, renderExSheet, renderVarSheet, effectiveRest, restKey, wkElapsedText, wkFresh, wkStarted, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
 
 import { HabitosState, addHabit, checkDaily, forgetHabitAlarm, habitAlarmDay, openHabitAlarm, paintHabitAlarmSheet, renderHabitAlarmSheet, renderHabitos, saveHabitAlarm } from './screens/habitos.js';
+import { TiendaState, renderTienda, renderTiendaSheet } from './screens/tienda-rutinas.js';
 import { alarmsSupported, askAlarmPermission, initHabitAlarms, syncHabitAlarms } from './ui/habitnotif.js';
 
 import { ProgresoState, allSetsDone, exOccurrence, lastKgsUseful, lastPlan, lastSessionFor, renderProgreso } from './screens/progreso.js';
@@ -175,13 +176,13 @@ export function renderApp(){
   const v = document.getElementById("view");
   // Entreno se redibuja en el lugar (ui/parche.js): solo cambia lo que cambió.
   if (State.view==="entreno") parchar(v, renderEntreno());
-  else v.innerHTML = State.view==="habitos" ? renderHabitos() : State.view==="cardio" ? renderCardio() : State.view==="comida" ? renderComida() : renderProgreso();
+  else v.innerHTML = State.view==="habitos" ? renderHabitos() : State.view==="tienda" ? renderTienda() : State.view==="cardio" ? renderCardio() : State.view==="comida" ? renderComida() : renderProgreso();
   if(State.view==="entreno") restoreTabScroll();
   if (State.view==="comida") { animateCalRing(); iaRefrescar(); }
   initScrollReveal();
   setupExerciseFocus();
   renderRestBar();
-  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : (State.view==="entreno" && EntrenoState.varSheet) ? renderVarSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="comida" && ComidaState.plate) ? renderPlateSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : (State.view==="habitos" && HabitosState.edit) ? renderHabitAlarmSheet(alarmsSupported()) : "");
+  const _sh=document.getElementById("sheetHost"); if(_sh) _sh.innerHTML = EntrenoState.exPicker ? renderExSheet() : (State.view==="entreno" && EntrenoState.varSheet) ? renderVarSheet() : ((State.view==="comida" && (ComidaState.selectedFood||ComidaState.editEntry)) ? renderSheet() : (State.view==="comida" && ComidaState.searchOpen) ? renderSearchSheet() : (State.view==="comida" && ComidaState.plate) ? renderPlateSheet() : (State.view==="progreso" && EditState.se) ? renderSessionEdit() : (State.view==="habitos" && HabitosState.edit) ? renderHabitAlarmSheet(alarmsSupported()) : (State.view==="tienda" && TiendaState.sheet) ? renderTiendaSheet() : "");
   syncHabitAlarms(); // avisos de los hábitos (solo reprograma si cambiaron)
   if (State.view==="habitos" && HabitosState.pendingFocusHabit) { const i=document.getElementById("habitInput"); if(i) i.focus(); HabitosState.pendingFocusHabit=false; }
   if (State.view==="entreno") v.querySelectorAll("textarea.day-name").forEach(fitDayName);

@@ -31,6 +31,7 @@ import { timerText } from '../ui/settimer.js';
 import { focusFor, revealCls } from '../ui/scrollfocus.js';
 
 import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto, hoyDow, ordenSemana } from '../core/diasemana.js';
+import { tiendaEntrada } from './tienda-rutinas.js';
 
 export const EntrenoState = {
 
@@ -419,6 +420,7 @@ export function renderEntreno(){
     ${renderDayNotes(d)}
     ${d.exercises.length ? '<button class="save-session" data-action="save-session">'+checkSvg+' Guardar entreno de hoy</button>' : ''}
     ${routineLocked() ? '' : '<button class="load-def" data-action="open-routines">'+resetSvg+' Ver rutinas armadas</button>'}
+    ${routineLocked() ? '' : tiendaEntrada()}
     <p class="foot" id="syncFoot">${syncFootText()}</p>`;
 }
 
