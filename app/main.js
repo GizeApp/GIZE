@@ -46,7 +46,7 @@ import { renderCoachSettings } from './screens/coach/settings.js';
 // Registra los eventos del editor de preguntas del coach (efecto al importarlo).
 import { ensureEditor, qDirty } from './screens/coach/preguntas.js';
 
-import { abrirSolo, coachPlanObj, cpApply, pintarPreset, loadTpls, moveEx, refreshBlockWeeks, removeEx, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, fitOptBody, mealStudioAction, mealStudioInput } from './screens/coach/rutinas.js';
+import { abrirSolo, coachPlanObj, cpApply, pintarPreset, loadTpls, moveEx, refreshBlockWeeks, removeEx, renderApplyPicker, renderCoachPicker, renderCopyPicker, renderSchedPicker, rtDays, indicesSemana, semanaEditor, fitOptBody, mealStudioAction, mealStudioInput } from './screens/coach/rutinas.js';
 
 import { CoachState } from './screens/coach/state.js';
 import { esProfeGym } from './screens/coach/gimnasio.js';
@@ -66,7 +66,8 @@ import { FOODS } from './core/data.js';
 import { cookVariant } from './core/foods.js';
 import { foodUnit } from './core/foodunits.js';
 
-import { EntrenoState, REST_DEFAULT, day, expandedOverride, exGroupIds, liveCounting, renderEntreno, dayNameCls, renderExList, renderExSheet, renderVarSheet, effectiveRest, restKey, wkElapsedText, wkFresh, wkStarted, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
+import { EntrenoState, REST_DEFAULT, day, diasEnPantalla, expandedOverride, exGroupIds, liveCounting, renderEntreno, dayNameCls, renderExList, renderExSheet, renderVarSheet, effectiveRest, restKey, wkElapsedText, wkFresh, wkStarted, restLabel, routineLocked, startLive, stopLive } from './screens/entreno.js';
+import { asegurarCiclo, cicloDe, diasDeSemana, fijarCiclo, lunesDe, semanaActual, semanaDe, semanasDe } from './core/ciclo.js';
 
 import { HabitosState, addHabit, checkDaily, forgetHabitAlarm, habitAlarmDay, openHabitAlarm, paintHabitAlarmSheet, renderHabitAlarmSheet, renderHabitos, saveHabitAlarm } from './screens/habitos.js';
 import { TiendaState, renderTienda, renderTiendaSheet } from './screens/tienda-rutinas.js';
@@ -860,8 +861,11 @@ document.body.addEventListener("click", async e => {
 
   // Días
   if (a === "open-routines") { openRoutinePicker(); return; }
-  if (a === "addday") { const nd={id:uid(),name:"Nuevo",subtitle:"",exercises:[]}; state.days.push(nd); State.activeId=nd.id; State.dayPickedOn=today(); HabitosState.pendingFocusDay=true; save(); renderApp(); return; }
-  if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(await confirmar("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); State.activeId=state.days[ordenSemana(state.days)[0]].id; State.dayPickedOn=today(); save(); renderApp(); } return; }
+  // Con varias semanas (core/ciclo.js), el día nuevo es de la semana que está mirando.
+  if (a === "addday") { const nd={id:uid(),name:"Nuevo",subtitle:"",exercises:[]}; if(semanasDe(state.days)>1) nd.semana=semanaDe(day()); state.days.push(nd); State.activeId=nd.id; State.dayPickedOn=today(); HabitosState.pendingFocusDay=true; save(); renderApp(); return; }
+  if (a === "delday") { if(state.days.length<=1){ alert("Tiene que quedar al menos un día."); return; } if(await confirmar("¿Eliminar este día?")){ state.days=state.days.filter(x=>x.id!==State.activeId); const L=diasEnPantalla(); State.activeId=(L.length?L[ordenSemana(L)[0]]:state.days[ordenSemana(state.days)[0]]).id; State.dayPickedOn=today(); save(); renderApp(); } return; }
+  // «Ver semana N» / «Volver a la semana N» de la cartelera de la rutina de varias semanas.
+  if (a === "sem-ver") { const w=+el.dataset.w, hoy=semanaActual(state.days, today(), state.block); EntrenoState.semanaVista = w===hoy ? null : w; const L=diasEnPantalla(); if(L.length && !L.some(x=>x.id===State.activeId)) State.activeId=L[ordenSemana(L)[0]].id; State.dayPickedOn=today(); renderApp(); return; }
   // Días de la semana del día abierto (core/diasemana.js): se abren los 7 botones debajo del
   // nombre, cada toque guarda (y sube con la rutina) y «Listo» los vuelve a cerrar.
   if (a === "dias-open") { if(!routineLocked()){ EntrenoState.diasOpen = day().id; renderApp(); } return; }
@@ -873,7 +877,7 @@ document.body.addEventListener("click", async e => {
   // sigue en el chip nuevo y lo de abajo entra deslizándose hacia el lado del día elegido.
   if (a === "tab") {
     // El lado según el orden en pantalla (de lunes a domingo, core/diasemana.js → ordenSemana).
-    const ord = ordenSemana(state.days), ix = id => ord.indexOf(state.days.findIndex(x => x.id === id)), dir = Math.sign(ix(el.dataset.day) - ix(State.activeId));
+    const L = diasEnPantalla(), ord = ordenSemana(L), ix = id => ord.indexOf(L.findIndex(x => x.id === id)), dir = Math.sign(ix(el.dataset.day) - ix(State.activeId));
     State.activeId = el.dataset.day; State.dayPickedOn = today(); EntrenoState.diasOpen = null; renderApp();
     const nb = document.querySelector('#view .tab.active'); if (nb) tabRipple(nb, e.clientX, e.clientY);
     entrarDia(dir); return;
@@ -1514,6 +1518,7 @@ document.body.addEventListener("click", async e => {
     if(!(e.days||[]).length){ alert("La rutina programada no tiene días."); return; }
     e.saving=true; b.disabled=true; b.textContent="Guardando...";
     try{
+      if(semanasDe(e.days)>1 && !cicloDe(e.days)) fijarCiclo(e.days, lunesDe(e.starts_on));
       const row={client_id:cid, starts_on:e.starts_on, name:(e.name||"").trim().slice(0,80)||null, days:e.days};
       const r = e.id ? await State.sb.from("routine_schedule").update(row).eq("id",e.id) : await State.sb.from("routine_schedule").insert(row);
       if(r.error){ if(r.error.code==="23505") throw new Error("Ya hay otra rutina programada para ese día."); throw r.error; }
@@ -1567,7 +1572,31 @@ document.body.addEventListener("click", async e => {
   // pudo, prueba de nuevo) y volver a la lista.
   if(a==="salida-open"){ const st=CoachState.coachData.salidaTracks; if(st && st[b.dataset.id]==="") delete st[b.dataset.id]; CoachState.coachSalidaSel=b.dataset.id; renderCoach(); window.scrollTo(0,0); return; }
   if(a==="salida-close"){ CoachState.coachSalidaSel=null; renderCoach(); window.scrollTo(0,0); return; }
-  if(a==="edit-day"){ CoachState.coachEditDay=+b.dataset.i||0; renderCoach(); return; }
+  if(a==="edit-day"){ CoachState.coachEditDay=+b.dataset.i||0; const dd=(rtDays()||[])[CoachState.coachEditDay]; if(dd) CoachState.coachEditWeek=semanaDe(dd); renderCoach(); return; }
+  // ---- Rutina de varias semanas (core/ciclo.js) ----
+  // Abrir otra semana: se ven sus días y queda abierto el primero.
+  if(a==="edit-week"){ const D=rtDays()||[]; CoachState.coachEditWeek=+b.dataset.w||1; const idx=indicesSemana(D, CoachState.coachEditWeek); if(idx.length) CoachState.coachEditDay=idx[0]; renderCoach(); return; }
+  // «+ Semana»: la nueva arranca como copia de la semana abierta (mismos ejercicios y series, sin
+  // pesos cargados). Con una sola semana, los días que había pasan a ser la semana 1 y arranca este
+  // lunes (asegurarCiclo), así el alumno sigue en lo mismo y la semana que viene ya es la 2.
+  if(a==="week-add"){ const D=rtDays(); if(!D) return; const n=semanasDe(D), w=semanaEditor(D);
+    if(n>=8){ alert("Hasta 8 semanas por rutina."); return; }
+    if(n===1) D.forEach(x=>{ x.semana=1; });
+    const copias=indicesSemana(D, w).map(i=>{ const c=JSON.parse(JSON.stringify(D[i])); c.id=uid(); c.semana=n+1; (c.exercises||[]).forEach(ex=>{ ex.id=uid(); (ex.sets||[]).forEach(st=>{ st.id=uid(); st.kg=""; st.reps=""; st.done=false; }); }); return c; });
+    if(!copias.length) copias.push({id:uid(), name:"Nuevo día", subtitle:"", semana:n+1, exercises:[]});
+    D.push(...copias); asegurarCiclo(D);
+    CoachState.coachEditWeek=n+1; CoachState.coachEditDay=D.indexOf(copias[0]); renderCoach(); return; }
+  // Quitar la semana abierta con sus días; las de después se corren. Si queda una sola, deja de
+  // ser una rutina de semanas (se borran «semana» y el lunes de inicio).
+  if(a==="week-del"){ const D=rtDays(); if(!D) return; const n=semanasDe(D), w=semanaEditor(D); if(n<=1) return;
+    const idx=indicesSemana(D, w), nEj=idx.reduce((k,i)=>k+((D[i].exercises||[]).length),0);
+    if(!await confirmar("¿Quitar la semana "+w+" con sus "+idx.length+" día"+(idx.length===1?"":"s")+(nEj?" y "+nEj+" ejercicio"+(nEj===1?"":"s"):"")+"?")) return;
+    const resto=D.filter((x,i)=>!idx.includes(i)); D.length=0; D.push(...resto);
+    D.forEach(x=>{ if(semanaDe(x)>w) x.semana=semanaDe(x)-1; });
+    if(semanasDe(D)<=1){ D.forEach(x=>{ delete x.semana; }); fijarCiclo(D, null); }
+    CoachState.coachEditWeek=Math.min(w, semanasDe(D)); const idx2=indicesSemana(D, CoachState.coachEditWeek); CoachState.coachEditDay=idx2.length?idx2[0]:0; renderCoach(); return; }
+  // Mover el día abierto a otra semana.
+  if(a==="day-move-week"){ const D=rtDays(), dd=D&&D[CoachState.coachEditDay]; if(!dd) return; dd.semana=+b.dataset.w||1; CoachState.coachEditWeek=dd.semana; renderCoach(); return; }
   if(a==="rt-tosave"){
     const nm=await pedir("Nombre para guardar esta rutina en tu biblioteca:","",{ titulo: "Guardar rutina", ok: "Guardar" });
     if(!nm||!nm.trim()) return;
@@ -1637,10 +1666,12 @@ document.body.addEventListener("click", async e => {
     alert("Rutina aplicada. Presioná “Guardar rutina” para sincronizar al cliente.");
     return;
   }
-  if(a==="day-add"){ if(CoachState.coachTplEdit){ CoachState.coachTplEdit.days.push({id:uid(), name:"Nuevo día", subtitle:"", exercises:[]}); CoachState.coachEditDay=CoachState.coachTplEdit.days.length-1; } else { if(!CoachState.coachData.routine) CoachState.coachData.routine=[]; CoachState.coachData.routine.push({id:uid(), name:"Nuevo día", subtitle:"", exercises:[]}); CoachState.coachEditDay=CoachState.coachData.routine.length-1; } renderCoach(); return; }
+  if(a==="day-add"){ const nd={id:uid(), name:"Nuevo día", subtitle:"", exercises:[]}; if(CoachState.coachTplEdit){ CoachState.coachTplEdit.days.push(nd); CoachState.coachEditDay=CoachState.coachTplEdit.days.length-1; } else { if(!CoachState.coachData.routine) CoachState.coachData.routine=[]; CoachState.coachData.routine.push(nd); CoachState.coachEditDay=CoachState.coachData.routine.length-1; }
+    // Con varias semanas (core/ciclo.js), de la semana abierta.
+    const D=rtDays(); if(semanasDe(D)>1){ nd.semana=semanaEditor(D); fijarCiclo([nd], cicloDe(D)); } renderCoach(); return; }
   if(a==="day-prev"){ const D=rtDays(); if(D&&D.length){ CoachState.coachEditDay=(CoachState.coachEditDay-1+D.length)%D.length; renderCoach(); } return; }
   if(a==="day-next"){ const D=rtDays(); if(D&&D.length){ CoachState.coachEditDay=(CoachState.coachEditDay+1)%D.length; renderCoach(); } return; }
-  if(a==="day-left"||a==="day-right"){ const D=rtDays(), i=CoachState.coachEditDay, j=i+(a==="day-left"?-1:1); if(D&&D[i]&&D[j]){ const t=D[i]; D[i]=D[j]; D[j]=t; CoachState.coachEditDay=j; renderCoach(); } return; }
+  if(a==="day-left"||a==="day-right"){ const D=rtDays(), i=CoachState.coachEditDay; if(!D||!D[i]) return; const idx=indicesSemana(D, semanaEditor(D)), p=idx.indexOf(i), j=idx[p+(a==="day-left"?-1:1)]; if(p>=0 && j!=null){ const t=D[i]; D[i]=D[j]; D[j]=t; CoachState.coachEditDay=j; renderCoach(); } return; }
   // Copia del día abierto, justo después, con los mismos ejercicios, series y objetivos
   // (sin pesos ni reps cargados): para armar, por ejemplo, "Piernas B" a partir de "Piernas A".
   if(a==="day-dup"){ const D=rtDays(), i=CoachState.coachEditDay; if(!D||!D[i]) return;
@@ -1654,7 +1685,7 @@ document.body.addEventListener("click", async e => {
   if(a==="day-del"){ const D=rtDays(), d=D&&D[CoachState.coachEditDay]; if(!d||D.length<2) return;
     const n=(d.exercises||[]).length;
     if(n && !await confirmar("¿Borrar el día «"+(d.name||"sin nombre")+"» con sus "+n+" ejercicio"+(n===1?"":"s")+"?")) return;
-    D.splice(CoachState.coachEditDay,1); CoachState.coachEditDay=0; renderCoach(); return; }
+    D.splice(CoachState.coachEditDay,1); const idx=indicesSemana(D, semanaEditor(D)); CoachState.coachEditDay=idx.length?idx[0]:0; renderCoach(); return; }
   // Mi configuración del ejercicio (screens/coach/presets.js): guardar / volver a ella / borrarla.
   if(a==="rt-preset-save"||a==="rt-preset-use"||a==="rt-preset-del"){
     const day=(rtDays()||[])[CoachState.coachEditDay], ex=day&&day.exercises[+b.dataset.i]; if(!ex) return;
@@ -1791,7 +1822,7 @@ document.body.addEventListener("click", async e => {
   if(a==="pl-swapdel"){ const p=coachPlanObj(CoachState.coachData); p.swaps.splice(+b.dataset.i,1); renderCoach(); return; }
   // Se guarda la rutina tal como estaba al tocar: lo que el coach cambie mientras se guarda
   // sigue marcado como "sin guardar" (antes se daba por guardado y se perdía).
-  if(a==="save-routine"){ const cd=CoachState.coachData; if(!cd||!cd.id||cd.id!==CoachState.coachSel||cd.savingRoutine) return; const sent=JSON.stringify(cd.routine||[]); cd.savingRoutine=true; b.disabled=true; b.textContent="Guardando..."; (async()=>{ try{ const r=await State.sb.from("routines").upsert({client_id:cd.id, days:JSON.parse(sent), updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}); if(r.error) throw r.error; if(CoachState.coachData===cd){ cd.routineOrig=sent; cd.draftRestored=false; cd.ia=null; } alert("Rutina guardada. El cliente la va a ver al abrir la app."); }catch(err){ alert("No se pudo guardar: "+((err&&err.message)||err)); } cd.savingRoutine=false; renderCoach(); })(); return; }
+  if(a==="save-routine"){ const cd=CoachState.coachData; if(!cd||!cd.id||cd.id!==CoachState.coachSel||cd.savingRoutine) return; asegurarCiclo(cd.routine); const sent=JSON.stringify(cd.routine||[]); cd.savingRoutine=true; b.disabled=true; b.textContent="Guardando..."; (async()=>{ try{ const r=await State.sb.from("routines").upsert({client_id:cd.id, days:JSON.parse(sent), updated_at:new Date().toISOString(), updated_by:State.cloudUser.id},{onConflict:"client_id"}); if(r.error) throw r.error; if(CoachState.coachData===cd){ cd.routineOrig=sent; cd.draftRestored=false; cd.ia=null; } alert("Rutina guardada. El cliente la va a ver al abrir la app."); }catch(err){ alert("No se pudo guardar: "+((err&&err.message)||err)); } cd.savingRoutine=false; renderCoach(); })(); return; }
 });
 
 document.body.addEventListener("change", async e => {
@@ -1828,6 +1859,7 @@ document.body.addEventListener("input", async e => {
   if(!day && /^(rt-|day-)/.test(a)) return;
   if(a==="rt-name"){ if(day.exercises[+el.dataset.i]) day.exercises[+el.dataset.i].name=el.value; }
   // El nombre del día también en su pestaña, mientras se escribe (antes seguía el viejo hasta redibujar).
+  else if(a==="ciclo-inicio"){ const D=rtDays(); if(!D) return; const v=String(el.value||""); fijarCiclo(D, /^\d{4}-\d{2}-\d{2}$/.test(v) ? lunesDe(v) : null); renderCoach(); return; }
   else if(a==="day-name"){ day.name=el.value; const tb=document.querySelector('#coachHost .co-daytab.on[data-coach="edit-day"]'); if(tb && tb.firstChild && tb.firstChild.nodeType===3) tb.firstChild.textContent=el.value||("Día "+(CoachState.coachEditDay+1)); }
   else if(a==="rt-target"){ const ex=day.exercises[+el.dataset.i]; const st=ex&&ex.sets[+el.dataset.j]; if(st){ const v=el.value.trim(); if(v) st.target=v; else delete st.target; pintarPreset(+el.dataset.i); } }
   else if(a==="rt-targetkg"){ const ex=day.exercises[+el.dataset.i]; const st=ex&&ex.sets[+el.dataset.j]; if(st) st.targetKg=el.value; }

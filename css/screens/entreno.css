@@ -411,3 +411,13 @@ body:not(#_) .var-pick.on { border-color:var(--gize-text); }
 .gym-card-btns button { flex:1 1 140px; min-height:40px; padding:9px 12px; border-radius:var(--r-btn); font:600 var(--text-meta) var(--gize-font); cursor:pointer; }
 .gym-card-go { background:var(--txt); color:var(--gize-bg); border:1px solid var(--txt); }
 .gym-card-sec { background:var(--card); color:var(--txt); border:1px solid var(--border); }
+
+/* Rutina de varias semanas (core/ciclo.js): «Semana 2 de 2 · esta semana», arriba de las pestañas, y
+   el botón para espiar la otra. Mirando otra semana, el borde pasa a gris: no es la de hoy. */
+.sem-ciclo { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-bottom:10px; padding:10px 12px; border-radius:var(--r-box); background:var(--card-2); border:1px solid var(--border); border-left:3px solid var(--blue); }
+.sem-ciclo.otra { border-left-color:var(--txt-3); }
+.sem-ciclo-t { font-size: var(--text-body); font-weight:800; color:var(--txt); }
+.sem-ciclo-t small { font-weight:600; color:var(--txt-2); }
+.sem-ciclo-s { flex-basis:100%; font-size:12.5px; color:var(--txt-2); }
+.sem-ciclo-b { margin-left:auto; display:flex; gap:6px; }
+.sem-ver { min-height:32px; padding:0 12px; border-radius:var(--r-btn); border:1px solid var(--border); background:var(--card); color:var(--blue-2); font:600 12.5px var(--gize-font); cursor:pointer; }

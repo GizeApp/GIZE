@@ -28,6 +28,9 @@ export const CoachState = {
 
   coachEditDay: 0,
 
+  // Rutina de varias semanas (core/ciclo.js): la semana abierta en el editor (1, 2…).
+  coachEditWeek: 1,
+
   coachDL: "",
 
   coachPlanForm: null,

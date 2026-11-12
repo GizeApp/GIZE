@@ -305,3 +305,19 @@ html:not(#_) body.silk-coach:not(#_):not(#__) .bw-grid .bw.dl { background:var(-
 /* «Borrar rutina» / «Borrar programación»: acción destructiva, en rojo. */
 html:not(#_):not(#__) body:not(#_) .co-logout[data-coach="tpl-del"] { color: var(--gize-danger); border-color: color-mix(in srgb, var(--gize-danger) 55%, transparent); background: color-mix(in srgb, var(--gize-danger) 10%, transparent); }
 html:not(#_):not(#__) body:not(#_) .co-logout[data-coach="tpl-del"]:hover { color: var(--gize-danger); border-color: var(--gize-danger); background: color-mix(in srgb, var(--gize-danger) 18%, transparent); }
+
+/* ---------- Rutina de varias semanas (core/ciclo.js): barra de semanas arriba de los días ---------- */
+body:not(#_) .co-weekbar { display:flex; flex-direction:column; gap:10px; margin:0 0 14px; padding:12px 14px; border-radius:14px; background:var(--card-2); border:1px solid var(--border); }
+body:not(#_) .co-weekbar.solo { flex-direction:row; flex-wrap:wrap; align-items:center; gap:10px; }
+body:not(#_) .co-weektabs { display:flex; flex-wrap:wrap; gap:8px; }
+body:not(#_) .co-weektab { min-height:36px; padding:0 14px; border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--txt-2); font:700 13.5px var(--gize-font); cursor:pointer; }
+body:not(#_) .co-weektab.on { color:var(--txt); background:color-mix(in srgb, var(--gize-blue) 14%, var(--card)); border-color:var(--gize-blue); }
+body:not(#_) .co-weektab.add { background:none; border-style:dashed; color:var(--gize-blue); }
+body:not(#_) .co-week-hint { font-size:12.5px; color:var(--txt-2); }
+body:not(#_) .co-week-info { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px 16px; }
+body:not(#_) .co-week-start { flex:0 0 auto; }
+body:not(#_) .co-week-start .co-note { width:auto; min-width:170px; }
+body:not(#_) .co-week-txt { flex:1 1 220px; font-size:13px; color:var(--txt-2); line-height:1.4; }
+body:not(#_) .co-week-txt b { color:var(--txt); }
+body:not(#_) .co-week-txt small { display:block; font-size:12px; }
+body:not(#_) .co-week-del { flex:0 0 auto; }
