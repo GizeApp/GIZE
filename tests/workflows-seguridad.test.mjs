@@ -408,7 +408,8 @@ esac`;
   const usaBp = [...bpc.matchAll(/uses: (\S+)/g)].map(m => m[1]);
   t.ok(usaBp.length === 2 && usaBp.every(u => { const m = u.match(/^(actions\/[\w-]+)@([0-9a-f]{40})$/); return m && deCI[m[1]] === m[2]; }), 'base-de-pruebas.yml: checkout y setup-node fijados con el mismo SHA que pruebas.yml: ' + usaBp.join(' '));
   t.ok(/persist-credentials: false/.test(bp), 'base-de-pruebas.yml: el checkout no deja el token guardado');
-  t.ok(/run: node tests\/run\.mjs gimnasios\s+env:[\s\S]*?GIZE_PSQL: docker exec -i gize-pg psql -U postgres[\s\S]*?GIZE_PG_OBLIGATORIO: "1"/.test(bp), 'corre las pruebas de los gimnasios contra ese Postgres, y si no hay Postgres falla');
+  // Solo tests/gimnasios-*.test.mjs («gimnasios-»): admin-gimnasios.test.mjs abre el navegador, que ahí no está.
+  t.ok(/run: node tests\/run\.mjs gimnasios-\s+env:[\s\S]*?GIZE_PSQL: docker exec -i gize-pg psql -U postgres[\s\S]*?GIZE_PG_OBLIGATORIO: "1"/.test(bp), 'corre las pruebas de los gimnasios (gimnasios-*) contra ese Postgres, y si no hay Postgres falla');
   t.ok(/run: node tests\/run\.mjs -sql/.test(bp) && /if: always\(\)\s+run: docker rm -f gize-pg/.test(bp), 'también las de SQL leído, y al final apaga el contenedor');
   t.ok(/- package-ecosystem: docker\s+directory: \/\.github\/postgres-pruebas\s+schedule:\s+interval: monthly\s+ignore:\s+- dependency-name: postgres\s+update-types: \["version-update:semver-major"\]/.test(dep),
     'Dependabot sigue la imagen de la base de pruebas, sin saltar de versión mayor');
