@@ -585,9 +585,10 @@ async function loadCoaches(){
     userTabs("coaches") + '<div id="cSoon"></div>' + block("cListB", "Todos los coaches", '<div id="cList" class="empty">Cargando…</div>') +
     block("cCodB", "Códigos de fundador", '<div id="cCod" class="empty">Cargando…</div>') +
     block("cCobB", "Cobros de los coaches", '<div id="cCob" class="empty">Cargando…</div>') +
+    block("cTiB", "Tienda de rutinas", '<div id="cTi" class="empty">Cargando…</div>') +
     block("cPagB", "Páginas de coaches", '<div id="cPag" class="empty">Cargando…</div>') +
     block("cGpB", "Cobro con Google Play", '<div id="cGp" class="empty">Cargando…</div>'));
-  loadCodigos(); loadCobrosAdmin(); loadPaginasCoach(); loadComprasGoogle();
+  loadCodigos(); loadCobrosAdmin(); loadTiendaAdmin(); loadPaginasCoach(); loadComprasGoogle();
   const box = document.getElementById("cList");
   try { S.coaches = await rpc("admin_coaches"); } catch (e) { box.textContent = errMsg(e); return; }
   if (!S.coaches.length){ box.textContent = "Todavía no hay coaches."; return; }
@@ -694,6 +695,69 @@ async function cobrosOnOff(btn){
     toast("Cobros en " + c.en + ": " + (on ? "prendido" : "apagado"));
   } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
   paintCobrosAdmin('[data-a="cobOn"][data-k="' + c.k + '"]');
+}
+
+// Tienda de rutinas (supabase/tienda-rutinas.sql): la gente publica su rutina (gratis) y otros la agregan.
+// Acá se prende o se apaga por separado en la web, en Android y en iPhone (admin_tienda: vale al instante
+// y sin sacar otra versión), se ven las cantidades y se revisan las rutinas ocultas o denunciadas
+// (admin_tienda_estado, admin_tienda_rutina). Nace con la web prendida y las apps apagadas. Es contenido
+// de la gente: la tienda de cada app lo permite si hay forma de denunciarlo y de sacarlo (hay: el botón
+// «Denunciar» de cada rutina y esta pantalla).
+const TI_ACC = { ocultar: "Ocultar", mostrar: "Mostrar", borrar: "Borrar", verificar: "Verificar creador", no_verificar: "Sacar verificado", destacar: "Destacar", no_destacar: "Sacar destacada" };
+const tiLog = d => d && d.ahora ? COB_PLAT.map(c => c.nombre + (cobOn(d.ahora, c.k) ? " prendida" : " apagada")).join(" · ") : "";
+async function loadTiendaAdmin(){
+  let d = null, err = null;
+  try { d = await rpc("admin_tienda_estado"); } catch (e) { err = e; }
+  if (S.view !== "coaches") return;
+  S.tienda = d && typeof d === "object" ? d : null;
+  if (S.tienda) return paintTiendaAdmin();
+  const box = document.getElementById("cTi"); if (!box) return;
+  const falta = err && (err.code === "PGRST202" || /admin_tienda_estado|schema cache|does not exist/i.test(errMsg(err)));
+  box.innerHTML = falta ? "Falta preparar la base: en GitHub, Actions → <b>Supabase</b> → Run workflow → tarea <b>sql</b>, archivo <b>supabase/tienda-rutinas.sql</b>. Nace prendida en la web y apagada en las apps."
+    : esc(err ? errMsg(err) : "No se pudo leer cómo está la Tienda. Recargá la página.");
+}
+function paintTiendaAdmin(foco){
+  const box = document.getElementById("cTi"), d = S.tienda; if (!box || !d) return;
+  const sw = d.interruptor || {};
+  const sws = `<div class="ia-funs">${COB_PLAT.map(c => `<div class="ia-fun"><div>En ${c.en}<small>${cobOn(sw, c.k) ? "Prendida: quien entrena por su cuenta ve «Tienda de rutinas» en Entreno." : "Apagada: no aparece nada de la Tienda."}</small></div>
+      <button class="tgl" role="switch" aria-checked="${cobOn(sw, c.k) ? "true" : "false"}" aria-label="Tienda en ${c.en}" data-a="tiOn" data-k="${c.k}"></button></div>`).join("")}</div>`;
+  const k = (n, l, s) => `<div class="kpi"><b>${n0(n)}</b><span>${l}</span><small>${s}</small></div>`;
+  const nums = `<div class="grid kpis">${k(d.activas, "Rutinas activas", "Las que ve la gente.")}${k(d.ocultas, "Ocultas", "Por denuncias o por el admin.")}${k(d.creadores, "Creadores", "Personas que publicaron.")}${k(d.agregadas, "Veces agregadas", "Una por persona y rutina.")}</div>`;
+  const fila = r => `<div class="ia-fun"><div><b>${esc(r.titulo)}</b> · ${esc(r.autor)}${r.verificado ? " ✓" : ""}${r.destacada ? " ★" : ""}
+      <small>${r.estado === "oculta" ? "Oculta" : "Activa"}${r.reportes != null ? " · " + n0(r.reportes) + " denuncias" + ((r.motivos || []).length ? " (" + esc(r.motivos.join(", ")) + ")" : "") : " · " + n0(r.agregadas) + " agregadas"}</small></div>
+      <div class="search" style="margin:0;gap:6px">${[r.estado === "oculta" ? "mostrar" : "ocultar", "borrar", r.verificado ? "no_verificar" : "verificar", r.destacada ? "no_destacar" : "destacar"].map(x => `<button class="btn" data-a="tiAcc" data-id="${esc(r.id)}" data-acc="${x}">${TI_ACC[x]}</button>`).join("")}</div></div>`;
+  const rev = d.revisar || [], todas = d.todas || [];
+  box.className = "";
+  box.innerHTML = `<div class="sec-s">Cualquiera que entrena por su cuenta publica su rutina, gratis y con su nombre del perfil, y otros la agregan. No hay precios ni compras. Con 3 denuncias distintas una rutina se oculta sola hasta que la revisás. Cada interruptor vale al instante y sin sacar otra versión.</div>`
+    + sws + nums
+    + `<div class="sec-s" style="margin-top:14px"><b>Para revisar</b> (ocultas o denunciadas)</div>` + (rev.length ? `<div class="ia-funs">${rev.map(fila).join("")}</div>` : '<div class="empty">No hay nada para revisar.</div>')
+    + `<div class="sec-s" style="margin-top:14px"><b>Últimas publicadas</b></div>` + (todas.length ? `<div class="ia-funs">${todas.map(fila).join("")}</div>` : '<div class="empty">Todavía no publicó nadie.</div>');
+  const on = COB_PLAT.filter(c => cobOn(sw, c.k)).map(c => c.corto);
+  setSum("cTiB", (on.length ? '<span class="t-ok">prendida</span> en ' + cobLista(on) : "apagada") + " · " + n0(d.activas) + (num(d.activas) === 1 ? " rutina" : " rutinas") + (num(d.ocultas) ? " · " + n0(d.ocultas) + " para revisar" : ""));
+  if (foco){ const el = box.querySelector(foco); if (el) try { el.focus({ preventScroll: true }); } catch (e) {} }
+}
+// Prender o apagar la Tienda en una plataforma (pregunta antes).
+async function tiendaOnOff(btn){
+  const d = S.tienda, c = COB_PLAT.find(x => x.k === btn.dataset.k); if (!d || !c) return;
+  const on = btn.getAttribute("aria-checked") !== "true";
+  const msg = !on ? "¿Apagar la Tienda de rutinas en " + c.en + "? Deja de verse ahí al instante. Lo publicado queda guardado."
+    : "¿Prender la Tienda de rutinas en " + c.en + "? La gente publica y agrega rutinas gratis, con su nombre del perfil." + (c.k === "web" ? "" : "\n\nEs contenido de usuarios: la tienda lo permite si hay forma de denunciarlo y de sacarlo (hay: botón «Denunciar» y esta pantalla). Si la tienda lo objeta, lo apagás acá y se va al instante, sin sacar otra versión.");
+  if (!await confirmar(msg, { titulo: "Tienda de rutinas", ok: on ? "Prender" : "Apagar" })) return;
+  btn.disabled = true;
+  try {
+    const r = await rpc("admin_tienda", { p: { [c.k]: on } });
+    d.interruptor = r && typeof r === "object" ? r : Object.assign({}, d.interruptor, { [c.k]: on });
+    toast("Tienda en " + c.en + ": " + (on ? "prendida" : "apagada"));
+  } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  paintTiendaAdmin('[data-a="tiOn"][data-k="' + c.k + '"]');
+}
+// Una acción sobre una rutina (ocultar, mostrar, borrar, verificar, destacar).
+async function tiendaAccion(btn){
+  const acc = btn.dataset.acc, id = btn.dataset.id; if (!TI_ACC[acc] || !id) return;
+  if (acc === "borrar" && !await confirmar("¿Borrar la rutina de la Tienda? No se puede deshacer. Quienes ya la agregaron la conservan en su app.", { titulo: "Tienda de rutinas", ok: "Borrar" })) return;
+  btn.disabled = true;
+  try { await rpc("admin_tienda_rutina", { p_id: id, p_accion: acc }); toast("Listo"); } catch (e) { btn.disabled = false; return toast(errMsg(e)); }
+  loadTiendaAdmin();
 }
 
 // Páginas de coaches (supabase/pagina-coach.sql): el link público de cada coach (gize.ar/c/<alias>) con
@@ -2382,7 +2446,7 @@ async function loadSeguridad(){
     gym_convertir: "Convirtió una cuenta en gimnasio", gym_transferir: "Transfirió un gimnasio", gym_cerrar: "Cerró un gimnasio", gym_profes_extra: "Cambió el tope de profes de un gimnasio",
     gym_auditoria: "Exportó la auditoría de un gimnasio", seats_drift: "Diferencia en el cupo (tarea diaria)", resumen_semanal: "Cambió el resumen de los lunes", cobros: "Cambió Cobros de los coaches", compras_google: "Cambió el cobro con Google Play" }[a.action] || a.action);
   const goalTxt = d => d ? (d.label || (METRICS[d.metric] || [d.metric])[0]) + (d.target != null ? " · meta " + (METRICS[d.metric] || [, n0])[1](d.target) : "") : "";
-  const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : a.action === "resumen_semanal" ? resLog(a.detail) : a.action === "cobros" ? cobLog(a.detail) : a.action === "compras_google" ? gpLog(a.detail) : a.action === "pagina_coach" ? (a.target_name ? a.target_name + " · " : "") + "gize.ar/c/" + ((a.detail || {}).alias || "") : (a.target_name || "");
+  const extra = a => a.action.startsWith("objetivo") ? goalTxt(a.detail) : a.action.startsWith("tarea") ? (a.detail && a.detail.title) : a.action === "aviso" ? (a.detail && a.detail.title) : a.action.startsWith("contacto") ? (a.detail && (a.detail.de || a.detail.a)) : a.action.startsWith("producto") ? (a.detail && a.detail.name) : a.action.startsWith("fin_") ? (a.detail && (a.detail.name || a.detail.label)) : a.action === "eliminar" ? (a.detail && a.detail.nombre) : a.action === "resumen_semanal" ? resLog(a.detail) : a.action === "cobros" ? cobLog(a.detail) : a.action === "tienda" ? tiLog(a.detail) : a.action === "tienda_rutina" ? ((a.detail || {}).accion || "") : a.action === "compras_google" ? gpLog(a.detail) : a.action === "pagina_coach" ? (a.target_name ? a.target_name + " · " : "") + "gize.ar/c/" + ((a.detail || {}).alias || "") : (a.target_name || "");
   setSum("sAudB", "última: " + esc(what(S.audit[0])).toLowerCase() + " · " + ago(S.audit[0].created_at));
   box.className = "tscroll";
   box.innerHTML = `<table class="table"><thead><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Sobre</th></tr></thead><tbody>${S.audit.map(a => `<tr><td class="muted">${fmtDT(a.created_at)}</td><td>${esc(a.admin_name || "—")}</td><td>${esc(what(a))}</td><td class="muted">${esc(extra(a) || "")}</td></tr>`).join("")}</tbody></table>`;
@@ -2466,6 +2530,8 @@ document.addEventListener("click", async e => {
       toast("Código guardado"); loadCodigos(); return;
     }
     if (a === "cobOn"){ cobrosOnOff(b); return; }
+    if (a === "tiOn"){ tiendaOnOff(b); return; }
+    if (a === "tiAcc"){ tiendaAccion(b); return; }
     if (a === "pagAcc"){ pagAccion(b); return; }
     if (a === "codOnOff"){
       const k = (S.codigos || []).find(x => x.codigo === b.dataset.v); if (!k) return;

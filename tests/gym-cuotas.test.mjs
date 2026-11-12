@@ -139,6 +139,11 @@ export default async function ({ base, t }){
     await p.click('#coachHost [data-gym="cuotas-tab"][data-v="al_dia"]'); await wait(200);
     await p.click('#coachHost [data-gym="cuota-pago"][data-id="' + F.A1 + '"]'); await wait(600);
     t.eq(await p.$eval('#gymModal [data-gym-pg="hasta"]', i => i.value), masMes(ymd(20)), 'al día: cubre un mes desde el vencimiento');
+    // Con cuota, las fechas y la nota vienen cerradas: la línea resumen y los dos enlaces las abren.
+    t.ok(/Paga hoy y queda al día hasta el/.test(await modalTxt(p)), 'con cuota: una línea dice hasta cuándo queda al día');
+    t.ok(!await p.isVisible('#gymModal [data-gym-pg="hasta"]') && !await p.isVisible('#gymModal [data-gym-pg="nota"]'), 'con cuota: fechas y nota cerradas');
+    await p.click('#gymModal [data-gym="pago-fechas"]'); await p.click('#gymModal [data-gym="pago-nota"]'); await wait(100);
+    t.ok(await p.isVisible('#gymModal [data-gym-pg="hasta"]') && await p.isVisible('#gymModal [data-gym-pg="nota"]'), 'los enlaces abren las fechas y la nota');
     await p.fill('#gymModal [data-gym-pg="hasta"]', ymd(60)); await p.fill('#gymModal [data-gym-pg="nota"]', 'Pagó dos meses'); await p.fill('#gymModal [data-gym-pg="monto"]', '55000'); await wait(100);
     await p.click('#gymModal [data-gym="pago-ok"]'); await wait(700);
     t.eq(Object.assign({}, rpcs(pg.st, 'gym_pago_registrar')[0], { id: 'x' }), { id: 'x', ficha: F.A1, monto: 55000, medio: 'efectivo', fecha: hoyAR(), hasta: ymd(60), nota: 'Pagó dos meses' },
@@ -220,6 +225,25 @@ export default async function ({ base, t }){
       donde + ': gym_pago_registrar con el monto de la cuota (lo que cubre lo calcula el servidor)');
     t.ok(/Listo: pago de Sofía Ruiz registrado/.test(await modalTxt(p)), donde + ': listo');
     t.eq(pg.errs, [], donde + ': sin errores');
+    await pg.close();
+  }
+
+  // ===== Sin cuota: si el servidor rechaza el pago, la cuota que se asignó recién se saca =====
+  {
+    const pg = await entrar(base, DUENA, { vp: D, tema: 'oscuro', rpc: Object.assign(RPC(), {
+      gym_pagos_ficha: b => b.ficha === F.A5 ? { ficha: F.A5, cuota: null, vence: null, estado: null, pagos: [] } : pagosDe(b.ficha),
+      gym_cuota_asignar: b => ({ ok: b.fichas.length }),
+      gym_pago_registrar: () => ({ error: 'P0001', msg: 'Revisá el monto: en pesos, sin puntos de miles.' }) }) }), p = pg.p;
+    await ir(p, 'cuotas'); await wait(400);
+    await p.click('#coachHost [data-gym="cuotas-tab"][data-v="sin_cuota"]'); await wait(200);
+    await p.click('#coachHost [data-gym="cuota-pago"][data-id="' + F.A5 + '"]'); await wait(700);
+    await p.selectOption('#gymModal [data-gym-pg="cuotaId"]', CM); await wait(300);
+    await p.click('#gymModal [data-gym="pago-ok"]'); await wait(900);
+    t.ok(pg.dialogs.includes('Revisá el monto: en pesos, sin puntos de miles.'), 'pago rechazado: lo dice');
+    t.eq(pg.st.rpcs.map(x => x[0]).filter(n => n === 'gym_cuota_asignar' || n === 'gym_pago_registrar'), ['gym_cuota_asignar', 'gym_pago_registrar', 'gym_cuota_asignar'],
+      'pago rechazado: asignó la cuota, intentó el pago y la sacó');
+    t.eq(rpcs(pg.st, 'gym_cuota_asignar').pop(), { fichas: [F.A5], tipo: null, vence: null }, 'pago rechazado: gym_cuota_asignar sin cuota y sin tocar el vencimiento');
+    t.ok(!!await p.$('#gymModal [data-gym-pg="cuotaId"]'), 'pago rechazado: la ventana sigue y se puede elegir la cuota de nuevo');
     await pg.close();
   }
 

@@ -319,14 +319,23 @@ async function abrirPago(id){
 const registrarPago = () => ocupado("pago", async () => {
   const m = GS.modal; if (!m || m.tipo !== "pago") return;
   // Sin cuota y eligió una: primero se la asigna (queda con el vencimiento que ya tenía) y después va el pago.
-  if (m.cuotaId && !(m.datos && m.datos.cuota)){
+  const asignada = !!(m.cuotaId && !(m.datos && m.datos.cuota));
+  if (asignada){
     const a = await rpc("gym_cuota_asignar", { fichas: [m.id], tipo: m.cuotaId, vence: null });
     if (a.error){ alert(a.msg); return; }
     m.datos = Object.assign({}, m.datos, { cuota: (GS.tipos || []).find(x => x.id === m.cuotaId) });
   }
   const r = await rpc("gym_pago_registrar", { id: m.pid, ficha: m.id, monto: Number(m.monto), medio: m.medio, fecha: m.fecha || null,
     hasta: m.hastaTocado ? (m.hasta || null) : null, nota: (m.nota || "").trim() || null });
-  if (r.error){ alert(r.msg); return; }
+  if (r.error){
+    // Si el servidor rechazó el pago, la cuota que se asignó recién se saca: no queda con una cuota que no se pagó.
+    // Si fue un corte de red no se saca (el pago pudo haber entrado): al reintentar, el mismo id no anota dos.
+    if (asignada && (r.error.code === "P0001" || r.error.code === "42501")){
+      const u = await rpc("gym_cuota_asignar", { fichas: [m.id], tipo: null, vence: null });
+      if (!u.error) m.datos = Object.assign({}, m.datos, { cuota: null });
+    }
+    alert(r.msg); return;
+  }
   m.hecho = r.data || {};
   despuesCuota();
 })();
@@ -505,6 +514,14 @@ async function alTocar(e){
   if (a === "cuotas-tab"){ GS.cuotasParte = "estados"; GS.cuotasTab = b.dataset.v; if (GS.view !== "cuotas") return ir("cuotas"); repintar(); return; }
   if (a === "cuota-pago") return abrirPago(id);
   if (a === "pago-ok") return registrarPago();
+  // «Cambiar fechas» y «+ Agregar una nota» abren lo que la ventana de pago tiene resumido.
+  if ((a === "pago-fechas" || a === "pago-nota") && GS.modal && GS.modal.tipo === "pago"){
+    const k = a === "pago-nota" ? "nota" : "hasta";
+    if (k === "nota") GS.modal.verNota = true; else GS.modal.verFechas = true;
+    pintarModal();
+    const i = document.querySelector('#gymModal [data-gym-pg="' + k + '"]'); if (i) i.focus({ preventScroll: true });
+    return;
+  }
   if (a === "cuotas-csv") return exportarPagos(b);
   if (a === "tipo-nuevo") return abrir({ tipo: "tipo", id: null, nombre: "", monto: "", meses: 1 });
   if (a === "tipo-editar"){ const c = (GS.tipos || []).find(x => x.id === id); if (c) abrir({ tipo: "tipo", id: c.id, nombre: c.name, monto: String(c.amount), meses: c.months }); return; }

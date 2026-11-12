@@ -302,6 +302,25 @@ html:not(#_) body:not(#_) .gy-f .co-note:focus { border-color:var(--gize-blue); 
 .gy-medios .gy-radio { flex:1 1 auto; grid-template-areas:"in t"; align-items:center; padding:10px 12px; }
 .gy-medios .gy-radio input { color:var(--txt); }
 .gy-f-nota { margin-top:4px; }
+/* «Registrar pago»: el monto grande con el «$» adentro, los medios parejos, las fechas y la nota resumidas. */
+.gy-f[hidden], .gy-pago-fechas[hidden] { display:none; }
+.gy-f-cuota, .gy-f-monto { margin-bottom:12px; }
+.gy-f-cuota .gy-sel { min-height:54px; width:100%; padding:0 16px; font-size:16px; font-weight:500; }
+.gy-monto { position:relative; display:block; }
+.gy-monto i { position:absolute; left:18px; top:50%; transform:translateY(-50%); font-style:normal; font-size:24px; color:var(--txt-2); pointer-events:none; }
+html:not(#_) body:not(#_) .gy-monto .co-note { height:64px; padding:0 18px 0 46px; font-size:28px; font-weight:700; -moz-appearance:textfield; appearance:textfield; }
+.gy-monto .co-note::-webkit-outer-spin-button, .gy-monto .co-note::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.gy-pago-ok.gy-pago-ok { min-height:54px; padding:0 32px; border:0; border-radius:999px; background:var(--txt); color:var(--gize-surface); font-size:16px; font-weight:600; box-shadow:none; }
+.gy-pago-ok.gy-pago-ok:disabled { background:color-mix(in srgb, var(--txt) 14%, var(--gize-surface)); color:var(--txt-2); opacity:1; }
+.gy-pago-ok.gy-pago-ok::before, .gy-pago-ok.gy-pago-ok::after { display:none; }
+.gy-f-monto ~ .gy-medios { flex-wrap:nowrap; }
+.gy-f-monto ~ .gy-medios .gy-radio { flex:1 1 auto; min-width:0; min-height:52px; padding:0 10px; column-gap:8px; }
+.gy-f-monto ~ .gy-medios .gy-radio b { font-size:15px; }
+.gy-pago-resumen { margin:0 0 10px; font-size:15px; line-height:1.5; color:var(--txt-2); }
+.gy-pago-resumen b { color:var(--txt); }
+.gy-pago-fechas { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; margin:0 0 10px; }
+.gy-link { display:block; margin:0 0 10px; padding:0; border:0; background:none; font:inherit; font-size:15px; color:var(--gize-blue); text-decoration:underline; cursor:pointer; }
+.gy-pago-resumen .gy-link { display:inline; margin:0; }
 
 /* Asistencia */
 .gy-row-ing { cursor:default; }
@@ -383,7 +402,7 @@ html:not(#_) body:not(#_) .gy-f .co-note:focus { border-color:var(--gize-blue); 
   .gy-th { display:grid; padding:10px 16px; font-size:12px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--txt-3); cursor:default; }
   .gy-th:hover { background:none; }
   .gy-row-eq { grid-template-columns:minmax(0,2.4fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.4fr) minmax(0,1.1fr); }
-  .gy-ficha { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; align-items:start; }
+  .gy-ficha { max-width:760px; margin:0 auto; gap:18px; }
   .gy-form { grid-template-columns:1fr 1fr; }
   .gy-sec { padding:20px 22px 22px; }
   .gy-rec-cols { grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); align-items:start; }
@@ -421,3 +440,159 @@ html:not(#_) body:not(#_) .gy-f .co-note:focus { border-color:var(--gize-blue); 
 /* «Salir» en rojo suave, para no confundirlo con las opciones del panel. */
 .gy-shell .cv-util-i.cv-out, .gy-mas-i[data-auth="logout"] { color:color-mix(in srgb, var(--gize-danger) 80%, var(--txt)); }
 .gy-shell .cv-util-i.cv-out:hover, .gy-shell .cv-util-i.cv-out:focus-visible { background:color-mix(in srgb, var(--gize-danger) 14%, transparent); color:var(--gize-danger); }
+
+/* ---------- Configuración: grupos de una columna, de lo que más se toca a lo que casi nunca ---------- */
+.gy-cfg { display:grid; gap:34px; max-width:820px; margin:0 auto; }
+.gy-cfg-g { display:grid; gap:12px; align-content:start; min-width:0; }
+.gy-cfg-gh .cv-h2 { margin:0 0 2px; }
+.gy-cfg-gh .gy-fino { margin:0; }
+.gy-cfg-fila { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 14px; padding:12px 0; border-top:1px solid var(--gize-border); }
+.gy-cfg-fila > span:first-child { min-width:0; font-size:var(--text-body); font-weight:600; color:var(--txt); }
+.gy-cfg-fila .gy-sel { min-width:190px; max-width:100%; }
+.gy-cfg .gy-codigo + .gy-acc { margin:12px 0 14px; }
+.gy-cfg .gy-kv { grid-template-columns:minmax(0,1fr); gap:6px; padding:14px 0; }
+.gy-cfg .gy-kv > span { font-size:var(--text-body); font-weight:600; color:var(--txt); }
+.gy-cfg .gy-horas { display:inline-flex; align-items:center; gap:8px; color:var(--txt-2); }
+.gy-cfg .gy-horas .co-note { width:84px; }
+
+/* ---------- Rediseño del panel: plano y sobrio, en Oscuro y en Claro ----------
+   Superficies lisas (sin vidrio, sin desenfoque, sin filete de luz ni aurora de fondo), bordes finos,
+   títulos grandes y apretados y botones de un solo color. Oscuro: negro azulado con acento azul.
+   Claro: blanco y negro, con botones en píldora. «Azul» y «Rosa» quedan como estaban. Todo va bajo
+   .gy-on / .gy-shell para no tocar el panel del coach ni la app. Los colores salen de las variables
+   --gd-*, definidas una vez por apariencia. Sin CSS anidado. */
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) {
+  --gd-bg:#0a0d12; --gd-card:#0e131b; --gd-card-2:#141b26; --gd-line:#1d2430; --gd-line-2:#2c3647;
+  --gd-txt:#f3f6fb; --gd-txt-2:#a0a9b8; --gd-txt-3:#8b95a7;
+  --gd-acc:#2f9bff; --gd-acc-txt:#04121f; --gd-on:rgba(47,155,255,.14); --gd-on-txt:#f3f6fb; --gd-on-ic:#2f9bff;
+  --gd-warn-bg:rgba(245,166,35,.09); --gd-warn-line:rgba(245,166,35,.32);
+  --gd-r-btn:10px; --gd-r-card:14px; --gd-r-nav:10px;
+  --gd-t-size:34px; --gd-t-w:700; --gd-t-ls:-.025em; --gd-n-size:40px; --gd-n-w:700;
+}
+html.tema-luz:not(#_):not(#__):not(#___) body.gy-on:not(#_) {
+  --gd-bg:#ffffff; --gd-card:#f5f5f3; --gd-card-2:#ecece9; --gd-line:#e6e6e2; --gd-line-2:#d3d3ce;
+  --gd-txt:#0b0b0b; --gd-txt-2:#51545a; --gd-txt-3:#686b72;
+  --gd-acc:#0b0b0b; --gd-acc-txt:#ffffff; --gd-on:#0b0b0b; --gd-on-txt:#ffffff; --gd-on-ic:#ffffff;
+  --gd-warn-bg:#fdf3d4; --gd-warn-line:#efdd9c;
+  --gd-r-btn:999px; --gd-r-card:24px; --gd-r-nav:999px;
+  --gd-t-size:44px; --gd-t-w:600; --gd-t-ls:-.045em; --gd-n-size:48px; --gd-n-w:600;
+}
+
+/* Fondo liso: se apagan las luces y el grano que pinta el vidrio, y el panel tapa todo con su color. */
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_)::before, html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_)::after { display:none; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) #coachHost { background:var(--gd-bg); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell { color:var(--gd-txt); --txt:var(--gd-txt); --txt-2:var(--gd-txt-2); --txt-3:var(--gd-txt-3); --border:var(--gd-line); --gize-border:var(--gd-line);
+  --gize-surface:var(--gd-card); --gize-surface-2:var(--gd-card-2); --card:var(--gd-card); --card-2:var(--gd-card-2); --gize-blue:var(--gd-acc); }
+
+/* Sin brillos ni filetes de color en nada del marco (los pone el neón de cada apariencia). */
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell :is(.cv-card, .cv-pill, .cv-nav, .cv-nav-i, .cv-util-i, .co-copy-btn, .gize-btn, .gy-chip, .cv-search, .co-search, .gy-sel, .gy-tabla)::before,
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell :is(.cv-card, .cv-pill, .cv-nav, .cv-nav-i, .cv-util-i, .co-copy-btn, .gize-btn, .gy-chip, .cv-search, .co-search, .gy-sel, .gy-tabla)::after { display:none; }
+
+/* Títulos */
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-title { font-size:var(--gd-t-size); font-weight:var(--gd-t-w); letter-spacing:var(--gd-t-ls); line-height:1.04; color:var(--gd-txt); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-head-sub { margin-top:8px; font-size:14px; color:var(--gd-txt-2); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-h2 { font-size:19px; font-weight:600; letter-spacing:-.02em; color:var(--gd-txt); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-h { font-weight:600; letter-spacing:-.02em; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-brand-n { font-size:15px; font-weight:600; letter-spacing:-.015em; color:var(--gd-txt); }
+
+/* Tarjetas: lisas, con borde fino */
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell :is(.cv-card, .gy-cartel, .gy-vacio, .gy-sec, .gy-sol, .gy-pasos) { background:var(--gd-card); border:1px solid var(--gd-line); border-radius:var(--gd-r-card); box-shadow:none;
+  -webkit-backdrop-filter:none; backdrop-filter:none; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-cartel { padding:14px 20px; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-cartel.warn { background:var(--gd-warn-bg); border-color:var(--gd-warn-line); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-stat { padding:20px 20px 18px; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-stat .cv-stat-l { color:var(--gd-txt-2); font-weight:500; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-stat .cv-stat-n { font-size:var(--gd-n-size); font-weight:var(--gd-n-w); letter-spacing:-.05em; color:var(--gd-txt); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-stat .cv-stat-n small { font-size:.4em; font-weight:500; letter-spacing:0; color:var(--gd-txt-3); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-recep-cta { padding:22px 24px; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-recep-cta .cv-h2 { font-size:24px; letter-spacing:-.035em; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-recep-cta p { color:var(--gd-txt-2); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-recep-btn { min-height:48px; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-tabla { overflow:hidden; }
+
+/* Botones: el principal de un solo color, el chico con borde */
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gize-btn.cv-btn { min-height:44px; padding:0 22px; border:0; border-radius:var(--gd-r-btn); background:var(--gd-acc); color:var(--gd-acc-txt); font-weight:600; box-shadow:none; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gize-btn.cv-btn:hover { filter:brightness(1.08); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gize-btn.cv-btn .cv-ic { opacity:1; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell :is(.co-copy-btn, .cv-sec-btn, .gy-btn2:not(.gize-btn), .gy-chip, .gy-sel) { background:transparent; border:1px solid var(--gd-line-2); color:var(--gd-txt); border-radius:var(--gd-r-btn); box-shadow:none; font-weight:600; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell :is(.co-copy-btn, .cv-sec-btn, .gy-chip):hover { background:var(--gd-card-2); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-todo .gy-btn2 { min-height:38px; padding:0 16px; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-chip.on { background:var(--gd-on); border-color:transparent; color:var(--gd-on-txt); }
+
+/* Casillas y selectores nativos con los colores de cada apariencia */
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell { color-scheme:dark; accent-color:var(--gd-acc); }
+html.tema-luz:not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell { color-scheme:light; }
+
+/* Buscador y campos */
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell :is(.cv-search, .co-search, .gy-sel, .co-note) { background:var(--gd-card); border:1px solid var(--gd-line-2); border-radius:var(--gd-r-btn); color:var(--gd-txt); box-shadow:none; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell :is(.gy-head, .gy-filtros-bar) .cv-search { min-height:44px; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell :is(.cv-search, .co-search):focus { border-color:var(--gd-acc); outline:none; }
+
+/* Pestañas (Socios / Solicitudes / Bajas) */
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-tabs .cv-pill { padding:10px 18px; background:transparent; border:1px solid var(--gd-line-2); border-radius:999px; color:var(--gd-txt-2); box-shadow:none; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-tabs .cv-pill.on { background:var(--gd-on); border-color:transparent; color:var(--gd-on-txt); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-tabs .cv-pill .gy-n { background:var(--gd-line); color:inherit; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell :is(.gy-tabs .cv-pill, .gy-chip).on .gy-n { background:rgba(255,255,255,.18); color:inherit; }
+
+/* Listas y tabla: líneas finas, más aire */
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-todo { padding:14px 18px; border-top-color:var(--gd-line); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-todo .cv-li-n { font-weight:500; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-row { border-top-color:var(--gd-line); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-row:hover, html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-row:focus-visible, html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-li:hover { background:color-mix(in srgb, var(--gd-txt) 4%, transparent); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-th { color:var(--gd-txt-3); font-weight:600; background:transparent; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-socio-t b { font-weight:600; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-av:not(.gy-av-l):not(.gy-av-xl):not(.gy-av-rec) { width:40px; height:40px; font-weight:600; background:var(--gd-card-2); border-color:var(--gd-line); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-estado { padding:3px 11px; font-weight:600; }
+
+/* Barra lateral (compu) y navegación de abajo (celular) */
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-side { background:var(--gd-bg); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-nav-sec { color:var(--gd-txt-3); font-weight:600; letter-spacing:.08em; background:none; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-nav-sec::before { display:none; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-nav-i { color:var(--gd-txt-2); font-weight:500; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-nav-i.on { background:var(--gd-on); color:var(--gd-on-txt); border-color:transparent; box-shadow:none; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-nav-i.on svg { color:var(--gd-on-ic); }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-nav-n { background:var(--gd-acc); color:var(--gd-acc-txt); font-weight:700; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-util-i { background:transparent; border-color:var(--gd-line-2); color:var(--gd-txt-2); box-shadow:none; }
+html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-nav { background:var(--gd-card); border:1px solid var(--gd-line); box-shadow:0 8px 24px -10px rgba(0,0,0,.35); -webkit-backdrop-filter:none; backdrop-filter:none; }
+
+/* Celular: «Socios» ocupa todo el ancho y las otras dos tarjetas van lado a lado; Recepción, en una fila. */
+@media (max-width: 899.98px){
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-stats:not(.gy-stats-2) { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-stats:not(.gy-stats-2) > .gy-stat:first-child { grid-column:1 / -1; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-recep-cta { flex-wrap:nowrap; padding:20px; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-recep-btn { min-height:44px; padding:0 22px; font-size:15px; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-filtros-bar { flex-wrap:wrap; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-filtros-bar .gy-buscar { flex:1 1 100%; max-width:none; }
+}
+
+@media (min-width: 900px){
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell > .cv-side { flex-basis:248px; width:248px; border-right:1px solid var(--gd-line); }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell > .cv-side::before, html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell > .cv-side::after { display:none; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell > .cv-side { overflow-y:auto; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-nav { background:none; border:0; box-shadow:none; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-nav .cv-nav-i { min-height:42px; border-radius:var(--gd-r-nav); }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-nav-sec { margin:20px 16px 6px; padding-top:0; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-util-i { border-color:transparent; justify-content:flex-start; min-height:38px; border-radius:var(--gd-r-nav); }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-util-i:hover { background:var(--gd-card); color:var(--gd-txt); }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-title { font-size:calc(var(--gd-t-size) + 8px); }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .cv-h2 { font-size:22px; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-stat { padding:24px 26px; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-stat .cv-stat-n { font-size:calc(var(--gd-n-size) + 16px); }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-recep-cta { padding:26px 30px; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-recep-cta .cv-h2 { font-size:26px; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-todo { padding:15px 24px; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-row { padding:15px 24px; }
+  html:not(.tema-claro):not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-th { padding:14px 24px; font-size:11.5px; letter-spacing:.07em; }
+}
+
+/* Claro: la tarjeta de «Recepción» en negro, el botón de adentro en blanco, sin borde en las tarjetas chicas */
+html.tema-luz:not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-recep-cta { background:#0b0b0b; border-color:#0b0b0b; color:#fff; }
+html.tema-luz:not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-recep-cta .cv-h2 { color:#fff; }
+html.tema-luz:not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-recep-cta p { color:rgba(255,255,255,.7); }
+html.tema-luz:not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-recep-cta .gize-btn.cv-btn { background:#fff; color:#0b0b0b; }
+html.tema-luz:not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-stat { border-color:transparent; }
+html.tema-luz:not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell :is(.gy-col > .cv-card, .gy-tabla) { background:#fff; border-color:var(--gd-line); }
+html.tema-luz:not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-row.gy-th { background:#fff; }
+html.tema-luz:not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell :is(.cv-search, .co-search, .gy-sel, .co-note) { background:#fff; }
+html.tema-luz:not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell :is(.gy-tabs .cv-pill, .gy-chip).on .gy-n { background:rgba(255,255,255,.22); color:inherit; }
+html.tema-luz:not(#_):not(#__):not(#___) body.gy-on:not(#_) .gy-shell .gy-tabs .cv-pill:not(.on) .gy-n { background:#e8e8e4; }

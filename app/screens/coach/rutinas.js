@@ -180,7 +180,7 @@ export function mealsStudio(p){
   }).join("");
   const side='<aside class="cm-list">'+
     '<div class="cm-day">'+day("trainDays","Día de entreno")+day("restDays","Día de descanso")+'</div>'+
-    // En el celular las comidas van en una tira que se desliza de costado (css: .cm-rail); en la compu el rail no existe (display:contents).
+    // Las comidas van en una columna, también en el celular (css: .cm-rail no existe como caja, display:contents).
     '<div class="cm-rail">'+list+'<button class="cm-add" data-coach="cm-add" aria-expanded="'+!!CoachState.coachMealMenu+'">'+(CoachState.coachMealMenu?'Cerrar':'+ Agregar comida')+'</button>'+
     '<div class="cm-sep"></div>'+
     '<button class="cm-li cm-li-x'+(selRaw==="extras"?' on':'')+'" data-coach="cm-sel" data-m="extras"><span class="cm-li-t"><b>Adicionales</b></span><span class="cm-go" aria-hidden="true">›</span></button>'+
@@ -218,6 +218,13 @@ export function mealsStudio(p){
     '<div class="cm-wrap">'+side+'<section class="cm-detail">'+det+'</section></div>';
 }
 
+// En el celular la lista de comidas va arriba del detalle: al elegir una, si el detalle quedó abajo
+// de la pantalla, la página baja hasta él (después de redibujar).
+function verDetalleComida(){
+  if(typeof matchMedia!=="function" || !matchMedia("(max-width:760px)").matches) return;
+  requestAnimationFrame(()=>{ const d=document.querySelector("#coachHost .cm-detail"); if(!d) return; const r=d.getBoundingClientRect(); if(r.top>innerHeight*0.6 || r.bottom<0) d.scrollIntoView({behavior:"smooth", block:"start"}); });
+}
+
 // Cambios de la lista/detalle de comidas. true si lo manejó (el que llama redibuja).
 export function mealStudioAction(a, b, p){
   const set=mealSet(), m=+b.dataset.m;
@@ -226,7 +233,7 @@ export function mealStudioAction(a, b, p){
     // Una comida que solo tenía opciones gana su fila de horario/macros al elegirla: el orden de la lista no se mueve al escribir.
     const it=mealItems(p)[m]; let i=m;
     if(it && it.row<0){ mealRowOf(p,m); i=mealItems(p).findIndex(x=>x.sec===it.sec); }
-    CoachState.coachMealSel=i; return true;
+    CoachState.coachMealSel=i; verDetalleComida(); return true;
   }
   if(a==="cm-day"){ CoachState.coachMealDay=b.dataset.v==="rest"?"rest":"train"; CoachState.coachMealSel=0; return true; }
   const addMeal=(nm,time)=>{ p[set]=p[set]||[]; p.options=p.options||[]; if(!nm) nm="Comida "+(p[set].length+1); p[set].push({meal:nm,time:time||"",kcal:"",cho:"",fat:"",prot:"",note:""}); if(!p.options.some(s=>normMeal(s.title)===normMeal(nm))) p.options.push({title:nm,opts:[{label:"Opción A",body:""}]}); return p[set].length-1; };

@@ -10,7 +10,7 @@
 //   reintentar sin señal no anota dos.
 // Los profes nunca ven montos: ven si la cuota está al día en el semáforo (recepción y su panel).
 import { esc } from '../../core/utils.js';
-import { GS, fecha, hoyAR, plural, plata, fotoHtml, puedeCobrar, manejaCuotas } from './estado.js';
+import { GS, fecha, hoyAR, plural, plata, fotoHtml, puedeCobrar, manejaCuotas, primerNombre } from './estado.js';
 import { cabeza, btn, btn2, vacio, cargando } from './marco.js';
 
 export const MEDIOS = { efectivo: "Efectivo", transferencia: "Transferencia", otro: "Otro" };
@@ -112,6 +112,7 @@ export function seccionCuota(f, s){
       (p.anulado ? '<span class="gy-rojo">Anulado' + (p.motivo ? ': ' + esc(p.motivo) : '') + '</span>' : '') + '</div>' +
       (!p.anulado && manejaCuotas() ? '<button class="cv-link gy-peligro" data-gym="pago-anular" data-id="' + esc(p.id) + '">Anular</button>' : '') + '</li>';
   return '<section class="cv-card gy-sec gy-cuota">' + cab +
+    (!q.cuota && s.estado !== "baja" && activas.length ? '<p class="gy-fino">' + esc(primerNombre(s.nombre) || "El socio") + ' todavía no tiene cuota. Elegí una y registrá el primer pago.</p>' : '') +
     '<div class="gy-kv"><span>Cuota</span><div>' + elegir + '</div></div>' +
     '<div class="gy-kv"><span>Vence</span><div>' + (q.vence ? fecha(q.vence) + ' ' : '') + estadoCuota(q.estado) + '</div></div>' +
     (s.estado !== "baja" ? '<div class="gy-acc">' + btn('data-gym="cuota-pago" data-id="' + esc(s.id) + '"', "Registrar pago") + '</div>' : '') +
@@ -142,24 +143,28 @@ export function ventanaPago(m){
   if (!m.monto && c && !m.montoTocado) m.monto = String(c.amount);
   if (!m.hastaTocado) m.hasta = cubreHasta(m);
   const listo = Number(m.monto) > 0 && !!m.hasta && !!m.fecha;
+  // Con cuota, las fechas van resumidas en una línea («Cambiar fechas» las abre); sin cuota hay que elegir hasta cuándo cubre, así que se ven siempre.
+  // Quedan en la página aunque estén cerradas (hidden), así lo escrito no se pierde.
+  const fechas = !c || m.verFechas, nota = m.verNota || !!m.nota;
+  const paga = m.fecha === hoyAR() ? "Paga hoy" : "Paga el " + fecha(m.fecha);
   return h +
     '<p class="gy-p"><b>' + esc(m.nombre || "Socio") + '</b><br><span class="gy-fino">' + cuotaTxt(c) + (d.vence ? ' · vence el ' + fecha(d.vence) : c ? ' · sin pagos' : '') + '</span></p>' +
     // Sin cuota asignada: se puede elegir una acá (queda asignada al registrar el pago) o, si no, indicar hasta cuándo cubre.
     (!d.cuota ? (activas.length
-      ? '<label class="gy-f"><span>Cuota del socio</span><select class="gy-sel" data-gym-pg="cuotaId"><option value="">Sin cuota (elijo hasta cuándo cubre)</option>' +
-        activas.map(x => '<option value="' + esc(x.id) + '"' + (m.cuotaId === x.id ? ' selected' : '') + '>' + esc(x.name) + ' · ' + plata(x.amount) + ' ' + (POR[x.months] || "") + '</option>').join("") + '</select></label>' +
-        (!c ? '<p class="gy-fino">Si elegís una cuota, queda asignada al socio y el pago la deja al día.</p>' : '')
+      ? '<label class="gy-f gy-f-cuota"><span>Cuota</span><select class="gy-sel" data-gym-pg="cuotaId"><option value="">Sin cuota</option>' +
+        activas.map(x => '<option value="' + esc(x.id) + '"' + (m.cuotaId === x.id ? ' selected' : '') + '>' + esc(x.name) + ' · ' + plata(x.amount) + ' ' + (POR[x.months] || "") + '</option>').join("") + '</select></label>'
       : '<p class="gy-fino">No tiene cuota asignada: elegí hasta cuándo cubre este pago.</p>') : '') +
-    '<div class="gy-form gy-form-pago">' +
-      '<label class="gy-f"><span>Monto (en pesos)</span><input class="co-note" type="number" min="1" step="0.01" inputmode="decimal" data-gym-pg="monto" value="' + esc(m.monto) + '"></label>' +
+    '<label class="gy-f gy-f-monto"><span>Monto (en pesos)</span><span class="gy-monto"><i aria-hidden="true">$</i><input class="co-note" type="number" min="1" step="0.01" inputmode="decimal" placeholder="0" data-gym-pg="monto" value="' + esc(m.monto) + '"></span></label>' +
+    '<div class="gy-radios gy-medios" role="radiogroup" aria-label="Cómo pagó">' + Object.entries(MEDIOS).map(([k, t]) =>
+      '<label class="gy-radio' + (m.medio === k ? ' on' : '') + '"><input type="radio" name="gyMedio" value="' + k + '" data-gym-pg="medio"' + (m.medio === k ? ' checked' : '') + '><b>' + t + '</b></label>').join("") + '</div>' +
+    (!fechas && m.hasta ? '<p class="gy-pago-resumen">' + paga + ' y queda al día hasta el <b>' + m.hasta.split("-").reverse().join("/") + '</b>. <button type="button" class="gy-link" data-gym="pago-fechas">Cambiar fechas</button></p>' : '') +
+    '<div class="gy-pago-fechas"' + (fechas ? '' : ' hidden') + '>' +
       '<label class="gy-f"><span>Fecha del pago</span><input class="co-note" type="date" data-gym-pg="fecha" max="' + hoyAR() + '" value="' + esc(m.fecha) + '"></label>' +
       '<label class="gy-f"><span>Cubre hasta</span><input class="co-note" type="date" data-gym-pg="hasta" value="' + esc(m.hasta) + '"></label>' +
     '</div>' +
-    '<div class="gy-radios gy-medios" role="radiogroup" aria-label="Cómo pagó">' + Object.entries(MEDIOS).map(([k, t]) =>
-      '<label class="gy-radio' + (m.medio === k ? ' on' : '') + '"><input type="radio" name="gyMedio" value="' + k + '" data-gym-pg="medio"' + (m.medio === k ? ' checked' : '') + '><b>' + t + '</b></label>').join("") + '</div>' +
-    '<label class="gy-f gy-f-nota"><span>Nota (opcional)</span><input class="co-note" type="text" maxlength="200" data-gym-pg="nota" value="' + esc(m.nota) + '" placeholder="Por ejemplo: pagó con descuento"></label>' +
-    '<p class="gy-fino">Queda en el historial del socio con tu nombre. El socio ve en su app hasta cuándo tiene paga la cuota.</p>' +
-    '<div class="gy-acc">' + btn('data-gym="pago-ok"' + (listo && !GS.busy ? '' : ' disabled'), GS.busy === "pago" ? "Registrando…" : "Registrar pago") + '</div>';
+    (nota ? '' : '<button type="button" class="gy-link" data-gym="pago-nota">+ Agregar una nota</button>') +
+    '<label class="gy-f gy-f-nota"' + (nota ? '' : ' hidden') + '><span>Nota (opcional)</span><input class="co-note" type="text" maxlength="200" data-gym-pg="nota" value="' + esc(m.nota) + '" placeholder="Por ejemplo: pagó con descuento"></label>' +
+    '<div class="gy-acc">' + btn('data-gym="pago-ok"' + (listo && !GS.busy ? '' : ' disabled'), GS.busy === "pago" ? "Registrando…" : "Registrar pago", "gize-btn cv-btn gy-pago-ok") + '</div>';
 }
 
 // ---- La ventana del tipo de cuota ----
