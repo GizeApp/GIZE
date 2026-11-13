@@ -28,10 +28,57 @@ import { parseRest } from '../../ui/restbar.js';
 
 import { closeSheet } from '../../ui/sheet.js';
 import { DIA_LARGO, DIA_LETRA, SEMANA, diasDe, diasTexto, ordenSemana } from '../../core/diasemana.js';
+import { cicloDe, lunesDe, semanaActual, semanaDe, semanasDe } from '../../core/ciclo.js';
 import { clientPlanActions, clientPlanDirty, mealEditFoot } from './planes.js';
 import { aplicar, hayPresets, igualQue, presetDe } from './presets.js';
 
 export function rtDays(){ return CoachState.coachTplEdit ? CoachState.coachTplEdit.days : (CoachState.coachData?CoachState.coachData.routine:null); }
+
+// ---- Rutina de varias semanas (core/ciclo.js) ----
+// La semana abierta en el editor (CoachState.coachEditWeek), siempre una que exista: si quedó
+// fuera (se borró una semana, se cambió de rutina), la del día abierto.
+export function semanaEditor(D){
+  const n=semanasDe(D), w=CoachState.coachEditWeek;
+  if(w>=1 && w<=n) return w;
+  const d=D && D[CoachState.coachEditDay];
+  return CoachState.coachEditWeek = d ? Math.min(semanaDe(d), n) : 1;
+}
+// Posiciones (en la rutina entera) de los días de la semana w, en el orden de la semana.
+export function indicesSemana(D, w){
+  const L=Array.isArray(D)?D:[], n=semanasDe(L);
+  const idx=L.map((x,i)=>i).filter(i=>n<=1 || semanaDe(L[i])===w);
+  return ordenSemana(idx.map(i=>L[i])).map(k=>idx[k]);
+}
+// Que el día abierto sea de la semana abierta; si no, el primero de esa semana.
+export function diaEnSemana(D){
+  const w=semanaEditor(D), idx=indicesSemana(D, w);
+  if(idx.length && !idx.includes(CoachState.coachEditDay)) CoachState.coachEditDay=idx[0];
+  return idx;
+}
+// Lunes (AAAA-MM-DD) → «lunes 17 de noviembre».
+const fmtLunes = iso => { const [y, m, dd] = String(iso).split("-").map(Number); return new Date(y, m - 1, dd).toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }); };
+// La barra de semanas: pestañas «Semana 1 · Semana 2 · + Semana», y con dos o más, desde qué
+// lunes arranca la semana 1, en cuál está hoy el alumno y las acciones de la semana abierta.
+// bloque: el bloque activo del alumno (para la semana que ve si la rutina no dice su inicio).
+function semanasHtml(D, bloque, esPlantilla){
+  // La rutina de descarga es de una sola semana (la del bloque): sin barra de semanas.
+  if(CoachState.coachTplEdit && CoachState.coachTplEdit.deload) return '';
+  const n=semanasDe(D), w=semanaEditor(D);
+  const tabs=[]; for(let k=1;k<=n;k++) tabs.push('<button type="button" class="co-weektab'+(k===w?' on':'')+'" data-coach="edit-week" data-w="'+k+'" aria-pressed="'+(k===w)+'">Semana '+k+'</button>');
+  const add='<button type="button" class="co-weektab add" data-coach="week-add" title="'+(n===1?'Dividir la rutina en semana 1 y semana 2: la 2 arranca como copia de esta y el alumno las alterna solo.':'Agregar la semana '+(n+1)+' como copia de la semana '+w+'.')+'">+ Semana</button>';
+  if(n<=1) return '<div class="co-weekbar solo"><span class="co-note-lbl">Una semana</span>'+add+'<span class="co-week-hint">Con dos semanas el alumno alterna sola una y otra, cada lunes.</span></div>';
+  const ciclo=cicloDe(D), hoy=semanaActual(D, today(), bloque);
+  const info=esPlantilla
+    ? 'Al asignarla, la semana 1 arranca el lunes de esa semana (o el que pongas acá).'
+    : 'Hoy el alumno está en la <b>semana '+hoy+'</b>'+(ciclo?'':' (sin lunes de inicio: se cuenta desde el bloque o desde un lunes fijo)')+'.';
+  return '<div class="co-weekbar">'+
+    '<div class="co-weektabs" role="group" aria-label="Semanas de la rutina">'+tabs.join("")+add+'</div>'+
+    '<div class="co-week-info">'+
+      '<label class="co-pfield co-week-start"><span class="co-note-lbl">La semana 1 arranca el lunes</span><input class="co-note" type="date" data-coach="ciclo-inicio" value="'+esc(ciclo||"")+'" aria-label="Lunes en que arranca la semana 1"></label>'+
+      '<span class="co-week-txt">'+info+(ciclo?' <small>Desde el '+esc(fmtLunes(ciclo))+'.</small>':'')+'</span>'+
+      '<button type="button" class="co-copy-btn co-week-del" data-coach="week-del" data-w="'+w+'">'+trashSvg+' Quitar semana '+w+'</button>'+
+    '</div></div>';
+}
 
 export async function loadTpls(){
   CoachState.tplsError=null;
@@ -1012,14 +1059,22 @@ export function renderCoachRoutine(d){
     return '<div class="co-sec">Rutina y progreso</div><div class="cal-hint">El cliente todav\u00eda no tiene rutina.</div>'+(ria?'<div class="ria-vacia"><button class="co-add-day" data-coach="day-add">+ Agregar d\u00eda</button>'+ria+'</div>':'<button class="co-add-day" data-coach="day-add">+ Agregar d\u00eda</button>');
   }
   if(CoachState.coachEditDay>=rt.length) CoachState.coachEditDay=0;
+  // Rutina de varias semanas (core/ciclo.js): se ven las pestañas de los días de la semana
+  // abierta en la barra de semanas; el día abierto siempre es de esa semana.
+  const semIdx=diaEnSemana(rt), nSem=semanasDe(rt), wSem=semanaEditor(rt);
   // Cada pestaña con sus días de la semana abajo, chiquito (core/diasemana.js).
   // Con dos días o más (y sin días de la semana) se pueden arrastrar para cambiarlos de lugar (ver
   // «Días: arrastrar»).
   // Con días de la semana asignados, las pestañas van solas de lunes a domingo (core/diasemana.js →
   // ordenSemana) y no se arrastran: el orden lo dan los días. Sin días, se arrastran como siempre.
-  const auto=rt.some(x=>diasDe(x).length), mover=rt.length>1 && !auto;
-  const tabs=ordenSemana(rt).map(i=>{ const x=rt[i], dt=diasTexto(x); return '<button class="co-daytab'+(i===CoachState.coachEditDay?' on':'')+'" data-coach="edit-day" data-i="'+i+'"'+(mover?' title="Arrastralo para cambiarlo de lugar"':'')+'>'+esc(x.name||('D\u00eda '+(i+1)))+(dt?'<small class="co-daytab-dias">'+esc(dt)+'</small>':'')+'</button>'; }).join("");
+  const auto=rt.some(x=>diasDe(x).length), mover=semIdx.length>1 && !auto;
+  const tabs=semIdx.map(i=>{ const x=rt[i], dt=diasTexto(x); return '<button class="co-daytab'+(i===CoachState.coachEditDay?' on':'')+'" data-coach="edit-day" data-i="'+i+'"'+(mover?' title="Arrastralo para cambiarlo de lugar"':'')+'>'+esc(x.name||('D\u00eda '+(i+1)))+(dt?'<small class="co-daytab-dias">'+esc(dt)+'</small>':'')+'</button>'; }).join("");
   const day=rt[CoachState.coachEditDay];
+  if(!day) return coachDatalist()+semanasHtml(rt, d.block, !!CoachState.coachTplEdit)+'<div class="cal-hint">Esta semana no tiene d\u00edas.</div><button class="co-add-day" data-coach="day-add">+ Agregar d\u00eda</button>';
+  // Vecinos dentro de la semana abierta (para «Mover antes / después»).
+  const pos=semIdx.indexOf(CoachState.coachEditDay), primero=pos<=0, ultimo=pos<0||pos===semIdx.length-1;
+  // «Mover a la semana N» para cada otra semana.
+  const moverSem=nSem>1 ? Array.from({length:nSem},(_,k)=>k+1).filter(k=>k!==wSem).map(k=>'<button class="co-day-mv" data-coach="day-move-week" data-w="'+k+'">'+chevronRightSvg+'<span>Mover a la semana '+k+'</span></button>').join("") : '';
   const totalSets=(day.exercises||[]).reduce((n,x)=>n+((x.sets||[]).length),0);
   const totalEx=(day.exercises||[]).length;
   // Las tarjetas van en grilla (3 por fila en pantalla ancha); la abierta sigue en su casillero
@@ -1042,13 +1097,15 @@ export function renderCoachRoutine(d){
   const dotsOn=diasDe(day);
   const dayMenu='<details class="co-day-menu"><summary aria-label="Más opciones del día" title="Más opciones">•••</summary><div class="co-day-pop">'+
       '<button class="co-day-mv" data-coach="day-dup">'+copySvg+'<span>Duplicar este día</span></button>'+
-      (mover ? '<button class="co-day-mv" data-coach="day-left"'+(CoachState.coachEditDay===0?' disabled':'')+'>'+chevronLeftSvg+'<span>Mover antes</span></button>'+
-        '<button class="co-day-mv" data-coach="day-right"'+(CoachState.coachEditDay===rt.length-1?' disabled':'')+'>'+chevronRightSvg+'<span>Mover después</span></button>' : '')+
+      (mover ? '<button class="co-day-mv" data-coach="day-left"'+(primero?' disabled':'')+'>'+chevronLeftSvg+'<span>Mover antes</span></button>'+
+        '<button class="co-day-mv" data-coach="day-right"'+(ultimo?' disabled':'')+'>'+chevronRightSvg+'<span>Mover después</span></button>' : '')+
+      moverSem+
       (rt.length>1 ? '<button class="co-day-mv danger" data-coach="day-del">'+trashSvg+'<span>Borrar día</span></button>' : '')+
     '</div></details>';
   const sugOff=rt.some(x=>x.noSug);
   const sugToggle='<span class="co-sug-mini" title="'+(sugOff?'Apagada: el cliente solo ve el peso que vos propongas.':'GIZE le recomienda subir 2,5 kg cuando la vez pasada se pasó del rango de reps, salvo donde cargues tu peso propuesto.')+'"><span>Sugerencia de peso</span><button type="button" class="co-sug-tg'+(sugOff?'':' on')+'" data-coach="rt-nosug-all" role="switch" aria-checked="'+(!sugOff)+'" aria-label="Sugerencia automática de peso"><span></span></button></span>';
   return coachDatalist()+
+    semanasHtml(rt, d.block, !!CoachState.coachTplEdit)+
     '<div class="co-daytabs'+(auto?' co-daytabs-auto':'')+'">'+tabs+'<button class="co-daytab add" data-coach="day-add" aria-label="Agregar día">+</button></div>'+
     '<div class="co-day-bar">'+
       // Días de la semana de este día (puede ser más de uno): Entreno arranca en el día que toca hoy.

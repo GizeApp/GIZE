@@ -8,7 +8,8 @@ import { FOR_YOU, forYouList, orderedCats } from '../core/disciplinas.js';
 
 import { checkSvg, chevronDownSvg, chevronRightSvg, pencilSvg, playSvg, resetSvg, searchSvg, swapSvg, trashSvg, trophySvg, xSvg } from '../core/icons.js';
 
-import { State, state } from '../core/state.js';
+import { State, state, visibles } from '../core/state.js';
+import { diasDeSemana, semanaActual, semanasDe } from '../core/ciclo.js';
 import { Gym, rolGym } from '../core/gimnasio.js';
 import { activeDeload, blockWeek as bBlockWeek, isDeload as bIsDeload, weekPlanOf } from '../core/bloque.js';
 
@@ -36,6 +37,10 @@ import { tiendaEntrada } from './tienda-rutinas.js';
 export const EntrenoState = {
 
   exPicker: null,
+
+  // Rutina de varias semanas (core/ciclo.js): la semana que el alumno está mirando si eligió
+  // ver otra que la que le toca («Ver semana 1»); null, la de hoy. Vale por sesión.
+  semanaVista: null,
 
   // Hoja de «Ver variantes» abierta: { exId } (ver core/variantes.js).
   varSheet: null,
@@ -106,7 +111,32 @@ export let lastStepTs = 0;
 
 export let stepsSaveTs = 0;
 
-export const day = () => state.days.find(d => d.id === State.activeId) || state.days[0];
+export const day = () => state.days.find(d => d.id === State.activeId) || visibles()[0] || state.days[0];
+
+// Rutina de varias semanas (core/ciclo.js): los días que se ven en las pestañas. Los de la
+// semana que toca hoy o, si el alumno tocó «Ver semana N», los de esa.
+export function diasEnPantalla(){
+  const n = semanasDe(state.days);
+  if (n <= 1) return state.days;
+  const v = EntrenoState.semanaVista;
+  if (v && v !== semanaActual(state.days, today(), state.block)){ const L = diasDeSemana(state.days, v); if (L.length) return L; }
+  return visibles();
+}
+
+// La cartelera de la semana: «Semana 2 de 2», hasta cuándo y el botón para espiar la otra.
+function renderSemanaCiclo(){
+  const n = semanasDe(state.days);
+  if (n <= 1) return "";
+  const hoy = semanaActual(state.days, today(), state.block), v = EntrenoState.semanaVista;
+  const mirando = v && v !== hoy ? v : hoy;
+  const otras = [];
+  for (let k = 1; k <= n; k++) if (k !== mirando) otras.push(k);
+  const btns = otras.map(k => `<button type="button" class="sem-ver" data-action="sem-ver" data-w="${k}">${k === hoy ? 'Volver a la semana ' + k : 'Ver semana ' + k}</button>`).join("");
+  return `<div class="sem-ciclo${mirando !== hoy ? ' otra' : ''}" role="status">`+
+    `<span class="sem-ciclo-t">Semana ${mirando} de ${n}${mirando !== hoy ? '' : ' <small>· esta semana</small>'}</span>`+
+    (mirando !== hoy ? `<span class="sem-ciclo-s">Solo para mirar: esta semana te toca la ${hoy}.</span>` : '')+
+    `<span class="sem-ciclo-b">${btns}</span></div>`;
+}
 
 export function onMotion(e){
   const a = e.accelerationIncludingGravity; if(!a) return;
@@ -278,7 +308,9 @@ export function dayNameCls(name){ const n = String(name || '').length; return n 
 export function renderEntreno(){
   const d = day();
   // De lunes a domingo según los días de la semana de cada uno (core/diasemana.js → ordenSemana).
-  const tabs = ordenSemana(state.days).map(i => state.days[i]).map(x =>
+  // Con varias semanas, solo los de la semana que toca (o la que está mirando, core/ciclo.js).
+  const enPantalla = diasEnPantalla();
+  const tabs = ordenSemana(enPantalla).map(i => enPantalla[i]).map(x =>
     `<button class="tab${x.id===State.activeId?' active':''}" data-action="tab" data-day="${esc(x.id)}">${esc(x.name)}</button>`
   ).join("") + (routineLocked() ? "" : `<button class="tab tab-add" data-action="addday" title="Agregar día">+</button>`);
   // Un solo ejercicio roto no debe tumbar toda la vista de Entreno: v.innerHTML= es una
@@ -403,6 +435,7 @@ export function renderEntreno(){
     ${renderGymCard()}${syncWarn}
     ${renderBlockBanner()}
     ${routineLocked()?'<div class="coach-banner">Rutina asignada por tu coach</div>':''}
+    ${renderSemanaCiclo()}
     <div class="tabs">${tabs}</div>
     <div class="day-head${revealCls('dayhead')}" data-reveal="dayhead">
       ${routineLocked() ? `<h2 class="day-name ${dayNameCls(d.name)}">${esc(d.name)}</h2>` : `<textarea class="day-name ${dayNameCls(d.name)}" rows="1" data-action="dayname" enterkeyhint="done" aria-label="Nombre del día">${esc(d.name)}</textarea>`}

@@ -239,7 +239,9 @@ function ir(){ renderApp(); try { window.scrollTo(0, 0); } catch (e) {} }
 
 // Un pedido a la base con la pantalla bloqueada mientras tanto. ok(): lo que sigue si sale bien;
 // si falla, el mensaje queda en la hoja (o en el formulario) para poder reintentar.
-function pedir(hacer, ok, falla){
+// (No se llama «pedir»: ese nombre es el del cartel de app/ui/avisos.js, que se espera con await,
+// y tests/carteles-teclado.test.mjs revisa que todo pedir() se espere.)
+function conEspera(hacer, ok, falla){
   const T = TiendaState;
   if (T.ocupado) return;
   T.ocupado = true; renderApp();
@@ -266,7 +268,7 @@ document.body.addEventListener("click", e => {
   if (a === "tienda-agregar") { T.sheet = { t: "agregar", id: el.dataset.id }; renderApp(); return; }
   if (a === "tienda-agregar-ok") {
     const r = porId(el.dataset.id); if (!r) return;
-    pedir(() => agregarRutina(r.id), days => {
+    conEspera(() => agregarRutina(r.id), days => {
       const nuevos = copiarDias(days);
       if (!nuevos.length) throw new Error("La rutina no tiene días para agregar.");
       state.days = nuevos;
@@ -281,21 +283,21 @@ document.body.addEventListener("click", e => {
     const f = T.form; if (!f || f.nombre.trim().length < 3 || !hasWork()) return;
     T.formErr = "";
     // Solo lo que hace a la rutina (sin kilos, notas, videos ni audios); la base lo vuelve a limpiar.
-    pedir(() => publicarRutina(f, copiarDias(state.days)), () => { T.sheet = { t: "publicada" }; T.form = null; cargar(); }, m => { T.formErr = m; });
+    conEspera(() => publicarRutina(f, copiarDias(state.days)), () => { T.sheet = { t: "publicada" }; T.form = null; cargar(); }, m => { T.formErr = m; });
     return;
   }
   if (a === "tienda-mis") { T.sheet = null; T.publicando = false; T.form = null; T.id = null; T.det = null; T.tab = "mias"; ir(); return; }
   if (a === "tienda-sacar") { T.sheet = { t: "sacar", id: el.dataset.id }; renderApp(); return; }
   if (a === "tienda-sacar-ok") {
     const id = el.dataset.id;
-    pedir(() => sacarRutina(id), () => { T.sheet = null; T.id = null; T.det = null; cargar(); }, m => { T.sheet = { t: "sacar", id, err: m }; });
+    conEspera(() => sacarRutina(id), () => { T.sheet = null; T.id = null; T.det = null; cargar(); }, m => { T.sheet = { t: "sacar", id, err: m }; });
     return;
   }
   if (a === "tienda-denunciar") { T.motivo = "inapropiada"; T.sheet = { t: "denunciar", id: el.dataset.id }; renderApp(); return; }
   if (a === "tienda-motivo") { T.motivo = el.dataset.v; renderApp(); return; }
   if (a === "tienda-denunciar-ok") {
     const id = el.dataset.id;
-    pedir(() => denunciarRutina(id, T.motivo), () => { T.sheet = { t: "denunciada" }; cargar(); }, m => { T.sheet = { t: "denunciar", id, err: m }; });
+    conEspera(() => denunciarRutina(id, T.motivo), () => { T.sheet = { t: "denunciada" }; cargar(); }, m => { T.sheet = { t: "denunciar", id, err: m }; });
     return;
   }
 });

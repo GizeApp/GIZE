@@ -31,6 +31,7 @@ import { pedirPermisoRutinas } from '../../ui/ia-permiso-rutinas.js';
 import { copySvg, fileTextSvg, shieldSvg, sparkleSvg } from '../../core/icons.js';
 import { CoachState } from './state.js';
 import { loadTpls } from './rutinas.js';
+import { asegurarCiclo } from '../../core/ciclo.js';
 import { renderCoach } from './index.js';
 
 const POLITICA = "https://gize.ar/privacidad/?app=1#ia-coach";
@@ -425,6 +426,8 @@ function recibir(it, r){
 
 // ---------- Guardar ----------
 // Ids nuevos para la rutina del alumno (como al copiar una rutina a otro cliente).
+// Rutina de varias semanas (core/ciclo.js): al asignarla, la semana 1 arranca este lunes.
+const conCiclo = days => { asegurarCiclo(days); return days; };
 function copia(days){
   const d = JSON.parse(JSON.stringify(days || []));
   d.forEach(x => { x.id = uid(); (x.exercises || []).forEach(ex => { ex.id = uid(); (ex.sets || []).forEach(s => { s.id = uid(); s.kg = ""; s.reps = ""; s.done = false; }); }); });
@@ -478,7 +481,7 @@ async function guardar(P, lista){
       const cl = cliente(it.para);
       if (cl){
         let a;
-        try { a = await State.sb.from("routines").upsert({ client_id: cl.id, days: copia(it.days), updated_at: new Date().toISOString(), updated_by: State.cloudUser.id }, { onConflict: "client_id" }); } catch (e) { a = { error: e }; }
+        try { a = await State.sb.from("routines").upsert({ client_id: cl.id, days: conCiclo(copia(it.days)), updated_at: new Date().toISOString(), updated_by: State.cloudUser.id }, { onConflict: "client_id" }); } catch (e) { a = { error: e }; }
         if (a.error) malos.push(nombreDe(cl.id)); else fin.aplicadas++;
       }
       P.items = P.items.filter(x => x !== it);

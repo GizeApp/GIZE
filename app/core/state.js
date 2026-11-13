@@ -5,6 +5,7 @@ import { KEY } from './storage.js';
 import { today, uid } from './utils.js';
 
 import { diaDeHoy, ordenSemana } from './diasemana.js';
+import { diasVisibles } from './ciclo.js';
 
 export const State = {
 
@@ -147,11 +148,16 @@ if (!state.habitAlarms || typeof state.habitAlarms !== "object") state.habitAlar
 // medio de un entreno, el que se está entrenando (State.activeId no se guarda, wkStart.day sí);
 // si no, el que toca hoy (core/diasemana.js) o el primero, como siempre.
 const training = () => { const w = state.wkStart; return !!(w && Date.now() - (w.ts || 0) < 6 * 3600 * 1000); };
+// Los días de la semana que toca hoy (core/ciclo.js). Con una rutina de una sola semana, todos.
+export const visibles = () => diasVisibles(state.days, today(), state.block);
 export function ensureDays(){
   if (!Array.isArray(state.days) || !state.days.length) state.days = [{ id: uid(), name: "Día 1", subtitle: "", exercises: [] }];
-  if (!state.days.find(d => d.id === State.activeId)) {
+  // Un día de la otra semana del ciclo tampoco sirve (el lunes cambió la semana): se elige de
+  // nuevo entre los de esta, salvo en medio de un entreno.
+  const vis = visibles();
+  if (!state.days.find(d => d.id === State.activeId) || (!training() && !vis.find(d => d.id === State.activeId))) {
     const enCurso = training() && state.days.find(d => d.id === state.wkStart.day);
-    State.activeId = (enCurso || (!training() && diaDeHoy(state.days)) || state.days[ordenSemana(state.days)[0]]).id;
+    State.activeId = (enCurso || (!training() && diaDeHoy(vis)) || vis[ordenSemana(vis)[0]]).id;
   }
 }
 
@@ -163,7 +169,10 @@ export function ensureDays(){
 // ahora. Devuelve true si cambió de día.
 export function elegirDiaDeHoy(){
   if (State.dayPickedOn === today() || training()) return false;
-  const d = diaDeHoy(state.days);
+  // Con varias semanas (core/ciclo.js): si el día abierto quedó en la otra semana (cambió el
+  // lunes), pasa al que toca hoy o al primero de esta semana.
+  const vis = visibles();
+  const d = diaDeHoy(vis) || (!vis.some(x => x.id === State.activeId) ? vis[ordenSemana(vis)[0]] : null);
   if (!d || d.id === State.activeId) return false;
   State.activeId = d.id;
   return true;
