@@ -7,7 +7,8 @@
 # Supabase está simulado dentro del navegador: no usa secretos ni datos reales, y los
 # registros solo muestran datos de prueba.
 # Las pruebas se reparten en 6 partes que corren en paralelo (una sola tardaba más de 35
-# minutos y GitHub la cancelaba por tiempo).
+# minutos y GitHub la cancelaba por tiempo). Cada parte tiene 40 minutos: las más cargadas
+# tardan cerca de 29 y con 30 de tope una máquina lenta las cancelaba por un pelo.
 name: Pruebas
 
 on:
@@ -26,7 +27,7 @@ jobs:
   pruebas:
     name: Pruebas (parte ${{ matrix.parte }} de 6)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
