@@ -10,8 +10,21 @@
 
 .tn-seg { flex-wrap: nowrap; margin-bottom: 14px; }
 .tn-seg button { flex: 1; }
-.tn-q { margin-bottom: 10px; }
-.tn-cats { margin-bottom: 2px; }
+/* Buscador con lupa */
+.tn-q { position: relative; margin-bottom: 4px; }
+/* El :not(#_) le gana a css/ui/estetica-login.css, que les pone el mismo relleno a todos los campos. */
+html:not(#_) body:not(#_) .tn-q .form-input { padding-left: 42px; }
+.tn-lupa { position: absolute; left: 14px; top: 50%; width: 17px; height: 17px; transform: translateY(-50%); color: var(--txt-2); pointer-events: none; }
+
+/* Objetivos: cuatro tarjetas con ícono. Tocar la elegida otra vez vuelve a mostrar todas. */
+.tn-objs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tn-obj { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-width: 0; padding: 14px 4px 12px;
+  font: inherit; font-size: 11.5px; font-weight: 600; color: var(--txt-2); cursor: pointer;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); }
+.tn-obj span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tn-obj svg { width: 22px; height: 22px; color: var(--gize-blue); }
+.tn-obj:active { background: var(--card-2); }
+.tn-obj.on { color: var(--txt); border-color: var(--gize-blue); background: color-mix(in srgb, var(--gize-blue) 12%, var(--card)); box-shadow: var(--glow-md); }
 .tn-off { opacity: .5; cursor: default; box-shadow: none; }
 .tn-muted { color: var(--txt-2); font-size: var(--text-meta); font-weight: 500; }
 .tn-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -41,6 +54,7 @@
 .tn-stars { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-meta); font-weight: 600; color: var(--txt); }
 .tn-stars svg { width: 13px; height: 13px; color: var(--gize-warning); }
 
+
 /* Destacada (.card ya trae el borde RGB) */
 .tn-feat { padding: 0; overflow: hidden; cursor: pointer; margin-bottom: 4px; }
 .tn-feat .tn-cover { border-radius: 0; }
@@ -57,6 +71,19 @@
 .tn-item .tn-ini { font-size: 60px; right: -2px; bottom: -12px; }
 .tn-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 8px; padding: 2px 0; }
 .tn-item-t { font-size: var(--text-emphasis); font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+
+/* Grilla de la comunidad: dos tarjetas por fila, la portada arriba */
+.tn-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tn-grid > .empty { grid-column: 1 / -1; }
+.tn-card { flex-direction: column; gap: 0; padding: 0; overflow: hidden; }
+.tn-item.tn-card .tn-cover { width: 100%; height: 96px; border-radius: 0; }
+.tn-card .tn-ini { font-size: 72px; right: -4px; bottom: -14px; }
+.tn-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px 12px; }
+.tn-card .tn-item-t { margin-bottom: 0; }
+.tn-card .tn-creator { font-size: 12px; min-width: 0; }
+.tn-card .tn-meta { font-size: 11.5px; gap: 2px 10px; }
+.tn-card .tn-row { margin-top: auto; padding-top: 4px; }
+.tn-card .tn-free, .tn-card .tn-state { height: 22px; padding: 0 8px; font-size: 10px; }
 
 /* Invitación a publicar */
 .tn-cta { margin-top: 24px; }

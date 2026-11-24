@@ -141,7 +141,11 @@ export default async function ({ base: url, t }){
     t.ok(/destacada/i.test(await text(p, '#view')), 'muestra la destacada');
     await p.click('[data-action="tienda-cat"][data-v="Glúteos"]'); await wait(200);
     t.eq(await titulos(p), ['Glúteos en casa'], 'filtro por objetivo');
-    await p.click('[data-action="tienda-cat"][data-v="Todas"]'); await wait(200);
+    t.eq(await p.getAttribute('[data-action="tienda-cat"][data-v="Glúteos"]', 'aria-pressed'), 'true', 'el objetivo elegido queda marcado');
+    // Sin «Todas»: tocar otra vez el objetivo elegido lo saca.
+    await p.click('[data-action="tienda-cat"][data-v="Glúteos"]'); await wait(200);
+    t.eq(await cuantas(p), 2, 'tocar otra vez el objetivo vuelve a mostrar todas');
+    t.eq(await p.$$eval('#tnLista .tn-free', l => l.length), 2, 'cada tarjeta de la grilla dice «Gratis»');
     await p.fill('#tnQ', 'cami'); await wait(200);
     t.eq(await titulos(p), ['Glúteos en casa'], 'buscar «cami»: encuentra la rutina de esa creadora');
     t.ok(await p.isVisible('#tnQ'), 'buscar: el campo sigue en pantalla (no se redibuja)');

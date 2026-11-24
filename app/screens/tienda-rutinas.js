@@ -37,7 +37,15 @@ export function paintTiendaBtn(){
 
 const NIVELES = ["Principiante", "Intermedio", "Avanzado"];
 const OBJETIVOS = ["Fuerza", "Hipertrofia", "Glúteos", "Principiantes"];
-const CATS = ["Todas"].concat(OBJETIVOS);
+// Íconos de los objetivos (las tarjetas de «Objetivos» en Explorar).
+const OBJ_SVG = {
+  "Fuerza": '<path d="M6.5 6.5v11M3.5 9v5M17.5 6.5v11M20.5 9v5M6.5 12h11"/>',
+  "Hipertrofia": '<path d="M12 3 3 7.5l9 4.5 9-4.5z"/><path d="m3 12 9 4.5 9-4.5"/><path d="m3 16.5 9 4.5 9-4.5"/>',
+  "Glúteos": '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+  "Principiantes": '<path d="M12 21v-9"/><path d="M12 12c0-4.4 3-7 8-7 0 4.4-3 7-8 7z"/><path d="M12 15c0-3.3-2.3-5.5-6.5-5.5 0 3.3 2.3 5.5 6.5 5.5z"/>'
+};
+const objSvg = o => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + OBJ_SVG[o] + '</svg>';
+const lupaSvg = '<svg class="tn-lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
 const MOTIVOS = [["inapropiada", "Contenido inapropiado"], ["spam", "Spam o publicidad"], ["copiada", "Es copia de otra persona"], ["otro", "Otro motivo"]];
 // Dos manchas de color por portada: es un lugar para la foto del creador.
 const TONOS = [
@@ -115,11 +123,14 @@ function abrirDetalle(id){
 }
 
 // ---- Dibujo ----
+// Tarjeta de la grilla (dos por fila): portada arriba; abajo título, creador, días, nivel, cuántas
+// personas la agregaron y «Gratis» (o lo que se pase en «aparte», como «En revisión»).
 function fila(r, aparte){
-  return '<button class="tn-item" data-action="tienda-ver" data-id="' + r.id + '">' + cover(r) + '</div>' +
-    '<div class="tn-item-body"><div><div class="tn-item-t">' + esc(r.titulo) + '</div>' + creador(r) + '</div>' +
-    '<div class="tn-row"><span class="tn-meta"><span>' + calSvg + r.dias + (r.dias === 1 ? ' día' : ' días') + '</span><span>' + nivelSvg + esc(r.nivel) + '</span></span>' +
-    (aparte || usos(r)) + '</div></div></button>';
+  return '<button class="tn-item tn-card" data-action="tienda-ver" data-id="' + r.id + '">' + cover(r) + '</div>' +
+    '<div class="tn-card-body"><div class="tn-item-t">' + esc(r.titulo) + '</div>' + creador(r) +
+    '<span class="tn-meta"><span>' + calSvg + r.dias + (r.dias === 1 ? ' día' : ' días') + '</span><span>' + nivelSvg + esc(r.nivel) + '</span></span>' +
+    '<div class="tn-row"><span class="tn-meta"><span aria-label="' + r.agregadas + (r.agregadas === 1 ? ' persona' : ' personas') + '">' + peopleSvg + r.agregadas + '</span></span>' +
+    (aparte || '<span class="tn-free">Gratis</span>') + '</div></div></button>';
 }
 function listaHtml(){
   const l = filtradas();
@@ -141,16 +152,17 @@ function inicio(){
   const T = TiendaState;
   const destacada = !T.q && T.cat === "Todas" ? visibles().find(r => r.destacada) : null;
   const explorar = `
-    <input id="tnQ" class="form-input tn-q" type="search" enterkeyhint="search" placeholder="Buscar rutina o creador" value="${esc(T.q)}" data-action="tienda-q" aria-label="Buscar rutina o creador">
-    <div class="tabs tn-cats">${CATS.map(c => '<button class="tab' + (T.cat === c ? ' active' : '') + '" data-action="tienda-cat" data-v="' + c + '">' + c + '</button>').join("")}</div>
+    <div class="tn-q">${lupaSvg}<input id="tnQ" class="form-input" type="search" enterkeyhint="search" placeholder="Buscar rutina o creador" value="${esc(T.q)}" data-action="tienda-q" aria-label="Buscar rutina o creador"></div>
     ${destacada ? `<div class="pgrp">Destacada</div>
       <div class="card tn-feat" role="button" tabindex="0" data-action="tienda-ver" data-id="${destacada.id}">
         ${cover(destacada, "tn-cover-feat")}<span class="tn-tag">Destacada</span></div>
         <div class="tn-feat-body"><div class="tn-feat-t">${esc(destacada.titulo)}</div>${creador(destacada)}
           <div class="tn-meta"><span>${calSvg}${destacada.dias} días</span><span>${nivelSvg}${esc(destacada.nivel)}</span></div>
           <div class="tn-row">${usos(destacada)}<span class="tn-free">Gratis</span></div></div></div>` : ''}
+    <div class="pgrp">Objetivos</div>
+    <div class="tn-objs">${OBJETIVOS.map(o => '<button class="tn-obj' + (T.cat === o ? ' on' : '') + '" aria-pressed="' + (T.cat === o) + '" data-action="tienda-cat" data-v="' + o + '">' + objSvg(o) + '<span>' + o + '</span></button>').join("")}</div>
     <div class="pgrp">${T.q || T.cat !== "Todas" ? "Resultados" : "Rutinas de la comunidad"}</div>
-    <div class="tn-list" id="tnLista">${listaHtml()}</div>
+    <div class="tn-grid" id="tnLista">${listaHtml()}</div>
     ${conCoach() ? '' : `<div class="card tn-cta"><div class="tn-cta-t">¿Entrenás a otros?</div>
       <p>Compartí tu rutina gratis en la Tienda para que más gente entrene con tu método.</p>
       <button class="wk-start" data-action="tienda-publicar">Publicar mi rutina</button></div>`}`;
@@ -164,7 +176,7 @@ function inicio(){
       ${conCoach() ? '<div class="tn-note tn-aviso">Tu rutina la arma ' + quienEntrena() + '. Si usás una de estas, te desvinculás.</div>' : ''}
       ${guardadas}
       ${conCoach() && !pub.length ? '' : `<div class="pgrp">Publicadas por vos</div>
-      ${pub.length ? '<div class="tn-list">' + pub.map(r => fila(r, r.estado === "oculta" ? '<span class="tn-state">En revisión</span>' : usos(r))).join("") + '</div>'
+      ${pub.length ? '<div class="tn-grid">' + pub.map(r => fila(r, r.estado === "oculta" ? '<span class="tn-state">En revisión</span>' : usos(r))).join("") + '</div>'
         : '<div class="empty">Cuando publiques una rutina, la ves acá con cuántas personas la agregaron.</div>'}`}`;
   };
   const cuerpo = T.lista === null ? '<div class="empty">Cargando…</div>'
@@ -352,7 +364,8 @@ document.body.addEventListener("click", e => {
   if (a === "tienda-close") { T.sheet = null; State.view = "entreno"; ir(); return; }
   if (a === "tienda-reintentar") { T.lista = null; T.error = ""; T.mis = null; T.misError = ""; cargar(); cargarMis(); renderApp(); return; }
   if (a === "tienda-tab") { T.tab = el.dataset.v; ir(); return; }
-  if (a === "tienda-cat") { T.cat = el.dataset.v; renderApp(); return; }
+  // Un objetivo filtra; tocar el que ya está elegido vuelve a mostrar todas.
+  if (a === "tienda-cat") { T.cat = T.cat === el.dataset.v ? "Todas" : el.dataset.v; renderApp(); return; }
   if (a === "tienda-ver") { abrirDetalle(el.dataset.id); ir(); return; }
   if (a === "tienda-volver") { T.id = null; T.det = null; T.publicando = false; T.formErr = ""; ir(); return; }
   if (a === "tienda-publicar") { T.publicando = true; T.form = T.form || formVacio(); T.formErr = ""; ir(); return; }
