@@ -45,7 +45,8 @@ const OBJ_SVG = {
   "Principiantes": '<path d="M12 21v-9"/><path d="M12 12c0-4.4 3-7 8-7 0 4.4-3 7-8 7z"/><path d="M12 15c0-3.3-2.3-5.5-6.5-5.5 0 3.3 2.3 5.5 6.5 5.5z"/>'
 };
 const objSvg = o => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + OBJ_SVG[o] + '</svg>';
-const lupaSvg = '<svg class="tn-lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+const chevSvg = '<svg class="tn-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+const lupaSvg ='<svg class="tn-lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
 const MOTIVOS = [["inapropiada", "Contenido inapropiado"], ["spam", "Spam o publicidad"], ["copiada", "Es copia de otra persona"], ["otro", "Otro motivo"]];
 // Dos manchas de color por portada: es un lugar para la foto del creador.
 const TONOS = [
@@ -64,6 +65,7 @@ export const TiendaState = {
   id: null,          // rutina abierta (detalle)
   det: null,         // la rutina abierta, con sus días (null mientras carga)
   detError: "",
+  dia: -1,           // el día abierto en el detalle (-1: ninguno)
   mis: null,         // Mis rutinas (tienda_mis); null = cargando
   misError: "",
   publicando: false, // formulario «Publicar mi rutina»
@@ -117,7 +119,7 @@ function cargarMis(){
 }
 function abrirDetalle(id){
   const T = TiendaState;
-  T.id = id; T.det = null; T.detError = "";
+  T.id = id; T.det = null; T.detError = ""; T.dia = -1;
   detalleRutina(id).then(d => { if (T.id === id) T.det = d; }, e => { if (T.id === id) T.detError = msg(e); })
     .then(() => { if (State.view === "tienda" && T.id === id) renderApp(); });
 }
@@ -195,7 +197,11 @@ function inicio(){
 function detalle(r){
   const T = TiendaState, d = T.det;
   const lista = d && Array.isArray(d.days) ? d.days.filter(x => (x.exercises || []).length) : [];
-  const dia = (x, i) => '<div class="tn-day"><span class="tn-day-n">' + (i + 1) + '</span><div><b>' + esc(x.name) + '</b><small>' + x.exercises.length + (x.exercises.length === 1 ? ' ejercicio' : ' ejercicios') + '</small></div></div>';
+  // Cada día se abre (la flecha gira) y muestra sus ejercicios con cuántas series tiene cada uno.
+  const ej = e => { const n = (e.sets || []).length; return '<li><span>' + esc(e.name) + '</span>' + (n ? '<small>' + n + (n === 1 ? ' serie' : ' series') + '</small>' : '') + '</li>'; };
+  const dia = (x, i) => { const on = T.dia === i;
+    return '<div class="tn-dia' + (on ? ' on' : '') + '"><button class="tn-day" data-action="tienda-dia" data-i="' + i + '" aria-expanded="' + on + '"><span class="tn-day-n">' + (i + 1) + '</span><div><b>' + esc(x.name) + '</b><small>' + x.exercises.length + (x.exercises.length === 1 ? ' ejercicio' : ' ejercicios') + '</small></div>' + chevSvg + '</button>' +
+      (on ? '<ol class="tn-ejs">' + x.exercises.map(ej).join("") + '</ol>' : '') + '</div>'; };
   // Ya guardada: se usa desde acá (o se va a Mis rutinas si la lista todavía no llegó).
   const m = r.agregue && miaDe(r.id);
   const accion = !r.agregue ? '<button class="wk-start" data-action="tienda-agregar" data-id="' + r.id + '">Agregar a mis rutinas</button>'
@@ -366,6 +372,7 @@ document.body.addEventListener("click", e => {
   if (a === "tienda-tab") { T.tab = el.dataset.v; ir(); return; }
   // Un objetivo filtra; tocar el que ya está elegido vuelve a mostrar todas.
   if (a === "tienda-cat") { T.cat = T.cat === el.dataset.v ? "Todas" : el.dataset.v; renderApp(); return; }
+  if (a === "tienda-dia") { const i = Number(el.dataset.i); T.dia = T.dia === i ? -1 : i; renderApp(); return; }
   if (a === "tienda-ver") { abrirDetalle(el.dataset.id); ir(); return; }
   if (a === "tienda-volver") { T.id = null; T.det = null; T.publicando = false; T.formErr = ""; ir(); return; }
   if (a === "tienda-publicar") { T.publicando = true; T.form = T.form || formVacio(); T.formErr = ""; ir(); return; }

@@ -55,8 +55,8 @@ html:not(#_) body:not(#_) .tn-q .form-input { padding-left: 42px; }
 .tn-stars svg { width: 13px; height: 13px; color: var(--gize-warning); }
 
 /* .card trae opacity .45 y scale .90 para el foco de scroll de Entreno (.ex-focused), que acá no se
-   prende: sin esto la destacada y la invitación a publicar se veían apagadas (como .cfg-card). */
-.tn-feat, .tn-cta { opacity: 1; transform: none; }
+   prende: sin esto la destacada, la invitación a publicar y la descripción se veían apagadas (como .cfg-card). */
+.tn-feat, .tn-cta, .tn-desc { opacity: 1; transform: none; }
 
 /* Destacada (.card ya trae el borde RGB) */
 .tn-feat { padding: 0; overflow: hidden; cursor: pointer; margin-bottom: 4px; }
@@ -102,19 +102,28 @@ html:not(#_) body:not(#_) .tn-q .form-input { padding-left: 42px; }
 .tn-stat small { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--txt-2); }
 .tn-desc p { margin-top: 10px; color: var(--txt-2); font-size: var(--text-body); line-height: 1.55; }
 .tn-buy { margin: 4px 2px 10px; }
-.tn-wide { max-width: none; width: 100%; margin-top: 14px; }
+.tn-wide { max-width: none; width: 100%; margin-top: 14px; font-size: 13px; }
 .tn-wide:disabled { opacity: .7; }
 .tn-err { margin: 10px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--gize-danger); }
 .tn-err:empty { display: none; }
 .tn-motivos { flex-direction: column; margin-top: 12px; }
 .tn-days { display: flex; flex-direction: column; gap: 8px; }
-.tn-day { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-md); background: var(--card); border: 1px solid var(--border); }
+/* Cada día: se toca y se abre con sus ejercicios (la flecha gira). */
+.tn-dia { border-radius: var(--r-md); background: var(--card); border: 1px solid var(--border); overflow: hidden; }
+.tn-day { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; text-align: left; color: var(--txt); font: inherit; cursor: pointer; background: none; border: 0; }
+.tn-day:active { background: var(--card-2); }
 .tn-day b { display: block; font-size: var(--text-body); font-weight: 600; }
 .tn-day small { font-size: var(--text-meta); color: var(--txt-2); }
-.tn-day svg { width: 16px; height: 16px; margin-left: auto; color: var(--txt-2); flex: none; }
+.tn-day svg { width: 16px; height: 16px; margin-left: auto; color: var(--txt-2); flex: none; transition: transform .2s ease; }
+.tn-dia.on .tn-chev { transform: rotate(90deg); }
+.tn-ejs { list-style: none; margin: 0; padding: 2px 14px 12px 56px; display: flex; flex-direction: column; gap: 8px; }
+.tn-ejs li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: var(--text-meta); }
+.tn-ejs small { flex: none; color: var(--txt-2); }
 .tn-day.locked { opacity: .6; }
 .tn-day-n { width: 30px; height: 30px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
-  border: 1.5px solid transparent; background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box, var(--gize-rgb-ring) border-box; }
+  border: 1.5px solid transparent; background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box,
+    conic-gradient(var(--gize-r1), var(--gize-r2), var(--gize-r3), var(--gize-r4), var(--gize-r1)) border-box; }
+:where(html.sin-neon) .tn-day-n { background: linear-gradient(var(--gize-surface), var(--gize-surface)) padding-box, linear-gradient(rgba(255,255,255,.34), rgba(255,255,255,.34)) border-box; }
 .tn-foot { margin: 10px 2px 0; }
 
 /* Publicar */

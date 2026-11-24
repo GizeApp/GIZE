@@ -158,6 +158,15 @@ export default async function ({ base: url, t }){
     t.ok(/Fuerza Base/.test(await text(p, '#view .form-title')), 'detalle: título');
     t.eq(await p.$$eval('.tn-day', l => l.length), 3, 'detalle: lista los 3 días');
     t.ok(/Mati Quiroga/.test(await text(p, '.tn-hero-foot')), 'detalle: el creador');
+    t.eq(await p.$eval('.tn-desc', e => getComputedStyle(e).opacity), '1', 'detalle: la descripción se ve a pleno');
+    // Tocar un día lo abre con sus ejercicios; tocarlo otra vez lo cierra.
+    t.ok(!(await p.$('.tn-ejs')), 'detalle: los días arrancan cerrados');
+    await p.click('[data-action="tienda-dia"][data-i="2"]'); await wait(200);
+    t.eq(await p.$$eval('.tn-ejs li span', l => l.map(e => e.textContent)), ['Prensa 45', 'Jalón al pecho', 'Curl con barra Z'], 'detalle: el día abierto muestra sus ejercicios');
+    t.ok(/2 series/.test(await text(p, '.tn-ejs')), 'detalle: con cuántas series tiene cada uno');
+    t.eq(await p.getAttribute('[data-action="tienda-dia"][data-i="2"]', 'aria-expanded'), 'true', 'detalle: el día abierto lo dice');
+    await p.click('[data-action="tienda-dia"][data-i="2"]'); await wait(200);
+    t.ok(!(await p.$('.tn-ejs')), 'detalle: tocarlo otra vez lo cierra');
     await p.click('[data-action="tienda-agregar"]'); await wait(300);
     t.ok(/Se guarda en Mis rutinas.*Tu rutina de hoy no cambia/.test(await text(p, '#sheetHost')), 'agregar: avisa que se guarda en Mis rutinas sin tocar la de hoy');
     t.ok(!/desvincul/i.test(await text(p, '#sheetHost')), 'agregar sin coach: no habla de desvincularse');
