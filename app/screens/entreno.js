@@ -453,7 +453,7 @@ export function renderEntreno(){
     ${renderDayNotes(d)}
     ${d.exercises.length ? '<button class="save-session" data-action="save-session">'+checkSvg+' Guardar entreno de hoy</button>' : ''}
     ${routineLocked() ? '' : '<button class="load-def" data-action="open-routines">'+resetSvg+' Ver rutinas armadas</button>'}
-    ${routineLocked() ? '' : tiendaEntrada()}
+    ${tiendaEntrada()}
     <p class="foot" id="syncFoot">${syncFootText()}</p>`;
 }
 

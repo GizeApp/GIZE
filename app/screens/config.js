@@ -55,6 +55,17 @@ const gymFicha = () => (rolGym() === "socio" && Gym.info && Gym.info.ficha) || n
 // El profe del socio es del gimnasio (no un coach de afuera): «Dejar a tu profe» lo deja sin profe
 // pero socio (el trigger profiles_gym_sync, supabase/gimnasios-vinculo.sql).
 const profeDelGym = () => { const f = gymFicha(); return !!(f && f.profe && !f.coach_externo); };
+// Dejar al coach (o al profe del gimnasio) y volver a leer la cuenta: la rutina queda como propia (sin
+// poder publicar la que armó el coach, core/supabase.js → marcarRutinaDeCoach). La usan «Desvincularte
+// de tu coach» y la Tienda, al usar una rutina de Mis rutinas (screens/tienda-rutinas.js).
+// Para el texto del aviso: el nombre de quien deja («tu profe» o «tu coach»).
+export const quienEntrena = () => profeDelGym() ? "tu profe" : "tu coach";
+export async function dejarCoach(){
+  const r = await State.sb.from("profiles").update({ coach_id: null }).eq("id", State.cloudUser.id);
+  if (r.error) throw r.error;
+  await loadCloud();
+  if (esSocioGym()) await releerGym();
+}
 function ddmm(d){ const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ""); return m ? m[3] + "/" + m[2] : ""; }
 function gymFotoHtml(f){
   // La que usa el gimnasio (aprobada); si todavía no hay, la que propuso. Proponer otra no la cambia.
@@ -435,10 +446,7 @@ document.body.addEventListener("click", async function (e) {
     const prevHtml = unlinkBtn.innerHTML;
     unlinkBtn.disabled = true; unlinkBtn.innerHTML = gymProfe ? "Dejando…" : "Desvinculando…";
     try {
-      const r = await State.sb.from("profiles").update({ coach_id: null }).eq("id", State.cloudUser.id);
-      if (r.error) throw r.error;
-      await loadCloud();
-      if (esSocioGym()) await releerGym();
+      await dejarCoach();
       renderApp();
     } catch (err) {
       alert("No se pudo desvincular: " + ((err && err.message) || err));

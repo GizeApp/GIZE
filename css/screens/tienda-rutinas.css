@@ -105,6 +105,10 @@
 .tn-sheet-p { color: var(--txt-2); font-size: var(--text-body); line-height: 1.5; margin-bottom: 18px; }
 .tn-sheet-p b { color: var(--txt); }
 
-.tn-soon { margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--gize-success); border: 1px solid color-mix(in srgb, var(--gize-success) 45%, transparent); }
-.tn-banner { display: flex; flex-direction: column; gap: 2px; margin: 0 0 12px; padding: 10px 14px; border-radius: var(--r-md); background: color-mix(in srgb, var(--gize-success) 10%, transparent); border: 1px solid color-mix(in srgb, var(--gize-success) 35%, transparent); font-size: 12.5px; line-height: 1.4; color: var(--txt-2); }
-.tn-banner b { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--gize-success); }
+/* Mis rutinas: «Borrar» y «Usar» en cada guardada, y el aviso para quien tiene coach. */
+.tn-mia-btns { display: flex; gap: 8px; }
+.tn-mia-btns .ctrl { flex: 1; min-height: 36px; padding: 0 12px; font-size: 13px; }
+.tn-aviso { margin: 0 0 12px; }
+.tn-sheet .tn-aviso { margin: -6px 0 18px; }
+.tn-sheet .ctrl.tn-peligro { background: color-mix(in srgb, var(--gize-danger) 76%, #000); color: #fff; border: 1px solid color-mix(in srgb, var(--gize-danger) 76%, #000); }
+.tn-ajena { text-align: left; }
