@@ -70,7 +70,7 @@ import { EntrenoState, REST_DEFAULT, day, diasEnPantalla, expandedOverride, exGr
 import { asegurarCiclo, cicloDe, diasDeSemana, fijarCiclo, lunesDe, semanaActual, semanaDe, semanasDe } from './core/ciclo.js';
 
 import { HabitosState, addHabit, checkDaily, forgetHabitAlarm, habitAlarmDay, openHabitAlarm, paintHabitAlarmSheet, renderHabitAlarmSheet, renderHabitos, saveHabitAlarm } from './screens/habitos.js';
-import { TiendaState, renderTienda, renderTiendaSheet } from './screens/tienda-rutinas.js';
+import { TiendaState, paintTiendaBtn, renderTienda, renderTiendaSheet } from './screens/tienda-rutinas.js';
 import { alarmsSupported, askAlarmPermission, initHabitAlarms, syncHabitAlarms } from './ui/habitnotif.js';
 
 import { ProgresoState, allSetsDone, exOccurrence, lastKgsUseful, lastPlan, lastSessionFor, renderProgreso } from './screens/progreso.js';
@@ -155,7 +155,7 @@ export function renderApp(){
   // Con la ventana de «¡Entreno terminado!» abierta todavía no: «Seguir entrenando» tiene que
   // encontrar las series del entreno.
   if((!State.cloudProfile || routineLocked()) && !CheckinState.fbSession && coachRoutineDue() && applyCoachRoutine()) save();
-  markVisit(); paintStreak(); paintChatBtn(); // racha: hoy entró · chat con el coach
+  markVisit(); paintStreak(); paintChatBtn(); paintTiendaBtn(); // racha: hoy entró · chat con el coach · Tienda
   document.getElementById("nav-entreno").classList.toggle("active", State.view==="entreno");
   document.getElementById("nav-habitos").classList.toggle("active", State.view==="habitos");
   document.getElementById("nav-cardio").classList.toggle("active", State.view==="cardio");

@@ -1,8 +1,8 @@
 // Tienda de rutinas (app/screens/tienda-rutinas.js, app/core/tienda-datos.js, supabase/tienda-rutinas.sql).
 // Con una base simulada que se comporta como las funciones de la Tienda:
-//   · Interruptor: Entreno muestra «Tienda de rutinas» solo si la base dice que está prendida en esta
+//   · Interruptor: el botón de arriba (al lado de la racha) se ve solo si la base dice que está prendida en esta
 //     plataforma (web / Android / iPhone); apagada o sin la función, no hay botón.
-//   · Se entra desde Entreno, se filtra y se busca, se abre el detalle (con sus días). «Agregar a mis
+//   · Se entra desde ese botón, se filtra y se busca, se abre el detalle (con sus días). «Agregar a mis
 //     rutinas» la guarda en Mis rutinas sin tocar Entreno, y la base suma 1. «Usar» (sin coach) la pone en
 //     Entreno sin preguntar, sin kilos ni notas y marcada «origen: tienda»; la rutina propia que tenía
 //     queda como «Tu rutina anterior». Borrar la saca de Mis rutinas.
@@ -105,19 +105,22 @@ async function abrir(url, { b = base(), days = MIA, init } = {}){
 }
 const cuantas = p => p.$$eval('#tnLista .tn-item', l => l.length);
 const titulos = p => p.$$eval('#tnLista .tn-item-t', l => l.map(e => e.textContent));
-const entrar = async p => { await p.click('[data-action="tienda-open"]'); await wait(500); };
+// Se entra por el botón de la barra de arriba, al lado de la racha. Abajo en Entreno ya no hay botón.
+const ENTRENO = '.load-def[data-action="tienda-open"]', ARRIBA = '#tiendaBtn';
+const entrar = async p => { await p.click(ARRIBA); await wait(500); };
 
 export default async function ({ base: url, t }){
   // a) Apagada (o sin la función en la base): Entreno no muestra el botón.
   {
     const b = base({ cfg: { web: false, android: false, ios: false } });
     const pg = await abrir(url, { b }), p = pg.p;
-    t.ok(!(await p.$('[data-action="tienda-open"]')), 'apagada: Entreno no muestra la Tienda');
+    t.ok(!(await p.$(ENTRENO)), 'apagada: Entreno no muestra la Tienda');
+    t.ok(!(await p.isVisible(ARRIBA)), 'apagada: la barra de arriba no muestra la Tienda');
     t.eq(pg.errs, [], 'apagada: errores de la página');
     await pg.close();
     const sin = base(); sin.handlers['/rpc/tienda_config'] = (r, J) => J({ code: 'PGRST202', message: 'Could not find the function' }, 404);
     const pg2 = await abrir(url, { b: sin });
-    t.ok(!(await pg2.p.$('[data-action="tienda-open"]')), 'sin la función en la base: Entreno no muestra la Tienda');
+    t.ok(!(await pg2.p.$(ENTRENO)) && !(await pg2.p.isVisible(ARRIBA)), 'sin la función en la base: no se ve la Tienda');
     t.eq(pg2.errs, [], 'sin la función: errores de la página');
     await pg2.close();
   }
@@ -125,17 +128,25 @@ export default async function ({ base: url, t }){
   // b) Prendida en la web: entrar, filtrar, buscar, abrir una y agregarla.
   {
     const pg = await abrir(url), p = pg.p, b = pg.b;
-    t.ok(await p.isVisible('[data-action="tienda-open"]'), 'prendida: Entreno muestra «Tienda de rutinas»');
-    t.ok(!/muy pronto/i.test(await text(p, '[data-action="tienda-open"]')), 'el botón ya no lleva el cartel «Muy pronto»');
-    await entrar(p);
+    t.ok(!(await p.$(ENTRENO)), 'Entreno ya no tiene el botón de abajo: se entra por el de arriba');
+    t.ok(await p.isVisible(ARRIBA), 'prendida: la barra de arriba muestra el botón de la Tienda');
+    t.eq(await p.getAttribute(ARRIBA, 'aria-label'), 'Tienda de rutinas', 'el botón de arriba dice qué es');
+    t.ok(!/muy pronto/i.test(await p.getAttribute(ARRIBA, 'aria-label')), 'el botón no lleva el cartel «Muy pronto»');
+    await p.click(ARRIBA); await wait(500);
+    t.ok(await p.$eval(ARRIBA, e => e.classList.contains('on')), 'el botón de arriba entra a la Tienda y queda marcado');
     t.ok(/Tienda/.test(await text(p, '#view .form-title')), 'entra a la Tienda');
     t.eq(await cuantas(p), 2, 'lista las rutinas activas (la oculta ajena no se ve)');
     t.ok(!/\$/.test(await text(p, '#view')), 'sin precios');
     t.ok(!/muy pronto/i.test(await text(p, '#view')) && !(await p.$('.tn-banner')), 'la Tienda ya no muestra el cartel «Muy pronto»');
     t.ok(/destacada/i.test(await text(p, '#view')), 'muestra la destacada');
+    t.eq(await p.$$eval('.tn-feat, .tn-cta', l => l.map(e => getComputedStyle(e).opacity)), ['1', '1'], 'la destacada y «¿Entrenás a otros?» se ven a pleno (no atenuadas como el foco de Entreno)');
     await p.click('[data-action="tienda-cat"][data-v="Glúteos"]'); await wait(200);
     t.eq(await titulos(p), ['Glúteos en casa'], 'filtro por objetivo');
-    await p.click('[data-action="tienda-cat"][data-v="Todas"]'); await wait(200);
+    t.eq(await p.getAttribute('[data-action="tienda-cat"][data-v="Glúteos"]', 'aria-pressed'), 'true', 'el objetivo elegido queda marcado');
+    // Sin «Todas»: tocar otra vez el objetivo elegido lo saca.
+    await p.click('[data-action="tienda-cat"][data-v="Glúteos"]'); await wait(200);
+    t.eq(await cuantas(p), 2, 'tocar otra vez el objetivo vuelve a mostrar todas');
+    t.eq(await p.$$eval('#tnLista .tn-free', l => l.length), 2, 'cada tarjeta de la grilla dice «Gratis»');
     await p.fill('#tnQ', 'cami'); await wait(200);
     t.eq(await titulos(p), ['Glúteos en casa'], 'buscar «cami»: encuentra la rutina de esa creadora');
     t.ok(await p.isVisible('#tnQ'), 'buscar: el campo sigue en pantalla (no se redibuja)');
@@ -147,6 +158,15 @@ export default async function ({ base: url, t }){
     t.ok(/Fuerza Base/.test(await text(p, '#view .form-title')), 'detalle: título');
     t.eq(await p.$$eval('.tn-day', l => l.length), 3, 'detalle: lista los 3 días');
     t.ok(/Mati Quiroga/.test(await text(p, '.tn-hero-foot')), 'detalle: el creador');
+    t.eq(await p.$eval('.tn-desc', e => getComputedStyle(e).opacity), '1', 'detalle: la descripción se ve a pleno');
+    // Tocar un día lo abre con sus ejercicios; tocarlo otra vez lo cierra.
+    t.ok(!(await p.$('.tn-ejs')), 'detalle: los días arrancan cerrados');
+    await p.click('[data-action="tienda-dia"][data-i="2"]'); await wait(200);
+    t.eq(await p.$$eval('.tn-ejs li span', l => l.map(e => e.textContent)), ['Prensa 45', 'Jalón al pecho', 'Curl con barra Z'], 'detalle: el día abierto muestra sus ejercicios');
+    t.ok(/2 series/.test(await text(p, '.tn-ejs')), 'detalle: con cuántas series tiene cada uno');
+    t.eq(await p.getAttribute('[data-action="tienda-dia"][data-i="2"]', 'aria-expanded'), 'true', 'detalle: el día abierto lo dice');
+    await p.click('[data-action="tienda-dia"][data-i="2"]'); await wait(200);
+    t.ok(!(await p.$('.tn-ejs')), 'detalle: tocarlo otra vez lo cierra');
     await p.click('[data-action="tienda-agregar"]'); await wait(300);
     t.ok(/Se guarda en Mis rutinas.*Tu rutina de hoy no cambia/.test(await text(p, '#sheetHost')), 'agregar: avisa que se guarda en Mis rutinas sin tocar la de hoy');
     t.ok(!/desvincul/i.test(await text(p, '#sheetHost')), 'agregar sin coach: no habla de desvincularse');
@@ -210,7 +230,7 @@ export default async function ({ base: url, t }){
   // d) Apps de iPhone y Android: con su interruptor prendido se ve igual, sin precios; apagado, nada.
   for (const plat of ['ios', 'android']) {
     const apagada = await abrir(url, { init: NATIVA(plat) });
-    t.ok(!(await apagada.p.$('[data-action="tienda-open"]')), plat + ': apagada (como nace): no hay botón');
+    t.ok(!(await apagada.p.$(ENTRENO)) && !(await apagada.p.isVisible(ARRIBA)), plat + ': apagada (como nace): no hay botón');
     await apagada.close();
     const pg = await abrir(url, { b: base({ cfg: { web: false, android: true, ios: true } }), init: NATIVA(plat) }), p = pg.p;
     await entrar(p);
@@ -325,7 +345,7 @@ export default async function ({ base: url, t }){
     const COACH = [dia('c1', 'Del coach', ['Remo con barra'])];
     const b = base({ conPerfil: true, coach: CON_COACH.coach_id, nube: COACH });
     const pg = await abrir(url, { b, days: COACH }), p = pg.p;
-    t.ok(await p.isVisible('[data-action="tienda-open"]'), 'con coach: Entreno muestra la Tienda');
+    t.ok(await p.isVisible(ARRIBA) && !(await p.$(ENTRENO)), 'con coach: la barra de arriba muestra la Tienda (abajo no hay botón)');
     await entrar(p);
     t.eq(await cuantas(p), 2, 'con coach: ve las rutinas');
     t.ok(!(await p.$('.tn-cta [data-action="tienda-publicar"]')), 'con coach: no ofrece publicar (su rutina es del coach)');
