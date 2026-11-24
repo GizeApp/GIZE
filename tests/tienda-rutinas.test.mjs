@@ -139,6 +139,7 @@ export default async function ({ base: url, t }){
     t.ok(!/\$/.test(await text(p, '#view')), 'sin precios');
     t.ok(!/muy pronto/i.test(await text(p, '#view')) && !(await p.$('.tn-banner')), 'la Tienda ya no muestra el cartel «Muy pronto»');
     t.ok(/destacada/i.test(await text(p, '#view')), 'muestra la destacada');
+    t.eq(await p.$$eval('.tn-feat, .tn-cta', l => l.map(e => getComputedStyle(e).opacity)), ['1', '1'], 'la destacada y «¿Entrenás a otros?» se ven a pleno (no atenuadas como el foco de Entreno)');
     await p.click('[data-action="tienda-cat"][data-v="Glúteos"]'); await wait(200);
     t.eq(await titulos(p), ['Glúteos en casa'], 'filtro por objetivo');
     t.eq(await p.getAttribute('[data-action="tienda-cat"][data-v="Glúteos"]', 'aria-pressed'), 'true', 'el objetivo elegido queda marcado');

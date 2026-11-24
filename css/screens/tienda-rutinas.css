@@ -54,6 +54,9 @@ html:not(#_) body:not(#_) .tn-q .form-input { padding-left: 42px; }
 .tn-stars { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-meta); font-weight: 600; color: var(--txt); }
 .tn-stars svg { width: 13px; height: 13px; color: var(--gize-warning); }
 
+/* .card trae opacity .45 y scale .90 para el foco de scroll de Entreno (.ex-focused), que acá no se
+   prende: sin esto la destacada y la invitación a publicar se veían apagadas (como .cfg-card). */
+.tn-feat, .tn-cta { opacity: 1; transform: none; }
 
 /* Destacada (.card ya trae el borde RGB) */
 .tn-feat { padding: 0; overflow: hidden; cursor: pointer; margin-bottom: 4px; }
