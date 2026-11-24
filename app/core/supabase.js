@@ -629,6 +629,9 @@ export function applyCoachRoutine(){
     return true;
   }
   const clone = d => JSON.parse(JSON.stringify(d));
+  // La rutina que se ve es la del coach: si el alumno se desvincula, sus días quedan marcados como
+  // del coach (leaveCoachRoutine) y no los puede publicar en la Tienda como suyos.
+  state.rutinaDeCoach = true;
   if(mode !== "regular" && prev === "regular") state.preDeloadDays = state.days;
   if(!dl && prev !== "regular" && Array.isArray(state.preDeloadDays)){
     state.days = mergeLocalProgress(clone(regular), state.preDeloadDays);
@@ -668,6 +671,16 @@ function leaveCoachRoutine(){
     ensureDays();
   }
   state.routineMode = "regular"; state.regularDays = null; state.preDeloadDays = null; delete state.routinePending;
+}
+// Ya sin coach, la rutina que le armó el coach sigue siendo del coach: se marca («origen») para que
+// no se publique en la Tienda como propia (core/tienda-datos.js). Los días que agregue después no
+// llevan la marca. Devuelve true si marcó algo (hay que subir la rutina).
+function marcarRutinaDeCoach(){
+  if(!state.rutinaDeCoach) return false;
+  delete state.rutinaDeCoach;
+  let n=0;
+  (state.days||[]).forEach(d=>{ if(d && typeof d==="object" && !d.origen && (d.exercises||[]).length){ d.origen="coach"; n++; } });
+  return n>0;
 }
 // El plan de su coach venció hace más de 4 días y la base lo pasó al sistema común
 // (supabase/coach-vencido.sql): se le avisa una vez (por celular), solo si pasó hace poco.
@@ -1226,6 +1239,7 @@ export async function loadCloud(){
     } else if(!routineLocked()) {
       if(await upRoutine()) markRoutineSynced(state.days);
     }
+    if(!isCoach && !routineLocked() && marcarRutinaDeCoach()){ try{ if(await upRoutine()) markRoutineSynced(state.days); }catch(e){ console.error("rutina",e); } }
     State.cloudReady=true;
     // La rutina de la nube puede traer los días de la semana (los puso el coach o vienen de otro
     // celular): Entreno pasa al de hoy con las mismas reglas que al abrir (core/state.js).

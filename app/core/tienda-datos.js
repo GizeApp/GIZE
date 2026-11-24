@@ -1,5 +1,7 @@
 // Tienda de rutinas: lo que habla con la base (supabase/tienda-rutinas.sql). Todo gratis: no hay
 // precios ni compras, así que vale igual en la web y en las apps de las tiendas.
+// Los días que llegan de la Tienda o del coach se marcan con «origen» («tienda» o «coach»): así la app
+// y la base saben que no son de la persona y no se pueden publicar como suyos.
 // El interruptor (app_config 'tienda', lo cambia el admin) dice en qué plataforma se ve: { web, android,
 // ios }. Nace con la web prendida y las apps apagadas.
 import { State } from './state.js';
@@ -52,9 +54,22 @@ export async function publicarRutina(f, days){
   return rpc("tienda_publicar", { p_titulo: f.nombre.trim(), p_descripcion: f.desc.trim(), p_nivel: f.nivel, p_objetivo: f.obj, p_days: days });
 }
 export async function sacarRutina(id){ await rpc("tienda_despublicar", { p_id: id }); }
-export async function agregarRutina(id){
-  const d = await rpc("tienda_agregar", { p_id: id });
-  if (Array.isArray(d)) migrateNames(d);
+export async function denunciarRutina(id, motivo){ await rpc("tienda_reportar", { p_id: id, p_motivo: motivo }); }
+
+// ---- Mis rutinas (tienda_mis_rutinas) ----
+// Agregar la guarda en Mis rutinas (no toca Entreno) y devuelve cómo quedó ahí.
+export async function agregarRutina(id){ return rpc("tienda_agregar", { p_id: id }); }
+export async function misRutinas(){
+  const d = await rpc("tienda_mis");
+  return Array.isArray(d) ? d : [];
+}
+// Los días de una de Mis rutinas, para ponerla en Entreno.
+export async function usarRutina(id){
+  const d = await rpc("tienda_usar", { p_id: id });
+  if (!d || !Array.isArray(d.days)) throw new Error("Esa rutina ya no está en Mis rutinas.");
+  migrateNames(d.days);
   return d;
 }
-export async function denunciarRutina(id, motivo){ await rpc("tienda_reportar", { p_id: id, p_motivo: motivo }); }
+export async function borrarMia(id){ await rpc("tienda_mis_borrar", { p_id: id }); }
+// «Tu rutina anterior»: la base no guarda la que vino del coach o de la Tienda, ni una vacía.
+export async function guardarAnterior(days){ return rpc("tienda_guardar_anterior", { p_days: days }); }
