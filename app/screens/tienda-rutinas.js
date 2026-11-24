@@ -1,9 +1,9 @@
 // Tienda de rutinas: rutinas armadas por la gente (creadores, coaches), para guardar en Mis rutinas y
-// para publicar la tuya. Se entra desde Entreno → «Tienda de rutinas» (State.view === "tienda").
+// para publicar la tuya. Se entra con el botón de la bolsa, arriba al lado de la racha (State.view === "tienda").
 //
 // Todo sale de la base (supabase/tienda-rutinas.sql, core/tienda-datos.js) y es gratis: no hay precios
 // ni compras, así que vale igual en la web y en las apps de iPhone y Android (AGENTS.md: ninguna regla
-// de las tiendas se toca). El botón de Entreno aparece si el admin la prendió para esta plataforma
+// de las tiendas se toca). El botón de arriba aparece si el admin la prendió para esta plataforma
 // (app_config 'tienda'), para todos: también para quien tiene coach.
 //   · «Agregar a mis rutinas» la guarda en Mis rutinas (pestaña de la Tienda), sin tocar Entreno.
 //   · «Usar» (en Mis rutinas) la pone en Entreno, sin kilos ni notas. Sin coach, al toque, y la rutina
@@ -23,18 +23,12 @@ import { renderApp } from '../main.js';
 import { routineLocked } from './entreno.js';
 import { dejarCoach, quienEntrena } from './config.js';
 
-const bagSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
 const calSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
 const nivelSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 20v-5M12 20V10M18 20V4"/></svg>';
 const peopleSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>';
 const verifSvg = '<svg class="tn-verif" viewBox="0 0 24 24" aria-label="Creador verificado"><path fill="currentColor" d="M12 1l2.6 2.1 3.3-.3 1 3.2 2.8 1.8-1 3.2 1 3.2-2.8 1.8-1 3.2-3.3-.3L12 23l-2.6-2.1-3.3.3-1-3.2L2.3 16l1-3.2-1-3.2 2.8-1.8 1-3.2 3.3.3z"/><path d="M8 12l3 3 5-6" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-// Entrada desde Entreno (debajo de «Ver rutinas armadas»). Vacía si la tienda está apagada acá.
-export function tiendaEntrada(){
-  return tiendaActiva(renderApp) ? '<button class="load-def" data-action="tienda-open">' + bagSvg + ' Tienda de rutinas</button>' : '';
-}
-
-// Botón de la barra de arriba, al lado de la racha (#tiendaBtn): se ve donde se ve la Tienda.
+// La entrada: el botón de la barra de arriba, al lado de la racha (#tiendaBtn): se ve donde se ve la Tienda.
 export function paintTiendaBtn(){
   const b = document.getElementById("tiendaBtn"); if (!b) return;
   b.hidden = !tiendaActiva(renderApp);

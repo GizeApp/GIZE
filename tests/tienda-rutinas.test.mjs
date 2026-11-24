@@ -1,8 +1,8 @@
 // Tienda de rutinas (app/screens/tienda-rutinas.js, app/core/tienda-datos.js, supabase/tienda-rutinas.sql).
 // Con una base simulada que se comporta como las funciones de la Tienda:
-//   · Interruptor: Entreno muestra «Tienda de rutinas» solo si la base dice que está prendida en esta
+//   · Interruptor: el botón de arriba (al lado de la racha) se ve solo si la base dice que está prendida en esta
 //     plataforma (web / Android / iPhone); apagada o sin la función, no hay botón.
-//   · Se entra desde Entreno, se filtra y se busca, se abre el detalle (con sus días). «Agregar a mis
+//   · Se entra desde ese botón, se filtra y se busca, se abre el detalle (con sus días). «Agregar a mis
 //     rutinas» la guarda en Mis rutinas sin tocar Entreno, y la base suma 1. «Usar» (sin coach) la pone en
 //     Entreno sin preguntar, sin kilos ni notas y marcada «origen: tienda»; la rutina propia que tenía
 //     queda como «Tu rutina anterior». Borrar la saca de Mis rutinas.
@@ -105,9 +105,9 @@ async function abrir(url, { b = base(), days = MIA, init } = {}){
 }
 const cuantas = p => p.$$eval('#tnLista .tn-item', l => l.length);
 const titulos = p => p.$$eval('#tnLista .tn-item-t', l => l.map(e => e.textContent));
-// Dos entradas: el botón de Entreno y el de la barra de arriba, al lado de la racha.
+// Se entra por el botón de la barra de arriba, al lado de la racha. Abajo en Entreno ya no hay botón.
 const ENTRENO = '.load-def[data-action="tienda-open"]', ARRIBA = '#tiendaBtn';
-const entrar = async p => { await p.click(ENTRENO); await wait(500); };
+const entrar = async p => { await p.click(ARRIBA); await wait(500); };
 
 export default async function ({ base: url, t }){
   // a) Apagada (o sin la función en la base): Entreno no muestra el botón.
@@ -128,10 +128,10 @@ export default async function ({ base: url, t }){
   // b) Prendida en la web: entrar, filtrar, buscar, abrir una y agregarla.
   {
     const pg = await abrir(url), p = pg.p, b = pg.b;
-    t.ok(await p.isVisible(ENTRENO), 'prendida: Entreno muestra «Tienda de rutinas»');
+    t.ok(!(await p.$(ENTRENO)), 'Entreno ya no tiene el botón de abajo: se entra por el de arriba');
     t.ok(await p.isVisible(ARRIBA), 'prendida: la barra de arriba muestra el botón de la Tienda');
     t.eq(await p.getAttribute(ARRIBA, 'aria-label'), 'Tienda de rutinas', 'el botón de arriba dice qué es');
-    t.ok(!/muy pronto/i.test(await text(p, ENTRENO)), 'el botón ya no lleva el cartel «Muy pronto»');
+    t.ok(!/muy pronto/i.test(await p.getAttribute(ARRIBA, 'aria-label')), 'el botón no lleva el cartel «Muy pronto»');
     await p.click(ARRIBA); await wait(500);
     t.ok(await p.$eval(ARRIBA, e => e.classList.contains('on')), 'el botón de arriba entra a la Tienda y queda marcado');
     t.ok(/Tienda/.test(await text(p, '#view .form-title')), 'entra a la Tienda');
@@ -331,7 +331,7 @@ export default async function ({ base: url, t }){
     const COACH = [dia('c1', 'Del coach', ['Remo con barra'])];
     const b = base({ conPerfil: true, coach: CON_COACH.coach_id, nube: COACH });
     const pg = await abrir(url, { b, days: COACH }), p = pg.p;
-    t.ok(await p.isVisible(ENTRENO) && await p.isVisible(ARRIBA), 'con coach: Entreno y la barra de arriba muestran la Tienda');
+    t.ok(await p.isVisible(ARRIBA) && !(await p.$(ENTRENO)), 'con coach: la barra de arriba muestra la Tienda (abajo no hay botón)');
     await entrar(p);
     t.eq(await cuantas(p), 2, 'con coach: ve las rutinas');
     t.ok(!(await p.$('.tn-cta [data-action="tienda-publicar"]')), 'con coach: no ofrece publicar (su rutina es del coach)');
