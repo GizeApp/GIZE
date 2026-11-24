@@ -34,6 +34,13 @@ export function tiendaEntrada(){
   return tiendaActiva(renderApp) ? '<button class="load-def" data-action="tienda-open">' + bagSvg + ' Tienda de rutinas</button>' : '';
 }
 
+// Botón de la barra de arriba, al lado de la racha (#tiendaBtn): se ve donde se ve la Tienda.
+export function paintTiendaBtn(){
+  const b = document.getElementById("tiendaBtn"); if (!b) return;
+  b.hidden = !tiendaActiva(renderApp);
+  b.classList.toggle("on", State.view === "tienda");
+}
+
 const NIVELES = ["Principiante", "Intermedio", "Avanzado"];
 const OBJETIVOS = ["Fuerza", "Hipertrofia", "Glúteos", "Principiantes"];
 const CATS = ["Todas"].concat(OBJETIVOS);

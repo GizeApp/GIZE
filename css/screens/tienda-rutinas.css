@@ -4,6 +4,10 @@
    .wk-start (el botón con anillo: uno por pantalla), .ctrl y .sheet. Acá van solo las piezas propias:
    portadas, filas de lista y estadísticas. Todo con los tokens de la marca. */
 
+/* Botón de la barra de arriba (al lado de la racha): se ve como el del chat (.chat-btn, css/ui/chat.css).
+   Adentro de la Tienda queda un poco más encendido. */
+.tienda-btn.on { background: color-mix(in srgb, var(--gize-r2) 24%, var(--gize-surface)); }
+
 .tn-seg { flex-wrap: nowrap; margin-bottom: 14px; }
 .tn-seg button { flex: 1; }
 .tn-q { margin-bottom: 10px; }
